@@ -203,6 +203,24 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Deduplicating and Finding Matches {#lazy-deduplicating-and-finding}
+
+`unique` and `uniqueStrict` use typed equality. `uniqueBy` deduplicates by the value your callback returns. They retain the first occurrence and its key. `contains` and `firstOrFail` stop at the first match. `hasSole` and `hasMany` need at most two matches. `sole` materializes those first two matches by key before checking that one value remains. Use the `Where` forms to supply a predicate. Source errors encountered before a decision are returned.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 10), ("b", 11), ("c", 21)]);
+    let distinct = readings.clone().uniqueBy(|value, _| value / 10);
+    assert_eq!(distinct.collect()?.toJson()?, r#"{"a":10,"c":21}"#);
+    assert!(readings.contains(&11)?);
+    assert!(readings.hasSoleWhere(|value, _| *value > 20)?);
+    assert_eq!(readings.firstOrFailWhere(|value, _| *value > 10)?, 11);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

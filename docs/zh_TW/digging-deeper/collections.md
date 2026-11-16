@@ -203,6 +203,24 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 去重與尋找符合項目 {#lazy-deduplicating-and-finding}
+
+`unique` 和 `uniqueStrict` 使用型別化相等比較。`uniqueBy` 依回呼傳回的值去重。這些方法保留第一次出現的項目及其原始鍵。`contains` 和 `firstOrFail` 在第一次符合時停止。`hasSole` 和 `hasMany` 最多讀取兩個符合項目。`sole` 先依鍵實體化前兩個符合項目，再檢查是否只剩一個值。用帶 `Where` 的方法傳入述詞。得出結果前遇到的來源錯誤會原樣傳回。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 10), ("b", 11), ("c", 21)]);
+    let distinct = readings.clone().uniqueBy(|value, _| value / 10);
+    assert_eq!(distinct.collect()?.toJson()?, r#"{"a":10,"c":21}"#);
+    assert!(readings.contains(&11)?);
+    assert!(readings.hasSoleWhere(|value, _| *value > 20)?);
+    assert_eq!(readings.firstOrFailWhere(|value, _| *value > 10)?, 11);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

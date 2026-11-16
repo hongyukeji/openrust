@@ -557,3 +557,93 @@ fn lazy_pairing_propagates_source_errors_without_pulling_later_columns() {
     ));
     assert_eq!(reads.get(), 2);
 }
+
+#[test]
+fn lazy_unique_keeps_first_keys_and_restarts_each_traversal() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 10), ("b", 11), ("c", 21), ("d", 10)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let unique = source.clone().uniqueBy(|value, _| value / 10);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        unique.clone().take(1).all().unwrap(),
+        vec![("a".into(), 10)]
+    );
+    assert_eq!(reads.get(), 1);
+    assert_eq!(
+        LazyCollection::all(&unique).unwrap(),
+        vec![("a".into(), 10), ("c".into(), 21)]
+    );
+    assert_eq!(
+        LazyCollection::all(&unique).unwrap(),
+        vec![("a".into(), 10), ("c".into(), 21)]
+    );
+    assert_eq!(source.uniqueStrict().count().unwrap(), 3);
+
+    let failing = LazyCollection::tryMake(|| [Ok(10), Ok(10), Err(source_error())]);
+    let distinct = failing.unique();
+    let mut iterator = distinct.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 10));
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+}
+
+#[test]
+fn lazy_cardinality_checks_short_circuit_and_follow_keyed_sole_semantics() {
+    let reads = Cell::new(0);
+    let repeated = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(repeated.sole().unwrap(), 2);
+    assert_eq!(reads.get(), 2);
+    assert!(!repeated.hasSole().unwrap());
+    assert!(repeated.hasMany().unwrap());
+    assert!(repeated.hasSoleWhere(|value, _| *value == 2).unwrap());
+    assert_eq!(
+        repeated
+            .soleWhere(|_, key| key == &ArrayKey::from("b"))
+            .unwrap(),
+        3
+    );
+    assert!(repeated.hasManyWhere(|value, _| *value < 3).unwrap());
+    assert!(matches!(
+        repeated.soleWhere(|value, _| *value > 1),
+        Err(CollectionError::MultipleItemsFound)
+    ));
+    assert!(matches!(
+        repeated.soleWhere(|value, _| *value > 4),
+        Err(CollectionError::ItemNotFound)
+    ));
+    assert!(LazyCollection::<i32>::empty().isEmpty().unwrap());
+}
+
+#[test]
+fn lazy_first_and_contains_stop_on_the_first_match_and_propagate_errors() {
+    let source = LazyCollection::tryMake(|| [Ok(10), Err(source_error()), Ok(30)]);
+    assert!(source.isNotEmpty().unwrap());
+    assert!(source.containsStrict(&10).unwrap());
+    assert!(source.containsWhere(|value, _| *value == 10).unwrap());
+    assert_eq!(source.firstOrFail().unwrap(), 10);
+    assert_eq!(
+        source.firstOrFailWhere(|value, _| *value == 10).unwrap(),
+        10
+    );
+    assert!(matches!(
+        source.firstOrFailWhere(|value, _| *value == 30),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(source.hasSole(), Err(CollectionError::Source(_))));
+    assert!(matches!(source.hasMany(), Err(CollectionError::Source(_))));
+    assert!(matches!(
+        LazyCollection::<i32>::empty().firstOrFail(),
+        Err(CollectionError::ItemNotFound)
+    ));
+}

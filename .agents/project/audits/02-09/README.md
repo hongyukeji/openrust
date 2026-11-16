@@ -63,3 +63,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `zip` 和 `zipMany` 按位置读取到最长来源结束，以 `Option` 表达空位。Rust 用 `zipMany` 表达 Laravel 的可变参数重载。
 - `combine` 从第一来源的值生成键，复用 PHP 数字字符串键规则。来源不等长时，迭代器在检测到差异的那次读取返回错误。已产出的成对值保持有效。
 - PHP 8.5.12 固定源码对照、29 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性去重和终端判定
+
+对照固定 Laravel 的 [unique](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1738)、[sole、hasSole 和 firstOrFail](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1336) 及 [hasMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L344)。旧版未发现同契约的惰性操作。
+
+- 去重沿用实体集合的类型化相等比较，`uniqueBy` 每轮遍历独立保留已见的投影值，输出第一次出现的原条目和键。Rust 的 `uniqueStrict` 与默认类型比较相同。
+- `contains` 与 `firstOrFail` 在首个匹配时停止。`hasSole` 和 `hasMany` 最多读取两条匹配。`sole` 在前两条同键时返回后一个值，复现 Laravel 先按键实体化的结果。来源错误只在实际读到时返回。
+- PHP 8.5.12 固定源码对照、32 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

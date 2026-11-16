@@ -4,6 +4,7 @@ use indexmap::IndexMap;
 
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable};
 
+mod matching;
 mod nested;
 mod pairing;
 mod timing;
