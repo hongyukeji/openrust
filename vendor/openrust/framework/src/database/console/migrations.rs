@@ -2,6 +2,7 @@ use super::confirm;
 
 use std::{
     fmt::Write as _,
+    io::{self, IsTerminal as _, Write as _},
     path::{Component, Path, PathBuf},
 };
 
@@ -14,7 +15,7 @@ use crate::{
     },
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        DatabaseManager,
+        Connection, DatabaseError, DatabaseManager, DatabaseResult,
         events::DatabaseRefreshed,
         migrations::{
             MigrationCreator, MigrationOutcome, MigrationResult, Migrator, RollbackOptions,
@@ -255,6 +256,10 @@ impl Command for MigrationCommand {
                 }
                 Kind::Run => {
                     let pretend = matches.get_flag("pretend");
+                    let confirm_create =
+                        |connection: &Connection| confirm_database_creation(matches, connection);
+                    let can_confirm = matches.get_flag("force")
+                        || (!matches.get_flag("no-interaction") && io::stdin().is_terminal());
                     let (rows, loaded) = migrator
                         .run_with_schema(
                             database,
@@ -264,6 +269,11 @@ impl Command for MigrationCommand {
                                 step: matches.get_flag("step"),
                             },
                             matches.get_one::<String>("schema-path").map(Path::new),
+                            if can_confirm {
+                                Some(&confirm_create)
+                            } else {
+                                None
+                            },
                         )
                         .await
                         .map_err(console_error)?;
@@ -357,6 +367,34 @@ impl Command for MigrationCommand {
             Ok(0)
         })
     }
+}
+
+fn confirm_database_creation(
+    matches: &clap::ArgMatches,
+    connection: &Connection,
+) -> DatabaseResult<bool> {
+    if matches.get_flag("force") {
+        return Ok(true);
+    }
+    let mut output = io::stderr().lock();
+    writeln!(
+        output,
+        "The database {:?} does not exist on the {:?} connection.",
+        connection.getDatabaseName(),
+        connection.getName()
+    )
+    .map_err(DatabaseError::SchemaIo)?;
+    write!(output, "Would you like to create it? [Y/n] ").map_err(DatabaseError::SchemaIo)?;
+    output.flush().map_err(DatabaseError::SchemaIo)?;
+    let mut response = String::new();
+    let read = io::stdin()
+        .read_line(&mut response)
+        .map_err(DatabaseError::SchemaIo)?;
+    Ok(read != 0
+        && matches!(
+            response.trim().to_ascii_lowercase().as_str(),
+            "" | "y" | "yes"
+        ))
 }
 
 async fn seed(

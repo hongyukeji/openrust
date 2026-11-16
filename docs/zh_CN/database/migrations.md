@@ -74,6 +74,14 @@ impl Migration for Definition {
 
 生产环境中改变结构的命令会要求确认。部署流程已确认变更时可传 `--force`。MySQL 和 SQLite 的单项迁移可能包含多条 DDL，其中一条失败时，先前成功的语句可能已生效。重试前先检查失败的迁移。
 
+### 创建缺失的 MySQL 数据库 {#creating-a-missing-database}
+
+配置的 MySQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建该数据库。
+
+```sh
+./artisan migrate --database=mysql --force
+```
+
 ### 隔离迁移执行 {#isolating-migration-execution}
 
 用 `--isolated` 在迁移前通过默认缓存获取原子锁。参与部署的进程需共享缓存后端和键前缀。首次迁移可用 Redis 提供锁。使用数据库缓存时，锁表须已存在。

@@ -95,6 +95,7 @@ pub enum DatabaseError {
     AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
     SchemaIo(std::io::Error),
+    DatabaseCreationDeclined,
     SchemaProcess {
         program: &'static str,
         status: std::process::ExitStatus,
@@ -150,6 +151,9 @@ impl std::fmt::Display for DatabaseError {
             }
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
             Self::SchemaIo(_) => formatter.write_str("database schema file operation failed"),
+            Self::DatabaseCreationDeclined => {
+                formatter.write_str("Database was not created. Aborting migration.")
+            }
             Self::SchemaProcess { program, status } => {
                 write!(
                     formatter,

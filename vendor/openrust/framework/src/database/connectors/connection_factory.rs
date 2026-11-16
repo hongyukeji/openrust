@@ -122,6 +122,8 @@ fn resolve(
         Some(super::super::migrations::SchemaCredentials {
             password: write_options.string("password", "")?.to_owned(),
             ssl_ca: mysql_ssl_ca(&write_options, root)?,
+            configured_database: base.get("database").and_then(Value::as_str)
+                == Some(database.as_str()),
         })
     } else {
         None

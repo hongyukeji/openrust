@@ -958,3 +958,79 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     assert!(output.contains("Nothing to migrate."));
     assert!(!output.contains("Loading stored database schemas."));
 }
+
+#[tokio::test]
+async fn mysql_artisan_creates_only_confirmed_missing_databases() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    if std::env::var_os("OPENRUST_TEST_DATABASE_CREATION").is_none() {
+        return;
+    }
+    let root = Root::new();
+    let admin = root.connection(Some(&url));
+    let exists = |name: &str| {
+        let admin = admin.clone();
+        let name = name.to_owned();
+        async move {
+            admin
+                .table("information_schema.schemata")
+                .r#where("schema_name", "=", name.as_str())
+                .exists()
+                .await
+                .unwrap()
+        }
+    };
+    let (endpoint, _) = url.rsplit_once('/').expect("MySQL fixture database");
+    let name = "openrust-migrate-create";
+    let target = format!("{endpoint}/{name}");
+    assert!(!exists(name).await);
+    let run = |environment, args: &[&str]| root.run(environment, Some(target.as_str()), args);
+
+    assert_eq!(
+        run("local", &["migrate", "--no-interaction"]).status.code(),
+        Some(1)
+    );
+    assert_eq!(
+        run("production", &["migrate", "--no-interaction"])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert_eq!(
+        run("local", &["migrate", "--force", "--database=mysql::read"])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert!(!exists(name).await);
+
+    let output = success(run(
+        "production",
+        &["migrate", "--database=mysql", "--force", "--no-interaction"],
+    ));
+    assert!(output.contains("create_users_table DONE"));
+    assert!(exists(name).await);
+    let created = root.connection(Some(target.as_str()));
+    assert!(created.getSchemaBuilder().hasTable("users").await.unwrap());
+    let recorded = created.table("migrations").count("*").await.unwrap();
+    assert!(recorded > 0);
+    assert!(
+        success(run("local", &["migrate", "--no-interaction"])).contains("Nothing to migrate.")
+    );
+    assert_eq!(
+        created.table("migrations").count("*").await.unwrap(),
+        recorded
+    );
+
+    let denied_name = "openrust-create-denied";
+    let (_, host) = endpoint
+        .rsplit_once('@')
+        .expect("MySQL fixture credentials");
+    let denied = format!("mysql://migration_reader:fixture-password@{host}/{denied_name}");
+    let failure = root.run("local", Some(denied.as_str()), &["migrate", "--force"]);
+    assert_eq!(failure.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failure.stderr).contains("database create database failed"));
+    assert!(!exists(denied_name).await);
+}

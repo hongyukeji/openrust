@@ -2434,3 +2434,5 @@ Sanctum-03 API 安装已本地提交 `4d0b8b031aabeb234ea00ea0c728d9e7d68eccf8`�
 - 2026-11-17 00:04（北京时间）02-06 [MySQL Schema 转储与恢复](audits/02-06/README.md#mysql-schema-转储与恢复)，本地提交 `8e715816ea49265473a379d91766ac7aee87ab6d`，未推送。固定 Laravel 的 schema:dump、空账本加载、后续编译期迁移、结构导出和 prune 接线在 MySQL 8.4.13 通过三项实际二进制回归，包含既有迁移账本及 MySQL／Redis 并发隔离。三语 Artisan 命令、严格 Clippy、三语站点与 18 项浏览器检查通过。 使用临时容器内原生 MySQL 客户端，变更文件格式通过，全仓格式仍有基线 Sanctum 差异。
 
 - 2026-11-17 00:15（北京时间）02-06 [迁移与 Schema 生命周期事件](audits/02-06/README.md#迁移与-schema-生命周期事件)，本地提交 `f81c507c48e8a29969b119fd5615bb16ed80f92f`，未推送。固定 Laravel 的批次、单项、跳过、空迁移、快照和刷新事件通过真实 MySQL Artisan。覆盖预演、失败、重试、回滚、更新账本前及填充前的触发顺序。三语共用监听器、既有迁移账本、严格 Clippy、三语站点和 18 项浏览器检查通过。 变更文件格式通过，全仓格式仍有基线 Sanctum 差异。
+
+- 2026-11-17 00:29（北京时间）02-06 [创建缺失的 MySQL 数据库](audits/02-06/README.md#创建缺失的-mysql-数据库)。按固定 Laravel 验证 MySQL 1049、写端点、生产和缺库确认、无人值守及权限失败。MySQL 8.4.13 的实际 Artisan、账本回归、严格 Clippy、三语站点及 18 项浏览器检查通过。 全仓格式仍有既有 Sanctum 差异，变更文件格式通过。

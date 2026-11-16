@@ -1,5 +1,6 @@
 //! Migration discovery, execution, and history.
 
+mod database_creation;
 mod database_migration_repository;
 mod migration;
 mod migration_creator;

@@ -74,6 +74,14 @@ impl Migration for Definition {
 
 正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
 
+### 建立缺少的 MySQL 資料庫 {#creating-a-missing-database}
+
+設定的 MySQL 資料庫不存在時，`migrate` 會在建立前提示確認。無人值守部署可使用 `--force`。選定的寫入帳號需要有權建立該資料庫。
+
+```sh
+./artisan migrate --database=mysql --force
+```
+
 ### 隔離遷移執行 {#isolating-migration-execution}
 
 用 `--isolated` 在遷移前透過預設快取取得原子鎖。參與部署的程序須共用快取後端與鍵前置詞。首次遷移可用 Redis 提供鎖。使用資料庫快取時，鎖表須已存在。

@@ -14,6 +14,7 @@ use crate::database::{Connection, DatabaseError, DatabaseResult, connection::Poo
 pub(in crate::database) struct SchemaCredentials {
     pub password: String,
     pub ssl_ca: Option<PathBuf>,
+    pub configured_database: bool,
 }
 
 /// The selected MySQL write endpoint for the native schema tools.

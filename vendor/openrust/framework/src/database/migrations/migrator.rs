@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::database::{
-    DatabaseError, DatabaseManager, DatabaseResult,
+    Connection, DatabaseError, DatabaseManager, DatabaseResult,
     events::{
         MigrationEnded, MigrationMethod, MigrationOptions, MigrationSkipped, MigrationStarted,
         MigrationsEnded, MigrationsPruned, MigrationsStarted, NoPendingMigrations, SchemaDumped,
@@ -16,8 +16,10 @@ use crate::database::{
 
 use super::{
     DatabaseMigrationRepository, MigrationContext, MigrationEntry, MigrationRegistry,
-    MigrationRepositoryInterface, MigrationResult, schema_state,
+    MigrationRepositoryInterface, MigrationResult, database_creation, schema_state,
 };
+
+type ConfirmDatabaseCreation<'a> = &'a (dyn Fn(&Connection) -> DatabaseResult<bool> + Send + Sync);
 
 /// Runs and rolls back compiled migrations against a configured ledger.
 pub struct Migrator {
@@ -145,7 +147,7 @@ impl Migrator {
         paths: &[PathBuf],
         options: RunOptions,
     ) -> DatabaseResult<Vec<MigrationOutcome>> {
-        self.run_with_schema(database, paths, options, None)
+        self.run_with_schema(database, paths, options, None, None)
             .await
             .map(|(rows, _)| rows)
     }
@@ -156,9 +158,10 @@ impl Migrator {
         paths: &[PathBuf],
         options: RunOptions,
         schema_path: Option<&Path>,
+        confirm_create: Option<ConfirmDatabaseCreation<'_>>,
     ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let _guard = self.execution.lock().await;
-        self.run_pending(database, paths, options, schema_path)
+        self.run_pending(database, paths, options, schema_path, confirm_create)
             .await
     }
 
@@ -168,10 +171,28 @@ impl Migrator {
         paths: &[PathBuf],
         options: RunOptions,
         schema_path: Option<&Path>,
+        confirm_create: Option<ConfirmDatabaseCreation<'_>>,
     ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let files = self.files(paths)?;
         let mut repository = self.repository(database);
-        let mut installed = repository.repository_exists().await?;
+        let mut installed = match repository.repository_exists().await {
+            Ok(installed) => installed,
+            Err(error)
+                if confirm_create.is_some()
+                    && database_creation::missing_mysql_database(&error) =>
+            {
+                let connection = self.manager.connection(database)?;
+                if !database_creation::can_create(&connection)? {
+                    return Err(error);
+                }
+                if !confirm_create.expect("creation policy was checked")(&connection)? {
+                    return Err(DatabaseError::DatabaseCreationDeclined);
+                }
+                database_creation::create_mysql_database(&connection).await?;
+                repository.repository_exists().await?
+            }
+            Err(error) => return Err(error),
+        };
         let mut ran = if installed {
             repository.get_ran().await?
         } else {
@@ -476,7 +497,7 @@ impl Migrator {
             )
             .await?;
         let up = self
-            .run_pending(database, paths, RunOptions::default(), None)
+            .run_pending(database, paths, RunOptions::default(), None, None)
             .await?
             .0;
         Ok((down, up))
@@ -582,6 +603,7 @@ impl Migrator {
                 pretend: false,
                 step,
             },
+            None,
             None,
         )
         .await

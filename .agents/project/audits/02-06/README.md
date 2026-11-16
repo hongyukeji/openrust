@@ -5,7 +5,7 @@
 - 迁移 Provider 注册应用自己的迁移清单和账本。初始应用迁移编译到二进制，包含用户、重置令牌和会话表。`main.rs` 增加根应用数据库模块声明。生成器创建带时间戳的 Rust 文件，手动加入 `MigrationEntry` 后重新构建。
 - 接通 `make:migration`、`migrate`、`migrate:install`、`migrate:status`、`migrate:rollback`、`migrate:reset`、`migrate:refresh`、`migrate:fresh` 和 `db:wipe`。按文件名和批次维护账本，支持指定连接、已编译路径、step、batch 和生产确认。账本只记录成功的迁移。MySQL 清库独占物理会话并恢复外键设置，SQLite 清库复用事务化 Schema 会话。
 - Rust 用 `MigrationContext` 显式传递连接与预演输出。空库预演会准备账本，迁移 SQL 和迁移记录保持未执行。绑定值以占位符显示。SQLite 依赖目录的表重建在预演中返回错误。与固定版的 SQLite/MySQL 语法一致，迁移器不在整个迁移外自动包事务，先成功的语句和批次记录在失败后可见。
-- 未闭合的迁移功能包括非 MySQL 的 Schema dump/load、空库自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
+- 未闭合的迁移功能包括非 MySQL 的 Schema dump/load、缺库创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
 
 ## 验收
 
@@ -60,3 +60,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - `DatabaseRefreshed` 在 `migrate:fresh`、`migrate:refresh` 完成迁移后且可选 Seeder 开始前触发。上述事件均可通过 `MigrationEvent::NAME` 订阅。转储、删除源文件和加载快照各自使用 `SchemaDumped`、`MigrationsPruned`、`SchemaLoaded`，载荷含连接、名称与路径。
 - 临时 MySQL 8.4 上的真实 Artisan 集成测试通过。验证预演、失败中止、重试、跳过、空批次、回滚顺序、单项事件时的真实账本状态、Schema 事件及填充前事件。复跑根应用既有 MySQL 迁移账本。快照子进程调用临时容器内的原生客户端。
 - 三语共用监听器示例经实际 Artisan 执行，`main artisan inspire`、严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。日常验收范围为 MySQL，SQLite 快照仍待验收。
+
+## 创建缺失的 MySQL 数据库
+
+对照固定 Laravel [MigrateCommand::handleMissingDatabase 与确认流程](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php#L179) 及 [MySQL 1049](https://dev.mysql.com/doc/mysql-errors/8.4/en/server-error-reference.html#error_er_bad_db_error)。旧版没有等价的命令流程。本批沿用主线的 SQLx 连接错误、写端连接参数和迁移账本。
+
+- `migrate` 只在账本初次检查遇到 MySQL 1049 时尝试建库。交互终端提示确认，按回车使用默认的同意。拒绝时退出。`--no-interaction` 或无终端时保留连接失败，带 `--force` 可执行无人值守迁移。生产确认仍先执行。
+- 在原写端点用同一账号与 TLS 设置建立无默认库的短连接，执行引用过名称的 `CREATE DATABASE IF NOT EXISTS`，保留服务器默认字符集和排序规则。成功后复查原账本。不改写共享连接配置。显式读连接和与基准连接配置不同的写库不会被自动创建。
+- 用 `python3 -B tests/mysql_acceptance.py` 启动独立 MySQL 8.4.13，实际子进程通过。覆盖无人值守拒绝、强制建库并写账本、显式读连接、权限不足、带连字符的库名以及对同一库重复执行。伪终端验证选择拒绝、生产确认及缺库确认默认同意。原有 MySQL 迁移账本回归通过。
+- 三语共用的 `./artisan migrate --database=mysql --force` 与 `./artisan inspire` 在隔离环境实际执行。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 缺失文件的自动创建与其他驱动行为待发布矩阵。

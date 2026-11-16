@@ -74,6 +74,14 @@ Use `--database` to select the ledger connection and `--step` to give each migra
 
 Production commands that change schema prompt for confirmation. Use `--force` for a deployment that has already approved those changes. MySQL and SQLite migrations can contain multiple DDL statements. If one fails, earlier successful statements may still be present. Inspect the failing migration before retrying.
 
+### Creating a Missing MySQL Database {#creating-a-missing-database}
+
+When the configured MySQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create that database.
+
+```sh
+./artisan migrate --database=mysql --force
+```
+
 ### Isolating Migration Execution {#isolating-migration-execution}
 
 Use `--isolated` to acquire an atomic lock in the default cache before running migrations. All deployment processes must share the cache backend and its key prefix. Redis can provide the lock before the first migration. The database cache driver requires its lock table to exist.
