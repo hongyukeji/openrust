@@ -15,6 +15,7 @@ use super::{
     Component, ComponentOutput, FileViewFinder, View, ViewBinding, ViewData, ViewError, ViewFinder,
     ViewResult, ViewValue, compilers::BladeCompiler, component::ResolvedComponent,
     engines::EngineResolver, file_view_finder::ViewSource, rendering::RenderContext,
+    request_data::ViewRequestData,
 };
 
 /// Creates named views from the application's finder and engines.
@@ -250,7 +251,7 @@ impl Factory {
     }
 
     pub fn renderView(&self, view: View) -> ViewResult<String> {
-        self.render_with_token(view, None)
+        self.render_view(view, &mut RenderContext::new(Some(self)))
     }
 
     /// Renders a trusted inline Blade template using this application's views.
@@ -259,13 +260,13 @@ impl Factory {
             .render_inline("", source, data, &mut RenderContext::new(Some(self)))
     }
 
-    pub(super) fn render_with_token(
+    pub(super) fn render_in_request(
         &self,
         view: View,
-        csrf_token: Option<Arc<str>>,
+        request: ViewRequestData,
     ) -> ViewResult<String> {
         let mut context = RenderContext::new(Some(self));
-        context.csrf_token = csrf_token;
+        context.request = Arc::new(request);
         self.render_view(view, &mut context)
     }
 

@@ -57,3 +57,8 @@
 
 - 对照固定 [Js](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Js.php) 和 [SupportJsTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportJsTest.php)。`Js::from` 和 `@js` 输出 Rust 视图数据的脚本表达式，字符串与 JSON 载荷转义 HTML 敏感字符、引号和行分隔符。Rust 直接使用视图标量、数组与映射，旧版 MiniJinja 未移植为 Blade 指令。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证脚本结束标记、引号、行分隔符、空数组和嵌套 JSON。隔离副本全工作区格式与严格 Clippy、Artisan 缓存与清理、三语构建和 12 项浏览器组合通过。
+
+## 环境、会话与上下文指令
+
+- 对照固定 `CompilesConditionals`、`CompilesSessions` 和 `CompilesContexts`。`@env` 与 `@production` 使用应用容器的环境解析器。`@session` 沿用 Store 点分键规则。渲染前捕获当前会话与公开 Context，模板只在指令块内绑定 `$value`，嵌套块结束后恢复外层值。旧版的请求数据隔离经已有视图入口复用。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证环境通配符、双应用、会话闪存、点分键、上下文转义、隐藏值隔离和嵌套绑定。隔离副本格式与严格 Clippy、Artisan 缓存与清理、三语构建及 12 项浏览器组合通过。

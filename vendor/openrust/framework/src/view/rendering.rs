@@ -6,9 +6,11 @@ use std::{
     sync::Arc,
 };
 
+use crate::{contracts::container::Container as _, support::facades::current_container};
+
 use super::{
     Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue,
-    compilers::BladeExtensions, component::ResolvedComponent,
+    compilers::BladeExtensions, component::ResolvedComponent, request_data::ViewRequestData,
 };
 
 /// State owned by one render tree. A layout inherits sections from its child.
@@ -22,7 +24,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
     component_data: Vec<Arc<ViewData>>,
-    pub(super) csrf_token: Option<Arc<str>>,
+    pub(super) request: Arc<ViewRequestData>,
     pub(super) extensions: Arc<BladeExtensions>,
     shared: Rc<RefCell<RenderState>>,
 }
@@ -69,7 +71,7 @@ impl<'a> RenderContext<'a> {
             active_loop: None,
             component_attributes: None,
             component_data: Vec::new(),
-            csrf_token: None,
+            request: Arc::default(),
             extensions: Arc::default(),
             shared: Rc::default(),
         }
@@ -100,6 +102,16 @@ impl<'a> RenderContext<'a> {
         let mut section = String::new();
         self.yield_to(name, &mut section);
         !matches!(section.trim(), "" | "0")
+    }
+
+    pub(super) fn environment_matches(&self, patterns: &[&str]) -> ViewResult<bool> {
+        let Some(container) = current_container() else {
+            return Ok(false);
+        };
+        container
+            .currentEnvironmentIs(patterns)
+            .map(bool::from)
+            .map_err(|error| ViewError::RenderFailed(Box::new(error)))
     }
 
     pub(super) fn parent(&self) -> &str {
@@ -286,7 +298,7 @@ impl<'a> RenderContext<'a> {
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
                 component_data: self.component_data.clone(),
-                csrf_token: self.csrf_token.clone(),
+                request: self.request.clone(),
                 extensions: self.extensions.clone(),
                 shared: self.shared.clone(),
                 factory: Some(factory),

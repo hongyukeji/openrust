@@ -34,6 +34,22 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### Environment, Session, and Context {#environment-session-context}
+
+Use `@production` and `@env` to match the application environment. `@env` accepts a name or list, including wildcard patterns. `@session` and `@context` expose `$value` inside their blocks. Session values support dotted keys, and `@context` reads the public request context.
+
+```html
+@env(['staging-*', 'local'])
+    <p>Preview</p>
+@endenv
+@session('notice')
+    <p>{{ $value }}</p>
+@endsession
+@context('request.id')
+    <p>{{ $value }}</p>
+@endcontext
+```
+
 ### Including Subviews {#including-subviews}
 
 Pass a map to override inherited data. `@includeFirst` renders the first existing view in the list. `@includeIsolated` receives its explicit values and the view factory's shared data.

@@ -263,7 +263,7 @@ impl Session for Store {
     }
 }
 
-fn get<'a>(attributes: &'a BTreeMap<String, Value>, key: &str) -> Option<&'a Value> {
+pub(crate) fn get<'a>(attributes: &'a BTreeMap<String, Value>, key: &str) -> Option<&'a Value> {
     attributes.get(key).or_else(|| {
         let (root, rest) = key.split_once('.')?;
         rest.split('.').try_fold(attributes.get(root)?, child)

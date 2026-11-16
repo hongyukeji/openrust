@@ -17,8 +17,9 @@ mod javascript;
 mod loops;
 
 use attributes::{
-    AttributeList, AttributeOperation, Props, apply_aware, apply_props, attribute_list,
-    attribute_name, parse_attribute_list, parse_echo, parse_props, render_attributes,
+    AttributeList, AttributeOperation, Props, apply_aware, apply_props, array_entries,
+    attribute_list, attribute_name, parse_attribute_list, parse_echo, parse_props,
+    render_attributes,
 };
 
 use expressions::{Expression, expression_value, loose_equal, truthy, value};
@@ -71,6 +72,8 @@ enum Node {
     ConditionalAttribute(AttributeList, bool),
     CustomDirective(String, Vec<Expression>),
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
+    Environment(Vec<Expression>, Vec<Node>, Vec<Node>),
+    RequestValue(RequestValueKind, Expression, Vec<Node>),
     Include(Include, bool),
     IncludeWhen(Expression, Include, bool),
     IncludeFirst(IncludeFirst),
@@ -97,6 +100,12 @@ struct CustomBranch {
     arguments: Vec<Expression>,
     negated: bool,
     body: Vec<Node>,
+}
+
+#[derive(Serialize, Deserialize)]
+enum RequestValueKind {
+    Session,
+    Context,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -222,6 +231,10 @@ enum Stop<'a> {
     EndPrependOnce,
     EndError,
     EndFragment,
+    EndEnvironment,
+    EndProduction,
+    EndSession,
+    EndContext,
     EndTag,
     ElseCondition(&'a str),
     EndCondition(&'a str),
@@ -529,6 +542,27 @@ impl<'a> Parser<'a> {
             Node::BooleanText(expression_value(self.arguments()?)?)
         } else if self.directive("js") {
             Node::JavaScript(expression_value(self.arguments()?)?)
+        } else if self.directive("production") {
+            self.environment_block(
+                depth,
+                vec![Expression::Value("production".into())],
+                Stop::EndProduction,
+            )?
+        } else if self.directive("env") {
+            let arguments = self.arguments()?.trim();
+            let patterns = if arguments.starts_with('[') && arguments.ends_with(']') {
+                array_entries(arguments)?
+                    .into_iter()
+                    .map(expression_value)
+                    .collect::<ViewResult<_>>()?
+            } else {
+                expression_arguments(arguments)?
+            };
+            self.environment_block(depth, patterns, Stop::EndEnvironment)?
+        } else if self.directive("session") {
+            self.request_value_block(depth, RequestValueKind::Session, Stop::EndSession)?
+        } else if self.directive("context") {
+            self.request_value_block(depth, RequestValueKind::Context, Stop::EndContext)?
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -633,18 +667,42 @@ impl<'a> Parser<'a> {
     }
 
     fn custom_arguments(&mut self) -> ViewResult<Vec<Expression>> {
-        let mut arguments = Vec::new();
         if self.remaining.trim_start().starts_with('(') {
-            let input = self.arguments()?.trim();
-            if !input.is_empty() {
-                let mut start = 0;
-                for end in separators(input, ",").chain(std::iter::once(input.len())) {
-                    arguments.push(expression_value(&input[start..end])?);
-                    start = end + 1;
-                }
-            }
+            expression_arguments(self.arguments()?)
+        } else {
+            Ok(Vec::new())
         }
-        Ok(arguments)
+    }
+
+    fn environment_block(
+        &mut self,
+        depth: usize,
+        patterns: Vec<Expression>,
+        end: Stop<'a>,
+    ) -> ViewResult<Node> {
+        let (body, stop) = self.block(depth + 1)?;
+        let (alternative, stop) = match stop {
+            Some(Stop::Else) => self.block(depth + 1)?,
+            _ => (Vec::new(), stop),
+        };
+        if stop != Some(end) {
+            return Err(invalid("Unclosed Blade environment condition."));
+        }
+        Ok(Node::Environment(patterns, body, alternative))
+    }
+
+    fn request_value_block(
+        &mut self,
+        depth: usize,
+        kind: RequestValueKind,
+        end: Stop<'a>,
+    ) -> ViewResult<Node> {
+        let name = expression_value(self.arguments()?)?;
+        let (body, stop) = self.block(depth + 1)?;
+        if stop != Some(end) {
+            return Err(invalid("Unclosed Blade session or context directive."));
+        }
+        Ok(Node::RequestValue(kind, name, body))
     }
 
     fn custom_condition(
@@ -901,6 +959,10 @@ impl<'a> Parser<'a> {
             ("endPrependOnce", Stop::EndPrependOnce),
             ("enderror", Stop::EndError),
             ("endfragment", Stop::EndFragment),
+            ("endenv", Stop::EndEnvironment),
+            ("endproduction", Stop::EndProduction),
+            ("endsession", Stop::EndSession),
+            ("endcontext", Stop::EndContext),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -1014,6 +1076,22 @@ impl Quote {
 
 fn argument_separator(arguments: &str) -> Option<usize> {
     separators(arguments, ",").next()
+}
+
+fn expression_arguments(input: &str) -> ViewResult<Vec<Expression>> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut start = 0;
+    separators(input, ",")
+        .chain(std::iter::once(input.len()))
+        .map(|end| {
+            let expression = expression_value(&input[start..end]);
+            start = end + 1;
+            expression
+        })
+        .collect()
 }
 
 fn separators<'a>(source: &'a str, pattern: &'a str) -> impl Iterator<Item = usize> + 'a {
@@ -1316,7 +1394,7 @@ fn render_nodes<'a>(
                 }
             }
             Node::Csrf => {
-                let token = context.csrf_token.as_deref().ok_or_else(|| {
+                let token = context.request.csrf_token.as_deref().ok_or_else(|| {
                     render_error("The Blade CSRF field requires an active session.")
                 })?;
                 hidden_field(output, "_token", token);
@@ -1407,6 +1485,39 @@ fn render_nodes<'a>(
                     }
                 }
                 render_block!(selected, data, bindings, output, context);
+            }
+            Node::Environment(patterns, body, alternative) => {
+                let mut names = Vec::new();
+                for pattern in patterns {
+                    let pattern = value(pattern, data, bindings);
+                    if let Some(array) = pattern.as_array() {
+                        for name in array {
+                            names.push(name_value(name)?);
+                        }
+                    } else {
+                        names.push(name_value(pattern)?);
+                    }
+                }
+                let matching = context.environment_matches(&names)?;
+                render_block!(
+                    if matching { body } else { alternative },
+                    data,
+                    bindings,
+                    output,
+                    context
+                );
+            }
+            Node::RequestValue(kind, name, nodes) => {
+                let name = name_value(value(name, data, bindings))?;
+                let contextual = match kind {
+                    RequestValueKind::Session => context.request.session(name),
+                    RequestValueKind::Context => context.request.context(name),
+                };
+                if let Some(contextual) = contextual {
+                    let mut local = bindings.to_vec();
+                    local.push(("value", &contextual));
+                    render_block!(nodes, data, &local, output, context);
+                }
             }
             Node::Include(include, optional) => {
                 let name = include.name(data, bindings)?;

@@ -34,6 +34,22 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 用 `@includeIf('partials.notice')` 跳过缺失的视图。用 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 按条件渲染。子视图继承当前视图数据，包括循环变量。条件成立并选中视图时，`@includeWhen` 和 `@includeUnless` 要求该视图存在。
 
+### 环境、会话与上下文 {#environment-session-context}
+
+用 `@production` 和 `@env` 匹配应用环境。`@env` 接受单个名称或列表，支持通配符。`@session` 和 `@context` 在各自区块内提供 `$value`。会话支持点分键，`@context` 读取公开的请求上下文。
+
+```html
+@env(['staging-*', 'local'])
+    <p>Preview</p>
+@endenv
+@session('notice')
+    <p>{{ $value }}</p>
+@endsession
+@context('request.id')
+    <p>{{ $value }}</p>
+@endcontext
+```
+
 ### 包含子视图 {#including-subviews}
 
 传入映射可覆盖继承的视图数据。`@includeFirst` 渲染列表中第一个存在的视图。`@includeIsolated` 只接收显式数据和视图工厂的共享数据。

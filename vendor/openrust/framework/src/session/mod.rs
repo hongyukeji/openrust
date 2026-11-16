@@ -26,6 +26,7 @@ pub use null_session_handler::NullSessionHandler;
 pub use session_manager::SessionManager;
 pub use session_service_provider::SessionServiceProvider;
 pub use store::Store;
+pub(crate) use store::get as get_attribute;
 
 /// An asynchronous session or storage operation.
 pub type SessionFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

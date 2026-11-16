@@ -1,16 +1,11 @@
-use std::{
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
-};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    config::Environment,
     contracts::{http::Kernel as _, session::Session},
     foundation::{Application, BootstrapError, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    log::context::Context,
     routing::{Router, RoutingError},
     support::facades::Route,
     view::view,
@@ -24,7 +19,11 @@ use tokio::{
 
 fn web() -> Result<(), RoutingError> {
     Route::get("/token", token)?;
-    Route::get("/errors", || view("errors-probe"))?;
+    Route::get("/errors", || {
+        Context::add("blade.notice", json!("<context>")).unwrap();
+        Context::addHidden("blade.hidden", json!("hidden probe")).unwrap();
+        view("errors-probe").with("value", "outer")
+    })?;
     Route::get("/flash", flash)?;
     Route::r#match(&[Method::POST, Method::OPTIONS], "/update/{id}", update)?;
     Route::r#match(&[Method::POST], "/hooks/inbound", update)?;
@@ -62,6 +61,9 @@ fn flash(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "errors",
             json!({"default":{"name":"Required"},"profile":{"name":["<different>", "second"]}}),
         )?;
+        request
+            .session_mut()?
+            .flash("blade", json!({"notice":"<session>"}))?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -74,16 +76,25 @@ fn update(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 }
 
 fn app(root: PathBuf, origin_only: bool, same_site: bool) -> Application {
+    fn config(environment: &str) -> std::collections::BTreeMap<String, Value> {
+        [
+            (
+                "app".into(),
+                json!({"key":"a".repeat(32),"env":environment}),
+            ),
+            (
+                "session".into(),
+                json!({"driver":"array","cookie":"csrf_session","lottery":[0,100]}),
+            ),
+        ]
+        .into()
+    }
+
     Application::configure(root)
-        .withConfig(|_: &Path, _: &Environment| {
-            Ok([
-                ("app".into(), json!({"key":"a".repeat(32)})),
-                (
-                    "session".into(),
-                    json!({"driver":"array","cookie":"csrf_session","lottery":[0,100]}),
-                ),
-            ]
-            .into())
+        .withConfig(if origin_only {
+            |_, _| Ok(config("production"))
+        } else {
+            |_, _| Ok(config("staging-view"))
         })
         .withMiddleware(move |middleware| {
             middleware.preventRequestForgery(["hooks/*"], origin_only, same_site);
@@ -229,7 +240,14 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
     std::fs::write(
         root.join("resources/views/errors-probe.blade.html"),
         concat!(
-            "<form>@csrf@method('PUT')@error('name')",
+            "<form>@csrf",
+            "@production<span>production</span>@endproduction",
+            "@env(['staging-*', 'local'])<span>staging</span>@endenv",
+            "@session('blade.notice')<b>{{ $value }}</b>",
+            "@context('blade.notice')<i>{{ $value }}</i>@endcontext",
+            "<u>{{ $value }}</u>@endsession",
+            "@context('blade.hidden'){{ $value }}@endcontext",
+            "<s>{{ $value }}</s>@method('PUT')@error('name')",
             "<span>{{ $message }}</span>@enderror",
             "@error('name', 'profile')<em>{{ $message }}</em>@enderror",
             "@error('name', 'missing')wrong@enderror{{ $message }}</form>",
@@ -256,6 +274,9 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
         r#"<input type="hidden" name="_method" value="PUT"><span>Required</span><em>&lt;different&gt;</em></form>"#
     ));
     assert!(!isolated.contains("Required"), "{isolated}");
+    assert!(errors.contains("<span>production</span><b>&lt;session&gt;</b><i>&lt;context&gt;</i><u>&lt;session&gt;</u><s>outer</s>"));
+    assert!(isolated.contains("<span>staging</span><s>outer</s>"));
+    assert!(!errors.contains("hidden probe"));
     let token = |response: &str| {
         response
             .split_once(r#"name="_token" value=""#)
