@@ -326,7 +326,10 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
 async fn layouts_and_composers_isolate_concurrent_http_requests() {
     use axum::{extract::State, handler::Handler as _};
     use openrust::{
-        auth::{AuthIdentifier, AuthManager},
+        auth::{
+            AuthError, AuthFuture, AuthIdentifier, AuthManager, AuthResult,
+            access::{Argument, GateRegistry, Policy, PolicyTarget, Response as Decision},
+        },
         container::ServiceKey,
         contracts::{
             auth::Authenticatable, container::Container as _, foundation::Application as _,
@@ -347,6 +350,40 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     struct ViewSummary(&'static str);
     struct Price(u16);
     struct HiddenCard;
+
+    struct PricePolicy(bool);
+
+    impl Policy<Price> for PricePolicy {
+        fn has_ability(&self, ability: &str) -> bool {
+            matches!(ability, "view-price" | "create-price")
+        }
+
+        fn evaluate<'a>(
+            &'a self,
+            ability: &'a str,
+            _: Option<&'a dyn Authenticatable>,
+            price: Option<&'a Price>,
+            arguments: &'a [&'a Argument],
+        ) -> AuthFuture<'a, AuthResult<Option<Decision>>> {
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                let allowed = match ability {
+                    "create-price" => price.is_none(),
+                    "view-price" => {
+                        self.0
+                            && price.is_some_and(|price| price.0 == 42)
+                            && arguments
+                                .last()
+                                .and_then(|argument| argument.downcast_ref::<serde_json::Value>())
+                                .and_then(serde_json::Value::as_str)
+                                == Some("retail")
+                    }
+                    _ => false,
+                };
+                Ok(Some(Decision::from(allowed)))
+            })
+        }
+    }
 
     impl Component for HiddenCard {
         fn shouldRender(&self) -> bool {
@@ -553,6 +590,18 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/anonymous-missing", || view("anonymous_missing"))?;
                 Route::get("/blade-auth/{state}", || view("blade_auth"))?;
                 Route::get("/blade-auth-failed", || view("blade_auth_failed"))?;
+                Route::get("/blade-gate/{state}", || {
+                    view("blade_gate")
+                        .withGateArgument("subject", Price(42))
+                        .withGateArgument("target", PolicyTarget::of::<Price>())
+                        .with("label", "retail")
+                        .with(
+                            "abilities",
+                            serde_json::json!(["absent", "preview", "error"]),
+                        )
+                })?;
+                Route::get("/bad-gate", || view("bad_gate"))?;
+                Route::get("/gate-error", || view("gate_error"))?;
                 Route::get("/layout-fallback", || {
                     view("layout_fallback").with("site", "parent")
                 })?;
@@ -603,6 +652,26 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 })
             });
         }
+        let gate = kernel
+            .get_application()
+            .container()
+            .get::<GateRegistry>("gate")
+            .unwrap();
+        gate.policy::<Price>(PricePolicy(app == "A"));
+        gate.defineGuest("preview", |_, _| Box::pin(async { Ok(Decision::allow()) }));
+        gate.defineGuest("hidden", |_, _| {
+            Box::pin(async { Ok(Decision::denyAsNotFound("hidden")) })
+        });
+        gate.defineGuest("error", |_, _| {
+            Box::pin(async { Err(AuthError::InvalidIdentity) })
+        });
+        gate.defineGuest("typed-present", |_, args| {
+            Box::pin(async move {
+                Ok(Decision::from(
+                    args.iter().any(|argument| argument.is::<Price>()),
+                ))
+            })
+        });
         let factory = kernel
             .get_application()
             .container()
@@ -1018,6 +1087,28 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("blade_auth_failed", "@auth('unknown')unreachable@endauth"),
         (
+            "blade_gate",
+            concat!(
+                "@can('view-price', [$subject, $label])policy@elsecanany(['absent','preview'])preview@endcan|",
+                "@cannot(['preview','hidden'])denied@endcannot|",
+                "@canany($abilities)any@elsecan('error')unexpected@endcanany|",
+                "@can('hidden')unexpected@elsecan('preview')elsecan@elsecannot('hidden')unexpected@endcan|",
+                "@canany([])unexpected@elsecannot('hidden')elsecannot@endcanany|",
+                "@can('create-price', $target)create@else guest@endcan|",
+                "@can('preview')@cannot('hidden')nested@endcannot@endcan|",
+                "@include('gate_partial'):@includeIsolated('gate_partial')",
+            ),
+        ),
+        (
+            "gate_partial",
+            "@can('typed-present', $subject)typed@else clear@endcan",
+        ),
+        ("bad_gate", "@can('preview')mismatched@endcannot"),
+        (
+            "gate_error",
+            "@cannot('error')unexpected@else unexpected@endcannot",
+        ),
+        (
             "layout_fallback",
             concat!(
                 "@extendsFirst(['absent', 'layout_variants'], ['site' => 'override'])",
@@ -1310,6 +1401,20 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert_eq!(send(second, "/blade-auth/off", 200).await, " guest|no-alt");
     assert!(send(first, "/blade-auth-failed", 500).await.contains("500"));
+    let (a, b, visitor) = tokio::join!(
+        send(first, "/blade-gate/signed", 200),
+        send(second, "/blade-gate/signed", 200),
+        send(first, "/blade-gate/off", 200),
+    );
+    let authenticated_tail = "|denied|any|elsecan|elsecannot|create|nested|typed: clear";
+    assert_eq!(a, format!("policy{authenticated_tail}"));
+    assert_eq!(b, format!("preview{authenticated_tail}"));
+    assert_eq!(
+        visitor,
+        "preview|denied|any|elsecan|elsecannot| guest|nested|typed: clear"
+    );
+    assert!(send(first, "/bad-gate", 500).await.contains("500"));
+    assert!(send(first, "/gate-error", 500).await.contains("500"));
     assert_eq!(
         send(first, "/layout-fallback", 200).await,
         "override:firstsecond:new:chosen"

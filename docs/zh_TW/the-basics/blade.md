@@ -58,6 +58,38 @@ fn configure_encoding(compiler: &BladeCompiler) {
 @endauth
 ```
 
+### 授權指令 {#authorization-directives}
+
+`@can` 檢查目前使用者是否具備列出的全部權限。`@cannot` 在該檢查失敗時選取分支。`@canany` 檢查是否具備任一權限。可使用 `@elsecan`、`@elsecannot`、`@elsecanany` 或 `@else` 選取後續分支。使用與起始指令配對的結束指令關閉區塊。
+
+指令使用目前 HTTP 請求的 Gate，可以評估訪客權限並執行策略回呼。第二個參數可傳入視圖值或有序清單，一般純量和清單元素均以 `ViewValue` 傳給 Gate。若要選取 Rust 策略，請用 `View::withGateArgument` 以專用名稱附加資源。沒有實例的策略可傳入 `PolicyTarget::of::<T>()`。受保護的操作仍應在路由或處理常式中檢查授權。
+
+```html
+@can('update', $policyArticle)
+    <a href="/articles/edit">Edit</a>
+@elsecanany(['preview', 'share'], [$policyArticle])
+    <a href="/articles/preview">Preview</a>
+@endcan
+
+@cannot('delete', $policyArticle)
+    <p>Deletion is restricted.</p>
+@endcannot
+```
+
+```rust
+use openrust::view::{View, view};
+
+struct Article {
+    title: String,
+}
+
+fn article_page(article: Article) -> View {
+    view("articles.show")
+        .with("title", article.title.clone())
+        .withGateArgument("policyArticle", article)
+}
+```
+
 ### 環境、工作階段與上下文 {#environment-session-context}
 
 用 `@production` 和 `@env` 比對應用程式環境。`@env` 接受單一名稱或清單，支援萬用字元。`@session` 和 `@context` 在各自區塊內提供 `$value`。工作階段支援點分隔鍵，`@context` 讀取公開的請求上下文。

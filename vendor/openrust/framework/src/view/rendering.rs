@@ -25,6 +25,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
     component_data: Vec<Arc<ViewData>>,
+    pub(super) gate_arguments: HashMap<String, Arc<crate::auth::access::Argument>>,
     pub(super) request: Arc<ViewRequestData>,
     pub(super) extensions: Arc<BladeExtensions>,
     shared: Rc<RefCell<RenderState>>,
@@ -73,6 +74,7 @@ impl<'a> RenderContext<'a> {
             active_loop: None,
             component_attributes: None,
             component_data: Vec::new(),
+            gate_arguments: HashMap::new(),
             request: Arc::default(),
             extensions: Arc::default(),
             shared: Rc::default(),
@@ -176,6 +178,7 @@ impl<'a> RenderContext<'a> {
         let (factory, mut nested) = self.nested()?;
         nested.slots.clear();
         nested.component_attributes = None;
+        nested.gate_arguments.clear();
         factory.render_nested(name, data, &mut nested)
     }
 
@@ -293,6 +296,7 @@ impl<'a> RenderContext<'a> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
         nested.component_attributes = Some((*properties).clone());
+        nested.gate_arguments.clear();
         nested.component_data.push(properties.clone());
         factory.render_component(name, &properties, resolved, &mut nested)
     }
@@ -324,6 +328,7 @@ impl<'a> RenderContext<'a> {
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
                 component_data: self.component_data.clone(),
+                gate_arguments: self.gate_arguments.clone(),
                 request: self.request.clone(),
                 extensions: self.extensions.clone(),
                 shared: self.shared.clone(),

@@ -24,7 +24,7 @@
 | Rendering Blade Fragments | 单个、多个、全部和条件响应，保持片段顺序和请求隔离。 | 多个具名片段统一渲染一次，组合器执行次数见 [验收记录](README.md#blade-片段)。 |
 | Extending Blade、Custom Echo Handlers、Custom If Statements | Rust 自定义指令回调返回待转义文本或可信 HTML。支持自定义条件、否定形式、多分支、Rust `check`、类型化 `stringable` 和集合输出处理器。 | PHP 表达式生成改用 Rust 回调，应用通过 `withStringable` 显式传递类型化值。 |
 
-03-07 和 03-08 按交付计划完成核心闭合。纯 Rust 模板使用显式类型投影、组件注册和渲染回调。与其他单元交叉的 Gate 授权指令记在 05-09，完整 Vite 工具链及 Livewire 集成按各自主题验收。
+03-07 和 03-08 按交付计划完成核心闭合。纯 Rust 模板使用显式类型投影、组件注册和渲染回调。Gate 授权指令已通过 [05-09 的专项验收](../05-09/README.md#blade-授权指令)。完整 Vite 工具链及 Livewire 集成按各自主题验收。
 
 ## 本阶段验收与缓存回收
 

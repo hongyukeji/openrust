@@ -1,6 +1,8 @@
 //! View-facing framework services.
 
-use std::{borrow::Cow, future::Future, io, path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    borrow::Cow, collections::HashMap, future::Future, io, path::PathBuf, pin::Pin, sync::Arc,
+};
 
 use ::http::{HeaderValue, header::CONTENT_TYPE};
 
@@ -76,7 +78,13 @@ pub struct View {
     binding: Option<Box<ViewBinding>>,
     created: bool,
     creation_error: Option<ViewError>,
+    options: Option<Box<ViewOptions>>,
+}
+
+#[derive(Default)]
+struct ViewOptions {
     fragments: Option<FragmentSelection>,
+    gate_arguments: HashMap<String, Arc<crate::auth::access::Argument>>,
 }
 
 enum FragmentSelection {
@@ -101,7 +109,7 @@ pub fn view(name: impl Into<Cow<'static, str>>) -> View {
         binding: None,
         created: false,
         creation_error: None,
-        fragments: None,
+        options: None,
     };
     if let Ok(factory) = ViewFacade::getFacadeRoot() {
         view.creation_error = factory.callCreator(&mut view).err();
@@ -124,6 +132,20 @@ impl View {
 
     pub fn with(mut self, key: impl Into<String>, value: impl Into<ViewValue>) -> Self {
         self.data.insert(key.into(), value.into());
+        self
+    }
+
+    /// Adds a typed value or policy target for authorization directives.
+    #[allow(non_snake_case)]
+    pub fn withGateArgument<T: Send + Sync + 'static>(
+        mut self,
+        name: impl Into<String>,
+        argument: T,
+    ) -> Self {
+        self.options
+            .get_or_insert_default()
+            .gate_arguments
+            .insert(name.into(), Arc::new(argument));
         self
     }
 
@@ -152,7 +174,7 @@ impl View {
 
     /// Selects Blade fragments in the given output order.
     pub fn fragments(mut self, names: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        self.fragments = Some(FragmentSelection::Named(
+        self.options.get_or_insert_default().fragments = Some(FragmentSelection::Named(
             names.into_iter().map(Into::into).collect(),
         ));
         self
@@ -161,7 +183,7 @@ impl View {
     /// Selects every captured Blade fragment.
     #[allow(non_snake_case, reason = "Matches Laravel's View API")]
     pub fn allFragments(mut self) -> Self {
-        self.fragments = Some(FragmentSelection::All);
+        self.options.get_or_insert_default().fragments = Some(FragmentSelection::All);
         self
     }
 
@@ -178,7 +200,7 @@ impl View {
         condition: bool,
         names: impl IntoIterator<Item = impl Into<String>>,
     ) -> Self {
-        self.fragments = condition
+        self.options.get_or_insert_default().fragments = condition
             .then(|| FragmentSelection::Named(names.into_iter().map(Into::into).collect()));
         self
     }
@@ -199,8 +221,8 @@ impl View {
                 })?;
             let context = crate::support::facades::context_snapshot();
             let errors = middleware::shared_errors();
-            let (guard_sender, mut guard_queries) = tokio::sync::mpsc::channel(1);
-            let request_data = request_data::ViewRequestData::capture(request, guard_sender);
+            let (check_sender, mut checks) = tokio::sync::mpsc::channel(1);
+            let request_data = request_data::ViewRequestData::capture(request, check_sender);
             let mut rendering = tokio::task::spawn_blocking(move || {
                 middleware::render_scope(errors, || {
                     context.run(|| factory.render_in_request(self, request_data))
@@ -209,7 +231,7 @@ impl View {
             let rendered = loop {
                 tokio::select! {
                     result = &mut rendering => break result,
-                    Some(query) = guard_queries.recv() => query.resolve(request).await,
+                    Some(query) = checks.recv() => query.resolve(request).await,
                 }
             };
             let html = rendered

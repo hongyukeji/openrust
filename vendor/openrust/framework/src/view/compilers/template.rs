@@ -8,9 +8,11 @@ use crate::support::Str;
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
     rendering::{RenderContext, RenderSlot, render_error},
+    request_data::AuthorizationMode,
 };
 
 mod attributes;
+mod authorization;
 mod expressions;
 mod fonts;
 mod html;
@@ -24,6 +26,7 @@ use attributes::{
     parse_props, render_attributes,
 };
 
+use authorization::AuthorizationBranch;
 use expressions::{Expression, expression_value, loose_equal, truthy, value};
 use includes::{Include, IncludeFirst, RenderEach, collection_entries};
 use loops::{CountedLoop, Jump, JumpKind};
@@ -81,6 +84,7 @@ enum Node {
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
     Environment(Vec<Expression>, Vec<Node>, Vec<Node>),
     Auth(Vec<AuthBranch>, Vec<Node>),
+    Authorization(Vec<AuthorizationBranch>, Vec<Node>),
     RequestValue(RequestValueKind, Expression, Vec<Node>),
     Include(Include, bool),
     IncludeWhen(Expression, Include, bool),
@@ -282,6 +286,8 @@ enum Stop<'a> {
     EndGuest,
     ElseAuth,
     ElseGuest,
+    EndAuthorization(AuthorizationMode),
+    ElseAuthorization(AuthorizationMode),
     EndProduction,
     EndSession,
     EndContext,
@@ -628,6 +634,12 @@ impl<'a> Parser<'a> {
             self.auth_block(depth, false, Stop::EndAuth)?
         } else if self.directive("guest") {
             self.auth_block(depth, true, Stop::EndGuest)?
+        } else if self.directive("can") {
+            self.authorization_block(depth, AuthorizationMode::All)?
+        } else if self.directive("cannot") {
+            self.authorization_block(depth, AuthorizationMode::Denied)?
+        } else if self.directive("canany") {
+            self.authorization_block(depth, AuthorizationMode::Any)?
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -806,6 +818,34 @@ impl<'a> Parser<'a> {
             }
         };
         Ok(Node::Auth(branches, alternative))
+    }
+
+    fn authorization_block(
+        &mut self,
+        depth: usize,
+        mut mode: AuthorizationMode,
+    ) -> ViewResult<Node> {
+        let end = Stop::EndAuthorization(mode);
+        let mut branches = Vec::new();
+        let alternative = loop {
+            let mut branch = AuthorizationBranch::parse(mode, self.arguments()?)?;
+            let (body, stop) = self.block(depth + 1)?;
+            branch.body = body;
+            branches.push(branch);
+            match stop {
+                Some(stop) if stop == end => break Vec::new(),
+                Some(Stop::ElseAuthorization(next)) => mode = next,
+                Some(Stop::Else) => {
+                    let (body, stop) = self.block(depth + 1)?;
+                    if stop != Some(end) {
+                        return Err(invalid("Unclosed Blade authorization block."));
+                    }
+                    break body;
+                }
+                _ => return Err(invalid("Unclosed Blade authorization block.")),
+            }
+        };
+        Ok(Node::Authorization(branches, alternative))
     }
 
     fn custom_condition(
@@ -1098,6 +1138,21 @@ impl<'a> Parser<'a> {
             ("endguest", Stop::EndGuest),
             ("elseauth", Stop::ElseAuth),
             ("elseguest", Stop::ElseGuest),
+            ("endcan", Stop::EndAuthorization(AuthorizationMode::All)),
+            (
+                "endcannot",
+                Stop::EndAuthorization(AuthorizationMode::Denied),
+            ),
+            ("endcanany", Stop::EndAuthorization(AuthorizationMode::Any)),
+            ("elsecan", Stop::ElseAuthorization(AuthorizationMode::All)),
+            (
+                "elsecannot",
+                Stop::ElseAuthorization(AuthorizationMode::Denied),
+            ),
+            (
+                "elsecanany",
+                Stop::ElseAuthorization(AuthorizationMode::Any),
+            ),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -1703,6 +1758,16 @@ fn render_nodes<'a>(
                         .map(|guard| name_value(value(guard, data, bindings)))
                         .transpose()?;
                     if context.request.authenticated(guard)? != branch.guest {
+                        selected = &branch.body;
+                        break;
+                    }
+                }
+                render_block!(selected, data, bindings, output, context);
+            }
+            Node::Authorization(branches, alternative) => {
+                let mut selected = alternative;
+                for branch in branches {
+                    if branch.matches(data, bindings, context)? {
                         selected = &branch.body;
                         break;
                     }

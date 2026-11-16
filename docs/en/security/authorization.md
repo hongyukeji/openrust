@@ -26,6 +26,8 @@ Generate a policy with `./artisan make:policy AccountPolicy --model=User`. Add t
 
 Use `Gate::authorize(request, "edit-settings", &[]).await?` in a handler or attach `.can("edit-settings", &[])` to the route. For model policies, `.can("update", &["user"])` receives the route-bound `user`. Middleware runs authorization after authentication and model binding.
 
+Use the same Gate abilities to conditionally render controls in [Blade authorization directives](../the-basics/blade#authorization-directives).
+
 ## Decisions and hooks
 
 `inspect` returns the authorization decision. A refusal returns HTTP 403 by default. Use `Response::denyWithStatus` or `Response::denyAsNotFound` to change the status. `before` may decide early. `after` may supply a decision when the ability and `before` left it unresolved.

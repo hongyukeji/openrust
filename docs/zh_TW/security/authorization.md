@@ -26,6 +26,8 @@ fn register_settings_gate(gate: &GateRegistry) {
 
 在處理函式中使用 `Gate::authorize(request, "edit-settings", &[]).await?`，或在路由上掛載 `.can("edit-settings", &[])`。模型策略可使用 `.can("update", &["user"])` 接收路由繫結後的 `user`。中介軟體在驗證和模型繫結之後執行授權。
 
+可以在 [Blade 授權指令](../the-basics/blade#authorization-directives)中使用同一組 Gate 權限，決定是否顯示頁面控制項。
+
 ## 授權結果與回呼
 
 `inspect` 傳回授權結果。拒絕預設回傳 HTTP 403，可使用 `Response::denyWithStatus` 或 `Response::denyAsNotFound` 更改狀態碼。`before` 可以提前給出結果。權限檢查與 `before` 都沒有給出結果時，`after` 可以補充。

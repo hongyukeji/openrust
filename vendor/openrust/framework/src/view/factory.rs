@@ -334,7 +334,7 @@ impl Factory {
             binding: None,
             created: false,
             creation_error: None,
-            fragments: None,
+            options: None,
         };
         self.callCreator(&mut view)?;
         Ok(view)
@@ -406,8 +406,12 @@ impl Factory {
         let mut data = self.prepare_view(&mut view)?;
         let source = self.view_source(&view)?;
         data.extend(view.data);
+        let fragments = view.options.and_then(|options| {
+            context.gate_arguments.extend(options.gate_arguments);
+            options.fragments
+        });
         let html = self.render_contents(source, &data, context)?;
-        Ok(match view.fragments {
+        Ok(match fragments {
             Some(fragments) => context.selected_fragments(fragments),
             None => html,
         })
@@ -533,7 +537,7 @@ impl ContractFactory for Factory {
             })),
             created: false,
             creation_error: None,
-            fragments: None,
+            options: None,
         };
         self.callCreator(&mut view)?;
         Ok(Box::new(view))

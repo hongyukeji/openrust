@@ -58,6 +58,38 @@ Use `@auth` and `@guest` in HTTP views to check the configured guard. Pass a gua
 @endauth
 ```
 
+### Authorization Directives {#authorization-directives}
+
+`@can` checks that the current user has every listed ability. `@cannot` selects the branch when that check fails. `@canany` checks whether any listed ability is allowed. Use `@elsecan`, `@elsecannot`, `@elsecanany`, or `@else` for alternate branches. Close the block with the ending directive that matches its opening directive.
+
+The directives use the current HTTP request’s Gate, including guest abilities and policy hooks. Pass a view value or an ordered list as the second argument. Scalars and values inside that list are passed as `ViewValue`. To select a Rust policy, attach the resource with `View::withGateArgument` under a dedicated name. Use `PolicyTarget::of::<T>()` for a policy without a resource instance. Keep route or handler authorization in place for the protected action.
+
+```html
+@can('update', $policyArticle)
+    <a href="/articles/edit">Edit</a>
+@elsecanany(['preview', 'share'], [$policyArticle])
+    <a href="/articles/preview">Preview</a>
+@endcan
+
+@cannot('delete', $policyArticle)
+    <p>Deletion is restricted.</p>
+@endcannot
+```
+
+```rust
+use openrust::view::{View, view};
+
+struct Article {
+    title: String,
+}
+
+fn article_page(article: Article) -> View {
+    view("articles.show")
+        .with("title", article.title.clone())
+        .withGateArgument("policyArticle", article)
+}
+```
+
 ### Environment, Session, and Context {#environment-session-context}
 
 Use `@production` and `@env` to match the application environment. `@env` accepts a name or list, including wildcard patterns. `@session` and `@context` expose `$value` inside their blocks. Session values support dotted keys, and `@context` reads the public request context.
