@@ -117,3 +117,22 @@ assert!(first < second);
 let prefix = first.to_string()[..13].to_owned();
 assert_eq!(prefix, "00000000-0001");
 ```
+
+## 标题大小写与字面量编辑 {#title-and-literal-editing}
+
+使用 `title`、`headline`、`apa` 和 `initials` 生成标题或首字母。填充和截取以 Unicode 标量计数。`replace` 按顺序替换字面量，`swap` 选最长匹配且每段只替换一次。`excerpt` 从首次匹配处向两侧截取。
+
+`isUrl` 使用 Rust URL 解析器验证带主机和允许协议的绝对 URL。链式条件接收类型化回调，正则拆分使用 Rust 正则语法，Base64 解码和解密返回字节。
+
+```rust
+use openrust::support::Str;
+
+let title = Str::of("helloWorld__École")
+    .whenContains(&["World"], false, |value| value.headline())
+    .swap(&[("World", "世界")])
+    .to_string();
+
+assert_eq!(title, "Hello 世界 École");
+assert_eq!(Str::padBoth("中", 6, "é🙂"), "é🙂中é🙂é");
+assert_eq!(Str::excerpt("甲乙中心丙丁", "中心", 1, "…").as_deref(), Some("…乙中心丙…"));
+```

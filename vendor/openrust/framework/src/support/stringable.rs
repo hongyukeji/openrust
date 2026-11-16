@@ -5,6 +5,8 @@ use std::ops::Deref;
 
 use serde::Serialize;
 
+mod operations;
+
 /// An owned, chainable string that serializes as a JSON string.
 ///
 /// ```

@@ -117,3 +117,22 @@ assert!(first < second);
 let prefix = first.to_string()[..13].to_owned();
 assert_eq!(prefix, "00000000-0001");
 ```
+
+## Title case and literal editing {#title-and-literal-editing}
+
+Use `title`, `headline`, `apa` and `initials` for casing and labels. The padding and substring methods count Unicode scalar values. `replace` applies ordered literal pairs, while `swap` chooses the longest match without reprocessing replacements. `excerpt` takes a radius around the first match.
+
+`isUrl` validates an absolute URL with a host and a permitted scheme using the Rust URL parser. Fluent conditions take typed closures, regex splitting uses Rust regex syntax, and Base64 decoding and decryption return bytes.
+
+```rust
+use openrust::support::Str;
+
+let title = Str::of("helloWorld__École")
+    .whenContains(&["World"], false, |value| value.headline())
+    .swap(&[("World", "世界")])
+    .to_string();
+
+assert_eq!(title, "Hello 世界 École");
+assert_eq!(Str::padBoth("中", 6, "é🙂"), "é🙂中é🙂é");
+assert_eq!(Str::excerpt("甲乙中心丙丁", "中心", 1, "…").as_deref(), Some("…乙中心丙…"));
+```

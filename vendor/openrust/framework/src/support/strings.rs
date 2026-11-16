@@ -5,6 +5,7 @@ use super::{MarkdownOptions, Stringable, markdown};
 
 mod comb;
 mod display_width;
+pub(super) mod editing;
 mod inflection;
 mod pattern;
 mod random;
@@ -720,4 +721,167 @@ fn clean(value: &str, data: &TransliterationData) -> String {
     }
     cleaned.retain(|character| !matches!(character, '\u{0000}'..='\u{0008}' | '\u{000b}'..='\u{000c}' | '\u{000e}'..='\u{001f}' | '\u{007f}'));
     cleaned
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Str API")]
+impl Str {
+    pub fn doesntContain(value: &str, needles: &[&str], ignore_case: bool) -> bool {
+        !Self::contains(value, needles, ignore_case)
+    }
+    pub fn doesntStartWith(value: &str, needles: &[&str]) -> bool {
+        !Self::startsWith(value, needles)
+    }
+    pub fn doesntEndWith(value: &str, needles: &[&str]) -> bool {
+        !Self::endsWith(value, needles)
+    }
+
+    pub fn excerpt(value: &str, phrase: &str, radius: usize, omission: &str) -> Option<String> {
+        editing::excerpt(value, phrase, radius, omission)
+    }
+
+    pub fn padLeft(value: &str, length: usize, pad: &str) -> String {
+        editing::pad(value, length, pad, editing::Padding::Left)
+    }
+    pub fn padRight(value: &str, length: usize, pad: &str) -> String {
+        editing::pad(value, length, pad, editing::Padding::Right)
+    }
+    pub fn padBoth(value: &str, length: usize, pad: &str) -> String {
+        editing::pad(value, length, pad, editing::Padding::Both)
+    }
+
+    pub fn replace(value: &str, replacements: &[(&str, &str)], case_sensitive: bool) -> String {
+        editing::replace(value, replacements, case_sensitive)
+    }
+
+    pub fn remove(value: &str, search: &[&str], case_sensitive: bool) -> String {
+        let replacements: Vec<_> = search.iter().map(|&search| (search, "")).collect();
+        Self::replace(value, &replacements, case_sensitive)
+    }
+
+    pub fn replaceArray(search: &str, replacements: &[&str], value: &str) -> String {
+        if search.is_empty() {
+            return value.to_owned();
+        }
+        let mut output = String::new();
+        for (index, part) in value.split(search).enumerate() {
+            if index > 0 {
+                output.push_str(replacements.get(index - 1).copied().unwrap_or(search));
+            }
+            output.push_str(part);
+        }
+        output
+    }
+
+    pub fn substrReplace(
+        value: &str,
+        replacement: &str,
+        offset: isize,
+        length: Option<isize>,
+    ) -> String {
+        let suffix = length.map_or("", |length| {
+            Self::substr(Self::substr(value, offset, None), length, None)
+        });
+        format!(
+            "{}{replacement}{suffix}",
+            Self::substr(value, 0, Some(offset))
+        )
+    }
+
+    pub fn swap(value: &str, replacements: &[(&str, &str)]) -> String {
+        editing::swap(value, replacements)
+    }
+
+    pub fn title(value: &str) -> String {
+        editing::title(value)
+    }
+
+    pub fn apa(value: &str) -> String {
+        editing::apa(value)
+    }
+
+    pub fn headline(value: &str) -> String {
+        let words: Vec<_> = value.split_whitespace().collect();
+        let parts = if words.len() > 1 {
+            words
+        } else {
+            Self::ucsplit(words.first().copied().unwrap_or(""))
+        };
+        parts
+            .into_iter()
+            .map(Self::title)
+            .flat_map(|title| {
+                title
+                    .split(['-', '_', ' '])
+                    .filter(|word| !matches!(*word, "" | "0"))
+                    .map(ToOwned::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    pub fn initials(value: &str, capitalize: bool) -> String {
+        let result: String = value
+            .split_whitespace()
+            .filter_map(|word| word.chars().next())
+            .collect();
+        if capitalize {
+            result.to_uppercase()
+        } else {
+            result
+        }
+    }
+
+    pub fn lcfirst(value: &str) -> String {
+        let mut chars = value.chars();
+        let Some(first) = chars.next() else {
+            return String::new();
+        };
+        format!("{}{}", first.to_lowercase(), chars.as_str())
+    }
+
+    pub fn ucfirst(value: &str) -> String {
+        let mut chars = value.chars();
+        let Some(first) = chars.next() else {
+            return String::new();
+        };
+        let mut uppercase = first.to_uppercase();
+        let mut result = String::new();
+        result.push(uppercase.next().expect("case mapping has characters"));
+        result.extend(uppercase.flat_map(char::to_lowercase));
+        result.push_str(chars.as_str());
+        result
+    }
+
+    pub fn ucwords(value: &str, separators: Option<&str>) -> String {
+        editing::ucwords(
+            value,
+            separators.unwrap_or(editing::DEFAULT_WORD_SEPARATORS),
+        )
+    }
+
+    pub fn ucsplit(value: &str) -> Vec<&str> {
+        let categories =
+            icu_properties::CodePointMapData::<icu_properties::props::GeneralCategory>::new();
+        let mut result = Vec::new();
+        let mut start = 0;
+        for (position, ch) in value.char_indices().skip(1) {
+            if categories.get(ch) == icu_properties::props::GeneralCategory::UppercaseLetter {
+                result.push(&value[start..position]);
+                start = position;
+            }
+        }
+        if !value.is_empty() {
+            result.push(&value[start..]);
+        }
+        result
+    }
+
+    pub fn wordCount(value: &str, additional: Option<&str>) -> usize {
+        editing::word_count(value, additional.unwrap_or(""))
+    }
+
+    pub fn isUrl(value: &str, protocols: &[&str]) -> bool {
+        editing::is_url(value, protocols)
+    }
 }

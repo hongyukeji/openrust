@@ -20,12 +20,9 @@ pub(super) fn limit(value: &str, columns: usize, end: &str, preserve_words: bool
     }
     let plain;
     let value = if preserve_words {
-        static TAGS: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r#"(?s:<!--.*?-->)|</?[A-Za-z][^<>]*(?:"[^"]*"|'[^']*'|[^'"<>])*>"#).unwrap()
-        });
         static NEWLINES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r]+").unwrap());
-        let stripped = TAGS.replace_all(value, "");
-        plain = NEWLINES.replace_all(stripped.as_ref(), " ").into_owned();
+        let stripped = super::editing::strip_tags(value, &[]);
+        plain = NEWLINES.replace_all(&stripped, " ").into_owned();
         plain.trim_matches(php_space)
     } else {
         value

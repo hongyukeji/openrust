@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - 本轮指定的 Arr、日期、Pipeline、多语言词形和 COMB 批次均已验收。Rust 与 PHP 的运行时适配边界见各批验收记录。
-- 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
+- 02-08 已闭合。07-01 继续逐项复核 Stringable 与 Helpers 的剩余运行时契约。
 
 ## 正则与文本排版
 
@@ -97,3 +97,8 @@
 
 - 固定 Laravel `Str::orderedUuid` 使用 Ramsey TimestampFirstCombCodec。Rust 复用既有 UUID v4 随机源和版本、变体位编码，把 Unix 10 微秒刻度写入前 48 位。`orderedUuidAt` 接收显式时间，用类型化错误报告范围或随机源问题。同一刻度内的随机顺序与 PHP 一致。旧版未发现对应生成器。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php) [Ramsey 4.7.6 编码器](https://github.com/ramsey/uuid/blob/4.7.6/src/Codec/TimestampFirstCombCodec.php)
 - PHP 8.5.12 实跑固定 Laravel 与兼容的 Ramsey 4.7.6，核对实时时钟前缀、二进制与文本一致以及版本。20 项 Rust 锁定离线定向回归、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。验收临时副本、PHP 对照夹具、站点产物和测试 SQLite 文件按批清理，共享 Cargo 缓存保留。
+
+## 标题、字面量编辑与链式入口
+
+- 固定 Strings 方法表逐项补齐静态标题、首字母、填充、搜换、摘要、子串替换、单词计数和 URL 判断，复用已有 Unicode 切片、URL 解析器、正则和 Crypt。链式入口补齐对应操作、断言、条件回调及显式字符串转换。HTML 标签移除支持允许标签列表，与整词截断共用基本 HTML 匹配。URL 端口和主机验证采用 Rust URL 解析器的语义。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php) [固定 Stringable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Stringable.php)
+- PHP 8.5.12 固定 Laravel 运行 12 个对照样例。32 项 Rust 1.94.0 锁定离线回归、定向严格 Clippy、真实 Artisan 与回环 HTTP、三语 VitePress 构建通过。Stringable 的扫描格式、动态摘要选择及零散 Helpers 仍需映射或验收。
