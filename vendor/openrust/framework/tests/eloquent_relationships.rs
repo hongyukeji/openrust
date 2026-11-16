@@ -2085,10 +2085,88 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         }
     }
     assert!(found);
+    let mut constrained = Author::queryOn(db)
+        .withPaths(&["posts.author"])
+        .unwrap()
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    let mut query = Author::queryOn(db).withPaths(&["posts.comments"]).unwrap();
+    query.whereKey(1);
+    let already_loaded = query.firstOrFail().await.unwrap();
+    let count_loaded_comments = |author: &Author| {
+        author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+            .iter()
+            .map(|post| {
+                post.getRelation::<RelatedCollection<Comment>>("comments")
+                    .unwrap()
+                    .len()
+            })
+            .sum::<usize>()
+    };
+    let expected = count_loaded_comments(&already_loaded);
+    assert!(expected > 0);
+    let mut mixed = Collection::new(
+        std::iter::once(already_loaded)
+            .chain(constrained.freshWithPaths(&["posts"]).await.unwrap())
+            .collect(),
+    );
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    mixed
+        .loadMissingPathWith("posts.comments:id,subject_id,body", |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "<", 0)
+        })
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    assert_eq!(count_loaded_comments(&mixed[0]), expected);
+    assert!(
+        mixed
+            .iter()
+            .skip(1)
+            .all(|author| count_loaded_comments(author) == 0)
+    );
+
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    constrained
+        .loadMissingPathWith("posts.author.posts", |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "<", 0)
+        })
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    for author in constrained.iter() {
+        for post in author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+        {
+            let nested = post
+                .getRelation::<Option<Arc<Author>>>("author")
+                .unwrap()
+                .as_ref()
+                .unwrap();
+            assert!(
+                nested
+                    .getRelation::<RelatedCollection<Post>>("posts")
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
     let mut model = Author::queryOn(db).firstOrFail().await.unwrap();
     model.loadPaths(&["posts.comments"]).await.unwrap();
     model
-        .loadMissingPaths(&["posts.comments.post"])
+        .loadMissingPathWith("posts.comments.post", |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), ">", 0)
+        })
         .await
         .unwrap();
     assert!(model.relationLoaded("posts"));
@@ -2237,6 +2315,53 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(db).await - baseline, 2);
     }
+    let mut filtered = Comment::queryOn(db)
+        .withPaths(&["subject"])
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    filtered
+        .loadMissingPathWith("subject.details", |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "<", 0)
+        })
+        .await
+        .unwrap();
+    filtered
+        .loadMissingPaths(&["subject.details"])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+    let filtered = filtered.toArray().unwrap();
+    assert!(filtered.iter().any(|comment| comment["subject"].is_null()));
+    assert!(
+        filtered
+            .iter()
+            .filter(|comment| !comment["subject"].is_null())
+            .all(|comment| comment["subject"]["details"] == serde_json::json!([]))
+    );
+
+    let mut subjects = Comment::queryOn(db).get().await.unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    subjects
+        .loadMissingPathWith("subject", |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "<", 0)
+        })
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+    assert!(subjects.iter().all(|comment| {
+        comment
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+            .is_none()
+    }));
+
     let projected = deferred.toArray().unwrap();
     assert!(
         projected

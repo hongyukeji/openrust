@@ -552,6 +552,24 @@ pub async fn moved_author_post_counts<Author: Model, Post: Model>(
 
 在模型或集合上调用 `loadMissingPaths(&["posts.comments"])`，可沿已登记路径补齐缺失关系。已加载结果会保留，包括空结果。缺失的后代按批加载，多态目标按类型分组，根模型序列化时可读到新增结果。需要给共享的相关模型补齐后代时，OpenRust 会在关系缓存中安装新快照，之前持有的 `Arc` 仍指向旧快照。
 
+末级缺失关系需要筛选时，使用 `loadMissingPathWith`。闭包接收分组查询条件和末级关系的表限定名，可与该路径的列选择一起使用。已加载的结果会保留，包括空结果。多态路径的闭包需使用每个可达目标都具备的列。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, Model}};
+
+pub async fn fill_selected_comments<M: Model>(
+    authors: &mut Collection<M>,
+    comment_id: i64,
+) -> DatabaseResult<()> {
+    authors
+        .loadMissingPathWith("posts.comments:id,subject_id,body", move |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "=", comment_id)
+        })
+        .await
+}
+```
+
+
 用 `NamedRelations::morphTo` 登记后，`subject.details` 支持预加载、存在、缺失和末级计数。每个已登记目标都要声明 `details`，各目标可使用不同的关系类型。预加载按目标别名分批，缺失查询包含空值或找不到目标的记录。子关系名称不同时，可使用各目标的类型化配置。
 
 使用异步的 `whereHasPathAll`、`whereDoesntHavePathAll` 或 `hasPathCountAll`，可在构建查询前发现每个多态路径段实际存储的别名。发现查询从模型表读取不同别名，独立于外层查询的筛选和作用域。只有发现的目标需要声明子路径，遇到已存储但未登记的别名会返回错误。

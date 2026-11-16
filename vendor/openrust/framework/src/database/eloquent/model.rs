@@ -992,6 +992,30 @@ pub trait Model: Sized + Send + Sync + 'static {
         super::NamedRelations::<Self>::load_missing(std::slice::from_mut(self), paths)
     }
 
+    /// Applies a grouped predicate when loading a missing terminal relationship.
+    fn loadMissingPathWith(
+        &mut self,
+        path: &str,
+        constraint: impl Fn(
+            crate::database::query::Conditions,
+            &str,
+        ) -> crate::database::query::Conditions
+        + Send
+        + Sync
+        + 'static,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send {
+        async move {
+            let constraint: super::named_relations::PathConstraint =
+                std::sync::Arc::new(constraint);
+            super::NamedRelations::<Self>::load_missing_constrained(
+                std::slice::from_mut(self),
+                &[path],
+                Some(&constraint),
+            )
+            .await
+        }
+    }
+
     fn load<'a, R: Relation<Parent = Self>>(
         &'a mut self,
         name: &'a str,

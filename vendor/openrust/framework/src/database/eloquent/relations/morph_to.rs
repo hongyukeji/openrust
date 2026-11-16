@@ -661,6 +661,7 @@ impl<P: Model> MorphTo<P> {
         models: &mut [P],
         name: &str,
         children: &[&str],
+        constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<()> {
         if children.is_empty() {
             return Ok(());
@@ -685,7 +686,7 @@ impl<P: Model> MorphTo<P> {
             self.targets
                 .get(alias)
                 .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
-                .load_missing_paths(&mut targets, children)
+                .load_missing_paths(&mut targets, children, constraint)
                 .await?;
         }
         for (model, output) in models.iter_mut().zip(outputs) {
@@ -1043,6 +1044,7 @@ trait Target<P: Model>: Send + Sync {
         &'a self,
         targets: &'a mut [&mut ErasedModel],
         children: &'a [&'a str],
+        constraint: Option<&'a PathConstraint>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn select_path_columns(&mut self, columns: Vec<String>);
     fn with_paths(
@@ -1180,6 +1182,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         &'a self,
         targets: &'a mut [&mut ErasedModel],
         children: &'a [&'a str],
+        constraint: Option<&'a PathConstraint>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             let models =
@@ -1194,6 +1197,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             let replacements = super::super::named_relations::load_missing_models(
                 models.iter().copied(),
                 children,
+                constraint,
             )
             .await?;
             let keys = models

@@ -552,6 +552,24 @@ pub async fn moved_author_post_counts<Author: Model, Post: Model>(
 
 在模型或集合上呼叫 `loadMissingPaths(&["posts.comments"])`，可沿已登錄路徑補齊缺少的關聯。已載入結果會保留，包括空結果。缺少的後代會批次載入，多型目標依型別分組，根模型序列化時可讀到新增結果。需要補齊共用關聯模型的後代時，OpenRust 會在關聯快取中安裝新快照，先前持有的 `Arc` 仍指向舊快照。
 
+末級缺少的關聯需要篩選時，請使用 `loadMissingPathWith`。閉包接收分組查詢條件和末級關聯的資料表限定名稱，可搭配該路徑的欄位選擇。已載入的結果會保留，包括空結果。多型路徑的閉包須使用每個可達目標皆具備的欄位。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, Model}};
+
+pub async fn fill_selected_comments<M: Model>(
+    authors: &mut Collection<M>,
+    comment_id: i64,
+) -> DatabaseResult<()> {
+    authors
+        .loadMissingPathWith("posts.comments:id,subject_id,body", move |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "=", comment_id)
+        })
+        .await
+}
+```
+
+
 用 `NamedRelations::morphTo` 登錄後，`subject.details` 支援預先載入、存在、缺失和末級計數。每個已登錄目標都須宣告 `details`，各目標可使用不同的關聯型別。預先載入依目標別名分批，缺失查詢包含空值或找不到目標的記錄。子關聯名稱不同時，可使用各目標的型別化設定。
 
 使用非同步的 `whereHasPathAll`、`whereDoesntHavePathAll` 或 `hasPathCountAll`，可在建立查詢前探索每個多型路徑段實際儲存的別名。探索查詢從模型資料表讀取不同別名，獨立於外層查詢的篩選及作用域。只有找到的目標需要宣告子路徑，遇到已儲存但未登錄的別名會回傳錯誤。

@@ -1424,6 +1424,27 @@ impl<M: Model> Collection<M> {
         super::NamedRelations::<M>::load_missing(&mut self.models, paths).await
     }
 
+    /// Applies a grouped predicate when loading a missing terminal relationship.
+    pub async fn loadMissingPathWith(
+        &mut self,
+        path: &str,
+        constraint: impl Fn(
+            crate::database::query::Conditions,
+            &str,
+        ) -> crate::database::query::Conditions
+        + Send
+        + Sync
+        + 'static,
+    ) -> DatabaseResult<()> {
+        let constraint: super::named_relations::PathConstraint = Arc::new(constraint);
+        super::NamedRelations::<M>::load_missing_constrained(
+            &mut self.models,
+            &[path],
+            Some(&constraint),
+        )
+        .await
+    }
+
     pub async fn load<R: Relation<Parent = M>>(
         &mut self,
         name: &str,
