@@ -260,36 +260,59 @@ THE SOFTWARE.
                 body {
                     align-items: center;
                     padding: 32px;
+                    font-size: 16px;
+                    line-height: 1.5;
                 }
 
                 main {
-                    flex-direction: row;
-                    max-width: 896px;
+                    display: grid;
+                    grid-template-columns: minmax(0, 54fr) minmax(0, 46fr);
+                    width: clamp(960px, 76%, 1280px);
+                    max-width: 100%;
                 }
 
                 .introduction {
-                    padding: 80px 79px 40px;
+                    align-content: center;
+                    padding: clamp(36px, 4.5vw, 76px);
                     border-radius: 8px 0 0 8px;
+                }
+
+                h1 {
+                    font-size: 28px;
+                    line-height: 1.2;
+                    margin-bottom: 12px;
                 }
 
                 .steps {
                     margin-bottom: 24px;
                 }
 
+                .button {
+                    padding-block: 8px;
+                    font-size: inherit;
+                }
+
                 .release {
-                    margin-top: 40px;
+                    margin-top: 32px;
                 }
 
                 .artwork {
-                    flex: 0 0 438px;
-                    margin-left: -1px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    gap: 16px;
+                    padding: 24px;
                     aspect-ratio: auto;
                     border-radius: 0 8px 8px 0;
                 }
 
                 .wordmark {
-                    padding: 7px 18px 0;
-                    font-size: 84px;
+                    padding: 0;
+                    font-size: clamp(60px, 5.8vw, 96px);
+                }
+
+                .illustration {
+                    position: static;
                 }
             }
         </style>
