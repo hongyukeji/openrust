@@ -1027,3 +1027,71 @@ fn lazy_groups_materialize_with_key_coalescing_before_projection() {
         r#"{"a":4,"b":2}"#
     );
 }
+
+#[test]
+fn lazy_key_lookups_stop_at_first_match_and_distinguish_normalized_keys() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("08", 1), ("8", 2), ("8", 3), ("end", 4)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(source.get(8).unwrap(), Some(2));
+    assert_eq!(reads.get(), 2);
+    assert_eq!(source.get("08").unwrap(), Some(1));
+    assert!(source.has(8).unwrap());
+    assert!(source.hasAll(["08", "8", "8"]).unwrap());
+    assert!(source.hasAny(["missing", "08"]).unwrap());
+    assert!(!source.has("missing").unwrap());
+    assert!(source.hasAll(std::iter::empty::<ArrayKey>()).unwrap());
+    assert!(
+        !LazyCollection::<i32>::empty()
+            .hasAll(std::iter::empty::<ArrayKey>())
+            .unwrap()
+    );
+}
+
+#[test]
+fn lazy_neighbors_and_search_follow_occurrence_order() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("k", 1), ("k", 2), ("b", 3), ("c", 2)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(source.search(&2).unwrap(), Some("k".into()));
+    assert_eq!(reads.get(), 2);
+    assert_eq!(
+        source
+            .searchWhere(|_, key| key == &ArrayKey::from("c"))
+            .unwrap(),
+        Some("c".into())
+    );
+    assert_eq!(source.before(&2).unwrap(), Some(1));
+    assert_eq!(source.after(&2).unwrap(), Some(3));
+    assert_eq!(source.before(&1).unwrap(), None);
+    assert_eq!(
+        source
+            .afterWhere(|_, key| key == &ArrayKey::from("c"))
+            .unwrap(),
+        None
+    );
+    assert_eq!(source.last().unwrap(), Some(2));
+    assert_eq!(source.lastWhere(|value, _| *value > 2).unwrap(), Some(3));
+    assert!(source.some(|value, _| *value == 1).unwrap());
+    assert!(source.doesntContainStrict(&10).unwrap());
+}
+
+#[test]
+fn lazy_lookup_reports_errors_only_if_needed_for_the_result() {
+    let failing = LazyCollection::tryFromEntries(|| [Ok(("first", 1)), Err(source_error())]);
+    assert_eq!(failing.get("first").unwrap(), Some(1));
+    assert!(failing.hasAny(["first", "missing"]).unwrap());
+    assert!(matches!(
+        failing.hasAll(["first", "missing"]),
+        Err(CollectionError::Source(_))
+    ));
+    assert_eq!(failing.before(&1).unwrap(), None);
+    assert!(matches!(failing.after(&1), Err(CollectionError::Source(_))));
+    assert!(matches!(failing.last(), Err(CollectionError::Source(_))));
+}

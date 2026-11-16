@@ -62,6 +62,24 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(self.firstWhere(predicate)?.is_some())
     }
 
+    pub fn doesntContain(&self, value: &T) -> CollectionResult<bool>
+    where
+        T: PartialEq,
+    {
+        Ok(!self.contains(value)?)
+    }
+
+    pub fn doesntContainStrict(&self, value: &T) -> CollectionResult<bool>
+    where
+        T: PartialEq,
+    {
+        self.doesntContain(value)
+    }
+
+    pub fn some(&self, predicate: impl FnMut(&T, &ArrayKey) -> bool) -> CollectionResult<bool> {
+        self.containsWhere(predicate)
+    }
+
     pub fn firstOrFail(&self) -> CollectionResult<T> {
         self.first()?.ok_or(CollectionError::ItemNotFound)
     }

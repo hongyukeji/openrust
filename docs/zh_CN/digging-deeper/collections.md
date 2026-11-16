@@ -302,6 +302,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 查找条目及相邻值 {#lazy-looking-up-items}
+
+`get` 返回指定键首次出现的条目。`has` 检查单个键，`hasAll` 检查所有指定键，`hasAny` 检查是否存在任意指定键。PHP 的宽松相等可以匹配 `"08"` 和 `8`，Rust 按归一化后的 `ArrayKey` 比较，两者是不同的键。`search` 返回首个匹配的键。`before` 和 `after` 按来源顺序返回相邻值。`last` 遍历到来源结束。
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("08", 10), ("8", 12), ("end", 7)]);
+    assert_eq!(readings.get(8)?, Some(12));
+    assert!(readings.hasAll(["08", "end"])?);
+    assert_eq!(readings.search(&12)?, Some(ArrayKey::from(8)));
+    assert_eq!(readings.before(&12)?, Some(10));
+    assert_eq!(readings.after(&12)?, Some(7));
+    assert_eq!(readings.last()?, Some(7));
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

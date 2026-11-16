@@ -302,6 +302,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Looking Up Items and Neighbors {#lazy-looking-up-items}
+
+`get` returns the first entry with the given key. `has` checks one key, `hasAll` checks all requested keys, and `hasAny` checks whether at least one exists. Rust compares normalized `ArrayKey` values, so `"08"` and `8` are distinct. PHP loose equality can match those two keys. `search` returns the first matching key. `before` and `after` return adjacent values in source order. `last` traverses the source to the end.
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("08", 10), ("8", 12), ("end", 7)]);
+    assert_eq!(readings.get(8)?, Some(12));
+    assert!(readings.hasAll(["08", "end"])?);
+    assert_eq!(readings.search(&12)?, Some(ArrayKey::from(8)));
+    assert_eq!(readings.before(&12)?, Some(10));
+    assert_eq!(readings.after(&12)?, Some(7));
+    assert_eq!(readings.last()?, Some(7));
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

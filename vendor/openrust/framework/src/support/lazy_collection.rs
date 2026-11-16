@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable};
 
 mod aggregates;
+mod lookup;
 mod matching;
 mod nested;
 mod ordering;

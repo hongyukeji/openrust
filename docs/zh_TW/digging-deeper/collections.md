@@ -302,6 +302,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 尋找項目與相鄰值 {#lazy-looking-up-items}
+
+`get` 傳回指定鍵第一次出現的項目。`has` 檢查單一鍵，`hasAll` 檢查所有指定鍵，`hasAny` 檢查是否存在任一指定鍵。PHP 的寬鬆相等可以比對 `"08"` 和 `8`，Rust 依正規化後的 `ArrayKey` 比較，兩者是不同的鍵。`search` 傳回第一個符合的鍵。`before` 和 `after` 按來源順序傳回相鄰值。`last` 迭代到來源結束。
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("08", 10), ("8", 12), ("end", 7)]);
+    assert_eq!(readings.get(8)?, Some(12));
+    assert!(readings.hasAll(["08", "end"])?);
+    assert_eq!(readings.search(&12)?, Some(ArrayKey::from(8)));
+    assert_eq!(readings.before(&12)?, Some(10));
+    assert_eq!(readings.after(&12)?, Some(7));
+    assert_eq!(readings.last()?, Some(7));
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。
