@@ -99,6 +99,52 @@ fn register_account_routes() -> Result<(), RoutingError> {
 }
 ```
 
+## 密码确认 {#password-confirmation}
+
+在敏感 Web 路由上，将 `password.confirm` 放在 `auth` 之后。中间件使用 `auth.password_timeout`，单位为秒，默认 10,800。使用 `password.confirm:password.confirm,300` 可覆盖确认路由和时限。需要确认时，浏览器跳转到命名路由，原目标地址存入会话。JSON 请求收到 HTTP 423。
+
+密码确认表单通过受 CSRF 保护的 POST 提交。`Auth::confirmPassword` 通过用户提供器校验当前账号密码，并记录成功确认。自行验证密码后，也可调用 `request.session_mut()?.passwordConfirmed()?` 记录确认。
+
+```rust
+use openrust::{
+    auth::Auth,
+    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode, abort},
+    routing::{RouteGroup, RoutingError},
+    support::facades::{Redirect, Route},
+    view::view,
+};
+
+fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let password = request.input(Some("password")).await?;
+        let password = password.as_ref().and_then(serde_json::Value::as_str)
+            .ok_or(HttpError::InvalidRequest)?;
+        if !Auth::confirmPassword(request, password).await? {
+            return Err(abort(StatusCode::UNPROCESSABLE_ENTITY, "Invalid password.", Default::default()));
+        }
+        Ok(Redirect::intended(request, "/settings", Default::default())?.into())
+    })
+}
+
+fn register_password_routes() -> Result<(), RoutingError> {
+    Route::getWith("/confirm-password", || view("auth.confirm-password"), |route| {
+        route.name("password.confirm").middleware_name("auth");
+        Ok(())
+    })?;
+    Route::group(
+        RouteGroup::new().middleware_name("auth").middleware_name("throttle:6,1"),
+        |router| {
+            router.r#match(&[Method::POST], "/confirm-password", confirm)?;
+            Ok(())
+        },
+    )?;
+    Route::getWith("/settings", || view("settings"), |route| {
+        route.middleware_name("auth").middleware_name("password.confirm");
+        Ok(())
+    })
+}
+```
+
 ## 自定义 Guard 和提供器
 
 默认应用注册编译后的 Eloquent `User`。用 `AuthManager::registerModel` 注册其他模型，或为 `database` 提供器配置表名和列名。用 `provider` 注册提供器，用 `viaRequest` 注册无状态请求解析器。内置 `token` Guard 读取 Bearer 请求头，支持对令牌哈希后再查库。

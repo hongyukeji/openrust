@@ -6,6 +6,7 @@ mod authenticate_with_basic_auth;
 mod authorize;
 mod ensure_email_is_verified;
 mod redirect_if_authenticated;
+mod require_password;
 
 pub use authenticate::Authenticate;
 pub use authenticate_session::AuthenticateSession;
@@ -13,3 +14,4 @@ pub use authenticate_with_basic_auth::AuthenticateWithBasicAuth;
 pub use authorize::Authorize;
 pub use ensure_email_is_verified::EnsureEmailIsVerified;
 pub use redirect_if_authenticated::RedirectIfAuthenticated;
+pub use require_password::RequirePassword;

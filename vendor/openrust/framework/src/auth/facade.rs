@@ -59,6 +59,12 @@ impl Auth {
             .await
     }
 
+    pub async fn confirmPassword(request: &mut Request, password: &str) -> AuthResult<bool> {
+        Self::sessionGuard(request, None)?
+            .confirmPassword(password)
+            .await
+    }
+
     pub fn shouldUse(request: &mut Request, name: &str) -> AuthResult<()> {
         Self::manager()?.shouldUse(request, name)
     }

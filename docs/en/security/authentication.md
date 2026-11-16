@@ -99,6 +99,52 @@ fn register_account_routes() -> Result<(), RoutingError> {
 }
 ```
 
+## Password confirmation {#password-confirmation}
+
+Protect sensitive Web routes with `password.confirm` after `auth`. The middleware uses `auth.password_timeout` in seconds (10,800 by default). Use `password.confirm:password.confirm,300` to override the confirmation route and timeout. When confirmation is required, browsers are redirected to the named route and the intended URL is saved in the session. JSON requests receive HTTP 423.
+
+Make the confirmation form a CSRF-protected POST. `Auth::confirmPassword` verifies the current account through its user provider and records the successful confirmation. A custom confirmation handler can verify the password itself and call `request.session_mut()?.passwordConfirmed()?`.
+
+```rust
+use openrust::{
+    auth::Auth,
+    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode, abort},
+    routing::{RouteGroup, RoutingError},
+    support::facades::{Redirect, Route},
+    view::view,
+};
+
+fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let password = request.input(Some("password")).await?;
+        let password = password.as_ref().and_then(serde_json::Value::as_str)
+            .ok_or(HttpError::InvalidRequest)?;
+        if !Auth::confirmPassword(request, password).await? {
+            return Err(abort(StatusCode::UNPROCESSABLE_ENTITY, "Invalid password.", Default::default()));
+        }
+        Ok(Redirect::intended(request, "/settings", Default::default())?.into())
+    })
+}
+
+fn register_password_routes() -> Result<(), RoutingError> {
+    Route::getWith("/confirm-password", || view("auth.confirm-password"), |route| {
+        route.name("password.confirm").middleware_name("auth");
+        Ok(())
+    })?;
+    Route::group(
+        RouteGroup::new().middleware_name("auth").middleware_name("throttle:6,1"),
+        |router| {
+            router.r#match(&[Method::POST], "/confirm-password", confirm)?;
+            Ok(())
+        },
+    )?;
+    Route::getWith("/settings", || view("settings"), |route| {
+        route.middleware_name("auth").middleware_name("password.confirm");
+        Ok(())
+    })
+}
+```
+
 ## Custom Guards and Providers
 
 The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.

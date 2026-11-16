@@ -21,6 +21,7 @@ use crate::{
     cookie::{CookieOptions, facade::Cookie},
     events::{Dispatcher, EventContext},
     http::Request,
+    session::PASSWORD_CONFIRMED_AT,
     support::facades::{Facade as _, RateLimiter},
 };
 
@@ -225,7 +226,7 @@ impl<'a> SessionGuard<'a> {
         let password_key = SessionFingerprint::session_key(&self.name);
         let session = self.session()?;
         session.regenerate(true).await.map_err(AuthError::backend)?;
-        session.forget(&[&password_key]);
+        session.forget(&[&password_key, PASSWORD_CONFIRMED_AT]);
         session.put(&key, value).map_err(AuthError::backend)
     }
 
@@ -533,6 +534,31 @@ impl<'a> SessionGuard<'a> {
         .await
     }
 
+    /// Verifies the current user's password and records a confirmation.
+    pub async fn confirmPassword(&mut self, password: &str) -> AuthResult<bool> {
+        let Some(id) = self.id().await? else {
+            return Ok(false);
+        };
+        let Some(user) = self.provider.retrieve_by_id(&id).await? else {
+            return Ok(false);
+        };
+        let credentials = Credentials::new(
+            std::iter::empty::<(String, crate::database::Value)>(),
+            password,
+        );
+        if !self
+            .provider
+            .validate_credentials(user.as_ref(), &credentials)
+            .await?
+        {
+            return Ok(false);
+        }
+        self.session()?
+            .passwordConfirmed()
+            .map_err(AuthError::backend)?;
+        Ok(true)
+    }
+
     /// Logs out, invalidates the application session and rotates its CSRF token.
     pub async fn logoutAndInvalidate(&mut self) -> AuthResult<()> {
         self.logout().await?;
@@ -591,7 +617,8 @@ impl<'a> SessionGuard<'a> {
     fn clear_device(&mut self) -> AuthResult<()> {
         let key = self.session_key.clone();
         let password_key = SessionFingerprint::session_key(&self.name);
-        self.session()?.forget(&[&key, &password_key]);
+        self.session()?
+            .forget(&[&key, &password_key, PASSWORD_CONFIRMED_AT]);
         if self.request.cookie_is_protected(&self.recaller) {
             Cookie::expire(&self.recaller, None, None).map_err(AuthError::backend)?;
         }

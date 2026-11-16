@@ -20,3 +20,9 @@
 
 - 对照固定 [SessionGuard::logoutOtherDevices](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/SessionGuard.php) 和 [AuthenticateSession](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/Middleware/AuthenticateSession.php)。确认当前密码后强制重哈希，从提供器重读账户，更新当前指纹及适用的 remember Cookie，并派发 `OtherDeviceLogout`。`auth.session` 校验会话指纹，拒绝曾保存旧指纹的会话。复用现有会话机制与 Sanctum 的 HMAC 指纹格式，既有 recaller 校验沿用已验收实现。
 - Rust 1.94.0、macOS ARM64。真实 HTTP 用两个独立会话验证错误密码保留两者，成功撤销后当前会话和新 remember Cookie 可用，旧会话和旧 Cookie 返回 401，并验证重登和事件载荷。三项数据库独立的定向测试、隔离格式及启用 Sanctum 的严格 Clippy 通过。真实 Artisan `route:list --middleware auth.session --json` 识别三语共用的示例路由与中间件顺序，三语构建通过。
+
+## 密码确认
+
+- 对照固定 [RequirePassword](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/RequirePassword.php) 与 Session Store，复用旧版密码确认的会话时间戳、JSON 423 和命名路由跳转语义。`password.confirm` 支持配置和路由级覆盖。浏览器通过现有 Redirector 保存原目标，`Auth::confirmPassword` 使用当前账户的提供器校验后写入确认时间。Guard 新建或结束登录会话时清除旧确认时间，避免确认随重新登录继承。
+- Rust 1.94.0、macOS ARM64。真实 HTTP 验证默认和具名确认页、原 URL 含查询参数的恢复、错误密码、成功确认、配置超时及单路由超时。四项扩展 HTTP 测试、八项 CSRF／视图回归及隔离 MySQL 8.4.13 的既有认证用例通过。MySQL 测试专用库和账号已回收。
+- 隔离工作区格式及启用 Sanctum 的严格 Clippy 通过。真实 Artisan 使用三语共用 Rust 示例，`route:list` 分别验证中间件路由及 `password.confirm` 的命名目标。三语构建及四个认证章节锚点复核通过。

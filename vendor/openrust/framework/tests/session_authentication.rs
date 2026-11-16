@@ -213,7 +213,7 @@ async fn send(
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with(&format!("HTTP/1.1 {status} ")), "{path}: {response}");
         let (headers, body) = response.split_once("\r\n\r\n").unwrap();
-        Wire { headers: headers.to_owned(), body: if body.is_empty() { Json::Null } else { serde_json::from_str(body).unwrap() } }
+        Wire { headers: headers.to_owned(), body: if body.is_empty() || (300..400).contains(&status) { Json::Null } else { serde_json::from_str(body).unwrap() } }
     }).await.unwrap()
 }
 

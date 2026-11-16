@@ -671,3 +671,6 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
     );
     server.abort();
 }
+
+#[path = "extensions/confirmation.rs"]
+mod confirmation;

@@ -66,6 +66,10 @@ impl Default for Middleware {
             Arc::new(crate::auth::middleware::AuthenticateSession),
         );
         middleware.alias(
+            "password.confirm",
+            Arc::new(crate::auth::middleware::RequirePassword::default()),
+        );
+        middleware.alias(
             "verified",
             Arc::new(crate::auth::middleware::EnsureEmailIsVerified::default()),
         );

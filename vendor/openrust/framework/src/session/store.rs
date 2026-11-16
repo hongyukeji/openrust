@@ -8,6 +8,11 @@ use super::{SessionError, SessionFuture, SessionResult, Value};
 
 pub(super) const MAX_PAYLOAD_BYTES: usize = 1024 * 1024;
 const ID_LENGTH: usize = 40;
+pub(crate) const PASSWORD_CONFIRMED_AT: &str = "auth.password_confirmed_at";
+
+pub(crate) fn unix_seconds() -> i64 {
+    chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).timestamp()
+}
 
 /// The state of one HTTP session, with a request-owned storage handler.
 pub struct Store {
@@ -74,6 +79,12 @@ impl Store {
     #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
     pub fn setPreviousUrl(&mut self, url: &str) -> SessionResult<()> {
         self.put("_previous.url", url.into())
+    }
+
+    /// Records that the password for this session was confirmed.
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn passwordConfirmed(&mut self) -> SessionResult<()> {
+        self.put(PASSWORD_CONFIRMED_AT, unix_seconds().into())
     }
 
     fn flash_keys(&self, key: &str) -> Vec<String> {

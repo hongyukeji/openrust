@@ -99,6 +99,52 @@ fn register_account_routes() -> Result<(), RoutingError> {
 }
 ```
 
+## 密碼確認 {#password-confirmation}
+
+在敏感的 Web 路由上，將 `password.confirm` 放在 `auth` 之後。中介軟體使用 `auth.password_timeout`，單位為秒，預設 10,800。可用 `password.confirm:password.confirm,300` 覆寫確認路由與期限。需要確認時，瀏覽器會重新導向命名路由，並將原始目的地儲存在工作階段。JSON 請求會收到 HTTP 423。
+
+密碼確認表單透過受 CSRF 保護的 POST 送出。`Auth::confirmPassword` 透過使用者提供者驗證目前帳號密碼，並記錄成功確認。自行驗證密碼後，也可呼叫 `request.session_mut()?.passwordConfirmed()?` 記錄確認。
+
+```rust
+use openrust::{
+    auth::Auth,
+    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode, abort},
+    routing::{RouteGroup, RoutingError},
+    support::facades::{Redirect, Route},
+    view::view,
+};
+
+fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let password = request.input(Some("password")).await?;
+        let password = password.as_ref().and_then(serde_json::Value::as_str)
+            .ok_or(HttpError::InvalidRequest)?;
+        if !Auth::confirmPassword(request, password).await? {
+            return Err(abort(StatusCode::UNPROCESSABLE_ENTITY, "Invalid password.", Default::default()));
+        }
+        Ok(Redirect::intended(request, "/settings", Default::default())?.into())
+    })
+}
+
+fn register_password_routes() -> Result<(), RoutingError> {
+    Route::getWith("/confirm-password", || view("auth.confirm-password"), |route| {
+        route.name("password.confirm").middleware_name("auth");
+        Ok(())
+    })?;
+    Route::group(
+        RouteGroup::new().middleware_name("auth").middleware_name("throttle:6,1"),
+        |router| {
+            router.r#match(&[Method::POST], "/confirm-password", confirm)?;
+            Ok(())
+        },
+    )?;
+    Route::getWith("/settings", || view("settings"), |route| {
+        route.middleware_name("auth").middleware_name("password.confirm");
+        Ok(())
+    })
+}
+```
+
 ## 自訂 Guard 和提供器
 
 預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。
