@@ -257,6 +257,23 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 計算符合條件的百分比 {#lazy-percentage}
+
+`percentage(predicate, precision)` 計算符合判定條件的項目百分比，並按指定小數位捨入。判定函式依來源順序收到每個項目的值與鍵。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 95), ("b", 82), ("c", 70)]);
+    let passing = readings.percentage(|value, _| *value >= 80, 2)?;
+    assert_eq!(passing, Some(66.67));
+    Ok(())
+}
+```
+
+該方法只走訪來源一次。空來源回傳 `None`，來源錯誤會結束走訪。精度使用非負整數。
+
 #### 比較與更新集合 {#lazy-comparing-and-updating}
 
 `diff`、`intersect` 及其依鍵和關聯比較的變體，在第一次取值時實體化兩個來源。`union` 保留既有鍵對應的值。`merge` 覆蓋同名字串鍵，並重排數字鍵。`replace` 先讀完替換來源，再替換主要來源中每個鍵第一次出現的值，最後附加主要來源未出現的替換鍵。

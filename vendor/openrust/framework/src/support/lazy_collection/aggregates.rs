@@ -3,7 +3,7 @@ use std::{hash::Hash, iter::Sum};
 use indexmap::IndexMap;
 
 use super::{ArrayKey, CollectionResult, LazyCollection};
-use crate::support::collection::CollectionNumber;
+use crate::support::collection::{CollectionNumber, percentage_from_counts};
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
@@ -56,6 +56,18 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             }
         }
         Ok(true)
+    }
+
+    /// Returns the percentage of entries that match, in one traversal.
+    pub fn percentage(
+        &self,
+        mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
+        precision: u8,
+    ) -> CollectionResult<Option<f64>> {
+        let (matches, total) = self.reduce((0, 0), |(matches, total), value, key| {
+            (matches + usize::from(predicate(value, key)), total + 1)
+        })?;
+        Ok(percentage_from_counts(matches, total, precision))
     }
 
     pub fn sum(&self) -> CollectionResult<T>

@@ -257,6 +257,23 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 计算匹配占比 {#lazy-percentage}
+
+`percentage(predicate, precision)` 计算满足判定条件的条目百分比，并按指定小数位舍入。判定函数按来源顺序接收每个条目的值和键。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 95), ("b", 82), ("c", 70)]);
+    let passing = readings.percentage(|value, _| *value >= 80, 2)?;
+    assert_eq!(passing, Some(66.67));
+    Ok(())
+}
+```
+
+该方法只遍历来源一次。空来源返回 `None`，来源错误会结束遍历。精度使用非负整数。
+
 #### 比较和更新集合 {#lazy-comparing-and-updating}
 
 `diff`、`intersect` 及其按键和关联比较的变体，在首次取值时实体化两个来源。`union` 保留已有键对应的值。`merge` 覆盖同名字符串键，并重排数字键。`replace` 先读完替换来源，再替换主来源中每个键首次出现的值，最后追加主来源未出现的替换键。

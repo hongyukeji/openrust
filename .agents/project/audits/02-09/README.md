@@ -173,3 +173,13 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 隔离基线更新至 `da9443208`。PHP 8.5.12 的固定 Laravel 对照及 68 项 Rust 集合测试通过，覆盖空来源和空操作数、数量边界、键保留、同一结果重放及错误传播。
 - 三语共用 Rust 示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有 Sanctum 排版差异。
 - PHP 临时容器已回收。清理本批 3.3 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 64.08 GB（59.68 GiB）。证据目录为 `/private/tmp/openrust-lazy-sampling.F74fzsJi`。
+
+## 惰性匹配占比
+
+对照固定 Laravel [EnumeratesValues::percentage](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L562)。旧版未找到对应惰性集合实现。本批复用实体集合的数值舍入与惰性集合的带键归约。
+
+- `percentage(predicate, precision)` 按源顺序向判定函数传值和键。空来源返回 `None`，来源出错立即停止。Rust 通过同一次遍历统计总数与命中数，避免 Laravel 在惰性源上发起空值检查及两次计数。精度和实体集合保持一致，为显式 `u8`，Laravel 则使用默认 2 的有符号整数。
+- 隔离基线 `773400368`。PHP 8.5.12 固定源码对照确认键、空结果、0% 和 100%、半入舍入及 Laravel 三次打开来源。70 项 Rust 集合回归确认单次遍历、一次回调每项和错误后不再读取。
+- 三语共用例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。
+- 以固定 `LazyCollection.php` 和 `EnumeratesValues.php` 的显式公开方法名为准，162 项中有 155 项在 Rust 有同名入口。余项包括 Laravel 已弃用的 `containsManyItems`、`containsOneItem`，以及 `dd`、`dump`、`escapeWhenCastingToString`、`getCachingIterator`、`proxy`。此项只核方法名，宏、类型签名和可观察行为需另行验收。
+- PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物及文档缓存后，项目卷可用 61.30 GB（57.09 GiB）。证据目录为 `/private/tmp/openrust-02-09-percentage.oXrJSEl1`。

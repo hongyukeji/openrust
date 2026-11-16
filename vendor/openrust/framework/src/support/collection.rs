@@ -14,6 +14,13 @@ mod serialization;
 
 pub use numbers::CollectionNumber;
 
+pub(super) fn percentage_from_counts(matches: usize, total: usize, precision: u8) -> Option<f64> {
+    (total != 0).then(|| {
+        let scale = 10.0_f64.powi(i32::from(precision));
+        ((matches as f64 / total as f64) * 100.0 * scale).round() / scale
+    })
+}
+
 use super::Enumerable;
 
 /// An integer or string key in an ordered collection.

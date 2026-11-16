@@ -4,7 +4,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use openrust::support::{ArrayKey, Collection, CollectionError, Enumerable, LazyCollection};
+use openrust::support::{
+    ArrayKey, Collection, CollectionError, CollectionResult, Enumerable, LazyCollection,
+};
 
 #[test]
 fn pipelines_open_only_when_polled_and_replay_without_overreading() {
@@ -1766,4 +1768,57 @@ fn lazy_shuffle_preserves_membership_and_propagates_source_errors() {
         failing.random(0, false),
         Err(CollectionError::Source(_))
     ));
+}
+
+#[test]
+fn lazy_percentage_counts_once_in_key_order_and_rounds() -> CollectionResult<()> {
+    let opens = Cell::new(0);
+    let calls = Cell::new(0);
+    let entries = LazyCollection::fromEntries(|| {
+        opens.set(opens.get() + 1);
+        [("one", 1), ("two", 2), ("three", 3)]
+    });
+    assert_eq!(
+        entries.percentage(
+            |value, key| {
+                calls.set(calls.get() + 1);
+                *value == 1 && key == &ArrayKey::from("one")
+            },
+            2
+        )?,
+        Some(33.33)
+    );
+    assert_eq!((opens.get(), calls.get()), (1, 3));
+    assert_eq!(entries.percentage(|_, _| false, 2)?, Some(0.0));
+    assert_eq!(entries.percentage(|_, _| true, 2)?, Some(100.0));
+    assert_eq!(
+        LazyCollection::make(|| 0..32).percentage(|value, _| *value == 0, 2)?,
+        Some(3.13)
+    );
+    assert_eq!(
+        LazyCollection::<i32>::from([]).percentage(|_, _| panic!("empty source"), 2)?,
+        None
+    );
+    Ok(())
+}
+
+#[test]
+fn lazy_percentage_propagates_an_error_without_reading_remaining_entries() {
+    let reads = Cell::new(0);
+    let entries = LazyCollection::tryMake(|| {
+        [Ok(1), Err(CollectionError::InvalidArgument), Ok(3)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let mut calls = 0;
+    let result = entries.percentage(
+        |_, _| {
+            calls += 1;
+            true
+        },
+        0,
+    );
+    assert!(matches!(result, Err(CollectionError::InvalidArgument)));
+    assert_eq!(calls, 1);
+    assert_eq!(reads.get(), 2);
 }

@@ -257,6 +257,23 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Calculating a Percentage {#lazy-percentage}
+
+`percentage(predicate, precision)` returns the share of entries for which the predicate returns true, rounded to the requested number of decimal places. It passes each value and key to the predicate in source order.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 95), ("b", 82), ("c", 70)]);
+    let passing = readings.percentage(|value, _| *value >= 80, 2)?;
+    assert_eq!(passing, Some(66.67));
+    Ok(())
+}
+```
+
+The method traverses its source once. An empty source returns `None`, and a source error ends the traversal. The precision is a nonnegative integer.
+
 #### Comparing and Updating Collections {#lazy-comparing-and-updating}
 
 `diff`, `intersect`, and their key and association variants materialize both sources on the first pull. `union` keeps existing keys, while `merge` replaces matching string keys and reindexes numeric keys. `replace` reads the replacement source first, then applies each replacement to the first occurrence of its key in the primary source. It appends replacement keys that did not occur.

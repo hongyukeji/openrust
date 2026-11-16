@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
-use super::{ArrayKey, Collection, CollectionError, CollectionResult};
+use super::{ArrayKey, Collection, CollectionError, CollectionResult, percentage_from_counts};
 
 #[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
 impl<T> Collection<T> {
@@ -218,15 +218,11 @@ impl<T> Collection<T> {
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
         precision: u8,
     ) -> Option<f64> {
-        if self.isEmpty() {
-            return None;
-        }
         let matches = self
             .iter()
             .filter(|(key, item)| predicate(item, key))
             .count();
-        let scale = 10.0_f64.powi(i32::from(precision));
-        Some(((matches as f64 / self.count() as f64) * 100.0 * scale).round() / scale)
+        percentage_from_counts(matches, self.count(), precision)
     }
 
     pub fn combine<U>(self, values: impl IntoIterator<Item = U>) -> CollectionResult<Collection<U>>
