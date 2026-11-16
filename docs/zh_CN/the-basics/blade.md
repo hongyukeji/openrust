@@ -18,6 +18,16 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 {{-- comment --}}
 ```
 
+### 输出 JavaScript 数据 {#rendering-json}
+
+在脚本中用 `Js::from` 或 `@js` 将视图值序列化为 JavaScript 表达式。渲染器转义 HTML 敏感字符、引号和行分隔符。
+
+```html
+<script>
+    const settings = {{ Js::from($settings) }};
+</script>
+```
+
 ## Blade 指令
 
 用 `@if`、`@elseif`、`@else`、`@endif`、`@unless` 和 `@endunless` 判断视图数据。用 `@foreach ($items as $item)` 和 `@endforeach` 遍历。表达式支持标量字面量、变量及 `$user->name` 等对象属性。OpenRust 使用自己的模板编译器与 Rust 编译产物格式。 可用 `@isset` 和 `@empty` 检查数据，`@forelse` 可以通过 `@empty` 处理空集合。

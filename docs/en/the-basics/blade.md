@@ -18,6 +18,16 @@ Double braces escape HTML entities. The following examples emit trusted HTML, pr
 {{-- comment --}}
 ```
 
+### Rendering JavaScript Data {#rendering-json}
+
+Use `Js::from` or `@js` inside a script to serialize a view value as a JavaScript expression. The renderer escapes HTML-sensitive characters, quotes, and line separators.
+
+```html
+<script>
+    const settings = {{ Js::from($settings) }};
+</script>
+```
+
 ## Blade Directives
 
 Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view values. Use `@foreach ($items as $item)` and `@endforeach` to iterate. Expressions support scalar literals, variables and object properties such as `$user->name`. Templates use OpenRust's compiler and a Rust artifact format. Use `@isset` and `@empty` to test data. A `@forelse` loop can render an `@empty` branch.

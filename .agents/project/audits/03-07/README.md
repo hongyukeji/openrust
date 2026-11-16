@@ -52,3 +52,8 @@
 
 - 对照固定 [CompilesConditionals](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesConditionals.php)。支持标签选择、默认分支、贯穿、循环式跳转。`@hasSection` 与 `@sectionMissing` 检查渲染后的区段文本，`@bool` 输出布尔文本。Rust switch 匹配视图标量、数组和 JSON 对象，没有 PHP 对象身份语义。旧版 MiniJinja 无对应 Blade 指令可直接移植。
 - macOS ARM64、Rust 1.94.0。真实 HTTP 验证数字字符串匹配、默认标签位置、分支贯穿、跨层 continue、重复默认分支返回 500、占位区段和布尔输出。8 项定向测试通过，隔离副本全工作区格式和严格 Clippy 通过。Artisan 缓存和清理、三语站点构建及 12 项浏览器组合通过。
+
+## JavaScript 数据输出
+
+- 对照固定 [Js](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Js.php) 和 [SupportJsTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportJsTest.php)。`Js::from` 和 `@js` 输出 Rust 视图数据的脚本表达式，字符串与 JSON 载荷转义 HTML 敏感字符、引号和行分隔符。Rust 直接使用视图标量、数组与映射，旧版 MiniJinja 未移植为 Blade 指令。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证脚本结束标记、引号、行分隔符、空数组和嵌套 JSON。隔离副本全工作区格式与严格 Clippy、Artisan 缓存与清理、三语构建和 12 项浏览器组合通过。

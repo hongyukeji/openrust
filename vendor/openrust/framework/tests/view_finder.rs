@@ -464,6 +464,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/switch", || view("switch_cases"))?;
                 Route::get("/bad-switch", || view("bad_switch"))?;
                 Route::get("/aware", || view("aware_page").with("color", "<blue>"))?;
+                Route::get("/javascript", || {
+                    let text = "</script><b>'&\"\n\u{2028}";
+                    view("javascript")
+                        .with("text", text)
+                        .with("payload", serde_json::json!({"text": text}))
+                })?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -779,6 +785,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_switch", "@switch(0)@default x@default y@endswitch"),
         (
+            "javascript",
+            concat!(
+                "<script>const text = {{ Js::from($text) }};",
+                "const payload = @js($payload);",
+                "const empty = {{ Js::from([]) }};",
+                "const list = {{ Js::from([\"a\",\"b\"]) }};</script>",
+            ),
+        ),
+        (
             "aware_page",
             concat!(
                 "<x-frame :$color><x-tone/><x-tone color=\"near\"/>",
@@ -942,6 +957,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "twothree| good1|truefalse|Ready/no sidebar"
     );
     assert!(send(first, "/bad-switch", 500).await.contains("500"));
+    let html = send(first, "/javascript", 200).await;
+    assert_eq!(html.matches("</script>").count(), 1);
+    assert!(html.contains(
+        r#"const text = '\u003C\/script\u003E\u003Cb\u003E\u0027\u0026\u0022\n\u2028';"#
+    ));
+    assert!(html.contains(r"const payload = JSON.parse('{\u0022text\u0022:\u0022\\u003C"));
+    assert!(
+        html.contains(
+            r"const empty = [];const list = JSON.parse('[\u0022a\u0022,\u0022b\u0022]');"
+        )
+    );
     assert_eq!(
         send(first, "/aware", 200).await,
         concat!(

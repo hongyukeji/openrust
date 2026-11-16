@@ -70,6 +70,17 @@ pub(super) fn parse_props(source: &str) -> ViewResult<Props> {
 
 pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
     let source = source.trim();
+    if let Some(argument) = [
+        "Js::from(",
+        r"Illuminate\Support\Js::from(",
+        r"\Illuminate\Support\Js::from(",
+    ]
+    .into_iter()
+    .find_map(|prefix| source.strip_prefix(prefix))
+    .and_then(|source| source.strip_suffix(')'))
+    {
+        return Ok(Node::JavaScript(expression_value(argument)?));
+    }
     if source.starts_with('$')
         && let Some((operation, target, arguments)) = ["merge", "class", "style", "only", "except"]
             .into_iter()

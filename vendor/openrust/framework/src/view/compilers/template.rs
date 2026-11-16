@@ -13,6 +13,7 @@ use crate::view::{
 mod attributes;
 mod expressions;
 mod includes;
+mod javascript;
 mod loops;
 
 use attributes::{
@@ -66,6 +67,7 @@ enum Node {
     Fragment(Expression, Vec<Node>),
     BooleanAttribute(String, Expression),
     BooleanText(Expression),
+    JavaScript(Expression),
     ConditionalAttribute(AttributeList, bool),
     CustomDirective(String, Vec<Expression>),
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
@@ -525,6 +527,8 @@ impl<'a> Parser<'a> {
             self.switch_block(depth)?
         } else if self.directive("bool") {
             Node::BooleanText(expression_value(self.arguments()?)?)
+        } else if self.directive("js") {
+            Node::JavaScript(expression_value(self.arguments()?)?)
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -1360,6 +1364,9 @@ fn render_nodes<'a>(
                 } else {
                     "false"
                 });
+            }
+            Node::JavaScript(expression) => {
+                javascript::write_expression(output, value(expression, data, bindings))?;
             }
             Node::ConditionalAttribute(entries, style) => {
                 let name = if *style { "style" } else { "class" };
