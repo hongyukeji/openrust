@@ -1,8 +1,8 @@
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Row, Transaction,
-    Value,
+    Bindings, Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Row,
+    Transaction, Value,
 };
 
 /// Executes queries on the current application's database connections.
@@ -18,7 +18,7 @@ impl Facade for DB {
 
 macro_rules! statements {
     ($($method:ident -> $result:ty;)+) => {
-        $(pub async fn $method(sql: &str, bindings: &[Value]) -> DatabaseResult<$result> {
+        $(pub async fn $method<'a>(sql: &str, bindings: impl Into<Bindings<'a>>) -> DatabaseResult<$result> {
             Self::connection(None)?.$method(sql, bindings).await
         })+
     };
@@ -40,18 +40,18 @@ impl DB {
             .connection(name)
     }
 
-    pub async fn selectFromWriteConnection(
+    pub async fn selectFromWriteConnection<'a>(
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
         Self::connection(None)?
             .selectFromWriteConnection(sql, bindings)
             .await
     }
 
-    pub async fn selectResultSets(
+    pub async fn selectResultSets<'a>(
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
         use_read: bool,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
         Self::connection(None)?

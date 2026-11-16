@@ -2,7 +2,7 @@ use futures_util::TryStreamExt as _;
 use sqlx::error::DatabaseError as _;
 
 use super::{
-    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult,
+    Bindings, Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult,
     DatabaseTransactionsManager, Row, Value,
     connection::{PhysicalConnection, TransactionCommand},
 };
@@ -289,56 +289,86 @@ impl Transaction {
     }
 
     /// Reads on this transaction's connection. Exhaust the cursor to continue using the transaction.
-    pub fn cursor<'a>(&'a mut self, sql: &'a str, bindings: &'a [Value]) -> DatabaseCursor<'a> {
+    pub fn cursor<'a>(
+        &'a mut self,
+        sql: &'a str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseCursor<'a> {
+        let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
             let physical = self.physical()?;
-            let mut rows = std::pin::pin!(physical.cursor(sql, bindings));
+            let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+            let mut rows = std::pin::pin!(physical.cursor(&prepared));
             while let Some(row) = rows.try_next().await? {
                 yield row;
             }
         })
     }
 
-    pub async fn select(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
+    pub async fn select<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<Vec<Row>> {
         self.physical()?.select(sql, bindings).await
     }
 
     /// Returns all rowsets on the transaction's pinned connection.
-    pub async fn selectResultSets(
+    pub async fn selectResultSets<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
         self.physical()?.select_result_sets(sql, bindings).await
     }
 
-    pub async fn selectOne(
+    pub async fn selectOne<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
         self.physical()?.select_one(sql, bindings).await
     }
 
-    pub async fn scalar(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Value> {
+    pub async fn scalar<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<Value> {
         self.selectOne(sql, bindings)
             .await?
             .map_or(Ok(Value::Null), Row::scalar)
     }
 
-    pub async fn insert(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
+    pub async fn insert<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<bool> {
         self.statement(sql, bindings).await
     }
 
-    pub async fn update(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
+    pub async fn update<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<u64> {
         self.affectingStatement(sql, bindings).await
     }
 
-    pub async fn delete(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
+    pub async fn delete<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<u64> {
         self.affectingStatement(sql, bindings).await
     }
 
-    pub async fn statement(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
+    pub async fn statement<'a>(
+        &mut self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<bool> {
         self.connection.setRecordModificationState(true);
         self.physical()?
             .affecting_statement(sql, bindings)
@@ -346,10 +376,10 @@ impl Transaction {
             .map(|_| true)
     }
 
-    pub async fn affectingStatement(
+    pub async fn affectingStatement<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
         let count = self.physical()?.affecting_statement(sql, bindings).await?;
         if count > 0 {

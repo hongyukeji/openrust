@@ -252,7 +252,7 @@ fn mysql(
             "verify_identity"
         },
     )?;
-    let mode = match ssl {
+    let ssl_mode = match ssl {
         "required" => MySqlSslMode::Required,
         "verify_ca" => MySqlSslMode::VerifyCa,
         "verify_identity" => MySqlSslMode::VerifyIdentity,
@@ -264,7 +264,7 @@ fn mysql(
         .password(config.string("password", "")?)
         .charset(charset)
         .pipes_as_concat(false)
-        .ssl_mode(mode);
+        .ssl_mode(ssl_mode);
     if !database.is_empty() {
         options = options.database(database);
     }
@@ -295,6 +295,12 @@ fn mysql(
             .collect::<DatabaseResult<Vec<_>>>()?,
         _ => vec![config.string("host", "127.0.0.1")?],
     };
+    if matches!(ssl_mode, MySqlSslMode::VerifyCa)
+        && rustls::crypto::CryptoProvider::get_default().is_none()
+    {
+        // SQLx's CA-only verifier uses the process provider. Choose the same backend as SQLx.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
     fastrand::shuffle(&mut hosts);
     let pools = hosts
         .into_iter()

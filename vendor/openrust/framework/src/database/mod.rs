@@ -2,6 +2,7 @@
 
 mod lost_connection_detector;
 pub use lost_connection_detector::LostConnectionDetector;
+mod bindings;
 mod configuration_url_parser;
 mod connection;
 mod connection_interface;
@@ -26,6 +27,7 @@ pub use transaction::Transaction;
 
 use std::{future::Future, pin::Pin};
 
+pub use bindings::Bindings;
 pub use connection::Connection;
 pub use connection_interface::ConnectionInterface;
 pub use connection_resolver_interface::ConnectionResolverInterface;
@@ -98,6 +100,7 @@ pub enum DatabaseError {
         expected: usize,
         actual: usize,
     },
+    InvalidNamedBindings(&'static str),
     UnsupportedColumnType(String),
     Unavailable(crate::contracts::container::BindingResolutionError),
     Driver {
@@ -194,6 +197,9 @@ impl std::fmt::Display for DatabaseError {
                 formatter,
                 "expected {expected} database bindings, received {actual}"
             ),
+            Self::InvalidNamedBindings(reason) => {
+                write!(formatter, "invalid named database bindings: {reason}")
+            }
             Self::UnsupportedColumnType(kind) => {
                 write!(formatter, "unsupported database column type {kind}")
             }

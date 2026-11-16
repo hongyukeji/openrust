@@ -4,7 +4,7 @@
 
 The application reads `config/database.rs`. The default connection is `sqlite`. Create `database/database.sqlite` before opening it, or set `DB_DATABASE=:memory:` for a temporary database. Relative SQLite paths resolve from the application root. An in-memory connection uses one physical connection and a private cache unless its URL explicitly requests a shared cache.
 
-For MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection's `url`, populated by `DB_URL` in the application configuration, can supply the driver and credentials. MySQL requires TLS. Set `MYSQL_ATTR_SSL_CA` for certificate and host verification, or configure `ssl_mode` and `ssl_ca` on the connection.
+For MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection's `url`, populated by `DB_URL` in the application configuration, can supply the driver and credentials. MySQL requires TLS. Set `MYSQL_ATTR_SSL_CA` for certificate and host verification, or configure `ssl_mode` and `ssl_ca` on the connection. `verify_identity` checks the certificate chain and server name. `verify_ca` checks the certificate chain.
 
 ### Read and Write Connections
 
@@ -60,6 +60,23 @@ use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
     db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+}
+```
+
+### Using Named Bindings {#using-named-bindings}
+
+Use `:name` placeholders and pass the matching values with `Bindings::Named`. Keys can include the leading colon. The order of the keys is independent of the SQL.
+
+Bind every named parameter, and use one placeholder style per statement. SQLite allows a name to appear more than once. With native MySQL prepares, use a different name for each occurrence.
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+
+async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
+    DB::selectOne(
+        "SELECT * FROM users WHERE id = :id",
+        Bindings::Named(&[("id", id.into())]),
+    ).await
 }
 ```
 

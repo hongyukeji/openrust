@@ -2848,6 +2848,7 @@ dependencies = [
  "regex-syntax",
  "reqwest",
  "rustix",
+ "rustls",
  "serde",
  "serde_json",
  "shlex",

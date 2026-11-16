@@ -4,7 +4,7 @@
 
 应用从 `config/database.rs` 读取数据库配置，默认连接为 `sqlite`。请先创建 `database/database.sqlite`，也可设定 `DB_DATABASE=:memory:` 使用临时数据库。相对 SQLite 路径以应用根目录为基准。内存库使用单个物理连接，默认使用私有缓存，可在 URL 中显式启用共享缓存。
 
-MySQL 使用 `DB_CONNECTION=mysql`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。应用配置通过 `DB_URL` 设置连接的 `url`，由其提供驱动和连接凭据。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 启用证书与主机名验证，也可在连接配置中指定 `ssl_mode` 和 `ssl_ca`。
+MySQL 使用 `DB_CONNECTION=mysql`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。应用配置通过 `DB_URL` 设置连接的 `url`，由其提供驱动和连接凭据。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 启用证书与主机名验证，也可在连接配置中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 校验证书链和服务器名称。`verify_ca` 校验证书链。
 
 ### 读写连接
 
@@ -60,6 +60,23 @@ use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
     db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+}
+```
+
+### 使用命名绑定 {#using-named-bindings}
+
+使用 `:name` 占位符，并通过 `Bindings::Named` 传入对应的值。键可以带前导冒号，键的排列顺序无需与 SQL 一致。
+
+为每个命名参数绑定值，每条语句使用一种占位符。SQLite 允许重复使用同一个名称。使用 MySQL 原生预处理时，每处占位符使用不同名称。
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+
+async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
+    DB::selectOne(
+        "SELECT * FROM users WHERE id = :id",
+        Bindings::Named(&[("id", id.into())]),
+    ).await
 }
 ```
 

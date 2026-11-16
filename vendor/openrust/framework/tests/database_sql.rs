@@ -13,7 +13,7 @@ use openrust::{
     config::{ConfigError, Environment, Repository},
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::http::Kernel as _,
-    database::{DatabaseError, DatabaseManager, Value},
+    database::{Bindings, Connection, DatabaseError, DatabaseManager, Value},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{Router, RoutingError},
@@ -301,11 +301,18 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, serde_json::Valu
 }
 
 async fn probe_value() -> Result<Value, DatabaseError> {
-    DB::transaction(
+    let id = DB::transaction(
         |transaction| Box::pin(transaction.table("probe").value("id")),
         1,
     )
-    .await
+    .await?;
+    let named = DB::selectFromWriteConnection(
+        "SELECT id FROM probe WHERE id = :id",
+        Bindings::Named(&[("id", id.clone())]),
+    )
+    .await?;
+    assert_eq!(named.first().and_then(|row| row.get_at(0)), Some(&id));
+    Ok(id)
 }
 
 fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -893,5 +900,214 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
             .await
             .unwrap(),
         "2".into()
+    );
+}
+
+async fn verify_named_bindings(db: &Connection) {
+    db.statement("DROP TABLE IF EXISTS named_binding_items", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE named_binding_items (id INTEGER PRIMARY KEY, note VARCHAR(80))",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let note = Value::from("héllo :literal ? ' ;");
+    db.insert(
+        "INSERT INTO named_binding_items VALUES (:id, :note)",
+        Bindings::Named(&[("note", note.clone()), (":id", 7.into())]),
+    )
+    .await
+    .unwrap();
+    let integer_key = [("id", 7.into())];
+    let key = Bindings::Named(&integer_key);
+    let row = db.selectFromWriteConnection(
+        "SELECT ':literal ? café' AS literal, note AS `:alias` /* :comment ? */ FROM named_binding_items WHERE id = :id -- :trailing ?",
+        key,
+    ).await.unwrap();
+    assert_eq!(row[0].get("literal"), Some(&":literal ? café".into()));
+    assert_eq!(row[0].get(":alias"), Some(&note));
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    assert_eq!(
+        tx.update(
+            "UPDATE named_binding_items SET note = :note WHERE id = :id",
+            Bindings::Named(&[("id", 7.into()), ("note", "changed".into())]),
+        )
+        .await
+        .unwrap(),
+        1
+    );
+    let mut cursor = tx.cursor("SELECT note FROM named_binding_items WHERE id = :id", key);
+    assert_eq!(
+        cursor.try_next().await.unwrap().unwrap().get_at(0),
+        Some(&"changed".into())
+    );
+    assert!(cursor.try_next().await.unwrap().is_none());
+    drop(cursor);
+    tx.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.scalar("SELECT note FROM named_binding_items WHERE id = :id", key)
+            .await
+            .unwrap(),
+        note,
+    );
+    let mut cursor = db.cursor("SELECT note FROM named_binding_items WHERE id = :id", key);
+    assert_eq!(
+        cursor.try_next().await.unwrap().unwrap().get_at(0),
+        Some(&note)
+    );
+    assert!(cursor.try_next().await.unwrap().is_none());
+    assert_eq!(
+        db.delete("DELETE FROM named_binding_items WHERE id = :id", key)
+            .await
+            .unwrap(),
+        1
+    );
+
+    for (sql, params, reason) in [
+        ("SELECT :missing", key, "missing binding key"),
+        ("SELECT 1", key, "unused binding key"),
+        (
+            "SELECT :id, ?",
+            key,
+            "cannot mix named and positional placeholders",
+        ),
+        (
+            "SELECT :id",
+            Bindings::Named(&[("id", 1.into()), (":id", 2.into())]),
+            "duplicate binding key",
+        ),
+    ] {
+        assert!(matches!(
+            db.select(sql, params).await,
+            Err(DatabaseError::InvalidNamedBindings(failure)) if failure == reason
+        ));
+    }
+    db.statement("DROP TABLE named_binding_items", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_supports_named_bindings_and_reused_parameters() {
+    let root = Root::new();
+    let config = json!({"default":"sqlite", "connections":{"sqlite":{"driver":"sqlite","database":":memory:"}}});
+    let db = manager(&root, config).connection(None).unwrap();
+    verify_named_bindings(&db).await;
+    let rows = db
+        .select(
+            r#"SELECT :value AS ":name", :value AS [:brackets], 'it''s :text ?' AS text"#,
+            Bindings::Named(&[("value", 12.into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get(":name"), Some(&12.into()));
+    assert_eq!(rows[0].get(":brackets"), Some(&12.into()));
+    assert_eq!(rows[0].get("text"), Some(&"it's :text ?".into()));
+}
+
+#[tokio::test]
+async fn mysql_supports_named_bindings_in_prepared_procedures() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "MySQL acceptance requires an isolated database"
+        );
+        return;
+    };
+    let root = Root::new();
+    let config = json!({"default":"mysql", "connections":{"mysql":{"url":url}}});
+    let db = manager(&root, config).connection(None).unwrap();
+    verify_named_bindings(&db).await;
+    let param = [("value", 12.into())];
+    let value = Bindings::Named(&param);
+    let rows = db
+        .select(
+            r"SELECT 'it\'s :text ?' AS txt, :value AS bound # :comment ?",
+            value,
+        )
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get("txt"), Some(&"it's :text ?".into()));
+    assert_eq!(rows[0].get("bound"), Some(&12.into()));
+    assert!(matches!(
+        db.select("SELECT :value, :value", value).await,
+        Err(DatabaseError::InvalidNamedBindings(
+            "repeated placeholder on MySQL"
+        ))
+    ));
+    db.unprepared("DROP PROCEDURE IF EXISTS openrust_named_rowsets")
+        .await
+        .unwrap();
+    db.unprepared(
+        "CREATE PROCEDURE openrust_named_rowsets(IN n INT) BEGIN SELECT n AS value; SELECT n + 1 AS value; END",
+    ).await.unwrap();
+    let results = db
+        .selectResultSets("CALL openrust_named_rowsets(:value)", value, true)
+        .await
+        .unwrap();
+    assert_eq!(results.iter().map(Vec::len).collect::<Vec<_>>(), [1, 1, 0]);
+    assert_eq!(results[0][0].get("value"), Some(&12.into()));
+    assert_eq!(results[1][0].get("value"), Some(&13.into()));
+    db.unprepared("DROP PROCEDURE openrust_named_rowsets")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn mysql_tls_distinguishes_ca_and_server_identity() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_TLS_URL") else {
+        return;
+    };
+    // The fixture presents a certificate with an IP SAN for 127.0.0.1 only.
+    let root = Root::new();
+    let connect = |url: &str| {
+        manager(
+            &root,
+            json!({"default":"mysql","connections":{"mysql":{"url":url}}}),
+        )
+        .connection(None)
+        .unwrap()
+    };
+    assert_eq!(
+        connect(&url).scalar("SELECT 1", &[]).await.unwrap(),
+        1.into()
+    );
+
+    let mut mismatch = url::Url::parse(&url).unwrap();
+    mismatch.set_host(Some("localhost")).unwrap();
+    let error = connect(mismatch.as_str())
+        .scalar("SELECT 1", &[])
+        .await
+        .unwrap_err();
+    let DatabaseError::Driver {
+        source: sqlx::Error::Io(io_error),
+        ..
+    } = error
+    else {
+        panic!("expected a TLS handshake I/O error, got {error}");
+    };
+    assert!(matches!(
+        io_error
+            .get_ref()
+            .and_then(|source| source.downcast_ref::<rustls::Error>()),
+        Some(rustls::Error::InvalidCertificate(
+            rustls::CertificateError::NotValidForName
+                | rustls::CertificateError::NotValidForNameContext { .. }
+        ))
+    ));
+
+    mismatch
+        .query_pairs_mut()
+        .append_pair("ssl-mode", "verify_ca");
+    assert_eq!(
+        connect(mismatch.as_str())
+            .scalar("SELECT 1", &[])
+            .await
+            .unwrap(),
+        1.into()
     );
 }

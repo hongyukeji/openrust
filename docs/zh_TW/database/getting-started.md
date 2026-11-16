@@ -4,7 +4,7 @@
 
 應用程式從 `config/database.rs` 讀取資料庫設定，預設連線為 `sqlite`。請先建立 `database/database.sqlite`，也可設定 `DB_DATABASE=:memory:` 使用臨時資料庫。SQLite 相對路徑以應用程式根目錄為基準。記憶體資料庫使用單一實體連線，預設使用私有快取，可在 URL 中明確啟用共用快取。
 
-MySQL 使用 `DB_CONNECTION=mysql`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。應用程式透過 `DB_URL` 設定連線的 `url`，由它提供驅動及連線憑證。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 啟用憑證及主機名稱驗證，也可在連線設定中指定 `ssl_mode` 和 `ssl_ca`。
+MySQL 使用 `DB_CONNECTION=mysql`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。應用程式透過 `DB_URL` 設定連線的 `url`，由它提供驅動及連線憑證。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 啟用憑證及主機名稱驗證，也可在連線設定中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 驗證憑證鏈及伺服器名稱。`verify_ca` 驗證憑證鏈。
 
 ### 讀寫連線
 
@@ -60,6 +60,23 @@ use openrust::database::{Connection, DatabaseResult, Row};
 
 async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
     db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+}
+```
+
+### 使用具名繫結 {#using-named-bindings}
+
+使用 `:name` 預留位置，並透過 `Bindings::Named` 傳入對應的值。鍵可以帶前導冒號，鍵的排列順序無須與 SQL 一致。
+
+為每個具名參數繫結值，每條陳述式使用一種預留位置。SQLite 允許重複使用同一個名稱。使用 MySQL 原生預備陳述式時，每個預留位置使用不同名稱。
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Row}, support::facades::DB};
+
+async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
+    DB::selectOne(
+        "SELECT * FROM users WHERE id = :id",
+        Bindings::Named(&[("id", id.into())]),
+    ).await
 }
 ```
 

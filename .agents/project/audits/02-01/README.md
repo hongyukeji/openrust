@@ -5,7 +5,7 @@
 - 使用现有 `config/database.rs`，框架登记应用级 `db`、`DatabaseManager` 和连接解析契约。具名连接惰性创建共享池，数据库启动不阻塞应用 boot。SQLite 文件以应用根目录解析，缺失时返回驱动错误。内存库使用单连接，默认私有缓存。
 - 从旧版 `6d1a8192` 的 `src/database/mod.rs`、`src/database/sqlite.rs` 和 `vendor/launchbadge/sqlx-mysql/OPENRUST.md` 提取路径解析、内存缓存、强制 TLS 和取消后淘汰回归。当前使用固定 SQLx 0.9.0，未启用无 TLS 的 MySQL RSA 认证。Rust 在操作层持有连接租约，取消或协议错误时关闭 MySQL 物理连接，无需移植旧版驱动补丁。
 - DB 门面和 Connection 支持异步预处理查询、绑定计数验证、标量、行查询、插入、更新、删除、影响行数和无参数原始 SQL。Rust 使用 `Value` 和有序列记录。MySQL 无符号整数保留完整范围，DECIMAL 用精确文本表示。错误的 Display 和 Debug 省略 SQL、绑定值和凭据，显式错误来源仍可由调用方检查。
-- URL 解析优先使用 URL 中的已指定配置。显式 URL 用户缺少密码时使用空密码，以免带入不同用户的配置密码。MySQL TLS 为 Required，配置 CA 时默认 VerifyIdentity。此次真实验收确认加密会话，证书主机名校验仍需有匹配证书的环境验收。
+- URL 解析优先使用 URL 中的已指定配置。显式 URL 用户缺少密码时使用空密码，以免带入不同用户的配置密码。MySQL TLS 为 Required，配置 CA 时默认 VerifyIdentity。首次真实验收确认加密会话，证书与主机名校验见下方整单元验收。
 - 本批运行连接为 SQLite 和 MySQL。读写路由、事务、重新连接及完整 ConnectionInterface 留到 02-02，Query Builder 与 Schema 随各自单元接线。存储过程多结果集见下方续批验收。数据库事件归 02-02。
 
 ## 验收
@@ -29,4 +29,15 @@ macOS arm64，Rust 1.94.0。隔离副本基于 `21a65e98`、已验收的 01-02y 
 - 独立 MySQL 8.4.13 上同时运行原生预处理 PHP PDO 和 SQLx。含空查询的绑定过程返回 `[[5],[],[6],[]]`，无查询的过程和普通空查询均返回单个空结果集。最后的空集来自 MySQL 的 CALL 状态。PDO SQLite 的 `nextRowset` 返回 `IM001`，OpenRust 对应 `UnsupportedOperation`。
 - Rust 1.94.0 隔离基线 `991ab3ada` 上，`database_query` 11 项和 `database_sql` 7 项通过。真实 MySQL 覆盖绑定计数、无效过程后的连接恢复、读写连接 ID、事务连接固定及提交。SQLite 回归覆盖不支持的接口及常规查询。针对框架库和这两个测试目标的严格 Clippy 通过。
 - 独立验收二进制通过实际 `Application::handleCommand` 执行 `db:rowsets`，验证 DB 门面和三语示例。应用 `main artisan inspire` 成功退出。VitePress 构建及根路径、子路径浏览器验收通过，共 12 项站点组合和 6 项多结果集小节检查。
-- 02-01 仍需补齐固定文档的命名绑定。PDO 的自定义抓取选项在 Rust 中沿用统一的类型化 `Row`。
+- PDO 的自定义抓取选项在 Rust 中沿用统一的类型化 `Row`。命名绑定见下方整单元验收。
+
+## 命名绑定与整单元验收
+
+对照固定 Laravel [命名绑定](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#using-named-bindings)和 [Connection::bindValues](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L757)。旧版未提供原始 SQL 命名绑定，当前复用参数预处理与连接租约。
+
+- `DB`、`Connection` 和 `Transaction` 的原始 SQL 方法接受 `Bindings::Named`，允许键带冒号，按 SQL 中的顺序传递原值的引用。仅改写通用占位符。字符串、标识符和注释照原样传给数据库。位置参数调用仍借用 SQL 和传入的值。
+- PHP PDO 8.5 使用原生预处理对照两种驱动。MySQL 拒绝重复参数名，SQLite 允许重复引用。SQLite PDO 还接受混合和缺失参数。OpenRust 延续现有的严格绑定数量约定，命名接口要求同一语句使用一种占位符并显式提供所有值。缺失、未使用和重复键返回结构化错误。
+- 真实 MySQL 8.4.13 证书夹具验证默认 `verify_identity` 接受与 IP SAN 匹配的证书、拒绝不匹配主机名，显式 `verify_ca` 可校验证书链。SQLx 的 CA-only 校验器依赖 Rustls 进程级加密提供器。双后端构建时，框架在该模式下补装与 SQLx 一致的 ring 后备，尊重应用已设置的提供器。
+- Rust 1.94.0 上 `database_sql`、`database_query` 和 `database_query_writes` 共 24 项通过，含实际 SQLite 和 MySQL 8.4.13、预处理读写、游标、存储过程、读写路由、事务、证书验证以及 DB 门面的回环 HTTP 和 Artisan 子进程。工作区严格 Clippy 通过。本批 Rust 文件格式检查通过。全量 `cargo fmt --all --check` 仍报告基线已有的 `sanctum_authentication.rs` 格式差异。
+- 原生二进制 `main artisan inspire` 通过。独立 Artisan 命令在真实 MySQL 和 SQLite 各执行三语命名绑定示例。三语 VitePress 构建、根路径及子路径下 12 项站点组合与 6 项小节检查通过。
+- 02-01 计划内的 SQLite／MySQL 基本 SQL、连接 URL、未知连接和驱动错误已有首次及续批验收证据，整单元闭合。连接与事务事件归 02-02，其他数据库驱动及生产部署矩阵继续跟踪。

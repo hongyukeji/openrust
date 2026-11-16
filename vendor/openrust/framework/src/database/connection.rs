@@ -12,7 +12,10 @@ use sqlx::{
 
 use sqlx_core::transaction::TransactionManager;
 
-use super::{DatabaseCursor, DatabaseError, DatabaseResult, Row, Value, value};
+use super::{
+    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value,
+    bindings::PreparedBindings, value,
+};
 
 #[derive(Clone)]
 pub(super) enum Pool {
@@ -259,7 +262,12 @@ macro_rules! cursor_rows {
 }
 
 macro_rules! query {
-    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr) => {
+    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr) => {{
+        let prepared = $bindings
+            .into()
+            .prepare($sql, matches!($self, Self::Mysql(_)))?;
+        let $sql = prepared.sql.as_ref();
+        let $bindings = prepared.values();
         match $self {
             Self::Sqlite(lease) => {
                 let result =
@@ -278,7 +286,7 @@ macro_rules! query {
                 $map(result, $mysql_map)
             }
         }
-    };
+    }};
 }
 
 pub(super) struct StatementResult {
@@ -314,9 +322,10 @@ impl PhysicalConnection {
 
     pub(super) fn cursor<'a>(
         &'a mut self,
-        sql: &'a str,
-        bindings: &'a [Value],
+        prepared: &'a PreparedBindings<'_>,
     ) -> impl Stream<Item = DatabaseResult<Row>> + Send + 'a {
+        let sql = prepared.sql.as_ref();
+        let bindings = prepared.values();
         match self {
             Self::Sqlite(lease) => Either::Left(cursor_rows!(
                 lease,
@@ -335,10 +344,10 @@ impl PhysicalConnection {
         }
     }
 
-    pub(super) async fn select(
+    pub(super) async fn select<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
         query!(
             self,
@@ -352,10 +361,10 @@ impl PhysicalConnection {
         )
     }
 
-    pub(super) async fn select_one(
+    pub(super) async fn select_one<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
         query!(
             self,
@@ -369,14 +378,17 @@ impl PhysicalConnection {
         )
     }
 
-    pub(super) async fn select_result_sets(
+    pub(super) async fn select_result_sets<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
         let Self::Mysql(lease) = self else {
             return Err(DatabaseError::UnsupportedOperation("selectResultSets"));
         };
+        let prepared = bindings.into().prepare(sql, true)?;
+        let sql = prepared.sql.as_ref();
+        let bindings = prepared.values();
         let statement = prepare_query!(lease, sql, bindings);
         let query = bind!(statement.query(), bindings, Ok::<u64, DatabaseError>);
         lease.start()?;
@@ -399,20 +411,20 @@ impl PhysicalConnection {
             .map_err(DatabaseError::driver("select result sets"))
     }
 
-    pub(super) async fn affecting_statement(
+    pub(super) async fn affecting_statement<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
         self.execute_statement(sql, bindings)
             .await
             .map(|result| result.affected)
     }
 
-    pub(super) async fn execute_statement(
+    pub(super) async fn execute_statement<'a>(
         &mut self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<StatementResult> {
         query!(
             self,
@@ -603,27 +615,37 @@ impl Connection {
     }
 
     /// Executes the select on first poll and decodes one row at a time.
-    pub fn cursor<'a>(&'a self, sql: &'a str, bindings: &'a [Value]) -> DatabaseCursor<'a> {
+    pub fn cursor<'a>(
+        &'a self,
+        sql: &'a str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseCursor<'a> {
         self.cursor_with_mode(sql, bindings, false)
     }
 
     pub(super) fn cursor_with_mode<'a>(
         &'a self,
         sql: &'a str,
-        bindings: &'a [Value],
+        bindings: impl Into<Bindings<'a>>,
         write: bool,
     ) -> DatabaseCursor<'a> {
+        let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
             let pool = if write { &self.pool } else { self.read_pool() };
             let mut physical = pool.acquire().await?;
-            let mut rows = std::pin::pin!(physical.cursor(sql, bindings));
+            let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+            let mut rows = std::pin::pin!(physical.cursor(&prepared));
             while let Some(row) = rows.try_next().await? {
                 yield row;
             }
         })
     }
 
-    pub async fn select(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
+    pub async fn select<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<Vec<Row>> {
         self.read_pool()
             .acquire()
             .await?
@@ -631,19 +653,19 @@ impl Connection {
             .await
     }
 
-    pub async fn selectFromWriteConnection(
+    pub async fn selectFromWriteConnection<'a>(
         &self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
         self.pool.acquire().await?.select(sql, bindings).await
     }
 
     /// Returns the ordered rowsets of a single prepared MySQL statement.
-    pub async fn selectResultSets(
+    pub async fn selectResultSets<'a>(
         &self,
         sql: &str,
-        bindings: &[Value],
+        bindings: impl Into<Bindings<'a>>,
         use_read: bool,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
         let pool = if use_read {
@@ -657,7 +679,11 @@ impl Connection {
             .await
     }
 
-    pub async fn selectOne(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Option<Row>> {
+    pub async fn selectOne<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<Option<Row>> {
         self.read_pool()
             .acquire()
             .await?
@@ -665,13 +691,21 @@ impl Connection {
             .await
     }
 
-    pub async fn scalar(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Value> {
+    pub async fn scalar<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<Value> {
         self.selectOne(sql, bindings)
             .await?
             .map_or(Ok(Value::Null), Row::scalar)
     }
 
-    pub async fn statement(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
+    pub async fn statement<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<bool> {
         let mut connection = self.pool.acquire().await?;
         self.setRecordModificationState(true);
         connection
@@ -680,19 +714,35 @@ impl Connection {
             .map(|_| true)
     }
 
-    pub async fn insert(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
+    pub async fn insert<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<bool> {
         self.statement(sql, bindings).await
     }
 
-    pub async fn update(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
+    pub async fn update<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<u64> {
         self.affectingStatement(sql, bindings).await
     }
 
-    pub async fn delete(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
+    pub async fn delete<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<u64> {
         self.affectingStatement(sql, bindings).await
     }
 
-    pub async fn affectingStatement(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
+    pub async fn affectingStatement<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+    ) -> DatabaseResult<u64> {
         let count = self
             .pool
             .acquire()
