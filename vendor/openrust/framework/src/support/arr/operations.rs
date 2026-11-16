@@ -631,7 +631,7 @@ fn css(value: &Value, style: bool) -> String {
     output.join(" ")
 }
 
-fn random_index(length: usize) -> Result<usize, ArrValueError> {
+pub(in crate::support) fn random_index(length: usize) -> Result<usize, ArrValueError> {
     let threshold = length.wrapping_neg() % length;
     loop {
         let mut bytes = [0; size_of::<usize>()];

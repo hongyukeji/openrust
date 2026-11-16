@@ -4,6 +4,8 @@ use super::data::{self, DataPathError};
 
 mod operations;
 
+pub(super) use operations::random_index;
+
 /// A missing array path or a value of the wrong type.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArrValueError {
@@ -173,17 +175,26 @@ impl Arr {
 
     /// Flattens nested values. Empty arrays and objects remain leaves.
     pub fn dot(value: &Value) -> Result<Map<String, Value>, DataPathError> {
+        Self::dotWithDepth(value, "", None)
+    }
+
+    pub fn dotWithDepth(
+        value: &Value,
+        prefix: &str,
+        depth: Option<usize>,
+    ) -> Result<Map<String, Value>, DataPathError> {
         data::check_depth(value, 0)?;
         let mut result = Map::new();
+        let depth = depth.unwrap_or(usize::MAX);
         match value {
             Value::Array(items) => {
                 for (index, item) in items.iter().enumerate() {
-                    flatten(&mut result, index.to_string(), item);
+                    flatten(&mut result, format!("{prefix}{index}"), item, depth);
                 }
             }
             Value::Object(items) => {
                 for (key, item) in items {
-                    flatten(&mut result, key.clone(), item);
+                    flatten(&mut result, format!("{prefix}{key}"), item, depth);
                 }
             }
             _ => {}
@@ -203,16 +214,16 @@ impl Arr {
     }
 }
 
-fn flatten(result: &mut Map<String, Value>, prefix: String, value: &Value) {
+fn flatten(result: &mut Map<String, Value>, prefix: String, value: &Value, depth: usize) {
     match value {
-        Value::Array(items) if !items.is_empty() => {
+        Value::Array(items) if depth > 0 && !items.is_empty() => {
             for (index, child) in items.iter().enumerate() {
-                flatten(result, format!("{prefix}.{index}"), child);
+                flatten(result, format!("{prefix}.{index}"), child, depth - 1);
             }
         }
-        Value::Object(items) if !items.is_empty() => {
+        Value::Object(items) if depth > 0 && !items.is_empty() => {
             for (key, child) in items {
-                flatten(result, format!("{prefix}.{key}"), child);
+                flatten(result, format!("{prefix}.{key}"), child, depth - 1);
             }
         }
         _ => {

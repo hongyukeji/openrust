@@ -1,6 +1,6 @@
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
-    de::{MapAccess, SeqAccess, Visitor},
+    de::{DeserializeOwned, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value;
@@ -13,8 +13,19 @@ impl<T: Serialize> Collection<T> {
         serde_json::to_value(self).map_err(CollectionError::Serialization)
     }
 
+    pub fn toPrettyJson(&self) -> CollectionResult<String> {
+        serde_json::to_string_pretty(self).map_err(CollectionError::Serialization)
+    }
+
     pub fn toJson(&self) -> CollectionResult<String> {
         serde_json::to_string(self).map_err(CollectionError::Serialization)
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Collection API")]
+impl<T: DeserializeOwned> Collection<T> {
+    pub fn fromJson(json: &str) -> CollectionResult<Self> {
+        serde_json::from_str(json).map_err(CollectionError::Serialization)
     }
 }
 

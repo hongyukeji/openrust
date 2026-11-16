@@ -21,3 +21,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-08.hUPiWF` �
 
 - 核对固定 Laravel 的差集、交集、重复值、相邻项、百分比、`chunkBy`、`split`、`splitIn`、`shift` 和 `splice`。复用旧版的规范整数键规则与当前 IndexMap 装配。返回集合保留相应键，位置修改按 PHP 数组规则重新编号整数键，并重建追加位置。Rust 比较接收类型化值或显式比较器。
 - 固定 Laravel 在 PHP 8.5.12 通过 10 组对照。Rust 1.94.0 锁定离线 14 项定向回归、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。整单元暂记部分验收。
+
+## 整单元验收
+
+- 按固定文档方法表和 Collection／EnumeratesValues 复核公开入口。补齐类型化投影、分组字典、条件链、归约、拆包、随机抽样、点路径、递归合并替换及有序 JSON 读写。复用现有 Arr 和数据路径，保留 null、规范数字键、非有限浮点错误和嵌套深度边界。
+- PHP 宏和高阶代理对应 Rust 扩展 trait 与类型化回调。对象类型筛选用 `Any` 下转型，数组访问用 `get/put/forget`，字符串序列化用显式 `toJson` 并在模板上下文转义。调试使用 Rust 的 `dbg!` 和调试器。缓存及计时遍历使用 `lazy()` 的迭代器适配器。02-09 继续独立验收数据库游标接线。
+- 第二批通过 PHP 8.5.12 固定 Laravel 8 组对照、Rust 1.94.0 锁定离线 20 项回归和严格 Clippy。真实 Artisan 执行三语示例，回环 HTTP 核对递归合并和指定深度点路径。三语 VitePress 构建通过。两个批次的独占验收目录已清理，共享 Cargo 缓存保留。02-08 闭合。

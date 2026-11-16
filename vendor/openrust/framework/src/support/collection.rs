@@ -3,6 +3,8 @@ use std::fmt;
 use indexmap::IndexMap;
 
 mod finite;
+mod functional;
+mod json;
 mod numbers;
 mod operations;
 mod positions;

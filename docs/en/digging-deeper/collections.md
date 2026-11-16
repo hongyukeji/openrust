@@ -42,6 +42,22 @@ let remaining = rows.diff(&existing).toArray()?;
 assert_eq!(remaining, serde_json::json!(["丙"]));
 ```
 
+## Typed transforms and nested JSON {#collection-projections}
+
+Use typed projections for field comparison, grouping, and runtime type narrowing. `mapToGroups` returns collections, while `mapToDictionary` returns vectors. Use `Collection<Value>` for dot paths, recursive merge and replacement. `random` samples without replacement and can preserve keys.
+
+Use Rust extension traits for collection macros, direct callbacks for higher-order messages, and `dbg!(&collection.all())` for diagnostics. The iterator adapters on `lazy()` provide caching and time-based traversal.
+
+```rust
+use openrust::support::Collection;
+use serde_json::json;
+
+let first = Collection::fromValue(json!({"team":{"tags":["甲"]}}));
+let second = Collection::fromValue(json!({"team":{"tags":["乙"]}}));
+let merged = first.mergeRecursive(second)?.dotWithDepth(Some(1))?.toArray()?;
+assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
+```
+
 ## JSON Serialization
 
 A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `toJson()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResponse::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `fromValue` uses the order of the supplied `serde_json::Value`.

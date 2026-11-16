@@ -42,6 +42,22 @@ let remaining = rows.diff(&existing).toArray()?;
 assert_eq!(remaining, serde_json::json!(["丙"]));
 ```
 
+## 型別化轉換與巢狀 JSON {#collection-projections}
+
+用型別化投影完成欄位比較、分組和執行期型別篩選。`mapToGroups` 傳回分組集合，`mapToDictionary` 傳回分組向量。`Collection<Value>` 支援點路徑、遞迴合併及取代。`random` 不放回抽樣，可保留鍵。
+
+集合擴充使用 Rust 擴充 trait，高階訊息對應直接回呼，診斷可用 `dbg!(&collection.all())`。`lazy()` 的迭代器配接器提供快取和基於時間的走訪。
+
+```rust
+use openrust::support::Collection;
+use serde_json::json;
+
+let first = Collection::fromValue(json!({"team":{"tags":["甲"]}}));
+let second = Collection::fromValue(json!({"team":{"tags":["乙"]}}));
+let merged = first.mergeRecursive(second)?.dotWithDepth(Some(1))?.toArray()?;
+assert_eq!(merged, json!({"team.tags":["甲","乙"]}));
+```
+
 ## JSON 序列化
 
 當鍵依迭代順序是從零開始的連續整數時，集合序列化為 JSON 陣列。其他鍵產生 JSON 物件。`toJson()` 傳回 JSON 字串或序列化錯誤，非有限浮點數也會回報錯誤。集合可直接傳給 `ApiResponse::success`。直接反序列化為 `Collection<T>` 可保留 JSON 物件成員順序。`fromValue` 使用傳入的 `serde_json::Value` 的順序。

@@ -58,16 +58,9 @@ impl<T> Collection<T> {
         self,
         mut project: impl FnMut(&T, &ArrayKey) -> K,
     ) -> Collection<Self> {
-        let mut previous = None;
         self.chunkWhile(|item, key, chunk| {
-            let last = previous.take().unwrap_or_else(|| {
-                let (key, item) = chunk.items.last().expect("current chunk is nonempty");
-                project(item, key)
-            });
-            let current = project(item, key);
-            let same = last == current;
-            previous = Some(current);
-            same
+            let (last_key, last) = chunk.items.last().expect("current chunk is nonempty");
+            project(item, key) == project(last, last_key)
         })
     }
 
@@ -85,6 +78,19 @@ impl<T> Collection<T> {
         } else {
             reindex(std::iter::once((ArrayKey::Integer(0), value)).chain(items))
         };
+        self
+    }
+
+    pub fn unshift(&mut self, items: impl IntoIterator<Item = T>) -> &mut Self {
+        let mut items = items.into_iter().peekable();
+        if items.peek().is_some() {
+            let previous = std::mem::take(self);
+            *self = reindex(
+                items
+                    .map(|item| (ArrayKey::Integer(0), item))
+                    .chain(previous),
+            );
+        }
         self
     }
 
