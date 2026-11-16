@@ -37,6 +37,8 @@ pub struct HashInfo {
 #[non_exhaustive]
 pub enum HashError {
     UnknownDriver,
+    DriverBusy,
+    DriverSelfReference,
     Unavailable(crate::contracts::container::BindingResolutionError),
     ExecutionLimit,
     CapacityExhausted,
@@ -50,6 +52,8 @@ impl std::fmt::Display for HashError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::UnknownDriver => "Unknown password hashing driver.",
+            Self::DriverBusy => "The password hashing driver is being created.",
+            Self::DriverSelfReference => "The hash manager cannot be its own driver.",
             Self::Unavailable(_) => "The application hash manager is unavailable.",
             Self::AlgorithmMismatch => "The stored hash does not use the configured algorithm.",
             Self::InvalidOptions => "Invalid password hashing options.",

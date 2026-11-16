@@ -175,3 +175,229 @@ async fn historical_argon2_version_16_matches_php_verification() {
         assert!(driver.needsRehash(&legacy, &options).unwrap());
     }
 }
+
+fn custom_manager(default: &str) -> HashManager {
+    HashManager::new(Arc::new(Repository::new(BTreeMap::from([(
+        "hashing".into(),
+        json!({"driver":default,"bcrypt":{"rounds":4},"argon":{"memory":1024,"time":2,"threads":1}}),
+    )]))))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn custom_driver_is_lazy_cached_and_replaced_only_after_forgetting() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let count = Arc::new(AtomicUsize::new(0));
+    let manager = custom_manager("registered");
+    let other = custom_manager("registered");
+    let visits = count.clone();
+    manager.extend("registered", move |manager| {
+        visits.fetch_add(1, Ordering::Relaxed);
+        manager.driver(Some("bcrypt"))
+    });
+    assert_eq!(count.load(Ordering::Relaxed), 0);
+    assert!(manager.getDrivers().is_empty());
+    assert!(matches!(other.driver(None), Err(HashError::UnknownDriver)));
+
+    let cached = manager.driver(None).unwrap();
+    assert!(Arc::ptr_eq(&cached, &manager.driver(Some("0")).unwrap()));
+    assert!(Arc::ptr_eq(&cached, &manager.driver(Some("")).unwrap()));
+    assert_eq!(count.load(Ordering::Relaxed), 1);
+    manager.extend("registered", |manager| manager.driver(Some("argon2id")));
+    assert!(Arc::ptr_eq(&cached, &manager.driver(None).unwrap()));
+    manager.forgetDrivers();
+    let options = HashOptions::new();
+    let encoded = manager.make(b"test password", &options).await.unwrap();
+    assert_eq!(manager.info(&encoded).unwrap().algoName, "argon2id");
+    assert!(
+        manager
+            .check(b"test password", &encoded, &options)
+            .await
+            .unwrap()
+    );
+    assert!(!manager.needsRehash(&encoded, &options).unwrap());
+}
+
+#[test]
+fn custom_driver_failures_and_cycles_leave_the_cache_retryable() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let manager = Arc::new(custom_manager("custom"));
+    let peer = Arc::new(custom_manager("custom"));
+    let owner = Arc::downgrade(&manager);
+    manager.extend("custom", move |_| Ok(owner.upgrade().unwrap()));
+    assert!(matches!(
+        manager.driver(None),
+        Err(HashError::DriverSelfReference)
+    ));
+
+    let peer_ref = Arc::downgrade(&peer);
+    manager.extend("custom", move |_| Ok(peer_ref.upgrade().unwrap()));
+    let owner = Arc::downgrade(&manager);
+    peer.extend("custom", move |_| Ok(owner.upgrade().unwrap()));
+    assert!(matches!(manager.driver(None), Err(HashError::DriverBusy)));
+    assert!(manager.getDrivers().is_empty());
+    assert!(peer.getDrivers().is_empty());
+
+    let attempted = AtomicBool::new(false);
+    peer.extend("custom", move |manager| {
+        if attempted.swap(true, Ordering::Relaxed) {
+            manager.driver(Some("bcrypt"))
+        } else {
+            Err(HashError::InvalidOptions)
+        }
+    });
+    assert!(matches!(
+        manager.driver(None),
+        Err(HashError::InvalidOptions)
+    ));
+    assert!(manager.getDrivers().is_empty());
+    assert!(Arc::ptr_eq(
+        &manager.driver(None).unwrap(),
+        &peer.driver(None).unwrap()
+    ));
+}
+
+#[test]
+fn concurrent_custom_resolution_and_forget_do_not_publish_an_old_instance() {
+    use std::sync::Barrier;
+
+    let manager = Arc::new(custom_manager("custom"));
+    let entered = Arc::new(Barrier::new(2));
+    let resume = Arc::new(Barrier::new(2));
+    let signals = (entered.clone(), resume.clone());
+    manager.extend("custom", move |manager| {
+        signals.0.wait();
+        signals.1.wait();
+        Ok(Arc::new(manager.createBcryptDriver()?))
+    });
+    let active = manager.clone();
+    let task = std::thread::spawn(move || active.driver(None).unwrap());
+    entered.wait();
+    assert!(matches!(manager.driver(None), Err(HashError::DriverBusy)));
+    manager.forgetDrivers().extend("custom", |manager| {
+        Ok(Arc::new(manager.createArgon2idDriver()?))
+    });
+    resume.wait();
+    let old = task.join().unwrap();
+    assert!(manager.getDrivers().is_empty());
+    assert!(!Arc::ptr_eq(&old, &manager.driver(None).unwrap()));
+}
+
+#[tokio::test]
+async fn custom_hash_driver_resolves_its_own_application_over_http() {
+    use std::{net::SocketAddr, path::Path};
+
+    use axum::{Router, extract::State};
+    use openrust::{
+        config::{ConfigError, Environment, Value},
+        contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
+        foundation::{Application, configuration::Routing, http::Kernel},
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
+        support::{
+            ProviderResult, ServiceProvider,
+            facades::{Hash, Route},
+        },
+    };
+
+    struct HashDriver(&'static str);
+
+    impl ServiceProvider for HashDriver {
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                app.container().instance(Arc::new(Self(self.0)))?;
+                Hash::extend("tenant", |manager| {
+                    let container = manager.getContainer().expect("application container");
+                    let kind = container
+                        .make::<HashDriver>()
+                        .map_err(HashError::Unavailable)?;
+                    manager.driver(Some(kind.0))
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+        Ok(BTreeMap::from([(
+            "hashing".into(),
+            json!({
+                "driver":"tenant",
+                "bcrypt":{"rounds":4},
+                "argon":{"memory":1024,"time":2,"threads":1}
+            }),
+        )]))
+    }
+
+    fn hash(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let options = HashOptions::new();
+            let stored = Hash::make(b"fixture password", &options).await.unwrap();
+            assert!(
+                Hash::check(b"fixture password", &stored, &options)
+                    .await
+                    .unwrap()
+            );
+            assert!(!Hash::needsRehash(&stored, &options).unwrap());
+            Response::json(StatusCode::OK, Hash::info(&stored).unwrap().algoName)
+        })
+    }
+
+    async fn transport(
+        State(kernel): State<Arc<Kernel>>,
+        incoming: axum::extract::Request,
+    ) -> axum::response::Response {
+        let (parts, body) = incoming.into_parts();
+        let mut request = Request::from_parts(parts, body);
+        let (parts, body) = kernel.handle(&mut request).await.into_parts();
+        axum::response::Response::from_parts(parts, body)
+    }
+
+    async fn serve(
+        path: &Path,
+        selected: &'static str,
+    ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+        let app = Application::configure(path.to_path_buf())
+            .withConfig(config)
+            .withProviders(vec![Box::new(HashDriver(selected))])
+            .withRouting(Routing::default().web(|| Route::get("/hash", hash)))
+            .create()
+            .unwrap();
+        let mut kernel = Kernel::new(app);
+        kernel.bootstrap().await.unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(
+                listener,
+                Router::new()
+                    .fallback(transport)
+                    .with_state(Arc::new(kernel)),
+            )
+            .await
+            .unwrap();
+        });
+        (address, server)
+    }
+
+    let first = tempfile::tempdir().unwrap();
+    let second = tempfile::tempdir().unwrap();
+    let (first_address, first_server) = serve(first.path(), "bcrypt").await;
+    let (second_address, second_server) = serve(second.path(), "argon2id").await;
+    let get = |address| async move {
+        reqwest::get(format!("http://{address}/hash"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap()
+    };
+    let (bcrypt, argon) = tokio::join!(get(first_address), get(second_address));
+    assert_eq!(bcrypt, r#""bcrypt""#);
+    assert_eq!(argon, r#""argon2id""#);
+    first_server.abort();
+    second_server.abort();
+}

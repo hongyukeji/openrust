@@ -6,6 +6,11 @@ use crate::hashing::{HashFuture, HashInfo, HashOptions, HashResult};
 
 /// Accepts password bytes without lossy text conversions.
 pub trait Hasher: Send + Sync {
+    #[doc(hidden)]
+    fn as_hash_manager(&self) -> Option<&crate::hashing::HashManager> {
+        None
+    }
+
     fn info(&self, hashedValue: &str) -> HashResult<HashInfo>;
     fn make<'a>(
         &'a self,

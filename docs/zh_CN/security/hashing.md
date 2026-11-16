@@ -8,6 +8,24 @@
 
 用 `HASH_DRIVER` 选择 `bcrypt`、`argon` 或 `argon2id`，默认为 bcrypt。在 `config/hashing.rs` 配置 `BCRYPT_ROUNDS` 或 Argon 的 `ARGON_MEMORY`（KiB）、`ARGON_TIME` 和 `ARGON_THREADS`。可调用 `Hash::driver(Some("argon2id"))` 选择具名驱动。
 
+### 自定义驱动 {#custom-hash-drivers}
+
+在服务提供者启动时用 `Hash::extend` 或 `HashManager::extend` 注册应用自己的驱动。通过 `HASH_DRIVER` 选为默认驱动，也可以把名称传给 `driver`。工厂收到管理器并返回 `Arc<dyn Hasher>`，可通过 `getContainer()` 读取应用绑定。
+
+```rust
+use std::sync::Arc;
+
+use openrust::hashing::HashManager;
+
+pub fn register(manager: &HashManager) {
+    manager.extend("project", |manager| {
+        Ok(Arc::new(manager.createArgon2idDriver()?))
+    });
+}
+```
+
+管理器在首次使用时创建驱动并按名称缓存。重新注册后，现有实例继续使用，直到调用 `forgetDrivers()`。工厂失败后可在下次查找时重试。递归或并发创建正在构造的同名驱动会返回 `DriverBusy`。通过管理器创建的内置驱动共享应用哈希限制。
+
 ## 基本用法
 
 调用 `Hash::make` 生成哈希，调用 `Hash::check` 校验密码。`HashOptions::new()` 使用配置中的成本。单次 bcrypt 操作可指定 `rounds`，Argon 可指定 `memory`、`time` 和 `threads`。密码校验成功后，用 `needsRehash` 判断是否保存替换哈希。

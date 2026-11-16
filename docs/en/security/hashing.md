@@ -8,6 +8,24 @@ The `Hash` facade creates and verifies password hashes. It supports bcrypt, Argo
 
 Select `bcrypt`, `argon`, or `argon2id` with `HASH_DRIVER`. The default is bcrypt. Set `BCRYPT_ROUNDS` or the Argon parameters `ARGON_MEMORY` in KiB, `ARGON_TIME`, and `ARGON_THREADS` in `config/hashing.rs`. Use `Hash::driver(Some("argon2id"))` to choose a named driver.
 
+### Custom Drivers {#custom-hash-drivers}
+
+Register an application-specific driver with `Hash::extend` or `HashManager::extend` during provider boot. Select its name with `HASH_DRIVER`, or pass it explicitly to `driver`. The factory receives the manager and returns an `Arc<dyn Hasher>`. It can access application bindings through `getContainer()`.
+
+```rust
+use std::sync::Arc;
+
+use openrust::hashing::HashManager;
+
+pub fn register(manager: &HashManager) {
+    manager.extend("project", |manager| {
+        Ok(Arc::new(manager.createArgon2idDriver()?))
+    });
+}
+```
+
+The manager creates the driver on first use and caches it by name. Registering a replacement leaves the cached instance in use until `forgetDrivers()`. A failed factory is retried on the next lookup. Recursive or concurrent creation of an in-flight driver returns `DriverBusy`. Built-in drivers created through the manager share the application’s hashing limits.
+
 ## Basic Usage
 
 Call `Hash::make` to create a hash and `Hash::check` to verify a password. `HashOptions::new()` uses the configured costs. Set `rounds` for a bcrypt operation or `memory`, `time`, and `threads` for Argon. Use `needsRehash` after a successful verification to decide whether to save a replacement hash.

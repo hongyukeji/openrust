@@ -17,6 +17,23 @@ impl Facade for Hash {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Hash facade API")]
 impl Hash {
+    pub fn extend(
+        name: impl Into<String>,
+        factory: impl Fn(&HashManager) -> HashResult<Arc<dyn Hasher>> + Send + Sync + 'static,
+    ) -> HashResult<()> {
+        Self::getFacadeRoot()
+            .map_err(HashError::Unavailable)?
+            .extend(name, factory);
+        Ok(())
+    }
+
+    pub fn forgetDrivers() -> HashResult<()> {
+        Self::getFacadeRoot()
+            .map_err(HashError::Unavailable)?
+            .forgetDrivers();
+        Ok(())
+    }
+
     pub fn driver(name: Option<&str>) -> HashResult<Arc<dyn Hasher>> {
         Self::getFacadeRoot()
             .map_err(HashError::Unavailable)?
