@@ -238,6 +238,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Aggregating Values {#lazy-aggregating-values}
+
+`sum`, `avg`, `min`, `max`, and `reduce` traverse the source once and include repeated keys. `every` stops at the first failing item. `countBy` counts every occurrence and yields group counts after the source ends. `median` and `mode` materialize the source first, so the last value for a repeated key is used. Empty averages, extrema, medians, and modes return `None`.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
+    assert_eq!(readings.sum()?, 107);
+    assert_eq!(readings.median()?, Some(5.0));
+    assert_eq!(readings.mode()?, Some(vec![5]));
+
+    let counts = readings.countBy(|value, _| if *value == 5 { "low" } else { "high" });
+    assert_eq!(counts.collect()?.toJson()?, r#"{"high":2,"low":2}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

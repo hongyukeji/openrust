@@ -79,3 +79,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 首次取值时实体化来源，再用现有实体集合排序、反转或找重复项。键收敛和稳定排序沿用实体集合，负向 `slice` 复用同一路径。来源读取失败时传播错误，无部分结果。
 - Rust 通过类型化投影或比较回调表达 Laravel 的动态排序参数。`duplicatesBy` 输出重复的投影值及原键，`duplicatesStrict` 使用同样的类型化相等比较。
 - PHP 8.5.12 固定源码对照加载 Symfony 1.43.0 的 `SortDirection` polyfill。35 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性集合聚合
+
+对照固定 Laravel 的 [枚举聚合](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L202)、[中位数与众数](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L185) 及 [countBy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L336)。旧版未发现同契约的惰性操作，复用现有数值转换和实体中位数实现。
+
+- `sum`、`avg`、最值和折叠按次序处理每条输入。空来源保留求和的零值，平均值与最值返回 `None`。`every` 在首次不满足时短路。`reduceSpread` 复用实体集合的二元元组契约。
+- `countBy` 在首次读取时逐条汇总，按组首次出现顺序产出，保留数字字符串键规则。中位数与众数先按来源键实体化。众数使用类型化 `Eq + Hash` 分组，同频值按出现顺序返回。动态投影通过 Rust 回调表达。
+- PHP 8.5.12 固定源码对照、38 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

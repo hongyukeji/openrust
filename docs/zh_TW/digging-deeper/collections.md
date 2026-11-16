@@ -238,6 +238,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 彙總值 {#lazy-aggregating-values}
+
+`sum`、`avg`、`min`、`max` 和 `reduce` 單次迭代來源，重複鍵的每次出現都參與計算。`every` 遇到第一個不符合條件的項目就停止。`countBy` 逐項計數，讀完來源後產出各組計數。`median` 和 `mode` 先實體化來源，同鍵以最後一個值為準。空來源的平均值、極值、中位數和眾數傳回 `None`。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
+    assert_eq!(readings.sum()?, 107);
+    assert_eq!(readings.median()?, Some(5.0));
+    assert_eq!(readings.mode()?, Some(vec![5]));
+
+    let counts = readings.countBy(|value, _| if *value == 5 { "low" } else { "high" });
+    assert_eq!(counts.collect()?.toJson()?, r#"{"high":2,"low":2}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

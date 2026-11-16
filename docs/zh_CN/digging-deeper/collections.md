@@ -238,6 +238,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 聚合值 {#lazy-aggregating-values}
+
+`sum`、`avg`、`min`、`max` 和 `reduce` 单次遍历来源，重复键的各次出现都参与计算。`every` 遇到第一个不满足条件的条目即停止。`countBy` 逐条计数，读完来源后产出各组计数。`median` 和 `mode` 先实体化来源，同键以最后一个值为准。空来源的平均值、最值、中位数和众数返回 `None`。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
+    assert_eq!(readings.sum()?, 107);
+    assert_eq!(readings.median()?, Some(5.0));
+    assert_eq!(readings.mode()?, Some(vec![5]));
+
+    let counts = readings.countBy(|value, _| if *value == 5 { "low" } else { "high" });
+    assert_eq!(counts.collect()?.toJson()?, r#"{"high":2,"low":2}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

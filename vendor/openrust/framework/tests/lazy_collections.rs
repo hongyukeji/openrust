@@ -758,3 +758,82 @@ fn lazy_ordering_reports_source_errors_before_comparing_or_emitting() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_aggregates_count_every_occurrence_and_keep_typed_empty_defaults() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("x", 3), ("y", 5), ("x", 7)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(source.sum().unwrap(), 15);
+    assert_eq!(reads.get(), 3);
+    assert_eq!(source.sumBy(|value, _| value * value).unwrap(), 83);
+    assert_eq!(source.average().unwrap(), Some(5.0));
+    assert_eq!(
+        source
+            .avgBy(|value, _| (*value > 3).then_some(f64::from(*value)))
+            .unwrap(),
+        Some(6.0)
+    );
+    assert_eq!(source.min().unwrap(), Some(3));
+    assert_eq!(source.max().unwrap(), Some(7));
+    assert_eq!(source.minBy(|value, _| -*value).unwrap(), Some(-7));
+    assert_eq!(source.maxBy(|value, _| -*value).unwrap(), Some(-3));
+    assert_eq!(
+        source
+            .reduceSpread((0, 0), |sum, n, value, _| (sum + value, n + 1))
+            .unwrap(),
+        (15, 3)
+    );
+
+    let empty = LazyCollection::<i32>::empty();
+    assert_eq!(empty.sum().unwrap(), 0);
+    assert_eq!(empty.avg().unwrap(), None);
+    assert_eq!(empty.min().unwrap(), None);
+    assert_eq!(empty.max().unwrap(), None);
+    assert_eq!(empty.median().unwrap(), None);
+    assert_eq!(empty.mode().unwrap(), None);
+    assert!(empty.every(|_, _| false).unwrap());
+}
+
+#[test]
+fn lazy_count_by_counts_repeated_keys_and_median_and_mode_materialize() {
+    let source = LazyCollection::fromEntries(|| [("x", 90), ("y", 5), ("x", 7), ("z", 5)]);
+    let counts = source
+        .clone()
+        .countBy(|value, _| if *value == 5 { "05" } else { "5" });
+    assert_eq!(counts.all().unwrap(), vec![(5.into(), 2), ("05".into(), 2)]);
+    assert_eq!(source.median().unwrap(), Some(5.0));
+    assert_eq!(
+        source
+            .medianBy(|value, _| (*value != 5).then_some(f64::from(*value)))
+            .unwrap(),
+        Some(7.0)
+    );
+    assert_eq!(source.mode().unwrap(), Some(vec![5]));
+    assert_eq!(
+        LazyCollection::from([7, 5, 7, 5]).mode().unwrap(),
+        Some(vec![7, 5])
+    );
+}
+
+#[test]
+fn lazy_aggregate_failures_propagate_and_every_short_circuits() {
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(3)]);
+    assert!(!failing.every(|value, _| *value > 3).unwrap());
+    assert!(matches!(
+        failing.every(|_, _| true),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(failing.sum(), Err(CollectionError::Source(_))));
+    assert!(matches!(failing.median(), Err(CollectionError::Source(_))));
+    let counts = failing.countBy(|value, _| *value);
+    let mut iterator = counts.getIterator();
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+}
