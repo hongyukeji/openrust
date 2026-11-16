@@ -243,6 +243,29 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
 
+#### MySQL 即時欄位變更與鎖定模式 {#instant-column-operations}
+
+新增欄位或透過 `change()` 修改欄位時，可用 `instant()` 要求即時演算法。使用 `lock()` 指定欄位操作的鎖定模式，支援 `none`、`shared`、`exclusive` 與 `default`。演算法與鎖定能否搭配由 MySQL 判斷。操作不相容時回傳資料庫錯誤，框架不會改用其他演算法重試。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn prepare_imports() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.id().from(500);
+        table.string("name", 100);
+    })
+    .await?;
+
+    Schema::table("imports", |table| {
+        table.string("note", 100).nullable().instant().lock("default");
+    })
+    .await
+}
+```
+
+在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
+
 #### SQLite 內嵌約束 {#sqlite-inline-constraints}
 
 修改 SQLite 欄位時，既有的內嵌主鍵、UNIQUE、CHECK 和 REFERENCES 子句會保留。重建後的資料表若仍有自動遞增主鍵，也會還原其序列。傳入 `change()` 的欄位定義決定型別、是否可為 NULL 及預設值。

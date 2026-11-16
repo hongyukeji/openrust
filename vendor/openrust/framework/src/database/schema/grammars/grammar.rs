@@ -124,6 +124,7 @@ impl Grammar {
         let mut definitions = Vec::new();
         let mut constraints = Vec::new();
         let mut indexes = Vec::new();
+        let mut starting_values = Vec::new();
         let mut columns = 0;
         let qualified = self.qualified(table)?;
         for command in blueprint.commands {
@@ -137,6 +138,7 @@ impl Grammar {
                     columns += 1;
                     definitions.push(self.column(&column)?);
                     self.column_indexes(table, &column, &mut indexes)?;
+                    self.column_start(&qualified, &column, &mut starting_values);
                 }
                 Command::Index(index) if index.kind == IndexType::Primary => {
                     if index.inplace || index.lock.is_some() {
@@ -172,6 +174,7 @@ impl Grammar {
         }
         let mut sql = vec![create];
         sql.extend(indexes);
+        sql.extend(starting_values);
         Ok(sql)
     }
 
@@ -230,6 +233,7 @@ impl Grammar {
         }
         let qualified = self.qualified(table)?;
         let mut sql = Vec::new();
+        let mut starting_values = Vec::new();
         for command in blueprint.commands {
             match command {
                 Command::Column(column) => {
@@ -244,10 +248,15 @@ impl Grammar {
                         "add column"
                     };
                     sql.push(format!(
-                        "alter table {qualified} {verb} {}",
-                        self.column(&column)?
+                        "alter table {qualified} {verb} {}{}",
+                        self.column(&column)?,
+                        self.ddl_options(
+                            column.instant.then_some("instant"),
+                            column.lock.as_deref()
+                        )?
                     ));
                     self.column_indexes(table, &column, &mut sql)?;
+                    self.column_start(&qualified, &column, &mut starting_values);
                 }
                 Command::Index(index) => sql.push(self.add_index(table, &index)?),
                 Command::TableComment(comment) => {
@@ -309,6 +318,7 @@ impl Grammar {
                 }
             }
         }
+        sql.extend(starting_values);
         Ok(sql)
     }
 
@@ -358,10 +368,10 @@ impl Grammar {
             };
             Ok(format!(
                 "alter table {table} add {kind}{}",
-                self.ddl_options(index.inplace, index.lock.as_deref())?
+                self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?
             ))
         } else {
-            self.ddl_options(index.inplace, index.lock.as_deref())?;
+            self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
             let verb = match index.kind {
                 IndexType::Unique => "create unique index",
                 IndexType::Index => "create index",
@@ -385,7 +395,10 @@ impl Grammar {
             "alter table {} add {}{}",
             self.qualified(table)?,
             self.foreign(table, foreign)?,
-            self.ddl_options(foreign.inplace, foreign.lock.as_deref())?
+            self.ddl_options(
+                foreign.inplace.then_some("inplace"),
+                foreign.lock.as_deref()
+            )?
         ))
     }
 
@@ -441,15 +454,24 @@ impl Grammar {
         Ok(sql)
     }
 
-    fn ddl_options(&self, inplace: bool, lock: Option<&str>) -> DatabaseResult<String> {
-        if !self.mysql() && (inplace || lock.is_some()) {
+    fn column_start(&self, table: &str, column: &ColumnDefinition, sql: &mut Vec<String>) {
+        if self.mysql()
+            && column.increment
+            && let Some(value) = column.start.filter(|value| *value != 0)
+        {
+            sql.push(format!("alter table {table} auto_increment = {value}"));
+        }
+    }
+
+    fn ddl_options(&self, algorithm: Option<&str>, lock: Option<&str>) -> DatabaseResult<String> {
+        if !self.mysql() && (algorithm.is_some() || lock.is_some()) {
             return Err(DatabaseError::UnsupportedSchema(
                 "SQLite DDL algorithm or lock",
             ));
         }
         let mut result = String::new();
-        if inplace {
-            result.push_str(", algorithm=inplace");
+        if let Some(algorithm) = algorithm {
+            write!(result, ", algorithm={algorithm}").expect("writing to a String");
         }
         if let Some(lock) = lock {
             let lock = lock.to_ascii_lowercase();
@@ -463,7 +485,11 @@ impl Grammar {
 
     pub fn column(&self, column: &ColumnDefinition) -> DatabaseResult<String> {
         if !self.mysql()
-            && (column.invisible || column.current_on_update || column.position.is_some())
+            && (column.invisible
+                || column.current_on_update
+                || column.position.is_some()
+                || column.instant
+                || column.lock.is_some())
         {
             return Err(DatabaseError::UnsupportedSchema("MySQL column modifier"));
         }
@@ -532,7 +558,10 @@ impl Grammar {
         }
         if column.increment {
             if self.mysql() {
-                sql.push_str(" auto_increment primary key");
+                sql.push_str(" auto_increment");
+                if !column.change || column.primary {
+                    sql.push_str(" primary key");
+                }
             } else {
                 sql.push_str(" primary key autoincrement");
             }

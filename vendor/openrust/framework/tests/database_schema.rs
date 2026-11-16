@@ -2012,3 +2012,140 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
     );
     assert_eq!(db.table("inline_counter").count("*").await.unwrap(), 2);
 }
+
+#[tokio::test]
+async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("online_column_ddl").await.unwrap();
+    schema
+        .create("online_column_ddl", |table| {
+            table.id().from(500);
+            table.integer("rank");
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        db.table("online_column_ddl")
+            .insertGetId(BTreeMap::from([("rank".into(), 1.into())]))
+            .await
+            .unwrap(),
+        500.into()
+    );
+    schema
+        .table("online_column_ddl", |table| {
+            table
+                .string("label", 80)
+                .nullable()
+                .instant()
+                .lock("DEFAULT");
+            table.integer("rank").default(7).change().instant();
+            table.string("note", 80).nullable().lock("NONE");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumnListing("online_column_ddl").await.unwrap(),
+        ["id", "rank", "label", "note"]
+    );
+
+    assert!(
+        schema
+            .table("online_column_ddl", |table| {
+                table.string("rank", 80).change().instant();
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        schema
+            .table("online_column_ddl", |table| {
+                table.integer("not_added");
+                table.integer("invalid_lock").lock("unknown");
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        !schema
+            .hasColumn("online_column_ddl", "not_added")
+            .await
+            .unwrap()
+    );
+
+    schema
+        .table("online_column_ddl", |table| {
+            table.id().startingValue(900).change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("online_column_ddl")
+            .insertGetId(BTreeMap::from([("label".into(), "online".into())]))
+            .await
+            .unwrap(),
+        900.into()
+    );
+    assert_eq!(
+        db.table("online_column_ddl")
+            .r#where("id", "=", 500)
+            .value("rank")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    assert_eq!(
+        db.table("online_column_ddl")
+            .r#where("id", "=", 900)
+            .value("rank")
+            .await
+            .unwrap(),
+        7.into()
+    );
+    schema.drop("online_column_ddl").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_keeps_native_autoincrement_and_rejects_mysql_online_ddl() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("online_column_ddl", |table| {
+            table.id().from(500);
+            table.integer("rank");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("online_column_ddl")
+            .insertGetId(BTreeMap::from([("rank".into(), 1.into())]))
+            .await
+            .unwrap(),
+        1.into()
+    );
+    for result in [
+        schema
+            .table("online_column_ddl", |table| {
+                table.integer("not_added");
+                table.integer("instant").nullable().instant();
+            })
+            .await,
+        schema
+            .table("online_column_ddl", |table| {
+                table.integer("rank").nullable().change().lock("none");
+            })
+            .await,
+    ] {
+        assert!(matches!(result, Err(DatabaseError::UnsupportedSchema(_))));
+    }
+    assert_eq!(
+        schema.getColumnListing("online_column_ddl").await.unwrap(),
+        ["id", "rank"]
+    );
+    assert!(!schema.getColumns("online_column_ddl").await.unwrap()[1].nullable);
+}

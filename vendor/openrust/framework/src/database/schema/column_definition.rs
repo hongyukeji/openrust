@@ -72,6 +72,9 @@ pub struct ColumnDefinition {
     pub(super) current_on_update: bool,
     pub(super) invisible: bool,
     pub(super) position: Option<Position>,
+    pub(super) instant: bool,
+    pub(super) lock: Option<String>,
+    pub(super) start: Option<u64>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's column modifiers")]
@@ -96,6 +99,9 @@ impl ColumnDefinition {
             current_on_update: false,
             invisible: false,
             position: None,
+            instant: false,
+            lock: None,
+            start: None,
         }
     }
 
@@ -112,6 +118,17 @@ impl ColumnDefinition {
     pub fn autoIncrement(&mut self) -> &mut Self {
         self.increment = true;
         self.unsigned = true;
+        self
+    }
+
+    /// Sets the starting value of an auto-incrementing column where supported.
+    pub fn from(&mut self, value: u64) -> &mut Self {
+        self.startingValue(value)
+    }
+
+    /// Sets the starting value of an auto-incrementing column where supported.
+    pub fn startingValue(&mut self, value: u64) -> &mut Self {
+        self.start = Some(value);
         self
     }
 
@@ -195,6 +212,18 @@ impl ColumnDefinition {
     /// Places the column after an existing column when altering a MySQL table.
     pub fn after(&mut self, column: &str) -> &mut Self {
         self.position = Some(Position::After(column.to_owned()));
+        self
+    }
+
+    /// Requests MySQL's instant algorithm when adding or changing this column.
+    pub fn instant(&mut self) -> &mut Self {
+        self.instant = true;
+        self
+    }
+
+    /// Requests a MySQL DDL lock mode when adding or changing this column.
+    pub fn lock(&mut self, mode: &str) -> &mut Self {
+        self.lock = Some(mode.to_owned());
         self
     }
 

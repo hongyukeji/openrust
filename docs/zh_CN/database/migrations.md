@@ -243,6 +243,29 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### MySQL 即时列变更与锁模式 {#instant-column-operations}
+
+新增列或通过 `change()` 修改列时，可用 `instant()` 请求即时算法。用 `lock()` 指定列操作的锁模式，支持 `none`、`shared`、`exclusive` 和 `default`。算法与锁能否组合由 MySQL 判断。操作不兼容时返回数据库错误，框架不会改用其他算法重试。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn prepare_imports() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.id().from(500);
+        table.string("name", 100);
+    })
+    .await?;
+
+    Schema::table("imports", |table| {
+        table.string("note", 100).nullable().instant().lock("default");
+    })
+    .await
+}
+```
+
+在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
+
 #### SQLite 内联约束 {#sqlite-inline-constraints}
 
 变更 SQLite 列时，已有的内联主键、UNIQUE、CHECK 和 REFERENCES 子句会保留。重建后的表仍有自增主键时，也会恢复其自增序列。传入 `change()` 的列定义决定类型、是否可空及默认值。

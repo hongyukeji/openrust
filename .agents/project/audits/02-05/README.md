@@ -79,3 +79,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 重新建成的表仍有自增主键时恢复原序列。移除自增后，保留原列值并清除旧序列记录。删除或变更路径仍由同一 SQLite 重建事务执行。
 - Rust 1.94.0，真实 SQLite 及 MySQL 8.4.13。79 项定向回归、严格 Clippy 和变更文件格式检查通过。覆盖真实约束行为、重建保留旧序列、按名称／列移除、其余约束继续生效、移除主键后的重复值及同表数据。1 个子进程夹具由父测试启动。
 - 实际 SQLite Artisan 运行三语共用示例，原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合及 6 项小节检查通过。
+
+## MySQL 即时列变更、锁和自增起始值
+
+对照固定 Laravel [即时列操作](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#instant-column-operations)、[DDL 锁](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#ddl-locking) 和 [MySQL 列编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L293)。旧版未找到对应列修饰符。本批复用 MySQL 索引和外键已有的锁模式校验，沿用 Schema 的原生 DDL 执行路径。
+
+- 新增或修改 MySQL 列可以请求 `instant()` 和 `lock()`。由服务器判定操作、算法及锁是否兼容并返回原生错误。SQLite 的原生 ALTER 和重建路径均拒绝 MySQL 在线修饰符。
+- `from()` 和 `startingValue()` 用 `u64` 表达自增起始值。在 MySQL 的列和索引 DDL 执行后设置表序列。修改已有自增列时保留现有主键，显式 `primary()` 时编译主键请求。SQLite 沿用原生序列。
+- 真实 MySQL 8.4.13 验证即时新增、即时修改默认值、锁模式、引擎不支持的操作返回错误、锁模式非法时先校验整批、设置和变更自增起始值及原有数据保留。SQLite 验证原生起始值和两条 ALTER 路径的方言边界。Rust 1.94.0，81 项定向回归通过，1 个子进程夹具由父测试启动。
+- 严格工作区 Clippy、变更文件格式检查、真实 MySQL Artisan 三语共用示例、`main artisan inspire`、VitePress 构建和 18 项浏览器检查通过。全工作区格式检查另报既有 Sanctum 测试断言排版，已与本批基线逐字节核对。
