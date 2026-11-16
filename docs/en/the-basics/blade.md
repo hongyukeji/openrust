@@ -47,6 +47,19 @@ Store an anonymous component such as `notice` in `resources/views/components/not
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+### Dynamic Components {#dynamic-components}
+
+Use `<x-dynamic-component>` when the view data selects a registered Rust component or an anonymous component. The `component` attribute selects the target. Other attributes and slots are passed to that component.
+
+```html
+<x-dynamic-component :component="$componentName" :title="$label">
+    <x-slot:header>{{ $app }}</x-slot:header>
+    <x-dynamic-component component="badge" text="<&"/>
+</x-dynamic-component>
+```
+
+`<x-accordion>` searches `components/accordion.blade.html`, `components/accordion/index.blade.html`, then `components/accordion/accordion.blade.html`. A registered Rust component takes precedence.
+
 ## Building Layouts
 
 In `resources/views/layouts/app.blade.html`, use `@yield` to place a section. The child view can extend the layout and fill the section. Use `@parent` to include content from the inherited section.

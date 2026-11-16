@@ -47,6 +47,19 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+### 动态组件 {#dynamic-components}
+
+视图数据可以通过 `<x-dynamic-component>` 选择一个已注册的 Rust 组件或匿名组件。`component` 属性指定目标，其余属性和插槽传给目标组件。
+
+```html
+<x-dynamic-component :component="$componentName" :title="$label">
+    <x-slot:header>{{ $app }}</x-slot:header>
+    <x-dynamic-component component="badge" text="<&"/>
+</x-dynamic-component>
+```
+
+`<x-accordion>` 依次查找 `components/accordion.blade.html`、`components/accordion/index.blade.html` 和 `components/accordion/accordion.blade.html`。已注册的 Rust 组件优先。
+
 ## 构建布局
 
 在 `resources/views/layouts/app.blade.html` 中用 `@yield` 放置区段。子视图可以继承布局并填充区段，用 `@parent` 引用继承的区段内容。

@@ -356,6 +356,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     )
                 })?;
                 Route::get("/broken-loop", || view("broken_loop"))?;
+                Route::get("/dynamic", || {
+                    view("dynamic")
+                        .with("componentName", "accordion")
+                        .with("label", "<title>")
+                })?;
+                Route::get("/dynamic-invalid", || {
+                    view("dynamic").with("componentName", "../accordion")
+                })?;
+                Route::get("/dynamic-missing", || {
+                    view("dynamic").with("componentName", "missing")
+                })?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -419,7 +430,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
 
     let root = TempDir::new();
     let sources = root.path().join("resources/views");
-    fs::create_dir_all(sources.join("components")).unwrap();
+    fs::create_dir_all(sources.join("components/accordion")).unwrap();
+    fs::create_dir_all(sources.join("components/ranked")).unwrap();
     for (name, source) in [
         (
             "layout",
@@ -466,6 +478,22 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "broken_loop",
             "@foreach ($items as key => $item)@endforeach",
         ),
+        (
+            "dynamic",
+            concat!(
+                r#"<x-dynamic-component :component="$componentName" :title="$label">"#,
+                "<x-slot:header>{{ $app }}</x-slot:header>",
+                r#"<x-dynamic-component component="badge" text="<&"/>"#,
+                "</x-dynamic-component><x-ranked/>",
+            ),
+        ),
+        (
+            "components/accordion/accordion",
+            "<details>{{ $header }}|{{ $title }}|{{ $slot }}@isset($component)leaked@endisset</details>",
+        ),
+        ("components/ranked", "root"),
+        ("components/ranked/index", "index"),
+        ("components/ranked/ranked", "leaf"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -496,6 +524,23 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "&lt;first&gt;=0/1/1/2FO:0=&lt;&amp;[1:2]1=two[1:2](1);second=1/2/0/2LE: empty[2](1);"
     );
     assert_eq!(a, b);
+    let (a, b) = tokio::join!(send(first, "/dynamic", 200), send(second, "/dynamic", 200));
+    assert_eq!(
+        a,
+        "<details>A|&lt;title&gt;|<mark>&lt;&amp;</mark></details>root"
+    );
+    assert_eq!(
+        b,
+        "<details>B|&lt;title&gt;|<mark>&lt;&amp;</mark></details>root"
+    );
+    assert!(send(first, "/dynamic-invalid", 500).await.contains("500"));
+    assert!(send(first, "/dynamic-missing", 500).await.contains("500"));
+    fs::remove_file(sources.join("components/ranked.blade.html")).unwrap();
+    assert!(
+        send(first, "/dynamic", 200)
+            .await
+            .ends_with("</details>index")
+    );
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

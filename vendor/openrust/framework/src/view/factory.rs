@@ -174,7 +174,14 @@ impl Factory {
                     self.compiler().render_inline(&source, properties, context)
                 }
             },
-            None => self.render_nested(&format!("components.{name}"), properties, context),
+            None => {
+                let base = format!("components.{name}");
+                let index = format!("{base}.index");
+                let leaf = name.rsplit('.').next().unwrap_or(name);
+                let directory = format!("{base}.{leaf}");
+                let view = self.first(&[&base, &index, &directory], properties.clone())?;
+                self.render_view(view, context)
+            }
         }
     }
 

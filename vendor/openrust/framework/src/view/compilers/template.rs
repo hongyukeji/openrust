@@ -31,7 +31,7 @@ enum Node {
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
     Component {
-        name: String,
+        name: ComponentName,
         attributes: Vec<(String, Expression)>,
         body: Vec<Node>,
         slots: Vec<(String, Vec<Node>)>,
@@ -50,6 +50,12 @@ enum Predicate {
 enum Expression {
     Value(ViewValue),
     Variable(Vec<String>),
+}
+
+#[derive(Serialize, Deserialize)]
+enum ComponentName {
+    Static(String),
+    Dynamic(Expression),
 }
 
 impl Template {
@@ -194,7 +200,7 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
         let name = &self.0[..end];
         self.0 = &self.0[end..];
-        let (attributes, self_closing) = self.component_attributes()?;
+        let (mut attributes, self_closing) = self.component_attributes()?;
 
         if let Some(slot) = name.strip_prefix("slot:") {
             if !identifier(slot) || !attributes.is_empty() || self_closing {
@@ -205,12 +211,7 @@ impl<'a> Parser<'a> {
                 self.component_body(depth, name)?,
             ));
         }
-        if !name.split('.').all(|part| {
-            !part.is_empty()
-                && part
-                    .chars()
-                    .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_'))
-        }) {
+        if !valid_component_name(name) {
             return Err(invalid("Invalid Blade component name."));
         }
         let children = if self_closing {
@@ -226,8 +227,25 @@ impl<'a> Parser<'a> {
                 node => body.push(node),
             }
         }
+        let name = if name == "dynamic-component" {
+            let index = attributes
+                .iter()
+                .position(|(name, _)| name == "component")
+                .ok_or_else(|| {
+                    invalid("A dynamic Blade component requires a component attribute.")
+                })?;
+            let (_, target) = attributes.remove(index);
+            if attributes.iter().any(|(name, _)| name == "component") {
+                return Err(invalid(
+                    "A dynamic Blade component accepts one component attribute.",
+                ));
+            }
+            ComponentName::Dynamic(target)
+        } else {
+            ComponentName::Static(name.to_owned())
+        };
         Ok(Node::Component {
-            name: name.to_owned(),
+            name,
             attributes,
             body,
             slots,
@@ -557,6 +575,15 @@ fn identifier(name: &str) -> bool {
         && characters.all(|character| character.is_alphanumeric() || character == '_')
 }
 
+fn valid_component_name(name: &str) -> bool {
+    name.split('.').all(|part| {
+        !part.is_empty()
+            && part
+                .chars()
+                .all(|character| character.is_alphanumeric() || matches!(character, '-' | '_'))
+    })
+}
+
 fn loop_variable(binding: &str) -> ViewResult<String> {
     binding
         .trim()
@@ -723,6 +750,13 @@ fn render_nodes<'a>(
                 body,
                 slots,
             } => {
+                let name = match name {
+                    ComponentName::Static(name) => name.as_str(),
+                    ComponentName::Dynamic(expression) => value(expression, data, bindings)
+                        .as_str()
+                        .filter(|name| valid_component_name(name))
+                        .ok_or_else(|| render_error("Invalid dynamic Blade component name."))?,
+                };
                 let properties = attributes
                     .iter()
                     .map(|(name, expression)| {

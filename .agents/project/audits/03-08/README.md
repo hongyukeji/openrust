@@ -17,3 +17,10 @@
 - 文档构建通过，根路径与 `/docs/` 子路径通过 12 项通用浏览器检查和 6 项组合器、布局、组件专项检查。
 
 下一批为 03-09 Redis，配置和缓存前置分别为 01-01 与 03-06。
+
+## 动态组件与匿名索引视图
+
+- 对照固定 [DynamicComponent](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/DynamicComponent.php)、[ComponentTagCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/ComponentTagCompiler.php) 及 [BladeComponentTagCompilerTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/View/Blade/BladeComponentTagCompilerTest.php) 的无类组件索引查找。旧版 `6d1a8192` 使用 MiniJinja，查不到可直接移植的 Blade 标签。动态名称按现有组件名称规则验证并通过当前 Factory 分发，Rust 组件沿用显式注册，匿名组件的查找顺序为同名视图、`index`、目录同名文件。目标组件收到其余属性和默认及具名插槽。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖两个应用并发、动态嵌套、Rust 注册组件、转义、插槽、匿名索引优先顺序与回退、非法及缺失组件 500。隔离副本全工作区格式和严格 Clippy 通过，已有 Sanctum 测试仅在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语动态组件示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项动态组件章节检查通过。
+- PHP 类与组件发现留给上游运行时。OpenRust 使用应用级 Rust 工厂登记和现有视图查找。Blade 组件命名空间、扩展匿名组件路径、属性包和 `@props` 仍待验收。
