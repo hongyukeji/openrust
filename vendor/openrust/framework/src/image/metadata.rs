@@ -19,17 +19,15 @@ impl Metadata {
                 use oxideav_heif::{HeifFile, meta::metadata_items, props::ItemProperties};
                 let map = |error| codecs::codec_error(format, error);
                 let file = HeifFile::parse_borrowed(bytes).map_err(map)?;
-                let (Ok(meta), Ok(item)) = (file.meta(), file.primary_item()) else {
-                    return Ok(Self::default());
-                };
-                let props = ItemProperties::resolve(meta, item.id).map_err(map)?;
-                let (exif, xmp) = metadata_items(&file, meta, meta.metadata_of(item.id));
-                Ok(Self {
-                    icc: props.icc_profile().map(<[u8]>::to_vec),
-                    exif,
-                    xmp,
-                    ..Self::default()
-                })
+                let mut metadata = Self::default();
+                if let (Ok(meta), Ok(item)) = (file.meta(), file.primary_item()) {
+                    let props = ItemProperties::resolve(meta, item.id).map_err(map)?;
+                    metadata.icc = props.icc_profile().map(<[u8]>::to_vec);
+                    (metadata.exif, metadata.xmp) =
+                        metadata_items(&file, meta, meta.metadata_of(item.id));
+                }
+                super::sequence::read_track_metadata(&file, bytes, format, &mut metadata)?;
+                Ok(metadata)
             }
             Format::Jpeg | Format::Png | Format::Webp => {
                 let mut reader = ImageReader::new(Cursor::new(bytes))

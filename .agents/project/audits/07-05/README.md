@@ -4,7 +4,7 @@
 
 应用级 `Image` Facade 通过 Manager 解析命名驱动。输入支持上传、磁盘、字节、Base64、本地路径、HTTP URL 及异步流。支持顺序变换、EXIF 方向、裁剪与缩放、背景色、编码质量、格式和尺寸检查、平均色以及公开与普通存储。类型化 Driver 接收有序管线，可解释自定义变换。Rust 使用拥有所有权的 builder，克隆可分支，共享同一管线的渲染结果。CPU 编解码在有界阻塞任务运行，默认每个应用至多四个任务。一次性异步流在创建时读取，其他输入延迟加载。损坏输入会在输出原始字节前经过有界解码验证。
 
-内置 `image` 驱动读写 JPEG、PNG、GIF、WebP、BMP，写入 AVIF。JPEG、WebP、AVIF 使用 1 至 100 的质量参数，默认 70。图像输入限制 32 MiB，边长 16,384，像素总数 2,400 万，特定编码器还有格式自身限制。Rust 用 image 0.25.10 解码，使用 webp 0.3.1 的 libwebp 绑定编码 WebP。核对 libwebp-sys 0.9.6 的 Huffman 修复源文件与 [libwebp 1.3.2](https://github.com/webmproject/libwebp/blob/v1.3.2/src/utils/huffman_utils.c) 校验值相同，入站解码走 Rust。动画变换当前只处理一帧。AVIF 解码、HEIC、JXL、GD/Imagick 驱动及原样元数据保留尚未对齐。任意角度旋转采用最近邻采样。
+首批验收时，内置 `image` 驱动读写 JPEG、PNG、GIF、WebP、BMP，写入 AVIF。JPEG、WebP、AVIF 使用 1 至 100 的质量参数，默认 70。图像输入限制 32 MiB，边长 16,384，像素总数 2,400 万，特定编码器还有格式自身限制。Rust 用 image 0.25.10 解码，使用 webp 0.3.1 的 libwebp 绑定编码 WebP。核对 libwebp-sys 0.9.6 的 Huffman 修复源文件与 [libwebp 1.3.2](https://github.com/webmproject/libwebp/blob/v1.3.2/src/utils/huffman_utils.c) 校验值相同，入站解码走 Rust。当时动画变换只处理一帧。后续各批的格式、时序和元数据验收见下文。任意角度旋转采用最近邻采样。
 
 ## 验收
 
@@ -47,6 +47,11 @@
 - JPEG 同格式变换保留首个扫描之前的 Photoshop APP13 配置和 JPEG COM 注释，保留这些段的原始内容及相对顺序。固定 Laravel 委托 Intervention，Imagick 的 JPEG 编码器支持 IPTC 配置和注释。 [固定 JPEG 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/JpegEncoder.php) [ImageMagick JPEG 实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/jpeg.c)
 - 13 项 Images 回归以及工作区全目标严格 Clippy 通过。真实 HTTP 和 Artisan 接收独立 Pillow 生成的 JPEG 并应用 EXIF 旋转和裁切，输出经 Pillow 核对 IPTC、注释、EXIF 作者、ICC、XMP 和 12×16 像素尺寸。三语站点构建及 12 项浏览器检查通过。
 
+## HEIF 主时序轨道元数据
+
+- 读取 AVIF 或 HEIC 序列时，主轨道的 ICC 优先于封面 ICC。主轨道的序列级 EXIF 和 XMP 在封面缺少相应字段时补齐。样本表经过帧数预检后读取。Imagick 序列解码器从帧提取 ICC。 [ImageMagick HEIF 序列实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/heic.c)
+- 13 项 Images 回归、全工作区全目标严格 Clippy、三语文档构建及 12 项浏览器检查通过。真实 HTTP 和 Artisan 使用移除封面的 AVIF 与 HEIC 样本转为 WebP。Pillow 独立验证两个输出都保留 ICC、三帧、40／90／180 毫秒、三轮播放和 12×16 像素尺寸。AVIF 另外保留轨道级 EXIF 作者、方向和 XMP。
+
 ## 剩余验收
 
-固定 Laravel 未定义私有元数据块或 JUMBF 的跨格式迁移。Imagick 的 HEIF 序列解码器会读帧上的 ICC，Rust 当前使用封面 ICC。外部 HEIF 序列的轨道元数据、逐帧 ICC 及逐帧 EXIF／XMP 仍待验收。JPEG XL 序列解码当前覆盖灰度、RGB 及其透明度通道。HEIF 序列当前覆盖单主轨道和辅助透明度轨道。07-05 保持开放。 [ImageMagick HEIF 序列实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/heic.c)
+07-05 保持开放。外部 HEIF 序列在切换样本描述或使用并行元数据样本时，帧各自的 ICC、EXIF 和 XMP 仍待往返验收。当前编解码路径以主轨道的首个样本描述和序列级元数据为单位。JPEG XL 序列解码覆盖灰度、RGB 及其透明度通道。HEIF 序列覆盖单主轨道和辅助透明度轨道。固定 Laravel 将实际编解码交给 GD 或 Imagick，私有块和 JUMBF 没有统一的跨格式契约。

@@ -30,7 +30,7 @@ GIF、動畫 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在變換及轉換�
 
 ## 影像中繼資料 {#image-metadata}
 
-內建驅動在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的變換及轉換中保留 EXIF、ICC 描述檔與 XMP。當 `orient()` 套用 JPEG、PNG 或 WebP 的 EXIF 方向時，輸出把方向欄位重設為正向，並保留其他 EXIF 位元組。HEIF 動畫輸出將這些欄位寫入封面影像。JPEG 變換後繼續輸出 JPEG 時，也會保留包含 IPTC 的 Photoshop APP13 描述檔和 JPEG 註解。這些區段保留在 JPEG 容器中。
+內建驅動在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的變換及轉換中保留 EXIF、ICC 描述檔與 XMP。當 `orient()` 套用 JPEG、PNG 或 WebP 的 EXIF 方向時，輸出把方向欄位重設為正向，並保留其他 EXIF 位元組。HEIF 動畫輸出將這些欄位寫入封面影像。讀取 AVIF 或 HEIC 序列時，主軌道有 ICC 描述檔則優先使用。封面缺少 EXIF 或 XMP 時，從主軌道讀取對應欄位。JPEG 變換後繼續輸出 JPEG 時，也會保留包含 IPTC 的 Photoshop APP13 描述檔和 JPEG 註解。這些區段保留在 JPEG 容器中。
 
 ## 儲存影像 {#storing-images}
 

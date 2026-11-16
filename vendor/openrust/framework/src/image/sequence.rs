@@ -4,7 +4,7 @@ use ::image::{Delay, Frame, RgbaImage};
 use oxideav_heif::{
     DecodeOptions, EncodeOptions, HeifFile, HeifImage, StillCodec,
     boxes::{find_box, iter_boxes, payload},
-    sequence::{LoopBehaviour, parse_movie},
+    sequence::{LoopBehaviour, Movie, Track, parse_movie},
 };
 
 use super::{
@@ -15,22 +15,11 @@ use super::{
 
 pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Option<Decoded<'_>>> {
     let error = move |error| codecs::codec_error(format, error);
-    // Still images stay on their existing codec paths.
-    let Some((_, movie_bytes)) = find_box(bytes, b"moov").map_err(error)? else {
+    let file = HeifFile::parse_borrowed(bytes).map_err(error)?;
+    let Some(movie) = read_movie(&file, bytes, format)? else {
         return Ok(None);
     };
-    check_sample_tables(movie_bytes, format)?;
-    let file = HeifFile::parse_borrowed(bytes).map_err(error)?;
-    let movie = parse_movie(&file)
-        .map_err(error)?
-        .ok_or(Error::UnsupportedFormat)?;
-    let mut tracks = movie
-        .visual_tracks()
-        .filter(|track| &track.handler != b"auxv" && track.aux_kind().is_none());
-    let track = tracks.next().ok_or(Error::UnsupportedFormat)?;
-    if tracks.next().is_some() {
-        return Err(Error::UnsupportedFormat);
-    }
+    let track = primary_track(&movie)?;
 
     let mut budget = Budget::new(limits);
     for track in movie.visual_tracks() {
@@ -94,6 +83,56 @@ pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Opt
         orientation: None,
         plays,
     }))
+}
+
+fn primary_track(movie: &Movie) -> Result<&Track> {
+    let mut tracks = movie
+        .visual_tracks()
+        .filter(|track| &track.handler != b"auxv" && track.aux_kind().is_none());
+    let track = tracks.next().ok_or(Error::UnsupportedFormat)?;
+    if tracks.next().is_some() {
+        return Err(Error::UnsupportedFormat);
+    }
+    Ok(track)
+}
+
+fn read_movie(file: &HeifFile<&[u8]>, bytes: &[u8], format: Format) -> Result<Option<Movie>> {
+    let error = |error| codecs::codec_error(format, error);
+    let Some((_, body)) = find_box(bytes, b"moov").map_err(error)? else {
+        return Ok(None);
+    };
+    check_sample_tables(body, format)?;
+    parse_movie(file)
+        .map_err(error)?
+        .map(Some)
+        .ok_or(Error::UnsupportedFormat)
+}
+
+pub(super) fn read_track_metadata(
+    file: &HeifFile<&[u8]>,
+    bytes: &[u8],
+    format: Format,
+    metadata: &mut super::metadata::Metadata,
+) -> Result<()> {
+    use oxideav_heif::props::Colr;
+
+    let Some(movie) = read_movie(file, bytes, format)? else {
+        return Ok(());
+    };
+    let track = primary_track(&movie)?;
+    let entry = track.primary_entry().ok_or(Error::UnsupportedFormat)?;
+    if let Some(profile) = entry.colr.iter().find_map(|color| match color {
+        Colr::Icc { profile, .. } => Some(profile),
+        _ => None,
+    }) {
+        metadata.icc = Some(profile.clone());
+    }
+    if metadata.exif.is_none() || metadata.xmp.is_none() {
+        let (exif, xmp) = track.sequence_metadata(file);
+        metadata.exif = metadata.exif.take().or(exif);
+        metadata.xmp = metadata.xmp.take().or(xmp);
+    }
+    Ok(())
 }
 
 fn check_sample_tables(movie: &[u8], format: Format) -> Result<()> {

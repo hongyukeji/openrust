@@ -769,6 +769,30 @@ async fn preserves_exif_icc_and_xmp_and_resets_applied_orientation() {
                 .toBytes()
                 .await
                 .unwrap_or_else(|error| panic!("{format:?} encode: {error}"));
+            if animated && matches!(format, Format::Avif | Format::Heic) {
+                let (header, _) = oxideav_heif::boxes::find_box(&output, b"meta")
+                    .unwrap()
+                    .unwrap();
+                let mut track_only = output.to_vec();
+                // Keep the media offsets while removing the cover item and its metadata.
+                track_only[header.start + 4..header.start + 8].copy_from_slice(b"free");
+                let track_only = manager
+                    .fromBytes(track_only)
+                    .toWebp()
+                    .quality(100)
+                    .toBytes()
+                    .await
+                    .unwrap();
+                let track_metadata = oxideav_webp::read_metadata(&track_only).unwrap();
+                assert_eq!(track_metadata.icc.as_deref(), Some(profile.as_slice()));
+                assert_eq!(frames_for(&track_only, Format::Webp).len(), 2);
+                if format == Format::Avif {
+                    let mut oriented = exif;
+                    oriented[18] = 1;
+                    assert_eq!(track_metadata.exif.as_deref(), Some(oriented.as_slice()));
+                    assert_eq!(track_metadata.xmp.as_deref(), Some(xmp.as_bytes()));
+                }
+            }
             let webp = manager
                 .fromBytes(output)
                 .toWebp()
