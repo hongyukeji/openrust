@@ -1436,13 +1436,16 @@ impl<M: Model> Collection<M> {
         + Sync
         + 'static,
     ) -> DatabaseResult<()> {
-        let constraint: super::named_relations::PathConstraint = Arc::new(constraint);
-        super::NamedRelations::<M>::load_missing_constrained(
-            &mut self.models,
-            &[path],
-            Some(&constraint),
-        )
-        .await
+        self.loadMissingPathsWith([super::MissingRelation::new(path).constrain(constraint)])
+            .await
+    }
+
+    /// Loads several registered paths, each with its optional terminal predicate.
+    pub async fn loadMissingPathsWith<'a>(
+        &mut self,
+        paths: impl IntoIterator<Item = super::MissingRelation<'a>> + Send,
+    ) -> DatabaseResult<()> {
+        super::NamedRelations::<M>::load_missing_with(&mut self.models, paths).await
     }
 
     pub async fn load<R: Relation<Parent = M>>(

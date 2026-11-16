@@ -569,6 +569,27 @@ pub async fn fill_selected_comments<M: Model>(
 }
 ```
 
+一次設定多條路徑時，將多個 `MissingRelation` 項目傳給 `loadMissingPathsWith`。各項目可設定各自的謂詞，多條路徑共用的父關聯只批次載入一次。重複路徑依 Laravel 的順序將後宣告、先宣告的謂詞依序套用至同一條件群組。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, MissingRelation, Model}};
+
+pub async fn fill_post_relations<M: Model>(
+    authors: &mut Collection<M>,
+    comment_id: i64,
+) -> DatabaseResult<()> {
+    authors
+        .loadMissingPathsWith([
+            MissingRelation::new("posts.author"),
+            MissingRelation::new("posts.comments:id,subject_id,body").constrain(
+                move |conditions, table| conditions.r#where(&format!("{table}.id"), "=", comment_id),
+            ),
+        ])
+        .await
+}
+```
+
+
 
 用 `NamedRelations::morphTo` 登錄後，`subject.details` 支援預先載入、存在、缺失和末級計數。每個已登錄目標都須宣告 `details`，各目標可使用不同的關聯型別。預先載入依目標別名分批，缺失查詢包含空值或找不到目標的記錄。子關聯名稱不同時，可使用各目標的型別化設定。
 

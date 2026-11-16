@@ -1004,16 +1004,15 @@ pub trait Model: Sized + Send + Sync + 'static {
         + Sync
         + 'static,
     ) -> impl Future<Output = DatabaseResult<()>> + Send {
-        async move {
-            let constraint: super::named_relations::PathConstraint =
-                std::sync::Arc::new(constraint);
-            super::NamedRelations::<Self>::load_missing_constrained(
-                std::slice::from_mut(self),
-                &[path],
-                Some(&constraint),
-            )
-            .await
-        }
+        self.loadMissingPathsWith([super::MissingRelation::new(path).constrain(constraint)])
+    }
+
+    /// Loads several registered paths, each with its optional terminal predicate.
+    fn loadMissingPathsWith<'a>(
+        &mut self,
+        paths: impl IntoIterator<Item = super::MissingRelation<'a>> + Send,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send {
+        super::NamedRelations::<Self>::load_missing_with(std::slice::from_mut(self), paths)
     }
 
     fn load<'a, R: Relation<Parent = Self>>(

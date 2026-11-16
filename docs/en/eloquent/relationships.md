@@ -569,6 +569,27 @@ pub async fn fill_selected_comments<M: Model>(
 }
 ```
 
+Pass several `MissingRelation` entries to `loadMissingPathsWith` to configure paths in one call. Each entry can supply its own predicate. A parent shared by several paths is loaded together. If a path is repeated, Laravel applies the later predicate first and then the earlier one to the same condition group.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, MissingRelation, Model}};
+
+pub async fn fill_post_relations<M: Model>(
+    authors: &mut Collection<M>,
+    comment_id: i64,
+) -> DatabaseResult<()> {
+    authors
+        .loadMissingPathsWith([
+            MissingRelation::new("posts.author"),
+            MissingRelation::new("posts.comments:id,subject_id,body").constrain(
+                move |conditions, table| conditions.r#where(&format!("{table}.id"), "=", comment_id),
+            ),
+        ])
+        .await
+}
+```
+
+
 
 Register a `MorphTo` with `NamedRelations::morphTo` to use paths such as `subject.details` for eager loading, existence, absence, and terminal counts. Each registered target must declare `details`, and those declarations may use different relation types. Eager loading batches by target alias. Existence queries correlate each branch with its alias, and absence includes null or missing targets. Use typed per-target configuration when the child names differ.
 

@@ -16,7 +16,7 @@ use crate::database::{
     eloquent::{
         Attributes, Builder, EagerLoads, Model, NamedRelations,
         concerns::has_relationships::update_association_cache,
-        named_relations::{DiscoveredMorphs, PathConstraint},
+        named_relations::{DiscoveredMorphs, MissingPaths, PathConstraint},
         touches::TouchedOwners,
     },
     query,
@@ -660,8 +660,7 @@ impl<P: Model> MorphTo<P> {
         &self,
         models: &mut [P],
         name: &str,
-        children: &[&str],
-        constraint: Option<&PathConstraint>,
+        children: &MissingPaths<'_>,
     ) -> DatabaseResult<()> {
         if children.is_empty() {
             return Ok(());
@@ -686,7 +685,7 @@ impl<P: Model> MorphTo<P> {
             self.targets
                 .get(alias)
                 .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
-                .load_missing_paths(&mut targets, children, constraint)
+                .load_missing_paths(&mut targets, children)
                 .await?;
         }
         for (model, output) in models.iter_mut().zip(outputs) {
@@ -1043,8 +1042,7 @@ trait Target<P: Model>: Send + Sync {
     fn load_missing_paths<'a>(
         &'a self,
         targets: &'a mut [&mut ErasedModel],
-        children: &'a [&'a str],
-        constraint: Option<&'a PathConstraint>,
+        children: &'a MissingPaths<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn select_path_columns(&mut self, columns: Vec<String>);
     fn with_paths(
@@ -1181,8 +1179,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     fn load_missing_paths<'a>(
         &'a self,
         targets: &'a mut [&mut ErasedModel],
-        children: &'a [&'a str],
-        constraint: Option<&'a PathConstraint>,
+        children: &'a MissingPaths<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             let models =
@@ -1197,7 +1194,6 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             let replacements = super::super::named_relations::load_missing_models(
                 models.iter().copied(),
                 children,
-                constraint,
             )
             .await?;
             let keys = models

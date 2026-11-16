@@ -6,8 +6,9 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Attributes, Builder, Collection, DynamicRelation, EagerLoads, Model, ModelMetadata,
-            ModelState, NamedRelations, RelationAggregate, RelationAggregateQuery, Touches,
+            Attributes, Builder, Collection, DynamicRelation, EagerLoads, MissingRelation, Model,
+            ModelMetadata, ModelState, NamedRelations, RelationAggregate, RelationAggregateQuery,
+            Touches,
             casts::{AttributeCast, CastableEnum},
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
@@ -2161,6 +2162,66 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         }
     }
 
+    let mut query = Author::queryOn(db);
+    query.whereKey(1);
+    let mut batch = query.get().await.unwrap();
+    let selected_post = POSTS.getResults(&batch[0]).await.unwrap()[0]
+        .getKey()
+        .unwrap()
+        .clone();
+    let scoped_post = selected_post.clone();
+    let applied = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let first = applied.clone();
+    let second = applied.clone();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    batch
+        .loadMissingPathsWith([
+            MissingRelation::new("posts.comments").constrain(move |conditions, table| {
+                first.lock().unwrap().push("first");
+                conditions.r#where(&format!("{table}.id"), "<", 0)
+            }),
+            MissingRelation::new("posts.author")
+                .constrain(|conditions, table| conditions.r#where(&format!("{table}.id"), ">", 0)),
+            MissingRelation::new("posts:id,author_id").constrain(move |conditions, table| {
+                conditions.r#where(&format!("{table}.id"), "=", scoped_post.clone())
+            }),
+            MissingRelation::new("posts.comments").constrain(move |conditions, table| {
+                second.lock().unwrap().push("second");
+                conditions.r#where(&format!("{table}.id"), ">", 0)
+            }),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(count_loaded_comments(&batch[0]), 0);
+    let posts = batch[0]
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].getKey(), Some(&selected_post));
+    assert_eq!(*applied.lock().unwrap(), ["second", "first"]);
+    assert!(posts.iter().all(|post| {
+        post.getAttribute("title").is_none()
+            && post
+                .getRelation::<Option<Arc<Author>>>("author")
+                .unwrap()
+                .is_some()
+    }));
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 3);
+    }
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    batch
+        .loadMissingPathsWith([
+            MissingRelation::new("posts.author"),
+            MissingRelation::new("posts.comments"),
+        ])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
+    assert_eq!(count_loaded_comments(&batch[0]), 0);
+
     let mut model = Author::queryOn(db).firstOrFail().await.unwrap();
     model.loadPaths(&["posts.comments"]).await.unwrap();
     model
@@ -2342,6 +2403,32 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
             .iter()
             .filter(|comment| !comment["subject"].is_null())
             .all(|comment| comment["subject"]["details"] == serde_json::json!([]))
+    );
+
+    let mut combined = Comment::queryOn(db).get().await.unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    combined
+        .loadMissingPathsWith([
+            MissingRelation::new("subject.details")
+                .constrain(|conditions, table| conditions.r#where(&format!("{table}.id"), "<", 0)),
+            MissingRelation::new("subject")
+                .constrain(|conditions, table| conditions.r#where(&format!("{table}.id"), ">", 0)),
+        ])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 4);
+    }
+    let combined = combined.toArray().unwrap();
+    let with_subjects = combined
+        .iter()
+        .filter(|comment| !comment["subject"].is_null())
+        .collect::<Vec<_>>();
+    assert!(!with_subjects.is_empty());
+    assert!(
+        with_subjects
+            .iter()
+            .all(|comment| comment["subject"]["details"] == json!([]))
     );
 
     let mut subjects = Comment::queryOn(db).get().await.unwrap();

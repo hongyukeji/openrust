@@ -17,6 +17,73 @@ use super::{
 pub(super) type PathConstraint =
     Arc<dyn Fn(query::Conditions, &str) -> query::Conditions + Send + Sync>;
 
+/// A registered relationship path and its optional terminal predicate.
+pub struct MissingRelation<'a> {
+    path: &'a str,
+    constraint: Option<PathConstraint>,
+}
+
+impl<'a> MissingRelation<'a> {
+    pub fn new(path: &'a str) -> Self {
+        Self {
+            path,
+            constraint: None,
+        }
+    }
+
+    /// Applies grouped conditions using the final relationship's table qualifier.
+    #[must_use]
+    pub fn constrain(
+        mut self,
+        constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
+    ) -> Self {
+        self.constraint = Some(Arc::new(constraint));
+        self
+    }
+}
+
+pub(super) type MissingPaths<'a> = IndexMap<&'a str, MissingPath<'a>>;
+
+#[derive(Default)]
+pub(super) struct MissingPath<'a> {
+    columns: Option<Vec<String>>,
+    constraint: Option<PathConstraint>,
+    children: MissingPaths<'a>,
+}
+
+impl<'a> MissingPath<'a> {
+    fn parse(
+        paths: impl IntoIterator<Item = MissingRelation<'a>>,
+    ) -> DatabaseResult<MissingPaths<'a>> {
+        let mut roots = MissingPaths::new();
+        for path in paths {
+            let (names, columns) = split_path(path.path)?;
+            let mut children = &mut roots;
+            let mut names = names.split('.').peekable();
+            while let Some(name) = names.next() {
+                let node = children.entry(name).or_default();
+                if names.peek().is_some() {
+                    children = &mut node.children;
+                    continue;
+                }
+                if let Some(columns) = columns {
+                    node.columns.get_or_insert(parse_columns(columns)?);
+                }
+                if let Some(next) = path.constraint {
+                    node.constraint = Some(match node.constraint.take() {
+                        Some(previous) => Arc::new(move |conditions, qualifier| {
+                            previous(next(conditions, qualifier), qualifier)
+                        }),
+                        None => next,
+                    });
+                }
+                break;
+            }
+        }
+        Ok(roots)
+    }
+}
+
 type Prepare<M> = dyn Fn(
         EagerLoads<M>,
         &str,
@@ -64,13 +131,7 @@ impl DiscoveredMorphs {
     }
 }
 
-type LoadMissing<M> = dyn for<'a> Fn(
-        &'a mut [M],
-        &'a str,
-        &'a [&'a str],
-        Option<&'a [String]>,
-        Option<&'a PathConstraint>,
-    ) -> DatabaseFuture<'a, DatabaseResult<()>>
+type LoadMissing<M> = dyn for<'a> Fn(&'a mut [M], &'a str, &'a MissingPath<'a>) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
     + Sync;
 
@@ -143,16 +204,16 @@ impl<M: Model> NamedRelations<M> {
                         Ok(loads.with(name, relation))
                     },
                 ),
-                load_missing: Box::new(move |models, name, children, columns, constraint| {
+                load_missing: Box::new(move |models, name, path| {
                     let relation = missing();
                     Box::pin(async move {
-                        let relation = select_columns(relation, columns)?;
-                        if children.is_empty() {
-                            let relation = constrain_leaf(relation, constraint)?;
-                            return load(models, name, &relation, true).await;
-                        }
+                        let relation = select_columns(relation, path.columns.as_deref())?;
+                        let relation = constrain_leaf(relation, path.constraint.as_ref())?;
                         load(models, name, &relation, true).await?;
-                        load_missing_children::<M, R>(models, name, children, constraint).await
+                        if path.children.is_empty() {
+                            return Ok(());
+                        }
+                        load_missing_children::<M, R>(models, name, &path.children).await
                     })
                 }),
                 existence: Some(Box::new(
@@ -227,20 +288,20 @@ impl<M: Model> NamedRelations<M> {
                     }
                     Ok(loads.with(name, eager()))
                 }),
-                load_missing: Box::new(move |models, name, children, columns, constraint| {
+                load_missing: Box::new(move |models, name, path| {
                     let relation = factory();
                     Box::pin(async move {
-                        if constraint.is_some() {
+                        if path.constraint.is_some() {
                             return Err(DatabaseError::InvalidQuery(
                                 "relationship path does not support constraints",
                             ));
                         }
-                        if columns.is_some() {
+                        if path.columns.is_some() {
                             return Err(DatabaseError::InvalidQuery(
                                 "relationship path does not support column selection",
                             ));
                         }
-                        if !children.is_empty() {
+                        if !path.children.is_empty() {
                             return Err(DatabaseError::InvalidQuery(
                                 "relationship path cannot be nested",
                             ));
@@ -280,16 +341,16 @@ impl<M: Model> NamedRelations<M> {
                         Ok(loads.with(name, relation))
                     },
                 ),
-                load_missing: Box::new(move |models, name, children, columns, constraint| {
+                load_missing: Box::new(move |models, name, path| {
                     let mut relation = missing();
-                    relation.select_path_columns(columns);
+                    relation.select_path_columns(path.columns.as_deref());
                     Box::pin(async move {
-                        if let Some(constraint) = constraint.filter(|_| children.is_empty()) {
+                        if let Some(constraint) = &path.constraint {
                             relation.with_constrained_paths(name, &[], Some(constraint), None)?;
                         }
                         load(models, name, &relation, true).await?;
                         relation
-                            .load_missing_paths(models, name, children, constraint)
+                            .load_missing_paths(models, name, &path.children)
                             .await
                     })
                 }),
@@ -366,34 +427,31 @@ impl<M: Model> NamedRelations<M> {
         })
     }
 
-    pub(super) fn load_missing<'a>(
-        models: &'a mut [M],
-        paths: &'a [&'a str],
-    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Self::load_missing_constrained(models, paths, None)
+    pub(super) async fn load_missing(models: &mut [M], paths: &[&str]) -> DatabaseResult<()> {
+        let paths = MissingPath::parse(paths.iter().map(|path| MissingRelation::new(path)))?;
+        Self::load_missing_nodes(models, &paths).await
     }
 
-    pub(super) fn load_missing_constrained<'a>(
+    pub(super) async fn load_missing_with<'a>(
+        models: &mut [M],
+        paths: impl IntoIterator<Item = MissingRelation<'a>> + Send,
+    ) -> DatabaseResult<()> {
+        let paths = MissingPath::parse(paths)?;
+        Self::load_missing_nodes(models, &paths).await
+    }
+
+    fn load_missing_nodes<'a>(
         models: &'a mut [M],
-        paths: &'a [&'a str],
-        constraint: Option<&'a PathConstraint>,
+        paths: &'a MissingPaths<'a>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
-            let grouped = group_paths(paths)?;
             let registered = M::namedRelations();
-            for (name, path) in grouped {
+            for (name, path) in paths {
                 let relation = registered
                     .0
                     .get(name)
                     .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-                (relation.load_missing)(
-                    models,
-                    name,
-                    &path.children,
-                    path.columns.as_deref(),
-                    constraint,
-                )
-                .await?;
+                (relation.load_missing)(models, name, path).await?;
             }
             Ok(())
         })
@@ -457,12 +515,7 @@ struct EagerPath<'a> {
 fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerPath<'a>>> {
     let mut grouped = IndexMap::<&str, EagerPath<'_>>::new();
     for path in paths {
-        let (names, columns) = path
-            .split_once(':')
-            .map_or((*path, None), |(names, columns)| (names, Some(columns)));
-        if names.split('.').any(str::is_empty) {
-            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
-        }
+        let (names, columns) = split_path(path)?;
         if let Some((name, _)) = names.split_once('.') {
             grouped
                 .entry(name)
@@ -472,20 +525,8 @@ fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerP
         } else {
             let entry = grouped.entry(names).or_default();
             if let Some(columns) = columns {
-                let columns = columns
-                    .split(',')
-                    .map(str::trim)
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>();
-                if columns
-                    .iter()
-                    .any(|column| column.is_empty() || column.contains(':'))
-                {
-                    return Err(DatabaseError::InvalidQuery("invalid relationship columns"));
-                }
-                // A repeated projection is evaluated before the original Laravel constraint,
-                // so the first selection remains in effect.
-                entry.columns.get_or_insert(columns);
+                // Laravel evaluates the first projection last when a path is repeated.
+                entry.columns.get_or_insert(parse_columns(columns)?);
             }
         }
     }
@@ -493,11 +534,31 @@ fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerP
     Ok(grouped)
 }
 
+fn split_path(path: &str) -> DatabaseResult<(&str, Option<&str>)> {
+    let (names, columns) = path
+        .split_once(':')
+        .map_or((path, None), |(name, columns)| (name, Some(columns)));
+    if names.split('.').any(str::is_empty) {
+        return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+    }
+    Ok((names, columns))
+}
+
+fn parse_columns(columns: &str) -> DatabaseResult<Vec<String>> {
+    let columns = columns.split(',').map(str::trim).collect::<Vec<_>>();
+    if columns
+        .iter()
+        .any(|column| column.is_empty() || column.contains(':'))
+    {
+        return Err(DatabaseError::InvalidQuery("invalid relationship columns"));
+    }
+    Ok(columns.into_iter().map(str::to_owned).collect())
+}
+
 /// Loads children once per shared model instance and maps each original pointer to its replacement.
 pub(super) async fn load_missing_models<'a, M: Model>(
     models: impl Iterator<Item = &'a M> + Send,
-    children: &[&str],
-    constraint: Option<&PathConstraint>,
+    children: &MissingPaths<'_>,
 ) -> DatabaseResult<HashMap<usize, Arc<M>>> {
     let mut positions = IndexMap::new();
     for model in models {
@@ -506,7 +567,7 @@ pub(super) async fn load_missing_models<'a, M: Model>(
             .or_insert_with(|| M::from_state(model.state().clone()));
     }
     let (keys, mut copies): (Vec<_>, Vec<_>) = positions.into_iter().unzip();
-    NamedRelations::<M>::load_missing_constrained(&mut copies, children, constraint).await?;
+    NamedRelations::<M>::load_missing_nodes(&mut copies, children).await?;
     Ok(keys
         .into_iter()
         .zip(copies.into_iter().map(Arc::new))
@@ -516,8 +577,7 @@ pub(super) async fn load_missing_models<'a, M: Model>(
 async fn load_missing_children<M, R>(
     models: &mut [M],
     name: &str,
-    children: &[&str],
-    constraint: Option<&PathConstraint>,
+    children: &MissingPaths<'_>,
 ) -> DatabaseResult<()>
 where
     M: Model,
@@ -538,7 +598,6 @@ where
             .flat_map(|output| output.models())
             .map(Arc::as_ref),
         children,
-        constraint,
     )
     .await?;
     let outputs = outputs
