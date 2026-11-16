@@ -48,12 +48,12 @@ impl Builder<'_> {
     pub async fn getTables(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TableInfo>> {
         let (sql, schema) = if self.grammar.mysql() {
             (
-                "select table_name as name, table_schema as schema_name from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_type = 'BASE TABLE' order by table_name",
+                "select table_name as name, table_schema as schema_name, engine as engine, table_collation as collation, table_comment as comment from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_type = 'BASE TABLE' order by table_name",
                 schema.unwrap_or(""),
             )
         } else {
             (
-                "select name, schema as schema_name from pragma_table_list where schema = ? and type in ('table', 'virtual') and substr(name,1,7) <> 'sqlite_' order by name",
+                "select name, schema as schema_name, null as engine, null as collation, null as comment from pragma_table_list where schema = ? and type in ('table', 'virtual') and substr(name,1,7) <> 'sqlite_' order by name",
                 schema.unwrap_or("main"),
             )
         };
@@ -64,6 +64,9 @@ impl Builder<'_> {
                 Ok(TableInfo {
                     name: text(row, "name")?,
                     schema: text(row, "schema_name")?,
+                    engine: optional_text(row, "engine")?,
+                    collation: optional_text(row, "collation")?,
+                    comment: optional_text(row, "comment")?,
                 })
             })
             .collect()
@@ -74,13 +77,13 @@ impl Builder<'_> {
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
             (
-                "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment, case when extra like '%VIRTUAL GENERATED%' then 'virtual' when extra like '%STORED GENERATED%' then 'stored' end as generation_kind, generation_expression as generation_expression from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
+                "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment, collation_name as collation, case when extra like '%VIRTUAL GENERATED%' then 'virtual' when extra like '%STORED GENERATED%' then 'stored' end as generation_kind, generation_expression as generation_expression from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
                 parameters,
             )
         } else {
             let [schema, name] = parameters;
             (
-                "select name, lower(type) as full_type, lower(type) as type_name, not \"notnull\" and pk = 0 as nullable, dflt_value as default_value, 0 as auto_increment, pk > 0 as primary_key, null as comment, case hidden when 2 then 'virtual' when 3 then 'stored' end as generation_kind, null as generation_expression from pragma_table_xinfo(?, ?) order by cid",
+                "select name, lower(type) as full_type, lower(type) as type_name, not \"notnull\" and pk = 0 as nullable, dflt_value as default_value, 0 as auto_increment, pk > 0 as primary_key, null as comment, null as collation, case hidden when 2 then 'virtual' when 3 then 'stored' end as generation_kind, null as generation_expression from pragma_table_xinfo(?, ?) order by cid",
                 [name, schema],
             )
         };
@@ -113,6 +116,7 @@ impl Builder<'_> {
                     primary: flag(row, "primary_key")?,
                     comment: optional_text(row, "comment")?,
                     generation,
+                    collation: optional_text(row, "collation")?,
                 })
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
@@ -120,7 +124,7 @@ impl Builder<'_> {
             .iter()
             .any(|column| column.primary && column.type_name == "integer");
         let generated = columns.iter().any(|column| column.generation.is_some());
-        if !self.grammar.mysql() && (autoincrement || generated) {
+        if !self.grammar.mysql() && !columns.is_empty() {
             let schema = self
                 .grammar
                 .identifier(self.grammar.catalog_schema(&table))?;
@@ -129,6 +133,14 @@ impl Builder<'_> {
             );
             let rows = self.select(&sql, &[table.name.into()]).await?;
             if let Some(Value::Text(sql)) = rows.first().and_then(|row| row.get("sql")) {
+                let mut collations = super::sqlite::column_collations(sql)?
+                    .into_iter()
+                    .collect::<BTreeMap<_, _>>();
+                if !collations.is_empty() {
+                    for column in &mut columns {
+                        column.collation = collations.remove(&column.name);
+                    }
+                }
                 if autoincrement && let Some(name) = super::sqlite::autoincrement_column(sql)? {
                     for column in &mut columns {
                         column.auto_increment = column.name.eq_ignore_ascii_case(&name);

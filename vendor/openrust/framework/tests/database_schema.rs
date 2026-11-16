@@ -1676,3 +1676,193 @@ async fn mysql_temporary_tables_stay_on_the_leased_session_and_are_cleaned() {
     };
     verify_temporary_tables(connection(json!({"url":url,"max_connections":1})), true).await;
 }
+
+#[tokio::test]
+async fn mysql_blueprints_apply_table_options_and_column_collation() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(
+        json!({"url":url,"charset":"utf8mb4","collation":"utf8mb4_bin","engine":"MyISAM"}),
+    );
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .dropIfExists("inherited_table_options")
+        .await
+        .unwrap();
+    schema.dropIfExists("explicit_table_options").await.unwrap();
+    schema
+        .create("inherited_table_options", |table| {
+            table.string("name", 30);
+        })
+        .await
+        .unwrap();
+    schema
+        .create("explicit_table_options", |table| {
+            table.engine("InnoDB");
+            table.charset("latin1");
+            table.collation("latin1_bin");
+            table.comment("Customer's \\ archive");
+            table
+                .string("name", 30)
+                .charset("utf8mb4")
+                .collation("utf8mb4_0900_ai_ci");
+        })
+        .await
+        .unwrap();
+    let tables = schema.getTables(None).await.unwrap();
+    let inherited = tables
+        .iter()
+        .find(|table| table.name == "inherited_table_options")
+        .unwrap();
+    assert_eq!(inherited.engine.as_deref(), Some("MyISAM"));
+    assert_eq!(inherited.collation.as_deref(), Some("utf8mb4_bin"));
+    let explicit = tables
+        .iter()
+        .find(|table| table.name == "explicit_table_options")
+        .unwrap();
+    assert_eq!(explicit.engine.as_deref(), Some("InnoDB"));
+    assert_eq!(explicit.collation.as_deref(), Some("latin1_bin"));
+    assert_eq!(explicit.comment.as_deref(), Some("Customer's \\ archive"));
+    assert_eq!(
+        schema.getColumns("inherited_table_options").await.unwrap()[0]
+            .collation
+            .as_deref(),
+        Some("utf8mb4_bin")
+    );
+    assert_eq!(
+        schema.getColumns("explicit_table_options").await.unwrap()[0]
+            .collation
+            .as_deref(),
+        Some("utf8mb4_0900_ai_ci")
+    );
+    assert_eq!(db.scalar("select character_set_name as charset from information_schema.columns where table_schema = database() and table_name = ? and column_name = ?", &["explicit_table_options".into(),"name".into()]).await.unwrap(), "utf8mb4".into());
+    db.insert(
+        "insert into explicit_table_options values (?)",
+        &["abc".into()],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table("explicit_table_options")
+            .r#where("name", "=", "ABC")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    schema
+        .table("explicit_table_options", |table| {
+            table.comment("Updated comment");
+            table
+                .string("name", 30)
+                .charset("utf8mb4")
+                .collation("utf8mb4_bin")
+                .change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("explicit_table_options")
+            .r#where("name", "=", "ABC")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        schema
+            .getTables(None)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|table| table.name == "explicit_table_options")
+            .unwrap()
+            .comment
+            .as_deref(),
+        Some("Updated comment")
+    );
+
+    assert!(matches!(
+        schema
+            .create("invalid_table_options", |table| {
+                table.engine("invalid engine name");
+                table.id();
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("table storage engine"))
+    ));
+    assert!(!schema.hasTable("invalid_table_options").await.unwrap());
+    schema.drop("explicit_table_options").await.unwrap();
+    schema.drop("inherited_table_options").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_uses_column_collation_through_rebuild() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("local_table_options", |table| {
+            table.engine("InnoDB");
+            table.charset("utf8mb4");
+            table.collation("utf8mb4_bin");
+            table.comment("MySQL metadata");
+            table.string("name", 30).collation("nocase");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumns("local_table_options").await.unwrap()[0]
+            .collation
+            .as_deref(),
+        Some("nocase")
+    );
+    let tables = schema.getTables(None).await.unwrap();
+    let table = tables
+        .iter()
+        .find(|table| table.name == "local_table_options")
+        .unwrap();
+    assert_eq!(
+        (
+            table.engine.as_deref(),
+            table.collation.as_deref(),
+            table.comment.as_deref()
+        ),
+        (None, None, None)
+    );
+    db.insert(
+        "insert into local_table_options values (?)",
+        &["abc".into()],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table("local_table_options")
+            .r#where("name", "=", "ABC")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    schema
+        .table("local_table_options", |table| {
+            table.string("name", 30).collation("binary").change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("local_table_options")
+            .r#where("name", "=", "ABC")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        schema.getColumns("local_table_options").await.unwrap()[0]
+            .collation
+            .as_deref(),
+        Some("binary")
+    );
+}

@@ -11,6 +11,7 @@ mod index_definition;
 mod session;
 
 pub use blueprint::Blueprint;
+pub(super) use blueprint::TableOptions;
 pub use builder::Builder;
 pub use column_definition::ColumnDefinition;
 pub use facade::Schema;
@@ -33,6 +34,9 @@ pub enum MorphKeyType {
 pub struct TableInfo {
     pub name: String,
     pub schema: String,
+    pub engine: Option<String>,
+    pub collation: Option<String>,
+    pub comment: Option<String>,
 }
 
 /// How the database computes a generated column.
@@ -61,6 +65,7 @@ pub struct Column {
     pub primary: bool,
     pub comment: Option<String>,
     pub generation: Option<ColumnGeneration>,
+    pub collation: Option<String>,
 }
 
 /// An index read from the database catalog.

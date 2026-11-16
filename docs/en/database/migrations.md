@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### MySQL Table Options {#mysql-table-options}
+
+During `Schema::create`, use `engine`, `charset`, and `collation` to set the table options. MySQL uses a blueprint setting first and then the connection default for that option. `comment` can be used when creating or altering a table. Read the applied engine, collation and comment with `getTables()`.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_customers() -> DatabaseResult<()> {
+    Schema::create("customers", |table| {
+        table.engine("InnoDB");
+        table.charset("utf8mb4");
+        table.collation("utf8mb4_unicode_ci");
+        table.comment("Customer records");
+        table.id();
+        table.string("code", 24).collation("utf8mb4_bin");
+    })
+    .await
+}
+```
+
+Use column-level `charset` and `collation` to override text encoding or comparison rules. SQLite applies column collation and ignores the MySQL-specific table settings.
+
 ### Temporary Tables {#temporary-tables}
 
 Acquire a schema session before using `Blueprint::temporary()`. Create the table through the session’s Schema Builder and run SQL through the same session. `close().await?` drops the managed temporary tables before returning the connection to the pool. If the session is dropped, cleanup retains the physical connection until it can be safely released.

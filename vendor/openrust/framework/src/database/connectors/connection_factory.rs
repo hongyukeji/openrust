@@ -13,6 +13,7 @@ use super::super::{
     connection_pools::{ConnectionPools, PoolGeneration},
     events::QueryRole,
     query::grammars::Grammar,
+    schema::TableOptions,
 };
 
 /// Creates logical connections from configuration and driver connectors.
@@ -36,6 +37,7 @@ impl ConnectionFactory {
         Ok(Connection {
             name: name.into(),
             prefix_indexes: options.prefix_indexes,
+            table_options: options.table_options,
             grammar: options.grammar,
             database: options.database,
             pools: Arc::new(ConnectionPools::new(options.pools, move || {
@@ -64,6 +66,7 @@ struct ConnectionOptions {
     database: Arc<str>,
     grammar: Grammar,
     prefix_indexes: bool,
+    table_options: Arc<TableOptions>,
     sticky: bool,
     pools: PoolGeneration,
 }
@@ -102,10 +105,24 @@ fn resolve(
         Some(QueryRole::Write) => reader = None,
         Some(QueryRole::Direct) | None => {}
     }
+    let table_options = if matches!(writer, Pool::Mysql(_)) {
+        let configured = |key| -> DatabaseResult<Option<String>> {
+            let value = write_options.string(key, "")?;
+            Ok((!value.is_empty()).then(|| value.to_owned()))
+        };
+        TableOptions {
+            charset: configured("charset")?,
+            collation: configured("collation")?,
+            engine: configured("engine")?,
+        }
+    } else {
+        TableOptions::default()
+    };
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
         prefix_indexes: write_options.boolean("prefix_indexes", false)?,
+        table_options: Arc::new(table_options),
         sticky,
         pools: PoolGeneration {
             writer,

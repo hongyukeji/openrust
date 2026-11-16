@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### MySQL 表选项 {#mysql-table-options}
+
+在 `Schema::create` 中使用 `engine`、`charset` 和 `collation` 配置表。MySQL 优先采用 Blueprint 的显式设置，其次采用连接对应的默认值。`comment` 可用于建表和改表。用 `getTables()` 读取实际的存储引擎、排序规则和注释。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_customers() -> DatabaseResult<()> {
+    Schema::create("customers", |table| {
+        table.engine("InnoDB");
+        table.charset("utf8mb4");
+        table.collation("utf8mb4_unicode_ci");
+        table.comment("Customer records");
+        table.id();
+        table.string("code", 24).collation("utf8mb4_bin");
+    })
+    .await
+}
+```
+
+用列级 `charset` 和 `collation` 覆盖文本编码或比较规则。SQLite 应用列级排序规则，并忽略 MySQL 专用的表设置。
+
 ### 临时表 {#temporary-tables}
 
 使用 `Blueprint::temporary()` 前先借用 Schema 会话。用会话的 Schema Builder 建表，再通过同一会话执行 SQL。`close().await?` 会先清理受管理的临时表，再归还连接。会话被丢弃时，清理操作持有原物理连接，直到可以安全归还。

@@ -67,6 +67,8 @@ pub struct ColumnDefinition {
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
     pub(super) comment: Option<String>,
+    pub(super) charset: Option<String>,
+    pub(super) collation: Option<String>,
     pub(super) current_on_update: bool,
     pub(super) invisible: bool,
     pub(super) position: Option<Position>,
@@ -89,6 +91,8 @@ impl ColumnDefinition {
             generated: None,
             change: false,
             comment: None,
+            charset: None,
+            collation: None,
             current_on_update: false,
             invisible: false,
             position: None,
@@ -191,6 +195,16 @@ impl ColumnDefinition {
     /// Places the column after an existing column when altering a MySQL table.
     pub fn after(&mut self, column: &str) -> &mut Self {
         self.position = Some(Position::After(column.to_owned()));
+        self
+    }
+
+    pub fn charset(&mut self, charset: &str) -> &mut Self {
+        self.charset = Some(charset.to_owned());
+        self
+    }
+
+    pub fn collation(&mut self, collation: &str) -> &mut Self {
+        self.collation = Some(collation.to_owned());
         self
     }
 

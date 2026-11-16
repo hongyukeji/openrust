@@ -1,10 +1,10 @@
 use std::{fmt::Write as _, sync::Arc};
 
 use crate::database::{
-    DatabaseError, DatabaseResult, Value,
+    Connection, DatabaseError, DatabaseResult, Value,
     query::grammars::Grammar as QueryGrammar,
     schema::{
-        Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition,
+        Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition, TableOptions,
         blueprint::Command,
         column_definition::{ColumnType, DefaultValue, GeneratedColumn, Position},
         index_definition::IndexType,
@@ -16,6 +16,7 @@ pub(in crate::database::schema) struct Grammar {
     grammar: QueryGrammar,
     prefix_indexes: bool,
     database: Arc<str>,
+    table_options: Arc<TableOptions>,
 }
 
 #[derive(Clone)]
@@ -25,11 +26,12 @@ pub(in crate::database::schema) struct Table {
 }
 
 impl Grammar {
-    pub fn new(grammar: QueryGrammar, prefix_indexes: bool, database: &str) -> Self {
+    pub fn new(connection: &Connection) -> Self {
         Self {
-            grammar,
-            prefix_indexes,
-            database: database.into(),
+            grammar: connection.grammar.clone(),
+            prefix_indexes: connection.prefix_indexes,
+            database: connection.getDatabaseName().into(),
+            table_options: connection.table_options.clone(),
         }
     }
 
@@ -149,6 +151,11 @@ impl Grammar {
                     indexes.push(self.add_foreign(table, &foreign)?);
                 }
                 Command::Foreign(foreign) => constraints.push(self.foreign(table, &foreign)?),
+                Command::TableComment(comment) => {
+                    if self.mysql() {
+                        indexes.push(self.table_comment(&qualified, &comment)?);
+                    }
+                }
                 _ => return Err(DatabaseError::InvalidSchema("operation during create")),
             }
         }
@@ -156,12 +163,63 @@ impl Grammar {
             return Err(DatabaseError::InvalidSchema("no table columns"));
         }
         definitions.extend(constraints);
-        let mut sql = vec![format!(
+        let mut create = format!(
             "create{temporary} table {qualified} ({})",
             definitions.join(", ")
-        )];
+        );
+        if self.mysql() {
+            self.append_table_options(&mut create, &blueprint.table_options)?;
+        }
+        let mut sql = vec![create];
         sql.extend(indexes);
         Ok(sql)
+    }
+
+    fn append_table_options(&self, sql: &mut String, options: &TableOptions) -> DatabaseResult<()> {
+        if let Some(charset) = options
+            .charset
+            .as_deref()
+            .or(self.table_options.charset.as_deref())
+        {
+            write!(
+                sql,
+                " default character set {}",
+                mysql_option(charset, "table character set")?
+            )
+            .expect("writing to a String");
+        }
+        if let Some(collation) = options
+            .collation
+            .as_deref()
+            .or(self.table_options.collation.as_deref())
+        {
+            write!(
+                sql,
+                " collate {}",
+                self.string(mysql_option(collation, "table collation")?)?
+            )
+            .expect("writing to a String");
+        }
+        if let Some(engine) = options
+            .engine
+            .as_deref()
+            .or(self.table_options.engine.as_deref())
+        {
+            write!(
+                sql,
+                " engine = {}",
+                mysql_option(engine, "table storage engine")?
+            )
+            .expect("writing to a String");
+        }
+        Ok(())
+    }
+
+    fn table_comment(&self, table: &str, comment: &str) -> DatabaseResult<String> {
+        Ok(format!(
+            "alter table {table} comment = {}",
+            self.string(comment)?
+        ))
     }
 
     pub fn alter(&self, table: &Table, blueprint: Blueprint) -> DatabaseResult<Vec<String>> {
@@ -192,6 +250,11 @@ impl Grammar {
                     self.column_indexes(table, &column, &mut sql)?;
                 }
                 Command::Index(index) => sql.push(self.add_index(table, &index)?),
+                Command::TableComment(comment) => {
+                    if self.mysql() {
+                        sql.push(self.table_comment(&qualified, &comment)?);
+                    }
+                }
                 Command::Foreign(foreign) => sql.push(self.add_foreign(table, &foreign)?),
                 Command::RenameColumn(from, to) => sql.push(format!(
                     "alter table {qualified} rename column {} to {}",
@@ -419,6 +482,24 @@ impl Grammar {
         let mut sql = format!("{} {kind}", self.identifier(&column.name)?);
         if self.mysql() && column.unsigned {
             sql.push_str(" unsigned");
+        }
+        if self.mysql()
+            && let Some(charset) = &column.charset
+        {
+            write!(
+                sql,
+                " character set {}",
+                mysql_option(charset, "column character set")?
+            )
+            .expect("writing to a String");
+        }
+        if let Some(collation) = &column.collation {
+            let collation = if self.mysql() {
+                self.string(mysql_option(collation, "column collation")?)?
+            } else {
+                self.identifier(collation)?
+            };
+            write!(sql, " collate {collation}").expect("writing to a String");
         }
         if let Some(generated) = &column.generated {
             if column.default.is_some()
@@ -671,6 +752,17 @@ impl Grammar {
         };
         Ok(format!("'{}'", value.replace('\'', "''")))
     }
+}
+
+fn mysql_option<'a>(value: &'a str, option: &'static str) -> DatabaseResult<&'a str> {
+    if value.is_empty()
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return Err(DatabaseError::InvalidSchema(option));
+    }
+    Ok(value)
 }
 
 fn current_timestamp(precision: u8) -> String {

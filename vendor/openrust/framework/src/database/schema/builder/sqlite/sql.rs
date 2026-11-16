@@ -203,6 +203,24 @@ pub(super) fn generation_expression(sql: &str) -> DatabaseResult<Option<&str>> {
     Ok(None)
 }
 
+pub(super) fn column_collation(sql: &str) -> DatabaseResult<Option<String>> {
+    let tokens = tokenize(sql)?;
+    let mut depth = 0;
+    for (index, token) in tokens.iter().enumerate().skip(1) {
+        match token.text {
+            "(" => depth += 1,
+            ")" => depth -= 1,
+            _ if depth == 0 && token.is("collate") => {
+                return Ok(tokens
+                    .get(index + 1)
+                    .map(|name| name.identifier().to_ascii_lowercase()));
+            }
+            _ => {}
+        }
+    }
+    Ok(None)
+}
+
 pub(super) fn constrained_column(sql: &str) -> DatabaseResult<bool> {
     let tokens = tokenize(sql)?;
     let mut depth = 0;
@@ -211,7 +229,7 @@ pub(super) fn constrained_column(sql: &str) -> DatabaseResult<bool> {
             "(" => depth += 1,
             ")" => depth -= 1,
             _ if depth == 0
-                && ["primary", "references", "unique", "check", "collate"]
+                && ["primary", "references", "unique", "check"]
                     .iter()
                     .any(|kind| token.is(kind)) =>
             {

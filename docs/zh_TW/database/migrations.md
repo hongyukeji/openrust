@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### MySQL 資料表選項 {#mysql-table-options}
+
+在 `Schema::create` 中用 `engine`、`charset` 和 `collation` 設定資料表。MySQL 優先採用 Blueprint 的明確設定，其次採用連線對應的預設值。`comment` 可用於建立和修改資料表。用 `getTables()` 讀取實際的儲存引擎、定序和註解。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_customers() -> DatabaseResult<()> {
+    Schema::create("customers", |table| {
+        table.engine("InnoDB");
+        table.charset("utf8mb4");
+        table.collation("utf8mb4_unicode_ci");
+        table.comment("Customer records");
+        table.id();
+        table.string("code", 24).collation("utf8mb4_bin");
+    })
+    .await
+}
+```
+
+用欄位層級的 `charset` 和 `collation` 覆寫文字編碼或比較規則。SQLite 套用欄位定序，並忽略 MySQL 專用的資料表設定。
+
 ### 暫存資料表 {#temporary-tables}
 
 使用 `Blueprint::temporary()` 前先借用 Schema 工作階段。用該工作階段的 Schema Builder 建立資料表，再透過同一工作階段執行 SQL。`close().await?` 會先清理受管理的暫存資料表，再歸還連線。工作階段被捨棄時，清理操作會持有原實體連線，直到可以安全歸還。

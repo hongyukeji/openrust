@@ -8,6 +8,7 @@ pub(super) enum Command {
     Index(IndexDefinition),
     Foreign(ForeignKeyDefinition),
     RenameColumn(String, String),
+    TableComment(String),
     DropColumn(String),
     RenameIndex(String, String),
     DropIndex(IndexType, String),
@@ -15,11 +16,19 @@ pub(super) enum Command {
     DropForeignColumns(Vec<String>),
 }
 
+#[derive(Default)]
+pub(in crate::database) struct TableOptions {
+    pub(in crate::database) charset: Option<String>,
+    pub(in crate::database) collation: Option<String>,
+    pub(in crate::database) engine: Option<String>,
+}
+
 /// A table definition or a sequence of changes to an existing table.
 #[derive(Default)]
 pub struct Blueprint {
     pub(super) commands: Vec<Command>,
     pub(super) temporary: bool,
+    pub(super) table_options: TableOptions,
     pub(super) morph_key_type: MorphKeyType,
 }
 
@@ -264,6 +273,23 @@ impl Blueprint {
 
     pub fn spatialIndex(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
         self.add_index(IndexType::Spatial, columns, name)
+    }
+
+    pub fn charset(&mut self, charset: &str) {
+        self.table_options.charset = Some(charset.to_owned());
+    }
+
+    pub fn collation(&mut self, collation: &str) {
+        self.table_options.collation = Some(collation.to_owned());
+    }
+
+    pub fn engine(&mut self, engine: &str) {
+        self.table_options.engine = Some(engine.to_owned());
+    }
+
+    pub fn comment(&mut self, comment: &str) {
+        self.commands
+            .push(Command::TableComment(comment.to_owned()));
     }
 
     pub fn temporary(&mut self) {

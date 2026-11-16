@@ -29,11 +29,7 @@ pub struct Builder<'connection> {
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
 impl<'connection> Builder<'connection> {
     pub(crate) fn connection(connection: Connection) -> Builder<'static> {
-        let grammar = Grammar::new(
-            connection.grammar.clone(),
-            connection.prefix_indexes,
-            connection.getDatabaseName(),
-        );
+        let grammar = Grammar::new(&connection);
         Builder {
             morph_key_type: connection.morph_key_type.clone(),
             executor: Executor::Connection(connection),
@@ -45,11 +41,7 @@ impl<'connection> Builder<'connection> {
         connection: &Connection,
         statements: &'connection mut Vec<String>,
     ) -> Self {
-        let grammar = Grammar::new(
-            connection.grammar.clone(),
-            connection.prefix_indexes,
-            connection.getDatabaseName(),
-        );
+        let grammar = Grammar::new(connection);
         Self {
             executor: Executor::Pretend(statements),
             grammar,
@@ -59,11 +51,7 @@ impl<'connection> Builder<'connection> {
 
     pub(crate) fn transaction(transaction: &'connection mut Transaction) -> Self {
         let connection = transaction.query_connection();
-        let grammar = Grammar::new(
-            connection.grammar.clone(),
-            connection.prefix_indexes,
-            connection.getDatabaseName(),
-        );
+        let grammar = Grammar::new(connection);
         let morph_key_type = connection.morph_key_type.clone();
         Self {
             executor: Executor::Transaction(transaction),
@@ -74,11 +62,7 @@ impl<'connection> Builder<'connection> {
 
     pub(super) fn session_builder(session: &'connection mut SchemaSession) -> Self {
         let connection = session.connection();
-        let grammar = Grammar::new(
-            connection.grammar.clone(),
-            connection.prefix_indexes,
-            connection.getDatabaseName(),
-        );
+        let grammar = Grammar::new(connection);
         let morph_key_type = connection.morph_key_type.clone();
         Self {
             executor: Executor::Session(session),

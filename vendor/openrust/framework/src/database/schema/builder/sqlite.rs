@@ -24,6 +24,30 @@ pub(super) fn generated_expressions(
     Ok(expressions.into_iter())
 }
 
+pub(super) fn column_collations(create_sql: &str) -> DatabaseResult<Vec<(String, String)>> {
+    if !create_sql
+        .as_bytes()
+        .windows(7)
+        .any(|part| part.eq_ignore_ascii_case(b"collate"))
+    {
+        return Ok(Vec::new());
+    }
+    let definition = match sql::parse_table(create_sql) {
+        Ok(definition) => definition,
+        Err(DatabaseError::UnsupportedSchema("SQLite virtual table rebuild")) => {
+            return Ok(Vec::new());
+        }
+        Err(error) => return Err(error),
+    };
+    let mut collations = Vec::new();
+    for column in definition.columns {
+        if let Some(collation) = sql::column_collation(column)? {
+            collations.push((sql::column_name(column)?, collation));
+        }
+    }
+    Ok(collations)
+}
+
 pub(super) fn requires_catalog(command: &Command) -> bool {
     match command {
         Command::Column(column) => column.change,
