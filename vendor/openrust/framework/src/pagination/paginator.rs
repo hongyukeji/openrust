@@ -76,6 +76,10 @@ impl<T> Paginator<T> {
     pub fn items(&self) -> &[T] {
         &self.items
     }
+
+    pub(crate) fn collection_keys(&self) -> Option<&[ArrayKey]> {
+        self.keys.as_deref()
+    }
     /// Looks up the collection key for an item on the current page.
     pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&T> {
         let key = key.into().normalized();

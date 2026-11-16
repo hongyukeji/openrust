@@ -11,3 +11,9 @@
 - 对照固定 Laravel 的可选追加字段、合并和 Pivot 资源用例。Rust 在资源中显式区分尚未加载和已加载为空的单值关系，按已追加属性及显式 null 执行投影。关联对象的条件合并保留此前写入的键。已水合的普通及自定义 Pivot 都可按实际表和访问名检测，自定义 Pivot 另有 Rust 类型匹配入口。检查仅访问已有关系结果。 [Laravel 条件接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/ConditionallyLoadsAttributes.php) · [Laravel HTTP 用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/ResourceTest.php)
 - SQLite／MySQL 8.4.13 实际 HTTP 验证追加属性、合并键冲突、缺失字段、已加载空关系和两类 Pivot。错误表、访问名和类型均跳过相应回调。10 项资源、Eloquent 关系及 JSON 数据库回归、严格 Clippy、实际 `./artisan inspire`、三语样例编译、VitePress 及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 剩余范围包括 Resource 集合键保留、模型及分页集合的资源推断，以及其他条件值便捷入口。
+
+## 集合键保留
+
+- 对照固定 Laravel 的 `preserveKeys`、数字键重排、混合键及游标索引测试。Rust 资源集合可以从 Support、Eloquent 和关联集合接收有序键，转换元素时保留这些键。默认重排全部为数字的键，出现命名键时原样输出。`JsonResource::preservesKeys` 声明资源类型的策略，`preserveKeys(bool)` 可在单次响应覆盖。 [Laravel 集合键文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md#preserving-collection-keys) · [Laravel 资源测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/ResourceTest.php)
+- SQLite 和 MySQL 8.4.13 实际 HTTP 验证稀疏及数字字符串键、混合键和顺序、类型策略及单次覆盖、关联集合、空集合、普通／简易分页后续链接和游标双向翻页。游标沿用固定上游的连续索引。8 项资源及分页回归、严格 Clippy、格式、实际 `./artisan inspire`、三语示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 后续复核模型、集合及分页器的默认资源声明与推断，以及剩余条件值入口。

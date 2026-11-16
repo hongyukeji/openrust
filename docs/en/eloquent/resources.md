@@ -30,6 +30,25 @@ impl JsonResource for StatusResource {
 
 Pass a vector of resources to `ResourceCollection::new`. Each item is transformed for the current request, and an empty collection returns `{"data":[]}`. Item metadata and response hooks apply when the item is the outermost response. Use `with`, `additional`, or `withResponse` on the outer resource to add metadata or modify its response.
 
+### Preserving Collection Keys {#preserving-collection-keys}
+
+Pass a Support or Eloquent collection to `ResourceItems::from` before mapping its items. Numeric keys become sequential by default. If any key is non-numeric, the response keeps the original keys and order. Use `preserveKeys(true)` on the response collection or override `JsonResource::preservesKeys` on the item resource to retain sparse numeric keys. Use `preserveKeys(false)` to restore the default numeric behavior for a response.
+
+Offset paginators retain their source collection keys and metadata. Cursor pages use sequential keys, including pages read backward. Empty results use `[]`.
+
+```rust
+use openrust::{
+    http::resources::json::{JsonResource, ResourceCollection},
+    support::Collection,
+};
+
+pub fn with_original_keys<R: JsonResource>(
+    resources: Collection<R>,
+) -> ResourceCollection<R> {
+    ResourceCollection::new(resources).preserveKeys(true)
+}
+```
+
 ## Paginated Responses
 
 Map a length-aware, simple, or cursor paginator with `ResourceItems::map`. The response retains the paginator’s `links` and `meta`, and paginated data stays wrapped even when wrapping is disabled. Use `preserveQuery` or `withQuery` to carry filters across pages, and `withPaginationInformation` to customize the generated metadata.

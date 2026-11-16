@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use serde_json::{Map, Value};
 
 use crate::{
+    database::eloquent::{Collection as ModelCollection, Model, RelatedCollection},
     http::Request,
     pagination::{CursorPaginator, LengthAwarePaginator, Paginator},
+    support::{ArrayKey, Collection},
 };
 
 use super::{JsonResource, PaginatedResourceResponse, PaginationInformation, ResourceResult};
@@ -10,18 +14,36 @@ use super::{JsonResource, PaginatedResourceResponse, PaginationInformation, Reso
 /// A collection source whose pagination survives resource transformation.
 pub enum ResourceItems<T> {
     Collection(Vec<T>),
+    KeyedCollection(KeyedResourceItems<T>),
     Paginator(Paginator<T>),
     LengthAwarePaginator(LengthAwarePaginator<T>),
     CursorPaginator(Box<CursorPaginator<T>>),
+}
+
+/// An ordered resource collection with a key for each item.
+#[doc(hidden)]
+pub struct KeyedResourceItems<T> {
+    items: Vec<T>,
+    keys: Vec<ArrayKey>,
 }
 
 impl<T> ResourceItems<T> {
     pub fn items(&self) -> &[T] {
         match self {
             Self::Collection(items) => items,
+            Self::KeyedCollection(items) => &items.items,
             Self::Paginator(page) => page.items(),
             Self::LengthAwarePaginator(page) => page.items(),
             Self::CursorPaginator(page) => page.items(),
+        }
+    }
+
+    fn keys(&self) -> Option<&[ArrayKey]> {
+        match self {
+            Self::KeyedCollection(items) => Some(&items.keys),
+            Self::Paginator(page) => page.collection_keys(),
+            Self::LengthAwarePaginator(page) => page.collection_keys(),
+            Self::Collection(_) | Self::CursorPaginator(_) => None,
         }
     }
 
@@ -30,10 +52,37 @@ impl<T> ResourceItems<T> {
             Self::Collection(items) => {
                 ResourceItems::Collection(items.into_iter().map(map).collect())
             }
+            Self::KeyedCollection(items) => ResourceItems::KeyedCollection(KeyedResourceItems {
+                items: items.items.into_iter().map(map).collect(),
+                keys: items.keys,
+            }),
             Self::Paginator(page) => ResourceItems::Paginator(page.map(map)),
             Self::LengthAwarePaginator(page) => ResourceItems::LengthAwarePaginator(page.map(map)),
             Self::CursorPaginator(page) => ResourceItems::from(page.map(map)),
         }
+    }
+}
+
+impl<T> From<Collection<T>> for ResourceItems<T> {
+    fn from(collection: Collection<T>) -> Self {
+        let (keys, items) = collection.into_iter().unzip();
+        Self::KeyedCollection(KeyedResourceItems { items, keys })
+    }
+}
+
+impl<M: Model> From<ModelCollection<M>> for ResourceItems<M> {
+    fn from(collection: ModelCollection<M>) -> Self {
+        let (items, keys) = collection.into_parts();
+        match keys {
+            Some(keys) => Self::KeyedCollection(KeyedResourceItems { items, keys }),
+            None => Self::Collection(items),
+        }
+    }
+}
+
+impl<M: Model> From<RelatedCollection<M>> for ResourceItems<Arc<M>> {
+    fn from(collection: RelatedCollection<M>) -> Self {
+        Self::from(Collection::from(collection))
     }
 }
 
@@ -68,6 +117,7 @@ type PaginationHook =
 pub struct ResourceCollection<T> {
     source: ResourceItems<T>,
     pagination: Option<Box<PaginationHook>>,
+    preserve_keys: Option<bool>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's ResourceCollection API")]
@@ -76,6 +126,7 @@ impl<T> ResourceCollection<T> {
         Self {
             source: source.into(),
             pagination: None,
+            preserve_keys: None,
         }
     }
 
@@ -83,10 +134,17 @@ impl<T> ResourceCollection<T> {
         self.source.items()
     }
 
+    /// Overrides the resource type's policy for retaining numeric keys.
+    #[must_use]
+    pub fn preserveKeys(mut self, preserve: bool) -> Self {
+        self.preserve_keys = Some(preserve);
+        self
+    }
+
     #[must_use]
     pub fn preserveQuery(mut self) -> Self {
         match &mut self.source {
-            ResourceItems::Collection(_) => {}
+            ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => {}
             ResourceItems::Paginator(page) => {
                 page.withQueryString();
             }
@@ -103,7 +161,7 @@ impl<T> ResourceCollection<T> {
     #[must_use]
     pub fn withQuery(mut self, query: &[(String, String)]) -> Self {
         match &mut self.source {
-            ResourceItems::Collection(_) => {}
+            ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => {}
             ResourceItems::Paginator(page) => {
                 page.appends(query);
             }
@@ -132,10 +190,25 @@ impl<T> ResourceCollection<T> {
 
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
     fn toArray(&self, request: &Request) -> ResourceResult<Value> {
-        self.items()
+        let values = self
+            .items()
             .iter()
-            .map(|resource| resource.toArray(request))
-            .collect()
+            .map(|resource| resource.toArray(request));
+        if let Some(keys) = self.source.keys()
+            && (self.preserve_keys.unwrap_or_else(T::preservesKeys)
+                || keys.iter().any(|key| !numeric_key(key)))
+            && keys.iter().enumerate().any(|(index, key)| {
+                !matches!(key, ArrayKey::Integer(key) if usize::try_from(*key) == Ok(index))
+            })
+        {
+            return keys
+                .iter()
+                .zip(values)
+                .map(|(key, value)| Ok((key.to_string(), value?)))
+                .collect::<ResourceResult<Map<_, _>>>()
+                .map(Value::Object);
+        }
+        values.collect()
     }
 
     fn with(&self, request: &Request) -> ResourceResult<Map<String, Value>> {
@@ -147,5 +220,15 @@ impl<T: JsonResource> JsonResource for ResourceCollection<T> {
             None => info,
         };
         PaginatedResourceResponse::fields(info)
+    }
+}
+
+fn numeric_key(key: &ArrayKey) -> bool {
+    match key {
+        ArrayKey::Integer(_) => true,
+        ArrayKey::String(key) => {
+            let text = key.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
+            text.bytes().any(|byte| byte.is_ascii_digit()) && text.parse::<f64>().is_ok()
+        }
     }
 }

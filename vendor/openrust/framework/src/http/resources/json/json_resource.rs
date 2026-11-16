@@ -25,6 +25,14 @@ pub trait JsonResource {
         StatusCode::OK
     }
 
+    /// Declares key preservation when this resource is used in a collection.
+    fn preservesKeys() -> bool
+    where
+        Self: Sized,
+    {
+        false
+    }
+
     fn withResponse(&self, _request: &Request, _response: &mut Response) -> ResourceResult<()> {
         Ok(())
     }

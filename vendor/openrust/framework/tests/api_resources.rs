@@ -10,7 +10,7 @@ use openrust::{
     database::{
         DatabaseError, DatabaseManager, Value,
         eloquent::{
-            Attributes, Model, ModelMetadata, ModelState,
+            Attributes, Collection as ModelCollection, Model, ModelMetadata, ModelState,
             casts::Attribute,
             relations::{BelongsToMany, HasMany, HasOne, Pivot},
         },
@@ -24,7 +24,7 @@ use openrust::{
         },
     },
     routing::RoutingError,
-    support::facades::Route,
+    support::{ArrayKey, Collection, facades::Route},
 };
 use serde_json::{Map, Value as Json, json};
 use tokio::{
@@ -34,7 +34,36 @@ use tokio::{
 };
 
 struct Account(ModelState);
+struct IndexedAccount(ModelState);
 struct Membership(ModelState);
+
+#[allow(non_snake_case, reason = "Implements the Eloquent model contract")]
+impl Model for IndexedAccount {
+    fn metadata() -> &'static ModelMetadata {
+        Account::metadata()
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn newCollection(models: Vec<Self>) -> ModelCollection<Self> {
+        ModelCollection::fromEntries(models.into_iter().map(|model| {
+            let Some(Value::Integer(id)) = model.getKey() else {
+                panic!("expected account id");
+            };
+            (*id * 10, model)
+        }))
+    }
+}
 
 impl Model for Membership {
     fn metadata() -> &'static ModelMetadata {
@@ -129,6 +158,19 @@ impl JsonResource for AccountResource {
 
 struct Plain(Json);
 
+struct Preserved(Json);
+
+#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
+impl JsonResource for Preserved {
+    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+        Ok(self.0.clone())
+    }
+
+    fn preservesKeys() -> bool {
+        true
+    }
+}
+
 impl JsonResource for Plain {
     fn toArray(&self, _: &Request) -> ResourceResult<Json> {
         Ok(self.0.clone())
@@ -207,6 +249,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/metadata", metadata)?;
     Route::get("/conditional", conditional)?;
     Route::get("/pivots", pivots)?;
+    keyed_routes()?;
     Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
@@ -218,6 +261,96 @@ fn routes() -> Result<(), RoutingError> {
         .await
         .map_err(internal)?;
         Ok(ModelResource(new))
+    })?;
+    Ok(())
+}
+
+fn keyed_routes() -> Result<(), RoutingError> {
+    let input = || {
+        Collection::fromEntries([
+            ("01", json!("first")),
+            ("7", json!("second")),
+            ("1e2", json!(null)),
+        ])
+    };
+    Route::get("/keys/default", move || {
+        ResourceCollection::new(ResourceItems::from(input()).map(Plain))
+    })?;
+    Route::get("/keys/preserved", move || {
+        ResourceCollection::new(ResourceItems::from(input()).map(Preserved))
+    })?;
+    Route::get("/keys/reset", move || {
+        ResourceCollection::new(ResourceItems::from(input()).map(Preserved)).preserveKeys(false)
+    })?;
+    Route::get("/keys/empty", || {
+        ResourceCollection::new(Collection::<Plain>::new()).preserveKeys(true)
+    })?;
+    Route::get("/keys/mixed", || async {
+        let mut accounts = Account::query()
+            .map_err(internal)?
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .map_err(internal)?
+            .into_iter();
+        let items = ModelCollection::fromEntries([
+            (ArrayKey::from("team"), accounts.next().unwrap()),
+            (ArrayKey::from(9_i64), accounts.next().unwrap()),
+        ]);
+        Ok(ResourceCollection::new(
+            ResourceItems::from(items).map(AccountResource),
+        ))
+    })?;
+    Route::get("/keys/related", || async {
+        let owner = Account::query()
+            .map_err(internal)?
+            .with(
+                "directReports",
+                HasMany::<Account, IndexedAccount>::new("id", "manager_id"),
+            )
+            .findOrFail(1)
+            .await
+            .map_err(internal)?;
+        let reports = owner
+            .getRelation::<RelatedCollection<IndexedAccount>>("directReports")
+            .unwrap()
+            .clone();
+        let items = ResourceItems::from(reports)
+            .map(|account| Plain(account.toArray().map(Json::Object).unwrap()));
+        Ok(ResourceCollection::new(items).preserveKeys(true))
+    })?;
+    Route::get("/keys/page", || async {
+        let page = IndexedAccount::query()
+            .map_err(internal)?
+            .paginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(
+            ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
+                .preserveKeys(true),
+        )
+    })?;
+    Route::get("/keys/simple", || async {
+        let page = IndexedAccount::query()
+            .map_err(internal)?
+            .simplePaginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(
+            ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
+                .preserveKeys(true),
+        )
+    })?;
+    Route::get("/keys/cursor", || async {
+        let page = IndexedAccount::query()
+            .map_err(internal)?
+            .cursorPaginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(
+            ResourceCollection::new(ResourceItems::from(page).map(ModelResource))
+                .preserveKeys(true),
+        )
     })?;
     Ok(())
 }
@@ -568,6 +701,7 @@ async fn verify(config: Json) {
     let (_, created) = request(address, "POST", "/api/new", "", 201).await;
     assert_eq!(created["data"]["name"], "New");
     assert!(created["data"].get("password").is_none());
+    verify_collection_keys(address).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -577,6 +711,58 @@ async fn verify(config: Json) {
         .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
+}
+
+async fn verify_collection_keys(address: SocketAddr) {
+    for path in ["/api/keys/default", "/api/keys/reset"] {
+        let (_, response) = request(address, "GET", path, "", 200).await;
+        assert_eq!(response["data"], json!(["first", "second", null]));
+    }
+    let (_, response) = request(address, "GET", "/api/keys/preserved", "", 200).await;
+    let data = response["data"].as_object().unwrap();
+    assert_eq!(
+        data.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["01", "7", "1e2"]
+    );
+    assert_eq!(data["01"], "first");
+    assert_eq!(data["7"], "second");
+    assert!(data["1e2"].is_null());
+    let (_, empty) = request(address, "GET", "/api/keys/empty", "", 200).await;
+    assert_eq!(empty, json!({"data":[]}));
+    let (_, mixed) = request(address, "GET", "/api/keys/mixed", "", 200).await;
+    assert_eq!(mixed["data"]["team"]["id"], 1);
+    assert_eq!(mixed["data"]["9"]["id"], 2);
+    let (_, related) = request(address, "GET", "/api/keys/related", "", 200).await;
+    assert_eq!(related["data"]["20"]["id"], 2);
+    for path in ["/api/keys/page", "/api/keys/simple"] {
+        let (_, page) = request(address, "GET", path, "", 200).await;
+        assert_eq!(page["data"]["10"]["id"], 1);
+        assert_eq!(page["data"]["20"]["id"], 2);
+        let next = page["links"]["next"].as_str().unwrap();
+        assert_eq!(next, format!("{path}?page=2"));
+        let (_, last) = request(address, "GET", next, "", 200).await;
+        assert_eq!(last["data"]["30"]["id"], 3);
+    }
+    let (_, cursor) = request(address, "GET", "/api/keys/cursor", "", 200).await;
+    assert_eq!(cursor["data"][0]["id"], 1);
+    let (_, later) = request(
+        address,
+        "GET",
+        cursor["links"]["next"].as_str().unwrap(),
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(later["data"][0]["id"], 3);
+    let (_, previous) = request(
+        address,
+        "GET",
+        later["links"]["prev"].as_str().unwrap(),
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(previous["data"], cursor["data"]);
 }
 
 #[tokio::test]

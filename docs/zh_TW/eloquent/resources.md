@@ -30,6 +30,25 @@ impl JsonResource for StatusResource {
 
 將資源向量傳給 `ResourceCollection::new`。集合依目前請求轉換每個項目，空集合回傳 `{"data":[]}`。項目的中繼資料與回應掛鉤在該項目作為最外層回應時生效。透過最外層資源的 `with`、`additional` 或 `withResponse` 加入中繼資料或修改回應。
 
+### 保留集合鍵 {#preserving-collection-keys}
+
+先用 `ResourceItems::from` 接收 Support 或 Eloquent 集合，再轉換元素。集合只有數字鍵時預設重排為連續索引。只要有非數字鍵，回應就保留原有鍵和順序。在回應集合上用 `preserveKeys(true)`，或在元素資源上覆寫 `JsonResource::preservesKeys`，即可保留不連續的數字鍵。用 `preserveKeys(false)` 可以在該回應恢復數字鍵重排。
+
+一般及簡易分頁保留來源集合鍵與分頁資訊。游標分頁使用連續索引，往前翻頁時也一樣。空結果輸出 `[]`。
+
+```rust
+use openrust::{
+    http::resources::json::{JsonResource, ResourceCollection},
+    support::Collection,
+};
+
+pub fn with_original_keys<R: JsonResource>(
+    resources: Collection<R>,
+) -> ResourceCollection<R> {
+    ResourceCollection::new(resources).preserveKeys(true)
+}
+```
+
 ## 分頁回應
 
 用 `ResourceItems::map` 轉換一般、簡易或游標分頁器。回應保留分頁器的 `links` 和 `meta`，停用包裝時分頁資料仍有包裝。用 `preserveQuery` 或 `withQuery` 保留跨頁篩選參數，用 `withPaginationInformation` 自訂分頁中繼資料。

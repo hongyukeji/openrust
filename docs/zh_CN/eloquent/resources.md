@@ -30,6 +30,25 @@ impl JsonResource for StatusResource {
 
 将资源向量传给 `ResourceCollection::new`。集合按当前请求转换每个条目，空集合返回 `{"data":[]}`。条目的元数据和响应钩子在该条目作为最外层响应时生效。通过最外层资源的 `with`、`additional` 或 `withResponse` 添加元数据或修改响应。
 
+### 保留集合键 {#preserving-collection-keys}
+
+先用 `ResourceItems::from` 接收 Support 或 Eloquent 集合，再转换元素。集合只有数字键时默认重排为连续索引。只要有非数字键，响应就保留原有键和顺序。在响应集合上用 `preserveKeys(true)`，或在元素资源上覆盖 `JsonResource::preservesKeys`，即可保留不连续的数字键。用 `preserveKeys(false)` 可以在该响应恢复数字键重排。
+
+普通及简易分页保留源集合键与分页信息。游标分页使用连续索引，向前翻页时也一样。空结果输出 `[]`。
+
+```rust
+use openrust::{
+    http::resources::json::{JsonResource, ResourceCollection},
+    support::Collection,
+};
+
+pub fn with_original_keys<R: JsonResource>(
+    resources: Collection<R>,
+) -> ResourceCollection<R> {
+    ResourceCollection::new(resources).preserveKeys(true)
+}
+```
+
 ## 分页响应
 
 用 `ResourceItems::map` 转换普通、简易或游标分页器。响应保留分页器的 `links` 和 `meta`，关闭包装时分页数据仍有包装。用 `preserveQuery` 或 `withQuery` 保留跨页筛选参数，用 `withPaginationInformation` 自定义分页元数据。

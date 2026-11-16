@@ -16,7 +16,7 @@ impl PaginatedResourceResponse {
             .serialize_map(None)
             .map_err(internal)?;
         match items {
-            ResourceItems::Collection(_) => return Ok(None),
+            ResourceItems::Collection(_) | ResourceItems::KeyedCollection(_) => return Ok(None),
             ResourceItems::Paginator(page) => page.serialize_metadata(&mut fields),
             ResourceItems::LengthAwarePaginator(page) => page.serialize_metadata(&mut fields),
             ResourceItems::CursorPaginator(page) => page.serialize_metadata(&mut fields),

@@ -10,6 +10,8 @@ mod route_response;
 pub use conditional::Conditional;
 pub use json_resource::{JsonResource, ModelResource};
 pub use paginated_resource_response::PaginatedResourceResponse;
+#[doc(hidden)]
+pub use resource_collection::KeyedResourceItems;
 pub use resource_collection::{ResourceCollection, ResourceItems};
 pub use resource_response::ResourceResponse;
 #[doc(hidden)]
