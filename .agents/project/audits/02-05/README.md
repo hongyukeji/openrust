@@ -181,6 +181,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 
 在 `e5661b8eb` 的隔离快照复验原实现提交 `7d67c94d3`。MySQL 8.4.13 下，`sh tests/table_catalog.sh` 的写连接目录和实际 `migrate:fresh` 限定库清理通过，另一 Schema 的标记行保留。按指定入口在隔离快照提取历史 `docker/accept.py`，以 `--mysql` 验证条件式回调回归、三语共用 Artisan 示例和实际二进制 `main artisan inspire`。严格 Clippy 通过。全仓格式检查仍只有既有 Sanctum 排版差异。三轮夹具均已回收。
 
+#### 2026-11-17 02:21 恢复复验
+
+- 在 `042dc8c9a` 的隔离快照复验条件式 Schema 实现 `7d67c94d3`。MySQL 8.4.13 下，`sh tests/table_catalog.sh` 通过写连接表目录和实际 `migrate:fresh`／`db:wipe` 限定库清理，另一 Schema 的标记行仍存在。
+- `docker/accept.py --mysql` 通过条件式回调回归、三语共用的实际 Artisan 示例及 `main artisan inspire`。扩展回归初跑有三项跨 Schema 用例因测试账号权限失败，改用夹具自带的 `--mysql-schema-admin` 后 22 项全部通过。该权限只用于临时 MySQL。历史 `docker/accept.py` 从 `3d2641c0f` 提取到隔离快照。
+- Rust 1.94.0 工作区严格 Clippy 通过。全仓格式检查只报既有 Sanctum 测试排版差异。四轮临时夹具已回收，清理本批 3.6 GiB Cargo 产物后，项目卷可用 60.73 GB（56.56 GiB）。日志目录为 `/private/tmp/openrust-02-05-recheck.8ZWYyLV9`。
+
 ## 创建和删除数据库
 
 对照固定 Laravel [Builder 的数据库操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L123)、[MySQL 建库默认值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L42)、[SQLite 文件操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L16)。旧版框架未找到相同接口，本批在 Schema 的写连接及原生 DDL 路径实现。
