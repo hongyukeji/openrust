@@ -15,9 +15,7 @@ impl Migration for Definition {
                 .getSchemaBuilder()
                 .create("personal_access_tokens", |table| {
                     table.id();
-                    table.string("tokenable_type", 255);
-                    table.unsignedBigInteger("tokenable_id");
-                    table.index(&["tokenable_type", "tokenable_id"], None);
+                    table.morphs("tokenable");
                     table.text("name");
                     table.string("token", 64).unique();
                     table.text("abilities").nullable();

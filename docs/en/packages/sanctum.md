@@ -20,6 +20,8 @@ Once published, the migration is part of the application. The next build include
 
 The migration creates a polymorphic owner, a unique 64-character token hash column, nullable abilities and timestamps, and an expiration index. The feature also registers the Sanctum guard and CSRF cookie route.
 
+The published migration uses `table.morphs("tokenable")`. It creates an integer `tokenable_id` by default. For UUID or ULID owner models, call `Schema::morphUsingUuids()?` or `Schema::morphUsingUlids()?` in your application service provider's `boot` before the first migration. Import `Schema` from `openrust::database::schema`. This default applies to subsequent `morphs` calls in the application. The token table's own primary key remains an integer.
+
 ## Issuing personal access tokens {#issuing-api-tokens}
 
 Create a token with the token store resolved by `Sanctum::personalAccessTokens`. Supply the owner type, owner ID, name, abilities and optional expiration. Give the client the returned `plain_text_token` once. The database stores its SHA-256 digest. `findToken` resolves credentials, and `revokeToken` deletes a token scoped to its owner. `can` accepts an exact ability or the wildcard `*`. The HTTP guard checks expiration before authenticating the request. Token issuance, authentication updates and individual revocation use the Eloquent lifecycle. The default token response includes `updated_at`.

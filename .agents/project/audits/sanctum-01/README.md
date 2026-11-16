@@ -22,3 +22,17 @@
 - macOS 隔离副本和一次性 MySQL 8.4.13 实测，干净骨架在 Cargo 功能关闭及手动启用时均未创建令牌表。手动 `vendor:publish` 新建迁移源文件，重建后执行并登记一次，重复发布保留原文件名。
 - 实测 `install:api --without-migration-prompt` 与重复安装的 `--force`。确认提示的测试由已启用功能、尚未编入迁移的二进制触发，回车后重建并执行。发布后的迁移关闭功能后仍可回滚和重建。保留原迁移文件时，已有账本保持原编号，重复执行无待迁移项，回滚后表和记录均移除。
 - Rust 1.99.1 运行启动定向测试、Sanctum 发布定向测试和实际 MySQL 迁移账本回归。根应用含 Sanctum 的严格 Clippy 和三语 VitePress 构建通过。本轮验证范围为 macOS 与隔离 MySQL，不包含 Windows 实机。
+
+## 多态归属键和 Windows 安装复验
+
+发布模板改用 `table.morphs("tokenable")`。默认归属键为整数，应用服务提供者可在 `boot` 中用 `Schema::morphUsingUuids` 或 `Schema::morphUsingUlids` 为后续迁移选择键类型。Rust 将默认值绑定到应用的数据库管理器，同一应用的连接共享设置。令牌表主键维持整数。 [固定 Sanctum 迁移](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/database/migrations/2019_12_14_000001_create_personal_access_tokens_table.php) · [固定 Laravel Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1469-L1478)
+
+Windows 11 ARM64（构建 26200.9457）在 Parallels 中用 Rust 1.94.0 和 ARM64 MSVC 原生构建。三组均从未安装 API 的隔离骨架和各自的空 MySQL 8.4.13 数据库开始，通过对应 Shell 运行仓库的 `artisan.bat`。
+
+| Shell | 首装路径 | MySQL `tokenable_id` |
+| --- | --- | --- |
+| CMD | 真实控制台回车确认，自动重建并迁移 | `bigint unsigned` |
+| PowerShell | 真实控制台回车确认，自动重建并迁移 | `char(36)` |
+| PowerShell | `--without-migration-prompt` 后显式迁移 | `char(26)` |
+
+三组均验证迁移前数据库为空、重复安装保留唯一迁移文件和内容、重复迁移无待执行项、复合索引存在。按文件回滚移除令牌表及对应账本记录，用户表保留。重新迁移恢复原表结构及同名账本记录。Rust 1.94.0 定向严格 Clippy 通过。macOS 的 Schema 和 Sanctum 12 项测试通过，包含 SQLite、多应用设置隔离及独立 MySQL 8.4.13 上的真实认证回归。三语 VitePress 构建通过。

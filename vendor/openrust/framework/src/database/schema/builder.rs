@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value};
 
-use super::{Blueprint, grammars::Grammar};
+use super::{Blueprint, MorphKeyType, grammars::Grammar};
 
 mod catalog;
 mod sqlite;
@@ -17,6 +17,7 @@ enum Executor<'connection> {
 pub struct Builder<'connection> {
     executor: Executor<'connection>,
     grammar: Grammar,
+    morph_key_type: Arc<RwLock<MorphKeyType>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
@@ -28,6 +29,7 @@ impl<'connection> Builder<'connection> {
             connection.getDatabaseName(),
         );
         Builder {
+            morph_key_type: connection.morph_key_type.clone(),
             executor: Executor::Connection(connection),
             grammar,
         }
@@ -45,6 +47,7 @@ impl<'connection> Builder<'connection> {
         Self {
             executor: Executor::Pretend(statements),
             grammar,
+            morph_key_type: connection.morph_key_type.clone(),
         }
     }
 
@@ -55,9 +58,21 @@ impl<'connection> Builder<'connection> {
             connection.prefix_indexes,
             connection.getDatabaseName(),
         );
+        let morph_key_type = connection.morph_key_type.clone();
         Self {
             executor: Executor::Transaction(transaction),
             grammar,
+            morph_key_type,
+        }
+    }
+
+    fn blueprint(&self) -> Blueprint {
+        Blueprint {
+            morph_key_type: *self
+                .morph_key_type
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            ..Blueprint::default()
         }
     }
 
@@ -67,7 +82,7 @@ impl<'connection> Builder<'connection> {
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
         let table = self.grammar.table(table)?;
-        let mut blueprint = Blueprint::default();
+        let mut blueprint = self.blueprint();
         configure(&mut blueprint);
         let sql = self.grammar.create(&table, blueprint)?;
         self.execute(sql).await
@@ -79,7 +94,7 @@ impl<'connection> Builder<'connection> {
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
         let table = self.grammar.table(table)?;
-        let mut blueprint = Blueprint::default();
+        let mut blueprint = self.blueprint();
         configure(&mut blueprint);
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
             if matches!(self.executor, Executor::Pretend(_)) {

@@ -1,6 +1,6 @@
 use super::{
     ColumnDefinition, ForeignIdColumnDefinition, ForeignKeyDefinition, IndexDefinition,
-    column_definition::ColumnType, index_definition::IndexType,
+    MorphKeyType, column_definition::ColumnType, index_definition::IndexType,
 };
 
 pub(super) enum Command {
@@ -20,6 +20,7 @@ pub(super) enum Command {
 pub struct Blueprint {
     pub(super) commands: Vec<Command>,
     pub(super) temporary: bool,
+    pub(super) morph_key_type: MorphKeyType,
 }
 
 macro_rules! column_types {
@@ -85,6 +86,18 @@ impl Blueprint {
 
     pub fn ulid(&mut self, name: &str) -> &mut ColumnDefinition {
         self.char(name, 26)
+    }
+
+    pub fn morphs(&mut self, name: &str) {
+        let kind = format!("{name}_type");
+        let id = format!("{name}_id");
+        self.string(&kind, 255);
+        match self.morph_key_type {
+            MorphKeyType::Int => self.unsignedBigInteger(&id),
+            MorphKeyType::Uuid => self.uuid(&id),
+            MorphKeyType::Ulid => self.ulid(&id),
+        };
+        self.index(&[&kind, &id], None);
     }
 
     pub fn decimal(&mut self, name: &str, total: u8, places: u8) -> &mut ColumnDefinition {

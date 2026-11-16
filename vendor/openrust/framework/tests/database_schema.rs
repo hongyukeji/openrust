@@ -2,9 +2,72 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
     config::Repository,
-    database::{Connection, DatabaseError, DatabaseManager, Value},
+    database::{
+        Connection, DatabaseError, DatabaseManager, Value,
+        schema::{MorphKeyType, Schema},
+    },
+    foundation::Application,
+    http::HttpFuture,
+    support::{ProviderResult, ServiceProvider},
+    testing::TestApp,
 };
 use serde_json::{Value as Json, json};
+
+struct MorphKeyProvider(MorphKeyType);
+
+impl ServiceProvider for MorphKeyProvider {
+    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
+        Box::pin(async {
+            match self.0 {
+                MorphKeyType::Int => Schema::defaultMorphKeyType(MorphKeyType::Int)?,
+                MorphKeyType::Uuid => Schema::morphUsingUuids()?,
+                MorphKeyType::Ulid => Schema::morphUsingUlids()?,
+            }
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn morph_columns_follow_the_current_app_and_keep_the_composite_index() {
+    async fn verify(kind: Option<MorphKeyType>, expected: &str) {
+        let mut app = TestApp::sqlite(|builder| match kind {
+            Some(kind) => builder.withProviders(vec![Box::new(MorphKeyProvider(kind))]),
+            None => builder,
+        })
+        .unwrap();
+        let connection = app.database().await.unwrap();
+        let mut schema = connection.getSchemaBuilder();
+        schema
+            .create("tokens", |table| table.morphs("tokenable"))
+            .await
+            .unwrap();
+        let columns = schema.getColumns("tokens").await.unwrap();
+        assert_eq!(columns.len(), 2);
+        assert_eq!(columns[0].name, "tokenable_type");
+        assert_eq!(columns[1].name, "tokenable_id");
+        assert_eq!(columns[1].full_type, expected);
+        assert!(columns.iter().all(|column| !column.nullable));
+        assert!(
+            schema
+                .getIndexes("tokens")
+                .await
+                .unwrap()
+                .iter()
+                .any(|index| {
+                    !index.unique
+                        && index.columns
+                            == [Some("tokenable_type".into()), Some("tokenable_id".into())]
+                })
+        );
+    }
+
+    tokio::join!(
+        verify(Some(MorphKeyType::Uuid), "varchar"),
+        verify(Some(MorphKeyType::Ulid), "varchar"),
+        verify(None, "integer"),
+    );
+}
 
 fn connection(config: Json) -> Connection {
     let settings = Repository::new(BTreeMap::from([(

@@ -17,6 +17,15 @@ pub use foreign_id_column_definition::ForeignIdColumnDefinition;
 pub use foreign_key_definition::ForeignKeyDefinition;
 pub use index_definition::IndexDefinition;
 
+/// Default key for polymorphic schema columns.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MorphKeyType {
+    #[default]
+    Int,
+    Uuid,
+    Ulid,
+}
+
 /// A table read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableInfo {

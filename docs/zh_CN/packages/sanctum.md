@@ -20,6 +20,8 @@
 
 迁移创建多态归属字段、唯一的 64 字符令牌哈希列、可空的能力和时间字段，以及过期时间索引。该功能同时注册 Sanctum 守卫和 CSRF Cookie 路由。
 
+发布的迁移使用 `table.morphs("tokenable")`，默认创建整数型 `tokenable_id`。归属模型使用 UUID 或 ULID 时，在首次迁移前，从 `openrust::database::schema` 导入 `Schema`，并在应用服务提供者的 `boot` 中调用 `Schema::morphUsingUuids()?` 或 `Schema::morphUsingUlids()?`。该设置适用于当前应用后续的 `morphs` 调用。令牌表自身的主键仍为整数。
+
 ## 签发个人访问令牌 {#issuing-api-tokens}
 
 使用 `Sanctum::personalAccessTokens` 解析出的令牌仓储创建令牌，传入归属类型、归属 ID、名称、能力和可选的过期时间。签发时将返回的 `plain_text_token` 交给客户端。数据库保存 SHA-256 摘要。`findToken` 查找凭据，`revokeToken` 按归属删除令牌。`can` 支持精确能力及通配符 `*`。HTTP 守卫在认证请求前检查过期时间。 签发、认证时写回及单条撤销都走 Eloquent 生命周期。默认令牌响应包含 `updated_at`。

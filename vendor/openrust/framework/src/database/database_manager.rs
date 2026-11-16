@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use serde_json::Value;
@@ -12,7 +12,7 @@ use crate::{container::Container, contracts::config::Repository};
 
 use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
-    connectors::ConnectionFactory, events::QueryRole,
+    connectors::ConnectionFactory, events::QueryRole, schema::MorphKeyType,
 };
 
 tokio::task_local! {
@@ -25,6 +25,7 @@ pub struct DatabaseManager {
     root: PathBuf,
     connections: Mutex<HashMap<String, Connection>>,
     container: Weak<Container>,
+    morph_key_type: Arc<RwLock<MorphKeyType>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -35,12 +36,20 @@ impl DatabaseManager {
             root: root.into(),
             connections: Mutex::default(),
             container: Weak::new(),
+            morph_key_type: Arc::default(),
         }
     }
 
     pub(super) fn with_container(mut self, container: Weak<Container>) -> Self {
         self.container = container;
         self
+    }
+
+    pub(super) fn set_morph_key_type(&self, kind: MorphKeyType) {
+        *self
+            .morph_key_type
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = kind;
     }
 
     /// Uses the selected default connection while polling this future.
@@ -129,6 +138,7 @@ impl DatabaseManager {
                 .ok_or_else(|| DatabaseError::UnknownConnection(resolved_name.clone()))
             })?;
         connection.model_container.clone_from(&self.container);
+        connection.morph_key_type.clone_from(&self.morph_key_type);
         connection.model_timezone = match self.config.get("app.timezone") {
             None => chrono_tz::UTC,
             Some(Value::String(zone)) => zone

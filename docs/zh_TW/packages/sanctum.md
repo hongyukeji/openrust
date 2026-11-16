@@ -20,6 +20,8 @@
 
 遷移建立多型歸屬欄位、唯一的 64 字元權杖雜湊欄位、可為空值的能力和時間欄位，以及到期時間索引。此功能同時註冊 Sanctum 守衛與 CSRF Cookie 路由。
 
+發佈的遷移使用 `table.morphs("tokenable")`，預設建立整數型 `tokenable_id`。歸屬模型使用 UUID 或 ULID 時，請在首次遷移前，從 `openrust::database::schema` 匯入 `Schema`，並在應用程式服務提供者的 `boot` 中呼叫 `Schema::morphUsingUuids()?` 或 `Schema::morphUsingUlids()?`。此設定適用於目前應用程式後續的 `morphs` 呼叫。權杖資料表本身的主鍵仍為整數。
+
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 
 使用 `Sanctum::personalAccessTokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。 簽發、驗證時寫回及單筆撤銷都會走 Eloquent 生命週期。預設權杖回應包含 `updated_at`。

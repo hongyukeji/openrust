@@ -1,12 +1,31 @@
-use crate::database::{DB, DatabaseResult};
+use crate::{
+    database::{DB, DatabaseError, DatabaseResult},
+    support::facades::Facade,
+};
 
-use super::{Blueprint, Builder, Column, ForeignKey, Index, TableInfo};
+use super::{Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, TableInfo};
 
 /// Schema operations on the current application's default database connection.
 pub struct Schema;
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema facade")]
 impl Schema {
+    /// Sets the default for subsequent polymorphic columns in this application.
+    pub fn defaultMorphKeyType(kind: MorphKeyType) -> DatabaseResult<()> {
+        DB::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .set_morph_key_type(kind);
+        Ok(())
+    }
+
+    pub fn morphUsingUuids() -> DatabaseResult<()> {
+        Self::defaultMorphKeyType(MorphKeyType::Uuid)
+    }
+
+    pub fn morphUsingUlids() -> DatabaseResult<()> {
+        Self::defaultMorphKeyType(MorphKeyType::Ulid)
+    }
+
     pub fn connection(name: &str) -> DatabaseResult<Builder<'static>> {
         Ok(DB::connection(Some(name))?.getSchemaBuilder())
     }

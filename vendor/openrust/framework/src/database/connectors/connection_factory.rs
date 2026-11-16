@@ -49,6 +49,7 @@ impl ConnectionFactory {
             sticky: options.sticky,
             model_timezone: chrono_tz::UTC,
             model_container: std::sync::Weak::new(),
+            morph_key_type: Arc::default(),
             routing: Arc::default(),
             query_duration: Arc::default(),
             query_role: role,

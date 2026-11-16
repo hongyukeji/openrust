@@ -55,7 +55,7 @@ pub(super) async fn alter(
                     &table,
                     Blueprint {
                         commands: vec![command],
-                        temporary: false,
+                        ..Blueprint::default()
                     },
                 )? {
                     transaction.statement(&sql, &[]).await?;
@@ -262,7 +262,7 @@ async fn rebuild_table(
         table,
         Blueprint {
             commands: new_indexes,
-            temporary: false,
+            ..Blueprint::default()
         },
     )? {
         transaction.statement(&sql, &[]).await?;
