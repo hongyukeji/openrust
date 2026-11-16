@@ -6,6 +6,7 @@ pub struct ModelMetadata {
     pub(super) table: &'static str,
     pub(super) connection: Option<&'static str>,
     pub(super) primary_key: &'static str,
+    pub(super) per_page: u64,
     pub(super) incrementing: bool,
     pub(super) unique_id: Option<UniqueId>,
     pub(super) unique_ids: Option<&'static [&'static str]>,
@@ -28,6 +29,7 @@ impl ModelMetadata {
             table,
             connection: None,
             primary_key: "id",
+            per_page: crate::pagination::DEFAULT_PER_PAGE,
             incrementing: true,
             unique_id: None,
             unique_ids: None,
@@ -51,6 +53,12 @@ impl ModelMetadata {
 
     pub const fn primaryKey(mut self, name: &'static str) -> Self {
         self.primary_key = name;
+        self
+    }
+
+    /// Sets the default size for pages returned by this model's queries.
+    pub const fn perPage(mut self, size: u64) -> Self {
+        self.per_page = size;
         self
     }
 

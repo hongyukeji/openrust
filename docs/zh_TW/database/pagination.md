@@ -6,6 +6,22 @@
 
 使用 `paginateWith` 或 `simplePaginateWith` 並傳入 `PageOptions`，可以自訂頁碼參數名稱、查詢欄位和頁碼。HTTP 從目前請求的查詢字串讀取頁碼。HTTP 之外預設使用第 1 頁。
 
+用 `ModelMetadata::perPage(size)` 宣告模型的預設頁容量。省略 `perPage` 時，Eloquent 及關聯查詢採用所選模型的設定。顯式頁容量優先。Query Builder 預設每頁 15 筆。一般分頁可透過 `PageOptions::total` 傳入預先計算的總數，跳過計數查詢。總數為零時直接回傳空頁，無須讀取紀錄。如果總數來自快取或其他服務，請先取得總數再建立選項。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn page_with_cached_total<M: Model>(total: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
+    M::query()?.paginateWith(PageOptions {
+        total: Some(total),
+        ..Default::default()
+    }).await
+}
+```
+
 ## 游標分頁
 
 `cursorPaginate(15)` 比較排序欄位的值，並多讀一列判斷後續資料。下次請求傳入回傳的 `next_cursor` 或 `prev_cursor`。Query Builder 需按已查詢、非空的純量欄位排序，最後使用唯一欄位區分同值資料。Eloquent 在未宣告排序時使用主鍵。分組查詢、聯合查詢和原始排序運算式使用偏移分頁。

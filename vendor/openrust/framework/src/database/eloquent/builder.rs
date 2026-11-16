@@ -1527,9 +1527,10 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) async fn paginate_hydrated(
         self,
-        options: PageOptions<'_>,
+        mut options: PageOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<LengthAwarePaginator<M>> {
+        options.perPage.get_or_insert(M::metadata().per_page);
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
@@ -1561,9 +1562,10 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) async fn simple_paginate_hydrated(
         self,
-        options: PageOptions<'_>,
+        mut options: PageOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<Paginator<M>> {
+        options.perPage.get_or_insert(M::metadata().per_page);
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
@@ -1830,9 +1832,10 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) async fn cursor_paginate_hydrated(
         self,
-        options: CursorOptions<'_>,
+        mut options: CursorOptions<'_>,
         hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
     ) -> DatabaseResult<CursorPaginator<M>> {
+        options.perPage.get_or_insert(M::metadata().per_page);
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query

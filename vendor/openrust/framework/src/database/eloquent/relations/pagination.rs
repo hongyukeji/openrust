@@ -10,7 +10,7 @@ pub(super) fn empty_length<T>(options: PageOptions<'_>) -> DatabaseResult<Length
     let (links, page, size) = empty_offset(&options)?;
     Ok(LengthAwarePaginator::from_query(
         Vec::new(),
-        0,
+        options.total.unwrap_or(0),
         page,
         size,
         links,
@@ -67,7 +67,10 @@ macro_rules! relation_pages {
         ) -> DatabaseResult<crate::pagination::LengthAwarePaginator<R>> {
             match self.pagination_target(parent)? {
                 Some(query) => query.paginateWith(options).await,
-                None => super::pagination::empty_length(options),
+                None => super::pagination::empty_length(crate::pagination::PageOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                }),
             }
         }
 
@@ -93,7 +96,10 @@ macro_rules! relation_pages {
         ) -> DatabaseResult<crate::pagination::Paginator<R>> {
             match self.pagination_target(parent)? {
                 Some(query) => query.simplePaginateWith(options).await,
-                None => super::pagination::empty_simple(options),
+                None => super::pagination::empty_simple(crate::pagination::PageOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                }),
             }
         }
 
@@ -119,7 +125,10 @@ macro_rules! relation_pages {
         ) -> DatabaseResult<crate::pagination::CursorPaginator<R>> {
             match self.pagination_target(parent)? {
                 Some(query) => query.cursorPaginateWith(options).await,
-                None => super::pagination::empty_cursor(options),
+                None => super::pagination::empty_cursor(crate::pagination::CursorOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                }),
             }
         }
     };

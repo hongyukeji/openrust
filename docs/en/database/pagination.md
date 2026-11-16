@@ -6,6 +6,22 @@
 
 Use `paginateWith` or `simplePaginateWith` with `PageOptions` to change the page name, select columns or supply an explicit page number. HTTP uses the current request’s query string. Outside HTTP, the default page is 1.
 
+Declare a model’s default page size with `ModelMetadata::perPage(size)`. Eloquent and relationship queries use the selected model’s setting when `perPage` is omitted. An explicit page size takes precedence. Query Builder defaults to 15. For length-aware pagination, set `PageOptions::total` to a precomputed count to skip the count query. A zero total returns an empty page without fetching rows. If the total comes from a cache or another service, resolve it before building the options.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn page_with_cached_total<M: Model>(total: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
+    M::query()?.paginateWith(PageOptions {
+        total: Some(total),
+        ..Default::default()
+    }).await
+}
+```
+
 ## Cursor Pagination
 
 `cursorPaginate(15)` compares the values of ordered columns and fetches one extra row. Pass the returned `next_cursor` or `prev_cursor` in the request. In Query Builder, order by selected, non-null scalar columns with a unique final tie-breaker. An Eloquent query without an explicit order uses the primary key. Grouped queries, unions and raw order expressions use offset pagination.

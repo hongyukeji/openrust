@@ -26,8 +26,11 @@ impl Builder<'_> {
     ) -> DatabaseResult<LengthAwarePaginator<Row>> {
         let (links, page, size, offset) = offset_page(&options)?;
         self = self.select_page_columns(options.columns);
-        let total = self.pagination_count().await?;
-        let items = if offset >= total {
+        let total = match options.total {
+            Some(total) => total,
+            None => self.pagination_count().await?,
+        };
+        let items = if total == 0 || (options.total.is_none() && offset >= total) {
             Vec::new()
         } else {
             self.limit(size).offset(offset).get().await?

@@ -62,7 +62,10 @@ struct IndexedArticle(ModelState);
 
 impl Model for IndexedArticle {
     fn metadata() -> &'static ModelMetadata {
-        Article::metadata()
+        static META: ModelMetadata = ModelMetadata::new("pagination_articles")
+            .timestamps(None, None)
+            .perPage(2);
+        &META
     }
     fn from_state(state: ModelState) -> Self {
         Self(state)
@@ -287,6 +290,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/each-batch", each_batch_page)?;
     Route::get("/lazy-batches", lazy_batch_page)?;
     Route::get("/singular-pages", singular_relation_pages)?;
+    Route::get("/page-defaults", page_defaults)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -2400,6 +2404,81 @@ fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, H
     })
 }
 
+fn page_defaults(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        async fn verify_defaults() -> DatabaseResult<Json> {
+            let page = IndexedArticle::query()?
+                .paginateWith(PageOptions {
+                    total: Some(41),
+                    pageName: "articles",
+                    ..Default::default()
+                })
+                .await?;
+            assert_eq!(page.perPage(), 2);
+            assert_eq!(page.total(), 41);
+            assert_eq!(page.items().len(), 2);
+            assert!(page.getByKey(30_i64).is_some());
+
+            let simple = IndexedArticle::query()?
+                .simplePaginateWith(PageOptions::default())
+                .await?;
+            assert_eq!(simple.perPage(), 2);
+            assert!(simple.hasMorePages());
+            let cursor = IndexedArticle::query()?
+                .cursorPaginateWith(CursorOptions::default())
+                .await?;
+            assert_eq!(cursor.perPage(), 2);
+            assert_eq!(cursor.items().len(), 2);
+            let explicit = IndexedArticle::query()?.paginate(1).await?;
+            assert_eq!(explicit.perPage(), 1);
+
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            let relation = BelongsTo::<Activity, IndexedArticle>::new("subject_id", "id");
+            let related = relation
+                .paginateWith(&activities[0], PageOptions::default())
+                .await?;
+            assert_eq!(related.perPage(), 2);
+            let empty = relation
+                .cursorPaginateWith(&activities[4], CursorOptions::default())
+                .await?;
+            assert_eq!(empty.perPage(), 2);
+            assert!(empty.items().is_empty());
+            let empty = relation
+                .paginateWith(
+                    &activities[4],
+                    PageOptions {
+                        total: Some(7),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(empty.total(), 7);
+            assert!(empty.items().is_empty());
+            let morph = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<IndexedArticle>("article", "id");
+            let morph_page = morph
+                .simplePaginateWith(&activities[0], PageOptions::default())
+                .await?;
+            assert_eq!(morph_page.perPage(), 2);
+
+            let raw = DB::connection(None)?
+                .table("pagination_articles")
+                .paginateWith(PageOptions::default())
+                .await?;
+            assert_eq!(raw.perPage(), 15);
+            Ok(json!({
+                "length": page.map(|model| id(model.getKey())),
+                "simple": simple.perPage(),
+                "cursor": cursor.perPage(),
+                "relation": related.perPage(),
+                "raw": raw.perPage()
+            }))
+        }
+
+        Response::json(StatusCode::OK, verify_defaults().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2523,6 +2602,31 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         assert_eq!(counted - before, 2);
         assert_eq!(simple - counted, 1);
         assert_eq!(select_count(&mut session).await? - simple, 1);
+        let before_injected = select_count(&mut session).await?;
+        let injected = session
+            .table("pagination_articles")
+            .orderBy("id", "asc")
+            .paginateWith(PageOptions {
+                perPage: Some(2),
+                page: Some(2),
+                total: Some(1),
+                ..Default::default()
+            })
+            .await?;
+        assert_eq!(injected.total(), 1);
+        assert_eq!(ids(injected.items()), [3, 4]);
+        let after_injected = select_count(&mut session).await?;
+        assert_eq!(after_injected - before_injected, 1);
+        let empty = session
+            .table("pagination_articles")
+            .paginateWith(PageOptions {
+                total: Some(0),
+                ..Default::default()
+            })
+            .await?;
+        assert_eq!(empty.total(), 0);
+        assert!(empty.items().is_empty());
+        assert_eq!(select_count(&mut session).await? - after_injected, 0);
         session.rollBack(None).await?;
     }
     let grouped = table()
@@ -3021,6 +3125,15 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(next["subjects"]["data"], json!([2]));
     let previous = request(address, next["subjects"]["prev_page_url"].as_str().unwrap()).await;
     assert_eq!(previous["subjects"]["data"], json!([1]));
+    let defaults = request(address, "/api/page-defaults?articles=2").await;
+    assert_eq!(defaults["length"]["total"], 41);
+    assert_eq!(defaults["length"]["per_page"], 2);
+    assert_eq!(defaults["length"]["current_page"], 2);
+    assert_eq!(defaults["length"]["data"], json!({"30": 3, "40": 4}));
+    assert_eq!(defaults["simple"], 2);
+    assert_eq!(defaults["cursor"], 2);
+    assert_eq!(defaults["relation"], 2);
+    assert_eq!(defaults["raw"], 15);
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

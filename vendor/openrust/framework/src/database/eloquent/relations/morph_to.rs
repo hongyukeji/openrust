@@ -1265,7 +1265,10 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<LengthAwarePaginator<MorphTarget>>> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
-                return super::pagination::empty_length(options);
+                return super::pagination::empty_length(PageOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                });
             };
             let page = soft_deletes.apply(query).paginateWith(options).await?;
             Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
@@ -1281,7 +1284,10 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<Paginator<MorphTarget>>> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
-                return super::pagination::empty_simple(options);
+                return super::pagination::empty_simple(PageOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                });
             };
             let page = soft_deletes
                 .apply(query)
@@ -1300,7 +1306,10 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<CursorPaginator<MorphTarget>>> {
         Box::pin(async move {
             let Some(query) = self.owner_query(parent)? else {
-                return super::pagination::empty_cursor(options);
+                return super::pagination::empty_cursor(CursorOptions {
+                    perPage: options.perPage.or(Some(R::metadata().per_page)),
+                    ..options
+                });
             };
             let page = soft_deletes
                 .apply(query)

@@ -29,6 +29,8 @@ pub struct PageOptions<'a> {
     pub columns: &'a [&'a str],
     pub pageName: &'a str,
     pub page: Option<u64>,
+    /// Supplies the total for length-aware pagination and skips its count query.
+    pub total: Option<u64>,
 }
 
 impl Default for PageOptions<'_> {
@@ -38,6 +40,7 @@ impl Default for PageOptions<'_> {
             columns: &["*"],
             pageName: "page",
             page: None,
+            total: None,
         }
     }
 }
@@ -72,8 +75,10 @@ pub struct PaginatorOptions<'a> {
     pub cursorName: Option<&'a str>,
 }
 
+pub(crate) const DEFAULT_PER_PAGE: u64 = 15;
+
 pub(crate) fn page_size(size: Option<u64>) -> PaginationResult<u64> {
-    let size = size.unwrap_or(15);
+    let size = size.unwrap_or(DEFAULT_PER_PAGE);
     if size == 0 || size >= i64::MAX as u64 {
         return Err(PaginationError::InvalidPerPage);
     }
