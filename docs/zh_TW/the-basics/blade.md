@@ -24,6 +24,17 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 以 `@includeIf('partials.notice')` 略過不存在的檢視。以 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 依條件轉譯。子檢視繼承目前的檢視資料，包括迴圈變數。條件成立並選中檢視時，`@includeWhen` 和 `@includeUnless` 要求該檢視存在。
 
+### 運算式與條件屬性 {#conditional-attributes}
+
+條件和輸出運算式可使用括號、`!`、`&&`、`||`、`===`、`!==` 和 `??`。嚴格比較保留純量型別。PHP 的物件身分和寬鬆型別轉換超出視圖資料模型的範圍。
+
+`@class` 和 `@style` 接受常值清單。獨立項目一律輸出，`文字 => 條件` 在條件為真時輸出。`@checked`、`@selected`、`@disabled`、`@readonly` 和 `@required` 在條件為真時輸出對應的 HTML 屬性。
+
+```html
+<input @checked($ready && $count === 2) @class(['field', 'active' => $ready])>
+{{ $label ?? 'Pending' }}
+```
+
 ### 迴圈變數 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 都接受 `$key => $item`。陣列的鍵是從零開始的整數。物件依視圖資料映射的順序提供字串鍵。

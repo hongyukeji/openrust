@@ -1,0 +1,172 @@
+use serde::{Deserialize, Serialize};
+
+use super::{ViewData, ViewResult, ViewValue, identifier, invalid, separators};
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum Expression {
+    Value(ViewValue),
+    Variable(Vec<String>),
+    Not(Box<Expression>),
+    Binary(BinaryOperator, Box<Expression>, Box<Expression>),
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+pub(super) enum BinaryOperator {
+    Coalesce,
+    Or,
+    And,
+    StrictEqual,
+    StrictNotEqual,
+}
+
+pub(super) fn expression_value(expression: &str) -> ViewResult<Expression> {
+    parse_expression(expression, 0)
+}
+
+fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
+    if depth > 48 {
+        return Err(invalid("Blade expressions are nested too deeply."));
+    }
+    let expression = expression.trim();
+    if let Ok(value) = serde_json::from_str(expression) {
+        return Ok(Expression::Value(value));
+    }
+    for operators in [
+        [("??", BinaryOperator::Coalesce)].as_slice(),
+        &[("||", BinaryOperator::Or)],
+        &[("&&", BinaryOperator::And)],
+        &[
+            ("===", BinaryOperator::StrictEqual),
+            ("!==", BinaryOperator::StrictNotEqual),
+        ],
+    ] {
+        let operation = operators
+            .iter()
+            .filter_map(|(token, operator)| {
+                let mut indices = separators(expression, token);
+                let index = if matches!(operator, BinaryOperator::Coalesce) {
+                    indices.next()
+                } else {
+                    indices.last()
+                }?;
+                Some((index, token.len(), *operator))
+            })
+            .max_by_key(|(index, _, _)| *index);
+        if let Some((index, length, operator)) = operation {
+            let lhs = parse_expression(&expression[..index], depth + 1)?;
+            let rhs = parse_expression(&expression[index + length..], depth + 1)?;
+            return Ok(Expression::Binary(operator, Box::new(lhs), Box::new(rhs)));
+        }
+    }
+    if let Some(rest) = expression.strip_prefix('!') {
+        return Ok(Expression::Not(Box::new(parse_expression(
+            rest,
+            depth + 1,
+        )?)));
+    }
+    if let Some(group) = expression
+        .strip_prefix('(')
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        return parse_expression(group, depth + 1);
+    }
+    if let Some(literal) = expression
+        .strip_prefix('\'')
+        .and_then(|rest| rest.strip_suffix('\''))
+        && !literal.contains(['\'', '\\'])
+    {
+        return Ok(Expression::Value(ViewValue::String(literal.to_owned())));
+    }
+    if let Some(path) = expression.strip_prefix('$') {
+        let path: Vec<_> = path.split("->").map(str::trim).collect();
+        if path.iter().all(|name| identifier(name)) {
+            return Ok(Expression::Variable(
+                path.into_iter().map(str::to_owned).collect(),
+            ));
+        }
+    }
+    Err(invalid("Unsupported Blade expression."))
+}
+
+pub(super) fn value<'a>(
+    expression: &'a Expression,
+    data: &'a ViewData,
+    bindings: &[(&str, &'a ViewValue)],
+) -> &'a ViewValue {
+    match expression {
+        Expression::Value(value) => value,
+        Expression::Not(expression) => boolean(!truthy(value(expression, data, bindings))),
+        Expression::Binary(operator, left, right) => {
+            let left = value(left, data, bindings);
+            let right = || value(right, data, bindings);
+            match operator {
+                BinaryOperator::Coalesce => {
+                    if left.is_null() {
+                        right()
+                    } else {
+                        left
+                    }
+                }
+                BinaryOperator::Or => boolean(truthy(left) || truthy(right())),
+                BinaryOperator::And => boolean(truthy(left) && truthy(right())),
+                BinaryOperator::StrictEqual => boolean(strict_equal(left, right())),
+                BinaryOperator::StrictNotEqual => boolean(!strict_equal(left, right())),
+            }
+        }
+        Expression::Variable(path) => {
+            let Some((name, segments)) = path.split_first() else {
+                return &ViewValue::Null;
+            };
+            let mut current = bindings
+                .iter()
+                .rev()
+                .find_map(|(key, value)| (*key == name).then_some(*value))
+                .or_else(|| data.get(name));
+            for segment in segments {
+                current = current.and_then(|value| value.get(segment));
+            }
+            current.unwrap_or(&ViewValue::Null)
+        }
+    }
+}
+
+fn boolean(value: bool) -> &'static ViewValue {
+    if value {
+        &ViewValue::Bool(true)
+    } else {
+        &ViewValue::Bool(false)
+    }
+}
+
+fn strict_equal(left: &ViewValue, right: &ViewValue) -> bool {
+    match (left, right) {
+        (ViewValue::Object(left), ViewValue::Object(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|((key, value), (other_key, other))| {
+                        key == other_key && strict_equal(value, other)
+                    })
+        }
+        (ViewValue::Array(left), ViewValue::Array(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(value, other)| strict_equal(value, other))
+        }
+        _ => left == right,
+    }
+}
+
+pub(super) fn truthy(value: &ViewValue) -> bool {
+    match value {
+        ViewValue::Null => false,
+        ViewValue::Bool(value) => *value,
+        ViewValue::Number(value) => value.as_f64().is_some_and(|number| number != 0.0),
+        ViewValue::String(value) => !value.is_empty() && value != "0",
+        ViewValue::Array(value) => !value.is_empty(),
+        ViewValue::Object(value) => !value.is_empty(),
+    }
+}

@@ -34,3 +34,10 @@
 - `@method` 生成同名隐藏字段，Rust 转义属性值。请求方法覆盖仍需单独实现路由接线。模板在 Rust 处理器、creator 或 composer 接收普通数据，PHP 计算通过相应 Rust 代码提供，类组件由应用注册。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖表单令牌回传 POST、默认和具名错误、错误消息转义、会话隔离及闪存老化。隔离副本通过全工作区格式与严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径及 `/docs/` 的 12 项通用浏览器检查和 6 项表单章节检查通过。
+
+## 表达式与条件属性
+
+- 对照固定 [Blade 条件和属性章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#conditional-classes)、`CompilesClasses`、`CompilesStyles` 和 `BladeCheckedStatementsTest`。PHP 运算顺序用于括号、逻辑否定、短路合取析取、严格相等和空值回退。Rust 视图值保留标量类型，集合比较其键和值，PHP 对象身份比较和宽松转换留给 Rust 处理器预先计算。
+- `@class`、`@style` 处理含条件的字面量列表，Rust 在输出属性边界转义文本。`@checked`、`@selected`、`@disabled`、`@readonly`、`@required` 在条件真时输出对应 HTML 属性。旧版 MiniJinja 无语法或指令编译产物可复用，沿用已提取的默认转义规则。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖分组和优先级、不同标量类型、缺值回退、属性转义及非法表达式 500。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项条件属性检查通过。

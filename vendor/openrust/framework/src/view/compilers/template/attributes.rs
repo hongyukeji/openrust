@@ -8,6 +8,7 @@ use super::{
 };
 
 pub(super) type Props = Vec<(String, Option<Expression>)>;
+pub(super) type AttributeList = Vec<(Expression, Option<Expression>)>;
 
 fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
     let source = source
@@ -74,6 +75,48 @@ pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
         return Ok(Node::Attributes(defaults));
     }
     Ok(Node::Echo(expression_value(source)?, escaped))
+}
+
+pub(super) fn parse_attribute_list(source: &str) -> ViewResult<AttributeList> {
+    array_entries(source)?
+        .into_iter()
+        .map(|entry| {
+            let (text, condition) = array_entry(entry);
+            Ok((
+                expression_value(text)?,
+                condition.map(expression_value).transpose()?,
+            ))
+        })
+        .collect()
+}
+
+pub(super) fn attribute_list(
+    entries: &AttributeList,
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    style: bool,
+) -> ViewResult<String> {
+    let mut text = Vec::new();
+    for (entry, condition) in entries {
+        if condition
+            .as_ref()
+            .is_some_and(|condition| !super::truthy(value(condition, data, bindings)))
+        {
+            continue;
+        }
+        let entry = value(entry, data, bindings)
+            .as_str()
+            .ok_or_else(|| render_error("Blade class and style entries require text."))?
+            .trim();
+        if !entry.is_empty() {
+            text.push(if style {
+                format!("{};", entry.trim_end_matches(';'))
+            } else {
+                entry.to_owned()
+            });
+        }
+    }
+    Ok(text.join(" "))
 }
 
 pub(super) fn attribute_name(name: &str) -> bool {

@@ -394,6 +394,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/broken-fragment", || {
                     view("broken_fragment").fragment("left")
                 })?;
+                Route::get("/expressions", || {
+                    view("expressions").with("ready", true).with("count", 2)
+                })?;
+                Route::get("/invalid-expression", || view("invalid_expression"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -575,6 +579,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "@fragment('right')<i>{{ $app }}</i>@endfragment",
         ),
         ("broken_fragment", "@fragment('left')broken"),
+        (
+            "expressions",
+            concat!(
+                r#"<input @checked($ready && $count === 2) @disabled(!$ready) "#,
+                r#"@class(['field', 'active<&' => $ready]) "#,
+                r#"@style(['color: red' => $ready, 'display: none' => !$ready])>"#,
+                "@if (false || $ready && ($count !== '2'))ok@endif",
+                "{{ $missing ?? $absent ?? '<fallback>' }}",
+            ),
+        ),
+        ("invalid_expression", "@if ($x ===)broken@endif"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -664,6 +679,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "<main><b>A</b><i>A</i></main>"
     );
     assert!(send(first, "/broken-fragment", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/expressions", 200).await,
+        r#"<input checked  class="field active&lt;&amp;" style="color: red;">ok&lt;fallback&gt;"#
+    );
+    assert!(
+        send(first, "/invalid-expression", 500)
+            .await
+            .contains("500")
+    );
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

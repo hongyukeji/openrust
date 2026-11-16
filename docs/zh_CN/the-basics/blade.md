@@ -24,6 +24,17 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 用 `@includeIf('partials.notice')` 跳过缺失的视图。用 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 按条件渲染。子视图继承当前视图数据，包括循环变量。条件成立并选中视图时，`@includeWhen` 和 `@includeUnless` 要求该视图存在。
 
+### 表达式与条件属性 {#conditional-attributes}
+
+条件和输出表达式可使用括号、`!`、`&&`、`||`、`===`、`!==` 和 `??`。严格比较保留标量类型。PHP 的对象身份和宽松类型转换超出视图数据模型的范围。
+
+`@class` 和 `@style` 接受字面量列表。独立条目始终输出，`文本 => 条件` 在条件为真时输出。`@checked`、`@selected`、`@disabled`、`@readonly` 和 `@required` 在条件为真时输出对应的 HTML 属性。
+
+```html
+<input @checked($ready && $count === 2) @class(['field', 'active' => $ready])>
+{{ $label ?? 'Pending' }}
+```
+
 ### 循环变量 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 均接受 `$key => $item`。数组的键是从零开始的整数。对象按视图数据映射的顺序提供字符串键。

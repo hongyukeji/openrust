@@ -24,6 +24,17 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### Expressions and Conditional Attributes {#conditional-attributes}
+
+Use parentheses, `!`, `&&`, `||`, `===`, `!==`, and `??` in conditions and echoes. Strict comparison preserves scalar types. PHP object identity and loose coercion have no corresponding operation in the view data model.
+
+Use `@class` and `@style` with literal lists. Plain entries always render, and entries written as `text => condition` render when the condition is true. `@checked`, `@selected`, `@disabled`, `@readonly`, and `@required` emit their HTML attribute when true.
+
+```html
+<input @checked($ready && $count === 2) @class(['field', 'active' => $ready])>
+{{ $label ?? 'Pending' }}
+```
+
 ### The Loop Variable {#the-loop-variable}
 
 Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based integer keys. Objects expose string keys in the order of the view data map.

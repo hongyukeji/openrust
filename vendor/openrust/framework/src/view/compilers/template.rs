@@ -9,11 +9,14 @@ use crate::view::{
 };
 
 mod attributes;
+mod expressions;
 
 use attributes::{
-    Props, apply_props, attribute_name, merge_attributes, parse_echo, parse_props,
-    render_attributes,
+    AttributeList, Props, apply_props, attribute_list, attribute_name, merge_attributes,
+    parse_attribute_list, parse_echo, parse_props, render_attributes,
 };
+
+use expressions::{Expression, expression_value, truthy, value};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
@@ -45,6 +48,8 @@ enum Node {
     Method(Expression),
     Error(Expression, Option<Expression>, Vec<Node>),
     Fragment(Expression, Vec<Node>),
+    BooleanAttribute(String, Expression),
+    ConditionalAttribute(AttributeList, bool),
     Include(Expression),
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
@@ -63,12 +68,6 @@ enum Predicate {
     Empty,
     Isset,
     HasStack,
-}
-
-#[derive(Serialize, Deserialize)]
-enum Expression {
-    Value(ViewValue),
-    Variable(Vec<String>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -428,6 +427,16 @@ impl<'a> Parser<'a> {
                 return Err(invalid("Expected @endfragment."));
             }
             Node::Fragment(name, body)
+        } else if let Some(name) = ["checked", "selected", "disabled", "readonly", "required"]
+            .into_iter()
+            .find(|name| self.directive(name))
+        {
+            Node::BooleanAttribute(name.to_owned(), expression_value(self.arguments()?)?)
+        } else if let Some(style) = ["class", "style"]
+            .into_iter()
+            .find(|name| self.directive(name))
+        {
+            Node::ConditionalAttribute(parse_attribute_list(self.arguments()?)?, style == "style")
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
@@ -716,29 +725,6 @@ fn push_text(nodes: &mut Vec<Node>, text: &mut String) {
     }
 }
 
-fn expression_value(expression: &str) -> ViewResult<Expression> {
-    let expression = expression.trim();
-    if let Ok(value) = serde_json::from_str(expression) {
-        return Ok(Expression::Value(value));
-    }
-    if let Some(literal) = expression
-        .strip_prefix('\'')
-        .and_then(|rest| rest.strip_suffix('\''))
-        && !literal.contains(['\'', '\\'])
-    {
-        return Ok(Expression::Value(ViewValue::String(literal.to_owned())));
-    }
-    if let Some(path) = expression.strip_prefix('$') {
-        let path: Vec<_> = path.split("->").map(str::trim).collect();
-        if path.iter().all(|name| identifier(name)) {
-            return Ok(Expression::Variable(
-                path.into_iter().map(str::to_owned).collect(),
-            ));
-        }
-    }
-    Err(invalid("Unsupported Blade expression."))
-}
-
 fn identifier(name: &str) -> bool {
     let mut characters = name.chars();
     characters
@@ -763,30 +749,6 @@ fn loop_variable(binding: &str) -> ViewResult<String> {
         .filter(|name| identifier(name))
         .map(str::to_owned)
         .ok_or_else(|| invalid("Invalid Blade loop variable."))
-}
-
-fn value<'a>(
-    expression: &'a Expression,
-    data: &'a ViewData,
-    bindings: &[(&str, &'a ViewValue)],
-) -> &'a ViewValue {
-    match expression {
-        Expression::Value(value) => value,
-        Expression::Variable(path) => {
-            let Some((name, segments)) = path.split_first() else {
-                return &ViewValue::Null;
-            };
-            let mut current = bindings
-                .iter()
-                .rev()
-                .find_map(|(key, value)| (*key == name).then_some(*value))
-                .or_else(|| data.get(name));
-            for segment in segments {
-                current = current.and_then(|value| value.get(segment));
-            }
-            current.unwrap_or(&ViewValue::Null)
-        }
-    }
 }
 
 fn render_nodes<'a>(
@@ -985,6 +947,18 @@ fn render_nodes<'a>(
                 output.push_str(&html);
                 context.capture_fragment(name, html);
             }
+            Node::BooleanAttribute(name, condition) => {
+                if truthy(value(condition, data, bindings)) {
+                    output.push_str(name);
+                }
+            }
+            Node::ConditionalAttribute(entries, style) => {
+                let name = if *style { "style" } else { "class" };
+                let text = attribute_list(entries, data, bindings, *style)?;
+                write!(output, "{name}=\"").unwrap();
+                escape_html(output, &text);
+                output.push('"');
+            }
             Node::Include(expression) | Node::IncludeIf(expression) => {
                 let name = name_value(value(expression, data, bindings))?;
                 if matches!(node, Node::Include(_)) || context.exists(name)? {
@@ -1056,17 +1030,6 @@ fn echo(output: &mut String, value: &ViewValue, escape: bool) {
         ViewValue::Bool(true) => output.push('1'),
         ViewValue::Number(number) => write!(output, "{number}").unwrap(),
         _ => {}
-    }
-}
-
-fn truthy(value: &ViewValue) -> bool {
-    match value {
-        ViewValue::Null => false,
-        ViewValue::Bool(value) => *value,
-        ViewValue::Number(value) => value.as_f64().is_some_and(|number| number != 0.0),
-        ViewValue::String(value) => !value.is_empty() && value != "0",
-        ViewValue::Array(value) => !value.is_empty(),
-        ViewValue::Object(value) => !value.is_empty(),
     }
 }
 
