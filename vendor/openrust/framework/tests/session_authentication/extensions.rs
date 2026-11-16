@@ -307,3 +307,232 @@ async fn http_basic_supports_session_and_stateless_authentication() {
     );
     server.abort();
 }
+
+#[tokio::test]
+async fn session_guard_emits_authentication_lifecycle_events() {
+    use openrust::{
+        auth::events::{
+            Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, Validated,
+        },
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+    };
+
+    type Recorded = Arc<Mutex<Vec<(String, bool)>>>;
+    struct ListenerProbe(Recorded);
+
+    impl Listener for ListenerProbe {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            context: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let mut extra = false;
+                if let Some(event) = event.downcast_ref::<Attempting>() {
+                    assert_eq!(event.guard, "web");
+                    assert!(
+                        event
+                            .credentials(context)
+                            .unwrap()
+                            .fields()
+                            .contains_key("email")
+                    );
+                    extra = event.remember;
+                }
+                if let Some(event) = event.downcast_ref::<Failed>() {
+                    assert!(event.credentials(context).is_some());
+                    extra = event.user.is_some();
+                }
+                if let Some(event) = event.downcast_ref::<Validated>() {
+                    assert_eq!(
+                        event
+                            .user::<Account>(context)
+                            .unwrap()
+                            .get_auth_identifier(),
+                        event.user
+                    );
+                }
+                if let Some(event) = event.downcast_ref::<Login>() {
+                    assert_eq!(
+                        event.user.get_auth_identifier(),
+                        AuthIdentifier::from("001")
+                    );
+                    extra = event.remember;
+                }
+                if let Some(event) = event.downcast_ref::<Authenticated>() {
+                    assert_eq!(
+                        event.user.get_auth_identifier(),
+                        AuthIdentifier::from("001")
+                    );
+                }
+                if let Some(event) = event.downcast_ref::<Logout>() {
+                    extra = event.user.is_some();
+                }
+                if let Some(event) = event.downcast_ref::<CurrentDeviceLogout>() {
+                    extra = event.user.is_some();
+                }
+                self.0.lock().unwrap().push((event.name().into(), extra));
+                Ok(None)
+            })
+        }
+    }
+
+    fn remember(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let credentials = Credentials::new([("email", "a@example.test".into())], "good:secret");
+            assert!(
+                Auth::sessionGuard(req, None)?
+                    .attempt(&credentials, true)
+                    .await?
+            );
+            current(req).await
+        })
+    }
+
+    fn end_device(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Auth::sessionGuard(req, None)?.logoutCurrentDevice().await?;
+            current(req).await
+        })
+    }
+
+    let recorded: Recorded = Arc::default();
+    let captured = recorded.clone();
+    let (address, server) = start(
+        || {
+            Route::getWith("/basic", current, |route| {
+                route.middleware_name("auth.basic");
+                Ok(())
+            })?;
+            Route::get("/who", current)?;
+            Route::r#match(&[Method::POST], "/remember", remember)?;
+            Route::r#match(&[Method::POST], "/end-device", end_device)?;
+            Route::r#match(&[Method::POST], "/logout", logout)?;
+            Ok(())
+        },
+        || {
+            Route::get("/stateless", stateless)?;
+            Ok(())
+        },
+        move |app| {
+            let dispatcher = app.container().make::<Dispatcher>().unwrap();
+            let listener = Arc::new(ListenerProbe(captured));
+            for name in [
+                "Attempting",
+                "Validated",
+                "Authenticated",
+                "Failed",
+                "Login",
+                "Logout",
+                "CurrentDeviceLogout",
+            ] {
+                dispatcher
+                    .listen(name, listener.clone(), Delivery::Sync)
+                    .unwrap();
+            }
+        },
+    )
+    .await;
+    let take = || std::mem::take(&mut *recorded.lock().unwrap());
+    let expected = |sequence: &[(&str, bool)]| {
+        sequence
+            .iter()
+            .map(|(name, value)| ((*name).to_owned(), *value))
+            .collect::<Vec<_>>()
+    };
+
+    send(
+        address,
+        "GET",
+        "/basic",
+        &authorization("a@example.test", "wrong"),
+        "",
+        401,
+    )
+    .await;
+    assert_eq!(take(), expected(&[("Attempting", false), ("Failed", true)]));
+    send(
+        address,
+        "GET",
+        "/basic",
+        &authorization("other@example.test", "wrong"),
+        "",
+        401,
+    )
+    .await;
+    assert_eq!(
+        take(),
+        expected(&[("Attempting", false), ("Failed", false)])
+    );
+    send(
+        address,
+        "GET",
+        "/api/stateless",
+        &authorization("a@example.test", "good:secret"),
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(
+        take(),
+        expected(&[
+            ("Attempting", false),
+            ("Validated", false),
+            ("Authenticated", false)
+        ])
+    );
+
+    let login = send(address, "POST", "/remember", "", "", 200).await;
+    let main_cookie = login.cookie("auth_session");
+    let remember_cookie = login.cookie("remember_web");
+    assert_eq!(
+        take(),
+        expected(&[
+            ("Attempting", true),
+            ("Validated", false),
+            ("Login", true),
+            ("Authenticated", false)
+        ])
+    );
+    get(address, "/who", &main_cookie, 200).await;
+    assert_eq!(take(), expected(&[("Authenticated", false)]));
+    let recalled = get(address, "/who", &remember_cookie, 200).await;
+    assert_eq!(take(), expected(&[("Login", true)]));
+
+    let recalled_cookie = recalled.cookie("auth_session");
+    send(
+        address,
+        "POST",
+        "/end-device",
+        &format!("Cookie: {recalled_cookie}\r\n"),
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(
+        take(),
+        expected(&[("Authenticated", false), ("CurrentDeviceLogout", true)])
+    );
+    get(address, "/who", &remember_cookie, 200).await;
+    assert_eq!(take(), expected(&[("Login", true)]));
+    send(
+        address,
+        "POST",
+        "/logout",
+        &format!("Cookie: {main_cookie}\r\n"),
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(
+        take(),
+        expected(&[("Authenticated", false), ("Logout", true)])
+    );
+    assert_eq!(
+        get(address, "/who", &remember_cookie, 200).await.body["user"],
+        Json::Null
+    );
+    assert!(take().is_empty());
+    server.abort();
+}

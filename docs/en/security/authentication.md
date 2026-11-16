@@ -52,6 +52,38 @@ fn register_basic_routes() -> Result<(), RoutingError> {
 
 Call `Auth::onceBasic(request, "email", &[]).await?` in an API handler for request-only authentication. Use HTTPS when sending Basic credentials.
 
+## Authentication events {#authentication-events}
+
+The application dispatcher emits `Attempting` before a credential attempt and `Validated` after the provider accepts the credentials. Persistent login emits `Login` then `Authenticated`. Resolving a session emits `Authenticated`. Restoring a remembered session emits `Login` with `remember = true`. A failed attempt emits `Failed`, which can include the user found by the provider. `Logout` and `CurrentDeviceLogout` identify how authentication ended.
+
+Synchronous listeners for `Attempting` and `Failed` can access the borrowed credentials through `credentials(context)`. Keep passwords out of logs. A `Validated` listener can borrow the typed user through `user::<T>(context)`.
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    auth::events::Login,
+    contracts::events::{Dispatcher as _, Event},
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+};
+
+fn record_login<'a>(
+    event: &'a dyn Event,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        if let Some(login) = event.downcast_ref::<Login>() {
+            eprintln!("login guard={} remember={}", login.guard, login.remember);
+        }
+        Ok(None)
+    })
+}
+
+fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
+    dispatcher.listen("Login", Arc::new(record_login), Delivery::Sync)
+}
+```
+
 ## Custom Guards and Providers
 
 The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.

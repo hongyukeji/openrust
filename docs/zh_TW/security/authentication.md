@@ -52,6 +52,38 @@ fn register_basic_routes() -> Result<(), RoutingError> {
 
 在 API 處理常式中呼叫 `Auth::onceBasic(request, "email", &[]).await?` 可以只驗證目前請求。請透過 HTTPS 傳送 Basic 憑證。
 
+## 驗證事件 {#authentication-events}
+
+憑證驗證開始時，應用程式派發 `Attempting`，提供者驗證通過後派發 `Validated`。工作階段登入依序派發 `Login` 和 `Authenticated`。讀取現有工作階段派發 `Authenticated`，透過 remember Cookie 恢復工作階段時派發帶有 `remember = true` 的 `Login`。嘗試失敗時派發 `Failed`，其中可能包含提供者找到的使用者。`Logout` 和 `CurrentDeviceLogout` 分別表示一般登出和目前裝置登出。
+
+`Attempting` 和 `Failed` 的同步監聽器可透過 `credentials(context)` 借用憑證。請避免將密碼寫入日誌。`Validated` 監聽器可透過 `user::<T>(context)` 借用具型別的使用者。
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    auth::events::Login,
+    contracts::events::{Dispatcher as _, Event},
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+};
+
+fn record_login<'a>(
+    event: &'a dyn Event,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        if let Some(login) = event.downcast_ref::<Login>() {
+            eprintln!("login guard={} remember={}", login.guard, login.remember);
+        }
+        Ok(None)
+    })
+}
+
+fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
+    dispatcher.listen("Login", Arc::new(record_login), Delivery::Sync)
+}
+```
+
 ## 自訂 Guard 和提供器
 
 預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。

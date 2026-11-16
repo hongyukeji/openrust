@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+    time::Duration,
+};
 
 use aws_lc_rs::digest::{SHA256, digest};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -6,16 +10,24 @@ use serde::{Deserialize, Serialize};
 use subtle::ConstantTimeEq as _;
 
 use crate::{
+    container::Container,
     contracts::{
         auth::{Authenticatable, Guard, StatefulGuard, UserProvider},
+        container::Container as _,
+        events::{Dispatcher as _, Event},
         session::Session as _,
     },
     cookie::{CookieOptions, facade::Cookie},
+    events::{Dispatcher, EventContext},
     http::Request,
     support::facades::{Facade as _, RateLimiter},
 };
 
 use super::{AuthError, AuthFuture, AuthIdentifier, AuthResult, Credentials};
+use super::{
+    access::Argument,
+    events::{Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, Validated},
+};
 
 #[derive(Clone, Default)]
 pub(super) struct GuardState {
@@ -85,6 +97,7 @@ pub struct SessionGuard<'a> {
     recaller: String,
     remember_minutes: i64,
     rehash: bool,
+    owner: Weak<Container>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's SessionGuard API")]
@@ -103,13 +116,54 @@ impl<'a> SessionGuard<'a> {
             name,
             remember_minutes: 576_000,
             rehash: true,
+            owner: Weak::new(),
         }
     }
 
-    pub(super) fn configure(mut self, remember_minutes: i64, rehash: bool) -> Self {
+    pub(super) fn configure(
+        mut self,
+        remember_minutes: i64,
+        rehash: bool,
+        owner: Weak<Container>,
+    ) -> Self {
         self.remember_minutes = remember_minutes;
         self.rehash = rehash;
+        self.owner = owner;
         self
+    }
+
+    async fn emit<E: Event>(&mut self, event: E, arguments: &[&Argument]) -> AuthResult<()> {
+        let Some(owner) = self.owner.upgrade().filter(|owner| owner.has("events")) else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(AuthError::backend)?;
+        let event = Arc::new(event);
+        let mut context = EventContext::with_arguments(event.as_ref(), arguments);
+        dispatcher
+            .dispatch(event.clone(), &mut context)
+            .await
+            .map_err(AuthError::backend)?;
+        Ok(())
+    }
+
+    /// Installs a user for the current request and dispatches `Authenticated`.
+    pub async fn setUser(&mut self, user: Box<dyn Authenticatable>) -> AuthResult<()> {
+        let user: Arc<dyn Authenticatable> = user.into();
+        self.authenticate(user).await
+    }
+
+    async fn authenticate(&mut self, user: Arc<dyn Authenticatable>) -> AuthResult<()> {
+        AuthContext::set_shared(self.request, &self.name, Some(user.clone()), false);
+        self.emit(
+            Authenticated {
+                guard: self.name.clone(),
+                user,
+            },
+            &[],
+        )
+        .await
     }
 
     pub fn getName(&self) -> &str {
@@ -181,15 +235,24 @@ impl<'a> SessionGuard<'a> {
         if let Some(id) = id
             && let Some(user) = self.provider.retrieve_by_id(&id).await?
         {
-            AuthContext::set(self.request, &self.name, Some(user), false);
-            return Ok(());
+            return self.setUser(user).await;
         }
-        let user = self.recall().await?;
-        let remembered = user.is_some();
-        if let Some(user) = &user {
+        if let Some(user) = self.recall().await? {
+            let user: Arc<dyn Authenticatable> = user.into();
             self.update_session(&user.get_auth_identifier()).await?;
+            AuthContext::set_shared(self.request, &self.name, Some(user.clone()), true);
+            return self
+                .emit(
+                    Login {
+                        guard: self.name.clone(),
+                        user,
+                        remember: true,
+                    },
+                    &[],
+                )
+                .await;
         }
-        AuthContext::set(self.request, &self.name, user, remembered);
+        AuthContext::set(self.request, &self.name, None, false);
         Ok(())
     }
 
@@ -223,15 +286,45 @@ impl<'a> SessionGuard<'a> {
     async fn validated(
         &mut self,
         credentials: &Credentials,
+        attempting: Option<bool>,
     ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
         let started = tokio::time::Instant::now();
-        if let Some(user) = self.provider.retrieve_by_credentials(credentials).await?
+        if let Some(remember) = attempting {
+            self.emit(
+                Attempting {
+                    guard: self.name.clone(),
+                    remember,
+                },
+                &[credentials],
+            )
+            .await?;
+        }
+        let candidate = self.provider.retrieve_by_credentials(credentials).await?;
+        if let Some(user) = &candidate
             && self
                 .provider
                 .validate_credentials(user.as_ref(), credentials)
                 .await?
         {
-            return Ok(Some(user));
+            self.emit(
+                Validated {
+                    guard: self.name.clone(),
+                    user: user.get_auth_identifier(),
+                },
+                &[user.as_ref() as &Argument],
+            )
+            .await?;
+            return Ok(candidate);
+        }
+        if attempting.is_some() {
+            self.emit(
+                Failed {
+                    guard: self.name.clone(),
+                    user: candidate.map(Arc::from),
+                },
+                &[credentials],
+            )
+            .await?;
         }
         tokio::time::sleep_until(started + Duration::from_millis(200)).await;
         Ok(None)
@@ -275,7 +368,7 @@ impl<'a> SessionGuard<'a> {
         if remember && !self.request.cookie_is_protected(&self.recaller) {
             return Err(AuthError::UnprotectedRememberCookie);
         }
-        let Some(mut user) = self.validated(credentials).await? else {
+        let Some(mut user) = self.validated(credentials, Some(remember)).await? else {
             return Ok(None);
         };
         if self.rehash {
@@ -338,8 +431,17 @@ impl<'a> SessionGuard<'a> {
         if let Some(cookie) = cookie {
             Cookie::queue(cookie).map_err(AuthError::backend)?;
         }
-        AuthContext::set(self.request, &self.name, Some(user), false);
-        Ok(())
+        let user: Arc<dyn Authenticatable> = user.into();
+        self.emit(
+            Login {
+                guard: self.name.clone(),
+                user: user.clone(),
+                remember,
+            },
+            &[],
+        )
+        .await?;
+        self.authenticate(user).await
     }
 
     /// Logs out, invalidates the application session and rotates its CSRF token.
@@ -350,33 +452,59 @@ impl<'a> SessionGuard<'a> {
         session.regenerateToken().map_err(AuthError::backend)
     }
 
-    async fn end(&mut self) -> AuthResult<()> {
+    async fn end(&mut self, current_device_only: bool) -> AuthResult<()> {
         self.resolve().await?;
-        let id = self
-            .state()
-            .and_then(|state| state.user.as_ref())
-            .filter(|user| {
-                user.get_remember_token()
+        let user = self.state().and_then(|state| state.user.clone());
+        let result = async {
+            self.clear_device()?;
+            if current_device_only {
+                return self
+                    .emit(
+                        CurrentDeviceLogout {
+                            guard: self.name.clone(),
+                            user,
+                        },
+                        &[],
+                    )
+                    .await;
+            }
+            if let Some(user) = &user
+                && user
+                    .get_remember_token()
                     .is_some_and(|token| !token.is_empty())
-            })
-            .map(|user| user.get_auth_identifier());
-        if let Some(id) = id
-            && let Some(mut user) = self.provider.retrieve_by_id(&id).await?
-        {
-            self.provider
-                .update_remember_token(user.as_mut(), &random_token()?)
-                .await?;
+                && let Some(mut current) = self
+                    .provider
+                    .retrieve_by_id(&user.get_auth_identifier())
+                    .await?
+            {
+                self.provider
+                    .update_remember_token(current.as_mut(), &random_token()?)
+                    .await?;
+            }
+            self.emit(
+                Logout {
+                    guard: self.name.clone(),
+                    user,
+                },
+                &[],
+            )
+            .await
         }
-        self.logoutCurrentDevice()
+        .await;
+        AuthContext::set(self.request, &self.name, None, false);
+        result
     }
 
-    pub fn logoutCurrentDevice(&mut self) -> AuthResult<()> {
+    pub async fn logoutCurrentDevice(&mut self) -> AuthResult<()> {
+        self.end(true).await
+    }
+
+    fn clear_device(&mut self) -> AuthResult<()> {
         let key = self.session_key.clone();
         self.session()?.forget(&[&key]);
         if self.request.cookie_is_protected(&self.recaller) {
             Cookie::expire(&self.recaller, None, None).map_err(AuthError::backend)?;
         }
-        AuthContext::set(self.request, &self.name, None, false);
         Ok(())
     }
 }
@@ -419,7 +547,7 @@ impl Guard for SessionGuard<'_> {
         &'a mut self,
         credentials: &'a Credentials,
     ) -> AuthFuture<'a, AuthResult<bool>> {
-        Box::pin(async move { Ok(self.validated(credentials).await?.is_some()) })
+        Box::pin(async move { Ok(self.validated(credentials, None).await?.is_some()) })
     }
 
     fn set_user(&mut self, user: Box<dyn Authenticatable>) {
@@ -444,7 +572,7 @@ impl StatefulGuard for SessionGuard<'_> {
 
     fn once<'a>(&'a mut self, credentials: &'a Credentials) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async move {
-            let Some(mut user) = self.validated(credentials).await? else {
+            let Some(mut user) = self.validated(credentials, Some(false)).await? else {
                 return Ok(false);
             };
             if self.rehash {
@@ -452,7 +580,7 @@ impl StatefulGuard for SessionGuard<'_> {
                     .rehash_password_if_required(user.as_mut(), credentials, false)
                     .await?;
             }
-            self.set_user(user);
+            self.setUser(user).await?;
             Ok(true)
         })
     }
@@ -484,7 +612,7 @@ impl StatefulGuard for SessionGuard<'_> {
             let Some(user) = self.provider.retrieve_by_id(id).await? else {
                 return Ok(false);
             };
-            self.set_user(user);
+            self.setUser(user).await?;
             Ok(true)
         })
     }
@@ -494,6 +622,6 @@ impl StatefulGuard for SessionGuard<'_> {
     }
 
     fn logout(&mut self) -> AuthFuture<'_, AuthResult<()>> {
-        Box::pin(self.end())
+        Box::pin(self.end(false))
     }
 }

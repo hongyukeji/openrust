@@ -70,7 +70,8 @@ impl Middleware for AuthenticateSession {
                 });
                 if !valid {
                     auth.sessionGuard(request, Some(guard.as_str()))?
-                        .logoutCurrentDevice()?;
+                        .logoutCurrentDevice()
+                        .await?;
                     invalid = true;
                 }
             }

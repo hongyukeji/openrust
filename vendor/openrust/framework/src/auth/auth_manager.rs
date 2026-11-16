@@ -328,7 +328,11 @@ impl AuthManager {
             .get("hashing.rehash_on_login")
             .and_then(|value| value.as_bool())
             .unwrap_or(true);
-        Ok(SessionGuard::new(name, provider, request).configure(minutes, rehash))
+        Ok(SessionGuard::new(name, provider, request).configure(
+            minutes,
+            rehash,
+            self.container.clone(),
+        ))
     }
 
     pub fn createUserProvider(&self, name: &str) -> AuthResult<Arc<dyn UserProvider>> {

@@ -10,3 +10,8 @@
 
 - 对照固定 [SessionGuard](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/SessionGuard.php#L374-L427) 的会话及单次 Basic 验证。支持 `auth.basic`、具名 Guard 和查找字段、已有会话直通、`Auth::onceBasic`、HTTP 401 及 `WWW-Authenticate: Basic`。旧版无可直接复用的 Basic 实现，复用已有凭据类型与 Guard。Rust 将 Base64 解码结果临时保存在归零缓冲区。
 - Rust 1.94.0、macOS ARM64。真实 HTTP 覆盖无效凭据、冒号密码、会话持久化、指定用户名字段及单次请求隔离。隔离工作区格式与严格 Clippy 通过，既有 Sanctum 格式差异仅在隔离副本中整理。实际 Artisan `route:list --middleware auth.basic --json` 识别三语共用示例中的两种别名，VitePress 三语构建通过。
+
+## 会话 Guard 认证事件
+
+- 固定 SessionGuard 的 `Attempting`、`Validated`、`Login`、`Authenticated`、`Failed`、`Logout`、`CurrentDeviceLogout` 接入已有应用事件派发器。Rust 同步监听器按生命周期借用凭据和验证前的类型化用户。(当前设备登出使用异步 API 以等待应用监听器，Sanctum 调用点同步更新。)
+- Rust 1.94.0、macOS ARM64。真实 HTTP 验证错误凭据的已知和未知用户、单次登录、持久登录、会话读取、remember 恢复、当前设备与普通登出的事件顺序和令牌行为，两项数据库独立的定向测试通过。隔离工作区格式与启用 Sanctum 的严格 Clippy 通过。实际 Artisan `event:list --event Login --json` 验证三语共用监听器的注册，三语构建通过。
