@@ -26,8 +26,8 @@ use crate::{
 };
 
 use super::{
-    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, LostConnectionDetector, QueryLogEntry,
-    RawQueryLogEntry, Row, Value,
+    Bindings, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult,
+    LostConnectionDetector, QueryLogEntry, RawQueryLogEntry, Row, Transaction, Value,
     bindings::{PreparedBindings, render_query},
     connection_pools::{ConnectionPools, PoolGeneration},
     events::{
@@ -38,6 +38,17 @@ use super::{
     transaction::BeginCallback,
     value,
 };
+
+pub(super) type BeforeExecutingCallback = Arc<
+    dyn for<'a> Fn(
+            &'a str,
+            Bindings<'a>,
+            &'a Connection,
+            Option<&'a mut Transaction>,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + Sync,
+>;
 
 #[derive(Clone)]
 pub(super) enum Pool {
@@ -61,6 +72,7 @@ pub struct Connection {
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,
     pub(super) query_log: Arc<QueryLog>,
+    pub(super) before_executing: Arc<Mutex<Vec<BeforeExecutingCallback>>>,
     pub(super) before_transaction: Arc<Mutex<Vec<BeginCallback>>>,
 }
 
@@ -531,6 +543,9 @@ macro_rules! observed_query {
     ($connection:ident, $sql:ident, $bindings:expr, $read:expr,
       |$physical:ident, $values:ident| $operation:expr, $before:expr, $after:expr) => {{
         let $values: Bindings<'_> = $bindings.into();
+        $connection
+            .run_before_executing($sql, $values, None)
+            .await?;
         let mut replayed = false;
         let mut elapsed = Duration::ZERO;
         loop {
@@ -569,6 +584,52 @@ impl Connection {
         match connection {
             Some(connection) => connection.model_container.upgrade(),
             None => crate::support::facades::current_container(),
+        }
+    }
+
+    /// Registers a hook before each logical SQL execution, including the first poll of a cursor.
+    pub fn beforeExecuting(
+        &self,
+        callback: impl for<'a> Fn(
+            &'a str,
+            Bindings<'a>,
+            &'a Connection,
+            Option<&'a mut Transaction>,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &Self {
+        self.before_executing
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(Arc::new(callback));
+        self
+    }
+
+    pub(super) async fn run_before_executing(
+        &self,
+        sql: &str,
+        bindings: Bindings<'_>,
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<()> {
+        let callbacks = self
+            .before_executing
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if callbacks.is_empty() {
+            return Ok(());
+        }
+        let work = async {
+            for callback in callbacks {
+                callback(sql, bindings, self, transaction.as_deref_mut()).await?;
+            }
+            Ok(())
+        };
+        match Self::model_container(Some(self)) {
+            Some(owner) => application_scope(owner, work).await,
+            None => work.await,
         }
     }
 
@@ -960,6 +1021,7 @@ impl Connection {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
+            self.run_before_executing(sql, bindings, None).await?;
             let mut replayed = false;
             let mut elapsed = Duration::ZERO;
             let mut delivered = false;

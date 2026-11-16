@@ -1748,6 +1748,143 @@ async fn canceled_establishment_allows_the_next_operation_to_dispatch() {
     assert_eq!(listener.0.load(Ordering::SeqCst), 2);
 }
 
+async fn verify_before_executing(connection: Connection) {
+    connection
+        .unprepared("CREATE TABLE query_hook_probe (n BIGINT)")
+        .await
+        .unwrap();
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let recorded = calls.clone();
+    connection.beforeExecuting(move |sql, bindings, connection, transaction| {
+        let recorded = recorded.clone();
+        Box::pin(async move {
+            assert_eq!(connection.getName(), "fixture");
+            recorded.lock().unwrap().push(format!("first {sql}"));
+            if sql == "INSERT INTO query_hook_probe VALUES (99)" {
+                return Err(DatabaseError::InvalidConfiguration(
+                    "query rejected by hook",
+                ));
+            }
+            if sql == "SELECT :bound AS marker" {
+                assert!(matches!(
+                    bindings,
+                    Bindings::Named([("bound", Value::Integer(23))])
+                ));
+            }
+            if sql == "SELECT 41 AS marker" {
+                let transaction = transaction.expect("the query runs inside a transaction");
+                assert_eq!(
+                    transaction
+                        .scalar("SELECT n FROM query_hook_probe", &[])
+                        .await?,
+                    41.into()
+                );
+            }
+            Ok(())
+        })
+    });
+    let recorded = calls.clone();
+    connection.beforeExecuting(move |sql, _, _, _| {
+        let recorded = recorded.clone();
+        Box::pin(async move {
+            recorded.lock().unwrap().push(format!("second {sql}"));
+            Ok(())
+        })
+    });
+    let clone = connection.clone();
+    connection.enableQueryLog();
+    let sql = "SELECT :bound AS marker";
+    let named = [("bound", 23.into())];
+    let cursor = clone.cursor(sql, Bindings::Named(&named));
+    assert!(calls.lock().unwrap().is_empty());
+    assert_eq!(
+        cursor.try_collect::<Vec<_>>().await.unwrap()[0].get_at(0),
+        Some(&23.into())
+    );
+    assert_eq!(
+        *calls.lock().unwrap(),
+        [format!("first {sql}"), format!("second {sql}")]
+    );
+
+    let rejected = "INSERT INTO query_hook_probe VALUES (99)";
+    assert!(matches!(
+        clone.unprepared(rejected).await,
+        Err(DatabaseError::InvalidConfiguration(
+            "query rejected by hook"
+        ))
+    ));
+    assert_eq!(connection.getQueryLog().len(), 1);
+    assert_eq!(calls.lock().unwrap().len(), 3);
+    assert_eq!(
+        clone
+            .scalar("SELECT COUNT(*) FROM query_hook_probe", &[])
+            .await
+            .unwrap(),
+        0.into()
+    );
+
+    let mut transaction = clone.beginTransaction().await.unwrap();
+    assert!(transaction.unprepared(rejected).await.is_err());
+    transaction
+        .unprepared("INSERT INTO query_hook_probe VALUES (41)")
+        .await
+        .unwrap();
+    let sql = "SELECT 41 AS marker";
+    let rows = transaction
+        .cursor(sql, &[])
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get_at(0), Some(&41.into()));
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        clone
+            .scalar("SELECT COUNT(*) FROM query_hook_probe", &[])
+            .await
+            .unwrap(),
+        0.into()
+    );
+    assert!(calls.lock().unwrap().windows(4).any(|sequence| sequence
+        == [
+            "first SELECT 41 AS marker",
+            "first SELECT n FROM query_hook_probe",
+            "second SELECT n FROM query_hook_probe",
+            "second SELECT 41 AS marker",
+        ]));
+    connection
+        .unprepared("DROP TABLE query_hook_probe")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_runs_before_executing_for_ordinary_and_transaction_queries() {
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"fixture","connections":{
+            "fixture":{"driver":"sqlite","max_connections":1}
+        }}),
+    );
+    verify_before_executing(db.connection(None).unwrap()).await;
+}
+
+#[tokio::test]
+async fn mysql_runs_before_executing_for_ordinary_and_transaction_queries() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"fixture","connections":{
+            "fixture":{"url":url,"max_connections":1}
+        }}),
+    );
+    verify_before_executing(db.connection(None).unwrap()).await;
+}
+
 #[derive(Default)]
 struct QueryRecorder {
     records: Mutex<Vec<(String, QueryRole, bool, Duration)>>,
@@ -2584,6 +2721,17 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     db.unprepared("DROP TABLE IF EXISTS sql_replay_probe; CREATE TABLE sql_replay_probe (id INTEGER PRIMARY KEY, n INTEGER NOT NULL); INSERT INTO sql_replay_probe VALUES (1, 0)").await.unwrap();
 
     let read_marker = "fixture_replay_running_read";
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let count = attempts.clone();
+    db.beforeExecuting(move |sql, _, _, _| {
+        let count = count.clone();
+        Box::pin(async move {
+            if sql.contains(read_marker) {
+                count.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(())
+        })
+    });
     let read_id = [db.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap()];
     let sql = "SELECT IF(CONNECTION_ID() = ?, SLEEP(20), 17) /* fixture_replay_running_read */";
     let (result, ()) = tokio::time::timeout(Duration::from_secs(8), async {
@@ -2600,6 +2748,7 @@ async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_b
     let replayed: Vec<_> = log.iter().filter(|entry| entry.query == sql).collect();
     assert_eq!(replayed.len(), 1);
     assert_eq!(replayed[0].read_write_type, QueryRole::Read);
+    assert_eq!(attempts.load(Ordering::SeqCst), 1);
 
     let write_id = db
         .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])

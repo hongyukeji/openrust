@@ -227,9 +227,11 @@ impl Connection {
 }
 
 macro_rules! observed_transaction_query {
-    ($transaction:ident, $sql:ident, $bindings:expr, $operation:ident, $after:expr) => {{
+    ($transaction:ident, $sql:ident, $bindings:expr, $operation:ident, $before:expr, $after:expr) => {{
         let bindings: Bindings<'_> = $bindings.into();
+        $transaction.run_before_executing($sql, bindings).await?;
         let start = Instant::now();
+        $before();
         let result = $transaction.physical()?.$operation($sql, bindings).await?;
         let elapsed = start.elapsed();
         $after(&result);
@@ -262,9 +264,15 @@ impl Transaction {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
-        self.connection.setRecordModificationState(true);
-        observed_transaction_query!(self, sql, bindings, execute_statement, |_| ())
-            .map(|result| result.insert_id)
+        observed_transaction_query!(
+            self,
+            sql,
+            bindings,
+            execute_statement,
+            || self.connection.setRecordModificationState(true),
+            |_| ()
+        )
+        .map(|result| result.insert_id)
     }
 
     fn physical(&mut self) -> DatabaseResult<&mut PhysicalConnection> {
@@ -485,6 +493,18 @@ impl Transaction {
         self.run(callback).await
     }
 
+    async fn run_before_executing(
+        &mut self,
+        sql: &str,
+        bindings: Bindings<'_>,
+    ) -> DatabaseResult<()> {
+        self.physical()?;
+        self.connection
+            .clone()
+            .run_before_executing(sql, bindings, Some(self))
+            .await
+    }
+
     async fn dispatch_query(
         &mut self,
         sql: &str,
@@ -512,6 +532,7 @@ impl Transaction {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
+            self.run_before_executing(sql, bindings).await?;
             let mut elapsed = Duration::ZERO;
             {
                 let physical = self.physical()?;
@@ -534,7 +555,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        observed_transaction_query!(self, sql, bindings, select, |_| ())
+        observed_transaction_query!(self, sql, bindings, select, || (), |_| ())
     }
 
     /// Returns all rowsets on the transaction's pinned connection.
@@ -543,7 +564,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
-        observed_transaction_query!(self, sql, bindings, select_result_sets, |_| ())
+        observed_transaction_query!(self, sql, bindings, select_result_sets, || (), |_| ())
     }
 
     pub async fn selectOne<'a>(
@@ -551,7 +572,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
-        observed_transaction_query!(self, sql, bindings, select_one, |_| ())
+        observed_transaction_query!(self, sql, bindings, select_one, || (), |_| ())
     }
 
     pub async fn scalar<'a>(
@@ -593,8 +614,15 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<bool> {
-        self.connection.setRecordModificationState(true);
-        observed_transaction_query!(self, sql, bindings, affecting_statement, |_| ()).map(|_| true)
+        observed_transaction_query!(
+            self,
+            sql,
+            bindings,
+            affecting_statement,
+            || self.connection.setRecordModificationState(true),
+            |_| ()
+        )
+        .map(|_| true)
     }
 
     pub async fn affectingStatement<'a>(
@@ -602,14 +630,22 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        observed_transaction_query!(self, sql, bindings, affecting_statement, |count: &u64| {
-            if *count > 0 {
-                self.connection.setRecordModificationState(true);
+        observed_transaction_query!(
+            self,
+            sql,
+            bindings,
+            affecting_statement,
+            || (),
+            |count: &u64| {
+                if *count > 0 {
+                    self.connection.setRecordModificationState(true);
+                }
             }
-        })
+        )
     }
 
     pub async fn unprepared(&mut self, sql: &str) -> DatabaseResult<bool> {
+        self.run_before_executing(sql, (&[]).into()).await?;
         let start = Instant::now();
         let result = self.physical()?.unprepared(sql).await?;
         let elapsed = start.elapsed();

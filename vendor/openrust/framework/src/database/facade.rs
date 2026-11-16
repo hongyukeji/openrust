@@ -118,6 +118,21 @@ impl DB {
             .await
     }
 
+    pub fn beforeExecuting(
+        callback: impl for<'a> Fn(
+            &'a str,
+            Bindings<'a>,
+            &'a Connection,
+            Option<&'a mut Transaction>,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> DatabaseResult<()> {
+        Self::connection(None)?.beforeExecuting(callback);
+        Ok(())
+    }
+
     pub fn beforeStartingTransaction(
         callback: impl for<'a> Fn(
             &'a Connection,

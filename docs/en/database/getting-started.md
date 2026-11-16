@@ -112,6 +112,29 @@ When the driver reports a lost connection while executing a statement outside a 
 
 An active transaction reports a disconnect to its caller. A streaming cursor can retry until it yields its first row. A write may execute twice if the server applied it before the response was lost.
 
+### Callbacks Before Query Execution {#before-executing}
+
+Register `DB::beforeExecuting` on the default connection or call `beforeExecuting` on a named connection. The hooks receive the original SQL and bindings. They run in registration order before the database operation. An error stops the operation and the remaining hooks. A cursor calls the hooks on its first poll. Driver-level replay of the same query skips them.
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+
+async fn read_value() -> DatabaseResult<Value> {
+    DB::beforeExecuting(|sql, bindings, _, _| {
+        Box::pin(async move {
+            if sql == "SELECT ? AS n" {
+                assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
+            }
+            Ok(())
+        })
+    })?;
+
+    DB::scalar("SELECT ? AS n", &[42.into()]).await
+}
+```
+
+The final parameter is the active transaction, when present. Use that handle for any work the hook needs to perform in the same transaction.
+
 ### Connection Established Event {#connection-established}
 
 Register for `ConnectionEstablished` to initialize an application connection. Resolving a connection returns a lazy handle. Its first asynchronous operation awaits the event before using the database pool. Use `establish().await` to deliver it explicitly. Each named connection delivers the event once per pool generation. A listener can await SQL on the event's connection directly. If dispatch returns a listener error, the initiating operation receives that error. If the dispatch is canceled while a listener is running, the next operation retries it.

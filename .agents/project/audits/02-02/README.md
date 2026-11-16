@@ -99,3 +99,13 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - Rust 1.94.0，真实 MySQL 8.4.13 和 SQLite 共 56 项定向回归通过，含真实 HTTP 和事件回归。1 个子进程夹具由父测试启动。工作区严格 Clippy 和变更文件格式检查通过。
 - MySQL Artisan 验收让常规读连接进入 `information_schema`，校验别名读写走应用库、日志角色、重连和清除逻辑缓存。原生 `./artisan inspire` 成功。三语 VitePress 构建、12 项浏览器组合和 6 项直连小节检查通过。
 - 02-02 仍待通用预演、查询前回调及 PostgreSQL 独立直连。
+
+## 查询执行前回调
+
+对照固定 Laravel [Connection 的 `run` 与 `beforeExecuting`](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L806) 和 [DatabaseConnectionTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseConnectionTest.php#L661)。旧版数据库代码未发现同名实现。
+
+- `Connection::beforeExecuting` 与 `DB::beforeExecuting` 按注册顺序传入原始 SQL 和绑定值。回调返回错误时停止执行及后续回调。回调在获取普通查询会话与开始计时前执行，游标在首次轮询时执行，驱动内部重放沿用同一次逻辑执行。
+- Rust 的异步回调额外接收当前显式事务句柄，事务里的回调可在同一会话读取尚未提交的数据。连接克隆共享已注册的回调。应用容器作用域覆盖回调执行。
+- Rust 1.94.0，真实 MySQL 8.4.13 与 SQLite 共 58 项定向回归通过。覆盖原始命名绑定、注册顺序、回调拒绝写入、不写成功日志、游标懒执行、单连接池事务内重入与回滚、MySQL 实际断线后同一查询只调用一次，以及既有 HTTP 和事件回归。1 个子进程夹具由父测试启动。严格 Clippy 与变更文件格式检查通过。
+- 三语文档共用的代码示例由实际 Artisan 命令分别在 SQLite 和 MySQL 运行，原生 `main artisan inspire` 通过。三语 VitePress 构建、12 项站点浏览器组合和 6 项回调小节检查通过。
+- 02-02 继续处理通用查询预演，PostgreSQL 独立直连随驱动接入验收。

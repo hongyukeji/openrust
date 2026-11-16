@@ -112,6 +112,29 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 作用中交易的斷線錯誤交給呼叫端。串流游標可在傳回第一列前重試。如果伺服器在回應遺失前已完成寫入，重試可能再次執行該寫入。
 
+### 查詢執行前回呼 {#before-executing}
+
+用 `DB::beforeExecuting` 向預設連線註冊，也可以在指定連線上呼叫 `beforeExecuting`。回呼依註冊順序、在資料庫操作之前收到原始 SQL 和繫結值。回呼傳回錯誤會中止本次操作及後續回呼。游標第一次輪詢時執行回呼。驅動程式重播同一次查詢時會略過回呼。
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+
+async fn read_value() -> DatabaseResult<Value> {
+    DB::beforeExecuting(|sql, bindings, _, _| {
+        Box::pin(async move {
+            if sql == "SELECT ? AS n" {
+                assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
+            }
+            Ok(())
+        })
+    })?;
+
+    DB::scalar("SELECT ? AS n", &[42.into()]).await
+}
+```
+
+最後一個參數是目前的交易控制代碼。回呼需要在同一筆交易內執行操作時，請使用該控制代碼。
+
 ### 連線建立事件 {#connection-established}
 
 透過 `ConnectionEstablished` 初始化應用程式連線。連線解析傳回延遲開啟的控制代碼，第一次非同步操作會在使用連線池前等待事件完成。也可透過 `establish().await` 明確觸發。每個具名連線在每次建立連線池時派發一次。監聽器可直接在事件提供的連線上等待 SQL 執行。 派送傳回監聽器錯誤時，由發起操作接收該錯誤。如果派送在監聽器執行期間被取消，下一次操作會重試派送。

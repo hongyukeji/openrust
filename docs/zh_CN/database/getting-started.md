@@ -112,6 +112,29 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 活动事务的断线错误交给调用方。流式游标可在返回首行前重试。如果服务器在响应丢失前已完成写入，重试可能再次执行该写入。
 
+### 查询执行前回调 {#before-executing}
+
+用 `DB::beforeExecuting` 向默认连接注册，也可以在指定连接上调用 `beforeExecuting`。回调按注册顺序、在数据库操作之前收到原始 SQL 和绑定值。回调返回错误会中止本次操作及后续回调。游标首次轮询时运行回调。驱动层重放同一次查询时跳过回调。
+
+```rust
+use openrust::{database::{Bindings, DatabaseResult, Value}, support::facades::DB};
+
+async fn read_value() -> DatabaseResult<Value> {
+    DB::beforeExecuting(|sql, bindings, _, _| {
+        Box::pin(async move {
+            if sql == "SELECT ? AS n" {
+                assert!(matches!(bindings, Bindings::Positional([Value::Integer(42)])));
+            }
+            Ok(())
+        })
+    })?;
+
+    DB::scalar("SELECT ? AS n", &[42.into()]).await
+}
+```
+
+最后一个参数是当前事务句柄。回调需要在同一事务中执行操作时，使用该句柄。
+
 ### 连接建立事件 {#connection-established}
 
 通过 `ConnectionEstablished` 初始化应用连接。连接解析返回惰性句柄，首次异步操作会在使用连接池前等待事件完成。也可通过 `establish().await` 显式触发。每个具名连接在每次创建连接池时派发一次。监听器可直接在事件携带的连接上等待 SQL 执行。 派发返回监听器错误时，由发起操作接收该错误。如果派发在监听器执行期间被取消，下一次操作会重试派发。
