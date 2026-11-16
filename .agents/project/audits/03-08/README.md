@@ -52,3 +52,9 @@
 - 对照固定 [内联模板](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#rendering-inline-blade-templates) 和 [Blade 扩展](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#extending-blade)。Rust 的 `Factory::renderInline` 在内存中渲染模板，复用应用解析器。自定义指令以已求值的视图值调用应用注册的 Rust 闭包，显式返回待转义文本或可信 HTML。编译产物校验应用的注册名称集合，回调只在运行时解析。旧版 MiniJinja 的自定义注册 ABI 与 Blade 不同。
 - macOS ARM64、Rust 1.94.0，锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。覆盖直接内联渲染、默认转义、可信标记、已登记指令的非法表达式、注册导致缓存失效以及共用缓存目录的两应用实际 HTTP 隔离。隔离副本通过全工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 隔离应用用三语共用的 Rust 文档代码在 Provider 注册示例指令。实际 `./artisan view:cache` 产出三份包含已注册指令的编译产物，`./artisan view:clear` 清除产物并保留无关文件。三语站点构建、根路径与 `/docs/` 的 12 项通用浏览器检查和 6 项扩展章节检查通过。
+
+## 子视图数据、优先顺序和局部隔离
+
+- 对照固定 [CompilesIncludes](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesIncludes.php) 和 [Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Factory.php)。子视图参数可以用具名列表或映射对象给出，显式数据覆盖继承值。`@includeFirst` 通过既有 Factory 查找顺序选出第一个存在的视图。`@includeIsolated` 继承应用共享值和渲染树状态，调用方的普通数据、插槽和组件属性各自隔离。旧版 `6d1a8192` 的查找及视图数据优先级已在已有 Factory 中复用。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 验证显式数据覆盖、条件选择、缺页回退、共享数据与调用者变量隔离、无候选 500 及默认转义。按当时 HEAD 重建隔离副本后通过全工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项子视图检查通过。

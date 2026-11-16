@@ -20,7 +20,7 @@ use crate::view::{ViewData, ViewError, ViewResult, ViewValue, rendering::RenderC
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 9;
+const COMPILER_VERSION: u32 = 10;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 pub(in crate::view) type Directives = BTreeMap<String, Directive>;

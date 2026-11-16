@@ -11,6 +11,7 @@ use crate::view::{
 
 mod attributes;
 mod expressions;
+mod includes;
 
 use attributes::{
     AttributeList, Props, apply_props, attribute_list, attribute_name, merge_attributes,
@@ -18,6 +19,7 @@ use attributes::{
 };
 
 use expressions::{Expression, expression_value, truthy, value};
+use includes::{Include, IncludeFirst};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
@@ -52,9 +54,10 @@ enum Node {
     BooleanAttribute(String, Expression),
     ConditionalAttribute(AttributeList, bool),
     CustomDirective(String, Vec<Expression>),
-    Include(Expression),
-    IncludeIf(Expression),
-    IncludeWhen(Expression, Expression, bool),
+    Include(Include, bool),
+    IncludeWhen(Expression, Include, bool),
+    IncludeFirst(IncludeFirst),
+    IncludeIsolated(Include),
     Component {
         name: ComponentName,
         attributes: Vec<(String, Expression)>,
@@ -388,13 +391,17 @@ impl<'a> Parser<'a> {
         } else if self.directive("extends") {
             Node::Extends(expression_value(self.arguments()?)?)
         } else if self.directive("include") {
-            Node::Include(expression_value(self.arguments()?)?)
+            Node::Include(Include::parse(self.arguments()?)?, false)
         } else if self.directive("includeIf") {
-            Node::IncludeIf(expression_value(self.arguments()?)?)
+            Node::Include(Include::parse(self.arguments()?)?, true)
         } else if self.directive("includeWhen") {
             self.conditional_include(true)?
         } else if self.directive("includeUnless") {
             self.conditional_include(false)?
+        } else if self.directive("includeFirst") {
+            Node::IncludeFirst(IncludeFirst::parse(self.arguments()?)?)
+        } else if self.directive("includeIsolated") {
+            Node::IncludeIsolated(Include::parse(self.arguments()?)?)
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -537,10 +544,12 @@ impl<'a> Parser<'a> {
     }
 
     fn conditional_include(&mut self, when: bool) -> ViewResult<Node> {
-        let (condition, name) = self.named_argument()?;
-        let name =
-            name.ok_or_else(|| invalid("Conditional Blade include requires a view name."))?;
-        Ok(Node::IncludeWhen(condition, name, when))
+        let args = self.arguments()?;
+        let separator = argument_separator(args)
+            .ok_or_else(|| invalid("Conditional Blade include requires a view name."))?;
+        let condition = expression_value(&args[..separator])?;
+        let include = Include::parse(&args[separator + 1..])?;
+        Ok(Node::IncludeWhen(condition, include, when))
     }
 
     fn named_argument(&mut self) -> ViewResult<(Expression, Option<Expression>)> {
@@ -1007,17 +1016,27 @@ fn render_nodes<'a>(
                     DirectiveOutput::Html(html) => output.push_str(&html),
                 }
             }
-            Node::Include(expression) | Node::IncludeIf(expression) => {
-                let name = name_value(value(expression, data, bindings))?;
-                if matches!(node, Node::Include(_)) || context.exists(name)? {
-                    output.push_str(&context.include(name, &include_data(data, bindings))?);
+            Node::Include(include, optional) => {
+                let name = include.name(data, bindings)?;
+                if !optional || context.exists(name)? {
+                    output.push_str(&context.include(name, &include.data(data, bindings, true)?)?);
                 }
             }
-            Node::IncludeWhen(condition, expression, when) => {
+            Node::IncludeWhen(condition, include, when) => {
                 if truthy(value(condition, data, bindings)) == *when {
-                    let name = name_value(value(expression, data, bindings))?;
-                    output.push_str(&context.include(name, &include_data(data, bindings))?);
+                    let name = include.name(data, bindings)?;
+                    output.push_str(&context.include(name, &include.data(data, bindings, true)?)?);
                 }
+            }
+            Node::IncludeFirst(include) => {
+                let names = include.names(data, bindings)?;
+                output.push_str(&context.include_first(&names, &include.data(data, bindings)?)?);
+            }
+            Node::IncludeIsolated(include) => {
+                let name = include.name(data, bindings)?;
+                output.push_str(
+                    &context.include_isolated(name, &include.data(data, bindings, false)?)?,
+                );
             }
             Node::Component {
                 name,
@@ -1052,16 +1071,6 @@ fn render_nodes<'a>(
         }
     }
     Ok(())
-}
-
-fn include_data(data: &ViewData, bindings: &[(&str, &ViewValue)]) -> ViewData {
-    let mut local_data = data.clone();
-    local_data.extend(
-        bindings
-            .iter()
-            .map(|(key, value)| ((*key).to_owned(), (*value).clone())),
-    );
-    local_data
 }
 
 fn name_value(value: &ViewValue) -> ViewResult<&str> {

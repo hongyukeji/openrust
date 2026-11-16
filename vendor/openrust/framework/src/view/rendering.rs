@@ -102,6 +102,19 @@ impl<'a> RenderContext<'a> {
         factory.render_nested(name, data, &mut nested)
     }
 
+    pub(super) fn include_first(&self, names: &[&str], data: &ViewData) -> ViewResult<String> {
+        let (factory, mut nested) = self.nested()?;
+        let view = factory.first(names, data.clone())?;
+        factory.render_view(view, &mut nested)
+    }
+
+    pub(super) fn include_isolated(&self, name: &str, data: &ViewData) -> ViewResult<String> {
+        let (factory, mut nested) = self.nested()?;
+        nested.slots.clear();
+        nested.component_attributes = None;
+        factory.render_nested(name, data, &mut nested)
+    }
+
     pub(super) fn exists(&self, name: &str) -> ViewResult<bool> {
         self.factory
             .map(|factory| factory.exists(name))

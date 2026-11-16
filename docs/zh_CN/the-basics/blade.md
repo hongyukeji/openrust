@@ -24,6 +24,15 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 用 `@includeIf('partials.notice')` 跳过缺失的视图。用 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 按条件渲染。子视图继承当前视图数据，包括循环变量。条件成立并选中视图时，`@includeWhen` 和 `@includeUnless` 要求该视图存在。
 
+### 包含子视图 {#including-subviews}
+
+传入映射可覆盖继承的视图数据。`@includeFirst` 渲染列表中第一个存在的视图。`@includeIsolated` 只接收显式数据和视图工厂的共享数据。
+
+```html
+@includeFirst(['custom.notice', 'partials.notice'], ['label' => $title])
+@includeIsolated('partials.notice', ['label' => 'Opening soon'])
+```
+
 ### 表达式与条件属性 {#conditional-attributes}
 
 条件和输出表达式可使用括号、`!`、`&&`、`||`、`===`、`!==` 和 `??`。严格比较保留标量类型。PHP 的对象身份和宽松类型转换超出视图数据模型的范围。

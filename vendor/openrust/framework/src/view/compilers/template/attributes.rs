@@ -10,12 +10,12 @@ use super::{
 pub(super) type Props = Vec<(String, Option<Expression>)>;
 pub(super) type AttributeList = Vec<(Expression, Option<Expression>)>;
 
-fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
+pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
     let source = source
         .trim()
         .strip_prefix('[')
         .and_then(|source| source.strip_suffix(']'))
-        .ok_or_else(|| invalid("Expected a Blade attribute array."))?;
+        .ok_or_else(|| invalid("Expected a Blade array literal."))?;
     let mut start = 0;
     let mut entries = Vec::new();
     for end in separators(source, ",") {
@@ -29,14 +29,14 @@ fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
     Ok(entries)
 }
 
-fn array_entry(entry: &str) -> (&str, Option<&str>) {
+pub(super) fn array_entry(entry: &str) -> (&str, Option<&str>) {
     match separators(entry, "=>").next() {
         Some(index) => (&entry[..index], Some(&entry[index + 2..])),
         None => (entry, None),
     }
 }
 
-fn literal_name(input: &str, validate: fn(&str) -> bool) -> ViewResult<String> {
+pub(super) fn literal_name(input: &str, validate: fn(&str) -> bool) -> ViewResult<String> {
     if let Expression::Value(ViewValue::String(name)) = expression_value(input)?
         && validate(&name)
     {

@@ -256,7 +256,11 @@ impl Factory {
         self.render_view(self.make(name.to_owned(), data.clone())?, context)
     }
 
-    fn render_view(&self, mut view: View, context: &mut RenderContext<'_>) -> ViewResult<String> {
+    pub(super) fn render_view(
+        &self,
+        mut view: View,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
         let mut data = self.prepare_view(&mut view)?;
         let source = self.view_source(&view)?;
         data.extend(view.data);

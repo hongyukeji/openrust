@@ -24,6 +24,15 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### Including Subviews {#including-subviews}
+
+Pass a map to override inherited data. `@includeFirst` renders the first existing view in the list. `@includeIsolated` receives its explicit values and the view factory's shared data.
+
+```html
+@includeFirst(['custom.notice', 'partials.notice'], ['label' => $title])
+@includeIsolated('partials.notice', ['label' => 'Opening soon'])
+```
+
 ### Expressions and Conditional Attributes {#conditional-attributes}
 
 Use parentheses, `!`, `&&`, `||`, `===`, `!==`, and `??` in conditions and echoes. Strict comparison preserves scalar types. PHP object identity and loose coercion have no corresponding operation in the view data model.

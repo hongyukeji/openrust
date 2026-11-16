@@ -433,6 +433,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/invalid-expression", || view("invalid_expression"))?;
                 Route::get("/directive", || view("custom_directive").with("text", "<&"))?;
                 Route::get("/broken-directive", || view("broken_directive"))?;
+                Route::get("/includes", || {
+                    view("includes")
+                        .with("label", "outer")
+                        .with("caller", "caller")
+                        .with("values", serde_json::json!({"label":"<map>"}))
+                })?;
+                Route::get("/bad-includes", || view("bad_includes"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -649,6 +656,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ("invalid_expression", "@if ($x ===)broken@endif"),
         ("custom_directive", "<b>@formatName($text)</b>@htmlBadge"),
         ("broken_directive", "@formatName($text + 1)"),
+        (
+            "includes",
+            concat!(
+                "@includeFirst(['absent', 'include_row'], ['label' => '<&'])",
+                "@includeWhen(true, 'include_row', $values)",
+                "@includeIsolated('include_row', ['label' => 'isolated'])",
+                "@includeIf('absent', true)",
+            ),
+        ),
+        ("include_row", "[{{ $app }}:{{ $label }}:{{ $caller }}]"),
+        ("bad_includes", "@includeFirst(['no_such_view'])"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -754,6 +772,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(a, "<b>A:&lt;&amp;</b><mark>A</mark>");
     assert_eq!(b, "<b>@formatName($text)</b><mark>B</mark>");
     assert!(send(first, "/broken-directive", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/includes", 200).await,
+        "[A:&lt;&amp;:caller][A:&lt;map&gt;:caller][A:isolated:]"
+    );
+    assert_eq!(
+        send(second, "/includes", 200).await,
+        "[B:&lt;&amp;:caller][B:&lt;map&gt;:caller][B:isolated:]"
+    );
+    assert!(send(first, "/bad-includes", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),
