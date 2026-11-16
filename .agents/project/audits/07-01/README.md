@@ -34,3 +34,8 @@
 
 - 对照固定 Str 的边界剪除和替换、位置查找、掩码、截取、指定字符去重和空白折叠。复用现有 Unicode 标量切片与旧版迁移的 trim 字符表。Rust 用 `Option` 表示未找到或偏移越界，用字符切片明确去重对象。静态入口和 `Stringable` 链式入口共用实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
 - 5 项字符串测试和定向严格 Clippy 通过。实跑三语示例的 Artisan 命令，回环 HTTP 核对中文和 emoji 的负偏移索引、循环掩码和空白折叠。三语 VitePress 构建通过。
+
+## Arr 类型读取与编码
+
+- 核对固定 Arr 的类型读取、缺失与 null、精确键优先、`add`、`forget`、`pull`、`wrap` 及 RFC 3986 查询编码。复用 Rust 数据路径、旧版迁移的精确键规则和 URI 编码器。通过同一移除入口修复 URI 按字面量带点键删除。类型读取以明确的 `Result` 表达异常，调用方可选择缺失时的默认值。 [固定 Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
+- 定向数据、URI、请求查询与字符串回归共 12 项通过，定向严格 Clippy 通过。实际 Artisan 编译并运行三语示例，实际回环 HTTP 验证布尔值读取、删除和 Unicode 查询编码。三语 VitePress 构建通过。

@@ -21,7 +21,7 @@ mod strings;
 mod uri;
 mod view_error_bag;
 
-pub use arr::Arr;
+pub use arr::{Arr, ArrValueError};
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};
 pub use deferred_provider::DeferredProvider;

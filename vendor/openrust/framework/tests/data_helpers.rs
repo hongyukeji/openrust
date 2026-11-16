@@ -66,3 +66,37 @@ fn dotted_arrays_and_fluent_share_validation_and_preserve_literal_paths() {
     fluent.set("group.*.active", json!(true)).unwrap();
     assert_eq!(fluent.get("group.*.active"), Some(json!([true, true])));
 }
+
+#[test]
+fn typed_array_reads_mutations_and_query_encoding() {
+    use openrust::support::ArrValueError;
+
+    let mut value = serde_json::json!({
+        "values": {"enabled": true,"count":2,"rate":2.0,"tag":"a+b","empty":null},
+        "values.tag": "literal"
+    });
+    assert_eq!(Arr::boolean(&value, "values.enabled"), Ok(true));
+    assert_eq!(Arr::integer(&value, "values.count"), Ok(2));
+    assert_eq!(Arr::float(&value, "values.rate"), Ok(2.0));
+    assert_eq!(
+        Arr::float(&value, "values.count"),
+        Err(ArrValueError::Expected("a float"))
+    );
+    assert_eq!(Arr::integer(&value, "absent"), Err(ArrValueError::Missing));
+    assert_eq!(Arr::string(&value, "values.tag"), Ok("literal"));
+    assert!(Arr::array(&value, "values").unwrap().is_object());
+    Arr::add(&mut value, "values.enabled", false.into()).unwrap();
+    Arr::add(&mut value, "values.empty", "filled".into()).unwrap();
+    assert_eq!(
+        Arr::pull(&mut value, "values.tag").unwrap(),
+        Some("literal".into())
+    );
+    assert_eq!(Arr::string(&value, "values.tag"), Ok("a+b"));
+    assert_eq!(Arr::string(&value, "values.empty"), Ok("filled"));
+    assert_eq!(Arr::boolean(&value, "values.enabled"), Ok(true));
+    assert_eq!(Arr::wrap(serde_json::Value::Null), serde_json::json!([]));
+    assert_eq!(
+        Arr::query(&serde_json::json!({"value":"a+b","rows":[true,false,null]})).unwrap(),
+        "value=a%2Bb&rows%5B0%5D=1&rows%5B1%5D=0"
+    );
+}

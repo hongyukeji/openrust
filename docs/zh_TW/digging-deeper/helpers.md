@@ -30,3 +30,17 @@ let uri = Uri::of("/items?label=a+b")?
     .withFragment("summary")?;
 assert_eq!(uri.value(), "/items?label=a%2Bb&page=2#summary");
 ```
+
+## 陣列型別讀取與查詢編碼 {#typed-arrays}
+
+`Arr::array`、`boolean`、`float`、`integer` 和 `string` 檢查已儲存的 JSON 型別。路徑缺少和型別錯誤會傳回不同錯誤。`Arr::add` 填入缺少或為 null 的路徑，`pull` 讀取並移除值。`wrap` 保留陣列和物件，將 null 轉為空清單，將純量包成單元素清單。`Arr::query` 依插入順序產生 RFC 3986 查詢字串。
+
+```rust
+use openrust::support::Arr;
+use serde_json::json;
+
+let mut data = json!({"filter": {"label": "a+b", "enabled": true}});
+assert!(Arr::boolean(&data, "filter.enabled")?);
+assert_eq!(Arr::pull(&mut data, "filter.enabled")?, Some(json!(true)));
+assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
+```

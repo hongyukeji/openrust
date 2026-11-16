@@ -30,3 +30,17 @@ let uri = Uri::of("/items?label=a+b")?
     .withFragment("summary")?;
 assert_eq!(uri.value(), "/items?label=a%2Bb&page=2#summary");
 ```
+
+## Typed array reads and query encoding {#typed-arrays}
+
+`Arr::array`, `boolean`, `float`, `integer`, and `string` check the stored JSON type. Missing paths and wrong types return distinct errors. `Arr::add` fills a missing or null path. `pull` returns the value and removes it. `wrap` keeps arrays and objects, turns null into an empty list, and wraps a scalar in a one-element list. `Arr::query` builds an RFC 3986 query string in insertion order.
+
+```rust
+use openrust::support::Arr;
+use serde_json::json;
+
+let mut data = json!({"filter": {"label": "a+b", "enabled": true}});
+assert!(Arr::boolean(&data, "filter.enabled")?);
+assert_eq!(Arr::pull(&mut data, "filter.enabled")?, Some(json!(true)));
+assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
+```

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use serde_json::{Map, Value};
 
 use super::{InvalidUri, Uri, invalid_uri};
-use crate::support::{Arr, data_forget, data_get, data_has};
+use crate::support::{Arr, data_get};
 
 /// A borrowed URI query string with RFC 3986 decoding.
 #[derive(Clone, Copy)]
@@ -30,7 +30,7 @@ impl<'a> UriQueryString<'a> {
     }
 
     pub fn has(self, key: &str) -> Result<bool, InvalidUri> {
-        Ok(data_has(&self.all()?, key))
+        Ok(Arr::has(&self.all()?, key))
     }
 
     pub fn missing(self, key: &str) -> Result<bool, InvalidUri> {
@@ -59,7 +59,7 @@ impl Uri {
     pub fn withoutQuery(&self, keys: &[&str]) -> Result<Self, InvalidUri> {
         let mut query = self.query().all()?;
         for key in keys {
-            data_forget(&mut query, key).map_err(|_| invalid_uri())?;
+            Arr::forget(&mut query, key).map_err(|_| invalid_uri())?;
         }
         self.encode_query(query)
     }

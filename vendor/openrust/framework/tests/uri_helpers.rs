@@ -41,6 +41,7 @@ fn uri_queries_preserve_literals_and_apply_ordered_edits() {
         Uri::of("/items?label=a+b&exact.key=yes&filter%5B0%5D=active&filter%5B1%5D=pending#part")
             .unwrap();
     assert_eq!(uri.query().all().unwrap()["exact.key"], "yes");
+    assert!(uri.query().has("exact.key").unwrap());
     assert_eq!(uri.query().get("label").unwrap(), Some(json!("a+b")));
     assert!(uri.query().decode().unwrap().contains("label=a+b"));
     let next = uri
@@ -56,6 +57,7 @@ fn uri_queries_preserve_literals_and_apply_ordered_edits() {
     );
     assert_eq!(next.query().get("page").unwrap(), Some(json!("2")));
     assert!(next.query().missing("exact.key").unwrap());
+    assert!(next.query().all().unwrap().get("exact.key").is_none());
     assert!(next.value().contains("label=a%2Bb"));
     assert_eq!(
         next.replaceQuery(&json!({"a":[true,false],"s":"空"}))
