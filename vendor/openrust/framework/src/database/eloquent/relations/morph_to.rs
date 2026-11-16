@@ -213,7 +213,38 @@ impl<P: Model> MorphTo<P> {
         &self,
         parent: &P,
         count: u64,
+        callback: impl FnMut(Collection<MorphTarget>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.chunk_with(parent, count, callback, None).await
+    }
+
+    super::key_chunks::key_chunks!(Collection<MorphTarget>);
+
+    pub async fn orderedChunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(Collection<MorphTarget>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.chunk_with(parent, count, callback, Some((column, alias, descending)))
+            .await
+    }
+
+    async fn chunk_with<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
         mut callback: impl FnMut(Collection<MorphTarget>, u64) -> Fut,
+        key: Option<(Option<&str>, Option<&str>, bool)>,
     ) -> DatabaseResult<bool>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
@@ -224,7 +255,7 @@ impl<P: Model> MorphTo<P> {
         let Some((alias, target)) = self.selected_target(parent)? else {
             return Ok(true);
         };
-        let mut batches = target.chunks(parent, alias, self.soft_deletes, count);
+        let mut batches = target.chunks(parent, alias, self.soft_deletes, count, key);
         let mut page = 1;
         while let Some(models) = batches.try_next().await? {
             if !callback(models, page).await? {
@@ -892,6 +923,7 @@ trait Target<P: Model>: Send + Sync {
         alias: &'static str,
         soft_deletes: SoftDeleteMacros,
         count: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>>;
     fn load<'a>(
         &'a self,
@@ -1075,10 +1107,13 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         alias: &'static str,
         soft_deletes: SoftDeleteMacros,
         count: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>> {
         Box::pin(async_stream::try_stream! {
             if let Some(query) = self.owner_query(parent)? {
-                let mut batches = soft_deletes.apply(query).chunk_collections(count, None, |_, _| Ok(()));
+                let query = soft_deletes.apply(query);
+                let key = key.map(|(column, alias, descending)| query.chunk_key(column, alias, descending));
+                let mut batches = query.chunk_collections(count, key, |_, _| Ok(()));
                 while let Some(models) = batches.try_next().await? {
                     let targets = models.toBase().into_iter().map(|(key, model)| {
                         (key, MorphTarget::from_model(alias, Arc::new(model)))

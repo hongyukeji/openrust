@@ -1292,7 +1292,20 @@ async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> Database
 }
 ```
 
-Many-to-many relationships support `chunkById(parent, count, callback, column, alias)` and `chunkByIdDesc`. They default to the qualified related key and hydrate the Pivot for every model before invoking the callback.
+Call `chunkById(parent, count, callback, column, alias)` or `chunkByIdDesc` on direct, through, inverse, polymorphic and many-to-many relationships. The seek query keeps all relation constraints, including an existing one-of-many selection, and uses the related key by default. A through relationship uses the related primary key’s name as the default projection alias. Many-to-many callbacks receive models with a hydrated Pivot. A `MorphTo` callback receives the same keyed collection of `MorphTarget` values as `chunk`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+async fn process_subject_by_id<P: Model>(parent: &P, subject: &MorphTo<P>) -> DatabaseResult<bool> {
+    subject.chunkByIdDesc(parent, 100, |targets, _page| async move {
+        for (_, target) in targets {
+            println!("{}", target.alias());
+        }
+        Ok(true)
+    }, None, None).await
+}
+```
 
 ## Touching parent timestamps {#touching-parent-timestamps}
 

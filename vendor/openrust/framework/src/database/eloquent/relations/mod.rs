@@ -8,6 +8,7 @@ mod has_many;
 mod has_many_through;
 mod has_one;
 mod has_one_through;
+mod key_chunks;
 mod lookup;
 mod morph_many;
 mod morph_map;

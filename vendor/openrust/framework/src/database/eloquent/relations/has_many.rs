@@ -93,6 +93,27 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
+    super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+    pub async fn orderedChunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.0
+            .select_one(self.pagination_query(parent)?)?
+            .orderedChunkById(count, callback, column, alias, descending)
+            .await
+    }
+
     /// Streams models constrained to this parent.
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {

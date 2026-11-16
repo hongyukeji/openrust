@@ -175,6 +175,31 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
+    super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
+
+    pub async fn orderedChunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.pagination_query(parent, &["*"])?
+            .orderedChunkById(
+                count,
+                callback,
+                column,
+                alias.or(Some(R::metadata().primary_key)),
+                descending,
+            )
+            .await
+    }
+
     /// Streams related models across the constrained intermediate join.
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {

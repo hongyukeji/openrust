@@ -51,6 +51,31 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         query.chunk(count, callback).await
     }
 
+    super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
+
+    pub async fn orderedChunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        if count == 0 {
+            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+        }
+        let Some(query) = self.0.owner_query(parent)? else {
+            return Ok(true);
+        };
+        query
+            .orderedChunkById(count, callback, column, alias, descending)
+            .await
+    }
+
     /// Streams the persisted owner when a foreign key is present.
     pub fn cursor<'a>(&'a self, child: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {

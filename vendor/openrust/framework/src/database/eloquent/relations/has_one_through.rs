@@ -143,6 +143,8 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.chunk(parent, count, callback).await
     }
 
+    super::key_chunks::key_chunks!(forward 0);
+
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         self.0.cursor(parent)
     }

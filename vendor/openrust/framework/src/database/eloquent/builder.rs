@@ -1631,14 +1631,23 @@ impl<M: Model> Builder<'static, M> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
+        let key = self.chunk_key(column, alias, descending);
+        self.chunk_hydrated(count, Some(key), |_, _| Ok(()), callback)
+            .await
+    }
+
+    pub(super) fn chunk_key(
+        &self,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> query::ChunkKey {
         let primary_key = M::metadata().primary_key;
-        let key = query::ChunkKey {
+        query::ChunkKey {
             column: column.map_or_else(|| self.qualifyColumn(primary_key), str::to_owned),
             alias: alias.or(column).unwrap_or(primary_key).into(),
             descending,
-        };
-        self.chunk_hydrated(count, Some(key), |_, _| Ok(()), callback)
-            .await
+        }
     }
 
     pub(super) async fn chunk_hydrated<Fut>(

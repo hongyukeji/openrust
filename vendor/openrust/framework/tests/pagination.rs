@@ -1800,7 +1800,172 @@ fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 )
                 .await?;
             assert_eq!(matches, [1, 4]);
+            verify_relation_keys(&owner).await?;
             Ok(json!({ "raw": raw, "models": ids, "pivots": pivots }))
+        }
+
+        async fn verify_relation_keys(owner: &Article) -> DatabaseResult<()> {
+            use openrust::database::DatabaseError;
+            fn collect<M: Model>(
+                keys: &mut Vec<i64>,
+            ) -> impl FnMut(Collection<M>, u64) -> std::future::Ready<DatabaseResult<bool>> + '_
+            {
+                move |models, _| {
+                    keys.extend(models.iter().map(|model| id(model.getKey())));
+                    ready(Ok(true))
+                }
+            }
+
+            let children = HasMany::<Article, Comment>::new("id", "article_id");
+            let mut keys = Vec::new();
+            children
+                .chunkById(owner, 2, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [11, 12, 13, 15]);
+            let mut keys = Vec::new();
+            children
+                .one()
+                .latestOfMany(None)
+                .chunkById(owner, 1, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [15]);
+
+            let subjects =
+                MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article");
+            let mut keys = Vec::new();
+            subjects
+                .chunkByIdDesc(owner, 2, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [15, 13, 12, 11]);
+            let mut keys = Vec::new();
+            MorphOne::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                .oldestOfMany(None)
+                .chunkByIdDesc(owner, 1, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [11]);
+
+            let mut keys = Vec::new();
+            REACTIONS
+                .chunkByIdDesc(
+                    owner,
+                    2,
+                    collect(&mut keys),
+                    Some("pagination_reactions.id"),
+                    None,
+                )
+                .await?;
+            assert_eq!(keys, [103, 102, 101]);
+            let mut keys = Vec::new();
+            REACTIONS
+                .one()
+                .latestOfMany(None)
+                .chunkById(owner, 1, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [103]);
+
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            let owner_relation = BelongsTo::<Activity, Article>::new("subject_id", "id");
+            let mut keys = Vec::new();
+            owner_relation
+                .chunkByIdDesc(&activities[0], 1, collect(&mut keys), None, None)
+                .await?;
+            assert_eq!(keys, [1]);
+            assert!(
+                owner_relation
+                    .chunkById(
+                        &activities[4],
+                        1,
+                        |_, _| -> std::future::Ready<DatabaseResult<bool>> {
+                            panic!("missing reference produced a batch");
+                        },
+                        None,
+                        None
+                    )
+                    .await?
+            );
+
+            let reference = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<Article>("article", "category")
+                .target::<KeyedLabel>("label", "id")
+                .target::<Comment>("comment", "id");
+            let mut draft = Activity::newInstance(Attributes::new())?;
+            draft
+                .setAttribute("subject_type", "article")
+                .setAttribute("subject_id", "a");
+            let mut keys = Vec::new();
+            reference
+                .chunkByIdDesc(
+                    &draft,
+                    1,
+                    |models, page| {
+                        let resolved = models.first().unwrap().downcast_ref::<Article>().unwrap();
+                        keys.push((page, id(resolved.getKey())));
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(keys, [(1, 2), (2, 1)]);
+            reference
+                .chunkById(
+                    &activities[1],
+                    1,
+                    |models, _| {
+                        assert_eq!(models.get("label-2").unwrap().alias(), "label");
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+            draft
+                .setAttribute("subject_type", "comment")
+                .setAttribute("subject_id", 16);
+            let mut batches = 0;
+            reference
+                .chunkById(
+                    &draft,
+                    1,
+                    |_, _| {
+                        batches += 1;
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(batches, 0);
+            reference
+                .withTrashed()
+                .chunkById(
+                    &draft,
+                    1,
+                    |models, _| {
+                        assert_eq!(
+                            id(models
+                                .first()
+                                .unwrap()
+                                .downcast_ref::<Comment>()
+                                .unwrap()
+                                .getKey()),
+                            16
+                        );
+                        batches += 1;
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(batches, 1);
+            assert!(matches!(
+                owner_relation
+                    .chunkById(&activities[4], 0, |_, _| ready(Ok(true)), None, None)
+                    .await,
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))
+            ));
+            Ok(())
         }
 
         Response::json(StatusCode::OK, verify_keyset().await.map_err(internal)?)

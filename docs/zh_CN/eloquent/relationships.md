@@ -1292,7 +1292,20 @@ async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> Database
 }
 ```
 
-多对多关系支持 `chunkById(parent, count, callback, column, alias)` 及 `chunkByIdDesc`。默认使用带表名的关联键，并在调用回调前为每个模型装配 Pivot。
+直接、穿透、反向、多态及多对多关系均可调用 `chunkById(parent, count, callback, column, alias)` 或 `chunkByIdDesc`。按键分批保留关系约束和已有的单条选择，默认使用关联键。穿透关系默认使用关联模型的主键名作为投影别名。多对多回调收到带 Pivot 的模型。`MorphTo` 回调与 `chunk` 一样收到保留集合键的 `MorphTarget` 集合。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+async fn process_subject_by_id<P: Model>(parent: &P, subject: &MorphTo<P>) -> DatabaseResult<bool> {
+    subject.chunkByIdDesc(parent, 100, |targets, _page| async move {
+        for (_, target) in targets {
+            println!("{}", target.alias());
+        }
+        Ok(true)
+    }, None, None).await
+}
+```
 
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
