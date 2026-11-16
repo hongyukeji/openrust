@@ -32,22 +32,7 @@ impl ChildGroup {
         command.kill_on_drop(true);
         #[cfg(unix)]
         {
-            let exited = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
-            let inherit = INHERIT_PROCESS_GROUP.load(Ordering::Relaxed);
-            if !inherit {
-                command.process_group(0);
-            }
-            let child = command.spawn()?;
-            let group = (!inherit)
-                .then(|| child.id())
-                .flatten()
-                .and_then(|id| i32::try_from(id).ok())
-                .and_then(Pid::from_raw);
-            Ok(Self {
-                child,
-                group,
-                exited,
-            })
+            Self::spawn_unix(command, INHERIT_PROCESS_GROUP.load(Ordering::Relaxed))
         }
         #[cfg(not(unix))]
         {
@@ -55,6 +40,32 @@ impl ChildGroup {
                 child: command.spawn()?,
             })
         }
+    }
+
+    #[cfg(unix)]
+    pub(super) fn spawn_attached(command: &mut Command) -> io::Result<Self> {
+        command.kill_on_drop(true);
+        // The terminal's foreground group must keep ownership of terminal reads.
+        Self::spawn_unix(command, true)
+    }
+
+    #[cfg(unix)]
+    fn spawn_unix(command: &mut Command, inherit: bool) -> io::Result<Self> {
+        let exited = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
+        if !inherit {
+            command.process_group(0);
+        }
+        let child = command.spawn()?;
+        let group = (!inherit)
+            .then(|| child.id())
+            .flatten()
+            .and_then(|id| i32::try_from(id).ok())
+            .and_then(Pid::from_raw);
+        Ok(Self {
+            child,
+            group,
+            exited,
+        })
     }
 
     pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {

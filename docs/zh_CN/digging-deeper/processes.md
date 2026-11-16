@@ -26,6 +26,45 @@ assert_eq!(result.output(), b"test");
 
 用 `pool` 和 `concurrently` 并行运行命名子进程。`pipe` 把每一步成功进程的 stdout 作为下一步输入，遇到失败时停止。
 
+### 等待输出 {#waiting-for-output}
+
+对捕获输出的进程调用 `waitUntil`，会逐块接收 stdout 和 stderr，直到谓词匹配。匹配时返回 `true`，进程先退出时返回 `false`。再次等待时从未读片段继续，匹配可能跨块的标记时应累积字节。用 `wait` 获取最终退出码，或用 `waitWithOutput` 观察剩余片段。超时可通过 `Error::result()` 读取已捕获的结果。
+
+```rust
+use openrust::{process::OutputStream, support::facades::Process};
+use std::time::Duration;
+
+let mut process = Process::command("printf 'ready\n' >&2; sleep 0.1; printf 'done'")?
+    .timeout(Duration::from_secs(3))
+    .start()?;
+let mut diagnostic = Vec::new();
+let ready = process.waitUntil(|stream, chunk| {
+    if stream == OutputStream::Stderr {
+        diagnostic.extend_from_slice(chunk);
+    }
+    diagnostic.ends_with(b"ready\n")
+}).await?;
+assert!(ready);
+assert_eq!(process.wait().await?.output(), b"done");
+```
+
+### 连接控制终端 {#tty}
+
+在 Unix 上，`tty(true)` 将三个标准流连接到控制终端。输入和输出直接经过终端，进程没有输出缓冲，也不调用输出回调。应用没有控制终端时返回 `Error::TtyUnavailable`。`tty(false)` 恢复普通捕获模式。
+
+附着进程加入终端的前台进程组。终止操作作用于直接子进程。Unix 捕获模式的进程继续使用独立进程组并按组清理。
+
+```rust
+use openrust::support::facades::Process;
+
+let result = Process::command("test -t 0 && test -t 1 && test -t 2 && printf 'terminal ready\n'")?
+    .tty(true)
+    .run()
+    .await?
+    .throw()?;
+assert!(result.output().is_empty());
+```
+
 ## 测试 {#testing}
 
 fake 和调用记录属于各自的工厂。用 `preventStrayProcesses(true)` 使未匹配的调用在启动可执行文件前失败。

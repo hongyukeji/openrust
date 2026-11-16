@@ -26,6 +26,45 @@ Use `start` to get a live handle. Inspect `output` and `errorOutput`, or use `la
 
 Run named children together with `pool` and `concurrently`. `pipe` passes each successful child’s stdout as input to the next command and stops on failure.
 
+### Waiting for output {#waiting-for-output}
+
+Call `waitUntil` on a captured process to receive stdout and stderr chunks until a predicate matches. It returns `true` on a match and `false` if the process exits first. A subsequent wait continues with unread chunks. Match using an accumulator when a marker can span chunks. Call `wait` to obtain the final exit code, or `waitWithOutput` to observe the remaining chunks. A timeout carries the captured result through `Error::result()`.
+
+```rust
+use openrust::{process::OutputStream, support::facades::Process};
+use std::time::Duration;
+
+let mut process = Process::command("printf 'ready\n' >&2; sleep 0.1; printf 'done'")?
+    .timeout(Duration::from_secs(3))
+    .start()?;
+let mut diagnostic = Vec::new();
+let ready = process.waitUntil(|stream, chunk| {
+    if stream == OutputStream::Stderr {
+        diagnostic.extend_from_slice(chunk);
+    }
+    diagnostic.ends_with(b"ready\n")
+}).await?;
+assert!(ready);
+assert_eq!(process.wait().await?.output(), b"done");
+```
+
+### Attaching to a terminal {#tty}
+
+Use `tty(true)` to attach all three standard streams to the controlling terminal on Unix. Terminal input and output go directly to the terminal. A process started this way has no buffered output and does not invoke output callbacks. Applications without a controlling terminal receive `Error::TtyUnavailable`. `tty(false)` restores regular capture.
+
+The attached process shares the terminal’s foreground process group. Termination targets the direct child. Captured Unix processes retain their separate group and group cleanup.
+
+```rust
+use openrust::support::facades::Process;
+
+let result = Process::command("test -t 0 && test -t 1 && test -t 2 && printf 'terminal ready\n'")?
+    .tty(true)
+    .run()
+    .await?
+    .throw()?;
+assert!(result.output().is_empty());
+```
+
 ## Testing {#testing}
 
 Fakes and recorded invocations belong to a single factory. Use `preventStrayProcesses(true)` to fail unmatched calls before launching an executable.

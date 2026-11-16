@@ -27,11 +27,25 @@ pub enum Error {
     InvalidCommand,
     InvalidTimeout,
     Io(io::Error),
-    TimedOut { idle: bool },
+    TimedOut {
+        idle: bool,
+        result: Box<ProcessResult>,
+    },
+    TtyUnavailable,
+    OutputUnavailable,
     Failed(Box<ProcessResult>),
     StrayProcess,
     SequenceExhausted,
     Unavailable(crate::contracts::container::BindingResolutionError),
+}
+
+impl Error {
+    pub fn result(&self) -> Option<&ProcessResult> {
+        match self {
+            Self::TimedOut { result, .. } | Self::Failed(result) => Some(result),
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -40,10 +54,14 @@ impl fmt::Display for Error {
             Self::InvalidCommand => formatter.write_str("invalid process command"),
             Self::InvalidTimeout => formatter.write_str("invalid process timeout"),
             Self::Io(error) => write!(formatter, "process I/O failed: {error}"),
-            Self::TimedOut { idle: true } => {
+            Self::TimedOut { idle: true, .. } => {
                 formatter.write_str("process exceeded its idle timeout")
             }
-            Self::TimedOut { idle: false } => formatter.write_str("process exceeded its timeout"),
+            Self::TimedOut { idle: false, .. } => {
+                formatter.write_str("process exceeded its timeout")
+            }
+            Self::TtyUnavailable => formatter.write_str("process requires a controlling terminal"),
+            Self::OutputUnavailable => formatter.write_str("process output is not captured"),
             Self::Failed(result) => write!(
                 formatter,
                 "process exited with status {}",

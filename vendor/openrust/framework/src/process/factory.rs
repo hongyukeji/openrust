@@ -36,6 +36,7 @@ pub struct RecordedProcess {
     pub timeout: Option<Duration>,
     pub idle_timeout: Option<Duration>,
     pub quiet: bool,
+    pub tty: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's process factory API")]
@@ -196,7 +197,7 @@ impl Factory {
         {
             if let Ok(result) = &mut result {
                 result.command = process.command.clone();
-                if process.quiet {
+                if process.quiet || process.tty {
                     result.stdout.clear();
                     result.stderr.clear();
                 }

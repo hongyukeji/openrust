@@ -241,7 +241,7 @@ mod unix {
             .timeout(Duration::from_millis(100))
             .run()
             .await;
-        assert!(matches!(result, Err(Error::TimedOut { idle: false })));
+        assert!(matches!(result, Err(Error::TimedOut { idle: false, .. })));
         assert!(started.elapsed().unwrap() < Duration::from_secs(2));
 
         let result = factory
@@ -250,7 +250,7 @@ mod unix {
             .idleTimeout(Duration::from_millis(100))
             .run()
             .await;
-        assert!(matches!(result, Err(Error::TimedOut { idle: true })));
+        assert!(matches!(result, Err(Error::TimedOut { idle: true, .. })));
         let mut process = factory.command(script).path(&directory.0).start().unwrap();
         wait_for_output(&mut process, b"ready").await;
         drop(process);
@@ -351,5 +351,95 @@ mod unix {
         })
         .await
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn wait_until_observes_live_chunks_without_consuming_the_process() {
+        let directory = TestDirectory::new();
+        let mut process = Factory::new().command(
+            "printf ready >&2; while [ ! -f proceed ]; do sleep 0.02; done; printf done; exit 4",
+        ).path(&directory.0).tty(false).timeout(Duration::from_secs(4)).start().unwrap();
+        assert!(
+            process
+                .waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready")
+                .await
+                .unwrap()
+        );
+        assert!(process.running());
+        assert_eq!(process.latestErrorOutput(), b"ready");
+
+        assert!(
+            tokio::time::timeout(Duration::from_millis(15), process.waitUntil(|_, _| false))
+                .await
+                .is_err()
+        );
+        assert!(process.running());
+        std::fs::write(directory.0.join("proceed"), b"").unwrap();
+        let mut remaining = Vec::new();
+        let result = process
+            .waitWithOutput(|stream, bytes| {
+                if stream == OutputStream::Stdout {
+                    remaining.extend_from_slice(bytes);
+                }
+            })
+            .await
+            .unwrap();
+        assert_eq!(result.exitCode(), 4);
+        assert!(result.seeInOutput("done"));
+        assert_eq!(remaining, b"done");
+    }
+
+    #[tokio::test]
+    async fn repeated_wait_until_preserves_remaining_output_and_exit_status() {
+        let directory = TestDirectory::new();
+        let mut process = Factory::new().command(
+            "printf ready; while [ ! -f proceed ]; do sleep 0.02; done; printf done; printf diagnostic >&2; exit 4",
+        ).path(&directory.0).timeout(Duration::from_secs(4)).start().unwrap();
+        assert!(
+            process
+                .waitUntil(|stream, bytes| stream == OutputStream::Stdout && bytes == b"ready")
+                .await
+                .unwrap()
+        );
+        assert!(process.running());
+        std::fs::write(directory.0.join("proceed"), b"").unwrap();
+        assert!(
+            !process
+                .waitUntil(|_, bytes| bytes == b"not printed")
+                .await
+                .unwrap()
+        );
+        assert!(!process.running());
+        let result = process.wait().await.unwrap();
+        assert_eq!(result.exitCode(), 4);
+        assert_eq!(result.output(), b"readydone");
+        assert_eq!(result.errorOutput(), b"diagnostic");
+    }
+
+    #[tokio::test]
+    async fn wait_until_timeout_retains_output_and_reaps_the_process_group() {
+        let directory = TestDirectory::new();
+        let mut process = Factory::new()
+            .command(
+                "(sleep 0.4; printf survived > marker) & printf ready; printf warning >&2; wait",
+            )
+            .path(&directory.0)
+            .idleTimeout(Duration::from_millis(100))
+            .start()
+            .unwrap();
+        let error = process.waitUntil(|_, _| false).await.unwrap_err();
+        assert!(matches!(error, Error::TimedOut { idle: true, .. }));
+        assert_eq!(error.result().unwrap().output(), b"ready");
+        assert_eq!(error.result().unwrap().errorOutput(), b"warning");
+        assert!(matches!(
+            process.ensureNotTimedOut().await,
+            Err(Error::TimedOut { idle: true, .. })
+        ));
+        assert!(matches!(
+            process.wait().await,
+            Err(Error::TimedOut { idle: true, .. })
+        ));
+        tokio::time::sleep(Duration::from_millis(450)).await;
+        assert!(!directory.0.join("marker").exists());
     }
 }

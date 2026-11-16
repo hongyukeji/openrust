@@ -4,7 +4,7 @@
 
 `Process` 通过应用容器解析独立 Factory。支持 Shell 命令与原样参数、工作目录、环境增删、字节输入、输出回调、退出码及错误转换。默认超时 60 秒，空闲超时由 stdout 和 stderr 共同刷新。Unix 在组长回收前终止同组后代，超时、正常退出和取消均适用。命名进程池同时启动，按注册顺序返回各自结果。Pipe 逐步传递成功输出并在失败时停止。fake 支持匹配、序列、调用断言和拦截意外执行。
 
-Rust 使用 `Duration`、字节切片和类型化 `Result`。进程句柄所有权控制取消，输出回调显式接收数据来源。当前记录匹配的 fake 错误尝试，记录中无退出结果。TTY、`waitUntil`、超时错误内嵌输出、进程描述脚本和任意数值信号尚未对齐。Windows 路径使用直接子进程终止。Linux 和 Windows 未实机验收。
+Rust 使用 `Duration`、字节切片和类型化 `Result`。进程句柄所有权控制取消，输出回调显式接收数据来源。当前记录匹配的 fake 错误尝试，记录中无退出结果。进程描述脚本和任意数值信号尚未对齐。TTY、`waitUntil` 和超时结果见后续验收。Windows 路径使用直接子进程终止。Linux 和 Windows 未实机验收。
 
 ## 验收
 
@@ -14,3 +14,9 @@ Rust 使用 `Duration`、字节切片和类型化 `Result`。进程句柄所有�
 - 三语六份 Rust 示例实际运行，VitePress 构建、12 项通用浏览器检查及 6 项 Processes 页面导航通过。
 
 下一单元 07-04 Concurrency，依赖本单元。
+
+## 控制终端与等待输出
+
+- 按固定 Laravel 与兼容的 Symfony Process 8.0.5 核对控制终端和输出等待。Unix `tty(true)` 直接连接 `/dev/tty` 的三个标准流，保留终端前台组。无终端时返回 `TtyUnavailable`。附着进程按直接子进程回收，捕获模式沿用 v0.x 进程组及 `waitid(NOWAIT)` 防止组长 PID 提前复用的实现。 [固定 PendingProcess](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Process/PendingProcess.php) [Symfony 终端描述符](https://github.com/symfony/process/blob/v8.0.5/Pipes/UnixPipes.php)
+- `waitUntil` 借用活跃句柄，按输出块返回匹配布尔值，保留后续等待和最终退出结果。取消一次等待仍可继续使用原句柄。`waitWithOutput` 观察余下块，`ensureNotTimedOut` 报告已发生的超时。总时限与空闲时限均保留捕获的 `ProcessResult`。分块未匹配、stderr 匹配、重复等待、退出状态、超时载荷和同组后代清理均有真实回归。 [固定 InvokedProcess](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Process/InvokedProcess.php)
+- Rust 1.94.0 锁定离线通过 11 项 Processes 和 4 项 Concurrency 定向测试，后者有一个子进程夹具入口由测试调用。工作区全目标严格 Clippy 和变更文件格式通过。工作区格式仅报告基线 Sanctum 排版差异。macOS 实际 Artisan 与回环 HTTP 使用真实控制终端检查交互输入、stdout／stderr、超时及直接子进程回收。普通 HTTP 还验证无终端错误和捕获输出。三语 VitePress 构建与 12 项浏览器检查通过。

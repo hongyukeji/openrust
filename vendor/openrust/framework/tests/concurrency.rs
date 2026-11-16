@@ -184,7 +184,8 @@ async fn timeout_and_cancellation_reclaim_live_worker_processes() {
     assert!(matches!(
         result,
         Err(Error::Process(openrust::process::Error::TimedOut {
-            idle: false
+            idle: false,
+            ..
         }))
     ));
     assert!(timeout_marker.with_extension("started").exists());

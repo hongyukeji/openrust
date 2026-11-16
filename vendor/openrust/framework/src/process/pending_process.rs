@@ -83,6 +83,7 @@ pub struct PendingProcess {
     timeout: Option<Duration>,
     idle_timeout: Option<Duration>,
     quiet: bool,
+    tty: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's pending process API")]
@@ -97,6 +98,7 @@ impl PendingProcess {
             timeout: Some(Duration::from_secs(60)),
             idle_timeout: None,
             quiet: false,
+            tty: false,
         }
     }
 
@@ -148,6 +150,11 @@ impl PendingProcess {
         self
     }
 
+    pub fn tty(mut self, enabled: bool) -> Self {
+        self.tty = enabled;
+        self
+    }
+
     pub async fn run(self) -> Result<ProcessResult> {
         self.start()?.wait().await
     }
@@ -184,8 +191,14 @@ impl PendingProcess {
             timeout: self.timeout,
             idle_timeout: self.idle_timeout,
             quiet: self.quiet,
+            tty: self.tty,
         })? {
-            return Ok(InvokedProcess::fake(self.command, result?, callback));
+            return Ok(InvokedProcess::fake(
+                self.command,
+                result?,
+                callback,
+                !self.tty && !self.quiet,
+            ));
         }
         if let Some(path) = &self.path {
             native.current_dir(path);
@@ -197,17 +210,36 @@ impl PendingProcess {
                 native.env_remove(key);
             }
         }
-        native.stdin(if self.input.is_empty() {
-            Stdio::null()
+        let attached = self.tty && !self.quiet;
+        let child = if attached {
+            #[cfg(unix)]
+            {
+                let tty = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open("/dev/tty")
+                    .map_err(|_| Error::TtyUnavailable)?;
+                native
+                    .stdin(tty.try_clone()?)
+                    .stdout(tty.try_clone()?)
+                    .stderr(tty);
+                ChildGroup::spawn_attached(&mut native)?
+            }
+            #[cfg(not(unix))]
+            return Err(Error::TtyUnavailable);
         } else {
-            Stdio::piped()
-        });
-        if self.quiet {
-            native.stdout(Stdio::null()).stderr(Stdio::null());
-        } else {
-            native.stdout(Stdio::piped()).stderr(Stdio::piped());
-        }
-        let child = ChildGroup::spawn(&mut native)?;
+            native.stdin(if self.input.is_empty() {
+                Stdio::null()
+            } else {
+                Stdio::piped()
+            });
+            if self.quiet {
+                native.stdout(Stdio::null()).stderr(Stdio::null());
+            } else {
+                native.stdout(Stdio::piped()).stderr(Stdio::piped());
+            }
+            ChildGroup::spawn(&mut native)?
+        };
         Ok(InvokedProcess::spawn(
             self.command,
             child,
@@ -216,6 +248,7 @@ impl PendingProcess {
                 timeout: self.timeout,
                 idle_timeout: self.idle_timeout,
                 callback,
+                capture: !attached && !self.quiet,
             },
         ))
     }

@@ -7,7 +7,7 @@ use std::{
 
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _},
-    sync::{mpsc, oneshot},
+    sync::{Notify, mpsc, oneshot},
     task::JoinHandle,
     time::{Instant, sleep_until, timeout},
 };
@@ -31,7 +31,34 @@ pub enum Signal {
 struct Output {
     stdout: Vec<u8>,
     stderr: Vec<u8>,
+    chunks: Vec<(OutputStream, std::ops::Range<usize>)>,
 }
+
+impl Output {
+    fn append(&mut self, stream: OutputStream, bytes: &[u8]) {
+        let buffer = match stream {
+            OutputStream::Stdout => &mut self.stdout,
+            OutputStream::Stderr => &mut self.stderr,
+        };
+        let start = buffer.len();
+        buffer.extend_from_slice(bytes);
+        self.chunks.push((stream, start..buffer.len()));
+    }
+}
+
+#[derive(Default)]
+struct LiveOutput {
+    data: Mutex<Output>,
+    changed: Notify,
+}
+
+#[derive(Clone, Copy)]
+struct Completion {
+    exit_code: i32,
+    idle_timeout: Option<bool>,
+}
+
+type ProcessTask = JoinHandle<Result<Completion>>;
 
 pub(super) type OutputCallback = Box<dyn FnMut(OutputStream, &[u8]) + Send>;
 type SignalRequest = (Signal, oneshot::Sender<io::Result<()>>);
@@ -41,14 +68,18 @@ pub(super) struct Options {
     pub(super) timeout: Option<Duration>,
     pub(super) idle_timeout: Option<Duration>,
     pub(super) callback: Option<OutputCallback>,
+    pub(super) capture: bool,
 }
 
 /// A running process and its live output. Dropping it cancels the process.
 pub struct InvokedProcess {
     command: Command,
     id: Option<u32>,
-    output: Arc<Mutex<Output>>,
-    task: JoinHandle<Result<i32>>,
+    output: Arc<LiveOutput>,
+    task: Option<ProcessTask>,
+    completion: Option<Completion>,
+    capture: bool,
+    chunk_offset: usize,
     signals: mpsc::UnboundedSender<SignalRequest>,
     stdout_offset: usize,
     stderr_offset: usize,
@@ -60,12 +91,16 @@ impl InvokedProcess {
         let id = child.child.id();
         let output = Arc::default();
         let (signals, receiver) = mpsc::unbounded_channel();
+        let capture = options.capture;
         let task = tokio::spawn(drive(child, options, Arc::clone(&output), receiver));
         Self {
             command,
             id,
             output,
-            task,
+            task: Some(task),
+            completion: None,
+            capture,
+            chunk_offset: 0,
             signals,
             stdout_offset: 0,
             stderr_offset: 0,
@@ -76,26 +111,32 @@ impl InvokedProcess {
         command: Command,
         result: ProcessResult,
         mut callback: Option<OutputCallback>,
+        capture: bool,
     ) -> Self {
-        if let Some(callback) = callback.as_mut() {
-            if !result.stdout.is_empty() {
-                callback(OutputStream::Stdout, &result.stdout);
-            }
-            if !result.stderr.is_empty() {
-                callback(OutputStream::Stderr, &result.stderr);
+        let output = Arc::new(LiveOutput::default());
+        for (stream, bytes) in [
+            (OutputStream::Stdout, result.stdout),
+            (OutputStream::Stderr, result.stderr),
+        ] {
+            if !bytes.is_empty() {
+                record(&output, &mut callback, stream, &bytes);
             }
         }
-        let output = Arc::new(Mutex::new(Output {
-            stdout: result.stdout,
-            stderr: result.stderr,
-        }));
         let (signals, _) = mpsc::unbounded_channel();
-        let task = tokio::spawn(async move { Ok(result.exit_code) });
+        let task = tokio::spawn(async move {
+            Ok(Completion {
+                exit_code: result.exit_code,
+                idle_timeout: None,
+            })
+        });
         Self {
             command,
             id: None,
             output,
-            task,
+            task: Some(task),
+            completion: None,
+            capture,
+            chunk_offset: 0,
             signals,
             stdout_offset: 0,
             stderr_offset: 0,
@@ -111,7 +152,7 @@ impl InvokedProcess {
     }
 
     pub fn running(&self) -> bool {
-        self.id.is_some() && !self.task.is_finished()
+        self.id.is_some() && self.task.as_ref().is_some_and(|task| !task.is_finished())
     }
 
     pub fn output(&self) -> Vec<u8> {
@@ -146,8 +187,8 @@ impl InvokedProcess {
 
     pub async fn stop(mut self, grace: Duration) -> Result<ProcessResult> {
         self.signal(Signal::Terminate).await?;
-        if let Ok(result) = timeout(grace, &mut self.task).await {
-            return self.finish(result.map_err(io::Error::other)?);
+        if let Ok(result) = timeout(grace, self.collect()).await {
+            return self.finish(result?);
         }
         self.signal(Signal::Kill).await?;
         self.wait().await
@@ -157,24 +198,109 @@ impl InvokedProcess {
         self.wait_ref().await
     }
 
-    pub(crate) async fn wait_ref(&mut self) -> Result<ProcessResult> {
-        let result = (&mut self.task).await.map_err(io::Error::other)?;
-        self.finish(result)
+    pub async fn waitUntil(
+        &mut self,
+        mut ready: impl FnMut(OutputStream, &[u8]) -> bool,
+    ) -> Result<bool> {
+        if !self.capture {
+            return Err(Error::OutputUnavailable);
+        }
+        let output = Arc::clone(&self.output);
+        loop {
+            while let Some((stream, bytes)) = self.next_chunk() {
+                if ready(stream, &bytes) {
+                    return Ok(true);
+                }
+            }
+            if let Some(status) = self.completion {
+                if status.idle_timeout.is_some() {
+                    self.finish(status)?;
+                }
+                return Ok(false);
+            }
+            tokio::select! {
+                result = self.collect() => { result?; }
+                () = output.changed.notified() => {}
+            }
+        }
     }
 
-    fn finish(&self, status: Result<i32>) -> Result<ProcessResult> {
-        let exit_code = status?;
-        let output = std::mem::take(&mut *self.read_output());
-        Ok(ProcessResult {
-            command: self.command.clone(),
-            exit_code,
-            stdout: output.stdout,
-            stderr: output.stderr,
+    pub async fn ensureNotTimedOut(&mut self) -> Result<()> {
+        if self.task.as_ref().is_some_and(JoinHandle::is_finished) || self.completion.is_some() {
+            let status = self.collect().await?;
+            if status.idle_timeout.is_some() {
+                self.finish(status)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn waitWithOutput(
+        mut self,
+        mut callback: impl FnMut(OutputStream, &[u8]),
+    ) -> Result<ProcessResult> {
+        self.waitUntil(|stream, bytes| {
+            callback(stream, bytes);
+            false
         })
+        .await?;
+        self.wait().await
+    }
+
+    pub(crate) async fn wait_ref(&mut self) -> Result<ProcessResult> {
+        let status = self.collect().await?;
+        self.finish(status)
+    }
+
+    async fn collect(&mut self) -> Result<Completion> {
+        if let Some(status) = self.completion {
+            return Ok(status);
+        }
+        let task = self
+            .task
+            .as_mut()
+            .ok_or_else(|| io::Error::other("process result unavailable"))?;
+        let result = task.await;
+        self.task = None;
+        let status = result.map_err(io::Error::other)??;
+        self.completion = Some(status);
+        Ok(status)
+    }
+
+    fn next_chunk(&mut self) -> Option<(OutputStream, Vec<u8>)> {
+        let chunk = {
+            let output = self.read_output();
+            let (stream, range) = output.chunks.get(self.chunk_offset)?;
+            let buffer = match stream {
+                OutputStream::Stdout => &output.stdout,
+                OutputStream::Stderr => &output.stderr,
+            };
+            (*stream, buffer[range.clone()].to_vec())
+        };
+        self.chunk_offset += 1;
+        Some(chunk)
+    }
+
+    fn finish(&self, status: Completion) -> Result<ProcessResult> {
+        let output = self.read_output();
+        let result = ProcessResult {
+            command: self.command.clone(),
+            exit_code: status.exit_code,
+            stdout: output.stdout.clone(),
+            stderr: output.stderr.clone(),
+        };
+        match status.idle_timeout {
+            Some(idle) => Err(Error::TimedOut {
+                idle,
+                result: Box::new(result),
+            }),
+            None => Ok(result),
+        }
     }
 
     fn read_output(&self) -> std::sync::MutexGuard<'_, Output> {
         self.output
+            .data
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
@@ -182,16 +308,18 @@ impl InvokedProcess {
 
 impl Drop for InvokedProcess {
     fn drop(&mut self) {
-        self.task.abort();
+        if let Some(task) = &self.task {
+            task.abort();
+        }
     }
 }
 
 async fn drive(
     mut group: ChildGroup,
     mut options: Options,
-    output: Arc<Mutex<Output>>,
+    output: Arc<LiveOutput>,
     mut signals: mpsc::UnboundedReceiver<SignalRequest>,
-) -> Result<i32> {
+) -> Result<Completion> {
     let mut stdout = group.child.stdout.take();
     let mut stderr = group.child.stderr.take();
     let stdin = group.child.stdin.take();
@@ -204,7 +332,10 @@ async fn drive(
     let mut out_buffer = [0; 8192];
     let mut err_buffer = [0; 8192];
 
-    while status.is_none() || stdout.is_some() || stderr.is_some() {
+    let idle_timeout = loop {
+        if status.is_some() && stdout.is_none() && stderr.is_none() {
+            break None;
+        }
         tokio::select! {
             result = group.wait(), if status.is_none() => status = Some(result?),
             result = &mut input, if writing => {
@@ -230,24 +361,24 @@ async fn drive(
                 let _ = acknowledge.send(result);
             }
             () = wait_deadline(total_deadline) => {
-                terminate(&mut group, status.is_none()).await?;
-                return Err(Error::TimedOut { idle: false });
+                break Some(false);
             }
             () = wait_deadline(idle_deadline) => {
-                terminate(&mut group, status.is_none()).await?;
-                return Err(Error::TimedOut { idle: true });
+                break Some(true);
             }
         }
-    }
-    Ok(exit_code(status.expect("process exit status recorded")))
-}
-
-async fn terminate(group: &mut ChildGroup, running: bool) -> Result<()> {
-    if running {
-        group.signal(Signal::Kill)?;
-        group.wait().await?;
-    }
-    Ok(())
+    };
+    let status = match status {
+        Some(status) => status,
+        None => {
+            group.signal(Signal::Kill)?;
+            group.wait().await?
+        }
+    };
+    Ok(Completion {
+        exit_code: exit_code(status),
+        idle_timeout,
+    })
 }
 
 fn deadline(duration: Option<Duration>) -> Result<Option<Instant>> {
@@ -287,20 +418,17 @@ async fn write_input(stdin: Option<tokio::process::ChildStdin>, input: Vec<u8>) 
 }
 
 fn record(
-    output: &Mutex<Output>,
+    output: &LiveOutput,
     callback: &mut Option<OutputCallback>,
     stream: OutputStream,
     bytes: &[u8],
 ) {
-    {
-        let mut output = output
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match stream {
-            OutputStream::Stdout => output.stdout.extend_from_slice(bytes),
-            OutputStream::Stderr => output.stderr.extend_from_slice(bytes),
-        }
-    }
+    output
+        .data
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .append(stream, bytes);
+    output.changed.notify_one();
     if let Some(callback) = callback {
         callback(stream, bytes);
     }
