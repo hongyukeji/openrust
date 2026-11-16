@@ -49,6 +49,7 @@ impl ConnectionFactory {
             model_timezone: chrono_tz::UTC,
             model_container: std::sync::Weak::new(),
             routing: Arc::default(),
+            established: Arc::default(),
         })
     }
 }

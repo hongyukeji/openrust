@@ -5,7 +5,7 @@
 - `ConnectionFactory` 合并 `read`、`write` 与公共配置，MySQL 接受主机列表。读操作优先使用读池，具名连接允许 `::read` 和 `::write`。`selectFromWriteConnection` 强制单次查询走写库。`sticky` 和强制走写库状态以逻辑连接为单位，由当前 HTTP/Artisan 作用域保管。独立管理器以逻辑连接的克隆共享状态。
 - 事务借用一个写库物理连接，支持回调、手动提交和回滚、任意层级保存点回退及并发错误重试。参考旧版 `6d1a8192` 的 `src/database/mod.rs` 中事务回调显式传入句柄，以及 `src/database/sqlite/provider_tests.rs` 的保存点隔离回归。SQLx 的事务管理器跟踪物理层级。MySQL 中断或死锁的租约关闭后重新取连接，SQLite 通过 worker 排队回滚，并校验归还后的事务深度。
 - Rust 的回调通过借用 `Transaction` 独占会话，异步返回 `DatabaseFuture`。调用方显式设置总尝试次数，零次返回配置错误。上层仍以 `Result` 传播驱动错误。
-- 读库空闲连接丢失时池可换用新物理连接。运行中连接断开后的自动语句重放、显式连接刷新、`::direct`、连接和查询事件及跨 Query Builder/Schema 的 `ConnectionInterface` 仍待接通。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
+- 读库空闲连接丢失时池可换用新物理连接。运行中连接断开后的自动语句重放、显式连接刷新、`::direct`、查询事件及跨 Query Builder/Schema 的 `ConnectionInterface` 仍待接通。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
 
 ## 验收
 
@@ -27,4 +27,14 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - macOS arm64、Rust 1.94.0、实际 SQLite 与独立 MySQL 8.4.13。数据库 SQL、查询、写入、Schema 和事件回归共 39 项通过，1 个现有 Artisan 夹具按设计由父测试启动。实测两应用事件隔离、嵌套提交、跨层回滚、提交前后监听失败、MySQL 锁等待失败后的回滚与再提交、实际回环 HTTP 和 Artisan 子进程。首次测试后复跑最终源码。工作区严格 Clippy 与本批文件格式检查通过。
 - 全工作区测试在 `tests/startup.rs` 的 `stub:publish` 数量断言停止。用本批基线 `3fa4fa148` 单独复验同一测试，也得到实际 32、预期 28。
 - 本批三语事务事件示例通过实际 Artisan 在 MySQL 和 SQLite 各运行一次，主程序 `main artisan inspire` 成功退出。VitePress 构建及根路径、子路径下 12 项站点浏览器检查和 6 项事务事件小节检查通过。
-- 剩余 `ConnectionEstablished`、查询事件、连接重连，以及 `beforeStartingTransaction` 和 `afterRollBack` 回调继续按 02-02 验收。02-02 仍在研。
+- `ConnectionEstablished` 见下方续批。剩余查询事件、连接重连，以及 `beforeStartingTransaction` 和 `afterRollBack` 回调继续按 02-02 验收。02-02 仍在研。
+
+## 连接建立事件
+
+固定 Laravel [DatabaseManager::connection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/DatabaseManager.php#L94) 在缓存逻辑连接后派发 `ConnectionEstablished`。旧版无同名事件可直接复用，当前复用应用事件分发器与惰性连接池。
+
+- Rust 同步获取惰性句柄。该句柄首次异步使用前向所属应用派发事件，也可通过 `Connection::establish().await` 显式等待。事件先于读写池选择和借用，因此监听器可直接等待同一连接的 SQL。并行首查等待该连接的初始化，连接缓存仍按应用与名称划分。
+- 已完成的派发只执行一次。监听器返回的错误交给发起操作，后续操作继续使用已缓存的连接。派发被取消时，后续异步操作重新初始化。连接池替换物理会话沿用现有机制。
+- 隔离 SQLite 与 MySQL 8.4.13 实测首次并发查询、监听器同连接初始化、应用隔离、派发错误及取消后的恢复。两套实际 HTTP 应用和 Artisan 子进程实测各自只收到一次。42 项定向回归通过，1 个现有子进程夹具按设计由父测试启动。工作区严格 Clippy 与变更文件格式检查通过。
+- 三语文档示例均通过实际 Artisan 分别在 SQLite 和 MySQL 运行。实际 `main artisan inspire` 退出成功。VitePress 构建、12 项站点浏览器组合和 6 项连接事件小节检查通过。全工作区测试的既有 `stub:publish` 断言问题见上批。
+- 02-02 继续处理查询事件、累计查询耗时、显式重连及事务前置与回滚回调。

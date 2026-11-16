@@ -61,7 +61,7 @@ impl Connection {
     pub async fn beginTransaction(&self) -> DatabaseResult<Transaction> {
         let mut transaction = Transaction {
             connection: self.clone(),
-            physical: Some(self.pool.acquire().await?),
+            physical: Some(self.acquire(false).await?),
             level: 0,
             retain_physical: false,
             transactions: DatabaseTransactionsManager::default(),
@@ -79,6 +79,7 @@ impl Connection {
         + Send
         + 'static,
     ) -> DatabaseResult<()> {
+        self.establish().await?;
         let connection = self.clone();
         // Let the owning task restore its session state even when the caller is cancelled.
         let result = tokio::spawn(async move {

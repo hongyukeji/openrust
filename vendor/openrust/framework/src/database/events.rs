@@ -4,6 +4,21 @@ use crate::contracts::events::Event;
 
 use super::Connection;
 
+/// An application connection has been resolved for use.
+pub struct ConnectionEstablished {
+    pub connection: Connection,
+}
+
+impl ConnectionEstablished {
+    pub const NAME: &'static str = r"OpenRust\Database\Events\ConnectionEstablished";
+}
+
+impl Event for ConnectionEstablished {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 pub(super) trait TransactionEvent: Event {
     const NAME: &'static str;
 

@@ -84,6 +84,38 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 Use `DB::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `DB::connection(Some("reporting::read"))`.
 
+### Connection Established Event {#connection-established}
+
+Register for `ConnectionEstablished` to initialize an application connection. Resolving a connection returns a lazy handle. Its first asynchronous operation awaits the event before using the database pool. Use `establish().await` to deliver it explicitly. Each named connection delivers the event once per application. A listener can await SQL on the event's connection directly. If dispatch returns a listener error, the initiating operation receives that error. If the dispatch is canceled while a listener is running, the next operation retries it.
+
+```rust
+use std::{error::Error, sync::Arc};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::events::ConnectionEstablished,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::{DB, Event},
+};
+
+fn connected<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let event = payload.downcast_ref::<ConnectionEstablished>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Established {}", event.connection.getName());
+        Ok(None)
+    })
+}
+
+async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
+    Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
+    DB::connection(None)?.establish().await?;
+    Ok(())
+}
+```
+
 ## Database Transactions
 
 Use `DB::transaction` for the default connection or call `transaction` on a named connection. Execute SQL through the transaction handle passed to the callback. The handle holds one write connection through the final commit or rollback. The boxed future lets Rust borrow that handle across asynchronous queries. The second argument specifies total attempts. Use `1` for a single attempt. Concurrency failures can rerun the whole callback, so keep side effects outside it or make them safe to repeat.

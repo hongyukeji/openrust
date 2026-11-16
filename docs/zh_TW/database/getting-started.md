@@ -84,6 +84,38 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 用 `DB::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `DB::connection(Some("reporting::read"))`。
 
+### 連線建立事件 {#connection-established}
+
+透過 `ConnectionEstablished` 初始化應用程式連線。連線解析傳回延遲開啟的控制代碼，第一次非同步操作會在使用連線池前等待事件完成。也可透過 `establish().await` 明確觸發。每個應用程式的具名連線各派發一次。監聽器可直接在事件提供的連線上等待 SQL 執行。 派送傳回監聽器錯誤時，由發起操作接收該錯誤。如果派送在監聽器執行期間被取消，下一次操作會重試派送。
+
+```rust
+use std::{error::Error, sync::Arc};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::events::ConnectionEstablished,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::{DB, Event},
+};
+
+fn connected<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let event = payload.downcast_ref::<ConnectionEstablished>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Established {}", event.connection.getName());
+        Ok(None)
+    })
+}
+
+async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
+    Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
+    DB::connection(None)?.establish().await?;
+    Ok(())
+}
+```
+
 ## 資料庫交易
 
 預設連線使用 `DB::transaction`，具名連線直接呼叫 `transaction`。在回呼中透過傳入的交易控制代碼執行 SQL。該控制代碼獨占一條寫庫實體連線，直到提交或復原。Rust 用裝箱的 Future 在非同步查詢期間借用交易控制代碼。第二個參數是總嘗試次數，傳 `1` 表示執行一次。並行錯誤可能重跑整個回呼，請將外部副作用放在交易之外，或確保可安全重複執行。

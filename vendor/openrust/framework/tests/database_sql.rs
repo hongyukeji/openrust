@@ -4,7 +4,10 @@ use std::{
     fs,
     io::{Read as _, Write as _},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -21,8 +24,8 @@ use openrust::{
     database::{
         Bindings, Connection, DatabaseError, DatabaseManager, Value,
         events::{
-            TransactionBeginning, TransactionCommitted, TransactionCommitting,
-            TransactionRolledBack,
+            ConnectionEstablished, TransactionBeginning, TransactionCommitted,
+            TransactionCommitting, TransactionRolledBack,
         },
     },
     events::{
@@ -429,6 +432,7 @@ async fn server(
     std::net::SocketAddr,
     tokio::task::JoinHandle<()>,
     Arc<TransactionRecorder>,
+    Arc<EstablishmentListener>,
 ) {
     let mut app = Application::configure(root.0.clone())
         .withConfig(config)
@@ -437,6 +441,7 @@ async fn server(
         .unwrap();
     app.boot().await.unwrap();
     let recorder = transaction_recorder(&app);
+    let established = establishment_listener(&app, false, false);
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -446,6 +451,7 @@ async fn server(
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
         recorder,
+        established,
     )
 }
 
@@ -510,7 +516,9 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
             .unwrap();
         app.boot().await.unwrap();
         let recorder = transaction_recorder(&app);
+        let established = establishment_listener(&app, false, false);
         assert_eq!(app.handleCommand(&["db:probe".into()]).await.unwrap(), 0);
+        assert_eq!(established.calls.load(Ordering::SeqCst), 1);
         assert_eq!(
             recorder.take(),
             [
@@ -524,7 +532,8 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     let first = Root::new();
     let second = Root::new();
     tokio::join!(prepare(&first, 17), prepare(&second, 42));
-    let ((a, x, events_a), (b, y, events_b)) = tokio::join!(server(&first), server(&second));
+    let ((a, x, events_a, established_a), (b, y, events_b, established_b)) =
+        tokio::join!(server(&first), server(&second));
     tokio::join!(
         send(a, "/database", "17"),
         send(b, "/database", "42"),
@@ -537,6 +546,8 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     );
     send(a, "/replica/read", "170").await;
     send(a, "/replica/primary", "18").await;
+    assert_eq!(established_a.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(established_b.calls.load(Ordering::SeqCst), 1);
     let mut observed = events_a.take();
     observed.sort_unstable();
     assert_eq!(
@@ -1441,4 +1452,195 @@ async fn mysql_transactions_deliver_events_after_confirmed_driver_operations() {
     let (_app, connection, events) =
         record_transactions(Application::configure(root.0.clone()).withConfig(mysql_config)).await;
     verify_transaction_lifecycle(&connection, &events).await;
+}
+
+struct EstablishmentListener {
+    calls: AtomicUsize,
+    initialize: bool,
+    fail: bool,
+}
+
+impl Listener for EstablishmentListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<ConnectionEstablished>()
+                .ok_or(EventError::InvalidPayload)?;
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let resolved = DB::connection(None).map_err(EventError::Transaction)?;
+            assert_eq!(
+                event.connection.getDatabaseName(),
+                resolved.getDatabaseName()
+            );
+            assert_eq!(
+                resolved
+                    .scalar("SELECT 1", &[])
+                    .await
+                    .map_err(EventError::Transaction)?,
+                1.into()
+            );
+            if self.initialize {
+                event
+                    .connection
+                    .statement(
+                        "CREATE TABLE establishment_probe (id INTEGER NOT NULL)",
+                        &[],
+                    )
+                    .await
+                    .map_err(EventError::Transaction)?;
+                event
+                    .connection
+                    .insert("INSERT INTO establishment_probe VALUES (?)", &[9.into()])
+                    .await
+                    .map_err(EventError::Transaction)?;
+            }
+            if self.fail {
+                return Err(EventError::Listener {
+                    source: std::io::Error::other("establishment listener probe").into(),
+                });
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn establishment_listener(
+    app: &Application,
+    initialize: bool,
+    fail: bool,
+) -> Arc<EstablishmentListener> {
+    let listener = Arc::new(EstablishmentListener {
+        calls: AtomicUsize::new(0),
+        initialize,
+        fail,
+    });
+    app.container()
+        .make::<Dispatcher>()
+        .unwrap()
+        .listen(
+            ConnectionEstablished::NAME,
+            listener.clone(),
+            Delivery::Sync,
+        )
+        .unwrap();
+    listener
+}
+
+async fn verify_establishment(root: &Root, builder: ApplicationBuilder) {
+    let mut app = builder.create().unwrap();
+    app.boot().await.unwrap();
+    let first_listener = establishment_listener(&app, true, false);
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let first = manager.connection(None).unwrap();
+    let second = manager.connection(None).unwrap();
+    assert_eq!(first_listener.calls.load(Ordering::SeqCst), 0);
+    let (a, b) = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(
+            first.scalar("SELECT id FROM establishment_probe", &[]),
+            second.scalar("SELECT id FROM establishment_probe", &[]),
+        )
+    })
+    .await
+    .expect("an asynchronous listener may query its own connection");
+    assert_eq!(a.unwrap(), 9.into());
+    assert_eq!(b.unwrap(), 9.into());
+    first.establish().await.unwrap();
+    assert_eq!(first_listener.calls.load(Ordering::SeqCst), 1);
+    first
+        .statement("DROP TABLE establishment_probe", &[])
+        .await
+        .unwrap();
+
+    let mut second_app = Application::configure(root.0.clone()).create().unwrap();
+    second_app.boot().await.unwrap();
+    let second_listener = establishment_listener(&second_app, false, true);
+    let manager = second_app.container().make::<DatabaseManager>().unwrap();
+    let connection = manager.connection(None).unwrap();
+    assert!(matches!(
+        connection.establish().await,
+        Err(DatabaseError::ConnectionEvent(_))
+    ));
+    assert_eq!(connection.scalar("SELECT 1", &[]).await.unwrap(), 1.into());
+    assert_eq!(second_listener.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(first_listener.calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn sqlite_connection_established_runs_once_before_concurrent_queries() {
+    let root = Root::new();
+    let second = Root::new();
+    verify_establishment(&second, Application::configure(root.0.clone())).await;
+}
+
+#[tokio::test]
+async fn mysql_connection_established_can_initialize_its_own_connection() {
+    fn config(
+        _: &Path,
+        _: &Environment,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+        let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+        Ok([(
+            "database".into(),
+            json!({"default":"mysql","connections":{"mysql":{"url":url}}}),
+        )]
+        .into())
+    }
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    let root = Root::new();
+    let second = Root::new();
+    verify_establishment(
+        &second,
+        Application::configure(root.0.clone()).withConfig(config),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn canceled_establishment_allows_the_next_operation_to_dispatch() {
+    #[derive(Default)]
+    struct PauseFirst(AtomicUsize);
+    impl Listener for PauseFirst {
+        fn handle<'a>(
+            &'a self,
+            _: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                if self.0.fetch_add(1, Ordering::SeqCst) == 0 {
+                    std::future::pending::<()>().await;
+                }
+                Ok(None)
+            })
+        }
+    }
+
+    let root = Root::new();
+    let mut app = Application::configure(root.0.clone()).create().unwrap();
+    app.boot().await.unwrap();
+    let listener = Arc::new(PauseFirst::default());
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    dispatcher
+        .listen(
+            ConnectionEstablished::NAME,
+            listener.clone(),
+            Delivery::Sync,
+        )
+        .unwrap();
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let connection = manager.connection(None).unwrap();
+    assert!(
+        tokio::time::timeout(Duration::from_millis(30), connection.establish())
+            .await
+            .is_err()
+    );
+    assert_eq!(listener.0.load(Ordering::SeqCst), 1);
+    assert_eq!(connection.scalar("SELECT 1", &[]).await.unwrap(), 1.into());
+    assert_eq!(listener.0.load(Ordering::SeqCst), 2);
 }

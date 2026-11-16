@@ -11,10 +11,17 @@ use sqlx::{
 };
 
 use sqlx_core::transaction::TransactionManager;
+use tokio::sync::OnceCell;
+
+use crate::{
+    contracts::{container::Container as _, events::Dispatcher as _},
+    events::{Dispatcher, EventContext},
+    support::facades::application_scope,
+};
 
 use super::{
     Bindings, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value,
-    bindings::PreparedBindings, value,
+    bindings::PreparedBindings, events::ConnectionEstablished, value,
 };
 
 #[derive(Clone)]
@@ -36,6 +43,11 @@ pub struct Connection {
     pub(super) model_timezone: chrono_tz::Tz,
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) routing: Arc<ReadRouting>,
+    pub(super) established: Arc<OnceCell<()>>,
+}
+
+tokio::task_local! {
+    static ESTABLISHING_CONNECTIONS: Vec<usize>;
 }
 
 #[derive(Default)]
@@ -477,6 +489,63 @@ impl Connection {
         }
     }
 
+    /// Delivers `ConnectionEstablished` once for this logical connection.
+    ///
+    /// SQL operations call this before acquiring a physical connection.
+    pub async fn establish(&self) -> DatabaseResult<()> {
+        if self.established.initialized() {
+            return Ok(());
+        }
+
+        let identity = Arc::as_ptr(&self.established).addr();
+        if ESTABLISHING_CONNECTIONS
+            .try_with(|connections| connections.contains(&identity))
+            .unwrap_or(false)
+        {
+            return Ok(());
+        }
+
+        let mut result = Ok(());
+        self.established
+            .get_or_init(|| async {
+                let mut connections = ESTABLISHING_CONNECTIONS
+                    .try_with(Clone::clone)
+                    .unwrap_or_default();
+                connections.push(identity);
+                result = ESTABLISHING_CONNECTIONS
+                    .scope(connections, self.fire_established())
+                    .await;
+            })
+            .await;
+        result
+    }
+
+    async fn fire_established(&self) -> DatabaseResult<()> {
+        let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events"))
+        else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(DatabaseError::Unavailable)?;
+        if dispatcher.observes(ConnectionEstablished::NAME) {
+            let event = Arc::new(ConnectionEstablished {
+                connection: self.clone(),
+            });
+            let mut context = EventContext::new();
+            application_scope(owner, dispatcher.dispatch(event, &mut context))
+                .await
+                .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
+        self.establish().await?;
+        let pool = if read { self.read_pool() } else { &self.pool };
+        pool.acquire().await
+    }
+
     pub fn getSchemaBuilder(&self) -> super::schema::Builder<'static> {
         super::schema::Builder::connection(self.clone())
     }
@@ -502,7 +571,7 @@ impl Connection {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
-        let mut connection = self.pool.acquire().await?;
+        let mut connection = self.acquire(false).await?;
         self.setRecordModificationState(true);
         connection
             .execute_statement(sql, bindings)
@@ -511,6 +580,7 @@ impl Connection {
     }
 
     pub(super) async fn wipe_mysql_schema(&self, drop_views: bool) -> DatabaseResult<()> {
+        self.establish().await?;
         let connection = self.clone();
         let result = tokio::spawn(async move {
             let mut physical = connection.pool.acquire().await?;
@@ -631,8 +701,7 @@ impl Connection {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
-            let pool = if write { &self.pool } else { self.read_pool() };
-            let mut physical = pool.acquire().await?;
+            let mut physical = self.acquire(!write).await?;
             let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
             let mut rows = std::pin::pin!(physical.cursor(&prepared));
             while let Some(row) = rows.try_next().await? {
@@ -646,11 +715,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        self.read_pool()
-            .acquire()
-            .await?
-            .select(sql, bindings)
-            .await
+        self.acquire(true).await?.select(sql, bindings).await
     }
 
     pub async fn selectFromWriteConnection<'a>(
@@ -658,7 +723,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        self.pool.acquire().await?.select(sql, bindings).await
+        self.acquire(false).await?.select(sql, bindings).await
     }
 
     /// Returns the ordered rowsets of a single prepared MySQL statement.
@@ -668,12 +733,7 @@ impl Connection {
         bindings: impl Into<Bindings<'a>>,
         use_read: bool,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
-        let pool = if use_read {
-            self.read_pool()
-        } else {
-            &self.pool
-        };
-        pool.acquire()
+        self.acquire(use_read)
             .await?
             .select_result_sets(sql, bindings)
             .await
@@ -684,11 +744,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
-        self.read_pool()
-            .acquire()
-            .await?
-            .select_one(sql, bindings)
-            .await
+        self.acquire(true).await?.select_one(sql, bindings).await
     }
 
     pub async fn scalar<'a>(
@@ -706,7 +762,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<bool> {
-        let mut connection = self.pool.acquire().await?;
+        let mut connection = self.acquire(false).await?;
         self.setRecordModificationState(true);
         connection
             .affecting_statement(sql, bindings)
@@ -744,8 +800,7 @@ impl Connection {
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
         let count = self
-            .pool
-            .acquire()
+            .acquire(false)
             .await?
             .affecting_statement(sql, bindings)
             .await?;
@@ -757,7 +812,7 @@ impl Connection {
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        let result = self.pool.acquire().await?.unprepared(sql).await?;
+        let result = self.acquire(false).await?.unprepared(sql).await?;
         self.setRecordModificationState(true);
         Ok(result)
     }

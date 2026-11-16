@@ -84,6 +84,38 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 用 `DB::connection(Some("reporting"))` 按名称选择连接。用 `::read` 和 `::write` 后缀直接选择对应角色，例如 `DB::connection(Some("reporting::read"))`。
 
+### 连接建立事件 {#connection-established}
+
+通过 `ConnectionEstablished` 初始化应用连接。连接解析返回惰性句柄，首次异步操作会在使用连接池前等待事件完成。也可通过 `establish().await` 显式触发。每个应用的具名连接各派发一次。监听器可直接在事件携带的连接上等待 SQL 执行。 派发返回监听器错误时，由发起操作接收该错误。如果派发在监听器执行期间被取消，下一次操作会重试派发。
+
+```rust
+use std::{error::Error, sync::Arc};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::events::ConnectionEstablished,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::{DB, Event},
+};
+
+fn connected<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let event = payload.downcast_ref::<ConnectionEstablished>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Established {}", event.connection.getName());
+        Ok(None)
+    })
+}
+
+async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
+    Event::listen(ConnectionEstablished::NAME, Arc::new(connected), Delivery::Sync)?;
+    DB::connection(None)?.establish().await?;
+    Ok(())
+}
+```
+
 ## 数据库事务
 
 默认连接使用 `DB::transaction`，具名连接直接调用 `transaction`。在回调中通过传入的事务句柄执行 SQL。该句柄独占一条写库物理连接，直到提交或回滚。Rust 用装箱的 Future 在异步查询期间借用事务句柄。第二个参数是总尝试次数，传 `1` 表示执行一次。并发错误可能重跑整个回调，把外部副作用放在事务之外，或保证可以安全重复执行。
