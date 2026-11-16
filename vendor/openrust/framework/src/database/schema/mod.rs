@@ -31,6 +31,23 @@ pub enum MorphKeyType {
     Ulid,
 }
 
+/// A schema visible to the database connection.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchemaInfo {
+    pub name: String,
+    pub path: Option<String>,
+    pub default: bool,
+}
+
+/// A view read from the database catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ViewInfo {
+    pub name: String,
+    pub schema: String,
+    pub schema_qualified_name: String,
+    pub definition: Option<String>,
+}
+
 /// A table read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableInfo {

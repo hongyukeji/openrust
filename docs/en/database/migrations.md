@@ -335,6 +335,29 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Inspecting Schemas and Views {#inspecting-schemas-and-views}
+
+`getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_status_view() -> DatabaseResult<()> {
+    if Schema::hasView("status_report").await? {
+        let schemas = Schema::getSchemas().await?;
+        if let Some(current) = schemas.iter().find(|schema| schema.default) {
+            let views = Schema::getViews(Some(&current.name)).await?;
+            for view in views {
+                println!("{}", view.schema_qualified_name);
+            }
+        }
+    }
+    Ok(())
+}
+```
+
+`hasView("name")` checks the current schema. Use a qualified name to check another schema. The connection’s table prefix applies to `hasView`. View entries report catalog names and may include a definition.
+
 #### Renaming and Changing a Column {#renaming-and-changing-a-column}
 
 On MySQL, combine `renameTo()` with `change()` to rename a column and set its new definition in one ALTER statement. The definition starts with the current name. Include the modifiers you want to keep.

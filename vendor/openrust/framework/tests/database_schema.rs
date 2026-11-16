@@ -3080,3 +3080,117 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
     );
     schema.drop("renamed_columns").await.unwrap();
 }
+
+#[tokio::test]
+async fn mysql_inspects_visible_schemas_and_views_on_the_write_connection() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let alternate = format!("schema_catalog_{}", std::process::id());
+    let qualified = format!("{alternate}.app_catalog_status");
+    db.statement("drop view if exists app_catalog_status", &[])
+        .await
+        .unwrap();
+    db.statement(&format!("create database {alternate}"), &[])
+        .await
+        .unwrap();
+    db.statement("create view app_catalog_status as select 42 as id", &[])
+        .await
+        .unwrap();
+    db.statement(&format!("create view {qualified} as select 99 as id"), &[])
+        .await
+        .unwrap();
+    let mut read_url = url::Url::parse(&url).unwrap();
+    read_url.set_path(&format!("/{alternate}"));
+    let db = connection(json!({"url":url,"prefix":"app_","read":{"url":read_url.as_str()}}));
+    let mut schema = db.getSchemaBuilder();
+    let current = db.getDatabaseName();
+    let read = db
+        .selectOne("select database() as name", &[])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(read.get("name"), Some(&Value::Text(alternate.clone())));
+
+    let schemas = schema.getSchemas().await.unwrap();
+    assert!(
+        schemas
+            .iter()
+            .any(|entry| entry.name == current && entry.default && entry.path.is_none())
+    );
+    assert!(
+        schemas
+            .iter()
+            .any(|entry| entry.name == alternate && !entry.default)
+    );
+    assert!(
+        !schemas
+            .iter()
+            .any(|entry| entry.name == "information_schema")
+    );
+    assert!(schema.hasView("CATALOG_STATUS").await.unwrap());
+    assert!(
+        schema
+            .hasView(&format!("{alternate}.catalog_status"))
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasView(&format!("{alternate}.missing"))
+            .await
+            .unwrap()
+    );
+    assert!(!schema.hasTable("catalog_status").await.unwrap());
+    let current_views = schema.getViews(Some(current)).await.unwrap();
+    assert!(current_views.iter().any(|view| {
+        view.name == "app_catalog_status"
+            && view.schema == current
+            && view.schema_qualified_name == format!("{current}.app_catalog_status")
+            && view
+                .definition
+                .as_deref()
+                .is_some_and(|definition| definition.contains("42"))
+    }));
+    assert!(!current_views.iter().any(|view| view.schema == alternate));
+    assert_eq!(
+        schema
+            .getViewsIn(&[current, &alternate])
+            .await
+            .unwrap()
+            .iter()
+            .filter(|view| view.name == "app_catalog_status")
+            .count(),
+        2
+    );
+    let all_views = schema.getViews(None).await.unwrap();
+    assert!(all_views.iter().any(|view| {
+        view.schema_qualified_name == qualified
+            && view
+                .definition
+                .as_deref()
+                .is_some_and(|definition| definition.contains("99"))
+    }));
+    assert!(
+        all_views
+            .iter()
+            .all(|view| view.schema != "sys" && view.schema != "information_schema")
+    );
+    assert!(
+        schema
+            .getViews(Some("missing_catalog"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    db.statement("drop view app_catalog_status", &[])
+        .await
+        .unwrap();
+    db.statement(&format!("drop database {alternate}"), &[])
+        .await
+        .unwrap();
+    assert!(!schema.hasView("catalog_status").await.unwrap());
+}

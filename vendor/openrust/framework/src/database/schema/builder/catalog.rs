@@ -4,8 +4,12 @@ use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
 use super::{Builder, Executor};
 use crate::database::schema::{
-    Column, ColumnGeneration, ForeignKey, GenerationType, Index, TableInfo, grammars::Table,
+    Column, ColumnGeneration, ForeignKey, GenerationType, Index, SchemaInfo, TableInfo, ViewInfo,
+    grammars::Table,
 };
+
+const MYSQL_SYSTEM_SCHEMAS: &str =
+    "('information_schema', 'mysql', 'ndbinfo', 'performance_schema', 'sys')";
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
 impl Builder<'_> {
@@ -27,6 +31,116 @@ impl Builder<'_> {
             self.grammar.catalog_schema(table).into(),
             table.name.as_str().into(),
         ]
+    }
+
+    pub async fn getSchemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
+        let mysql_sql;
+        let sql = if self.grammar.mysql() {
+            mysql_sql = format!(
+                "select schema_name as name, null as path, schema_name = database() as is_default from information_schema.schemata where schema_name not in {MYSQL_SYSTEM_SCHEMAS} order by schema_name"
+            );
+            &mysql_sql
+        } else {
+            "select name, file as path, name = 'main' as is_default from pragma_database_list order by name"
+        };
+        self.select(sql, &[])
+            .await?
+            .iter()
+            .map(|row| {
+                Ok(SchemaInfo {
+                    name: text(row, "name")?,
+                    path: optional_text(row, "path")?,
+                    default: flag(row, "is_default")?,
+                })
+            })
+            .collect()
+    }
+
+    pub async fn getViews(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
+        match schema {
+            Some(schema) => self.getViewsIn(&[schema]).await,
+            None if self.grammar.mysql() => self.mysql_views(None).await,
+            None if matches!(self.executor, Executor::Connection(_)) => {
+                let mut session = self.session().await?;
+                let result = session.getSchemaBuilder().all_sqlite_views().await;
+                let cleanup = session.close().await;
+                let views = result?;
+                cleanup?;
+                Ok(views)
+            }
+            None => self.all_sqlite_views().await,
+        }
+    }
+
+    pub async fn getViewsIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
+        if schemas.is_empty() {
+            return Ok(Vec::new());
+        }
+        if self.grammar.mysql() {
+            return self.mysql_views(Some(schemas)).await;
+        }
+        if schemas.len() > 1 && matches!(self.executor, Executor::Connection(_)) {
+            let mut session = self.session().await?;
+            let result = session.getSchemaBuilder().sqlite_views(schemas).await;
+            let cleanup = session.close().await;
+            let views = result?;
+            cleanup?;
+            return Ok(views);
+        }
+        self.sqlite_views(schemas).await
+    }
+
+    pub async fn hasView(&mut self, view: &str) -> DatabaseResult<bool> {
+        let view = self.resolve_table(view)?;
+        let schema = self.grammar.catalog_schema(&view).to_owned();
+        Ok(self
+            .getViews(Some(&schema))
+            .await?
+            .iter()
+            .any(|item| item.name.eq_ignore_ascii_case(&view.name)))
+    }
+
+    async fn mysql_views(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<ViewInfo>> {
+        let (filter, bindings) = match schemas {
+            Some(schemas) => {
+                let parameters = vec!["?"; schemas.len()].join(", ");
+                let bindings = schemas.iter().copied().map(Value::from).collect();
+                (format!("table_schema in ({parameters})"), bindings)
+            }
+            None => (
+                format!("table_schema not in {MYSQL_SYSTEM_SCHEMAS}"),
+                Vec::new(),
+            ),
+        };
+        let sql = format!(
+            "select table_name as name, table_schema as schema_name, view_definition as definition from information_schema.views where {filter} order by table_schema, table_name"
+        );
+        self.select(&sql, &bindings)
+            .await?
+            .iter()
+            .map(view_info)
+            .collect()
+    }
+
+    async fn all_sqlite_views(&mut self) -> DatabaseResult<Vec<ViewInfo>> {
+        let schemas = self.getSchemas().await?;
+        let names: Vec<_> = schemas.iter().map(|schema| schema.name.as_str()).collect();
+        self.sqlite_views(&names).await
+    }
+
+    async fn sqlite_views(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
+        let mut views = Vec::new();
+        for schema in schemas {
+            let catalog = self.grammar.identifier(schema)?;
+            let sql = format!(
+                "select name, ? as schema_name, sql as definition from {catalog}.sqlite_schema where type = 'view' order by name"
+            );
+            let rows = self.select(&sql, &[(*schema).into()]).await?;
+            for row in rows {
+                views.push(view_info(&row)?);
+            }
+        }
+        Ok(views)
     }
 
     pub async fn hasTable(&mut self, table: &str) -> DatabaseResult<bool> {
@@ -306,6 +420,17 @@ impl Builder<'_> {
         }
         Ok(keys.into_values().collect())
     }
+}
+
+fn view_info(row: &Row) -> DatabaseResult<ViewInfo> {
+    let name = text(row, "name")?;
+    let schema = text(row, "schema_name")?;
+    Ok(ViewInfo {
+        schema_qualified_name: format!("{schema}.{name}"),
+        name,
+        schema,
+        definition: optional_text(row, "definition")?,
+    })
 }
 
 fn optional_text(row: &Row, column: &str) -> DatabaseResult<Option<String>> {

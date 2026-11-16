@@ -4,7 +4,8 @@ use crate::{
 };
 
 use super::{
-    Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, SchemaSession, TableInfo,
+    Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, SchemaInfo, SchemaSession,
+    TableInfo, ViewInfo,
 };
 
 /// Schema operations on the current application's default database connection.
@@ -67,6 +68,22 @@ impl Schema {
 
     pub async fn rename(from: &str, to: &str) -> DatabaseResult<()> {
         Self::default_builder()?.rename(from, to).await
+    }
+
+    pub async fn getSchemas() -> DatabaseResult<Vec<SchemaInfo>> {
+        Self::default_builder()?.getSchemas().await
+    }
+
+    pub async fn getViews(schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
+        Self::default_builder()?.getViews(schema).await
+    }
+
+    pub async fn getViewsIn(schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
+        Self::default_builder()?.getViewsIn(schemas).await
+    }
+
+    pub async fn hasView(view: &str) -> DatabaseResult<bool> {
+        Self::default_builder()?.hasView(view).await
     }
 
     pub async fn hasTable(table: &str) -> DatabaseResult<bool> {

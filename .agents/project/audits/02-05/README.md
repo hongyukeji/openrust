@@ -140,3 +140,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - MySQL 将 `renameTo().change()` 编译为一条 `CHANGE COLUMN`。原名和新名分别引用，新增的列级索引使用新名。SQLite 固定上游没有该修饰符，框架显式返回方言错误。独立 `renameColumn` 仍支持 SQLite。
 - 使用测试实例实际查询 `SELECT VERSION()` 得到 MySQL 8.4.13。Rust 1.94.0 执行 `cargo +1.94.0 test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，14 项通过。覆盖旧数据、原索引及新索引、默认值、目标重名拒绝、单独修饰符拒绝和反向变更。
 - 三语共用示例在实际 MySQL Artisan 中完成正向及反向变更。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 测试排版差异。按日常验收范围仅运行 MySQL，SQLite 路径通过工作区编译检查。
+
+## Schema 与视图目录
+
+对照固定 Laravel [Builder 目录方法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L146)、[MySQL 目录查询](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L60) 和 [SQLite getViews](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L59)。旧版框架未找到对应公开方法，复用现有写会话、目录读取和前缀解析。
+
+- `getSchemas()` 返回名称、默认标志和 SQLite 路径。`getViews(None)` 查询 MySQL 可见用户 Schema 或同一 SQLite 写会话中的所有 Schema。一个 Schema 用 `getViews(Some(name))`，多个用 `getViewsIn(&[...])`。返回目录名称、限定名称以及数据库提供的定义。
+- `hasView()` 使用连接的表前缀，允许限定 Schema 并按 Laravel 的大小写规则比较视图名。默认使用写连接的当前 Schema。
+- 实际 `SELECT VERSION()` 为 MySQL 8.4.13。Rust 1.94.0 执行 `cargo +1.94.0 test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，15 项通过。覆盖真实读写数据库分离、默认标志、同名视图、指定和全部 Schema、系统 Schema 排除、缺失视图及删除后目录刷新。
+- 三语共用示例经实际 MySQL Artisan 验证，原生 `main artisan inspire` 通过。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。SQLite 本批通过工作区编译，运行验收留在发布前。全工作区格式仍有既有 Sanctum 排版差异。

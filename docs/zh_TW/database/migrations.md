@@ -335,6 +335,29 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
+#### 檢查 Schema 和檢視表 {#inspecting-schemas-and-views}
+
+`getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_status_view() -> DatabaseResult<()> {
+    if Schema::hasView("status_report").await? {
+        let schemas = Schema::getSchemas().await?;
+        if let Some(current) = schemas.iter().find(|schema| schema.default) {
+            let views = Schema::getViews(Some(&current.name)).await?;
+            for view in views {
+                println!("{}", view.schema_qualified_name);
+            }
+        }
+    }
+    Ok(())
+}
+```
+
+`hasView("name")` 檢查目前的 Schema，使用限定名稱可檢查其他 Schema。連線設定的資料表前置詞會套用於 `hasView`。檢視表記錄會回傳資料庫目錄中的名稱，並在可讀取時提供定義。
+
 #### 同時重新命名與修改欄位 {#renaming-and-changing-a-column}
 
 在 MySQL 上，將 `renameTo()` 和 `change()` 搭配使用，可在同一條 ALTER 中重新命名欄位並更新定義。欄位定義以目前欄位名稱開頭，並明確寫出要保留的修飾符。

@@ -335,6 +335,29 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 检查 Schema 和视图 {#inspecting-schemas-and-views}
+
+`getSchemas()` 列出可见的 Schema，并标记当前使用的 Schema。SQLite 还会返回各 Schema 的文件路径。在 MySQL 上，`getViews(None)` 列出所有可见用户 Schema 的视图。在 SQLite 上，它查询当前写会话中的所有 Schema。可用 `getViews(Some(name))` 指定一个，或用 `getViewsIn(&[...])` 指定多个。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_status_view() -> DatabaseResult<()> {
+    if Schema::hasView("status_report").await? {
+        let schemas = Schema::getSchemas().await?;
+        if let Some(current) = schemas.iter().find(|schema| schema.default) {
+            let views = Schema::getViews(Some(&current.name)).await?;
+            for view in views {
+                println!("{}", view.schema_qualified_name);
+            }
+        }
+    }
+    Ok(())
+}
+```
+
+`hasView("name")` 检查当前 Schema，使用限定名称可检查其他 Schema。连接配置的表前缀作用于 `hasView`。视图记录返回数据库目录中的名称，并在可读取时提供定义。
+
 #### 同时重命名和修改列 {#renaming-and-changing-a-column}
 
 在 MySQL 上，将 `renameTo()` 和 `change()` 一起使用，可在同一条 ALTER 中重命名列并更新定义。列定义以当前列名开头，并显式写出要保留的修饰符。
