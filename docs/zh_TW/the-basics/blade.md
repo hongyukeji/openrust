@@ -50,6 +50,15 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 {{ $label ?? 'Pending' }}
 ```
 
+`@for` 使用有號整數計數器，支援 `++`、`--`、`+=` 和 `-=`。`@while` 在條件為真時重複。`@break` 和 `@continue` 可接收條件或常值巢狀層數。每次呈現中，計數迴圈與 `@while` 共用 100,000 次迭代上限。計數器的作用域為目前的迴圈。
+
+```html
+@for ($index = 0; $index < 3; $index++)
+    @continue($index === 1)
+    {{ $index }}
+@endfor
+```
+
 ### 迴圈變數 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 都接受 `$key => $item`。陣列的鍵是從零開始的整數。物件依視圖資料映射的順序提供字串鍵。

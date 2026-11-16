@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use serde::{Deserialize, Serialize};
 
 use super::{ViewData, ViewResult, ViewValue, identifier, invalid, separators};
@@ -17,6 +19,10 @@ pub(super) enum BinaryOperator {
     And,
     StrictEqual,
     StrictNotEqual,
+    Less,
+    LessOrEqual,
+    Greater,
+    GreaterOrEqual,
 }
 
 pub(super) fn expression_value(expression: &str) -> ViewResult<Expression> {
@@ -39,11 +45,20 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
             ("===", BinaryOperator::StrictEqual),
             ("!==", BinaryOperator::StrictNotEqual),
         ],
+        &[
+            ("<", BinaryOperator::Less),
+            ("<=", BinaryOperator::LessOrEqual),
+            (">", BinaryOperator::Greater),
+            (">=", BinaryOperator::GreaterOrEqual),
+        ],
     ] {
         let operation = operators
             .iter()
             .filter_map(|(token, operator)| {
-                let mut indices = separators(expression, token);
+                let mut indices = separators(expression, token).filter(|index| {
+                    (!token.starts_with('>') || !expression[..*index].ends_with('-'))
+                        && (token.len() != 1 || !expression[*index + 1..].starts_with('='))
+                });
                 let index = if matches!(operator, BinaryOperator::Coalesce) {
                     indices.next()
                 } else {
@@ -111,6 +126,18 @@ pub(super) fn value<'a>(
                 BinaryOperator::And => boolean(truthy(left) && truthy(right())),
                 BinaryOperator::StrictEqual => boolean(strict_equal(left, right())),
                 BinaryOperator::StrictNotEqual => boolean(!strict_equal(left, right())),
+                BinaryOperator::Less => boolean(compare(left, right()) == Some(Ordering::Less)),
+                BinaryOperator::LessOrEqual => boolean(matches!(
+                    compare(left, right()),
+                    Some(Ordering::Less | Ordering::Equal)
+                )),
+                BinaryOperator::Greater => {
+                    boolean(compare(left, right()) == Some(Ordering::Greater))
+                }
+                BinaryOperator::GreaterOrEqual => boolean(matches!(
+                    compare(left, right()),
+                    Some(Ordering::Greater | Ordering::Equal)
+                )),
             }
         }
         Expression::Variable(path) => {
@@ -128,6 +155,22 @@ pub(super) fn value<'a>(
             current.unwrap_or(&ViewValue::Null)
         }
     }
+}
+
+fn compare(left: &ViewValue, right: &ViewValue) -> Option<Ordering> {
+    if let (Some(left), Some(right)) = (left.as_str(), right.as_str()) {
+        return Some(left.cmp(right));
+    }
+    let integer = |value: &ViewValue| {
+        value
+            .as_i64()
+            .map(i128::from)
+            .or_else(|| value.as_u64().map(i128::from))
+    };
+    if let (Some(left), Some(right)) = (integer(left), integer(right)) {
+        return Some(left.cmp(&right));
+    }
+    left.as_f64()?.partial_cmp(&right.as_f64()?)
 }
 
 fn boolean(value: bool) -> &'static ViewValue {

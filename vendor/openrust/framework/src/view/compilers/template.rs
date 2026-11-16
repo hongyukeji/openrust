@@ -12,6 +12,7 @@ use crate::view::{
 mod attributes;
 mod expressions;
 mod includes;
+mod loops;
 
 use attributes::{
     AttributeList, Props, apply_props, attribute_list, attribute_name, merge_attributes,
@@ -20,6 +21,7 @@ use attributes::{
 
 use expressions::{Expression, expression_value, truthy, value};
 use includes::{Include, IncludeFirst, RenderEach, collection_entries};
+use loops::{CountedLoop, Jump, JumpKind};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
@@ -40,6 +42,9 @@ enum Node {
         body: Vec<Node>,
         alternative: Vec<Node>,
     },
+    For(CountedLoop),
+    While(Expression, Vec<Node>),
+    Jump(JumpKind, usize, Option<Expression>),
     Extends(Expression),
     Parent,
     Section(Expression, Vec<Node>, bool),
@@ -126,7 +131,11 @@ impl Template {
             None => Cow::Borrowed(data),
         };
         let mut output = String::new();
-        render_nodes(&self.nodes, &data, &[], &mut output, context)?;
+        if render_nodes(&self.nodes, &data, &[], &mut output, context)?.is_some() {
+            return Err(render_error(
+                "Blade loop control exceeded its enclosing blocks.",
+            ));
+        }
         output.push_str(&context.render_layout(&data)?);
         if output.contains(context.parent()) {
             output = output.replace(context.parent(), "");
@@ -143,6 +152,8 @@ enum Stop {
     EndUnless,
     EndForeach,
     EndForelse,
+    EndFor,
+    EndWhile,
     Empty,
     EndEmpty,
     EndIsset,
@@ -163,6 +174,7 @@ struct Parser<'a> {
     identity: &'a str,
     directives: &'a Directives,
     once_count: usize,
+    loop_depth: usize,
 }
 
 impl<'a> Parser<'a> {
@@ -172,6 +184,7 @@ impl<'a> Parser<'a> {
             identity,
             directives,
             once_count: 0,
+            loop_depth: 0,
         }
     }
 
@@ -405,6 +418,25 @@ impl<'a> Parser<'a> {
             Node::IncludeIsolated(Include::parse(self.arguments()?)?)
         } else if self.directive("each") {
             Node::RenderEach(RenderEach::parse(self.arguments()?)?)
+        } else if self.directive("for") {
+            let mut counted = CountedLoop::parse(self.arguments()?)?;
+            let (body, stop) = self.around_loop(depth)?;
+            if stop != Some(Stop::EndFor) {
+                return Err(invalid("Expected @endfor."));
+            }
+            counted.body = body;
+            Node::For(counted)
+        } else if self.directive("while") {
+            let condition = expression_value(self.arguments()?)?;
+            let (body, stop) = self.around_loop(depth)?;
+            if stop != Some(Stop::EndWhile) {
+                return Err(invalid("Expected @endwhile."));
+            }
+            Node::While(condition, body)
+        } else if self.directive("break") {
+            self.jump(JumpKind::Break)?
+        } else if self.directive("continue") {
+            self.jump(JumpKind::Continue)?
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -618,7 +650,7 @@ impl<'a> Parser<'a> {
             Some((key, item)) => (Some(loop_variable(key)?), loop_variable(item)?),
             None => (None, loop_variable(binding)?),
         };
-        let (body, stop) = self.block(depth + 1)?;
+        let (body, stop) = self.around_loop(depth)?;
         let alternative = match (foreach, stop) {
             (true, Some(Stop::EndForeach)) => Vec::new(),
             (false, Some(Stop::Empty)) => {
@@ -637,6 +669,29 @@ impl<'a> Parser<'a> {
             body,
             alternative,
         })
+    }
+
+    fn around_loop(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop>)> {
+        self.loop_depth += 1;
+        let result = self.block(depth + 1);
+        self.loop_depth -= 1;
+        result
+    }
+
+    fn jump(&mut self, kind: JumpKind) -> ViewResult<Node> {
+        let (levels, condition) = if self.remaining.trim_start().starts_with('(') {
+            let expression = self.arguments()?.trim();
+            match expression.parse::<i64>() {
+                Ok(levels) => (usize::try_from(levels.max(1)).unwrap_or(usize::MAX), None),
+                Err(_) => (1, Some(expression_value(expression)?)),
+            }
+        } else {
+            (1, None)
+        };
+        if levels > self.loop_depth {
+            return Err(invalid("Blade loop control exceeds its enclosing blocks."));
+        }
+        Ok(Node::Jump(kind, levels, condition))
     }
 
     fn stop(&mut self) -> Option<Stop> {
@@ -660,6 +715,8 @@ impl<'a> Parser<'a> {
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
             ("endforelse", Stop::EndForelse),
+            ("endfor", Stop::EndFor),
+            ("endwhile", Stop::EndWhile),
             ("endisset", Stop::EndIsset),
             ("endempty", Stop::EndEmpty),
             ("elseif", Stop::ElseIf),
@@ -797,13 +854,21 @@ fn loop_variable(binding: &str) -> ViewResult<String> {
         .ok_or_else(|| invalid("Invalid Blade loop variable."))
 }
 
+macro_rules! render_block {
+    ($($argument:expr),+ $(,)?) => {
+        if let Some(jump) = render_nodes($($argument),+)? {
+            return Ok(Some(jump));
+        }
+    };
+}
+
 fn render_nodes<'a>(
     nodes: &'a [Node],
     data: &'a ViewData,
     bindings: &[(&'a str, &'a ViewValue)],
     output: &mut String,
     context: &mut RenderContext<'_>,
-) -> ViewResult<()> {
+) -> ViewResult<Option<Jump>> {
     for node in nodes {
         match node {
             Node::Text(text) => output.push_str(text),
@@ -843,13 +908,13 @@ fn render_nodes<'a>(
                     Predicate::Isset => !value.is_null(),
                     Predicate::HasStack => context.has_stack(name_value(value)?),
                 };
-                render_nodes(
+                render_block!(
                     if matches { yes } else { no },
                     data,
                     bindings,
                     output,
                     context,
-                )?;
+                );
             }
             Node::Each {
                 expression,
@@ -863,7 +928,7 @@ fn render_nodes<'a>(
                     .as_array()
                     .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
                 if count == 0 {
-                    render_nodes(alternative, data, bindings, output, context)?;
+                    render_block!(alternative, data, bindings, output, context);
                 }
                 let parent = context.active_loop.clone();
                 let depth = parent
@@ -895,7 +960,65 @@ fn render_nodes<'a>(
                     context.active_loop = Some(metadata.clone());
                     let result = render_nodes(body, data, &iteration_bindings, output, context);
                     context.active_loop = parent.clone();
-                    result?;
+                    match result? {
+                        Some(jump) if jump.levels > 1 => return Ok(Some(jump.outer())),
+                        Some(Jump {
+                            kind: JumpKind::Break,
+                            ..
+                        }) => break,
+                        _ => {}
+                    }
+                }
+            }
+            Node::For(counted) => {
+                let mut counter = loop_integer(value(&counted.start, data, bindings))?;
+                loop {
+                    let current = ViewValue::from(counter);
+                    let mut locals = bindings.to_vec();
+                    locals.push((&counted.variable, &current));
+                    if !truthy(value(&counted.condition, data, &locals)) {
+                        break;
+                    }
+                    context.tick_loop()?;
+                    match render_nodes(&counted.body, data, &locals, output, context)? {
+                        Some(jump) if jump.levels > 1 => return Ok(Some(jump.outer())),
+                        Some(Jump {
+                            kind: JumpKind::Break,
+                            ..
+                        }) => break,
+                        _ => {}
+                    }
+                    let step = loop_integer(value(&counted.step, data, &locals))?;
+                    counter = if counted.descending {
+                        counter.checked_sub(step)
+                    } else {
+                        counter.checked_add(step)
+                    }
+                    .ok_or_else(|| render_error("Blade @for counter overflow."))?;
+                }
+            }
+            Node::While(condition, body) => {
+                while truthy(value(condition, data, bindings)) {
+                    context.tick_loop()?;
+                    match render_nodes(body, data, bindings, output, context)? {
+                        Some(jump) if jump.levels > 1 => return Ok(Some(jump.outer())),
+                        Some(Jump {
+                            kind: JumpKind::Break,
+                            ..
+                        }) => break,
+                        _ => {}
+                    }
+                }
+            }
+            Node::Jump(kind, levels, condition) => {
+                if condition
+                    .as_ref()
+                    .is_none_or(|condition| truthy(value(condition, data, bindings)))
+                {
+                    return Ok(Some(Jump {
+                        kind: *kind,
+                        levels: *levels,
+                    }));
                 }
             }
             Node::Parent => output.push_str(context.parent()),
@@ -905,7 +1028,7 @@ fn render_nodes<'a>(
             Node::Section(expression, nodes, show) => {
                 let name = name_value(value(expression, data, bindings))?.to_owned();
                 let mut section = String::new();
-                render_nodes(nodes, data, bindings, &mut section, context)?;
+                render_block!(nodes, data, bindings, &mut section, context);
                 context.section(name.clone(), section);
                 if *show {
                     context.yield_to(&name, output);
@@ -930,7 +1053,7 @@ fn render_nodes<'a>(
             Node::StackCapture(expression, nodes, prepend) => {
                 let name = name_value(value(expression, data, bindings))?.to_owned();
                 let mut content = String::new();
-                render_nodes(nodes, data, bindings, &mut content, context)?;
+                render_block!(nodes, data, bindings, &mut content, context);
                 context.add_to_stack(name, content, *prepend);
             }
             Node::Once(id, nodes) => {
@@ -941,7 +1064,7 @@ fn render_nodes<'a>(
                     }
                 };
                 if context.first_render_of(id, generated) {
-                    render_nodes(nodes, data, bindings, output, context)?;
+                    render_block!(nodes, data, bindings, output, context);
                 }
             }
             Node::Csrf => {
@@ -972,13 +1095,13 @@ fn render_nodes<'a>(
                 {
                     let mut local = bindings.to_vec();
                     local.push(("message", message));
-                    render_nodes(nodes, data, &local, output, context)?;
+                    render_block!(nodes, data, &local, output, context);
                 }
             }
             Node::Fragment(name, nodes) => {
                 let name = name_value(value(name, data, bindings))?.to_owned();
                 let mut html = String::new();
-                render_nodes(nodes, data, bindings, &mut html, context)?;
+                render_block!(nodes, data, bindings, &mut html, context);
                 output.push_str(&html);
                 context.capture_fragment(name, html);
             }
@@ -1051,11 +1174,11 @@ fn render_nodes<'a>(
                     })
                     .collect();
                 let mut default = String::new();
-                render_nodes(body, data, bindings, &mut default, context)?;
+                render_block!(body, data, bindings, &mut default, context);
                 let mut rendered = std::collections::HashMap::from([("slot".to_owned(), default)]);
                 for (name, nodes) in slots {
                     let mut html = String::new();
-                    render_nodes(nodes, data, bindings, &mut html, context)?;
+                    render_block!(nodes, data, bindings, &mut html, context);
                     rendered.insert(name.clone(), html);
                 }
                 output.push_str(&context.component(name, &properties, rendered)?);
@@ -1063,7 +1186,13 @@ fn render_nodes<'a>(
             Node::Slot(_, _) => return Err(render_error("Blade named slots require a component.")),
         }
     }
-    Ok(())
+    Ok(None)
+}
+
+fn loop_integer(value: &ViewValue) -> ViewResult<i64> {
+    value
+        .as_i64()
+        .ok_or_else(|| render_error("Blade @for requires a signed integer counter and step."))
 }
 
 fn name_value(value: &ViewValue) -> ViewResult<&str> {

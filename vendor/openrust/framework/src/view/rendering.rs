@@ -27,6 +27,7 @@ pub(super) struct RenderContext<'a> {
 
 #[derive(Default)]
 struct RenderState {
+    loop_iterations: usize,
     stacks: HashMap<String, Stack>,
     once: HashSet<(bool, String)>,
     fragments: Vec<(String, String)>,
@@ -39,6 +40,16 @@ struct Stack {
 }
 
 impl<'a> RenderContext<'a> {
+    pub(super) fn tick_loop(&self) -> ViewResult<()> {
+        let mut state = self.shared.borrow_mut();
+        if state.loop_iterations == 100_000 {
+            return Err(render_error(
+                "Blade counted and while loop iteration limit exceeded.",
+            ));
+        }
+        state.loop_iterations += 1;
+        Ok(())
+    }
     pub(super) fn new(factory: Option<&'a Factory>) -> Self {
         Self {
             factory,

@@ -50,6 +50,15 @@ Use `@class` and `@style` with literal lists. Plain entries always render, and e
 {{ $label ?? 'Pending' }}
 ```
 
+Use `@for` with a signed integer counter and `++`, `--`, `+=`, or `-=`. `@while` repeats while its expression is truthy. `@break` and `@continue` accept a condition or a literal nesting level. Counted and while loops share a 100,000-iteration limit per render. The counter is scoped to its loop.
+
+```html
+@for ($index = 0; $index < 3; $index++)
+    @continue($index === 1)
+    {{ $index }}
+@endfor
+```
+
 ### The Loop Variable {#the-loop-variable}
 
 Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based integer keys. Objects expose string keys in the order of the view data map.

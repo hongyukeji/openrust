@@ -41,3 +41,9 @@
 - `@class`、`@style` 处理含条件的字面量列表，Rust 在输出属性边界转义文本。`@checked`、`@selected`、`@disabled`、`@readonly`、`@required` 在条件真时输出对应 HTML 属性。旧版 MiniJinja 无语法或指令编译产物可复用，沿用已提取的默认转义规则。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖分组和优先级、不同标量类型、缺值回退、属性转义及非法表达式 500。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项条件属性检查通过。
+
+## 计数循环与跳转
+
+- 对照固定 [CompilesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesLoops.php)。`@for` 采用作用域内的有符号整数计数器，`@while` 求值已有表达式模型。新增数字或同类型文本顺序比较。条件跳转与整数字面量层级沿用 Laravel 区分，跳转后恢复外层循环元数据。计数和 while 循环共用渲染树迭代上限。旧版 MiniJinja 循环与当前指令树无直接移植项。
+- macOS ARM64、Rust 1.94.0。真实 HTTP 验证升降序、条件跳转、多层 continue、空分支、越层编译错误、while 停止及迭代限额。8 项定向测试通过。隔离副本工作区格式与严格 Clippy 通过。
+- 实际 Artisan 缓存和清理三语示例，三语 VitePress 构建以及根路径与 `/docs/` 的 12 项浏览器组合通过。

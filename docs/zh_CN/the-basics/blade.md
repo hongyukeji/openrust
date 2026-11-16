@@ -50,6 +50,15 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 {{ $label ?? 'Pending' }}
 ```
 
+`@for` 使用有符号整数计数器，支持 `++`、`--`、`+=` 和 `-=`。`@while` 在条件为真时重复。`@break` 和 `@continue` 可接收条件或字面量嵌套层数。每次渲染中，计数循环与 `@while` 共用 100,000 次迭代上限。计数器的作用域为当前循环。
+
+```html
+@for ($index = 0; $index < 3; $index++)
+    @continue($index === 1)
+    {{ $index }}
+@endfor
+```
+
 ### 循环变量 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 均接受 `$key => $item`。数组的键是从零开始的整数。对象按视图数据映射的顺序提供字符串键。

@@ -442,6 +442,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/bad-includes", || view("bad_includes"))?;
                 Route::get("/each", || view("each").with("caller", "private"))?;
                 Route::get("/bad-each", || view("bad_each").with("items", false))?;
+                Route::get("/loop-control", || view("loop_control").with("limit", 4))?;
+                Route::get("/bad-loop-control", || view("bad_loop_control"))?;
+                Route::get("/loop-limit", || view("loop_limit"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -685,6 +688,23 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("each_empty", "{{ $app }}:{{ $caller }}"),
         ("bad_each", "@each('each_row', $items, 'item')"),
+        (
+            "loop_control",
+            concat!(
+                "@for ($i = 0; $i < $limit; ++$i)",
+                "@continue($i === 1){{ $i }}@break($i === 2)@endfor|",
+                "@for ($i = 3; $i >= 1; $i -= 2){{ $i }}@endfor|",
+                "@foreach ([1, 2] as $item){{ $item }}",
+                "@while(true)@continue(2)@endwhile unreachable",
+                "@endforeach|@while(true)once@break @endwhile|",
+                "@forelse ([] as $item)bad@empty empty@endforelse",
+            ),
+        ),
+        (
+            "bad_loop_control",
+            "@foreach ([1] as $item)@break(2)@endforeach",
+        ),
+        ("loop_limit", "@while(true)@endwhile"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -803,6 +823,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(a, "[A:0:&lt;&amp;:][A:name:map:]A:<em>empty</em>");
     assert_eq!(b, "[B:0:&lt;&amp;:][B:name:map:]B:<em>empty</em>");
     assert!(send(first, "/bad-each", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/loop-control", 200).await,
+        "02|31|12|once| empty"
+    );
+    assert!(send(first, "/bad-loop-control", 500).await.contains("500"));
+    assert!(send(first, "/loop-limit", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),
