@@ -1323,6 +1323,21 @@ async fn visit_children<P: Model, R: Model>(
 }
 ```
 
+Relations support `lazy(parent, count)`, `lazyById(parent, count, column, alias)`, `lazyByIdDesc` and `chunkMap(parent, callback, count)`. They retain relation filters and hydrated Pivot data. A `MorphTo` stream yields `MorphTarget` values.
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn visit_latest<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<Option<R>> {
+    let mut models = children.lazyByIdDesc(parent, 200, None, None);
+    models.try_next().await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

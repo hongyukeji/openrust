@@ -285,6 +285,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/inverse-chunk", inverse_chunk_page)?;
     Route::get("/chunk-by-id", chunk_by_id_page)?;
     Route::get("/each-batch", each_batch_page)?;
+    Route::get("/lazy-batches", lazy_batch_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -2143,6 +2144,154 @@ fn each_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     })
 }
 
+fn lazy_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::database::DatabaseError;
+        use std::future::ready;
+
+        async fn verify_lazy() -> DatabaseResult<Json> {
+            let db = DB::connection(None)?;
+            drop(db.table("missing_batch_table").orderBy("id", "asc").lazy(2));
+            let mut invalid = db.table("pagination_articles").lazy(2);
+            assert!(matches!(
+                invalid.try_next().await,
+                Err(DatabaseError::InvalidQuery(
+                    "chunk requires an order by clause"
+                ))
+            ));
+            let mut invalid = db.table("pagination_articles").lazyById(0, None, None);
+            assert!(matches!(
+                invalid.try_next().await,
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))
+            ));
+
+            let rows: Vec<_> = db
+                .table("pagination_articles")
+                .r#where("id", "<=", 5)
+                .select(["id as boundary"])
+                .offset(1)
+                .limit(3)
+                .lazyByIdDesc(2, None, Some("boundary"))
+                .try_collect()
+                .await?;
+            let descending: Vec<_> = rows.iter().map(|row| id(row.get("boundary"))).collect();
+            let missing = || db.table("pagination_articles").select(["category"]);
+            let short: Vec<_> = missing()
+                .limit(1)
+                .lazyById(2, None, None)
+                .try_collect()
+                .await?;
+            assert_eq!(short.len(), 1);
+            let mut full = missing().limit(2).lazyById(2, None, None);
+            assert!(full.try_next().await?.is_some());
+            assert!(full.try_next().await?.is_some());
+            assert!(matches!(
+                full.try_next().await,
+                Err(DatabaseError::InvalidQuery(
+                    "lazyById key is missing from the result"
+                ))
+            ));
+
+            let mut models = StreamedComment::query()?.lazy(2);
+            assert_eq!(id(models.try_next().await?.unwrap().getKey()), 11);
+            drop(models);
+            let mut models = StreamedComment::query()?.lazy(2);
+            assert_eq!(id(models.try_next().await?.unwrap().getKey()), 11);
+            assert_eq!(id(models.try_next().await?.unwrap().getKey()), 12);
+            assert!(matches!(
+                models.try_next().await,
+                Err(DatabaseError::InvalidQuery("cursor observer"))
+            ));
+
+            let owner = Article::query()?.findOrFail(1).await?;
+            let eager = Article::query()?
+                .with(
+                    "comments",
+                    HasMany::<Article, Comment>::new("id", "article_id"),
+                )
+                .limit(1)
+                .lazyById(2, None, None)
+                .try_next()
+                .await?
+                .unwrap();
+            assert!(eager.relationLoaded("comments"));
+
+            let labels = BelongsToMany::<Article, KeyedLabel>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+            )
+            .wherePivot("subject_type", "=", "article")
+            .withPivot(["label"]);
+            let mut related = labels.lazyByIdDesc(&owner, 2, None, None);
+            let mut pivot_keys = Vec::new();
+            while let Some(model) = related.try_next().await? {
+                assert!(model.getRelation::<Pivot>("pivot").is_some());
+                pivot_keys.push(id(model.getKey()));
+            }
+
+            let morph = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<KeyedLabel>("label", "id");
+            let activity = Activity::query()?.findOrFail(2).await?;
+            let target = morph
+                .lazyById(&activity, 2, None, None)
+                .try_next()
+                .await?
+                .unwrap();
+            assert_eq!(target.alias(), "label");
+
+            let projected = REACTIONS
+                .chunkMap(&owner, |model| ready(Ok(id(model.getKey()) * 2)), 2)
+                .await?;
+            assert_eq!(
+                projected.into_iter().collect::<Vec<_>>(),
+                [
+                    (0_i64.into(), 202),
+                    (1_i64.into(), 204),
+                    (2_i64.into(), 206)
+                ]
+            );
+            let mut seen = Vec::new();
+            assert!(matches!(
+                Article::query()?
+                    .chunkMap(
+                        |model| {
+                            let key = id(model.getKey());
+                            seen.push(key);
+                            ready(if key == 2 {
+                                Err(DatabaseError::InvalidQuery("mapping failed"))
+                            } else {
+                                Ok(key)
+                            })
+                        },
+                        2
+                    )
+                    .await,
+                Err(DatabaseError::InvalidQuery("mapping failed"))
+            ));
+            assert_eq!(seen, [1, 2]);
+            let mapped = db
+                .table("pagination_articles")
+                .orderBy("id", "asc")
+                .limit(3)
+                .chunkMap(|row| ready(Ok(id(row.get("id")))), 2)
+                .await?;
+            assert_eq!(
+                mapped
+                    .into_iter()
+                    .map(|(_, value)| value)
+                    .collect::<Vec<_>>(),
+                [1, 2, 3]
+            );
+            Ok(json!({ "descending": descending, "pivot": pivot_keys }))
+        }
+
+        Response::json(StatusCode::OK, verify_lazy().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2746,6 +2895,8 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         visited["relations"],
         json!([[11, 0], [12, 1], [13, 2], [15, 3]])
     );
+    let lazy = request(address, "/api/lazy-batches").await;
+    assert_eq!(lazy, json!({"descending": [4, 3, 2], "pivot": [3, 2, 1]}));
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

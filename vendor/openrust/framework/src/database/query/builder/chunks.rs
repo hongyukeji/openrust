@@ -2,7 +2,7 @@ use futures_util::{Stream, TryStreamExt as _};
 
 use crate::{
     database::{DatabaseCursor, DatabaseError, DatabaseResult, Row, Value},
-    support::ArrayKey,
+    support::{ArrayKey, Collection},
 };
 
 use super::{Builder, Conditions, Order};
@@ -11,10 +11,65 @@ pub(in crate::database) struct ChunkKey {
     pub column: String,
     pub alias: String,
     pub descending: bool,
+    pub lazy: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
-impl Builder<'_> {
+impl<'connection> Builder<'connection> {
+    /// Streams rows from successive offset batches as the caller polls the stream.
+    pub fn lazy(mut self, chunk_size: u64) -> DatabaseCursor<'connection, Row> {
+        Box::pin(async_stream::try_stream! {
+            let mut rows = flatten_batches(self.chunk_pages(chunk_size), |rows| rows);
+            while let Some(row) = rows.try_next().await? {
+                yield row;
+            }
+        })
+    }
+
+    pub fn lazyById(
+        self,
+        chunk_size: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseCursor<'connection, Row> {
+        self.lazy_by_key(chunk_size, query_chunk_key(column, alias, false))
+    }
+
+    pub fn lazyByIdDesc(
+        self,
+        chunk_size: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseCursor<'connection, Row> {
+        self.lazy_by_key(chunk_size, query_chunk_key(column, alias, true))
+    }
+
+    fn lazy_by_key(
+        mut self,
+        chunk_size: u64,
+        mut key: ChunkKey,
+    ) -> DatabaseCursor<'connection, Row> {
+        key.lazy = true;
+        Box::pin(async_stream::try_stream! {
+            let mut rows = flatten_batches(self.chunk_id_pages(chunk_size, key), |rows| rows);
+            while let Some(row) = rows.try_next().await? {
+                yield row;
+            }
+        })
+    }
+
+    /// Maps every row while fetching inputs in offset batches.
+    pub async fn chunkMap<T, Fut>(
+        self,
+        callback: impl FnMut(Row) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<Collection<T>>
+    where
+        Fut: Future<Output = DatabaseResult<T>>,
+    {
+        map_chunk_rows(self.lazy(count), callback).await
+    }
+
     /// Visits rows in offset batches, with an index local to each batch.
     pub async fn each<Fut>(
         mut self,
@@ -137,8 +192,17 @@ impl Builder<'_> {
                 let Some(last) = rows.last() else { break };
                 let last_id = last.get(&key.alias).filter(|value| !matches!(value, Value::Null)).cloned();
                 yield rows;
+                if key.lazy && length < count {
+                    break;
+                }
                 // The callback can stop before the missing-key check, including on the last page.
-                let last_id = last_id.ok_or(DatabaseError::InvalidQuery("chunkById key is missing from the result"))?;
+                let last_id = last_id.ok_or_else(|| {
+                    DatabaseError::InvalidQuery(if key.lazy {
+                        "lazyById key is missing from the result"
+                    } else {
+                        "chunkById key is missing from the result"
+                    })
+                })?;
                 if length < size {
                     break;
                 }
@@ -156,6 +220,7 @@ fn query_chunk_key(column: Option<&str>, alias: Option<&str>, descending: bool) 
         column: column.into(),
         alias: alias.unwrap_or(column).into(),
         descending,
+        lazy: false,
     }
 }
 
@@ -205,4 +270,39 @@ pub(in crate::database) fn collection_chunk_index(
         })?,
     };
     chunk_index(batch, count, key)
+}
+
+pub(in crate::database) fn flatten_batches<'a, B, I>(
+    mut batches: DatabaseCursor<'a, B>,
+    mut items: impl FnMut(B) -> I + Send + 'a,
+) -> DatabaseCursor<'a, I::Item>
+where
+    I: IntoIterator,
+    B: Send + 'a,
+    I::IntoIter: Send + 'a,
+    I::Item: Send + 'a,
+{
+    Box::pin(async_stream::try_stream! {
+        while let Some(batch) = batches.try_next().await? {
+            for item in items(batch) {
+                yield item;
+            }
+        }
+    })
+}
+
+pub(in crate::database) async fn map_chunk_rows<T, U, Fut>(
+    mut rows: DatabaseCursor<'_, T>,
+    mut callback: impl FnMut(T) -> Fut,
+) -> DatabaseResult<Collection<U>>
+where
+    Fut: Future<Output = DatabaseResult<U>>,
+{
+    let mut output = Collection::default();
+    while let Some(row) = rows.try_next().await? {
+        output
+            .push(callback(row).await?)
+            .map_err(|_| DatabaseError::InvalidQuery("chunkMap index overflow"))?;
+    }
+    Ok(output)
 }

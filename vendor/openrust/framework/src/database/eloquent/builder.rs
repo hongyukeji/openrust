@@ -1578,6 +1578,58 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
+    /// Streams hydrated models one at a time from separately fetched offset batches.
+    pub fn lazy(self, chunk_size: u64) -> DatabaseCursor<'static, M> {
+        query::flatten_batches(
+            self.chunk_collections(chunk_size, None, |_, _| Ok(())),
+            |models| models,
+        )
+    }
+
+    pub fn lazyById(
+        self,
+        chunk_size: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseCursor<'static, M> {
+        self.lazy_by_key(chunk_size, column, alias, false)
+    }
+
+    pub fn lazyByIdDesc(
+        self,
+        chunk_size: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseCursor<'static, M> {
+        self.lazy_by_key(chunk_size, column, alias, true)
+    }
+
+    pub(super) fn lazy_by_key(
+        self,
+        chunk_size: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseCursor<'static, M> {
+        let mut key = self.chunk_key(column, alias, descending);
+        key.lazy = true;
+        query::flatten_batches(
+            self.chunk_collections(chunk_size, Some(key), |_, _| Ok(())),
+            |models| models,
+        )
+    }
+
+    pub async fn chunkMap<T, Fut>(
+        self,
+        callback: impl FnMut(M) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<crate::support::Collection<T>>
+    where
+        Fut: Future<Output = DatabaseResult<T>>,
+    {
+        query::map_chunk_rows(self.lazy(count), callback).await
+    }
+
     /// Visits models with their keys from each hydrated batch.
     pub async fn each<Fut>(
         self,
@@ -1685,6 +1737,7 @@ impl<M: Model> Builder<'static, M> {
             column: column.map_or_else(|| self.qualifyColumn(primary_key), str::to_owned),
             alias: alias.or(column).unwrap_or(primary_key).into(),
             descending,
+            lazy: false,
         }
     }
 

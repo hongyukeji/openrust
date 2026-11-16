@@ -183,6 +183,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
     }
 
     super::key_chunks::key_chunks!(forward 0);
+    super::key_chunks::lazy_chunks!(forward 0);
 
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         self.0.cursor(parent)

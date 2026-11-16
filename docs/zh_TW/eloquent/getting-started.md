@@ -113,6 +113,8 @@ Eloquent 也支援 `chunkById` 和 `chunkByIdDesc`。傳入 `None` 時以模型�
 
 Eloquent 的 `each` 將模型及其目前批次中的 `ArrayKey` 傳給回呼，保留自訂集合鍵。`eachById` 將批次偏移加到整數集合鍵上。集合鍵無法表示為有號整數時回傳錯誤。
 
+Eloquent 的惰性方法在回傳模型前按批水合並預先載入。每批在使用模型前釋放資料庫連線。`chunkMap` 限制每次讀取的輸入模型數量，回傳的集合包含全部映射結果。
+
 ## 插入和更新模型
 
 `create` 依批次賦值規則儲存新模型。`setAttribute` 設定單一屬性，`save` 以原主鍵寫入已變更的屬性。寫入成功後同步模型快照。建構器的 `update` 和 `delete` 回傳受影響列數。

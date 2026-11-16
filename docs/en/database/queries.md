@@ -48,6 +48,8 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 
 Use `each(callback, count)` to process one row at a time from offset batches. The index starts at zero in every batch. `eachById(callback, count, column, alias)` uses ascending keyset batches and passes the index across the entire scan. Return `Ok(false)` to stop immediately or `Err` to propagate a failure.
 
+Use `lazy(count)`, `lazyById(count, column, alias)` or `lazyByIdDesc` to consume rows from successive batches as an async stream. Query validation and database errors surface when polling. Dropping the stream stops future fetches. A full keyset batch needs a projected boundary key. A short final batch can finish without it. `chunkMap(callback, count)` maps the rows asynchronously and returns one reindexed collection of results.
+
 ## Select Statements
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.

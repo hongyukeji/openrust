@@ -175,6 +175,27 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
+    super::key_chunks::lazy_chunks!(R);
+
+    pub(super) fn lazy_relation<'a>(
+        &'a self,
+        parent: &'a P,
+        chunk_size: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            let query = self.pagination_query(parent, &["*"])?;
+            let mut models = if let Some((column, alias, descending)) = key {
+                query.lazy_by_key(chunk_size, column, alias.or(Some(R::metadata().primary_key)), descending)
+            } else {
+                query.lazy(chunk_size)
+            };
+            while let Some(model) = models.try_next().await? {
+                yield model;
+            }
+        })
+    }
+
     pub async fn each<Fut>(
         &self,
         parent: &P,

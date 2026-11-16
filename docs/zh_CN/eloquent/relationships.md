@@ -1323,6 +1323,21 @@ async fn visit_children<P: Model, R: Model>(
 }
 ```
 
+关系支持 `lazy(parent, count)`、`lazyById(parent, count, column, alias)`、`lazyByIdDesc` 和 `chunkMap(parent, callback, count)`。它们保留关系过滤条件和已水合的 Pivot。`MorphTo` 流返回 `MorphTarget`。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn visit_latest<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<Option<R>> {
+    let mut models = children.lazyByIdDesc(parent, 200, None, None);
+    models.try_next().await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

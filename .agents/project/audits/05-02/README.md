@@ -748,3 +748,9 @@ MySQL 8.4.13 实际 HTTP 验证默认键、升降序、替换既有键排序、�
 以 `73876418` 为隔离基线。固定 Laravel 的 `each` 将批内集合键交给回调，`eachById` 将 `(页码 - 1) × 批量` 加到集合键。Rust 的 Eloquent `each` 传递 `ArrayKey`，`eachById` 使用有符号整数并报告无效键或算术溢出。两者接收拥有所有权的行、模型或 `MorphTarget`，回调可跨 await 并通过 `Result<bool>` 停止或返回错误。查询、模型及关系复用原有批次，保留预加载、Pivot 和自定义集合键。v0.x 的 BatchReader 用于对照分批回调错误传播和停止行为。 [固定 Laravel BuildsQueries](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/BuildsQueries.php) · [固定 Laravel 穿透关系 eachById](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L713)
 
 独立 MySQL 8.4.13 实际 HTTP 验证批内索引重置、按键索引跨批递进、自定义整数键、Pivot 字符串键、字符串键校验、回调早停与错误传播。分页 HTTP、关系查询计数及 Query Builder 三项定向回归通过。Rust 1.94.0 严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本处理。测试容器已回收，清除隔离构建和文档缓存。后续验收惰性分批及批量映射。
+
+## 惰性分批与批量映射
+
+以 `ae2ca44a` 为隔离基线。固定 Laravel 的 `lazy`／`lazyById` 按需逐批取数，逐条交付结果。按键读取在短尾批结束，满批之后才检查投影的边界键。Rust 的三种惰性入口返回一次性异步流，首次轮询执行验证和查询，丢弃流结束后续取数。关系沿用已验收的限定条件、每批水合、预加载与 Pivot。固定 Laravel 的 `chunkMap` 汇总映射值，Rust 支持异步映射和错误传播，返回重新编号的集合。v0.x BatchReader 的按批读取和错误边界用于对照。本批复用现有 Query Builder 的批次查询，未引入额外执行器。 [Laravel BuildsQueries](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/BuildsQueries.php) · [Laravel 穿透关系惰性读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L782)
+
+独立 MySQL 8.4.13 实际 HTTP 验证未轮询即丢弃、首批提前结束、继续轮询时的下一批错误、按键降序及投影别名、初始偏移及总行数、短批与满批缺键差异、预加载、Pivot、多态目标、映射顺序和失败短路。分页 HTTP、关系查询计数和 Query Builder 三项定向回归通过。Rust 1.94.0 全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress、18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整。已回收测试容器并清除隔离 Cargo 与站点构建缓存。后续按固定测试矩阵复核 05-02 与 05-06 的整单元。

@@ -8,7 +8,9 @@ mod join_clause;
 pub mod processors;
 
 pub use builder::{Builder, Column};
-pub(super) use builder::{ChunkKey, collection_chunk_index, visit_batches};
+pub(super) use builder::{
+    ChunkKey, collection_chunk_index, flatten_batches, map_chunk_rows, visit_batches,
+};
 pub use conditions::{Conditions, FullTextOptions};
 pub use expression::Expression;
 pub use join_clause::JoinClause;

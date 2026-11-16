@@ -113,6 +113,8 @@ Eloquent also supports `chunkById` and `chunkByIdDesc`. Passing `None` selects t
 
 With Eloquent `each`, the callback receives the model and its `ArrayKey` from the current batch, including custom collection keys. `eachById` adds the batch offset to the integer collection key and reports an error for keys that cannot be represented as signed integers.
 
+Eloquent’s lazy methods hydrate each batch and run eager loading before yielding models. Each batch releases its database connection before consumption proceeds. `chunkMap` limits how many input models are read at a time, and its result collection contains every mapped value.
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.

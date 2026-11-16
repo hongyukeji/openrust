@@ -208,6 +208,20 @@ impl<P: Model> MorphTo<P> {
         }
     }
 
+    super::key_chunks::lazy_chunks!(MorphTarget);
+
+    fn lazy_relation<'a>(
+        &'a self,
+        parent: &'a P,
+        chunk_size: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, MorphTarget> {
+        query::flatten_batches(
+            self.morph_batches(parent, chunk_size, key, true),
+            |models| models.into_iter().map(|(_, model)| model),
+        )
+    }
+
     pub async fn each<Fut>(
         &self,
         parent: &P,
@@ -217,7 +231,7 @@ impl<P: Model> MorphTo<P> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self.morph_batches(parent, count, None);
+        let batches = self.morph_batches(parent, count, None, false);
         query::visit_batches(batches, |_, key| Ok(key), callback).await
     }
 
@@ -232,7 +246,7 @@ impl<P: Model> MorphTo<P> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self.morph_batches(parent, count, Some((column, alias, false)));
+        let batches = self.morph_batches(parent, count, Some((column, alias, false)), false);
         query::visit_batches(
             batches,
             |batch, key| query::collection_chunk_index(batch, count, key),
@@ -246,13 +260,14 @@ impl<P: Model> MorphTo<P> {
         parent: &'a P,
         count: u64,
         key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+        lazy: bool,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>> {
         Box::pin(async_stream::try_stream! {
             if count == 0 {
                 Err(DatabaseError::InvalidQuery("chunk size must be positive"))?;
             }
             if let Some((alias, target)) = self.selected_target(parent)? {
-                let mut batches = target.chunks(parent, alias, self.soft_deletes, count, key);
+                let mut batches = target.chunks(parent, alias, self.soft_deletes, count, key, lazy);
                 while let Some(batch) = batches.try_next().await? {
                     yield batch;
                 }
@@ -301,7 +316,7 @@ impl<P: Model> MorphTo<P> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let mut batches = self.morph_batches(parent, count, key);
+        let mut batches = self.morph_batches(parent, count, key, false);
         let mut page = 1;
         while let Some(models) = batches.try_next().await? {
             if !callback(models, page).await? {
@@ -970,6 +985,7 @@ trait Target<P: Model>: Send + Sync {
         soft_deletes: SoftDeleteMacros,
         count: u64,
         key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+        lazy: bool,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>>;
     fn load<'a>(
         &'a self,
@@ -1154,11 +1170,16 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         soft_deletes: SoftDeleteMacros,
         count: u64,
         key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+        lazy: bool,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>> {
         Box::pin(async_stream::try_stream! {
             if let Some(query) = self.owner_query(parent)? {
                 let query = soft_deletes.apply(query);
-                let key = key.map(|(column, alias, descending)| query.chunk_key(column, alias, descending));
+                let key = key.map(|(column, alias, descending)| {
+                    let mut key = query.chunk_key(column, alias, descending);
+                    key.lazy = lazy;
+                    key
+                });
                 let mut batches = query.chunk_collections(count, key, |_, _| Ok(()));
                 while let Some(models) = batches.try_next().await? {
                     let targets = models.toBase().into_iter().map(|(key, model)| {

@@ -51,6 +51,30 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         query.chunk(count, callback).await
     }
 
+    super::key_chunks::lazy_chunks!(R);
+
+    pub(super) fn lazy_relation<'a>(
+        &'a self,
+        parent: &'a P,
+        chunk_size: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            if chunk_size == 0 {
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))?;
+            }
+            let Some(query) = self.0.owner_query(parent)? else { return };
+            let mut models = if let Some((column, alias, descending)) = key {
+                query.lazy_by_key(chunk_size, column, alias, descending)
+            } else {
+                query.lazy(chunk_size)
+            };
+            while let Some(model) = models.try_next().await? {
+                yield model;
+            }
+        })
+    }
+
     pub async fn each<Fut>(
         &self,
         parent: &P,

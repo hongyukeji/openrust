@@ -15,7 +15,9 @@ mod pagination;
 mod subqueries;
 mod writes;
 
-pub(in crate::database) use chunks::{ChunkKey, collection_chunk_index, visit_batches};
+pub(in crate::database) use chunks::{
+    ChunkKey, collection_chunk_index, flatten_batches, map_chunk_rows, visit_batches,
+};
 use subqueries::{Join, Source};
 
 enum Executor<'connection> {

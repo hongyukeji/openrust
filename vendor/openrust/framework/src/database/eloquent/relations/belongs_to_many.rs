@@ -1714,6 +1714,20 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
+    super::key_chunks::lazy_chunks!(R);
+
+    fn lazy_relation<'a>(
+        &'a self,
+        parent: &'a P,
+        chunk_size: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, R> {
+        query::flatten_batches(
+            self.pivot_batches(parent, chunk_size, key, true),
+            |models| models,
+        )
+    }
+
     pub async fn each<Fut>(
         &self,
         parent: &P,
@@ -1724,7 +1738,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         let batches = self
-            .pivot_batches(parent, count, None)
+            .pivot_batches(parent, count, None, false)
             .map_ok(crate::database::eloquent::Collection::toBase);
         query::visit_batches(batches, |_, key| Ok(key), callback).await
     }
@@ -1741,7 +1755,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         let batches = self
-            .pivot_batches(parent, count, Some((column, alias, false)))
+            .pivot_batches(parent, count, Some((column, alias, false)), false)
             .map_ok(crate::database::eloquent::Collection::toBase);
         query::visit_batches(
             batches,
@@ -1756,6 +1770,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         parent: &'a P,
         count: u64,
         key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+        lazy: bool,
     ) -> DatabaseCursor<'a, crate::database::eloquent::Collection<R>> {
         Box::pin(async_stream::try_stream! {
             let names = self.pivot_names();
@@ -1765,6 +1780,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 column: column.map_or_else(|| query.qualifyColumn(self.keys.related), str::to_owned),
                 alias: alias.unwrap_or(self.keys.related).into(),
                 descending,
+                lazy,
             });
             let mut batches = query.chunk_collections(count, key, |models, connection| {
                 self.hydrate_page_pivots(parent, models, &columns, &names, connection)
@@ -1844,7 +1860,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let mut batches = self.pivot_batches(parent, count, key);
+        let mut batches = self.pivot_batches(parent, count, key, false);
         let mut page = 1;
         while let Some(models) = batches.try_next().await? {
             if !callback(models, page).await? {
