@@ -63,6 +63,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Customizing Channel Records {#customizing-channel-records}
+
+Register names with `LogManager::registerFormatter`, `registerProcessor`, and `registerTap` in your service provider. Select a formatter with `formatter` and pass its settings in `formatter_with`. Use `formatter: "default"` for the built-in format. Formatters write the exact bytes returned, including any record separator, for file, rotating file, and standard error handlers. Custom logger factories control their own output.
+
+Declare `processors` as names or objects with `processor` and `with`. Processors run in configuration order before formatting. They can edit the message, record context, and public scope metadata through `LogRecord`. A stack collects its members’ processors in member order. Each member retains its own formatter.
+
+A tap such as `"audit:orders,prod"` receives the logger and the two arguments. Taps run in list order before the channel is cached. Use `setFormatter` to replace the channel formatter or `pushProcessor` to prepend a processor.
+
+```rust
+use openrust::{
+    config::Repository,
+    log::{LogContext, LogManager},
+};
+use serde_json::json;
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    manager.registerFormatter("message", |_| {
+        Ok(Arc::new(|record| Ok(format!("{}\n", record.message()))))
+    });
+    let channel = manager.build(&json!({
+        "driver": "single",
+        "path": "storage/logs/audit.log",
+        "formatter": "message",
+    }))?;
+    channel.info("Order recorded", &LogContext::new())?;
+    Ok(())
+}
+```
+
 ## Contextual Information
 
 The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.

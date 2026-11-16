@@ -36,7 +36,7 @@ mod logger;
 
 pub use log_manager::{LogManager, StackChannel};
 pub use log_service_provider::LogServiceProvider;
-pub use logger::Logger;
+pub use logger::{Formatter, LogRecord, Logger, Processor};
 
 /// Severity levels in the application logging contract.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]

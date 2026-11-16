@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::contracts::{config::Repository, log::Logger as LoggerContract};
 
 use super::{
-    Level, LogContext, LogError, LogResult, Logger,
+    Formatter, Level, LogContext, LogError, LogResult, Logger, Processor,
     logger::Emergency,
     rotating::{Period, RotatingFile},
     sink::{FileOptions, Handler, Handlers},
@@ -20,7 +20,10 @@ use super::{
 const DEFAULT_FILE: &str = "storage/logs/openrust.log";
 const MAX_STACK_DEPTH: usize = 32;
 type Factory = dyn Fn(&LogManager, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync;
-type Factories = Mutex<HashMap<String, Arc<Factory>>>;
+type Registry<T> = Mutex<HashMap<String, Arc<T>>>;
+type ComponentFactory<T> = dyn Fn(&Value) -> LogResult<Arc<T>> + Send + Sync;
+type Tap = dyn Fn(&mut Logger, &[&str]) -> LogResult<()> + Send + Sync;
+type ChannelParts = (Handlers, bool, Vec<Arc<Processor>>);
 
 thread_local! {
     static ACTIVE_FACTORIES: RefCell<Vec<(usize, usize, String)>> = const { RefCell::new(Vec::new()) };
@@ -29,7 +32,7 @@ thread_local! {
 struct FactoryCall;
 
 impl FactoryCall {
-    fn enter(manager: &LogManager, name: &str, factory: &Arc<Factory>) -> LogResult<Self> {
+    fn enter<T: ?Sized>(manager: &LogManager, name: &str, factory: &Arc<T>) -> LogResult<Self> {
         let key = (
             std::ptr::from_ref(manager).addr(),
             Arc::as_ptr(factory).addr(),
@@ -66,8 +69,11 @@ pub struct LogManager {
     root: PathBuf,
     context_owner: Weak<crate::container::Container>,
     channels: Mutex<ChannelDirectory>,
-    drivers: Factories,
-    factories: Factories,
+    drivers: Registry<Factory>,
+    factories: Registry<Factory>,
+    formatters: Registry<ComponentFactory<Formatter>>,
+    processors: Registry<ComponentFactory<Processor>>,
+    taps: Registry<Tap>,
 }
 
 #[derive(Default)]
@@ -86,6 +92,9 @@ impl LogManager {
             channels: Mutex::default(),
             drivers: Mutex::default(),
             factories: Mutex::default(),
+            formatters: Mutex::default(),
+            processors: Mutex::default(),
+            taps: Mutex::default(),
         }
     }
 
@@ -110,6 +119,33 @@ impl LogManager {
         factory: impl Fn(&Self, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync + 'static,
     ) {
         register(&self.factories, via.into(), Arc::new(factory));
+    }
+
+    /// Registers a compiled formatter factory for a channel's formatter and formatter_with.
+    pub fn registerFormatter(
+        &self,
+        name: impl Into<String>,
+        factory: impl Fn(&Value) -> LogResult<Arc<Formatter>> + Send + Sync + 'static,
+    ) {
+        register(&self.formatters, name.into(), Arc::new(factory));
+    }
+
+    /// Registers a compiled processor factory referenced by a channel's processors array.
+    pub fn registerProcessor(
+        &self,
+        name: impl Into<String>,
+        factory: impl Fn(&Value) -> LogResult<Arc<Processor>> + Send + Sync + 'static,
+    ) {
+        register(&self.processors, name.into(), Arc::new(factory));
+    }
+
+    /// Registers a logger customization referenced by a channel's tap list.
+    pub fn registerTap(
+        &self,
+        name: impl Into<String>,
+        tap: impl Fn(&mut Logger, &[&str]) -> LogResult<()> + Send + Sync + 'static,
+    ) {
+        register(&self.taps, name.into(), Arc::new(tap));
     }
 
     /// Resolves an on-demand channel from explicit settings without caching it by name.
@@ -200,11 +236,12 @@ impl LogManager {
         name: Option<&str>,
     ) -> LogResult<Arc<Logger>> {
         self.resolve(|resolution| {
-            let (handlers, replace_placeholders) = resolution.stack(channels, false)?;
+            let (handlers, replace_placeholders, processors) = resolution.stack(channels, false)?;
             Ok(Arc::new(Logger {
                 name: name.unwrap_or(&resolution.settings.environment).to_owned(),
                 handlers: Some(handlers),
                 replace_placeholders,
+                processors,
                 emergency: resolution.settings.emergency.clone(),
                 context_owner: resolution.settings.context_owner.clone(),
             }))
@@ -303,6 +340,7 @@ impl Settings<'_> {
             name: "openrust".to_owned(),
             handlers: None,
             replace_placeholders: false,
+            processors: Vec::new(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
         })
@@ -373,16 +411,46 @@ impl Resolution<'_, '_> {
     fn build(&mut self, name: &str, config: &Value) -> LogResult<Arc<Logger>> {
         let options: Options =
             Options::deserialize(config).map_err(|_| LogError::InvalidConfiguration)?;
-        let (handlers, replace_placeholders) = self.handlers(name, &options, config)?;
-        Ok(Arc::new(Logger {
+        let (handlers, replace_placeholders, stack_processors) =
+            self.handlers(name, &options, config)?;
+        let mut processors = options
+            .processors
+            .iter()
+            .map(|processor| {
+                let (key, arguments) = processor.parts();
+                let factory =
+                    find(&self.manager.processors, key).ok_or(LogError::InvalidConfiguration)?;
+                let _call = FactoryCall::enter(self.manager, name, &factory)?;
+                factory(arguments).map_err(|_| LogError::FactoryFailed)
+            })
+            .collect::<LogResult<Vec<_>>>()?;
+        processors.extend(stack_processors);
+        let mut logger = Logger {
             name: options
                 .name
                 .unwrap_or_else(|| self.settings.environment.clone()),
             handlers: Some(handlers),
             replace_placeholders,
+            processors,
             emergency: self.settings.emergency.clone(),
             context_owner: self.settings.context_owner.clone(),
-        }))
+        };
+        if let Some(key) = options.formatter.as_deref().filter(|key| *key != "default") {
+            let factory =
+                find(&self.manager.formatters, key).ok_or(LogError::InvalidConfiguration)?;
+            let _call = FactoryCall::enter(self.manager, name, &factory)?;
+            logger.setFormatter(
+                factory(&options.formatter_with).map_err(|_| LogError::FactoryFailed)?,
+            );
+        }
+        for entry in options.tap {
+            let (key, arguments) = entry.split_once(':').unwrap_or((&entry, ""));
+            let tap = find(&self.manager.taps, key).ok_or(LogError::InvalidConfiguration)?;
+            let _call = FactoryCall::enter(self.manager, name, &tap)?;
+            tap(&mut logger, &arguments.split(',').collect::<Vec<_>>())
+                .map_err(|_| LogError::FactoryFailed)?;
+        }
+        Ok(Arc::new(logger))
     }
 
     fn handlers(
@@ -390,7 +458,7 @@ impl Resolution<'_, '_> {
         name: &str,
         options: &Options,
         config: &Value,
-    ) -> LogResult<(Handlers, bool)> {
+    ) -> LogResult<ChannelParts> {
         let level = options
             .level
             .as_deref()
@@ -415,10 +483,11 @@ impl Resolution<'_, '_> {
                 level,
                 bubble: options.bubble,
             };
-            return Ok(([Arc::new(handler)].into(), options.replace_placeholders));
-        }
-        if options.formatter.is_some() {
-            return Err(LogError::InvalidConfiguration);
+            return Ok((
+                [Arc::new(handler)].into(),
+                options.replace_placeholders,
+                Vec::new(),
+            ));
         }
         let driver: Driver =
             Driver::deserialize(config).map_err(|_| LogError::InvalidConfiguration)?;
@@ -468,7 +537,11 @@ impl Resolution<'_, '_> {
             Driver::Null => Handler::Null(level),
             Driver::Stack { .. } => unreachable!("stack handled before leaf drivers"),
         };
-        Ok(([Arc::new(handler)].into(), options.replace_placeholders))
+        Ok((
+            [Arc::new(handler)].into(),
+            options.replace_placeholders,
+            Vec::new(),
+        ))
     }
 
     fn rotating(
@@ -492,9 +565,10 @@ impl Resolution<'_, '_> {
         &mut self,
         channels: impl Iterator<Item = StackChannel<'a>>,
         ignore: bool,
-    ) -> LogResult<(Handlers, bool)> {
+    ) -> LogResult<ChannelParts> {
         let mut handlers = Vec::new();
         let mut replace_placeholders = false;
+        let mut processors = Vec::new();
         for member in channels {
             let resolved;
             let logger = match member {
@@ -517,13 +591,14 @@ impl Resolution<'_, '_> {
                     .cloned(),
             );
             replace_placeholders |= logger.replace_placeholders;
+            processors.extend(logger.processors.iter().cloned());
         }
         let handlers = if ignore {
             [Arc::new(Handler::IgnoreFailures(handlers.into()))].into()
         } else {
             handlers.into()
         };
-        Ok((handlers, replace_placeholders))
+        Ok((handlers, replace_placeholders, processors))
     }
 }
 
@@ -542,6 +617,12 @@ fn report(emergency: &Emergency, diagnostics: &[LogError]) -> LogResult<()> {
 struct Options {
     name: Option<String>,
     formatter: Option<String>,
+    #[serde(default)]
+    formatter_with: Value,
+    #[serde(default)]
+    processors: Vec<ConfiguredProcessor>,
+    #[serde(default)]
+    tap: Vec<String>,
     level: Option<String>,
     #[serde(default = "default_bubble")]
     bubble: bool,
@@ -549,6 +630,26 @@ struct Options {
     replace_placeholders: bool,
     driver: String,
     via: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum ConfiguredProcessor {
+    Name(String),
+    With {
+        processor: String,
+        #[serde(default)]
+        with: Value,
+    },
+}
+
+impl ConfiguredProcessor {
+    fn parts(&self) -> (&str, &Value) {
+        match self {
+            Self::Name(name) => (name, &Value::Null),
+            Self::With { processor, with } => (processor, with),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -596,7 +697,7 @@ impl FileConfig {
     }
 }
 
-fn register(directory: &Factories, key: String, factory: Arc<Factory>) {
+fn register<T: ?Sized>(directory: &Registry<T>, key: String, factory: Arc<T>) {
     let retired = directory
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -604,7 +705,7 @@ fn register(directory: &Factories, key: String, factory: Arc<Factory>) {
     drop(retired);
 }
 
-fn find(directory: &Factories, key: &str) -> Option<Arc<Factory>> {
+fn find<T: ?Sized>(directory: &Registry<T>, key: &str) -> Option<Arc<T>> {
     directory
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)

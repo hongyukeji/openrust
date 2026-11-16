@@ -5,7 +5,7 @@
 - 旧版 `6d1a8192` 的 `src/logging/manager.rs` 和 `tests/unit/logging/manager.rs` 提供具名驱动、失败重试、目录摘除及防止旧工厂覆盖缓存的回归。该版日志写入端只有单文件、标准错误、空输出和组合，日与月轮转按固定上游实现。
 - `daily` 和 `monthly` 共享已验收的同步文件写入、权限、锁和级别过滤。使用记录的 UTC 时间选择文件，支持日渠道旧 `days` 配置，`max_files` 优先，零表示不限数量。清理精确匹配有效日期的同名普通文件。保留当前活动文件，并处理并发时晚到的上一周期记录。
 - `Log::build` 构造临时渠道，`stackChannels` 组合命名渠道和已解析对象。Rust 用带类型的混合成员表达 PHP 数组。临时构造结果由调用方持有。标准文件处理器与自定义日志契约接收同一消息及上下文。
-- `extend` 注册具名驱动，`registerFactory` 注册 `custom` 的 `via`。Rust 使用编译闭包和日志契约表达 PHP 容器解析工厂及 Monolog 对象。工厂在目录锁外执行，首次并发查找允许重复构造，命名渠道共享最终发布结果。失效前已开始的解析可返回原对象，不能重新写回缓存。工厂错误走脱敏紧急路径。Monolog 专用 formatter、processor、tap 及 handler 仍需各自的 Rust 对应实现。
+- `extend` 注册具名驱动，`registerFactory` 注册 `custom` 的 `via`。Rust 使用编译闭包和日志契约表达 PHP 容器解析工厂及 Monolog 对象。工厂在目录锁外执行，首次并发查找允许重复构造，命名渠道共享最终发布结果。失效前已开始的解析可返回原对象，不能重新写回缓存。工厂错误走脱敏紧急路径。formatter、processor 和 tap 已由[后续批次](customization.md)验收；配置型通用 handler 和其余 Monolog 对应行为在该记录继续跟踪。
 
 ## 验收
 

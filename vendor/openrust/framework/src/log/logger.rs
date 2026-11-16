@@ -12,8 +12,11 @@ use crate::{
 
 use super::{
     Level, LogContext, LogError, LogResult,
-    sink::{self, Handlers},
+    sink::{self, Handler, Handlers},
 };
+
+pub type Formatter = dyn Fn(&LogRecord<'_>) -> LogResult<String> + Send + Sync;
+pub type Processor = dyn Fn(&mut LogRecord<'_>) -> LogResult<()> + Send + Sync;
 
 pub(super) struct Emergency {
     pub handlers: Handlers,
@@ -21,7 +24,7 @@ pub(super) struct Emergency {
 
 impl Emergency {
     pub fn write(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
-        self.write_record(&Record::new(
+        self.write_record(&LogRecord::new(
             "openrust",
             level,
             message,
@@ -31,7 +34,7 @@ impl Emergency {
         ))
     }
 
-    fn write_record(&self, record: &Record<'_>) -> LogResult<()> {
+    fn write_record(&self, record: &LogRecord<'_>) -> LogResult<()> {
         if sink::write(&self.handlers, record).is_err() {
             use std::io::Write as _;
             std::io::stderr()
@@ -48,6 +51,7 @@ pub struct Logger {
     pub(super) name: String,
     pub(super) handlers: Option<Handlers>,
     pub(super) replace_placeholders: bool,
+    pub(super) processors: Vec<Arc<Processor>>,
     pub(super) emergency: Arc<Emergency>,
     pub(super) context_owner: Weak<Container>,
 }
@@ -65,9 +69,36 @@ impl Logger {
             name: name.into(),
             handlers: self.handlers.clone(),
             replace_placeholders: self.replace_placeholders,
+            processors: self.processors.clone(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
         }
+    }
+
+    /// Assigns the formatter for the channel's byte-oriented handlers.
+    #[allow(non_snake_case, reason = "Matches Laravel's handler customization API")]
+    pub fn setFormatter(&mut self, formatter: Arc<Formatter>) {
+        if let Some(handlers) = &mut self.handlers {
+            *handlers = handlers
+                .iter()
+                .map(|handler| {
+                    let handler = match handler.as_ref() {
+                        Handler::Formatted { handler, .. } => handler,
+                        _ => handler,
+                    };
+                    Arc::new(Handler::Formatted {
+                        handler: handler.clone(),
+                        formatter: formatter.clone(),
+                    })
+                })
+                .collect();
+        }
+    }
+
+    /// Prepends a processor, as in Monolog's pushProcessor.
+    #[allow(non_snake_case, reason = "Matches Laravel's logger customization API")]
+    pub fn pushProcessor(&mut self, processor: Arc<Processor>) {
+        self.processors.insert(0, processor);
     }
 
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
@@ -97,14 +128,17 @@ impl Logger {
         extra: &LogContext,
     ) -> LogResult<()> {
         let fallback = || {
-            self.emergency.write_record(&Record::new(
+            self.emergency.write_record(&LogRecord::new(
                 "openrust", level, message, context, extra, false,
             ))
         };
         let Some(handlers) = &self.handlers else {
             return fallback();
         };
-        let record = Record::new(
+        if !self.processors.is_empty() && !sink::accepts(handlers, level) {
+            return Ok(());
+        }
+        let mut record = LogRecord::new(
             &self.name,
             level,
             message,
@@ -112,7 +146,13 @@ impl Logger {
             extra,
             self.replace_placeholders,
         );
-        if sink::write(handlers, &record).is_err() {
+        if self
+            .processors
+            .iter()
+            .try_for_each(|process| process(&mut record))
+            .is_err()
+            || sink::write(handlers, &record).is_err()
+        {
             self.emergency.write(
                 Level::Emergency,
                 "Unable to write configured logger. Using emergency logger.",
@@ -142,17 +182,18 @@ impl crate::contracts::log::Logger for Logger {
     }
 }
 
-pub(super) struct Record<'a> {
+/// A channel record. Context fields borrow until a processor changes them.
+pub struct LogRecord<'a> {
     pub at: DateTime<Utc>,
     pub level: Level,
-    pub context: &'a LogContext,
-    pub extra: &'a LogContext,
-    channel: &'a str,
-    message: &'a str,
+    pub context: Cow<'a, LogContext>,
+    pub extra: Cow<'a, LogContext>,
+    pub channel: Cow<'a, str>,
+    pub message: Cow<'a, str>,
     replace: bool,
 }
 
-impl<'a> Record<'a> {
+impl<'a> LogRecord<'a> {
     fn new(
         channel: &'a str,
         level: Level,
@@ -164,34 +205,34 @@ impl<'a> Record<'a> {
         Self {
             at: DateTime::from(SystemTime::now()),
             level,
-            context,
-            extra,
-            channel,
-            message,
+            context: Cow::Borrowed(context),
+            extra: Cow::Borrowed(extra),
+            channel: Cow::Borrowed(channel),
+            message: Cow::Borrowed(message),
             replace,
         }
     }
 
-    pub fn message(&self) -> Cow<'a, str> {
+    pub fn message(&self) -> Cow<'_, str> {
         if self.replace && self.message.contains('{') && !self.context.is_empty() {
-            Cow::Owned(interpolate(self.message, self.context))
+            Cow::Owned(interpolate(&self.message, &self.context))
         } else {
-            Cow::Borrowed(self.message)
+            Cow::Borrowed(&self.message)
         }
     }
 
     pub fn format_line(&self, message: &str) -> String {
         let mut line = format!("[{}] ", self.at.format("%Y-%m-%d %H:%M:%S"));
-        append_single_line(&mut line, self.channel);
+        append_single_line(&mut line, &self.channel);
         line.push('.');
         line.push_str(self.level.label());
         line.push_str(": ");
         append_single_line(&mut line, message);
         if !self.context.is_empty() || !self.extra.is_empty() {
-            append_json(&mut line, self.context);
+            append_json(&mut line, &self.context);
         }
         if !self.extra.is_empty() {
-            append_json(&mut line, self.extra);
+            append_json(&mut line, &self.extra);
         }
         line.push('\n');
         line

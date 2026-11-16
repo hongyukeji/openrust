@@ -14,7 +14,7 @@ use openrust::{
     contracts::{config::Repository as _, container::Container as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
-    log::{LogContext, LogManager},
+    log::{LogContext, LogError, LogManager},
     routing::RoutingError,
     support::facades::{Artisan, Context, Log, Route},
 };
@@ -47,6 +47,110 @@ fn manager(root: &Root, logging: Value) -> (LogManager, Arc<Repository>) {
         ("logging".into(), logging),
     ])));
     (LogManager::new(config.clone(), &root.0), config)
+}
+
+fn register_customization(manager: &LogManager) {
+    manager.registerFormatter("label", |arguments| {
+        let prefix = arguments["prefix"]
+            .as_str()
+            .ok_or(LogError::InvalidConfiguration)?
+            .to_owned();
+        Ok(Arc::new(move |record| {
+            let trace = record
+                .extra
+                .get("trace")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            Ok(format!("{prefix}:{}:{trace}\n", record.message()))
+        }))
+    });
+    manager.registerProcessor("trace", |arguments| {
+        let label = arguments["label"].as_str().unwrap_or("default").to_owned();
+        Ok(Arc::new(move |record| {
+            let mut trace = record
+                .extra
+                .get("trace")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            trace.push_str(&label);
+            record.extra.to_mut().insert("trace".into(), json!(trace));
+            Ok(())
+        }))
+    });
+    manager.registerTap("prepend", |logger, arguments| {
+        let marker = arguments.join("/");
+        logger.pushProcessor(Arc::new(move |record| {
+            record.extra.to_mut().insert("trace".into(), json!(marker));
+            Ok(())
+        }));
+        Ok(())
+    });
+    manager.registerTap("format", |logger, arguments| {
+        let label = arguments[0].to_owned();
+        logger.setFormatter(Arc::new(move |record| {
+            Ok(format!("{label}:{}\n", record.message()))
+        }));
+        Ok(())
+    });
+}
+
+#[test]
+fn customized_stacks_preserve_each_formatter_and_process_in_order() {
+    let root = Root::new();
+    let (manager, _) = manager(
+        &root,
+        json!({"channels":{
+            "first": {"driver":"single","path":"first.log","formatter":"label","formatter_with":{"prefix":"ONE"},"processors":[{"processor":"trace","with":{"label":"-1"}}]},
+            "second": {"driver":"single","path":"second.log","formatter":"label","formatter_with":{"prefix":"TWO"},"processors":[{"processor":"trace","with":{"label":"-2"}}]},
+            "stack": {"driver":"stack","channels":["first","second"],"tap":["prepend:tap,arg"]},
+        "filtered": {"driver":"single","path":"filtered.log","level":"error","processors":["unexpected"]},
+        "invalid": {"driver":"single","path":"invalid.log","formatter":"unknown"},
+        "tapped": {"driver":"single","path":"tapped.log","formatter":"label","formatter_with":{"prefix":"before"},"tap":["format:first","format:final"]},
+            "emergency":{"path":"emergency.log"}
+        }}),
+    );
+    register_customization(&manager);
+    manager.registerProcessor("unexpected", |_| {
+        Ok(Arc::new(|_| {
+            panic!("filtered records must skip processors")
+        }))
+    });
+    let contexts = LogContext::new();
+    manager
+        .channel(Some("stack"))
+        .unwrap()
+        .info("message", &contexts)
+        .unwrap();
+    assert_eq!(root.read("first.log"), "ONE:message:tap/arg-1-2\n");
+    assert_eq!(root.read("second.log"), "TWO:message:tap/arg-1-2\n");
+    manager
+        .channel(Some("filtered"))
+        .unwrap()
+        .debug("skip", &contexts)
+        .unwrap();
+    assert!(!root.0.join("filtered.log").exists());
+    manager
+        .channel(Some("invalid"))
+        .unwrap()
+        .warning("saved", &contexts)
+        .unwrap();
+    assert!(!root.0.join("invalid.log").exists());
+    assert!(
+        root.read("emergency.log")
+            .contains("openrust.WARNING: saved")
+    );
+    let named_default = manager
+        .build(&json!({"driver":"single","path":"default.log","formatter":"default"}))
+        .unwrap();
+    named_default.info("normal", &contexts).unwrap();
+    assert!(root.read("default.log").contains(".INFO: normal"));
+    manager
+        .channel(Some("tapped"))
+        .unwrap()
+        .info("finished", &contexts)
+        .unwrap();
+    assert_eq!(root.read("tapped.log"), "final:finished\n");
 }
 
 #[test]
@@ -226,6 +330,16 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         })?;
         let container = openrust::container::Container::getInstance();
         let manager = container.make::<LogManager>().unwrap();
+        register_customization(&manager);
+        Log::build(&json!({
+            "driver":"single","path":"custom-http.log","formatter":"label",
+            "formatter_with":{"prefix":"HTTP"},"processors":["trace"],
+            "replace_placeholders":true
+        }))
+        .and_then(|logger| logger.info("request {id}", &context))
+        .map_err(|source| HttpError::Internal {
+            source: source.into(),
+        })?;
         let logger = container
             .make::<dyn openrust::contracts::log::Logger>()
             .unwrap();
@@ -312,6 +426,9 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
     let daily = format!("http-{}.log", date.format("%Y-%m-%d"));
     assert_eq!(first.read(&daily).lines().count(), 3);
     assert_eq!(second.read(&daily).lines().count(), 1);
+    assert_eq!(first.read("custom-http.log").lines().count(), 3);
+    assert_eq!(second.read("custom-http.log").lines().count(), 1);
+    assert!(!first.read("custom-http.log").contains("private-http-token"));
     for task in [first_task, second_task] {
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
@@ -335,6 +452,14 @@ fn console_routes() -> Result<(), ConsoleError> {
         let manager = openrust::container::Container::getInstance()
             .make::<LogManager>()
             .unwrap();
+        register_customization(&manager);
+        Log::build(&json!({
+            "driver":"monthly","path":"custom-console.log","formatter":"label",
+            "formatter_with":{"prefix":"ARTISAN"},"tap":["prepend:artisan,hook"]
+        }))
+        .unwrap()
+        .notice("formatted command", &LogContext::new())
+        .unwrap();
         manager.registerFactory("console", |manager, _| {
             Ok(manager.build(&json!({"driver":"monthly","path":"console.log"}))?)
         });
@@ -401,6 +526,10 @@ async fn artisan_logs_to_file_and_stderr() {
             .contains("private-artisan-token")
     );
     let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    assert_eq!(
+        root.read(&format!("custom-console-{}.log", date.format("%Y-%m"))),
+        "ARTISAN:formatted command:artisan/hook\n"
+    );
     assert!(
         root.read(&format!("console-{}.log", date.format("%Y-%m")))
             .contains(r#"monthly Artisan {} {"command":"log:probe"}"#)

@@ -63,6 +63,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## 自訂日誌記錄 {#customizing-channel-records}
+
+在服務 Provider 中用 `LogManager::registerFormatter`、`registerProcessor` 和 `registerTap` 註冊名稱。透過 `formatter` 選擇格式化器，用 `formatter_with` 傳入選項。將 `formatter` 設為 `"default"` 使用內建格式。檔案、輪替檔案與標準錯誤處理器依格式化器回傳的位元組寫入，記錄分隔符號也由格式化器提供。自訂日誌工廠管理自己的輸出。
+
+`processors` 的成員可以是名稱，也可以是帶有 `processor` 和 `with` 的物件。處理器依設定順序在格式化前執行，可透過 `LogRecord` 修改訊息、記錄上下文和公開作用域中繼資料。日誌堆疊依成員順序合併處理器，各成員沿用自己的格式化器。
+
+`"audit:orders,prod"` 這樣的 tap 會收到日誌器和兩個參數。tap 在快取通道前依清單順序執行。用 `setFormatter` 取代通道格式化器，用 `pushProcessor` 在最前面插入處理器。
+
+```rust
+use openrust::{
+    config::Repository,
+    log::{LogContext, LogManager},
+};
+use serde_json::json;
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    manager.registerFormatter("message", |_| {
+        Ok(Arc::new(|record| Ok(format!("{}\n", record.message()))))
+    });
+    let channel = manager.build(&json!({
+        "driver": "single",
+        "path": "storage/logs/audit.log",
+        "formatter": "message",
+    }))?;
+    channel.info("Order recorded", &LogContext::new())?;
+    Ok(())
+}
+```
+
 ## 上下文資訊
 
 [Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `logWithContext` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。

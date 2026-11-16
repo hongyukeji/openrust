@@ -8,7 +8,7 @@ use std::{
 
 use std::borrow::Cow;
 
-use super::{Level, logger::Record, rotating::RotatingFile};
+use super::{Formatter, Level, LogRecord, rotating::RotatingFile};
 use crate::contracts::log::Logger;
 
 pub(super) type Handlers = Arc<[Arc<Handler>]>;
@@ -36,6 +36,10 @@ pub(super) enum Handler {
     },
     Null(Level),
     IgnoreFailures(Handlers),
+    Formatted {
+        handler: Arc<Handler>,
+        formatter: Arc<Formatter>,
+    },
 }
 
 pub(super) struct FileOptions {
@@ -93,6 +97,18 @@ impl FileOptions {
 }
 
 impl Handler {
+    fn accepts(&self, level: Level) -> bool {
+        match self {
+            Self::File { level: minimum, .. }
+            | Self::Rotating { level: minimum, .. }
+            | Self::Custom { level: minimum, .. }
+            | Self::Stderr { level: minimum, .. }
+            | Self::Null(minimum) => level >= *minimum,
+            Self::IgnoreFailures(handlers) => accepts(handlers, level),
+            Self::Formatted { handler, .. } => handler.accepts(level),
+        }
+    }
+
     pub fn file(
         path: PathBuf,
         permission: Option<u32>,
@@ -114,11 +130,16 @@ impl Handler {
 
     fn write<'a>(
         &self,
-        record: &Record<'a>,
+        record: &'a LogRecord<'_>,
         message: &LazyCell<Cow<'a, str>, impl FnOnce() -> Cow<'a, str>>,
         line: &LazyCell<String, impl FnOnce() -> String>,
+        formatter: Option<&Formatter>,
     ) -> io::Result<bool> {
         let level = record.level;
+        let output = || match formatter {
+            Some(formatter) => formatter(record).map(Cow::Owned).map_err(io::Error::other),
+            None => Ok(Cow::Borrowed(line.as_str())),
+        };
         match self {
             Self::File {
                 options,
@@ -126,10 +147,11 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
+                let output = output()?;
                 let mut file = file
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                options.write(&options.path, &mut file, line.as_bytes())?;
+                options.write(&options.path, &mut file, output.as_bytes())?;
                 Ok(!bubble)
             }
             Self::Rotating {
@@ -137,7 +159,7 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
-                file.write(record.at.date_naive(), line.as_bytes())?;
+                file.write(record.at.date_naive(), output()?.as_bytes())?;
                 Ok(!bubble)
             }
             Self::Custom {
@@ -146,7 +168,7 @@ impl Handler {
                 bubble,
             } if level >= *minimum => {
                 logger
-                    .logWithContext(level, message, record.context, record.extra)
+                    .logWithContext(level, message, &record.context, &record.extra)
                     .map_err(io::Error::other)?;
                 Ok(!bubble)
             }
@@ -154,26 +176,35 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
-                io::stderr().lock().write_all(line.as_bytes())?;
+                let output = output()?;
+                io::stderr().lock().write_all(output.as_bytes())?;
                 Ok(!bubble)
             }
             Self::Null(minimum) => Ok(level >= *minimum),
             Self::IgnoreFailures(handlers) => {
                 for handler in handlers.iter() {
-                    let _ = handler.write(record, message, line);
+                    let _ = handler.write(record, message, line, formatter);
                 }
                 Ok(false)
             }
+            Self::Formatted {
+                handler,
+                formatter: default,
+            } => handler.write(record, message, line, formatter.or(Some(default.as_ref()))),
             _ => Ok(false),
         }
     }
 }
 
-pub(super) fn write(handlers: &[Arc<Handler>], record: &Record<'_>) -> io::Result<()> {
+pub(super) fn accepts(handlers: &[Arc<Handler>], level: Level) -> bool {
+    handlers.iter().any(|handler| handler.accepts(level))
+}
+
+pub(super) fn write(handlers: &[Arc<Handler>], record: &LogRecord<'_>) -> io::Result<()> {
     let message = LazyCell::new(|| record.message());
     let line = LazyCell::new(|| record.format_line(&message));
     for handler in handlers {
-        if handler.write(record, &message, &line)? {
+        if handler.write(record, &message, &line, None)? {
             break;
         }
     }
