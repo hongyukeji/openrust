@@ -1,0 +1,33 @@
+use openrust::{
+    database::eloquent::Model,
+    http::{
+        HttpError, Request, StatusCode,
+        resources::json::{JsonResource, ResourceResult},
+    },
+};
+use serde_json::Value;
+
+pub struct {{class}}<M>(pub M);
+
+impl<M: Model> From<M> for {{class}}<M> {
+    fn from(model: M) -> Self {
+        Self(model)
+    }
+}
+
+#[allow(non_snake_case, reason = "Implements Laravel's resource contract")]
+impl<M: Model> JsonResource for {{class}}<M> {
+    fn toArray(&self, _request: &Request) -> ResourceResult<Value> {
+        self.0.toArray().map(Value::Object).map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })
+    }
+
+    fn status(&self) -> StatusCode {
+        if self.0.state().wasRecentlyCreated() {
+            StatusCode::CREATED
+        } else {
+            StatusCode::OK
+        }
+    }
+}

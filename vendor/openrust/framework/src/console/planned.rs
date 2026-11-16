@@ -90,7 +90,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ),
     ("make:queue-table", "Generate a migration for queued jobs"),
     ("make:request", "Generate a form request"),
-    ("make:resource", "Generate an API resource"),
     ("make:rule", "Generate a validation rule"),
     ("make:scope", "Generate a model query scope"),
     ("make:seeder", "Generate a database seeder"),

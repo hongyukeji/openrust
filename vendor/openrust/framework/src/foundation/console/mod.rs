@@ -16,6 +16,7 @@ mod model_make_command;
 mod observer_make_command;
 mod policy_make_command;
 mod provider_make_command;
+mod resource_make_command;
 mod source_edit;
 mod storage_link_command;
 mod storage_unlink_command;
@@ -107,6 +108,7 @@ impl Kernel {
                             observer_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             provider_make_command::register(&mut self.artisan)?;
+                            resource_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
                             lang_publish_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;

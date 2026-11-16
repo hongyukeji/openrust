@@ -60,3 +60,10 @@
 - Rust 用资源 trait 声明查询策略。关闭策略会按固定文档同时忽略 `fields` 和 `include`。使用已加载关系时，仅选择已声明且已加载的直接关联，稀疏字段仍可单独使用。测试验证关闭查询只执行读取主资源的一次 SELECT。
 - 两应用并发真实 HTTP 验证各自的文档信息与截断深度，普通 JSON 不附加 `jsonapi`。SQLite／MySQL 8.4.13 共 11 项资源、HTTP 和分页回归通过。隔离副本格式、严格 Clippy、实际 `./artisan inspire`、三语配置示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 后续验收普通及 `--json-api` 的 `make:resource`，并完成 05-07 协议对账。
+
+## Artisan 资源生成器
+
+- 对照固定 Laravel 的 `ResourceMakeCommand`、三种模板及生成器测试。已接通 `make:resource`、`-j/--json-api`、`-c/--collection` 和 `-f/--force`。名称后缀 `Collection` 自动选集合模板，集合优先于 JSON:API。重复文件保持原样并报告冲突，退出码为 0。旧版未提供该命令。本批复用现有 Artisan 源码生成、模板发布和原子覆盖机制。 [固定 Laravel 命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ResourceMakeCommand.php) · [固定 Laravel 生成器测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Generators/ResourceMakeCommandTest.php)
+- Rust 生成到 `app/http/resources`，由应用声明 `mod.rs` 后重新编译。普通和 JSON:API 模板用类型化模型实现资源接口。默认集合是 `ResourceCollection` 的类型别名，继承分页及 JSON:API 集合行为。可在 `stubs` 覆盖三种模板。
+- 两项实际 Artisan 生成器测试通过，覆盖帮助、选项优先级、嵌套和应用命名空间、非法路径、模板发布及自定义、重复保护和强制覆盖。隔离副本执行三语文档命令，将生成源码编入实际应用，HTTP 验证普通 JSON、JSON:API 和集合的响应结构、媒体类型以及隐藏字段。SQLite／MySQL 8.4.13 的 11 项资源、分页及 HTTP 回归、严格 Clippy、格式、实际 `./artisan inspire`、VitePress 构建和 15 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本处理。
+- 最终协议复核仍有差异。固定 Laravel 覆盖顶层与嵌套的数组后端资源，Rust 当前的 `JsonApiResource` 强制关联 `Model`。固定 `JsonApiRequest` 的非字符串 fields/include 容错也需要与现有 HTTP 状态逐项对照。05-07 保持在研。 [固定 Laravel JSON:API 集成矩阵](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiResourceTest.php)

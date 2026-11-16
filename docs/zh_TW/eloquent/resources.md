@@ -1,5 +1,21 @@
 # API 資源
 
+## 產生資源 {#generating-resources}
+
+Artisan 將資源模組寫到 `app/http/resources`。資源名稱使用 PascalCase，巢狀模組以 `/` 分隔。
+
+```bash
+./artisan make:resource UserResource
+./artisan make:resource Admin/UserResource --json-api
+./artisan make:resource UserCollection --collection
+```
+
+使用 `-j` 或 `--json-api` 產生 JSON:API 資源。使用 `-c`、`--collection` 或以 `Collection` 結尾的名稱產生資源集合。兩個選項同時提供時，優先選集合範本。
+
+在上層 `mod.rs` 宣告產生的模組後重新建置。產生的集合是 `ResourceCollection` 的型別別名，可用 `new` 接收轉換後的資源或分頁器。
+
+檔案已存在時，Artisan 會回報衝突並保留檔案。使用 `-f` 或 `--force` 可以覆寫。執行 `./artisan stub:publish` 後可自訂三種範本。
+
 ## 概念概覽
 
 實作 `JsonResource::toArray`，依目前 HTTP 請求轉換資料。路由可直接回傳資源，也可以呼叫 `toResponse(request)`。回應預設使用 `data` 包裝。可透過 `response().withoutWrapping()` 或 `wrap` 調整本次回應的包裝。`ModelResource` 沿用模型序列化規則，新建模型回傳 201。

@@ -1,5 +1,21 @@
 # API Resources
 
+## Generating Resources {#generating-resources}
+
+Artisan writes resource modules to `app/http/resources`. Use a PascalCase name and separate nested modules with `/`.
+
+```bash
+./artisan make:resource UserResource
+./artisan make:resource Admin/UserResource --json-api
+./artisan make:resource UserCollection --collection
+```
+
+Use `-j` or `--json-api` for a JSON:API resource. Use `-c`, `--collection`, or a name ending in `Collection` for a collection. The collection template takes precedence when both options are supplied.
+
+Declare the generated modules in their parent `mod.rs` files and rebuild. A generated collection is a typed alias of `ResourceCollection`. Pass mapped resources or a paginator to its `new` method.
+
+Artisan reports an existing file and leaves it in place unless you supply `-f` or `--force`. Publish and customize the three templates using `./artisan stub:publish`.
+
 ## Concept Overview
 
 Implement `JsonResource::toArray` to transform data using the current HTTP request. Return the resource directly from a route or call `toResponse(request)`. The response defaults to a `data` wrapper. Use `response().withoutWrapping()` or `wrap` for a response-specific override. `ModelResource` uses the model’s serialization rules and returns 201 for newly created models.

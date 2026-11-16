@@ -1,0 +1,3 @@
+use openrust::http::resources::json::ResourceCollection;
+
+pub type {{class}}<R> = ResourceCollection<R>;

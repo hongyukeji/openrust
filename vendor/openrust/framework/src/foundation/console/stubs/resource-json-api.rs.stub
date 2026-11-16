@@ -1,0 +1,17 @@
+use openrust::{database::eloquent::Model, http::resources::json_api::JsonApiResource};
+
+pub struct {{class}}<M>(pub M);
+
+impl<M: Model> From<M> for {{class}}<M> {
+    fn from(model: M) -> Self {
+        Self(model)
+    }
+}
+
+impl<M: Model> JsonApiResource for {{class}}<M> {
+    type Model = M;
+
+    fn model(&self) -> &M {
+        &self.0
+    }
+}
