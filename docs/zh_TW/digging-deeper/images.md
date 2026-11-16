@@ -28,6 +28,10 @@ GIF、動畫 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在變換及轉換�
 
 驅動對動畫輸入和輸出均設定 1,024 格和 9,600 萬總像素的上限。自訂像素限額可將總上限降低至單張影像限額的四倍。每個畫格同時受單張影像限額約束。
 
+## 影像中繼資料 {#image-metadata}
+
+內建驅動在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的變換及轉換中保留 EXIF、ICC 描述檔與 XMP。當 `orient()` 套用 JPEG、PNG 或 WebP 的 EXIF 方向時，輸出把方向欄位重設為正向，並保留其他 EXIF 位元組。HEIF 動畫輸出將這些欄位寫入封面影像。中繼資料保留範圍以這些欄位與格式為準。
+
 ## 儲存影像 {#storing-images}
 
 `store` 依編碼格式產生檔名。`storeAs` 使用指定檔名，`storePublicly` 和 `storePubliclyAs` 要求公開可見性。磁碟寫入成功後回傳儲存路徑。

@@ -5,7 +5,7 @@ use axum::body::Bytes;
 
 use super::{
     Background, Driver, EncodedImage, Error, Format, ImagePipeline, Limits, Result, Transformation,
-    animation, codecs,
+    animation, codecs, metadata::Metadata,
 };
 
 pub(super) struct NativeDriver;
@@ -25,31 +25,41 @@ impl Driver for NativeDriver {
         let oriented = needs_orientation(pipeline);
         let quality = pipeline.quality.unwrap_or(70);
 
-        let (bytes, dimensions) =
-            if let Some(animation) = animation::decode(&contents, original, limits, oriented)? {
-                let plays = animation.plays;
-                let dimensions = animation.dimensions;
-                let frames = transform_frames(animation, pipeline, limits, format, passthrough)?;
-                if passthrough {
-                    (contents.clone(), dimensions)
-                } else {
-                    let dimensions = frames[0].buffer().dimensions();
-                    (
-                        animation::encode(frames, original, format, quality, plays)?.into(),
-                        dimensions,
-                    )
-                }
+        let mut metadata = if passthrough {
+            Metadata::default()
+        } else {
+            Metadata::read(&contents, original, limits)?
+        };
+        if oriented && matches!(original, Format::Jpeg | Format::Png | Format::Webp) {
+            metadata.normalize_orientation();
+        }
+
+        let (bytes, dimensions) = if let Some(animation) =
+            animation::decode(&contents, original, limits, oriented)?
+        {
+            let plays = animation.plays;
+            let dimensions = animation.dimensions;
+            let frames = transform_frames(animation, pipeline, limits, format, passthrough)?;
+            if passthrough {
+                (contents.clone(), dimensions)
             } else {
-                let (image, orientation) = codecs::decode(&contents, original, limits, oriented)?;
-                let image = apply(image, orientation, pipeline, limits)?;
-                let dimensions = image.dimensions();
-                let bytes = if passthrough {
-                    contents
-                } else {
-                    codecs::encode(image, format, quality)?.into()
-                };
-                (bytes, dimensions)
+                let dimensions = frames[0].buffer().dimensions();
+                (
+                    animation::encode(frames, original, format, quality, plays, &metadata)?.into(),
+                    dimensions,
+                )
+            }
+        } else {
+            let (image, orientation) = codecs::decode(&contents, original, limits, oriented)?;
+            let image = apply(image, orientation, pipeline, limits)?;
+            let dimensions = image.dimensions();
+            let bytes = if passthrough {
+                contents
+            } else {
+                codecs::encode(image, format, quality, &metadata)?.into()
             };
+            (bytes, dimensions)
+        };
         Ok(EncodedImage {
             bytes,
             format,

@@ -7,7 +7,10 @@ use ::image::{
 };
 use oxideav_webp::{build, container::fourcc};
 
-use super::{Error, Format, Limits, Result, codecs};
+use super::{
+    Error, Format, Limits, Result, codecs,
+    metadata::{self, Metadata},
+};
 
 pub(super) const MAX_FRAMES: usize = 1024;
 const MAX_PIXELS: u64 = 96_000_000;
@@ -157,6 +160,7 @@ pub(super) fn encode(
     format: Format,
     quality: u8,
     plays: u32,
+    metadata: &Metadata,
 ) -> Result<Vec<u8>> {
     let animated = original != Format::Gif
         || frames.len() > 1
@@ -164,17 +168,20 @@ pub(super) fn encode(
         || frames[0].delay().numer_denom_ms().0 != 0;
     match format {
         Format::Gif => encode_gif(frames, plays),
-        Format::Png if animated => encode_apng(frames, plays),
-        Format::Webp if animated => encode_webp(frames, plays, quality),
-        Format::Avif if animated => super::avif_sequence::encode(frames, quality, plays),
-        Format::Heic if animated => super::sequence::encode(frames, format, quality, plays),
-        Format::Jxl if animated => super::jxl_sequence::encode(frames, quality, plays),
+        Format::Png if animated => encode_apng(frames, plays, metadata),
+        Format::Webp if animated => encode_webp(frames, plays, quality, metadata),
+        Format::Avif if animated => super::avif_sequence::encode(frames, quality, plays, metadata),
+        Format::Heic if animated => {
+            super::sequence::encode(frames, format, quality, plays, metadata)
+        }
+        Format::Jxl if animated => super::jxl_sequence::encode(frames, quality, plays, metadata),
         _ => {
             let frame = frames.into_iter().next().ok_or(Error::InvalidDimensions)?;
             codecs::encode(
                 DynamicImage::ImageRgba8(frame.into_buffer()),
                 format,
                 quality,
+                metadata,
             )
         }
     }
@@ -208,13 +215,16 @@ fn encode_gif(frames: Vec<Frame>, plays: u32) -> Result<Vec<u8>> {
     gif.into_inner().map_err(error)
 }
 
-fn encode_apng(frames: Vec<Frame>, plays: u32) -> Result<Vec<u8>> {
+fn encode_apng(frames: Vec<Frame>, plays: u32, metadata: &Metadata) -> Result<Vec<u8>> {
     let (width, height) = frames[0].buffer().dimensions();
     let mut bytes = Vec::new();
-    let mut png = png::Encoder::new(&mut bytes, width, height);
-    png.set_color(png::ColorType::Rgba);
-    png.set_depth(png::BitDepth::Eight);
+    let mut info = png::Info::with_size(width, height);
+    info.color_type = png::ColorType::Rgba;
+    info.bit_depth = png::BitDepth::Eight;
+    info.icc_profile = metadata.icc.as_deref().map(std::borrow::Cow::Borrowed);
+    info.exif_metadata = metadata.exif.as_deref().map(std::borrow::Cow::Borrowed);
     let error = |error| codecs::codec_error(Format::Png, error);
+    let mut png = png::Encoder::with_info(&mut bytes, info).map_err(error)?;
     png.set_animated(frames.len() as u32, plays)
         .map_err(error)?;
     let mut writer = png.write_header().map_err(error)?;
@@ -228,6 +238,9 @@ fn encode_apng(frames: Vec<Frame>, plays: u32) -> Result<Vec<u8>> {
             .map_err(error)?;
     }
     writer.finish().map_err(error)?;
+    if let Some(xmp) = &metadata.xmp {
+        metadata::write_png_xmp(&mut bytes, xmp)?;
+    }
     Ok(bytes)
 }
 
@@ -281,7 +294,12 @@ pub(super) fn ticks(delay: Delay, milliseconds_per_tick: u64) -> u64 {
     }
 }
 
-fn encode_webp(frames: Vec<Frame>, plays: u32, quality: u8) -> Result<Vec<u8>> {
+fn encode_webp(
+    frames: Vec<Frame>,
+    plays: u32,
+    quality: u8,
+    metadata: &Metadata,
+) -> Result<Vec<u8>> {
     let (width, height) = frames[0].buffer().dimensions();
     let has_alpha = frames
         .iter()
@@ -289,7 +307,9 @@ fn encode_webp(frames: Vec<Frame>, plays: u32, quality: u8) -> Result<Vec<u8>> {
     let flags = build::Vp8xFlags {
         has_animation: true,
         has_alpha,
-        ..Default::default()
+        has_iccp: metadata.icc.is_some(),
+        has_exif: metadata.exif.is_some(),
+        has_xmp: metadata.xmp.is_some(),
     };
     let canvas = build::build_vp8x_chunk(width, height, flags)
         .map_err(|error| codecs::codec_error(Format::Webp, error))?;
@@ -305,13 +325,16 @@ fn encode_webp(frames: Vec<Frame>, plays: u32, quality: u8) -> Result<Vec<u8>> {
         Ok::<_, Error>(())
     };
     chunk(fourcc::VP8X, &canvas)?;
+    if let Some(icc) = &metadata.icc {
+        chunk(fourcc::ICCP, icc)?;
+    }
     chunk(fourcc::ANIM, &anim)?;
     for frame in frames {
         let delay = ticks(frame.delay(), 1);
         if delay > 0xff_ffff {
             return Err(Error::InvalidAnimationTiming);
         }
-        let encoded = codecs::encode_webp(frame.buffer(), quality)?;
+        let encoded = codecs::encode_webp(frame.buffer(), quality, &Metadata::default())?;
         let webp = oxideav_webp::container::parse(&encoded)
             .map_err(|error| codecs::codec_error(Format::Webp, error))?;
         // RFC 9649 ANMF takes uint24 canvas offsets, dimensions minus one and time.
@@ -332,6 +355,12 @@ fn encode_webp(frames: Vec<Frame>, plays: u32, quality: u8) -> Result<Vec<u8>> {
             );
         }
         chunk(fourcc::ANMF, &payload)?;
+    }
+    if let Some(exif) = &metadata.exif {
+        chunk(fourcc::EXIF, exif)?;
+    }
+    if let Some(xmp) = &metadata.xmp {
+        chunk(fourcc::XMP, xmp)?;
     }
     let size = u32::try_from(file.len() - 8).map_err(|_| Error::AnimationTooLarge)?;
     file[4..8].copy_from_slice(&size.to_le_bytes());

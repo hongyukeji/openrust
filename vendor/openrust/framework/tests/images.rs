@@ -716,3 +716,80 @@ async fn avif_heic_and_jpeg_xl_sequence_round_trips() {
         }
     }
 }
+
+#[tokio::test]
+async fn preserves_exif_icc_and_xmp_and_resets_applied_orientation() {
+    let manager = ImageManager::new(Limits::default());
+    let jxl = manager.fromBytes(sample()).toJxl().toBytes().await.unwrap();
+    let profile = jxl_oxide::JxlImage::read_with_defaults(Cursor::new(jxl))
+        .unwrap()
+        .rendered_icc();
+    let exif = [
+        b'I', b'I', 42, 0, 8, 0, 0, 0, // TIFF header
+        1, 0, 0x12, 1, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, // Orientation
+        0, 0, 0, 0,
+    ];
+    let xmp = "<x:xmpmeta xmlns:x='adobe:ns:meta/'>original</x:xmpmeta>";
+    for animated in [false, true] {
+        let mut bytes = Vec::new();
+        let mut info = png::Info::with_size(16, 12);
+        info.color_type = png::ColorType::Rgba;
+        info.icc_profile = Some(std::borrow::Cow::Borrowed(&profile));
+        info.exif_metadata = Some(std::borrow::Cow::Borrowed(&exif));
+        let mut encoder = png::Encoder::with_info(&mut bytes, info).unwrap();
+        encoder
+            .add_itxt_chunk("XML:com.adobe.xmp".into(), xmp.into())
+            .unwrap();
+        if animated {
+            encoder.set_animated(2, 3).unwrap();
+        }
+        let mut writer = encoder.write_header().unwrap();
+        writer
+            .write_image_data(&[220, 0, 0, 255].repeat(16 * 12))
+            .unwrap();
+        if animated {
+            writer
+                .write_image_data(&[0, 220, 0, 255].repeat(16 * 12))
+                .unwrap();
+        }
+        writer.finish().unwrap();
+        let source = manager.fromBytes(bytes).orient();
+        for format in [
+            Format::Jpeg,
+            Format::Png,
+            Format::Webp,
+            Format::Avif,
+            Format::Heic,
+            Format::Jxl,
+        ] {
+            let output = source
+                .clone()
+                .encode(format)
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap_or_else(|error| panic!("{format:?} encode: {error}"));
+            let webp = manager
+                .fromBytes(output)
+                .toWebp()
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap_or_else(|error| panic!("{format:?} restore: {error}"));
+            let metadata = oxideav_webp::read_metadata(&webp).unwrap();
+            assert_eq!(
+                metadata.icc.as_deref(),
+                Some(profile.as_slice()),
+                "{format:?}"
+            );
+            let mut oriented = exif;
+            oriented[18] = 1;
+            assert_eq!(
+                metadata.exif.as_deref(),
+                Some(oriented.as_slice()),
+                "{format:?}"
+            );
+            assert_eq!(metadata.xmp.as_deref(), Some(xmp.as_bytes()), "{format:?}");
+        }
+    }
+}

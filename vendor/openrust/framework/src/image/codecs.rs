@@ -4,7 +4,10 @@ use ::image::{
     DynamicImage, ImageDecoder as _, ImageFormat, ImageReader, RgbaImage, metadata::Orientation,
 };
 
-use super::{Error, Format, Limits, Result};
+use super::{
+    Error, Format, Limits, Result,
+    metadata::{self, Metadata},
+};
 
 pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
     if bytes.starts_with(&[0xff, 0x0a]) || bytes.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n") {
@@ -125,13 +128,27 @@ fn rgba_image(width: u32, height: u32, pixels: Vec<u8>, limits: Limits) -> Resul
         .ok_or(Error::InvalidDimensions)
 }
 
-pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result<Vec<u8>> {
+pub(super) fn encode(
+    image: DynamicImage,
+    format: Format,
+    quality: u8,
+    metadata: &Metadata,
+) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     match format {
-        Format::Webp => return encode_webp(&image.into_rgba8(), quality),
+        Format::Webp => return encode_webp(&image.into_rgba8(), quality, metadata),
         Format::Heic => {
             let qp = ((100 - u32::from(quality)) * 51 / 100) as u8;
-            let options = oxideav_heif::EncodeOptions::default().with_qp(qp);
+            let options = oxideav_heif::EncodeOptions::default()
+                .with_qp(qp)
+                .with_icc_profile(metadata.icc.clone())
+                .with_exif(metadata.exif.clone())
+                .with_xmp(
+                    metadata
+                        .xmp
+                        .as_ref()
+                        .and_then(|xmp| String::from_utf8(xmp.clone()).ok()),
+                );
             return if image.color().has_alpha() {
                 let rgba = image.into_rgba8();
                 let (width, height) = rgba.dimensions();
@@ -143,15 +160,33 @@ pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result
             }
             .map_err(heic_error);
         }
-        Format::Jxl => return encode_jxl(image, quality),
-        Format::Jpeg => image.write_with_encoder(
-            ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality),
-        ),
-        Format::Avif => image.write_with_encoder(
-            ::image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut bytes, 8, quality)
-                .with_num_threads(Some(1)),
-        ),
-        Format::Png => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png),
+        Format::Jxl => return encode_jxl(image, quality, metadata),
+        Format::Jpeg => {
+            let mut encoder =
+                ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality);
+            set_metadata(&mut encoder, format, metadata)?;
+            image.write_with_encoder(encoder).map_err(Error::Encoding)?;
+            if let Some(xmp) = &metadata.xmp {
+                metadata::write_jpeg_xmp(&mut bytes, xmp)?;
+            }
+            return Ok(bytes);
+        }
+        Format::Avif => {
+            let encoder =
+                ::image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut bytes, 8, quality)
+                    .with_num_threads(Some(1));
+            image.write_with_encoder(encoder).map_err(Error::Encoding)?;
+            return super::avif_sequence::embed_still(bytes, metadata);
+        }
+        Format::Png => {
+            let mut encoder = ::image::codecs::png::PngEncoder::new(&mut bytes);
+            set_metadata(&mut encoder, format, metadata)?;
+            image.write_with_encoder(encoder).map_err(Error::Encoding)?;
+            if let Some(xmp) = &metadata.xmp {
+                metadata::write_png_xmp(&mut bytes, xmp)?;
+            }
+            return Ok(bytes);
+        }
         Format::Gif => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Gif),
         Format::Bmp => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Bmp),
     }
@@ -159,16 +194,43 @@ pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result
     Ok(bytes)
 }
 
-fn encode_jxl(image: DynamicImage, quality: u8) -> Result<Vec<u8>> {
+fn set_metadata(
+    encoder: &mut impl ::image::ImageEncoder,
+    format: Format,
+    metadata: &Metadata,
+) -> Result<()> {
+    if let Some(profile) = &metadata.icc {
+        encoder
+            .set_icc_profile(profile.clone())
+            .map_err(|error| codec_error(format, error))?;
+    }
+    if let Some(exif) = &metadata.exif {
+        encoder
+            .set_exif_metadata(exif.clone())
+            .map_err(|error| codec_error(format, error))?;
+    }
+    Ok(())
+}
+
+fn encode_jxl(image: DynamicImage, quality: u8, metadata: &Metadata) -> Result<Vec<u8>> {
     use ::image::ColorType;
 
     let width = image.width() as usize;
     let height = image.height() as usize;
-    let options = jixel::EncodeConfig::default()
+    let mut options = jixel::EncodeConfig::default()
         .with_quality(f32::from(quality))
         .with_lossless(quality == 100)
         .with_function_fields(false)
         .with_num_threads(1);
+    if let Some(icc) = &metadata.icc {
+        options = options.with_icc_profile(icc.clone());
+    }
+    if let Some(exif) = &metadata.exif {
+        options = options.with_exif(exif.clone());
+    }
+    if let Some(xmp) = &metadata.xmp {
+        options = options.with_xmp(xmp.clone());
+    }
     match image.color() {
         ColorType::L16 | ColorType::Rgb16 => {
             jixel::encode_image_16bit(image.into_rgb16().as_raw(), width, height, &options)
@@ -187,14 +249,20 @@ fn encode_jxl(image: DynamicImage, quality: u8) -> Result<Vec<u8>> {
     .map_err(|error| codec_error(Format::Jxl, error))
 }
 
-pub(super) fn encode_webp(image: &RgbaImage, quality: u8) -> Result<Vec<u8>> {
+pub(super) fn encode_webp(image: &RgbaImage, quality: u8, metadata: &Metadata) -> Result<Vec<u8>> {
     let (width, height) = image.dimensions();
     let mut options = oxideav_webp::EncodeOptions::default();
     if quality < 100 {
         options = options.with_quality(f32::from(quality));
     }
-    oxideav_webp::encode_rgba8(width, height, image.as_raw(), &options)
-        .map_err(|error| codec_error(Format::Webp, error))
+    let error = |error| codec_error(Format::Webp, error);
+    if metadata.icc.is_none() && metadata.exif.is_none() && metadata.xmp.is_none() {
+        return oxideav_webp::encode_rgba8(width, height, image.as_raw(), &options).map_err(error);
+    }
+    let image = oxideav_webp::WebpImage::from_rgba8(width, height, image.as_raw().clone())
+        .map_err(error)?
+        .with_metadata(metadata.webp());
+    oxideav_webp::encode(&image, &options).map_err(error)
 }
 
 pub(super) fn decode_error(error: ::image::ImageError) -> Error {

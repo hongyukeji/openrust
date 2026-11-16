@@ -12,30 +12,7 @@ pub(super) fn decode(contents: &[u8], limits: Limits) -> Result<Option<Decoded<'
         format: Format::Jxl,
         source,
     };
-    let memory = usize::try_from(limits.max_pixels.saturating_mul(48)).unwrap_or(usize::MAX);
-    let mut pending = JxlImage::builder()
-        .alloc_tracker(AllocTracker::with_limit(memory))
-        .build_uninit();
-    let mut remaining = contents;
-    let mut size = 4096;
-    let mut image = loop {
-        let chunk = &remaining[..remaining.len().min(size)];
-        let consumed = pending.feed_bytes(chunk).map_err(error)?;
-        remaining = &remaining[consumed..];
-        match pending.try_init().map_err(error)? {
-            InitializeResult::Initialized(image) => break image,
-            InitializeResult::NeedMoreData(next) if !remaining.is_empty() && !chunk.is_empty() => {
-                if consumed < chunk.len() {
-                    size = size.saturating_add(4096);
-                    if size > remaining.len() && consumed == 0 && chunk.len() == remaining.len() {
-                        return Err(Error::InvalidDimensions);
-                    }
-                }
-                pending = next;
-            }
-            _ => return Err(Error::InvalidDimensions),
-        }
-    };
+    let (mut image, mut remaining) = initialize(contents, limits)?;
     let Some(timing) = image.image_header().metadata.animation.as_ref() else {
         return Ok(None);
     };
@@ -104,7 +81,75 @@ pub(super) fn decode(contents: &[u8], limits: Limits) -> Result<Option<Decoded<'
     }))
 }
 
-pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<u8>> {
+fn initialize(contents: &[u8], limits: Limits) -> Result<(JxlImage, &[u8])> {
+    let error = |source| Error::Codec {
+        format: Format::Jxl,
+        source,
+    };
+    let memory = usize::try_from(limits.max_pixels.saturating_mul(48)).unwrap_or(usize::MAX);
+    let mut pending = JxlImage::builder()
+        .alloc_tracker(AllocTracker::with_limit(memory))
+        .build_uninit();
+    let mut remaining = contents;
+    let mut size = 4096;
+    let image = loop {
+        let chunk = &remaining[..remaining.len().min(size)];
+        let consumed = pending.feed_bytes(chunk).map_err(error)?;
+        remaining = &remaining[consumed..];
+        match pending.try_init().map_err(error)? {
+            InitializeResult::Initialized(image) => break image,
+            InitializeResult::NeedMoreData(next) if !remaining.is_empty() && !chunk.is_empty() => {
+                if consumed < chunk.len() {
+                    size = size.saturating_add(4096);
+                    if size > remaining.len() && consumed == 0 && chunk.len() == remaining.len() {
+                        return Err(Error::InvalidDimensions);
+                    }
+                }
+                pending = next;
+            }
+            _ => return Err(Error::InvalidDimensions),
+        }
+    };
+    Ok((image, remaining))
+}
+
+pub(super) fn metadata(contents: &[u8], limits: Limits) -> Result<super::metadata::Metadata> {
+    use oxideav_jpegxl::container::{JxlFile, MetadataKind};
+    let (image, _) = initialize(contents, limits)?;
+    let mut metadata = super::metadata::Metadata {
+        icc: image.original_icc().map(<[u8]>::to_vec),
+        ..Default::default()
+    };
+    if contents.starts_with(&[0xff, 0x0a]) {
+        return Ok(metadata);
+    }
+    let error = |error| codecs::codec_error(Format::Jxl, error);
+    let file = JxlFile::parse(contents).map_err(error)?;
+    for item in file.metadata {
+        match item.kind {
+            MetadataKind::Exif if metadata.exif.is_none() => {
+                let bytes = item.content(limits.max_input_bytes).map_err(error)?;
+                metadata.exif = oxideav_heif::meta::exif_payload(&bytes).ok();
+            }
+            MetadataKind::Xml if metadata.xmp.is_none() => {
+                metadata.xmp = Some(
+                    item.content(limits.max_input_bytes)
+                        .map_err(error)?
+                        .into_owned(),
+                );
+            }
+            _ => {}
+        }
+    }
+    Ok(metadata)
+}
+
+pub(super) fn encode(
+    frames: Vec<Frame>,
+    quality: u8,
+    plays: u32,
+    metadata: &super::metadata::Metadata,
+) -> Result<Vec<u8>> {
     use oxideav_jpegxl::encoder::{
         AnimationSpec, ColourSpec, EncodeSpec, FrameInput, encode_codestream,
     };
@@ -115,9 +160,12 @@ pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<
         bits: 8,
         grey: false,
         alpha: true,
-        colour: ColourSpec::Enumerated {
-            primaries: 1,
-            transfer: 13,
+        colour: match &metadata.icc {
+            Some(icc) => ColourSpec::Icc(icc.clone()),
+            None => ColourSpec::Enumerated {
+                primaries: 1,
+                transfer: 13,
+            },
         },
         animation: Some(AnimationSpec {
             tps_numerator: 1000,
@@ -144,5 +192,16 @@ pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<
             Ok(FrameInput { channels, duration })
         })
         .collect::<Result<Vec<_>>>()?;
-    encode_codestream(&spec, &frames).map_err(|error| codecs::codec_error(Format::Jxl, error))
+    let error = |error| codecs::codec_error(Format::Jxl, error);
+    let bytes = encode_codestream(&spec, &frames).map_err(error)?;
+    if metadata.exif.is_some() || metadata.xmp.is_some() {
+        oxideav_jpegxl::encoder::wrap_container(
+            &bytes,
+            metadata.exif.as_deref(),
+            metadata.xmp.as_deref(),
+        )
+        .map_err(error)
+    } else {
+        Ok(bytes)
+    }
 }

@@ -154,16 +154,25 @@ pub(super) fn encode(
     format: Format,
     quality: u8,
     plays: u32,
+    metadata: &super::metadata::Metadata,
 ) -> Result<Vec<u8>> {
     let error = move |error| codecs::codec_error(format, error);
     let options = EncodeOptions::default()
         .with_codec(StillCodec::Hevc)
-        .with_qp(((100 - u32::from(quality)) * 51 / 100) as u8);
+        .with_qp(((100 - u32::from(quality)) * 51 / 100) as u8)
+        .with_icc_profile(metadata.icc.clone())
+        .with_exif(metadata.exif.clone())
+        .with_xmp(
+            metadata
+                .xmp
+                .as_ref()
+                .and_then(|xmp| String::from_utf8(xmp.clone()).ok()),
+        );
     let mut segment = 0u64;
     let has_alpha = frames
         .iter()
         .any(|frame| frame.buffer().pixels().any(|pixel| pixel[3] != 255));
-    let frames = frames
+    let mut frames = frames
         .into_iter()
         .map(|frame| {
             let ticks = animation::ticks(frame.delay(), 1);
@@ -185,6 +194,14 @@ pub(super) fn encode(
             ))
         })
         .collect::<Result<Vec<_>>>()?;
+    if !metadata.is_empty() {
+        frames.push(oxideav_heif::Frame::new(
+            frames[0].image.clone(),
+            None,
+            None,
+            None,
+        ));
+    }
     let mut bytes = oxideav_heif::encode_all(&frames, &options).map_err(error)?;
     write_play_count(&mut bytes, segment, plays, format)?;
     Ok(bytes)

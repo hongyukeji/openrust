@@ -37,6 +37,11 @@
 - 固定 Laravel 的 Imagick 驱动将多帧 AVIF、HEIC、JPEG XL 交给系统编解码器。Rust 驱动使用 HEIF 轨道、标准 edit list 与 JPEG XL 动画头表达播放次数，支持一次、有限次数和无限播放。HEIF 接受一个主时序轨道及可选透明度轨道，并在解码前核对采样表和像素预算。AVIF 采用 ravif 精确编码图像尺寸。HEIC 使用 clean aperture 表达去除编码填充后的尺寸。JPEG XL 的编码器固定在提高最低工具链之前的上游提交，静态读取和帧读取仍用 jxl-oxide。 [固定 AVIF 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/AvifEncoder.php) [固定 HEIC 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/HeicEncoder.php) [固定 JPEG XL 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/JxlEncoder.php) [JPEG XL 编码器提交](https://github.com/OxideAV/oxideav-jpegxl/commit/1c2f5a86a052752b0e8181f842a9d4e3460ec0e5)
 - Apple Silicon macOS、Rust 1.94.0。11 项 Images 回归和工作区全目标严格 Clippy 通过。单帧动画保留 50 毫秒及 4 轮播放。三帧回归核对 40／90／180 毫秒、一次／三次／无限播放及变换后的画面。实际 HTTP 和 Artisan 双向转换三种序列，经 GIF／WebP 独立读取器复核画面、尺寸、延迟和播放次数。Pillow 独立读取写出的 AVIF，Rust 读取 Pillow 生成的 AVIF 序列。FFprobe 读取 HEIC 主时序轨道的三个采样延迟。改动文件格式、三语构建和 12 项通用浏览器检查通过。
 
+## 变换后的 EXIF、ICC 与 XMP
+
+- 固定 Laravel 使用 Intervention 4.2，默认 `strip=false`。Rust 在重新编码时传递 EXIF、ICC 和 XMP，覆盖 JPEG、PNG、WebP、AVIF、HEIC 与 JPEG XL 及其交叉转换。JPEG、PNG、WebP 的 EXIF 方向实际应用后重置 Orientation，其他 EXIF 字节保留。HEIF 序列将图像级元数据存入封面，AVIF 同时写入轨道元数据；PNG、WebP 和 JPEG XL 序列使用各自的全局元数据。 [固定 Intervention 配置](https://github.com/Intervention/image/blob/4.2.0/src/Config.php#L14-L19) [固定 Laravel Intervention 驱动](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image/Drivers/InterventionDriver.php)
+- 12 项 Images 定向回归通过，包括静态及动画跨六种格式的 EXIF、ICC、XMP 字节核对、方向复位及图像序列复验。真实 HTTP 和 Artisan 从独立 Pillow 生成的 PNG 转换六种格式，独立读取器核对 EXIF 作者、方向、ICC 和 XMP，尺寸为 12×16。工作区全目标严格 Clippy、改动文件格式、三语站点构建及 12 项浏览器检查通过。全仓格式检查仍报告基线 Sanctum 测试的排版差异。
+
 ## 剩余验收
 
-变换后保留原始元数据仍待核对。JPEG XL 序列解码当前覆盖灰度、RGB 及其透明度通道。HEIF 序列当前覆盖单主轨道和辅助透明度轨道。07-05 保持开放。
+标准 EXIF、ICC 和 XMP 已验收。任意私有元数据块、IPTC／JUMBF 以及外部 HEIF 的逐帧元数据轨道仍待复核。JPEG XL 序列解码当前覆盖灰度、RGB 及其透明度通道。HEIF 序列当前覆盖单主轨道和辅助透明度轨道。07-05 保持开放。

@@ -7,6 +7,7 @@ mod facade;
 mod image_pipeline;
 mod instance;
 mod jxl_sequence;
+mod metadata;
 mod native_driver;
 mod sequence;
 

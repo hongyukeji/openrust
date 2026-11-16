@@ -28,6 +28,10 @@ An unchanged animation returns its original bytes after frame validation. JPEG a
 
 The driver bounds animated inputs and outputs to 1,024 frames and 96 million total pixels. A custom pixel limit can lower the total to four times the per-image limit. Each frame must also fit within the per-image limits.
 
+## Image metadata {#image-metadata}
+
+The built-in driver carries EXIF, ICC profiles, and XMP through transformations and conversions among JPEG, PNG, WebP, AVIF, HEIC, and JPEG XL. When `orient()` applies the EXIF direction from JPEG, PNG, or WebP, the output resets the direction tag to upright and retains the other EXIF bytes. Animated HEIF output stores these fields on the cover image. Metadata support is specific to these fields and formats.
+
 ## Storing images {#storing-images}
 
 `store` generates a filename using the encoded extension. Use `storeAs` to supply the filename, or `storePublicly` and `storePubliclyAs` to request public visibility. These methods return the stored path when the disk reports success.

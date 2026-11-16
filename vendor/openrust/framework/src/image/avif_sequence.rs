@@ -4,9 +4,14 @@ use oxideav_heif::{
     sequence::LoopBehaviour, writer::SequenceSample,
 };
 
-use super::{Error, Format, Result, animation, codecs};
+use super::{Error, Format, Result, animation, codecs, metadata::Metadata};
 
-pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<u8>> {
+pub(super) fn encode(
+    frames: Vec<Frame>,
+    quality: u8,
+    plays: u32,
+    metadata: &Metadata,
+) -> Result<Vec<u8>> {
     let error = |error| codecs::codec_error(Format::Avif, error);
     let (width, height) = frames[0].buffer().dimensions();
     let width = u16::try_from(width).map_err(|_| Error::DimensionsTooLarge)?;
@@ -38,7 +43,8 @@ pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<
         let file = HeifFile::parse_borrowed(&still.avif_file).map_err(error)?;
         let meta = file.meta().map_err(error)?;
         let id = file.primary_item().map_err(error)?.id;
-        let (config, properties) = properties_of(&file, id)?;
+        let (config, mut properties) = properties_of(&file, id)?;
+        add_icc(&mut properties, metadata);
         let data = file.item_data_owned(id).map_err(error)?;
         let alpha = meta
             .auxiliaries_of(id)
@@ -59,6 +65,7 @@ pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<
             let mut cover = HeifWriter::new();
             let master = cover.add_coded_item(*b"av01", Vec::new(), properties);
             cover.set_primary(master);
+            add_metadata(&mut cover, master, metadata);
             if let Some((config, properties, data)) = &alpha {
                 let id = cover.add_coded_item(*b"av01", data.clone(), properties.clone());
                 cover.add_reference(*b"auxl", id, vec![master]);
@@ -72,6 +79,8 @@ pub(super) fn encode(frames: Vec<Frame>, quality: u8, plays: u32) -> Result<Vec<
                     entry_properties(properties),
                 ));
             }
+            writer.exif = metadata.exif.clone();
+            writer.xmp = metadata.xmp.clone();
             writer.still = Some(cover);
             writer.cover_sample = Some(0);
             writer
@@ -128,4 +137,55 @@ fn entry_properties(properties: &[(Property, bool)]) -> Vec<Property> {
             matches!(property, Property::Pixi(_) | Property::Colr(_)).then_some(property.clone())
         })
         .collect()
+}
+
+pub(super) fn embed_still(bytes: Vec<u8>, metadata: &Metadata) -> Result<Vec<u8>> {
+    if metadata.is_empty() {
+        return Ok(bytes);
+    }
+    let error = |error| codecs::codec_error(Format::Avif, error);
+    let file = HeifFile::parse_borrowed(&bytes).map_err(error)?;
+    let meta = file.meta().map_err(error)?;
+    let id = file.primary_item().map_err(error)?.id;
+    let mut writer = HeifWriter::new();
+    let (_, mut properties) = properties_of(&file, id)?;
+    add_icc(&mut properties, metadata);
+    let primary = writer.add_coded_item(
+        *b"av01",
+        file.item_data_owned(id).map_err(error)?,
+        properties,
+    );
+    writer.set_primary(primary);
+    for id in meta.auxiliaries_of(id) {
+        let (_, properties) = properties_of(&file, id)?;
+        let child = writer.add_coded_item(
+            *b"av01",
+            file.item_data_owned(id).map_err(error)?,
+            properties,
+        );
+        writer.add_reference(*b"auxl", child, vec![primary]);
+    }
+    add_metadata(&mut writer, primary, metadata);
+    writer.write_to_vec().map_err(error)
+}
+
+fn add_icc(properties: &mut Vec<(Property, bool)>, metadata: &Metadata) {
+    if let Some(profile) = &metadata.icc {
+        properties.push((
+            Property::Colr(oxideav_heif::props::Colr::Icc {
+                restricted: false,
+                profile: profile.clone(),
+            }),
+            false,
+        ));
+    }
+}
+
+fn add_metadata(writer: &mut HeifWriter, id: u32, metadata: &Metadata) {
+    if let Some(exif) = &metadata.exif {
+        writer.add_exif(id, exif);
+    }
+    if let Some(xmp) = &metadata.xmp {
+        writer.add_xmp_bytes(id, xmp.clone());
+    }
 }

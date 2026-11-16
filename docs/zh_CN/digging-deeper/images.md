@@ -28,6 +28,10 @@ GIF、动画 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在变换和转换�
 
 驱动对动画输入和输出均设置 1,024 帧和 9,600 万总像素的上限。自定义像素限额可将总上限降低至单图限额的四倍。每一帧同时受单图限额约束。
 
+## 图像元数据 {#image-metadata}
+
+内置驱动在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的变换与转换中携带 EXIF、ICC 配置文件和 XMP。当 `orient()` 应用 JPEG、PNG 或 WebP 的 EXIF 方向时，输出将方向字段重置为正向，并保留其他 EXIF 字节。HEIF 动画输出将这些字段写入封面图像。元数据保留范围以这些字段和格式为准。
+
 ## 存储图像 {#storing-images}
 
 `store` 按编码格式生成文件名。`storeAs` 使用指定文件名，`storePublicly` 和 `storePubliclyAs` 请求公开可见性。磁盘写入成功后返回存储路径。
