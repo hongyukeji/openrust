@@ -37,6 +37,7 @@ impl ViewGuardQuery {
 pub(super) struct ViewRequestData {
     snapshot: Mutex<RequestSnapshot>,
     guards: Option<mpsc::Sender<ViewGuardQuery>>,
+    pub(super) url_uri: Option<crate::http::Uri>,
 }
 
 #[derive(Default)]
@@ -62,6 +63,7 @@ impl ViewRequestData {
         Self {
             snapshot: Mutex::new(RequestSnapshot::capture(request)),
             guards: Some(guards),
+            url_uri: crate::http::request_context::with_url_uri(),
         }
     }
 

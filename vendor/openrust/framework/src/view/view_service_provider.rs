@@ -21,11 +21,15 @@ impl ServiceProvider for ViewServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let base = app.base_path().to_path_buf();
+            let public = app.publicPath();
             let container = app.container();
             container.singletonNamed("view", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 configured_factory(&base, config.as_ref())
-                    .map(Arc::new)
+                    .map(|mut factory| {
+                        factory.public_path = Some(public.clone());
+                        Arc::new(factory)
+                    })
                     .map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "view",
                         source: Box::new(source),

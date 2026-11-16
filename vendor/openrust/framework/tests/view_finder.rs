@@ -439,7 +439,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     ) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
         let package_views = path.join("resources/views/package");
         let extra_components = path.join("extra-components");
-        let application = Application::configure(path)
+        let mut application = Application::configure(path)
             .withConfig(|_, _| {
                 Ok([("auth".to_owned(), serde_json::json!({
                 "defaults":{"guard":"web"},
@@ -517,6 +517,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 })?;
                 Route::get("/bad-component", || view("bad_component"))?;
                 Route::get("/bad-attributes", || view("bad_attributes"))?;
+                Route::get("/fonts", || view("fonts_all"))?;
+                Route::get("/font-aliases", || {
+                    view("font_aliases").with("alias", "mono")
+                })?;
+                Route::get("/unknown-font", || view("unknown_font"))?;
                 Route::get("/custom-condition", || view("custom_condition"))?;
                 Route::get("/bad-condition", || view("bad_condition"))?;
                 Route::get("/switch", || view("switch_cases"))?;
@@ -550,6 +555,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             }))
             .create()
             .unwrap();
+        if app == "B" {
+            application.usePublicPath("hot-public");
+        }
         let mut kernel = Kernel::new(application);
         kernel.bootstrap().await.unwrap();
         kernel
@@ -681,7 +689,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         let (headers, body) = response.split_once("\r\n\r\n").unwrap();
         assert!(
             headers.starts_with(&format!("HTTP/1.1 {status} ")),
-            "{response}"
+            "{path}: {response}"
         );
         body.to_owned()
     }
@@ -890,6 +898,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_component", "<x-demo::../panel/>"),
         ("bad_attributes", "{{ $attributes->only('id')->unknown() }}"),
+        ("fonts_all", "<head>@fonts</head>"),
+        (
+            "font_aliases",
+            "@fonts($alias)|{{ Vite::fonts(['mono', 'sans']) }}",
+        ),
+        ("unknown_font", "@fonts('missing')"),
         (
             "custom_condition",
             concat!(
@@ -992,6 +1006,62 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         start(root.path().to_owned(), "A"),
         start(root.path().to_owned(), "B"),
     );
+    assert_eq!(send(first, "/fonts", 200).await, "<head></head>");
+    let build = root.path().join("public/build");
+    fs::create_dir_all(&build).unwrap();
+    fs::write(build.join("all.css"), "/* all fonts */").unwrap();
+    fs::write(
+        build.join("fonts-manifest.json"),
+        serde_json::json!({
+            "version": 1,
+            "families": {"mono": {}, "sans": {}},
+            "preloads": [
+                {"alias": "mono", "file": "assets/mono.woff2", "type": "font/woff2", "crossorigin": "anonymous"},
+                {"alias": "sans", "file": "sans.woff2"}
+            ],
+            "style": {
+                "file": "all.css",
+                "familyStyles": {"mono": "/* mono */", "sans": "/* sans */"},
+                "variables": {"mono": "--mono: Mono;", "sans": "--sans: Sans;"}
+            }
+        }).to_string(),
+    ).unwrap();
+    let hot = root.path().join("hot-public");
+    fs::create_dir_all(&hot).unwrap();
+    fs::write(hot.join("hot"), "http://127.0.0.1:5173").unwrap();
+    fs::write(
+        hot.join("fonts-manifest.dev.json"),
+        r#"{"version":1,"families":{"mono":{}},"preloads":[{"alias":"mono","url":"http://127.0.0.1:5173/mono.woff2?v=1&x=2"}],"style":{"inline":"/* hot */"}}"#,
+    ).unwrap();
+    let (fonts, development) =
+        tokio::join!(send(first, "/fonts", 200), send(second, "/fonts", 200));
+    assert!(fonts.contains(&format!(r#"href="http://{first}/build/assets/mono.woff2" type="font/woff2" crossorigin="anonymous""#)), "{fonts}");
+    assert!(
+        fonts.contains(&format!(r#"href="http://{first}/build/sans.woff2""#)),
+        "{fonts}"
+    );
+    assert!(
+        fonts.ends_with("<style>\n/* all fonts */\n</style></head>"),
+        "{fonts}"
+    );
+    assert_eq!(
+        development,
+        "<head><link rel=\"preload\" as=\"font\" href=\"http://127.0.0.1:5173/mono.woff2?v=1&amp;x=2\" />\n<style>\n/* hot */\n</style></head>"
+    );
+    let aliases = send(first, "/font-aliases", 200).await;
+    let (mono, both) = aliases.split_once('|').unwrap();
+    assert!(
+        mono.contains("mono.woff2") && mono.contains("--mono: Mono;") && !mono.contains("sans")
+    );
+    assert!(
+        both.contains("sans.woff2")
+            && both.contains("--sans: Sans;")
+            && !both.contains("mono.woff2")
+    );
+    assert!(send(first, "/unknown-font", 500).await.contains("500"));
+    fs::write(build.join("all.css"), "</STYLE><img>").unwrap();
+    assert!(send(first, "/fonts", 500).await.contains("500"));
+    assert_eq!(send(second, "/fonts", 200).await, development);
     let (a, b, unrelated) = tokio::join!(
         send(first, "/page", 200),
         send(second, "/page", 200),

@@ -136,6 +136,16 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `$loop` 提供 `iteration`（从 1 开始）、`index`（从 0 开始）、`remaining`、`count`、`first`、`last`、`odd`、`even`、`depth` 和 `parent`。最外层循环的深度为 1，父循环为 null。子视图可以读取外层循环，并将其用作嵌套循环的父循环。
 
+### 字体 {#fonts}
+
+在布局的 head 中使用 `@fonts`，从版本 1 的 Vite 字体清单输出预加载链接和 CSS。生产清单默认为 `public/build/fonts-manifest.json`。存在 `public/hot` 时，Blade 读取 `public/fonts-manifest.dev.json`。这些路径随应用的公开目录配置。清单缺失时输出空字符串。可以传入单个别名或别名列表来选择字体。
+
+```html
+<head>
+    @fonts(['sans', 'mono'])
+</head>
+```
+
 ## 组件
 
 将匿名组件 `notice` 放在 `resources/views/components/notice.blade.html`。带引号的属性是字符串，属性名前加 `:` 可以传入视图表达式。默认插槽用 `$slot` 读取，命名插槽用对应名称读取。插槽内容是已渲染的 HTML，插槽内输出的数据仍按普通规则转义。

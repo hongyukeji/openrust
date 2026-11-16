@@ -12,6 +12,7 @@ use crate::view::{
 
 mod attributes;
 mod expressions;
+mod fonts;
 mod html;
 mod includes;
 mod javascript;
@@ -46,6 +47,7 @@ enum Node {
     Echo(Expression, bool),
     EscapedSectionValue(Expression),
     Attributes(Vec<String>, Vec<AttributeOperation>),
+    Fonts(fonts::Aliases),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each {
         expression: Expression,
@@ -587,6 +589,13 @@ impl<'a> Parser<'a> {
             Node::BooleanText(expression_value(self.arguments()?)?)
         } else if self.directive("js") {
             Node::JavaScript(expression_value(self.arguments()?)?)
+        } else if self.directive("fonts") {
+            let arguments = if self.remaining.trim_start().starts_with('(') {
+                self.arguments()?
+            } else {
+                ""
+            };
+            fonts::parse(arguments)?
         } else if self.directive("production") {
             self.environment_block(
                 depth,
@@ -1588,6 +1597,9 @@ fn render_nodes<'a>(
             }
             Node::JavaScript(expression) => {
                 javascript::write_expression(output, value(expression, data, bindings))?;
+            }
+            Node::Fonts(aliases) => {
+                fonts::render(context, aliases.resolve(data, bindings)?, output)?;
             }
             Node::ConditionalAttribute(entries, style) => {
                 let name = if *style { "style" } else { "class" };

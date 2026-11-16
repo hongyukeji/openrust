@@ -136,6 +136,16 @@ Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based 
 
 `$loop` exposes `iteration` (one-based), `index` (zero-based), `remaining`, `count`, `first`, `last`, `odd`, `even`, `depth`, and `parent`. The outermost loop has depth 1 and a null parent. An included view can read the outer loop and use it as the parent of a nested loop.
 
+### Fonts {#fonts}
+
+Use `@fonts` in the layout head to render preload links and CSS from the version 1 Vite font manifest. The default production location is `public/build/fonts-manifest.json`. When `public/hot` exists, Blade reads `public/fonts-manifest.dev.json`. These paths follow the application’s public directory. A missing manifest emits an empty string. Pass an alias or a list to load only the selected families.
+
+```html
+<head>
+    @fonts(['sans', 'mono'])
+</head>
+```
+
 ## Components
 
 Store an anonymous component such as `notice` in `resources/views/components/notice.blade.html`. A quoted attribute is a string. Prefix its name with `:` to pass a view expression. Render the default slot with `$slot` and access a named slot by its name. Slot content is already rendered HTML. Data echoed inside the slot is escaped normally.

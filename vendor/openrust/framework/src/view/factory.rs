@@ -35,6 +35,7 @@ pub struct Factory {
     engines: Arc<EngineResolver>,
     events: Arc<RwLock<ViewEvents>>,
     embedded: HashMap<String, &'static str>,
+    pub(super) public_path: Option<PathBuf>,
 }
 
 enum ResolvedSource<'a> {
@@ -107,6 +108,7 @@ impl Factory {
             engines: Arc::new(EngineResolver::new(compiled)),
             events: Arc::default(),
             embedded: HashMap::new(),
+            public_path: None,
         }
     }
 

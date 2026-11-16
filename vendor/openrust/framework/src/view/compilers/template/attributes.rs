@@ -85,6 +85,12 @@ pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
     {
         return Ok(Node::JavaScript(expression_value(argument)?));
     }
+    if let Some(arguments) = source
+        .strip_prefix("Vite::fonts(")
+        .and_then(|source| source.strip_suffix(')'))
+    {
+        return super::fonts::parse(arguments);
+    }
     if source.starts_with('$') {
         let mut separators = separators(source, "->").peekable();
         let mut path_end = source.len();

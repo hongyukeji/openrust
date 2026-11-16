@@ -136,6 +136,16 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `$loop` 提供 `iteration`（從 1 開始）、`index`（從 0 開始）、`remaining`、`count`、`first`、`last`、`odd`、`even`、`depth` 和 `parent`。最外層迴圈的深度為 1，父迴圈為 null。子視圖可以讀取外層迴圈，並將它用作巢狀迴圈的父迴圈。
 
+### 字型 {#fonts}
+
+在版面的 head 中使用 `@fonts`，從版本 1 的 Vite 字型資訊清單輸出預載連結與 CSS。正式環境的預設路徑為 `public/build/fonts-manifest.json`。存在 `public/hot` 時，Blade 會讀取 `public/fonts-manifest.dev.json`。這些路徑會依應用程式的公開目錄設定調整。資訊清單缺少時會輸出空字串。可以傳入單一別名或別名清單來選擇字型。
+
+```html
+<head>
+    @fonts(['sans', 'mono'])
+</head>
+```
+
 ## 元件
 
 將匿名元件 `notice` 放在 `resources/views/components/notice.blade.html`。帶引號的屬性是字串，屬性名稱前加上 `:` 可以傳入視圖運算式。預設插槽用 `$slot` 讀取，具名插槽用對應名稱讀取。插槽內容是已呈現的 HTML，插槽內輸出的資料仍依一般規則跳脫。

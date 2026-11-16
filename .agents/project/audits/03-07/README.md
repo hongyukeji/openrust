@@ -77,3 +77,8 @@
 
 - 对照固定 Laravel HTTP Kernel 与 Symfony 8.0 Request。路由在匹配前解析 POST 覆盖，优先级为请求头、URL 编码或 multipart 表单、查询参数。路由和控制器看到覆盖后的方法，`getRealMethod()` 保留原始方法。Web CSRF 对原始 POST 继续生效，包括显式 OPTIONS 路由。旧版没有可移植的表单方法覆盖实现，沿用现有的有界输入解析器。
 - macOS ARM64、Rust 1.94.0。共享工作区 10 项定向测试通过。真实 HTTP 先渲染 Blade 表单，再带表单生成的令牌和方法字段提交，验证 PUT／PATCH／DELETE、请求头优先级、查询回退、multipart、400／419 与非 POST 行为。隔离副本全工作区格式和严格 Clippy 通过。实际 Artisan 编译三语表单并清理三个产物，三语构建和 12 项浏览器组合通过。
+
+## 字体清单
+
+- 对照固定 [Vite](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Vite.php) 与 [ViteFonts](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/ViteFonts.php)。`@fonts` 和模板 `Vite::fonts` 读取应用公开目录中的 Vite 生产或开发字体清单。预加载在单次渲染内去重，支持全部、单别名和别名列表，生产 URL 使用请求来源及既有 URL 资产配置。CSS 文件限制在公开目录，旧版没有字体清单处理器。
+- macOS ARM64、Rust 1.94.0。8 项共享工作区定向测试通过，真实 HTTP 覆盖缺失清单、生产 CSS 文件、开发 CSS、请求来源、别名、预加载去重、HTML 转义、双应用及非法输入 500。隔离全工作区格式和严格 Clippy、实际 Artisan 编译及清理三个三语示例、三语构建与 12 项浏览器组合通过。
