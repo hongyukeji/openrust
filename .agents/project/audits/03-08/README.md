@@ -38,3 +38,9 @@
 - Rust 在顶层渲染内共享栈与单次渲染标识，覆盖布局、子视图和组件。`@once`、`@pushOnce` 和 `@prependOnce` 的无参标识由编译模板及指令位置确定，显式标识使用非空字符串，跨模板共用。此批覆盖 `@push`、`@prepend`、`@stack`、`@hasStack` 以及上述单次形式。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实 HTTP 覆盖跨层排序、重复子视图去重、两应用并发、指令不匹配 500、重复请求和空栈回退。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项栈章节检查通过。
+
+## Blade 片段
+
+- 对照固定 [ManagesFragments](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesFragments.php) 和 [View](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php)。`@fragment` 捕获已渲染标签，同一视图树内的子视图可贡献片段。Rust 用链式 View 方法选择响应，多个具名片段按参数顺序拼接，整个视图每响应求值一次。Laravel 的具名列表可多次调用 render，Rust 组合器只执行一次。旧版 MiniJinja 无对应的 Blade 片段捕获器。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖单个、多个、全部、缺失、条件回退、子视图、并发应用隔离及未闭合片段 500。隔离副本通过全工作区格式与严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语片段示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项片段章节检查通过。

@@ -44,6 +44,7 @@ enum Node {
     Csrf,
     Method(Expression),
     Error(Expression, Option<Expression>, Vec<Node>),
+    Fragment(Expression, Vec<Node>),
     Include(Expression),
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
@@ -144,6 +145,7 @@ enum Stop {
     EndPushOnce,
     EndPrependOnce,
     EndError,
+    EndFragment,
     EndTag,
 }
 
@@ -419,6 +421,13 @@ impl<'a> Parser<'a> {
                 return Err(invalid("Expected @enderror."));
             }
             Node::Error(field, bag, body)
+        } else if self.directive("fragment") {
+            let name = expression_value(self.arguments()?)?;
+            let (body, stop) = self.block(depth + 1)?;
+            if stop != Some(Stop::EndFragment) {
+                return Err(invalid("Expected @endfragment."));
+            }
+            Node::Fragment(name, body)
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
@@ -591,6 +600,7 @@ impl<'a> Parser<'a> {
             ("endPushOnce", Stop::EndPushOnce),
             ("endPrependOnce", Stop::EndPrependOnce),
             ("enderror", Stop::EndError),
+            ("endfragment", Stop::EndFragment),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -967,6 +977,13 @@ fn render_nodes<'a>(
                     local.push(("message", message));
                     render_nodes(nodes, data, &local, output, context)?;
                 }
+            }
+            Node::Fragment(name, nodes) => {
+                let name = name_value(value(name, data, bindings))?.to_owned();
+                let mut html = String::new();
+                render_nodes(nodes, data, bindings, &mut html, context)?;
+                output.push_str(&html);
+                context.capture_fragment(name, html);
             }
             Node::Include(expression) | Node::IncludeIf(expression) => {
                 let name = name_value(value(expression, data, bindings))?;

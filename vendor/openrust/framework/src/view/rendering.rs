@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use super::{Factory, ViewData, ViewError, ViewResult, ViewValue};
+use super::{Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue};
 
 /// State owned by one render tree. A layout inherits sections from its child.
 pub(super) struct RenderContext<'a> {
@@ -26,6 +26,7 @@ pub(super) struct RenderContext<'a> {
 struct RenderState {
     stacks: HashMap<String, Stack>,
     once: HashSet<(bool, String)>,
+    fragments: Vec<(String, String)>,
 }
 
 #[derive(Default)]
@@ -146,6 +147,31 @@ impl<'a> RenderContext<'a> {
             output.push_str(html);
         }
         true
+    }
+
+    pub(super) fn capture_fragment(&self, name: String, html: String) {
+        let mut shared = self.shared.borrow_mut();
+        if let Some((_, content)) = shared.fragments.iter_mut().find(|(key, _)| *key == name) {
+            *content = html;
+        } else {
+            shared.fragments.push((name, html));
+        }
+    }
+
+    pub(super) fn selected_fragments(&self, selection: FragmentSelection) -> String {
+        let shared = self.shared.borrow();
+        match selection {
+            FragmentSelection::Named(names) => names
+                .iter()
+                .filter_map(|name| shared.fragments.iter().find(|(key, _)| key == name))
+                .map(|(_, html)| html.as_str())
+                .collect(),
+            FragmentSelection::All => shared
+                .fragments
+                .iter()
+                .map(|(_, html)| html.as_str())
+                .collect(),
+        }
     }
 
     pub(super) fn component(

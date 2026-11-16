@@ -18,7 +18,7 @@ use crate::view::{ViewData, ViewError, ViewResult, rendering::RenderContext};
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 6;
+const COMPILER_VERSION: u32 = 7;
 
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {

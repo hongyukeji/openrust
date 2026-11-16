@@ -192,6 +192,7 @@ impl Factory {
             binding: None,
             created: false,
             creation_error: None,
+            fragments: None,
         };
         self.callCreator(&mut view)?;
         Ok(view)
@@ -253,7 +254,11 @@ impl Factory {
         let mut data = self.prepare_view(&mut view)?;
         let source = self.view_source(&view)?;
         data.extend(view.data);
-        self.render_contents(source, &data, context)
+        let html = self.render_contents(source, &data, context)?;
+        Ok(match view.fragments {
+            Some(fragments) => context.selected_fragments(fragments),
+            None => html,
+        })
     }
 
     fn render_view_ref(
@@ -376,6 +381,7 @@ impl ContractFactory for Factory {
             })),
             created: false,
             creation_error: None,
+            fragments: None,
         };
         self.callCreator(&mut view)?;
         Ok(Box::new(view))

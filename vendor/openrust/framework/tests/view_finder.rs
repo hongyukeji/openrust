@@ -380,6 +380,20 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/stacks", || view("stacks"))?;
                 Route::get("/empty-stack", || view("stack_layout"))?;
                 Route::get("/broken-stack", || view("broken_stack"))?;
+                Route::get("/fragment", || view("fragment_page").fragment("left"))?;
+                Route::get("/fragments", || {
+                    view("fragment_page").fragmentsIf(true, ["right", "missing", "left"])
+                })?;
+                Route::get("/full-fragments", || {
+                    view("fragment_page").fragmentIf(false, "left")
+                })?;
+                Route::get("/all-fragments", || view("fragment_page").allFragments())?;
+                Route::get("/missing-fragment", || {
+                    view("fragment_page").fragment("missing")
+                })?;
+                Route::get("/broken-fragment", || {
+                    view("broken_fragment").fragment("left")
+                })?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -549,6 +563,18 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "<main>@hasStack('scripts'){{ $app }}:@endif@stack('scripts', '<empty>')</main>",
         ),
         ("broken_stack", "@push('scripts')oops@endprepend"),
+        (
+            "fragment_page",
+            concat!(
+                "<main>@fragment('left')<b>{{ $app }}</b>@endfragment",
+                "@include('fragment_partial')</main>",
+            ),
+        ),
+        (
+            "fragment_partial",
+            "@fragment('right')<i>{{ $app }}</i>@endfragment",
+        ),
+        ("broken_fragment", "@fragment('left')broken"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -624,6 +650,20 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(first, "/empty-stack", 200).await,
         "<main><empty></main>"
     );
+    let (a, b) = tokio::join!(
+        send(first, "/fragments", 200),
+        send(second, "/fragments", 200),
+    );
+    assert_eq!(a, "<i>A</i><b>A</b>");
+    assert_eq!(b, "<i>B</i><b>B</b>");
+    assert_eq!(send(first, "/fragment", 200).await, "<b>A</b>");
+    assert_eq!(send(first, "/all-fragments", 200).await, "<b>A</b><i>A</i>");
+    assert_eq!(send(first, "/missing-fragment", 200).await, "");
+    assert_eq!(
+        send(first, "/full-fragments", 200).await,
+        "<main><b>A</b><i>A</i></main>"
+    );
+    assert!(send(first, "/broken-fragment", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

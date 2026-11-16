@@ -122,6 +122,18 @@ Use `@push` or `@prepend` to collect markup during rendering. A layout can displ
 @endif
 ```
 
+## Rendering Blade Fragments {#rendering-blade-fragments}
+
+Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashboard").fragment("summary")` from the route to send that fragment.
+
+```html
+@fragment('summary')
+<h2>{{ $title }}</h2>
+@endfragment
+```
+
+`fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. OpenRust evaluates the view once per response, including when selecting multiple fragments.
+
 ## PHP and Rust Templates {#php-and-rust-templates}
 
 Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.

@@ -78,6 +78,12 @@ pub struct View {
     binding: Option<Box<ViewBinding>>,
     created: bool,
     creation_error: Option<ViewError>,
+    fragments: Option<FragmentSelection>,
+}
+
+enum FragmentSelection {
+    Named(Vec<String>),
+    All,
 }
 
 struct ViewBinding {
@@ -97,6 +103,7 @@ pub fn view(name: impl Into<Cow<'static, str>>) -> View {
         binding: None,
         created: false,
         creation_error: None,
+        fragments: None,
     };
     if let Ok(factory) = ViewFacade::getFacadeRoot() {
         view.creation_error = factory.callCreator(&mut view).err();
@@ -119,6 +126,44 @@ impl View {
 
     pub fn with(mut self, key: impl Into<String>, value: impl Into<ViewValue>) -> Self {
         self.data.insert(key.into(), value.into());
+        self
+    }
+
+    /// Selects one Blade fragment for the response.
+    pub fn fragment(self, name: impl Into<String>) -> Self {
+        self.fragments([name])
+    }
+
+    /// Selects Blade fragments in the given output order.
+    pub fn fragments(mut self, names: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.fragments = Some(FragmentSelection::Named(
+            names.into_iter().map(Into::into).collect(),
+        ));
+        self
+    }
+
+    /// Selects every captured Blade fragment.
+    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    pub fn allFragments(mut self) -> Self {
+        self.fragments = Some(FragmentSelection::All);
+        self
+    }
+
+    /// Selects a fragment when the caller's condition is true.
+    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    pub fn fragmentIf(self, condition: bool, name: impl Into<String>) -> Self {
+        self.fragmentsIf(condition, [name])
+    }
+
+    /// Selects fragments when the caller's condition is true.
+    #[allow(non_snake_case, reason = "Matches Laravel's View API")]
+    pub fn fragmentsIf(
+        mut self,
+        condition: bool,
+        names: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.fragments = condition
+            .then(|| FragmentSelection::Named(names.into_iter().map(Into::into).collect()));
         self
     }
 

@@ -122,6 +122,18 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 @endif
 ```
 
+## 渲染 Blade 片段 {#rendering-blade-fragments}
+
+用 `@fragment` 和 `@endfragment` 标记模板片段。从路由返回 `view("dashboard").fragment("summary")` 即可发送该片段。
+
+```html
+@fragment('summary')
+<h2>{{ $title }}</h2>
+@endfragment
+```
+
+`fragments(["summary", "details"])` 按参数顺序返回指定片段。`allFragments()` 返回全部已捕获片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在条件为假时发送完整模板。OpenRust 每次响应只渲染一次视图，选择多个片段时也一样。
+
 ## PHP 与 Rust 模板 {#php-and-rust-templates}
 
 PHP 函数调用或 `@php` 代码块需要的值，可以在 Rust 处理器、视图创建器或组合器中准备，再传给视图。PHP 类组件及其动态类发现对应 `Factory::component` 显式注册的 Rust `Component` 工厂。匿名组件从视图查找器解析。
