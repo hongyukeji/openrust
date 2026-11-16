@@ -10,6 +10,20 @@
 
 会话数据可以使用[会话缓存](../the-basics/session.md#session-cache)。`session` 仓库需要活跃的 HTTP 会话，不支持标签和缓存锁。
 
+## Memcached {#memcached}
+
+设置 `CACHE_STORE=memcached` 启用 Memcached。默认地址为 `127.0.0.1:11211`，可用 `MEMCACHED_HOST` 和 `MEMCACHED_PORT` 修改。服务端启用 SASL PLAIN 时，同时设置 `MEMCACHED_USERNAME` 和 `MEMCACHED_PASSWORD`。 在 Unix 上，可将 `MEMCACHED_HOST` 设为套接字的绝对路径，并设置 `MEMCACHED_PORT=0`。
+
+```dotenv
+CACHE_STORE=memcached
+MEMCACHED_HOST=127.0.0.1
+MEMCACHED_PORT=11211
+```
+
+在 `config/cache.rs` 的 `cache.stores.memcached.servers` 配置多个节点。每个节点填写 `host`、`port` 和可选的正数 `weight`（默认 100）。共享缓存的应用进程应使用相同的节点及权重。`options` 支持 `connect_timeout_ms`、`timeout_ms`、`max_connections` 和 `max_item_bytes`。配置相同且使用同一 `MEMCACHED_PERSISTENT_ID` 的仓库在应用内复用连接池。
+
+缓存值使用 OpenRust 编码。计数器不存在时返回 `CacheError::MissingCounter`，递减最低到零。支持按标签失效和校验所有者的锁。Memcached 内存紧张时可能淘汰条目，包括锁的所有者记录。`./artisan cache:clear memcached` 会清空所有已配置节点上的数据，覆盖所有缓存前缀。需要限制清理范围时可使用专用节点。
+
 ## 磁盘缓存 {#storage-cache}
 
 通过 `CACHE_STORE=storage` 将缓存记录写入已配置的文件系统磁盘。`CACHE_STORAGE_DISK` 指定磁盘，省略时使用应用默认磁盘。`CACHE_STORAGE_PATH` 是相对于该磁盘的缓存目录。

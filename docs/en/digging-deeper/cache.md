@@ -10,6 +10,20 @@ The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array`
 
 Session data can use the [session cache](../the-basics/session.md#session-cache). The `session` store requires an active HTTP session and provides neither tags nor cache locks.
 
+## Memcached {#memcached}
+
+Set `CACHE_STORE=memcached` to use Memcached. The default endpoint is `127.0.0.1:11211`. Set `MEMCACHED_HOST` and `MEMCACHED_PORT` to change it. Set both `MEMCACHED_USERNAME` and `MEMCACHED_PASSWORD` for a server configured for SASL PLAIN. On Unix, set `MEMCACHED_HOST` to the absolute socket path and `MEMCACHED_PORT=0` to use a Unix socket.
+
+```dotenv
+CACHE_STORE=memcached
+MEMCACHED_HOST=127.0.0.1
+MEMCACHED_PORT=11211
+```
+
+Set `cache.stores.memcached.servers` in `config/cache.rs` to use multiple servers. Each server takes `host`, `port`, and an optional positive `weight` (default 100). All application processes sharing the cache must use the same server list and weights. The `options` map accepts `connect_timeout_ms`, `timeout_ms`, `max_connections`, and `max_item_bytes`. Matching stores with the same `MEMCACHED_PERSISTENT_ID` share the connection pool within an application.
+
+Values use OpenRust encoding. A missing counter returns `CacheError::MissingCounter`, and decrement stops at zero. Tag invalidation and owner-checked locks are supported. Memcached may evict entries, including lock owners, under memory pressure. `./artisan cache:clear memcached` flushes every configured server across all cache prefixes. Use dedicated servers if this scope is too broad.
+
 ## Storage Cache {#storage-cache}
 
 Set `CACHE_STORE=storage` to store cache records on a configured filesystem disk. `CACHE_STORAGE_DISK` selects the disk and uses the application's default disk when omitted. `CACHE_STORAGE_PATH` selects the cache directory relative to that disk.

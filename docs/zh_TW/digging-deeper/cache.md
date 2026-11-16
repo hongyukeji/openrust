@@ -10,6 +10,20 @@
 
 工作階段資料可使用[工作階段快取](../the-basics/session.md#session-cache)。`session` 儲存庫需要有效的 HTTP 工作階段，不支援標籤和快取鎖。
 
+## Memcached {#memcached}
+
+設定 `CACHE_STORE=memcached` 啟用 Memcached。預設位址為 `127.0.0.1:11211`，可用 `MEMCACHED_HOST` 和 `MEMCACHED_PORT` 修改。伺服器啟用 SASL PLAIN 時，一併設定 `MEMCACHED_USERNAME` 和 `MEMCACHED_PASSWORD`。 在 Unix 上，可將 `MEMCACHED_HOST` 設為通訊端的絕對路徑，並設定 `MEMCACHED_PORT=0`。
+
+```dotenv
+CACHE_STORE=memcached
+MEMCACHED_HOST=127.0.0.1
+MEMCACHED_PORT=11211
+```
+
+在 `config/cache.rs` 的 `cache.stores.memcached.servers` 設定多個節點。每個節點填寫 `host`、`port` 和選用的正數 `weight`（預設 100）。共用快取的應用程式程序應採用相同的節點及權重。`options` 支援 `connect_timeout_ms`、`timeout_ms`、`max_connections` 和 `max_item_bytes`。設定相同且使用同一個 `MEMCACHED_PERSISTENT_ID` 的儲存庫，會在應用程式中共用連線集區。
+
+快取值使用 OpenRust 編碼。計數器不存在時會回傳 `CacheError::MissingCounter`，遞減最低到零。支援標籤失效與驗證擁有者的鎖定。Memcached 記憶體吃緊時可能淘汰項目，包含鎖定的擁有者記錄。`./artisan cache:clear memcached` 會清空所有已設定節點的資料，涵蓋所有快取前綴。需要限制清除範圍時，可使用專用節點。
+
 ## 磁碟快取 {#storage-cache}
 
 透過 `CACHE_STORE=storage` 將快取記錄寫入已設定的檔案系統磁碟。`CACHE_STORAGE_DISK` 指定磁碟，省略時使用應用程式預設磁碟。`CACHE_STORAGE_PATH` 是相對於該磁碟的快取目錄。

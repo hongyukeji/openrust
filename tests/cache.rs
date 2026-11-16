@@ -1303,3 +1303,281 @@ async fn storage_cache_s3_flush_keeps_adjacent_prefixes() {
         b"different tenant"
     );
 }
+
+#[tokio::test]
+async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
+    let Ok(port) = std::env::var("MEMCACHED_FIXTURE_PORT") else {
+        assert!(std::env::var_os("MEMCACHED_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "memcached",
+        &format!("CACHE_STORE=memcached\nMEMCACHED_PORT={port}\nCACHE_PREFIX=acceptance:\n"),
+    );
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    assert!(first.flush().await.unwrap());
+    let binary = Value::Bytes(vec![0, 255, 11]);
+    let ttl = Some(Ttl::Seconds(1));
+    let values = vec![
+        ("binary".into(), binary.clone()),
+        ("number".into(), 7.into()),
+        ("numeric-string".into(), "007".into()),
+    ];
+    assert!(first.putMany(&values, Some(Ttl::Seconds(2))).await.unwrap());
+    assert_eq!(
+        second
+            .many(&["number", "missing", "binary", "number", "numeric-string"])
+            .await
+            .unwrap(),
+        [
+            Some(7.into()),
+            None,
+            Some(binary.clone()),
+            Some(7.into()),
+            Some("007".into())
+        ]
+    );
+    assert!(
+        second
+            .touch("binary", Ttl::Seconds(35 * 24 * 60 * 60))
+            .await
+            .unwrap()
+    );
+    assert!(!first.touch("missing", Ttl::Seconds(30)).await.unwrap());
+    assert!(first.put("expiring", &1.into(), ttl).await.unwrap());
+    assert_eq!(second.increment("expiring", 2).await.unwrap(), 3);
+    assert_eq!(second.decrement("number", 20).await.unwrap(), 0);
+    assert!(matches!(
+        first.increment("missing", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert!(matches!(
+        first.increment("numeric-string", 1).await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert!(matches!(
+        first.get("bad key\r\n").await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert!(matches!(
+        first
+            .forever("large", &Value::Bytes(vec![0; 1024 * 1024]))
+            .await,
+        Err(CacheError::InvalidValue)
+    ));
+
+    let value = Value::from(2);
+    let (left, right) = tokio::join!(
+        first.add("race", &value, ttl),
+        second.add("race", &value, ttl)
+    );
+    assert_ne!(left.unwrap(), right.unwrap());
+    let (left, right) = tokio::join!(first.pull("race"), second.pull("race"));
+    assert_ne!(left.unwrap().is_some(), right.unwrap().is_some());
+
+    let tagged = first.tags(&["authors", "reports"]).unwrap();
+    assert!(tagged.forever("one", &11.into()).await.unwrap());
+    assert_eq!(
+        second
+            .tags(&["authors", "reports"])
+            .unwrap()
+            .get("one")
+            .await
+            .unwrap(),
+        Some(11.into())
+    );
+    first.tags(&["authors"]).unwrap().flush().await.unwrap();
+    assert!(tagged.get("one").await.unwrap().is_none());
+    assert_eq!(first.get("binary").await.unwrap(), Some(binary));
+
+    let mut owner = first
+        .lock("rebuild", Some(Duration::from_secs(1)), Some("first"))
+        .unwrap();
+    let mut other = second
+        .lock("rebuild", Some(Duration::from_secs(3)), Some("second"))
+        .unwrap();
+    assert!(owner.get().await.unwrap());
+    assert!(!other.get().await.unwrap());
+    assert!(matches!(
+        other.block(Duration::from_millis(25)).await,
+        Err(CacheError::LockTimeout)
+    ));
+    assert!(!other.release().await.unwrap());
+    assert!(!other.refresh(None).await.unwrap());
+    let mut restored = second.restore_lock("rebuild", "first").unwrap();
+    assert!(
+        restored
+            .refresh(Some(Duration::from_secs(1)))
+            .await
+            .unwrap()
+    );
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    assert!(second.get("expiring").await.unwrap().is_none());
+    assert!(other.get().await.unwrap());
+    assert!(!restored.release().await.unwrap());
+    assert!(
+        other
+            .refresh(Some(Duration::from_secs(11 * 24 * 60 * 60)))
+            .await
+            .unwrap()
+    );
+    assert!(other.release().await.unwrap());
+
+    root.success(&["cache:forget", "binary", "memcached"]);
+    assert!(second.get("binary").await.unwrap().is_none());
+    let neighbor = Sandbox::new(
+        "memcached-neighbor",
+        &format!("CACHE_STORE=memcached\nMEMCACHED_PORT={port}\nCACHE_PREFIX=neighbor:\n"),
+    );
+    let neighbor = neighbor.cache(None).await;
+    assert!(neighbor.forever("data", &9.into()).await.unwrap());
+    root.success(&["cache:clear", "memcached"]);
+    assert!(neighbor.get("data").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn memcached_weighted_servers_and_persistent_id_are_application_scoped() {
+    let (Ok(first), Ok(second)) = (
+        std::env::var("MEMCACHED_FIXTURE_PORT"),
+        std::env::var("MEMCACHED_SECOND_PORT"),
+    ) else {
+        assert!(std::env::var_os("MEMCACHED_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let first = first.parse::<u16>().unwrap();
+    let second = second.parse::<u16>().unwrap();
+    let root = Sandbox::new("memcached-routing", "CACHE_STORE=array\n");
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().get::<CacheManager>("cache").unwrap();
+    let first_server = serde_json::json!({"host":"127.0.0.1","port":first,"weight":1});
+    let second_server = serde_json::json!({"host":"127.0.0.1","port":second,"weight":4});
+    let options = serde_json::json!({"driver":"memcached","persistent_id":"weighted",
+        "prefix":"weighted:","servers":[first_server,second_server]});
+    let weighted = manager.build(options.clone()).unwrap();
+    let mut reversed = options.clone();
+    reversed["servers"].as_array_mut().unwrap().reverse();
+    let reordered = manager.build(reversed).unwrap();
+    let mut conflict = options.clone();
+    conflict["options"] = serde_json::json!({"max_connections":4});
+    assert!(matches!(
+        manager.build(conflict),
+        Err(CacheError::InvalidConfiguration)
+    ));
+    let invalid = serde_json::json!({"driver":"memcached","servers":[]});
+    assert!(matches!(
+        manager.build(invalid),
+        Err(CacheError::InvalidConfiguration)
+    ));
+
+    let only = |server: &serde_json::Value| {
+        manager
+            .build(serde_json::json!({
+                "driver":"memcached","prefix":"weighted:","servers":[server]
+            }))
+            .unwrap()
+    };
+    let left = only(&first_server);
+    let right = only(&second_server);
+    weighted.flush().await.unwrap();
+    let entries: Vec<_> = (0..100)
+        .map(|index| (format!("item:{index}"), Value::from(index)))
+        .collect();
+    assert!(
+        weighted
+            .putMany(&entries, Some(Ttl::Seconds(300)))
+            .await
+            .unwrap()
+    );
+    let keys: Vec<_> = entries.iter().map(|(key, _)| key.as_str()).collect();
+    let expected: Vec<_> = entries
+        .iter()
+        .map(|(_, value)| Some(value.clone()))
+        .collect();
+    assert_eq!(reordered.many(&keys).await.unwrap(), expected);
+    let left_count = left
+        .many(&keys)
+        .await
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .count();
+    let right_count = right
+        .many(&keys)
+        .await
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .count();
+    assert_eq!(left_count + right_count, entries.len());
+    assert!(left_count > 0 && right_count > left_count);
+    assert!(weighted.flush().await.unwrap());
+    assert!(
+        left.many(&keys)
+            .await
+            .unwrap()
+            .into_iter()
+            .all(|value| value.is_none())
+    );
+    assert!(
+        right
+            .many(&keys)
+            .await
+            .unwrap()
+            .into_iter()
+            .all(|value| value.is_none())
+    );
+}
+
+#[tokio::test]
+async fn memcached_sasl_rejects_wrong_credentials_and_accepts_configured_credentials() {
+    let Ok(port) = std::env::var("MEMCACHED_SASL_PORT") else {
+        assert!(std::env::var_os("MEMCACHED_REQUIRE_SASL").is_none());
+        return;
+    };
+    let basic_env =
+        format!("CACHE_STORE=memcached\nMEMCACHED_PORT={port}\nMEMCACHED_USERNAME=fixture\n");
+    let invalid = Sandbox::new(
+        "memcached-invalid",
+        &format!("{basic_env}MEMCACHED_PASSWORD=invalid\n"),
+    );
+    assert!(matches!(
+        invalid.cache(None).await.get("sasl").await,
+        Err(CacheError::Backend { .. })
+    ));
+    let valid = Sandbox::new(
+        "memcached-valid",
+        &format!("{basic_env}MEMCACHED_PASSWORD=local-fixture-secret\n"),
+    );
+    let cache = valid.cache(None).await;
+    assert!(cache.forever("sasl", &"ready".into()).await.unwrap());
+    assert_eq!(cache.get("sasl").await.unwrap(), Some("ready".into()));
+    assert!(cache.forget("sasl").await.unwrap());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn memcached_unix_socket_works_with_the_configured_cache_and_artisan() {
+    let Ok(path) = std::env::var("MEMCACHED_FIXTURE_SOCKET") else {
+        assert!(std::env::var_os("MEMCACHED_REQUIRE_UNIX").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "memcached-unix",
+        &format!("CACHE_STORE=memcached\nMEMCACHED_HOST={path}\nMEMCACHED_PORT=0\n"),
+    );
+    let cache = root.cache(None).await;
+    assert!(
+        cache
+            .put("local", &42.into(), Some(Ttl::Seconds(60)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(cache.get("local").await.unwrap(), Some(42.into()));
+    root.success(&["cache:forget", "local", "memcached"]);
+    assert!(cache.get("local").await.unwrap().is_none());
+}

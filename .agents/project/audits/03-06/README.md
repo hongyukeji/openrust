@@ -97,3 +97,13 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - `cargo test --test cache --test cache_drivers --test cache_events --locked --offline -- --test-threads=1` 和 `cargo test -p openrust-framework --test cache_memo --locked --offline` 覆盖 27 项缓存用例，其中两个条件用例另用双 Redis 和 RustFS 夹具实跑。实际 `main artisan inspire` 成功，`main artisan cache:clear session` 在没有 HTTP 会话时明确失败并返回退出码 1。
 - 变更文件格式和严格 Clippy 通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。三语 VitePress、12 项站点浏览器检查、6 项缓存页到会话页链接导航及三语 Rust 示例编译通过。
 - 临时容器全部回收。清理本批 4.2 GiB 隔离 Cargo 产物和本批文档缓存后，项目盘可用 60.05 GB（55.93 GiB），周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-session-cache.PN9qbnef`。
+
+## Memcached 驱动
+
+- 对照固定 Laravel [Memcached 配置](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#memcached)、[MemcachedStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/MemcachedStore.php)、[MemcachedConnector](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/MemcachedConnector.php) 及 [MemcachedLock](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/MemcachedLock.php)。openrust-v0.x 未发现对应实现和测试，复用当前 Repository、TagSet、锁等待和应用配置。
+- 支持 TCP、Unix 套接字、SASL PLAIN、带权节点分配、应用内持久连接池、批量读取、原子计数、标签及锁。节点分配使用加权 rendezvous 哈希，Rust 连接参数采用具名选项。缓存值采用 OpenRust JSON／字节编码，非负整数用 Memcached 原生计数格式，PHP 序列化条目和节点哈希无法互换。连接超时、认证和协议故障返回类型化缓存错误。
+- 锁写入、续期和释放使用服务端条件更新。Rust 在释放锁和取走条目时用 CAS 条件删除，避免读写间的更新被旧请求删除。缓存清理按 Laravel 行为清空所有配置节点，覆盖所有前缀。
+- 隔离基线 `1be6a66e4`。以 PHP 8.4.27、ext-memcached 3.4.0 和真实 Memcached 1.6.45 运行固定 Laravel 存储和锁接口。Rust 1.94.0 在真实双 TCP 节点、SASL 节点和 macOS arm64 Unix 套接字通过 4 项用例。覆盖批量顺序与缺失、长 TTL、两连接竞争、标签、锁恢复及所有者校验、凭据错误、加权路由、连接池配置冲突，以及实际 Artisan 删除与清空。
+- 隔离工程的实际二进制通过 HTTP 写读、暂停 Memcached 时返回 500、恢复后的下一次请求读回、独立 Artisan 清理及再次 HTTP 未命中。实际 `main artisan inspire` 通过。MySQL 8.4.13 和 Redis 8.10.3 下通过缓存、驱动、事件及 memo 回归。双 Redis 锁服务器和 S3 条件回归本批未重跑。
+- 定向格式、工作区严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。Unix 夹具为本地构建的 Memcached 1.6.45，构建时绕过当前 SDK 已移除的 Darwin sandbox 探测，缓存协议和运行方式使用原版。
+- 临时容器和 Unix 夹具均已关闭，清理 4.3 GiB 本批隔离 Cargo 产物、文档缓存及本地 C 构建产物后，项目盘可用 58.77 GB（54.73 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-memcached.geg4c4Mp`。

@@ -20,8 +20,9 @@ use crate::{
 };
 
 use super::{
-    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, NullStore,
-    RedisStore, Repository, SessionStore, StorageStore, backend,
+    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, MemcachedStore,
+    NullStore, RedisStore, Repository, SessionStore, StorageStore, backend,
+    memcached_connector as memcached,
     memoized_store::{MemoizedRepositories, MemoizedStore},
     store_registry::StoreRegistry,
 };
@@ -40,6 +41,7 @@ pub(super) struct CacheManagerState {
     redis: Arc<RedisManager>,
     stores: StoreRegistry,
     filesystem: Arc<FilesystemManager>,
+    memcached: memcached::Connector,
     factories: Mutex<HashMap<String, Arc<DriverFactory>>>,
     owner: Weak<Container>,
 }
@@ -54,6 +56,12 @@ enum Options {
     },
     Session {
         key: Option<String>,
+    },
+    Memcached {
+        persistent_id: Option<String>,
+        sasl: Option<memcached::Credentials>,
+        options: Option<memcached::Options>,
+        servers: Vec<memcached::Server>,
     },
     Storage {
         disk: Option<String>,
@@ -89,6 +97,7 @@ impl CacheManager {
                 base,
                 stores: StoreRegistry::default(),
                 factories: Mutex::default(),
+                memcached: memcached::Connector::default(),
                 owner: Weak::new(),
             }),
         }
@@ -256,7 +265,15 @@ impl CacheManager {
         }
         if !matches!(
             driver,
-            "array" | "file" | "database" | "redis" | "failover" | "null" | "storage" | "session"
+            "array"
+                | "file"
+                | "database"
+                | "redis"
+                | "failover"
+                | "null"
+                | "storage"
+                | "session"
+                | "memcached"
         ) {
             return Err(CacheError::UnsupportedDriver);
         }
@@ -275,6 +292,17 @@ impl CacheManager {
                 self.inner.owner.clone(),
                 key.unwrap_or_else(|| "_cache".into()),
             )?),
+            Options::Memcached {
+                persistent_id,
+                sasl,
+                options,
+                servers,
+            } => {
+                let settings =
+                    memcached::Settings::new(servers, sasl, options.unwrap_or_default())?;
+                let client = self.inner.memcached.connect(persistent_id, settings)?;
+                Arc::new(MemcachedStore::new(client, self.prefix(&config)?))
+            }
             Options::Storage { disk, path } => {
                 let disk = self
                     .inner
