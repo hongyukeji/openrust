@@ -912,6 +912,25 @@ Use `withPivot(["label"])` to select extra columns from the intermediate table. 
 
 `syncWithPivotValues` applies the same attributes to every key. Use `syncWithPivotAttributes` with `(key, attributes)` pairs for individual values. Both return attached, detached, and updated keys. A failed sync rolls back its changes.
 
+For `sync` and `toggle`, pass database-backed enum keys via `CastableEnum::intoValue()`. If the related model declares an integer, string, or enum cast for the related key, synchronization uses that backing type for matching and change reports. Text keys retain UUIDs, leading zeros, and digits outside the signed integer range.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, casts::CastableEnum, relations::BelongsToMany},
+};
+
+async fn sync_roles<P: Model, R: Model, E: CastableEnum>(
+    user: &P,
+    roles: &BelongsToMany<P, R>,
+    selected: E,
+) -> DatabaseResult<()> {
+    let keys = [selected.intoValue(), 6_i64.into()];
+    roles.sync(user, &keys).await?;
+    Ok(())
+}
+```
+
 ### Saving and creating many-to-many models {#saving-many-to-many-models}
 
 Use `save` to persist a related model and attach it, or `create` to construct it from attributes and attach it. Supply pivot attributes separately. Each model and its link are written in one transaction. `saveMany` and `createMany` match pivot attributes by input position and touch configured endpoints after the batch succeeds. Earlier rows remain committed if a later row fails. The `Quietly` variants suppress model events. `forceCreate` and `forceCreateQuietly` bypass mass-assignment guards while still running casts.

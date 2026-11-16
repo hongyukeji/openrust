@@ -7,6 +7,7 @@ use crate::database::{
     Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, Model, ModelState,
+        casts::cast_pivot_key,
         concerns::{
             has_relationships::{LoadedRelations, load_eager_with_transaction},
             has_timestamps::timestamp,
@@ -1523,6 +1524,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let desired = records
                 .map(|(key, attributes)| {
                     self.validate_pivot_attributes(&attributes)?;
+                    let key = cast_pivot_key::<R>(self.keys.related, key)?;
                     let normalized = dictionary_key(Some(&key))?
                         .ok_or(DatabaseError::InvalidQuery("pivot key is null"))?;
                     Ok((normalized, (key, attributes)))
@@ -1533,6 +1535,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             }
             let desired = Arc::new(desired);
             let pivot = self.pivot;
+            let related_key = self.keys.related;
             let constraints = Arc::new(self.pivot_constraints.clone());
             let connection = self.keys.connection(parent)?;
             let timestamps = Arc::new(self.pivot_write_timestamps(&connection)?);
@@ -1553,7 +1556,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                             timestamps.clone(),
                         );
                         Box::pin(async move {
-                            let changes = if let Some(custom) = custom {
+                            let mut changes = if let Some(custom) = custom {
                                 sync_custom_pivot(
                                     transaction,
                                     CustomSync {
@@ -1581,6 +1584,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                 )
                                 .await?
                             };
+                            changes.detached = changes
+                                .detached
+                                .into_iter()
+                                .map(|key| cast_pivot_key::<R>(related_key, key))
+                                .collect::<DatabaseResult<_>>()?;
                             if !changes.attached.is_empty()
                                 || !changes.detached.is_empty()
                                 || !changes.updated.is_empty()

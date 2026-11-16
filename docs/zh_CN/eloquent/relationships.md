@@ -912,6 +912,25 @@ pub async fn import_post<P: Model, R: Model>(
 
 `syncWithPivotValues` 为所有键应用同一组属性。`syncWithPivotAttributes` 接收 `(键, 属性)` 对，为各键设置不同属性。两者均返回附加、解绑和更新的键。同步失败会回滚本次修改。
 
+调用 `sync` 或 `toggle` 时，可用 `CastableEnum::intoValue()` 传入枚举的数据库键。关联模型为关联键声明整数、字符串或枚举转换时，同步按该存储类型匹配并报告变动。文本键会保留 UUID、前导零和超出有符号整数范围的数字。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, casts::CastableEnum, relations::BelongsToMany},
+};
+
+async fn sync_roles<P: Model, R: Model, E: CastableEnum>(
+    user: &P,
+    roles: &BelongsToMany<P, R>,
+    selected: E,
+) -> DatabaseResult<()> {
+    let keys = [selected.intoValue(), 6_i64.into()];
+    roles.sync(user, &keys).await?;
+    Ok(())
+}
+```
+
 ### 保存和创建多对多模型 {#saving-many-to-many-models}
 
 用 `save` 保存并挂载关联模型，用 `create` 从属性创建并挂载。Pivot 属性单独传入。每个模型与其关联在同一事务写入。`saveMany` 和 `createMany` 按输入位置对应 Pivot 属性，在批量成功后更新已配置的关联时间戳。后续记录失败时保留先前已提交的记录。带 `Quietly` 后缀的方法抑制模型事件。`forceCreate` 和 `forceCreateQuietly` 绕过批量赋值保护，仍执行属性转换。

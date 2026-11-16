@@ -73,6 +73,15 @@ impl CastOverrides {
     }
 }
 
+pub(super) fn cast_pivot_key<M: Model>(name: &str, value: Value) -> DatabaseResult<Value> {
+    match cast_for::<M>(name, &CastOverrides::default()) {
+        Some(cast @ (AttributeCast::Integer | AttributeCast::String | AttributeCast::Enum(_))) => {
+            cast.read(&value)
+        }
+        _ => Ok(value),
+    }
+}
+
 fn cast_for<M: Model>(name: &str, overrides: &CastOverrides) -> Option<AttributeCast> {
     let metadata = M::metadata();
     overrides

@@ -912,6 +912,25 @@ pub async fn import_post<P: Model, R: Model>(
 
 `syncWithPivotValues` 為所有鍵套用同一組屬性。`syncWithPivotAttributes` 接收 `(鍵, 屬性)` 配對，為各鍵設定不同屬性。兩者均回傳附加、解除綁定和更新的鍵。同步失敗會復原本次修改。
 
+呼叫 `sync` 或 `toggle` 時，可用 `CastableEnum::intoValue()` 傳入列舉的資料庫鍵。關聯模型為關聯鍵宣告整數、字串或列舉轉換時，同步依該儲存型別比對並回傳變動。文字鍵會保留 UUID、前置零和超出有號整數範圍的數字。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, casts::CastableEnum, relations::BelongsToMany},
+};
+
+async fn sync_roles<P: Model, R: Model, E: CastableEnum>(
+    user: &P,
+    roles: &BelongsToMany<P, R>,
+    selected: E,
+) -> DatabaseResult<()> {
+    let keys = [selected.intoValue(), 6_i64.into()];
+    roles.sync(user, &keys).await?;
+    Ok(())
+}
+```
+
 ### 儲存和建立多對多模型 {#saving-many-to-many-models}
 
 用 `save` 儲存並掛載關聯模型，用 `create` 從屬性建立並掛載。Pivot 屬性獨立傳入。各模型及其關聯在同一交易寫入。`saveMany` 和 `createMany` 依輸入位置對應 Pivot 屬性，批次成功後更新已設定的關聯時間戳記。後續記錄失敗時保留先前已提交的記錄。帶有 `Quietly` 後綴的方法抑制模型事件。`forceCreate` 和 `forceCreateQuietly` 繞過批次賦值保護，仍執行屬性轉換。

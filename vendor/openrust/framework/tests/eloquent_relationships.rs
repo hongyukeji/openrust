@@ -8,7 +8,7 @@ use openrust::{
         eloquent::{
             Attributes, Builder, Collection, DynamicRelation, EagerLoads, Model, ModelMetadata,
             ModelState, NamedRelations, RelationAggregate, RelationAggregateQuery, Touches,
-            casts::AttributeCast,
+            casts::{AttributeCast, CastableEnum},
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
                 MorphMany, MorphOne, MorphPivot, MorphTarget, MorphTo, MorphToMany,
@@ -4123,6 +4123,217 @@ async fn verify_pivot_timestamps(db: &Connection, owner: &Author, first: &Value,
     assert_eq!(custom.detach(owner, None).await.unwrap(), 1);
 }
 
+enum PostLinkKey {
+    Editor,
+}
+
+impl CastableEnum for PostLinkKey {
+    fn fromValue(value: &Value) -> DatabaseResult<Self> {
+        match value {
+            Value::Integer(1) => Ok(Self::Editor),
+            _ => Err(DatabaseError::InvalidQuery("post link key")),
+        }
+    }
+
+    fn intoValue(self) -> Value {
+        match self {
+            Self::Editor => 1.into(),
+        }
+    }
+}
+
+struct TextPivotArticle(ModelState);
+
+impl Model for TextPivotArticle {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("relation_text_articles")
+            .incrementing(false)
+            .timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("id", AttributeCast::String)]
+    }
+}
+
+struct CreatedOnlyPostLink(ModelState);
+
+impl Model for CreatedOnlyPostLink {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("relation_created_links")
+            .incrementing(false)
+            .timestamps(Some("created_at"), None)
+            .fillable(&["label"]);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_pivot_key_contracts(db: &Connection, owner: &Author) -> DatabaseResult<()> {
+    const UUID: &str = "7b7306ae-5a02-46fa-a84c-9538f45c7dd4";
+    const OUTSIDE_I64: &str = "9223372036854775808";
+    const ORIGINAL_TIME: &str = "2000-01-01 00:00:00";
+    for sql in [
+        "DROP TABLE IF EXISTS relation_created_links",
+        "DROP TABLE IF EXISTS relation_text_links",
+        "DROP TABLE IF EXISTS relation_text_articles",
+        "CREATE TABLE relation_created_links (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), created_at DATETIME, PRIMARY KEY (author_id, post_id))",
+        "CREATE TABLE relation_text_articles (id VARCHAR(64) PRIMARY KEY)",
+        "CREATE TABLE relation_text_links (author_id BIGINT NOT NULL, article_id VARCHAR(64) NOT NULL, visible BIGINT DEFAULT 0, PRIMARY KEY (author_id, article_id), FOREIGN KEY (article_id) REFERENCES relation_text_articles(id))",
+    ] {
+        db.statement(sql, &[]).await?;
+    }
+
+    let numbered = BelongsToMany::<Author, Post>::new(
+        "relation_created_links",
+        "author_id",
+        "post_id",
+        "id",
+        "id",
+    )
+    .using::<CreatedOnlyPostLink>()
+    .withPivot(["label"])
+    .withTimestampColumns(Some("created_at"), None)?;
+    let editor = PostLinkKey::Editor.intoValue();
+    let sync = numbered.sync(owner, &[editor.clone(), 2.into()]).await?;
+    assert_eq!(sync.attached, [Value::Integer(1), Value::Integer(2)]);
+    assert!(sync.updated.is_empty() && sync.detached.is_empty());
+    assert_eq!(
+        numbered
+            .toggle(owner, std::slice::from_ref(&editor))
+            .await?
+            .detached
+            .as_slice(),
+        std::slice::from_ref(&editor)
+    );
+    assert_eq!(
+        numbered
+            .toggle(owner, std::slice::from_ref(&editor))
+            .await?
+            .attached
+            .as_slice(),
+        std::slice::from_ref(&editor)
+    );
+    numbered.detach(owner, None).await?;
+
+    numbered
+        .attachWith(
+            owner,
+            std::slice::from_ref(&editor),
+            Attributes::from([("label".into(), "created only".into())]),
+        )
+        .await?;
+    let row = db.table("relation_created_links").first().await?.unwrap();
+    assert_eq!(row.get("label"), Some(&"created only".into()));
+    assert!(
+        matches!(row.get("created_at"), Some(Value::Text(value)) if value.as_str() > ORIGINAL_TIME)
+    );
+    assert!(row.get("updated_at").is_none());
+    db.table("relation_created_links")
+        .update(Attributes::from([(
+            "created_at".into(),
+            ORIGINAL_TIME.into(),
+        )]))
+        .await?;
+    numbered
+        .updateExistingPivot(
+            owner,
+            &editor,
+            Attributes::from([("label".into(), "edited".into())]),
+        )
+        .await?;
+    let models = numbered.getResults(owner).await?;
+    let pivot = models[0]
+        .getRelation::<CreatedOnlyPostLink>("pivot")
+        .unwrap();
+    assert_eq!(pivot.getAttribute("label"), Some(&"edited".into()));
+    assert_eq!(
+        pivot.getAttribute("created_at"),
+        Some(&ORIGINAL_TIME.into())
+    );
+    assert!(pivot.getAttribute("updated_at").is_none());
+
+    db.table("relation_text_articles")
+        .insert(
+            &[UUID, OUTSIDE_I64, "1", "01"]
+                .map(|key| Attributes::from([("id".into(), key.into())])),
+        )
+        .await?;
+    let text = BelongsToMany::<Author, TextPivotArticle>::new(
+        "relation_text_links",
+        "author_id",
+        "article_id",
+        "id",
+        "id",
+    )
+    .withPivot(["visible"]);
+    let keys = [Value::from(UUID), OUTSIDE_I64.into(), 1.into(), "01".into()];
+    let changes = text.sync(owner, &keys).await?;
+    assert_eq!(
+        changes.attached,
+        [UUID, OUTSIDE_I64, "1", "01"].map(Value::from)
+    );
+    for model in text.getResults(owner).await? {
+        let pivot = model.getRelation::<Pivot>("pivot").unwrap();
+        assert_eq!(pivot.getAttribute("visible"), Some(&0.into()));
+    }
+    let changes = text
+        .syncWithPivotValues(
+            owner,
+            &keys,
+            Attributes::from([("visible".into(), 1.into())]),
+            true,
+        )
+        .await?;
+    assert_eq!(
+        changes.updated,
+        [UUID, OUTSIDE_I64, "1", "01"].map(Value::from)
+    );
+    let changes = text.toggle(owner, &[1.into()]).await?;
+    assert_eq!(changes.detached, [Value::from("1")]);
+    let remaining = text.getResults(owner).await?;
+    assert_eq!(remaining.len(), 3);
+    assert!(
+        remaining
+            .iter()
+            .any(|article| article.getKey() == Some(&"01".into()))
+    );
+    for model in remaining {
+        assert_eq!(
+            model
+                .getRelation::<Pivot>("pivot")
+                .unwrap()
+                .getAttribute("visible"),
+            Some(&1.into())
+        );
+    }
+    Ok(())
+}
+
 struct Membership(ModelState);
 
 impl Model for Membership {
@@ -7384,6 +7595,9 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         &second_key,
     ))
     .await;
+    Box::pin(verify_pivot_key_contracts(&db, &first))
+        .await
+        .unwrap();
     AUTHOR.associate(&mut p1, &first).unwrap();
     p1.save().await.unwrap();
     Box::pin(verify_singular_identity(

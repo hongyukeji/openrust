@@ -758,3 +758,9 @@ MySQL 8.4.13 实际 HTTP 验证默认键、升降序、替换既有键排序、�
 ## 关系、加载及集合复核
 
 [固定测试矩阵](test-matrix.md)按 05-02 的外键、预加载、查询计数、集合键和关系写入归并目前证据。关系分页复核发现四个转发入口缺口，修复与验收见 [05-06 单条和反向关系分页](../05-06/README.md#单条和反向关系分页)。动态对象共享、集合分层输入契约及未逐项核对的关系用例仍沿矩阵跟踪。
+
+## Pivot 枚举键、返回类型与仅创建时间
+
+以 `4984830e` 为隔离基线。固定 Laravel 用例覆盖带值枚举与标量混合输入、toggle 往返、字符串返回类型及自定义 Pivot 只有创建时间。Rust 用既有 `CastableEnum::intoValue()` 将枚举显式转为数据库值。同步与切换复用关联键声明的整数、字符串或枚举转换，在匹配前转换输入，并在提交前转换解绑报告。未声明转换时沿用输入或数据库键类型。字符串绑定还保留 `01` 与 `1` 的区别，避免 MySQL 的数值比较合并文本键。v0.x 用于对照分组去重和增删改报告。 [固定枚举键用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyPivotEnumKeyTest.php) · [固定返回类型用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManySyncReturnValueTypeTest.php) · [固定时间戳用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentPivotWithoutTimestampTest.php)
+
+独立 MySQL 8.4.13 实测类型化枚举同步与切换、UUID、超出 i64 的数字文本、前导零、变化报告类型及 Pivot 默认属性。物理表仅含 `created_at`，实测自定义 Pivot 新增写入创建时间，更新不改变创建时间。关系和查询计数、关系 upsert、实际分页 HTTP 三项定向回归通过。Rust 1.94.0 全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本调整。测试容器与独占构建产物已回收。
