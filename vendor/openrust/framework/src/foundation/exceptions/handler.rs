@@ -39,6 +39,9 @@ impl Handler {
     }
 
     pub(crate) async fn render_http(&self, request: &mut Request, error: &HttpError) -> Response {
+        if matches!(error, HttpError::DumpAndDie(_)) {
+            return error.bare_response();
+        }
         let exception = Exception::Http(error);
         let _ = self.report(&exception).await;
         let config = self.configuration.as_ref();

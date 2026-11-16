@@ -34,6 +34,7 @@ pub enum HttpError {
         message: String,
         headers: Box<HeaderMap>,
     },
+    DumpAndDie(String),
     Internal {
         source: Box<dyn Error + Send + Sync>,
     },
@@ -65,11 +66,17 @@ impl HttpError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
             Self::Aborted { status, .. } => *status,
-            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DumpAndDie(_) | Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     pub(crate) fn bare_response(&self) -> Response {
+        if let Self::DumpAndDie(output) = self {
+            return Response::new(self.status(), super::Body::from(output.clone())).header(
+                ::http::header::CONTENT_TYPE,
+                ::http::HeaderValue::from_static("text/plain; charset=utf-8"),
+            );
+        }
         self.with_response_headers(Response::empty(self.status()))
     }
 
@@ -122,6 +129,17 @@ impl From<crate::validation::ValidationError> for HttpError {
         match error {
             crate::validation::ValidationError::Invalid(exception) => Self::Validation(exception),
             crate::validation::ValidationError::LimitsExceeded => Self::PayloadTooLarge,
+            source => Self::Internal {
+                source: Box::new(source),
+            },
+        }
+    }
+}
+
+impl From<crate::support::CollectionError> for HttpError {
+    fn from(error: crate::support::CollectionError) -> Self {
+        match error {
+            crate::support::CollectionError::DumpAndDie(output) => Self::DumpAndDie(output),
             source => Self::Internal {
                 source: Box::new(source),
             },

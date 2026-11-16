@@ -550,6 +550,21 @@ fn main() -> Result<(), CollectionError> {
 
 Use `dumpTo(writer, context)` to choose the output. The snapshot reads the complete source and keeps the last value for a repeated key. A subsequent traversal opens the original source again. Source or output errors are returned to the caller.
 
+#### Dumping and Stopping Execution {#lazy-dump-and-stop}
+
+Use `dd()` or `ddWith(&[...])` with `?` to send the dump to the current execution boundary. In an Artisan command returning `ConsoleError`, the dump goes to standard output and the command exits with status 1.
+
+```rust
+use openrust::{console::ConsoleError, support::LazyCollection};
+
+fn inspect_import() -> Result<i32, ConsoleError> {
+    let rows = LazyCollection::from(["pending", "imported"]);
+    match rows.ddWith(&[&"import stopped"])? {}
+}
+```
+
+In a handler returning `HttpError`, the dump becomes a plain-text HTTP 500 response. The HTTP server continues serving other requests. Rust uses its normal result propagation to stop the current command or handler.
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

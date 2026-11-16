@@ -1968,3 +1968,18 @@ fn lazy_string_escape_preserves_source_errors() {
         Err(CollectionError::InvalidArgument)
     ));
 }
+
+#[test]
+fn lazy_dd_carries_the_snapshot_and_preserves_source_errors() {
+    let result = LazyCollection::from(["diagnostic"]).ddWith(&[&"context marker"]);
+    assert!(matches!(
+        result,
+        Err(CollectionError::DumpAndDie(output))
+            if output.contains("diagnostic") && output.ends_with("\"context marker\"\n")
+    ));
+    let failure = LazyCollection::<i32>::tryMake(|| [Err(CollectionError::InvalidArgument)]);
+    assert!(matches!(
+        failure.dd(),
+        Err(CollectionError::InvalidArgument)
+    ));
+}

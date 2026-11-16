@@ -267,3 +267,43 @@ async fn custom_renderers_precede_fallback_and_debug_sources_are_escaped() {
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
 }
+
+#[tokio::test]
+async fn collection_dd_responds_to_the_current_request_only() {
+    use openrust::support::LazyCollection;
+
+    fn debug_dump(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            match LazyCollection::from(["<diagnostic>"]).ddWith(&[&"request stop"])? {}
+        })
+    }
+
+    fn alive(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async { Ok(Response::new(StatusCode::OK, Body::from("ready"))) })
+    }
+
+    fn debug_routes(_: &Application) -> Result<Router, RoutingError> {
+        let mut router = Router::new();
+        router.get("/debug", debug_dump)?;
+        router.get("/alive", alive)?;
+        Ok(router)
+    }
+
+    let root = Root::new();
+    let application = Application::configure(root.0.clone())
+        .withConfig(production_config)
+        .withRouting(Routing::new(debug_routes))
+        .create()
+        .unwrap();
+    let (address, task) = server(application).await;
+    let dump = send(address, "GET", "/debug", "application/json", 500).await;
+    assert_eq!(
+        dump.header("content-type"),
+        Some("text/plain; charset=utf-8")
+    );
+    assert!(dump.body.contains("<diagnostic>"));
+    assert!(dump.body.contains("request stop"));
+    let normal = send(address, "GET", "/alive", "text/plain", 200).await;
+    assert_eq!(normal.body, "ready");
+    task.abort();
+}

@@ -340,6 +340,7 @@ pub enum CollectionError {
     MultipleItemsFound,
     Source(Box<dyn std::error::Error + Send + Sync>),
     Serialization(serde_json::Error),
+    DumpAndDie(String),
     Shared(std::sync::Arc<CollectionError>),
 }
 
@@ -352,6 +353,7 @@ impl fmt::Display for CollectionError {
             Self::MultipleItemsFound => "multiple collection items found",
             Self::Source(_) => "collection source failed",
             Self::Serialization(_) => "collection serialization failed",
+            Self::DumpAndDie(_) => "collection debugging stopped execution",
             Self::Shared(error) => return error.fmt(formatter),
         })
     }

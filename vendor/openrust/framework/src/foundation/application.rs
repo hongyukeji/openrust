@@ -235,6 +235,13 @@ impl Application {
         output: &mut Output,
         error: &(dyn Error + Send + Sync + 'static),
     ) {
+        if let Some(dump) = error
+            .downcast_ref::<crate::console::ConsoleError>()
+            .and_then(crate::console::ConsoleError::dump_output)
+        {
+            output.stdout.push_str(dump);
+            return;
+        }
         let exception = Exception::Error(error);
         let _ = self.shared.exceptions.report(&exception).await;
         self.shared.exceptions.renderForConsole(output, &exception);

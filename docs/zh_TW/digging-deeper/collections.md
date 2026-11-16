@@ -550,6 +550,21 @@ fn main() -> Result<(), CollectionError> {
 
 用 `dumpTo(writer, context)` 指定輸出。建立快照時會讀完整個來源，重複鍵保留最後一個值。後續走訪會重新開啟原始來源。來源或輸出錯誤會回傳給呼叫方。
 
+#### 輸出並停止執行 {#lazy-dump-and-stop}
+
+用 `dd()` 或 `ddWith(&[...])` 搭配 `?`，將除錯快照交給目前執行邊界。Artisan 命令回傳 `ConsoleError` 時，快照寫到標準輸出，命令以狀態碼 1 結束。
+
+```rust
+use openrust::{console::ConsoleError, support::LazyCollection};
+
+fn inspect_import() -> Result<i32, ConsoleError> {
+    let rows = LazyCollection::from(["pending", "imported"]);
+    match rows.ddWith(&[&"import stopped"])? {}
+}
+```
+
+HTTP 處理器回傳 `HttpError` 時，快照成為純文字 HTTP 500 回應。服務程序繼續處理其他請求。Rust 透過常規的結果傳遞結束目前命令或處理器。
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

@@ -210,3 +210,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 隔离基线 `ba5f1ac2b`。PHP 8.5.12 固定源码对照、76 项 Rust 集合测试和 5 项视图测试通过。覆盖现有 HTML 实体的再次转义、键与值、克隆和转换产生的新集合、来源错误及 Blade 原有转义。
 - 实际三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码公开名称对齐至 160／162，余项为 `dd` 和 `proxy`。
 - PHP 容器已回收。清理本批 3.3 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.20 GB（56.99 GiB）。证据目录为 `/private/tmp/openrust-02-09-escape.TfZ78Ud2`。
+
+## 惰性集合调试终止
+
+对照固定 Laravel [EnumeratesValues::dd](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L248) 和 [Symfony VarDumper 8.0.0 的运行入口](https://github.com/symfony/var-dumper/blob/v8.0.0/Resources/functions/dump.php)。旧版未找到对应惰性集合入口，复用当前 `dump` 的快照和输出格式。
+
+- `dd()` 和 `ddWith` 返回带调试快照的终止结果。Rust 用 `?` 在正常结果链上终止当前命令或请求。Artisan 把快照写向标准输出并返回状态码 1。HTTP 返回纯文本 500，当前 HTTP 服务可继续处理后续请求。来源失败在生成快照前传播。
+- 隔离基线 `455f4b20d`。实际 Artisan 验证状态码 1、快照及附加信息出现在标准输出、后续命令代码未运行。实际回环 HTTP 验证当前请求 500、输出内容及随后另一条请求 200。PHP 8.5.12 使用固定 Laravel、Symfony 的真实 `dd` 函数和格式化替身，验证快照参数、附加信息和状态码 1。
+- 77 项 Rust 集合测试和 3 项 HTTP 异常渲染测试通过。`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码显式公开名称已对齐 161／162，余项为 `proxy`。
+- PHP 容器已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.21 GB（57.01 GiB）。证据目录为 `/private/tmp/openrust-02-09-dd.sQbyvzLF`。

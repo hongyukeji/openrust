@@ -117,17 +117,44 @@ impl Output {
 
 /// A failure in command registration, dispatch, or execution.
 #[derive(Clone, Debug)]
-pub struct ConsoleError(String);
+pub struct ConsoleError(ConsoleFailure);
+
+#[derive(Clone, Debug)]
+enum ConsoleFailure {
+    Message(String),
+    Dump(String),
+}
 
 impl ConsoleError {
     pub fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
+        Self(ConsoleFailure::Message(message.into()))
+    }
+
+    pub(crate) fn dump_output(&self) -> Option<&str> {
+        match &self.0 {
+            ConsoleFailure::Message(_) => None,
+            ConsoleFailure::Dump(output) => Some(output),
+        }
+    }
+}
+
+impl From<crate::support::CollectionError> for ConsoleError {
+    fn from(error: crate::support::CollectionError) -> Self {
+        match error {
+            crate::support::CollectionError::DumpAndDie(output) => {
+                Self(ConsoleFailure::Dump(output))
+            }
+            error => Self::new(error.to_string()),
+        }
     }
 }
 
 impl fmt::Display for ConsoleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        match &self.0 {
+            ConsoleFailure::Message(message) => f.write_str(message),
+            ConsoleFailure::Dump(_) => f.write_str("collection debugging stopped execution"),
+        }
     }
 }
 
