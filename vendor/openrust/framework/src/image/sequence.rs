@@ -1,16 +1,20 @@
-use std::time::Duration;
+use std::sync::Arc;
 
 use ::image::{Delay, Frame, RgbaImage};
 use oxideav_heif::{
-    DecodeOptions, EncodeOptions, HeifFile, HeifImage, StillCodec,
+    DecodeOptions, HeifFile,
     boxes::{find_box, iter_boxes, payload},
-    sequence::{LoopBehaviour, Movie, Track, parse_movie},
+    props::Colr,
+    sequence::{
+        LoopBehaviour, MetadataTrackKind, Movie, SampleEntry, Track, parse_movie, sample_bytes,
+    },
 };
 
 use super::{
     Error, Format, Limits, Result,
     animation::{self, Budget, Decoded},
     codecs,
+    metadata::{FrameMetadata, Metadata},
 };
 
 pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Option<Decoded<'_>>> {
@@ -48,6 +52,7 @@ pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Opt
         }
         _ => return Err(Error::InvalidAnimationTiming),
     };
+    let metadata = read_track_metadata(&file, &movie, track, format, limits)?;
     let options = DecodeOptions::default()
         .with_max_width(Some(limits.max_dimension))
         .with_max_height(Some(limits.max_dimension))
@@ -55,13 +60,16 @@ pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Opt
         .with_max_bytes(Some(limits.max_input_bytes as u64));
     let decoded = oxideav_heif::decode_all_with(bytes, &options).map_err(error)?;
     let expected_track = track.track_id;
-    let mut pictures = decoded
+    let pictures: Vec<_> = decoded
         .into_iter()
-        .filter(move |frame| frame.track_id == Some(expected_track))
-        .peekable();
-    let first = pictures.peek().ok_or(Error::InvalidDimensions)?;
+        .filter(|frame| frame.track_id == Some(expected_track))
+        .collect();
+    if pictures.len() != track.samples.len() {
+        return Err(Error::InvalidDimensions);
+    }
+    let first = pictures.first().ok_or(Error::InvalidDimensions)?;
     let dimensions = (first.image.width(), first.image.height());
-    let frames = pictures.map(move |picture| {
+    let frames = pictures.into_iter().map(move |picture| {
         let pixels = picture.image.try_to_rgba8().map_err(error)?;
         let width = picture.image.width();
         let height = picture.image.height();
@@ -81,6 +89,7 @@ pub(super) fn decode(bytes: &[u8], format: Format, limits: Limits) -> Result<Opt
         frames: Box::new(frames),
         dimensions,
         orientation: None,
+        metadata,
         plays,
     }))
 }
@@ -108,31 +117,147 @@ fn read_movie(file: &HeifFile<&[u8]>, bytes: &[u8], format: Format) -> Result<Op
         .ok_or(Error::UnsupportedFormat)
 }
 
-pub(super) fn read_track_metadata(
+fn read_track_metadata(
     file: &HeifFile<&[u8]>,
-    bytes: &[u8],
+    movie: &Movie,
+    track: &Track,
     format: Format,
-    metadata: &mut super::metadata::Metadata,
-) -> Result<()> {
-    use oxideav_heif::props::Colr;
-
-    let Some(movie) = read_movie(file, bytes, format)? else {
-        return Ok(());
+    limits: Limits,
+) -> Result<Metadata> {
+    let primary = track.primary_entry().ok_or(Error::UnsupportedFormat)?;
+    let (exif, xmp) = track.sequence_metadata(file);
+    let mut metadata = Metadata {
+        icc: icc(primary).map(<[u8]>::to_vec),
+        exif,
+        xmp,
+        ..Metadata::default()
     };
-    let track = primary_track(&movie)?;
-    let entry = track.primary_entry().ok_or(Error::UnsupportedFormat)?;
-    if let Some(profile) = entry.colr.iter().find_map(|color| match color {
-        Colr::Icc { profile, .. } => Some(profile),
+    // The backend attaches a copy of the track metadata to each decoded picture.
+    let shared = [
+        metadata.icc.as_ref(),
+        metadata.exif.as_ref(),
+        metadata.xmp.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .map(Vec::len)
+    .sum::<usize>();
+    let mut remaining = limits
+        .max_input_bytes
+        .checked_sub(shared.saturating_mul(track.samples.len()))
+        .ok_or(Error::InputTooLarge)?;
+
+    let error = |error| codecs::codec_error(format, error);
+    let timed: Vec<_> = movie
+        .metadata_tracks_of(track.track_id)
+        .into_iter()
+        .filter_map(|track| track.metadata_kind().map(|kind| (track, kind)))
+        .collect();
+    let mut pictures: Vec<_> = track.samples.iter().collect();
+    pictures.sort_by_key(|sample| sample.pts());
+    let mut profiles = vec![None; track.sample_entries.len()];
+    for (index, picture) in pictures.iter().enumerate() {
+        let description = picture
+            .description_index
+            .checked_sub(1)
+            .ok_or(Error::UnsupportedFormat)? as usize;
+        let entry = track
+            .sample_entries
+            .get(description)
+            .ok_or(Error::UnsupportedFormat)?;
+        let profile = icc(entry);
+        let mut frame = FrameMetadata::default();
+        // The backend uses one visual configuration for the whole track.
+        if description != 0 && !same_configuration(entry, primary) {
+            return Err(Error::UnsupportedFormat);
+        }
+        if profile != icc(primary) {
+            frame.icc = Some(
+                profiles[description]
+                    .get_or_insert_with(|| profile.map(Arc::from))
+                    .clone(),
+            );
+        }
+        for &(timeline, kind) in &timed {
+            let Some(at) = timeline.sample_index_at(picture.pts(), track.timescale) else {
+                continue;
+            };
+            // Prefer one-to-one alignment for parallel timelines with the same
+            // timestamp (zero-duration samples may share a presentation time).
+            let backend_sample = &timeline.samples[at];
+            let aligned = timeline.timescale == track.timescale
+                && timeline.samples.len() == pictures.len()
+                && timeline.samples[index].dts == picture.pts()
+                && timeline.samples[index].duration == picture.duration;
+            let sample = if aligned {
+                &timeline.samples[index]
+            } else {
+                backend_sample
+            };
+            remaining = remaining
+                .checked_sub(sample.size.max(backend_sample.size) as usize)
+                .ok_or(Error::InputTooLarge)?;
+            if !aligned
+                && u128::from(picture.pts()) * u128::from(timeline.timescale.max(1))
+                    >= (u128::from(sample.dts) + u128::from(sample.duration))
+                        * u128::from(track.timescale.max(1))
+            {
+                continue;
+            }
+            let data = sample_bytes(file, sample).map_err(error)?;
+            if data.is_empty() {
+                continue;
+            }
+            match kind {
+                MetadataTrackKind::Exif if data.len() > 4 => {
+                    frame.exif = Some(oxideav_heif::meta::exif_payload(data).map_err(error)?);
+                }
+                MetadataTrackKind::Xmp => frame.xmp = Some(data.to_vec()),
+                _ => {}
+            }
+        }
+        metadata.frames.push(frame);
+    }
+    // A cover-only profile must not become the default for unprofiled samples
+    // of a track that explicitly changes profiles.
+    if metadata.icc.is_none() && metadata.frames.iter().any(|frame| frame.icc.is_some()) {
+        for frame in &mut metadata.frames {
+            frame.icc.get_or_insert(None);
+        }
+    }
+    if metadata
+        .frames
+        .iter()
+        .all(|f| f.icc.is_none() && f.exif.is_none() && f.xmp.is_none())
+    {
+        metadata.frames.clear();
+    }
+    Ok(metadata)
+}
+
+fn icc(entry: &SampleEntry) -> Option<&[u8]> {
+    entry.colr.iter().find_map(|color| match color {
+        Colr::Icc { profile, .. } => Some(profile.as_slice()),
         _ => None,
-    }) {
-        metadata.icc = Some(profile.clone());
-    }
-    if metadata.exif.is_none() || metadata.xmp.is_none() {
-        let (exif, xmp) = track.sequence_metadata(file);
-        metadata.exif = metadata.exif.take().or(exif);
-        metadata.xmp = metadata.xmp.take().or(xmp);
-    }
-    Ok(())
+    })
+}
+
+fn same_configuration(entry: &SampleEntry, primary: &SampleEntry) -> bool {
+    entry.entry_type == primary.entry_type
+        && entry.data_reference_index == primary.data_reference_index
+        && entry.width == primary.width
+        && entry.height == primary.height
+        && entry.hvcc == primary.hvcc
+        && entry.av1c == primary.av1c
+        && entry.avcc == primary.avcc
+        && entry.lhvc == primary.lhvc
+        && entry.vvcc == primary.vvcc
+        && entry.clap == primary.clap
+        && entry
+            .colr
+            .iter()
+            .filter(|c| !c.is_icc())
+            .eq(primary.colr.iter().filter(|c| !c.is_icc()))
 }
 
 fn check_sample_tables(movie: &[u8], format: Format) -> Result<()> {
@@ -186,128 +311,4 @@ fn read_u32(bytes: &[u8], offset: usize) -> Result<u32> {
     Ok(u32::from_be_bytes(
         value.try_into().expect("slice has four bytes"),
     ))
-}
-
-pub(super) fn encode(
-    frames: Vec<Frame>,
-    format: Format,
-    quality: u8,
-    plays: u32,
-    metadata: &super::metadata::Metadata,
-) -> Result<Vec<u8>> {
-    let error = move |error| codecs::codec_error(format, error);
-    let options = EncodeOptions::default()
-        .with_codec(StillCodec::Hevc)
-        .with_qp(((100 - u32::from(quality)) * 51 / 100) as u8)
-        .with_icc_profile(metadata.icc.clone())
-        .with_exif(metadata.exif.clone())
-        .with_xmp(
-            metadata
-                .xmp
-                .as_ref()
-                .and_then(|xmp| String::from_utf8(xmp.clone()).ok()),
-        );
-    let mut segment = 0u64;
-    let has_alpha = frames
-        .iter()
-        .any(|frame| frame.buffer().pixels().any(|pixel| pixel[3] != 255));
-    let mut frames = frames
-        .into_iter()
-        .map(|frame| {
-            let ticks = animation::ticks(frame.delay(), 1);
-            segment += ticks;
-            let buffer = frame.into_buffer();
-            let (width, height) = buffer.dimensions();
-            let image = if has_alpha {
-                HeifImage::from_rgba8(width, height, buffer.into_raw())
-            } else {
-                let rgb = ::image::DynamicImage::ImageRgba8(buffer).into_rgb8();
-                HeifImage::from_rgb8(width, height, rgb.into_raw())
-            }
-            .map_err(error)?;
-            Ok(oxideav_heif::Frame::new(
-                image,
-                Some(Duration::from_millis(ticks)),
-                None,
-                None,
-            ))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    if !metadata.is_empty() {
-        frames.push(oxideav_heif::Frame::new(
-            frames[0].image.clone(),
-            None,
-            None,
-            None,
-        ));
-    }
-    let mut bytes = oxideav_heif::encode_all(&frames, &options).map_err(error)?;
-    write_play_count(&mut bytes, segment, plays, format)?;
-    Ok(bytes)
-}
-
-fn write_play_count(bytes: &mut Vec<u8>, segment: u64, plays: u32, format: Format) -> Result<()> {
-    let error = move |error| codecs::codec_error(format, error);
-    let (header, movie) = find_box(bytes, b"moov")
-        .map_err(error)?
-        .ok_or(Error::UnsupportedFormat)?;
-    let segment = u32::try_from(segment).map_err(|_| Error::InvalidAnimationTiming)?;
-    let duration = if plays == 0 {
-        u32::MAX
-    } else {
-        segment
-            .checked_mul(plays)
-            .filter(|&duration| duration < u32::MAX)
-            .ok_or(Error::InvalidAnimationTiming)?
-    };
-    if segment == 0 && plays > 1 {
-        return Err(Error::InvalidAnimationTiming);
-    }
-    // Write the replacement movie after the media. The free box retains all original sample offsets.
-    let mut replacement = Vec::new();
-    for child in iter_boxes(movie) {
-        let child = child.map_err(error)?;
-        let mut body = payload(movie, &child).to_vec();
-        match &child.box_type {
-            b"mvhd" => set_duration(&mut body, 16, duration)?,
-            b"trak" => {
-                let (track, _) = find_box(&body, b"tkhd")
-                    .map_err(error)?
-                    .ok_or(Error::UnsupportedFormat)?;
-                set_duration(&mut body[track.payload_start..track.end()], 20, duration)?;
-                let mut edit = vec![0, 0, 0, u8::from(plays != 1)];
-                edit.extend_from_slice(&1u32.to_be_bytes());
-                edit.extend_from_slice(&segment.to_be_bytes());
-                edit.extend_from_slice(&0u32.to_be_bytes());
-                edit.extend_from_slice(&0x10000u32.to_be_bytes());
-                let mut edits = Vec::new();
-                push_box(&mut edits, b"elst", &edit)?;
-                push_box(&mut body, b"edts", &edits)?;
-            }
-            _ => {}
-        }
-        push_box(&mut replacement, &child.box_type, &body)?;
-    }
-    bytes[header.start + 4..header.start + 8].copy_from_slice(b"free");
-    push_box(bytes, b"moov", &replacement)
-}
-
-fn set_duration(bytes: &mut [u8], offset: usize, duration: u32) -> Result<()> {
-    // SequenceWriter emits version-zero movie and track headers.
-    if bytes.first() != Some(&0) {
-        return Err(Error::UnsupportedFormat);
-    }
-    bytes
-        .get_mut(offset..offset + 4)
-        .ok_or(Error::InvalidDimensions)?
-        .copy_from_slice(&duration.to_be_bytes());
-    Ok(())
-}
-
-fn push_box(output: &mut Vec<u8>, name: &[u8; 4], body: &[u8]) -> Result<()> {
-    let size = u32::try_from(body.len() + 8).map_err(|_| Error::AnimationTooLarge)?;
-    output.extend_from_slice(&size.to_be_bytes());
-    output.extend_from_slice(name);
-    output.extend_from_slice(body);
-    Ok(())
 }

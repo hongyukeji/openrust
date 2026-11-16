@@ -859,3 +859,124 @@ async fn preserves_jpeg_iptc_and_comments_after_a_transform() {
     let png = image.toPng().toBytes().await.unwrap();
     assert!(!png.windows(photoshop.len()).any(|part| part == photoshop));
 }
+
+#[tokio::test]
+async fn preserves_external_heif_metadata_on_the_original_display_frames() {
+    use oxideav_heif::{
+        HeifFile,
+        props::Colr,
+        sequence::{LoopBehaviour, MetadataTrackKind, parse_movie, sample_bytes},
+    };
+
+    fn read_frames(contents: &[u8], repeat: LoopBehaviour) -> Vec<[Vec<u8>; 3]> {
+        let file = HeifFile::parse_borrowed(contents).unwrap();
+        let movie = parse_movie(&file).unwrap().unwrap();
+        let track = movie.visual_tracks().next().unwrap();
+        let linked = movie.metadata_tracks_of(track.track_id);
+        assert_eq!(linked.len(), 2);
+        assert_eq!(track.loop_behaviour(), repeat);
+        let mut pictures: Vec<_> = track.samples.iter().collect();
+        pictures.sort_by_key(|sample| sample.pts());
+        assert_eq!(pictures.len(), 3);
+        pictures
+            .into_iter()
+            .zip([40, 90, 180])
+            .enumerate()
+            .map(|(index, (sample, delay))| {
+                assert_eq!(sample.duration * 1000, delay * track.timescale);
+                let entry = &track.sample_entries[sample.description_index as usize - 1];
+                let profile = entry
+                    .colr
+                    .iter()
+                    .find_map(|color| match color {
+                        Colr::Icc { profile, .. } => Some(profile),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(&profile[48..52], format!("FRM{index}").as_bytes());
+                let get_timed = |kind| {
+                    let metadata = linked
+                        .iter()
+                        .find(|metadata| metadata.metadata_kind() == Some(kind))
+                        .unwrap();
+                    let timed = &metadata.samples[index];
+                    assert_eq!(
+                        timed.pts() * u64::from(track.timescale),
+                        sample.pts() * u64::from(metadata.timescale)
+                    );
+                    assert_eq!(timed.duration * 1000, delay * metadata.timescale);
+                    sample_bytes(&file, timed).unwrap().to_vec()
+                };
+                let exif = get_timed(MetadataTrackKind::Exif);
+                let artist = format!("frame {index} artist");
+                assert!(
+                    exif.windows(artist.len())
+                        .any(|bytes| bytes == artist.as_bytes())
+                );
+                let xmp = get_timed(MetadataTrackKind::Xmp);
+                assert_eq!(
+                    xmp,
+                    format!("<x:xmpmeta xmlns:x='adobe:ns:meta/' id='frame {index}'/>").as_bytes()
+                );
+                [
+                    profile.clone(),
+                    oxideav_heif::meta::exif_payload(&exif).unwrap(),
+                    xmp,
+                ]
+            })
+            .collect()
+    }
+
+    let manager = ImageManager::new(Limits::default());
+    for (fixture, original, loops, plays) in [
+        (
+            include_bytes!("fixtures/heif_sequences/frame-metadata.avif").as_slice(),
+            Format::Avif,
+            LoopBehaviour::Times(3),
+            3,
+        ),
+        (
+            include_bytes!("fixtures/heif_sequences/frame-metadata.heic").as_slice(),
+            Format::Heic,
+            LoopBehaviour::Forever,
+            0,
+        ),
+    ] {
+        let input = read_frames(fixture, loops);
+        for target in [Format::Avif, Format::Heic] {
+            let converted = manager
+                .fromBytes(fixture.to_vec())
+                .resize(Some(20), Some(14))
+                .flipHorizontally()
+                .encode(target)
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap_or_else(|error| panic!("{original:?} to {target:?}: {error}"));
+            assert_eq!(read_frames(&converted, loops), input);
+            let source = manager.fromBytes(converted);
+            assert_eq!(source.dimensions().await.unwrap(), (20, 14));
+            let restored = source
+                .clone()
+                .encode(original)
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap();
+            assert_eq!(read_frames(&restored, loops), input);
+            let webp = source.toWebp().quality(100).toBytes().await.unwrap();
+            assert_eq!(
+                oxideav_webp::animation_params(&webp).unwrap().unwrap().0,
+                plays
+            );
+            for (index, frame) in frames_for(&webp, Format::Webp).iter().enumerate() {
+                let pixel = frame.buffer().get_pixel(9, 6);
+                assert!(
+                    pixel[index] > 190,
+                    "{original:?} to {target:?}, frame {index}: {pixel:?}"
+                );
+                assert_eq!(frame.delay().numer_denom_ms(), ([40, 90, 180][index], 1));
+            }
+        }
+    }
+}

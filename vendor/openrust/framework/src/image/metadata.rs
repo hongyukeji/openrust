@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::{io::Cursor, sync::Arc};
 
 use ::image::{ImageDecoder, ImageReader, metadata::Orientation};
 
@@ -10,9 +10,35 @@ pub(super) struct Metadata {
     pub exif: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
     pub jpeg_profiles: Vec<u8>,
+    pub frames: Vec<FrameMetadata>,
+    pub track_exif: Option<Vec<u8>>,
+    pub track_xmp: Option<Vec<u8>>,
+}
+
+#[derive(Default)]
+pub(super) struct FrameMetadata {
+    /// Outer option indicates that this sample description overrides the track ICC.
+    pub icc: Option<Option<Arc<[u8]>>>,
+    pub exif: Option<Vec<u8>>,
+    pub xmp: Option<Vec<u8>>,
 }
 
 impl Metadata {
+    pub(super) fn merge_track(&mut self, track: Self) {
+        self.icc = track.icc.or(self.icc.take());
+        if self.exif.is_some() {
+            self.track_exif = track.exif;
+        } else {
+            self.exif = track.exif;
+        }
+        if self.xmp.is_some() {
+            self.track_xmp = track.xmp;
+        } else {
+            self.xmp = track.xmp;
+        }
+        self.frames = track.frames;
+    }
+
     pub(super) fn read(bytes: &[u8], format: Format, limits: Limits) -> Result<Self> {
         match format {
             Format::Avif | Format::Heic => {
@@ -26,7 +52,6 @@ impl Metadata {
                     (metadata.exif, metadata.xmp) =
                         metadata_items(&file, meta, meta.metadata_of(item.id));
                 }
-                super::sequence::read_track_metadata(&file, bytes, format, &mut metadata)?;
                 Ok(metadata)
             }
             Format::Jpeg | Format::Png | Format::Webp => {
@@ -44,6 +69,7 @@ impl Metadata {
                     } else {
                         Vec::new()
                     },
+                    ..Self::default()
                 })
             }
             Format::Jxl => super::jxl_sequence::metadata(bytes, limits),

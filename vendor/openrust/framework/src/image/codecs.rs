@@ -174,7 +174,7 @@ pub(super) fn encode(
                 ::image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut bytes, 8, quality)
                     .with_num_threads(Some(1));
             image.write_with_encoder(encoder).map_err(Error::Encoding)?;
-            return super::avif_sequence::embed_still(bytes, metadata);
+            return super::heif_encoder::embed_still(bytes, metadata);
         }
         Format::Png => {
             let mut encoder = ::image::codecs::png::PngEncoder::new(&mut bytes);

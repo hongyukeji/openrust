@@ -49,6 +49,7 @@ pub(super) struct Decoded<'a> {
     pub frames: Box<dyn Iterator<Item = Result<Frame>> + 'a>,
     pub dimensions: (u32, u32),
     pub orientation: Option<Orientation>,
+    pub metadata: Metadata,
     /// Total plays, with zero representing infinite playback.
     pub plays: u32,
 }
@@ -93,6 +94,7 @@ pub(super) fn decode(
                 plays: total_plays(decoder.loop_count()),
                 dimensions,
                 orientation,
+                metadata: Metadata::default(),
                 frames: Box::new(
                     decoder
                         .into_frames()
@@ -132,6 +134,7 @@ fn from_decoder<'a>(
         plays: plays.unwrap_or_else(|| total_plays(decoder.loop_count())),
         dimensions,
         orientation,
+        metadata: Metadata::default(),
         frames: Box::new(
             decoder
                 .into_frames()
@@ -170,9 +173,8 @@ pub(super) fn encode(
         Format::Gif => encode_gif(frames, plays),
         Format::Png if animated => encode_apng(frames, plays, metadata),
         Format::Webp if animated => encode_webp(frames, plays, quality, metadata),
-        Format::Avif if animated => super::avif_sequence::encode(frames, quality, plays, metadata),
-        Format::Heic if animated => {
-            super::sequence::encode(frames, format, quality, plays, metadata)
+        Format::Avif | Format::Heic if animated => {
+            super::heif_encoder::encode(frames, format, quality, plays, metadata)
         }
         Format::Jxl if animated => super::jxl_sequence::encode(frames, quality, plays, metadata),
         _ => {

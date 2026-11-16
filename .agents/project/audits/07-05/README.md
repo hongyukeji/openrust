@@ -52,6 +52,14 @@
 - 读取 AVIF 或 HEIC 序列时，主轨道的 ICC 优先于封面 ICC。主轨道的序列级 EXIF 和 XMP 在封面缺少相应字段时补齐。样本表经过帧数预检后读取。Imagick 序列解码器从帧提取 ICC。 [ImageMagick HEIF 序列实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/heic.c)
 - 13 项 Images 回归、全工作区全目标严格 Clippy、三语文档构建及 12 项浏览器检查通过。真实 HTTP 和 Artisan 使用移除封面的 AVIF 与 HEIC 样本转为 WebP。Pillow 独立验证两个输出都保留 ICC、三帧、40／90／180 毫秒、三轮播放和 12×16 像素尺寸。AVIF 另外保留轨道级 EXIF 作者、方向和 XMP。
 
-## 剩余验收
+## AVIF 与 HEIC 逐帧元数据
 
-07-05 保持开放。外部 HEIF 序列在切换样本描述或使用并行元数据样本时，帧各自的 ICC、EXIF 和 XMP 仍待往返验收。当前编解码路径以主轨道的首个样本描述和序列级元数据为单位。JPEG XL 序列解码覆盖灰度、RGB 及其透明度通道。HEIF 序列覆盖单主轨道和辅助透明度轨道。固定 Laravel 将实际编解码交给 GD 或 Imagick，私有块和 JUMBF 没有统一的跨格式契约。
+- 固定 Laravel v13.40.0 调用 Intervention 4.2。Imagick 的 AVIF 与 HEIC 编码器在开启 strip 时清除元数据，并通过 `getImagesBlob()` 输出序列。Rust 原生驱动按视觉样本描述读取原始 ICC，按显示时间关联 `cdsc` 元数据轨道的 EXIF 和 XMP。重新编码时给可改变 ICC 的样本分配对应描述，并保持元数据采样和图像采样的延迟一致。封面与主轨道各自的 EXIF 和 XMP 保留原有优先级。旧版 `v0.x` 有 AVIF／HEIC 序列的 MIME 映射。 [固定 Laravel 驱动](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image/Drivers/InterventionDriver.php) [Intervention AVIF](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/AvifEncoder.php) [Intervention HEIC](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/HeicEncoder.php)
+- 两份外部样本由 FFmpeg 的 SVT-AV1 和 x265 编码，每份都含红、绿、蓝三帧，且三帧的 ICC、EXIF 作者和 XMP 各不相同。真实 HTTP 对两种输入都执行缩放和翻转，并分别输出 AVIF、HEIC。实际 Artisan 再转回输入格式，另经 `./artisan` 包装器复验。Rust 回归核对三类元数据的原始字节。独立容器读取器核对样本描述和元数据轨道，FFprobe 核对 40／90／180 毫秒帧延迟，Pillow 读取派生 WebP 核对画面顺序、20×14 尺寸、三轮及无限播放。
+- Apple Silicon macOS、Rust 1.94.0。14 项 `cargo +1.94.0 test --locked -p openrust-framework --test images` 通过。隔离工作区 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings` 通过。变更文件格式检查和 `git diff --check` 通过。全仓格式检查报告已有的 Sanctum 测试排版差异。三语 VitePress 构建及 12 项浏览器检查通过，构建结果包含三语 Images 元数据锚点。
+
+## 07-05 整单元验收
+
+复核固定 Images 页的输入、变换、编码、存储、检查和驱动扩展。03-01 的公共磁盘写入与回读及 04-02 的实际 multipart 入口已在 Images 集成验收中覆盖。静态格式、动画时序、图像级和逐帧元数据均有专项验收记录。07-05 核心单元闭合。
+
+内置驱动使用纯 Rust 编解码和类型化驱动扩展。HEIF 序列支持一条主时序轨道和辅助透明度轨道，逐帧 ICC 更换适用于共用编码配置、尺寸和色彩信号的样本描述。AVIF 与 HEIC 保存逐帧 ICC、EXIF 和 XMP。动画 PNG、WebP 和 JPEG XL 使用各格式的全局元数据字段。JPEG XL 序列解码覆盖灰度、RGB 及其透明度通道。任意角度旋转采用最近邻采样。固定 Laravel 的 GD 和 Imagick 委托具有各自的编解码能力，私有块与 JUMBF 的跨格式迁移属于委托能力。

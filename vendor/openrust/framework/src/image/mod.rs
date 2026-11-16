@@ -1,15 +1,16 @@
 //! Lazy image loading, transformations, and encoding.
 
 mod animation;
-mod avif_sequence;
 mod codecs;
 mod facade;
+mod heif_encoder;
 mod image_pipeline;
 mod instance;
 mod jxl_sequence;
 mod metadata;
 mod native_driver;
 mod sequence;
+mod sequence_profiles;
 
 pub(crate) use facade::ImageServiceProvider;
 pub use facade::{ImageFacade, ImageManager};

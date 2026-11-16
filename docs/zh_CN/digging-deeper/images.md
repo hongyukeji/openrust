@@ -32,6 +32,8 @@ GIF、动画 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在变换和转换�
 
 内置驱动在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的变换与转换中携带 EXIF、ICC 配置文件和 XMP。当 `orient()` 应用 JPEG、PNG 或 WebP 的 EXIF 方向时，输出将方向字段重置为正向，并保留其他 EXIF 字节。HEIF 动画输出将这些字段写入封面图像。读取 AVIF 或 HEIC 序列时，主轨道有 ICC 配置文件则优先使用。封面缺少 EXIF 或 XMP 时，从主轨道读取对应字段。JPEG 变换后继续输出 JPEG 时，也会保留包含 IPTC 的 Photoshop APP13 配置和 JPEG 注释。这些段保留在 JPEG 容器中。
 
+AVIF 与 HEIC 序列的变换和相互转换保留每个显示帧各自的 ICC、EXIF 和 XMP。ICC 随图像样本描述，EXIF 和 XMP 通过关联的元数据轨道按显示时间匹配到原帧。转为动画 PNG、WebP 或 JPEG XL 时使用这些格式的全局元数据字段。
+
 ## 存储图像 {#storing-images}
 
 `store` 按编码格式生成文件名。`storeAs` 使用指定文件名，`storePublicly` 和 `storePubliclyAs` 请求公开可见性。磁盘写入成功后返回存储路径。

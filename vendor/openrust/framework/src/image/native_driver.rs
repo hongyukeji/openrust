@@ -34,9 +34,10 @@ impl Driver for NativeDriver {
             metadata.normalize_orientation();
         }
 
-        let (bytes, dimensions) = if let Some(animation) =
+        let (bytes, dimensions) = if let Some(mut animation) =
             animation::decode(&contents, original, limits, oriented)?
         {
+            metadata.merge_track(std::mem::take(&mut animation.metadata));
             let plays = animation.plays;
             let dimensions = animation.dimensions;
             let frames = transform_frames(animation, pipeline, limits, format, passthrough)?;

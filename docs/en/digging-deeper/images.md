@@ -32,6 +32,8 @@ The driver bounds animated inputs and outputs to 1,024 frames and 96 million tot
 
 The built-in driver carries EXIF, ICC profiles, and XMP through transformations and conversions among JPEG, PNG, WebP, AVIF, HEIC, and JPEG XL. When `orient()` applies the EXIF direction from JPEG, PNG, or WebP, the output resets the direction tag to upright and retains the other EXIF bytes. Animated HEIF output stores these fields on the cover image. When reading an AVIF or HEIC sequence, the driver uses the main track's ICC profile when present and falls back to its track-level EXIF and XMP if the cover lacks those fields. JPEG-to-JPEG transformations also retain Photoshop APP13 profiles, including IPTC, and JPEG comments. These JPEG segments stay in the JPEG container.
 
+Transforms and conversions between AVIF and HEIC sequences keep each displayed frame’s ICC profile, EXIF and XMP. ICC profiles follow the visual sample descriptions. EXIF and XMP follow linked metadata tracks on the presentation timeline. Conversions to animated PNG, WebP or JPEG XL use their shared metadata fields.
+
 ## Storing images {#storing-images}
 
 `store` generates a filename using the encoded extension. Use `storeAs` to supply the filename, or `storePublicly` and `storePubliclyAs` to request public visibility. These methods return the stored path when the disk reports success.

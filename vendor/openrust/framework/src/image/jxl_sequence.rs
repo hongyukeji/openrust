@@ -77,6 +77,7 @@ pub(super) fn decode(contents: &[u8], limits: Limits) -> Result<Option<Decoded<'
         frames: Box::new(frames),
         dimensions,
         orientation: None,
+        metadata: Default::default(),
         plays,
     }))
 }
