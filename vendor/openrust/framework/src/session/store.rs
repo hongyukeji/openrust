@@ -1,10 +1,20 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use serde_json::Map;
 
 use crate::contracts::session::{Session, SessionHandler};
 
 use super::{SessionError, SessionFuture, SessionResult, Value};
+
+type Attributes = BTreeMap<String, Value>;
+pub(crate) type CacheAttributes = Arc<Mutex<Attributes>>;
+
+// Session's attributes API lends references. Cache values are shared separately
+// with the request's repository and saved in the same session payload.
+const CACHE_PAYLOAD_KEY: &str = "\0session.cache";
 
 pub(super) const MAX_PAYLOAD_BYTES: usize = 1024 * 1024;
 const ID_LENGTH: usize = 40;
@@ -19,7 +29,8 @@ pub struct Store {
     name: String,
     id: String,
     handler: Box<dyn SessionHandler>,
-    attributes: BTreeMap<String, Value>,
+    attributes: Attributes,
+    cache: CacheAttributes,
     started: bool,
 }
 
@@ -29,11 +40,29 @@ impl Store {
             name: String::new(),
             id: random_id()?,
             handler,
-            attributes: BTreeMap::new(),
+            attributes: Attributes::new(),
+            cache: Arc::default(),
             started: false,
         };
         store.setName(&name.into())?;
         Ok(store)
+    }
+
+    /// Returns the cache repository for the current HTTP session.
+    pub fn cache(&self) -> crate::cache::CacheResult<Arc<crate::cache::Repository>> {
+        use crate::{
+            cache::CacheError, http::request_context, support::facades::current_container,
+        };
+
+        let active = current_container()
+            .and_then(|owner| request_context::session_cache(&owner))
+            .filter(|cache| Arc::ptr_eq(cache, &self.cache));
+        active.ok_or(CacheError::SessionUnavailable)?;
+        crate::cache::Cache::store(Some("session"))
+    }
+
+    pub(crate) fn cache_attributes(&self) -> &CacheAttributes {
+        &self.cache
     }
 
     pub async fn gc(&mut self, lifetime: std::time::Duration) -> SessionResult<Option<u64>> {
@@ -159,8 +188,13 @@ impl Session for Store {
                 if payload.len() > MAX_PAYLOAD_BYTES {
                     return Err(SessionError::PayloadTooLarge);
                 }
-                if let Ok(attributes) = serde_json::from_slice::<BTreeMap<String, Value>>(&payload)
-                {
+                if let Ok(mut attributes) = serde_json::from_slice::<Attributes>(&payload) {
+                    if let Some(Value::Object(cache)) = attributes.remove(CACHE_PAYLOAD_KEY) {
+                        self.cache
+                            .lock()
+                            .expect("session cache poisoned")
+                            .extend(cache);
+                    }
                     self.attributes.extend(attributes);
                 }
             }
@@ -185,11 +219,19 @@ impl Session for Store {
                 Value::Array(new.into_iter().map(Value::String).collect()),
             );
             insert(&mut attributes, "_flash.new", Value::Array(Vec::new()));
+            let cache = {
+                let cache = self.cache.lock().expect("session cache poisoned");
+                (!cache.is_empty()).then(|| Value::Object(cache.clone().into_iter().collect()))
+            };
+            if let Some(cache) = cache {
+                attributes.insert(CACHE_PAYLOAD_KEY.into(), cache);
+            }
             let payload = serde_json::to_vec(&attributes).map_err(|_| SessionError::Encoding)?;
             if payload.len() > MAX_PAYLOAD_BYTES {
                 return Err(SessionError::PayloadTooLarge);
             }
             self.handler.write(&self.id, &payload).await?;
+            attributes.remove(CACHE_PAYLOAD_KEY);
             self.attributes = attributes;
             self.started = false;
             Ok(())
@@ -227,6 +269,7 @@ impl Session for Store {
 
     fn flush(&mut self) {
         self.attributes.clear();
+        self.cache.lock().expect("session cache poisoned").clear();
     }
 
     fn flash(&mut self, key: &str, value: Value) -> SessionResult<()> {
@@ -314,7 +357,7 @@ fn child<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
-fn insert(attributes: &mut BTreeMap<String, Value>, key: &str, value: Value) {
+pub(crate) fn insert(attributes: &mut BTreeMap<String, Value>, key: &str, value: Value) {
     if let Some((root, rest)) = key.split_once('.') {
         let mut parent = attributes.entry(root.to_owned()).or_insert(Value::Null);
         let mut segments = rest.split('.').peekable();
@@ -344,7 +387,7 @@ fn insert(attributes: &mut BTreeMap<String, Value>, key: &str, value: Value) {
     }
 }
 
-fn remove(attributes: &mut BTreeMap<String, Value>, key: &str) -> Option<Value> {
+pub(crate) fn remove(attributes: &mut BTreeMap<String, Value>, key: &str) -> Option<Value> {
     if let Some(value) = attributes.remove(key) {
         return Some(value);
     }

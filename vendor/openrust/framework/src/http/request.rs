@@ -196,10 +196,12 @@ impl Request {
 
     #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
     pub(crate) fn setLaravelSession(&mut self, session: crate::session::Store) {
+        context::set_session_cache(self, Some(session.cache_attributes().clone()));
         self.session = Some(session);
     }
 
     pub(crate) fn take_session(&mut self) -> Option<crate::session::Store> {
+        context::set_session_cache(self, None);
         self.session.take()
     }
 

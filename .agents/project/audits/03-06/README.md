@@ -88,3 +88,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - Rust 使用 JSON 记录和毫秒 TTL，按类型验证计数。读取过期或损坏记录时返回未命中，保留文件供覆盖或显式清理，避免读取过程中误删并发更新。符合 Laravel 的磁盘驱动边界，读改写没有跨进程原子性，此驱动不支持标签与锁。
 - 基线 `0301207c7`。固定 Laravel PHP 在受控磁盘和时钟上对照键形、TTL、计数和清理范围。Rust 使用真实本地磁盘、RustFS 1.0.5、MySQL 8.4.13 与 Redis 8.10.3 验收。S3 分页读取 1002 个对象并保留相邻前缀；实际 Artisan 清理测试覆盖本地、S3、删除单键与缓存范围。隔离二进制通过实际 HTTP 写入、读回及另一个 Artisan 进程清理。
 - macOS arm64、Rust 1.94.0，27 项缓存、驱动、事件和 memo 回归通过，本地空路径清理额外复验。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。临时容器已回收，清理 4.1 GiB 本批 Cargo 产物和文档缓存后，项目盘可用 60.11 GB（55.99 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-storage-cache.jLfFS5pO`。
+
+## 会话缓存
+
+- 对照固定 Laravel [Session Cache](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md#session-cache)、[SessionStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/SessionStore.php) 及 [CacheManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/CacheManager.php#L382)。openrust-v0.x 仅记录待实现。复用现有缓存仓库、会话驱动与会话属性的点路径操作。
+- `request.session()?.cache()?` 解析具名的 `session` 仓库，应用级仓库每次操作按所属应用和当前请求取会话。缓存沿用会话持久化、加密和生命周期，记录使用 OpenRust 的 JSON／字节格式与毫秒时间。缓存命名空间单独保存在会话载荷中，Rust 的普通会话属性仍可借用引用。过期读取移除条目，计数保留过期时间，清理当前缓存空间保留其他空间和普通属性。续期、清理与计数的变更在当前会话内同步完成。无活跃 HTTP 会话返回 `SessionUnavailable`，缓存标签及分布式锁沿用不支持边界。
+- 隔离基线 `bed2da324`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 受控时钟验证过期、计数、续期、点路径及会话和命名空间隔离。`cargo test -p openrust-framework --test session_http --locked --offline -- --test-threads=1` 通过 8 项真实 HTTP 用例，其中两项通过实际 Cookie 验证 array／MySQL 8.4.13 跨请求读取、相同键隔离、二进制缓存、会话 ID 轮换与失效，以及命名空间清理。MySQL 与 Redis 8.10.3 的会话阻塞回归通过。
+- `cargo test --test cache --test cache_drivers --test cache_events --locked --offline -- --test-threads=1` 和 `cargo test -p openrust-framework --test cache_memo --locked --offline` 覆盖 27 项缓存用例，其中两个条件用例另用双 Redis 和 RustFS 夹具实跑。实际 `main artisan inspire` 成功，`main artisan cache:clear session` 在没有 HTTP 会话时明确失败并返回退出码 1。
+- 变更文件格式和严格 Clippy 通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。三语 VitePress、12 项站点浏览器检查、6 项缓存页到会话页链接导航及三语 Rust 示例编译通过。
+- 临时容器全部回收。清理本批 4.2 GiB 隔离 Cargo 产物和本批文档缓存后，项目盘可用 60.05 GB（55.93 GiB），周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-session-cache.PN9qbnef`。

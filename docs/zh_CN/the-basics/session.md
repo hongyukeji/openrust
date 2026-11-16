@@ -34,6 +34,28 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `regenerate(true)` 删除存储中的旧 ID、保留会话属性并轮换 CSRF 令牌。用 `invalidate()` 清空会话属性并轮换 ID。
 
+## 会话缓存 {#session-cache}
+
+在已启动会话的路由中调用 `request.session()?.cache()?`。它与 `Cache::store(Some("session"))` 取得同一个仓库。缓存条目随当前会话保存，支持常用缓存操作和过期时间。`flush()` 只清除当前缓存命名空间，保留普通会话属性和其他缓存命名空间。重新生成会话 ID 会保留缓存，使会话失效则会清空缓存。
+
+```rust
+use openrust::{
+    cache::Ttl,
+    contracts::cache::Repository as _,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+};
+
+fn cache_banner(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let cache = request.session()?.cache()?;
+        cache.put("dashboard.banner", &"ready".into(), Some(Ttl::Seconds(300))).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+```
+
+`SESSION_CACHE_KEY` 配置命名空间，默认是 `_cache`。会话驱动随会话数据持久化缓存。操作需要活跃的 HTTP 会话，因此 `./artisan cache:clear session` 无法清除这些条目。同一会话的请求需要串行写入时，可使用支持锁的缓存仓库来启用会话阻塞。
+
 ## 会话阻塞
 
 默认情况下，使用同一个会话的请求可以并发执行。注册会话路由时调用 `block(lock_seconds, wait_seconds)`，可以让使用同一个会话 ID 的请求依次执行。

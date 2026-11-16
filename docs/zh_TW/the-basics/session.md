@@ -34,6 +34,28 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `regenerate(true)` 刪除儲存中的舊 ID、保留工作階段屬性並輪替 CSRF 權杖。用 `invalidate()` 清除工作階段屬性並輪替 ID。
 
+## 工作階段快取 {#session-cache}
+
+在已啟動工作階段的路由中呼叫 `request.session()?.cache()?`。它與 `Cache::store(Some("session"))` 取得相同的儲存庫。快取項目隨目前的工作階段保存，支援常用快取操作和到期時間。`flush()` 只清除目前的快取命名空間，保留一般工作階段屬性與其他快取命名空間。重新產生工作階段 ID 會保留快取，使工作階段失效則會清空快取。
+
+```rust
+use openrust::{
+    cache::Ttl,
+    contracts::cache::Repository as _,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+};
+
+fn cache_banner(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let cache = request.session()?.cache()?;
+        cache.put("dashboard.banner", &"ready".into(), Some(Ttl::Seconds(300))).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+```
+
+`SESSION_CACHE_KEY` 設定命名空間，預設為 `_cache`。工作階段驅動程式會將快取與工作階段資料一併持久化。操作需要有效的 HTTP 工作階段，因此 `./artisan cache:clear session` 無法清除這些項目。同一工作階段的請求需要循序寫入時，可使用支援鎖定的快取儲存庫來啟用工作階段阻塞。
+
 ## 工作階段阻塞
 
 預設情況下，使用同一個工作階段的請求可以並行執行。註冊工作階段路由時呼叫 `block(lock_seconds, wait_seconds)`，可以讓使用同一個工作階段 ID 的請求依序執行。

@@ -8,6 +8,8 @@ The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array`
 ./artisan migrate
 ```
 
+Session data can use the [session cache](../the-basics/session.md#session-cache). The `session` store requires an active HTTP session and provides neither tags nor cache locks.
+
 ## Storage Cache {#storage-cache}
 
 Set `CACHE_STORE=storage` to store cache records on a configured filesystem disk. `CACHE_STORAGE_DISK` selects the disk and uses the application's default disk when omitted. `CACHE_STORAGE_PATH` selects the cache directory relative to that disk.

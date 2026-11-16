@@ -70,6 +70,7 @@ struct RequestContext {
     host: Option<::http::HeaderValue>,
     attributes: RequestAttributes,
     identity: OnceLock<Arc<()>>,
+    session_cache: Mutex<Option<crate::session::CacheAttributes>>,
     route: Mutex<RouteValues>,
 }
 
@@ -149,6 +150,7 @@ pub(crate) async fn scope<F: Future>(
                 host,
                 attributes,
                 identity: OnceLock::new(),
+                session_cache: Mutex::default(),
                 route: Mutex::default(),
             },
             future,
@@ -200,6 +202,27 @@ fn read_context<T>(
 
 pub(crate) fn attribute(container: &Container, name: &str) -> Option<ParameterValue> {
     read_context(container, |context| context.attributes.get(name))
+}
+
+pub(crate) fn set_session_cache(request: &Request, cache: Option<crate::session::CacheAttributes>) {
+    with_context(|context| {
+        if Arc::ptr_eq(&context.attributes.0, &request.attributes().0) {
+            *context
+                .session_cache
+                .lock()
+                .expect("request session cache poisoned") = cache;
+        }
+    });
+}
+
+pub(crate) fn session_cache(container: &Container) -> Option<crate::session::CacheAttributes> {
+    read_context(container, |context| {
+        context
+            .session_cache
+            .lock()
+            .expect("request session cache poisoned")
+            .clone()
+    })
 }
 
 pub(crate) fn route_parameter(container: &Container, name: &str) -> Option<ParameterValue> {

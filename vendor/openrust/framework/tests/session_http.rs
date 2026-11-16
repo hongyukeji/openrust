@@ -2,9 +2,13 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    cache::{CacheError, CacheManager, SessionStore, Ttl, Value as CacheValue},
     contracts::{
-        cache::LockProvider, container::Container as _, foundation::Application as _,
-        http::Kernel as _, session::Session,
+        cache::{LockProvider, Repository as _, Store as _},
+        container::Container as _,
+        foundation::Application as _,
+        http::Kernel as _,
+        session::Session,
     },
     cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
     database::DatabaseManager,
@@ -13,7 +17,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{MiddlewareEntry, RoutingError},
     session::middleware::StartSession,
-    support::facades::Route,
+    support::facades::{Cache, Facade as _, Route},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -34,6 +38,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     "all": request.old(None),
                 }),
             );
+        }
+        if let Some(action) = action.strip_prefix("cache-") {
+            return session_cache_route(request, action).await;
         }
         let session = request.session_mut()?;
         match action.as_str() {
@@ -59,6 +66,82 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             }),
         )
     })
+}
+
+async fn session_cache_route(request: &mut Request, action: &str) -> Result<Response, HttpError> {
+    let cache = request.session()?.cache()?;
+    let other = Cache::build(json!({"driver": "session", "key": "other.cache"}))?;
+    let named = Cache::store(Some("session"))?;
+    let owner = Cache::getFacadeRoot()
+        .map_err(CacheError::Unavailable)?
+        .getContainer()
+        .ok_or(CacheError::SessionUnavailable)?;
+    let underlying = SessionStore::new(Arc::downgrade(&owner), "widgets".into())?;
+    assert_eq!(
+        underlying.itemKey("dashboard.banner"),
+        "widgets.dashboard.banner"
+    );
+    assert_eq!(underlying.getPrefix(), "");
+    assert!(Arc::ptr_eq(&cache, &named));
+    assert!(!cache.supportsTags() && !cache.supportsFlushingLocks());
+    assert!(cache.get_store().lock_provider().is_none());
+
+    match action {
+        "seed" => {
+            request.session_mut()?.put("marker", json!("retained"))?;
+            assert!(cache.forever("dashboard.banner", &"ready".into()).await?);
+            assert!(!named.add("dashboard.banner", &"wrong".into(), None).await?);
+            assert!(cache.forever("binary", &vec![0, 255].into()).await?);
+            assert!(
+                cache
+                    .put("expiring", &1.into(), Some(Ttl::Seconds(1)))
+                    .await?
+            );
+            assert_eq!(cache.increment("expiring", 2).await?, 3);
+            assert!(cache.put("stale", &1.into(), Some(Ttl::Seconds(1))).await?);
+            assert!(
+                cache
+                    .forever("nullable", &CacheValue::Json(Value::Null))
+                    .await?
+            );
+            assert!(underlying.all()?["dashboard"]["banner"].is_object());
+            assert_eq!(cache.decrement("counter", 2).await?, -2);
+            assert!(other.forever("dashboard.banner", &"other".into()).await?);
+        }
+        "touch" => {
+            assert!(cache.touch("dashboard.banner", Ttl::Seconds(30)).await?);
+            assert!(!cache.touch("absent", Ttl::Seconds(30)).await?);
+            assert!(!cache.touch("nullable", Ttl::Seconds(30)).await?);
+            assert_eq!(cache.pull("counter").await?, Some((-2).into()));
+            assert!(!cache.forget("counter").await?);
+        }
+        "rotate" => {
+            request.session_mut()?.regenerate(true).await?;
+            assert!(underlying.forget("stale").await?);
+        }
+        "invalidate" => request.session_mut()?.invalidate().await?,
+        "flush" => assert!(cache.flush().await?),
+        _ => {}
+    }
+    let values = cache
+        .many(&["dashboard.banner", "binary", "expiring", "counter"])
+        .await?;
+    let [banner, binary, expiring, counter] = values.as_slice() else {
+        unreachable!("four requested keys");
+    };
+    let other = other.get("dashboard.banner").await?;
+    Response::json(
+        StatusCode::OK,
+        json!({
+            "id": request.session()?.getId(),
+            "marker": request.session()?.get("marker"),
+            "banner": banner.as_ref().and_then(CacheValue::as_str),
+            "binary": binary.as_ref() == Some(&vec![0, 255].into()),
+            "expiring": expiring.as_ref().and_then(CacheValue::as_i64),
+            "counter": counter.as_ref().and_then(CacheValue::as_i64),
+            "other": other.as_ref().and_then(CacheValue::as_str),
+        }),
+    )
 }
 
 fn register() -> Result<(), RoutingError> {
@@ -128,6 +211,12 @@ async fn start(
         ]
         .into_iter()
         .collect::<std::collections::BTreeMap<_, _>>();
+        config.insert(
+            "cache".into(),
+            json!({
+                "stores": {"session": {"driver": "session", "key": "widgets"}}
+            }),
+        );
         if driver == "database" {
             let url = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").unwrap();
             config.insert("database".into(), json!({
@@ -162,6 +251,17 @@ async fn start(
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
+    let cache = kernel
+        .get_application()
+        .container()
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(Some("session"))
+        .unwrap();
+    assert!(matches!(
+        cache.get("which").await,
+        Err(CacheError::SessionUnavailable)
+    ));
     let database = if driver == "database" {
         let db = kernel
             .get_application()
@@ -306,6 +406,74 @@ async fn request_sessions_round_trip_through_mysql() {
     assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());
     if configured {
         verify("database").await;
+    }
+}
+
+async fn verify_session_cache(driver: &'static str) {
+    let (address, server, database) = start(driver, true).await;
+    let initial = send(address, "cache-seed", "").await;
+    let (first, seeded) = read(&initial);
+    assert_eq!(seeded["banner"], "ready");
+    assert_eq!(seeded["expiring"], 3);
+    assert_eq!(seeded["counter"], -2);
+    assert_eq!(seeded["binary"], true);
+
+    let independent = send(address, "cache-read", "").await;
+    let (second, untouched) = read(&independent);
+    assert_ne!(untouched["id"], seeded["id"]);
+    assert!(untouched["banner"].is_null());
+    assert!(untouched["other"].is_null());
+    let second_seed = send(address, "cache-seed", second).await;
+    let (second, _) = read(&second_seed);
+
+    let touched = send(address, "cache-touch", first).await;
+    let (_, touched) = read(&touched);
+    assert!(touched["counter"].is_null());
+    tokio::time::sleep(Duration::from_millis(1050)).await;
+
+    let rotated = send(address, "cache-rotate", first).await;
+    let (rotated_cookie, rotated) = read(&rotated);
+    assert_ne!(rotated["id"], seeded["id"]);
+    assert_eq!(rotated["banner"], "ready");
+    assert_eq!(rotated["binary"], true);
+    assert!(rotated["expiring"].is_null());
+
+    let flushed = send(address, "cache-flush", rotated_cookie).await;
+    let (flushed_cookie, flushed) = read(&flushed);
+    assert!(flushed["banner"].is_null());
+    assert_eq!(flushed["other"], "other");
+    assert_eq!(flushed["marker"], "retained");
+    assert_eq!(
+        read(&send(address, "cache-read", second).await).1["banner"],
+        "ready"
+    );
+
+    let invalidated = send(address, "cache-invalidate", flushed_cookie).await;
+    let (_, invalidated) = read(&invalidated);
+    assert_ne!(invalidated["id"], rotated["id"]);
+    assert!(invalidated["marker"].is_null());
+    assert!(invalidated["other"].is_null());
+
+    if let Some(database) = database {
+        database
+            .statement("drop table sessions", &[])
+            .await
+            .unwrap();
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn session_cache_is_isolated_per_cookie() {
+    verify_session_cache("array").await;
+}
+
+#[tokio::test]
+async fn session_cache_persists_in_mysql() {
+    let configured = std::env::var_os("OPENRUST_TEST_SESSION_MYSQL_URL").is_some();
+    assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());
+    if configured {
+        verify_session_cache("database").await;
     }
 }
 

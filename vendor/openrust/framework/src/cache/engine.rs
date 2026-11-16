@@ -29,6 +29,7 @@ pub(super) enum Engine {
     Array(Arc<Mutex<HashMap<String, Record>>>),
     File(Arc<FileBackend>),
     Database(Arc<DatabaseBackend>),
+    Session(Arc<super::session_store::SessionBackend>),
 }
 
 impl Engine {
@@ -76,6 +77,7 @@ impl Engine {
                     .map_err(backend)?
             }
             Self::Database(store) => store.change(&key, edit).await,
+            Self::Session(store) => store.change(&key, edit),
         }
     }
 
@@ -106,6 +108,7 @@ impl Engine {
                     .map_err(backend)?
             }
             Self::Database(store) => store.flush().await,
+            Self::Session(store) => store.flush(),
         }
     }
 }

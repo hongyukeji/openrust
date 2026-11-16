@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, NullStore,
-    RedisStore, Repository, StorageStore, backend,
+    RedisStore, Repository, SessionStore, StorageStore, backend,
     memoized_store::{MemoizedRepositories, MemoizedStore},
     store_registry::StoreRegistry,
 };
@@ -51,6 +51,9 @@ enum Options {
     Null,
     Failover {
         stores: Vec<String>,
+    },
+    Session {
+        key: Option<String>,
     },
     Storage {
         disk: Option<String>,
@@ -253,7 +256,7 @@ impl CacheManager {
         }
         if !matches!(
             driver,
-            "array" | "file" | "database" | "redis" | "failover" | "null" | "storage"
+            "array" | "file" | "database" | "redis" | "failover" | "null" | "storage" | "session"
         ) {
             return Err(CacheError::UnsupportedDriver);
         }
@@ -267,6 +270,10 @@ impl CacheManager {
                 self.inner.owner.clone(),
                 stores,
                 self.prefix(&config)?,
+            )?),
+            Options::Session { key } => Arc::new(SessionStore::new(
+                self.inner.owner.clone(),
+                key.unwrap_or_else(|| "_cache".into()),
             )?),
             Options::Storage { disk, path } => {
                 let disk = self

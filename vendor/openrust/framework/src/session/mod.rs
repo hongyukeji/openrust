@@ -26,7 +26,10 @@ pub use null_session_handler::NullSessionHandler;
 pub use session_manager::SessionManager;
 pub use session_service_provider::SessionServiceProvider;
 pub use store::Store;
-pub(crate) use store::{PASSWORD_CONFIRMED_AT, get as get_attribute, unix_seconds};
+pub(crate) use store::{
+    CacheAttributes, PASSWORD_CONFIRMED_AT, get as get_attribute, insert as insert_attribute,
+    remove as remove_attribute, unix_seconds,
+};
 
 /// An asynchronous session or storage operation.
 pub type SessionFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

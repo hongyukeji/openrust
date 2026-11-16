@@ -82,6 +82,7 @@ pub enum CacheError {
     StoreResolutionCycle,
     InvalidValue,
     MissingCounter,
+    SessionUnavailable,
     InvalidOwner,
     Unavailable(crate::contracts::container::BindingResolutionError),
     TagsUnsupported,
@@ -163,6 +164,9 @@ impl std::fmt::Display for CacheError {
             Self::FailoverCycle => f.write_str("Cache failover stores form a cycle."),
             Self::InvalidValue => f.write_str("Invalid cache value or expiration."),
             Self::MissingCounter => f.write_str("The cache counter does not exist."),
+            Self::SessionUnavailable => {
+                f.write_str("Session cache requires an active HTTP session.")
+            }
             Self::InvalidOwner => f.write_str("Invalid cache lock owner."),
             Self::Unavailable(_) => f.write_str("The application cache is unavailable."),
             Self::TagsUnsupported => f.write_str("This cache store does not support tagging."),
@@ -192,5 +196,13 @@ impl Error for CacheError {
 pub(super) fn backend(source: impl Error + Send + Sync + 'static) -> CacheError {
     CacheError::Backend {
         source: Box::new(source),
+    }
+}
+
+impl From<CacheError> for crate::http::HttpError {
+    fn from(source: CacheError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
     }
 }

@@ -34,6 +34,28 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 `regenerate(true)` removes the previous ID from storage, preserves attributes and rotates the CSRF token. Use `invalidate()` to clear attributes and rotate the ID.
 
+## Session Cache {#session-cache}
+
+Use `request.session()?.cache()?` on a route that starts a session. It resolves the same repository as `Cache::store(Some("session"))`. Entries follow the active session and support the usual cache operations and TTLs. `flush()` clears that cache namespace while preserving ordinary session attributes and other cache namespaces. Regenerating the ID preserves cached values, and invalidating the session clears them.
+
+```rust
+use openrust::{
+    cache::Ttl,
+    contracts::cache::Repository as _,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+};
+
+fn cache_banner(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let cache = request.session()?.cache()?;
+        cache.put("dashboard.banner", &"ready".into(), Some(Ttl::Seconds(300))).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+```
+
+`SESSION_CACHE_KEY` selects the namespace and defaults to `_cache`. The session driver persists the entries along with session data. Cache operations require an active HTTP session, so `./artisan cache:clear session` cannot clear these entries. For requests that must serialize writes to the same session, use session blocking with a lock-capable store.
+
 ## Session Blocking
 
 By default, requests using the same session can run concurrently. Call `block(lock_seconds, wait_seconds)` when registering a session route to serialize requests that use the same session ID.

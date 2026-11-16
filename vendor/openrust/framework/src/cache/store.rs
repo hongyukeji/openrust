@@ -9,7 +9,7 @@ use super::{
 
 pub(super) struct StoreCore {
     data: Engine,
-    locks: Engine,
+    locks: Option<Engine>,
     prefix: String,
     database: bool,
     separate_locks: bool,
@@ -25,10 +25,20 @@ impl StoreCore {
     ) -> Self {
         Self {
             data,
-            locks,
+            locks: Some(locks),
             prefix,
             database,
             separate_locks,
+        }
+    }
+
+    pub(super) fn without_locks(data: Engine) -> Self {
+        Self {
+            data,
+            locks: None,
+            prefix: String::new(),
+            database: false,
+            separate_locks: false,
         }
     }
 
@@ -123,8 +133,9 @@ impl Store for StoreCore {
         key: &'a str,
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>> {
+        let session = matches!(self.data, Engine::Session(_));
         Box::pin(self.data.change(self.key(key), move |entry| {
-            let Some(mut entry) = entry else {
+            let Some(mut entry) = entry.filter(|entry| !session || !entry.value.is_null()) else {
                 return Ok((Change::Keep, false));
             };
             entry.expires = expires(Some(Duration::from_secs(seconds.get())))?;
@@ -139,7 +150,12 @@ impl Store for StoreCore {
     }
 
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(async move { Ok(self.pull(key).await?.is_some()) })
+        Box::pin(async move {
+            if let Engine::Session(store) = &self.data {
+                return store.forget(key);
+            }
+            Ok(self.pull(key).await?.is_some())
+        })
     }
 
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
@@ -181,8 +197,12 @@ impl Store for StoreCore {
         &self.prefix
     }
 
+    fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
+        self.locks.as_ref().map(|_| self as &dyn CanFlushLocks)
+    }
+
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
-        Some(self)
+        self.locks.as_ref().map(|_| self as &dyn LockProvider)
     }
 }
 
@@ -196,7 +216,11 @@ impl CanFlushLocks for StoreCore {
             if !self.hasSeparateLockStore() {
                 return Err(CacheError::LockStoreNotSeparate);
             }
-            self.locks.flush_locks(&self.data).await?;
+            self.locks
+                .as_ref()
+                .ok_or(CacheError::LockFlushUnsupported)?
+                .flush_locks(&self.data)
+                .await?;
             Ok(true)
         })
     }
@@ -210,7 +234,7 @@ impl LockProvider for StoreCore {
         owner: Option<&str>,
     ) -> CacheResult<Box<dyn LockContract>> {
         Ok(Box::new(Lock::new(
-            self.locks.clone(),
+            self.locks.clone().ok_or(CacheError::LocksUnsupported)?,
             self.key(name),
             lease,
             owner,
@@ -332,7 +356,7 @@ macro_rules! impl_store {
             }
 
             fn lock_flusher(&self) -> Option<&dyn $crate::contracts::cache::CanFlushLocks> {
-                Some(&self.0)
+                $crate::contracts::cache::Store::lock_flusher(&self.0)
             }
 
             fn lock_provider(&self) -> Option<&dyn $crate::contracts::cache::LockProvider> {
