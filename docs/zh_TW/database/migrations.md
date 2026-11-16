@@ -135,3 +135,28 @@ Schema::table("books", |table| {
 ### 外鍵約束
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
+
+#### 切換外鍵檢查 {#toggling-foreign-key-constraints}
+
+用 `Schema::withoutForeignKeyConstraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `getSchemaBuilder()` 操作 Schema。離開範圍時會恢復進入前的設定。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn import_order() -> DatabaseResult<()> {
+    Schema::withoutForeignKeyConstraints(|session| {
+        Box::pin(async move {
+            session
+                .statement(
+                    "INSERT INTO orders (id, customer_id) VALUES (?, ?)",
+                    &[1.into(), 42.into()],
+                )
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+需要手動切換時，呼叫 `Schema::session().await?` 或具名連線建構器的 `session().await?` 取得寫入工作階段，再呼叫 `disableForeignKeyConstraints` 或 `enableForeignKeyConstraints`，最後用 `close().await?` 歸還。SQLite 資料表重建繼續使用連線的 Schema Builder，由它管理重建所需的工作階段和交易。

@@ -1,8 +1,10 @@
 use std::sync::{Arc, RwLock};
 
-use crate::database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value};
+use crate::database::{
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Row, Transaction, Value,
+};
 
-use super::{Blueprint, MorphKeyType, grammars::Grammar};
+use super::{Blueprint, MorphKeyType, SchemaSession, grammars::Grammar};
 
 mod catalog;
 mod sqlite;
@@ -10,6 +12,7 @@ mod sqlite;
 enum Executor<'connection> {
     Connection(Connection),
     Transaction(&'connection mut Transaction),
+    Session(&'connection mut SchemaSession),
     Pretend(&'connection mut Vec<String>),
 }
 
@@ -64,6 +67,44 @@ impl<'connection> Builder<'connection> {
             grammar,
             morph_key_type,
         }
+    }
+
+    pub(super) fn session_builder(session: &'connection mut SchemaSession) -> Self {
+        let connection = session.connection();
+        let grammar = Grammar::new(
+            connection.grammar.clone(),
+            connection.prefix_indexes,
+            connection.getDatabaseName(),
+        );
+        let morph_key_type = connection.morph_key_type.clone();
+        Self {
+            executor: Executor::Session(session),
+            grammar,
+            morph_key_type,
+        }
+    }
+
+    pub async fn session(&self) -> DatabaseResult<SchemaSession> {
+        let Executor::Connection(connection) = &self.executor else {
+            return Err(DatabaseError::UnsupportedSchema(
+                "schema session requires a connection builder",
+            ));
+        };
+        SchemaSession::new(connection.clone()).await
+    }
+
+    pub async fn withoutForeignKeyConstraints<T>(
+        &self,
+        callback: impl for<'a> FnOnce(&'a mut SchemaSession) -> DatabaseFuture<'a, DatabaseResult<T>>
+        + Send,
+    ) -> DatabaseResult<T> {
+        let mut session = self.session().await?;
+        session.disableForeignKeyConstraints().await?;
+        let result = callback(&mut session).await;
+        let cleanup = session.close().await;
+        let output = result?;
+        cleanup?;
+        Ok(output)
     }
 
     fn blueprint(&self) -> Blueprint {
@@ -172,6 +213,7 @@ impl<'connection> Builder<'connection> {
                 }
                 Ok(())
             }
+            Executor::Session(session) => session.execute_schema(statements).await,
             Executor::Transaction(_) if self.grammar.mysql() => Err(
                 DatabaseError::UnsupportedSchema("MySQL DDL implicitly commits"),
             ),
@@ -200,6 +242,7 @@ impl<'connection> Builder<'connection> {
                 connection.selectFromWriteConnection(sql, bindings).await
             }
             Executor::Transaction(transaction) => transaction.select(sql, bindings).await,
+            Executor::Session(session) => session.select(sql, bindings).await,
         }
     }
 }

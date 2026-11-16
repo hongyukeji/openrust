@@ -135,3 +135,28 @@ Schema::table("books", |table| {
 ### 外键约束
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
+
+#### 切换外键检查 {#toggling-foreign-key-constraints}
+
+用 `Schema::withoutForeignKeyConstraints` 在同一写会话中暂停外键检查。通过传入的会话执行 SQL，通过它的 `getSchemaBuilder()` 操作 Schema。作用域结束时会恢复进入前的设置。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn import_order() -> DatabaseResult<()> {
+    Schema::withoutForeignKeyConstraints(|session| {
+        Box::pin(async move {
+            session
+                .statement(
+                    "INSERT INTO orders (id, customer_id) VALUES (?, ?)",
+                    &[1.into(), 42.into()],
+                )
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+需要手动切换时，调用 `Schema::session().await?` 或具名连接构建器的 `session().await?` 获取写会话，再在此会话上调用 `disableForeignKeyConstraints` 或 `enableForeignKeyConstraints`，最后用 `close().await?` 归还。SQLite 表重建继续使用连接的 Schema Builder，由它管理重建所需的会话和事务。

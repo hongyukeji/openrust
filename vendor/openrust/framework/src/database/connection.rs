@@ -388,6 +388,19 @@ impl PhysicalConnection {
         }
     }
 
+    pub(super) fn in_transaction(&self) -> bool {
+        match self {
+            Self::Sqlite(lease) => {
+                <Sqlite as Database>::TransactionManager::get_transaction_depth(&lease.connection)
+                    > 0
+            }
+            Self::Mysql(lease) => {
+                <MySql as Database>::TransactionManager::get_transaction_depth(&lease.connection)
+                    > 0
+            }
+        }
+    }
+
     pub(super) fn interrupted(&self) -> bool {
         match self {
             Self::Sqlite(lease) => lease.dirty,

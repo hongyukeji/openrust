@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use openrust::{
     config::Repository,
     database::{
-        Connection, DatabaseError, DatabaseManager, Value,
+        Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         schema::{MorphKeyType, Schema},
     },
     foundation::Application,
@@ -724,4 +724,134 @@ async fn cancelled_sqlite_rebuild_finishes_and_restores_foreign_key_checks() {
     drop(schema);
     drop(db);
     std::fs::remove_file(file).unwrap();
+}
+
+async fn verify_foreign_key_scope(db: Connection, mysql: bool) {
+    let state = if mysql {
+        "select @@foreign_key_checks"
+    } else {
+        "pragma foreign_keys"
+    };
+    db.unprepared(
+        "CREATE TABLE fk_scope_parents (id BIGINT PRIMARY KEY);          CREATE TABLE fk_scope_children (id BIGINT PRIMARY KEY, parent BIGINT, FOREIGN KEY (parent) REFERENCES fk_scope_parents(id));",
+    )
+    .await
+    .unwrap();
+    let schema = db.getSchemaBuilder();
+    let cannot_insert = "INSERT INTO fk_scope_children VALUES (?, 99)";
+    assert!(db.statement(cannot_insert, &[0.into()]).await.is_err());
+
+    let count = schema
+        .withoutForeignKeyConstraints(|session| {
+            Box::pin(async move {
+                assert_eq!(
+                    session.select(state, &[]).await?[0].get_at(0),
+                    Some(&0.into())
+                );
+                assert!(session.statement(cannot_insert, &[1.into()]).await?);
+                let mut builder = session.getSchemaBuilder();
+                builder
+                    .create("fk_scope_marker", |table| {
+                        table.id();
+                    })
+                    .await?;
+                assert!(builder.hasTable("fk_scope_marker").await?);
+                Ok(1)
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+    assert!(db.statement(cannot_insert, &[2.into()]).await.is_err());
+
+    let result = schema
+        .withoutForeignKeyConstraints(|_| {
+            Box::pin(async { Err::<(), _>(DatabaseError::InvalidSchema("callback failed")) })
+        })
+        .await;
+    assert!(matches!(
+        result,
+        Err(DatabaseError::InvalidSchema("callback failed"))
+    ));
+    assert!(db.statement(cannot_insert, &[3.into()]).await.is_err());
+
+    let ready = Arc::new(tokio::sync::Notify::new());
+    let started = ready.clone();
+    let task_db = db.clone();
+    let job = tokio::spawn(async move {
+        task_db
+            .getSchemaBuilder()
+            .withoutForeignKeyConstraints(move |session| {
+                Box::pin(async move {
+                    assert_eq!(
+                        session.select(state, &[]).await?[0].get_at(0),
+                        Some(&0.into())
+                    );
+                    started.notify_one();
+                    std::future::pending::<DatabaseResult<()>>().await
+                })
+            })
+            .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), ready.notified())
+        .await
+        .unwrap();
+    if mysql {
+        // The live writer distinct from the leased session must continue enforcing constraints.
+        assert!(db.statement(cannot_insert, &[4.into()]).await.is_err());
+    }
+    job.abort();
+    assert!(job.await.unwrap_err().is_cancelled());
+
+    let mut session = tokio::time::timeout(std::time::Duration::from_secs(5), schema.session())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        session.select(state, &[]).await.unwrap()[0].get_at(0),
+        Some(&1.into())
+    );
+    session.disableForeignKeyConstraints().await.unwrap();
+    session.statement(cannot_insert, &[5.into()]).await.unwrap();
+    session.enableForeignKeyConstraints().await.unwrap();
+    assert!(session.statement(cannot_insert, &[6.into()]).await.is_err());
+    session.close().await.unwrap();
+    assert_eq!(db.table("fk_scope_children").count("*").await.unwrap(), 2);
+    db.unprepared(
+        "DROP TABLE fk_scope_marker; DROP TABLE fk_scope_children; DROP TABLE fk_scope_parents",
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_foreign_key_scope_restores_the_leased_session() {
+    verify_foreign_key_scope(
+        connection(json!({"driver":"sqlite","database":":memory:"})),
+        false,
+    )
+    .await;
+    let db = connection(
+        json!({"driver":"sqlite","database":":memory:","foreign_key_constraints":false}),
+    );
+    let mut session = db.getSchemaBuilder().session().await.unwrap();
+    session.enableForeignKeyConstraints().await.unwrap();
+    assert_eq!(
+        session.select("pragma foreign_keys", &[]).await.unwrap()[0].get_at(0),
+        Some(&1.into())
+    );
+    session.close().await.unwrap();
+    assert_eq!(
+        db.scalar("pragma foreign_keys", &[]).await.unwrap(),
+        0.into()
+    );
+}
+
+#[tokio::test]
+async fn mysql_foreign_key_scope_restores_the_leased_session() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_foreign_key_scope(connection(json!({"url":url,"max_connections":2})), true).await;
 }

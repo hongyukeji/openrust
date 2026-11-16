@@ -1,9 +1,11 @@
 use crate::{
-    database::{DB, DatabaseError, DatabaseResult},
+    database::{DB, DatabaseError, DatabaseFuture, DatabaseResult},
     support::facades::Facade,
 };
 
-use super::{Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, TableInfo};
+use super::{
+    Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, SchemaSession, TableInfo,
+};
 
 /// Schema operations on the current application's default database connection.
 pub struct Schema;
@@ -32,6 +34,19 @@ impl Schema {
 
     fn default_builder() -> DatabaseResult<Builder<'static>> {
         Ok(DB::connection(None)?.getSchemaBuilder())
+    }
+
+    pub async fn session() -> DatabaseResult<SchemaSession> {
+        Self::default_builder()?.session().await
+    }
+
+    pub async fn withoutForeignKeyConstraints<T>(
+        callback: impl for<'a> FnOnce(&'a mut SchemaSession) -> DatabaseFuture<'a, DatabaseResult<T>>
+        + Send,
+    ) -> DatabaseResult<T> {
+        Self::default_builder()?
+            .withoutForeignKeyConstraints(callback)
+            .await
     }
 
     pub async fn create(table: &str, configure: impl FnOnce(&mut Blueprint)) -> DatabaseResult<()> {

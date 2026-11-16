@@ -135,3 +135,28 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 ### Foreign Key Constraints
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
+
+#### Toggling Foreign Key Constraints {#toggling-foreign-key-constraints}
+
+Use `Schema::withoutForeignKeyConstraints` to run work on a single write session with foreign key checks disabled. Use the supplied session for SQL and its `getSchemaBuilder()` for schema operations. The session restores its original setting on exit.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn import_order() -> DatabaseResult<()> {
+    Schema::withoutForeignKeyConstraints(|session| {
+        Box::pin(async move {
+            session
+                .statement(
+                    "INSERT INTO orders (id, customer_id) VALUES (?, ?)",
+                    &[1.into(), 42.into()],
+                )
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+For manual control, acquire a write session with `Schema::session().await?` or the named builder’s `session().await?`, then call `disableForeignKeyConstraints` or `enableForeignKeyConstraints` on the session and finish with `close().await?`. SQLite operations that rebuild a table continue to use the connection’s Schema Builder, which manages its own session and transaction.

@@ -8,6 +8,7 @@ mod foreign_id_column_definition;
 mod foreign_key_definition;
 pub mod grammars;
 mod index_definition;
+mod session;
 
 pub use blueprint::Blueprint;
 pub use builder::Builder;
@@ -16,6 +17,7 @@ pub use facade::Schema;
 pub use foreign_id_column_definition::ForeignIdColumnDefinition;
 pub use foreign_key_definition::ForeignKeyDefinition;
 pub use index_definition::IndexDefinition;
+pub use session::SchemaSession;
 
 /// Default key for polymorphic schema columns.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
