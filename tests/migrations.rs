@@ -717,5 +717,11 @@ async fn mysql_fresh_wipes_the_selected_schema() {
         12 + u64::from(sanctum_migration().is_some())
     );
     success(run(&["db:wipe", "--drop-views"]));
-    assert!(schema.getTables(None).await.unwrap().is_empty());
+    assert!(
+        schema
+            .getTables(Some(db.getDatabaseName()))
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }

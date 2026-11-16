@@ -335,6 +335,24 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
+#### 檢查資料表目錄 {#inspecting-tables}
+
+`getTables(None)` 列出所有可見使用者 Schema 的資料表。使用 `Some(name)` 限定一個 Schema，或使用 `getTablesIn(&[...])` 限定多個。檢查清除結果時應明確指定已清除的 Schema。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
+    let names = Schema::getTableListing(Some(schema)).await?;
+    for name in names {
+        println!("{name}");
+    }
+    Ok(())
+}
+```
+
+`getTableListing` 回傳限定資料表名稱。需要不含 Schema 的名稱時，使用 `getTableListingWith(schema, false)`。資料表記錄回傳資料庫目錄中的名稱，並在資料庫提供時附上大小及儲存中繼資料。
+
 #### 檢查 Schema 和檢視表 {#inspecting-schemas-and-views}
 
 `getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。

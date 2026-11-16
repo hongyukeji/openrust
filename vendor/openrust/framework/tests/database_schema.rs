@@ -3082,7 +3082,7 @@ async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
 }
 
 #[tokio::test]
-async fn mysql_inspects_visible_schemas_and_views_on_the_write_connection() {
+async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
@@ -3102,6 +3102,21 @@ async fn mysql_inspects_visible_schemas_and_views_on_the_write_connection() {
     db.statement(&format!("create view {qualified} as select 99 as id"), &[])
         .await
         .unwrap();
+    db.statement("drop table if exists app_catalog_entries", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table app_catalog_entries (id bigint primary key) comment 'directory fixture'",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        &format!("create table {alternate}.app_catalog_entries (id bigint primary key)"),
+        &[],
+    )
+    .await
+    .unwrap();
     let mut read_url = url::Url::parse(&url).unwrap();
     read_url.set_path(&format!("/{alternate}"));
     let db = connection(json!({"url":url,"prefix":"app_","read":{"url":read_url.as_str()}}));
@@ -3185,6 +3200,49 @@ async fn mysql_inspects_visible_schemas_and_views_on_the_write_connection() {
             .unwrap()
             .is_empty()
     );
+
+    let tables = schema.getTables(None).await.unwrap();
+    for database in [current, alternate.as_str()] {
+        assert!(tables.iter().any(|info| info.schema_qualified_name
+            == format!("{database}.app_catalog_entries")
+            && info.name == "app_catalog_entries"
+            && info.size.is_some_and(|size| size > 0)));
+    }
+    assert!(
+        tables
+            .iter()
+            .all(|info| info.name != "app_catalog_status" && info.schema != "mysql")
+    );
+    assert_eq!(
+        schema
+            .getTablesIn(&[current, &alternate])
+            .await
+            .unwrap()
+            .iter()
+            .filter(|info| info.name == "app_catalog_entries")
+            .count(),
+        2
+    );
+    let local = schema.getTables(Some(current)).await.unwrap();
+    assert!(local.iter().all(|info| info.schema == current));
+    assert!(local.iter().any(|info| info.name == "app_catalog_entries"
+        && info.comment.as_deref() == Some("directory fixture")
+        && info.engine.as_deref() == Some("InnoDB")));
+    assert_eq!(
+        schema.getTableListing(Some(&alternate)).await.unwrap(),
+        [format!("{alternate}.app_catalog_entries")]
+    );
+    assert_eq!(
+        schema
+            .getTableListingWith(Some(&alternate), false)
+            .await
+            .unwrap(),
+        ["app_catalog_entries"]
+    );
+    assert!(schema.getTablesIn(&[]).await.unwrap().is_empty());
+    db.statement("drop table app_catalog_entries", &[])
+        .await
+        .unwrap();
 
     db.statement("drop view app_catalog_status", &[])
         .await

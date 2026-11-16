@@ -53,6 +53,8 @@ pub struct ViewInfo {
 pub struct TableInfo {
     pub name: String,
     pub schema: String,
+    pub schema_qualified_name: String,
+    pub size: Option<u64>,
     pub engine: Option<String>,
     pub collation: Option<String>,
     pub comment: Option<String>,

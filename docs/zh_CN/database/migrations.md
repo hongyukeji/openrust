@@ -335,6 +335,24 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 检查表目录 {#inspecting-tables}
+
+`getTables(None)` 列出所有可见用户 Schema 的表。用 `Some(name)` 限定一个 Schema，或用 `getTablesIn(&[...])` 限定多个。检查清库结果时应明确指定被清理的 Schema。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
+    let names = Schema::getTableListing(Some(schema)).await?;
+    for name in names {
+        println!("{name}");
+    }
+    Ok(())
+}
+```
+
+`getTableListing` 返回限定表名。需要不带 Schema 的表名时，用 `getTableListingWith(schema, false)`。表记录返回数据库目录中的名称，并在数据库提供时附带大小和存储元数据。
+
 #### 检查 Schema 和视图 {#inspecting-schemas-and-views}
 
 `getSchemas()` 列出可见的 Schema，并标记当前使用的 Schema。SQLite 还会返回各 Schema 的文件路径。在 MySQL 上，`getViews(None)` 列出所有可见用户 Schema 的视图。在 SQLite 上，它查询当前写会话中的所有 Schema。可用 `getViews(Some(name))` 指定一个，或用 `getViewsIn(&[...])` 指定多个。

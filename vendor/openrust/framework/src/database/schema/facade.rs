@@ -94,6 +94,23 @@ impl Schema {
         Self::default_builder()?.getTables(schema).await
     }
 
+    pub async fn getTablesIn(schemas: &[&str]) -> DatabaseResult<Vec<TableInfo>> {
+        Self::default_builder()?.getTablesIn(schemas).await
+    }
+
+    pub async fn getTableListing(schema: Option<&str>) -> DatabaseResult<Vec<String>> {
+        Self::default_builder()?.getTableListing(schema).await
+    }
+
+    pub async fn getTableListingWith(
+        schema: Option<&str>,
+        schema_qualified: bool,
+    ) -> DatabaseResult<Vec<String>> {
+        Self::default_builder()?
+            .getTableListingWith(schema, schema_qualified)
+            .await
+    }
+
     pub async fn hasColumn(table: &str, column: &str) -> DatabaseResult<bool> {
         Self::default_builder()?.hasColumn(table, column).await
     }

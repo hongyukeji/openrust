@@ -335,6 +335,24 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Inspecting Tables {#inspecting-tables}
+
+`getTables(None)` lists tables across visible user schemas. Pass `Some(name)` to limit the query to one schema or use `getTablesIn(&[...])` for several. Use an explicit schema when checking the result of a schema-scoped wipe.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
+    let names = Schema::getTableListing(Some(schema)).await?;
+    for name in names {
+        println!("{name}");
+    }
+    Ok(())
+}
+```
+
+`getTableListing` returns qualified names. Use `getTableListingWith(schema, false)` for names without a schema prefix. Table entries contain catalog names and, when supplied by the database, size and storage metadata.
+
 #### Inspecting Schemas and Views {#inspecting-schemas-and-views}
 
 `getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list.

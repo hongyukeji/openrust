@@ -102,11 +102,7 @@ impl Builder<'_> {
 
     async fn mysql_views(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<ViewInfo>> {
         let (filter, bindings) = match schemas {
-            Some(schemas) => {
-                let parameters = vec!["?"; schemas.len()].join(", ");
-                let bindings = schemas.iter().copied().map(Value::from).collect();
-                (format!("table_schema in ({parameters})"), bindings)
-            }
+            Some(schemas) => schema_filter("table_schema", schemas),
             None => (
                 format!("table_schema not in {MYSQL_SYSTEM_SCHEMAS}"),
                 Vec::new(),
@@ -152,7 +148,7 @@ impl Builder<'_> {
         }
         let parameters = self.catalog_parameters(&table);
         let sql = if self.grammar.mysql() {
-            "select 1 from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? and table_type = 'BASE TABLE' limit 1"
+            "select 1 from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? and table_type in ('BASE TABLE', 'SYSTEM VERSIONED') limit 1"
         } else {
             "select 1 from pragma_table_list where schema = ? and name = ? collate nocase and type in ('table', 'virtual') limit 1"
         };
@@ -160,24 +156,89 @@ impl Builder<'_> {
     }
 
     pub async fn getTables(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TableInfo>> {
-        let (sql, schema) = if self.grammar.mysql() {
+        match schema {
+            Some(schema) => self.getTablesIn(&[schema]).await,
+            None => self.catalog_tables(None).await,
+        }
+    }
+
+    pub async fn getTablesIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TableInfo>> {
+        if schemas.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.catalog_tables(Some(schemas)).await
+    }
+
+    pub async fn getTableListing(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<String>> {
+        self.getTableListingWith(schema, true).await
+    }
+
+    pub async fn getTableListingWith(
+        &mut self,
+        schema: Option<&str>,
+        schema_qualified: bool,
+    ) -> DatabaseResult<Vec<String>> {
+        Ok(self
+            .getTables(schema)
+            .await?
+            .into_iter()
+            .map(|table| {
+                if schema_qualified {
+                    table.schema_qualified_name
+                } else {
+                    table.name
+                }
+            })
+            .collect())
+    }
+
+    async fn catalog_tables(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<TableInfo>> {
+        let (sql, bindings) = if self.grammar.mysql() {
+            let (filter, bindings) = match schemas {
+                Some(schemas) => schema_filter("table_schema", schemas),
+                None => (
+                    format!("table_schema not in {MYSQL_SYSTEM_SCHEMAS}"),
+                    Vec::new(),
+                ),
+            };
             (
-                "select table_name as name, table_schema as schema_name, engine as engine, table_collation as collation, table_comment as comment from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_type = 'BASE TABLE' order by table_name",
-                schema.unwrap_or(""),
+                format!(
+                    "select table_name as name, table_schema as schema_name, cast(data_length + index_length as unsigned) as size, engine as engine, table_collation as collation, table_comment as comment from information_schema.tables where table_type in ('BASE TABLE', 'SYSTEM VERSIONED') and {filter} order by table_schema, table_name"
+                ),
+                bindings,
             )
         } else {
+            let (filter, bindings) = schemas.map_or_else(
+                || ("1 = 1".to_owned(), Vec::new()),
+                |schemas| schema_filter("schema", schemas),
+            );
             (
-                "select name, schema as schema_name, null as engine, null as collation, null as comment from pragma_table_list where schema = ? and type in ('table', 'virtual') and substr(name,1,7) <> 'sqlite_' order by name",
-                schema.unwrap_or("main"),
+                format!(
+                    "select name, schema as schema_name, null as size, null as engine, null as collation, null as comment from pragma_table_list where type in ('table', 'virtual') and substr(name, 1, 7) <> 'sqlite_' and {filter} order by schema, name"
+                ),
+                bindings,
             )
         };
-        self.select(sql, &[schema.into()])
+        self.select(&sql, &bindings)
             .await?
             .iter()
             .map(|row| {
+                let name = text(row, "name")?;
+                let schema = text(row, "schema_name")?;
+                let size = match row.get("size") {
+                    Some(Value::Null) => None,
+                    Some(Value::Unsigned(value)) => Some(*value),
+                    Some(Value::Integer(value)) => Some(
+                        u64::try_from(*value)
+                            .map_err(|_| DatabaseError::InvalidSchema("table size"))?,
+                    ),
+                    _ => return Err(DatabaseError::InvalidSchema("table size")),
+                };
                 Ok(TableInfo {
-                    name: text(row, "name")?,
-                    schema: text(row, "schema_name")?,
+                    schema_qualified_name: format!("{schema}.{name}"),
+                    name,
+                    schema,
+                    size,
                     engine: optional_text(row, "engine")?,
                     collation: optional_text(row, "collation")?,
                     comment: optional_text(row, "comment")?,
@@ -420,6 +481,12 @@ impl Builder<'_> {
         }
         Ok(keys.into_values().collect())
     }
+}
+
+fn schema_filter(column: &str, schemas: &[&str]) -> (String, Vec<Value>) {
+    let parameters = vec!["?"; schemas.len()].join(", ");
+    let bindings = schemas.iter().copied().map(Value::from).collect();
+    (format!("{column} in ({parameters})"), bindings)
 }
 
 fn view_info(row: &Row) -> DatabaseResult<ViewInfo> {
