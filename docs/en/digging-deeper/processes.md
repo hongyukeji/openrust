@@ -65,6 +65,27 @@ let result = Process::command("test -t 0 && test -t 1 && test -t 2 && printf 'te
 assert!(result.output().is_empty());
 ```
 
+### Numeric signals {#numeric-signals}
+
+Use `Signal::Raw` to send a platform-specific Unix signal number to the active process. Before running the example, set `PROCESS_EXAMPLE_SIGNAL` to the host’s numeric value for `SIGUSR1`.
+
+```rust
+use openrust::{process::Signal, support::facades::Process};
+use std::time::Duration;
+
+let number: i32 = std::env::var("PROCESS_EXAMPLE_SIGNAL")?.parse()?;
+let mut process = Process::command(
+    "trap 'printf caught; exit 6' USR1; printf ready; while :; do sleep 0.02; done",
+)?
+.timeout(Duration::from_secs(4))
+.start()?;
+assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
+process.signal(Signal::Raw(number)).await?;
+let result = process.wait().await?;
+assert_eq!(result.exitCode(), 6);
+assert_eq!(result.output(), b"readycaught");
+```
+
 ## Testing {#testing}
 
 Fakes and recorded invocations belong to a single factory. Use `preventStrayProcesses(true)` to fail unmatched calls before launching an executable.
@@ -78,4 +99,29 @@ processes.preventStrayProcesses(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
 processes.assertRan(|process| process.command == ["deploy", "preview"].into());
+```
+
+### Scripted fake processes {#scripted-fakes}
+
+Build a scripted fake with `Factory::describe()`. Specify an ID, ordered output lines, the number of checks for which `running()` reports true, and an exit code. Register the built result with `fakeCommand` or a fake sequence. Waiting plays the ordered lines and records signals locally.
+
+```rust
+use openrust::process::{Factory, OutputStream, Signal};
+
+let processes = Factory::new();
+processes.fakeCommand("worker", Factory::describe()
+    .id(321)
+    .runsFor(2)
+    .errorOutput("ready")
+    .output("finished")
+    .exitCode(0)
+    .result());
+processes.preventStrayProcesses(true);
+
+let mut worker = processes.start("worker")?;
+assert_eq!(worker.id(), Some(321));
+assert!(worker.waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
+worker.signal(Signal::Terminate).await?;
+assert!(worker.hasReceivedSignal(Signal::Terminate));
+assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```

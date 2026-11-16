@@ -1,4 +1,6 @@
-use super::{Command, Error, Result};
+use std::sync::Arc;
+
+use super::{Command, Error, FakeProcessDescription, Result};
 
 /// The exit status and captured output of a completed process.
 #[derive(Clone, Debug)]
@@ -7,6 +9,7 @@ pub struct ProcessResult {
     pub(super) exit_code: i32,
     pub(super) stdout: Vec<u8>,
     pub(super) stderr: Vec<u8>,
+    pub(super) description: Option<Arc<FakeProcessDescription>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's process result API")]

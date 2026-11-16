@@ -9,7 +9,8 @@ use std::{
 use indexmap::IndexMap;
 
 use super::{
-    Command, Error, InvokedProcess, PendingProcess, Pool, ProcessPoolResults, ProcessResult, Result,
+    Command, Error, FakeProcessDescription, InvokedProcess, PendingProcess, Pool,
+    ProcessPoolResults, ProcessResult, Result,
 };
 
 type Fake = dyn Fn(&RecordedProcess) -> Option<Result<ProcessResult>> + Send + Sync;
@@ -86,6 +87,10 @@ impl Factory {
         Ok(result)
     }
 
+    pub fn describe() -> FakeProcessDescription {
+        FakeProcessDescription::default()
+    }
+
     pub fn result(
         output: impl Into<Vec<u8>>,
         error_output: impl Into<Vec<u8>>,
@@ -96,6 +101,7 @@ impl Factory {
             exit_code,
             stdout: output.into(),
             stderr: error_output.into(),
+            description: None,
         }
     }
 

@@ -12,7 +12,9 @@ use tokio::{
     time::{Instant, sleep_until, timeout},
 };
 
-use super::{Command, Error, ProcessResult, Result, child::ChildGroup};
+use super::{
+    Command, Error, ProcessResult, Result, child::ChildGroup, fake_description::FakePlayback,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum OutputStream {
@@ -25,6 +27,7 @@ pub enum Signal {
     Interrupt,
     Terminate,
     Kill,
+    Raw(i32),
 }
 
 #[derive(Default)]
@@ -78,6 +81,7 @@ pub struct InvokedProcess {
     output: Arc<LiveOutput>,
     task: Option<ProcessTask>,
     completion: Option<Completion>,
+    fake: Option<Mutex<FakePlayback>>,
     capture: bool,
     chunk_offset: usize,
     signals: mpsc::UnboundedSender<SignalRequest>,
@@ -99,6 +103,7 @@ impl InvokedProcess {
             output,
             task: Some(task),
             completion: None,
+            fake: None,
             capture,
             chunk_offset: 0,
             signals,
@@ -114,27 +119,31 @@ impl InvokedProcess {
         capture: bool,
     ) -> Self {
         let output = Arc::new(LiveOutput::default());
-        for (stream, bytes) in [
-            (OutputStream::Stdout, result.stdout),
-            (OutputStream::Stderr, result.stderr),
-        ] {
-            if !bytes.is_empty() {
-                record(&output, &mut callback, stream, &bytes);
+        let fake = result
+            .description
+            .as_ref()
+            .map(|description| Mutex::new(description.invocation(callback.take(), capture)));
+        if fake.is_none() {
+            for (stream, bytes) in [
+                (OutputStream::Stdout, result.stdout),
+                (OutputStream::Stderr, result.stderr),
+            ] {
+                if !bytes.is_empty() {
+                    record(&output, &mut callback, stream, &bytes);
+                }
             }
         }
         let (signals, _) = mpsc::unbounded_channel();
-        let task = tokio::spawn(async move {
-            Ok(Completion {
-                exit_code: result.exit_code,
-                idle_timeout: None,
-            })
-        });
         Self {
             command,
             id: None,
             output,
-            task: Some(task),
-            completion: None,
+            task: None,
+            completion: Some(Completion {
+                exit_code: result.exit_code,
+                idle_timeout: None,
+            }),
+            fake,
             capture,
             chunk_offset: 0,
             signals,
@@ -148,10 +157,22 @@ impl InvokedProcess {
     }
 
     pub fn id(&self) -> Option<u32> {
+        if let Some(fake) = self.playback() {
+            return Some(fake.id);
+        }
         self.running().then_some(self.id).flatten()
     }
 
     pub fn running(&self) -> bool {
+        if let Some(mut fake) = self.playback() {
+            if fake.remaining_polls == 0 {
+                while self.publish_fake_chunk(&mut fake) {}
+                return false;
+            }
+            fake.remaining_polls -= 1;
+            self.publish_fake_chunk(&mut fake);
+            return true;
+        }
         self.id.is_some() && self.task.as_ref().is_some_and(|task| !task.is_finished())
     }
 
@@ -176,6 +197,10 @@ impl InvokedProcess {
     }
 
     pub async fn signal(&self, signal: Signal) -> Result<()> {
+        if let Some(mut fake) = self.playback() {
+            fake.signals.push(signal);
+            return Ok(());
+        }
         if self.running() {
             let (acknowledge, result) = oneshot::channel();
             if self.signals.send((signal, acknowledge)).is_ok() {
@@ -183,6 +208,11 @@ impl InvokedProcess {
             }
         }
         Ok(())
+    }
+
+    pub fn hasReceivedSignal(&self, signal: Signal) -> bool {
+        self.playback()
+            .is_some_and(|fake| fake.signals.contains(&signal))
     }
 
     pub async fn stop(mut self, grace: Duration) -> Result<ProcessResult> {
@@ -212,7 +242,16 @@ impl InvokedProcess {
                     return Ok(true);
                 }
             }
+            if self
+                .playback()
+                .is_some_and(|mut fake| self.publish_fake_chunk(&mut fake))
+            {
+                continue;
+            }
             if let Some(status) = self.completion {
+                if let Some(mut fake) = self.playback() {
+                    fake.remaining_polls = 0;
+                }
                 if status.idle_timeout.is_some() {
                     self.finish(status)?;
                 }
@@ -227,7 +266,10 @@ impl InvokedProcess {
 
     pub async fn ensureNotTimedOut(&mut self) -> Result<()> {
         if self.task.as_ref().is_some_and(JoinHandle::is_finished) || self.completion.is_some() {
-            let status = self.collect().await?;
+            let status = match self.completion {
+                Some(status) => status,
+                None => self.collect().await?,
+            };
             if status.idle_timeout.is_some() {
                 self.finish(status)?;
             }
@@ -253,6 +295,10 @@ impl InvokedProcess {
     }
 
     async fn collect(&mut self) -> Result<Completion> {
+        if let Some(mut fake) = self.playback() {
+            while self.publish_fake_chunk(&mut fake) {}
+            fake.remaining_polls = 0;
+        }
         if let Some(status) = self.completion {
             return Ok(status);
         }
@@ -265,6 +311,21 @@ impl InvokedProcess {
         let status = result.map_err(io::Error::other)??;
         self.completion = Some(status);
         Ok(status)
+    }
+
+    fn playback(&self) -> Option<std::sync::MutexGuard<'_, FakePlayback>> {
+        self.fake.as_ref().map(|fake| {
+            fake.lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        })
+    }
+
+    fn publish_fake_chunk(&self, fake: &mut FakePlayback) -> bool {
+        let Some((stream, bytes)) = fake.chunks.pop_front() else {
+            return false;
+        };
+        record(&self.output, &mut fake.callback, stream, &bytes);
+        true
     }
 
     fn next_chunk(&mut self) -> Option<(OutputStream, Vec<u8>)> {
@@ -288,6 +349,7 @@ impl InvokedProcess {
             exit_code: status.exit_code,
             stdout: output.stdout.clone(),
             stderr: output.stderr.clone(),
+            description: None,
         };
         match status.idle_timeout {
             Some(idle) => Err(Error::TimedOut {

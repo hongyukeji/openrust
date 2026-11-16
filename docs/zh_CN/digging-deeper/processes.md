@@ -65,6 +65,27 @@ let result = Process::command("test -t 0 && test -t 1 && test -t 2 && printf 'te
 assert!(result.output().is_empty());
 ```
 
+### 数值信号 {#numeric-signals}
+
+在 Unix 上可通过 `Signal::Raw` 向运行中的进程发送平台信号编号。运行下例前，将 `PROCESS_EXAMPLE_SIGNAL` 设为本机 `SIGUSR1` 的数值。
+
+```rust
+use openrust::{process::Signal, support::facades::Process};
+use std::time::Duration;
+
+let number: i32 = std::env::var("PROCESS_EXAMPLE_SIGNAL")?.parse()?;
+let mut process = Process::command(
+    "trap 'printf caught; exit 6' USR1; printf ready; while :; do sleep 0.02; done",
+)?
+.timeout(Duration::from_secs(4))
+.start()?;
+assert!(process.waitUntil(|_, bytes| bytes == b"ready").await?);
+process.signal(Signal::Raw(number)).await?;
+let result = process.wait().await?;
+assert_eq!(result.exitCode(), 6);
+assert_eq!(result.output(), b"readycaught");
+```
+
 ## 测试 {#testing}
 
 fake 和调用记录属于各自的工厂。用 `preventStrayProcesses(true)` 使未匹配的调用在启动可执行文件前失败。
@@ -78,4 +99,29 @@ processes.preventStrayProcesses(true);
 let result = processes.run(["deploy", "preview"]).await?;
 assert!(result.successful());
 processes.assertRan(|process| process.command == ["deploy", "preview"].into());
+```
+
+### 模拟进程脚本 {#scripted-fakes}
+
+用 `Factory::describe()` 描述模拟进程的 ID、按顺序出现的输出行、`running()` 返回 true 的检查次数及退出码。将构建后的结果注册到 `fakeCommand` 或模拟序列。等待时按顺序播放输出，信号记录在模拟进程本地。
+
+```rust
+use openrust::process::{Factory, OutputStream, Signal};
+
+let processes = Factory::new();
+processes.fakeCommand("worker", Factory::describe()
+    .id(321)
+    .runsFor(2)
+    .errorOutput("ready")
+    .output("finished")
+    .exitCode(0)
+    .result());
+processes.preventStrayProcesses(true);
+
+let mut worker = processes.start("worker")?;
+assert_eq!(worker.id(), Some(321));
+assert!(worker.waitUntil(|stream, bytes| stream == OutputStream::Stderr && bytes == b"ready\n").await?);
+worker.signal(Signal::Terminate).await?;
+assert!(worker.hasReceivedSignal(Signal::Terminate));
+assert_eq!(worker.wait().await?.output(), b"finished\n");
 ```

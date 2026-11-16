@@ -3085,6 +3085,7 @@ dependencies = [
  "intl",
  "iri-string",
  "lettre",
+ "libc",
  "md-5 0.11.0",
  "memory-stats",
  "mime_guess",

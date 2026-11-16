@@ -9,8 +9,8 @@ use crate::{
 };
 
 use super::{
-    Command, Error, Factory, InvokedProcess, PendingProcess, Pool, ProcessPoolResults,
-    ProcessResult, RecordedProcess, Result,
+    Command, Error, Factory, FakeProcessDescription, InvokedProcess, PendingProcess, Pool,
+    ProcessPoolResults, ProcessResult, RecordedProcess, Result,
 };
 
 /// Resolves the process factory in the current application scope.
@@ -57,6 +57,10 @@ impl Process {
             .map_err(Error::Unavailable)?
             .pipe(commands)
             .await
+    }
+
+    pub fn describe() -> FakeProcessDescription {
+        Factory::describe()
     }
 
     pub fn result(

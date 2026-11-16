@@ -5,7 +5,7 @@ use tokio::process::{Child, Command};
 use super::Signal;
 
 #[cfg(unix)]
-use rustix::process::{Pid, Signal as UnixSignal, kill_process_group};
+use rustix::process::Pid;
 
 #[cfg(unix)]
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -91,53 +91,65 @@ impl ChildGroup {
         self.child.wait().await
     }
 
+    #[cfg(unix)]
     pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
-        #[cfg(unix)]
-        if let Some(group) = self.group {
-            let signal = match signal {
-                Signal::Interrupt => UnixSignal::INT,
-                Signal::Terminate => UnixSignal::TERM,
-                Signal::Kill => UnixSignal::KILL,
-            };
-            return match kill_process_group(group, signal) {
-                Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
-                #[cfg(target_os = "macos")]
-                Err(rustix::io::Errno::PERM)
-                    if rustix::process::waitid(
-                        rustix::process::WaitId::Pid(group),
-                        rustix::process::WaitIdOptions::EXITED
-                            | rustix::process::WaitIdOptions::NOHANG
-                            | rustix::process::WaitIdOptions::NOWAIT,
-                    )?
-                    .is_some() =>
-                {
-                    Ok(())
-                }
-                Err(error) => Err(error.into()),
-            };
+        let raw = match signal {
+            Signal::Interrupt => libc::SIGINT,
+            Signal::Terminate => libc::SIGTERM,
+            Signal::Kill => libc::SIGKILL,
+            Signal::Raw(raw) => raw,
+        };
+        if raw <= 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid process signal",
+            ));
         }
-        #[cfg(unix)]
-        if let Some(pid) = self
-            .child
-            .id()
-            .and_then(|id| i32::try_from(id).ok())
-            .and_then(Pid::from_raw)
-        {
-            let signal = match signal {
-                Signal::Interrupt => UnixSignal::INT,
-                Signal::Terminate => UnixSignal::TERM,
-                Signal::Kill => UnixSignal::KILL,
-            };
-            return match rustix::process::kill_process(pid, signal) {
-                Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
-                Err(error) => Err(error.into()),
-            };
+        let target = match self.group {
+            Some(group) => -group.as_raw_pid(),
+            None => {
+                let Some(pid) = self
+                    .child
+                    .id()
+                    .and_then(|pid| i32::try_from(pid).ok())
+                    .and_then(Pid::from_raw)
+                else {
+                    return Ok(());
+                };
+                pid.as_raw_pid()
+            }
+        };
+        // The target is a still-owned child PID or its process group. The kernel validates the signal.
+        if unsafe { libc::kill(target, raw) } == 0 {
+            return Ok(());
         }
+        let error = io::Error::last_os_error();
+        match error.raw_os_error() {
+            Some(libc::ESRCH) => Ok(()),
+            #[cfg(target_os = "macos")]
+            Some(libc::EPERM)
+                if self.group.is_some_and(|group| {
+                    use rustix::process::{WaitId, WaitIdOptions, waitid};
+                    waitid(
+                        WaitId::Pid(group),
+                        WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT,
+                    )
+                    .is_ok_and(|status| status.is_some())
+                }) =>
+            {
+                Ok(())
+            }
+            _ => Err(error),
+        }
+    }
+
+    #[cfg(not(unix))]
+    pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
         match signal {
             Signal::Kill | Signal::Terminate => self.child.start_kill(),
-            Signal::Interrupt => Err(io::Error::new(
+            Signal::Interrupt | Signal::Raw(_) => Err(io::Error::new(
                 io::ErrorKind::Unsupported,
-                "process interrupt unavailable",
+                "process signal unavailable",
             )),
         }
     }

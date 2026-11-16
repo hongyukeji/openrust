@@ -134,6 +134,78 @@ async fn artisan_resolves_process_fakes_from_each_application() {
     assert_eq!((left, right), (4, 7));
 }
 
+#[tokio::test]
+async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
+    use openrust::process::{OutputStream, Signal};
+    use std::sync::{Arc, Mutex};
+
+    let factory = Factory::new();
+    factory.preventStrayProcesses(true);
+    factory.fakeCommand(
+        "script",
+        Factory::describe()
+            .id(314)
+            .runsFor(2)
+            .output("replaced")
+            .errorOutput("diagnostic")
+            .replaceOutput("ready\n\n")
+            .output("finished")
+            .exitCode(7)
+            .result(),
+    );
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let capture = observed.clone();
+    let mut process = factory
+        .command("script")
+        .startWithOutput(move |stream, bytes| {
+            capture.lock().unwrap().push((stream, bytes.to_vec()));
+        })
+        .unwrap();
+    assert_eq!(process.id(), Some(314));
+    assert!(process.running());
+    assert_eq!(process.latestErrorOutput(), b"diagnostic\n");
+    process.signal(Signal::Raw(10)).await.unwrap();
+    assert!(process.hasReceivedSignal(Signal::Raw(10)));
+    assert!(!process.hasReceivedSignal(Signal::Kill));
+    let mut staged = Vec::new();
+    assert!(
+        process
+            .waitUntil(|stream, bytes| {
+                staged.push((stream, bytes.to_vec()));
+                bytes == b"ready\n"
+            })
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        staged,
+        [
+            (OutputStream::Stderr, b"diagnostic\n".to_vec()),
+            (OutputStream::Stdout, b"ready\n".to_vec())
+        ]
+    );
+    assert!(process.running());
+    assert!(!process.running());
+
+    let mut remaining = Vec::new();
+    let result = process
+        .waitWithOutput(|stream, bytes| {
+            remaining.push((stream, bytes.to_vec()));
+        })
+        .await
+        .unwrap();
+    assert_eq!(remaining, [(OutputStream::Stdout, b"finished\n".to_vec())]);
+    assert_eq!(result.exitCode(), 7);
+    assert_eq!(result.output(), b"ready\nfinished\n");
+    assert_eq!(result.errorOutput(), b"diagnostic\n");
+    assert_eq!(observed.lock().unwrap().len(), 3);
+    factory.assertRanTimes(|probe| probe.command == "script".into(), 1);
+    assert_eq!(
+        factory.recorded()[0].1.as_ref().unwrap().output(),
+        result.output()
+    );
+}
+
 #[cfg(unix)]
 mod unix {
     use super::*;
@@ -441,5 +513,26 @@ mod unix {
         ));
         tokio::time::sleep(Duration::from_millis(450)).await;
         assert!(!directory.0.join("marker").exists());
+    }
+    #[tokio::test]
+    async fn sends_a_numeric_unix_signal_and_rejects_invalid_numbers() {
+        let mut child = Factory::new()
+            .command(
+                "trap 'printf caught; exit 6' USR1; printf ready; while :; do sleep 0.02; done",
+            )
+            .timeout(Duration::from_secs(3))
+            .start()
+            .unwrap();
+        assert!(child.waitUntil(|_, bytes| bytes == b"ready").await.unwrap());
+        assert!(
+            matches!(child.signal(Signal::Raw(0)).await, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
+        );
+        assert!(
+            matches!(child.signal(Signal::Raw(i32::MAX)).await, Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
+        );
+        child.signal(Signal::Raw(libc::SIGUSR1)).await.unwrap();
+        let result = child.wait().await.unwrap();
+        assert_eq!(result.exitCode(), 6);
+        assert_eq!(result.output(), b"readycaught");
     }
 }
