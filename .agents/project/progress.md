@@ -2438,3 +2438,5 @@ Sanctum-03 API 安装已本地提交 `4d0b8b031aabeb234ea00ea0c728d9e7d68eccf8`�
 - 2026-11-17 00:29（北京时间）02-06 [创建缺失的 MySQL 数据库](audits/02-06/README.md#创建缺失的-mysql-数据库)。按固定 Laravel 验证 MySQL 1049、写端点、生产和缺库确认、无人值守及权限失败。MySQL 8.4.13 的实际 Artisan、账本回归、严格 Clippy、三语站点及 18 项浏览器检查通过。 全仓格式仍有既有 Sanctum 差异，变更文件格式通过。
 
 - 2026-11-17 00:34（北京时间）02-06 [MySQL migrate:fresh 建库与快照](audits/02-06/README.md#mysql-migratefresh-建库与快照)。按固定 Laravel 复用内部迁移创建缺库及加载显式快照。MySQL 8.4.13 通过无账本保留已有表、生产拒绝、恢复迁移历史、限定库清理及真实 Artisan。三语站点、18 项浏览器检查和严格 Clippy 通过。 变更文件格式通过，全仓格式仍有既有 Sanctum 差异。
+
+- 2026-11-17 00:42（北京时间）02-05 [条件式 Schema 当前主线复验](audits/02-05/README.md#条件式-schema-当前主线复验)。已提交实现 `7d67c94d3` 在 `e5661b8eb` 上通过 MySQL 8.4.13 表目录与限定库清理、条件式 Schema 回调、三语共享示例、Artisan inspire 和严格 Clippy。复验只更新项目记录，后续驱动验收继续按发布矩阵执行。

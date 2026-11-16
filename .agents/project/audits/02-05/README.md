@@ -177,6 +177,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 使用 `python3 docker/accept.py --mysql -- ./target/debug/examples/schema_conditional_acceptance` 运行三语共用 Artisan 示例，重复运行条件操作及反向移除索引通过。原生 `main artisan inspire`、Rust 1.94 严格 Clippy、变更文件格式、三语构建和 18 项浏览器检查通过。全工作区格式检查仍有既有 Sanctum 排版差异。
 - 当前主分支的 `5aa5636a` 已回退两个 Docker 验收入口。本批仅在隔离副本提取 `3d2641c0f` 中的原脚本运行，并验证两轮均回收各自的 MySQL 容器与卷。
 
+### 条件式 Schema 当前主线复验
+
+在 `e5661b8eb` 的隔离快照复验原实现提交 `7d67c94d3`。MySQL 8.4.13 下，`sh tests/table_catalog.sh` 的写连接目录和实际 `migrate:fresh` 限定库清理通过，另一 Schema 的标记行保留。按指定入口在隔离快照提取历史 `docker/accept.py`，以 `--mysql` 验证条件式回调回归、三语共用 Artisan 示例和实际二进制 `main artisan inspire`。严格 Clippy 通过。全仓格式检查仍只有既有 Sanctum 排版差异。三轮夹具均已回收。
+
 ## 创建和删除数据库
 
 对照固定 Laravel [Builder 的数据库操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L123)、[MySQL 建库默认值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L42)、[SQLite 文件操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L16)。旧版框架未找到相同接口，本批在 Schema 的写连接及原生 DDL 路径实现。
