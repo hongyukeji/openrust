@@ -369,6 +369,22 @@ pub async fn enable_feature(record: &mut impl Model) -> DatabaseResult<bool> {
 
 Use `editValueObject` to apply an edit and write its result to the model before saving. SQL `NULL` reads as `None`. An existing JSON scalar or malformed document returns an error when read as `Fluent`. Text columns retain the written key order. Native JSON columns follow the order returned by the database.
 
+### HTML String Casting {#html-string-casting}
+
+Declare `AsHtmlString::cast()` in `Model::casts()` to read an HTML attribute as an `HtmlString`. `toHtml()` returns the original markup. The database and model JSON store it as text, and SQL `NULL` reads as `None`. Assign a typed `HtmlString` with `setValueObject`, or assign plain text with `setAttributeValue`. Treat markup from untrusted sources as text when rendering.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    support::HtmlString,
+};
+
+fn update_body(model: &mut impl Model) -> DatabaseResult<()> {
+    model.setValueObject("body", Some(HtmlString::new("<strong>OpenRust</strong>")))?;
+    Ok(())
+}
+```
+
 ### URI Casting
 
 Declare an attribute with `AsUri::cast()` in `Model::casts()`. Text assignments keep their original database value. Reading and serializing the attribute parse and normalize the URI. SQL NULL remains null. Both absolute URIs and relative references are supported. Invalid text can be corrected with another assignment.

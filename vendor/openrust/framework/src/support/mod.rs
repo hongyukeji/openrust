@@ -8,6 +8,7 @@ mod deferred_provider;
 mod enumerable;
 pub mod facades;
 mod fluent;
+mod html_string;
 mod lazy_collection;
 mod lottery;
 mod message_bag;
@@ -25,6 +26,7 @@ pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_s
 pub use deferred_provider::DeferredProvider;
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
+pub use html_string::HtmlString;
 pub use lazy_collection::{LazyCollection, LazyIterator, LazySource};
 pub use lottery::{InvalidLottery, Lottery};
 pub use message_bag::MessageBag;

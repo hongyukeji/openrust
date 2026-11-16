@@ -369,6 +369,22 @@ pub async fn enable_feature(record: &mut impl Model) -> DatabaseResult<bool> {
 
 用 `editValueObject` 修改並寫回模型，再儲存。SQL `NULL` 讀取為 `None`。既有 JSON 純量或格式錯誤的內容在讀為 `Fluent` 時回傳錯誤。文字欄位保留寫入的鍵順序，原生 JSON 欄位遵循資料庫回傳的順序。
 
+### HTML 字串轉換 {#html-string-casting}
+
+在 `Model::casts()` 中宣告 `AsHtmlString::cast()`，即可將屬性讀取為 `HtmlString`。`toHtml()` 傳回原始標記。資料庫欄位和模型 JSON 使用字串，SQL `NULL` 讀取為 `None`。用 `setValueObject` 寫入 `HtmlString`，或用 `setAttributeValue` 寫入純文字。轉譯時應將不受信任的標記視為文字。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    support::HtmlString,
+};
+
+fn update_body(model: &mut impl Model) -> DatabaseResult<()> {
+    model.setValueObject("body", Some(HtmlString::new("<strong>OpenRust</strong>")))?;
+    Ok(())
+}
+```
+
 ### URI 轉換
 
 在 `Model::casts()` 中使用 `AsUri::cast()` 宣告屬性。文字賦值保留資料庫原文，讀取和序列化時解析並正規化 URI。SQL NULL 保持為空。支援絕對 URI 和相對參照。無效文字可以重新賦值修復。

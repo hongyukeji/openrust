@@ -11,6 +11,7 @@ mod enum_cast;
 mod enum_collection;
 mod fluent;
 mod hashed;
+mod html_string;
 mod json_path;
 mod primitive;
 mod stringable;
@@ -28,6 +29,7 @@ pub use encrypted::{AsEncryptedArrayObject, AsEncryptedCollection, EncryptedCast
 pub use enum_cast::{CastableEnum, EnumCast};
 pub use enum_collection::{AsEnumArrayObject, AsEnumCollection, EnumCollectionCast};
 pub use fluent::AsFluent;
+pub use html_string::AsHtmlString;
 pub use primitive::AttributeCast;
 pub use stringable::AsStringable;
 pub use uri::AsUri;
