@@ -2461,3 +2461,226 @@ async fn sqlite_schema_rollback_callbacks_observe_restored_session_settings() {
         1.into()
     );
 }
+
+async fn terminate_running_query(control: &Connection, marker: &'static str) {
+    let pattern = format!("%{marker}%");
+    let id = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let id = control.scalar(
+                "SELECT ID FROM information_schema.processlist WHERE ID <> CONNECTION_ID() AND COMMAND IN ('Execute', 'Query') AND INFO LIKE ? LIMIT 1",
+                &[pattern.clone().into()],
+            ).await.unwrap();
+            match id {
+                Value::Integer(id) => break id.to_string(),
+                Value::Unsigned(id) => break id.to_string(),
+                Value::Null => tokio::time::sleep(Duration::from_millis(20)).await,
+                _ => panic!("expected a numeric MySQL session id"),
+            }
+        }
+    }).await.expect("the fixture SQL must be executing before its session is terminated");
+    control
+        .unprepared(&format!("KILL CONNECTION {id}"))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn mysql_replays_running_reads_and_writes_once_and_preserves_transaction_boundaries() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let control = manager(
+        &root,
+        json!({"default":"control","connections":{"control":{"url":url,"max_connections":1}}}),
+    )
+    .connection(None)
+    .unwrap();
+    let mut app =
+        Application::configure(root.0.clone())
+            .withConfig(|_, _| {
+                let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+                Ok([("database".into(), json!({"default":"main","connections":{
+            "main":{"url":url,"read":{"url":url},"max_connections":1,"acquire_timeout":5},
+                "parallel":{"url":url,"max_connections":2,"acquire_timeout":5}
+        }}))].into())
+            })
+            .create()
+            .unwrap();
+    app.boot().await.unwrap();
+    let listener = establishment_listener(&app, false, false);
+    let db = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    db.enableQueryLog();
+    db.unprepared("DROP TABLE IF EXISTS sql_replay_probe; CREATE TABLE sql_replay_probe (id INTEGER PRIMARY KEY, n INTEGER NOT NULL); INSERT INTO sql_replay_probe VALUES (1, 0)").await.unwrap();
+
+    let read_marker = "fixture_replay_running_read";
+    let read_id = [db.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap()];
+    let sql = "SELECT IF(CONNECTION_ID() = ?, SLEEP(20), 17) /* fixture_replay_running_read */";
+    let (result, ()) = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::join!(
+            db.scalar(sql, &read_id),
+            terminate_running_query(&control, read_marker)
+        )
+    })
+    .await
+    .unwrap();
+    assert_eq!(result.unwrap(), 17.into());
+    assert_eq!(listener.calls.load(Ordering::SeqCst), 2);
+    let log = db.getQueryLog();
+    let replayed: Vec<_> = log.iter().filter(|entry| entry.query == sql).collect();
+    assert_eq!(replayed.len(), 1);
+    assert_eq!(replayed[0].read_write_type, QueryRole::Read);
+
+    let write_id = db
+        .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])
+        .await
+        .unwrap();
+    let write_ids = [write_id[0].get_at(0).unwrap().clone()];
+    let sql = "UPDATE sql_replay_probe SET n = n + 1 WHERE id = IF(CONNECTION_ID() = ?, SLEEP(20), 1) /* fixture_replay_running_write */";
+    let (changed, ()) = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::join!(
+            db.update(sql, &write_ids),
+            terminate_running_query(&control, "fixture_replay_running_write")
+        )
+    })
+    .await
+    .unwrap();
+    assert_eq!(changed.unwrap(), 1);
+    assert_eq!(
+        db.scalar("SELECT n FROM sql_replay_probe WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+    assert_eq!(listener.calls.load(Ordering::SeqCst), 3);
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    tx.update("UPDATE sql_replay_probe SET n = 99 WHERE id = 1", &[])
+        .await
+        .unwrap();
+    let (transaction, ()) = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::join!(
+            tx.scalar("SELECT SLEEP(20) /* fixture_no_transaction_replay */", &[]),
+            terminate_running_query(&control, "fixture_no_transaction_replay")
+        )
+    })
+    .await
+    .unwrap();
+    assert!(matches!(transaction, Err(DatabaseError::Driver { .. })));
+    assert!(matches!(
+        tx.commit().await,
+        Err(DatabaseError::TransactionInterrupted)
+    ));
+    drop(tx);
+    assert_eq!(listener.calls.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        db.scalar("SELECT n FROM sql_replay_probe WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+
+    let (failed, ()) = tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::join!(
+            db.scalar("SELECT SLEEP(20) /* fixture_replay_fails_twice */", &[]),
+            async {
+                for _ in 0..2 {
+                    terminate_running_query(&control, "fixture_replay_fails_twice").await;
+                }
+            }
+        )
+    })
+    .await
+    .unwrap();
+    assert!(matches!(failed, Err(DatabaseError::Driver { .. })));
+    assert_eq!(listener.calls.load(Ordering::SeqCst), 4);
+    assert!(
+        db.getQueryLog()
+            .iter()
+            .all(|entry| !entry.query.contains("fixture_replay_fails_twice"))
+    );
+    let parallel = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(Some("parallel"))
+        .unwrap();
+    let held = "SELECT IF(SLEEP(0.05) = 0, CONNECTION_ID(), 0)";
+    let (one, two) = tokio::join!(parallel.scalar(held, &[]), parallel.scalar(held, &[]));
+    let sessions = [one.unwrap(), two.unwrap()];
+    assert_ne!(sessions[0], sessions[1]);
+    let before_parallel = listener.calls.load(Ordering::SeqCst);
+    let (a, b, (), ()) = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::join!(
+            parallel.scalar("SELECT IF(CONNECTION_ID() IN (?, ?), SLEEP(20), 12) /* fixture_parallel_replay_a */", &sessions),
+            parallel.scalar("SELECT IF(CONNECTION_ID() IN (?, ?), SLEEP(20), 13) /* fixture_parallel_replay_b */", &sessions),
+            terminate_running_query(&control, "fixture_parallel_replay_a"),
+            terminate_running_query(&control, "fixture_parallel_replay_b"),
+        )
+    }).await.unwrap();
+    assert_eq!(a.unwrap(), 12.into());
+    assert_eq!(b.unwrap(), 13.into());
+    assert_eq!(listener.calls.load(Ordering::SeqCst), before_parallel + 1);
+    db.unprepared("DROP TABLE sql_replay_probe").await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_cursor_only_replays_before_delivering_a_row() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let manager = manager(
+        &root,
+        json!({"default":"fixture","connections":{
+            "fixture":{"url":url,"max_connections":1,"acquire_timeout":5},
+            "control":{"url":url,"max_connections":1}
+        }}),
+    );
+    let control = manager.connection(Some("control")).unwrap();
+    let db = manager.connection(None).unwrap();
+    db.enableQueryLog();
+    let id = [db.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap()];
+    let sql =
+        "SELECT IF(CONNECTION_ID() = ?, SLEEP(20), 29) /* fixture_cursor_replay_before_row */";
+    let (rows, ()) = tokio::time::timeout(Duration::from_secs(8), async {
+        tokio::join!(
+            db.cursor(sql, &id).try_collect::<Vec<_>>(),
+            terminate_running_query(&control, "fixture_cursor_replay_before_row")
+        )
+    })
+    .await
+    .unwrap();
+    assert_eq!(rows.unwrap()[0].get_at(0), Some(&29.into()));
+    assert_eq!(
+        db.getQueryLog()
+            .iter()
+            .filter(|entry| entry.query == sql)
+            .count(),
+        1
+    );
+
+    let sql = "SELECT REPEAT('a', 262144) AS payload UNION ALL SELECT CONCAT('b', SLEEP(20)) /* fixture_cursor_no_replay_after_row */";
+    let mut cursor = db.cursor(sql, &[]);
+    let first = tokio::time::timeout(Duration::from_secs(5), cursor.try_next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    assert!(matches!(first.get_at(0), Some(Value::Text(text)) if text.len() == 262144));
+    terminate_running_query(&control, "fixture_cursor_no_replay_after_row").await;
+    let failed = tokio::time::timeout(Duration::from_secs(5), cursor.try_next())
+        .await
+        .unwrap();
+    assert!(matches!(failed, Err(DatabaseError::Driver { .. })));
+    drop(cursor);
+    assert!(db.getQueryLog().iter().all(|entry| entry.query != sql));
+    assert_eq!(db.scalar("SELECT 1", &[]).await.unwrap(), 1.into());
+}

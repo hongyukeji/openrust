@@ -119,17 +119,28 @@ impl Connection {
 
     pub async fn beginTransaction(&self) -> DatabaseResult<Transaction> {
         self.run_before_transaction(None).await?;
-        let mut transaction = Transaction {
-            connection: self.clone(),
-            physical: Some(self.acquire(false).await?),
-            level: 0,
-            sqlite_schema_session: None,
-            transactions: DatabaseTransactionsManager::default(),
-        };
-        transaction
-            .begin("begin transaction", TransactionCommand::Begin)
-            .await?;
-        Ok(transaction)
+        let mut replayed = false;
+        loop {
+            let lease = self.acquire_query(false).await?;
+            let mut transaction = Transaction {
+                connection: self.clone(),
+                physical: Some(lease.physical),
+                level: 0,
+                sqlite_schema_session: None,
+                transactions: DatabaseTransactionsManager::default(),
+            };
+            match transaction
+                .begin("begin transaction", TransactionCommand::Begin)
+                .await
+            {
+                Ok(()) => return Ok(transaction),
+                Err(error)
+                    if transaction.level == 0
+                        && self.retry_lost_connection(&lease.generation, &error, &mut replayed) => {
+                }
+                Err(error) => return Err(error),
+            }
+        }
     }
 
     pub(super) async fn sqlite_schema_transaction(

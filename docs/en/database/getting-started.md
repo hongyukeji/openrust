@@ -102,6 +102,12 @@ async fn refresh_database() -> DatabaseResult<()> {
 }
 ```
 
+#### Recovering Lost Database Connections {#recovering-lost-connections}
+
+When the driver reports a lost connection while executing a statement outside a transaction, the connection refreshes its pools and retries the statement once. A successful retry produces one `QueryExecuted` event. A connection loss during the outermost `BEGIN` can also retry once.
+
+An active transaction reports a disconnect to its caller. A streaming cursor can retry until it yields its first row. A write may execute twice if the server applied it before the response was lost.
+
 ### Connection Established Event {#connection-established}
 
 Register for `ConnectionEstablished` to initialize an application connection. Resolving a connection returns a lazy handle. Its first asynchronous operation awaits the event before using the database pool. Use `establish().await` to deliver it explicitly. Each named connection delivers the event once per pool generation. A listener can await SQL on the event's connection directly. If dispatch returns a listener error, the initiating operation receives that error. If the dispatch is canceled while a listener is running, the next operation retries it.

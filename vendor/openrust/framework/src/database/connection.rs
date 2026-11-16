@@ -18,6 +18,7 @@ use sqlx_core::transaction::TransactionManager;
 use crate::{
     contracts::{
         container::Container as _,
+        database::LostConnectionDetector as _,
         events::{Dispatcher as _, Listener},
     },
     events::{Delivery, Dispatcher, EventContext},
@@ -25,8 +26,8 @@ use crate::{
 };
 
 use super::{
-    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, QueryLogEntry, RawQueryLogEntry, Row,
-    Value,
+    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, LostConnectionDetector, QueryLogEntry,
+    RawQueryLogEntry, Row, Value,
     bindings::{PreparedBindings, render_query},
     connection_pools::{ConnectionPools, PoolGeneration},
     events::{
@@ -67,6 +68,13 @@ tokio::task_local! {
     static ESTABLISHING_CONNECTIONS: Vec<usize>;
 }
 
+fn is_establishing(generation: &Arc<PoolGeneration>) -> bool {
+    let identity = Arc::as_ptr(generation).addr();
+    ESTABLISHING_CONNECTIONS
+        .try_with(|connections| connections.contains(&identity))
+        .unwrap_or(false)
+}
+
 #[derive(Default)]
 pub(crate) struct ReadRouting {
     records_modified: AtomicBool,
@@ -98,6 +106,13 @@ pub(super) enum PhysicalConnection {
     Mysql(Lease<MySql>),
 }
 
+pub(super) struct QueryLease {
+    pub physical: PhysicalConnection,
+    pub generation: Arc<PoolGeneration>,
+    role: QueryRole,
+    wait: Duration,
+}
+
 pub(super) struct Lease<D: Database> {
     connection: PoolConnection<D>,
     dirty: bool,
@@ -120,7 +135,9 @@ impl<D: Database> Lease<D> {
     fn finish<T>(&mut self, result: Result<T, sqlx::Error>) -> Result<T, sqlx::Error> {
         self.dirty = result.as_ref().err().is_some_and(|error| {
             !matches!(error, sqlx::Error::Database(_))
-                || (D::NAME == "MySQL" && super::transaction::mysql_deadlock(error))
+                || (D::NAME == "MySQL"
+                    && (super::transaction::mysql_deadlock(error)
+                        || LostConnectionDetector.causedByLostConnection(error)))
         });
         result
     }
@@ -511,19 +528,36 @@ impl PhysicalConnection {
 }
 
 macro_rules! observed_query {
-    ($connection:ident, $sql:ident, $bindings:expr, $read:expr, $operation:ident, $before:expr, $after:expr) => {{
-        let bindings: Bindings<'_> = $bindings.into();
-        let (mut physical, role, wait) = $connection.acquire_query($read).await?;
-        let start = Instant::now();
-        $before();
-        let result = physical.$operation($sql, bindings).await?;
-        let time = wait + start.elapsed();
-        drop(physical);
-        $after(&result);
-        $connection
-            .dispatch_query($sql, bindings, time, role)
-            .await?;
-        Ok::<_, DatabaseError>(result)
+    ($connection:ident, $sql:ident, $bindings:expr, $read:expr,
+      |$physical:ident, $values:ident| $operation:expr, $before:expr, $after:expr) => {{
+        let $values: Bindings<'_> = $bindings.into();
+        let mut replayed = false;
+        let mut elapsed = Duration::ZERO;
+        loop {
+            let QueryLease {
+                physical: mut $physical,
+                role,
+                wait,
+                generation,
+            } = $connection.acquire_query($read).await?;
+            let start = Instant::now();
+            $before();
+            let result = $operation.await;
+            elapsed += wait + start.elapsed();
+            drop($physical);
+            match result {
+                Ok(result) => {
+                    $after(&result);
+                    $connection
+                        .dispatch_query($sql, $values, elapsed, role)
+                        .await?;
+                    break Ok::<_, DatabaseError>(result);
+                }
+                Err(error)
+                    if $connection.retry_lost_connection(&generation, &error, &mut replayed) => {}
+                Err(error) => break Err(error),
+            }
+        }
     }};
 }
 
@@ -554,14 +588,11 @@ impl Connection {
             return Ok(());
         }
 
-        let identity = Arc::as_ptr(generation).addr();
-        if ESTABLISHING_CONNECTIONS
-            .try_with(|connections| connections.contains(&identity))
-            .unwrap_or(false)
-        {
+        if is_establishing(generation) {
             return Ok(());
         }
 
+        let identity = Arc::as_ptr(generation).addr();
         let mut result = Ok(());
         generation
             .established
@@ -599,19 +630,15 @@ impl Connection {
     }
 
     pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
-        self.acquire_query(read)
-            .await
-            .map(|(connection, _, _)| connection)
+        self.acquire_query(read).await.map(|lease| lease.physical)
     }
 
     pub(super) fn write_query_role(&self) -> QueryRole {
         self.query_role.unwrap_or(QueryRole::Write)
     }
 
-    async fn acquire_query(
-        &self,
-        read: bool,
-    ) -> DatabaseResult<(PhysicalConnection, QueryRole, Duration)> {
+    pub(super) async fn acquire_query(&self, read: bool) -> DatabaseResult<QueryLease> {
+        let mut wait = Duration::ZERO;
         loop {
             let generation = self.pools.generation()?;
             self.establish_generation(&generation).await?;
@@ -620,14 +647,42 @@ impl Connection {
                 _ => (&generation.writer, self.write_query_role()),
             };
             let start = Instant::now();
-            match pool.acquire().await {
+            let result = pool.acquire().await;
+            wait += start.elapsed();
+            match result {
                 Err(DatabaseError::Driver {
                     source: sqlx::Error::PoolClosed,
                     ..
                 }) => continue,
-                result => return result.map(|physical| (physical, role, start.elapsed())),
+                result => {
+                    return result.map(|physical| QueryLease {
+                        physical,
+                        role,
+                        wait,
+                        generation,
+                    });
+                }
             }
         }
+    }
+
+    pub(super) fn retry_lost_connection(
+        &self,
+        generation: &Arc<PoolGeneration>,
+        error: &DatabaseError,
+        replayed: &mut bool,
+    ) -> bool {
+        if *replayed || is_establishing(generation) {
+            return false;
+        }
+        if !matches!(error, DatabaseError::Driver { source, .. }
+            if LostConnectionDetector.causedByLostConnection(source))
+        {
+            return false;
+        }
+        self.pools.retire_if_current(generation);
+        *replayed = true;
+        true
     }
 
     /// Subscribes to queries on this application's database connections.
@@ -780,7 +835,7 @@ impl Connection {
             sql,
             bindings,
             false,
-            execute_statement,
+            |physical, values| physical.execute_statement(sql, values),
             || self.setRecordModificationState(true),
             |_| ()
         )
@@ -905,20 +960,39 @@ impl Connection {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
-            let (mut physical, role, mut elapsed) = self.acquire_query(!write).await?;
-            {
-                let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
-                let mut rows = std::pin::pin!(physical.cursor(&prepared));
-                loop {
-                    let start = Instant::now();
-                    let next = rows.try_next().await?;
-                    elapsed += start.elapsed();
-                    let Some(row) = next else { break };
-                    yield row;
+            let mut replayed = false;
+            let mut elapsed = Duration::ZERO;
+            let mut delivered = false;
+            loop {
+                let QueryLease { mut physical, role, wait, generation } = self.acquire_query(!write).await?;
+                elapsed += wait;
+                let result = {
+                    let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+                    let mut rows = std::pin::pin!(physical.cursor(&prepared));
+                    loop {
+                        let start = Instant::now();
+                        let next = rows.try_next().await;
+                        elapsed += start.elapsed();
+                        match next {
+                            Ok(Some(row)) => {
+                                delivered = true;
+                                yield row;
+                            }
+                            Ok(None) => break Ok(()),
+                            Err(error) => break Err(error),
+                        }
+                    }
+                };
+                drop(physical);
+                match result {
+                    Ok(()) => {
+                        self.dispatch_query(sql, bindings, elapsed, role).await?;
+                        break;
+                    }
+                    Err(error) if !delivered && self.retry_lost_connection(&generation, &error, &mut replayed) => {}
+                    Err(error) => Err(error)?,
                 }
             }
-            drop(physical);
-            self.dispatch_query(sql, bindings, elapsed, role).await?;
         })
     }
 
@@ -927,7 +1001,15 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        observed_query!(self, sql, bindings, true, select, || (), |_| ())
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            true,
+            |physical, values| physical.select(sql, values),
+            || (),
+            |_| ()
+        )
     }
 
     pub async fn selectFromWriteConnection<'a>(
@@ -935,7 +1017,15 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        observed_query!(self, sql, bindings, false, select, || (), |_| ())
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            false,
+            |physical, values| physical.select(sql, values),
+            || (),
+            |_| ()
+        )
     }
 
     /// Returns the ordered rowsets of a single prepared MySQL statement.
@@ -950,7 +1040,7 @@ impl Connection {
             sql,
             bindings,
             use_read,
-            select_result_sets,
+            |physical, values| physical.select_result_sets(sql, values),
             || (),
             |_| ()
         )
@@ -961,7 +1051,15 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
-        observed_query!(self, sql, bindings, true, select_one, || (), |_| ())
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            true,
+            |physical, values| physical.select_one(sql, values),
+            || (),
+            |_| ()
+        )
     }
 
     pub async fn scalar<'a>(
@@ -984,7 +1082,7 @@ impl Connection {
             sql,
             bindings,
             false,
-            affecting_statement,
+            |physical, values| physical.affecting_statement(sql, values),
             || self.setRecordModificationState(true),
             |_| ()
         )
@@ -1025,7 +1123,7 @@ impl Connection {
             sql,
             bindings,
             false,
-            affecting_statement,
+            |physical, values| physical.affecting_statement(sql, values),
             || (),
             |count: &u64| {
                 if *count > 0 {
@@ -1037,14 +1135,14 @@ impl Connection {
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        let (mut physical, role, wait) = self.acquire_query(false).await?;
-        let start = Instant::now();
-        let result = physical.unprepared(sql).await?;
-        let elapsed = wait + start.elapsed();
-        drop(physical);
-        self.setRecordModificationState(true);
-        self.dispatch_query(sql, (&[]).into(), elapsed, role)
-            .await?;
-        Ok(result)
+        observed_query!(
+            self,
+            sql,
+            &[],
+            false,
+            |physical, _bindings| physical.unprepared(sql),
+            || (),
+            |_| self.setRecordModificationState(true)
+        )
     }
 }

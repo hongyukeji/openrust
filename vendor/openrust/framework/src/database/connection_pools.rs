@@ -50,6 +50,20 @@ impl ConnectionPools {
         Ok(generation)
     }
 
+    pub(super) fn retire_if_current(&self, failed: &Arc<PoolGeneration>) {
+        let mut current = self
+            .current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if current
+            .as_ref()
+            .is_some_and(|generation| Arc::ptr_eq(generation, failed))
+        {
+            failed.retire();
+            current.take();
+        }
+    }
+
     pub(super) fn disconnect(&self) {
         let mut current = self
             .current
