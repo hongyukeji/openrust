@@ -1,6 +1,9 @@
-use futures_util::TryStreamExt as _;
+use futures_util::{Stream, TryStreamExt as _};
 
-use crate::database::{DatabaseCursor, DatabaseError, DatabaseResult, Row, Value};
+use crate::{
+    database::{DatabaseCursor, DatabaseError, DatabaseResult, Row, Value},
+    support::ArrayKey,
+};
 
 use super::{Builder, Conditions, Order};
 
@@ -12,6 +15,40 @@ pub(in crate::database) struct ChunkKey {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
 impl Builder<'_> {
+    /// Visits rows in offset batches, with an index local to each batch.
+    pub async fn each<Fut>(
+        mut self,
+        callback: impl FnMut(Row, i64) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self.chunk_pages(count).map_ok(index_rows);
+        visit_batches(batches, |_, key| Ok(key), callback).await
+    }
+
+    /// Visits rows in ascending key order, with indices spanning all batches.
+    pub async fn eachById<Fut>(
+        mut self,
+        callback: impl FnMut(Row, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let key = query_chunk_key(column, alias, false);
+        let batches = self.chunk_id_pages(count, key).map_ok(index_rows);
+        visit_batches(
+            batches,
+            |batch, key| chunk_index(batch, count, key),
+            callback,
+        )
+        .await
+    }
+
     /// Processes successive batches ordered by a unique, projected key.
     pub async fn chunkById<Fut>(
         self,
@@ -52,12 +89,7 @@ impl Builder<'_> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let column = column.unwrap_or("id");
-        let key = ChunkKey {
-            column: column.into(),
-            alias: alias.unwrap_or(column).into(),
-            descending,
-        };
+        let key = query_chunk_key(column, alias, descending);
         let mut batches = self.chunk_id_pages(count, key);
         let mut page = 1;
         while let Some(rows) = batches.try_next().await? {
@@ -116,4 +148,61 @@ impl Builder<'_> {
             }
         })
     }
+}
+
+fn query_chunk_key(column: Option<&str>, alias: Option<&str>, descending: bool) -> ChunkKey {
+    let column = column.unwrap_or("id");
+    ChunkKey {
+        column: column.into(),
+        alias: alias.unwrap_or(column).into(),
+        descending,
+    }
+}
+
+fn index_rows(rows: Vec<Row>) -> impl Iterator<Item = (i64, Row)> {
+    (0..).zip(rows)
+}
+
+pub(in crate::database) async fn visit_batches<B, T, K, I, Fut>(
+    mut batches: impl Stream<Item = DatabaseResult<B>> + Unpin,
+    mut index: impl FnMut(u64, K) -> DatabaseResult<I>,
+    mut callback: impl FnMut(T, I) -> Fut,
+) -> DatabaseResult<bool>
+where
+    B: IntoIterator<Item = (K, T)>,
+    Fut: Future<Output = DatabaseResult<bool>>,
+{
+    let mut batch = 0;
+    while let Some(rows) = batches.try_next().await? {
+        for (key, item) in rows {
+            if !callback(item, index(batch, key)?).await? {
+                return Ok(false);
+            }
+        }
+        batch += 1;
+    }
+    Ok(true)
+}
+
+pub(in crate::database) fn chunk_index(batch: u64, count: u64, key: i64) -> DatabaseResult<i64> {
+    let overflow = || DatabaseError::InvalidQuery("eachById index overflow");
+    let base = i128::from(batch)
+        .checked_mul(i128::from(count))
+        .ok_or_else(overflow)?;
+    let index = base.checked_add(i128::from(key)).ok_or_else(overflow)?;
+    i64::try_from(index).map_err(|_| overflow())
+}
+
+pub(in crate::database) fn collection_chunk_index(
+    batch: u64,
+    count: u64,
+    key: ArrayKey,
+) -> DatabaseResult<i64> {
+    let key = match key {
+        ArrayKey::Integer(value) => value,
+        ArrayKey::String(value) => value.trim().parse::<i64>().map_err(|_| {
+            DatabaseError::InvalidQuery("eachById requires integer collection keys")
+        })?,
+    };
+    chunk_index(batch, count, key)
 }

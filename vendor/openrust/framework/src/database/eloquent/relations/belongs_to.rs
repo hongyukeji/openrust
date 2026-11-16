@@ -51,6 +51,44 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         query.chunk(count, callback).await
     }
 
+    pub async fn each<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        if count == 0 {
+            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+        }
+        let Some(query) = self.0.owner_query(parent)? else {
+            return Ok(true);
+        };
+        query.each(callback, count).await
+    }
+
+    pub async fn eachById<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        if count == 0 {
+            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+        }
+        let Some(query) = self.0.owner_query(parent)? else {
+            return Ok(true);
+        };
+        query.eachById(callback, count, column, alias).await
+    }
+
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
     pub async fn orderedChunkById<Fut>(

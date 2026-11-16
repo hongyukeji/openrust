@@ -111,6 +111,8 @@ On an Eloquent query, `chunk(count, callback)` supplies a model collection for e
 
 Eloquent also supports `chunkById` and `chunkByIdDesc`. Passing `None` selects the model’s primary key. The seek value comes from the SQL projection, so include the key or its selected alias. Each batch still runs the Eloquent retrieval and eager-loading lifecycle.
 
+With Eloquent `each`, the callback receives the model and its `ArrayKey` from the current batch, including custom collection keys. `eachById` adds the batch offset to the integer collection key and reports an error for keys that cannot be represented as signed integers.
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.

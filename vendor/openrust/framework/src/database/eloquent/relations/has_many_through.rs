@@ -175,6 +175,41 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
+    pub async fn each<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.pagination_query(parent, &["*"])?
+            .each(callback, count)
+            .await
+    }
+
+    pub async fn eachById<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.pagination_query(parent, &["*"])?
+            .eachById(
+                callback,
+                count,
+                column,
+                alias.or(Some(R::metadata().primary_key)),
+            )
+            .await
+    }
+
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
     pub async fn orderedChunkById<Fut>(

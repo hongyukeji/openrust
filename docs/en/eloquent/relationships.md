@@ -1307,6 +1307,22 @@ async fn process_subject_by_id<P: Model>(parent: &P, subject: &MorphTo<P>) -> Da
 }
 ```
 
+Relationships expose `each(parent, callback, count)` and `eachById(parent, callback, count, column, alias)`. The callback sees the same model, loaded relations, Pivot and collection key as the [Eloquent batch](getting-started.md#chunking-results). A `MorphTo` callback receives a `MorphTarget`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn visit_children<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<bool> {
+    children.eachById(parent, |_model, index| async move {
+        println!("{}", index);
+        Ok(true)
+    }, 200, None, None).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

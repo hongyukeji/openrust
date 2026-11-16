@@ -1714,6 +1714,67 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
+    pub async fn each<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self
+            .pivot_batches(parent, count, None)
+            .map_ok(crate::database::eloquent::Collection::toBase);
+        query::visit_batches(batches, |_, key| Ok(key), callback).await
+    }
+
+    pub async fn eachById<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self
+            .pivot_batches(parent, count, Some((column, alias, false)))
+            .map_ok(crate::database::eloquent::Collection::toBase);
+        query::visit_batches(
+            batches,
+            |batch, key| query::collection_chunk_index(batch, count, key),
+            callback,
+        )
+        .await
+    }
+
+    fn pivot_batches<'a>(
+        &'a self,
+        parent: &'a P,
+        count: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, crate::database::eloquent::Collection<R>> {
+        Box::pin(async_stream::try_stream! {
+            let names = self.pivot_names();
+            let columns = self.aliased_pivot_columns(&names);
+            let query = self.pagination_query(parent, &["*"], &columns)?;
+            let key = key.map(|(column, alias, descending)| query::ChunkKey {
+                column: column.map_or_else(|| query.qualifyColumn(self.keys.related), str::to_owned),
+                alias: alias.unwrap_or(self.keys.related).into(),
+                descending,
+            });
+            let mut batches = query.chunk_collections(count, key, |models, connection| {
+                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+            });
+            while let Some(batch) = batches.try_next().await? {
+                yield batch;
+            }
+        })
+    }
+
     /// Reads this parent's related models in ordered batches.
     pub async fn chunk<Fut>(
         &self,
@@ -1724,18 +1785,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let names = self.pivot_names();
-        let columns = self.aliased_pivot_columns(&names);
-        self.pagination_query(parent, &["*"], &columns)?
-            .chunk_hydrated(
-                count,
-                None,
-                |models, connection| {
-                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
-                },
-                callback,
-            )
-            .await
+        self.chunk_pivots(parent, count, callback, None).await
     }
 
     pub async fn chunkById<Fut>(
@@ -1780,24 +1830,29 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let names = self.pivot_names();
-        let columns = self.aliased_pivot_columns(&names);
-        let query = self.pagination_query(parent, &["*"], &columns)?;
-        let key = query::ChunkKey {
-            column: column.map_or_else(|| query.qualifyColumn(self.keys.related), str::to_owned),
-            alias: alias.unwrap_or(self.keys.related).into(),
-            descending,
-        };
-        query
-            .chunk_hydrated(
-                count,
-                Some(key),
-                |models, connection| {
-                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
-                },
-                callback,
-            )
+        self.chunk_pivots(parent, count, callback, Some((column, alias, descending)))
             .await
+    }
+
+    async fn chunk_pivots<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        mut callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        key: Option<(Option<&str>, Option<&str>, bool)>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let mut batches = self.pivot_batches(parent, count, key);
+        let mut page = 1;
+        while let Some(models) = batches.try_next().await? {
+            if !callback(models, page).await? {
+                return Ok(false);
+            }
+            page += 1;
+        }
+        Ok(true)
     }
 
     /// Streams related models with their intermediate-table attributes.

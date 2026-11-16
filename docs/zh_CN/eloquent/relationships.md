@@ -1307,6 +1307,22 @@ async fn process_subject_by_id<P: Model>(parent: &P, subject: &MorphTo<P>) -> Da
 }
 ```
 
+关系提供 `each(parent, callback, count)` 和 `eachById(parent, callback, count, column, alias)`。回调沿用 [Eloquent 分批](getting-started.md#chunking-results) 的模型、预加载、Pivot 和集合键。`MorphTo` 回调收到 `MorphTarget`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn visit_children<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<bool> {
+    children.eachById(parent, |_model, index| async move {
+        println!("{}", index);
+        Ok(true)
+    }, 200, None, None).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

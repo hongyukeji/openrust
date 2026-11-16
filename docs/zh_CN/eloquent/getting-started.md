@@ -111,6 +111,8 @@ Eloquent 查询的 `chunk(count, callback)` 将每页作为模型集合交给异
 
 Eloquent 也支持 `chunkById` 和 `chunkByIdDesc`。传入 `None` 时以模型主键分批。后续查询的边界值取自 SQL 投影，请保留分批列或其投影别名。每批仍会执行 Eloquent 的读取事件及预加载。
 
+Eloquent 的 `each` 将模型及其当前批次中的 `ArrayKey` 传给回调，保留自定义集合键。`eachById` 将批次偏移加到整数集合键上。集合键无法表示为有符号整数时返回错误。
+
 ## 插入和更新模型
 
 `create` 按批量赋值规则保存新模型。`setAttribute` 设置单个属性，`save` 用原主键写入已变更的属性。写入成功后同步模型快照。构造器的 `update` 和 `delete` 返回受影响行数。

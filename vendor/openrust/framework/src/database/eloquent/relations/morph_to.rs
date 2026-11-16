@@ -208,6 +208,58 @@ impl<P: Model> MorphTo<P> {
         }
     }
 
+    pub async fn each<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(MorphTarget, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self.morph_batches(parent, count, None);
+        query::visit_batches(batches, |_, key| Ok(key), callback).await
+    }
+
+    pub async fn eachById<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(MorphTarget, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self.morph_batches(parent, count, Some((column, alias, false)));
+        query::visit_batches(
+            batches,
+            |batch, key| query::collection_chunk_index(batch, count, key),
+            callback,
+        )
+        .await
+    }
+
+    fn morph_batches<'a>(
+        &'a self,
+        parent: &'a P,
+        count: u64,
+        key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
+    ) -> DatabaseCursor<'a, Collection<MorphTarget>> {
+        Box::pin(async_stream::try_stream! {
+            if count == 0 {
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))?;
+            }
+            if let Some((alias, target)) = self.selected_target(parent)? {
+                let mut batches = target.chunks(parent, alias, self.soft_deletes, count, key);
+                while let Some(batch) = batches.try_next().await? {
+                    yield batch;
+                }
+            }
+        })
+    }
+
     /// Processes persisted rows from the registered morph target in ordered batches.
     pub async fn chunk<Fut>(
         &self,
@@ -249,13 +301,7 @@ impl<P: Model> MorphTo<P> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        if count == 0 {
-            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
-        }
-        let Some((alias, target)) = self.selected_target(parent)? else {
-            return Ok(true);
-        };
-        let mut batches = target.chunks(parent, alias, self.soft_deletes, count, key);
+        let mut batches = self.morph_batches(parent, count, key);
         let mut page = 1;
         while let Some(models) = batches.try_next().await? {
             if !callback(models, page).await? {

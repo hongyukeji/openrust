@@ -93,6 +93,39 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
+    pub async fn each<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.0
+            .select_one(self.pagination_query(parent)?)?
+            .each(callback, count)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]
+    pub async fn eachById<Fut>(
+        &self,
+        parent: &P,
+        callback: impl FnMut(R, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.0
+            .select_one(self.pagination_query(parent)?)?
+            .eachById(callback, count, column, alias)
+            .await
+    }
+
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
     #[allow(non_snake_case, reason = "Matches Laravel's relation query API")]

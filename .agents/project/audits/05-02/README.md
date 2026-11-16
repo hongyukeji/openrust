@@ -742,3 +742,9 @@ MySQL 8.4.13 实际 HTTP 验证默认键、升降序、替换既有键排序、�
 以 `7f6dea5f` 为隔离基线。固定 Laravel 的关系将按键分批转发给 Eloquent Builder，穿透关系显式限定关联表主键，并以未限定的主键名作为默认投影别名。OpenRust 在已有关系查询上添加批次边界，保留父键、单条选择、穿透软删除及多态目标约束。多态反向关系与已有偏移量分批共用目标选择，保留 `MorphTarget` 集合键。固定 Goravel 用作 Association 与 Cursor 装配对照，v0.x 的复合键批读取案例用于对照降序和回调失败边界。 [固定 Laravel 关系转发](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php) · [固定 Laravel 穿透关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L679)
 
 独立 MySQL 8.4.13 实际 HTTP 覆盖 HasMany、HasOne、MorphMany、MorphOne、HasManyThrough、HasOneThrough、BelongsTo、MorphTo，并回归多对多按键分批。实测父键、多态判别、软删除、限定列与默认投影别名、单条选择、缺失引用、无效批量和跨批次顺序。分页 HTTP、关系查询计数和关系批量写入三项定向回归通过。Rust 1.94.0 严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。测试容器已回收，清理隔离 Cargo 构建产物与文档缓存。后续验收按条回调与惰性分批。
+
+## 分批逐条回调
+
+以 `73876418` 为隔离基线。固定 Laravel 的 `each` 将批内集合键交给回调，`eachById` 将 `(页码 - 1) × 批量` 加到集合键。Rust 的 Eloquent `each` 传递 `ArrayKey`，`eachById` 使用有符号整数并报告无效键或算术溢出。两者接收拥有所有权的行、模型或 `MorphTarget`，回调可跨 await 并通过 `Result<bool>` 停止或返回错误。查询、模型及关系复用原有批次，保留预加载、Pivot 和自定义集合键。v0.x 的 BatchReader 用于对照分批回调错误传播和停止行为。 [固定 Laravel BuildsQueries](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/BuildsQueries.php) · [固定 Laravel 穿透关系 eachById](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L713)
+
+独立 MySQL 8.4.13 实际 HTTP 验证批内索引重置、按键索引跨批递进、自定义整数键、Pivot 字符串键、字符串键校验、回调早停与错误传播。分页 HTTP、关系查询计数及 Query Builder 三项定向回归通过。Rust 1.94.0 严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本处理。测试容器已回收，清除隔离构建和文档缓存。后续验收惰性分批及批量映射。

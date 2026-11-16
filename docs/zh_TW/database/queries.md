@@ -46,6 +46,8 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 }
 ```
 
+用 `each(callback, count)` 逐筆處理偏移量分批結果，每批索引從零開始。`eachById(callback, count, column, alias)` 依鍵升序分批讀取，索引跨批遞進。回呼回傳 `Ok(false)` 可立即停止，回傳 `Err` 可傳遞錯誤。
+
 ## SELECT 陳述式
 
 用 `select` 指定傳回欄位，用 `addSelect` 附加欄位。欄名支援 `as` 別名。`distinct()` 去除重複資料列。語法編譯器引用識別字並套用連線的資料表前綴。用 `selectRaw` 或 `DB::raw` 明確傳入受信任的運算式。值個別繫結，識別字從應用程式預先定義的名稱中選擇。

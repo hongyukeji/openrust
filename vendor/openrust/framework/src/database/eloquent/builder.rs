@@ -1578,6 +1578,44 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
+    /// Visits models with their keys from each hydrated batch.
+    pub async fn each<Fut>(
+        self,
+        callback: impl FnMut(M, crate::support::ArrayKey) -> Fut,
+        count: u64,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let batches = self
+            .chunk_collections(count, None, |_, _| Ok(()))
+            .map_ok(Collection::toBase);
+        query::visit_batches(batches, |_, key| Ok(key), callback).await
+    }
+
+    /// Visits models in ascending key order, with indices spanning all batches.
+    pub async fn eachById<Fut>(
+        self,
+        callback: impl FnMut(M, i64) -> Fut,
+        count: u64,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let key = self.chunk_key(column, alias, false);
+        let batches = self
+            .chunk_collections(count, Some(key), |_, _| Ok(()))
+            .map_ok(Collection::toBase);
+        query::visit_batches(
+            batches,
+            |batch, key| query::collection_chunk_index(batch, count, key),
+            callback,
+        )
+        .await
+    }
+
     /// Fetches model collections in separate queries, stopping when the callback returns false.
     pub async fn chunk<Fut>(
         self,

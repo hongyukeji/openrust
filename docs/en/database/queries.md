@@ -46,6 +46,8 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 }
 ```
 
+Use `each(callback, count)` to process one row at a time from offset batches. The index starts at zero in every batch. `eachById(callback, count, column, alias)` uses ascending keyset batches and passes the index across the entire scan. Return `Ok(false)` to stop immediately or `Err` to propagate a failure.
+
 ## Select Statements
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.

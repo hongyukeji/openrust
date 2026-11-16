@@ -58,6 +58,32 @@ impl Model for Article {
     }
 }
 
+struct IndexedArticle(ModelState);
+
+impl Model for IndexedArticle {
+    fn metadata() -> &'static ModelMetadata {
+        Article::metadata()
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    #[allow(non_snake_case, reason = "Matches the model collection factory")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(
+            models
+                .into_iter()
+                .map(|model| (id(model.getKey()) * 10, model)),
+        )
+    }
+}
+
 struct Comment(ModelState);
 
 impl Model for Comment {
@@ -258,6 +284,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/relationship-chunk", relationship_chunk_page)?;
     Route::get("/inverse-chunk", inverse_chunk_page)?;
     Route::get("/chunk-by-id", chunk_by_id_page)?;
+    Route::get("/each-batch", each_batch_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1972,6 +1999,150 @@ fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
     })
 }
 
+fn each_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::{database::DatabaseError, support::ArrayKey};
+        use std::future::ready;
+
+        async fn verify_each() -> DatabaseResult<Json> {
+            let db = DB::connection(None)?;
+            let mut indices = Vec::new();
+            assert!(
+                db.table("pagination_articles")
+                    .orderBy("id", "asc")
+                    .limit(5)
+                    .each(
+                        |row, index| {
+                            indices.push([id(row.get("id")), index]);
+                            ready(Ok(true))
+                        },
+                        2
+                    )
+                    .await?
+            );
+            assert_eq!(indices, [[1, 0], [2, 1], [3, 0], [4, 1], [5, 0]]);
+
+            let mut indices = Vec::new();
+            db.table("pagination_articles")
+                .select(["id as boundary"])
+                .limit(5)
+                .eachById(
+                    |row, index| {
+                        indices.push([id(row.get("boundary")), index]);
+                        ready(Ok(true))
+                    },
+                    2,
+                    None,
+                    Some("boundary"),
+                )
+                .await?;
+            assert_eq!(indices, [[1, 0], [2, 1], [3, 2], [4, 3], [5, 4]]);
+
+            let mut custom = Vec::new();
+            IndexedArticle::query()?
+                .limit(5)
+                .eachById(
+                    |model, index| {
+                        custom.push([id(model.getKey()), index]);
+                        ready(Ok(true))
+                    },
+                    2,
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(custom, [[1, 10], [2, 20], [3, 32], [4, 42], [5, 54]]);
+
+            let mut stopped = Vec::new();
+            assert!(
+                !StreamedComment::query()?
+                    .each(
+                        |model, key| {
+                            assert_eq!(key, ArrayKey::Integer(0));
+                            stopped.push(id(model.getKey()));
+                            ready(Ok(false))
+                        },
+                        2
+                    )
+                    .await?
+            );
+            assert_eq!(stopped, [11]);
+
+            let owner = Article::query()?.findOrFail(1).await?;
+            let children =
+                MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article");
+            let mut relations = Vec::new();
+            children
+                .eachById(
+                    &owner,
+                    |model, index| {
+                        relations.push([id(model.getKey()), index]);
+                        ready(Ok(true))
+                    },
+                    2,
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(relations, [[11, 0], [12, 1], [13, 2], [15, 3]]);
+            let labels = BelongsToMany::<Article, KeyedLabel>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+            )
+            .wherePivot("subject_type", "=", "article")
+            .withPivot(["label"]);
+            let mut pivots = Vec::new();
+            labels
+                .each(
+                    &owner,
+                    |model, key| {
+                        assert!(model.getRelation::<Pivot>("pivot").is_some());
+                        pivots.push(key);
+                        ready(Ok(true))
+                    },
+                    2,
+                )
+                .await?;
+            assert_eq!(
+                pivots,
+                ["pivot-1", "pivot-2", "pivot-3"].map(ArrayKey::from)
+            );
+            assert!(matches!(
+                labels
+                    .eachById(&owner, |_, _| ready(Ok(true)), 2, None, None)
+                    .await,
+                Err(DatabaseError::InvalidQuery(
+                    "eachById requires integer collection keys"
+                ))
+            ));
+
+            let activity = Activity::query()?.findOrFail(2).await?;
+            let target = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<KeyedLabel>("label", "id");
+            assert!(matches!(
+                target
+                    .each(
+                        &activity,
+                        |model, key| {
+                            assert_eq!(key, ArrayKey::from("label-2"));
+                            assert_eq!(model.alias(), "label");
+                            ready(Err(DatabaseError::InvalidQuery("item callback failed")))
+                        },
+                        1
+                    )
+                    .await,
+                Err(DatabaseError::InvalidQuery("item callback failed"))
+            ));
+            Ok(json!({ "indices": indices, "relations": relations }))
+        }
+
+        Response::json(StatusCode::OK, verify_each().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2565,6 +2736,15 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(
         batches["pivots"],
         json!([[1, [[3, "green"], [2, "blue"]]], [2, [[1, "red"]]]])
+    );
+    let visited = request(address, "/api/each-batch").await;
+    assert_eq!(
+        visited["indices"],
+        json!([[1, 0], [2, 1], [3, 2], [4, 3], [5, 4]])
+    );
+    assert_eq!(
+        visited["relations"],
+        json!([[11, 0], [12, 1], [13, 2], [15, 3]])
     );
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");

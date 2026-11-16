@@ -7,8 +7,8 @@ pub mod grammars;
 mod join_clause;
 pub mod processors;
 
-pub(super) use builder::ChunkKey;
 pub use builder::{Builder, Column};
+pub(super) use builder::{ChunkKey, collection_chunk_index, visit_batches};
 pub use conditions::{Conditions, FullTextOptions};
 pub use expression::Expression;
 pub use join_clause::JoinClause;
