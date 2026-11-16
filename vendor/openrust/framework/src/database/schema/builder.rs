@@ -97,6 +97,7 @@ impl<'connection> Builder<'connection> {
     fn blueprint(&self, table: &str, creating: bool) -> Blueprint {
         Blueprint {
             table: table.to_owned(),
+            prefix: Arc::clone(self.grammar.table_prefix()),
             creating,
             defaults: *self
                 .schema_defaults

@@ -4437,11 +4437,13 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
 async fn verify_blueprint_context(db: Connection, table_ref: &str) {
     use openrust::database::schema::ColumnDefinition;
 
+    assert_eq!(db.getTablePrefix(), "app_");
     let mut schema = db.getSchemaBuilder();
     schema.dropIfExists(table_ref).await.unwrap();
     schema
         .create(table_ref, |table| {
             assert_eq!(table.getTable(), table_ref);
+            assert_eq!(table.getPrefix(), "app_");
             assert!(table.creating());
             assert_eq!(table.getColumns().count(), 0);
             table.id();
@@ -4463,6 +4465,7 @@ async fn verify_blueprint_context(db: Connection, table_ref: &str) {
     schema
         .whenTableHasColumn(table_ref, "code", |table| {
             assert_eq!(table.getTable(), table_ref);
+            assert_eq!(table.getPrefix(), "app_");
             assert!(!table.creating());
             table.string("code", 32).nullable().change();
             table.integer("quantity").default(0);

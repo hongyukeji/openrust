@@ -38,6 +38,10 @@ impl Grammar {
         }
     }
 
+    pub fn table_prefix(&self) -> &Arc<str> {
+        self.grammar.table_prefix()
+    }
+
     pub fn mysql(&self) -> bool {
         self.grammar.is_mysql()
     }
@@ -113,7 +117,7 @@ impl Grammar {
         } else {
             table
                 .name
-                .strip_prefix(self.grammar.table_prefix())
+                .strip_prefix(self.grammar.table_prefix().as_ref())
                 .unwrap_or(&table.name)
         };
         let name = match &table.schema {

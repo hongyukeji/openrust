@@ -216,7 +216,7 @@ impl Grammar {
         }
     }
 
-    pub(crate) fn table_prefix(&self) -> &str {
+    pub(crate) fn table_prefix(&self) -> &Arc<str> {
         &self.prefix
     }
 

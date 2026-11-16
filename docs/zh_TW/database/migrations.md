@@ -290,6 +290,22 @@ fn prepare_status(table: &mut Blueprint) {
 
 用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按宣告順序讀取待執行的欄位定義。這些迭代器借用 Blueprint。檢查資料庫現有欄位時，請使用 Schema 門面的目錄方法。
 
+### 讀取連線的資料表前綴 {#reading-the-connection-table-prefix}
+
+用 `DB::getTablePrefix()` 讀取預設連線的前綴，或用 `DB::connection(Some("archive"))?.getTablePrefix()` 讀取具名連線的前綴。Blueprint 回呼中的 `getPrefix()` 回傳該 Blueprint 所屬連線的前綴。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+fn migration_prefixes() -> DatabaseResult<(String, String)> {
+    let default = DB::getTablePrefix()?;
+    let archive = DB::connection(Some("archive"))?;
+    Ok((default, archive.getTablePrefix().to_owned()))
+}
+```
+
+呼叫 Schema 或查詢建構器時傳入邏輯資料表名稱，框架會自動套用前綴。遷移需要在原生 SQL 中引用實體資料表時，可以讀取這個前綴。
+
 ### JSON 欄位 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都宣告為 `JSON`。SQLite 預設都宣告為 `TEXT`。在 SQLite 連線設定中分別將 `use_native_json` 或 `use_native_jsonb` 設為 `true`，即可宣告 `JSON` 或 `JSONB`。兩個選項獨立生效。

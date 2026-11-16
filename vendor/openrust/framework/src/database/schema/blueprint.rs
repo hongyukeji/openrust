@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::database::eloquent::{Model, ModelKeyType, ModelState};
 
 use super::{
@@ -32,6 +34,7 @@ pub(in crate::database) struct TableOptions {
 pub struct Blueprint {
     pub(super) commands: Vec<Command>,
     pub(super) table: String,
+    pub(super) prefix: Arc<str>,
     pub(super) creating: bool,
     pub(super) temporary: bool,
     pub(super) table_options: TableOptions,
@@ -75,6 +78,11 @@ impl Blueprint {
     /// Returns the logical table reference supplied to the schema builder.
     pub fn getTable(&self) -> &str {
         &self.table
+    }
+
+    /// Returns the table prefix of the connection that owns this blueprint.
+    pub fn getPrefix(&self) -> &str {
+        &self.prefix
     }
 
     /// Returns whether this blueprint describes a new table.

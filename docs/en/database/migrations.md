@@ -290,6 +290,22 @@ fn prepare_status(table: &mut Blueprint) {
 
 Use `getColumns()`, `getAddedColumns()`, and `getChangedColumns()` to read pending definitions in declaration order. These iterators borrow the blueprint. Use the Schema facade’s catalog methods to inspect columns already in the database.
 
+### Reading the Connection Table Prefix {#reading-the-connection-table-prefix}
+
+Use `DB::getTablePrefix()` for the default connection or `DB::connection(Some("archive"))?.getTablePrefix()` for a named connection. Inside a blueprint callback, `getPrefix()` reports the prefix of that blueprint’s connection.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+fn migration_prefixes() -> DatabaseResult<(String, String)> {
+    let default = DB::getTablePrefix()?;
+    let archive = DB::connection(Some("archive"))?;
+    Ok((default, archive.getTablePrefix().to_owned()))
+}
+```
+
+Pass logical names to Schema and the query builder. They apply the prefix automatically. Use the prefix when a migration needs to address a physical table in raw SQL.
+
 ### JSON Columns {#json-columns}
 
 On MySQL, `json()` and `jsonb()` both declare `JSON`. On SQLite, both default to `TEXT`. Set `use_native_json` or `use_native_jsonb` to `true` in the SQLite connection configuration to declare `JSON` or `JSONB` respectively. The options are independent.

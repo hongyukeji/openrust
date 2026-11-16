@@ -42,6 +42,11 @@ impl DB {
             .connection(name)
     }
 
+    /// Returns the configured prefix of the current application's default connection.
+    pub fn getTablePrefix() -> DatabaseResult<String> {
+        Ok(Self::connection(None)?.getTablePrefix().to_owned())
+    }
+
     pub fn disconnect(name: Option<&str>) -> DatabaseResult<()> {
         Self::getFacadeRoot()
             .map_err(DatabaseError::Unavailable)?

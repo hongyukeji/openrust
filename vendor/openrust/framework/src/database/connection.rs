@@ -1105,6 +1105,11 @@ impl Connection {
         &self.database
     }
 
+    /// Returns the prefix applied to logical table names on this connection.
+    pub fn getTablePrefix(&self) -> &str {
+        self.grammar.table_prefix()
+    }
+
     fn routing(&self) -> Arc<ReadRouting> {
         crate::support::facades::database_routing(&self.routing)
             .unwrap_or_else(|| self.routing.clone())

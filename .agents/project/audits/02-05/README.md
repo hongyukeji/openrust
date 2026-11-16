@@ -302,3 +302,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `ec4ed2aa8`。SQLite 26 项和 MySQL 8.4.13 的 25 项 Schema 回归通过。新增回归覆盖带前缀的限定表名、普通建表、条件式改表、已撤销的待执行列和独立索引。跨驱动测试以修改列的可空性作为共同断言，避免依赖 SQLite 是否保留 VARCHAR 长度或 MySQL 是否允许对 TEXT 建无前缀索引。
 - 两种驱动的实际 Artisan 均跑通三语共用示例。`main artisan inspire`、`sh tests/table_catalog.sh` 中的表目录与限定清库、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
 - 三轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 69.75 GB（64.96 GiB）。证据目录为 `/private/tmp/openrust-02-05-blueprint-context.xCmiOb12`。
+
+## 连接表前缀读取
+
+对照固定 Laravel [Connection::getTablePrefix](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L1852)和 [Blueprint::getPrefix](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1957)。旧版已有按连接配置表前缀的机制，未找到同名公开读取入口。本批复用当前查询和 Schema 共用的前缀。
+
+- `DB::getTablePrefix()` 返回当前应用默认连接的前缀。具名连接可通过自身的 `getTablePrefix()` 读取。Blueprint 的 `getPrefix()` 对应固定 Laravel 的兼容接口。Rust 的连接和 Blueprint 借用共享字符串，Facade 返回拥有所有权的字符串。
+- 隔离基线 `9435c81bc`。SQLite 26 项和 MySQL 8.4.13 的 25 项 Schema 回归通过，覆盖建表及条件式修改回调。两种驱动的实际 Artisan 分别验证默认连接和具名连接创建同名逻辑表、按各自前缀执行原生 SQL，并通过查询构建器读回。
+- `main artisan inspire`、`sh tests/table_catalog.sh` 中的表目录和限定 Schema 清库、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
+- 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 70.10 GB（65.28 GiB）。证据目录为 `/private/tmp/openrust-02-05-prefix.TDhAAec8`。

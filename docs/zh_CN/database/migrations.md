@@ -290,6 +290,22 @@ fn prepare_status(table: &mut Blueprint) {
 
 用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按声明顺序读取待执行的列定义。这些迭代器借用 Blueprint。检查数据库已有列时，使用 Schema 门面的目录方法。
 
+### 读取连接的表前缀 {#reading-the-connection-table-prefix}
+
+用 `DB::getTablePrefix()` 读取默认连接的前缀，或用 `DB::connection(Some("archive"))?.getTablePrefix()` 读取具名连接的前缀。Blueprint 回调中的 `getPrefix()` 返回该 Blueprint 所属连接的前缀。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+fn migration_prefixes() -> DatabaseResult<(String, String)> {
+    let default = DB::getTablePrefix()?;
+    let archive = DB::connection(Some("archive"))?;
+    Ok((default, archive.getTablePrefix().to_owned()))
+}
+```
+
+调用 Schema 或查询构建器时传逻辑表名，框架会自动应用前缀。迁移需要在原生 SQL 中引用物理表时，可以读取这个前缀。
+
 ### JSON 列 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都声明为 `JSON`。SQLite 默认都声明为 `TEXT`。在 SQLite 连接配置中分别将 `use_native_json` 或 `use_native_jsonb` 设为 `true`，即可声明 `JSON` 或 `JSONB`。两个选项独立生效。
