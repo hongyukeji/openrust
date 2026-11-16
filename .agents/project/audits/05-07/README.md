@@ -17,3 +17,9 @@
 - 对照固定 Laravel 的 `preserveKeys`、数字键重排、混合键及游标索引测试。Rust 资源集合可以从 Support、Eloquent 和关联集合接收有序键，转换元素时保留这些键。默认重排全部为数字的键，出现命名键时原样输出。`JsonResource::preservesKeys` 声明资源类型的策略，`preserveKeys(bool)` 可在单次响应覆盖。 [Laravel 集合键文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md#preserving-collection-keys) · [Laravel 资源测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/ResourceTest.php)
 - SQLite 和 MySQL 8.4.13 实际 HTTP 验证稀疏及数字字符串键、混合键和顺序、类型策略及单次覆盖、关联集合、空集合、普通／简易分页后续链接和游标双向翻页。游标沿用固定上游的连续索引。8 项资源及分页回归、严格 Clippy、格式、实际 `./artisan inspire`、三语示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 后续复核模型、集合及分页器的默认资源声明与推断，以及剩余条件值入口。
+
+## 模型及分页资源推断
+
+- 对照固定 Laravel 的显式选择、默认资源关联、集合工厂与空集合退回。Rust 通过 `UseResource` 编译期关联模型和资源，缺少关联会在调用默认入口时由编译器报告。模型实现可声明自定义集合工厂，转换保留源集合和分页器。显式入口可选择另一项资源类型或传入集合工厂，对应 Laravel 的类参数。 [Laravel 模型推断](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/TransformsToResource.php) · [Laravel 集合推断](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/TransformsToResourceCollection.php)
+- SQLite 和 MySQL 8.4.13 实际 HTTP 验证默认资源、显式覆盖、普通／简易／游标分页、自定义集合包装及响应头、键保留、空页元数据、空集合回退和显式空集合工厂。10 项资源、模型 HTTP 和分页回归、严格 Clippy、实际 `./artisan inspire`、三个三语示例执行、VitePress 及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 剩余条件值入口、应用级包装配置及固定文档中 JSON:API 小节的交付边界仍待复核。

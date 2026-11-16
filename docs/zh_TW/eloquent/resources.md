@@ -26,6 +26,32 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### 模型預設資源 {#default-model-resources}
+
+為模型實作 `UseResource`，宣告 `type Resource = AccountResource`。資源實作 `JsonResource` 和 `From<Account>`。`toResource()` 與 `toResourceCollection()` 據此選擇預設資源，型別關聯在編譯期檢查。
+
+可覆寫 `UseResource::resourceCollection`，依原始集合或分頁器建立自訂集合回應。預設推斷遇到空集合時輸出 `data: []`，並保留分頁資訊。用 `toResourceWith` 或 `toResourceCollectionWith` 明確選擇元素資源，用 `toResourceCollectionUsing` 傳入明確的集合工廠。
+
+```rust
+use openrust::{
+    database::eloquent::Collection,
+    http::resources::json::{JsonResource, TransformsToResourceCollection, UseResource},
+    pagination::LengthAwarePaginator,
+};
+
+pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
+    account.toResource()
+}
+
+pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
+    accounts.toResourceCollection()
+}
+
+pub fn account_page<M: UseResource>(page: LengthAwarePaginator<M>) -> impl JsonResource + Send {
+    page.toResourceCollection()
+}
+```
+
 ## 資源集合
 
 將資源向量傳給 `ResourceCollection::new`。集合依目前請求轉換每個項目，空集合回傳 `{"data":[]}`。項目的中繼資料與回應掛鉤在該項目作為最外層回應時生效。透過最外層資源的 `with`、`additional` 或 `withResponse` 加入中繼資料或修改回應。

@@ -2,7 +2,10 @@ use std::{borrow::Cow, future::Future};
 
 use crate::{
     database::{Connection, DB, DatabaseError, DatabaseResult, Value},
-    http::{HttpError, HttpFuture},
+    http::{
+        HttpError, HttpFuture,
+        resources::json::{JsonResource, UseResource},
+    },
     routing::BindingContext,
 };
 
@@ -22,6 +25,19 @@ pub trait Model: Sized + Send + Sync + 'static {
     fn from_state(state: ModelState) -> Self;
     fn state(&self) -> &ModelState;
     fn state_mut(&mut self) -> &mut ModelState;
+
+    /// Builds the resource declared for this model.
+    fn toResource(self) -> <Self as UseResource>::Resource
+    where
+        Self: UseResource,
+    {
+        self.toResourceWith()
+    }
+
+    /// Selects a resource explicitly for this model.
+    fn toResourceWith<R: JsonResource + From<Self>>(self) -> R {
+        R::make(self)
+    }
 
     fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[]

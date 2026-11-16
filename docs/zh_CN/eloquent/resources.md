@@ -26,6 +26,32 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### 模型默认资源 {#default-model-resources}
+
+为模型实现 `UseResource`，声明 `type Resource = AccountResource`。资源实现 `JsonResource` 和 `From<Account>`。`toResource()` 与 `toResourceCollection()` 据此选择默认资源，关联关系在编译期检查。
+
+可覆盖 `UseResource::resourceCollection`，根据原始集合或分页器创建自定义集合响应。默认推断遇到空集合时输出 `data: []`，并保留分页信息。用 `toResourceWith` 或 `toResourceCollectionWith` 显式选择元素资源，用 `toResourceCollectionUsing` 传入显式集合工厂。
+
+```rust
+use openrust::{
+    database::eloquent::Collection,
+    http::resources::json::{JsonResource, TransformsToResourceCollection, UseResource},
+    pagination::LengthAwarePaginator,
+};
+
+pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
+    account.toResource()
+}
+
+pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
+    accounts.toResourceCollection()
+}
+
+pub fn account_page<M: UseResource>(page: LengthAwarePaginator<M>) -> impl JsonResource + Send {
+    page.toResourceCollection()
+}
+```
+
 ## 资源集合
 
 将资源向量传给 `ResourceCollection::new`。集合按当前请求转换每个条目，空集合返回 `{"data":[]}`。条目的元数据和响应钩子在该条目作为最外层响应时生效。通过最外层资源的 `with`、`additional` 或 `withResponse` 添加元数据或修改响应。

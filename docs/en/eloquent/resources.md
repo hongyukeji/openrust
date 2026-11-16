@@ -26,6 +26,32 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### Default Model Resources {#default-model-resources}
+
+Implement `UseResource` for a model and set `type Resource = AccountResource`. The resource implements `JsonResource` and `From<Account>`. This type declaration supplies the default used by `toResource()` and `toResourceCollection()`. Rust checks the association at compile time.
+
+Override `UseResource::resourceCollection` to build a custom collection response from the original source. Inferred empty collections use the standard `data: []` response and retain any pagination metadata. Select an item resource explicitly with `toResourceWith` or `toResourceCollectionWith`. Use `toResourceCollectionUsing` to pass an explicit collection factory.
+
+```rust
+use openrust::{
+    database::eloquent::Collection,
+    http::resources::json::{JsonResource, TransformsToResourceCollection, UseResource},
+    pagination::LengthAwarePaginator,
+};
+
+pub fn account_resource<M: UseResource>(account: M) -> M::Resource {
+    account.toResource()
+}
+
+pub fn account_resources<M: UseResource>(accounts: Collection<M>) -> impl JsonResource + Send {
+    accounts.toResourceCollection()
+}
+
+pub fn account_page<M: UseResource>(page: LengthAwarePaginator<M>) -> impl JsonResource + Send {
+    page.toResourceCollection()
+}
+```
+
 ## Resource Collections
 
 Pass a vector of resources to `ResourceCollection::new`. Each item is transformed for the current request, and an empty collection returns `{"data":[]}`. Item metadata and response hooks apply when the item is the outermost response. Use `with`, `additional`, or `withResponse` on the outer resource to add metadata or modify its response.

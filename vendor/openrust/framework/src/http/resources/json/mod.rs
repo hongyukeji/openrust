@@ -6,6 +6,7 @@ mod paginated_resource_response;
 mod resource_collection;
 mod resource_response;
 mod route_response;
+mod transforms_to_resource_collection;
 
 pub use conditional::Conditional;
 pub use json_resource::{JsonResource, ModelResource};
@@ -16,6 +17,7 @@ pub use resource_collection::{ResourceCollection, ResourceItems};
 pub use resource_response::ResourceResponse;
 #[doc(hidden)]
 pub use route_response::ResourceRoute;
+pub use transforms_to_resource_collection::{TransformsToResourceCollection, UseResource};
 
 pub type ResourceResult<T> = Result<T, crate::http::HttpError>;
 

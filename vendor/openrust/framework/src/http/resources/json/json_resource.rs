@@ -5,12 +5,26 @@ use crate::{
     http::{HttpError, Request, Response, StatusCode},
 };
 
-use super::{ResourceResponse, ResourceResult};
+use super::{ResourceCollection, ResourceItems, ResourceResponse, ResourceResult};
 
 /// Transforms an application resource for the current request.
 #[allow(non_snake_case, reason = "Matches Laravel's JsonResource API")]
 pub trait JsonResource {
     fn toArray(&self, request: &Request) -> ResourceResult<Value>;
+
+    fn make<T>(resource: T) -> Self
+    where
+        Self: Sized + From<T>,
+    {
+        Self::from(resource)
+    }
+
+    fn collection<T>(source: impl Into<ResourceItems<T>>) -> ResourceCollection<Self>
+    where
+        Self: Sized + From<T>,
+    {
+        ResourceCollection::new(source.into().map(Self::make))
+    }
 
     /// The outermost response key. Nested resources resolve directly.
     fn wrap(&self) -> Option<&str> {
@@ -48,6 +62,12 @@ pub trait JsonResource {
 
 /// Uses the Eloquent model's existing serialization and creation state.
 pub struct ModelResource<M>(pub M);
+
+impl<M: Model> From<M> for ModelResource<M> {
+    fn from(model: M) -> Self {
+        Self(model)
+    }
+}
 
 impl<M: Model> JsonResource for ModelResource<M> {
     fn toArray(&self, _: &Request) -> ResourceResult<Value> {

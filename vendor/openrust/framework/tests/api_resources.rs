@@ -20,7 +20,7 @@ use openrust::{
         HttpError, HttpFuture, Method, Request, Response,
         resources::json::{
             Conditional, JsonResource, ModelResource, ResourceCollection, ResourceItems,
-            ResourceResult,
+            ResourceResult, TransformsToResourceCollection, UseResource,
         },
     },
     routing::RoutingError,
@@ -112,6 +112,52 @@ impl Model for Account {
 
 struct AccountResource(Account);
 
+impl From<Account> for AccountResource {
+    fn from(account: Account) -> Self {
+        Self(account)
+    }
+}
+
+impl UseResource for Account {
+    type Resource = AccountResource;
+}
+
+struct IndexedAccounts(ResourceCollection<ModelResource<IndexedAccount>>);
+
+#[allow(non_snake_case, reason = "Implements the resource collection contract")]
+impl UseResource for IndexedAccount {
+    type Resource = ModelResource<Self>;
+
+    fn resourceCollection(source: ResourceItems<Self>) -> impl JsonResource + Send {
+        assert!(!source.items().is_empty());
+        IndexedAccounts(ModelResource::collection(source).preserveKeys(true))
+    }
+}
+
+impl JsonResource for IndexedAccounts {
+    fn toArray(&self, request: &Request) -> ResourceResult<Json> {
+        self.0.toArray(request)
+    }
+
+    fn wrap(&self) -> Option<&str> {
+        Some("accounts")
+    }
+
+    fn with(&self, request: &Request) -> ResourceResult<Map<String, Json>> {
+        let mut fields = self.0.with(request)?;
+        fields.insert("source".into(), json!("indexed"));
+        Ok(fields)
+    }
+
+    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+        response
+            .parts_mut()
+            .headers
+            .insert("x-resource", "indexed".parse().unwrap());
+        Ok(())
+    }
+}
+
 impl JsonResource for AccountResource {
     fn toArray(&self, request: &Request) -> ResourceResult<Json> {
         let mut fields = self.0.attributesToArray().map_err(internal)?;
@@ -202,11 +248,11 @@ fn routes() -> Result<(), RoutingError> {
             .findOrFail(1)
             .await
             .map_err(internal)?;
-        Ok(AccountResource(account))
+        Ok(account.toResource())
     })?;
     Route::get("/missing", || async {
         let account = Account::findOrFail(99).await.map_err(internal)?;
-        Ok(AccountResource(account))
+        Ok(account.toResource())
     })?;
     Route::get("/list", || async {
         let accounts = Account::query()
@@ -215,12 +261,7 @@ fn routes() -> Result<(), RoutingError> {
             .get()
             .await
             .map_err(internal)?;
-        Ok(ResourceCollection::new(
-            accounts
-                .into_iter()
-                .map(AccountResource)
-                .collect::<Vec<_>>(),
-        ))
+        Ok(accounts.toResourceCollection())
     })?;
     Route::get("/page", page)?;
     Route::get("/simple", || async {
@@ -229,9 +270,7 @@ fn routes() -> Result<(), RoutingError> {
             .simplePaginate(2)
             .await
             .map_err(internal)?;
-        Ok(ResourceCollection::new(
-            ResourceItems::from(page).map(AccountResource),
-        ))
+        Ok(page.toResourceCollection())
     })?;
     Route::get("/cursor", || async {
         let page = Account::query()
@@ -239,9 +278,7 @@ fn routes() -> Result<(), RoutingError> {
             .cursorPaginate(2)
             .await
             .map_err(internal)?;
-        Ok(ResourceCollection::new(
-            ResourceItems::from(page).map(AccountResource),
-        ))
+        Ok(page.toResourceCollectionWith::<AccountResource>())
     })?;
     Route::get("/empty", || ResourceCollection::new(Vec::<Plain>::new()))?;
     Route::get("/already", || Plain(json!({"data":{"id":9}})))?;
@@ -250,6 +287,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/conditional", conditional)?;
     Route::get("/pivots", pivots)?;
     keyed_routes()?;
+    resolved_routes()?;
     Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
@@ -260,7 +298,44 @@ fn routes() -> Result<(), RoutingError> {
         ]))
         .await
         .map_err(internal)?;
-        Ok(ModelResource(new))
+        Ok(new.toResourceWith::<ModelResource<_>>())
+    })?;
+    Ok(())
+}
+
+fn resolved_routes() -> Result<(), RoutingError> {
+    Route::get("/resolved", || async {
+        let models = IndexedAccount::query()
+            .map_err(internal)?
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .map_err(internal)?;
+        Ok(models.toResourceCollection())
+    })?;
+    Route::get("/resolved/page", || async {
+        let page = IndexedAccount::query()
+            .map_err(internal)?
+            .paginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(page.toResourceCollection())
+    })?;
+    Route::get("/resolved/explicit", || async {
+        let models = IndexedAccount::query()
+            .map_err(internal)?
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .map_err(internal)?;
+        Ok(models.toResourceCollectionWith::<ModelResource<_>>())
+    })?;
+    Route::get("/resolved/empty", || {
+        ModelCollection::<IndexedAccount>::new(Vec::new()).toResourceCollection()
+    })?;
+    Route::get("/resolved/empty-custom", || {
+        ModelCollection::<IndexedAccount>::new(Vec::new())
+            .toResourceCollectionUsing(|source| IndexedAccounts(ModelResource::collection(source)))
     })?;
     Ok(())
 }
@@ -702,6 +777,7 @@ async fn verify(config: Json) {
     assert_eq!(created["data"]["name"], "New");
     assert!(created["data"].get("password").is_none());
     verify_collection_keys(address).await;
+    verify_resolved_resources(address).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -711,6 +787,38 @@ async fn verify(config: Json) {
         .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
+}
+
+async fn verify_resolved_resources(address: SocketAddr) {
+    let (headers, payload) = request(address, "GET", "/api/resolved", "", 200).await;
+    assert!(headers.contains("x-resource: indexed"));
+    assert_eq!(payload["source"], "indexed");
+    assert_eq!(payload["accounts"]["10"]["id"], 1);
+    assert!(payload["accounts"]["10"].get("password").is_none());
+
+    let (headers, payload) = request(address, "GET", "/api/resolved/explicit", "", 200).await;
+    assert!(!headers.contains("x-resource:"));
+    assert_eq!(payload["data"][0]["id"], 1);
+    assert!(payload.get("source").is_none());
+
+    let (_, page) = request(address, "GET", "/api/resolved/page", "", 200).await;
+    assert_eq!(page["accounts"]["20"]["id"], 2);
+    assert_eq!(page["links"]["next"], "/api/resolved/page?page=2");
+    assert!(page["meta"]["total"].as_u64().unwrap() >= 3);
+    let (headers, page) = request(address, "GET", "/api/resolved/page?page=99", "", 200).await;
+    assert!(!headers.contains("x-resource:"));
+    assert_eq!(page["data"], json!([]));
+    assert_eq!(page["meta"]["current_page"], 99);
+    assert!(page.get("source").is_none());
+    assert_eq!(
+        request(address, "GET", "/api/resolved/empty", "", 200)
+            .await
+            .1,
+        json!({"data":[]})
+    );
+    let (headers, empty) = request(address, "GET", "/api/resolved/empty-custom", "", 200).await;
+    assert!(headers.contains("x-resource: indexed"));
+    assert_eq!(empty, json!({"accounts":[],"source":"indexed"}));
 }
 
 async fn verify_collection_keys(address: SocketAddr) {
