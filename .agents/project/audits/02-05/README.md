@@ -194,3 +194,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `db:wipe` 和 `migrate:fresh` 继续使用同一条内部清库路径。SQLite 保持现有原生 DDL 与事务路径，限定主 Schema。
 - `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 上通过 19 项 Schema 回归及 1 项限定 Schema 清库。验证读写库分离、表和视图各自清理、无前缀对象、重复执行、同库外键检查恢复和另一库标记行保留。
 - 使用 `docker/accept.py --mysql` 通过三语共用的具名连接实际 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。SQLite 回归已编译，实际运行留待发布前。全工作区格式仍有既有 Sanctum 差异。验收入口取自隔离副本的 `3d2641c0f`，两轮夹具容器与卷已回收。
+
+## 单列目录
+
+对照固定 Laravel [Builder::getColumn](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L394)。旧版框架未找到同名目录接口。本批复用现有写连接列目录和 `Column` 元数据。
+
+- `Schema::getColumn(table, name)` 和具名连接 Builder 都比较列名时忽略大小写。Laravel 缺失时返回空数组，Rust 使用 `Option<Column>` 表达缺失。数据库错误按原路径传播。`getColumnType` 复用查找，保留原有缺失列错误。
+- 使用 `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 上通过 19 项 Schema 回归及 1 项限定库清理回归。测试覆盖在既有带前缀连接中读取修改后列的名称、类型、注释及可空性，以及缺失列行为。验收入口取自隔离副本的 `3d2641c0f`。
+- 使用 `docker/accept.py --mysql` 运行三语共用例的实际 Artisan 命令，验证普通和大写列名、缺失列及删表后的结果。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 排版差异，SQLite 日常仅编译。
+- 类型目录另行跟踪。固定版 [通用 Schema Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/Grammar.php) 对不支持的驱动报错，[PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) 查询原生类型。当前连接工厂只有 MySQL 和 SQLite 的运行时实现，暂未提供 `getTypes`，也未用空目录替代。

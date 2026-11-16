@@ -200,6 +200,11 @@ impl Schema {
             .await
     }
 
+    /// Returns the metadata for a case-insensitive column name, if present.
+    pub async fn getColumn(table: &str, name: &str) -> DatabaseResult<Option<Column>> {
+        Self::default_builder()?.getColumn(table, name).await
+    }
+
     pub async fn getColumns(table: &str) -> DatabaseResult<Vec<Column>> {
         Self::default_builder()?.getColumns(table).await
     }

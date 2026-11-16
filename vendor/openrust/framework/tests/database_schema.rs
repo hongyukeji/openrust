@@ -231,6 +231,16 @@ async fn verify(db: Connection, mysql: bool) {
             schema.getColumnType("posts", "title", true).await.unwrap(),
             "varchar(150)"
         );
+        let column = schema.getColumn("posts", "TITLE").await.unwrap().unwrap();
+        assert_eq!(column.name, "title");
+        assert_eq!(column.full_type, "varchar(150)");
+        assert_eq!(column.comment.as_deref(), Some("reviewed"));
+        assert!(column.nullable);
+        assert_eq!(schema.getColumn("posts", "missing").await.unwrap(), None);
+        assert!(matches!(
+            schema.getColumnType("posts", "missing", false).await,
+            Err(DatabaseError::InvalidSchema("unknown column"))
+        ));
         assert!(schema.hasIndex("posts", "post_lookup").await.unwrap());
         assert!(schema.getForeignKeys("posts").await.unwrap().is_empty());
     }

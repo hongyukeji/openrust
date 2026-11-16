@@ -442,6 +442,21 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 
 `getTableListing` 返回限定表名。需要不带 Schema 的表名时，用 `getTableListingWith(schema, false)`。表记录返回数据库目录中的名称，并在数据库提供时附带大小和存储元数据。
 
+#### 检查单列 {#inspecting-a-column}
+
+`Schema::getColumn` 返回指定列的元数据。匹配列名时忽略大小写。列不存在时 Rust 返回 `None`，数据库错误通过 `DatabaseResult` 传播。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::Column},
+    support::facades::Schema,
+};
+
+async fn inspect_title() -> DatabaseResult<Option<Column>> {
+    Schema::getColumn("posts", "title").await
+}
+```
+
 #### 检查 Schema 和视图 {#inspecting-schemas-and-views}
 
 `getSchemas()` 列出可见的 Schema，并标记当前使用的 Schema。SQLite 还会返回各 Schema 的文件路径。在 MySQL 上，`getViews(None)` 列出所有可见用户 Schema 的视图。在 SQLite 上，它查询当前写会话中的所有 Schema。可用 `getViews(Some(name))` 指定一个，或用 `getViewsIn(&[...])` 指定多个。

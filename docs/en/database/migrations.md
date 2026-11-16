@@ -442,6 +442,21 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 
 `getTableListing` returns qualified names. Use `getTableListingWith(schema, false)` for names without a schema prefix. Table entries contain catalog names and, when supplied by the database, size and storage metadata.
 
+#### Inspecting a Column {#inspecting-a-column}
+
+`Schema::getColumn` returns the metadata for one column. Column names are compared case-insensitively. Rust returns `None` when the column is absent, and database errors propagate through `DatabaseResult`.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::Column},
+    support::facades::Schema,
+};
+
+async fn inspect_title() -> DatabaseResult<Option<Column>> {
+    Schema::getColumn("posts", "title").await
+}
+```
+
 #### Inspecting Schemas and Views {#inspecting-schemas-and-views}
 
 `getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list.

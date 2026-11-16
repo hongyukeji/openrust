@@ -359,6 +359,15 @@ impl Builder<'_> {
         }))
     }
 
+    /// Returns the metadata for a case-insensitive column name, if present.
+    pub async fn getColumn(&mut self, table: &str, name: &str) -> DatabaseResult<Option<Column>> {
+        Ok(self
+            .getColumns(table)
+            .await?
+            .into_iter()
+            .find(|column| column.name.eq_ignore_ascii_case(name)))
+    }
+
     pub async fn getColumnType(
         &mut self,
         table: &str,
@@ -366,10 +375,8 @@ impl Builder<'_> {
         full: bool,
     ) -> DatabaseResult<String> {
         let column = self
-            .getColumns(table)
+            .getColumn(table, name)
             .await?
-            .into_iter()
-            .find(|column| column.name.eq_ignore_ascii_case(name))
             .ok_or(DatabaseError::InvalidSchema("unknown column"))?;
         Ok(if full {
             column.full_type
