@@ -243,6 +243,26 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### 浮点精度与原生列定义 {#float-precision-and-raw-columns}
+
+`float()` 使用 Laravel 默认的 53 位精度。用 `floatWith(name, precision)` 显式设置精度。MySQL 的 1–24 位对应 FLOAT，25–53 位对应 DOUBLE。用 0 声明不带精度参数的原生 FLOAT。SQLite 按原生浮点规则存储，精度参数不改变存储行为。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_measurements() -> DatabaseResult<()> {
+    Schema::create("measurements", |table| {
+        table.id();
+        table.float("value");
+        table.floatWith("device_value", 24);
+        table.rawColumn("sample_count", "smallint").default(0);
+    })
+    .await
+}
+```
+
+迁移中用 `rawColumn(name, definition)` 传入可信的 SQL 列定义。Schema 负责引用列名并追加常规修饰符，数据库解释传入的定义。
+
 #### 列组与删除别名 {#column-groups-and-drop-aliases}
 
 `morphs()` 和 `nullableMorphs()` 使用应用配置的多态键类型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允许空值的变体显式选定 ID 类型。需要指定索引名或 MySQL 列位置时，可向类型专用方法、`morphsWith` 或 `nullableMorphs` 传入对应参数。

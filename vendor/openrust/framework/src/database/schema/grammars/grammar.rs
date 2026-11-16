@@ -667,9 +667,21 @@ impl Grammar {
             ColumnType::Decimal(_, _) => {
                 return Err(DatabaseError::InvalidSchema("decimal precision"));
             }
-            ColumnType::Float if mysql => "float",
-            ColumnType::Double if mysql => "double",
-            ColumnType::Float | ColumnType::Double => "float",
+            ColumnType::Float(0) => "float",
+            ColumnType::Float(precision) if mysql => {
+                if *precision > 53 {
+                    return Err(DatabaseError::InvalidSchema("floating-point precision"));
+                }
+                return Ok(format!("float({precision})"));
+            }
+            ColumnType::Float(_) => "float",
+            ColumnType::Double => "double",
+            ColumnType::Raw(definition) => {
+                if definition.trim().is_empty() || definition.contains('\0') {
+                    return Err(DatabaseError::InvalidSchema("raw column definition"));
+                }
+                return Ok(definition.clone());
+            }
             ColumnType::Binary => "blob",
             ColumnType::SizedBinary(length, fixed) => {
                 if mysql {

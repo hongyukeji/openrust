@@ -243,6 +243,26 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
 
+#### 浮點精度與原生欄位定義 {#float-precision-and-raw-columns}
+
+`float()` 使用 Laravel 預設的 53 位元精度。用 `floatWith(name, precision)` 明確設定精度。MySQL 的 1–24 位元對應 FLOAT，25–53 位元對應 DOUBLE。用 0 宣告不帶精度參數的原生 FLOAT。SQLite 依原生浮點規則儲存，精度參數不會改變儲存行為。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_measurements() -> DatabaseResult<()> {
+    Schema::create("measurements", |table| {
+        table.id();
+        table.float("value");
+        table.floatWith("device_value", 24);
+        table.rawColumn("sample_count", "smallint").default(0);
+    })
+    .await
+}
+```
+
+遷移中用 `rawColumn(name, definition)` 傳入可信的 SQL 欄位定義。Schema 負責引用欄位名稱並附加常用修飾符，資料庫解讀所傳入的定義。
+
 #### 欄位群組與刪除別名 {#column-groups-and-drop-aliases}
 
 `morphs()` 和 `nullableMorphs()` 使用應用程式設定的多型鍵類型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphsWith` 或 `nullableMorphs` 傳入對應參數。

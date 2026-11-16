@@ -2673,3 +2673,141 @@ mod model_foreign_keys {
         .await;
     }
 }
+
+async fn verify_raw_column_and_float_precision(db: Connection, mysql: bool) {
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("column_precision").await.unwrap();
+    schema
+        .create("column_precision", |table| {
+            table.id();
+            table.float("default_precision");
+            table.floatWith("single_precision", 24);
+            table.floatWith("double_precision", 25);
+            table.floatWith("native_float", 0).nullable();
+            table.double("native_double").nullable();
+            table.rawColumn("priority", "smallint").default(7);
+        })
+        .await
+        .unwrap();
+    let columns = schema.getColumns("column_precision").await.unwrap();
+    let data_type = |name: &str| {
+        &columns
+            .iter()
+            .find(|column| column.name == name)
+            .unwrap()
+            .type_name
+    };
+    assert_eq!(
+        data_type("default_precision"),
+        if mysql { "double" } else { "float" }
+    );
+    assert_eq!(data_type("single_precision"), "float");
+    assert_eq!(
+        data_type("double_precision"),
+        if mysql { "double" } else { "float" }
+    );
+    assert_eq!(data_type("native_float"), "float");
+    assert_eq!(data_type("native_double"), "double");
+    assert_eq!(data_type("priority"), "smallint");
+
+    db.insert(
+        "insert into column_precision (default_precision, single_precision, double_precision) values (16777217, 16777217, 16777217)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let row = db
+        .selectOne("select * from column_precision", &[])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.get("default_precision"),
+        Some(&Value::Real(16_777_217.0))
+    );
+    let stored_single = if mysql { 16_777_216.0 } else { 16_777_217.0 };
+    assert_eq!(
+        row.get("single_precision"),
+        Some(&Value::Real(stored_single))
+    );
+    assert_eq!(
+        row.get("double_precision"),
+        Some(&Value::Real(16_777_217.0))
+    );
+    assert_eq!(row.get("priority"), Some(&7.into()));
+
+    schema
+        .table("column_precision", |table| {
+            table.rawColumn("priority", "bigint").default(9).change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("column_precision")
+            .value("priority")
+            .await
+            .unwrap(),
+        7.into()
+    );
+    db.insert(
+        "insert into column_precision (default_precision, single_precision, double_precision) values (0, 0, 0)",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table("column_precision")
+            .r#where("id", "=", 2)
+            .value("priority")
+            .await
+            .unwrap(),
+        9.into()
+    );
+
+    for definition in [" ", "\0"] {
+        assert!(matches!(
+            schema
+                .table("column_precision", |table| {
+                    table.integer("not_added");
+                    table.rawColumn("invalid", definition);
+                })
+                .await,
+            Err(DatabaseError::InvalidSchema("raw column definition"))
+        ));
+    }
+    assert!(
+        !schema
+            .hasColumn("column_precision", "not_added")
+            .await
+            .unwrap()
+    );
+    if mysql {
+        assert!(matches!(
+            schema
+                .table("column_precision", |table| {
+                    table.floatWith("invalid_precision", 54);
+                })
+                .await,
+            Err(DatabaseError::InvalidSchema("floating-point precision"))
+        ));
+    }
+    schema.drop("column_precision").await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_uses_native_float_precision_and_raw_column_definitions() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_raw_column_and_float_precision(connection(json!({"url":url})), true).await;
+}
+
+#[tokio::test]
+async fn sqlite_uses_float_affinity_and_rebuilds_raw_columns() {
+    verify_raw_column_and_float_precision(
+        connection(json!({"driver":"sqlite","database":":memory:"})),
+        false,
+    )
+    .await;
+}

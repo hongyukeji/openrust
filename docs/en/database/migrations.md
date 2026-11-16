@@ -243,6 +243,26 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
 
+#### Floating-Point Precision and Raw Columns {#float-precision-and-raw-columns}
+
+`float()` uses Laravel’s default precision of 53 bits. Use `floatWith(name, precision)` to set it explicitly. On MySQL, precision 1–24 selects FLOAT and 25–53 selects DOUBLE. Use precision 0 for a native FLOAT declaration without a precision argument. SQLite uses its native floating-point behavior regardless of the requested precision.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_measurements() -> DatabaseResult<()> {
+    Schema::create("measurements", |table| {
+        table.id();
+        table.float("value");
+        table.floatWith("device_value", 24);
+        table.rawColumn("sample_count", "smallint").default(0);
+    })
+    .await
+}
+```
+
+Pass a trusted SQL column definition to `rawColumn(name, definition)` in a migration. Schema quotes the column name and appends the usual modifiers. The database interprets the supplied definition.
+
 #### Column Groups and Drop Aliases {#column-groups-and-drop-aliases}
 
 `morphs()` and `nullableMorphs()` use the application’s configured morph key type. Use `numericMorphs`, `uuidMorphs`, `ulidMorphs`, or their nullable variants to select the ID type explicitly. For an explicit index name or MySQL column position, pass those options to the typed functions, `morphsWith`, or `nullableMorphs`.

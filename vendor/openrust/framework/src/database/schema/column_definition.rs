@@ -15,7 +15,7 @@ pub(super) enum ColumnType {
     LongText,
     Boolean,
     Decimal(u8, u8),
-    Float,
+    Float(u8),
     Double,
     Binary,
     SizedBinary(u32, bool),
@@ -30,6 +30,7 @@ pub(super) enum ColumnType {
     DateTime(u8),
     Timestamp(u8),
     Time(u8),
+    Raw(String),
 }
 
 /// A literal, trusted SQL expression, or current-time default for a schema column.

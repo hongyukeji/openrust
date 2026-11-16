@@ -65,7 +65,7 @@ impl Blueprint {
         (tinyInteger, TinyInteger), (smallInteger, SmallInteger),
         (mediumInteger, MediumInteger), (integer, Integer), (bigInteger, BigInteger),
         (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
-        (float, Float), (double, Double), (binary, Binary), (json, Json), (jsonb, Json),
+        (double, Double), (binary, Binary), (json, Json), (jsonb, Json),
         (date, Date), (year, Year), (ipAddress, IpAddress), (macAddress, MacAddress),
     }
 
@@ -251,6 +251,25 @@ impl Blueprint {
             id_column.after(&kind);
         }
         self.index(&[&kind, &id], index);
+    }
+
+    /// Adds a floating-point column using Laravel's default precision of 53 bits.
+    pub fn float(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.floatWith(name, 53)
+    }
+
+    /// Adds a floating-point column with explicit binary precision.
+    pub fn floatWith(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+        self.column(name, ColumnType::Float(precision))
+    }
+
+    /// Adds a column using a trusted, database-specific SQL definition.
+    pub fn rawColumn(
+        &mut self,
+        name: &str,
+        definition: impl Into<String>,
+    ) -> &mut ColumnDefinition {
+        self.column(name, ColumnType::Raw(definition.into()))
     }
 
     pub fn decimal(&mut self, name: &str, total: u8, places: u8) -> &mut ColumnDefinition {

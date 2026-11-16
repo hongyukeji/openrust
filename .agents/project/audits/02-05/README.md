@@ -114,3 +114,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `foreignUuidFor`、`foreignUlidFor` 允许显式选择类型。`constrained()` 使用模型表名与主键名，显式列名仅覆盖引用方列名。`dropForeignIdFor` 和 `dropConstrainedForeignIdFor` 复用列名推导及原有删除路径。
 - MySQL 8.4.13 与 SQLite 共 90 项定向回归，覆盖整型、UUID、ULID、自定义表和主键、列名覆盖、前缀、约束拒绝、删除置空、回滚移除及已有数据保留。1 个子进程夹具由父测试启动。三语共用例在两种驱动通过实际 Artisan 验证，原生 `main artisan inspire` 正常退出。
 - 严格工作区 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全工作区格式检查仍报既有 Sanctum 测试排版差异，已核对文件与基线相同。
+
+## 浮点精度与原生列定义
+
+对照固定 Laravel [float](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-method-float)、[MySQL FLOAT](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L827)、[SQLite FLOAT 与 DOUBLE](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L771) 及 [rawColumn](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1626)。旧版未找到对应 Blueprint 实现，沿用当前原生 DDL 与目录查询。
+
+- `float(name)` 按 Laravel 默认使用 53 位精度。MySQL 新建或变更此类列时会声明 `FLOAT(53)`，由服务器落为 DOUBLE。Rust 用 `floatWith(name, precision)` 表达显式精度，0 对应无参数原生 FLOAT。SQLite 的 `float` 与 `double` 分别产生对应类型声明。
+- `rawColumn` 把应用提供的可信 SQL 作为列类型定义，保留列名引用和常规修饰符。空定义或含 NUL 的定义在执行 DDL 前拒绝。
+- MySQL 8.4.13 与 SQLite 共 89 项定向回归，覆盖 24／25 位边界、实际舍入、默认精度、SQLite 浮点行为、原生列新建和变更、数据保留、非法定义拒绝。1 个子进程夹具由父测试启动。三语共用例在两种驱动通过实际 Artisan 验证，原生 `main artisan inspire` 正常退出。
+- 严格工作区 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全工作区格式仍报既有 Sanctum 测试排版，已核对文件与基线相同。
