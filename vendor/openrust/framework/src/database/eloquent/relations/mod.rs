@@ -37,7 +37,7 @@ pub use morph_one::MorphOne;
 pub use morph_pivot::MorphPivot;
 pub use morph_to::{MorphIdentity, MorphTarget, MorphTo};
 pub use morph_to_many::MorphToMany;
-pub use one_of_many::OneOfManyAggregate;
+pub use one_of_many::{OneOfManyAggregate, OneOfManyColumns};
 pub use pending_has_through_relationship::{PendingHasThroughRelationship, ThroughRelation};
 pub use pivot::Pivot;
 pub use relation::{ConstrainableRelation, ExistenceRelation, NestedRelation, Relation};

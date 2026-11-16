@@ -22,6 +22,38 @@ impl OneOfManyAggregate {
     }
 }
 
+/// Ranking columns for the latest and oldest relationship shortcuts.
+pub enum OneOfManyColumns<'a> {
+    /// Rank by the related model's primary key.
+    Default,
+    Column(&'static str),
+    Columns(&'a [&'static str]),
+}
+
+impl From<Option<&'static str>> for OneOfManyColumns<'_> {
+    fn from(column: Option<&'static str>) -> Self {
+        column.map_or(Self::Default, Self::Column)
+    }
+}
+
+impl From<&'static str> for OneOfManyColumns<'_> {
+    fn from(column: &'static str) -> Self {
+        Self::Column(column)
+    }
+}
+
+impl<'a> From<&'a [&'static str]> for OneOfManyColumns<'a> {
+    fn from(columns: &'a [&'static str]) -> Self {
+        Self::Columns(columns)
+    }
+}
+
+impl<'a, const N: usize> From<&'a [&'static str; N]> for OneOfManyColumns<'a> {
+    fn from(columns: &'a [&'static str; N]) -> Self {
+        Self::Columns(columns)
+    }
+}
+
 type CandidateFilter = dyn Fn(Conditions) -> Conditions + Send + Sync;
 
 pub(super) struct OneOfMany {
@@ -40,6 +72,28 @@ impl OneOfMany {
             columns,
             filter: None,
         }
+    }
+
+    pub(super) fn shortcut<R: Model>(
+        columns: OneOfManyColumns<'_>,
+        aggregate: OneOfManyAggregate,
+    ) -> Self {
+        let single;
+        let columns = match columns {
+            OneOfManyColumns::Default => {
+                single = [R::metadata().primary_key];
+                &single[..]
+            }
+            OneOfManyColumns::Column(name) => {
+                single = [name];
+                &single[..]
+            }
+            OneOfManyColumns::Columns(names) => names,
+        };
+        Self::new::<R>(
+            columns.iter().map(|column| (*column, aggregate)),
+            OneOfManyAggregate::Max,
+        )
     }
 
     pub fn filter(&mut self, filter: impl Fn(Conditions) -> Conditions + Send + Sync + 'static) {

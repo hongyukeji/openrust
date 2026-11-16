@@ -95,16 +95,20 @@ pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> 
 
 Convert a `HasMany` or `MorphMany` descriptor with `one`, then choose `latestOfMany`, `oldestOfMany`, or `ofMany`. With no column argument, the latest and oldest methods use the related primary key. When ranking by another column, a tied value is resolved using the maximum primary key unless you specify another tie rule. Use `whereCandidates` to filter before ranking. SQL min and max ignore nulls, so a parent with only null ranking values has no result.
 
+Pass several ranking columns as a slice, for example `oldestOfMany(&["score", "id"])`. Columns are evaluated from left to right. The shortcut applies the same aggregate to every supplied column. When the primary key is absent, the final tie-breaker uses its maximum value. An explicitly empty slice also selects the maximum key. Pass `None` to apply the shortcut’s own direction directly to the primary key.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::HasMany},
 };
 
-pub async fn authors_with_top_post(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+pub async fn authors_with_top_post<Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id");
     Author::queryOn(connection)
-        .with("top_post", posts.one().latestOfMany(Some("score")))
+        .with("top_post", posts.one().latestOfMany(&["score", "id"]))
         .orderBy("id", "asc")
         .get()
         .await

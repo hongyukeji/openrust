@@ -225,19 +225,21 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     #[must_use]
-    pub fn latestOfMany(self, column: Option<&'static str>) -> Self {
-        self.ofMany(&[(
-            column.unwrap_or(R::metadata().primary_key),
+    pub fn latestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+        self.0.selection = Some(OneOfMany::shortcut::<R>(
+            columns.into(),
             OneOfManyAggregate::Max,
-        )])
+        ));
+        self
     }
 
     #[must_use]
-    pub fn oldestOfMany(self, column: Option<&'static str>) -> Self {
-        self.ofMany(&[(
-            column.unwrap_or(R::metadata().primary_key),
+    pub fn oldestOfMany<'a>(mut self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+        self.0.selection = Some(OneOfMany::shortcut::<R>(
+            columns.into(),
             OneOfManyAggregate::Min,
-        )])
+        ));
+        self
     }
 
     #[must_use]

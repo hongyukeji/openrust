@@ -86,13 +86,13 @@ impl<P: Model, R: Model> MorphOne<P, R> {
     }
 
     #[must_use]
-    pub fn latestOfMany(self, column: Option<&'static str>) -> Self {
-        Self(self.0.latestOfMany(column))
+    pub fn latestOfMany<'a>(self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+        Self(self.0.latestOfMany(columns))
     }
 
     #[must_use]
-    pub fn oldestOfMany(self, column: Option<&'static str>) -> Self {
-        Self(self.0.oldestOfMany(column))
+    pub fn oldestOfMany<'a>(self, columns: impl Into<super::OneOfManyColumns<'a>>) -> Self {
+        Self(self.0.oldestOfMany(columns))
     }
 
     #[must_use]

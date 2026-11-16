@@ -369,6 +369,22 @@ async fn verify_through_and_morph(
             .await
             .unwrap()
     );
+    let mut newer = POST_COMMENTS
+        .create(post, Attributes::from([("body".into(), "visible".into())]))
+        .await
+        .unwrap();
+    let columns = ["body", "id"];
+    let oldest = POST_COMMENTS.one().oldestOfMany(columns.as_slice());
+    assert_eq!(
+        oldest.getResults(post).await.unwrap().unwrap().getKey(),
+        visible.getKey()
+    );
+    let latest = POST_COMMENTS.one().latestOfMany(&columns);
+    assert_eq!(
+        latest.getResults(post).await.unwrap().unwrap().getKey(),
+        newer.getKey()
+    );
+    newer.forceDelete().await.unwrap();
     assert_eq!(POST_COMMENTS.getResults(post).await.unwrap().len(), 1);
     assert_eq!(
         POST_COMMENTS
@@ -3550,7 +3566,7 @@ fn verify_one_through<'a>(
                 .await
                 .unwrap()
         );
-        let latest = || COMMENTS_THROUGH.one().latestOfMany(Some("body"));
+        let latest = || COMMENTS_THROUGH.one().latestOfMany(&["body", "id"]);
         let baseline = if mysql { select_count(db).await } else { 0 };
         let authors = Author::queryOn(db)
             .with("latest_comment", latest())
@@ -3578,6 +3594,17 @@ fn verify_one_through<'a>(
             .unwrap()
             .unwrap();
         assert_eq!(oldest.getKey(), first.getKey());
+        assert_eq!(
+            COMMENTS_THROUGH
+                .one()
+                .oldestOfMany(&["body", "id"])
+                .getResults(author)
+                .await
+                .unwrap()
+                .unwrap()
+                .getKey(),
+            first.getKey()
+        );
         let first_key = first.getKey().unwrap().clone();
         let constrained = latest()
             .whereCandidates(move |query| query.r#where("id", "=", first_key.clone()))
@@ -7586,7 +7613,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     extra_first.save().await.unwrap();
     let baseline = if mysql { select_count(&db).await } else { 0 };
     let ranked = Author::queryOn(&db)
-        .with("top", POSTS.one().latestOfMany(Some("score")))
+        .with("top", POSTS.one().latestOfMany(&["score", "id"]))
         .orderBy("id", "asc")
         .get()
         .await
@@ -7607,6 +7634,10 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
             .is_none()
     );
     for (relation, expected) in [
+        (POSTS.one().latestOfMany(&["score", "title"]), p1.getKey()),
+        (POSTS.one().oldestOfMany(&["score", "id"]), p1.getKey()),
+        (POSTS.one().oldestOfMany(&[]), extra_first.getKey()),
+        (POSTS.one().oldestOfMany("score"), extra_first.getKey()),
         (
             POSTS.one().oldestOfMany(Some("score")),
             extra_first.getKey(),

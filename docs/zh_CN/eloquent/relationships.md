@@ -95,16 +95,20 @@ pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> 
 
 用 `one` 转换 `HasMany` 或 `MorphMany`，再使用 `latestOfMany`、`oldestOfMany` 或 `ofMany`。未指定列时，最新和最早方法使用关联模型主键。按其他列排序且值相同时，默认选择主键最大的记录，也可指定其他规则。`whereCandidates` 在排序前筛选候选记录。SQL 最小值和最大值跳过空值，排序列全为空时该父模型没有结果。
 
+要按多个列依次选择，可以传入切片，例如 `oldestOfMany(&["score", "id"])`。从左到右比较，每个显式列都使用该快捷方法对应的聚合。列表中省略主键时，最后用最大主键决胜。显式传入空切片也选择最大主键。传入 `None` 时，直接按该快捷方法的方向选择主键。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::HasMany},
 };
 
-pub async fn authors_with_top_post(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+pub async fn authors_with_top_post<Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id");
     Author::queryOn(connection)
-        .with("top_post", posts.one().latestOfMany(Some("score")))
+        .with("top_post", posts.one().latestOfMany(&["score", "id"]))
         .orderBy("id", "asc")
         .get()
         .await
