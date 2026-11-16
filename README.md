@@ -58,7 +58,7 @@ cargo build --release --locked --features standalone
 
 ## 贡献
 
-开发规范和验收方式见 [AGENTS.md](AGENTS.md)。
+开发规范和验收方式见[项目指引](.agents/project/README.md)。
 
 ## 许可证
 
