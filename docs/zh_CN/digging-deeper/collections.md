@@ -402,6 +402,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 条件分支和管道 {#lazy-conditionals-and-pipelines}
+
+`when` 和 `unless` 立即选择回调。`whenEmpty` 与 `whenNotEmpty` 会探测第一项并可能返回来源错误。`whenEmptyElse` 和 `whenNotEmptyElse` 接收备用回调。`pipe` 可改变返回类型，`pipeThrough` 串接返回同一集合类型的步骤。`tap` 在调用处检查集合。`ensure` 使用谓词逐条校验，首次不满足时停止。后续遍历会再次打开来源，可使用 `remember()` 重放已读条目。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::<i32>::empty()
+        .whenEmpty(|_| LazyCollection::from([3, 5]))?
+        .when(true, |items| items.map(|value, _| value * 2))
+        .ensure(|value, _| *value <= 10)?;
+
+    let total = readings.pipe(|items| items.reduceWithKeys(0, |sum, value, _| sum + value))?;
+    assert_eq!(total, 16);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

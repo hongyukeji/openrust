@@ -1487,3 +1487,101 @@ fn lazy_wrapping_replays_values_and_unwrap_propagates_errors() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_conditional_pipes_and_tap_preserve_the_source_until_pulled() {
+    let reads = Cell::new(0);
+    let tapped = Cell::new(0);
+    let source = LazyCollection::make(|| (1..).inspect(|_| reads.set(reads.get() + 1)));
+    let stages: [fn(_) -> _; 2] = [
+        |items: LazyCollection<'_, i32>| items.map(|value, _| value * 3),
+        |items: LazyCollection<'_, i32>| items.take(2),
+    ];
+    let stage = source
+        .when(false, |_| panic!("unchosen branch"))
+        .whenElse(true, |items| items.skip(1), |_| panic!("unchosen fallback"))
+        .unless(true, |_| panic!("unchosen unless"))
+        .unlessElse(true, |_| panic!("unchosen unless branch"), |items| items)
+        .tap(|_| tapped.set(tapped.get() + 1))
+        .pipeThrough(stages);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(tapped.get(), 1);
+    assert_eq!(
+        stage.pipe(|items| items.values().toJson()).unwrap(),
+        "[6,9]"
+    );
+    assert_eq!(reads.get(), 3);
+
+    struct Wrapped<'a>(LazyCollection<'a, i32>);
+    impl<'a> From<LazyCollection<'a, i32>> for Wrapped<'a> {
+        fn from(items: LazyCollection<'a, i32>) -> Self {
+            Self(items)
+        }
+    }
+    let wrapped: Wrapped<'_> = LazyCollection::from([7, 8]).pipeInto();
+    assert_eq!(wrapped.0.first().unwrap(), Some(7));
+}
+
+#[test]
+fn lazy_emptiness_branches_probe_once_and_propagate_the_probe_error() {
+    let reads = Cell::new(0);
+    let source =
+        LazyCollection::make(|| [2, 3].into_iter().inspect(|_| reads.set(reads.get() + 1)));
+    let sorted = source
+        .whenEmptyElse(|_| panic!("not empty"), |items| items.take(1))
+        .unwrap();
+    assert_eq!(reads.get(), 1);
+    assert_eq!(sorted.first().unwrap(), Some(2));
+    assert_eq!(reads.get(), 2);
+    let fallback = LazyCollection::<i32>::empty()
+        .whenNotEmptyElse(|_| panic!("empty"), |_| LazyCollection::from([5]))
+        .unwrap();
+    assert_eq!(fallback.first().unwrap(), Some(5));
+    assert_eq!(
+        LazyCollection::<i32>::empty()
+            .unlessNotEmpty(|_| LazyCollection::from([7]))
+            .unwrap()
+            .first()
+            .unwrap(),
+        Some(7)
+    );
+    let failing = LazyCollection::tryMake(|| [Err::<i32, _>(source_error())]);
+    assert!(matches!(
+        failing.unlessEmpty(|_| panic!("source failed")),
+        Err(CollectionError::Source(_))
+    ));
+}
+
+#[test]
+fn lazy_validation_and_owned_reductions_preserve_repeated_occurrences() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert!(matches!(
+        source.clone().ensure(|value, _| *value < 2),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert_eq!(reads.get(), 2);
+    let valid = source.ensure(|value, _| *value < 4).unwrap();
+    assert_eq!(
+        valid
+            .reduceWithKeys(0, |sum, value, _| sum + value)
+            .unwrap(),
+        6
+    );
+    assert_eq!(
+        valid
+            .reduceInto(Vec::new(), |values, value, key| values
+                .push((key.clone(), *value)))
+            .unwrap(),
+        vec![("a".into(), 1), ("a".into(), 2), ("b".into(), 3)]
+    );
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    assert!(matches!(
+        failing.ensure(|_, _| true),
+        Err(CollectionError::Source(_))
+    ));
+}

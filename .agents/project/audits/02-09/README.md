@@ -146,3 +146,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `times` 每次遍历从 1 开始调用回调，结果键从 0 开始且按需生成。`wrap` 以 `Option` 表达单值或空来源。`fromValue` 复用 JSON 键规则，`unwrap` 实体化条目并传播读取错误。
 - PHP 8.5.12 固定源码对照、59 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 2026-11-17 02:02（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 71,768,020 KiB（73.49 GB／68.44 GiB）。证据目录 /private/tmp/openrust-lazy-sources.krgaXiZU。02-09 接续流程控制和其余公开入口。
+
+## 惰性集合流程控制
+
+对照固定 Laravel 的 [ensure](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L385)、[空值分支](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L600) 和 [管道](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L805)。旧版未发现同契约的惰性入口。
+
+- `when`、`unless` 和 `tap` 在调用时运行所需回调。空值分支最多探测一项，失败直接传播。具名 Else 版本对应 Laravel 的可选备用回调。
+- `pipe` 可改变输出类型，`pipeInto` 通过 `From` 转换，`pipeThrough` 串接相同集合类型的步骤。`ensure` 通过 Rust 谓词表达验证，遇首个不合格值停止。`reduceWithKeys` 和 `reduceInto` 逐次保留原键与重复项。
+- PHP 8.5.12 固定源码对照、62 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 2026-11-17 02:08（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 67,441,124 KiB（69.06 GB／64.32 GiB）。证据目录 /private/tmp/openrust-lazy-flow.LZjByIcO。02-09 接续其余公开入口。

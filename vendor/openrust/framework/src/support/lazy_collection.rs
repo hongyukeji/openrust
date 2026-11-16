@@ -6,6 +6,7 @@ use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable}
 
 mod aggregates;
 mod filtering;
+mod flow;
 mod lookup;
 mod matching;
 mod nested;

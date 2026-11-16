@@ -18,6 +18,25 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
+    pub fn reduceWithKeys<U>(
+        &self,
+        initial: U,
+        callback: impl FnMut(U, &T, &ArrayKey) -> U,
+    ) -> CollectionResult<U> {
+        self.reduce(initial, callback)
+    }
+
+    pub fn reduceInto<U>(
+        &self,
+        initial: U,
+        mut callback: impl FnMut(&mut U, &T, &ArrayKey),
+    ) -> CollectionResult<U> {
+        self.reduce(initial, |mut carry, value, key| {
+            callback(&mut carry, value, key);
+            carry
+        })
+    }
+
     pub fn reduceSpread<A, B>(
         &self,
         initial: (A, B),

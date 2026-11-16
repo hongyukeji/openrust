@@ -402,6 +402,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Conditionals and Pipelines {#lazy-conditionals-and-pipelines}
+
+`when` and `unless` select a callback immediately. `whenEmpty` and `whenNotEmpty` probe the first item and can return a source error. `whenEmptyElse` and `whenNotEmptyElse` accept a fallback. `pipe` can change the result type, while `pipeThrough` chains stages that return the same collection type. `tap` inspects the collection at the call site. `ensure` validates every item with a predicate and stops at the first failure. A later traversal opens the source again unless you use `remember()`.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::<i32>::empty()
+        .whenEmpty(|_| LazyCollection::from([3, 5]))?
+        .when(true, |items| items.map(|value, _| value * 2))
+        .ensure(|value, _| *value <= 10)?;
+
+    let total = readings.pipe(|items| items.reduceWithKeys(0, |sum, value, _| sum + value))?;
+    assert_eq!(total, 16);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.
