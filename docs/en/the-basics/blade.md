@@ -381,7 +381,7 @@ Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashb
 @endfragment
 ```
 
-`fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. OpenRust evaluates the view once per response, including when selecting multiple fragments.
+`fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. Each name triggers a render of the same view in order, including duplicate names. The composer runs each time. A missing name returns the full output of that render. An empty name list performs no renders. `allFragments()` collects fragments from one render.
 
 ## Service Injection {#service-injection}
 

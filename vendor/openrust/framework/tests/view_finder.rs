@@ -534,6 +534,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     view("fragment_page").fragmentIf(false, "left")
                 })?;
                 Route::get("/all-fragments", || view("fragment_page").allFragments())?;
+                Route::get("/fragment-composed", || {
+                    view("fragment_composed").fragments(["right", "missing", "left", "left"])
+                })?;
+                Route::get("/all-fragments-composed", || {
+                    view("fragment_composed").allFragments()
+                })?;
+                Route::get("/empty-fragments", || {
+                    view("fragment_composed").fragments(Vec::<String>::new())
+                })?;
                 Route::get("/missing-fragment", || {
                     view("fragment_page").fragment("missing")
                 })?;
@@ -775,6 +784,16 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             view.data_mut().insert("title".into(), "creator".into());
             Ok(())
         });
+        factory.creator("fragment_composed", |view| {
+            view.data_mut().insert("pass".into(), 0.into());
+            Ok(())
+        });
+        factory.composer("fragment_composed", |view| {
+            let pass = view.data()["pass"].as_u64().unwrap() + 1;
+            view.data_mut().insert("pass".into(), pass.into());
+            ViewFacade::share("sharedFragmentPass", pass)?;
+            Ok(())
+        });
         factory.composer("pa*", |view| {
             assert_eq!(view.data()["title"], "route");
             assert!(ViewFacade::exists("layout")?);
@@ -927,6 +946,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         (
             "fragment_partial",
             "@fragment('right')<i>{{ $app }}</i>@endfragment",
+        ),
+        (
+            "fragment_composed",
+            concat!(
+                "@fragment('left')@once L{{ $pass }}:{{ $sharedFragmentPass }}@endonce @endfragment",
+                "@fragment('right')R{{ $pass }}:{{ $sharedFragmentPass }}@endfragment",
+            ),
         ),
         ("broken_fragment", "@fragment('left')broken"),
         (
@@ -1302,11 +1328,23 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(first, "/fragments", 200),
         send(second, "/fragments", 200),
     );
-    assert_eq!(a, "<i>A</i><b>A</b>");
-    assert_eq!(b, "<i>B</i><b>B</b>");
+    assert_eq!(a, "<i>A</i><main><b>A</b><i>A</i></main><b>A</b>");
+    assert_eq!(b, "<i>B</i><main><b>B</b><i>B</i></main><b>B</b>");
     assert_eq!(send(first, "/fragment", 200).await, "<b>A</b>");
     assert_eq!(send(first, "/all-fragments", 200).await, "<b>A</b><i>A</i>");
-    assert_eq!(send(first, "/missing-fragment", 200).await, "");
+    assert_eq!(
+        send(first, "/fragment-composed", 200).await,
+        "R1:1 L2:2 R2:2 L3:3  L4:4 "
+    );
+    assert_eq!(
+        send(first, "/all-fragments-composed", 200).await,
+        " L1:1 R1:1"
+    );
+    assert_eq!(send(first, "/empty-fragments", 200).await, "");
+    assert_eq!(
+        send(first, "/missing-fragment", 200).await,
+        "<main><b>A</b><i>A</i></main>"
+    );
     assert_eq!(
         send(first, "/full-fragments", 200).await,
         "<main><b>A</b><i>A</i></main>"

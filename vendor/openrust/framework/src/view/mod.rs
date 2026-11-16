@@ -87,6 +87,7 @@ struct ViewOptions {
     gate_arguments: HashMap<String, Arc<crate::auth::access::Argument>>,
 }
 
+#[derive(Clone)]
 enum FragmentSelection {
     Named(Vec<String>),
     All,

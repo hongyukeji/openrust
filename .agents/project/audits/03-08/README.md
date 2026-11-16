@@ -116,3 +116,9 @@
 
 - 对照固定 [ComponentAttributeBag](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentAttributeBag.php)、[ComponentSlot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentSlot.php) 和 Blade 组件章节。属性包支持 `prepends`、`first`、`get`、`has`、`hasAny` 和 Rust 注册的 `filter`。插槽支持空值、非空值和忽略注释的内容判断。`Component::shouldRender` 在渲染组件或插槽之前判断可见性。旧版无相应 Blade 机制。
 - macOS ARM64、Rust 1.94.0。共享工作区 11 项定向测试通过，真实 HTTP 覆盖筛选回调、前缀默认值、属性读取和转义、插槽注释与标记、隐藏组件跳过子视图，以及未注册过滤器 500。隔离全工作区格式和严格 Clippy、实际 Artisan 缓存与清理三个三语示例、三语 VitePress 构建与 12 项浏览器组合通过。
+
+### 具名片段的逐次渲染
+
+- PHP 8.5 容器加载固定 Laravel Framework v13.40.0 的真实 BladeCompiler、View 和 Factory。以有状态组合器和 `@once` 复现实测行为。具名列表依序渲染同一个 View，缺失项执行该轮渲染并返回完整输出，重复名称重新执行组合器，空列表跳过渲染。全部片段共用一次渲染。 [固定 View 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php)
+- Rust 每轮保留同一实例的组合器数据和请求上下文，以独立渲染树清理片段、栈和 `@once` 状态。实际 HTTP 覆盖顺序、重复、缺失、全部、条件回退、子视图和并发应用隔离。含 5 项 `view_finder` 定向测试及严格 Clippy 均通过。旧版视图为静态 HTML 和内嵌模板，未找到可复用的片段组合器实现。
+- 隔离应用实际执行 `./artisan view:cache` 和 `./artisan view:clear`，编译并清理三语片段示例。三语 VitePress 构建通过。

@@ -381,7 +381,7 @@ POST 请求优先使用 `X-HTTP-Method-Override` 请求头，其次使用表单�
 @endfragment
 ```
 
-`fragments(["summary", "details"])` 按参数顺序返回指定片段。`allFragments()` 返回全部已捕获片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在条件为假时发送完整模板。OpenRust 每次响应只渲染一次视图，选择多个片段时也一样。
+`fragments(["summary", "details"])` 按参数顺序返回指定片段。`allFragments()` 返回全部已捕获片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在条件为假时发送完整模板。每个名称都会按顺序重新渲染同一个视图，重复名称也会触发渲染。组合器在每次渲染时运行。名称缺失时返回该次渲染的完整输出。空名称列表不触发渲染。`allFragments()` 从一次渲染中收集所有片段。
 
 ## 服务注入 {#service-injection}
 

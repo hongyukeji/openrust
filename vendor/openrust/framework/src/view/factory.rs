@@ -18,8 +18,8 @@ use crate::{
 };
 
 use super::{
-    Component, ComponentOutput, FileViewFinder, View, ViewBinding, ViewData, ViewError, ViewFinder,
-    ViewResult, ViewValue,
+    Component, ComponentOutput, FileViewFinder, FragmentSelection, View, ViewBinding, ViewData,
+    ViewError, ViewFinder, ViewResult, ViewValue,
     compilers::BladeCompiler,
     component::ResolvedComponent,
     engines::EngineResolver,
@@ -403,18 +403,7 @@ impl Factory {
         mut view: View,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        let mut data = self.prepare_view(&mut view)?;
-        let source = self.view_source(&view)?;
-        data.extend(view.data);
-        let fragments = view.options.and_then(|options| {
-            context.gate_arguments.extend(options.gate_arguments);
-            options.fragments
-        });
-        let html = self.render_contents(source, &data, context)?;
-        Ok(match fragments {
-            Some(fragments) => context.selected_fragments(fragments),
-            None => html,
-        })
+        self.render_view_ref(&mut view, context)
     }
 
     fn render_view_ref(
@@ -422,6 +411,35 @@ impl Factory {
         view: &mut View,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
+        if let Some(error) = view.creation_error.take() {
+            return Err(error);
+        }
+        let fragments = view.options.as_ref().and_then(|options| {
+            context
+                .gate_arguments
+                .extend(options.gate_arguments.clone());
+            options.fragments.clone()
+        });
+        match fragments {
+            Some(FragmentSelection::Named(names)) => {
+                self.callCreator(view)?;
+                let mut html = String::new();
+                for name in names {
+                    let mut render = context.fresh_tree();
+                    let full = self.render_pass(view, &mut render)?;
+                    html.push_str(&render.fragment(&name).unwrap_or(full));
+                }
+                Ok(html)
+            }
+            Some(FragmentSelection::All) => {
+                self.render_pass(view, context)?;
+                Ok(context.all_fragments())
+            }
+            None => self.render_pass(view, context),
+        }
+    }
+
+    fn render_pass(&self, view: &mut View, context: &mut RenderContext<'_>) -> ViewResult<String> {
         let mut data = self.prepare_view(view)?;
         data.extend(
             view.data
@@ -432,9 +450,6 @@ impl Factory {
     }
 
     fn prepare_view(&self, view: &mut View) -> ViewResult<ViewData> {
-        if let Some(error) = view.creation_error.take() {
-            return Err(error);
-        }
         self.callCreator(view)?;
         self.call_events(view, |events| &events.composers)?;
         let mut data = self.events.read().unwrap().shared.clone();

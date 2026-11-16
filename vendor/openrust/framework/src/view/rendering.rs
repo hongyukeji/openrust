@@ -10,8 +10,8 @@ use std::{
 use crate::{contracts::container::Container as _, support::facades::current_container};
 
 use super::{
-    Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue,
-    compilers::BladeExtensions, component::ResolvedComponent, request_data::ViewRequestData,
+    Factory, ViewData, ViewError, ViewResult, ViewValue, compilers::BladeExtensions,
+    component::ResolvedComponent, request_data::ViewRequestData,
 };
 
 /// State owned by one render tree. A layout inherits sections from its child.
@@ -79,6 +79,13 @@ impl<'a> RenderContext<'a> {
             extensions: Arc::default(),
             shared: Rc::default(),
         }
+    }
+
+    pub(super) fn fresh_tree(&self) -> Self {
+        let mut render = Self::new(self.factory);
+        render.request = self.request.clone();
+        render.gate_arguments.clone_from(&self.gate_arguments);
+        render
     }
 
     pub(super) fn section(&mut self, name: String, html: String) {
@@ -270,20 +277,22 @@ impl<'a> RenderContext<'a> {
         }
     }
 
-    pub(super) fn selected_fragments(&self, selection: FragmentSelection) -> String {
-        let shared = self.shared.borrow();
-        match selection {
-            FragmentSelection::Named(names) => names
-                .iter()
-                .filter_map(|name| shared.fragments.iter().find(|(key, _)| key == name))
-                .map(|(_, html)| html.as_str())
-                .collect(),
-            FragmentSelection::All => shared
-                .fragments
-                .iter()
-                .map(|(_, html)| html.as_str())
-                .collect(),
-        }
+    pub(super) fn fragment(&self, name: &str) -> Option<String> {
+        self.shared
+            .borrow()
+            .fragments
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, html)| html.clone())
+    }
+
+    pub(super) fn all_fragments(&self) -> String {
+        self.shared
+            .borrow()
+            .fragments
+            .iter()
+            .map(|(_, html)| html.as_str())
+            .collect()
     }
 
     pub(super) fn component(
