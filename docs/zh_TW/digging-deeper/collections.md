@@ -257,6 +257,32 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 比較與更新集合 {#lazy-comparing-and-updating}
+
+`diff`、`intersect` 及其依鍵和關聯比較的變體，在第一次取值時實體化兩個來源。`union` 保留既有鍵對應的值。`merge` 覆蓋同名字串鍵，並重排數字鍵。`replace` 先讀完替換來源，再替換主要來源中每個鍵第一次出現的值，最後附加主要來源未出現的替換鍵。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let current = LazyCollection::fromEntries(|| [("a", 1), ("b", 2)]);
+    let incoming = LazyCollection::fromEntries(|| [("b", 2), ("c", 3)]);
+    assert_eq!(
+        current
+            .clone()
+            .diffAssoc(incoming.clone())
+            .collect()?
+            .toJson()?,
+        r#"{"a":1}"#
+    );
+    assert_eq!(
+        current.replace(incoming).collect()?.toJson()?,
+        r#"{"a":1,"b":2,"c":3}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

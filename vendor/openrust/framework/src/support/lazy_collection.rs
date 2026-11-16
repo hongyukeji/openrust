@@ -9,6 +9,7 @@ mod matching;
 mod nested;
 mod ordering;
 mod pairing;
+mod sets;
 mod timing;
 
 type Entry<T> = (ArrayKey, T);
@@ -105,9 +106,16 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self,
         operation: impl Fn(Collection<T>) -> Collection<U> + 'source,
     ) -> LazyCollection<'source, U> {
+        self.try_passthru(move |items| Ok(operation(items)))
+    }
+
+    fn try_passthru<U: 'source>(
+        self,
+        operation: impl Fn(Collection<T>) -> CollectionResult<Collection<U>> + 'source,
+    ) -> LazyCollection<'source, U> {
         LazyCollection::from_iterators(move || -> SourceIterator<'source, U> {
-            match Self::collect(&self) {
-                Ok(items) => Box::new(operation(items).into_iter().map(Ok)),
+            match Self::collect(&self).and_then(&operation) {
+                Ok(items) => Box::new(items.into_iter().map(Ok)),
                 Err(error) => Box::new(iter::once(Err(error))),
             }
         })

@@ -257,6 +257,32 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Comparing and Updating Collections {#lazy-comparing-and-updating}
+
+`diff`, `intersect`, and their key and association variants materialize both sources on the first pull. `union` keeps existing keys, while `merge` replaces matching string keys and reindexes numeric keys. `replace` reads the replacement source first, then applies each replacement to the first occurrence of its key in the primary source. It appends replacement keys that did not occur.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let current = LazyCollection::fromEntries(|| [("a", 1), ("b", 2)]);
+    let incoming = LazyCollection::fromEntries(|| [("b", 2), ("c", 3)]);
+    assert_eq!(
+        current
+            .clone()
+            .diffAssoc(incoming.clone())
+            .collect()?
+            .toJson()?,
+        r#"{"a":1}"#
+    );
+    assert_eq!(
+        current.replace(incoming).collect()?.toJson()?,
+        r#"{"a":1,"b":2,"c":3}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

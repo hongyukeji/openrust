@@ -87,3 +87,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `sum`、`avg`、最值和折叠按次序处理每条输入。空来源保留求和的零值，平均值与最值返回 `None`。`every` 在首次不满足时短路。`reduceSpread` 复用实体集合的二元元组契约。
 - `countBy` 在首次读取时逐条汇总，按组首次出现顺序产出，保留数字字符串键规则。中位数与众数先按来源键实体化。众数使用类型化 `Eq + Hash` 分组，同频值按出现顺序返回。动态投影通过 Rust 回调表达。
 - PHP 8.5.12 固定源码对照、38 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性集合比较与替换
+
+对照固定 Laravel 的 [差集](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L363)、[交集](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L644)、[合并](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L852) 和 [replace](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1054)。旧版未发现同契约的惰性操作。
+
+- 差集、交集、关联、键及自定义比较变体在首次取值时实体化来源并复用实体集合的类型化比较。`merge` 重排数字键并覆盖同名字符串键，`union` 保留既有键值。
+- `replace` 先读完替换来源，在主来源中每个键第一次出现时替换，最后按顺序追加未用的替换项。每次取值最多推进一条主来源记录，来源错误按读取顺序传播。
+- PHP 8.5.12 固定源码对照、41 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

@@ -837,3 +837,104 @@ fn lazy_aggregate_failures_propagate_and_every_short_circuits() {
     ));
     assert!(iterator.next().is_none());
 }
+
+#[test]
+fn lazy_set_comparisons_materialize_both_inputs_and_preserve_keys() {
+    let left = LazyCollection::fromEntries(|| [("a", 99), ("a", 2), ("B", 3), ("c", 7)]);
+    let right = LazyCollection::fromEntries(|| [("a", 2), ("b", 3), ("d", 7)]);
+    let by_key = |a: &ArrayKey, b: &ArrayKey| {
+        a.to_string()
+            .to_lowercase()
+            .cmp(&b.to_string().to_lowercase())
+    };
+    assert!(left.clone().diff(right.clone()).all().unwrap().is_empty());
+    assert_eq!(
+        left.clone().diffAssoc(right.clone()).all().unwrap(),
+        vec![("B".into(), 3), ("c".into(), 7)]
+    );
+    assert_eq!(
+        left.clone().intersectAssoc(right.clone()).all().unwrap(),
+        vec![("a".into(), 2)]
+    );
+    assert_eq!(
+        left.clone()
+            .intersectAssocUsing(right.clone(), by_key)
+            .count()
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        left.clone()
+            .diffAssocUsing(right.clone(), by_key)
+            .count()
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        left.clone()
+            .diffKeysUsing(right.clone(), by_key)
+            .count()
+            .unwrap(),
+        1
+    );
+    assert_eq!(left.clone().diffKeys(right.clone()).count().unwrap(), 2);
+    assert_eq!(
+        left.clone().intersectByKeys(right.clone()).count().unwrap(),
+        1
+    );
+    assert_eq!(left.clone().intersect(right).count().unwrap(), 3);
+    let parity = |a: &i32, b: &i32| (a % 2).cmp(&(b % 2));
+    assert_eq!(left.clone().intersectUsing([3], parity).count().unwrap(), 2);
+    assert_eq!(left.diffUsing([3], parity).count().unwrap(), 1);
+}
+
+#[test]
+fn lazy_merge_and_union_match_collection_key_rules() {
+    let left = LazyCollection::fromEntries(|| [(ArrayKey::from(0), 2), ("x".into(), 3)]);
+    let right =
+        LazyCollection::fromEntries(|| [(ArrayKey::from(0), 4), ("x".into(), 5), ("y".into(), 6)]);
+    assert_eq!(
+        left.clone().merge(right.clone()).all().unwrap(),
+        vec![
+            (0.into(), 2),
+            ("x".into(), 5),
+            (1.into(), 4),
+            ("y".into(), 6)
+        ]
+    );
+    assert_eq!(
+        left.union(right).all().unwrap(),
+        vec![(0.into(), 2), ("x".into(), 3), ("y".into(), 6)]
+    );
+}
+
+#[test]
+fn lazy_replace_applies_each_key_once_and_defers_reading_primary_entries() {
+    let reads = Cell::new(0);
+    let left = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let right = LazyCollection::fromEntries(|| [("a", 9), ("z", 10)]);
+    let replaced = left.clone().replace(right);
+    let mut values = replaced.getIterator();
+    assert_eq!(reads.get(), 0);
+    assert_eq!(values.next().unwrap().unwrap(), ("a".into(), 9));
+    assert_eq!(reads.get(), 1);
+    assert_eq!(values.next().unwrap().unwrap(), ("a".into(), 2));
+    assert_eq!(values.next().unwrap().unwrap(), ("b".into(), 3));
+    assert_eq!(values.next().unwrap().unwrap(), ("z".into(), 10));
+    assert!(values.next().is_none());
+    let failing = LazyCollection::tryMake(|| [Ok(4), Err(source_error())]);
+    assert!(matches!(
+        left.clone().replace(failing.clone()).first(),
+        Err(CollectionError::Source(_))
+    ));
+    assert_eq!(reads.get(), 3);
+    assert!(matches!(
+        left.merge(failing).first(),
+        Err(CollectionError::Source(_))
+    ));
+    assert_eq!(reads.get(), 6);
+}

@@ -257,6 +257,32 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 比较和更新集合 {#lazy-comparing-and-updating}
+
+`diff`、`intersect` 及其按键和关联比较的变体，在首次取值时实体化两个来源。`union` 保留已有键对应的值。`merge` 覆盖同名字符串键，并重排数字键。`replace` 先读完替换来源，再替换主来源中每个键首次出现的值，最后追加主来源未出现的替换键。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let current = LazyCollection::fromEntries(|| [("a", 1), ("b", 2)]);
+    let incoming = LazyCollection::fromEntries(|| [("b", 2), ("c", 3)]);
+    assert_eq!(
+        current
+            .clone()
+            .diffAssoc(incoming.clone())
+            .collect()?
+            .toJson()?,
+        r#"{"a":1}"#
+    );
+    assert_eq!(
+        current.replace(incoming).collect()?.toJson()?,
+        r#"{"a":1,"b":2,"c":3}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。
