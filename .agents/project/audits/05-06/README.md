@@ -85,3 +85,9 @@ MySQL 8.4.13 与 SQLite 的实际 HTTP 分页、6 项关系回归、6 项分页�
 以 `36a46945` 为隔离基线。固定 Laravel 在 Eloquent 未指定页容量时读取模型配置，普通分页可直接接收总数。Rust 用 `ModelMetadata::perPage(size)` 声明模型默认值，用 `PageOptions.total` 可选传入总数。正常关系按相关模型配置，已知模型类型的空反向关系也沿用该配置。显式正值优先，Rust 保留已验收的显式零容量校验。与 PHP 的可调用选项对应，Rust 当前由调用方先求值再传入数值；按实际计数回调计算页容量的契约仍待核对。v0.x 带显式大小和查询层默认值，未见模型默认值或总数注入；沿用其查询层范围校验。 [Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L1177) · [Laravel Query Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L3681)
 
 独立 MySQL 8.4.13 实际 HTTP 验证三类分页大小、显式覆盖、反向及多态目标、空页、自定义集合键和传入总数的 JSON 链接元数据。MySQL 同连接 `Com_select` 测得默认普通分页 2 次 SELECT，显式正总数 1 次，显式零总数 0 次。正总数只提供元数据和跳过计数，所请求页面仍读实际数据。分页 HTTP、关系查询计数、Query Builder 三项定向回归通过，Rust 1.94.0 全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。临时容器及构建缓存已回收。
+
+## 普通分页的总数和页容量回调
+
+以 `43728e71` 为隔离基线。固定 Laravel 先解析总数再调用页容量闭包。Rust 的 `PageOptions.totalUsing` 可提供总数或回退到计数，显式数值总数优先。`perPageUsing` 接收实际总数，返回 `None` 时沿用数值页容量或模型默认值。回调以类型化 `Result` 传播错误。普通分页、Eloquent 和关系共用此解析顺序，空反向关系也执行回调并保留元数据。旧版仅有显式页容量和固定计数入口。 [固定 Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L1177) · [固定 Laravel Query Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L3681)
+
+独立 MySQL 8.4.13 实际 HTTP 验证实测总数和提供总数进入同一页容量回调、显式总数优先、模型默认回退、命名页链接、空反向关系及多态目标。同连接 `Com_select` 验证回调提供正总数时执行 1 次页面 SELECT，计算页容量失败仅执行 1 次计数，求总数失败执行 0 次 SELECT。三项定向回归、全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整。回收测试容器及隔离编译和文档产物。05-06 仍待 05-02 核心依赖复核。

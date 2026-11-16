@@ -22,6 +22,22 @@ async fn page_with_cached_total<M: Model>(total: u64) -> DatabaseResult<LengthAw
 }
 ```
 
+Length-aware pagination also accepts callbacks in `PageOptions`. Use `totalUsing` to supply a total or return `Ok(None)` to count rows. An explicit numeric `total` wins. Once the total is known, `perPageUsing` receives it and can choose the size or return `Ok(None)` to keep the explicit or model default size. A callback error stops pagination before row retrieval.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn adaptive_page<M: Model>() -> DatabaseResult<LengthAwarePaginator<M>> {
+    M::query()?.paginateWith(PageOptions {
+        perPageUsing: Some(&|total| Ok((total > 100).then_some(50))),
+        ..Default::default()
+    }).await
+}
+```
+
 ## Cursor Pagination
 
 `cursorPaginate(15)` compares the values of ordered columns and fetches one extra row. Pass the returned `next_cursor` or `prev_cursor` in the request. In Query Builder, order by selected, non-null scalar columns with a unique final tie-breaker. An Eloquent query without an explicit order uses the primary key. Grouped queries, unions and raw order expressions use offset pagination.

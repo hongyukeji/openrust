@@ -22,6 +22,22 @@ async fn page_with_cached_total<M: Model>(total: u64) -> DatabaseResult<LengthAw
 }
 ```
 
+普通分页也支持在 `PageOptions` 中设置回调。用 `totalUsing` 提供总数，或返回 `Ok(None)` 让查询执行计数。显式数值 `total` 优先。总数确定后，`perPageUsing` 接收它并选定页容量，或返回 `Ok(None)` 沿用显式容量或模型默认值。回调报错会在读取页面记录前终止分页。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn adaptive_page<M: Model>() -> DatabaseResult<LengthAwarePaginator<M>> {
+    M::query()?.paginateWith(PageOptions {
+        perPageUsing: Some(&|total| Ok((total > 100).then_some(50))),
+        ..Default::default()
+    }).await
+}
+```
+
 ## 游标分页
 
 `cursorPaginate(15)` 比较排序列的值，并多读一行判断后续记录。下次请求传入返回的 `next_cursor` 或 `prev_cursor`。Query Builder 需按已查询、非空的标量列排序，最后使用唯一列打破并列。Eloquent 在未声明排序时使用主键。分组查询、联合查询和原始排序表达式使用偏移分页。

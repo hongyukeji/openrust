@@ -6,11 +6,15 @@ use crate::{
     },
 };
 
-pub(super) fn empty_length<T>(options: PageOptions<'_>) -> DatabaseResult<LengthAwarePaginator<T>> {
+pub(super) fn empty_length<T>(
+    mut options: PageOptions<'_>,
+) -> DatabaseResult<LengthAwarePaginator<T>> {
+    let total = options.resolve_total()?.unwrap_or(0);
+    options.perPage = options.resolve_per_page(total)?;
     let (links, page, size) = empty_offset(&options)?;
     Ok(LengthAwarePaginator::from_query(
         Vec::new(),
-        options.total.unwrap_or(0),
+        total,
         page,
         size,
         links,

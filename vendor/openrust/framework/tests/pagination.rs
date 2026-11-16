@@ -291,6 +291,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/lazy-batches", lazy_batch_page)?;
     Route::get("/singular-pages", singular_relation_pages)?;
     Route::get("/page-defaults", page_defaults)?;
+    Route::get("/page-resolvers", page_resolvers)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -2479,6 +2480,117 @@ fn page_defaults(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     })
 }
 
+fn page_resolvers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::database::DatabaseError;
+
+        async fn verify_resolvers() -> DatabaseResult<Json> {
+            let mut query = IndexedArticle::query()?;
+            query.r#where("id", "<=", 5);
+            let calculated = query
+                .paginateWith(PageOptions {
+                    pageName: "rows",
+                    totalUsing: Some(&|| Ok(None)),
+                    perPageUsing: Some(&|total| {
+                        assert_eq!(total, 5);
+                        Ok(Some(total - 3))
+                    }),
+                    ..Default::default()
+                })
+                .await?;
+            assert_eq!(calculated.total(), 5);
+            assert_eq!(calculated.perPage(), 2);
+
+            let supplied = IndexedArticle::query()?
+                .paginateWith(PageOptions {
+                    totalUsing: Some(&|| Ok(Some(7))),
+                    perPageUsing: Some(&|total| {
+                        assert_eq!(total, 7);
+                        Ok(Some(3))
+                    }),
+                    ..Default::default()
+                })
+                .await?;
+            assert_eq!(supplied.total(), 7);
+            assert_eq!(supplied.items().len(), 3);
+
+            let fallback = IndexedArticle::query()?
+                .paginateWith(PageOptions {
+                    total: Some(9),
+                    totalUsing: Some(&|| panic!("numeric total must take precedence")),
+                    perPageUsing: Some(&|total| {
+                        assert_eq!(total, 9);
+                        Ok(None)
+                    }),
+                    ..Default::default()
+                })
+                .await?;
+            assert_eq!(fallback.perPage(), 2);
+
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            let relation = BelongsTo::<Activity, IndexedArticle>::new("subject_id", "id");
+            let empty = relation
+                .paginateWith(
+                    &activities[4],
+                    PageOptions {
+                        perPageUsing: Some(&|total| {
+                            assert_eq!(total, 0);
+                            Ok(Some(3))
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(empty.total(), 0);
+            assert_eq!(empty.perPage(), 3);
+            assert!(empty.items().is_empty());
+
+            let morph = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<IndexedArticle>("article", "category");
+            let mut draft = Activity::newInstance(Attributes::new())?;
+            draft
+                .setAttribute("subject_type", "article")
+                .setAttribute("subject_id", "a");
+            let targets = morph
+                .paginateWith(
+                    &draft,
+                    PageOptions {
+                        perPageUsing: Some(&|total| {
+                            assert_eq!(total, 2);
+                            Ok(Some(1))
+                        }),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(targets.total(), 2);
+            assert_eq!(targets.perPage(), 1);
+            assert_eq!(targets.items().len(), 1);
+
+            let db = DB::connection(None)?;
+            let invalid = db
+                .table("pagination_articles")
+                .paginateWith(PageOptions {
+                    total: Some(5),
+                    perPageUsing: Some(&|_| Ok(Some(0))),
+                    ..Default::default()
+                })
+                .await;
+            assert!(matches!(
+                invalid,
+                Err(DatabaseError::Pagination(PaginationError::InvalidPerPage))
+            ));
+            Ok(json!({
+                "calculated": calculated.map(|model| id(model.getKey())),
+                "supplied": supplied.total(),
+                "empty": empty.perPage(),
+            }))
+        }
+
+        Response::json(StatusCode::OK, verify_resolvers().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2627,6 +2739,60 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         assert_eq!(empty.total(), 0);
         assert!(empty.items().is_empty());
         assert_eq!(select_count(&mut session).await? - after_injected, 0);
+        let before_resolver = select_count(&mut session).await?;
+        let supplied = session
+            .table("pagination_articles")
+            .orderBy("id", "asc")
+            .paginateWith(PageOptions {
+                totalUsing: Some(&|| Ok(Some(5))),
+                perPageUsing: Some(&|total| Ok(Some(total - 3))),
+                ..Default::default()
+            })
+            .await?;
+        assert_eq!(ids(supplied.items()), [1, 2]);
+        let resolved = select_count(&mut session).await?;
+        assert_eq!(resolved - before_resolver, 1);
+
+        let bad_size = session
+            .table("pagination_articles")
+            .paginateWith(PageOptions {
+                perPageUsing: Some(&|total| {
+                    assert_eq!(total, 5);
+                    Err(openrust::database::DatabaseError::InvalidQuery(
+                        "size callback failed",
+                    ))
+                }),
+                ..Default::default()
+            })
+            .await;
+        assert!(matches!(
+            bad_size,
+            Err(openrust::database::DatabaseError::InvalidQuery(
+                "size callback failed"
+            ))
+        ));
+        let counted_only = select_count(&mut session).await?;
+        assert_eq!(counted_only - resolved, 1);
+
+        let bad_total = session
+            .table("pagination_articles")
+            .paginateWith(PageOptions {
+                totalUsing: Some(&|| {
+                    Err(openrust::database::DatabaseError::InvalidQuery(
+                        "total callback failed",
+                    ))
+                }),
+                perPageUsing: Some(&|_| panic!("total resolution failed")),
+                ..Default::default()
+            })
+            .await;
+        assert!(matches!(
+            bad_total,
+            Err(openrust::database::DatabaseError::InvalidQuery(
+                "total callback failed"
+            ))
+        ));
+        assert_eq!(select_count(&mut session).await? - counted_only, 0);
         session.rollBack(None).await?;
     }
     let grouped = table()
@@ -3134,6 +3300,13 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(defaults["cursor"], 2);
     assert_eq!(defaults["relation"], 2);
     assert_eq!(defaults["raw"], 15);
+    let resolvers = request(address, "/api/page-resolvers?rows=2").await;
+    assert_eq!(resolvers["calculated"]["total"], 5);
+    assert_eq!(resolvers["calculated"]["per_page"], 2);
+    assert_eq!(resolvers["calculated"]["current_page"], 2);
+    assert_eq!(resolvers["calculated"]["data"], json!({"30": 3, "40": 4}));
+    assert_eq!(resolvers["supplied"], 7);
+    assert_eq!(resolvers["empty"], 3);
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

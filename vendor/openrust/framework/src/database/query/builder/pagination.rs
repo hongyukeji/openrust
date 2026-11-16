@@ -22,15 +22,27 @@ impl Builder<'_> {
 
     pub async fn paginateWith(
         mut self,
-        options: PageOptions<'_>,
+        mut options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<Row>> {
-        let (links, page, size, offset) = offset_page(&options)?;
+        let resolved_page = if options.perPageUsing.is_none() {
+            Some(offset_page(&options)?)
+        } else {
+            None
+        };
         self = self.select_page_columns(options.columns);
-        let total = match options.total {
+        let supplied_total = options.resolve_total()?;
+        let total = match supplied_total {
             Some(total) => total,
             None => self.pagination_count().await?,
         };
-        let items = if total == 0 || (options.total.is_none() && offset >= total) {
+        let (links, page, size, offset) = match resolved_page {
+            Some(page) => page,
+            None => {
+                options.perPage = options.resolve_per_page(total)?;
+                offset_page(&options)?
+            }
+        };
+        let items = if total == 0 || (supplied_total.is_none() && offset >= total) {
             Vec::new()
         } else {
             self.limit(size).offset(offset).get().await?

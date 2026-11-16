@@ -22,6 +22,22 @@ async fn page_with_cached_total<M: Model>(total: u64) -> DatabaseResult<LengthAw
 }
 ```
 
+一般分頁也支援在 `PageOptions` 中設定回呼。用 `totalUsing` 提供總數，或回傳 `Ok(None)` 讓查詢執行計數。顯式數值 `total` 優先。總數確定後，`perPageUsing` 接收它並選定頁容量，或回傳 `Ok(None)` 沿用顯式容量或模型預設值。回呼發生錯誤時，分頁會在讀取頁面紀錄前終止。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::Model},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn adaptive_page<M: Model>() -> DatabaseResult<LengthAwarePaginator<M>> {
+    M::query()?.paginateWith(PageOptions {
+        perPageUsing: Some(&|total| Ok((total > 100).then_some(50))),
+        ..Default::default()
+    }).await
+}
+```
+
 ## 游標分頁
 
 `cursorPaginate(15)` 比較排序欄位的值，並多讀一列判斷後續資料。下次請求傳入回傳的 `next_cursor` 或 `prev_cursor`。Query Builder 需按已查詢、非空的純量欄位排序，最後使用唯一欄位區分同值資料。Eloquent 在未宣告排序時使用主鍵。分組查詢、聯合查詢和原始排序運算式使用偏移分頁。

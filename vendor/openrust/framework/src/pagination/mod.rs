@@ -18,10 +18,16 @@ pub use paginator::Paginator;
 pub use url_window::{UrlWindow, UrlWindowLinks};
 pub(crate) use views::VIEWS;
 
-use crate::http::request_context;
+use crate::{database::DatabaseResult, http::request_context};
 
 const FRAGMENT_ENCODE: &percent_encoding::AsciiSet =
     &percent_encoding::CONTROLS.add(b' ').add(b'#').add(b'%');
+
+/// Resolves the page size after the total is known. Returning `None` keeps the page default.
+pub type PageSizeResolver<'a> = dyn Fn(u64) -> DatabaseResult<Option<u64>> + Send + Sync + 'a;
+
+/// Supplies a precomputed total. Returning `None` allows the query to count rows.
+pub type PageTotalResolver<'a> = dyn Fn() -> DatabaseResult<Option<u64>> + Send + Sync + 'a;
 
 #[allow(non_snake_case, reason = "Matches Laravel's pagination options")]
 pub struct PageOptions<'a> {
@@ -31,6 +37,10 @@ pub struct PageOptions<'a> {
     pub page: Option<u64>,
     /// Supplies the total for length-aware pagination and skips its count query.
     pub total: Option<u64>,
+    /// Computes the length-aware page size using the resolved total.
+    pub perPageUsing: Option<&'a PageSizeResolver<'a>>,
+    /// Computes the length-aware total when no numeric total was supplied.
+    pub totalUsing: Option<&'a PageTotalResolver<'a>>,
 }
 
 impl Default for PageOptions<'_> {
@@ -41,6 +51,24 @@ impl Default for PageOptions<'_> {
             pageName: "page",
             page: None,
             total: None,
+            perPageUsing: None,
+            totalUsing: None,
+        }
+    }
+}
+
+impl PageOptions<'_> {
+    pub(crate) fn resolve_total(&self) -> DatabaseResult<Option<u64>> {
+        match (self.total, self.totalUsing) {
+            (None, Some(resolve)) => resolve(),
+            (total, _) => Ok(total),
+        }
+    }
+
+    pub(crate) fn resolve_per_page(&self, total: u64) -> DatabaseResult<Option<u64>> {
+        match self.perPageUsing {
+            Some(resolve) => Ok(resolve(total)?.or(self.perPage)),
+            None => Ok(self.perPage),
         }
     }
 }
