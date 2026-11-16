@@ -712,3 +712,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 MySQL 8.4.13 及 SQLite 实际 HTTP 验证直接关系提前结束后继续查询、多态过滤、所属关系、穿透中间模型软删除、单条选择、自定义 Pivot 和空父键。12 项关系／分页回归、Rust 1.94.0 格式与严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 及 18 项浏览器检查通过。既有 Sanctum 排版仅在隔离副本整理。已回收测试容器，清理 1.9 GiB 编译产物及文档构建产物。周额度剩余 99%，项目卷约 119 GiB。
 
 关系分批读取、动态 MorphTo 目标的游标边界及 05-02／05-06 整体固定矩阵仍需核对。
+
+## 反向多态关系游标
+
+以 `033673a3` 为隔离基线。固定 Laravel 从父模型的多态类型解析目标，再把 `cursor` 转发给关联模型的 Eloquent Builder。Rust 沿用编译注册的目标、已有父键验证及模型游标，返回可按别名识别或按类型取得的 `MorphTarget`。继续应用注册的目标条件和软删除选项。缺少类型或外键时为空流，有键但别名未注册时返回查询错误。游标遍历实际记录，默认模型由关系加载提供。固定 Goravel ORM 的 `Cursor` 返回行通道；v0.x 只有键集分批标记。 [Laravel 类型解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php) · [Laravel MorphTo 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentMorphToTest.php) · [Goravel ORM 契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+
+独立 MySQL 8.4.13 实际 HTTP 核对两类目标、提前结束后继续查询、类型化结果、目标过滤、软删除、空引用与未知别名。`pagination_on_mysql_and_http`、`relationship_keys_and_query_counts_on_mysql` 和 `related_upsert_on_mysql` 均通过。Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、六个三语代码片段编译、VitePress 与 18 项浏览器检查通过。全工作区格式检查在隔离副本格式化既有 Sanctum 测试后通过，该格式差异排除在提交范围外。测试容器已回收，清理本批 1.9 GiB Cargo 产物及独立文档和浏览器缓存。当前剩余关系分批读取及 05-02／05-06 固定矩阵对账。

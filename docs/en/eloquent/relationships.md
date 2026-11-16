@@ -1244,6 +1244,21 @@ async fn first_child<P: Model, R: Model>(
 }
 ```
 
+For an inverse polymorphic relationship, `MorphTo::cursor(parent)` selects the registered model by the parent’s morph type and yields `MorphTarget` values. Use `alias()` or `downcast_ref::<M>()` to access a target. A missing key or type yields an empty stream, and an unknown type with a key returns an error. The stream yields database rows only. Configured default models are available through relationship loading.
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::{MorphTarget, MorphTo}}};
+
+async fn first_target<P: Model>(
+    parent: &P,
+    subject: &MorphTo<P>,
+) -> DatabaseResult<Option<MorphTarget>> {
+    let mut targets = subject.cursor(parent);
+    targets.try_next().await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

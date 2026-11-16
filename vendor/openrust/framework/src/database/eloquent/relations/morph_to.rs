@@ -3,10 +3,11 @@ use std::{
     sync::Arc,
 };
 
+use futures_util::TryStreamExt as _;
 use indexmap::IndexMap;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, EagerLoads, Model, NamedRelations,
         concerns::has_relationships::update_association_cache,
@@ -19,7 +20,7 @@ use crate::database::{
 use super::{
     ExistenceRelation, Relation,
     default_model::{ConfigureDefault, new_default},
-    relation::{RelationKeys, dictionary_key},
+    relation::{ParentKeys, RelationKeys, dictionary_key},
 };
 
 /// An inverse polymorphic relationship whose aliases resolve to registered model types.
@@ -203,6 +204,24 @@ impl<P: Model> MorphTo<P> {
             defaults: IndexMap::new(),
             untyped_default: None,
         }
+    }
+
+    /// Streams rows from the registered target selected by the parent's morph type.
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, MorphTarget> {
+        Box::pin(async_stream::try_stream! {
+            if let Some(alias) = self.query_alias(parent)? {
+                let (&alias, target) = self
+                    .targets
+                    .get_key_value(alias)
+                    .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
+                if self.path_aliases.as_ref().is_none_or(|aliases| aliases.contains(&alias)) {
+                    let mut targets = target.cursor(parent, self.soft_deletes);
+                    while let Some(model) = targets.try_next().await? {
+                        yield MorphTarget { alias, model };
+                    }
+                }
+            }
+        })
     }
 
     /// Names the cache entry updated by association and dissociation.
@@ -646,6 +665,20 @@ impl<P: Model> MorphTo<P> {
             .await
     }
 
+    fn query_alias<'a>(&self, parent: &'a P) -> DatabaseResult<Option<&'a str>> {
+        if dictionary_key(parent.getAttribute(self.id_column))?.is_none() {
+            return Ok(None);
+        }
+        match parent.getAttribute(self.type_column) {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::Text(alias)) if alias.is_empty() && self.untyped_default.is_some() => {
+                Ok(None)
+            }
+            Some(Value::Text(alias)) => Ok(Some(alias)),
+            _ => Err(DatabaseError::InvalidQuery("morph type column")),
+        }
+    }
+
     async fn match_targets(
         &self,
         parents: &[&P],
@@ -653,14 +686,8 @@ impl<P: Model> MorphTo<P> {
     ) -> DatabaseResult<Vec<Option<MorphTarget>>> {
         let mut groups = IndexMap::<&str, Vec<(usize, &P)>>::new();
         for (index, parent) in parents.iter().copied().enumerate() {
-            if dictionary_key(parent.getAttribute(self.id_column))?.is_none() {
-                continue;
-            }
-            match parent.getAttribute(self.type_column) {
-                None | Some(Value::Null) => (),
-                Some(Value::Text(alias)) if alias.is_empty() && self.untyped_default.is_some() => {}
-                Some(Value::Text(alias)) => groups.entry(alias).or_default().push((index, parent)),
-                _ => return Err(DatabaseError::InvalidQuery("morph type column")),
+            if let Some(alias) = self.query_alias(parent)? {
+                groups.entry(alias).or_default().push((index, parent));
             }
         }
         let mut matches: Vec<_> = (0..parents.len()).map(|_| None).collect();
@@ -813,6 +840,11 @@ trait Target<P: Model>: Send + Sync {
         discovered: Option<&DiscoveredMorphs>,
         constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<query::Builder<'static>>;
+    fn cursor<'a>(
+        &'a self,
+        parent: &'a P,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseCursor<'a, ErasedModel>;
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
@@ -972,6 +1004,23 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             )?;
             Ok(query.and_expression(predicate))
         }
+    }
+
+    fn cursor<'a>(
+        &'a self,
+        parent: &'a P,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseCursor<'a, ErasedModel> {
+        Box::pin(async_stream::try_stream! {
+            let keys = ParentKeys::new(&[parent], self.parent)?;
+            let connection = self.connection(parent)?;
+            let query = soft_deletes.apply(self.configure(R::queryOn(&connection))?);
+            let owner = query.qualifyColumn(self.related);
+            let mut models = query.restrict_relation(&owner, &keys.bindings).cursor();
+            while let Some(model) = models.try_next().await? {
+                yield Arc::new(model) as ErasedModel;
+            }
+        })
     }
 
     fn load<'a>(

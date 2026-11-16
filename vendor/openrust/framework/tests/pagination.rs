@@ -1240,6 +1240,47 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
             let owner = BelongsTo::<Comment, Article>::new("article_id", "id");
             let owners: Vec<_> = owner.cursor(&comments[0]).try_collect().await?;
 
+            let subject = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<Article>("article", "id")
+                .target::<Label>("label", "id")
+                .constrain::<Comment>("comment", "id", |mut query| {
+                    query.r#where("visible", "=", 0);
+                    query
+                })
+                .withDefault::<Label>("label", |_, _| {})?
+                .defaultForMissingType("label")?;
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            let mut rows = subject.cursor(&activities[0]);
+            let article = rows.try_next().await?.unwrap();
+            assert_eq!(article.alias(), "article");
+            assert_eq!(id(article.downcast_ref::<Article>().unwrap().getKey()), 1);
+            drop(rows);
+            let mut rows = subject.cursor(&activities[1]);
+            let label = rows.try_next().await?.unwrap();
+            assert_eq!(label.alias(), "label");
+            assert_eq!(id(label.downcast_ref::<Label>().unwrap().getKey()), 2);
+            assert!(rows.try_next().await?.is_none());
+            drop(rows);
+            assert!(subject.cursor(&activities[4]).try_next().await?.is_none());
+
+            let mut draft = Activity::newInstance(Attributes::new())?;
+            draft
+                .setAttribute("subject_type", "comment")
+                .setAttribute("subject_id", 11);
+            assert!(subject.cursor(&draft).try_next().await?.is_none());
+            draft.setAttribute("subject_id", 16);
+            assert!(subject.cursor(&draft).try_next().await?.is_none());
+            let subject = subject.withTrashed();
+            let target = subject.cursor(&draft).try_next().await?.unwrap();
+            assert_eq!(id(target.downcast_ref::<Comment>().unwrap().getKey()), 16);
+            draft.setAttribute("subject_type", "unregistered");
+            assert!(matches!(
+                subject.cursor(&draft).try_next().await,
+                Err(openrust::database::DatabaseError::InvalidQuery(
+                    "unknown morph type"
+                ))
+            ));
+
             let through =
                 REACTIONS.constrain(|query| query.orderBy("pagination_reactions.id", "asc"));
             let reactions: Vec<_> = through.cursor(&parent).try_collect().await?;

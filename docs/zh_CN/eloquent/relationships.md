@@ -1244,6 +1244,21 @@ async fn first_child<P: Model, R: Model>(
 }
 ```
 
+反向多态关系通过 `MorphTo::cursor(parent)` 按父模型的多态类型选择已注册的模型，逐行返回 `MorphTarget`。可用 `alias()` 获取别名，或用 `downcast_ref::<M>()` 取得类型化模型。缺少键或类型时返回空流，有键但类型未注册时返回错误。游标只返回数据库记录。需要关系的默认模型时，使用关系加载接口。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::{MorphTarget, MorphTo}}};
+
+async fn first_target<P: Model>(
+    parent: &P,
+    subject: &MorphTo<P>,
+) -> DatabaseResult<Option<MorphTarget>> {
+    let mut targets = subject.cursor(parent);
+    targets.try_next().await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。
