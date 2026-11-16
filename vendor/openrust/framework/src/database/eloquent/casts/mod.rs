@@ -509,6 +509,7 @@ pub(super) fn check_encrypted_collection<M: Model>(
         Some(AttributeCast::Encrypted(
             EncryptedCast::Collection
             | EncryptedCast::CollectionObject
+            | EncryptedCast::CollectionWith { .. }
             | EncryptedCast::ArrayObject,
         )) => Ok(()),
         _ => Err(DatabaseError::InvalidQuery(

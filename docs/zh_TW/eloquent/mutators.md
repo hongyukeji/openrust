@@ -234,6 +234,20 @@ pub async fn update_enum_list<M: Model, E: CastableEnum>(
 
 在加密 JSON 欄位宣告 `AsEncryptedArrayObject::cast()` 或 `AsEncryptedCollection::cast()`。用 `getEncryptedCollection` 讀取型別化集合，或用 `editEncryptedCollection` 修改。陣列物件解碼時需要陣列或有鍵物件。
 
+用 `AsEncryptedCollection::of::<Member>()` 依 Serde 型別轉換每個元素，用 `map` 提供逐項回呼，或用 `using` 先建構集合，再執行選用的回呼。映射在解密後執行，結果用於集合讀取與模型 JSON。逐項映射保留鍵。直接賦值會加密傳入的 JSON。`editEncryptedCollection` 會寫回編輯後的映射結果，因此映射需要能在後續讀取時處理這些值。
+
+```rust
+use openrust::database::eloquent::casts::{AsEncryptedCollection, AttributeCast};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+struct Member {
+    name: String,
+}
+
+pub const MEMBER_CAST: AttributeCast = AsEncryptedCollection::of::<Member>();
+```
+
 用 `setAttributeValue("settings->notifications->enabled", true)` 或 `fillJsonAttribute` 更新巢狀值。模型更新整欄並保留同層欄位。加密欄位先解密，再寫入新密文。大量賦值時，在 `fillable` 中列出允許的每條路徑。
 
 ```rust

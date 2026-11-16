@@ -34,10 +34,7 @@ impl AsCollection {
     }
 
     pub const fn of<T: DeserializeOwned + Serialize>() -> AttributeCast {
-        Self::map(|value, _| {
-            let value = T::deserialize(value).map_err(|_| invalid())?;
-            serde_json::to_value(value).map_err(|_| invalid())
-        })
+        Self::map(project_item::<T>)
     }
 
     pub const fn map(mapper: MapJsonItem) -> AttributeCast {
@@ -75,16 +72,10 @@ impl JsonCollectionCast {
     }
 
     pub(super) fn collection(self, value: &Value) -> DatabaseResult<Option<Collection>> {
-        let Some(mut values) = decode_collection(value) else {
+        let Some(values) = decode_collection(value) else {
             return Ok(None);
         };
-        if let Some(factory) = self.factory {
-            values = factory(values)?;
-        }
-        if let Some(mapper) = self.mapper {
-            values = values.tryMap(mapper)?;
-        }
-        Ok(Some(values))
+        project_collection(values, self.factory, self.mapper).map(Some)
     }
 
     pub(super) fn read(self, value: &Value) -> DatabaseResult<Value> {
@@ -109,6 +100,28 @@ impl JsonCollectionCast {
             _ => false,
         }
     }
+}
+
+pub(super) fn project_collection(
+    mut values: Collection,
+    factory: Option<BuildJsonCollection>,
+    mapper: Option<MapJsonItem>,
+) -> DatabaseResult<Collection> {
+    if let Some(factory) = factory {
+        values = factory(values)?;
+    }
+    if let Some(mapper) = mapper {
+        values = values.tryMap(mapper)?;
+    }
+    Ok(values)
+}
+
+pub(super) fn project_item<T: DeserializeOwned + Serialize>(
+    value: &Json,
+    _: &ArrayKey,
+) -> DatabaseResult<Json> {
+    let value = T::deserialize(value).map_err(|_| invalid())?;
+    serde_json::to_value(value).map_err(|_| invalid())
 }
 
 pub(super) fn decode_collection(value: &Value) -> Option<Collection<Json>> {

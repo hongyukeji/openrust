@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value as Json;
 use zeroize::Zeroizing;
 
@@ -10,10 +11,11 @@ use crate::{
     },
     database::{Connection, DatabaseError, DatabaseResult, Value},
     encryption::{DecryptException, EncryptException},
+    support::Collection,
 };
 
 use super::{
-    AttributeCast,
+    AttributeCast, BuildJsonCollection, MapJsonItem, collection_cast,
     primitive::{json_value, scalar_string},
 };
 
@@ -33,6 +35,26 @@ impl AsEncryptedCollection {
     pub const fn cast() -> AttributeCast {
         AttributeCast::Encrypted(EncryptedCast::CollectionObject)
     }
+
+    /// Projects each item through its application type after decryption.
+    pub const fn of<T: DeserializeOwned + Serialize>() -> AttributeCast {
+        Self::map(collection_cast::project_item::<T>)
+    }
+
+    pub const fn map(mapper: MapJsonItem) -> AttributeCast {
+        AttributeCast::Encrypted(EncryptedCast::CollectionWith {
+            factory: None,
+            mapper: Some(mapper),
+        })
+    }
+
+    /// Builds the decrypted collection before applying its optional mapper.
+    pub const fn using(factory: BuildJsonCollection, mapper: Option<MapJsonItem>) -> AttributeCast {
+        AttributeCast::Encrypted(EncryptedCast::CollectionWith {
+            factory: Some(factory),
+            mapper,
+        })
+    }
 }
 
 /// The plaintext representation of an encrypted model attribute.
@@ -45,6 +67,10 @@ pub enum EncryptedCast {
     Collection,
     ArrayObject,
     CollectionObject,
+    CollectionWith {
+        factory: Option<BuildJsonCollection>,
+        mapper: Option<MapJsonItem>,
+    },
 }
 
 impl EncryptedCast {
@@ -63,7 +89,18 @@ impl EncryptedCast {
                 .map(|value| Value::Text(value.to_owned()))
                 .map_err(|_| DatabaseError::InvalidQuery("encrypted attribute UTF-8"));
         }
-        Ok(Value::Json(match (self, decode_json(&plain)) {
+        let json = decode_json(&plain);
+        if let Self::CollectionWith { factory, mapper } = self {
+            return collection_cast::project_collection(
+                Collection::fromValue(json),
+                factory,
+                mapper,
+            )?
+            .toArray()
+            .map(Value::Json)
+            .map_err(|_| collection_cast::invalid());
+        }
+        Ok(Value::Json(match (self, json) {
             (Self::ArrayObject, value) if !value.is_array() && !value.is_object() => {
                 return Err(DatabaseError::InvalidQuery("encrypted array object"));
             }
@@ -113,9 +150,10 @@ impl EncryptedCast {
         let current = decrypt(current, encrypter.as_ref())?;
         let original = decrypt(original, encrypter.as_ref())?;
         Ok(match self {
-            Self::String | Self::ArrayObject | Self::CollectionObject => {
-                current.as_slice() == original.as_slice()
-            }
+            Self::String
+            | Self::ArrayObject
+            | Self::CollectionObject
+            | Self::CollectionWith { .. } => current.as_slice() == original.as_slice(),
             _ => decode_json(&current) == decode_json(&original),
         })
     }

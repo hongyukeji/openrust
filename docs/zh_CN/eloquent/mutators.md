@@ -234,6 +234,20 @@ pub async fn update_enum_list<M: Model, E: CastableEnum>(
 
 在加密 JSON 列声明 `AsEncryptedArrayObject::cast()` 或 `AsEncryptedCollection::cast()`。用 `getEncryptedCollection` 读取类型化集合，或用 `editEncryptedCollection` 修改。数组对象解码时要求数组或带键对象。
 
+用 `AsEncryptedCollection::of::<Member>()` 按 Serde 类型转换每个元素，用 `map` 提供逐项回调，或用 `using` 先构造集合，再执行可选的回调。映射在解密后执行，结果用于集合读取和模型 JSON。逐项映射保留键。直接赋值会加密传入的 JSON。`editEncryptedCollection` 会写回编辑后的映射结果，因此映射需要能在后续读取时处理这些值。
+
+```rust
+use openrust::database::eloquent::casts::{AsEncryptedCollection, AttributeCast};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+struct Member {
+    name: String,
+}
+
+pub const MEMBER_CAST: AttributeCast = AsEncryptedCollection::of::<Member>();
+```
+
 用 `setAttributeValue("settings->notifications->enabled", true)` 或 `fillJsonAttribute` 更新嵌套值。模型更新整列并保留同级字段。加密列先解密，再写入新密文。批量赋值时，在 `fillable` 中列出允许的每条路径。
 
 ```rust

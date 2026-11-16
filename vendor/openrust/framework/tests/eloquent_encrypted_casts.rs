@@ -1,7 +1,7 @@
 use openrust::{
     contracts::{config::Repository, container::Container as _, foundation::Application as _},
     database::{
-        Connection, DatabaseError, DatabaseManager, Value,
+        Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState,
             casts::{AsEncryptedArrayObject, AsEncryptedCollection, AttributeCast, EncryptedCast},
@@ -9,10 +9,29 @@ use openrust::{
     },
     encryption::{Cipher, Encrypter},
     foundation::Application,
+    support::{ArrayKey, Collection},
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
 struct Record(ModelState);
+
+#[derive(Deserialize, Serialize)]
+struct Member {
+    name: String,
+}
+
+fn restore_owner(mut items: Collection) -> DatabaseResult<Collection> {
+    items.put("owner", json!("system"));
+    Ok(items)
+}
+
+fn describe_member(value: &Json, key: &ArrayKey) -> DatabaseResult<Json> {
+    let name = value
+        .as_str()
+        .ok_or(DatabaseError::InvalidQuery("test member name"))?;
+    Ok(json!({"name": name, "key": key.to_string()}))
+}
 
 impl Model for Record {
     fn metadata() -> &'static ModelMetadata {
@@ -28,6 +47,8 @@ impl Model for Record {
                 "items",
                 "class_items",
                 "class_array",
+                "projected",
+                "custom",
                 "class_items->team->name",
                 "plain->a",
                 "settings->mode",
@@ -54,6 +75,11 @@ impl Model for Record {
             ("items", AttributeCast::Encrypted(EncryptedCast::Collection)),
             ("class_items", AsEncryptedCollection::cast()),
             ("class_array", AsEncryptedArrayObject::cast()),
+            ("projected", AsEncryptedCollection::of::<Member>()),
+            (
+                "custom",
+                AsEncryptedCollection::using(restore_owner, Some(describe_member)),
+            ),
             ("plain", AttributeCast::Json),
         ];
         CASTS
@@ -103,7 +129,7 @@ async fn verify(config: Json) {
         .await
         .unwrap();
     old.statement(
-        "CREATE TABLE encrypted_records (id BIGINT PRIMARY KEY, secret TEXT, settings TEXT, alias_json TEXT, metadata TEXT, items TEXT, class_items TEXT, class_array TEXT, plain TEXT)",
+        "CREATE TABLE encrypted_records (id BIGINT PRIMARY KEY, secret TEXT, settings TEXT, alias_json TEXT, metadata TEXT, items TEXT, class_items TEXT, class_array TEXT, projected TEXT, custom TEXT, plain TEXT)",
         &[],
     ).await.unwrap();
     let record = Record::queryOn(&old)
@@ -250,6 +276,8 @@ async fn verify(config: Json) {
         Err(DatabaseError::AttributeDecryption(_))
     ));
 
+    verify_projections(&old, &rotated, &wrong, NEW).await;
+
     // A model continues to belong to its original application.
     drop(rotated_app);
     assert!(matches!(
@@ -266,6 +294,88 @@ async fn verify(config: Json) {
             .unwrap(),
         b"private sentinel"
     );
+}
+
+async fn verify_projections(
+    old: &Connection,
+    rotated: &Connection,
+    current: &Connection,
+    key: &str,
+) {
+    let projected = json!({"second":{"name":"West","internal":1},"first":{"name":"East"}});
+    let custom = json!({"8":"Dana","team":"Rui"});
+    Record::queryOn(old)
+        .create(Attributes::from([
+            ("id".into(), 2.into()),
+            ("projected".into(), Value::Json(projected.clone())),
+            ("custom".into(), Value::Json(custom.clone())),
+        ]))
+        .await
+        .unwrap();
+    let mut record = Record::queryOn(old).findOrFail(2).await.unwrap();
+    let original_ciphertext = ciphertext(record.getRawOriginal("projected")).to_owned();
+    assert!(Encrypter::appearsEncrypted(&original_ciphertext));
+    let view = record.toArray().unwrap();
+    assert_eq!(
+        view["projected"],
+        json!({"second":{"name":"West"},"first":{"name":"East"}})
+    );
+    assert_eq!(
+        view["custom"],
+        json!({"8":{"name":"Dana","key":"8"},"team":{"name":"Rui","key":"team"},"owner":{"name":"system","key":"owner"}})
+    );
+    let values = record.getEncryptedCollection("projected").unwrap().unwrap();
+    let keys = values
+        .all()
+        .keys()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(keys, ["second", "first"]);
+    assert!(!record.isDirty().unwrap());
+    record
+        .setAttributeValue("projected", Value::Json(projected))
+        .unwrap();
+    assert!(!record.isDirty().unwrap());
+    record.save().await.unwrap();
+    let mut record = Record::queryOn(rotated).findOrFail(2).await.unwrap();
+    assert_eq!(
+        ciphertext(record.getRawOriginal("projected")),
+        original_ciphertext
+    );
+    assert_eq!(record.toArray().unwrap()["custom"], view["custom"]);
+    record
+        .fillJsonAttribute("projected->first->name", "North")
+        .unwrap();
+    record
+        .setAttributeValue("custom", Value::Json(custom))
+        .unwrap();
+    record.save().await.unwrap();
+    let mut record = Record::queryOn(current).findOrFail(2).await.unwrap();
+    let encrypted = ciphertext(record.getRawOriginal("projected"));
+    let encrypter = Encrypter::new(key, Cipher::Aes256Cbc).unwrap();
+    let plain: Json = serde_json::from_slice(&encrypter.decryptString(encrypted).unwrap()).unwrap();
+    assert_eq!(plain["second"]["internal"], 1);
+    assert_eq!(plain["first"]["name"], "North");
+    assert_eq!(record.toArray().unwrap()["custom"], view["custom"]);
+
+    record.setAttributeValue("custom", "scalar").unwrap();
+    assert_eq!(
+        record.toArray().unwrap()["custom"],
+        json!({"0":{"name":"scalar","key":"0"},"owner":{"name":"system","key":"owner"}})
+    );
+    record.setAttributeValue("custom", Value::Null).unwrap();
+    assert!(record.getEncryptedCollection("custom").unwrap().is_none());
+    let malformed = Value::Json(json!([{"missing_name":true}]));
+    record.setAttributeValue("projected", malformed).unwrap();
+    let attributes = record.state().getAttributes().clone();
+    assert!(record.getEncryptedCollection("projected").is_err());
+    assert!(record.toArray().is_err());
+    assert!(
+        record
+            .editEncryptedCollection("projected", |_| Ok(()))
+            .is_err()
+    );
+    assert_eq!(record.state().getAttributes(), &attributes);
 }
 
 fn verify_json_edits(record: &mut Record) {

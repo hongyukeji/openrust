@@ -234,6 +234,20 @@ pub async fn update_enum_list<M: Model, E: CastableEnum>(
 
 Register `AsEncryptedArrayObject::cast()` or `AsEncryptedCollection::cast()` for an encrypted JSON column. Read the typed collection with `getEncryptedCollection` or update it with `editEncryptedCollection`. Array objects require an array or keyed object when decoded.
 
+Use `AsEncryptedCollection::of::<Member>()` to project each item through a Serde type, `map` for an item callback, or `using` to build the collection before applying an optional callback. The projection runs after decryption and supplies the collection and model JSON while preserving keys during item mapping. Direct assignments encrypt the supplied JSON. `editEncryptedCollection` writes the edited projection back, so use it with a mapping that accepts the edited values on subsequent reads.
+
+```rust
+use openrust::database::eloquent::casts::{AsEncryptedCollection, AttributeCast};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+struct Member {
+    name: String,
+}
+
+pub const MEMBER_CAST: AttributeCast = AsEncryptedCollection::of::<Member>();
+```
+
 Assign nested values with `setAttributeValue("settings->notifications->enabled", true)` or `fillJsonAttribute`. The model updates the whole column while preserving sibling fields. For encrypted columns it decrypts first and writes new ciphertext. List each accepted path in `fillable` when using mass assignment.
 
 ```rust

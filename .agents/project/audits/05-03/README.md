@@ -129,3 +129,9 @@
 - 对照固定 Laravel 的 `AsHtmlString` 和模型脏检查用例，复用旧版 `6d1a8192` 的类型化 HTML 读取、文本投影和空值行为。当前模型通过 `getValueObject::<HtmlString>` 读取，通过 `setValueObject` 或文本赋值更新。Rust 的 `HtmlString` 保存 UTF-8 字符串，动态输入须先显式转换，其他数据库标量按既有字符串规则转换。SQL NULL 维持 `None`，数组等非标量赋值返回错误并保留原值。 [Laravel Cast](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Casts/AsHtmlString.php) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php#L292)
 - SQLite 和 MySQL 8.4.13 双库核对原始标记、相同值保持干净、变更写回并重查、模型数组和 JSON 序列化、无效赋值及 SQL NULL。17 项模型与实际 HTTP 回归、锁定离线构建、格式、全目标全特性严格 Clippy、实际 `./artisan inspire`、三个三语示例编译、VitePress 及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 05-03 核心账本仍待加密集合 `AsEncryptedCollection::of`／`using` 与 JSON 编解码定制接口复审。
+
+## 加密集合映射
+
+- 对照固定 Laravel `AsEncryptedCollection` 的先解密、再构造集合并逐项映射的顺序，复用旧版 `6d1a8192` 的应用加密器和集合工厂契约。Rust 使用现有类型化 Serde 转换、集合工厂及带键回调，公开 `of`、`using` 和 `map`。映射结果用于读取和模型 JSON，直接赋值仍加密传入的值。 [固定 Laravel 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Casts/AsEncryptedCollection.php)
+- SQLite 及真实 MySQL 8.4.13 核对键顺序、工厂先于映射执行、标量包装、SQL NULL、映射失败保留属性、相同原始明文不触发写入、密钥轮换、JSON 路径改写和新密钥直接解密后的完整原文。9 项数据库及实际 HTTP 回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 核心账本仍待审计 JSON 编解码定制接口及应用隔离。
