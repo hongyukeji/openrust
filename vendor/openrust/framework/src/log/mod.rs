@@ -27,6 +27,7 @@ mod facade;
 mod rotating;
 mod sink;
 pub use facade::Log;
+pub use sink::RecordHandler;
 
 pub mod context;
 pub mod events;

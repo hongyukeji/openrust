@@ -97,6 +97,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## 處理器通道 {#handler-channels}
+
+透過 `driver: "monolog"` 指定具名 Rust 處理器。內建 `stream` 處理器接受檔案路徑、`stderr` 或 `stdout`。可用 `LogManager::registerHandler` 註冊其他處理器。工廠收到合併後的設定，回傳接收結構化記錄與格式化文字的回呼。設定依通道 `level`、`with`、`handler_with` 的順序合併，後者覆蓋前者。
+
+設定 `action_level` 後，通道累積記錄，到達指定等級時寫出整批。底層處理器仍依最低 `level` 逐筆篩選。第一次寫出後，後續記錄會直接進入底層處理器。設定 `stop_buffering: false` 可在每次寫出後開始累積下一批。緩衝狀態屬於解析後的通道，釋放通道時會捨棄尚未觸發的批次。
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager}};
+use serde_json::json;
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let audit = manager.build(&json!({
+        "driver": "monolog",
+        "handler": "stream",
+        "with": {"stream": "storage/logs/audit.log"},
+        "handler_with": {"level": "info"},
+        "action_level": "error",
+        "stop_buffering": false,
+    }))?;
+    audit.info("Import started", &LogContext::new())?;
+    audit.error("Import failed", &LogContext::new())?;
+    Ok(())
+}
+```
+
 ## 上下文資訊
 
 [Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `logWithContext` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。

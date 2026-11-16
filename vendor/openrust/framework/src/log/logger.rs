@@ -194,6 +194,18 @@ pub struct LogRecord<'a> {
 }
 
 impl<'a> LogRecord<'a> {
+    pub(super) fn owned(&self) -> LogRecord<'static> {
+        LogRecord {
+            at: self.at,
+            level: self.level,
+            context: Cow::Owned(self.context.as_ref().clone()),
+            extra: Cow::Owned(self.extra.as_ref().clone()),
+            channel: Cow::Owned(self.channel.to_string()),
+            message: Cow::Owned(self.message.to_string()),
+            replace: self.replace,
+        }
+    }
+
     fn new(
         channel: &'a str,
         level: Level,

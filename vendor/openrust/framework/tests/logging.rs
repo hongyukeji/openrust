@@ -154,6 +154,124 @@ fn customized_stacks_preserve_each_formatter_and_process_in_order() {
 }
 
 #[test]
+fn configured_handler_merges_arguments_and_controls_stack_propagation() {
+    use std::sync::Mutex;
+
+    let root = Root::new();
+    let (manager, _) = manager(
+        &root,
+        json!({"channels":{
+            "capture": {
+                "driver":"monolog","handler":"capture","level":"warning","formatter":"label",
+                "formatter_with":{"prefix":"CAPTURE"},
+                "with":{"level":"info","label":"before","bubble":true},
+                "handler_with":{"level":"notice","label":"after","bubble":false}
+            },
+            "leaf":{"driver":"single","path":"leaf.log"},
+            "retry":{"driver":"monolog","handler":"fail-once"},
+            "emergency":{"path":"emergency.log"}
+        }}),
+    );
+    register_customization(&manager);
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    manager.registerHandler("capture", {
+        let observed = observed.clone();
+        move |options| {
+            assert_eq!(
+                options,
+                &json!({"level":"notice","label":"after","bubble":false})
+            );
+            let observed = observed.clone();
+            Ok(Arc::new(move |record, formatted| {
+                observed
+                    .lock()
+                    .unwrap()
+                    .push((record.level, formatted.to_owned()));
+                Ok(())
+            }))
+        }
+    });
+    let stack = manager.stack(&["capture", "leaf"], None).unwrap();
+    stack.info("continues", &LogContext::new()).unwrap();
+    stack.notice("captured", &LogContext::new()).unwrap();
+    assert_eq!(
+        *observed.lock().unwrap(),
+        [(openrust::log::Level::Notice, "CAPTURE:captured:\n".into())]
+    );
+    let leaf = root.read("leaf.log");
+    assert!(leaf.contains("continues"));
+    assert!(!leaf.contains("captured"));
+
+    let attempts = std::sync::atomic::AtomicUsize::new(0);
+    manager.registerHandler("fail-once", move |_| {
+        if attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+            return Err(LogError::InvalidConfiguration);
+        }
+        Ok(Arc::new(|_, _| Ok(())))
+    });
+    let fallback = manager.channel(Some("retry")).unwrap();
+    fallback
+        .error("saved during factory failure", &LogContext::new())
+        .unwrap();
+    let recovered = manager.channel(Some("retry")).unwrap();
+    assert!(!Arc::ptr_eq(&fallback, &recovered));
+    assert!(Arc::ptr_eq(
+        &recovered,
+        &manager.channel(Some("retry")).unwrap()
+    ));
+    assert!(
+        root.read("emergency.log")
+            .contains("saved during factory failure")
+    );
+}
+
+#[test]
+fn buffered_handler_flushes_with_original_context_and_can_rearm() {
+    let root = Root::new();
+    let (manager, _) = manager(&root, json!({}));
+    for mode in [None, Some(false)] {
+        let mut config = json!({
+            "driver":"monolog","handler":"stream",
+            "with":{"stream":"activation.log"},
+            "handler_with":{"stream":format!("activation-{mode:?}.log"),"level":"info"},
+            "action_level":"critical",
+            "replace_placeholders":true
+        });
+        if let Some(mode) = mode {
+            config["stop_buffering"] = json!(mode);
+        }
+        let channel = manager.build(&config).unwrap();
+        let path = format!("activation-{mode:?}.log");
+        channel
+            .debug("under handler level", &LogContext::new())
+            .unwrap();
+        channel
+            .info(
+                "first {id}",
+                &LogContext::from_iter([("id".into(), json!(1))]),
+            )
+            .unwrap();
+        assert!(!root.0.join(&path).exists());
+        channel.critical("activate", &LogContext::new()).unwrap();
+        let first = root.read(&path);
+        assert_eq!(first.lines().count(), 2);
+        assert!(first.contains("INFO: first 1"));
+        assert!(first.contains("CRITICAL: activate"));
+        channel.info("next", &LogContext::new()).unwrap();
+        if mode == Some(false) {
+            assert_eq!(first, root.read(&path));
+            channel
+                .critical("activate again", &LogContext::new())
+                .unwrap();
+            assert_eq!(root.read(&path).lines().count(), 4);
+        } else {
+            assert!(root.read(&path).contains("INFO: next"));
+        }
+        assert!(!root.0.join("activation.log").exists());
+    }
+}
+
+#[test]
 fn resolves_cached_stacks_with_severity_bubbling_and_fresh_driver_settings() {
     let root = Root::new();
     let (manager, config) = manager(
@@ -302,10 +420,24 @@ fn emergency_recovers_resolution_and_file_errors_and_ignored_failures_continue()
 }
 
 fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
-    Ok(BTreeMap::from([(
-        "app".into(),
-        json!({"env":"test","host":"127.0.0.1","port":0}),
-    )]))
+    Ok(BTreeMap::from([
+        (
+            "app".into(),
+            json!({"env":"test","host":"127.0.0.1","port":0}),
+        ),
+        (
+            "logging".into(),
+            json!({
+                "default":"stack",
+                "channels":{
+                    "stack":{"driver":"stack","channels":["single"]},
+                    "single":{"driver":"single","path":"storage/logs/openrust.log","replace_placeholders":true},
+                    "stderr":{"driver":"stderr"},
+                    "buffered":{"driver":"monolog","handler":"stream","with":{"stream":"buffered-http.log"},"action_level":"error","stop_buffering":false}
+                }
+            }),
+        ),
+    ]))
 }
 
 fn routes() -> Result<(), RoutingError> {
@@ -330,6 +462,14 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         })?;
         let container = openrust::container::Container::getInstance();
         let manager = container.make::<LogManager>().unwrap();
+        (|| {
+            let buffered = manager.channel(Some("buffered"))?;
+            buffered.info("before error", &context)?;
+            buffered.error("HTTP activation", &context)
+        })()
+        .map_err(|source: LogError| HttpError::Internal {
+            source: source.into(),
+        })?;
         register_customization(&manager);
         Log::build(&json!({
             "driver":"single","path":"custom-http.log","formatter":"label",
@@ -429,6 +569,12 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
     assert_eq!(first.read("custom-http.log").lines().count(), 3);
     assert_eq!(second.read("custom-http.log").lines().count(), 1);
     assert!(!first.read("custom-http.log").contains("private-http-token"));
+    let first_buffered = first.read("buffered-http.log");
+    let second_buffered = second.read("buffered-http.log");
+    assert_eq!(first_buffered.lines().count(), 6);
+    assert_eq!(second_buffered.lines().count(), 2);
+    assert!(!first_buffered.contains("request-201"));
+    assert!(!second_buffered.contains("request-101"));
     for task in [first_task, second_task] {
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
@@ -453,6 +599,17 @@ fn console_routes() -> Result<(), ConsoleError> {
             .make::<LogManager>()
             .unwrap();
         register_customization(&manager);
+        let buffered = Log::build(&json!({
+            "driver":"monolog","handler":"stream","with":{"stream":"php://stderr"},
+            "action_level":"warning"
+        }))
+        .unwrap();
+        buffered
+            .info("before command activation", &LogContext::new())
+            .unwrap();
+        buffered
+            .warning("command activation", &LogContext::new())
+            .unwrap();
         Log::build(&json!({
             "driver":"monthly","path":"custom-console.log","formatter":"label",
             "formatter_with":{"prefix":"ARTISAN"},"tap":["prepend:artisan,hook"]
@@ -518,6 +675,8 @@ async fn artisan_logs_to_file_and_stderr() {
         String::from_utf8_lossy(&output.stdout)
     );
     assert!(stderr.contains("test.NOTICE: artisan stderr probe"));
+    assert!(stderr.contains("test.INFO: before command activation"));
+    assert!(stderr.contains("test.WARNING: command activation"));
     assert!(stderr.contains(r#"artisan stderr probe {} {"command":"log:probe"}"#));
     assert!(!stderr.contains("private-artisan-token"));
     assert!(

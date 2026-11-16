@@ -1,5 +1,5 @@
 use std::{
-    cell::LazyCell,
+    cell::OnceCell,
     fs::{self, File, OpenOptions},
     io::{self, Write as _},
     path::{Path, PathBuf},
@@ -12,6 +12,9 @@ use super::{Formatter, Level, LogRecord, rotating::RotatingFile};
 use crate::contracts::log::Logger;
 
 pub(super) type Handlers = Arc<[Arc<Handler>]>;
+
+/// Receives a structured log record and its formatted output.
+pub type RecordHandler = dyn Fn(&LogRecord<'_>, &str) -> super::LogResult<()> + Send + Sync;
 
 pub(super) enum Handler {
     File {
@@ -34,12 +37,75 @@ pub(super) enum Handler {
         level: Level,
         bubble: bool,
     },
+    Stdout {
+        level: Level,
+        bubble: bool,
+    },
+    Registered {
+        write: Arc<RecordHandler>,
+        level: Level,
+        bubble: bool,
+    },
+    Buffered(Buffer),
     Null(Level),
     IgnoreFailures(Handlers),
     Formatted {
         handler: Arc<Handler>,
         formatter: Arc<Formatter>,
     },
+}
+
+pub(super) struct Buffer {
+    target: Arc<Handler>,
+    action_level: Level,
+    stop_buffering: bool,
+    state: Mutex<BufferState>,
+}
+
+struct BufferState {
+    buffering: bool,
+    records: Vec<BufferedRecord>,
+}
+
+type BufferedRecord = (LogRecord<'static>, Option<Arc<Formatter>>);
+
+#[derive(Default)]
+struct RecordText<'a> {
+    message: OnceCell<Cow<'a, str>>,
+    line: OnceCell<String>,
+}
+
+impl<'a> RecordText<'a> {
+    fn message(&self, record: &'a LogRecord<'_>) -> &str {
+        self.message.get_or_init(|| record.message())
+    }
+
+    fn line(&self, record: &'a LogRecord<'_>) -> &str {
+        self.line
+            .get_or_init(|| record.format_line(self.message(record)))
+    }
+}
+
+impl Buffer {
+    fn accept(
+        &self,
+        record: &LogRecord<'_>,
+        formatter: Option<&Arc<Formatter>>,
+    ) -> Option<Vec<BufferedRecord>> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !state.buffering {
+            return None;
+        }
+        state.records.push((record.owned(), formatter.cloned()));
+        if record.level < self.action_level {
+            return Some(Vec::new());
+        }
+        state.buffering = !self.stop_buffering;
+        Some(std::mem::take(&mut state.records))
+    }
 }
 
 pub(super) struct FileOptions {
@@ -103,10 +169,25 @@ impl Handler {
             | Self::Rotating { level: minimum, .. }
             | Self::Custom { level: minimum, .. }
             | Self::Stderr { level: minimum, .. }
+            | Self::Stdout { level: minimum, .. }
+            | Self::Registered { level: minimum, .. }
             | Self::Null(minimum) => level >= *minimum,
+            Self::Buffered(_) => true,
             Self::IgnoreFailures(handlers) => accepts(handlers, level),
             Self::Formatted { handler, .. } => handler.accepts(level),
         }
+    }
+
+    pub(super) fn buffered(self, action_level: Level, stop_buffering: bool) -> Self {
+        Self::Buffered(Buffer {
+            target: Arc::new(self),
+            action_level,
+            stop_buffering,
+            state: Mutex::new(BufferState {
+                buffering: true,
+                records: Vec::new(),
+            }),
+        })
     }
 
     pub fn file(
@@ -131,14 +212,13 @@ impl Handler {
     fn write<'a>(
         &self,
         record: &'a LogRecord<'_>,
-        message: &LazyCell<Cow<'a, str>, impl FnOnce() -> Cow<'a, str>>,
-        line: &LazyCell<String, impl FnOnce() -> String>,
-        formatter: Option<&Formatter>,
+        text: &RecordText<'a>,
+        formatter: Option<&Arc<Formatter>>,
     ) -> io::Result<bool> {
         let level = record.level;
         let output = || match formatter {
             Some(formatter) => formatter(record).map(Cow::Owned).map_err(io::Error::other),
-            None => Ok(Cow::Borrowed(line.as_str())),
+            None => Ok(Cow::Borrowed(text.line(record))),
         };
         match self {
             Self::File {
@@ -168,7 +248,7 @@ impl Handler {
                 bubble,
             } if level >= *minimum => {
                 logger
-                    .logWithContext(level, message, &record.context, &record.extra)
+                    .logWithContext(level, text.message(record), &record.context, &record.extra)
                     .map_err(io::Error::other)?;
                 Ok(!bubble)
             }
@@ -180,17 +260,45 @@ impl Handler {
                 io::stderr().lock().write_all(output.as_bytes())?;
                 Ok(!bubble)
             }
+            Self::Stdout {
+                level: minimum,
+                bubble,
+            } if level >= *minimum => {
+                let output = output()?;
+                io::stdout().lock().write_all(output.as_bytes())?;
+                Ok(!bubble)
+            }
+            Self::Registered {
+                write,
+                level: minimum,
+                bubble,
+            } if level >= *minimum => {
+                write(record, &output()?).map_err(io::Error::other)?;
+                Ok(!bubble)
+            }
+            Self::Buffered(buffer) => {
+                if let Some(batch) = buffer.accept(record, formatter) {
+                    for (record, formatter) in batch {
+                        buffer
+                            .target
+                            .write(&record, &RecordText::default(), formatter.as_ref())?;
+                    }
+                } else {
+                    buffer.target.write(record, text, formatter)?;
+                }
+                Ok(false)
+            }
             Self::Null(minimum) => Ok(level >= *minimum),
             Self::IgnoreFailures(handlers) => {
                 for handler in handlers.iter() {
-                    let _ = handler.write(record, message, line, formatter);
+                    let _ = handler.write(record, text, formatter);
                 }
                 Ok(false)
             }
             Self::Formatted {
                 handler,
                 formatter: default,
-            } => handler.write(record, message, line, formatter.or(Some(default.as_ref()))),
+            } => handler.write(record, text, formatter.or(Some(default))),
             _ => Ok(false),
         }
     }
@@ -201,10 +309,9 @@ pub(super) fn accepts(handlers: &[Arc<Handler>], level: Level) -> bool {
 }
 
 pub(super) fn write(handlers: &[Arc<Handler>], record: &LogRecord<'_>) -> io::Result<()> {
-    let message = LazyCell::new(|| record.message());
-    let line = LazyCell::new(|| record.format_line(&message));
+    let text = RecordText::default();
     for handler in handlers {
-        if handler.write(record, &message, &line, None)? {
+        if handler.write(record, &text, None)? {
             break;
         }
     }

@@ -10,4 +10,4 @@
 
 三语新增示例分别编译与执行，核对实际文件内容。VitePress 构建、12 项通用浏览器检查及 6 项定制章节锚点检查通过。 [英文](../../../../docs/en/the-basics/logging.md#customizing-channel-records) · [简体中文](../../../../docs/zh_CN/the-basics/logging.md#customizing-channel-records) · [繁體中文](../../../../docs/zh_TW/the-basics/logging.md#customizing-channel-records)
 
-01-04 整单元仍跟踪配置型通用 handler（含参数覆盖）、`action_level`／`stop_buffering`、固定基线的 syslog 格式化及 JSON 异常上下文边界。
+配置型通用 handler、`action_level` 和 `stop_buffering` 已由[后续批次](handler-channels.md)验收。01-04 整单元仍跟踪固定基线的 syslog 格式化及 JSON 异常上下文。

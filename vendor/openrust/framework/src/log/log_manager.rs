@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::contracts::{config::Repository, log::Logger as LoggerContract};
 
 use super::{
-    Formatter, Level, LogContext, LogError, LogResult, Logger, Processor,
+    Formatter, Level, LogContext, LogError, LogResult, Logger, Processor, RecordHandler,
     logger::Emergency,
     rotating::{Period, RotatingFile},
     sink::{FileOptions, Handler, Handlers},
@@ -74,6 +74,7 @@ pub struct LogManager {
     formatters: Registry<ComponentFactory<Formatter>>,
     processors: Registry<ComponentFactory<Processor>>,
     taps: Registry<Tap>,
+    handlers: Registry<ComponentFactory<RecordHandler>>,
 }
 
 #[derive(Default)]
@@ -95,6 +96,7 @@ impl LogManager {
             formatters: Mutex::default(),
             processors: Mutex::default(),
             taps: Mutex::default(),
+            handlers: Mutex::default(),
         }
     }
 
@@ -146,6 +148,15 @@ impl LogManager {
         tap: impl Fn(&mut Logger, &[&str]) -> LogResult<()> + Send + Sync + 'static,
     ) {
         register(&self.taps, name.into(), Arc::new(tap));
+    }
+
+    /// Registers a compiled handler factory referenced by a monolog channel.
+    pub fn registerHandler(
+        &self,
+        name: impl Into<String>,
+        factory: impl Fn(&Value) -> LogResult<Arc<RecordHandler>> + Send + Sync + 'static,
+    ) {
+        register(&self.handlers, name.into(), Arc::new(factory));
     }
 
     /// Resolves an on-demand channel from explicit settings without caching it by name.
@@ -535,13 +546,66 @@ impl Resolution<'_, '_> {
                 bubble: options.bubble,
             },
             Driver::Null => Handler::Null(level),
+            Driver::Monolog {
+                handler,
+                with,
+                handler_with,
+            } => self.handler(name, options, &handler, with, handler_with)?,
             Driver::Stack { .. } => unreachable!("stack handled before leaf drivers"),
+        };
+        let handler = match options.action_level.as_deref() {
+            Some(level) => handler.buffered(Level::parse(level)?, options.stop_buffering),
+            None => handler,
         };
         Ok((
             [Arc::new(handler)].into(),
             options.replace_placeholders,
             Vec::new(),
         ))
+    }
+
+    fn handler(
+        &self,
+        channel: &str,
+        options: &Options,
+        name: &str,
+        with: LogContext,
+        handler_with: LogContext,
+    ) -> LogResult<Handler> {
+        let mut arguments = LogContext::from_iter([(
+            "level".into(),
+            Value::String(options.level.as_deref().unwrap_or("debug").to_owned()),
+        )]);
+        arguments.extend(with);
+        arguments.extend(handler_with);
+        let arguments = Value::Object(arguments);
+        let options_handler =
+            HandlerOptions::deserialize(&arguments).map_err(|_| LogError::InvalidConfiguration)?;
+        let level = Level::parse(&options_handler.level)?;
+        let bubble = options_handler.bubble.unwrap_or(options.bubble);
+        if let Some(factory) = find(&self.manager.handlers, name) {
+            let _call = FactoryCall::enter(self.manager, channel, &factory)?;
+            let write = factory(&arguments).map_err(|_| LogError::FactoryFailed)?;
+            return Ok(Handler::Registered {
+                write,
+                level,
+                bubble,
+            });
+        }
+        if name != "stream" {
+            return Err(LogError::InvalidConfiguration);
+        }
+        let file =
+            FileConfig::deserialize(&arguments).map_err(|_| LogError::InvalidConfiguration)?;
+        let handler = match file.path.as_str() {
+            "stderr" | "php://stderr" => Handler::Stderr { level, bubble },
+            "stdout" | "php://stdout" => Handler::Stdout { level, bubble },
+            _ => {
+                let file = file.options(self.settings.root)?;
+                Handler::file(file.path, file.permission, file.locking, level, bubble)
+            }
+        };
+        Ok(handler)
     }
 
     fn rotating(
@@ -623,6 +687,9 @@ struct Options {
     processors: Vec<ConfiguredProcessor>,
     #[serde(default)]
     tap: Vec<String>,
+    action_level: Option<String>,
+    #[serde(default = "default_bubble")]
+    stop_buffering: bool,
     level: Option<String>,
     #[serde(default = "default_bubble")]
     bubble: bool,
@@ -669,6 +736,13 @@ enum Driver {
     },
     Stderr,
     Null,
+    Monolog {
+        handler: String,
+        #[serde(default)]
+        with: LogContext,
+        #[serde(default)]
+        handler_with: LogContext,
+    },
     Stack {
         channels: Channels,
         #[serde(default)]
@@ -677,7 +751,14 @@ enum Driver {
 }
 
 #[derive(Deserialize)]
+struct HandlerOptions {
+    level: String,
+    bubble: Option<bool>,
+}
+
+#[derive(Deserialize)]
 struct FileConfig {
+    #[serde(alias = "stream")]
     path: String,
     permission: Option<u32>,
     #[serde(default)]
