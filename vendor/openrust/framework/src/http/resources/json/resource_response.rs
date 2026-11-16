@@ -8,6 +8,7 @@ use crate::{
     support::facades::current_container,
 };
 
+use super::super::json_api::MEDIA_TYPE;
 use super::{JsonResource, ResourceResult};
 
 /// Configures the default resource wrapper for the application that owns the request.
@@ -75,6 +76,21 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
     }
 
     pub fn toResponse(self, request: &Request) -> ResourceResult<Response> {
+        if self.resource.isJsonApi() {
+            if self
+                .wrapper
+                .as_ref()
+                .is_some_and(|wrapper| wrapper.as_deref() != Some("data"))
+                || ["data", "errors"]
+                    .iter()
+                    .any(|key| self.additional.contains_key(*key))
+            {
+                return Err(HttpError::Internal {
+                    source: std::io::Error::other("JSON:API requires a data document").into(),
+                });
+            }
+            return build(self.resource, request, Some("data"), self.additional);
+        }
         let wrapper = self
             .wrapper
             .as_ref()
@@ -112,6 +128,12 @@ pub(super) fn build<R: JsonResource + ?Sized>(
         })?
     };
     resource.withResponse(request, &mut response)?;
+    if resource.isJsonApi() {
+        response = response.header(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static(MEDIA_TYPE),
+        );
+    }
     Ok(response)
 }
 

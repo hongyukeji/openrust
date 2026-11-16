@@ -35,3 +35,9 @@
 - 对照固定 Laravel 的 `jsonOptions`、集合继承、`toJson` 和 `toPrettyJson`，复用旧版 `json_encoding.rs` 的四空格缩进及 UTF-16 转义规则。Rust 的 `JsonOptions` 以类型化方法设置可读格式和字符转义，Serde 默认保留 `3.0` 等小数写法。数字和容器形状在 `toArray` 中用 JSON 值类型表达。非空集合使用首个资源的实例选项，空集合和空页使用类型所声明的选项。 [Laravel JsonResource](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/Json/JsonResource.php) · [Laravel 集合选项](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/CollectsResources.php)
 - SQLite／MySQL 8.4.13 实际 HTTP 核对单资源、集合、推断集合、分页和空页的原始响应字节，包括小数、缩进、Unicode、斜杠、分页链接和响应钩子。11 项回归、严格 Clippy、格式、实际 `./artisan inspire`、三语示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本处理。
 - 按固定资料继续交付 JSON:API Resources，包括媒体类型、资源标识、稀疏字段、关联包含、分页、链接和元数据。Artisan 的 `make:resource` 目前登记在计划命令中，待接普通和 `--json-api` 生成器。 [Laravel JSON:API 章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md#jsonapi-resources)
+
+## JSON:API 文档、资源标识和稀疏属性
+
+- 对照固定 Laravel 的 `JsonApiResource`、集合和资源标识解析。Rust 的资源实现关联 Eloquent 类型。默认主键为字符串，资源类型来自资源类型名，支持 `toId` 和 `toType` 覆盖。默认属性尊重模型的可见性。支持 `fields[type]`、资源对象链接与元数据、集合与分页文档。JSON:API 的外层固定为 `data`，成功响应使用 `application/vnd.api+json`。旧版仅有 JSON:API MIME 识别，资源复用当前响应、分页和模型序列化。 [固定 Laravel JSON:API](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/JsonApiResource.php) · [JSON:API 规范](https://jsonapi.org/format/1.1/)
+- SQLite／MySQL 8.4.13 实际 HTTP 验证默认与自定义标识、稀疏属性、资源链接和元数据、分页、空集合、缺少主键的 500、应用包装隔离及普通资源回归。11 项回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式只在隔离副本处理。
+- 后续继续延迟属性、关联标识及 `include`、顶层 JSON:API 信息与 Artisan 生成器。

@@ -191,6 +191,8 @@ impl<T> ResourceCollection<T> {
 }
 
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
+    const JSON_API: bool = T::JSON_API;
+
     fn jsonOptions(&self) -> JsonOptions {
         self.items()
             .first()
@@ -206,7 +208,8 @@ impl<T: JsonResource> JsonResource for ResourceCollection<T> {
             .items()
             .iter()
             .map(|resource| resource.toArray(request));
-        if let Some(keys) = self.source.keys()
+        if !Self::JSON_API
+            && let Some(keys) = self.source.keys()
             && (self.preserve_keys.unwrap_or_else(T::preservesKeys)
                 || keys.iter().any(|key| !numeric_key(key)))
             && keys.iter().enumerate().any(|(index, key)| {

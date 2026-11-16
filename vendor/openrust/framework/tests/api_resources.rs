@@ -18,10 +18,13 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
         HttpError, HttpFuture, Method, Request, Response,
-        resources::json::{
-            Conditional, JsonOptions, JsonResource, ModelResource, ResourceCollection,
-            ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
-            UseResource,
+        resources::{
+            json::{
+                Conditional, JsonOptions, JsonResource, ModelResource, ResourceCollection,
+                ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
+                UseResource,
+            },
+            json_api::JsonApiResource,
         },
     },
     pagination::{LengthAwarePaginator, PaginatorOptions},
@@ -210,6 +213,45 @@ impl JsonResource for AccountResource {
 
 struct Plain(Json);
 
+struct PersonResource {
+    account: Account,
+    use_alias: bool,
+}
+
+impl From<Account> for PersonResource {
+    fn from(account: Account) -> Self {
+        Self {
+            account,
+            use_alias: false,
+        }
+    }
+}
+
+#[allow(non_snake_case, reason = "Implements the JSON:API contract")]
+impl JsonApiResource for PersonResource {
+    type Model = Account;
+
+    fn model(&self) -> &Self::Model {
+        &self.account
+    }
+
+    fn toId(&self, _: &Request) -> Option<String> {
+        self.use_alias.then(|| "profile-1".into())
+    }
+
+    fn toType(&self, _: &Request) -> Option<String> {
+        self.use_alias.then(|| "profiles".into())
+    }
+
+    fn toLinks(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
+        Ok(Map::from_iter([("self".into(), json!("/api/person"))]))
+    }
+
+    fn toMeta(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
+        Ok(Map::from_iter([("verified".into(), json!(false))]))
+    }
+}
+
 struct FractionalResource(f64);
 
 #[allow(non_snake_case, reason = "Implements the JSON resource contract")]
@@ -318,6 +360,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/pivots", pivots)?;
     keyed_routes()?;
     resolved_routes()?;
+    json_api_routes()?;
     Route::get("/encoded/single", || FractionalResource(3.0))?;
     Route::get("/encoded/list", || {
         ResourceCollection::new(vec![FractionalResource(3.0)])
@@ -338,6 +381,42 @@ fn routes() -> Result<(), RoutingError> {
         .await
         .map_err(internal)?;
         Ok(new.toResourceWith::<ModelResource<_>>())
+    })?;
+    Ok(())
+}
+
+fn json_api_routes() -> Result<(), RoutingError> {
+    Route::get("/person", || async {
+        let account = Account::findOrFail(1).await.map_err(internal)?;
+        Ok(account.toResourceWith::<PersonResource>())
+    })?;
+    Route::get("/person/alias", || async {
+        let account = Account::findOrFail(1).await.map_err(internal)?;
+        Ok(PersonResource {
+            account,
+            use_alias: true,
+        })
+    })?;
+    Route::get("/person/list", || async {
+        let account = Account::findOrFail(1).await.map_err(internal)?;
+        Ok(
+            PersonResource::collection(Collection::fromEntries([("first", account)]))
+                .preserveKeys(true),
+        )
+    })?;
+    Route::get("/person/page", || async {
+        let page = Account::query()
+            .map_err(internal)?
+            .paginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(page.toResourceCollectionWith::<PersonResource>())
+    })?;
+    Route::get("/person/empty", || {
+        PersonResource::collection(Vec::<Account>::new())
+    })?;
+    Route::get("/person/invalid", || {
+        PersonResource::make(Account::from_state(ModelState::default()))
     })?;
     Ok(())
 }
@@ -876,6 +955,7 @@ async fn verify(config: Json) {
     verify_collection_keys(address).await;
     verify_resolved_resources(address).await;
     verify_json_options(address).await;
+    verify_json_api(address).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -885,6 +965,42 @@ async fn verify(config: Json) {
         .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
+}
+
+async fn verify_json_api(address: SocketAddr) {
+    let (headers, resource) = request(address, "GET", "/api/person", "", 200).await;
+    assert!(headers.contains("content-type: application/vnd.api+json"));
+    assert_eq!(
+        resource,
+        json!({"data":{"id":"1","type":"people","attributes":{"manager_id":null,"name":"A"},"links":{"self":"/api/person"},"meta":{"verified":false}}})
+    );
+    let (_, subset) = request(
+        address,
+        "GET",
+        "/api/person?fields%5Bpeople%5D=name",
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(subset["data"]["attributes"], json!({"name":"A"}));
+    let (_, omit) = request(address, "GET", "/api/person?fields%5Bpeople%5D=", "", 200).await;
+    assert!(omit["data"].get("attributes").is_none());
+    let (_, alias) = request(address, "GET", "/api/person/alias", "", 200).await;
+    assert_eq!(alias["data"]["id"], "profile-1");
+    assert_eq!(alias["data"]["type"], "profiles");
+    for endpoint in ["list", "page", "empty"] {
+        let (headers, body) =
+            request(address, "GET", &format!("/api/person/{endpoint}"), "", 200).await;
+        assert!(headers.contains("content-type: application/vnd.api+json"));
+        assert!(body["data"].is_array());
+        if endpoint != "empty" {
+            assert_eq!(body["data"][0]["id"], "1");
+        }
+        if endpoint == "page" {
+            assert_eq!(body["links"]["next"], "/api/person/page?page=2");
+        }
+    }
+    request(address, "GET", "/api/person/invalid", "", 500).await;
 }
 
 async fn verify_json_options(address: SocketAddr) {
@@ -1051,6 +1167,11 @@ fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Res
 }
 
 fn wrapping_routes() -> Result<(), RoutingError> {
+    Route::get("/person", || {
+        let mut state = ModelState::default();
+        state.setAttribute("id", "external-id");
+        PersonResource::make(Account::from_state(state))
+    })?;
     Route::get("/plain", || Plain(json!({"id":1})))?;
     Route::get("/already", || Plain(json!({"items":{"id":1}})))?;
     Route::get("/forced", || ForcedResource)?;
@@ -1110,6 +1231,9 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
         assert_eq!(wrapped, json!({"items":{"id":1}}));
     }
     for address in [left, right] {
+        let (headers, person) = request(address, "GET", "/api/person", "", 200).await;
+        assert!(headers.contains("content-type: application/vnd.api+json"));
+        assert_eq!(person["data"]["id"], "external-id");
         assert_eq!(
             request(address, "GET", "/api/explicit", "", 200).await.1,
             json!({"data":{"id":1}})

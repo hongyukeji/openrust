@@ -171,3 +171,26 @@ pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
     Conditional::insert(fields, "level", level);
 }
 ```
+
+## JSON:API 資源 {#jsonapi-resources}
+
+為模型投影實作 `JsonApiResource`。回應使用 JSON:API 的 `data` 文件、字串識別碼和 `application/vnd.api+json` 媒體型別。識別碼預設取模型主鍵，資源型別預設從 Rust 資源型別名稱推斷。可覆寫 `toId` 和 `toType` 明確設定。
+
+用 `fields[people]=name` 選取屬性。`toLinks` 和 `toMeta` 可提供資源層級資訊。集合和分頁使用陣列資料，並保留分頁連結。文件一律使用協定規定的 `data` 鍵。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::JsonApiResource,
+};
+
+pub struct PersonResource<M>(pub M);
+
+impl<M: Model> JsonApiResource for PersonResource<M> {
+    type Model = M;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+```

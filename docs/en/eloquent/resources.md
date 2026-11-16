@@ -171,3 +171,26 @@ pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
     Conditional::insert(fields, "level", level);
 }
 ```
+
+## JSON:API Resources {#jsonapi-resources}
+
+Implement `JsonApiResource` for a model projection. The resource emits a JSON:API `data` document with a string identifier and the `application/vnd.api+json` content type. The default identifier is the model key, and the resource type is inferred from the resource’s Rust type name. Override `toId` and `toType` to use explicit values.
+
+Use `fields[people]=name` to select attributes. `toLinks` and `toMeta` add per-resource information. Collections and pages keep JSON array data and pagination links. The document always uses the protocol’s `data` key.
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::JsonApiResource,
+};
+
+pub struct PersonResource<M>(pub M);
+
+impl<M: Model> JsonApiResource for PersonResource<M> {
+    type Model = M;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+```

@@ -53,6 +53,13 @@ enum ResolvedCollection<C, R> {
 }
 
 impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R> {
+    fn isJsonApi(&self) -> bool {
+        match self {
+            Self::Declared(resource) => resource.isJsonApi(),
+            Self::Empty(resource) => resource.isJsonApi(),
+        }
+    }
+
     fn jsonOptions(&self) -> JsonOptions {
         match self {
             Self::Declared(resource) => resource.jsonOptions(),

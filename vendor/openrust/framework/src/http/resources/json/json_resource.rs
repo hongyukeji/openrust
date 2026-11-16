@@ -10,6 +10,14 @@ use super::{JsonOptions, ResourceCollection, ResourceItems, ResourceResponse, Re
 /// Transforms an application resource for the current request.
 #[allow(non_snake_case, reason = "Matches Laravel's JsonResource API")]
 pub trait JsonResource {
+    #[doc(hidden)]
+    const JSON_API: bool = false;
+
+    #[doc(hidden)]
+    fn isJsonApi(&self) -> bool {
+        Self::JSON_API
+    }
+
     fn toArray(&self, request: &Request) -> ResourceResult<Value>;
 
     fn toJson(&self, request: &Request) -> ResourceResult<String> {
