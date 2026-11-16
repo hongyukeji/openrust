@@ -15,7 +15,7 @@ pub(super) enum Command {
     DropColumn(DropColumnDefinition),
     RenameIndex(String, String),
     DropIndex(IndexType, String),
-    DropIndexColumns(Vec<String>),
+    DropIndexColumns(IndexType, Vec<String>),
     DropForeign(String),
     DropForeignColumns(Vec<String>),
 }
@@ -549,8 +549,7 @@ impl Blueprint {
         if let Some(index) = index {
             self.dropIndex(index);
         } else {
-            self.commands
-                .push(Command::DropIndexColumns(vec![kind.clone(), id.clone()]));
+            self.dropIndexColumns(&[&kind, &id]);
         }
         self.dropColumn(&[&kind, &id]);
     }
@@ -606,9 +605,19 @@ impl Blueprint {
             .push(Command::DropIndex(IndexType::Index, name.into()));
     }
 
+    /// Drops the index named by the table, ordered columns, and index kind.
+    pub fn dropIndexColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::Index, columns);
+    }
+
     pub fn dropUnique(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Unique, name.into()));
+    }
+
+    /// Drops the index named by the table, ordered columns, and index kind.
+    pub fn dropUniqueColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::Unique, columns);
     }
 
     pub fn dropPrimary(&mut self) {
@@ -621,9 +630,26 @@ impl Blueprint {
             .push(Command::DropIndex(IndexType::FullText, name.into()));
     }
 
+    /// Drops the index named by the table, ordered columns, and index kind.
+    pub fn dropFullTextColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::FullText, columns);
+    }
+
     pub fn dropSpatialIndex(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::Spatial, name.into()));
+    }
+
+    /// Drops the index named by the table, ordered columns, and index kind.
+    pub fn dropSpatialIndexColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::Spatial, columns);
+    }
+
+    fn drop_index_columns(&mut self, kind: IndexType, columns: &[&str]) {
+        self.commands.push(Command::DropIndexColumns(
+            kind,
+            columns.iter().map(|column| (*column).to_owned()).collect(),
+        ));
     }
 
     pub fn dropForeignColumns(&mut self, columns: &[&str]) {

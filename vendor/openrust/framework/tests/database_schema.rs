@@ -3901,3 +3901,69 @@ async fn mysql_drops_columns_through_the_named_schema_builder() {
     assert_eq!(schema.getColumnListing(&target).await.unwrap(), ["id"]);
     schema.drop(&target).await.unwrap();
 }
+
+#[tokio::test]
+async fn mysql_drops_conventionally_named_indexes_by_ordered_columns() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_","prefix_indexes":true}));
+    let mut schema = db.getSchemaBuilder();
+    let database = schema.getCurrentSchemaName().to_owned();
+    let table_name = format!("{database}.column_indexes");
+    schema.dropIfExists(&table_name).await.unwrap();
+    schema
+        .create(&table_name, |table| {
+            table.id();
+            table.string("label", 80);
+            table.integer("rank");
+            table.text("body");
+            table.geometry("location", Some("point"), Some(4326));
+            table.index(&["label", "rank"], None);
+            table.index(&["label", "rank"], Some("named_index"));
+            table.unique(&["label", "rank"], None);
+            table.fullText(&["body"], None);
+            table.spatialIndex(&["location"], None);
+        })
+        .await
+        .unwrap();
+    let expected = |suffix| format!("{database}_app_column_indexes_{suffix}");
+    let before = schema.getIndexListing(&table_name).await.unwrap();
+    for suffix in [
+        "label_rank_index",
+        "label_rank_unique",
+        "body_fulltext",
+        "location_spatialindex",
+    ] {
+        assert!(before.contains(&expected(suffix)));
+    }
+    assert!(
+        schema
+            .table(&table_name, |table| table
+                .dropIndexColumns(&["rank", "label"]))
+            .await
+            .is_err()
+    );
+    assert_eq!(schema.getIndexListing(&table_name).await.unwrap(), before);
+    assert!(matches!(
+        schema
+            .table(&table_name, |table| table.dropIndexColumns(&[]))
+            .await,
+        Err(DatabaseError::InvalidSchema("empty column list"))
+    ));
+    schema
+        .table(&table_name, |table| {
+            table.dropIndexColumns(&["label", "rank"]);
+            table.dropUniqueColumns(&["label", "rank"]);
+            table.dropFullTextColumns(&["body"]);
+            table.dropSpatialIndexColumns(&["location"]);
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getIndexListing(&table_name).await.unwrap(),
+        ["named_index", "primary"]
+    );
+    schema.drop(&table_name).await.unwrap();
+}

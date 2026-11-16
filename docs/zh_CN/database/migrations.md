@@ -498,6 +498,21 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 只改名时用 `renameColumn`。在 SQLite 上，用 `renameColumn` 改名，再单独用 `change()` 更新列定义。
 
+#### 按列列表删除索引 {#dropping-indexes-by-columns}
+
+将有序列列表传给 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可删除该类型下使用默认名称的索引。自定义名称的索引使用相应的按名称删除方法。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn remove_import_lookup() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.dropIndexColumns(&["status", "created_at"]);
+    })
+    .await
+}
+```
+
 #### 原生索引表达式 {#raw-indexes}
 
 `rawIndex(expression, name)` 使用数据库方言的 SQL 键列表创建命名索引。MySQL 要求每个函数索引键额外包一层括号。SQLite 可直接写 `lower(label)`。SQL 由迁移代码提供。用 `dropIndex(name)` 删除索引。

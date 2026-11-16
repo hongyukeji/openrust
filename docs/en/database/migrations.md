@@ -498,6 +498,21 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 For a rename alone, use `renameColumn`. On SQLite, use `renameColumn` for the rename and a separate `change()` for the new definition.
 
+#### Dropping Indexes by Column List {#dropping-indexes-by-columns}
+
+Pass the ordered column list to `dropIndexColumns`, `dropUniqueColumns`, `dropFullTextColumns`, or `dropSpatialIndexColumns` to drop an index created with the default name for its kind. For a custom name, use the corresponding method that takes the name.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn remove_import_lookup() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.dropIndexColumns(&["status", "created_at"]);
+    })
+    .await
+}
+```
+
 #### Raw Indexes {#raw-indexes}
 
 `rawIndex(expression, name)` adds a named index using a database-specific SQL key list. MySQL requires an extra pair of parentheses around each functional key part. SQLite accepts `lower(label)` directly. Supply SQL from your migration code. Drop the index with `dropIndex(name)`.

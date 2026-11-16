@@ -344,8 +344,11 @@ impl Grammar {
                     ));
                 }
                 Command::DropIndex(_, name) => sql.push(self.drop_index(table, &name)?),
-                Command::DropIndexColumns(columns) => {
-                    let name = self.conventional_name(table, &columns, "index");
+                Command::DropIndexColumns(kind, columns) => {
+                    if columns.is_empty() {
+                        return Err(DatabaseError::InvalidSchema("empty column list"));
+                    }
+                    let name = self.conventional_name(table, &columns, kind.suffix());
                     sql.push(self.drop_index(table, &name)?);
                 }
                 Command::DropForeign(name) if self.mysql() => sql.push(format!(

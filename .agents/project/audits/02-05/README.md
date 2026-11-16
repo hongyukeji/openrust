@@ -220,3 +220,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `dropColumns` 复用 Blueprint 的多列删除。MySQL 将多个删除项合并到同一次 ALTER。空列表在执行 DDL 前报错。`innoDb` 复用 `engine("InnoDB")`，沿用 MySQL 的表选项覆盖规则。
 - `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 21 项 Schema 回归及 1 项限定库清理回归。覆盖读库与写库不同时的默认 Schema、具名连接的限定表名和表前缀、组合删列失败后的列保留以及 InnoDB 覆盖连接默认引擎。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
 - `docker/accept.py --mysql` 运行三语共用的实际 Artisan 示例，核对 InnoDB、Schema 与视图目录及删列。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 30 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版，SQLite 已编译，实际运行留待发布前。
+
+## 按列列表删除索引
+
+对照固定 Laravel [Blueprint::dropIndexCommand 与 createIndexName](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1805) 和 [MySQL 空间索引删除测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseMySqlSchemaGrammarTest.php#L269)。旧版未找到对应的按列列表入口。本批复用 `dropMorphs` 使用的默认索引名生成与原有删除路径。
+
+- Laravel 的删除方法接受名称或数组。Rust 用 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns`、`dropSpatialIndexColumns` 表达列列表，沿用 `dropForeignColumns` 的命名。默认索引名保留限定 Schema、表前缀配置、列顺序和索引类型后缀。空列表在执行 DDL 前报错。
+- `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 22 项 Schema 回归及 1 项限定库清理回归。验证普通、唯一、全文、空间索引删除，列顺序颠倒导致删除失败，具有相同列的自定义名称索引保留。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
+- `docker/accept.py --mysql` 运行三语共用的实际 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 已编译，实际运行留待发布前。
