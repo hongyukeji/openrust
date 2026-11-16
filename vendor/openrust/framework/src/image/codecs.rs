@@ -166,9 +166,7 @@ pub(super) fn encode(
                 ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality);
             set_metadata(&mut encoder, format, metadata)?;
             image.write_with_encoder(encoder).map_err(Error::Encoding)?;
-            if let Some(xmp) = &metadata.xmp {
-                metadata::write_jpeg_xmp(&mut bytes, xmp)?;
-            }
+            metadata::write_jpeg_profiles(&mut bytes, metadata)?;
             return Ok(bytes);
         }
         Format::Avif => {

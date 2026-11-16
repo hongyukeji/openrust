@@ -793,3 +793,45 @@ async fn preserves_exif_icc_and_xmp_and_resets_applied_orientation() {
         }
     }
 }
+
+#[tokio::test]
+async fn preserves_jpeg_iptc_and_comments_after_a_transform() {
+    use ::image::{ImageDecoder, codecs::jpeg::JpegDecoder};
+
+    let manager = ImageManager::new(Limits::default());
+    let jpeg = manager
+        .fromBytes(sample())
+        .toJpeg()
+        .toBytes()
+        .await
+        .unwrap();
+    let photoshop = b"8BIM\x04\x04\0\0\0\0\0\x09\x1c\x02\x05\0\x04note\0";
+    let mut profiles = Vec::new();
+    for (marker, payload) in [
+        (0xfe, b"first comment".to_vec()),
+        (0xed, [b"Photoshop 3.0\0".as_slice(), photoshop].concat()),
+        (0xfe, b"last comment".to_vec()),
+    ] {
+        profiles.extend_from_slice(&[0xff, marker]);
+        profiles.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+        profiles.extend_from_slice(&payload);
+    }
+    let input = [jpeg[..2].as_ref(), profiles.as_slice(), &jpeg[2..]].concat();
+    let image = manager.fromBytes(input).resize(Some(12), Some(16));
+    let output = image.clone().toJpeg().toBytes().await.unwrap();
+    let mut decoder = JpegDecoder::new(Cursor::new(&output)).unwrap();
+    assert_eq!(decoder.dimensions(), (12, 16));
+    assert_eq!(
+        decoder.iptc_metadata().unwrap().as_deref(),
+        Some(photoshop.as_slice())
+    );
+    assert_eq!(
+        output
+            .windows(profiles.len())
+            .filter(|part| *part == profiles)
+            .count(),
+        1
+    );
+    let png = image.toPng().toBytes().await.unwrap();
+    assert!(!png.windows(photoshop.len()).any(|part| part == photoshop));
+}

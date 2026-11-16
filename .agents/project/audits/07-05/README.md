@@ -42,6 +42,11 @@
 - 固定 Laravel 使用 Intervention 4.2，默认 `strip=false`。Rust 在重新编码时传递 EXIF、ICC 和 XMP，覆盖 JPEG、PNG、WebP、AVIF、HEIC 与 JPEG XL 及其交叉转换。JPEG、PNG、WebP 的 EXIF 方向实际应用后重置 Orientation，其他 EXIF 字节保留。HEIF 序列将图像级元数据存入封面，AVIF 同时写入轨道元数据；PNG、WebP 和 JPEG XL 序列使用各自的全局元数据。 [固定 Intervention 配置](https://github.com/Intervention/image/blob/4.2.0/src/Config.php#L14-L19) [固定 Laravel Intervention 驱动](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image/Drivers/InterventionDriver.php)
 - 12 项 Images 定向回归通过，包括静态及动画跨六种格式的 EXIF、ICC、XMP 字节核对、方向复位及图像序列复验。真实 HTTP 和 Artisan 从独立 Pillow 生成的 PNG 转换六种格式，独立读取器核对 EXIF 作者、方向、ICC 和 XMP，尺寸为 12×16。工作区全目标严格 Clippy、改动文件格式、三语站点构建及 12 项浏览器检查通过。全仓格式检查仍报告基线 Sanctum 测试的排版差异。
 
+## JPEG IPTC 与注释
+
+- JPEG 同格式变换保留首个扫描之前的 Photoshop APP13 配置和 JPEG COM 注释，保留这些段的原始内容及相对顺序。固定 Laravel 委托 Intervention，Imagick 的 JPEG 编码器支持 IPTC 配置和注释。 [固定 JPEG 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/JpegEncoder.php) [ImageMagick JPEG 实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/jpeg.c)
+- 13 项 Images 回归以及工作区全目标严格 Clippy 通过。真实 HTTP 和 Artisan 接收独立 Pillow 生成的 JPEG 并应用 EXIF 旋转和裁切，输出经 Pillow 核对 IPTC、注释、EXIF 作者、ICC、XMP 和 12×16 像素尺寸。三语站点构建及 12 项浏览器检查通过。
+
 ## 剩余验收
 
-标准 EXIF、ICC 和 XMP 已验收。任意私有元数据块、IPTC／JUMBF 以及外部 HEIF 的逐帧元数据轨道仍待复核。JPEG XL 序列解码当前覆盖灰度、RGB 及其透明度通道。HEIF 序列当前覆盖单主轨道和辅助透明度轨道。07-05 保持开放。
+固定 Laravel 未定义私有元数据块或 JUMBF 的跨格式迁移。Imagick 的 HEIF 序列解码器会读帧上的 ICC，Rust 当前使用封面 ICC。外部 HEIF 序列的轨道元数据、逐帧 ICC 及逐帧 EXIF／XMP 仍待验收。JPEG XL 序列解码当前覆盖灰度、RGB 及其透明度通道。HEIF 序列当前覆盖单主轨道和辅助透明度轨道。07-05 保持开放。 [ImageMagick HEIF 序列实现](https://github.com/ImageMagick/ImageMagick/blob/main/coders/heic.c)

@@ -30,7 +30,7 @@ GIF、动画 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在变换和转换�
 
 ## 图像元数据 {#image-metadata}
 
-内置驱动在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的变换与转换中携带 EXIF、ICC 配置文件和 XMP。当 `orient()` 应用 JPEG、PNG 或 WebP 的 EXIF 方向时，输出将方向字段重置为正向，并保留其他 EXIF 字节。HEIF 动画输出将这些字段写入封面图像。元数据保留范围以这些字段和格式为准。
+内置驱动在 JPEG、PNG、WebP、AVIF、HEIC 和 JPEG XL 的变换与转换中携带 EXIF、ICC 配置文件和 XMP。当 `orient()` 应用 JPEG、PNG 或 WebP 的 EXIF 方向时，输出将方向字段重置为正向，并保留其他 EXIF 字节。HEIF 动画输出将这些字段写入封面图像。JPEG 变换后继续输出 JPEG 时，也会保留包含 IPTC 的 Photoshop APP13 配置和 JPEG 注释。这些段保留在 JPEG 容器中。
 
 ## 存储图像 {#storing-images}
 

@@ -9,6 +9,7 @@ pub(super) struct Metadata {
     pub icc: Option<Vec<u8>>,
     pub exif: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
+    pub jpeg_profiles: Vec<u8>,
 }
 
 impl Metadata {
@@ -27,6 +28,7 @@ impl Metadata {
                     icc: props.icc_profile().map(<[u8]>::to_vec),
                     exif,
                     xmp,
+                    ..Self::default()
                 })
             }
             Format::Jpeg | Format::Png | Format::Webp => {
@@ -39,6 +41,11 @@ impl Metadata {
                     icc: decoder.icc_profile().map_err(codecs::decode_error)?,
                     exif: decoder.exif_metadata().map_err(codecs::decode_error)?,
                     xmp: decoder.xmp_metadata().map_err(codecs::decode_error)?,
+                    jpeg_profiles: if format == Format::Jpeg {
+                        read_jpeg_profiles(bytes)
+                    } else {
+                        Vec::new()
+                    },
                 })
             }
             Format::Jxl => super::jxl_sequence::metadata(bytes, limits),
@@ -64,21 +71,55 @@ impl Metadata {
     }
 }
 
-pub(super) fn write_jpeg_xmp(bytes: &mut Vec<u8>, xmp: &[u8]) -> Result<()> {
-    let namespace = b"http://ns.adobe.com/xap/1.0/\0";
-    let size =
-        u16::try_from(2 + namespace.len() + xmp.len()).map_err(|_| super::Error::InputTooLarge)?;
-    let mut segment = vec![0xff, 0xe1];
-    segment.extend_from_slice(&size.to_be_bytes());
-    segment.extend_from_slice(namespace);
-    segment.extend_from_slice(xmp);
-    let offset = if bytes.get(2..4) == Some(&[0xff, 0xe0]) {
-        4 + usize::from(u16::from_be_bytes([bytes[4], bytes[5]]))
-    } else {
-        2
-    };
-    bytes.splice(offset..offset, segment);
+pub(super) fn write_jpeg_profiles(bytes: &mut Vec<u8>, metadata: &Metadata) -> Result<()> {
+    let mut profiles = Vec::new();
+    if let Some(xmp) = &metadata.xmp {
+        let namespace = b"http://ns.adobe.com/xap/1.0/\0";
+        let size = u16::try_from(2 + namespace.len() + xmp.len())
+            .map_err(|_| super::Error::InputTooLarge)?;
+        profiles.extend_from_slice(&[0xff, 0xe1]);
+        profiles.extend_from_slice(&size.to_be_bytes());
+        profiles.extend_from_slice(namespace);
+        profiles.extend_from_slice(xmp);
+    }
+    profiles.extend_from_slice(&metadata.jpeg_profiles);
+    if !profiles.is_empty() {
+        let offset = if bytes.get(2..4) == Some(&[0xff, 0xe0]) {
+            4 + usize::from(u16::from_be_bytes([bytes[4], bytes[5]]))
+        } else {
+            2
+        };
+        bytes.splice(offset..offset, profiles);
+    }
     Ok(())
+}
+
+fn read_jpeg_profiles(bytes: &[u8]) -> Vec<u8> {
+    let mut profiles = Vec::new();
+    let mut remaining = &bytes[2..];
+    while let [0xff, marker, rest @ ..] = remaining {
+        if *marker == 0xff {
+            remaining = &remaining[1..];
+            continue;
+        }
+        if matches!(marker, 0xda | 0xd9) {
+            break;
+        }
+        if matches!(marker, 0x01 | 0xd0..=0xd7) {
+            remaining = rest;
+            continue;
+        }
+        let [high, low, ..] = rest else { break };
+        let length = usize::from(u16::from_be_bytes([*high, *low]));
+        let Some(payload) = rest.get(2..length) else {
+            break;
+        };
+        if *marker == 0xfe || (*marker == 0xed && payload.starts_with(b"Photoshop 3.0\0")) {
+            profiles.extend_from_slice(&remaining[..length + 2]);
+        }
+        remaining = &rest[length..];
+    }
+    profiles
 }
 
 pub(super) fn write_png_xmp(bytes: &mut Vec<u8>, xmp: &[u8]) -> Result<()> {

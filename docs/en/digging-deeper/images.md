@@ -30,7 +30,7 @@ The driver bounds animated inputs and outputs to 1,024 frames and 96 million tot
 
 ## Image metadata {#image-metadata}
 
-The built-in driver carries EXIF, ICC profiles, and XMP through transformations and conversions among JPEG, PNG, WebP, AVIF, HEIC, and JPEG XL. When `orient()` applies the EXIF direction from JPEG, PNG, or WebP, the output resets the direction tag to upright and retains the other EXIF bytes. Animated HEIF output stores these fields on the cover image. Metadata support is specific to these fields and formats.
+The built-in driver carries EXIF, ICC profiles, and XMP through transformations and conversions among JPEG, PNG, WebP, AVIF, HEIC, and JPEG XL. When `orient()` applies the EXIF direction from JPEG, PNG, or WebP, the output resets the direction tag to upright and retains the other EXIF bytes. Animated HEIF output stores these fields on the cover image. JPEG-to-JPEG transformations also retain Photoshop APP13 profiles, including IPTC, and JPEG comments. These JPEG segments stay in the JPEG container.
 
 ## Storing images {#storing-images}
 
