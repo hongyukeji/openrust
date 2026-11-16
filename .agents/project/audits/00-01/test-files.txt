@@ -1,4 +1,0 @@
-tests/configuration.rs
-tests/startup.rs
-vendor/openrust/framework/tests/unit/container.rs
-vendor/openrust/framework/tests/unit/main.rs
