@@ -99,6 +99,21 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 `Storage::url` uses the default disk. A named disk uses its configured `url` when present. A local disk without a configured URL uses `/storage`. Use URL-safe names for local URLs. For S3, set `AWS_URL` for a custom public base. With no custom base, the AWS SDK resolves the bucket endpoint, and the adapter appends the encoded object key including its configured prefix. Generating a URL leaves access control to the disk mount or bucket.
 
+### File Metadata {#file-metadata}
+
+Use `size` to get the byte count and `lastModified` to get a `SystemTime` for a file on a local disk. Both methods return errors when metadata is unavailable. The same methods on `Storage` use the default disk.
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
+    let path = "reports/today.txt";
+    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+}
+```
+
+Use `mimeType` to check content signatures, with a filename extension or `application/octet-stream` as fallback. Use `checksum` for a streamed MD5 digest, or `checksumWith::<D>` to select a Rust digest. For these two operations, disk failures return `None` when `throw` is disabled. Invalid paths always return an error.
+
 ## Storing Files
 
 `writeStream` copies from an asynchronous reader. The local driver writes a sibling temporary file and publishes it by rename after the stream completes. A source failure or cancellation before publication preserves an existing file. A cancellation after the rename has been dispatched can still publish the completed write.

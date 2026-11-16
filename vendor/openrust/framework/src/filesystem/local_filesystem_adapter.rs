@@ -1,5 +1,6 @@
 use std::{
-    io,
+    fmt::Write as _,
+    io::{self, Read as _},
     path::{Path, PathBuf},
 };
 
@@ -62,14 +63,64 @@ impl LocalFilesystemAdapter {
         Ok((directory, name))
     }
 
-    pub(super) async fn read(&self, path: PathBuf) -> FilesystemResult<tokio::fs::File> {
+    async fn with_file<T: Send + 'static>(
+        &self,
+        path: PathBuf,
+        operation: impl FnOnce(std::fs::File) -> io::Result<T> + Send + 'static,
+    ) -> FilesystemResult<T> {
         let disk = self.clone_for_task();
-        let file = blocking(move || {
+        blocking(move || {
             let (dir, name) = disk.resolve(&path, false)?;
-            open_regular(&dir, &name)
+            operation(open_regular(&dir, &name)?)
         })
-        .await?;
-        Ok(tokio::fs::File::from_std(file))
+        .await
+    }
+
+    pub(super) async fn read(&self, path: PathBuf) -> FilesystemResult<tokio::fs::File> {
+        self.with_file(path, Ok)
+            .await
+            .map(tokio::fs::File::from_std)
+    }
+
+    pub(super) async fn metadata(&self, path: PathBuf) -> FilesystemResult<std::fs::Metadata> {
+        self.with_file(path, |file| file.metadata()).await
+    }
+
+    pub(super) async fn mime_type(&self, path: PathBuf) -> FilesystemResult<String> {
+        let fallback = mime_guess::from_path(&path).first_or_octet_stream();
+        self.with_file(path, move |file| {
+            let mut prefix = Vec::new();
+            file.take(8192).read_to_end(&mut prefix)?;
+            Ok(infer::get(&prefix).map_or_else(
+                || fallback.essence_str().to_owned(),
+                |kind| kind.mime_type().to_owned(),
+            ))
+        })
+        .await
+    }
+
+    pub(super) async fn checksum<D: md5::Digest>(&self, path: PathBuf) -> FilesystemResult<String> {
+        self.with_file(path, |mut file| {
+            let mut digest = D::new();
+            let mut buffer = [0; 16 * 1024];
+            loop {
+                let size = match file.read(&mut buffer) {
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+                    result => result?,
+                };
+                if size == 0 {
+                    break;
+                }
+                digest.update(&buffer[..size]);
+            }
+            let digest = digest.finalize();
+            let mut hex = String::with_capacity(digest.len() * 2);
+            for byte in digest {
+                write!(hex, "{byte:02x}").expect("writing to a String");
+            }
+            Ok(hex)
+        })
+        .await
     }
 
     pub(super) async fn write(

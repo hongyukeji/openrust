@@ -302,6 +302,45 @@ impl FilesystemAdapter {
         self.or_default(result.map_err(FilesystemError::from))
     }
 
+    pub async fn size(&self, path: &str) -> FilesystemResult<u64> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        Ok(disk.metadata(path.into()).await?.len())
+    }
+
+    pub async fn lastModified(&self, path: &str) -> FilesystemResult<SystemTime> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        Ok(disk.metadata(path.into()).await?.modified()?)
+    }
+
+    pub async fn mimeType(&self, path: &str) -> FilesystemResult<Option<String>> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        self.or_default(disk.mime_type(path.into()).await.map(Some))
+    }
+
+    pub async fn checksum(&self, path: &str) -> FilesystemResult<Option<String>> {
+        self.checksumWith::<md5::Md5>(path).await
+    }
+
+    pub async fn checksumWith<D: md5::Digest>(
+        &self,
+        path: &str,
+    ) -> FilesystemResult<Option<String>> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        self.or_default(disk.checksum::<D>(path.into()).await.map(Some))
+    }
+
     /// Builds an object URL using the disk configuration.
     pub fn url(&self, path: &str) -> FilesystemResult<String> {
         validate_path(path)?;

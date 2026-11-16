@@ -99,6 +99,21 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 `Storage::url` 使用預設磁碟。具名磁碟優先使用設定的 `url`，本機磁碟未設定時使用 `/storage`。本機 URL 請使用適合 URL 的檔名。S3 可透過 `AWS_URL` 設定公開基底網址。未設定時由 AWS SDK 解析儲存貯體端點，介面卡附加編碼後的物件鍵與設定前綴。檔案是否可存取由磁碟掛載或儲存貯體控制。
 
+### 檔案中繼資料 {#file-metadata}
+
+用 `size` 取得本機磁碟檔案的位元組數，用 `lastModified` 取得 `SystemTime`。兩者在中繼資料無法取得時傳回錯誤。透過 `Storage` 呼叫時使用預設磁碟。
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
+    let path = "reports/today.txt";
+    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+}
+```
+
+用 `mimeType` 檢查內容簽章，並回退到副檔名推斷或 `application/octet-stream`。用 `checksum` 串流計算 MD5，或用 `checksumWith::<D>` 選用 Rust 摘要演算法。這兩項操作在停用 `throw` 時將磁碟錯誤回退為 `None`。無效路徑一律傳回錯誤。
+
 ## 儲存檔案
 
 `writeStream` 從非同步讀取器複製資料。本機驅動程式先寫入同目錄暫存檔，串流完成後重新命名並發布。來源失敗或發布前取消會保留原檔。重新命名操作已經發出後，即使呼叫端取消，完整寫入仍可能發布。

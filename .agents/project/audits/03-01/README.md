@@ -26,3 +26,13 @@ macOS arm64、Rust 1.94.0。隔离副本位于 `/private/tmp/openrust-03-01.qtGw
 - 隔离基线 `592bfce77`。PHP 8.5.12 执行固定 Laravel 和 Flysystem 3.25.1 对照，验证浅层及递归目录列表、排序、创建和幂等删除。六项本地文件系统测试通过，其中实际 HTTP 请求验证六个 Facade 目录方法。实际 Artisan 子进程验证 `storage:link` 和 `storage:unlink`。
 - 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点与 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。Windows 实机留待发布前统一复核。03-01 接续文件元数据。
 - PHP 容器已回收。清理本批 3.5 GiB Cargo 产物及站点缓存后，卷可用 60.96 GB（56.78 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-directories.IGIfj8dI`。
+
+## 本地文件元数据
+
+对照固定 Laravel [File Metadata](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/filesystem.md#file-metadata)和[适配器元数据入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemAdapter.php#L673)。旧版 `stat` 通过 OpenDAL 获取对象元数据，本批沿用已上线的本地目录句柄和常规文件校验。
+
+- `size` 返回字节数，`lastModified` 用 `SystemTime` 对应 Laravel 的 Unix 时间戳。缺失或读取失败直接返回错误。`mimeType` 和 `checksum` 沿用 `throw` 与 `report`，失败时的 PHP false 在 Rust 用 `None` 表达。默认盘 Facade 与具名磁盘共用入口。
+- PHP 本地驱动以 Fileinfo 检测 MIME。Rust 读最多 8 KiB 识别签名，回退到扩展名及 `application/octet-stream`。校验和使用固定缓冲区逐块读取，默认 MD5，`checksumWith::<D>` 以类型参数对应 Laravel 的 `checksum_algo`。软链接、硬链接和目录按本地常规文件边界处理。S3 元数据待专项接入。
+- 隔离基线 `7b29e9da9`。PHP 8.5.12 实际运行固定 Laravel 和 Flysystem 3.25.1 对照。八项本地文件系统测试通过，覆盖 600,000 字节校验和、时间与文件句柄、签名覆盖扩展名、缺失及链接错误。实际 HTTP 验证默认盘 Facade 元数据。Artisan 子进程回归验证 `storage:link` 和 `storage:unlink`。
+- 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。03-01 接续自定义 Unix 可见性模式及整单元复核。
+- PHP 容器已回收。清理本批 3.5 GiB Cargo 产物及站点缓存后，卷可用 60.91 GB（56.73 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-metadata.UCflKrn6`。

@@ -74,6 +74,32 @@ impl Storage {
         Self::disk(None)?.get(path).await
     }
 
+    pub async fn size(path: &str) -> FilesystemResult<u64> {
+        Self::disk(None)?.size(path).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn lastModified(path: &str) -> FilesystemResult<SystemTime> {
+        Self::disk(None)?.lastModified(path).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn mimeType(path: &str) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.mimeType(path).await
+    }
+
+    pub async fn checksum(path: &str) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.checksum(path).await
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Typed counterpart of Laravel's checksum options"
+    )]
+    pub async fn checksumWith<D: md5::Digest>(path: &str) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.checksumWith::<D>(path).await
+    }
+
     pub fn url(path: &str) -> FilesystemResult<String> {
         Self::disk(None)?.url(path)
     }

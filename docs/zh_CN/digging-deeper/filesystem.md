@@ -99,6 +99,21 @@ pub async fn download_report() -> Result<Response, HttpError> {
 
 `Storage::url` 使用默认磁盘。具名磁盘优先使用配置的 `url`，本地磁盘未配置时使用 `/storage`。本地 URL 请使用适合 URL 的文件名。S3 可通过 `AWS_URL` 指定公共基址。未指定时由 AWS SDK 解析存储桶地址，适配器追加编码后的对象键及其配置前缀。文件是否可访问由磁盘挂载或存储桶控制。
 
+### 文件元数据 {#file-metadata}
+
+用 `size` 取得本地磁盘文件的字节数，用 `lastModified` 取得 `SystemTime`。两者在元数据不可用时返回错误。通过 `Storage` 调用时使用默认磁盘。
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn report_metadata(disk: &FilesystemAdapter) -> FilesystemResult<(u64, Option<String>)> {
+    let path = "reports/today.txt";
+    Ok((disk.size(path).await?, disk.mimeType(path).await?))
+}
+```
+
+用 `mimeType` 检查内容签名，并回退到扩展名推断或 `application/octet-stream`。用 `checksum` 流式计算 MD5，或用 `checksumWith::<D>` 选用 Rust 摘要算法。这两项操作在关闭 `throw` 时将磁盘错误回退为 `None`。无效路径始终返回错误。
+
 ## 存储文件
 
 `writeStream` 从异步读取器复制数据。本地驱动先写同目录临时文件，流写完后通过重命名发布。源失败或发布前取消会保留原文件。重命名操作已经发出后，即使调用方取消，完整写入仍可能发布。

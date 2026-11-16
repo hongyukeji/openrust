@@ -284,6 +284,23 @@ async fn application_scope_and_public_mount_work_over_http() {
         Box::pin(async {
             assert!(Storage::makeDirectory("notes/empty").await.unwrap());
             assert!(Storage::put("notes/example.txt", b"Hello").await.unwrap());
+            assert_eq!(Storage::size("notes/example.txt").await.unwrap(), 5);
+            assert_eq!(
+                Storage::mimeType("notes/example.txt")
+                    .await
+                    .unwrap()
+                    .as_deref(),
+                Some("text/plain")
+            );
+            assert!(Storage::lastModified("notes/example.txt").await.is_ok());
+            assert_eq!(
+                Storage::checksum("notes/example.txt")
+                    .await
+                    .unwrap()
+                    .as_deref(),
+                Some("8b1a9953c4611296a827abf8c47804d7")
+            );
+
             assert_eq!(
                 Storage::files(Some("notes")).await.unwrap(),
                 ["notes/example.txt"]
@@ -593,4 +610,83 @@ async fn local_directory_operations_preserve_visibility_and_link_boundaries() {
         std::fs::read(outside.join("retained.txt")).unwrap(),
         b"retain"
     );
+}
+
+#[tokio::test]
+async fn local_metadata_uses_the_open_file_and_preserves_error_policy() {
+    let root = Sandbox::new();
+    let disk = root.manager(true).disk(None).unwrap();
+    let content = vec![b'x'; 600_000];
+    assert!(disk.put("reports/large.bin", &content).await.unwrap());
+    assert_eq!(disk.size("reports/large.bin").await.unwrap(), 600_000);
+    assert_eq!(
+        disk.lastModified("reports/large.bin").await.unwrap(),
+        std::fs::metadata(root.0.join("private/reports/large.bin"))
+            .unwrap()
+            .modified()
+            .unwrap()
+    );
+    assert_eq!(
+        disk.checksumWith::<md5::Md5>("reports/large.bin")
+            .await
+            .unwrap()
+            .as_deref(),
+        Some("bbef3d09d1fd68cfb48e7ae1acc56a17")
+    );
+    assert_eq!(
+        disk.mimeType("reports/large.bin").await.unwrap().as_deref(),
+        Some("application/octet-stream")
+    );
+    assert!(
+        disk.put("reports/image.txt", b"\x89PNG\r\n\x1a\n")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        disk.mimeType("reports/image.txt").await.unwrap().as_deref(),
+        Some("image/png")
+    );
+
+    let quiet = root.manager(false).disk(None).unwrap();
+    assert!(matches!(
+        quiet.size("missing.txt").await,
+        Err(FilesystemError::NotFound)
+    ));
+    assert!(matches!(
+        quiet.lastModified("missing.txt").await,
+        Err(FilesystemError::NotFound)
+    ));
+    assert!(matches!(
+        disk.mimeType("missing.txt").await,
+        Err(FilesystemError::NotFound)
+    ));
+    assert!(matches!(
+        disk.checksum("missing.txt").await,
+        Err(FilesystemError::NotFound)
+    ));
+    assert_eq!(quiet.mimeType("missing.txt").await.unwrap(), None);
+    assert_eq!(quiet.checksum("missing.txt").await.unwrap(), None);
+    assert!(matches!(
+        quiet.mimeType("../outside.txt").await,
+        Err(FilesystemError::InvalidPath)
+    ));
+    assert!(disk.size("reports").await.is_err());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn local_metadata_rejects_symbolic_and_hard_links() {
+    let root = Sandbox::new();
+    let disk = root.manager(true).disk(None).unwrap();
+    assert!(disk.put("inside.txt", b"inside").await.unwrap());
+    let outside = root.0.join("outside.txt");
+    std::fs::write(&outside, b"outside").unwrap();
+    std::os::unix::fs::symlink(&outside, root.0.join("private/soft.txt")).unwrap();
+    std::fs::hard_link(&outside, root.0.join("private/hard.txt")).unwrap();
+    for name in ["soft.txt", "hard.txt"] {
+        assert!(disk.size(name).await.is_err());
+        assert!(disk.lastModified(name).await.is_err());
+        assert!(disk.mimeType(name).await.is_err());
+        assert!(disk.checksum(name).await.is_err());
+    }
 }
