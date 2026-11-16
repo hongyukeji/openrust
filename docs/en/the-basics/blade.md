@@ -93,6 +93,21 @@ Place the child template in `resources/views/dashboard.blade.html` and return `v
 @endsection
 ```
 
+## Forms {#forms}
+
+In a session-enabled web route, `@csrf` emits the current session token as a hidden `_token` field. `@error` renders the first message for the field and makes it available as `$message` inside the block. Pass a second argument to read a named error bag.
+
+```html
+<form method="post">
+    @csrf
+    @error('name')
+        <span>{{ $message }}</span>
+    @enderror
+</form>
+```
+
+`@method('PUT')` emits a hidden `_method` field. OpenRust routing currently matches the HTTP method sent by the client.
+
 ## Stacks {#stacks}
 
 Use `@push` or `@prepend` to collect markup during rendering. A layout can display it with `@stack`. `@hasStack` can conditionally render the surrounding markup.
@@ -106,5 +121,9 @@ Use `@push` or `@prepend` to collect markup during rendering. A layout can displ
     @stack('scripts')
 @endif
 ```
+
+## PHP and Rust Templates {#php-and-rust-templates}
+
+Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.
 
 Use `@once` for content that should render only once per view tree. `@pushOnce` and `@prependOnce` also accept an optional ID shared across templates.

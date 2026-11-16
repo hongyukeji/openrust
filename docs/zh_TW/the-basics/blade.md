@@ -93,6 +93,21 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 @endsection
 ```
 
+## 表單 {#forms}
+
+在啟用 Session 的 Web 路由中，`@csrf` 將目前的工作階段權杖輸出為隱藏的 `_token` 欄位。`@error` 在欄位發生錯誤時呈現區塊，並在區塊內用 `$message` 提供第一則訊息。第二個參數可指定具名錯誤袋。
+
+```html
+<form method="post">
+    @csrf
+    @error('name')
+        <span>{{ $message }}</span>
+    @enderror
+</form>
+```
+
+`@method('PUT')` 輸出隱藏的 `_method` 欄位。OpenRust 路由目前依用戶端送出的 HTTP 方法比對。
+
 ## 堆疊 {#stacks}
 
 用 `@push` 或 `@prepend` 收集呈現片段，再由版面透過 `@stack` 輸出。`@hasStack` 可以根據堆疊是否有內容決定是否輸出外層標記。
@@ -106,5 +121,9 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
     @stack('scripts')
 @endif
 ```
+
+## PHP 與 Rust 範本 {#php-and-rust-templates}
+
+PHP 函式呼叫或 `@php` 程式區塊需要的值，可以在 Rust 處理器、視圖建立器或組合器中準備，再傳入視圖。PHP 類別元件及其動態類別探索對應 `Factory::component` 明確註冊的 Rust `Component` 工廠。匿名元件由視圖尋找器解析。
 
 用 `@once` 在同一呈現樹中只輸出一次內容。`@pushOnce` 和 `@prependOnce` 也接受可跨範本共用的選用識別碼。

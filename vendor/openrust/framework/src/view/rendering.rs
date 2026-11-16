@@ -18,6 +18,7 @@ pub(super) struct RenderContext<'a> {
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
+    pub(super) csrf_token: Option<Arc<str>>,
     shared: Rc<RefCell<RenderState>>,
 }
 
@@ -44,6 +45,7 @@ impl<'a> RenderContext<'a> {
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
             active_loop: None,
             component_attributes: None,
+            csrf_token: None,
             shared: Rc::default(),
         }
     }
@@ -173,6 +175,7 @@ impl<'a> RenderContext<'a> {
                 parent_marker: self.parent_marker.clone(),
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
+                csrf_token: self.csrf_token.clone(),
                 shared: self.shared.clone(),
                 factory: Some(factory),
                 sections: HashMap::new(),

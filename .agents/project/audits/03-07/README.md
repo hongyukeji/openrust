@@ -27,3 +27,10 @@
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖两应用并发、嵌套视图父循环、空分支复用外层循环、退出清理、转义及非法键绑定 500。
 - 隔离副本通过 Rust 1.94.0 工作区格式检查和 `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`。隔离副本格式化了已有 Sanctum 测试差异。共享工作区的格式检查另外报告在途首页测试的格式差异。
 - 实际 `./artisan view:cache` 预编译三个语言版本的示例，`./artisan view:clear` 清除三份产物并保留无关文件，`./artisan inspire` 成功。三语 VitePress 构建、根路径和 `/docs/` 的 12 项常规浏览器检查及 6 项循环章节检查通过。
+
+## 表单指令与会话错误包
+
+- 对照固定 [Blade 表单章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#forms) 和 [CompilesErrors](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesErrors.php)。沿用旧版 `6d1a8192` 视图请求错误包与 03-07 已接通的当前会话作用域。默认和具名错误包的首条消息绑定到块内 `$message`。会话令牌随 HTTP 视图渲染上下文传递，用户视图数据无法覆盖，缺失会话返回渲染错误。
+- `@method` 生成同名隐藏字段，Rust 转义属性值。请求方法覆盖仍需单独实现路由接线。模板在 Rust 处理器、creator 或 composer 接收普通数据，PHP 计算通过相应 Rust 代码提供，类组件由应用注册。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖表单令牌回传 POST、默认和具名错误、错误消息转义、会话隔离及闪存老化。隔离副本通过全工作区格式与严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径及 `/docs/` 的 12 项通用浏览器检查和 6 项表单章节检查通过。

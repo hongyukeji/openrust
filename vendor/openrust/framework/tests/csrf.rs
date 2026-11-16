@@ -58,9 +58,10 @@ fn token(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn flash(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        request
-            .session_mut()?
-            .flash("errors", json!({"default":{"name":"Required"}}))?;
+        request.session_mut()?.flash(
+            "errors",
+            json!({"default":{"name":"Required"},"profile":{"name":["<different>", "second"]}}),
+        )?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
 }
@@ -227,7 +228,12 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
     std::fs::create_dir_all(root.join("resources/views")).unwrap();
     std::fs::write(
         root.join("resources/views/errors-probe.blade.html"),
-        "{{ $errors->default->name }}",
+        concat!(
+            "<form>@csrf@method('PUT')@error('name')",
+            "<span>{{ $message }}</span>@enderror",
+            "@error('name', 'profile')<em>{{ $message }}</em>@enderror",
+            "@error('name', 'missing')wrong@enderror{{ $message }}</form>",
+        ),
     )
     .unwrap();
     let (origin, origin_server) = start(root.clone(), true, true).await;
@@ -235,19 +241,43 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
     let flash = send(origin, "GET", "/flash", "", "").await;
     status(&flash, 204);
     assert!(!flash.contains("XSRF-TOKEN"));
-    let cookie = format!(
+    let cookie_headers = format!(
         "Cookie: csrf_session={}\r\n",
         cookie(&flash, "csrf_session").split(';').next().unwrap()
     );
     let (errors, isolated) = tokio::join!(
-        send(origin, "GET", "/errors", &cookie, ""),
-        send(other, "GET", "/errors", &cookie, ""),
+        send(origin, "GET", "/errors", &cookie_headers, ""),
+        send(other, "GET", "/errors", &cookie_headers, ""),
     );
     status(&errors, 200);
     status(&isolated, 200);
     assert!(errors.contains("Required"), "{errors}");
+    assert!(errors.ends_with(
+        r#"<input type="hidden" name="_method" value="PUT"><span>Required</span><em>&lt;different&gt;</em></form>"#
+    ));
     assert!(!isolated.contains("Required"), "{isolated}");
-    let aged = send(origin, "GET", "/errors", &cookie, "").await;
+    let token = |response: &str| {
+        response
+            .split_once(r#"name="_token" value=""#)
+            .unwrap()
+            .1
+            .split_once('"')
+            .unwrap()
+            .0
+            .to_owned()
+    };
+    assert_ne!(token(&errors), token(&isolated));
+    let isolated_cookie = cookie(&isolated, "csrf_session").split(';').next().unwrap();
+    let submitted = send(
+        other,
+        "POST",
+        "/update/42",
+        &format!("Cookie: csrf_session={isolated_cookie}\r\nContent-Type: application/x-www-form-urlencoded\r\n"),
+        &format!("_token={}&value=blade", token(&isolated)),
+    ).await;
+    status(&submitted, 200);
+    assert!(submitted.ends_with(r#"{"value":"blade"}"#));
+    let aged = send(origin, "GET", "/errors", &cookie_headers, "").await;
     assert!(!aged.contains("Required"));
     let denied = send(origin, "POST", "/update/42", "", "").await;
     status(&denied, 403);

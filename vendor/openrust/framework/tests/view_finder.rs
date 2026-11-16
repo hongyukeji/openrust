@@ -145,6 +145,11 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
         factory.render("welcome", &data),
         Err(ViewError::CompileFailed(_))
     ));
+    fs::write(&blade, "@csrf").unwrap();
+    assert!(matches!(
+        factory.render("welcome", &data),
+        Err(ViewError::RenderFailed(_))
+    ));
     compiler.clear().unwrap();
     assert!(!artifact.exists());
     fs::remove_file(&blade).unwrap();

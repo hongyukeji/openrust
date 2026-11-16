@@ -41,6 +41,9 @@ enum Node {
     Stack(Expression, Option<Expression>),
     StackCapture(Expression, Vec<Node>, bool),
     Once(OnceId, Vec<Node>),
+    Csrf,
+    Method(Expression),
+    Error(Expression, Option<Expression>, Vec<Node>),
     Include(Expression),
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
@@ -140,6 +143,7 @@ enum Stop {
     EndOnce,
     EndPushOnce,
     EndPrependOnce,
+    EndError,
     EndTag,
 }
 
@@ -404,6 +408,17 @@ impl<'a> Parser<'a> {
             self.capture_once(depth, false)?
         } else if self.directive("prependOnce") {
             self.capture_once(depth, true)?
+        } else if self.directive("csrf") {
+            Node::Csrf
+        } else if self.directive("method") {
+            Node::Method(expression_value(self.arguments()?)?)
+        } else if self.directive("error") {
+            let (field, bag) = self.named_argument()?;
+            let (body, stop) = self.block(depth + 1)?;
+            if stop != Some(Stop::EndError) {
+                return Err(invalid("Expected @enderror."));
+            }
+            Node::Error(field, bag, body)
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
@@ -575,6 +590,7 @@ impl<'a> Parser<'a> {
             ("endonce", Stop::EndOnce),
             ("endPushOnce", Stop::EndPushOnce),
             ("endPrependOnce", Stop::EndPrependOnce),
+            ("enderror", Stop::EndError),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -921,6 +937,37 @@ fn render_nodes<'a>(
                     render_nodes(nodes, data, bindings, output, context)?;
                 }
             }
+            Node::Csrf => {
+                let token = context.csrf_token.as_deref().ok_or_else(|| {
+                    render_error("The Blade CSRF field requires an active session.")
+                })?;
+                hidden_field(output, "_token", token);
+            }
+            Node::Method(expression) => {
+                hidden_field(
+                    output,
+                    "_method",
+                    name_value(value(expression, data, bindings))?,
+                );
+            }
+            Node::Error(field, bag, nodes) => {
+                let field = name_value(value(field, data, bindings))?;
+                let mut bag_name = "default";
+                if let Some(bag) = bag {
+                    bag_name = name_value(value(bag, data, bindings))?;
+                }
+                if let Some(message) = data
+                    .get("errors")
+                    .and_then(|errors| errors.get(bag_name))
+                    .and_then(|errors| errors.get(field))
+                    .map(|message| message.get(0).unwrap_or(message))
+                    .filter(|message| message.as_str().is_some_and(|text| !text.is_empty()))
+                {
+                    let mut local = bindings.to_vec();
+                    local.push(("message", message));
+                    render_nodes(nodes, data, &local, output, context)?;
+                }
+            }
             Node::Include(expression) | Node::IncludeIf(expression) => {
                 let name = name_value(value(expression, data, bindings))?;
                 if matches!(node, Node::Include(_)) || context.exists(name)? {
@@ -1017,6 +1064,12 @@ fn escape_html(output: &mut String, text: &str) {
             other => output.push(other),
         }
     }
+}
+
+fn hidden_field(output: &mut String, name: &str, value: &str) {
+    write!(output, "<input type=\"hidden\" name=\"{name}\" value=\"").unwrap();
+    escape_html(output, value);
+    output.push_str("\">");
 }
 
 fn invalid(message: &'static str) -> ViewError {

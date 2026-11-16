@@ -93,6 +93,21 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 @endsection
 ```
 
+## 表单 {#forms}
+
+在启用 Session 的 Web 路由中，`@csrf` 将当前会话令牌输出为隐藏的 `_token` 字段。`@error` 在有字段错误时渲染区块，并在块内用 `$message` 提供首条消息。第二个参数可指定命名错误包。
+
+```html
+<form method="post">
+    @csrf
+    @error('name')
+        <span>{{ $message }}</span>
+    @enderror
+</form>
+```
+
+`@method('PUT')` 输出隐藏的 `_method` 字段。OpenRust 路由目前根据客户端发送的 HTTP 方法匹配。
+
 ## 栈 {#stacks}
 
 用 `@push` 或 `@prepend` 收集渲染片段，再由布局通过 `@stack` 输出。`@hasStack` 可以根据栈是否有内容决定是否输出外围标记。
@@ -106,5 +121,9 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
     @stack('scripts')
 @endif
 ```
+
+## PHP 与 Rust 模板 {#php-and-rust-templates}
+
+PHP 函数调用或 `@php` 代码块需要的值，可以在 Rust 处理器、视图创建器或组合器中准备，再传给视图。PHP 类组件及其动态类发现对应 `Factory::component` 显式注册的 Rust `Component` 工厂。匿名组件从视图查找器解析。
 
 用 `@once` 在同一渲染树中只输出一次内容。`@pushOnce` 和 `@prependOnce` 也接受可跨模板共用的可选标识。

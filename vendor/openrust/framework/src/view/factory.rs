@@ -227,7 +227,17 @@ impl Factory {
     }
 
     pub fn renderView(&self, view: View) -> ViewResult<String> {
-        self.render_view(view, &mut RenderContext::new(Some(self)))
+        self.render_with_token(view, None)
+    }
+
+    pub(super) fn render_with_token(
+        &self,
+        view: View,
+        csrf_token: Option<Arc<str>>,
+    ) -> ViewResult<String> {
+        let mut context = RenderContext::new(Some(self));
+        context.csrf_token = csrf_token;
+        self.render_view(view, &mut context)
     }
 
     pub(super) fn render_nested(

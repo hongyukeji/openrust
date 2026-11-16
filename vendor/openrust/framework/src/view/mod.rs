@@ -4,7 +4,10 @@ use std::{borrow::Cow, future::Future, io, path::PathBuf, pin::Pin, sync::Arc};
 
 use ::http::{HeaderValue, header::CONTENT_TYPE};
 
-use crate::http::{Body, HttpError, HttpFuture, Request, Response, StatusCode};
+use crate::{
+    contracts::session::Session as _,
+    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+};
 
 pub mod compilers;
 mod component;
@@ -135,8 +138,15 @@ impl View {
                 })?;
             let context = crate::support::facades::context_snapshot();
             let errors = middleware::shared_errors();
+            let csrf_token = request
+                .session()
+                .ok()
+                .and_then(|session| session.token())
+                .map(Arc::from);
             let html = tokio::task::spawn_blocking(move || {
-                middleware::render_scope(errors, || context.run(|| factory.renderView(self)))
+                middleware::render_scope(errors, || {
+                    context.run(|| factory.render_with_token(self, csrf_token))
+                })
             })
             .await
             .map_err(|source| HttpError::Internal {
