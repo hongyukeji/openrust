@@ -125,6 +125,15 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 使用 `{{ $attributes }}` 输出属性包。`merge` 添加默认值，普通属性以调用方的值为准，`class` 和 `style` 合并默认值与调用方的文本。HTML 属性值会转义，null 和 false 会省略。
 
+### 读取父组件数据 {#component-parent-data}
+
+在子组件模板开头使用 `@aware`，可与 `@props` 一起声明。最近一层组件显式传入的值优先。父组件通过 `@props` 声明的默认值只用于该父组件。
+
+```html
+@aware(['color' => 'neutral'])
+<span>{{ $color }}</span>
+```
+
 ### 动态组件 {#dynamic-components}
 
 视图数据可以通过 `<x-dynamic-component>` 选择一个已注册的 Rust 组件或匿名组件。`component` 属性指定目标，其余属性和插槽传给目标组件。

@@ -125,6 +125,15 @@ Put `@props` at the start of the component template. The list can contain prop n
 
 Render `{{ $attributes }}` to emit the bag. `merge` adds defaults and preserves caller values for ordinary attributes. `class` and `style` combine their default and caller text. HTML attribute values are escaped. Null and false are omitted.
 
+### Accessing Parent Component Data {#component-parent-data}
+
+Declare `@aware` at the start of the child template, alongside `@props`. The nearest component's explicitly passed value wins. A default defined only by the parent's `@props` stays local to that parent.
+
+```html
+@aware(['color' => 'neutral'])
+<span>{{ $color }}</span>
+```
+
 ### Dynamic Components {#dynamic-components}
 
 Use `<x-dynamic-component>` when the view data selects a registered Rust component or an anonymous component. The `component` attribute selects the target. Other attributes and slots are passed to that component.

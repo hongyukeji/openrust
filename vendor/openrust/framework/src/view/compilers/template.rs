@@ -16,8 +16,8 @@ mod includes;
 mod loops;
 
 use attributes::{
-    AttributeList, AttributeOperation, Props, apply_props, attribute_list, attribute_name,
-    parse_attribute_list, parse_echo, parse_props, render_attributes,
+    AttributeList, AttributeOperation, Props, apply_aware, apply_props, attribute_list,
+    attribute_name, parse_attribute_list, parse_echo, parse_props, render_attributes,
 };
 
 use expressions::{Expression, expression_value, loose_equal, truthy, value};
@@ -27,7 +27,13 @@ use loops::{CountedLoop, Jump, JumpKind};
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
     nodes: Vec<Node>,
-    props: Option<Props>,
+    declarations: Vec<ComponentDeclaration>,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ComponentDeclaration {
+    Props(Props),
+    Aware(Props),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -126,25 +132,39 @@ impl Template {
         extensions: &BladeExtensions,
     ) -> ViewResult<Self> {
         let mut parser = Parser::new(source, identity, extensions);
-        let trimmed = source.trim_start();
-        let mut leading = Parser::new(trimmed, identity, extensions);
-        let props = if leading.directive("props") {
-            parser = leading;
-            Some(parse_props(parser.arguments()?)?)
-        } else {
-            None
-        };
+        let mut declarations = Vec::new();
+        let mut whitespace = String::new();
+        loop {
+            let original = parser.remaining;
+            let trimmed = original.trim_start();
+            parser.remaining = trimmed;
+            if parser.directive("props") {
+                declarations.push(ComponentDeclaration::Props(parse_props(
+                    parser.arguments()?,
+                )?));
+            } else if parser.directive("aware") {
+                declarations.push(ComponentDeclaration::Aware(parse_props(
+                    parser.arguments()?,
+                )?));
+            } else if trimmed.starts_with("{{--") {
+                parser.delimited(4, "--}}")?;
+            } else {
+                parser.remaining = original;
+                break;
+            }
+            whitespace.push_str(&original[..original.len() - trimmed.len()]);
+        }
         let (mut nodes, stop) = parser.block(0)?;
         if stop.is_some() {
             return Err(invalid("Unexpected closing Blade directive."));
         }
-        if props.is_some() && source.len() != trimmed.len() {
-            nodes.insert(
-                0,
-                Node::Text(source[..source.len() - trimmed.len()].to_owned()),
-            );
+        if !whitespace.is_empty() {
+            nodes.insert(0, Node::Text(whitespace));
         }
-        Ok(Self { nodes, props })
+        Ok(Self {
+            nodes,
+            declarations,
+        })
     }
 
     pub(super) fn render(
@@ -152,10 +172,15 @@ impl Template {
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        let data = match &self.props {
-            Some(props) => Cow::Owned(apply_props(data, props, context)),
-            None => Cow::Borrowed(data),
-        };
+        let mut data = Cow::Borrowed(data);
+        for declaration in &self.declarations {
+            match declaration {
+                ComponentDeclaration::Props(props) => {
+                    data = Cow::Owned(apply_props(&data, props, context))
+                }
+                ComponentDeclaration::Aware(aware) => apply_aware(data.to_mut(), aware, context),
+            }
+        }
         let mut output = String::new();
         if render_nodes(&self.nodes, &data, &[], &mut output, context)?.is_some() {
             return Err(render_error(
@@ -457,6 +482,8 @@ impl<'a> Parser<'a> {
     fn view_directive(&mut self, depth: usize) -> ViewResult<Option<Node>> {
         let node = if self.directive("props") {
             return Err(invalid("Place @props at the start of the Blade template."));
+        } else if self.directive("aware") {
+            return Err(invalid("Place @aware at the start of the Blade template."));
         } else if self.directive("parent") {
             Node::Parent
         } else if self.directive("extends") {
@@ -1410,41 +1437,53 @@ fn render_nodes<'a>(
                         .filter(|name| valid_component_name(name))
                         .ok_or_else(|| render_error("Invalid dynamic Blade component name."))?,
                 };
-                let properties = attributes
-                    .iter()
-                    .map(|(name, expression)| {
-                        (name.clone(), value(expression, data, bindings).clone())
-                    })
-                    .collect();
-                let mut default = String::new();
-                render_block!(body, data, bindings, &mut default, context);
-                let mut rendered = std::collections::HashMap::from([(
-                    "slot".to_owned(),
-                    RenderSlot {
-                        html: default.trim().to_owned(),
-                        attributes: ViewData::new(),
-                    },
-                )]);
-                for slot in slots {
-                    let name = slot_name(value(&slot.name, data, bindings))?;
-                    let attributes = slot
-                        .attributes
+                let properties = Arc::new(
+                    attributes
                         .iter()
                         .map(|(name, expression)| {
                             (name.clone(), value(expression, data, bindings).clone())
                         })
-                        .collect();
-                    let mut html = String::new();
-                    render_block!(&slot.body, data, bindings, &mut html, context);
-                    rendered.insert(
-                        name,
-                        RenderSlot {
-                            html: html.trim().to_owned(),
-                            attributes,
-                        },
-                    );
+                        .collect::<ViewData>(),
+                );
+                let mut rendered = std::collections::HashMap::new();
+                let jump = context.with_component_data(
+                    properties.clone(),
+                    |context| -> ViewResult<Option<Jump>> {
+                        let mut default = String::new();
+                        render_block!(body, data, bindings, &mut default, context);
+                        rendered.insert(
+                            "slot".to_owned(),
+                            RenderSlot {
+                                html: default.trim().to_owned(),
+                                attributes: ViewData::new(),
+                            },
+                        );
+                        for slot in slots {
+                            let name = slot_name(value(&slot.name, data, bindings))?;
+                            let attributes = slot
+                                .attributes
+                                .iter()
+                                .map(|(name, expression)| {
+                                    (name.clone(), value(expression, data, bindings).clone())
+                                })
+                                .collect();
+                            let mut html = String::new();
+                            render_block!(&slot.body, data, bindings, &mut html, context);
+                            rendered.insert(
+                                name,
+                                RenderSlot {
+                                    html: html.trim().to_owned(),
+                                    attributes,
+                                },
+                            );
+                        }
+                        Ok(None)
+                    },
+                )?;
+                if jump.is_some() {
+                    return Ok(jump);
                 }
-                output.push_str(&context.component(name, &properties, rendered)?);
+                output.push_str(&context.component(name, properties, rendered)?);
             }
             Node::Slot(_) => return Err(render_error("Blade named slots require a component.")),
         }

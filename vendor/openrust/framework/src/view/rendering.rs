@@ -21,6 +21,7 @@ pub(super) struct RenderContext<'a> {
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
+    component_data: Vec<Arc<ViewData>>,
     pub(super) csrf_token: Option<Arc<str>>,
     pub(super) extensions: Arc<BladeExtensions>,
     shared: Rc<RefCell<RenderState>>,
@@ -67,6 +68,7 @@ impl<'a> RenderContext<'a> {
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
             active_loop: None,
             component_attributes: None,
+            component_data: Vec::new(),
             csrf_token: None,
             extensions: Arc::default(),
             shared: Rc::default(),
@@ -159,6 +161,24 @@ impl<'a> RenderContext<'a> {
         }
     }
 
+    pub(super) fn consumable_property(&self, name: &str, alternate: &str) -> Option<&ViewValue> {
+        self.component_data
+            .iter()
+            .rev()
+            .find_map(|data| data.get(name).or_else(|| data.get(alternate)))
+    }
+
+    pub(super) fn with_component_data<T>(
+        &mut self,
+        properties: Arc<ViewData>,
+        render: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        self.component_data.push(properties);
+        let result = render(self);
+        self.component_data.pop();
+        result
+    }
+
     pub(super) fn has_stack(&self, name: &str) -> bool {
         self.shared.borrow().stacks.contains_key(name)
     }
@@ -228,13 +248,14 @@ impl<'a> RenderContext<'a> {
     pub(super) fn component(
         &self,
         name: &str,
-        properties: &ViewData,
+        properties: Arc<ViewData>,
         slots: HashMap<String, RenderSlot>,
     ) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
-        nested.component_attributes = Some(properties.clone());
-        factory.render_component(name, properties, &mut nested)
+        nested.component_attributes = Some((*properties).clone());
+        nested.component_data.push(properties.clone());
+        factory.render_component(name, &properties, &mut nested)
     }
 
     fn nested(&self) -> ViewResult<(&'a Factory, Self)> {
@@ -252,6 +273,7 @@ impl<'a> RenderContext<'a> {
                 parent_marker: self.parent_marker.clone(),
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
+                component_data: self.component_data.clone(),
                 csrf_token: self.csrf_token.clone(),
                 extensions: self.extensions.clone(),
                 shared: self.shared.clone(),

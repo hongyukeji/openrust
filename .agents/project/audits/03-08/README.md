@@ -76,3 +76,8 @@
 - 对照固定 [BladeCompiler 的 if / check](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/BladeCompiler.php)。Rust 用 `r#if` 登记应用级谓词，支持原始名称、`unless`、`else` 和 `end` 变体，并通过 `check` 提供同一谓词。缓存记录条件名与指令名，求值阶段调用本应用的 Rust 回调。旧版无对应 Blade 编译接口。
 - macOS ARM64、Rust 1.94.0。真实 HTTP 验证多分支、否定、嵌套、共用缓存时的谓词隔离、缺少结束指令返回 500。8 项定向测试、隔离副本全工作区格式与严格 Clippy 通过。
 - 隔离应用将三语共用 Rust 示例接入 Provider，实际 Artisan 生成含注册条件指令的三个编译产物并清理。三语构建和 12 项浏览器组合通过。
+
+## 组件数据继承
+
+- 对照固定 [ManagesComponents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesComponents.php) 和 `CompilesComponents::compileAware`。Rust 在组件体与插槽渲染阶段维护显式属性的作用域。模板开头的 `@aware` 保存声明顺序并读取最近一层值，父组件内部的 `@props` 默认值留在该模板。旧版无此 Blade 指令。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证默认和具名插槽内的继承、组件模板中的子组件、最近值、父默认值的作用域、回退和转义。隔离副本通过全工作区格式与严格 Clippy。实际 Artisan 缓存和清理三语示例，三语构建与 12 项浏览器组合通过。

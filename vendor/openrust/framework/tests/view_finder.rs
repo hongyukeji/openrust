@@ -463,6 +463,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/bad-condition", || view("bad_condition"))?;
                 Route::get("/switch", || view("switch_cases"))?;
                 Route::get("/bad-switch", || view("bad_switch"))?;
+                Route::get("/aware", || view("aware_page").with("color", "<blue>"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -777,6 +778,21 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("bad_switch", "@switch(0)@default x@default y@endswitch"),
+        (
+            "aware_page",
+            concat!(
+                "<x-frame :$color><x-tone/><x-tone color=\"near\"/>",
+                "<x-slot:details><x-tone/></x-slot></x-frame><x-frame/><x-tone/>",
+            ),
+        ),
+        (
+            "components/frame",
+            "@props(['color' => 'default'])<b>{{ $color }}</b>{{ $slot }}{{ $details }}<x-tone/>",
+        ),
+        (
+            "components/tone",
+            "{{-- component preamble --}}@props(['shape' => 'circle'])@aware(['color' => 'fallback'])<i>{{ $color }}:{{ $shape }}</i>",
+        ),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -926,6 +942,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "twothree| good1|truefalse|Ready/no sidebar"
     );
     assert!(send(first, "/bad-switch", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/aware", 200).await,
+        concat!(
+            "<b>&lt;blue&gt;</b><i>&lt;blue&gt;:circle</i><i>near:circle</i>",
+            "<i>&lt;blue&gt;:circle</i><i>&lt;blue&gt;:circle</i>",
+            "<b>default</b><i>fallback:circle</i><i>fallback:circle</i>",
+        )
+    );
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

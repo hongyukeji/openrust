@@ -203,6 +203,22 @@ pub(super) fn apply_props(
     data
 }
 
+pub(super) fn apply_aware(data: &mut ViewData, props: &Props, context: &RenderContext<'_>) {
+    for (name, default) in props {
+        let alternate = Str::kebab(name);
+        let value = context
+            .consumable_property(name, &alternate)
+            .cloned()
+            .or_else(|| {
+                default
+                    .as_ref()
+                    .map(|default| value(default, data, &[]).clone())
+            })
+            .unwrap_or(ViewValue::Null);
+        data.insert(name.clone(), value);
+    }
+}
+
 impl AttributeOperation {
     pub(super) fn render(
         &self,

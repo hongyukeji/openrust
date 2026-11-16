@@ -15,7 +15,7 @@
 | Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引、动态组件及既有视图命名空间的组件查找。 | PHP 类自动发现由 Rust 工厂替代。额外匿名组件路径和包发布接线。 |
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态、绑定与简写属性、双冒号客户端绑定、`@props` 默认值、属性包的 `merge`、`class`、`style`、`only`、`except`。 | 更多筛选与方法链、保留名称和任意类型对象。依赖通过 Rust 工厂显式装配。 |
 | Slots、Inline Component Views | 默认和具名插槽、绑定插槽名、插槽属性包和 Rust 内联组件视图。 | 作用域插槽、生成器及组件本地回调方法。 |
-| Anonymous Components、Accessing Parent Data | 匿名组件及默认数据属性。 | `@aware`、额外匿名组件路径和命名空间。 |
+| Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware` 读取最近组件的显式值。 | 额外匿名组件路径和命名空间注册入口。 |
 | Building Layouts | 组件布局、继承、区段、`@parent`、`@yield`。 | 区段追加和覆盖变体、扩展布局数据等。 |
 | Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段。 | `_method` 到请求方法的应用装配仍待路由接线。 |
 | Stacks | `@push`、`@prepend`、`@stack`、`@hasStack` 与单次形式。 | 上游其他或组合用法按单元复验。 |
