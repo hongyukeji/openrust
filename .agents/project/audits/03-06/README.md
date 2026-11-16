@@ -125,3 +125,14 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离基线 `c83d3a00e`，Rust 1.94.0、macOS arm64。实际 Artisan 验证主命令、别名帮助、重复保护及原文件逐字节保留，通用 `make:migration` 回归通过。隔离副本移走自带迁移后用实际二进制生成并重建，在 MySQL 8.4.13 上运行 `migrate` 和 `migrate:status`。核对列类型、两张表的主键及过期索引。应用的 `cache:forget` 与 `cache:clear database --locks` 操作生成的表，随后 `migrate:rollback` 删除两张表并保留 `users`。
 - 命令列表与别名、`artisan inspire`、变更文件及模板格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
 - 临时 MySQL 和 3.5 GiB 本批隔离 Cargo 产物及本批文档缓存已回收，项目盘可用 57.64 GB（53.68 GiB），周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-cache-migration.LFPORtAt`。
+
+## 缓存锁回调
+
+- 对照固定 Laravel [Lock::get 和 Lock::block](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Lock.php#L85)及[管理锁](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#managing-locks)。openrust-v0.x 未发现对应的回调持锁实现，复用当前驱动的获取、等待及所有者校验释放。
+- Rust 以 `getWith`、`blockWith` 接受异步闭包，手动获取接口继续接受原有参数。回调方法接管锁句柄，只有成功获取才调用闭包。`getWith` 在竞争失败时返回 `None`，`blockWith` 在等待超时时返回 `LockTimeout`。按固定 Laravel 的 finally 行为，回调正常或出错都释放，释放错误优先。已更换所有者时，原句柄无法释放新锁。
+- 普通执行在调用者任务内完成。取消时若获取请求仍在进行，Tokio 继续等待结果，确认获得所有权后才释放。取消回调或 panic 展开时同样调度所有者校验释放。运行时或进程退出且无法完成清理时由租期回收。
+- 隔离基线 `b76f86d89`，Rust 1.94.0、macOS arm64。固定 Laravel PHP 比较通过返回值、竞争、超时、回调失败及释放错误优先。MySQL 8.4.13、Redis 8.10.3 两项专项验证覆盖等待、回调成功与出错、租约所有者更换、panic、回调取消、获取响应尚未返回时的取消和释放错误优先；相关缓存、事件和 memo 回归通过。DynamoDB、Memcached、双 Redis 与 S3 专用夹具沿用此前验收。
+- 实际二进制通过 MySQL、Redis 两套 HTTP 回调。成功写入后可读，失败返回 500，下一请求可立即持锁读回。另一个进程执行 `artisan cache:forget` 后再次请求未命中。`artisan inspire` 和三语示例编译通过。
+- 变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
+- 核对完整原子锁章节后，将 `Lock::isLocked`、`Lock::isOwnedBy`、`Lock::isOwnedByCurrentProcess`、`Lock::betweenBlockedAttemptsSleepFor` 和 [Cache::funnel](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#concurrency-limiting) 列为 03-06 剩余缺口。
+- 临时 MySQL 与 Redis 容器已回收，清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.61 GB（53.65 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-lock-callback.qGNd35ta`。

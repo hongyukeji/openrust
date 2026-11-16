@@ -1,4 +1,11 @@
-use std::{fmt::Write as _, time::Duration};
+use std::{
+    fmt::Write as _,
+    future::{Future, poll_fn},
+    task::Poll,
+    time::Duration,
+};
+
+use tokio::runtime::Handle;
 
 use crate::contracts::cache::Lock as LockContract;
 
@@ -6,6 +13,136 @@ use super::{
     CacheError, CacheFuture, CacheResult, Value, backend,
     engine::{Change, Engine, Record, expires},
 };
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's callback-based lock operations"
+)]
+impl dyn LockContract {
+    /// Attempts once, returning `None` if another owner is holding the lock.
+    pub async fn getWith<T, F>(
+        self: Box<Self>,
+        callback: impl FnOnce() -> F,
+    ) -> CacheResult<Option<T>>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        let Some(lock) = acquire_scoped(self, None).await? else {
+            return Ok(None);
+        };
+        run_locked(lock, callback).await.map(Some)
+    }
+
+    /// Waits for a lock, then runs the callback and releases its ownership.
+    pub async fn blockWith<T, F>(
+        self: Box<Self>,
+        wait: Duration,
+        callback: impl FnOnce() -> F,
+    ) -> CacheResult<T>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        let lock = acquire_scoped(self, Some(wait))
+            .await?
+            .expect("a blocking acquisition cannot return a miss");
+        run_locked(lock, callback).await
+    }
+}
+
+async fn run_locked<T, F>(lock: ScopedLock, callback: impl FnOnce() -> F) -> CacheResult<T>
+where
+    F: Future<Output = CacheResult<T>>,
+{
+    let result = callback().await;
+    lock.release().await?;
+    result
+}
+
+async fn acquire_scoped(
+    mut lock: Box<dyn LockContract>,
+    wait: Option<Duration>,
+) -> CacheResult<Option<ScopedLock>> {
+    let runtime = Handle::try_current().ok();
+    let release_runtime = runtime.clone();
+    let acquire = async move {
+        let acquired = match wait {
+            Some(wait) => {
+                lock.block(wait).await?;
+                true
+            }
+            None => lock.get().await?,
+        };
+        if acquired {
+            Ok(Some(ScopedLock {
+                lock: Some(lock),
+                runtime: release_runtime,
+            }))
+        } else {
+            Ok(None)
+        }
+    };
+    let mut pending = PendingAcquisition {
+        future: Some(Box::pin(acquire)),
+        runtime,
+    };
+    poll_fn(|context| {
+        let mut future = pending.future.take().expect("pending acquisition");
+        match future.as_mut().poll(context) {
+            Poll::Ready(result) => Poll::Ready(result),
+            Poll::Pending => {
+                pending.future = Some(future);
+                Poll::Pending
+            }
+        }
+    })
+    .await
+}
+
+struct PendingAcquisition {
+    future: Option<CacheFuture<'static, CacheResult<Option<ScopedLock>>>>,
+    runtime: Option<Handle>,
+}
+
+impl Drop for PendingAcquisition {
+    fn drop(&mut self) {
+        if let Some(future) = self.future.take()
+            && let Some(runtime) = &self.runtime
+        {
+            // The backend may already have granted the lock. Complete the acquisition
+            // before releasing, so a contended attempt cannot release unowned state.
+            runtime.spawn(async move {
+                if let Ok(Some(lock)) = future.await {
+                    let _ = lock.release().await;
+                }
+            });
+        }
+    }
+}
+
+struct ScopedLock {
+    lock: Option<Box<dyn LockContract>>,
+    runtime: Option<Handle>,
+}
+
+impl ScopedLock {
+    async fn release(mut self) -> CacheResult<()> {
+        let result = self.lock.as_mut().expect("acquired lock").release().await;
+        self.lock = None;
+        result.map(|_| ())
+    }
+}
+
+impl Drop for ScopedLock {
+    fn drop(&mut self) {
+        if let Some(mut lock) = self.lock.take()
+            && let Some(runtime) = &self.runtime
+        {
+            runtime.spawn(async move {
+                let _ = lock.release().await;
+            });
+        }
+    }
+}
 
 /// Coordinates acquisition and ownership for an atomic cache lock.
 pub struct Lock {

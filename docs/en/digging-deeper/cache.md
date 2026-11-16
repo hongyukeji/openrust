@@ -119,6 +119,10 @@ Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to 
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.
 
+### Run a callback while holding a lock {#lock-callbacks}
+
+Use `getWith` to try once or `blockWith` to wait. Both take ownership of the handle and release its lock after the callback returns, including an error result. `getWith` returns `None` on contention. `blockWith` returns `CacheError::LockTimeout` on timeout. Neither invokes the callback when acquisition fails.
+
 ```rust
 use std::time::Duration;
 
@@ -127,19 +131,16 @@ use openrust::{
     support::facades::Cache,
 };
 
-pub async fn cache_report() -> CacheResult<bool> {
-    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?;
-    if !lock.get().await? {
-        return Ok(false);
-    }
-
-    let written = Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await;
-    let released = lock.release().await;
-    let written = written?;
-    released?;
-    Ok(written)
+pub async fn cache_report() -> CacheResult<Option<bool>> {
+    Cache::lock("report", Some(Duration::from_secs(10)))?
+        .getWith(|| async {
+            Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await
+        })
+        .await
 }
 ```
+
+Tokio schedules cleanup if the future is cancelled or the callback panics. A finite lease still lets the lock expire when runtime shutdown prevents cleanup.
 
 ### Clearing cache locks {#clearing-cache-locks}
 

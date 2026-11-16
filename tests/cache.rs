@@ -1806,3 +1806,227 @@ async fn dynamodb_cache_retries_partial_batches_and_reports_exhaustion() {
         Err(CacheError::Backend { .. }),
     ));
 }
+
+async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
+    use openrust::{
+        cache::{CacheFuture, CacheResult},
+        contracts::cache::Lock,
+    };
+    use tokio::sync::oneshot;
+
+    let lease = Some(Duration::from_secs(30));
+    let wait = Duration::from_secs(3);
+    let key = "held-during-callback";
+    let result = first
+        .lock(key, lease, None)
+        .unwrap()
+        .getWith(|| async {
+            let mut contender = second.lock(key, lease, None)?;
+            assert!(!contender.get().await?);
+            Ok("value")
+        })
+        .await
+        .unwrap();
+    assert_eq!(result, Some("value"));
+
+    let mut contender = second.lock(key, lease, None).unwrap();
+    assert!(contender.get().await.unwrap());
+    let mut called = false;
+    let missed = first
+        .lock(key, lease, None)
+        .unwrap()
+        .getWith(|| async {
+            called = true;
+            Ok("unexpected")
+        })
+        .await
+        .unwrap();
+    assert_eq!(missed, None);
+    assert!(!called);
+
+    let timeout = first
+        .lock(key, lease, None)
+        .unwrap()
+        .blockWith(Duration::from_millis(30), || async {
+            called = true;
+            Ok(())
+        })
+        .await;
+    assert!(matches!(timeout, Err(CacheError::LockTimeout)));
+    assert!(!called);
+    assert!(contender.release().await.unwrap());
+
+    let failed = first
+        .lock(key, lease, None)
+        .unwrap()
+        .blockWith(wait, || async { Err::<(), _>(CacheError::InvalidValue) })
+        .await;
+    assert!(matches!(failed, Err(CacheError::InvalidValue)));
+    assert!(contender.get().await.unwrap());
+    assert!(contender.release().await.unwrap());
+    assert_eq!(
+        first
+            .lock(key, lease, None)
+            .unwrap()
+            .blockWith(wait, || async { Ok(42) })
+            .await
+            .unwrap(),
+        42
+    );
+
+    let owned = first.lock(key, lease, None).unwrap();
+    let owner = owned.owner().to_owned();
+    let result = owned
+        .getWith(|| async {
+            assert!(second.restore_lock(key, &owner)?.release().await?);
+            assert!(contender.get().await?);
+            Ok("new owner")
+        })
+        .await
+        .unwrap();
+    assert_eq!(result, Some("new owner"));
+    assert!(contender.release().await.unwrap());
+
+    let (started, running) = oneshot::channel();
+    let lock = first.lock(key, lease, None).unwrap();
+    let task = tokio::spawn(async move {
+        lock.getWith(|| async move {
+            started.send(()).unwrap();
+            std::future::pending::<CacheResult<()>>().await
+        })
+        .await
+    });
+    running.await.unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    contender.block(wait).await.unwrap();
+    assert!(contender.release().await.unwrap());
+
+    let lock = first.lock(key, lease, None).unwrap();
+    let panicking = tokio::spawn(async move {
+        lock.getWith(|| async {
+            assert!(std::hint::black_box(false), "callback panic");
+            Ok(())
+        })
+        .await
+    });
+    assert!(panicking.await.unwrap_err().is_panic());
+    contender.block(wait).await.unwrap();
+    assert!(contender.release().await.unwrap());
+
+    struct TestLock {
+        lock: Box<dyn Lock>,
+        acquired: Option<oneshot::Sender<()>>,
+        response: Option<oneshot::Receiver<()>>,
+        release_error: bool,
+    }
+
+    impl Lock for TestLock {
+        fn get(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
+            Box::pin(async move {
+                let acquired = self.lock.get().await?;
+                if let Some(signal) = self.acquired.take() {
+                    signal.send(()).unwrap();
+                    self.response.take().unwrap().await.unwrap();
+                }
+                Ok(acquired)
+            })
+        }
+
+        fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
+            self.lock.block(wait)
+        }
+
+        fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
+            Box::pin(async move {
+                let released = self.lock.release().await?;
+                if self.release_error {
+                    return Err(CacheError::InvalidOwner);
+                }
+                Ok(released)
+            })
+        }
+
+        fn refresh(&mut self, lease: Option<Duration>) -> CacheFuture<'_, CacheResult<bool>> {
+            self.lock.refresh(lease)
+        }
+
+        fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>> {
+            self.lock.force_release()
+        }
+
+        fn owner(&self) -> &str {
+            self.lock.owner()
+        }
+    }
+
+    let (acquired, ready) = oneshot::channel();
+    let (confirm, response) = oneshot::channel();
+    let lock: Box<dyn Lock> = Box::new(TestLock {
+        lock: first.lock(key, lease, None).unwrap(),
+        acquired: Some(acquired),
+        response: Some(response),
+        release_error: false,
+    });
+    let task = tokio::spawn(async move {
+        lock.getWith(|| async {
+            assert!(std::hint::black_box(false), "cancelled callback ran");
+            Ok(())
+        })
+        .await
+    });
+    ready.await.unwrap();
+    assert!(!contender.get().await.unwrap());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    confirm.send(()).unwrap();
+    contender.block(wait).await.unwrap();
+    assert!(contender.release().await.unwrap());
+
+    let lock: Box<dyn Lock> = Box::new(TestLock {
+        lock: first.lock(key, lease, None).unwrap(),
+        acquired: None,
+        response: None,
+        release_error: true,
+    });
+    let result = lock
+        .getWith(|| async { Err::<(), _>(CacheError::InvalidValue) })
+        .await;
+    assert!(matches!(result, Err(CacheError::InvalidOwner)));
+    assert!(contender.get().await.unwrap());
+    assert!(contender.release().await.unwrap());
+}
+
+#[tokio::test]
+async fn scoped_lock_callbacks_release_database_ownership() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") else {
+        assert!(std::env::var_os("CACHE_CALLBACK_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "mysql-callbacks",
+        &format!(
+            "CACHE_STORE=database\nCACHE_PREFIX=callbacks:\nDB_CONNECTION=mysql\nDB_URL={url}\n"
+        ),
+    );
+    root.success(&["migrate"]);
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    verify_lock_callbacks(&first, &second).await;
+    root.success(&["migrate:reset"]);
+}
+
+#[tokio::test]
+async fn scoped_lock_callbacks_release_redis_ownership() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") else {
+        assert!(std::env::var_os("CACHE_CALLBACK_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "redis-callbacks",
+        &format!("CACHE_STORE=redis\nCACHE_PREFIX=callbacks:\nREDIS_URL={url}\n"),
+    );
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    verify_lock_callbacks(&first, &second).await;
+}

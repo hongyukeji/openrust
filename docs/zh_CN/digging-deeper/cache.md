@@ -119,6 +119,10 @@ async fn store_report() -> Result<bool, CacheError> {
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。
 
+### 持锁执行回调 {#lock-callbacks}
+
+用 `getWith` 尝试一次，或用 `blockWith` 等待。两者接管锁句柄，在回调返回时释放锁，包括回调出错的情况。锁被占用时，`getWith` 返回 `None`。等待超时则由 `blockWith` 返回 `CacheError::LockTimeout`。获取失败时均不会调用回调。
+
 ```rust
 use std::time::Duration;
 
@@ -127,19 +131,16 @@ use openrust::{
     support::facades::Cache,
 };
 
-pub async fn cache_report() -> CacheResult<bool> {
-    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?;
-    if !lock.get().await? {
-        return Ok(false);
-    }
-
-    let written = Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await;
-    let released = lock.release().await;
-    let written = written?;
-    released?;
-    Ok(written)
+pub async fn cache_report() -> CacheResult<Option<bool>> {
+    Cache::lock("report", Some(Duration::from_secs(10)))?
+        .getWith(|| async {
+            Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await
+        })
+        .await
 }
 ```
+
+Future 被取消或回调 panic 时，Tokio 会调度清理。运行时退出导致清理无法执行时，有限租期允许锁到期。
 
 ### 清除缓存锁 {#clearing-cache-locks}
 
