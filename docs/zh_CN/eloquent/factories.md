@@ -2,7 +2,7 @@
 
 ## 定义模型工厂
 
-用 `Factory::new` 定义模型的默认属性。若希望通过 `Flight::factory()` 调用，在模型上实现 `HasFactory`。运行下方命令在 `database/factories` 生成文件，再声明 Rust 模块并填写属性定义。
+用 `Factory::new` 定义模型的默认属性。若希望通过 `Flight::factory()` 调用，在模型上实现 `HasFactory`。运行下方命令在 `database/factories` 生成文件，填写属性定义后重新构建。
 
 应用入口及数据库连接选择见 [Seeder 中使用模型工厂](../database/seeding.md#using-model-factories)。
 
@@ -12,7 +12,7 @@
 
 ### 模型与工厂绑定 {#factory-model-binding}
 
-生成的工厂实现 `FactoryDefinition`，通过关联类型 `Model` 在编译期绑定模型。在 `database/factories/mod.rs` 声明生成模块，并在 `database/mod.rs` 声明 `factories`。在模型上实现 `HasFactory`，把 `Flight::factory()` 委托给选定工厂。也可直接使用 `FlightFactory::factory()`。每次创建工厂时先运行 `configure`，调用处追加的状态可以覆盖其默认值。
+生成的工厂实现 `FactoryDefinition`，通过关联类型 `Model` 在编译期绑定模型。`build.rs` 为 `database/factories/` 和子目录中的 Rust 工厂文件生成模块声明。子目录对应嵌套模块，例如用 `Fleet/FlightFactory` 生成的工厂可通过 `crate::database::factories::fleet::flight_factory::FlightFactory` 访问。在模型上实现 `HasFactory`，把 `Flight::factory()` 委托给选定工厂。也可直接使用 `FlightFactory::factory()`。每次创建工厂时先运行 `configure`，调用处追加的状态可以覆盖其默认值。
 
 ```rust
 use openrust::database::eloquent::{

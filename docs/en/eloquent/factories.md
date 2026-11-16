@@ -2,7 +2,7 @@
 
 ## Defining Model Factories
 
-Use `Factory::new` to define the model’s default attributes. Implement `HasFactory` on the model if you want to call `Flight::factory()`. Generate a factory under `database/factories` with the command below, then declare its Rust module and supply the definition.
+Use `Factory::new` to define the model’s default attributes. Implement `HasFactory` on the model if you want to call `Flight::factory()`. Generate a factory under `database/factories` with the command below, then supply the definition and rebuild.
 
 See [Using Model Factories in Seeders](../database/seeding.md#using-model-factories) for the application entry point and selected database connection.
 
@@ -12,7 +12,7 @@ See [Using Model Factories in Seeders](../database/seeding.md#using-model-factor
 
 ### Binding a Model to Its Factory {#factory-model-binding}
 
-The generated factory implements `FactoryDefinition`. Its associated `Model` binds the factory to a model at compile time. Declare the factory in `database/factories/mod.rs` and declare `factories` in `database/mod.rs`. Implement `HasFactory` on the model to delegate `Flight::factory()` to the chosen factory. You can also call `FlightFactory::factory()` directly. The `configure` hook runs on each fresh builder before call-site states, which can override its defaults.
+The generated factory implements `FactoryDefinition`. Its associated `Model` binds the factory to a model at compile time. `build.rs` generates module declarations for Rust factory files in `database/factories/` and its subdirectories. Subdirectories form nested modules, so a factory generated as `Fleet/FlightFactory` is available as `crate::database::factories::fleet::flight_factory::FlightFactory`. Implement `HasFactory` on the model to delegate `Flight::factory()` to the chosen factory. You can also call `FlightFactory::factory()` directly. The `configure` hook runs on each fresh builder before call-site states, which can override its defaults.
 
 ```rust
 use openrust::database::eloquent::{

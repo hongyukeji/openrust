@@ -5,17 +5,23 @@ use std::{
     path::{Path, PathBuf},
 };
 
+const FACTORIES: &str = "database/factories";
 const MIGRATIONS: &str = "database/migrations";
 const SEEDERS: &str = "database/seeders";
 const SANCTUM_MIGRATION: &str = "0001_01_01_000012_create_personal_access_tokens_table";
 
 fn main() -> io::Result<()> {
+    println!("cargo:rerun-if-changed={FACTORIES}");
     println!("cargo:rerun-if-changed={MIGRATIONS}");
     println!("cargo:rerun-if-changed={SEEDERS}");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory"));
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo build output directory"));
     generate_migrations(&root, &output)?;
-    generate_seeders(&root, &output)
+    generate_seeders(&root, &output)?;
+    fs::write(
+        output.join("factories.rs"),
+        factory_modules(&root.join(FACTORIES), 0)?,
+    )
 }
 
 fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {
@@ -101,6 +107,40 @@ fn collect_seeders(directory: &Path, files: &mut Vec<PathBuf>) -> io::Result<()>
         }
     }
     Ok(())
+}
+
+fn factory_modules(directory: &Path, depth: usize) -> io::Result<String> {
+    let mut modules = String::new();
+    let indent = "    ".repeat(depth);
+    for file in sorted_entries(directory)? {
+        let path = file.path();
+        let kind = file.file_type()?;
+        let name = file.file_name();
+        let name = Path::new(&name);
+        if kind.is_dir() {
+            let children = factory_modules(&path, depth + 1)?;
+            if !children.is_empty() {
+                let module = source_path(name)?;
+                writeln!(
+                    modules,
+                    "{indent}pub(crate) mod r#{module} {{\n{children}{indent}}}"
+                )
+                .unwrap();
+            }
+        } else if kind.is_file()
+            && name.extension().is_some_and(|ext| ext == "rs")
+            && name != Path::new("mod.rs")
+        {
+            let module = source_path(Path::new(name.file_stem().expect("Rust file stem")))?;
+            let source = source_path(&path)?;
+            writeln!(
+                modules,
+                "{indent}#[path = {source:?}]\n{indent}pub(crate) mod r#{module};"
+            )
+            .unwrap();
+        }
+    }
+    Ok(modules)
 }
 
 fn sorted_entries(directory: &Path) -> io::Result<Vec<fs::DirEntry>> {

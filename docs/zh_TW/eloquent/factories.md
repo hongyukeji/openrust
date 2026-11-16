@@ -2,7 +2,7 @@
 
 ## 定義模型工廠
 
-用 `Factory::new` 定義模型的預設屬性。若希望透過 `Flight::factory()` 呼叫，在模型上實作 `HasFactory`。執行下方指令在 `database/factories` 產生檔案，再宣告 Rust 模組並填寫屬性定義。
+用 `Factory::new` 定義模型的預設屬性。若希望透過 `Flight::factory()` 呼叫，在模型上實作 `HasFactory`。執行下方指令在 `database/factories` 產生檔案，填寫屬性定義後重新建置。
 
 應用程式入口與資料庫連線選擇請見 [在 Seeder 中使用模型工廠](../database/seeding.md#using-model-factories)。
 
@@ -12,7 +12,7 @@
 
 ### 模型與工廠繫結 {#factory-model-binding}
 
-產生的工廠實作 `FactoryDefinition`，透過關聯型別 `Model` 在編譯期繫結模型。在 `database/factories/mod.rs` 宣告產生的模組，並在 `database/mod.rs` 宣告 `factories`。在模型上實作 `HasFactory`，將 `Flight::factory()` 委派給選定的工廠。也可直接使用 `FlightFactory::factory()`。每次建立工廠時先執行 `configure`，呼叫端追加的狀態可以覆寫其預設值。
+產生的工廠實作 `FactoryDefinition`，透過關聯型別 `Model` 在編譯期繫結模型。`build.rs` 為 `database/factories/` 與子目錄中的 Rust 工廠檔案產生模組宣告。子目錄對應巢狀模組，例如以 `Fleet/FlightFactory` 產生的工廠可透過 `crate::database::factories::fleet::flight_factory::FlightFactory` 存取。在模型上實作 `HasFactory`，將 `Flight::factory()` 委派給選定的工廠。也可直接使用 `FlightFactory::factory()`。每次建立工廠時先執行 `configure`，呼叫端追加的狀態可以覆寫其預設值。
 
 ```rust
 use openrust::database::eloquent::{

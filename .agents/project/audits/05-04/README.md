@@ -1972,3 +1972,11 @@ PHP 8.5 实跑固定地区提供器及 Core DateTime，验证纪元日的四个�
 Rust 使用关联类型、模块和扩展 trait 表达工厂绑定与扩展，Seeder 显式通过上下文访问连接与应用。异步 `lazy` 在 Future 开始轮询时执行，日期返回值和格式化器集合按三语正文的 Rust 类型传递。Faker 的自定义提供器和默认扩展以注册后的 Rust 回调调用，固定上游目录复验与各地区已记录的语言适配保留在前述验收节。
 
 Rust 1.94.0 格式与全工作区全目标严格 Clippy、生成器回归和 `./artisan inspire` 通过。既有 Sanctum 格式差异只在隔离副本调整，临时 Seeder 已恢复，测试 MySQL 容器已回收。清理隔离 Cargo 产物 2.8 GiB 及独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。按计划完成 05-04，下一阶段复核 05-06 的 05-02 关系依赖。
+
+## 工厂模块自动声明复验
+
+根应用的 `build.rs` 在构建时为 `database/factories/` 的 Rust 工厂文件生成模块声明。子目录对应嵌套模块，业务代码可以通过模块路径访问对应工厂。默认工厂仍由模型的 `HasFactory` 实现选择，生成器保持 `FactoryDefinition::Model` 的类型绑定。
+
+隔离副本在 MySQL 8.4.13 上运行实际 Artisan。用 `make:factory ProbeFactory --model=User` 和 `make:factory Fleet/NestedProbeFactory --model=User` 生成根目录和子目录工厂，重建时未编辑模块声明。实际 `db:seed --class=FactoryModuleProbe` 通过两条模块路径调用新工厂，确认返回 `Factory<User>` 并构造模型。无参数 `db:seed` 通过既有 `User::factory()` 写入已验证的默认示例用户。移除探针工厂并重建后，生成模块声明同步更新。
+
+Rust 1.94.0 严格 Clippy、改动文件格式、VitePress 构建和 12 项浏览器检查通过。未调用的临时工厂脚手架产生常规的未使用警告。全仓格式检查仍检出既有 Sanctum 测试格式差异。
