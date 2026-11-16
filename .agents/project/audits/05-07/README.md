@@ -47,3 +47,9 @@
 - 对照固定 Laravel 的延迟属性、关系标识和点分包含。Rust 通过 `lazyAttributes` 登记属性闭包并先筛选字段；`toRelationships` 登记单值及多值关联闭包，只解析请求中的路径。复用当前 HTTP 序列化与 Eloquent 已加载关系。支持 `data: null`、数组标识和顶层 `included`，按类型与标识去重。稀疏字段可以省略关系连接，显式包含的资源仍可输出。 [固定 Laravel 元素解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/Concerns/ResolvesJsonApiElements.php) · [JSON:API 规范](https://jsonapi.org/format/1.1/)
 - SQLite／MySQL 8.4.13 实际 HTTP 验证闭包跳过及失败、嵌套 include、空单值、稀疏字段和跨集合去重、主数据重复排除及路径超限 400。11 项 HTTP、分页与模型回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行与 15 项浏览器检查通过。既有 Sanctum 格式只在隔离副本处理。
 - 当前应用显式预加载关联。后续接入按请求自动批量补载、应用级 JSON:API 元数据、关系深度配置与 Artisan 生成器。
+
+## JSON:API 关联自动批量加载
+
+- 对照固定 Laravel 在单资源及集合序列化前的 `loadMissing`。Rust 资源用 `includePath` 将请求路径明确映射到 `Model::namedRelations`，并通过 `modelMut` 提供模型。路由在序列化前异步补载，普通集合和三类分页器共享同一批 Eloquent 加载。手动响应使用 `toResponseAsync`。现有关系继续复用，加载失败时保留原模型。 [固定 Laravel 关系解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/Concerns/ResolvesJsonApiElements.php) · [固定 Laravel 集合批量加载](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/AnonymousResourceCollection.php)
+- SQLite／MySQL 8.4.13 实际 HTTP 验证无 include、未知路径、点分别名、分页批量补载及已加载关系。MySQL 同连接计数为无 include 1 次 SELECT、未知路径 1 次、嵌套单资源 3 次、预加载同路径 3 次、两条主记录分页 4 次（含计数和主查询）。17 项资源、模型 HTTP、分页与关系回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行和 15 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本处理。
+- 后续接入应用级 JSON:API 文档元数据、关系深度和请求控制，再验收 Artisan 生成器。

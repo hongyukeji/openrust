@@ -3,8 +3,11 @@ use std::any::type_name;
 use serde_json::{Map, Value};
 
 use crate::{
-    database::{Value as AttributeValue, eloquent::Model},
-    http::{HttpError, Request, StatusCode},
+    database::{
+        Value as AttributeValue,
+        eloquent::{Collection, Model},
+    },
+    http::{HttpError, HttpFuture, Request, StatusCode},
     support::Str,
 };
 
@@ -16,10 +19,20 @@ use super::{JsonApiAttributes, JsonApiRelationships, add_included};
     non_snake_case,
     reason = "Matches Laravel's JSON:API resource contract"
 )]
-pub trait JsonApiResource: Sized {
+pub trait JsonApiResource: Sized + Send {
     type Model: Model;
 
     fn model(&self) -> &Self::Model;
+
+    /// Provides mutable access for automatic loading of registered include paths.
+    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+        None
+    }
+
+    /// Maps an allowed request path to a registered Eloquent relationship path.
+    fn includePath(_path: &str) -> Option<&'static str> {
+        None
+    }
 
     fn toId(&self, _request: &Request) -> Option<String> {
         None
@@ -90,6 +103,54 @@ pub trait JsonApiResource: Sized {
 
 impl<R: JsonApiResource> JsonResource for R {
     const JSON_API: bool = true;
+
+    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        Self::prepareCollection(std::slice::from_mut(self), request)
+    }
+
+    fn prepareCollection<'a>(
+        resources: &'a mut [Self],
+        request: &Request,
+    ) -> Option<HttpFuture<'a, ResourceResult<()>>> {
+        let paths = match includes(request) {
+            Ok(paths) => paths,
+            Err(error) => return Some(Box::pin(async move { Err(error) })),
+        };
+        let paths: Vec<_> = paths
+            .iter()
+            .filter_map(|path| R::includePath(path))
+            .collect();
+        if resources.is_empty() || paths.is_empty() {
+            return None;
+        }
+        Some(Box::pin(async move {
+            let originals = resources
+                .iter_mut()
+                .map(|resource| {
+                    resource.modelMut().ok_or_else(|| HttpError::Internal {
+                        source: std::io::Error::other("JSON:API include loading requires modelMut")
+                            .into(),
+                    })
+                })
+                .collect::<ResourceResult<Vec<_>>>()?;
+            let mut models = Collection::new(
+                originals
+                    .iter()
+                    .map(|model| R::Model::from_state(model.state().clone()))
+                    .collect(),
+            );
+            models
+                .loadMissingPaths(&paths)
+                .await
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+            for (original, mut loaded) in originals.into_iter().zip(models) {
+                *original.state_mut() = std::mem::take(loaded.state_mut());
+            }
+            Ok(())
+        }))
+    }
 
     fn toArray(&self, request: &Request) -> ResourceResult<Value> {
         let included = includes(request)?;

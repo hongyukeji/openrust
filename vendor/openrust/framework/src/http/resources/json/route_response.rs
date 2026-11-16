@@ -12,18 +12,21 @@ use super::{JsonResource, ResourceResult};
 pub struct ResourceRoute;
 
 trait ResourceOutput: Send {
-    fn respond(self, request: &Request) -> ResourceResult<Response>;
+    fn respond(
+        self,
+        request: &mut Request,
+    ) -> impl Future<Output = ResourceResult<Response>> + Send;
 }
 
 impl<T: JsonResource + Send> ResourceOutput for T {
-    fn respond(self, request: &Request) -> ResourceResult<Response> {
-        self.toResponse(request)
+    async fn respond(mut self, request: &mut Request) -> ResourceResult<Response> {
+        self.toResponseAsync(request).await
     }
 }
 
 impl<T: JsonResource + Send> ResourceOutput for ResourceResult<T> {
-    fn respond(self, request: &Request) -> ResourceResult<Response> {
-        self?.toResponse(request)
+    async fn respond(self, request: &mut Request) -> ResourceResult<Response> {
+        self?.toResponseAsync(request).await
     }
 }
 
@@ -45,8 +48,7 @@ where
     T: ResourceOutput,
 {
     fn handle<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, ResourceResult<Response>> {
-        let response = (self.0)().respond(request);
-        Box::pin(async move { response })
+        Box::pin(async move { (self.0)().respond(request).await })
     }
 }
 
@@ -70,7 +72,7 @@ where
     T: ResourceOutput,
 {
     fn handle<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, ResourceResult<Response>> {
-        Box::pin(async move { (self.0)().await.respond(request) })
+        Box::pin(async move { (self.0)().await.respond(request).await })
     }
 }
 
@@ -92,6 +94,6 @@ where
     T: ResourceOutput,
 {
     fn handle<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, ResourceResult<Response>> {
-        Box::pin(async move { (self.0)(request).await.respond(request) })
+        Box::pin(async move { (self.0)(request).await.respond(request).await })
     }
 }

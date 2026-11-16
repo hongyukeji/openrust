@@ -197,7 +197,7 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 
 ### 延迟属性与关联包含 {#jsonapi-includes}
 
-在 `lazyAttributes` 中返回 `JsonApiAttributes`，字段会在稀疏字段集筛选后计算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 声明关联。只有 `include` 请求的关联才执行闭包。返回资源前，请在查询中预加载 Eloquent 关联。
+在 `lazyAttributes` 中返回 `JsonApiAttributes`，字段会在稀疏字段集筛选后计算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 声明关联。只有 `include` 请求的关联才执行闭包。闭包可读取查询预加载或框架自动补载的 Eloquent 关联。
 
 `include=editor.organization` 会输出关联标识，并将关联资源放入同一个顶层 `included` 数组。同一类型和标识的资源只出现一次。稀疏字段集可省略关联字段，同时保留显式包含的资源。关联路径最多五段。
 
@@ -218,5 +218,40 @@ pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'stati
     JsonApiRelationships::default().toOne("editor", move || {
         Ok(editor.map(PersonResource))
     })
+}
+```
+
+### 自动加载关联 {#jsonapi-automatic-loading}
+
+实现 `includePath`，把允许的 JSON:API 路径映射到 `Model::namedRelations` 登记的路径，并通过 `modelMut` 返回模型。路由返回单资源、集合或分页时，框架会在序列化前批量补载缺失关联。`toRelationships` 中声明的闭包读取加载结果。手动构造响应时，使用 `toResponseAsync(request).await`。
+
+例如 `reports.reports` 可映射为 `directReports.directReports`。请显式映射每条允许自动加载的路径。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::JsonApiResource,
+};
+
+pub struct ReportResource<M>(pub M);
+
+impl<M: Model> JsonApiResource for ReportResource<M> {
+    type Model = M;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+
+    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+        Some(&mut self.0)
+    }
+
+    fn includePath(path: &str) -> Option<&'static str> {
+        match path {
+            "reports" => Some("directReports"),
+            "reports.reports" => Some("directReports.directReports"),
+            _ => None,
+        }
+    }
 }
 ```

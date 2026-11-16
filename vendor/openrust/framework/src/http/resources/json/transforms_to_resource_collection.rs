@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     database::eloquent::Model,
-    http::{Request, Response, StatusCode},
+    http::{HttpFuture, Request, Response, StatusCode},
 };
 
 use super::{JsonOptions, JsonResource, ResourceCollection, ResourceItems, ResourceResult};
@@ -53,6 +53,13 @@ enum ResolvedCollection<C, R> {
 }
 
 impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R> {
+    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        match self {
+            Self::Declared(resource) => resource.prepareResponse(request),
+            Self::Empty(resource) => resource.prepareResponse(request),
+        }
+    }
+
     fn resolveResponseData(
         &self,
         request: &Request,

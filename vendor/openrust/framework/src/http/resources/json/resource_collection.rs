@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     database::eloquent::{Collection as ModelCollection, Model, RelatedCollection},
-    http::Request,
+    http::{HttpFuture, Request},
     pagination::{CursorPaginator, LengthAwarePaginator, Paginator},
     support::{ArrayKey, Collection},
 };
@@ -37,6 +37,16 @@ impl<T> ResourceItems<T> {
             Self::Paginator(page) => page.items(),
             Self::LengthAwarePaginator(page) => page.items(),
             Self::CursorPaginator(page) => page.items(),
+        }
+    }
+
+    fn items_mut(&mut self) -> &mut [T] {
+        match self {
+            Self::Collection(items) => items,
+            Self::KeyedCollection(items) => &mut items.items,
+            Self::Paginator(page) => page.items_mut(),
+            Self::LengthAwarePaginator(page) => page.items_mut(),
+            Self::CursorPaginator(page) => page.items_mut(),
         }
     }
 
@@ -192,6 +202,10 @@ impl<T> ResourceCollection<T> {
 
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
     const JSON_API: bool = T::JSON_API;
+
+    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        T::prepareCollection(self.source.items_mut(), request)
+    }
 
     fn resolveResponseData(
         &self,

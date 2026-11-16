@@ -197,7 +197,7 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 
 ### 延遲屬性與關聯包含 {#jsonapi-includes}
 
-在 `lazyAttributes` 中回傳 `JsonApiAttributes`，欄位會在稀疏欄位集篩選後計算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 宣告關聯。只有 `include` 請求的關聯才執行閉包。回傳資源前，請在查詢中預載入 Eloquent 關聯。
+在 `lazyAttributes` 中回傳 `JsonApiAttributes`，欄位會在稀疏欄位集篩選後計算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 宣告關聯。只有 `include` 請求的關聯才執行閉包。閉包可讀取查詢預載入或框架自動補載的 Eloquent 關聯。
 
 `include=editor.organization` 會輸出關聯識別碼，並將關聯資源放入同一個頂層 `included` 陣列。同一型別和識別碼的資源只出現一次。稀疏欄位集可省略關聯欄位，同時保留明確包含的資源。關聯路徑最多五段。
 
@@ -218,5 +218,40 @@ pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'stati
     JsonApiRelationships::default().toOne("editor", move || {
         Ok(editor.map(PersonResource))
     })
+}
+```
+
+### 自動載入關聯 {#jsonapi-automatic-loading}
+
+實作 `includePath`，將允許的 JSON:API 路徑映射至 `Model::namedRelations` 登記的路徑，並透過 `modelMut` 傳回模型。路由回傳單一資源、集合或分頁時，框架會在序列化前批次補載缺少的關聯。`toRelationships` 宣告的閉包讀取載入結果。手動建立回應時，使用 `toResponseAsync(request).await`。
+
+例如 `reports.reports` 可映射成 `directReports.directReports`。請明確映射每條允許自動載入的路徑。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::JsonApiResource,
+};
+
+pub struct ReportResource<M>(pub M);
+
+impl<M: Model> JsonApiResource for ReportResource<M> {
+    type Model = M;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+
+    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+        Some(&mut self.0)
+    }
+
+    fn includePath(path: &str) -> Option<&'static str> {
+        match path {
+            "reports" => Some("directReports"),
+            "reports.reports" => Some("directReports.directReports"),
+            _ => None,
+        }
+    }
 }
 ```

@@ -8,9 +8,10 @@ use openrust::{
         http::Kernel as _,
     },
     database::{
-        DatabaseError, DatabaseManager, Value,
+        Connection, DatabaseError, DatabaseManager, Value,
         eloquent::{
             Attributes, Collection as ModelCollection, Model, ModelMetadata, ModelState,
+            NamedRelations,
             casts::Attribute,
             relations::{BelongsToMany, HasMany, HasOne, Pivot},
         },
@@ -92,6 +93,12 @@ impl Model for Membership {
 }
 
 impl Model for Account {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("directReports", || {
+            HasMany::<Self, Self>::new("id", "manager_id")
+        })
+    }
+
     fn attribute(name: &str) -> Option<Attribute> {
         (name == "label").then(|| Attribute::get(|_, _| Ok("account label".into())))
     }
@@ -233,6 +240,18 @@ impl JsonApiResource for PersonResource {
 
     fn model(&self) -> &Self::Model {
         &self.account
+    }
+
+    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+        Some(&mut self.account)
+    }
+
+    fn includePath(path: &str) -> Option<&'static str> {
+        match path {
+            "reports" => Some("directReports"),
+            "reports.reports" => Some("directReports.directReports"),
+            _ => None,
+        }
     }
 
     fn toId(&self, _: &Request) -> Option<String> {
@@ -414,6 +433,19 @@ fn routes() -> Result<(), RoutingError> {
 }
 
 fn json_api_routes() -> Result<(), RoutingError> {
+    Route::get("/person/auto", || async {
+        let person = Account::findOrFail(1).await.map_err(internal)?;
+        Ok(PersonResource::make(person))
+    })?;
+    Route::get("/person/auto-page", || async {
+        let page = Account::query()
+            .map_err(internal)?
+            .orderBy("id", "asc")
+            .paginate(2)
+            .await
+            .map_err(internal)?;
+        Ok(page.toResourceCollectionWith::<PersonResource>())
+    })?;
     Route::get("/person/compound", || async {
         let person = Account::query()
             .map_err(internal)?
@@ -1011,6 +1043,7 @@ async fn verify(config: Json) {
     verify_resolved_resources(address).await;
     verify_json_options(address).await;
     verify_json_api(address).await;
+    verify_json_api_autoload(address, mysql.then_some(&connection)).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -1020,6 +1053,58 @@ async fn verify(config: Json) {
         .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
+}
+
+async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection>) {
+    for (endpoint, expected_selects, expected_included) in [
+        ("/api/person/auto", 1, 0),
+        ("/api/person/auto?include=unknown", 1, 0),
+        ("/api/person/auto?include=reports.reports", 3, 2),
+        ("/api/person/compound?include=reports.reports", 3, 2),
+        ("/api/person/auto-page?include=reports.reports", 4, 1),
+    ] {
+        let before = if let Some(connection) = mysql {
+            select_count(connection).await
+        } else {
+            0
+        };
+        let (headers, document) = request(address, "GET", endpoint, "", 200).await;
+        assert!(headers.contains("content-type: application/vnd.api+json"));
+        assert_eq!(
+            document["included"].as_array().map_or(0, Vec::len),
+            expected_included,
+            "{endpoint}"
+        );
+        if expected_included > 0 {
+            assert_eq!(document["included"][expected_included - 1]["id"], "3");
+        }
+        if endpoint.contains("auto-page") {
+            assert_eq!(
+                document["data"][0]["relationships"]["reports"]["data"][0]["id"],
+                "2"
+            );
+            assert_eq!(document["meta"]["current_page"], 1);
+        }
+        if let Some(connection) = mysql {
+            assert_eq!(
+                select_count(connection).await - before,
+                expected_selects,
+                "{endpoint}"
+            );
+        }
+    }
+}
+
+async fn select_count(connection: &Connection) -> u64 {
+    let row = connection
+        .selectOne("SHOW SESSION STATUS LIKE 'Com_select'", &[])
+        .await
+        .unwrap()
+        .unwrap();
+    let Some(Value::Text(count)) = row.get_at(1) else {
+        panic!("invalid session SELECT counter")
+    };
+    count.parse().unwrap()
 }
 
 async fn verify_json_api(address: SocketAddr) {
@@ -1265,7 +1350,7 @@ async fn resource_responses_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
-        verify(json!({"url":url})).await;
+        verify(json!({"url":url,"max_connections":1})).await;
     }
 }
 

@@ -197,7 +197,7 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 
 ### Lazy Attributes and Included Relationships {#jsonapi-includes}
 
-Return a `JsonApiAttributes` declaration from `lazyAttributes` to calculate fields after applying the sparse fieldset. Declare related resources with `JsonApiRelationships::toOne` or `toMany` in `toRelationships`. Their closures run for requested `include` paths. Load the Eloquent relationships in the query before returning the resource.
+Return a `JsonApiAttributes` declaration from `lazyAttributes` to calculate fields after applying the sparse fieldset. Declare related resources with `JsonApiRelationships::toOne` or `toMany` in `toRelationships`. Their closures run for requested `include` paths. Resolvers can use relationships loaded by the query or by automatic loading.
 
 For `include=editor.organization`, the response emits relationship identifiers and a single top-level `included` array. Resources with the same type and ID appear once. A sparse fieldset can omit the relationship member while keeping explicitly included resources. Include paths accept up to five segments.
 
@@ -218,5 +218,40 @@ pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'stati
     JsonApiRelationships::default().toOne("editor", move || {
         Ok(editor.map(PersonResource))
     })
+}
+```
+
+### Automatic Relationship Loading {#jsonapi-automatic-loading}
+
+Map each allowed JSON:API path to a path registered in `Model::namedRelations` by implementing `includePath`. Return the model from `modelMut`. When a route returns a resource or a collection, including a page, the framework batches missing relationships before serialization. The resolvers registered in `toRelationships` read the loaded results. For manual response construction, call `toResponseAsync(request).await`.
+
+An alias such as `reports.reports` can map to `directReports.directReports`. Every supported include path should be explicitly mapped.
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::JsonApiResource,
+};
+
+pub struct ReportResource<M>(pub M);
+
+impl<M: Model> JsonApiResource for ReportResource<M> {
+    type Model = M;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+
+    fn modelMut(&mut self) -> Option<&mut Self::Model> {
+        Some(&mut self.0)
+    }
+
+    fn includePath(path: &str) -> Option<&'static str> {
+        match path {
+            "reports" => Some("directReports"),
+            "reports.reports" => Some("directReports.directReports"),
+            _ => None,
+        }
+    }
 }
 ```

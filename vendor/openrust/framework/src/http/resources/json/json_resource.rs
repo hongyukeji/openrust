@@ -2,7 +2,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     database::eloquent::Model,
-    http::{HttpError, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
 };
 
 use super::{JsonOptions, ResourceCollection, ResourceItems, ResourceResponse, ResourceResult};
@@ -19,6 +19,41 @@ pub trait JsonResource {
     }
 
     fn toArray(&self, request: &Request) -> ResourceResult<Value>;
+
+    #[doc(hidden)]
+    fn prepareResponse(
+        &mut self,
+        _request: &Request,
+    ) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        None
+    }
+
+    #[doc(hidden)]
+    fn prepareCollection<'a>(
+        _items: &'a mut [Self],
+        _request: &Request,
+    ) -> Option<HttpFuture<'a, ResourceResult<()>>>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
+    /// Prepares resources that need I/O and then builds the response.
+    fn toResponseAsync<'a>(
+        &'a mut self,
+        request: &'a mut Request,
+    ) -> impl Future<Output = ResourceResult<Response>> + Send + 'a
+    where
+        Self: Send,
+    {
+        async move {
+            if let Some(prepare) = self.prepareResponse(request) {
+                prepare.await?;
+            }
+            self.toResponse(request)
+        }
+    }
 
     #[doc(hidden)]
     fn resolveResponseData(
