@@ -388,6 +388,7 @@ impl Router {
             .extensions
             .remove::<super::middleware::MatchedRouteDomain>();
         request.session_block = None;
+        request.apply_method_override().await?;
         let path = request.uri().path().trim_end_matches('/');
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()

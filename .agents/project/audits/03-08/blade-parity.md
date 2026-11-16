@@ -17,7 +17,7 @@
 | Slots、Inline Component Views | 默认、具名与绑定名插槽、插槽属性包、Rust 内联组件视图和 `Component::data` 提供的作用域插槽。 | 组件生成器与方法发现。组件方法输出通过 Rust `data` 提供。 |
 | Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware`、额外路径和命名空间注册，扩展路径纳入视图预编译。 | Rust 在视图工厂上注册组件位置。 |
 | Building Layouts | 组件布局、具名与候选继承、显式布局数据、区段追加与覆盖、`@parent`、`@yield`。 | Rust 使用视图数据映射。 |
-| Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段。 | `_method` 到请求方法的应用装配仍待路由接线。 |
+| Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段与 POST 路由方法覆盖，已用真实会话 CSRF 验证。 | Rust 请求同时暴露有效方法和原始方法。 |
 | Stacks | `@push`、`@prepend`、`@stack`、`@hasStack`、单次形式及条件栈分支。 | 组合用法按整单元复验。 |
 | Service Injection | `@inject` 使用 Rust 注册的类型化服务别名，将投影后的视图值绑定到变量。 | PHP 任意对象和方法调用对应 Rust 服务的显式数据投影。 |
 | Rendering Inline Blade Templates | 使用应用 Factory 从受信任的模板文本在内存渲染。 | Laravel 临时缓存文件和删除开关对应内存生命周期。 |

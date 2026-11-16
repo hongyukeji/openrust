@@ -26,6 +26,7 @@ pub use context::RequestAttributes;
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
     parts: RequestParts,
+    real_method: Option<Method>,
     body: Body,
     pub(crate) received_at: Instant,
     query_cache: OnceLock<serde_json::Value>,
@@ -51,6 +52,7 @@ impl Request {
     pub fn from_parts(parts: RequestParts, body: Body) -> Self {
         Self {
             parts,
+            real_method: None,
             body,
             received_at: Instant::now(),
             query_cache: OnceLock::new(),
@@ -90,6 +92,13 @@ impl Request {
     pub fn method(&self) -> &Method {
         &self.parts.method
     }
+
+    /// Returns the transport method before a POST method override.
+    #[allow(non_snake_case, reason = "Matches the Laravel Request API")]
+    pub fn getRealMethod(&self) -> &Method {
+        self.real_method.as_ref().unwrap_or(&self.parts.method)
+    }
+
     pub fn uri(&self) -> &Uri {
         &self.parts.uri
     }

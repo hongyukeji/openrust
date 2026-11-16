@@ -269,13 +269,16 @@ In a session-enabled web route, `@csrf` emits the current session token as a hid
 ```html
 <form method="post">
     @csrf
+    @method('PUT')
     @error('name')
         <span>{{ $message }}</span>
     @enderror
 </form>
 ```
 
-`@method('PUT')` emits a hidden `_method` field. OpenRust routing currently matches the HTTP method sent by the client.
+A browser POST form can target a PUT, PATCH, or DELETE route. Put `@method('PUT')` after `@csrf` to emit the hidden `_method` field. The router uses the effective method and the web middleware still checks CSRF. In a handler, `request.getRealMethod()` returns the original transport method.
+
+For POST requests, the `X-HTTP-Method-Override` header takes precedence over the form field, with the query parameter used as a fallback.
 
 ## Stacks {#stacks}
 

@@ -39,13 +39,13 @@ impl PreventRequestForgery {
     }
 
     fn allowed_without_token(&self, request: &Request) -> Result<bool, HttpError> {
-        if matches!(
-            *request.method(),
-            Method::GET | Method::HEAD | Method::OPTIONS
-        ) || self
-            .except
-            .iter()
-            .any(|pattern| request.matches_url_or_path(pattern))
+        let reading =
+            |method: &Method| matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS);
+        if (reading(request.method()) && reading(request.getRealMethod()))
+            || self
+                .except
+                .iter()
+                .any(|pattern| request.matches_url_or_path(pattern))
         {
             return Ok(true);
         }

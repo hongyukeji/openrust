@@ -269,13 +269,16 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 ```html
 <form method="post">
     @csrf
+    @method('PUT')
     @error('name')
         <span>{{ $message }}</span>
     @enderror
 </form>
 ```
 
-`@method('PUT')` 輸出隱藏的 `_method` 欄位。OpenRust 路由目前依用戶端送出的 HTTP 方法比對。
+瀏覽器 POST 表單可以送到 PUT、PATCH 或 DELETE 路由。在 `@csrf` 後寫入 `@method('PUT')`，即可輸出隱藏的 `_method` 欄位。路由依覆寫後的方法比對，Web 中介軟體仍會驗證 CSRF。處理常式可透過 `request.getRealMethod()` 讀取原始請求方法。
+
+POST 請求優先使用 `X-HTTP-Method-Override` 標頭，其次使用表單欄位，最後讀取查詢參數。
 
 ## 堆疊 {#stacks}
 

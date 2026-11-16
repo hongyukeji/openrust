@@ -26,6 +26,11 @@ fn web() -> Result<(), RoutingError> {
     })?;
     Route::get("/flash", flash)?;
     Route::r#match(&[Method::POST, Method::OPTIONS], "/update/{id}", update)?;
+    Route::r#match(
+        &[Method::PUT, Method::PATCH, Method::DELETE],
+        "/update/{id}",
+        spoofed_update,
+    )?;
     Route::r#match(&[Method::POST], "/hooks/inbound", update)?;
     Ok(())
 }
@@ -72,6 +77,20 @@ fn update(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     Box::pin(async move {
         let value = request.input(Some("value")).await?;
         Response::json(StatusCode::OK, json!({"value":value}))
+    })
+}
+
+fn spoofed_update(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let value = request.input(Some("value")).await?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "method": request.method().as_str(),
+                "transport": request.getRealMethod().as_str(),
+                "value": value,
+            }),
+        )
     })
 }
 
@@ -240,7 +259,7 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
     std::fs::write(
         root.join("resources/views/errors-probe.blade.html"),
         concat!(
-            "<form>@csrf",
+            r#"<form method="post" action="/update/42">@csrf"#,
             "@production<span>production</span>@endproduction",
             "@env(['staging-*', 'local'])<span>staging</span>@endenv",
             "@session('blade.notice')<b>{{ $value }}</b>",
@@ -288,16 +307,110 @@ async fn origin_only_and_session_errors_are_application_and_request_scoped() {
             .to_owned()
     };
     assert_ne!(token(&errors), token(&isolated));
+    let (_, method) = isolated.split_once(r#"name="_method" value=""#).unwrap();
+    let method = method.split_once('"').unwrap().0;
+    let session_token = token(&isolated);
     let isolated_cookie = cookie(&isolated, "csrf_session").split(';').next().unwrap();
+    let form_headers = format!(
+        "Cookie: csrf_session={isolated_cookie}\r\nContent-Type: application/x-www-form-urlencoded\r\n"
+    );
     let submitted = send(
         other,
         "POST",
-        "/update/42",
-        &format!("Cookie: csrf_session={isolated_cookie}\r\nContent-Type: application/x-www-form-urlencoded\r\n"),
-        &format!("_token={}&value=blade", token(&isolated)),
-    ).await;
+        "/update/42?_method=delete",
+        &form_headers,
+        &format!("_method={method}&_token={session_token}&value=blade"),
+    )
+    .await;
     status(&submitted, 200);
-    assert!(submitted.ends_with(r#"{"value":"blade"}"#));
+    assert!(submitted.ends_with(r#"{"method":"PUT","transport":"POST","value":"blade"}"#));
+    for (wire, path, headers, body, expected, suffix) in [
+        (
+            "POST",
+            "/update/42",
+            form_headers.clone(),
+            "_method=put".into(),
+            419,
+            r#"{"message":"CSRF token mismatch."}"#,
+        ),
+        (
+            "POST",
+            "/update/42",
+            form_headers.clone(),
+            "_method=options".into(),
+            419,
+            r#"{"message":"CSRF token mismatch."}"#,
+        ),
+        (
+            "POST",
+            "/update/42",
+            form_headers.clone(),
+            "_method=put%20".into(),
+            400,
+            "",
+        ),
+        (
+            "POST",
+            "/update/42",
+            form_headers.clone(),
+            "_method[]=put".into(),
+            400,
+            "",
+        ),
+        (
+            "POST",
+            "/update/42",
+            form_headers.clone(),
+            format!("_method=get&_token={session_token}&value=retained"),
+            200,
+            r#"{"value":"retained"}"#,
+        ),
+        (
+            "POST",
+            "/update/42?_method=delete",
+            form_headers.clone(),
+            format!("_token={session_token}&value=query"),
+            200,
+            r#"{"method":"DELETE","transport":"POST","value":"query"}"#,
+        ),
+        (
+            "POST",
+            "/update/42",
+            format!("{form_headers}X-HTTP-Method-Override: patch\r\n"),
+            format!("_method=put&_token={session_token}&value=header"),
+            200,
+            r#"{"method":"PATCH","transport":"POST","value":"header"}"#,
+        ),
+        (
+            "PUT",
+            "/update/42?_method=delete",
+            form_headers.clone(),
+            format!("_method=patch&_token={session_token}"),
+            200,
+            r#"{"method":"PUT","transport":"PUT","value":null}"#,
+        ),
+        (
+            "POST",
+            "/update/42",
+            format!(
+                "Cookie: csrf_session={isolated_cookie}\r\nContent-Type: multipart/form-data; boundary=probe\r\n"
+            ),
+            format!(
+                concat!(
+                    "--probe\r\nContent-Disposition: form-data; name=\"_method\"\r\n\r\npatch\r\n",
+                    "--probe\r\nContent-Disposition: form-data; name=\"_token\"\r\n\r\n{}\r\n",
+                    "--probe\r\nContent-Disposition: form-data; name=\"value\"\r\n\r\nmultipart\r\n--probe--\r\n",
+                ),
+                session_token
+            ),
+            200,
+            r#"{"method":"PATCH","transport":"POST","value":"multipart"}"#,
+        ),
+    ] {
+        let response = send(other, wire, path, &headers, &body).await;
+        status(&response, expected);
+        assert!(response.ends_with(suffix), "{response}");
+    }
     let aged = send(origin, "GET", "/errors", &cookie_headers, "").await;
     assert!(!aged.contains("Required"));
     let denied = send(origin, "POST", "/update/42", "", "").await;

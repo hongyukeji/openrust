@@ -72,3 +72,8 @@
 
 - 对照固定 BladeCompiler 的 `withoutDoubleEncoding` / `withDoubleEncoding` 与 PHP `htmlspecialchars` 的 HTML 4.01 行为。Rust 编译器按应用配置保留有效的命名和数字引用，仍转义普通文本以及未知、缺少分号或超出码点范围的引用。区段参数和属性沿用各自的转义边界。旧版 MiniJinja 无对应 Blade 开关。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过，真实 HTTP 比较并发应用中默认与关闭双重编码的响应。隔离副本全工作区格式和严格 Clippy、实际 Artisan 缓存并清理三个模板产物、三语构建和 12 项浏览器组合通过。
+
+## Blade 表单提交与方法覆盖
+
+- 对照固定 Laravel HTTP Kernel 与 Symfony 8.0 Request。路由在匹配前解析 POST 覆盖，优先级为请求头、URL 编码或 multipart 表单、查询参数。路由和控制器看到覆盖后的方法，`getRealMethod()` 保留原始方法。Web CSRF 对原始 POST 继续生效，包括显式 OPTIONS 路由。旧版没有可移植的表单方法覆盖实现，沿用现有的有界输入解析器。
+- macOS ARM64、Rust 1.94.0。共享工作区 10 项定向测试通过。真实 HTTP 先渲染 Blade 表单，再带表单生成的令牌和方法字段提交，验证 PUT／PATCH／DELETE、请求头优先级、查询回退、multipart、400／419 与非 POST 行为。隔离副本全工作区格式和严格 Clippy 通过。实际 Artisan 编译三语表单并清理三个产物，三语构建和 12 项浏览器组合通过。

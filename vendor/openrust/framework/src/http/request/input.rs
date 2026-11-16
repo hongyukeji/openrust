@@ -59,6 +59,62 @@ impl Payload {
 }
 
 impl Request {
+    pub(crate) async fn apply_method_override(&mut self) -> Result<(), HttpError> {
+        if self.method() != Method::POST {
+            return Ok(());
+        }
+
+        let header = self
+            .headers()
+            .get("x-http-method-override")
+            .map(|header| header.to_str().map_err(|_| HttpError::InvalidRequest))
+            .transpose()?
+            .filter(|method| !matches!(*method, "" | "0"));
+        let method = if let Some(header) = header {
+            header.to_ascii_uppercase()
+        } else {
+            let media = self
+                .headers()
+                .get(::http::header::CONTENT_TYPE)
+                .and_then(|header| header.to_str().ok())
+                .and_then(|header| header.split(';').next())
+                .unwrap_or_default()
+                .trim();
+            let field = if media.eq_ignore_ascii_case("application/x-www-form-urlencoded")
+                || media.eq_ignore_ascii_case("multipart/form-data")
+            {
+                self.payload().await?.fields.get("_method").cloned()
+            } else {
+                None
+            };
+            let field = match field {
+                Some(field) => Some(field),
+                None => self.query(Some("_method"))?,
+            };
+            let Some(field) = field else {
+                return Ok(());
+            };
+            field
+                .as_str()
+                .ok_or(HttpError::InvalidRequest)?
+                .to_ascii_uppercase()
+        };
+
+        if matches!(
+            method.as_str(),
+            "GET" | "HEAD" | "CONNECT" | "TRACE" | "POST"
+        ) {
+            return Ok(());
+        }
+        if method.is_empty() || !method.bytes().all(|byte| byte.is_ascii_uppercase()) {
+            return Err(HttpError::InvalidRequest);
+        }
+        let method =
+            Method::from_bytes(method.as_bytes()).map_err(|_| HttpError::InvalidRequest)?;
+        self.real_method = Some(std::mem::replace(&mut self.parts.method, method));
+        Ok(())
+    }
+
     /// Reads the input source and adds query keys that the source does not supply.
     /// A dotted key can select nested objects or arrays.
     pub async fn input(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
