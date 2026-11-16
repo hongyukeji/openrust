@@ -105,14 +105,21 @@ impl DatabaseManager {
             (base, Some(QueryRole::Read))
         } else if let Some(base) = name.strip_suffix("::write") {
             (base, Some(QueryRole::Write))
+        } else if let Some(base) = name.strip_suffix("::direct") {
+            (base, Some(QueryRole::Direct))
         } else {
             (name, None)
+        };
+        let connection_name = if role == Some(QueryRole::Direct) {
+            name
+        } else {
+            base
         };
         let config = self.config.clone();
         let base_name = base.to_owned();
         let resolved_name = name.to_owned();
         let mut connection =
-            ConnectionFactory.make_for_role(base, &self.root, role, move || {
+            ConnectionFactory.make_for_role(connection_name, &self.root, role, move || {
                 match config.get("database.connections") {
                     Some(Value::Object(connections)) => connections.get(&base_name).cloned(),
                     None if base_name == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),

@@ -837,6 +837,57 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
 }
 
 #[tokio::test]
+async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
+    let root = Root::new();
+    fs::File::create(root.0.join("database/reader.sqlite")).unwrap();
+    fs::File::create(root.0.join("database/writer.sqlite")).unwrap();
+    let db = manager(
+        &root,
+        json!({"default":"split","connections":{
+            "split":{"driver":"sqlite","database":"database/database.sqlite",
+                     "read":{"database":"database/reader.sqlite"},
+                     "write":{"database":"database/writer.sqlite"}}
+        }}),
+    );
+    let direct = db.connection(Some("split::direct")).unwrap();
+    assert_eq!(direct.getName(), "split::direct");
+    direct.enableQueryLog();
+    direct.unprepared("PRAGMA user_version = 21").await.unwrap();
+    assert_eq!(
+        direct.scalar("PRAGMA user_version", &[]).await.unwrap(),
+        21.into()
+    );
+    assert!(
+        direct
+            .getQueryLog()
+            .iter()
+            .all(|entry| entry.read_write_type == QueryRole::Direct)
+    );
+    let regular = db.connection(None).unwrap();
+    assert_eq!(
+        regular.scalar("PRAGMA user_version", &[]).await.unwrap(),
+        0.into()
+    );
+    assert_eq!(
+        regular
+            .selectFromWriteConnection("PRAGMA user_version", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&21.into())
+    );
+    let reconnected = db.reconnect(Some("split::direct")).await.unwrap();
+    assert_eq!(reconnected.getName(), "split::direct");
+    assert_eq!(
+        reconnected
+            .scalar("PRAGMA user_version", &[])
+            .await
+            .unwrap(),
+        21.into()
+    );
+}
+
+#[tokio::test]
 async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
@@ -850,6 +901,19 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
                      "max_connections":1,"acquire_timeout":2},
             "control":{"url":url,"max_connections":1,"acquire_timeout":2}
         }}),
+    );
+    let direct = db.connection(Some("split::direct")).unwrap();
+    assert_eq!(direct.getName(), "split::direct");
+    direct
+        .statement("SET @openrust_direct_probe = 23", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        direct
+            .scalar("SELECT CAST(@openrust_direct_probe AS SIGNED)", &[])
+            .await
+            .unwrap(),
+        23.into()
     );
     let split = db.connection(None).unwrap();
     let writer = split

@@ -84,6 +84,10 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 Use `DB::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `DB::connection(Some("reporting::read"))`.
 
+#### Direct Connection Alias {#direct-connection-alias}
+
+On MySQL and SQLite, `DB::connection(Some("mysql::direct"))` (using your configured connection name) selects the write endpoint for both reads and writes. Query logs and events identify the role as `QueryRole::Direct`. Without a separate direct endpoint, Laravel also uses the write endpoint. A dedicated PostgreSQL endpoint for bypassing a transaction pooler requires PostgreSQL driver support.
+
 #### Reconnecting and Purging Connections {#reconnecting-database-connections}
 
 `DB::disconnect` retires the current read and write pools. The next asynchronous operation opens fresh pools. `DB::reconnect` refreshes them immediately from the current configuration, preserving the logical connection and its query log. `DB::purge` also removes the cached connection. The next lookup creates a new logical connection.

@@ -79,7 +79,7 @@ fn resolve(
     let write_options = merge(&base, write, "write")?;
     let (mut database, mut writer) = make_pool(&write_options, root)?;
     let mut reader = read
-        .filter(|value| !value.is_null())
+        .filter(|value| !value.is_null() && role != Some(QueryRole::Direct))
         .map(|read| {
             let options = merge(&base, Some(read), "read")?;
             make_pool(&options, root)
@@ -98,7 +98,7 @@ fn resolve(
             }
         }
         Some(QueryRole::Write) => reader = None,
-        None => {}
+        Some(QueryRole::Direct) | None => {}
     }
     Ok(ConnectionOptions {
         database: database.into(),

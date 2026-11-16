@@ -84,6 +84,10 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 用 `DB::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `DB::connection(Some("reporting::read"))`。
 
+#### 直連別名 {#direct-connection-alias}
+
+對 MySQL 和 SQLite，`DB::connection(Some("mysql::direct"))` 會讓讀寫操作都使用該連線的寫入端點。將 `mysql` 換成實際連線名稱。查詢記錄和事件會以 `QueryRole::Direct` 標示。Laravel 未設定獨立直連端點時也會回退到寫入端點。繞過交易連線池的 PostgreSQL 獨立端點需要 PostgreSQL 驅動支援。
+
 #### 中斷、重連及清除連線 {#reconnecting-database-connections}
 
 `DB::disconnect` 退役目前的讀寫連線池，下一次非同步操作依目前設定建立新池。`DB::reconnect` 立即更新連線池，保留邏輯連線與查詢日誌。`DB::purge` 同時清除快取的連線，下次解析會建立新的邏輯連線。

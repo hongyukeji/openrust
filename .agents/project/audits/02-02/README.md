@@ -89,3 +89,13 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - Rust 1.94.0。独立 MySQL 8.4.13 在服务器已执行 SQL 时终止会话，验证读写重放、一次上限、并发共享一次刷新、活动事务回滚及游标首行前后。SQLite 和 MySQL 等 55 项定向回归通过，含真实 HTTP 与事件回归。1 个既有子进程夹具由父测试启动。严格 Clippy 与变更文件格式检查通过。
 - 真正 Artisan 命令在执行 MySQL 查询期间断线并成功重放，原生 `main artisan inspire` 通过。三语 VitePress 构建、12 项站点浏览器组合及 6 项断线小节检查通过。
 - 02-02 继续处理 `::direct`、通用预演和查询前回调。
+
+## 直连别名的写连接回退
+
+对照固定 Laravel [DatabaseManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/DatabaseManager.php) 与 [ConfiguresPooledConnections](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/Concerns/ConfiguresPooledConnections.php)。旧版数据库模块未找到对应实现。
+
+- MySQL 与 SQLite 的 `name::direct` 读写都落在写端点。连接名保留后缀，查询日志和事件识别 `QueryRole::Direct`。别名沿用独立的逻辑缓存键及现有重连机制。
+- Laravel 的独立直连端点限于 PostgreSQL。本批覆盖当前驱动的写端点回退。PostgreSQL 独立端点、连接池配置及自动选用直连的迁移行为随该驱动验收。
+- Rust 1.94.0，真实 MySQL 8.4.13 和 SQLite 共 56 项定向回归通过，含真实 HTTP 和事件回归。1 个子进程夹具由父测试启动。工作区严格 Clippy 和变更文件格式检查通过。
+- MySQL Artisan 验收让常规读连接进入 `information_schema`，校验别名读写走应用库、日志角色、重连和清除逻辑缓存。原生 `./artisan inspire` 成功。三语 VitePress 构建、12 项浏览器组合和 6 项直连小节检查通过。
+- 02-02 仍待通用预演、查询前回调及 PostgreSQL 独立直连。

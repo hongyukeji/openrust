@@ -40,6 +40,7 @@ impl Event for ConnectionEstablished {
 pub enum QueryRole {
     Read,
     Write,
+    Direct,
 }
 
 /// The original bindings supplied by the caller.
