@@ -18,6 +18,18 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 {{-- comment --}}
 ```
 
+### HTML 實體編碼 {#html-entity-encoding}
+
+Blade 預設會對跳脫輸出中的現有 HTML 實體再次編碼。若要保留有效的 HTML 4.01 實體，可在應用程式服務提供者啟動時設定 Blade 編譯器。呼叫 `withDoubleEncoding()` 可恢復預設行為。
+
+```rust
+use openrust::view::compilers::BladeCompiler;
+
+fn configure_encoding(compiler: &BladeCompiler) {
+    compiler.withoutDoubleEncoding();
+}
+```
+
 ### 輸出 JavaScript 資料 {#rendering-json}
 
 在指令碼中用 `Js::from` 或 `@js` 將視圖值序列化為 JavaScript 運算式。呈現引擎會跳脫 HTML 敏感字元、引號和行分隔符。

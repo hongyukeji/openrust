@@ -18,6 +18,18 @@ Double braces escape HTML entities. The following examples emit trusted HTML, pr
 {{-- comment --}}
 ```
 
+### HTML Entity Encoding {#html-entity-encoding}
+
+Escaped Blade echoes double-encode existing HTML entities by default. To preserve valid HTML 4.01 entities in an application, configure its Blade compiler during provider startup. Use `withDoubleEncoding()` to restore the default.
+
+```rust
+use openrust::view::compilers::BladeCompiler;
+
+fn configure_encoding(compiler: &BladeCompiler) {
+    compiler.withoutDoubleEncoding();
+}
+```
+
 ### Rendering JavaScript Data {#rendering-json}
 
 Use `Js::from` or `@js` inside a script to serialize a view value as a JavaScript expression. The renderer escapes HTML-sensitive characters, quotes, and line separators.

@@ -12,6 +12,7 @@ use crate::view::{
 
 mod attributes;
 mod expressions;
+mod html;
 mod includes;
 mod javascript;
 mod loops;
@@ -43,6 +44,7 @@ enum Declaration {
 enum Node {
     Text(String),
     Echo(Expression, bool),
+    EscapedSectionValue(Expression),
     Attributes(Vec<String>, AttributeOperation),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each {
@@ -665,9 +667,11 @@ impl<'a> Parser<'a> {
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
-                Some(content) => {
-                    Node::Section(name, vec![Node::Echo(content, true)], SectionEnd::Extend)
-                }
+                Some(content) => Node::Section(
+                    name,
+                    vec![Node::EscapedSectionValue(content)],
+                    SectionEnd::Extend,
+                ),
                 None => {
                     let (body, stop) = self.block(depth + 1)?;
                     match stop {
@@ -1306,7 +1310,18 @@ fn render_nodes<'a>(
                         continue;
                     }
                 }
-                echo(output, value(expression, data, bindings), *escape);
+                let value = value(expression, data, bindings);
+                if *escape
+                    && context.extensions.preserve_html_entities
+                    && let ViewValue::String(text) = value
+                {
+                    html::escape_preserving_entities(output, text);
+                } else {
+                    echo(output, value, *escape);
+                }
+            }
+            Node::EscapedSectionValue(expression) => {
+                echo(output, value(expression, data, bindings), true);
             }
             Node::Attributes(path, operation) => {
                 let attributes = context

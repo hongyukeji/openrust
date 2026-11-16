@@ -532,6 +532,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 })?;
                 Route::get("/bad-push", || view("bad_push"))?;
                 Route::get("/view-injection", || view("view_injection"))?;
+                Route::get("/encoded", || {
+                    view("encoded").with("message", "<&amp; &copy; &#X27; &apos; &#x110000; &copy")
+                })?;
                 Route::get("/missing-view-service", || view("missing_view_service"))?;
                 Route::get("/scoped-slot", || {
                     view("scoped_slot").with("component", "outside")
@@ -631,6 +634,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             })
             .unwrap();
         if app == "A" {
+            engine.getCompiler().withoutDoubleEncoding();
             engine
                 .getCompiler()
                 .directive("formatName", move |args| {
@@ -947,6 +951,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "@inject('summary', 'blade.summary')<b>{{ $summary->label }}</b>",
         ),
         ("missing_view_service", "@inject('summary', 'missing')"),
+        ("encoded", "{{ $message }}"),
         (
             "scoped_slot",
             concat!(
@@ -1155,6 +1160,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert_eq!(a, "<b>&lt;A&gt;</b>");
     assert_eq!(b, "<b>&lt;B&gt;</b>");
+    let (a, b) = tokio::join!(send(first, "/encoded", 200), send(second, "/encoded", 200));
+    assert_eq!(
+        a,
+        "&lt;&amp; &copy; &#X27; &amp;apos; &amp;#x110000; &amp;copy"
+    );
+    assert_eq!(
+        b,
+        "&lt;&amp;amp; &amp;copy; &amp;#X27; &amp;apos; &amp;#x110000; &amp;copy"
+    );
     assert!(
         send(first, "/missing-view-service", 500)
             .await

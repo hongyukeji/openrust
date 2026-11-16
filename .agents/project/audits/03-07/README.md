@@ -67,3 +67,8 @@
 
 - 对照固定 Blade `CompilesConditionals` 与 Auth 默认守卫行为。`@auth`、`@guest`、`@elseauth` 和 `@elseguest` 在选中分支求值时向原 HTTP 请求异步解析守卫，沿用现有 AuthManager。请求侧应答后更新会话、公开 Context 和 CSRF 快照。Renderer 通过单请求通道来回传递结果，无需预查守卫或重复渲染。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证默认和具名守卫、访客分支、异步解析、短路、上下文更新、未知守卫错误及两应用隔离。隔离副本全工作区格式和严格 Clippy、实际 Artisan 缓存与清理、三语构建与 12 项浏览器组合通过。
+
+## HTML 实体编码
+
+- 对照固定 BladeCompiler 的 `withoutDoubleEncoding` / `withDoubleEncoding` 与 PHP `htmlspecialchars` 的 HTML 4.01 行为。Rust 编译器按应用配置保留有效的命名和数字引用，仍转义普通文本以及未知、缺少分号或超出码点范围的引用。区段参数和属性沿用各自的转义边界。旧版 MiniJinja 无对应 Blade 开关。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过，真实 HTTP 比较并发应用中默认与关闭双重编码的响应。隔离副本全工作区格式和严格 Clippy、实际 Artisan 缓存并清理三个模板产物、三语构建和 12 项浏览器组合通过。

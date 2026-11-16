@@ -23,7 +23,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 21;
+const COMPILER_VERSION: u32 = 22;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
@@ -32,6 +32,7 @@ type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
 pub(in crate::view) struct BladeExtensions {
     pub(in crate::view) directives: BTreeMap<String, Directive>,
     pub(in crate::view) conditions: BTreeMap<String, Condition>,
+    pub(in crate::view) preserve_html_entities: bool,
 }
 
 /// Output produced by a registered Rust Blade directive.
@@ -71,6 +72,16 @@ impl BladeCompiler {
             directory,
             extensions: RwLock::default(),
         }
+    }
+
+    /// Preserves existing HTML entities in escaped Blade echoes.
+    pub fn withoutDoubleEncoding(&self) {
+        Arc::make_mut(&mut self.extensions.write().unwrap()).preserve_html_entities = true;
+    }
+
+    /// Restores double encoding for escaped Blade echoes.
+    pub fn withDoubleEncoding(&self) {
+        Arc::make_mut(&mut self.extensions.write().unwrap()).preserve_html_entities = false;
     }
 
     /// Registers a Rust callback for a custom Blade directive name.

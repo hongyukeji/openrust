@@ -18,6 +18,18 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 {{-- comment --}}
 ```
 
+### HTML 实体编码 {#html-entity-encoding}
+
+Blade 默认会对转义输出中的已有 HTML 实体再次编码。要保留有效的 HTML 4.01 实体，可在应用服务提供者启动时配置 Blade 编译器。调用 `withDoubleEncoding()` 可恢复默认行为。
+
+```rust
+use openrust::view::compilers::BladeCompiler;
+
+fn configure_encoding(compiler: &BladeCompiler) {
+    compiler.withoutDoubleEncoding();
+}
+```
+
 ### 输出 JavaScript 数据 {#rendering-json}
 
 在脚本中用 `Js::from` 或 `@js` 将视图值序列化为 JavaScript 表达式。渲染器转义 HTML 敏感字符、引号和行分隔符。
