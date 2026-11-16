@@ -10,7 +10,7 @@
 
 ## 令牌表迁移 {#token-table-migration}
 
-发布后的迁移属于应用。重新构建会将它纳入迁移清单，即使关闭 Cargo 的 `sanctum` 功能也能执行或回滚。已记入数据库迁移账本的文件应保留原文件和文件名。如果更新旧版检出目录时移除了该文件，请先从上一版恢复，再安装 API 或重新构建。
+发布后的迁移属于应用。重新构建会将它纳入迁移清单，即使关闭 Cargo 的 `sanctum` 功能也能执行或回滚。
 
 ```sh
 ./artisan install:api --without-migration-prompt

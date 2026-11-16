@@ -15,6 +15,8 @@
 
 ## 安装时发布迁移
 
+开发阶段以干净应用和独立的空 MySQL 8.4 数据库为验收基线，覆盖首次 `install:api`、`migrate` 和 `migrate:rollback`，核对令牌表及对应迁移账本记录的创建与移除。旧数据、旧迁移文件和旧账本的直升兼容不纳入本批验收范围。
+
 固定 Laravel 应用骨架 v13.11.0 只有 users、cache 和 jobs 的默认迁移。Laravel Framework v13.40.0 的 `install:api` 安装 Sanctum，仅在应用没有令牌表迁移时调用 Provider 的发布入口。Sanctum v4.4.0 的 Provider 发布迁移和配置。OpenRust 的安装器复用同一套包资源、发布规则和 `VendorTagPublished` 事件。应用迁移发现只扫描已存在的迁移文件，移除了 Sanctum 专用文件名判断与试验用的属性解析依赖。旧版 v0.x 的 PAT 使用不同的表和归属字段，本次沿用当前 Sanctum 迁移结构。 [固定应用骨架迁移](https://github.com/laravel/laravel/tree/06d016a364a37430eec9cbc52209adce3d7667ce/database/migrations) · [固定安装器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php#L113-L129) · [固定发布器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/VendorPublishCommand.php#L181-L201)
 
 - macOS 隔离副本和一次性 MySQL 8.4.13 实测，干净骨架在 Cargo 功能关闭及手动启用时均未创建令牌表。手动 `vendor:publish` 新建迁移源文件，重建后执行并登记一次，重复发布保留原文件名。

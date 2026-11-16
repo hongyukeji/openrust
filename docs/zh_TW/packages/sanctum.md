@@ -10,7 +10,7 @@
 
 ## 權杖資料表遷移 {#token-table-migration}
 
-發佈後的遷移屬於應用程式。重新建置會將它納入遷移清單，即使關閉 Cargo 的 `sanctum` 功能也能執行或復原。已記入資料庫遷移帳本的檔案應保留原檔和檔名。若更新舊版檢出目錄時移除了該檔案，請先從上一版還原，再安裝 API 或重新建置。
+發佈後的遷移屬於應用程式。重新建置會將它納入遷移清單，即使關閉 Cargo 的 `sanctum` 功能也能執行或復原。
 
 ```sh
 ./artisan install:api --without-migration-prompt

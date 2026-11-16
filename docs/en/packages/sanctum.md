@@ -10,7 +10,7 @@ Run `vendor:publish` in a terminal to choose a provider or tag. Package provider
 
 ## Token table migration {#token-table-migration}
 
-Once published, the migration is part of the application. The next build includes it in the migration registry even when the `sanctum` Cargo feature is disabled. Keep the original file and name if it already appears in the database ledger. If updating an older checkout removed that file, restore it from the previous revision before installing the API or rebuilding.
+Once published, the migration is part of the application. The next build includes it in the migration registry even when the `sanctum` Cargo feature is disabled.
 
 ```sh
 ./artisan install:api --without-migration-prompt
