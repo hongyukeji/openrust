@@ -67,11 +67,7 @@ impl Driver for NativeDriver {
         let oriented = needs_orientation(pipeline);
         let (image, orientation) =
             if let Some(mut animation) = animation::decode(&contents, format, limits, oriented)? {
-                let frame = animation
-                    .frames
-                    .next()
-                    .ok_or(Error::InvalidDimensions)?
-                    .map_err(codecs::decode_error)?;
+                let frame = animation.frames.next().ok_or(Error::InvalidDimensions)??;
                 (
                     DynamicImage::ImageRgba8(frame.into_buffer()),
                     animation.orientation,
@@ -105,7 +101,7 @@ fn transform_frames(
     let preserve = animation::supports_animation(format);
     for frame in animation.frames {
         input.add(animation.dimensions)?;
-        let frame = frame.map_err(codecs::decode_error)?;
+        let frame = frame?;
         if !passthrough && (preserve || rendered.is_empty()) {
             let delay = frame.delay();
             let image = apply(

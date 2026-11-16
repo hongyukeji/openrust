@@ -22,11 +22,11 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 ## 動畫影像 {#animated-images}
 
-GIF、動畫 PNG（APNG）和動畫 WebP 互相轉換時保留合成畫格、畫格順序及播放次數。管線會為每個顯示畫格套用變換。GIF 的延遲單位為 10 毫秒，WebP 為 1 毫秒，APNG 可儲存分數延遲。轉換時依目標格式的精度取整。
+GIF、動畫 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在變換及轉換時可保留顯示畫格、畫格順序及播放次數。GIF 的延遲單位為 10 毫秒。WebP、AVIF、HEIC、JPEG XL 的輸出延遲單位為 1 毫秒。APNG 可儲存分數延遲。JPEG XL 將零延遲取整為 1 毫秒，讓該畫格仍可顯示。
 
-未經修改的 GIF、APNG 和 WebP 在通過所有畫格檢查後回傳原始位元組。JPEG、BMP、AVIF、HEIC 和 JPEG XL 輸出為靜態影像。對於這些輸出和 `dominantColor()`，驅動使用受支援動畫的第一個顯示畫格。驅動對 AVIF、HEIC 和 JPEG XL 序列提供靜態影像支援。
+未經修改的動畫在通過畫格檢查後回傳原始位元組。JPEG、BMP 輸出和 `dominantColor()` 使用第一個顯示畫格。HEIF 輸入採用一條主要時序軌道，可包含輔助透明度軌道。HEIC 可以帶有編碼填補，並透過 clean aperture 指定顯示尺寸。
 
-驅動對 GIF、APNG 和 WebP 動畫設定 1,024 格以及輸入、輸出各 9,600 萬總像素的上限。自訂像素限額可將總上限降低至單張影像限額的四倍。每個畫格同時受單張影像限額約束。
+驅動對動畫輸入和輸出均設定 1,024 格和 9,600 萬總像素的上限。自訂像素限額可將總上限降低至單張影像限額的四倍。每個畫格同時受單張影像限額約束。
 
 ## 儲存影像 {#storing-images}
 

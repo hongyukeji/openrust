@@ -22,11 +22,11 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 ## Animated images {#animated-images}
 
-GIF, animated PNG (APNG), and animated WebP preserve the composited frames, frame order and play count when converted among these formats. The pipeline applies each transformation to every displayed frame. GIF stores delays in 10 ms units, WebP in 1 ms units, and APNG can store fractional delays. Conversion rounds delays to the destination's precision where needed.
+GIF, animated PNG (APNG), WebP, AVIF, HEIC, and JPEG XL can preserve displayed frames, frame order, and play count through transformations and conversions. GIF stores delays in 10 ms units. WebP, AVIF, HEIC, and JPEG XL output uses 1 ms units. APNG can store fractional delays. JPEG XL rounds a zero delay up to 1 ms so the frame remains visible.
 
-An unchanged GIF, APNG, or WebP returns its original bytes after frame validation. JPEG, BMP, AVIF, HEIC, and JPEG XL output uses a still image. For these outputs and `dominantColor()`, the driver uses the first displayed frame of a supported animation. AVIF, HEIC, and JPEG XL sequences have still-image support in this driver.
+An unchanged animation returns its original bytes after frame validation. JPEG and BMP output and `dominantColor()` use the first displayed frame. HEIF inputs use a single primary timed track and can include an auxiliary alpha track. HEIC can carry coded padding with a clean aperture that describes the displayed size.
 
-The driver bounds GIF, APNG, and WebP to 1,024 frames and 96 million total input or output pixels per animation. A custom pixel limit can lower the total to four times the per-image limit. Each frame must also fit within the per-image limits.
+The driver bounds animated inputs and outputs to 1,024 frames and 96 million total pixels. A custom pixel limit can lower the total to four times the per-image limit. Each frame must also fit within the per-image limits.
 
 ## Storing images {#storing-images}
 

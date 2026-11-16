@@ -658,9 +658,61 @@ async fn keeps_timing_for_a_single_frame_animation() {
     writer.finish().unwrap();
 
     let manager = ImageManager::new(Limits::default());
-    let webp = manager.fromBytes(bytes).toWebp().toBytes().await.unwrap();
-    assert_eq!(oxideav_webp::animation_params(&webp).unwrap().unwrap().0, 4);
-    let frames = frames_for(&webp, Format::Webp);
-    assert_eq!(frames.len(), 1);
-    assert_eq!(frames[0].delay().numer_denom_ms(), (50, 1));
+    let source = manager.fromBytes(bytes);
+    for format in [Format::Webp, Format::Avif, Format::Heic, Format::Jxl] {
+        let encoded = source.clone().encode(format).toBytes().await.unwrap();
+        let webp = manager.fromBytes(encoded).toWebp().toBytes().await.unwrap();
+        assert_eq!(oxideav_webp::animation_params(&webp).unwrap().unwrap().0, 4);
+        let frames = frames_for(&webp, Format::Webp);
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].delay().numer_denom_ms(), (50, 1));
+    }
+}
+
+#[tokio::test]
+async fn avif_heic_and_jpeg_xl_sequence_round_trips() {
+    let manager = ImageManager::new(Limits::default());
+    for (repeat, plays) in [
+        (Some(gif::Repeat::Finite(2)), 3),
+        (None, 1),
+        (Some(gif::Repeat::Infinite), 0),
+    ] {
+        let source = manager
+            .fromBytes(gif_sample(repeat))
+            .resize(Some(16), Some(12));
+        for format in [Format::Avif, Format::Heic, Format::Jxl] {
+            let bytes = source
+                .clone()
+                .encode(format)
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap_or_else(|error| panic!("{format:?} encode: {error}"));
+            let restored = manager.fromBytes(bytes);
+            assert_eq!(restored.mimeType().await.unwrap(), format.mime_type());
+            let webp = restored
+                .flipHorizontally()
+                .toWebp()
+                .quality(100)
+                .toBytes()
+                .await
+                .unwrap_or_else(|error| panic!("{format:?} decode: {error}"));
+            assert_eq!(
+                oxideav_webp::animation_params(&webp).unwrap().unwrap().0,
+                plays
+            );
+            let frames = frames_for(&webp, Format::Webp);
+            assert_eq!(frames.len(), 3, "{format:?}");
+            assert_eq!(
+                frames
+                    .iter()
+                    .map(|f| f.delay().numer_denom_ms().0)
+                    .collect::<Vec<_>>(),
+                [40, 90, 180]
+            );
+            assert!(frames[0].buffer().get_pixel(0, 0)[0] > 200);
+            assert!(frames[1].buffer().get_pixel(15, 0)[1] > 200);
+            assert!(frames[2].buffer().get_pixel(0, 0)[2] > 200);
+        }
+    }
 }

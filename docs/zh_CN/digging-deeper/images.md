@@ -22,11 +22,11 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 ## 动画图像 {#animated-images}
 
-GIF、动画 PNG（APNG）和动画 WebP 相互转换时保留合成帧、帧顺序及播放次数。管线对每个显示帧应用变换。GIF 的延迟单位为 10 毫秒，WebP 为 1 毫秒，APNG 可存储分数延迟。转换时按目标格式的精度取整。
+GIF、动画 PNG（APNG）、WebP、AVIF、HEIC 和 JPEG XL 在变换和转换时可保留显示帧、帧顺序及播放次数。GIF 的延迟单位为 10 毫秒。WebP、AVIF、HEIC、JPEG XL 的输出延迟单位为 1 毫秒。APNG 可存储分数延迟。JPEG XL 将零延迟取整为 1 毫秒，让该帧仍可显示。
 
-未经修改的 GIF、APNG 和 WebP 在通过所有帧的检查后返回原始字节。JPEG、BMP、AVIF、HEIC 和 JPEG XL 输出为静态图像。对于这些输出和 `dominantColor()`，驱动取受支持动画的第一个显示帧。驱动对 AVIF、HEIC 和 JPEG XL 序列提供静态图像支持。
+未经修改的动画在通过帧检查后返回原始字节。JPEG、BMP 输出和 `dominantColor()` 使用第一个显示帧。HEIF 输入采用一条主时序轨道，可包含辅助透明度轨道。HEIC 可以带有编码填充，并通过 clean aperture 指定显示尺寸。
 
-驱动对 GIF、APNG 和 WebP 动画设置 1,024 帧以及输入、输出各 9,600 万总像素的上限。自定义像素限额可将总上限降低至单图限额的四倍。每一帧同时受单图限额约束。
+驱动对动画输入和输出均设置 1,024 帧和 9,600 万总像素的上限。自定义像素限额可将总上限降低至单图限额的四倍。每一帧同时受单图限额约束。
 
 ## 存储图像 {#storing-images}
 

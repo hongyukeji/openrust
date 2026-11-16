@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use ::image::{
-    AnimationDecoder, Delay, DynamicImage, Frame, Frames, ImageDecoder,
+    AnimationDecoder, Delay, DynamicImage, Frame, ImageDecoder,
     codecs::{gif::GifDecoder, png::PngDecoder, webp::WebPDecoder},
     metadata::{LoopCount, Orientation},
 };
@@ -9,7 +9,7 @@ use oxideav_webp::{build, container::fourcc};
 
 use super::{Error, Format, Limits, Result, codecs};
 
-const MAX_FRAMES: usize = 1024;
+pub(super) const MAX_FRAMES: usize = 1024;
 const MAX_PIXELS: u64 = 96_000_000;
 
 pub(super) struct Budget {
@@ -43,7 +43,7 @@ impl Budget {
 }
 
 pub(super) struct Decoded<'a> {
-    pub frames: Frames<'a>,
+    pub frames: Box<dyn Iterator<Item = Result<Frame>> + 'a>,
     pub dimensions: (u32, u32),
     pub orientation: Option<Orientation>,
     /// Total plays, with zero representing infinite playback.
@@ -90,7 +90,11 @@ pub(super) fn decode(
                 plays: total_plays(decoder.loop_count()),
                 dimensions,
                 orientation,
-                frames: decoder.into_frames(),
+                frames: Box::new(
+                    decoder
+                        .into_frames()
+                        .map(|frame| frame.map_err(codecs::decode_error)),
+                ),
             }
         }
         Format::Webp => {
@@ -103,6 +107,8 @@ pub(super) fn decode(
                 .map_err(codecs::decode_error)?;
             from_decoder(decoder, limits, oriented, None)?
         }
+        Format::Avif | Format::Heic => return super::sequence::decode(contents, format, limits),
+        Format::Jxl => return super::jxl_sequence::decode(contents, limits),
         _ => return Ok(None),
     };
     Ok(Some(decoded))
@@ -123,7 +129,11 @@ fn from_decoder<'a>(
         plays: plays.unwrap_or_else(|| total_plays(decoder.loop_count())),
         dimensions,
         orientation,
-        frames: decoder.into_frames(),
+        frames: Box::new(
+            decoder
+                .into_frames()
+                .map(|frame| frame.map_err(codecs::decode_error)),
+        ),
     })
 }
 
@@ -135,7 +145,10 @@ fn total_plays(loops: LoopCount) -> u32 {
 }
 
 pub(super) fn supports_animation(format: Format) -> bool {
-    matches!(format, Format::Gif | Format::Webp | Format::Png)
+    matches!(
+        format,
+        Format::Gif | Format::Webp | Format::Png | Format::Avif | Format::Heic | Format::Jxl
+    )
 }
 
 pub(super) fn encode(
@@ -153,6 +166,9 @@ pub(super) fn encode(
         Format::Gif => encode_gif(frames, plays),
         Format::Png if animated => encode_apng(frames, plays),
         Format::Webp if animated => encode_webp(frames, plays, quality),
+        Format::Avif if animated => super::avif_sequence::encode(frames, quality, plays),
+        Format::Heic if animated => super::sequence::encode(frames, format, quality, plays),
+        Format::Jxl if animated => super::jxl_sequence::encode(frames, quality, plays),
         _ => {
             let frame = frames.into_iter().next().ok_or(Error::InvalidDimensions)?;
             codecs::encode(
@@ -241,7 +257,21 @@ fn png_delay(delay: Delay) -> Result<(u16, u16)> {
     ))
 }
 
-fn ticks(delay: Delay, milliseconds_per_tick: u64) -> u64 {
+pub(super) fn rational_delay(ticks: u32, numerator: u32, denominator: u32) -> Result<Delay> {
+    if numerator == 0 || denominator == 0 {
+        return Err(Error::InvalidAnimationTiming);
+    }
+    let n = u64::from(ticks) * u64::from(denominator) * 1000;
+    let mut a = n;
+    let mut b = u64::from(numerator);
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    let ticks = u32::try_from(n / a).map_err(|_| Error::InvalidAnimationTiming)?;
+    Ok(Delay::from_numer_denom_ms(ticks, numerator / a as u32))
+}
+
+pub(super) fn ticks(delay: Delay, milliseconds_per_tick: u64) -> u64 {
     let (numerator, denominator) = delay.numer_denom_ms();
     let denominator = u64::from(denominator) * milliseconds_per_tick;
     if numerator == 0 {
