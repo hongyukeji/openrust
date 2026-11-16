@@ -4,7 +4,7 @@ use super::data::{self, DataPathError};
 
 mod operations;
 
-pub(super) use operations::random_index;
+pub(super) use operations::{random_index, truthy};
 
 /// A missing array path or a value of the wrong type.
 #[derive(Debug, PartialEq, Eq)]

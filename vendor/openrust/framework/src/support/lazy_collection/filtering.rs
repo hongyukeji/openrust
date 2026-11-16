@@ -3,7 +3,7 @@ use std::{any::Any, ops::RangeInclusive};
 use serde_json::Value;
 
 use super::LazyCollection;
-use crate::support::data_get;
+use crate::support::{arr::truthy, data_get};
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
 impl<'source, T: 'source> LazyCollection<'source, T> {
@@ -76,6 +76,25 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+impl<'source, T: PartialEq + 'source> LazyCollection<'source, T> {
+    pub fn takeUntilValue(self, expected: T) -> Self {
+        self.takeUntil(move |item, _| item == &expected)
+    }
+
+    pub fn takeWhileValue(self, expected: T) -> Self {
+        self.takeWhile(move |item, _| item == &expected)
+    }
+
+    pub fn skipUntilValue(self, expected: T) -> Self {
+        self.skipUntil(move |item, _| item == &expected)
+    }
+
+    pub fn skipWhileValue(self, expected: T) -> Self {
+        self.skipWhile(move |item, _| item == &expected)
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
 impl<'source, T: 'source> LazyCollection<'source, Option<T>> {
     pub fn whereNull(self) -> Self {
         self.filter(|value, _| value.is_none())
@@ -88,6 +107,11 @@ impl<'source, T: 'source> LazyCollection<'source, Option<T>> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
 impl<'source> LazyCollection<'source, Value> {
+    /// Keeps values that are truthy using PHP's associative-array rules for JSON.
+    pub fn filterTruthy(self) -> Self {
+        self.filter(|value, _| truthy(value))
+    }
+
     pub fn whereNull(self) -> Self {
         self.filter(|value, _| value.is_null())
     }

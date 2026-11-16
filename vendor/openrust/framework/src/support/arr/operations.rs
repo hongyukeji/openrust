@@ -488,7 +488,7 @@ impl<K: Ord> PartialOrd for OrderedKey<K> {
     }
 }
 
-fn truthy(value: &Value) -> bool {
+pub(in crate::support) fn truthy(value: &Value) -> bool {
     match value {
         Value::Null => false,
         Value::Bool(value) => *value,

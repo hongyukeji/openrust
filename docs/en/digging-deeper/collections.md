@@ -390,6 +390,34 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Matching Boundary Values {#lazy-value-boundaries}
+
+Use `takeUntilValue`, `takeWhileValue`, `skipUntilValue`, and `skipWhileValue` to compare items directly with a typed value. The comparison uses Rust’s `PartialEq`. The first matching item is excluded by `takeUntilValue` and included by `skipUntilValue`.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| {
+        [
+            ("text", json!("2")),
+            ("marker", json!(2)),
+            ("hidden", json!("0")),
+            ("tail", json!(3)),
+        ]
+    });
+
+    let before = readings.clone().takeUntilValue(json!(2));
+    let from = readings.skipUntilValue(json!(2)).filterTruthy();
+    assert_eq!(before.toJson()?, r#"{"text":"2"}"#);
+    assert_eq!(from.toJson()?, r#"{"marker":2,"tail":3}"#);
+    Ok(())
+}
+```
+
+For JSON values, `filterTruthy()` applies PHP truthiness with JSON objects treated as associative arrays. It skips null, false, zero, the empty string, the string `0`, and empty arrays or maps. All these operations read on demand, preserve keys, and propagate source errors.
+
 #### Paging, Splitting, and Padding {#lazy-paging-and-partition}
 
 `forPage` uses one-based page numbers and preserves source keys. `split` materializes on the first pull and balances the groups. `splitIn` counts the source on call, then traverses it again on demand to fill the earlier groups. `partition` traverses once and returns the passing and failing groups as two materialized collections. A positive `pad` size adds items on the right after the source ends. A negative size materializes and pads on the left. Rust reports index overflow if the right padding cannot be assigned an integer key.

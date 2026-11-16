@@ -247,3 +247,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 沿用现有查找规则。命中便返回结果，包括显式 JSON null。首项、键或路径匹配后可停止读取，末项查找会读完整来源。无匹配时才调用回退一次，读取失败直接返回来源错误。
 - PHP 8.5.12 固定源码对照、82 项 Rust 集合用例、实际三语共用示例与 `./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
 - 隔离基线 `0735fbc91`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.09 GB（56.90 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-fallback.H6vU6nF7`。
+
+## 惰性集合按值截取与真值过滤
+
+对照固定 Laravel [无回调 filter 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L446)、[两类集合共用过滤测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php#L913)、[skipUntil 和 skipWhile](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1263)及 [takeUntil 与 takeWhile](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1608)。旧版未找到对应惰性接口，复用当前迭代边界和 `Arr` 的 JSON 真值规则。
+
+- 固定 Laravel 的值参数走严格比较。Rust 通过 `takeUntilValue`、`takeWhileValue`、`skipUntilValue` 和 `skipWhileValue` 表达直接比较，沿用 `PartialEq`。遇到首个相等值时，`takeUntilValue` 结束遍历，`skipUntilValue` 从该项开始输出。键、顺序、读取时机及来源错误沿用现有谓词操作。
+- `filterTruthy` 对应 JSON 来源无回调过滤。JSON 对象按 PHP 关联数组处理，空数组和空映射、null、false、数值零、空字符串及字符串 `0` 均会跳过。保留 PHP 原生对象身份和真值差异的调用可显式提供谓词。
+- 固定 Laravel PHP 8.5.12 对照与 91 项 Rust 定向用例通过，含 73 项惰性集合用例。三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
+- 隔离基线 `e12c751fc`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.07 GB（56.88 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-value-filter.4qVfuawL`。

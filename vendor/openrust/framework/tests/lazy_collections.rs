@@ -2210,3 +2210,101 @@ fn lazy_lookup_fallbacks_preserve_null_and_source_errors() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_value_boundaries_are_strict_and_keep_keys() {
+    use serde_json::json;
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [
+            ("string", json!("2")),
+            ("float", json!(2.0)),
+            ("integer", json!(2)),
+            ("tail", json!(3)),
+        ]
+        .into_iter()
+        .inspect(|_| reads.set(reads.get() + 1))
+    });
+
+    let before = source.clone().takeUntilValue(json!(2));
+    let from = source.clone().skipUntilValue(json!(2));
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        before.all().unwrap(),
+        vec![("string".into(), json!("2")), ("float".into(), json!(2.0))]
+    );
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        from.all().unwrap(),
+        vec![("integer".into(), json!(2)), ("tail".into(), json!(3))]
+    );
+    assert_eq!(reads.get(), 7);
+    assert!(source.skipUntilValue(json!(99)).all().unwrap().is_empty());
+
+    let source = LazyCollection::fromEntries(|| [("a", 1), ("b", 1), ("c", 2), ("d", 1)]);
+    assert_eq!(
+        source.clone().takeWhileValue(1).all().unwrap(),
+        vec![("a".into(), 1), ("b".into(), 1)]
+    );
+    assert_eq!(
+        source.skipWhileValue(1).all().unwrap(),
+        vec![("c".into(), 2), ("d".into(), 1)]
+    );
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(2)]);
+    assert!(matches!(
+        failing.clone().skipUntilValue(2).all(),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(
+        failing.takeWhileValue(1).all(),
+        Err(CollectionError::Source(_))
+    ));
+}
+
+#[test]
+fn lazy_truthy_filter_reuses_php_json_truthiness_and_stops_at_errors() {
+    use serde_json::json;
+
+    let reads = Cell::new(0);
+    let source = LazyCollection::tryFromEntries(|| {
+        [
+            Ok(("null", json!(null))),
+            Ok(("false", json!(false))),
+            Ok(("zero", json!(0))),
+            Ok(("zero_float", json!(-0.0))),
+            Ok(("empty_text", json!(""))),
+            Ok(("zero_text", json!("0"))),
+            Ok(("empty_array", json!([]))),
+            Ok(("empty_map", json!({}))),
+            Ok(("text", json!("00"))),
+            Ok(("array", json!([false]))),
+            Ok(("map", json!({"present":false}))),
+            Err(source_error()),
+            Ok(("unread", json!(true))),
+        ]
+        .into_iter()
+        .inspect(|_| reads.set(reads.get() + 1))
+    })
+    .filterTruthy();
+    assert_eq!(reads.get(), 0);
+    let mut iterator = source.getIterator();
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        ("text".into(), json!("00"))
+    );
+    assert_eq!(reads.get(), 9);
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        ("array".into(), json!([false]))
+    );
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        ("map".into(), json!({"present":false}))
+    );
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+    assert_eq!(reads.get(), 12);
+}

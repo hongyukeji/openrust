@@ -390,6 +390,34 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 依值選擇走訪邊界 {#lazy-value-boundaries}
+
+用 `takeUntilValue`、`takeWhileValue`、`skipUntilValue` 和 `skipWhileValue` 直接比較具型別的值。比較沿用 Rust 的 `PartialEq`。`takeUntilValue` 排除第一個相符項目，`skipUntilValue` 從第一個相符項目開始傳回。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| {
+        [
+            ("text", json!("2")),
+            ("marker", json!(2)),
+            ("hidden", json!("0")),
+            ("tail", json!(3)),
+        ]
+    });
+
+    let before = readings.clone().takeUntilValue(json!(2));
+    let from = readings.skipUntilValue(json!(2)).filterTruthy();
+    assert_eq!(before.toJson()?, r#"{"text":"2"}"#);
+    assert_eq!(from.toJson()?, r#"{"marker":2,"tail":3}"#);
+    Ok(())
+}
+```
+
+JSON 值可用 `filterTruthy()` 依 PHP 真值規則篩選，JSON 物件依關聯陣列處理。它會略過 null、false、零、空字串、字串 `0`、空陣列和空映射。這些操作都按需讀取、保留原鍵並傳遞來源錯誤。
+
 #### 分頁、拆分與填充 {#lazy-paging-and-partition}
 
 `forPage` 的頁碼從 1 開始，保留來源鍵。`split` 在第一次取值時實體化來源並均衡分組。`splitIn` 呼叫時先計數，再按需迭代以填滿前面的群組。`partition` 單次迭代，傳回通過與未通過的兩個實體集合。正數 `pad` 在來源結束後從右側補齊，負數則先實體化並從左側補齊。右側填充無法分配整數鍵時，Rust 傳回索引溢位錯誤。
