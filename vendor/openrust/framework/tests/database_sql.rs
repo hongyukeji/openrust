@@ -1815,3 +1815,206 @@ async fn mysql_reports_query_bindings_pool_role_and_cumulative_duration() {
     }).create().unwrap();
     verify_query_observation(app).await;
 }
+
+const DIAGNOSTIC_QUERY: &str =
+    "SELECT :label AS shown, ':unchanged ?' AS literal /* :ignored ? */ -- ?";
+
+#[derive(Default)]
+struct RawSqlRecorder(Mutex<Vec<(String, usize)>>);
+
+impl Listener for RawSqlRecorder {
+    fn handle<'a>(
+        &'a self,
+        payload: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = payload
+                .downcast_ref::<QueryExecuted>()
+                .ok_or(EventError::InvalidPayload)?;
+            if event.sql == DIAGNOSTIC_QUERY {
+                let rendered = event.toRawSql().map_err(EventError::Transaction)?;
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push((rendered, event.connection.getQueryLog().len()));
+            }
+            Ok(None)
+        })
+    }
+}
+
+async fn verify_query_diagnostics(mut app: Application, mysql: bool) {
+    app.boot().await.unwrap();
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let db = manager.connection(None).unwrap();
+    let other = manager.connection(Some("main::write")).unwrap();
+    let recorder = Arc::new(RawSqlRecorder::default());
+    db.listen(recorder.clone()).unwrap();
+    assert!(!db.logging());
+    db.select("SELECT 1", &[]).await.unwrap();
+    assert!(db.getQueryLog().is_empty());
+
+    let label = r"O'Reilly\notes";
+    db.enableQueryLog();
+    assert!(db.logging());
+    let original = db
+        .select(
+            DIAGNOSTIC_QUERY,
+            Bindings::Named(&[("label", label.into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(original[0].get("shown"), Some(&label.into()));
+    assert!(
+        db.select("SELECT nonexistent_from_diagnostics_test", &[])
+            .await
+            .is_err()
+    );
+    other.select("SELECT 1", &[]).await.unwrap();
+    assert!(other.getQueryLog().is_empty());
+    let log = db.getQueryLog();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0].query, DIAGNOSTIC_QUERY);
+    assert_eq!(log[0].read_write_type, QueryRole::Write);
+    let QueryBindings::Named(values) = &log[0].bindings else {
+        panic!("expected original named bindings");
+    };
+    assert_eq!(values, &[("label".to_owned(), label.into())]);
+    let escaped = if mysql {
+        r"O''Reilly\\notes"
+    } else {
+        r"O''Reilly\notes"
+    };
+    let expected = DIAGNOSTIC_QUERY.replace(":label AS", &format!("'{escaped}' AS"));
+    let rendered = db.getRawQueryLog().unwrap();
+    assert_eq!(rendered[0].raw_query, expected);
+    assert_eq!(rendered[0].time, log[0].time);
+    assert_eq!(*recorder.0.lock().unwrap(), [(expected, 0)]);
+    db.disableQueryLog();
+    assert_eq!(
+        db.select(&rendered[0].raw_query, &[]).await.unwrap(),
+        original
+    );
+    assert_eq!(db.getQueryLog().len(), 1);
+    db.flushQueryLog();
+    assert!(db.getQueryLog().is_empty());
+
+    db.enableQueryLog();
+    let original = db
+        .select(
+            "SELECT ? AS data_value, ? AS nil, ? AS flag_value, ? AS exact_number",
+            &[
+                Value::Bytes(vec![0, 255, 16]),
+                Value::Null,
+                true.into(),
+                19.into(),
+            ],
+        )
+        .await
+        .unwrap();
+    if !mysql {
+        db.select(
+            "SELECT ?2 AS second, ?1 AS first, ?2 AS repeated;",
+            &[17.into(), 31.into()],
+        )
+        .await
+        .unwrap();
+        db.select(
+            "SELECT ?2 AS second, ? AS anonymous;",
+            &[17.into(), 31.into(), 53.into()],
+        )
+        .await
+        .unwrap();
+        db.select("SELECT $2 AS second, $1 AS first;", &[17.into(), 31.into()])
+            .await
+            .unwrap();
+    }
+    db.disableQueryLog();
+    let log = db.getRawQueryLog().unwrap();
+    assert_eq!(
+        log[0].raw_query,
+        "SELECT x'00ff10' AS data_value, null AS nil, 1 AS flag_value, 19 AS exact_number"
+    );
+    let reparsed = db.select(&log[0].raw_query, &[]).await.unwrap();
+    assert_eq!(reparsed[0].get("data_value"), original[0].get("data_value"));
+    assert_eq!(reparsed[0].get("nil"), original[0].get("nil"));
+    if !mysql {
+        assert_eq!(
+            log[1].raw_query,
+            "SELECT 31 AS second, 17 AS first, 31 AS repeated;"
+        );
+        assert_eq!(log[2].raw_query, "SELECT 31 AS second, 31 AS anonymous;");
+        assert_eq!(log[3].raw_query, "SELECT 31 AS second, 17 AS first;");
+        for (statement, values, entry) in [
+            (
+                "SELECT ?2 AS second, ?1 AS first, ?2 AS repeated;",
+                &[17.into(), 31.into()][..],
+                &log[1],
+            ),
+            (
+                "SELECT ?2 AS second, ? AS anonymous;",
+                &[17.into(), 31.into(), 53.into()][..],
+                &log[2],
+            ),
+            (
+                "SELECT $2 AS second, $1 AS first;",
+                &[17.into(), 31.into()][..],
+                &log[3],
+            ),
+        ] {
+            assert_eq!(
+                db.select(statement, values).await.unwrap(),
+                db.select(&entry.raw_query, &[]).await.unwrap(),
+            );
+        }
+    }
+
+    db.flushQueryLog();
+    db.enableQueryLog();
+    db.select("SELECT ?", &[Value::Text("embedded\0nul".into())])
+        .await
+        .unwrap();
+    assert!(matches!(
+        db.getRawQueryLog(),
+        Err(DatabaseError::InvalidQuery(
+            "text binding contains a null byte"
+        ))
+    ));
+    assert_eq!(db.getQueryLog().len(), 1);
+}
+
+#[tokio::test]
+async fn sqlite_renders_the_original_bindings_in_opt_in_query_diagnostics() {
+    let root = Root::new();
+    let app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            Ok([("database".into(), json!({
+            "default":"main","connections":{"main":{"driver":"sqlite","database":":memory:"}}
+        }))].into())
+        })
+        .create()
+        .unwrap();
+    verify_query_diagnostics(app, false).await;
+}
+
+#[tokio::test]
+async fn mysql_renders_the_original_bindings_in_opt_in_query_diagnostics() {
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    let root = Root::new();
+    let app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+            Ok([(
+                "database".into(),
+                json!({"default":"main","connections":{"main":{"url":url}}}),
+            )]
+            .into())
+        })
+        .create()
+        .unwrap();
+    verify_query_diagnostics(app, true).await;
+}

@@ -26,12 +26,14 @@ use crate::{
 };
 
 use super::{
-    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value,
-    bindings::PreparedBindings,
+    Bindings, DatabaseCursor, DatabaseError, DatabaseResult, QueryLogEntry, RawQueryLogEntry, Row,
+    Value,
+    bindings::{PreparedBindings, render_query},
     events::{
         ConnectionEstablished, QueryDuration, QueryDurationHandler, QueryExecuted,
         QueryNotification, QueryRole,
     },
+    query_log::QueryLog,
     value,
 };
 
@@ -57,6 +59,7 @@ pub struct Connection {
     pub(super) established: Arc<OnceCell<()>>,
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,
+    pub(super) query_log: Arc<QueryLog>,
 }
 
 tokio::task_local! {
@@ -630,6 +633,39 @@ impl Connection {
         )))
     }
 
+    pub fn enableQueryLog(&self) {
+        self.query_log.set_enabled(true);
+    }
+
+    pub fn disableQueryLog(&self) {
+        self.query_log.set_enabled(false);
+    }
+
+    pub fn logging(&self) -> bool {
+        self.query_log.enabled()
+    }
+
+    pub fn flushQueryLog(&self) {
+        self.query_log.clear();
+    }
+
+    pub fn getQueryLog(&self) -> Vec<QueryLogEntry> {
+        self.query_log.snapshot()
+    }
+
+    pub fn getRawQueryLog(&self) -> DatabaseResult<Vec<RawQueryLogEntry>> {
+        self.getQueryLog()
+            .iter()
+            .map(|entry| {
+                let raw_query = render_query(&entry.query, &entry.bindings, !self.is_sqlite())?;
+                Ok(RawQueryLogEntry {
+                    raw_query,
+                    time: entry.time,
+                })
+            })
+            .collect()
+    }
+
     pub(super) fn observe_query(
         &self,
         sql: &str,
@@ -638,26 +674,31 @@ impl Connection {
         read_write_type: QueryRole,
     ) -> DatabaseResult<Option<QueryNotification>> {
         self.query_duration.add(time);
-        let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events"))
-        else {
-            return Ok(None);
-        };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(DatabaseError::Unavailable)?;
-        Ok(dispatcher
-            .observes(QueryExecuted::NAME)
-            .then(|| QueryNotification {
-                owner,
-                dispatcher,
-                event: Arc::new(QueryExecuted {
-                    connection: self.clone(),
-                    sql: sql.into(),
-                    bindings: bindings.into(),
-                    time,
-                    read_write_type,
-                }),
-            }))
+        if let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events")) {
+            let dispatcher = owner
+                .get::<Dispatcher>("events")
+                .map_err(DatabaseError::Unavailable)?;
+            if dispatcher.observes(QueryExecuted::NAME) {
+                return Ok(Some(QueryNotification {
+                    owner,
+                    dispatcher,
+                    event: Arc::new(QueryExecuted {
+                        connection: self.clone(),
+                        sql: sql.into(),
+                        bindings: bindings.into(),
+                        time,
+                        read_write_type,
+                    }),
+                }));
+            }
+        }
+        self.query_log.push(|| QueryLogEntry {
+            query: sql.into(),
+            bindings: bindings.into(),
+            time,
+            read_write_type,
+        });
+        Ok(None)
     }
 
     async fn dispatch_query(

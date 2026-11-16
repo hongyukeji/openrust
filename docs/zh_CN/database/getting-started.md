@@ -154,6 +154,26 @@ fn monitor_cumulative_time() -> DatabaseResult<()> {
 }
 ```
 
+### 查看查询日志 {#inspecting-query-logs}
+
+`QueryExecuted::toRawSql()` 将原始语句及绑定值渲染为诊断 SQL。渲染保留引号文本、标识符及注释里的占位符。数据库仍用预处理语句和独立绑定执行查询。
+
+查询日志默认关闭。可在连接上开启，也可通过 `DB` 为默认连接开启。`getQueryLog` 返回 SQL 和绑定值，`getRawQueryLog` 返回嵌入值的 SQL。`disableQueryLog` 停止记录，`flushQueryLog` 清除已记录的条目。
+
+```rust
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+
+async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
+    DB::enableQueryLog()?;
+    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
+    DB::disableQueryLog()?;
+    result?;
+    let log = DB::getRawQueryLog()?;
+    DB::flushQueryLog()?;
+    Ok(log)
+}
+```
+
 ## 数据库事务
 
 默认连接使用 `DB::transaction`，具名连接直接调用 `transaction`。在回调中通过传入的事务句柄执行 SQL。该句柄独占一条写库物理连接，直到提交或回滚。Rust 用装箱的 Future 在异步查询期间借用事务句柄。第二个参数是总尝试次数，传 `1` 表示执行一次。并发错误可能重跑整个回调，把外部副作用放在事务之外，或保证可以安全重复执行。

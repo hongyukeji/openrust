@@ -2,7 +2,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 
 use sqlx::Either;
 
-use super::{DatabaseError, DatabaseResult, Value};
+use super::{DatabaseError, DatabaseResult, Value, events::QueryBindings};
 
 /// Parameters for a prepared SQL statement.
 #[derive(Clone, Copy, Debug)]
@@ -38,7 +38,9 @@ impl<'a> Bindings<'a> {
                 sql: Cow::Borrowed(sql),
                 values: Either::Left(values),
             }),
-            Self::Named(values) => prepare_named(sql, values, mysql),
+            Self::Named(values) => {
+                prepare_named(sql, values.iter().map(|(key, value)| (*key, value)), mysql)
+            }
         }
     }
 }
@@ -67,9 +69,10 @@ fn name_byte(byte: u8) -> bool {
 
 fn prepare_named<'a>(
     sql: &str,
-    bindings: &'a [(&str, Value)],
+    bindings: impl ExactSizeIterator<Item = (&'a str, &'a Value)>,
     mysql: bool,
 ) -> DatabaseResult<PreparedBindings<'a>> {
+    let capacity = bindings.len();
     let mut names = BTreeMap::new();
     for (key, value) in bindings {
         let name = key.strip_prefix(':').unwrap_or(key);
@@ -82,25 +85,14 @@ fn prepare_named<'a>(
     }
 
     let mut query = String::with_capacity(sql.len());
-    let mut values = Vec::with_capacity(bindings.len());
+    let mut values = Vec::with_capacity(capacity);
     let mut copied = 0;
     let mut offset = 0;
     let bytes = sql.as_bytes();
     while let Some(&byte) = bytes.get(offset) {
         let tail = &bytes[offset..];
-        if tail.starts_with(b"/*") {
-            offset += tail[2..]
-                .windows(2)
-                .position(|pair| pair == b"*/")
-                .map_or(tail.len(), |end| end + 4);
-        } else if (mysql && byte == b'#')
-            || (tail.starts_with(b"--")
-                && (!mysql || tail.get(2).is_none_or(|b| *b <= b' ' || *b == 127)))
-        {
-            offset += tail.iter().position(|b| *b == b'\n').unwrap_or(tail.len());
-        } else if matches!(byte, b'\'' | b'"' | b'`') || (!mysql && byte == b'[') {
-            let delimiter = if byte == b'[' { b']' } else { byte };
-            offset += quoted_len(tail, delimiter, mysql && byte != b'`');
+        if let Some(length) = skip_sql(tail, mysql) {
+            offset += length;
         } else if tail.starts_with(b"::") {
             offset += tail.iter().take_while(|&&b| b == b':').count();
         } else if byte == b':' && tail.get(1).is_some_and(|b| name_byte(*b)) {
@@ -134,6 +126,28 @@ fn prepare_named<'a>(
     })
 }
 
+fn skip_sql(tail: &[u8], mysql: bool) -> Option<usize> {
+    let byte = *tail.first()?;
+    if tail.starts_with(b"/*") {
+        Some(
+            tail[2..]
+                .windows(2)
+                .position(|pair| pair == b"*/")
+                .map_or(tail.len(), |end| end + 4),
+        )
+    } else if (mysql && byte == b'#')
+        || (tail.starts_with(b"--")
+            && (!mysql || tail.get(2).is_none_or(|b| *b <= b' ' || *b == 127)))
+    {
+        Some(tail.iter().position(|b| *b == b'\n').unwrap_or(tail.len()))
+    } else if matches!(byte, b'\'' | b'"' | b'`') || (!mysql && byte == b'[') {
+        let delimiter = if byte == b'[' { b']' } else { byte };
+        Some(quoted_len(tail, delimiter, mysql && byte != b'`'))
+    } else {
+        None
+    }
+}
+
 fn quoted_len(bytes: &[u8], delimiter: u8, backslash_escape: bool) -> usize {
     let mut offset = 1;
     while let Some(&byte) = bytes.get(offset) {
@@ -148,4 +162,180 @@ fn quoted_len(bytes: &[u8], delimiter: u8, backslash_escape: bool) -> usize {
         }
     }
     offset
+}
+
+pub(super) fn render_query(
+    sql: &str,
+    bindings: &QueryBindings,
+    mysql: bool,
+) -> DatabaseResult<String> {
+    let prepared = match bindings {
+        QueryBindings::Positional(values) => Bindings::Positional(values).prepare(sql, mysql)?,
+        QueryBindings::Named(values) => prepare_named(
+            sql,
+            values.iter().map(|(key, value)| (key.as_str(), value)),
+            mysql,
+        )?,
+    };
+    let bindings = prepared
+        .values()
+        .map(|value| escape(value, mysql))
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    if bindings.is_empty() {
+        return Ok(prepared.sql.into_owned());
+    }
+
+    let mut rendered = String::with_capacity(prepared.sql.len());
+    let mut tokens = Vec::new();
+    let mut slots = BTreeMap::new();
+    let mut named_slots = BTreeMap::new();
+    let mut max_slot = 0usize;
+    let mut argument = 0usize;
+    let mut copied = 0;
+    let bytes = prepared.sql.as_bytes();
+    let mut offset = 0;
+    while let Some(&byte) = bytes.get(offset) {
+        let tail = &bytes[offset..];
+        if let Some(length) = skip_sql(tail, mysql) {
+            offset += length;
+            continue;
+        }
+        if !mysql && byte == b';' {
+            append_sqlite_parameters(
+                &prepared.sql,
+                &bindings,
+                &tokens,
+                &slots,
+                &mut argument,
+                &mut copied,
+                &mut rendered,
+            );
+            tokens.clear();
+            slots.clear();
+            named_slots.clear();
+            max_slot = 0;
+        } else if byte == b'?'
+            || (!mysql && byte == b'$' && tail.get(1).is_some_and(u8::is_ascii_digit))
+        {
+            if mysql {
+                if tail.starts_with(b"??") {
+                    offset += 2;
+                    continue;
+                }
+                if let Some(value) = bindings.get(argument) {
+                    rendered.push_str(&prepared.sql[copied..offset]);
+                    rendered.push_str(value);
+                    copied = offset + 1;
+                    argument += 1;
+                }
+            } else {
+                let digits = tail[1..].iter().take_while(|b| b.is_ascii_digit()).count();
+                let end = offset + 1 + digits;
+                let token = &prepared.sql[offset..end];
+                let number = (digits != 0)
+                    .then(|| token[1..].parse::<usize>())
+                    .transpose()
+                    .map_err(|_| DatabaseError::InvalidQuery("numbered placeholder"))?;
+                let slot = match byte {
+                    b'$' => *named_slots
+                        .entry(token)
+                        .or_insert_with(|| max_slot.saturating_add(1)),
+                    _ => number.unwrap_or_else(|| max_slot.saturating_add(1)),
+                };
+                if slot == 0 || number == Some(0) {
+                    return Err(DatabaseError::InvalidQuery("numbered placeholder"));
+                }
+                max_slot = max_slot.max(slot);
+                let entry = slots.entry(slot).or_insert(None);
+                if entry.is_none() {
+                    *entry = number;
+                }
+                tokens.push((offset, end, slot));
+                offset = end;
+                continue;
+            }
+        }
+        offset += 1;
+    }
+    if !mysql {
+        append_sqlite_parameters(
+            &prepared.sql,
+            &bindings,
+            &tokens,
+            &slots,
+            &mut argument,
+            &mut copied,
+            &mut rendered,
+        );
+    }
+    rendered.push_str(&prepared.sql[copied..]);
+    Ok(rendered)
+}
+
+fn append_sqlite_parameters(
+    sql: &str,
+    bindings: &[String],
+    tokens: &[(usize, usize, usize)],
+    slots: &BTreeMap<usize, Option<usize>>,
+    argument: &mut usize,
+    copied: &mut usize,
+    output: &mut String,
+) {
+    let mut values = BTreeMap::new();
+    let mut previous_slot = 0;
+    for (&slot, &number) in slots {
+        // SQLx advances its anonymous-argument offset across gaps in SQLite's slot table.
+        *argument = argument.saturating_add(slot - previous_slot - 1);
+        let index = number.unwrap_or_else(|| {
+            *argument = argument.saturating_add(1);
+            *argument
+        });
+        let Some(value) = index.checked_sub(1).and_then(|index| bindings.get(index)) else {
+            break;
+        };
+        values.insert(slot, value.as_str());
+        previous_slot = slot;
+    }
+    for &(start, end, slot) in tokens {
+        output.push_str(&sql[*copied..start]);
+        output.push_str(values.get(&slot).copied().unwrap_or("null"));
+        *copied = end;
+    }
+}
+
+fn escape(value: &Value, mysql: bool) -> DatabaseResult<String> {
+    use std::fmt::Write as _;
+    fn string(value: &str, mysql: bool) -> DatabaseResult<String> {
+        if value.contains('\0') {
+            return Err(DatabaseError::InvalidQuery(
+                "text binding contains a null byte",
+            ));
+        }
+        let value = value.replace('\'', "''");
+        let value = if mysql {
+            value.replace('\\', "\\\\")
+        } else {
+            value
+        };
+        Ok(format!("'{value}'"))
+    }
+
+    Ok(match value {
+        Value::Null => "null".into(),
+        Value::Bool(value) => if *value { "1" } else { "0" }.into(),
+        Value::Integer(value) => value.to_string(),
+        Value::Unsigned(value) => value.to_string(),
+        Value::Real(value) if value.is_finite() => value.to_string(),
+        Value::Real(_) => return Err(DatabaseError::InvalidQuery("non-finite numeric binding")),
+        Value::Text(value) => return string(value, mysql),
+        Value::Json(value) => return string(&value.to_string(), mysql),
+        Value::Bytes(value) => {
+            let mut hex = String::from("x'");
+            for byte in value {
+                write!(hex, "{byte:02x}").expect("writing to a String is infallible");
+            }
+            hex.push('\'');
+            hex
+        }
+    })
 }

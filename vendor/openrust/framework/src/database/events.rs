@@ -15,7 +15,10 @@ use crate::{
     support::facades::application_scope,
 };
 
-use super::{Bindings, Connection, DatabaseError, DatabaseResult, Value};
+use super::{
+    Bindings, Connection, DatabaseError, DatabaseResult, QueryLogEntry, Value,
+    bindings::render_query,
+};
 
 /// An application connection has been resolved for use.
 pub struct ConnectionEstablished {
@@ -40,6 +43,7 @@ pub enum QueryRole {
 }
 
 /// The original bindings supplied by the caller.
+#[derive(Clone)]
 pub enum QueryBindings {
     Positional(Vec<Value>),
     Named(Vec<(String, Value)>),
@@ -70,6 +74,12 @@ pub struct QueryExecuted {
 
 impl QueryExecuted {
     pub const NAME: &'static str = r"OpenRust\Database\Events\QueryExecuted";
+
+    /// Renders a diagnostic SQL string with the original bindings embedded.
+    #[allow(non_snake_case, reason = "Matches Laravel's QueryExecuted API")]
+    pub fn toRawSql(&self) -> DatabaseResult<String> {
+        render_query(&self.sql, &self.bindings, !self.connection.is_sqlite())
+    }
 }
 
 impl Event for QueryExecuted {
@@ -86,10 +96,19 @@ pub(super) struct QueryNotification {
 
 impl QueryNotification {
     pub async fn dispatch(self, context: &mut EventContext<'_>) -> DatabaseResult<()> {
-        application_scope(self.owner, self.dispatcher.dispatch(self.event, context))
-            .await
-            .map(|_| ())
-            .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))
+        application_scope(
+            self.owner,
+            self.dispatcher.dispatch(self.event.clone(), context),
+        )
+        .await
+        .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))?;
+        self.event.connection.query_log.push(|| QueryLogEntry {
+            query: self.event.sql.clone(),
+            bindings: self.event.bindings.clone(),
+            time: self.event.time,
+            read_write_type: self.event.read_write_type,
+        });
+        Ok(())
     }
 }
 

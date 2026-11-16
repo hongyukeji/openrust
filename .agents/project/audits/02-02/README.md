@@ -48,4 +48,14 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - `whenQueryingForLongerThan` 在逻辑连接的累计用时超过阈值时调用一次处理器，支持 `totalQueryDuration`、`resetTotalQueryDuration` 和 `allowQueryDurationHandlersToRunAgain`。并发或监听器重入共享该处理器的执行状态。
 - Rust 1.94.0、实际 SQLite 与 MySQL 8.4.13。44 项定向回归验证命名绑定、读写池和具名读连接、失败 SQL、流式游标、监听器重入、事务上下文、累计与重置、并发重新启用、真实 HTTP 以及 Artisan 子进程。1 个现有夹具由父测试启动。工作区严格 Clippy、变更文件格式检查通过。
 - 三语 Artisan 示例在两种数据库上用实际连接池等待触发 500 毫秒累计阈值。原生 `main artisan inspire` 通过。VitePress 构建、12 项站点浏览器组合和 6 项小节检查通过。
-- 02-02 仍需 `QueryExecuted::toRawSql` 等查询诊断接口核对、显式重连与剩余事务回调验收。
+- SQL 渲染与查询日志见下方续批。02-02 仍需显式重连与剩余事务回调验收。
+
+## 查询诊断与日志
+
+对照固定 Laravel 的 [QueryExecuted::toRawSql](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Events/QueryExecuted.php) 与 [Connection 查询日志](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L1730)。旧版无对应入口可直接复用。本批复用已验收的命名绑定解析以及当前查询事件。
+
+- `QueryExecuted::toRawSql` 与 `getRawQueryLog` 使用同一个诊断渲染器。普通注释、字符串和引号标识符的占位符保留原样。按 MySQL 与 SQLite 规则处理引号、反斜杠、字节、空值、布尔值及 SQLite 编号绑定。带空字符的文本返回诊断错误，原始绑定和日志条目仍可读取。
+- 查询日志默认关闭，按逻辑连接保存。支持经 Connection 或 DB 开启、读取、关闭和清空，关闭后仍可读取已记录条目。成功事件监听完毕后记录当前查询。失败查询不增加条目。诊断渲染保持在应用主动调用的路径，SQL 执行仍使用预处理绑定。
+- Rust 1.94.0，实际 SQLite 与 MySQL 8.4.13。46 项定向回归通过，1 个现有子进程夹具由父测试启动。真实数据库对照了原始绑定和诊断结果、SQLite 编号及混合参数、逻辑连接隔离、启停清空与监听顺序。工作区严格 Clippy、变更文件格式检查通过。
+- 六次三语示例执行覆盖两种驱动，经实际 Artisan 校验读取和清空。原生 `main artisan inspire` 成功。三语 VitePress 构建、12 项站点浏览器组合与 6 项查询日志小节检查通过。
+- 通用 `pretend`、查询前回调、显式重连与剩余事务回调待按固定 Laravel 验收。当前迁移的 Schema 预演继续使用独立路径。

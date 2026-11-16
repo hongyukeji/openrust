@@ -154,6 +154,26 @@ fn monitor_cumulative_time() -> DatabaseResult<()> {
 }
 ```
 
+### Inspecting Query Logs {#inspecting-query-logs}
+
+`QueryExecuted::toRawSql()` renders the original statement with its bindings for diagnostics. The renderer preserves placeholders inside quoted text, identifiers and comments. The database still executes prepared statements with separate bindings.
+
+Query logging is disabled by default. Enable it for a connection or through `DB` for the default connection. Use `getQueryLog` for SQL and bindings, and `getRawQueryLog` for SQL with values embedded. Use `disableQueryLog` to stop recording and `flushQueryLog` to clear stored entries.
+
+```rust
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+
+async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
+    DB::enableQueryLog()?;
+    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
+    DB::disableQueryLog()?;
+    result?;
+    let log = DB::getRawQueryLog()?;
+    DB::flushQueryLog()?;
+    Ok(log)
+}
+```
+
 ## Database Transactions
 
 Use `DB::transaction` for the default connection or call `transaction` on a named connection. Execute SQL through the transaction handle passed to the callback. The handle holds one write connection through the final commit or rollback. The boxed future lets Rust borrow that handle across asynchronous queries. The second argument specifies total attempts. Use `1` for a single attempt. Concurrency failures can rerun the whole callback, so keep side effects outside it or make them safe to repeat.

@@ -1,8 +1,8 @@
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    Bindings, Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Row,
-    Transaction, Value,
+    Bindings, Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult,
+    QueryLogEntry, RawQueryLogEntry, Row, Transaction, Value,
 };
 
 /// Executes queries on the current application's database connections.
@@ -51,6 +51,33 @@ impl DB {
         listener: std::sync::Arc<dyn crate::contracts::events::Listener>,
     ) -> DatabaseResult<()> {
         Self::connection(None)?.whenQueryingForLongerThan(threshold, listener)
+    }
+
+    pub fn enableQueryLog() -> DatabaseResult<()> {
+        Self::connection(None)?.enableQueryLog();
+        Ok(())
+    }
+
+    pub fn disableQueryLog() -> DatabaseResult<()> {
+        Self::connection(None)?.disableQueryLog();
+        Ok(())
+    }
+
+    pub fn logging() -> DatabaseResult<bool> {
+        Ok(Self::connection(None)?.logging())
+    }
+
+    pub fn flushQueryLog() -> DatabaseResult<()> {
+        Self::connection(None)?.flushQueryLog();
+        Ok(())
+    }
+
+    pub fn getQueryLog() -> DatabaseResult<Vec<QueryLogEntry>> {
+        Ok(Self::connection(None)?.getQueryLog())
+    }
+
+    pub fn getRawQueryLog() -> DatabaseResult<Vec<RawQueryLogEntry>> {
+        Self::connection(None)?.getRawQueryLog()
     }
 
     pub async fn selectFromWriteConnection<'a>(

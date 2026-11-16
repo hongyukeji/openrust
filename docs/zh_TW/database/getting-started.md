@@ -154,6 +154,26 @@ fn monitor_cumulative_time() -> DatabaseResult<()> {
 }
 ```
 
+### 檢視查詢日誌 {#inspecting-query-logs}
+
+`QueryExecuted::toRawSql()` 將原始陳述式及繫結值呈現為診斷 SQL。呈現時保留引號文字、識別字及註解裡的預留位置。資料庫仍使用預備陳述式與獨立繫結執行查詢。
+
+查詢日誌預設關閉。可在連線上開啟，也可透過 `DB` 為預設連線開啟。`getQueryLog` 傳回 SQL 及繫結值，`getRawQueryLog` 傳回嵌入值的 SQL。`disableQueryLog` 停止記錄，`flushQueryLog` 清除已記錄的項目。
+
+```rust
+use openrust::{database::{DatabaseResult, RawQueryLogEntry}, support::facades::DB};
+
+async fn inspect_value() -> DatabaseResult<Vec<RawQueryLogEntry>> {
+    DB::enableQueryLog()?;
+    let result = DB::select("SELECT ? AS inspected", &[42.into()]).await;
+    DB::disableQueryLog()?;
+    result?;
+    let log = DB::getRawQueryLog()?;
+    DB::flushQueryLog()?;
+    Ok(log)
+}
+```
+
 ## 資料庫交易
 
 預設連線使用 `DB::transaction`，具名連線直接呼叫 `transaction`。在回呼中透過傳入的交易控制代碼執行 SQL。該控制代碼獨占一條寫庫實體連線，直到提交或復原。Rust 用裝箱的 Future 在非同步查詢期間借用交易控制代碼。第二個參數是總嘗試次數，傳 `1` 表示執行一次。並行錯誤可能重跑整個回呼，請將外部副作用放在交易之外，或確保可安全重複執行。

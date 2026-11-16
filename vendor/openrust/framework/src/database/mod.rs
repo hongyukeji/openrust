@@ -18,6 +18,7 @@ mod facade;
 mod migration_service_provider;
 pub mod migrations;
 pub mod query;
+mod query_log;
 pub mod schema;
 pub mod seeder;
 mod transaction;
@@ -48,6 +49,7 @@ pub type DatabaseCursor<'a, T = Row> =
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
 pub use facade::DB;
+pub use query_log::{QueryLogEntry, RawQueryLogEntry};
 pub use value::{Row, Value};
 
 /// A configuration, connection, or SQL execution failure.
