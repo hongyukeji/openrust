@@ -22,3 +22,16 @@
 - AVIF 读取使用 imgalifier-avif，写入继续使用 ravif。HEIC 使用 OxideAV 的纯 Rust HEIF／HEVC 实现。JPEG XL 由 jxl-oxide 解码、zune-jpegxl 无损编码。WebP 写入改用 oxideav-webp，移除 libwebp 绑定并复验质量。各解码路径应用尺寸与像素限制，继续执行原有输入字节限制。
 - Apple Silicon macOS、Rust 1.94.0。5 项 `images` 回归及全工作区严格 Clippy 通过。变更文件格式通过，工作区格式仍报告已有 Sanctum 测试排版。实际 Artisan 双向转换八种格式，并读取由 macOS 系统编解码器独立生成的 AVIF 和 HEIC。系统读取器独立核对全部输出尺寸。损坏输入返回退出码 1。实际 HTTP 使用外部 HEIC 并输出 AVIF、HEIF 别名、JPEG XL、WebP，检查 MIME 和尺寸。三语文档构建和 12 项通用浏览器检查通过。
 - 后续范围包括动画帧、循环次数和时序，以及 JPEG XL 有损质量与平台特定编码差异。
+
+
+## 帧变换与时序
+
+- 对照固定 Laravel 通过 Intervention 4.2 的 GIF 与 WebP 多帧输出。内置驱动对 GIF、APNG、WebP 使用合成后的显示帧，逐帧应用变换，保留顺序与播放次数。GIF 的有限重复包含首轮之外的次数，APNG 与 WebP 存储总轮次。转换保留可表示的延迟，跨格式以 GIF 的 10 毫秒、WebP 的 1 毫秒或 APNG 的分数精度编码。单帧动画同样保留延迟和循环信息。 [Intervention 4.2 GIF 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Gd/Encoders/GifEncoder.php) [Intervention 4.2 WebP 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/WebpEncoder.php)
+- 原样读取验证所有 GIF、APNG 或 WebP 帧，支持静态输出只取第一个显示帧。输入和变换后分别限制 1,024 帧以及最多 9,600 万总像素。JPEG XL 改用 jixel 0.5.10，在 Rust 1.94.0 上支持有损质量和质量为 100 的无损路径。复验 RGBA 像素及透明度。
+- Apple Silicon macOS 上通过 10 项定向回归，覆盖 GIF 局部帧及恢复规则、APNG 分数延迟和透明帧、WebP 有损及无损编码、单帧动画、有限及无限播放、输入和输出预算、后续帧损坏、静态输出及 JPEG XL 质量。实际 Artisan 双向转换 GIF、APNG、WebP。真实 HTTP 从同一输入写出三种动画，独立 Pillow 读取器检查帧数、40／90／180 毫秒时序、三轮播放及画面颜色。真实 Artisan 和 HTTP 的 JPEG XL 输出由系统读取器复核。全目标严格 Clippy 和变更文件格式通过。工作区格式仍报告已有 Sanctum 测试排版。三语 VitePress 构建、12 项通用检查及 6 项 Images 路径和锚点检查通过。
+
+- 两批隔离应用、样本、文档构建及独占验收可执行文件已清理。末批项目卷可用空间从 62,371,472 KiB 增至 62,714,712 KiB。共享 Cargo 缓存保留。
+
+## 剩余验收
+
+AVIF、HEIC、JPEG XL 的序列往返和时序仍待验收。固定 Laravel 的 Imagick 驱动将这些格式交给系统编解码扩展，序列写入依赖其部署能力。当前纯 Rust 驱动对这些格式提供静态图像读写。HEIF 后端的序列接口提供帧和毫秒延迟，仍需核对循环元数据与总量限制。JPEG XL 的 jixel 公开编码接口接收单张图像，仍需选择符合项目最低工具链的序列编码路径。变换后原样保留专有元数据也仍待核对。07-05 保持开放。 [Intervention 4.2 AVIF 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/AvifEncoder.php) [Intervention 4.2 HEIC 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/HeicEncoder.php) [Intervention 4.2 JPEG XL 编码器](https://github.com/Intervention/image/blob/4.2.0/src/Drivers/Imagick/Encoders/JxlEncoder.php)

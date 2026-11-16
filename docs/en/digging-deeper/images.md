@@ -20,6 +20,14 @@ assert_eq!(thumbnail.dimensions().await?, (4, 4));
 assert_eq!(thumbnail.mimeType().await?, "image/webp");
 ```
 
+## Animated images {#animated-images}
+
+GIF, animated PNG (APNG), and animated WebP preserve the composited frames, frame order and play count when converted among these formats. The pipeline applies each transformation to every displayed frame. GIF stores delays in 10 ms units, WebP in 1 ms units, and APNG can store fractional delays. Conversion rounds delays to the destination's precision where needed.
+
+An unchanged GIF, APNG, or WebP returns its original bytes after frame validation. JPEG, BMP, AVIF, HEIC, and JPEG XL output uses a still image. For these outputs and `dominantColor()`, the driver uses the first displayed frame of a supported animation. AVIF, HEIC, and JPEG XL sequences have still-image support in this driver.
+
+The driver bounds GIF, APNG, and WebP to 1,024 frames and 96 million total input or output pixels per animation. A custom pixel limit can lower the total to four times the per-image limit. Each frame must also fit within the per-image limits.
+
 ## Storing images {#storing-images}
 
 `store` generates a filename using the encoded extension. Use `storeAs` to supply the filename, or `storePublicly` and `storePubliclyAs` to request public visibility. These methods return the stored path when the disk reports success.
@@ -32,4 +40,4 @@ Use `mimeType`, `extension`, `dimensions`, `width`, and `height` to inspect the 
 
 The application uses the `image` driver by default. `IMAGE_DRIVER` selects a registered driver. Use `Image::extend` to register an implementation of `Driver`, and `using` to choose a driver for an image. The default limits are 32 MiB per input, 16,384 pixels per side, and 24 million pixels per image.
 
-The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, and HEIC use the requested quality. The JPEG XL writer currently encodes losslessly. These codecs run in Rust. Transformations on animated inputs currently operate on a single frame.
+The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, HEIC, and JPEG XL use the requested quality. WebP and JPEG XL use lossless encoding at quality 100. These codecs run in Rust.

@@ -3,7 +3,6 @@ use std::io::Cursor;
 use ::image::{
     DynamicImage, ImageDecoder as _, ImageFormat, ImageReader, RgbaImage, metadata::Orientation,
 };
-use zune_core::{bit_depth::BitDepth, colorspace::ColorSpace, options::EncoderOptions};
 
 use super::{Error, Format, Limits, Result};
 
@@ -31,10 +30,10 @@ pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
 
 pub(super) fn decode(
     contents: &[u8],
+    format: Format,
     limits: Limits,
     oriented: bool,
-) -> Result<(DynamicImage, Format, Option<Orientation>)> {
-    let format = identify(contents)?;
+) -> Result<(DynamicImage, Option<Orientation>)> {
     let decoder_limits = decoder_limits(limits);
     let (image, orientation) = match format {
         Format::Avif => (decode_avif(contents, limits)?, None),
@@ -58,7 +57,7 @@ pub(super) fn decode(
             )?
         }
     };
-    Ok((image, format, orientation))
+    Ok((image, orientation))
 }
 
 fn decode_native(
@@ -94,7 +93,9 @@ fn decode_avif(contents: &[u8], limits: Limits) -> Result<DynamicImage> {
         contents,
         backend,
         imgalifier_avif::Limits {
+            max_item_bytes: limits.max_input_bytes,
             max_pixels: limits.max_pixels,
+            max_threads: 1,
             ..Default::default()
         },
     )
@@ -127,13 +128,7 @@ fn rgba_image(width: u32, height: u32, pixels: Vec<u8>, limits: Limits) -> Resul
 pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result<Vec<u8>> {
     let mut bytes = Vec::new();
     match format {
-        Format::Webp => {
-            let rgba = image.into_rgba8();
-            let (width, height) = rgba.dimensions();
-            let options = oxideav_webp::EncodeOptions::default().with_quality(f32::from(quality));
-            return oxideav_webp::encode_rgba8(width, height, rgba.as_raw(), &options)
-                .map_err(|error| codec_error(format, error));
-        }
+        Format::Webp => return encode_webp(&image.into_rgba8(), quality),
         Format::Heic => {
             let qp = ((100 - u32::from(quality)) * 51 / 100) as u8;
             let options = oxideav_heif::EncodeOptions::default().with_qp(qp);
@@ -148,19 +143,7 @@ pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result
             }
             .map_err(heic_error);
         }
-        Format::Jxl => {
-            let rgba = image.into_rgba8();
-            let options = EncoderOptions::new(
-                rgba.width() as usize,
-                rgba.height() as usize,
-                ColorSpace::RGBA,
-                BitDepth::Eight,
-            );
-            zune_jpegxl::JxlSimpleEncoder::new(rgba.as_raw(), options)
-                .encode(&mut bytes)
-                .map_err(|error| codec_error(format, error))?;
-            return Ok(bytes);
-        }
+        Format::Jxl => return encode_jxl(image, quality),
         Format::Jpeg => image.write_with_encoder(
             ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality),
         ),
@@ -174,6 +157,44 @@ pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result
     }
     .map_err(Error::Encoding)?;
     Ok(bytes)
+}
+
+fn encode_jxl(image: DynamicImage, quality: u8) -> Result<Vec<u8>> {
+    use ::image::ColorType;
+
+    let width = image.width() as usize;
+    let height = image.height() as usize;
+    let options = jixel::EncodeConfig::default()
+        .with_quality(f32::from(quality))
+        .with_lossless(quality == 100)
+        .with_function_fields(false)
+        .with_num_threads(1);
+    match image.color() {
+        ColorType::L16 | ColorType::Rgb16 => {
+            jixel::encode_image_16bit(image.into_rgb16().as_raw(), width, height, &options)
+        }
+        ColorType::La16 | ColorType::Rgba16 => jixel::encode_image_with_alpha_16bit(
+            image.into_rgba16().as_raw(),
+            width,
+            height,
+            &options,
+        ),
+        color if color.has_alpha() => {
+            jixel::encode_image_with_alpha(image.into_rgba8().as_raw(), width, height, &options)
+        }
+        _ => jixel::encode_image(image.into_rgb8().as_raw(), width, height, &options),
+    }
+    .map_err(|error| codec_error(Format::Jxl, error))
+}
+
+pub(super) fn encode_webp(image: &RgbaImage, quality: u8) -> Result<Vec<u8>> {
+    let (width, height) = image.dimensions();
+    let mut options = oxideav_webp::EncodeOptions::default();
+    if quality < 100 {
+        options = options.with_quality(f32::from(quality));
+    }
+    oxideav_webp::encode_rgba8(width, height, image.as_raw(), &options)
+        .map_err(|error| codec_error(Format::Webp, error))
 }
 
 pub(super) fn decode_error(error: ::image::ImageError) -> Error {

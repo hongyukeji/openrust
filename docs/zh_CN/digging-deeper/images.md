@@ -20,6 +20,14 @@ assert_eq!(thumbnail.dimensions().await?, (4, 4));
 assert_eq!(thumbnail.mimeType().await?, "image/webp");
 ```
 
+## 动画图像 {#animated-images}
+
+GIF、动画 PNG（APNG）和动画 WebP 相互转换时保留合成帧、帧顺序及播放次数。管线对每个显示帧应用变换。GIF 的延迟单位为 10 毫秒，WebP 为 1 毫秒，APNG 可存储分数延迟。转换时按目标格式的精度取整。
+
+未经修改的 GIF、APNG 和 WebP 在通过所有帧的检查后返回原始字节。JPEG、BMP、AVIF、HEIC 和 JPEG XL 输出为静态图像。对于这些输出和 `dominantColor()`，驱动取受支持动画的第一个显示帧。驱动对 AVIF、HEIC 和 JPEG XL 序列提供静态图像支持。
+
+驱动对 GIF、APNG 和 WebP 动画设置 1,024 帧以及输入、输出各 9,600 万总像素的上限。自定义像素限额可将总上限降低至单图限额的四倍。每一帧同时受单图限额约束。
+
 ## 存储图像 {#storing-images}
 
 `store` 按编码格式生成文件名。`storeAs` 使用指定文件名，`storePublicly` 和 `storePubliclyAs` 请求公开可见性。磁盘写入成功后返回存储路径。
@@ -32,4 +40,4 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 应用默认使用 `image` 驱动。`IMAGE_DRIVER` 可选择已注册的驱动。用 `Image::extend` 注册 `Driver` 实现，用 `using` 为图像选择驱动。默认限制为每个输入 32 MiB、每边 16,384 像素、每张图像 2,400 万像素。
 
-内置驱动读写 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 和 BMP。可用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 转换格式。`heif` 别名输出扩展名为 `.heic`、MIME 类型为 `image/heic` 的文件。JPEG、WebP、AVIF 和 HEIC 应用指定质量。JPEG XL 编码器目前以无损方式写入。编解码均在 Rust 中运行。动画输入目前只变换一帧。
+内置驱动读写 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 和 BMP。可用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 转换格式。`heif` 别名输出扩展名为 `.heic`、MIME 类型为 `image/heic` 的文件。JPEG、WebP、AVIF、HEIC 和 JPEG XL 应用指定质量。WebP 和 JPEG XL 在质量为 100 时采用无损编码。编解码均在 Rust 中运行。

@@ -15,7 +15,7 @@
 | 04 HTTP 请求链 | 3/9 | 04-06 Web 表单回传；04-08 异常报告限流；04-09 上传、下载与普通对象 URL | 04-01–05 路由诊断、请求及控制器接口、可信代理与转发 HTTPS、Session 额外驱动、文件和数据库验证规则；04-07 认证模型属性配额及额外 Redis 部署形态 |
 | 05 Eloquent、认证与 API | 9/9 | 05-01 模型读写和作用域；05-02 关系、加载与集合；05-03 属性转换与序列化；05-04 工厂与 Seeder；05-05 路由模型绑定；05-06 数据库分页；05-07 [API Resources](05-07/README.md#05-07-整单元验收)；05-08 [Guard 和会话认证](05-08/README.md#登录限流事件与整单元验收)；05-09 [Gate 和 Policy](05-09/README.md) | — |
 | 06 URL、后台任务与通知 | 8/8 | 06-01 [URL、重定向和签名](06-01/README.md#06-01-整单元验收)；06-02 事件与监听器；06-03–04 任务派发和 Worker；06-05 调度；06-06 [邮件与通知](06-06/README.md#06-06-整单元验收)；06-07 密码重置和邮箱验证；06-08 Artisan 帮助及交互本地化 | — |
-| 07 框架专题 | 4/7 | 07-01 [Helpers／Strings](07-01/README.md#整单元验收)；07-02 [HTTP Client](07-02/README.md#整单元验收)；07-03 [Processes](07-03/README.md#整单元验收)；07-04 [Concurrency](07-04/README.md#整单元验收) | 07-05 [静态格式已验收](07-05/README.md#静态格式补齐)，待动画与质量边界；07-06 PostgreSQL 全文搜索；07-07 包资源发布和发现 |
+| 07 框架专题 | 4/7 | 07-01 [Helpers／Strings](07-01/README.md#整单元验收)；07-02 [HTTP Client](07-02/README.md#整单元验收)；07-03 [Processes](07-03/README.md#整单元验收)；07-04 [Concurrency](07-04/README.md#整单元验收) | 07-05 [静态格式与 GIF／APNG／WebP 动画已验收](07-05/README.md#帧变换与时序)，待 AVIF／HEIC／JPEG XL 序列及元数据复核；07-06 PostgreSQL 全文搜索；07-07 包资源发布和发现 |
 | 08-01 框架广播 | 0/1 | 频道授权与分发有范围验收 | 模型频道参数绑定、匿名广播及广播唯一任务 |
 | T 测试能力 | 3/4 | T-01 测试应用；T-02 HTTP／Artisan 测试入口；T-04 容器与事件替身 | T-03 RefreshDatabase 事务策略及其他驱动测试库管理 |
 
@@ -87,7 +87,7 @@ SQLite 记住登录测试使用密文子串判断明文是否泄露，随机密�
 
 ## 07-05 Images
 
-AVIF、HEIC／HEIF、JPEG XL 静态读写和纯 Rust WebP 编码已通过真实 HTTP、Artisan 和独立系统读取器验收。动画帧与时序仍待验收。 [静态格式验收](07-05/README.md#静态格式补齐)
+AVIF、HEIC／HEIF、JPEG XL 静态读写和纯 Rust WebP 编码已通过真实 HTTP、Artisan 和独立系统读取器验收。GIF、APNG、WebP 的帧合成、播放次数和时序已通过真实入口及独立读取器验收，JPEG XL 有损和无损质量分支已通过。仍待 AVIF、HEIC、JPEG XL 的序列往返及原样元数据复核。 [静态格式验收](07-05/README.md#静态格式补齐) [动画验收](07-05/README.md#帧变换与时序)
 
 ## 本轮已验收的增量
 

@@ -2648,6 +2648,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
 
 [[package]]
+name = "jixel"
+version = "0.5.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "383a2d19cc880bb7b7dab5ca79e91a0d1c0b3ae58bdd6e579538c02421b73f89"
+dependencies = [
+ "msssim-lite",
+]
+
+[[package]]
 name = "jni"
 version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3132,6 +3141,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "msssim-lite"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d263eaaf8ffe950431edabf34ca3fdf9739f72c026b7fe5f6fb16ba75329d25"
+
+[[package]]
 name = "multer"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3299,6 +3314,7 @@ dependencies = [
  "fastrand",
  "fixed_decimal",
  "futures-util",
+ "gif",
  "http 1.5.0",
  "http-body 1.1.0",
  "httpdate",
@@ -3316,6 +3332,7 @@ dependencies = [
  "infer",
  "intl",
  "iri-string",
+ "jixel",
  "jxl-oxide",
  "lettre",
  "libc",
@@ -3327,6 +3344,7 @@ dependencies = [
  "oxideav-webp",
  "percent-encoding",
  "pluralizer",
+ "png",
  "pulldown-cmark",
  "quick-xml",
  "redis",
@@ -3352,8 +3370,6 @@ dependencies = [
  "uuid",
  "windows-sys 0.61.2",
  "zeroize",
- "zune-core",
- "zune-jpegxl",
 ]
 
 [[package]]
@@ -5917,15 +5933,6 @@ name = "zune-jpeg"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
-dependencies = [
- "zune-core",
-]
-
-[[package]]
-name = "zune-jpegxl"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cba11ecd07cc23351500e840ae03841b7e4997923ec8e4832ee3ae199ea0b6b4"
 dependencies = [
  "zune-core",
 ]

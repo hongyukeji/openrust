@@ -1,5 +1,6 @@
 //! Lazy image loading, transformations, and encoding.
 
+mod animation;
 mod codecs;
 mod facade;
 mod image_pipeline;
@@ -79,6 +80,8 @@ pub enum Error {
     InputTooLarge,
     DimensionsTooLarge,
     InvalidDimensions,
+    AnimationTooLarge,
+    InvalidAnimationTiming,
     InvalidTransformation,
     Missing,
     Encoding(::image::ImageError),
@@ -102,6 +105,12 @@ impl fmt::Display for Error {
             Self::InputTooLarge => formatter.write_str("image exceeds its input byte limit"),
             Self::DimensionsTooLarge => {
                 formatter.write_str("image exceeds its dimension or pixel limit")
+            }
+            Self::AnimationTooLarge => {
+                formatter.write_str("image exceeds its animation frame or pixel limit")
+            }
+            Self::InvalidAnimationTiming => {
+                formatter.write_str("animation timing exceeds the target format's limit")
             }
             Self::InvalidDimensions => formatter.write_str("invalid image dimensions"),
             Self::InvalidTransformation => formatter.write_str("invalid image transformation"),
