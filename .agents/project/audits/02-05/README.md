@@ -166,3 +166,13 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 默认长度 255、时间精度 0，并由当前应用设置。Rust 用 `None` 表达省略参数，保留既有显式长度与精度调用。固定长度辅助列继续使用自身长度。新增 `datetimes`、`softDeletesDatetime` 和显式精度的时间戳／软删除辅助入口。
 - 实际 `SELECT VERSION()` 为 MySQL 8.4.13。Rust 1.94.0 执行 `cargo test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，16 项通过。覆盖并行应用、默认及显式值、多态类型列、可空时间组、无效设置拒绝和自定义软删除列名。
 - 三语共用例在实际 MySQL Artisan 中验证默认长度与显式精度，原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点构建及 18 项浏览器检查通过。SQLite 本批通过工作区编译。全工作区格式仍报既有 Sanctum 测试排版差异。
+
+## 条件式 Schema 变更
+
+对照固定 Laravel [条件式 Blueprint 回调](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L279) 及 [索引和外键匹配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L430)。旧版框架未找到对应公开入口，本批复用现有写连接目录、列及索引查询和 Blueprint 执行路径。
+
+- 新增 `whenTableHasColumn`、`whenTableDoesntHaveColumn`、`whenTableHasIndex`、`whenTableDoesntHaveIndex`。只有匹配时调用回调，目录或 DDL 错误沿用原路径传播。
+- Rust 用 `KeySelector` 表达按名称或按顺序匹配列。`hasIndexWith` 支持可选的主键、唯一性或驱动索引类型。`hasForeignKey` 支持按名称或按本地列匹配，保留原 `hasIndex(table, name)`。
+- 使用独立 MySQL 8.4.13 运行 `sh tests/table_catalog.sh`，17 项 Schema 回归及 1 项实际 `migrate:fresh`／`db:wipe` 验收通过。验证条件未命中不执行回调、重复执行、索引列顺序和类型、外键匹配、DDL 错误传播以及另一 Schema 的标记行保留。
+- 使用 `python3 docker/accept.py --mysql -- ./target/debug/examples/schema_conditional_acceptance` 运行三语共用 Artisan 示例，重复运行条件操作及反向移除索引通过。原生 `main artisan inspire`、Rust 1.94 严格 Clippy、变更文件格式、三语构建和 18 项浏览器检查通过。全工作区格式检查仍有既有 Sanctum 排版差异。
+- 当前主分支的 `5aa5636a` 已回退两个 Docker 验收入口。本批仅在隔离副本提取 `3d2641c0f` 中的原脚本运行，并验证两轮均回收各自的 MySQL 容器与卷。

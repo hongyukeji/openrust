@@ -4,8 +4,8 @@ use crate::{
 };
 
 use super::{
-    Blueprint, Builder, Column, ForeignKey, Index, MorphKeyType, SchemaInfo, SchemaSession,
-    TableInfo, ViewInfo,
+    Blueprint, Builder, Column, ForeignKey, Index, KeySelector, MorphKeyType, SchemaInfo,
+    SchemaSession, TableInfo, ViewInfo,
 };
 
 /// Schema operations on the current application's default database connection.
@@ -142,6 +142,48 @@ impl Schema {
         Self::default_builder()?.hasColumns(table, columns).await
     }
 
+    pub async fn whenTableHasColumn(
+        table: &str,
+        column: &str,
+        configure: impl FnOnce(&mut Blueprint),
+    ) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .whenTableHasColumn(table, column, configure)
+            .await
+    }
+
+    pub async fn whenTableDoesntHaveColumn(
+        table: &str,
+        column: &str,
+        configure: impl FnOnce(&mut Blueprint),
+    ) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .whenTableDoesntHaveColumn(table, column, configure)
+            .await
+    }
+
+    pub async fn whenTableHasIndex(
+        table: &str,
+        index: KeySelector<'_>,
+        configure: impl FnOnce(&mut Blueprint),
+        index_type: Option<&str>,
+    ) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .whenTableHasIndex(table, index, configure, index_type)
+            .await
+    }
+
+    pub async fn whenTableDoesntHaveIndex(
+        table: &str,
+        index: KeySelector<'_>,
+        configure: impl FnOnce(&mut Blueprint),
+        index_type: Option<&str>,
+    ) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .whenTableDoesntHaveIndex(table, index, configure, index_type)
+            .await
+    }
+
     pub async fn getColumns(table: &str) -> DatabaseResult<Vec<Column>> {
         Self::default_builder()?.getColumns(table).await
     }
@@ -166,6 +208,22 @@ impl Schema {
 
     pub async fn hasIndex(table: &str, name: &str) -> DatabaseResult<bool> {
         Self::default_builder()?.hasIndex(table, name).await
+    }
+
+    pub async fn hasIndexWith(
+        table: &str,
+        selector: KeySelector<'_>,
+        index_type: Option<&str>,
+    ) -> DatabaseResult<bool> {
+        Self::default_builder()?
+            .hasIndexWith(table, selector, index_type)
+            .await
+    }
+
+    pub async fn hasForeignKey(table: &str, selector: KeySelector<'_>) -> DatabaseResult<bool> {
+        Self::default_builder()?
+            .hasForeignKey(table, selector)
+            .await
     }
 
     pub async fn getForeignKeys(table: &str) -> DatabaseResult<Vec<ForeignKey>> {

@@ -3367,3 +3367,179 @@ async fn mysql_schema_column_defaults_are_application_local() {
         check(false, "schema_standard_defaults"),
     );
 }
+
+#[tokio::test]
+async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_match() {
+    use openrust::database::schema::KeySelector;
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("conditional_items").await.unwrap();
+    schema.dropIfExists("conditional_owners").await.unwrap();
+    schema
+        .create("conditional_owners", |table| {
+            table.id();
+        })
+        .await
+        .unwrap();
+    schema
+        .create("conditional_items", |table| {
+            table.id();
+            table.foreignId("owner_id").nullable().constrainedOn(
+                "conditional_owners",
+                "id",
+                Some("conditional_owner_fk"),
+            );
+            table.integer("score");
+        })
+        .await
+        .unwrap();
+    db.insert("insert into app_conditional_items (score) values (42)", &[])
+        .await
+        .unwrap();
+
+    schema
+        .whenTableHasColumn("conditional_items", "missing", |_| panic!("column absent"))
+        .await
+        .unwrap();
+    schema
+        .whenTableHasColumn("conditional_items", "SCORE", |table| {
+            table.integer("score").default(7).change();
+        })
+        .await
+        .unwrap();
+    for _ in 0..2 {
+        schema
+            .whenTableDoesntHaveColumn("conditional_items", "status", |table| {
+                table.string("status", 16).default("draft");
+            })
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        db.table("conditional_items").value("score").await.unwrap(),
+        42.into()
+    );
+    assert_eq!(
+        db.table("conditional_items").value("status").await.unwrap(),
+        "draft".into()
+    );
+
+    let columns = KeySelector::Columns(&["status", "score"]);
+    for _ in 0..2 {
+        schema
+            .whenTableDoesntHaveIndex(
+                "conditional_items",
+                columns,
+                |table| {
+                    table.unique(&["status", "score"], Some("conditional_lookup"));
+                },
+                Some("unique"),
+            )
+            .await
+            .unwrap();
+    }
+    assert!(
+        schema
+            .hasIndexWith(
+                "conditional_items",
+                KeySelector::Name("CONDITIONAL_LOOKUP"),
+                Some("BTREE")
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .hasIndexWith(
+                "conditional_items",
+                KeySelector::Columns(&["id"]),
+                Some("primary")
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasIndexWith(
+                "conditional_items",
+                KeySelector::Columns(&["score", "status"]),
+                None
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasIndexWith(
+                "conditional_items",
+                KeySelector::Columns(&["STATUS", "score"]),
+                None
+            )
+            .await
+            .unwrap()
+    );
+    schema
+        .whenTableHasIndex(
+            "conditional_items",
+            columns,
+            |_| panic!("wrong index type"),
+            Some("primary"),
+        )
+        .await
+        .unwrap();
+    schema
+        .whenTableHasIndex(
+            "conditional_items",
+            columns,
+            |table| {
+                table.dropUnique("conditional_lookup");
+            },
+            Some("unique"),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndexWith("conditional_items", columns, None)
+            .await
+            .unwrap()
+    );
+
+    assert!(
+        schema
+            .hasForeignKey(
+                "conditional_items",
+                KeySelector::Name("conditional_owner_fk")
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .hasForeignKey("conditional_items", KeySelector::Columns(&["owner_id"]))
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasForeignKey("conditional_items", KeySelector::Columns(&["score"]))
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .whenTableHasColumn("conditional_items", "score", |table| {
+                table.integer("score");
+            })
+            .await
+            .is_err()
+    );
+    assert_eq!(db.table("conditional_items").count("*").await.unwrap(), 1);
+    schema.drop("conditional_items").await.unwrap();
+    schema.drop("conditional_owners").await.unwrap();
+}

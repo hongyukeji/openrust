@@ -5,7 +5,7 @@ use crate::database::{
 };
 
 use super::{
-    Blueprint, SchemaDefaults, SchemaSession,
+    Blueprint, KeySelector, SchemaDefaults, SchemaSession,
     grammars::{Grammar, Table},
 };
 
@@ -199,6 +199,56 @@ impl<'connection> Builder<'connection> {
         }
         let sql = self.grammar.alter(&table, blueprint)?;
         self.execute(sql).await
+    }
+
+    pub async fn whenTableHasColumn(
+        &mut self,
+        table: &str,
+        column: &str,
+        configure: impl FnOnce(&mut Blueprint),
+    ) -> DatabaseResult<()> {
+        if self.hasColumn(table, column).await? {
+            self.table(table, configure).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn whenTableDoesntHaveColumn(
+        &mut self,
+        table: &str,
+        column: &str,
+        configure: impl FnOnce(&mut Blueprint),
+    ) -> DatabaseResult<()> {
+        if !self.hasColumn(table, column).await? {
+            self.table(table, configure).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn whenTableHasIndex(
+        &mut self,
+        table: &str,
+        index: KeySelector<'_>,
+        configure: impl FnOnce(&mut Blueprint),
+        index_type: Option<&str>,
+    ) -> DatabaseResult<()> {
+        if self.hasIndexWith(table, index, index_type).await? {
+            self.table(table, configure).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn whenTableDoesntHaveIndex(
+        &mut self,
+        table: &str,
+        index: KeySelector<'_>,
+        configure: impl FnOnce(&mut Blueprint),
+        index_type: Option<&str>,
+    ) -> DatabaseResult<()> {
+        if !self.hasIndexWith(table, index, index_type).await? {
+            self.table(table, configure).await?;
+        }
+        Ok(())
     }
 
     pub async fn drop(&mut self, table: &str) -> DatabaseResult<()> {

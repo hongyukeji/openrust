@@ -358,6 +358,36 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 条件式 Schema 变更 {#conditional-schema-changes}
+
+用 `whenTableHasColumn`、`whenTableDoesntHaveColumn`、`whenTableHasIndex`、`whenTableDoesntHaveIndex`，仅在目录检查满足条件时执行 Blueprint。目录检查与随后的 Schema 语句是两次操作。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::KeySelector},
+    support::facades::Schema,
+};
+
+async fn prepare_imports() -> DatabaseResult<()> {
+    Schema::whenTableDoesntHaveColumn("imports", "status", |table| {
+        table.string("status", 24).default("pending");
+    })
+    .await?;
+
+    Schema::whenTableDoesntHaveIndex(
+        "imports",
+        KeySelector::Columns(&["status", "source"]),
+        |table| {
+            table.unique(&["status", "source"], Some("imports_status_source"));
+        },
+        Some("unique"),
+    )
+    .await
+}
+```
+
+`hasIndexWith` 与两个索引回调接受按名称或精确列顺序匹配的 `KeySelector`，可选类型包括 `primary`、`unique` 和 `btree`。`hasForeignKey` 使用同一选择类型匹配外键名称或本地列。
+
 #### 检查表目录 {#inspecting-tables}
 
 `getTables(None)` 列出所有可见用户 Schema 的表。用 `Some(name)` 限定一个 Schema，或用 `getTablesIn(&[...])` 限定多个。检查清库结果时应明确指定被清理的 Schema。

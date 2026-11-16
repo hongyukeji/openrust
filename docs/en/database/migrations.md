@@ -358,6 +358,36 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Conditional Schema Changes {#conditional-schema-changes}
+
+Use `whenTableHasColumn`, `whenTableDoesntHaveColumn`, `whenTableHasIndex`, and `whenTableDoesntHaveIndex` to run a blueprint only when its catalog check matches. The check and subsequent schema statement are separate operations.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::KeySelector},
+    support::facades::Schema,
+};
+
+async fn prepare_imports() -> DatabaseResult<()> {
+    Schema::whenTableDoesntHaveColumn("imports", "status", |table| {
+        table.string("status", 24).default("pending");
+    })
+    .await?;
+
+    Schema::whenTableDoesntHaveIndex(
+        "imports",
+        KeySelector::Columns(&["status", "source"]),
+        |table| {
+            table.unique(&["status", "source"], Some("imports_status_source"));
+        },
+        Some("unique"),
+    )
+    .await
+}
+```
+
+`hasIndexWith` and both index callbacks accept a `KeySelector` by name or exact column order, with an optional type such as `primary`, `unique`, or `btree`. `hasForeignKey` accepts the same selector on the local columns.
+
 #### Inspecting Tables {#inspecting-tables}
 
 `getTables(None)` lists tables across visible user schemas. Pass `Some(name)` to limit the query to one schema or use `getTablesIn(&[...])` for several. Use an explicit schema when checking the result of a schema-scoped wipe.

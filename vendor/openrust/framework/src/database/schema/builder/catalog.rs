@@ -4,8 +4,8 @@ use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
 use super::{Builder, Executor};
 use crate::database::schema::{
-    Column, ColumnGeneration, ForeignKey, GenerationType, Index, SchemaInfo, TableInfo, ViewInfo,
-    grammars::Table,
+    Column, ColumnGeneration, ForeignKey, GenerationType, Index, KeySelector, SchemaInfo,
+    TableInfo, ViewInfo, grammars::Table,
 };
 
 const MYSQL_SYSTEM_SCHEMAS: &str =
@@ -441,11 +441,50 @@ impl Builder<'_> {
     }
 
     pub async fn hasIndex(&mut self, table: &str, name: &str) -> DatabaseResult<bool> {
+        self.hasIndexWith(table, KeySelector::Name(name), None)
+            .await
+    }
+
+    pub async fn hasIndexWith(
+        &mut self,
+        table: &str,
+        selector: KeySelector<'_>,
+        index_type: Option<&str>,
+    ) -> DatabaseResult<bool> {
+        Ok(self.getIndexes(table).await?.iter().any(|index| {
+            let matches_type = index_type.is_none_or(|kind| {
+                (kind.eq_ignore_ascii_case("primary") && index.primary)
+                    || (kind.eq_ignore_ascii_case("unique") && index.unique)
+                    || index
+                        .index_type
+                        .as_deref()
+                        .is_some_and(|actual| actual.eq_ignore_ascii_case(kind))
+            });
+            matches_type
+                && match selector {
+                    KeySelector::Name(name) => index.name.eq_ignore_ascii_case(name),
+                    KeySelector::Columns(columns) => index
+                        .columns
+                        .iter()
+                        .map(|column| column.as_deref())
+                        .eq(columns.iter().copied().map(Some)),
+                }
+        }))
+    }
+
+    pub async fn hasForeignKey(
+        &mut self,
+        table: &str,
+        selector: KeySelector<'_>,
+    ) -> DatabaseResult<bool> {
         Ok(self
-            .getIndexes(table)
+            .getForeignKeys(table)
             .await?
             .iter()
-            .any(|index| index.name.eq_ignore_ascii_case(name)))
+            .any(|key| match selector {
+                KeySelector::Name(name) => key.name.as_deref() == Some(name),
+                KeySelector::Columns(columns) => key.columns == columns,
+            }))
     }
 
     pub async fn getForeignKeys(&mut self, table: &str) -> DatabaseResult<Vec<ForeignKey>> {

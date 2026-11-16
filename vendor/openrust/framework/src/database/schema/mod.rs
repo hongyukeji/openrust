@@ -106,6 +106,13 @@ pub struct Column {
     pub collation: Option<String>,
 }
 
+/// Identifies an index or foreign key by name or by its ordered columns.
+#[derive(Clone, Copy, Debug)]
+pub enum KeySelector<'a> {
+    Name(&'a str),
+    Columns(&'a [&'a str]),
+}
+
 /// An index read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Index {
