@@ -37,6 +37,26 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+## 缓存标签 {#cache-tags}
+
+使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array` 支持标签，`failover` 通过已配置的存储链保存标签代际和条目。当前直接选择其他存储会返回标签不受支持的错误。
+
+```rust
+use openrust::{
+    cache::{CacheError, Ttl, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+async fn store_report() -> Result<bool, CacheError> {
+    Cache::tags(&["reports", "daily"])?
+        .put("latest", &Value::from("ready"), Some(Ttl::Seconds(60)))
+        .await
+}
+```
+
+读取时传入完全相同的标签顺序，包括重复项。调用 `Cache::tags(&["daily"])?.flush().await?` 可使所有带 `daily` 标签的条目失效。普通键和只含无关标签的条目会保留。失效通过切换代际完成，旧条目无法再按标签读到，会按原 TTL 到期或随全量清空删除。
+
 ## 原子锁
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。

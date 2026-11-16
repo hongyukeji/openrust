@@ -1,11 +1,19 @@
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, sync::Arc};
 
-use crate::cache::{CacheFuture, CacheResult, Value};
+use crate::cache::{CacheError, CacheFuture, CacheResult, TaggedCache, Value};
 
 use super::LockProvider;
 
 /// Stores cache values using backend-level operations.
 pub trait Store: Send + Sync {
+    fn tags(self: Arc<Self>, _names: &[&str]) -> CacheResult<TaggedCache> {
+        Err(CacheError::TagsUnsupported)
+    }
+
+    fn supports_tags(&self) -> bool {
+        false
+    }
+
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>>;
     fn many<'a>(&'a self, keys: &'a [&'a str]) -> CacheFuture<'a, CacheResult<Vec<Option<Value>>>>;
     fn put<'a>(

@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    CacheError, CacheFuture, CacheManager, CacheResult, Repository, Value,
+    CacheError, CacheFuture, CacheManager, CacheResult, Repository, TaggedCache, Value,
     cache_manager::CacheManagerState, events::CacheFailedOver,
 };
 
@@ -170,6 +170,14 @@ macro_rules! forward_operation {
 }
 
 impl Store for FailoverStore {
+    fn tags(self: Arc<Self>, names: &[&str]) -> CacheResult<TaggedCache> {
+        Ok(TaggedCache::new(self, names))
+    }
+
+    fn supports_tags(&self) -> bool {
+        true
+    }
+
     forward_operation!(get(key: &'a str) -> Option<Value>);
     forward_operation!(many(keys: &'a [&'a str]) -> Vec<Option<Value>>);
     forward_operation!(put(key: &'a str, value: &'a Value, seconds: NonZeroU64) -> bool);

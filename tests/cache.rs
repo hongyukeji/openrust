@@ -358,6 +358,14 @@ async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_prima
     assert_eq!(backup.get("cached").await.unwrap(), None);
     assert_eq!(events.dispatched(CacheFailedOver::NAME).len(), 2);
 
+    // A failover repository can still scope tagged values while its first store is unavailable.
+    assert!(failover.supportsTags());
+    let tagged = failover.tags(&["batch", "reports"]).unwrap();
+    assert!(tagged.forever("status", &"backup".into()).await.unwrap());
+    assert_eq!(tagged.get("status").await.unwrap(), Some("backup".into()));
+    assert!(failover.tags(&["reports"]).unwrap().flush().await.unwrap());
+    assert_eq!(tagged.get("status").await.unwrap(), None);
+
     root.success(&["cache:clear", "failover"]);
     root.success(&["inspire"]);
 }
@@ -419,4 +427,179 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
         manager.store(Some("empty")),
         Err(CacheError::InvalidConfiguration)
     ));
+}
+
+#[tokio::test]
+async fn tagged_cache_preserves_order_duplicates_and_application_boundaries() {
+    let root = Sandbox::new("tags", "CACHE_STORE=array\n");
+    let cache = root.cache(None).await;
+    assert!(cache.supportsTags());
+
+    let ordered = cache.tags(&["people", "artists"]).unwrap();
+    let reversed = cache.tags(&["artists", "people"]).unwrap();
+    let duplicated = cache.tags(&["people", "artists", "artists"]).unwrap();
+    let authors = cache.tags(&["authors"]).unwrap();
+    let colon = cache.tags(&["people:artists"]).unwrap();
+    let key = "profile:42";
+
+    assert_eq!(
+        duplicated.getTags().getNames(),
+        ["people", "artists", "artists"]
+    );
+    let cases = [
+        (&ordered, 1),
+        (&reversed, 2),
+        (&duplicated, 3),
+        (&authors, 4),
+        (&colon, 5),
+    ];
+    for (tagged, value) in cases {
+        assert!(tagged.forever(key, &value.into()).await.unwrap());
+    }
+    for (tagged, value) in cases {
+        assert_eq!(tagged.get(key).await.unwrap(), Some(value.into()));
+    }
+    cache.forever(key, &0.into()).await.unwrap();
+    let metadata = ordered.getTags().getNamespace().await.unwrap();
+    assert!(cache.tags(&["artists"]).unwrap().flush().await.unwrap());
+    assert_ne!(ordered.getTags().getNamespace().await.unwrap(), metadata);
+    for tagged in [&ordered, &reversed, &duplicated] {
+        assert_eq!(tagged.get(key).await.unwrap(), None);
+    }
+    assert_eq!(authors.get(key).await.unwrap(), Some(4.into()));
+    assert_eq!(colon.get(key).await.unwrap(), Some(5.into()));
+    assert_eq!(cache.get(key).await.unwrap(), Some(0.into()));
+    assert_eq!(
+        root.cache(None)
+            .await
+            .tags(&["authors"])
+            .unwrap()
+            .get(key)
+            .await
+            .unwrap(),
+        None
+    );
+    assert!(matches!(
+        root.cache(Some("file")).await.tags(&["artists"]),
+        Err(CacheError::TagsUnsupported)
+    ));
+
+    assert_eq!(ordered.increment(key, 2).await.unwrap(), 2);
+    assert!(!ordered.add(key, &1.into(), None).await.unwrap());
+    assert!(ordered.touch(key, Ttl::Seconds(60)).await.unwrap());
+    assert_eq!(ordered.pull(key).await.unwrap(), Some(2.into()));
+    assert_eq!(ordered.get(key).await.unwrap(), None);
+    assert!(cache.flush().await.unwrap());
+    assert_eq!(authors.get(key).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
+    use axum::{extract::State, handler::Handler as _};
+    use openrust::{
+        contracts::http::Kernel as _,
+        foundation::{configuration::Routing, http::Kernel},
+        http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+        routing::{Router, RoutingError},
+        support::facades::Cache,
+    };
+    use tokio::{
+        io::{AsyncReadExt as _, AsyncWriteExt as _},
+        net::{TcpListener, TcpStream},
+        time::timeout,
+    };
+
+    async fn store_report() -> Result<bool, CacheError> {
+        Cache::tags(&["reports", "daily"])?
+            .put("latest", &Value::from("ready"), Some(Ttl::Seconds(60)))
+            .await
+    }
+
+    async fn tags_action(action: &str) -> Result<Option<Value>, CacheError> {
+        match action {
+            "/write" => {
+                assert!(store_report().await?);
+                Ok(None)
+            }
+            "/flush" => {
+                Cache::tags(&["daily"])?.flush().await?;
+                Ok(None)
+            }
+            _ => Cache::tags(&["reports", "daily"])?.get("latest").await,
+        }
+    }
+
+    fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let result =
+                tags_action(request.uri().path())
+                    .await
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+            Response::json(
+                StatusCode::OK,
+                result.and_then(|value| value.as_str().map(str::to_owned)),
+            )
+        })
+    }
+
+    fn routes(_: &Application) -> Result<Router, RoutingError> {
+        let mut router = Router::new();
+        router.r#match(&[Method::POST], "/write", endpoint)?;
+        router.get("/read", endpoint)?;
+        router.r#match(&[Method::POST], "/flush", endpoint)?;
+        Ok(router)
+    }
+
+    async fn transport(
+        State(kernel): State<Arc<Kernel>>,
+        incoming: axum::extract::Request,
+    ) -> axum::response::Response {
+        kernel.handleTransport(incoming).await
+    }
+
+    let root = Sandbox::new("tags-http", "CACHE_STORE=array\n");
+    let mut kernel = Kernel::new(
+        Application::configure(root.0.clone())
+            .withConfig(config::load)
+            .withRouting(Routing::new(routes))
+            .create()
+            .unwrap(),
+    );
+    kernel.bootstrap().await.unwrap();
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+
+    timeout(Duration::from_secs(5), async {
+        for (method, path, expected) in [
+            ("GET", "/read", "null"),
+            ("POST", "/write", "null"),
+            ("GET", "/read", "\"ready\""),
+            ("POST", "/flush", "null"),
+            ("GET", "/read", "null"),
+        ] {
+            let mut stream = TcpStream::connect(address).await.unwrap();
+            stream
+                .write_all(
+                    format!(
+                        "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).await.unwrap();
+            assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
+            assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected);
+        }
+    })
+    .await
+    .unwrap();
+    server.abort();
+    let _ = server.await;
+    root.success(&["inspire"]);
 }

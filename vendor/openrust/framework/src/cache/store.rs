@@ -200,8 +200,10 @@ impl LockProvider for StoreCore {
 }
 
 macro_rules! impl_store {
-    ($store:ty) => {
+    ($store:ty $(, $method:item)*) => {
         impl $crate::contracts::cache::Store for $store {
+            $($method)*
+
             fn get<'a>(
                 &'a self,
                 key: &'a str,

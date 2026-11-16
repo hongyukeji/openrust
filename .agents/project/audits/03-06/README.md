@@ -29,3 +29,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离基线 `1b98fc2c7`，macOS arm64，Rust 1.94.0。固定 PHP 对照通过故障切换、首次成功结果、主存储恢复、事件重发和最后一个异常。MySQL 8.4.13 与 Redis 8.10.3 下，`cargo test --test cache --locked --offline -- --test-threads=1` 的 6 项通过，含实际 Artisan `cache:clear failover` 和 `inspire`。另用真实 Redis 运行 2 项 `cache_memo` 回归，验证 HTTP 请求和队列任务生命周期。
 - 三语共用 Rust 示例运行通过，VitePress 构建和 18 项浏览器检查通过。变更文件格式及工作区全目标严格 Clippy 通过。全仓格式检查只报告既有 `sanctum_authentication.rs:1412` 排版，已核对该文件与基线逐字节一致。
 - 临时 MySQL、Redis 和 PHP 容器已回收。清理本批 3.5 GiB 隔离 Cargo 产物和文档缓存，项目卷可用 60.79 GB（56.61 GiB），周额度剩余 70%，第二窗口无读数。证据目录为 `/private/tmp/openrust-03-06-failover.3xRqxr8D`。
+
+## 有序缓存标签
+
+- 对照固定 Laravel 的 [Cache Tags](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#cache-tags)、`TagSet`、`TaggedCache`、`ArrayStore` 和 `FailoverStore`。从 openrust-v0.x 的 `cache/tags.rs` 与 `tests/unit/cache/tag_identity.rs` 复用有序代际身份和键边界回归。对照了旧版 `redis_tags.rs` 的索引与分批清理设计，该设计尚需独立验收。
+- 为默认和具名 `array`、`failover` 接通 `tags` 与 `supportsTags`。标签顺序及重复次数参与身份，任一匹配标签更新代际即失效，普通键和只有无关标签的键保留。复用现有 Repository TTL 和原子后端操作。Rust 使用 UUID 代际及 SHA-256 键命名，旧代际的数据随原 TTL 到期或由整库清理移除。
+- 隔离基线 `7d0afab4c`，macOS arm64，Rust 1.94.0。PHP 8.5 实际运行固定 Laravel ArrayStore 的顺序、重复项、键边界、清理及应用隔离对照。MySQL 8.4.13 与 Redis 8.10.3 下运行根应用 `cargo test --test cache --locked --offline -- --test-threads=1`，8 项通过，含 Redis 作为故障切换后端时的标签失效。
+- 真实 HTTP 依次完成未命中、写入、读回、按标签清理和再次未命中，三语共用示例在同一路径执行。实际 `main artisan inspire` 和 `cache:clear failover` 通过。VitePress 构建及 18 项浏览器检查通过。
+- 直接 Redis 标签、过期索引、物理清理、批量清锁和通用缓存事件继续由账本跟踪。当前 `failover` 的标签走 Laravel 的通用代际机制。
+- 变更文件格式和工作区全目标严格 Clippy 通过。全仓格式检查只报告既有 `sanctum_authentication.rs:1412` 排版，该文件与基线逐字节一致。临时 PHP、MySQL 和 Redis 已回收，清理本批 2.7 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 60.79 GB（56.62 GiB），周额度剩余 70%。证据见 `/private/tmp/openrust-03-06-tags.2Kd3VwBG`。

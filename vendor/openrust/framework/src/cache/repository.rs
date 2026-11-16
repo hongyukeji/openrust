@@ -7,12 +7,21 @@ use std::{
 
 use crate::contracts::cache::{Lock, LockProvider, Repository as Contract, Store};
 
-use super::{CacheError, CacheFuture, CacheResult, Ttl, Value};
+use super::{CacheError, CacheFuture, CacheResult, TaggedCache, Ttl, Value};
 
 /// Applies application-level semantics to a cache store.
 pub struct Repository(Arc<dyn Store>);
 
+#[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
 impl Repository {
+    pub fn tags(&self, names: &[&str]) -> CacheResult<TaggedCache> {
+        Arc::clone(&self.0).tags(names)
+    }
+
+    pub fn supportsTags(&self) -> bool {
+        self.0.supports_tags()
+    }
+
     pub fn new(store: Arc<dyn Store>) -> Self {
         Self(store)
     }

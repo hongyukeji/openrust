@@ -37,6 +37,26 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+## Cache Tags {#cache-tags}
+
+Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array` store supports tags. The `failover` driver stores generation metadata and tagged items through its configured chain. Other directly selected stores currently return a tagging error.
+
+```rust
+use openrust::{
+    cache::{CacheError, Ttl, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+async fn store_report() -> Result<bool, CacheError> {
+    Cache::tags(&["reports", "daily"])?
+        .put("latest", &Value::from("ready"), Some(Ttl::Seconds(60)))
+        .await
+}
+```
+
+Read the item with the same ordered list, including any repeated names. To invalidate any item tagged `daily`, call `Cache::tags(&["daily"])?.flush().await?`. The flush preserves plain entries and entries carrying only unrelated tags. This invalidation changes generations. Previous entries become unreachable and remain eligible for ordinary expiry or a full store clear.
+
 ## Atomic Locks
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.

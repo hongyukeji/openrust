@@ -6,7 +6,7 @@ use crate::{
     support::facades::Facade,
 };
 
-use super::{CacheError, CacheManager, CacheResult, Repository, Ttl, Value};
+use super::{CacheError, CacheManager, CacheResult, Repository, TaggedCache, Ttl, Value};
 
 /// Resolves cache operations for the current application.
 pub struct Cache;
@@ -32,6 +32,14 @@ impl Cache {
         Self::getFacadeRoot()
             .map_err(CacheError::Unavailable)?
             .memo(name)
+    }
+
+    pub fn tags(names: &[&str]) -> CacheResult<TaggedCache> {
+        Self::store(None)?.tags(names)
+    }
+
+    pub fn supportsTags() -> CacheResult<bool> {
+        Ok(Self::store(None)?.supportsTags())
     }
 
     pub async fn get(key: &str) -> CacheResult<Option<Value>> {

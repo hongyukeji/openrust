@@ -37,6 +37,26 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+## 快取標籤 {#cache-tags}
+
+使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array` 支援標籤，`failover` 透過設定的儲存順序儲存標籤世代及項目。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
+
+```rust
+use openrust::{
+    cache::{CacheError, Ttl, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+async fn store_report() -> Result<bool, CacheError> {
+    Cache::tags(&["reports", "daily"])?
+        .put("latest", &Value::from("ready"), Some(Ttl::Seconds(60)))
+        .await
+}
+```
+
+讀取時傳入完全相同的標籤順序，包括重複項目。呼叫 `Cache::tags(&["daily"])?.flush().await?` 可使所有帶有 `daily` 標籤的項目失效。一般鍵及僅含無關標籤的項目會保留。失效透過切換世代完成，舊項目無法再依標籤讀取，會依原 TTL 到期或於清除整個儲存時刪除。
+
 ## 原子鎖
 
 用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。

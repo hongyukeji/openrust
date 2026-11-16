@@ -28,6 +28,8 @@ mod repository;
 mod session_store;
 mod storage_store;
 mod store;
+mod tag_set;
+mod tagged_cache;
 
 use std::{error::Error, future::Future, pin::Pin, time::SystemTime};
 
@@ -53,6 +55,8 @@ pub use redis_store::RedisStore;
 pub use repository::Repository;
 pub use session_store::SessionStore;
 pub use storage_store::StorageStore;
+pub use tag_set::TagSet;
+pub use tagged_cache::TaggedCache;
 
 /// An asynchronous cache operation.
 pub type CacheFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -74,6 +78,7 @@ pub enum CacheError {
     MissingCounter,
     InvalidOwner,
     Unavailable(crate::contracts::container::BindingResolutionError),
+    TagsUnsupported,
     LocksUnsupported,
     LockTimeout,
     Backend {
@@ -151,6 +156,7 @@ impl std::fmt::Display for CacheError {
             Self::MissingCounter => f.write_str("The cache counter does not exist."),
             Self::InvalidOwner => f.write_str("Invalid cache lock owner."),
             Self::Unavailable(_) => f.write_str("The application cache is unavailable."),
+            Self::TagsUnsupported => f.write_str("This cache store does not support tagging."),
             Self::LocksUnsupported => f.write_str("The cache store does not support locks."),
             Self::LockTimeout => f.write_str("Timed out acquiring the cache lock."),
             Self::Backend { .. } => f.write_str("The cache backend operation failed."),
