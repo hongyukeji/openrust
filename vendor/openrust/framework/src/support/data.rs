@@ -39,7 +39,7 @@ pub(super) fn read(value: &Value, parts: &[&str]) -> Option<Value> {
 }
 
 // Laravel collapses nested wildcard results with array_merge semantics.
-fn collapse(values: Vec<Value>) -> Value {
+pub(super) fn collapse(values: impl IntoIterator<Item = Value>) -> Value {
     let mut result = Map::new();
     let mut next = 0_usize;
     for value in values {
@@ -104,7 +104,7 @@ pub(super) fn packed(values: Map<String, Value>) -> Value {
     }
 }
 
-fn integer_key(key: &str) -> bool {
+pub(super) fn integer_key(key: &str) -> bool {
     key.parse::<i64>()
         .is_ok_and(|number| number.to_string() == key)
 }
@@ -154,14 +154,18 @@ pub(super) fn write(
     *target = packed(items);
 }
 
-fn forget(target: &mut Value, parts: &[&str]) {
+pub(super) fn forget(target: &mut Value, parts: &[&str], expand_wildcards: bool) {
     let Some((&key, rest)) = parts.split_first() else {
         return;
     };
-    if key == "*" {
+    if expand_wildcards && key == "*" {
         match target {
-            Value::Array(items) => items.iter_mut().for_each(|child| forget(child, rest)),
-            Value::Object(items) => items.values_mut().for_each(|child| forget(child, rest)),
+            Value::Array(items) => items
+                .iter_mut()
+                .for_each(|child| forget(child, rest, expand_wildcards)),
+            Value::Object(items) => items
+                .values_mut()
+                .for_each(|child| forget(child, rest, expand_wildcards)),
             _ => {}
         }
         return;
@@ -173,7 +177,7 @@ fn forget(target: &mut Value, parts: &[&str]) {
         if rest.is_empty() {
             items.shift_remove(key);
         } else if let Some(child) = items.get_mut(key) {
-            forget(child, rest);
+            forget(child, rest, expand_wildcards);
         }
         return;
     }
@@ -187,7 +191,7 @@ fn forget(target: &mut Value, parts: &[&str]) {
             .ok()
             .and_then(|index| items.get_mut(index))
     {
-        forget(child, rest);
+        forget(child, rest, expand_wildcards);
     }
 }
 
@@ -277,6 +281,6 @@ pub(super) fn set(
 /// Removes a dot path. When an array gains an index gap, it becomes a keyed JSON object.
 pub fn data_forget(target: &mut Value, key: &str) -> Result<(), DataPathError> {
     let parts = segments(key)?;
-    forget(target, &parts);
+    forget(target, &parts, true);
     Ok(())
 }

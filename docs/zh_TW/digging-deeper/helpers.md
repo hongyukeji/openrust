@@ -86,3 +86,18 @@ fake.assertSequence(&[Some(duration)]);
 let mut timebox = Timebox::default();
 assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
 ```
+
+## 陣列轉換與篩選 {#array-transforms}
+
+用 `select` 選取字面欄位，用 `pluck` 按點路徑擷取。篩選、對映、分區和排序保留鍵。`take` 會重新編號整數鍵。`flatten` 和 `collapse` 分別按遞迴深度與單層合併處理陣列。
+
+```rust
+use openrust::support::Arr;
+use serde_json::json;
+
+let items = json!([{"id":"a","meta":{"name":"甲"}}, {"id":"b","meta":{"name":"乙"}}]);
+let names = Arr::pluck(&items, "meta.name", Some("id"))?;
+assert_eq!(names, json!({"a":"甲","b":"乙"}));
+assert_eq!(Arr::take(&items, -1), json!([items[1]]));
+assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!([3])]);
+```

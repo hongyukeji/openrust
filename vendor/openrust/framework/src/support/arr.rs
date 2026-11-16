@@ -2,16 +2,28 @@ use serde_json::{Map, Value};
 
 use super::data::{self, DataPathError};
 
+mod operations;
+
 /// A missing array path or a value of the wrong type.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ArrValueError {
     Missing,
     Expected(&'static str),
+    Multiple(usize),
+    SampleSize,
+    RandomUnavailable,
+    KeyOverflow,
+    Path(DataPathError),
 }
 
 impl std::fmt::Display for ArrValueError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Multiple(count) => write!(f, "expected one array item, found {count}"),
+            Self::RandomUnavailable => f.write_str("system randomness is unavailable"),
+            Self::SampleSize => f.write_str("sample size exceeds array length"),
+            Self::KeyOverflow => f.write_str("next integer key is out of range"),
+            Self::Path(error) => error.fmt(f),
             Self::Missing => f.write_str("array value is missing"),
             Self::Expected(kind) => write!(f, "array value must be {kind}"),
         }
@@ -19,6 +31,12 @@ impl std::fmt::Display for ArrValueError {
 }
 
 impl std::error::Error for ArrValueError {}
+
+impl From<DataPathError> for ArrValueError {
+    fn from(error: DataPathError) -> Self {
+        Self::Path(error)
+    }
+}
 
 /// Array and object helpers for ordered JSON values.
 pub struct Arr;
@@ -128,7 +146,8 @@ impl Arr {
         {
             return Ok(());
         }
-        data::data_forget(value, key)
+        data::forget(value, &data::segments(key)?, false);
+        Ok(())
     }
 
     pub fn pull(value: &mut Value, key: &str) -> Result<Option<Value>, DataPathError> {

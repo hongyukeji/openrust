@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - Strings 仍需逐项核对 多语言词形及 COMB 标识符。
-- Helpers 仍有 Arr 余下方法、日期工具和 Pipeline 待验收。计时的 PHP 行为差异见下文。
+- Helpers 仍有 日期工具和 Pipeline 待验收。计时的 PHP 行为差异见下文。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -73,3 +73,8 @@
 - 对照固定 Benchmark、Sleep、Timebox 及其错误和提前返回行为。核对 v0.x 的 Support 实现及测试，未找到可复用的对应计时模块。Benchmark 使用单调时钟返回毫秒均值和回调结果。Sleep 采用显式 await、类型化 Duration 和实例级替身，Timebox 给异步回调的返回值或错误补足剩余时间。 [固定 Benchmark](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Benchmark.php) [固定 Sleep](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Sleep.php) [固定 Timebox](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Timebox.php)
 - 条件重复使用等长间隔，零时长时让出调度。Rust 计时差异包括显式等待、Duration 单位、局部替身和 Future 取消语义。PHP 析构等待、Carbon 时钟联动与退出式 Benchmark::dd 待映射审定。
 - PHP 8.5.12 对照 Benchmark 返回值和 Timebox 的异常等待及提前返回状态。22 项锁定离线定向回归、严格 Clippy 和三语 VitePress 构建通过。实际 Artisan 运行三语示例，实际回环 HTTP 验证错误返回达到最短时限、替身记录和回调结果。
+
+## Arr 变换与筛选
+
+- 核对固定 Arr 的集合变换、选择、过滤、随机抽样、排序与 CSS 表达。Rust 使用有序 JSON、类型化回调和键投影，复用数据路径的有序合并。保键筛选与重新编号的 `take` 分别验收。动态 PHP 对象转换、松散比较和混合类型排序使用 Rust JSON 契约。 [固定 Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
+- 固定 Laravel 在 PHP 8.5.12 通过七组对照。Rust 1.94.0 锁定离线定向测试、严格 Clippy、真实 Artisan 与回环 HTTP 和三语 VitePress 构建通过。旧版具有数据路径基础，未发现可直接移植的 Arr 变换模块。

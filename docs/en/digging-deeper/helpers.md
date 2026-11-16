@@ -86,3 +86,18 @@ fake.assertSequence(&[Some(duration)]);
 let mut timebox = Timebox::default();
 assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
 ```
+
+## Array transforms and selection {#array-transforms}
+
+Use `select` for literal fields and `pluck` for dot paths. Filtering, mapping, partitioning, and sorting preserve keys. `take` reindexes numeric keys. `flatten` and `collapse` differ in depth and key handling.
+
+```rust
+use openrust::support::Arr;
+use serde_json::json;
+
+let items = json!([{"id":"a","meta":{"name":"甲"}}, {"id":"b","meta":{"name":"乙"}}]);
+let names = Arr::pluck(&items, "meta.name", Some("id"))?;
+assert_eq!(names, json!({"a":"甲","b":"乙"}));
+assert_eq!(Arr::take(&items, -1), json!([items[1]]));
+assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!([3])]);
+```
