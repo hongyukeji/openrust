@@ -118,3 +118,21 @@ let end = start.plus(months(1), MonthOverflow::Clamp)?;
 let formatted = end.asDateTime().to_rfc3339();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
+
+## 流水线 {#pipeline}
+
+`Pipeline::send` 创建类型化异步流水线。`through` 替换阶段，`pipe` 追加阶段。调用 `next.run` 继续执行，或直接返回结果以短路。用 `then` 做最终投影，用 `thenReturn` 返回传递值，用 `finally` 读取原始输入。
+
+数据库操作使用 `Pipeline<T, DatabaseError, R, Transaction>` 和 `withinTransaction`。阶段通过 `next.context()` 在同一事务中执行查询，返回错误时回滚。可传入类型化回调，或显式解析服务。
+
+```rust
+use openrust::support::facades::Pipeline;
+use std::convert::Infallible;
+
+let result = Pipeline::<_, Infallible>::send(20)
+    .pipe(|value, next| Box::pin(async move { next.run(value + 1).await }))
+    .pipe(|value, next| Box::pin(async move { next.run(value * 2).await }))
+    .thenReturn()
+    .await?;
+assert_eq!(result, 42);
+```

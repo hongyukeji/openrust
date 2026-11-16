@@ -118,3 +118,21 @@ let end = start.plus(months(1), MonthOverflow::Clamp)?;
 let formatted = end.asDateTime().to_rfc3339();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
+
+## Pipeline {#pipeline}
+
+`Pipeline::send` starts a typed async pipeline. `through` replaces the stages and `pipe` appends a stage. Call `next.run` to continue or return a result to short-circuit. Use `then` for a final projection, `thenReturn` to return the carried value, and `finally` for a callback that sees the original input.
+
+For database work, use `Pipeline<T, DatabaseError, R, Transaction>` and `withinTransaction`. Stages use `next.context()` to query the same transaction. Return an error to roll it back. Pass typed callables or resolve services explicitly.
+
+```rust
+use openrust::support::facades::Pipeline;
+use std::convert::Infallible;
+
+let result = Pipeline::<_, Infallible>::send(20)
+    .pipe(|value, next| Box::pin(async move { next.run(value + 1).await }))
+    .pipe(|value, next| Box::pin(async move { next.run(value * 2).await }))
+    .thenReturn()
+    .await?;
+assert_eq!(result, 42);
+```

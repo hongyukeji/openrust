@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - Strings 仍需逐项核对 多语言词形及 COMB 标识符。
-- Helpers 仍有 Pipeline 待验收。计时的 PHP 行为差异见下文。
+- Helpers 的运行时适配边界见各批验收记录。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -83,3 +83,8 @@
 
 - 对照固定 Laravel 的 `now`、`today`、`Carbon::plus/minus` 和八种区间单位，并核对旧版 Carbon 请求日期及区间回归。沿用历法分量与应用时区分开的契约，复用现有 Chrono 和 IANA 时区数据。月份支持溢出或月末截断。日期分量按当地历法，小时以下按经过时间计算。Rust 日期不可变，返回新值并显式处理范围错误。 [固定 Carbon 扩展](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Carbon.php)
 - PHP 8.5.12 配 Carbon 3.8.4（Laravel 声明的最低版本）对照闰月、月份倒退及夏令时。6 项 Rust 定向测试、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。自定义 Carbon 工厂及任意 PHP 日期字符串仍属适配范围。
+
+## Pipeline
+
+- 对照固定 Pipeline 的阶段替换与追加、进入和退出顺序、短路、目的回调、原输入清理和事务。类型化 Rust 阶段接收一次性 `Next`，选择显式调用或提前返回。事务复用现有连接及回滚机制，阶段通过 `next.context()` 借用同一事务。服务与方法通过类型化回调显式绑定，PHP 类名字符串及方法反射属适配差异。旧版未找到通用 Pipeline 实现。 [固定 Pipeline](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pipeline/Pipeline.php)
+- 固定 PHP 对照嵌套顺序、短路和原输入清理。Rust 1.94.0 锁定离线定向测试与严格 Clippy 通过。真实 Artisan 和回环 HTTP 各验证一个 SQLite 提交与回滚，事务结束后只剩已提交行。三语示例实际运行，VitePress 构建通过。
