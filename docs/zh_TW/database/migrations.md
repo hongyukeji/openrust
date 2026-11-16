@@ -116,6 +116,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 SQLite 對需要重建的欄位或外鍵變更執行資料表重建。請在活動交易之外，透過連線的 Schema Builder 發起重建。重建擁有自己的交易，並恢復連線的外鍵設定。會隱含提交的 MySQL DDL 也透過連線的 Schema Builder 執行。
 
+### 更多欄位型別 {#additional-column-types}
+
+用 `tinyText`、`year`、`ipAddress`、`macAddress` 和 `r#enum` 宣告對應的欄位。`year` 搭配 `useCurrent()` 時預設採用資料庫目前的年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 約束列舉值，對 SET 傳回不支援。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_events() -> DatabaseResult<()> {
+    Schema::create("incoming_events", |table| {
+        table.smallIncrements("id");
+        table.r#enum("status", &["pending", "processed"]).default("pending");
+        table.year("batch_year").useCurrent();
+        table.ipAddress("source_ip").nullable();
+        table.binaryWith("digest", 32, true).nullable();
+        table.timestampsTz();
+    })
+    .await
+}
+```
+
+`binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
+
 ### MySQL 欄位修飾詞
 
 用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。

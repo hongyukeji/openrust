@@ -402,7 +402,7 @@ impl Grammar {
         {
             return Err(DatabaseError::UnsupportedSchema("MySQL column modifier"));
         }
-        let kind = self.column_type(column.kind)?;
+        let kind = self.column_type(&column.kind, &column.name)?;
         let integer = matches!(
             column.kind,
             ColumnType::TinyInteger
@@ -427,7 +427,7 @@ impl Grammar {
             write!(
                 sql,
                 " default {}",
-                self.default_value(default, column.kind)?
+                self.default_value(default, &column.kind)?
             )
             .expect("writing to a String");
         }
@@ -466,7 +466,7 @@ impl Grammar {
         Ok(sql)
     }
 
-    fn column_type(&self, kind: ColumnType) -> DatabaseResult<String> {
+    fn column_type(&self, kind: &ColumnType, column: &str) -> DatabaseResult<String> {
         let mysql = self.mysql();
         let scalar = match kind {
             ColumnType::TinyInteger if mysql => "tinyint",
@@ -479,7 +479,7 @@ impl Grammar {
             | ColumnType::Integer
             | ColumnType::BigInteger => "integer",
             ColumnType::String(length) | ColumnType::Char(length) => {
-                if length == 0 || length > 65_535 {
+                if *length == 0 || *length > 65_535 {
                     return Err(DatabaseError::InvalidSchema("column length"));
                 }
                 let name = if matches!(kind, ColumnType::Char(_)) {
@@ -493,12 +493,16 @@ impl Grammar {
                     "varchar".into()
                 });
             }
+            ColumnType::TinyText if mysql => "tinytext",
             ColumnType::MediumText if mysql => "mediumtext",
             ColumnType::LongText if mysql => "longtext",
-            ColumnType::Text | ColumnType::MediumText | ColumnType::LongText => "text",
+            ColumnType::TinyText
+            | ColumnType::Text
+            | ColumnType::MediumText
+            | ColumnType::LongText => "text",
             ColumnType::Boolean if mysql => "tinyint(1)",
             ColumnType::Boolean => "tinyint(1)",
-            ColumnType::Decimal(total, places) if total > 0 && total <= 65 && places <= total => {
+            ColumnType::Decimal(total, places) if *total > 0 && *total <= 65 && places <= total => {
                 return Ok(if mysql {
                     format!("decimal({total}, {places})")
                 } else {
@@ -512,13 +516,51 @@ impl Grammar {
             ColumnType::Double if mysql => "double",
             ColumnType::Float | ColumnType::Double => "float",
             ColumnType::Binary => "blob",
+            ColumnType::SizedBinary(length, fixed) => {
+                if mysql {
+                    let max = if *fixed { 255 } else { 65_535 };
+                    if *length == 0 || *length > max {
+                        return Err(DatabaseError::InvalidSchema("binary length"));
+                    }
+                    let kind = if *fixed { "binary" } else { "varbinary" };
+                    return Ok(format!("{kind}({length})"));
+                }
+                "blob"
+            }
+            ColumnType::Enum(values) | ColumnType::Set(values) => {
+                let is_set = matches!(kind, ColumnType::Set(_));
+                if is_set && !mysql {
+                    return Err(DatabaseError::UnsupportedSchema("SQLite set column"));
+                }
+                if values.is_empty() || (is_set && values.len() > 64) {
+                    return Err(DatabaseError::InvalidSchema("allowed column values"));
+                }
+                let values = values
+                    .iter()
+                    .map(|value| self.string(value))
+                    .collect::<DatabaseResult<Vec<_>>>()?
+                    .join(", ");
+                if mysql {
+                    let kind = if is_set { "set" } else { "enum" };
+                    return Ok(format!("{kind}({values})"));
+                }
+                return Ok(format!(
+                    "varchar check ({} in ({values}))",
+                    self.identifier(column)?
+                ));
+            }
+            ColumnType::IpAddress if mysql => "varchar(45)",
+            ColumnType::MacAddress if mysql => "varchar(17)",
+            ColumnType::IpAddress | ColumnType::MacAddress => "varchar",
+            ColumnType::Year if mysql => "year",
+            ColumnType::Year => "integer",
             ColumnType::Json if mysql => "json",
             ColumnType::Json => "text",
             ColumnType::Date => "date",
             ColumnType::DateTime(precision)
             | ColumnType::Timestamp(precision)
             | ColumnType::Time(precision) => {
-                if precision > 6 {
+                if *precision > 6 {
                     return Err(DatabaseError::InvalidSchema("time precision"));
                 }
                 let name = match kind {
@@ -526,7 +568,7 @@ impl Grammar {
                     ColumnType::Timestamp(_) if mysql => "timestamp",
                     _ => "datetime",
                 };
-                return Ok(if mysql && precision > 0 {
+                return Ok(if mysql && *precision > 0 {
                     format!("{name}({precision})")
                 } else {
                     name.into()
@@ -536,8 +578,15 @@ impl Grammar {
         Ok(scalar.into())
     }
 
-    fn default_value(&self, value: &DefaultValue, kind: ColumnType) -> DatabaseResult<String> {
+    fn default_value(&self, value: &DefaultValue, kind: &ColumnType) -> DatabaseResult<String> {
         let DefaultValue::Value(value) = value else {
+            if matches!(kind, ColumnType::Year) {
+                return Ok(if self.mysql() {
+                    "(YEAR(CURDATE()))".into()
+                } else {
+                    "(CAST(strftime('%Y', 'now') AS INTEGER))".into()
+                });
+            }
             if matches!(kind, ColumnType::Date) {
                 return Ok(if self.mysql() {
                     "(CURDATE())".into()
@@ -546,7 +595,7 @@ impl Grammar {
                 });
             }
             let precision = match kind {
-                ColumnType::DateTime(p) | ColumnType::Timestamp(p) => p,
+                ColumnType::DateTime(p) | ColumnType::Timestamp(p) => *p,
                 _ => 0,
             };
             return Ok(current_timestamp(if self.mysql() { precision } else { 0 }));

@@ -855,3 +855,221 @@ async fn mysql_foreign_key_scope_restores_the_leased_session() {
     };
     verify_foreign_key_scope(connection(json!({"url":url,"max_connections":2})), true).await;
 }
+
+async fn verify_additional_column_types(db: Connection, mysql: bool) {
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .dropIfExists("additional_column_types")
+        .await
+        .unwrap();
+    schema
+        .create("additional_column_types", |table| {
+            table.tinyIncrements("id");
+            table.unsignedTinyInteger("tiny_value").default(255_i64);
+            table
+                .unsignedSmallInteger("small_value")
+                .default(65_535_i64);
+            table
+                .unsignedMediumInteger("medium_value")
+                .default(16_777_215_i64);
+            table.tinyText("summary").nullable();
+            table
+                .r#enum("state", &["ready", "customer's choice"])
+                .default("ready");
+            table.year("observed_year").useCurrent();
+            table.ipAddress("network_ip").nullable();
+            table.macAddress("network_mac").nullable();
+            table.binaryWith("fixed_data", 4, true).nullable();
+            table.binaryWith("variable_data", 12, false).nullable();
+            table.timeTz("observed_time", 3).nullable();
+            table.dateTimeTz("seen_at", 3).nullable();
+            table.timestampsTz();
+            table.softDeletesTz();
+            if mysql {
+                table.set("flags", &["one", "two"]).default("one,two");
+            }
+        })
+        .await
+        .unwrap_or_else(|error| match error {
+            DatabaseError::Driver { source, .. } => panic!("column DDL failed: {source}"),
+            _ => panic!("column DDL failed: {error}"),
+        });
+
+    let columns = schema.getColumns("additional_column_types").await.unwrap();
+    let kind = |name| {
+        columns
+            .iter()
+            .find(|column| column.name == name)
+            .unwrap()
+            .full_type
+            .as_str()
+    };
+    if mysql {
+        assert_eq!(kind("id"), "tinyint unsigned");
+        assert_eq!(kind("tiny_value"), "tinyint unsigned");
+        assert_eq!(kind("small_value"), "smallint unsigned");
+        assert_eq!(kind("medium_value"), "mediumint unsigned");
+        assert_eq!(kind("summary"), "tinytext");
+        assert_eq!(kind("flags"), "set('one','two')");
+        assert!(kind("state").starts_with("enum("));
+        assert_eq!(kind("observed_year"), "year");
+        assert_eq!(kind("network_ip"), "varchar(45)");
+        assert_eq!(kind("network_mac"), "varchar(17)");
+        assert_eq!(kind("fixed_data"), "binary(4)");
+        assert_eq!(kind("variable_data"), "varbinary(12)");
+        assert_eq!(kind("observed_time"), "time(3)");
+        assert_eq!(kind("seen_at"), "datetime(3)");
+    } else {
+        assert_eq!(kind("id"), "integer");
+        assert_eq!(kind("summary"), "text");
+        assert_eq!(kind("state"), "varchar");
+        assert_eq!(kind("observed_year"), "integer");
+        assert_eq!(kind("fixed_data"), "blob");
+        assert_eq!(kind("variable_data"), "blob");
+        assert_eq!(kind("observed_time"), "time");
+        assert_eq!(kind("seen_at"), "datetime");
+    }
+
+    let id = db
+        .table("additional_column_types")
+        .insertGetId(BTreeMap::from([
+            ("state".into(), "customer's choice".into()),
+            ("fixed_data".into(), Value::Bytes(vec![0, 1, 2, 3])),
+        ]))
+        .await
+        .unwrap();
+    assert_eq!(id, 1.into());
+    assert_eq!(
+        db.table("additional_column_types")
+            .value("state")
+            .await
+            .unwrap(),
+        "customer's choice".into()
+    );
+    assert_eq!(
+        db.table("additional_column_types")
+            .value("fixed_data")
+            .await
+            .unwrap(),
+        Value::Bytes(vec![0, 1, 2, 3])
+    );
+    let year = if mysql {
+        "select cast(observed_year as signed) from additional_column_types"
+    } else {
+        "select observed_year from additional_column_types"
+    };
+    let current = if mysql {
+        "select cast(year(curdate()) as signed)"
+    } else {
+        "select cast(strftime('%Y', 'now') as integer)"
+    };
+    assert_eq!(
+        db.scalar(year, &[]).await.unwrap(),
+        db.scalar(current, &[]).await.unwrap()
+    );
+    if mysql {
+        assert_eq!(
+            db.scalar(
+                "select cast(flags as char) from additional_column_types",
+                &[]
+            )
+            .await
+            .unwrap(),
+            "one,two".into()
+        );
+        assert!(
+            schema
+                .create("invalid_binary_size", |table| {
+                    table.binaryWith("value", 256, true);
+                })
+                .await
+                .is_err()
+        );
+    } else {
+        assert!(matches!(
+            schema
+                .create("unsupported_set_type", |table| {
+                    table.set("flags", &["one"]);
+                })
+                .await,
+            Err(DatabaseError::UnsupportedSchema("SQLite set column"))
+        ));
+        schema
+            .table("additional_column_types", |table| {
+                table.ipAddress("network_ip").nullable().change();
+            })
+            .await
+            .unwrap();
+    }
+    assert!(
+        db.statement(
+            "insert into additional_column_types (state) values (?)",
+            &["unknown".into()]
+        )
+        .await
+        .is_err()
+    );
+    assert!(matches!(
+        schema
+            .create("invalid_empty_enum", |table| {
+                table.r#enum("status", &[]);
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("allowed column values"))
+    ));
+    schema
+        .create("small_identity_columns", |table| {
+            table.smallIncrements("id");
+        })
+        .await
+        .unwrap();
+    schema
+        .create("medium_identity_columns", |table| {
+            table.mediumIncrements("id");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema
+            .getColumnType("small_identity_columns", "id", true)
+            .await
+            .unwrap(),
+        if mysql {
+            "smallint unsigned"
+        } else {
+            "integer"
+        }
+    );
+    assert_eq!(
+        schema
+            .getColumnType("medium_identity_columns", "id", true)
+            .await
+            .unwrap(),
+        if mysql {
+            "mediumint unsigned"
+        } else {
+            "integer"
+        }
+    );
+    schema.drop("medium_identity_columns").await.unwrap();
+    schema.drop("small_identity_columns").await.unwrap();
+    schema.drop("additional_column_types").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_compiles_and_enforces_additional_column_types() {
+    verify_additional_column_types(
+        connection(json!({"driver":"sqlite","database":":memory:"})),
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn mysql_compiles_and_enforces_additional_column_types() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_additional_column_types(connection(json!({"url":url})), true).await;
+}

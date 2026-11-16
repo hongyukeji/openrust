@@ -47,13 +47,25 @@ impl Blueprint {
     column_types! {
         (tinyInteger, TinyInteger), (smallInteger, SmallInteger),
         (mediumInteger, MediumInteger), (integer, Integer), (bigInteger, BigInteger),
-        (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
+        (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
         (float, Float), (double, Double), (binary, Binary), (json, Json), (jsonb, Json),
-        (date, Date),
+        (date, Date), (year, Year), (ipAddress, IpAddress), (macAddress, MacAddress),
     }
 
     pub fn id(&mut self) -> &mut ColumnDefinition {
         self.bigIncrements("id")
+    }
+
+    pub fn tinyIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.tinyInteger(name).autoIncrement()
+    }
+
+    pub fn smallIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.smallInteger(name).autoIncrement()
+    }
+
+    pub fn mediumIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.mediumInteger(name).autoIncrement()
     }
 
     pub fn increments(&mut self, name: &str) -> &mut ColumnDefinition {
@@ -62,6 +74,18 @@ impl Blueprint {
 
     pub fn bigIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
         self.bigInteger(name).autoIncrement()
+    }
+
+    pub fn unsignedTinyInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.tinyInteger(name).unsigned()
+    }
+
+    pub fn unsignedSmallInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.smallInteger(name).unsigned()
+    }
+
+    pub fn unsignedMediumInteger(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.mediumInteger(name).unsigned()
     }
 
     pub fn unsignedBigInteger(&mut self, name: &str) -> &mut ColumnDefinition {
@@ -78,6 +102,25 @@ impl Blueprint {
 
     pub fn char(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
         self.column(name, ColumnType::Char(length))
+    }
+
+    pub fn r#enum(&mut self, name: &str, allowed: &[&str]) -> &mut ColumnDefinition {
+        self.column(
+            name,
+            ColumnType::Enum(allowed.iter().map(|value| (*value).to_owned()).collect()),
+        )
+    }
+
+    pub fn set(&mut self, name: &str, allowed: &[&str]) -> &mut ColumnDefinition {
+        self.column(
+            name,
+            ColumnType::Set(allowed.iter().map(|value| (*value).to_owned()).collect()),
+        )
+    }
+
+    /// A bounded binary column with fixed or variable length.
+    pub fn binaryWith(&mut self, name: &str, length: u32, fixed: bool) -> &mut ColumnDefinition {
+        self.column(name, ColumnType::SizedBinary(length, fixed))
     }
 
     pub fn uuid(&mut self, name: &str) -> &mut ColumnDefinition {
@@ -114,6 +157,26 @@ impl Blueprint {
 
     pub fn time(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
         self.column(name, ColumnType::Time(precision))
+    }
+
+    pub fn dateTimeTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+        self.dateTime(name, precision)
+    }
+
+    pub fn timeTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+        self.time(name, precision)
+    }
+
+    pub fn timestampTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+        self.timestamp(name, precision)
+    }
+
+    pub fn timestampsTz(&mut self) {
+        self.timestamps();
+    }
+
+    pub fn softDeletesTz(&mut self) -> &mut ColumnDefinition {
+        self.softDeletes()
     }
 
     pub fn timestamps(&mut self) {

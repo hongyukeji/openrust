@@ -116,6 +116,28 @@ Use `change` to specify a replacement column definition, including the modifiers
 
 SQLite rebuilds the table for column and foreign key changes that require it. Run a rebuild through the connection's schema builder outside an active transaction. The rebuild owns its transaction and restores the connection's foreign key settings. MySQL DDL that implicitly commits also runs through the connection's schema builder.
 
+### Additional Column Types {#additional-column-types}
+
+Use `tinyText`, `year`, `ipAddress`, `macAddress` and `r#enum` to declare the corresponding columns. A year column with `useCurrent()` defaults to the database’s current year. MySQL stores native ENUM and SET values. SQLite enforces enum values with a CHECK constraint and returns an unsupported schema error for SET.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_events() -> DatabaseResult<()> {
+    Schema::create("incoming_events", |table| {
+        table.smallIncrements("id");
+        table.r#enum("status", &["pending", "processed"]).default("pending");
+        table.year("batch_year").useCurrent();
+        table.ipAddress("source_ip").nullable();
+        table.binaryWith("digest", 32, true).nullable();
+        table.timestampsTz();
+    })
+    .await
+}
+```
+
+`binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
+
 ### MySQL Column Modifiers
 
 Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.

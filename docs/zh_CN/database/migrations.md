@@ -116,6 +116,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 SQLite 对需要重建的列或外键变更执行表重建。请在活动事务之外，通过连接的 Schema Builder 发起重建。重建拥有自己的事务，并恢复连接的外键设置。会隐式提交的 MySQL DDL 也通过连接的 Schema Builder 执行。
 
+### 更多列类型 {#additional-column-types}
+
+用 `tinyText`、`year`、`ipAddress`、`macAddress` 和 `r#enum` 声明对应的列。`year` 配合 `useCurrent()` 时默认采用数据库当前年份。MySQL 使用原生 ENUM 和 SET。SQLite 用 CHECK 约束枚举值，对 SET 返回不支持。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_events() -> DatabaseResult<()> {
+    Schema::create("incoming_events", |table| {
+        table.smallIncrements("id");
+        table.r#enum("status", &["pending", "processed"]).default("pending");
+        table.year("batch_year").useCurrent();
+        table.ipAddress("source_ip").nullable();
+        table.binaryWith("digest", 32, true).nullable();
+        table.timestampsTz();
+    })
+    .await
+}
+```
+
+`binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
+
 ### MySQL 列修饰符
 
 用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。

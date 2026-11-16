@@ -1,6 +1,6 @@
 use crate::database::Value;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(super) enum ColumnType {
     TinyInteger,
     SmallInteger,
@@ -9,6 +9,7 @@ pub(super) enum ColumnType {
     BigInteger,
     String(u32),
     Char(u32),
+    TinyText,
     Text,
     MediumText,
     LongText,
@@ -17,7 +18,13 @@ pub(super) enum ColumnType {
     Float,
     Double,
     Binary,
+    SizedBinary(u32, bool),
+    Enum(Vec<String>),
+    Set(Vec<String>),
     Json,
+    IpAddress,
+    MacAddress,
+    Year,
     Date,
     DateTime(u8),
     Timestamp(u8),
