@@ -140,3 +140,27 @@ fn markdown_and_english_inflection_cover_runtime_values() {
         "-9,223,372,036,854,775,808 people"
     );
 }
+
+#[test]
+fn literal_and_unicode_editing_respects_scalar_offsets() {
+    assert_eq!(Str::chopStart("你好世界", &["", "你好", "你"]), "世界");
+    assert_eq!(Str::chopEnd("你好世界", &["", "界", "世界"]), "你好世");
+    assert_eq!(Str::replaceStart("你", "🙂", "你好你"), "🙂好你");
+    assert_eq!(Str::replaceEnd("你", "🙂", "你好你"), "你好🙂");
+    assert_eq!(Str::replaceEnd("", "oops", "unchanged"), "unchanged");
+    assert_eq!(Str::deduplicate("好好  ___好", &['好', ' ', '_']), "好 _好");
+    assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
+    assert_eq!(Str::position("你🙂", "", 2), Some(2));
+    assert_eq!(Str::position("你🙂", "你", isize::MIN), None);
+    assert_eq!(Str::take("你🙂好🙂", -2), "好🙂");
+    assert_eq!(Str::mask("你好世界🙂", "*#", -4, Some(-1)), "你*#*🙂");
+    assert_eq!(Str::mask("你🙂", "❄", 999, None), "你🙂");
+    assert_eq!(Str::mask("你🙂", "", 0, None), "你🙂");
+    assert_eq!(Str::ltrim("\u{feff}你好\u{200b}"), "你好\u{200b}");
+    assert_eq!(
+        Str::of("\u{1160} 你好\t\u{3164} 🙂 \u{feff}")
+            .squish()
+            .value(),
+        "你好 🙂"
+    );
+}

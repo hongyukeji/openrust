@@ -323,6 +323,113 @@ impl Str {
     }
 
     /// Transliterates text using the default portable-ascii mapping.
+    pub fn chopStart<'a>(value: &'a str, prefixes: &[&str]) -> &'a str {
+        prefixes
+            .iter()
+            .filter(|prefix| !prefix.is_empty())
+            .find_map(|prefix| value.strip_prefix(prefix))
+            .unwrap_or(value)
+    }
+
+    pub fn chopEnd<'a>(value: &'a str, suffixes: &[&str]) -> &'a str {
+        suffixes
+            .iter()
+            .filter(|suffix| !suffix.is_empty())
+            .find_map(|suffix| value.strip_suffix(suffix))
+            .unwrap_or(value)
+    }
+
+    pub fn replaceStart(search: &str, replacement: &str, value: &str) -> String {
+        if !search.is_empty()
+            && let Some(tail) = value.strip_prefix(search)
+        {
+            return format!("{replacement}{tail}");
+        }
+        value.to_owned()
+    }
+
+    pub fn replaceEnd(search: &str, replacement: &str, value: &str) -> String {
+        if !search.is_empty()
+            && let Some(head) = value.strip_suffix(search)
+        {
+            return format!("{head}{replacement}");
+        }
+        value.to_owned()
+    }
+
+    pub fn deduplicate(value: &str, characters: &[char]) -> String {
+        characters.iter().fold(value.to_owned(), |input, target| {
+            let mut previous = None;
+            input
+                .chars()
+                .filter(|current| {
+                    let repeated = current == target && previous == Some(*current);
+                    previous = Some(*current);
+                    !repeated
+                })
+                .collect()
+        })
+    }
+
+    pub fn position(value: &str, search: &str, offset: isize) -> Option<usize> {
+        let length = Self::length(value);
+        let offset = if offset < 0 {
+            length.checked_sub(offset.unsigned_abs())?
+        } else {
+            offset.unsigned_abs()
+        };
+        if offset > length {
+            return None;
+        }
+        let tail = Self::substr(value, offset as isize, None);
+        let found = tail.find(search)?;
+        Some(offset + Self::length(&tail[..found]))
+    }
+
+    pub fn take(value: &str, limit: isize) -> &str {
+        if limit < 0 {
+            Self::substr(value, limit, None)
+        } else {
+            Self::substr(value, 0, Some(limit))
+        }
+    }
+
+    pub fn mask(value: &str, token: &str, start: isize, length: Option<isize>) -> String {
+        let masked = Self::length(Self::substr(value, start, length));
+        if token.is_empty() || masked == 0 {
+            return value.to_owned();
+        }
+        let start = if start < 0 {
+            Self::length(value).saturating_sub(start.unsigned_abs())
+        } else {
+            start.unsigned_abs()
+        };
+        let mut output = Self::substr(value, 0, Some(start as isize)).to_owned();
+        output.extend(token.chars().cycle().take(masked));
+        output.push_str(Self::substr(value, (start + masked) as isize, None));
+        output
+    }
+
+    pub fn trim(value: &str) -> &str {
+        value.trim_matches(super::stringable::trim_character)
+    }
+
+    pub fn ltrim(value: &str) -> &str {
+        value.trim_start_matches(super::stringable::trim_character)
+    }
+
+    pub fn rtrim(value: &str) -> &str {
+        value.trim_end_matches(super::stringable::trim_character)
+    }
+
+    pub fn squish(value: &str) -> String {
+        Self::trim(value)
+            .split(|c: char| c.is_whitespace() || matches!(c, '\u{3164}' | '\u{1160}'))
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
     /// Renders GFM with HTML escaping and safe link schemes by default.
     pub fn markdown(value: &str) -> String {
         Self::markdownWith(value, MarkdownOptions::default())

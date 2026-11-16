@@ -28,3 +28,15 @@ assert_eq!(Str::of("**你好**").inlineMarkdown().value(), "<strong>你好</stro
 assert_eq!(Str::of("UserChild").pluralStudly(2).value(), "UserChildren");
 assert_eq!(Str::counted("person", 1_234), "1,234 people");
 ```
+
+## 字面量与 Unicode 编辑 {#literal-unicode-editing}
+
+`chopStart` 和 `chopEnd` 删除候选中第一个匹配的前缀或后缀。`replaceStart` 和 `replaceEnd` 只替换对应边界。`position` 返回 Unicode 标量索引或 `None`。`mask` 和 `take` 支持负偏移或负长度限制。用 `deduplicate` 折叠指定字符的连续重复，用 `trim`、`ltrim` 或 `rtrim` 裁剪边界，用 `squish` 合并空白。各编辑操作也有链式入口。
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
+assert_eq!(Str::of("你好世界🙂").mask("*#", -4, Some(-1)).value(), "你*#*🙂");
+assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
+```

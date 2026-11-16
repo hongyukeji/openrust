@@ -28,3 +28,15 @@ assert_eq!(Str::of("**你好**").inlineMarkdown().value(), "<strong>你好</stro
 assert_eq!(Str::of("UserChild").pluralStudly(2).value(), "UserChildren");
 assert_eq!(Str::counted("person", 1_234), "1,234 people");
 ```
+
+## Literal and Unicode editing {#literal-unicode-editing}
+
+`chopStart` and `chopEnd` remove the first matching prefix or suffix from the supplied candidates. `replaceStart` and `replaceEnd` edit only the selected edge. `position` returns a Unicode scalar index or `None`. Both `mask` and `take` support negative offsets or limits. Use `deduplicate` with literal characters, `trim`, `ltrim`, or `rtrim` for edges, and `squish` to collapse whitespace. Each editing operation also has a fluent counterpart.
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
+assert_eq!(Str::of("你好世界🙂").mask("*#", -4, Some(-1)).value(), "你*#*🙂");
+assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
+```

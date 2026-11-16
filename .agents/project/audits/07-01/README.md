@@ -29,3 +29,8 @@
 
 - 按固定 URI 文档核对组件、查询变更、应用路由生成和重定向。移植旧版 URI 的不可变组件修改和查询规则。复用有界的括号参数解析和 RFC 3986 编码。URI 解析保留字面加号和带点键，普通 HTTP 查询保留表单解析契约。Rust 查询使用 JSON 值，URI 通过显式 `redirect` 生成响应。 [固定 URI 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/helpers.md#uri)
 - 10 项锁定离线用例通过，其中 HTTP 查询和 URL 组覆盖既有请求解析、签名和重定向。定向严格 Clippy 通过。实际 Artisan 从三语示例生成相对 URI，并用 `APP_URL` 生成命名路由。实际回环 HTTP 跟随运行时命名路由重定向，核对 Unicode 字符、加号、参数顺序和片段。三语 VitePress 构建通过。
+
+## Unicode 与字面量编辑
+
+- 对照固定 Str 的边界剪除和替换、位置查找、掩码、截取、指定字符去重和空白折叠。复用现有 Unicode 标量切片与旧版迁移的 trim 字符表。Rust 用 `Option` 表示未找到或偏移越界，用字符切片明确去重对象。静态入口和 `Stringable` 链式入口共用实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
+- 5 项字符串测试和定向严格 Clippy 通过。实跑三语示例的 Artisan 命令，回环 HTTP 核对中文和 emoji 的负偏移索引、循环掩码和空白折叠。三语 VitePress 构建通过。

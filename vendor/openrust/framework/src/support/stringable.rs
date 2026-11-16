@@ -73,6 +73,53 @@ impl Stringable {
         Self(super::Str::words(&self.0, limit, end))
     }
 
+    pub fn chopStart(self, prefixes: &[&str]) -> Self {
+        Self::from(super::Str::chopStart(&self.0, prefixes))
+    }
+
+    pub fn chopEnd(self, suffixes: &[&str]) -> Self {
+        Self::from(super::Str::chopEnd(&self.0, suffixes))
+    }
+
+    pub fn replaceStart(self, search: &str, replacement: &str) -> Self {
+        Self(super::Str::replaceStart(search, replacement, &self.0))
+    }
+
+    pub fn replaceEnd(self, search: &str, replacement: &str) -> Self {
+        Self(super::Str::replaceEnd(search, replacement, &self.0))
+    }
+
+    pub fn deduplicate(self, characters: &[char]) -> Self {
+        Self(super::Str::deduplicate(&self.0, characters))
+    }
+
+    pub fn position(&self, search: &str, offset: isize) -> Option<usize> {
+        super::Str::position(&self.0, search, offset)
+    }
+
+    pub fn take(self, limit: isize) -> Self {
+        Self::from(super::Str::take(&self.0, limit))
+    }
+
+    pub fn mask(self, token: &str, start: isize, length: Option<isize>) -> Self {
+        Self(super::Str::mask(&self.0, token, start, length))
+    }
+
+    pub fn ltrim(mut self) -> Self {
+        let start = self.0.len() - super::Str::ltrim(&self.0).len();
+        self.0.drain(..start);
+        self
+    }
+
+    pub fn rtrim(mut self) -> Self {
+        self.0.truncate(super::Str::rtrim(&self.0).len());
+        self
+    }
+
+    pub fn squish(self) -> Self {
+        Self(super::Str::squish(&self.0))
+    }
+
     pub fn markdown(self) -> Self {
         Self(super::Str::markdown(&self.0))
     }
@@ -146,6 +193,6 @@ impl From<&str> for Stringable {
     }
 }
 
-fn trim_character(value: char) -> bool {
+pub(super) fn trim_character(value: char) -> bool {
     matches!(value, '\0' | '\u{9}'..='\u{d}' | '\u{20}' | '\u{85}' | '\u{a0}' | '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{115f}'..='\u{1160}' | '\u{1680}' | '\u{17b4}'..='\u{17b5}' | '\u{180e}' | '\u{2000}'..='\u{200f}' | '\u{2028}'..='\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{2060}'..='\u{2065}' | '\u{206a}'..='\u{206f}' | '\u{2800}' | '\u{3000}' | '\u{3164}' | '\u{feff}' | '\u{ffa0}' | '\u{1d159}' | '\u{1d173}'..='\u{1d17a}' | '\u{e0020}')
 }
