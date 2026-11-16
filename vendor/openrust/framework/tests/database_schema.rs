@@ -3543,3 +3543,66 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
     schema.drop("conditional_items").await.unwrap();
     schema.drop("conditional_owners").await.unwrap();
 }
+
+#[tokio::test]
+async fn mysql_creates_and_drops_explicit_databases_with_connection_defaults() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(
+        json!({"url":url,"charset":"utf8mb4","collation":"utf8mb4_bin","prefix":"app_"}),
+    );
+    let mut schema = db.getSchemaBuilder();
+    let name = format!("schema-life-{:x}", fastrand::u64(..));
+    assert!(schema.createDatabase(&name).await.unwrap());
+    let row = db.selectOne(
+        "select default_character_set_name as charset, default_collation_name as collation from information_schema.schemata where schema_name = ?",
+        &[name.as_str().into()],
+    ).await.unwrap().unwrap();
+    assert_eq!(row.get("charset"), Some(&"utf8mb4".into()));
+    assert_eq!(row.get("collation"), Some(&"utf8mb4_bin".into()));
+
+    let mut child_url = url::Url::parse(&url).unwrap();
+    child_url.set_path(&format!("/{name}"));
+    let child = connection(json!({"url":child_url.as_str()}));
+    child
+        .statement("create table retained (id int primary key)", &[])
+        .await
+        .unwrap();
+    assert!(schema.createDatabase(&name).await.is_err());
+    assert!(child.getSchemaBuilder().hasTable("retained").await.unwrap());
+    drop(child);
+
+    for _ in 0..2 {
+        assert!(schema.dropDatabaseIfExists(&name).await.unwrap());
+    }
+    let schemas = schema.getSchemas().await.unwrap();
+    assert!(!schemas.iter().any(|schema| schema.name == name));
+    assert!(
+        schemas
+            .iter()
+            .any(|schema| schema.name == db.getDatabaseName() && schema.default)
+    );
+}
+
+#[tokio::test]
+async fn sqlite_database_files_are_created_without_overwriting_existing_data() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("schema.sqlite");
+    let name = path.to_str().unwrap();
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    let mut schema = db.getSchemaBuilder();
+    assert!(schema.createDatabase(name).await.unwrap());
+    assert_eq!(tokio::fs::read(&path).await.unwrap(), b"");
+    tokio::fs::write(&path, b"retained").await.unwrap();
+    assert!(matches!(
+        schema.createDatabase(name).await,
+        Err(DatabaseError::SchemaIo(_))
+    ));
+    assert_eq!(tokio::fs::read(&path).await.unwrap(), b"retained");
+    assert!(schema.dropDatabaseIfExists(name).await.unwrap());
+    assert!(schema.dropDatabaseIfExists(name).await.unwrap());
+    assert!(!path.exists());
+    assert!(schema.createDatabase(":memory:").await.is_err());
+}

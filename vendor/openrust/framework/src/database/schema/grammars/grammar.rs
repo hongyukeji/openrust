@@ -115,6 +115,21 @@ impl Grammar {
             .replace(['-', '.'], "_")
     }
 
+    pub fn create_database(&self, name: &str) -> DatabaseResult<String> {
+        let mut sql = format!("create database {}", self.identifier(name)?);
+        for (value, clause) in [
+            (self.table_options.charset.as_deref(), "character set"),
+            (self.table_options.collation.as_deref(), "collate"),
+        ] {
+            if let Some(value) = value {
+                let value = mysql_option(value, "database character set or collation")?;
+                write!(sql, " default {clause} {}", self.identifier(value)?)
+                    .expect("writing to a String");
+            }
+        }
+        Ok(sql)
+    }
+
     pub fn create(&self, table: &Table, blueprint: Blueprint) -> DatabaseResult<Vec<String>> {
         let temporary = if blueprint.temporary {
             " temporary"

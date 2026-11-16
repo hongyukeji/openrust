@@ -388,6 +388,26 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 `hasIndexWith` 與兩個索引回呼接受依名稱或精確欄位順序比對的 `KeySelector`，可選類型包括 `primary`、`unique` 和 `btree`。`hasForeignKey` 使用相同的選擇類型比對外鍵名稱或本機欄位。
 
+#### 建立和刪除資料庫 {#creating-and-dropping-databases}
+
+`createDatabase` 在所選 MySQL 伺服器建立資料庫，並採用連線設定的字元集與定序。資料庫同名時會回傳錯誤。`dropDatabaseIfExists` 刪除指定資料庫，資料庫已不存在時仍會成功。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_reporting_database() -> DatabaseResult<()> {
+    Schema::createDatabase("reporting_staging").await?;
+    Ok(())
+}
+
+async fn drop_reporting_database() -> DatabaseResult<()> {
+    Schema::dropDatabaseIfExists("reporting_staging").await?;
+    Ok(())
+}
+```
+
+SQLite 使用檔案路徑。目標路徑已存在時會建立失敗，原資料庫會保留。刪除檔案前請關閉使用它的連線。
+
 #### 檢查資料表目錄 {#inspecting-tables}
 
 `getTables(None)` 列出所有可見使用者 Schema 的資料表。使用 `Some(name)` 限定一個 Schema，或使用 `getTablesIn(&[...])` 限定多個。檢查清除結果時應明確指定已清除的 Schema。

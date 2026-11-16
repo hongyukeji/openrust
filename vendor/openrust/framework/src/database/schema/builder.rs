@@ -104,6 +104,53 @@ impl<'connection> Builder<'connection> {
         }
     }
 
+    /// Creates a database on the selected connection's server or a new SQLite file.
+    pub async fn createDatabase(&mut self, name: &str) -> DatabaseResult<bool> {
+        if self.grammar.mysql() {
+            self.execute(vec![self.grammar.create_database(name)?])
+                .await?;
+        } else {
+            self.validate_sqlite_database_path(name)?;
+            tokio::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(name)
+                .await
+                .map_err(DatabaseError::SchemaIo)?;
+        }
+        Ok(true)
+    }
+
+    /// Drops a database on the selected connection's server or removes a SQLite file.
+    pub async fn dropDatabaseIfExists(&mut self, name: &str) -> DatabaseResult<bool> {
+        if self.grammar.mysql() {
+            let name = self.grammar.identifier(name)?;
+            self.execute(vec![format!("drop database if exists {name}")])
+                .await?;
+        } else {
+            self.validate_sqlite_database_path(name)?;
+            if let Err(error) = tokio::fs::remove_file(name).await
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(DatabaseError::SchemaIo(error));
+            }
+        }
+        Ok(true)
+    }
+
+    fn validate_sqlite_database_path(&self, name: &str) -> DatabaseResult<()> {
+        if !matches!(self.executor, Executor::Connection(_)) {
+            return Err(DatabaseError::UnsupportedSchema(
+                "SQLite database files require a connection builder",
+            ));
+        }
+        if name.is_empty() || name.contains('\0') || name == ":memory:" || name.starts_with("file:")
+        {
+            return Err(DatabaseError::InvalidSchema("SQLite database file path"));
+        }
+        Ok(())
+    }
+
     pub async fn create(
         &mut self,
         table: &str,

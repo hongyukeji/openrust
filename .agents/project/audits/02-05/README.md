@@ -176,3 +176,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 使用独立 MySQL 8.4.13 运行 `sh tests/table_catalog.sh`，17 项 Schema 回归及 1 项实际 `migrate:fresh`／`db:wipe` 验收通过。验证条件未命中不执行回调、重复执行、索引列顺序和类型、外键匹配、DDL 错误传播以及另一 Schema 的标记行保留。
 - 使用 `python3 docker/accept.py --mysql -- ./target/debug/examples/schema_conditional_acceptance` 运行三语共用 Artisan 示例，重复运行条件操作及反向移除索引通过。原生 `main artisan inspire`、Rust 1.94 严格 Clippy、变更文件格式、三语构建和 18 项浏览器检查通过。全工作区格式检查仍有既有 Sanctum 排版差异。
 - 当前主分支的 `5aa5636a` 已回退两个 Docker 验收入口。本批仅在隔离副本提取 `3d2641c0f` 中的原脚本运行，并验证两轮均回收各自的 MySQL 容器与卷。
+
+## 创建和删除数据库
+
+对照固定 Laravel [Builder 的数据库操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L123)、[MySQL 建库默认值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L42)、[SQLite 文件操作](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L16)。旧版框架未找到相同接口，本批在 Schema 的写连接及原生 DDL 路径实现。
+
+- `createDatabase` 按选定驱动建库。MySQL 继承连接字符集和排序规则，名称不加表前缀。`dropDatabaseIfExists` 使用明确名称，重复删除成功。
+- SQLite 建库使用独占创建，避免截断同名文件。这与固定 Laravel 文件写入的覆盖语义有意区分。SQLite 文件变更只从连接 Builder 执行，事务和 SQL 预演不得修改文件。
+- `sh tests/table_catalog.sh` 使用独立 MySQL 8.4.13，18 项 Schema 回归及 1 项实际限定 Schema 清库通过。测试覆盖连接默认值、带连字符名称、重复建库保留原表、重复删库和当前数据库保留。
+- 通过 `docker/accept.py --mysql --mysql-schema-admin` 运行三语共用 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。SQLite 回归已编译，运行留待发布前。全工作区格式仍有既有 Sanctum 排版差异。验收入口取自隔离副本的 `3d2641c0f`，未恢复主分支回退，两轮夹具均已回收容器和卷。

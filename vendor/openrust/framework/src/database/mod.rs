@@ -93,6 +93,7 @@ pub enum DatabaseError {
     AttributeDecryption(crate::encryption::DecryptException),
     AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
+    SchemaIo(std::io::Error),
     UnsupportedSchema(&'static str),
     TransactionClosed,
     AfterCommit {
@@ -143,6 +144,7 @@ impl std::fmt::Display for DatabaseError {
                 )
             }
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
+            Self::SchemaIo(_) => formatter.write_str("database schema file operation failed"),
             Self::InvalidSchema(part) => write!(formatter, "invalid schema {part}"),
             Self::UnsupportedSchema(operation) => {
                 write!(formatter, "unsupported schema operation: {operation}")
@@ -226,6 +228,7 @@ impl std::fmt::Display for DatabaseError {
 impl std::error::Error for DatabaseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::SchemaIo(source) => Some(source),
             Self::MigrationFailed { source, .. } | Self::SeederFailed { source, .. } => {
                 Some(source.as_ref())
             }

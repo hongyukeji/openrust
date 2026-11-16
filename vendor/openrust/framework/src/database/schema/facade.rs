@@ -73,6 +73,14 @@ impl Schema {
             .await
     }
 
+    pub async fn createDatabase(name: &str) -> DatabaseResult<bool> {
+        Self::default_builder()?.createDatabase(name).await
+    }
+
+    pub async fn dropDatabaseIfExists(name: &str) -> DatabaseResult<bool> {
+        Self::default_builder()?.dropDatabaseIfExists(name).await
+    }
+
     pub async fn create(table: &str, configure: impl FnOnce(&mut Blueprint)) -> DatabaseResult<()> {
         Self::default_builder()?.create(table, configure).await
     }

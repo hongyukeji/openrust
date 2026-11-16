@@ -388,6 +388,26 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 `hasIndexWith` and both index callbacks accept a `KeySelector` by name or exact column order, with an optional type such as `primary`, `unique`, or `btree`. `hasForeignKey` accepts the same selector on the local columns.
 
+#### Creating and Dropping Databases {#creating-and-dropping-databases}
+
+`createDatabase` creates a database on the selected MySQL server using the connection’s configured character set and collation. It returns an error if the name already exists. `dropDatabaseIfExists` removes the named database and succeeds if it is already absent.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_reporting_database() -> DatabaseResult<()> {
+    Schema::createDatabase("reporting_staging").await?;
+    Ok(())
+}
+
+async fn drop_reporting_database() -> DatabaseResult<()> {
+    Schema::dropDatabaseIfExists("reporting_staging").await?;
+    Ok(())
+}
+```
+
+On SQLite, supply a file path. Creation fails if the path already exists, preserving the existing database. Close connections to the file before removing it.
+
 #### Inspecting Tables {#inspecting-tables}
 
 `getTables(None)` lists tables across visible user schemas. Pass `Some(name)` to limit the query to one schema or use `getTablesIn(&[...])` for several. Use an explicit schema when checking the result of a schema-scoped wipe.
