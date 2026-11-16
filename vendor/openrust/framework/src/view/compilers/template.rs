@@ -21,8 +21,8 @@ mod javascript;
 mod loops;
 
 use attributes::{
-    AttributeChain, AttributeList, ComponentQuery, Props, apply_aware, apply_props, array_entries,
-    attribute_list, attribute_name, parse_attribute_list, parse_component_query, parse_echo,
+    AttributeChain, ComponentQuery, Props, apply_aware, apply_props, array_entries, attribute_name,
+    css_list, merge_attributes, parse_component_query, parse_echo, parse_forwarded_bag,
     parse_props, render_attributes,
 };
 
@@ -79,7 +79,7 @@ enum Node {
     BooleanAttribute(String, Expression),
     BooleanText(Expression),
     JavaScript(Expression),
-    ConditionalAttribute(AttributeList, bool),
+    ConditionalAttribute(Expression, bool),
     CustomDirective(String, Vec<Expression>),
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
     Environment(Vec<Expression>, Vec<Node>, Vec<Node>),
@@ -93,7 +93,7 @@ enum Node {
     RenderEach(RenderEach),
     Component {
         name: ComponentName,
-        attributes: Vec<(String, Expression)>,
+        attributes: Vec<TagAttribute>,
         body: Vec<Node>,
         slots: Vec<Slot>,
     },
@@ -101,9 +101,16 @@ enum Node {
 }
 
 #[derive(Serialize, Deserialize)]
+enum TagAttribute {
+    Value(String, Expression),
+    Css(Expression, bool),
+    Forward(AttributeChain),
+}
+
+#[derive(Serialize, Deserialize)]
 struct Slot {
     name: Expression,
-    attributes: Vec<(String, Expression)>,
+    attributes: Vec<TagAttribute>,
     body: Vec<Node>,
 }
 
@@ -426,13 +433,8 @@ impl<'a> Parser<'a> {
             let slot = if let Some(slot) = name.strip_prefix("slot:") {
                 Expression::Value(slot.into())
             } else {
-                attributes
-                    .iter()
-                    .position(|(attribute, _)| attribute == "name")
-                    .map_or_else(
-                        || Expression::Value("slot".into()),
-                        |index| attributes.remove(index).1,
-                    )
+                take_tag_attribute(&mut attributes, "name")
+                    .unwrap_or_else(|| Expression::Value("slot".into()))
             };
             return Ok(Node::Slot(Slot {
                 name: slot,
@@ -457,14 +459,10 @@ impl<'a> Parser<'a> {
             }
         }
         let name = if name == "dynamic-component" {
-            let index = attributes
-                .iter()
-                .position(|(name, _)| name == "component")
-                .ok_or_else(|| {
-                    invalid("A dynamic Blade component requires a component attribute.")
-                })?;
-            let (_, target) = attributes.remove(index);
-            if attributes.iter().any(|(name, _)| name == "component") {
+            let target = take_tag_attribute(&mut attributes, "component").ok_or_else(|| {
+                invalid("A dynamic Blade component requires a component attribute.")
+            })?;
+            if take_tag_attribute(&mut attributes, "component").is_some() {
                 return Err(invalid(
                     "A dynamic Blade component accepts one component attribute.",
                 ));
@@ -489,7 +487,7 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn component_attributes(&mut self) -> ViewResult<(Vec<(String, Expression)>, bool)> {
+    fn component_attributes(&mut self) -> ViewResult<(Vec<TagAttribute>, bool)> {
         let mut attributes = Vec::new();
         loop {
             self.remaining = self.remaining.trim_start();
@@ -500,6 +498,19 @@ impl<'a> Parser<'a> {
             if let Some(rest) = self.remaining.strip_prefix('>') {
                 self.remaining = rest;
                 return Ok((attributes, false));
+            }
+            if let Some(style) = ["class", "style"]
+                .into_iter()
+                .find(|name| self.directive(name))
+            {
+                let expression = expression_value(self.arguments()?)?;
+                attributes.push(TagAttribute::Css(expression, style == "style"));
+                continue;
+            }
+            if self.remaining.starts_with("{{") {
+                let source = self.delimited(2, "}}")?;
+                attributes.push(TagAttribute::Forward(parse_forwarded_bag(source)?));
+                continue;
             }
             let end = self
                 .remaining
@@ -513,7 +524,7 @@ impl<'a> Parser<'a> {
                 if !identifier(short) || self.remaining.starts_with('=') {
                     return Err(invalid("Invalid Blade short attribute binding."));
                 }
-                attributes.push((
+                attributes.push(TagAttribute::Value(
                     short.to_owned(),
                     Expression::Variable(vec![short.to_owned()]),
                 ));
@@ -524,6 +535,7 @@ impl<'a> Parser<'a> {
             } else {
                 attribute
                     .strip_prefix(':')
+                    .or_else(|| attribute.strip_prefix("bind:"))
                     .map_or((attribute, false), |name| (name, true))
             };
             if !attribute_name(name) {
@@ -547,7 +559,7 @@ impl<'a> Parser<'a> {
             } else {
                 Expression::Value(true.into())
             };
-            attributes.push((name.to_owned(), value));
+            attributes.push(TagAttribute::Value(name.to_owned(), value));
         }
     }
 
@@ -692,7 +704,12 @@ impl<'a> Parser<'a> {
             .into_iter()
             .find(|name| self.directive(name))
         {
-            Node::ConditionalAttribute(parse_attribute_list(self.arguments()?)?, style == "style")
+            let values = if self.remaining.trim_start().starts_with('(') {
+                expression_value(self.arguments()?)?
+            } else {
+                Expression::Value(ViewValue::Null)
+            };
+            Node::ConditionalAttribute(values, style == "style")
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
@@ -1730,7 +1747,7 @@ fn render_nodes<'a>(
             }
             Node::ConditionalAttribute(entries, style) => {
                 let name = if *style { "style" } else { "class" };
-                let text = attribute_list(entries, data, bindings, *style)?;
+                let text = css_list(value(entries, data, bindings).as_ref(), *style)?;
                 write!(output, "{name}=\"").unwrap();
                 escape_html(output, &text);
                 output.push('"');
@@ -1868,14 +1885,9 @@ fn render_nodes<'a>(
                             .ok_or_else(|| render_error("Invalid dynamic Blade component name."))?
                     }
                 };
-                let properties = Arc::new(
-                    attributes
-                        .iter()
-                        .map(|(name, expression)| {
-                            (name.clone(), value(expression, data, bindings).into_owned())
-                        })
-                        .collect::<ViewData>(),
-                );
+                let (properties, forwarded) =
+                    resolve_tag_attributes(attributes, data, bindings, context)?;
+                let properties = Arc::new(properties);
                 let component = context.resolve_component(name, &properties)?;
                 let scope = match &component {
                     Some(crate::view::component::ResolvedComponent::Hidden) => continue,
@@ -1903,16 +1915,13 @@ fn render_nodes<'a>(
                         );
                         for slot in slots {
                             let name = slot_name(value(&slot.name, data, &slot_bindings).as_ref())?;
-                            let attributes = slot
-                                .attributes
-                                .iter()
-                                .map(|(name, expression)| {
-                                    (
-                                        name.clone(),
-                                        value(expression, data, &slot_bindings).into_owned(),
-                                    )
-                                })
-                                .collect();
+                            let (values, forwarded) = resolve_tag_attributes(
+                                &slot.attributes,
+                                data,
+                                &slot_bindings,
+                                context,
+                            )?;
+                            let attributes = forwarded.unwrap_or(values);
                             let mut html = String::new();
                             render_block!(&slot.body, data, &slot_bindings, &mut html, context);
                             rendered.insert(
@@ -1929,12 +1938,55 @@ fn render_nodes<'a>(
                 if jump.is_some() {
                     return Ok(jump);
                 }
-                output.push_str(&context.component(name, properties, rendered, component)?);
+                output.push_str(
+                    &context.component(name, properties, forwarded, rendered, component)?,
+                );
             }
             Node::Slot(_) => return Err(render_error("Blade named slots require a component.")),
         }
     }
     Ok(None)
+}
+
+fn take_tag_attribute(attributes: &mut Vec<TagAttribute>, name: &str) -> Option<Expression> {
+    let index = attributes
+        .iter()
+        .position(|attribute| matches!(attribute, TagAttribute::Value(key, _) if key == name))?;
+    match attributes.remove(index) {
+        TagAttribute::Value(_, expression) => Some(expression),
+        TagAttribute::Css(..) | TagAttribute::Forward(..) => unreachable!(),
+    }
+}
+
+fn resolve_tag_attributes(
+    attributes: &[TagAttribute],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    context: &RenderContext<'_>,
+) -> ViewResult<(ViewData, Option<ViewData>)> {
+    let mut values = ViewData::new();
+    let mut parent = None;
+    for attribute in attributes {
+        let (name, value) = match attribute {
+            TagAttribute::Value(name, expression) => {
+                (name.clone(), value(expression, data, bindings).into_owned())
+            }
+            TagAttribute::Forward(chain) => {
+                parent = Some(chain.resolve(context, data, bindings)?);
+                continue;
+            }
+            TagAttribute::Css(expression, style) => {
+                let name = if *style { "style" } else { "class" };
+                (
+                    name.to_owned(),
+                    css_list(value(expression, data, bindings).as_ref(), *style)?.into(),
+                )
+            }
+        };
+        values.insert(name, value);
+    }
+    let forwarded = parent.map(|parent| merge_attributes(&parent, values.clone(), &[]));
+    Ok((values, forwarded))
 }
 
 fn loop_integer(value: &ViewValue) -> ViewResult<i64> {

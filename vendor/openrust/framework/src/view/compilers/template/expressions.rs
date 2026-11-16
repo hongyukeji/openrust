@@ -386,7 +386,7 @@ fn integer_text(value: &str) -> Option<i64> {
         .ok()
 }
 
-fn numeric_text(value: &str) -> Option<f64> {
+pub(super) fn numeric_text(value: &str) -> Option<f64> {
     let value = value.trim_matches(|c: char| c.is_ascii_whitespace());
     if value
         .bytes()

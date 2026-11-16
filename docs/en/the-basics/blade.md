@@ -127,7 +127,7 @@ Render one partial per entry with `@each`. The partial gets `$key`, the named it
 
 Use parentheses, `!`, `&&`, `||`, `===`, `!==`, and `??` in conditions and echoes. Strict comparison preserves scalar types. PHP object identity and loose coercion have no corresponding operation in the view data model.
 
-Use `@class` and `@style` with literal lists. Plain entries always render, and entries written as `text => condition` render when the condition is true. `@checked`, `@selected`, `@disabled`, `@readonly`, and `@required` emit their HTML attribute when true.
+Use `@class` and `@style` with a literal or a runtime value such as `$classes` or `$styles`. Lists and numeric keys supply unconditional entries. Other keys supply entries when their values are truthy. Entries keep their input order and each style ends in one semicolon. `@checked`, `@selected`, `@disabled`, `@readonly`, and `@required` emit their HTML attribute when true.
 
 ```html
 <input @checked($ready && $count === 2) @class(['field', 'active' => $ready])>
@@ -267,6 +267,13 @@ Chain attribute bag methods from left to right. `whereStartsWith` and its alias 
 <aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
     {{ $slot }}
 </aside>
+```
+
+Component and slot tags also accept `@class($classes)` and `@style($styles)`. To filter, merge or forward a bag, call `class($classes)` and `style($styles)` on it. These methods prepend the generated defaults to the caller’s class and style. HTML attribute values are escaped when rendered.
+
+```html
+<div @class($classes) @style($styles)>{{ $label }}</div>
+<x-notice {{ $attributes->class($classes)->style($styles) }} />
 ```
 
 #### Reading Attributes and Slots {#filtering-attributes}

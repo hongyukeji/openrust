@@ -127,7 +127,7 @@ fn article_page(article: Article) -> View {
 
 條件和輸出運算式可使用括號、`!`、`&&`、`||`、`===`、`!==` 和 `??`。嚴格比較保留純量型別。PHP 的物件身分和寬鬆型別轉換超出視圖資料模型的範圍。
 
-`@class` 和 `@style` 接受常值清單。獨立項目一律輸出，`文字 => 條件` 在條件為真時輸出。`@checked`、`@selected`、`@disabled`、`@readonly` 和 `@required` 在條件為真時輸出對應的 HTML 屬性。
+`@class` 和 `@style` 接受常值或 `$classes`、`$styles` 等執行階段值。清單項目和數字鍵的值直接輸出，其他鍵在對應值為真時輸出。各項目保留輸入順序，每條樣式以一個分號結尾。`@checked`、`@selected`、`@disabled`、`@readonly` 和 `@required` 在條件為真時輸出對應的 HTML 屬性。
 
 ```html
 <input @checked($ready && $count === 2) @class(['field', 'active' => $ready])>
@@ -267,6 +267,13 @@ fn activity() -> View {
 <aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
     {{ $slot }}
 </aside>
+```
+
+元件和插槽標籤同樣接受 `@class($classes)` 和 `@style($styles)`。可在屬性袋上呼叫 `class($classes)`、`style($styles)`，再篩選、合併或傳給子元件。產生的預設值會放在呼叫端的 class 和 style 前面。呈現時會跳脫 HTML 屬性值。
+
+```html
+<div @class($classes) @style($styles)>{{ $label }}</div>
+<x-notice {{ $attributes->class($classes)->style($styles) }} />
 ```
 
 #### 讀取屬性與插槽 {#filtering-attributes}

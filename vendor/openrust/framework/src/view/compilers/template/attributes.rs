@@ -6,18 +6,18 @@ use crate::support::Str;
 
 use super::{
     Expression, Node, RenderContext, ViewData, ViewResult, ViewValue, escape_html,
-    expression_value, identifier, invalid, render_error, separators, value,
+    expression_value, expressions::numeric_text, identifier, invalid, render_error, separators,
+    truthy, value,
 };
 
 pub(super) type Props = Vec<(String, Option<Expression>)>;
-pub(super) type AttributeList = Vec<(Expression, Option<Expression>)>;
 
 #[derive(Serialize, Deserialize)]
 enum AttributeOperation {
     Merge(Vec<DefaultAttribute>),
     NamedFilter(String),
-    Class(AttributeList),
-    Style(AttributeList),
+    Class(Expression),
+    Style(Expression),
     Filter {
         names: Vec<String>,
         prefix: bool,
@@ -139,6 +139,21 @@ pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
         return Ok(Node::ComponentValue(query, escaped));
     }
     Ok(Node::Echo(expression_value(source)?, escaped))
+}
+
+pub(super) fn parse_forwarded_bag(source: &str) -> ViewResult<AttributeChain> {
+    if source.trim() == "$attributes" {
+        return Ok(AttributeChain {
+            path: vec!["attributes".into()],
+            operations: Vec::new(),
+        });
+    }
+    match parse_chain(source)? {
+        Some((chain, None)) if chain.path.as_slice() == ["attributes"] => Ok(chain),
+        _ => Err(invalid(
+            "Expected a Blade component attribute bag in the tag.",
+        )),
+    }
 }
 
 pub(super) fn parse_component_query(source: &str) -> ViewResult<Option<ComponentQuery>> {
@@ -265,8 +280,8 @@ fn parse_operation(name: &str, arguments: &str) -> ViewResult<AttributeOperation
                 .collect::<ViewResult<_>>()?;
             AttributeOperation::Merge(defaults)
         }
-        "class" => AttributeOperation::Class(parse_attribute_list(arguments)?),
-        "style" => AttributeOperation::Style(parse_attribute_list(arguments)?),
+        "class" => AttributeOperation::Class(expression_value(arguments)?),
+        "style" => AttributeOperation::Style(expression_value(arguments)?),
         "filter" => AttributeOperation::NamedFilter(literal_name(arguments, identifier)?),
         "only" | "except" | "whereStartsWith" | "whereDoesntStartWith" | "thatStartWith" => {
             AttributeOperation::Filter {
@@ -279,47 +294,46 @@ fn parse_operation(name: &str, arguments: &str) -> ViewResult<AttributeOperation
     })
 }
 
-pub(super) fn parse_attribute_list(source: &str) -> ViewResult<AttributeList> {
-    array_entries(source)?
-        .into_iter()
-        .map(|entry| {
-            let (text, condition) = array_entry(entry);
-            Ok((
-                expression_value(text)?,
-                condition.map(expression_value).transpose()?,
-            ))
-        })
-        .collect()
+pub(super) fn css_list(collection: &ViewValue, style: bool) -> ViewResult<String> {
+    let mut entries = Vec::new();
+    let mut push = |value: &ViewValue| {
+        let text = match value {
+            ViewValue::Null | ViewValue::Bool(false) => String::new(),
+            ViewValue::Bool(true) => "1".into(),
+            ViewValue::Number(number) => number.to_string(),
+            ViewValue::String(text) => text.clone(),
+            _ => {
+                return Err(render_error(
+                    "Blade class and style entries require scalar values.",
+                ));
+            }
+        };
+        entries.push(if style { finish_style(&text) } else { text });
+        Ok(())
+    };
+    match collection {
+        ViewValue::Null => {}
+        ViewValue::Array(values) => {
+            for value in values {
+                push(value)?;
+            }
+        }
+        ViewValue::Object(values) => {
+            for (key, value) in values {
+                if numeric_text(key).is_some() {
+                    push(value)?;
+                } else if truthy(value) {
+                    push(&ViewValue::String(key.clone()))?;
+                }
+            }
+        }
+        value => push(value)?,
+    }
+    Ok(entries.join(" "))
 }
 
-pub(super) fn attribute_list(
-    entries: &AttributeList,
-    data: &ViewData,
-    bindings: &[(&str, &ViewValue)],
-    style: bool,
-) -> ViewResult<String> {
-    let mut text = Vec::new();
-    for (entry, condition) in entries {
-        if condition
-            .as_ref()
-            .is_some_and(|condition| !super::truthy(value(condition, data, bindings).as_ref()))
-        {
-            continue;
-        }
-        let evaluated = value(entry, data, bindings);
-        let entry = evaluated
-            .as_str()
-            .ok_or_else(|| render_error("Blade class and style entries require text."))?
-            .trim();
-        if !entry.is_empty() {
-            text.push(if style {
-                format!("{};", entry.trim_end_matches(';'))
-            } else {
-                entry.to_owned()
-            });
-        }
-    }
-    Ok(text.join(" "))
+fn finish_style(text: &str) -> String {
+    format!("{};", text.trim_end_matches(';'))
 }
 
 pub(super) fn attribute_name(name: &str) -> bool {
@@ -499,11 +513,11 @@ impl AttributeOperation {
             }
             Self::Class(entries) => ViewData::from_iter([(
                 "class".to_owned(),
-                attribute_list(entries, data, bindings, false)?.into(),
+                css_list(value(entries, data, bindings).as_ref(), false)?.into(),
             )]),
             Self::Style(entries) => ViewData::from_iter([(
                 "style".to_owned(),
-                attribute_list(entries, data, bindings, true)?.into(),
+                css_list(value(entries, data, bindings).as_ref(), true)?.into(),
             )]),
             Self::Filter {
                 names,
@@ -527,25 +541,41 @@ impl AttributeOperation {
     }
 }
 
-fn merge_attributes(attributes: &ViewData, mut merged: ViewData, append: &[&str]) -> ViewData {
+pub(super) fn merge_attributes(
+    attributes: &ViewData,
+    mut merged: ViewData,
+    append: &[&str],
+) -> ViewData {
     for (key, incoming) in attributes {
         let combined = match (key.as_str(), merged.get(key), incoming) {
             (name, Some(ViewValue::String(default)), ViewValue::String(value))
                 if matches!(name, "class" | "style") || append.contains(&name) =>
             {
-                let (default, value) = (default.trim(), value.trim());
-                let text = if default.is_empty() {
-                    value.to_owned()
-                } else if value.is_empty() {
-                    default.to_owned()
-                } else if key == "style" {
-                    let default = default.trim_end_matches(';');
-                    let value = value.trim_end_matches(';');
-                    if default == value {
-                        format!("{value};")
+                let (default, value) = if matches!(key.as_str(), "class" | "style") {
+                    (default.as_str(), value.as_str())
+                } else {
+                    (default.trim(), value.trim())
+                };
+                let text = if key == "style" {
+                    let value = finish_style(value);
+                    if default.is_empty() {
+                        value
                     } else {
-                        format!("{default}; {value};")
+                        let default = finish_style(default);
+                        if default == value {
+                            value
+                        } else {
+                            format!("{default} {value}")
+                        }
                     }
+                } else if default.is_empty() || (key == "class" && default == "0") {
+                    if key == "class" && value == "0" {
+                        String::new()
+                    } else {
+                        value.to_owned()
+                    }
+                } else if value.is_empty() || (key == "class" && value == "0") {
+                    default.to_owned()
                 } else if default == value {
                     value.to_owned()
                 } else {
@@ -553,6 +583,8 @@ fn merge_attributes(attributes: &ViewData, mut merged: ViewData, append: &[&str]
                 };
                 ViewValue::String(text)
             }
+            ("style", None, ViewValue::String(value)) => finish_style(value).into(),
+            ("class", None, ViewValue::String(value)) if value == "0" => "".into(),
             (name, Some(default), ViewValue::Null | ViewValue::Bool(false))
                 if matches!(name, "class" | "style") || append.contains(&name) =>
             {

@@ -322,6 +322,23 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
     ));
 }
 
+fn runtime_css_view() -> openrust::view::View {
+    openrust::view::view("runtime_css")
+        .with("caption", "<tag>")
+        .with(
+            "classes",
+            serde_json::json!({
+                "00": "base", "active": true, "hidden": "0", "1e2": 9, "safe<&": 1,
+            }),
+        )
+        .with(
+            "styles",
+            serde_json::json!({
+                "0": "display: block;;", "color: red": true, "border: 1": false,
+            }),
+        )
+}
+
 #[tokio::test]
 async fn layouts_and_composers_isolate_concurrent_http_requests() {
     use axum::{extract::State, handler::Handler as _};
@@ -575,6 +592,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/expressions", || {
                     view("expressions").with("ready", true).with("count", 2)
                 })?;
+                Route::get("/runtime-css", runtime_css_view)?;
                 Route::get("/invalid-expression", || view("invalid_expression"))?;
                 Route::get("/directive", || view("custom_directive").with("text", "<&"))?;
                 Route::get("/broken-directive", || view("broken_directive"))?;
@@ -1087,6 +1105,39 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "{{ $missing ?? $absent ?? '<fallback>' }}",
             ),
         ),
+        (
+            "runtime_css",
+            concat!(
+                r#"<div @class($classes) @style($styles)></div>"#,
+                r#"<p @class('solo') @style(['margin: 0;;'])></p>"#,
+                r#"<i @class @style></i><b @class(null) @style(null)></b>"#,
+                r#"<x-css-sample :$classes :$styles class="incoming" style="margin: 1px" data-keep="component">"#,
+                r#"<x-slot:footer class="footer" style="border: 0" data-keep="slot">slot</x-slot:footer>"#,
+                r#"<x-slot:unchanged class="kept" style="width: 1em">empty</x-slot:unchanged>"#,
+                "</x-css-sample>",
+                r#"<x-css-tag @class($classes) @style($styles) bind:caption="$caption">"#,
+                r#"<x-slot:note @class($classes) @style($styles)>tag</x-slot:note></x-css-tag>"#,
+            ),
+        ),
+        (
+            "components/css-sample",
+            concat!(
+                "@props(['classes','styles'])",
+                r#"<aside {{ $attributes->only(['class','style','data-keep'])->class($classes)->style($styles) }}>"#,
+                r#"<footer {{ $footer->attributes->whereStartsWith(['class','style','data-'])->style($styles)->class($classes) }}>{{ $footer }}</footer>"#,
+                r#"<small {{ $unchanged->attributes->class(null)->style([]) }}>{{ $unchanged }}</small>"#,
+                r#"<x-css-forward style="inset: 0" data-keep="child" {{ $attributes->only(['class','style','data-keep'])->class($classes)->style($styles) }}/>"#,
+                "</aside>",
+            ),
+        ),
+        (
+            "components/css-tag",
+            concat!(
+                "@props(['caption'])",
+                r#"<section {{ $attributes }}>{{ $caption }}<label {{ $note->attributes }}>{{ $note }}</label></section>"#,
+            ),
+        ),
+        ("components/css-forward", "<code {{ $attributes }}></code>"),
         ("invalid_expression", "@if ($x ===)broken@endif"),
         ("custom_directive", "<b>@formatName($text)</b>@htmlBadge"),
         ("broken_directive", "@formatName($text + 1)"),
@@ -1516,6 +1567,19 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(first, "/expressions", 200).await,
         r#"<input checked  class="field active&lt;&amp;" style="color: red;">ok&lt;fallback&gt;"#
     );
+    let css = send(first, "/runtime-css", 200).await;
+    for expected in [
+        r#"<div class="base active 9 safe&lt;&amp;" style="display: block; color: red;"></div>"#,
+        r#"<p class="solo" style="margin: 0;"></p>"#,
+        r#"<i class="" style=""></i><b class="" style=""></b>"#,
+        r#"<aside style="display: block; color: red; margin: 1px;" class="base active 9 safe&lt;&amp; incoming" data-keep="component">"#,
+        r#"<footer class="base active 9 safe&lt;&amp; footer" style="display: block; color: red; border: 0;" data-keep="slot">slot</footer>"#,
+        r#"<small style="width: 1em;" class="kept">empty</small>"#,
+        r#"<section class="base active 9 safe&lt;&amp;" style="display: block; color: red;">&lt;tag&gt;<label class="base active 9 safe&lt;&amp;" style="display: block; color: red;">tag</label></section>"#,
+        r#"<code style="inset: 0; display: block; color: red; margin: 1px;" data-keep="component" class="base active 9 safe&lt;&amp; incoming"></code>"#,
+    ] {
+        assert!(css.contains(expected), "{css}");
+    }
     assert!(
         send(first, "/invalid-expression", 500)
             .await

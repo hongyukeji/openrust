@@ -297,12 +297,13 @@ impl<'a> RenderContext<'a> {
         &self,
         name: &str,
         properties: Arc<ViewData>,
+        attributes: Option<ViewData>,
         slots: HashMap<String, RenderSlot>,
         resolved: Option<ResolvedComponent>,
     ) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
-        nested.component_attributes = Some((*properties).clone());
+        nested.component_attributes = Some(attributes.unwrap_or_else(|| (*properties).clone()));
         nested.gate_arguments.clear();
         nested.component_data.push(properties.clone());
         factory.render_component(name, &properties, resolved, &mut nested)
