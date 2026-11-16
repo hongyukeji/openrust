@@ -84,6 +84,21 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 }
 ```
 
+## 使其他设备的会话失效 {#invalidating-sessions-on-other-devices}
+
+在需要执行会话失效的路由中，将 `auth.session` 放在 `auth` 之后。在已认证的 Web 处理器中验证请求，再调用 `Auth::logoutOtherDevices(request, password).await?`。Guard 校验当前密码、更新已存储的哈希，按需刷新当前设备的 remember Cookie，并派发 `OtherDeviceLogout`。仍带旧指纹的会话下次访问受保护路由时会被拒绝。
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_account_routes() -> Result<(), RoutingError> {
+    Route::getWith("/account", || view("account"), |route| {
+        route.middleware_name("auth").middleware_name("auth.session");
+        Ok(())
+    })
+}
+```
+
 ## 自定义 Guard 和提供器
 
 默认应用注册编译后的 Eloquent `User`。用 `AuthManager::registerModel` 注册其他模型，或为 `database` 提供器配置表名和列名。用 `provider` 注册提供器，用 `viaRequest` 注册无状态请求解析器。内置 `token` Guard 读取 Bearer 请求头，支持对令牌哈希后再查库。

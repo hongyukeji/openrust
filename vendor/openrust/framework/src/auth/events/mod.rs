@@ -10,6 +10,7 @@ pub use password_reset::PasswordReset;
 pub use password_reset_link_sent::PasswordResetLinkSent;
 pub use registered::Registered;
 pub use session::{
-    Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, Validated,
+    Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, OtherDeviceLogout,
+    Validated,
 };
 pub use verified::Verified;

@@ -1,8 +1,7 @@
-use aws_lc_rs::hmac;
 use subtle::ConstantTimeEq as _;
 
 use crate::{
-    auth::{Auth, AuthError, AuthManager},
+    auth::{Auth, AuthError, AuthManager, session_fingerprint::SessionFingerprint},
     contracts::{config::Repository, http::Middleware, session::Session as _},
     http::{HttpError, HttpFuture, Next, Request, Response},
 };
@@ -10,27 +9,16 @@ use crate::{
 /// Invalidates first-party sessions when the account password changes.
 pub struct AuthenticateSession {
     guards: Vec<String>,
-    key: hmac::Key,
+    signer: SessionFingerprint,
 }
 
 impl AuthenticateSession {
     pub fn new(config: &dyn Repository) -> Result<Self, AuthError> {
         let guards = super::guard::session_guards(config)?;
-        let key = config.get("app.key");
-        let key = key
-            .as_ref()
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("base-key-for-password-hash-mac");
         Ok(Self {
             guards,
-            key: hmac::Key::new(hmac::HMAC_SHA256, key.as_bytes()),
+            signer: SessionFingerprint::from_config(config),
         })
-    }
-
-    fn fingerprint(&self, password: Option<&str>) -> Vec<u8> {
-        hmac::sign(&self.key, password.unwrap_or_default().as_bytes())
-            .as_ref()
-            .to_vec()
     }
 }
 
@@ -66,7 +54,7 @@ impl Middleware for AuthenticateSession {
                 let valid = user.is_some_and(|user| {
                     let password = user.get_auth_password();
                     serde_json::from_value::<Vec<u8>>(stored)
-                        .is_ok_and(|stored| bool::from(stored.ct_eq(&self.fingerprint(password))))
+                        .is_ok_and(|stored| bool::from(stored.ct_eq(&self.signer.sign(password))))
                 });
                 if !valid {
                     auth.sessionGuard(request, Some(guard.as_str()))?
@@ -84,7 +72,7 @@ impl Middleware for AuthenticateSession {
             let response = next.run(request).await;
             for guard in session_guards {
                 if let Some(user) = AuthManager::resolved_user(request, guard) {
-                    let fingerprint = self.fingerprint(user.get_auth_password());
+                    let fingerprint = self.signer.sign(user.get_auth_password());
                     request
                         .session_mut()
                         .map_err(AuthError::backend)?

@@ -15,3 +15,8 @@
 
 - 固定 SessionGuard 的 `Attempting`、`Validated`、`Login`、`Authenticated`、`Failed`、`Logout`、`CurrentDeviceLogout` 接入已有应用事件派发器。Rust 同步监听器按生命周期借用凭据和验证前的类型化用户。(当前设备登出使用异步 API 以等待应用监听器，Sanctum 调用点同步更新。)
 - Rust 1.94.0、macOS ARM64。真实 HTTP 验证错误凭据的已知和未知用户、单次登录、持久登录、会话读取、remember 恢复、当前设备与普通登出的事件顺序和令牌行为，两项数据库独立的定向测试通过。隔离工作区格式与启用 Sanctum 的严格 Clippy 通过。实际 Artisan `event:list --event Login --json` 验证三语共用监听器的注册，三语构建通过。
+
+## 其他设备会话失效
+
+- 对照固定 [SessionGuard::logoutOtherDevices](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/SessionGuard.php) 和 [AuthenticateSession](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/Middleware/AuthenticateSession.php)。确认当前密码后强制重哈希，从提供器重读账户，更新当前指纹及适用的 remember Cookie，并派发 `OtherDeviceLogout`。`auth.session` 校验会话指纹，拒绝曾保存旧指纹的会话。复用现有会话机制与 Sanctum 的 HMAC 指纹格式，既有 recaller 校验沿用已验收实现。
+- Rust 1.94.0、macOS ARM64。真实 HTTP 用两个独立会话验证错误密码保留两者，成功撤销后当前会话和新 remember Cookie 可用，旧会话和旧 Cookie 返回 401，并验证重登和事件载荷。三项数据库独立的定向测试、隔离格式及启用 Sanctum 的严格 Clippy 通过。真实 Artisan `route:list --middleware auth.session --json` 识别三语共用的示例路由与中间件顺序，三语构建通过。

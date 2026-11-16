@@ -53,6 +53,12 @@ impl Auth {
             .await
     }
 
+    pub async fn logoutOtherDevices(request: &mut Request, password: &str) -> AuthResult<()> {
+        Self::sessionGuard(request, None)?
+            .logoutOtherDevices(password)
+            .await
+    }
+
     pub fn shouldUse(request: &mut Request, name: &str) -> AuthResult<()> {
         Self::manager()?.shouldUse(request, name)
     }

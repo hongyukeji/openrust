@@ -107,6 +107,7 @@ impl fmt::Debug for Credentials {
 pub enum AuthError {
     Configuration(&'static str),
     InvalidIdentity,
+    InvalidPassword,
     UnprotectedRememberCookie,
     Backend(Box<dyn std::error::Error + Send + Sync>),
     Http(Box<HttpError>),
@@ -124,6 +125,9 @@ impl fmt::Display for AuthError {
         match self {
             Self::Configuration(part) => write!(f, "invalid authentication configuration: {part}"),
             Self::InvalidIdentity => f.write_str("invalid authentication identity"),
+            Self::InvalidPassword => {
+                f.write_str("The given password does not match the current password.")
+            }
             Self::UnprotectedRememberCookie => {
                 f.write_str("remember cookie encryption is required")
             }

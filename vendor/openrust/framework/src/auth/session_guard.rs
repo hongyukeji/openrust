@@ -13,6 +13,7 @@ use crate::{
     container::Container,
     contracts::{
         auth::{Authenticatable, Guard, StatefulGuard, UserProvider},
+        config::Repository,
         container::Container as _,
         events::{Dispatcher as _, Event},
         session::Session as _,
@@ -26,7 +27,11 @@ use crate::{
 use super::{AuthError, AuthFuture, AuthIdentifier, AuthResult, Credentials};
 use super::{
     access::Argument,
-    events::{Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, Validated},
+    events::{
+        Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, OtherDeviceLogout,
+        Validated,
+    },
+    session_fingerprint::SessionFingerprint,
 };
 
 #[derive(Clone, Default)]
@@ -217,8 +222,10 @@ impl<'a> SessionGuard<'a> {
     async fn update_session(&mut self, id: &AuthIdentifier) -> AuthResult<()> {
         let value = serde_json::to_value(id).map_err(AuthError::backend)?;
         let key = self.session_key.clone();
+        let password_key = SessionFingerprint::session_key(&self.name);
         let session = self.session()?;
         session.regenerate(true).await.map_err(AuthError::backend)?;
+        session.forget(&[&password_key]);
         session.put(&key, value).map_err(AuthError::backend)
     }
 
@@ -410,20 +417,7 @@ impl<'a> SessionGuard<'a> {
                     token
                 }
             };
-            let payload = serde_json::to_string(&Recaller {
-                id: id.clone(),
-                token,
-                password,
-            })
-            .map_err(AuthError::backend)?;
-            let options = CookieOptions {
-                secure: self.request.is_secure().then_some(true),
-                ..Default::default()
-            };
-            Some(
-                Cookie::make(&self.recaller, &payload, self.remember_minutes, &options)
-                    .map_err(AuthError::backend)?,
-            )
+            Some(self.remember_cookie(id.clone(), token, password)?)
         } else {
             None
         };
@@ -442,6 +436,101 @@ impl<'a> SessionGuard<'a> {
         )
         .await?;
         self.authenticate(user).await
+    }
+
+    fn remember_cookie(
+        &self,
+        id: AuthIdentifier,
+        token: String,
+        password: String,
+    ) -> AuthResult<crate::cookie::Cookie> {
+        let payload = serde_json::to_string(&Recaller {
+            id,
+            token,
+            password,
+        })
+        .map_err(AuthError::backend)?;
+        let options = CookieOptions {
+            secure: self.request.is_secure().then_some(true),
+            ..Default::default()
+        };
+        Cookie::make(&self.recaller, &payload, self.remember_minutes, &options)
+            .map_err(AuthError::backend)
+    }
+
+    /// Changes the password fingerprint while keeping the current session authenticated.
+    pub async fn logoutOtherDevices(&mut self, password: &str) -> AuthResult<()> {
+        self.resolve().await?;
+        let Some(state) = self.state() else {
+            return Ok(());
+        };
+        let Some(user) = &state.user else {
+            return Ok(());
+        };
+        let remembered = state.via_remember;
+        let id = user.get_auth_identifier();
+        self.session()?;
+        let mut user = self
+            .provider
+            .retrieve_by_id(&id)
+            .await?
+            .ok_or(AuthError::InvalidIdentity)?;
+        let credentials = Credentials::new(
+            std::iter::empty::<(String, crate::database::Value)>(),
+            password,
+        );
+        if !self
+            .provider
+            .validate_credentials(user.as_ref(), &credentials)
+            .await?
+        {
+            return Err(AuthError::InvalidPassword);
+        }
+        let previous = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
+        let refresh_cookie = self.request.cookie_is_protected(&self.recaller)
+            && (self.request.cookie(Some(&self.recaller))?.is_some()
+                || Cookie::hasQueued(&self.recaller, None).map_err(AuthError::backend)?);
+        self.provider
+            .rehash_password_if_required(user.as_mut(), &credentials, true)
+            .await?;
+        let user: Arc<dyn Authenticatable> = self
+            .provider
+            .retrieve_by_id(&id)
+            .await?
+            .ok_or(AuthError::InvalidIdentity)?
+            .into();
+        let changed = fingerprint(user.as_ref()).ok_or(AuthError::InvalidIdentity)?;
+        if changed == previous {
+            return Err(AuthError::Configuration(
+                "provider did not update the password hash",
+            ));
+        }
+        if let Some(owner) = self.owner.upgrade() {
+            let config = owner
+                .get::<dyn Repository>("config")
+                .map_err(AuthError::backend)?;
+            let value =
+                SessionFingerprint::from_config(config.as_ref()).sign(user.get_auth_password());
+            let key = SessionFingerprint::session_key(&self.name);
+            self.session()?
+                .put(&key, serde_json::json!(value))
+                .map_err(AuthError::backend)?;
+        }
+        if refresh_cookie
+            && let Some(token) = user.get_remember_token().filter(|token| !token.is_empty())
+        {
+            let cookie = self.remember_cookie(id, token.to_owned(), changed)?;
+            Cookie::queue(cookie).map_err(AuthError::backend)?;
+        }
+        AuthContext::set_shared(self.request, &self.name, Some(user.clone()), remembered);
+        self.emit(
+            OtherDeviceLogout {
+                guard: self.name.clone(),
+                user,
+            },
+            &[],
+        )
+        .await
     }
 
     /// Logs out, invalidates the application session and rotates its CSRF token.
@@ -501,7 +590,8 @@ impl<'a> SessionGuard<'a> {
 
     fn clear_device(&mut self) -> AuthResult<()> {
         let key = self.session_key.clone();
-        self.session()?.forget(&[&key]);
+        let password_key = SessionFingerprint::session_key(&self.name);
+        self.session()?.forget(&[&key, &password_key]);
         if self.request.cookie_is_protected(&self.recaller) {
             Cookie::expire(&self.recaller, None, None).map_err(AuthError::backend)?;
         }

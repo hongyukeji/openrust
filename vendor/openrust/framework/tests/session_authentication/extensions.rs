@@ -536,3 +536,138 @@ async fn session_guard_emits_authentication_lifecycle_events() {
     assert!(take().is_empty());
     server.abort();
 }
+
+#[tokio::test]
+async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_recalls() {
+    use openrust::{
+        auth::events::OtherDeviceLogout,
+        contracts::events::{Dispatcher as _, Event},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+    };
+
+    fn remember(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let credentials = Credentials::new([("email", "a@example.test".into())], "good:secret");
+            assert!(
+                Auth::sessionGuard(req, None)?
+                    .attempt(&credentials, true)
+                    .await?
+            );
+            current(req).await
+        })
+    }
+
+    fn revoke(req: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let password = req.input(Some("password")).await?.unwrap();
+            match Auth::logoutOtherDevices(req, password.as_str().unwrap()).await {
+                Err(AuthError::InvalidPassword) => Err(openrust::http::abort(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "Invalid password.",
+                    Default::default(),
+                )),
+                result => {
+                    result?;
+                    current(req).await
+                }
+            }
+        })
+    }
+
+    type Records = Arc<Mutex<Vec<AuthIdentifier>>>;
+    struct Revocations(Records);
+    impl openrust::contracts::events::Listener for Revocations {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event.downcast_ref::<OtherDeviceLogout>().unwrap();
+                assert_eq!(event.guard, "web");
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(event.user.get_auth_identifier());
+                Ok(None)
+            })
+        }
+    }
+
+    let records: Records = Arc::default();
+    let capture = records.clone();
+    let (address, server) = start(
+        || {
+            Route::r#match(&[Method::POST], "/remember", remember)?;
+            Route::getWith("/secure", current, |route| {
+                route
+                    .middleware_name("auth")
+                    .middleware_name("auth.session");
+                Ok(())
+            })?;
+            Route::r#match(&[Method::POST], "/revoke", revoke)?;
+            Ok(())
+        },
+        || Ok(()),
+        move |app| {
+            app.container()
+                .make::<Dispatcher>()
+                .unwrap()
+                .listen(
+                    "OtherDeviceLogout",
+                    Arc::new(Revocations(capture)),
+                    Delivery::Sync,
+                )
+                .unwrap();
+        },
+    )
+    .await;
+    let a = send(address, "POST", "/remember", "", "", 200).await;
+    let b = send(address, "POST", "/remember", "", "", 200).await;
+    let a_session = a.cookie("auth_session");
+    let a_remember = a.cookie("remember_web");
+    let b_session = b.cookie("auth_session");
+    let b_remember = b.cookie("remember_web");
+    assert_eq!(
+        get(address, "/secure", &a_session, 200).await.body["user"],
+        "001"
+    );
+    assert_eq!(
+        get(address, "/secure", &b_session, 200).await.body["user"],
+        "001"
+    );
+    let headers = format!("Cookie: {a_session}; {a_remember}\r\n");
+    send(
+        address,
+        "POST",
+        "/revoke",
+        &headers,
+        r#"{"password":"wrong"}"#,
+        422,
+    )
+    .await;
+    assert!(records.lock().unwrap().is_empty());
+    get(address, "/secure", &b_session, 200).await;
+    let revoked = send(
+        address,
+        "POST",
+        "/revoke",
+        &headers,
+        r#"{"password":"good:secret"}"#,
+        200,
+    )
+    .await;
+    assert_eq!(revoked.body["user"], "001");
+    let refreshed = revoked.cookie("remember_web");
+    assert_ne!(refreshed, a_remember);
+    assert_eq!(*records.lock().unwrap(), [AuthIdentifier::from("001")]);
+    get(address, "/secure", &a_session, 200).await;
+    get(address, "/secure", &refreshed, 200).await;
+    get(address, "/secure", &b_session, 401).await;
+    get(address, "/secure", &b_remember, 401).await;
+    assert_eq!(
+        send(address, "POST", "/remember", "", "", 200).await.body["user"],
+        "001"
+    );
+    server.abort();
+}

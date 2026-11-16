@@ -145,7 +145,6 @@ impl AuthManager {
             .contains(&user.type_id())
     }
 
-    #[cfg(feature = "sanctum")]
     pub(crate) fn guard_uses_driver(
         &self,
         request: &Request,
@@ -220,6 +219,10 @@ impl AuthManager {
             .unwrap_or_else(|| "web".into())
     }
 
+    pub(super) fn config(&self) -> &dyn Repository {
+        self.config.as_ref()
+    }
+
     pub fn shouldUse(&self, request: &mut Request, name: &str) -> AuthResult<()> {
         self.should_use(request, name)
     }
@@ -269,12 +272,10 @@ impl AuthManager {
         );
     }
 
-    #[cfg(feature = "sanctum")]
     pub(crate) fn resolved_user(request: &Request, name: &str) -> Option<Arc<dyn Authenticatable>> {
         AuthContext::state(request, name)?.user.clone()
     }
 
-    #[cfg(feature = "sanctum")]
     pub(crate) fn selected_guard(request: &Request) -> Option<&str> {
         AuthContext::get(request)?.selected.as_deref()
     }

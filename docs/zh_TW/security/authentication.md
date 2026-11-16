@@ -84,6 +84,21 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 }
 ```
 
+## 使其他裝置的工作階段失效 {#invalidating-sessions-on-other-devices}
+
+在需要執行工作階段失效的路由中，將 `auth.session` 放在 `auth` 之後。在已驗證的 Web 處理常式中驗證請求，再呼叫 `Auth::logoutOtherDevices(request, password).await?`。Guard 檢查目前密碼、更新已儲存的雜湊，視需要更新目前裝置的 remember Cookie，並派發 `OtherDeviceLogout`。仍帶有舊指紋的工作階段下次造訪受保護的路由時會被拒絕。
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_account_routes() -> Result<(), RoutingError> {
+    Route::getWith("/account", || view("account"), |route| {
+        route.middleware_name("auth").middleware_name("auth.session");
+        Ok(())
+    })
+}
+```
+
 ## 自訂 Guard 和提供器
 
 預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。

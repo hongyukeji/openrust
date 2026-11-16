@@ -56,6 +56,12 @@ pub struct CurrentDeviceLogout {
     pub user: Option<Arc<dyn Authenticatable>>,
 }
 
+/// The guard invalidated other sessions using the current account.
+pub struct OtherDeviceLogout {
+    pub guard: String,
+    pub user: Arc<dyn Authenticatable>,
+}
+
 macro_rules! event_names {
     ($($event:ident),+ $(,)?) => {
         $(impl Event for $event {
@@ -73,7 +79,8 @@ event_names!(
     Authenticated,
     Failed,
     Logout,
-    CurrentDeviceLogout
+    CurrentDeviceLogout,
+    OtherDeviceLogout
 );
 
 macro_rules! borrowed_credentials {

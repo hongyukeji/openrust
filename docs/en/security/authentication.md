@@ -84,6 +84,21 @@ fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
 }
 ```
 
+## Invalidating sessions on other devices {#invalidating-sessions-on-other-devices}
+
+Add `auth.session` after `auth` on routes that should enforce session invalidation. To sign out other devices, validate the request in an authenticated Web handler and call `Auth::logoutOtherDevices(request, password).await?`. The guard verifies the current password, updates its stored hash, refreshes the current remember cookie if needed, and emits `OtherDeviceLogout`. Other sessions carrying the previous fingerprint are rejected when they next visit a protected route.
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_account_routes() -> Result<(), RoutingError> {
+    Route::getWith("/account", || view("account"), |route| {
+        route.middleware_name("auth").middleware_name("auth.session");
+        Ok(())
+    })
+}
+```
+
 ## Custom Guards and Providers
 
 The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.

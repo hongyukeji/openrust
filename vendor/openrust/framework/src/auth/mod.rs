@@ -13,6 +13,7 @@ pub mod middleware;
 pub mod notifications;
 pub mod passwords;
 mod request_guard;
+pub(crate) mod session_fingerprint;
 mod session_guard;
 mod token_guard;
 

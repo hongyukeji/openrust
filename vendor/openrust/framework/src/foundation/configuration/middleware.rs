@@ -49,6 +49,7 @@ impl Default for Middleware {
         middleware.registry.priority.extend([
             TypeId::of::<crate::auth::middleware::Authenticate>(),
             TypeId::of::<crate::auth::middleware::AuthenticateWithBasicAuth>(),
+            TypeId::of::<crate::auth::middleware::AuthenticateSession>(),
             TypeId::of::<SubstituteBindings>(),
             TypeId::of::<crate::auth::middleware::Authorize>(),
         ]);
@@ -59,6 +60,10 @@ impl Default for Middleware {
         middleware.alias(
             "auth.basic",
             Arc::new(crate::auth::middleware::AuthenticateWithBasicAuth::default()),
+        );
+        middleware.alias(
+            "auth.session",
+            Arc::new(crate::auth::middleware::AuthenticateSession),
         );
         middleware.alias(
             "verified",
