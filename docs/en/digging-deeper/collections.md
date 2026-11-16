@@ -106,9 +106,44 @@ Both `Collection` and `LazyCollection` implement `Enumerable` with `map`, `filte
 
 ### Lazy Collection Methods
 
-`tapEach` runs a side effect for each requested item. `takeUntilTimeout` checks a monotonic deadline between pulls. `takeUntilTimeoutWith` can also report the last item, or no item when the deadline has already passed. `throttle` sleeps on the calling thread for the remaining interval. `withHeartbeat` checks the interval during iteration. A synchronous source read can finish after the deadline.
+`tapEach` runs a side effect for each requested item. `throttle` sleeps on the calling thread for the remaining interval. `withHeartbeat` checks the interval during iteration.
 
 `chunk` emits one materialized `Collection` at a time and can preserve its keys. A lazy collection runs on the thread that owns it and can borrow local state.
+
+#### Stopping at a Deadline {#lazy-deadline}
+
+Use `takeUntilTimeout` with a monotonic `Instant`. A traversal that starts at or after the deadline leaves the source unopened. A read already started can yield an item after the deadline. The next pull ends the traversal before reading another item.
+
+```rust
+use std::{
+    cell::RefCell,
+    thread,
+    time::{Duration, Instant},
+};
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let notified = RefCell::new(None);
+    let source = LazyCollection::fromEntries(|| {
+        thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        [("first", 1), ("later", 2)]
+    })
+    .takeUntilTimeoutWith(deadline, |entry| {
+        *notified.borrow_mut() = entry.map(|(value, key)| (*value, key.clone()));
+    });
+
+    let mut items = source.getIterator();
+    assert_eq!(items.next().transpose()?, Some(("first".into(), 1)));
+    assert_eq!(*notified.borrow(), None);
+    assert!(items.next().is_none());
+    assert_eq!(*notified.borrow(), Some((1, "first".into())));
+    Ok(())
+}
+```
+
+With `takeUntilTimeoutWith`, an expired start calls the callback with `None`. When the deadline passes during iteration, the callback receives the last yielded value and key on the next pull. Normal exhaustion and source errors keep their own results.
 
 #### Grouping and Sliding Windows {#lazy-grouping-and-sliding}
 

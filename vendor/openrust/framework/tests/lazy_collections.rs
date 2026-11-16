@@ -2308,3 +2308,71 @@ fn lazy_truthy_filter_reuses_php_json_truthiness_and_stops_at_errors() {
     assert!(iterator.next().is_none());
     assert_eq!(reads.get(), 12);
 }
+
+#[test]
+fn deadline_allows_the_first_item_when_opening_the_source_crosses_it() {
+    let reads = Cell::new(0);
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let source = LazyCollection::make(|| {
+        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        [1, 2].into_iter().inspect(|_| reads.set(reads.get() + 1))
+    })
+    .takeUntilTimeout(deadline);
+    let mut iterator = source.getIterator();
+    assert_eq!(reads.get(), 0);
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
+    assert!(iterator.next().is_none());
+    assert_eq!(reads.get(), 1);
+}
+
+#[test]
+fn deadline_notifies_on_resume_with_the_last_item_and_does_not_overread() {
+    let reads = Cell::new(0);
+    let notifications = RefCell::new(Vec::new());
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let source = LazyCollection::fromEntries(|| {
+        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        [("first", 1), ("later", 2)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    })
+    .takeUntilTimeoutWith(deadline, |item| {
+        notifications
+            .borrow_mut()
+            .push(item.map(|(value, key)| (*value, key.clone())));
+    });
+    let mut iterator = source.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), ("first".into(), 1));
+    assert!(notifications.borrow().is_empty());
+    assert!(iterator.next().is_none());
+    assert!(iterator.next().is_none());
+    assert_eq!(reads.get(), 1);
+    assert_eq!(
+        notifications.borrow().as_slice(),
+        &[Some((1, "first".into()))]
+    );
+}
+
+#[test]
+fn deadline_does_not_call_back_for_empty_or_failing_initial_reads() {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let empty = LazyCollection::<i32>::make(|| {
+        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        []
+    })
+    .takeUntilTimeoutWith(deadline, |_| panic!("empty source did not yield an item"));
+    assert!(empty.all().unwrap().is_empty());
+
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let failing = LazyCollection::<i32>::tryMake(|| {
+        std::thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        [Err(source_error())]
+    })
+    .takeUntilTimeoutWith(deadline, |_| panic!("failed source did not yield an item"));
+    let mut iterator = failing.getIterator();
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+}

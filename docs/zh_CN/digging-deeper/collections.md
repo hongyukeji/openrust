@@ -106,9 +106,44 @@ fn main() -> Result<(), CollectionError> {
 
 ### 惰性集合方法
 
-`tapEach` 在读取条目时执行副作用。`takeUntilTimeout` 在两次读取之间检查单调时钟的截止时间。`takeUntilTimeoutWith` 还可回传最后一个条目，若起初就超时则回传空值。`throttle` 在调用线程等待剩余间隔。`withHeartbeat` 在遍历时检查间隔。同步读取可能在截止时间之后才返回。
+`tapEach` 在读取条目时执行副作用。`throttle` 在调用线程等待剩余间隔。`withHeartbeat` 在遍历时检查间隔。
 
 `chunk` 每次生成一个已收集的 `Collection`，可选择保留组内键。惰性集合在拥有它的线程运行，可以借用线程内的局部状态。
+
+#### 截止时间与超时回调 {#lazy-deadline}
+
+给 `takeUntilTimeout` 传入单调时钟的 `Instant`。遍历开始时已到截止时间，来源不会打开。已经开始的读取可以在截止后产出一项，下一次取值直接结束遍历。
+
+```rust
+use std::{
+    cell::RefCell,
+    thread,
+    time::{Duration, Instant},
+};
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    let notified = RefCell::new(None);
+    let source = LazyCollection::fromEntries(|| {
+        thread::sleep(deadline.saturating_duration_since(Instant::now()));
+        [("first", 1), ("later", 2)]
+    })
+    .takeUntilTimeoutWith(deadline, |entry| {
+        *notified.borrow_mut() = entry.map(|(value, key)| (*value, key.clone()));
+    });
+
+    let mut items = source.getIterator();
+    assert_eq!(items.next().transpose()?, Some(("first".into(), 1)));
+    assert_eq!(*notified.borrow(), None);
+    assert!(items.next().is_none());
+    assert_eq!(*notified.borrow(), Some((1, "first".into())));
+    Ok(())
+}
+```
+
+使用 `takeUntilTimeoutWith` 时，开始即超时会用 `None` 调用回调。遍历中达到截止时间时，下一次取值会把上一项的值和键传给回调。来源正常耗尽或读取失败时仍返回各自的结果。
 
 #### 分组和滑动窗口 {#lazy-grouping-and-sliding}
 

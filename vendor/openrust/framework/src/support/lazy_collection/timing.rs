@@ -15,10 +15,14 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 return Box::new(iter::empty());
             }
             let mut iterator = self.getIterator();
+            let mut yielded = false;
             Box::new(iter::from_fn(move || {
-                (Instant::now() < timeout)
-                    .then(|| iterator.next())
-                    .flatten()
+                if yielded && Instant::now() >= timeout {
+                    return None;
+                }
+                let entry = iterator.next()?;
+                yielded = true;
+                Some(entry)
             }))
         })
     }
@@ -41,8 +45,10 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             let mut iterator = self.getIterator();
             let mut previous: Option<Entry<T>> = None;
             Box::new(iter::from_fn(move || {
-                if Instant::now() >= timeout {
-                    callback(previous.as_ref().map(|(key, value)| (value, key)));
+                if let Some((key, value)) = previous.as_ref()
+                    && Instant::now() >= timeout
+                {
+                    callback(Some((value, key)));
                     return None;
                 }
                 let entry = iterator.next()?;

@@ -256,3 +256,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `filterTruthy` 对应 JSON 来源无回调过滤。JSON 对象按 PHP 关联数组处理，空数组和空映射、null、false、数值零、空字符串及字符串 `0` 均会跳过。保留 PHP 原生对象身份和真值差异的调用可显式提供谓词。
 - 固定 Laravel PHP 8.5.12 对照与 91 项 Rust 定向用例通过，含 73 项惰性集合用例。三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
 - 隔离基线 `e12c751fc`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.07 GB（56.88 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-value-filter.4qVfuawL`。
+
+## 惰性集合截止时间与超时回调
+
+对照固定 Laravel [takeUntilTimeout 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1631)及[上游测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportLazyCollectionTest.php#L173)。旧版无对应惰性接口。Rust 继续使用单调 `Instant` 表达截止点，无回调变体无需克隆条目。
+
+- 开始遍历时若已截止，不打开来源，有回调时通知 `None`。截止前打开来源后，允许正在执行的同步读取产出首项。恢复迭代时先检查时限，达到截止时结束并向回调传递上一项值和键，避免多读下一项。
+- 固定 PHP 8.5.12 对照用受控时钟覆盖慢打开、初始截止、空来源与来源异常。87 项 Rust 集合用例通过，含 76 项惰性集合用例。Rust 新增实际慢来源回归，验证首项交付、继续迭代后仅通知一次、空来源耗尽和错误传播。
+- 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
+- 隔离基线 `e5b89aee4`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.04 GB（56.85 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-deadline.cFivIrja`。
