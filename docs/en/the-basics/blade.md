@@ -236,6 +236,12 @@ Place the child template in `resources/views/dashboard.blade.html` and return `v
 
 Use `@hasSection('content')` or `@sectionMissing('content')`, closed with `@endif`, to test whether a layout section has content.
 
+Use `@extendsFirst` to select the first available layout. Both inheritance directives accept a map of explicit view data. Use `@append` or `@overwrite` to change how the current section is stored. `@stop` closes a section like `@endsection`.
+
+```html
+@extendsFirst(['themes.card', 'layouts.app'], ['site' => 'OpenRust'])
+```
+
 ## Forms {#forms}
 
 In a session-enabled web route, `@csrf` emits the current session token as a hidden `_token` field. `@error` renders the first message for the field and makes it available as `$message` inside the block. Pass a second argument to read a named error bag.
@@ -263,6 +269,14 @@ Use `@push` or `@prepend` to collect markup during rendering. A layout can displ
 @hasStack('scripts')
     @stack('scripts')
 @endif
+```
+
+Use `@pushIf` with a condition and stack name. `@elsePushIf` can select another conditional capture.
+
+```html
+@pushIf($showAssets, 'scripts')
+    <script src="/assets/extra.js" defer></script>
+@endPushIf
 ```
 
 ## Rendering Blade Fragments {#rendering-blade-fragments}

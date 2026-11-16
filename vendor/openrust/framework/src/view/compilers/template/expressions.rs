@@ -19,6 +19,8 @@ pub(super) enum BinaryOperator {
     And,
     StrictEqual,
     StrictNotEqual,
+    Equal,
+    NotEqual,
     Less,
     LessOrEqual,
     Greater,
@@ -44,6 +46,8 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
         &[
             ("===", BinaryOperator::StrictEqual),
             ("!==", BinaryOperator::StrictNotEqual),
+            ("==", BinaryOperator::Equal),
+            ("!=", BinaryOperator::NotEqual),
         ],
         &[
             ("<", BinaryOperator::Less),
@@ -58,6 +62,9 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
                 let mut indices = separators(expression, token).filter(|index| {
                     (!token.starts_with('>') || !expression[..*index].ends_with('-'))
                         && (token.len() != 1 || !expression[*index + 1..].starts_with('='))
+                        && (!matches!(*token, "==" | "!=")
+                            || (!expression[..*index].ends_with(['=', '!'])
+                                && !expression[*index + 2..].starts_with('=')))
                 });
                 let index = if matches!(operator, BinaryOperator::Coalesce) {
                     indices.next()
@@ -126,6 +133,8 @@ pub(super) fn value<'a>(
                 BinaryOperator::And => boolean(truthy(left) && truthy(right())),
                 BinaryOperator::StrictEqual => boolean(strict_equal(left, right())),
                 BinaryOperator::StrictNotEqual => boolean(!strict_equal(left, right())),
+                BinaryOperator::Equal => boolean(loose_equal(left, right())),
+                BinaryOperator::NotEqual => boolean(!loose_equal(left, right())),
                 BinaryOperator::Less => boolean(compare(left, right()) == Some(Ordering::Less)),
                 BinaryOperator::LessOrEqual => boolean(matches!(
                     compare(left, right()),

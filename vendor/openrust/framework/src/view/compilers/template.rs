@@ -55,9 +55,10 @@ enum Node {
     While(Expression, Vec<Node>),
     Jump(JumpKind, usize, Option<Expression>),
     Switch(Expression, Vec<SwitchCase>),
-    Extends(Expression),
+    Extends(Include),
+    ExtendsFirst(IncludeFirst),
     Parent,
-    Section(Expression, Vec<Node>, bool),
+    Section(Expression, Vec<Node>, SectionEnd),
     Yield(Expression, Option<Expression>),
     Stack(Expression, Option<Expression>),
     StackCapture(Expression, Vec<Node>, bool),
@@ -114,6 +115,14 @@ struct AuthBranch {
 enum RequestValueKind {
     Session,
     Context,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+enum SectionEnd {
+    Extend,
+    Show,
+    Append,
+    Overwrite,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -206,7 +215,7 @@ impl Template {
                 "Blade loop control exceeded its enclosing blocks.",
             ));
         }
-        output.push_str(&context.render_layout(&data)?);
+        output.push_str(&context.render_layout()?);
         if output.contains(context.parent()) {
             output = output.replace(context.parent(), "");
         }
@@ -231,12 +240,16 @@ enum Stop<'a> {
     EndEmpty,
     EndIsset,
     EndSection,
+    Append,
+    Overwrite,
     Show,
     EndPush,
     EndPrepend,
     EndOnce,
     EndPushOnce,
     EndPrependOnce,
+    ElsePushIf,
+    EndPushIf,
     EndError,
     EndFragment,
     EndEnvironment,
@@ -514,7 +527,9 @@ impl<'a> Parser<'a> {
         } else if self.directive("parent") {
             Node::Parent
         } else if self.directive("extends") {
-            Node::Extends(expression_value(self.arguments()?)?)
+            Node::Extends(Include::parse(self.arguments()?)?)
+        } else if self.directive("extendsFirst") {
+            Node::ExtendsFirst(IncludeFirst::parse(self.arguments()?)?)
         } else if self.directive("include") {
             Node::Include(Include::parse(self.arguments()?)?, false)
         } else if self.directive("includeIf") {
@@ -587,6 +602,8 @@ impl<'a> Parser<'a> {
             Node::Stack(name, default)
         } else if self.directive("push") {
             self.capture_stack(depth, false)?
+        } else if self.directive("pushIf") {
+            self.capture_stack_if(depth)?
         } else if self.directive("prepend") {
             self.capture_stack(depth, true)?
         } else if self.directive("once") {
@@ -632,13 +649,17 @@ impl<'a> Parser<'a> {
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
-                Some(content) => Node::Section(name, vec![Node::Echo(content, true)], false),
+                Some(content) => {
+                    Node::Section(name, vec![Node::Echo(content, true)], SectionEnd::Extend)
+                }
                 None => {
                     let (body, stop) = self.block(depth + 1)?;
                     match stop {
-                        Some(Stop::EndSection) => Node::Section(name, body, false),
-                        Some(Stop::Show) => Node::Section(name, body, true),
-                        _ => return Err(invalid("Expected @endsection or @show.")),
+                        Some(Stop::EndSection) => Node::Section(name, body, SectionEnd::Extend),
+                        Some(Stop::Show) => Node::Section(name, body, SectionEnd::Show),
+                        Some(Stop::Append) => Node::Section(name, body, SectionEnd::Append),
+                        Some(Stop::Overwrite) => Node::Section(name, body, SectionEnd::Overwrite),
+                        _ => return Err(invalid("Unclosed Blade section.")),
                     }
                 }
             }
@@ -802,6 +823,24 @@ impl<'a> Parser<'a> {
             )?,
         };
         Ok(Node::StackCapture(name, body, prepend))
+    }
+
+    fn capture_stack_if(&mut self, depth: usize) -> ViewResult<Node> {
+        let (condition, name) = self.named_argument()?;
+        let name =
+            name.ok_or_else(|| invalid("A conditional Blade push requires a stack name."))?;
+        let (body, stop) = self.block(depth + 1)?;
+        let alternative = match stop {
+            Some(Stop::EndPushIf) => Vec::new(),
+            Some(Stop::ElsePushIf) => vec![self.capture_stack_if(depth + 1)?],
+            _ => return Err(invalid("Unclosed Blade conditional stack capture.")),
+        };
+        Ok(Node::Conditional(
+            condition,
+            Predicate::Truthy,
+            vec![Node::StackCapture(name, body, false)],
+            alternative,
+        ))
     }
 
     fn capture_once(&mut self, depth: usize, prepend: bool) -> ViewResult<Node> {
@@ -997,12 +1036,17 @@ impl<'a> Parser<'a> {
         }
         let standard = [
             ("endsection", Stop::EndSection),
+            ("stop", Stop::EndSection),
+            ("append", Stop::Append),
+            ("overwrite", Stop::Overwrite),
             ("show", Stop::Show),
             ("endpush", Stop::EndPush),
             ("endprepend", Stop::EndPrepend),
             ("endonce", Stop::EndOnce),
             ("endPushOnce", Stop::EndPushOnce),
             ("endPrependOnce", Stop::EndPrependOnce),
+            ("elsePushIf", Stop::ElsePushIf),
+            ("endPushIf", Stop::EndPushIf),
             ("enderror", Stop::EndError),
             ("endfragment", Stop::EndFragment),
             ("endenv", Stop::EndEnvironment),
@@ -1398,16 +1442,30 @@ fn render_nodes<'a>(
                 }
             }
             Node::Parent => output.push_str(context.parent()),
-            Node::Extends(expression) => {
-                context.extend(name_value(value(expression, data, bindings))?.to_owned())?;
+            Node::Extends(include) => {
+                let name = include.name(data, bindings)?.to_owned();
+                context.extend(vec![name], include.data(data, bindings, true)?)?;
             }
-            Node::Section(expression, nodes, show) => {
+            Node::ExtendsFirst(include) => {
+                let names = include
+                    .names(data, bindings)?
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect();
+                context.extend(names, include.data(data, bindings)?)?;
+            }
+            Node::Section(expression, nodes, end) => {
                 let name = name_value(value(expression, data, bindings))?.to_owned();
                 let mut section = String::new();
                 render_block!(nodes, data, bindings, &mut section, context);
-                context.section(name.clone(), section);
-                if *show {
-                    context.yield_to(&name, output);
+                match end {
+                    SectionEnd::Extend => context.section(name, section),
+                    SectionEnd::Show => {
+                        context.section(name.clone(), section);
+                        context.yield_to(&name, output);
+                    }
+                    SectionEnd::Append => context.append_section(name, &section),
+                    SectionEnd::Overwrite => context.replace_section(name, section),
                 }
             }
             Node::Yield(expression, default) => {

@@ -7,7 +7,7 @@
 | Introduction、Livewire | 应用从路由返回命名视图。编译器缓存纯 Rust 指令树。 | Livewire 属于独立生态范围。 |
 | Displaying Data、HTML Entity Encoding | 默认转义、可信原样输出、标量、变量和属性读取。 | 应用级关闭双重编码，PHP 任意函数调用改由 Rust 处理器、创建器或组合器计算。 |
 | Blade and JavaScript Frameworks、Comments | 字面量转义、`@verbatim`、Blade 注释、`Js::from` 和 `@js` 的脚本表达式输出。 | PHP JSON 标志和自定义序列化对象由 Rust 数据模型替代。 |
-| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断、环境匹配、会话与公开上下文绑定，以及 HTTP 守卫的 `@auth` / `@guest`。 | PHP 通用宽松比较。 |
+| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断、环境匹配、会话与公开上下文绑定、HTTP 守卫，以及 Rust 视图数据的严格和宽松比较。 | PHP 用户定义对象与比较重载无直接对应。 |
 | Switch Statements、Loops、The Loop Variable | Switch 的匹配、默认分支、贯穿与跳转。支持 `@foreach`、`@forelse`、键和值、循环元数据、计数 `@for`、`@while` 及带条件或层级的 `@break` / `@continue`。 | PHP 任意可变循环表达式和流式集合长度语义。 |
 | Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 更广的 PHP 数组构造表达式。 |
 | Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst`、`@includeIsolated` 与 `@each` 的独立集合渲染。 | 集合由物化的 Rust 视图数据提供。 |
@@ -16,9 +16,9 @@
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态、绑定与简写属性、双冒号客户端绑定、`@props` 默认值、属性包的 `merge`、`class`、`style`、`only`、`except`。 | 更多筛选与方法链、保留名称和任意类型对象。依赖通过 Rust 工厂显式装配。 |
 | Slots、Inline Component Views | 默认、具名与绑定名插槽、插槽属性包、Rust 内联组件视图和 `Component::data` 提供的作用域插槽。 | 组件生成器与方法发现。组件方法输出通过 Rust `data` 提供。 |
 | Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware`、额外路径和命名空间注册，扩展路径纳入视图预编译。 | Rust 在视图工厂上注册组件位置。 |
-| Building Layouts | 组件布局、继承、区段、`@parent`、`@yield`。 | 区段追加和覆盖变体、扩展布局数据等。 |
+| Building Layouts | 组件布局、具名与候选继承、显式布局数据、区段追加与覆盖、`@parent`、`@yield`。 | Rust 使用视图数据映射。 |
 | Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段。 | `_method` 到请求方法的应用装配仍待路由接线。 |
-| Stacks | `@push`、`@prepend`、`@stack`、`@hasStack` 与单次形式。 | 上游其他或组合用法按单元复验。 |
+| Stacks | `@push`、`@prepend`、`@stack`、`@hasStack`、单次形式及条件栈分支。 | 组合用法按整单元复验。 |
 | Service Injection | 在 Rust 处理器、组件工厂或组合器中解析服务并传入视图。 | 模板 `@inject` 的编译时类型绑定待定。 |
 | Rendering Inline Blade Templates | 使用应用 Factory 从受信任的模板文本在内存渲染。 | Laravel 临时缓存文件和删除开关对应内存生命周期。 |
 | Rendering Blade Fragments | 单个、多个、全部和条件响应，保持片段顺序和请求隔离。 | 多个具名片段统一渲染一次，组合器执行次数见 [验收记录](README.md#blade-片段)。 |

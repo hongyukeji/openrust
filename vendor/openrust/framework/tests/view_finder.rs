@@ -526,6 +526,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/anonymous-missing", || view("anonymous_missing"))?;
                 Route::get("/blade-auth/{state}", || view("blade_auth"))?;
                 Route::get("/blade-auth-failed", || view("blade_auth_failed"))?;
+                Route::get("/layout-fallback", || {
+                    view("layout_fallback").with("site", "parent")
+                })?;
+                Route::get("/bad-push", || view("bad_push"))?;
                 Route::get("/scoped-slot", || {
                     view("scoped_slot").with("component", "outside")
                 })?;
@@ -910,6 +914,22 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("blade_auth_failed", "@auth('unknown')unreachable@endauth"),
         (
+            "layout_fallback",
+            concat!(
+                "@extendsFirst(['absent', 'layout_variants'], ['site' => 'override'])",
+                "@section('banner')first@stop",
+                "@section('banner')second@append",
+                "@section('footer')old@endsection",
+                "@section('footer')new@overwrite",
+                "@pushIf(false, 'scripts')wrong@elsePushIf('2' == 2 && 10 != '11', 'scripts')chosen@endPushIf",
+            ),
+        ),
+        (
+            "layout_variants",
+            "{{ $site }}:@yield('banner'):@yield('footer'):@stack('scripts')",
+        ),
+        ("bad_push", "@pushIf(true, 'scripts')missing end"),
+        (
             "scoped_slot",
             concat!(
                 "<x-scoped-panel><x-slot:heading>{{ $component->caption }}</x-slot:heading>",
@@ -1106,6 +1126,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert_eq!(send(second, "/blade-auth/off", 200).await, " guest|no-alt");
     assert!(send(first, "/blade-auth-failed", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/layout-fallback", 200).await,
+        "override:firstsecond:new:chosen"
+    );
+    assert!(send(first, "/bad-push", 500).await.contains("500"));
     let (a, b) = tokio::join!(
         send(first, "/scoped-slot", 200),
         send(second, "/scoped-slot", 200)

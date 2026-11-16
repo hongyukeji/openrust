@@ -18,7 +18,7 @@ pub(super) struct RenderContext<'a> {
     factory: Option<&'a Factory>,
     depth: usize,
     sections: HashMap<String, String>,
-    layout: Option<String>,
+    layout: Option<(Vec<String>, ViewData)>,
     slots: HashMap<String, RenderSlot>,
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
@@ -88,6 +88,14 @@ impl<'a> RenderContext<'a> {
             .or_insert(html);
     }
 
+    pub(super) fn append_section(&mut self, name: String, html: &str) {
+        self.sections.entry(name).or_default().push_str(html);
+    }
+
+    pub(super) fn replace_section(&mut self, name: String, html: String) {
+        self.sections.insert(name, html);
+    }
+
     pub(super) fn yield_to(&self, name: &str, output: &mut String) -> bool {
         let Some(section) = self.sections.get(name) else {
             return false;
@@ -118,21 +126,23 @@ impl<'a> RenderContext<'a> {
         &self.parent_marker
     }
 
-    pub(super) fn extend(&mut self, name: String) -> ViewResult<()> {
+    pub(super) fn extend(&mut self, names: Vec<String>, data: ViewData) -> ViewResult<()> {
         if self.layout.is_some() {
             return Err(render_error("A Blade view may extend one layout."));
         }
-        self.layout = Some(name);
+        self.layout = Some((names, data));
         Ok(())
     }
 
-    pub(super) fn render_layout(&mut self, data: &ViewData) -> ViewResult<String> {
-        let Some(name) = self.layout.take() else {
+    pub(super) fn render_layout(&mut self) -> ViewResult<String> {
+        let Some((names, data)) = self.layout.take() else {
             return Ok(String::new());
         };
         let (factory, mut nested) = self.nested()?;
         nested.sections = std::mem::take(&mut self.sections);
-        factory.render_nested(&name, data, &mut nested)
+        let names: Vec<_> = names.iter().map(String::as_str).collect();
+        let view = factory.first(&names, data)?;
+        factory.render_view(view, &mut nested)
     }
 
     pub(super) fn include(&self, name: &str, data: &ViewData) -> ViewResult<String> {

@@ -91,3 +91,8 @@
 
 - 对照固定 BladeCompiler 的 `anonymousComponentPath`、`anonymousComponentNamespace` 和 ViewCacheCommand。Rust 在 Factory 显式挂载视图目录及文件系统根，复用 Finder 的根目录约束。普通命名视图优先，其次是匿名命名空间和额外路径，各位置按同名、索引、目录同名模板查找。Artisan 预编译包含已登记的 Finder 目录。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过，真实 HTTP 验证带前缀和无前缀的额外路径、命名空间、动态索引、双应用数据与缺失 500。隔离副本全工作区格式及严格 Clippy 通过。实际 Artisan 用三语 Rust 示例登记位置，生成五个产物并确认其中包含挂载根模板，清理成功。三语构建和 12 项浏览器组合通过。
+
+## 布局候选、区段与条件栈
+
+- 对照固定 `CompilesLayouts`、`ManagesLayouts` 和 `CompilesConditionals`。布局候选共用现有 Finder 和显式视图数据，区段可追加、覆盖或结束。条件栈支持 `@pushIf` 和 `@elsePushIf`。Rust 视图值的 `==` / `!=` 复用 Switch 的宽松比较，保留 `===` / `!==` 的严格行为。
+- macOS ARM64、Rust 1.94.0。共享工作区的并行 Mail 改动触发 `CompositeTransport` 与 `SendmailTransport` 私有重导出错误。隔离基线的 8 项定向测试通过，真实 HTTP 覆盖布局回退、优先数据、区段追加和覆盖、条件栈、比较运算优先级与缺失结束标签 500。隔离副本全工作区格式和严格 Clippy、实际 Artisan 缓存与清理、三语构建与 12 项浏览器组合通过。

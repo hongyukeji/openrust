@@ -236,6 +236,12 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 
 用 `@hasSection('content')` 或 `@sectionMissing('content')` 判断布局区段是否有内容，并用 `@endif` 结束。
 
+用 `@extendsFirst` 选择第一个可用布局。两个继承指令都可显式传入视图数据。用 `@append` 追加区段或用 `@overwrite` 覆盖区段。`@stop` 与 `@endsection` 都可结束区段。
+
+```html
+@extendsFirst(['themes.card', 'layouts.app'], ['site' => 'OpenRust'])
+```
+
 ## 表单 {#forms}
 
 在启用 Session 的 Web 路由中，`@csrf` 将当前会话令牌输出为隐藏的 `_token` 字段。`@error` 在有字段错误时渲染区块，并在块内用 `$message` 提供首条消息。第二个参数可指定命名错误包。
@@ -263,6 +269,14 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 @hasStack('scripts')
     @stack('scripts')
 @endif
+```
+
+`@pushIf` 接收条件和栈名。可用 `@elsePushIf` 添加另一个条件分支。
+
+```html
+@pushIf($showAssets, 'scripts')
+    <script src="/assets/extra.js" defer></script>
+@endPushIf
 ```
 
 ## 渲染 Blade 片段 {#rendering-blade-fragments}
