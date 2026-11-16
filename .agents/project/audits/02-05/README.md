@@ -275,3 +275,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `e018ad1f7`。SQLite 21 项和 MySQL 8.4.13 的 24 项 Schema 用例通过。新增回归覆盖复合主键的键列顺序、普通同名索引与原生及行主键并存、带前缀限定名及缺失表。MySQL 使用隔离副本内 `docker/accept.py --mysql --mysql-schema-admin`，`sh tests/table_catalog.sh` 的写库目录、限定 Schema 清库和旁库标记行保留通过。
 - SQLite 实际 Artisan 通过三语共用示例，`main artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
 - 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.37 GB（66.47 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-index.V614h8M8`。
+
+## SQLite 列类型与主键标志
+
+对照固定 Laravel [SQLite 列目录](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L171)、[SQLite 列结果处理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Processors/SQLiteProcessor.php#L8)和 [Builder::getColumnType](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L363)。旧版列清单已用 `pragma_table_xinfo`。沿用当前参数化写连接目录，并结合已有索引来源信息。
+
+- `type_name` 去掉声明中的参数，`full_type` 保留完整声明，无类型声明时两者为空串。SQLite 普通行主键即使未声明 `AUTOINCREMENT` 也报告可自动分配值。与 Laravel 的目录推断有两处差异：用原生索引目录排除 `WITHOUT ROWID` 和 `PRIMARY KEY DESC`，并让 `nullable` 反映是否可实际储存空值。SQLite 重建仍独立解析 `AUTOINCREMENT` 以判断是否恢复序列。
+- 隔离基线 `59e2c3967`。SQLite 22 项和 MySQL 8.4.13 的 24 项 Schema 测试通过。新增 SQLite 回归覆盖长度、精度、未声明类型和五种主键形态，通过实际插入验证自动分配、空值存储及空值拒绝。MySQL 使用隔离副本内 `docker/accept.py --mysql --mysql-schema-admin`，`sh tests/table_catalog.sh` 的写库表目录和限定 Schema 清库通过。
+- SQLite 实际 Artisan 通过三语共用示例。`main artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式检查只报告既有 Sanctum 排版差异。
+- 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.34 GB（66.44 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-columns.DaP8WwVi`。

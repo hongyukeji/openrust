@@ -284,7 +284,20 @@ impl Builder<'_> {
         } else {
             let [schema, name] = parameters;
             (
-                "select name, lower(type) as full_type, lower(type) as type_name, not \"notnull\" and pk = 0 as nullable, dflt_value as default_value, 0 as auto_increment, pk > 0 as primary_key, null as comment, null as collation, case hidden when 2 then 'virtual' when 3 then 'stored' end as generation_kind, null as generation_expression from pragma_table_xinfo(?, ?) order by cid",
+                r#"with columns as (
+                       select *, pk > 0 and lower(type) = 'integer'
+                           and not exists (select 1 from pragma_index_list(?1, ?2) where origin = 'pk')
+                           as rowid_alias
+                       from pragma_table_xinfo(?1, ?2)
+                   )
+                   select name, lower(type) as full_type,
+                          lower(substr(type, 1, instr(type || '(', '(') - 1)) as type_name,
+                          not "notnull" and not rowid_alias as nullable, dflt_value as default_value,
+                          rowid_alias as auto_increment, pk > 0 as primary_key,
+                          null as comment, null as collation,
+                          case hidden when 2 then 'virtual' when 3 then 'stored' end as generation_kind,
+                          null as generation_expression
+                   from columns order by cid"#,
                 [name, schema],
             )
         };
@@ -321,9 +334,6 @@ impl Builder<'_> {
                 })
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
-        let autoincrement = columns
-            .iter()
-            .any(|column| column.primary && column.type_name == "integer");
         let generated = columns.iter().any(|column| column.generation.is_some());
         if !self.grammar.mysql() && !columns.is_empty() {
             let schema = self
@@ -340,11 +350,6 @@ impl Builder<'_> {
                 if !collations.is_empty() {
                     for column in &mut columns {
                         column.collation = collations.remove(&column.name);
-                    }
-                }
-                if autoincrement && let Some(name) = super::sqlite::autoincrement_column(sql)? {
-                    for column in &mut columns {
-                        column.auto_increment = column.name.eq_ignore_ascii_case(&name);
                     }
                 }
                 if generated {

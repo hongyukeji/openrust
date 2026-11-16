@@ -230,6 +230,23 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
 
+### 檢查 SQLite 欄位 {#inspecting-sqlite-columns}
+
+SQLite 欄位宣告為 `VARCHAR(32)` 時，`getColumnType(..., false)` 回傳 `varchar`，`getColumnType(..., true)` 回傳 `varchar(32)`。欄位未宣告型別時，兩者都回傳空字串。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_title() -> DatabaseResult<(String, String)> {
+    Ok((
+        Schema::getColumnType("books", "title", false).await?,
+        Schema::getColumnType("books", "title", true).await?,
+    ))
+}
+```
+
+當整數主鍵是 rowid 的別名且 SQLite 能自動產生其值時，欄位目錄的 `auto_increment` 為真。`nullable` 表示欄位能否儲存空值。例如，一般 SQLite 複合主鍵可允許空值，`NOT NULL`、`STRICT` 和 `WITHOUT ROWID` 會對此加以限制。
+
 ### 編輯 Blueprint {#editing-a-blueprint}
 
 用 `idWith("import_id")` 指定自動遞增主鍵欄位名稱，對應 Laravel 的 `id("import_id")`。預設欄位名稱使用 `id()`。

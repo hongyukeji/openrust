@@ -8,10 +8,6 @@ use crate::database::schema::{
 };
 
 mod sql;
-pub(super) fn autoincrement_column(create_sql: &str) -> DatabaseResult<Option<String>> {
-    sql::autoincrement_column(create_sql)
-}
-
 pub(super) fn generated_expressions(
     create_sql: &str,
 ) -> DatabaseResult<impl Iterator<Item = (String, String)>> {

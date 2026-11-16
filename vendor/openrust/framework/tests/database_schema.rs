@@ -4244,3 +4244,83 @@ async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_in
         && index.columns == [Some("sequence".into())]));
     assert!(schema.getIndexes("missing").await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn sqlite_reports_base_types_and_primary_key_storage_behavior() {
+    let db = connection(json!({"driver": "sqlite", "database": ":memory:"}));
+    db.unprepared(
+        "CREATE TABLE generated_ids (id INTEGER PRIMARY KEY, title VARCHAR(32), total DECIMAL(8,2), untyped);
+         CREATE TABLE composite_ids (tenant INTEGER, sequence INTEGER, PRIMARY KEY (tenant, sequence));
+         CREATE TABLE descending_ids (id INTEGER PRIMARY KEY DESC);
+         CREATE TABLE separate_ids (id INTEGER PRIMARY KEY) WITHOUT ROWID;
+         CREATE TABLE strict_ids (id INTEGER PRIMARY KEY, title TEXT) STRICT;
+         INSERT INTO generated_ids (id, title) VALUES (NULL, 'entry');
+         INSERT INTO composite_ids (tenant, sequence) VALUES (NULL, 2);
+         INSERT INTO descending_ids (id) VALUES (NULL);
+         INSERT INTO strict_ids (title) VALUES ('strict entry');",
+    )
+    .await
+    .unwrap();
+    let mut schema = db.getSchemaBuilder();
+    for (name, expected, full) in [
+        ("title", "varchar", "varchar(32)"),
+        ("total", "decimal", "decimal(8,2)"),
+        ("untyped", "", ""),
+    ] {
+        let column = schema
+            .getColumn("generated_ids", name)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(column.type_name, expected);
+        assert_eq!(column.full_type, full);
+        assert_eq!(
+            schema
+                .getColumnType("generated_ids", name, false)
+                .await
+                .unwrap(),
+            expected
+        );
+        assert_eq!(
+            schema
+                .getColumnType("generated_ids", name, true)
+                .await
+                .unwrap(),
+            full
+        );
+    }
+
+    for (table, name, auto_increment, nullable) in [
+        ("generated_ids", "id", true, false),
+        ("strict_ids", "id", true, false),
+        ("composite_ids", "tenant", false, true),
+        ("descending_ids", "id", false, true),
+        ("separate_ids", "id", false, false),
+    ] {
+        let column = schema.getColumn(table, name).await.unwrap().unwrap();
+        assert!(column.primary, "{table}.{name}");
+        assert_eq!(column.auto_increment, auto_increment, "{table}.{name}");
+        assert_eq!(column.nullable, nullable, "{table}.{name}");
+    }
+    assert_eq!(
+        db.table("generated_ids").value("id").await.unwrap(),
+        Value::Integer(1)
+    );
+    assert_eq!(
+        db.table("strict_ids").value("id").await.unwrap(),
+        Value::Integer(1)
+    );
+    assert_eq!(
+        db.table("composite_ids").value("tenant").await.unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        db.table("descending_ids").value("id").await.unwrap(),
+        Value::Null
+    );
+    assert!(
+        db.statement("insert into separate_ids (id) values (null)", &[])
+            .await
+            .is_err()
+    );
+}

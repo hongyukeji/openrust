@@ -230,6 +230,23 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### Inspecting SQLite Columns {#inspecting-sqlite-columns}
+
+For a SQLite column declared as `VARCHAR(32)`, `getColumnType(..., false)` returns `varchar` and `getColumnType(..., true)` returns `varchar(32)`. Both return an empty string for a column declared without a type.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn inspect_title() -> DatabaseResult<(String, String)> {
+    Ok((
+        Schema::getColumnType("books", "title", false).await?,
+        Schema::getColumnType("books", "title", true).await?,
+    ))
+}
+```
+
+Column metadata reports `auto_increment` when an integer primary key aliases the rowid and SQLite can generate its value. The `nullable` flag reflects whether the column can store a null. For example, an ordinary SQLite composite primary key can permit nulls unless constrained by `NOT NULL`, `STRICT`, or `WITHOUT ROWID`.
+
 ### Editing a Blueprint {#editing-a-blueprint}
 
 Use `idWith("import_id")` to name an auto-incrementing primary key. It corresponds to Laravel’s `id("import_id")`. Use `id()` for the default name.
