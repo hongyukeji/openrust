@@ -1,0 +1,71 @@
+use openrust::{http::Response, routing::RedirectOptions, support::Uri};
+use serde_json::json;
+
+#[test]
+fn uri_components_form_validated_immutable_references() {
+    let original = Uri::of("https://example.test/original#old").unwrap();
+    let uri = original
+        .withScheme("http")
+        .unwrap()
+        .withHost("TEST.com")
+        .unwrap()
+        .withPort(Some(8000))
+        .unwrap()
+        .withPath("//users/你好")
+        .unwrap()
+        .withFragment("mark 1")
+        .unwrap();
+    assert_eq!(
+        uri.value(),
+        "http://test.com:8000/users/%E4%BD%A0%E5%A5%BD#mark%201"
+    );
+    assert_eq!(uri.pathSegments(), ["users", "%E4%BD%A0%E5%A5%BD"]);
+    assert_eq!(original.value(), "https://example.test/original#old");
+    assert!(uri.withHost("host@invalid").is_err());
+    assert!(uri.withPort(Some(-1)).is_err());
+    assert!(Uri::of("/relative").unwrap().withScheme("https").is_err());
+    assert_eq!(uri.withPort(Some(80)).unwrap().port(), None);
+    let response: Response = uri.redirect(RedirectOptions::default()).unwrap().into();
+    assert_eq!(response.headers()["location"], uri.value());
+    assert!(
+        Uri::of("javascript:alert(1)")
+            .unwrap()
+            .redirect(RedirectOptions::default())
+            .is_err()
+    );
+}
+
+#[test]
+fn uri_queries_preserve_literals_and_apply_ordered_edits() {
+    let uri =
+        Uri::of("/items?label=a+b&exact.key=yes&filter%5B0%5D=active&filter%5B1%5D=pending#part")
+            .unwrap();
+    assert_eq!(uri.query().all().unwrap()["exact.key"], "yes");
+    assert_eq!(uri.query().get("label").unwrap(), Some(json!("a+b")));
+    assert!(uri.query().decode().unwrap().contains("label=a+b"));
+    let next = uri
+        .withQueryIfMissing(&json!({"label":"ignored","page":2}))
+        .unwrap()
+        .pushOntoQuery("filter", json!(["pending", "open"]))
+        .unwrap()
+        .withoutQuery(&["exact.key"])
+        .unwrap();
+    assert_eq!(
+        next.query().get("filter").unwrap(),
+        Some(json!(["active", "pending", "open"]))
+    );
+    assert_eq!(next.query().get("page").unwrap(), Some(json!("2")));
+    assert!(next.query().missing("exact.key").unwrap());
+    assert!(next.value().contains("label=a%2Bb"));
+    assert_eq!(
+        next.replaceQuery(&json!({"a":[true,false],"s":"空"}))
+            .unwrap()
+            .value(),
+        "/items?a%5B0%5D=1&a%5B1%5D=0&s=%E7%A9%BA#part"
+    );
+    assert_eq!(
+        next.replaceQuery(&json!({})).unwrap().value(),
+        "/items#part"
+    );
+    assert!(Uri::of("/?x=%FF").unwrap().query().all().is_err());
+}

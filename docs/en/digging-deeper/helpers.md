@@ -16,3 +16,17 @@ assert_eq!(Arr::get(&users, "1.active"), Some(&json!(true)));
 ```
 
 Use `data_has` to check a literal path, `data_set` to overwrite, `data_fill` to fill missing entries, and `data_forget` to remove values. Mutations validate nesting and return `DataPathError` on failure. Use `Arr::dot` and `Arr::undot` to flatten and expand paths. For typed arrays use Rust slices and iterators. For collection pipelines use `Collection` or `LazyCollection`. See [Strings](./strings.md).
+
+## Fluent URIs {#fluent-uris}
+
+Use `Uri::of` to parse an absolute or relative reference. Component setters return a new, validated URI. `query()` reads decoded parameters while preserving literal plus signs and dotted keys. Use `withQuery`, `withQueryIfMissing`, `replaceQuery`, `pushOntoQuery`, and `withoutQuery` to edit the query. Pass a JSON map for named parameters. Application code can generate an address with `Uri::to`, `route`, `action`, `signedRoute`, or `temporarySignedRoute`, then call `redirect` to build a validated redirect response.
+
+```rust
+use openrust::support::Uri;
+use serde_json::json;
+
+let uri = Uri::of("/items?label=a+b")?
+    .withQuery(&json!({"page": 2}))?
+    .withFragment("summary")?;
+assert_eq!(uri.value(), "/items?label=a%2Bb&page=2#summary");
+```

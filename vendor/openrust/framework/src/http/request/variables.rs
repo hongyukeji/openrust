@@ -37,14 +37,22 @@ fn normalize(name: &str) -> String {
     name.replace([' ', '.', '['], "_")
 }
 
-fn path(name: &str) -> Result<Option<Vec<Option<Key>>>, HttpError> {
-    let name = name
-        .split('\0')
-        .next()
-        .unwrap_or_default()
-        .trim_start_matches(' ');
+fn path(name: &str, mangle: bool) -> Result<Option<Vec<Option<Key>>>, HttpError> {
+    let name = name.split('\0').next().unwrap_or_default();
+    let name = if mangle {
+        name.trim_start_matches(' ')
+    } else {
+        name
+    };
+    let top_name = |name: &str| {
+        if mangle {
+            normalize(name)
+        } else {
+            name.to_owned()
+        }
+    };
     let first = name.find('[').unwrap_or(name.len());
-    let top = normalize(&name[..first]);
+    let top = top_name(&name[..first]);
     if top.is_empty() || forbidden(&top, name) {
         return Ok(None);
     }
@@ -57,7 +65,7 @@ fn path(name: &str) -> Result<Option<Vec<Option<Key>>>, HttpError> {
         let Some(end) = after_open.find(']') else {
             // 首层缺右括号时 PHP 将原变量名扁平化；深层则保留当前父键。
             if path.len() == 1 {
-                path[0] = Some(Key::named(&normalize(name)));
+                path[0] = Some(Key::named(&top_name(name)));
             }
             break;
         };
@@ -91,14 +99,21 @@ enum Node {
 
 impl VariableBag {
     pub(super) fn insert(&mut self, name: &str, value: String) -> Result<(), HttpError> {
-        if let Some(path) = path(name)? {
+        if let Some(path) = path(name, true)? {
+            self.insert_path(&path, value, name);
+        }
+        Ok(())
+    }
+
+    pub(super) fn insert_uri(&mut self, name: &str, value: String) -> Result<(), HttpError> {
+        if let Some(path) = path(name, false)? {
             self.insert_path(&path, value, name);
         }
         Ok(())
     }
 
     pub(super) fn insert_cookie(&mut self, name: &str, value: String) -> Result<(), HttpError> {
-        if let Some(path) = path(name)? {
+        if let Some(path) = path(name, true)? {
             let duplicate = path.len() == 1
                 && path[0]
                     .as_ref()

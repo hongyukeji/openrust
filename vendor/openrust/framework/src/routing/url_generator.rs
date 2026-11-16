@@ -777,9 +777,18 @@ fn json_parameters(value: Value) -> RouteParameters<'static> {
     }
 }
 
+pub(crate) fn encode_query_value(value: Value) -> UrlResult<String> {
+    let UrlValue::Array(parameters) = query_value(value) else {
+        return Err(UrlError::InvalidParameter);
+    };
+    query_string(&parameters, false)
+}
+
 fn query_value(value: Value) -> UrlValue<'static> {
     match value {
         Value::String(value) => UrlValue::String(value),
+        Value::Bool(value) => UrlValue::Bool(value),
+        Value::Number(value) => UrlValue::Number(value),
         Value::Array(_) => UrlValue::Array(json_parameters(value)),
         Value::Object(values) => UrlValue::Array(
             values

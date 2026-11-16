@@ -160,7 +160,7 @@ impl Redirector {
     }
 }
 
-pub(super) fn redirect_response(
+pub(crate) fn redirect_response(
     target: &str,
     options: RedirectOptions,
 ) -> UrlResult<RedirectResponse> {

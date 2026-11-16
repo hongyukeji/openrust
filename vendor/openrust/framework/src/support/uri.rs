@@ -1,8 +1,17 @@
 //! URI references used by Eloquent casts.
 
 mod parse;
+mod query;
 
-use std::{fmt, str::FromStr};
+pub use query::UriQueryString;
+
+use std::{fmt, str::FromStr, time::SystemTime};
+
+use crate::{
+    http::RedirectResponse,
+    routing::{RedirectOptions, RouteParameter, SignatureMode, UrlError, UrlResult},
+    support::facades::URL,
+};
 
 use parse::Components;
 
@@ -144,6 +153,132 @@ impl Uri {
 
     pub fn fragment(&self) -> Option<&str> {
         self.parts.fragment.as_deref()
+    }
+
+    /// 设置协议，并按新协议重新校验路径、默认端口和其余组件。
+    pub fn withScheme(&self, scheme: &str) -> Result<Self, InvalidUri> {
+        let mut parts = self.parts.clone();
+        parts.scheme = Some(parse::normalize_scheme(scheme)?);
+        parts.port = parse::format_port(parts.port, parts.scheme.as_deref())?;
+        parts.path = parse::format_path(&parts.path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置主机，按 URI 规则规范化主机名并为相对路径补齐 authority 分隔。
+    pub fn withHost(&self, host: &str) -> Result<Self, InvalidUri> {
+        parse::validate_component(host)?;
+        let mut parts = self.parts.clone();
+        parts.host = Some(parse::normalize_host(host)?);
+        parts.path = parse::format_path(&parts.path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置或清除用户信息。密码会进入 URI，调用方应避免将它写入日志。
+    pub fn withUser(&self, user: Option<&str>, password: Option<&str>) -> Result<Self, InvalidUri> {
+        if let Some(user) = user {
+            parse::validate_component(user)?;
+        }
+        if let Some(password) = password {
+            parse::validate_component(password)?;
+        }
+        let mut parts = self.parts.clone();
+        parts.user = user.map(parse::encode_user);
+        parts.password = password.map(parse::encode_password);
+        Self::checked_parts(parts)
+    }
+
+    /// 设置或清除端口，省略与当前协议默认值相同的端口。
+    pub fn withPort(&self, port: Option<i64>) -> Result<Self, InvalidUri> {
+        let mut parts = self.parts.clone();
+        parts.port = parse::format_port(port, parts.scheme.as_deref())?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置绝对路径组件并折叠重复的前导斜线。
+    pub fn withPath(&self, path: &str) -> Result<Self, InvalidUri> {
+        parse::validate_component(path)?;
+        let mut parts = self.parts.clone();
+        let path = format!("/{}", path.trim_start_matches('/'));
+        parts.path = parse::format_path(&path, &parts)?;
+        Self::checked_parts(parts)
+    }
+
+    /// 设置编码后的片段，空字符串保留显式的 `#` 分隔符。
+    pub fn withFragment(&self, fragment: &str) -> Result<Self, InvalidUri> {
+        parse::validate_component(fragment)?;
+        let mut parts = self.parts.clone();
+        parts.fragment = Some(parse::encode_query_or_fragment(fragment));
+        Self::checked_parts(parts)
+    }
+
+    /// 移除片段及其分隔符。
+    pub fn withoutFragment(&self) -> Result<Self, InvalidUri> {
+        let mut parts = self.parts.clone();
+        parts.fragment = None;
+        Self::checked_parts(parts)
+    }
+
+    /// 转为 Support 的链式字符串。
+    pub fn toStringable(&self) -> super::Stringable {
+        super::Stringable::from(self.value())
+    }
+
+    pub fn pathSegments(&self) -> Vec<&str> {
+        let path = self.path();
+        if path == "/" {
+            Vec::new()
+        } else {
+            path.split('/').collect()
+        }
+    }
+
+    /// Generates a URI using the current application's URL generator.
+    pub fn to(path: &str, parameters: &[RouteParameter], secure: Option<bool>) -> UrlResult<Self> {
+        Self::generated(URL::to(path, parameters, secure)?)
+    }
+
+    pub fn route(name: &str, parameters: &[RouteParameter], absolute: bool) -> UrlResult<Self> {
+        Self::generated(URL::route(name, parameters, absolute)?)
+    }
+
+    pub fn action(action: &str, parameters: &[RouteParameter], absolute: bool) -> UrlResult<Self> {
+        Self::generated(URL::action(action, parameters, absolute)?)
+    }
+
+    pub fn signedRoute(
+        name: &str,
+        parameters: &[RouteParameter],
+        expiration: Option<SystemTime>,
+        mode: SignatureMode,
+    ) -> UrlResult<Self> {
+        Self::generated(URL::signedRoute(name, parameters, expiration, mode)?)
+    }
+
+    pub fn temporarySignedRoute(
+        name: &str,
+        expiration: SystemTime,
+        parameters: &[RouteParameter],
+        mode: SignatureMode,
+    ) -> UrlResult<Self> {
+        Self::generated(URL::temporarySignedRoute(
+            name, expiration, parameters, mode,
+        )?)
+    }
+
+    /// Builds an explicit redirect using the same target validation as other redirects.
+    pub fn redirect(&self, options: RedirectOptions) -> UrlResult<RedirectResponse> {
+        crate::routing::redirect_response(self.value(), options)
+    }
+
+    fn generated(url: String) -> UrlResult<Self> {
+        Self::of(&url).map_err(|_| UrlError::InvalidOrigin)
+    }
+
+    fn checked_parts(parts: Components) -> Result<Self, InvalidUri> {
+        if !parse::validate_state(&parts) {
+            return Err(invalid_uri());
+        }
+        Ok(Self::from_parts(parts))
     }
 }
 

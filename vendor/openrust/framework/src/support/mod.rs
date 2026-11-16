@@ -35,5 +35,5 @@ pub use message_bag::MessageBag;
 pub use service_provider::{ProviderFactory, ProviderResult, ServiceProvider};
 pub use stringable::Stringable;
 pub use strings::Str;
-pub use uri::{InvalidUri, Uri};
+pub use uri::{InvalidUri, Uri, UriQueryString};
 pub use view_error_bag::ViewErrorBag;

@@ -16,3 +16,17 @@ assert_eq!(Arr::get(&users, "1.active"), Some(&json!(true)));
 ```
 
 `data_has` 檢查字面路徑，`data_set` 覆寫值，`data_fill` 填補缺少的值，`data_forget` 移除值。修改會驗證巢狀深度，失敗回傳 `DataPathError`。用 `Arr::dot` 和 `Arr::undot` 展開及還原路徑。型別化陣列使用 Rust 切片和迭代器，集合管線使用 `Collection` 或 `LazyCollection`。字串操作見[字串](./strings.md)。
+
+## 鏈式 URI {#fluent-uris}
+
+使用 `Uri::of` 解析絕對或相對參照。元件設定方法傳回新的已驗證 URI。`query()` 讀取解碼後的參數並保留字面的加號和帶點鍵。用 `withQuery`、`withQueryIfMissing`、`replaceQuery`、`pushOntoQuery` 和 `withoutQuery` 修改查詢字串。用 JSON 映射傳遞具名參數。應用程式可用 `Uri::to`、`route`、`action`、`signedRoute` 或 `temporarySignedRoute` 產生位址，再用 `redirect` 建立經過驗證的重新導向回應。
+
+```rust
+use openrust::support::Uri;
+use serde_json::json;
+
+let uri = Uri::of("/items?label=a+b")?
+    .withQuery(&json!({"page": 2}))?
+    .withFragment("summary")?;
+assert_eq!(uri.value(), "/items?label=a%2Bb&page=2#summary");
+```
