@@ -18,6 +18,7 @@ pub(super) struct Transport<'a> {
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
     pub digest: Option<&'a DigestCredentials>,
+    pub digest_origin: url::Origin,
     pub max_redirects: usize,
     pub timeout: Duration,
     pub body_limit: usize,
@@ -27,7 +28,6 @@ impl Transport<'_> {
     pub(super) async fn send(&self, mut request: Request) -> Result<Response> {
         let has_events = self.factory.events.is_some();
         let mut started_at = None;
-        let auth_origin = self.digest.map(|_| request.url().origin());
         let mut redirects = 0;
         let mut authentications = 0;
         loop {
@@ -47,9 +47,8 @@ impl Transport<'_> {
             let sent = (recording || has_events).then(|| self.snapshot(&request));
             let redirect = (self.max_redirects > 0).then(|| Redirect::from(&request));
             let replay = (authentications < 2
-                && auth_origin
-                    .as_ref()
-                    .is_some_and(|origin| *origin == request.url().origin())
+                && self.digest.is_some()
+                && self.digest_origin == request.url().origin()
                 && (authentications > 0 || !request.headers().contains_key(header::AUTHORIZATION)))
             .then(|| request.try_clone())
             .flatten();

@@ -4,7 +4,7 @@
 
 `Http` 从应用容器取得 `Factory`。每个应用拥有独立连接池、fake 注册、响应序列和请求记录。配置链生成一次性 `PendingRequest`。支持常用 HTTP 方法、JSON、表单、原始正文、multipart、查询参数、Bearer 与 Basic、重定向开关、请求前和响应后回调、状态判断、有限重试、fake、测试断言及并发池。HTTP 4xx、5xx 由调用方决定是否转换成错误，重试耗尽的行为可配置。并发池的每项结果独立。顺序契约见下文的并发池与批次。
 
-Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可选参数。响应缓冲复用字节存储，默认连接选项复用 reqwest 连接池，自定义连接超时或重定向选项创建独立客户端。重试前校验请求是否可重放，一次性流在启用重试时返回明确错误。请求记录可观察已缓冲的正文，流式上传的正文不可回读。显式查询项覆盖 URL 查询串，编码使用 RFC 3986。原始 `reqwest::Request` 可由请求前回调调整。Laravel 的 Guzzle 专用选项、动态宏及 Digest Auth 仍单独跟踪。旧版目标白名单、DNS 固定和熔断属于额外传输能力，当前范围未接入这些能力。
+Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可选参数。响应缓冲复用字节存储，默认连接选项复用 reqwest 连接池，自定义连接超时创建独立客户端。重定向由请求传输层管理。重试前校验请求是否可重放，一次性流在启用重试时返回明确错误。请求记录可观察已缓冲的正文，流式上传的正文不可回读。显式查询项覆盖 URL 查询串，编码使用 RFC 3986。原始 `reqwest::Request` 可由请求前回调调整。Rust 通过类型化请求配置和回调表达 Guzzle 选项和中间件，通过函数或扩展 trait 复用 PHP 动态宏对应的具名配置。Digest 认证见下文。旧版目标白名单、DNS 固定和熔断属于额外传输能力，当前范围未接入这些能力。
 
 ## 验收
 
@@ -37,10 +37,22 @@ Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可�
 - 核对固定 Laravel 三种事件的公开载荷及 Guzzle 处理栈。应用工厂使用所属派发器，独立工厂可通过 `withDispatcher` 注入派发器。请求快照包含方法、URL、标头、可读取正文和 `withAttributes` 元数据，后者不进入网络请求。连接失败采用可匹配的连接／超时错误。 [固定事件定义](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Events)
 - `RequestSending` 在每次请求和重定向跳转的 `beforeSending` 回调前派发。最终 `ResponseReceived` 在 `afterResponse` 前派发，含 4xx、5xx。请求级重试重新派发事件。连接或超时异常使用实际尝试发送的请求快照。重定向上限与缓冲大小限制为独立错误。真实回归核对跨源跳转清除上一个源的授权头、大型跳转正文和最终响应大小限制。
 - Rust 1.94.0 锁定离线执行 10 项 HTTP Client 定向用例，工作区全目标严格 Clippy 与本批文件格式通过。真实 Artisan、回环 HTTP 及本地上游验证 302、404、连接关闭和事件载荷。三语 VitePress 构建和 12 项浏览器检查通过。
-- Digest Auth 已由固定 Laravel 源码确认，仍需以实际挑战和响应验收。PHP 层的动态宏与 Guzzle 选项适配继续单独记录。
+- Digest Auth 的实际挑战、响应及隔离验收见下文。
 
 ## Digest Auth
 
 - 纯 Rust 实现已接入 `withDigestAuth`。实际回环验证 SHA-256 的 `auth`／`auth-int`、带查询串的正文重放、`stale` nonce 更新，以及跨源跳转拒绝沿用原源站凭据。11 项定向测试、真实 HTTP 与 Artisan、三语 VitePress 和 12 项浏览器检查均已通过。本批变更文件格式通过。 [固定认证契约](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/http-client.md#authentication)
 - 上轮实测项目卷低于 50 GB 后保留候选。本轮恢复后清理独占临时编译产物，在最新提交的隔离副本补跑 Rust 1.94.0 锁定离线工作区全目标严格 Clippy，验收通过。
-- 并发池与批次已本地提交 `1f22f459b`，请求事件已本地提交 `991ec1ac2`。07-02 保持部分验收。固定章节中的 URI 模板、指定 URL 放行及可修改下一次请求的重试回调仍待补齐和验收。
+- Digest Auth 已本地提交 `8db525064`，包含三语文档。
+
+## URI 模板、URL 放行与重试调整
+
+- 核对固定 `PendingRequest::withUrlParameters` 先合并参数与 URL，再展开模板的顺序。Rust 采用 `iri-string` 的 RFC 6570 展开，复用 `Arr::query` 生成嵌套查询键。PHP 8.5 对照 Guzzle URI Template 1.0.5 的四组展开，覆盖保留展开、Unicode、列表、查询对象和嵌套键。Rust 还核对了无参数时的字面花括号、参数替换、显式查询覆盖及无效模板错误。Rust 按 RFC 6570 统计 Unicode 字符前缀，Guzzle 的字节计数属于运行时差异。 [固定 PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) [Guzzle URI Template 1.0.5](https://github.com/guzzle/uri-template/blob/v1.0.5/src/UriTemplate.php)
+- `allowStrayRequests` 替换应用工厂的 URL 模式，沿用 `Str::is` 通配匹配。匹配的 fake 优先。启用拦截时，每次传输及重定向都检查目标 URL。复核 v0.x 的主机策略和有界请求重放，保留当前应用级工厂和现有重试循环。 [固定 Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Factory.php)
+- `retryWhenRequest` 接收失败和下一次待发送的请求，可继续、停止或返回错误。变更在后续尝试保留，沿用重试次数、退避和请求体可重放条件。实际请求验证 401 后更换标头、保留原始请求体、并发池中的重试及拒绝和错误分支。Digest 凭据继续绑定最初的源站。 [固定 HTTP Client 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpClientTest.php)
+- Rust 1.94.0 锁定离线执行 14 项 HTTP Client 定向回归和工作区全目标严格 Clippy，变更文件格式通过。工作区格式检查只报告基线的 Sanctum 测试排版。真实 HTTP 与 Artisan 执行三语示例，验证相同的编码 URL 依次得到 401 和 200，被拦截的 URL 未到达上游。三语 VitePress 构建、新章节锚点及 12 项桌面和移动浏览器检查通过。
+
+## 整单元验收
+
+- 前置 01-01 已闭合。07-02 对固定基线完成请求与序列化、状态及错误、超时、重试、fake 测试隔离、并发池与批次、三类事件、认证、URI 模板及 URL 放行的验收。类型化配置、结果和生命周期映射见各批记录。
+- 07-02 HTTP Client 核心契约闭合。并发池与批次见 `1f22f459b`，请求事件见 `991ec1ac2`，Digest Auth 见 `8db525064`。

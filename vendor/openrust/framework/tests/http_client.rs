@@ -907,3 +907,225 @@ async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_orig
         task.abort();
     }
 }
+
+#[tokio::test]
+async fn expands_uri_templates_before_parsing_the_outgoing_url() {
+    let (origin, server) = serve(Router::new().route(
+        "/{*path}",
+        get(|request: axum::extract::Request| async move { request.uri().to_string() }),
+    ))
+    .await;
+    let factory = Factory::new().unwrap();
+    let parameters =
+        |value| serde_json::from_value::<serde_json::Map<String, Value>>(value).unwrap();
+    let request = factory.withUrlParameters(parameters(json!({
+        "endpoint": origin, "path": "a/b", "search": "中文", "tags": ["a b", "c"],
+        "filters": {"empty":"", "sort":"a:b"}, "absent": null, "unused": {"nested": ["valid JSON"]},
+    })));
+    let response = request
+        .get("{+endpoint}/files/{path}{?search,tags*,filters*,absent}")
+        .await
+        .unwrap();
+    assert_eq!(
+        response.body(),
+        b"/files/a%2Fb?search=%E4%B8%AD%E6%96%87&tags=a%20b&tags=c&empty=&sort=a%3Ab"
+    );
+
+    let nested = factory
+        .pendingRequest()
+        .baseUrl(&origin)
+        .withUrlParameters(parameters(json!({
+            "filters": {"range": {"from": 1, "to": 5}, "flags": [true, false]},
+        })))
+        .get("/files{?filters*}")
+        .await
+        .unwrap();
+    assert_eq!(
+        nested.body(),
+        b"/files?range%5Bfrom%5D=1&range%5Bto%5D=5&flags%5B0%5D=1&flags%5B1%5D=0"
+    );
+
+    let relative = factory
+        .pendingRequest()
+        .baseUrl("{+endpoint}/api/{version}")
+        .withUrlParameters(parameters(json!({"endpoint":origin,"version":"old"})))
+        .withUrlParameters(parameters(json!({"version":"v2","search":"ignored"})))
+        .withQueryParameters([("actual".to_owned(), "x y".to_owned())])
+        .get("/folders{?search}")
+        .await
+        .unwrap();
+    assert_eq!(relative.body(), b"/api/v2/folders?actual=x%20y");
+
+    let literal = factory
+        .get(&format!(
+            r#"{origin}/files/{{draft}}.txt?where={{"status":"open"}}"#
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        literal.body(),
+        b"/files/%7Bdraft%7D.txt?where=%7B%22status%22:%22open%22%7D"
+    );
+
+    let malformed = factory
+        .withUrlParameters(parameters(json!({"endpoint":origin})))
+        .get("{+endpoint}/broken/{page")
+        .await;
+    assert!(matches!(malformed, Err(Error::InvalidUriTemplate)));
+    server.abort();
+}
+
+#[tokio::test]
+async fn selective_stray_allowance_checks_redirects_and_keeps_fake_priority() {
+    let (origin, server) = serve(
+        Router::new()
+            .route("/allowed/live", get(|| async { "local upstream" }))
+            .route(
+                "/allowed/fake",
+                get(|| async { (StatusCode::INTERNAL_SERVER_ERROR, "fake should win") }),
+            )
+            .route(
+                "/allowed/redirect",
+                get(|| async { (StatusCode::FOUND, [(header::LOCATION, "/blocked")]) }),
+            )
+            .route(
+                "/blocked",
+                get(|| async { "only reached after prevention is disabled" }),
+            ),
+    )
+    .await;
+    let factory = Factory::new().unwrap();
+    factory.preventStrayRequests(true);
+    assert!(factory.preventingStrayRequests());
+    factory.allowStrayRequests([format!("{origin}/allowed/*")]);
+    factory.stubUrl(
+        format!("{origin}/allowed/fake"),
+        Response::new(StatusCode::OK, HeaderMap::new(), b"fake"),
+    );
+
+    assert!(factory.isAllowedRequestUrl(&format!("{origin}/allowed/live")));
+    assert!(!factory.isAllowedRequestUrl(&format!("{origin}/blocked")));
+    assert_eq!(
+        factory
+            .get(&format!("{origin}/allowed/live"))
+            .await
+            .unwrap()
+            .body(),
+        b"local upstream"
+    );
+    assert_eq!(
+        factory
+            .get(&format!("{origin}/allowed/fake"))
+            .await
+            .unwrap()
+            .body(),
+        b"fake"
+    );
+    assert!(matches!(
+        factory.get(&format!("{origin}/allowed/redirect")).await,
+        Err(Error::StrayRequest)
+    ));
+    factory.assertSentCount(3);
+    assert!(!Factory::new().unwrap().preventingStrayRequests());
+
+    factory.allowStrayRequests([format!("{origin}/blocked")]);
+    assert!(matches!(
+        factory.get(&format!("{origin}/allowed/live")).await,
+        Err(Error::StrayRequest)
+    ));
+    assert!(
+        factory
+            .get(&format!("{origin}/blocked"))
+            .await
+            .unwrap()
+            .ok()
+    );
+    factory.preventStrayRequests(false);
+    assert!(
+        factory
+            .get(&format!("{origin}/allowed/live"))
+            .await
+            .unwrap()
+            .ok()
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn retry_callback_modifies_the_next_request_and_preserves_changes_on_later_attempts() {
+    use std::num::NonZeroUsize;
+
+    let (origin, server) = serve(Router::new().route(
+        "/retry",
+        any(|request: axum::extract::Request| async move {
+            let (parts, body) = request.into_parts();
+            assert_eq!(parts.method, Method::POST);
+            assert_eq!(
+                axum::body::to_bytes(body, 1024).await.unwrap(),
+                r#"{"preserve":"body"}"#
+            );
+            match parts
+                .headers
+                .get("x-phase")
+                .and_then(|value| value.to_str().ok())
+            {
+                None => StatusCode::UNAUTHORIZED,
+                Some("renewed") if !parts.headers.contains_key("x-later") => {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+                Some("renewed") => StatusCode::OK,
+                _ => StatusCode::BAD_REQUEST,
+            }
+        }),
+    ))
+    .await;
+    let factory = Factory::new().unwrap();
+    factory.fake(|_| None);
+    let url = format!("{origin}/retry");
+    let body = json!({"preserve":"body"});
+    let results = factory
+        .pool(NonZeroUsize::MIN, |pool| {
+            pool.newRequest(|request| {
+                request
+                    .retryDelays(vec![Duration::ZERO; 2])
+                    .retryWhenRequest(|error, next| {
+                        let Error::RequestFailed(response) = error else {
+                            return Ok(false);
+                        };
+                        assert_eq!(next.method(), Method::POST);
+                        if response.unauthorized() {
+                            next.headers_mut()
+                                .insert("x-phase", HeaderValue::from_static("renewed"));
+                        } else {
+                            assert_eq!(next.headers()["x-phase"], "renewed");
+                            next.headers_mut()
+                                .insert("x-later", HeaderValue::from_static("true"));
+                        }
+                        Ok(true)
+                    })
+                    .post(&url, &body)
+            });
+        })
+        .await;
+    assert!(results["0"].as_ref().unwrap().ok());
+    factory.assertSentCount(3);
+
+    let denied = factory
+        .pendingRequest()
+        .retry(3, Duration::ZERO)
+        .retryWhenRequest(|_, _| Ok(false))
+        .post(&url, &body)
+        .await;
+    assert!(matches!(denied, Err(Error::RequestFailed(response)) if response.unauthorized()));
+    factory.assertSentCount(4);
+
+    let failed = factory
+        .pendingRequest()
+        .retry(3, Duration::ZERO)
+        .retryWhenRequest(|_, _| Err(Error::Configuration))
+        .post(&url, &body)
+        .await;
+    assert!(matches!(failed, Err(Error::Configuration)));
+    factory.assertSentCount(5);
+    server.abort();
+}

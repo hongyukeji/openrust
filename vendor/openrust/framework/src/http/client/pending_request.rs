@@ -6,17 +6,33 @@ use serde::Serialize;
 use super::digest::DigestCredentials;
 use super::factory::{BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client};
 use super::transport::Transport;
+use super::uri_template;
 use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
 
 pub(super) type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
 type ThrowCondition = dyn Fn(&Response) -> bool + Send + Sync;
 type RetryCondition = dyn Fn(&Error) -> bool + Send + Sync;
+type RetryRequestCondition = dyn Fn(&Error, &mut reqwest::Request) -> Result<bool> + Send + Sync;
+
+enum RetryWhen {
+    Inspect(Arc<RetryCondition>),
+    Modify(Box<RetryRequestCondition>),
+}
+
+impl RetryWhen {
+    fn permits(&self, error: &Error, next: Option<&mut reqwest::Request>) -> Result<bool> {
+        match self {
+            Self::Inspect(condition) => Ok(condition(error)),
+            Self::Modify(condition) => next.map_or(Ok(false), |request| condition(error, request)),
+        }
+    }
+}
 
 #[derive(Default)]
 struct Retry {
     delays: RetryDelays,
-    when: Option<Arc<RetryCondition>>,
+    when: Option<RetryWhen>,
     throw: bool,
 }
 
@@ -67,6 +83,7 @@ pub struct PendingRequest {
     invalid_header: bool,
     digest: Option<DigestCredentials>,
     query: indexmap::IndexMap<String, String>,
+    uri_parameters: serde_json::Map<String, serde_json::Value>,
     attributes: serde_json::Map<String, serde_json::Value>,
     connect_timeout: Duration,
     timeout: Duration,
@@ -89,6 +106,7 @@ impl PendingRequest {
             invalid_header: false,
             digest: None,
             query: indexmap::IndexMap::new(),
+            uri_parameters: Default::default(),
             attributes: serde_json::Map::new(),
             connect_timeout: CONNECT_TIMEOUT,
             timeout: TIMEOUT,
@@ -160,6 +178,14 @@ impl PendingRequest {
         } else {
             self.invalid_header = true;
         }
+        self
+    }
+
+    pub fn withUrlParameters(
+        mut self,
+        parameters: serde_json::Map<String, serde_json::Value>,
+    ) -> Self {
+        self.uri_parameters.extend(parameters);
         self
     }
 
@@ -256,7 +282,16 @@ impl PendingRequest {
     }
 
     pub fn retryWhen(mut self, when: impl Fn(&Error) -> bool + Send + Sync + 'static) -> Self {
-        self.retry.when = Some(Arc::new(when));
+        self.retry.when = Some(RetryWhen::Inspect(Arc::new(when)));
+        self
+    }
+
+    /// Decides whether to retry and configures the request that will be replayed.
+    pub fn retryWhenRequest(
+        mut self,
+        when: impl Fn(&Error, &mut reqwest::Request) -> Result<bool> + Send + Sync + 'static,
+    ) -> Self {
+        self.retry.when = Some(RetryWhen::Modify(Box::new(when)));
         self
     }
 
@@ -338,7 +373,9 @@ impl PendingRequest {
         } else {
             build_client(self.connect_timeout)?
         };
-        let mut url = parse_url(self.base_url.as_deref(), url)?;
+        let target = uri_template::expand(self.base_url.as_deref(), url, &self.uri_parameters)?;
+        let base = self.base_url.as_deref().map(uri_template::escape_braces);
+        let mut url = parse_url(base.as_deref(), &target)?;
         if !self.query.is_empty() {
             let mut encoder = url::form_urlencoded::Serializer::new(String::new());
             encoder.extend_pairs(self.query);
@@ -375,6 +412,7 @@ impl PendingRequest {
             before_sending: &self.before_sending,
             attributes: &self.attributes,
             digest: self.digest.as_ref(),
+            digest_origin: request.url().origin(),
             max_redirects: self.redirects,
             timeout: self.timeout,
             body_limit: self.body_limit,
@@ -402,7 +440,10 @@ impl PendingRequest {
             let retryable = matches!(
                 error,
                 Error::Connection | Error::Timeout | Error::RequestFailed(_)
-            ) && when.as_ref().is_none_or(|condition| condition(&error));
+            ) && match &when {
+                Some(condition) => condition.permits(&error, replay.as_mut())?,
+                None => true,
+            };
             if retryable && let Some(delay) = delays.next() {
                 tokio::time::sleep(delay).await;
                 request = if delays.len() == 0 {

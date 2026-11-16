@@ -51,6 +51,46 @@ factory.assertSentCount(2);
 
 用 `pool` 设置非零并发上限，或用 `NonZeroUsize::MAX` 同时启动全部请求。结果按完成顺序排列。`poolOrdered` 同时启动全部请求，并按注册顺序返回每项结果。用 `r#as` 为请求命名，或用 `newRequest` 分配字符串形式的下一个数字键。
 
+### URI 模板、重试回调和 URL 放行 {#uri-templates-retry-and-allowance}
+
+用 `withUrlParameters` 在请求发送前展开 RFC 6570 表达式。JSON 映射可传入字符串、数字、布尔值、列表或关联对象。空值会省略相应变量。查询对象使用展开修饰符时，嵌套字段采用方括号键。前缀长度按 Unicode 字符计数。重复调用时，同名参数以后一次为准。发送包含字面花括号的 URL 时，可以省略模板参数。
+
+调用 `retryWhenRequest` 检查失败并修改待重放的请求，例如在 401 后替换授权标头。返回 `Ok(true)` 继续重试、`Ok(false)` 停止，或返回错误以中止。修改会保留到后续尝试。
+
+启用 `preventStrayRequests(true)` 后，可用 `allowStrayRequests` 替换允许运行真实请求的 URL 模式。匹配的 fake 优先，重定向的每一跳都会检查。
+
+将 `HTTP_CLIENT_EXAMPLE_ORIGIN` 设为本地服务。该服务对示例 URL 返回 401，收到 `x-replay: ready` 标头后返回正文 `retried`。
+
+```rust
+use openrust::{http::client::Error, support::facades::Http};
+use serde_json::json;
+use std::time::Duration;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+Http::preventStrayRequests(true)?;
+Http::allowStrayRequests([format!("{origin}/retry/*")])?;
+
+let parameters = [
+    ("origin".to_owned(), json!(origin)),
+    ("item".to_owned(), json!("item/id")),
+    ("tag".to_owned(), json!("x y")),
+].into_iter().collect();
+
+let response = Http::withUrlParameters(parameters)?
+    .retry(2, Duration::ZERO)
+    .retryWhenRequest(|error, next| {
+        if matches!(error, Error::RequestFailed(response) if response.unauthorized()) {
+            next.headers_mut().insert("x-replay", "ready".parse().expect("valid header"));
+            return Ok(true);
+        }
+        Ok(false)
+    })
+    .get("{+origin}/retry/{item}{?tag}")
+    .await?;
+assert_eq!(response.body(), b"retried");
+assert!(matches!(Http::get(&format!("{origin}/blocked")).await, Err(Error::StrayRequest)));
+```
+
 ## 批次和事件 {#batches-and-events}
 
 用 `Http::batch` 注册请求，再调用 `send().await`。用 `concurrency` 设置同时运行的请求上限。`before` 在首个请求前运行，`progress` 接收 2xx 响应，`catch` 接收 4xx、5xx 响应或单项错误。3xx 响应只增加已完成计数。没有失败时运行 `then`，`finally` 始终按注册顺序接收结果。

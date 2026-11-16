@@ -51,6 +51,46 @@ factory.assertSentCount(2);
 
 Use `pool` with a nonzero concurrency limit. Use `NonZeroUsize::MAX` to start all requests without a cap. Results are keyed in completion order. `poolOrdered` starts all requests and returns the same per-request results in registration order. Use `r#as` to name a request or `newRequest` to assign the next numeric key as a string.
 
+### URI templates, retry callbacks, and URL allowances {#uri-templates-retry-and-allowance}
+
+Use `withUrlParameters` to expand RFC 6570 expressions before sending. Supply strings, numbers, booleans, lists, or associative objects in a JSON map. A null value omits its variable. Exploded query objects expand nested fields using bracketed keys. Prefix lengths count Unicode characters. Later calls replace values with the same name. A URL with literal braces can be sent without specifying any template parameters.
+
+Call `retryWhenRequest` to inspect the failure and update the pending replay, such as replacing an authorization header after a 401. Return `Ok(true)` to retry, `Ok(false)` to stop, or an error to abort. Changes persist in later retries.
+
+When `preventStrayRequests(true)` is active, use `allowStrayRequests` to replace the list of URL patterns that may reach the network. Fakes take precedence and redirects are checked at each hop.
+
+Set `HTTP_CLIENT_EXAMPLE_ORIGIN` to a local service that returns 401 for the example URL until it receives the `x-replay: ready` header, then returns `retried`.
+
+```rust
+use openrust::{http::client::Error, support::facades::Http};
+use serde_json::json;
+use std::time::Duration;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+Http::preventStrayRequests(true)?;
+Http::allowStrayRequests([format!("{origin}/retry/*")])?;
+
+let parameters = [
+    ("origin".to_owned(), json!(origin)),
+    ("item".to_owned(), json!("item/id")),
+    ("tag".to_owned(), json!("x y")),
+].into_iter().collect();
+
+let response = Http::withUrlParameters(parameters)?
+    .retry(2, Duration::ZERO)
+    .retryWhenRequest(|error, next| {
+        if matches!(error, Error::RequestFailed(response) if response.unauthorized()) {
+            next.headers_mut().insert("x-replay", "ready".parse().expect("valid header"));
+            return Ok(true);
+        }
+        Ok(false)
+    })
+    .get("{+origin}/retry/{item}{?tag}")
+    .await?;
+assert_eq!(response.body(), b"retried");
+assert!(matches!(Http::get(&format!("{origin}/blocked")).await, Err(Error::StrayRequest)));
+```
+
 ## Batches and events {#batches-and-events}
 
 Build a batch with `Http::batch` and execute it with `send().await`. Set `concurrency` to cap the number of active requests. `before` runs before the first request, `progress` receives 2xx responses, and `catch` receives 4xx and 5xx responses or per-request errors. A 3xx response only advances the completed count. `then` runs when there are no failures, and `finally` always receives results in registration order.

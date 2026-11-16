@@ -35,6 +35,7 @@ struct Testing {
     stubs: Vec<Arc<Stub>>,
     recording: bool,
     prevent_stray: bool,
+    allowed_stray_urls: Arc<[String]>,
     recorded: Vec<(RecordedRequest, Option<Response>)>,
 }
 
@@ -222,6 +223,36 @@ impl Factory {
         self.testing().prevent_stray = prevent;
     }
 
+    /// Replaces the URL patterns exempt from stray-request prevention.
+    pub fn allowStrayRequests(&self, patterns: impl IntoIterator<Item = impl Into<String>>) {
+        let patterns = patterns.into_iter().map(Into::into).collect();
+        self.testing().allowed_stray_urls = patterns;
+    }
+
+    pub fn preventingStrayRequests(&self) -> bool {
+        self.testing().prevent_stray
+    }
+
+    pub fn isAllowedRequestUrl(&self, url: &str) -> bool {
+        let patterns = {
+            let testing = self.testing();
+            if !testing.prevent_stray {
+                return true;
+            }
+            testing.allowed_stray_urls.clone()
+        };
+        patterns
+            .iter()
+            .any(|pattern| Str::is(&[pattern], url, false))
+    }
+
+    pub fn withUrlParameters(
+        &self,
+        parameters: serde_json::Map<String, serde_json::Value>,
+    ) -> PendingRequest {
+        self.pendingRequest().withUrlParameters(parameters)
+    }
+
     pub fn recorded(&self) -> Vec<(RecordedRequest, Option<Response>)> {
         self.testing().recorded.clone()
     }
@@ -272,13 +303,10 @@ impl Factory {
         client: &reqwest::Client,
         request: reqwest::Request,
     ) -> Result<Incoming> {
-        let (stubs, prevent_stray) = {
-            let testing = self.testing();
-            (testing.stubs.clone(), testing.prevent_stray)
-        };
+        let stubs = self.testing().stubs.clone();
         match stubs.iter().find_map(|callback| callback(&request)) {
             Some(result) => result.map(Incoming::Fake),
-            None if prevent_stray => Err(Error::StrayRequest),
+            None if !self.isAllowedRequestUrl(request.url().as_str()) => Err(Error::StrayRequest),
             None => client
                 .execute(request)
                 .await

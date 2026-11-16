@@ -9,6 +9,7 @@ mod pending_request;
 mod pool;
 mod response;
 mod transport;
+mod uri_template;
 
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use facade::{Http, HttpClientServiceProvider};
@@ -26,6 +27,7 @@ use std::fmt;
 pub enum Error {
     Configuration,
     InvalidRequest,
+    InvalidUriTemplate,
     Connection,
     Timeout,
     BodyTooLarge,
@@ -45,6 +47,9 @@ impl fmt::Display for Error {
         match self {
             Self::Configuration => formatter.write_str("invalid HTTP client configuration"),
             Self::InvalidRequest => formatter.write_str("invalid outgoing HTTP request"),
+            Self::InvalidUriTemplate => {
+                formatter.write_str("invalid HTTP URI template or parameter")
+            }
             Self::Connection => formatter.write_str("outgoing HTTP connection failed"),
             Self::Timeout => formatter.write_str("outgoing HTTP request timed out"),
             Self::BodyTooLarge => {

@@ -87,6 +87,12 @@ impl Http {
         Ok(Self::pendingRequest()?.baseUrl(url))
     }
 
+    pub fn withUrlParameters(
+        parameters: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.withUrlParameters(parameters))
+    }
+
     pub fn asForm() -> Result<PendingRequest> {
         Ok(Self::pendingRequest()?.asForm())
     }
@@ -144,6 +150,25 @@ impl Http {
             .map_err(Error::Unavailable)?
             .preventStrayRequests(prevent);
         Ok(())
+    }
+
+    pub fn allowStrayRequests(patterns: impl IntoIterator<Item = impl Into<String>>) -> Result<()> {
+        Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .allowStrayRequests(patterns);
+        Ok(())
+    }
+
+    pub fn preventingStrayRequests() -> Result<bool> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .preventingStrayRequests())
+    }
+
+    pub fn isAllowedRequestUrl(url: &str) -> Result<bool> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .isAllowedRequestUrl(url))
     }
 
     #[track_caller]
