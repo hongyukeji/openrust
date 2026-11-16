@@ -230,6 +230,25 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
 
+### JSON 欄位 {#json-columns}
+
+MySQL 的 `json()` 和 `jsonb()` 都宣告為 `JSON`。SQLite 預設都宣告為 `TEXT`。在 SQLite 連線設定中分別將 `use_native_json` 或 `use_native_jsonb` 設為 `true`，即可宣告 `JSON` 或 `JSONB`。兩個選項獨立生效。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_documents() -> DatabaseResult<()> {
+    Schema::create("documents", |table| {
+        table.id();
+        table.json("document");
+        table.jsonb("snapshot");
+    })
+    .await
+}
+```
+
+在 SQLite 中宣告 `JSONB` 欄位不會自動把寫入值編碼成二進位 JSON。用 SQLite 的 `jsonb(...)` SQL 函式寫入二進位值，再用 `json(...)` 讀出 JSON 文字。
+
 ### 生成欄位 {#generated-columns}
 
 用 `virtualAs` 宣告讀取時運算的欄位，用 `storedAs` 儲存運算結果。兩者都接受可信 SQL 運算式。`virtualAsJson` 和 `storedAsJson` 可使用箭頭分隔的 JSON 路徑。生成欄位需要指定型別，由資料庫依其他欄位運算。

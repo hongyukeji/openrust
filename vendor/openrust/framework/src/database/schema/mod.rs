@@ -22,6 +22,12 @@ pub use foreign_key_definition::ForeignKeyDefinition;
 pub use index_definition::IndexDefinition;
 pub use session::SchemaSession;
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct SqliteJsonTypes {
+    pub(super) json: bool,
+    pub(super) jsonb: bool,
+}
+
 /// Default key for polymorphic schema columns.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MorphKeyType {

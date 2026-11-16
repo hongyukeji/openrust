@@ -247,3 +247,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 三段式引用与 Laravel 一样报错。Rust 保留现有 Schema 路径对空表名或空限定段的预检，解析入口会提前报告这些输入。
 - `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 22 项 Schema 回归及 1 项限定库清理回归。实测当前与显式回退、读写库分离、带前缀的跨 Schema 限定表名和无效引用预检。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
 - `docker/accept.py --mysql` 运行三语共用 Artisan 示例，实际创建限定表并按解析结果读取其 Schema 下的表目录。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 附加库解析回归已编译，实跑留待发布前。
+
+## JSON 列声明
+
+对照固定 Laravel [MySQL JSON 语法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L961)和 [SQLite JSON 语法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L888)。旧版未找到这两个设置，沿用当前连接配置、写端 Grammar 与 Blueprint 类型声明。
+
+- MySQL 的 `json()` 和 `jsonb()` 都声明为 `JSON`。SQLite 两种类型默认声明为 `TEXT`，分别通过连接选项 `use_native_json` 和 `use_native_jsonb` 启用 `JSON` 和 `JSONB` 类型名。SQLite 的 JSONB 二进制写入由数据库函数完成。
+- 隔离基线 `6d8f18109`。使用 `docker/accept.py --mysql --mysql-schema-admin` 验收 MySQL 8.4.13 的 23 项 Schema 用例，新增用例覆盖两种声明都为 JSON、接受有效 JSON 并拒绝无效输入。用 `sh tests/table_catalog.sh` 验收写库目录与限定 Schema 清库。实际 SQLite 测试通过四种配置组合、建表和改表、二进制写入与 JSON 路径读取。
+- 两种驱动均通过实际 Artisan 执行三语共用示例，`main artisan inspire`、严格 Clippy、变更文件格式、三语站点及 18 项浏览器检查通过。全仓格式检查仅报既有 Sanctum 排版差异。验收所用历史 `docker/accept.py` 来自 `3d2641c0f`。两轮临时 MySQL 已回收。
+- 移除本批 3.6 GiB 隔离 Cargo 产物和本批文档缓存后，项目卷可用 55.57 GB（51.75 GiB）。证据目录为 `/private/tmp/openrust-02-05-json.REFu2dP8`。

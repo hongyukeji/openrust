@@ -230,6 +230,25 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
 
+### JSON 列 {#json-columns}
+
+MySQL 的 `json()` 和 `jsonb()` 都声明为 `JSON`。SQLite 默认都声明为 `TEXT`。在 SQLite 连接配置中分别将 `use_native_json` 或 `use_native_jsonb` 设为 `true`，即可声明 `JSON` 或 `JSONB`。两个选项独立生效。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_documents() -> DatabaseResult<()> {
+    Schema::create("documents", |table| {
+        table.id();
+        table.json("document");
+        table.jsonb("snapshot");
+    })
+    .await
+}
+```
+
+在 SQLite 中声明 `JSONB` 列不会自动把写入值编码为二进制 JSON。用 SQLite 的 `jsonb(...)` SQL 函数写入二进制值，再用 `json(...)` 读出 JSON 文本。
+
 ### 生成列 {#generated-columns}
 
 用 `virtualAs` 声明读取时计算的列，用 `storedAs` 保存计算结果。两者都接受可信 SQL 表达式。`virtualAsJson` 和 `storedAsJson` 可使用箭头分隔的 JSON 路径。生成列需要指定类型，由数据库根据其他列计算。

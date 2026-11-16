@@ -230,6 +230,25 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### JSON Columns {#json-columns}
+
+On MySQL, `json()` and `jsonb()` both declare `JSON`. On SQLite, both default to `TEXT`. Set `use_native_json` or `use_native_jsonb` to `true` in the SQLite connection configuration to declare `JSON` or `JSONB` respectively. The options are independent.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_documents() -> DatabaseResult<()> {
+    Schema::create("documents", |table| {
+        table.id();
+        table.json("document");
+        table.jsonb("snapshot");
+    })
+    .await
+}
+```
+
+Declaring a SQLite column as `JSONB` does not encode values as binary JSON. Use SQLite’s `jsonb(...)` SQL function to store a binary value and `json(...)` to read it as JSON text.
+
 ### Generated Columns {#generated-columns}
 
 Use `virtualAs` to compute a column when it is read or `storedAs` to store the computed result. Both take a trusted SQL expression. `virtualAsJson` and `storedAsJson` use an arrow-separated JSON path. A generated column must have a declared type, and the database computes its value from the other columns.

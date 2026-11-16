@@ -4,7 +4,8 @@ use crate::database::{
     Connection, DatabaseError, DatabaseResult, Value,
     query::grammars::Grammar as QueryGrammar,
     schema::{
-        Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition, TableOptions,
+        Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition, SqliteJsonTypes,
+        TableOptions,
         blueprint::Command,
         column_definition::{ColumnType, DefaultValue, GeneratedColumn, Position},
         index_definition::IndexType,
@@ -17,6 +18,7 @@ pub(in crate::database::schema) struct Grammar {
     prefix_indexes: bool,
     database: Arc<str>,
     table_options: Arc<TableOptions>,
+    sqlite_json_types: SqliteJsonTypes,
 }
 
 #[derive(Clone)]
@@ -32,6 +34,7 @@ impl Grammar {
             prefix_indexes: connection.prefix_indexes,
             database: connection.getDatabaseName().into(),
             table_options: connection.table_options.clone(),
+            sqlite_json_types: connection.sqlite_json_types,
         }
     }
 
@@ -814,8 +817,10 @@ impl Grammar {
             ColumnType::Spatial(_, _) => "geometry",
             ColumnType::Year if mysql => "year",
             ColumnType::Year => "integer",
-            ColumnType::Json if mysql => "json",
-            ColumnType::Json => "text",
+            ColumnType::Json | ColumnType::Jsonb if mysql => "json",
+            ColumnType::Json if self.sqlite_json_types.json => "json",
+            ColumnType::Jsonb if self.sqlite_json_types.jsonb => "jsonb",
+            ColumnType::Json | ColumnType::Jsonb => "text",
             ColumnType::Date => "date",
             ColumnType::DateTime(precision)
             | ColumnType::Timestamp(precision)

@@ -13,7 +13,7 @@ use super::super::{
     connection_pools::{ConnectionPools, PoolGeneration},
     events::QueryRole,
     query::grammars::Grammar,
-    schema::TableOptions,
+    schema::{SqliteJsonTypes, TableOptions},
 };
 
 /// Creates logical connections from configuration and driver connectors.
@@ -37,6 +37,7 @@ impl ConnectionFactory {
         Ok(Connection {
             name: name.into(),
             prefix_indexes: options.prefix_indexes,
+            sqlite_json_types: options.sqlite_json_types,
             table_options: options.table_options,
             grammar: options.grammar,
             database: options.database,
@@ -66,6 +67,7 @@ struct ConnectionOptions {
     database: Arc<str>,
     grammar: Grammar,
     prefix_indexes: bool,
+    sqlite_json_types: SqliteJsonTypes,
     table_options: Arc<TableOptions>,
     sticky: bool,
     pools: PoolGeneration,
@@ -128,11 +130,20 @@ fn resolve(
     } else {
         None
     };
+    let sqlite_json_types = if matches!(writer, Pool::Sqlite(_)) {
+        SqliteJsonTypes {
+            json: write_options.boolean("use_native_json", false)?,
+            jsonb: write_options.boolean("use_native_jsonb", false)?,
+        }
+    } else {
+        SqliteJsonTypes::default()
+    };
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
         prefix_indexes: write_options.boolean("prefix_indexes", false)?,
         table_options: Arc::new(table_options),
+        sqlite_json_types,
         sticky,
         pools: PoolGeneration {
             writer,

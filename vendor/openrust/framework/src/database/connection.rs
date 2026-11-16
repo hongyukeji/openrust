@@ -62,6 +62,7 @@ pub(super) enum Pool {
 pub struct Connection {
     pub(super) name: Arc<str>,
     pub(super) prefix_indexes: bool,
+    pub(super) sqlite_json_types: super::schema::SqliteJsonTypes,
     pub(super) table_options: Arc<super::schema::TableOptions>,
     pub(super) grammar: super::query::grammars::Grammar,
     pub(super) database: Arc<str>,

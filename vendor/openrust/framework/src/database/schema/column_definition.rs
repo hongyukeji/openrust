@@ -22,6 +22,7 @@ pub(super) enum ColumnType {
     Enum(Vec<String>),
     Set(Vec<String>),
     Json,
+    Jsonb,
     IpAddress,
     MacAddress,
     Year,

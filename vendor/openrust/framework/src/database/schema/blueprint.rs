@@ -66,7 +66,7 @@ impl Blueprint {
         (tinyInteger, TinyInteger), (smallInteger, SmallInteger),
         (mediumInteger, MediumInteger), (integer, Integer), (bigInteger, BigInteger),
         (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
-        (double, Double), (binary, Binary), (json, Json), (jsonb, Json),
+        (double, Double), (binary, Binary), (json, Json), (jsonb, Jsonb),
         (date, Date), (year, Year), (ipAddress, IpAddress), (macAddress, MacAddress),
     }
 

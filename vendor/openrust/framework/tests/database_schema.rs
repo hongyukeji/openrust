@@ -4015,3 +4015,96 @@ async fn mysql_drops_conventionally_named_indexes_by_ordered_columns() {
     );
     schema.drop(&table_name).await.unwrap();
 }
+
+#[tokio::test]
+async fn sqlite_json_declarations_follow_independent_connection_options() {
+    for (json, jsonb, expected) in [
+        (false, false, ["text", "text"]),
+        (true, false, ["json", "text"]),
+        (false, true, ["text", "jsonb"]),
+        (true, true, ["json", "jsonb"]),
+    ] {
+        let db = connection(json!({
+            "driver": "sqlite", "database": ":memory:",
+            "use_native_json": json, "use_native_jsonb": jsonb,
+        }));
+        let mut schema = db.getSchemaBuilder();
+        schema
+            .create("documents", |table| {
+                table.json("document");
+            })
+            .await
+            .unwrap();
+        schema
+            .table("documents", |table| {
+                table.jsonb("snapshot");
+            })
+            .await
+            .unwrap();
+        for (column, expected) in ["document", "snapshot"].into_iter().zip(expected) {
+            assert_eq!(
+                schema
+                    .getColumnType("documents", column, true)
+                    .await
+                    .unwrap(),
+                expected
+            );
+        }
+        db.statement(
+            "insert into documents values (json(?), jsonb(?))",
+            &[r#"{"version":1}"#.into(), r#"{"version":2}"#.into()],
+        )
+        .await
+        .unwrap();
+        let row = db
+            .selectOne("select json_extract(document, '$.version') as current_version, json_extract(snapshot, '$.version') as snapshot_version, typeof(snapshot) as storage from documents", &[])
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.get("current_version"), Some(&Value::Integer(1)));
+        assert_eq!(row.get("snapshot_version"), Some(&Value::Integer(2)));
+        assert_eq!(row.get("storage"), Some(&"blob".into()));
+    }
+}
+
+#[tokio::test]
+async fn mysql_declares_json_and_jsonb_as_native_json() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("schema_json_types").await.unwrap();
+    schema
+        .create("schema_json_types", |table| {
+            table.json("document");
+            table.jsonb("snapshot");
+        })
+        .await
+        .unwrap();
+    for column in ["document", "snapshot"] {
+        assert_eq!(
+            schema
+                .getColumnType("schema_json_types", column, true)
+                .await
+                .unwrap(),
+            "json"
+        );
+    }
+    db.statement(
+        "insert into schema_json_types values (?, ?)",
+        &[r#"{"version":1}"#.into(), r#"{"version":2}"#.into()],
+    )
+    .await
+    .unwrap();
+    assert!(
+        db.statement(
+            "insert into schema_json_types values ('invalid JSON', '{}')",
+            &[],
+        )
+        .await
+        .is_err()
+    );
+    schema.drop("schema_json_types").await.unwrap();
+}
