@@ -24,7 +24,7 @@ use openrust::{
                 ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
                 UseResource,
             },
-            json_api::JsonApiResource,
+            json_api::{JsonApiAttributes, JsonApiRelationships, JsonApiResource},
         },
     },
     pagination::{LengthAwarePaginator, PaginatorOptions},
@@ -243,6 +243,34 @@ impl JsonApiResource for PersonResource {
         self.use_alias.then(|| "profiles".into())
     }
 
+    fn lazyAttributes<'a>(&'a self, request: &'a Request) -> JsonApiAttributes<'a> {
+        JsonApiAttributes::default().attribute("score", || {
+            if request.headers().contains_key("x-fail-lazy") {
+                return Err(HttpError::InvalidRequest);
+            }
+            Ok(json!(0))
+        })
+    }
+
+    fn toRelationships<'a>(&'a self, request: &'a Request) -> JsonApiRelationships<'a> {
+        JsonApiRelationships::default()
+            .toMany("reports", || {
+                if request.headers().contains_key("x-fail-relationship") {
+                    return Err(HttpError::InvalidRequest);
+                }
+                Ok(self
+                    .account
+                    .getRelation::<RelatedCollection<Account>>("directReports")
+                    .into_iter()
+                    .flatten()
+                    .map(|account| {
+                        PersonResource::make(Account::from_state(account.state().clone()))
+                    })
+                    .collect())
+            })
+            .toOne::<PersonResource>("manager", || Ok(None))
+    }
+
     fn toLinks(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
         Ok(Map::from_iter([("self".into(), json!("/api/person"))]))
     }
@@ -386,6 +414,24 @@ fn routes() -> Result<(), RoutingError> {
 }
 
 fn json_api_routes() -> Result<(), RoutingError> {
+    Route::get("/person/compound", || async {
+        let person = Account::query()
+            .map_err(internal)?
+            .with("directReports", nested_report_relation())
+            .findOrFail(1)
+            .await
+            .map_err(internal)?;
+        Ok(PersonResource::make(person))
+    })?;
+    Route::get("/person/compound-list", || async {
+        let mut query = Account::query()
+            .map_err(internal)?
+            .with("directReports", nested_report_relation())
+            .orderBy("id", "asc");
+        query.r#where("id", "<", 3);
+        let people = query.get().await.map_err(internal)?;
+        Ok(PersonResource::collection(people))
+    })?;
     Route::get("/person", || async {
         let account = Account::findOrFail(1).await.map_err(internal)?;
         Ok(account.toResourceWith::<PersonResource>())
@@ -419,6 +465,15 @@ fn json_api_routes() -> Result<(), RoutingError> {
         PersonResource::make(Account::from_state(ModelState::default()))
     })?;
     Ok(())
+}
+
+fn nested_report_relation() -> HasMany<Account, Account> {
+    HasMany::new("id", "manager_id").constrain(|query| {
+        query.with(
+            "directReports",
+            HasMany::<Account, Account>::new("id", "manager_id"),
+        )
+    })
 }
 
 fn encoded_page(
@@ -850,7 +905,7 @@ async fn verify(config: Json) {
         "DROP TABLE IF EXISTS resource_accounts".into(),
         "DROP TABLE IF EXISTS resource_memberships".into(),
         format!("CREATE TABLE resource_accounts (id {id}, manager_id BIGINT, name VARCHAR(40), password VARCHAR(40))"),
-        "INSERT INTO resource_accounts VALUES (1, NULL, 'A', 'secret'), (2, 1, 'B', 'secret'), (3, NULL, 'C', 'secret')".into(),
+        "INSERT INTO resource_accounts VALUES (1, NULL, 'A', 'secret'), (2, 1, 'B', 'secret'), (3, 2, 'C', 'secret')".into(),
         "CREATE TABLE resource_memberships (owner_id BIGINT, member_id BIGINT, level VARCHAR(40))".into(),
         "INSERT INTO resource_memberships VALUES (1, 2, 'gold')".into(),
     ] {
@@ -972,7 +1027,7 @@ async fn verify_json_api(address: SocketAddr) {
     assert!(headers.contains("content-type: application/vnd.api+json"));
     assert_eq!(
         resource,
-        json!({"data":{"id":"1","type":"people","attributes":{"manager_id":null,"name":"A"},"links":{"self":"/api/person"},"meta":{"verified":false}}})
+        json!({"data":{"id":"1","type":"people","attributes":{"manager_id":null,"name":"A","score":0},"links":{"self":"/api/person"},"meta":{"verified":false}}})
     );
     let (_, subset) = request(
         address,
@@ -1001,6 +1056,85 @@ async fn verify_json_api(address: SocketAddr) {
         }
     }
     request(address, "GET", "/api/person/invalid", "", 500).await;
+    verify_json_api_includes(address).await;
+}
+
+async fn verify_json_api_includes(address: SocketAddr) {
+    let (_, sparse) = request(
+        address,
+        "GET",
+        "/api/person?fields%5Bpeople%5D=name",
+        "X-Fail-Lazy: yes\r\nX-Fail-Relationship: yes\r\n",
+        200,
+    )
+    .await;
+    assert_eq!(sparse["data"]["attributes"], json!({"name":"A"}));
+    assert!(sparse["data"].get("relationships").is_none());
+    request(
+        address,
+        "GET",
+        "/api/person?fields%5Bpeople%5D=score",
+        "X-Fail-Lazy: yes\r\n",
+        400,
+    )
+    .await;
+    request(
+        address,
+        "GET",
+        "/api/person/compound?include=reports",
+        "X-Fail-Relationship: yes\r\n",
+        400,
+    )
+    .await;
+    let (_, document) = request(
+        address,
+        "GET",
+        "/api/person/compound?include=reports.reports,manager",
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(
+        document["data"]["relationships"],
+        json!({
+            "reports":{"data":[{"id":"2","type":"people"}]},
+            "manager":{"data":null},
+        })
+    );
+    assert_eq!(document["included"][0]["id"], "2");
+    assert_eq!(
+        document["included"][0]["relationships"]["reports"]["data"][0]["id"],
+        "3"
+    );
+    assert_eq!(document["included"][1]["id"], "3");
+    let (_, sparse) = request(
+        address,
+        "GET",
+        "/api/person/compound?fields%5Bpeople%5D=name&include=reports",
+        "",
+        200,
+    )
+    .await;
+    assert!(sparse["data"].get("relationships").is_none());
+    assert_eq!(sparse["included"][0]["attributes"], json!({"name":"B"}));
+    let (_, collection) = request(
+        address,
+        "GET",
+        "/api/person/compound-list?include=reports.reports",
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(collection["included"].as_array().unwrap().len(), 1);
+    assert_eq!(collection["included"][0]["id"], "3");
+    request(
+        address,
+        "GET",
+        "/api/person/compound?include=reports.reports.reports.reports.reports.reports",
+        "",
+        400,
+    )
+    .await;
 }
 
 async fn verify_json_options(address: SocketAddr) {

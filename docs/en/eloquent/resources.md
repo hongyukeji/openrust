@@ -194,3 +194,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
     }
 }
 ```
+
+### Lazy Attributes and Included Relationships {#jsonapi-includes}
+
+Return a `JsonApiAttributes` declaration from `lazyAttributes` to calculate fields after applying the sparse fieldset. Declare related resources with `JsonApiRelationships::toOne` or `toMany` in `toRelationships`. Their closures run for requested `include` paths. Load the Eloquent relationships in the query before returning the resource.
+
+For `include=editor.organization`, the response emits relationship identifiers and a single top-level `included` array. Resources with the same type and ID appear once. A sparse fieldset can omit the relationship member while keeping explicitly included resources. Include paths accept up to five segments.
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::{JsonApiAttributes, JsonApiRelationships},
+};
+use serde_json::json;
+
+pub fn attributes(display_name: &str) -> JsonApiAttributes<'_> {
+    JsonApiAttributes::default().attribute("display_name", move || {
+        Ok(json!(display_name.trim()))
+    })
+}
+
+pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'static> {
+    JsonApiRelationships::default().toOne("editor", move || {
+        Ok(editor.map(PersonResource))
+    })
+}
+```

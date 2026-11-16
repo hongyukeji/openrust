@@ -194,3 +194,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
     }
 }
 ```
+
+### 延遲屬性與關聯包含 {#jsonapi-includes}
+
+在 `lazyAttributes` 中回傳 `JsonApiAttributes`，欄位會在稀疏欄位集篩選後計算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 宣告關聯。只有 `include` 請求的關聯才執行閉包。回傳資源前，請在查詢中預載入 Eloquent 關聯。
+
+`include=editor.organization` 會輸出關聯識別碼，並將關聯資源放入同一個頂層 `included` 陣列。同一型別和識別碼的資源只出現一次。稀疏欄位集可省略關聯欄位，同時保留明確包含的資源。關聯路徑最多五段。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::{JsonApiAttributes, JsonApiRelationships},
+};
+use serde_json::json;
+
+pub fn attributes(display_name: &str) -> JsonApiAttributes<'_> {
+    JsonApiAttributes::default().attribute("display_name", move || {
+        Ok(json!(display_name.trim()))
+    })
+}
+
+pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'static> {
+    JsonApiRelationships::default().toOne("editor", move || {
+        Ok(editor.map(PersonResource))
+    })
+}
+```

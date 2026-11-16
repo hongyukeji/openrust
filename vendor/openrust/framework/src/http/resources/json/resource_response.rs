@@ -113,8 +113,7 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     wrapper: Option<&str>,
     additional: Map<String, Value>,
 ) -> ResourceResult<Response> {
-    let data = resource.toArray(request)?;
-    let with = resource.with(request)?;
+    let (data, with) = resource.resolveResponseData(request)?;
     let payload = wrap(data, wrapper, resource.forceWrapping(), with, additional);
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {

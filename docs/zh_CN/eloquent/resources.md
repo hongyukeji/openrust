@@ -194,3 +194,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
     }
 }
 ```
+
+### 延迟属性与关联包含 {#jsonapi-includes}
+
+在 `lazyAttributes` 中返回 `JsonApiAttributes`，字段会在稀疏字段集筛选后计算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 声明关联。只有 `include` 请求的关联才执行闭包。返回资源前，请在查询中预加载 Eloquent 关联。
+
+`include=editor.organization` 会输出关联标识，并将关联资源放入同一个顶层 `included` 数组。同一类型和标识的资源只出现一次。稀疏字段集可省略关联字段，同时保留显式包含的资源。关联路径最多五段。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    http::resources::json_api::{JsonApiAttributes, JsonApiRelationships},
+};
+use serde_json::json;
+
+pub fn attributes(display_name: &str) -> JsonApiAttributes<'_> {
+    JsonApiAttributes::default().attribute("display_name", move || {
+        Ok(json!(display_name.trim()))
+    })
+}
+
+pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'static> {
+    JsonApiRelationships::default().toOne("editor", move || {
+        Ok(editor.map(PersonResource))
+    })
+}
+```

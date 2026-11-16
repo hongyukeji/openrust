@@ -20,6 +20,14 @@ pub trait JsonResource {
 
     fn toArray(&self, request: &Request) -> ResourceResult<Value>;
 
+    #[doc(hidden)]
+    fn resolveResponseData(
+        &self,
+        request: &Request,
+    ) -> ResourceResult<(Value, Map<String, Value>)> {
+        Ok((self.toArray(request)?, self.with(request)?))
+    }
+
     fn toJson(&self, request: &Request) -> ResourceResult<String> {
         self.jsonOptions().encode(&self.toArray(request)?)
     }

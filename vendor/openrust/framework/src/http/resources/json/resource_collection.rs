@@ -193,6 +193,28 @@ impl<T> ResourceCollection<T> {
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
     const JSON_API: bool = T::JSON_API;
 
+    fn resolveResponseData(
+        &self,
+        request: &Request,
+    ) -> ResourceResult<(Value, Map<String, Value>)> {
+        if !Self::JSON_API {
+            return Ok((self.toArray(request)?, self.with(request)?));
+        }
+        let mut primary = Vec::with_capacity(self.items().len());
+        let mut included = Vec::new();
+        for resource in self.items() {
+            let (data, mut fields) = resource.resolveResponseData(request)?;
+            primary.push(data);
+            if let Some(Value::Array(objects)) = fields.shift_remove("included") {
+                included.extend(objects);
+            }
+        }
+        let primary = Value::Array(primary);
+        let mut fields = self.with(request)?;
+        super::super::json_api::add_included(&mut fields, &primary, included);
+        Ok((primary, fields))
+    }
+
     fn jsonOptions(&self) -> JsonOptions {
         self.items()
             .first()

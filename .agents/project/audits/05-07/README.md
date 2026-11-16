@@ -41,3 +41,9 @@
 - 对照固定 Laravel 的 `JsonApiResource`、集合和资源标识解析。Rust 的资源实现关联 Eloquent 类型。默认主键为字符串，资源类型来自资源类型名，支持 `toId` 和 `toType` 覆盖。默认属性尊重模型的可见性。支持 `fields[type]`、资源对象链接与元数据、集合与分页文档。JSON:API 的外层固定为 `data`，成功响应使用 `application/vnd.api+json`。旧版仅有 JSON:API MIME 识别，资源复用当前响应、分页和模型序列化。 [固定 Laravel JSON:API](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/JsonApiResource.php) · [JSON:API 规范](https://jsonapi.org/format/1.1/)
 - SQLite／MySQL 8.4.13 实际 HTTP 验证默认与自定义标识、稀疏属性、资源链接和元数据、分页、空集合、缺少主键的 500、应用包装隔离及普通资源回归。11 项回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式只在隔离副本处理。
 - 后续继续延迟属性、关联标识及 `include`、顶层 JSON:API 信息与 Artisan 生成器。
+
+## JSON:API 延迟属性与复合文档
+
+- 对照固定 Laravel 的延迟属性、关系标识和点分包含。Rust 通过 `lazyAttributes` 登记属性闭包并先筛选字段；`toRelationships` 登记单值及多值关联闭包，只解析请求中的路径。复用当前 HTTP 序列化与 Eloquent 已加载关系。支持 `data: null`、数组标识和顶层 `included`，按类型与标识去重。稀疏字段可以省略关系连接，显式包含的资源仍可输出。 [固定 Laravel 元素解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/Concerns/ResolvesJsonApiElements.php) · [JSON:API 规范](https://jsonapi.org/format/1.1/)
+- SQLite／MySQL 8.4.13 实际 HTTP 验证闭包跳过及失败、嵌套 include、空单值、稀疏字段和跨集合去重、主数据重复排除及路径超限 400。11 项 HTTP、分页与模型回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行与 15 项浏览器检查通过。既有 Sanctum 格式只在隔离副本处理。
+- 当前应用显式预加载关联。后续接入按请求自动批量补载、应用级 JSON:API 元数据、关系深度配置与 Artisan 生成器。
