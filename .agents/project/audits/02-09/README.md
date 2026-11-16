@@ -219,3 +219,13 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 隔离基线 `455f4b20d`。实际 Artisan 验证状态码 1、快照及附加信息出现在标准输出、后续命令代码未运行。实际回环 HTTP 验证当前请求 500、输出内容及随后另一条请求 200。PHP 8.5.12 使用固定 Laravel、Symfony 的真实 `dd` 函数和格式化替身，验证快照参数、附加信息和状态码 1。
 - 77 项 Rust 集合测试和 3 项 HTTP 异常渲染测试通过。`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码显式公开名称已对齐 161／162，余项为 `proxy`。
 - PHP 容器已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.21 GB（57.01 GiB）。证据目录为 `/private/tmp/openrust-02-09-dd.sQbyvzLF`。
+
+## 惰性集合高阶消息
+
+对照固定 Laravel [Higher Order Messages](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/collections.md#higher-order-messages)、[EnumeratesValues::proxy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L1097) 和 [HigherOrderCollectionProxy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/HigherOrderCollectionProxy.php)。旧版无惰性集合或对应代理，复用当前集合的回调型操作。
+
+- Laravel 注册字符串方法名并通过属性或方法访问转发。Rust 的 `proxy(operation).call(projection)` 在编译期检查操作与投影签名。自定义操作以函数或闭包传入，参数由回调捕获，普通操作继续决定求值时机、键以及错误传播。
+- PHP 8.5.12 实际运行固定源码，验证属性映射、带参数的方法过滤、键、短路、聚合和自定义操作注册。79 项 Rust 集合用例通过，其中惰性集合 68 项。新增回归覆盖投影前不读源、带键过滤、定制聚合和源错误不触发投影。
+- 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
+- 固定 `LazyCollection.php` 与 `EnumeratesValues.php` 的显式公开方法名对齐 162／162，Rust raw identifier 按逻辑名称匹配。签名、动态调度与行为仍需逐项复核。
+- 隔离基线 `8a847fb0e`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.16 GB（56.96 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-proxy.xN92w6kw`。

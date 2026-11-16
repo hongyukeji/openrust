@@ -42,7 +42,9 @@ pub use fluent::{Fluent, FluentError};
 pub use helpers::{Retry, blank, filled};
 pub use html_string::HtmlString;
 pub(crate) use html_string::escape_html;
-pub use lazy_collection::{LazyCachingIterator, LazyCollection, LazyIterator, LazySource};
+pub use lazy_collection::{
+    HigherOrderCollectionProxy, LazyCachingIterator, LazyCollection, LazyIterator, LazySource,
+};
 pub use lottery::{InvalidLottery, Lottery};
 pub use markdown::{MarkdownHtml, MarkdownOptions};
 pub use message_bag::MessageBag;

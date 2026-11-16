@@ -37,6 +37,23 @@ pub struct LazyCollection<'source, T> {
     escape_when_casting_to_string: bool,
 }
 
+/// Applies a selected collection operation to a typed item projection.
+pub struct HigherOrderCollectionProxy<'source, T, Operation> {
+    collection: LazyCollection<'source, T>,
+    operation: Operation,
+}
+
+impl<'source, T, Operation> HigherOrderCollectionProxy<'source, T, Operation> {
+    /// Calls the operation with a callback that reads a field or calls an item method.
+    pub fn call<Projection, Projected, Output>(self, projection: Projection) -> Output
+    where
+        Projection: FnMut(&T, &ArrayKey) -> Projected,
+        Operation: FnOnce(LazyCollection<'source, T>, Projection) -> Output,
+    {
+        (self.operation)(self.collection, projection)
+    }
+}
+
 impl<T> Clone for LazyCollection<'_, T> {
     fn clone(&self) -> Self {
         Self {
@@ -179,6 +196,17 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 Some(entry)
             })
         })
+    }
+
+    /// Binds an operation for a subsequent typed item projection.
+    pub fn proxy<Operation>(
+        self,
+        operation: Operation,
+    ) -> HigherOrderCollectionProxy<'source, T, Operation> {
+        HigherOrderCollectionProxy {
+            collection: self,
+            operation,
+        }
     }
 
     pub fn map<U: 'source>(

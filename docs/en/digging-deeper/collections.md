@@ -565,6 +565,60 @@ fn inspect_import() -> Result<i32, ConsoleError> {
 
 In a handler returning `HttpError`, the dump becomes a plain-text HTTP 500 response. The HTTP server continues serving other requests. Rust uses its normal result propagation to stop the current command or handler.
 
+#### Higher-Order Messages {#lazy-higher-order-proxy}
+
+Bind a collection operation with `proxy`, then pass a typed callback to `call` to read a field or call a method on each item. For example, `proxy(LazyCollection::map).call(...)` corresponds to Laravel's `$tasks->map->name`. Method arguments can be captured by the callback.
+
+```rust
+use openrust::support::LazyCollection;
+
+struct Task {
+    name: &'static str,
+    attempts: u32,
+}
+
+impl Task {
+    fn exhausted(&self, limit: u32) -> bool {
+        self.attempts >= limit
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let tasks = LazyCollection::make(|| {
+        [
+            Task {
+                name: "ingest",
+                attempts: 1,
+            },
+            Task {
+                name: "notify",
+                attempts: 3,
+            },
+        ]
+    });
+    let names = tasks
+        .clone()
+        .proxy(LazyCollection::map)
+        .call(|task, _| task.name);
+    let retry_limit = 3;
+    let exhausted = tasks
+        .proxy(LazyCollection::filter)
+        .call(move |task, _| task.exhausted(retry_limit));
+
+    assert_eq!(
+        names.all()?,
+        vec![(0.into(), "ingest"), (1.into(), "notify")]
+    );
+    assert_eq!(
+        exhausted.map(|task, _| task.name).all()?,
+        vec![(1.into(), "notify")]
+    );
+    Ok(())
+}
+```
+
+Rust resolves the collection operation and item access at compile time. To use a custom operation, pass its function or a closure to `proxy`. The selected operation determines when the source is traversed, how keys are kept, and how errors propagate.
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

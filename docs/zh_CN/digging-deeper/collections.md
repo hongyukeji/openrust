@@ -565,6 +565,60 @@ fn inspect_import() -> Result<i32, ConsoleError> {
 
 HTTP 处理器返回 `HttpError` 时，快照成为纯文本 HTTP 500 响应。服务进程继续处理其他请求。Rust 通过正常的结果传播结束当前命令或处理器。
 
+#### 高阶消息 {#lazy-higher-order-proxy}
+
+用 `proxy` 绑定集合操作，再用 `call` 传入类型化回调，读取各项的字段或调用其方法。`proxy(LazyCollection::map).call(...)` 对应 Laravel 的 `$tasks->map->name`。回调可以捕获传给方法的参数。
+
+```rust
+use openrust::support::LazyCollection;
+
+struct Task {
+    name: &'static str,
+    attempts: u32,
+}
+
+impl Task {
+    fn exhausted(&self, limit: u32) -> bool {
+        self.attempts >= limit
+    }
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let tasks = LazyCollection::make(|| {
+        [
+            Task {
+                name: "ingest",
+                attempts: 1,
+            },
+            Task {
+                name: "notify",
+                attempts: 3,
+            },
+        ]
+    });
+    let names = tasks
+        .clone()
+        .proxy(LazyCollection::map)
+        .call(|task, _| task.name);
+    let retry_limit = 3;
+    let exhausted = tasks
+        .proxy(LazyCollection::filter)
+        .call(move |task, _| task.exhausted(retry_limit));
+
+    assert_eq!(
+        names.all()?,
+        vec![(0.into(), "ingest"), (1.into(), "notify")]
+    );
+    assert_eq!(
+        exhausted.map(|task, _| task.name).all()?,
+        vec![(1.into(), "notify")]
+    );
+    Ok(())
+}
+```
+
+Rust 在编译期解析集合操作和数据项访问。自定义操作可将函数或闭包传给 `proxy`。选定的操作决定何时遍历来源、如何保留键以及如何传播错误。
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

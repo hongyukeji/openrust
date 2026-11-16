@@ -1983,3 +1983,76 @@ fn lazy_dd_carries_the_snapshot_and_preserves_source_errors() {
         Err(CollectionError::InvalidArgument)
     ));
 }
+
+#[test]
+fn higher_order_proxy_preserves_the_operations_traversal_and_keys() {
+    struct Task {
+        name: &'static str,
+        attempts: u32,
+    }
+
+    impl Task {
+        fn exhausted(&self, limit: u32) -> bool {
+            self.attempts >= limit
+        }
+    }
+
+    let reads = Cell::new(0);
+    let tasks = LazyCollection::fromEntries(|| {
+        [("first", "ingest", 1), ("second", "notify", 3)]
+            .into_iter()
+            .map(|(key, name, attempts)| {
+                reads.set(reads.get() + 1);
+                (key, Task { name, attempts })
+            })
+    });
+
+    let names = tasks
+        .clone()
+        .proxy(LazyCollection::map)
+        .call(|task, _| task.name);
+    let limit = 3;
+    let exhausted = tasks
+        .clone()
+        .proxy(LazyCollection::filter)
+        .call(move |task, _| task.exhausted(limit));
+
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        names.take(1).getIterator().next().unwrap().unwrap(),
+        ("first".into(), "ingest")
+    );
+    assert_eq!(reads.get(), 1);
+    assert_eq!(
+        exhausted
+            .map(|task, _| task.name)
+            .getIterator()
+            .collect::<CollectionResult<Vec<_>>>()
+            .unwrap(),
+        vec![("second".into(), "notify")]
+    );
+    assert_eq!(
+        tasks
+            .proxy(|items: LazyCollection<'_, Task>, project| items.sumBy(project))
+            .call(|task: &Task, _: &ArrayKey| task.attempts)
+            .unwrap(),
+        4
+    );
+}
+
+#[test]
+fn higher_order_proxy_propagates_source_errors_without_projecting_them() {
+    let projected = Cell::new(0);
+    let values = LazyCollection::tryMake(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
+    let mapped = values.proxy(LazyCollection::map).call(|value, _| {
+        projected.set(projected.get() + 1);
+        *value
+    });
+
+    assert_eq!(projected.get(), 0);
+    assert!(matches!(
+        mapped.all(),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert_eq!(projected.get(), 1);
+}
