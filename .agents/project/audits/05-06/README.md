@@ -91,3 +91,9 @@ MySQL 8.4.13 与 SQLite 的实际 HTTP 分页、6 项关系回归、6 项分页�
 以 `43728e71` 为隔离基线。固定 Laravel 先解析总数再调用页容量闭包。Rust 的 `PageOptions.totalUsing` 可提供总数或回退到计数，显式数值总数优先。`perPageUsing` 接收实际总数，返回 `None` 时沿用数值页容量或模型默认值。回调以类型化 `Result` 传播错误。普通分页、Eloquent 和关系共用此解析顺序，空反向关系也执行回调并保留元数据。旧版仅有显式页容量和固定计数入口。 [固定 Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L1177) · [固定 Laravel Query Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L3681)
 
 独立 MySQL 8.4.13 实际 HTTP 验证实测总数和提供总数进入同一页容量回调、显式总数优先、模型默认回退、命名页链接、空反向关系及多态目标。同连接 `Com_select` 验证回调提供正总数时执行 1 次页面 SELECT，计算页容量失败仅执行 1 次计数，求总数失败执行 0 次 SELECT。三项定向回归、全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整。回收测试容器及隔离编译和文档产物。05-06 仍待 05-02 核心依赖复核。
+
+## 05-06 整单元验收
+
+以 `cd17b297e` 为隔离基线。02-03 查询基础及 05-02 关系、加载与集合均已闭合。按固定分页文档和测试矩阵复验普通、简易、游标三类分页。通过 MySQL 8.4.13 和 SQLite 的实际 HTTP 请求核对取数顺序与边界、关系范围、Pivot 和集合键、多态延后加载、命名参数、正反游标、空页、JSON 链接及 Blade 翻译。新增同一响应包含两个分页器的 HTTP 用例，逐一跟随下一页链接，验证每次只修改对应查询参数，另一个分页器、筛选及正确片段保留。模型默认页容量、总数和页容量回调执行顺序继续通过同会话计数核验。v0.x 的 `QueryPage` 为偏移分页参考，固定 Goravel 提供显式页码、大小和总数的 ORM 查询接口。 [固定 Laravel 分页文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pagination.md) · [固定 Laravel 分页测试](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Pagination) · [固定 Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+
+分页、关系、查询、请求参数、视图及翻译共 29 项回归通过。实际 `./artisan vendor:publish --tag=laravel-pagination` 发布九个模板，逐字节对照嵌入源，重复发布保留自定义编辑，`--force` 恢复源文件。Rust 1.94.0 严格 Clippy、实际 `./artisan inspire`、九个三语示例、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异在隔离副本处理。Rust 保留类型化选项、显式游标键及请求相对链接。06-01 负责命名路由链接，05-07 负责 Resource 包装及推断。05-06 核心闭合。

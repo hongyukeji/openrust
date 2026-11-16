@@ -77,6 +77,8 @@ fn manual_cursor_page(
 
 用 `withPath` 修改链接路径，`setPageName` 或 `setCursorName` 修改查询参数名，`withQueryString` 保留请求筛选条件，`fragment` 添加锚点。`getOptions()` 返回当前生效的链接选项。
 
+一个响应包含多个分页器时，给每个分页器设置独立的查询参数。例如，分别将 `PageOptions.pageName` 设为 `articles` 和 `comments`。保留请求查询时，每个分页器生成链接只替换自己的页码，保留另一个页码和筛选项。用 `appends` 添加指定筛选项，用 `fragment` 指向对应结果区域。
+
 ## 关联模型分页 {#paginating-related-models}
 
 在 `HasMany` 或 `MorphMany` 描述符上调用 `paginate`、`simplePaginate` 或 `cursorPaginate`，传入父模型和每页数量。带 `With` 的变体接受与 Eloquent 查询相同的选项。查询保留父键、适用的多态类型、已配置的筛选和模型作用域。父模型没有键时返回空页。

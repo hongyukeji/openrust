@@ -280,6 +280,7 @@ fn id(value: Option<&Value>) -> i64 {
 
 fn routes() -> Result<(), RoutingError> {
     Route::get("/length", length_page)?;
+    Route::get("/multiple", multiple_pages)?;
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
     Route::get("/model-cursor", model_cursor_page)?;
@@ -324,6 +325,38 @@ fn length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(internal)?;
         page.withQueryString().fragment(Some("results here"));
         Response::json(StatusCode::OK, page.map(|article| id(article.getKey())))
+    })
+}
+
+fn multiple_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mut articles = Article::query()
+            .map_err(internal)?
+            .paginateWith(PageOptions {
+                perPage: Some(2),
+                pageName: "articles",
+                ..Default::default()
+            })
+            .await
+            .map_err(internal)?;
+        let mut comments = Comment::query()
+            .map_err(internal)?
+            .simplePaginateWith(PageOptions {
+                perPage: Some(2),
+                pageName: "comments",
+                ..Default::default()
+            })
+            .await
+            .map_err(internal)?;
+        articles.withQueryString().fragment(Some("article list"));
+        comments.withQueryString().fragment(Some("comment list"));
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "articles": articles.map(|article| id(article.getKey())),
+                "comments": comments.map(|comment| id(comment.getKey())),
+            }),
+        )
     })
 }
 
@@ -2997,6 +3030,30 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(simple["data"], json!([5]));
     assert!(simple["next_page_url"].is_null());
     assert!(simple.get("total").is_none());
+    let multiple = request(
+        address,
+        "/api/multiple?articles=2&comments=1&state=in+review",
+    )
+    .await;
+    assert_eq!(multiple["articles"]["data"], json!([3, 4]));
+    assert_eq!(multiple["comments"]["data"], json!([11, 12]));
+    let articles = multiple["articles"]["next_page_url"].as_str().unwrap();
+    let comments = multiple["comments"]["next_page_url"].as_str().unwrap();
+    assert_eq!(
+        articles,
+        "/api/multiple?comments=1&state=in+review&articles=3#article%20list"
+    );
+    assert_eq!(
+        comments,
+        "/api/multiple?articles=2&state=in+review&comments=2#comment%20list"
+    );
+    let next = request(address, articles.split_once('#').unwrap().0).await;
+    assert_eq!(next["articles"]["data"], json!([5]));
+    assert_eq!(next["comments"]["data"], json!([11, 12]));
+    let next = request(address, comments.split_once('#').unwrap().0).await;
+    assert_eq!(next["articles"]["data"], json!([3, 4]));
+    assert_eq!(next["comments"]["data"], json!([13, 14]));
+
     let first = request(address, "/api/cursor?state=open&cursor=malformed").await;
     assert_eq!(first["data"], json!([2, 1]));
     let second = request(address, first["next_page_url"].as_str().unwrap()).await;

@@ -16,8 +16,6 @@
 
 ## 关系转发与默认页容量复核
 
-单条及反向关系通过 `pagination_on_mysql_and_http` 新增实测，覆盖 `HasOne`、`MorphOne`、`BelongsTo`、`MorphTo` 的分页转发、空引用元数据和多态游标往返。分页链路仍需复核固定 Eloquent Builder 的模型级默认页容量。Laravel 未指定页容量时调用模型的 `getPerPage()`，当前 Rust 使用查询层默认值。命名链接和 Resource 用例继续按原交付单元跟踪。 [固定 Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L1177)
+单条和反向关系已用双库实际 HTTP 验证分页转发、空引用元数据和多态游标往返。默认页容量遵循模型配置，查询构建器保持查询层默认值。数值总数及总数／页容量回调已通过 HTTP 与同会话查询计数复核，见[默认页容量与预计算总数](README.md#模型默认页容量与预计算总数)及[普通分页回调](README.md#普通分页的总数和页容量回调)。
 
-模型数值默认值和预计算数值总数已通过 MySQL 8.4.13 HTTP 和同会话查询计数复核，详见 [模型默认页容量与预计算总数](README.md#模型默认页容量与预计算总数)。固定 Laravel 可以在知道实际总数后调用页容量闭包，此处仍需核对 Rust 对应入口。
-
-总数解析及按实际总数计算页容量已通过真实 MySQL HTTP 和同连接查询计数复验。详见 [普通分页的总数和页容量回调](README.md#普通分页的总数和页容量回调)。
+[整单元验收](README.md#05-06-整单元验收)新增同一响应中两个具名分页器的独立跳页。查询基础和关系依赖均已闭合，05-06 核心闭合。命名路由链接和 Resource 继续按 06-01、05-07 对应范围跟踪。

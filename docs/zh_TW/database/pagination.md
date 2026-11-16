@@ -77,6 +77,8 @@ fn manual_cursor_page(
 
 用 `withPath` 修改連結路徑，`setPageName` 或 `setCursorName` 修改查詢參數名稱，`withQueryString` 保留請求篩選條件，`fragment` 新增錨點。`getOptions()` 傳回目前生效的連結選項。
 
+同一回應包含多個分頁器時，為各分頁器設定獨立的查詢參數。例如，分別將 `PageOptions.pageName` 設為 `articles` 和 `comments`。保留請求查詢時，各分頁器產生的連結只替換自己的頁碼，保留另一個頁碼與篩選條件。用 `appends` 新增指定篩選條件，用 `fragment` 指向對應的結果區域。
+
 ## 關聯模型分頁 {#paginating-related-models}
 
 在 `HasMany` 或 `MorphMany` 描述符上呼叫 `paginate`、`simplePaginate` 或 `cursorPaginate`，傳入父模型與每頁筆數。帶 `With` 的變體接受與 Eloquent 查詢相同的選項。查詢保留父鍵、適用的多型類別、已設定的篩選及模型作用域。父模型沒有鍵時回傳空頁。

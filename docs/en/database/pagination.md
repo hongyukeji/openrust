@@ -77,6 +77,8 @@ Use `count()`, `onFirstPage()` and `onLastPage()` for page state. `through` cons
 
 Use `withPath` to change the URL base, `setPageName` or `setCursorName` to change the query parameter name, `withQueryString` to retain request filters and `fragment` to append an anchor. `getOptions()` exposes the effective link settings.
 
+When a response has multiple paginators, give each one a distinct query parameter. For example, use `articles` and `comments` in their respective `PageOptions.pageName` fields. When generated links keep the request query, each paginator replaces its own parameter and retains the other page and filters. Use `appends` to add specific filters and `fragment` to link to the corresponding results section.
+
 ## Paginating Related Models {#paginating-related-models}
 
 Call `paginate`, `simplePaginate`, or `cursorPaginate` on a `HasMany` or `MorphMany` descriptor with the parent model and page size. The `With` variants accept the same options as Eloquent queries. The related query retains the parent key, the morph type where applicable, configured filters, and model scopes. A parent without a key yields an empty page.
