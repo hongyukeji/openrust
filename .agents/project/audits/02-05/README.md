@@ -88,3 +88,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `from()` 和 `startingValue()` 用 `u64` 表达自增起始值。在 MySQL 的列和索引 DDL 执行后设置表序列。修改已有自增列时保留现有主键，显式 `primary()` 时编译主键请求。SQLite 沿用原生序列。
 - 真实 MySQL 8.4.13 验证即时新增、即时修改默认值、锁模式、引擎不支持的操作返回错误、锁模式非法时先校验整批、设置和变更自增起始值及原有数据保留。SQLite 验证原生起始值和两条 ALTER 路径的方言边界。Rust 1.94.0，81 项定向回归通过，1 个子进程夹具由父测试启动。
 - 严格工作区 Clippy、变更文件格式检查、真实 MySQL Artisan 三语共用示例、`main artisan inspire`、VitePress 构建和 18 项浏览器检查通过。全工作区格式检查另报既有 Sanctum 测试断言排版，已与本批基线逐字节核对。
+
+## 默认值表达式
+
+对照固定 Laravel [Default Expressions](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#default-expressions) 和 [Schema Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/Grammar.php#L484)。继续沿用已有 Schema 回调和驱动语法装配路径。旧版已有 SQLite 重建时保留默认值表达式的回归，未找到同名 Blueprint 入口。本批用真实插入验证变更后的 SQLite 定义。
+
+- 列和外键 ID 的 `default()` 都接受已有 `Value` 输入，也接受 `Expression::new()` 和 `DB::raw()`。Rust 用类型区分字面量和 SQL。DDL 拒绝带参数绑定、空或含 NUL 的表达式。表达式语法及驱动支持由数据库判断。
+- MySQL 8.4.13 和 SQLite 验证 JSON 数组、计算值与普通字符串的区别、外键 ID 的表达式入口、修改默认值后新旧行差异、目录信息和无效定义拒绝。83 项定向回归通过，1 个子进程夹具由父测试启动。
+- 三语共用示例分别通过实际 MySQL 和 SQLite Artisan 验证。原生 `main artisan inspire`、严格工作区 Clippy、变更文件格式、VitePress 构建及 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 测试断言排版差异，已核对文件与基线相同。

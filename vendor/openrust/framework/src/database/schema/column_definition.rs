@@ -1,4 +1,4 @@
-use crate::database::Value;
+use crate::database::{Value, query::Expression};
 
 #[derive(Clone)]
 pub(super) enum ColumnType {
@@ -32,10 +32,24 @@ pub(super) enum ColumnType {
     Time(u8),
 }
 
+/// A literal, trusted SQL expression, or current-time default for a schema column.
 #[derive(Clone)]
-pub(super) enum DefaultValue {
+pub enum DefaultValue {
     Value(Value),
+    Expression(Expression),
     CurrentTimestamp,
+}
+
+impl<T: Into<Value>> From<T> for DefaultValue {
+    fn from(value: T) -> Self {
+        Self::Value(value.into())
+    }
+}
+
+impl From<Expression> for DefaultValue {
+    fn from(expression: Expression) -> Self {
+        Self::Expression(expression)
+    }
 }
 
 #[derive(Clone)]
@@ -152,8 +166,8 @@ impl ColumnDefinition {
         self
     }
 
-    pub fn default(&mut self, value: impl Into<Value>) -> &mut Self {
-        self.default = Some(DefaultValue::Value(value.into()));
+    pub fn default(&mut self, value: impl Into<DefaultValue>) -> &mut Self {
+        self.default = Some(value.into());
         self
     }
 

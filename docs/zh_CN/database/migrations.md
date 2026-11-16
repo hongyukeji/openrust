@@ -243,6 +243,24 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### 默认值表达式 {#default-expressions}
+
+通过 `DB::raw()` 或 `Expression::new()` 把可信的 SQL 表达式传给 `default()`。插入数据时省略该列，数据库会求值。普通字符串会作为字面量默认值。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::{DB, Schema}};
+
+async fn create_flights() -> DatabaseResult<()> {
+    Schema::create("flights", |table| {
+        table.id();
+        table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+    })
+    .await
+}
+```
+
+默认值表达式不支持参数绑定。按数据库要求编写表达式，在需要时加上括号。数据库会检查该列类型和 Schema 操作是否支持此表达式。
+
 #### MySQL 即时列变更与锁模式 {#instant-column-operations}
 
 新增列或通过 `change()` 修改列时，可用 `instant()` 请求即时算法。用 `lock()` 指定列操作的锁模式，支持 `none`、`shared`、`exclusive` 和 `default`。算法与锁能否组合由 MySQL 判断。操作不兼容时返回数据库错误，框架不会改用其他算法重试。

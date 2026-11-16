@@ -2149,3 +2149,102 @@ async fn sqlite_keeps_native_autoincrement_and_rejects_mysql_online_ddl() {
     );
     assert!(!schema.getColumns("online_column_ddl").await.unwrap()[1].nullable);
 }
+
+async fn verify_default_expressions(db: Connection) {
+    use openrust::{database::query::Expression, support::facades::DB};
+
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("expression_defaults").await.unwrap();
+    schema
+        .create("expression_defaults", |table| {
+            table.id();
+            table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+            table.string("label", 80).default("(40 + 2)");
+            table.integer("points").default(Expression::new("(40 + 2)"));
+            table.foreignId("owner_id").default(DB::raw("(1 + 1)"));
+        })
+        .await
+        .unwrap();
+    db.insert("insert into expression_defaults (id) values (1)", &[])
+        .await
+        .unwrap();
+    let first = db
+        .selectOne("select * from expression_defaults where id = 1", &[])
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(match first.get("movies") {
+        Some(Value::Json(value)) => value == &json!([]),
+        Some(Value::Text(value)) => value == "[]",
+        _ => false,
+    });
+    assert_eq!(first.get("label"), Some(&"(40 + 2)".into()));
+    assert_eq!(first.get("points"), Some(&42.into()));
+    assert!(matches!(
+        first.get("owner_id"),
+        Some(Value::Integer(2) | Value::Unsigned(2))
+    ));
+
+    schema
+        .table("expression_defaults", |table| {
+            table.integer("points").default(DB::raw("(6 * 9)")).change();
+        })
+        .await
+        .unwrap();
+    db.insert("insert into expression_defaults (id) values (2)", &[])
+        .await
+        .unwrap();
+    let rows = db
+        .select("select points from expression_defaults order by id", &[])
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get("points"), Some(&42.into()));
+    assert_eq!(rows[1].get("points"), Some(&54.into()));
+    assert!(
+        schema
+            .getColumns("expression_defaults")
+            .await
+            .unwrap()
+            .iter()
+            .find(|column| column.name == "points")
+            .and_then(|column| column.default.as_deref())
+            .is_some_and(|default| default.contains('*'))
+    );
+
+    for invalid in [
+        DB::raw("(?)").with_bindings(vec![1.into()]),
+        DB::raw(" "),
+        DB::raw("(1\0)"),
+    ] {
+        assert!(matches!(
+            schema
+                .table("expression_defaults", |table| {
+                    table.integer("not_added");
+                    table.integer("invalid").default(invalid);
+                })
+                .await,
+            Err(DatabaseError::InvalidSchema("column default expression"))
+        ));
+        assert!(
+            !schema
+                .hasColumn("expression_defaults", "not_added")
+                .await
+                .unwrap()
+        );
+    }
+    schema.drop("expression_defaults").await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_evaluates_default_expressions_in_create_and_change() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_default_expressions(connection(json!({"url":url}))).await;
+}
+
+#[tokio::test]
+async fn sqlite_evaluates_default_expressions_after_rebuilding_the_table() {
+    verify_default_expressions(connection(json!({"driver":"sqlite","database":":memory:"}))).await;
+}

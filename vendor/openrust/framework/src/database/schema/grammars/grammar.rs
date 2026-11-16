@@ -733,26 +733,16 @@ impl Grammar {
     }
 
     fn default_value(&self, value: &DefaultValue, kind: &ColumnType) -> DatabaseResult<String> {
-        let DefaultValue::Value(value) = value else {
-            if matches!(kind, ColumnType::Year) {
-                return Ok(if self.mysql() {
-                    "(YEAR(CURDATE()))".into()
-                } else {
-                    "(CAST(strftime('%Y', 'now') AS INTEGER))".into()
-                });
+        let value = match value {
+            DefaultValue::Value(value) => value,
+            DefaultValue::Expression(expression) => {
+                let sql = expression
+                    .unbound_sql()
+                    .filter(|sql| !sql.trim().is_empty() && !sql.contains('\0'))
+                    .ok_or(DatabaseError::InvalidSchema("column default expression"))?;
+                return Ok(sql.to_owned());
             }
-            if matches!(kind, ColumnType::Date) {
-                return Ok(if self.mysql() {
-                    "(CURDATE())".into()
-                } else {
-                    "CURRENT_DATE".into()
-                });
-            }
-            let precision = match kind {
-                ColumnType::DateTime(p) | ColumnType::Timestamp(p) => *p,
-                _ => 0,
-            };
-            return Ok(current_timestamp(if self.mysql() { precision } else { 0 }));
+            DefaultValue::CurrentTimestamp => return Ok(self.current_default(kind)),
         };
         match value {
             Value::Null => Ok("null".into()),
@@ -767,6 +757,19 @@ impl Grammar {
                 self.string(&value.to_string())?
             )),
             _ => Err(DatabaseError::InvalidSchema("default value")),
+        }
+    }
+
+    fn current_default(&self, kind: &ColumnType) -> String {
+        match kind {
+            ColumnType::Year if self.mysql() => "(YEAR(CURDATE()))".into(),
+            ColumnType::Year => "(CAST(strftime('%Y', 'now') AS INTEGER))".into(),
+            ColumnType::Date if self.mysql() => "(CURDATE())".into(),
+            ColumnType::Date => "CURRENT_DATE".into(),
+            ColumnType::DateTime(precision) | ColumnType::Timestamp(precision) if self.mysql() => {
+                current_timestamp(*precision)
+            }
+            _ => current_timestamp(0),
         }
     }
 

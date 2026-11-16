@@ -13,7 +13,7 @@ mod session;
 pub use blueprint::Blueprint;
 pub(super) use blueprint::TableOptions;
 pub use builder::Builder;
-pub use column_definition::ColumnDefinition;
+pub use column_definition::{ColumnDefinition, DefaultValue};
 pub use facade::Schema;
 pub use foreign_id_column_definition::ForeignIdColumnDefinition;
 pub use foreign_key_definition::ForeignKeyDefinition;

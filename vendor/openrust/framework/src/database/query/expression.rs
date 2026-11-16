@@ -13,6 +13,10 @@ impl Expression {
         }
     }
 
+    pub(in crate::database) fn unbound_sql(&self) -> Option<&str> {
+        self.bindings.is_empty().then_some(&self.sql)
+    }
+
     pub fn with_bindings(mut self, bindings: Vec<crate::database::Value>) -> Self {
         self.bindings = bindings;
         self

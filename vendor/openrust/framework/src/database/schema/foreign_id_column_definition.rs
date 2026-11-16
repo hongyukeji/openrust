@@ -1,6 +1,4 @@
-use crate::database::Value;
-
-use super::{Blueprint, ColumnDefinition, ForeignKeyDefinition, blueprint::Command};
+use super::{Blueprint, ColumnDefinition, DefaultValue, ForeignKeyDefinition, blueprint::Command};
 
 /// An unsigned big integer column that can define its foreign key.
 pub struct ForeignIdColumnDefinition<'a> {
@@ -32,7 +30,7 @@ impl<'a> ForeignIdColumnDefinition<'a> {
         self
     }
 
-    pub fn default(mut self, value: impl Into<Value>) -> Self {
+    pub fn default(mut self, value: impl Into<DefaultValue>) -> Self {
         self.column().default(value);
         self
     }

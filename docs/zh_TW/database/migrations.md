@@ -243,6 +243,24 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
 
+#### 預設值運算式 {#default-expressions}
+
+透過 `DB::raw()` 或 `Expression::new()` 把可信的 SQL 運算式傳給 `default()`。插入資料時省略該欄位，資料庫就會計算運算式。一般字串會作為字面值預設值。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::{DB, Schema}};
+
+async fn create_flights() -> DatabaseResult<()> {
+    Schema::create("flights", |table| {
+        table.id();
+        table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+    })
+    .await
+}
+```
+
+預設值運算式不支援參數繫結。請依照資料庫要求編寫運算式，並在需要時加上括號。資料庫會檢查該欄位類型和 Schema 操作是否支援此運算式。
+
 #### MySQL 即時欄位變更與鎖定模式 {#instant-column-operations}
 
 新增欄位或透過 `change()` 修改欄位時，可用 `instant()` 要求即時演算法。使用 `lock()` 指定欄位操作的鎖定模式，支援 `none`、`shared`、`exclusive` 與 `default`。演算法與鎖定能否搭配由 MySQL 判斷。操作不相容時回傳資料庫錯誤，框架不會改用其他演算法重試。

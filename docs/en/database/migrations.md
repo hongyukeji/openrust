@@ -243,6 +243,24 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
 
+#### Default Expressions {#default-expressions}
+
+Pass a trusted SQL expression to `default()` using `DB::raw()` or `Expression::new()`. The database evaluates the expression when an insert omits the column. Passing an ordinary string stores it as a literal default.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::{DB, Schema}};
+
+async fn create_flights() -> DatabaseResult<()> {
+    Schema::create("flights", |table| {
+        table.id();
+        table.json("movies").default(DB::raw("(JSON_ARRAY())"));
+    })
+    .await
+}
+```
+
+Default expressions cannot contain parameter bindings. Supply the SQL syntax required by your database, including parentheses where required. The database checks whether the expression is valid for the column type and schema operation.
+
 #### MySQL Instant Column Changes and Locking {#instant-column-operations}
 
 Use `instant()` when adding a column or changing its definition with `change()`. Set the column operation's lock mode to `none`, `shared`, `exclusive`, or `default` with `lock()`. MySQL checks whether the operation supports the requested algorithm and lock combination. If it rejects them, the error is returned without retrying with a different algorithm.
