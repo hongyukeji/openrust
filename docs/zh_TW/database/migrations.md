@@ -290,6 +290,25 @@ fn prepare_status(table: &mut Blueprint) {
 
 用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按宣告順序讀取待執行的欄位定義。這些迭代器借用 Blueprint。檢查資料庫現有欄位時，請使用 Schema 門面的目錄方法。
 
+### 解析 Blueprint {#resolving-a-blueprint}
+
+在 Schema 建構器上註冊解析器，可以在操作回呼前加入共用定義。解析器收到可修改的 Blueprint，其中已設定邏輯資料表名稱、連線前綴和建表狀態。
+
+```rust
+use openrust::database::schema::Builder;
+
+fn use_import_defaults(schema: &mut Builder<'_>) {
+    schema.blueprintResolver(|table| {
+        if table.creating() {
+            table.id();
+            table.string("source", 32);
+        }
+    });
+}
+```
+
+每個 Schema 建構器各自持有解析器。請在遷移、交易或工作階段實際使用的建構器上註冊。遷移預演會以相同定義產生 SQL。
+
 ### 讀取連線的資料表前綴 {#reading-the-connection-table-prefix}
 
 用 `DB::getTablePrefix()` 讀取預設連線的前綴，或用 `DB::connection(Some("archive"))?.getTablePrefix()` 讀取具名連線的前綴。Blueprint 回呼中的 `getPrefix()` 回傳該 Blueprint 所屬連線的前綴。

@@ -311,3 +311,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `9435c81bc`。SQLite 26 项和 MySQL 8.4.13 的 25 项 Schema 回归通过，覆盖建表及条件式修改回调。两种驱动的实际 Artisan 分别验证默认连接和具名连接创建同名逻辑表、按各自前缀执行原生 SQL，并通过查询构建器读回。
 - `main artisan inspire`、`sh tests/table_catalog.sh` 中的表目录和限定 Schema 清库、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
 - 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 70.10 GB（65.28 GiB）。证据目录为 `/private/tmp/openrust-02-05-prefix.TDhAAec8`。
+
+## Blueprint 解析器
+
+对照固定 Laravel [创建 Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L732)和[注册解析器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L810)。旧版未找到相同接口，复用当前 Blueprint 构造、逻辑表名、连接前缀和各执行路径。
+
+- `blueprintResolver` 在当前 Schema 构建器上注册可替换的初始化回调。Rust 先创建类型明确的 Blueprint，解析器可在操作回调之前加入定义。回调持有自己的捕获值，现有事务及会话的可变借用可在最后一次使用构建器时结束。具名连接、事务、会话和预演各自使用其构建器。
+- 隔离基线 `5f3578bc8`。SQLite 27 项和 MySQL 8.4.13 的 26 项 Schema 回归通过。SQLite 验证注册作用域、替换解析器、条件改表和事务回滚。MySQL 的连接级预演验收生成 SQL、数据库无副作用和实际建表。
+- 三语共用示例在两种驱动的 Artisan 实际跑通 `migrate --pretend`、`migrate` 和 `migrate:rollback`，验证预演无表、迁移后列正确和回滚移除表。`main artisan inspire`、表目录、限定 Schema 清库、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
+- 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 65.11 GB（60.63 GiB）。证据目录为 `/private/tmp/openrust-02-05-resolver.GfNQd7Qd`。

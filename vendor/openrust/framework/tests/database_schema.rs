@@ -4528,3 +4528,110 @@ async fn mysql_exposes_blueprint_context_for_creation_and_conditional_alter() {
     let table = format!("{}.blueprint_context", db.getDatabaseName());
     verify_blueprint_context(db, &table).await;
 }
+
+#[tokio::test]
+async fn sqlite_scopes_blueprint_resolvers_to_the_builder_and_transaction() {
+    let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
+    let mut tx = db.beginTransaction().await.unwrap();
+    {
+        let mut schema = tx.getSchemaBuilder();
+        schema.blueprintResolver(|table| {
+            assert_eq!(table.getPrefix(), "app_");
+            if table.creating() {
+                table.id();
+            }
+            table.string("from_resolver", 16).nullable();
+        });
+        schema
+            .create("resolved", |table| {
+                assert_eq!(table.getTable(), "resolved");
+                assert!(
+                    table
+                        .getAddedColumns()
+                        .any(|c| c.getName() == "from_resolver")
+                );
+                table.string("from_callback", 16);
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            schema.getColumnListing("resolved").await.unwrap(),
+            ["id", "from_resolver", "from_callback"]
+        );
+        schema.blueprintResolver(|table| {
+            assert!(!table.creating());
+            table.integer("updated_resolver").default(1);
+        });
+        schema
+            .whenTableHasColumn("resolved", "from_callback", |table| {
+                assert!(
+                    table
+                        .getAddedColumns()
+                        .any(|c| c.getName() == "updated_resolver")
+                );
+                table.integer("quantity").default(0);
+            })
+            .await
+            .unwrap();
+    }
+    {
+        let mut fresh = tx.getSchemaBuilder();
+        assert!(
+            fresh
+                .hasColumn("resolved", "updated_resolver")
+                .await
+                .unwrap()
+        );
+        fresh
+            .create("fresh", |table| {
+                assert_eq!(table.getColumns().count(), 0);
+                table.id();
+            })
+            .await
+            .unwrap();
+        assert_eq!(fresh.getColumnListing("fresh").await.unwrap(), ["id"]);
+    }
+    tx.rollBack(None).await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    assert!(!schema.hasTable("resolved").await.unwrap());
+    assert!(!schema.hasTable("fresh").await.unwrap());
+}
+
+#[tokio::test]
+async fn mysql_resolves_blueprints_in_preview_and_real_ddl() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url, "prefix": "app_"}));
+    let configure = |table: &mut openrust::database::schema::Blueprint| {
+        assert!(table.creating());
+        assert_eq!(table.getPrefix(), "app_");
+        table.id();
+        table.string("external_ref", 32);
+    };
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("resolver_probe").await.unwrap();
+    let preview = db
+        .pretend(|connection| {
+            Box::pin(async move {
+                let mut builder = connection.getSchemaBuilder();
+                builder.blueprintResolver(configure);
+                builder.create("resolver_probe", |_| {}).await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 1);
+    assert!(preview[0].query.contains("`app_resolver_probe`"));
+    assert!(preview[0].query.contains("`external_ref` varchar(32)"));
+    assert!(!schema.hasTable("resolver_probe").await.unwrap());
+
+    schema.blueprintResolver(configure);
+    schema.create("resolver_probe", |_| {}).await.unwrap();
+    assert_eq!(
+        schema.getColumnListing("resolver_probe").await.unwrap(),
+        ["id", "external_ref"]
+    );
+    schema.drop("resolver_probe").await.unwrap();
+}

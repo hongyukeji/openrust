@@ -290,6 +290,25 @@ fn prepare_status(table: &mut Blueprint) {
 
 Use `getColumns()`, `getAddedColumns()`, and `getChangedColumns()` to read pending definitions in declaration order. These iterators borrow the blueprint. Use the Schema facade’s catalog methods to inspect columns already in the database.
 
+### Resolving a Blueprint {#resolving-a-blueprint}
+
+Set a resolver on a schema builder to add shared definitions before the operation’s callback runs. The resolver receives a mutable blueprint with the table reference, connection prefix and creation state already set.
+
+```rust
+use openrust::database::schema::Builder;
+
+fn use_import_defaults(schema: &mut Builder<'_>) {
+    schema.blueprintResolver(|table| {
+        if table.creating() {
+            table.id();
+            table.string("source", 32);
+        }
+    });
+}
+```
+
+A schema builder keeps its own resolver. Register one on the builder used by the migration, transaction or session. Migration previews compile the same definitions into SQL.
+
 ### Reading the Connection Table Prefix {#reading-the-connection-table-prefix}
 
 Use `DB::getTablePrefix()` for the default connection or `DB::connection(Some("archive"))?.getTablePrefix()` for a named connection. Inside a blueprint callback, `getPrefix()` reports the prefix of that blueprint’s connection.

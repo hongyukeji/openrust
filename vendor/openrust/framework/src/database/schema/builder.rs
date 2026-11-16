@@ -19,11 +19,14 @@ enum Executor<'connection> {
     Pretend(&'connection mut Vec<String>),
 }
 
+type BlueprintResolver = Box<dyn Fn(&mut Blueprint) + Send + Sync>;
+
 /// Inspects and changes the schema on the write connection.
 pub struct Builder<'connection> {
     executor: Executor<'connection>,
     grammar: Grammar,
     schema_defaults: Arc<RwLock<SchemaDefaults>>,
+    blueprint_resolver: Option<BlueprintResolver>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
@@ -34,6 +37,7 @@ impl<'connection> Builder<'connection> {
             schema_defaults: connection.schema_defaults.clone(),
             executor: Executor::Connection(connection),
             grammar,
+            blueprint_resolver: None,
         }
     }
 
@@ -45,6 +49,7 @@ impl<'connection> Builder<'connection> {
         Self {
             executor: Executor::Pretend(statements),
             grammar,
+            blueprint_resolver: None,
             schema_defaults: connection.schema_defaults.clone(),
         }
     }
@@ -56,6 +61,7 @@ impl<'connection> Builder<'connection> {
         Self {
             executor: Executor::Transaction(transaction),
             grammar,
+            blueprint_resolver: None,
             schema_defaults,
         }
     }
@@ -67,6 +73,7 @@ impl<'connection> Builder<'connection> {
         Self {
             executor: Executor::Session(session),
             grammar,
+            blueprint_resolver: None,
             schema_defaults,
         }
     }
@@ -94,8 +101,13 @@ impl<'connection> Builder<'connection> {
         Ok(output)
     }
 
+    /// Sets the initializer for blueprints produced by this schema builder.
+    pub fn blueprintResolver(&mut self, resolver: impl Fn(&mut Blueprint) + Send + Sync + 'static) {
+        self.blueprint_resolver = Some(Box::new(resolver));
+    }
+
     fn blueprint(&self, table: &str, creating: bool) -> Blueprint {
-        Blueprint {
+        let mut blueprint = Blueprint {
             table: table.to_owned(),
             prefix: Arc::clone(self.grammar.table_prefix()),
             creating,
@@ -104,7 +116,11 @@ impl<'connection> Builder<'connection> {
                 .read()
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
             ..Blueprint::default()
+        };
+        if let Some(resolve) = &self.blueprint_resolver {
+            resolve(&mut blueprint);
         }
+        blueprint
     }
 
     /// Creates a database on the selected connection's server or a new SQLite file.
@@ -159,8 +175,8 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
+        let mut resolved_table = self.grammar.table(table)?;
         let mut blueprint = self.blueprint(table, true);
-        let mut table = self.grammar.table(table)?;
         configure(&mut blueprint);
         if blueprint.temporary {
             if !matches!(self.executor, Executor::Session(_) | Executor::Pretend(_)) {
@@ -168,15 +184,15 @@ impl<'connection> Builder<'connection> {
                     "temporary table requires a schema session",
                 ));
             }
-            self.temporary_schema(&mut table)?;
-            let sql = self.grammar.create(&table, blueprint)?;
-            let cleanup = self.temporary_drop(&table, true)?;
+            self.temporary_schema(&mut resolved_table)?;
+            let sql = self.grammar.create(&resolved_table, blueprint)?;
+            let cleanup = self.temporary_drop(&resolved_table, true)?;
             if let Executor::Session(session) = &mut self.executor {
-                return session.create_temporary(table, cleanup, sql).await;
+                return session.create_temporary(resolved_table, cleanup, sql).await;
             }
             return self.execute(sql).await;
         }
-        let sql = self.grammar.create(&table, blueprint)?;
+        let sql = self.grammar.create(&resolved_table, blueprint)?;
         self.execute(sql).await
     }
 
@@ -220,8 +236,9 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
+        let resolved_table = self.resolve_table(table)?;
         let mut blueprint = self.blueprint(table, false);
-        let table = self.resolve_table(table)?;
+        let table = resolved_table;
         configure(&mut blueprint);
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
             if matches!(self.executor, Executor::Pretend(_)) {
