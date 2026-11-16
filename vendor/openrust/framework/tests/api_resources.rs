@@ -9,7 +9,11 @@ use openrust::{
     },
     database::{
         DatabaseError, DatabaseManager, Value,
-        eloquent::{Attributes, Model, ModelMetadata, ModelState, relations::HasMany},
+        eloquent::{
+            Attributes, Model, ModelMetadata, ModelState,
+            casts::Attribute,
+            relations::{BelongsToMany, HasMany, HasOne, Pivot},
+        },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
@@ -30,8 +34,34 @@ use tokio::{
 };
 
 struct Account(ModelState);
+struct Membership(ModelState);
+
+impl Model for Membership {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("membership")
+            .incrementing(false)
+            .timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
 
 impl Model for Account {
+    fn attribute(name: &str) -> Option<Attribute> {
+        (name == "label").then(|| Attribute::get(|_, _| Ok("account label".into())))
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("resource_accounts")
             .timestamps(None, None)
@@ -175,6 +205,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/already", || Plain(json!({"data":{"id":9}})))?;
     Route::get("/unwrapped", unwrapped)?;
     Route::get("/metadata", metadata)?;
+    Route::get("/conditional", conditional)?;
+    Route::get("/pivots", pivots)?;
     Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
@@ -188,6 +220,147 @@ fn routes() -> Result<(), RoutingError> {
         Ok(ModelResource(new))
     })?;
     Ok(())
+}
+
+fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
+    Box::pin(async move {
+        let load = request.query(Some("load"))?.is_some();
+        let id = if request.query(Some("empty"))?.is_some() {
+            3
+        } else {
+            1
+        };
+        let mut query = Account::query().map_err(internal)?;
+        if load {
+            query = query.with(
+                "firstReport",
+                HasOne::<Account, Account>::new("id", "manager_id"),
+            );
+        }
+        let mut model = query.findOrFail(id).await.map_err(internal)?;
+        if load {
+            model.append(&["label"]);
+        }
+        let mut fields = Map::from_iter([("status".into(), json!("base"))]);
+        Conditional::mergeWhen(&mut fields, false, || panic!("skipped merge ran"));
+        Conditional::mergeUnless(&mut fields, load, || {
+            Map::from_iter([
+                ("status".into(), json!("override")),
+                ("guest".into(), json!(true)),
+            ])
+        });
+        Conditional::insert(
+            &mut fields,
+            "appended",
+            Conditional::whenAppended(&model, "label", || {
+                model
+                    .attributesToArray()
+                    .map(|values| values["label"].clone())
+            })
+            .transpose()
+            .map_err(internal)?,
+        );
+        let related = Conditional::whenLoadedOne::<Account, _>(&model, "firstReport", |report| {
+            assert!(id != 3, "projection of a loaded null relation");
+            report.toArray().map(|values| values["name"].clone())
+        });
+        let related = related
+            .map(|value| value.transpose())
+            .transpose()
+            .map_err(internal)?;
+        Conditional::insert(
+            &mut fields,
+            "report",
+            related.map(|value| value.unwrap_or(Json::Null)),
+        );
+        Conditional::insert(
+            &mut fields,
+            "known_null",
+            Conditional::whenNull(&Json::Null, || Json::Null),
+        );
+        Ok(Plain(Json::Object(fields)))
+    })
+}
+
+async fn pivots() -> ResourceResult<Plain> {
+    const TABLE: &str = "resource_memberships";
+    let pivot = || {
+        BelongsToMany::<Account, Account>::new(TABLE, "owner_id", "member_id", "id", "id")
+            .withPivot(["level"])
+    };
+    let owner = Account::query()
+        .map_err(internal)?
+        .with("members", pivot())
+        .with(
+            "subscribers",
+            pivot().r#as("membership").using::<Membership>(),
+        )
+        .findOrFail(1)
+        .await
+        .map_err(internal)?;
+    let member = owner
+        .getRelation::<RelatedCollection<Account>>("members")
+        .unwrap()[0]
+        .as_ref();
+    let subscriber = owner
+        .getRelation::<RelatedCollection<Account>>("subscribers")
+        .unwrap()[0]
+        .as_ref();
+    let mut fields = Map::new();
+    Conditional::insert(
+        &mut fields,
+        "ordinary",
+        Conditional::whenPivotLoaded(member, TABLE, || {
+            let row = member.getRelation::<Pivot>("pivot").unwrap();
+            assert_eq!(row.getTable(), TABLE);
+            level(row.getAttribute("level"))
+        }),
+    );
+    Conditional::insert(
+        &mut fields,
+        "custom",
+        Conditional::whenPivotLoadedAs(subscriber, "membership", TABLE, || json!(true)),
+    );
+    Conditional::insert(
+        &mut fields,
+        "typed",
+        Conditional::whenPivotLoadedAsType::<Membership, _>(subscriber, "membership", |row| {
+            assert_eq!(row.getTable(), TABLE);
+            level(row.getAttribute("level"))
+        }),
+    );
+    for (name, value) in [
+        (
+            "wrong_table",
+            Conditional::whenPivotLoadedAs(subscriber, "membership", "wrong", || {
+                panic!("wrong table matched")
+            }),
+        ),
+        (
+            "wrong_accessor",
+            Conditional::whenPivotLoaded(subscriber, TABLE, || panic!("wrong accessor matched")),
+        ),
+        (
+            "wrong_type",
+            Conditional::whenPivotLoadedAsType::<Account, Json>(subscriber, "membership", |_| {
+                panic!("wrong type matched")
+            }),
+        ),
+        (
+            "unloaded",
+            Conditional::whenPivotLoaded(&owner, TABLE, || panic!("unloaded pivot matched")),
+        ),
+    ] {
+        Conditional::insert(&mut fields, name, value);
+    }
+    Ok(Plain(Json::Object(fields)))
+}
+
+fn level(value: Option<&Value>) -> Json {
+    let Some(Value::Text(level)) = value else {
+        panic!("expected membership level")
+    };
+    json!(level)
 }
 
 fn page(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
@@ -291,8 +464,11 @@ async fn verify(config: Json) {
     };
     for sql in [
         "DROP TABLE IF EXISTS resource_accounts".into(),
+        "DROP TABLE IF EXISTS resource_memberships".into(),
         format!("CREATE TABLE resource_accounts (id {id}, manager_id BIGINT, name VARCHAR(40), password VARCHAR(40))"),
         "INSERT INTO resource_accounts VALUES (1, NULL, 'A', 'secret'), (2, 1, 'B', 'secret'), (3, NULL, 'C', 'secret')".into(),
+        "CREATE TABLE resource_memberships (owner_id BIGINT, member_id BIGINT, level VARCHAR(40))".into(),
+        "INSERT INTO resource_memberships VALUES (1, 2, 'gold')".into(),
     ] {
         connection.statement(&sql, &[]).await.unwrap();
     }
@@ -323,6 +499,23 @@ async fn verify(config: Json) {
     assert_eq!(guest["meta"]["source"], "resource");
     request(address, "GET", "/api/missing", "", 404).await;
     request(address, "GET", "/api/failed", "", 400).await;
+    let (_, absent) = request(address, "GET", "/api/conditional", "", 200).await;
+    assert_eq!(
+        absent,
+        json!({"data":{"status":"base","guest":true,"known_null":null}})
+    );
+    let (_, loaded) = request(address, "GET", "/api/conditional?load=1", "", 200).await;
+    assert_eq!(
+        loaded,
+        json!({"data":{"status":"base","appended":"account label","report":"B","known_null":null}})
+    );
+    let (_, empty) = request(address, "GET", "/api/conditional?load=1&empty=1", "", 200).await;
+    assert!(empty["data"].get("report").is_some_and(Json::is_null));
+    let (_, pivot) = request(address, "GET", "/api/pivots", "", 200).await;
+    assert_eq!(
+        pivot,
+        json!({"data":{"ordinary":"gold","custom":true,"typed":"gold"}})
+    );
 
     let (_, list) = request(address, "GET", "/api/list", "", 200).await;
     assert_eq!(list["data"].as_array().unwrap().len(), 3);
@@ -378,6 +571,10 @@ async fn verify(config: Json) {
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
+        .await
+        .unwrap();
+    connection
+        .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
 }

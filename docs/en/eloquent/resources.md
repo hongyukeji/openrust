@@ -51,3 +51,29 @@ fn page_resource<T, R: JsonResource>(
 ## Conditional Attributes and Relationships
 
 `Conditional::when` evaluates its closure only when the condition holds. Pass the result to `Conditional::insert` to omit missing fields while retaining explicit JSON null. `whenLoaded` reads a typed, already loaded relationship. `whenCounted`, `whenAggregated`, and `whenExistsLoaded` read selected aggregate attributes.
+
+`whenLoadedOne` distinguishes an unloaded relationship from a loaded relationship with no model. Map the inner `None` to `Value::Null` to include it in the response. Use `whenAppended` for accessors on the model’s append list, `whenNull` for explicit nulls, and `mergeWhen` or `mergeUnless` to insert fields while retaining fields already present.
+
+### Conditional Pivot Information {#conditional-pivot-information}
+
+Use `whenPivotLoaded` for the default `pivot` accessor and `whenPivotLoadedAs` for a named accessor. Both check the actual intermediate table and use an already loaded row. `whenPivotLoadedAsType` matches a custom pivot by its Rust model type.
+
+```rust
+use openrust::{
+    database::{Value as AttributeValue, eloquent::{Model, relations::Pivot}},
+    http::resources::json::Conditional,
+};
+use serde_json::{Map, Value};
+
+pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
+    let level = Conditional::whenPivotLoaded(model, "memberships", || {
+        let value = model.getRelation::<Pivot>("pivot")
+            .and_then(|row| row.getAttribute("level"));
+        match value {
+            Some(AttributeValue::Text(level)) => Value::String(level.clone()),
+            _ => Value::Null,
+        }
+    });
+    Conditional::insert(fields, "level", level);
+}
+```

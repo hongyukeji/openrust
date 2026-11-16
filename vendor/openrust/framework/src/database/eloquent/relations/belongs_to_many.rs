@@ -2070,10 +2070,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 inverses,
             )?;
         } else {
-            state.relations.insert(
+            state.relations.insert_pivot(
                 self.pivot_accessor.into(),
-                Pivot::new(attributes),
-                Pivot::serialize,
+                Pivot::new(self.pivot.table, attributes),
             );
         }
         Ok(())

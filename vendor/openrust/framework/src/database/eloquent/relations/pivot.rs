@@ -5,12 +5,15 @@ use crate::database::{
 
 /// Attributes for one intermediate-table row.
 pub struct Pivot {
+    table: &'static str,
     attributes: Attributes,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's model attribute API")]
 impl Pivot {
-    pub(super) fn serialize(&self) -> DatabaseResult<Option<serde_json::Value>> {
+    pub(in crate::database::eloquent) fn serialize(
+        &self,
+    ) -> DatabaseResult<Option<serde_json::Value>> {
         self.attributes
             .iter()
             .map(|(name, value)| Ok((name.clone(), serialization::json_value(value.clone())?)))
@@ -18,8 +21,12 @@ impl Pivot {
             .map(|values| Some(serde_json::Value::Object(values)))
     }
 
-    pub(super) fn new(attributes: Attributes) -> Self {
-        Self { attributes }
+    pub(super) fn new(table: &'static str, attributes: Attributes) -> Self {
+        Self { table, attributes }
+    }
+
+    pub fn getTable(&self) -> &'static str {
+        self.table
     }
 
     pub fn getAttribute(&self, name: &str) -> Option<&Value> {

@@ -51,3 +51,29 @@ fn page_resource<T, R: JsonResource>(
 ## 條件屬性與關聯
 
 `Conditional::when` 僅在條件成立時執行閉包。將結果傳給 `Conditional::insert` 可以省略缺少的欄位並保留顯式 JSON null。`whenLoaded` 讀取已載入的型別化關聯。`whenCounted`、`whenAggregated` 和 `whenExistsLoaded` 讀取已查詢的彙總屬性。
+
+`whenLoadedOne` 區分尚未載入的關聯與已載入但沒有模型的關聯。將內層 `None` 映射為 `Value::Null` 即可保留該欄位。用 `whenAppended` 判斷存取器是否已加入附加清單，用 `whenNull` 判斷顯式空值，用 `mergeWhen` 或 `mergeUnless` 合併欄位，已有鍵保留原值。
+
+### 條件中介資料表欄位 {#conditional-pivot-information}
+
+預設 `pivot` 存取名稱用 `whenPivotLoaded`，自訂存取名稱用 `whenPivotLoadedAs`。兩者都核對實際中介資料表並使用已載入的記錄。依 Rust 模型型別比對自訂 Pivot 時，用 `whenPivotLoadedAsType`。
+
+```rust
+use openrust::{
+    database::{Value as AttributeValue, eloquent::{Model, relations::Pivot}},
+    http::resources::json::Conditional,
+};
+use serde_json::{Map, Value};
+
+pub fn include_level(fields: &mut Map<String, Value>, model: &impl Model) {
+    let level = Conditional::whenPivotLoaded(model, "memberships", || {
+        let value = model.getRelation::<Pivot>("pivot")
+            .and_then(|row| row.getAttribute("level"));
+        match value {
+            Some(AttributeValue::Text(level)) => Value::String(level.clone()),
+            _ => Value::Null,
+        }
+    });
+    Conditional::insert(fields, "level", level);
+}
+```

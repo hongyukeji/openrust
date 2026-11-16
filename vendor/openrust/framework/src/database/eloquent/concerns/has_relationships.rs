@@ -7,7 +7,7 @@ use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult, Transaction
 
 use super::super::{
     Model,
-    relations::{PushContext, Relation},
+    relations::{Pivot, PushContext, Relation},
 };
 
 #[derive(Clone, Default)]
@@ -26,6 +26,7 @@ trait LoadedRelation: Send + Sync {
     fn queueable_paths(&self) -> Option<Vec<String>>;
     fn reloadable(&self) -> bool;
     fn is_empty_collection(&self) -> bool;
+    fn pivot_table(&self) -> Option<&'static str>;
     fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a>;
 }
 
@@ -35,6 +36,7 @@ struct LoadedValue<T> {
     queueable_paths: Option<fn(&T) -> Vec<String>>,
     push: Option<PushOutput<T>>,
     is_empty_collection: Option<fn(&T) -> bool>,
+    pivot_table: Option<fn(&T) -> &'static str>,
 }
 
 impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
@@ -56,6 +58,11 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
         self.is_empty_collection
             .is_some_and(|check| check(&self.value))
     }
+
+    fn pivot_table(&self) -> Option<&'static str> {
+        self.pivot_table.map(|table| table(&self.value))
+    }
+
     fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a> {
         Box::pin(async move {
             let Some(push) = self.push else {
@@ -69,6 +76,7 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
                     queueable_paths: self.queueable_paths,
                     push: self.push,
                     is_empty_collection: self.is_empty_collection,
+                    pivot_table: self.pivot_table,
                 }) as Arc<dyn LoadedRelation>
             });
             (replacement, result)
@@ -88,20 +96,20 @@ impl LoadedRelations {
         self.values.contains_key(name)
     }
 
-    pub(in crate::database::eloquent) fn insert<T: Send + Sync + 'static>(
-        &mut self,
-        name: String,
-        value: T,
-        project: fn(&T) -> DatabaseResult<Option<Json>>,
-    ) {
+    pub(in crate::database::eloquent) fn pivot_table(&self, name: &str) -> Option<&'static str> {
+        self.values.get(name)?.pivot_table()
+    }
+
+    pub(in crate::database::eloquent) fn insert_pivot(&mut self, name: String, value: Pivot) {
         self.values.insert(
             name,
             Arc::new(LoadedValue {
                 value,
-                project,
+                project: Pivot::serialize,
                 queueable_paths: None,
                 push: None,
                 is_empty_collection: None,
+                pivot_table: Some(Pivot::getTable),
             }),
         );
     }
@@ -119,6 +127,7 @@ impl LoadedRelations {
                 queueable_paths: Some(R::queueableRelations),
                 push: Some(R::pushLoaded),
                 is_empty_collection: Some(R::isEmptyCollection),
+                pivot_table: None,
             }),
         );
     }
@@ -135,12 +144,13 @@ impl LoadedRelations {
                 project: super::super::serialization::one::<M>,
                 queueable_paths: None,
                 is_empty_collection: None,
+                pivot_table: None,
                 push: Some(|model, context| Box::pin(context.push_one(model))),
             }),
         );
     }
 
-    pub(in crate::database::eloquent) fn insert_model<M: Model>(
+    pub(in crate::database::eloquent) fn insert_pivot_model<M: Model>(
         &mut self,
         name: String,
         model: M,
@@ -153,6 +163,7 @@ impl LoadedRelations {
                 project,
                 queueable_paths: None,
                 is_empty_collection: None,
+                pivot_table: Some(M::getTable),
                 push: Some(|model, context| {
                     Box::pin(async move {
                         let mut model = M::from_state(model.state().clone());

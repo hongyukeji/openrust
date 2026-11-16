@@ -5,3 +5,9 @@
 - Rust 的包装选择作用于资源或单次响应，集合输入保留向量顺序。PHP 静态全局包装、自动资源类推断、关联键保留以及基于中间表名的条件帮助方法仍未移植。
 - 以 `0e1e89b8` 为隔离基线。Rust 1.94.0 格式、455 项锁定离线测试、全目标严格 Clippy、`./artisan inspire` 通过。实际 SQLite 与 MySQL HTTP 验证单资源、向量集合、三种分页、空集合和空页、包装规则、附加元数据合并、并发条件字段、已加载关系与计数、404、400 和新建 201。
 - 三语示例从正文抽取后在 SQLite 与 MySQL 上通过实际 HTTP。VitePress 构建、12 项通用组合及资源正文和导航在根路径与子路径共 6 项通过。
+
+## 条件字段和中间表
+
+- 对照固定 Laravel 的可选追加字段、合并和 Pivot 资源用例。Rust 在资源中显式区分尚未加载和已加载为空的单值关系，按已追加属性及显式 null 执行投影。关联对象的条件合并保留此前写入的键。已水合的普通及自定义 Pivot 都可按实际表和访问名检测，自定义 Pivot 另有 Rust 类型匹配入口。检查仅访问已有关系结果。 [Laravel 条件接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/ConditionallyLoadsAttributes.php) · [Laravel HTTP 用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/ResourceTest.php)
+- SQLite／MySQL 8.4.13 实际 HTTP 验证追加属性、合并键冲突、缺失字段、已加载空关系和两类 Pivot。错误表、访问名和类型均跳过相应回调。10 项资源、Eloquent 关系及 JSON 数据库回归、严格 Clippy、实际 `./artisan inspire`、三语样例编译、VitePress 及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 剩余范围包括 Resource 集合键保留、模型及分页集合的资源推断，以及其他条件值便捷入口。

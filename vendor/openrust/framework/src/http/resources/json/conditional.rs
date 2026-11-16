@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde_json::{Map, Value};
 
 use crate::database::{
@@ -27,8 +29,18 @@ impl Conditional {
         attributes: impl FnOnce() -> Map<String, Value>,
     ) {
         if condition {
-            fields.extend(attributes());
+            for (name, value) in attributes() {
+                fields.entry(name).or_insert(value);
+            }
         }
+    }
+
+    pub fn mergeUnless(
+        fields: &mut Map<String, Value>,
+        condition: bool,
+        attributes: impl FnOnce() -> Map<String, Value>,
+    ) {
+        Self::mergeWhen(fields, !condition, attributes);
     }
 
     pub fn whenHas<T>(model: &impl Model, attribute: &str, value: impl FnOnce() -> T) -> Option<T> {
@@ -39,11 +51,34 @@ impl Conditional {
         Self::unless(value.is_null(), present)
     }
 
+    pub fn whenNull<T>(value: &Value, present: impl FnOnce() -> T) -> Option<T> {
+        Self::when(value.is_null(), present)
+    }
+
+    pub fn whenAppended<T>(
+        model: &impl Model,
+        attribute: &str,
+        value: impl FnOnce() -> T,
+    ) -> Option<T> {
+        Self::when(model.hasAppended(attribute), value)
+    }
+
     pub fn whenLoaded<'a, T: Send + Sync + 'static>(
         model: &'a impl Model,
         name: &str,
     ) -> Option<&'a T> {
         model.getRelation(name)
+    }
+
+    /// The outer option indicates whether the relationship was loaded.
+    /// The inner option is absent when the loaded relationship has no model.
+    pub fn whenLoadedOne<M: Model, T>(
+        model: &impl Model,
+        name: &str,
+        project: impl FnOnce(&M) -> T,
+    ) -> Option<Option<T>> {
+        Self::whenLoaded::<Option<Arc<M>>>(model, name)
+            .map(|related| related.as_deref().map(project))
     }
 
     pub fn whenCounted<'a>(model: &'a impl Model, relation: &str) -> Option<&'a AttributeValue> {
@@ -63,6 +98,41 @@ impl Conditional {
         relation: &str,
     ) -> Option<&'a AttributeValue> {
         Self::whenAggregated(model, relation, RelationAggregate::Exists)
+    }
+
+    pub fn hasPivotLoaded(model: &impl Model, table: &str) -> bool {
+        Self::hasPivotLoadedAs(model, "pivot", table)
+    }
+
+    pub fn hasPivotLoadedAs(model: &impl Model, accessor: &str, table: &str) -> bool {
+        model.state().loaded_pivot_table(accessor) == Some(table)
+    }
+
+    pub fn whenPivotLoaded<T>(
+        model: &impl Model,
+        table: &str,
+        value: impl FnOnce() -> T,
+    ) -> Option<T> {
+        Self::whenPivotLoadedAs(model, "pivot", table, value)
+    }
+
+    pub fn whenPivotLoadedAs<T>(
+        model: &impl Model,
+        accessor: &str,
+        table: &str,
+        value: impl FnOnce() -> T,
+    ) -> Option<T> {
+        Self::when(Self::hasPivotLoadedAs(model, accessor, table), value)
+    }
+
+    /// Matches a custom intermediate model by its Rust type.
+    pub fn whenPivotLoadedAsType<P: Model, T>(
+        model: &impl Model,
+        accessor: &str,
+        project: impl FnOnce(&P) -> T,
+    ) -> Option<T> {
+        model.state().loaded_pivot_table(accessor)?;
+        model.getRelation::<P>(accessor).map(project)
     }
 
     pub fn insert(fields: &mut Map<String, Value>, name: impl Into<String>, value: Option<Value>) {

@@ -30,6 +30,10 @@ pub struct ModelState {
 
 #[allow(non_snake_case, reason = "Matches Laravel's model attribute API")]
 impl ModelState {
+    pub(crate) fn loaded_pivot_table(&self, name: &str) -> Option<&'static str> {
+        self.relations.pivot_table(name)
+    }
+
     pub(in crate::database::eloquent) fn serialization(&self) -> &SerializationOptions {
         self.serialization
             .as_deref()
