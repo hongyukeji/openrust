@@ -38,7 +38,12 @@ For SMTP, set `MAIL_MAILER=smtp` and configure `MAIL_HOST` and `MAIL_PORT`, or s
 
 Select `sendmail` to run the program configured by `MAIL_SENDMAIL_PATH`. It supports SMTP over standard I/O with `-bs` and delivery through standard input with `-t`.
 
-Select `ses`, `postmark`, or `resend` to use a provider API. Configure the corresponding service in `config/services.rs`. SES uses AWS credentials or the AWS SDK credential chain. Postmark uses `POSTMARK_TOKEN`, and Resend uses `RESEND_KEY`.
+Select `ses`, `ses-v2`, `postmark`, `resend`, `mailgun`, or `cloudflare` to deliver through a provider. Configure the corresponding service in `config/services.rs` and select its name with `MAIL_MAILER`.
+
+- SES and SES v2 use AWS credentials or the AWS SDK credential chain. SES v2 accepts mailer options such as `ConfigurationSetName`, `EmailTags`, and `ListManagementOptions`.
+- Postmark uses `POSTMARK_TOKEN`, and Resend uses `RESEND_KEY`.
+- Mailgun uses `MAILGUN_DOMAIN` and `MAILGUN_SECRET`. Set `MAILGUN_ENDPOINT=api.eu.mailgun.net` for the EU API. The default `https` scheme submits the composed MIME message. To send multipart fields, configure `scheme` as `api`.
+- Cloudflare uses `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_KEY`.
 
 In `config/mail.rs`, `failover` keeps the active mailer while it succeeds and switches on failure. `roundrobin` rotates delivery across mailers. Both use the named `mailers` list and skip failed transports during the `retry_after` interval in seconds.
 

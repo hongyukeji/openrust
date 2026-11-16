@@ -114,15 +114,45 @@ impl MailManager {
                     .as_str()
                     .unwrap_or("/usr/sbin/sendmail -bs -i"),
             )?),
-            Some("ses") => {
+            Some(kind @ ("ses" | "ses-v2")) => {
                 let service = self.config.get("services.ses").unwrap_or_default();
                 let mut settings = service.as_object().cloned().unwrap_or_default();
                 settings.extend(config.as_object().expect("mailer transport object").clone());
                 Arc::new(SesTransport::new(
                     serde_json::from_value(serde_json::Value::Object(settings))
                         .map_err(|_| super::transport("Invalid SES configuration."))?,
+                    kind == "ses-v2",
                 )?)
             }
+            Some("cloudflare") => {
+                let service = self.config.get("services.cloudflare").unwrap_or_default();
+                let account = config["account_id"]
+                    .as_str()
+                    .or_else(|| service["account_id"].as_str())
+                    .filter(|account| {
+                        !account.is_empty()
+                            && account
+                                .bytes()
+                                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                    })
+                    .ok_or_else(|| super::transport("Cloudflare account ID is required."))?;
+                let key = config["token"]
+                    .as_str()
+                    .or_else(|| config["key"].as_str())
+                    .or_else(|| service["token"].as_str())
+                    .or_else(|| service["key"].as_str())
+                    .filter(|key| !key.trim().is_empty())
+                    .ok_or_else(|| super::transport("Cloudflare API credential is required."))?;
+                let default_endpoint = format!(
+                    "https://api.cloudflare.com/client/v4/accounts/{account}/email/sending/send"
+                );
+                Arc::new(ApiTransport::new(
+                    ApiProvider::Cloudflare,
+                    key,
+                    Some(config["endpoint"].as_str().unwrap_or(&default_endpoint)),
+                )?)
+            }
+            Some("mailgun") => self.mailgun_transport(&config)?,
             Some(kind @ ("postmark" | "resend")) => {
                 let service = self
                     .config
@@ -187,6 +217,76 @@ impl MailManager {
             _ => return Err(super::transport("Unsupported mail transport.")),
         };
         Ok((transport, captured))
+    }
+
+    fn mailgun_transport(&self, config: &serde_json::Value) -> MailResult<Arc<dyn Transport>> {
+        let service = self.config.get("services.mailgun").unwrap_or_default();
+        let settings = if config["secret"].is_string() {
+            config
+        } else {
+            &service
+        };
+        let secret = settings["secret"]
+            .as_str()
+            .filter(|secret| !secret.trim().is_empty())
+            .ok_or_else(|| super::transport("Mailgun credential is required."))?;
+        let domain = settings["domain"]
+            .as_str()
+            .filter(|domain| !domain.is_empty())
+            .ok_or_else(|| super::transport("Mailgun domain is required."))?;
+        let scheme = settings["scheme"].as_str().unwrap_or("https");
+        let region = match settings["region"].as_str() {
+            Some("eu") => ".eu",
+            Some("us") | None => "",
+            _ => return Err(super::transport("Unsupported Mailgun region.")),
+        };
+        match scheme {
+            "smtp" | "smtps" => {
+                let config = serde_json::json!({
+                    "scheme": scheme, "host": format!("smtp{region}.mailgun.org"),
+                    "port": if scheme == "smtps" { 465 } else { 587 },
+                    "username": secret, "password": domain,
+                });
+                Ok(Arc::new(SmtpTransport::new(
+                    serde_json::from_value(config)
+                        .map_err(|_| super::transport("Invalid Mailgun SMTP configuration."))?,
+                )?))
+            }
+            "https" | "api" => {
+                if !domain
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+                {
+                    return Err(super::transport("Invalid Mailgun domain."));
+                }
+                let host = format!("https://api{region}.mailgun.net");
+                let endpoint = settings["endpoint"]
+                    .as_str()
+                    .filter(|endpoint| *endpoint != "default");
+                let endpoint = match endpoint {
+                    Some(endpoint) if endpoint.contains("://") => endpoint.into(),
+                    Some(endpoint) => format!("https://{endpoint}"),
+                    None => host,
+                };
+                let raw = scheme == "https";
+                let suffix = if raw { "messages.mime" } else { "messages" };
+                let mut url = reqwest::Url::parse(&endpoint)
+                    .map_err(|_| super::transport("Invalid Mailgun endpoint."))?;
+                if url.query().is_some() || url.fragment().is_some() {
+                    return Err(super::transport("Invalid Mailgun endpoint."));
+                }
+                url.path_segments_mut()
+                    .map_err(|_| super::transport("Invalid Mailgun endpoint."))?
+                    .pop_if_empty()
+                    .extend(["v3", domain, suffix]);
+                Ok(Arc::new(ApiTransport::new(
+                    ApiProvider::Mailgun { raw },
+                    secret,
+                    Some(url.as_str()),
+                )?))
+            }
+            _ => Err(super::transport("Unsupported Mailgun scheme.")),
+        }
     }
 
     pub fn to(self: &Arc<Self>, address: impl Into<Address>) -> PendingMail {

@@ -38,7 +38,12 @@ pub async fn send_order() -> MailResult<()> {
 
 選擇 `sendmail` 可執行 `MAIL_SENDMAIL_PATH` 設定的程式，支援透過標準輸入輸出進行 SMTP 的 `-bs` 模式，以及從標準輸入投遞郵件的 `-t` 模式。
 
-選擇 `ses`、`postmark` 或 `resend` 可呼叫供應商 API。在 `config/services.rs` 中設定對應服務。SES 使用設定的 AWS 憑證或 AWS SDK 憑證鏈，Postmark 使用 `POSTMARK_TOKEN`，Resend 使用 `RESEND_KEY`。
+選擇 `ses`、`ses-v2`、`postmark`、`resend`、`mailgun` 或 `cloudflare` 透過供應商投遞。先在 `config/services.rs` 設定對應服務，再用 `MAIL_MAILER` 選擇郵件器。
+
+- SES 和 SES v2 使用 AWS 憑證或 AWS SDK 憑證鏈。SES v2 支援 `ConfigurationSetName`、`EmailTags` 和 `ListManagementOptions` 等郵件器選項。
+- Postmark 使用 `POSTMARK_TOKEN`，Resend 使用 `RESEND_KEY`。
+- Mailgun 使用 `MAILGUN_DOMAIN` 和 `MAILGUN_SECRET`。使用 EU API 時設定 `MAILGUN_ENDPOINT=api.eu.mailgun.net`。預設 `https` 方案會提交已組裝的 MIME 郵件。若要提交 multipart 欄位，將 `scheme` 設為 `api`。
+- Cloudflare 使用 `CLOUDFLARE_ACCOUNT_ID` 和 `CLOUDFLARE_KEY`。
 
 在 `config/mail.rs` 中，`failover` 在目前郵件器傳送失敗時切換，`roundrobin` 輪流使用郵件器。兩者皆透過 `mailers` 指定郵件器清單，並在 `retry_after` 秒內跳過失敗的傳輸。
 

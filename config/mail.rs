@@ -30,6 +30,9 @@ pub(super) fn load(
                 "local_domain": get(env, "MAIL_EHLO_DOMAIN", domain)?,
             },
             "ses": {"transport": "ses"},
+            "ses-v2": {"transport": "ses-v2"},
+            "cloudflare": {"transport": "cloudflare"},
+            "mailgun": {"transport": "mailgun"},
             "postmark": {"transport": "postmark"},
             "resend": {"transport": "resend"},
             "sendmail": {

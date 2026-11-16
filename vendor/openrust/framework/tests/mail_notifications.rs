@@ -6,6 +6,7 @@ use std::{
 };
 
 use openrust::{
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     container::Callback,
     contracts::{
         container::Container as _,
@@ -14,7 +15,7 @@ use openrust::{
     },
     database::{DB, DatabaseManager, Value},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
-    foundation::Application,
+    foundation::{Application, configuration::Routing},
     mail::{
         MailResult, Mailable,
         mailables::{Attachment, Content, Envelope, Headers},
@@ -25,7 +26,7 @@ use openrust::{
         messages::{DatabaseMessage, MailDelivery, MailMessage},
     },
     queue::{DispatchOptions, QueueManager},
-    support::facades::{Event, Facade, Lang, Mail, Notification},
+    support::facades::{Artisan, Event, Facade, Lang, Mail, Notification},
 };
 use serde_json::{Value as Json, json};
 
@@ -57,6 +58,25 @@ impl Mailable for Receipt {
             mime: "text/plain".into(),
             bytes: b"file receipt".to_vec(),
         }])
+    }
+}
+
+struct NamedReceipt<'a>(&'a str);
+impl Mailable for NamedReceipt<'_> {
+    fn mailer(&self) -> Option<&str> {
+        Some(self.0)
+    }
+    fn envelope(&self) -> MailResult<Envelope> {
+        Receipt.envelope()
+    }
+    fn content(&self) -> MailResult<Content> {
+        Receipt.content()
+    }
+    fn headers(&self) -> MailResult<Headers> {
+        Receipt.headers()
+    }
+    fn attachments(&self) -> MailResult<Vec<Attachment>> {
+        Receipt.attachments()
     }
 }
 
@@ -186,6 +206,44 @@ fn fixture(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) -> Root {
     root
 }
 
+struct SendFixture(CommandDefinition);
+
+impl Command for SendFixture {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let name = input.matches().get_one::<String>("mailer").unwrap();
+            let sent = Mail::to("to@example.test")
+                .unwrap()
+                .bcc("blind@example.test")
+                .sendNow(&NamedReceipt(name))
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            let mime = String::from_utf8(sent.message.formatted()).unwrap();
+            output.comment(
+                mime.lines()
+                    .find(|line| line.starts_with("X-Message-ID:"))
+                    .unwrap_or("accepted"),
+            );
+            Ok(0)
+        })
+    }
+}
+
+fn mail_routes() -> Result<(), ConsoleError> {
+    Artisan::add(Box::new(SendFixture(CommandDefinition::new(
+        clap::Command::new("fixture:send-mail").arg(clap::Arg::new("mailer").required(true)),
+    ))))
+}
+
 fn app(root: &Path) -> Application {
     Application::configure(root.into())
         .withConfig(|base, _| {
@@ -193,6 +251,7 @@ fn app(root: &Path) -> Application {
                 serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap();
             Ok(config.into_iter().collect())
         })
+        .withRouting(Routing::default().commands(mail_routes))
         .create()
         .unwrap()
 }
@@ -254,24 +313,6 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     application
         .call(
             Callback::new(&[], |_| async {
-                struct NamedReceipt(&'static str);
-                impl Mailable for NamedReceipt {
-                    fn mailer(&self) -> Option<&str> {
-                        Some(self.0)
-                    }
-                    fn envelope(&self) -> MailResult<Envelope> {
-                        Receipt.envelope()
-                    }
-                    fn content(&self) -> MailResult<Content> {
-                        Receipt.content()
-                    }
-                    fn headers(&self) -> MailResult<Headers> {
-                        Receipt.headers()
-                    }
-                    fn attachments(&self) -> MailResult<Vec<Attachment>> {
-                        Receipt.attachments()
-                    }
-                }
                 let send = |name: &'static str| async move {
                     Mail::to("to@example.test")
                         .unwrap()
@@ -345,6 +386,134 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     let postmark: Json = serde_json::from_str(postmark).unwrap();
     assert_eq!(postmark["MessageStream"], "transactional");
     assert_eq!(postmark["Headers"][0]["Name"], "X-Receipt");
+    server.abort();
+}
+
+#[tokio::test]
+async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
+    use axum::{Router, extract::State, http::HeaderMap, response::IntoResponse, routing::post};
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    type Requests = Arc<Mutex<Vec<(String, HeaderMap, String)>>>;
+    async fn record(
+        State(requests): State<Requests>,
+        uri: http::Uri,
+        headers: HeaderMap,
+        body: String,
+    ) -> axum::response::Response {
+        let path = uri.path().to_owned();
+        requests.lock().unwrap().push((path.clone(), headers, body));
+        let reply = match path.as_str() {
+            "/v2/email/outbound-emails" => json!({"MessageId":"ses-v2-id"}),
+            "/v3/mg.example.test/messages" | "/v3/mg.example.test/messages.mime" => {
+                json!({"id":"mailgun-id","message":"Queued"})
+            }
+            "/cloudflare" => json!({"success":true, "result":{"delivered":["to@example.test"]}}),
+            _ => return http::StatusCode::NOT_FOUND.into_response(),
+        };
+        ([("Content-Type", "application/json")], reply.to_string()).into_response()
+    }
+
+    let requests = Requests::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(
+        axum::serve(
+            listener,
+            Router::new()
+                .fallback(post(record))
+                .with_state(requests.clone()),
+        )
+        .into_future(),
+    );
+    let root = fixture(None, None, None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["services"] = json!({
+        "ses":{"region":"us-east-1","key":"test-key","secret":"test-secret","token":"test-session"},
+        "mailgun":{"secret":"test-mailgun","domain":"mg.example.test","endpoint":base},
+        "cloudflare":{"token":"test-cloudflare","account_id":"fixture-account"},
+    });
+    config["mail"]["mailers"] = json!({
+        "ses-v2":{"transport":"ses-v2","endpoint":base,"options":{
+            "ConfigurationSetName":"ses-config", "EmailTags":[{"Name":"kind","Value":"receipt"}],
+            "ListManagementOptions":{"ContactListName":"fixture-list"},"TenantName":"fixture-tenant"}},
+        "mailgun":{"transport":"mailgun"},
+        "mailgun-api":{"transport":"mailgun","scheme":"api","secret":"test-mailgun","domain":"mg.example.test","endpoint":base},
+        "cloudflare":{"transport":"cloudflare","endpoint":format!("{base}/cloudflare")},
+    });
+    std::fs::write(config_path, config.to_string()).unwrap();
+    for (name, receipt) in [
+        ("ses-v2", "ses-v2-id"),
+        ("mailgun", "mailgun-id"),
+        ("mailgun-api", "mailgun-id"),
+        ("cloudflare", "accepted"),
+    ] {
+        assert!(
+            artisan(&root.0, &["fixture:send-mail", name])
+                .await
+                .contains(receipt)
+        );
+    }
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 4);
+    let (path, headers, body) = &requests[0];
+    assert_eq!(path, "/v2/email/outbound-emails");
+    assert_eq!(headers["x-amz-security-token"], "test-session");
+    assert!(
+        headers["authorization"]
+            .to_str()
+            .unwrap()
+            .contains("Credential=test-key/")
+    );
+    let ses: Json = serde_json::from_str(body).unwrap();
+    assert_eq!(
+        ses["Destination"]["ToAddresses"],
+        json!(["to@example.test", "blind@example.test"])
+    );
+    assert_eq!(ses["ConfigurationSetName"], "ses-config");
+    assert_eq!(
+        ses["ListManagementOptions"]["ContactListName"],
+        "fixture-list"
+    );
+    assert_eq!(ses["EmailTags"][0]["Name"], "kind");
+    assert_eq!(ses["TenantName"], "fixture-tenant");
+    let mime = String::from_utf8(
+        STANDARD
+            .decode(ses["Content"]["Raw"]["Data"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(mime.contains("OpenRust receipt") && !mime.contains("blind@example.test"));
+    let (path, headers, raw) = &requests[1];
+    assert_eq!(path, "/v3/mg.example.test/messages.mime");
+    assert_eq!(
+        headers["authorization"],
+        format!("Basic {}", STANDARD.encode("api:test-mailgun"))
+    );
+    assert!(
+        raw.contains("filename=\"message.mime\"")
+            && raw.contains("to@example.test,blind@example.test")
+    );
+    assert!(
+        !raw.split_once("Subject:")
+            .unwrap()
+            .1
+            .contains("blind@example.test")
+    );
+    let (path, _, body) = &requests[2];
+    assert_eq!(path, "/v3/mg.example.test/messages");
+    assert!(body.contains("filename=\"receipt.txt\"") && body.contains("name=\"bcc\""));
+    let (path, headers, body) = &requests[3];
+    assert_eq!(path, "/cloudflare");
+    assert_eq!(headers["authorization"], "Bearer test-cloudflare");
+    let cloudflare: Json = serde_json::from_str(body).unwrap();
+    assert_eq!(cloudflare["from"]["address"], "sender@example.test");
+    assert_eq!(cloudflare["bcc"], json!(["blind@example.test"]));
+    assert_eq!(
+        cloudflare["attachments"][0]["content"],
+        STANDARD.encode(b"file receipt")
+    );
     server.abort();
 }
 

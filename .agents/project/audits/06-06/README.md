@@ -26,3 +26,10 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 真实 SES、Postmark、Resend 投递、生产 SMTP 受信证书＋认证＋目标邮箱收信，以及目标服务器部署调度，待有指定环境和测试账号后验收。协议夹具使用测试凭据和回环端点。
 
 以已提交主线 `cd17b297e` 创建隔离验收副本。Rust 1.94.0 全目标严格 Clippy 和本批文件格式检查通过。全仓格式检查只报告既有 Sanctum 断言换行。三语邮件和 HTTP Client 页面在 `/` 与 `/docs/` 下新增章节检查共十二项通过。
+
+## SES v2、Mailgun 和 Cloudflare
+
+- 骨架沿用 `mail::transport` 和 `MailManager`，在 `config/mail.rs` 登记 `ses-v2`、`mailgun` 和 `cloudflare`，服务凭据由 `config/services.rs` 装配。本批沿用现有 Artisan 命令契约，测试夹具单独登记发送命令。
+- 按固定 [MailManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/MailManager.php)、[SesV2Transport](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Transport/SesV2Transport.php) 及 [CloudflareTransport](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Transport/CloudflareTransport.php) 实现。SES v2 复用 AWS 凭据链并使用 AWS SDK Rust 客户端。Mailgun 和 Cloudflare 复用 reqwest 和现有 MIME，Mailgun 的 SMTP 方案复用 Lettre。旧版 `6d1a81924` 的 `src/mail/mod.rs` 与 `tests/server/mail/templates.rs` 中无这三项传输，复用现行传输和附件处理，沿用旧版 SMTP 失败脱敏的验收原则。
+- Rust 1.94.0 的两项定向集成测试通过。实际 Artisan 子进程通过回环 HTTP 完成四次请求，核对 SES v2 SigV4、会话令牌、MIME、密送和选项，Mailgun MIME 与字段两种方式、认证和回执，以及 Cloudflare 的认证、地址和附件。原有 SES、Postmark、Resend 和组合传输的回环回归通过。Mailgun SMTP 复用已有 SMTP 实现，未单独连真实 Mailgun SMTP。
+- 工作区全目标严格 Clippy、本批文件格式、三语站点构建及 `/`、`/docs/` 的 12 项浏览器检查通过。全仓格式检查报告既有 Sanctum 测试断言换行差异。本批未连接真实供应商，生产投递待指定凭据及收件端后验收。

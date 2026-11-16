@@ -6,6 +6,15 @@ use super::env::get;
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
         "postmark": {"token": get(env, "POSTMARK_TOKEN", Value::Null)?},
+        "cloudflare": {
+            "account_id": get(env, "CLOUDFLARE_ACCOUNT_ID", Value::Null)?,
+            "key": get(env, "CLOUDFLARE_KEY", Value::Null)?,
+        },
+        "mailgun": {
+            "domain": get(env, "MAILGUN_DOMAIN", Value::Null)?,
+            "secret": get(env, "MAILGUN_SECRET", Value::Null)?,
+            "endpoint": get(env, "MAILGUN_ENDPOINT", Value::Null)?,
+        },
         "resend": {"key": get(env, "RESEND_KEY", Value::Null)?},
         "ses": {
             "key": get(env, "AWS_ACCESS_KEY_ID", Value::Null)?,
