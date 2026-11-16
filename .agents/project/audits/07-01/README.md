@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - Strings 仍需逐项核对 多语言词形及 COMB 标识符。
-- Helpers 仍有 日期工具和 Pipeline 待验收。计时的 PHP 行为差异见下文。
+- Helpers 仍有 Pipeline 待验收。计时的 PHP 行为差异见下文。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -78,3 +78,8 @@
 
 - 核对固定 Arr 的集合变换、选择、过滤、随机抽样、排序与 CSS 表达。Rust 使用有序 JSON、类型化回调和键投影，复用数据路径的有序合并。保键筛选与重新编号的 `take` 分别验收。动态 PHP 对象转换、松散比较和混合类型排序使用 Rust JSON 契约。 [固定 Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
 - 固定 Laravel 在 PHP 8.5.12 通过七组对照。Rust 1.94.0 锁定离线定向测试、严格 Clippy、真实 Artisan 与回环 HTTP 和三语 VitePress 构建通过。旧版具有数据路径基础，未发现可直接移植的 Arr 变换模块。
+
+## 日期与区间
+
+- 对照固定 Laravel 的 `now`、`today`、`Carbon::plus/minus` 和八种区间单位，并核对旧版 Carbon 请求日期及区间回归。沿用历法分量与应用时区分开的契约，复用现有 Chrono 和 IANA 时区数据。月份支持溢出或月末截断。日期分量按当地历法，小时以下按经过时间计算。Rust 日期不可变，返回新值并显式处理范围错误。 [固定 Carbon 扩展](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Carbon.php)
+- PHP 8.5.12 配 Carbon 3.8.4（Laravel 声明的最低版本）对照闰月、月份倒退及夏令时。6 项 Rust 定向测试、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。自定义 Carbon 工厂及任意 PHP 日期字符串仍属适配范围。

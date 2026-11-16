@@ -5,6 +5,8 @@ mod benchmark;
 pub(crate) mod calendar;
 mod collection;
 mod data;
+mod date;
+
 mod deferred_provider;
 mod enumerable;
 pub mod facades;
@@ -29,6 +31,10 @@ pub use arr::{Arr, ArrValueError};
 pub use benchmark::Benchmark;
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};
+pub use date::{
+    Date, DateError, DateInterval, DateTimezone, MonthOverflow, days, hours, microseconds,
+    milliseconds, minutes, months, now, seconds, today, weeks, years,
+};
 pub use deferred_provider::DeferredProvider;
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};

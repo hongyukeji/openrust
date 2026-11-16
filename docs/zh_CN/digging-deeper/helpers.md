@@ -101,3 +101,20 @@ assert_eq!(names, json!({"a":"甲","b":"乙"}));
 assert_eq!(Arr::take(&items, -1), json!([items[1]]));
 assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!([3])]);
 ```
+
+## 日期与区间 {#dates-and-intervals}
+
+`now` 和 `today` 传入 `None` 时读取应用时区。传入 `DateTimezone` 可显式选择 IANA 时区。`today` 取当地零点。
+
+`plus` 和 `minus` 接收有符号的 `DateInterval`。`MonthOverflow::Carry` 将多出的天数进位到下个月，`Clamp` 则取月末。使用 `microseconds` 至 `years` 构造区间。
+
+```rust
+use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
+
+let zone = now(None)?.asDateTime().timezone();
+assert_eq!(now(Some(zone))?.asDateTime().timezone(), zone);
+let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
+let end = start.plus(months(1), MonthOverflow::Clamp)?;
+let formatted = end.asDateTime().to_rfc3339();
+assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
+```

@@ -101,3 +101,20 @@ assert_eq!(names, json!({"a":"甲","b":"乙"}));
 assert_eq!(Arr::take(&items, -1), json!([items[1]]));
 assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!([3])]);
 ```
+
+## Dates and intervals {#dates-and-intervals}
+
+`now` and `today` read the application timezone when passed `None`. Pass a `DateTimezone` to choose an IANA timezone explicitly. `today` starts at local midnight.
+
+Use `plus` or `minus` with a signed `DateInterval`. `MonthOverflow::Carry` carries extra days into the next month and `Clamp` stops at the last day. Helpers from `microseconds` to `years` construct intervals.
+
+```rust
+use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
+
+let zone = now(None)?.asDateTime().timezone();
+assert_eq!(now(Some(zone))?.asDateTime().timezone(), zone);
+let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
+let end = start.plus(months(1), MonthOverflow::Clamp)?;
+let formatted = end.asDateTime().to_rfc3339();
+assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
+```
