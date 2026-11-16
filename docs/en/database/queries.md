@@ -183,6 +183,32 @@ pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> Data
 }
 ```
 
+#### Assignments on Conflict {#upsert-conflict-assignments}
+
+Use `upsertWith` when an update on conflict copies some values from the attempted insert and supplies other values directly. `UpsertUpdate::FromInsert` copies the named insert column, `UpsertUpdate::Value` binds a fixed value, and `UpsertUpdate::Expression` accepts trusted SQL with separate bindings. A row inserted without a conflict uses the insert values and table defaults.
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    query::{Record, UpsertUpdate},
+};
+
+pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> DatabaseResult<u64> {
+    let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
+    connection
+        .table("items")
+        .upsertWith(
+            &[row],
+            &["code"],
+            &[
+                UpsertUpdate::FromInsert("stock"),
+                UpsertUpdate::Value("source", "inventory import".into()),
+            ],
+        )
+        .await
+}
+```
+
 ## Update Statements
 
 `update` returns the affected row count. `updateOrInsert` performs an existence check followed by a write. Use `upsert` when the insert and conflict handling must run in one statement. `increment` and `decrement` perform arithmetic in SQL and can set extra columns.

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::database::{DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{Builder, Executor};
-use crate::database::query::{Record, grammars::Grammar};
+use crate::database::query::{Record, UpsertUpdate, grammars::Grammar};
 
 mod json;
 
@@ -68,10 +68,36 @@ impl Builder<'_> {
     }
 
     pub async fn upsert(
-        mut self,
+        self,
         rows: &[Record],
         unique_by: &[&str],
         update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        let update = update.map(|columns| {
+            columns
+                .iter()
+                .map(|column| UpsertUpdate::FromInsert(column))
+                .collect::<Vec<_>>()
+        });
+        self.upsert_assignments(rows, unique_by, update.as_deref())
+            .await
+    }
+
+    /// Inserts rows or applies the supplied assignments to rows that conflict.
+    pub async fn upsertWith(
+        self,
+        rows: &[Record],
+        unique_by: &[&str],
+        update: &[UpsertUpdate<'_>],
+    ) -> DatabaseResult<u64> {
+        self.upsert_assignments(rows, unique_by, Some(update)).await
+    }
+
+    async fn upsert_assignments(
+        mut self,
+        rows: &[Record],
+        unique_by: &[&str],
+        update: Option<&[UpsertUpdate<'_>]>,
     ) -> DatabaseResult<u64> {
         if unique_by.is_empty() || unique_by.iter().any(|column| column.is_empty()) {
             return Err(DatabaseError::InvalidQuery("upsert conflict columns"));
@@ -79,44 +105,64 @@ impl Builder<'_> {
         let Some(first) = rows.first() else {
             return Ok(0);
         };
-        if update == Some(&[]) {
+        if update.is_some_and(<[UpsertUpdate<'_>]>::is_empty) {
             return self.insert(rows).await.map(u64::from);
         }
-        let (mut sql, bindings) = self.compile_insert(rows, false)?;
-        let update = update.map_or_else(
-            || first.keys().map(String::as_str).collect(),
-            |columns| columns.to_vec(),
-        );
-        if update.is_empty() || update.iter().any(|column| !first.contains_key(*column)) {
+        let (mut sql, mut bindings) = self.compile_insert(rows, false)?;
+        let default_update;
+        let update = match update {
+            Some(update) => update,
+            None => {
+                default_update = first
+                    .keys()
+                    .map(|column| UpsertUpdate::FromInsert(column))
+                    .collect::<Vec<_>>();
+                &default_update
+            }
+        };
+        if update.is_empty() {
             return Err(DatabaseError::InvalidQuery("upsert update columns"));
         }
-        if self.grammar.is_mysql() {
-            if self.grammar.uses_upsert_alias() {
+        let mysql = self.grammar.is_mysql();
+        let alias = mysql && self.grammar.uses_upsert_alias();
+        if mysql {
+            if alias {
                 sql.push_str(" as laravel_upsert_alias");
             }
             sql.push_str(" on duplicate key update ");
         } else {
             let conflict = self.write_columns(unique_by.iter().copied())?;
-            if conflict.is_empty() {
-                return Err(DatabaseError::InvalidQuery("upsert conflict columns"));
-            }
             sql.push_str(&format!(" on conflict ({conflict}) do update set "));
         }
-        let columns = update
-            .iter()
-            .map(|column| {
-                let column = self.grammar.column(column)?;
-                let value = if !self.grammar.is_mysql() {
-                    format!("\"excluded\".{column}")
-                } else if self.grammar.uses_upsert_alias() {
-                    format!("`laravel_upsert_alias`.{column}")
-                } else {
-                    format!("values({column})")
-                };
-                Ok(format!("{column} = {value}"))
-            })
-            .collect::<DatabaseResult<Vec<_>>>()?;
-        sql.push_str(&columns.join(", "));
+        let mut assignments = Vec::with_capacity(update.len());
+        for assignment in update {
+            let (column, value) = match assignment {
+                UpsertUpdate::FromInsert(column) => {
+                    if !first.contains_key(*column) {
+                        return Err(DatabaseError::InvalidQuery("upsert update columns"));
+                    }
+                    let column = self.grammar.column(column)?;
+                    let value = if !mysql {
+                        format!("\"excluded\".{column}")
+                    } else if alias {
+                        format!("`laravel_upsert_alias`.{column}")
+                    } else {
+                        format!("values({column})")
+                    };
+                    (column, value)
+                }
+                UpsertUpdate::Value(column, value) => {
+                    bindings.push(value.clone());
+                    (self.grammar.column(column)?, "?".into())
+                }
+                UpsertUpdate::Expression(column, expression) => {
+                    bindings.extend(expression.bindings.iter().cloned());
+                    (self.grammar.column(column)?, expression.sql.clone())
+                }
+            };
+            assignments.push(format!("{column} = {value}"));
+        }
+        sql.push_str(&assignments.join(", "));
         self.affect(&sql, &bindings).await
     }
 

@@ -2,7 +2,11 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
     config::Repository,
-    database::{Connection, DatabaseError, DatabaseManager, Value, query::Record},
+    database::{
+        Connection, DatabaseError, DatabaseManager, Value,
+        events::QueryBindings,
+        query::{Expression, Record, UpsertUpdate},
+    },
 };
 use serde_json::{Value as Json, json};
 
@@ -494,4 +498,119 @@ async fn mysql_pessimistic_locks_block_a_competing_writer_until_commit() {
         db.table("query_lock_probe").value("n").await.unwrap(),
         2.into()
     );
+}
+
+async fn verify_upsert_assignments(db: Connection) {
+    db.unprepared("CREATE TABLE q_upsert_assignments (code VARCHAR(20) PRIMARY KEY, stock INTEGER, note VARCHAR(40) DEFAULT 'new', history INTEGER DEFAULT 4)")
+        .await
+        .unwrap();
+    let table = || db.table("q_upsert_assignments");
+    table()
+        .insert(&[record([("code", "a".into()), ("stock", 1.into())])])
+        .await
+        .unwrap();
+    db.enableQueryLog();
+    let assignments = [
+        UpsertUpdate::FromInsert("stock"),
+        UpsertUpdate::Value("note", "customer's stock".into()),
+        UpsertUpdate::Expression(
+            "history",
+            Expression::new("history + ?").with_bindings(vec![3.into()]),
+        ),
+    ];
+    table()
+        .upsertWith(
+            &[
+                record([("stock", 9.into()), ("code", "a".into())]),
+                record([("code", "b".into()), ("stock", 5.into())]),
+            ],
+            &["code"],
+            &assignments,
+        )
+        .await
+        .unwrap();
+    let entries = db.getQueryLog();
+    assert!(matches!(
+        &entries[0].bindings,
+        QueryBindings::Positional(values) if values == &[
+            "a".into(), 9.into(), "b".into(), 5.into(), "customer's stock".into(), 3.into()
+        ]
+    ));
+    let rows = table().orderBy("code", "asc").get().await.unwrap();
+    assert_eq!(rows[0].get("stock"), Some(&9.into()));
+    assert_eq!(rows[0].get("note"), Some(&"customer's stock".into()));
+    assert_eq!(rows[0].get("history"), Some(&7.into()));
+    assert_eq!(rows[1].get("stock"), Some(&5.into()));
+    assert_eq!(rows[1].get("note"), Some(&"new".into()));
+    assert_eq!(rows[1].get("history"), Some(&4.into()));
+
+    let a = record([("code", "a".into()), ("stock", 13.into())]);
+    let mut tx = db.beginTransaction().await.unwrap();
+    tx.table("q_upsert_assignments")
+        .upsertWith(
+            std::slice::from_ref(&a),
+            &["code"],
+            &[UpsertUpdate::Value("note", Value::Null)],
+        )
+        .await
+        .unwrap();
+    let row = tx
+        .table("q_upsert_assignments")
+        .r#where("code", "=", "a")
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.get("stock"), Some(&9.into()));
+    assert_eq!(row.get("note"), Some(&Value::Null));
+    tx.rollBack(None).await.unwrap();
+    assert_eq!(
+        table()
+            .r#where("code", "=", "a")
+            .value("note")
+            .await
+            .unwrap(),
+        "customer's stock".into()
+    );
+
+    assert!(matches!(
+        table()
+            .upsertWith(
+                std::slice::from_ref(&a),
+                &["code"],
+                &[UpsertUpdate::FromInsert("note")]
+            )
+            .await,
+        Err(DatabaseError::InvalidQuery("upsert update columns"))
+    ));
+    assert!(matches!(
+        table().upsertWith(&[], &[], &[]).await,
+        Err(DatabaseError::InvalidQuery("upsert conflict columns"))
+    ));
+    assert_eq!(
+        table()
+            .upsertWith(&[], &["code"], &assignments)
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(table().upsertWith(&[a], &["code"], &[]).await.is_err());
+    db.unprepared("DROP TABLE q_upsert_assignments")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_upsert_applies_mixed_assignments_only_on_conflict() {
+    verify_upsert_assignments(connection(json!({"driver":"sqlite","database":":memory:"}))).await;
+}
+
+#[tokio::test]
+async fn mysql_upsert_applies_mixed_assignments_with_either_insert_reference() {
+    let Some(url) = mysql_url() else {
+        return;
+    };
+    for alias in [false, true] {
+        verify_upsert_assignments(connection(json!({"url":url,"use_upsert_alias":alias}))).await;
+    }
 }

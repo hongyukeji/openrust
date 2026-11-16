@@ -183,6 +183,32 @@ pub async fn save_stock(connection: &Connection, code: &str, stock: i64) -> Data
 }
 ```
 
+#### 衝突時賦值 {#upsert-conflict-assignments}
+
+需要在衝突時同時使用插入值和指定值時，呼叫 `upsertWith`。`UpsertUpdate::FromInsert` 複製待插入資料列中的指定欄位，`UpsertUpdate::Value` 繫結固定值，`UpsertUpdate::Expression` 接收可信 SQL 和獨立繫結值。沒有衝突的資料列依插入值和資料表預設值寫入。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    query::{Record, UpsertUpdate},
+};
+
+pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> DatabaseResult<u64> {
+    let row = Record::from([("code".into(), code.into()), ("stock".into(), stock.into())]);
+    connection
+        .table("items")
+        .upsertWith(
+            &[row],
+            &["code"],
+            &[
+                UpsertUpdate::FromInsert("stock"),
+                UpsertUpdate::Value("source", "inventory import".into()),
+            ],
+        )
+        .await
+}
+```
+
 ## 更新陳述式
 
 `update` 傳回受影響的資料列數。`updateOrInsert` 先檢查資料是否存在，再執行寫入。需要在一條 SQL 內處理插入與衝突時使用 `upsert`。`increment` 和 `decrement` 在 SQL 中運算，並可一併更新其他欄位。

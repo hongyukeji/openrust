@@ -5,7 +5,7 @@
 - 新增联结和 ON 条件、MySQL LATERAL、派生表、相关 EXISTS、IN 和标量子查询、UNION 和 UNION ALL。Rust 用独立方法承载 PHP 重载，嵌入查询校验来源并将 SQL 和绑定一起交给外层构造器，事务内无需第二次借用连接。
 - 新增批量插入、忽略冲突、INSERT SELECT、同次执行返回主键、upsert、条件更新与删除、原子增减、`updateOrInsert`、JSON 更新和清空表。批量 `Record` 使用有序键，SQLite 冲突目标来自调用参数，MySQL 使用表唯一索引，并支持 `use_upsert_alias`。SQLite 的带联结或限制的写入通过 rowid 子查询确定目标。
 - MySQL 排他锁和共享锁由同一事务会话持有。SQLite 按固定语法省略行锁子句。SQLite `truncate` 在写连接上原子清空表并重置序列，可回滚并处理同名临时表。MySQL `truncate` 使用原生语句，Rust 在显式事务内拒绝会隐式提交的调用。
-- 剩余契约包括跨连接的子查询自动限定、upsert 的固定值更新项、额外的 JSON 查询谓词、全文及向量查询和其他数据库方言。MySQL 的影响行数保留 SQLx 驱动语义。SQLx 在当前版本启用 FOUND_ROWS，匹配但未改变的行数与 PDO 默认值有差异。
+- 剩余契约包括跨连接的子查询自动限定、额外的 JSON 查询谓词、向量查询和其他数据库方言。MySQL 全文谓词见 [07-06 验收](../07-06/README.md)，PostgreSQL 全文随对应驱动跟踪。MySQL 的影响行数保留 SQLx 驱动语义。SQLx 在当前版本启用 FOUND_ROWS，匹配但未改变的行数与 PDO 默认值有差异。
 
 ## 验收
 
@@ -24,3 +24,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - 路径与候选值按各驱动的占位符顺序绑定。MySQL 使用原生 JSON 包含、路径存在和长度函数。SQLite 使用 `json_each`、`json_type`、`json_array_length`，包含条件接受标量，浮点参数保留 Rust 数值类型。`whereJsonLength` 显式接收比较符，使用 `"="` 进行等值比较。
 - macOS arm64，Rust 1.94.0。`cargo test -p openrust-framework --test database_query --locked --offline` 六项通过。使用独立 MySQL 8.4.13 数据库和 SQLite，验证标量与 MySQL 数组包含、否定、嵌套和 OR、JSON null 与缺失路径、带点号及引号的键、多级数组索引、绑定顺序、拒绝非法比较符，以及更新、事务读取和回滚。其余数据库按发布前矩阵验收。
 - 定向严格 Clippy 和 `git diff --check` 通过。三语示例均独立编译，运行 SQLite 查询并检查返回值。VitePress 构建通过，保留现有包体积提示。
+
+## upsert 冲突赋值
+
+对照固定 Laravel [Builder::upsert](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L4448)、[MySQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/MySqlGrammar.php#L430) 与 [SQLite Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/SQLiteGrammar.php#L362)。旧版已有按列名更新及插入列校验，本次复用当前构建器的插入、参数绑定和连接执行路径。
+
+- `upsertWith` 用 `UpsertUpdate` 表达 Laravel 的混合更新数组。支持复制插入列、绑定固定值和执行可信表达式，表达式的绑定按照更新项顺序追加到批量插入参数之后。固定值和表达式可以更新插入记录未包含的列。沿用现有 `upsert` 列名接口、空批处理和显式空更新退回普通插入的行为。
+- Rust 1.94.0，SQLite 和真实 MySQL 8.4.13。MySQL 分别开启和关闭 `use_upsert_alias`。验证批量写入、冲突与新记录、表默认值、带引号的固定值、SQL 表达式绑定、显式 NULL、事务回滚与非法输入。63 项定向回归、严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
+- 三语共用示例在实际 SQLite 和 MySQL Artisan 命令中运行，原生 `main artisan inspire` 通过。三语 VitePress 构建、12 项站点浏览器组合及 6 项 upsert 小节检查通过。
