@@ -335,6 +335,23 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
+#### 同時重新命名與修改欄位 {#renaming-and-changing-a-column}
+
+在 MySQL 上，將 `renameTo()` 和 `change()` 搭配使用，可在同一條 ALTER 中重新命名欄位並更新定義。欄位定義以目前欄位名稱開頭，並明確寫出要保留的修飾符。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn revise_import_labels() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.string("old_label", 100).nullable().renameTo("label").change();
+    })
+    .await
+}
+```
+
+只改名時使用 `renameColumn`。在 SQLite 上，使用 `renameColumn` 改名，再單獨用 `change()` 更新欄位定義。
+
 #### 索引方法與線上刪除欄位 {#index-methods-and-online-column-drops}
 
 在 MySQL 上，用 `algorithm("btree")` 或 `algorithm("hash")` 要求索引方法。`inplace()` 選擇目前操作的 DDL 演算法。MySQL 會根據儲存引擎判斷選項是否受支援。

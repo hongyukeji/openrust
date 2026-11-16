@@ -335,6 +335,23 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 同时重命名和修改列 {#renaming-and-changing-a-column}
+
+在 MySQL 上，将 `renameTo()` 和 `change()` 一起使用，可在同一条 ALTER 中重命名列并更新定义。列定义以当前列名开头，并显式写出要保留的修饰符。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn revise_import_labels() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.string("old_label", 100).nullable().renameTo("label").change();
+    })
+    .await
+}
+```
+
+只改名时用 `renameColumn`。在 SQLite 上，用 `renameColumn` 改名，再单独用 `change()` 更新列定义。
+
 #### 索引方法与在线删列 {#index-methods-and-online-column-drops}
 
 在 MySQL 上，用 `algorithm("btree")` 或 `algorithm("hash")` 请求索引方法。`inplace()` 选择当前操作的 DDL 算法。MySQL 根据存储引擎判断所选选项是否受支持。

@@ -240,14 +240,21 @@ impl Grammar {
         let mut starting_values = Vec::new();
         for command in blueprint.commands {
             match command {
-                Command::Column(column) => {
+                Command::Column(mut column) => {
+                    let rename;
                     let verb = if column.change {
                         if !self.mysql() {
                             return Err(DatabaseError::UnsupportedSchema(
                                 "SQLite column change requires a table rebuild",
                             ));
                         }
-                        "modify column"
+                        if let Some(name) = column.rename_to.take() {
+                            rename = format!("change column {}", self.identifier(&column.name)?);
+                            column.name = name;
+                            &rename
+                        } else {
+                            "modify column"
+                        }
                     } else {
                         "add column"
                     };
@@ -531,6 +538,9 @@ impl Grammar {
     }
 
     pub fn column(&self, column: &ColumnDefinition) -> DatabaseResult<String> {
+        if column.rename_to.is_some() {
+            return Err(DatabaseError::InvalidSchema("renameTo requires change"));
+        }
         if !self.mysql()
             && (column.invisible
                 || column.current_on_update

@@ -335,6 +335,23 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Renaming and Changing a Column {#renaming-and-changing-a-column}
+
+On MySQL, combine `renameTo()` with `change()` to rename a column and set its new definition in one ALTER statement. The definition starts with the current name. Include the modifiers you want to keep.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn revise_import_labels() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.string("old_label", 100).nullable().renameTo("label").change();
+    })
+    .await
+}
+```
+
+For a rename alone, use `renameColumn`. On SQLite, use `renameColumn` for the rename and a separate `change()` for the new definition.
+
 #### Index Methods and Online Column Drops {#index-methods-and-online-column-drops}
 
 On MySQL, use `algorithm("btree")` or `algorithm("hash")` to request an index method. `inplace()` selects the DDL algorithm for the operation. MySQL decides whether the specified options are supported by the storage engine.

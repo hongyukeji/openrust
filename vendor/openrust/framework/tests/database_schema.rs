@@ -2933,3 +2933,150 @@ async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
     schema.drop("hashed_schema").await.unwrap();
     schema.drop("online_schema").await.unwrap();
 }
+
+#[tokio::test]
+async fn mysql_renames_and_modifies_a_column_in_one_change_operation() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("renamed_columns").await.unwrap();
+    schema
+        .create("renamed_columns", |table| {
+            table.id();
+            table.string("old label", 20);
+            table.integer("rank");
+            table.index(&["old label"], Some("stable_lookup"));
+        })
+        .await
+        .unwrap();
+    db.insert(
+        "insert into renamed_columns (`old label`, `rank`) values ('retained', 4)",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        schema
+            .table("renamed_columns", |table| {
+                table
+                    .string("old label", 60)
+                    .nullable()
+                    .renameTo("rank")
+                    .change();
+            })
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        schema
+            .getColumnType("renamed_columns", "old label", true)
+            .await
+            .unwrap(),
+        "varchar(20)"
+    );
+
+    assert!(matches!(
+        schema
+            .table("renamed_columns", |table| {
+                table.integer("not_applied");
+                table.string("invalid_add", 20).renameTo("still_invalid");
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("renameTo requires change"))
+    ));
+    assert!(
+        !schema
+            .hasColumn("renamed_columns", "not_applied")
+            .await
+            .unwrap()
+    );
+
+    schema
+        .table("renamed_columns", |table| {
+            table
+                .string("old label", 60)
+                .nullable()
+                .default("new")
+                .renameTo("new label")
+                .change()
+                .unique();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema
+            .getColumnType("renamed_columns", "new label", true)
+            .await
+            .unwrap(),
+        "varchar(60)"
+    );
+    assert!(
+        !schema
+            .hasColumn("renamed_columns", "old label")
+            .await
+            .unwrap()
+    );
+    let indexes = schema.getIndexes("renamed_columns").await.unwrap();
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.name == "stable_lookup"
+                && index.columns == [Some("new label".into())])
+    );
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.unique && index.columns == [Some("new label".into())])
+    );
+    assert_eq!(
+        db.table("renamed_columns")
+            .value("new label")
+            .await
+            .unwrap(),
+        "retained".into()
+    );
+    db.insert("insert into renamed_columns (`rank`) values (9)", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("renamed_columns")
+            .r#where("id", "=", 2)
+            .value("new label")
+            .await
+            .unwrap(),
+        "new".into()
+    );
+
+    schema
+        .table("renamed_columns", |table| {
+            table.string("new label", 20).renameTo("old label").change();
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasColumn("renamed_columns", "new label")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        schema
+            .getColumnType("renamed_columns", "old label", true)
+            .await
+            .unwrap(),
+        "varchar(20)"
+    );
+    assert_eq!(
+        db.table("renamed_columns")
+            .r#where("id", "=", 1)
+            .value("old label")
+            .await
+            .unwrap(),
+        "retained".into()
+    );
+    schema.drop("renamed_columns").await.unwrap();
+}

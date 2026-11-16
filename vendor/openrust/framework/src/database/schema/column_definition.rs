@@ -81,6 +81,7 @@ pub struct ColumnDefinition {
     pub(super) default: Option<DefaultValue>,
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
+    pub(super) rename_to: Option<String>,
     pub(super) comment: Option<String>,
     pub(super) charset: Option<String>,
     pub(super) collation: Option<String>,
@@ -108,6 +109,7 @@ impl ColumnDefinition {
             default: None,
             generated: None,
             change: false,
+            rename_to: None,
             comment: None,
             charset: None,
             collation: None,
@@ -254,6 +256,12 @@ impl ColumnDefinition {
 
     pub fn comment(&mut self, comment: &str) -> &mut Self {
         self.comment = Some(comment.to_owned());
+        self
+    }
+
+    /// Renames the column as part of a MySQL change operation.
+    pub fn renameTo(&mut self, name: &str) -> &mut Self {
+        self.rename_to = Some(name.to_owned());
         self
     }
 

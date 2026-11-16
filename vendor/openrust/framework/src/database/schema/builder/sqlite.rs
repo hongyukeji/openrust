@@ -166,6 +166,9 @@ async fn rebuild_table(
     for command in commands {
         match command {
             Command::Column(mut column) => {
+                if column.rename_to.is_some() {
+                    return Err(DatabaseError::UnsupportedSchema("SQLite renameTo modifier"));
+                }
                 let mut found = None;
                 for (index, definition) in columns.iter().enumerate() {
                     if sql::column_name(definition)?.eq_ignore_ascii_case(&column.name) {

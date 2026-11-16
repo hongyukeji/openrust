@@ -132,3 +132,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `dropColumn` 返回 `DropColumnDefinition`，可链式传入 `instant()` 和 `lock()`。同次传入的多列按 Laravel 合并为一条 MySQL ALTER。SQLite 保留逐列 SQL 及现有方言错误。
 - 与测试连接相同实例实际查询 `SELECT VERSION()` 得到 MySQL 8.4.13。Rust 1.94.0 执行 `cargo +1.94.0 test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，13 项通过。验证 InnoDB 主键和普通索引 BTREE、MEMORY HASH、在线删列、同语句失败时保留被删列、合法行保留与无效选项预检。首轮宽筛选额外命中一条既有 SQLite 用例，最终日常验收仅计 MySQL。
 - 三语共用示例经实际 MySQL Artisan 运行，原生 `main artisan inspire` 通过。严格工作区 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全工作区格式仍报既有 Sanctum 排版差异，已核对文件与基线相同。
+
+## 同时重命名和修改列
+
+对照固定 Laravel [MySQL compileChange](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L372) 与 [Modifying Columns](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#modifying-columns)。旧版未找到链式 `renameTo()`，本批复用列定义、标识符和原生 ALTER。
+
+- MySQL 将 `renameTo().change()` 编译为一条 `CHANGE COLUMN`。原名和新名分别引用，新增的列级索引使用新名。SQLite 固定上游没有该修饰符，框架显式返回方言错误。独立 `renameColumn` 仍支持 SQLite。
+- 使用测试实例实际查询 `SELECT VERSION()` 得到 MySQL 8.4.13。Rust 1.94.0 执行 `cargo +1.94.0 test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，14 项通过。覆盖旧数据、原索引及新索引、默认值、目标重名拒绝、单独修饰符拒绝和反向变更。
+- 三语共用示例在实际 MySQL Artisan 中完成正向及反向变更。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 测试排版差异。按日常验收范围仅运行 MySQL，SQLite 路径通过工作区编译检查。
