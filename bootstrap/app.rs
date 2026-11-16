@@ -12,8 +12,8 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
     Application::configure(basePath)
         .withConfig(config::load)
         .withProviders(super::providers::providers())
-        .withMigrations(database::migrations::ENTRIES)
-        .withSeeders(database::seeders::ENTRIES)
+        .withMigrations(database::migrations::entries())
+        .withSeeders(database::seeders::entries())
         .withCommands(commands::register)
         .withRouting(
             Routing::default()

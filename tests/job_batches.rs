@@ -54,7 +54,7 @@ impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             app.container().instance(Arc::new(
-                openrust::database::migrations::MigrationRegistry(migrations::ENTRIES),
+                openrust::database::migrations::MigrationRegistry(migrations::entries()),
             ))?;
             Ok(())
         })

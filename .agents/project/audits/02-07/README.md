@@ -29,3 +29,7 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-07.enZkH4` �
 在隔离副本和 MySQL 8.4.13 上实跑 Artisan。用 `make:seeder Admin/APIUserSeeder` 生成子目录 Seeder 并加入手写 Seeder，原二进制对两项均返回未注册。重建后两项都能通过 `--class` 执行，手写 Seeder 实际写入数据库。无参数执行只创建默认示例用户。验收同时安装了修改用户名的 `Creating` 监听器，手写 Seeder 的用户触发了它，默认用户保留原名，验证默认事件抑制。移除两个文件并再次重建后，两者恢复为未注册。全程未编辑集中注册清单或启动接线。
 
 既有 `application_default_seeder_creates_the_verified_example_user_on_mysql`、`artisan_seeders_write_to_real_mysql`、Rust 1.94.0 严格 Clippy、改动文件格式检查、三语示例编译、VitePress 构建和 12 项浏览器检查通过。全仓格式检查仍检出既有 Sanctum 测试格式差异。
+
+## 清单访问接口复验
+
+生成的 Seeder 清单改由 `database::seeders::entries()` 提供，并继续由 `withSeeders` 接入。MySQL 8.4.13 实际 Artisan 复验手写和生成的子目录 Seeder 在重建后可由 `--class` 执行。无参数执行只运行 `DatabaseSeeder`，模型监听器复验确认默认 Seeder 继续抑制模型事件。

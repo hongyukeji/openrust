@@ -36,14 +36,16 @@ fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {
         writeln!(modules, "#[path = {source:?}]\nmod migration_{stem};").unwrap();
         writeln!(
             entries,
-            "    MigrationEntry::new({relative:?}, &migration_{stem}::Definition),"
+            "        MigrationEntry::new({relative:?}, &migration_{stem}::Definition),"
         )
         .unwrap();
     }
 
     fs::write(
         output.join("migrations.rs"),
-        format!("{modules}\npub(crate) const ENTRIES: &[MigrationEntry] = &[\n{entries}];\n"),
+        format!(
+            "{modules}\npub(crate) const fn entries() -> &'static [MigrationEntry] {{\n    static ENTRIES: &[MigrationEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"
+        ),
     )
 }
 
@@ -75,11 +77,13 @@ fn generate_seeders(root: &Path, output: &Path) -> io::Result<()> {
     for (index, path) in files.iter().enumerate() {
         let source = source_path(path)?;
         writeln!(modules, "#[path = {source:?}]\nmod seeder_{index};").unwrap();
-        writeln!(entries, "    seeder_{index}::ENTRY,").unwrap();
+        writeln!(entries, "        seeder_{index}::ENTRY,").unwrap();
     }
     fs::write(
         output.join("seeders.rs"),
-        format!("{modules}\npub(crate) const ENTRIES: &[SeederEntry] = &[\n{entries}];\n"),
+        format!(
+            "{modules}\npub(crate) const fn entries() -> &'static [SeederEntry] {{\n    static ENTRIES: &[SeederEntry] = &[\n{entries}    ];\n    ENTRIES\n}}\n"
+        ),
     )
 }
 
