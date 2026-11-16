@@ -399,7 +399,19 @@ impl Grammar {
     }
 
     fn add_index(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
-        let columns = self.columns(&index.columns)?;
+        let quoted;
+        let columns = match index.raw_expression.as_deref() {
+            Some(expression) => {
+                if expression.trim().is_empty() || expression.contains('\0') {
+                    return Err(DatabaseError::InvalidSchema("raw index expression"));
+                }
+                expression
+            }
+            None => {
+                quoted = self.columns(&index.columns)?;
+                &quoted
+            }
+        };
         let method = self.index_method(index)?;
         let default;
         let name = match &index.name {

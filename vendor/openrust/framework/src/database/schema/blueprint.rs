@@ -481,6 +481,13 @@ impl Blueprint {
         self.add_index(IndexType::Index, columns, name)
     }
 
+    /// Adds a named index using trusted, database-specific SQL for the key list.
+    pub fn rawIndex(&mut self, expression: &str, name: &str) -> &mut IndexDefinition {
+        let index = self.index(&[], Some(name));
+        index.raw_expression = Some(expression.to_owned());
+        index
+    }
+
     pub fn unique(&mut self, columns: &[&str], name: Option<&str>) -> &mut IndexDefinition {
         self.add_index(IndexType::Unique, columns, name)
     }

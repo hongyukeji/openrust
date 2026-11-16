@@ -24,6 +24,7 @@ impl IndexType {
 pub struct IndexDefinition {
     pub(super) kind: IndexType,
     pub(super) columns: Vec<String>,
+    pub(super) raw_expression: Option<String>,
     pub(super) name: Option<String>,
     pub(super) algorithm: Option<String>,
     pub(super) inplace: bool,
@@ -35,6 +36,7 @@ impl IndexDefinition {
         Self {
             kind,
             columns: columns.iter().map(|column| (*column).to_owned()).collect(),
+            raw_expression: None,
             name: name.map(str::to_owned),
             algorithm: None,
             inplace: false,

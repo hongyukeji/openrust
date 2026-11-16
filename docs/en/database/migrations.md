@@ -497,6 +497,21 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 For a rename alone, use `renameColumn`. On SQLite, use `renameColumn` for the rename and a separate `change()` for the new definition.
 
+#### Raw Indexes {#raw-indexes}
+
+`rawIndex(expression, name)` adds a named index using a database-specific SQL key list. MySQL requires an extra pair of parentheses around each functional key part. SQLite accepts `lower(label)` directly. Supply SQL from your migration code. Drop the index with `dropIndex(name)`.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn index_labels() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.rawIndex("(lower(label))", "imports_lower_label");
+    })
+    .await
+}
+```
+
 #### Index Methods and Online Column Drops {#index-methods-and-online-column-drops}
 
 On MySQL, use `algorithm("btree")` or `algorithm("hash")` to request an index method. `inplace()` selects the DDL algorithm for the operation. MySQL decides whether the specified options are supported by the storage engine.

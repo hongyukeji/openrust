@@ -3732,3 +3732,126 @@ async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     assert!(!schema.hasView("local_view").await.unwrap());
     assert!(schema.hasTable("retained.sentinel").await.unwrap());
 }
+
+#[tokio::test]
+async fn mysql_manages_raw_expression_indexes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("raw_index_labels").await.unwrap();
+    schema
+        .create("raw_index_labels", |table| {
+            table.id();
+            table.string("label", 50);
+            table
+                .rawIndex("(lower(label))", "label_folded")
+                .algorithm("btree");
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .hasIndex("raw_index_labels", "label_folded")
+            .await
+            .unwrap()
+    );
+    schema
+        .table("raw_index_labels", |table| {
+            table.dropIndex("label_folded");
+            table.rawIndex("(lower(label)), id", "label_folded_id");
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndex("raw_index_labels", "label_folded")
+            .await
+            .unwrap()
+    );
+    let index = schema
+        .getIndexes("raw_index_labels")
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|index| index.name == "label_folded_id")
+        .unwrap();
+    assert_eq!(index.columns, [None, Some("id".into())]);
+    db.insert(
+        "insert into app_raw_index_labels (label) values (?)",
+        &["ALpha".into()],
+    )
+    .await
+    .unwrap();
+    let plan = db
+        .select(
+            "explain select id from app_raw_index_labels force index (label_folded_id) where lower(label) = 'alpha'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(plan[0].get("key"), Some(&"label_folded_id".into()));
+    assert_eq!(
+        db.scalar(
+            "select id from app_raw_index_labels where lower(label) = 'alpha'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        Value::Unsigned(1)
+    );
+    for invalid in ["  ", "(lower(label))\0"] {
+        assert!(matches!(
+            schema
+                .table("raw_index_labels", |table| {
+                    table.integer("not_added");
+                    table.rawIndex(invalid, "invalid_label_idx");
+                })
+                .await,
+            Err(DatabaseError::InvalidSchema("raw index expression"))
+        ));
+    }
+    assert!(
+        !schema
+            .hasColumn("raw_index_labels", "not_added")
+            .await
+            .unwrap()
+    );
+    schema.drop("raw_index_labels").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_preserves_raw_expression_indexes_during_table_rebuild() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("raw_index_labels", |table| {
+            table.id();
+            table.string("label", 50);
+            table.rawIndex("lower(label)", "label_folded");
+        })
+        .await
+        .unwrap();
+    schema
+        .table("raw_index_labels", |table| {
+            table.string("label", 100).nullable().change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getIndexListing("raw_index_labels").await.unwrap(),
+        ["label_folded", "primary"]
+    );
+    let plan = db
+        .select(
+            "explain query plan select id from raw_index_labels indexed by label_folded where lower(label) = 'alpha'",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        matches!(plan[0].get("detail"), Some(Value::Text(detail)) if detail.contains("label_folded"))
+    );
+}

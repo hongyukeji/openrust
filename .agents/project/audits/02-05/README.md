@@ -203,3 +203,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 使用 `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 上通过 19 项 Schema 回归及 1 项限定库清理回归。测试覆盖在既有带前缀连接中读取修改后列的名称、类型、注释及可空性，以及缺失列行为。验收入口取自隔离副本的 `3d2641c0f`。
 - 使用 `docker/accept.py --mysql` 运行三语共用例的实际 Artisan 命令，验证普通和大写列名、缺失列及删表后的结果。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 排版差异，SQLite 日常仅编译。
 - 类型目录另行跟踪。固定版 [通用 Schema Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/Grammar.php) 对不支持的驱动报错，[PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) 查询原生类型。当前连接工厂只有 MySQL 和 SQLite 的运行时实现，暂未提供 `getTypes`，也未用空目录替代。
+
+## 原生索引表达式
+
+对照固定 Laravel [Blueprint::rawIndex](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L740)、[MySQL 语法测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseMySqlSchemaGrammarTest.php#L420)及 [SQLite 语法测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSQLiteSchemaGrammarTest.php#L267)。旧版未找到相同方法，本批沿用索引定义、语法编译、目录查询及删除命令。
+
+- `rawIndex(expression, name)` 接收迁移代码提供的原生键列表，返回 `IndexDefinition` 并保留普通索引支持的修饰符。MySQL 函数键由调用端显式传入一对括号，框架只为外层键列表补括号。空表达式和 NUL 在执行 DDL 前拒绝。
+- `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 20 项 Schema 回归及 1 项限定库清理回归。验证建表和修改表、列与表达式的混合键顺序、索引启用及删除、`EXPLAIN` 查询计划、实际命中行和无效输入预检。目录中表达式位置保留既有 `None` 表示。验收入口取自隔离副本的 `3d2641c0f`。
+- `docker/accept.py --mysql` 跑通三语共用的实际 Artisan 示例并验证索引创建和删除。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 的表达式索引及重建回归已编译，执行留待发布前。

@@ -497,6 +497,21 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 只改名时用 `renameColumn`。在 SQLite 上，用 `renameColumn` 改名，再单独用 `change()` 更新列定义。
 
+#### 原生索引表达式 {#raw-indexes}
+
+`rawIndex(expression, name)` 使用数据库方言的 SQL 键列表创建命名索引。MySQL 要求每个函数索引键额外包一层括号。SQLite 可直接写 `lower(label)`。SQL 由迁移代码提供。用 `dropIndex(name)` 删除索引。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn index_labels() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.rawIndex("(lower(label))", "imports_lower_label");
+    })
+    .await
+}
+```
+
 #### 索引方法与在线删列 {#index-methods-and-online-column-drops}
 
 在 MySQL 上，用 `algorithm("btree")` 或 `algorithm("hash")` 请求索引方法。`inplace()` 选择当前操作的 DDL 算法。MySQL 根据存储引擎判断所选选项是否受支持。
