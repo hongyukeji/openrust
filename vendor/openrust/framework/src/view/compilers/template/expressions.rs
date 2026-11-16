@@ -173,6 +173,71 @@ fn compare(left: &ViewValue, right: &ViewValue) -> Option<Ordering> {
     left.as_f64()?.partial_cmp(&right.as_f64()?)
 }
 
+pub(super) fn loose_equal(left: &ViewValue, right: &ViewValue) -> bool {
+    use serde_json::Value::{Array, Bool, Null, Number, Object, String};
+    match (left, right) {
+        (Bool(_), _) | (_, Bool(_)) => truthy(left) == truthy(right),
+        (Null, String(text)) | (String(text), Null) => text.is_empty(),
+        (Null, _) | (_, Null) => truthy(left) == truthy(right),
+        (String(left), String(right)) => {
+            if let (Some(left), Some(right)) = (integer_text(left), integer_text(right)) {
+                left == right
+            } else {
+                numeric_text(left)
+                    .zip(numeric_text(right))
+                    .map_or_else(|| left == right, |(left, right)| left == right)
+            }
+        }
+        (Number(_), String(text)) | (String(text), Number(_)) => {
+            let number = if left.is_number() { left } else { right };
+            if let (Some(number), Some(text)) = (number.as_i64(), integer_text(text)) {
+                number == text
+            } else {
+                number
+                    .as_f64()
+                    .zip(numeric_text(text))
+                    .is_some_and(|(number, text)| number == text)
+            }
+        }
+        (Number(_), Number(_)) => compare(left, right) == Some(Ordering::Equal),
+        (Array(left), Array(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(left, right)| loose_equal(left, right))
+        }
+        (Object(left), Object(right)) => {
+            left.len() == right.len()
+                && left.iter().all(|(key, value)| {
+                    right
+                        .get(key)
+                        .is_some_and(|other| loose_equal(value, other))
+                })
+        }
+        _ => false,
+    }
+}
+
+fn integer_text(value: &str) -> Option<i64> {
+    value
+        .trim_matches(|c: char| c.is_ascii_whitespace())
+        .parse()
+        .ok()
+}
+
+fn numeric_text(value: &str) -> Option<f64> {
+    let value = value.trim_matches(|c: char| c.is_ascii_whitespace());
+    if value
+        .bytes()
+        .all(|byte| matches!(byte, b'0'..=b'9' | b'+' | b'-' | b'.' | b'e' | b'E'))
+    {
+        value.parse().ok()
+    } else {
+        None
+    }
+}
+
 fn boolean(value: bool) -> &'static ViewValue {
     if value {
         &ViewValue::Bool(true)

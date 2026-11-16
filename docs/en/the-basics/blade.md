@@ -59,6 +59,18 @@ Use `@for` with a signed integer counter and `++`, `--`, `+=`, or `-=`. `@while`
 @endfor
 ```
 
+Use `@switch`, `@case`, `@default`, and `@endswitch` to branch on a view value. A case continues into the next case until `@break` or the end of the switch. Numeric strings can match numeric cases. `@bool` writes the text `true` or `false`.
+
+```html
+@switch($state)
+    @case('ready')
+        Ready
+        @break
+    @default
+        Pending
+@endswitch
+```
+
 ### The Loop Variable {#the-loop-variable}
 
 Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based integer keys. Objects expose string keys in the order of the view data map.
@@ -145,6 +157,8 @@ Place the child template in `resources/views/dashboard.blade.html` and return `v
 </x-notice>
 @endsection
 ```
+
+Use `@hasSection('content')` or `@sectionMissing('content')`, closed with `@endif`, to test whether a layout section has content.
 
 ## Forms {#forms}
 

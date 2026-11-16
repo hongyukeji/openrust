@@ -47,3 +47,8 @@
 - 对照固定 [CompilesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesLoops.php)。`@for` 采用作用域内的有符号整数计数器，`@while` 求值已有表达式模型。新增数字或同类型文本顺序比较。条件跳转与整数字面量层级沿用 Laravel 区分，跳转后恢复外层循环元数据。计数和 while 循环共用渲染树迭代上限。旧版 MiniJinja 循环与当前指令树无直接移植项。
 - macOS ARM64、Rust 1.94.0。真实 HTTP 验证升降序、条件跳转、多层 continue、空分支、越层编译错误、while 停止及迭代限额。8 项定向测试通过。隔离副本工作区格式与严格 Clippy 通过。
 - 实际 Artisan 缓存和清理三语示例，三语 VitePress 构建以及根路径与 `/docs/` 的 12 项浏览器组合通过。
+
+## Switch 与区段判断
+
+- 对照固定 [CompilesConditionals](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesConditionals.php)。支持标签选择、默认分支、贯穿、循环式跳转。`@hasSection` 与 `@sectionMissing` 检查渲染后的区段文本，`@bool` 输出布尔文本。Rust switch 匹配视图标量、数组和 JSON 对象，没有 PHP 对象身份语义。旧版 MiniJinja 无对应 Blade 指令可直接移植。
+- macOS ARM64、Rust 1.94.0。真实 HTTP 验证数字字符串匹配、默认标签位置、分支贯穿、跨层 continue、重复默认分支返回 500、占位区段和布尔输出。8 项定向测试通过，隔离副本全工作区格式和严格 Clippy 通过。Artisan 缓存和清理、三语站点构建及 12 项浏览器组合通过。

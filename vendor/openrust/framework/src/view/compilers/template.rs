@@ -20,7 +20,7 @@ use attributes::{
     parse_attribute_list, parse_echo, parse_props, render_attributes,
 };
 
-use expressions::{Expression, expression_value, truthy, value};
+use expressions::{Expression, expression_value, loose_equal, truthy, value};
 use includes::{Include, IncludeFirst, RenderEach, collection_entries};
 use loops::{CountedLoop, Jump, JumpKind};
 
@@ -46,6 +46,7 @@ enum Node {
     For(CountedLoop),
     While(Expression, Vec<Node>),
     Jump(JumpKind, usize, Option<Expression>),
+    Switch(Expression, Vec<SwitchCase>),
     Extends(Expression),
     Parent,
     Section(Expression, Vec<Node>, bool),
@@ -58,6 +59,7 @@ enum Node {
     Error(Expression, Option<Expression>, Vec<Node>),
     Fragment(Expression, Vec<Node>),
     BooleanAttribute(String, Expression),
+    BooleanText(Expression),
     ConditionalAttribute(AttributeList, bool),
     CustomDirective(String, Vec<Expression>),
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
@@ -89,12 +91,20 @@ struct CustomBranch {
     body: Vec<Node>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct SwitchCase {
+    value: Option<Expression>,
+    body: Vec<Node>,
+}
+
 #[derive(Clone, Copy, Serialize, Deserialize)]
 enum Predicate {
     Truthy,
     Empty,
     Isset,
     HasStack,
+    HasSection,
+    SectionMissing,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -170,6 +180,9 @@ enum Stop<'a> {
     EndForelse,
     EndFor,
     EndWhile,
+    Case,
+    Default,
+    EndSwitch,
     Empty,
     EndEmpty,
     EndIsset,
@@ -481,6 +494,10 @@ impl<'a> Parser<'a> {
             self.jump(JumpKind::Break)?
         } else if self.directive("continue") {
             self.jump(JumpKind::Continue)?
+        } else if self.directive("switch") {
+            self.switch_block(depth)?
+        } else if self.directive("bool") {
+            Node::BooleanText(expression_value(self.arguments()?)?)
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -731,6 +748,8 @@ impl<'a> Parser<'a> {
             ("isset", Predicate::Isset, Stop::EndIsset),
             ("empty", Predicate::Empty, Stop::EndEmpty),
             ("hasStack", Predicate::HasStack, Stop::EndIf),
+            ("hasSection", Predicate::HasSection, Stop::EndIf),
+            ("sectionMissing", Predicate::SectionMissing, Stop::EndIf),
         ]
         .into_iter()
         .find_map(|(name, predicate, stop)| self.directive(name).then_some((predicate, stop)))
@@ -803,6 +822,37 @@ impl<'a> Parser<'a> {
         Ok(Node::Jump(kind, levels, condition))
     }
 
+    fn switch_block(&mut self, depth: usize) -> ViewResult<Node> {
+        let value = expression_value(self.arguments()?)?;
+        let (prefix, mut stop) = self.block(depth + 1)?;
+        if prefix
+            .iter()
+            .any(|node| !matches!(node, Node::Text(text) if text.trim().is_empty()))
+        {
+            return Err(invalid("The first Blade switch label must follow @switch."));
+        }
+        let mut seen_default = false;
+        let mut cases = Vec::new();
+        loop {
+            let case_value = match stop {
+                Some(Stop::Case) => Some(expression_value(self.arguments()?)?),
+                Some(Stop::Default) if !seen_default => {
+                    seen_default = true;
+                    None
+                }
+                Some(Stop::EndSwitch) => break,
+                _ => return Err(invalid("Invalid or unclosed Blade switch.")),
+            };
+            let (body, next) = self.around_loop(depth)?;
+            cases.push(SwitchCase {
+                value: case_value,
+                body,
+            });
+            stop = next;
+        }
+        Ok(Node::Switch(value, cases))
+    }
+
     fn stop(&mut self) -> Option<Stop<'a>> {
         if let Some(rest) = self.remaining.strip_prefix("@empty")
             && !rest.trim_start().starts_with('(')
@@ -826,6 +876,9 @@ impl<'a> Parser<'a> {
             ("endforelse", Stop::EndForelse),
             ("endfor", Stop::EndFor),
             ("endwhile", Stop::EndWhile),
+            ("case", Stop::Case),
+            ("default", Stop::Default),
+            ("endswitch", Stop::EndSwitch),
             ("endisset", Stop::EndIsset),
             ("endempty", Stop::EndEmpty),
             ("elseif", Stop::ElseIf),
@@ -1049,6 +1102,8 @@ fn render_nodes<'a>(
                     Predicate::Empty => !truthy(value),
                     Predicate::Isset => !value.is_null(),
                     Predicate::HasStack => context.has_stack(name_value(value)?),
+                    Predicate::HasSection => context.has_section(name_value(value)?),
+                    Predicate::SectionMissing => !context.has_section(name_value(value)?),
                 };
                 render_block!(
                     if matches { yes } else { no },
@@ -1163,6 +1218,26 @@ fn render_nodes<'a>(
                     }));
                 }
             }
+            Node::Switch(subject, cases) => {
+                let subject = value(subject, data, bindings);
+                let selected = cases
+                    .iter()
+                    .position(|case| {
+                        case.value
+                            .as_ref()
+                            .is_some_and(|case| loose_equal(subject, value(case, data, bindings)))
+                    })
+                    .or_else(|| cases.iter().position(|case| case.value.is_none()));
+                if let Some(selected) = selected {
+                    for case in &cases[selected..] {
+                        match render_nodes(&case.body, data, bindings, output, context)? {
+                            Some(jump) if jump.levels > 1 => return Ok(Some(jump.outer())),
+                            Some(_) => break,
+                            None => {}
+                        }
+                    }
+                }
+            }
             Node::Parent => output.push_str(context.parent()),
             Node::Extends(expression) => {
                 context.extend(name_value(value(expression, data, bindings))?.to_owned())?;
@@ -1251,6 +1326,13 @@ fn render_nodes<'a>(
                 if truthy(value(condition, data, bindings)) {
                     output.push_str(name);
                 }
+            }
+            Node::BooleanText(condition) => {
+                output.push_str(if truthy(value(condition, data, bindings)) {
+                    "true"
+                } else {
+                    "false"
+                });
             }
             Node::ConditionalAttribute(entries, style) => {
                 let name = if *style { "style" } else { "class" };

@@ -59,6 +59,18 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 @endfor
 ```
 
+使用 `@switch`、`@case`、`@default` 与 `@endswitch` 按视图值分支。选中的分支会依次执行后续分支，直到 `@break` 或整个区块结束。数字字符串可匹配数字分支。`@bool` 输出 `true` 或 `false` 文本。
+
+```html
+@switch($state)
+    @case('ready')
+        Ready
+        @break
+    @default
+        Pending
+@endswitch
+```
+
 ### 循环变量 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 均接受 `$key => $item`。数组的键是从零开始的整数。对象按视图数据映射的顺序提供字符串键。
@@ -145,6 +157,8 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 </x-notice>
 @endsection
 ```
+
+用 `@hasSection('content')` 或 `@sectionMissing('content')` 判断布局区段是否有内容，并用 `@endif` 结束。
 
 ## 表单 {#forms}
 

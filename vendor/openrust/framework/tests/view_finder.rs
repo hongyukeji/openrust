@@ -461,6 +461,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/bad-component", || view("bad_component"))?;
                 Route::get("/custom-condition", || view("custom_condition"))?;
                 Route::get("/bad-condition", || view("bad_condition"))?;
+                Route::get("/switch", || view("switch_cases"))?;
+                Route::get("/bad-switch", || view("bad_switch"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -757,6 +759,24 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("bad_condition", "@appIs('A')missing end"),
+        (
+            "switch_cases",
+            concat!(
+                "@extends('switch_layout')@section('banner', 'Ready')",
+                "@switch('2')@default wrong@break @case(2)two@case(3)three@break @endswitch|",
+                "@for($i = 0; $i < 2; $i++)",
+                "@switch($i)@case(0)@continue(2)@default good@endswitch{{ $i }}@endfor|",
+                "@bool(true)@bool(false)|",
+            ),
+        ),
+        (
+            "switch_layout",
+            concat!(
+                "@hasSection('banner')@yield('banner')@endif",
+                "@sectionMissing('sidebar')/no sidebar@endif",
+            ),
+        ),
+        ("bad_switch", "@switch(0)@default x@default y@endswitch"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -901,6 +921,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(a, "A!1");
     assert_eq!(b, "B! 2");
     assert!(send(first, "/bad-condition", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/switch", 200).await,
+        "twothree| good1|truefalse|Ready/no sidebar"
+    );
+    assert!(send(first, "/bad-switch", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

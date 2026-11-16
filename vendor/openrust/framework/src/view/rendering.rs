@@ -94,6 +94,12 @@ impl<'a> RenderContext<'a> {
         true
     }
 
+    pub(super) fn has_section(&self, name: &str) -> bool {
+        let mut section = String::new();
+        self.yield_to(name, &mut section);
+        !matches!(section.trim(), "" | "0")
+    }
+
     pub(super) fn parent(&self) -> &str {
         &self.parent_marker
     }
