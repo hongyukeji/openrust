@@ -69,4 +69,34 @@ let results = batch.send().await;
 assert!(results["missing"].is_err());
 ```
 
-從 `openrust::http::client::events` 匯入 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed` 註冊監聽。事件名稱使用 `OpenRust\Http\Client\Events\` 前綴。應用 HTTP 用戶端在每次請求嘗試時派發事件，包括重試。
+### 送出請求事件 {#outgoing-request-events}
+
+從 `openrust::http::client::events` 匯入 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed` 以註冊監聽。應用程式工廠使用所屬應用程式的派發器。獨立工廠可透過 `withDispatcher` 指定派發器。用 `withAttributes` 附加本機中繼資料，監聽器可從請求快照讀取，這些資料留在用戶端。
+
+每次向上游傳送請求前，`RequestSending` 先於單項請求的 `beforeSending` 回呼派發。收到最終回應時，`ResponseReceived` 在 `afterResponse` 之前派發，4xx 和 5xx 也會觸發。`ConnectionFailed` 帶有實際嘗試傳送的請求以及型別化的連線或逾時錯誤。重試會重複這個事件序列。被測試攔截的意外請求只派發 `RequestSending`。
+
+執行下例時，在本機服務加入 `GET /redirect`，使它以 302 重新導向至 `/missing`。將 `HTTP_CLIENT_EXAMPLE_FAILURE` 設為拒絕連線的本機端點 URL。
+
+```rust
+use openrust::http::client::{Error, events::{ConnectionFailed, RequestSending, ResponseReceived}};
+use openrust::support::facades::{Event, Http};
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let unavailable = std::env::var("HTTP_CLIENT_EXAMPLE_FAILURE")?;
+let sending = r"OpenRust\Http\Client\Events\RequestSending";
+let received = r"OpenRust\Http\Client\Events\ResponseReceived";
+let failed = r"OpenRust\Http\Client\Events\ConnectionFailed";
+let events = Event::fake(&[sending, received, failed])?;
+
+assert!(Http::get(&format!("{origin}/redirect")).await?.notFound());
+assert!(matches!(Http::get(&unavailable).await, Err(Error::Connection)));
+let outgoing = events.dispatched(sending);
+assert_eq!(outgoing.len(), 3);
+assert_eq!(outgoing[1].downcast_ref::<RequestSending>().unwrap().request.url.path(), "/missing");
+let replies = events.dispatched(received);
+assert_eq!(replies.len(), 1);
+assert!(replies[0].downcast_ref::<ResponseReceived>().unwrap().response.notFound());
+let failures = events.dispatched(failed);
+assert_eq!(failures.len(), 1);
+assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.as_str(), unavailable);
+```

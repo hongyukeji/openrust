@@ -41,3 +41,24 @@ impl Event for ConnectionFailed {
         r"OpenRust\Http\Client\Events\ConnectionFailed"
     }
 }
+
+impl ConnectionFailure {
+    pub(super) fn from_error(error: &super::Error) -> Option<Self> {
+        match error {
+            super::Error::Connection => Some(Self::Connection),
+            super::Error::Timeout => Some(Self::Timeout),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for ConnectionFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connection => super::Error::Connection.fmt(formatter),
+            Self::Timeout => super::Error::Timeout.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for ConnectionFailure {}

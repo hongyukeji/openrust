@@ -636,3 +636,168 @@ async fn batch_empty_redirect_and_conditional_http_errors_preserve_callback_boun
     ));
     server.abort();
 }
+
+#[tokio::test]
+async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
+    use openrust::events::Dispatcher;
+    use openrust::http::client::events::{
+        ConnectionFailed, ConnectionFailure, RequestSending, ResponseReceived,
+    };
+
+    let (target, target_server) = serve(Router::new().route(
+        "/target",
+        get(|headers: HeaderMap| async move {
+            assert!(!headers.contains_key(header::AUTHORIZATION));
+            assert_eq!(headers["x-wire"], "sent");
+            (StatusCode::SERVICE_UNAVAILABLE, "needs retry")
+        }),
+    ))
+    .await;
+    let broken = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let broken_uri = format!("http://{}/disconnected", broken.local_addr().unwrap());
+    let broken_server = tokio::spawn(async move {
+        while let Ok((stream, _)) = broken.accept().await {
+            drop(stream);
+        }
+    });
+    let (base, server) = serve(
+        Router::new()
+            .route(
+                "/redirect",
+                get(move || async move {
+                    (
+                        StatusCode::FOUND,
+                        [(header::LOCATION, format!("{target}/target"))],
+                        "redirect body larger than the final body",
+                    )
+                }),
+            )
+            .route(
+                "/broken",
+                get(move || async move { (StatusCode::FOUND, [(header::LOCATION, broken_uri)]) }),
+            )
+            .route(
+                "/loop",
+                get(|| async { (StatusCode::FOUND, [(header::LOCATION, "/loop")]) }),
+            )
+            .route(
+                "/slow",
+                get(|| async {
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    "slow"
+                }),
+            ),
+    )
+    .await;
+
+    let dispatcher = Arc::new(Dispatcher::new());
+    let events = dispatcher.fake(&[]);
+    let factory = Factory::new().unwrap().withDispatcher(dispatcher);
+    factory.fake(|_| None);
+    let attrs: serde_json::Map<String, Value> =
+        serde_json::from_value(json!({"trace": "local"})).unwrap();
+    let pending = || {
+        factory
+            .pendingRequest()
+            .withToken("local-test-token")
+            .withAttributes(attrs.clone())
+            .beforeSending(|request| {
+                request
+                    .headers_mut()
+                    .insert("x-wire", HeaderValue::from_static("sent"));
+                Ok(())
+            })
+    };
+
+    let response = pending()
+        .maxResponseBytes(16)
+        .retry(2, Duration::ZERO)
+        .throwOnRetryFailure(false)
+        .afterResponse(|response| {
+            assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+            Ok(Response::new(
+                StatusCode::BAD_GATEWAY,
+                HeaderMap::new(),
+                b"rewritten",
+            ))
+        })
+        .get(&format!("{base}/redirect"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    assert!(matches!(
+        pending().get(&format!("{base}/broken")).await,
+        Err(Error::Connection)
+    ));
+    assert!(matches!(
+        factory.get(&format!("{base}/loop")).await,
+        Err(Error::RedirectLimit)
+    ));
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .timeout(Duration::from_millis(15))
+            .get(&format!("{base}/slow"))
+            .await,
+        Err(Error::Timeout)
+    ));
+
+    let sending = events.dispatched(r"OpenRust\Http\Client\Events\RequestSending");
+    let replies = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
+    let failures = events.dispatched(r"OpenRust\Http\Client\Events\ConnectionFailed");
+    let paths = sending
+        .iter()
+        .map(|entry| {
+            entry
+                .downcast_ref::<RequestSending>()
+                .unwrap()
+                .request
+                .url
+                .path()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        &paths[..6],
+        [
+            "/redirect",
+            "/target",
+            "/redirect",
+            "/target",
+            "/broken",
+            "/disconnected"
+        ]
+    );
+    assert_eq!(paths.iter().filter(|&&path| path == "/loop").count(), 6);
+    assert_eq!(paths.last(), Some(&"/slow"));
+
+    let first = sending[0].downcast_ref::<RequestSending>().unwrap();
+    assert_eq!(first.request.attributes["trace"], "local");
+    assert!(!first.request.headers.contains_key("x-wire"));
+    let cross_origin = sending[1].downcast_ref::<RequestSending>().unwrap();
+    assert!(
+        !cross_origin
+            .request
+            .headers
+            .contains_key(header::AUTHORIZATION)
+    );
+    assert_eq!(replies.len(), 2);
+    for reply in replies {
+        let reply = reply.downcast_ref::<ResponseReceived>().unwrap();
+        assert_eq!(reply.request.url.path(), "/target");
+        assert_eq!(reply.response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+    assert_eq!(failures.len(), 2);
+    let failure = failures[0].downcast_ref::<ConnectionFailed>().unwrap();
+    assert_eq!(failure.exception, ConnectionFailure::Connection);
+    assert_eq!(failure.request.url.path(), "/disconnected");
+    assert_eq!(failure.request.headers["x-wire"], "sent");
+    assert_eq!(failure.request.attributes["trace"], "local");
+    let timed_out = failures[1].downcast_ref::<ConnectionFailed>().unwrap();
+    assert_eq!(timed_out.exception, ConnectionFailure::Timeout);
+    assert_eq!(timed_out.request.url.path(), "/slow");
+    assert!(factory.recorded().last().unwrap().1.is_none());
+
+    for server in [server, target_server, broken_server] {
+        server.abort();
+    }
+}

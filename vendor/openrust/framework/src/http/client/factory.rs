@@ -14,7 +14,7 @@ use crate::{
     support::Str,
 };
 
-use super::{Batch, Error, PendingRequest, Pool, Response, Result};
+use super::{Batch, Error, PendingRequest, Pool, Response, Result, transport::Incoming};
 
 pub(super) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) const TIMEOUT: Duration = Duration::from_secs(30);
@@ -44,6 +44,7 @@ pub struct RecordedRequest {
     pub url: Url,
     pub headers: HeaderMap,
     pub body: Option<Vec<u8>>,
+    pub attributes: serde_json::Map<String, serde_json::Value>,
 }
 
 /// An ordered queue of fake responses, shared by callers of the matching URL.
@@ -108,19 +109,15 @@ impl From<&reqwest::Request> for RecordedRequest {
                 .body()
                 .and_then(reqwest::Body::as_bytes)
                 .map(<[u8]>::to_vec),
+            attributes: Default::default(),
         }
     }
 }
 
-pub(super) fn build_client(connect_timeout: Duration, redirects: usize) -> Result<reqwest::Client> {
-    let policy = if redirects == 0 {
-        reqwest::redirect::Policy::none()
-    } else {
-        reqwest::redirect::Policy::limited(redirects)
-    };
+pub(super) fn build_client(connect_timeout: Duration) -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .connect_timeout(connect_timeout)
-        .redirect(policy)
+        .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
         .retry(reqwest::retry::never())
         .build()
@@ -131,10 +128,23 @@ pub(super) fn build_client(connect_timeout: Duration, redirects: usize) -> Resul
 impl Factory {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            client: build_client(CONNECT_TIMEOUT, 5)?,
+            client: build_client(CONNECT_TIMEOUT)?,
             testing: Arc::default(),
             events: None,
         })
+    }
+
+    pub fn withDispatcher(mut self, dispatcher: Arc<Dispatcher>) -> Self {
+        self.events = Some(dispatcher);
+        self
+    }
+
+    pub(super) fn is_recording(&self) -> bool {
+        self.testing().recording
+    }
+
+    pub(super) fn record(&self, request: RecordedRequest, response: Option<Response>) {
+        self.testing().recorded.push((request, response));
     }
 
     pub(super) async fn emit(&self, event: impl Event) -> Result<()> {
@@ -261,37 +271,19 @@ impl Factory {
         &self,
         client: &reqwest::Client,
         request: reqwest::Request,
-        limit: usize,
-    ) -> Result<Response> {
-        let (stubs, prevent_stray, record) = {
+    ) -> Result<Incoming> {
+        let (stubs, prevent_stray) = {
             let testing = self.testing();
-            (
-                testing.stubs.clone(),
-                testing.prevent_stray,
-                testing.recording,
-            )
+            (testing.stubs.clone(), testing.prevent_stray)
         };
-        let recorded = record.then(|| RecordedRequest::from(&request));
-        let result = match stubs.iter().find_map(|callback| callback(&request)) {
-            Some(Ok(response)) if response.body().len() > limit => Err(Error::BodyTooLarge),
-            Some(result) => result,
-            None if prevent_stray => return Err(Error::StrayRequest),
-            None => {
-                match client
-                    .execute(request)
-                    .await
-                    .map_err(super::transport_error)
-                {
-                    Ok(response) => Response::from_transport(response, limit).await,
-                    Err(error) => Err(error),
-                }
-            }
-        };
-        if let Some(recorded) = recorded {
-            self.testing()
-                .recorded
-                .push((recorded, result.as_ref().ok().cloned()));
+        match stubs.iter().find_map(|callback| callback(&request)) {
+            Some(result) => result.map(Incoming::Fake),
+            None if prevent_stray => Err(Error::StrayRequest),
+            None => client
+                .execute(request)
+                .await
+                .map(Incoming::Network)
+                .map_err(super::transport_error),
         }
-        result
     }
 }

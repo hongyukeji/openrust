@@ -184,13 +184,14 @@ impl ServiceProvider for HttpClientServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             app.container().singleton::<Factory, _>(|container| {
-                let mut factory =
+                let factory =
                     Factory::new().map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "http.client",
                         source: Box::new(source),
                     })?;
-                factory.events = Some(container.make::<crate::events::Dispatcher>()?);
-                Ok(Arc::new(factory))
+                Ok(Arc::new(factory.withDispatcher(
+                    container.make::<crate::events::Dispatcher>()?,
+                )))
             })?;
             Ok(())
         })

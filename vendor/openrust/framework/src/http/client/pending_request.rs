@@ -4,9 +4,10 @@ use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
 
 use super::factory::{BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client};
+use super::transport::Transport;
 use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
 
-type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
+pub(super) type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
 type ThrowCondition = dyn Fn(&Response) -> bool + Send + Sync;
 type RetryCondition = dyn Fn(&Error) -> bool + Send + Sync;
@@ -64,6 +65,7 @@ pub struct PendingRequest {
     headers: HeaderMap,
     invalid_header: bool,
     query: indexmap::IndexMap<String, String>,
+    attributes: serde_json::Map<String, serde_json::Value>,
     connect_timeout: Duration,
     timeout: Duration,
     redirects: usize,
@@ -84,6 +86,7 @@ impl PendingRequest {
             headers: HeaderMap::new(),
             invalid_header: false,
             query: indexmap::IndexMap::new(),
+            attributes: serde_json::Map::new(),
             connect_timeout: CONNECT_TIMEOUT,
             timeout: TIMEOUT,
             redirects: 5,
@@ -177,6 +180,14 @@ impl PendingRequest {
             _ => Form::new(),
         };
         self.payload = Payload::Multipart(form.part(name.into(), part));
+        self
+    }
+
+    pub fn withAttributes(
+        mut self,
+        attributes: serde_json::Map<String, serde_json::Value>,
+    ) -> Self {
+        self.attributes.extend(attributes);
         self
     }
 
@@ -309,10 +320,10 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        let client = if self.connect_timeout == CONNECT_TIMEOUT && self.redirects == 5 {
+        let client = if self.connect_timeout == CONNECT_TIMEOUT {
             self.factory.client.clone()
         } else {
-            build_client(self.connect_timeout, self.redirects)?
+            build_client(self.connect_timeout)?
         };
         let mut url = parse_url(self.base_url.as_deref(), url)?;
         if !self.query.is_empty() {
@@ -345,53 +356,18 @@ impl PendingRequest {
         } else {
             Some(request.try_clone().ok_or(Error::UnreplayableRequest)?)
         };
+        let transport = Transport {
+            factory: &self.factory,
+            client: &client,
+            before_sending: &self.before_sending,
+            attributes: &self.attributes,
+            max_redirects: self.redirects,
+            timeout: self.timeout,
+            body_limit: self.body_limit,
+        };
         let mut request = request;
         loop {
-            for callback in &self.before_sending {
-                callback(&mut request)?;
-            }
-            let recorded = self
-                .factory
-                .events
-                .as_ref()
-                .map(|_| super::RecordedRequest::from(&request));
-            if let Some(recorded) = &recorded {
-                self.factory
-                    .emit(super::events::RequestSending {
-                        request: recorded.clone(),
-                    })
-                    .await?;
-            }
-            let result = tokio::time::timeout(
-                self.timeout,
-                self.factory.dispatch(&client, request, self.body_limit),
-            )
-            .await
-            .unwrap_or(Err(Error::Timeout));
-            if let Some(request) = recorded {
-                use super::events::{ConnectionFailed, ConnectionFailure, ResponseReceived};
-                match &result {
-                    Ok(response) => {
-                        self.factory
-                            .emit(ResponseReceived {
-                                request,
-                                response: response.clone(),
-                            })
-                            .await?
-                    }
-                    Err(Error::Timeout | Error::Connection) => {
-                        let exception = if matches!(result, Err(Error::Timeout)) {
-                            ConnectionFailure::Timeout
-                        } else {
-                            ConnectionFailure::Connection
-                        };
-                        self.factory
-                            .emit(ConnectionFailed { request, exception })
-                            .await?;
-                    }
-                    Err(_) => {}
-                }
-            }
+            let result = transport.send(request).await;
             let result = result.and_then(|response| {
                 self.after_response
                     .iter()

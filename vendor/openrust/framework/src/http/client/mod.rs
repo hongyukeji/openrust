@@ -7,6 +7,7 @@ mod factory;
 mod pending_request;
 mod pool;
 mod response;
+mod transport;
 
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use facade::{Http, HttpClientServiceProvider};
@@ -30,6 +31,7 @@ pub enum Error {
     InvalidJson(serde_json::Error),
     UnreplayableRequest,
     OutsideLifecycle,
+    RedirectLimit,
     StrayRequest,
     SequenceExhausted,
     RequestFailed(Box<Response>),
@@ -52,6 +54,9 @@ impl fmt::Display for Error {
             }
             Self::UnreplayableRequest => {
                 formatter.write_str("outgoing HTTP request cannot be replayed")
+            }
+            Self::RedirectLimit => {
+                formatter.write_str("outgoing HTTP request exceeded its redirect limit")
             }
             Self::SequenceExhausted => {
                 formatter.write_str("outgoing HTTP fake sequence is exhausted")

@@ -69,4 +69,34 @@ let results = batch.send().await;
 assert!(results["missing"].is_err());
 ```
 
-Register listeners for `RequestSending`, `ResponseReceived`, and `ConnectionFailed` from `openrust::http::client::events`. Their event names use the `OpenRust\Http\Client\Events\` prefix. An application HTTP client dispatches events for each request attempt, including retries.
+### Outgoing request events {#outgoing-request-events}
+
+Register listeners for `RequestSending`, `ResponseReceived`, and `ConnectionFailed` from `openrust::http::client::events`. An application factory uses its application’s dispatcher. For a standalone factory, supply one with `withDispatcher`. Use `withAttributes` for local metadata that listeners can read from the request snapshot. It stays in the client.
+
+`RequestSending` fires before per-request `beforeSending` callbacks on each outgoing hop. `ResponseReceived` has the terminal response and fires before `afterResponse`, including for HTTP 4xx and 5xx. `ConnectionFailed` has the attempted request and a typed connection or timeout error. Retries repeat the event sequence. A request rejected by stray-request prevention emits only `RequestSending`.
+
+For this example, add `GET /redirect` to the local service with a 302 redirect to `/missing`. Set `HTTP_CLIENT_EXAMPLE_FAILURE` to a URL at a local endpoint that refuses the connection.
+
+```rust
+use openrust::http::client::{Error, events::{ConnectionFailed, RequestSending, ResponseReceived}};
+use openrust::support::facades::{Event, Http};
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let unavailable = std::env::var("HTTP_CLIENT_EXAMPLE_FAILURE")?;
+let sending = r"OpenRust\Http\Client\Events\RequestSending";
+let received = r"OpenRust\Http\Client\Events\ResponseReceived";
+let failed = r"OpenRust\Http\Client\Events\ConnectionFailed";
+let events = Event::fake(&[sending, received, failed])?;
+
+assert!(Http::get(&format!("{origin}/redirect")).await?.notFound());
+assert!(matches!(Http::get(&unavailable).await, Err(Error::Connection)));
+let outgoing = events.dispatched(sending);
+assert_eq!(outgoing.len(), 3);
+assert_eq!(outgoing[1].downcast_ref::<RequestSending>().unwrap().request.url.path(), "/missing");
+let replies = events.dispatched(received);
+assert_eq!(replies.len(), 1);
+assert!(replies[0].downcast_ref::<ResponseReceived>().unwrap().response.notFound());
+let failures = events.dispatched(failed);
+assert_eq!(failures.len(), 1);
+assert_eq!(failures[0].downcast_ref::<ConnectionFailed>().unwrap().request.url.as_str(), unavailable);
+```

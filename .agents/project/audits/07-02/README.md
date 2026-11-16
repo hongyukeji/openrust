@@ -31,3 +31,10 @@ Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可�
 - 固定 Laravel 的有界及默认池按完成顺序收集结果，显式 null 模式按注册顺序读取已启动的请求。Rust 使用非零并发值，`NonZeroUsize::MAX` 表示不限并发，`poolOrdered` 表示全量启动后按注册顺序返回。池和批次支持命名与匿名注册，数字键用字符串承载。两种池入口都保留单项 `Result`。旧版 HTTP Client 提供传输和重试回归，当前并发逻辑沿用 Rust 请求池。 [固定 Pool](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Pool.php)
 - 批次在 `before` 后启动请求，按完成顺序派发 `progress`／`catch`，以注册顺序传递最终结果。2xx 进入 `progress`，3xx 只更新已完成计数，4xx／5xx 或 Rust 单项错误进入 `catch`。无失败时执行 `then`，正常完成时执行 `finally`。空批次验证了三段回调。`send` 及 `defer` 消费批次，延后执行复用 HTTP／Artisan／队列生命周期。 [固定 Batch](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Batch.php)
 - Rust 1.94.0 锁定离线运行 9 项 HTTP Client 定向用例和工作区严格 Clippy。变更文件格式通过，工作区仍有基线 Sanctum 排版差异。实际 Artisan 和回环 HTTP 运行三语共用例，另核对两种生命周期中的延后批次抵达真实上游。三语 VitePress 构建及 12 项桌面和移动浏览器验收通过。07-02 继续核对事件与剩余契约。
+
+## 请求事件与传输边界
+
+- 核对固定 Laravel 三种事件的公开载荷及 Guzzle 处理栈。应用工厂使用所属派发器，独立工厂可通过 `withDispatcher` 注入派发器。请求快照包含方法、URL、标头、可读取正文和 `withAttributes` 元数据，后者不进入网络请求。连接失败采用可匹配的连接／超时错误。 [固定事件定义](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Events)
+- `RequestSending` 在每次请求和重定向跳转的 `beforeSending` 回调前派发。最终 `ResponseReceived` 在 `afterResponse` 前派发，含 4xx、5xx。请求级重试重新派发事件。连接或超时异常使用实际尝试发送的请求快照。重定向上限与缓冲大小限制为独立错误。真实回归核对跨源跳转清除上一个源的授权头、大型跳转正文和最终响应大小限制。
+- Rust 1.94.0 锁定离线执行 10 项 HTTP Client 定向用例，工作区全目标严格 Clippy 与本批文件格式通过。真实 Artisan、回环 HTTP 及本地上游验证 302、404、连接关闭和事件载荷。三语 VitePress 构建和 12 项浏览器检查通过。
+- Digest Auth 已由固定 Laravel 源码确认，仍需以实际挑战和响应验收。PHP 层的动态宏与 Guzzle 选项适配继续单独记录。
