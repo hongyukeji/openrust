@@ -112,3 +112,76 @@ fn numeric_operations_preserve_types_and_boundaries() -> Result<(), NumberError>
     );
     Ok(())
 }
+
+#[test]
+fn spellout_matches_the_fixed_laravel_locale_matrix() -> Result<(), NumberError> {
+    let mut number = Number::default();
+    for line in include_str!("fixtures/number-spellout-php85.tsv").lines() {
+        let [locale, value, words, ordinal] = spellout_fields(line);
+        number.useLocale(locale)?;
+        let value = if value.contains('.') || value == "-0" {
+            NumberValue::Float(value.parse().unwrap())
+        } else {
+            NumberValue::Integer(value.parse().unwrap())
+        };
+        assert_eq!(
+            number.spell(value, None, None)?,
+            words,
+            "{locale} {value:?}"
+        );
+        assert_eq!(number.spellOrdinal(value)?, ordinal, "{locale} {value:?}");
+    }
+    Ok(())
+}
+
+#[test]
+fn spellout_matches_icu_nonfinite_values() -> Result<(), NumberError> {
+    let mut number = Number::default();
+    for line in include_str!("fixtures/number-spellout-special-icu76.tsv").lines() {
+        let [locale, value, words, ordinal] = spellout_fields(line);
+        number.useLocale(locale)?;
+        let value: f64 = value.parse().unwrap();
+        assert_eq!(number.spell(value, None, None)?, words, "{locale} {value}");
+        assert_eq!(number.spellOrdinal(value)?, ordinal, "{locale} {value}");
+    }
+    Ok(())
+}
+
+fn spellout_fields(line: &str) -> [&str; 4] {
+    let mut fields = line.split('\t');
+    let result = std::array::from_fn(|_| fields.next().expect("spellout fixture field"));
+    assert!(fields.next().is_none(), "unexpected field in {line:?}");
+    result
+}
+
+#[test]
+fn spellout_resolves_region_aliases_and_keeps_thresholds_inclusive() -> Result<(), NumberError> {
+    let number = Number::default();
+    assert_eq!(
+        number.withLocale("zh_TW", |number| number.spell(1.25, None, None))??,
+        "一點二五"
+    );
+    assert_eq!(
+        number.withLocale("fr_CH", |number| number.spell(80, None, None))??,
+        "huitante"
+    );
+    assert_eq!(
+        number.withLocale("ru", |number| number.spell(1.25, None, None))??,
+        "одна целый двадцать пять сотых"
+    );
+    assert_eq!(
+        number.withLocale("de-DE", |number| number.spell(1.25, Some(2), None))??,
+        "1,25"
+    );
+    assert_eq!(number.spell(1234, Some(1234), None)?, "1,234");
+    assert_eq!(number.spell(1234, None, Some(1234))?, "1,234");
+    assert_eq!(
+        number.spell(1e40, None, None)?,
+        "10,000,000,000,000,000,000,000,000,000,000,000,000,000"
+    );
+    assert!(matches!(
+        number.withLocale("zz-ZZ", |number| number.spell(1, None, None))?,
+        Err(NumberError::InvalidLocale)
+    ));
+    Ok(())
+}

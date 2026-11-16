@@ -1,0 +1,2607 @@
+af	inf	∞	∞
+af	-inf	∞	min ∞
+af	nan	NaN	NaN
+af_NA	inf	∞	∞
+af_NA	-inf	∞	min ∞
+af_NA	nan	NaN	NaN
+af_ZA	inf	∞	∞
+af_ZA	-inf	∞	min ∞
+af_ZA	nan	NaN	NaN
+agq	inf	infinity	infinitieth
+agq	-inf	minus infinity	minus infinitieth
+agq	nan	not a number	NaN
+agq_CM	inf	infinity	infinitieth
+agq_CM	-inf	minus infinity	minus infinitieth
+agq_CM	nan	not a number	NaN
+ak	inf	∞	∞
+ak	-inf	∞	kaw ∞
+ak	nan	NaN	NaN
+ak_GH	inf	∞	∞
+ak_GH	-inf	∞	kaw ∞
+ak_GH	nan	NaN	NaN
+am	inf	∞	∞
+am	-inf	∞	ቅንስናሽ ∞
+am	nan	በቁጥር ሊገለጽ የማይችል	በቁጥር ሊገለጽ የማይችል
+am_ET	inf	∞	∞
+am_ET	-inf	∞	ቅንስናሽ ∞
+am_ET	nan	በቁጥር ሊገለጽ የማይችል	በቁጥር ሊገለጽ የማይችል
+ar	inf	∞	∞
+ar	-inf	ناقص ∞	ناقص ∞
+ar	nan	ليس رقمًا	ليس رقمًا
+ar_001	inf	∞	∞
+ar_001	-inf	ناقص ∞	ناقص ∞
+ar_001	nan	ليس رقمًا	ليس رقمًا
+ar_AE	inf	∞	∞
+ar_AE	-inf	ناقص ∞	ناقص ∞
+ar_AE	nan	ليس رقمًا	ليس رقمًا
+ar_BH	inf	∞	∞
+ar_BH	-inf	ناقص ∞	ناقص ∞
+ar_BH	nan	ليس رقمًا	ليس رقمًا
+ar_DJ	inf	∞	∞
+ar_DJ	-inf	ناقص ∞	ناقص ∞
+ar_DJ	nan	ليس رقمًا	ليس رقمًا
+ar_DZ	inf	∞	∞
+ar_DZ	-inf	ناقص ∞	ناقص ∞
+ar_DZ	nan	ليس رقمًا	ليس رقمًا
+ar_EG	inf	∞	∞
+ar_EG	-inf	ناقص ∞	ناقص ∞
+ar_EG	nan	ليس رقمًا	ليس رقمًا
+ar_EH	inf	∞	∞
+ar_EH	-inf	ناقص ∞	ناقص ∞
+ar_EH	nan	ليس رقمًا	ليس رقمًا
+ar_ER	inf	∞	∞
+ar_ER	-inf	ناقص ∞	ناقص ∞
+ar_ER	nan	ليس رقمًا	ليس رقمًا
+ar_IL	inf	∞	∞
+ar_IL	-inf	ناقص ∞	ناقص ∞
+ar_IL	nan	ليس رقمًا	ليس رقمًا
+ar_IQ	inf	∞	∞
+ar_IQ	-inf	ناقص ∞	ناقص ∞
+ar_IQ	nan	ليس رقمًا	ليس رقمًا
+ar_JO	inf	∞	∞
+ar_JO	-inf	ناقص ∞	ناقص ∞
+ar_JO	nan	ليس رقمًا	ليس رقمًا
+ar_KM	inf	∞	∞
+ar_KM	-inf	ناقص ∞	ناقص ∞
+ar_KM	nan	ليس رقمًا	ليس رقمًا
+ar_KW	inf	∞	∞
+ar_KW	-inf	ناقص ∞	ناقص ∞
+ar_KW	nan	ليس رقمًا	ليس رقمًا
+ar_LB	inf	∞	∞
+ar_LB	-inf	ناقص ∞	ناقص ∞
+ar_LB	nan	ليس رقمًا	ليس رقمًا
+ar_LY	inf	∞	∞
+ar_LY	-inf	ناقص ∞	ناقص ∞
+ar_LY	nan	ليس رقمًا	ليس رقمًا
+ar_MA	inf	∞	∞
+ar_MA	-inf	ناقص ∞	ناقص ∞
+ar_MA	nan	ليس رقمًا	ليس رقمًا
+ar_MR	inf	∞	∞
+ar_MR	-inf	ناقص ∞	ناقص ∞
+ar_MR	nan	ليس رقمًا	ليس رقمًا
+ar_OM	inf	∞	∞
+ar_OM	-inf	ناقص ∞	ناقص ∞
+ar_OM	nan	ليس رقمًا	ليس رقمًا
+ar_PS	inf	∞	∞
+ar_PS	-inf	ناقص ∞	ناقص ∞
+ar_PS	nan	ليس رقمًا	ليس رقمًا
+ar_QA	inf	∞	∞
+ar_QA	-inf	ناقص ∞	ناقص ∞
+ar_QA	nan	ليس رقمًا	ليس رقمًا
+ar_SA	inf	∞	∞
+ar_SA	-inf	ناقص ∞	ناقص ∞
+ar_SA	nan	ليس رقمًا	ليس رقمًا
+ar_SD	inf	∞	∞
+ar_SD	-inf	ناقص ∞	ناقص ∞
+ar_SD	nan	ليس رقمًا	ليس رقمًا
+ar_SO	inf	∞	∞
+ar_SO	-inf	ناقص ∞	ناقص ∞
+ar_SO	nan	ليس رقمًا	ليس رقمًا
+ar_SS	inf	∞	∞
+ar_SS	-inf	ناقص ∞	ناقص ∞
+ar_SS	nan	ليس رقمًا	ليس رقمًا
+ar_SY	inf	∞	∞
+ar_SY	-inf	ناقص ∞	ناقص ∞
+ar_SY	nan	ليس رقمًا	ليس رقمًا
+ar_TD	inf	∞	∞
+ar_TD	-inf	ناقص ∞	ناقص ∞
+ar_TD	nan	ليس رقمًا	ليس رقمًا
+ar_TN	inf	∞	∞
+ar_TN	-inf	ناقص ∞	ناقص ∞
+ar_TN	nan	ليس رقمًا	ليس رقمًا
+ar_YE	inf	∞	∞
+ar_YE	-inf	ناقص ∞	ناقص ∞
+ar_YE	nan	ليس رقمًا	ليس رقمًا
+as	inf	infinity	infinitieth
+as	-inf	minus infinity	minus infinitieth
+as	nan	not a number	NaN
+as_IN	inf	infinity	infinitieth
+as_IN	-inf	minus infinity	minus infinitieth
+as_IN	nan	not a number	NaN
+asa	inf	infinity	infinitieth
+asa	-inf	minus infinity	minus infinitieth
+asa	nan	not a number	NaN
+asa_TZ	inf	infinity	infinitieth
+asa_TZ	-inf	minus infinity	minus infinitieth
+asa_TZ	nan	not a number	NaN
+ast	inf	infinity	infinitieth
+ast	-inf	minus infinity	minus infinitieth
+ast	nan	not a number	ND
+ast_ES	inf	infinity	infinitieth
+ast_ES	-inf	minus infinity	minus infinitieth
+ast_ES	nan	not a number	ND
+az	inf	∞	∞
+az	-inf	∞	əksi ∞
+az	nan	NaN	NaN
+az_Cyrl	inf	∞	∞
+az_Cyrl	-inf	−∞	−∞
+az_Cyrl	nan	NaN	NaN
+az_Cyrl_AZ	inf	∞	∞
+az_Cyrl_AZ	-inf	−∞	−∞
+az_Cyrl_AZ	nan	NaN	NaN
+az_Latn	inf	∞	∞
+az_Latn	-inf	∞	əksi ∞
+az_Latn	nan	NaN	NaN
+az_Latn_AZ	inf	∞	∞
+az_Latn_AZ	-inf	∞	əksi ∞
+az_Latn_AZ	nan	NaN	NaN
+bas	inf	infinity	infinitieth
+bas	-inf	minus infinity	minus infinitieth
+bas	nan	not a number	NaN
+bas_CM	inf	infinity	infinitieth
+bas_CM	-inf	minus infinity	minus infinitieth
+bas_CM	nan	not a number	NaN
+be	inf	∞	∞
+be	-inf	∞	∞
+be	nan	NaN	NaN
+be_BY	inf	∞	∞
+be_BY	-inf	∞	∞
+be_BY	nan	NaN	NaN
+bem	inf	infinity	infinitieth
+bem	-inf	minus infinity	minus infinitieth
+bem	nan	not a number	NaN
+bem_ZM	inf	infinity	infinitieth
+bem_ZM	-inf	minus infinity	minus infinitieth
+bem_ZM	nan	not a number	NaN
+bez	inf	infinity	infinitieth
+bez	-inf	minus infinity	minus infinitieth
+bez	nan	not a number	NaN
+bez_TZ	inf	infinity	infinitieth
+bez_TZ	-inf	minus infinity	minus infinitieth
+bez_TZ	nan	not a number	NaN
+bg	inf	∞	∞
+bg	-inf	∞	∞
+bg	nan	NaN	NaN
+bg_BG	inf	∞	∞
+bg_BG	-inf	∞	∞
+bg_BG	nan	NaN	NaN
+bgc	inf	infinity	infinitieth
+bgc	-inf	minus infinity	minus infinitieth
+bgc	nan	not a number	NaN
+bgc_IN	inf	infinity	infinitieth
+bgc_IN	-inf	minus infinity	minus infinitieth
+bgc_IN	nan	not a number	NaN
+bho	inf	infinity	infinitieth
+bho	-inf	minus infinity	minus infinitieth
+bho	nan	not a number	NaN
+bho_IN	inf	infinity	infinitieth
+bho_IN	-inf	minus infinity	minus infinitieth
+bho_IN	nan	not a number	NaN
+blo	inf	infinity	infinitieth
+blo	-inf	minus infinity	minus infinitieth
+blo	nan	not a number	NaN
+blo_BJ	inf	infinity	infinitieth
+blo_BJ	-inf	minus infinity	minus infinitieth
+blo_BJ	nan	not a number	NaN
+bm	inf	infinity	infinitieth
+bm	-inf	minus infinity	minus infinitieth
+bm	nan	not a number	NaN
+bm_ML	inf	infinity	infinitieth
+bm_ML	-inf	minus infinity	minus infinitieth
+bm_ML	nan	not a number	NaN
+bn	inf	infinity	infinitieth
+bn	-inf	minus infinity	minus infinitieth
+bn	nan	not a number	NaN
+bn_BD	inf	infinity	infinitieth
+bn_BD	-inf	minus infinity	minus infinitieth
+bn_BD	nan	not a number	NaN
+bn_IN	inf	infinity	infinitieth
+bn_IN	-inf	minus infinity	minus infinitieth
+bn_IN	nan	not a number	NaN
+bo	inf	infinity	infinitieth
+bo	-inf	minus infinity	minus infinitieth
+bo	nan	not a number	NaN
+bo_CN	inf	infinity	infinitieth
+bo_CN	-inf	minus infinity	minus infinitieth
+bo_CN	nan	not a number	NaN
+bo_IN	inf	infinity	infinitieth
+bo_IN	-inf	minus infinity	minus infinitieth
+bo_IN	nan	not a number	NaN
+br	inf	infinity	infinitieth
+br	-inf	minus infinity	minus infinitieth
+br	nan	not a number	NaN
+br_FR	inf	infinity	infinitieth
+br_FR	-inf	minus infinity	minus infinitieth
+br_FR	nan	not a number	NaN
+brx	inf	infinity	infinitieth
+brx	-inf	minus infinity	minus infinitieth
+brx	nan	not a number	NaN
+brx_IN	inf	infinity	infinitieth
+brx_IN	-inf	minus infinity	minus infinitieth
+brx_IN	nan	not a number	NaN
+bs	inf	∞	∞
+bs	-inf	∞	∞
+bs	nan	NaN	NaN
+bs_Cyrl	inf	∞	∞
+bs_Cyrl	-inf	−∞	−∞
+bs_Cyrl	nan	NaN	NaN
+bs_Cyrl_BA	inf	∞	∞
+bs_Cyrl_BA	-inf	−∞	−∞
+bs_Cyrl_BA	nan	NaN	NaN
+bs_Latn	inf	∞	∞
+bs_Latn	-inf	∞	∞
+bs_Latn	nan	NaN	NaN
+bs_Latn_BA	inf	∞	∞
+bs_Latn_BA	-inf	∞	∞
+bs_Latn_BA	nan	NaN	NaN
+ca	inf	∞	∞
+ca	-inf	menys ∞	menys ∞
+ca	nan	NaN	NaN
+ca_AD	inf	∞	∞
+ca_AD	-inf	menys ∞	menys ∞
+ca_AD	nan	NaN	NaN
+ca_ES	inf	∞	∞
+ca_ES	-inf	menys ∞	menys ∞
+ca_ES	nan	NaN	NaN
+ca_FR	inf	∞	∞
+ca_FR	-inf	menys ∞	menys ∞
+ca_FR	nan	NaN	NaN
+ca_IT	inf	∞	∞
+ca_IT	-inf	menys ∞	menys ∞
+ca_IT	nan	NaN	NaN
+ccp	inf	∞	∞
+ccp	-inf	∞	𑄜𑄢𑄧𑄇𑄴 ∞
+ccp	nan	NaN	NaN
+ccp_BD	inf	∞	∞
+ccp_BD	-inf	∞	𑄜𑄢𑄧𑄇𑄴 ∞
+ccp_BD	nan	NaN	NaN
+ccp_IN	inf	∞	∞
+ccp_IN	-inf	∞	𑄜𑄢𑄧𑄇𑄴 ∞
+ccp_IN	nan	NaN	NaN
+ce	inf	infinity	infinitieth
+ce	-inf	minus infinity	minus infinitieth
+ce	nan	not a number	Терхьаш дац
+ce_RU	inf	infinity	infinitieth
+ce_RU	-inf	minus infinity	minus infinitieth
+ce_RU	nan	not a number	Терхьаш дац
+ceb	inf	infinity	infinitieth
+ceb	-inf	minus infinity	minus infinitieth
+ceb	nan	not a number	NaN
+ceb_PH	inf	infinity	infinitieth
+ceb_PH	-inf	minus infinity	minus infinitieth
+ceb_PH	nan	not a number	NaN
+cgg	inf	infinity	infinitieth
+cgg	-inf	minus infinity	minus infinitieth
+cgg	nan	not a number	NaN
+cgg_UG	inf	infinity	infinitieth
+cgg_UG	-inf	minus infinity	minus infinitieth
+cgg_UG	nan	not a number	NaN
+chr	inf	ꭲꭺꭿꮣ ꭸꮢ	ꭲꭺꭿꮣ ꭸꮢ
+chr	-inf	ꭺꮳꮄꮝꮧ ꭲꭺꭿꮣ ꭸꮢ	ꭺꮳꮄꮝꮧ ꭲꭺꭿꮣ ꭸꮢ
+chr	nan	ꭷꮒꭹꮣ ꮧꮞꮝꮧ	ꭷꮒꭹꮣ ꮧꮞꮝꮧ
+chr_US	inf	ꭲꭺꭿꮣ ꭸꮢ	ꭲꭺꭿꮣ ꭸꮢ
+chr_US	-inf	ꭺꮳꮄꮝꮧ ꭲꭺꭿꮣ ꭸꮢ	ꭺꮳꮄꮝꮧ ꭲꭺꭿꮣ ꭸꮢ
+chr_US	nan	ꭷꮒꭹꮣ ꮧꮞꮝꮧ	ꭷꮒꭹꮣ ꮧꮞꮝꮧ
+ckb	inf	infinity	infinitieth
+ckb	-inf	minus infinity	minus infinitieth
+ckb	nan	not a number	NaN
+ckb_IQ	inf	infinity	infinitieth
+ckb_IQ	-inf	minus infinity	minus infinitieth
+ckb_IQ	nan	not a number	NaN
+ckb_IR	inf	infinity	infinitieth
+ckb_IR	-inf	minus infinity	minus infinitieth
+ckb_IR	nan	not a number	NaN
+cs	inf	∞	∞
+cs	-inf	∞	∞
+cs	nan	NaN	NaN
+cs_CZ	inf	∞	∞
+cs_CZ	-inf	∞	∞
+cs_CZ	nan	NaN	NaN
+csw	inf	infinity	infinitieth
+csw	-inf	minus infinity	minus infinitieth
+csw	nan	not a number	NaN
+csw_CA	inf	infinity	infinitieth
+csw_CA	-inf	minus infinity	minus infinitieth
+csw_CA	nan	not a number	NaN
+cv	inf	infinity	infinitieth
+cv	-inf	minus infinity	minus infinitieth
+cv	nan	not a number	NaN
+cv_RU	inf	infinity	infinitieth
+cv_RU	-inf	minus infinity	minus infinitieth
+cv_RU	nan	not a number	NaN
+cy	inf	∞	∞
+cy	-inf	∞	∞
+cy	nan	NaN	NaN
+cy_GB	inf	∞	∞
+cy_GB	-inf	∞	∞
+cy_GB	nan	NaN	NaN
+da	inf	∞	∞
+da	-inf	∞	∞
+da	nan	NaN	NaN
+da_DK	inf	∞	∞
+da_DK	-inf	∞	∞
+da_DK	nan	NaN	NaN
+da_GL	inf	∞	∞
+da_GL	-inf	∞	∞
+da_GL	nan	NaN	NaN
+dav	inf	infinity	infinitieth
+dav	-inf	minus infinity	minus infinitieth
+dav	nan	not a number	NaN
+dav_KE	inf	infinity	infinitieth
+dav_KE	-inf	minus infinity	minus infinitieth
+dav_KE	nan	not a number	NaN
+de	inf	∞	∞
+de	-inf	minus ∞	minus ∞
+de	nan	NaN	NaN
+de_AT	inf	∞	∞
+de_AT	-inf	minus ∞	minus ∞
+de_AT	nan	NaN	NaN
+de_BE	inf	∞	∞
+de_BE	-inf	minus ∞	minus ∞
+de_BE	nan	NaN	NaN
+de_CH	inf	∞	∞
+de_CH	-inf	minus ∞	minus ∞
+de_CH	nan	NaN	NaN
+de_DE	inf	∞	∞
+de_DE	-inf	minus ∞	minus ∞
+de_DE	nan	NaN	NaN
+de_IT	inf	∞	∞
+de_IT	-inf	minus ∞	minus ∞
+de_IT	nan	NaN	NaN
+de_LI	inf	∞	∞
+de_LI	-inf	minus ∞	minus ∞
+de_LI	nan	NaN	NaN
+de_LU	inf	∞	∞
+de_LU	-inf	minus ∞	minus ∞
+de_LU	nan	NaN	NaN
+dje	inf	infinity	infinitieth
+dje	-inf	minus infinity	minus infinitieth
+dje	nan	not a number	NaN
+dje_NE	inf	infinity	infinitieth
+dje_NE	-inf	minus infinity	minus infinitieth
+dje_NE	nan	not a number	NaN
+doi	inf	infinity	infinitieth
+doi	-inf	minus infinity	minus infinitieth
+doi	nan	not a number	NaN
+doi_IN	inf	infinity	infinitieth
+doi_IN	-inf	minus infinity	minus infinitieth
+doi_IN	nan	not a number	NaN
+dsb	inf	infinity	infinitieth
+dsb	-inf	minus infinity	minus infinitieth
+dsb	nan	not a number	NaN
+dsb_DE	inf	infinity	infinitieth
+dsb_DE	-inf	minus infinity	minus infinitieth
+dsb_DE	nan	not a number	NaN
+dua	inf	infinity	infinitieth
+dua	-inf	minus infinity	minus infinitieth
+dua	nan	not a number	NaN
+dua_CM	inf	infinity	infinitieth
+dua_CM	-inf	minus infinity	minus infinitieth
+dua_CM	nan	not a number	NaN
+dyo	inf	infinity	infinitieth
+dyo	-inf	minus infinity	minus infinitieth
+dyo	nan	not a number	NaN
+dyo_SN	inf	infinity	infinitieth
+dyo_SN	-inf	minus infinity	minus infinitieth
+dyo_SN	nan	not a number	NaN
+dz	inf	infinity	infinitieth
+dz	-inf	minus infinity	minus infinitieth
+dz	nan	not a number	ཨང་མད
+dz_BT	inf	infinity	infinitieth
+dz_BT	-inf	minus infinity	minus infinitieth
+dz_BT	nan	not a number	ཨང་མད
+ebu	inf	infinity	infinitieth
+ebu	-inf	minus infinity	minus infinitieth
+ebu	nan	not a number	NaN
+ebu_KE	inf	infinity	infinitieth
+ebu_KE	-inf	minus infinity	minus infinitieth
+ebu_KE	nan	not a number	NaN
+ee	inf	∞	∞
+ee	-inf	∞	∞ xlẽyimegbee
+ee	nan	mnn	mnn
+ee_GH	inf	∞	∞
+ee_GH	-inf	∞	∞ xlẽyimegbee
+ee_GH	nan	mnn	mnn
+ee_TG	inf	∞	∞
+ee_TG	-inf	∞	∞ xlẽyimegbee
+ee_TG	nan	mnn	mnn
+el	inf	∞	∞
+el	-inf	∞	∞
+el	nan	NaN	NaN
+el_CY	inf	∞	∞
+el_CY	-inf	∞	∞
+el_CY	nan	NaN	NaN
+el_GR	inf	∞	∞
+el_GR	-inf	∞	∞
+el_GR	nan	NaN	NaN
+en	inf	infinity	infinitieth
+en	-inf	minus infinity	minus infinitieth
+en	nan	not a number	NaN
+en_001	inf	infinity	infinitieth
+en_001	-inf	minus infinity	minus infinitieth
+en_001	nan	not a number	NaN
+en_150	inf	infinity	infinitieth
+en_150	-inf	minus infinity	minus infinitieth
+en_150	nan	not a number	NaN
+en_AE	inf	infinity	infinitieth
+en_AE	-inf	minus infinity	minus infinitieth
+en_AE	nan	not a number	NaN
+en_AG	inf	infinity	infinitieth
+en_AG	-inf	minus infinity	minus infinitieth
+en_AG	nan	not a number	NaN
+en_AI	inf	infinity	infinitieth
+en_AI	-inf	minus infinity	minus infinitieth
+en_AI	nan	not a number	NaN
+en_AS	inf	infinity	infinitieth
+en_AS	-inf	minus infinity	minus infinitieth
+en_AS	nan	not a number	NaN
+en_AT	inf	infinity	infinitieth
+en_AT	-inf	minus infinity	minus infinitieth
+en_AT	nan	not a number	NaN
+en_AU	inf	infinity	infinitieth
+en_AU	-inf	minus infinity	minus infinitieth
+en_AU	nan	not a number	NaN
+en_BB	inf	infinity	infinitieth
+en_BB	-inf	minus infinity	minus infinitieth
+en_BB	nan	not a number	NaN
+en_BE	inf	infinity	infinitieth
+en_BE	-inf	minus infinity	minus infinitieth
+en_BE	nan	not a number	NaN
+en_BI	inf	infinity	infinitieth
+en_BI	-inf	minus infinity	minus infinitieth
+en_BI	nan	not a number	NaN
+en_BM	inf	infinity	infinitieth
+en_BM	-inf	minus infinity	minus infinitieth
+en_BM	nan	not a number	NaN
+en_BS	inf	infinity	infinitieth
+en_BS	-inf	minus infinity	minus infinitieth
+en_BS	nan	not a number	NaN
+en_BW	inf	infinity	infinitieth
+en_BW	-inf	minus infinity	minus infinitieth
+en_BW	nan	not a number	NaN
+en_BZ	inf	infinity	infinitieth
+en_BZ	-inf	minus infinity	minus infinitieth
+en_BZ	nan	not a number	NaN
+en_CA	inf	infinity	infinitieth
+en_CA	-inf	minus infinity	minus infinitieth
+en_CA	nan	not a number	NaN
+en_CC	inf	infinity	infinitieth
+en_CC	-inf	minus infinity	minus infinitieth
+en_CC	nan	not a number	NaN
+en_CH	inf	infinity	infinitieth
+en_CH	-inf	minus infinity	minus infinitieth
+en_CH	nan	not a number	NaN
+en_CK	inf	infinity	infinitieth
+en_CK	-inf	minus infinity	minus infinitieth
+en_CK	nan	not a number	NaN
+en_CM	inf	infinity	infinitieth
+en_CM	-inf	minus infinity	minus infinitieth
+en_CM	nan	not a number	NaN
+en_CX	inf	infinity	infinitieth
+en_CX	-inf	minus infinity	minus infinitieth
+en_CX	nan	not a number	NaN
+en_CY	inf	infinity	infinitieth
+en_CY	-inf	minus infinity	minus infinitieth
+en_CY	nan	not a number	NaN
+en_DE	inf	infinity	infinitieth
+en_DE	-inf	minus infinity	minus infinitieth
+en_DE	nan	not a number	NaN
+en_DG	inf	infinity	infinitieth
+en_DG	-inf	minus infinity	minus infinitieth
+en_DG	nan	not a number	NaN
+en_DK	inf	infinity	infinitieth
+en_DK	-inf	minus infinity	minus infinitieth
+en_DK	nan	not a number	NaN
+en_DM	inf	infinity	infinitieth
+en_DM	-inf	minus infinity	minus infinitieth
+en_DM	nan	not a number	NaN
+en_ER	inf	infinity	infinitieth
+en_ER	-inf	minus infinity	minus infinitieth
+en_ER	nan	not a number	NaN
+en_FI	inf	infinity	infinitieth
+en_FI	-inf	minus infinity	minus infinitieth
+en_FI	nan	not a number	NaN
+en_FJ	inf	infinity	infinitieth
+en_FJ	-inf	minus infinity	minus infinitieth
+en_FJ	nan	not a number	NaN
+en_FK	inf	infinity	infinitieth
+en_FK	-inf	minus infinity	minus infinitieth
+en_FK	nan	not a number	NaN
+en_FM	inf	infinity	infinitieth
+en_FM	-inf	minus infinity	minus infinitieth
+en_FM	nan	not a number	NaN
+en_GB	inf	infinity	infinitieth
+en_GB	-inf	minus infinity	minus infinitieth
+en_GB	nan	not a number	NaN
+en_GD	inf	infinity	infinitieth
+en_GD	-inf	minus infinity	minus infinitieth
+en_GD	nan	not a number	NaN
+en_GG	inf	infinity	infinitieth
+en_GG	-inf	minus infinity	minus infinitieth
+en_GG	nan	not a number	NaN
+en_GH	inf	infinity	infinitieth
+en_GH	-inf	minus infinity	minus infinitieth
+en_GH	nan	not a number	NaN
+en_GI	inf	infinity	infinitieth
+en_GI	-inf	minus infinity	minus infinitieth
+en_GI	nan	not a number	NaN
+en_GM	inf	infinity	infinitieth
+en_GM	-inf	minus infinity	minus infinitieth
+en_GM	nan	not a number	NaN
+en_GU	inf	infinity	infinitieth
+en_GU	-inf	minus infinity	minus infinitieth
+en_GU	nan	not a number	NaN
+en_GY	inf	infinity	infinitieth
+en_GY	-inf	minus infinity	minus infinitieth
+en_GY	nan	not a number	NaN
+en_HK	inf	infinity	infinitieth
+en_HK	-inf	minus infinity	minus infinitieth
+en_HK	nan	not a number	NaN
+en_ID	inf	infinity	infinitieth
+en_ID	-inf	minus infinity	minus infinitieth
+en_ID	nan	not a number	NaN
+en_IE	inf	infinity	infinitieth
+en_IE	-inf	minus infinity	minus infinitieth
+en_IE	nan	not a number	NaN
+en_IL	inf	infinity	infinitieth
+en_IL	-inf	minus infinity	minus infinitieth
+en_IL	nan	not a number	NaN
+en_IM	inf	infinity	infinitieth
+en_IM	-inf	minus infinity	minus infinitieth
+en_IM	nan	not a number	NaN
+en_IN	inf	infinity	infinitieth
+en_IN	-inf	minus infinity	minus infinitieth
+en_IN	nan	not a number	NaN
+en_IO	inf	infinity	infinitieth
+en_IO	-inf	minus infinity	minus infinitieth
+en_IO	nan	not a number	NaN
+en_JE	inf	infinity	infinitieth
+en_JE	-inf	minus infinity	minus infinitieth
+en_JE	nan	not a number	NaN
+en_JM	inf	infinity	infinitieth
+en_JM	-inf	minus infinity	minus infinitieth
+en_JM	nan	not a number	NaN
+en_KE	inf	infinity	infinitieth
+en_KE	-inf	minus infinity	minus infinitieth
+en_KE	nan	not a number	NaN
+en_KI	inf	infinity	infinitieth
+en_KI	-inf	minus infinity	minus infinitieth
+en_KI	nan	not a number	NaN
+en_KN	inf	infinity	infinitieth
+en_KN	-inf	minus infinity	minus infinitieth
+en_KN	nan	not a number	NaN
+en_KY	inf	infinity	infinitieth
+en_KY	-inf	minus infinity	minus infinitieth
+en_KY	nan	not a number	NaN
+en_LC	inf	infinity	infinitieth
+en_LC	-inf	minus infinity	minus infinitieth
+en_LC	nan	not a number	NaN
+en_LR	inf	infinity	infinitieth
+en_LR	-inf	minus infinity	minus infinitieth
+en_LR	nan	not a number	NaN
+en_LS	inf	infinity	infinitieth
+en_LS	-inf	minus infinity	minus infinitieth
+en_LS	nan	not a number	NaN
+en_MG	inf	infinity	infinitieth
+en_MG	-inf	minus infinity	minus infinitieth
+en_MG	nan	not a number	NaN
+en_MH	inf	infinity	infinitieth
+en_MH	-inf	minus infinity	minus infinitieth
+en_MH	nan	not a number	NaN
+en_MO	inf	infinity	infinitieth
+en_MO	-inf	minus infinity	minus infinitieth
+en_MO	nan	not a number	NaN
+en_MP	inf	infinity	infinitieth
+en_MP	-inf	minus infinity	minus infinitieth
+en_MP	nan	not a number	NaN
+en_MS	inf	infinity	infinitieth
+en_MS	-inf	minus infinity	minus infinitieth
+en_MS	nan	not a number	NaN
+en_MT	inf	infinity	infinitieth
+en_MT	-inf	minus infinity	minus infinitieth
+en_MT	nan	not a number	NaN
+en_MU	inf	infinity	infinitieth
+en_MU	-inf	minus infinity	minus infinitieth
+en_MU	nan	not a number	NaN
+en_MV	inf	infinity	infinitieth
+en_MV	-inf	minus infinity	minus infinitieth
+en_MV	nan	not a number	NaN
+en_MW	inf	infinity	infinitieth
+en_MW	-inf	minus infinity	minus infinitieth
+en_MW	nan	not a number	NaN
+en_MY	inf	infinity	infinitieth
+en_MY	-inf	minus infinity	minus infinitieth
+en_MY	nan	not a number	NaN
+en_NA	inf	infinity	infinitieth
+en_NA	-inf	minus infinity	minus infinitieth
+en_NA	nan	not a number	NaN
+en_NF	inf	infinity	infinitieth
+en_NF	-inf	minus infinity	minus infinitieth
+en_NF	nan	not a number	NaN
+en_NG	inf	infinity	infinitieth
+en_NG	-inf	minus infinity	minus infinitieth
+en_NG	nan	not a number	NaN
+en_NL	inf	infinity	infinitieth
+en_NL	-inf	minus infinity	minus infinitieth
+en_NL	nan	not a number	NaN
+en_NR	inf	infinity	infinitieth
+en_NR	-inf	minus infinity	minus infinitieth
+en_NR	nan	not a number	NaN
+en_NU	inf	infinity	infinitieth
+en_NU	-inf	minus infinity	minus infinitieth
+en_NU	nan	not a number	NaN
+en_NZ	inf	infinity	infinitieth
+en_NZ	-inf	minus infinity	minus infinitieth
+en_NZ	nan	not a number	NaN
+en_PG	inf	infinity	infinitieth
+en_PG	-inf	minus infinity	minus infinitieth
+en_PG	nan	not a number	NaN
+en_PH	inf	infinity	infinitieth
+en_PH	-inf	minus infinity	minus infinitieth
+en_PH	nan	not a number	NaN
+en_PK	inf	infinity	infinitieth
+en_PK	-inf	minus infinity	minus infinitieth
+en_PK	nan	not a number	NaN
+en_PN	inf	infinity	infinitieth
+en_PN	-inf	minus infinity	minus infinitieth
+en_PN	nan	not a number	NaN
+en_PR	inf	infinity	infinitieth
+en_PR	-inf	minus infinity	minus infinitieth
+en_PR	nan	not a number	NaN
+en_PW	inf	infinity	infinitieth
+en_PW	-inf	minus infinity	minus infinitieth
+en_PW	nan	not a number	NaN
+en_RW	inf	infinity	infinitieth
+en_RW	-inf	minus infinity	minus infinitieth
+en_RW	nan	not a number	NaN
+en_SB	inf	infinity	infinitieth
+en_SB	-inf	minus infinity	minus infinitieth
+en_SB	nan	not a number	NaN
+en_SC	inf	infinity	infinitieth
+en_SC	-inf	minus infinity	minus infinitieth
+en_SC	nan	not a number	NaN
+en_SD	inf	infinity	infinitieth
+en_SD	-inf	minus infinity	minus infinitieth
+en_SD	nan	not a number	NaN
+en_SE	inf	infinity	infinitieth
+en_SE	-inf	minus infinity	minus infinitieth
+en_SE	nan	not a number	NaN
+en_SG	inf	infinity	infinitieth
+en_SG	-inf	minus infinity	minus infinitieth
+en_SG	nan	not a number	NaN
+en_SH	inf	infinity	infinitieth
+en_SH	-inf	minus infinity	minus infinitieth
+en_SH	nan	not a number	NaN
+en_SI	inf	infinity	infinitieth
+en_SI	-inf	minus infinity	minus infinitieth
+en_SI	nan	not a number	NaN
+en_SL	inf	infinity	infinitieth
+en_SL	-inf	minus infinity	minus infinitieth
+en_SL	nan	not a number	NaN
+en_SS	inf	infinity	infinitieth
+en_SS	-inf	minus infinity	minus infinitieth
+en_SS	nan	not a number	NaN
+en_SX	inf	infinity	infinitieth
+en_SX	-inf	minus infinity	minus infinitieth
+en_SX	nan	not a number	NaN
+en_SZ	inf	infinity	infinitieth
+en_SZ	-inf	minus infinity	minus infinitieth
+en_SZ	nan	not a number	NaN
+en_TC	inf	infinity	infinitieth
+en_TC	-inf	minus infinity	minus infinitieth
+en_TC	nan	not a number	NaN
+en_TK	inf	infinity	infinitieth
+en_TK	-inf	minus infinity	minus infinitieth
+en_TK	nan	not a number	NaN
+en_TO	inf	infinity	infinitieth
+en_TO	-inf	minus infinity	minus infinitieth
+en_TO	nan	not a number	NaN
+en_TT	inf	infinity	infinitieth
+en_TT	-inf	minus infinity	minus infinitieth
+en_TT	nan	not a number	NaN
+en_TV	inf	infinity	infinitieth
+en_TV	-inf	minus infinity	minus infinitieth
+en_TV	nan	not a number	NaN
+en_TZ	inf	infinity	infinitieth
+en_TZ	-inf	minus infinity	minus infinitieth
+en_TZ	nan	not a number	NaN
+en_UG	inf	infinity	infinitieth
+en_UG	-inf	minus infinity	minus infinitieth
+en_UG	nan	not a number	NaN
+en_UM	inf	infinity	infinitieth
+en_UM	-inf	minus infinity	minus infinitieth
+en_UM	nan	not a number	NaN
+en_US	inf	infinity	infinitieth
+en_US	-inf	minus infinity	minus infinitieth
+en_US	nan	not a number	NaN
+en_US_POSIX	inf	infinity	infinitieth
+en_US_POSIX	-inf	minus infinity	minus infinitieth
+en_US_POSIX	nan	not a number	NaN
+en_VC	inf	infinity	infinitieth
+en_VC	-inf	minus infinity	minus infinitieth
+en_VC	nan	not a number	NaN
+en_VG	inf	infinity	infinitieth
+en_VG	-inf	minus infinity	minus infinitieth
+en_VG	nan	not a number	NaN
+en_VI	inf	infinity	infinitieth
+en_VI	-inf	minus infinity	minus infinitieth
+en_VI	nan	not a number	NaN
+en_VU	inf	infinity	infinitieth
+en_VU	-inf	minus infinity	minus infinitieth
+en_VU	nan	not a number	NaN
+en_WS	inf	infinity	infinitieth
+en_WS	-inf	minus infinity	minus infinitieth
+en_WS	nan	not a number	NaN
+en_ZA	inf	infinity	infinitieth
+en_ZA	-inf	minus infinity	minus infinitieth
+en_ZA	nan	not a number	NaN
+en_ZM	inf	infinity	infinitieth
+en_ZM	-inf	minus infinity	minus infinitieth
+en_ZM	nan	not a number	NaN
+en_ZW	inf	infinity	infinitieth
+en_ZW	-inf	minus infinity	minus infinitieth
+en_ZW	nan	not a number	NaN
+eo	inf	∞	∞
+eo	-inf	∞	∞
+eo	nan	NaN	NaN
+eo_001	inf	∞	∞
+eo_001	-inf	∞	∞
+eo_001	nan	NaN	NaN
+es	inf	∞	∞
+es	-inf	menos ∞	menos ∞
+es	nan	NaN	NaN
+es_419	inf	∞	∞
+es_419	-inf	menos ∞	menos ∞
+es_419	nan	NaN	NaN
+es_AR	inf	∞	∞
+es_AR	-inf	menos ∞	menos ∞
+es_AR	nan	NaN	NaN
+es_BO	inf	∞	∞
+es_BO	-inf	menos ∞	menos ∞
+es_BO	nan	NaN	NaN
+es_BR	inf	∞	∞
+es_BR	-inf	menos ∞	menos ∞
+es_BR	nan	NaN	NaN
+es_BZ	inf	∞	∞
+es_BZ	-inf	menos ∞	menos ∞
+es_BZ	nan	NaN	NaN
+es_CL	inf	∞	∞
+es_CL	-inf	menos ∞	menos ∞
+es_CL	nan	NaN	NaN
+es_CO	inf	∞	∞
+es_CO	-inf	menos ∞	menos ∞
+es_CO	nan	NaN	NaN
+es_CR	inf	∞	∞
+es_CR	-inf	menos ∞	menos ∞
+es_CR	nan	NaN	NaN
+es_CU	inf	∞	∞
+es_CU	-inf	menos ∞	menos ∞
+es_CU	nan	NaN	NaN
+es_DO	inf	∞	∞
+es_DO	-inf	menos ∞	menos ∞
+es_DO	nan	NaN	NaN
+es_EA	inf	∞	∞
+es_EA	-inf	menos ∞	menos ∞
+es_EA	nan	NaN	NaN
+es_EC	inf	∞	∞
+es_EC	-inf	menos ∞	menos ∞
+es_EC	nan	NaN	NaN
+es_ES	inf	∞	∞
+es_ES	-inf	menos ∞	menos ∞
+es_ES	nan	NaN	NaN
+es_GQ	inf	∞	∞
+es_GQ	-inf	menos ∞	menos ∞
+es_GQ	nan	NaN	NaN
+es_GT	inf	∞	∞
+es_GT	-inf	menos ∞	menos ∞
+es_GT	nan	NaN	NaN
+es_HN	inf	∞	∞
+es_HN	-inf	menos ∞	menos ∞
+es_HN	nan	NaN	NaN
+es_IC	inf	∞	∞
+es_IC	-inf	menos ∞	menos ∞
+es_IC	nan	NaN	NaN
+es_MX	inf	∞	∞
+es_MX	-inf	menos ∞	menos ∞
+es_MX	nan	NaN	NaN
+es_NI	inf	∞	∞
+es_NI	-inf	menos ∞	menos ∞
+es_NI	nan	NaN	NaN
+es_PA	inf	∞	∞
+es_PA	-inf	menos ∞	menos ∞
+es_PA	nan	NaN	NaN
+es_PE	inf	∞	∞
+es_PE	-inf	menos ∞	menos ∞
+es_PE	nan	NaN	NaN
+es_PH	inf	∞	∞
+es_PH	-inf	menos ∞	menos ∞
+es_PH	nan	NaN	NaN
+es_PR	inf	∞	∞
+es_PR	-inf	menos ∞	menos ∞
+es_PR	nan	NaN	NaN
+es_PY	inf	∞	∞
+es_PY	-inf	menos ∞	menos ∞
+es_PY	nan	NaN	NaN
+es_SV	inf	∞	∞
+es_SV	-inf	menos ∞	menos ∞
+es_SV	nan	NaN	NaN
+es_US	inf	∞	∞
+es_US	-inf	menos ∞	menos ∞
+es_US	nan	NaN	NaN
+es_UY	inf	∞	∞
+es_UY	-inf	menos ∞	menos ∞
+es_UY	nan	NaN	NaN
+es_VE	inf	∞	∞
+es_VE	-inf	menos ∞	menos ∞
+es_VE	nan	NaN	NaN
+et	inf	∞	∞
+et	-inf	∞	∞
+et	nan	NaN	NaN
+et_EE	inf	∞	∞
+et_EE	-inf	∞	∞
+et_EE	nan	NaN	NaN
+eu	inf	infinity	infinitieth
+eu	-inf	minus infinity	minus infinitieth
+eu	nan	not a number	NaN
+eu_ES	inf	infinity	infinitieth
+eu_ES	-inf	minus infinity	minus infinitieth
+eu_ES	nan	not a number	NaN
+ewo	inf	infinity	infinitieth
+ewo	-inf	minus infinity	minus infinitieth
+ewo	nan	not a number	NaN
+ewo_CM	inf	infinity	infinitieth
+ewo_CM	-inf	minus infinity	minus infinitieth
+ewo_CM	nan	not a number	NaN
+fa	inf	∞	∞
+fa	-inf	∞	∞
+fa	nan	ناعدد	ناعدد
+fa_AF	inf	∞	∞
+fa_AF	-inf	∞	∞
+fa_AF	nan	ناعدد	ناعدد
+fa_IR	inf	∞	∞
+fa_IR	-inf	∞	∞
+fa_IR	nan	ناعدد	ناعدد
+ff	inf	∞	infinity
+ff	-inf	∞	minus infinity
+ff	nan	NaN	alaa limoore
+ff_Adlm	inf	∞	∞
+ff_Adlm	-inf	−∞	−∞
+ff_Adlm	nan	NaN	NaN
+ff_Adlm_BF	inf	∞	∞
+ff_Adlm_BF	-inf	−∞	−∞
+ff_Adlm_BF	nan	NaN	NaN
+ff_Adlm_CM	inf	∞	∞
+ff_Adlm_CM	-inf	−∞	−∞
+ff_Adlm_CM	nan	NaN	NaN
+ff_Adlm_GH	inf	∞	∞
+ff_Adlm_GH	-inf	−∞	−∞
+ff_Adlm_GH	nan	NaN	NaN
+ff_Adlm_GM	inf	∞	∞
+ff_Adlm_GM	-inf	−∞	−∞
+ff_Adlm_GM	nan	NaN	NaN
+ff_Adlm_GN	inf	∞	∞
+ff_Adlm_GN	-inf	−∞	−∞
+ff_Adlm_GN	nan	NaN	NaN
+ff_Adlm_GW	inf	∞	∞
+ff_Adlm_GW	-inf	−∞	−∞
+ff_Adlm_GW	nan	NaN	NaN
+ff_Adlm_LR	inf	∞	∞
+ff_Adlm_LR	-inf	−∞	−∞
+ff_Adlm_LR	nan	NaN	NaN
+ff_Adlm_MR	inf	∞	∞
+ff_Adlm_MR	-inf	−∞	−∞
+ff_Adlm_MR	nan	NaN	NaN
+ff_Adlm_NE	inf	∞	∞
+ff_Adlm_NE	-inf	−∞	−∞
+ff_Adlm_NE	nan	NaN	NaN
+ff_Adlm_NG	inf	∞	∞
+ff_Adlm_NG	-inf	−∞	−∞
+ff_Adlm_NG	nan	NaN	NaN
+ff_Adlm_SL	inf	∞	∞
+ff_Adlm_SL	-inf	−∞	−∞
+ff_Adlm_SL	nan	NaN	NaN
+ff_Adlm_SN	inf	∞	∞
+ff_Adlm_SN	-inf	−∞	−∞
+ff_Adlm_SN	nan	NaN	NaN
+ff_Latn	inf	∞	infinity
+ff_Latn	-inf	∞	minus infinity
+ff_Latn	nan	NaN	alaa limoore
+ff_Latn_BF	inf	∞	infinity
+ff_Latn_BF	-inf	∞	minus infinity
+ff_Latn_BF	nan	NaN	alaa limoore
+ff_Latn_CM	inf	∞	infinity
+ff_Latn_CM	-inf	∞	minus infinity
+ff_Latn_CM	nan	NaN	alaa limoore
+ff_Latn_GH	inf	∞	infinity
+ff_Latn_GH	-inf	∞	minus infinity
+ff_Latn_GH	nan	NaN	alaa limoore
+ff_Latn_GM	inf	∞	infinity
+ff_Latn_GM	-inf	∞	minus infinity
+ff_Latn_GM	nan	NaN	alaa limoore
+ff_Latn_GN	inf	∞	infinity
+ff_Latn_GN	-inf	∞	minus infinity
+ff_Latn_GN	nan	NaN	alaa limoore
+ff_Latn_GW	inf	∞	infinity
+ff_Latn_GW	-inf	∞	minus infinity
+ff_Latn_GW	nan	NaN	alaa limoore
+ff_Latn_LR	inf	∞	infinity
+ff_Latn_LR	-inf	∞	minus infinity
+ff_Latn_LR	nan	NaN	alaa limoore
+ff_Latn_MR	inf	∞	infinity
+ff_Latn_MR	-inf	∞	minus infinity
+ff_Latn_MR	nan	NaN	alaa limoore
+ff_Latn_NE	inf	∞	infinity
+ff_Latn_NE	-inf	∞	minus infinity
+ff_Latn_NE	nan	NaN	alaa limoore
+ff_Latn_NG	inf	∞	infinity
+ff_Latn_NG	-inf	∞	minus infinity
+ff_Latn_NG	nan	NaN	alaa limoore
+ff_Latn_SL	inf	∞	infinity
+ff_Latn_SL	-inf	∞	minus infinity
+ff_Latn_SL	nan	NaN	alaa limoore
+ff_Latn_SN	inf	∞	infinity
+ff_Latn_SN	-inf	∞	minus infinity
+ff_Latn_SN	nan	NaN	alaa limoore
+fi	inf	∞	∞
+fi	-inf	∞	miinus ∞
+fi	nan	epäluku	epäluku
+fi_FI	inf	∞	∞
+fi_FI	-inf	∞	miinus ∞
+fi_FI	nan	epäluku	epäluku
+fil	inf	∞	∞
+fil	-inf	∞	∞
+fil	nan	NaN	NaN
+fil_PH	inf	∞	∞
+fil_PH	-inf	∞	∞
+fil_PH	nan	NaN	NaN
+fo	inf	∞	∞
+fo	-inf	∞	∞
+fo	nan	NaN	NaN
+fo_DK	inf	∞	∞
+fo_DK	-inf	∞	∞
+fo_DK	nan	NaN	NaN
+fo_FO	inf	∞	∞
+fo_FO	-inf	∞	∞
+fo_FO	nan	NaN	NaN
+fr	inf	∞	∞
+fr	-inf	∞	∞
+fr	nan	NaN	NaN
+fr_BE	inf	∞	∞
+fr_BE	-inf	∞	∞
+fr_BE	nan	NaN	NaN
+fr_BF	inf	∞	∞
+fr_BF	-inf	∞	∞
+fr_BF	nan	NaN	NaN
+fr_BI	inf	∞	∞
+fr_BI	-inf	∞	∞
+fr_BI	nan	NaN	NaN
+fr_BJ	inf	∞	∞
+fr_BJ	-inf	∞	∞
+fr_BJ	nan	NaN	NaN
+fr_BL	inf	∞	∞
+fr_BL	-inf	∞	∞
+fr_BL	nan	NaN	NaN
+fr_CA	inf	∞	∞
+fr_CA	-inf	∞	∞
+fr_CA	nan	NaN	NaN
+fr_CD	inf	∞	∞
+fr_CD	-inf	∞	∞
+fr_CD	nan	NaN	NaN
+fr_CF	inf	∞	∞
+fr_CF	-inf	∞	∞
+fr_CF	nan	NaN	NaN
+fr_CG	inf	∞	∞
+fr_CG	-inf	∞	∞
+fr_CG	nan	NaN	NaN
+fr_CH	inf	∞	∞
+fr_CH	-inf	∞	∞
+fr_CH	nan	NaN	NaN
+fr_CI	inf	∞	∞
+fr_CI	-inf	∞	∞
+fr_CI	nan	NaN	NaN
+fr_CM	inf	∞	∞
+fr_CM	-inf	∞	∞
+fr_CM	nan	NaN	NaN
+fr_DJ	inf	∞	∞
+fr_DJ	-inf	∞	∞
+fr_DJ	nan	NaN	NaN
+fr_DZ	inf	∞	∞
+fr_DZ	-inf	∞	∞
+fr_DZ	nan	NaN	NaN
+fr_FR	inf	∞	∞
+fr_FR	-inf	∞	∞
+fr_FR	nan	NaN	NaN
+fr_GA	inf	∞	∞
+fr_GA	-inf	∞	∞
+fr_GA	nan	NaN	NaN
+fr_GF	inf	∞	∞
+fr_GF	-inf	∞	∞
+fr_GF	nan	NaN	NaN
+fr_GN	inf	∞	∞
+fr_GN	-inf	∞	∞
+fr_GN	nan	NaN	NaN
+fr_GP	inf	∞	∞
+fr_GP	-inf	∞	∞
+fr_GP	nan	NaN	NaN
+fr_GQ	inf	∞	∞
+fr_GQ	-inf	∞	∞
+fr_GQ	nan	NaN	NaN
+fr_HT	inf	∞	∞
+fr_HT	-inf	∞	∞
+fr_HT	nan	NaN	NaN
+fr_KM	inf	∞	∞
+fr_KM	-inf	∞	∞
+fr_KM	nan	NaN	NaN
+fr_LU	inf	∞	∞
+fr_LU	-inf	∞	∞
+fr_LU	nan	NaN	NaN
+fr_MA	inf	∞	∞
+fr_MA	-inf	∞	∞
+fr_MA	nan	NaN	NaN
+fr_MC	inf	∞	∞
+fr_MC	-inf	∞	∞
+fr_MC	nan	NaN	NaN
+fr_MF	inf	∞	∞
+fr_MF	-inf	∞	∞
+fr_MF	nan	NaN	NaN
+fr_MG	inf	∞	∞
+fr_MG	-inf	∞	∞
+fr_MG	nan	NaN	NaN
+fr_ML	inf	∞	∞
+fr_ML	-inf	∞	∞
+fr_ML	nan	NaN	NaN
+fr_MQ	inf	∞	∞
+fr_MQ	-inf	∞	∞
+fr_MQ	nan	NaN	NaN
+fr_MR	inf	∞	∞
+fr_MR	-inf	∞	∞
+fr_MR	nan	NaN	NaN
+fr_MU	inf	∞	∞
+fr_MU	-inf	∞	∞
+fr_MU	nan	NaN	NaN
+fr_NC	inf	∞	∞
+fr_NC	-inf	∞	∞
+fr_NC	nan	NaN	NaN
+fr_NE	inf	∞	∞
+fr_NE	-inf	∞	∞
+fr_NE	nan	NaN	NaN
+fr_PF	inf	∞	∞
+fr_PF	-inf	∞	∞
+fr_PF	nan	NaN	NaN
+fr_PM	inf	∞	∞
+fr_PM	-inf	∞	∞
+fr_PM	nan	NaN	NaN
+fr_RE	inf	∞	∞
+fr_RE	-inf	∞	∞
+fr_RE	nan	NaN	NaN
+fr_RW	inf	∞	∞
+fr_RW	-inf	∞	∞
+fr_RW	nan	NaN	NaN
+fr_SC	inf	∞	∞
+fr_SC	-inf	∞	∞
+fr_SC	nan	NaN	NaN
+fr_SN	inf	∞	∞
+fr_SN	-inf	∞	∞
+fr_SN	nan	NaN	NaN
+fr_SY	inf	∞	∞
+fr_SY	-inf	∞	∞
+fr_SY	nan	NaN	NaN
+fr_TD	inf	∞	∞
+fr_TD	-inf	∞	∞
+fr_TD	nan	NaN	NaN
+fr_TG	inf	∞	∞
+fr_TG	-inf	∞	∞
+fr_TG	nan	NaN	NaN
+fr_TN	inf	∞	∞
+fr_TN	-inf	∞	∞
+fr_TN	nan	NaN	NaN
+fr_VU	inf	∞	∞
+fr_VU	-inf	∞	∞
+fr_VU	nan	NaN	NaN
+fr_WF	inf	∞	∞
+fr_WF	-inf	∞	∞
+fr_WF	nan	NaN	NaN
+fr_YT	inf	∞	∞
+fr_YT	-inf	∞	∞
+fr_YT	nan	NaN	NaN
+fur	inf	infinity	infinitieth
+fur	-inf	minus infinity	minus infinitieth
+fur	nan	not a number	NaN
+fur_IT	inf	infinity	infinitieth
+fur_IT	-inf	minus infinity	minus infinitieth
+fur_IT	nan	not a number	NaN
+fy	inf	infinity	infinitieth
+fy	-inf	minus infinity	minus infinitieth
+fy	nan	not a number	NaN
+fy_NL	inf	infinity	infinitieth
+fy_NL	-inf	minus infinity	minus infinitieth
+fy_NL	nan	not a number	NaN
+ga	inf	∞	∞
+ga	-inf	míneas ∞	míneas ∞
+ga	nan	Nuimh	Nuimh
+ga_GB	inf	∞	∞
+ga_GB	-inf	míneas ∞	míneas ∞
+ga_GB	nan	Nuimh	Nuimh
+ga_IE	inf	∞	∞
+ga_IE	-inf	míneas ∞	míneas ∞
+ga_IE	nan	Nuimh	Nuimh
+gaa	inf	infinity	infinitieth
+gaa	-inf	minus infinity	minus infinitieth
+gaa	nan	not a number	NaN
+gaa_GH	inf	infinity	infinitieth
+gaa_GH	-inf	minus infinity	minus infinitieth
+gaa_GH	nan	not a number	NaN
+gd	inf	infinity	infinitieth
+gd	-inf	minus infinity	minus infinitieth
+gd	nan	not a number	NaN
+gd_GB	inf	infinity	infinitieth
+gd_GB	-inf	minus infinity	minus infinitieth
+gd_GB	nan	not a number	NaN
+gl	inf	infinity	infinitieth
+gl	-inf	minus infinity	minus infinitieth
+gl	nan	not a number	NaN
+gl_ES	inf	infinity	infinitieth
+gl_ES	-inf	minus infinity	minus infinitieth
+gl_ES	nan	not a number	NaN
+gsw	inf	infinity	infinitieth
+gsw	-inf	minus infinity	minus infinitieth
+gsw	nan	not a number	NaN
+gsw_CH	inf	infinity	infinitieth
+gsw_CH	-inf	minus infinity	minus infinitieth
+gsw_CH	nan	not a number	NaN
+gsw_FR	inf	infinity	infinitieth
+gsw_FR	-inf	minus infinity	minus infinitieth
+gsw_FR	nan	not a number	NaN
+gsw_LI	inf	infinity	infinitieth
+gsw_LI	-inf	minus infinity	minus infinitieth
+gsw_LI	nan	not a number	NaN
+gu	inf	infinity	infinitieth
+gu	-inf	minus infinity	minus infinitieth
+gu	nan	not a number	NaN
+gu_IN	inf	infinity	infinitieth
+gu_IN	-inf	minus infinity	minus infinitieth
+gu_IN	nan	not a number	NaN
+guz	inf	infinity	infinitieth
+guz	-inf	minus infinity	minus infinitieth
+guz	nan	not a number	NaN
+guz_KE	inf	infinity	infinitieth
+guz_KE	-inf	minus infinity	minus infinitieth
+guz_KE	nan	not a number	NaN
+gv	inf	infinity	infinitieth
+gv	-inf	minus infinity	minus infinitieth
+gv	nan	not a number	NaN
+gv_IM	inf	infinity	infinitieth
+gv_IM	-inf	minus infinity	minus infinitieth
+gv_IM	nan	not a number	NaN
+ha	inf	infinity	infinitieth
+ha	-inf	minus infinity	minus infinitieth
+ha	nan	not a number	NaN
+ha_GH	inf	infinity	infinitieth
+ha_GH	-inf	minus infinity	minus infinitieth
+ha_GH	nan	not a number	NaN
+ha_NE	inf	infinity	infinitieth
+ha_NE	-inf	minus infinity	minus infinitieth
+ha_NE	nan	not a number	NaN
+ha_NG	inf	infinity	infinitieth
+ha_NG	-inf	minus infinity	minus infinitieth
+ha_NG	nan	not a number	NaN
+haw	inf	infinity	infinitieth
+haw	-inf	minus infinity	minus infinitieth
+haw	nan	not a number	NaN
+haw_US	inf	infinity	infinitieth
+haw_US	-inf	minus infinity	minus infinitieth
+haw_US	nan	not a number	NaN
+he	inf	∞	∞
+he	-inf	מינוס ∞	מינוס ∞
+he	nan	NaN	NaN
+he_IL	inf	∞	∞
+he_IL	-inf	מינוס ∞	מינוס ∞
+he_IL	nan	NaN	NaN
+hi	inf	∞	∞
+hi	-inf	∞	∞
+hi	nan	NaN	NaN
+hi_IN	inf	∞	∞
+hi_IN	-inf	∞	∞
+hi_IN	nan	NaN	NaN
+hi_Latn	inf	infinity	infinitieth
+hi_Latn	-inf	minus infinity	minus infinitieth
+hi_Latn	nan	not a number	NaN
+hi_Latn_IN	inf	infinity	infinitieth
+hi_Latn_IN	-inf	minus infinity	minus infinitieth
+hi_Latn_IN	nan	not a number	NaN
+hr	inf	∞	∞
+hr	-inf	∞	∞
+hr	nan	NaN	NaN
+hr_BA	inf	∞	∞
+hr_BA	-inf	∞	∞
+hr_BA	nan	NaN	NaN
+hr_HR	inf	∞	∞
+hr_HR	-inf	∞	∞
+hr_HR	nan	NaN	NaN
+hsb	inf	infinity	infinitieth
+hsb	-inf	minus infinity	minus infinitieth
+hsb	nan	not a number	NaN
+hsb_DE	inf	infinity	infinitieth
+hsb_DE	-inf	minus infinity	minus infinitieth
+hsb_DE	nan	not a number	NaN
+hu	inf	∞	∞
+hu	-inf	∞	mínusz ∞
+hu	nan	NaN	NaN
+hu_HU	inf	∞	∞
+hu_HU	-inf	∞	mínusz ∞
+hu_HU	nan	NaN	NaN
+hy	inf	∞	∞
+hy	-inf	∞	∞
+hy	nan	ՈչԹ	ՈչԹ
+hy_AM	inf	∞	∞
+hy_AM	-inf	∞	∞
+hy_AM	nan	ՈչԹ	ՈչԹ
+ia	inf	infinity	infinitieth
+ia	-inf	minus infinity	minus infinitieth
+ia	nan	not a number	NaN
+ia_001	inf	infinity	infinitieth
+ia_001	-inf	minus infinity	minus infinitieth
+ia_001	nan	not a number	NaN
+id	inf	∞	∞
+id	-inf	∞	negatif ∞
+id	nan	NaN	NaN
+id_ID	inf	∞	∞
+id_ID	-inf	∞	negatif ∞
+id_ID	nan	NaN	NaN
+ie	inf	infinity	infinitieth
+ie	-inf	minus infinity	minus infinitieth
+ie	nan	not a number	NaN
+ie_EE	inf	infinity	infinitieth
+ie_EE	-inf	minus infinity	minus infinitieth
+ie_EE	nan	not a number	NaN
+ig	inf	infinity	infinitieth
+ig	-inf	minus infinity	minus infinitieth
+ig	nan	not a number	NaN
+ig_NG	inf	infinity	infinitieth
+ig_NG	-inf	minus infinity	minus infinitieth
+ig_NG	nan	not a number	NaN
+ii	inf	infinity	infinitieth
+ii	-inf	minus infinity	minus infinitieth
+ii	nan	not a number	NaN
+ii_CN	inf	infinity	infinitieth
+ii_CN	-inf	minus infinity	minus infinitieth
+ii_CN	nan	not a number	NaN
+is	inf	∞	∞
+is	-inf	∞	∞
+is	nan	NaN	NaN
+is_IS	inf	∞	∞
+is_IS	-inf	∞	∞
+is_IS	nan	NaN	NaN
+it	inf	∞	∞
+it	-inf	meno ∞	meno ∞
+it	nan	NaN	NaN
+it_CH	inf	∞	∞
+it_CH	-inf	meno ∞	meno ∞
+it_CH	nan	NaN	NaN
+it_IT	inf	∞	∞
+it_IT	-inf	meno ∞	meno ∞
+it_IT	nan	NaN	NaN
+it_SM	inf	∞	∞
+it_SM	-inf	meno ∞	meno ∞
+it_SM	nan	NaN	NaN
+it_VA	inf	∞	∞
+it_VA	-inf	meno ∞	meno ∞
+it_VA	nan	NaN	NaN
+ja	inf	∞	∞
+ja	-inf	∞	∞
+ja	nan	NaN	NaN
+ja_JP	inf	∞	∞
+ja_JP	-inf	∞	∞
+ja_JP	nan	NaN	NaN
+jgo	inf	infinity	infinitieth
+jgo	-inf	minus infinity	minus infinitieth
+jgo	nan	not a number	NaN
+jgo_CM	inf	infinity	infinitieth
+jgo_CM	-inf	minus infinity	minus infinitieth
+jgo_CM	nan	not a number	NaN
+jmc	inf	infinity	infinitieth
+jmc	-inf	minus infinity	minus infinitieth
+jmc	nan	not a number	NaN
+jmc_TZ	inf	infinity	infinitieth
+jmc_TZ	-inf	minus infinity	minus infinitieth
+jmc_TZ	nan	not a number	NaN
+jv	inf	infinity	infinitieth
+jv	-inf	minus infinity	minus infinitieth
+jv	nan	not a number	NaN
+jv_ID	inf	infinity	infinitieth
+jv_ID	-inf	minus infinity	minus infinitieth
+jv_ID	nan	not a number	NaN
+ka	inf	∞	∞
+ka	-inf	∞	∞
+ka	nan	არ არის რიცხვი	არ არის რიცხვი
+ka_GE	inf	∞	∞
+ka_GE	-inf	∞	∞
+ka_GE	nan	არ არის რიცხვი	არ არის რიცხვი
+kab	inf	infinity	infinitieth
+kab	-inf	minus infinity	minus infinitieth
+kab	nan	not a number	NaN
+kab_DZ	inf	infinity	infinitieth
+kab_DZ	-inf	minus infinity	minus infinitieth
+kab_DZ	nan	not a number	NaN
+kam	inf	infinity	infinitieth
+kam	-inf	minus infinity	minus infinitieth
+kam	nan	not a number	NaN
+kam_KE	inf	infinity	infinitieth
+kam_KE	-inf	minus infinity	minus infinitieth
+kam_KE	nan	not a number	NaN
+kde	inf	infinity	infinitieth
+kde	-inf	minus infinity	minus infinitieth
+kde	nan	not a number	NaN
+kde_TZ	inf	infinity	infinitieth
+kde_TZ	-inf	minus infinity	minus infinitieth
+kde_TZ	nan	not a number	NaN
+kea	inf	infinity	infinitieth
+kea	-inf	minus infinity	minus infinitieth
+kea	nan	not a number	NaN
+kea_CV	inf	infinity	infinitieth
+kea_CV	-inf	minus infinity	minus infinitieth
+kea_CV	nan	not a number	NaN
+kgp	inf	infinity	infinitieth
+kgp	-inf	minus infinity	minus infinitieth
+kgp	nan	not a number	NaN
+kgp_BR	inf	infinity	infinitieth
+kgp_BR	-inf	minus infinity	minus infinitieth
+kgp_BR	nan	not a number	NaN
+khq	inf	infinity	infinitieth
+khq	-inf	minus infinity	minus infinitieth
+khq	nan	not a number	NaN
+khq_ML	inf	infinity	infinitieth
+khq_ML	-inf	minus infinity	minus infinitieth
+khq_ML	nan	not a number	NaN
+ki	inf	infinity	infinitieth
+ki	-inf	minus infinity	minus infinitieth
+ki	nan	not a number	NaN
+ki_KE	inf	infinity	infinitieth
+ki_KE	-inf	minus infinity	minus infinitieth
+ki_KE	nan	not a number	NaN
+kk	inf	∞	∞
+kk	-inf	∞	минус ∞
+kk	nan	сан емес	сан емес
+kk_Cyrl	inf	∞	∞
+kk_Cyrl	-inf	∞	минус ∞
+kk_Cyrl	nan	сан емес	сан емес
+kk_Cyrl_KZ	inf	∞	∞
+kk_Cyrl_KZ	-inf	∞	минус ∞
+kk_Cyrl_KZ	nan	сан емес	сан емес
+kk_KZ	inf	∞	∞
+kk_KZ	-inf	∞	минус ∞
+kk_KZ	nan	сан емес	сан емес
+kkj	inf	infinity	infinitieth
+kkj	-inf	minus infinity	minus infinitieth
+kkj	nan	not a number	NaN
+kkj_CM	inf	infinity	infinitieth
+kkj_CM	-inf	minus infinity	minus infinitieth
+kkj_CM	nan	not a number	NaN
+kl	inf	∞	∞
+kl	-inf	∞	∞
+kl	nan	NaN	NaN
+kl_GL	inf	∞	∞
+kl_GL	-inf	∞	∞
+kl_GL	nan	NaN	NaN
+kln	inf	infinity	infinitieth
+kln	-inf	minus infinity	minus infinitieth
+kln	nan	not a number	NaN
+kln_KE	inf	infinity	infinitieth
+kln_KE	-inf	minus infinity	minus infinitieth
+kln_KE	nan	not a number	NaN
+km	inf	∞	∞
+km	-inf	ដក​∞	∞
+km	nan	NaN	NaN
+km_KH	inf	∞	∞
+km_KH	-inf	ដក​∞	∞
+km_KH	nan	NaN	NaN
+kn	inf	infinity	infinitieth
+kn	-inf	minus infinity	minus infinitieth
+kn	nan	not a number	NaN
+kn_IN	inf	infinity	infinitieth
+kn_IN	-inf	minus infinity	minus infinitieth
+kn_IN	nan	not a number	NaN
+ko	inf	∞	∞
+ko	-inf	∞	∞
+ko	nan	NaN	NaN
+ko_CN	inf	∞	∞
+ko_CN	-inf	∞	∞
+ko_CN	nan	NaN	NaN
+ko_KP	inf	∞	∞
+ko_KP	-inf	∞	∞
+ko_KP	nan	NaN	NaN
+ko_KR	inf	∞	∞
+ko_KR	-inf	∞	∞
+ko_KR	nan	NaN	NaN
+kok	inf	infinity	infinitieth
+kok	-inf	minus infinity	minus infinitieth
+kok	nan	not a number	NaN
+kok_Deva	inf	infinity	infinitieth
+kok_Deva	-inf	minus infinity	minus infinitieth
+kok_Deva	nan	not a number	NaN
+kok_Deva_IN	inf	infinity	infinitieth
+kok_Deva_IN	-inf	minus infinity	minus infinitieth
+kok_Deva_IN	nan	not a number	NaN
+kok_Latn	inf	∞	∞
+kok_Latn	-inf	−∞	−∞
+kok_Latn	nan	NaN	NaN
+kok_Latn_IN	inf	∞	∞
+kok_Latn_IN	-inf	−∞	−∞
+kok_Latn_IN	nan	NaN	NaN
+ks	inf	infinity	infinitieth
+ks	-inf	minus infinity	minus infinitieth
+ks	nan	not a number	NaN
+ks_Arab	inf	infinity	infinitieth
+ks_Arab	-inf	minus infinity	minus infinitieth
+ks_Arab	nan	not a number	NaN
+ks_Arab_IN	inf	infinity	infinitieth
+ks_Arab_IN	-inf	minus infinity	minus infinitieth
+ks_Arab_IN	nan	not a number	NaN
+ks_Deva	inf	∞	∞
+ks_Deva	-inf	−∞	−∞
+ks_Deva	nan	NaN	NaN
+ks_Deva_IN	inf	∞	∞
+ks_Deva_IN	-inf	−∞	−∞
+ks_Deva_IN	nan	NaN	NaN
+ksb	inf	infinity	infinitieth
+ksb	-inf	minus infinity	minus infinitieth
+ksb	nan	not a number	NaN
+ksb_TZ	inf	infinity	infinitieth
+ksb_TZ	-inf	minus infinity	minus infinitieth
+ksb_TZ	nan	not a number	NaN
+ksf	inf	infinity	infinitieth
+ksf	-inf	minus infinity	minus infinitieth
+ksf	nan	not a number	NaN
+ksf_CM	inf	infinity	infinitieth
+ksf_CM	-inf	minus infinity	minus infinitieth
+ksf_CM	nan	not a number	NaN
+ksh	inf	infinity	infinitieth
+ksh	-inf	minus infinity	minus infinitieth
+ksh	nan	not a number	NaN
+ksh_DE	inf	infinity	infinitieth
+ksh_DE	-inf	minus infinity	minus infinitieth
+ksh_DE	nan	not a number	NaN
+ku	inf	infinity	infinitieth
+ku	-inf	minus infinity	minus infinitieth
+ku	nan	not a number	NaN
+ku_TR	inf	infinity	infinitieth
+ku_TR	-inf	minus infinity	minus infinitieth
+ku_TR	nan	not a number	NaN
+kw	inf	infinity	infinitieth
+kw	-inf	minus infinity	minus infinitieth
+kw	nan	not a number	NaN
+kw_GB	inf	infinity	infinitieth
+kw_GB	-inf	minus infinity	minus infinitieth
+kw_GB	nan	not a number	NaN
+kxv	inf	infinity	infinitieth
+kxv	-inf	minus infinity	minus infinitieth
+kxv	nan	not a number	NaN
+kxv_Deva	inf	∞	∞
+kxv_Deva	-inf	−∞	−∞
+kxv_Deva	nan	NaN	NaN
+kxv_Deva_IN	inf	∞	∞
+kxv_Deva_IN	-inf	−∞	−∞
+kxv_Deva_IN	nan	NaN	NaN
+kxv_Latn	inf	infinity	infinitieth
+kxv_Latn	-inf	minus infinity	minus infinitieth
+kxv_Latn	nan	not a number	NaN
+kxv_Latn_IN	inf	infinity	infinitieth
+kxv_Latn_IN	-inf	minus infinity	minus infinitieth
+kxv_Latn_IN	nan	not a number	NaN
+kxv_Orya	inf	∞	∞
+kxv_Orya	-inf	−∞	−∞
+kxv_Orya	nan	NaN	NaN
+kxv_Orya_IN	inf	∞	∞
+kxv_Orya_IN	-inf	−∞	−∞
+kxv_Orya_IN	nan	NaN	NaN
+kxv_Telu	inf	∞	∞
+kxv_Telu	-inf	−∞	−∞
+kxv_Telu	nan	NaN	NaN
+kxv_Telu_IN	inf	∞	∞
+kxv_Telu_IN	-inf	−∞	−∞
+kxv_Telu_IN	nan	NaN	NaN
+ky	inf	∞	∞
+ky	-inf	∞	минус ∞
+ky	nan	сан эмес	сан эмес
+ky_KG	inf	∞	∞
+ky_KG	-inf	∞	минус ∞
+ky_KG	nan	сан эмес	сан эмес
+lag	inf	infinity	infinitieth
+lag	-inf	minus infinity	minus infinitieth
+lag	nan	not a number	NaN
+lag_TZ	inf	infinity	infinitieth
+lag_TZ	-inf	minus infinity	minus infinitieth
+lag_TZ	nan	not a number	NaN
+lb	inf	∞	∞
+lb	-inf	∞	∞
+lb	nan	NaN	NaN
+lb_LU	inf	∞	∞
+lb_LU	-inf	∞	∞
+lb_LU	nan	NaN	NaN
+lg	inf	infinity	infinitieth
+lg	-inf	minus infinity	minus infinitieth
+lg	nan	not a number	NaN
+lg_UG	inf	infinity	infinitieth
+lg_UG	-inf	minus infinity	minus infinitieth
+lg_UG	nan	not a number	NaN
+lij	inf	infinity	infinitieth
+lij	-inf	minus infinity	minus infinitieth
+lij	nan	not a number	NaN
+lij_IT	inf	infinity	infinitieth
+lij_IT	-inf	minus infinity	minus infinitieth
+lij_IT	nan	not a number	NaN
+lkt	inf	infinity	infinitieth
+lkt	-inf	minus infinity	minus infinitieth
+lkt	nan	not a number	NaN
+lkt_US	inf	infinity	infinitieth
+lkt_US	-inf	minus infinity	minus infinitieth
+lkt_US	nan	not a number	NaN
+lmo	inf	infinity	infinitieth
+lmo	-inf	minus infinity	minus infinitieth
+lmo	nan	not a number	NaN
+lmo_IT	inf	infinity	infinitieth
+lmo_IT	-inf	minus infinity	minus infinitieth
+lmo_IT	nan	not a number	NaN
+ln	inf	infinity	infinitieth
+ln	-inf	minus infinity	minus infinitieth
+ln	nan	not a number	NaN
+ln_AO	inf	infinity	infinitieth
+ln_AO	-inf	minus infinity	minus infinitieth
+ln_AO	nan	not a number	NaN
+ln_CD	inf	infinity	infinitieth
+ln_CD	-inf	minus infinity	minus infinitieth
+ln_CD	nan	not a number	NaN
+ln_CF	inf	infinity	infinitieth
+ln_CF	-inf	minus infinity	minus infinitieth
+ln_CF	nan	not a number	NaN
+ln_CG	inf	infinity	infinitieth
+ln_CG	-inf	minus infinity	minus infinitieth
+ln_CG	nan	not a number	NaN
+lo	inf	∞	∞
+lo	-inf	∞	∞
+lo	nan	ບໍ່​ແມ່ນ​ໂຕ​ເລກ	ບໍ່​ແມ່ນ​ໂຕ​ເລກ
+lo_LA	inf	∞	∞
+lo_LA	-inf	∞	∞
+lo_LA	nan	ບໍ່​ແມ່ນ​ໂຕ​ເລກ	ບໍ່​ແມ່ນ​ໂຕ​ເລກ
+lrc	inf	∞	∞
+lrc	-inf	∞	∞
+lrc	nan	NaN	NaN
+lrc_IQ	inf	∞	∞
+lrc_IQ	-inf	∞	∞
+lrc_IQ	nan	NaN	NaN
+lrc_IR	inf	∞	∞
+lrc_IR	-inf	∞	∞
+lrc_IR	nan	NaN	NaN
+lt	inf	∞	∞
+lt	-inf	∞	∞
+lt	nan	NaN	NaN
+lt_LT	inf	∞	∞
+lt_LT	-inf	∞	∞
+lt_LT	nan	NaN	NaN
+lu	inf	infinity	infinitieth
+lu	-inf	minus infinity	minus infinitieth
+lu	nan	not a number	NaN
+lu_CD	inf	infinity	infinitieth
+lu_CD	-inf	minus infinity	minus infinitieth
+lu_CD	nan	not a number	NaN
+luo	inf	infinity	infinitieth
+luo	-inf	minus infinity	minus infinitieth
+luo	nan	not a number	NaN
+luo_KE	inf	infinity	infinitieth
+luo_KE	-inf	minus infinity	minus infinitieth
+luo_KE	nan	not a number	NaN
+luy	inf	infinity	infinitieth
+luy	-inf	minus infinity	minus infinitieth
+luy	nan	not a number	NaN
+luy_KE	inf	infinity	infinitieth
+luy_KE	-inf	minus infinity	minus infinitieth
+luy_KE	nan	not a number	NaN
+lv	inf	∞	∞
+lv	-inf	∞	∞
+lv	nan	NS	NS
+lv_LV	inf	∞	∞
+lv_LV	-inf	∞	∞
+lv_LV	nan	NS	NS
+mai	inf	infinity	infinitieth
+mai	-inf	minus infinity	minus infinitieth
+mai	nan	not a number	NaN
+mai_IN	inf	infinity	infinitieth
+mai_IN	-inf	minus infinity	minus infinitieth
+mai_IN	nan	not a number	NaN
+mas	inf	infinity	infinitieth
+mas	-inf	minus infinity	minus infinitieth
+mas	nan	not a number	NaN
+mas_KE	inf	infinity	infinitieth
+mas_KE	-inf	minus infinity	minus infinitieth
+mas_KE	nan	not a number	NaN
+mas_TZ	inf	infinity	infinitieth
+mas_TZ	-inf	minus infinity	minus infinitieth
+mas_TZ	nan	not a number	NaN
+mer	inf	infinity	infinitieth
+mer	-inf	minus infinity	minus infinitieth
+mer	nan	not a number	NaN
+mer_KE	inf	infinity	infinitieth
+mer_KE	-inf	minus infinity	minus infinitieth
+mer_KE	nan	not a number	NaN
+mfe	inf	infinity	infinitieth
+mfe	-inf	minus infinity	minus infinitieth
+mfe	nan	not a number	NaN
+mfe_MU	inf	infinity	infinitieth
+mfe_MU	-inf	minus infinity	minus infinitieth
+mfe_MU	nan	not a number	NaN
+mg	inf	infinity	infinitieth
+mg	-inf	minus infinity	minus infinitieth
+mg	nan	not a number	NaN
+mg_MG	inf	infinity	infinitieth
+mg_MG	-inf	minus infinity	minus infinitieth
+mg_MG	nan	not a number	NaN
+mgh	inf	infinity	infinitieth
+mgh	-inf	minus infinity	minus infinitieth
+mgh	nan	not a number	NaN
+mgh_MZ	inf	infinity	infinitieth
+mgh_MZ	-inf	minus infinity	minus infinitieth
+mgh_MZ	nan	not a number	NaN
+mgo	inf	infinity	infinitieth
+mgo	-inf	minus infinity	minus infinitieth
+mgo	nan	not a number	NaN
+mgo_CM	inf	infinity	infinitieth
+mgo_CM	-inf	minus infinity	minus infinitieth
+mgo_CM	nan	not a number	NaN
+mi	inf	infinity	infinitieth
+mi	-inf	minus infinity	minus infinitieth
+mi	nan	not a number	NaN
+mi_NZ	inf	infinity	infinitieth
+mi_NZ	-inf	minus infinity	minus infinitieth
+mi_NZ	nan	not a number	NaN
+mk	inf	∞	∞
+mk	-inf	∞	∞
+mk	nan	NaN	NaN
+mk_MK	inf	∞	∞
+mk_MK	-inf	∞	∞
+mk_MK	nan	NaN	NaN
+ml	inf	infinity	infinitieth
+ml	-inf	minus infinity	minus infinitieth
+ml	nan	not a number	NaN
+ml_IN	inf	infinity	infinitieth
+ml_IN	-inf	minus infinity	minus infinitieth
+ml_IN	nan	not a number	NaN
+mn	inf	infinity	infinitieth
+mn	-inf	minus infinity	minus infinitieth
+mn	nan	not a number	NaN
+mn_MN	inf	infinity	infinitieth
+mn_MN	-inf	minus infinity	minus infinitieth
+mn_MN	nan	not a number	NaN
+mni	inf	infinity	infinitieth
+mni	-inf	minus infinity	minus infinitieth
+mni	nan	not a number	NaN
+mni_Beng	inf	infinity	infinitieth
+mni_Beng	-inf	minus infinity	minus infinitieth
+mni_Beng	nan	not a number	NaN
+mni_Beng_IN	inf	infinity	infinitieth
+mni_Beng_IN	-inf	minus infinity	minus infinitieth
+mni_Beng_IN	nan	not a number	NaN
+mr	inf	infinity	infinitieth
+mr	-inf	minus infinity	minus infinitieth
+mr	nan	not a number	NaN
+mr_IN	inf	infinity	infinitieth
+mr_IN	-inf	minus infinity	minus infinitieth
+mr_IN	nan	not a number	NaN
+ms	inf	∞	∞
+ms	-inf	∞	negatif ∞
+ms	nan	NaN	NaN
+ms_BN	inf	∞	∞
+ms_BN	-inf	∞	negatif ∞
+ms_BN	nan	NaN	NaN
+ms_ID	inf	∞	∞
+ms_ID	-inf	∞	negatif ∞
+ms_ID	nan	NaN	NaN
+ms_MY	inf	∞	∞
+ms_MY	-inf	∞	negatif ∞
+ms_MY	nan	NaN	NaN
+ms_SG	inf	∞	∞
+ms_SG	-inf	∞	negatif ∞
+ms_SG	nan	NaN	NaN
+mt	inf	∞	∞
+mt	-inf	∞	∞
+mt	nan	NaN	NaN
+mt_MT	inf	∞	∞
+mt_MT	-inf	∞	∞
+mt_MT	nan	NaN	NaN
+mua	inf	infinity	infinitieth
+mua	-inf	minus infinity	minus infinitieth
+mua	nan	not a number	NaN
+mua_CM	inf	infinity	infinitieth
+mua_CM	-inf	minus infinity	minus infinitieth
+mua_CM	nan	not a number	NaN
+my	inf	∞	∞
+my	-inf	∞	အနုတ်∞
+my	nan	ဂဏန်းမဟုတ်သော	ဂဏန်းမဟုတ်သော
+my_MM	inf	∞	∞
+my_MM	-inf	∞	အနုတ်∞
+my_MM	nan	ဂဏန်းမဟုတ်သော	ဂဏန်းမဟုတ်သော
+mzn	inf	infinity	infinitieth
+mzn	-inf	minus infinity	minus infinitieth
+mzn	nan	not a number	NaN
+mzn_IR	inf	infinity	infinitieth
+mzn_IR	-inf	minus infinity	minus infinitieth
+mzn_IR	nan	not a number	NaN
+naq	inf	infinity	infinitieth
+naq	-inf	minus infinity	minus infinitieth
+naq	nan	not a number	NaN
+naq_NA	inf	infinity	infinitieth
+naq_NA	-inf	minus infinity	minus infinitieth
+naq_NA	nan	not a number	NaN
+nb	inf	∞	∞
+nb	-inf	∞	∞
+nb	nan	NaN	NaN
+nb_NO	inf	∞	∞
+nb_NO	-inf	∞	∞
+nb_NO	nan	NaN	NaN
+nb_SJ	inf	∞	∞
+nb_SJ	-inf	∞	∞
+nb_SJ	nan	NaN	NaN
+nd	inf	infinity	infinitieth
+nd	-inf	minus infinity	minus infinitieth
+nd	nan	not a number	NaN
+nd_ZW	inf	infinity	infinitieth
+nd_ZW	-inf	minus infinity	minus infinitieth
+nd_ZW	nan	not a number	NaN
+nds	inf	infinity	infinitieth
+nds	-inf	minus infinity	minus infinitieth
+nds	nan	not a number	NaN
+nds_DE	inf	infinity	infinitieth
+nds_DE	-inf	minus infinity	minus infinitieth
+nds_DE	nan	not a number	NaN
+nds_NL	inf	infinity	infinitieth
+nds_NL	-inf	minus infinity	minus infinitieth
+nds_NL	nan	not a number	NaN
+ne	inf	अनन्त	अनन्त
+ne	-inf	ऋणात्मक अनन्त	ऋणात्मक अनन्त
+ne	nan	NaN	NaN
+ne_IN	inf	अनन्त	अनन्त
+ne_IN	-inf	ऋणात्मक अनन्त	ऋणात्मक अनन्त
+ne_IN	nan	NaN	NaN
+ne_NP	inf	अनन्त	अनन्त
+ne_NP	-inf	ऋणात्मक अनन्त	ऋणात्मक अनन्त
+ne_NP	nan	NaN	NaN
+nl	inf	∞	∞
+nl	-inf	∞	min ∞
+nl	nan	NaN	NaN
+nl_AW	inf	∞	∞
+nl_AW	-inf	∞	min ∞
+nl_AW	nan	NaN	NaN
+nl_BE	inf	∞	∞
+nl_BE	-inf	∞	min ∞
+nl_BE	nan	NaN	NaN
+nl_BQ	inf	∞	∞
+nl_BQ	-inf	∞	min ∞
+nl_BQ	nan	NaN	NaN
+nl_CW	inf	∞	∞
+nl_CW	-inf	∞	min ∞
+nl_CW	nan	NaN	NaN
+nl_NL	inf	∞	∞
+nl_NL	-inf	∞	min ∞
+nl_NL	nan	NaN	NaN
+nl_SR	inf	∞	∞
+nl_SR	-inf	∞	min ∞
+nl_SR	nan	NaN	NaN
+nl_SX	inf	∞	∞
+nl_SX	-inf	∞	min ∞
+nl_SX	nan	NaN	NaN
+nmg	inf	infinity	infinitieth
+nmg	-inf	minus infinity	minus infinitieth
+nmg	nan	not a number	NaN
+nmg_CM	inf	infinity	infinitieth
+nmg_CM	-inf	minus infinity	minus infinitieth
+nmg_CM	nan	not a number	NaN
+nn	inf	∞	∞
+nn	-inf	∞	∞
+nn	nan	NaN	NaN
+nn_NO	inf	∞	∞
+nn_NO	-inf	∞	∞
+nn_NO	nan	NaN	NaN
+nnh	inf	infinity	infinitieth
+nnh	-inf	minus infinity	minus infinitieth
+nnh	nan	not a number	NaN
+nnh_CM	inf	infinity	infinitieth
+nnh_CM	-inf	minus infinity	minus infinitieth
+nnh_CM	nan	not a number	NaN
+no	inf	∞	∞
+no	-inf	∞	∞
+no	nan	NaN	NaN
+nqo	inf	infinity	infinitieth
+nqo	-inf	minus infinity	minus infinitieth
+nqo	nan	not a number	NaN
+nqo_GN	inf	infinity	infinitieth
+nqo_GN	-inf	minus infinity	minus infinitieth
+nqo_GN	nan	not a number	NaN
+nso	inf	infinity	infinitieth
+nso	-inf	minus infinity	minus infinitieth
+nso	nan	not a number	NaN
+nso_ZA	inf	infinity	infinitieth
+nso_ZA	-inf	minus infinity	minus infinitieth
+nso_ZA	nan	not a number	NaN
+nus	inf	infinity	infinitieth
+nus	-inf	minus infinity	minus infinitieth
+nus	nan	not a number	NaN
+nus_SS	inf	infinity	infinitieth
+nus_SS	-inf	minus infinity	minus infinitieth
+nus_SS	nan	not a number	NaN
+nyn	inf	infinity	infinitieth
+nyn	-inf	minus infinity	minus infinitieth
+nyn	nan	not a number	NaN
+nyn_UG	inf	infinity	infinitieth
+nyn_UG	-inf	minus infinity	minus infinitieth
+nyn_UG	nan	not a number	NaN
+oc	inf	infinity	infinitieth
+oc	-inf	minus infinity	minus infinitieth
+oc	nan	not a number	NaN
+oc_ES	inf	infinity	infinitieth
+oc_ES	-inf	minus infinity	minus infinitieth
+oc_ES	nan	not a number	NaN
+oc_FR	inf	infinity	infinitieth
+oc_FR	-inf	minus infinity	minus infinitieth
+oc_FR	nan	not a number	NaN
+om	inf	infinity	infinitieth
+om	-inf	minus infinity	minus infinitieth
+om	nan	not a number	NaN
+om_ET	inf	infinity	infinitieth
+om_ET	-inf	minus infinity	minus infinitieth
+om_ET	nan	not a number	NaN
+om_KE	inf	infinity	infinitieth
+om_KE	-inf	minus infinity	minus infinitieth
+om_KE	nan	not a number	NaN
+or	inf	infinity	infinitieth
+or	-inf	minus infinity	minus infinitieth
+or	nan	not a number	NaN
+or_IN	inf	infinity	infinitieth
+or_IN	-inf	minus infinity	minus infinitieth
+or_IN	nan	not a number	NaN
+os	inf	infinity	infinitieth
+os	-inf	minus infinity	minus infinitieth
+os	nan	not a number	НН
+os_GE	inf	infinity	infinitieth
+os_GE	-inf	minus infinity	minus infinitieth
+os_GE	nan	not a number	НН
+os_RU	inf	infinity	infinitieth
+os_RU	-inf	minus infinity	minus infinitieth
+os_RU	nan	not a number	НН
+pa	inf	infinity	infinitieth
+pa	-inf	minus infinity	minus infinitieth
+pa	nan	not a number	NaN
+pa_Arab	inf	∞	∞
+pa_Arab	-inf	−∞	−∞
+pa_Arab	nan	NaN	NaN
+pa_Arab_PK	inf	∞	∞
+pa_Arab_PK	-inf	−∞	−∞
+pa_Arab_PK	nan	NaN	NaN
+pa_Guru	inf	infinity	infinitieth
+pa_Guru	-inf	minus infinity	minus infinitieth
+pa_Guru	nan	not a number	NaN
+pa_Guru_IN	inf	infinity	infinitieth
+pa_Guru_IN	-inf	minus infinity	minus infinitieth
+pa_Guru_IN	nan	not a number	NaN
+pcm	inf	infinity	infinitieth
+pcm	-inf	minus infinity	minus infinitieth
+pcm	nan	not a number	NaN
+pcm_NG	inf	infinity	infinitieth
+pcm_NG	-inf	minus infinity	minus infinitieth
+pcm_NG	nan	not a number	NaN
+pl	inf	∞	∞
+pl	-inf	∞	∞
+pl	nan	NaN	NaN
+pl_PL	inf	∞	∞
+pl_PL	-inf	∞	∞
+pl_PL	nan	NaN	NaN
+prg	inf	infinity	infinitieth
+prg	-inf	minus infinity	minus infinitieth
+prg	nan	not a number	NaN
+prg_PL	inf	infinity	infinitieth
+prg_PL	-inf	minus infinity	minus infinitieth
+prg_PL	nan	not a number	NaN
+ps	inf	infinity	infinitieth
+ps	-inf	minus infinity	minus infinitieth
+ps	nan	not a number	NaN
+ps_AF	inf	infinity	infinitieth
+ps_AF	-inf	minus infinity	minus infinitieth
+ps_AF	nan	not a number	NaN
+ps_PK	inf	infinity	infinitieth
+ps_PK	-inf	minus infinity	minus infinitieth
+ps_PK	nan	not a number	NaN
+pt	inf	∞	∞
+pt	-inf	∞	∞
+pt	nan	NaN	NaN
+pt_AO	inf	∞	∞
+pt_AO	-inf	∞	∞
+pt_AO	nan	NaN	NaN
+pt_BR	inf	∞	∞
+pt_BR	-inf	∞	∞
+pt_BR	nan	NaN	NaN
+pt_CH	inf	∞	∞
+pt_CH	-inf	∞	∞
+pt_CH	nan	NaN	NaN
+pt_CV	inf	∞	∞
+pt_CV	-inf	∞	∞
+pt_CV	nan	NaN	NaN
+pt_GQ	inf	∞	∞
+pt_GQ	-inf	∞	∞
+pt_GQ	nan	NaN	NaN
+pt_GW	inf	∞	∞
+pt_GW	-inf	∞	∞
+pt_GW	nan	NaN	NaN
+pt_LU	inf	∞	∞
+pt_LU	-inf	∞	∞
+pt_LU	nan	NaN	NaN
+pt_MO	inf	∞	∞
+pt_MO	-inf	∞	∞
+pt_MO	nan	NaN	NaN
+pt_MZ	inf	∞	∞
+pt_MZ	-inf	∞	∞
+pt_MZ	nan	NaN	NaN
+pt_PT	inf	∞	∞
+pt_PT	-inf	∞	∞
+pt_PT	nan	NaN	NaN
+pt_ST	inf	∞	∞
+pt_ST	-inf	∞	∞
+pt_ST	nan	NaN	NaN
+pt_TL	inf	∞	∞
+pt_TL	-inf	∞	∞
+pt_TL	nan	NaN	NaN
+qu	inf	∞	∞
+qu	-inf	∞	minusu ∞
+qu	nan	NaN	NaN
+qu_BO	inf	∞	∞
+qu_BO	-inf	∞	minusu ∞
+qu_BO	nan	NaN	NaN
+qu_EC	inf	∞	∞
+qu_EC	-inf	∞	minusu ∞
+qu_EC	nan	NaN	NaN
+qu_PE	inf	∞	∞
+qu_PE	-inf	∞	minusu ∞
+qu_PE	nan	NaN	NaN
+raj	inf	infinity	infinitieth
+raj	-inf	minus infinity	minus infinitieth
+raj	nan	not a number	NaN
+raj_IN	inf	infinity	infinitieth
+raj_IN	-inf	minus infinity	minus infinitieth
+raj_IN	nan	not a number	NaN
+rm	inf	infinity	infinitieth
+rm	-inf	minus infinity	minus infinitieth
+rm	nan	not a number	NaN
+rm_CH	inf	infinity	infinitieth
+rm_CH	-inf	minus infinity	minus infinitieth
+rm_CH	nan	not a number	NaN
+rn	inf	infinity	infinitieth
+rn	-inf	minus infinity	minus infinitieth
+rn	nan	not a number	NaN
+rn_BI	inf	infinity	infinitieth
+rn_BI	-inf	minus infinity	minus infinitieth
+rn_BI	nan	not a number	NaN
+ro	inf	∞	∞
+ro	-inf	∞	∞
+ro	nan	NaN	NaN
+ro_MD	inf	∞	∞
+ro_MD	-inf	∞	∞
+ro_MD	nan	NaN	NaN
+ro_RO	inf	∞	∞
+ro_RO	-inf	∞	∞
+ro_RO	nan	NaN	NaN
+rof	inf	infinity	infinitieth
+rof	-inf	minus infinity	minus infinitieth
+rof	nan	not a number	NaN
+rof_TZ	inf	infinity	infinitieth
+rof_TZ	-inf	minus infinity	minus infinitieth
+rof_TZ	nan	not a number	NaN
+ru	inf	∞	∞
+ru	-inf	∞	∞
+ru	nan	не число	не число
+ru_BY	inf	∞	∞
+ru_BY	-inf	∞	∞
+ru_BY	nan	не число	не число
+ru_KG	inf	∞	∞
+ru_KG	-inf	∞	∞
+ru_KG	nan	не число	не число
+ru_KZ	inf	∞	∞
+ru_KZ	-inf	∞	∞
+ru_KZ	nan	не число	не число
+ru_MD	inf	∞	∞
+ru_MD	-inf	∞	∞
+ru_MD	nan	не число	не число
+ru_RU	inf	∞	∞
+ru_RU	-inf	∞	∞
+ru_RU	nan	не число	не число
+ru_UA	inf	∞	∞
+ru_UA	-inf	∞	∞
+ru_UA	nan	не число	не число
+rw	inf	infinity	infinitieth
+rw	-inf	minus infinity	minus infinitieth
+rw	nan	not a number	NaN
+rw_RW	inf	infinity	infinitieth
+rw_RW	-inf	minus infinity	minus infinitieth
+rw_RW	nan	not a number	NaN
+rwk	inf	infinity	infinitieth
+rwk	-inf	minus infinity	minus infinitieth
+rwk	nan	not a number	NaN
+rwk_TZ	inf	infinity	infinitieth
+rwk_TZ	-inf	minus infinity	minus infinitieth
+rwk_TZ	nan	not a number	NaN
+sa	inf	infinity	infinitieth
+sa	-inf	minus infinity	minus infinitieth
+sa	nan	not a number	NaN
+sa_IN	inf	infinity	infinitieth
+sa_IN	-inf	minus infinity	minus infinitieth
+sa_IN	nan	not a number	NaN
+sah	inf	infinity	infinitieth
+sah	-inf	minus infinity	minus infinitieth
+sah	nan	not a number	чыыһыла буотах
+sah_RU	inf	infinity	infinitieth
+sah_RU	-inf	minus infinity	minus infinitieth
+sah_RU	nan	not a number	чыыһыла буотах
+saq	inf	infinity	infinitieth
+saq	-inf	minus infinity	minus infinitieth
+saq	nan	not a number	NaN
+saq_KE	inf	infinity	infinitieth
+saq_KE	-inf	minus infinity	minus infinitieth
+saq_KE	nan	not a number	NaN
+sat	inf	infinity	infinitieth
+sat	-inf	minus infinity	minus infinitieth
+sat	nan	not a number	NaN
+sat_Olck	inf	infinity	infinitieth
+sat_Olck	-inf	minus infinity	minus infinitieth
+sat_Olck	nan	not a number	NaN
+sat_Olck_IN	inf	infinity	infinitieth
+sat_Olck_IN	-inf	minus infinity	minus infinitieth
+sat_Olck_IN	nan	not a number	NaN
+sbp	inf	infinity	infinitieth
+sbp	-inf	minus infinity	minus infinitieth
+sbp	nan	not a number	NaN
+sbp_TZ	inf	infinity	infinitieth
+sbp_TZ	-inf	minus infinity	minus infinitieth
+sbp_TZ	nan	not a number	NaN
+sc	inf	infinity	infinitieth
+sc	-inf	minus infinity	minus infinitieth
+sc	nan	not a number	NaN
+sc_IT	inf	infinity	infinitieth
+sc_IT	-inf	minus infinity	minus infinitieth
+sc_IT	nan	not a number	NaN
+sd	inf	infinity	infinitieth
+sd	-inf	minus infinity	minus infinitieth
+sd	nan	not a number	NaN
+sd_Arab	inf	infinity	infinitieth
+sd_Arab	-inf	minus infinity	minus infinitieth
+sd_Arab	nan	not a number	NaN
+sd_Arab_PK	inf	infinity	infinitieth
+sd_Arab_PK	-inf	minus infinity	minus infinitieth
+sd_Arab_PK	nan	not a number	NaN
+sd_Deva	inf	∞	∞
+sd_Deva	-inf	−∞	−∞
+sd_Deva	nan	NaN	NaN
+sd_Deva_IN	inf	∞	∞
+sd_Deva_IN	-inf	−∞	−∞
+sd_Deva_IN	nan	NaN	NaN
+se	inf	∞	∞
+se	-inf	∞	∞
+se	nan	NaN	NaN
+se_FI	inf	∞	∞
+se_FI	-inf	∞	∞
+se_FI	nan	NaN	NaN
+se_NO	inf	∞	∞
+se_NO	-inf	∞	∞
+se_NO	nan	NaN	NaN
+se_SE	inf	∞	∞
+se_SE	-inf	∞	∞
+se_SE	nan	NaN	NaN
+seh	inf	infinity	infinitieth
+seh	-inf	minus infinity	minus infinitieth
+seh	nan	not a number	NaN
+seh_MZ	inf	infinity	infinitieth
+seh_MZ	-inf	minus infinity	minus infinitieth
+seh_MZ	nan	not a number	NaN
+ses	inf	infinity	infinitieth
+ses	-inf	minus infinity	minus infinitieth
+ses	nan	not a number	NaN
+ses_ML	inf	infinity	infinitieth
+ses_ML	-inf	minus infinity	minus infinitieth
+ses_ML	nan	not a number	NaN
+sg	inf	infinity	infinitieth
+sg	-inf	minus infinity	minus infinitieth
+sg	nan	not a number	NaN
+sg_CF	inf	infinity	infinitieth
+sg_CF	-inf	minus infinity	minus infinitieth
+sg_CF	nan	not a number	NaN
+shi	inf	infinity	infinitieth
+shi	-inf	minus infinity	minus infinitieth
+shi	nan	not a number	NaN
+shi_Latn	inf	∞	∞
+shi_Latn	-inf	−∞	−∞
+shi_Latn	nan	NaN	NaN
+shi_Latn_MA	inf	∞	∞
+shi_Latn_MA	-inf	−∞	−∞
+shi_Latn_MA	nan	NaN	NaN
+shi_Tfng	inf	infinity	infinitieth
+shi_Tfng	-inf	minus infinity	minus infinitieth
+shi_Tfng	nan	not a number	NaN
+shi_Tfng_MA	inf	infinity	infinitieth
+shi_Tfng_MA	-inf	minus infinity	minus infinitieth
+shi_Tfng_MA	nan	not a number	NaN
+si	inf	infinity	infinitieth
+si	-inf	minus infinity	minus infinitieth
+si	nan	not a number	NaN
+si_LK	inf	infinity	infinitieth
+si_LK	-inf	minus infinity	minus infinitieth
+si_LK	nan	not a number	NaN
+sk	inf	∞	∞
+sk	-inf	∞	∞
+sk	nan	NaN	NaN
+sk_SK	inf	∞	∞
+sk_SK	-inf	∞	∞
+sk_SK	nan	NaN	NaN
+sl	inf	∞	∞
+sl	-inf	∞	∞
+sl	nan	NaN	NaN
+sl_SI	inf	∞	∞
+sl_SI	-inf	∞	∞
+sl_SI	nan	NaN	NaN
+smn	inf	infinity	infinitieth
+smn	-inf	minus infinity	minus infinitieth
+smn	nan	not a number	epiloho
+smn_FI	inf	infinity	infinitieth
+smn_FI	-inf	minus infinity	minus infinitieth
+smn_FI	nan	not a number	epiloho
+sn	inf	infinity	infinitieth
+sn	-inf	minus infinity	minus infinitieth
+sn	nan	not a number	NaN
+sn_ZW	inf	infinity	infinitieth
+sn_ZW	-inf	minus infinity	minus infinitieth
+sn_ZW	nan	not a number	NaN
+so	inf	infinity	infinitieth
+so	-inf	minus infinity	minus infinitieth
+so	nan	not a number	MaL
+so_DJ	inf	infinity	infinitieth
+so_DJ	-inf	minus infinity	minus infinitieth
+so_DJ	nan	not a number	MaL
+so_ET	inf	infinity	infinitieth
+so_ET	-inf	minus infinity	minus infinitieth
+so_ET	nan	not a number	MaL
+so_KE	inf	infinity	infinitieth
+so_KE	-inf	minus infinity	minus infinitieth
+so_KE	nan	not a number	MaL
+so_SO	inf	infinity	infinitieth
+so_SO	-inf	minus infinity	minus infinitieth
+so_SO	nan	not a number	MaL
+sq	inf	∞	∞
+sq	-inf	∞	∞
+sq	nan	NaN	NaN
+sq_AL	inf	∞	∞
+sq_AL	-inf	∞	∞
+sq_AL	nan	NaN	NaN
+sq_MK	inf	∞	∞
+sq_MK	-inf	∞	∞
+sq_MK	nan	NaN	NaN
+sq_XK	inf	∞	∞
+sq_XK	-inf	∞	∞
+sq_XK	nan	NaN	NaN
+sr	inf	∞	∞
+sr	-inf	∞	минус ∞
+sr	nan	NaN	NaN
+sr_Cyrl	inf	∞	∞
+sr_Cyrl	-inf	∞	минус ∞
+sr_Cyrl	nan	NaN	NaN
+sr_Cyrl_BA	inf	∞	∞
+sr_Cyrl_BA	-inf	∞	минус ∞
+sr_Cyrl_BA	nan	NaN	NaN
+sr_Cyrl_ME	inf	∞	∞
+sr_Cyrl_ME	-inf	∞	минус ∞
+sr_Cyrl_ME	nan	NaN	NaN
+sr_Cyrl_RS	inf	∞	∞
+sr_Cyrl_RS	-inf	∞	минус ∞
+sr_Cyrl_RS	nan	NaN	NaN
+sr_Cyrl_XK	inf	∞	∞
+sr_Cyrl_XK	-inf	∞	минус ∞
+sr_Cyrl_XK	nan	NaN	NaN
+sr_Latn	inf	∞	∞
+sr_Latn	-inf	∞	minus ∞
+sr_Latn	nan	NaN	NaN
+sr_Latn_BA	inf	∞	∞
+sr_Latn_BA	-inf	∞	minus ∞
+sr_Latn_BA	nan	NaN	NaN
+sr_Latn_ME	inf	∞	∞
+sr_Latn_ME	-inf	∞	minus ∞
+sr_Latn_ME	nan	NaN	NaN
+sr_Latn_RS	inf	∞	∞
+sr_Latn_RS	-inf	∞	minus ∞
+sr_Latn_RS	nan	NaN	NaN
+sr_Latn_XK	inf	∞	∞
+sr_Latn_XK	-inf	∞	minus ∞
+sr_Latn_XK	nan	NaN	NaN
+st	inf	infinity	infinitieth
+st	-inf	minus infinity	minus infinitieth
+st	nan	not a number	NaN
+st_LS	inf	infinity	infinitieth
+st_LS	-inf	minus infinity	minus infinitieth
+st_LS	nan	not a number	NaN
+st_ZA	inf	infinity	infinitieth
+st_ZA	-inf	minus infinity	minus infinitieth
+st_ZA	nan	not a number	NaN
+su	inf	∞	∞
+su	-inf	∞	mineus ∞
+su	nan	NaN	NaN
+su_Latn	inf	∞	∞
+su_Latn	-inf	∞	mineus ∞
+su_Latn	nan	NaN	NaN
+su_Latn_ID	inf	∞	∞
+su_Latn_ID	-inf	∞	mineus ∞
+su_Latn_ID	nan	NaN	NaN
+sv	inf	∞	∞
+sv	-inf	minus ∞	minus ∞
+sv	nan	NaN	NaN
+sv_AX	inf	∞	∞
+sv_AX	-inf	minus ∞	minus ∞
+sv_AX	nan	NaN	NaN
+sv_FI	inf	∞	∞
+sv_FI	-inf	minus ∞	minus ∞
+sv_FI	nan	NaN	NaN
+sv_SE	inf	∞	∞
+sv_SE	-inf	minus ∞	minus ∞
+sv_SE	nan	NaN	NaN
+sw	inf	∞	∞
+sw	-inf	∞	wa kasoro usio
+sw	nan	NaN	NaN
+sw_CD	inf	∞	∞
+sw_CD	-inf	∞	wa kasoro usio
+sw_CD	nan	NaN	NaN
+sw_KE	inf	∞	∞
+sw_KE	-inf	∞	wa kasoro usio
+sw_KE	nan	NaN	NaN
+sw_TZ	inf	∞	∞
+sw_TZ	-inf	∞	wa kasoro usio
+sw_TZ	nan	NaN	NaN
+sw_UG	inf	∞	∞
+sw_UG	-inf	∞	wa kasoro usio
+sw_UG	nan	NaN	NaN
+syr	inf	infinity	infinitieth
+syr	-inf	minus infinity	minus infinitieth
+syr	nan	not a number	NaN
+syr_IQ	inf	infinity	infinitieth
+syr_IQ	-inf	minus infinity	minus infinitieth
+syr_IQ	nan	not a number	NaN
+syr_SY	inf	infinity	infinitieth
+syr_SY	-inf	minus infinity	minus infinitieth
+syr_SY	nan	not a number	NaN
+szl	inf	infinity	infinitieth
+szl	-inf	minus infinity	minus infinitieth
+szl	nan	not a number	NaN
+szl_PL	inf	infinity	infinitieth
+szl_PL	-inf	minus infinity	minus infinitieth
+szl_PL	nan	not a number	NaN
+ta	inf	∞	∞
+ta	-inf	∞	எதிர்ம ∞
+ta	nan	NaN	NaN
+ta_IN	inf	∞	∞
+ta_IN	-inf	∞	எதிர்ம ∞
+ta_IN	nan	NaN	NaN
+ta_LK	inf	∞	∞
+ta_LK	-inf	∞	எதிர்ம ∞
+ta_LK	nan	NaN	NaN
+ta_MY	inf	∞	∞
+ta_MY	-inf	∞	எதிர்ம ∞
+ta_MY	nan	NaN	NaN
+ta_SG	inf	∞	∞
+ta_SG	-inf	∞	எதிர்ம ∞
+ta_SG	nan	NaN	NaN
+te	inf	infinity	infinitieth
+te	-inf	minus infinity	minus infinitieth
+te	nan	not a number	NaN
+te_IN	inf	infinity	infinitieth
+te_IN	-inf	minus infinity	minus infinitieth
+te_IN	nan	not a number	NaN
+teo	inf	infinity	infinitieth
+teo	-inf	minus infinity	minus infinitieth
+teo	nan	not a number	NaN
+teo_KE	inf	infinity	infinitieth
+teo_KE	-inf	minus infinity	minus infinitieth
+teo_KE	nan	not a number	NaN
+teo_UG	inf	infinity	infinitieth
+teo_UG	-inf	minus infinity	minus infinitieth
+teo_UG	nan	not a number	NaN
+tg	inf	infinity	infinitieth
+tg	-inf	minus infinity	minus infinitieth
+tg	nan	not a number	NaN
+tg_TJ	inf	infinity	infinitieth
+tg_TJ	-inf	minus infinity	minus infinitieth
+tg_TJ	nan	not a number	NaN
+th	inf	∞	∞
+th	-inf	∞	∞
+th	nan	NaN	NaN
+th_TH	inf	∞	∞
+th_TH	-inf	∞	∞
+th_TH	nan	NaN	NaN
+ti	inf	infinity	infinitieth
+ti	-inf	minus infinity	minus infinitieth
+ti	nan	not a number	NaN
+ti_ER	inf	infinity	infinitieth
+ti_ER	-inf	minus infinity	minus infinitieth
+ti_ER	nan	not a number	NaN
+ti_ET	inf	infinity	infinitieth
+ti_ET	-inf	minus infinity	minus infinitieth
+ti_ET	nan	not a number	NaN
+tk	inf	infinity	infinitieth
+tk	-inf	minus infinity	minus infinitieth
+tk	nan	not a number	san däl
+tk_TM	inf	infinity	infinitieth
+tk_TM	-inf	minus infinity	minus infinitieth
+tk_TM	nan	not a number	san däl
+tn	inf	infinity	infinitieth
+tn	-inf	minus infinity	minus infinitieth
+tn	nan	not a number	NaN
+tn_BW	inf	infinity	infinitieth
+tn_BW	-inf	minus infinity	minus infinitieth
+tn_BW	nan	not a number	NaN
+tn_ZA	inf	infinity	infinitieth
+tn_ZA	-inf	minus infinity	minus infinitieth
+tn_ZA	nan	not a number	NaN
+to	inf	infinity	infinitieth
+to	-inf	minus infinity	minus infinitieth
+to	nan	not a number	TF
+to_TO	inf	infinity	infinitieth
+to_TO	-inf	minus infinity	minus infinitieth
+to_TO	nan	not a number	TF
+tok	inf	infinity	infinitieth
+tok	-inf	minus infinity	minus infinitieth
+tok	nan	not a number	NaN
+tok_001	inf	infinity	infinitieth
+tok_001	-inf	minus infinity	minus infinitieth
+tok_001	nan	not a number	NaN
+tr	inf	∞	∞
+tr	-inf	∞	eksi ∞
+tr	nan	NaN	NaN
+tr_CY	inf	∞	∞
+tr_CY	-inf	∞	eksi ∞
+tr_CY	nan	NaN	NaN
+tr_TR	inf	∞	∞
+tr_TR	-inf	∞	eksi ∞
+tr_TR	nan	NaN	NaN
+tt	inf	infinity	infinitieth
+tt	-inf	minus infinity	minus infinitieth
+tt	nan	not a number	NaN
+tt_RU	inf	infinity	infinitieth
+tt_RU	-inf	minus infinity	minus infinitieth
+tt_RU	nan	not a number	NaN
+twq	inf	infinity	infinitieth
+twq	-inf	minus infinity	minus infinitieth
+twq	nan	not a number	NaN
+twq_NE	inf	infinity	infinitieth
+twq_NE	-inf	minus infinity	minus infinitieth
+twq_NE	nan	not a number	NaN
+tzm	inf	infinity	infinitieth
+tzm	-inf	minus infinity	minus infinitieth
+tzm	nan	not a number	NaN
+tzm_MA	inf	infinity	infinitieth
+tzm_MA	-inf	minus infinity	minus infinitieth
+tzm_MA	nan	not a number	NaN
+ug	inf	infinity	infinitieth
+ug	-inf	minus infinity	minus infinitieth
+ug	nan	not a number	NaN
+ug_CN	inf	infinity	infinitieth
+ug_CN	-inf	minus infinity	minus infinitieth
+ug_CN	nan	not a number	NaN
+uk	inf	∞	∞
+uk	-inf	∞	∞
+uk	nan	NaN	NaN
+uk_UA	inf	∞	∞
+uk_UA	-inf	∞	∞
+uk_UA	nan	NaN	NaN
+ur	inf	infinity	infinitieth
+ur	-inf	minus infinity	minus infinitieth
+ur	nan	not a number	NaN
+ur_IN	inf	infinity	infinitieth
+ur_IN	-inf	minus infinity	minus infinitieth
+ur_IN	nan	not a number	NaN
+ur_PK	inf	infinity	infinitieth
+ur_PK	-inf	minus infinity	minus infinitieth
+ur_PK	nan	not a number	NaN
+uz	inf	infinity	infinitieth
+uz	-inf	minus infinity	minus infinitieth
+uz	nan	not a number	son emas
+uz_Arab	inf	∞	∞
+uz_Arab	-inf	−∞	−∞
+uz_Arab	nan	NaN	NaN
+uz_Arab_AF	inf	∞	∞
+uz_Arab_AF	-inf	−∞	−∞
+uz_Arab_AF	nan	NaN	NaN
+uz_Cyrl	inf	∞	∞
+uz_Cyrl	-inf	−∞	−∞
+uz_Cyrl	nan	ҳақиқий сон эмас	ҳақиқий сон эмас
+uz_Cyrl_UZ	inf	∞	∞
+uz_Cyrl_UZ	-inf	−∞	−∞
+uz_Cyrl_UZ	nan	ҳақиқий сон эмас	ҳақиқий сон эмас
+uz_Latn	inf	infinity	infinitieth
+uz_Latn	-inf	minus infinity	minus infinitieth
+uz_Latn	nan	not a number	son emas
+uz_Latn_UZ	inf	infinity	infinitieth
+uz_Latn_UZ	-inf	minus infinity	minus infinitieth
+uz_Latn_UZ	nan	not a number	son emas
+vai	inf	infinity	infinitieth
+vai	-inf	minus infinity	minus infinitieth
+vai	nan	not a number	NaN
+vai_Latn	inf	∞	∞
+vai_Latn	-inf	−∞	−∞
+vai_Latn	nan	NaN	NaN
+vai_Latn_LR	inf	∞	∞
+vai_Latn_LR	-inf	−∞	−∞
+vai_Latn_LR	nan	NaN	NaN
+vai_Vaii	inf	infinity	infinitieth
+vai_Vaii	-inf	minus infinity	minus infinitieth
+vai_Vaii	nan	not a number	NaN
+vai_Vaii_LR	inf	infinity	infinitieth
+vai_Vaii_LR	-inf	minus infinity	minus infinitieth
+vai_Vaii_LR	nan	not a number	NaN
+vec	inf	∞	∞
+vec	-inf	manca ∞	manca ∞
+vec	nan	NaN	NaN
+vec_IT	inf	∞	∞
+vec_IT	-inf	manca ∞	manca ∞
+vec_IT	nan	NaN	NaN
+vi	inf	∞	∞
+vi	-inf	∞	∞
+vi	nan	NaN	NaN
+vi_VN	inf	∞	∞
+vi_VN	-inf	∞	∞
+vi_VN	nan	NaN	NaN
+vmw	inf	infinity	infinitieth
+vmw	-inf	minus infinity	minus infinitieth
+vmw	nan	not a number	NaN
+vmw_MZ	inf	infinity	infinitieth
+vmw_MZ	-inf	minus infinity	minus infinitieth
+vmw_MZ	nan	not a number	NaN
+vun	inf	infinity	infinitieth
+vun	-inf	minus infinity	minus infinitieth
+vun	nan	not a number	NaN
+vun_TZ	inf	infinity	infinitieth
+vun_TZ	-inf	minus infinity	minus infinitieth
+vun_TZ	nan	not a number	NaN
+wae	inf	infinity	infinitieth
+wae	-inf	minus infinity	minus infinitieth
+wae	nan	not a number	NaN
+wae_CH	inf	infinity	infinitieth
+wae_CH	-inf	minus infinity	minus infinitieth
+wae_CH	nan	not a number	NaN
+wo	inf	infinity	infinitieth
+wo	-inf	minus infinity	minus infinitieth
+wo	nan	not a number	NaN
+wo_SN	inf	infinity	infinitieth
+wo_SN	-inf	minus infinity	minus infinitieth
+wo_SN	nan	not a number	NaN
+xh	inf	infinity	infinitieth
+xh	-inf	minus infinity	minus infinitieth
+xh	nan	not a number	NaN
+xh_ZA	inf	infinity	infinitieth
+xh_ZA	-inf	minus infinity	minus infinitieth
+xh_ZA	nan	not a number	NaN
+xnr	inf	infinity	infinitieth
+xnr	-inf	minus infinity	minus infinitieth
+xnr	nan	not a number	NaN
+xnr_IN	inf	infinity	infinitieth
+xnr_IN	-inf	minus infinity	minus infinitieth
+xnr_IN	nan	not a number	NaN
+xog	inf	infinity	infinitieth
+xog	-inf	minus infinity	minus infinitieth
+xog	nan	not a number	NaN
+xog_UG	inf	infinity	infinitieth
+xog_UG	-inf	minus infinity	minus infinitieth
+xog_UG	nan	not a number	NaN
+yav	inf	infinity	infinitieth
+yav	-inf	minus infinity	minus infinitieth
+yav	nan	not a number	NaN
+yav_CM	inf	infinity	infinitieth
+yav_CM	-inf	minus infinity	minus infinitieth
+yav_CM	nan	not a number	NaN
+yi	inf	infinity	infinitieth
+yi	-inf	minus infinity	minus infinitieth
+yi	nan	not a number	NaN
+yi_UA	inf	infinity	infinitieth
+yi_UA	-inf	minus infinity	minus infinitieth
+yi_UA	nan	not a number	NaN
+yo	inf	infinity	infinitieth
+yo	-inf	minus infinity	minus infinitieth
+yo	nan	not a number	NaN
+yo_BJ	inf	infinity	infinitieth
+yo_BJ	-inf	minus infinity	minus infinitieth
+yo_BJ	nan	not a number	NaN
+yo_NG	inf	infinity	infinitieth
+yo_NG	-inf	minus infinity	minus infinitieth
+yo_NG	nan	not a number	NaN
+yrl	inf	infinity	infinitieth
+yrl	-inf	minus infinity	minus infinitieth
+yrl	nan	not a number	NaN
+yrl_BR	inf	infinity	infinitieth
+yrl_BR	-inf	minus infinity	minus infinitieth
+yrl_BR	nan	not a number	NaN
+yrl_CO	inf	infinity	infinitieth
+yrl_CO	-inf	minus infinity	minus infinitieth
+yrl_CO	nan	not a number	NaN
+yrl_VE	inf	infinity	infinitieth
+yrl_VE	-inf	minus infinity	minus infinitieth
+yrl_VE	nan	not a number	NaN
+yue	inf	∞	∞
+yue	-inf	負∞	∞
+yue	nan	非數值	非數值
+yue_Hans	inf	∞	∞
+yue_Hans	-inf	负∞	∞
+yue_Hans	nan	非数值	非数值
+yue_Hans_CN	inf	∞	∞
+yue_Hans_CN	-inf	负∞	∞
+yue_Hans_CN	nan	非数值	非数值
+yue_Hant	inf	∞	∞
+yue_Hant	-inf	負∞	∞
+yue_Hant	nan	非數值	非數值
+yue_Hant_CN	inf	∞	∞
+yue_Hant_CN	-inf	負∞	∞
+yue_Hant_CN	nan	非數值	非數值
+yue_Hant_HK	inf	∞	∞
+yue_Hant_HK	-inf	負∞	∞
+yue_Hant_HK	nan	非數值	非數值
+za	inf	infinity	infinitieth
+za	-inf	minus infinity	minus infinitieth
+za	nan	not a number	NaN
+za_CN	inf	infinity	infinitieth
+za_CN	-inf	minus infinity	minus infinitieth
+za_CN	nan	not a number	NaN
+zgh	inf	infinity	infinitieth
+zgh	-inf	minus infinity	minus infinitieth
+zgh	nan	not a number	NaN
+zgh_MA	inf	infinity	infinitieth
+zgh_MA	-inf	minus infinity	minus infinitieth
+zgh_MA	nan	not a number	NaN
+zh	inf	∞	∞
+zh	-inf	负∞	∞
+zh	nan	NaN	NaN
+zh_Hans	inf	∞	∞
+zh_Hans	-inf	负∞	∞
+zh_Hans	nan	NaN	NaN
+zh_Hans_CN	inf	∞	∞
+zh_Hans_CN	-inf	负∞	∞
+zh_Hans_CN	nan	NaN	NaN
+zh_Hans_HK	inf	∞	∞
+zh_Hans_HK	-inf	负∞	∞
+zh_Hans_HK	nan	NaN	NaN
+zh_Hans_MO	inf	∞	∞
+zh_Hans_MO	-inf	负∞	∞
+zh_Hans_MO	nan	NaN	NaN
+zh_Hans_MY	inf	∞	∞
+zh_Hans_MY	-inf	负∞	∞
+zh_Hans_MY	nan	NaN	NaN
+zh_Hans_SG	inf	∞	∞
+zh_Hans_SG	-inf	负∞	∞
+zh_Hans_SG	nan	NaN	NaN
+zh_Hant	inf	∞	∞
+zh_Hant	-inf	負∞	∞
+zh_Hant	nan	非數值	非數值
+zh_Hant_HK	inf	∞	∞
+zh_Hant_HK	-inf	負∞	∞
+zh_Hant_HK	nan	非數值	非數值
+zh_Hant_MO	inf	∞	∞
+zh_Hant_MO	-inf	負∞	∞
+zh_Hant_MO	nan	非數值	非數值
+zh_Hant_MY	inf	∞	∞
+zh_Hant_MY	-inf	負∞	∞
+zh_Hant_MY	nan	非數值	非數值
+zh_Hant_TW	inf	∞	∞
+zh_Hant_TW	-inf	負∞	∞
+zh_Hant_TW	nan	非數值	非數值
+zu	inf	infinity	infinitieth
+zu	-inf	minus infinity	minus infinitieth
+zu	nan	not a number	NaN
+zu_ZA	inf	infinity	infinitieth
+zu_ZA	-inf	minus infinity	minus infinitieth
+zu_ZA	nan	not a number	NaN

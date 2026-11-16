@@ -5,6 +5,7 @@ use icu_locale_core::Locale;
 
 mod currency;
 mod parse;
+mod spellout;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NumberValue {
@@ -262,7 +263,10 @@ impl Number {
         {
             return self.format(number, None, None);
         }
-        spellout(&self.locale, number)
+        if number == NumberValue::Integer(i64::MIN) {
+            return self.format(number, None, None);
+        }
+        spellout::format(&self.locale, number, false)
     }
 
     pub fn ordinal(&self, number: impl Into<NumberValue>) -> Result<String, NumberError> {
@@ -277,14 +281,11 @@ impl Number {
     }
 
     pub fn spellOrdinal(&self, number: impl Into<NumberValue>) -> Result<String, NumberError> {
-        let number = ordinal_integer(number.into())?;
-        intl::spellout::spell_rule_set(
-            self.locale.id.language.as_str(),
-            "%spellout-ordinal",
-            number,
-        )
-        .or_else(|| intl::spellout::spell_cardinal(self.locale.id.language.as_str(), number))
-        .ok_or(NumberError::UnsupportedSpellout)
+        let number = number.into();
+        if number == NumberValue::Integer(i64::MIN) {
+            return self.format(number, None, None);
+        }
+        spellout::format(&self.locale, number, true)
     }
 
     pub fn fileSize(
@@ -502,35 +503,4 @@ fn ordinal_integer(number: NumberValue) -> Result<i64, NumberError> {
         .map_or(text.as_str(), |(integer, _)| integer)
         .parse()
         .map_err(|_| NumberError::InvalidNumber)
-}
-
-fn spellout(locale: &Locale, number: NumberValue) -> Result<String, NumberError> {
-    let language = locale.id.language.as_str();
-    let spell = |number| {
-        intl::spellout::spell_cardinal(language, number).ok_or(NumberError::UnsupportedSpellout)
-    };
-    let decimal = number.decimal()?.to_string();
-    let (integer, fraction) = decimal
-        .split_once('.')
-        .map_or((decimal.as_str(), ""), |pair| pair);
-    let integer = integer
-        .parse()
-        .map_err(|_| NumberError::UnsupportedSpellout)?;
-    let mut output = spell(integer)?;
-    if !fraction.is_empty() {
-        // The vendored RBNF entry point takes integers. The English fraction rule
-        // spells each fractional digit separately after "point".
-        if language != "en" {
-            return Err(NumberError::UnsupportedSpellout);
-        }
-        if integer == 0 && decimal.starts_with('-') {
-            output.insert_str(0, "minus ");
-        }
-        output.push_str(" point");
-        for digit in fraction.bytes() {
-            output.push(' ');
-            output.push_str(&spell(i64::from(digit - b'0'))?);
-        }
-    }
-    Ok(output)
 }

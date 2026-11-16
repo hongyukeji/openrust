@@ -49,7 +49,7 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 `Number::default()` 默认使用英语和 USD。通过 `useLocale` 和 `useCurrency` 设置实例默认值，或通过 `withLocale` 和 `withCurrency` 将局部设置传给回调。设置归实例所有，可在并发请求中使用各自的设置。
 
-`format`、`percentage` 和 `currency` 使用 CLDR 数据。`parseInt` 保留 64 位整数，`parseFloat` 读取本地化数字前缀。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用 Laravel 数字规则。数字拼读使用所支持语言的内置 CLDR 规则，小数拼读支持英语。
+`format`、`percentage` 和 `currency` 使用 CLDR 数据。`parseInt` 保留 64 位整数，`parseFloat` 读取本地化数字前缀。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用 Laravel 数字规则。
 
 ```rust
 use openrust::support::Number;
@@ -60,6 +60,22 @@ assert_eq!(localized, "1.234,50");
 assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
 assert_eq!(number.spellOrdinal(21)?, "twenty-first");
 assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+```
+
+### 本地化数字拼读 {#localized-number-spellout}
+
+使用 `spell` 和 `spellOrdinal` 按区域设置拼读整数和小数。Rust 实现内置 ICU 76.1／CLDR 46 规则。区域设置没有专用序数拼读规则时，`spellOrdinal` 沿用该区域的默认拼读规则。传入 `after` 或 `until` 时，等于阈值也返回数字格式。有限浮点数超出有符号 64 位范围时，数字回退使用可往返转换的原始十进制表示。
+
+```rust
+use openrust::support::Number;
+
+let number = Number::default();
+let german = number.withLocale("de-DE", |number| number.spell(1.25, None, None))??;
+let russian = number.withLocale("ru", |number| number.spell(1.25, None, None))??;
+let chinese = number.withLocale("zh-TW", |number| number.spell(1.25, None, None))??;
+assert_eq!(german, "eins Komma zwei fünf");
+assert_eq!(russian, "одна целый двадцать пять сотых");
+assert_eq!(chinese, "一點二五");
 ```
 
 ## 计时工具 {#timing-tools}

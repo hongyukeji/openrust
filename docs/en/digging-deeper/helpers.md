@@ -49,7 +49,7 @@ assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 
 Use `Number::default()` for English and USD defaults. Set locale and currency on an instance with `useLocale` and `useCurrency`. Use `withLocale` and `withCurrency` to pass scoped settings to a callback. These settings belong to the instance and can be used concurrently across requests.
 
-`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow Laravel’s numeric conventions. Spellout uses the vendored CLDR rules for its supported languages. Fractional spellout is available in English.
+`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow Laravel’s numeric conventions.
 
 ```rust
 use openrust::support::Number;
@@ -60,6 +60,22 @@ assert_eq!(localized, "1.234,50");
 assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
 assert_eq!(number.spellOrdinal(21)?, "twenty-first");
 assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+```
+
+### Localized number spellout {#localized-number-spellout}
+
+Use `spell` and `spellOrdinal` for localized integers and fractions. The Rust implementation uses the bundled ICU 76.1 / CLDR 46 rules. When a locale lacks a named spellout ordinal, `spellOrdinal` uses the locale’s default spellout rules. The optional `after` and `until` bounds are inclusive and return formatted digits. For finite floats outside the signed 64-bit range, decimal fallback uses the input’s round-trip decimal digits.
+
+```rust
+use openrust::support::Number;
+
+let number = Number::default();
+let german = number.withLocale("de-DE", |number| number.spell(1.25, None, None))??;
+let russian = number.withLocale("ru", |number| number.spell(1.25, None, None))??;
+let chinese = number.withLocale("zh-TW", |number| number.spell(1.25, None, None))??;
+assert_eq!(german, "eins Komma zwei fünf");
+assert_eq!(russian, "одна целый двадцать пять сотых");
+assert_eq!(chinese, "一點二五");
 ```
 
 ## Timing tools {#timing-tools}

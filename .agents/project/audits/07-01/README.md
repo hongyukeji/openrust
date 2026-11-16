@@ -9,7 +9,7 @@
 | 字符串 | 切片借用输入，长度和负索引以 Unicode 标量为单位。保留 Stringable 链式操作。Base64 解码严格校验并返回字节。 |
 | 应用服务 | 通过应用的类型化接口和 Facade 获取。URI 和概率判定沿用 Uri 与 Lottery。 |
 
-初批覆盖数据路径、基础 Arr、字符串匹配、截取、转换和默认转写。各后续批次和剩余范围见下文。
+初批覆盖数据路径、基础 Arr、字符串匹配、截取、转换和默认转写。后续批次与整单元验收见下文。
 
 ## 验收
 
@@ -20,7 +20,7 @@
 ## Markdown 与英语词形变化
 
 - 固定 Laravel 的 `Str::markdown` 使用 GFM，行内入口省略段落包装。Rust 沿用现有 pulldown-cmark，提供表格、删除线、任务列表及类型化 HTML 和链接策略。默认转义 HTML 并过滤链接协议。Rust 行内入口以已解析 Markdown 省略常用块包装，PHP InlinesOnly 解析器和扩展对象作为适配差异。与邮件共用链接过滤，并拒绝控制字符和反斜线。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
-- `plural`、`singular`、`pluralStudly`、`pluralPascal` 和 `counted` 使用现有 Rust 英语词形库。核对负一、零、不可数词、尾部标点、驼峰及数字分组。Doctrine 规则全量和可变 locale 仍待验收。旧版 Support Strings 已复用转写数据与夹具，未发现可复用的 Markdown 或词形实现。 [固定 Pluralizer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Pluralizer.php)
+- `plural`、`singular`、`pluralStudly`、`pluralPascal` 和 `counted` 使用现有 Rust 英语词形库。核对负一、零、不可数词、尾部标点、驼峰及数字分组。八语言规则及显式 locale 见下文的多语言词形变化。旧版 Support Strings 已复用转写数据与夹具，未发现可复用的 Markdown 或词形实现。 [固定 Pluralizer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Pluralizer.php)
 - 字符串套件 4 项通过，定向严格 Clippy 和格式检查通过。三语同一示例由实际 Artisan 命令执行。实际回环 HTTP 核对 Unicode 行内输出、恶意协议过滤、HTML 转义和计数结果。三语站点构建通过。
 
 ## 链式 URI 与查询串
@@ -43,11 +43,6 @@
 - 对照固定 Str 的随机字母数字、密码字符池、UUID v4／v7、ULID 和格式检查。随机字符使用锁定依赖的系统熵种子生成器，UUID v4 使用现有 AWS-LC 随机源并设置版本和变体位。复用项目既有 UUID／ULID 依赖。Rust 采用类型化返回值和显式字符池。PHP 全局生成器替换、可传入时间、COMB orderedUuid 和字符串版本别名仍有差异。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
 - 6 项字符串定向测试和严格 Clippy 通过。实际 Artisan 执行三语示例，回环 HTTP 核对 UUID 版本、ULID 格式和密码长度。验收响应只返回布尔结果和长度。三语 VitePress 构建、五个新章节锚点及 12 项浏览器检查通过。
 
-## 尚未验收的范围
-
-- 本轮指定的 Arr、日期、Pipeline、多语言词形和 COMB 批次均已验收。Rust 与 PHP 的运行时适配边界见各批验收记录。
-- 02-08 已闭合。`Stringable::scan` 已验收。超出当前 RBNF 数据范围的语言拼读及非英语小数拼读仍待验收。07-01 维持部分验收。
-
 ## 正则与文本排版
 
 - 固定 Laravel Str 和 PHP 8.5.12 实测首捕获、可选捕获为空、替换次数、汉字和 emoji 的展示宽度、整词截断以及多字节换行。Rust 复用锁定的 regex，引入类型化无效模式错误和 Rust 回调。模式及替换采用 Rust 语法，PCRE 分隔符、后向查找和模式内反向引用属于语法差异。旧版字符串代码没有对应实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
@@ -64,13 +59,13 @@
 ## Number
 
 - 核对固定 Number 的小数精度优先级、负零、本地化解析、百分比、货币、拼读与序数、文件大小和数量缩写。复用旧版类型保留的 clamp 规则及整数边界回归。采用 ICU4X 的 CLDR 格式和 Rust RBNF 拼读数据。locale 与 currency 通过实例及回调作用域传递，整数及浮点区间分别使用 `pairs` 和 `pairsFloat`。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php)
-- RBNF 整数拼读覆盖锁定数据包的语言，小数拼读目前支持英语。locale 数据版本和 Intl 解析的宽容规则存在差异。未覆盖语言和数值返回类型化错误。 [Rust RBNF 数据范围](https://docs.rs/intl/0.6.5/intl/spellout/index.html)
+- 拼读覆盖范围见下文的多语言数字拼读。数字解析的 CLDR 数据版本和 Intl 宽容规则存在差异。
 - PHP 8.5.12 与 ICU 76.1 实跑固定 Laravel Number，核对 21 项输出。7 项 Rust 定向测试及严格 Clippy 通过。实际 Artisan 运行三语示例，实际回环 HTTP 核对德语小数、USD 金额、英文序数和 i64 上界。三语 VitePress 构建通过。
 
 ## 计时工具
 
 - 对照固定 Benchmark、Sleep、Timebox 及其错误和提前返回行为。核对 v0.x 的 Support 实现及测试，未找到可复用的对应计时模块。Benchmark 使用单调时钟返回毫秒均值和回调结果。Sleep 采用显式 await、类型化 Duration 和实例级替身，Timebox 给异步回调的返回值或错误补足剩余时间。 [固定 Benchmark](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Benchmark.php) [固定 Sleep](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Sleep.php) [固定 Timebox](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Timebox.php)
-- 条件重复使用等长间隔，零时长时让出调度。Rust 计时差异包括显式等待、Duration 单位、局部替身和 Future 取消语义。PHP 析构等待、Carbon 时钟联动与退出式 Benchmark::dd 待映射审定。
+- 条件重复使用等长间隔，零时长时让出调度。Rust 计时差异包括显式等待、Duration 单位、局部替身和 Future 取消语义。PHP 析构等待映射为显式 await，计时替身由调用者传入。Benchmark 返回值和耗时供调用者输出及决定进程退出。
 - PHP 8.5.12 对照 Benchmark 返回值和 Timebox 的异常等待及提前返回状态。22 项锁定离线定向回归、严格 Clippy 和三语 VitePress 构建通过。实际 Artisan 运行三语示例，实际回环 HTTP 验证错误返回达到最短时限、替身记录和回调结果。
 
 ## Arr 变换与筛选
@@ -112,3 +107,14 @@
 
 - 固定 Laravel `Stringable::scan` 将 PHP `sscanf` 的结果包装为集合。Rust 对照 PHP 8.5.12 的格式验证及字节扫描，支持位置、宽度、跳过赋值、扫描集合、进制、科学计数、文字和 `%n`。首个转换前的输入不足产生空集合，部分匹配保留空槽。格式错误返回 `ScanError`。UTF-8 被宽度切断时保留原始字节，非有限浮点遵循既有集合序列化边界。旧版仅有日期词法扫描器，契约不同。 [固定 Stringable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Stringable.php) [PHP 8.5.12 扫描器](https://github.com/php/php-src/blob/php-8.5.12/ext/standard/scanf.c)
 - PHP 8.5.12 矩阵覆盖 48 组正常及异常格式。12 项 Rust 锁定离线回归、严格 Clippy、真实 Artisan 和回环 HTTP 及三语站点构建通过。
+
+## 多语言数字拼读
+
+- 固定 Laravel `Number::spell` 和 `spellOrdinal` 采用 ICU 的区域数据、默认规则与公开序数规则。Rust 内置 ICU 76.1／CLDR 46 的 102 套规则资源与 869 个区域条目，支持逐位拼读、分母规则、数词复数、区域回退及本地化数字输出。沿用实例作用域和含端点的 `after`／`until`。v0.x 的 Number 实现和金标覆盖类型保留的 clamp，已在初批复用。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php) [规则数据来源](../../../../vendor/openrust/framework/src/support/number/spellout/README.md)
+- 实跑 PHP 8.5.12／ICU 76.1 的固定 Laravel，核对 13,913 组有限数拼读和序数。另与 ICU 76.1 比对 2,607 组无穷大与 NaN。范围覆盖区域变体、小数前导零、负数、两种端点、64 位整数边界和缺省序数规则。在超出有符号 64 位范围的浮点值触发数字回退时，Rust 保留可往返转换的十进制表示。英文 `1e40` 的数字回退已验证。PHP／ICU 在该范围内的转换溢出结果属于运行时差异。
+- Rust 1.94.0 锁定离线执行 Number、Strings 和 Stringable 扫描的 18 项定向测试。工作区全目标严格 Clippy 与变更文件格式通过。工作区格式检查仍报告基线中的 Sanctum 测试排版。真实 Artisan 执行三语共用示例，回环 HTTP 200 核对德语、俄语、台湾繁体中文小数拼读。三语 VitePress 构建、拼读章节锚点及 12 项桌面和移动浏览器检查通过。验收路由和命令仅用于隔离副本。
+
+## 整单元验收
+
+- 前置 [02-08](../02-08/README.md#整单元验收) 已闭合。按固定 Helpers 和 Strings 的函数族复核数据路径、Arr、集合、日期、URI、服务辅助、计时和流水线，以及 Stringable 链式契约。最后完成格式扫描和多语言数字拼读。各批记录包含实际应用入口、三语示例与边界用例。
+- 07-01 核心契约闭合。Rust 的类型化输入、错误、回调及实例作用域，以及 PCRE、Carbon、PHP 全局状态和浮点溢出的运行时差异，见相应验收章节。
