@@ -64,3 +64,11 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - Rust 的 `pull` 维持原子读取删除，两个前置事件均在操作前触发。原生原子 `add`、正 TTL 的 `touch` 和计数操作直接调用底层。同步监听失败通过缓存错误返回，前置失败阻止写入，后置失败保留已完成的写入。底层返回错误时只保留已经派发的前置事件。
 - 隔离基线 `4268ee1f4`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 对照验证事件顺序、标签载荷和批量清锁。MySQL 8.4.13 与两个 Redis 8.10.3 下通过 13 项缓存回归、3 项事件专项与真实 HTTP。Artisan 命令内核验证清理事件次序，实际二进制验证各清理命令，文档中的 Fake 断言在测试中执行。
 - Redis memo 的 2 项回归、变更文件格式、工作区严格 Clippy、VitePress 和 18 项三语浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理本批 3.6 GiB Cargo 产物和文档缓存后，磁盘可用 60.66 GB（56.49 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-events.XhhZSFxI`。
+
+## 自定义缓存驱动
+
+- 对照固定 Laravel [CacheManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/CacheManager.php) 和 [Adding Custom Cache Drivers](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#adding-custom-cache-drivers)。从 openrust-v0.x 的 `cache.rs` 复用应用级注册表、具名惰性实例与替换后保留已解析仓库的设计，使用当前 Repository 和 Store 契约。
+- `Cache::extend` 在应用作用域注册工厂。工厂收到管理器和完整的具名配置，可解析应用服务并使用 `repository` 包装，以保留事件设置。`store` 与 `driver` 复用同一具名仓库，`build` 和 `resolve` 创建新的仓库。`forgetDriver` 和 `purge` 移除具名仓库，保留工厂及其他实例。
+- Rust 保留同步解析入口。工厂在注册表锁外执行，允许解析同一管理器中其他存储。并发首次解析共享已发布实例，检测同一管理器中的线程等待依赖环。工厂失败后可重试，创建中清除会防止旧实例回写缓存。
+- 基线 `169287c8e`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 对照通过懒加载、配置传入、独立应用、按需创建、替换和清除。Rust 5 项专项验证并发、重入、循环依赖、失败重试及创建中清除。独立工程二进制使用自定义文件缓存驱动完成真实 HTTP 写入与读回，另一个实际 Artisan 进程运行 `cache:clear reports`，HTTP 再次读取未命中。
+- MySQL 8.4.13 与两个 Redis 8.10.3 下共通过 23 项缓存、事件与 memo 回归。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。回收临时夹具，清理本批 4.1 GiB Cargo 产物及文档缓存，磁盘可用 60.63 GB（56.46 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-custom-cache.m6ViKZVf`。

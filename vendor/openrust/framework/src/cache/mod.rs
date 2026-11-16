@@ -30,6 +30,7 @@ mod repository;
 mod session_store;
 mod storage_store;
 mod store;
+mod store_registry;
 mod tag_set;
 mod tagged_cache;
 
@@ -76,6 +77,7 @@ pub enum CacheError {
     UnsupportedDriver,
     InvalidConfiguration,
     FailoverCycle,
+    StoreResolutionCycle,
     InvalidValue,
     MissingCounter,
     InvalidOwner,
@@ -155,6 +157,7 @@ impl std::fmt::Display for CacheError {
             Self::UnknownStore { name } => write!(f, "Cache store [{name}] is not configured."),
             Self::UnsupportedDriver => f.write_str("The cache driver is unsupported."),
             Self::InvalidConfiguration => f.write_str("Invalid cache configuration."),
+            Self::StoreResolutionCycle => f.write_str("Cache store resolution contains a cycle."),
             Self::FailoverCycle => f.write_str("Cache failover stores form a cycle."),
             Self::InvalidValue => f.write_str("Invalid cache value or expiration."),
             Self::MissingCounter => f.write_str("The cache counter does not exist."),

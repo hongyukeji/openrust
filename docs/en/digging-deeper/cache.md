@@ -123,6 +123,24 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
 }
 ```
 
+## Adding Custom Cache Drivers {#adding-custom-cache-drivers}
+
+Implement `openrust::contracts::cache::Store` for your backend. Register the driver during a service provider's `boot` method, before resolving any store that uses it. This example registers a driver backed by an isolated in-memory store.
+
+```rust
+use std::sync::Arc;
+
+use openrust::{cache::ArrayStore, support::facades::Cache};
+
+Cache::extend("project", |manager, config| {
+    manager.repository(Arc::new(ArrayStore::new()), config)
+})?;
+```
+
+Set the named store's `driver` to `project` in `config/cache.rs`. The callback receives the manager and the full store configuration. Use `manager.getContainer()` for application services, and `manager.repository(..., config)` to retain the store name and event settings. Store resolution is synchronous. Construct the backend in the callback and perform asynchronous I/O in its cache operations.
+
+The manager creates a named repository on first use and reuses it. Replacing a creator takes effect for the next resolution after `Cache::forgetDriver(Some("reports"))?` or `Cache::purge(Some("reports"))?`. Use `Cache::build(config)?` for a repository with its own configuration and lifetime.
+
 ## Cache Events {#cache-events}
 
 Register listeners for cache events such as `CacheHit::NAME`, `KeyWritten::NAME` and `CacheLocksFlushed::NAME` through the application event dispatcher. Events in `openrust::cache::events` carry the selected store name. Read and write events expose the developer's key and ordered tags where applicable. Bulk reads dispatch `RetrievingManyKeys`, followed by a hit or miss for each requested key.

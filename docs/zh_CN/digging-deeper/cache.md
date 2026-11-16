@@ -123,6 +123,24 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
 }
 ```
 
+## 添加自定义缓存驱动 {#adding-custom-cache-drivers}
+
+为后端实现 `openrust::contracts::cache::Store`，在服务提供者的 `boot` 阶段注册驱动，并确保注册早于首次解析存储。下面用独立内存存储演示注册方式。
+
+```rust
+use std::sync::Arc;
+
+use openrust::{cache::ArrayStore, support::facades::Cache};
+
+Cache::extend("project", |manager, config| {
+    manager.repository(Arc::new(ArrayStore::new()), config)
+})?;
+```
+
+在 `config/cache.rs` 中将具名存储的 `driver` 设为 `project`。工厂收到缓存管理器和完整存储配置。用 `manager.getContainer()` 获取应用服务，用 `manager.repository(..., config)` 保留存储名和事件设置。存储解析是同步的，回调负责构造后端，异步 I/O 放在具体缓存操作中。
+
+具名仓库在首次访问时创建，后续继续复用。替换工厂后，可调用 `Cache::forgetDriver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下一次解析就使用新工厂。`Cache::build(config)?` 按给定配置即时创建独立仓库。
+
 ## 缓存事件 {#cache-events}
 
 通过应用事件分发器监听 `CacheHit::NAME`、`KeyWritten::NAME` 和 `CacheLocksFlushed::NAME` 等事件。`openrust::cache::events` 中的事件携带所选存储名。读写事件提供调用方传入的键和适用的有序标签。批量读取先派发 `RetrievingManyKeys`，再逐个派发命中或未命中事件。

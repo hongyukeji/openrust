@@ -21,6 +21,43 @@ impl Facade for Cache {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Cache facade API")]
 impl Cache {
+    /// Registers a creator on the current application's cache manager.
+    pub fn extend(
+        driver: impl Into<String>,
+        factory: impl Fn(&CacheManager, &serde_json::Value) -> CacheResult<Repository>
+        + Send
+        + Sync
+        + 'static,
+    ) -> CacheResult<()> {
+        Self::getFacadeRoot()
+            .map_err(CacheError::Unavailable)?
+            .extend(driver, factory)?;
+        Ok(())
+    }
+
+    pub fn build(config: serde_json::Value) -> CacheResult<Repository> {
+        Self::getFacadeRoot()
+            .map_err(CacheError::Unavailable)?
+            .build(config)
+    }
+
+    pub fn forgetDriver(name: Option<&str>) -> CacheResult<()> {
+        Self::getFacadeRoot()
+            .map_err(CacheError::Unavailable)?
+            .forgetDriver(name)?;
+        Ok(())
+    }
+
+    pub fn purge(name: Option<&str>) -> CacheResult<()> {
+        Self::getFacadeRoot()
+            .map_err(CacheError::Unavailable)?
+            .purge(name)
+    }
+
+    pub fn driver(name: Option<&str>) -> CacheResult<Arc<Repository>> {
+        Self::store(name)
+    }
+
     pub fn store(name: Option<&str>) -> CacheResult<Arc<Repository>> {
         Self::getFacadeRoot()
             .map_err(CacheError::Unavailable)?

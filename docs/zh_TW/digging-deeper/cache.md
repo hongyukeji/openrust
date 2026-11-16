@@ -123,6 +123,24 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
 }
 ```
 
+## 新增自訂快取驅動程式 {#adding-custom-cache-drivers}
+
+為後端實作 `openrust::contracts::cache::Store`，在服務提供者的 `boot` 階段註冊驅動程式，並確保註冊早於首次解析儲存。下例使用獨立記憶體儲存示範註冊方式。
+
+```rust
+use std::sync::Arc;
+
+use openrust::{cache::ArrayStore, support::facades::Cache};
+
+Cache::extend("project", |manager, config| {
+    manager.repository(Arc::new(ArrayStore::new()), config)
+})?;
+```
+
+在 `config/cache.rs` 中將具名儲存的 `driver` 設為 `project`。工廠會收到快取管理器和完整儲存設定。透過 `manager.getContainer()` 取得應用程式服務，透過 `manager.repository(..., config)` 保留儲存名稱與事件設定。儲存解析為同步操作，回呼負責建立後端，非同步 I/O 放在個別快取操作中。
+
+具名儲存庫會在首次存取時建立，後續繼續沿用。替換工廠後，可呼叫 `Cache::forgetDriver(Some("reports"))?` 或 `Cache::purge(Some("reports"))?`，下次解析就會使用新工廠。`Cache::build(config)?` 會依指定設定即時建立獨立儲存庫。
+
 ## 快取事件 {#cache-events}
 
 透過應用程式事件分派器監聽 `CacheHit::NAME`、`KeyWritten::NAME` 和 `CacheLocksFlushed::NAME` 等事件。`openrust::cache::events` 中的事件帶有所選儲存名稱。讀寫事件提供呼叫端傳入的鍵和適用的有序標籤。批次讀取先分派 `RetrievingManyKeys`，再逐一分派命中或未命中事件。
