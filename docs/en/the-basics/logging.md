@@ -129,9 +129,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Syslog {#syslog-channel}
 
-Set `driver: "syslog"` to send records to a local Unix datagram socket. The channel uses `/var/run/syslog` on macOS and `/dev/log` on Linux by default. Set `socket` to use another receiver. Relative socket paths resolve from the application root. If delivery fails, the same channel can retry on the next record and the failed write follows the emergency log path.
+Set `driver: "syslog"` to send records to the local system log. On Unix, the channel sends datagrams to the system socket. The channel uses `/var/run/syslog` on macOS and `/dev/log` on Linux by default. Set `socket` to use another receiver. Relative socket paths resolve from the application root. If delivery fails, the same channel can retry on the next record and the failed write follows the emergency log path.
 
-The `facility` defaults to `user`. Use a name such as `local4` or its numeric syslog constant. The wire priority combines the facility and record severity. The tag comes from the application name and process ID. With no formatter specified, the payload uses the framework line format. Set `formatter: "default"` to omit the payload timestamp, or choose a registered formatter. Platforms without Unix datagrams use the emergency log.
+The `facility` defaults to `user`. Use a name such as `local4` or its numeric syslog constant. The wire priority combines the facility and record severity. The tag comes from the application name and process ID. With no formatter specified, the payload uses the framework line format. Set `formatter: "default"` to omit the payload timestamp, or choose a registered formatter.
 
 ```rust
 use openrust::{config::Repository, log::{LogContext, LogManager}};
@@ -160,6 +160,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+On Windows the channel writes to the Application event log. The provider name comes from the application name. The event details contain the application tag with the process ID and the formatted message as separate insertion strings. The category is the syslog severity number. As in PHP's Windows adapter, `alert` maps to Error, `info` maps to Information, and other levels map to Warning. `facility` is validated, with no facility field in the Windows event. The Unix-only `socket` option must be omitted on Windows.
+
+To inspect the raw message in PowerShell, replace `my-app` with the provider name derived from the application name.
+
+```powershell
+$filter = "*[System[Provider[@Name='my-app']]]"
+Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
+    ForEach-Object { $_.Properties[1].Value }
+```
+
 
 ## JSON Exception Logs {#json-exception-logs}
 

@@ -174,6 +174,88 @@ fn receive_syslog(socket: &std::os::unix::net::UnixDatagram) -> String {
     String::from_utf8(bytes[..size].to_vec()).unwrap()
 }
 
+#[cfg(windows)]
+fn windows_events(source: &str) -> Vec<Value> {
+    const SCRIPT: &str = r#"
+        $ErrorActionPreference = 'Stop'
+        [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+        $filter = "*[System[Provider[@Name='$env:OPENRUST_EVENT_TEST_SOURCE']]]"
+        $events = @(Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 16)
+        $records = @($events | ForEach-Object {
+            [pscustomobject]@{
+                level = $_.Level
+                category = $_.Task
+                tag = $_.Properties[0].Value
+                message = $_.Properties[1].Value
+            }
+        })
+        ConvertTo-Json -InputObject $records -Compress
+    "#;
+    let output = std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", SCRIPT])
+        .env("OPENRUST_EVENT_TEST_SOURCE", source)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    serde_json::from_slice(&output.stdout).unwrap()
+}
+
+#[cfg(windows)]
+fn event_source(root: &Path) -> &str {
+    root.file_name().unwrap().to_str().unwrap()
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_syslog_preserves_formatted_events_and_recovers_after_rejection() {
+    let root = Root::new();
+    let (manager, config) = manager(
+        &root,
+        json!({"channels":{
+            "events":{"driver":"syslog","name":"orders","level":"info","facility":"local4","formatter":"probe"},
+            "emergency":{"path":"fallback.log"}
+        }}),
+    );
+    let source = event_source(&root.0);
+    config.set("app.name", json!(source)).unwrap();
+    manager.registerFormatter("probe", |_| {
+        Ok(Arc::new(|record| {
+            let message = record.message();
+            if message == "oversize" {
+                return Ok("x".repeat(31_840));
+            }
+            Ok(format!("formatted {message}"))
+        }))
+    });
+    let logger = manager.channel(Some("events")).unwrap();
+    logger.debug("filtered", &LogContext::new()).unwrap();
+    logger.info("Unicode 数据", &LogContext::new()).unwrap();
+    logger.error("oversize", &LogContext::new()).unwrap();
+    logger.alert("recovered", &LogContext::new()).unwrap();
+    logger.critical("escalation", &LogContext::new()).unwrap();
+    assert!(root.read("fallback.log").contains("oversize"));
+
+    let records = windows_events(source);
+    assert_eq!(records.len(), 3);
+    for (message, category, level) in [
+        ("formatted Unicode 数据", 6, 4),
+        ("formatted recovered", 1, 2),
+        ("formatted escalation", 2, 3),
+    ] {
+        let event = records
+            .iter()
+            .find(|record| record["message"] == message)
+            .unwrap();
+        assert_eq!(event["tag"], format!("{source}[{}]", std::process::id()));
+        assert_eq!(event["category"], category);
+        assert_eq!(event["level"], level);
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn syslog_formats_real_datagrams_and_recovers_when_the_receiver_returns() {
@@ -607,11 +689,15 @@ fn emergency_recovers_resolution_and_file_errors_and_ignored_failures_continue()
     assert!(root.read("recovered.log").contains("retry missing channel"));
 }
 
-fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+fn config(root: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+    let mut syslog = json!({"driver":"syslog","formatter":"default"});
+    if cfg!(unix) {
+        syslog["socket"] = json!("ingest.sock");
+    }
     Ok(BTreeMap::from([
         (
             "app".into(),
-            json!({"env":"test","host":"127.0.0.1","port":0}),
+            json!({"env":"test","host":"127.0.0.1","port":0,"name":root.file_name().and_then(|name| name.to_str())}),
         ),
         (
             "logging".into(),
@@ -621,7 +707,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
                     "stack":{"driver":"stack","channels":["single","json"]},
                     "single":{"driver":"single","path":"storage/logs/openrust.log","replace_placeholders":true},
                     "stderr":{"driver":"stderr"},
-                    "syslog":{"driver":"syslog","socket":"ingest.sock","formatter":"default"},
+                    "syslog":syslog,
                     "json":{"driver":"single","path":"json.log","formatter":"json"},
                     "limited":{"driver":"single","path":"limited.log","formatter":"json","formatter_with":{"max_normalize_depth":3}},
                     "buffered":{"driver":"monolog","handler":"stream","with":{"stream":"buffered-http.log"},"action_level":"error","stop_buffering":false}
@@ -680,7 +766,7 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         })?;
         let container = openrust::container::Container::getInstance();
         let manager = container.make::<LogManager>().unwrap();
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         manager
             .channel(Some("syslog"))
             .and_then(|logger| logger.warning("syslog HTTP", &context))
@@ -824,6 +910,27 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
     send(a, 103).await;
     let first_log = first.read("storage/logs/openrust.log");
     let second_log = second.read("storage/logs/openrust.log");
+    #[cfg(windows)]
+    {
+        let records = windows_events(event_source(&first.0));
+        assert_eq!(records.len(), 3);
+        for id in [101, 102, 103] {
+            assert!(records.iter().any(|record| {
+                record["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains(&format!("request-{id}"))
+            }));
+        }
+        let records = windows_events(event_source(&second.0));
+        assert_eq!(records.len(), 1);
+        assert!(
+            records[0]["message"]
+                .as_str()
+                .unwrap()
+                .contains("request-201")
+        );
+    }
     #[cfg(unix)]
     {
         let records = (0..3)
@@ -890,7 +997,7 @@ fn console_routes() -> Result<(), ConsoleError> {
             &LogContext::new(),
         )
         .unwrap();
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         Log::channel(Some("syslog"))
             .unwrap()
             .error("syslog Artisan", &LogContext::new())
@@ -981,6 +1088,13 @@ async fn artisan_logs_to_file_and_stderr() {
     assert_eq!(artifact["context"]["exception"]["outer"], "outer context");
     #[cfg(unix)]
     assert!(receive_syslog(&syslog).contains("syslog Artisan"));
+    #[cfg(windows)]
+    assert!(
+        windows_events(event_source(&root.0))[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("syslog Artisan")
+    );
     assert!(
         output.status.success(),
         "{}\n{stderr}",

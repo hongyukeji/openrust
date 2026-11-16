@@ -8,4 +8,4 @@
 
 三语示例编译执行并解析实际 JSONL 文件。VitePress 构建、12 项通用浏览器检查和 6 项 JSON 小节锚点检查通过。 [英文](../../../../docs/en/the-basics/logging.md#json-exception-logs) · [简体中文](../../../../docs/zh_CN/the-basics/logging.md#json-exception-logs) · [繁體中文](../../../../docs/zh_TW/the-basics/logging.md#json-exception-logs)
 
-01-04 的 Windows syslog 对应行为继续跟踪。
+Windows 原生接线已通过[后续实机验收](windows-syslog.md)，01-04 整单元闭合。

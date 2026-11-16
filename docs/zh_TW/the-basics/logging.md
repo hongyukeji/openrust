@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Syslog 通道 {#syslog-channel}
 
-設定 `driver: "syslog"` 後，透過本機 Unix 資料包通訊端送出記錄。macOS 預設使用 `/var/run/syslog`，Linux 預設使用 `/dev/log`。可透過 `socket` 指定接收端，相對路徑從應用程式根目錄解析。傳送失敗時寫入緊急日誌，同一通道在下一筆記錄到達時可重新傳送。
+設定 `driver: "syslog"` 後，將記錄傳送到本機系統日誌。在 Unix 上使用本機資料包通訊端。macOS 預設使用 `/var/run/syslog`，Linux 預設使用 `/dev/log`。可透過 `socket` 指定接收端，相對路徑從應用程式根目錄解析。傳送失敗時寫入緊急日誌，同一通道在下一筆記錄到達時可重新傳送。
 
 `facility` 預設為 `user`，可填寫 `local4` 等名稱或對應的 syslog 數值常數。資料包的優先等級由 facility 和記錄等級組成，標籤取自應用程式名稱與處理程序 ID。省略格式化器時，訊息本文採用框架行格式。設定 `formatter: "default"` 可省略本文的時間戳記，也可以指定已註冊的格式化器。缺少 Unix 資料包支援的平台使用緊急日誌。
 
@@ -160,6 +160,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+在 Windows 上，通道寫入 Application 事件日誌，Provider 名稱取自應用程式名稱。事件詳細資料中的兩個插入字串分別保留含處理程序 ID 的應用程式標籤與格式化訊息，類別保留 syslog 等級編號。與 PHP 的 Windows 接線一致，`alert` 對應 Error，`info` 對應 Information，其餘等級對應 Warning。Windows 會驗證 `facility`，事件本身沒有 facility 欄位。`socket` 僅適用於 Unix，Windows 設定應省略此項。
+
+在 PowerShell 中將 `my-app` 換成從應用程式名稱衍生的 Provider 名稱，即可讀取原始訊息。
+
+```powershell
+$filter = "*[System[Provider[@Name='my-app']]]"
+Get-WinEvent -LogName Application -FilterXPath $filter -MaxEvents 1 |
+    ForEach-Object { $_.Properties[1].Value }
+```
+
 
 ## JSON 例外日誌 {#json-exception-logs}
 

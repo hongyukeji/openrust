@@ -583,8 +583,7 @@ impl Resolution<'_, '_> {
                     })
                     .filter(|name| !name.is_empty())
                     .unwrap_or_else(|| "openrust".to_owned());
-                let socket = socket
-                    .map_or_else(syslog::default_socket, |path| self.settings.root.join(path));
+                let socket = socket.map(|path| self.settings.root.join(path));
                 let facility = facility.unwrap_or(syslog::Facility::Number(8)).priority()?;
                 let handler = Handler::Registered {
                     write: syslog::writer(socket, ident, facility)?,

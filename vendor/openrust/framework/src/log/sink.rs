@@ -123,7 +123,12 @@ impl FileOptions {
             fs::create_dir_all(parent)?;
         }
         let mut options = OpenOptions::new();
-        options.create(true).append(true);
+        options.create(true);
+        if cfg!(windows) && self.locking {
+            options.write(true);
+        } else {
+            options.append(true);
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::OpenOptionsExt as _;
@@ -152,6 +157,12 @@ impl FileOptions {
         };
         if self.locking {
             file.lock()?;
+            #[cfg(windows)]
+            {
+                use std::io::{Seek as _, SeekFrom};
+                // Windows cannot lock an append-only handle.
+                file.seek(SeekFrom::End(0))?;
+            }
         }
         file.write_all(bytes)?;
         if self.locking {
