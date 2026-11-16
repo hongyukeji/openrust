@@ -340,6 +340,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 分页、拆分和填充 {#lazy-paging-and-partition}
+
+`forPage` 的页码从 1 开始，保留来源键。`split` 在首次取值时实体化来源并均衡分组。`splitIn` 调用时先计数，再按需遍历以填满前面的组。`partition` 单次遍历，返回通过与未通过的两个实体集合。正数 `pad` 在来源结束后从右侧补齐，负数则先实体化并从左侧补齐。右侧填充无法分配整数键时，Rust 返回索引溢出错误。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::from([10, 20, 30, 40, 50]);
+    let page = readings.clone().forPage(2, 2).values();
+    assert_eq!(page.collect()?.toJson()?, "[30,40]");
+
+    let (passed, failed) = readings.partition(|value, _| *value >= 30)?;
+    assert_eq!(passed.count(), 3);
+    assert_eq!(failed.count(), 2);
+    let padded = readings.pad(6, 0);
+    assert_eq!(padded.collect()?.toJson()?, "[10,20,30,40,50,0]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

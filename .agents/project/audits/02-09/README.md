@@ -119,3 +119,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `r#where`、成员过滤和区间过滤保留输入键、重复出现和顺序。区间含两端，区间外要求小于下界或大于上界，NaN 两者都不匹配。严格成员变体共享 Rust 类型比较。
 - 空值过滤支持 `Option` 与 JSON。JSON 路径缺失与显式 null 等价，false 保留为非空。`whereInstanceOf` 使用 Rust `Any` 向下转换，不要求克隆值。
 - PHP 8.5.12 固定源码对照、50 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性分页拆分与填充
+
+对照固定 Laravel 的 [forPage 与 partition](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L529)、[split](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1316)、[splitIn](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1448) 与 [pad](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1837)。旧版未发现同契约的惰性操作。
+
+- `forPage` 按源次序跳过至目标页，保留键和重复项。`split` 在首次取值时按键实体化并均衡分组。`splitIn` 在调用时先计数，再以保留键的块按需遍历。
+- `partition` 单次遍历，返回两个实体集合。同一个键可分别存在于通过与未通过组。`pad` 正数延迟右补，负数复用实体集合左补。Rust 对生成整数键超出范围返回错误，PHP 生成器会回绕。
+- PHP 8.5.12 固定源码对照、53 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 2026-11-17 01:52（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 2.7 GiB Cargo 产物及文档缓存。项目卷可用 77,010,220 KiB（78.86 GB／73.44 GiB）。证据目录 /private/tmp/openrust-lazy-partition.BbGsJBgw。02-09 接续序列化和其余公开入口。

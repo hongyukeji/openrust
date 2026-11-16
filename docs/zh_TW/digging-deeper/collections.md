@@ -340,6 +340,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 分頁、拆分與填充 {#lazy-paging-and-partition}
+
+`forPage` 的頁碼從 1 開始，保留來源鍵。`split` 在第一次取值時實體化來源並均衡分組。`splitIn` 呼叫時先計數，再按需迭代以填滿前面的群組。`partition` 單次迭代，傳回通過與未通過的兩個實體集合。正數 `pad` 在來源結束後從右側補齊，負數則先實體化並從左側補齊。右側填充無法分配整數鍵時，Rust 傳回索引溢位錯誤。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::from([10, 20, 30, 40, 50]);
+    let page = readings.clone().forPage(2, 2).values();
+    assert_eq!(page.collect()?.toJson()?, "[30,40]");
+
+    let (passed, failed) = readings.partition(|value, _| *value >= 30)?;
+    assert_eq!(passed.count(), 3);
+    assert_eq!(failed.count(), 2);
+    let padded = readings.pad(6, 0);
+    assert_eq!(padded.collect()?.toJson()?, "[10,20,30,40,50,0]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

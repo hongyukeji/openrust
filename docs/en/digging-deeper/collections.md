@@ -340,6 +340,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Paging, Splitting, and Padding {#lazy-paging-and-partition}
+
+`forPage` uses one-based page numbers and preserves source keys. `split` materializes on the first pull and balances the groups. `splitIn` counts the source on call, then traverses it again on demand to fill the earlier groups. `partition` traverses once and returns the passing and failing groups as two materialized collections. A positive `pad` size adds items on the right after the source ends. A negative size materializes and pads on the left. Rust reports index overflow if the right padding cannot be assigned an integer key.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::from([10, 20, 30, 40, 50]);
+    let page = readings.clone().forPage(2, 2).values();
+    assert_eq!(page.collect()?.toJson()?, "[30,40]");
+
+    let (passed, failed) = readings.partition(|value, _| *value >= 30)?;
+    assert_eq!(passed.count(), 3);
+    assert_eq!(failed.count(), 2);
+    let padded = readings.pad(6, 0);
+    assert_eq!(padded.collect()?.toJson()?, "[10,20,30,40,50,0]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

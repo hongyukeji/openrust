@@ -11,6 +11,7 @@ mod matching;
 mod nested;
 mod ordering;
 mod pairing;
+mod partition;
 mod projection;
 mod sets;
 mod timing;

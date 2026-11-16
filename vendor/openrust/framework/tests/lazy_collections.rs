@@ -1219,3 +1219,93 @@ fn lazy_downcasting_and_predicates_propagate_source_errors() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_page_preserves_occurrences_and_reads_only_through_the_page() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 1), ("b", 2), ("b", 3), ("c", 4), ("d", 5)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let page = source.clone().forPage(2, 2);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        page.getIterator().collect::<Result<Vec<_>, _>>().unwrap(),
+        vec![("b".into(), 3), ("c".into(), 4)]
+    );
+    assert_eq!(reads.get(), 4);
+    assert_eq!(source.clone().forPage(0, 1).first().unwrap(), Some(1));
+    assert_eq!(source.forPage(usize::MAX, 0).count().unwrap(), 0);
+    assert_eq!(reads.get(), 5);
+}
+
+#[test]
+fn lazy_split_and_partition_preserve_their_distinct_materialization_rules() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3), ("c", 4), ("d", 5)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert!(matches!(
+        source.clone().split(0),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert!(matches!(
+        source.clone().splitIn(0),
+        Err(CollectionError::InvalidArgument)
+    ));
+    let split = source.clone().split(3).unwrap();
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        split.first().unwrap().unwrap().toJson().unwrap(),
+        r#"{"a":2,"b":3}"#
+    );
+    assert_eq!(reads.get(), 5);
+    let chunks = source.clone().splitIn(2).unwrap();
+    assert_eq!(reads.get(), 10);
+    assert_eq!(
+        chunks.first().unwrap().unwrap().toJson().unwrap(),
+        r#"{"a":2,"b":3,"c":4}"#
+    );
+    assert_eq!(reads.get(), 14);
+    let (evens, odds) = source.partition(|value, _| value % 2 == 0).unwrap();
+    assert_eq!(evens.toJson().unwrap(), r#"{"a":2,"c":4}"#);
+    assert_eq!(odds.toJson().unwrap(), r#"{"a":1,"b":3,"d":5}"#);
+}
+
+#[test]
+fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
+    let source = LazyCollection::fromEntries(|| [(ArrayKey::from(8), "x"), ("tag".into(), "y")]);
+    assert_eq!(
+        source.clone().pad(4, "pad").all().unwrap(),
+        vec![
+            (8.into(), "x"),
+            ("tag".into(), "y"),
+            (9.into(), "pad"),
+            (10.into(), "pad")
+        ]
+    );
+    assert_eq!(
+        source.pad(-3, "pad").all().unwrap(),
+        vec![(0.into(), "pad"), (1.into(), "x"), ("tag".into(), "y")]
+    );
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    assert_eq!(failing.clone().pad(3, 0).first().unwrap(), Some(1));
+    assert!(matches!(
+        failing.clone().pad(-3, 0).first(),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(
+        failing.partition(|_, _| true),
+        Err(CollectionError::Source(_))
+    ));
+    let overflow = LazyCollection::fromEntries(|| [(i64::MAX, "value")]).pad(2, "pad");
+    let mut values = overflow.getIterator();
+    assert_eq!(values.next().unwrap().unwrap(), (i64::MAX.into(), "value"));
+    assert!(matches!(
+        values.next(),
+        Some(Err(CollectionError::IndexOverflow))
+    ));
+}
