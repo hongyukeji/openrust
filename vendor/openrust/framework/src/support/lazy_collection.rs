@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable};
 
 mod nested;
+mod pairing;
 mod timing;
 
 type Entry<T> = (ArrayKey, T);

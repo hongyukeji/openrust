@@ -182,6 +182,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Pairing Sources {#lazy-pairing-sources}
+
+`zip` pairs values by position. `zipMany` pairs the first source with several additional sources. Both preserve the longest source and represent missing values as `None`. `combine` takes keys from the values of the first source and values from the second. It returns `CollectionError::InvalidArgument` when traversal detects unequal lengths.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::from([1, 2]);
+    let rows = numbers.clone().zip(["one"]);
+    assert_eq!(rows.collect()?.toJson()?, r#"[[1,"one"],[2,null]]"#);
+
+    let labels = LazyCollection::from(["first", "second"]);
+    assert_eq!(
+        labels.combine(numbers).collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

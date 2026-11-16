@@ -55,3 +55,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `collapse` 展开一层，重排索引。`collapseWithKeys` 保留内部键和顺序，重复键在实体化前可逐项读取。`flatMap` 先映射到分组，再展开。Rust 用类型约束接受惰性集合、实体集合、向量和数组。
 - `flatten` 对 JSON 按指定层级展开数组和对象，对标量直接产出。每次遍历复用一个栈，逐项移动已拥有的 JSON 值。嵌套来源按需打开，错误立即结束遍历。
 - PHP 8.5.12 固定源码对照、26 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性来源配对
+
+对照固定 Laravel 的 [zip](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1816)、[combine](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L885) 和 [两类集合共用测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php)。旧版未发现同契约的惰性操作，本批沿用现有实体集合的 Rust 行类型和惰性输入转换。
+
+- `zip` 和 `zipMany` 按位置读取到最长来源结束，以 `Option` 表达空位。Rust 用 `zipMany` 表达 Laravel 的可变参数重载。
+- `combine` 从第一来源的值生成键，复用 PHP 数字字符串键规则。来源不等长时，迭代器在检测到差异的那次读取返回错误。已产出的成对值保持有效。
+- PHP 8.5.12 固定源码对照、29 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

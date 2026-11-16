@@ -182,6 +182,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 配對多個來源 {#lazy-pairing-sources}
+
+`zip` 按位置配對值。用 `zipMany` 將第一個來源與多個後續來源配對。兩者都讀取到最長來源結束，缺少的項目以 `None` 表示。`combine` 將第一個來源的值用作鍵，與第二個來源的值配對。迭代發現長度不同時回傳 `CollectionError::InvalidArgument`。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::from([1, 2]);
+    let rows = numbers.clone().zip(["one"]);
+    assert_eq!(rows.collect()?.toJson()?, r#"[[1,"one"],[2,null]]"#);
+
+    let labels = LazyCollection::from(["first", "second"]);
+    assert_eq!(
+        labels.combine(numbers).collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

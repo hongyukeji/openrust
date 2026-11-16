@@ -182,6 +182,27 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 配对多个来源 {#lazy-pairing-sources}
+
+`zip` 按位置配对值。用 `zipMany` 将第一个来源与多个后续来源配对。两者都读取到最长来源结束，缺项用 `None` 表示。`combine` 将第一个来源的值用作键，与第二个来源的值配对。遍历发现长度不同时返回 `CollectionError::InvalidArgument`。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::from([1, 2]);
+    let rows = numbers.clone().zip(["one"]);
+    assert_eq!(rows.collect()?.toJson()?, r#"[[1,"one"],[2,null]]"#);
+
+    let labels = LazyCollection::from(["first", "second"]);
+    assert_eq!(
+        labels.combine(numbers).collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

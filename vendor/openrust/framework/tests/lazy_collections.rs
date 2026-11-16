@@ -473,3 +473,87 @@ fn lazy_flatten_respects_depth_and_keeps_scalar_values() {
         Some(Err(CollectionError::Source(_)))
     ));
 }
+
+#[test]
+fn lazy_zip_pads_to_the_longest_input_without_reading_ahead() {
+    let reads = Cell::new(0);
+    let left = LazyCollection::fromEntries(|| [("id", 1)]);
+    let right = LazyCollection::make(|| {
+        ["a", "b"]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let zipped = left.zip(right);
+    assert_eq!(reads.get(), 0);
+    let mut iterator = zipped.getIterator();
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        (0.into(), (Some(1), Some("a")))
+    );
+    assert_eq!(reads.get(), 1);
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        (1.into(), (None, Some("b")))
+    );
+    assert!(iterator.next().is_none());
+
+    let multiple = LazyCollection::from([1, 2])
+        .zipMany([vec![3], vec![4, 5, 6]])
+        .all()
+        .unwrap();
+    assert_eq!(
+        multiple,
+        vec![
+            (0.into(), (Some(1), vec![Some(3), Some(4)])),
+            (1.into(), (Some(2), vec![None, Some(5)])),
+            (2.into(), (None, vec![None, Some(6)])),
+        ]
+    );
+}
+
+#[test]
+fn lazy_combine_reuses_values_as_keys_and_reports_mismatches_on_pull() {
+    let keyed = LazyCollection::from(["09", "8", "8"]).combine([5, 6, 7]);
+    assert_eq!(
+        keyed.clone().values().all().unwrap(),
+        vec![(0.into(), 5), (1.into(), 6), (2.into(), 7)]
+    );
+    assert_eq!(keyed.all().unwrap(), vec![("09".into(), 5), (8.into(), 7)]);
+    for invalid in [
+        LazyCollection::from(["a", "b"]).combine([1]),
+        LazyCollection::from(["a"]).combine([1, 2]),
+    ] {
+        let mut iterator = invalid.getIterator();
+        assert_eq!(iterator.next().unwrap().unwrap(), ("a".into(), 1));
+        assert!(matches!(
+            iterator.next(),
+            Some(Err(CollectionError::InvalidArgument))
+        ));
+        assert!(iterator.next().is_none());
+    }
+}
+
+#[test]
+fn lazy_pairing_propagates_source_errors_without_pulling_later_columns() {
+    let reads = Cell::new(0);
+    let left = LazyCollection::tryMake(|| [Ok("key"), Err(source_error())]);
+    let right = LazyCollection::make(|| [1, 2].into_iter().inspect(|_| reads.set(reads.get() + 1)));
+    let zip = left.clone().zip(right.clone());
+    let mut zipped = zip.getIterator();
+    assert!(matches!(zipped.next(), Some(Ok(_))));
+    assert!(matches!(
+        zipped.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(zipped.next().is_none());
+    assert_eq!(reads.get(), 1);
+
+    let combined = left.combine(right);
+    let mut pairs = combined.getIterator();
+    assert!(matches!(pairs.next(), Some(Ok(_))));
+    assert!(matches!(
+        pairs.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert_eq!(reads.get(), 2);
+}
