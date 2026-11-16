@@ -30,6 +30,22 @@ async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
 
 在已排序的查詢上呼叫 `chunk(count, callback)`。非同步回呼收到非空批次和從 1 開始的頁碼。回傳 `Ok(false)` 提前停止，回傳 `Err` 傳遞錯誤。既有偏移量用於跳過開頭的列，既有限制用於控制總列數。分批透過偏移量翻頁，走訪期間修改比對條件涉及的列可能導致漏讀或重複讀取。
 
+用 `chunkById(count, callback, column, alias)` 或 `chunkByIdDesc` 依唯一且非空的鍵逐批讀取。將 `column` 設為 `None` 時使用 `id`。SQL 投影名稱與欄位名稱不同時，用 `alias` 指定投影名稱。偏移量只用於首批，限制控制所有批次的總列數。處理期間保持分批鍵穩定。回呼可在檢查分批鍵前停止。用 `fromSub` 包裝聯集查詢，使鍵值條件套用到所有分支。
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
+    db.table("reports")
+        .select(["id as batch_id"])
+        .chunkByIdDesc(200, |rows, page| async move {
+            println!("{}: {}", page, rows.len());
+            Ok(true)
+        }, None, Some("batch_id"))
+        .await
+}
+```
+
 ## SELECT 陳述式
 
 用 `select` 指定傳回欄位，用 `addSelect` 附加欄位。欄名支援 `as` 別名。`distinct()` 去除重複資料列。語法編譯器引用識別字並套用連線的資料表前綴。用 `selectRaw` 或 `DB::raw` 明確傳入受信任的運算式。值個別繫結，識別字從應用程式預先定義的名稱中選擇。

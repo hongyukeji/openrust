@@ -1587,19 +1587,71 @@ impl<M: Model> Builder<'static, M> {
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.chunk_hydrated(count, |_, _| Ok(()), callback).await
+        self.chunk_hydrated(count, None, |_, _| Ok(()), callback)
+            .await
+    }
+
+    /// Processes successive batches ordered by the model key or a projected key.
+    pub async fn chunkById<Fut>(
+        self,
+        count: u64,
+        callback: impl FnMut(Collection<M>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.orderedChunkById(count, callback, column, alias, false)
+            .await
+    }
+
+    pub async fn chunkByIdDesc<Fut>(
+        self,
+        count: u64,
+        callback: impl FnMut(Collection<M>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.orderedChunkById(count, callback, column, alias, true)
+            .await
+    }
+
+    pub async fn orderedChunkById<Fut>(
+        self,
+        count: u64,
+        callback: impl FnMut(Collection<M>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let primary_key = M::metadata().primary_key;
+        let key = query::ChunkKey {
+            column: column.map_or_else(|| self.qualifyColumn(primary_key), str::to_owned),
+            alias: alias.or(column).unwrap_or(primary_key).into(),
+            descending,
+        };
+        self.chunk_hydrated(count, Some(key), |_, _| Ok(()), callback)
+            .await
     }
 
     pub(super) async fn chunk_hydrated<Fut>(
         self,
         count: u64,
+        key: Option<query::ChunkKey>,
         hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()> + Send,
         mut callback: impl FnMut(Collection<M>, u64) -> Fut,
     ) -> DatabaseResult<bool>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let mut batches = self.chunk_collections(count, hydrate);
+        let mut batches = self.chunk_collections(count, key, hydrate);
         let mut page = 1;
         while let Some(models) = batches.try_next().await? {
             if !callback(models, page).await? {
@@ -1613,13 +1665,18 @@ impl<M: Model> Builder<'static, M> {
     pub(super) fn chunk_collections<'a>(
         self,
         count: u64,
+        key: Option<query::ChunkKey>,
         mut hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()> + Send + 'a,
     ) -> DatabaseCursor<'a, Collection<M>> {
         Box::pin(async_stream::try_stream! {
-            let key = self.qualifyColumn(M::metadata().primary_key);
-            let (query, hydration) = self.hydration_query()?;
-            let mut query = query.order_for_pagination(&key);
-            let mut pages = query.chunk_pages(count);
+            let primary_key = self.qualifyColumn(M::metadata().primary_key);
+            let (mut query, hydration) = self.hydration_query()?;
+            let mut pages = if let Some(key) = key {
+                query.chunk_id_pages(count, key)
+            } else {
+                query = query.order_for_pagination(&primary_key);
+                query.chunk_pages(count)
+            };
             while let Some(rows) = pages.try_next().await? {
                 let mut models = hydration.rows(rows);
                 hydrate(&mut models, &hydration.connection)?;

@@ -1292,6 +1292,8 @@ async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> Database
 }
 ```
 
+多對多關聯支援 `chunkById(parent, count, callback, column, alias)` 及 `chunkByIdDesc`。預設使用帶表名的關聯鍵，並在呼叫回呼前為每個模型載入 Pivot。
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

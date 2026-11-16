@@ -1292,6 +1292,8 @@ async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> Database
 }
 ```
 
+Many-to-many relationships support `chunkById(parent, count, callback, column, alias)` and `chunkByIdDesc`. They default to the qualified related key and hydrate the Pivot for every model before invoking the callback.
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

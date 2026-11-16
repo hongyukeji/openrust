@@ -109,6 +109,8 @@ async fn first_model<M: Model>() -> DatabaseResult<Option<M>> {
 
 Eloquent 查詢的 `chunk(count, callback)` 將每頁作為模型集合交給非同步回呼。沒有指定排序時按主鍵排序。回呼執行前，每批都會觸發模型讀取事件、預先載入關聯並呼叫模型集合工廠。參見[查詢建構器的分批規則](../database/queries.md#chunking-results)。
 
+Eloquent 也支援 `chunkById` 和 `chunkByIdDesc`。傳入 `None` 時以模型主鍵分批。後續查詢的邊界值來自 SQL 投影，請保留分批欄位或其投影別名。每批仍會執行 Eloquent 的讀取事件及預先載入。
+
 ## 插入和更新模型
 
 `create` 依批次賦值規則儲存新模型。`setAttribute` 設定單一屬性，`save` 以原主鍵寫入已變更的屬性。寫入成功後同步模型快照。建構器的 `update` 和 `delete` 回傳受影響列數。

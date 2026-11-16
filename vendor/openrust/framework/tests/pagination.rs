@@ -257,6 +257,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/relationship-cursor", relationship_cursor_page)?;
     Route::get("/relationship-chunk", relationship_chunk_page)?;
     Route::get("/inverse-chunk", inverse_chunk_page)?;
+    Route::get("/chunk-by-id", chunk_by_id_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1635,6 +1636,177 @@ fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 
+fn chunk_by_id_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::database::DatabaseError;
+        use std::future::ready;
+
+        async fn verify_keyset() -> DatabaseResult<Json> {
+            let db = DB::connection(None)?;
+            let mut raw = Vec::new();
+            db.table("pagination_articles")
+                .select(["id as boundary"])
+                .r#where("id", "<=", 5)
+                .orderBy("id", "asc")
+                .offset(1)
+                .limit(3)
+                .chunkByIdDesc(
+                    2,
+                    |rows, page| {
+                        raw.push(json!([
+                            page,
+                            rows.iter()
+                                .map(|row| id(row.get("boundary")))
+                                .collect::<Vec<_>>()
+                        ]));
+                        ready(Ok(true))
+                    },
+                    None,
+                    Some("boundary"),
+                )
+                .await?;
+
+            let missing = || {
+                db.table("pagination_articles")
+                    .select(["category"])
+                    .limit(1)
+            };
+            let mut callbacks = 0;
+            assert!(matches!(
+                missing()
+                    .chunkById(
+                        10,
+                        |rows, page| {
+                            assert_eq!((rows.len(), page), (1, 1));
+                            callbacks += 1;
+                            ready(Ok(true))
+                        },
+                        None,
+                        None
+                    )
+                    .await,
+                Err(DatabaseError::InvalidQuery(
+                    "chunkById key is missing from the result"
+                ))
+            ));
+            assert_eq!(callbacks, 1);
+            assert!(
+                !missing()
+                    .chunkById(10, |_, _| ready(Ok(false)), None, None)
+                    .await?
+            );
+            assert!(matches!(
+                missing()
+                    .chunkById(
+                        10,
+                        |_, _| ready(Err(DatabaseError::InvalidQuery("callback failed"))),
+                        None,
+                        None
+                    )
+                    .await,
+                Err(DatabaseError::InvalidQuery("callback failed"))
+            ));
+
+            let mut ids = Vec::new();
+            Article::query()?
+                .orderBy("id", "desc")
+                .limit(5)
+                .chunkById(
+                    2,
+                    |models, page| {
+                        ids.push(json!([
+                            page,
+                            models
+                                .iter()
+                                .map(|model| id(model.getKey()))
+                                .collect::<Vec<_>>()
+                        ]));
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+
+            let mut aliases = Vec::new();
+            Article::query()?
+                .select(["id as boundary"])
+                .limit(5)
+                .orderedChunkById(
+                    2,
+                    |models, _| {
+                        aliases.extend(
+                            models
+                                .iter()
+                                .map(|model| id(model.getAttribute("boundary"))),
+                        );
+                        ready(Ok(true))
+                    },
+                    Some("pagination_articles.id"),
+                    Some("boundary"),
+                    false,
+                )
+                .await?;
+            assert_eq!(aliases, [1, 2, 3, 4, 5]);
+
+            let owner = Article::query()?.findOrFail(1).await?;
+            let labels = BelongsToMany::<Article, KeyedLabel>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+            )
+            .wherePivot("subject_type", "=", "article")
+            .withPivot(["label"]);
+            let mut pivots = Vec::new();
+            labels
+                .chunkByIdDesc(
+                    &owner,
+                    2,
+                    |models, page| {
+                        let entries: Vec<_> = models
+                            .iter()
+                            .map(|model| {
+                                let key = id(model.getKey());
+                                assert!(models.getByKey(format!("pivot-{key}")).is_some());
+                                let pivot = model.getRelation::<Pivot>("pivot").unwrap();
+                                let Some(Value::Text(color)) = pivot.getAttribute("label") else {
+                                    panic!("missing pivot label");
+                                };
+                                json!([key, color])
+                            })
+                            .collect();
+                        pivots.push(json!([page, entries]));
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+
+            let mut matches = Vec::new();
+            db.table("pagination_articles")
+                .r#where("id", "=", 1)
+                .orWhere("id", "=", 4)
+                .chunkById(
+                    1,
+                    |rows, _| {
+                        matches.push(id(rows[0].get("id")));
+                        ready(Ok(true))
+                    },
+                    None,
+                    None,
+                )
+                .await?;
+            assert_eq!(matches, [1, 4]);
+            Ok(json!({ "raw": raw, "models": ids, "pivots": pivots }))
+        }
+
+        Response::json(StatusCode::OK, verify_keyset().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2218,6 +2390,16 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(
         request(address, "/api/inverse-chunk").await,
         json!([[1, 2], [2, 1]])
+    );
+    let batches = request(address, "/api/chunk-by-id").await;
+    assert_eq!(batches["raw"], json!([[1, [4, 3]], [2, [2]]]));
+    assert_eq!(
+        batches["models"],
+        json!([[1, [1, 2]], [2, [3, 4]], [3, [5]]])
+    );
+    assert_eq!(
+        batches["pivots"],
+        json!([[1, [[3, "green"], [2, "blue"]]], [2, [[1, "red"]]]])
     );
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");

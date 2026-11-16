@@ -10,10 +10,12 @@ use super::{
     grammars::{DatePart, Grammar},
 };
 
+mod chunks;
 mod pagination;
 mod subqueries;
 mod writes;
 
+pub(in crate::database) use chunks::ChunkKey;
 use subqueries::{Join, Source};
 
 enum Executor<'connection> {

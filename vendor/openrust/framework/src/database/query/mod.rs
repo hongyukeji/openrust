@@ -7,6 +7,7 @@ pub mod grammars;
 mod join_clause;
 pub mod processors;
 
+pub(super) use builder::ChunkKey;
 pub use builder::{Builder, Column};
 pub use conditions::{Conditions, FullTextOptions};
 pub use expression::Expression;

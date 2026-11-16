@@ -1729,6 +1729,69 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.pagination_query(parent, &["*"], &columns)?
             .chunk_hydrated(
                 count,
+                None,
+                |models, connection| {
+                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+                },
+                callback,
+            )
+            .await
+    }
+
+    pub async fn chunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.orderedChunkById(parent, count, callback, column, alias, false)
+            .await
+    }
+
+    pub async fn chunkByIdDesc<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.orderedChunkById(parent, count, callback, column, alias, true)
+            .await
+    }
+
+    pub async fn orderedChunkById<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+        column: Option<&str>,
+        alias: Option<&str>,
+        descending: bool,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let names = self.pivot_names();
+        let columns = self.aliased_pivot_columns(&names);
+        let query = self.pagination_query(parent, &["*"], &columns)?;
+        let key = query::ChunkKey {
+            column: column.map_or_else(|| query.qualifyColumn(self.keys.related), str::to_owned),
+            alias: alias.unwrap_or(self.keys.related).into(),
+            descending,
+        };
+        query
+            .chunk_hydrated(
+                count,
+                Some(key),
                 |models, connection| {
                     self.hydrate_page_pivots(parent, models, &columns, &names, connection)
                 },

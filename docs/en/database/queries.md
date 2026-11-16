@@ -30,6 +30,22 @@ Inside a transaction, exhaust the cursor before issuing another statement or com
 
 Call `chunk(count, callback)` on an ordered query. The async callback receives a nonempty batch and a page number starting at 1. Return `Ok(false)` to stop or propagate an error with `Err`. An existing offset skips rows at the start and a limit caps the total. These pages use offsets, so changing which rows match while iterating can skip or repeat rows.
 
+Use `chunkById(count, callback, column, alias)` or `chunkByIdDesc` to fetch each next batch by comparing a unique, non-null key. Set `column` to `None` for `id`, and `alias` to the name used in the SQL projection if it differs from the column. The first batch honors the offset and the limit caps all batches. Keep the key stable while processing. The callback can stop before the key is checked. Wrap a union in `fromSub` to apply the key filter to all arms.
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
+    db.table("reports")
+        .select(["id as batch_id"])
+        .chunkByIdDesc(200, |rows, page| async move {
+            println!("{}: {}", page, rows.len());
+            Ok(true)
+        }, None, Some("batch_id"))
+        .await
+}
+```
+
 ## Select Statements
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.

@@ -1078,7 +1078,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     ) -> DatabaseCursor<'a, Collection<MorphTarget>> {
         Box::pin(async_stream::try_stream! {
             if let Some(query) = self.owner_query(parent)? {
-                let mut batches = soft_deletes.apply(query).chunk_collections(count, |_, _| Ok(()));
+                let mut batches = soft_deletes.apply(query).chunk_collections(count, None, |_, _| Ok(()));
                 while let Some(models) = batches.try_next().await? {
                     let targets = models.toBase().into_iter().map(|(key, model)| {
                         (key, MorphTarget::from_model(alias, Arc::new(model)))
