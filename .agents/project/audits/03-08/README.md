@@ -128,3 +128,9 @@
 - 在 PHP 8.5 容器中使用固定 Blade 编译器实测 Laravel `LazyCollection` 和实现 `Countable` 的迭代器。未知长度时三个依赖长度的字段为 null，父循环保留元数据。嵌套 `@break(2)` 仅消费首项。已知长度时以 `3,2,1,0` 验证总数和剩余量，并核对首项和末项。 [固定 ManagesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesLoops.php)
 - Rust 通过 `withIterator` 或 `withExactSizeIterator` 显式传递可重开迭代器工厂。实际 HTTP 覆盖键值、已知长度、未知长度、嵌套父循环和空流分支，惰性探针在多读时直接失败。旧版模板没有可复用的 Blade 循环实现。
 - 实际 Artisan 缓存及清理三语示例，示例 Rust 入口接入回环 HTTP。5 项 `view_finder` 定向测试、严格 Clippy 和三语 VitePress 构建通过。
+
+### 数组表达式与下标
+
+- PHP 8.5 容器以固定 Laravel BladeCompiler 渲染与 Rust HTTP 相同的模板。覆盖短数组、`array(...)`、变量键、嵌套取值、重复键保持插入位置、规范整数键和保留前导零的键、布尔与空值转键、浮点截断、负键后自动编号、合并运算和 HTML 转义。旧版静态视图未提供数组表达式实现。 [固定 BladeCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/BladeCompiler.php)
+- 纯 Rust 求值沿用 JSON 视图数据。连续整数键为列表，混合键为有序对象，取不到下标返回 null。无法转换的键和隐式整数溢出返回 null，已通过实际 HTTP 验证。PHP 的引用、数组展开与对象重载由 Rust 调用方准备数据。缓存版本随语法树更新。
+- 11 项 `view_finder`、`csrf` 和 `authorization` 定向回归通过，改动文件格式及严格 Clippy 通过。隔离应用用实际 Artisan 缓存及清理三语模板示例，缓存生成后通过 HTTP 验证转义结果。三语 VitePress 构建、章节输出和 12 项浏览器检查通过。

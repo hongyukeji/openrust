@@ -64,6 +64,10 @@ pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
         .strip_prefix('[')
         .and_then(|source| source.strip_suffix(']'))
         .ok_or_else(|| invalid("Expected a Blade array literal."))?;
+    Ok(array_items(source))
+}
+
+pub(super) fn array_items(source: &str) -> Vec<&str> {
     let mut start = 0;
     let mut entries = Vec::new();
     for end in separators(source, ",") {
@@ -74,7 +78,7 @@ pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
     if !last.is_empty() {
         entries.push(last);
     }
-    Ok(entries)
+    entries
 }
 
 pub(super) fn array_entry(entry: &str) -> (&str, Option<&str>) {
@@ -298,11 +302,12 @@ pub(super) fn attribute_list(
     for (entry, condition) in entries {
         if condition
             .as_ref()
-            .is_some_and(|condition| !super::truthy(value(condition, data, bindings)))
+            .is_some_and(|condition| !super::truthy(value(condition, data, bindings).as_ref()))
         {
             continue;
         }
-        let entry = value(entry, data, bindings)
+        let evaluated = value(entry, data, bindings);
+        let entry = evaluated
             .as_str()
             .ok_or_else(|| render_error("Blade class and style entries require text."))?
             .trim();
@@ -351,7 +356,7 @@ pub(super) fn apply_props(
                 .or_else(|| {
                     default
                         .as_ref()
-                        .map(|default| value(default, &data, &[]).clone())
+                        .map(|default| value(default, &data, &[]).into_owned())
                 });
             if let Some(selected) = selected {
                 data.insert(name.clone(), selected);
@@ -373,7 +378,7 @@ pub(super) fn apply_aware(data: &mut ViewData, props: &Props, context: &RenderCo
             .or_else(|| {
                 default
                     .as_ref()
-                    .map(|default| value(default, data, &[]).clone())
+                    .map(|default| value(default, data, &[]).into_owned())
             })
             .unwrap_or(ViewValue::Null);
         data.insert(name.clone(), value);
@@ -420,12 +425,12 @@ impl ComponentQuery {
                 let with_default = |entry: Option<&ViewValue>, default: &Option<Expression>| {
                     entry
                         .filter(|entry| !entry.is_null())
+                        .cloned()
                         .or_else(|| {
                             default
                                 .as_ref()
-                                .map(|default| value(default, data, bindings))
+                                .map(|default| value(default, data, bindings).into_owned())
                         })
-                        .cloned()
                         .unwrap_or_default()
                 };
                 Ok(match access {
@@ -479,7 +484,7 @@ impl AttributeOperation {
                     }
                     (
                         default.name.clone(),
-                        value(&default.value, data, bindings).clone(),
+                        value(&default.value, data, bindings).into_owned(),
                     )
                 })
                 .collect(),

@@ -567,6 +567,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         })
                         .withIterator("empty", std::iter::empty)
                 })?;
+                Route::get("/array-expressions", || {
+                    view("array_expressions")
+                        .with("indexKey", "4")
+                        .with("label", "<&")
+                })?;
                 Route::get("/expressions", || {
                     view("expressions").with("ready", true).with("count", 2)
                 })?;
@@ -989,6 +994,18 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@forelse ($empty as $item)bad@empty|empty@endforelse",
             ),
         ),
+        (
+            "array_expressions",
+            concat!(
+                "@foreach ([$indexKey => ['value' => 'old', 'value' => $label], '08' => 2, 'next', true => 9, null => 'nil',] as $key => $item)",
+                "{{ $key }}={{ $item['value'] ?? $item }};@endforeach",
+                "{{ ['00' => 'zero']['00'] }}|{{ array(-4 => 'first', 'second')[-3] }}|",
+                "{{ [2.5 => $label][2] }}|{{ [null][4] ?? 'missing' }}|",
+                "{{ [false => 'x', 'y'][1] }}|{{ [0 => 'a', 'b'][0] }}|",
+                "{{ [[1] => 'bad'] ?? 'invalid-key' }}|",
+                "{{ [9223372036854775807 => 'full', 'bad'] ?? 'overflow' }}",
+            ),
+        ),
         ("broken_fragment", "@fragment('left')broken"),
         (
             "expressions",
@@ -1389,6 +1406,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "[0:10:3:2:true:false][1:20:3:1:false:false][2:30:3:0:false:true]key:10:2:1:true:null:null:null|empty"
     );
     assert!(send(first, "/broken-fragment", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/array-expressions", 200).await,
+        "4=&lt;&amp;;08=2;5=next;1=9;=nil;zero|second|&lt;&amp;|missing|y|a|invalid-key|overflow"
+    );
     assert_eq!(
         send(first, "/expressions", 200).await,
         r#"<input checked  class="field active&lt;&amp;" style="color: red;">ok&lt;fallback&gt;"#

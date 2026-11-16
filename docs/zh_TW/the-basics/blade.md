@@ -153,6 +153,16 @@ fn article_page(article: Article) -> View {
 @endswitch
 ```
 
+### 陣列運算式 {#array-expressions}
+
+使用 `[value, key => value]` 或 `array(...)` 建立陣列。鍵和值可以使用變數、巢狀陣列及已支援的運算子。使用 `$items[$key]` 讀取元素，缺少元素時傳回 null。項目依插入順序保留，重複鍵會在原位取代值。隱含整數鍵從零開始，之後接在目前最大的整數鍵之後。
+
+```html
+<p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
+```
+
+正規整數文字、布林值、null 和範圍內的浮點鍵依 PHP 規則轉換。從零開始且連續的清單保留為 JSON 陣列，其他陣列以帶字串鍵的有序視圖物件表示。無法轉換的鍵及溢位的隱含索引會使運算式傳回 null。參照、展開和物件多載存取由應用程式 Rust 程式碼準備。
+
 ### 迴圈變數 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 都接受 `$key => $item`。陣列的鍵是從零開始的整數。物件依視圖資料映射的順序提供字串鍵。

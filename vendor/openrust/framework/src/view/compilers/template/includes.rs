@@ -1,9 +1,12 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 
 use super::{
     Expression, RenderContext, ViewData, ViewResult, ViewValue, argument_separator,
     attributes::{array_entries, array_entry, literal_name},
-    expression_value, identifier, invalid, name_value, render_error, separators, value,
+    evaluated_name, expression_value, identifier, invalid, name_value, render_error, separators,
+    value,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -68,29 +71,29 @@ impl RenderEach {
         if !collection.is_array() && !collection.is_object() {
             return Err(render_error("Blade @each requires an array or object."));
         }
-        let mut entries = collection_entries(collection).peekable();
+        let mut entries = collection_entries(collection.as_ref()).peekable();
         if entries.peek().is_none() {
             if let Some(empty) = &self.empty {
-                let empty = name_value(value(empty, data, bindings))?;
+                let empty = evaluated_name(empty, data, bindings)?;
                 if let Some(raw) = empty.strip_prefix("raw|") {
                     output.push_str(raw);
                 } else {
-                    output.push_str(&context.include_isolated(empty, &ViewData::new())?);
+                    output.push_str(&context.include_isolated(&empty, &ViewData::new())?);
                 }
             }
             return Ok(());
         }
 
-        let view = name_value(value(&self.view, data, bindings))?;
-        let item = name_value(value(&self.item, data, bindings))?;
-        if !identifier(item) {
+        let view = evaluated_name(&self.view, data, bindings)?;
+        let item = evaluated_name(&self.item, data, bindings)?;
+        if !identifier(&item) {
             return Err(render_error("Invalid Blade @each item name."));
         }
         for (key, value) in entries {
             let mut row = ViewData::new();
             row.insert("key".to_owned(), key);
-            row.insert(item.to_owned(), value.clone());
-            output.push_str(&context.include_isolated(view, &row)?);
+            row.insert(item.as_ref().to_owned(), value.clone());
+            output.push_str(&context.include_isolated(&view, &row)?);
         }
         Ok(())
     }
@@ -138,8 +141,8 @@ impl Include {
         &'a self,
         data: &'a ViewData,
         bindings: &[(&str, &'a ViewValue)],
-    ) -> ViewResult<&'a str> {
-        name_value(value(&self.name, data, bindings))
+    ) -> ViewResult<Cow<'a, str>> {
+        evaluated_name(&self.name, data, bindings)
     }
 
     pub(super) fn data(
@@ -172,17 +175,17 @@ impl IncludeFirst {
         &'a self,
         data: &'a ViewData,
         bindings: &[(&str, &'a ViewValue)],
-    ) -> ViewResult<Vec<&'a str>> {
+    ) -> ViewResult<Vec<Cow<'a, str>>> {
         match &self.candidates {
             Candidates::List(names) => names
                 .iter()
-                .map(|name| name_value(value(name, data, bindings)))
+                .map(|name| evaluated_name(name, data, bindings))
                 .collect(),
             Candidates::Value(names) => value(names, data, bindings)
                 .as_array()
                 .ok_or_else(|| render_error("Blade includeFirst requires a list of view names."))?
                 .iter()
-                .map(name_value)
+                .map(|value| name_value(value).map(|name| Cow::Owned(name.to_owned())))
                 .collect(),
         }
     }
@@ -238,10 +241,11 @@ fn include_data(
         Some(Arguments::Map(arguments)) => local.extend(
             arguments
                 .iter()
-                .map(|(key, argument)| (key.clone(), value(argument, data, bindings).clone())),
+                .map(|(key, argument)| (key.clone(), value(argument, data, bindings).into_owned())),
         ),
         Some(Arguments::Value(arguments)) => {
-            let explicit = value(arguments, data, bindings)
+            let evaluated = value(arguments, data, bindings);
+            let explicit = evaluated
                 .as_object()
                 .ok_or_else(|| render_error("Blade view data requires an object."))?;
             local.extend(

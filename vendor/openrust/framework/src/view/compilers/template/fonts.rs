@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, io};
+use std::{borrow::Cow, collections::BTreeMap, io};
 
 use cap_std::{ambient_authority, fs::Dir};
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,7 @@ use crate::{contracts::routing::UrlGenerator as _, support::facades::URL};
 
 use super::{
     Expression, Node, RenderContext, ViewData, ViewError, ViewResult, ViewValue, array_entries,
-    escape_html, expression_value, name_value, render_error, value,
+    escape_html, evaluated_name, expression_value, name_value, render_error, value,
 };
 
 #[derive(Deserialize)]
@@ -55,22 +55,22 @@ impl Aliases {
         &'a self,
         data: &'a ViewData,
         bindings: &[(&str, &'a ViewValue)],
-    ) -> ViewResult<Option<Vec<&'a str>>> {
+    ) -> ViewResult<Option<Vec<Cow<'a, str>>>> {
         match self {
             Self::All => Ok(None),
             Self::List(aliases) => aliases
                 .iter()
-                .map(|alias| name_value(value(alias, data, bindings)))
+                .map(|alias| evaluated_name(alias, data, bindings))
                 .collect::<ViewResult<Vec<_>>>()
                 .map(Some),
-            Self::Value(alias) => match value(alias, data, bindings) {
+            Self::Value(alias) => match value(alias, data, bindings).as_ref() {
                 ViewValue::Null => Ok(None),
                 ViewValue::Array(aliases) => aliases
                     .iter()
-                    .map(name_value)
+                    .map(|value| name_value(value).map(|name| Cow::Owned(name.to_owned())))
                     .collect::<ViewResult<_>>()
                     .map(Some),
-                alias => Ok(Some(vec![name_value(alias)?])),
+                alias => Ok(Some(vec![Cow::Owned(name_value(alias)?.to_owned())])),
             },
         }
     }
@@ -95,9 +95,12 @@ pub(super) fn parse(arguments: &str) -> ViewResult<Node> {
 
 pub(super) fn render(
     context: &RenderContext<'_>,
-    aliases: Option<Vec<&str>>,
+    aliases: Option<Vec<Cow<str>>>,
     output: &mut String,
 ) -> ViewResult<()> {
+    let aliases = aliases
+        .as_ref()
+        .map(|aliases| aliases.iter().map(Cow::as_ref).collect::<Vec<_>>());
     let Some(public_path) = context.public_path() else {
         return Ok(());
     };

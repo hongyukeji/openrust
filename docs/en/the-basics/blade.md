@@ -153,6 +153,16 @@ Use `@switch`, `@case`, `@default`, and `@endswitch` to branch on a view value. 
 @endswitch
 ```
 
+### Array Expressions {#array-expressions}
+
+Use `[value, key => value]` or `array(...)` to construct an array. Keys and values can use variables, nested arrays and supported operators. Use `$items[$key]` to read an element. Missing elements evaluate to null. Entries keep their insertion order, and a repeated key replaces its value in place. Implicit integer keys follow the largest existing integer key, starting at zero for a new array.
+
+```html
+<p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
+```
+
+Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices remain JSON arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow evaluate to null. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
+
 ### The Loop Variable {#the-loop-variable}
 
 Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based integer keys. Objects expose string keys in the order of the view data map.

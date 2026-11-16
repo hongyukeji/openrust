@@ -1,8 +1,12 @@
-use std::cmp::Ordering;
+use std::{borrow::Cow, cmp::Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use super::{ViewData, ViewResult, ViewValue, identifier, invalid, separators};
+use super::{
+    Quote, ViewData, ViewResult, ViewValue,
+    attributes::{array_entries, array_entry},
+    identifier, invalid, separators,
+};
 
 #[derive(Serialize, Deserialize)]
 pub(super) enum Expression {
@@ -10,6 +14,14 @@ pub(super) enum Expression {
     Variable(Vec<String>),
     Not(Box<Expression>),
     Binary(BinaryOperator, Box<Expression>, Box<Expression>),
+    Array(Vec<ArrayEntry>),
+    Offset(Box<Expression>, Box<Expression>),
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) struct ArrayEntry {
+    key: Option<Expression>,
+    item: Expression,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -36,7 +48,9 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
         return Err(invalid("Blade expressions are nested too deeply."));
     }
     let expression = expression.trim();
-    if let Ok(value) = serde_json::from_str(expression) {
+    if !expression.starts_with('[')
+        && let Ok(value) = serde_json::from_str(expression)
+    {
         return Ok(Expression::Value(value));
     }
     for operators in [
@@ -92,6 +106,20 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
     {
         return parse_expression(group, depth + 1);
     }
+    if let Some(start) = offset_start(expression) {
+        let base = parse_expression(&expression[..start], depth + 1)?;
+        let key = parse_expression(&expression[start + 1..expression.len() - 1], depth + 1)?;
+        return Ok(Expression::Offset(Box::new(base), Box::new(key)));
+    }
+    if expression.starts_with('[') {
+        return parse_array(array_entries(expression)?, depth);
+    }
+    if let Some(items) = expression
+        .strip_prefix("array(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        return parse_array(super::attributes::array_items(items), depth);
+    }
     if let Some(literal) = expression
         .strip_prefix('\'')
         .and_then(|rest| rest.strip_suffix('\''))
@@ -110,48 +138,171 @@ fn parse_expression(expression: &str, depth: usize) -> ViewResult<Expression> {
     Err(invalid("Unsupported Blade expression."))
 }
 
+fn parse_array(entries: Vec<&str>, depth: usize) -> ViewResult<Expression> {
+    entries
+        .into_iter()
+        .map(|entry| {
+            let (first, second) = array_entry(entry);
+            let (key, item) = match second {
+                Some(item) => (Some(parse_expression(first, depth + 1)?), item),
+                None => (None, first),
+            };
+            Ok(ArrayEntry {
+                key,
+                item: parse_expression(item, depth + 1)?,
+            })
+        })
+        .collect::<ViewResult<_>>()
+        .map(Expression::Array)
+}
+
+fn offset_start(source: &str) -> Option<usize> {
+    if !source.ends_with(']') {
+        return None;
+    }
+    let mut quote = Quote::default();
+    let mut depth = 0usize;
+    let mut start = None;
+    for (position, character) in source.char_indices() {
+        if quote.literal(character) {
+            continue;
+        }
+        match character {
+            '[' | '(' | '{' => {
+                if character == '[' && depth == 0 {
+                    start = Some(position);
+                }
+                depth += 1;
+            }
+            ']' | ')' | '}' => depth = depth.checked_sub(1)?,
+            _ => {}
+        }
+    }
+    start.filter(|start| *start > 0 && depth == 0)
+}
+
+fn integer_key(key: &str) -> Option<i64> {
+    key.parse::<i64>()
+        .ok()
+        .filter(|value| value.to_string() == key)
+}
+
+fn array_key(value: &ViewValue) -> Option<String> {
+    match value {
+        ViewValue::String(value) => Some(value.clone()),
+        ViewValue::Null => Some(String::new()),
+        ViewValue::Bool(value) => Some(u8::from(*value).to_string()),
+        ViewValue::Number(value) => value
+            .as_i64()
+            .or_else(|| {
+                let float = value.as_f64()?;
+                ((i64::MIN as f64..-(i64::MIN as f64)).contains(&float)).then_some(float as i64)
+            })
+            .map(|number| number.to_string()),
+        _ => None,
+    }
+}
+
+fn evaluate_array(
+    entries: &[ArrayEntry],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+) -> Option<ViewValue> {
+    let mut output = ViewData::new();
+    let mut highest = None::<i64>;
+    for entry in entries {
+        let key = match &entry.key {
+            Some(key) => array_key(value(key, data, bindings).as_ref())?,
+            None => highest
+                .map_or(Some(0), |index| index.checked_add(1))?
+                .to_string(),
+        };
+        if let Some(index) = integer_key(&key) {
+            highest = Some(highest.map_or(index, |highest| highest.max(index)));
+        }
+        let item = value(&entry.item, data, bindings).into_owned();
+        output.insert(key, item);
+    }
+    if output
+        .keys()
+        .enumerate()
+        .all(|(index, key)| integer_key(key).is_some_and(|key| usize::try_from(key) == Ok(index)))
+    {
+        Some(ViewValue::Array(
+            output.into_iter().map(|(_, value)| value).collect(),
+        ))
+    } else {
+        Some(ViewValue::Object(output))
+    }
+}
+
+fn element<'a>(array: &'a ViewValue, key: &str) -> &'a ViewValue {
+    let found = match array {
+        ViewValue::Object(array) => array.get(key),
+        ViewValue::Array(array) => integer_key(key)
+            .and_then(|key| usize::try_from(key).ok())
+            .and_then(|key| array.get(key)),
+        _ => None,
+    };
+    found.unwrap_or(&ViewValue::Null)
+}
+
 pub(super) fn value<'a>(
     expression: &'a Expression,
     data: &'a ViewData,
     bindings: &[(&str, &'a ViewValue)],
-) -> &'a ViewValue {
+) -> Cow<'a, ViewValue> {
     match expression {
-        Expression::Value(value) => value,
-        Expression::Not(expression) => boolean(!truthy(value(expression, data, bindings))),
+        Expression::Value(value) => Cow::Borrowed(value),
+        Expression::Array(entries) => {
+            Cow::Owned(evaluate_array(entries, data, bindings).unwrap_or_default())
+        }
+        Expression::Offset(base, key) => {
+            let base = value(base, data, bindings);
+            let Some(key) = array_key(value(key, data, bindings).as_ref()) else {
+                return Cow::Borrowed(&ViewValue::Null);
+            };
+            match base {
+                Cow::Borrowed(array) => Cow::Borrowed(element(array, &key)),
+                Cow::Owned(array) => Cow::Owned(element(&array, &key).clone()),
+            }
+        }
+        Expression::Not(expression) => {
+            Cow::Borrowed(boolean(!truthy(value(expression, data, bindings).as_ref())))
+        }
         Expression::Binary(operator, left, right) => {
             let left = value(left, data, bindings);
             let right = || value(right, data, bindings);
-            match operator {
-                BinaryOperator::Coalesce => {
-                    if left.is_null() {
-                        right()
-                    } else {
-                        left
-                    }
-                }
-                BinaryOperator::Or => boolean(truthy(left) || truthy(right())),
-                BinaryOperator::And => boolean(truthy(left) && truthy(right())),
-                BinaryOperator::StrictEqual => boolean(strict_equal(left, right())),
-                BinaryOperator::StrictNotEqual => boolean(!strict_equal(left, right())),
-                BinaryOperator::Equal => boolean(loose_equal(left, right())),
-                BinaryOperator::NotEqual => boolean(!loose_equal(left, right())),
-                BinaryOperator::Less => boolean(compare(left, right()) == Some(Ordering::Less)),
-                BinaryOperator::LessOrEqual => boolean(matches!(
-                    compare(left, right()),
-                    Some(Ordering::Less | Ordering::Equal)
-                )),
-                BinaryOperator::Greater => {
-                    boolean(compare(left, right()) == Some(Ordering::Greater))
-                }
-                BinaryOperator::GreaterOrEqual => boolean(matches!(
-                    compare(left, right()),
-                    Some(Ordering::Greater | Ordering::Equal)
-                )),
+            if matches!(operator, BinaryOperator::Coalesce) {
+                return if left.is_null() { right() } else { left };
             }
+            let left = left.as_ref();
+            let result = match operator {
+                BinaryOperator::Coalesce => unreachable!(),
+                BinaryOperator::Or => truthy(left) || truthy(right().as_ref()),
+                BinaryOperator::And => truthy(left) && truthy(right().as_ref()),
+                BinaryOperator::StrictEqual => strict_equal(left, right().as_ref()),
+                BinaryOperator::StrictNotEqual => !strict_equal(left, right().as_ref()),
+                BinaryOperator::Equal => loose_equal(left, right().as_ref()),
+                BinaryOperator::NotEqual => !loose_equal(left, right().as_ref()),
+                BinaryOperator::Less => compare(left, right().as_ref()) == Some(Ordering::Less),
+                BinaryOperator::LessOrEqual => matches!(
+                    compare(left, right().as_ref()),
+                    Some(Ordering::Less | Ordering::Equal)
+                ),
+                BinaryOperator::Greater => {
+                    compare(left, right().as_ref()) == Some(Ordering::Greater)
+                }
+                BinaryOperator::GreaterOrEqual => matches!(
+                    compare(left, right().as_ref()),
+                    Some(Ordering::Greater | Ordering::Equal)
+                ),
+            };
+            Cow::Borrowed(boolean(result))
         }
         Expression::Variable(path) => {
             let Some((name, segments)) = path.split_first() else {
-                return &ViewValue::Null;
+                return Cow::Borrowed(&ViewValue::Null);
             };
             let mut current = bindings
                 .iter()
@@ -161,7 +312,7 @@ pub(super) fn value<'a>(
             for segment in segments {
                 current = current.and_then(|value| value.get(segment));
             }
-            current.unwrap_or(&ViewValue::Null)
+            Cow::Borrowed(current.unwrap_or(&ViewValue::Null))
         }
     }
 }

@@ -32,13 +32,13 @@ impl Values {
         data: &ViewData,
         bindings: &[(&str, &ViewValue)],
     ) -> ViewResult<Vec<String>> {
-        let ability = |value| name_value(value).map(str::to_owned);
+        let ability = |value: &ViewValue| name_value(value).map(str::to_owned);
         match self {
             Self::List(expressions) => expressions
                 .iter()
-                .map(|expression| ability(value(expression, data, bindings)))
+                .map(|expression| ability(value(expression, data, bindings).as_ref()))
                 .collect(),
-            Self::Single(expression) => match value(expression, data, bindings) {
+            Self::Single(expression) => match value(expression, data, bindings).as_ref() {
                 ViewValue::Array(abilities) => abilities.iter().map(ability).collect(),
                 name => Ok(vec![ability(name)?]),
             },
@@ -70,14 +70,15 @@ impl Values {
             Self::List(expressions) => expressions
                 .iter()
                 .map(|expression| {
-                    typed(expression).unwrap_or_else(|| owned(value(expression, data, bindings)))
+                    typed(expression)
+                        .unwrap_or_else(|| owned(value(expression, data, bindings).as_ref()))
                 })
                 .collect(),
             Self::Single(expression) => {
                 if let Some(argument) = typed(expression) {
                     return vec![argument];
                 }
-                match value(expression, data, bindings) {
+                match value(expression, data, bindings).as_ref() {
                     ViewValue::Null => Vec::new(),
                     ViewValue::Array(arguments) => arguments.iter().map(owned).collect(),
                     ViewValue::Object(arguments) => arguments.values().map(owned).collect(),

@@ -153,6 +153,16 @@ fn article_page(article: Article) -> View {
 @endswitch
 ```
 
+### 数组表达式 {#array-expressions}
+
+用 `[value, key => value]` 或 `array(...)` 构造数组。键和值可以使用变量、嵌套数组及已支持的运算符。用 `$items[$key]` 读取元素，缺失时返回 null。条目按插入顺序保留，重复键就地替换值。隐式整数键从零开始，之后接在当前最大整数键后。
+
+```html
+<p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
+```
+
+规范整数文本、布尔值、null 和范围内的浮点键按 PHP 规则转换。连续且从零开始的列表保留为 JSON 数组，其他数组表示为带字符串键的有序视图对象。无法转换的键和溢出的隐式索引使表达式返回 null。引用、展开和对象重载访问由应用 Rust 代码准备。
+
 ### 循环变量 {#the-loop-variable}
 
 `@foreach` 和 `@forelse` 均接受 `$key => $item`。数组的键是从零开始的整数。对象按视图数据映射的顺序提供字符串键。
