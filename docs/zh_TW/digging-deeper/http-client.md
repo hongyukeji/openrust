@@ -6,6 +6,23 @@
 
 用 `Http::acceptJson()?` 或 `Http::pendingRequest()?` 建立可設定的請求。POST、PUT、PATCH 和 DELETE 資料以借用方式傳入，預設編碼為 JSON。用 `asForm`、`withBody` 或 `attach` 更換編碼。`withQueryParameters` 設定編碼後的查詢參數，省略時保留 URL 內的查詢字串。逾時使用 `Duration`，可用 `maxResponseBytes` 限制回應緩衝。預設連線設定下，同一應用程式共用連線池。
 
+請求和回應回呼使用 Rust 型別。透過請求建構器明確選擇傳輸設定，可用 Rust 函式或擴充 trait 重複使用具名設定。
+
+### Digest 驗證 {#digest-authentication}
+
+使用 `withBasicAuth` 設定 Basic 憑證，使用 `withToken` 設定 Bearer 權杖。使用 `withDigestAuth` 回應原始來源的 Digest 挑戰。Digest 會重播已緩衝的請求，伺服器回報 nonce 過期時可再嘗試一次。只有最終回應進入 `afterResponse`。下例使用本機 `GET /digest`，該端點使用範例憑證並傳回內文 `authenticated`。
+
+```rust
+use openrust::support::facades::Http;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let response = Http::withDigestAuth("example-user", "example-password")?
+    .get(&format!("{origin}/digest"))
+    .await?
+    .throw()?;
+assert_eq!(response.body(), b"authenticated");
+```
+
 ## 重試與測試 {#retries-and-testing}
 
 `retry` 接收總嘗試次數。HTTP 失敗預設將最後一份回應作為錯誤回傳。`throwOnRetryFailure(false)` 直接回傳該回應，傳輸失敗仍回傳錯誤。一次性請求本文需要為每次獨立傳送重新提供。`Factory::new` 可獨立使用，並隔離 fake 和請求記錄。用 `preventStrayRequests(true)` 讓未比對的測試請求在建立連線前失敗。

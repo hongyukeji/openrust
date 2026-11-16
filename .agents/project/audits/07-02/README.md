@@ -38,3 +38,9 @@ Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可�
 - `RequestSending` 在每次请求和重定向跳转的 `beforeSending` 回调前派发。最终 `ResponseReceived` 在 `afterResponse` 前派发，含 4xx、5xx。请求级重试重新派发事件。连接或超时异常使用实际尝试发送的请求快照。重定向上限与缓冲大小限制为独立错误。真实回归核对跨源跳转清除上一个源的授权头、大型跳转正文和最终响应大小限制。
 - Rust 1.94.0 锁定离线执行 10 项 HTTP Client 定向用例，工作区全目标严格 Clippy 与本批文件格式通过。真实 Artisan、回环 HTTP 及本地上游验证 302、404、连接关闭和事件载荷。三语 VitePress 构建和 12 项浏览器检查通过。
 - Digest Auth 已由固定 Laravel 源码确认，仍需以实际挑战和响应验收。PHP 层的动态宏与 Guzzle 选项适配继续单独记录。
+
+## Digest Auth
+
+- 纯 Rust 实现已接入 `withDigestAuth`。实际回环验证 SHA-256 的 `auth`／`auth-int`、带查询串的正文重放、`stale` nonce 更新，以及跨源跳转拒绝沿用原源站凭据。11 项定向测试、真实 HTTP 与 Artisan、三语 VitePress 和 12 项浏览器检查均已通过。本批变更文件格式通过。 [固定认证契约](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/http-client.md#authentication)
+- 上轮实测项目卷低于 50 GB 后保留候选。本轮恢复后清理独占临时编译产物，在最新提交的隔离副本补跑 Rust 1.94.0 锁定离线工作区全目标严格 Clippy，验收通过。
+- 并发池与批次已本地提交 `1f22f459b`，请求事件已本地提交 `991ec1ac2`。07-02 保持部分验收。固定章节中的 URI 模板、指定 URL 放行及可修改下一次请求的重试回调仍待补齐和验收。

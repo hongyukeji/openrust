@@ -3,6 +3,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
 
+use super::digest::DigestCredentials;
 use super::factory::{BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client};
 use super::transport::Transport;
 use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
@@ -64,6 +65,7 @@ pub struct PendingRequest {
     base_url: Option<String>,
     headers: HeaderMap,
     invalid_header: bool,
+    digest: Option<DigestCredentials>,
     query: indexmap::IndexMap<String, String>,
     attributes: serde_json::Map<String, serde_json::Value>,
     connect_timeout: Duration,
@@ -85,6 +87,7 @@ impl PendingRequest {
             base_url: None,
             headers: HeaderMap::new(),
             invalid_header: false,
+            digest: None,
             query: indexmap::IndexMap::new(),
             attributes: serde_json::Map::new(),
             connect_timeout: CONNECT_TIMEOUT,
@@ -140,7 +143,17 @@ impl PendingRequest {
         ))
     }
 
+    pub fn withDigestAuth(mut self, username: &str, password: &str) -> Self {
+        self.headers.remove(header::AUTHORIZATION);
+        self.digest = Some(DigestCredentials {
+            username: username.to_owned(),
+            password: password.to_owned(),
+        });
+        self
+    }
+
     fn authorization(mut self, value: String) -> Self {
+        self.digest = None;
         if let Ok(mut value) = HeaderValue::from_str(&value) {
             value.set_sensitive(true);
             self.headers.insert(header::AUTHORIZATION, value);
@@ -361,6 +374,7 @@ impl PendingRequest {
             client: &client,
             before_sending: &self.before_sending,
             attributes: &self.attributes,
+            digest: self.digest.as_ref(),
             max_redirects: self.redirects,
             timeout: self.timeout,
             body_limit: self.body_limit,

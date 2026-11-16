@@ -801,3 +801,109 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
         server.abort();
     }
 }
+
+#[tokio::test]
+async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_origin() {
+    use digest_auth::{AlgorithmType, AuthorizationHeader, Qop};
+
+    async fn authenticated(request: axum::extract::Request) -> axum::response::Response {
+        let (parts, body) = request.into_parts();
+        let body = axum::body::to_bytes(body, 1024).await.unwrap();
+        assert_eq!(body, r#"{"value":"body"}"#);
+        let challenge = |nonce, stale| {
+            let h = format!(
+                "Basic realm=\"basic\", Digest realm=\"local, zone\", nonce=\"{nonce}\", algorithm=SHA-256, qop=\"auth-int\", stale={stale}"
+            );
+            (StatusCode::UNAUTHORIZED, [(header::WWW_AUTHENTICATE, h)]).into_response()
+        };
+        let Some(auth) = parts.headers.get(header::AUTHORIZATION) else {
+            return challenge("first", false);
+        };
+        let auth = AuthorizationHeader::parse(auth.to_str().unwrap()).unwrap();
+        assert_eq!(auth.algorithm.algo, AlgorithmType::SHA2_256);
+        assert_eq!(auth.username, "local-user");
+        assert_eq!(auth.realm, "local, zone");
+        assert_eq!(auth.qop, Some(Qop::AUTH_INT));
+        assert_eq!(auth.uri, parts.uri.path_and_query().unwrap().as_str());
+        assert_eq!(auth.nc, 1);
+
+        let hash = |bytes: &[u8]| {
+            use std::fmt::Write as _;
+            let digest = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, bytes);
+            let mut hex = String::with_capacity(64);
+            for byte in digest.as_ref() {
+                write!(hex, "{byte:02x}").unwrap();
+            }
+            hex
+        };
+        let entity = hash(&body);
+        let h1 = hash(b"local-user:local, zone:local-key");
+        let h2 = hash(format!("POST:{}:{entity}", auth.uri).as_bytes());
+        let nonce = &auth.nonce;
+        let cnonce = auth.cnonce.unwrap();
+        let expected = hash(format!("{h1}:{nonce}:00000001:{cnonce}:auth-int:{h2}").as_bytes());
+        assert_eq!(auth.response, expected);
+        match nonce.as_str() {
+            "first" => challenge("fresh", true),
+            "fresh" => (StatusCode::OK, "validated").into_response(),
+            _ => panic!("unexpected nonce"),
+        }
+    }
+
+    let (other_origin, other_server) = serve(Router::new().route(
+        "/challenge",
+        get(|headers: HeaderMap| async move {
+            assert!(!headers.contains_key(header::AUTHORIZATION));
+            (
+                StatusCode::UNAUTHORIZED,
+                [(
+                    header::WWW_AUTHENTICATE,
+                    r#"Digest realm="other", nonce="fresh", qop="auth""#,
+                )],
+            )
+        }),
+    ))
+    .await;
+    let (base, server) = serve(Router::new().route("/digest", any(authenticated)).route(
+        "/redirect",
+        get(move || async move {
+            (
+                StatusCode::FOUND,
+                [(header::LOCATION, format!("{other_origin}/challenge"))],
+            )
+        }),
+    ))
+    .await;
+    let factory = Factory::new().unwrap();
+    factory.fake(|_| None);
+    let request = || {
+        factory
+            .pendingRequest()
+            .withDigestAuth("local-user", "local-key")
+    };
+    let response = request()
+        .maxResponseBytes(32)
+        .post(
+            &format!("{base}/digest?key=a%20b"),
+            &json!({"value": "body"}),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.body(), b"validated");
+    let recorded = factory.recorded();
+    assert_eq!(recorded.len(), 3);
+    assert!(!recorded[0].0.headers.contains_key(header::AUTHORIZATION));
+    assert!(recorded[1].0.headers[header::AUTHORIZATION].is_sensitive());
+    assert!(recorded[2].0.headers[header::AUTHORIZATION].is_sensitive());
+    assert!(
+        request()
+            .get(&format!("{base}/redirect"))
+            .await
+            .unwrap()
+            .unauthorized()
+    );
+    factory.assertSentCount(5);
+    for task in [server, other_server] {
+        task.abort();
+    }
+}

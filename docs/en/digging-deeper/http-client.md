@@ -6,6 +6,23 @@ Use the application-scoped `Http` facade from `openrust::support::facades` in ap
 
 Use `Http::acceptJson()?` or `Http::pendingRequest()?` to start a configurable request. Supply POST, PUT, PATCH, or DELETE data by reference. JSON is the default. Use `asForm`, `withBody`, or `attach` to select another encoding. `withQueryParameters` sets the encoded query. Without it the query in the URL is preserved. Set timeouts with `Duration` and use `maxResponseBytes` to limit buffered bytes. An application shares the connection pool for default connection settings.
 
+Request and response callbacks use Rust types. Select transport settings through the request builder and use Rust functions or extension traits to reuse named configurations.
+
+### Digest authentication {#digest-authentication}
+
+Use `withBasicAuth` for Basic credentials and `withToken` for Bearer tokens. Use `withDigestAuth` to answer a Digest challenge from the original origin. Digest replays buffered requests, and can retry once when a server reports a stale nonce. Only the terminal response reaches `afterResponse`. The example uses a local `GET /digest` endpoint configured with the sample credentials and an `authenticated` response body.
+
+```rust
+use openrust::support::facades::Http;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let response = Http::withDigestAuth("example-user", "example-password")?
+    .get(&format!("{origin}/digest"))
+    .await?
+    .throw()?;
+assert_eq!(response.body(), b"authenticated");
+```
+
 ## Retries and testing {#retries-and-testing}
 
 `retry` takes the total attempt count. HTTP failures return the last response as an error by default. `throwOnRetryFailure(false)` returns that response directly, while transport failures still return errors. Requests with non-replayable bodies require a fresh body for each separate send. `Factory::new` also works outside an application and owns its own fakes and recorded requests. Use `preventStrayRequests(true)` to make unmatched test requests fail before connecting.

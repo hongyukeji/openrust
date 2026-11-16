@@ -1,6 +1,7 @@
 //! Outbound HTTP requests, responses, and application-local testing.
 
 mod batch;
+mod digest;
 pub mod events;
 mod facade;
 mod factory;

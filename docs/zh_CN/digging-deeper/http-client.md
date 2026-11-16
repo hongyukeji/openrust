@@ -6,6 +6,23 @@
 
 用 `Http::acceptJson()?` 或 `Http::pendingRequest()?` 创建可配置请求。POST、PUT、PATCH 和 DELETE 数据按引用传入，默认编码为 JSON。用 `asForm`、`withBody` 或 `attach` 更换编码。`withQueryParameters` 设置编码后的查询参数，省略时保留 URL 内的查询串。超时使用 `Duration`，响应缓冲可用 `maxResponseBytes` 限制。默认连接设置下，同一个应用共享连接池。
 
+请求和响应回调使用 Rust 类型。通过请求构建器明确选择传输设置，可用 Rust 函数或扩展 trait 复用具名配置。
+
+### Digest 认证 {#digest-authentication}
+
+使用 `withBasicAuth` 配置 Basic 凭据，使用 `withToken` 配置 Bearer 令牌。使用 `withDigestAuth` 响应原始源站的 Digest 挑战。Digest 会重放已缓冲的请求，服务端报告 nonce 过期时可再尝试一次。只有最终响应进入 `afterResponse`。下例使用本地 `GET /digest`，该端点使用示例凭据并返回正文 `authenticated`。
+
+```rust
+use openrust::support::facades::Http;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let response = Http::withDigestAuth("example-user", "example-password")?
+    .get(&format!("{origin}/digest"))
+    .await?
+    .throw()?;
+assert_eq!(response.body(), b"authenticated");
+```
+
 ## 重试与测试 {#retries-and-testing}
 
 `retry` 接收总尝试次数。HTTP 失败默认将最后一份响应作为错误返回。`throwOnRetryFailure(false)` 直接返回该响应，传输失败仍返回错误。一次性请求正文需要为每次独立发送重新提供。`Factory::new` 可独立使用，并隔离 fake 和请求记录。用 `preventStrayRequests(true)` 让未匹配的测试请求在建立连接前失败。

@@ -75,6 +75,14 @@ impl Http {
         Ok(Self::pendingRequest()?.withToken(token))
     }
 
+    pub fn withBasicAuth(username: &str, password: &str) -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.withBasicAuth(username, password))
+    }
+
+    pub fn withDigestAuth(username: &str, password: &str) -> Result<PendingRequest> {
+        Ok(Self::pendingRequest()?.withDigestAuth(username, password))
+    }
+
     pub fn baseUrl(url: impl Into<String>) -> Result<PendingRequest> {
         Ok(Self::pendingRequest()?.baseUrl(url))
     }
