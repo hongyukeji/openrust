@@ -2,7 +2,7 @@
 
 ## Writing Seeders
 
-Use `make:seeder` to generate a Rust seeder in `database/seeders`. Register its `SeederEntry` in `database/seeders/mod.rs` and rebuild the application. The `run` method receives a `SeederContext` with the selected connection and access to application services. The application passes that list to `withSeeders` in `bootstrap/app.rs`.
+Use `make:seeder` to generate a Rust seeder in `database/seeders/`. The generator writes a named `ENTRY: SeederEntry` into the file. Handwritten seeders expose the same constant. During a build, OpenRust discovers these files, including files in subdirectories, and passes their entries to `withSeeders` in `bootstrap/app.rs`. Each Rust file in that tree supplies one entry, with `mod.rs` reserved for module declarations. The `run` method receives a `SeederContext` with the selected connection and access to application services.
 
 Artisan temporarily disables Eloquent mass-assignment protection while a seeder and its child seeders run. Methods such as `Model::create` and `fill` can assign guarded attributes and still apply setters and casts. The scope ends on success or failure. Independent Tokio tasks, including tasks started with `tokio::spawn`, keep their own protection.
 
@@ -18,11 +18,15 @@ Use `callWithMany(names, parameters)` to pass the same values to multiple seeder
 
 The following seeder assumes a `plans` table with a unique `code` column and a `label` column. Its upsert makes repeat execution update the same row.
 
+Put the child seeder in `database/seeders/catalog_seeder.rs`.
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult, query::Record,
     seeder::{Seeder, SeederContext, SeederEntry},
 };
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("CatalogSeeder", &CatalogSeeder);
 
 pub struct CatalogSeeder;
 
@@ -45,6 +49,17 @@ impl Seeder for CatalogSeeder {
         })
     }
 }
+```
+
+In `database/seeders/database_seeder.rs`, call it by its registered name.
+
+```rust
+use openrust::database::{
+    DatabaseFuture, DatabaseResult, query::Record,
+    seeder::{Seeder, SeederContext, SeederEntry},
+};
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("DatabaseSeeder", &DatabaseSeeder);
 
 pub struct DatabaseSeeder;
 
@@ -60,16 +75,11 @@ impl Seeder for DatabaseSeeder {
         ))
     }
 }
-
-pub const ENTRIES: &[SeederEntry] = &[
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder),
-    SeederEntry::new("CatalogSeeder", &CatalogSeeder),
-];
 ```
 
 ## Running Seeders
 
-Use `db:seed` to run the default seeder. Specify a class with `--class` or the positional class argument. Use `--database` to select a connection. Within the seeder, `DB` resolves that connection by default without changing other tasks' connection selection.
+Use `db:seed` to run `DatabaseSeeder`, which can call other seeders explicitly. Specify a class with `--class` or the positional class argument. For a seeder generated as `Admin/CatalogSeeder`, use `--class='Admin\CatalogSeeder'`. Use `--database` to select a connection. Within the seeder, `DB` resolves that connection by default without changing other tasks' connection selection.
 
 ```sh
 ./artisan db:seed
@@ -114,12 +124,11 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## Muting Model Events {#muting-model-events}
 
-Register the seeder with `withoutModelEvents()` to mute Eloquent model events while it runs. Child seeders called from it inherit the scope. Model events resume when it returns, including on error. Seeder progress output and factory callbacks still run.
+Call `withoutModelEvents()` on the file's `ENTRY` to mute Eloquent model events while it runs. Child seeders called from it inherit the scope. Model events resume when it returns, including on error. Seeder progress output and factory callbacks still run.
 
 ```rust
-use openrust::database::seeder::{Seeder, SeederEntry};
+use openrust::database::seeder::SeederEntry;
 
-const fn muted_entry(seeder: &'static dyn Seeder) -> SeederEntry {
-    SeederEntry::new("DatabaseSeeder", seeder).withoutModelEvents()
-}
+pub(super) const ENTRY: SeederEntry =
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
 ```

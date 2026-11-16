@@ -21,3 +21,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-07.enZkH4` �
 ## Bootstrap 注册复验
 
 应用启动通过 `bootstrap/app.rs` 的 `withSeeders(database::seeders::ENTRIES)` 登记编译期 Seeder 清单。独立 MySQL 8.4.13 上通过 `application_default_seeder_creates_the_verified_example_user_on_mysql` 和 `artisan_seeders_write_to_real_mysql`。实际 Artisan 子进程验证默认 Seeder、重复插入失败、具名连接和 `migrate --seed`。Rust 1.94.0 工作区严格 Clippy 通过，改动文件格式通过。全仓格式检查仍检出既有 Sanctum 测试格式差异。
+
+## 编译时自动发现复验
+
+根应用的 `build.rs` 递归发现 `database/seeders/` 下提供 `ENTRY` 的 Rust 文件，生成供 `withSeeders` 接入的 `ENTRIES`。每个 Rust 文件提供一个条目，`mod.rs` 用于模块声明。`make:seeder` 将包含子目录命名空间的命令名称写入条目，自定义模板同样由生成器补齐条目。默认 `DatabaseSeeder` 在自己的条目上调用 `withoutModelEvents()`。
+
+在隔离副本和 MySQL 8.4.13 上实跑 Artisan。用 `make:seeder Admin/APIUserSeeder` 生成子目录 Seeder 并加入手写 Seeder，原二进制对两项均返回未注册。重建后两项都能通过 `--class` 执行，手写 Seeder 实际写入数据库。无参数执行只创建默认示例用户。验收同时安装了修改用户名的 `Creating` 监听器，手写 Seeder 的用户触发了它，默认用户保留原名，验证默认事件抑制。移除两个文件并再次重建后，两者恢复为未注册。全程未编辑集中注册清单或启动接线。
+
+既有 `application_default_seeder_creates_the_verified_example_user_on_mysql`、`artisan_seeders_write_to_real_mysql`、Rust 1.94.0 严格 Clippy、改动文件格式检查、三语示例编译、VitePress 构建和 12 项浏览器检查通过。全仓格式检查仍检出既有 Sanctum 测试格式差异。

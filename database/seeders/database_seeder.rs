@@ -1,10 +1,13 @@
 use openrust::database::{
     DatabaseFuture, DatabaseResult,
     eloquent::{Attributes, factories::HasFactory},
-    seeder::{Seeder, SeederContext},
+    seeder::{Seeder, SeederContext, SeederEntry},
 };
 
 use crate::app::models::User;
+
+pub(super) const ENTRY: SeederEntry =
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
 
 pub struct DatabaseSeeder;
 

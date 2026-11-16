@@ -2,7 +2,7 @@
 
 ## 編寫 Seeder
 
-用 `make:seeder` 在 `database/seeders` 產生 Rust Seeder。在 `database/seeders/mod.rs` 登錄它的 `SeederEntry`，再重新建置應用程式。`run` 接受 `SeederContext`，可取得所選連線和應用程式服務。 應用程式在 `bootstrap/app.rs` 中透過 `withSeeders` 接入這份清單。
+用 `make:seeder` 在 `database/seeders/` 產生 Rust Seeder。產生器會寫入具名的 `ENTRY: SeederEntry`，手寫 Seeder 也提供相同的常數。OpenRust 建置時會自動探索該目錄和子目錄中的檔案，並透過 `bootstrap/app.rs` 的 `withSeeders` 接入清單。此目錄中的每個 Rust 檔案提供一個項目，`mod.rs` 用於模組宣告。`run` 接受 `SeederContext`，可取得所選連線和應用程式服務。
 
 Artisan 執行 Seeder 及其子 Seeder 時會暫時停用 Eloquent 的批次賦值保護。`Model::create` 和 `fill` 等方法可以設定受保護的屬性，仍會套用修改器與型別轉換。指令成功或失敗時都會恢復保護。獨立的 Tokio 工作（包括透過 `tokio::spawn` 建立的工作）保留各自的保護。
 
@@ -18,11 +18,15 @@ Artisan 執行 Seeder 及其子 Seeder 時會暫時停用 Eloquent 的批次賦�
 
 下列範例需要 `plans` 資料表具有唯一的 `code` 欄位和一個 `label` 欄位。重複執行時，upsert 更新同一筆資料列。
 
+將子 Seeder 放在 `database/seeders/catalog_seeder.rs`。
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult, query::Record,
     seeder::{Seeder, SeederContext, SeederEntry},
 };
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("CatalogSeeder", &CatalogSeeder);
 
 pub struct CatalogSeeder;
 
@@ -45,6 +49,17 @@ impl Seeder for CatalogSeeder {
         })
     }
 }
+```
+
+在 `database/seeders/database_seeder.rs` 中依登錄名稱呼叫它。
+
+```rust
+use openrust::database::{
+    DatabaseFuture, DatabaseResult, query::Record,
+    seeder::{Seeder, SeederContext, SeederEntry},
+};
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("DatabaseSeeder", &DatabaseSeeder);
 
 pub struct DatabaseSeeder;
 
@@ -60,16 +75,11 @@ impl Seeder for DatabaseSeeder {
         ))
     }
 }
-
-pub const ENTRIES: &[SeederEntry] = &[
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder),
-    SeederEntry::new("CatalogSeeder", &CatalogSeeder),
-];
 ```
 
 ## 執行 Seeder
 
-用 `db:seed` 執行預設 Seeder。用 `--class` 或位置參數指定類別，用 `--database` 選擇連線。Seeder 內透過 `DB` 門面存取時預設使用所選連線，其他工作各自保留自己的連線選擇。
+用 `db:seed` 執行預設的 `DatabaseSeeder`，由它明確呼叫其他 Seeder。用 `--class` 或位置參數指定類別。以 `Admin/CatalogSeeder` 產生的 Seeder 可用 `--class='Admin\CatalogSeeder'` 執行。用 `--database` 選擇連線。Seeder 內透過 `DB` 門面存取時預設使用所選連線，其他工作各自保留自己的連線選擇。
 
 ```sh
 ./artisan db:seed
@@ -117,9 +127,8 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 註冊 Seeder 時呼叫 `withoutModelEvents()`，可在執行期間靜默 Eloquent 模型事件。它呼叫的子 Seeder 會繼承此範圍。成功傳回或發生錯誤後皆會恢復模型事件。Seeder 進度輸出與工廠回呼照常執行。
 
 ```rust
-use openrust::database::seeder::{Seeder, SeederEntry};
+use openrust::database::seeder::SeederEntry;
 
-const fn muted_entry(seeder: &'static dyn Seeder) -> SeederEntry {
-    SeederEntry::new("DatabaseSeeder", seeder).withoutModelEvents()
-}
+pub(super) const ENTRY: SeederEntry =
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
 ```

@@ -52,7 +52,7 @@ impl Command for SeederMakeCommand {
             ));
             output
                 .stdout
-                .push_str("Register the seeder in database/seeders/mod.rs and rebuild.\n");
+                .push_str("Rebuild the application to include the seeder.\n");
             Ok(0)
         })
     }
@@ -76,8 +76,20 @@ fn create(root: &Path, name: &str, force: bool) -> io::Result<PathBuf> {
     for namespace in namespaces {
         directory.push(snake_case(namespace));
     }
-    let path = directory.join(format!("{}.rs", snake_case(class)));
-    let code = Stub::Seeder.load(root)?.replace("{{class}}", class);
+    let filename = snake_case(class);
+    if filename == "mod" {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "The seeder name Mod is reserved for module declarations.",
+        ));
+    }
+    let path = directory.join(format!("{filename}.rs"));
+    let source = Stub::Seeder.load(root)?.replace("{{class}}", class);
+    let class_name = parts.join("\\");
+    let code = format!(
+        "{}\n\npub(super) const ENTRY: openrust::database::seeder::SeederEntry =\n    openrust::database::seeder::SeederEntry::new({class_name:?}, &{class});\n",
+        source.trim_end()
+    );
     write_generated(&path, code.as_bytes(), force)?;
     Ok(path)
 }

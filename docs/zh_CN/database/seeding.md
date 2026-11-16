@@ -2,7 +2,7 @@
 
 ## 编写 Seeder
 
-用 `make:seeder` 在 `database/seeders` 生成 Rust Seeder。在 `database/seeders/mod.rs` 注册它的 `SeederEntry`，然后重新构建应用。`run` 接收 `SeederContext`，可以获取所选连接和应用服务。 应用在 `bootstrap/app.rs` 中通过 `withSeeders` 接入这份清单。
+用 `make:seeder` 在 `database/seeders/` 生成 Rust Seeder。生成器会写入带名称的 `ENTRY: SeederEntry`，手写 Seeder 也提供同样的常量。OpenRust 构建时自动发现该目录及子目录中的文件，并通过 `bootstrap/app.rs` 的 `withSeeders` 接入清单。此目录中的每个 Rust 文件提供一个条目，`mod.rs` 用于模块声明。`run` 接收 `SeederContext`，可以获取所选连接和应用服务。
 
 Artisan 执行 Seeder 及其子 Seeder 时会临时关闭 Eloquent 的批量赋值保护。`Model::create` 和 `fill` 等方法可以设置受保护的属性，仍会应用修改器和类型转换。命令成功或失败时都会恢复保护。独立的 Tokio 任务（包括通过 `tokio::spawn` 创建的任务）保留各自的保护。
 
@@ -18,11 +18,15 @@ Artisan 执行 Seeder 及其子 Seeder 时会临时关闭 Eloquent 的批量赋�
 
 以下示例要求 `plans` 表有唯一的 `code` 列和一个 `label` 列。重复运行时，upsert 更新同一行。
 
+将子 Seeder 放在 `database/seeders/catalog_seeder.rs`。
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult, query::Record,
     seeder::{Seeder, SeederContext, SeederEntry},
 };
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("CatalogSeeder", &CatalogSeeder);
 
 pub struct CatalogSeeder;
 
@@ -45,6 +49,17 @@ impl Seeder for CatalogSeeder {
         })
     }
 }
+```
+
+在 `database/seeders/database_seeder.rs` 中按登记名称调用它。
+
+```rust
+use openrust::database::{
+    DatabaseFuture, DatabaseResult, query::Record,
+    seeder::{Seeder, SeederContext, SeederEntry},
+};
+
+pub(super) const ENTRY: SeederEntry = SeederEntry::new("DatabaseSeeder", &DatabaseSeeder);
 
 pub struct DatabaseSeeder;
 
@@ -60,16 +75,11 @@ impl Seeder for DatabaseSeeder {
         ))
     }
 }
-
-pub const ENTRIES: &[SeederEntry] = &[
-    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder),
-    SeederEntry::new("CatalogSeeder", &CatalogSeeder),
-];
 ```
 
 ## 运行 Seeder
 
-用 `db:seed` 运行默认 Seeder。用 `--class` 或位置参数指定类，用 `--database` 选择连接。Seeder 内通过 `DB` 门面访问时默认使用所选连接，其他任务各自保留自己的连接选择。
+用 `db:seed` 运行默认的 `DatabaseSeeder`，由它显式调用其他 Seeder。用 `--class` 或位置参数指定类。用 `Admin/CatalogSeeder` 生成的 Seeder 可通过 `--class='Admin\CatalogSeeder'` 执行。用 `--database` 选择连接。Seeder 内通过 `DB` 门面访问时默认使用所选连接，其他任务各自保留自己的连接选择。
 
 ```sh
 ./artisan db:seed
@@ -114,12 +124,11 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## 静默模型事件 {#muting-model-events}
 
-注册 Seeder 时调用 `withoutModelEvents()`，可在执行期间静默 Eloquent 模型事件。它调用的子 Seeder 继承该范围。成功返回或报错后都会恢复模型事件。Seeder 进度输出与工厂回调照常执行。
+在文件的 `ENTRY` 上调用 `withoutModelEvents()`，可在执行期间静默 Eloquent 模型事件。它调用的子 Seeder 继承该范围。成功返回或报错后都会恢复模型事件。Seeder 进度输出与工厂回调照常执行。
 
 ```rust
-use openrust::database::seeder::{Seeder, SeederEntry};
+use openrust::database::seeder::SeederEntry;
 
-const fn muted_entry(seeder: &'static dyn Seeder) -> SeederEntry {
-    SeederEntry::new("DatabaseSeeder", seeder).withoutModelEvents()
-}
+pub(super) const ENTRY: SeederEntry =
+    SeederEntry::new("DatabaseSeeder", &DatabaseSeeder).withoutModelEvents();
 ```

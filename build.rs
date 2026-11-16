@@ -5,18 +5,23 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DIRECTORY: &str = "database/migrations";
+const MIGRATIONS: &str = "database/migrations";
+const SEEDERS: &str = "database/seeders";
 const SANCTUM_MIGRATION: &str = "0001_01_01_000012_create_personal_access_tokens_table";
 
 fn main() -> io::Result<()> {
-    println!("cargo:rerun-if-changed={DIRECTORY}");
+    println!("cargo:rerun-if-changed={MIGRATIONS}");
+    println!("cargo:rerun-if-changed={SEEDERS}");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory"));
-    let mut files = fs::read_dir(root.join(DIRECTORY))?.collect::<io::Result<Vec<_>>>()?;
-    files.sort_unstable_by_key(fs::DirEntry::file_name);
+    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo build output directory"));
+    generate_migrations(&root, &output)?;
+    generate_seeders(&root, &output)
+}
 
+fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {
     let mut modules = String::new();
     let mut entries = String::new();
-    for file in files {
+    for file in sorted_entries(&root.join(MIGRATIONS))? {
         let path = file.path();
         let Some(stem) = migration_stem(&path) else {
             continue;
@@ -26,10 +31,8 @@ fn main() -> io::Result<()> {
             continue;
         }
 
-        let relative = format!("{DIRECTORY}/{stem}.rs");
-        let source = path.to_str().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "Migration path must be UTF-8")
-        })?;
+        let relative = format!("{MIGRATIONS}/{stem}.rs");
+        let source = source_path(&path)?;
         writeln!(modules, "#[path = {source:?}]\nmod migration_{stem};").unwrap();
         writeln!(
             entries,
@@ -38,7 +41,6 @@ fn main() -> io::Result<()> {
         .unwrap();
     }
 
-    let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo build output directory"));
     fs::write(
         output.join("migrations.rs"),
         format!("{modules}\npub(crate) const ENTRIES: &[MigrationEntry] = &[\n{entries}];\n"),
@@ -63,4 +65,51 @@ fn migration_stem(path: &Path) -> Option<&str> {
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_'))
     .then_some(stem)
+}
+
+fn generate_seeders(root: &Path, output: &Path) -> io::Result<()> {
+    let mut files = Vec::new();
+    collect_seeders(&root.join(SEEDERS), &mut files)?;
+    let mut modules = String::new();
+    let mut entries = String::new();
+    for (index, path) in files.iter().enumerate() {
+        let source = source_path(path)?;
+        writeln!(modules, "#[path = {source:?}]\nmod seeder_{index};").unwrap();
+        writeln!(entries, "    seeder_{index}::ENTRY,").unwrap();
+    }
+    fs::write(
+        output.join("seeders.rs"),
+        format!("{modules}\npub(crate) const ENTRIES: &[SeederEntry] = &[\n{entries}];\n"),
+    )
+}
+
+fn collect_seeders(directory: &Path, files: &mut Vec<PathBuf>) -> io::Result<()> {
+    for file in sorted_entries(directory)? {
+        let path = file.path();
+        let kind = file.file_type()?;
+        if kind.is_dir() {
+            collect_seeders(&path, files)?;
+        } else if kind.is_file()
+            && path.extension().is_some_and(|ext| ext == "rs")
+            && file.file_name() != "mod.rs"
+        {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn sorted_entries(directory: &Path) -> io::Result<Vec<fs::DirEntry>> {
+    let mut files = fs::read_dir(directory)?.collect::<io::Result<Vec<_>>>()?;
+    files.sort_unstable_by_key(fs::DirEntry::file_name);
+    Ok(files)
+}
+
+fn source_path(path: &Path) -> io::Result<&str> {
+    path.to_str().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Source path must be UTF-8: {}", path.display()),
+        )
+    })
 }

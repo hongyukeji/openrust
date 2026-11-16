@@ -1,6 +1,3 @@
 use openrust::database::seeder::SeederEntry;
 
-mod database_seeder;
-
-pub(crate) const ENTRIES: &[SeederEntry] =
-    &[SeederEntry::new("DatabaseSeeder", &database_seeder::DatabaseSeeder).withoutModelEvents()];
+include!(concat!(env!("OUT_DIR"), "/seeders.rs"));
