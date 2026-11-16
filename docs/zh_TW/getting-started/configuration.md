@@ -20,6 +20,18 @@ HTTP 檢視轉譯器依序查找 `view.paths` 中的目錄，預設從 `resource
 
 程序環境變數優先於檔案中的值。在程序環境中設定 `APP_ENV` 可選擇 `.env.local` 等檔案。對應檔案不存在時，應用程式讀取 `.env`。部署路徑和 `APP_BASE_PATH` 的用法見[應用程式根目錄規則](../architecture-concepts/lifecycle.md)。
 
+## 存取設定值 {#accessing-configuration-values}
+
+```rust
+use openrust::{config::Value, contracts::container::BindingResolutionError, support::facades::Config};
+
+pub fn application_name() -> Result<Value, BindingResolutionError> {
+    Ok(Config::get("app.name")?.unwrap_or_else(|| Value::from("My application")))
+}
+```
+
+以 `Config::set` 更新目前應用程式的設定。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 檢查值的型別。`array` 接受 JSON 清單和物件，`collection` 保留集合鍵。
+
 <a id="determining-the-current-environment"></a>
 
 ## 確定目前環境

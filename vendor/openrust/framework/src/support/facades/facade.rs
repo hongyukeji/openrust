@@ -133,6 +133,9 @@ pub trait Facade {
     fn getFacadeRoot() -> Result<Arc<Self::Service>, BindingResolutionError> {
         with_context(|context| {
             let key = Self::getFacadeAccessor();
+            if !Self::cached {
+                return context.container.get::<Self::Service>(key);
+            }
             let cached = context
                 .resolved
                 .lock()
@@ -159,22 +162,20 @@ pub trait Facade {
                     });
             }
             let service = context.container.get::<Self::Service>(key.clone())?;
-            if Self::cached {
-                let provisional = context.container.provisional_cache_key(&key)?;
-                let previous = context
-                    .resolved
-                    .lock()
-                    .expect("facade cache poisoned")
-                    .insert(
-                        key,
-                        Cached {
-                            value: Arc::new(service.clone()),
-                            output: type_name::<Self::Service>(),
-                            provisional,
-                        },
-                    );
-                drop(previous);
-            }
+            let provisional = context.container.provisional_cache_key(&key)?;
+            let previous = context
+                .resolved
+                .lock()
+                .expect("facade cache poisoned")
+                .insert(
+                    key,
+                    Cached {
+                        value: Arc::new(service.clone()),
+                        output: type_name::<Self::Service>(),
+                        provisional,
+                    },
+                );
+            drop(previous);
             Ok(service)
         })
     }
@@ -186,18 +187,22 @@ pub trait Facade {
             let mut lookup = std::pin::pin!(async {
                 let key = Self::getFacadeAccessor();
                 let (container, cached) = with_context(|context| {
-                    let cached = context
-                        .resolved
-                        .lock()
-                        .expect("facade cache poisoned")
-                        .get(&key)
-                        .map(|cached| {
-                            (
-                                cached.value.clone(),
-                                cached.output,
-                                cached.provisional.clone(),
-                            )
-                        });
+                    let cached = if Self::cached {
+                        context
+                            .resolved
+                            .lock()
+                            .expect("facade cache poisoned")
+                            .get(&key)
+                            .map(|cached| {
+                                (
+                                    cached.value.clone(),
+                                    cached.output,
+                                    cached.provisional.clone(),
+                                )
+                            })
+                    } else {
+                        None
+                    };
                     Ok((context.container.clone(), cached))
                 })?;
                 if let Some((value, actual, provisional)) = cached {

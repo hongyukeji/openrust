@@ -20,6 +20,18 @@ The HTTP view renderer searches the directories in `view.paths` in order. By def
 
 Process environment variables take precedence over values in the file. Set `APP_ENV` in the process environment to select a file such as `.env.local`. If the selected file is absent, the application reads `.env`. See [application root resolution](../architecture-concepts/lifecycle.md) for deployment paths and the `APP_BASE_PATH` override.
 
+## Accessing Configuration Values {#accessing-configuration-values}
+
+```rust
+use openrust::{config::Value, contracts::container::BindingResolutionError, support::facades::Config};
+
+pub fn application_name() -> Result<Value, BindingResolutionError> {
+    Ok(Config::get("app.name")?.unwrap_or_else(|| Value::from("My application")))
+}
+```
+
+Use `Config::set` to change a value in the current application. The `string`, `integer`, `float`, `boolean`, `array`, and `collection` methods check the value type. `array` accepts JSON lists and objects, and `collection` preserves their keys.
+
 <a id="determining-the-current-environment"></a>
 
 ## Determining the current environment

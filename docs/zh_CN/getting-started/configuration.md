@@ -20,6 +20,18 @@ HTTP 视图渲染器按顺序查找 `view.paths` 中的目录，默认从 `resou
 
 进程环境变量优先于文件中的值。在进程环境中设置 `APP_ENV` 可选择 `.env.local` 等文件。对应文件不存在时，应用读取 `.env`。部署路径和 `APP_BASE_PATH` 的用法见[应用根目录规则](../architecture-concepts/lifecycle.md)。
 
+## 访问配置值 {#accessing-configuration-values}
+
+```rust
+use openrust::{config::Value, contracts::container::BindingResolutionError, support::facades::Config};
+
+pub fn application_name() -> Result<Value, BindingResolutionError> {
+    Ok(Config::get("app.name")?.unwrap_or_else(|| Value::from("My application")))
+}
+```
+
+用 `Config::set` 更新当前应用的配置。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 检查值的类型。`array` 接受 JSON 列表和对象，`collection` 保留集合键。
+
 <a id="determining-the-current-environment"></a>
 
 ## 确定当前环境

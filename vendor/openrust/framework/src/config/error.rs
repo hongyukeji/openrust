@@ -1,9 +1,12 @@
 use std::{error::Error, fmt, io, path::PathBuf};
 
+use crate::contracts::container::BindingResolutionError;
+
 /// A configuration failure without the original configuration value.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ConfigError {
+    Unavailable(BindingResolutionError),
     InvalidKey { key: String },
     InvalidType { key: String, expected: &'static str },
     InvalidEnvironmentName,
@@ -14,6 +17,7 @@ pub enum ConfigError {
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unavailable(source) => write!(f, "configuration unavailable: {source}"),
             Self::InvalidKey { key } => write!(f, "invalid configuration key {key}"),
             Self::InvalidType { key, expected } => write!(f, "{key} must be {expected}"),
             Self::InvalidEnvironmentName => f.write_str("invalid environment name"),
@@ -30,8 +34,15 @@ impl fmt::Display for ConfigError {
 impl Error for ConfigError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::Unavailable(source) => Some(source),
             Self::ReadFailed { source, .. } => Some(source),
             _ => None,
         }
+    }
+}
+
+impl From<BindingResolutionError> for ConfigError {
+    fn from(error: BindingResolutionError) -> Self {
+        Self::Unavailable(error)
     }
 }
