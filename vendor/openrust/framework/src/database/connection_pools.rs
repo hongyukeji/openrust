@@ -29,7 +29,7 @@ impl PoolGeneration {
         };
         let reader = match &self.reader {
             Some(Pool::Mysql(reader)) => reader.as_ref(),
-            Some(Pool::Sqlite(_)) => return None,
+            Some(Pool::Sqlite(_) | Pool::Postgres(_)) => return None,
             None => &[],
         };
         Some(

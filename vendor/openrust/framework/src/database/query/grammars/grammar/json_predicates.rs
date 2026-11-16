@@ -21,6 +21,9 @@ impl Grammar {
                 bindings.extend(path.map(Value::from));
                 Ok(format!("json_contains({column}, ?{path_parameter})"))
             }
+            Dialect::Postgres => Err(DatabaseError::UnsupportedOperation(
+                "PostgreSQL JSON predicate",
+            )),
             Dialect::Sqlite => {
                 let value = sqlite_json_scalar(value)?;
                 bindings.extend(path.map(Value::from));
@@ -71,6 +74,9 @@ impl Grammar {
                 bindings.push(path.into());
                 Ok(format!("ifnull(json_contains_path({column}, 'one', ?), 0)"))
             }
+            Dialect::Postgres => Err(DatabaseError::UnsupportedOperation(
+                "PostgreSQL JSON predicate",
+            )),
             Dialect::Sqlite => {
                 let path_parameter = if path.is_some() { ", ?" } else { "" };
                 bindings.extend(path.map(Value::from));
@@ -89,6 +95,11 @@ impl Grammar {
         let function = match self.dialect {
             Dialect::MySql => "json_length",
             Dialect::Sqlite => "json_array_length",
+            Dialect::Postgres => {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "PostgreSQL JSON length",
+                ));
+            }
         };
         bindings.extend(path.map(Value::from));
         Ok(format!("{function}({column}{path_parameter})"))

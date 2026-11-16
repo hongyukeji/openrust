@@ -437,3 +437,203 @@ async fn model_search_paginates_through_the_http_entry_point() {
     assert_eq!(page["data"], json!([12]));
     server.abort();
 }
+
+fn postgres_search_connection() -> Option<Connection> {
+    match std::env::var("OPENRUST_TEST_SEARCH_POSTGRES_URL") {
+        Ok(url) => Some(connection(json!({
+            "url": url,
+            "prefix": format!("search_{:x}_", fastrand::u64(..)),
+            "prefix_indexes": true,
+        }))),
+        Err(_) => {
+            assert!(std::env::var_os("OPENRUST_REQUIRE_SEARCH_POSTGRES").is_none());
+            None
+        }
+    }
+}
+
+async fn postgres_articles(db: &Connection) {
+    db.getSchemaBuilder()
+        .create("articles", |table| {
+            table.id();
+            table.string("title", 100);
+            table.text("body");
+            table.string("slug", 80).default("");
+            table.fullText(&["title", "body"], None).language("english");
+        })
+        .await
+        .unwrap();
+    for (id, title, body) in [
+        (1, "Running", "running running safely"),
+        (2, "Training", "running safely outdoors"),
+        (3, "Fitness", "running safely indoors"),
+        (4, "Gardening", "water plants"),
+    ] {
+        let generated = db
+            .table("articles")
+            .insertGetId(BTreeMap::from([
+                ("title".into(), title.into()),
+                ("body".into(), body.into()),
+            ]))
+            .await
+            .unwrap();
+        assert_eq!(generated, id.into());
+    }
+}
+
+#[tokio::test]
+async fn postgres_uses_gin_and_ranks_before_pagination() {
+    use openrust::database::{query::PostgresFullTextMode, schema::Blueprint};
+
+    let Some(db) = postgres_search_connection() else {
+        return;
+    };
+    postgres_articles(&db).await;
+    assert!(db.getSchemaBuilder().hasTable("articles").await.unwrap());
+    let prefix = db.getTablePrefix();
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction
+        .statement("set local enable_seqscan = off", &[])
+        .await
+        .unwrap();
+    let query = transaction
+        .table("articles")
+        .whereFullText(&["title", "body"], "runs");
+    let sql = format!("explain {}", query.toSql().unwrap());
+    let bindings = query.getBindings().unwrap();
+    let plan = transaction.select(&sql, &bindings).await.unwrap();
+    assert!(
+        plan.iter().any(|row| matches!(
+            row.get_at(0),
+            Some(Value::Text(line)) if line.contains("Bitmap Index Scan")
+        )),
+        "{plan:?}"
+    );
+    transaction.rollBack(None).await.unwrap();
+
+    let query = db
+        .table("articles")
+        .whereFullText(&["title", "body"], "runs");
+    assert!(!query.toSql().unwrap().contains("order by"));
+    assert_eq!(query.count("*").await.unwrap(), 3);
+    let get_ids = |page| {
+        let db = &db;
+        async move {
+            let options = PageOptions {
+                perPage: Some(1),
+                page: Some(page),
+                ..Default::default()
+            };
+            let result = Article::searchOn(db, "runs")
+                .paginateWith(options)
+                .await
+                .unwrap();
+            assert_eq!(result.total(), 3);
+            result.items()[0].getAttribute("id").unwrap().clone()
+        }
+    };
+    assert_eq!(get_ids(1).await, 1.into());
+    assert_eq!(get_ids(2).await, 3.into());
+    assert_eq!(get_ids(3).await, 2.into());
+    let explicit = Article::searchOn(&db, "runs")
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(explicit[1].getAttribute("id"), Some(&2.into()));
+
+    let options = |mode| FullTextOptions::Postgres {
+        language: "english",
+        mode,
+        vector: false,
+    };
+    for (mode, term, expected) in [
+        (PostgresFullTextMode::Phrase, "running safely", 3),
+        (PostgresFullTextMode::WebSearch, "running -indoors", 2),
+        (PostgresFullTextMode::Raw, "run & indoors", 1),
+    ] {
+        assert_eq!(
+            db.table("articles")
+                .whereFullTextWith(&["title", "body"], term, options(mode))
+                .count("*")
+                .await
+                .unwrap(),
+            expected
+        );
+    }
+
+    db.getSchemaBuilder()
+        .table("articles", |table: &mut Blueprint| {
+            table
+                .fullText(&["body"], Some("article_body_simple"))
+                .language("simple");
+        })
+        .await
+        .unwrap();
+    let simple = FullTextOptions::Postgres {
+        language: "simple",
+        mode: PostgresFullTextMode::Plain,
+        vector: false,
+    };
+    assert_eq!(
+        db.table("articles")
+            .whereFullTextWith(&["body"], "running", simple)
+            .count("*")
+            .await
+            .unwrap(),
+        3
+    );
+    assert_eq!(
+        db.table("articles")
+            .whereFullTextWith(&["body"], "runs", simple)
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(db.select("select indexdef from pg_indexes where tablename = ?",
+        &[format!("{prefix}articles").into()]).await.unwrap().iter().any(|row| matches!(
+            row.get_at(0),
+            Some(Value::Text(sql)) if sql.contains("USING gin") && sql.contains("'simple'::regconfig")
+    )));
+    let mut schema = db.getSchemaBuilder();
+    assert!(
+        schema
+            .hasIndex("articles", "article_body_simple")
+            .await
+            .unwrap()
+    );
+    schema
+        .table("articles", |table| {
+            table.dropFullText("article_body_simple")
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndex("articles", "article_body_simple")
+            .await
+            .unwrap()
+    );
+    db.statement(
+        &format!("alter table {prefix}articles add column search_terms tsvector generated always as (to_tsvector('english', body)) stored"),
+        &[],
+    ).await.unwrap();
+    let stored = FullTextOptions::Postgres {
+        language: "english",
+        mode: PostgresFullTextMode::Plain,
+        vector: true,
+    };
+    let stored_rows = db
+        .table("articles")
+        .whereFullTextWith(&["search_terms"], "runs", stored)
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(stored_rows.len(), 3);
+    assert!(matches!(
+        stored_rows[0].get("search_terms"),
+        Some(Value::Bytes(_))
+    ));
+    schema.dropIfExists("articles").await.unwrap();
+}

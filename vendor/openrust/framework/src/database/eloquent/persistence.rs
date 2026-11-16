@@ -240,7 +240,9 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
             .update(attributes.clone())
             .await?;
     } else if M::getIncrementing() {
-        let id = query.insertGetId(attributes.clone()).await?;
+        let id = query
+            .insert_get_id_for(attributes.clone(), metadata.primary_key)
+            .await?;
         // MySQL reports zero for an explicitly supplied non-generated key.
         if !matches!(id, Value::Integer(0) | Value::Unsigned(0))
             || !attributes.contains_key(metadata.primary_key)

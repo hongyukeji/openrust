@@ -1,5 +1,6 @@
 use sqlx::{
-    Column as _, Row as _, TypeInfo as _, ValueRef as _, mysql::MySqlRow, sqlite::SqliteRow,
+    Column as _, Row as _, TypeInfo as _, ValueRef as _, mysql::MySqlRow, postgres::PgRow,
+    sqlite::SqliteRow,
 };
 
 use super::{DatabaseError, DatabaseResult};
@@ -94,6 +95,43 @@ macro_rules! decode_row {
 
 decode_row!(sqlite, SqliteRow, sqlite_value);
 decode_row!(mysql, MySqlRow, mysql_value);
+decode_row!(postgres, PgRow, postgres_value);
+
+fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value> {
+    let value = match kind {
+        "BOOL" => row.try_get::<bool, _>(index).map(Value::Bool),
+        "INT2" => row
+            .try_get::<i16, _>(index)
+            .map(|value| Value::Integer(i64::from(value))),
+        "INT4" => row
+            .try_get::<i32, _>(index)
+            .map(|value| Value::Integer(i64::from(value))),
+        "INT8" => row.try_get::<i64, _>(index).map(Value::Integer),
+        "FLOAT4" => row
+            .try_get::<f32, _>(index)
+            .map(|value| Value::Real(f64::from(value))),
+        "FLOAT8" => row.try_get::<f64, _>(index).map(Value::Real),
+        "BYTEA" => row.try_get::<Vec<u8>, _>(index).map(Value::Bytes),
+        "TSVECTOR" | "tsvector" => row.try_get_unchecked::<Vec<u8>, _>(index).map(Value::Bytes),
+        "JSON" | "JSONB" => row
+            .try_get::<sqlx::types::Json<serde_json::Value>, _>(index)
+            .map(|value| Value::Json(value.0)),
+        "TIMESTAMP" => row
+            .try_get::<chrono::NaiveDateTime, _>(index)
+            .map(|value| Value::Text(value.to_string())),
+        "TIMESTAMPTZ" => row
+            .try_get::<chrono::DateTime<chrono::Utc>, _>(index)
+            .map(|value| Value::Text(value.to_rfc3339())),
+        "DATE" => row
+            .try_get::<chrono::NaiveDate, _>(index)
+            .map(|value| Value::Text(value.to_string())),
+        "TIME" => row
+            .try_get::<chrono::NaiveTime, _>(index)
+            .map(|value| Value::Text(value.to_string())),
+        _ => row.try_get::<String, _>(index).map(Value::Text),
+    };
+    value.map_err(DatabaseError::driver("decode"))
+}
 
 fn sqlite_value(row: &SqliteRow, index: usize, kind: &str) -> DatabaseResult<Value> {
     let value = match kind {

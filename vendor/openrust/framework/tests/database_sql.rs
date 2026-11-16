@@ -163,7 +163,7 @@ async fn sqlite_uses_default_file_and_rejects_bad_connections_and_driver_errors(
             "connections":{
                 "memory":{"driver":"mysql","url":"sqlite3::memory:"},
                 "missing_file":{"driver":"sqlite","database":"missing.sqlite"},
-                "unsupported":{"driver":"pgsql"}
+                "unsupported":{"driver":"sqlsrv"}
             }
         }),
     );

@@ -5,13 +5,28 @@ use super::{
     grammars::{DatePart, Grammar},
 };
 
-/// The search mode for MySQL-compatible full-text indexes.
+/// How PostgreSQL turns a search term into a tsquery.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum PostgresFullTextMode {
+    #[default]
+    Plain,
+    Phrase,
+    WebSearch,
+    Raw,
+}
+
+/// Options for the database's native full-text predicate.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum FullTextOptions {
     #[default]
     NaturalLanguage,
     Boolean,
     QueryExpansion,
+    Postgres {
+        language: &'static str,
+        mode: PostgresFullTextMode,
+        vector: bool,
+    },
 }
 
 /// A JSON value or a trusted SQL expression that returns JSON.

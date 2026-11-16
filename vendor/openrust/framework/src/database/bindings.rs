@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Write as _};
 
 use sqlx::Either;
 
@@ -51,12 +51,63 @@ pub(super) struct PreparedBindings<'a> {
 }
 
 impl<'a> PreparedBindings<'a> {
+    pub(super) fn postgres(mut self) -> Self {
+        if !self.sql.contains('?') || self.values().len() == 0 {
+            return self;
+        }
+        let bytes = self.sql.as_bytes();
+        let mut sql = String::with_capacity(bytes.len());
+        let mut start = 0;
+        let mut pos = 0;
+        let mut index = 0;
+        while let Some(&byte) = bytes.get(pos) {
+            let tail = &bytes[pos..];
+            if let Some(len) = postgres_dollar_quote(tail).or_else(|| skip_sql(tail, false)) {
+                pos += len;
+            } else if byte == b'?' {
+                sql.push_str(&self.sql[start..pos]);
+                if tail.starts_with(b"??") {
+                    sql.push('?');
+                    pos += 2;
+                } else {
+                    index += 1;
+                    write!(sql, "${index}").expect("writing to a String");
+                    pos += 1;
+                }
+                start = pos;
+            } else {
+                pos += 1;
+            }
+        }
+        sql.push_str(&self.sql[start..]);
+        self.sql = Cow::Owned(sql);
+        self
+    }
+
     pub(super) fn values(&self) -> impl ExactSizeIterator<Item = &'a Value> + '_ {
         match &self.values {
             Either::Left(values) => Either::Left(values.iter()),
             Either::Right(values) => Either::Right(values.iter().copied()),
         }
     }
+}
+
+fn postgres_dollar_quote(tail: &[u8]) -> Option<usize> {
+    let rest = tail.strip_prefix(b"$")?;
+    if rest.first()?.is_ascii_digit() {
+        return None;
+    }
+    let tag = rest.iter().take_while(|byte| name_byte(**byte)).count() + 1;
+    if tail.get(tag) != Some(&b'$') {
+        return None;
+    }
+    let delimiter = &tail[..=tag];
+    let body = &tail[tag + 1..];
+    Some(
+        body.windows(delimiter.len())
+            .position(|part| part == delimiter)
+            .map_or(tail.len(), |end| end + delimiter.len() * 2),
+    )
 }
 
 fn invalid(reason: &'static str) -> DatabaseError {

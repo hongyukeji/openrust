@@ -29,8 +29,20 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn insertGetId(mut self, values: Record) -> DatabaseResult<Value> {
-        let (sql, bindings) = self.compile_insert(&[values], false)?;
+    pub async fn insertGetId(self, values: Record) -> DatabaseResult<Value> {
+        self.insert_get_id_for(values, "id").await
+    }
+
+    pub(crate) async fn insert_get_id_for(
+        mut self,
+        values: Record,
+        key: &str,
+    ) -> DatabaseResult<Value> {
+        let (mut sql, bindings) = self.compile_insert(&[values], false)?;
+        if self.grammar.is_postgres() {
+            sql.push_str(" returning ");
+            sql.push_str(&self.grammar.column(key)?);
+        }
         match &mut self.executor {
             Executor::Connection(connection) => connection.insert_get_id(&sql, &bindings).await,
             Executor::Transaction(transaction) => transaction.insert_get_id(&sql, &bindings).await,

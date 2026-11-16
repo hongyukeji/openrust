@@ -172,6 +172,17 @@ impl Builder<'_> {
         {
             return Ok(true);
         }
+        if self.grammar.postgres() {
+            let sql = "select 1 from information_schema.tables where (table_schema = ? or (? = '' and table_schema = any(current_schemas(false)))) and table_name = ? and table_type = 'BASE TABLE' limit 1";
+            let schema = table.schema.as_deref().unwrap_or_default();
+            return Ok(!self
+                .select(
+                    sql,
+                    &[schema.into(), schema.into(), table.name.as_str().into()],
+                )
+                .await?
+                .is_empty());
+        }
         let parameters = self.catalog_parameters(&table);
         let sql = if self.grammar.mysql() {
             "select 1 from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? and table_type in ('BASE TABLE', 'SYSTEM VERSIONED') limit 1"
@@ -423,6 +434,22 @@ impl Builder<'_> {
             (
                 "select index_name as name, column_name as column_name, lower(index_type) as index_type, not non_unique as unique_key, index_name = 'PRIMARY' as primary_key from information_schema.statistics where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by index_name, seq_in_index",
                 parameters.to_vec(),
+            )
+        } else if self.grammar.postgres() {
+            (
+                "select ic.relname as name, a.attname as column_name, am.amname as index_type, \
+                 i.indisunique as unique_key, i.indisprimary as primary_key \
+                 from pg_index i join pg_class tc on tc.oid = i.indrelid \
+                 join pg_namespace tn on tn.oid = tc.relnamespace \
+                 join pg_class ic on ic.oid = i.indexrelid join pg_am am on am.oid = ic.relam \
+                 join lateral unnest(i.indkey) with ordinality as keys(num, ord) on true \
+                 left join pg_attribute a on a.attrelid = tc.oid and a.attnum = keys.num \
+                 where tn.nspname = coalesce(nullif(?, ''), current_schema()) and tc.relname = ? \
+                 order by ic.relname, keys.ord",
+                vec![
+                    identifier.schema.as_deref().unwrap_or_default().into(),
+                    identifier.name.as_str().into(),
+                ],
             )
         } else {
             let [schema, name] = parameters;

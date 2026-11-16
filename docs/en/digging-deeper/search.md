@@ -25,6 +25,28 @@ let results = db.table("articles")
 
 The same predicate is available on Eloquent queries and nested condition groups. Changes to records update the native index when committed. SQLite returns a query error for this predicate.
 
+### PostgreSQL {#postgresql-full-text}
+
+Set the connection driver to `pgsql`. Blueprint creates a GIN index with the same text-vector expression used by the query. English is the default configuration. This example uses `db` as the PostgreSQL connection.
+
+```rust
+db.getSchemaBuilder().create("articles", |table| {
+    table.id();
+    table.string("title", 150);
+    table.text("body");
+    table.string("slug", 80).default("");
+    table.fullText(&["title", "body"], None).language("english");
+}).await?;
+
+let page = db.table("articles")
+    .whereFullText(&["title", "body"], "running")
+    .orderBy("id", "asc")
+    .paginate(10)
+    .await?;
+```
+
+Use `FullTextOptions::Postgres` with `whereFullTextWith` for `Plain`, `Phrase`, `WebSearch`, or `Raw` query parsing. Set `vector: true` to search existing `tsvector` columns. Use the same language configuration on the index and query. On PostgreSQL, `whereFullText` filters rows and leaves sorting to the query.
+
 ## Database model search {#database-engine}
 
 Implement `Searchable` on an Eloquent model to search its own table. Declare indexed columns with `FullText`, prefix matches with `Prefix`, and substring matches with `Contains`. All search alternatives are grouped, so model scopes and extra filters apply to every match. Add the `slug` column to the indexed model in the previous example.
@@ -50,6 +72,8 @@ let page = Article::searchOn(&db, "openrust")
 
 Within the application, use `Article::search(term)?` to resolve the model’s connection. Use `withTrashed` or `onlyTrashed` to change soft-delete filtering. A blank term keeps the model’s regular filters. The database maintains the index as part of the write transaction.
 
+PostgreSQL model searches with full-text columns use `ts_rank` followed by descending primary key when no explicit sort is supplied. Both the rank and the tie-breaker apply before pagination. Override the default full-text settings on a model with `fullTextOptions()`.
+
 ## Search capabilities {#search-capabilities}
 
-This database engine supports MySQL-compatible full-text predicates and Eloquent model search. PostgreSQL full-text queries, vector indexes, embedding providers, reranking, and standalone Scout engines require their own drivers.
+The built-in database search supports MySQL-compatible and PostgreSQL full-text predicates and Eloquent model search. Vector indexes, embedding providers, reranking, and standalone Scout engines require their own drivers.

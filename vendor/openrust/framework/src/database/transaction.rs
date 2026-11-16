@@ -271,6 +271,18 @@ impl Transaction {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
+        if self.connection.grammar.is_postgres() {
+            return observed_transaction_query!(
+                self,
+                sql,
+                bindings,
+                select_one,
+                Value::Null,
+                || self.connection.setRecordModificationState(true),
+                |_| ()
+            )
+            .and_then(|row| row.map_or(Ok(Value::Null), Row::scalar));
+        }
         observed_transaction_query!(
             self,
             sql,
@@ -551,7 +563,7 @@ impl Transaction {
             let mut elapsed = Duration::ZERO;
             {
                 let physical = self.physical()?;
-                let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+                let prepared = physical.prepare(sql, bindings)?;
                 let mut rows = std::pin::pin!(physical.cursor(&prepared));
                 loop {
                     let start = Instant::now();

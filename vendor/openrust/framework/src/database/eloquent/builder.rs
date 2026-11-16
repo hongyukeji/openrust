@@ -442,6 +442,16 @@ impl<M: Model> Builder<'_, M> {
         self
     }
 
+    pub(super) fn order_by_full_text(
+        mut self,
+        columns: Vec<String>,
+        term: String,
+        options: query::FullTextOptions,
+    ) -> Self {
+        self.query = self.query.order_by_full_text(columns, term, options);
+        self
+    }
+
     #[must_use]
     pub fn limit(mut self, limit: u64) -> Self {
         self.query = self.query.limit(limit);
@@ -1437,7 +1447,10 @@ impl<M: Model> Builder<'static, M> {
             .await?
             .pop()
             .expect("one prepared insert row");
-        self.scoped()?.0.insertGetId(row).await
+        self.scoped()?
+            .0
+            .insert_get_id_for(row, M::metadata().primary_key)
+            .await
     }
 
     pub async fn makeAsync(&self, attributes: Attributes) -> DatabaseResult<M> {

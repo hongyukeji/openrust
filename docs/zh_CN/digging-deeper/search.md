@@ -25,6 +25,28 @@ let results = db.table("articles")
 
 Eloquent 查询和嵌套条件组也支持该谓词。记录变更提交后，数据库更新原生索引。SQLite 使用该谓词时返回查询错误。
 
+### PostgreSQL {#postgresql-full-text}
+
+将连接驱动设为 `pgsql`。Blueprint 用与查询相同的文本向量表达式建立 GIN 索引，默认语言配置为英语。下例的 `db` 使用 PostgreSQL 连接。
+
+```rust
+db.getSchemaBuilder().create("articles", |table| {
+    table.id();
+    table.string("title", 150);
+    table.text("body");
+    table.string("slug", 80).default("");
+    table.fullText(&["title", "body"], None).language("english");
+}).await?;
+
+let page = db.table("articles")
+    .whereFullText(&["title", "body"], "running")
+    .orderBy("id", "asc")
+    .paginate(10)
+    .await?;
+```
+
+通过 `whereFullTextWith` 传入 `FullTextOptions::Postgres`，可选择 `Plain`、`Phrase`、`WebSearch` 或 `Raw` 解析方式。用 `vector: true` 搜索已有的 `tsvector` 列。索引与查询使用相同的语言配置。PostgreSQL 上的 `whereFullText` 负责筛选，排序由查询指定。
+
 ## 数据库模型搜索 {#database-engine}
 
 为 Eloquent 模型实现 `Searchable`，即可搜索该模型的表。用 `FullText` 声明全文索引列，用 `Prefix` 匹配前缀，用 `Contains` 匹配包含内容。搜索条件放在同一个条件组内，模型作用域和附加过滤适用于每条匹配。下例在前一示例的模型上增加了 `slug` 列。
@@ -50,6 +72,8 @@ let page = Article::searchOn(&db, "openrust")
 
 在应用内用 `Article::search(term)?` 解析模型连接。用 `withTrashed` 或 `onlyTrashed` 调整软删除过滤。空搜索词保留模型的常规过滤。数据库在写事务中维护索引。
 
+PostgreSQL 模型有全文列且未明确指定排序时，先按 `ts_rank` 排序，分数相同时按主键降序。排序在分页前生效。可用模型的 `fullTextOptions()` 调整默认全文设置。
+
 ## 搜索能力 {#search-capabilities}
 
-数据库引擎支持 MySQL 兼容的全文谓词和 Eloquent 模型搜索。PostgreSQL 全文查询、向量索引、嵌入生成、重排和独立 Scout 引擎各自需要对应驱动。
+内置数据库搜索支持 MySQL 兼容及 PostgreSQL 全文谓词和 Eloquent 模型搜索。向量索引、嵌入生成、重排和独立 Scout 引擎各自需要对应驱动。

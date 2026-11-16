@@ -10,8 +10,8 @@ use std::{
 };
 
 use sqlx::{
-    Database, Executor as _, MySql, MySqlPool, Sqlite, SqlitePool, Statement as _,
-    pool::PoolConnection,
+    Database, Executor as _, MySql, MySqlPool, PgPool, Postgres, Sqlite, SqlitePool,
+    Statement as _, pool::PoolConnection,
 };
 
 use sqlx_core::transaction::TransactionManager;
@@ -55,6 +55,7 @@ pub(super) type BeforeExecutingCallback = Arc<
 pub(super) enum Pool {
     Sqlite(SqlitePool),
     Mysql(Arc<[MySqlPool]>),
+    Postgres(PgPool),
 }
 
 /// A named database connection sharing its application's pool.
@@ -120,6 +121,7 @@ impl ConnectionScope {
 pub(super) enum PhysicalConnection {
     Sqlite(Lease<Sqlite>),
     Mysql(Lease<MySql>),
+    Postgres(Lease<Postgres>),
 }
 
 pub(super) struct QueryLease {
@@ -229,6 +231,7 @@ impl Pool {
         }
         match self {
             Self::Sqlite(pool) => retire(pool),
+            Self::Postgres(pool) => retire(pool),
             Self::Mysql(pools) => pools.iter().for_each(retire),
         }
     }
@@ -236,6 +239,7 @@ impl Pool {
     pub(super) async fn acquire(&self) -> DatabaseResult<PhysicalConnection> {
         match self {
             Self::Sqlite(pool) => Ok(PhysicalConnection::Sqlite(Lease::acquire(pool).await?)),
+            Self::Postgres(pool) => Ok(PhysicalConnection::Postgres(Lease::acquire(pool).await?)),
             Self::Mysql(pools) => {
                 let (last, alternatives) = pools
                     .split_last()
@@ -268,6 +272,54 @@ macro_rules! bind {
         }
         query
     }};
+}
+
+fn bind_postgres<'a, 'b: 'a>(
+    statement: &'a sqlx::postgres::PgStatement,
+    values: impl Iterator<Item = &'b Value>,
+) -> DatabaseResult<sqlx::query::Query<'a, Postgres, sqlx::postgres::PgArguments>> {
+    fn integer_binding<T: TryFrom<i64>>(value: i64) -> DatabaseResult<T> {
+        T::try_from(value).map_err(|_| DatabaseError::InvalidQuery("PostgreSQL integer parameter"))
+    }
+
+    let types = match statement.parameters() {
+        Some(sqlx::Either::Left(types)) => types,
+        _ => &[],
+    };
+    let mut query = statement.query();
+    for (position, value) in values.enumerate() {
+        let kind = types.get(position).map(sqlx::TypeInfo::name);
+        let integer = match value {
+            Value::Integer(value) => Some(*value),
+            Value::Unsigned(value) => Some(
+                i64::try_from(*value)
+                    .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL integer parameter"))?,
+            ),
+            _ => None,
+        };
+        if let Some(value) = integer {
+            query = match kind {
+                Some("INT2") => query.bind(integer_binding::<i16>(value)?),
+                Some("INT4") => query.bind(integer_binding::<i32>(value)?),
+                _ => query.bind(value),
+            };
+        } else {
+            query = bind!(query, [value], sqlite_unsigned);
+        }
+    }
+    Ok(query)
+}
+
+macro_rules! bind_statement {
+    ($statement:ident, $values:ident, postgres) => {
+        bind_postgres(&$statement, $values)?
+    };
+    ($statement:ident, $values:ident, mysql) => {
+        bind!($statement.query(), $values, Ok::<u64, DatabaseError>)
+    };
+    ($statement:ident, $values:ident, sqlite) => {
+        bind!($statement.query(), $values, sqlite_unsigned)
+    };
 }
 
 fn sqlite_unsigned(value: u64) -> DatabaseResult<i64> {
@@ -304,9 +356,9 @@ macro_rules! prepare_query {
 }
 
 macro_rules! execute_query {
-    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal, $persistent:expr) => {{
+    ($lease:ident, $sql:ident, $bindings:ident, $binding:ident, $method:ident, $operation:literal, $persistent:expr) => {{
         let statement = prepare_query!($lease, $sql, $bindings);
-        let query = bind!(statement.query(), $bindings, $unsigned).persistent($persistent);
+        let query = bind_statement!(statement, $bindings, $binding).persistent($persistent);
         $lease.start()?;
         let result = query.$method(&mut *$lease.connection).await;
         $lease
@@ -316,12 +368,12 @@ macro_rules! execute_query {
 }
 
 macro_rules! cursor_rows {
-    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $decode:path, $persistent:expr) => {
+    ($lease:ident, $sql:ident, $bindings:ident, $binding:ident, $decode:path, $persistent:expr) => {
         async_stream::try_stream! {
             let statement = async {
                 Ok::<_, DatabaseError>(prepare_query!($lease, $sql, $bindings))
             }.await?;
-            let query = (|| Ok::<_, DatabaseError>(bind!(statement.query(), $bindings, $unsigned)))()?;
+            let query = (|| Ok::<_, DatabaseError>(bind_statement!(statement, $bindings, $binding)))()?;
             let query = query.persistent($persistent);
             $lease.start()?;
             let result = {
@@ -349,10 +401,8 @@ macro_rules! sqlite_persistent {
 }
 
 macro_rules! query {
-    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr) => {{
-        let prepared = $bindings
-            .into()
-            .prepare($sql, matches!($self, Self::Mysql(_)))?;
+    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr, $pg_map:expr) => {{
+        let prepared = $self.prepare($sql, $bindings.into())?;
         let $sql = prepared.sql.as_ref();
         let $bindings = prepared.values();
         match $self {
@@ -363,7 +413,7 @@ macro_rules! query {
                     lease,
                     $sql,
                     $bindings,
-                    sqlite_unsigned,
+                    sqlite,
                     $method,
                     $operation,
                     sqlite_persistent!($method)
@@ -371,16 +421,14 @@ macro_rules! query {
                 $map(result, $sqlite_map)
             }
             Self::Mysql(lease) => {
-                let result = execute_query!(
-                    lease,
-                    $sql,
-                    $bindings,
-                    Ok::<u64, DatabaseError>,
-                    $method,
-                    $operation,
-                    true
-                );
+                let result =
+                    execute_query!(lease, $sql, $bindings, mysql, $method, $operation, true);
                 $map(result, $mysql_map)
+            }
+            Self::Postgres(lease) => {
+                let result =
+                    execute_query!(lease, $sql, $bindings, postgres, $method, $operation, true);
+                $map(result, $pg_map)
             }
         }
     }};
@@ -392,6 +440,19 @@ pub(super) struct StatementResult {
 }
 
 impl PhysicalConnection {
+    pub(super) fn prepare<'a>(
+        &self,
+        sql: &'a str,
+        bindings: Bindings<'a>,
+    ) -> DatabaseResult<PreparedBindings<'a>> {
+        let prepared = bindings.prepare(sql, matches!(self, Self::Mysql(_)))?;
+        Ok(if matches!(self, Self::Postgres(_)) {
+            prepared.postgres()
+        } else {
+            prepared
+        })
+    }
+
     pub(super) async fn control(
         &mut self,
         operation: &'static str,
@@ -400,6 +461,7 @@ impl PhysicalConnection {
         match self {
             Self::Sqlite(lease) => lease.control(operation, command).await,
             Self::Mysql(lease) => lease.control(operation, command).await,
+            Self::Postgres(lease) => lease.control(operation, command).await,
         }
     }
 
@@ -407,6 +469,7 @@ impl PhysicalConnection {
         match self {
             Self::Sqlite(lease) => lease.retire = retire,
             Self::Mysql(lease) => lease.retire = retire,
+            Self::Postgres(lease) => lease.retire = retire,
         }
     }
 
@@ -420,6 +483,10 @@ impl PhysicalConnection {
                 <MySql as Database>::TransactionManager::get_transaction_depth(&lease.connection)
                     > 0
             }
+            Self::Postgres(lease) => {
+                <Postgres as Database>::TransactionManager::get_transaction_depth(&lease.connection)
+                    > 0
+            }
         }
     }
 
@@ -427,6 +494,7 @@ impl PhysicalConnection {
         match self {
             Self::Sqlite(lease) => lease.dirty,
             Self::Mysql(lease) => lease.dirty,
+            Self::Postgres(lease) => lease.dirty,
         }
     }
 
@@ -437,20 +505,28 @@ impl PhysicalConnection {
         let sql = prepared.sql.as_ref();
         let bindings = prepared.values();
         match self {
-            Self::Sqlite(lease) => Either::Left(cursor_rows!(
+            Self::Sqlite(lease) => Either::Left(Either::Left(cursor_rows!(
                 lease,
                 sql,
                 bindings,
-                sqlite_unsigned,
+                sqlite,
                 value::sqlite,
                 false
-            )),
-            Self::Mysql(lease) => Either::Right(cursor_rows!(
+            ))),
+            Self::Mysql(lease) => Either::Left(Either::Right(cursor_rows!(
                 lease,
                 sql,
                 bindings,
-                Ok::<u64, DatabaseError>,
+                mysql,
                 value::mysql,
+                true
+            ))),
+            Self::Postgres(lease) => Either::Right(cursor_rows!(
+                lease,
+                sql,
+                bindings,
+                postgres,
+                value::postgres,
                 true
             )),
         }
@@ -469,7 +545,8 @@ impl PhysicalConnection {
             "select",
             |rows: Vec<_>, decode| rows.into_iter().map(decode).collect(),
             value::sqlite,
-            value::mysql
+            value::mysql,
+            value::postgres
         )
     }
 
@@ -486,7 +563,8 @@ impl PhysicalConnection {
             "select",
             |row: Option<_>, decode| row.map(decode).transpose(),
             value::sqlite,
-            value::mysql
+            value::mysql,
+            value::postgres
         )
     }
 
@@ -553,6 +631,10 @@ impl PhysicalConnection {
                 affected: result.rows_affected(),
                 insert_id: i64::try_from(result.last_insert_id())
                     .map_or_else(|_| Value::Unsigned(result.last_insert_id()), Value::Integer,),
+            },
+            |result: sqlx::postgres::PgQueryResult| StatementResult {
+                affected: result.rows_affected(),
+                insert_id: Value::Null,
             }
         )
     }
@@ -574,6 +656,7 @@ impl PhysicalConnection {
         match self {
             Self::Sqlite(lease) => execute(lease, sql).await,
             Self::Mysql(lease) => execute(lease, sql).await,
+            Self::Postgres(lease) => execute(lease, sql).await,
         }
     }
 }
@@ -1017,6 +1100,19 @@ impl Connection {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
+        if self.grammar.is_postgres() {
+            return observed_query!(
+                self,
+                sql,
+                bindings,
+                false,
+                |physical, values| physical.select_one(sql, values),
+                Value::Null,
+                || self.setRecordModificationState(true),
+                |_| ()
+            )
+            .and_then(|row| row.map_or(Ok(Value::Null), Row::scalar));
+        }
         observed_query!(
             self,
             sql,
@@ -1176,7 +1272,7 @@ impl Connection {
                 let QueryLease { mut physical, role, wait, generation } = self.acquire_query(!write).await?;
                 elapsed += wait;
                 let result = {
-                    let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+                    let prepared = physical.prepare(sql, bindings)?;
                     let mut rows = std::pin::pin!(physical.cursor(&prepared));
                     loop {
                         let start = Instant::now();

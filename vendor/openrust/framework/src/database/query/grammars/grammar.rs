@@ -2,12 +2,16 @@ mod json_predicates;
 
 use std::{fmt::Write as _, sync::Arc};
 
-use crate::database::{DatabaseError, DatabaseResult, query::FullTextOptions};
+use crate::database::{
+    DatabaseError, DatabaseResult,
+    query::{FullTextOptions, PostgresFullTextMode},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Dialect {
     MySql,
     Sqlite,
+    Postgres,
 }
 
 #[derive(Clone, Copy)]
@@ -44,13 +48,25 @@ impl Grammar {
         }
     }
 
+    pub(crate) fn postgres(prefix: &str) -> Self {
+        Self {
+            dialect: Dialect::Postgres,
+            upsert_alias: false,
+            prefix: prefix.into(),
+        }
+    }
+
+    pub(crate) fn is_postgres(&self) -> bool {
+        self.dialect == Dialect::Postgres
+    }
+
     pub(crate) fn quote(&self, name: &str) -> DatabaseResult<String> {
         if name.is_empty() || name.contains('\0') {
             return Err(DatabaseError::InvalidQuery("identifier"));
         }
         let delimiter = match self.dialect {
             Dialect::MySql => '`',
-            Dialect::Sqlite => '"',
+            Dialect::Sqlite | Dialect::Postgres => '"',
         };
         Ok(format!(
             "{delimiter}{}{delimiter}",
@@ -139,6 +155,7 @@ impl Grammar {
         match self.dialect {
             Dialect::MySql => "<=>",
             Dialect::Sqlite => "is",
+            Dialect::Postgres => "is not distinct from",
         }
     }
 
@@ -158,6 +175,10 @@ impl Grammar {
         };
         Ok(match self.dialect {
             Dialect::MySql => format!("{function}({column}) {operator} ?"),
+            Dialect::Postgres if matches!(part, DatePart::Date | DatePart::Time) => {
+                format!("cast({column} as {function}) {operator} ?")
+            }
+            Dialect::Postgres => format!("extract({function} from {column}) {operator} ?"),
             Dialect::Sqlite => format!("strftime('{format}', {column}) {operator} cast(? as text)"),
         })
     }
@@ -167,7 +188,11 @@ impl Grammar {
         columns: &[String],
         options: FullTextOptions,
     ) -> DatabaseResult<String> {
-        if self.dialect != Dialect::MySql {
+        if self.is_postgres() {
+            let (vectors, tsquery) = self.postgres_full_text(columns, options, false)?;
+            return Ok(format!("({vectors}) @@ {tsquery}"));
+        }
+        if !self.is_mysql() {
             return Err(DatabaseError::InvalidQuery(
                 "full-text search is unavailable for this database driver",
             ));
@@ -189,6 +214,11 @@ impl Grammar {
             FullTextOptions::NaturalLanguage => "in natural language mode",
             FullTextOptions::Boolean => "in boolean mode",
             FullTextOptions::QueryExpansion => "in natural language mode with query expansion",
+            FullTextOptions::Postgres { .. } => {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "PostgreSQL full-text options on MySQL",
+                ));
+            }
         };
         Ok(format!(
             "match ({}) against (? {options})",
@@ -196,9 +226,116 @@ impl Grammar {
         ))
     }
 
+    pub(crate) fn postgres_text_vector(
+        &self,
+        column: &str,
+        language: &str,
+    ) -> DatabaseResult<String> {
+        let quoted_language = language.replace('\'', "''");
+        Ok(format!(
+            "to_tsvector('{quoted_language}', {})",
+            self.column(column)?
+        ))
+    }
+
+    fn postgres_full_text(
+        &self,
+        columns: &[String],
+        options: FullTextOptions,
+        rank: bool,
+    ) -> DatabaseResult<(String, String)> {
+        if columns.is_empty() || columns.iter().any(|c| c.rsplit('.').next() == Some("*")) {
+            return Err(DatabaseError::InvalidQuery(
+                "full-text search requires indexed columns",
+            ));
+        }
+        let (language, mode, vector) = match options {
+            FullTextOptions::NaturalLanguage => ("english", PostgresFullTextMode::Plain, false),
+            FullTextOptions::Postgres {
+                language,
+                mode,
+                vector,
+            } => (language, mode, vector),
+            _ => {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "MySQL full-text options on PostgreSQL",
+                ));
+            }
+        };
+        const LANGUAGES: &[&str] = &[
+            "simple",
+            "arabic",
+            "armenian",
+            "basque",
+            "catalan",
+            "danish",
+            "dutch",
+            "english",
+            "finnish",
+            "french",
+            "german",
+            "greek",
+            "hindi",
+            "hungarian",
+            "indonesian",
+            "irish",
+            "italian",
+            "lithuanian",
+            "nepali",
+            "norwegian",
+            "portuguese",
+            "romanian",
+            "russian",
+            "serbian",
+            "spanish",
+            "swedish",
+            "tamil",
+            "turkish",
+            "yiddish",
+        ];
+        let language = if LANGUAGES.contains(&language) {
+            language
+        } else {
+            "english"
+        };
+        let vectors = columns
+            .iter()
+            .map(|column| {
+                let expr = if vector {
+                    self.column(column)?
+                } else {
+                    self.postgres_text_vector(column, language)?
+                };
+                Ok(if rank {
+                    format!("coalesce({expr}, ''::tsvector)")
+                } else {
+                    expr
+                })
+            })
+            .collect::<DatabaseResult<Vec<_>>>()?
+            .join(" || ");
+        let mode = match mode {
+            PostgresFullTextMode::Plain => "plainto_tsquery",
+            PostgresFullTextMode::Phrase => "phraseto_tsquery",
+            PostgresFullTextMode::WebSearch => "websearch_to_tsquery",
+            PostgresFullTextMode::Raw => "to_tsquery",
+        };
+        Ok((vectors, format!("{mode}('{language}', ?)")))
+    }
+
+    pub(in crate::database::query) fn postgres_full_text_rank(
+        &self,
+        columns: &[String],
+        options: FullTextOptions,
+    ) -> DatabaseResult<String> {
+        let (vectors, query) = self.postgres_full_text(columns, options, true)?;
+        Ok(format!("ts_rank({vectors}, {query}) desc"))
+    }
+
     pub(crate) fn like(&self, pattern: &str, case_sensitive: bool) -> (&'static str, String) {
         match (self.dialect, case_sensitive) {
-            (_, false) => ("like", pattern.to_owned()),
+            (Dialect::Postgres, false) => ("ilike", pattern.to_owned()),
+            (_, false) | (Dialect::Postgres, true) => ("like", pattern.to_owned()),
             (Dialect::MySql, true) => ("like binary", pattern.to_owned()),
             (Dialect::Sqlite, true) => {
                 let mut glob = String::with_capacity(pattern.len());
@@ -230,7 +367,8 @@ impl Grammar {
 
     pub(crate) fn lock(&self, exclusive: bool) -> &'static str {
         match (self.dialect, exclusive) {
-            (Dialect::MySql, true) => " for update",
+            (Dialect::MySql | Dialect::Postgres, true) => " for update",
+            (Dialect::Postgres, false) => " for share",
             (Dialect::MySql, false) => " lock in share mode",
             (Dialect::Sqlite, _) => "",
         }
@@ -238,7 +376,7 @@ impl Grammar {
 
     pub(crate) fn wrap_union(&self, sql: &str) -> String {
         match self.dialect {
-            Dialect::MySql => format!("({sql})"),
+            Dialect::MySql | Dialect::Postgres => format!("({sql})"),
             Dialect::Sqlite => format!("select * from ({sql})"),
         }
     }

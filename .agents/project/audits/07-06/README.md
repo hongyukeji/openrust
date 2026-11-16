@@ -6,7 +6,7 @@
 
 Eloquent 使用 `Searchable` 声明列策略，Rust 枚举表达 Scout 的列属性。包含、前缀和联合全文条件分组，保留模型全局作用域、软删除和后续过滤。数字自增主键使用等值，空关键词保留模型的常规过滤。原生模型查询负责模型恢复及分页。无全文列时先用显式排序，再使用主键降序。
 
-本批的 MySQL 全文和 SQLite LIKE 已验收。独立 Scout 包、外部索引引擎及队列同步尚未接入。MySQL 的写失败恢复使用既有数据库事务重试。PostgreSQL 全文、MariaDB 原生向量、pgvector、嵌入生成、AI 重排和混合搜索需要对应数据库与 AI 契约，保留在完整目标中。
+首批的 MySQL 全文和 SQLite LIKE 已验收。独立 Scout 包、外部索引引擎及队列同步尚未接入。MySQL 的写失败恢复使用既有数据库事务重试。后续 PostgreSQL 全文验收见下文。MariaDB 原生向量、pgvector、嵌入生成、AI 重排和混合搜索各自依赖向量或 AI 契约。
 
 ## 验收
 
@@ -20,3 +20,9 @@ Eloquent 使用 `Searchable` 声明列策略，Rust 枚举表达 Scout 的列属
 ## MySQL 核心主线复验
 
 Rust 1.94.0 锁定离线 `search` 专项 4 项通过，连接独立 MySQL 8.4.13 验收库。实测索引建立、自然语言与布尔查询、分页、事务重试后的索引更新和删除。SQLite 覆盖已有的 LIKE 查询与全文方言拒绝。
+
+## PostgreSQL 全文索引、排序和分页
+
+- 固定 Laravel 的 Schema 用带语言配置的 GIN 表达式索引，Query Builder 使用 `@@` 过滤。Rust 接入 SQLx PostgreSQL 连接、SQL 参数、Schema 索引目录和 Eloquent 检索。查询支持默认英语词干、短语、Web 搜索、原生 tsquery 和已有 tsvector。固定 Scout 在 PostgreSQL 默认按 `ts_rank` 降序并以主键降序处理同分，开发者的显式排序优先。 [固定 Query Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/PostgresGrammar.php) [固定 Schema Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) [固定 Scout DatabaseEngine](https://github.com/laravel/scout/blob/055441073f6c4791f4d2492f526b215d4a3afb24/src/Engines/DatabaseEngine.php)
+- PostgreSQL 18.6 实际建立复合 GIN，`EXPLAIN` 命中 Bitmap Index Scan。另验收单列 `simple`、索引目录和删除、存储 tsvector、显式排序及绑定。真实 `./artisan` 建表并读第 2 页，真实 HTTP 依次读出主键 1、3、2 且总数为 3。
+- Rust 1.94.0，`search` 5 项和 `database_sql` 31 项通过。MySQL 8.4.13 使用独立验收库，同批复验 SQLite 和 PostgreSQL。严格 Clippy、三语构建及 12 项浏览器检查通过。全仓格式检查报告基线 Sanctum 排版差异。07-06 后续验收 PostgreSQL 事务提交、回滚和重试。

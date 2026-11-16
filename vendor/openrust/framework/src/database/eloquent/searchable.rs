@@ -1,5 +1,5 @@
 use crate::{
-    database::{Connection, DatabaseResult, Value},
+    database::{Connection, DatabaseResult, Value, query::FullTextOptions},
     pagination::{LengthAwarePaginator, PageOptions, Paginator},
 };
 
@@ -26,6 +26,10 @@ impl SearchColumn {
 pub trait Searchable: Model {
     fn searchableColumns() -> &'static [SearchColumn];
 
+    fn fullTextOptions() -> FullTextOptions {
+        FullTextOptions::default()
+    }
+
     fn search(term: &str) -> DatabaseResult<SearchBuilder<Self>> {
         Ok(SearchBuilder::new(Self::query()?, term))
     }
@@ -39,6 +43,7 @@ pub trait Searchable: Model {
 pub struct SearchBuilder<M: Searchable> {
     query: Builder<'static, M>,
     key_order: Option<String>,
+    relevance: Option<(Vec<String>, String, String)>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's model search builder API")]
@@ -54,7 +59,9 @@ impl<M: Searchable> SearchBuilder<M> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if !term.trim().is_empty() {
+        let postgres = query.connection.grammar.is_postgres();
+        let has_term = !term.trim().is_empty();
+        if has_term {
             let exact_key = if M::getIncrementing()
                 && columns.iter().any(|column| column.name() == key)
                 && term.bytes().all(|byte| byte.is_ascii_digit())
@@ -89,14 +96,19 @@ impl<M: Searchable> SearchBuilder<M> {
                 }
                 if !full_text.is_empty() {
                     let columns = full_text.iter().map(String::as_str).collect::<Vec<_>>();
-                    group = group.orWhereFullText(&columns, term);
+                    group = group.orWhereFullTextWith(&columns, term, M::fullTextOptions());
                 }
                 group
             });
         }
+        let key_order =
+            (full_text.is_empty() || (postgres && !has_term)).then(|| qualified_key.clone());
+        let relevance = (postgres && has_term && !full_text.is_empty())
+            .then(|| (full_text, term.to_owned(), qualified_key));
         Self {
             query,
-            key_order: full_text.is_empty().then_some(qualified_key),
+            key_order,
+            relevance,
         }
     }
 
@@ -107,6 +119,7 @@ impl<M: Searchable> SearchBuilder<M> {
 
     pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
         self.query = self.query.orderBy(column, direction);
+        self.relevance = None;
         self
     }
 
@@ -121,6 +134,12 @@ impl<M: Searchable> SearchBuilder<M> {
     }
 
     pub fn intoQuery(self) -> Builder<'static, M> {
+        if let Some((columns, term, key)) = self.relevance {
+            return self
+                .query
+                .order_by_full_text(columns, term, M::fullTextOptions())
+                .orderBy(&key, "desc");
+        }
         match self.key_order {
             Some(key) => self.query.orderBy(&key, "desc"),
             None => self.query,

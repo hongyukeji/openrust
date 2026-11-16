@@ -57,6 +57,7 @@ impl From<Expression> for Column {
 enum Order {
     Column(String, String),
     Raw(Expression),
+    FullText(Vec<String>, String, super::FullTextOptions),
 }
 
 /// Builds and executes a query using the grammar of the selected connection.
@@ -219,6 +220,17 @@ impl<'connection> Builder<'connection> {
 
     pub fn orderByDesc(self, column: &str) -> Self {
         self.orderBy(column, "desc")
+    }
+
+    pub(crate) fn order_by_full_text(
+        mut self,
+        columns: Vec<String>,
+        term: String,
+        options: super::FullTextOptions,
+    ) -> Self {
+        self.active_orders()
+            .push(Order::FullText(columns, term, options));
+        self
     }
 
     pub fn orderByRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
@@ -698,6 +710,10 @@ impl<'connection> Builder<'connection> {
                 Order::Raw(expression) => {
                     sql.push_str(&expression.sql);
                     bindings.extend_from_slice(&expression.bindings);
+                }
+                Order::FullText(columns, term, options) => {
+                    sql.push_str(&self.grammar.postgres_full_text_rank(columns, *options)?);
+                    bindings.push(Value::from(term.as_str()));
                 }
             }
         }

@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 use sqlx::{
     Connection as _,
     mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode},
+    postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
 };
 
@@ -96,6 +97,7 @@ fn resolve(
     let grammar = match &writer {
         Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
         Pool::Sqlite(_) => Grammar::sqlite(prefix),
+        Pool::Postgres(_) => Grammar::postgres(prefix),
     };
     match role {
         Some(QueryRole::Read) => {
@@ -189,6 +191,7 @@ fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
     match config.string("driver", "")? {
         "sqlite" => sqlite(config, root, max, timeout),
         "mysql" => mysql(config, root, max, timeout),
+        "pgsql" => postgres(config, root, max, timeout),
         _ => Err(DatabaseError::UnsupportedDriver),
     }
 }
@@ -220,6 +223,38 @@ impl Options {
 
 fn invalid(key: &'static str) -> DatabaseError {
     DatabaseError::InvalidConfiguration(key)
+}
+
+fn postgres(
+    config: &Options,
+    root: &Path,
+    max: u32,
+    timeout: Duration,
+) -> DatabaseResult<(String, Pool)> {
+    let database = config.string("database", "openrust")?;
+    let host = config.string("host", "127.0.0.1")?;
+    let port = u16::try_from(config.integer("port", 5432)?).map_err(|_| invalid("port"))?;
+    let sslmode = config
+        .string("sslmode", "prefer")?
+        .parse::<PgSslMode>()
+        .map_err(|_| invalid("sslmode"))?;
+    let mut options = PgConnectOptions::new()
+        .host(host)
+        .port(port)
+        .username(config.string("username", "root")?)
+        .password(config.string("password", "")?)
+        .database(database)
+        .ssl_mode(sslmode)
+        .options([("search_path", config.string("search_path", "public")?)]);
+    let certificate = config.string("sslrootcert", "")?;
+    if !certificate.is_empty() {
+        options = options.ssl_root_cert(root.join(certificate));
+    }
+    let pool = PgPoolOptions::new()
+        .max_connections(max)
+        .acquire_timeout(timeout)
+        .connect_lazy_with(options);
+    Ok((database.to_owned(), Pool::Postgres(pool)))
 }
 
 fn sqlite(

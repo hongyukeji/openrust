@@ -27,6 +27,7 @@ pub struct IndexDefinition {
     pub(super) raw_expression: Option<String>,
     pub(super) name: Option<String>,
     pub(super) algorithm: Option<String>,
+    pub(super) language: Option<String>,
     pub(super) inplace: bool,
     pub(super) lock: Option<String>,
 }
@@ -39,6 +40,7 @@ impl IndexDefinition {
             raw_expression: None,
             name: name.map(str::to_owned),
             algorithm: None,
+            language: None,
             inplace: false,
             lock: None,
         }
@@ -47,6 +49,12 @@ impl IndexDefinition {
     /// Specifies the MySQL index method, independently of the DDL algorithm.
     pub fn algorithm(&mut self, method: &str) -> &mut Self {
         self.algorithm = Some(method.to_owned());
+        self
+    }
+
+    /// Specifies the PostgreSQL text search configuration for a full-text index.
+    pub fn language(&mut self, language: &str) -> &mut Self {
+        self.language = Some(language.to_owned());
         self
     }
 
