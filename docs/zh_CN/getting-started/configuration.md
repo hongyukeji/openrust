@@ -6,6 +6,8 @@
 
 配置在 boot 中、Provider register 前可用。与 Laravel LoadConfiguration 一样，boot 先绑定新仓储，再执行配置加载器并填充该仓储；`create()` 不提前放入空配置服务。`Application::config()` 每次解析当前 `config` 服务，返回 `Result<Arc<dyn Repository>, BindingResolutionError>`；引导前访问或替换为不兼容类型后访问会返回错误。
 
+在应用作用域内，导入 `openrust::support::facades::Config`，通过 `Config::get("app.name")?` 读取配置。门面每次调用都解析当前应用仓储。键缺失时返回 `None`，显式空值返回 `Some(Value::Null)`。在应用作用域外或仓储注册前调用会返回绑定错误。
+
 `config` 是规范名称，`dyn openrust::contracts::config::Repository` 是其类型别名。替换应用仓储时，使用 `openrust::config::Repository::new(values)` 构造，再调用 `instanceNamed::<dyn Repository>("config", repository)?`。已经持有 `Arc` 的消费者保留原快照；需要跟随替换时重新解析，或使用重绑定/refresh 监听器。按原始类型键重新绑定会替换该别名，而不是规范配置服务，遵循容器的原键规则。
 
 Provider 替换的仓储用于 HTTP 监听绑定、路由/静态磁盘装配及视图路径设置。健康页 HTML 在每次请求时读取当前仓储，Artisan 使用相同应用访问器。运行时替换配置不会自动重建已经装配的路由或视图查找器。容器错误沿相应的启动、HTTP 或 Artisan 错误路径传播。参见[重绑定](../architecture-concepts/container.md#重绑定与刷新消费者)。

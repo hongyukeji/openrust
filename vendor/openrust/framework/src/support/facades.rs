@@ -1,5 +1,6 @@
 //! Static entry points for application services, routes and commands.
 
+mod config;
 mod event;
 mod facade;
 pub use event::Event;
@@ -27,6 +28,7 @@ pub use crate::queue::QueueFacade as Queue;
 pub use crate::redis::Redis;
 pub use crate::translation::Lang;
 pub use crate::validation::facade::Validator;
+pub use config::Config;
 pub use facade::Facade;
 pub(crate) use facade::{
     ContextSnapshot, application_scope, context_snapshot, current_container, database_routing,
