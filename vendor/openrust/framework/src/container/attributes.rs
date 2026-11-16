@@ -5,6 +5,8 @@ use std::sync::Arc;
 use crate::contracts::container::{BindingResolutionError, ContextualAttribute};
 
 use super::{CallFuture, Container, ParameterValue, ServiceKey};
+mod auth;
+pub use auth::{Auth, Authenticated, CurrentUser, GuardHandle};
 mod builtin;
 pub use builtin::{Config, CurrentResolving, Give, Tag};
 mod context;

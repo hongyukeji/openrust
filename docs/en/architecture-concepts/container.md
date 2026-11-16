@@ -1055,6 +1055,26 @@ pub fn private_disk_parameter() -> ConstructorParam {
 }
 ```
 
+### Authentication Attributes {#authentication-attributes}
+
+Use `Auth` to inject a `GuardHandle` and `Authenticated` or `CurrentUser` to inject an `Arc<dyn Authenticatable>`. All three accept a guard name through `new(name)`. Use `default()` for the guard selected for the request, or the application default if none was selected. Declare user parameters nullable with a null default when guests may reach a controller.
+
+```rust
+use openrust::{
+    container::{ClassAttribute, ConstructorParam, ParameterValue, attributes::CurrentUser},
+    contracts::auth::Authenticatable,
+};
+
+pub fn current_user_parameter() -> ConstructorParam {
+    ConstructorParam::class::<dyn Authenticatable>("user")
+        .nullable()
+        .withDefault(|| Ok(ParameterValue::null()))
+        .withAttribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api"))))
+}
+```
+
+Controller construction can resolve these attributes directly. For asynchronous container calls in a closure handler, use `request.withContainer(container.makeAsync::<T>()).await` to make the same request available to the resolver. Bind the injected guard with `guard.bind(request)?` to run its operations against the live session and cached identity. The handle is valid during the originating HTTP dispatch.
+
 ### Request and Route Parameters
 
 Use `RequestAttribute::new("principal")` to inject a value that server-side code stored with `request.attributes().insert("principal", ParameterValue::new(value))`. Names match exactly. Headers, query parameters, and form fields are separate sources.

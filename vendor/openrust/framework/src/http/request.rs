@@ -50,6 +50,12 @@ pub struct Request {
 }
 
 impl Request {
+    /// Resolves constructor or method dependencies that need this HTTP request.
+    #[allow(non_snake_case, reason = "Matches the container assembly API")]
+    pub async fn withContainer<T>(&mut self, resolve: impl std::future::Future<Output = T>) -> T {
+        context::resolving(self, resolve).await
+    }
+
     pub fn from_parts(parts: RequestParts, body: Body) -> Self {
         Self {
             parts,

@@ -7,24 +7,109 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    auth::{AuthIdentifier, AuthManager},
     container::{
         AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
         Container, ParameterValue,
-        attributes::{RequestAttribute, RouteParameter},
+        attributes::{
+            Auth, Authenticated, CurrentUser, GuardHandle, RequestAttribute, RouteParameter,
+        },
     },
     contracts::{
+        auth::Authenticatable,
         container::{Container as _, ContextualAttribute},
         foundation::Application as _,
         http::{Kernel as _, Middleware},
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{ApiResponse, HttpError, HttpFuture, Next, Request, Response},
-    routing::{Router, RoutingError, middleware::SubstituteBindings},
+    routing::{ControllerDispatcher, Router, RoutingError, middleware::SubstituteBindings},
 };
 use serde_json::{Value, json};
 
 struct Item(String);
 struct Probe(Arc<Item>, Arc<String>, Arc<String>, bool);
+struct Identity(String);
+
+impl Authenticatable for Identity {
+    fn get_auth_identifier_name(&self) -> &str {
+        "id"
+    }
+    fn get_auth_identifier(&self) -> AuthIdentifier {
+        self.0.as_str().into()
+    }
+    fn get_auth_password_name(&self) -> &str {
+        "password"
+    }
+    fn get_auth_password(&self) -> Option<&str> {
+        None
+    }
+    fn get_remember_token(&self) -> Option<&str> {
+        None
+    }
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
+        "remember_token"
+    }
+}
+
+struct AuthProbe(
+    Arc<GuardHandle>,
+    Option<Arc<dyn Authenticatable>>,
+    Option<Arc<dyn Authenticatable>>,
+);
+
+fn auth_descriptor() -> ClassDescriptor {
+    ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::class::<GuardHandle>("guard")
+                .withAttribute(ClassAttribute::contextual(|| Ok(Auth::default()))),
+            ConstructorParam::class::<dyn Authenticatable>("user")
+                .nullable()
+                .withDefault(|| Ok(ParameterValue::null()))
+                .withAttribute(ClassAttribute::contextual(|| Ok(Authenticated::default()))),
+            ConstructorParam::class::<dyn Authenticatable>("api_user")
+                .nullable()
+                .withDefault(|| Ok(ParameterValue::null()))
+                .withAttribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api")))),
+        ],
+        |args| {
+            let user = |index| {
+                if args.value(index)?.is_null() {
+                    Ok(None)
+                } else {
+                    args.service::<dyn Authenticatable>(index).map(Some)
+                }
+            };
+            Ok(Arc::new(AuthProbe(args.service(0)?, user(1)?, user(2)?)))
+        },
+    )
+    .unwrap()
+}
+
+impl AuthProbe {
+    fn show<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let mut other_request = Request::from_parts(
+                http::Request::new(()).into_parts().0,
+                axum::body::Body::empty(),
+            );
+            assert!(self.0.bind(&mut other_request).is_err());
+            let id = |user: &Option<Arc<dyn Authenticatable>>| {
+                user.as_ref()
+                    .map(|user| user.get_auth_identifier().to_string())
+            };
+            let guard_id = self.0.bind(request)?.id().await?.map(|id| id.to_string());
+            assert_eq!(guard_id, id(&self.1));
+            if self.0.name() == "api"
+                && let (Some(default), Some(api)) = (&self.1, &self.2)
+            {
+                assert!(Arc::ptr_eq(default, api));
+            }
+            ApiResponse::success(json!([self.0.name(), id(&self.1), id(&self.2)])).into_response()
+        })
+    }
+}
 
 fn descriptor() -> ClassDescriptor {
     ClassDescriptor::concrete(
@@ -70,6 +155,13 @@ impl Middleware for Attach {
             request
                 .attributes()
                 .insert("missing", ParameterValue::null());
+            if request.is("selected/*") {
+                let container = Container::getInstance();
+                container
+                    .make::<AuthManager>()
+                    .unwrap()
+                    .shouldUse(request, "api")?;
+            }
             Ok(next.run(request).await)
         })
     }
@@ -105,7 +197,58 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
     router
         .get("/items/{id}/{slug}", probe)?
         .middleware(Arc::new(SubstituteBindings));
+    router.get("/auth/{id}", ControllerDispatcher::new(AuthProbe::show))?;
+    router.get("/selected/{id}", ControllerDispatcher::new(AuthProbe::show))?;
+    router.get("/resolve/{id}", resolve_auth)?;
+    router.get("/cancel/{id}", resolve_auth)?;
+    router.get("/invalid-guard/{id}", invalid_guard)?;
     Ok(router)
+}
+
+fn invalid_guard(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let container = Container::getInstance();
+        let attribute = ClassAttribute::contextual(|| Ok(Auth::new("unknown")));
+        request
+            .withContainer(container.resolveFromAttributeAsync(
+                &attribute,
+                AttributeParameter {
+                    name: "guard",
+                    variadic: false,
+                },
+            ))
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        Ok(Response::empty(http::StatusCode::OK))
+    })
+}
+
+fn resolve_auth(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let container = Container::getInstance();
+        if request.is("cancel/*") {
+            let started = Arc::new(tokio::sync::Notify::new());
+            request
+                .attributes()
+                .insert("block-auth", ParameterValue::service(started.clone()));
+            tokio::select! {
+                result = request.withContainer(container.makeAsync::<AuthProbe>()) => {
+                    panic!("expected the request driver to block, resolved={}", result.is_ok());
+                }
+                () = started.notified() => {}
+            }
+            request.attributes().remove("block-auth");
+        }
+        let probe = request
+            .withContainer(container.makeAsync::<AuthProbe>())
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        probe.show(request).await
+    })
 }
 
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -152,6 +295,19 @@ async fn transport(
 
 async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
+        .withConfig(|_, _| {
+            Ok([(
+                "auth".into(),
+                json!({
+                    "defaults": {"guard": "web"},
+                    "guards": {
+                        "web": {"driver": "header-web"},
+                        "api": {"driver": "header-api"}
+                    }
+                }),
+            )]
+            .into())
+        })
         .withMiddleware(move |middleware| {
             middleware.append(Arc::new(Attach(label)));
         })
@@ -162,8 +318,36 @@ async fn server(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>
         .create()
         .unwrap();
     app.container().registerClass(descriptor()).unwrap();
+    app.container().registerClass(auth_descriptor()).unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
+    let auth = kernel
+        .get_application()
+        .container()
+        .make::<AuthManager>()
+        .unwrap();
+    for (driver, name) in [("header-web", "web"), ("header-api", "api")] {
+        auth.viaRequest(driver, move |request| {
+            Box::pin(async move {
+                if let Some(started) = request.attributes().get("block-auth") {
+                    started
+                        .downcast::<Arc<tokio::sync::Notify>>()
+                        .unwrap()
+                        .notify_one();
+                    std::future::pending::<()>().await;
+                }
+                tokio::task::yield_now().await;
+                let id = request.route("id").unwrap();
+                if id == "guest" {
+                    return Ok(None);
+                }
+                let identity = format!("{label}-{name}-{id}");
+                Ok(Some(
+                    Box::new(Identity(identity)) as Box<dyn Authenticatable>
+                ))
+            })
+        });
+    }
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let service = transport.with_state(Arc::new(kernel)).into_make_service();
@@ -225,4 +409,39 @@ fn missing_http_scope_supplies_null() {
         RequestAttribute::new("trusted").resolve(&container, parameter).unwrap(),
         AttributeValue::One(value) if value.is_null()
     ));
+}
+
+#[tokio::test]
+async fn authentication_attributes_use_the_live_request_and_selected_guard() {
+    let (first, a) = server("first").await;
+    let (second, b) = server("second").await;
+    let (one, two, three, guest, cancelled) = tokio::join!(
+        send(first, "/auth/one", 200),
+        send(first, "/selected/two", 200),
+        send(second, "/resolve/three", 200),
+        send(first, "/auth/guest", 200),
+        send(first, "/cancel/four", 200),
+    );
+    assert_eq!(
+        one["data"],
+        json!(["web", "first-web-one", "first-api-one"])
+    );
+    assert_eq!(
+        two["data"],
+        json!(["api", "first-api-two", "first-api-two"])
+    );
+    assert_eq!(
+        three["data"],
+        json!(["web", "second-web-three", "second-api-three"])
+    );
+    assert_eq!(guest["data"], json!(["web", null, null]));
+    assert_eq!(
+        cancelled["data"],
+        json!(["web", "first-web-four", "first-api-four"])
+    );
+    send(first, "/invalid-guard/one", 500).await;
+    for task in [a, b] {
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+    }
 }

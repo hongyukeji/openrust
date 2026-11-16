@@ -34,13 +34,12 @@ impl<C: Send + Sync + 'static> Handler for ControllerDispatcher<C> {
                     "Controller dispatch requires an application scope.",
                 )),
             })?;
-            let controller =
-                container
-                    .makeAsync::<C>()
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+            let controller = request
+                .withContainer(container.makeAsync::<C>())
+                .await
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
             (self.action)(&controller, request).await
         })
     }

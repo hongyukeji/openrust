@@ -280,6 +280,10 @@ impl AuthManager {
         AuthContext::get(request)?.selected.as_deref()
     }
 
+    pub(crate) fn guard_name(&self, request: &Request, name: Option<&str>) -> AuthResult<String> {
+        self.guard_config(request, name).map(|(name, _)| name)
+    }
+
     fn guard_config(&self, request: &Request, name: Option<&str>) -> AuthResult<(String, Value)> {
         let name = name
             .map(str::to_owned)

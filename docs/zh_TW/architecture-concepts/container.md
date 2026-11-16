@@ -1055,6 +1055,26 @@ pub fn private_disk_parameter() -> ConstructorParam {
 }
 ```
 
+### 驗證屬性 {#authentication-attributes}
+
+使用 `Auth` 注入 `GuardHandle`，使用 `Authenticated` 或 `CurrentUser` 注入 `Arc<dyn Authenticatable>`。三者均可透過 `new(name)` 指定 Guard。使用 `default()` 時優先採用目前請求選定的 Guard，其次採用應用程式預設值。控制器允許訪客存取時，請將使用者參數宣告為可空，並將預設值設為空。
+
+```rust
+use openrust::{
+    container::{ClassAttribute, ConstructorParam, ParameterValue, attributes::CurrentUser},
+    contracts::auth::Authenticatable,
+};
+
+pub fn current_user_parameter() -> ConstructorParam {
+    ConstructorParam::class::<dyn Authenticatable>("user")
+        .nullable()
+        .withDefault(|| Ok(ParameterValue::null()))
+        .withAttribute(ClassAttribute::contextual(|| Ok(CurrentUser::new("api"))))
+}
+```
+
+建構控制器時可以直接使用這些屬性。在閉包路由呼叫非同步容器時，使用 `request.withContainer(container.makeAsync::<T>()).await` 將同一個請求提供給解析器。透過 `guard.bind(request)?` 使用注入的 Guard，沿用目前的工作階段與快取的身分。Guard 控制代碼在其來源的 HTTP 派送期間有效。
+
 ### 請求屬性與路由參數
 
 使用 `RequestAttribute::new("principal")` 注入伺服器透過 `request.attributes().insert("principal", ParameterValue::new(value))` 寫入的值。名稱精確比對。請求標頭、查詢參數與表單欄位分別讀取。
