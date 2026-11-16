@@ -4,7 +4,7 @@ use futures_util::{StreamExt as _, TryStreamExt as _};
 
 use openrust::{
     config::Repository,
-    database::{Connection, DatabaseError, DatabaseManager, Value},
+    database::{Connection, DatabaseError, DatabaseManager, Value, query::Expression},
     support::facades::DB,
 };
 use serde_json::{Value as Json, json};
@@ -550,6 +550,72 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
             ids(&[1])
         );
         assert!(table().whereJsonContainsKey("j.document").toSql().is_err());
+        let overlap = table().r#where("j.id", ">", 0).whereNested(|group| {
+            group
+                .whereJsonOverlaps(tags, json!(["de", "fr"]))
+                .orWhereJsonDoesntOverlap(
+                    tags,
+                    Expression::new("json_array(?)").with_bindings(vec!["en".into()]),
+                )
+        });
+        assert!(overlap.toSql().unwrap().contains(
+            "json_overlaps(json_extract(`app_j`.`document`, ?), ?) or not json_overlaps(json_extract(`app_j`.`document`, ?), json_array(?))"
+        ));
+        let path = Value::from(r#"$."settings"."tags""#);
+        assert_eq!(
+            overlap.getBindings().unwrap(),
+            vec![
+                0.into(),
+                path.clone(),
+                Value::Json(json!(["de", "fr"])),
+                path,
+                "en".into()
+            ]
+        );
+        assert_eq!(
+            overlap.orderBy("j.id", "asc").pluck("id").await.unwrap(),
+            ids(&[1, 3])
+        );
+        assert_eq!(
+            table()
+                .whereJsonOverlaps("j.document", json!({"settings":{"tags":["en"]}}))
+                .pluck("id")
+                .await
+                .unwrap(),
+            ids(&[2])
+        );
+        assert_eq!(
+            table()
+                .whereJsonOverlaps(marker, json!(null))
+                .pluck("id")
+                .await
+                .unwrap(),
+            ids(&[1])
+        );
+        assert!(
+            table()
+                .whereJsonDoesntOverlap(marker, json!(null))
+                .pluck("id")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            table()
+                .r#where("j.id", "=", 3)
+                .orWhereJsonOverlaps(tags, json!("de"))
+                .orderBy("j.id", "asc")
+                .pluck("id")
+                .await
+                .unwrap(),
+            ids(&[1, 3])
+        );
+        assert!(
+            table()
+                .whereJsonOverlaps("j.document->invalid\0key", json!([]))
+                .toSql()
+                .is_err()
+        );
     } else {
         assert!(
             table()
@@ -557,6 +623,10 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
                 .toSql()
                 .is_err()
         );
+        assert!(matches!(
+            table().whereJsonOverlaps(tags, json!(["de"])).get().await,
+            Err(DatabaseError::UnsupportedOperation("JSON overlaps"))
+        ));
     }
 
     let mut transaction = db.beginTransaction().await.unwrap();
@@ -578,6 +648,26 @@ async fn verify_json_predicates(db: Connection, mysql: bool) {
             .unwrap(),
         1.into()
     );
+    if mysql {
+        assert_eq!(
+            transaction
+                .table("json_predicates")
+                .whereJsonOverlaps("document->settings->tags", json!(["de", "fr"]))
+                .update(BTreeMap::from([("seen".into(), 2.into())]))
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            transaction
+                .table("json_predicates")
+                .whereJsonOverlaps("document->settings->marker", json!(null))
+                .value("seen")
+                .await
+                .unwrap(),
+            2.into()
+        );
+    }
     transaction.rollBack(None).await.unwrap();
     assert_eq!(
         table()

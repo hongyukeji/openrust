@@ -140,6 +140,26 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 
 MySQL accepts scalar and array candidates. SQLite containment accepts scalar candidates. A key whose value is JSON null still exists. Paths and values are bound separately from SQL.
 
+### JSON Overlap {#json-overlap}
+
+`whereJsonOverlaps` checks whether the selected JSON value shares an element or key-value pair with the candidate. MySQL uses `JSON_OVERLAPS`. `whereJsonDoesntOverlap` negates the predicate, and both have `orWhere` variants. For a missing path or SQL NULL document, MySQL returns SQL NULL, which a WHERE clause filters out even when the predicate is negated.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+use serde_json::json;
+
+async fn eligible_user_ids(connection: &Connection) -> DatabaseResult<Vec<Value>> {
+    connection
+        .table("users")
+        .whereJsonOverlaps("options->languages", json!(["en", "fr"]))
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
+Use a JSON value or an `Expression` containing trusted SQL with separate bindings. SQLite returns an unsupported operation error for these predicates.
+
 ## Ordering, Grouping, Limit and Offset
 
 Use `orderBy("id", "asc")` or `orderByDesc("id")` to sort. `reorder()` clears the current sort. Use `groupBy` and `having` to filter groups. `limit` and `offset` select a range of rows. `forPage(page, per_page)` takes a one-based page number. SQLite and MySQL require a limit when executing an offset. Include a deterministic sort when selecting pages.

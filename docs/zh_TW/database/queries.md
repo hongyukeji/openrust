@@ -140,6 +140,26 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 
 MySQL 支援純量和陣列候選值。SQLite 的包含條件接受純量。值為 JSON null 的鍵依然存在。路徑和值均透過參數繫結傳入 SQL。
 
+### JSON 重疊 {#json-overlap}
+
+`whereJsonOverlaps` 檢查所選 JSON 值是否與候選值共享元素或鍵值對。MySQL 使用 `JSON_OVERLAPS`。`whereJsonDoesntOverlap` 將述詞取反，兩者均有 `orWhere` 變體。路徑不存在或文件為 SQL NULL 時，MySQL 傳回 SQL NULL，WHERE 會篩除該列，取反時亦然。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+use serde_json::json;
+
+async fn eligible_user_ids(connection: &Connection) -> DatabaseResult<Vec<Value>> {
+    connection
+        .table("users")
+        .whereJsonOverlaps("options->languages", json!(["en", "fr"]))
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
+候選值可以是 JSON 值，也可以是含可信 SQL 和獨立繫結的 `Expression`。SQLite 對這些述詞傳回不支援操作的錯誤。
+
 ## 排序、分組、限制和位移
 
 用 `orderBy("id", "asc")` 或 `orderByDesc("id")` 排序。`reorder()` 清除現有排序。用 `groupBy` 和 `having` 篩選分組。`limit` 和 `offset` 選取指定範圍的資料列。`forPage(page, per_page)` 的頁碼從 1 開始。SQLite 和 MySQL 執行位移查詢時要求同時指定限制資料列數。分頁時請指定能穩定決定資料列順序的排序條件。

@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 
 use serde_json::Value as JsonValue;
 
-use crate::database::{DatabaseError, DatabaseResult, Value};
+use crate::database::{DatabaseError, DatabaseResult, Value, query::JsonOperand};
 
 use super::{Dialect, Grammar};
 
@@ -30,6 +30,33 @@ impl Grammar {
                 ))
             }
         }
+    }
+
+    pub(in crate::database::query) fn json_overlaps(
+        &self,
+        selector: &str,
+        value: &JsonOperand,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<String> {
+        if !self.is_mysql() {
+            return Err(DatabaseError::UnsupportedOperation("JSON overlaps"));
+        }
+        let (mut column, path) = self.json_selector(selector)?;
+        if let Some(path) = path {
+            bindings.push(path.into());
+            column = format!("json_extract({column}, ?)");
+        }
+        let operand = match value {
+            JsonOperand::Value(value) => {
+                bindings.push(Value::Json(value.clone()));
+                "?"
+            }
+            JsonOperand::Expression(expression) => {
+                bindings.extend(expression.bindings.iter().cloned());
+                &expression.sql
+            }
+        };
+        Ok(format!("json_overlaps({column}, {operand})"))
     }
 
     pub(in crate::database::query) fn json_contains_key(

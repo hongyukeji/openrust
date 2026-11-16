@@ -14,6 +14,25 @@ pub enum FullTextOptions {
     QueryExpansion,
 }
 
+/// A JSON value or a trusted SQL expression that returns JSON.
+#[derive(Clone)]
+pub enum JsonOperand {
+    Value(serde_json::Value),
+    Expression(Expression),
+}
+
+impl From<serde_json::Value> for JsonOperand {
+    fn from(value: serde_json::Value) -> Self {
+        Self::Value(value)
+    }
+}
+
+impl From<Expression> for JsonOperand {
+    fn from(expression: Expression) -> Self {
+        Self::Expression(expression)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Boolean {
     And,
@@ -33,6 +52,7 @@ enum Predicate {
     Date(DatePart, String, String, String),
     BetweenColumns(String, [String; 2], bool),
     JsonContains(String, serde_json::Value, bool),
+    JsonOverlaps(String, JsonOperand, bool),
     JsonContainsKey(String, bool),
     JsonLength(String, String, i64),
     Raw(Expression),
@@ -65,6 +85,7 @@ impl Conditions {
                 | Predicate::Like(column, ..)
                 | Predicate::Date(_, column, ..)
                 | Predicate::JsonContains(column, ..)
+                | Predicate::JsonOverlaps(column, ..)
                 | Predicate::JsonContainsKey(column, ..)
                 | Predicate::JsonLength(column, ..) => qualify(column),
                 Predicate::Column(first, _, second) => {
@@ -145,6 +166,26 @@ macro_rules! predicate_methods {
 
         pub fn orWhereJsonDoesntContain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
             self.conditions().json_contains(true, selector, value, true);
+            self
+        }
+
+        pub fn whereJsonOverlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+            self.conditions().json_overlaps(false, selector, value.into(), false);
+            self
+        }
+
+        pub fn orWhereJsonOverlaps(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+            self.conditions().json_overlaps(true, selector, value.into(), false);
+            self
+        }
+
+        pub fn whereJsonDoesntOverlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+            self.conditions().json_overlaps(false, selector, value.into(), true);
+            self
+        }
+
+        pub fn orWhereJsonDoesntOverlap(mut self, selector: &str, value: impl Into<$crate::database::query::JsonOperand>) -> Self {
+            self.conditions().json_overlaps(true, selector, value.into(), true);
             self
         }
 
@@ -505,6 +546,16 @@ impl Conditions {
         self.push(or, Predicate::JsonContains(selector.into(), value, negated));
     }
 
+    pub(super) fn json_overlaps(
+        &mut self,
+        or: bool,
+        selector: &str,
+        value: JsonOperand,
+        negated: bool,
+    ) {
+        self.push(or, Predicate::JsonOverlaps(selector.into(), value, negated));
+    }
+
     pub(super) fn json_contains_key(&mut self, or: bool, selector: &str, negated: bool) {
         self.push(or, Predicate::JsonContainsKey(selector.into(), negated));
     }
@@ -622,6 +673,12 @@ impl Predicate {
                     sql.push_str("not ");
                 }
                 sql.push_str(&grammar.json_contains(selector, value, bindings)?);
+            }
+            Self::JsonOverlaps(selector, value, negated) => {
+                if *negated {
+                    sql.push_str("not ");
+                }
+                sql.push_str(&grammar.json_overlaps(selector, value, bindings)?);
             }
             Self::JsonContainsKey(selector, negated) => {
                 let predicate = grammar.json_contains_key(selector, bindings)?;
