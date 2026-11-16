@@ -192,3 +192,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 补齐 `containsOneItem()` 和 `containsManyItems()` 旧名称。带筛选的单项检查继续用 `hasSoleWhere`。固定源码显式公开方法名已对齐 158／162，剩余 `dd`、`dump`、`escapeWhenCastingToString`、`proxy`。名称核对不等同于所有签名和行为验收。
 - 隔离基线 `764a5152d`。固定 Laravel PHP 对照和 72 项 Rust 集合测试通过，覆盖预读顺序、缓存覆盖、值无需克隆的前瞻、错误传播和兼容名称。三语共用 Rust 示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。
 - PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物与文档缓存后，项目卷可用 61.26 GB（57.05 GiB）。证据目录为 `/private/tmp/openrust-02-09-caching.fCyJkVKJ`。
+
+## 惰性集合调试输出
+
+对照固定 Laravel [EnumeratesValues::dump](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L259)。旧版未找到对应惰性集合入口，复用现有 `all()` 的实体化及键规则。
+
+- `dump()` 读取并输出带键快照并返回原始集合。`dumpWith` 在其后写入附加值，`dumpTo` 允许指定写入器。Rust 用 `Debug` 格式作为 Symfony VarDumper 的语言适配，并通过 `CollectionResult` 传播来源和写入错误。
+- 隔离基线 `e0d4ccc46`。PHP 8.5.12 用固定 Laravel 和输出替身验证传给 `dump` 的参数、完全遍历、重复键及返回原集合。74 项 Rust 集合测试通过。实际示例验证标准输出的快照、附加值和后续链式调用，回归覆盖来源失败及断管。
+- `./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码的显式公开名称已对齐 159／162，余项为 `dd`、`escapeWhenCastingToString` 和 `proxy`。
+- PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.23 GB（57.02 GiB）。证据目录为 `/private/tmp/openrust-02-09-dump.gupfkT1n`。

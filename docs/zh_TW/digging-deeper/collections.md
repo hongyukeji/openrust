@@ -517,6 +517,22 @@ fn main() -> Result<(), CollectionError> {
 
 舊名稱 `containsOneItem()` 和 `containsManyItems()` 分別呼叫 `hasSole()` 和 `hasMany()`。若要檢查是否恰有一項符合條件，請使用 `hasSoleWhere()`。
 
+#### 輸出惰性集合的除錯內容 {#lazy-dump}
+
+用 `dump()` 把帶鍵的快照寫到標準輸出，再繼續鏈式呼叫。`dumpWith(&[...])` 在項目之後輸出額外的除錯值。Rust 用 `Debug` 格式輸出兩者。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let values = LazyCollection::from([1, 2, 3]).dumpWith(&[&"before mapping"])?;
+    assert_eq!(values.map(|value, _| value * 2).first()?, Some(2));
+    Ok(())
+}
+```
+
+用 `dumpTo(writer, context)` 指定輸出。建立快照時會讀完整個來源，重複鍵保留最後一個值。後續走訪會重新開啟原始來源。來源或輸出錯誤會回傳給呼叫方。
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

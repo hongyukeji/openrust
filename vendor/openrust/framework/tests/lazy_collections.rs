@@ -1880,3 +1880,53 @@ fn lazy_caching_iterator_preserves_the_entry_before_a_source_error() -> Collecti
     assert_eq!(traversal.getCache().unwrap().count(), 1);
     Ok(())
 }
+
+#[test]
+fn lazy_dump_materializes_the_snapshot_and_returns_the_original_source() -> CollectionResult<()> {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("same", "first"), ("same", "last"), ("other", "second")]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let mut bytes = Vec::new();
+    let source = source.dumpTo(&mut bytes, &[&"context marker", &17])?;
+    assert_eq!(reads.get(), 3);
+    let output = String::from_utf8(bytes).unwrap();
+    assert!(output.contains("same") && output.contains("other"));
+    assert!(output.contains("last") && output.contains("second"));
+    assert!(!output.contains("first"));
+    assert!(output.ends_with("\"context marker\"\n17\n"));
+    assert_eq!(source.first()?, Some("first"));
+    assert_eq!(reads.get(), 4);
+    Ok(())
+}
+
+#[test]
+fn lazy_dump_propagates_source_and_write_failures() {
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(CollectionError::InvalidArgument)]);
+    let mut output = Vec::new();
+    assert!(matches!(
+        failing.dumpTo(&mut output, &[&"context"]),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert!(output.is_empty());
+
+    struct BrokenWriter;
+    impl io::Write for BrokenWriter {
+        fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+            Err(io::ErrorKind::BrokenPipe.into())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let result = LazyCollection::from([1]).dumpTo(BrokenWriter, &[]);
+    assert!(matches!(
+        result,
+        Err(CollectionError::Source(error))
+            if error.downcast_ref::<io::Error>().is_some_and(|error| error.kind() == io::ErrorKind::BrokenPipe)
+    ));
+}

@@ -517,6 +517,22 @@ Use `getCachingIteratorWithFullCache()` for Laravel’s full-cache behavior. It 
 
 The older `containsOneItem()` and `containsManyItems()` names call `hasSole()` and `hasMany()`. Use `hasSoleWhere()` to test for a single matching item with a predicate.
 
+#### Dumping a Lazy Collection {#lazy-dump}
+
+Use `dump()` to print a keyed snapshot to standard output and continue the chain. `dumpWith(&[...])` prints additional debug values after the entries. Rust formats both with `Debug`.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let values = LazyCollection::from([1, 2, 3]).dumpWith(&[&"before mapping"])?;
+    assert_eq!(values.map(|value, _| value * 2).first()?, Some(2));
+    Ok(())
+}
+```
+
+Use `dumpTo(writer, context)` to choose the output. The snapshot reads the complete source and keeps the last value for a repeated key. A subsequent traversal opens the original source again. Source or output errors are returned to the caller.
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.
