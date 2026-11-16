@@ -25,7 +25,7 @@ use openrust::{
                 ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
                 UseResource,
             },
-            json_api::{JsonApiAttributes, JsonApiRelationships, JsonApiResource},
+            json_api::{JsonApi, JsonApiAttributes, JsonApiRelationships, JsonApiResource},
         },
     },
     pagination::{LengthAwarePaginator, PaginatorOptions},
@@ -223,6 +223,8 @@ struct Plain(Json);
 struct PersonResource {
     account: Account,
     use_alias: bool,
+    ignore_query: bool,
+    include_loaded: bool,
 }
 
 impl From<Account> for PersonResource {
@@ -230,6 +232,8 @@ impl From<Account> for PersonResource {
         Self {
             account,
             use_alias: false,
+            ignore_query: false,
+            include_loaded: false,
         }
     }
 }
@@ -252,6 +256,14 @@ impl JsonApiResource for PersonResource {
             "reports.reports" => Some("directReports.directReports"),
             _ => None,
         }
+    }
+
+    fn respectFieldsAndIncludesInQueryString(&self) -> bool {
+        !self.ignore_query
+    }
+
+    fn includePreviouslyLoadedRelationships(&self) -> bool {
+        self.include_loaded
     }
 
     fn toId(&self, _: &Request) -> Option<String> {
@@ -437,6 +449,25 @@ fn json_api_routes() -> Result<(), RoutingError> {
         let person = Account::findOrFail(1).await.map_err(internal)?;
         Ok(PersonResource::make(person))
     })?;
+    Route::get("/person/ignore-query", || async {
+        let person = Account::findOrFail(1).await.map_err(internal)?;
+        Ok(PersonResource {
+            ignore_query: true,
+            ..PersonResource::make(person)
+        })
+    })?;
+    Route::get("/person/include-loaded", || async {
+        let person = Account::query()
+            .map_err(internal)?
+            .with("directReports", nested_report_relation())
+            .findOrFail(1)
+            .await
+            .map_err(internal)?;
+        Ok(PersonResource {
+            include_loaded: true,
+            ..PersonResource::make(person)
+        })
+    })?;
     Route::get("/person/auto-page", || async {
         let page = Account::query()
             .map_err(internal)?
@@ -471,8 +502,8 @@ fn json_api_routes() -> Result<(), RoutingError> {
     Route::get("/person/alias", || async {
         let account = Account::findOrFail(1).await.map_err(internal)?;
         Ok(PersonResource {
-            account,
             use_alias: true,
+            ..PersonResource::make(account)
         })
     })?;
     Route::get("/person/list", || async {
@@ -1059,6 +1090,16 @@ async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection
     for (endpoint, expected_selects, expected_included) in [
         ("/api/person/auto", 1, 0),
         ("/api/person/auto?include=unknown", 1, 0),
+        (
+            "/api/person/ignore-query?fields%5Bpeople%5D=name&include=reports.reports",
+            1,
+            0,
+        ),
+        (
+            "/api/person/include-loaded?fields%5Bpeople%5D=name,reports&include=manager,reports.reports",
+            3,
+            1,
+        ),
         ("/api/person/auto?include=reports.reports", 3, 2),
         ("/api/person/compound?include=reports.reports", 3, 2),
         ("/api/person/auto-page?include=reports.reports", 4, 1),
@@ -1076,7 +1117,19 @@ async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection
             "{endpoint}"
         );
         if expected_included > 0 {
-            assert_eq!(document["included"][expected_included - 1]["id"], "3");
+            let last_id = if endpoint.contains("include-loaded") {
+                "2"
+            } else {
+                "3"
+            };
+            assert_eq!(document["included"][expected_included - 1]["id"], last_id);
+        }
+        if endpoint.contains("ignore-query") {
+            assert_eq!(document["data"]["attributes"]["score"], 0);
+        }
+        if endpoint.contains("include-loaded") {
+            assert_eq!(document["data"]["attributes"], json!({"name":"A"}));
+            assert!(document["data"]["relationships"].get("manager").is_none());
         }
         if endpoint.contains("auto-page") {
             assert_eq!(
@@ -1216,6 +1269,14 @@ async fn verify_json_api_includes(address: SocketAddr) {
         address,
         "GET",
         "/api/person/compound?include=reports.reports.reports.reports.reports.reports",
+        "",
+        200,
+    )
+    .await;
+    request(
+        address,
+        "GET",
+        "/api/person/compound?include=reports..reports",
         "",
         400,
     )
@@ -1389,7 +1450,24 @@ fn wrapping_routes() -> Result<(), RoutingError> {
     Route::get("/person", || {
         let mut state = ModelState::default();
         state.setAttribute("id", "external-id");
-        PersonResource::make(Account::from_state(state))
+        let mut person = Account::from_state(state);
+        let mut child = ModelState::default();
+        child.setAttribute("id", "child");
+        let mut child = Account::from_state(child);
+        let mut grandchild = ModelState::default();
+        grandchild.setAttribute("id", "grandchild");
+        child.setRelation::<HasMany<Account, Account>>(
+            "directReports",
+            RelatedCollection::fromShared(vec![Arc::new(Account::from_state(grandchild))]),
+        );
+        person.setRelation::<HasMany<Account, Account>>(
+            "directReports",
+            RelatedCollection::fromShared(vec![Arc::new(child)]),
+        );
+        PersonResource::make(person)
+    })?;
+    Route::get("/person/empty", || {
+        PersonResource::collection(Vec::<Account>::new())
     })?;
     Route::get("/plain", || Plain(json!({"id":1})))?;
     Route::get("/already", || Plain(json!({"items":{"id":1}})))?;
@@ -1414,13 +1492,17 @@ fn wrapping_routes() -> Result<(), RoutingError> {
     Ok(())
 }
 
-async fn wrapping_server(wrapping: ResourceWrapping) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+async fn wrapping_server(
+    wrapping: ResourceWrapping,
+    json_api: JsonApi,
+) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let mut app = Application::configure(std::env::temp_dir())
         .withRouting(Routing::default().api(wrapping_routes))
         .create()
         .unwrap();
     app.boot().await.unwrap();
     app.container().instance(Arc::new(wrapping)).unwrap();
+    app.container().instance(Arc::new(json_api)).unwrap();
 
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
@@ -1439,8 +1521,42 @@ async fn wrapping_server(wrapping: ResourceWrapping) -> (SocketAddr, tokio::task
 
 #[tokio::test]
 async fn resource_wrapping_is_scoped_to_each_http_application() {
-    let (left, left_task) = wrapping_server(ResourceWrapping::withoutWrapping()).await;
-    let (right, right_task) = wrapping_server(ResourceWrapping::wrap("items")).await;
+    let left_configuration = JsonApi::configure(
+        Some("1.1".into()),
+        vec!["https://example.test/ext".into()],
+        vec![],
+        Map::from_iter([("app".into(), json!("left"))]),
+    )
+    .maxRelationshipDepth(1);
+    let right_configuration = JsonApi::configure(
+        None,
+        vec![],
+        vec!["https://example.test/profile".into()],
+        Map::from_iter([("app".into(), json!("right"))]),
+    )
+    .maxRelationshipDepth(2);
+    let (left, left_task) =
+        wrapping_server(ResourceWrapping::withoutWrapping(), left_configuration).await;
+    let (right, right_task) =
+        wrapping_server(ResourceWrapping::wrap("items"), right_configuration).await;
+    let include_path = "/api/person?include=reports.reports.reports";
+    let ((_, left_person), (_, right_person)) = tokio::join!(
+        request(left, "GET", include_path, "", 200),
+        request(right, "GET", include_path, "", 200),
+    );
+    assert_eq!(
+        left_person["jsonapi"],
+        json!({"version":"1.1","ext":["https://example.test/ext"],"meta":{"app":"left"}})
+    );
+    assert_eq!(
+        right_person["jsonapi"],
+        json!({"profile":["https://example.test/profile"],"meta":{"app":"right"}})
+    );
+    assert_eq!(left_person["included"].as_array().unwrap().len(), 1);
+    assert_eq!(right_person["included"].as_array().unwrap().len(), 2);
+    assert_eq!(right_person["included"][1]["id"], "grandchild");
+    let (_, empty) = request(left, "GET", "/api/person/empty", "", 200).await;
+    assert_eq!(empty, json!({"jsonapi":left_person["jsonapi"],"data":[]}));
     for _ in 0..2 {
         let ((_, plain), (_, wrapped)) = tokio::join!(
             request(left, "GET", "/api/plain", "", 200),

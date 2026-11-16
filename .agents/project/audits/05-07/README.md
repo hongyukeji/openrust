@@ -53,3 +53,10 @@
 - 对照固定 Laravel 在单资源及集合序列化前的 `loadMissing`。Rust 资源用 `includePath` 将请求路径明确映射到 `Model::namedRelations`，并通过 `modelMut` 提供模型。路由在序列化前异步补载，普通集合和三类分页器共享同一批 Eloquent 加载。手动响应使用 `toResponseAsync`。现有关系继续复用，加载失败时保留原模型。 [固定 Laravel 关系解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/Concerns/ResolvesJsonApiElements.php) · [固定 Laravel 集合批量加载](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/AnonymousResourceCollection.php)
 - SQLite／MySQL 8.4.13 实际 HTTP 验证无 include、未知路径、点分别名、分页批量补载及已加载关系。MySQL 同连接计数为无 include 1 次 SELECT、未知路径 1 次、嵌套单资源 3 次、预加载同路径 3 次、两条主记录分页 4 次（含计数和主查询）。17 项资源、模型 HTTP、分页与关系回归、格式、严格 Clippy、实际 `./artisan inspire`、三语示例执行和 15 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本处理。
 - 后续接入应用级 JSON:API 文档元数据、关系深度和请求控制，再验收 Artisan 生成器。
+
+## JSON:API 应用配置与请求控制
+
+- 对照固定 Laravel 的文档信息、关系深度及请求控制。Rust 在应用容器注册类型化 `JsonApi`，将 `version`、`ext`、`profile` 和 `meta` 放入顶层 `jsonapi`，包括空集合。默认深度五层，超出的路径按固定上游截断，零和一均保留直接关联。格式错误的路径仍返回 400。旧版仅有 MIME 识别，本批复用当前应用容器、资源投影和 Eloquent 已加载关系。[Laravel JSON:API 资源](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/JsonApiResource.php) · [Laravel 请求解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/JsonApi/JsonApiRequest.php)
+- Rust 用资源 trait 声明查询策略。关闭策略会按固定文档同时忽略 `fields` 和 `include`。使用已加载关系时，仅选择已声明且已加载的直接关联，稀疏字段仍可单独使用。测试验证关闭查询只执行读取主资源的一次 SELECT。
+- 两应用并发真实 HTTP 验证各自的文档信息与截断深度，普通 JSON 不附加 `jsonapi`。SQLite／MySQL 8.4.13 共 11 项资源、HTTP 和分页回归通过。隔离副本格式、严格 Clippy、实际 `./artisan inspire`、三语配置示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 后续验收普通及 `--json-api` 的 `make:resource`，并完成 05-07 协议对账。

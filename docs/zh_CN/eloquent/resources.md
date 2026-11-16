@@ -255,3 +255,31 @@ impl<M: Model> JsonApiResource for ReportResource<M> {
     }
 }
 ```
+
+### 文档配置与查询控制 {#jsonapi-configuration}
+
+在服务提供者等应用装配位置向容器注册 `JsonApi`。配置信息出现在 JSON:API 响应的顶层 `jsonapi` 对象中，集合和空页同样包含该信息。
+
+```rust
+use openrust::{
+    contracts::container::Container,
+    http::resources::json_api::JsonApi,
+};
+use std::sync::Arc;
+
+pub fn register(container: &openrust::container::Container) {
+    let settings = JsonApi::configure(
+        Some("1.1".into()),
+        Vec::new(),
+        Vec::new(),
+        serde_json::Map::new(),
+    )
+    .maxRelationshipDepth(3);
+
+    container.instance(Arc::new(settings)).expect("register JSON:API settings");
+}
+```
+
+关系路径默认最多五层。超出深度的路径会先截断，再加载和输出关联。将深度设为零或一时，请求只能包含直接关联。
+
+资源的 `respectFieldsAndIncludesInQueryString` 返回 `false` 时忽略两个查询参数。让 `includePreviouslyLoadedRelationships` 返回 `true` 可包含已声明且已加载的直接关联。该模式仍应用稀疏字段筛选，除非显式关闭。查询参数不会触发关联加载。

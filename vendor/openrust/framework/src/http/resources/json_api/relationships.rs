@@ -56,7 +56,7 @@ fn include(
     paths: &[&str],
     included: &mut Vec<Value>,
 ) -> ResourceResult<Value> {
-    let (object, descendants) = project(resource, request, paths)?;
+    let (object, descendants) = project(resource, request, paths, false)?;
     let identifier = Value::Object(Map::from_iter([
         ("id".into(), object["id"].clone()),
         ("type".into(), object["type"].clone()),

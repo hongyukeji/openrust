@@ -8,7 +8,7 @@ use crate::{
     support::facades::current_container,
 };
 
-use super::super::json_api::MEDIA_TYPE;
+use super::super::json_api::{JsonApi, MEDIA_TYPE};
 use super::{JsonResource, ResourceResult};
 
 /// Configures the default resource wrapper for the application that owns the request.
@@ -113,7 +113,12 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     wrapper: Option<&str>,
     additional: Map<String, Value>,
 ) -> ResourceResult<Response> {
-    let (data, with) = resource.resolveResponseData(request)?;
+    let (data, mut with) = resource.resolveResponseData(request)?;
+    if resource.isJsonApi()
+        && let Some(information) = JsonApi::information()?
+    {
+        with.insert("jsonapi".into(), information);
+    }
     let payload = wrap(data, wrapper, resource.forceWrapping(), with, additional);
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {

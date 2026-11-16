@@ -255,3 +255,31 @@ impl<M: Model> JsonApiResource for ReportResource<M> {
     }
 }
 ```
+
+### Document Configuration and Query Controls {#jsonapi-configuration}
+
+Register `JsonApi` in the application container, for example in a service provider. Configured information appears in the top-level `jsonapi` object of JSON:API responses, including collections and empty pages.
+
+```rust
+use openrust::{
+    contracts::container::Container,
+    http::resources::json_api::JsonApi,
+};
+use std::sync::Arc;
+
+pub fn register(container: &openrust::container::Container) {
+    let settings = JsonApi::configure(
+        Some("1.1".into()),
+        Vec::new(),
+        Vec::new(),
+        serde_json::Map::new(),
+    )
+    .maxRelationshipDepth(3);
+
+    container.instance(Arc::new(settings)).expect("register JSON:API settings");
+}
+```
+
+Relationship paths default to a depth of five. The framework truncates longer paths before loading and projecting relationships. A depth of zero or one keeps only direct relationships from the request.
+
+On a resource, return `false` from `respectFieldsAndIncludesInQueryString` to ignore both query parameters. Return `true` from `includePreviouslyLoadedRelationships` to include declared direct relationships that are already loaded. In this mode, sparse fields are still applied unless disabled, and the query cannot trigger relationship loading.

@@ -1,9 +1,11 @@
 //! JSON:API resource documents.
 
+mod configuration;
 mod json_api_resource;
 mod lazy_attributes;
 mod relationships;
 
+pub use configuration::JsonApi;
 pub use json_api_resource::JsonApiResource;
 pub use lazy_attributes::JsonApiAttributes;
 pub use relationships::JsonApiRelationships;
