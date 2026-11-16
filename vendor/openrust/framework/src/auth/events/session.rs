@@ -4,6 +4,7 @@ use crate::{
     auth::{AuthIdentifier, Credentials},
     contracts::{auth::Authenticatable, events::Event},
     events::EventContext,
+    http::RequestParts,
 };
 
 /// A session guard is about to check credentials.
@@ -62,6 +63,19 @@ pub struct OtherDeviceLogout {
     pub user: Arc<dyn Authenticatable>,
 }
 
+/// A login attempt exceeded the configured rate limit.
+pub struct Lockout {
+    pub guard: String,
+    pub retry_after: u64,
+}
+
+impl Lockout {
+    /// Borrows the throttled request's metadata during synchronous delivery.
+    pub fn request<'a>(&self, context: &EventContext<'a>) -> Option<&'a RequestParts> {
+        context.arguments_for(self)?.first()?.downcast_ref()
+    }
+}
+
 macro_rules! event_names {
     ($($event:ident),+ $(,)?) => {
         $(impl Event for $event {
@@ -80,7 +94,8 @@ event_names!(
     Failed,
     Logout,
     CurrentDeviceLogout,
-    OtherDeviceLogout
+    OtherDeviceLogout,
+    Lockout
 );
 
 macro_rules! borrowed_credentials {

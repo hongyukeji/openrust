@@ -29,8 +29,8 @@ use super::{AuthError, AuthFuture, AuthIdentifier, AuthResult, Credentials};
 use super::{
     access::Argument,
     events::{
-        Attempting, Authenticated, CurrentDeviceLogout, Failed, Login, Logout, OtherDeviceLogout,
-        Validated,
+        Attempting, Authenticated, CurrentDeviceLogout, Failed, Lockout, Login, Logout,
+        OtherDeviceLogout, Validated,
     },
     session_fingerprint::SessionFingerprint,
 };
@@ -138,20 +138,27 @@ impl<'a> SessionGuard<'a> {
         self
     }
 
-    async fn emit<E: Event>(&mut self, event: E, arguments: &[&Argument]) -> AuthResult<()> {
-        let Some(owner) = self.owner.upgrade().filter(|owner| owner.has("events")) else {
-            return Ok(());
-        };
-        let dispatcher = owner
-            .get::<Dispatcher>("events")
-            .map_err(AuthError::backend)?;
-        let event = Arc::new(event);
-        let mut context = EventContext::with_arguments(event.as_ref(), arguments);
-        dispatcher
-            .dispatch(event.clone(), &mut context)
-            .await
-            .map_err(AuthError::backend)?;
-        Ok(())
+    fn emit<'event, E: Event>(
+        &self,
+        event: E,
+        arguments: &'event [&'event Argument],
+    ) -> AuthFuture<'event, AuthResult<()>> {
+        let owner = self.owner.upgrade();
+        Box::pin(async move {
+            let Some(owner) = owner.filter(|owner| owner.has("events")) else {
+                return Ok(());
+            };
+            let dispatcher = owner
+                .get::<Dispatcher>("events")
+                .map_err(AuthError::backend)?;
+            let event = Arc::new(event);
+            let mut context = EventContext::with_arguments(event.as_ref(), arguments);
+            dispatcher
+                .dispatch(event.clone(), &mut context)
+                .await
+                .map_err(AuthError::backend)?;
+            Ok(())
+        })
     }
 
     /// Installs a user for the current request and dispatches `Authenticated`.
@@ -357,6 +364,14 @@ impl<'a> SessionGuard<'a> {
             .await
             .map_err(AuthError::backend)?
         {
+            self.emit(
+                Lockout {
+                    guard: self.name.clone(),
+                    retry_after: retry,
+                },
+                &[self.request.parts()],
+            )
+            .await?;
             return Err(AuthError::Throttled(retry));
         }
         let Some(user) = self.login_candidate(credentials, remember).await? else {

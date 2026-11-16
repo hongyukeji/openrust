@@ -147,6 +147,10 @@ async fn start(
             Ok([
                 ("app".into(), json!({"key":"a".repeat(32)})),
                 (
+                    "cache".into(),
+                    json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+                (
                     "session".into(),
                     json!({"driver":"array","cookie":"auth_session","lottery":[0,100]}),
                 ),
@@ -674,3 +678,66 @@ async fn other_device_logout_keeps_current_session_and_rejects_old_sessions_and_
 
 #[path = "extensions/confirmation.rs"]
 mod confirmation;
+
+#[tokio::test]
+async fn throttled_login_reports_lockout_with_request_metadata() {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use openrust::{
+        auth::events::Lockout,
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+    };
+
+    struct Record(Arc<AtomicU64>);
+    impl Listener for Record {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            context: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event.downcast_ref::<Lockout>().unwrap();
+                let request = event.request(context).unwrap();
+                assert_eq!(request.method, Method::POST);
+                assert_eq!(request.uri.path(), "/throttled");
+                assert_eq!(event.guard, "web");
+                self.0.store(event.retry_after, Ordering::Relaxed);
+                Ok(None)
+            })
+        }
+    }
+
+    fn attempt(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let credentials = Credentials::new([("email", "a@example.test".into())], "wrong");
+            let authenticated = Auth::sessionGuard(request, None)?
+                .attemptThrottled(&credentials, false, "fixture", 1, 60)
+                .await?;
+            assert!(!authenticated);
+            Err(HttpError::Unauthenticated)
+        })
+    }
+
+    let retry = Arc::new(AtomicU64::new(0));
+    let recorded = retry.clone();
+    let (address, server) = start(
+        || Route::r#match(&[Method::POST], "/throttled", attempt),
+        || Ok(()),
+        move |app| {
+            app.container()
+                .make::<Dispatcher>()
+                .unwrap()
+                .listen("Lockout", Arc::new(Record(recorded)), Delivery::Sync)
+                .unwrap();
+        },
+    )
+    .await;
+    send(address, "POST", "/throttled", "", "", 401).await;
+    assert_eq!(retry.load(Ordering::Relaxed), 0);
+    let blocked = send(address, "POST", "/throttled", "", "", 429).await;
+    let retry = retry.load(Ordering::Relaxed);
+    assert!((1..=60).contains(&retry));
+    assert!(blocked.headers.contains(&format!("retry-after: {retry}")));
+    server.abort();
+}

@@ -58,29 +58,34 @@ fn register_basic_routes() -> Result<(), RoutingError> {
 
 `Attempting` 和 `Failed` 的同步监听器可通过 `credentials(context)` 借用凭据。请避免将密码写入日志。`Validated` 监听器可通过 `user::<T>(context)` 借用类型化用户。
 
+登录触发限流时，`Lockout` 携带 Guard 名和重试等待时间。同步监听器可通过 `request(context)` 借用请求元数据。
+
 ```rust
 use std::sync::Arc;
 
 use openrust::{
-    auth::events::Login,
+    auth::events::{Lockout, Login},
     contracts::events::{Dispatcher as _, Event},
     events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
 };
 
-fn record_login<'a>(
+fn record_auth_event<'a>(
     event: &'a dyn Event,
     _: &'a mut EventContext<'_>,
 ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
     Box::pin(async move {
         if let Some(login) = event.downcast_ref::<Login>() {
             eprintln!("login guard={} remember={}", login.guard, login.remember);
+        } else if let Some(lockout) = event.downcast_ref::<Lockout>() {
+            eprintln!("lockout guard={} retry_after={}", lockout.guard, lockout.retry_after);
         }
         Ok(None)
     })
 }
 
 fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
-    dispatcher.listen("Login", Arc::new(record_login), Delivery::Sync)
+    dispatcher.listen("Login", Arc::new(record_auth_event), Delivery::Sync)?;
+    dispatcher.listen("Lockout", Arc::new(record_auth_event), Delivery::Sync)
 }
 ```
 

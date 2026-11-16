@@ -58,29 +58,34 @@ The application dispatcher emits `Attempting` before a credential attempt and `V
 
 Synchronous listeners for `Attempting` and `Failed` can access the borrowed credentials through `credentials(context)`. Keep passwords out of logs. A `Validated` listener can borrow the typed user through `user::<T>(context)`.
 
+A throttled login emits `Lockout` with its guard and retry delay. A synchronous listener can borrow the request metadata through `request(context)`.
+
 ```rust
 use std::sync::Arc;
 
 use openrust::{
-    auth::events::Login,
+    auth::events::{Lockout, Login},
     contracts::events::{Dispatcher as _, Event},
     events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
 };
 
-fn record_login<'a>(
+fn record_auth_event<'a>(
     event: &'a dyn Event,
     _: &'a mut EventContext<'_>,
 ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
     Box::pin(async move {
         if let Some(login) = event.downcast_ref::<Login>() {
             eprintln!("login guard={} remember={}", login.guard, login.remember);
+        } else if let Some(lockout) = event.downcast_ref::<Lockout>() {
+            eprintln!("lockout guard={} retry_after={}", lockout.guard, lockout.retry_after);
         }
         Ok(None)
     })
 }
 
 fn register_auth_events(dispatcher: &Dispatcher) -> EventResult<()> {
-    dispatcher.listen("Login", Arc::new(record_login), Delivery::Sync)
+    dispatcher.listen("Login", Arc::new(record_auth_event), Delivery::Sync)?;
+    dispatcher.listen("Lockout", Arc::new(record_auth_event), Delivery::Sync)
 }
 ```
 
