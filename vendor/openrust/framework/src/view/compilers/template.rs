@@ -1,4 +1,4 @@
-use std::{fmt::Write as _, sync::Arc};
+use std::{borrow::Cow, fmt::Write as _, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -8,13 +8,24 @@ use crate::view::{
     rendering::{RenderContext, render_error},
 };
 
+mod attributes;
+
+use attributes::{
+    Props, apply_props, attribute_name, merge_attributes, parse_echo, parse_props,
+    render_attributes,
+};
+
 #[derive(Serialize, Deserialize)]
-pub(super) struct Template(Vec<Node>);
+pub(super) struct Template {
+    nodes: Vec<Node>,
+    props: Option<Props>,
+}
 
 #[derive(Serialize, Deserialize)]
 enum Node {
     Text(String),
     Echo(Expression, bool),
+    Attributes(Vec<(String, Expression)>),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each {
         expression: Expression,
@@ -61,11 +72,25 @@ enum ComponentName {
 impl Template {
     pub(super) fn compile(source: &str) -> ViewResult<Self> {
         let mut parser = Parser(source);
-        let (nodes, stop) = parser.block(0)?;
+        let trimmed = source.trim_start();
+        let mut leading = Parser(trimmed);
+        let props = if leading.directive("props") {
+            parser = leading;
+            Some(parse_props(parser.arguments()?)?)
+        } else {
+            None
+        };
+        let (mut nodes, stop) = parser.block(0)?;
         if stop.is_some() {
             return Err(invalid("Unexpected closing Blade directive."));
         }
-        Ok(Self(nodes))
+        if props.is_some() && source.len() != trimmed.len() {
+            nodes.insert(
+                0,
+                Node::Text(source[..source.len() - trimmed.len()].to_owned()),
+            );
+        }
+        Ok(Self { nodes, props })
     }
 
     pub(super) fn render(
@@ -73,9 +98,13 @@ impl Template {
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
+        let data = match &self.props {
+            Some(props) => Cow::Owned(apply_props(data, props, context)),
+            None => Cow::Borrowed(data),
+        };
         let mut output = String::new();
-        render_nodes(&self.0, data, &[], &mut output, context)?;
-        output.push_str(&context.render_layout(data)?);
+        render_nodes(&self.nodes, &data, &[], &mut output, context)?;
+        output.push_str(&context.render_layout(&data)?);
         if output.contains(context.parent()) {
             output = output.replace(context.parent(), "");
         }
@@ -167,7 +196,7 @@ impl<'a> Parser<'a> {
                 } else {
                     self.delimited(3, "!!}")?
                 };
-                nodes.push(Node::Echo(expression_value(expression)?, escaped));
+                nodes.push(parse_echo(expression, escaped)?);
             } else if self.directive("verbatim") {
                 text.push_str(self.delimited(0, "@endverbatim")?);
             } else if let Some(stop) = self.stop() {
@@ -282,7 +311,7 @@ impl<'a> Parser<'a> {
             let (name, bound) = attribute
                 .strip_prefix(':')
                 .map_or((attribute, false), |name| (name, true));
-            if !identifier(name) {
+            if !attribute_name(name) {
                 return Err(invalid("Invalid Blade component attribute."));
             }
             self.0 = self.0[end..].trim_start();
@@ -309,7 +338,9 @@ impl<'a> Parser<'a> {
     }
 
     fn view_directive(&mut self, depth: usize) -> ViewResult<Option<Node>> {
-        let node = if self.directive("parent") {
+        let node = if self.directive("props") {
+            return Err(invalid("Place @props at the start of the Blade template."));
+        } else if self.directive("parent") {
             Node::Parent
         } else if self.directive("extends") {
             Node::Extends(expression_value(self.arguments()?)?)
@@ -532,9 +563,23 @@ impl Quote {
 }
 
 fn argument_separator(arguments: &str) -> Option<usize> {
+    separators(arguments, ",").next()
+}
+
+fn separators<'a>(source: &'a str, pattern: &'a str) -> impl Iterator<Item = usize> + 'a {
     let mut quote = Quote::default();
-    arguments.char_indices().find_map(|(index, character)| {
-        (!quote.literal(character) && character == ',').then_some(index)
+    let mut depth = 0usize;
+    source.char_indices().filter_map(move |(index, character)| {
+        if quote.literal(character) {
+            return None;
+        }
+        match character {
+            '[' | '{' | '(' => depth += 1,
+            ']' | '}' | ')' => depth = depth.saturating_sub(1),
+            _ if depth == 0 && source[index..].starts_with(pattern) => return Some(index),
+            _ => {}
+        }
+        None
     })
 }
 
@@ -631,12 +676,29 @@ fn render_nodes<'a>(
                 if let Expression::Variable(path) = expression
                     && let [name] = path.as_slice()
                     && !bindings.iter().any(|(key, _)| *key == name)
-                    && let Some(slot) = context.slot(name)
                 {
-                    output.push_str(slot);
-                } else {
-                    echo(output, value(expression, data, bindings), *escape);
+                    if let Some(slot) = context.slot(name) {
+                        output.push_str(slot);
+                        continue;
+                    }
+                    if name == "attributes"
+                        && let Some(attributes) = &context.component_attributes
+                    {
+                        render_attributes(attributes, output)?;
+                        continue;
+                    }
                 }
+                echo(output, value(expression, data, bindings), *escape);
+            }
+            Node::Attributes(defaults) => {
+                let attributes = context
+                    .component_attributes
+                    .as_ref()
+                    .ok_or_else(|| render_error("A Blade component attribute bag is required."))?;
+                render_attributes(
+                    &merge_attributes(attributes, defaults, data, bindings),
+                    output,
+                )?;
             }
             Node::Conditional(expression, predicate, yes, no) => {
                 let value = value(expression, data, bindings);

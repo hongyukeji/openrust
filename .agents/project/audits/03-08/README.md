@@ -24,3 +24,10 @@
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖两个应用并发、动态嵌套、Rust 注册组件、转义、插槽、匿名索引优先顺序与回退、非法及缺失组件 500。隔离副本全工作区格式和严格 Clippy 通过，已有 Sanctum 测试仅在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语动态组件示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项动态组件章节检查通过。
 - PHP 类与组件发现留给上游运行时。OpenRust 使用应用级 Rust 工厂登记和现有视图查找。Blade 组件命名空间、扩展匿名组件路径、属性包和 `@props` 仍待验收。
+
+## 属性声明与属性包
+
+- 对照固定 [CompilesComponents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesComponents.php)、[ComponentAttributeBag](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentAttributeBag.php) 及 Blade 组件属性和匿名组件测试。模板开头可声明 `@props`，支持具名默认值和 camelCase 对应的 kebab-case 调用。剩余参数作为独立属性包输出，可用 `merge` 提供默认值，合并 class / style，普通属性采用调用方传值。
+- Rust 使用 `ViewData` 的具名值和渲染上下文保存属性包。HTML 属性由统一转义例程输出，支持标量、布尔和空值。PHP 任意对象及可追加属性对象、属性过滤和类组件构造器自动提取留待各自契约。旧版 MiniJinja 没有可移植的 Blade 属性包。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖并发应用、两级属性包隔离、默认与覆盖、普通属性和 class / style 合并、引号转义、布尔省略及非法声明和非标量值 500。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语属性示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项属性章节检查通过。

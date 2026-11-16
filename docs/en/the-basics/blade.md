@@ -47,6 +47,19 @@ Store an anonymous component such as `notice` in `resources/views/components/not
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+### Component Props and Attributes {#component-attributes}
+
+Put `@props` at the start of the component template. The list can contain prop names and default values. A caller can pass a camel-case prop such as `displayName` using `display-name`. Attributes outside the declaration are available through `$attributes`.
+
+```html
+@props(['displayName' => 'Notice', 'variant',])
+<aside {{ $attributes->merge(['class' => 'panel', 'role' => 'status']) }}>
+    {{ $displayName }}{{ $slot }}
+</aside>
+```
+
+Render `{{ $attributes }}` to emit the bag. `merge` adds defaults and preserves caller values for ordinary attributes. `class` and `style` combine their default and caller text. HTML attribute values are escaped. Null and false are omitted.
+
 ### Dynamic Components {#dynamic-components}
 
 Use `<x-dynamic-component>` when the view data selects a registered Rust component or an anonymous component. The `component` attribute selects the target. Other attributes and slots are passed to that component.

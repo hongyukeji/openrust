@@ -11,6 +11,7 @@ pub(super) struct RenderContext<'a> {
     slots: HashMap<String, String>,
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
+    pub(super) component_attributes: Option<ViewData>,
 }
 
 impl<'a> RenderContext<'a> {
@@ -23,6 +24,7 @@ impl<'a> RenderContext<'a> {
             slots: HashMap::new(),
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
             active_loop: None,
+            component_attributes: None,
         }
     }
 
@@ -91,6 +93,7 @@ impl<'a> RenderContext<'a> {
     ) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
+        nested.component_attributes = Some(properties.clone());
         factory.render_component(name, properties, &mut nested)
     }
 
@@ -108,6 +111,7 @@ impl<'a> RenderContext<'a> {
                 slots: self.slots.clone(),
                 parent_marker: self.parent_marker.clone(),
                 active_loop: self.active_loop.clone(),
+                component_attributes: self.component_attributes.clone(),
                 factory: Some(factory),
                 sections: HashMap::new(),
                 layout: None,

@@ -367,6 +367,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/dynamic-missing", || {
                     view("dynamic").with("componentName", "missing")
                 })?;
+                Route::get("/props", || view("props").with("userValue", "\"<&"))?;
+                Route::get("/invalid-props", || view("invalid_props"))?;
+                Route::get("/invalid-attributes", || {
+                    view("invalid_attributes").with("array", serde_json::json!([1, 2]))
+                })?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -494,6 +499,26 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ("components/ranked", "root"),
         ("components/ranked/index", "index"),
         ("components/ranked/ranked", "leaf"),
+        (
+            "props",
+            concat!(
+                r#"<x-alert display-name="Override" class="wide" :data-owner="$userValue" "#,
+                r#"id="outer" role="log" style="color: red" disabled :hidden="false" :title="null">"#,
+                r#"<x-plain :data-child="$app"/>"#,
+                "</x-alert><x-alert/>",
+            ),
+        ),
+        (
+            "components/alert",
+            concat!(
+                "@props(['displayName' => 'Notice', 'variant',])",
+                r#"<aside {{ $attributes->merge(['class' => 'panel', 'role' => 'status', 'style' => 'padding: 0;']) }}>"#,
+                "{{ $displayName }}|@isset($id)leaked@endisset{{ $slot }}</aside>",
+            ),
+        ),
+        ("components/plain", "<span {{ $attributes }}></span>"),
+        ("invalid_props", "@props(['not an identifier' => 'bad'])"),
+        ("invalid_attributes", r#"<x-plain :data-invalid="$array"/>"#),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -540,6 +565,26 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(first, "/dynamic", 200)
             .await
             .ends_with("</details>index")
+    );
+    let (a, b) = tokio::join!(send(first, "/props", 200), send(second, "/props", 200));
+    for (html, app) in [(a, "A"), (b, "B")] {
+        assert_eq!(
+            html,
+            format!(
+                concat!(
+                    r#"<aside class="panel wide" role="log" style="padding: 0; color: red;" data-owner="&quot;&lt;&amp;" id="outer" disabled="disabled">"#,
+                    r#"Override|<span data-child="{}"></span></aside>"#,
+                    r#"<aside class="panel" role="status" style="padding: 0;">Notice|</aside>"#,
+                ),
+                app
+            )
+        );
+    }
+    assert!(send(first, "/invalid-props", 500).await.contains("500"));
+    assert!(
+        send(first, "/invalid-attributes", 500)
+            .await
+            .contains("500")
     );
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(

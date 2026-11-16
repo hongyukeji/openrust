@@ -47,6 +47,19 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+### 元件屬性與屬性袋 {#component-attributes}
+
+在元件範本開頭用 `@props` 宣告屬性及預設值。呼叫端可以用 `display-name` 傳值給 `displayName`。宣告以外的 HTML 屬性可透過 `$attributes` 讀取。
+
+```html
+@props(['displayName' => 'Notice', 'variant',])
+<aside {{ $attributes->merge(['class' => 'panel', 'role' => 'status']) }}>
+    {{ $displayName }}{{ $slot }}
+</aside>
+```
+
+使用 `{{ $attributes }}` 輸出屬性袋。`merge` 提供預設值，一般屬性以呼叫端的值為準，`class` 和 `style` 合併預設值與呼叫端的文字。HTML 屬性值會跳脫，null 和 false 會省略。
+
 ### 動態元件 {#dynamic-components}
 
 視圖資料可以透過 `<x-dynamic-component>` 選擇已註冊的 Rust 元件或匿名元件。`component` 屬性指定目標，其餘屬性和插槽傳給目標元件。

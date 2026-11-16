@@ -47,6 +47,19 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+### 组件属性与属性包 {#component-attributes}
+
+在组件模板开头用 `@props` 声明属性和默认值。调用方可以用 `display-name` 向 `displayName` 传值。声明之外的 HTML 属性可以通过 `$attributes` 读取。
+
+```html
+@props(['displayName' => 'Notice', 'variant',])
+<aside {{ $attributes->merge(['class' => 'panel', 'role' => 'status']) }}>
+    {{ $displayName }}{{ $slot }}
+</aside>
+```
+
+使用 `{{ $attributes }}` 输出属性包。`merge` 添加默认值，普通属性以调用方的值为准，`class` 和 `style` 合并默认值与调用方的文本。HTML 属性值会转义，null 和 false 会省略。
+
 ### 动态组件 {#dynamic-components}
 
 视图数据可以通过 `<x-dynamic-component>` 选择一个已注册的 Rust 组件或匿名组件。`component` 属性指定目标，其余属性和插槽传给目标组件。
