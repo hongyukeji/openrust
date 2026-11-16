@@ -315,6 +315,35 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Foreign IDs from Models {#foreign-ids-from-models}
+
+Use `foreignIdFor::<Model>(None)` to let an Eloquent model supply the reference column name. `constrained()` uses the model’s table and primary key, including custom names. Pass `Some(name)` to use a different column name in the referencing table.
+
+In this example, `PhotoAsset` uses a UUID primary key named `photo_code` in the `photo_assets` table.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn add_photo_reference() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+            .nullable()
+            .constrained()
+            .nullOnDelete();
+    })
+    .await
+}
+
+async fn drop_photo_reference() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.dropConstrainedForeignIdFor::<PhotoAsset>(Some("photo_ref"));
+    })
+    .await
+}
+```
+
+Model IDs default to an unsigned big integer. A model that generates UUIDs or ULIDs for its primary key selects the corresponding column type. Use `foreignUuidFor` and `foreignUlidFor` to select a format explicitly, or override `Model::getKeyType` for manually assigned IDs. Use `dropForeignIdFor` for a column that has no constraint.
+
 #### SQLite Inline Constraints {#sqlite-inline-constraints}
 
 Changing a SQLite column preserves its existing inline primary key, UNIQUE, CHECK and REFERENCES clauses. The rebuild also preserves the auto-increment sequence when the rebuilt table retains its auto-increment key. The column definition passed to `change()` controls the type, nullability and default.

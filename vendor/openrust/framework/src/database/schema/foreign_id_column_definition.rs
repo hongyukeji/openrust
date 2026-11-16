@@ -1,9 +1,10 @@
 use super::{Blueprint, ColumnDefinition, DefaultValue, ForeignKeyDefinition, blueprint::Command};
 
-/// An unsigned big integer column that can define its foreign key.
+/// A column that can define its foreign key.
 pub struct ForeignIdColumnDefinition<'a> {
     blueprint: &'a mut Blueprint,
     name: String,
+    model_target: Option<(&'static str, &'static str)>,
 }
 
 #[allow(
@@ -15,7 +16,13 @@ impl<'a> ForeignIdColumnDefinition<'a> {
         Self {
             blueprint,
             name: name.to_owned(),
+            model_target: None,
         }
+    }
+
+    pub(super) fn for_model(mut self, table: &'static str, column: &'static str) -> Self {
+        self.model_target = Some((table, column));
+        self
     }
 
     fn column(&mut self) -> &mut ColumnDefinition {
@@ -36,6 +43,9 @@ impl<'a> ForeignIdColumnDefinition<'a> {
     }
 
     pub fn constrained(self) -> &'a mut ForeignKeyDefinition {
+        if let Some((table, column)) = self.model_target {
+            return self.constrainedOn(table, column, None);
+        }
         let name = self
             .name
             .rsplit_once("_id")

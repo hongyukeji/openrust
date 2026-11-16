@@ -1,3 +1,5 @@
+use crate::database::eloquent::{Model, ModelKeyType, ModelState};
+
 use super::{
     ColumnDefinition, ForeignIdColumnDefinition, ForeignKeyDefinition, IndexDefinition,
     MorphKeyType, column_definition::ColumnType, index_definition::IndexType,
@@ -313,6 +315,56 @@ impl Blueprint {
         ForeignIdColumnDefinition::new(self, name)
     }
 
+    pub fn foreignUuid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
+        self.uuid(name);
+        ForeignIdColumnDefinition::new(self, name)
+    }
+
+    pub fn foreignUlid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
+        self.ulid(name);
+        ForeignIdColumnDefinition::new(self, name)
+    }
+
+    pub fn foreignIdFor<M: Model>(
+        &mut self,
+        column: Option<&str>,
+    ) -> ForeignIdColumnDefinition<'_> {
+        let model = M::from_state(ModelState::default());
+        let key_type = model.getKeyType();
+        self.foreign_model_id(&model, column, key_type)
+    }
+
+    pub fn foreignUuidFor<M: Model>(
+        &mut self,
+        column: Option<&str>,
+    ) -> ForeignIdColumnDefinition<'_> {
+        let model = M::from_state(ModelState::default());
+        self.foreign_model_id(&model, column, ModelKeyType::Uuid)
+    }
+
+    pub fn foreignUlidFor<M: Model>(
+        &mut self,
+        column: Option<&str>,
+    ) -> ForeignIdColumnDefinition<'_> {
+        let model = M::from_state(ModelState::default());
+        self.foreign_model_id(&model, column, ModelKeyType::Ulid)
+    }
+
+    fn foreign_model_id(
+        &mut self,
+        model: &impl Model,
+        column: Option<&str>,
+        key_type: ModelKeyType,
+    ) -> ForeignIdColumnDefinition<'_> {
+        let name = column.map_or_else(|| model.getForeignKey(), str::to_owned);
+        let definition = match key_type {
+            ModelKeyType::Integer => self.foreignId(&name),
+            ModelKeyType::Uuid => self.foreignUuid(&name),
+            ModelKeyType::Ulid => self.foreignUlid(&name),
+        };
+        definition.for_model(model.getTable(), model.getKeyName())
+    }
+
     pub fn foreign(&mut self, columns: &[&str], name: Option<&str>) -> &mut ForeignKeyDefinition {
         self.commands
             .push(Command::Foreign(ForeignKeyDefinition::new(columns, name)));
@@ -425,6 +477,22 @@ impl Blueprint {
     pub fn dropConstrainedForeignId(&mut self, column: &str) {
         self.dropForeignColumns(&[column]);
         self.dropColumn(&[column]);
+    }
+
+    pub fn dropForeignIdFor<M: Model>(&mut self, column: Option<&str>) {
+        let name = column.map_or_else(
+            || M::from_state(ModelState::default()).getForeignKey(),
+            str::to_owned,
+        );
+        self.dropColumn(&[&name]);
+    }
+
+    pub fn dropConstrainedForeignIdFor<M: Model>(&mut self, column: Option<&str>) {
+        let name = column.map_or_else(
+            || M::from_state(ModelState::default()).getForeignKey(),
+            str::to_owned,
+        );
+        self.dropConstrainedForeignId(&name);
     }
 
     pub fn renameIndex(&mut self, from: &str, to: &str) {

@@ -315,6 +315,35 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 从模型定义外键列 {#foreign-ids-from-models}
+
+用 `foreignIdFor::<Model>(None)` 让 Eloquent 模型提供外键列名。`constrained()` 读取模型的表名与主键名，支持自定义名称。传入 `Some(name)` 可指定引用方的列名。
+
+示例中的 `PhotoAsset` 使用 `photo_assets` 表，主键 `photo_code` 为 UUID。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn add_photo_reference() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+            .nullable()
+            .constrained()
+            .nullOnDelete();
+    })
+    .await
+}
+
+async fn drop_photo_reference() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.dropConstrainedForeignIdFor::<PhotoAsset>(Some("photo_ref"));
+    })
+    .await
+}
+```
+
+模型 ID 默认使用无符号大整数。模型为主键生成 UUID 或 ULID 时选用对应列类型。可用 `foreignUuidFor` 和 `foreignUlidFor` 显式选择格式。手动分配 ID 的模型可以覆盖 `Model::getKeyType`。删除没有外键约束的列时用 `dropForeignIdFor`。
+
 #### SQLite 内联约束 {#sqlite-inline-constraints}
 
 变更 SQLite 列时，已有的内联主键、UNIQUE、CHECK 和 REFERENCES 子句会保留。重建后的表仍有自增主键时，也会恢复其自增序列。传入 `change()` 的列定义决定类型、是否可空及默认值。

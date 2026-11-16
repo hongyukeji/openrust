@@ -2467,3 +2467,209 @@ async fn sqlite_drops_column_groups_indexes_and_foreign_constraints() {
     )
     .await;
 }
+
+mod model_foreign_keys {
+    use super::*;
+    use openrust::database::eloquent::{Model, ModelMetadata, ModelState, UniqueId};
+
+    macro_rules! schema_model {
+        ($model:ident, $metadata:expr) => {
+            struct $model(ModelState);
+
+            impl Model for $model {
+                fn metadata() -> &'static ModelMetadata {
+                    static METADATA: ModelMetadata = $metadata;
+                    &METADATA
+                }
+
+                fn from_state(state: ModelState) -> Self {
+                    Self(state)
+                }
+
+                fn state(&self) -> &ModelState {
+                    &self.0
+                }
+
+                fn state_mut(&mut self) -> &mut ModelState {
+                    &mut self.0
+                }
+            }
+        };
+    }
+
+    schema_model!(
+        AuditOwner,
+        ModelMetadata::new("team_people")
+            .primaryKey("owner_no")
+            .uniqueId(UniqueId::Uuid)
+            .uniqueIds(&["external_code"])
+    );
+    schema_model!(
+        AuditPhoto,
+        ModelMetadata::new("photo_assets")
+            .primaryKey("photo_code")
+            .uniqueId(UniqueId::Uuid)
+    );
+    schema_model!(
+        AuditAlbum,
+        ModelMetadata::new("media_albums")
+            .primaryKey("album_code")
+            .uniqueId(UniqueId::Ulid)
+    );
+
+    async fn verify(db: Connection) {
+        let mut schema = db.getSchemaBuilder();
+        for table in [
+            "model_attachments",
+            "team_people",
+            "photo_assets",
+            "media_albums",
+        ] {
+            schema.dropIfExists(table).await.unwrap();
+        }
+        schema
+            .create("team_people", |table| {
+                table.unsignedBigInteger("owner_no").primary();
+            })
+            .await
+            .unwrap();
+        schema
+            .create("photo_assets", |table| {
+                table.uuid("photo_code").primary();
+            })
+            .await
+            .unwrap();
+        schema
+            .create("media_albums", |table| {
+                table.ulid("album_code").primary();
+            })
+            .await
+            .unwrap();
+        schema
+            .create("model_attachments", |table| {
+                table.id();
+                table
+                    .foreignIdFor::<AuditOwner>(None)
+                    .nullable()
+                    .constrained()
+                    .nullOnDelete();
+                table
+                    .foreignIdFor::<AuditPhoto>(Some("photo_ref"))
+                    .constrained();
+                table.foreignIdFor::<AuditAlbum>(None).constrained();
+                table
+                    .foreignUuidFor::<AuditPhoto>(Some("previous_photo"))
+                    .nullable();
+                table
+                    .foreignUlidFor::<AuditAlbum>(Some("previous_album"))
+                    .nullable();
+                table.foreignUuid("external_photo").nullable();
+                table.foreignUlid("external_album").nullable();
+            })
+            .await
+            .unwrap();
+
+        let foreign = schema.getForeignKeys("model_attachments").await.unwrap();
+        for (column, table, key) in [
+            ("audit_owner_owner_no", "app_team_people", "owner_no"),
+            ("photo_ref", "app_photo_assets", "photo_code"),
+            ("audit_album_album_code", "app_media_albums", "album_code"),
+        ] {
+            assert!(
+                foreign.iter().any(|f| f.columns == [column]
+                    && f.foreign_table == table
+                    && f.foreign_columns.as_slice() == [Some(key.to_owned())]),
+                "{column}"
+            );
+        }
+        assert_eq!(foreign.len(), 3);
+
+        let photo = "01942ccb-2d32-79fb-b722-b37912f515dc";
+        let album = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        db.insert("insert into app_team_people (owner_no) values (5)", &[])
+            .await
+            .unwrap();
+        db.insert(
+            "insert into app_photo_assets (photo_code) values (?)",
+            &[photo.into()],
+        )
+        .await
+        .unwrap();
+        db.insert(
+            "insert into app_media_albums (album_code) values (?)",
+            &[album.into()],
+        )
+        .await
+        .unwrap();
+        let insert = "insert into app_model_attachments (audit_owner_owner_no, photo_ref, audit_album_album_code) values (?, ?, ?)";
+        db.insert(insert, &[5.into(), photo.into(), album.into()])
+            .await
+            .unwrap();
+        assert!(
+            db.insert(insert, &[6.into(), photo.into(), album.into()])
+                .await
+                .is_err()
+        );
+        db.delete("delete from app_team_people where owner_no = 5", &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table("model_attachments")
+                .value("audit_owner_owner_no")
+                .await
+                .unwrap(),
+            Value::Null
+        );
+
+        schema
+            .table("model_attachments", |table| {
+                table.dropConstrainedForeignIdFor::<AuditOwner>(None);
+                table.dropConstrainedForeignIdFor::<AuditPhoto>(Some("photo_ref"));
+                table.dropConstrainedForeignIdFor::<AuditAlbum>(None);
+                table.dropForeignIdFor::<AuditPhoto>(Some("previous_photo"));
+                table.dropForeignIdFor::<AuditAlbum>(Some("previous_album"));
+            })
+            .await
+            .unwrap();
+        assert!(
+            schema
+                .getForeignKeys("model_attachments")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert_eq!(
+            schema.getColumnListing("model_attachments").await.unwrap(),
+            ["id", "external_photo", "external_album"]
+        );
+        assert_eq!(db.table("model_attachments").count("*").await.unwrap(), 1);
+        for table in [
+            "model_attachments",
+            "team_people",
+            "photo_assets",
+            "media_albums",
+        ] {
+            schema.drop(table).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn mysql_references_and_drops_model_foreign_keys() {
+        let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+            assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+            return;
+        };
+        verify(connection(
+            json!({"url":url,"prefix":"app_","prefix_indexes":true}),
+        ))
+        .await;
+    }
+
+    #[tokio::test]
+    async fn sqlite_references_and_drops_model_foreign_keys() {
+        verify(connection(
+            json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),
+        ))
+        .await;
+    }
+}

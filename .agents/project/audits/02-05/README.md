@@ -105,3 +105,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 新增 remember token、可空时间戳别名与对应删除入口。`dropMorphs` 先删除复合索引，再删两列。约定名称复用索引创建的前缀规则，也可提供显式名称。`dropConstrainedForeignId` 复用现有按列删外键机制，随后删列。
 - MySQL 8.4.13 和 SQLite 共 85 项定向回归。验证组内新增顺序、组外正常追加、可空多态和时间戳、两种索引命名、外键与列移除、数据保留及 SQLite 位置边界。1 个子进程夹具由父测试启动。三语共用例在两种驱动通过实际 Artisan 验证，原生 `main artisan inspire` 正常退出。
 - 严格工作区 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全工作区格式检查仍报既有 Sanctum 测试排版差异，文件已与本批基线逐字节核对。
+
+## 从模型定义外键列
+
+对照固定 Laravel [foreignIdFor](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-method-foreignIdFor)、[Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L987) 和 [ForeignIdColumnDefinition](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/ForeignIdColumnDefinition.php#L34)。旧版框架 Schema 未找到对应接口，本批复用 Eloquent 元数据、UUID／ULID 策略、字符串蛇形命名和驱动外键操作。
+
+- Rust 用泛型模型类型和 `Option<&str>` 表达 Laravel 的模型类与可选列名。默认列名由模型默认外键名提供。`foreignIdFor` 根据主键类型选择无符号大整数、UUID 或 ULID。`Model::getKeyType` 可为手动分配的键声明类型；在非主键上生成 UUID 或 ULID 时，不改变主键类型。
+- `foreignUuidFor`、`foreignUlidFor` 允许显式选择类型。`constrained()` 使用模型表名与主键名，显式列名仅覆盖引用方列名。`dropForeignIdFor` 和 `dropConstrainedForeignIdFor` 复用列名推导及原有删除路径。
+- MySQL 8.4.13 与 SQLite 共 90 项定向回归，覆盖整型、UUID、ULID、自定义表和主键、列名覆盖、前缀、约束拒绝、删除置空、回滚移除及已有数据保留。1 个子进程夹具由父测试启动。三语共用例在两种驱动通过实际 Artisan 验证，原生 `main artisan inspire` 正常退出。
+- 严格工作区 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全工作区格式检查仍报既有 Sanctum 测试排版差异，已核对文件与基线相同。

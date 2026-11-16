@@ -43,7 +43,7 @@ pub use concerns::{
 pub use dynamic_relations::DynamicRelation;
 pub(crate) use dynamic_relations::RelationResolvers;
 pub use metadata::ModelMetadata;
-pub use model::Model;
+pub use model::{Model, ModelKeyType};
 pub use named_relations::{MissingRelation, NamedRelations};
 pub use observer::Observer;
 pub use queueable::{ModelCollectionIdentifier, ModelIdentifier, QueueablePivot};

@@ -7,6 +7,7 @@ use crate::{
         resources::json::{JsonResource, UseResource},
     },
     routing::BindingContext,
+    support::Str,
 };
 
 use super::{
@@ -17,6 +18,14 @@ use super::{
     relations::{ExistenceRelation, Relation},
     route_binding, serialization, soft_deletes,
 };
+
+/// The database key type used when referencing an Eloquent model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelKeyType {
+    Integer,
+    Uuid,
+    Ulid,
+}
 
 /// A model type implemented by the application.
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent Model API")]
@@ -809,6 +818,31 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn getKeyName(&self) -> &'static str {
         Self::metadata().primary_key
+    }
+
+    /// The default name for foreign key columns pointing to this model.
+    fn getForeignKey(&self) -> String {
+        let name = std::any::type_name::<Self>()
+            .split('<')
+            .next()
+            .unwrap_or_default()
+            .rsplit("::")
+            .next()
+            .unwrap_or_default();
+        format!("{}_{}", Str::snake(name, "_"), self.getKeyName())
+    }
+
+    /// The key type used by schema helpers. Override for manually assigned string keys.
+    fn getKeyType(&self) -> ModelKeyType {
+        if Self::uniqueIds().contains(&self.getKeyName()) {
+            match Self::metadata().unique_id {
+                Some(super::UniqueId::Uuid) => ModelKeyType::Uuid,
+                Some(super::UniqueId::Ulid) => ModelKeyType::Ulid,
+                None => ModelKeyType::Integer,
+            }
+        } else {
+            ModelKeyType::Integer
+        }
     }
 
     fn getRouteKeyName() -> &'static str {
