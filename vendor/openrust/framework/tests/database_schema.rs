@@ -1,10 +1,12 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use futures_util::TryStreamExt as _;
+
 use openrust::{
     config::Repository,
     database::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
-        schema::{MorphKeyType, Schema},
+        schema::{GenerationType, MorphKeyType, Schema},
     },
     foundation::Application,
     http::HttpFuture,
@@ -1072,4 +1074,198 @@ async fn mysql_compiles_and_enforces_additional_column_types() {
         return;
     };
     verify_additional_column_types(connection(json!({"url":url})), true).await;
+}
+
+async fn verify_generated_columns(db: Connection, mysql: bool) {
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("generated_samples").await.unwrap();
+    schema
+        .create("generated_samples", |table| {
+            table.id();
+            table.integer("base_units");
+            table.integer("bonus_units").default(4_i64);
+            table.integer("twice").virtualAs("base_units * 2").index();
+            table.integer("total").storedAs("base_units + bonus_units");
+            table.json("payload").nullable();
+            table
+                .string("locale", 30)
+                .virtualAsJson("payload->menu.name->value")
+                .nullable();
+            table
+                .string("label", 50)
+                .storedAsJson("payload->fields[0]->display")
+                .nullable();
+        })
+        .await
+        .unwrap();
+    let columns = schema.getColumns("generated_samples").await.unwrap();
+    let generation = |name| {
+        columns
+            .iter()
+            .find(|column| column.name == name)
+            .unwrap()
+            .generation
+            .as_ref()
+            .unwrap()
+    };
+    assert_eq!(generation("twice").kind, GenerationType::Virtual);
+    assert_eq!(generation("total").kind, GenerationType::Stored);
+    assert!(generation("total").expression.contains("bonus_units"));
+    assert_eq!(generation("locale").kind, GenerationType::Virtual);
+    assert!(
+        generation("locale")
+            .expression
+            .to_ascii_lowercase()
+            .contains("json_extract")
+    );
+    assert_eq!(generation("label").kind, GenerationType::Stored);
+    let json =
+        Value::Json(json!({"menu.name":{"value":"zh_TW"},"fields":[{"display":"customer's"}]}));
+    db.insert(
+        "insert into generated_samples (base_units, payload) values (?, ?)",
+        &[3.into(), json],
+    )
+    .await
+    .unwrap();
+    let row = db
+        .table("generated_samples")
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.get("twice"), Some(&6.into()));
+    assert_eq!(row.get("total"), Some(&7.into()));
+    assert_eq!(row.get("locale"), Some(&"zh_TW".into()));
+    assert_eq!(row.get("label"), Some(&"customer's".into()));
+
+    db.update("update generated_samples set base_units = ?", &[5.into()])
+        .await
+        .unwrap();
+    let row = db
+        .table("generated_samples")
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.get("twice"), Some(&10.into()));
+    assert_eq!(row.get("total"), Some(&9.into()));
+
+    let query = "select * from generated_samples";
+    let before = db.cursor(query, &[]).try_collect::<Vec<_>>().await.unwrap();
+    assert!(before[0].get("offset_total").is_none());
+    schema
+        .table("generated_samples", |table| {
+            table.integer("offset_total").virtualAs("total + 1");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("generated_samples")
+            .value("offset_total")
+            .await
+            .unwrap(),
+        10.into()
+    );
+    let after = db.cursor(query, &[]).try_collect::<Vec<_>>().await.unwrap();
+    assert_eq!(after[0].get("offset_total"), Some(&10.into()));
+    assert!(
+        db.update("update generated_samples set total = 1", &[])
+            .await
+            .is_err()
+    );
+    assert!(matches!(
+        schema
+            .create("invalid_generated_default", |table| {
+                table.integer("base");
+                table
+                    .integer("derived")
+                    .virtualAs("base + 1")
+                    .default(1_i64);
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("generated column modifiers"))
+    ));
+
+    if mysql {
+        schema
+            .table("generated_samples", |table| {
+                table
+                    .integer("total")
+                    .storedAs("base_units + bonus_units * 2")
+                    .change();
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table("generated_samples").value("total").await.unwrap(),
+            13.into()
+        );
+    } else {
+        schema
+            .table("generated_samples", |table| {
+                table.integer("base_units").default(0_i64).change();
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table("generated_samples").value("twice").await.unwrap(),
+            10.into()
+        );
+        assert_eq!(
+            db.table("generated_samples").value("locale").await.unwrap(),
+            "zh_TW".into()
+        );
+        assert!(
+            schema
+                .getIndexes("generated_samples")
+                .await
+                .unwrap()
+                .iter()
+                .any(|index| index.columns == [Some("twice".into())])
+        );
+
+        schema
+            .table("generated_samples", |table| {
+                table
+                    .integer("total")
+                    .storedAs("base_units + bonus_units * 2")
+                    .change();
+                table.integer("twice").change();
+                table
+                    .integer("bonus_units")
+                    .storedAs("base_units + 1")
+                    .change();
+            })
+            .await
+            .unwrap();
+        let row = db
+            .table("generated_samples")
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.get("twice"), Some(&10.into()));
+        assert_eq!(row.get("bonus_units"), Some(&6.into()));
+        assert_eq!(row.get("total"), Some(&17.into()));
+        assert_eq!(row.get("offset_total"), Some(&18.into()));
+    }
+    schema.drop("generated_samples").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_generated_columns_survive_rebuild_and_mode_changes() {
+    verify_generated_columns(
+        connection(json!({"driver":"sqlite","database":":memory:"})),
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn mysql_generated_columns_compute_and_update_real_rows() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_generated_columns(connection(json!({"url":url})), true).await;
 }

@@ -94,7 +94,10 @@ impl Grammar {
         Ok(format!("{function}({column}{path_parameter})"))
     }
 
-    fn json_selector(&self, selector: &str) -> DatabaseResult<(String, Option<String>)> {
+    pub(in crate::database) fn json_selector(
+        &self,
+        selector: &str,
+    ) -> DatabaseResult<(String, Option<String>)> {
         let (column, path) = selector
             .split_once("->")
             .map_or((selector, None), |(column, path)| (column, Some(path)));

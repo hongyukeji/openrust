@@ -302,9 +302,9 @@ macro_rules! prepare_query {
 }
 
 macro_rules! execute_query {
-    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal) => {{
+    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal, $persistent:expr) => {{
         let statement = prepare_query!($lease, $sql, $bindings);
-        let query = bind!(statement.query(), $bindings, $unsigned);
+        let query = bind!(statement.query(), $bindings, $unsigned).persistent($persistent);
         $lease.start()?;
         let result = query.$method(&mut *$lease.connection).await;
         $lease
@@ -314,12 +314,13 @@ macro_rules! execute_query {
 }
 
 macro_rules! cursor_rows {
-    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $decode:path) => {
+    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $decode:path, $persistent:expr) => {
         async_stream::try_stream! {
             let statement = async {
                 Ok::<_, DatabaseError>(prepare_query!($lease, $sql, $bindings))
             }.await?;
             let query = (|| Ok::<_, DatabaseError>(bind!(statement.query(), $bindings, $unsigned)))()?;
+            let query = query.persistent($persistent);
             $lease.start()?;
             let result = {
                 let mut rows = query.fetch(&mut *$lease.connection);
@@ -336,6 +337,15 @@ macro_rules! cursor_rows {
     };
 }
 
+macro_rules! sqlite_persistent {
+    (execute) => {
+        true
+    };
+    ($method:ident) => {
+        false
+    };
+}
+
 macro_rules! query {
     ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr) => {{
         let prepared = $bindings
@@ -345,8 +355,17 @@ macro_rules! query {
         let $bindings = prepared.values();
         match $self {
             Self::Sqlite(lease) => {
-                let result =
-                    execute_query!(lease, $sql, $bindings, sqlite_unsigned, $method, $operation);
+                // SQLx caches SQLite result metadata across schema changes. Reprepare
+                // the executing statement so a changed projection is decoded correctly.
+                let result = execute_query!(
+                    lease,
+                    $sql,
+                    $bindings,
+                    sqlite_unsigned,
+                    $method,
+                    $operation,
+                    sqlite_persistent!($method)
+                );
                 $map(result, $sqlite_map)
             }
             Self::Mysql(lease) => {
@@ -356,7 +375,8 @@ macro_rules! query {
                     $bindings,
                     Ok::<u64, DatabaseError>,
                     $method,
-                    $operation
+                    $operation,
+                    true
                 );
                 $map(result, $mysql_map)
             }
@@ -420,14 +440,16 @@ impl PhysicalConnection {
                 sql,
                 bindings,
                 sqlite_unsigned,
-                value::sqlite
+                value::sqlite,
+                false
             )),
             Self::Mysql(lease) => Either::Right(cursor_rows!(
                 lease,
                 sql,
                 bindings,
                 Ok::<u64, DatabaseError>,
-                value::mysql
+                value::mysql,
+                true
             )),
         }
     }

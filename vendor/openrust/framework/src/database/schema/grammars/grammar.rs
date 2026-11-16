@@ -6,7 +6,7 @@ use crate::database::{
     schema::{
         Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition,
         blueprint::Command,
-        column_definition::{ColumnType, DefaultValue, Position},
+        column_definition::{ColumnType, DefaultValue, GeneratedColumn, Position},
         index_definition::IndexType,
     },
 };
@@ -418,11 +418,27 @@ impl Grammar {
         if self.mysql() && column.unsigned {
             sql.push_str(" unsigned");
         }
-        sql.push_str(if column.nullable {
-            " null"
+        if let Some(generated) = &column.generated {
+            if column.default.is_some()
+                || column.increment
+                || column.primary
+                || column.current_on_update
+            {
+                return Err(DatabaseError::InvalidSchema("generated column modifiers"));
+            }
+            let expression = self.generated_expression(generated)?;
+            let mode = if generated.stored { " stored" } else { "" };
+            write!(sql, " as ({expression}){mode}").expect("writing to a String");
+            if !column.nullable {
+                sql.push_str(" not null");
+            }
         } else {
-            " not null"
-        });
+            sql.push_str(if column.nullable {
+                " null"
+            } else {
+                " not null"
+            });
+        }
         if let Some(default) = &column.default {
             write!(
                 sql,
@@ -464,6 +480,24 @@ impl Grammar {
             None => {}
         }
         Ok(sql)
+    }
+
+    fn generated_expression(&self, generated: &GeneratedColumn) -> DatabaseResult<String> {
+        let expression = generated.expression.trim();
+        if expression.is_empty() || expression.contains('\0') {
+            return Err(DatabaseError::InvalidSchema("generated column expression"));
+        }
+        if generated.json && expression.contains("->") {
+            let (column, path) = self.grammar.json_selector(expression)?;
+            let path = path.ok_or(DatabaseError::InvalidSchema("generated JSON column path"))?;
+            let expression = format!("json_extract({column}, {})", self.string(&path)?);
+            return Ok(if self.mysql() {
+                format!("json_unquote({expression})")
+            } else {
+                expression
+            });
+        }
+        Ok(expression.to_owned())
     }
 
     fn column_type(&self, kind: &ColumnType, column: &str) -> DatabaseResult<String> {

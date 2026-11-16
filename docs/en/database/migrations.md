@@ -138,6 +138,28 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### Generated Columns {#generated-columns}
+
+Use `virtualAs` to compute a column when it is read or `storedAs` to store the computed result. Both take a trusted SQL expression. `virtualAsJson` and `storedAsJson` use an arrow-separated JSON path. A generated column must have a declared type, and the database computes its value from the other columns.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_invoice_lines() -> DatabaseResult<()> {
+    Schema::create("invoice_lines", |table| {
+        table.id();
+        table.integer("quantity");
+        table.integer("unit_cents");
+        table.integer("total_cents").storedAs("quantity * unit_cents");
+        table.json("metadata").nullable();
+        table.string("currency", 3).virtualAsJson("metadata->currency").nullable();
+    })
+    .await
+}
+```
+
+`getColumns()` exposes the generation mode and expression. MySQL and SQLite support both modes when creating tables. SQLite’s native ALTER can add a virtual column. Add a stored column when creating a table, or use a migration that explicitly rebuilds the table.
+
 ### MySQL Column Modifiers
 
 Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.

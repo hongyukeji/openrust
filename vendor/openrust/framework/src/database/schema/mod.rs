@@ -35,6 +35,20 @@ pub struct TableInfo {
     pub schema: String,
 }
 
+/// How the database computes a generated column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GenerationType {
+    Virtual,
+    Stored,
+}
+
+/// A generated column's mode and SQL expression.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ColumnGeneration {
+    pub kind: GenerationType,
+    pub expression: String,
+}
+
 /// A column read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Column {
@@ -46,6 +60,7 @@ pub struct Column {
     pub auto_increment: bool,
     pub primary: bool,
     pub comment: Option<String>,
+    pub generation: Option<ColumnGeneration>,
 }
 
 /// An index read from the database catalog.

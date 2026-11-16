@@ -12,6 +12,18 @@ pub(super) fn autoincrement_column(create_sql: &str) -> DatabaseResult<Option<St
     sql::autoincrement_column(create_sql)
 }
 
+pub(super) fn generated_expressions(
+    create_sql: &str,
+) -> DatabaseResult<impl Iterator<Item = (String, String)>> {
+    let mut expressions = Vec::new();
+    for column in sql::parse_table(create_sql)?.columns {
+        if let Some(expression) = sql::generation_expression(column)? {
+            expressions.push((sql::column_name(column)?, expression.into()));
+        }
+    }
+    Ok(expressions.into_iter())
+}
+
 pub(super) fn requires_catalog(command: &Command) -> bool {
     match command {
         Command::Column(column) => column.change,
@@ -199,21 +211,9 @@ async fn rebuild_table(
         &format!("select type, name, sql from {schema}.sqlite_schema where tbl_name = ? collate nocase and type in ('index', 'trigger') and sql is not null order by type, name"),
         &[table.name.as_str().into()],
     ).await?;
-    let copy = transaction
-        .select(
-            "select name from pragma_table_xinfo(?, ?) where hidden = 0 order by cid",
-            &[table.name.as_str().into(), schema_name.into()],
-        )
-        .await?
-        .iter()
-        .map(|row| grammar.identifier(text(row, "name")?))
-        .collect::<DatabaseResult<Vec<_>>>()?
-        .join(", ");
     let sequence = read_sequence(transaction, &schema, &table.name).await?;
-    let temporary = format!(
-        "{schema}.{}",
-        grammar.identifier(&format!("__temp__{:016x}", fastrand::u64(..)))?
-    );
+    let temporary_name = format!("__temp__{:016x}", fastrand::u64(..));
+    let temporary = format!("{schema}.{}", grammar.identifier(&temporary_name)?);
     columns.extend(constraints);
     transaction
         .statement(
@@ -225,6 +225,16 @@ async fn rebuild_table(
             &[],
         )
         .await?;
+    let copy = transaction
+        .select(
+            "select name from pragma_table_xinfo(?, ?) where hidden = 0 order by cid",
+            &[temporary_name.into(), schema_name.into()],
+        )
+        .await?
+        .iter()
+        .map(|row| grammar.identifier(text(row, "name")?))
+        .collect::<DatabaseResult<Vec<_>>>()?
+        .join(", ");
     transaction
         .statement(
             &format!("insert into {temporary} ({copy}) select {copy} from {original}"),

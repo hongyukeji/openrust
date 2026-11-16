@@ -176,6 +176,33 @@ pub(super) fn autoincrement_column(sql: &str) -> DatabaseResult<Option<String>> 
     Ok(None)
 }
 
+pub(super) fn generation_expression(sql: &str) -> DatabaseResult<Option<&str>> {
+    let tokens = tokenize(sql)?;
+    let mut depth = 0;
+    let mut start = None;
+    for (index, token) in tokens.iter().enumerate().skip(1) {
+        match token.text {
+            "(" => depth += 1,
+            ")" => {
+                depth -= 1;
+                if depth == 0
+                    && let Some(start) = start
+                {
+                    return Ok(Some(sql[start..token.start].trim()));
+                }
+            }
+            _ if depth == 0 && token.is("as") => {
+                start = tokens
+                    .get(index + 1)
+                    .filter(|next| next.is("("))
+                    .map(|next| next.end);
+            }
+            _ => {}
+        }
+    }
+    Ok(None)
+}
+
 pub(super) fn constrained_column(sql: &str) -> DatabaseResult<bool> {
     let tokens = tokenize(sql)?;
     let mut depth = 0;
@@ -184,17 +211,9 @@ pub(super) fn constrained_column(sql: &str) -> DatabaseResult<bool> {
             "(" => depth += 1,
             ")" => depth -= 1,
             _ if depth == 0
-                && [
-                    "primary",
-                    "references",
-                    "unique",
-                    "check",
-                    "generated",
-                    "as",
-                    "collate",
-                ]
-                .iter()
-                .any(|kind| token.is(kind)) =>
+                && ["primary", "references", "unique", "check", "collate"]
+                    .iter()
+                    .any(|kind| token.is(kind)) =>
             {
                 return Ok(true);
             }

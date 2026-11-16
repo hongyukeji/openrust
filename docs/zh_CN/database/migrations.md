@@ -138,6 +138,28 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
 
+### 生成列 {#generated-columns}
+
+用 `virtualAs` 声明读取时计算的列，用 `storedAs` 保存计算结果。两者都接受可信 SQL 表达式。`virtualAsJson` 和 `storedAsJson` 可使用箭头分隔的 JSON 路径。生成列需要指定类型，由数据库根据其他列计算。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_invoice_lines() -> DatabaseResult<()> {
+    Schema::create("invoice_lines", |table| {
+        table.id();
+        table.integer("quantity");
+        table.integer("unit_cents");
+        table.integer("total_cents").storedAs("quantity * unit_cents");
+        table.json("metadata").nullable();
+        table.string("currency", 3).virtualAsJson("metadata->currency").nullable();
+    })
+    .await
+}
+```
+
+`getColumns()` 返回生成模式和表达式。MySQL 和 SQLite 建表时都支持这两种模式。SQLite 原生 ALTER 可追加虚拟列。存储型生成列可在建表时定义，也可通过显式重建表的迁移添加。
+
 ### MySQL 列修饰符
 
 用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。

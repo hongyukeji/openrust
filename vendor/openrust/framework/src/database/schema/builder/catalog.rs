@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
 use super::Builder;
-use crate::database::schema::{Column, ForeignKey, Index, TableInfo, grammars::Table};
+use crate::database::schema::{
+    Column, ColumnGeneration, ForeignKey, GenerationType, Index, TableInfo, grammars::Table,
+};
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
 impl Builder<'_> {
@@ -54,13 +56,13 @@ impl Builder<'_> {
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
             (
-                "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
+                "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment, case when extra like '%VIRTUAL GENERATED%' then 'virtual' when extra like '%STORED GENERATED%' then 'stored' end as generation_kind, generation_expression as generation_expression from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
                 parameters,
             )
         } else {
             let [schema, name] = parameters;
             (
-                "select name, lower(type) as full_type, lower(type) as type_name, not \"notnull\" and pk = 0 as nullable, dflt_value as default_value, 0 as auto_increment, pk > 0 as primary_key, null as comment from pragma_table_xinfo(?, ?) order by cid",
+                "select name, lower(type) as full_type, lower(type) as type_name, not \"notnull\" and pk = 0 as nullable, dflt_value as default_value, 0 as auto_increment, pk > 0 as primary_key, null as comment, case hidden when 2 then 'virtual' when 3 then 'stored' end as generation_kind, null as generation_expression from pragma_table_xinfo(?, ?) order by cid",
                 [name, schema],
             )
         };
@@ -69,6 +71,20 @@ impl Builder<'_> {
             .await?
             .iter()
             .map(|row| {
+                let generation = match optional_text(row, "generation_kind")?.as_deref() {
+                    Some("virtual") => Some(GenerationType::Virtual),
+                    Some("stored") => Some(GenerationType::Stored),
+                    _ => None,
+                };
+                let generation = generation
+                    .map(|kind| -> DatabaseResult<ColumnGeneration> {
+                        Ok(ColumnGeneration {
+                            kind,
+                            expression: optional_text(row, "generation_expression")?
+                                .unwrap_or_default(),
+                        })
+                    })
+                    .transpose()?;
                 Ok(Column {
                     name: text(row, "name")?,
                     type_name: text(row, "type_name")?,
@@ -78,14 +94,15 @@ impl Builder<'_> {
                     auto_increment: flag(row, "auto_increment")?,
                     primary: flag(row, "primary_key")?,
                     comment: optional_text(row, "comment")?,
+                    generation,
                 })
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
-        if !self.grammar.mysql()
-            && columns
-                .iter()
-                .any(|column| column.primary && column.type_name == "integer")
-        {
+        let autoincrement = columns
+            .iter()
+            .any(|column| column.primary && column.type_name == "integer");
+        let generated = columns.iter().any(|column| column.generation.is_some());
+        if !self.grammar.mysql() && (autoincrement || generated) {
             let schema = self
                 .grammar
                 .identifier(self.grammar.catalog_schema(&table))?;
@@ -93,11 +110,22 @@ impl Builder<'_> {
                 "select sql from {schema}.sqlite_schema where type = 'table' and name = ? collate nocase"
             );
             let rows = self.select(&sql, &[table.name.into()]).await?;
-            if let Some(Value::Text(sql)) = rows.first().and_then(|row| row.get("sql"))
-                && let Some(name) = super::sqlite::autoincrement_column(sql)?
-            {
-                for column in &mut columns {
-                    column.auto_increment = column.name.eq_ignore_ascii_case(&name);
+            if let Some(Value::Text(sql)) = rows.first().and_then(|row| row.get("sql")) {
+                if autoincrement && let Some(name) = super::sqlite::autoincrement_column(sql)? {
+                    for column in &mut columns {
+                        column.auto_increment = column.name.eq_ignore_ascii_case(&name);
+                    }
+                }
+                if generated {
+                    let mut expressions =
+                        super::sqlite::generated_expressions(sql)?.collect::<BTreeMap<_, _>>();
+                    for column in &mut columns {
+                        if let Some(generation) = &mut column.generation {
+                            generation.expression = expressions.remove(&column.name).ok_or(
+                                DatabaseError::InvalidSchema("SQLite generated column expression"),
+                            )?;
+                        }
+                    }
                 }
             }
         }

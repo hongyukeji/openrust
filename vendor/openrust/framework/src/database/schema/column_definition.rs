@@ -43,6 +43,13 @@ pub(super) enum Position {
     After(String),
 }
 
+#[derive(Clone)]
+pub(super) struct GeneratedColumn {
+    pub(super) expression: String,
+    pub(super) stored: bool,
+    pub(super) json: bool,
+}
+
 /// A column's type and modifiers.
 #[derive(Clone)]
 pub struct ColumnDefinition {
@@ -55,6 +62,7 @@ pub struct ColumnDefinition {
     pub(super) unique: bool,
     pub(super) indexed: bool,
     pub(super) default: Option<DefaultValue>,
+    pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
     pub(super) comment: Option<String>,
     pub(super) current_on_update: bool,
@@ -75,6 +83,7 @@ impl ColumnDefinition {
             unique: false,
             indexed: false,
             default: None,
+            generated: None,
             change: false,
             comment: None,
             current_on_update: false,
@@ -116,6 +125,35 @@ impl ColumnDefinition {
 
     pub fn default(&mut self, value: impl Into<Value>) -> &mut Self {
         self.default = Some(DefaultValue::Value(value.into()));
+        self
+    }
+
+    /// Computes the column from a trusted SQL expression when read.
+    pub fn virtualAs(&mut self, expression: impl Into<String>) -> &mut Self {
+        self.generated(expression, false, false)
+    }
+
+    /// Computes and stores the column using a trusted SQL expression.
+    pub fn storedAs(&mut self, expression: impl Into<String>) -> &mut Self {
+        self.generated(expression, true, false)
+    }
+
+    /// Computes the column from a JSON selector when read.
+    pub fn virtualAsJson(&mut self, selector: impl Into<String>) -> &mut Self {
+        self.generated(selector, false, true)
+    }
+
+    /// Computes and stores the column selected from JSON.
+    pub fn storedAsJson(&mut self, selector: impl Into<String>) -> &mut Self {
+        self.generated(selector, true, true)
+    }
+
+    fn generated(&mut self, expression: impl Into<String>, stored: bool, json: bool) -> &mut Self {
+        self.generated = Some(GeneratedColumn {
+            expression: expression.into(),
+            stored,
+            json,
+        });
         self
     }
 
