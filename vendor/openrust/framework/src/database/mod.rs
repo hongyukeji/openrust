@@ -94,6 +94,10 @@ pub enum DatabaseError {
     AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
     SchemaIo(std::io::Error),
+    SchemaProcess {
+        program: &'static str,
+        status: std::process::ExitStatus,
+    },
     UnsupportedSchema(&'static str),
     TransactionClosed,
     AfterCommit {
@@ -145,6 +149,12 @@ impl std::fmt::Display for DatabaseError {
             }
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
             Self::SchemaIo(_) => formatter.write_str("database schema file operation failed"),
+            Self::SchemaProcess { program, status } => {
+                write!(
+                    formatter,
+                    "database schema command {program} failed ({status})"
+                )
+            }
             Self::InvalidSchema(part) => write!(formatter, "invalid schema {part}"),
             Self::UnsupportedSchema(operation) => {
                 write!(formatter, "unsupported schema operation: {operation}")

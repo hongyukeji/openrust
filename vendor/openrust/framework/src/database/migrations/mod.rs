@@ -6,6 +6,9 @@ mod migration_creator;
 mod migration_repository_interface;
 mod migration_result;
 mod migrator;
+mod schema_state;
+
+pub(super) use schema_state::SchemaCredentials;
 
 pub use database_migration_repository::DatabaseMigrationRepository;
 pub use migration::{Migration, MigrationContext, MigrationEntry, MigrationRegistry};

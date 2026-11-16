@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fs, io,
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
 };
@@ -8,7 +9,7 @@ use crate::database::{DatabaseError, DatabaseManager, DatabaseResult};
 
 use super::{
     DatabaseMigrationRepository, MigrationContext, MigrationEntry, MigrationRegistry,
-    MigrationRepositoryInterface, MigrationResult,
+    MigrationRepositoryInterface, MigrationResult, schema_state,
 };
 
 /// Runs and rolls back compiled migrations against a configured ledger.
@@ -137,8 +138,21 @@ impl Migrator {
         paths: &[PathBuf],
         options: RunOptions,
     ) -> DatabaseResult<Vec<MigrationOutcome>> {
+        self.run_with_schema(database, paths, options, None)
+            .await
+            .map(|(rows, _)| rows)
+    }
+
+    pub(crate) async fn run_with_schema(
+        &self,
+        database: Option<&str>,
+        paths: &[PathBuf],
+        options: RunOptions,
+        schema_path: Option<&Path>,
+    ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let _guard = self.execution.lock().await;
-        self.run_pending(database, paths, options).await
+        self.run_pending(database, paths, options, schema_path)
+            .await
     }
 
     async fn run_pending(
@@ -146,13 +160,40 @@ impl Migrator {
         database: Option<&str>,
         paths: &[PathBuf],
         options: RunOptions,
-    ) -> DatabaseResult<Vec<MigrationOutcome>> {
+        schema_path: Option<&Path>,
+    ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let files = self.files(paths)?;
         let mut repository = self.repository(database);
-        if !repository.repository_exists().await? {
+        let mut installed = repository.repository_exists().await?;
+        let mut ran = if installed {
+            repository.get_ran().await?
+        } else {
+            Vec::new()
+        };
+        let mut loaded = false;
+        if ran.is_empty() && !options.pretend {
+            let connection = self.manager.connection(database)?;
+            if let Some(path) = self.schema_to_load(connection.getName(), schema_path)? {
+                if connection.pools.generation()?.schema_credentials.is_none() {
+                    return Err(DatabaseError::UnsupportedSchema(
+                        "schema snapshots require a MySQL write connection",
+                    ));
+                }
+                if installed {
+                    repository.delete_repository().await?;
+                }
+                schema_state::load(&connection, &path).await?;
+                installed = repository.repository_exists().await?;
+                if installed {
+                    ran = repository.get_ran().await?;
+                }
+                loaded = true;
+            }
+        }
+        if !installed {
             repository.create_repository().await?;
         }
-        let ran: BTreeSet<_> = repository.get_ran().await?.into_iter().collect();
+        let ran: BTreeSet<_> = ran.into_iter().collect();
         let mut batch = repository.get_next_batch_number().await?;
         let mut outcomes = Vec::new();
         for (name, entry) in files {
@@ -200,7 +241,103 @@ impl Migrator {
                 statements: context.take_statements(),
             });
         }
-        Ok(outcomes)
+        Ok((outcomes, loaded))
+    }
+
+    pub(crate) async fn dump_schema(
+        &self,
+        database: Option<&str>,
+        path: Option<&Path>,
+        include_ledger: bool,
+        prune: bool,
+    ) -> DatabaseResult<()> {
+        let _guard = self.execution.lock().await;
+        let connection = self.manager.connection(database)?;
+        let path = match path {
+            Some(path) => self.root.join(path),
+            None => self.default_schema_path(connection.getName(), "sql")?,
+        };
+        if prune
+            && self
+                .registry
+                .0
+                .iter()
+                .any(|entry| self.root.join(entry.path) == path)
+        {
+            return Err(DatabaseError::InvalidSchema(
+                "snapshot path is a migration source",
+            ));
+        }
+        let ledger = if include_ledger && self.repository(database).repository_exists().await? {
+            Some(format!(
+                "{}{}",
+                connection.grammar.table_prefix(),
+                self.table
+            ))
+        } else {
+            None
+        };
+        schema_state::dump(&connection, &path, ledger.as_deref()).await?;
+        if prune {
+            self.prune_migration_sources()?;
+        }
+        Ok(())
+    }
+
+    fn default_schema_path(&self, connection: &str, extension: &str) -> DatabaseResult<PathBuf> {
+        if connection.is_empty() || connection.contains(['/', '\\']) {
+            return Err(DatabaseError::InvalidSchema("snapshot connection name"));
+        }
+        Ok(self
+            .root
+            .join("database/schema")
+            .join(format!("{connection}-schema.{extension}")))
+    }
+
+    fn schema_to_load(
+        &self,
+        connection: &str,
+        override_path: Option<&Path>,
+    ) -> DatabaseResult<Option<PathBuf>> {
+        let paths = match override_path {
+            Some(path) => vec![self.root.join(path)],
+            None => vec![
+                self.default_schema_path(connection, "dump")?,
+                self.default_schema_path(connection, "sql")?,
+            ],
+        };
+        for path in paths {
+            match fs::metadata(&path) {
+                Ok(metadata) if metadata.is_file() => return Ok(Some(path)),
+                Ok(_) => continue,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(DatabaseError::SchemaIo(error)),
+            }
+        }
+        Ok(None)
+    }
+
+    fn prune_migration_sources(&self) -> DatabaseResult<()> {
+        let directory = self.root.join("database/migrations");
+        match fs::symlink_metadata(&directory) {
+            Ok(metadata) if metadata.is_dir() => {}
+            Ok(_) => return Err(DatabaseError::InvalidMigration("source directory")),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(DatabaseError::SchemaIo(error)),
+        }
+        for entry in self.registry.0 {
+            let path = self.root.join(entry.path);
+            if path.parent() == Some(directory.as_path())
+                && path.extension().is_some_and(|ext| ext == "rs")
+            {
+                match fs::remove_file(path) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(DatabaseError::SchemaIo(error)),
+                }
+            }
+        }
+        Ok(())
     }
 
     pub async fn rollback(
@@ -251,8 +388,9 @@ impl Migrator {
             )
             .await?;
         let up = self
-            .run_pending(database, paths, RunOptions::default())
-            .await?;
+            .run_pending(database, paths, RunOptions::default(), None)
+            .await?
+            .0;
         Ok((down, up))
     }
 
@@ -337,8 +475,10 @@ impl Migrator {
                 pretend: false,
                 step,
             },
+            None,
         )
         .await
+        .map(|(rows, _)| rows)
     }
 
     async fn wipe_schema(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {

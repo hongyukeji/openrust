@@ -10,6 +10,19 @@ Use `make:migration` to create a timestamped Rust source file in `database/migra
 
 During a build, OpenRust discovers Rust migrations in `database/migrations/`. Use the `YYYY_MM_DD_HHMMSS_name.rs` filename format and expose a `Definition` implementing `Migration`. This applies to both handwritten migrations and files created by `make:migration`. Rebuild the application to include them. The generated list is passed to `withMigrations` in `bootstrap/app.rs`. The filename still determines the ledger name, and `--path` selects from the compiled migrations. For generation into a custom directory, register those entries with the application separately.
 
+### Squashing MySQL Migrations {#squashing-migrations}
+
+Run `schema:dump` to save MySQL table definitions, views, routines, and triggers with the migration ledger. It excludes application rows and resets table auto-increment counters. The MySQL 8.4 `mysqldump` and `mysql` clients must be on PATH.
+
+```sh
+./artisan schema:dump --database=mysql
+./artisan migrate --database=mysql
+```
+
+The default file is `database/schema/<connection>-schema.sql`. Use `--database` to choose a connection and `--path` to write to a different file. `migrate` loads the snapshot when the ledger has no migration records and then runs pending compiled migrations. `--schema-path` selects a different input file. Pretend mode skips loading.
+
+`--without-migration-data` exports only definitions, including the ledger table definition. Keep the ledger data when squashing migrations so the migrator can skip the migrations represented by the snapshot. `--prune` deletes compiled application migration source files from `database/migrations/` after the dump is written. Rebuild the application after pruning.
+
 ## Migration Structure
 
 Implement `up` to apply a migration and `down` to reverse it. Use the supplied `MigrationContext` for schema changes and SQL so the migrator can collect the statements in pretend mode. Implement `getConnection` to select a different connection for the migration, or `shouldRun` to conditionally skip it.

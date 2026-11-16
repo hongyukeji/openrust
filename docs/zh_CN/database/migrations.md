@@ -10,6 +10,19 @@
 
 OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。手写文件和 `make:migration` 生成的文件都使用 `YYYY_MM_DD_HHMMSS_name.rs` 命名，并提供实现 `Migration` 的 `Definition`。重新构建后，`bootstrap/app.rs` 的 `withMigrations` 会接入自动生成的清单。文件名决定迁移账本名称，`--path` 从已编译的迁移中选择。生成到自定义目录的迁移需另行接入应用。
 
+### 压缩 MySQL 迁移 {#squashing-migrations}
+
+用 `schema:dump` 保存 MySQL 表定义、视图、例程、触发器和迁移账本。转储不包含业务数据，并重置表的自增计数。PATH 中需有 MySQL 8.4 的 `mysqldump` 和 `mysql` 客户端。
+
+```sh
+./artisan schema:dump --database=mysql
+./artisan migrate --database=mysql
+```
+
+默认文件是 `database/schema/<connection>-schema.sql`。用 `--database` 选择连接，用 `--path` 指定输出文件。账本没有迁移记录时，`migrate` 先加载快照，再运行待执行的编译期迁移。`--schema-path` 可指定输入文件，预演模式跳过加载。
+
+`--without-migration-data` 仅导出定义，包括账本表定义。压缩迁移时保留账本数据，迁移器才能跳过快照已覆盖的迁移。`--prune` 在写入转储后删除 `database/migrations/` 中的已编译应用迁移源文件。清理后重新构建应用。
+
 ## 迁移结构
 
 在 `up` 中执行迁移，在 `down` 中撤销。通过传入的 `MigrationContext` 执行 Schema 和 SQL 操作，预演时迁移器才能收集语句。实现 `getConnection` 可指定迁移连接，实现 `shouldRun` 可按条件跳过迁移。

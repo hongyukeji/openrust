@@ -117,7 +117,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("route:list", "Show registered routes"),
     ("schedule:clear-cache", "Remove cached scheduler locks"),
     ("schedule:test", "Run a selected scheduled task"),
-    ("schema:dump", "Export the current database schema"),
     ("serve", "Start a local development HTTP server"),
     ("session:garbage-collect", "Remove expired sessions"),
     ("storage:link", "Create the configured storage links"),

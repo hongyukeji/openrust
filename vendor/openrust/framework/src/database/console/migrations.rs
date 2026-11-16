@@ -34,6 +34,7 @@ enum Kind {
     Fresh,
     Wipe,
     Make,
+    Dump,
 }
 
 pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
@@ -71,9 +72,16 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         ),
         (Kind::Wipe, "db:wipe", "Drop all tables, views, and types"),
         (Kind::Make, "make:migration", "Create a new migration file"),
+        (Kind::Dump, "schema:dump", "Dump the given database schema"),
     ] {
         let mut syntax = Syntax::new(name).about(description);
-        if kind == Kind::Make {
+        if kind == Kind::Dump {
+            syntax = syntax
+                .arg(Arg::new("database").long("database"))
+                .arg(Arg::new("path").long("path"))
+                .arg(flag("prune"))
+                .arg(flag("without-migration-data"));
+        } else if kind == Kind::Make {
             syntax = syntax
                 .arg(Arg::new("name").required(true))
                 .arg(
@@ -106,6 +114,9 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             }
             if matches!(kind, Kind::Run | Kind::Fresh) {
                 syntax = syntax.arg(flag("step"));
+            }
+            if kind == Kind::Run {
+                syntax = syntax.arg(Arg::new("schema-path").long("schema-path"));
             }
             if matches!(kind, Kind::Rollback | Kind::Refresh) {
                 syntax = syntax.arg(
@@ -183,6 +194,24 @@ impl Command for MigrationCommand {
                 .get::<Migrator>("migrator")
                 .map_err(console_error)?;
             let database = matches.get_one::<String>("database").map(String::as_str);
+            if self.kind == Kind::Dump {
+                let prune = matches.get_flag("prune");
+                migrator
+                    .dump_schema(
+                        database,
+                        matches.get_one::<String>("path").map(Path::new),
+                        !matches.get_flag("without-migration-data"),
+                        prune,
+                    )
+                    .await
+                    .map_err(console_error)?;
+                output.info(if prune {
+                    "Database schema dumped and pruned successfully."
+                } else {
+                    "Database schema dumped successfully."
+                });
+                return Ok(0);
+            }
             let paths = if matches!(self.kind, Kind::Install | Kind::Wipe) {
                 Vec::new()
             } else {
@@ -224,17 +253,21 @@ impl Command for MigrationCommand {
                 }
                 Kind::Run => {
                     let pretend = matches.get_flag("pretend");
-                    let rows = migrator
-                        .run(
+                    let (rows, loaded) = migrator
+                        .run_with_schema(
                             database,
                             &paths,
                             RunOptions {
                                 pretend,
                                 step: matches.get_flag("step"),
                             },
+                            matches.get_one::<String>("schema-path").map(Path::new),
                         )
                         .await
                         .map_err(console_error)?;
+                    if loaded {
+                        output.info("Loading stored database schemas.");
+                    }
                     report(output, rows, pretend, "Nothing to migrate.");
                     if matches.get_flag("seed") && !pretend {
                         seed(app, database, matches, output).await?;
@@ -308,7 +341,7 @@ impl Command for MigrationCommand {
                         .map_err(console_error)?;
                     output.info("Database wiped successfully.");
                 }
-                Kind::Make => unreachable!("handled before database commands"),
+                Kind::Make | Kind::Dump => unreachable!("handled before database commands"),
             }
             Ok(0)
         })

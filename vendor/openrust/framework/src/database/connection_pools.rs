@@ -11,6 +11,7 @@ use super::{DatabaseResult, connection::Pool};
 /// The physical pools for one generation of a logical connection.
 pub(super) struct PoolGeneration {
     pub writer: Pool,
+    pub schema_credentials: Option<super::migrations::SchemaCredentials>,
     pub reader: Option<Pool>,
     pub established: OnceCell<()>,
 }

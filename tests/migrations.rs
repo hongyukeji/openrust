@@ -840,3 +840,121 @@ async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
     assert!(success(database_cache).contains("Nothing to migrate."));
     assert_eq!(db.table("cache_locks").count("*").await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    if std::env::var_os("OPENRUST_TEST_SCHEMA_DUMP").is_none() {
+        return;
+    }
+    let root = Root::new();
+    let db = root.connection(Some(&url));
+    let run = |args: &[&str]| root.run("local", Some(&url), args);
+    let source = application_migrations::entries()[0].path;
+    let name = std::path::Path::new(source)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    success(run(&["migrate", "--path", source]));
+    db.statement(
+        "create table snapshot_rows (id int auto_increment primary key, label varchar(60))",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        "insert into snapshot_rows (id, label) values (140, 'application data to exclude')",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        "create view snapshot_view as select label from snapshot_rows",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.unprepared("create trigger snapshot_row_insert before insert on snapshot_rows for each row set new.label = upper(new.label)")
+        .await
+        .unwrap();
+    db.unprepared("create procedure snapshot_ready() select 1")
+        .await
+        .unwrap();
+    success(run(&["schema:dump", "--database=mysql"]));
+    let snapshot = root.0.join("database/schema/mysql-schema.sql");
+    let dump = fs::read_to_string(&snapshot).unwrap();
+    assert!(dump.contains("CREATE TABLE `snapshot_rows`") && dump.contains("snapshot_view"));
+    assert!(dump.contains("INSERT INTO `migrations`") && dump.contains(name));
+    assert!(!dump.contains("application data to exclude") && !dump.contains("AUTO_INCREMENT=141"));
+    success(run(&[
+        "schema:dump",
+        "--path=database/schema/structure.sql",
+        "--without-migration-data",
+    ]));
+    let structure = fs::read_to_string(root.0.join("database/schema/structure.sql")).unwrap();
+    assert!(structure.contains("CREATE TABLE `migrations`"));
+    assert!(!structure.contains("INSERT INTO `migrations`"));
+    assert_eq!(fs::read_to_string(&snapshot).unwrap(), dump);
+
+    let source_path = root.0.join(source);
+    let applications = source_path.parent().unwrap();
+    fs::create_dir_all(applications).unwrap();
+    fs::write(&source_path, "migration source").unwrap();
+    fs::write(applications.join("mod.rs"), "module glue").unwrap();
+    fs::write(applications.join("notes.txt"), "unrelated").unwrap();
+    let conflicting_output = format!("--path={source}");
+    assert_eq!(
+        run(&["schema:dump", "--prune", &conflicting_output])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert_eq!(
+        fs::read_to_string(&source_path).unwrap(),
+        "migration source"
+    );
+    success(run(&["schema:dump", "--prune"]));
+    assert!(!source_path.exists());
+    assert!(applications.join("mod.rs").is_file() && applications.join("notes.txt").is_file());
+
+    success(run(&["db:wipe", "--drop-views"]));
+    let mut schema = db.getSchemaBuilder();
+    assert!(success(run(&["migrate", "--pretend"])).contains(name));
+    assert!(!schema.hasTable("snapshot_rows").await.unwrap());
+    let invalid = root.0.join("database/schema/invalid.sql");
+    fs::write(&invalid, "THIS IS INVALID SQL;").unwrap();
+    let failed = run(&["migrate", "--schema-path=database/schema/invalid.sql"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&failed.stderr).contains("database schema command mysql failed")
+    );
+    assert!(!schema.hasTable("migrations").await.unwrap());
+
+    let output = success(run(&["migrate"]));
+    assert!(output.contains("Loading stored database schemas."));
+    assert!(!output.contains(&format!("{name} DONE")));
+    assert!(schema.hasTable("snapshot_rows").await.unwrap());
+    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
+    db.statement(
+        "insert into snapshot_rows (label) values ('trigger restored')",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table("snapshot_rows").value("label").await.unwrap(),
+        "TRIGGER RESTORED".into()
+    );
+    assert_eq!(db.scalar("select count(*) from information_schema.routines where routine_schema = database() and routine_name = 'snapshot_ready'", &[])
+        .await
+        .unwrap(), 1.into());
+    assert!(db.table("migrations").count("*").await.unwrap() > 1);
+    let output = success(run(&["migrate"]));
+    assert!(output.contains("Nothing to migrate."));
+    assert!(!output.contains("Loading stored database schemas."));
+}

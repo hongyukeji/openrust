@@ -118,6 +118,14 @@ fn resolve(
     } else {
         TableOptions::default()
     };
+    let schema_credentials = if matches!(writer, Pool::Mysql(_)) && role != Some(QueryRole::Read) {
+        Some(super::super::migrations::SchemaCredentials {
+            password: write_options.string("password", "")?.to_owned(),
+            ssl_ca: mysql_ssl_ca(&write_options, root)?,
+        })
+    } else {
+        None
+    };
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
@@ -126,6 +134,7 @@ fn resolve(
         sticky,
         pools: PoolGeneration {
             writer,
+            schema_credentials,
             reader: reader.map(|(_, pool)| pool),
             established: Default::default(),
         },
@@ -315,17 +324,10 @@ fn mysql(
     if !identifier(charset) || (!collation.is_empty() && !identifier(collation)) {
         return Err(invalid("charset or collation"));
     }
-    let ca = config.string(
-        "ssl_ca",
-        config
-            .0
-            .get("options")
-            .and_then(|options| options["ssl_ca"].as_str())
-            .unwrap_or(""),
-    )?;
+    let ca = mysql_ssl_ca(config, root)?;
     let ssl = config.string(
         "ssl_mode",
-        if ca.is_empty() {
+        if ca.is_none() {
             "required"
         } else {
             "verify_identity"
@@ -350,8 +352,8 @@ fn mysql(
     if !collation.is_empty() {
         options = options.collation(collation);
     }
-    if !ca.is_empty() {
-        options = options.ssl_ca(root.join(ca));
+    if let Some(ca) = ca {
+        options = options.ssl_ca(ca);
     }
     let socket = config.string("unix_socket", "")?;
     if !socket.is_empty() {
@@ -400,6 +402,18 @@ fn mysql(
         })
         .collect();
     Ok((database.to_owned(), Pool::Mysql(pools)))
+}
+
+fn mysql_ssl_ca(config: &Options, root: &Path) -> DatabaseResult<Option<std::path::PathBuf>> {
+    let value = config.string(
+        "ssl_ca",
+        config
+            .0
+            .get("options")
+            .and_then(|options| options["ssl_ca"].as_str())
+            .unwrap_or(""),
+    )?;
+    Ok((!value.is_empty()).then(|| root.join(value)))
 }
 
 fn identifier(value: &str) -> bool {

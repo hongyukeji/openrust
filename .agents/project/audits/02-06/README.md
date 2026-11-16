@@ -5,7 +5,7 @@
 - 迁移 Provider 注册应用自己的迁移清单和账本。初始应用迁移编译到二进制，包含用户、重置令牌和会话表。`main.rs` 增加根应用数据库模块声明。生成器创建带时间戳的 Rust 文件，手动加入 `MigrationEntry` 后重新构建。
 - 接通 `make:migration`、`migrate`、`migrate:install`、`migrate:status`、`migrate:rollback`、`migrate:reset`、`migrate:refresh`、`migrate:fresh` 和 `db:wipe`。按文件名和批次维护账本，支持指定连接、已编译路径、step、batch 和生产确认。账本只记录成功的迁移。MySQL 清库独占物理会话并恢复外键设置，SQLite 清库复用事务化 Schema 会话。
 - Rust 用 `MigrationContext` 显式传递连接与预演输出。空库预演会准备账本，迁移 SQL 和迁移记录保持未执行。绑定值以占位符显示。SQLite 依赖目录的表重建在预演中返回错误。与固定版的 SQLite/MySQL 语法一致，迁移器不在整个迁移外自动包事务，先成功的语句和批次记录在失败后可见。
-- 未闭合的迁移功能包括Schema dump/load、迁移事件、空文件自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
+- 未闭合的迁移功能包括非 MySQL 的 Schema dump/load、迁移及 Schema 事件、空文件自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
 
 ## 验收
 
@@ -42,3 +42,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - Rust 使用缓存的所有者检查释放，避免旧执行者删除新持有者的锁。缓存不提供原子锁或锁操作失败时返回命令错误。数据库缓存需要已创建的锁表，首次迁移可使用 Redis。租期为一小时，正常返回、迁移错误和非零状态都走释放。
 - `docker/accept.py --mysql --redis` 使用临时 MySQL 8.4.13 与 Redis 8.10.3。实际首进程持 Redis 锁并阻塞在 MySQL 迁移账本写入。两个竞争调用分别以 0 和 19 退出，锁所有者保持不变。验证约一小时的 Redis TTL、成功及失败后锁消失、随后重试成功、缓存不可用时账本无变更，以及数据库缓存的锁表无残留。
 - 原有真实 MySQL 迁移账本回归通过。隔离副本从 `3d2641c0f` 取 Docker 验收入口，实际执行三语示例的 `./artisan migrate --isolated`、`./artisan migrate --isolated=12`、`./artisan inspire`。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## MySQL Schema 转储与恢复
+
+对照固定 Laravel [压缩迁移文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#squashing-migrations)、[DumpCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/DumpCommand.php#L25)、[MySqlSchemaState](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/MySqlSchemaState.php#L19) 和 [MigrateCommand 的加载流程](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php#L278)。旧版未找到 `schema:dump` 或 mysqldump 接线，沿用主线写连接、迁移账本和编译期迁移清单。
+
+- `schema:dump` 使用选定写端点的 MySQL 原生客户端。支持 `--database`、`--path`、`--without-migration-data` 和 `--prune`。保存结构及账本记录，排除业务行和自增计数。转储成功后原子替换目标。清理限定编译过的根应用迁移源文件，保留 Rust 模块声明和其他文件。
+- `migrate` 在账本无记录时自动识别默认 `.dump` 或 `.sql` 文件，也可用 `--schema-path`。预演跳过加载。加载成功后按快照账本跳过已执行迁移，继续当前二进制中的剩余迁移。原生客户端返回错误时停止，MySQL 已执行的 DDL 仍遵循其原生提交语义。
+- 使用独立 MySQL 8.4.13，调用同一夹具内的真实 MySQL 8.4.13 客户端。验收覆盖表、视图、触发器和例程，账本数据保留、业务行排除、仅结构导出、清理范围、预演、无效快照失败后重试和已有记录时跳过加载。旧的真实 MySQL 迁移账本和 MySQL／Redis 双进程隔离回归通过。
+- 三语共用的 `./artisan schema:dump --database=mysql`、`./artisan migrate --database=mysql` 及 `./artisan inspire` 已运行。严格 Clippy、变更文件格式、三语站点构建及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 原生快照和 Schema 生命周期事件另随 02-06 验收。
