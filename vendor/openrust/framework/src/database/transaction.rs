@@ -62,7 +62,7 @@ fn concurrency_error(error: &DatabaseError) -> bool {
     };
     mysql_deadlock(source)
         || source.as_database_error().is_some_and(|error| {
-            error.code().as_deref() == Some("40001")
+            matches!(error.code().as_deref(), Some("40001" | "40P01"))
                 || error
                     .try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>()
                     .is_some_and(|error| error.number() == 1205)

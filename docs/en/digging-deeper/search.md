@@ -74,6 +74,10 @@ Within the application, use `Article::search(term)?` to resolve the model’s co
 
 PostgreSQL model searches with full-text columns use `ts_rank` followed by descending primary key when no explicit sort is supplied. Both the rank and the tie-breaker apply before pagination. Override the default full-text settings on a model with `fullTextOptions()`.
 
+### Index visibility after a transaction {#index-transactions}
+
+PostgreSQL updates the table and GIN index in the same transaction. A search inside the write transaction sees its own update or delete. Other sessions see the previous committed rows until the transaction commits. A rollback preserves the previous search results. Use the connection's transaction attempts setting to retry serialization failures and deadlocks.
+
 ## Search capabilities {#search-capabilities}
 
 The built-in database search supports MySQL-compatible and PostgreSQL full-text predicates and Eloquent model search. Vector indexes, embedding providers, reranking, and standalone Scout engines require their own drivers.

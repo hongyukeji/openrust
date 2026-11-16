@@ -74,6 +74,10 @@ let page = Article::searchOn(&db, "openrust")
 
 PostgreSQL 模型有全文列且未明确指定排序时，先按 `ts_rank` 排序，分数相同时按主键降序。排序在分页前生效。可用模型的 `fullTextOptions()` 调整默认全文设置。
 
+### 事务后的索引可见性 {#index-transactions}
+
+PostgreSQL 在同一事务中维护表和 GIN 索引。写事务内的搜索能看到自身更新或删除，其他会话在提交前仍看到上次提交的数据。回滚保留先前的搜索结果。可通过连接的事务尝试次数参数重试序列化失败和死锁。
+
 ## 搜索能力 {#search-capabilities}
 
 内置数据库搜索支持 MySQL 兼容及 PostgreSQL 全文谓词和 Eloquent 模型搜索。向量索引、嵌入生成、重排和独立 Scout 引擎各自需要对应驱动。

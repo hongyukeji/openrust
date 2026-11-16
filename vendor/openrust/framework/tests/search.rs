@@ -637,3 +637,207 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
     ));
     schema.dropIfExists("articles").await.unwrap();
 }
+
+#[tokio::test]
+async fn postgres_search_reflects_commit_rollback_and_serialization_retry() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let Some(db) = postgres_search_connection() else {
+        return;
+    };
+    postgres_articles(&db).await;
+
+    async fn count(db: &Connection, term: &str) -> DatabaseResult<u64> {
+        db.table("articles")
+            .whereFullText(&["title", "body"], term)
+            .count("*")
+            .await
+    }
+
+    let mut update = db.beginTransaction().await.unwrap();
+    assert_eq!(
+        update
+            .table("articles")
+            .r#where("id", "=", 1)
+            .update(BTreeMap::from([
+                ("title".into(), "Archives".into()),
+                ("body".into(), "historical research".into()),
+            ]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        update
+            .table("articles")
+            .whereFullText(&["title", "body"], "archives")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(count(&db, "archives").await.unwrap(), 0);
+    assert_eq!(count(&db, "runs").await.unwrap(), 3);
+    let commits = Arc::new(AtomicUsize::new(0));
+    let observed = commits.clone();
+    let reader = db.clone();
+    update
+        .afterCommit(move || {
+            Box::pin(async move {
+                assert_eq!(count(&reader, "archives").await?, 1);
+                assert_eq!(count(&reader, "runs").await?, 2);
+                observed.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        })
+        .unwrap();
+    update.commit().await.unwrap();
+    assert_eq!(commits.load(Ordering::Relaxed), 1);
+
+    for commit in [false, true] {
+        let mut delete = db.beginTransaction().await.unwrap();
+        assert_eq!(
+            delete
+                .table("articles")
+                .r#where("id", "=", 1)
+                .delete()
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            delete
+                .table("articles")
+                .whereFullText(&["title", "body"], "archives")
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(count(&db, "archives").await.unwrap(), 1);
+        if commit {
+            delete.commit().await.unwrap();
+        } else {
+            delete.rollBack(None).await.unwrap();
+        }
+        assert_eq!(count(&db, "archives").await.unwrap(), u64::from(!commit));
+    }
+
+    let retries = AtomicUsize::new(0);
+    let reader = db.clone();
+    let attempts = &retries;
+    db.transaction(
+        |writer| {
+            let attempt = attempts.fetch_add(1, Ordering::Relaxed);
+            let reader = reader.clone();
+            Box::pin(async move {
+                writer
+                    .statement("set transaction isolation level repeatable read", &[])
+                    .await?;
+                assert_eq!(
+                    writer
+                        .table("articles")
+                        .r#where("id", "=", 2)
+                        .count("*")
+                        .await?,
+                    1
+                );
+                if attempt == 0 {
+                    assert_eq!(
+                        reader
+                            .table("articles")
+                            .r#where("id", "=", 2)
+                            .update(BTreeMap::from([(
+                                "body".into(),
+                                "orbital telescope".into()
+                            ),]))
+                            .await?,
+                        1
+                    );
+                }
+                assert_eq!(
+                    writer
+                        .table("articles")
+                        .r#where("id", "=", 2)
+                        .update(BTreeMap::from([(
+                            "body".into(),
+                            "astronomical observatory".into()
+                        ),]))
+                        .await?,
+                    1
+                );
+                Ok(())
+            })
+        },
+        2,
+    )
+    .await
+    .unwrap();
+    assert_eq!(retries.load(Ordering::Relaxed), 2);
+    assert_eq!(count(&db, "observatory").await.unwrap(), 1);
+    assert_eq!(count(&db, "telescope").await.unwrap(), 0);
+    assert_eq!(count(&db, "runs").await.unwrap(), 1);
+    db.getSchemaBuilder()
+        .dropIfExists("articles")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn postgres_retries_a_deadlock_before_publishing_index_updates() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::sync::Barrier;
+
+    let Some(db) = postgres_search_connection() else {
+        return;
+    };
+    postgres_articles(&db).await;
+    let barrier = Arc::new(Barrier::new(2));
+    let attempts = AtomicUsize::new(0);
+    let run = |first: i64, second: i64, term: &'static str| {
+        let db = &db;
+        let barrier = barrier.clone();
+        let attempts = &attempts;
+        async move {
+            let mut initial_attempt = true;
+            db.transaction(
+                |tx| {
+                    let initial = std::mem::replace(&mut initial_attempt, false);
+                    attempts.fetch_add(1, Ordering::Relaxed);
+                    let barrier = barrier.clone();
+                    Box::pin(async move {
+                        tx.table("articles")
+                            .r#where("id", "=", first)
+                            .update(BTreeMap::from([("body".into(), term.into())]))
+                            .await?;
+                        if initial {
+                            barrier.wait().await;
+                        }
+                        tx.table("articles")
+                            .r#where("id", "=", second)
+                            .update(BTreeMap::from([("body".into(), term.into())]))
+                            .await?;
+                        Ok(())
+                    })
+                },
+                2,
+            )
+            .await
+        }
+    };
+    let (left, right) = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        tokio::join!(run(1, 2, "zephyr"), run(2, 1, "monsoon"))
+    })
+    .await
+    .unwrap();
+    left.unwrap();
+    right.unwrap();
+    assert_eq!(attempts.load(Ordering::Relaxed), 3);
+    let first = Article::searchOn(&db, "zephyr").get().await.unwrap().len();
+    let second = Article::searchOn(&db, "monsoon").get().await.unwrap().len();
+    assert!(matches!((first, second), (0, 2) | (2, 0)));
+    db.getSchemaBuilder()
+        .dropIfExists("articles")
+        .await
+        .unwrap();
+}

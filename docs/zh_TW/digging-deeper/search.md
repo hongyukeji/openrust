@@ -74,6 +74,10 @@ let page = Article::searchOn(&db, "openrust")
 
 PostgreSQL 模型有全文欄位且未明確指定排序時，先依 `ts_rank` 排序，分數相同時依主鍵遞減。排序在分頁前生效。可用模型的 `fullTextOptions()` 調整預設全文設定。
 
+### 交易後的索引可見性 {#index-transactions}
+
+PostgreSQL 在同一筆交易中維護資料表與 GIN 索引。寫入交易內的搜尋能看到自身的更新或刪除，其他工作階段在提交前仍看到上次提交的資料。回復會保留先前的搜尋結果。可透過連線的交易嘗試次數參數重試序列化失敗和死結。
+
 ## 搜尋功能 {#search-capabilities}
 
 內建資料庫搜尋支援 MySQL 相容及 PostgreSQL 全文述詞與 Eloquent 模型搜尋。向量索引、嵌入生成、重新排序和獨立 Scout 引擎各自需要對應的驅動程式。

@@ -26,3 +26,13 @@ Rust 1.94.0 锁定离线 `search` 专项 4 项通过，连接独立 MySQL 8.4.13
 - 固定 Laravel 的 Schema 用带语言配置的 GIN 表达式索引，Query Builder 使用 `@@` 过滤。Rust 接入 SQLx PostgreSQL 连接、SQL 参数、Schema 索引目录和 Eloquent 检索。查询支持默认英语词干、短语、Web 搜索、原生 tsquery 和已有 tsvector。固定 Scout 在 PostgreSQL 默认按 `ts_rank` 降序并以主键降序处理同分，开发者的显式排序优先。 [固定 Query Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/PostgresGrammar.php) [固定 Schema Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) [固定 Scout DatabaseEngine](https://github.com/laravel/scout/blob/055441073f6c4791f4d2492f526b215d4a3afb24/src/Engines/DatabaseEngine.php)
 - PostgreSQL 18.6 实际建立复合 GIN，`EXPLAIN` 命中 Bitmap Index Scan。另验收单列 `simple`、索引目录和删除、存储 tsvector、显式排序及绑定。真实 `./artisan` 建表并读第 2 页，真实 HTTP 依次读出主键 1、3、2 且总数为 3。
 - Rust 1.94.0，`search` 5 项和 `database_sql` 31 项通过。MySQL 8.4.13 使用独立验收库，同批复验 SQLite 和 PostgreSQL。严格 Clippy、三语构建及 12 项浏览器检查通过。全仓格式检查报告基线 Sanctum 排版差异。07-06 后续验收 PostgreSQL 事务提交、回滚和重试。
+
+## PostgreSQL 事务与索引可见性
+
+- 固定 Laravel 把序列化冲突和死锁作为可重试的并发错误。Rust 接入 PostgreSQL 的 `40001` 和 `40P01` 重试路径，由原生写事务维护 GIN 索引。 [固定 Laravel 并发判定](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/ConcurrencyErrorDetector.php) [PostgreSQL 事务隔离](https://www.postgresql.org/docs/18/transaction-iso.html)
+- PostgreSQL 18.6 双会话实测。真实 Artisan 持有写事务，真实 HTTP 在提交前仍查到旧词；提交后可查新词。删除在写会话内立即生效，其它会话在提交后才失去命中。回滚保留原索引结果。定向回归核对 `afterCommit` 的读取结果，并通过真实并发制造序列化冲突和死锁，确认重试后的索引只反映已提交的最终写入。
+- Rust 1.94.0，`cargo test --locked -p openrust-framework --test search --test database_sql` 的 7 项搜索、31 项数据库回归通过。覆盖 PostgreSQL 18.6、MySQL 8.4.13 与 SQLite。工作区全目标严格 Clippy、改动文件格式和差异检查通过。三语站点构建、12 项浏览器检查及三语事务锚点通过。
+
+## 07-06 整单元验收
+
+前置 05-03、06-04、07-02 已闭合。按交付计划验收原生数据库搜索的索引、排序、分页、事务更新、删除与失败重试，07-06 核心单元闭合。MySQL 和 PostgreSQL 提供原生全文检索，SQLite 可使用模型的前缀和包含匹配。独立 Scout 引擎、外部索引服务及 AI 向量、嵌入和重排属于独立驱动能力。
