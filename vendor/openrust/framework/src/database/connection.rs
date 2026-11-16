@@ -1029,19 +1029,28 @@ impl Connection {
         .map(|result| result.insert_id)
     }
 
-    pub(super) async fn wipe_mysql_schema(&self, drop_views: bool) -> DatabaseResult<()> {
+    pub(super) async fn drop_mysql_schema_objects(
+        &self,
+        drop_tables: bool,
+        drop_views: bool,
+    ) -> DatabaseResult<()> {
         let mut physical = self.acquire(false).await?;
         let connection = self.clone();
         let result = tokio::spawn(async move {
-            let checks = physical.select_one("select @@foreign_key_checks", &[]).await?
-                .and_then(|row| row.get_at(0).cloned());
-            let checks = match checks {
-                Some(Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true)) => true,
-                Some(Value::Integer(0) | Value::Unsigned(0) | Value::Bool(false)) => false,
-                _ => return Err(DatabaseError::InvalidSchema("MySQL foreign key check state")),
+            let checks = if drop_tables {
+                let checks = physical.select_one("select @@foreign_key_checks", &[]).await?
+                    .and_then(|row| row.get_at(0).cloned());
+                let restore = match checks {
+                    Some(Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true)) => true,
+                    Some(Value::Integer(0) | Value::Unsigned(0) | Value::Bool(false)) => false,
+                    _ => return Err(DatabaseError::InvalidSchema("MySQL foreign key check state")),
+                };
+                physical.retire_on_drop(true);
+                physical.unprepared("set foreign_key_checks = 0").await?;
+                Some(restore)
+            } else {
+                None
             };
-            physical.retire_on_drop(true);
-            physical.unprepared("set foreign_key_checks = 0").await?;
             let result = async {
                 let rows = physical.select(
                     "select table_schema, table_name, table_type from information_schema.tables                      where table_schema = database() order by table_name",
@@ -1058,7 +1067,7 @@ impl Connection {
                     });
                     let target = format!("{}.{}", connection.grammar.quote(schema?)?, connection.grammar.quote(name?)?);
                     match kind? {
-                        "BASE TABLE" => tables.push(target),
+                        "BASE TABLE" | "SYSTEM VERSIONED" if drop_tables => tables.push(target),
                         "VIEW" if drop_views => views.push(target),
                         _ => {}
                     }
@@ -1070,8 +1079,10 @@ impl Connection {
                 }
                 Ok(())
             }.await;
-            physical.unprepared(if checks { "set foreign_key_checks = 1" } else { "set foreign_key_checks = 0" }).await?;
-            physical.retire_on_drop(false);
+            if let Some(checks) = checks {
+                physical.unprepared(if checks { "set foreign_key_checks = 1" } else { "set foreign_key_checks = 0" }).await?;
+                physical.retire_on_drop(false);
+            }
             result
         }).await.map_err(|_| DatabaseError::InvalidSchema("MySQL schema task interrupted"))?;
         if result.is_ok() {

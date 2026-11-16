@@ -185,3 +185,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQLite 建库使用独占创建，避免截断同名文件。这与固定 Laravel 文件写入的覆盖语义有意区分。SQLite 文件变更只从连接 Builder 执行，事务和 SQL 预演不得修改文件。
 - `sh tests/table_catalog.sh` 使用独立 MySQL 8.4.13，18 项 Schema 回归及 1 项实际限定 Schema 清库通过。测试覆盖连接默认值、带连字符名称、重复建库保留原表、重复删库和当前数据库保留。
 - 通过 `docker/accept.py --mysql --mysql-schema-admin` 运行三语共用 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。SQLite 回归已编译，运行留待发布前。全工作区格式仍有既有 Sanctum 排版差异。验收入口取自隔离副本的 `3d2641c0f`，未恢复主分支回退，两轮夹具均已回收容器和卷。
+
+## 删除全部表或视图
+
+对照固定 Laravel [MySqlBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/MySqlBuilder.php#L11) 和 [SQLiteBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L89)。旧版框架未找到同名公开接口。本批复用新主线 `db:wipe` 的写连接、当前 Schema 限定、SQLite 事务和 MySQL 外键检查恢复。
+
+- `dropAllTables` 只清理所选写库的永久表，`dropAllViews` 只清理视图。表前缀不限制清理对象。MySQL 表清理持有专属写租约并恢复该会话原有外键检查状态。
+- `db:wipe` 和 `migrate:fresh` 继续使用同一条内部清库路径。SQLite 保持现有原生 DDL 与事务路径，限定主 Schema。
+- `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 上通过 19 项 Schema 回归及 1 项限定 Schema 清库。验证读写库分离、表和视图各自清理、无前缀对象、重复执行、同库外键检查恢复和另一库标记行保留。
+- 使用 `docker/accept.py --mysql` 通过三语共用的具名连接实际 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。SQLite 回归已编译，实际运行留待发布前。全工作区格式仍有既有 Sanctum 差异。验收入口取自隔离副本的 `3d2641c0f`，两轮夹具容器与卷已回收。

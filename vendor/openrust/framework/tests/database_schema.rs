@@ -3606,3 +3606,119 @@ async fn sqlite_database_files_are_created_without_overwriting_existing_data() {
     assert!(!path.exists());
     assert!(schema.createDatabase(":memory:").await.is_err());
 }
+
+#[tokio::test]
+async fn mysql_bulk_drop_only_removes_requested_objects_in_the_selected_schema() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let admin = connection(json!({"url":url}));
+    let name = format!("schema_drop_{:x}", fastrand::u64(..));
+    admin
+        .getSchemaBuilder()
+        .createDatabase(&name)
+        .await
+        .unwrap();
+    let mut target = url::Url::parse(&url).unwrap();
+    target.set_path(&format!("/{name}"));
+    let db = connection(
+        json!({"url":target.as_str(),"read":{"url":url},"max_connections":1,"prefix":"app_"}),
+    );
+    let mut schema = db.getSchemaBuilder();
+
+    admin
+        .statement(
+            "create table if not exists bulk_drop_sentinel (id int primary key)",
+            &[],
+        )
+        .await
+        .unwrap();
+    db.statement("create table unprefixed_parent (id int primary key)", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table app_child (id int references unprefixed_parent(id))",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        "create view app_report as select id from unprefixed_parent",
+        &[],
+    )
+    .await
+    .unwrap();
+    schema.dropAllViews().await.unwrap();
+    assert!(!schema.hasView("report").await.unwrap());
+    assert!(schema.hasTable("child").await.unwrap());
+
+    db.statement(
+        "create view app_report as select id from unprefixed_parent",
+        &[],
+    )
+    .await
+    .unwrap();
+    for _ in 0..2 {
+        schema.dropAllTables().await.unwrap();
+    }
+    assert!(schema.getTables(Some(&name)).await.unwrap().is_empty());
+    assert!(schema.hasView("report").await.unwrap());
+    assert!(
+        admin
+            .getSchemaBuilder()
+            .hasTable("bulk_drop_sentinel")
+            .await
+            .unwrap()
+    );
+
+    let checks = db
+        .selectFromWriteConnection("select @@foreign_key_checks as checks_enabled", &[])
+        .await
+        .unwrap();
+    assert!(matches!(
+        checks[0].get("checks_enabled"),
+        Some(Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true))
+    ));
+    schema.dropAllViews().await.unwrap();
+    assert!(schema.getViews(Some(&name)).await.unwrap().is_empty());
+    drop(schema);
+    drop(db);
+    admin
+        .getSchemaBuilder()
+        .dropDatabaseIfExists(&name)
+        .await
+        .unwrap();
+    admin
+        .statement("drop table bulk_drop_sentinel", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
+    let mut schema = db.getSchemaBuilder();
+    db.statement("attach database ':memory:' as retained", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table retained.sentinel (id integer primary key)",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement("create table local_row (id integer primary key)", &[])
+        .await
+        .unwrap();
+    db.statement("create view local_view as select id from local_row", &[])
+        .await
+        .unwrap();
+    schema.dropAllTables().await.unwrap();
+    assert!(!schema.hasTable("local_row").await.unwrap());
+    assert!(schema.hasView("local_view").await.unwrap());
+    assert!(schema.hasTable("retained.sentinel").await.unwrap());
+    schema.dropAllViews().await.unwrap();
+    assert!(!schema.hasView("local_view").await.unwrap());
+    assert!(schema.hasTable("retained.sentinel").await.unwrap());
+}

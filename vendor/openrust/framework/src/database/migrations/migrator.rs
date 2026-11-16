@@ -342,29 +342,11 @@ impl Migrator {
     }
 
     async fn wipe_schema(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {
-        let connection = self.manager.connection(database)?;
-        if connection.grammar.is_mysql() {
-            return connection.wipe_mysql_schema(drop_views).await;
-        }
-        let grammar = connection.grammar.clone();
-        connection.sqlite_schema_transaction(move |transaction, _| Box::pin(async move {
-            let rows = transaction.select(
-                "select name, type from pragma_table_list where schema = 'main' and type in ('table','virtual','view')                  and substr(name,1,7) <> 'sqlite_' order by type = 'view' desc, name",
-                &[],
-            ).await?;
-            for row in &rows {
-                let Some(crate::database::Value::Text(name)) = row.get("name") else {
-                    return Err(DatabaseError::InvalidSchema("catalog table name"));
-                };
-                let kind = match row.get("type") {
-                    Some(crate::database::Value::Text(kind)) if kind == "view" && drop_views => "view",
-                    Some(crate::database::Value::Text(kind)) if matches!(kind.as_str(), "table" | "virtual") => "table",
-                    _ => continue,
-                };
-                transaction.statement(&format!("drop {kind} main.{}", grammar.quote(name)?), &[]).await?;
-            }
-            Ok(())
-        })).await
+        self.manager
+            .connection(database)?
+            .getSchemaBuilder()
+            .drop_schema_objects(true, drop_views)
+            .await
     }
 
     pub fn root(&self) -> &Path {

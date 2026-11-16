@@ -89,6 +89,14 @@ impl Schema {
         Self::default_builder()?.table(table, configure).await
     }
 
+    pub async fn dropAllTables() -> DatabaseResult<()> {
+        Self::default_builder()?.dropAllTables().await
+    }
+
+    pub async fn dropAllViews() -> DatabaseResult<()> {
+        Self::default_builder()?.dropAllViews().await
+    }
+
     pub async fn drop(table: &str) -> DatabaseResult<()> {
         Self::default_builder()?.drop(table).await
     }

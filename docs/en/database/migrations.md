@@ -408,6 +408,22 @@ async fn drop_reporting_database() -> DatabaseResult<()> {
 
 On SQLite, supply a file path. Creation fails if the path already exists, preserving the existing database. Close connections to the file before removing it.
 
+#### Dropping All Tables or Views {#dropping-all-tables-or-views}
+
+`dropAllTables()` removes permanent tables from the selected connection’s current schema. `dropAllViews()` removes views from that schema. These methods apply to all objects of the requested kind, even when a table prefix is configured. Use a named connection when targeting a separate database.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn clear_reporting_schema() -> DatabaseResult<()> {
+    let mut schema = Schema::connection("reporting_staging")?;
+    schema.dropAllViews().await?;
+    schema.dropAllTables().await
+}
+```
+
+The table operation leaves views in place. A view that references a removed table may need to be dropped or recreated. MySQL table removal temporarily disables foreign key checks on the write session and restores the previous setting.
+
 #### Inspecting Tables {#inspecting-tables}
 
 `getTables(None)` lists tables across visible user schemas. Pass `Some(name)` to limit the query to one schema or use `getTablesIn(&[...])` for several. Use an explicit schema when checking the result of a schema-scoped wipe.

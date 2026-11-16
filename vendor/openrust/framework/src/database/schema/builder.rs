@@ -298,6 +298,52 @@ impl<'connection> Builder<'connection> {
         Ok(())
     }
 
+    /// Drops permanent tables in the selected database.
+    pub async fn dropAllTables(&mut self) -> DatabaseResult<()> {
+        self.drop_schema_objects(true, false).await
+    }
+
+    /// Drops views in the selected database.
+    pub async fn dropAllViews(&mut self) -> DatabaseResult<()> {
+        self.drop_schema_objects(false, true).await
+    }
+
+    pub(in crate::database) async fn drop_schema_objects(
+        &mut self,
+        drop_tables: bool,
+        drop_views: bool,
+    ) -> DatabaseResult<()> {
+        let Executor::Connection(connection) = &self.executor else {
+            return Err(DatabaseError::UnsupportedSchema(
+                "schema cleanup requires a connection builder",
+            ));
+        };
+        if self.grammar.mysql() {
+            return connection
+                .drop_mysql_schema_objects(drop_tables, drop_views)
+                .await;
+        }
+        let grammar = connection.grammar.clone();
+        connection.sqlite_schema_transaction(move |transaction, _| Box::pin(async move {
+            let rows = transaction.select(
+                "select name, type from pragma_table_list where schema = 'main' and type in ('table','virtual','view')                  and substr(name,1,7) <> 'sqlite_' order by type = 'view' desc, name",
+                &[],
+            ).await?;
+            for row in &rows {
+                let Some(Value::Text(name)) = row.get("name") else {
+                    return Err(DatabaseError::InvalidSchema("catalog table name"));
+                };
+                let kind = match row.get("type") {
+                    Some(Value::Text(kind)) if kind == "view" && drop_views => "view",
+                    Some(Value::Text(kind)) if drop_tables && matches!(kind.as_str(), "table" | "virtual") => "table",
+                    _ => continue,
+                };
+                transaction.statement(&format!("drop {kind} main.{}", grammar.quote(name)?), &[]).await?;
+            }
+            Ok(())
+        })).await
+    }
+
     pub async fn drop(&mut self, table: &str) -> DatabaseResult<()> {
         self.drop_table(table, false).await
     }

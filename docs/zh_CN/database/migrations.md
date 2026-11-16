@@ -408,6 +408,22 @@ async fn drop_reporting_database() -> DatabaseResult<()> {
 
 SQLite 使用文件路径。目标路径已存在时创建失败，原数据库保留。删除文件前应关闭使用它的连接。
 
+#### 删除全部表或视图 {#dropping-all-tables-or-views}
+
+`dropAllTables()` 删除所选连接当前 Schema 中的永久表，`dropAllViews()` 删除同一 Schema 中的视图。即使配置了表前缀，方法仍处理该类全部对象。操作独立数据库时，应使用具名连接。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn clear_reporting_schema() -> DatabaseResult<()> {
+    let mut schema = Schema::connection("reporting_staging")?;
+    schema.dropAllViews().await?;
+    schema.dropAllTables().await
+}
+```
+
+删除表会保留视图。引用了已删除表的视图可能需要删除或重建。MySQL 删除表时暂时关闭写会话的外键检查，并在操作后恢复原设置。
+
 #### 检查表目录 {#inspecting-tables}
 
 `getTables(None)` 列出所有可见用户 Schema 的表。用 `Some(name)` 限定一个 Schema，或用 `getTablesIn(&[...])` 限定多个。检查清库结果时应明确指定被清理的 Schema。
