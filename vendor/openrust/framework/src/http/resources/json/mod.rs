@@ -14,7 +14,7 @@ pub use paginated_resource_response::PaginatedResourceResponse;
 #[doc(hidden)]
 pub use resource_collection::KeyedResourceItems;
 pub use resource_collection::{ResourceCollection, ResourceItems};
-pub use resource_response::ResourceResponse;
+pub use resource_response::{ResourceResponse, ResourceWrapping};
 #[doc(hidden)]
 pub use route_response::ResourceRoute;
 pub use transforms_to_resource_collection::{TransformsToResourceCollection, UseResource};

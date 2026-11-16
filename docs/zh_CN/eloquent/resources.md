@@ -26,6 +26,27 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### 应用级资源包装 {#application-resource-wrapping}
+
+在应用容器中注册 `ResourceWrapping`，可以调整该应用的默认 `data` 包装。用 `ResourceWrapping::wrap("items")` 更换包装键，或用 `withoutWrapping()` 关闭普通响应的包装。资源自定义包装键及单次响应的 `response().wrap(...)`、`withoutWrapping()` 优先。
+
+分页和附加元数据仍需包装。关闭默认包装时使用 `data`。实现 `JsonResource::forceWrapping` 可以在资源数据已含所选键时再包装一层。
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    container::Container,
+    contracts::container::{BindingResolutionError, Container as _},
+    http::resources::json::ResourceWrapping,
+};
+
+pub fn configure_resources(container: &Container) -> Result<(), BindingResolutionError> {
+    container.instance(Arc::new(ResourceWrapping::withoutWrapping()))?;
+    Ok(())
+}
+```
+
 ### 模型默认资源 {#default-model-resources}
 
 为模型实现 `UseResource`，声明 `type Resource = AccountResource`。资源实现 `JsonResource` 和 `From<Account>`。`toResource()` 与 `toResourceCollection()` 据此选择默认资源，关联关系在编译期检查。
@@ -98,6 +119,8 @@ fn page_resource<T, R: JsonResource>(
 `Conditional::when` 仅在条件成立时执行闭包。将结果传给 `Conditional::insert` 可以省略缺失字段并保留显式 JSON null。`whenLoaded` 读取已加载的类型化关系。`whenCounted`、`whenAggregated` 和 `whenExistsLoaded` 读取已查询的聚合属性。
 
 `whenLoadedOne` 区分尚未加载的关系和已加载但没有模型的关系。将内层 `None` 映射成 `Value::Null` 即可保留该字段。用 `whenAppended` 判断访问器是否已加入追加列表，用 `whenNull` 判断显式空值，用 `mergeWhen` 或 `mergeUnless` 合并字段，已有键保留原值。
+
+`attributes` 从已序列化的模型中选取字段，遵循字段可见性设置。`merge` 合并时保留已有字段。`transform` 仅转换非空白的 JSON 值，`0` 和 `false` 仍会参与转换。
 
 ### 条件中间表字段 {#conditional-pivot-information}
 

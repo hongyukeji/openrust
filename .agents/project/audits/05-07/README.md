@@ -23,3 +23,9 @@
 - 对照固定 Laravel 的显式选择、默认资源关联、集合工厂与空集合退回。Rust 通过 `UseResource` 编译期关联模型和资源，缺少关联会在调用默认入口时由编译器报告。模型实现可声明自定义集合工厂，转换保留源集合和分页器。显式入口可选择另一项资源类型或传入集合工厂，对应 Laravel 的类参数。 [Laravel 模型推断](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/TransformsToResource.php) · [Laravel 集合推断](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/TransformsToResourceCollection.php)
 - SQLite 和 MySQL 8.4.13 实际 HTTP 验证默认资源、显式覆盖、普通／简易／游标分页、自定义集合包装及响应头、键保留、空页元数据、空集合回退和显式空集合工厂。10 项资源、模型 HTTP 和分页回归、严格 Clippy、实际 `./artisan inspire`、三个三语示例执行、VitePress 及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 剩余条件值入口、应用级包装配置及固定文档中 JSON:API 小节的交付边界仍待复核。
+
+## 应用资源包装与条件值
+
+- 对照固定 Laravel 的未包装响应、已存在包装键、强制包装及分页元数据分支。Rust 将默认包装注册为请求所属应用的 `ResourceWrapping`，资源自定义和单次响应优先。关闭默认包装后，分页或附加元数据仍使用 `data`。标准资源默认保留已经包装的结果，强制包装可以增加一层。补齐 `attributes`、`merge` 与 `transform`。条件转换以 JSON 空字符串和空集合为缺失，保留零和布尔值，可用 Rust 的 Option 提供回退。 [Laravel 包装源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/Json/ResourceResponse.php) · [Laravel 条件源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/ConditionallyLoadsAttributes.php)
+- 两套应用并发实际 HTTP 验证默认关闭与改名互相隔离、单次覆盖、具名资源、已包装与强制包装、分页和元数据。SQLite／MySQL 8.4.13 复验条件值、隐藏字段及现有资源路径，共 11 项资源、模型 HTTP 与分页回归。严格 Clippy、格式、实际 `./artisan inspire`、三语注册示例执行、VitePress 和 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+- 固定资源章另含 JSON:API Resources。媒体类型、资源类型与标识、稀疏字段、关联包含、链接及分页属于后续验收范围。 [Laravel JSON:API Resources](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md#jsonapi-resources)

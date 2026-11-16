@@ -26,9 +26,14 @@ pub trait JsonResource {
         ResourceCollection::new(source.into().map(Self::make))
     }
 
-    /// The outermost response key. Nested resources resolve directly.
+    /// The outermost response key. The standard data key uses the application's wrapping policy.
     fn wrap(&self) -> Option<&str> {
         Some("data")
+    }
+
+    /// Wraps even when the resource already contains the selected wrapper key.
+    fn forceWrapping(&self) -> bool {
+        false
     }
 
     fn with(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {

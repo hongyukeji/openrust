@@ -1,8 +1,43 @@
+use std::sync::Arc;
+
 use serde_json::{Map, Value};
 
-use crate::http::{Request, Response, StatusCode};
+use crate::{
+    contracts::container::Container as _,
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::current_container,
+};
 
 use super::{JsonResource, ResourceResult};
+
+/// Configures the default resource wrapper for the application that owns the request.
+pub struct ResourceWrapping(Option<String>);
+
+#[allow(non_snake_case, reason = "Matches Laravel's resource wrapping API")]
+impl ResourceWrapping {
+    pub fn wrap(name: impl Into<String>) -> Self {
+        Self(Some(name.into()))
+    }
+
+    pub const fn withoutWrapping() -> Self {
+        Self(None)
+    }
+
+    fn current() -> ResourceResult<Option<Arc<Self>>> {
+        let Some(container) = current_container() else {
+            return Ok(None);
+        };
+        if !container.bound::<Self>() {
+            return Ok(None);
+        }
+        container
+            .make::<Self>()
+            .map(Some)
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })
+    }
+}
 
 /// Builds the outer response for a resource, with request-local metadata.
 pub struct ResourceResponse<'a, R: ?Sized> {
@@ -44,6 +79,14 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
             .wrapper
             .as_ref()
             .map_or_else(|| self.resource.wrap(), |value| value.as_deref());
+        let application = if self.wrapper.is_none() && wrapper == Some("data") {
+            ResourceWrapping::current()?
+        } else {
+            None
+        };
+        let wrapper = application
+            .as_ref()
+            .map_or(wrapper, |settings| settings.0.as_deref());
         build(self.resource, request, wrapper, self.additional)
     }
 }
@@ -56,7 +99,7 @@ pub(super) fn build<R: JsonResource + ?Sized>(
 ) -> ResourceResult<Response> {
     let data = resource.toArray(request)?;
     let with = resource.with(request)?;
-    let payload = wrap(data, wrapper, with, additional);
+    let payload = wrap(data, wrapper, resource.forceWrapping(), with, additional);
     let status = resource.status();
     let mut response = if status == StatusCode::RESET_CONTENT {
         Response::empty(status)
@@ -70,6 +113,7 @@ pub(super) fn build<R: JsonResource + ?Sized>(
 fn wrap(
     data: Value,
     wrapper: Option<&str>,
+    force: bool,
     with: Map<String, Value>,
     additional: Map<String, Value>,
 ) -> Value {
@@ -78,7 +122,7 @@ fn wrap(
         return data;
     };
     let mut payload = match data {
-        Value::Object(fields) if fields.contains_key(key) => fields,
+        Value::Object(fields) if wrapper.is_some() && !force && fields.contains_key(key) => fields,
         data => Map::from_iter([(key.to_owned(), data)]),
     };
     merge_fields(&mut payload, with);

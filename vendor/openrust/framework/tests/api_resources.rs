@@ -20,9 +20,10 @@ use openrust::{
         HttpError, HttpFuture, Method, Request, Response,
         resources::json::{
             Conditional, JsonResource, ModelResource, ResourceCollection, ResourceItems,
-            ResourceResult, TransformsToResourceCollection, UseResource,
+            ResourceResult, ResourceWrapping, TransformsToResourceCollection, UseResource,
         },
     },
+    pagination::{LengthAwarePaginator, PaginatorOptions},
     routing::RoutingError,
     support::{ArrayKey, Collection, facades::Route},
 };
@@ -486,6 +487,21 @@ fn conditional(request: &mut Request) -> HttpFuture<'_, ResourceResult<Plain>> {
             "known_null",
             Conditional::whenNull(&Json::Null, || Json::Null),
         );
+        let picked = Conditional::attributes(&model, &["name", "password"])?;
+        Conditional::merge(&mut fields, || picked);
+        for (name, value) in [
+            ("zero", json!(0)),
+            ("false_value", json!(false)),
+            ("blank", json!(" \t ")),
+            ("empty", json!([])),
+            ("empty_map", json!({})),
+        ] {
+            Conditional::insert(
+                &mut fields,
+                name,
+                Conditional::transform(&value, Json::clone),
+            );
+        }
         Ok(Plain(Json::Object(fields)))
     })
 }
@@ -710,12 +726,12 @@ async fn verify(config: Json) {
     let (_, absent) = request(address, "GET", "/api/conditional", "", 200).await;
     assert_eq!(
         absent,
-        json!({"data":{"status":"base","guest":true,"known_null":null}})
+        json!({"data":{"status":"base","guest":true,"known_null":null,"name":"A","zero":0,"false_value":false}})
     );
     let (_, loaded) = request(address, "GET", "/api/conditional?load=1", "", 200).await;
     assert_eq!(
         loaded,
-        json!({"data":{"status":"base","appended":"account label","report":"B","known_null":null}})
+        json!({"data":{"status":"base","appended":"account label","report":"B","known_null":null,"name":"A","zero":0,"false_value":false}})
     );
     let (_, empty) = request(address, "GET", "/api/conditional?load=1&empty=1", "", 200).await;
     assert!(empty["data"].get("report").is_some_and(Json::is_null));
@@ -885,4 +901,135 @@ async fn resource_responses_on_mysql() {
     if let Some(url) = url {
         verify(json!({"url":url})).await;
     }
+}
+
+struct ForcedResource;
+
+#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
+impl JsonResource for ForcedResource {
+    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+        Ok(json!({"items":{"id":1}}))
+    }
+
+    fn forceWrapping(&self) -> bool {
+        true
+    }
+}
+
+fn explicitly_wrapped(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
+    Box::pin(async move {
+        Plain(json!({"id":1}))
+            .response()
+            .wrap("data")
+            .toResponse(request)
+    })
+}
+
+fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
+    Box::pin(async move {
+        Plain(json!({"data":{"id":1}}))
+            .response()
+            .additional(Map::from_iter([("meta".into(), json!({"total":1}))]))
+            .toResponse(request)
+    })
+}
+
+fn wrapping_routes() -> Result<(), RoutingError> {
+    Route::get("/plain", || Plain(json!({"id":1})))?;
+    Route::get("/already", || Plain(json!({"items":{"id":1}})))?;
+    Route::get("/forced", || ForcedResource)?;
+    Route::get("/explicit", explicitly_wrapped)?;
+    Route::get("/unwrapped", unwrapped)?;
+    Route::get("/metadata", wrapping_metadata)?;
+    Route::get("/named", || {
+        IndexedAccounts(ResourceCollection::new(Vec::new()))
+    })?;
+    Route::get("/page", || {
+        let page = LengthAwarePaginator::new(
+            vec![Plain(json!({"id":1}))],
+            2,
+            1,
+            Some(1),
+            PaginatorOptions::default(),
+        )
+        .unwrap();
+        ResourceCollection::new(page)
+    })?;
+    Ok(())
+}
+
+async fn wrapping_server(wrapping: ResourceWrapping) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    let mut app = Application::configure(std::env::temp_dir())
+        .withRouting(Routing::default().api(wrapping_routes))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    app.container().instance(Arc::new(wrapping)).unwrap();
+
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport.with_state(Arc::new(kernel)).into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    (address, task)
+}
+
+#[tokio::test]
+async fn resource_wrapping_is_scoped_to_each_http_application() {
+    let (left, left_task) = wrapping_server(ResourceWrapping::withoutWrapping()).await;
+    let (right, right_task) = wrapping_server(ResourceWrapping::wrap("items")).await;
+    for _ in 0..2 {
+        let ((_, plain), (_, wrapped)) = tokio::join!(
+            request(left, "GET", "/api/plain", "", 200),
+            request(right, "GET", "/api/plain", "", 200),
+        );
+        assert_eq!(plain, json!({"id":1}));
+        assert_eq!(wrapped, json!({"items":{"id":1}}));
+    }
+    for address in [left, right] {
+        assert_eq!(
+            request(address, "GET", "/api/explicit", "", 200).await.1,
+            json!({"data":{"id":1}})
+        );
+        assert_eq!(
+            request(address, "GET", "/api/named", "", 200).await.1,
+            json!({"accounts":[],"source":"indexed"})
+        );
+        assert_eq!(
+            request(address, "GET", "/api/unwrapped", "", 200).await.1,
+            json!({"id":1})
+        );
+    }
+    assert_eq!(
+        request(right, "GET", "/api/already", "", 200).await.1,
+        json!({"items":{"id":1}})
+    );
+    assert_eq!(
+        request(left, "GET", "/api/forced", "", 200).await.1,
+        json!({"items":{"id":1}})
+    );
+    assert_eq!(
+        request(right, "GET", "/api/forced", "", 200).await.1,
+        json!({"items":{"items":{"id":1}}})
+    );
+    let left_meta = request(left, "GET", "/api/metadata", "", 200).await.1;
+    assert_eq!(
+        left_meta,
+        json!({"data":{"data":{"id":1}},"meta":{"total":1}})
+    );
+    for (address, key) in [(left, "data"), (right, "items")] {
+        let page = request(address, "GET", "/api/page", "", 200).await.1;
+        assert_eq!(page[key], json!([{"id":1}]));
+        assert_eq!(page["meta"]["total"], 2);
+        assert!(page["links"]["next"].is_string());
+    }
+    left_task.abort();
+    right_task.abort();
 }

@@ -6,6 +6,9 @@ use crate::database::{
     Value as AttributeValue,
     eloquent::{Model, RelationAggregate},
 };
+use crate::http::HttpError;
+
+use super::ResourceResult;
 
 /// Selects values lazily and keeps omitted fields distinct from explicit JSON nulls.
 pub struct Conditional;
@@ -33,6 +36,33 @@ impl Conditional {
                 fields.entry(name).or_insert(value);
             }
         }
+    }
+
+    pub fn merge(fields: &mut Map<String, Value>, attributes: impl FnOnce() -> Map<String, Value>) {
+        Self::mergeWhen(fields, true, attributes);
+    }
+
+    /// Selects keys from the model's serialized attributes and relations.
+    pub fn attributes(model: &impl Model, names: &[&str]) -> ResourceResult<Map<String, Value>> {
+        let mut fields = model.toArray().map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        fields.retain(|name, _| names.contains(&name.as_str()));
+        Ok(fields)
+    }
+
+    /// Transforms a non-blank JSON value.
+    pub fn transform<T>(value: &Value, project: impl FnOnce(&Value) -> T) -> Option<T> {
+        let blank = match value {
+            Value::Null => true,
+            Value::String(text) => text
+                .trim_matches([' ', '\t', '\n', '\r', '\0', '\u{b}'])
+                .is_empty(),
+            Value::Array(values) => values.is_empty(),
+            Value::Object(values) => values.is_empty(),
+            Value::Bool(_) | Value::Number(_) => false,
+        };
+        Self::unless(blank, || project(value))
     }
 
     pub fn mergeUnless(

@@ -67,6 +67,13 @@ impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R>
         }
     }
 
+    fn forceWrapping(&self) -> bool {
+        match self {
+            Self::Declared(resource) => resource.forceWrapping(),
+            Self::Empty(resource) => resource.forceWrapping(),
+        }
+    }
+
     fn with(&self, request: &Request) -> ResourceResult<Map<String, Value>> {
         match self {
             Self::Declared(resource) => resource.with(request),

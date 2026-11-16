@@ -26,6 +26,27 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### Application Resource Wrapping {#application-resource-wrapping}
+
+Register `ResourceWrapping` in the application container to change its default `data` wrapper. Use `ResourceWrapping::wrap("items")` for a different key, or `withoutWrapping()` to disable wrapping on ordinary responses. Named resource wrappers and explicit `response().wrap(...)` and `withoutWrapping()` choices take precedence.
+
+Pagination and additional metadata still require a wrapper. With wrapping disabled, they use `data`. Implement `JsonResource::forceWrapping` to wrap even when the selected key already exists in the resource data.
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    container::Container,
+    contracts::container::{BindingResolutionError, Container as _},
+    http::resources::json::ResourceWrapping,
+};
+
+pub fn configure_resources(container: &Container) -> Result<(), BindingResolutionError> {
+    container.instance(Arc::new(ResourceWrapping::withoutWrapping()))?;
+    Ok(())
+}
+```
+
 ### Default Model Resources {#default-model-resources}
 
 Implement `UseResource` for a model and set `type Resource = AccountResource`. The resource implements `JsonResource` and `From<Account>`. This type declaration supplies the default used by `toResource()` and `toResourceCollection()`. Rust checks the association at compile time.
@@ -98,6 +119,8 @@ fn page_resource<T, R: JsonResource>(
 `Conditional::when` evaluates its closure only when the condition holds. Pass the result to `Conditional::insert` to omit missing fields while retaining explicit JSON null. `whenLoaded` reads a typed, already loaded relationship. `whenCounted`, `whenAggregated`, and `whenExistsLoaded` read selected aggregate attributes.
 
 `whenLoadedOne` distinguishes an unloaded relationship from a loaded relationship with no model. Map the inner `None` to `Value::Null` to include it in the response. Use `whenAppended` for accessors on the model’s append list, `whenNull` for explicit nulls, and `mergeWhen` or `mergeUnless` to insert fields while retaining fields already present.
+
+`attributes` selects fields from the serialized model and respects its visibility settings. `merge` adds them while retaining existing fields. `transform` runs only for a non-blank JSON value and preserves meaningful values such as `0` and `false`.
 
 ### Conditional Pivot Information {#conditional-pivot-information}
 
