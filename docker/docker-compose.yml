@@ -1,0 +1,60 @@
+services:
+  app:
+    image: ${OPENRUST_IMAGE:-openrust:local}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        OPENRUST_FEATURES: ${OPENRUST_FEATURES:-}
+    env_file:
+      - ${OPENRUST_ENV_FILE:-.env}
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8000"
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PUBLISHED_PORT:-8000}:8000"
+    volumes:
+      - type: bind
+        source: ${OPENRUST_STORAGE_PATH:-./data/storage}
+        target: /app/storage
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+
+  mysql:
+    image: mysql:8.4
+    profiles: [local]
+    restart: unless-stopped
+    environment:
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+      MYSQL_DATABASE: ${DB_DATABASE:-openrust}
+      MYSQL_USER: ${DB_USERNAME:-openrust}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-}
+    ports:
+      - "127.0.0.1:${MYSQL_FORWARD_PORT:-33060}:3306"
+    volumes:
+      - type: bind
+        source: ${OPENRUST_MYSQL_PATH:-./data/mysql}
+        target: /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e "SELECT 1"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:8
+    profiles: [local]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_FORWARD_PORT:-16379}:6379"
+    volumes:
+      - type: bind
+        source: ${OPENRUST_REDIS_PATH:-./data/redis}
+        target: /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

@@ -1,0 +1,9 @@
+services:
+  app:
+    volumes:
+      - type: bind
+        source: ${OPENRUST_PUBLIC_PATH:-../public}
+        target: /app/public
+        read_only: true
+        bind:
+          create_host_path: false

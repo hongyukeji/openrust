@@ -67,3 +67,32 @@ New long-running services join application startup by default once they are regi
 ./main artisan schedule:run
 ```
 HTTP, the managed Worker, and the scheduler share the application process. The managed Worker uses the same timeout, retries, and exit codes as independent `queue:work`. It skips the Worker memory limit because process RSS includes all three services. Independent `queue:work` retains its memory limit. Jobs configured for hard timeouts still run in isolated executors. Ctrl+C or Unix SIGTERM stops accepting new work and waits for active requests, queue jobs, and scheduled tasks. The application propagates a nonzero Worker exit code.
+
+## Docker deployment {#docker-deployment}
+
+Use Docker Engine with Compose and Buildx on Linux, or Docker Desktop in Linux-container mode on macOS or Windows. The same Dockerfile builds Linux `amd64` and `arm64` images. Run the commands below from the repository root. On Windows PowerShell use `Copy-Item docker/.env.example docker/.env` for the first step.
+
+For local development, start MySQL 8.4 and Redis and run the app on the host. Set the application's root `.env` to `DB_CONNECTION=mysql`, `DB_HOST=127.0.0.1`, `DB_PORT=33060`, `REDIS_HOST=127.0.0.1`, and `REDIS_PORT=16379`. Use the same MySQL database, username and password as `docker/.env`. Set `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` to use Redis. Generate an application key if it is empty, then run `./artisan migrate` and `cargo run`. On Windows PowerShell use `.\artisan.bat`.
+
+For a containerized application on a single host:
+
+1. Copy the template below. For production set `APP_ENV=production`, `APP_DEBUG=false`, a strong `DB_PASSWORD`, and the public `APP_URL` before initializing MySQL. Keep `docker/.env` private.
+2. Start the backing services and build the application image. Obtain an application key using the container's Artisan and save it as `APP_KEY` in `docker/.env`. Keep the same key on upgrades and across replicas.
+
+```sh
+cp docker/.env.example docker/.env
+docker compose --env-file docker/.env -f docker/docker-compose.yml --profile local up -d --wait mysql redis
+docker compose --env-file docker/.env -f docker/docker-compose.yml build app
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan key:generate --show
+```
+
+3. The app runs as UID/GID 10001. Grant that identity write access to `docker/data/storage`. On Linux, for a fresh directory, use `sudo chown 10001:10001 docker/data/storage`. On Docker Desktop the directory must be shared with Docker and writable in the container. Run the migration once, then start the app.
+
+```sh
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan migrate --force
+docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait app
+```
+
+Open `http://localhost:8000/up` or use the configured `APP_PUBLISHED_PORT`. The host port defaults to loopback for use with a reverse proxy. MySQL, Redis and application storage default to relative host directories under `docker/data/`. To bind-mount static files read-only, add `-f docker/docker-compose.public.yml` to the Compose command. The default source is the repository's `public/`. With that override the host directory supplies the complete contents served at `public/`.
+
+For multiple hosts, deploy the same image and omit the `local` profile. Set `OPENRUST_IMAGE`, shared `DB_HOST` and `REDIS_HOST`, and matching application key, cache/queue settings and credentials. Deploy with `up -d --no-build --wait app` after pulling or loading that image. Run migration once per release and use a load balancer with TLS and shared storage (such as S3) for uploads. If only one instance should run the scheduler, set `APP_DISABLED_RUNNERS=schedule` on the others. For optional Cargo features such as `reverb` or `sanctum`, set `OPENRUST_FEATURES` at build time.

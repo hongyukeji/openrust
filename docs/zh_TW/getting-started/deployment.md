@@ -67,3 +67,32 @@ Ctrl+C、Unix SIGTERM 或 Runner 執行失敗時，應用程式依 `shutdownPrio
 ./main artisan schedule:run
 ```
 HTTP、受管理的 Worker 和排程器共用應用程式程序。受管理的 Worker 沿用獨立 `queue:work` 的逾時、重試和結束碼。程序 RSS 涵蓋三個服務的記憶體用量，因此受管理的 Worker 不套用獨立記憶體門檻。獨立 `queue:work` 保留現有記憶體上限。啟用強制逾時的工作仍由隔離執行器執行。Ctrl+C 或 Unix SIGTERM 會停止接收新工作，並等待處理中的 HTTP 請求、佇列工作和排程工作完成。應用程式程序會傳遞 Worker 的非零結束碼。
+
+## Docker 部署 {#docker-deployment}
+
+Linux 使用具備 Compose 與 Buildx 的 Docker Engine，macOS 與 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支援建置 Linux `amd64` 與 `arm64` 映像。以下命令從儲存庫根目錄執行，Windows PowerShell 第一步使用 `Copy-Item docker/.env.example docker/.env`。
+
+本機開發可只啟動 MySQL 8.4 與 Redis，應用程式在主機執行。根目錄的應用程式 `.env` 設定 `DB_CONNECTION=mysql`、`DB_HOST=127.0.0.1`、`DB_PORT=33060`、`REDIS_HOST=127.0.0.1` 與 `REDIS_PORT=16379`。MySQL 資料庫名稱、使用者與密碼須與 `docker/.env` 一致。使用 Redis 快取與佇列時設定 `CACHE_STORE=redis` 與 `QUEUE_CONNECTION=redis`。應用程式金鑰為空時先產生金鑰，再執行 `./artisan migrate` 和 `cargo run`。Windows PowerShell 使用 `.\artisan.bat`。
+
+單機部署應用程式容器的步驟如下。
+
+1. 複製環境範本。正式環境在初始化 MySQL 前設定 `APP_ENV=production`、`APP_DEBUG=false`、高強度的 `DB_PASSWORD` 與公開的 `APP_URL`。妥善保存 `docker/.env`。
+2. 啟動相依服務並建置映像。使用容器內的 Artisan 產生應用程式金鑰，填入 `docker/.env` 的 `APP_KEY`。升級與多執行個體部署仍使用原金鑰。
+
+```sh
+cp docker/.env.example docker/.env
+docker compose --env-file docker/.env -f docker/docker-compose.yml --profile local up -d --wait mysql redis
+docker compose --env-file docker/.env -f docker/docker-compose.yml build app
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan key:generate --show
+```
+
+3. 應用程式以 UID/GID 10001 執行，需能寫入 `docker/data/storage`。在 Linux 上可對新目錄執行 `sudo chown 10001:10001 docker/data/storage`。Docker Desktop 上請確認目錄已分享給 Docker 且容器可寫入。執行一次遷移，再啟動應用程式。
+
+```sh
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan migrate --force
+docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait app
+```
+
+開啟 `http://localhost:8000/up`，連接埠可透過 `APP_PUBLISHED_PORT` 修改。主機連接埠預設繫結回送位址，便於搭配反向代理。MySQL、Redis 與應用程式儲存預設掛載到 `docker/data/` 下的相對目錄。若須唯讀掛載靜態資源，在 Compose 命令加入 `-f docker/docker-compose.public.yml`。預設來源為儲存庫的 `public/`，由主機目錄提供完整的公開檔案。
+
+多台主機部署使用同一個映像，省略 `local` profile。設定 `OPENRUST_IMAGE`、共用的 `DB_HOST` 與 `REDIS_HOST`，各執行個體使用一致的應用程式金鑰、快取／佇列設定及憑證。拉取或載入映像後以 `up -d --no-build --wait app` 啟動。每次發行集中執行一次遷移，由負載平衡器處理 TLS，上傳檔案使用 S3 等共用儲存。若排程器只需在一台執行個體執行，其他執行個體設定 `APP_DISABLED_RUNNERS=schedule`。建置時以 `OPENRUST_FEATURES` 選擇 `reverb`、`sanctum` 等選用功能。

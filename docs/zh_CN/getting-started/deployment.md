@@ -67,3 +67,32 @@ Ctrl+C、Unix SIGTERM 或 Runner 运行失败时，应用按 `shutdownPriority` 
 ./main artisan schedule:run
 ```
 HTTP、受管 Worker 和调度器共用应用进程。受管 Worker 沿用独立 `queue:work` 的超时、重试和退出码。进程 RSS 包含三个服务的内存占用，因此受管 Worker 不套用独立内存门槛。独立 `queue:work` 保留现有内存上限。启用强制超时的任务仍由隔离执行器运行。Ctrl+C 或 Unix SIGTERM 会停止接收新工作，并等待在途 HTTP 请求、队列任务和调度任务完成。应用进程会传递 Worker 的非零退出码。
+
+## Docker 部署 {#docker-deployment}
+
+Linux 使用带 Compose 和 Buildx 的 Docker Engine，macOS 和 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支持构建 Linux `amd64` 和 `arm64` 镜像。以下命令从仓库根目录执行，Windows PowerShell 第一步用 `Copy-Item docker/.env.example docker/.env`。
+
+本地开发可只启动 MySQL 8.4 和 Redis，应用在宿主机运行。根目录的应用 `.env` 设置 `DB_CONNECTION=mysql`、`DB_HOST=127.0.0.1`、`DB_PORT=33060`、`REDIS_HOST=127.0.0.1` 和 `REDIS_PORT=16379`；MySQL 库名、账号和密码与 `docker/.env` 一致。使用 Redis 缓存和队列时设置 `CACHE_STORE=redis` 和 `QUEUE_CONNECTION=redis`。应用密钥为空时先生成密钥，再执行 `./artisan migrate` 和 `cargo run`。Windows PowerShell 使用 `.\artisan.bat`。
+
+单机部署应用容器的步骤如下。
+
+1. 复制环境模板。生产环境在初始化 MySQL 前设置 `APP_ENV=production`、`APP_DEBUG=false`、强密码 `DB_PASSWORD` 和公开 `APP_URL`。妥善保存 `docker/.env`。
+2. 启动依赖并构建应用镜像。用容器的 Artisan 生成应用密钥，填入 `docker/.env` 的 `APP_KEY`。升级和多实例部署继续使用原密钥。
+
+```sh
+cp docker/.env.example docker/.env
+docker compose --env-file docker/.env -f docker/docker-compose.yml --profile local up -d --wait mysql redis
+docker compose --env-file docker/.env -f docker/docker-compose.yml build app
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan key:generate --show
+```
+
+3. 应用进程使用 UID/GID 10001，`docker/data/storage` 需要对该用户可写。Linux 上新建的目录可执行 `sudo chown 10001:10001 docker/data/storage`。Docker Desktop 上确认目录已共享给 Docker 且在容器内可写。执行一次迁移，再启动应用。
+
+```sh
+docker compose --env-file docker/.env -f docker/docker-compose.yml run --rm app artisan migrate --force
+docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait app
+```
+
+访问 `http://localhost:8000/up`，端口可通过 `APP_PUBLISHED_PORT` 修改。宿主机端口默认绑定回环地址，便于在前面接反向代理。MySQL、Redis 和应用存储默认挂载到 `docker/data/` 下的相对目录。需要只读挂载静态资源时，在 Compose 命令中加上 `-f docker/docker-compose.public.yml`，默认挂载仓库的 `public/`，由宿主目录提供完整的公共文件。
+
+多机部署使用同一应用镜像，省略 `local` profile。设置 `OPENRUST_IMAGE`、共用的 `DB_HOST` 和 `REDIS_HOST`，各实例使用一致的应用密钥、缓存和队列配置及凭据。拉取或载入镜像后用 `up -d --no-build --wait app` 启动。每次发布集中执行一次迁移，入口由负载均衡器处理 TLS，上传文件使用 S3 等共享存储。如果调度器只需运行在一台实例上，其他实例设置 `APP_DISABLED_RUNNERS=schedule`。构建时用 `OPENRUST_FEATURES` 选择 `reverb`、`sanctum` 等可选功能。

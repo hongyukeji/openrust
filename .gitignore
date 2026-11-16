@@ -11,6 +11,7 @@
 
 # Application runtime data
 /tmp/
+/docker/data/
 *.log
 
 # Local editor and OS metadata
