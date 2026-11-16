@@ -131,6 +131,28 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 選取與附加項目 {#lazy-selection-and-append}
+
+`slice(offset, length)` 保留原始鍵。偏移或長度為負數時，先實體化來源並套用集合的鍵規則。`nth(step, offset)` 從偏移位置開始每隔指定步長選取一項，並重新編號。`keys()` 按讀取順序產出鍵，包括重複鍵。`concat` 讀完第一個惰性集合後才開啟第二個，並統一重排索引。`chunkBy` 依回呼傳回的型別化值對連續項目分組。
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 4), ("b", 7), ("c", 11)]);
+    assert_eq!(
+        readings.clone().slice(1, Some(1)).all()?,
+        vec![(ArrayKey::from("b"), 7)]
+    );
+    assert_eq!(readings.clone().keys().count()?, 3);
+    assert_eq!(readings.clone().chunkBy(|value, _| value / 10).count()?, 2);
+
+    let combined = readings.nth(2, 0)?.concat(LazyCollection::make(|| [15]));
+    assert_eq!(combined.collect()?.toJson()?, "[4,11,15]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

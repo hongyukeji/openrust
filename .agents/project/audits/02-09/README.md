@@ -39,3 +39,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `sliding(size, step)` 支持重叠、连续和带间隔的完整窗口，校验正数参数。重复键沿用 Laravel 的覆盖和顺序规则。由 Rust 实体窗口持有输出值，因此值需实现 `Clone`。
 - 定向集合测试 20 项，通过延迟读取、边界复用、重复键、短窗口、无效参数和读取错误传播。PHP 8.5.12 运行固定 Laravel 源码对照。三语共享 Rust 示例、实际 `./artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 本批针对同步迭代器，不需要数据库夹具。其余同步方法继续逐项对照。
+
+## 惰性选取与追加
+
+对照固定 Laravel [LazyCollection 的 keys、nth、concat 和 slice](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L737)、[chunkBy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L941) 和 [两类集合共用测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php)。旧版没有同契约的惰性方法，复用现有迭代器、实体集合切片和键规则。
+
+- 正向 `slice` 保留键并按需读取。负偏移或负长度按 Laravel 先实体化并去重，再按位置切片。`nth` 禁止零步长，选取结果重新编号，选取间隔中的来源错误依然传播。
+- `keys` 产出原键并保留重复项。`concat` 接受另一个同值类型的惰性集合，读完第一来源才打开第二来源，合并结果重新编号。Rust 的 `chunkBy` 使用回调提取待比较的值，保留组内原键。PHP 字符串字段路径由 Rust 回调表达。
+- PHP 8.5.12 固定源码对照、23 项集合测试、三语共用 Rust 示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

@@ -190,6 +190,21 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         })
     }
 
+    pub fn keys(self) -> LazyCollection<'source, ArrayKey> {
+        LazyCollection::from_iterators(move || {
+            index_values(self.getIterator().map(|entry| entry.map(|(key, _)| key)))
+        })
+    }
+
+    pub fn concat(self, source: Self) -> Self {
+        Self::from_iterators(move || {
+            let source = source.clone();
+            self.getIterator()
+                .chain(iter::once_with(move || source.getIterator()).flatten())
+        })
+        .values()
+    }
+
     pub fn values(self) -> Self {
         Self::from_iterators(move || {
             index_values(
@@ -238,6 +253,47 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 false
             })
         })
+    }
+
+    pub fn slice(self, offset: isize, length: Option<isize>) -> Self {
+        if offset < 0 || length.is_some_and(|length| length < 0) {
+            return Self::from_iterators(move || -> SourceIterator<'source, T> {
+                match Self::collect(&self) {
+                    Ok(items) => Box::new(items.slice(offset, length).into_iter().map(Ok)),
+                    Err(error) => Box::new(iter::once(Err(error))),
+                }
+            });
+        }
+
+        let skipped = self.skip(offset.unsigned_abs());
+        match length {
+            Some(length) => skipped.take(length),
+            None => skipped,
+        }
+    }
+
+    pub fn nth(self, step: usize, offset: isize) -> CollectionResult<Self> {
+        if step == 0 {
+            return Err(CollectionError::InvalidArgument);
+        }
+
+        let source = self.slice(offset, None);
+        Ok(Self::from_iterators(move || {
+            let mut until_next = 0;
+            source.getIterator().filter(move |entry| {
+                if entry.is_err() {
+                    return true;
+                }
+                if until_next == 0 {
+                    until_next = step - 1;
+                    true
+                } else {
+                    until_next -= 1;
+                    false
+                }
+            })
+        })
+        .values())
     }
 
     pub fn takeWhile(self, predicate: impl Fn(&T, &ArrayKey) -> bool + 'source) -> Self {
@@ -329,6 +385,16 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 }
                 Some(Ok(chunk))
             }))
+        })
+    }
+
+    pub fn chunkBy<K: PartialEq>(
+        self,
+        project: impl Fn(&T, &ArrayKey) -> K + 'source,
+    ) -> LazyCollection<'source, Collection<T>> {
+        self.chunkWhile(move |value, key, group| {
+            let (last_key, last) = group.iter().next_back().expect("current group is nonempty");
+            project(value, key) == project(last, last_key)
         })
     }
 

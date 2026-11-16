@@ -291,3 +291,96 @@ fn lazy_grouping_propagates_errors_during_a_group_or_a_window_gap() {
     ));
     assert!(windows.next().is_none());
 }
+
+#[test]
+fn lazy_slice_and_nth_preserve_keys_or_reindex_positions() {
+    let reads = Cell::new(0);
+    let readings = LazyCollection::fromEntries(|| {
+        [("first", 4), ("same", 7), ("same", 8), ("last", 11)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let selected = readings.clone().nth(2, 1).unwrap().take(1);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(selected.all().unwrap(), vec![(0.into(), 7)]);
+    assert_eq!(reads.get(), 2);
+    assert_eq!(
+        readings.clone().slice(1, Some(2)).values().all().unwrap(),
+        vec![(0.into(), 7), (1.into(), 8)]
+    );
+    assert_eq!(
+        readings.clone().slice(0, Some(-1)).all().unwrap(),
+        vec![("first".into(), 4), ("same".into(), 8)]
+    );
+    assert_eq!(
+        readings.clone().nth(2, -3).unwrap().all().unwrap(),
+        vec![(0.into(), 4), (1.into(), 11)]
+    );
+    assert!(matches!(
+        readings.nth(0, 0),
+        Err(CollectionError::InvalidArgument)
+    ));
+
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error()), Ok(3)]);
+    let sampled = failing.clone().nth(3, 0).unwrap();
+    let mut iterator = sampled.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+    assert!(matches!(
+        failing.nth(1, -1).unwrap().first(),
+        Err(CollectionError::Source(_))
+    ));
+}
+
+#[test]
+fn lazy_keys_and_concat_preserve_occurrences_and_defer_the_second_source() {
+    let opens = Cell::new(0);
+    let keys = LazyCollection::fromEntries(|| [("same", 1), ("same", 2)]).keys();
+    let suffix = LazyCollection::fromEntries(|| {
+        opens.set(opens.get() + 1);
+        [("tail", 3)]
+    });
+    let joined = LazyCollection::fromEntries(|| [("a", 1), ("a", 2)]).concat(suffix);
+    assert_eq!(
+        keys.all().unwrap(),
+        vec![(0.into(), "same".into()), (1.into(), "same".into())]
+    );
+    assert_eq!(
+        joined.clone().take(2).all().unwrap(),
+        vec![(0.into(), 1), (1.into(), 2)]
+    );
+    assert_eq!(opens.get(), 0);
+    assert_eq!(
+        joined.all().unwrap(),
+        vec![(0.into(), 1), (1.into(), 2), (2.into(), 3)]
+    );
+    assert_eq!(opens.get(), 1);
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    let result = failing
+        .concat(LazyCollection::make(|| {
+            opens.set(opens.get() + 1);
+            [4]
+        }))
+        .all();
+    assert!(matches!(result, Err(CollectionError::Source(_))));
+    assert_eq!(opens.get(), 1);
+}
+
+#[test]
+fn chunk_by_projects_typed_values_and_keys() {
+    let readings = LazyCollection::fromEntries(|| [("a", 4), ("b", 7), ("c", 11)]);
+    let groups = readings
+        .chunkBy(|value, key| {
+            assert!(matches!(key, ArrayKey::String(_)));
+            value / 10
+        })
+        .all()
+        .unwrap();
+    assert_eq!(groups.len(), 2);
+    assert_eq!(groups[0].1.toJson().unwrap(), r#"{"a":4,"b":7}"#);
+    assert_eq!(groups[1].1.toJson().unwrap(), r#"{"c":11}"#);
+}

@@ -131,6 +131,28 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Selecting and Appending Items {#lazy-selection-and-append}
+
+`slice(offset, length)` preserves source keys. A negative offset or length materializes the source first and applies the collection’s key rules. `nth(step, offset)` selects every n-th item after the offset and reindexes the results. `keys()` yields keys in encounter order, including repeated keys. `concat` takes a second `LazyCollection`, opens it after the first ends, and reindexes the combined values. `chunkBy` groups consecutive items using the typed value returned by a callback.
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 4), ("b", 7), ("c", 11)]);
+    assert_eq!(
+        readings.clone().slice(1, Some(1)).all()?,
+        vec![(ArrayKey::from("b"), 7)]
+    );
+    assert_eq!(readings.clone().keys().count()?, 3);
+    assert_eq!(readings.clone().chunkBy(|value, _| value / 10).count()?, 2);
+
+    let combined = readings.nth(2, 0)?.concat(LazyCollection::make(|| [15]));
+    assert_eq!(combined.collect()?.toJson()?, "[4,11,15]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.
