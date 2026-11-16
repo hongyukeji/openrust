@@ -183,3 +183,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 三语共用例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。
 - 以固定 `LazyCollection.php` 和 `EnumeratesValues.php` 的显式公开方法名为准，162 项中有 155 项在 Rust 有同名入口。余项包括 Laravel 已弃用的 `containsManyItems`、`containsOneItem`，以及 `dd`、`dump`、`escapeWhenCastingToString`、`getCachingIterator`、`proxy`。此项只核方法名，宏、类型签名和可观察行为需另行验收。
 - PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物及文档缓存后，项目卷可用 61.30 GB（57.09 GiB）。证据目录为 `/private/tmp/openrust-02-09-percentage.oXrJSEl1`。
+
+## 惰性缓存迭代器
+
+对照固定 Laravel [缓存迭代器工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L1061)及[旧计数入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L705)，并实测 PHP 8.5.12 的 SPL 迭代器。旧版未找到对应惰性实现，复用现有迭代器、实体集合键规则和现代计数方法。
+
+- `getCachingIterator()` 为单次遍历提供一项预读和 `hasNext()`。`getCachingIteratorWithFullCache()` 对应 SPL 完整缓存，只保留已经返回的条目，重复键更新缓存值。Rust 通过类型约束只要求完整缓存的值实现 `Clone`，不提供 SPL 的隐式字符串转换标志。预读遇到错误时，Rust 保留当前有效条目，在迭代到缓存的错误结果时返回错误。
+- 补齐 `containsOneItem()` 和 `containsManyItems()` 旧名称。带筛选的单项检查继续用 `hasSoleWhere`。固定源码显式公开方法名已对齐 158／162，剩余 `dd`、`dump`、`escapeWhenCastingToString`、`proxy`。名称核对不等同于所有签名和行为验收。
+- 隔离基线 `764a5152d`。固定 Laravel PHP 对照和 72 项 Rust 集合测试通过，覆盖预读顺序、缓存覆盖、值无需克隆的前瞻、错误传播和兼容名称。三语共用 Rust 示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。
+- PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物与文档缓存后，项目卷可用 61.26 GB（57.05 GiB）。证据目录为 `/private/tmp/openrust-02-09-caching.fCyJkVKJ`。

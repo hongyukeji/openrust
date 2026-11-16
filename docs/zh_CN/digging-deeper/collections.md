@@ -486,6 +486,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 单次遍历的缓存 {#lazy-caching-iterator}
+
+`getCachingIterator()` 会预读一项。用 `hasNext()` 检查是否还有结果，再用 `next()` 前进。预读发现的来源错误会在前进到该项时返回。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::fromEntries(|| [("a", 1), ("a", 2), ("b", 3)]);
+    let mut iterator = numbers.getCachingIteratorWithFullCache();
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 1)));
+    assert!(iterator.hasNext());
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&1)
+    );
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 2)));
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&2)
+    );
+    Ok(())
+}
+```
+
+用 `getCachingIteratorWithFullCache()` 启用 Laravel 的完整缓存行为。条目值需要支持克隆，每个键保留最近返回的值。`getCache()` 提供已返回的条目。要在多次遍历间复用同一来源，请用 `remember()`。
+
+旧名称 `containsOneItem()` 和 `containsManyItems()` 分别调用 `hasSole()` 和 `hasMany()`。要检查是否恰有一项符合条件，使用 `hasSoleWhere()`。
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

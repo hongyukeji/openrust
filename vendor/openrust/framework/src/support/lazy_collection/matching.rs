@@ -121,6 +121,16 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Ok(matches.next().transpose()?.is_some() && matches.next().transpose()?.is_none())
     }
 
+    /// Compatibility alias for `hasSole`.
+    pub fn containsOneItem(&self) -> CollectionResult<bool> {
+        self.hasSole()
+    }
+
+    /// Compatibility alias for `hasMany`.
+    pub fn containsManyItems(&self) -> CollectionResult<bool> {
+        self.hasMany()
+    }
+
     pub fn hasMany(&self) -> CollectionResult<bool> {
         self.hasManyWhere(|_, _| true)
     }

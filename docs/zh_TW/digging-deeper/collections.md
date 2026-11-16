@@ -486,6 +486,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 單次走訪的快取 {#lazy-caching-iterator}
+
+`getCachingIterator()` 會預先讀取一項。用 `hasNext()` 檢查是否還有結果，再用 `next()` 前進。預先讀取發現的來源錯誤會在前進到該項時回傳。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::fromEntries(|| [("a", 1), ("a", 2), ("b", 3)]);
+    let mut iterator = numbers.getCachingIteratorWithFullCache();
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 1)));
+    assert!(iterator.hasNext());
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&1)
+    );
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 2)));
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&2)
+    );
+    Ok(())
+}
+```
+
+用 `getCachingIteratorWithFullCache()` 啟用 Laravel 的完整快取行為。項目值需要能複製，每個鍵保留最近回傳的值。`getCache()` 提供已回傳的項目。需要跨多次走訪重用同一來源時，請用 `remember()`。
+
+舊名稱 `containsOneItem()` 和 `containsManyItems()` 分別呼叫 `hasSole()` 和 `hasMany()`。若要檢查是否恰有一項符合條件，請使用 `hasSoleWhere()`。
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

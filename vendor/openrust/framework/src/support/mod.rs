@@ -41,7 +41,7 @@ pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
 pub use helpers::{Retry, blank, filled};
 pub use html_string::HtmlString;
-pub use lazy_collection::{LazyCollection, LazyIterator, LazySource};
+pub use lazy_collection::{LazyCachingIterator, LazyCollection, LazyIterator, LazySource};
 pub use lottery::{InvalidLottery, Lottery};
 pub use markdown::{MarkdownHtml, MarkdownOptions};
 pub use message_bag::MessageBag;

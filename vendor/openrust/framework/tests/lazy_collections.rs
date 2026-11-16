@@ -1822,3 +1822,61 @@ fn lazy_percentage_propagates_an_error_without_reading_remaining_entries() {
     assert_eq!(calls, 1);
     assert_eq!(reads.get(), 2);
 }
+
+#[test]
+fn lazy_caching_iterator_looks_ahead_and_caches_only_yielded_keys() -> CollectionResult<()> {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let mut traversal = source.getCachingIteratorWithFullCache();
+    assert_eq!(reads.get(), 0);
+    assert_eq!(traversal.next().transpose()?, Some(("a".into(), 1)));
+    assert!(traversal.hasNext());
+    assert_eq!(reads.get(), 2);
+    assert_eq!(traversal.getCache().unwrap().get("a"), Some(&1));
+    assert_eq!(traversal.next().transpose()?, Some(("a".into(), 2)));
+    assert_eq!(reads.get(), 3);
+    assert_eq!(traversal.getCache().unwrap().get("a"), Some(&2));
+    assert!(!traversal.getCache().unwrap().has("b"));
+    assert_eq!(traversal.next().transpose()?, Some(("b".into(), 3)));
+    assert!(!traversal.hasNext());
+    assert_eq!(traversal.getCache().unwrap().get("b"), Some(&3));
+    assert!(traversal.next().is_none());
+
+    struct NoClone;
+    let single = LazyCollection::make(|| [NoClone]);
+    let mut lookahead = single.getCachingIterator();
+    assert!(lookahead.hasNext());
+    assert!(lookahead.next().transpose()?.is_some());
+    assert!(lookahead.getCache().is_none());
+    assert!(!lookahead.hasNext());
+    assert!(single.containsOneItem()?);
+    assert!(!single.containsManyItems()?);
+    assert!(source.containsManyItems()?);
+    Ok(())
+}
+
+#[test]
+fn lazy_caching_iterator_preserves_the_entry_before_a_source_error() -> CollectionResult<()> {
+    let reads = Cell::new(0);
+    let source = LazyCollection::tryMake(|| {
+        [Ok(1), Err(CollectionError::InvalidArgument), Ok(2)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let mut traversal = source.getCachingIteratorWithFullCache();
+    assert_eq!(traversal.next().transpose()?, Some((0.into(), 1)));
+    assert_eq!(reads.get(), 2);
+    assert!(traversal.hasNext());
+    assert!(matches!(
+        traversal.next(),
+        Some(Err(CollectionError::InvalidArgument))
+    ));
+    assert!(!traversal.hasNext());
+    assert_eq!(reads.get(), 2);
+    assert_eq!(traversal.getCache().unwrap().count(), 1);
+    Ok(())
+}

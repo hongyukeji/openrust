@@ -5,6 +5,7 @@ use indexmap::IndexMap;
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable};
 
 mod aggregates;
+mod caching;
 mod filtering;
 mod flow;
 mod lookup;
@@ -20,6 +21,8 @@ mod sets;
 mod sources;
 mod timing;
 mod transforms;
+
+pub use caching::LazyCachingIterator;
 
 type Entry<T> = (ArrayKey, T);
 type SourceIterator<'source, T> = Box<dyn Iterator<Item = CollectionResult<Entry<T>>> + 'source>;

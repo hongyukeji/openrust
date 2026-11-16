@@ -486,6 +486,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Caching One Traversal {#lazy-caching-iterator}
+
+`getCachingIterator()` keeps one result of lookahead. Call `hasNext()` to check for a pending result, then advance with `next()`. A source error discovered by lookahead is returned when you advance to that result.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::fromEntries(|| [("a", 1), ("a", 2), ("b", 3)]);
+    let mut iterator = numbers.getCachingIteratorWithFullCache();
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 1)));
+    assert!(iterator.hasNext());
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&1)
+    );
+
+    assert_eq!(iterator.next().transpose()?, Some(("a".into(), 2)));
+    assert_eq!(
+        iterator.getCache().and_then(|cache| cache.get("a")),
+        Some(&2)
+    );
+    Ok(())
+}
+```
+
+Use `getCachingIteratorWithFullCache()` for Laravel’s full-cache behavior. It requires cloneable values and keeps the last yielded value for each key. `getCache()` returns the entries already yielded. Use `remember()` to replay a shared source across several traversals.
+
+The older `containsOneItem()` and `containsManyItems()` names call `hasSole()` and `hasMany()`. Use `hasSoleWhere()` to test for a single matching item with a predicate.
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.
