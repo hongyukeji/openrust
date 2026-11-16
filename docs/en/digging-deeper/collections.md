@@ -338,6 +338,39 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Fallbacks for Missing Values {#lazy-lookup-fallbacks}
+
+Use `getOrElse`, `firstOrElse`, `lastOrElse`, or `valueOrElse` to supply a fallback as a closure. Use `firstWhereOrElse` and `lastWhereOrElse` when the lookup checks a predicate.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::{Value, json};
+
+fn main() -> Result<(), CollectionError> {
+    let rows = LazyCollection::fromEntries(|| {
+        [
+            ("draft", json!({"profile":{"name":null}})),
+            ("published", json!({"profile":{"name":"Taylor"}})),
+        ]
+    });
+
+    let row = rows.getOrElse("archived", || json!({"status":"missing"}))?;
+    assert_eq!(row, json!({"status":"missing"}));
+    assert_eq!(
+        rows.valueOrElse("profile.name", || json!("anonymous"))?,
+        Value::Null
+    );
+    let row = rows.lastWhereOrElse(
+        |_, key| key == &"published".into(),
+        || json!({"status":"missing"}),
+    )?;
+    assert_eq!(row["profile"]["name"], "Taylor");
+    Ok(())
+}
+```
+
+The fallback runs once when the lookup finds no result. A present JSON null is a result, and source errors propagate to the caller. Pass a closure such as `|| default` to use an existing value.
+
 #### Filtering Values and Fields {#lazy-filtering-values}
 
 `r#where` and `whereIn` compare the value returned by a typed projection. Their strict variants use the same Rust equality rules. `whereBetween` includes both endpoints. `whereNotBetween` tests whether a value is below the lower bound or above the upper bound. For JSON, `whereNullAt` matches a missing path or explicit null, while `whereNotNullAt` keeps present non-null values. These filters preserve keys and evaluate only the entries requested.

@@ -338,6 +338,39 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 缺失值回退 {#lazy-lookup-fallbacks}
+
+用 `getOrElse`、`firstOrElse`、`lastOrElse` 或 `valueOrElse` 传入回退闭包。需要按条件查找时，用 `firstWhereOrElse` 和 `lastWhereOrElse`。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::{Value, json};
+
+fn main() -> Result<(), CollectionError> {
+    let rows = LazyCollection::fromEntries(|| {
+        [
+            ("draft", json!({"profile":{"name":null}})),
+            ("published", json!({"profile":{"name":"Taylor"}})),
+        ]
+    });
+
+    let row = rows.getOrElse("archived", || json!({"status":"missing"}))?;
+    assert_eq!(row, json!({"status":"missing"}));
+    assert_eq!(
+        rows.valueOrElse("profile.name", || json!("anonymous"))?,
+        Value::Null
+    );
+    let row = rows.lastWhereOrElse(
+        |_, key| key == &"published".into(),
+        || json!({"status":"missing"}),
+    )?;
+    assert_eq!(row["profile"]["name"], "Taylor");
+    Ok(())
+}
+```
+
+查找无结果时回退闭包执行一次。路径上已有的 JSON null 仍是查找结果，来源错误会返回调用方。也可以用 `|| default` 传入已有值。
+
 #### 筛选值和字段 {#lazy-filtering-values}
 
 `r#where` 和 `whereIn` 比较类型化投影返回的值。严格版本使用相同的 Rust 相等规则。`whereBetween` 包含两个端点。`whereNotBetween` 匹配低于下界或高于上界的值。对 JSON，`whereNullAt` 匹配缺失路径或显式空值，`whereNotNullAt` 保留存在且非空的值。这些过滤方法按需读取，并保留原键。

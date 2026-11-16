@@ -2103,3 +2103,110 @@ fn lazy_implode_projects_only_the_materialized_entries() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_lookup_fallbacks_run_only_on_miss_and_preserve_lookup_order() {
+    let calls = Cell::new(0);
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 10), ("b", 11), ("a", 20)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let fallback = || {
+        calls.set(calls.get() + 1);
+        99
+    };
+
+    assert_eq!(source.getOrElse("a", fallback).unwrap(), 10);
+    assert_eq!(reads.get(), 1);
+    assert_eq!(source.firstOrElse(fallback).unwrap(), 10);
+    assert_eq!(reads.get(), 2);
+    assert_eq!(
+        source
+            .firstWhereOrElse(|_, key| key == &"b".into(), fallback)
+            .unwrap(),
+        11
+    );
+    assert_eq!(reads.get(), 4);
+    assert_eq!(
+        source
+            .lastWhereOrElse(|value, _| value % 10 == 0, fallback)
+            .unwrap(),
+        20
+    );
+    assert_eq!(reads.get(), 7);
+    assert_eq!(source.lastOrElse(fallback).unwrap(), 20);
+    assert_eq!(reads.get(), 10);
+    assert_eq!(calls.get(), 0);
+
+    assert_eq!(source.getOrElse("missing", fallback).unwrap(), 99);
+    assert_eq!(source.firstWhereOrElse(|_, _| false, fallback).unwrap(), 99);
+    assert_eq!(source.lastWhereOrElse(|_, _| false, fallback).unwrap(), 99);
+    assert_eq!(LazyCollection::empty().firstOrElse(fallback).unwrap(), 99);
+    assert_eq!(LazyCollection::empty().lastOrElse(fallback).unwrap(), 99);
+    assert_eq!(calls.get(), 5);
+    let owned = String::from("computed once");
+    assert_eq!(
+        LazyCollection::empty().firstOrElse(move || owned).unwrap(),
+        "computed once"
+    );
+}
+
+#[test]
+fn lazy_lookup_fallbacks_preserve_null_and_source_errors() {
+    use serde_json::{Value, json};
+
+    let values = LazyCollection::fromEntries(|| {
+        [
+            ("first", json!({})),
+            ("second", json!({"profile":{"name":null}})),
+            ("third", json!({"profile":{"name":"Taylor"}})),
+        ]
+    });
+    let never = || -> Value { panic!("a source error or present value precedes fallback") };
+    assert_eq!(
+        values.valueOrElse("profile.name", never).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        values
+            .valueOrElse("profile.email", || json!("unknown"))
+            .unwrap(),
+        json!("unknown")
+    );
+    assert_eq!(
+        LazyCollection::from([Value::Null])
+            .getOrElse(0, never)
+            .unwrap(),
+        Value::Null
+    );
+
+    let broken = LazyCollection::tryFromEntries(|| {
+        [
+            Ok(("hit", json!({"profile":{"name":null}}))),
+            Err(source_error()),
+        ]
+    });
+    assert_eq!(
+        broken.getOrElse("hit", never).unwrap(),
+        json!({"profile":{"name":null}})
+    );
+    assert_eq!(
+        broken.valueOrElse("profile.name", never).unwrap(),
+        Value::Null
+    );
+    for error in [
+        broken.getOrElse("missing", never),
+        broken.firstWhereOrElse(|_, _| false, never),
+        broken.lastWhereOrElse(|_, _| true, never),
+        broken.lastOrElse(never),
+        broken.valueOrElse("profile.email", never),
+    ] {
+        assert!(matches!(error, Err(CollectionError::Source(_))));
+    }
+    assert!(matches!(
+        LazyCollection::<Value>::tryMake(|| [Err(source_error())]).firstOrElse(never),
+        Err(CollectionError::Source(_))
+    ));
+}

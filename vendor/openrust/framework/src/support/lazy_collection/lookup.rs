@@ -9,6 +9,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.firstWhere(|_, candidate| candidate == &key)
     }
 
+    /// Evaluates the fallback only when the requested key is absent.
+    pub fn getOrElse(
+        &self,
+        key: impl Into<ArrayKey>,
+        fallback: impl FnOnce() -> T,
+    ) -> CollectionResult<T> {
+        Ok(self.get(key)?.unwrap_or_else(fallback))
+    }
+
     pub fn has(&self, key: impl Into<ArrayKey>) -> CollectionResult<bool> {
         Ok(self.get(key)?.is_some())
     }
@@ -46,6 +55,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         self.lastWhere(|_, _| true)
     }
 
+    /// Evaluates the fallback only when the source is empty.
+    pub fn lastOrElse(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
+        Ok(self.last()?.unwrap_or_else(fallback))
+    }
+
     pub fn lastWhere(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
@@ -58,6 +72,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             }
         }
         Ok(result)
+    }
+
+    /// Evaluates the fallback only when no entry matches.
+    pub fn lastWhereOrElse(
+        &self,
+        predicate: impl FnMut(&T, &ArrayKey) -> bool,
+        fallback: impl FnOnce() -> T,
+    ) -> CollectionResult<T> {
+        Ok(self.lastWhere(predicate)?.unwrap_or_else(fallback))
     }
 
     pub fn search(&self, value: &T) -> CollectionResult<Option<ArrayKey>>

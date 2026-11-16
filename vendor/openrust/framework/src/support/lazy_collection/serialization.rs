@@ -97,6 +97,15 @@ impl LazyCollection<'_, Value> {
             .and_then(|value| data_get(&value, Some(path))))
     }
 
+    /// Evaluates the fallback only when no item contains the path.
+    pub fn valueOrElse(
+        &self,
+        path: &str,
+        fallback: impl FnOnce() -> Value,
+    ) -> CollectionResult<Value> {
+        Ok(self.value(path)?.unwrap_or_else(fallback))
+    }
+
     pub fn dot(self) -> Self {
         self.dotWithDepth(None)
     }

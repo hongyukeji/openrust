@@ -511,6 +511,11 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             .map(|(_, value)| value))
     }
 
+    /// Evaluates the fallback only when the source is empty.
+    pub fn firstOrElse(&self, fallback: impl FnOnce() -> T) -> CollectionResult<T> {
+        Ok(self.first()?.unwrap_or_else(fallback))
+    }
+
     pub fn firstWhere(
         &self,
         mut predicate: impl FnMut(&T, &ArrayKey) -> bool,
@@ -522,6 +527,15 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
             }
         }
         Ok(None)
+    }
+
+    /// Evaluates the fallback only when no entry matches.
+    pub fn firstWhereOrElse(
+        &self,
+        predicate: impl FnMut(&T, &ArrayKey) -> bool,
+        fallback: impl FnOnce() -> T,
+    ) -> CollectionResult<T> {
+        Ok(self.firstWhere(predicate)?.unwrap_or_else(fallback))
     }
 
     pub fn count(&self) -> CollectionResult<usize> {

@@ -238,3 +238,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 惰性入口先实体化并委托实体集合。重复键取最后的值并保留首次出现的位置，回调按收敛后的顺序接收值及键。空输入返回空字符串，读取失败在任何回调执行前传播。
 - PHP 8.5.12 固定源码与 80 项 Rust 集合用例通过。实际三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。
 - 隔离基线 `c030e0240`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.13 GB（56.93 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-implode.0bEsiPFo`。
+
+## 惰性集合缺失值回退
+
+对照固定 Laravel 的 [get 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/collections.md#method-get)、[first](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L470)、[get](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L539)、[last](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L755)和 [value](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L366)。旧版未找到惰性集合回退实现。
+
+- Rust 以 `getOrElse`、`firstOrElse`、`lastOrElse` 和 `valueOrElse` 表达 Laravel 的可选默认参数。带谓词变体用 `firstWhereOrElse`、`lastWhereOrElse`，通过 `FnOnce` 延迟计算，已有默认值可写成 `|| default`。
+- 沿用现有查找规则。命中便返回结果，包括显式 JSON null。首项、键或路径匹配后可停止读取，末项查找会读完整来源。无匹配时才调用回退一次，读取失败直接返回来源错误。
+- PHP 8.5.12 固定源码对照、82 项 Rust 集合用例、实际三语共用示例与 `./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
+- 隔离基线 `0735fbc91`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.09 GB（56.90 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-fallback.H6vU6nF7`。
