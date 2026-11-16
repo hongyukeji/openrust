@@ -136,3 +136,24 @@ let result = Pipeline::<_, Infallible>::send(20)
     .await?;
 assert_eq!(result, 42);
 ```
+
+## Blank values and retries {#blank-and-retry}
+
+`blank` and `filled` classify JSON values. Zero and false count as filled. `Retry::backoff` supplies the delays between attempts and `Retry::times` sets a fixed delay and attempt limit. `runWhen` retries only errors accepted by its predicate.
+
+Use `Option` for optional values, `Result::unwrap_or_else` for a fallback, and a scoped `OnceLock` to memoize a value.
+
+```rust
+use openrust::support::{Retry, blank, filled};
+use serde_json::json;
+use std::time::Duration;
+
+assert!(blank(&json!("  ")));
+assert!(filled(&json!(false)));
+let attempts = Retry::backoff([Duration::from_millis(2), Duration::from_millis(3)])
+    .run(|attempt| async move {
+        if attempt == 3 { Ok(attempt) } else { Err("transient") }
+    })
+    .await?;
+assert_eq!(attempts, 3);
+```

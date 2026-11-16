@@ -136,3 +136,24 @@ let result = Pipeline::<_, Infallible>::send(20)
     .await?;
 assert_eq!(result, 42);
 ```
+
+## 空值判断与重试 {#blank-and-retry}
+
+`blank` 和 `filled` 判断 JSON 值是否为空。零和 false 都算作已填充。`Retry::backoff` 指定重试间隔，`Retry::times` 指定固定间隔和尝试次数。`runWhen` 仅在错误满足谓词时重试。
+
+可选值使用 `Option`，回退值使用 `Result::unwrap_or_else`，值缓存可使用作用域明确的 `OnceLock`。
+
+```rust
+use openrust::support::{Retry, blank, filled};
+use serde_json::json;
+use std::time::Duration;
+
+assert!(blank(&json!("  ")));
+assert!(filled(&json!(false)));
+let attempts = Retry::backoff([Duration::from_millis(2), Duration::from_millis(3)])
+    .run(|attempt| async move {
+        if attempt == 3 { Ok(attempt) } else { Err("transient") }
+    })
+    .await?;
+assert_eq!(attempts, 3);
+```

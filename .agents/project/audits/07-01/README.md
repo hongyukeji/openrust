@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - 本轮指定的 Arr、日期、Pipeline、多语言词形和 COMB 批次均已验收。Rust 与 PHP 的运行时适配边界见各批验收记录。
-- 02-08 已闭合。07-01 继续逐项复核 Stringable 与 Helpers 的剩余运行时契约。
+- 02-08 已闭合。本轮复核确认 `Stringable::scan` 格式串行为、超出当前 RBNF 数据范围的语言拼读及非英语小数拼读仍待验收。07-01 维持部分验收。
 
 ## 正则与文本排版
 
@@ -101,4 +101,9 @@
 ## 标题、字面量编辑与链式入口
 
 - 固定 Strings 方法表逐项补齐静态标题、首字母、填充、搜换、摘要、子串替换、单词计数和 URL 判断，复用已有 Unicode 切片、URL 解析器、正则和 Crypt。链式入口补齐对应操作、断言、条件回调及显式字符串转换。HTML 标签移除支持允许标签列表，与整词截断共用基本 HTML 匹配。URL 端口和主机验证采用 Rust URL 解析器的语义。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php) [固定 Stringable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Stringable.php)
-- PHP 8.5.12 固定 Laravel 运行 12 个对照样例。32 项 Rust 1.94.0 锁定离线回归、定向严格 Clippy、真实 Artisan 与回环 HTTP、三语 VitePress 构建通过。Stringable 的扫描格式、动态摘要选择及零散 Helpers 仍需映射或验收。
+- PHP 8.5.12 固定 Laravel 运行 12 个对照样例。32 项 Rust 1.94.0 锁定离线回归、定向严格 Clippy、真实 Artisan 与回环 HTTP、三语 VitePress 构建通过。字符串格式扫描及额外 Helpers 入口见后续复核。
+
+## 空值、重试和摘要
+
+- 对照固定 Helpers 的空字符串、null、数字、布尔值和空数组规则。Rust 将 JSON 对象作为键值容器。`Retry` 使用一基尝试序号、固定间隔或退避表及错误谓词，复用异步 Sleep。PHP 任意回调延时属于额外适配边界。`Stringable::hash<D>` 以 Rust Digest 类型提供摘要，保留小写十六进制返回值。核对 v0.x 的同名工具，未找到对应通用实现。 [固定 Helpers](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/helpers.php)
+- PHP 8.5.12 固定 Laravel 通过四组对照。15 项 Rust 锁定离线定向回归和严格 Clippy 通过。实际 Artisan 与回环 HTTP 验证三次尝试及成功返回。三语 VitePress 构建通过。独占验收目录清理，共享 Cargo 缓存保留。

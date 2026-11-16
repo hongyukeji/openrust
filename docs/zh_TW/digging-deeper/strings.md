@@ -122,7 +122,7 @@ assert_eq!(prefix, "00000000-0001");
 
 使用 `title`、`headline`、`apa` 和 `initials` 產生標題或首字母。填補與擷取以 Unicode 純量計數。`replace` 按順序取代字面值，`swap` 採最長比對且每段只取代一次。`excerpt` 從首次比對處向兩側擷取。
 
-`isUrl` 使用 Rust URL 解析器驗證含主機和允許協定的絕對 URL。鏈式條件接收型別化回呼，正規表示式分割使用 Rust 語法，Base64 解碼和解密傳回位元組。
+`isUrl` 使用 Rust URL 解析器驗證含主機和允許協定的絕對 URL。鏈式條件接收型別化回呼，正規表示式分割使用 Rust 語法，Base64 解碼和解密傳回位元組。 透過 `hash::<D>()` 選用 Rust 摘要型別，傳回小寫十六進位文字。
 
 ```rust
 use openrust::support::Str;

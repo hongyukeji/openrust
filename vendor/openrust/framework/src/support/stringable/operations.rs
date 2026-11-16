@@ -400,4 +400,15 @@ impl Stringable {
             &self.0, allowed,
         ))
     }
+    /// Hashes text with a Rust digest implementation such as `md5::Md5`.
+    pub fn hash<D: md5::Digest>(self) -> Self {
+        use std::fmt::Write as _;
+
+        let digest = D::digest(self.0.as_bytes());
+        let mut encoded = String::with_capacity(digest.len() * 2);
+        for byte in digest.iter() {
+            write!(encoded, "{byte:02x}").expect("writing to a String");
+        }
+        Self(encoded)
+    }
 }

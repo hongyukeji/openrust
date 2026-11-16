@@ -11,6 +11,7 @@ mod deferred_provider;
 mod enumerable;
 pub mod facades;
 mod fluent;
+mod helpers;
 mod html_string;
 mod lazy_collection;
 mod lottery;
@@ -38,6 +39,7 @@ pub use date::{
 pub use deferred_provider::DeferredProvider;
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
+pub use helpers::{Retry, blank, filled};
 pub use html_string::HtmlString;
 pub use lazy_collection::{LazyCollection, LazyIterator, LazySource};
 pub use lottery::{InvalidLottery, Lottery};

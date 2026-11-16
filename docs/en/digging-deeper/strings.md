@@ -122,7 +122,7 @@ assert_eq!(prefix, "00000000-0001");
 
 Use `title`, `headline`, `apa` and `initials` for casing and labels. The padding and substring methods count Unicode scalar values. `replace` applies ordered literal pairs, while `swap` chooses the longest match without reprocessing replacements. `excerpt` takes a radius around the first match.
 
-`isUrl` validates an absolute URL with a host and a permitted scheme using the Rust URL parser. Fluent conditions take typed closures, regex splitting uses Rust regex syntax, and Base64 decoding and decryption return bytes.
+`isUrl` validates an absolute URL with a host and a permitted scheme using the Rust URL parser. Fluent conditions take typed closures, regex splitting uses Rust regex syntax, and Base64 decoding and decryption return bytes. Select a Rust digest type with `hash::<D>()` to get lowercase hexadecimal text.
 
 ```rust
 use openrust::support::Str;
