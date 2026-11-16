@@ -12,7 +12,9 @@ use crate::{container::Container, contracts::config::Repository};
 
 use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
-    connectors::ConnectionFactory, events::QueryRole, schema::MorphKeyType,
+    connectors::ConnectionFactory,
+    events::QueryRole,
+    schema::{MorphKeyType, SchemaDefaults},
 };
 
 tokio::task_local! {
@@ -25,7 +27,7 @@ pub struct DatabaseManager {
     root: PathBuf,
     connections: Mutex<HashMap<String, Connection>>,
     container: Weak<Container>,
-    morph_key_type: Arc<RwLock<MorphKeyType>>,
+    schema_defaults: Arc<RwLock<SchemaDefaults>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -36,7 +38,7 @@ impl DatabaseManager {
             root: root.into(),
             connections: Mutex::default(),
             container: Weak::new(),
-            morph_key_type: Arc::default(),
+            schema_defaults: Arc::default(),
         }
     }
 
@@ -46,10 +48,15 @@ impl DatabaseManager {
     }
 
     pub(super) fn set_morph_key_type(&self, kind: MorphKeyType) {
-        *self
-            .morph_key_type
+        self.update_schema_defaults(|defaults| defaults.morph_key_type = kind);
+    }
+
+    pub(super) fn update_schema_defaults(&self, update: impl FnOnce(&mut SchemaDefaults)) {
+        let mut defaults = self
+            .schema_defaults
             .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = kind;
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        update(&mut defaults);
     }
 
     /// Uses the selected default connection while polling this future.
@@ -138,7 +145,7 @@ impl DatabaseManager {
                 .ok_or_else(|| DatabaseError::UnknownConnection(resolved_name.clone()))
             })?;
         connection.model_container.clone_from(&self.container);
-        connection.morph_key_type.clone_from(&self.morph_key_type);
+        connection.schema_defaults.clone_from(&self.schema_defaults);
         connection.model_timezone = match self.config.get("app.timezone") {
             None => chrono_tz::UTC,
             Some(Value::String(zone)) => zone

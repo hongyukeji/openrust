@@ -31,6 +31,23 @@ pub enum MorphKeyType {
     Ulid,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct SchemaDefaults {
+    pub(super) morph_key_type: MorphKeyType,
+    pub(super) string_length: u32,
+    pub(super) time_precision: u8,
+}
+
+impl Default for SchemaDefaults {
+    fn default() -> Self {
+        Self {
+            morph_key_type: MorphKeyType::default(),
+            string_length: 255,
+            time_precision: 0,
+        }
+    }
+}
+
 /// A schema visible to the database connection.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SchemaInfo {

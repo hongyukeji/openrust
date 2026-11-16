@@ -243,6 +243,29 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### 默认列长度与时间精度 {#default-column-length-and-time-precision}
+
+`Schema::defaultStringLength` 和 `Schema::defaultTimePrecision` 设置当前应用后续列定义的默认值。初始默认值为 255 字符和 0 位小数秒。单列传入 `None` 使用应用默认值，也可以传入显式长度或精度。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_entries() -> DatabaseResult<()> {
+    Schema::defaultStringLength(120)?;
+    Schema::defaultTimePrecision(Some(3))?;
+
+    Schema::create("entries", |table| {
+        table.id();
+        table.string("label", None);
+        table.timestamps();
+        table.softDeletesDatetime(Some("removed_at"), 6);
+    })
+    .await
+}
+```
+
+`timestamps()` 和 `timestampsTz()` 使用配置的精度。用 `timestampsWith` 或 `timestampsTzWith` 指定精度。`datetimes` 创建可空的 `created_at` 和 `updated_at` DATETIME 列。`softDeletesDatetime` 创建可空的 DATETIME 软删除列。SQLite 使用原生列声明。
+
 #### 浮点精度与原生列定义 {#float-precision-and-raw-columns}
 
 `float()` 使用 Laravel 默认的 53 位精度。用 `floatWith(name, precision)` 显式设置精度。MySQL 的 1–24 位对应 FLOAT，25–53 位对应 DOUBLE。用 0 声明不带精度参数的原生 FLOAT。SQLite 按原生浮点规则存储，精度参数不改变存储行为。

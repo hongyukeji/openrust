@@ -3252,3 +3252,118 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
         .unwrap();
     assert!(!schema.hasView("catalog_status").await.unwrap());
 }
+
+#[tokio::test]
+async fn mysql_schema_column_defaults_are_application_local() {
+    struct Defaults;
+    impl ServiceProvider for Defaults {
+        fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
+            Box::pin(async {
+                Schema::defaultStringLength(80)?;
+                Schema::defaultTimePrecision(Some(3))?;
+                assert!(Schema::defaultStringLength(0).is_err());
+                assert!(Schema::defaultTimePrecision(Some(7)).is_err());
+                Ok(())
+            })
+        }
+    }
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    async fn check(use_defaults: bool, name: &str) {
+        let mut app = TestApp::create(|builder| {
+            let builder = builder.withConfig(|_, _| {
+                let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+                Ok([(
+                    "database".into(),
+                    json!({"default":"fixture","connections":{"fixture":{"url":url}}}),
+                )]
+                .into())
+            });
+            if use_defaults {
+                builder.withProviders(vec![Box::new(Defaults)])
+            } else {
+                builder
+            }
+        })
+        .unwrap();
+        let db = app.database().await.unwrap();
+        let mut schema = db.getSchemaBuilder();
+        schema.dropIfExists(name).await.unwrap();
+        schema
+            .create(name, |table| {
+                table.id();
+                table.string("label", None);
+                table.char("fixed", None).nullable();
+                table.string("explicit_width", 20).nullable();
+                table.rememberToken();
+                table.morphs("owner");
+                table.timestamps();
+                table.dateTime("seen_at", 2).nullable();
+                table.softDeletesDatetime(Some("removed_at"), 6);
+            })
+            .await
+            .unwrap();
+        let width = if use_defaults { 80 } else { 255 };
+        let time = if use_defaults {
+            "timestamp(3)"
+        } else {
+            "timestamp"
+        };
+        for (column, expected) in [
+            ("label", format!("varchar({width})")),
+            ("fixed", format!("char({width})")),
+            ("owner_type", format!("varchar({width})")),
+            ("explicit_width", "varchar(20)".into()),
+            ("remember_token", "varchar(100)".into()),
+            ("created_at", time.into()),
+            ("updated_at", time.into()),
+            ("seen_at", "datetime(2)".into()),
+            ("removed_at", "datetime(6)".into()),
+        ] {
+            assert_eq!(
+                schema.getColumnType(name, column, true).await.unwrap(),
+                expected
+            );
+        }
+        let group = format!("{name}_dates");
+        schema.dropIfExists(&group).await.unwrap();
+        schema
+            .create(&group, |table| {
+                table.id();
+                table.datetimes(4);
+                table.softDeletesTzWith(Some("discarded_at"), 5);
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            schema
+                .getColumnType(&group, "created_at", true)
+                .await
+                .unwrap(),
+            "datetime(4)"
+        );
+        assert_eq!(
+            schema
+                .getColumnType(&group, "discarded_at", true)
+                .await
+                .unwrap(),
+            "timestamp(5)"
+        );
+        db.table(&group)
+            .insert(&[BTreeMap::from([("id".into(), 1.into())])])
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table(&group).value("created_at").await.unwrap(),
+            Value::Null
+        );
+        schema.drop(&group).await.unwrap();
+        schema.drop(name).await.unwrap();
+    }
+    tokio::join!(
+        check(true, "schema_custom_defaults"),
+        check(false, "schema_standard_defaults"),
+    );
+}

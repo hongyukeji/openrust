@@ -158,3 +158,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `TableInfo` 增加限定名与可选存储大小。`getTableListing` 默认返回限定名，Rust 用 `getTableListingWith(schema, false)` 表达可选的不限定名称。清库验收显式读取被清理的 Schema。
 - 实际测试连接 `SELECT VERSION()` 为 MySQL 8.4.13。Rust 1.94.0 的 `cargo test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_` 通过 15 项，覆盖同名跨库表、读写分离、系统库与视图排除、限定名、可读大小及元数据。另运行根应用 `cargo test --test migrations --locked --offline -j 5 mysql_fresh_wipes_the_selected_schema -- --exact`，实际 `migrate:fresh` 与 `db:wipe` 通过，另一库的标记表仍可查询。
 - 三语共用例经实际 MySQL Artisan 验证，原生 `main artisan inspire` 通过。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。SQLite 本批通过工作区编译，运行验收留在发布前。全工作区格式仍有既有 Sanctum 排版差异。
+
+## 默认列长度与时间精度
+
+对照固定 Laravel [Builder 默认值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L35)、[Blueprint 字符串](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L786) 与 [时间列组](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1222)。旧版未找到对应公开入口，复用现有多态键默认值的应用隔离机制与方言编译。
+
+- 默认长度 255、时间精度 0，并由当前应用设置。Rust 用 `None` 表达省略参数，保留既有显式长度与精度调用。固定长度辅助列继续使用自身长度。新增 `datetimes`、`softDeletesDatetime` 和显式精度的时间戳／软删除辅助入口。
+- 实际 `SELECT VERSION()` 为 MySQL 8.4.13。Rust 1.94.0 执行 `cargo test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_`，16 项通过。覆盖并行应用、默认及显式值、多态类型列、可空时间组、无效设置拒绝和自定义软删除列名。
+- 三语共用例在实际 MySQL Artisan 中验证默认长度与显式精度，原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点构建及 18 项浏览器检查通过。SQLite 本批通过工作区编译。全工作区格式仍报既有 Sanctum 测试排版差异。

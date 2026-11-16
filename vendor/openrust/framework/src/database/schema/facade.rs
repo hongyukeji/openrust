@@ -21,6 +21,29 @@ impl Schema {
         Ok(())
     }
 
+    /// Sets the default length of subsequent string and char columns in this application.
+    pub fn defaultStringLength(length: u32) -> DatabaseResult<()> {
+        if !(1..=65_535).contains(&length) {
+            return Err(DatabaseError::InvalidSchema("default string length"));
+        }
+        DB::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .update_schema_defaults(|defaults| defaults.string_length = length);
+        Ok(())
+    }
+
+    /// Sets the default fractional seconds precision for subsequent schema columns.
+    pub fn defaultTimePrecision(precision: Option<u8>) -> DatabaseResult<()> {
+        let precision = precision.unwrap_or(0);
+        if precision > 6 {
+            return Err(DatabaseError::InvalidSchema("time precision"));
+        }
+        DB::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .update_schema_defaults(|defaults| defaults.time_precision = precision);
+        Ok(())
+    }
+
     pub fn morphUsingUuids() -> DatabaseResult<()> {
         Self::defaultMorphKeyType(MorphKeyType::Uuid)
     }

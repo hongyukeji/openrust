@@ -243,6 +243,29 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
 
+#### Default Column Length and Time Precision {#default-column-length-and-time-precision}
+
+`Schema::defaultStringLength` and `Schema::defaultTimePrecision` set defaults for subsequent definitions in the current application. The initial defaults are 255 characters and 0 fractional seconds digits. Pass `None` to an individual column to use the application default, or pass an explicit length or precision.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_entries() -> DatabaseResult<()> {
+    Schema::defaultStringLength(120)?;
+    Schema::defaultTimePrecision(Some(3))?;
+
+    Schema::create("entries", |table| {
+        table.id();
+        table.string("label", None);
+        table.timestamps();
+        table.softDeletesDatetime(Some("removed_at"), 6);
+    })
+    .await
+}
+```
+
+`timestamps()` and `timestampsTz()` use the configured precision. Use `timestampsWith` or `timestampsTzWith` for an explicit precision. `datetimes` creates nullable DATETIME columns for `created_at` and `updated_at`. `softDeletesDatetime` creates the nullable DATETIME soft-delete column. SQLite uses its native column declarations.
+
 #### Floating-Point Precision and Raw Columns {#float-precision-and-raw-columns}
 
 `float()` uses Laravel’s default precision of 53 bits. Use `floatWith(name, precision)` to set it explicitly. On MySQL, precision 1–24 selects FLOAT and 25–53 selects DOUBLE. Use precision 0 for a native FLOAT declaration without a precision argument. SQLite uses its native floating-point behavior regardless of the requested precision.

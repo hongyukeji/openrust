@@ -70,7 +70,7 @@ pub struct Connection {
     pub(super) sticky: bool,
     pub(super) model_timezone: chrono_tz::Tz,
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
-    pub(super) morph_key_type: Arc<std::sync::RwLock<super::schema::MorphKeyType>>,
+    pub(super) schema_defaults: Arc<std::sync::RwLock<super::schema::SchemaDefaults>>,
     pub(super) routing: Arc<ReadRouting>,
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,

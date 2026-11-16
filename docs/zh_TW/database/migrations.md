@@ -243,6 +243,29 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
 
+#### 預設欄位長度與時間精度 {#default-column-length-and-time-precision}
+
+`Schema::defaultStringLength` 和 `Schema::defaultTimePrecision` 設定目前應用程式後續欄位定義的預設值。初始預設值為 255 個字元和 0 位小數秒。單一欄位傳入 `None` 可使用應用程式預設值，也可以明確指定長度或精度。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_entries() -> DatabaseResult<()> {
+    Schema::defaultStringLength(120)?;
+    Schema::defaultTimePrecision(Some(3))?;
+
+    Schema::create("entries", |table| {
+        table.id();
+        table.string("label", None);
+        table.timestamps();
+        table.softDeletesDatetime(Some("removed_at"), 6);
+    })
+    .await
+}
+```
+
+`timestamps()` 和 `timestampsTz()` 使用設定的精度。使用 `timestampsWith` 或 `timestampsTzWith` 指定精度。`datetimes` 建立可為空值的 `created_at` 和 `updated_at` DATETIME 欄位。`softDeletesDatetime` 建立可為空值的 DATETIME 軟刪除欄位。SQLite 使用原生欄位宣告。
+
 #### 浮點精度與原生欄位定義 {#float-precision-and-raw-columns}
 
 `float()` 使用 Laravel 預設的 53 位元精度。用 `floatWith(name, precision)` 明確設定精度。MySQL 的 1–24 位元對應 FLOAT，25–53 位元對應 DOUBLE。用 0 宣告不帶精度參數的原生 FLOAT。SQLite 依原生浮點規則儲存，精度參數不會改變儲存行為。

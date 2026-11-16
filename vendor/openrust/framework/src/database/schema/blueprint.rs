@@ -2,7 +2,8 @@ use crate::database::eloquent::{Model, ModelKeyType, ModelState};
 
 use super::{
     ColumnDefinition, DropColumnDefinition, ForeignIdColumnDefinition, ForeignKeyDefinition,
-    IndexDefinition, MorphKeyType, column_definition::ColumnType, index_definition::IndexType,
+    IndexDefinition, MorphKeyType, SchemaDefaults, column_definition::ColumnType,
+    index_definition::IndexType,
 };
 
 pub(super) enum Command {
@@ -32,7 +33,7 @@ pub struct Blueprint {
     pub(super) commands: Vec<Command>,
     pub(super) temporary: bool,
     pub(super) table_options: TableOptions,
-    pub(super) morph_key_type: MorphKeyType,
+    pub(super) defaults: SchemaDefaults,
     pub(super) after: Option<String>,
 }
 
@@ -113,11 +114,16 @@ impl Blueprint {
         self.integer(name).unsigned()
     }
 
-    pub fn string(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
+    pub fn string(&mut self, name: &str, length: impl Into<Option<u32>>) -> &mut ColumnDefinition {
+        let length = length
+            .into()
+            .filter(|length| *length != 0)
+            .unwrap_or(self.defaults.string_length);
         self.column(name, ColumnType::String(length))
     }
 
-    pub fn char(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
+    pub fn char(&mut self, name: &str, length: impl Into<Option<u32>>) -> &mut ColumnDefinition {
+        let length = length.into().unwrap_or(self.defaults.string_length);
         self.column(name, ColumnType::Char(length))
     }
 
@@ -190,11 +196,11 @@ impl Blueprint {
     }
 
     pub fn morphsWith(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
-        self.add_morphs(name, self.morph_key_type, false, index, after);
+        self.add_morphs(name, self.defaults.morph_key_type, false, index, after);
     }
 
     pub fn nullableMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
-        self.add_morphs(name, self.morph_key_type, true, index, after);
+        self.add_morphs(name, self.defaults.morph_key_type, true, index, after);
     }
 
     pub fn numericMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
@@ -231,7 +237,7 @@ impl Blueprint {
     ) {
         let kind = format!("{name}_type");
         let id = format!("{name}_id");
-        let type_column = self.string(&kind, 255);
+        let type_column = self.string(&kind, None);
         if nullable {
             type_column.nullable();
         }
@@ -276,45 +282,109 @@ impl Blueprint {
         self.column(name, ColumnType::Decimal(total, places))
     }
 
-    pub fn timestamp(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn timestamp(
+        &mut self,
+        name: &str,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
+        let precision = precision.into().unwrap_or(self.defaults.time_precision);
         self.column(name, ColumnType::Timestamp(precision))
     }
 
-    pub fn dateTime(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn dateTime(
+        &mut self,
+        name: &str,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
+        let precision = precision.into().unwrap_or(self.defaults.time_precision);
         self.column(name, ColumnType::DateTime(precision))
     }
 
-    pub fn time(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn time(&mut self, name: &str, precision: impl Into<Option<u8>>) -> &mut ColumnDefinition {
+        let precision = precision.into().unwrap_or(self.defaults.time_precision);
         self.column(name, ColumnType::Time(precision))
     }
 
-    pub fn dateTimeTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn dateTimeTz(
+        &mut self,
+        name: &str,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
         self.dateTime(name, precision)
     }
 
-    pub fn timeTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn timeTz(
+        &mut self,
+        name: &str,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
         self.time(name, precision)
     }
 
-    pub fn timestampTz(&mut self, name: &str, precision: u8) -> &mut ColumnDefinition {
+    pub fn timestampTz(
+        &mut self,
+        name: &str,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
         self.timestamp(name, precision)
     }
 
-    pub fn timestampsTz(&mut self) {
-        self.timestamps();
-    }
-
-    pub fn softDeletesTz(&mut self) -> &mut ColumnDefinition {
-        self.softDeletes()
-    }
-
     pub fn timestamps(&mut self) {
-        self.timestamp("created_at", 0).nullable();
-        self.timestamp("updated_at", 0).nullable();
+        self.timestampsWith(None);
+    }
+
+    pub fn timestampsWith(&mut self, precision: impl Into<Option<u8>>) {
+        let precision = precision.into();
+        self.timestamp("created_at", precision).nullable();
+        self.timestamp("updated_at", precision).nullable();
+    }
+
+    pub fn timestampsTz(&mut self) {
+        self.timestampsTzWith(None);
+    }
+
+    pub fn timestampsTzWith(&mut self, precision: impl Into<Option<u8>>) {
+        self.timestampsWith(precision);
+    }
+
+    pub fn datetimes(&mut self, precision: impl Into<Option<u8>>) {
+        let precision = precision.into();
+        self.dateTime("created_at", precision).nullable();
+        self.dateTime("updated_at", precision).nullable();
     }
 
     pub fn softDeletes(&mut self) -> &mut ColumnDefinition {
-        self.timestamp("deleted_at", 0).nullable()
+        self.softDeletesWith(None, None)
+    }
+
+    pub fn softDeletesWith(
+        &mut self,
+        column: Option<&str>,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
+        self.timestamp(column.unwrap_or("deleted_at"), precision)
+            .nullable()
+    }
+
+    pub fn softDeletesTz(&mut self) -> &mut ColumnDefinition {
+        self.softDeletesTzWith(None, None)
+    }
+
+    pub fn softDeletesTzWith(
+        &mut self,
+        column: Option<&str>,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
+        self.softDeletesWith(column, precision)
+    }
+
+    pub fn softDeletesDatetime(
+        &mut self,
+        column: Option<&str>,
+        precision: impl Into<Option<u8>>,
+    ) -> &mut ColumnDefinition {
+        self.dateTime(column.unwrap_or("deleted_at"), precision)
+            .nullable()
     }
 
     pub fn rememberToken(&mut self) -> &mut ColumnDefinition {

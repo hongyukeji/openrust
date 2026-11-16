@@ -5,7 +5,7 @@ use crate::database::{
 };
 
 use super::{
-    Blueprint, MorphKeyType, SchemaSession,
+    Blueprint, SchemaDefaults, SchemaSession,
     grammars::{Grammar, Table},
 };
 
@@ -23,7 +23,7 @@ enum Executor<'connection> {
 pub struct Builder<'connection> {
     executor: Executor<'connection>,
     grammar: Grammar,
-    morph_key_type: Arc<RwLock<MorphKeyType>>,
+    schema_defaults: Arc<RwLock<SchemaDefaults>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
@@ -31,7 +31,7 @@ impl<'connection> Builder<'connection> {
     pub(crate) fn connection(connection: Connection) -> Builder<'static> {
         let grammar = Grammar::new(&connection);
         Builder {
-            morph_key_type: connection.morph_key_type.clone(),
+            schema_defaults: connection.schema_defaults.clone(),
             executor: Executor::Connection(connection),
             grammar,
         }
@@ -45,29 +45,29 @@ impl<'connection> Builder<'connection> {
         Self {
             executor: Executor::Pretend(statements),
             grammar,
-            morph_key_type: connection.morph_key_type.clone(),
+            schema_defaults: connection.schema_defaults.clone(),
         }
     }
 
     pub(crate) fn transaction(transaction: &'connection mut Transaction) -> Self {
         let connection = transaction.query_connection();
         let grammar = Grammar::new(connection);
-        let morph_key_type = connection.morph_key_type.clone();
+        let schema_defaults = connection.schema_defaults.clone();
         Self {
             executor: Executor::Transaction(transaction),
             grammar,
-            morph_key_type,
+            schema_defaults,
         }
     }
 
     pub(super) fn session_builder(session: &'connection mut SchemaSession) -> Self {
         let connection = session.connection();
         let grammar = Grammar::new(connection);
-        let morph_key_type = connection.morph_key_type.clone();
+        let schema_defaults = connection.schema_defaults.clone();
         Self {
             executor: Executor::Session(session),
             grammar,
-            morph_key_type,
+            schema_defaults,
         }
     }
 
@@ -96,8 +96,8 @@ impl<'connection> Builder<'connection> {
 
     fn blueprint(&self) -> Blueprint {
         Blueprint {
-            morph_key_type: *self
-                .morph_key_type
+            defaults: *self
+                .schema_defaults
                 .read()
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
             ..Blueprint::default()
