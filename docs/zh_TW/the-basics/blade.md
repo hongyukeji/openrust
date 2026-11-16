@@ -380,6 +380,28 @@ fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
 <b>@formatName($name)</b>
 ```
 
+### 自訂輸出處理器 {#custom-echo-handlers}
+
+在應用程式的 Blade 編譯器上透過 `stringable` 為 Rust 型別註冊格式化函式。透過 `View::withStringable` 傳入具型別的資料。格式化結果是文字，仍遵循 Blade 的輸出跳脫規則。使用 `stringableIterable` 可為範本中直接輸出的陣列與映射註冊格式化函式。
+
+```rust
+use openrust::view::{View, ViewResult, compilers::BladeCompiler, view};
+
+struct Price(u16);
+
+fn configure(compiler: &BladeCompiler) {
+    compiler.stringable(|price: &Price| Ok(format!("USD {}", price.0)));
+}
+
+fn checkout() -> ViewResult<View> {
+    view("checkout").withStringable("price", &Price(42))
+}
+```
+
+```html
+<strong>{{ $price }}</strong>
+```
+
 ### 自訂條件 {#custom-conditions}
 
 使用 `BladeCompiler::r#if` 註冊述詞。述詞接收求值後的視圖資料，也可以在 Rust 中用 `check` 呼叫同一述詞。

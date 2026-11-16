@@ -22,7 +22,7 @@
 | Service Injection | `@inject` 使用 Rust 注册的类型化服务别名，将投影后的视图值绑定到变量。 | PHP 任意对象和方法调用对应 Rust 服务的显式数据投影。 |
 | Rendering Inline Blade Templates | 使用应用 Factory 从受信任的模板文本在内存渲染。 | Laravel 临时缓存文件和删除开关对应内存生命周期。 |
 | Rendering Blade Fragments | 单个、多个、全部和条件响应，保持片段顺序和请求隔离。 | 多个具名片段统一渲染一次，组合器执行次数见 [验收记录](README.md#blade-片段)。 |
-| Extending Blade、Custom Echo Handlers、Custom If Statements | Rust 自定义指令回调返回待转义文本或可信 HTML。支持注册自定义条件、否定形式、多分支和 Rust `check`。 | PHP 表达式生成改用 Rust 回调。任意 PHP 对象的自动输出处理待明确 Rust 数据接口。 |
+| Extending Blade、Custom Echo Handlers、Custom If Statements | Rust 自定义指令回调返回待转义文本或可信 HTML。支持自定义条件、否定形式、多分支、Rust `check`、类型化 `stringable` 和集合输出处理器。 | PHP 表达式生成改用 Rust 回调，应用通过 `withStringable` 显式传递类型化值。 |
 
 03-07 和 03-08 保持部分验收状态。
 

@@ -127,6 +127,24 @@ impl View {
         self
     }
 
+    /// Adds a Rust value formatted as text by this application's Blade compiler.
+    #[allow(
+        non_snake_case,
+        reason = "Matches the Blade stringable registration API"
+    )]
+    pub fn withStringable<T: 'static>(self, key: impl Into<String>, value: &T) -> ViewResult<Self> {
+        use crate::support::facades::{Facade as _, View as ViewFacade};
+
+        let formatted = match &self.binding {
+            Some(binding) => binding.factory.compiler().applyEchoHandler(value)?,
+            None => ViewFacade::getFacadeRoot()
+                .map_err(ViewError::Unavailable)?
+                .compiler()
+                .applyEchoHandler(value)?,
+        };
+        Ok(self.with(key, formatted))
+    }
+
     /// Selects one Blade fragment for the response.
     pub fn fragment(self, name: impl Into<String>) -> Self {
         self.fragments([name])

@@ -82,3 +82,8 @@
 
 - 对照固定 [Vite](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Vite.php) 与 [ViteFonts](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/ViteFonts.php)。`@fonts` 和模板 `Vite::fonts` 读取应用公开目录中的 Vite 生产或开发字体清单。预加载在单次渲染内去重，支持全部、单别名和别名列表，生产 URL 使用请求来源及既有 URL 资产配置。CSS 文件限制在公开目录，旧版没有字体清单处理器。
 - macOS ARM64、Rust 1.94.0。8 项共享工作区定向测试通过，真实 HTTP 覆盖缺失清单、生产 CSS 文件、开发 CSS、请求来源、别名、预加载去重、HTML 转义、双应用及非法输入 500。隔离全工作区格式和严格 Clippy、实际 Artisan 编译及清理三个三语示例、三语构建与 12 项浏览器组合通过。
+
+## 自定义输出处理器
+
+- 对照固定 [CompilesEchos](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesEchos.php)。Rust 按类型在所属 Blade 编译器注册 `stringable` 回调，通过 `View::withStringable` 将类型化数据投影为视图文本。`stringableIterable` 在模板输出时处理数组及映射。二者保留普通和原样输出的转义规则。旧版 MiniJinja 未提供相同的应用级 Rust 类型回调。
+- macOS ARM64、Rust 1.94.0。8 项共享工作区定向测试通过，真实 HTTP 验证双应用独立注册、原样及转义输出、数组处理和无处理器回退。隔离工作区格式及严格 Clippy 通过，实际 Artisan 用三语 Rust 片段在 Provider 注册回调并缓存和清理三份模板。三语构建和 12 项浏览器组合通过。

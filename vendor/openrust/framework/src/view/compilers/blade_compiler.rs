@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 use std::{
+    any::{Any, TypeId},
     collections::BTreeMap,
     fmt::Write as _,
     fs,
@@ -27,12 +28,16 @@ const COMPILER_VERSION: u32 = 24;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
+type Stringable = Arc<dyn Fn(&dyn Any) -> ViewResult<String> + Send + Sync>;
+type IterableEcho = Arc<dyn Fn(&ViewValue) -> ViewResult<String> + Send + Sync>;
 
 #[derive(Clone, Default)]
 pub(in crate::view) struct BladeExtensions {
     pub(in crate::view) directives: BTreeMap<String, Directive>,
     pub(in crate::view) conditions: BTreeMap<String, Condition>,
     pub(in crate::view) preserve_html_entities: bool,
+    stringables: BTreeMap<TypeId, Stringable>,
+    pub(in crate::view) iterable_echo: Option<IterableEcho>,
 }
 
 /// Output produced by a registered Rust Blade directive.
@@ -82,6 +87,46 @@ impl BladeCompiler {
     /// Restores double encoding for escaped Blade echoes.
     pub fn withDoubleEncoding(&self) {
         Arc::make_mut(&mut self.extensions.write().unwrap()).preserve_html_entities = false;
+    }
+
+    /// Registers the application's formatter for one Rust type.
+    pub fn stringable<T: 'static>(
+        &self,
+        format: impl Fn(&T) -> ViewResult<String> + Send + Sync + 'static,
+    ) {
+        let mut extensions = self.extensions.write().unwrap();
+        Arc::make_mut(&mut extensions).stringables.insert(
+            TypeId::of::<T>(),
+            Arc::new(move |value| {
+                let value = value.downcast_ref::<T>().ok_or_else(|| {
+                    render_error("The Blade echo value does not match its registered type.")
+                })?;
+                format(value)
+            }),
+        );
+    }
+
+    /// Registers a formatter for arrays and maps used in Blade echo expressions.
+    pub fn stringableIterable(
+        &self,
+        format: impl Fn(&ViewValue) -> ViewResult<String> + Send + Sync + 'static,
+    ) {
+        Arc::make_mut(&mut self.extensions.write().unwrap()).iterable_echo = Some(Arc::new(format));
+    }
+
+    /// Formats a Rust value using the callback registered for its type.
+    pub fn applyEchoHandler<T: 'static>(&self, value: &T) -> ViewResult<String> {
+        let format = self
+            .extensions
+            .read()
+            .unwrap()
+            .stringables
+            .get(&TypeId::of::<T>())
+            .cloned()
+            .ok_or_else(|| {
+                render_error("A Blade echo formatter was not registered for this type.")
+            })?;
+        format(value)
     }
 
     /// Registers a Rust callback for a custom Blade directive name.

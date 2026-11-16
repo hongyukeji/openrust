@@ -1320,6 +1320,15 @@ fn render_nodes<'a>(
                     }
                 }
                 let value = value(expression, data, bindings);
+                let formatted;
+                let value = if matches!(value, ViewValue::Array(_) | ViewValue::Object(_))
+                    && let Some(format) = &context.extensions.iterable_echo
+                {
+                    formatted = ViewValue::String(format(value)?);
+                    &formatted
+                } else {
+                    value
+                };
                 if *escape
                     && context.extensions.preserve_html_entities
                     && let ViewValue::String(text) = value

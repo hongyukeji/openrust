@@ -345,6 +345,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
 
     struct ViewIdentity;
     struct ViewSummary(&'static str);
+    struct Price(u16);
 
     impl Authenticatable for ViewIdentity {
         fn get_auth_identifier_name(&self) -> &str {
@@ -522,6 +523,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     view("font_aliases").with("alias", "mono")
                 })?;
                 Route::get("/unknown-font", || view("unknown_font"))?;
+                Route::get("/echo-formatters", || {
+                    view("echo_formatters")
+                        .withStringable("price", &Price(42))
+                        .unwrap()
+                        .with("items", serde_json::json!(["<one>", "two"]))
+                })?;
                 Route::get("/custom-condition", || view("custom_condition"))?;
                 Route::get("/bad-condition", || view("bad_condition"))?;
                 Route::get("/switch", || view("switch_cases"))?;
@@ -642,6 +649,19 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Ok(arguments.first().and_then(|value| value.as_str()) == Some(app))
             })
             .unwrap();
+        engine
+            .getCompiler()
+            .stringable(move |price: &Price| Ok(format!("<{app}:{}>", price.0)));
+        if app == "A" {
+            engine.getCompiler().stringableIterable(|items| {
+                Ok(items
+                    .get(0)
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned())
+            });
+        }
+        assert!(engine.getCompiler().applyEchoHandler(&0i64).is_err());
         if app == "A" {
             engine.getCompiler().withoutDoubleEncoding();
             engine
@@ -905,6 +925,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("unknown_font", "@fonts('missing')"),
         (
+            "echo_formatters",
+            "{{ $price }}|{!! $price !!}|{{ $items }}|{!! $items !!}",
+        ),
+        (
             "custom_condition",
             concat!(
                 "@appIs('A')A@elseappIs('B')B@else other@endappIs",
@@ -1062,6 +1086,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     fs::write(build.join("all.css"), "</STYLE><img>").unwrap();
     assert!(send(first, "/fonts", 500).await.contains("500"));
     assert_eq!(send(second, "/fonts", 200).await, development);
+    let (a, b) = tokio::join!(
+        send(first, "/echo-formatters", 200),
+        send(second, "/echo-formatters", 200),
+    );
+    assert_eq!(a, "&lt;A:42&gt;|<A:42>|&lt;one&gt;|<one>");
+    assert_eq!(b, "&lt;B:42&gt;|<B:42>||");
     let (a, b, unrelated) = tokio::join!(
         send(first, "/page", 200),
         send(second, "/page", 200),

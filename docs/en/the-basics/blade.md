@@ -380,6 +380,28 @@ fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
 <b>@formatName($name)</b>
 ```
 
+### Custom Echo Handlers {#custom-echo-handlers}
+
+Register a formatter for a Rust type with `stringable` on the application’s Blade compiler. Pass a typed value with `View::withStringable`. The formatter produces text, so regular Blade echo escaping still applies. Use `stringableIterable` to register a formatter for arrays and maps echoed in templates.
+
+```rust
+use openrust::view::{View, ViewResult, compilers::BladeCompiler, view};
+
+struct Price(u16);
+
+fn configure(compiler: &BladeCompiler) {
+    compiler.stringable(|price: &Price| Ok(format!("USD {}", price.0)));
+}
+
+fn checkout() -> ViewResult<View> {
+    view("checkout").withStringable("price", &Price(42))
+}
+```
+
+```html
+<strong>{{ $price }}</strong>
+```
+
 ### Custom Conditions {#custom-conditions}
 
 Register a predicate with `BladeCompiler::r#if`. The condition receives evaluated view values. `check` invokes the same predicate from Rust.
