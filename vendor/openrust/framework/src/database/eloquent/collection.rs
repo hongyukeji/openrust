@@ -8,7 +8,7 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
-use crate::support::{ArrayKey, Collection as BaseCollection, CollectionResult};
+use crate::support::{ArrayKey, Collection as BaseCollection, CollectionError, CollectionResult};
 
 use super::{
     Attributes, Builder, EagerLoads, Model, ModelState, NamedRelations, RelatedBatch,
@@ -694,6 +694,35 @@ impl<M: Model> Collection<M> {
     pub fn pad(self, size: isize, model: &M) -> CollectionResult<BaseCollection<M>> {
         self.toBase()
             .pad_with(size, || M::from_state(model.state().clone()))
+    }
+
+    /// Repeats the models in order with consecutive integer collection keys.
+    pub fn multiply(&self, multiplier: i64) -> CollectionResult<Self> {
+        let mut models = Vec::new();
+        if !self.models.is_empty() && multiplier > 0 {
+            let multiplier =
+                usize::try_from(multiplier).map_err(|_| CollectionError::InvalidArgument)?;
+            let count = self
+                .models
+                .len()
+                .checked_mul(multiplier)
+                .ok_or(CollectionError::InvalidArgument)?;
+            models
+                .try_reserve_exact(count)
+                .map_err(|_| CollectionError::InvalidArgument)?;
+            for _ in 0..multiplier {
+                models.extend(
+                    self.models
+                        .iter()
+                        .map(|model| M::from_state(model.state().clone())),
+                );
+            }
+        }
+        Ok(Self {
+            models,
+            keys: None,
+            autoload: self.autoload,
+        })
     }
 
     /// Returns a base collection with consecutive integer keys.

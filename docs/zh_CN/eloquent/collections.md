@@ -188,6 +188,8 @@ pub fn collapse_groups<M: Model>(
 
 `pad` 接收带符号的目标长度和用于填充的模型。负数向前填充，正数向后填充。需要填充时，整数键重新编号，字符串键保留。新增模型由传入模型的状态构造。
 
+`multiply(n)` 按当前顺序重复模型，并从零开始重新编号集合键。倍数为零或负数时返回空集合。每个副本保留模型主键及已加载的关系，普通属性分别持有。重复模型时不查询数据库。
+
 ```rust
 use openrust::{
     database::eloquent::{Collection, Model},

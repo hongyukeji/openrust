@@ -770,3 +770,9 @@ MySQL 8.4.13 实际 HTTP 验证默认键、升降序、替换既有键排序、�
 以 `fadc2ff0` 为隔离基线。固定 Laravel 的 Eloquent `collapse` 委托 Support 集合，合并一层数组或集合，数字键重新编号，同名字符串键采用最后一个值。Rust 通过 `From` 将向量、Eloquent 集合及关系缓存集合交给同一 Support 合并实现，分组类型由编译器确定。关系分组转换移动原有 `Arc`，保留共享快照。关系缺失时由显式异步访问执行批量加载及回填，独立模型状态的普通属性各自管理。旧版只找到值数组的折叠工具，固定 Goravel ORM 对照为显式关联查询。 [固定 Laravel Eloquent Collection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [固定 Laravel Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
 
 独立 MySQL 8.4.13 实测分组层级、空组、数字键重新编号、同名字符串键覆盖、载入后的关系快照指针共享及独立属性状态。父集合按需加载和回填共 1 次 SELECT，折叠及序列化额外 0 次。关系查询计数、实际分页 HTTP、Support 和惰性集合共 14 项回归通过。Rust 1.94.0 严格 Clippy、`./artisan inspire`、三语示例、VitePress 与 18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整。测试容器及独占构建产物已回收。
+
+## 模型集合重复
+
+以 `d33359da` 为隔离基线。固定 Laravel 集合以原顺序重复整组模型并重新编号，负数和零返回空集合。OpenRust 的 `Collection<M>::multiply` 沿用模型状态复制策略，保留模型身份及已经载入的关系快照，每个副本独立持有普通属性。容量计算或分配失败通过 `CollectionError` 报告。v0.x 未发现模型集合的同名实现，Goravel ORM 的查询结果接收由调用方提供的目标。Laravel 的 `CollectedBy` 选择 PHP 集合子类，OpenRust 在 `Model::newCollection` 上构造统一的 `Collection<Self>`，业务方法可通过扩展 trait 实现。集合操作直接维护返回值的键约定。 [固定 Laravel 集合用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php) · [固定集合工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/HasCollection.php) · [固定 Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+
+独立 MySQL 8.4.13 和 SQLite 核对负数、零、单次、重复三次、容量错误、键重排、模型属性隔离及反向关系快照。MySQL 会话确认重复操作 0 次 SELECT。关系和实际 HTTP 分页共 12 项回归通过。Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、VitePress、根路径及子路径通用浏览器检查、三语集合页面检查通过。既有 Sanctum 格式仅在隔离副本调整。其余关系及集合契约仍沿固定矩阵对账。

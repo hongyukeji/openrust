@@ -188,6 +188,8 @@ Use `flipBy` to exchange a projected scalar key with its original collection key
 
 `pad` accepts a signed target length and a model to use for padding. Negative lengths pad the beginning, positive lengths pad the end. When padding is needed, integer keys are renumbered and string keys are preserved. Each added model is constructed from the supplied model state.
 
+`multiply(n)` repeats the current model order and assigns consecutive integer collection keys. A zero or negative multiplier returns an empty collection. Each copy retains the model key and loaded relationships, and owns its ordinary attributes. Repeating models does not query the database.
+
 ```rust
 use openrust::{
     database::eloquent::{Collection, Model},

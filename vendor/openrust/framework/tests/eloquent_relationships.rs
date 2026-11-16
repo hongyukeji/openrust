@@ -6781,7 +6781,7 @@ impl Model for KeyedPost {
     }
 }
 
-async fn verify_collection_factory(db: &Connection, author: &Author) {
+async fn verify_collection_factory(db: &Connection, author: &Author, mysql: bool) {
     let selected = KeyedPost::queryOn(db)
         .orderBy("id", "asc")
         .get()
@@ -6861,6 +6861,39 @@ async fn verify_collection_factory(db: &Connection, author: &Author) {
     assert_eq!(child.getAttribute("subject_id"), author.getKey());
     assert_eq!(child.getAttribute("subject_type"), Some(&"author".into()));
     assert!(!child.state().exists());
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    assert!(models.multiply(-1).unwrap().is_empty());
+    assert!(models.multiply(0).unwrap().is_empty());
+    assert!(models.multiply(i64::MAX).is_err());
+    let single = models.multiply(1).unwrap();
+    assert_eq!(
+        single[0].getAttribute("title"),
+        models[0].getAttribute("title")
+    );
+    let mut repeated = models.multiply(3).unwrap().into_iter().collect::<Vec<_>>();
+    assert_eq!(repeated.len(), 6);
+    for (index, model) in repeated.iter().enumerate() {
+        assert_eq!(
+            model.getAttribute("title"),
+            models[index % 2].getAttribute("title")
+        );
+        assert!(model.relationLoaded("author"));
+    }
+    repeated[0].setAttribute("title", "changed");
+    assert_eq!(
+        repeated[2].getAttribute("title"),
+        Some(&"first draft".into())
+    );
+    assert_eq!(models[0].getAttribute("title"), Some(&"first draft".into()));
+    let keyed = models.multiply(2).unwrap();
+    assert!(keyed.getByKey("post-0").is_none());
+    assert_eq!(
+        keyed.getByKey(2).unwrap().getAttribute("title"),
+        Some(&"first draft".into())
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
     let mut query = KeyedPost::queryOn(db);
     query.whereIn("title", vec!["first draft".into(), "second draft".into()]);
     assert!(query.get().await.unwrap().is_empty());
@@ -7683,7 +7716,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     verify_default_eager_loads(&db, mysql).await;
     verify_morph_wildcard(&db, mysql).await;
     Box::pin(verify_chaperone(&db, mysql, &first, &p1)).await;
-    Box::pin(verify_collection_factory(&db, &first)).await;
+    Box::pin(verify_collection_factory(&db, &first, mysql)).await;
     db.statement("DROP TABLE relation_featured_posts", &[])
         .await
         .unwrap();
