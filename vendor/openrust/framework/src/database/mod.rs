@@ -52,6 +52,7 @@ pub use value::{Row, Value};
 pub enum DatabaseError {
     UnknownConnection(String),
     UnsupportedDriver,
+    UnsupportedOperation(&'static str),
     InvalidConfiguration(&'static str),
     UnknownSeeder(String),
     UnknownFakerFormatter(String),
@@ -124,6 +125,12 @@ impl std::fmt::Display for DatabaseError {
                 write!(formatter, "database connection {name:?} is not configured")
             }
             Self::UnsupportedDriver => formatter.write_str("database driver is unavailable"),
+            Self::UnsupportedOperation(operation) => {
+                write!(
+                    formatter,
+                    "operation is not supported by this database driver: {operation}"
+                )
+            }
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
             Self::InvalidSchema(part) => write!(formatter, "invalid schema {part}"),
             Self::UnsupportedSchema(operation) => {

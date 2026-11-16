@@ -303,6 +303,15 @@ impl Transaction {
         self.physical()?.select(sql, bindings).await
     }
 
+    /// Returns all rowsets on the transaction's pinned connection.
+    pub async fn selectResultSets(
+        &mut self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Vec<Row>>> {
+        self.physical()?.select_result_sets(sql, bindings).await
+    }
+
     pub async fn selectOne(
         &mut self,
         sql: &str,

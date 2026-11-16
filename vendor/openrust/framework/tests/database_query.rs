@@ -739,3 +739,98 @@ async fn cursors_stream_on_mysql() {
     };
     verify_cursor(connection(json!({"url":url,"max_connections":1}))).await;
 }
+
+#[tokio::test]
+async fn prepared_mysql_rowsets_preserve_boundaries_and_connection_selection() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "MySQL acceptance requires an isolated database"
+        );
+        return;
+    };
+    let db = connection(json!({"url":url,"max_connections":1,"read":{"max_connections":1}}));
+    db.unprepared("DROP PROCEDURE IF EXISTS openrust_query_rowsets")
+        .await
+        .unwrap();
+    db.unprepared(
+        "CREATE PROCEDURE openrust_query_rowsets(IN n INT) BEGIN
+            SELECT n AS result;
+            SELECT n AS result WHERE FALSE;
+            SELECT n + 1 AS result;
+        END",
+    )
+    .await
+    .unwrap();
+    db.unprepared("DROP PROCEDURE IF EXISTS openrust_query_no_rows")
+        .await
+        .unwrap();
+    db.unprepared("CREATE PROCEDURE openrust_query_no_rows() DO 1")
+        .await
+        .unwrap();
+
+    let sets = db
+        .selectResultSets("CALL openrust_query_rowsets(?)", &[5.into()], true)
+        .await
+        .unwrap();
+    assert_eq!(sets.iter().map(Vec::len).collect::<Vec<_>>(), [1, 0, 1, 0]);
+    assert_eq!(sets[0][0].get("result"), Some(&5.into()));
+    assert_eq!(sets[2][0].get("result"), Some(&6.into()));
+    for sql in ["CALL openrust_query_no_rows()", "SELECT 5 WHERE FALSE"] {
+        let sets = db.selectResultSets(sql, &[], true).await.unwrap();
+        assert_eq!(sets.len(), 1);
+        assert!(sets[0].is_empty());
+    }
+    assert!(matches!(
+        db.selectResultSets("CALL openrust_query_rowsets(?)", &[], true)
+            .await,
+        Err(DatabaseError::InvalidBindings {
+            expected: 1,
+            actual: 0
+        })
+    ));
+    assert!(
+        db.selectResultSets("CALL openrust_nonexistent_rowsets()", &[], true)
+            .await
+            .is_err()
+    );
+
+    const CONNECTION_ID: &str = "SELECT CONNECTION_ID() AS id";
+    let read = db.selectResultSets(CONNECTION_ID, &[], true).await.unwrap();
+    let write = db
+        .selectResultSets(CONNECTION_ID, &[], false)
+        .await
+        .unwrap();
+    assert_eq!(
+        read[0][0].get("id"),
+        Some(&db.scalar(CONNECTION_ID, &[]).await.unwrap())
+    );
+    assert_ne!(read[0][0].get("id"), write[0][0].get("id"));
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    let pinned = tx.selectResultSets(CONNECTION_ID, &[]).await.unwrap();
+    assert_eq!(pinned[0][0].get("id"), write[0][0].get("id"));
+    let sets = tx
+        .selectResultSets("CALL openrust_query_rowsets(?)", &[3.into()])
+        .await
+        .unwrap();
+    assert_eq!(sets[0][0].get("result"), Some(&3.into()));
+    assert_eq!(sets[2][0].get("result"), Some(&4.into()));
+    tx.commit().await.unwrap();
+
+    db.unprepared("DROP PROCEDURE openrust_query_rowsets")
+        .await
+        .unwrap();
+    db.unprepared("DROP PROCEDURE openrust_query_no_rows")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_reports_unsupported_rowset_traversal() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    assert!(matches!(
+        db.selectResultSets("SELECT 1", &[], true).await,
+        Err(DatabaseError::UnsupportedOperation("selectResultSets"))
+    ));
+}

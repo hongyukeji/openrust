@@ -49,6 +49,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### 查詢多個結果集 {#selecting-multiple-result-sets}
+
+使用 `DB::selectResultSets` 執行可傳回多個結果集的 MySQL 預備陳述式，例如預存程序呼叫。結果依傳回順序排列，並保留空結果集。MySQL 的 `CALL` 還會在最後傳回一個空的狀態結果集。
+
+傳入 `true` 時遵循正常的讀取連線路由，傳入 `false` 時使用寫入連線。在交易中透過交易物件呼叫此方法，查詢會在交易所在連線上執行。SQLite 對此介面傳回 `DatabaseError::UnsupportedOperation`。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
+    db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+}
+```
+
 ### 使用多個資料庫連線
 
 用 `DB::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `DB::connection(Some("reporting::read"))`。

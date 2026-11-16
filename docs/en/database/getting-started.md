@@ -49,6 +49,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Selecting Multiple Result Sets {#selecting-multiple-result-sets}
+
+Use `DB::selectResultSets` for a prepared MySQL statement that returns several result sets, such as a stored procedure call. The results preserve their order and include empty sets. MySQL also returns an empty final status set for `CALL`.
+
+Pass `true` to use normal read routing or `false` to use the write connection. Inside a transaction, call the method on the transaction to keep the query on its connection. SQLite returns `DatabaseError::UnsupportedOperation` for this API.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+async fn find_active_users(db: &Connection, active: bool) -> DatabaseResult<Vec<Vec<Row>>> {
+    db.selectResultSets("CALL find_active_users(?)", &[active.into()], true).await
+}
+```
+
 ### Using Multiple Database Connections
 
 Use `DB::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `DB::connection(Some("reporting::read"))`.

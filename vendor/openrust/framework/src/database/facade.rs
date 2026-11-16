@@ -49,6 +49,16 @@ impl DB {
             .await
     }
 
+    pub async fn selectResultSets(
+        sql: &str,
+        bindings: &[Value],
+        use_read: bool,
+    ) -> DatabaseResult<Vec<Vec<Row>>> {
+        Self::connection(None)?
+            .selectResultSets(sql, bindings, use_read)
+            .await
+    }
+
     pub async fn beginTransaction() -> DatabaseResult<Transaction> {
         Self::connection(None)?.beginTransaction().await
     }

@@ -369,6 +369,36 @@ impl PhysicalConnection {
         )
     }
 
+    pub(super) async fn select_result_sets(
+        &mut self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Vec<Row>>> {
+        let Self::Mysql(lease) = self else {
+            return Err(DatabaseError::UnsupportedOperation("selectResultSets"));
+        };
+        let statement = prepare_query!(lease, sql, bindings);
+        let query = bind!(statement.query(), bindings, Ok::<u64, DatabaseError>);
+        lease.start()?;
+        let mut sets = Vec::new();
+        let mut rows = Vec::new();
+        let result = {
+            let mut packets = (&mut *lease.connection).fetch_many(query);
+            loop {
+                match packets.try_next().await {
+                    Ok(Some(sqlx::Either::Right(row))) => rows.push(value::mysql(row)?),
+                    // Both row-set delimiters and MySQL's final CALL status produce a PDO rowset.
+                    Ok(Some(sqlx::Either::Left(_))) => sets.push(std::mem::take(&mut rows)),
+                    Ok(None) => break Ok(sets),
+                    Err(error) => break Err(error),
+                }
+            }
+        };
+        lease
+            .finish(result)
+            .map_err(DatabaseError::driver("select result sets"))
+    }
+
     pub(super) async fn affecting_statement(
         &mut self,
         sql: &str,
@@ -607,6 +637,24 @@ impl Connection {
         bindings: &[Value],
     ) -> DatabaseResult<Vec<Row>> {
         self.pool.acquire().await?.select(sql, bindings).await
+    }
+
+    /// Returns the ordered rowsets of a single prepared MySQL statement.
+    pub async fn selectResultSets(
+        &self,
+        sql: &str,
+        bindings: &[Value],
+        use_read: bool,
+    ) -> DatabaseResult<Vec<Vec<Row>>> {
+        let pool = if use_read {
+            self.read_pool()
+        } else {
+            &self.pool
+        };
+        pool.acquire()
+            .await?
+            .select_result_sets(sql, bindings)
+            .await
     }
 
     pub async fn selectOne(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Option<Row>> {

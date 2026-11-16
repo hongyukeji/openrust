@@ -6,7 +6,7 @@
 - 从旧版 `6d1a8192` 的 `src/database/mod.rs`、`src/database/sqlite.rs` 和 `vendor/launchbadge/sqlx-mysql/OPENRUST.md` 提取路径解析、内存缓存、强制 TLS 和取消后淘汰回归。当前使用固定 SQLx 0.9.0，未启用无 TLS 的 MySQL RSA 认证。Rust 在操作层持有连接租约，取消或协议错误时关闭 MySQL 物理连接，无需移植旧版驱动补丁。
 - DB 门面和 Connection 支持异步预处理查询、绑定计数验证、标量、行查询、插入、更新、删除、影响行数和无参数原始 SQL。Rust 使用 `Value` 和有序列记录。MySQL 无符号整数保留完整范围，DECIMAL 用精确文本表示。错误的 Display 和 Debug 省略 SQL、绑定值和凭据，显式错误来源仍可由调用方检查。
 - URL 解析优先使用 URL 中的已指定配置。显式 URL 用户缺少密码时使用空密码，以免带入不同用户的配置密码。MySQL TLS 为 Required，配置 CA 时默认 VerifyIdentity。此次真实验收确认加密会话，证书主机名校验仍需有匹配证书的环境验收。
-- 本批运行连接为 SQLite 和 MySQL。读写路由、事务、重新连接及完整 ConnectionInterface 留到 02-02，Query Builder 与 Schema 随各自单元接线。存储过程多结果集及数据库事件仍待后续实现。
+- 本批运行连接为 SQLite 和 MySQL。读写路由、事务、重新连接及完整 ConnectionInterface 留到 02-02，Query Builder 与 Schema 随各自单元接线。存储过程多结果集见下方续批验收。数据库事件归 02-02。
 
 ## 验收
 
@@ -20,3 +20,13 @@ macOS arm64，Rust 1.94.0。隔离副本基于 `21a65e98`、已验收的 01-02y 
 下一批 02-02 接读写连接、切换与事务，复用两种已验收的物理连接池，并以真实 SQLite 与专用 MySQL 8.4 验证事务、锁与故障回退。
 
 补交复验。02-02 复用了原始目录，单连接实现从该快照提取并独立重建。读写路由、事务和作用域连接状态归入 02-02。待提交树通过 368 项工作区测试、严格 Clippy 和格式检查，真实 MySQL 路径已执行，SQLite、HTTP 和 Artisan 数据库探针通过。
+
+## 多结果集查询
+
+对照 [Laravel 数据库文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#selecting-multiple-result-sets)及[固定 Connection 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L462)。旧版未提供多结果集入口。当前复用预处理、参数绑定、行解码、读写连接路由和物理连接租约。
+
+- `DB::selectResultSets` 和 `Connection::selectResultSets` 显式选择读路由或写连接。事务接口直接使用当前事务的物理连接。返回值为 `Vec<Vec<Row>>`，沿用数据库层的行表示。
+- 独立 MySQL 8.4.13 上同时运行原生预处理 PHP PDO 和 SQLx。含空查询的绑定过程返回 `[[5],[],[6],[]]`，无查询的过程和普通空查询均返回单个空结果集。最后的空集来自 MySQL 的 CALL 状态。PDO SQLite 的 `nextRowset` 返回 `IM001`，OpenRust 对应 `UnsupportedOperation`。
+- Rust 1.94.0 隔离基线 `991ab3ada` 上，`database_query` 11 项和 `database_sql` 7 项通过。真实 MySQL 覆盖绑定计数、无效过程后的连接恢复、读写连接 ID、事务连接固定及提交。SQLite 回归覆盖不支持的接口及常规查询。针对框架库和这两个测试目标的严格 Clippy 通过。
+- 独立验收二进制通过实际 `Application::handleCommand` 执行 `db:rowsets`，验证 DB 门面和三语示例。应用 `main artisan inspire` 成功退出。VitePress 构建及根路径、子路径浏览器验收通过，共 12 项站点组合和 6 项多结果集小节检查。
+- 02-01 仍需补齐固定文档的命名绑定。PDO 的自定义抓取选项在 Rust 中沿用统一的类型化 `Row`。
