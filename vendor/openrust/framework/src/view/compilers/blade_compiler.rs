@@ -16,14 +16,23 @@ use cap_std::{
 use serde::{Deserialize, Serialize};
 
 use super::{Compiler, template::Template};
-use crate::view::{ViewData, ViewError, ViewResult, ViewValue, rendering::RenderContext};
+use crate::view::{
+    ViewData, ViewError, ViewResult, ViewValue,
+    rendering::{RenderContext, render_error},
+};
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 13;
+const COMPILER_VERSION: u32 = 14;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
-pub(in crate::view) type Directives = BTreeMap<String, Directive>;
+type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
+
+#[derive(Clone, Default)]
+pub(in crate::view) struct BladeExtensions {
+    pub(in crate::view) directives: BTreeMap<String, Directive>,
+    pub(in crate::view) conditions: BTreeMap<String, Condition>,
+}
 
 /// Output produced by a registered Rust Blade directive.
 pub enum DirectiveOutput {
@@ -36,7 +45,7 @@ pub enum DirectiveOutput {
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {
     directory: PathBuf,
-    directives: RwLock<Arc<Directives>>,
+    extensions: RwLock<Arc<BladeExtensions>>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,14 +54,22 @@ struct Compiled {
     compiler_version: u32,
     source: String,
     directives: Vec<String>,
+    conditions: Vec<String>,
     template: Template,
+}
+
+impl Compiled {
+    fn syntax_matches(&self, extensions: &BladeExtensions) -> bool {
+        extensions.directives.keys().eq(self.directives.iter())
+            && extensions.conditions.keys().eq(self.conditions.iter())
+    }
 }
 
 impl BladeCompiler {
     pub fn new(directory: PathBuf) -> Self {
         Self {
             directory,
-            directives: RwLock::default(),
+            extensions: RwLock::default(),
         }
     }
 
@@ -63,14 +80,52 @@ impl BladeCompiler {
         callback: impl Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync + 'static,
     ) -> ViewResult<()> {
         if !super::template::identifier(name) {
-            return Err(compile_error(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid Blade directive name.",
-            )));
+            return Err(invalid_registration("Invalid Blade directive name."));
         }
-        Arc::make_mut(&mut self.directives.write().unwrap())
+        let mut extensions = self.extensions.write().unwrap();
+        if extensions.conditions.contains_key(name) {
+            return Err(invalid_registration(
+                "A Blade condition already has this name.",
+            ));
+        }
+        Arc::make_mut(&mut extensions)
+            .directives
             .insert(name.to_owned(), Arc::new(callback));
         Ok(())
+    }
+
+    /// Registers an application-owned Rust predicate for Blade conditional blocks.
+    pub fn r#if(
+        &self,
+        name: &str,
+        callback: impl Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync + 'static,
+    ) -> ViewResult<()> {
+        if !super::template::identifier(name) {
+            return Err(invalid_registration("Invalid Blade condition name."));
+        }
+        let mut extensions = self.extensions.write().unwrap();
+        if extensions.directives.contains_key(name) {
+            return Err(invalid_registration(
+                "A Blade directive already has this name.",
+            ));
+        }
+        Arc::make_mut(&mut extensions)
+            .conditions
+            .insert(name.to_owned(), Arc::new(callback));
+        Ok(())
+    }
+
+    /// Evaluates an application-owned Blade predicate.
+    pub fn check(&self, name: &str, values: &[ViewValue]) -> ViewResult<bool> {
+        let callback = self
+            .extensions
+            .read()
+            .unwrap()
+            .conditions
+            .get(name)
+            .cloned()
+            .ok_or_else(|| render_error("Blade condition registration was not found."))?;
+        callback(values)
     }
 
     pub(in crate::view) fn render_with(
@@ -80,9 +135,9 @@ impl BladeCompiler {
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        let directives = self.directives.read().unwrap().clone();
-        let template = self.load(path, source, &directives)?;
-        context.directives = directives;
+        let extensions = self.extensions.read().unwrap().clone();
+        let template = self.load(path, source, &extensions)?;
+        context.extensions = extensions;
         template.render(data, context)
     }
 
@@ -98,9 +153,9 @@ impl BladeCompiler {
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
         let identity = format!("inline-{component}-{}", digest(source.as_bytes()));
-        let directives = self.directives.read().unwrap().clone();
-        let template = Template::compile(source, &identity, &directives)?;
-        context.directives = directives;
+        let extensions = self.extensions.read().unwrap().clone();
+        let template = Template::compile(source, &identity, &extensions)?;
+        context.extensions = extensions;
         template.render(data, context)
     }
 
@@ -131,21 +186,27 @@ impl BladeCompiler {
         Ok(())
     }
 
-    fn load(&self, path: &Path, source: &str, directives: &Directives) -> ViewResult<Template> {
+    fn load(
+        &self,
+        path: &Path,
+        source: &str,
+        extensions: &BladeExtensions,
+    ) -> ViewResult<Template> {
         let name = artifact_name(path);
         let fingerprint = digest(source.as_bytes());
         if let Some(compiled) = self.read_artifact(&name)?
             && compiled.compiler_version == COMPILER_VERSION
             && compiled.source == fingerprint
-            && directives.keys().eq(compiled.directives.iter())
+            && compiled.syntax_matches(extensions)
         {
             return Ok(compiled.template);
         }
         let compiled = Compiled {
             compiler_version: COMPILER_VERSION,
             source: fingerprint,
-            template: Template::compile(source, &name, directives)?,
-            directives: directives.keys().cloned().collect(),
+            template: Template::compile(source, &name, extensions)?,
+            directives: extensions.directives.keys().cloned().collect(),
+            conditions: extensions.conditions.keys().cloned().collect(),
         };
         self.publish(&name, &compiled)?;
         Ok(compiled.template)
@@ -198,19 +259,14 @@ impl Compiler for BladeCompiler {
             .is_none_or(|compiled| {
                 compiled.compiler_version != COMPILER_VERSION
                     || compiled.source != digest(&source)
-                    || !self
-                        .directives
-                        .read()
-                        .unwrap()
-                        .keys()
-                        .eq(compiled.directives.iter())
+                    || !compiled.syntax_matches(&self.extensions.read().unwrap())
             }))
     }
 
     fn compile(&self, path: &Path) -> ViewResult<()> {
         let source = fs::read_to_string(path).map_err(ViewError::ReadFailed)?;
-        let directives = self.directives.read().unwrap().clone();
-        self.load(path, &source, &directives)?;
+        let extensions = self.extensions.read().unwrap().clone();
+        self.load(path, &source, &extensions)?;
         Ok(())
     }
 }
@@ -232,4 +288,8 @@ fn digest(bytes: &[u8]) -> String {
 
 fn compile_error(error: impl std::error::Error + Send + Sync + 'static) -> ViewError {
     ViewError::CompileFailed(Box::new(error))
+}
+
+fn invalid_registration(message: &'static str) -> ViewError {
+    compile_error(io::Error::new(io::ErrorKind::InvalidInput, message))
 }

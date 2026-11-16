@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use super::ViewResult;
 
-pub(in crate::view) use blade_compiler::Directives;
+pub(in crate::view) use blade_compiler::BladeExtensions;
 pub use blade_compiler::{BladeCompiler, DirectiveOutput};
 
 /// Compiles a template and determines when its artifact is stale.

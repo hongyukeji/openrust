@@ -70,3 +70,9 @@
 - 对照固定 [ComponentTagCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/ComponentTagCompiler.php)。`:$property` 读取当前视图值，`::` 转为单冒号的客户端属性，包组件沿用既有命名空间查找和匿名索引优先级。插槽保存独立 HTML 与属性包，按上游修剪首尾空白。Rust 属性包复用统一转义，支持 `merge`、`class`、`style`、`only` 和 `except`。旧版无对应 Blade 标签编译器。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证包组件索引、快捷绑定、双冒号、插槽绑定、属性筛选和合并、转义、跨应用隔离及非法组件路径返回 500。隔离副本的工作区格式与严格 Clippy 通过。
 - 实际 Artisan 缓存和清理三语示例。三语 VitePress 构建和 12 项浏览器组合通过。
+
+## 自定义条件
+
+- 对照固定 [BladeCompiler 的 if / check](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/BladeCompiler.php)。Rust 用 `r#if` 登记应用级谓词，支持原始名称、`unless`、`else` 和 `end` 变体，并通过 `check` 提供同一谓词。缓存记录条件名与指令名，求值阶段调用本应用的 Rust 回调。旧版无对应 Blade 编译接口。
+- macOS ARM64、Rust 1.94.0。真实 HTTP 验证多分支、否定、嵌套、共用缓存时的谓词隔离、缺少结束指令返回 500。8 项定向测试、隔离副本全工作区格式与严格 Clippy 通过。
+- 隔离应用将三语共用 Rust 示例接入 Provider，实际 Artisan 生成含注册条件指令的三个编译产物并清理。三语构建和 12 项浏览器组合通过。

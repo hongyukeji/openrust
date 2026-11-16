@@ -3,7 +3,7 @@ use std::{borrow::Cow, fmt::Write as _, sync::Arc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::{DirectiveOutput, Directives};
+use super::{BladeExtensions, DirectiveOutput};
 use crate::support::Str;
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
@@ -60,6 +60,7 @@ enum Node {
     BooleanAttribute(String, Expression),
     ConditionalAttribute(AttributeList, bool),
     CustomDirective(String, Vec<Expression>),
+    CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
     Include(Include, bool),
     IncludeWhen(Expression, Include, bool),
     IncludeFirst(IncludeFirst),
@@ -78,6 +79,13 @@ enum Node {
 struct Slot {
     name: Expression,
     attributes: Vec<(String, Expression)>,
+    body: Vec<Node>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CustomBranch {
+    arguments: Vec<Expression>,
+    negated: bool,
     body: Vec<Node>,
 }
 
@@ -105,11 +113,11 @@ impl Template {
     pub(super) fn compile(
         source: &str,
         identity: &str,
-        directives: &Directives,
+        extensions: &BladeExtensions,
     ) -> ViewResult<Self> {
-        let mut parser = Parser::new(source, identity, directives);
+        let mut parser = Parser::new(source, identity, extensions);
         let trimmed = source.trim_start();
-        let mut leading = Parser::new(trimmed, identity, directives);
+        let mut leading = Parser::new(trimmed, identity, extensions);
         let props = if leading.directive("props") {
             parser = leading;
             Some(parse_props(parser.arguments()?)?)
@@ -153,7 +161,7 @@ impl Template {
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
-enum Stop {
+enum Stop<'a> {
     Else,
     ElseIf,
     EndIf,
@@ -175,28 +183,30 @@ enum Stop {
     EndError,
     EndFragment,
     EndTag,
+    ElseCondition(&'a str),
+    EndCondition(&'a str),
 }
 
 struct Parser<'a> {
     remaining: &'a str,
     identity: &'a str,
-    directives: &'a Directives,
+    extensions: &'a BladeExtensions,
     once_count: usize,
     loop_depth: usize,
 }
 
 impl<'a> Parser<'a> {
-    fn new(source: &'a str, identity: &'a str, directives: &'a Directives) -> Self {
+    fn new(source: &'a str, identity: &'a str, extensions: &'a BladeExtensions) -> Self {
         Self {
             remaining: source,
             identity,
-            directives,
+            extensions,
             once_count: 0,
             loop_depth: 0,
         }
     }
 
-    fn block(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop>)> {
+    fn block(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop<'a>>)> {
         self.block_until(depth, None)
     }
 
@@ -204,7 +214,7 @@ impl<'a> Parser<'a> {
         &mut self,
         depth: usize,
         closing: Option<&str>,
-    ) -> ViewResult<(Vec<Node>, Option<Stop>)> {
+    ) -> ViewResult<(Vec<Node>, Option<Stop<'a>>)> {
         if depth > 64 {
             return Err(invalid("Blade blocks are nested too deeply."));
         }
@@ -535,23 +545,46 @@ impl<'a> Parser<'a> {
                 }
             }
         } else {
-            return self.custom_directive();
+            return self.custom_directive(depth);
         };
         Ok(Some(node))
     }
 
-    fn custom_directive(&mut self) -> ViewResult<Option<Node>> {
-        let Some(rest) = self.remaining.strip_prefix('@') else {
-            return Ok(None);
-        };
+    fn custom_tag(&self) -> Option<(&'a str, &'a str)> {
+        let rest = self.remaining.strip_prefix('@')?;
         let end = rest
             .find(|character: char| !(character.is_alphanumeric() || character == '_'))
             .unwrap_or(rest.len());
-        let (name, rest) = rest.split_at(end);
-        if !self.directives.contains_key(name) {
+        Some(rest.split_at(end))
+    }
+
+    fn custom_directive(&mut self, depth: usize) -> ViewResult<Option<Node>> {
+        let Some((name, rest)) = self.custom_tag() else {
+            return Ok(None);
+        };
+        let conditions = &self.extensions.conditions;
+        let condition = if conditions.contains_key(name) {
+            Some((name, false))
+        } else {
+            name.strip_prefix("unless")
+                .filter(|name| conditions.contains_key(*name))
+                .map(|name| (name, true))
+        };
+        if let Some((name, negated)) = condition {
+            self.remaining = rest;
+            return self.custom_condition(depth, name, negated).map(Some);
+        }
+        if !self.extensions.directives.contains_key(name) {
             return Ok(None);
         }
         self.remaining = rest;
+        Ok(Some(Node::CustomDirective(
+            name.to_owned(),
+            self.custom_arguments()?,
+        )))
+    }
+
+    fn custom_arguments(&mut self) -> ViewResult<Vec<Expression>> {
         let mut arguments = Vec::new();
         if self.remaining.trim_start().starts_with('(') {
             let input = self.arguments()?.trim();
@@ -563,7 +596,44 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        Ok(Some(Node::CustomDirective(name.to_owned(), arguments)))
+        Ok(arguments)
+    }
+
+    fn custom_condition(
+        &mut self,
+        depth: usize,
+        name: &str,
+        mut negated: bool,
+    ) -> ViewResult<Node> {
+        let mut branches = Vec::new();
+        let alternative = loop {
+            let arguments = self.custom_arguments()?;
+            let (body, stop) = self.block(depth + 1)?;
+            branches.push(CustomBranch {
+                arguments,
+                negated,
+                body,
+            });
+            match stop {
+                Some(Stop::EndCondition(tag)) if name == tag => break Vec::new(),
+                Some(Stop::ElseCondition(tag)) if name == tag => negated = false,
+                Some(Stop::Else) => {
+                    let (nodes, stop) = self.block(depth + 1)?;
+                    if !matches!(stop, Some(Stop::EndCondition(tag)) if name == tag) {
+                        return Err(invalid(
+                            "Mismatched Blade custom condition closing directive.",
+                        ));
+                    }
+                    break nodes;
+                }
+                _ => return Err(invalid("Unclosed or mismatched Blade custom condition.")),
+            }
+        };
+        Ok(Node::CustomCondition(
+            name.to_owned(),
+            branches,
+            alternative,
+        ))
     }
 
     fn capture_stack(&mut self, depth: usize, prepend: bool) -> ViewResult<Node> {
@@ -604,7 +674,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn block_ending(&mut self, depth: usize, expected: Stop) -> ViewResult<Vec<Node>> {
+    fn block_ending(&mut self, depth: usize, expected: Stop<'a>) -> ViewResult<Vec<Node>> {
         let (nodes, stop) = self.block(depth + 1)?;
         if stop != Some(expected) {
             return Err(invalid("Unclosed Blade stack or once block."));
@@ -632,7 +702,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn conditional(&mut self, depth: usize, predicate: Predicate, end: Stop) -> ViewResult<Node> {
+    fn conditional(
+        &mut self,
+        depth: usize,
+        predicate: Predicate,
+        end: Stop<'a>,
+    ) -> ViewResult<Node> {
         let expression = expression_value(self.arguments()?)?;
         let (yes, stop) = self.block(depth + 1)?;
         let (no, stop) = match stop {
@@ -649,7 +724,7 @@ impl<'a> Parser<'a> {
         Ok(Node::Conditional(expression, predicate, yes, no))
     }
 
-    fn condition(&mut self) -> Option<(Predicate, Stop)> {
+    fn condition(&mut self) -> Option<(Predicate, Stop<'a>)> {
         [
             ("if", Predicate::Truthy, Stop::EndIf),
             ("unless", Predicate::Empty, Stop::EndUnless),
@@ -705,7 +780,7 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn around_loop(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop>)> {
+    fn around_loop(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop<'a>>)> {
         self.loop_depth += 1;
         let result = self.block(depth + 1);
         self.loop_depth -= 1;
@@ -728,14 +803,14 @@ impl<'a> Parser<'a> {
         Ok(Node::Jump(kind, levels, condition))
     }
 
-    fn stop(&mut self) -> Option<Stop> {
+    fn stop(&mut self) -> Option<Stop<'a>> {
         if let Some(rest) = self.remaining.strip_prefix("@empty")
             && !rest.trim_start().starts_with('(')
             && self.directive("empty")
         {
             return Some(Stop::Empty);
         }
-        [
+        let standard = [
             ("endsection", Stop::EndSection),
             ("show", Stop::Show),
             ("endpush", Stop::EndPush),
@@ -757,7 +832,25 @@ impl<'a> Parser<'a> {
             ("else", Stop::Else),
         ]
         .into_iter()
-        .find_map(|(name, stop)| self.directive(name).then_some(stop))
+        .find_map(|(name, stop)| self.directive(name).then_some(stop));
+        if standard.is_some() {
+            return standard;
+        }
+        let (name, rest) = self.custom_tag()?;
+        let (base, is_else) = if let Some(base) = name.strip_prefix("else") {
+            (base, true)
+        } else {
+            (name.strip_prefix("end")?, false)
+        };
+        if !self.extensions.conditions.contains_key(base) {
+            return None;
+        }
+        self.remaining = rest;
+        Some(if is_else {
+            Stop::ElseCondition(base)
+        } else {
+            Stop::EndCondition(base)
+        })
     }
 
     fn directive(&mut self, name: &str) -> bool {
@@ -1167,10 +1260,10 @@ fn render_nodes<'a>(
                 output.push('"');
             }
             Node::CustomDirective(name, arguments) => {
-                let callback = context
-                    .directives
-                    .get(name)
-                    .ok_or_else(|| render_error("Blade directive registration was not found."))?;
+                let callback =
+                    context.extensions.directives.get(name).ok_or_else(|| {
+                        render_error("Blade directive registration was not found.")
+                    })?;
                 let arguments = arguments
                     .iter()
                     .map(|argument| value(argument, data, bindings).clone())
@@ -1179,6 +1272,25 @@ fn render_nodes<'a>(
                     DirectiveOutput::Text(text) => escape_html(output, &text),
                     DirectiveOutput::Html(html) => output.push_str(&html),
                 }
+            }
+            Node::CustomCondition(name, branches, alternative) => {
+                let callback =
+                    context.extensions.conditions.get(name).ok_or_else(|| {
+                        render_error("Blade condition registration was not found.")
+                    })?;
+                let mut selected = alternative;
+                for branch in branches {
+                    let arguments = branch
+                        .arguments
+                        .iter()
+                        .map(|argument| value(argument, data, bindings).clone())
+                        .collect::<Vec<_>>();
+                    if callback(&arguments)? != branch.negated {
+                        selected = &branch.body;
+                        break;
+                    }
+                }
+                render_block!(selected, data, bindings, output, context);
             }
             Node::Include(include, optional) => {
                 let name = include.name(data, bindings)?;

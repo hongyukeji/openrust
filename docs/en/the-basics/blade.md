@@ -210,6 +210,30 @@ fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
 <b>@formatName($name)</b>
 ```
 
+### Custom Conditions {#custom-conditions}
+
+Register a predicate with `BladeCompiler::r#if`. The condition receives evaluated view values. `check` invokes the same predicate from Rust.
+
+```rust
+use openrust::view::{ViewResult, compilers::BladeCompiler};
+
+fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewResult<()> {
+    compiler.r#if("zone", move |args| {
+        Ok(args.first().and_then(|value| value.as_str()) == Some(current_zone.as_str()))
+    })
+}
+```
+
+```html
+@zone('public')
+    Public
+@elsezone('staff')
+    Staff
+@else
+    Restricted
+@endzone
+```
+
 ## PHP and Rust Templates {#php-and-rust-templates}
 
 Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.

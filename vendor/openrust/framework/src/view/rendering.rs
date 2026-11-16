@@ -7,7 +7,8 @@ use std::{
 };
 
 use super::{
-    Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue, compilers::Directives,
+    Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue,
+    compilers::BladeExtensions,
 };
 
 /// State owned by one render tree. A layout inherits sections from its child.
@@ -21,7 +22,7 @@ pub(super) struct RenderContext<'a> {
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
     pub(super) csrf_token: Option<Arc<str>>,
-    pub(super) directives: Arc<Directives>,
+    pub(super) extensions: Arc<BladeExtensions>,
     shared: Rc<RefCell<RenderState>>,
 }
 
@@ -67,7 +68,7 @@ impl<'a> RenderContext<'a> {
             active_loop: None,
             component_attributes: None,
             csrf_token: None,
-            directives: Arc::default(),
+            extensions: Arc::default(),
             shared: Rc::default(),
         }
     }
@@ -246,7 +247,7 @@ impl<'a> RenderContext<'a> {
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
                 csrf_token: self.csrf_token.clone(),
-                directives: self.directives.clone(),
+                extensions: self.extensions.clone(),
                 shared: self.shared.clone(),
                 factory: Some(factory),
                 sections: HashMap::new(),

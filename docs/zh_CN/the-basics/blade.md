@@ -210,6 +210,30 @@ fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
 <b>@formatName($name)</b>
 ```
 
+### 自定义条件 {#custom-conditions}
+
+使用 `BladeCompiler::r#if` 注册谓词。谓词接收求值后的视图数据，也可以在 Rust 中用 `check` 调用同一谓词。
+
+```rust
+use openrust::view::{ViewResult, compilers::BladeCompiler};
+
+fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewResult<()> {
+    compiler.r#if("zone", move |args| {
+        Ok(args.first().and_then(|value| value.as_str()) == Some(current_zone.as_str()))
+    })
+}
+```
+
+```html
+@zone('public')
+    Public
+@elsezone('staff')
+    Staff
+@else
+    Restricted
+@endzone
+```
+
 ## PHP 与 Rust 模板 {#php-and-rust-templates}
 
 PHP 函数调用或 `@php` 代码块需要的值，可以在 Rust 处理器、视图创建器或组合器中准备，再传给视图。PHP 类组件及其动态类发现对应 `Factory::component` 显式注册的 Rust `Component` 工厂。匿名组件从视图查找器解析。

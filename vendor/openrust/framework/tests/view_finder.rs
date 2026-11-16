@@ -138,6 +138,12 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     assert!(compiler.isExpired(&blade).unwrap());
     compiler.compile(&blade).unwrap();
     assert!(!compiler.isExpired(&blade).unwrap());
+    compiler
+        .r#if("ready", |arguments| Ok(arguments.is_empty()))
+        .unwrap();
+    assert!(compiler.isExpired(&blade).unwrap());
+    assert!(compiler.check("ready", &[]).unwrap());
+    assert!(compiler.check("unknown", &[]).is_err());
     fs::write(&blade, "@formatName($user->name)").unwrap();
     assert_eq!(
         factory.render("welcome", &data).unwrap(),
@@ -453,6 +459,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         .with("namedSlot", "meta")
                 })?;
                 Route::get("/bad-component", || view("bad_component"))?;
+                Route::get("/custom-condition", || view("custom_condition"))?;
+                Route::get("/bad-condition", || view("bad_condition"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -486,6 +494,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         else {
             panic!("the default view compiler uses Blade");
         };
+        engine
+            .getCompiler()
+            .r#if("appIs", move |arguments| {
+                Ok(arguments.first().and_then(|value| value.as_str()) == Some(app))
+            })
+            .unwrap();
         if app == "A" {
             engine
                 .getCompiler()
@@ -735,6 +749,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("bad_component", "<x-demo::../panel/>"),
+        (
+            "custom_condition",
+            concat!(
+                "@appIs('A')A@elseappIs('B')B@else other@endappIs",
+                "@unlessappIs('X')!@appIs('A')1@else 2@endappIs@endappIs",
+            ),
+        ),
+        ("bad_condition", "@appIs('A')missing end"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -872,6 +894,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         );
     }
     assert!(send(first, "/bad-component", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/custom-condition", 200),
+        send(second, "/custom-condition", 200),
+    );
+    assert_eq!(a, "A!1");
+    assert_eq!(b, "B! 2");
+    assert!(send(first, "/bad-condition", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),
