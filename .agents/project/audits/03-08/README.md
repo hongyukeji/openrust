@@ -31,3 +31,10 @@
 - Rust 使用 `ViewData` 的具名值和渲染上下文保存属性包。HTML 属性由统一转义例程输出，支持标量、布尔和空值。PHP 任意对象及可追加属性对象、属性过滤和类组件构造器自动提取留待各自契约。旧版 MiniJinja 没有可移植的 Blade 属性包。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖并发应用、两级属性包隔离、默认与覆盖、普通属性和 class / style 合并、引号转义、布尔省略及非法声明和非标量值 500。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语属性示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项属性章节检查通过。
+
+## 布局栈和单次渲染
+
+- 对照固定 [CompilesStacks](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesStacks.php) 与 [ManagesStacks](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesStacks.php)。固定 ManagesStacks 在 PHP 8.5.12 中复验跨深度 push、prepend 排序、空栈和清理。旧版 MiniJinja 无 Blade 栈管理器可供提取。
+- Rust 在顶层渲染内共享栈与单次渲染标识，覆盖布局、子视图和组件。`@once`、`@pushOnce` 和 `@prependOnce` 的无参标识由编译模板及指令位置确定，显式标识使用非空字符串，跨模板共用。此批覆盖 `@push`、`@prepend`、`@stack`、`@hasStack` 以及上述单次形式。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实 HTTP 覆盖跨层排序、重复子视图去重、两应用并发、指令不匹配 500、重复请求和空栈回退。隔离副本通过工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项栈章节检查通过。

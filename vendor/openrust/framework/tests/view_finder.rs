@@ -372,6 +372,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/invalid-attributes", || {
                     view("invalid_attributes").with("array", serde_json::json!([1, 2]))
                 })?;
+                Route::get("/stacks", || view("stacks"))?;
+                Route::get("/empty-stack", || view("stack_layout"))?;
+                Route::get("/broken-stack", || view("broken_stack"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -519,6 +522,28 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ("components/plain", "<span {{ $attributes }}></span>"),
         ("invalid_props", "@props(['not an identifier' => 'bad'])"),
         ("invalid_attributes", r#"<x-plain :data-invalid="$array"/>"#),
+        (
+            "stacks",
+            concat!(
+                "@extends('stack_layout')@push('scripts', 'A')@prepend('scripts', 'a')",
+                "@include('stack_partial')@include('stack_partial')",
+                "@push('scripts', 'C')@once('shared')duplicate@endonce",
+            ),
+        ),
+        (
+            "stack_partial",
+            concat!(
+                "@push('scripts')B@endpush",
+                "@pushOnce('scripts')D@endPushOnce",
+                "@prependOnce('scripts', 'shared')b@endPrependOnce",
+                "@once[once]@endonce",
+            ),
+        ),
+        (
+            "stack_layout",
+            "<main>@hasStack('scripts'){{ $app }}:@endif@stack('scripts', '<empty>')</main>",
+        ),
+        ("broken_stack", "@push('scripts')oops@endprepend"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -585,6 +610,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(first, "/invalid-attributes", 500)
             .await
             .contains("500")
+    );
+    assert!(send(first, "/broken-stack", 500).await.contains("500"));
+    let (a, b) = tokio::join!(send(first, "/stacks", 200), send(second, "/stacks", 200));
+    assert_eq!(a, "[once]<main>A:baACBDB</main>");
+    assert_eq!(b, "[once]<main>B:baACBDB</main>");
+    assert_eq!(
+        send(first, "/empty-stack", 200).await,
+        "<main><empty></main>"
     );
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(

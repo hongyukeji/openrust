@@ -18,7 +18,7 @@ use crate::view::{ViewData, ViewError, ViewResult, rendering::RenderContext};
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 4;
+const COMPILER_VERSION: u32 = 5;
 
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {
@@ -54,11 +54,13 @@ impl BladeCompiler {
 
     pub(in crate::view) fn render_inline(
         &self,
+        component: &str,
         source: &str,
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        Template::compile(source)?.render(data, context)
+        let identity = format!("inline-{component}-{}", digest(source.as_bytes()));
+        Template::compile(source, &identity)?.render(data, context)
     }
 
     pub fn clear(&self) -> ViewResult<()> {
@@ -100,7 +102,7 @@ impl BladeCompiler {
         let compiled = Compiled {
             compiler_version: COMPILER_VERSION,
             source: fingerprint,
-            template: Template::compile(source)?,
+            template: Template::compile(source, &name)?,
         };
         self.publish(&name, &compiled)?;
         Ok(compiled.template)

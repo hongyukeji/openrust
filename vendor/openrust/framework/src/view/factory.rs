@@ -170,9 +170,9 @@ impl Factory {
                     view.data = data;
                     self.render_view(view, context)
                 }
-                ComponentOutput::InlineTemplate(source) => {
-                    self.compiler().render_inline(&source, properties, context)
-                }
+                ComponentOutput::InlineTemplate(source) => self
+                    .compiler()
+                    .render_inline(name, &source, properties, context),
             },
             None => {
                 let base = format!("components.{name}");

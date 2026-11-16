@@ -1,4 +1,10 @@
-use std::{collections::HashMap, io, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    io,
+    rc::Rc,
+    sync::Arc,
+};
 
 use super::{Factory, ViewData, ViewError, ViewResult, ViewValue};
 
@@ -12,6 +18,19 @@ pub(super) struct RenderContext<'a> {
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
+    shared: Rc<RefCell<RenderState>>,
+}
+
+#[derive(Default)]
+struct RenderState {
+    stacks: HashMap<String, Stack>,
+    once: HashSet<(bool, String)>,
+}
+
+#[derive(Default)]
+struct Stack {
+    pushed: Vec<(usize, String)>,
+    prepended: Vec<(usize, String)>,
 }
 
 impl<'a> RenderContext<'a> {
@@ -25,6 +44,7 @@ impl<'a> RenderContext<'a> {
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
             active_loop: None,
             component_attributes: None,
+            shared: Rc::default(),
         }
     }
 
@@ -85,6 +105,47 @@ impl<'a> RenderContext<'a> {
         self.slots.get(name).map(String::as_str)
     }
 
+    pub(super) fn has_stack(&self, name: &str) -> bool {
+        self.shared.borrow().stacks.contains_key(name)
+    }
+
+    pub(super) fn first_render_of(&self, id: &str, generated: bool) -> bool {
+        self.shared
+            .borrow_mut()
+            .once
+            .insert((generated, id.to_owned()))
+    }
+
+    pub(super) fn add_to_stack(&self, name: String, html: String, prepend: bool) {
+        let mut shared = self.shared.borrow_mut();
+        let stack = shared.stacks.entry(name).or_default();
+        let group = if prepend {
+            &mut stack.prepended
+        } else {
+            &mut stack.pushed
+        };
+        if let Some((_, existing)) = group.iter_mut().find(|(depth, _)| *depth == self.depth) {
+            if prepend {
+                existing.insert_str(0, &html);
+            } else {
+                existing.push_str(&html);
+            }
+        } else {
+            group.push((self.depth, html));
+        }
+    }
+
+    pub(super) fn stack(&self, name: &str, output: &mut String) -> bool {
+        let shared = self.shared.borrow();
+        let Some(stack) = shared.stacks.get(name) else {
+            return false;
+        };
+        for (_, html) in stack.prepended.iter().rev().chain(&stack.pushed) {
+            output.push_str(html);
+        }
+        true
+    }
+
     pub(super) fn component(
         &self,
         name: &str,
@@ -112,6 +173,7 @@ impl<'a> RenderContext<'a> {
                 parent_marker: self.parent_marker.clone(),
                 active_loop: self.active_loop.clone(),
                 component_attributes: self.component_attributes.clone(),
+                shared: self.shared.clone(),
                 factory: Some(factory),
                 sections: HashMap::new(),
                 layout: None,

@@ -92,3 +92,19 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 </x-notice>
 @endsection
 ```
+
+## 堆疊 {#stacks}
+
+用 `@push` 或 `@prepend` 收集呈現片段，再由版面透過 `@stack` 輸出。`@hasStack` 可以根據堆疊是否有內容決定是否輸出外層標記。
+
+```html
+@pushOnce('scripts', 'dashboard')
+<script src="/dashboard.js" defer></script>
+@endPushOnce
+
+@hasStack('scripts')
+    @stack('scripts')
+@endif
+```
+
+用 `@once` 在同一呈現樹中只輸出一次內容。`@pushOnce` 和 `@prependOnce` 也接受可跨範本共用的選用識別碼。

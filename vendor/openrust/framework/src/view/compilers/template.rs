@@ -38,6 +38,9 @@ enum Node {
     Parent,
     Section(Expression, Vec<Node>, bool),
     Yield(Expression, Option<Expression>),
+    Stack(Expression, Option<Expression>),
+    StackCapture(Expression, Vec<Node>, bool),
+    Once(OnceId, Vec<Node>),
     Include(Expression),
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
@@ -55,6 +58,7 @@ enum Predicate {
     Truthy,
     Empty,
     Isset,
+    HasStack,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -69,11 +73,17 @@ enum ComponentName {
     Dynamic(Expression),
 }
 
+#[derive(Serialize, Deserialize)]
+enum OnceId {
+    Explicit(Expression),
+    Generated(String),
+}
+
 impl Template {
-    pub(super) fn compile(source: &str) -> ViewResult<Self> {
-        let mut parser = Parser(source);
+    pub(super) fn compile(source: &str, identity: &str) -> ViewResult<Self> {
+        let mut parser = Parser::new(source, identity);
         let trimmed = source.trim_start();
-        let mut leading = Parser(trimmed);
+        let mut leading = Parser::new(trimmed, identity);
         let props = if leading.directive("props") {
             parser = leading;
             Some(parse_props(parser.arguments()?)?)
@@ -125,12 +135,29 @@ enum Stop {
     EndIsset,
     EndSection,
     Show,
+    EndPush,
+    EndPrepend,
+    EndOnce,
+    EndPushOnce,
+    EndPrependOnce,
     EndTag,
 }
 
-struct Parser<'a>(&'a str);
+struct Parser<'a> {
+    remaining: &'a str,
+    identity: &'a str,
+    once_count: usize,
+}
 
 impl<'a> Parser<'a> {
+    fn new(source: &'a str, identity: &'a str) -> Self {
+        Self {
+            remaining: source,
+            identity,
+            once_count: 0,
+        }
+    }
+
     fn block(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop>)> {
         self.block_until(depth, None)
     }
@@ -145,14 +172,17 @@ impl<'a> Parser<'a> {
         }
         let mut nodes = Vec::new();
         let mut text = String::new();
-        while !self.0.is_empty() {
-            let index = self.0.find(['@', '{', '<']).unwrap_or(self.0.len());
-            text.push_str(&self.0[..index]);
-            self.0 = &self.0[index..];
-            if self.0.is_empty() {
+        while !self.remaining.is_empty() {
+            let index = self
+                .remaining
+                .find(['@', '{', '<'])
+                .unwrap_or(self.remaining.len());
+            text.push_str(&self.remaining[..index]);
+            self.remaining = &self.remaining[index..];
+            if self.remaining.is_empty() {
                 break;
             }
-            if let Some(rest) = self.0.strip_prefix("</x-") {
+            if let Some(rest) = self.remaining.strip_prefix("</x-") {
                 let (name, tail) = rest
                     .split_once('>')
                     .ok_or_else(|| invalid("Unclosed Blade component closing tag."))?;
@@ -162,15 +192,15 @@ impl<'a> Parser<'a> {
                 {
                     return Err(invalid("Mismatched Blade component closing tag."));
                 }
-                self.0 = tail;
+                self.remaining = tail;
                 push_text(&mut nodes, &mut text);
                 return Ok((nodes, Some(Stop::EndTag)));
-            } else if self.0.starts_with("<x-") {
+            } else if self.remaining.starts_with("<x-") {
                 push_text(&mut nodes, &mut text);
                 nodes.push(self.component(depth)?);
-            } else if self.0.starts_with("@{{") || self.0.starts_with("@{!!") {
-                self.0 = &self.0[1..];
-                let end = if self.0.starts_with("{{") {
+            } else if self.remaining.starts_with("@{{") || self.remaining.starts_with("@{!!") {
+                self.remaining = &self.remaining[1..];
+                let end = if self.remaining.starts_with("{{") {
                     "}}"
                 } else {
                     "!!}"
@@ -183,14 +213,14 @@ impl<'a> Parser<'a> {
                     if end == "}}" { "{{" } else { "{!!" }
                 )
                 .unwrap();
-            } else if self.0.starts_with("@@") {
+            } else if self.remaining.starts_with("@@") {
                 text.push('@');
-                self.0 = &self.0[2..];
-            } else if self.0.starts_with("{{--") {
+                self.remaining = &self.remaining[2..];
+            } else if self.remaining.starts_with("{{--") {
                 self.delimited(4, "--}}")?;
-            } else if self.0.starts_with("{{") || self.0.starts_with("{!!") {
+            } else if self.remaining.starts_with("{{") || self.remaining.starts_with("{!!") {
                 push_text(&mut nodes, &mut text);
-                let escaped = self.0.starts_with("{{");
+                let escaped = self.remaining.starts_with("{{");
                 let expression = if escaped {
                     self.delimited(2, "}}")?
                 } else {
@@ -212,9 +242,9 @@ impl<'a> Parser<'a> {
                 push_text(&mut nodes, &mut text);
                 nodes.push(node);
             } else {
-                let character = self.0.chars().next().unwrap();
+                let character = self.remaining.chars().next().unwrap();
                 text.push(character);
-                self.0 = &self.0[character.len_utf8()..];
+                self.remaining = &self.remaining[character.len_utf8()..];
             }
         }
         push_text(&mut nodes, &mut text);
@@ -222,13 +252,13 @@ impl<'a> Parser<'a> {
     }
 
     fn component(&mut self, depth: usize) -> ViewResult<Node> {
-        self.0 = &self.0[3..];
+        self.remaining = &self.remaining[3..];
         let end = self
-            .0
+            .remaining
             .find(|character: char| character.is_whitespace() || matches!(character, '>' | '/'))
             .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
-        let name = &self.0[..end];
-        self.0 = &self.0[end..];
+        let name = &self.remaining[..end];
+        self.remaining = &self.remaining[end..];
         let (mut attributes, self_closing) = self.component_attributes()?;
 
         if let Some(slot) = name.strip_prefix("slot:") {
@@ -292,32 +322,32 @@ impl<'a> Parser<'a> {
     fn component_attributes(&mut self) -> ViewResult<(Vec<(String, Expression)>, bool)> {
         let mut attributes = Vec::new();
         loop {
-            self.0 = self.0.trim_start();
-            if let Some(rest) = self.0.strip_prefix("/>") {
-                self.0 = rest;
+            self.remaining = self.remaining.trim_start();
+            if let Some(rest) = self.remaining.strip_prefix("/>") {
+                self.remaining = rest;
                 return Ok((attributes, true));
             }
-            if let Some(rest) = self.0.strip_prefix('>') {
-                self.0 = rest;
+            if let Some(rest) = self.remaining.strip_prefix('>') {
+                self.remaining = rest;
                 return Ok((attributes, false));
             }
             let end = self
-                .0
+                .remaining
                 .find(|character: char| {
                     character.is_whitespace() || matches!(character, '=' | '>' | '/')
                 })
                 .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
-            let attribute = &self.0[..end];
+            let attribute = &self.remaining[..end];
             let (name, bound) = attribute
                 .strip_prefix(':')
                 .map_or((attribute, false), |name| (name, true));
             if !attribute_name(name) {
                 return Err(invalid("Invalid Blade component attribute."));
             }
-            self.0 = self.0[end..].trim_start();
-            let value = if let Some(rest) = self.0.strip_prefix('=') {
-                self.0 = rest.trim_start();
-                let delimiter = match self.0.as_bytes().first() {
+            self.remaining = self.remaining[end..].trim_start();
+            let value = if let Some(rest) = self.remaining.strip_prefix('=') {
+                self.remaining = rest.trim_start();
+                let delimiter = match self.remaining.as_bytes().first() {
                     Some(b'\'') => "'",
                     Some(b'"') => "\"",
                     _ => return Err(invalid("Blade component attributes require quotes.")),
@@ -355,6 +385,25 @@ impl<'a> Parser<'a> {
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
+        } else if self.directive("stack") {
+            let (name, default) = self.named_argument()?;
+            Node::Stack(name, default)
+        } else if self.directive("push") {
+            self.capture_stack(depth, false)?
+        } else if self.directive("prepend") {
+            self.capture_stack(depth, true)?
+        } else if self.directive("once") {
+            let id = if self.remaining.trim_start().starts_with('(') {
+                Some(expression_value(self.arguments()?)?)
+            } else {
+                None
+            };
+            let id = self.once_id(id);
+            Node::Once(id, self.block_ending(depth, Stop::EndOnce)?)
+        } else if self.directive("pushOnce") {
+            self.capture_once(depth, false)?
+        } else if self.directive("prependOnce") {
+            self.capture_once(depth, true)?
         } else if self.directive("section") {
             let (name, content) = self.named_argument()?;
             match content {
@@ -372,6 +421,52 @@ impl<'a> Parser<'a> {
             return Ok(None);
         };
         Ok(Some(node))
+    }
+
+    fn capture_stack(&mut self, depth: usize, prepend: bool) -> ViewResult<Node> {
+        let (name, content) = self.named_argument()?;
+        let body = match content {
+            Some(content) => vec![Node::Echo(content, false)],
+            None => self.block_ending(
+                depth,
+                if prepend {
+                    Stop::EndPrepend
+                } else {
+                    Stop::EndPush
+                },
+            )?,
+        };
+        Ok(Node::StackCapture(name, body, prepend))
+    }
+
+    fn capture_once(&mut self, depth: usize, prepend: bool) -> ViewResult<Node> {
+        let (name, id) = self.named_argument()?;
+        let id = self.once_id(id);
+        let expected = if prepend {
+            Stop::EndPrependOnce
+        } else {
+            Stop::EndPushOnce
+        };
+        let capture = Node::StackCapture(name, self.block_ending(depth, expected)?, prepend);
+        Ok(Node::Once(id, vec![capture]))
+    }
+
+    fn once_id(&mut self, explicit: Option<Expression>) -> OnceId {
+        match explicit {
+            Some(explicit) => OnceId::Explicit(explicit),
+            None => {
+                self.once_count += 1;
+                OnceId::Generated(format!("{}:{}", self.identity, self.once_count))
+            }
+        }
+    }
+
+    fn block_ending(&mut self, depth: usize, expected: Stop) -> ViewResult<Vec<Node>> {
+        let (nodes, stop) = self.block(depth + 1)?;
+        if stop != Some(expected) {
+            return Err(invalid("Unclosed Blade stack or once block."));
+        }
+        Ok(nodes)
     }
 
     fn conditional_include(&mut self, when: bool) -> ViewResult<Node> {
@@ -415,6 +510,7 @@ impl<'a> Parser<'a> {
             ("unless", Predicate::Empty, Stop::EndUnless),
             ("isset", Predicate::Isset, Stop::EndIsset),
             ("empty", Predicate::Empty, Stop::EndEmpty),
+            ("hasStack", Predicate::HasStack, Stop::EndIf),
         ]
         .into_iter()
         .find_map(|(name, predicate, stop)| self.directive(name).then_some((predicate, stop)))
@@ -465,7 +561,7 @@ impl<'a> Parser<'a> {
     }
 
     fn stop(&mut self) -> Option<Stop> {
-        if let Some(rest) = self.0.strip_prefix("@empty")
+        if let Some(rest) = self.remaining.strip_prefix("@empty")
             && !rest.trim_start().starts_with('(')
             && self.directive("empty")
         {
@@ -474,6 +570,11 @@ impl<'a> Parser<'a> {
         [
             ("endsection", Stop::EndSection),
             ("show", Stop::Show),
+            ("endpush", Stop::EndPush),
+            ("endprepend", Stop::EndPrepend),
+            ("endonce", Stop::EndOnce),
+            ("endPushOnce", Stop::EndPushOnce),
+            ("endPrependOnce", Stop::EndPrependOnce),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -489,7 +590,7 @@ impl<'a> Parser<'a> {
 
     fn directive(&mut self, name: &str) -> bool {
         let Some(rest) = self
-            .0
+            .remaining
             .strip_prefix('@')
             .and_then(|rest| rest.strip_prefix(name))
         else {
@@ -498,13 +599,13 @@ impl<'a> Parser<'a> {
         if rest.starts_with(|character: char| character.is_alphanumeric() || character == '_') {
             return false;
         }
-        self.0 = rest;
+        self.remaining = rest;
         true
     }
 
     fn arguments(&mut self) -> ViewResult<&'a str> {
         let rest = self
-            .0
+            .remaining
             .trim_start()
             .strip_prefix('(')
             .ok_or_else(|| invalid("Blade directive requires parentheses."))?;
@@ -517,7 +618,7 @@ impl<'a> Parser<'a> {
             match character {
                 '(' => nested += 1,
                 ')' if nested == 0 => {
-                    self.0 = &rest[index + 1..];
+                    self.remaining = &rest[index + 1..];
                     return Ok(&rest[..index]);
                 }
                 ')' => nested -= 1,
@@ -528,10 +629,10 @@ impl<'a> Parser<'a> {
     }
 
     fn delimited(&mut self, prefix: usize, delimiter: &str) -> ViewResult<&'a str> {
-        let (value, rest) = self.0[prefix..]
+        let (value, rest) = self.remaining[prefix..]
             .split_once(delimiter)
             .ok_or_else(|| invalid("Unclosed Blade expression."))?;
-        self.0 = rest;
+        self.remaining = rest;
         Ok(value)
     }
 }
@@ -706,6 +807,7 @@ fn render_nodes<'a>(
                     Predicate::Truthy => truthy(value),
                     Predicate::Empty => !truthy(value),
                     Predicate::Isset => !value.is_null(),
+                    Predicate::HasStack => context.has_stack(name_value(value)?),
                 };
                 render_nodes(
                     if matches { yes } else { no },
@@ -792,6 +894,31 @@ fn render_nodes<'a>(
                     && let Some(default) = default
                 {
                     echo(output, value(default, data, bindings), true);
+                }
+            }
+            Node::Stack(expression, default) => {
+                let name = name_value(value(expression, data, bindings))?;
+                if !context.stack(name, output)
+                    && let Some(default) = default
+                {
+                    echo(output, value(default, data, bindings), false);
+                }
+            }
+            Node::StackCapture(expression, nodes, prepend) => {
+                let name = name_value(value(expression, data, bindings))?.to_owned();
+                let mut content = String::new();
+                render_nodes(nodes, data, bindings, &mut content, context)?;
+                context.add_to_stack(name, content, *prepend);
+            }
+            Node::Once(id, nodes) => {
+                let (id, generated) = match id {
+                    OnceId::Generated(id) => (id.as_str(), true),
+                    OnceId::Explicit(expression) => {
+                        (name_value(value(expression, data, bindings))?, false)
+                    }
+                };
+                if context.first_render_of(id, generated) {
+                    render_nodes(nodes, data, bindings, output, context)?;
                 }
             }
             Node::Include(expression) | Node::IncludeIf(expression) => {

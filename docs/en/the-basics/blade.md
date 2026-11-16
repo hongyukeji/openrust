@@ -92,3 +92,19 @@ Place the child template in `resources/views/dashboard.blade.html` and return `v
 </x-notice>
 @endsection
 ```
+
+## Stacks {#stacks}
+
+Use `@push` or `@prepend` to collect markup during rendering. A layout can display it with `@stack`. `@hasStack` can conditionally render the surrounding markup.
+
+```html
+@pushOnce('scripts', 'dashboard')
+<script src="/dashboard.js" defer></script>
+@endPushOnce
+
+@hasStack('scripts')
+    @stack('scripts')
+@endif
+```
+
+Use `@once` for content that should render only once per view tree. `@pushOnce` and `@prependOnce` also accept an optional ID shared across templates.

@@ -92,3 +92,19 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 </x-notice>
 @endsection
 ```
+
+## 栈 {#stacks}
+
+用 `@push` 或 `@prepend` 收集渲染片段，再由布局通过 `@stack` 输出。`@hasStack` 可以根据栈是否有内容决定是否输出外围标记。
+
+```html
+@pushOnce('scripts', 'dashboard')
+<script src="/dashboard.js" defer></script>
+@endPushOnce
+
+@hasStack('scripts')
+    @stack('scripts')
+@endif
+```
+
+用 `@once` 在同一渲染树中只输出一次内容。`@pushOnce` 和 `@prependOnce` 也接受可跨模板共用的可选标识。
