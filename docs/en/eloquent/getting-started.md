@@ -105,6 +105,10 @@ async fn first_model<M: Model>() -> DatabaseResult<Option<M>> {
 }
 ```
 
+### Chunking Results {#chunking-results}
+
+On an Eloquent query, `chunk(count, callback)` supplies a model collection for each page. If you provided no ordering, Eloquent orders by the primary key. Each batch runs model retrieval events, eager loads and the model collection factory before the callback. See the [query builder’s chunking rules](../database/queries.md#chunking-results).
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.

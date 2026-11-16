@@ -26,6 +26,10 @@ async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
 
 Inside a transaction, exhaust the cursor before issuing another statement or committing. Dropping it while the statement is in flight interrupts the transaction and dropping the transaction rolls back its work.
 
+### Chunking Results {#chunking-results}
+
+Call `chunk(count, callback)` on an ordered query. The async callback receives a nonempty batch and a page number starting at 1. Return `Ok(false)` to stop or propagate an error with `Err`. An existing offset skips rows at the start and a limit caps the total. These pages use offsets, so changing which rows match while iterating can skip or repeat rows.
+
 ## Select Statements
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.

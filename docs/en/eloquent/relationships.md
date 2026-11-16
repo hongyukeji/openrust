@@ -1259,6 +1259,24 @@ async fn first_target<P: Model>(
 }
 ```
 
+### Chunking Results {#chunking-results}
+
+Call `chunk(parent, count, callback)` on a direct child, through or many-to-many relationship. Each batch preserves the relation constraints and the configured order. For many-to-many relationships, models supplied to the callback already have their Pivot. The callback follows the [Eloquent chunking rules](getting-started.md#chunking-results).
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn process_children<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<bool> {
+    children.chunk(parent, 200, |models, page| async move {
+        println!("{}: {}", page, models.len());
+        Ok(true)
+    }).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

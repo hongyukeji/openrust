@@ -180,6 +180,19 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.makeMany(parent, records).await
     }
 
+    /// Reads this parent's related models in ordered batches.
+    pub async fn chunk<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.0.chunk(parent, count, callback).await
+    }
+
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         self.0.cursor(parent)
     }

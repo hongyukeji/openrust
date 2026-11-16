@@ -130,6 +130,19 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.upsert(parent, rows, unique_by, update).await
     }
 
+    /// Reads this parent's related models in ordered batches.
+    pub async fn chunk<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.0.chunk(parent, count, callback).await
+    }
+
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         self.0.cursor(parent)
     }

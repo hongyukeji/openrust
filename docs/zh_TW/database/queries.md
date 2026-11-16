@@ -26,6 +26,10 @@ async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
 
 交易中應先讀完遊標，再執行下一條陳述式或提交。陳述式尚未執行完畢時捨棄遊標會中斷交易，捨棄該交易會回滾。
 
+### 分批讀取結果 {#chunking-results}
+
+在已排序的查詢上呼叫 `chunk(count, callback)`。非同步回呼收到非空批次和從 1 開始的頁碼。回傳 `Ok(false)` 提前停止，回傳 `Err` 傳遞錯誤。既有偏移量用於跳過開頭的列，既有限制用於控制總列數。分批透過偏移量翻頁，走訪期間修改比對條件涉及的列可能導致漏讀或重複讀取。
+
 ## SELECT 陳述式
 
 用 `select` 指定傳回欄位，用 `addSelect` 附加欄位。欄名支援 `as` 別名。`distinct()` 去除重複資料列。語法編譯器引用識別字並套用連線的資料表前綴。用 `selectRaw` 或 `DB::raw` 明確傳入受信任的運算式。值個別繫結，識別字從應用程式預先定義的名稱中選擇。

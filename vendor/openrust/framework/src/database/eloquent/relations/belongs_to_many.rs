@@ -1714,6 +1714,29 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
+    /// Reads this parent's related models in ordered batches.
+    pub async fn chunk<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let names = self.pivot_names();
+        let columns = self.aliased_pivot_columns(&names);
+        self.pagination_query(parent, &["*"], &columns)?
+            .chunk_hydrated(
+                count,
+                |models, connection| {
+                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+                },
+                callback,
+            )
+            .await
+    }
+
     /// Streams related models with their intermediate-table attributes.
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {

@@ -255,6 +255,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/cursor", cursor_page)?;
     Route::get("/model-cursor", model_cursor_page)?;
     Route::get("/relationship-cursor", relationship_cursor_page)?;
+    Route::get("/relationship-chunk", relationship_chunk_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1340,6 +1341,160 @@ fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, 
     })
 }
 
+fn relationship_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::database::DatabaseError;
+        use std::future::ready;
+
+        async fn batches() -> DatabaseResult<Json> {
+            let parent = Article::query()?.findOrFail(1).await?;
+            let comments =
+                MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                    .constrain(|query| {
+                        query.orderBy("id", "desc").offset(1).limit(3).with(
+                            "article",
+                            BelongsTo::<Comment, Article>::new("article_id", "id"),
+                        )
+                    });
+            let mut chunks = Vec::new();
+            assert!(
+                comments
+                    .chunk(&parent, 2, |batch, page| {
+                        assert!(batch.iter().all(|model| {
+                            model
+                                .getRelation::<Option<Arc<Article>>>("article")
+                                .and_then(Option::as_ref)
+                                .is_some_and(|owner| id(owner.getKey()) == 1)
+                        }));
+                        chunks.push(json!([
+                            page,
+                            batch
+                                .iter()
+                                .map(|model| id(model.getKey()))
+                                .collect::<Vec<_>>()
+                        ]));
+                        ready(Ok(true))
+                    })
+                    .await?
+            );
+
+            let direct = HasMany::<Article, StreamedComment>::new("id", "article_id");
+            assert!(
+                !direct
+                    .chunk(&parent, 2, |batch, page| {
+                        assert_eq!(page, 1);
+                        assert_eq!(
+                            batch
+                                .iter()
+                                .map(|model| id(model.getKey()))
+                                .collect::<Vec<_>>(),
+                            [11, 12]
+                        );
+                        ready(Ok(false))
+                    })
+                    .await?
+            );
+            assert!(matches!(
+                direct.chunk(&parent, 0, |_, _| unreachable_future()).await,
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))
+            ));
+            assert!(matches!(
+                direct
+                    .chunk(&parent, 1, |_, _| ready(Err(DatabaseError::InvalidQuery(
+                        "callback failed"
+                    ))))
+                    .await,
+                Err(DatabaseError::InvalidQuery("callback failed"))
+            ));
+
+            let mut reactions = Vec::new();
+            REACTIONS
+                .chunk(&parent, 2, |models, page| {
+                    reactions.push(json!([
+                        page,
+                        models
+                            .iter()
+                            .map(|model| id(model.getKey()))
+                            .collect::<Vec<_>>()
+                    ]));
+                    ready(Ok(true))
+                })
+                .await?;
+
+            let labels = BelongsToMany::<Article, KeyedLabel>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+            )
+            .wherePivot("subject_type", "=", "article")
+            .withPivot(["label"])
+            .orderByPivot("label_id", "asc");
+            let mut pivots = Vec::new();
+            labels
+                .chunk(&parent, 2, |models, page| {
+                    let color: Vec<_> = models
+                        .iter()
+                        .map(|model| {
+                            assert!(model.getAttribute("laravel_pivot_0").is_none());
+                            let key = format!("pivot-{}", id(model.getKey()));
+                            assert!(models.getByKey(key).is_some());
+                            let pivot = model.getRelation::<Pivot>("pivot").unwrap();
+                            let Some(Value::Text(color)) = pivot.getAttribute("label") else {
+                                panic!("missing pivot label");
+                            };
+                            color.clone()
+                        })
+                        .collect();
+                    pivots.push(json!([page, color]));
+                    ready(Ok(true))
+                })
+                .await?;
+
+            let connection = DB::connection(None)?;
+            let mut raw = Vec::new();
+            connection
+                .table("pagination_articles")
+                .orderBy("id", "asc")
+                .offset(2)
+                .limit(3)
+                .chunk(2, |rows, page| {
+                    raw.push(json!([
+                        page,
+                        rows.iter().map(|row| id(row.get("id"))).collect::<Vec<_>>()
+                    ]));
+                    ready(Ok(true))
+                })
+                .await?;
+            assert!(matches!(
+                connection
+                    .table("pagination_articles")
+                    .chunk(2, |_, _| unreachable_future())
+                    .await,
+                Err(DatabaseError::InvalidQuery(
+                    "chunk requires an order by clause"
+                ))
+            ));
+            assert!(
+                connection
+                    .table("pagination_articles")
+                    .orderBy("id", "asc")
+                    .limit(0)
+                    .chunk(2, |_, _| unreachable_future())
+                    .await?
+            );
+            Ok(json!({"comments": chunks, "reactions": reactions, "pivots": pivots, "raw": raw}))
+        }
+
+        fn unreachable_future() -> std::future::Ready<DatabaseResult<bool>> {
+            panic!("empty batch invoked the callback")
+        }
+
+        Response::json(StatusCode::OK, batches().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -1912,6 +2067,14 @@ async fn verify(config: Json) -> DatabaseResult<()> {
             "through": [101, 102, 103], "pivot": ["red", "blue", "green"],
         })
     );
+    let chunks = request(address, "/api/relationship-chunk").await;
+    assert_eq!(chunks["comments"], json!([[1, [13, 12]], [2, [11]]]));
+    assert_eq!(chunks["reactions"], json!([[1, [101, 102]], [2, [103]]]));
+    assert_eq!(
+        chunks["pivots"],
+        json!([[1, ["red", "blue"]], [2, ["green"]]])
+    );
+    assert_eq!(chunks["raw"], json!([[1, [3, 4]], [2, [5]]]));
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

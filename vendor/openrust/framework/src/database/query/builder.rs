@@ -297,6 +297,66 @@ impl<'connection> Builder<'connection> {
         self.compile(None).map(|(_, bindings)| bindings)
     }
 
+    /// Fetches ordered pages and calls the callback with each nonempty page and its number.
+    pub async fn chunk<Fut>(
+        mut self,
+        count: u64,
+        mut callback: impl FnMut(Vec<Row>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let mut pages = self.chunk_pages(count);
+        let mut page = 1;
+        while let Some(rows) = pages.try_next().await? {
+            if !callback(rows, page).await? {
+                return Ok(false);
+            }
+            page += 1;
+        }
+        Ok(true)
+    }
+
+    pub(in crate::database) fn chunk_pages(&mut self, count: u64) -> DatabaseCursor<'_, Vec<Row>> {
+        Box::pin(async_stream::try_stream! {
+            if count == 0 {
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))?;
+            }
+            if self.active_orders().is_empty() {
+                Err(DatabaseError::InvalidQuery("chunk requires an order by clause"))?;
+            }
+            let (mut offset, mut remaining) = if self.unions.is_empty() {
+                (self.offset.unwrap_or(0), self.limit.unwrap_or(u64::MAX))
+            } else {
+                (self.union_offset.unwrap_or(0), self.union_limit.unwrap_or(u64::MAX))
+            };
+            while remaining != 0 {
+                let size = count.min(remaining);
+                if self.unions.is_empty() {
+                    self.limit = Some(size);
+                    self.offset = Some(offset);
+                } else {
+                    self.union_limit = Some(size);
+                    self.union_offset = Some(offset);
+                }
+                let (sql, bindings) = self.compile(None)?;
+                let rows = self.execute(&sql, &bindings).await?;
+                let length = rows.len() as u64;
+                if length == 0 {
+                    break;
+                }
+                yield rows;
+                if length < size {
+                    break;
+                }
+                remaining -= length;
+                if remaining != 0 {
+                    offset = offset.checked_add(length).ok_or(DatabaseError::InvalidQuery("chunk offset overflow"))?;
+                }
+            }
+        })
+    }
+
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
         let partition = self.group_limit.take();
         let (sql, bindings) = self.compile_select(partition.as_deref())?;

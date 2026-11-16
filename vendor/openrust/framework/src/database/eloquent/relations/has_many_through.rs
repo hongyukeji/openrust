@@ -160,6 +160,21 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
+    /// Reads this parent's related models in ordered batches.
+    pub async fn chunk<Fut>(
+        &self,
+        parent: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.pagination_query(parent, &["*"])?
+            .chunk(count, callback)
+            .await
+    }
+
     /// Streams related models across the constrained intermediate join.
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {

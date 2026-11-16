@@ -1578,6 +1578,45 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
+    /// Fetches model collections in separate queries, stopping when the callback returns false.
+    pub async fn chunk<Fut>(
+        self,
+        count: u64,
+        callback: impl FnMut(Collection<M>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        self.chunk_hydrated(count, |_, _| Ok(()), callback).await
+    }
+
+    pub(super) async fn chunk_hydrated<Fut>(
+        self,
+        count: u64,
+        mut hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()>,
+        mut callback: impl FnMut(Collection<M>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        let key = self.qualifyColumn(M::metadata().primary_key);
+        let (query, hydration) = self.hydration_query()?;
+        let mut query = query.order_for_pagination(&key);
+        let mut pages = query.chunk_pages(count);
+        let mut page = 1;
+        while let Some(rows) = pages.try_next().await? {
+            let mut models = hydration.rows(rows);
+            hydrate(&mut models, &hydration.connection)?;
+            super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
+            load_eager(hydration.eager.clone(), &mut models).await?;
+            if !callback(M::newCollection(models), page).await? {
+                return Ok(false);
+            }
+            page += 1;
+        }
+        Ok(true)
+    }
+
     /// Hydrates models as the query yields rows. Eager relations require a batched query.
     pub fn cursor(self) -> DatabaseCursor<'static, M> {
         self.cursor_hydrated(|_, _| Ok(()))
