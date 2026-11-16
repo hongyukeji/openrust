@@ -6,7 +6,7 @@
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
 
-在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。新发布的迁移需要在 `database/migrations/mod.rs` 注册并重新编译后执行。
+在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
 
 ## 令牌表迁移 {#token-table-migration}
 

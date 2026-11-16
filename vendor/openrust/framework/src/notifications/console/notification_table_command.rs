@@ -45,7 +45,7 @@ impl Command for NotificationTableCommand {
             ));
             output
                 .stdout
-                .push_str("Register the migration in database/migrations/mod.rs and rebuild.\n");
+                .push_str("Rebuild the application to include the migration.\n");
             Ok(0)
         })
     }

@@ -367,9 +367,10 @@ fn migration_path(root: &Path, path: &str, realpath: bool) -> Result<PathBuf, Co
 }
 
 fn make(root: &Path, matches: &clap::ArgMatches, output: &mut Output) -> Result<i32, ConsoleError> {
+    let default_directory = root.join("database/migrations");
     let path = match matches.get_one::<String>("path") {
         Some(path) => migration_path(root, path, matches.get_flag("realpath"))?,
-        None => root.join("database/migrations"),
+        None => default_directory.clone(),
     };
     let name = matches
         .get_one::<String>("name")
@@ -379,6 +380,7 @@ fn make(root: &Path, matches: &clap::ArgMatches, output: &mut Output) -> Result<
         .filter(|table| !table.is_empty())
         .or_else(|| matches.get_one::<String>("table"))
         .map(String::as_str);
+    let auto_discovered = path == default_directory;
     let path = MigrationCreator
         .create_from_stubs(name, &path, table, create.is_some(), None, Some(root))
         .map_err(console_error)?;
@@ -391,9 +393,12 @@ fn make(root: &Path, matches: &clap::ArgMatches, output: &mut Output) -> Result<
         "Migration [{}] created successfully.",
         display.display()
     ));
-    output
-        .stdout
-        .push_str("Register the migration in database/migrations/mod.rs and rebuild.\n");
+    let next_step = if auto_discovered {
+        "Rebuild the application to include the migration.\n"
+    } else {
+        "Add the migration from this custom directory to your application registry and rebuild.\n"
+    };
+    output.stdout.push_str(next_step);
     Ok(0)
 }
 

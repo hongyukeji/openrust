@@ -8,7 +8,7 @@
 ./artisan make:migration create_flights_table
 ```
 
-在 `database/migrations/mod.rs` 中注册生成的模块和 `MigrationEntry`，然后重新构建。注册时填写的路径用于生成账本名称，也可以用 `--path` 选择该迁移。 应用在 `bootstrap/app.rs` 中通过 `withMigrations` 接入这份清单。
+OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。手写文件和 `make:migration` 生成的文件都使用 `YYYY_MM_DD_HHMMSS_name.rs` 命名，并提供实现 `Migration` 的 `Definition`。重新构建后，`bootstrap/app.rs` 的 `withMigrations` 会接入自动生成的清单。文件名决定迁移账本名称，`--path` 从已编译的迁移中选择。生成到自定义目录的迁移需另行接入应用。
 
 ## 迁移结构
 

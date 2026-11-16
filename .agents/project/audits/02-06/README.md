@@ -21,3 +21,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 ## Bootstrap 注册复验
 
 应用启动通过 `bootstrap/app.rs` 的 `withMigrations(database::migrations::ENTRIES)` 登记编译期迁移清单。实际 Artisan 子进程在独立 MySQL 8.4.13 上通过 `artisan_migrations_use_a_real_mysql_ledger`，覆盖迁移、状态、预演及回滚。三语文档构建和 12 项浏览器组合通过。
+
+## 编译时自动发现复验
+
+根应用的 `build.rs` 从 `database/migrations/` 的直接子文件生成模块和 `ENTRIES`，原有 `withMigrations` 接入生成结果。以 `YYYY_MM_DD_HHMMSS_name.rs` 为文件约定，每个文件提供实现 `Migration` 的 `Definition`。构建监听目录变化。账本名称、`--path` 和内置 Sanctum 迁移的功能开关沿用现有契约。
+
+在隔离副本和 MySQL 8.4.13 上先构建初始二进制，再加入手写迁移并用实际 `make:migration` 生成第二份文件。原二进制未列出两份迁移。重建后 `migrate:status` 均显示 Pending，实际 `migrate --force` 按名称顺序建表入账，`migrate:rollback --step=2 --force` 逆序删除两张表及账本记录。全程未编辑迁移注册清单。移除两个文件并重建后，状态列表也移除了两个条目。
+
+默认构建未执行 Sanctum 迁移，启用 `--features sanctum` 后 MySQL 账本回归通过。另核对 `make:notifications-table` 和自定义目录的 `make:migration --path` 提示。Rust 1.94.0 严格 Clippy、改动文件格式、三语站点构建和 12 项浏览器检查通过。全仓格式检查仍检出既有 Sanctum 测试格式差异。

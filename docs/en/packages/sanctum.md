@@ -6,7 +6,7 @@ Run `./artisan install:api` to create and register `routes/api.rs` and enable Sa
 
 Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
 
-Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dontUpdateMigrationDates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Add a newly published migration to `database/migrations/mod.rs` and rebuild before running it.
+Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dontUpdateMigrationDates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Rebuild the application after publishing a migration to `database/migrations/` to include it in the compiled list.
 
 ## Token table migration {#token-table-migration}
 

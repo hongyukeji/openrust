@@ -6,7 +6,7 @@
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 發佈 Rust 資源。預設應用程式原始碼已包含這些檔案。
 
-在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。新發佈的遷移需要在 `database/migrations/mod.rs` 註冊並重新編譯後執行。
+在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。遷移發佈到 `database/migrations/` 後，重新建置即可將其納入編譯清單。
 
 ## 權杖資料表遷移 {#token-table-migration}
 
