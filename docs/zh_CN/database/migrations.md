@@ -243,6 +243,37 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### 列组与删除别名 {#column-groups-and-drop-aliases}
+
+`morphs()` 和 `nullableMorphs()` 使用应用配置的多态键类型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允许空值的变体显式选定 ID 类型。需要指定索引名或 MySQL 列位置时，可向类型专用方法、`morphsWith` 或 `nullableMorphs` 传入对应参数。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_attachments() -> DatabaseResult<()> {
+    Schema::create("attachments", |table| {
+        table.id();
+        table.nullableMorphs("attachable", Some("attachments_attachable"), None);
+        table.rememberToken();
+        table.nullableTimestamps();
+    })
+    .await
+}
+
+async fn remove_attachment_metadata() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.dropMorphs("attachable", Some("attachments_attachable"));
+        table.dropRememberToken();
+        table.dropTimestamps();
+    })
+    .await
+}
+```
+
+`dropMorphs` 先删复合索引，再删两列。创建时指定索引名的，删除时传入同一名称。`dropConstrainedForeignId` 先删外键，再删列。`dropSoftDeletes(None)` 和 `dropSoftDeletesTz(None)` 删除默认 `deleted_at`，传 `Some(name)` 可指定列名。
+
+在 `Schema::table` 中用 `table.after("title", |table| { … })`，可把多列按声明顺序放到 MySQL 已有列之后。SQLite 会返回方言不支持错误。
+
 #### 默认值表达式 {#default-expressions}
 
 通过 `DB::raw()` 或 `Expression::new()` 把可信的 SQL 表达式传给 `default()`。插入数据时省略该列，数据库会求值。普通字符串会作为字面量默认值。

@@ -292,14 +292,11 @@ impl Grammar {
                         "SQLite primary key drop requires a table rebuild",
                     ));
                 }
-                Command::DropIndex(_, name) if self.mysql() => sql.push(format!(
-                    "alter table {qualified} drop index {}",
-                    self.identifier(&name)?
-                )),
-                Command::DropIndex(_, name) => sql.push(format!(
-                    "drop index {}",
-                    self.qualified_index(table, &name)?
-                )),
+                Command::DropIndex(_, name) => sql.push(self.drop_index(table, &name)?),
+                Command::DropIndexColumns(columns) => {
+                    let name = self.conventional_name(table, &columns, "index");
+                    sql.push(self.drop_index(table, &name)?);
+                }
                 Command::DropForeign(name) if self.mysql() => sql.push(format!(
                     "alter table {qualified} drop foreign key {}",
                     self.identifier(&name)?
@@ -320,6 +317,18 @@ impl Grammar {
         }
         sql.extend(starting_values);
         Ok(sql)
+    }
+
+    fn drop_index(&self, table: &Table, name: &str) -> DatabaseResult<String> {
+        if self.mysql() {
+            Ok(format!(
+                "alter table {} drop index {}",
+                self.qualified(table)?,
+                self.identifier(name)?
+            ))
+        } else {
+            Ok(format!("drop index {}", self.qualified_index(table, name)?))
+        }
     }
 
     fn column_indexes(

@@ -12,6 +12,7 @@ pub(super) enum Command {
     DropColumn(String),
     RenameIndex(String, String),
     DropIndex(IndexType, String),
+    DropIndexColumns(Vec<String>),
     DropForeign(String),
     DropForeignColumns(Vec<String>),
 }
@@ -30,6 +31,7 @@ pub struct Blueprint {
     pub(super) temporary: bool,
     pub(super) table_options: TableOptions,
     pub(super) morph_key_type: MorphKeyType,
+    pub(super) after: Option<String>,
 }
 
 macro_rules! column_types {
@@ -45,8 +47,12 @@ macro_rules! column_types {
 #[allow(non_snake_case, reason = "Matches Laravel's Blueprint API")]
 impl Blueprint {
     fn column(&mut self, name: &str, kind: ColumnType) -> &mut ColumnDefinition {
-        self.commands
-            .push(Command::Column(ColumnDefinition::new(name, kind)));
+        let mut column = ColumnDefinition::new(name, kind);
+        if let Some(after) = &mut self.after {
+            column.after(after);
+            *after = name.to_owned();
+        }
+        self.commands.push(Command::Column(column));
         let Some(Command::Column(column)) = self.commands.last_mut() else {
             unreachable!("column was just appended")
         };
@@ -170,16 +176,79 @@ impl Blueprint {
         self.char(name, 26)
     }
 
+    /// Places the callback's columns in order after an existing MySQL column.
+    pub fn after(&mut self, column: &str, configure: impl FnOnce(&mut Self)) {
+        let prior = self.after.replace(column.to_owned());
+        configure(self);
+        self.after = prior;
+    }
+
     pub fn morphs(&mut self, name: &str) {
+        self.morphsWith(name, None, None);
+    }
+
+    pub fn morphsWith(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, self.morph_key_type, false, index, after);
+    }
+
+    pub fn nullableMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, self.morph_key_type, true, index, after);
+    }
+
+    pub fn numericMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Int, false, index, after);
+    }
+
+    pub fn nullableNumericMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Int, true, index, after);
+    }
+
+    pub fn uuidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Uuid, false, index, after);
+    }
+
+    pub fn nullableUuidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Uuid, true, index, after);
+    }
+
+    pub fn ulidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Ulid, false, index, after);
+    }
+
+    pub fn nullableUlidMorphs(&mut self, name: &str, index: Option<&str>, after: Option<&str>) {
+        self.add_morphs(name, MorphKeyType::Ulid, true, index, after);
+    }
+
+    fn add_morphs(
+        &mut self,
+        name: &str,
+        key_type: MorphKeyType,
+        nullable: bool,
+        index: Option<&str>,
+        after: Option<&str>,
+    ) {
         let kind = format!("{name}_type");
         let id = format!("{name}_id");
-        self.string(&kind, 255);
-        match self.morph_key_type {
+        let type_column = self.string(&kind, 255);
+        if nullable {
+            type_column.nullable();
+        }
+        if let Some(after) = after {
+            type_column.after(after);
+        }
+
+        let id_column = match key_type {
             MorphKeyType::Int => self.unsignedBigInteger(&id),
             MorphKeyType::Uuid => self.uuid(&id),
             MorphKeyType::Ulid => self.ulid(&id),
         };
-        self.index(&[&kind, &id], None);
+        if nullable {
+            id_column.nullable();
+        }
+        if after.is_some() {
+            id_column.after(&kind);
+        }
+        self.index(&[&kind, &id], index);
     }
 
     pub fn decimal(&mut self, name: &str, total: u8, places: u8) -> &mut ColumnDefinition {
@@ -225,6 +294,18 @@ impl Blueprint {
 
     pub fn softDeletes(&mut self) -> &mut ColumnDefinition {
         self.timestamp("deleted_at", 0).nullable()
+    }
+
+    pub fn rememberToken(&mut self) -> &mut ColumnDefinition {
+        self.string("remember_token", 100).nullable()
+    }
+
+    pub fn nullableTimestamps(&mut self) {
+        self.timestamps();
+    }
+
+    pub fn nullableTimestampsTz(&mut self) {
+        self.timestampsTz();
     }
 
     pub fn foreignId(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
@@ -307,6 +388,43 @@ impl Blueprint {
                 .iter()
                 .map(|column| Command::DropColumn((*column).into())),
         );
+    }
+
+    pub fn dropMorphs(&mut self, name: &str, index: Option<&str>) {
+        let kind = format!("{name}_type");
+        let id = format!("{name}_id");
+        if let Some(index) = index {
+            self.dropIndex(index);
+        } else {
+            self.commands
+                .push(Command::DropIndexColumns(vec![kind.clone(), id.clone()]));
+        }
+        self.dropColumn(&[&kind, &id]);
+    }
+
+    pub fn dropTimestamps(&mut self) {
+        self.dropColumn(&["created_at", "updated_at"]);
+    }
+
+    pub fn dropTimestampsTz(&mut self) {
+        self.dropTimestamps();
+    }
+
+    pub fn dropSoftDeletes(&mut self, column: Option<&str>) {
+        self.dropColumn(&[column.unwrap_or("deleted_at")]);
+    }
+
+    pub fn dropSoftDeletesTz(&mut self, column: Option<&str>) {
+        self.dropSoftDeletes(column);
+    }
+
+    pub fn dropRememberToken(&mut self) {
+        self.dropColumn(&["remember_token"]);
+    }
+
+    pub fn dropConstrainedForeignId(&mut self, column: &str) {
+        self.dropForeignColumns(&[column]);
+        self.dropColumn(&[column]);
     }
 
     pub fn renameIndex(&mut self, from: &str, to: &str) {

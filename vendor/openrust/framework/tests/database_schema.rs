@@ -2248,3 +2248,222 @@ async fn mysql_evaluates_default_expressions_in_create_and_change() {
 async fn sqlite_evaluates_default_expressions_after_rebuilding_the_table() {
     verify_default_expressions(connection(json!({"driver":"sqlite","database":":memory:"}))).await;
 }
+
+async fn verify_column_groups(db: Connection, mysql: bool) {
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("grouped_columns").await.unwrap();
+    schema.dropIfExists("group_owners").await.unwrap();
+    schema
+        .create("group_owners", |table| {
+            table.id();
+        })
+        .await
+        .unwrap();
+    schema
+        .create("grouped_columns", |table| {
+            table.id();
+            table.string("title", 80);
+            table.nullableMorphs("owner", None, None);
+            table.nullableUuidMorphs("image", Some("grouped_image_lookup"), None);
+            table.ulidMorphs("parent", None, None);
+            table
+                .foreignId("reviewer_id")
+                .nullable()
+                .constrainedOn("group_owners", "id", None);
+            table.rememberToken();
+            table.nullableTimestampsTz();
+            table.softDeletesTz();
+        })
+        .await
+        .unwrap();
+    let columns = schema.getColumns("grouped_columns").await.unwrap();
+    for name in [
+        "owner_id",
+        "owner_type",
+        "image_id",
+        "image_type",
+        "remember_token",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    ] {
+        assert!(
+            columns
+                .iter()
+                .any(|column| column.name == name && column.nullable),
+            "{name}"
+        );
+    }
+    for (name, mysql_type) in [
+        ("image_id", "char(36)"),
+        ("parent_id", "char(26)"),
+        ("remember_token", "varchar(100)"),
+    ] {
+        let expected = if mysql { mysql_type } else { "varchar" };
+        assert!(
+            columns.iter().any(
+                |column| column.name == name && column.full_type.eq_ignore_ascii_case(expected)
+            ),
+            "{name}"
+        );
+    }
+    assert!(
+        columns
+            .iter()
+            .any(|column| column.name == "parent_id" && !column.nullable)
+    );
+    assert!(
+        schema
+            .hasIndex("grouped_columns", "grouped_image_lookup")
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .hasIndex(
+                "grouped_columns",
+                "app_grouped_columns_owner_type_owner_id_index"
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .getForeignKeys("grouped_columns")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    db.insert(
+        "insert into app_grouped_columns (title, parent_type, parent_id) values (?, ?, ?)",
+        &[
+            "saved".into(),
+            "post".into(),
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+        ],
+    )
+    .await
+    .unwrap();
+
+    if mysql {
+        schema
+            .table("grouped_columns", |table| {
+                table.after("title", |table| {
+                    table.string("first_extra", 40).nullable();
+                    table.string("second_extra", 40).nullable();
+                });
+                table.nullableNumericMorphs("contact", None, Some("second_extra"));
+                table.integer("at_end").nullable();
+            })
+            .await
+            .unwrap();
+        let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+        assert_eq!(
+            &listing[..6],
+            [
+                "id",
+                "title",
+                "first_extra",
+                "second_extra",
+                "contact_type",
+                "contact_id"
+            ]
+        );
+        assert_eq!(listing.last().map(String::as_str), Some("at_end"));
+    } else {
+        assert!(matches!(
+            schema
+                .table("grouped_columns", |table| {
+                    table.after("title", |table| {
+                        table.string("first_extra", 40).nullable();
+                    });
+                })
+                .await,
+            Err(DatabaseError::UnsupportedSchema(_))
+        ));
+        assert!(
+            !schema
+                .hasColumn("grouped_columns", "first_extra")
+                .await
+                .unwrap()
+        );
+    }
+
+    schema
+        .table("grouped_columns", |table| {
+            table.dropMorphs("owner", None);
+            table.dropMorphs("image", Some("grouped_image_lookup"));
+            table.dropConstrainedForeignId("reviewer_id");
+            table.dropRememberToken();
+            table.dropTimestampsTz();
+            table.dropSoftDeletesTz(None);
+        })
+        .await
+        .unwrap();
+    let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+    for removed in [
+        "owner_type",
+        "owner_id",
+        "image_type",
+        "image_id",
+        "reviewer_id",
+        "remember_token",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+    ] {
+        assert!(!listing.iter().any(|column| column == removed), "{removed}");
+    }
+    assert!(
+        !schema
+            .hasIndex("grouped_columns", "grouped_image_lookup")
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasIndex(
+                "grouped_columns",
+                "app_grouped_columns_owner_type_owner_id_index"
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .getForeignKeys("grouped_columns")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        db.table("grouped_columns").value("title").await.unwrap(),
+        "saved".into()
+    );
+    schema.drop("grouped_columns").await.unwrap();
+    schema.drop("group_owners").await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_compiles_column_groups_and_migration_aliases() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_column_groups(
+        connection(json!({"url":url,"prefix":"app_","prefix_indexes":true})),
+        true,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn sqlite_drops_column_groups_indexes_and_foreign_constraints() {
+    verify_column_groups(
+        connection(
+            json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),
+        ),
+        false,
+    )
+    .await;
+}

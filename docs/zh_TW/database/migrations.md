@@ -243,6 +243,37 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 參照 `authors.id`。需要明確指定參照資料表和欄位時，使用 `constrainedOn`。先設定欄位修飾詞，再定義外鍵，最後設定 `cascadeOnDelete()` 等參照動作。用 `getForeignKeys` 檢視約束。SQLite 目錄提供約束欄位，`dropForeignColumns` 可依這些欄位刪除資料表層級的外鍵。
 
+#### 欄位群組與刪除別名 {#column-groups-and-drop-aliases}
+
+`morphs()` 和 `nullableMorphs()` 使用應用程式設定的多型鍵類型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphsWith` 或 `nullableMorphs` 傳入對應參數。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_attachments() -> DatabaseResult<()> {
+    Schema::create("attachments", |table| {
+        table.id();
+        table.nullableMorphs("attachable", Some("attachments_attachable"), None);
+        table.rememberToken();
+        table.nullableTimestamps();
+    })
+    .await
+}
+
+async fn remove_attachment_metadata() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.dropMorphs("attachable", Some("attachments_attachable"));
+        table.dropRememberToken();
+        table.dropTimestamps();
+    })
+    .await
+}
+```
+
+`dropMorphs` 先刪除複合索引，再刪除兩個欄位。建立時指定索引名稱的，刪除時傳入相同名稱。`dropConstrainedForeignId` 先刪除外鍵，再刪除欄位。`dropSoftDeletes(None)` 和 `dropSoftDeletesTz(None)` 刪除預設 `deleted_at`，傳入 `Some(name)` 可指定欄位名稱。
+
+在 `Schema::table` 中使用 `table.after("title", |table| { … })`，可依宣告順序把多個欄位放在 MySQL 現有欄位之後。SQLite 會回傳方言不支援錯誤。
+
 #### 預設值運算式 {#default-expressions}
 
 透過 `DB::raw()` 或 `Expression::new()` 把可信的 SQL 運算式傳給 `default()`。插入資料時省略該欄位，資料庫就會計算運算式。一般字串會作為字面值預設值。

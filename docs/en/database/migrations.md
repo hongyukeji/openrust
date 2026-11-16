@@ -243,6 +243,37 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
 
+#### Column Groups and Drop Aliases {#column-groups-and-drop-aliases}
+
+`morphs()` and `nullableMorphs()` use the application’s configured morph key type. Use `numericMorphs`, `uuidMorphs`, `ulidMorphs`, or their nullable variants to select the ID type explicitly. For an explicit index name or MySQL column position, pass those options to the typed functions, `morphsWith`, or `nullableMorphs`.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_attachments() -> DatabaseResult<()> {
+    Schema::create("attachments", |table| {
+        table.id();
+        table.nullableMorphs("attachable", Some("attachments_attachable"), None);
+        table.rememberToken();
+        table.nullableTimestamps();
+    })
+    .await
+}
+
+async fn remove_attachment_metadata() -> DatabaseResult<()> {
+    Schema::table("attachments", |table| {
+        table.dropMorphs("attachable", Some("attachments_attachable"));
+        table.dropRememberToken();
+        table.dropTimestamps();
+    })
+    .await
+}
+```
+
+`dropMorphs` drops the composite index before removing both columns. Pass the customized name if the index was named explicitly. `dropConstrainedForeignId` drops the foreign key and then the column. `dropSoftDeletes(None)` and `dropSoftDeletesTz(None)` remove the default `deleted_at` column, while `Some(name)` selects a different column.
+
+To add several columns in order after an existing MySQL column, use `table.after("title", |table| { … })` inside `Schema::table`. SQLite reports the positioning modifier as unsupported.
+
 #### Default Expressions {#default-expressions}
 
 Pass a trusted SQL expression to `default()` using `DB::raw()` or `Expression::new()`. The database evaluates the expression when an insert omits the column. Passing an ordinary string stores it as a literal default.

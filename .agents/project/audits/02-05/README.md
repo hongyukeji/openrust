@@ -96,3 +96,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 列和外键 ID 的 `default()` 都接受已有 `Value` 输入，也接受 `Expression::new()` 和 `DB::raw()`。Rust 用类型区分字面量和 SQL。DDL 拒绝带参数绑定、空或含 NUL 的表达式。表达式语法及驱动支持由数据库判断。
 - MySQL 8.4.13 和 SQLite 验证 JSON 数组、计算值与普通字符串的区别、外键 ID 的表达式入口、修改默认值后新旧行差异、目录信息和无效定义拒绝。83 项定向回归通过，1 个子进程夹具由父测试启动。
 - 三语共用示例分别通过实际 MySQL 和 SQLite Artisan 验证。原生 `main artisan inspire`、严格工作区 Clippy、变更文件格式、VitePress 构建及 18 项浏览器检查通过。全工作区格式仍有既有 Sanctum 测试断言排版差异，已核对文件与基线相同。
+
+## 列组与迁移别名
+
+对照固定 Laravel [Column Order](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-order)、[Available Command Aliases](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#available-command-aliases) 及 [Blueprint 多态列](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1469)。旧版 Schema 未找到对应列组或迁移别名。本批复用应用内的多态类型配置、现有列类型、索引命名及外键删除路径。
+
+- `Blueprint::after` 在 MySQL ALTER 中按声明顺序安排列。SQLite 沿用现有的列位置方言错误。多态列可跟随应用配置或显式选数字、UUID、ULID，支持可空列、命名索引以及 MySQL 位置。原 `morphs(name)` 简写保留，Rust 的额外参数由 `morphsWith` 和显式 `Option` 表达。
+- 新增 remember token、可空时间戳别名与对应删除入口。`dropMorphs` 先删除复合索引，再删两列。约定名称复用索引创建的前缀规则，也可提供显式名称。`dropConstrainedForeignId` 复用现有按列删外键机制，随后删列。
+- MySQL 8.4.13 和 SQLite 共 85 项定向回归。验证组内新增顺序、组外正常追加、可空多态和时间戳、两种索引命名、外键与列移除、数据保留及 SQLite 位置边界。1 个子进程夹具由父测试启动。三语共用例在两种驱动通过实际 Artisan 验证，原生 `main artisan inspire` 正常退出。
+- 严格工作区 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全工作区格式检查仍报既有 Sanctum 测试排版差异，文件已与本批基线逐字节核对。
