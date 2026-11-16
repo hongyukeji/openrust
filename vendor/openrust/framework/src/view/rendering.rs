@@ -16,13 +16,19 @@ pub(super) struct RenderContext<'a> {
     depth: usize,
     sections: HashMap<String, String>,
     layout: Option<String>,
-    slots: HashMap<String, String>,
+    slots: HashMap<String, RenderSlot>,
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
     pub(super) component_attributes: Option<ViewData>,
     pub(super) csrf_token: Option<Arc<str>>,
     pub(super) directives: Arc<Directives>,
     shared: Rc<RefCell<RenderState>>,
+}
+
+#[derive(Clone)]
+pub(super) struct RenderSlot {
+    pub html: String,
+    pub attributes: ViewData,
 }
 
 #[derive(Default)]
@@ -133,7 +139,17 @@ impl<'a> RenderContext<'a> {
     }
 
     pub(super) fn slot(&self, name: &str) -> Option<&str> {
-        self.slots.get(name).map(String::as_str)
+        self.slots.get(name).map(|slot| slot.html.as_str())
+    }
+
+    pub(super) fn attributes(&self, path: &[String]) -> Option<&ViewData> {
+        match path {
+            [name] if name == "attributes" => self.component_attributes.as_ref(),
+            [slot, name] if name == "attributes" => {
+                self.slots.get(slot).map(|slot| &slot.attributes)
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn has_stack(&self, name: &str) -> bool {
@@ -206,7 +222,7 @@ impl<'a> RenderContext<'a> {
         &self,
         name: &str,
         properties: &ViewData,
-        slots: HashMap<String, String>,
+        slots: HashMap<String, RenderSlot>,
     ) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;

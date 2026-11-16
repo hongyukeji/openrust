@@ -64,3 +64,9 @@
 - 对照固定 Laravel Factory 的 `renderEach`。使用现有命名视图渲染与局部数据隔离，逐条传入原始键、指定变量和应用共享值。空集合支持缺省空串、命名模板和 `raw|` 字面量。旧版 MiniJinja 可参考数据边界，沿用已有视图查找和请求隔离实现。
 - macOS ARM64、Rust 1.94.0。真实 HTTP 验证数组索引、对象键、应用数据隔离、默认转义及非法集合返回 500，8 项定向测试通过。隔离副本的工作区格式和严格 Clippy 通过，既有 Sanctum 格式差异仅在副本整理。
 - 实际 Artisan `view:cache` 预编译三语示例，`view:clear` 清理三个产物。三语 VitePress 构建通过。
+
+## 组件绑定、命名空间与插槽属性
+
+- 对照固定 [ComponentTagCompiler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/ComponentTagCompiler.php)。`:$property` 读取当前视图值，`::` 转为单冒号的客户端属性，包组件沿用既有命名空间查找和匿名索引优先级。插槽保存独立 HTML 与属性包，按上游修剪首尾空白。Rust 属性包复用统一转义，支持 `merge`、`class`、`style`、`only` 和 `except`。旧版无对应 Blade 标签编译器。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证包组件索引、快捷绑定、双冒号、插槽绑定、属性筛选和合并、转义、跨应用隔离及非法组件路径返回 500。隔离副本的工作区格式与严格 Clippy 通过。
+- 实际 Artisan 缓存和清理三语示例。三语 VitePress 构建和 12 项浏览器组合通过。

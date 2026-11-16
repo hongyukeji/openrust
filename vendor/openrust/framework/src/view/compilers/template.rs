@@ -4,9 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::{DirectiveOutput, Directives};
+use crate::support::Str;
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
-    rendering::{RenderContext, render_error},
+    rendering::{RenderContext, RenderSlot, render_error},
 };
 
 mod attributes;
@@ -15,7 +16,7 @@ mod includes;
 mod loops;
 
 use attributes::{
-    AttributeList, Props, apply_props, attribute_list, attribute_name, merge_attributes,
+    AttributeList, AttributeOperation, Props, apply_props, attribute_list, attribute_name,
     parse_attribute_list, parse_echo, parse_props, render_attributes,
 };
 
@@ -33,7 +34,7 @@ pub(super) struct Template {
 enum Node {
     Text(String),
     Echo(Expression, bool),
-    Attributes(Vec<(String, Expression)>),
+    Attributes(Vec<String>, AttributeOperation),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each {
         expression: Expression,
@@ -68,9 +69,16 @@ enum Node {
         name: ComponentName,
         attributes: Vec<(String, Expression)>,
         body: Vec<Node>,
-        slots: Vec<(String, Vec<Node>)>,
+        slots: Vec<Slot>,
     },
-    Slot(String, Vec<Node>),
+    Slot(Slot),
+}
+
+#[derive(Serialize, Deserialize)]
+struct Slot {
+    name: Expression,
+    attributes: Vec<(String, Expression)>,
+    body: Vec<Node>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -291,14 +299,26 @@ impl<'a> Parser<'a> {
         self.remaining = &self.remaining[end..];
         let (mut attributes, self_closing) = self.component_attributes()?;
 
-        if let Some(slot) = name.strip_prefix("slot:") {
-            if !identifier(slot) || !attributes.is_empty() || self_closing {
+        if name == "slot" || name.starts_with("slot:") {
+            if self_closing {
                 return Err(invalid("Invalid Blade named slot."));
             }
-            return Ok(Node::Slot(
-                slot.to_owned(),
-                self.component_body(depth, name)?,
-            ));
+            let slot = if let Some(slot) = name.strip_prefix("slot:") {
+                Expression::Value(slot.into())
+            } else {
+                attributes
+                    .iter()
+                    .position(|(attribute, _)| attribute == "name")
+                    .map_or_else(
+                        || Expression::Value("slot".into()),
+                        |index| attributes.remove(index).1,
+                    )
+            };
+            return Ok(Node::Slot(Slot {
+                name: slot,
+                attributes,
+                body: self.component_body(depth, name)?,
+            }));
         }
         if !valid_component_name(name) {
             return Err(invalid("Invalid Blade component name."));
@@ -312,7 +332,7 @@ impl<'a> Parser<'a> {
         let mut slots = Vec::new();
         for node in children {
             match node {
-                Node::Slot(name, nodes) => slots.push((name, nodes)),
+                Node::Slot(slot) => slots.push(slot),
                 node => body.push(node),
             }
         }
@@ -368,13 +388,27 @@ impl<'a> Parser<'a> {
                 })
                 .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
             let attribute = &self.remaining[..end];
-            let (name, bound) = attribute
-                .strip_prefix(':')
-                .map_or((attribute, false), |name| (name, true));
+            self.remaining = self.remaining[end..].trim_start();
+            if let Some(short) = attribute.strip_prefix(":$") {
+                if !identifier(short) || self.remaining.starts_with('=') {
+                    return Err(invalid("Invalid Blade short attribute binding."));
+                }
+                attributes.push((
+                    short.to_owned(),
+                    Expression::Variable(vec![short.to_owned()]),
+                ));
+                continue;
+            }
+            let (name, bound) = if attribute.starts_with("::") {
+                (&attribute[1..], false)
+            } else {
+                attribute
+                    .strip_prefix(':')
+                    .map_or((attribute, false), |name| (name, true))
+            };
             if !attribute_name(name) {
                 return Err(invalid("Invalid Blade component attribute."));
             }
-            self.remaining = self.remaining[end..].trim_start();
             let value = if let Some(rest) = self.remaining.strip_prefix('=') {
                 self.remaining = rest.trim_start();
                 let delimiter = match self.remaining.as_bytes().first() {
@@ -837,11 +871,30 @@ pub(super) fn identifier(name: &str) -> bool {
 }
 
 fn valid_component_name(name: &str) -> bool {
+    name.split_once("::").map_or_else(
+        || valid_component_path(name),
+        |(namespace, path)| valid_component_path(namespace) && valid_component_path(path),
+    )
+}
+
+fn valid_component_path(name: &str) -> bool {
     name.split('.').all(|part| {
         !part.is_empty()
             && part
                 .chars()
                 .all(|character| character.is_alphanumeric() || matches!(character, '-' | '_'))
+    })
+}
+
+fn slot_name(value: &ViewValue) -> ViewResult<String> {
+    let name = name_value(value)?;
+    if !name.split('-').all(identifier) {
+        return Err(render_error("Invalid Blade slot name."));
+    }
+    Ok(if name.contains('-') {
+        Str::camel(name)
+    } else {
+        name.to_owned()
     })
 }
 
@@ -874,31 +927,27 @@ fn render_nodes<'a>(
             Node::Text(text) => output.push_str(text),
             Node::Echo(expression, escape) => {
                 if let Expression::Variable(path) = expression
-                    && let [name] = path.as_slice()
+                    && let Some(name) = path.first()
                     && !bindings.iter().any(|(key, _)| *key == name)
                 {
-                    if let Some(slot) = context.slot(name) {
+                    if path.len() == 1
+                        && let Some(slot) = context.slot(name)
+                    {
                         output.push_str(slot);
                         continue;
                     }
-                    if name == "attributes"
-                        && let Some(attributes) = &context.component_attributes
-                    {
+                    if let Some(attributes) = context.attributes(path) {
                         render_attributes(attributes, output)?;
                         continue;
                     }
                 }
                 echo(output, value(expression, data, bindings), *escape);
             }
-            Node::Attributes(defaults) => {
+            Node::Attributes(path, operation) => {
                 let attributes = context
-                    .component_attributes
-                    .as_ref()
+                    .attributes(path)
                     .ok_or_else(|| render_error("A Blade component attribute bag is required."))?;
-                render_attributes(
-                    &merge_attributes(attributes, defaults, data, bindings),
-                    output,
-                )?;
+                operation.render(attributes, data, bindings, output)?;
             }
             Node::Conditional(expression, predicate, yes, no) => {
                 let value = value(expression, data, bindings);
@@ -1175,15 +1224,35 @@ fn render_nodes<'a>(
                     .collect();
                 let mut default = String::new();
                 render_block!(body, data, bindings, &mut default, context);
-                let mut rendered = std::collections::HashMap::from([("slot".to_owned(), default)]);
-                for (name, nodes) in slots {
+                let mut rendered = std::collections::HashMap::from([(
+                    "slot".to_owned(),
+                    RenderSlot {
+                        html: default.trim().to_owned(),
+                        attributes: ViewData::new(),
+                    },
+                )]);
+                for slot in slots {
+                    let name = slot_name(value(&slot.name, data, bindings))?;
+                    let attributes = slot
+                        .attributes
+                        .iter()
+                        .map(|(name, expression)| {
+                            (name.clone(), value(expression, data, bindings).clone())
+                        })
+                        .collect();
                     let mut html = String::new();
-                    render_block!(nodes, data, bindings, &mut html, context);
-                    rendered.insert(name.clone(), html);
+                    render_block!(&slot.body, data, bindings, &mut html, context);
+                    rendered.insert(
+                        name,
+                        RenderSlot {
+                            html: html.trim().to_owned(),
+                            attributes,
+                        },
+                    );
                 }
                 output.push_str(&context.component(name, &properties, rendered)?);
             }
-            Node::Slot(_, _) => return Err(render_error("Blade named slots require a component.")),
+            Node::Slot(_) => return Err(render_error("Blade named slots require a component.")),
         }
     }
     Ok(None)

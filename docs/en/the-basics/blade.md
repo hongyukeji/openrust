@@ -82,6 +82,24 @@ Store an anonymous component such as `notice` in `resources/views/components/not
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+Use `:$title` as shorthand for `:title="$title"`. A `::` prefix preserves a client-side binding such as `:class`. Components under a registered view namespace use tags such as `<x-demo::panel>`.
+
+### Slot Attributes {#slot-attributes}
+
+Use `<x-slot:footer-actions>` or `<x-slot name="footerActions">` for a slot with attributes. Read an attribute bag through `$footerActions->attributes`. The bag supports `merge`, `class`, `style`, `only`, and `except`.
+
+```html
+<x-demo::panel :$title ::class="active">
+    <x-slot:footer-actions data-role="actions">Save</x-slot>
+</x-demo::panel>
+```
+
+```html
+<footer {{ $footerActions->attributes->class(['toolbar']) }}>
+    {{ $footerActions }}
+</footer>
+```
+
 ### Component Props and Attributes {#component-attributes}
 
 Put `@props` at the start of the component template. The list can contain prop names and default values. A caller can pass a camel-case prop such as `displayName` using `display-name`. Attributes outside the declaration are available through `$attributes`.

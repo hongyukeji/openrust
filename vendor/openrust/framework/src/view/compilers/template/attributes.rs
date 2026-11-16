@@ -1,5 +1,7 @@
 use std::{borrow::Cow, fmt::Write as _};
 
+use serde::{Deserialize, Serialize};
+
 use crate::support::Str;
 
 use super::{
@@ -9,6 +11,14 @@ use super::{
 
 pub(super) type Props = Vec<(String, Option<Expression>)>;
 pub(super) type AttributeList = Vec<(Expression, Option<Expression>)>;
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum AttributeOperation {
+    Merge(Vec<(String, Expression)>),
+    Class(AttributeList),
+    Style(AttributeList),
+    Filter(Vec<String>, bool),
+}
 
 pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
     let source = source
@@ -60,19 +70,46 @@ pub(super) fn parse_props(source: &str) -> ViewResult<Props> {
 
 pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
     let source = source.trim();
-    if let Some(arguments) = source
-        .strip_prefix("$attributes->merge(")
-        .and_then(|arguments| arguments.strip_suffix(')'))
-    {
-        let defaults = array_entries(arguments)?
+    if source.starts_with('$')
+        && let Some((operation, target, arguments)) = ["merge", "class", "style", "only", "except"]
             .into_iter()
-            .map(|entry| {
-                let (key, value) = array_entry(entry);
-                let value = value.ok_or_else(|| invalid("Expected an attribute default value."))?;
-                Ok((literal_name(key, attribute_name)?, expression_value(value)?))
+            .find_map(|operation| {
+                let (target, arguments) = source.rsplit_once(&format!("->{operation}("))?;
+                Some((operation, target, arguments.strip_suffix(')')?))
             })
-            .collect::<ViewResult<_>>()?;
-        return Ok(Node::Attributes(defaults));
+    {
+        let Expression::Variable(path) = expression_value(target)? else {
+            return Err(invalid("A Blade attribute bag requires a variable."));
+        };
+        if !matches!(path.as_slice(), [name] | [_, name] if name == "attributes") {
+            return Err(invalid(
+                "A Blade attribute bag requires an attributes property.",
+            ));
+        }
+        let operation = match operation {
+            "merge" => {
+                let defaults = array_entries(arguments)?
+                    .into_iter()
+                    .map(|entry| {
+                        let (key, value) = array_entry(entry);
+                        let value =
+                            value.ok_or_else(|| invalid("Expected an attribute default value."))?;
+                        Ok((literal_name(key, attribute_name)?, expression_value(value)?))
+                    })
+                    .collect::<ViewResult<_>>()?;
+                AttributeOperation::Merge(defaults)
+            }
+            "class" => AttributeOperation::Class(parse_attribute_list(arguments)?),
+            "style" => AttributeOperation::Style(parse_attribute_list(arguments)?),
+            _ => AttributeOperation::Filter(
+                array_entries(arguments)?
+                    .into_iter()
+                    .map(|key| literal_name(key, attribute_name))
+                    .collect::<ViewResult<_>>()?,
+                operation == "only",
+            ),
+        };
+        return Ok(Node::Attributes(path, operation));
     }
     Ok(Node::Echo(expression_value(source)?, escaped))
 }
@@ -120,6 +157,7 @@ pub(super) fn attribute_list(
 }
 
 pub(super) fn attribute_name(name: &str) -> bool {
+    let name = name.strip_prefix(':').unwrap_or(name);
     let mut characters = name.chars();
     characters
         .next()
@@ -165,16 +203,41 @@ pub(super) fn apply_props(
     data
 }
 
-pub(super) fn merge_attributes(
-    attributes: &ViewData,
-    defaults: &[(String, Expression)],
-    data: &ViewData,
-    bindings: &[(&str, &ViewValue)],
-) -> ViewData {
-    let mut merged = defaults
-        .iter()
-        .map(|(key, default)| (key.clone(), value(default, data, bindings).clone()))
-        .collect::<ViewData>();
+impl AttributeOperation {
+    pub(super) fn render(
+        &self,
+        attributes: &ViewData,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+        output: &mut String,
+    ) -> ViewResult<()> {
+        let defaults = match self {
+            Self::Merge(defaults) => defaults
+                .iter()
+                .map(|(key, default)| (key.clone(), value(default, data, bindings).clone()))
+                .collect(),
+            Self::Class(entries) => ViewData::from_iter([(
+                "class".to_owned(),
+                attribute_list(entries, data, bindings, false)?.into(),
+            )]),
+            Self::Style(entries) => ViewData::from_iter([(
+                "style".to_owned(),
+                attribute_list(entries, data, bindings, true)?.into(),
+            )]),
+            Self::Filter(keys, include) => {
+                let selected = attributes
+                    .iter()
+                    .filter(|(key, _)| keys.contains(key) == *include)
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect();
+                return render_attributes(&selected, output);
+            }
+        };
+        render_attributes(&merge_attributes(attributes, defaults), output)
+    }
+}
+
+fn merge_attributes(attributes: &ViewData, mut merged: ViewData) -> ViewData {
     for (key, incoming) in attributes {
         let combined = match (key.as_str(), merged.get(key), incoming) {
             ("class" | "style", Some(ViewValue::String(default)), ViewValue::String(value))

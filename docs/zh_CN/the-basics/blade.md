@@ -82,6 +82,24 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+`:$title` 是 `:title="$title"` 的简写。`::` 前缀保留 `:class` 等客户端绑定。已注册视图命名空间的组件可用 `<x-demo::panel>` 访问。
+
+### 插槽属性 {#slot-attributes}
+
+可以用 `<x-slot:footer-actions>` 或 `<x-slot name="footerActions">` 声明带属性的插槽。通过 `$footerActions->attributes` 读取属性包，可调用 `merge`、`class`、`style`、`only` 和 `except`。
+
+```html
+<x-demo::panel :$title ::class="active">
+    <x-slot:footer-actions data-role="actions">Save</x-slot>
+</x-demo::panel>
+```
+
+```html
+<footer {{ $footerActions->attributes->class(['toolbar']) }}>
+    {{ $footerActions }}
+</footer>
+```
+
 ### 组件属性与属性包 {#component-attributes}
 
 在组件模板开头用 `@props` 声明属性和默认值。调用方可以用 `display-name` 向 `displayName` 传值。声明之外的 HTML 属性可以通过 `$attributes` 读取。

@@ -381,6 +381,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         path: PathBuf,
         app: &'static str,
     ) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
+        let package_views = path.join("resources/views/package");
         let application = Application::configure(path)
             .withRouting(Routing::default().web(|| {
                 Route::get("/page", || view("page").with("title", "route"))?;
@@ -445,6 +446,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/loop-control", || view("loop_control").with("limit", 4))?;
                 Route::get("/bad-loop-control", || view("bad_loop_control"))?;
                 Route::get("/loop-limit", || view("loop_limit"))?;
+                Route::get("/slot-attributes", || {
+                    view("slot_attributes")
+                        .with("title", "<Title>")
+                        .with("id", "<&")
+                        .with("namedSlot", "meta")
+                })?;
+                Route::get("/bad-component", || view("bad_component"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -464,6 +472,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             >())
             .unwrap();
         contract.share("contract_app", app.into());
+        contract.addNamespace("demo", &[&package_views]).unwrap();
         contract.composer(
             &["contract_card"],
             Arc::new(|view| {
@@ -532,6 +541,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     let sources = root.path().join("resources/views");
     fs::create_dir_all(sources.join("components/accordion")).unwrap();
     fs::create_dir_all(sources.join("components/ranked")).unwrap();
+    fs::create_dir_all(sources.join("package/components/panel")).unwrap();
     for (name, source) in [
         (
             "layout",
@@ -705,6 +715,26 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "@foreach ([1] as $item)@break(2)@endforeach",
         ),
         ("loop_limit", "@while(true)@endwhile"),
+        (
+            "slot_attributes",
+            concat!(
+                r#"<x-demo::panel :$title ::class="active">"#,
+                r#"<x-slot:footer-actions :data-id="$id" class="extra"> action </x-slot>"#,
+                r#"<x-slot :name="$namedSlot" data-note="note"> meta </x-slot>"#,
+                " content </x-demo::panel>",
+            ),
+        ),
+        (
+            "package/components/panel/index",
+            concat!(
+                "@props(['title'])",
+                r#"<main {{ $attributes->only([':class']) }}>{{ $app }}:{{ $title }}"#,
+                r#"<footer {{ $footerActions->attributes->class(['base']) }}>{{ $footerActions }}</footer>"#,
+                r#"<i {{ $meta->attributes->except(['class']) }}>{{ $meta }}</i>"#,
+                "{{ $slot }}</main>",
+            ),
+        ),
+        ("bad_component", "<x-demo::../panel/>"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -829,6 +859,19 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert!(send(first, "/bad-loop-control", 500).await.contains("500"));
     assert!(send(first, "/loop-limit", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/slot-attributes", 200),
+        send(second, "/slot-attributes", 200),
+    );
+    for (html, label) in [(a, "A"), (b, "B")] {
+        assert_eq!(
+            html,
+            format!(
+                r#"<main :class="active">{label}:&lt;Title&gt;<footer class="base extra" data-id="&lt;&amp;">action</footer><i data-note="note">meta</i>content</main>"#
+            )
+        );
+    }
+    assert!(send(first, "/bad-component", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

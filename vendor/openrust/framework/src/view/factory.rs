@@ -175,7 +175,11 @@ impl Factory {
                     .render_inline(name, &source, properties, context),
             },
             None => {
-                let base = format!("components.{name}");
+                let (base, name) = if let Some((namespace, name)) = name.split_once("::") {
+                    (format!("{namespace}::components.{name}"), name)
+                } else {
+                    (format!("components.{name}"), name)
+                };
                 let index = format!("{base}.index");
                 let leaf = name.rsplit('.').next().unwrap_or(name);
                 let directory = format!("{base}.{leaf}");

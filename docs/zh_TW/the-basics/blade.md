@@ -82,6 +82,24 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 <aside><strong>{{ $heading }}</strong>{{ $slot }}</aside>
 ```
 
+`:$title` 是 `:title="$title"` 的簡寫。`::` 前綴保留 `:class` 等用戶端繫結。已註冊視圖命名空間的元件可用 `<x-demo::panel>` 存取。
+
+### 插槽屬性 {#slot-attributes}
+
+可以用 `<x-slot:footer-actions>` 或 `<x-slot name="footerActions">` 宣告帶屬性的插槽。透過 `$footerActions->attributes` 讀取屬性袋，可呼叫 `merge`、`class`、`style`、`only` 和 `except`。
+
+```html
+<x-demo::panel :$title ::class="active">
+    <x-slot:footer-actions data-role="actions">Save</x-slot>
+</x-demo::panel>
+```
+
+```html
+<footer {{ $footerActions->attributes->class(['toolbar']) }}>
+    {{ $footerActions }}
+</footer>
+```
+
 ### 元件屬性與屬性袋 {#component-attributes}
 
 在元件範本開頭用 `@props` 宣告屬性及預設值。呼叫端可以用 `display-name` 傳值給 `displayName`。宣告以外的 HTML 屬性可透過 `$attributes` 讀取。
