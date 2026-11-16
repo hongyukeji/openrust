@@ -517,6 +517,23 @@ fn main() -> Result<(), CollectionError> {
 
 舊名稱 `containsOneItem()` 和 `containsManyItems()` 分別呼叫 `hasSole()` 和 `hasMany()`。若要檢查是否恰有一項符合條件，請使用 `hasSoleWhere()`。
 
+#### 跳脫字串表示 {#lazy-escaped-string}
+
+`toString()` 把集合轉換成 JSON 文字。啟用 `escapeWhenCastingToString(true)` 後，會對文字執行 HTML 跳脫，現有實體也一併跳脫。明確呼叫 `toString()` 可接收來源與序列化錯誤。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let values = LazyCollection::from(["<tag> &lt;"]).escapeWhenCastingToString(true);
+    assert_eq!(values.toString()?, "[&quot;&lt;tag&gt; &amp;lt;&quot;]");
+    assert_eq!(values.toJson()?, r#"["<tag> &lt;"]"#);
+    Ok(())
+}
+```
+
+此開關作用於字串轉換。`toJson()` 和 `toPrettyJson()` 仍回傳 JSON。
+
 #### 輸出惰性集合的除錯內容 {#lazy-dump}
 
 用 `dump()` 把帶鍵的快照寫到標準輸出，再繼續鏈式呼叫。`dumpWith(&[...])` 在項目之後輸出額外的除錯值。Rust 用 `Debug` 格式輸出兩者。

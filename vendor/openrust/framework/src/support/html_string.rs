@@ -39,3 +39,16 @@ impl fmt::Display for HtmlString {
         formatter.write_str(self.toHtml())
     }
 }
+
+pub(crate) fn escape_html(output: &mut String, text: &str) {
+    for character in text.chars() {
+        match character {
+            '&' => output.push_str("&amp;"),
+            '<' => output.push_str("&lt;"),
+            '>' => output.push_str("&gt;"),
+            '"' => output.push_str("&quot;"),
+            '\'' => output.push_str("&#039;"),
+            other => output.push(other),
+        }
+    }
+}

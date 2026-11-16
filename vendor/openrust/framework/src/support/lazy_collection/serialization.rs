@@ -6,7 +6,7 @@ use serde::{
 use serde_json::Value;
 
 use super::{Collection, CollectionResult, LazyCollection};
-use crate::support::{data_get, data_has};
+use crate::support::{data_get, data_has, escape_html};
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
 impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
@@ -20,6 +20,23 @@ impl<'source, T: Serialize + 'source> LazyCollection<'source, T> {
 
     pub fn toJson(&self) -> CollectionResult<String> {
         Self::collect(self)?.toJson()
+    }
+
+    /// Selects HTML escaping for the collection's explicit string conversion.
+    pub fn escapeWhenCastingToString(mut self, escape: bool) -> Self {
+        self.escape_when_casting_to_string = escape;
+        self
+    }
+
+    /// Converts the collection to JSON text, optionally escaped for HTML.
+    pub fn toString(&self) -> CollectionResult<String> {
+        let json = self.toJson()?;
+        if !self.escape_when_casting_to_string {
+            return Ok(json);
+        }
+        let mut output = String::with_capacity(json.len());
+        escape_html(&mut output, &json);
+        Ok(output)
     }
 
     pub fn toPrettyJson(&self) -> CollectionResult<String> {

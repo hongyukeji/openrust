@@ -34,12 +34,14 @@ pub type LazySource<'source, T> = dyn Fn() -> SourceIterator<'source, T> + 'sour
 /// A keyed collection that evaluates its source on demand.
 pub struct LazyCollection<'source, T> {
     source: Rc<LazySource<'source, T>>,
+    escape_when_casting_to_string: bool,
 }
 
 impl<T> Clone for LazyCollection<'_, T> {
     fn clone(&self) -> Self {
         Self {
             source: Rc::clone(&self.source),
+            escape_when_casting_to_string: self.escape_when_casting_to_string,
         }
     }
 }
@@ -112,6 +114,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
     {
         Self {
             source: Rc::new(move || Box::new(source())),
+            escape_when_casting_to_string: false,
         }
     }
 

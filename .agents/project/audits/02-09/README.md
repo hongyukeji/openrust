@@ -201,3 +201,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 隔离基线 `e0d4ccc46`。PHP 8.5.12 用固定 Laravel 和输出替身验证传给 `dump` 的参数、完全遍历、重复键及返回原集合。74 项 Rust 集合测试通过。实际示例验证标准输出的快照、附加值和后续链式调用，回归覆盖来源失败及断管。
 - `./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码的显式公开名称已对齐 159／162，余项为 `dd`、`escapeWhenCastingToString` 和 `proxy`。
 - PHP 容器已回收。清理本批 3.1 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.23 GB（57.02 GiB）。证据目录为 `/private/tmp/openrust-02-09-dump.gupfkT1n`。
+
+## 惰性集合字符串转义
+
+对照固定 Laravel [字符串转换和转义开关](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L1071)。旧版未找到对应惰性实现。复用现有 JSON 序列化，并提取 Blade 原有的 HTML 字符转义作为共享实现。
+
+- `escapeWhenCastingToString(bool)` 在当前惰性集合上设置转义开关，设置时不遍历来源。`toString()` 返回普通 JSON 字符串或经 HTML 转义的字符串，并传播来源和序列化错误。Rust 显式调用该方法，保留错误类型。`toJson()` 和 `toPrettyJson()` 仍返回 JSON。
+- 隔离基线 `ba5f1ac2b`。PHP 8.5.12 固定源码对照、76 项 Rust 集合测试和 5 项视图测试通过。覆盖现有 HTML 实体的再次转义、键与值、克隆和转换产生的新集合、来源错误及 Blade 原有转义。
+- 实际三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅有既有 Sanctum 排版差异。固定源码公开名称对齐至 160／162，余项为 `dd` 和 `proxy`。
+- PHP 容器已回收。清理本批 3.3 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 61.20 GB（56.99 GiB）。证据目录为 `/private/tmp/openrust-02-09-escape.TfZ78Ud2`。

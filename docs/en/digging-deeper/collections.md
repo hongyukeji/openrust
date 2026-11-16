@@ -517,6 +517,23 @@ Use `getCachingIteratorWithFullCache()` for Laravel’s full-cache behavior. It 
 
 The older `containsOneItem()` and `containsManyItems()` names call `hasSole()` and `hasMany()`. Use `hasSoleWhere()` to test for a single matching item with a predicate.
 
+#### Escaping the String Representation {#lazy-escaped-string}
+
+`toString()` renders the collection as JSON text. Enable `escapeWhenCastingToString(true)` to HTML-escape that text, including existing entities. Call `toString()` explicitly so source and serialization errors can be returned.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let values = LazyCollection::from(["<tag> &lt;"]).escapeWhenCastingToString(true);
+    assert_eq!(values.toString()?, "[&quot;&lt;tag&gt; &amp;lt;&quot;]");
+    assert_eq!(values.toJson()?, r#"["<tag> &lt;"]"#);
+    Ok(())
+}
+```
+
+The setting applies to string conversion. `toJson()` and `toPrettyJson()` continue to return JSON.
+
 #### Dumping a Lazy Collection {#lazy-dump}
 
 Use `dump()` to print a keyed snapshot to standard output and continue the chain. `dumpWith(&[...])` prints additional debug values after the entries. Rust formats both with `Debug`.

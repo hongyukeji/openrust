@@ -1930,3 +1930,41 @@ fn lazy_dump_propagates_source_and_write_failures() {
             if error.downcast_ref::<io::Error>().is_some_and(|error| error.kind() == io::ErrorKind::BrokenPipe)
     ));
 }
+
+#[test]
+fn lazy_string_escape_only_applies_during_string_conversion() -> CollectionResult<()> {
+    let reads = Cell::new(0);
+    let values = LazyCollection::fromEntries(|| {
+        [("a&b", "<>\"' &lt;")]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let escaped = values.clone().escapeWhenCastingToString(true);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(
+        escaped.toString()?,
+        r#"{&quot;a&amp;b&quot;:&quot;&lt;&gt;\&quot;&#039; &amp;lt;&quot;}"#
+    );
+    assert_eq!(reads.get(), 1);
+    let raw = r#"{"a&b":"<>\"' &lt;"}"#;
+    assert_eq!(escaped.toJson()?, raw);
+    assert_eq!(values.toString()?, raw);
+    assert_eq!(
+        escaped
+            .clone()
+            .escapeWhenCastingToString(false)
+            .toString()?,
+        raw
+    );
+    assert_eq!(escaped.map(|value, _| *value).toString()?, raw);
+    Ok(())
+}
+
+#[test]
+fn lazy_string_escape_preserves_source_errors() {
+    let values = LazyCollection::<i32>::tryMake(|| [Err(CollectionError::InvalidArgument)]);
+    assert!(matches!(
+        values.escapeWhenCastingToString(true).toString(),
+        Err(CollectionError::InvalidArgument)
+    ));
+}

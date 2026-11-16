@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::{BladeExtensions, DirectiveOutput};
-use crate::support::Str;
+use crate::support::{Str, escape_html};
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
     rendering::{RenderContext, RenderSlot, render_error},
@@ -2041,19 +2041,6 @@ fn echo(output: &mut String, value: &ViewValue, escape: bool) {
         ViewValue::Bool(true) => output.push('1'),
         ViewValue::Number(number) => write!(output, "{number}").unwrap(),
         _ => {}
-    }
-}
-
-fn escape_html(output: &mut String, text: &str) {
-    for character in text.chars() {
-        match character {
-            '&' => output.push_str("&amp;"),
-            '<' => output.push_str("&lt;"),
-            '>' => output.push_str("&gt;"),
-            '"' => output.push_str("&quot;"),
-            '\'' => output.push_str("&#039;"),
-            other => output.push(other),
-        }
     }
 }
 
