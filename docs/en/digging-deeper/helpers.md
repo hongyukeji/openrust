@@ -44,3 +44,20 @@ assert!(Arr::boolean(&data, "filter.enabled")?);
 assert_eq!(Arr::pull(&mut data, "filter.enabled")?, Some(json!(true)));
 assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 ```
+
+## Numbers {#numbers}
+
+Use `Number::default()` for English and USD defaults. Set locale and currency on an instance with `useLocale` and `useCurrency`. Use `withLocale` and `withCurrency` to pass scoped settings to a callback. These settings belong to the instance and can be used concurrently across requests.
+
+`format`, `percentage`, and `currency` use CLDR data. `parseInt` preserves 64-bit integers and `parseFloat` reads a localized numeric prefix. `fileSize`, `abbreviate`, `forHumans`, `clamp`, `pairs`, and `trim` follow Laravel’s numeric conventions. Spellout uses the vendored CLDR rules for its supported languages. Fractional spellout is available in English.
+
+```rust
+use openrust::support::Number;
+
+let number = Number::default();
+let localized = number.withLocale("de-DE", |de| de.format(1234.5, Some(2), None))??;
+assert_eq!(localized, "1.234,50");
+assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
+assert_eq!(number.spellOrdinal(21)?, "twenty-first");
+assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+```

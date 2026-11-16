@@ -44,3 +44,20 @@ assert!(Arr::boolean(&data, "filter.enabled")?);
 assert_eq!(Arr::pull(&mut data, "filter.enabled")?, Some(json!(true)));
 assert_eq!(Arr::query(&data)?, "filter%5Blabel%5D=a%2Bb");
 ```
+
+## 数字 {#numbers}
+
+`Number::default()` 默认使用英语和 USD。通过 `useLocale` 和 `useCurrency` 设置实例默认值，或通过 `withLocale` 和 `withCurrency` 将局部设置传给回调。设置归实例所有，可在并发请求中使用各自的设置。
+
+`format`、`percentage` 和 `currency` 使用 CLDR 数据。`parseInt` 保留 64 位整数，`parseFloat` 读取本地化数字前缀。`fileSize`、`abbreviate`、`forHumans`、`clamp`、`pairs` 和 `trim` 沿用 Laravel 数字规则。数字拼读使用所支持语言的内置 CLDR 规则，小数拼读支持英语。
+
+```rust
+use openrust::support::Number;
+
+let number = Number::default();
+let localized = number.withLocale("de-DE", |de| de.format(1234.5, Some(2), None))??;
+assert_eq!(localized, "1.234,50");
+assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
+assert_eq!(number.spellOrdinal(21)?, "twenty-first");
+assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
+```

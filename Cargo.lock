@@ -1662,6 +1662,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2214fb00f669ee96bee5bb29dfb1ddabe058b2bc426817efc79afa03c9bc55ae"
 dependencies = [
  "displaydoc",
+ "ryu",
  "smallvec",
  "writeable",
 ]
@@ -2185,6 +2186,7 @@ dependencies = [
  "icu_pattern",
  "icu_plurals",
  "icu_provider",
+ "serde",
  "writeable",
  "zerovec",
 ]
@@ -2503,6 +2505,12 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "intl"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb4842b834ce672019651d2dab56a63cb3ab07d222d892eecbf90b45f21256b8"
 
 [[package]]
 name = "io-extras"
@@ -3024,17 +3032,21 @@ dependencies = [
  "dotenvy",
  "fake",
  "fastrand",
+ "fixed_decimal",
  "futures-util",
  "http 1.5.0",
  "http-body 1.1.0",
  "httpdate",
+ "icu_decimal",
  "icu_experimental",
  "icu_locale_core",
  "icu_normalizer",
  "icu_properties",
+ "icu_provider",
  "image",
  "indexmap",
  "infer",
+ "intl",
  "lettre",
  "md-5",
  "memory-stats",

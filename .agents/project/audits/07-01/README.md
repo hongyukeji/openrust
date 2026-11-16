@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - Strings 仍需逐项核对 多语言词形及 COMB 标识符。
-- Helpers 仍有 Arr 余下方法、Number 语言环境格式、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
+- Helpers 仍有 Arr 余下方法、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -61,3 +61,9 @@
 - 对照固定 Str 的 ASCII 映射、反向分隔符、按序字典替换和 Unicode 字符过滤。沿用旧版默认转写及其 portable-ascii 2.0.2 许可证，补入该固定版本的 locale 映射、覆盖表和多字序列长度。静态与 Stringable 共用实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
 - 严格路径使用 Rust ICU4X 0.7 的 CLDR 文字转换，依次执行 NFKC、非间距组合符清理、NFKC、按 Unicode 文字分段做拉丁转写、Latin-ASCII 与 portable-ascii 回退。ICU4C 的 Any-Latin 分段及 CLDR 规则版本可能产生不同输出。 [ICU4X](https://docs.rs/icu_experimental/0.7.0/icu_experimental/transliterate/index.html)
 - 固定 Laravel 的 slug 由 PHP 8.5.12 对照，严格模式规则由 ICU 77.1 对照。锁定离线测试及定向严格 Clippy 通过。实际 Artisan 执行三语示例，实际回环 HTTP 验收默认 slug、德国映射和混合文字转写。三语 VitePress 构建通过。
+
+## Number
+
+- 核对固定 Number 的小数精度优先级、负零、本地化解析、百分比、货币、拼读与序数、文件大小和数量缩写。复用旧版类型保留的 clamp 规则及整数边界回归。采用 ICU4X 的 CLDR 格式和 Rust RBNF 拼读数据。locale 与 currency 通过实例及回调作用域传递，整数及浮点区间分别使用 `pairs` 和 `pairsFloat`。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php)
+- RBNF 整数拼读覆盖锁定数据包的语言，小数拼读目前支持英语。locale 数据版本和 Intl 解析的宽容规则存在差异。未覆盖语言和数值返回类型化错误。 [Rust RBNF 数据范围](https://docs.rs/intl/0.6.5/intl/spellout/index.html)
+- PHP 8.5.12 与 ICU 76.1 实跑固定 Laravel Number，核对 21 项输出。7 项 Rust 定向测试及严格 Clippy 通过。实际 Artisan 运行三语示例，实际回环 HTTP 核对德语小数、USD 金额、英文序数和 i64 上界。三语 VitePress 构建通过。
