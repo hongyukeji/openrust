@@ -27,6 +27,21 @@ fn main() {
 
 回调接收有类型的 Rust 值，可直接访问字段。`sortBy` 使用回调返回值的类型排序，相等时保留输入顺序。`avg` 和 `median` 返回 `Option<f64>`。
 
+## 保键比较与位置操作 {#collection-key-operations}
+
+`diff`、`intersect` 及其关联键变体和 `duplicates` 保留返回项的原键。`shift` 和 `splice` 重新编号被修改集合的整数键。`split` 平衡各组长度，`splitIn` 优先填满固定长度的组并保留键。`chunkBy` 按相邻值分组。
+
+```rust
+use openrust::support::Collection;
+
+let mut rows = Collection::fromEntries([("4", "甲"), ("keep", "乙"), ("9", "丙")]);
+assert_eq!(rows.shift(), Some("甲"));
+assert_eq!(rows.toJson()?, r#"{"keep":"乙","0":"丙"}"#);
+let existing = Collection::make(["乙"]);
+let remaining = rows.diff(&existing).toArray()?;
+assert_eq!(remaining, serde_json::json!(["丙"]));
+```
+
 ## JSON 序列化
 
 当键在迭代顺序中是从零开始的连续整数时，集合序列化为 JSON 数组。其他键生成 JSON 对象。`toJson()` 返回 JSON 字符串或序列化错误，非有限浮点数也会报错。集合可以直接传给 `ApiResponse::success`。直接反序列化到 `Collection<T>` 可保留 JSON 对象成员顺序。`fromValue` 使用传入的 `serde_json::Value` 的顺序。

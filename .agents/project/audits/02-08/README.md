@@ -16,3 +16,8 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-08.hUPiWF` �
 - 三语示例逐个编译执行。`npm run build`、12 项常规浏览器组合与 6 次集合页面正文和侧栏核对通过。工作区锁定依赖解析和 `git diff --check` 通过。
 
 下一批为 02-09 惰性集合，以本批的键契约和 `Enumerable` 为前置。
+
+## 保键比较与位置操作
+
+- 核对固定 Laravel 的差集、交集、重复值、相邻项、百分比、`chunkBy`、`split`、`splitIn`、`shift` 和 `splice`。复用旧版的规范整数键规则与当前 IndexMap 装配。返回集合保留相应键，位置修改按 PHP 数组规则重新编号整数键，并重建追加位置。Rust 比较接收类型化值或显式比较器。
+- 固定 Laravel 在 PHP 8.5.12 通过 10 组对照。Rust 1.94.0 锁定离线 14 项定向回归、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。整单元暂记部分验收。

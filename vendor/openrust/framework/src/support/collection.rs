@@ -5,6 +5,9 @@ use indexmap::IndexMap;
 mod finite;
 mod numbers;
 mod operations;
+mod positions;
+mod selection;
+
 mod serialization;
 
 pub use numbers::CollectionNumber;

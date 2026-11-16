@@ -27,6 +27,21 @@ fn main() {
 
 Callbacks receive typed Rust values and can project fields directly. `sortBy` uses the ordering of the projected type and preserves input order for ties. `avg` and `median` return `Option<f64>`.
 
+## Keyed comparisons and position changes {#collection-key-operations}
+
+`diff`, `intersect`, their association and key variants, and `duplicates` keep the original keys on returned entries. `shift` and `splice` renumber integer keys on the modified collection. `split` balances group sizes, and `splitIn` fills fixed-size groups while preserving keys. `chunkBy` groups adjacent values.
+
+```rust
+use openrust::support::Collection;
+
+let mut rows = Collection::fromEntries([("4", "甲"), ("keep", "乙"), ("9", "丙")]);
+assert_eq!(rows.shift(), Some("甲"));
+assert_eq!(rows.toJson()?, r#"{"keep":"乙","0":"丙"}"#);
+let existing = Collection::make(["乙"]);
+let remaining = rows.diff(&existing).toArray()?;
+assert_eq!(remaining, serde_json::json!(["丙"]));
+```
+
 ## JSON Serialization
 
 A collection serializes as a JSON array when its keys are consecutive from zero in iteration order. Other keys produce a JSON object. `toJson()` returns a JSON string or a serialization error, including for non-finite floats. A collection can also be passed directly to `ApiResponse::success`. Deserialize JSON directly into `Collection<T>` to retain object member order. `fromValue` uses the order of the supplied `serde_json::Value`.
