@@ -110,14 +110,14 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 ### MySQL 資料表選項 {#mysql-table-options}
 
-在 `Schema::create` 中用 `engine`、`charset` 和 `collation` 設定資料表。MySQL 優先採用 Blueprint 的明確設定，其次採用連線對應的預設值。`comment` 可用於建立和修改資料表。用 `getTables()` 讀取實際的儲存引擎、定序和註解。
+在 `Schema::create` 中用 `engine`、`charset` 和 `collation` 設定資料表。MySQL 優先採用 Blueprint 的明確設定，其次採用連線對應的預設值。`comment` 可用於建立和修改資料表。用 `getTables()` 讀取實際的儲存引擎、定序和註解。 `innoDb()` 等同於 `engine("InnoDB")`。
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn create_customers() -> DatabaseResult<()> {
     Schema::create("customers", |table| {
-        table.engine("InnoDB");
+        table.innoDb();
         table.charset("utf8mb4");
         table.collation("utf8mb4_unicode_ci");
         table.comment("Customer records");
@@ -288,7 +288,7 @@ async fn create_measurements() -> DatabaseResult<()> {
 
 #### 欄位群組與刪除別名 {#column-groups-and-drop-aliases}
 
-`morphs()` 和 `nullableMorphs()` 使用應用程式設定的多型鍵類型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphsWith` 或 `nullableMorphs` 傳入對應參數。
+`morphs()` 和 `nullableMorphs()` 使用應用程式設定的多型鍵類型。可用 `numericMorphs`、`uuidMorphs`、`ulidMorphs` 及允許空值的變體明確選擇 ID 類型。如需指定索引名稱或 MySQL 欄位位置，可向型別專用方法、`morphsWith` 或 `nullableMorphs` 傳入對應參數。 可直接用 `Schema::dropColumns(table, columns)` 移除指定欄位。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -310,6 +310,10 @@ async fn remove_attachment_metadata() -> DatabaseResult<()> {
         table.dropTimestamps();
     })
     .await
+}
+
+async fn remove_legacy_columns() -> DatabaseResult<()> {
+    Schema::dropColumns("attachments", &["legacy_name", "legacy_rank"]).await
 }
 ```
 
@@ -459,19 +463,16 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 #### 檢查 Schema 和檢視表 {#inspecting-schemas-and-views}
 
-`getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。
+`getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。 `getCurrentSchemaName()` 和 `getCurrentSchemaListing()` 依寫入連線設定回傳目前的 Schema。MySQL 回傳設定的資料庫名稱，SQLite 回傳 `main`。這兩個方法讀取連線設定，無須執行 SQL。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn inspect_status_view() -> DatabaseResult<()> {
     if Schema::hasView("status_report").await? {
-        let schemas = Schema::getSchemas().await?;
-        if let Some(current) = schemas.iter().find(|schema| schema.default) {
-            let views = Schema::getViews(Some(&current.name)).await?;
-            for view in views {
-                println!("{}", view.schema_qualified_name);
-            }
+        let current = Schema::getCurrentSchemaName()?;
+        for view in Schema::getViews(Some(&current)).await? {
+            println!("{}", view.schema_qualified_name);
         }
     }
     Ok(())

@@ -344,6 +344,13 @@ impl<'connection> Builder<'connection> {
         })).await
     }
 
+    pub async fn dropColumns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<()> {
+        self.table(table, |blueprint| {
+            blueprint.dropColumn(columns);
+        })
+        .await
+    }
+
     pub async fn drop(&mut self, table: &str) -> DatabaseResult<()> {
         self.drop_table(table, false).await
     }

@@ -110,14 +110,14 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 ### MySQL Table Options {#mysql-table-options}
 
-During `Schema::create`, use `engine`, `charset`, and `collation` to set the table options. MySQL uses a blueprint setting first and then the connection default for that option. `comment` can be used when creating or altering a table. Read the applied engine, collation and comment with `getTables()`.
+During `Schema::create`, use `engine`, `charset`, and `collation` to set the table options. MySQL uses a blueprint setting first and then the connection default for that option. `comment` can be used when creating or altering a table. Read the applied engine, collation and comment with `getTables()`. Use `innoDb()` as shorthand for `engine("InnoDB")`.
 
 ```rust
 use openrust::database::{DatabaseResult, schema::Schema};
 
 async fn create_customers() -> DatabaseResult<()> {
     Schema::create("customers", |table| {
-        table.engine("InnoDB");
+        table.innoDb();
         table.charset("utf8mb4");
         table.collation("utf8mb4_unicode_ci");
         table.comment("Customer records");
@@ -288,7 +288,7 @@ Pass a trusted SQL column definition to `rawColumn(name, definition)` in a migra
 
 #### Column Groups and Drop Aliases {#column-groups-and-drop-aliases}
 
-`morphs()` and `nullableMorphs()` use the application’s configured morph key type. Use `numericMorphs`, `uuidMorphs`, `ulidMorphs`, or their nullable variants to select the ID type explicitly. For an explicit index name or MySQL column position, pass those options to the typed functions, `morphsWith`, or `nullableMorphs`.
+`morphs()` and `nullableMorphs()` use the application’s configured morph key type. Use `numericMorphs`, `uuidMorphs`, `ulidMorphs`, or their nullable variants to select the ID type explicitly. For an explicit index name or MySQL column position, pass those options to the typed functions, `morphsWith`, or `nullableMorphs`. Use `Schema::dropColumns(table, columns)` to remove columns without a Blueprint callback.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
@@ -310,6 +310,10 @@ async fn remove_attachment_metadata() -> DatabaseResult<()> {
         table.dropTimestamps();
     })
     .await
+}
+
+async fn remove_legacy_columns() -> DatabaseResult<()> {
+    Schema::dropColumns("attachments", &["legacy_name", "legacy_rank"]).await
 }
 ```
 
@@ -459,19 +463,16 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 #### Inspecting Schemas and Views {#inspecting-schemas-and-views}
 
-`getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list.
+`getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list. `getCurrentSchemaName()` and `getCurrentSchemaListing()` use the configured write connection. MySQL uses its configured database, and SQLite uses `main`. These two methods read connection settings without issuing SQL.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
 async fn inspect_status_view() -> DatabaseResult<()> {
     if Schema::hasView("status_report").await? {
-        let schemas = Schema::getSchemas().await?;
-        if let Some(current) = schemas.iter().find(|schema| schema.default) {
-            let views = Schema::getViews(Some(&current.name)).await?;
-            for view in views {
-                println!("{}", view.schema_qualified_name);
-            }
+        let current = Schema::getCurrentSchemaName()?;
+        for view in Schema::getViews(Some(&current)).await? {
+            println!("{}", view.schema_qualified_name);
         }
     }
     Ok(())

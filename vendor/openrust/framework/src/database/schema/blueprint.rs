@@ -516,6 +516,10 @@ impl Blueprint {
         self.table_options.engine = Some(engine.to_owned());
     }
 
+    pub fn innoDb(&mut self) {
+        self.engine("InnoDB");
+    }
+
     pub fn comment(&mut self, comment: &str) {
         self.commands
             .push(Command::TableComment(comment.to_owned()));

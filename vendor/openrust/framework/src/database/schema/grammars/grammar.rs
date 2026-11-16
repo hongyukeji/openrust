@@ -56,11 +56,15 @@ impl Grammar {
         Ok(table)
     }
 
+    pub fn default_schema(&self) -> &str {
+        if self.mysql() { &self.database } else { "main" }
+    }
+
     pub fn catalog_schema<'a>(&'a self, table: &'a Table) -> &'a str {
         table
             .schema
             .as_deref()
-            .unwrap_or_else(|| if self.mysql() { &self.database } else { "main" })
+            .unwrap_or_else(|| self.default_schema())
     }
 
     pub fn identifier(&self, name: &str) -> DatabaseResult<String> {

@@ -211,3 +211,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `rawIndex(expression, name)` 接收迁移代码提供的原生键列表，返回 `IndexDefinition` 并保留普通索引支持的修饰符。MySQL 函数键由调用端显式传入一对括号，框架只为外层键列表补括号。空表达式和 NUL 在执行 DDL 前拒绝。
 - `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 20 项 Schema 回归及 1 项限定库清理回归。验证建表和修改表、列与表达式的混合键顺序、索引启用及删除、`EXPLAIN` 查询计划、实际命中行和无效输入预检。目录中表达式位置保留既有 `None` 表示。验收入口取自隔离副本的 `3d2641c0f`。
 - `docker/accept.py --mysql` 跑通三语共用的实际 Artisan 示例并验证索引创建和删除。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 的表达式索引及重建回归已编译，执行留待发布前。
+
+## 当前 Schema 与 DDL 快捷入口
+
+对照固定 Laravel [MySqlBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/MySqlBuilder.php#L54)、[SQLiteBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SQLiteBuilder.php#L169)、[Builder::dropColumns](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L580) 和 [Blueprint::innoDb](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L359)。旧版未找到同名入口。
+
+- `getCurrentSchemaName` 和 `getCurrentSchemaListing` 同步读取连接配置。MySQL 取写库数据库名，SQLite 取 `main`。Builder 借用名称，Facade 返回拥有所有权的字符串。用于目录解析的默认 Schema 与公开查询共用同一逻辑。
+- `dropColumns` 复用 Blueprint 的多列删除。MySQL 将多个删除项合并到同一次 ALTER。空列表在执行 DDL 前报错。`innoDb` 复用 `engine("InnoDB")`，沿用 MySQL 的表选项覆盖规则。
+- `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 21 项 Schema 回归及 1 项限定库清理回归。覆盖读库与写库不同时的默认 Schema、具名连接的限定表名和表前缀、组合删列失败后的列保留以及 InnoDB 覆盖连接默认引擎。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
+- `docker/accept.py --mysql` 运行三语共用的实际 Artisan 示例，核对 InnoDB、Schema 与视图目录及删列。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 30 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版，SQLite 已编译，实际运行留待发布前。

@@ -97,6 +97,10 @@ impl Schema {
         Self::default_builder()?.dropAllViews().await
     }
 
+    pub async fn dropColumns(table: &str, columns: &[&str]) -> DatabaseResult<()> {
+        Self::default_builder()?.dropColumns(table, columns).await
+    }
+
     pub async fn drop(table: &str) -> DatabaseResult<()> {
         Self::default_builder()?.drop(table).await
     }
@@ -107,6 +111,16 @@ impl Schema {
 
     pub async fn rename(from: &str, to: &str) -> DatabaseResult<()> {
         Self::default_builder()?.rename(from, to).await
+    }
+
+    /// Returns the default schema of the application's write connection.
+    pub fn getCurrentSchemaName() -> DatabaseResult<String> {
+        Ok(Self::default_builder()?.getCurrentSchemaName().to_owned())
+    }
+
+    /// Returns the default connection's schema lookup list.
+    pub fn getCurrentSchemaListing() -> DatabaseResult<Vec<String>> {
+        Ok(Self::default_builder()?.getCurrentSchemaListing())
     }
 
     pub async fn getSchemas() -> DatabaseResult<Vec<SchemaInfo>> {

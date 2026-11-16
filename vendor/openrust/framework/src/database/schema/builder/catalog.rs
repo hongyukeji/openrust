@@ -33,6 +33,16 @@ impl Builder<'_> {
         ]
     }
 
+    /// Returns the default schema of the configured write connection.
+    pub fn getCurrentSchemaName(&self) -> &str {
+        self.grammar.default_schema()
+    }
+
+    /// Returns the connection's default schema lookup list.
+    pub fn getCurrentSchemaListing(&self) -> Vec<String> {
+        vec![self.getCurrentSchemaName().to_owned()]
+    }
+
     pub async fn getSchemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
         let mysql_sql;
         let sql = if self.grammar.mysql() {

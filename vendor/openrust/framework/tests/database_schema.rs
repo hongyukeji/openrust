@@ -1710,7 +1710,7 @@ async fn mysql_blueprints_apply_table_options_and_column_collation() {
         .unwrap();
     schema
         .create("explicit_table_options", |table| {
-            table.engine("InnoDB");
+            table.innoDb();
             table.charset("latin1");
             table.collation("latin1_bin");
             table.comment("Customer's \\ archive");
@@ -3138,6 +3138,13 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
         .unwrap()
         .unwrap();
     assert_eq!(read.get("name"), Some(&Value::Text(alternate.clone())));
+    assert_eq!(schema.getCurrentSchemaName(), current);
+    assert_eq!(schema.getCurrentSchemaListing(), [current]);
+    let other = connection(json!({"url": read_url.as_str()}));
+    assert_eq!(
+        other.getSchemaBuilder().getCurrentSchemaListing(),
+        [alternate.as_str()]
+    );
 
     let schemas = schema.getSchemas().await.unwrap();
     assert!(
@@ -3724,6 +3731,8 @@ async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     db.statement("create view local_view as select id from local_row", &[])
         .await
         .unwrap();
+    assert_eq!(schema.getCurrentSchemaName(), "main");
+    assert_eq!(schema.getCurrentSchemaListing(), ["main"]);
     schema.dropAllTables().await.unwrap();
     assert!(!schema.hasTable("local_row").await.unwrap());
     assert!(schema.hasView("local_view").await.unwrap());
@@ -3854,4 +3863,41 @@ async fn sqlite_preserves_raw_expression_indexes_during_table_rebuild() {
     assert!(
         matches!(plan[0].get("detail"), Some(Value::Text(detail)) if detail.contains("label_folded"))
     );
+}
+
+#[tokio::test]
+async fn mysql_drops_columns_through_the_named_schema_builder() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("drop_columns_shortcut").await.unwrap();
+    schema
+        .create("drop_columns_shortcut", |table| {
+            table.id();
+            table.integer("retired");
+            table.string("old label", 40).nullable();
+        })
+        .await
+        .unwrap();
+    let target = format!("{}.drop_columns_shortcut", schema.getCurrentSchemaName());
+    assert!(
+        schema
+            .dropColumns(&target, &["retired", "absent"])
+            .await
+            .is_err()
+    );
+    assert!(schema.hasColumn(&target, "retired").await.unwrap());
+    assert!(matches!(
+        schema.dropColumns(&target, &[]).await,
+        Err(DatabaseError::InvalidSchema("empty column list"))
+    ));
+    schema
+        .dropColumns(&target, &["retired", "old label"])
+        .await
+        .unwrap();
+    assert_eq!(schema.getColumnListing(&target).await.unwrap(), ["id"]);
+    schema.drop(&target).await.unwrap();
 }
