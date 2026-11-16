@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, sync::OnceLock};
 
 use super::{MarkdownOptions, Stringable, markdown};
 
+mod comb;
 mod display_width;
 mod inflection;
 mod pattern;
@@ -11,6 +12,7 @@ mod slug;
 mod strict_transliteration;
 mod text_layout;
 
+pub use comb::OrderedUuidError;
 pub use inflection::InflectionLanguage;
 pub use random::{EmptyPasswordAlphabet, PasswordOptions};
 pub use text_layout::WordWrapError;
@@ -506,6 +508,16 @@ impl Str {
         bytes[6] = (bytes[6] & 0x0f) | 0x40;
         bytes[8] = (bytes[8] & 0x3f) | 0x80;
         Ok(uuid::Uuid::from_bytes(bytes))
+    }
+
+    /// Generates a UUID v4 with a 10-microsecond Unix timestamp in its first six bytes.
+    pub fn orderedUuid() -> Result<uuid::Uuid, OrderedUuidError> {
+        Self::orderedUuidAt(std::time::SystemTime::now())
+    }
+
+    /// Generates a timestamp-first COMB UUID for a caller-supplied time.
+    pub fn orderedUuidAt(time: std::time::SystemTime) -> Result<uuid::Uuid, OrderedUuidError> {
+        comb::generate(time)
     }
 
     pub fn uuid7() -> uuid::Uuid {

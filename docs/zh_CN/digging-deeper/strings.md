@@ -101,3 +101,19 @@ assert_eq!(french, "chevaux");
 assert_eq!(turkish, "arabalar");
 assert_eq!(Str::plural("child", 2), "children");
 ```
+
+## 时间戳前置的 COMB UUID {#ordered-comb-uuid}
+
+`Str::orderedUuid` 创建 UUID v4，前六字节保存以 10 微秒为单位的 Unix 时间戳。`orderedUuidAt` 接收显式的 `SystemTime`。跨时间刻度按时间戳排序，同一刻度内的顺序由随机字节决定。
+
+```rust
+use openrust::support::Str;
+use std::time::{Duration, UNIX_EPOCH};
+
+let first = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(10))?;
+let second = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(20))?;
+assert_eq!(first.get_version_num(), 4);
+assert!(first < second);
+let prefix = first.to_string()[..13].to_owned();
+assert_eq!(prefix, "00000000-0001");
+```

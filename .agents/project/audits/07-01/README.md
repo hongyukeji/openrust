@@ -45,8 +45,7 @@
 
 ## 尚未验收的范围
 
-- Strings 的 COMB 标识符待验收。
-- Helpers 的运行时适配边界见各批验收记录。
+- 本轮指定的 Arr、日期、Pipeline、多语言词形和 COMB 批次均已验收。Rust 与 PHP 的运行时适配边界见各批验收记录。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -93,3 +92,8 @@
 
 - 按固定 Laravel Pluralizer 和其声明兼容的 Doctrine Inflector 2.1.0 核对词形规则。规则数据保留原顺序、不可变项及不规则替换，附 MIT 许可。通过 `InflectionLanguage` 逐次显式选用语言，默认英语。Rust 使用 Unicode 正则，英语 regatta 的后向例外按后缀判断。旧版未发现多语言规则实现。 [固定 Pluralizer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Pluralizer.php) [Doctrine 2.1.0 规则](https://github.com/doctrine/inflector/tree/2.1.0/src/Rules)
 - PHP 8.5.12 运行固定 Laravel 的八语言 46 词矩阵，核对复数、回转单数和计数边界。10 项 Rust 定向测试及严格 Clippy 通过。真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。
+
+## COMB orderedUuid
+
+- 固定 Laravel `Str::orderedUuid` 使用 Ramsey TimestampFirstCombCodec。Rust 复用既有 UUID v4 随机源和版本、变体位编码，把 Unix 10 微秒刻度写入前 48 位。`orderedUuidAt` 接收显式时间，用类型化错误报告范围或随机源问题。同一刻度内的随机顺序与 PHP 一致。旧版未发现对应生成器。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php) [Ramsey 4.7.6 编码器](https://github.com/ramsey/uuid/blob/4.7.6/src/Codec/TimestampFirstCombCodec.php)
+- PHP 8.5.12 实跑固定 Laravel 与兼容的 Ramsey 4.7.6，核对实时时钟前缀、二进制与文本一致以及版本。20 项 Rust 锁定离线定向回归、严格 Clippy、真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。验收临时副本、PHP 对照夹具、站点产物和测试 SQLite 文件按批清理，共享 Cargo 缓存保留。

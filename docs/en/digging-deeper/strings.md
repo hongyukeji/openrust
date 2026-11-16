@@ -101,3 +101,19 @@ assert_eq!(french, "chevaux");
 assert_eq!(turkish, "arabalar");
 assert_eq!(Str::plural("child", 2), "children");
 ```
+
+## Timestamp-first COMB UUIDs {#ordered-comb-uuid}
+
+`Str::orderedUuid` creates a UUID v4 with the first six bytes set to Unix time in 10-microsecond ticks. `orderedUuidAt` accepts an explicit `SystemTime`. Identifiers from different ticks sort by timestamp. Identifiers in the same tick have random ordering.
+
+```rust
+use openrust::support::Str;
+use std::time::{Duration, UNIX_EPOCH};
+
+let first = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(10))?;
+let second = Str::orderedUuidAt(UNIX_EPOCH + Duration::from_micros(20))?;
+assert_eq!(first.get_version_num(), 4);
+assert!(first < second);
+let prefix = first.to_string()[..13].to_owned();
+assert_eq!(prefix, "00000000-0001");
+```
