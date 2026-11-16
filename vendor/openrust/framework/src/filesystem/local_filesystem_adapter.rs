@@ -6,7 +6,7 @@ use std::{
 use cap_std::{ambient_authority, fs::Dir};
 use tokio::io::{AsyncRead, AsyncWriteExt as _};
 
-use super::{FilesystemError, FilesystemResult, Visibility};
+use super::{FilesystemError, FilesystemResult, Visibility, filesystem_adapter::validate_path};
 
 /// Performs confined local operations relative to the disk root.
 pub struct LocalFilesystemAdapter {
@@ -32,7 +32,7 @@ impl LocalFilesystemAdapter {
         &self.root
     }
 
-    fn resolve(&self, path: &Path, create: bool) -> io::Result<(Dir, PathBuf)> {
+    fn open_directory(&self, path: &Path, create: bool) -> io::Result<Dir> {
         if create {
             let mut builder = std::fs::DirBuilder::new();
             builder.recursive(true);
@@ -44,7 +44,7 @@ impl LocalFilesystemAdapter {
             builder.create(&self.root)?;
         }
         let mut dir = Dir::open_ambient_dir(&self.root, ambient_authority())?;
-        for part in path.parent().into_iter().flat_map(Path::components) {
+        for part in path.components() {
             dir = open_child(
                 &dir,
                 Path::new(part.as_os_str()),
@@ -52,8 +52,14 @@ impl LocalFilesystemAdapter {
                 self.directory_visibility,
             )?;
         }
+        Ok(dir)
+    }
+
+    fn resolve(&self, path: &Path, create: bool) -> io::Result<(Dir, PathBuf)> {
+        let directory =
+            self.open_directory(path.parent().expect("validated filesystem path"), create)?;
         let name = path.file_name().expect("validated filesystem path").into();
-        Ok((dir, name))
+        Ok((directory, name))
     }
 
     pub(super) async fn read(&self, path: PathBuf) -> FilesystemResult<tokio::fs::File> {
@@ -115,6 +121,91 @@ impl LocalFilesystemAdapter {
         .await;
         match result {
             Err(FilesystemError::NotFound) => Ok(false),
+            result => result,
+        }
+    }
+
+    pub(super) async fn list(
+        &self,
+        path: String,
+        recursive: bool,
+        directories: bool,
+    ) -> FilesystemResult<Vec<String>> {
+        let disk = self.clone_for_task();
+        blocking(move || {
+            let directory = match disk.open_directory(Path::new(&path), false) {
+                Ok(directory) => directory,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+                Err(error) => return Err(error),
+            };
+            let mut found = Vec::new();
+            let entries = directory.entries()?;
+            let mut stack = vec![(path, directory, entries)];
+            while let Some((prefix, parent, entries)) = stack.last_mut() {
+                let Some(entry) = entries.next() else {
+                    stack.pop();
+                    continue;
+                };
+                let entry = entry?;
+                let name = entry.file_name();
+                let Some(name) = name.to_str().filter(|name| validate_path(name).is_ok()) else {
+                    continue;
+                };
+                let kind = entry.file_type()?;
+                if !kind.is_file() && !kind.is_dir() {
+                    continue;
+                }
+                let relative = if prefix.is_empty() {
+                    name.to_owned()
+                } else {
+                    format!("{prefix}/{name}")
+                };
+                let child = if recursive && kind.is_dir() {
+                    Some(open_child(
+                        parent,
+                        Path::new(name),
+                        false,
+                        disk.directory_visibility,
+                    )?)
+                } else {
+                    None
+                };
+
+                if let Some(child) = child {
+                    let entries = child.entries()?;
+                    if directories {
+                        found.push(relative.clone());
+                    }
+                    stack.push((relative, child, entries));
+                } else if kind.is_dir() == directories {
+                    found.push(relative);
+                }
+            }
+            if !directories {
+                found.sort_unstable();
+            }
+            Ok(found)
+        })
+        .await
+    }
+
+    pub(super) async fn make_directory(&self, path: PathBuf) -> FilesystemResult<()> {
+        let disk = self.clone_for_task();
+        blocking(move || disk.open_directory(&path, true).map(drop)).await
+    }
+
+    pub(super) async fn delete_directory(&self, path: PathBuf) -> FilesystemResult<()> {
+        let disk = self.clone_for_task();
+        let result = blocking(move || {
+            let (parent, name) = disk.resolve(&path, false)?;
+            if !parent.symlink_metadata(&name)?.is_dir() {
+                return Err(io::ErrorKind::NotADirectory.into());
+            }
+            parent.remove_dir_all(name)
+        })
+        .await;
+        match result {
+            Err(FilesystemError::NotFound) => Ok(()),
             result => result,
         }
     }

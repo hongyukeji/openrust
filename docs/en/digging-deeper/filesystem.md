@@ -189,3 +189,18 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 ### Custom local disk URL builders {#customizing-temporary-urls}
 
 Register `buildTemporaryUrlsUsing` or `buildTemporaryUploadUrlsUsing` on the local disk during provider boot. The callback receives the validated path, expiration and typed options. The upload callback returns a `TemporaryUploadUrl` with the URL and required headers.
+
+## Directories {#directories}
+
+Use `files` and `directories` to list direct children on a local disk. Use `allFiles` and `allDirectories` to include descendants. Pass `None` for the disk root. Results are disk-relative paths with `/` separators. File lists are sorted by path, and a missing directory returns an empty list.
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
+    disk.makeDirectory("reports/daily").await?;
+    disk.allFiles(Some("reports")).await
+}
+```
+
+Use `makeDirectory` to create missing parents with the disk’s directory visibility, and `deleteDirectory` to remove a directory and its contents. Listing skips symbolic links and temporary writes. Directory creation and deletion require a named relative path. The same methods are available on `Storage` for the default disk.

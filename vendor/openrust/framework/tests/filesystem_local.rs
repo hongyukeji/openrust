@@ -282,7 +282,28 @@ async fn application_scope_and_public_mount_work_over_http() {
 
     fn write(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
+            assert!(Storage::makeDirectory("notes/empty").await.unwrap());
             assert!(Storage::put("notes/example.txt", b"Hello").await.unwrap());
+            assert_eq!(
+                Storage::files(Some("notes")).await.unwrap(),
+                ["notes/example.txt"]
+            );
+            assert_eq!(
+                Storage::allFiles(None).await.unwrap(),
+                ["notes/example.txt"]
+            );
+            assert_eq!(
+                Storage::directories(Some("notes")).await.unwrap(),
+                ["notes/empty"]
+            );
+            assert!(
+                Storage::allDirectories(None)
+                    .await
+                    .unwrap()
+                    .contains(&"notes/empty".to_owned())
+            );
+            assert!(Storage::deleteDirectory("notes/empty").await.unwrap());
+
             assert_eq!(
                 Storage::get("notes/example.txt").await.unwrap().as_deref(),
                 Some(&b"Hello"[..])
@@ -465,4 +486,111 @@ async fn application_scope_and_public_mount_work_over_http() {
     second_server.abort();
     let _ = server.await;
     let _ = second_server.await;
+}
+
+#[tokio::test]
+async fn local_directories_list_paths_create_parents_and_delete_recursively() {
+    let root = Sandbox::new();
+    let disk = root.manager(true).disk(None).unwrap();
+    assert!(disk.files(None).await.unwrap().is_empty());
+    assert!(
+        disk.allDirectories(Some("absent"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(disk.makeDirectory("records/january/empty").await.unwrap());
+    assert!(disk.makeDirectory("records/january/empty").await.unwrap());
+    assert!(disk.put("records/z.txt", b"last").await.unwrap());
+    assert!(disk.put("records/january/a.txt", b"first").await.unwrap());
+    assert!(disk.put("outside.txt", b"other").await.unwrap());
+    assert_eq!(disk.files(Some("")).await.unwrap(), ["outside.txt"]);
+    assert_eq!(
+        disk.files(Some("records")).await.unwrap(),
+        ["records/z.txt"]
+    );
+    assert_eq!(
+        disk.allFiles(Some("records")).await.unwrap(),
+        ["records/january/a.txt", "records/z.txt"]
+    );
+    assert_eq!(
+        disk.directories(Some("records")).await.unwrap(),
+        ["records/january"]
+    );
+    assert_eq!(
+        disk.allDirectories(Some("records")).await.unwrap(),
+        ["records/january", "records/january/empty"]
+    );
+
+    assert!(disk.makeDirectory("records/z.txt/child").await.is_err());
+    let quiet = root.manager(false).disk(None).unwrap();
+    assert!(!quiet.makeDirectory("records/z.txt/child").await.unwrap());
+    assert!(!quiet.deleteDirectory("records/z.txt").await.unwrap());
+    assert!(matches!(
+        quiet.deleteDirectory("").await,
+        Err(FilesystemError::InvalidPath)
+    ));
+    assert!(matches!(
+        quiet.allFiles(Some("../")).await,
+        Err(FilesystemError::InvalidPath)
+    ));
+    assert!(disk.deleteDirectory("records").await.unwrap());
+    assert!(disk.deleteDirectory("records").await.unwrap());
+    assert!(!disk.directoryExists("records").await.unwrap());
+    assert_eq!(disk.get("outside.txt").await.unwrap().unwrap(), b"other");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn local_directory_operations_preserve_visibility_and_link_boundaries() {
+    use std::os::unix::fs::{PermissionsExt as _, symlink};
+
+    let root = Sandbox::new();
+    let manager = root.manager(true);
+    let private = manager.disk(None).unwrap();
+    let public = manager.disk(Some("public")).unwrap();
+    assert!(private.makeDirectory("folder/nested").await.unwrap());
+    assert!(public.makeDirectory("folder/nested").await.unwrap());
+    for (path, mode) in [
+        ("private/folder", 0o700),
+        ("private/folder/nested", 0o700),
+        ("public/folder", 0o755),
+        ("public/folder/nested", 0o755),
+    ] {
+        assert_eq!(
+            std::fs::metadata(root.0.join(path))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            mode
+        );
+    }
+    let outside = root.0.join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(outside.join("retained.txt"), b"retain").unwrap();
+    symlink(&outside, root.0.join("public/folder/link")).unwrap();
+    symlink(
+        outside.join("retained.txt"),
+        root.0.join("public/folder/linked.txt"),
+    )
+    .unwrap();
+    std::fs::write(
+        root.0.join("public/folder/.storage-write-pending"),
+        b"stage",
+    )
+    .unwrap();
+    assert!(public.allFiles(Some("folder")).await.unwrap().is_empty());
+    assert_eq!(
+        public.allDirectories(Some("folder")).await.unwrap(),
+        ["folder/nested"]
+    );
+    assert!(public.files(Some("folder/link")).await.is_err());
+    assert!(public.makeDirectory("folder/link/other").await.is_err());
+    assert!(public.deleteDirectory("folder/link").await.is_err());
+    assert!(public.deleteDirectory("folder").await.unwrap());
+    assert_eq!(
+        std::fs::read(outside.join("retained.txt")).unwrap(),
+        b"retain"
+    );
 }

@@ -189,3 +189,18 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 ### 自訂本機磁碟簽章回呼 {#customizing-temporary-urls}
 
 在服務提供者啟動時，對本機磁碟註冊 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回呼接收已驗證的路徑、到期時間和具型別的選項。上傳回呼傳回包含 URL 和必要請求標頭的 `TemporaryUploadUrl`。
+
+## 目錄 {#directories}
+
+對本機磁碟使用 `files` 和 `directories` 列出直接子項，使用 `allFiles` 和 `allDirectories` 納入後代。傳入 `None` 表示磁碟根目錄。結果是以 `/` 分隔的磁碟相對路徑。檔案列表依路徑排序，目錄缺失時傳回空列表。
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
+    disk.makeDirectory("reports/daily").await?;
+    disk.allFiles(Some("reports")).await
+}
+```
+
+用 `makeDirectory` 依磁碟設定的目錄可見性建立缺失的父目錄，用 `deleteDirectory` 刪除目錄及內容。列表略過符號連結和暫存寫入項目。建立與刪除時須傳入具名相對路徑。也可透過 `Storage` 在預設磁碟呼叫這些方法。

@@ -463,6 +463,54 @@ impl FilesystemAdapter {
         }
     }
 
+    pub async fn files(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        self.list(directory, false, false).await
+    }
+
+    pub async fn allFiles(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        self.list(directory, true, false).await
+    }
+
+    pub async fn directories(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        self.list(directory, false, true).await
+    }
+
+    pub async fn allDirectories(&self, directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        self.list(directory, true, true).await
+    }
+
+    async fn list(
+        &self,
+        directory: Option<&str>,
+        recursive: bool,
+        directories: bool,
+    ) -> FilesystemResult<Vec<String>> {
+        let path = directory.unwrap_or_default();
+        if !path.is_empty() {
+            validate_path(path)?;
+        }
+        match &self.driver {
+            Driver::Local(disk) => disk.list(path.to_owned(), recursive, directories).await,
+            Driver::S3(_) => Err(FilesystemError::UnsupportedOperation),
+        }
+    }
+
+    pub async fn makeDirectory(&self, path: &str) -> FilesystemResult<bool> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        self.or_default(disk.make_directory(path.into()).await.map(|()| true))
+    }
+
+    pub async fn deleteDirectory(&self, path: &str) -> FilesystemResult<bool> {
+        validate_path(path)?;
+        let Driver::Local(disk) = &self.driver else {
+            return Err(FilesystemError::UnsupportedOperation);
+        };
+        self.or_default(disk.delete_directory(path.into()).await.map(|()| true))
+    }
+
     pub async fn delete(&self, path: &str) -> FilesystemResult<bool> {
         validate_path(path)?;
         let result = match &self.driver {

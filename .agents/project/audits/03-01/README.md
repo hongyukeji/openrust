@@ -16,3 +16,13 @@ macOS arm64、Rust 1.94.0。隔离副本位于 `/private/tmp/openrust-03-01.qtGw
 - 三语 Rust 示例逐一编译，在真实应用 Kernel 的请求作用域内写盘及回读。`npm run build`、12 项常规浏览器组合及 6 项文件系统正文和侧栏检查通过。工作区锁定依赖解析与 `git diff --check` 通过。
 
 下一批为 03-03 S3 磁盘，依赖本批的磁盘管理器和适配器契约，并需要隔离的 S3 兼容服务。
+
+## 本地磁盘目录操作
+
+对照固定 Laravel [Directories](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/filesystem.md#directories)及[适配器目录入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemAdapter.php#L926)。旧版没有对应业务目录接口，暂存清理已有区分目录条目和符号链接的做法。本批复用当前本地磁盘的目录句柄、路径校验和目录可见性。
+
+- `files`、`allFiles`、`directories`、`allDirectories` 输出磁盘相对路径。`None` 或空字符串表示查询根目录，缺失目录返回空列表。文件列表按路径排序，目录列表保留驱动遍历顺序。只列出可由该 API 表达的路径，跳过符号链接、非普通条目和临时写入项。
+- `makeDirectory` 递归创建父目录并应用目录可见性。`deleteDirectory` 递归删除指定目录，目标缺失可重复调用。两者要求具名相对路径，写入和删除沿用 `throw` 与 `report`。Unix 实测跳过目录链接，递归删除不影响链接目标。默认盘 Facade 和具名磁盘共用实现。S3 目录入口仍待单独接入。
+- 隔离基线 `592bfce77`。PHP 8.5.12 执行固定 Laravel 和 Flysystem 3.25.1 对照，验证浅层及递归目录列表、排序、创建和幂等删除。六项本地文件系统测试通过，其中实际 HTTP 请求验证六个 Facade 目录方法。实际 Artisan 子进程验证 `storage:link` 和 `storage:unlink`。
+- 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点与 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。Windows 实机留待发布前统一复核。03-01 接续文件元数据。
+- PHP 容器已回收。清理本批 3.5 GiB Cargo 产物及站点缓存后，卷可用 60.96 GB（56.78 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-directories.IGIfj8dI`。

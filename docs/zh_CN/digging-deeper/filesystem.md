@@ -189,3 +189,18 @@ async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
 ### 自定义本地磁盘签名回调 {#customizing-temporary-urls}
 
 在服务提供者启动时，对本地磁盘注册 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回调接收已校验的路径、过期时间和类型化选项。上传回调返回包含 URL 和所需请求头的 `TemporaryUploadUrl`。
+
+## 目录 {#directories}
+
+对本地磁盘使用 `files` 和 `directories` 列出直接子项，使用 `allFiles` 和 `allDirectories` 包含后代。传入 `None` 表示磁盘根目录。结果为以 `/` 分隔的磁盘相对路径。文件列表按路径排序，目录缺失时返回空列表。
+
+```rust
+use openrust::filesystem::{FilesystemAdapter, FilesystemResult};
+
+async fn daily_reports(disk: &FilesystemAdapter) -> FilesystemResult<Vec<String>> {
+    disk.makeDirectory("reports/daily").await?;
+    disk.allFiles(Some("reports")).await
+}
+```
+
+用 `makeDirectory` 按磁盘配置的目录可见性创建缺失的父目录，用 `deleteDirectory` 删除目录及其内容。列表跳过符号链接和临时写入项。创建和删除时须传入具名相对路径。也可通过 `Storage` 在默认磁盘调用这些方法。

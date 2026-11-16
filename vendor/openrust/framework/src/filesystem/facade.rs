@@ -125,6 +125,34 @@ impl Storage {
         Self::disk(None)?.exists(path).await
     }
 
+    pub async fn files(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.files(directory).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn allFiles(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.allFiles(directory).await
+    }
+
+    pub async fn directories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.directories(directory).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn allDirectories(directory: Option<&str>) -> FilesystemResult<Vec<String>> {
+        Self::disk(None)?.allDirectories(directory).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn makeDirectory(path: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.makeDirectory(path).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn deleteDirectory(path: &str) -> FilesystemResult<bool> {
+        Self::disk(None)?.deleteDirectory(path).await
+    }
+
     pub async fn delete(path: &str) -> FilesystemResult<bool> {
         Self::disk(None)?.delete(path).await
     }
