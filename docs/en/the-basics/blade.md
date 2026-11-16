@@ -34,6 +34,18 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### Authentication Directives {#authentication-directives}
+
+Use `@auth` and `@guest` in HTTP views to check the configured guard. Pass a guard name to select a different one. `@elseauth` and `@elseguest` add branches to the same block.
+
+```html
+@auth('staff')
+    <p>Staff</p>
+@elseguest
+    <p>Sign in</p>
+@endauth
+```
+
 ### Environment, Session, and Context {#environment-session-context}
 
 Use `@production` and `@env` to match the application environment. `@env` accepts a name or list, including wildcard patterns. `@session` and `@context` expose `$value` inside their blocks. Session values support dotted keys, and `@context` reads the public request context.

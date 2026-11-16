@@ -326,8 +326,12 @@ fn view_contracts_resolve_files_namespaces_and_engines() {
 async fn layouts_and_composers_isolate_concurrent_http_requests() {
     use axum::{extract::State, handler::Handler as _};
     use openrust::{
+        auth::{AuthIdentifier, AuthManager},
         container::ServiceKey,
-        contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
+        contracts::{
+            auth::Authenticatable, container::Container as _, foundation::Application as _,
+            http::Kernel as _,
+        },
         foundation::{Application, configuration::Routing, http::Kernel},
         http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
         support::facades::{Route, View as ViewFacade},
@@ -338,6 +342,30 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     };
     use std::{path::PathBuf, sync::Arc};
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    struct ViewIdentity;
+
+    impl Authenticatable for ViewIdentity {
+        fn get_auth_identifier_name(&self) -> &str {
+            "id"
+        }
+        fn get_auth_identifier(&self) -> AuthIdentifier {
+            AuthIdentifier::String("blade".into())
+        }
+        fn get_auth_password_name(&self) -> &str {
+            "password"
+        }
+        fn get_auth_password(&self) -> Option<&str> {
+            None
+        }
+        fn get_remember_token_name(&self) -> &str {
+            "remember_token"
+        }
+        fn get_remember_token(&self) -> Option<&str> {
+            None
+        }
+        fn set_remember_token(&mut self, _: Option<String>) {}
+    }
 
     struct Badge;
     impl Component for Badge {
@@ -411,6 +439,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         let package_views = path.join("resources/views/package");
         let extra_components = path.join("extra-components");
         let application = Application::configure(path)
+            .withConfig(|_, _| {
+                Ok([("auth".to_owned(), serde_json::json!({
+                "defaults":{"guard":"web"},
+                "guards":{"web":{"driver":"view-default"}, "alternate":{"driver":"view-alternate"}}
+            }))].into())
+            })
             .withRouting(Routing::default().web(|| {
                 Route::get("/page", || view("page").with("title", "route"))?;
                 Route::get("/plain", || view("layout"))?;
@@ -490,6 +524,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     view("anonymous_mounts").with("dynamic", "external::notice")
                 })?;
                 Route::get("/anonymous-missing", || view("anonymous_missing"))?;
+                Route::get("/blade-auth/{state}", || view("blade_auth"))?;
+                Route::get("/blade-auth-failed", || view("blade_auth_failed"))?;
                 Route::get("/scoped-slot", || {
                     view("scoped_slot").with("component", "outside")
                 })?;
@@ -505,6 +541,24 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .unwrap();
         let mut kernel = Kernel::new(application);
         kernel.bootstrap().await.unwrap();
+        let auth = kernel
+            .get_application()
+            .container()
+            .get::<AuthManager>("auth")
+            .unwrap();
+        for (driver, suffix) in [("view-default", "/signed"), ("view-alternate", "/named")] {
+            auth.viaRequest(driver, move |request| {
+                Box::pin(async move {
+                    tokio::task::yield_now().await;
+                    if request.parts().uri.path().ends_with(suffix) {
+                        openrust::log::context::Context::add("blade.guard", driver.into()).unwrap();
+                        Ok(Some(Box::new(ViewIdentity) as Box<dyn Authenticatable>))
+                    } else {
+                        Ok(None)
+                    }
+                })
+            });
+        }
         let factory = kernel
             .get_application()
             .container()
@@ -846,6 +900,16 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ("widgets/banner", "namespace"),
         ("anonymous_missing", "<x-external::none/>"),
         (
+            "blade_auth",
+            concat!(
+                "@auth default@elseauth('alternate') named@elseguest guest@endauth",
+                "@guest('alternate')|no-alt@endguest",
+                "@if(false)@auth('unknown')unreachable@endauth@endif",
+                "@context('blade.guard')|{{ $value }}@endcontext",
+            ),
+        ),
+        ("blade_auth_failed", "@auth('unknown')unreachable@endauth"),
+        (
             "scoped_slot",
             concat!(
                 "<x-scoped-panel><x-slot:heading>{{ $component->caption }}</x-slot:heading>",
@@ -1032,6 +1096,16 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(a, "namespace|path A|unprefixed");
     assert_eq!(b, "namespace|path B|unprefixed");
     assert!(send(first, "/anonymous-missing", 500).await.contains("500"));
+    assert_eq!(
+        send(first, "/blade-auth/signed", 200).await,
+        " default|no-alt|view-default"
+    );
+    assert_eq!(
+        send(first, "/blade-auth/named", 200).await,
+        " named|view-alternate"
+    );
+    assert_eq!(send(second, "/blade-auth/off", 200).await, " guest|no-alt");
+    assert!(send(first, "/blade-auth-failed", 500).await.contains("500"));
     let (a, b) = tokio::join!(
         send(first, "/scoped-slot", 200),
         send(second, "/scoped-slot", 200)

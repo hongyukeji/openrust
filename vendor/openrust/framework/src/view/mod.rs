@@ -181,19 +181,26 @@ impl View {
                 })?;
             let context = crate::support::facades::context_snapshot();
             let errors = middleware::shared_errors();
-            let request_data = request_data::ViewRequestData::capture(request);
-            let html = tokio::task::spawn_blocking(move || {
+            let (guard_sender, mut guard_queries) = tokio::sync::mpsc::channel(1);
+            let request_data = request_data::ViewRequestData::capture(request, guard_sender);
+            let mut rendering = tokio::task::spawn_blocking(move || {
                 middleware::render_scope(errors, || {
                     context.run(|| factory.render_in_request(self, request_data))
                 })
-            })
-            .await
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?
-            .map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
+            });
+            let rendered = loop {
+                tokio::select! {
+                    result = &mut rendering => break result,
+                    Some(query) = guard_queries.recv() => query.resolve(request).await,
+                }
+            };
+            let html = rendered
+                .map_err(|source| HttpError::Internal {
+                    source: source.into(),
+                })?
+                .map_err(|source| HttpError::Internal {
+                    source: source.into(),
+                })?;
 
             let mut response = Response::new(StatusCode::OK, Body::from(html));
             response.parts_mut().headers.insert(

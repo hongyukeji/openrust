@@ -7,7 +7,7 @@
 | Introduction、Livewire | 应用从路由返回命名视图。编译器缓存纯 Rust 指令树。 | Livewire 属于独立生态范围。 |
 | Displaying Data、HTML Entity Encoding | 默认转义、可信原样输出、标量、变量和属性读取。 | 应用级关闭双重编码，PHP 任意函数调用改由 Rust 处理器、创建器或组合器计算。 |
 | Blade and JavaScript Frameworks、Comments | 字面量转义、`@verbatim`、Blade 注释、`Js::from` 和 `@js` 的脚本表达式输出。 | PHP JSON 标志和自定义序列化对象由 Rust 数据模型替代。 |
-| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断、环境匹配、会话与公开上下文绑定。 | Auth 专用指令及 PHP 通用宽松比较。 |
+| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断、环境匹配、会话与公开上下文绑定，以及 HTTP 守卫的 `@auth` / `@guest`。 | PHP 通用宽松比较。 |
 | Switch Statements、Loops、The Loop Variable | Switch 的匹配、默认分支、贯穿与跳转。支持 `@foreach`、`@forelse`、键和值、循环元数据、计数 `@for`、`@while` 及带条件或层级的 `@break` / `@continue`。 | PHP 任意可变循环表达式和流式集合长度语义。 |
 | Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 更广的 PHP 数组构造表达式。 |
 | Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst`、`@includeIsolated` 与 `@each` 的独立集合渲染。 | 集合由物化的 Rust 视图数据提供。 |

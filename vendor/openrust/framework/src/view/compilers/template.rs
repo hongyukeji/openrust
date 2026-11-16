@@ -73,6 +73,7 @@ enum Node {
     CustomDirective(String, Vec<Expression>),
     CustomCondition(String, Vec<CustomBranch>, Vec<Node>),
     Environment(Vec<Expression>, Vec<Node>, Vec<Node>),
+    Auth(Vec<AuthBranch>, Vec<Node>),
     RequestValue(RequestValueKind, Expression, Vec<Node>),
     Include(Include, bool),
     IncludeWhen(Expression, Include, bool),
@@ -99,6 +100,13 @@ struct Slot {
 struct CustomBranch {
     arguments: Vec<Expression>,
     negated: bool,
+    body: Vec<Node>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct AuthBranch {
+    guard: Option<Expression>,
+    guest: bool,
     body: Vec<Node>,
 }
 
@@ -232,6 +240,10 @@ enum Stop<'a> {
     EndError,
     EndFragment,
     EndEnvironment,
+    EndAuth,
+    EndGuest,
+    ElseAuth,
+    ElseGuest,
     EndProduction,
     EndSession,
     EndContext,
@@ -563,6 +575,10 @@ impl<'a> Parser<'a> {
             self.request_value_block(depth, RequestValueKind::Session, Stop::EndSession)?
         } else if self.directive("context") {
             self.request_value_block(depth, RequestValueKind::Context, Stop::EndContext)?
+        } else if self.directive("auth") {
+            self.auth_block(depth, false, Stop::EndAuth)?
+        } else if self.directive("guest") {
+            self.auth_block(depth, true, Stop::EndGuest)?
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -703,6 +719,36 @@ impl<'a> Parser<'a> {
             return Err(invalid("Unclosed Blade session or context directive."));
         }
         Ok(Node::RequestValue(kind, name, body))
+    }
+
+    fn auth_block(&mut self, depth: usize, mut guest: bool, end: Stop<'a>) -> ViewResult<Node> {
+        let mut branches = Vec::new();
+        let alternative = loop {
+            let guard = if self.remaining.trim_start().starts_with('(') {
+                let guard = self.arguments()?.trim();
+                (!guard.is_empty())
+                    .then(|| expression_value(guard))
+                    .transpose()?
+            } else {
+                None
+            };
+            let (body, stop) = self.block(depth + 1)?;
+            branches.push(AuthBranch { guard, guest, body });
+            match stop {
+                Some(stop) if stop == end => break Vec::new(),
+                Some(Stop::ElseAuth) => guest = false,
+                Some(Stop::ElseGuest) => guest = true,
+                Some(Stop::Else) => {
+                    let (body, stop) = self.block(depth + 1)?;
+                    if stop != Some(end) {
+                        return Err(invalid("Unclosed Blade authentication block."));
+                    }
+                    break body;
+                }
+                _ => return Err(invalid("Unclosed Blade authentication block.")),
+            }
+        };
+        Ok(Node::Auth(branches, alternative))
     }
 
     fn custom_condition(
@@ -963,6 +1009,10 @@ impl<'a> Parser<'a> {
             ("endproduction", Stop::EndProduction),
             ("endsession", Stop::EndSession),
             ("endcontext", Stop::EndContext),
+            ("endauth", Stop::EndAuth),
+            ("endguest", Stop::EndGuest),
+            ("elseauth", Stop::ElseAuth),
+            ("elseguest", Stop::ElseGuest),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -1394,10 +1444,10 @@ fn render_nodes<'a>(
                 }
             }
             Node::Csrf => {
-                let token = context.request.csrf_token.as_deref().ok_or_else(|| {
+                let token = context.request.csrf_token().ok_or_else(|| {
                     render_error("The Blade CSRF field requires an active session.")
                 })?;
-                hidden_field(output, "_token", token);
+                hidden_field(output, "_token", &token);
             }
             Node::Method(expression) => {
                 hidden_field(
@@ -1506,6 +1556,21 @@ fn render_nodes<'a>(
                     output,
                     context
                 );
+            }
+            Node::Auth(branches, alternative) => {
+                let mut selected = alternative;
+                for branch in branches {
+                    let guard = branch
+                        .guard
+                        .as_ref()
+                        .map(|guard| name_value(value(guard, data, bindings)))
+                        .transpose()?;
+                    if context.request.authenticated(guard)? != branch.guest {
+                        selected = &branch.body;
+                        break;
+                    }
+                }
+                render_block!(selected, data, bindings, output, context);
             }
             Node::RequestValue(kind, name, nodes) => {
                 let name = name_value(value(name, data, bindings))?;

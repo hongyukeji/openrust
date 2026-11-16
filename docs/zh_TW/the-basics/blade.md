@@ -34,6 +34,18 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 以 `@includeIf('partials.notice')` 略過不存在的檢視。以 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 依條件轉譯。子檢視繼承目前的檢視資料，包括迴圈變數。條件成立並選中檢視時，`@includeWhen` 和 `@includeUnless` 要求該檢視存在。
 
+### 驗證指令 {#authentication-directives}
+
+在 HTTP 視圖中用 `@auth` 和 `@guest` 檢查已設定的守衛。傳入名稱可以指定守衛。`@elseauth` 和 `@elseguest` 在同一區塊中增加分支。
+
+```html
+@auth('staff')
+    <p>Staff</p>
+@elseguest
+    <p>Sign in</p>
+@endauth
+```
+
 ### 環境、工作階段與上下文 {#environment-session-context}
 
 用 `@production` 和 `@env` 比對應用程式環境。`@env` 接受單一名稱或清單，支援萬用字元。`@session` 和 `@context` 在各自區塊內提供 `$value`。工作階段支援點分隔鍵，`@context` 讀取公開的請求上下文。
