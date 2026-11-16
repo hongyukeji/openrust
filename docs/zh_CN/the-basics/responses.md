@@ -63,6 +63,10 @@ fn register() -> Result<(), RoutingError> {
 
 用 `Redirect::action` 跳转到[已注册的控制器动作](./urls.md#urls-for-controller-actions)。
 
+`Redirect::refresh` 重定向到不带查询串的当前路径。`Redirect::secure` 从应用路径生成 HTTPS 目标。`Redirect::away` 将显式 HTTP(S) URL 或相对引用写入 `Location`，调用时请传入可信目标。`Redirect::signedRoute` 和 `Redirect::temporarySignedRoute` 重定向到绝对签名 URL。`Redirect::back` 依次使用同源 Referer、上一会话 URL 和回退地址。`Redirect::getIntendedUrl` 读取当前预期地址，`Redirect::setIntendedUrl` 显式写入预期地址。两个方法都接收当前请求。
+
+路由级重定向可使用 `Router::redirect` 或 `Router::permanentRedirect`，把来源参数代入目标路径。目标中的可选段（如 `/articles/{slug?}`）没有对应值时会省略。`destination` 和 `status` 是保留的来源参数名。
+
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
 在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器返回时，将重定向转换为 HTTP 响应。

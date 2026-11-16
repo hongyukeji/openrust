@@ -9,6 +9,7 @@ const ROUTE_ENCODE: &AsciiSet = &CONTROLS
     .add(b'"')
     .add(b'$')
     .add(b'\'')
+    .add(b'\x7f')
     .add(b'(')
     .add(b')')
     .add(b'<')
@@ -46,14 +47,18 @@ impl RouteUrlGenerator {
         root: &::url::Url,
         parameters: &[RouteParameter],
         absolute: bool,
+        defaults: &HashMap<String, String>,
     ) -> UrlResult<String> {
         let mut remaining = parameters.to_vec();
+        if !defaults.is_empty() {
+            self.map_positional_defaults(&mut remaining, defaults);
+        }
         let domain = self
             .domain
             .as_deref()
-            .map(|domain| self.substitute(domain, &mut remaining, true))
+            .map(|domain| self.substitute(domain, &mut remaining, defaults, true))
             .transpose()?;
-        let path = self.substitute(&self.path, &mut remaining, false)?;
+        let path = self.substitute(&self.path, &mut remaining, defaults, false)?;
         let mut output = String::new();
         if absolute {
             if let Some(domain) = domain {
@@ -61,6 +66,7 @@ impl RouteUrlGenerator {
                 origin
                     .set_host(Some(&domain))
                     .map_err(|_| UrlError::InvalidParameter)?;
+                origin.set_path("/");
                 output.push_str(origin.as_str().trim_end_matches('/'));
             } else {
                 output.push_str(root.as_str().trim_end_matches('/'));
@@ -79,10 +85,83 @@ impl RouteUrlGenerator {
         Ok(output)
     }
 
+    fn map_positional_defaults(
+        &self,
+        parameters: &mut [RouteParameter],
+        defaults: &HashMap<String, String>,
+    ) {
+        let mut has_default = false;
+        let mut vacant = Vec::new();
+        let mut required = Vec::new();
+        let placeholders = self
+            .domain
+            .iter()
+            .chain(std::iter::once(&self.path))
+            .flat_map(|pattern| pattern.split('{').skip(1))
+            .filter_map(|tail| tail.split_once('}'));
+        for (index, (placeholder, _)) in placeholders.enumerate() {
+            let default_key = placeholder.trim_end_matches('?');
+            let name = default_key
+                .split_once(':')
+                .map_or(default_key, |(name, _)| name);
+            let has_slot_default = defaults.contains_key(default_key);
+            has_default |= has_slot_default;
+            if parameters.iter().any(|parameter| {
+                matches!(parameter, RouteParameter::Named(key, value) if key == name && !value.empty())
+            }) {
+                continue;
+            }
+            vacant.push((index, name));
+            if !has_slot_default && !self.defaults.contains_key(name) && !placeholder.ends_with('?')
+            {
+                required.push(index);
+            }
+        }
+        if !has_default {
+            return;
+        }
+        let count = parameters
+            .iter()
+            .filter(|item| matches!(item, RouteParameter::Positional(_)))
+            .count();
+        // Laravel assigns an exact positional match to the required slots first.
+        // Otherwise it packs supplied values into the available slots from the calculated offset.
+        let slots = if count == required.len() {
+            vacant
+                .into_iter()
+                .filter(|(index, _)| required.contains(index))
+                .collect::<Vec<_>>()
+        } else if required.is_empty() {
+            let skip = vacant.len().saturating_sub(count);
+            vacant.into_iter().skip(skip).collect()
+        } else {
+            let start = if count == vacant.len() {
+                0
+            } else {
+                required[0].min(vacant.len().saturating_sub(count))
+            };
+            vacant
+                .into_iter()
+                .filter(|(index, _)| *index >= start)
+                .collect()
+        };
+        let values = parameters
+            .iter_mut()
+            .filter(|item| matches!(item, RouteParameter::Positional(_)));
+        for (parameter, (_, name)) in values.zip(slots) {
+            let RouteParameter::Positional(value) = parameter else {
+                unreachable!()
+            };
+            *parameter =
+                RouteParameter::Named(name.into(), std::mem::replace(value, UrlValue::Null));
+        }
+    }
+
     fn substitute(
         &self,
         mut pattern: &str,
         parameters: &mut Vec<RouteParameter>,
+        defaults: &HashMap<String, String>,
         host: bool,
     ) -> UrlResult<String> {
         let mut output = String::new();
@@ -91,6 +170,7 @@ impl RouteUrlGenerator {
             let (key, optional) = placeholder
                 .strip_suffix('?')
                 .map_or((placeholder, false), |key| (key, true));
+            let default_key = key;
             let (key, field) = key
                 .split_once(':')
                 .map_or((key, None), |(key, field)| (key, Some(field)));
@@ -102,7 +182,9 @@ impl RouteUrlGenerator {
                     unreachable!()
                 };
                 Some(value)
-            } else if let Some(default) = self.defaults.get(key) {
+            } else if let Some(default) =
+                defaults.get(default_key).or_else(|| self.defaults.get(key))
+            {
                 Some(UrlValue::String(default.clone()))
             } else if let Some(index) = parameters
                 .iter()
@@ -133,7 +215,16 @@ impl RouteUrlGenerator {
                     return Err(UrlError::InvalidParameter);
                 }
                 output.push_str(literal);
-                output.push_str(&value);
+                if host {
+                    output.push_str(&value);
+                } else {
+                    output.push_str(
+                        &value
+                            .replace('%', "%25")
+                            .replace('?', "%3F")
+                            .replace('#', "%23"),
+                    );
+                }
             } else if optional {
                 output.push_str(literal.strip_suffix('/').unwrap_or(literal));
             } else {

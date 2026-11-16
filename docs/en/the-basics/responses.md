@@ -63,6 +63,10 @@ Use `Redirect::to` for a URL or `Redirect::route` for a named route. `RedirectOp
 
 Use `Redirect::action` for a [registered controller action](./urls.md#urls-for-controller-actions).
 
+Use `Redirect::refresh` to redirect to the current path without its query, and `Redirect::secure` to generate an HTTPS destination from an application path. `Redirect::away` writes an explicit HTTP(S) URL or relative reference to `Location`. Supply a trusted destination. Use `Redirect::signedRoute` and `Redirect::temporarySignedRoute` to issue a redirect to an absolute signed URL. `Redirect::back` prefers a same-origin Referer, then the previous session URL, then the supplied fallback. `Redirect::getIntendedUrl` reads the current intended URL and `Redirect::setIntendedUrl` sets it explicitly. Both take the current request.
+
+For a route-level redirect, `Router::redirect` and `Router::permanentRedirect` can substitute source parameters in the destination. A missing optional destination segment such as `/articles/{slug?}` is omitted. The source parameter names `destination` and `status` are reserved.
+
 ### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
 
 In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Convert the redirect to an HTTP response when returning it from the handler.

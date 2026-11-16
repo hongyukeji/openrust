@@ -84,6 +84,10 @@ pub(crate) fn with_uri<T>(get: impl FnOnce(&crate::http::Uri) -> T) -> Option<T>
     with_context(|context| get(&context.uri))
 }
 
+pub(crate) fn with_attributes<T>(get: impl FnOnce(&RequestAttributes) -> T) -> Option<T> {
+    with_context(|context| get(&context.attributes))
+}
+
 pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
     with_context(|context| crate::routing::url_uri(&context.uri, context.host.as_ref()))
 }

@@ -1,8 +1,10 @@
 use crate::{
-    contracts::{container::Container as _, http::Middleware, session::Session},
+    contracts::{
+        container::Container as _, http::Middleware, routing::UrlGenerator as _, session::Session,
+    },
     http::{HttpError, HttpFuture, Method, Next, Request, Response},
     session::{SessionError, SessionManager, Store},
-    support::facades::current_container,
+    support::facades::{URL, current_container},
 };
 
 /// Loads the request session and persists it on the response path.
@@ -79,7 +81,8 @@ async fn handle_session(
         && path.as_str().starts_with('/')
         && !path.as_str().starts_with("//")
     {
-        session.setPreviousUrl(path.as_str())?;
+        session.setPreviousUrl(&URL::forRequest(request)?.full()?)?;
+        session.setPreviousRoute(request.route_name.as_deref())?;
     }
     #[cfg(feature = "sanctum")]
     let stateful_frontend = crate::sanctum::StatefulFrontend::is_active(request);

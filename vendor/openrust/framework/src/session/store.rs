@@ -81,6 +81,21 @@ impl Store {
         self.put("_previous.url", url.into())
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn previousUri(&self) -> Result<Option<crate::support::Uri>, crate::support::InvalidUri> {
+        self.previousUrl().map(crate::support::Uri::of).transpose()
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn previousRoute(&self) -> Option<&str> {
+        self.get("_previous.route").and_then(Value::as_str)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn setPreviousRoute(&mut self, name: Option<&str>) -> SessionResult<()> {
+        self.put("_previous.route", name.into())
+    }
+
     /// Records that the password for this session was confirmed.
     #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
     pub fn passwordConfirmed(&mut self) -> SessionResult<()> {

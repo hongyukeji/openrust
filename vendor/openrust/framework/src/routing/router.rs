@@ -236,6 +236,15 @@ impl Router {
         target: &str,
         status: crate::http::StatusCode,
     ) -> Result<&mut Route, RoutingError> {
+        if uri.split('{').skip(1).any(|tail| {
+            tail.split(['}', ':', '?'])
+                .next()
+                .is_some_and(|name| matches!(name, "destination" | "status"))
+        }) {
+            return Err(RoutingError::InvalidUri {
+                uri: uri.to_owned(),
+            });
+        }
         let methods = VERBS
             .iter()
             .map(|verb| Method::from_bytes(verb.as_bytes()).expect("valid HTTP method"))
@@ -383,6 +392,7 @@ impl Router {
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
         request.matched_route = false;
+        request.route_name = None;
         request
             .parts_mut()
             .extensions
@@ -421,6 +431,7 @@ impl Router {
             }
             let parameters = route.parameters(host, &path);
             request.matched_route = true;
+            request.route_name = (!route.name.is_empty()).then(|| route.name.clone());
             if let Some(domain) = &route.domain {
                 request
                     .parts_mut()

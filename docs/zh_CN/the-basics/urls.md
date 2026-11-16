@@ -26,6 +26,21 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 HTTP 请求内使用当前请求的协议和主机。应用作用域内的命令行使用 `APP_URL`。`URL::asset` 支持 `ASSET_URL`。普通 URL 可使用 `URL::to`、`URL::current` 和 `URL::query`。
 
+`URL::current()` 返回去掉查询串的当前 URL。`URL::full()` 包含原始请求路径和查询串。`URL::previous(request, fallback)` 依次使用同源 Referer、上一会话 URL 和回退地址。`URL::previousPath(request, fallback)` 只返回路径，并移除应用基路径和末尾的斜杠。在 Web 路由中，`request.session()?.previousRoute()` 返回上一次记录的路由名。`previousUri()` 在存在上一 URL 时返回解析后的 `openrust::support::Uri`。
+
+## 请求级 URL 默认值 {#default-values}
+
+生成链接前调用 `URL::defaults`，通常放在路由中间件中。多次调用会合并当前请求的默认值，后续请求有独立的默认值。显式具名和位置参数可覆盖默认值。使用自定义绑定字段时，指定 `"article:slug"` 一类的键。默认值也适用于动作 URL、签名链接和路由重定向。在 Artisan 中，可以用 `URL::generator()?.withDefaults(...)` 给单个生成器设置默认值，再导入 `openrust::contracts::routing::UrlGenerator` 调用生成器方法。
+
+```rust
+use openrust::{http::Request, routing::UrlResult, support::facades::URL};
+
+fn articles_url(request: &mut Request, locale: &str) -> UrlResult<String> {
+    URL::defaults(request, &[("locale", locale)]);
+    URL::route("articles.index", &[], true)
+}
+```
+
 ## 控制器动作 URL {#urls-for-controller-actions}
 
 注册 Rust 处理器时为路由设置稳定的动作标识。用 `URL::action` 生成 URL，用 `Redirect::action` 跳转。参数规则与命名路由相同。

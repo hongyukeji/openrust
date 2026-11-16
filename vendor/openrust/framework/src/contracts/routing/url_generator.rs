@@ -9,6 +9,8 @@ use crate::{
 
 /// Application-facing URL generation and signature validation.
 pub trait UrlGenerator: Send + Sync {
+    fn full(&self) -> UrlResult<String>;
+    fn previousPath(&self, fallback: Option<&str>) -> UrlResult<String>;
     fn current(&self) -> UrlResult<String>;
     fn previous(&self, fallback: Option<&str>) -> UrlResult<String>;
     fn to(

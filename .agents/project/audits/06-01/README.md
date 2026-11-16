@@ -45,3 +45,19 @@
 - 参考固定 Goravel 的编译型处理器契约。旧版 `v0.x` URL 参数使用字符串映射；本批沿用其共享属性读取及一次渲染后追加签名的做法，避免对同一个签名目标重复调用访问器。 [Goravel Router](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/route/route.go)
 - Rust 1.94.0 专项 `cargo test -p openrust-framework --test eloquent_route_binding --test urls --locked --offline` 通过。真实 SQLite 和 MySQL 8.4.13 的 HTTP 请求覆盖具名和位置参数、虚拟访问器、默认键访问器、类型转换、缺失字段、访问器错误、访问生成链接、签名成功及篡改拒绝。三语示例编译、VitePress 构建及 12 项浏览器检查通过。
 - 全工作区锁定离线测试 610 项通过、7 项夹具忽略。Rust 1.94.0 格式与全工作区全目标严格 Clippy 通过。实际二进制的 `artisan inspire` 退出 0。
+
+## 06-01 整单元验收
+
+| 固定基线 | OpenRust 行为与证据 |
+| --- | --- |
+| [普通 URL、当前和上一 URL、默认值](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/urls.md) | HTTP 使用请求来源，Artisan 使用 `APP_URL`。`URL::full` 保留请求路径和原始查询串，`previousPath` 处理应用基路径。真实 HTTP 验证请求默认值合并、具名及位置覆盖、默认值在并发任务间隔离。自定义绑定列以 `参数名:字段` 设置默认值。Rust 通过可变请求设置默认值，Artisan 可在单个生成器上配置。 |
+| [命名路由、动作、参数和签名](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Routing/RoutingUrlGeneratorTest.php) | 动作、命名路由和签名共用默认值。路径参数中的 `%`、`?`、`#` 按固定实现编码。实测签名地址可跟随，篡改路径后返回 403。自定义域保留非默认端口，并以路由域作为根。模型字段、密钥轮换、过期、相对签名及分页证据见前文。 |
+| [重定向及预期地址](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Redirector.php) · [路由重定向](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RedirectController.php) | HTTP 验证 refresh、secure、away、签名重定向、307 和自定义头。目标支持相对引用，拒绝空值、控制字符、协议相对地址和不支持的 scheme。路由重定向覆盖可选目标段、编码和保留来源参数。预期地址可读取、覆盖和一次性消费，原闪存与表单回传用例继续通过。 |
+| [上一 URL 和路由名](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/Middleware/StartSession.php) | Web Session 保存上一完整 URL 与路由名，可读取类型化 URI，缺少历史时返回 `None`。实际 HTTP 复验同源 Referer 优先、会话历史和回退顺序、prefetch 排除及跨 Host 会话地址回退。OpenRust 的自动回跳限制为同源，应用可通过显式重定向 API 指定外部目标。 |
+| [本地和 S3 临时 URL](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/filesystem.md#temporary-urls) | 本批复跑私有本地临时文件 GET／PUT、方法隔离和过期。S3 常用及高级选项沿用前批 RustFS 实测证据。独立 ACL 服务分支继续按 S3 专题跟踪。 |
+
+- 查阅旧版 `openrust-v0.x` 的 URL 与 Redirector 实现，复用相对 away 的状态及目标校验矩阵，并沿用其签名夹具。请求级默认值由当前请求属性承载。Goravel HTTP 响应接口继续作为 Rust 装配参考。
+- Rust 1.94.0 锁定离线执行 `urls`、`routing_groups`、`session_http`、`session_authentication`，共 18 项通过。实际 HTTP 使用 TCP，包括三语文档抽取的同一 Rust 示例。
+- 隔离应用实跑 `./artisan check:url-boundaries` 与 `./artisan route:list --name=articles.index --json`，核对 CLI 基地址、生成器默认值、相对重定向与注册路由。VitePress 构建、三语生成页面检查和 12 项浏览器检查通过。
+- 隔离副本通过全工作区全目标严格 Clippy。格式复核时在隔离副本格式化了一处基线已有的 Sanctum 测试断言。
+- 可信代理与转发 HTTPS 继续由 04-03 验收。通用 URI 操作归于 Helpers。06-01 路线计划所列核心范围闭合。

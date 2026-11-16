@@ -63,6 +63,10 @@ fn register() -> Result<(), RoutingError> {
 
 用 `Redirect::action` 前往[已註冊的控制器動作](./urls.md#urls-for-controller-actions)。
 
+`Redirect::refresh` 重新導向至移除查詢字串的目前路徑。`Redirect::secure` 從應用程式路徑產生 HTTPS 目的地。`Redirect::away` 將明確的 HTTP(S) URL 或相對參照寫入 `Location`，呼叫時請傳入可信任的目的地。`Redirect::signedRoute` 和 `Redirect::temporarySignedRoute` 重新導向至絕對簽章 URL。`Redirect::back` 依序使用同源 Referer、上一個工作階段 URL 和備用位址。`Redirect::getIntendedUrl` 讀取目前的預期位址，`Redirect::setIntendedUrl` 明確寫入預期位址。兩個方法都接收目前的請求。
+
+路由層級的重新導向可使用 `Router::redirect` 或 `Router::permanentRedirect`，將來源參數代入目的地路徑。目的地的選用區段（例如 `/articles/{slug?}`）若無對應值就會省略。`destination` 和 `status` 是保留的來源參數名稱。
+
 ### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
 
 在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式傳回時，將重新導向轉換為 HTTP 回應。

@@ -94,7 +94,6 @@ impl Redirector {
     }
 
     pub fn away(&self, target: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {
-        valid_http_url(target).map_err(|_| UrlError::InvalidRedirect)?;
         redirect_response(target, options)
     }
 
@@ -120,19 +119,11 @@ impl Redirector {
             && request.method() == crate::http::Method::GET
             && !request.expectsJson()
         {
-            let path = request
-                .uri()
-                .path_and_query()
-                .map_or("/", ::http::uri::PathAndQuery::as_str);
-            urls.to(path, &[], None)?
+            urls.full()?
         } else {
             urls.previous(None)?
         };
-        request
-            .session_mut()
-            .map_err(UrlError::Session)?
-            .put("url.intended", target.into())
-            .map_err(UrlError::Session)?;
+        self.setIntendedUrl(request, &target)?;
         Ok(response)
     }
 
@@ -147,10 +138,25 @@ impl Redirector {
         let target = session
             .get("url.intended")
             .and_then(serde_json::Value::as_str)
-            .unwrap_or(fallback);
-        let response = Self::new(urls).to(target, options)?;
+            .map(str::to_owned);
         session.forget(&["url.intended"]);
-        Ok(response)
+        Self::new(urls).to(target.as_deref().unwrap_or(fallback), options)
+    }
+
+    pub fn getIntendedUrl<'a>(&self, request: &'a Request) -> UrlResult<Option<&'a str>> {
+        Ok(request
+            .session()
+            .map_err(UrlError::Session)?
+            .get("url.intended")
+            .and_then(serde_json::Value::as_str))
+    }
+
+    pub fn setIntendedUrl(&self, request: &mut Request, target: &str) -> UrlResult<()> {
+        request
+            .session_mut()
+            .map_err(UrlError::Session)?
+            .put("url.intended", target.into())
+            .map_err(UrlError::Session)
     }
 }
 
@@ -206,13 +212,27 @@ impl RedirectRoute {
     }
 
     fn response(&self, request: &Request) -> UrlResult<RedirectResponse> {
-        let mut target = self.target.clone();
+        let mut target = String::new();
         let mut pattern = self.target.as_str();
-        while let Some((_, tail)) = pattern.split_once('{') {
+        while let Some((literal, tail)) = pattern.split_once('{') {
             let (key, rest) = tail.split_once('}').ok_or(UrlError::InvalidRedirect)?;
-            let value = request.route(key).ok_or(UrlError::MissingParameter)?;
-            target = target.replace(&format!("{{{key}}}"), &super::url_generator::encode(value));
+            let (key, optional) = key
+                .strip_suffix('?')
+                .map_or((key, false), |key| (key, true));
+            let key = key.split_once(':').map_or(key, |(key, _)| key);
+            if let Some(value) = request.route(key) {
+                target.push_str(literal);
+                target.push_str(&super::url_generator::encode(value));
+            } else if optional {
+                target.push_str(literal.strip_suffix('/').unwrap_or(literal));
+            } else {
+                return Err(UrlError::MissingParameter);
+            }
             pattern = rest;
+        }
+        target.push_str(pattern);
+        if target.is_empty() && self.target.starts_with('/') {
+            target.push('/');
         }
         redirect_response(
             &target,

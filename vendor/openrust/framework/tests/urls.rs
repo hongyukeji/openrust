@@ -97,6 +97,85 @@ fn action_redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     })
 }
 
+fn request_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        if let Some(locale) = request.route("locale").map(str::to_owned) {
+            URL::defaults(request, &[("locale", "replaced")]);
+            URL::defaults(request, &[("locale", &locale), ("slug", "localized")]);
+        }
+        tokio::task::yield_now().await;
+        let params = [RouteParameter::positional("a%?#")];
+        let mode = SignatureMode::Absolute;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "full": URL::full()?,
+                "current": URL::current()?,
+                "previous_path": URL::previousPath(request, Some("/fallback/?x=1"))?,
+                "default": URL::route("ordinary", &[], false)?,
+                "positional_override": URL::route("localized", &[RouteParameter::positional("en"), params[0].clone()], false)?,
+                "named_required": URL::route("localized", &[RouteParameter::named("article", "post"), RouteParameter::positional("en")], false)?,
+
+                "action": URL::action("LocalizedController@show", &params, false).ok(),
+                "explicit": URL::route("localized", &[RouteParameter::named("locale", "en"), params[0].clone()], false)?,
+                "signed": URL::signedRoute("localized", &params, None, mode).ok(),
+            }),
+        )
+    })
+}
+
+fn redirect_variant(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut options = RedirectOptions {
+            status: StatusCode::TEMPORARY_REDIRECT,
+            ..Default::default()
+        };
+        options
+            .headers
+            .insert("x-redirect-proof", "kept".parse().unwrap());
+        let response = match request.route("variant").unwrap() {
+            "refresh" => Redirect::refresh(options)?,
+            "secure" => Redirect::secure("/article/42", options)?,
+            "away" => Redirect::away("https://example.test/next?x=one&y=two", options)?,
+            "relative" => Redirect::away("relative?x=one", options)?,
+            "temporary" => Redirect::temporarySignedRoute(
+                "article",
+                SystemTime::now() + Duration::from_secs(60),
+                &[RouteParameter::named("article", "42")],
+                options,
+            )?,
+            "signed" => Redirect::signedRoute(
+                "article",
+                &[RouteParameter::named("article", "42")],
+                None,
+                options,
+            )?,
+            "invalid" => {
+                for target in [
+                    "",
+                    "//outside.test",
+                    "javascript:alert(1)",
+                    "/a\\b",
+                    "/bad\r\nX: y",
+                ] {
+                    assert!(matches!(
+                        Redirect::away(target, RedirectOptions::default()),
+                        Err(UrlError::InvalidRedirect)
+                    ));
+                }
+                options.status = StatusCode::NOT_MODIFIED;
+                assert!(matches!(
+                    Redirect::away("/safe", options),
+                    Err(UrlError::InvalidRedirect)
+                ));
+                return Ok(Response::empty(StatusCode::NO_CONTENT));
+            }
+            _ => unreachable!(),
+        };
+        Ok(response.into())
+    })
+}
+
 fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router
         .get("/article/{article}", article)?
@@ -135,6 +214,25 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/action-redirect", action_redirect)?;
     router.get("/links", links)?;
     router.get("/redirect", redirect)?;
+    router
+        .get("/localized/{locale}/{article}", article)?
+        .name("localized")
+        .setAction("LocalizedController@show")?
+        .middleware_name("signed");
+    router.get("/bound/{article:slug}", article)?.name("bound");
+    router.get("/request-links/{locale?}", request_links)?;
+    router.get("/redirect-variant/{variant}", redirect_variant)?;
+    router.redirect("/optional-old/{id?}", "/new/{id?}", StatusCode::FOUND)?;
+    assert!(
+        router
+            .redirect("/reserved/{status?}", "/next", StatusCode::FOUND)
+            .is_err()
+    );
+    assert!(
+        router
+            .redirect("/reserved/{destination}", "/next", StatusCode::FOUND)
+            .is_err()
+    );
     router.permanentRedirect("/old/{id}", "/new/{id}")?;
     Ok(())
 }
@@ -273,6 +371,37 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
         ),
         Err(UrlError::ReservedSignatureParameter)
     ));
+    app.config()
+        .unwrap()
+        .set("app.url", json!("https://example.test:8443/base"))
+        .unwrap();
+    let with_defaults = urls
+        .as_ref()
+        .clone()
+        .withDefaults(&[("article:slug", "default-slug")]);
+    assert_eq!(
+        with_defaults.route("bound", &[], false).unwrap(),
+        "/bound/default-slug"
+    );
+    assert_eq!(
+        with_defaults
+            .route("bound", &[RouteParameter::positional("override")], true)
+            .unwrap(),
+        "https://example.test:8443/base/bound/override"
+    );
+    assert_eq!(
+        urls.previousPath(Some("/fallback/?q=1#anchor")).unwrap(),
+        "/fallback"
+    );
+    assert_eq!(
+        urls.action(
+            "AccountController@show",
+            &[RouteParameter::named("tenant", "shop")],
+            true
+        )
+        .unwrap(),
+        "https://shop.example.test:8443/account"
+    );
     app.config().unwrap().set("app.key", json!("")).unwrap();
     assert!(matches!(
         urls.signedRoute("article", &parameters, None, SignatureMode::Absolute),
@@ -348,6 +477,73 @@ async fn signs_and_redirects_over_real_http() {
     assert!(response.contains(&format!("location: http://{address}/page/a%20b\r\n")));
     let response = exchange(address, "/old/a%20b", &host, 301).await;
     assert!(response.contains("location: /new/a%20b\r\n"));
+    let observe = |path| {
+        let host = &host;
+        async move {
+            let response = exchange(address, path, host, 200).await;
+            serde_json::from_str::<serde_json::Value>(response.split_once("\r\n\r\n").unwrap().1)
+                .unwrap()
+        }
+    };
+    let (fr, tw) = tokio::join!(
+        observe("/request-links/fr/?z=%2b&a=1"),
+        observe("/request-links/tw")
+    );
+    assert_eq!(
+        fr["full"],
+        format!("http://{host}/request-links/fr/?z=%2b&a=1")
+    );
+    assert_eq!(fr["current"], format!("http://{host}/request-links/fr"));
+    assert_eq!(fr["default"], "/page/localized");
+    assert_eq!(fr["previous_path"], "/fallback");
+    assert_eq!(fr["positional_override"], "/localized/en/a%25%3F%23");
+    assert_eq!(fr["named_required"], "/localized/en/post");
+    assert_eq!(fr["action"], "/localized/fr/a%25%3F%23");
+    assert_eq!(tw["action"], "/localized/tw/a%25%3F%23");
+    assert_eq!(tw["explicit"], "/localized/en/a%25%3F%23");
+    let signed = fr["signed"].as_str().unwrap();
+    let origin = format!("http://{host}");
+    let signed = signed.strip_prefix(&origin).unwrap();
+    exchange(address, signed, &host, 200).await;
+    exchange(address, &signed.replace("/fr/", "/en/"), &host, 403).await;
+    let next = observe("/request-links").await;
+    assert_eq!(next["default"], "/page/default");
+    assert!(next["action"].is_null());
+    for (variant, expected) in [
+        ("refresh", format!("{origin}/redirect-variant/refresh")),
+        ("secure", format!("https://{host}/article/42")),
+        ("away", "https://example.test/next?x=one&y=two".into()),
+        ("relative", "relative?x=one".into()),
+    ] {
+        let response = exchange(
+            address,
+            &format!("/redirect-variant/{variant}?ignored=1"),
+            &host,
+            307,
+        )
+        .await;
+        assert!(
+            response.contains(&format!("location: {expected}\r\n")),
+            "{response}"
+        );
+        assert!(response.contains("x-redirect-proof: kept\r\n"));
+        if variant == "away" {
+            assert!(response.contains("x=one&amp;y=two"));
+        }
+    }
+    for variant in ["signed", "temporary"] {
+        let response = exchange(address, &format!("/redirect-variant/{variant}"), &host, 307).await;
+        let location = response
+            .lines()
+            .find_map(|line| line.strip_prefix("location: "))
+            .unwrap();
+        exchange(address, location.strip_prefix(&origin).unwrap(), &host, 200).await;
+    }
+    exchange(address, "/redirect-variant/invalid", &host, 204).await;
+    let response = exchange(address, "/optional-old", &host, 302).await;
+    assert!(response.contains("location: /new\r\n"));
+    let response = exchange(address, "/optional-old/a%3F%23", &host, 302).await;
+    assert!(response.contains("location: /new/a%3F%23\r\n"));
     server.abort();
 }
 
@@ -488,7 +684,14 @@ impl Drop for TestRoot {
 }
 
 fn guest(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async { Ok(Redirect::guest(request, "/login", RedirectOptions::default())?.into()) })
+    Box::pin(async {
+        let response = Redirect::guest(request, "/login", RedirectOptions::default())?;
+        if request.uri().query() == Some("replace=1") {
+            assert!(Redirect::getIntendedUrl(request)?.is_some());
+            Redirect::setIntendedUrl(request, "/manually-set")?;
+        }
+        Ok(response.into())
+    })
 }
 
 fn intended(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -502,6 +705,20 @@ fn back(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(std::future::ready(
         result.map(Into::into).map_err(Into::into),
     ))
+}
+
+fn previous_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let session = request.session()?;
+        let uri = session.previousUri().unwrap();
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "url": uri.as_ref().map(|uri| uri.value()),
+                "route": session.previousRoute(),
+            }),
+        )
+    })
 }
 
 fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -570,7 +787,11 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
         })
         .withRouting(Routing::default().web(|| {
             use openrust::support::facades::Route;
-            Route::get("/guarded", guest)?;
+            Route::getWith("/guarded", guest, |route| {
+                route.name("guarded");
+                Ok(())
+            })?;
+            Route::get("/previous-session", previous_session)?;
             Route::get("/intended", intended)?;
             Route::get("/back", back)?;
             Route::get("/flash", read_flash)?;
@@ -604,6 +825,38 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
         .and_then(|value| value.split(';').next())
         .unwrap();
     let headers = format!("Cookie: probe_session={cookie}\r\n");
+    let prefetch = format!("{headers}Purpose: prefetch\r\n");
+    let response = exchange_with(
+        address,
+        "GET",
+        "/previous-session",
+        &host,
+        "",
+        &prefetch,
+        200,
+    )
+    .await;
+    let history: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(history["route"], "guarded");
+    assert_eq!(history["url"], format!("http://{host}/guarded?tab=details"));
+    let response = exchange_with(address, "GET", "/back", &host, "", &prefetch, 302).await;
+    assert!(response.contains(&format!("location: http://{host}/guarded?tab=details\r\n")));
+    let same_origin_referer = format!("{prefetch}Referer: http://{host}/specific/?x=1\r\n");
+    let response = exchange_with(
+        address,
+        "GET",
+        "/back",
+        &host,
+        "",
+        &same_origin_referer,
+        302,
+    )
+    .await;
+    assert!(response.contains(&format!("location: http://{host}/specific/?x=1\r\n")));
+    let response =
+        exchange_with(address, "GET", "/back", "other.invalid", "", &prefetch, 302).await;
+    assert!(response.contains("location: http://other.invalid/fallback\r\n"));
     let response = exchange_with(address, "GET", "/intended", &host, "", &headers, 302).await;
     assert!(response.contains(&format!(
         "location: http://{address}/guarded?tab=details\r\n"
@@ -621,6 +874,19 @@ async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_sessio
     )
     .await;
     assert!(response.contains(&format!("location: http://{address}/fallback\r\n")));
+    let response = exchange_with(
+        address,
+        "GET",
+        "/guarded?replace=1",
+        &host,
+        "",
+        &headers,
+        302,
+    )
+    .await;
+    assert!(response.contains(&format!("location: http://{host}/login\r\n")));
+    let response = exchange_with(address, "GET", "/intended", &host, "", &headers, 302).await;
+    assert!(response.contains(&format!("location: http://{host}/manually-set\r\n")));
     let token = exchange_with(address, "GET", "/flash-token", &host, "", &headers, 200).await;
     let token: serde_json::Value =
         serde_json::from_str(token.split_once("\r\n\r\n").unwrap().1).unwrap();

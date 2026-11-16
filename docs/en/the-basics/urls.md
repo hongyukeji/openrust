@@ -26,6 +26,21 @@ Use `URL::signedRoute` for a persistent link or `URL::temporarySignedRoute` with
 
 Inside HTTP handlers the generator uses the request scheme and authority. CLI code in the application scope uses `APP_URL`. `URL::asset` honors `ASSET_URL`. Use `URL::to`, `URL::current` or `URL::query` for ordinary URLs.
 
+`URL::current()` returns the current URL without the query. `URL::full()` includes the original request path and query string. `URL::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `URL::previousPath(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previousRoute()` returns the last recorded route name. `previousUri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
+
+## Request-wide URL defaults {#default-values}
+
+Call `URL::defaults` before generating links, typically in route middleware. Successive calls merge the defaults for that request. A later request starts with its own defaults. Explicit named and positional parameters can override defaults. Use a key such as `"article:slug"` when the route uses a custom binding field. Defaults also apply to action URLs, signed links and route redirects. To set defaults for a single generator in Artisan, use `URL::generator()?.withDefaults(...)` and import `openrust::contracts::routing::UrlGenerator` to call its methods.
+
+```rust
+use openrust::{http::Request, routing::UrlResult, support::facades::URL};
+
+fn articles_url(request: &mut Request, locale: &str) -> UrlResult<String> {
+    URL::defaults(request, &[("locale", locale)]);
+    URL::route("articles.index", &[], true)
+}
+```
+
 ## Controller action URLs {#urls-for-controller-actions}
 
 Set a stable action identifier on the route that registers the Rust handler. Use `URL::action` to generate a URL and `Redirect::action` to redirect. The same parameter rules apply as for named routes.

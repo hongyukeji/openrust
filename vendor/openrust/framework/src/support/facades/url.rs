@@ -27,7 +27,9 @@ impl URL {
     }
 
     pub fn generator() -> UrlResult<UrlGenerator> {
-        Ok(Self::service()?.with_uri(request_context::with_url_uri()))
+        let mut urls = Self::service()?.with_uri(request_context::with_url_uri());
+        request_context::with_attributes(|attributes| urls.merge_defaults(attributes));
+        Ok(urls)
     }
 
     pub fn forRequest(request: &Request) -> UrlResult<UrlGenerator> {
@@ -54,12 +56,24 @@ impl URL {
         Self::generator()?.to(path, parameters, secure)
     }
 
+    pub fn defaults(request: &mut Request, defaults: &[(&str, &str)]) {
+        UrlGenerator::set_defaults(request, defaults);
+    }
+
+    pub fn full() -> UrlResult<String> {
+        Self::generator()?.full()
+    }
+
     pub fn current() -> UrlResult<String> {
         Self::generator()?.current()
     }
 
     pub fn previous(request: &Request, fallback: Option<&str>) -> UrlResult<String> {
         Self::forRequest(request)?.previous(fallback)
+    }
+
+    pub fn previousPath(request: &Request, fallback: Option<&str>) -> UrlResult<String> {
+        Self::forRequest(request)?.previousPath(fallback)
     }
 
     pub fn asset(path: &str, secure: Option<bool>) -> UrlResult<String> {

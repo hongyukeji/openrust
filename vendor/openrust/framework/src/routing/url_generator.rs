@@ -33,6 +33,7 @@ pub struct UrlGenerator {
     config: Arc<dyn Repository>,
     uri: Option<Uri>,
     previous: Option<String>,
+    defaults: HashMap<String, String>,
 }
 
 /// Route parameters in application-supplied order.
@@ -208,6 +209,8 @@ impl<'a> RouteParameter<'a> {
     }
 }
 
+const URL_DEFAULTS: &str = "openrust.routing.url.defaults";
+
 impl UrlGenerator {
     pub(crate) fn new(routes: UrlRoutes, config: Arc<dyn Repository>) -> Self {
         Self {
@@ -215,6 +218,7 @@ impl UrlGenerator {
             config,
             uri: None,
             previous: None,
+            defaults: HashMap::new(),
         }
     }
 
@@ -225,24 +229,63 @@ impl UrlGenerator {
         }
     }
 
+    /// Returns a generator with additional defaults, without mutating the application service.
+    #[allow(non_snake_case, reason = "Matches Laravel's URL vocabulary")]
+    pub fn withDefaults(mut self, defaults: &[(&str, &str)]) -> Self {
+        self.defaults.extend(
+            defaults
+                .iter()
+                .map(|(name, value)| ((*name).into(), (*value).into())),
+        );
+        self
+    }
+
+    pub(crate) fn merge_defaults(&mut self, attributes: &crate::http::RequestAttributes) {
+        if let Some(defaults) = attributes.get(URL_DEFAULTS)
+            && let Some(defaults) = defaults.downcast_ref::<HashMap<String, String>>()
+        {
+            self.defaults.extend(defaults.clone());
+        }
+    }
+
+    pub(crate) fn set_defaults(request: &mut Request, values: &[(&str, &str)]) {
+        let attributes = request.attributes();
+        let mut defaults = attributes
+            .get(URL_DEFAULTS)
+            .and_then(|value| value.downcast_ref::<HashMap<String, String>>().cloned())
+            .unwrap_or_default();
+        defaults.extend(
+            values
+                .iter()
+                .map(|(name, value)| ((*name).into(), (*value).into())),
+        );
+        attributes.insert(
+            URL_DEFAULTS,
+            crate::container::ParameterValue::new(defaults),
+        );
+    }
+
     #[allow(
         non_snake_case,
         reason = "Matches Laravel's request-scoped URL generator"
     )]
     pub fn forRequest(&self, request: &Request) -> Self {
         let mut urls = self.with_uri(Some(request_uri(request)));
+        urls.merge_defaults(request.attributes());
+        let same_origin = |target: &&str| {
+            let target = *target;
+            target.starts_with('/') && !target.starts_with("//") && !target.contains('\\')
+                || valid_http_url(target)
+                    .ok()
+                    .zip(urls.root(None).ok())
+                    .is_some_and(|(target, root)| target.origin() == root.origin())
+        };
         urls.previous = request
             .headers()
             .get(::http::header::REFERER)
             .and_then(|value| value.to_str().ok())
-            .filter(|target| {
-                target.starts_with('/') && !target.starts_with("//") && !target.contains('\\')
-                    || valid_http_url(target)
-                        .ok()
-                        .zip(urls.root(None).ok())
-                        .is_some_and(|(referer, root)| referer.origin() == root.origin())
-            })
-            .or_else(|| request.session().ok()?.previousUrl())
+            .filter(same_origin)
+            .or_else(|| request.session().ok()?.previousUrl().filter(same_origin))
             .map(str::to_owned);
         urls
     }
@@ -371,6 +414,28 @@ fn is_expired(expires: &str, now: u64) -> bool {
 
 #[allow(non_snake_case, reason = "Matches Laravel's URL generator")]
 impl Contract for UrlGenerator {
+    fn full(&self) -> UrlResult<String> {
+        let root = self.root(None)?;
+        match self.uri.as_ref().and_then(Uri::path_and_query) {
+            Some(target) => Ok(format!("{}{}", root.as_str().trim_end_matches('/'), target)),
+            None => Ok(root.as_str().trim_end_matches('/').to_owned()),
+        }
+    }
+
+    fn previousPath(&self, fallback: Option<&str>) -> UrlResult<String> {
+        let previous = self.previous(fallback)?;
+        let uri = valid_http_url(&previous)?;
+        let root = self.root(None)?;
+        let base = root.path().trim_end_matches('/');
+        let path = uri.path();
+        let path = path
+            .strip_prefix(base)
+            .filter(|suffix| suffix.is_empty() || suffix.starts_with('/'))
+            .unwrap_or(path)
+            .trim_end_matches('/');
+        Ok(if path.is_empty() { "/" } else { path }.into())
+    }
+
     fn current(&self) -> UrlResult<String> {
         self.to(self.uri.as_ref().map_or("/", Uri::path), &[], None)
     }
@@ -431,7 +496,7 @@ impl Contract for UrlGenerator {
         absolute: bool,
     ) -> UrlResult<String> {
         let route = self.routes.named.get(name).ok_or(UrlError::MissingRoute)?;
-        route.to(&self.root(None)?, parameters, absolute)
+        route.to(&self.root(None)?, parameters, absolute, &self.defaults)
     }
 
     fn action(
@@ -445,7 +510,7 @@ impl Contract for UrlGenerator {
             .actions
             .get(action.trim_matches('\\'))
             .ok_or(UrlError::MissingAction)?;
-        route.to(&self.root(None)?, parameters, absolute)
+        route.to(&self.root(None)?, parameters, absolute, &self.defaults)
     }
 
     fn query(
