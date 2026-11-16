@@ -89,3 +89,54 @@ fn string_transformations_cover_empty_unicode_and_negative_boundaries() {
     assert!(Str::isJson("null"));
     assert!(!Str::isJson("{]"));
 }
+
+#[test]
+fn markdown_and_english_inflection_cover_runtime_values() {
+    use openrust::support::{MarkdownHtml, MarkdownOptions};
+
+    assert_eq!(
+        Str::markdown("# 海\n\n**strong**"),
+        "<h1>海</h1>\n<p><strong>strong</strong></p>\n"
+    );
+    assert_eq!(
+        Str::of("**好** ~~旧~~").inlineMarkdown().value(),
+        "<strong>好</strong> <del>旧</del>"
+    );
+    assert!(Str::markdown("| head |\n|---|\n| cell |").contains("<table>"));
+    assert!(Str::markdown("- [x] done").contains("type=\"checkbox\""));
+    let html = Str::markdown("[unsafe](javascript:alert) <i>字</i> [ok](https://example.test/)");
+    assert!(html.contains("href=\"\""));
+    assert!(html.contains("&lt;i&gt;字&lt;/i&gt;"));
+    assert!(html.contains("href=\"https://example.test/\""));
+    assert_eq!(
+        Str::inlineMarkdownWith(
+            "<i>字</i>",
+            MarkdownOptions {
+                html: MarkdownHtml::Strip,
+                ..Default::default()
+            }
+        ),
+        "字"
+    );
+    assert_eq!(
+        Str::inlineMarkdownWith(
+            "<i>字</i>",
+            MarkdownOptions {
+                html: MarkdownHtml::Allow,
+                ..Default::default()
+            }
+        ),
+        "<i>字</i>"
+    );
+    assert_eq!(Str::plural("person", -1), "person");
+    assert_eq!(Str::plural("child", 0), "children");
+    assert_eq!(Str::plural("RELATED", 2), "RELATED");
+    assert_eq!(Str::plural("An alert!", 2), "An alert!");
+    assert_eq!(Str::singular("children"), "child");
+    assert_eq!(Str::of("UserChild").pluralStudly(2).value(), "UserChildren");
+    assert_eq!(Str::counted("person", 1_234), "1,234 people");
+    assert_eq!(
+        Str::counted("person", i64::MIN),
+        "-9,223,372,036,854,775,808 people"
+    );
+}

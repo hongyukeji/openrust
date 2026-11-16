@@ -73,6 +73,34 @@ impl Stringable {
         Self(super::Str::words(&self.0, limit, end))
     }
 
+    pub fn markdown(self) -> Self {
+        Self(super::Str::markdown(&self.0))
+    }
+
+    pub fn inlineMarkdown(self) -> Self {
+        Self(super::Str::inlineMarkdown(&self.0))
+    }
+
+    pub fn plural(self, count: i64) -> Self {
+        Self(super::Str::plural(&self.0, count))
+    }
+
+    pub fn singular(self) -> Self {
+        Self(super::Str::singular(&self.0))
+    }
+
+    pub fn pluralStudly(self, count: i64) -> Self {
+        Self(super::Str::pluralStudly(&self.0, count))
+    }
+
+    pub fn pluralPascal(self, count: i64) -> Self {
+        Self(super::Str::pluralPascal(&self.0, count))
+    }
+
+    pub fn counted(self, count: i64) -> Self {
+        Self(super::Str::counted(&self.0, count))
+    }
+
     /// 用固定 Unicode 字符集合裁剪首尾空白和不可见字符。
     ///
     /// 包括 Unicode 空白、BOM、零宽字符和 NUL；内部字符保持原样。

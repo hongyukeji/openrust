@@ -7,6 +7,7 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 
 use crate::{
     config::Value,
+    support::markdown::safe_url,
     view::{Factory, ViewData},
 };
 
@@ -126,19 +127,6 @@ fn load_css(path: &Path, theme: &str) -> MailResult<Option<String>> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(_) => Err(composition("Could not read the Markdown mail stylesheet.")),
     }
-}
-
-fn safe_url(url: pulldown_cmark::CowStr<'_>) -> pulldown_cmark::CowStr<'_> {
-    let value = url.trim();
-    let prefix = value.split(['/', '?', '#']).next().unwrap_or_default();
-    if prefix.split_once(':').is_some_and(|(scheme, _)| {
-        !["https", "http", "mailto"]
-            .iter()
-            .any(|allowed| scheme.eq_ignore_ascii_case(allowed))
-    }) {
-        return "".into();
-    }
-    url
 }
 
 fn plain_text(events: &[Event<'_>]) -> String {

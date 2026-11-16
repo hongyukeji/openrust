@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::OnceLock};
 
-use super::Stringable;
+use super::{MarkdownOptions, Stringable, markdown};
 
 /// Unicode string helpers with Laravel-compatible names.
 pub struct Str;
@@ -323,6 +323,73 @@ impl Str {
     }
 
     /// Transliterates text using the default portable-ascii mapping.
+    /// Renders GFM with HTML escaping and safe link schemes by default.
+    pub fn markdown(value: &str) -> String {
+        Self::markdownWith(value, MarkdownOptions::default())
+    }
+
+    pub fn markdownWith(value: &str, options: MarkdownOptions) -> String {
+        markdown::render(value, options, false)
+    }
+
+    pub fn inlineMarkdown(value: &str) -> String {
+        Self::inlineMarkdownWith(value, MarkdownOptions::default())
+    }
+
+    pub fn inlineMarkdownWith(value: &str, options: MarkdownOptions) -> String {
+        markdown::render(value, options, true)
+    }
+
+    /// Inflects an English noun unless the count is 1 or -1.
+    pub fn plural(value: &str, count: i64) -> String {
+        if count.unsigned_abs() == 1
+            || value.eq_ignore_ascii_case("recommended")
+            || value.eq_ignore_ascii_case("related")
+            || !value.chars().next_back().is_some_and(|end| {
+                end.is_ascii_alphanumeric() || ('\u{80}'..='\u{ffff}').contains(&end)
+            })
+        {
+            return value.to_owned();
+        }
+        pluralizer::pluralize(value, 2, false)
+    }
+
+    pub fn singular(value: &str) -> String {
+        pluralizer::pluralize(value, 1, false)
+    }
+
+    pub fn pluralStudly(value: &str, count: i64) -> String {
+        let start = value
+            .char_indices()
+            .rev()
+            .find(|(_, char)| char.is_ascii_uppercase())
+            .map_or(0, |(start, _)| start);
+        let (prefix, last) = value.split_at(start);
+        format!("{prefix}{}", Self::plural(last, count))
+    }
+
+    pub fn pluralPascal(value: &str, count: i64) -> String {
+        Self::pluralStudly(value, count)
+    }
+
+    /// Formats a counted English noun with English digit grouping.
+    pub fn counted(value: &str, count: i64) -> String {
+        let digits = count.unsigned_abs().to_string();
+        let mut output = String::new();
+        if count.is_negative() {
+            output.push('-');
+        }
+        for (index, digit) in digits.bytes().enumerate() {
+            if index != 0 && (digits.len() - index).is_multiple_of(3) {
+                output.push(',');
+            }
+            output.push(char::from(digit));
+        }
+        output.push(' ');
+        output.push_str(&Self::plural(value, count));
+        output
+    }
+
     pub fn transliterate(value: &str) -> String {
         Self::transliterateWithUnknown(value, Some("?"))
     }
