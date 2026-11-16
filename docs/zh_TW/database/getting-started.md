@@ -258,3 +258,32 @@ fn register() -> EventResult<()> {
     Event::listen(TransactionCommitted::NAME, Arc::new(ReportCommit), Delivery::Sync)
 }
 ```
+
+### 交易回呼 {#transaction-callbacks}
+
+`DB::beforeStartingTransaction` 在預設連線註冊掛鉤，在最外層交易或儲存點開始前執行。掛鉤收到連線，巢狀開始時還可借用作用中的交易。掛鉤傳回錯誤會中止本次開始操作。
+
+`Transaction::afterRollBack` 為目前層級註冊回呼。儲存點提交後，復原回呼保留在父交易，直到最外層交易結束。確認復原後執行已撤銷層級的回呼。最外層復原回呼在工作階段歸還後執行。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+async fn run_with_callbacks() -> DatabaseResult<()> {
+    DB::beforeStartingTransaction(|connection, active| {
+        Box::pin(async move {
+            match active {
+                Some(transaction) => transaction.scalar("SELECT 1", &[]).await?,
+                None => connection.scalar("SELECT 1", &[]).await?,
+            };
+            Ok(())
+        })
+    })?;
+
+    let mut transaction = DB::beginTransaction().await?;
+    transaction.afterRollBack(|| Box::pin(async {
+        println!("Transaction rolled back");
+        Ok(())
+    }))?;
+    transaction.rollBack(None).await
+}
+```

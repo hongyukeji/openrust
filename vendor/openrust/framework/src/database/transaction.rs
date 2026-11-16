@@ -22,6 +22,15 @@ use super::{
     },
 };
 
+pub(super) type BeginCallback = Arc<
+    dyn for<'a> Fn(
+            &'a Connection,
+            Option<&'a mut Transaction>,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + Sync,
+>;
+
 /// An exclusive database transaction on the write connection.
 ///
 /// Dropping an active transaction rolls it back. Use this handle for all SQL
@@ -30,8 +39,13 @@ pub struct Transaction {
     connection: Connection,
     physical: Option<PhysicalConnection>,
     level: u32,
-    retain_physical: bool,
+    sqlite_schema_session: Option<SqliteSchemaSession>,
     transactions: DatabaseTransactionsManager,
+}
+
+struct SqliteSchemaSession {
+    foreign_keys: bool,
+    legacy_alter: bool,
 }
 
 pub(super) fn mysql_deadlock(error: &sqlx::Error) -> bool {
@@ -61,15 +75,60 @@ fn concurrency_error(error: &DatabaseError) -> bool {
 
 #[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
 impl Connection {
+    /// Registers a hook before starting a transaction or savepoint.
+    pub fn beforeStartingTransaction(
+        &self,
+        callback: impl for<'a> Fn(
+            &'a Connection,
+            Option<&'a mut Transaction>,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &Self {
+        self.before_transaction
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(Arc::new(callback));
+        self
+    }
+
+    async fn run_before_transaction(
+        &self,
+        mut active: Option<&mut Transaction>,
+    ) -> DatabaseResult<()> {
+        let callbacks = self
+            .before_transaction
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if callbacks.is_empty() {
+            return Ok(());
+        }
+        let work = async {
+            for callback in callbacks {
+                callback(self, active.as_deref_mut()).await?;
+            }
+            Ok(())
+        };
+        match Self::model_container(Some(self)) {
+            Some(owner) => application_scope(owner, work).await,
+            None => work.await,
+        }
+    }
+
     pub async fn beginTransaction(&self) -> DatabaseResult<Transaction> {
+        self.run_before_transaction(None).await?;
         let mut transaction = Transaction {
             connection: self.clone(),
             physical: Some(self.acquire(false).await?),
             level: 0,
-            retain_physical: false,
+            sqlite_schema_session: None,
             transactions: DatabaseTransactionsManager::default(),
         };
-        transaction.beginTransaction().await?;
+        transaction
+            .begin("begin transaction", TransactionCommand::Begin)
+            .await?;
         Ok(transaction)
     }
 
@@ -82,6 +141,7 @@ impl Connection {
         + Send
         + 'static,
     ) -> DatabaseResult<()> {
+        self.run_before_transaction(None).await?;
         let mut physical = self.acquire(false).await?;
         let connection = self.clone();
         // Let the owning task restore its session state even when the caller is cancelled.
@@ -97,7 +157,10 @@ impl Connection {
                 connection,
                 physical: Some(physical),
                 level: 0,
-                retain_physical: true,
+                sqlite_schema_session: Some(SqliteSchemaSession {
+                    foreign_keys,
+                    legacy_alter,
+                }),
                 transactions: DatabaseTransactionsManager::default(),
             };
             let result = match transaction
@@ -115,24 +178,8 @@ impl Connection {
                 Err(error) if transaction.level != 0 => transaction.abort(1, error).await,
                 Err(error) => Err(error),
             };
-            if transaction.level == 0
-                && let Some(physical) = &mut transaction.physical
-            {
-                physical
-                    .unprepared(if legacy_alter {
-                        "pragma legacy_alter_table = on"
-                    } else {
-                        "pragma legacy_alter_table = off"
-                    })
-                    .await?;
-                physical
-                    .unprepared(if foreign_keys {
-                        "pragma foreign_keys = on"
-                    } else {
-                        "pragma foreign_keys = off"
-                    })
-                    .await?;
-                physical.retire_on_drop(false);
+            if transaction.level == 0 {
+                transaction.release_session().await?;
             }
             result
         })
@@ -215,11 +262,47 @@ impl Transaction {
             .ok_or(DatabaseError::TransactionClosed)
     }
 
+    async fn release_session(&mut self) -> DatabaseResult<()> {
+        let physical = self.physical.take();
+        if let (Some(mut physical), Some(settings)) = (physical, self.sqlite_schema_session.take())
+        {
+            physical
+                .unprepared(if settings.legacy_alter {
+                    "pragma legacy_alter_table = on"
+                } else {
+                    "pragma legacy_alter_table = off"
+                })
+                .await?;
+            physical
+                .unprepared(if settings.foreign_keys {
+                    "pragma foreign_keys = on"
+                } else {
+                    "pragma foreign_keys = off"
+                })
+                .await?;
+            physical.retire_on_drop(false);
+        }
+        Ok(())
+    }
+
+    async fn run_rollback_callbacks(&mut self) -> DatabaseResult<()> {
+        let callbacks = self.transactions.rollback(self.level);
+        match Connection::model_container(Some(&self.connection)) {
+            Some(owner) => application_scope(owner, callbacks).await,
+            None => callbacks.await,
+        }
+    }
+
     pub fn transactionLevel(&self) -> u32 {
         self.level
     }
 
     pub async fn beginTransaction(&mut self) -> DatabaseResult<()> {
+        self.physical()?;
+        self.connection
+            .clone()
+            .run_before_transaction(Some(self))
+            .await?;
         self.begin("begin transaction", TransactionCommand::Begin)
             .await
     }
@@ -265,6 +348,15 @@ impl Transaction {
         self.transactions.add(self.level, Box::new(callback))
     }
 
+    /// Runs an owned callback if the current transaction level is rolled back.
+    pub fn afterRollBack(
+        &mut self,
+        callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
+    ) -> DatabaseResult<()> {
+        self.transactions
+            .add_rollback(self.level, Box::new(callback))
+    }
+
     pub async fn commit(&mut self) -> DatabaseResult<()> {
         if self.level == 0 {
             return Err(DatabaseError::TransactionClosed);
@@ -276,10 +368,15 @@ impl Transaction {
             .control("commit", TransactionCommand::Commit)
             .await?;
         self.level -= 1;
-        if self.level == 0 && !self.retain_physical {
-            self.physical.take();
-        }
+        let release = if self.level == 0 {
+            self.release_session().await
+        } else {
+            Ok(())
+        };
         self.transactions.commit(self.level + 1).await?;
+        release.map_err(|source| DatabaseError::AfterCommit {
+            source: Box::new(source),
+        })?;
         self.fire::<TransactionCommitted>().await.map_err(|source| {
             if self.level == 0 {
                 DatabaseError::AfterCommit {
@@ -296,16 +393,32 @@ impl Transaction {
         if self.level <= toLevel {
             return Ok(());
         }
-        while self.level > toLevel {
-            self.physical()?
-                .control("roll back", TransactionCommand::RollBack)
-                .await?;
-            self.level -= 1;
-            self.transactions.rollback(self.level);
+        let original_level = self.level;
+        let result = async {
+            while self.level > toLevel {
+                self.physical()?
+                    .control("roll back", TransactionCommand::RollBack)
+                    .await?;
+                self.level -= 1;
+            }
+            Ok::<_, DatabaseError>(())
         }
-        if self.level == 0 && !self.retain_physical {
-            self.physical.take();
-        }
+        .await;
+        let release = if self.level == 0 {
+            self.release_session().await
+        } else {
+            Ok(())
+        };
+        let callbacks = if self.level != original_level {
+            self.run_rollback_callbacks().await
+        } else {
+            Ok(())
+        };
+        result?;
+        release.map_err(|source| DatabaseError::AfterRollback {
+            source: Box::new(source),
+        })?;
+        callbacks?;
         self.fire::<TransactionRolledBack>().await
     }
 
@@ -323,7 +436,7 @@ impl Transaction {
             Ok(_) => {
                 self.physical.take();
                 self.level = 0;
-                self.transactions.rollback(0);
+                self.transactions.discard();
                 Err(DatabaseError::TransactionLevelChanged)
             }
             Err(error) => self.abort(level, error).await,
@@ -338,7 +451,11 @@ impl Transaction {
         {
             self.physical.take();
             self.level = 0;
-            self.transactions.rollback(0);
+            if matches!(&error, DatabaseError::Driver { source, .. } if mysql_deadlock(source)) {
+                self.run_rollback_callbacks().await?;
+            } else {
+                self.transactions.discard();
+            }
         } else {
             self.rollBack(Some(level - 1)).await?;
         }

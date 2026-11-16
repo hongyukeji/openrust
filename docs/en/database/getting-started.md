@@ -258,3 +258,32 @@ fn register() -> EventResult<()> {
     Event::listen(TransactionCommitted::NAME, Arc::new(ReportCommit), Delivery::Sync)
 }
 ```
+
+### Transaction Callbacks {#transaction-callbacks}
+
+`DB::beforeStartingTransaction` registers a hook on the default connection. It runs before an outer transaction or savepoint starts. The hook receives the connection and, for a nested start, the active transaction. Returning an error stops that start.
+
+`Transaction::afterRollBack` registers a callback for the current level. Callbacks from a committed savepoint remain attached to its parent until the outer transaction finishes. A confirmed rollback runs callbacks for the discarded levels. Outer rollback callbacks run after the session has been released.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+async fn run_with_callbacks() -> DatabaseResult<()> {
+    DB::beforeStartingTransaction(|connection, active| {
+        Box::pin(async move {
+            match active {
+                Some(transaction) => transaction.scalar("SELECT 1", &[]).await?,
+                None => connection.scalar("SELECT 1", &[]).await?,
+            };
+            Ok(())
+        })
+    })?;
+
+    let mut transaction = DB::beginTransaction().await?;
+    transaction.afterRollBack(|| Box::pin(async {
+        println!("Transaction rolled back");
+        Ok(())
+    }))?;
+    transaction.rollBack(None).await
+}
+```

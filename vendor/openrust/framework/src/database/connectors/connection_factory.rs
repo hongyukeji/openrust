@@ -53,6 +53,7 @@ impl ConnectionFactory {
             query_duration: Arc::default(),
             query_role: role,
             query_log: Arc::default(),
+            before_transaction: Arc::default(),
         })
     }
 }

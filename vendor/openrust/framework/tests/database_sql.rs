@@ -22,7 +22,7 @@ use openrust::{
         http::Kernel as _,
     },
     database::{
-        Bindings, Connection, DatabaseError, DatabaseManager, Value,
+        Bindings, Connection, DatabaseError, DatabaseManager, Transaction, Value,
         events::{
             ConnectionEstablished, QueryBindings, QueryExecuted, QueryRole, TransactionBeginning,
             TransactionCommitted, TransactionCommitting, TransactionRolledBack,
@@ -723,12 +723,29 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
         locker.rollBack(None).await.unwrap();
     });
     let attempts = Arc::new(AtomicUsize::new(0));
+    let rollbacks = Arc::new(AtomicUsize::new(0));
+    let before_calls = Arc::new(AtomicUsize::new(0));
+    let starts = before_calls.clone();
+    writer.beforeStartingTransaction(move |_, _| {
+        let starts = starts.clone();
+        Box::pin(async move {
+            starts.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    });
     writer
         .transaction(
             |tx| {
                 let release = release.clone();
                 let attempts = attempts.clone();
+                let rollbacks = rollbacks.clone();
                 Box::pin(async move {
+                    tx.afterRollBack(move || {
+                        Box::pin(async move {
+                            rollbacks.fetch_add(1, Ordering::SeqCst);
+                            Ok(())
+                        })
+                    })?;
                     let attempt = attempts.fetch_add(1, Ordering::SeqCst);
                     tx.unprepared("SET SESSION innodb_lock_wait_timeout = 1")
                         .await?;
@@ -748,6 +765,8 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
         .unwrap();
     locker.await.unwrap();
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(before_calls.load(Ordering::SeqCst), 2);
+    assert_eq!(rollbacks.load(Ordering::SeqCst), 1);
     assert_eq!(
         events.take(),
         [
@@ -936,6 +955,7 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
         .unwrap();
     let locked = Arc::new(Notify::new());
     let attempts = Arc::new(AtomicUsize::new(0));
+    let rollbacks = Arc::new(AtomicUsize::new(0));
     let competing = async {
         locked.notified().await;
         locker
@@ -948,7 +968,14 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
         |tx| {
             let locked = locked.clone();
             let attempts = attempts.clone();
+            let rollbacks = rollbacks.clone();
             Box::pin(async move {
+                tx.afterRollBack(move || {
+                    Box::pin(async move {
+                        rollbacks.fetch_add(1, Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
                 let first = attempts.fetch_add(1, Ordering::SeqCst) == 0;
                 tx.update("UPDATE rust_deadlock SET n = n + 1 WHERE id = 1", &[])
                     .await?;
@@ -986,6 +1013,7 @@ async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
     .unwrap();
     assert_eq!(result.unwrap(), 1);
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(rollbacks.load(Ordering::SeqCst), 1);
     assert_eq!(
         writer
             .scalar("SELECT SUM(n) FROM rust_deadlock WHERE id IN (1, 2)", &[])
@@ -2180,4 +2208,256 @@ async fn mysql_reconnect_replaces_read_write_sessions_with_an_active_transaction
     let fresh = manager.connection(None).unwrap();
     assert_ne!(fresh.scalar(id, &[]).await.unwrap(), before);
     assert_eq!(observer.calls.load(Ordering::SeqCst), 4);
+}
+
+fn record_rollback(
+    tx: &mut Transaction,
+    observed: &Arc<Mutex<Vec<&'static str>>>,
+    label: &'static str,
+) {
+    let observed = observed.clone();
+    tx.afterRollBack(move || {
+        Box::pin(async move {
+            observed.lock().unwrap().push(label);
+            Ok(())
+        })
+    })
+    .unwrap();
+}
+
+async fn verify_transaction_callbacks(db: Connection) {
+    const COUNT: &str = "SELECT count(*) FROM transaction_callbacks_test";
+    db.statement("DROP TABLE IF EXISTS transaction_callbacks_test", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE transaction_callbacks_test (id INTEGER PRIMARY KEY)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let starts = Arc::new(Mutex::new(Vec::new()));
+    let hook_starts = starts.clone();
+    db.beforeStartingTransaction(move |connection, active| {
+        let starts = hook_starts.clone();
+        Box::pin(async move {
+            let (level, rows) = if let Some(active) = active {
+                (active.transactionLevel(), active.scalar(COUNT, &[]).await?)
+            } else {
+                (0, connection.scalar(COUNT, &[]).await?)
+            };
+            starts.lock().unwrap().push((level, rows));
+            Ok(())
+        })
+    });
+
+    let mut tx = tokio::time::timeout(Duration::from_secs(5), db.beginTransaction())
+        .await
+        .unwrap()
+        .unwrap();
+    let released = db.clone();
+    let result = Arc::new(Mutex::new(None));
+    let visible = result.clone();
+    tx.afterRollBack(move || {
+        Box::pin(async move {
+            let visible_count = released.scalar(COUNT, &[]).await?;
+            *visible.lock().unwrap() = Some(visible_count);
+            Ok(())
+        })
+    })
+    .unwrap();
+    record_rollback(&mut tx, &observed, "root");
+    tx.insert("INSERT INTO transaction_callbacks_test VALUES (1)", &[])
+        .await
+        .unwrap();
+    tx.beginTransaction().await.unwrap();
+    record_rollback(&mut tx, &observed, "parent");
+    tx.beginTransaction().await.unwrap();
+    record_rollback(&mut tx, &observed, "committed-grandchild");
+    tx.insert("INSERT INTO transaction_callbacks_test VALUES (2)", &[])
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    tx.rollBack(Some(1)).await.unwrap();
+    assert_eq!(
+        *observed.lock().unwrap(),
+        ["committed-grandchild", "parent"]
+    );
+    assert_eq!(tx.scalar(COUNT, &[]).await.unwrap(), 1.into());
+
+    tx.beginTransaction().await.unwrap();
+    record_rollback(&mut tx, &observed, "committed-child");
+    tx.commit().await.unwrap();
+    tx.beginTransaction().await.unwrap();
+    record_rollback(&mut tx, &observed, "active-child");
+    tokio::time::timeout(Duration::from_secs(5), tx.rollBack(Some(0)))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        *observed.lock().unwrap(),
+        [
+            "committed-grandchild",
+            "parent",
+            "committed-child",
+            "active-child",
+            "root"
+        ]
+    );
+    assert_eq!(*result.lock().unwrap(), Some(0.into()));
+    assert_eq!(
+        *starts.lock().unwrap(),
+        [
+            (0, 0.into()),
+            (1, 1.into()),
+            (2, 1.into()),
+            (1, 1.into()),
+            (1, 1.into())
+        ]
+    );
+    assert!(matches!(
+        tx.afterRollBack(|| Box::pin(async { Ok(()) })),
+        Err(DatabaseError::TransactionClosed)
+    ));
+
+    let mut committed = db.beginTransaction().await.unwrap();
+    record_rollback(&mut committed, &observed, "discarded-on-commit");
+    committed.commit().await.unwrap();
+    assert_eq!(observed.lock().unwrap().len(), 5);
+
+    let mut failed = db.beginTransaction().await.unwrap();
+    failed
+        .insert("INSERT INTO transaction_callbacks_test VALUES (3)", &[])
+        .await
+        .unwrap();
+    failed
+        .afterRollBack(|| Box::pin(async { Err(DatabaseError::InvalidQuery("rollback probe")) }))
+        .unwrap();
+    assert!(matches!(
+        failed.rollBack(None).await,
+        Err(DatabaseError::AfterRollback { .. })
+    ));
+    assert_eq!(failed.transactionLevel(), 0);
+    assert_eq!(db.scalar(COUNT, &[]).await.unwrap(), 0.into());
+
+    db.beforeStartingTransaction(|_, _| {
+        Box::pin(async { Err(DatabaseError::InvalidQuery("blocked begin")) })
+    });
+    assert!(matches!(
+        db.beginTransaction().await,
+        Err(DatabaseError::InvalidQuery("blocked begin"))
+    ));
+    assert_eq!(db.scalar(COUNT, &[]).await.unwrap(), 0.into());
+    db.statement("DROP TABLE transaction_callbacks_test", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_transaction_callbacks_observe_savepoint_ancestry() {
+    let root = Root::new();
+    let manager = manager(
+        &root,
+        json!({"default":"main","connections":{"main":{
+            "driver":"sqlite", "database":":memory:"
+        }}}),
+    );
+    verify_transaction_callbacks(manager.connection(None).unwrap()).await;
+}
+
+#[tokio::test]
+async fn mysql_transaction_callbacks_observe_savepoint_ancestry() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let manager = manager(
+        &root,
+        json!({"default":"main","connections":{"main":{
+            "url":url, "max_connections":1
+        }}}),
+    );
+    verify_transaction_callbacks(manager.connection(None).unwrap()).await;
+}
+
+#[tokio::test]
+async fn sqlite_schema_rollback_callbacks_observe_restored_session_settings() {
+    struct ObserveSchema(Arc<Mutex<Vec<(Value, Value)>>>);
+
+    impl Listener for ObserveSchema {
+        fn handle<'a>(
+            &'a self,
+            payload: &'a dyn EventPayload,
+            context: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = payload
+                    .downcast_ref::<TransactionBeginning>()
+                    .ok_or(EventError::InvalidPayload)?;
+                let transaction = context.transaction().ok_or(EventError::InvalidPayload)?;
+                let connection = event.connection.clone();
+                let observed = self.0.clone();
+                transaction
+                    .afterRollBack(move || {
+                        Box::pin(async move {
+                            let foreign_keys =
+                                connection.scalar("PRAGMA foreign_keys", &[]).await?;
+                            let legacy =
+                                connection.scalar("PRAGMA legacy_alter_table", &[]).await?;
+                            observed.lock().unwrap().push((foreign_keys, legacy));
+                            Ok(())
+                        })
+                    })
+                    .map_err(EventError::Transaction)?;
+                Ok(None)
+            })
+        }
+    }
+
+    let root = Root::new();
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            Ok([("database".into(), json!({
+            "default":"fixture","connections":{"fixture":{"driver":"sqlite","database":":memory:"}}
+        }))].into())
+        })
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let db = manager.connection(None).unwrap();
+    db.unprepared(
+        "CREATE TABLE callback_schema (name TEXT); INSERT INTO callback_schema VALUES (NULL)",
+    )
+    .await
+    .unwrap();
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    dispatcher
+        .listen(
+            TransactionBeginning::NAME,
+            Arc::new(ObserveSchema(observed.clone())),
+            Delivery::Sync,
+        )
+        .unwrap();
+
+    let mut schema = db.getSchemaBuilder();
+    let failed = tokio::time::timeout(
+        Duration::from_secs(5),
+        schema.table("callback_schema", |table| {
+            table.text("name").change();
+        }),
+    )
+    .await
+    .expect("the callback must not wait on the SQLite schema transaction's lease");
+    assert!(matches!(failed, Err(DatabaseError::Driver { .. })));
+    assert_eq!(*observed.lock().unwrap(), [(1.into(), 0.into())]);
+    assert_eq!(
+        db.scalar("SELECT count(*) FROM callback_schema", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
 }

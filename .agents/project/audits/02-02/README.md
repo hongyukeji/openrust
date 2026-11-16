@@ -68,4 +68,14 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - SQLx 按池管理物理会话。等待旧池的查询在实际执行 SQL 前切换到新池。已经借出的会话仍可完成原操作或事务，并在归还后关闭。每次建立替换池时派发一次 `ConnectionEstablished`。
 - Rust 1.94.0，实际 SQLite 与 MySQL 8.4.13。SQLite 用两个数据库文件验收重读配置、旧句柄及日志保留、原事务提交和清除缓存。MySQL 通过会话 ID 验证读写池刷新、单连接池等待切换、事务留在原会话、租约归还后服务端会话关闭和事件计数。50 项定向回归通过，含真实 HTTP 的模型绑定回归。1 个现有子进程夹具由父测试启动。工作区严格 Clippy 和变更文件格式检查通过。
 - 两种驱动分别通过实际 Artisan 运行三语示例，原生 `main artisan inspire` 成功。VitePress 构建、12 项站点浏览器组合与 6 项重连小节检查通过。
-- 02-02 仍需核对运行中连接丢失的语句重放、`::direct`、通用查询预演、查询前回调和剩余事务回调。
+- 事务回调见下方续批。02-02 仍需核对运行中连接丢失的语句重放、`::direct`、通用查询预演和查询前回调。
+
+## 事务开始前及回滚回调
+
+对照固定 Laravel [ManagesTransactions](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/ManagesTransactions.php) 与 [DatabaseTransactionsManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/DatabaseTransactionsManager.php)。旧版未找到可直接复用的同名入口。当前沿用现有事务和提交回调，保存每层的父子关系。
+
+- `beforeStartingTransaction` 在每次根事务和保存点开始前执行。根事务钩子在借用连接前运行，嵌套钩子可借用当前事务。错误中止本次开始。连接克隆共享注册，门面注册到默认逻辑连接。
+- `Transaction::afterRollBack` 的作用域是显式事务句柄。回滚时按保存点父子关系处理，包括已提交到父事务的保存点。根回滚依层级从深至浅执行，已提交的根事务丢弃回滚回调。确认回滚后的回调错误返回 `AfterRollback`。未确认的租约中断继续走驱动清理。
+- 真正的 MySQL 死锁确认事务已撤销，退役旧会话后执行该次回滚回调，再按现有策略重试。SQLite 表重建的外层事务在回调前恢复会话设置及归还连接，回调可继续查询单连接池。
+- Rust 1.94.0、SQLite 与真实 MySQL 8.4.13 上 53 项定向回归通过。覆盖开始钩子、中止、已提交子保存点、部分回滚、根回滚、回调错误、真实锁等待和死锁重试、SQLite 表重建恢复，以及事件的 HTTP 与 Artisan 回归。1 个现有子进程夹具由父测试启动。工作区严格 Clippy 和变更文件格式检查通过。
+- 两种驱动分别通过实际 Artisan 运行三语示例，原生 `main artisan inspire` 成功。VitePress 构建、12 项站点浏览器组合与 6 项事务回调小节检查通过。02-02 继续处理主动执行中的连接丢失、直连、通用预演及查询前回调。

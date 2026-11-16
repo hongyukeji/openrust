@@ -34,6 +34,7 @@ use super::{
         QueryNotification, QueryRole,
     },
     query_log::QueryLog,
+    transaction::BeginCallback,
     value,
 };
 
@@ -59,6 +60,7 @@ pub struct Connection {
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,
     pub(super) query_log: Arc<QueryLog>,
+    pub(super) before_transaction: Arc<Mutex<Vec<BeginCallback>>>,
 }
 
 tokio::task_local! {

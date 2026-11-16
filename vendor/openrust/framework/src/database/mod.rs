@@ -98,6 +98,9 @@ pub enum DatabaseError {
     AfterCommit {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+    AfterRollback {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     InvalidTransactionAttempts,
     TransactionInterrupted,
     TransactionLevelChanged,
@@ -192,6 +195,9 @@ impl std::fmt::Display for DatabaseError {
             Self::AfterCommit { .. } => {
                 formatter.write_str("database committed but a commit callback failed")
             }
+            Self::AfterRollback { .. } => {
+                formatter.write_str("database rolled back but a rollback callback failed")
+            }
             Self::TransactionClosed => formatter.write_str("database transaction has ended"),
             Self::TransactionInterrupted => {
                 formatter.write_str("database transaction was interrupted")
@@ -225,7 +231,7 @@ impl std::error::Error for DatabaseError {
             }
             Self::Driver { source, .. } => Some(source),
             Self::FakerIo(source) => Some(source),
-            Self::AfterCommit { source } => Some(source.as_ref()),
+            Self::AfterCommit { source } | Self::AfterRollback { source } => Some(source.as_ref()),
             Self::ModelEvent(source) | Self::ConnectionEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
             Self::AttributeEncryption(source) => Some(source),

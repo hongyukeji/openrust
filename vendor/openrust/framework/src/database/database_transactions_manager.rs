@@ -1,17 +1,41 @@
-use std::sync::Mutex;
+use std::{cmp::Reverse, sync::Mutex};
 
 use super::{DatabaseError, DatabaseFuture, DatabaseResult};
 
-type CommitCallback = Box<dyn FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send>;
+type TransactionCallback = Box<dyn FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send>;
 
 #[derive(Default)]
 struct TransactionRecord {
     level: u32,
-    callbacks: Vec<CommitCallback>,
-    committed_children: Vec<CommitCallback>,
+    callbacks: Vec<TransactionCallback>,
+    rollback_callbacks: Vec<TransactionCallback>,
+    committed_children: Vec<TransactionRecord>,
 }
 
-/// Associates commit callbacks with one database transaction's savepoints.
+impl TransactionRecord {
+    fn stage(mut self, records: &mut Vec<Self>) {
+        for child in std::mem::take(&mut self.committed_children) {
+            child.stage(records);
+        }
+        records.push(self);
+    }
+
+    fn collect_rollback_callbacks(mut self, callbacks: &mut Vec<TransactionCallback>) {
+        Self::rollback_children(self.committed_children, callbacks);
+        callbacks.append(&mut self.rollback_callbacks);
+    }
+
+    fn rollback_children(mut children: Vec<Self>, callbacks: &mut Vec<TransactionCallback>) {
+        for child in &mut children {
+            Self::rollback_children(std::mem::take(&mut child.committed_children), callbacks);
+        }
+        for mut child in children {
+            callbacks.append(&mut child.rollback_callbacks);
+        }
+    }
+}
+
+/// Associates transaction callbacks with one transaction's savepoints.
 #[derive(Default)]
 pub struct DatabaseTransactionsManager {
     // The transaction owns these records exclusively; the mutex keeps its
@@ -39,7 +63,7 @@ impl DatabaseTransactionsManager {
             .expect("transaction record just inserted")
     }
 
-    pub(super) fn add(&mut self, level: u32, callback: CommitCallback) -> DatabaseResult<()> {
+    pub(super) fn add(&mut self, level: u32, callback: TransactionCallback) -> DatabaseResult<()> {
         if level == 0 {
             return Err(DatabaseError::TransactionClosed);
         }
@@ -47,9 +71,53 @@ impl DatabaseTransactionsManager {
         Ok(())
     }
 
-    pub(super) fn rollback(&mut self, level: u32) {
+    pub(super) fn add_rollback(
+        &mut self,
+        level: u32,
+        callback: TransactionCallback,
+    ) -> DatabaseResult<()> {
+        if level == 0 {
+            return Err(DatabaseError::TransactionClosed);
+        }
+        self.record_at(level).rollback_callbacks.push(callback);
+        Ok(())
+    }
+
+    pub(super) fn discard(&mut self) {
+        self.records().clear();
+    }
+
+    pub(super) async fn rollback(&mut self, level: u32) -> DatabaseResult<()> {
         let records = self.records();
-        records.truncate(records.partition_point(|record| record.level <= level));
+        let mut discarded =
+            records.split_off(records.partition_point(|record| record.level <= level));
+        let mut callbacks = Vec::new();
+        if level == 0 {
+            let mut staged = Vec::new();
+            for record in &mut discarded {
+                for child in std::mem::take(&mut record.committed_children) {
+                    child.stage(&mut staged);
+                }
+            }
+            staged.extend(discarded.into_iter().rev());
+            staged.sort_by_key(|record| Reverse(record.level));
+            for mut record in staged {
+                callbacks.append(&mut record.rollback_callbacks);
+            }
+        } else {
+            for record in discarded.into_iter().rev() {
+                record.collect_rollback_callbacks(&mut callbacks);
+            }
+        }
+        for callback in callbacks {
+            callback().await.map_err(|source| match source {
+                DatabaseError::AfterRollback { .. } => source,
+                source => DatabaseError::AfterRollback {
+                    source: Box::new(source),
+                },
+            })?;
+        }
+        Ok(())
     }
 
     pub(super) async fn commit(&mut self, level: u32) -> DatabaseResult<()> {
@@ -58,16 +126,12 @@ impl DatabaseTransactionsManager {
             return Ok(());
         }
         let record = records.pop().expect("active transaction record");
-        let callbacks = record
-            .committed_children
-            .into_iter()
-            .chain(record.callbacks);
         if level > 1 {
-            self.record_at(level - 1)
-                .committed_children
-                .extend(callbacks);
+            self.record_at(level - 1).committed_children.push(record);
         } else {
-            for callback in callbacks {
+            let mut staged = Vec::new();
+            record.stage(&mut staged);
+            for callback in staged.into_iter().flat_map(|record| record.callbacks) {
                 callback().await.map_err(|source| match source {
                     DatabaseError::AfterCommit { .. } => source,
                     source => DatabaseError::AfterCommit {
