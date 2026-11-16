@@ -24,6 +24,21 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### The Loop Variable {#the-loop-variable}
+
+Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based integer keys. Objects expose string keys in the order of the view data map.
+
+```html
+@foreach ($groups as $key => $items)
+    <h2>{{ $key }}</h2>
+    @foreach ($items as $item)
+        <p>{{ $loop->parent->iteration }}.{{ $loop->iteration }} {{ $item }}</p>
+    @endforeach
+@endforeach
+```
+
+`$loop` exposes `iteration` (one-based), `index` (zero-based), `remaining`, `count`, `first`, `last`, `odd`, `even`, `depth`, and `parent`. The outermost loop has depth 1 and a null parent. An included view can read the outer loop and use it as the parent of a nested loop.
+
 ## Components
 
 Store an anonymous component such as `notice` in `resources/views/components/notice.blade.html`. A quoted attribute is a string. Prefix its name with `:` to pass a view expression. Render the default slot with `$slot` and access a named slot by its name. Slot content is already rendered HTML. Data echoed inside the slot is escaped normally.

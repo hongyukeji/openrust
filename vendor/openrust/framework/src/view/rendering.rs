@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io, sync::Arc};
 
-use super::{Factory, ViewData, ViewError, ViewResult};
+use super::{Factory, ViewData, ViewError, ViewResult, ViewValue};
 
 /// State owned by one render tree. A layout inherits sections from its child.
 pub(super) struct RenderContext<'a> {
@@ -10,6 +10,7 @@ pub(super) struct RenderContext<'a> {
     layout: Option<String>,
     slots: HashMap<String, String>,
     parent_marker: Arc<str>,
+    pub(super) active_loop: Option<Arc<ViewValue>>,
 }
 
 impl<'a> RenderContext<'a> {
@@ -21,6 +22,7 @@ impl<'a> RenderContext<'a> {
             layout: None,
             slots: HashMap::new(),
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
+            active_loop: None,
         }
     }
 
@@ -105,6 +107,7 @@ impl<'a> RenderContext<'a> {
                 depth: self.depth + 1,
                 slots: self.slots.clone(),
                 parent_marker: self.parent_marker.clone(),
+                active_loop: self.active_loop.clone(),
                 factory: Some(factory),
                 sections: HashMap::new(),
                 layout: None,

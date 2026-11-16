@@ -349,6 +349,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/plain", || view("layout"))?;
                 Route::get("/contract", contract_route)?;
                 Route::get("/missing-include", || view("missing_include"))?;
+                Route::get("/loops", || {
+                    view("loops").with(
+                        "groups",
+                        serde_json::json!({"<first>": ["<&", "two"], "second": []}),
+                    )
+                })?;
+                Route::get("/broken-loop", || view("broken_loop"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -434,6 +441,31 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("broken", "@extends('missing')"),
         ("missing_include", "@includeWhen(true, 'missing')"),
+        (
+            "loops",
+            concat!(
+                "@foreach ($groups as $key => $items)",
+                "{{ $key }}={{ $loop->index }}/{{ $loop->iteration }}/",
+                "{{ $loop->remaining }}/{{ $loop->count }}",
+                "@if ($loop->first)F@endif@if ($loop->last)L@endif",
+                "@if ($loop->odd)O@endif@if ($loop->even)E@endif:",
+                "@include('loop_items')({{ $loop->depth }});",
+                "@endforeach@isset($loop)leaked@endisset",
+            ),
+        ),
+        (
+            "loop_items",
+            concat!(
+                "@forelse ($items as $index=>$item)",
+                "{{ $index }}={{ $item }}[{{ $loop->parent->iteration }}:",
+                "{{ $loop->depth }}]",
+                "@empty empty[{{ $loop->iteration }}]@endforelse",
+            ),
+        ),
+        (
+            "broken_loop",
+            "@foreach ($items as key => $item)@endforeach",
+        ),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -457,6 +489,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(unrelated, "<main>A|&lt;fallback&gt;</main>");
     assert!(send(first, "/broken", 500).await.contains("500"));
     assert!(send(first, "/missing-include", 500).await.contains("500"));
+    assert!(send(first, "/broken-loop", 500).await.contains("500"));
+    let (a, b) = tokio::join!(send(first, "/loops", 200), send(second, "/loops", 200));
+    assert_eq!(
+        a,
+        "&lt;first&gt;=0/1/1/2FO:0=&lt;&amp;[1:2]1=two[1:2](1);second=1/2/0/2LE: empty[2](1);"
+    );
+    assert_eq!(a, b);
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

@@ -19,3 +19,11 @@
 ## 后续边界
 
 当前表达式使用 Rust 视图数据，支持字面量、变量及对象属性。PHP 函数、语句和其他 Blade 指令仍未覆盖。布局、组件、子视图的组合与视图组合器按 03-08 继续。Windows 实机未验收。
+
+## 键值循环与循环变量
+
+- 对照固定 [Blade 循环章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#the-loop-variable)、[CompilesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesLoops.php)、[ManagesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesLoops.php) 及固定 foreach、forelse 编译测试。以 PHP 8.5.12 独立容器运行固定 ManagesLoops，验证迭代序号、剩余数、首尾、奇偶、深度、父循环及退出恢复。
+- 旧版 `6d1a8192` 的 `src/view.rs` 和 `tests/http/view.rs` 使用 MiniJinja。当前沿用已提取的查找、转义及请求隔离契约，在纯 Rust 指令树中增加键和值绑定。视图数组提供整数索引，JSON 对象保留视图数据映射顺序并提供字符串键。循环限于物化视图集合，PHP 可迭代对象及 LazyCollection 的未知长度语义留待相应接线。
+- macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder` 五项通过。真实回环 HTTP 覆盖两应用并发、嵌套视图父循环、空分支复用外层循环、退出清理、转义及非法键绑定 500。
+- 隔离副本通过 Rust 1.94.0 工作区格式检查和 `cargo clippy --workspace --all-targets --locked --offline -- -D warnings`。隔离副本格式化了已有 Sanctum 测试差异。共享工作区的格式检查另外报告在途首页测试的格式差异。
+- 实际 `./artisan view:cache` 预编译三个语言版本的示例，`./artisan view:clear` 清除三份产物并保留无关文件，`./artisan inspire` 成功。三语 VitePress 构建、根路径和 `/docs/` 的 12 项常规浏览器检查及 6 项循环章节检查通过。

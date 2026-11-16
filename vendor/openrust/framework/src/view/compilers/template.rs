@@ -1,6 +1,7 @@
-use std::fmt::Write as _;
+use std::{fmt::Write as _, sync::Arc};
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
@@ -15,7 +16,13 @@ enum Node {
     Text(String),
     Echo(Expression, bool),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
-    Each(Expression, String, Vec<Node>, Vec<Node>),
+    Each {
+        expression: Expression,
+        key: Option<String>,
+        item: String,
+        body: Vec<Node>,
+        alternative: Vec<Node>,
+    },
     Extends(Expression),
     Parent,
     Section(Expression, Vec<Node>, bool),
@@ -61,7 +68,7 @@ impl Template {
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
         let mut output = String::new();
-        render_nodes(&self.0, data, &mut Vec::new(), &mut output, context)?;
+        render_nodes(&self.0, data, &[], &mut output, context)?;
         output.push_str(&context.render_layout(data)?);
         if output.contains(context.parent()) {
             output = output.replace(context.parent(), "");
@@ -373,19 +380,20 @@ impl<'a> Parser<'a> {
 
     fn loop_body(&mut self, depth: usize, foreach: bool) -> ViewResult<Node> {
         let arguments = self.arguments()?.trim();
-        let (binding, name) = arguments
-            .rsplit_once(char::is_whitespace)
+        let separator = arguments
+            .rmatch_indices("as")
+            .find(|(index, _)| {
+                arguments[..*index].ends_with(char::is_whitespace)
+                    && arguments[*index + 2..].starts_with(char::is_whitespace)
+            })
+            .map(|(index, _)| index)
             .ok_or_else(|| invalid("Expected a Blade loop of the form $items as $item."))?;
-        let variable = name
-            .strip_prefix('$')
-            .filter(|name| identifier(name))
-            .ok_or_else(|| invalid("Invalid Blade loop variable."))?;
-        let (expression, _) = binding
-            .trim_end()
-            .rsplit_once(char::is_whitespace)
-            .filter(|(_, keyword)| *keyword == "as")
-            .ok_or_else(|| invalid("Expected a Blade loop of the form $items as $item."))?;
-        let expression = expression_value(expression)?;
+        let expression = expression_value(&arguments[..separator])?;
+        let binding = &arguments[separator + 2..];
+        let (key, item) = match binding.split_once("=>") {
+            Some((key, item)) => (Some(loop_variable(key)?), loop_variable(item)?),
+            None => (None, loop_variable(binding)?),
+        };
         let (body, stop) = self.block(depth + 1)?;
         let alternative = match (foreach, stop) {
             (true, Some(Stop::EndForeach)) => Vec::new(),
@@ -398,12 +406,13 @@ impl<'a> Parser<'a> {
             }
             _ => return Err(invalid("Unclosed Blade loop.")),
         };
-        Ok(Node::Each(
+        Ok(Node::Each {
             expression,
-            variable.to_owned(),
+            key,
+            item,
             body,
             alternative,
-        ))
+        })
     }
 
     fn stop(&mut self) -> Option<Stop> {
@@ -548,6 +557,15 @@ fn identifier(name: &str) -> bool {
         && characters.all(|character| character.is_alphanumeric() || character == '_')
 }
 
+fn loop_variable(binding: &str) -> ViewResult<String> {
+    binding
+        .trim()
+        .strip_prefix('$')
+        .filter(|name| identifier(name))
+        .map(str::to_owned)
+        .ok_or_else(|| invalid("Invalid Blade loop variable."))
+}
+
 fn value<'a>(
     expression: &'a Expression,
     data: &'a ViewData,
@@ -575,7 +593,7 @@ fn value<'a>(
 fn render_nodes<'a>(
     nodes: &'a [Node],
     data: &'a ViewData,
-    bindings: &mut Vec<(&'a str, &'a ViewValue)>,
+    bindings: &[(&'a str, &'a ViewValue)],
     output: &mut String,
     context: &mut RenderContext<'_>,
 ) -> ViewResult<()> {
@@ -608,18 +626,62 @@ fn render_nodes<'a>(
                     context,
                 )?;
             }
-            Node::Each(expression, variable, body, alternative) => {
-                let value = value(expression, data, bindings);
-                let arrays = value.as_array().into_iter().flatten();
-                let objects = value.as_object().into_iter().flat_map(|map| map.values());
-                let mut values = arrays.chain(objects).peekable();
-                if values.peek().is_none() {
+            Node::Each {
+                expression,
+                key,
+                item,
+                body,
+                alternative,
+            } => {
+                let collection = value(expression, data, bindings);
+                let arrays = collection
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .enumerate()
+                    .map(|(index, value)| (ViewValue::from(index), value));
+                let objects = collection
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .map(|(key, value)| (ViewValue::from(key.as_str()), value));
+                let count = collection
+                    .as_array()
+                    .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
+                if count == 0 {
                     render_nodes(alternative, data, bindings, output, context)?;
                 }
-                for value in values {
-                    bindings.push((variable, value));
-                    render_nodes(body, data, bindings, output, context)?;
-                    bindings.pop();
+                let parent = context.active_loop.clone();
+                let depth = parent
+                    .as_deref()
+                    .and_then(|metadata| metadata["depth"].as_u64())
+                    .unwrap_or(0)
+                    + 1;
+                for (index, (key_value, item_value)) in arrays.chain(objects).enumerate() {
+                    let iteration = index + 1;
+                    let even = iteration.is_multiple_of(2);
+                    let metadata = Arc::new(json!({
+                        "iteration": iteration,
+                        "index": index,
+                        "remaining": count - iteration,
+                        "count": count,
+                        "first": index == 0,
+                        "last": iteration == count,
+                        "odd": !even,
+                        "even": even,
+                        "depth": depth,
+                        "parent": parent.as_deref(),
+                    }));
+                    let mut iteration_bindings = bindings.to_vec();
+                    if let Some(key) = key {
+                        iteration_bindings.push((key, &key_value));
+                    }
+                    iteration_bindings.push((item, item_value));
+                    iteration_bindings.push(("loop", &metadata));
+                    context.active_loop = Some(metadata.clone());
+                    let result = render_nodes(body, data, &iteration_bindings, output, context);
+                    context.active_loop = parent.clone();
+                    result?;
                 }
             }
             Node::Parent => output.push_str(context.parent()),
