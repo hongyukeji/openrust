@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - Strings 仍需逐项核对 多语言词形及 COMB 标识符。
-- Helpers 仍有 Arr 余下方法、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
+- Helpers 仍有 Arr 余下方法、日期工具和 Pipeline 待验收。计时的 PHP 行为差异见下文。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
 ## 正则与文本排版
@@ -67,3 +67,9 @@
 - 核对固定 Number 的小数精度优先级、负零、本地化解析、百分比、货币、拼读与序数、文件大小和数量缩写。复用旧版类型保留的 clamp 规则及整数边界回归。采用 ICU4X 的 CLDR 格式和 Rust RBNF 拼读数据。locale 与 currency 通过实例及回调作用域传递，整数及浮点区间分别使用 `pairs` 和 `pairsFloat`。 [固定 Number](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Number.php)
 - RBNF 整数拼读覆盖锁定数据包的语言，小数拼读目前支持英语。locale 数据版本和 Intl 解析的宽容规则存在差异。未覆盖语言和数值返回类型化错误。 [Rust RBNF 数据范围](https://docs.rs/intl/0.6.5/intl/spellout/index.html)
 - PHP 8.5.12 与 ICU 76.1 实跑固定 Laravel Number，核对 21 项输出。7 项 Rust 定向测试及严格 Clippy 通过。实际 Artisan 运行三语示例，实际回环 HTTP 核对德语小数、USD 金额、英文序数和 i64 上界。三语 VitePress 构建通过。
+
+## 计时工具
+
+- 对照固定 Benchmark、Sleep、Timebox 及其错误和提前返回行为。核对 v0.x 的 Support 实现及测试，未找到可复用的对应计时模块。Benchmark 使用单调时钟返回毫秒均值和回调结果。Sleep 采用显式 await、类型化 Duration 和实例级替身，Timebox 给异步回调的返回值或错误补足剩余时间。 [固定 Benchmark](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Benchmark.php) [固定 Sleep](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Sleep.php) [固定 Timebox](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Timebox.php)
+- 条件重复使用等长间隔，零时长时让出调度。Rust 计时差异包括显式等待、Duration 单位、局部替身和 Future 取消语义。PHP 析构等待、Carbon 时钟联动与退出式 Benchmark::dd 待映射审定。
+- PHP 8.5.12 对照 Benchmark 返回值和 Timebox 的异常等待及提前返回状态。22 项锁定离线定向回归、严格 Clippy 和三语 VitePress 构建通过。实际 Artisan 运行三语示例，实际回环 HTTP 验证错误返回达到最短时限、替身记录和回调结果。

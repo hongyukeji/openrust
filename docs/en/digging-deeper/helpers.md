@@ -61,3 +61,28 @@ assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
 assert_eq!(number.spellOrdinal(21)?, "twenty-first");
 assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
 ```
+
+## Timing tools {#timing-tools}
+
+`Benchmark::value` returns the result and elapsed milliseconds. `measure` averages a nonzero number of runs, and `measureMany` reports named callbacks in order. Use `valueAsync` to measure a future.
+
+`Sleep` uses `Duration` and waits when awaited. Use `and` to add time, `when` or `unless` to control eligibility, and `while` to repeat the interval. `Sleep::fake()` creates an instance-local log. Pass it to a delay with `using` and check the recorded durations.
+
+`Timebox::call` runs an async callback and pads its result to a minimum duration, including a returned error. `returnEarly` lets the same instance return without padding until `dontReturnEarly` resets it.
+
+```rust
+use openrust::support::{Benchmark, Sleep, Timebox};
+use std::time::Duration;
+
+let (value, milliseconds) = Benchmark::value(|| 6 * 7);
+assert_eq!(value, 42);
+assert!(milliseconds >= 0.0);
+
+let duration = Duration::from_millis(5);
+let fake = Sleep::fake();
+Sleep::r#for(duration).using(&fake).wait().await;
+fake.assertSequence(&[Some(duration)]);
+
+let mut timebox = Timebox::default();
+assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
+```

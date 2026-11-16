@@ -61,3 +61,28 @@ assert_eq!(number.currency(1234.5, None, None)?, "$1,234.50");
 assert_eq!(number.spellOrdinal(21)?, "twenty-first");
 assert_eq!(number.parseInt("9,223,372,036,854,775,807")?, i64::MAX);
 ```
+
+## 計時工具 {#timing-tools}
+
+`Benchmark::value` 傳回計算結果和經過的毫秒數。`measure` 求非零次執行的平均值，`measureMany` 按順序回報具名回呼。使用 `valueAsync` 測量 Future。
+
+`Sleep` 接收 `Duration`，在 await 時執行等待。用 `and` 累加時長，`when` 或 `unless` 控制是否等待，`while` 重複同一間隔。`Sleep::fake()` 建立實例內的記錄，透過 `using` 傳給等待後即可核對記錄的時長。
+
+`Timebox::call` 執行非同步回呼，並將傳回結果等到最短時限，傳回的錯誤同樣適用。`returnEarly` 允許該實例提前傳回，直到呼叫 `dontReturnEarly` 重設。
+
+```rust
+use openrust::support::{Benchmark, Sleep, Timebox};
+use std::time::Duration;
+
+let (value, milliseconds) = Benchmark::value(|| 6 * 7);
+assert_eq!(value, 42);
+assert!(milliseconds >= 0.0);
+
+let duration = Duration::from_millis(5);
+let fake = Sleep::fake();
+Sleep::r#for(duration).using(&fake).wait().await;
+fake.assertSequence(&[Some(duration)]);
+
+let mut timebox = Timebox::default();
+assert_eq!(timebox.call(async |_| Ok::<_, ()>(42), duration).await, Ok(42));
+```
