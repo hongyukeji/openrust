@@ -20,6 +20,7 @@ pub struct Mailer {
     pub(crate) name: String,
     pub(super) from: Option<Address>,
     pub(super) views: Arc<view::Factory>,
+    pub(super) markdown: super::Markdown,
     pub(super) transport: Arc<dyn Transport>,
     pub(super) captured: Option<Arc<ArrayTransport>>,
     pub(super) fake: super::mail_fake::FakeState,
@@ -101,6 +102,7 @@ impl Mailer {
             mailable.attachments()?,
             mailable.headers()?,
             &self.views,
+            &self.markdown,
         )
     }
 

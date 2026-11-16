@@ -64,6 +64,25 @@ impl Mailable for Receipt {
     }
 }
 
+struct MarkdownReceipt;
+
+impl Mailable for MarkdownReceipt {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            subject: "Markdown receipt fixture".into(),
+            ..Default::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Ok(Content {
+            markdown: Some("markdown-receipt".into()),
+            with: [("name".into(), json!("<Sam>"))].into_iter().collect(),
+            ..Default::default()
+        })
+    }
+}
+
 struct NamedReceipt<'a>(&'a str);
 impl Mailable for NamedReceipt<'_> {
     fn mailer(&self) -> Option<&str> {
@@ -290,10 +309,16 @@ impl Command for SendFixture {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let name = input.matches().get_one::<String>("mailer").unwrap();
+            let named = NamedReceipt(name);
+            let mailable: &dyn Mailable = if input.matches().get_flag("markdown") {
+                &MarkdownReceipt
+            } else {
+                &named
+            };
             let sent = Mail::to("to@example.test")
                 .unwrap()
                 .bcc("blind@example.test")
-                .sendNow(&NamedReceipt(name))
+                .sendNow(mailable)
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             let mime = String::from_utf8(sent.message.formatted()).unwrap();
@@ -419,7 +444,13 @@ fn mail_routes() -> Result<(), ConsoleError> {
         clap::Command::new("fixture:assert-fakes"),
     ))))?;
     Artisan::add(Box::new(SendFixture(CommandDefinition::new(
-        clap::Command::new("fixture:send-mail").arg(clap::Arg::new("mailer").required(true)),
+        clap::Command::new("fixture:send-mail")
+            .arg(clap::Arg::new("mailer").required(true))
+            .arg(
+                clap::Arg::new("markdown")
+                    .long("markdown")
+                    .action(clap::ArgAction::SetTrue),
+            ),
     ))))
 }
 
@@ -776,6 +807,84 @@ fi
 }
 
 #[tokio::test]
+async fn artisan_sends_themed_markdown_mail_through_smtp() {
+    let ports = std::env::var("OPENRUST_TEST_SMTP_PORT")
+        .ok()
+        .zip(std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT").ok());
+    let Some((smtp, http)) = ports else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(None, None, Some(smtp.parse().unwrap()));
+    let path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let theme_path = root.0.join("resources/views/vendor/mail");
+    std::fs::create_dir_all(theme_path.join("html/themes")).unwrap();
+    std::fs::write(
+        theme_path.join("html/themes/receipt.css"),
+        "h1 { color: #126789; }",
+    )
+    .unwrap();
+    config["mail"]["markdown"] = json!({"theme":"receipt", "paths":[theme_path]});
+    std::fs::write(&path, config.to_string()).unwrap();
+    std::fs::write(
+        root.0.join("resources/views/markdown-receipt.blade.html"),
+        "# Receipt for {{ $name }}
+
+[Open portal](https://example.test)
+
+[Unsafe](javascript:alert%281%29)
+
+| Item | Price |
+| --- | --- |
+| Subscription | $42 |
+
+<script>alert(1)</script>",
+    )
+    .unwrap();
+    assert!(
+        artisan(&root.0, &["fixture:send-mail", "smtp", "--markdown"])
+            .await
+            .contains("accepted")
+    );
+
+    let url = format!("http://127.0.0.1:{http}/api/v1");
+    let index: Json = reqwest::get(format!("{url}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let summary = index["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|message| message["Subject"] == "Markdown receipt fixture")
+        .unwrap();
+    let id = summary["ID"].as_str().unwrap();
+    let receipt: Json = reqwest::get(format!("{url}/message/{id}"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let html = receipt["HTML"].as_str().unwrap();
+    let text = receipt["Text"].as_str().unwrap();
+    for expected in ["<h1", "#126789", "&lt;Sam&gt;", "<table", "Subscription"] {
+        assert!(html.contains(expected), "{html}");
+    }
+    assert!(!html.contains("<script>") && !html.contains("javascript:"));
+    assert!(
+        text.contains("Receipt for <Sam>") && text.contains("Open portal (https://example.test)"),
+        "{text}"
+    );
+}
+
+#[tokio::test]
 #[ignore = "Requires a dedicated SMTP server configured for this test"]
 async fn smtp_delivery_fixture() {
     let url = std::env::var("OPENRUST_SMTP_FIXTURE_URL").expect("SMTP fixture URL");
@@ -867,6 +976,16 @@ fn user() -> User {
     }
 }
 
+async fn drop_delivery_tables(db: &openrust::database::Connection) {
+    for table in ["notifications", "jobs", "failed_jobs"] {
+        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
+    }
+}
+
+fn delivery_mysql() -> Option<String> {
+    std::env::var("OPENRUST_TEST_DELIVERY_MYSQL_URL").ok()
+}
+
 async fn setup(app: &Application) -> openrust::database::Connection {
     let db = app
         .container()
@@ -874,10 +993,8 @@ async fn setup(app: &Application) -> openrust::database::Connection {
         .unwrap()
         .connection(None)
         .unwrap();
+    drop_delivery_tables(&db).await;
     let mut schema = db.getSchemaBuilder();
-    for table in ["notifications", "jobs", "failed_jobs"] {
-        schema.dropIfExists(table).await.unwrap();
-    }
     schema
         .create("notifications", |table| {
             DatabaseNotification::schema(table, |table| {
@@ -967,10 +1084,11 @@ async fn mail_composes_views_mime_headers_and_keeps_application_capture_isolated
 
 #[tokio::test]
 async fn database_notification_is_polymorphic_localized_and_cancellable() {
-    let root = fixture(None, None, None);
+    let mysql = delivery_mysql();
+    let root = fixture(None, mysql.as_deref(), None);
     let mut app = app(&root.0);
     app.boot().await.unwrap();
-    setup(&app).await;
+    let db = setup(&app).await;
     app.call(
         Callback::new(&[], |_| async {
             let user = user();
@@ -1024,6 +1142,9 @@ async fn database_notification_is_polymorphic_localized_and_cancellable() {
     )
     .await
     .unwrap();
+    if mysql.is_some() {
+        drop_delivery_tables(&db).await;
+    }
 }
 
 async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
@@ -1094,9 +1215,7 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
         Value::Text("01-user".into())
     );
     if mysql.is_some() {
-        for table in ["notifications", "jobs", "failed_jobs"] {
-            db.getSchemaBuilder().dropIfExists(table).await.unwrap();
-        }
+        drop_delivery_tables(&db).await;
     }
 }
 
@@ -1204,9 +1323,7 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
     }
     assert!(!log.contains("notice-fallback"));
 
-    for table in ["notifications", "jobs", "failed_jobs"] {
-        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
-    }
+    drop_delivery_tables(&db).await;
     server.abort();
 }
 
@@ -1266,7 +1383,8 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
 
 #[tokio::test]
 async fn artisan_worker_delivers_mail_and_notification_after_commit() {
-    queued(None, None, None).await;
+    let mysql = delivery_mysql();
+    queued(None, mysql.as_deref(), None).await;
 }
 
 #[tokio::test]
@@ -1274,7 +1392,7 @@ async fn artisan_worker_uses_real_smtp_mysql_and_redis() {
     let redis = std::env::var("OPENRUST_TEST_REDIS_PORT")
         .ok()
         .map(|value| value.parse().unwrap());
-    let mysql = std::env::var("OPENRUST_TEST_DELIVERY_MYSQL_URL").ok();
+    let mysql = delivery_mysql();
     let smtp = std::env::var("OPENRUST_TEST_SMTP_PORT")
         .ok()
         .map(|value| value.parse().unwrap());
@@ -1302,7 +1420,8 @@ async fn artisan_worker_records_a_failed_smtp_delivery_after_retry() {
         }
     }
 
-    let root = fixture(None, None, None);
+    let mysql = delivery_mysql();
+    let root = fixture(None, mysql.as_deref(), None);
     let mut app = app(&root.0);
     app.boot().await.unwrap();
     let db = setup(&app).await;
@@ -1334,7 +1453,11 @@ async fn artisan_worker_records_a_failed_smtp_delivery_after_retry() {
     artisan(&root.0, &["queue:work", "database", "--once", "--tries=2"]).await;
     assert_eq!(
         db.table("jobs").value("attempts").await.unwrap(),
-        Value::Integer(1)
+        if mysql.is_some() {
+            Value::Unsigned(1)
+        } else {
+            Value::Integer(1)
+        }
     );
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
     artisan(
@@ -1355,6 +1478,9 @@ async fn artisan_worker_records_a_failed_smtp_delivery_after_retry() {
     };
     assert_eq!(failure, "queue job execution failed");
     assert!(!failure.contains("failure@example.test"));
+    if mysql.is_some() {
+        drop_delivery_tables(&db).await;
+    }
 }
 
 #[tokio::test]

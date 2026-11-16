@@ -36,6 +36,8 @@ pub struct Content {
     pub html: Option<String>,
     pub text_view: Option<String>,
     pub view: Option<String>,
+    #[serde(default)]
+    pub markdown: Option<String>,
     pub with: crate::view::ViewData,
 }
 

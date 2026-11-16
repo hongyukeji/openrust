@@ -47,6 +47,18 @@ pub async fn send_order() -> MailResult<()> {
 
 在 `config/mail.rs` 中，`failover` 在目前郵件器傳送失敗時切換，`roundrobin` 輪流使用郵件器。兩者皆透過 `mailers` 指定郵件器清單，並在 `retry_after` 秒內跳過失敗的傳輸。
 
+## Markdown 郵件
+
+將 `Content::markdown` 設為包含 CommonMark 的具名 Blade 視圖。郵件器產生 HTML 和純文字兩種版本，並將主題樣式內嵌到 HTML。框架提供預設主題。若要使用應用程式樣式，設定 `MAIL_MARKDOWN_THEME=receipt`，再將 `receipt.css` 放到 `resources/views/vendor/mail/html/themes/`。可透過 `text_view` 提供自己的純文字版本。
+
+```rust
+let content = Content {
+    markdown: Some("markdown-receipt".into()),
+    with: [("name".into(), serde_json::json!("Sam"))].into_iter().collect(),
+    ..Content::default()
+};
+```
+
 ## 郵件加入佇列
 
 讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。

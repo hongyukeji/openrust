@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    MailError, MailFake, MailResult, Mailer, PendingMail,
+    MailError, MailFake, MailResult, Mailer, Markdown, PendingMail,
     mail_fake::FakeState,
     mailables::Address,
     transport::{
@@ -84,6 +84,7 @@ impl MailManager {
             name: name.into(),
             from,
             views,
+            markdown: Markdown::from_config(&self.config.get("mail.markdown").unwrap_or_default()),
             transport,
             captured,
             fake: self.fake.clone(),

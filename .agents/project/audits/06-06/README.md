@@ -48,3 +48,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - Rust 的断言读取显式记录。邮件记录提供信封、邮件器、语言、发送结果或队列选项。通知记录提供通知标识、目标、渠道、语言与应用通过 `fake_data` 选择保存的数据。邮件立即发送路径仍组装 MIME，以满足既有 `SentMessage` 返回契约。Fake 不调用真实传输、渠道或队列。应用可为无数据库路由的收件人实现 `notification_key`。
 - 实际 Artisan 子进程核对按类型和条件断言已发、已排队和出站数量、Fake 启用前取得的邮件器、模型与按需通知、渠道过滤和语言。实际回环 HTTP 核对应用内已拦截通知，第二个应用仍可通过 array 邮件器正常投递。三语站点构建和两种部署路径的 12 项浏览器检查通过。
 - 在提交 `c570cf91d` 的隔离副本中叠加本批改动，Rust 1.94.0 定向回归和工作区全目标严格 Clippy 通过。共享工作树中的并行日志改动曾阻止编译，隔离验收保留其现场。
+
+## Markdown 邮件与独立主题
+
+- `mail::Markdown` 使用 Blade 命名视图、CommonMark 表格及纯 Rust CSS 内联。通过 `Content::markdown` 选择模板，邮件由同一份内容生成 HTML 和纯文本，可指定独立文本视图。主题沿用 `mail.markdown.theme` 和 `paths`，配置缺省时使用内置主题。旧版 `6d1a81924` 的 `src/mail/template.rs` 和 `tests/server/mail/templates.rs` 使用独立文本与 HTML 模板，复用其双版本、插值转义和 SMTP 验收思路。
+- 对照固定 [Markdown renderer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Markdown.php)。Rust 使用同一解析树生成文本和 HTML，原始 HTML 转义，链接方案过滤，CSS 内联不下载远程样式。PHP CommonMark 扩展和 Laravel 邮件专属组件属于额外适配。
+- 实际 Artisan 通过 SMTP 向 Mailpit 1.33.1 发送主题邮件。通过记录的 HTTP API 检查纯文本、HTML 标题和表格、自定义主题颜色、变量转义和链接过滤。
+- 以独立 MySQL 8.4.13 运行数据库通知、数据库队列、重试及失败记录用例。迁移既有用例时核对 MySQL 无符号重试次数的返回类型。整组 12 项通过，两个夹具有各自入口。三语站点构建及 12 项浏览器检查通过。
+- Rust 1.94.0 工作区全目标严格 Clippy 通过。

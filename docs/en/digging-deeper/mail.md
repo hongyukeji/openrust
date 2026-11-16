@@ -47,6 +47,18 @@ Select `ses`, `ses-v2`, `postmark`, `resend`, `mailgun`, or `cloudflare` to deli
 
 In `config/mail.rs`, `failover` keeps the active mailer while it succeeds and switches on failure. `roundrobin` rotates delivery across mailers. Both use the named `mailers` list and skip failed transports during the `retry_after` interval in seconds.
 
+## Markdown mail
+
+Set `Content::markdown` to a named Blade view containing CommonMark. The mailer creates HTML and plain-text alternatives and inlines the theme stylesheet in HTML. The default theme is built in. Set `MAIL_MARKDOWN_THEME=receipt` and place `receipt.css` under `resources/views/vendor/mail/html/themes/` to use an application stylesheet. Use `text_view` to provide your own plain-text alternative.
+
+```rust
+let content = Content {
+    markdown: Some("markdown-receipt".into()),
+    with: [("name".into(), serde_json::json!("Sam"))].into_iter().collect(),
+    ..Content::default()
+};
+```
+
 ## Queueing mail
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.

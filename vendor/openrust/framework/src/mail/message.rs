@@ -5,7 +5,7 @@ use lettre::message::{Mailbox, MultiPart, SinglePart, header};
 use crate::view::Factory;
 
 use super::{
-    MailResult, composition,
+    MailResult, Markdown, composition,
     mailables::{Address, Attachment, Content, Envelope, Headers},
 };
 
@@ -41,6 +41,7 @@ impl Message {
         attachments: Vec<Attachment>,
         headers: Headers,
         views: &Factory,
+        markdown: &Markdown,
     ) -> MailResult<Self> {
         let api_envelope = envelope.clone();
         let api_headers = headers.clone();
@@ -89,13 +90,27 @@ impl Message {
                 .map_err(|_| composition("Invalid mail header name."))?;
             builder = builder.raw_header(header::HeaderValue::new(name, header_text(value)?));
         }
-        let html = render(content.html, content.view.as_deref(), &content.with, views)?;
-        let text = render(
-            content.text,
-            content.text_view.as_deref(),
-            &content.with,
-            views,
-        )?;
+        let (html, text) = match content.markdown.as_deref() {
+            Some(view) => {
+                let (html, markdown_text) = markdown.render(view, &content.with, views)?;
+                let text = render(
+                    content.text,
+                    content.text_view.as_deref(),
+                    &content.with,
+                    views,
+                )?;
+                (Some(html), text.or(Some(markdown_text)))
+            }
+            None => (
+                render(content.html, content.view.as_deref(), &content.with, views)?,
+                render(
+                    content.text,
+                    content.text_view.as_deref(),
+                    &content.with,
+                    views,
+                )?,
+            ),
+        };
         let body = match (text.clone(), html.clone()) {
             (Some(text), Some(html)) => {
                 Body::Multipart(MultiPart::alternative_plain_html(text, html))

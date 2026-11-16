@@ -63,6 +63,10 @@ Notifications::route(
 
 Include `broadcast` in `via`. Return a `BroadcastMessage` from `to_broadcast`, or return an object from `to_array`. Set the message's `connection` and `queue` to choose where the broadcast event runs. By default, the event adds the notification ID and type. A model with a database route receives these events on the private channel named for its model type and key. Override `receives_broadcast_notifications_on` to customize the private channel names, or use `NotificationRoute::Broadcast` to specify channels for an on-demand recipient.
 
+## Markdown mail notifications
+
+To send a Markdown notification, set `MailMessage.content.markdown` to a named Blade view, or return a Markdown mailable from `to_mail`. Both paths use the same [Markdown mail renderer and theme](mail.md#markdown-mail).
+
 ## Testing notifications
 
 Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.
