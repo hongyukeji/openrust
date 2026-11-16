@@ -1454,29 +1454,54 @@ fn render_nodes<'a>(
                 body,
                 alternative,
             } => {
+                let stream = match expression {
+                    Expression::Variable(path) => match path.as_slice() {
+                        [name] if !bindings.iter().any(|(local, _)| *local == name) => {
+                            context.iterations.get(name)
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                };
                 let collection = value(expression, data, bindings);
-                let count = collection
-                    .as_array()
-                    .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
-                if count == 0 {
-                    render_block!(alternative, data, bindings, output, context);
-                }
+                let (count, entries): (_, Box<dyn Iterator<Item = _>>) = if let Some(stream) =
+                    stream
+                {
+                    let (count, entries) = stream();
+                    (
+                        count,
+                        Box::new(entries.map(|(key, value)| (key, Cow::Owned(value)))),
+                    )
+                } else {
+                    let count = collection
+                        .as_array()
+                        .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
+                    (
+                        Some(count),
+                        Box::new(
+                            collection_entries(collection)
+                                .map(|(key, value)| (key, Cow::Borrowed(value))),
+                        ),
+                    )
+                };
                 let parent = context.active_loop.clone();
                 let depth = parent
                     .as_deref()
                     .and_then(|metadata| metadata["depth"].as_u64())
                     .unwrap_or(0)
                     + 1;
-                for (index, (key_value, item_value)) in collection_entries(collection).enumerate() {
+                let mut saw_item = false;
+                for (index, (key_value, item_value)) in entries.enumerate() {
+                    saw_item = true;
                     let iteration = index + 1;
                     let even = iteration.is_multiple_of(2);
                     let metadata = Arc::new(json!({
                         "iteration": iteration,
                         "index": index,
-                        "remaining": count - iteration,
+                        "remaining": count.map(|count| count.saturating_sub(iteration)),
                         "count": count,
                         "first": index == 0,
-                        "last": iteration == count,
+                        "last": count.map(|count| iteration == count),
                         "odd": !even,
                         "even": even,
                         "depth": depth,
@@ -1486,7 +1511,7 @@ fn render_nodes<'a>(
                     if let Some(key) = key {
                         iteration_bindings.push((key, &key_value));
                     }
-                    iteration_bindings.push((item, item_value));
+                    iteration_bindings.push((item, item_value.as_ref()));
                     iteration_bindings.push(("loop", &metadata));
                     context.active_loop = Some(metadata.clone());
                     let result = render_nodes(body, data, &iteration_bindings, output, context);
@@ -1499,6 +1524,9 @@ fn render_nodes<'a>(
                         }) => break,
                         _ => {}
                     }
+                }
+                if !saw_item {
+                    render_block!(alternative, data, bindings, output, context);
                 }
             }
             Node::For(counted) => {

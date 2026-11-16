@@ -418,6 +418,7 @@ impl Factory {
             context
                 .gate_arguments
                 .extend(options.gate_arguments.clone());
+            context.iterations.extend(options.iterations.clone());
             options.fragments.clone()
         });
         match fragments {

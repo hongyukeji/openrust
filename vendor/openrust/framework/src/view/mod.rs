@@ -31,6 +31,9 @@ pub type ViewData = serde_json::Map<String, ViewValue>;
 pub type ViewFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type ViewResult<T> = Result<T, ViewError>;
 
+type IterationEntries = Box<dyn Iterator<Item = (ViewValue, ViewValue)>>;
+type ViewIteration = Arc<dyn Fn() -> (Option<usize>, IterationEntries) + Send + Sync>;
+
 /// A lookup, compilation, or rendering failure.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -84,6 +87,7 @@ pub struct View {
 #[derive(Default)]
 struct ViewOptions {
     fragments: Option<FragmentSelection>,
+    iterations: HashMap<String, ViewIteration>,
     gate_arguments: HashMap<String, Arc<crate::auth::access::Argument>>,
 }
 
@@ -133,6 +137,41 @@ impl View {
 
     pub fn with(mut self, key: impl Into<String>, value: impl Into<ViewValue>) -> Self {
         self.data.insert(key.into(), value.into());
+        self
+    }
+
+    /// Registers a fresh keyed iterator per Blade loop, with unknown length.
+    #[allow(non_snake_case, reason = "Matches the Blade view API naming")]
+    pub fn withIterator<I, F>(self, key: impl Into<String>, create: F) -> Self
+    where
+        I: Iterator<Item = (ViewValue, ViewValue)> + 'static,
+        F: Fn() -> I + Send + Sync + 'static,
+    {
+        self.with_iteration(key, move || (None, Box::new(create())))
+    }
+
+    /// Registers a fresh keyed iterator whose exact length is available without consuming it.
+    #[allow(non_snake_case, reason = "Matches the Blade view API naming")]
+    pub fn withExactSizeIterator<I, F>(self, key: impl Into<String>, create: F) -> Self
+    where
+        I: ExactSizeIterator<Item = (ViewValue, ViewValue)> + 'static,
+        F: Fn() -> I + Send + Sync + 'static,
+    {
+        self.with_iteration(key, move || {
+            let entries = create();
+            (Some(entries.len()), Box::new(entries))
+        })
+    }
+
+    fn with_iteration(
+        mut self,
+        key: impl Into<String>,
+        create: impl Fn() -> (Option<usize>, IterationEntries) + Send + Sync + 'static,
+    ) -> Self {
+        self.options
+            .get_or_insert_default()
+            .iterations
+            .insert(key.into(), Arc::new(create));
         self
     }
 

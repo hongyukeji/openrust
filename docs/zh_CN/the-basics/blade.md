@@ -168,6 +168,26 @@ fn article_page(article: Article) -> View {
 
 `$loop` 提供 `iteration`（从 1 开始）、`index`（从 0 开始）、`remaining`、`count`、`first`、`last`、`odd`、`even`、`depth` 和 `parent`。最外层循环的深度为 1，父循环为 null。子视图可以读取外层循环，并将其用作嵌套循环的父循环。
 
+`withIterator` 为 `@foreach` 或 `@forelse` 的变量注册 Rust 迭代器工厂，工厂返回键值对。长度未知时，`$loop->count`、`remaining` 和 `last` 为 null。可在不推进迭代的情况下获取长度时，用 `withExactSizeIterator`。每次执行循环都会创建新迭代器，`@break` 立即停止读取。
+
+```rust
+use openrust::view::{View, view};
+
+fn activity() -> View {
+    view("activity").withIterator("items", || {
+        ["first", "second"].into_iter().enumerate()
+            .map(|(key, value)| (key.into(), value.into()))
+    })
+}
+```
+
+```html
+@foreach ($items as $key => $item)
+    <p>{{ $key }}: {{ $item }}</p>
+    @break
+@endforeach
+```
+
 ### 字体 {#fonts}
 
 在布局的 head 中使用 `@fonts`，从版本 1 的 Vite 字体清单输出预加载链接和 CSS。生产清单默认为 `public/build/fonts-manifest.json`。存在 `public/hot` 时，Blade 读取 `public/fonts-manifest.dev.json`。这些路径随应用的公开目录配置。清单缺失时输出空字符串。可以传入单个别名或别名列表来选择字体。

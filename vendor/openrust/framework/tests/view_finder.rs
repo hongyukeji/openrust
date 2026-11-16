@@ -549,6 +549,24 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/broken-fragment", || {
                     view("broken_fragment").fragment("left")
                 })?;
+                Route::get("/stream-loop", || {
+                    view("stream_loop")
+                        .withIterator("lazy", || {
+                            let mut pulled = false;
+                            std::iter::from_fn(move || {
+                                assert!(!pulled, "early break pulled a second item");
+                                pulled = true;
+                                Some(("key".into(), 10.into()))
+                            })
+                        })
+                        .withExactSizeIterator("known", || {
+                            [10, 20, 30]
+                                .into_iter()
+                                .enumerate()
+                                .map(|(key, value)| (key.into(), value.into()))
+                        })
+                        .withIterator("empty", std::iter::empty)
+                })?;
                 Route::get("/expressions", || {
                     view("expressions").with("ready", true).with("count", 2)
                 })?;
@@ -954,6 +972,23 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@fragment('right')R{{ $pass }}:{{ $sharedFragmentPass }}@endfragment",
             ),
         ),
+        (
+            "stream_loop",
+            concat!(
+                "@foreach ($known as $key => $item)",
+                "[{{ $key }}:{{ $item }}:{{ $loop->count }}:{{ $loop->remaining }}:",
+                "@bool($loop->first):@bool($loop->last)]@endforeach",
+                "@foreach ($lazy as $key => $item)",
+                "@foreach ($known as $nested)",
+                "{{ $key }}:{{ $item }}:{{ $loop->depth }}:{{ $loop->parent->iteration }}:",
+                "@bool($loop->parent->first):",
+                "{{ $loop->parent->count ?? 'null' }}:",
+                "{{ $loop->parent->remaining ?? 'null' }}:",
+                "{{ $loop->parent->last ?? 'null' }}",
+                "@break(2) @endforeach @endforeach",
+                "@forelse ($empty as $item)bad@empty|empty@endforelse",
+            ),
+        ),
         ("broken_fragment", "@fragment('left')broken"),
         (
             "expressions",
@@ -1348,6 +1383,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(
         send(first, "/full-fragments", 200).await,
         "<main><b>A</b><i>A</i></main>"
+    );
+    assert_eq!(
+        send(first, "/stream-loop", 200).await,
+        "[0:10:3:2:true:false][1:20:3:1:false:false][2:30:3:0:false:true]key:10:2:1:true:null:null:null|empty"
     );
     assert!(send(first, "/broken-fragment", 500).await.contains("500"));
     assert_eq!(

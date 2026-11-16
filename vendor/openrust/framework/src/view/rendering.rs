@@ -10,7 +10,7 @@ use std::{
 use crate::{contracts::container::Container as _, support::facades::current_container};
 
 use super::{
-    Factory, ViewData, ViewError, ViewResult, ViewValue, compilers::BladeExtensions,
+    Factory, ViewData, ViewError, ViewIteration, ViewResult, ViewValue, compilers::BladeExtensions,
     component::ResolvedComponent, request_data::ViewRequestData,
 };
 
@@ -23,6 +23,7 @@ pub(super) struct RenderContext<'a> {
     slots: HashMap<String, RenderSlot>,
     parent_marker: Arc<str>,
     pub(super) active_loop: Option<Arc<ViewValue>>,
+    pub(super) iterations: HashMap<String, ViewIteration>,
     pub(super) component_attributes: Option<ViewData>,
     component_data: Vec<Arc<ViewData>>,
     pub(super) gate_arguments: HashMap<String, Arc<crate::auth::access::Argument>>,
@@ -72,6 +73,7 @@ impl<'a> RenderContext<'a> {
             slots: HashMap::new(),
             parent_marker: format!("\0blade-parent-{:032x}\0", fastrand::u128(..)).into(),
             active_loop: None,
+            iterations: HashMap::new(),
             component_attributes: None,
             component_data: Vec::new(),
             gate_arguments: HashMap::new(),
@@ -85,6 +87,7 @@ impl<'a> RenderContext<'a> {
         let mut render = Self::new(self.factory);
         render.request = self.request.clone();
         render.gate_arguments.clone_from(&self.gate_arguments);
+        render.iterations.clone_from(&self.iterations);
         render
     }
 
@@ -186,6 +189,7 @@ impl<'a> RenderContext<'a> {
         nested.slots.clear();
         nested.component_attributes = None;
         nested.gate_arguments.clear();
+        nested.iterations.clear();
         factory.render_nested(name, data, &mut nested)
     }
 
@@ -335,6 +339,7 @@ impl<'a> RenderContext<'a> {
                 slots: self.slots.clone(),
                 parent_marker: self.parent_marker.clone(),
                 active_loop: self.active_loop.clone(),
+                iterations: self.iterations.clone(),
                 component_attributes: self.component_attributes.clone(),
                 component_data: self.component_data.clone(),
                 gate_arguments: self.gate_arguments.clone(),

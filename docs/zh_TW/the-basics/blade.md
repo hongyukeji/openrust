@@ -168,6 +168,26 @@ fn article_page(article: Article) -> View {
 
 `$loop` 提供 `iteration`（從 1 開始）、`index`（從 0 開始）、`remaining`、`count`、`first`、`last`、`odd`、`even`、`depth` 和 `parent`。最外層迴圈的深度為 1，父迴圈為 null。子視圖可以讀取外層迴圈，並將它用作巢狀迴圈的父迴圈。
 
+`withIterator` 為 `@foreach` 或 `@forelse` 的變數註冊 Rust 疊代器工廠，工廠傳回鍵值配對。長度未知時，`$loop->count`、`remaining` 和 `last` 為 null。若可在不推進疊代的情況下取得長度，請使用 `withExactSizeIterator`。每次執行迴圈都會建立新的疊代器，`@break` 會立即停止讀取。
+
+```rust
+use openrust::view::{View, view};
+
+fn activity() -> View {
+    view("activity").withIterator("items", || {
+        ["first", "second"].into_iter().enumerate()
+            .map(|(key, value)| (key.into(), value.into()))
+    })
+}
+```
+
+```html
+@foreach ($items as $key => $item)
+    <p>{{ $key }}: {{ $item }}</p>
+    @break
+@endforeach
+```
+
 ### 字型 {#fonts}
 
 在版面的 head 中使用 `@fonts`，從版本 1 的 Vite 字型資訊清單輸出預載連結與 CSS。正式環境的預設路徑為 `public/build/fonts-manifest.json`。存在 `public/hot` 時，Blade 會讀取 `public/fonts-manifest.dev.json`。這些路徑會依應用程式的公開目錄設定調整。資訊清單缺少時會輸出空字串。可以傳入單一別名或別名清單來選擇字型。

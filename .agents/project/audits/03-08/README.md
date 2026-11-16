@@ -122,3 +122,9 @@
 - PHP 8.5 容器加载固定 Laravel Framework v13.40.0 的真实 BladeCompiler、View 和 Factory。以有状态组合器和 `@once` 复现实测行为。具名列表依序渲染同一个 View，缺失项执行该轮渲染并返回完整输出，重复名称重新执行组合器，空列表跳过渲染。全部片段共用一次渲染。 [固定 View 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php)
 - Rust 每轮保留同一实例的组合器数据和请求上下文，以独立渲染树清理片段、栈和 `@once` 状态。实际 HTTP 覆盖顺序、重复、缺失、全部、条件回退、子视图和并发应用隔离。含 5 项 `view_finder` 定向测试及严格 Clippy 均通过。旧版视图为静态 HTML 和内嵌模板，未找到可复用的片段组合器实现。
 - 隔离应用实际执行 `./artisan view:cache` 和 `./artisan view:clear`，编译并清理三语片段示例。三语 VitePress 构建通过。
+
+### 流式集合的循环元数据
+
+- 在 PHP 8.5 容器中使用固定 Blade 编译器实测 Laravel `LazyCollection` 和实现 `Countable` 的迭代器。未知长度时三个依赖长度的字段为 null，父循环保留元数据。嵌套 `@break(2)` 仅消费首项。已知长度时以 `3,2,1,0` 验证总数和剩余量，并核对首项和末项。 [固定 ManagesLoops](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesLoops.php)
+- Rust 通过 `withIterator` 或 `withExactSizeIterator` 显式传递可重开迭代器工厂。实际 HTTP 覆盖键值、已知长度、未知长度、嵌套父循环和空流分支，惰性探针在多读时直接失败。旧版模板没有可复用的 Blade 循环实现。
+- 实际 Artisan 缓存及清理三语示例，示例 Rust 入口接入回环 HTTP。5 项 `view_finder` 定向测试、严格 Clippy 和三语 VitePress 构建通过。

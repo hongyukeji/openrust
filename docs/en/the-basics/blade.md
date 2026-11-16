@@ -168,6 +168,26 @@ Both `@foreach` and `@forelse` accept `$key => $item`. Arrays expose zero-based 
 
 `$loop` exposes `iteration` (one-based), `index` (zero-based), `remaining`, `count`, `first`, `last`, `odd`, `even`, `depth`, and `parent`. The outermost loop has depth 1 and a null parent. An included view can read the outer loop and use it as the parent of a nested loop.
 
+`withIterator` attaches a Rust iterator factory to a variable used by `@foreach` or `@forelse`. The factory returns key-value pairs. For an iterator of unknown length, `$loop->count`, `remaining`, and `last` are null. Use `withExactSizeIterator` when the iterator can report its length without advancing. Every loop starts a fresh iterator, and `@break` stops consumption immediately.
+
+```rust
+use openrust::view::{View, view};
+
+fn activity() -> View {
+    view("activity").withIterator("items", || {
+        ["first", "second"].into_iter().enumerate()
+            .map(|(key, value)| (key.into(), value.into()))
+    })
+}
+```
+
+```html
+@foreach ($items as $key => $item)
+    <p>{{ $key }}: {{ $item }}</p>
+    @break
+@endforeach
+```
+
 ### Fonts {#fonts}
 
 Use `@fonts` in the layout head to render preload links and CSS from the version 1 Vite font manifest. The default production location is `public/build/fonts-manifest.json`. When `public/hot` exists, Blade reads `public/fonts-manifest.dev.json`. These paths follow the application’s public directory. A missing manifest emits an empty string. Pass an alias or a list to load only the selected families.
