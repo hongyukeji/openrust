@@ -409,6 +409,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         app: &'static str,
     ) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
         let package_views = path.join("resources/views/package");
+        let extra_components = path.join("extra-components");
         let application = Application::configure(path)
             .withRouting(Routing::default().web(|| {
                 Route::get("/page", || view("page").with("title", "route"))?;
@@ -485,6 +486,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/switch", || view("switch_cases"))?;
                 Route::get("/bad-switch", || view("bad_switch"))?;
                 Route::get("/aware", || view("aware_page").with("color", "<blue>"))?;
+                Route::get("/anonymous-mounts", || {
+                    view("anonymous_mounts").with("dynamic", "external::notice")
+                })?;
+                Route::get("/anonymous-missing", || view("anonymous_missing"))?;
                 Route::get("/scoped-slot", || {
                     view("scoped_slot").with("component", "outside")
                 })?;
@@ -514,6 +519,20 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .unwrap();
         contract.share("contract_app", app.into());
         contract.addNamespace("demo", &[&package_views]).unwrap();
+        factory
+            .anonymousComponentNamespace("widgets", Some("external"))
+            .unwrap();
+        factory
+            .anonymousComponentPath(&extra_components, Some("external"))
+            .unwrap();
+        factory
+            .anonymousComponentPath(&extra_components, None)
+            .unwrap();
+        assert!(
+            factory
+                .anonymousComponentNamespace("../outside", Some("bad"))
+                .is_err()
+        );
         contract.composer(
             &["contract_card"],
             Arc::new(|view| {
@@ -596,6 +615,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     fs::create_dir_all(sources.join("components/accordion")).unwrap();
     fs::create_dir_all(sources.join("components/ranked")).unwrap();
     fs::create_dir_all(sources.join("package/components/panel")).unwrap();
+    fs::create_dir_all(sources.join("widgets")).unwrap();
+    let extra = root.path().join("extra-components");
+    fs::create_dir_all(extra.join("notice")).unwrap();
+    fs::write(extra.join("notice/index.blade.html"), "path {{ $app }}").unwrap();
+    fs::write(extra.join("standalone.blade.html"), "unprefixed").unwrap();
     for (name, source) in [
         (
             "layout",
@@ -816,6 +840,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_switch", "@switch(0)@default x@default y@endswitch"),
         (
+            "anonymous_mounts",
+            r#"<x-external::banner/>|<x-dynamic-component :component="$dynamic"/>|<x-standalone/>"#,
+        ),
+        ("widgets/banner", "namespace"),
+        ("anonymous_missing", "<x-external::none/>"),
+        (
             "scoped_slot",
             concat!(
                 "<x-scoped-panel><x-slot:heading>{{ $component->caption }}</x-slot:heading>",
@@ -995,6 +1025,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "twothree| good1|truefalse|Ready/no sidebar"
     );
     assert!(send(first, "/bad-switch", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/anonymous-mounts", 200),
+        send(second, "/anonymous-mounts", 200)
+    );
+    assert_eq!(a, "namespace|path A|unprefixed");
+    assert_eq!(b, "namespace|path B|unprefixed");
+    assert!(send(first, "/anonymous-missing", 500).await.contains("500"));
     let (a, b) = tokio::join!(
         send(first, "/scoped-slot", 200),
         send(second, "/scoped-slot", 200)

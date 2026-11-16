@@ -12,10 +12,10 @@
 | Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 更广的 PHP 数组构造表达式。 |
 | Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst`、`@includeIsolated` 与 `@each` 的独立集合渲染。 | 集合由物化的 Rust 视图数据提供。 |
 | The Once Directive、Raw PHP、Fonts | `@once` 及显式渲染树标识。 | `@php` 由调用方 Rust 代码替代。Fonts 仍待明确资产接线。 |
-| Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引、动态组件及既有视图命名空间的组件查找。 | PHP 类自动发现由 Rust 工厂替代。额外匿名组件路径和包发布接线。 |
+| Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引、动态组件、命名空间与额外路径。 | PHP 类自动发现由 Rust 工厂替代。包发布接线继续独立验收。 |
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态、绑定与简写属性、双冒号客户端绑定、`@props` 默认值、属性包的 `merge`、`class`、`style`、`only`、`except`。 | 更多筛选与方法链、保留名称和任意类型对象。依赖通过 Rust 工厂显式装配。 |
 | Slots、Inline Component Views | 默认、具名与绑定名插槽、插槽属性包、Rust 内联组件视图和 `Component::data` 提供的作用域插槽。 | 组件生成器与方法发现。组件方法输出通过 Rust `data` 提供。 |
-| Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware` 读取最近组件的显式值。 | 额外匿名组件路径和命名空间注册入口。 |
+| Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware`、额外路径和命名空间注册，扩展路径纳入视图预编译。 | Rust 在视图工厂上注册组件位置。 |
 | Building Layouts | 组件布局、继承、区段、`@parent`、`@yield`。 | 区段追加和覆盖变体、扩展布局数据等。 |
 | Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段。 | `_method` 到请求方法的应用装配仍待路由接线。 |
 | Stacks | `@push`、`@prepend`、`@stack`、`@hasStack` 与单次形式。 | 上游其他或组合用法按单元复验。 |

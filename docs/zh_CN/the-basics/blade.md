@@ -170,6 +170,25 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 <span>{{ $color }}</span>
 ```
 
+### 匿名组件目录 {#anonymous-component-paths}
+
+在应用装配时注册额外的匿名组件目录。通过命名空间指向视图根下的目录，或通过路径指定文件系统目录。`view:cache` 也会编译已注册路径中的模板。
+
+```rust
+use std::path::Path;
+use openrust::view::{Factory, ViewResult};
+
+fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
+    factory.anonymousComponentNamespace("widgets", Some("widget"))?;
+    factory.anonymousComponentPath(external, Some("external"))
+}
+```
+
+```html
+<x-widget::banner/>
+<x-external::notice/>
+```
+
 ### 动态组件 {#dynamic-components}
 
 视图数据可以通过 `<x-dynamic-component>` 选择一个已注册的 Rust 组件或匿名组件。`component` 属性指定目标，其余属性和插槽传给目标组件。

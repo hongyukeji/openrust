@@ -38,8 +38,8 @@ impl Command for ViewCacheCommand {
                 move || {
                     views.compiler().clear()?;
                     if precompile {
-                        for path in views.paths() {
-                            compile_directory(&views, path)?;
+                        for path in views.cache_paths() {
+                            compile_directory(&views, &path)?;
                         }
                     }
                     Ok::<_, ViewError>(())

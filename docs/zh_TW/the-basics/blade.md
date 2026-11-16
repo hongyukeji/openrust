@@ -170,6 +170,25 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 <span>{{ $color }}</span>
 ```
 
+### 匿名元件目錄 {#anonymous-component-paths}
+
+在應用程式組裝時註冊額外的匿名元件目錄。透過命名空間指向視圖根目錄下的目錄，或透過路徑指定檔案系統目錄。`view:cache` 也會編譯已註冊路徑中的範本。
+
+```rust
+use std::path::Path;
+use openrust::view::{Factory, ViewResult};
+
+fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
+    factory.anonymousComponentNamespace("widgets", Some("widget"))?;
+    factory.anonymousComponentPath(external, Some("external"))
+}
+```
+
+```html
+<x-widget::banner/>
+<x-external::notice/>
+```
+
 ### 動態元件 {#dynamic-components}
 
 視圖資料可以透過 `<x-dynamic-component>` 選擇已註冊的 Rust 元件或匿名元件。`component` 屬性指定目標，其餘屬性和插槽傳給目標元件。

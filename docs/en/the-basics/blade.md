@@ -170,6 +170,25 @@ Declare `@aware` at the start of the child template, alongside `@props`. The nea
 <span>{{ $color }}</span>
 ```
 
+### Anonymous Component Locations {#anonymous-component-paths}
+
+Register additional anonymous component roots during application setup. A view namespace points to a directory under the view roots. A component path points to a filesystem directory. `view:cache` also compiles registered paths.
+
+```rust
+use std::path::Path;
+use openrust::view::{Factory, ViewResult};
+
+fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
+    factory.anonymousComponentNamespace("widgets", Some("widget"))?;
+    factory.anonymousComponentPath(external, Some("external"))
+}
+```
+
+```html
+<x-widget::banner/>
+<x-external::notice/>
+```
+
 ### Dynamic Components {#dynamic-components}
 
 Use `<x-dynamic-component>` when the view data selects a registered Rust component or an anonymous component. The `component` attribute selects the target. Other attributes and slots are passed to that component.

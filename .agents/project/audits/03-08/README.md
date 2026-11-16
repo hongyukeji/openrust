@@ -86,3 +86,8 @@
 
 - 对照固定 [类组件编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesComponents.php) 和 Blade Scoped Slots 章节。Rust 先解析一次已注册组件并收集 `Component::data`，默认与具名槽通过 `$component` 读取该数据，组件本体通过普通变量读取。运行时方法发现对应 Rust 中的显式数据计算，已有组件使用默认空数据。旧版 MiniJinja 无对应类组件插槽。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证两应用隔离、组件实例序号、默认与具名槽、外部变量恢复及转义。隔离副本通过工作区格式与严格 Clippy，实际 Artisan 缓存和清理三语示例，三语构建与 12 项浏览器组合通过。
+
+## 匿名组件挂载
+
+- 对照固定 BladeCompiler 的 `anonymousComponentPath`、`anonymousComponentNamespace` 和 ViewCacheCommand。Rust 在 Factory 显式挂载视图目录及文件系统根，复用 Finder 的根目录约束。普通命名视图优先，其次是匿名命名空间和额外路径，各位置按同名、索引、目录同名模板查找。Artisan 预编译包含已登记的 Finder 目录。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过，真实 HTTP 验证带前缀和无前缀的额外路径、命名空间、动态索引、双应用数据与缺失 500。隔离副本全工作区格式及严格 Clippy 通过。实际 Artisan 用三语 Rust 示例登记位置，生成五个产物并确认其中包含挂载根模板，清理成功。三语构建和 12 项浏览器组合通过。

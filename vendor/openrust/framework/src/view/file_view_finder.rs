@@ -58,6 +58,19 @@ impl FileViewFinder {
         &self.paths
     }
 
+    pub(super) fn cache_paths(&self) -> Vec<PathBuf> {
+        let hints = self.hints.read().unwrap();
+        let mut paths: Vec<_> = self
+            .paths
+            .iter()
+            .chain(hints.values().flatten())
+            .cloned()
+            .collect();
+        paths.sort_unstable();
+        paths.dedup();
+        paths
+    }
+
     pub(crate) fn add_package_namespace(&self, namespace: &str, path: &Path) -> ViewResult<()> {
         if !valid_segment(namespace) {
             return Err(ViewError::InvalidName);
@@ -240,7 +253,7 @@ fn owned_hints(namespace: &str, hints: &[&Path]) -> ViewResult<Vec<PathBuf>> {
     Ok(hints.iter().map(|path| path.to_path_buf()).collect())
 }
 
-fn relative_name(name: &str) -> ViewResult<PathBuf> {
+pub(super) fn relative_name(name: &str) -> ViewResult<PathBuf> {
     let mut path = PathBuf::new();
     for segment in name.split(['.', '/']) {
         if !valid_segment(segment) {
@@ -251,7 +264,7 @@ fn relative_name(name: &str) -> ViewResult<PathBuf> {
     Ok(path)
 }
 
-fn valid_segment(segment: &str) -> bool {
+pub(super) fn valid_segment(segment: &str) -> bool {
     !segment.is_empty()
         && segment
             .chars()

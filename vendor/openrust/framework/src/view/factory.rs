@@ -13,8 +13,12 @@ use crate::contracts::view::{
 
 use super::{
     Component, ComponentOutput, FileViewFinder, View, ViewBinding, ViewData, ViewError, ViewFinder,
-    ViewResult, ViewValue, compilers::BladeCompiler, component::ResolvedComponent,
-    engines::EngineResolver, file_view_finder::ViewSource, rendering::RenderContext,
+    ViewResult, ViewValue,
+    compilers::BladeCompiler,
+    component::ResolvedComponent,
+    engines::EngineResolver,
+    file_view_finder::{ViewSource, relative_name, valid_segment},
+    rendering::RenderContext,
     request_data::ViewRequestData,
 };
 
@@ -42,6 +46,8 @@ struct ViewEvents {
     creators: Vec<(String, ViewCallback)>,
     composers: Vec<(String, ViewCallback)>,
     components: HashMap<String, ComponentResolver>,
+    anonymous_namespaces: HashMap<String, String>,
+    anonymous_paths: HashMap<Option<String>, Vec<String>>,
 }
 
 impl Factory {
@@ -171,6 +177,69 @@ impl Factory {
         resolver.map(|resolver| resolver(properties)).transpose()
     }
 
+    /// Registers a filesystem directory for anonymous Blade components.
+    pub fn anonymousComponentPath(&self, path: &Path, prefix: Option<&str>) -> ViewResult<()> {
+        if prefix.is_some_and(|prefix| !valid_segment(prefix)) {
+            return Err(ViewError::InvalidName);
+        }
+        let mount = format!("anonymous-components-{:032x}", fastrand::u128(..));
+        self.finder.append_hints(&mount, &[path])?;
+        self.events
+            .write()
+            .unwrap()
+            .anonymous_paths
+            .entry(prefix.map(str::to_owned))
+            .or_default()
+            .push(mount);
+        Ok(())
+    }
+
+    /// Maps an anonymous component prefix to a directory within the view roots.
+    pub fn anonymousComponentNamespace(
+        &self,
+        directory: &str,
+        prefix: Option<&str>,
+    ) -> ViewResult<()> {
+        let prefix = prefix.unwrap_or(directory);
+        let directory = directory.trim().trim_matches('/');
+        if !valid_segment(prefix) {
+            return Err(ViewError::InvalidName);
+        }
+        relative_name(directory)?;
+        self.events
+            .write()
+            .unwrap()
+            .anonymous_namespaces
+            .insert(prefix.to_owned(), directory.replace('/', "."));
+        Ok(())
+    }
+
+    fn anonymous_component_candidates(&self, name: &str) -> Vec<String> {
+        let (prefix, name) = name
+            .split_once("::")
+            .map_or((None, name), |(prefix, name)| (Some(prefix), name));
+        let mut bases = vec![prefix.map_or_else(
+            || format!("components.{name}"),
+            |prefix| format!("{prefix}::components.{name}"),
+        )];
+        let events = self.events.read().unwrap();
+        if let Some(directory) = prefix.and_then(|prefix| events.anonymous_namespaces.get(prefix)) {
+            bases.push(format!("{directory}.{name}"));
+        }
+        if let Some(mounts) = events.anonymous_paths.get(&prefix.map(str::to_owned)) {
+            bases.extend(mounts.iter().map(|mount| format!("{mount}::{name}")));
+        }
+        let leaf = name.rsplit('.').next().unwrap_or(name);
+        bases
+            .into_iter()
+            .flat_map(|base| {
+                let index = format!("{base}.index");
+                let directory = format!("{base}.{leaf}");
+                [base, index, directory]
+            })
+            .collect()
+    }
+
     pub(super) fn render_component(
         &self,
         name: &str,
@@ -194,15 +263,9 @@ impl Factory {
                 }
             }
             None => {
-                let (base, name) = if let Some((namespace, name)) = name.split_once("::") {
-                    (format!("{namespace}::components.{name}"), name)
-                } else {
-                    (format!("components.{name}"), name)
-                };
-                let index = format!("{base}.index");
-                let leaf = name.rsplit('.').next().unwrap_or(name);
-                let directory = format!("{base}.{leaf}");
-                let view = self.first(&[&base, &index, &directory], properties.clone())?;
+                let candidates = self.anonymous_component_candidates(name);
+                let candidates: Vec<_> = candidates.iter().map(String::as_str).collect();
+                let view = self.first(&candidates, properties.clone())?;
                 self.render_view(view, context)
             }
         }
@@ -370,8 +433,8 @@ impl Factory {
         self.engines.blade().getCompiler()
     }
 
-    pub(crate) fn paths(&self) -> &[PathBuf] {
-        self.finder.paths()
+    pub(super) fn cache_paths(&self) -> Vec<PathBuf> {
+        self.finder.cache_paths()
     }
 
     pub(crate) fn render_error(&self, name: &str, status: u16, message: &str) -> Option<String> {
