@@ -10,6 +10,10 @@ pub trait Store: Send + Sync {
         Err(CacheError::TagsUnsupported)
     }
 
+    fn flush_stale_tags(&self) -> CacheFuture<'_, CacheResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+
     fn supports_tags(&self) -> bool {
         false
     }

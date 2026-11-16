@@ -1,0 +1,168 @@
+use std::sync::Arc;
+
+use ::redis::{FromRedisValue, ToRedisArgs};
+
+use crate::redis::connections::Connection;
+
+use super::{
+    CacheError, CacheResult, RedisStore, backend, engine::key_digest, tag_set::generation,
+};
+
+const ITEM: &str = include_str!("scripts/redis_tagged_item.lua");
+const RETIRE: &str = include_str!("scripts/redis_retire_tag.lua");
+const PRUNE: &str = include_str!("scripts/redis_prune_tag.lua");
+const DRAIN: &str = include_str!("scripts/redis_drain_tag.lua");
+const BATCH_SIZE: usize = 128;
+
+pub(super) struct RedisTagSet {
+    connection: Arc<Connection>,
+    prefix: String,
+    tags: Vec<String>,
+}
+
+impl RedisTagSet {
+    pub(super) fn new(store: &RedisStore, names: &[&str]) -> Self {
+        Self {
+            connection: Arc::clone(&store.data),
+            prefix: store.data.key(&store.key("tagged:v1:")),
+            tags: names.iter().map(|name| key_digest(name)).collect(),
+        }
+    }
+
+    pub(super) async fn item<T: FromRedisValue>(
+        &self,
+        operation: &str,
+        key: &str,
+        input: impl ToRedisArgs + Send,
+        option: impl ToRedisArgs + Send,
+    ) -> CacheResult<T> {
+        self.connection
+            .query(
+                ::redis::cmd("EVAL")
+                    .arg(ITEM)
+                    .arg(0)
+                    .arg(&self.prefix)
+                    .arg(generation())
+                    .arg(operation)
+                    .arg(key)
+                    .arg(input)
+                    .arg(option)
+                    .arg(&self.tags),
+            )
+            .await
+            .map_err(backend)
+    }
+
+    pub(super) async fn namespace(&self) -> CacheResult<String> {
+        self.item("namespace", "", "", "").await
+    }
+
+    pub(super) async fn item_key(&self, key: &str) -> CacheResult<String> {
+        self.item("key", key, "", "").await
+    }
+
+    pub(super) fn tag_key(&self, name: &str) -> String {
+        format!("{}generation:{}", self.prefix, key_digest(name))
+    }
+
+    pub(super) async fn tag_id(&self, name: &str) -> CacheResult<String> {
+        let digest = key_digest(name);
+        let tags = Self {
+            connection: Arc::clone(&self.connection),
+            prefix: self.prefix.clone(),
+            tags: vec![digest],
+        };
+        tags.namespace().await
+    }
+
+    pub(super) async fn prune(&self) -> CacheResult<()> {
+        let mut pattern = String::new();
+        for character in self.prefix.chars() {
+            if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+                pattern.push('\\');
+            }
+            pattern.push(character);
+        }
+        pattern.push_str("index:*");
+        let value_prefix = format!("{}value:", self.prefix);
+        let mut cursor = 0;
+        loop {
+            let (next, indexes): (u64, Vec<String>) = self
+                .connection
+                .query(::redis::cmd("SCAN").arg(cursor).arg("MATCH").arg(&pattern))
+                .await
+                .map_err(backend)?;
+            for index in indexes {
+                self.prune_index(&index, &value_prefix).await?;
+            }
+            if next == 0 {
+                return Ok(());
+            }
+            cursor = next;
+        }
+    }
+
+    async fn prune_index(&self, index: &str, value_prefix: &str) -> CacheResult<()> {
+        let mut cursor = 0;
+        loop {
+            cursor = self
+                .connection
+                .query(
+                    ::redis::cmd("EVAL")
+                        .arg(PRUNE)
+                        .arg(1)
+                        .arg(index)
+                        .arg(cursor)
+                        .arg(value_prefix)
+                        .arg(BATCH_SIZE),
+                )
+                .await
+                .map_err(backend)?;
+            if cursor == 0 {
+                return Ok(());
+            }
+        }
+    }
+
+    pub(super) async fn flush(&self, name: &str) -> CacheResult<String> {
+        let tag = key_digest(name);
+        let pending = format!("{}pending:{tag}", self.prefix);
+        let index = format!("{}index:{tag}:", self.prefix);
+        let next = generation();
+        let retired: Vec<String> = self
+            .connection
+            .query(
+                ::redis::cmd("EVAL")
+                    .arg(RETIRE)
+                    .arg(2)
+                    .arg(self.tag_key(name))
+                    .arg(&pending)
+                    .arg(&index)
+                    .arg(&next),
+            )
+            .await
+            .map_err(backend)?;
+        let value_prefix = format!("{}value:", self.prefix);
+        for generation in retired {
+            if uuid::Uuid::parse_str(&generation).is_err() {
+                return Err(CacheError::InvalidValue);
+            }
+            let mut command = ::redis::cmd("EVAL");
+            command
+                .arg(DRAIN)
+                .arg(2)
+                .arg(&pending)
+                .arg(format!("{index}{generation}"))
+                .arg(&generation)
+                .arg(&value_prefix)
+                .arg(BATCH_SIZE);
+            while self
+                .connection
+                .query::<bool>(&command)
+                .await
+                .map_err(backend)?
+            {}
+        }
+        Ok(format!("{tag}:{next}"))
+    }
+}

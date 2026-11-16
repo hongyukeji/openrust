@@ -24,6 +24,8 @@ mod rate_limiter;
 pub mod rate_limiting;
 mod redis_lock;
 mod redis_store;
+mod redis_tag_set;
+mod redis_tagged_cache;
 mod repository;
 mod session_store;
 mod storage_store;

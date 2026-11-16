@@ -38,3 +38,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 真实 HTTP 依次完成未命中、写入、读回、按标签清理和再次未命中，三语共用示例在同一路径执行。实际 `main artisan inspire` 和 `cache:clear failover` 通过。VitePress 构建及 18 项浏览器检查通过。
 - 直接 Redis 标签、过期索引、物理清理、批量清锁和通用缓存事件继续由账本跟踪。当前 `failover` 的标签走 Laravel 的通用代际机制。
 - 变更文件格式和工作区全目标严格 Clippy 通过。全仓格式检查只报告既有 `sanctum_authentication.rs:1412` 排版，该文件与基线逐字节一致。临时 PHP、MySQL 和 Redis 已回收，清理本批 2.7 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 60.79 GB（56.62 GiB），周额度剩余 70%。证据见 `/private/tmp/openrust-03-06-tags.2Kd3VwBG`。
+
+## Redis 标签与索引清理
+
+- 对照固定 Laravel 的 [RedisTaggedCache](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php)、`RedisTagSet` 与 `cache:prune-stale-tags`。参考 openrust-v0.x 的 `cache/redis_tags.rs`，复用旧代际分批清理和索引验证思路，并与当前具名 Redis 连接、TTL 和二进制值编码整合。
+- 直接 Redis 支持有序与重复标签、原子写入和索引更新、计数、更新期限、删除，以及任一标签触发的物理清理。Lua 在同一次操作内读取代际并操作值；清理先切换代际，按每批最多 128 个实际键回收旧代际，保留待处理记录供下一次清理。新代际使用独立键，Redis 全库清空或代际元数据缺失后会生成新的标识。
+- `cache:prune-stale-tags [store]` 扫描直接 Redis 存储的标签索引并移除指向到期或已删除值的引用。仍有效的值、普通键和其他缓存前缀保留。该命令在非直接 Redis 存储上为空操作。Redis Cluster 由 03-09 跟踪。
+- 基线 `359f28604`，Rust 1.94.0、macOS arm64。固定 Laravel 源码经 PHP 8.5、Predis 3.0.0 和独立 Redis 8.10.3，对照顺序、重复项、物理删除与普通键保留。OpenRust 在 MySQL 8.4.13 和 Redis 8.10.3 下通过 9 项缓存回归。直接 Redis 验证 133 个键的分批删除、错误索引中断后逻辑隔离和补清理、全库清空后的代际、过期索引、64 位计数，以及实际 HTTP 和 Artisan。
+- 三语文档示例走实际 Redis HTTP，Artisan 实际运行 `cache:prune-stale-tags redis`。VitePress 构建及 18 项浏览器检查通过。批量清锁和通用缓存事件仍待闭合。
+- 变更文件格式和工作区严格 Clippy 通过。全仓格式仅报告基线中已有的 `sanctum_authentication.rs:1412`。回收验收容器，清理本批 2.7 GiB Cargo 产物和文档缓存后，磁盘可用 60.74 GB（56.57 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-redis-tags.GfREnIkp`。

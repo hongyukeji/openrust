@@ -5,11 +5,14 @@ use crate::{
     redis::connections::Connection,
 };
 
-use super::{CacheError, CacheFuture, CacheResult, RedisLock, Value, backend};
+use super::{
+    CacheError, CacheFuture, CacheResult, RedisLock, TaggedCache, Value, backend,
+    redis_tag_set::RedisTagSet,
+};
 
 /// Cache storage for the Redis driver.
 pub struct RedisStore {
-    data: Arc<Connection>,
+    pub(super) data: Arc<Connection>,
     locks: Arc<Connection>,
     prefix: String,
 }
@@ -23,7 +26,7 @@ impl RedisStore {
         }
     }
 
-    fn key(&self, key: &str) -> String {
+    pub(super) fn key(&self, key: &str) -> String {
         format!("{}{key}", self.prefix)
     }
 
@@ -70,6 +73,18 @@ impl RedisStore {
 }
 
 impl Store for RedisStore {
+    fn tags(self: Arc<Self>, names: &[&str]) -> CacheResult<TaggedCache> {
+        Ok(TaggedCache::redis(self, names))
+    }
+
+    fn flush_stale_tags(&self) -> CacheFuture<'_, CacheResult<()>> {
+        Box::pin(async move { RedisTagSet::new(self, &[]).prune().await })
+    }
+
+    fn supports_tags(&self) -> bool {
+        true
+    }
+
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
         Box::pin(self.read(key, "GET"))
     }
@@ -215,7 +230,7 @@ impl LockProvider for RedisStore {
     }
 }
 
-fn encode(value: &Value) -> CacheResult<Vec<u8>> {
+pub(super) fn encode(value: &Value) -> CacheResult<Vec<u8>> {
     if let Some(integer) = value.as_i64() {
         return Ok(integer.to_string().into_bytes());
     }
@@ -224,7 +239,7 @@ fn encode(value: &Value) -> CacheResult<Vec<u8>> {
     Ok(bytes)
 }
 
-fn decode(bytes: &[u8]) -> CacheResult<Value> {
+pub(super) fn decode(bytes: &[u8]) -> CacheResult<Value> {
     if let Some(payload) = bytes.strip_prefix(b"j") {
         return serde_json::from_slice(payload).map_err(backend);
     }

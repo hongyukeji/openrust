@@ -559,7 +559,11 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         kernel.handleTransport(incoming).await
     }
 
-    let root = Sandbox::new("tags-http", "CACHE_STORE=array\n");
+    let env = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL").map_or_else(
+        |_| "CACHE_STORE=array\n".to_owned(),
+        |url| format!("CACHE_STORE=redis\nCACHE_PREFIX=tags-http-\nREDIS_URL={url}\n"),
+    );
+    let root = Sandbox::new("tags-http", &env);
     let mut kernel = Kernel::new(
         Application::configure(root.0.clone())
             .withConfig(config::load)
@@ -602,4 +606,157 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
     server.abort();
     let _ = server.await;
     root.success(&["inspire"]);
+}
+
+#[tokio::test]
+async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
+    use openrust::redis::{RedisManager, Value as RedisValue};
+
+    let Ok(redis) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_FAILOVER").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "redis-tags",
+        &format!(
+            "CACHE_STORE=redis\nCACHE_PREFIX=cache*?-\nREDIS_PREFIX=tags-\nREDIS_URL={redis}\n"
+        ),
+    );
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().make::<CacheManager>().unwrap();
+    let plain = manager.store(None).unwrap();
+    let redis = app
+        .container()
+        .make::<RedisManager>()
+        .unwrap()
+        .connection(Some("cache"))
+        .unwrap();
+    let exists = async |key: &str| {
+        redis.command("EXISTS", &[key.as_bytes()]).await.unwrap() == RedisValue::Int(1)
+    };
+    let cardinality = async |key: &str| redis.command("ZCARD", &[key.as_bytes()]).await.unwrap();
+    let index = async |name: &str| {
+        let tags = plain.tags(&[name]).unwrap();
+        let id = tags.getTags().tagId(name).await.unwrap();
+        format!("tags-cache*?-tagged:v1:index:{id}")
+    };
+
+    assert!(plain.supportsTags());
+    assert!(plain.forever("same", &0.into()).await.unwrap());
+    let ordered = plain.tags(&["people", "artists"]).unwrap();
+    let reversed = plain.tags(&["artists", "people"]).unwrap();
+    let repeated = plain.tags(&["artists", "people", "people"]).unwrap();
+    let unrelated = plain.tags(&["authors"]).unwrap();
+    for (tags, value) in [
+        (&ordered, 1),
+        (&reversed, 2),
+        (&repeated, 3),
+        (&unrelated, 4),
+    ] {
+        assert!(tags.forever("same", &value.into()).await.unwrap());
+    }
+    for (tags, value) in [
+        (&ordered, 1),
+        (&reversed, 2),
+        (&repeated, 3),
+        (&unrelated, 4),
+    ] {
+        assert_eq!(tags.get("same").await.unwrap(), Some(value.into()));
+    }
+    let artist_index = index("artists").await;
+    let people_index = index("people").await;
+    let mut physical = vec![
+        ordered.taggedItemKey("same").await.unwrap(),
+        reversed.taggedItemKey("same").await.unwrap(),
+        repeated.taggedItemKey("same").await.unwrap(),
+    ];
+    for number in 0..130 {
+        let key = number.to_string();
+        assert!(ordered.add(&key, &number.into(), None).await.unwrap());
+        physical.push(ordered.taggedItemKey(&key).await.unwrap());
+    }
+    assert!(!ordered.add("same", &19.into(), None).await.unwrap());
+    assert_eq!(cardinality(&artist_index).await, RedisValue::Int(133));
+    for key in &physical {
+        assert!(exists(key).await);
+    }
+    assert!(plain.tags(&["artists"]).unwrap().flush().await.unwrap());
+    for key in &physical {
+        assert!(!exists(key).await);
+    }
+    assert_eq!(cardinality(&artist_index).await, RedisValue::Int(0));
+    assert_eq!(unrelated.get("same").await.unwrap(), Some(4.into()));
+    assert_eq!(plain.get("same").await.unwrap(), Some(0.into()));
+
+    let authors = index("authors").await;
+    assert!(
+        unrelated
+            .put("short", &1.into(), Some(Ttl::Seconds(2)))
+            .await
+            .unwrap()
+    );
+    assert!(unrelated.touch("short", Ttl::Seconds(1)).await.unwrap());
+    assert_eq!(
+        unrelated.increment("counter", i64::MAX).await.unwrap(),
+        i64::MAX
+    );
+    assert_eq!(
+        unrelated.decrement("counter", 2).await.unwrap(),
+        i64::MAX - 2
+    );
+    assert_eq!(
+        unrelated.pull("counter").await.unwrap(),
+        Some((i64::MAX - 2).into())
+    );
+    assert_eq!(cardinality(&authors).await, RedisValue::Int(2));
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(unrelated.get("short").await.unwrap(), None);
+    root.success(&["cache:prune-stale-tags", "redis"]);
+    assert_eq!(cardinality(&authors).await, RedisValue::Int(1));
+    assert_eq!(cardinality(&people_index).await, RedisValue::Int(0));
+    assert_eq!(unrelated.get("same").await.unwrap(), Some(4.into()));
+
+    let old_key = unrelated.taggedItemKey("same").await.unwrap();
+    // An invalid reference interrupts the first drain without deleting ordinary keys.
+    let ordinary = "tags-cache*?-same";
+    redis
+        .command("ZADD", &[authors.as_bytes(), b"-2", ordinary.as_bytes()])
+        .await
+        .unwrap();
+    assert!(unrelated.flush().await.is_err());
+    assert!(exists(ordinary).await);
+    assert!(exists(&old_key).await);
+    assert_eq!(unrelated.get("same").await.unwrap(), None);
+    assert!(unrelated.forever("same", &5.into()).await.unwrap());
+    assert_ne!(unrelated.taggedItemKey("same").await.unwrap(), old_key);
+    assert_eq!(unrelated.get("same").await.unwrap(), Some(5.into()));
+    redis
+        .command("ZREM", &[authors.as_bytes(), ordinary.as_bytes()])
+        .await
+        .unwrap();
+    assert!(unrelated.flush().await.unwrap());
+    assert!(!exists(&old_key).await);
+    assert_eq!(unrelated.get("same").await.unwrap(), None);
+    assert_eq!(plain.get("same").await.unwrap(), Some(0.into()));
+
+    let before_clear = plain
+        .tags(&["new"])
+        .unwrap()
+        .taggedItemKey("value")
+        .await
+        .unwrap();
+    assert!(plain.flush().await.unwrap());
+    assert_ne!(
+        plain
+            .tags(&["new"])
+            .unwrap()
+            .taggedItemKey("value")
+            .await
+            .unwrap(),
+        before_clear
+    );
 }

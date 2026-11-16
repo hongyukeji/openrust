@@ -2,7 +2,10 @@ use std::{num::NonZeroU64, ops::Deref, sync::Arc};
 
 use crate::contracts::cache::{LockProvider, Store};
 
-use super::{CacheFuture, CacheResult, Repository, TagSet, Value, engine::key_digest};
+use super::{
+    CacheFuture, CacheResult, RedisStore, Repository, TagSet, Value, engine::key_digest,
+    redis_tagged_cache::RedisTaggedCache,
+};
 
 /// A cache repository scoped to an ordered list of tags.
 pub struct TaggedCache {
@@ -20,11 +23,22 @@ impl TaggedCache {
         }
     }
 
+    pub(super) fn redis(store: Arc<RedisStore>, names: &[&str]) -> Self {
+        let tags = Arc::new(TagSet::redis(store, names));
+        Self {
+            repository: Repository::new(Arc::new(RedisTaggedCache::new(Arc::clone(&tags)))),
+            tags,
+        }
+    }
+
     pub fn getTags(&self) -> &TagSet {
         &self.tags
     }
 
     pub async fn taggedItemKey(&self, key: &str) -> CacheResult<String> {
+        if let Some(redis) = &self.tags.redis {
+            return redis.item_key(key).await;
+        }
         Ok(item_key(&self.tags.getNamespace().await?, key))
     }
 }

@@ -39,7 +39,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## 快取標籤 {#cache-tags}
 
-使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array` 支援標籤，`failover` 透過設定的儲存順序儲存標籤世代及項目。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
+使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array`、`redis` 和 `failover` 支援標籤。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
 
 ```rust
 use openrust::{
@@ -55,7 +55,9 @@ async fn store_report() -> Result<bool, CacheError> {
 }
 ```
 
-讀取時傳入完全相同的標籤順序，包括重複項目。呼叫 `Cache::tags(&["daily"])?.flush().await?` 可使所有帶有 `daily` 標籤的項目失效。一般鍵及僅含無關標籤的項目會保留。失效透過切換世代完成，舊項目無法再依標籤讀取，會依原 TTL 到期或於清除整個儲存時刪除。
+讀取時傳入完全相同的標籤順序，包括重複項目。呼叫 `Cache::tags(&["daily"])?.flush().await?` 可使所有帶有 `daily` 標籤的項目失效。一般鍵及僅含無關標籤的項目會保留。標籤透過切換世代失效。`array` 和 `failover` 的舊項目無法再依標籤讀取，依原 TTL 到期。直接選擇 Redis 儲存時，還會分批刪除舊世代的實際鍵。Redis 在同一指令碼內寫入項目並更新索引，清理舊世代期間仍可寫入新世代。
+
+執行 `./artisan cache:prune-stale-tags redis` 可清除已到期或已刪除值的索引參照，仍有效的值會保留。可指定儲存名稱，或省略以使用預設儲存。
 
 ## 原子鎖
 

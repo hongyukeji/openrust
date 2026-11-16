@@ -39,7 +39,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## Cache Tags {#cache-tags}
 
-Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array` store supports tags. The `failover` driver stores generation metadata and tagged items through its configured chain. Other directly selected stores currently return a tagging error.
+Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array`, `redis`, and `failover` stores support tags. Other directly selected stores currently return a tagging error.
 
 ```rust
 use openrust::{
@@ -55,7 +55,9 @@ async fn store_report() -> Result<bool, CacheError> {
 }
 ```
 
-Read the item with the same ordered list, including any repeated names. To invalidate any item tagged `daily`, call `Cache::tags(&["daily"])?.flush().await?`. The flush preserves plain entries and entries carrying only unrelated tags. This invalidation changes generations. Previous entries become unreachable and remain eligible for ordinary expiry or a full store clear.
+Read the item with the same ordered list, including any repeated names. To invalidate any item tagged `daily`, call `Cache::tags(&["daily"])?.flush().await?`. The flush preserves plain entries and entries carrying only unrelated tags. Tagged flushes change generations. With `array` and `failover`, previous entries become unreachable and expire according to their original TTL. A directly selected Redis store also deletes the retired keys in batches. Tagged writes and index updates use a single Redis script, and the active generation can accept new writes while retired keys are removed.
+
+Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to expired or deleted values. This command preserves live values. Pass a store name, or omit it to use the default store.
 
 ## Atomic Locks
 

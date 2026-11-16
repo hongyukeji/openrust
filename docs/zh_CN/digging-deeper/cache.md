@@ -39,7 +39,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## 缓存标签 {#cache-tags}
 
-使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array` 支持标签，`failover` 通过已配置的存储链保存标签代际和条目。当前直接选择其他存储会返回标签不受支持的错误。
+使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array`、`redis` 和 `failover` 支持标签。当前直接选择其他存储会返回标签不受支持的错误。
 
 ```rust
 use openrust::{
@@ -55,7 +55,9 @@ async fn store_report() -> Result<bool, CacheError> {
 }
 ```
 
-读取时传入完全相同的标签顺序，包括重复项。调用 `Cache::tags(&["daily"])?.flush().await?` 可使所有带 `daily` 标签的条目失效。普通键和只含无关标签的条目会保留。失效通过切换代际完成，旧条目无法再按标签读到，会按原 TTL 到期或随全量清空删除。
+读取时传入完全相同的标签顺序，包括重复项。调用 `Cache::tags(&["daily"])?.flush().await?` 可使所有带 `daily` 标签的条目失效。普通键和只含无关标签的条目会保留。标签通过切换代际失效。`array` 和 `failover` 的旧条目无法再按标签读到，按原 TTL 到期。直接选择 Redis 存储时还会分批删除旧代际的实际键。Redis 在同一脚本内写入条目和更新索引，清理旧代际期间仍可写入新代际。
+
+运行 `./artisan cache:prune-stale-tags redis` 可清理已过期或已删除值的索引引用，仍有效的值保留。可显式指定存储名，也可省略以使用默认存储。
 
 ## 原子锁
 

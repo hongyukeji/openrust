@@ -1,3 +1,5 @@
+mod prune_stale_tags_command;
+
 use clap::Arg;
 
 use crate::{
@@ -59,6 +61,7 @@ fn console_error(error: impl std::fmt::Display) -> ConsoleError {
 }
 
 pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
+    prune_stale_tags_command::register(artisan)?;
     for (name, about, forget) in [
         ("cache:clear", "Flush the application cache", false),
         ("cache:forget", "Remove an item from the cache", true),
