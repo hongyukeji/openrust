@@ -191,7 +191,14 @@ impl Handler {
             if let Some(error) = exception.downcast_ref::<HttpError>() {
                 context.insert("status".into(), error.status().as_u16().into());
             }
-            return logger.log(level, &exception.error().to_string(), &context);
+            let snapshot = self.buildLogException(exception, None, true);
+            return logger.logWithException(
+                level,
+                &exception.error().to_string(),
+                &context,
+                None,
+                &snapshot,
+            );
         }
         // Startup can fail before the log binding is installed.
         if let Exception::Http(error) = exception {
@@ -207,6 +214,31 @@ impl Handler {
     reason = "Matches Laravel's exception handler contract"
 )]
 impl ExceptionHandler for Handler {
+    fn buildLogException(
+        &self,
+        exception: &Exception<'_>,
+        name: Option<&'static str>,
+        reported: bool,
+    ) -> serde_json::Value {
+        let configuration = self.configuration.as_ref();
+        let name =
+            name.or_else(|| configuration.and_then(|config| config.node_name(exception.error())));
+        let context = configuration
+            .filter(|_| !reported)
+            .map(|config| config.report_context(exception))
+            .unwrap_or_default();
+        crate::log::json::snapshot(
+            exception,
+            name,
+            |error| {
+                configuration
+                    .map(|config| config.node_context(error))
+                    .unwrap_or_default()
+            },
+            context,
+        )
+    }
+
     fn shouldStopRetries(&self, exception: &Exception<'_>) -> bool {
         self.configuration
             .as_ref()

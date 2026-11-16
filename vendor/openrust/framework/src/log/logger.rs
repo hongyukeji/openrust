@@ -5,9 +5,15 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use serde_json::Value;
 
 use crate::{
-    container::Container, contracts::container::Container as _, support::facades::current_container,
+    container::Container,
+    contracts::{
+        container::Container as _,
+        debug::{Exception, ExceptionHandler},
+    },
+    support::facades::current_container,
 };
 
 use super::{
@@ -102,8 +108,41 @@ impl Logger {
     }
 
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
-        let extra = self
+        self.write(level, message, context, &self.extra(), None)
+    }
+
+    /// Logs an error and its source chain as structured exception data.
+    #[allow(
+        non_snake_case,
+        reason = "Rust adapter for an exception in Laravel log context"
+    )]
+    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+        &self,
+        level: Level,
+        message: &str,
+        error: &E,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        let exception = Exception::Error(error);
+        let name = Some(std::any::type_name::<E>());
+        let handler = self
             .context_owner
+            .upgrade()
+            .and_then(|owner| owner.make::<dyn ExceptionHandler>().ok());
+        let snapshot = match handler {
+            Some(handler) => handler.buildLogException(&exception, name, false),
+            None => super::json::snapshot(
+                &exception,
+                name,
+                |_| (None, LogContext::new()),
+                LogContext::new(),
+            ),
+        };
+        self.write(level, message, context, &self.extra(), Some(&snapshot))
+    }
+
+    fn extra(&self) -> LogContext {
+        self.context_owner
             .upgrade()
             .and_then(|container| {
                 if !container.has_active_scope()
@@ -116,8 +155,7 @@ impl Logger {
                     .ok()
                     .map(|repository| repository.all())
             })
-            .unwrap_or_default();
-        self.write(level, message, context, &extra)
+            .unwrap_or_default()
     }
 
     fn write(
@@ -126,6 +164,7 @@ impl Logger {
         message: &str,
         context: &LogContext,
         extra: &LogContext,
+        exception: Option<&Value>,
     ) -> LogResult<()> {
         let fallback = || {
             self.emergency.write_record(&LogRecord::new(
@@ -146,6 +185,7 @@ impl Logger {
             extra,
             self.replace_placeholders,
         );
+        record.exception = exception.map(Cow::Borrowed);
         if self
             .processors
             .iter()
@@ -178,7 +218,27 @@ impl crate::contracts::log::Logger for Logger {
         context: &LogContext,
         extra: &LogContext,
     ) -> LogResult<()> {
-        self.write(level, message, context, extra)
+        self.write(level, message, context, extra, None)
+    }
+
+    #[allow(non_snake_case)]
+    fn logWithException(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: Option<&LogContext>,
+        exception: &Value,
+    ) -> LogResult<()> {
+        let existing;
+        let extra = match extra {
+            Some(extra) => extra,
+            None => {
+                existing = self.extra();
+                &existing
+            }
+        };
+        self.write(level, message, context, extra, Some(exception))
     }
 }
 
@@ -190,6 +250,7 @@ pub struct LogRecord<'a> {
     pub extra: Cow<'a, LogContext>,
     pub channel: Cow<'a, str>,
     pub message: Cow<'a, str>,
+    pub exception: Option<Cow<'a, Value>>,
     replace: bool,
 }
 
@@ -202,6 +263,10 @@ impl<'a> LogRecord<'a> {
             extra: Cow::Owned(self.extra.as_ref().clone()),
             channel: Cow::Owned(self.channel.to_string()),
             message: Cow::Owned(self.message.to_string()),
+            exception: self
+                .exception
+                .as_ref()
+                .map(|value| Cow::Owned(value.as_ref().clone())),
             replace: self.replace,
         }
     }
@@ -221,6 +286,7 @@ impl<'a> LogRecord<'a> {
             extra: Cow::Borrowed(extra),
             channel: Cow::Borrowed(channel),
             message: Cow::Borrowed(message),
+            exception: None,
             replace,
         }
     }

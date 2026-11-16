@@ -11,10 +11,19 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     config::{ConfigError, Environment, Repository, Value},
     console::ConsoleError,
-    contracts::{config::Repository as _, container::Container as _, http::Kernel as _},
-    foundation::{Application, configuration::Routing, http::Kernel},
+    contracts::{
+        config::Repository as _,
+        container::Container as _,
+        debug::{Exception, ExceptionHandler},
+        http::Kernel as _,
+    },
+    foundation::{
+        Application,
+        configuration::{Exceptions, Routing},
+        http::Kernel,
+    },
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
-    log::{LogContext, LogError, LogManager},
+    log::{Level, LogContext, LogError, LogManager},
     routing::RoutingError,
     support::facades::{Artisan, Context, Log, Route},
 };
@@ -53,6 +62,100 @@ fn manager(root: &Root, logging: Value) -> (LogManager, Arc<Repository>) {
         ("logging".into(), logging),
     ])));
     (LogManager::new(config.clone(), &root.0), config)
+}
+
+#[derive(Debug)]
+struct Previous;
+
+impl std::fmt::Display for Previous {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("previous failure")
+    }
+}
+
+impl std::error::Error for Previous {}
+
+#[derive(Debug)]
+struct Failure(Previous);
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("outer failure")
+    }
+}
+
+impl std::error::Error for Failure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+fn configure_exceptions(exceptions: &mut Exceptions) {
+    exceptions
+        .exceptionContext::<Failure>(|_| {
+            LogContext::from_iter([
+                ("outer".into(), json!("outer context")),
+                ("class".into(), json!("ignored class")),
+            ])
+        })
+        .exceptionContext::<Previous>(|_| {
+            LogContext::from_iter([("inner".into(), json!("inner context"))])
+        })
+        .context(|_| LogContext::from_iter([("configured".into(), json!(true))]));
+}
+
+#[test]
+fn json_formatter_handles_unconfigured_errors_and_record_options() {
+    let root = Root::new();
+    let (manager, _) = manager(&root, json!({}));
+    let logger = manager.build(&json!({
+        "driver":"single","path":"json.log","formatter":"json",
+        "formatter_with":{"append_newline":false,"ignore_empty_context_and_extra":true,"max_normalize_depth":2}
+    })).unwrap();
+    logger
+        .logException(
+            Level::Error,
+            "caught",
+            &Failure(Previous),
+            &LogContext::new(),
+        )
+        .unwrap();
+    let output = root.read("json.log");
+    assert!(!output.ends_with('\n'));
+    let record: Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(record["level"], 400);
+    assert_eq!(record["message"], "caught");
+    assert!(record.get("extra").is_none());
+    assert_eq!(
+        record["context"]["exception"]["class"],
+        std::any::type_name::<Failure>()
+    );
+    assert_eq!(
+        record["context"]["exception"]["previous"],
+        json!(["Over 2 levels deep, aborting normalization"])
+    );
+
+    let buffered = manager
+        .build(&json!({
+            "driver":"single","path":"buffered.jsonl","formatter":"json","action_level":"error"
+        }))
+        .unwrap();
+    buffered
+        .logException(
+            Level::Info,
+            "pending",
+            &Failure(Previous),
+            &LogContext::new(),
+        )
+        .unwrap();
+    assert!(!root.0.join("buffered.jsonl").exists());
+    buffered.error("flush", &LogContext::new()).unwrap();
+    let buffered_log = root.read("buffered.jsonl");
+    let record: Value = serde_json::from_str(buffered_log.lines().next().unwrap()).unwrap();
+    assert_eq!(
+        record["context"]["exception"]["previous"]["message"],
+        "previous failure"
+    );
 }
 
 #[cfg(unix)]
@@ -515,10 +618,12 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
             json!({
                 "default":"stack",
                 "channels":{
-                    "stack":{"driver":"stack","channels":["single"]},
+                    "stack":{"driver":"stack","channels":["single","json"]},
                     "single":{"driver":"single","path":"storage/logs/openrust.log","replace_placeholders":true},
                     "stderr":{"driver":"stderr"},
                     "syslog":{"driver":"syslog","socket":"ingest.sock","formatter":"default"},
+                    "json":{"driver":"single","path":"json.log","formatter":"json"},
+                    "limited":{"driver":"single","path":"limited.log","formatter":"json","formatter_with":{"max_normalize_depth":3}},
                     "buffered":{"driver":"monolog","handler":"stream","with":{"stream":"buffered-http.log"},"action_level":"error","stop_buffering":false}
                 }
             }),
@@ -527,7 +632,34 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
 }
 
 fn routes() -> Result<(), RoutingError> {
+    Route::get("/exception/{id}", log_exception)?;
     Route::get("/log/{id}", record)
+}
+
+fn log_exception(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let failure = Failure(Previous);
+        Context::add("request", json!("json-probe")).unwrap();
+        Context::addHidden("hidden", json!("private-json-marker")).unwrap();
+        Log::logException(Level::Error, "direct failure", &failure, &LogContext::new()).unwrap();
+        Log::channel(Some("limited"))
+            .unwrap()
+            .logException(
+                Level::Error,
+                "limited failure",
+                &failure,
+                &LogContext::new(),
+            )
+            .unwrap();
+        let container = openrust::container::Container::getInstance();
+        container
+            .make::<dyn ExceptionHandler>()
+            .unwrap()
+            .report(&Exception::Error(&failure))
+            .await
+            .unwrap();
+        Ok(Response::new(StatusCode::OK, Body::from("logged")))
+    })
 }
 
 fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -600,6 +732,7 @@ async fn transport(
 async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let application = Application::configure(root.0.clone())
         .withConfig(config)
+        .withExceptions(configure_exceptions)
         .withRouting(Routing::default().web(routes))
         .create()
         .unwrap();
@@ -614,13 +747,17 @@ async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<(
 }
 
 async fn send(address: std::net::SocketAddr, id: u32) {
+    send_path(address, format!("/log/{id}")).await;
+}
+
+async fn send_path(address: std::net::SocketAddr, path: String) {
     tokio::task::spawn_blocking(move || {
         let timeout = Duration::from_secs(5);
         let mut stream = std::net::TcpStream::connect_timeout(&address, timeout).unwrap();
         stream.set_read_timeout(Some(timeout)).unwrap();
         write!(
             stream,
-            "GET /log/{id} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+            "GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
         )
         .unwrap();
         let mut response = String::new();
@@ -630,6 +767,49 @@ async fn send(address: std::net::SocketAddr, id: u32) {
     })
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn json_exception_context_is_enriched_once_on_real_http() {
+    let root = Root::new();
+    let (address, task) = server(&root).await;
+    send_path(address, "/exception/1".into()).await;
+    let log = root.read("json.log");
+    assert!(!log.contains("private-json-marker"));
+    let records: Vec<Value> = log
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(records.len(), 2);
+    let direct = &records[0];
+    let reported = &records[1];
+    assert_eq!(direct["message"], "direct failure");
+    assert!(direct["context"].get("outer").is_none());
+    assert_eq!(direct["context"]["exception"]["outer"], "outer context");
+    assert_eq!(
+        direct["context"]["exception"]["class"],
+        std::any::type_name::<Failure>()
+    );
+    assert_eq!(direct["context"]["exception"]["configured"], true);
+    assert_eq!(reported["message"], "outer failure");
+    assert_eq!(reported["context"]["outer"], "outer context");
+    assert_eq!(reported["context"]["configured"], true);
+    assert!(reported["context"]["exception"].get("outer").is_none());
+    assert!(reported["context"]["exception"].get("configured").is_none());
+    for record in &records {
+        assert_eq!(record["extra"]["request"], "json-probe");
+        let previous = &record["context"]["exception"]["previous"];
+        assert_eq!(previous["class"], std::any::type_name::<Previous>());
+        assert_eq!(previous["inner"], "inner context");
+        assert!(previous.get("outer").is_none());
+    }
+    let limited: Value = serde_json::from_str(&root.read("limited.log")).unwrap();
+    assert_eq!(limited["context"]["exception"]["outer"], "outer context");
+    let previous = &limited["context"]["exception"]["previous"];
+    assert_eq!(previous["class"], std::any::type_name::<Previous>());
+    assert!(previous.get("inner").is_none());
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
 }
 
 #[tokio::test]
@@ -703,6 +883,13 @@ fn console_routes() -> Result<(), ConsoleError> {
         )
         .unwrap();
         Log::warning("artisan wrote a file", &LogContext::new()).unwrap();
+        Log::logException(
+            Level::Error,
+            "artisan failure",
+            &Failure(Previous),
+            &LogContext::new(),
+        )
+        .unwrap();
         #[cfg(unix)]
         Log::channel(Some("syslog"))
             .unwrap()
@@ -763,6 +950,7 @@ async fn artisan_logs_to_file_and_stderr() {
     if let Some(root) = std::env::var_os(CHILD_ROOT) {
         let application = Application::configure(PathBuf::from(root))
             .withConfig(config)
+            .withExceptions(configure_exceptions)
             .withRouting(Routing::default().commands(console_routes))
             .create()
             .unwrap();
@@ -784,6 +972,13 @@ async fn artisan_logs_to_file_and_stderr() {
         .output()
         .unwrap();
     let stderr = String::from_utf8(output.stderr).unwrap();
+    let records = root.read("json.log");
+    let artifact = records
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .find(|line| line["message"] == "artisan failure")
+        .unwrap();
+    assert_eq!(artifact["context"]["exception"]["outer"], "outer context");
     #[cfg(unix)]
     assert!(receive_syslog(&syslog).contains("syslog Artisan"));
     assert!(

@@ -161,6 +161,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## JSON Exception Logs {#json-exception-logs}
+
+Select `formatter: "json"` to emit structured records. Use `formatter_with` to set `append_newline`, `ignore_empty_context_and_extra`, or `max_normalize_depth` (default 9).
+
+Pass an error to `Log::logException(level, message, &error, &context)` to include `context.exception` and its `previous` chain. Register `exceptionContext::<E>` in `withExceptions` to add fields to each matching error type, including sources. The existing `context` callbacks enrich a directly logged root error. When the application reports an error, its root fields appear only in the record context, and source-specific fields remain with their source. Rust can name the directly supplied type and registered source types. A type-erased source can appear as `Error`. Rust's standard error contract does not supply the original file or stack trace.
+
+```rust
+use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
+use serde_json::json;
+use std::{io, sync::Arc};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let logger = manager.build(&json!({
+        "driver": "single",
+        "path": "storage/logs/errors.jsonl",
+        "formatter": "json",
+    }))?;
+    let error = io::Error::other("storage offline");
+    logger.logException(Level::Error, "Import failed", &error, &LogContext::new())?;
+    Ok(())
+}
+```
+
 ## Contextual Information
 
 The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.

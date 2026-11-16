@@ -50,5 +50,20 @@ impl Log {
             .log(level, message, context)
     }
 
+    #[allow(
+        non_snake_case,
+        reason = "Rust adapter for an exception in Laravel log context"
+    )]
+    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+        level: Level,
+        message: &str,
+        error: &E,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .logException(level, message, error, context)
+    }
+
     log_methods!();
 }

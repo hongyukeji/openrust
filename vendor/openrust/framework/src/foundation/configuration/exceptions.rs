@@ -16,6 +16,14 @@ type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send +
 
 type Matcher = dyn Fn(&Exception<'_>) -> bool + Send + Sync;
 type Context = dyn Fn(&Exception<'_>) -> LogContext + Send + Sync;
+type TypedContext = dyn Fn(&(dyn Error + 'static)) -> LogContext + Send + Sync;
+
+#[derive(Clone)]
+struct ErrorContext {
+    name: &'static str,
+    matches: fn(&(dyn Error + 'static)) -> bool,
+    context: Arc<TypedContext>,
+}
 
 #[derive(Clone)]
 struct Rule {
@@ -60,6 +68,7 @@ pub struct Exceptions {
     stop_retry_when: Vec<Arc<Matcher>>,
     levels: Vec<(Rule, Level)>,
     context: Vec<Arc<Context>>,
+    exception_context: Vec<ErrorContext>,
     without_duplicates: bool,
     renderers: Vec<Arc<Renderer>>,
     responder: Option<Arc<Responder>>,
@@ -124,6 +133,25 @@ impl Exceptions {
         callback: impl Fn(&Exception<'_>) -> LogContext + Send + Sync + 'static,
     ) -> &mut Self {
         self.context.push(Arc::new(callback));
+        self
+    }
+
+    /// Adds log context for this exact error type, including when it is a source.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel exception context terminology"
+    )]
+    pub fn exceptionContext<E: Error + 'static>(
+        &mut self,
+        callback: impl Fn(&E) -> LogContext + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.exception_context.push(ErrorContext {
+            name: std::any::type_name::<E>(),
+            matches: |error| error.is::<E>(),
+            context: Arc::new(move |error| {
+                callback(error.downcast_ref::<E>().expect("matched error type"))
+            }),
+        });
         self
     }
 
@@ -229,10 +257,33 @@ impl Exceptions {
     }
 
     pub(crate) fn report_context(&self, exception: &Exception<'_>) -> LogContext {
-        self.context
+        let mut context = self.node_context(exception.error()).1;
+        context.extend(self.context.iter().flat_map(|callback| callback(exception)));
+        context
+    }
+
+    pub(crate) fn node_context(
+        &self,
+        error: &(dyn Error + 'static),
+    ) -> (Option<&'static str>, LogContext) {
+        let mut name = None;
+        let mut context = LogContext::new();
+        for configuration in self
+            .exception_context
             .iter()
-            .flat_map(|callback| callback(exception))
-            .collect()
+            .filter(|entry| (entry.matches)(error))
+        {
+            name = Some(configuration.name);
+            context.extend((configuration.context)(error));
+        }
+        (name, context)
+    }
+
+    pub(crate) fn node_name(&self, error: &(dyn Error + 'static)) -> Option<&'static str> {
+        self.exception_context
+            .iter()
+            .find(|entry| (entry.matches)(error))
+            .map(|entry| entry.name)
     }
 
     /// Registers an HTTP renderer. Returning `None` leaves the error to the next renderer.

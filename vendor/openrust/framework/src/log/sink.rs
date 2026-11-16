@@ -247,9 +247,18 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
-                logger
-                    .logWithContext(level, text.message(record), &record.context, &record.extra)
-                    .map_err(io::Error::other)?;
+                let message = text.message(record);
+                let result = match &record.exception {
+                    Some(error) => logger.logWithException(
+                        level,
+                        message,
+                        &record.context,
+                        Some(&record.extra),
+                        error,
+                    ),
+                    None => logger.logWithContext(level, message, &record.context, &record.extra),
+                };
+                result.map_err(io::Error::other)?;
                 Ok(!bubble)
             }
             Self::Stderr {

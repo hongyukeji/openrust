@@ -17,4 +17,20 @@ pub trait Logger: Send + Sync {
     ) -> LogResult<()> {
         self.log(level, message, context)
     }
+
+    /// Receives a normalized exception separately from the ordinary context.
+    #[allow(non_snake_case, reason = "OpenRust structured log adapter")]
+    fn logWithException(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: Option<&LogContext>,
+        _exception: &serde_json::Value,
+    ) -> LogResult<()> {
+        match extra {
+            Some(extra) => self.logWithContext(level, message, context, extra),
+            None => self.log(level, message, context),
+        }
+    }
 }

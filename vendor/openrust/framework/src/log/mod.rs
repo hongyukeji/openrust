@@ -24,6 +24,7 @@ macro_rules! log_methods {
 }
 
 mod facade;
+pub(crate) mod json;
 mod rotating;
 mod sink;
 mod syslog;

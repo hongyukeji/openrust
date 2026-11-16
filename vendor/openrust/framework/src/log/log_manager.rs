@@ -286,6 +286,17 @@ impl LogManager {
         self.channel(None)?.log(level, message, context)
     }
 
+    pub fn logException<E: std::error::Error + Send + Sync + 'static>(
+        &self,
+        level: Level,
+        message: &str,
+        error: &E,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        self.channel(None)?
+            .logException(level, message, error, context)
+    }
+
     log_methods!(self);
 
     fn settings(&self) -> Settings<'_> {
@@ -324,6 +335,18 @@ impl LogManager {
 impl crate::contracts::log::Logger for LogManager {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
+    }
+    #[allow(non_snake_case)]
+    fn logWithException(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: Option<&LogContext>,
+        exception: &Value,
+    ) -> LogResult<()> {
+        self.channel(None)?
+            .logWithException(level, message, context, extra, exception)
     }
     #[allow(non_snake_case)]
     fn logWithContext(
@@ -448,12 +471,15 @@ impl Resolution<'_, '_> {
             context_owner: self.settings.context_owner.clone(),
         };
         if let Some(key) = options.formatter.as_deref().filter(|key| *key != "default") {
-            let factory =
-                find(&self.manager.formatters, key).ok_or(LogError::InvalidConfiguration)?;
-            let _call = FactoryCall::enter(self.manager, name, &factory)?;
-            logger.setFormatter(
-                factory(&options.formatter_with).map_err(|_| LogError::FactoryFailed)?,
-            );
+            let formatter = match find(&self.manager.formatters, key) {
+                Some(factory) => {
+                    let _call = FactoryCall::enter(self.manager, name, &factory)?;
+                    factory(&options.formatter_with).map_err(|_| LogError::FactoryFailed)?
+                }
+                None if key == "json" => super::json::formatter(&options.formatter_with)?,
+                None => return Err(LogError::InvalidConfiguration),
+            };
+            logger.setFormatter(formatter);
         }
         for entry in options.tap {
             let (key, arguments) = entry.split_once(':').unwrap_or((&entry, ""));

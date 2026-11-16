@@ -8,4 +8,4 @@ Rust 使用每渠道独立的本地 Unix 数据报发送端，保留应用标识
 
 三语示例编译运行并完成真实数据报接收。VitePress 构建、12 项通用浏览器检查和 6 项 Syslog 锚点检查通过。 [英文](../../../../docs/en/the-basics/logging.md#syslog-channel) · [简体中文](../../../../docs/zh_CN/the-basics/logging.md#syslog-channel) · [繁體中文](../../../../docs/zh_TW/the-basics/logging.md#syslog-channel)
 
-01-04 整单元仍跟踪固定 Laravel 的 JsonFormatter 异常上下文及 Windows syslog 对应行为。
+JSON 异常上下文已由[后续批次](json-exceptions.md)验收。01-04 仍跟踪 Windows syslog 对应行为。

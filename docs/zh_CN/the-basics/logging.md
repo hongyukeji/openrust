@@ -161,6 +161,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## JSON 异常日志 {#json-exception-logs}
+
+设置 `formatter: "json"` 输出结构化记录。可通过 `formatter_with` 设置 `append_newline`、`ignore_empty_context_and_extra` 和 `max_normalize_depth`（默认 9）。
+
+使用 `Log::logException(level, message, &error, &context)` 将错误写入 `context.exception`，来源链记录在 `previous` 中。在 `withExceptions` 中注册 `exceptionContext::<E>`，为匹配的错误类型添加字段，来源错误也适用。现有 `context` 回调会补充直接记录的根错误。应用通过报告机制记录时，根错误的字段只出现在记录的上下文中，来源错误的字段仍留在对应节点。Rust 会保留直接传入和已注册错误的类型名，类型被擦除的来源可能显示为 `Error`。标准错误接口不提供原始文件或调用栈。
+
+```rust
+use openrust::{config::Repository, log::{Level, LogContext, LogManager}};
+use serde_json::json;
+use std::{io, sync::Arc};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let logger = manager.build(&json!({
+        "driver": "single",
+        "path": "storage/logs/errors.jsonl",
+        "formatter": "json",
+    }))?;
+    let error = io::Error::other("storage offline");
+    logger.logException(Level::Error, "Import failed", &error, &LogContext::new())?;
+    Ok(())
+}
+```
+
 ## 上下文信息
 
 [Context Facade](../digging-deeper/context.md) 捕获的公开字段以独立 JSON 元数据写在单条日志字段之后。自定义写入端可以实现 `logWithContext` 接收两组字段。隐藏字段保存在上下文仓库中。

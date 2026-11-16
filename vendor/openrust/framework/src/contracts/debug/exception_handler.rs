@@ -71,6 +71,21 @@ impl Exception<'_> {
 
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Send + Sync {
+    /// Builds a serializable snapshot of the original exception and its sources.
+    fn buildLogException(
+        &self,
+        exception: &Exception<'_>,
+        name: Option<&'static str>,
+        _reported: bool,
+    ) -> serde_json::Value {
+        crate::log::json::snapshot(
+            exception,
+            name,
+            |_| (None, Default::default()),
+            Default::default(),
+        )
+    }
+
     /// Determines whether a queued attempt should fail instead of being retried.
     fn shouldStopRetries(&self, _exception: &Exception<'_>) -> bool {
         false
