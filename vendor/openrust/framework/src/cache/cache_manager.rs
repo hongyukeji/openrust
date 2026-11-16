@@ -14,12 +14,17 @@ use crate::{
 };
 
 use super::{
-    ArrayStore, CacheError, CacheResult, DatabaseStore, FileStore, RedisStore, Repository, backend,
+    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, RedisStore,
+    Repository, backend,
     memoized_store::{MemoizedRepositories, MemoizedStore},
 };
 
 /// Resolves named cache stores and repositories.
 pub struct CacheManager {
+    inner: Arc<CacheManagerState>,
+}
+
+pub(super) struct CacheManagerState {
     config: Arc<dyn Config>,
     database: Arc<DatabaseManager>,
     base: PathBuf,
@@ -32,6 +37,9 @@ pub struct CacheManager {
 #[serde(tag = "driver", rename_all = "snake_case")]
 enum Options {
     Array,
+    Failover {
+        stores: Vec<String>,
+    },
     File {
         path: PathBuf,
         lock_path: Option<PathBuf>,
@@ -53,29 +61,40 @@ impl CacheManager {
     pub fn new(config: Arc<dyn Config>, database: Arc<DatabaseManager>, base: PathBuf) -> Self {
         let redis = Arc::new(RedisManager::new(config.clone()));
         Self {
-            redis,
-            config,
-            database,
-            base,
-            stores: Mutex::default(),
-            owner: Weak::new(),
+            inner: Arc::new(CacheManagerState {
+                redis,
+                config,
+                database,
+                base,
+                stores: Mutex::default(),
+                owner: Weak::new(),
+            }),
         }
     }
 
     pub(super) fn with_redis(mut self, redis: Arc<RedisManager>) -> Self {
-        self.redis = redis;
+        Arc::get_mut(&mut self.inner)
+            .expect("unshared cache manager")
+            .redis = redis;
         self
     }
 
     pub(super) fn with_owner(mut self, owner: Weak<Container>) -> Self {
-        self.owner = owner;
+        Arc::get_mut(&mut self.inner)
+            .expect("unshared cache manager")
+            .owner = owner;
         self
+    }
+
+    pub(super) fn from_state(inner: Arc<CacheManagerState>) -> Self {
+        Self { inner }
     }
 
     /// Memoizes reads of the selected store within the current application lifecycle.
     pub fn memo(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
         let repository = self.store(name)?;
         if let Some(owner) = self
+            .inner
             .owner
             .upgrade()
             .filter(|owner| owner.has_active_scope())
@@ -89,7 +108,7 @@ impl CacheManager {
     }
 
     pub fn getDefaultDriver(&self) -> CacheResult<String> {
-        match self.config.get("cache.default") {
+        match self.inner.config.get("cache.default") {
             None => Ok("database".into()),
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
             _ => Err(CacheError::InvalidConfiguration),
@@ -106,6 +125,7 @@ impl CacheManager {
             }
         };
         let mut stores = self
+            .inner
             .stores
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -113,6 +133,7 @@ impl CacheManager {
             return Ok(Arc::clone(store));
         }
         let config = self
+            .inner
             .config
             .get("cache.stores")
             .and_then(|stores| stores.get(name).cloned())
@@ -122,7 +143,9 @@ impl CacheManager {
         if config
             .get("driver")
             .and_then(serde_json::Value::as_str)
-            .is_some_and(|driver| !matches!(driver, "array" | "file" | "database" | "redis"))
+            .is_some_and(|driver| {
+                !matches!(driver, "array" | "file" | "database" | "redis" | "failover")
+            })
         {
             return Err(CacheError::UnsupportedDriver);
         }
@@ -130,6 +153,12 @@ impl CacheManager {
             serde_json::from_value(config).map_err(|_| CacheError::InvalidConfiguration)?;
         let store = match options {
             Options::Array => Repository::new(Arc::new(ArrayStore::new())),
+            Options::Failover { stores } => Repository::new(Arc::new(FailoverStore::new(
+                Arc::downgrade(&self.inner),
+                self.inner.owner.clone(),
+                stores,
+                self.prefix()?,
+            )?)),
             Options::File { path, lock_path } => {
                 if path.as_os_str().is_empty()
                     || lock_path
@@ -138,9 +167,9 @@ impl CacheManager {
                 {
                     return Err(CacheError::InvalidConfiguration);
                 }
-                let path = self.base.join(path);
-                let lock_path =
-                    lock_path.map_or_else(|| path.clone(), |lock_path| self.base.join(lock_path));
+                let path = self.inner.base.join(path);
+                let lock_path = lock_path
+                    .map_or_else(|| path.clone(), |lock_path| self.inner.base.join(lock_path));
                 Repository::new(Arc::new(FileStore::new(path, lock_path)))
             }
             Options::Redis {
@@ -148,8 +177,13 @@ impl CacheManager {
                 lock_connection,
             } => {
                 let connection = connection.as_deref().unwrap_or("default");
-                let data = self.redis.connection(Some(connection)).map_err(backend)?;
+                let data = self
+                    .inner
+                    .redis
+                    .connection(Some(connection))
+                    .map_err(backend)?;
                 let locks = self
+                    .inner
                     .redis
                     .connection(lock_connection.as_deref().or(Some(connection)))
                     .map_err(backend)?;
@@ -163,10 +197,12 @@ impl CacheManager {
             } => {
                 let prefix = self.prefix()?;
                 let locks = self
+                    .inner
                     .database
                     .connection(lock_connection.as_deref().or(connection.as_deref()))
                     .map_err(backend)?;
                 let connection = self
+                    .inner
                     .database
                     .connection(connection.as_deref())
                     .map_err(backend)?;
@@ -185,7 +221,7 @@ impl CacheManager {
     }
 
     fn prefix(&self) -> CacheResult<String> {
-        match self.config.get("cache.prefix") {
+        match self.inner.config.get("cache.prefix") {
             None | Some(serde_json::Value::Null) => Ok(String::new()),
             Some(serde_json::Value::String(prefix)) => Ok(prefix),
             _ => Err(CacheError::InvalidConfiguration),

@@ -68,3 +68,22 @@ pub async fn cache_report() -> CacheResult<bool> {
 设置 `CACHE_STORE=redis` 使用 [Redis 连接](../database/redis.md)存储缓存。原子取出使用 Redis `GETDEL`，该操作要求 Redis 6.2 或更高版本。
 
 `cache:clear redis` 清空该缓存存储所用的整个逻辑库，包括该库内其他前缀的键。使用独立逻辑库的锁连接仍保留其锁。
+
+## 缓存故障切换 {#cache-failover}
+
+设置 `CACHE_STORE=failover` 可将 `failover` 设为默认缓存存储。`config/cache.rs` 中该驱动的 `stores` 列表决定尝试顺序。应用默认先尝试 `database`，再尝试 `array`。需要优先使用 Redis 时，可配置为 `["redis", "database", "array"]`。
+
+每次操作都从第一个存储开始。存储报错时才尝试下一个，缓存未命中或成功返回 `false` 时直接结束。主存储恢复后会再次优先读取它，故障期间写入备用存储的条目此时可能读不到。所有存储均失败时，操作返回最后一个错误。
+
+在应用事件分发器中监听 `openrust::cache::events::CacheFailedOver`，可获知新出现的存储故障。事件包含 `storeName` 和 `exception` 错误消息。同一存储连续报错只产生一次事件，经过一次该存储未报错的操作后，再次报错才会重新触发。锁句柄由第一个能创建它的存储提供，后续获取、续期和释放都使用该存储。
+
+```rust
+use openrust::{
+    cache::{CacheManager, CacheResult, Value},
+    contracts::cache::Repository as _,
+};
+
+pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> {
+    manager.store(Some("failover"))?.get("status").await
+}
+```

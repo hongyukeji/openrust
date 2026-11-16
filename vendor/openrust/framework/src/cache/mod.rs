@@ -10,6 +10,7 @@ mod database_store;
 mod dynamo_db_lock;
 mod dynamo_db_store;
 mod engine;
+pub mod events;
 mod facade;
 mod failover_store;
 mod file_lock;
@@ -68,6 +69,7 @@ pub enum CacheError {
     },
     UnsupportedDriver,
     InvalidConfiguration,
+    FailoverCycle,
     InvalidValue,
     MissingCounter,
     InvalidOwner,
@@ -144,6 +146,7 @@ impl std::fmt::Display for CacheError {
             Self::UnknownStore { name } => write!(f, "Cache store [{name}] is not configured."),
             Self::UnsupportedDriver => f.write_str("The cache driver is unsupported."),
             Self::InvalidConfiguration => f.write_str("Invalid cache configuration."),
+            Self::FailoverCycle => f.write_str("Cache failover stores form a cycle."),
             Self::InvalidValue => f.write_str("Invalid cache value or expiration."),
             Self::MissingCounter => f.write_str("The cache counter does not exist."),
             Self::InvalidOwner => f.write_str("Invalid cache lock owner."),

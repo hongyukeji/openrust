@@ -68,3 +68,22 @@ pub async fn cache_report() -> CacheResult<bool> {
 Set `CACHE_STORE=redis` to use the [Redis connections](../database/redis.md) for caching. Cache pull uses the Redis `GETDEL` command. Redis 6.2 or later is required for that operation.
 
 `cache:clear redis` clears the entire logical database selected by the Redis cache store, including keys from other prefixes in that database. A lock connection using a separate database retains its locks.
+
+## Cache Failover {#cache-failover}
+
+Set `CACHE_STORE=failover` to make `failover` the default cache store. In `config/cache.rs`, the `stores` list for that driver defines the order. The application defaults to `database` followed by `array`. Use `["redis", "database", "array"]` to try Redis first.
+
+An operation starts with the first store each time. A store error advances to the next store. A cache miss or a successful `false` result ends the operation. When the primary recovers, reads start there again, so an entry written to a fallback during an outage may be absent. If every store fails, the operation returns the last error.
+
+Listen to `openrust::cache::events::CacheFailedOver` in the application dispatcher for newly failed stores. The event carries `storeName` and an `exception` message. Repeated failures of the same store only emit again after an operation in which it did not fail. A lock handle uses the first store that can create it. Acquiring, renewing, and releasing that handle all use the selected store.
+
+```rust
+use openrust::{
+    cache::{CacheManager, CacheResult, Value},
+    contracts::cache::Repository as _,
+};
+
+pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> {
+    manager.store(Some("failover"))?.get("status").await
+}
+```

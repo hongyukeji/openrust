@@ -68,3 +68,22 @@ pub async fn cache_report() -> CacheResult<bool> {
 設定 `CACHE_STORE=redis`，使用 [Redis 連線](../database/redis.md)儲存快取。原子取出使用 Redis `GETDEL`，此操作需要 Redis 6.2 或更新版本。
 
 `cache:clear redis` 清空快取儲存所用的整個邏輯資料庫，包括同一資料庫內其他前綴的鍵。使用獨立邏輯資料庫的鎖連線仍保留其鎖。
+
+## 快取容錯移轉 {#cache-failover}
+
+設定 `CACHE_STORE=failover` 可將 `failover` 設為預設快取儲存。`config/cache.rs` 中該驅動程式的 `stores` 清單決定嘗試順序。應用程式預設先嘗試 `database`，再嘗試 `array`。需要優先使用 Redis 時，可設定為 `["redis", "database", "array"]`。
+
+每次操作都從第一個儲存開始。儲存回傳錯誤時才嘗試下一個，快取未命中或成功回傳 `false` 時直接結束。主要儲存恢復後會再次優先讀取它，故障期間寫入備援儲存的項目此時可能讀不到。所有儲存均失敗時，操作會回傳最後一個錯誤。
+
+在應用程式事件分派器中監聽 `openrust::cache::events::CacheFailedOver`，可得知新發生的儲存錯誤。事件包含 `storeName` 和 `exception` 錯誤訊息。同一儲存連續回傳錯誤只會產生一次事件，經過一次該儲存未回傳錯誤的操作後，再次回傳錯誤才會重新觸發。鎖控制代碼由第一個能建立它的儲存提供，後續取得、續期與釋放均使用該儲存。
+
+```rust
+use openrust::{
+    cache::{CacheManager, CacheResult, Value},
+    contracts::cache::Repository as _,
+};
+
+pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> {
+    manager.store(Some("failover"))?.get("status").await
+}
+```

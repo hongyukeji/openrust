@@ -259,3 +259,164 @@ async fn database_cache_uses_real_mysql_transactions() {
     );
     verify_database(&root).await;
 }
+
+#[tokio::test]
+async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_primary() {
+    use openrust::{
+        cache::events::CacheFailedOver,
+        config::{ConfigError, Environment},
+        database::DatabaseManager,
+        events::Dispatcher,
+    };
+    use serde_json::json;
+    use std::{collections::BTreeMap, path::Path};
+
+    fn failover_config(
+        base: &Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+        let mut config = config::load(base, env)?;
+        config.get_mut("cache").unwrap()["stores"]["failover"]["stores"] =
+            json!(["database", "redis", "array"]);
+        Ok(config)
+    }
+
+    let (Ok(mysql), Ok(redis)) = (
+        std::env::var("OPENRUST_TEST_MYSQL_URL"),
+        std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL"),
+    ) else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_FAILOVER").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "mysql-redis-failover",
+        &format!(
+            "CACHE_STORE=failover\nCACHE_PREFIX=cache-failover-\nDB_CONNECTION=mysql\nDB_URL={mysql}\nDB_CACHE_TABLE=failover_probe\nREDIS_URL={redis}\n"
+        ),
+    );
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(failover_config)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().make::<CacheManager>().unwrap();
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    let events = dispatcher.fake(&[CacheFailedOver::NAME]);
+    let failover = manager.store(None).unwrap();
+    let backup = manager.store(Some("redis")).unwrap();
+    let db = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+
+    let value = Value::from("redis fallback");
+    assert!(
+        failover
+            .put("cached", &value, Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(backup.get("cached").await.unwrap(), Some(value.clone()));
+    assert_eq!(failover.get("cached").await.unwrap(), Some(value.clone()));
+    assert_eq!(events.dispatched(CacheFailedOver::NAME).len(), 1);
+    assert_eq!(
+        events.dispatched(CacheFailedOver::NAME)[0]
+            .downcast_ref::<CacheFailedOver>()
+            .unwrap()
+            .storeName,
+        "database"
+    );
+
+    db.statement("CREATE TABLE failover_probe (`key` VARCHAR(255) PRIMARY KEY, `value` LONGTEXT NOT NULL, expiration BIGINT NOT NULL)", &[]).await.unwrap();
+    assert_eq!(failover.get("cached").await.unwrap(), None);
+    let primary = manager.store(Some("database")).unwrap();
+    let recovered = Value::from("mysql recovered");
+    assert!(
+        failover
+            .add("cached", &recovered, Some(Ttl::Seconds(20)))
+            .await
+            .unwrap()
+    );
+    assert!(primary.forever("primary-only", &recovered).await.unwrap());
+    assert!(
+        !failover
+            .add("primary-only", &Value::from("ignored"), None)
+            .await
+            .unwrap()
+    );
+    assert_eq!(backup.get("primary-only").await.unwrap(), None);
+    assert_eq!(primary.get("cached").await.unwrap(), Some(recovered));
+    assert_eq!(backup.get("cached").await.unwrap(), Some(value.clone()));
+    assert_eq!(events.dispatched(CacheFailedOver::NAME).len(), 1);
+
+    db.statement("DROP TABLE failover_probe", &[])
+        .await
+        .unwrap();
+    assert_eq!(failover.pull("cached").await.unwrap(), Some(value));
+    assert_eq!(backup.get("cached").await.unwrap(), None);
+    assert_eq!(events.dispatched(CacheFailedOver::NAME).len(), 2);
+
+    root.success(&["cache:clear", "failover"]);
+    root.success(&["inspire"]);
+}
+
+#[tokio::test]
+async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
+    use openrust::config::Repository as Config;
+    use openrust::database::DatabaseManager;
+    use serde_json::json;
+
+    let config = Arc::new(Config::new(
+        [(
+            "cache".into(),
+            json!({
+                "default":"failover",
+                "stores":{
+                    "failover":{"driver":"failover","stores":["unconfigured","array"]},
+                    "array":{"driver":"array"},
+                    "isolated":{"driver":"failover","stores":["missing-one","missing-two"]},
+                    "cycle-a":{"driver":"failover","stores":["cycle-b"]},
+                    "cycle-b":{"driver":"failover","stores":["cycle-a"]},
+                    "empty":{"driver":"failover","stores":[]},
+                }
+            }),
+        )]
+        .into(),
+    ));
+    let manager = CacheManager::new(
+        config.clone(),
+        Arc::new(DatabaseManager::new(config, PathBuf::new())),
+        PathBuf::new(),
+    );
+    let failover = manager.store(None).unwrap();
+    assert!(
+        failover
+            .forever("value", &Value::from("saved"))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        failover.get("value").await.unwrap(),
+        Some(Value::from("saved"))
+    );
+    let mut lock = failover
+        .lock("lease", Some(Duration::from_secs(10)), Some("owner"))
+        .unwrap();
+    assert!(lock.get().await.unwrap());
+    let mut restored = failover.restore_lock("lease", "owner").unwrap();
+    assert!(restored.release().await.unwrap());
+    let isolated = manager.store(Some("isolated")).unwrap();
+    assert!(
+        matches!(isolated.get("value").await, Err(CacheError::UnknownStore { name }) if name == "missing-two")
+    );
+    assert!(matches!(
+        manager.store(Some("cycle-a")).unwrap().get("value").await,
+        Err(CacheError::FailoverCycle)
+    ));
+    assert!(matches!(
+        manager.store(Some("empty")),
+        Err(CacheError::InvalidConfiguration)
+    ));
+}
