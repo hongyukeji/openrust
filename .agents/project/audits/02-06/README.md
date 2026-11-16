@@ -69,3 +69,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 在原写端点用同一账号与 TLS 设置建立无默认库的短连接，执行引用过名称的 `CREATE DATABASE IF NOT EXISTS`，保留服务器默认字符集和排序规则。成功后复查原账本。不改写共享连接配置。显式读连接和与基准连接配置不同的写库不会被自动创建。
 - 用 `python3 -B tests/mysql_acceptance.py` 启动独立 MySQL 8.4.13，实际子进程通过。覆盖无人值守拒绝、强制建库并写账本、显式读连接、权限不足、带连字符的库名以及对同一库重复执行。伪终端验证选择拒绝、生产确认及缺库确认默认同意。原有 MySQL 迁移账本回归通过。
 - 三语共用的 `./artisan migrate --database=mysql --force` 与 `./artisan inspire` 在隔离环境实际执行。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 缺失文件的自动创建与其他驱动行为待发布矩阵。
+
+## MySQL migrate:fresh 建库与快照
+
+对照固定 Laravel [FreshCommand 的账本检查、清库和内部 migrate](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/FreshCommand.php#L67)。旧版未找到对应 Artisan 接线。本批复用 MySQL 缺库创建、限定 Schema 清库、快照加载和生产确认。
+
+- `migrate:fresh` 生产确认通过后，遇到 MySQL 1049 可由内部迁移流程按写连接建库。已有库只有在迁移账本存在时才清库。无迁移账本的现有库保留其表，其他连接错误直接返回。
+- `--schema-path` 指定输入快照。加载后按账本跳过已记录迁移，续跑编译期清单。公开 Rust Migrator 的 `fresh` 继续沿用原有调用参数。
+- 用 `python3 -B tests/mysql_acceptance.py` 在 MySQL 8.4.13 上通过真实 Artisan 缺库与快照回归。覆盖生产拒绝、无账本保留独立表、显式快照恢复、历史保留，`sh tests/table_catalog.sh` 复验限定库清理。
+- 三语共用 `./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql`、`./artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版，非 MySQL 的建库和快照待发布矩阵。

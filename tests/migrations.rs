@@ -957,6 +957,17 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     let output = success(run(&["migrate"]));
     assert!(output.contains("Nothing to migrate."));
     assert!(!output.contains("Loading stored database schemas."));
+    let custom = root.0.join("database/schema/custom.sql");
+    fs::rename(snapshot, &custom).unwrap();
+    let output = success(run(&[
+        "migrate:fresh",
+        "--drop-views",
+        "--schema-path=database/schema/custom.sql",
+    ]));
+    assert!(output.contains("Loading stored database schemas."));
+    assert!(!output.contains(&format!("{name} DONE")));
+    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
 }
 
 #[tokio::test]
@@ -1033,4 +1044,51 @@ async fn mysql_artisan_creates_only_confirmed_missing_databases() {
     assert_eq!(failure.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&failure.stderr).contains("database create database failed"));
     assert!(!exists(denied_name).await);
+
+    let fresh_name = "openrust-fresh-create";
+    let fresh_url = format!("{endpoint}/{fresh_name}");
+    let fresh = |environment, args: &[&str]| root.run(environment, Some(&fresh_url), args);
+    assert_eq!(
+        fresh("production", &["migrate:fresh", "--no-interaction"])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert!(!exists(fresh_name).await);
+    assert!(
+        success(fresh("local", &["migrate:fresh", "--no-interaction"]))
+            .contains("create_users_table DONE")
+    );
+    let fresh_db = root.connection(Some(&fresh_url));
+    assert!(fresh_db.getSchemaBuilder().hasTable("users").await.unwrap());
+    assert!(fresh_db.table("migrations").count("*").await.unwrap() > 0);
+
+    let existing_name = "openrust-fresh-no-ledger";
+    let existing_url = format!("{endpoint}/{existing_name}");
+    admin
+        .getSchemaBuilder()
+        .createDatabase(existing_name)
+        .await
+        .unwrap();
+    let existing = root.connection(Some(&existing_url));
+    existing
+        .statement(
+            "create table independent_sentinel (id int primary key)",
+            &[],
+        )
+        .await
+        .unwrap();
+    success(root.run(
+        "local",
+        Some(&existing_url),
+        &["migrate:fresh", "--no-interaction"],
+    ));
+    assert!(
+        existing
+            .getSchemaBuilder()
+            .hasTable("independent_sentinel")
+            .await
+            .unwrap()
+    );
+    assert!(existing.getSchemaBuilder().hasTable("users").await.unwrap());
 }

@@ -591,10 +591,29 @@ impl Migrator {
         step: bool,
         drop_views: bool,
     ) -> DatabaseResult<Vec<MigrationOutcome>> {
+        self.fresh_with_schema(database, paths, step, drop_views, None, None)
+            .await
+            .map(|(rows, _)| rows)
+    }
+
+    pub(crate) async fn fresh_with_schema(
+        &self,
+        database: Option<&str>,
+        paths: &[PathBuf],
+        step: bool,
+        drop_views: bool,
+        schema_path: Option<&Path>,
+        confirm_create: Option<ConfirmDatabaseCreation<'_>>,
+    ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let _guard = self.execution.lock().await;
         self.files(paths)?;
-        if self.repository(database).repository_exists().await? {
-            self.wipe_schema(database, drop_views).await?;
+        match self.repository(database).repository_exists().await {
+            Ok(true) => self.wipe_schema(database, drop_views).await?,
+            Ok(false) => {}
+            Err(error)
+                if confirm_create.is_some()
+                    && database_creation::missing_mysql_database(&error) => {}
+            Err(error) => return Err(error),
         }
         self.run_pending(
             database,
@@ -603,11 +622,10 @@ impl Migrator {
                 pretend: false,
                 step,
             },
-            None,
-            None,
+            schema_path,
+            confirm_create,
         )
         .await
-        .map(|(rows, _)| rows)
     }
 
     async fn wipe_schema(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {

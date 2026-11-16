@@ -104,6 +104,14 @@ If another process holds the lock, the command reports that it is already runnin
 
 Use `migrate:reset` to roll back all migrations and `migrate:refresh` to roll them back and apply them again. When the ledger exists, `migrate:fresh` drops all tables on the selected database, including tables with other prefixes, and reruns migrations. Add `--drop-views` to drop views as well.
 
+### Rebuilding a MySQL Database {#rebuilding-mysql-with-fresh}
+
+After any production confirmation, `migrate:fresh` can create a missing MySQL database with the selected write account. If the database exists and has no migration ledger, the command starts migrations without clearing its tables. Use `--schema-path` to select the snapshot to restore.
+
+```sh
+./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql
+```
+
 ## Tables
 
 Use `Schema::create("books", |table| { … }).await?` to create a table on the default connection. Use `Schema::connection("reporting")?` to select a named connection. An explicit connection exposes the same API through `getSchemaBuilder()`.

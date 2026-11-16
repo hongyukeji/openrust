@@ -118,7 +118,7 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             if matches!(kind, Kind::Run | Kind::Fresh) {
                 syntax = syntax.arg(flag("step"));
             }
-            if kind == Kind::Run {
+            if matches!(kind, Kind::Run | Kind::Fresh) {
                 syntax = syntax.arg(Arg::new("schema-path").long("schema-path"));
             }
             if matches!(kind, Kind::Rollback | Kind::Refresh) {
@@ -324,15 +324,20 @@ impl Command for MigrationCommand {
                             "Dropping types is only supported by PostgreSQL.",
                         ));
                     }
-                    let rows = migrator
-                        .fresh(
+                    let (rows, loaded) = migrator
+                        .fresh_with_schema(
                             database,
                             &paths,
                             matches.get_flag("step"),
                             matches.get_flag("drop-views"),
+                            matches.get_one::<String>("schema-path").map(Path::new),
+                            Some(&|_| Ok(true)),
                         )
                         .await
                         .map_err(console_error)?;
+                    if loaded {
+                        output.info("Loading stored database schemas.");
+                    }
                     report(output, rows, false, "Nothing to migrate.");
                 }
                 Kind::Wipe => {
