@@ -2,7 +2,7 @@
 
 - 对照固定 Laravel 的 Gate、Policy、访客授权、路由授权和拒绝状态。参考固定 Goravel 的 Gate 上下文与回调组织。复用旧版的请求 Guard 作用域和原始身份键设计，旧版数据库 RBAC 继续留在其交付范围。 [Laravel 授权文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/authorization.md) · [Laravel Gate](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Gate.php) · [Laravel Authorize](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Middleware/Authorize.php) · [Goravel Gate](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/auth/access/gate.go)
 - 应用容器持有 Gate 注册表，请求通过当前 Guard 解析用户。策略按 Rust 类型显式注册，`PolicyTarget` 支持无实例策略。Gate 的 `before` 可短路，`after` 补齐未决结果。路由 `can` 排在认证与模型绑定之后。FormRequest 共用拒绝状态转换。
-- Rust 适配采用显式 Request 和编译期类型，策略模块生成后由应用接入。PHP 的反射式策略发现对应显式 Rust 类型注册。Gate 判定事件仍待验收。
+- Rust 适配采用显式 Request 和编译期类型，策略模块生成后由应用接入。PHP 的反射式策略发现对应显式 Rust 类型注册。
 - 以 `12bea048` 为隔离基线，Rust 1.94.0 格式检查、459 项锁定离线测试、全目标严格 Clippy 和 `./artisan inspire` 通过。SQLite 和真实 MySQL 8.4 的 HTTP 验收覆盖访客、已认证用户、认证先于模型查找、模型缺失 404、策略优先、回调、409 拒绝、隐藏为 404、请求并发与应用隔离。
 - `./artisan make:policy` 实测有模型和无模型生成、拒绝重复写入、强制覆盖与拒绝非法名称。两份生成的源码接入应用服务提供者后通过编译。
 - 三语文档中的同一 Rust 示例在锁定工作区编译并用 SQLite 和 MySQL 请求验证。VitePress 构建、12 项通用浏览器组合及授权正文和链接的 6 项检查通过。
@@ -13,3 +13,11 @@
 - 复用 Blade 已有请求通道，在原 HTTP 请求上解析 Guard 并执行当前应用的 Gate。普通值通过 `ViewValue` 传入，`View::withGateArgument` 支持 Rust 资源或 `PolicyTarget`，独立子视图不继承该类型参数。Gate 求值错误使渲染失败。Artisan 预编译只检查模板语法。
 - macOS ARM64、Rust 1.94.0。8 项离线定向测试通过，真实回环 HTTP 覆盖三种指令、混合分支、嵌套、短路、访客能力、类型化策略及无实例策略、双应用隔离、独立包含的作用域和 500。真实 Artisan 缓存并清理三语示例，错误结束指令的预编译退出非零。三语 VitePress 构建与授权正文跳转均通过。
 - 隔离副本的工作区格式和严格 Clippy 通过，既有 Sanctum 格式差异仅在副本中整理。验收副本移入废纸篓，保留共享 Cargo 缓存。清理后项目卷可用 74,560,916 KiB（76.35 GB／71.11 GiB）。
+
+## Gate 判定事件与整单元闭合
+
+- 对照固定 [Gate::raw](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Gate.php#L401-L423) 与 [GateEvaluated](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Access/Events/GateEvaluated.php)。Gate 通过所属应用的事件派发器，在全部 `after` 回调之后、填充默认拒绝前派发。事件携带可选用户、能力和原始可选授权响应，保留显式拒绝状态。提前得到决策仍派发，求值报错及 `allowIf`／`denyIf` 不派发。旧版没有该事件。
+- Rust 的 Gate 参数是借用的类型擦除值。同步监听器通过 `event.arguments(context)` 读取原始参数和顺序，延迟和留存事件保留参数类型标识。
+- Rust 1.94.0、macOS ARM64。10 项定向测试通过。真实回环 HTTP 验证参数类型、原始值和顺序、访客与认证用户、前置短路、后置回调补决策、默认拒绝前的未决事件，以及回调错误无事件。Blade、CSRF 和事件派发回归一并通过。
+- 真实 Artisan `event:list --event GateEvaluated --json` 返回监听器。隔离应用用三语共用的 Rust 示例挂接监听器，实际运行 `gate:probe` 验证同步允许事件和延迟未决事件。三语 VitePress 构建及章节锚点检查通过。隔离工作区格式与严格 Clippy 通过，既有 Sanctum 格式差异只在副本中整理。
+- 视图授权、策略、路由授权、Artisan 生成和 Gate 判定事件均有验收记录。05-09 核心闭合。隔离副本移入废纸篓，共享 Cargo 缓存保留。清理后项目卷可用 69,391,808 KiB（71.06 GB／66.18 GiB）。

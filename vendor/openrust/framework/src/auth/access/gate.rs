@@ -1,15 +1,21 @@
 use std::{
     any::TypeId,
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, Weak},
 };
 
 use crate::{
-    auth::{AuthFuture, AuthResult},
-    contracts::auth::{Authenticatable, access::Gate as GateContract},
+    auth::{AuthError, AuthFuture, AuthResult},
+    container::Container,
+    contracts::{
+        auth::{Authenticatable, access::Gate as GateContract},
+        container::Container as _,
+        events::Dispatcher as _,
+    },
+    events::{Dispatcher, EventContext},
 };
 
-use super::{Argument, AuthorizationError, Policy, PolicyTarget, Response};
+use super::{Argument, AuthorizationError, Policy, PolicyTarget, Response, events::GateEvaluated};
 
 type Decision = Option<Response>;
 type Ability = dyn for<'a> Fn(
@@ -83,10 +89,19 @@ struct Definitions {
 
 /// Application-owned ability, policy, and interception registrations.
 #[derive(Default)]
-pub struct GateRegistry(RwLock<Definitions>);
+pub struct GateRegistry {
+    definitions: RwLock<Definitions>,
+    owner: Weak<Container>,
+}
 
 #[allow(non_snake_case, reason = "Matches Laravel's Gate registration API")]
 impl GateRegistry {
+    pub(crate) fn for_application(owner: Weak<Container>) -> Self {
+        Self {
+            owner,
+            ..Self::default()
+        }
+    }
     pub fn define(
         &self,
         ability: impl Into<String>,
@@ -135,7 +150,7 @@ impl GateRegistry {
     }
 
     fn register(&self, ability: impl Into<String>, callback: Arc<Ability>) {
-        self.0
+        self.definitions
             .write()
             .expect("gate registry lock")
             .abilities
@@ -143,10 +158,14 @@ impl GateRegistry {
     }
 
     pub fn policy<T: Send + Sync + 'static>(&self, policy: impl Policy<T> + 'static) {
-        self.0.write().expect("gate registry lock").policies.insert(
-            TypeId::of::<T>(),
-            Arc::new(TypedPolicy(policy, std::marker::PhantomData::<fn() -> T>)),
-        );
+        self.definitions
+            .write()
+            .expect("gate registry lock")
+            .policies
+            .insert(
+                TypeId::of::<T>(),
+                Arc::new(TypedPolicy(policy, std::marker::PhantomData::<fn() -> T>)),
+            );
     }
 
     pub fn before(
@@ -160,7 +179,7 @@ impl GateRegistry {
         + Sync
         + 'static,
     ) {
-        self.0
+        self.definitions
             .write()
             .expect("gate registry lock")
             .before
@@ -179,7 +198,7 @@ impl GateRegistry {
         + Sync
         + 'static,
     ) {
-        self.0
+        self.definitions
             .write()
             .expect("gate registry lock")
             .after
@@ -187,7 +206,7 @@ impl GateRegistry {
     }
 
     pub fn defaultDenialResponse(&self, response: Response) {
-        let mut definitions = self.0.write().expect("gate registry lock");
+        let mut definitions = self.definitions.write().expect("gate registry lock");
         definitions.default_denial = response.denied().then_some(response);
     }
 
@@ -209,7 +228,7 @@ pub struct Gate {
 impl Gate {
     pub fn has(&self, ability: &str) -> bool {
         self.registry
-            .0
+            .definitions
             .read()
             .expect("gate registry lock")
             .abilities
@@ -218,7 +237,11 @@ impl Gate {
 
     pub async fn inspect(&self, ability: &str, args: &[&Argument]) -> AuthResult<Response> {
         let (before, after, policy, defined, default_denial) = {
-            let definitions = self.registry.0.read().expect("gate registry lock");
+            let definitions = self
+                .registry
+                .definitions
+                .read()
+                .expect("gate registry lock");
             let policy = args.first().and_then(|value| {
                 let id = value
                     .downcast_ref::<PolicyTarget>()
@@ -254,9 +277,42 @@ impl Gate {
                 result = evaluated;
             }
         }
+        self.dispatch_evaluated(ability, args, result.as_ref())
+            .await?;
         Ok(result
             .or(default_denial)
             .unwrap_or_else(|| Response::from(false)))
+    }
+
+    async fn dispatch_evaluated(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+        result: Option<&Response>,
+    ) -> AuthResult<()> {
+        let Some(owner) = self
+            .registry
+            .owner
+            .upgrade()
+            .filter(|owner| owner.has("events"))
+        else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(AuthError::backend)?;
+        let event = Arc::new(GateEvaluated {
+            user: self.user.clone(),
+            ability: ability.to_owned(),
+            result: result.cloned(),
+            argument_types: args.iter().map(|argument| (*argument).type_id()).collect(),
+        });
+        let mut context = EventContext::with_arguments(event.as_ref(), args);
+        dispatcher
+            .dispatch(event.clone(), &mut context)
+            .await
+            .map_err(AuthError::backend)?;
+        Ok(())
     }
 
     pub async fn allows(&self, ability: &str, args: &[&Argument]) -> AuthResult<bool> {

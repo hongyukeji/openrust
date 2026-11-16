@@ -41,8 +41,11 @@ impl ServiceProvider for AuthServiceProvider {
                 "auth.password",
                 crate::container::ServiceKey::typed::<PasswordBrokerManager>(),
             )?;
-            container.singletonNamed("gate", |_| {
-                Ok(Arc::new(super::access::GateRegistry::default()))
+            let owner = Arc::downgrade(&app.container_handle());
+            container.singletonNamed("gate", move |_| {
+                Ok(Arc::new(super::access::GateRegistry::for_application(
+                    owner.clone(),
+                )))
             })?;
             container.alias(
                 "gate",

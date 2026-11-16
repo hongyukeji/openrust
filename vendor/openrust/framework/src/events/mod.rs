@@ -94,6 +94,12 @@ impl<T: Send + Sync + 'static> crate::contracts::events::Event for NamedEvent<T>
 pub struct EventContext<'tx> {
     transaction: Option<&'tx mut crate::database::Transaction>,
     socket: Option<String>,
+    arguments: Option<EventArguments<'tx>>,
+}
+
+struct EventArguments<'a> {
+    event: &'a dyn crate::contracts::events::Event,
+    values: &'a [&'a (dyn Any + Send + Sync)],
 }
 
 impl<'tx> EventContext<'tx> {
@@ -104,8 +110,28 @@ impl<'tx> EventContext<'tx> {
     pub fn in_transaction(transaction: &'tx mut crate::database::Transaction) -> Self {
         Self {
             transaction: Some(transaction),
-            socket: None,
+            ..Self::default()
         }
+    }
+
+    pub(crate) fn with_arguments(
+        event: &'tx dyn crate::contracts::events::Event,
+        values: &'tx [&'tx (dyn Any + Send + Sync)],
+    ) -> Self {
+        Self {
+            arguments: Some(EventArguments { event, values }),
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn arguments_for(
+        &self,
+        event: &dyn crate::contracts::events::Event,
+    ) -> Option<&'tx [&'tx (dyn Any + Send + Sync)]> {
+        self.arguments
+            .as_ref()
+            .filter(|arguments| std::ptr::addr_eq(arguments.event, event))
+            .map(|arguments| arguments.values)
     }
 
     /// Excludes the request's originating socket from this broadcast.

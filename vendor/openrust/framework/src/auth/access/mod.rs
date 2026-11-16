@@ -1,5 +1,6 @@
 //! Gate evaluation, policies, and authorization responses.
 
+pub mod events;
 mod facade;
 mod gate;
 mod policy;

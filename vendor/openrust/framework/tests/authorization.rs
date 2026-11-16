@@ -378,3 +378,179 @@ async fn authorization_over_http_with_mysql() {
         verify(json!({"url":url})).await;
     }
 }
+
+#[tokio::test]
+async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
+    use std::{any::TypeId, sync::Mutex};
+
+    use openrust::{
+        auth::{AuthError, access::events::GateEvaluated},
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+    };
+
+    struct Subject(u64);
+    type Trace = Arc<Mutex<Vec<String>>>;
+
+    struct Record(Trace);
+    impl Listener for Record {
+        fn handle<'a>(
+            &'a self,
+            payload: &'a dyn Event,
+            context: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = payload.downcast_ref::<GateEvaluated>().unwrap();
+                let arguments = event.arguments(context).unwrap();
+                assert_eq!(
+                    event.argument_types,
+                    [TypeId::of::<Subject>(), TypeId::of::<String>()]
+                );
+                assert_eq!(arguments[0].downcast_ref::<Subject>().unwrap().0, 17);
+                assert_eq!(arguments[1].downcast_ref::<String>().unwrap(), "original");
+                let user = event.user.as_deref().map(|user| user.get_auth_identifier());
+                let identity = match user {
+                    Some(AuthIdentifier::String(user)) => user,
+                    None => "guest".into(),
+                    _ => panic!("unexpected identity"),
+                };
+                let decision = event.result.as_ref().map(|result| {
+                    (
+                        result.allowed(),
+                        result.status().map(|status| status.as_u16()),
+                    )
+                });
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(format!("event:{}:{identity}:{decision:?}", event.ability));
+                Ok(None)
+            })
+        }
+    }
+
+    fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let ability = request.query(Some("ability"))?.unwrap();
+            let gate = Gate::forRequest(request).await?;
+            let result = gate
+                .inspect(
+                    ability.as_str().unwrap(),
+                    &[&Subject(17), &String::from("original")],
+                )
+                .await?;
+            assert_eq!(
+                gate.allowIf(|_| true).is_ok(),
+                request.headers().get("x-test-user").unwrap() == "owner"
+            );
+            Response::json(
+                StatusCode::OK,
+                json!({"allowed": result.allowed(), "status": result.status().map(|status|status.as_u16())}),
+            )
+        })
+    }
+
+    let app = Application::configure(std::env::temp_dir())
+        .withConfig(|_, _| {
+            Ok([(
+                "auth".into(),
+                json!({
+                    "defaults": {"guard": "test"},
+                    "guards": {"test": {"driver": "event-test"}}
+                }),
+            )]
+            .into())
+        })
+        .withRouting(Routing::default().api(|| Route::get("/gate-event", probe)))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let app = kernel.get_application();
+    app.container()
+        .make::<AuthManager>()
+        .unwrap()
+        .viaRequest("event-test", |request| {
+            Box::pin(async move {
+                Ok((request.headers().get("x-test-user").unwrap() == "owner")
+                    .then(|| Box::new(Identity("owner")) as Box<dyn Authenticatable>))
+            })
+        });
+
+    let trace: Trace = Arc::default();
+    app.container()
+        .make::<Dispatcher>()
+        .unwrap()
+        .listen(
+            "GateEvaluated",
+            Arc::new(Record(trace.clone())),
+            Delivery::Sync,
+        )
+        .unwrap();
+    let gate = app.container().make::<GateRegistry>().unwrap();
+    gate.defaultDenialResponse(Decision::denyAsNotFound("missing"));
+    gate.before({
+        let trace = trace.clone();
+        move |_, ability, _| {
+            trace.lock().unwrap().push(format!("before:{ability}"));
+            Box::pin(async move { Ok((ability == "before").then(Decision::allow)) })
+        }
+    });
+    gate.after({
+        let trace = trace.clone();
+        move |_, ability, decision, _| {
+            trace.lock().unwrap().push(format!("after:{ability}"));
+            Box::pin(async move {
+                assert_eq!(decision.is_some(), ability == "before");
+                Ok((ability == "hook")
+                    .then(|| Decision::denyWithStatus(StatusCode::CONFLICT, "hook")))
+            })
+        }
+    });
+    gate.defineGuest("before", |_, _| {
+        Box::pin(async { panic!("the before hook already decided") })
+    });
+    gate.defineGuest("error", |_, _| {
+        Box::pin(async { Err(AuthError::InvalidIdentity) })
+    });
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+    for (ability, user, response, raw) in [
+        (
+            "before",
+            "owner",
+            json!({"allowed": true,"status": null}),
+            "Some((true, None))",
+        ),
+        (
+            "hook",
+            "",
+            json!({"allowed": false,"status": 409}),
+            "Some((false, Some(409)))",
+        ),
+        (
+            "missing",
+            "",
+            json!({"allowed": false,"status": 404}),
+            "None",
+        ),
+    ] {
+        let path = format!("/gate-event?ability={ability}");
+        assert_eq!(request(address, &path, user, 200).await, response);
+        let identity = if user.is_empty() { "guest" } else { user };
+        assert_eq!(
+            std::mem::take(&mut *trace.lock().unwrap()),
+            [
+                format!("before:{ability}"),
+                format!("after:{ability}"),
+                format!("event:{ability}:{identity}:{raw}"),
+            ]
+        );
+    }
+    request(address, "/gate-event?ability=error", "", 500).await;
+    assert_eq!(*trace.lock().unwrap(), ["before:error"]);
+    server.abort();
+}
