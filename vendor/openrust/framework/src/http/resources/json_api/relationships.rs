@@ -3,7 +3,11 @@ use serde_json::{Map, Value};
 
 use crate::http::Request;
 
-use super::{super::json::ResourceResult, JsonApiResource, json_api_resource::project};
+use super::{
+    super::json::{ResourceCollection, ResourceResult},
+    JsonApiResource,
+    json_api_resource::project,
+};
 
 type Resolver<'a> =
     Box<dyn FnOnce(&Request, &[&str], &mut Vec<Value>) -> ResourceResult<Value> + 'a>;
@@ -40,14 +44,39 @@ impl<'a> JsonApiRelationships<'a> {
         self.0.insert(
             name,
             Box::new(move |request, paths, included| {
-                resolve()?
-                    .iter()
-                    .map(|resource| include(resource, request, paths, included))
-                    .collect()
+                include_many(&resolve()?, request, paths, included)
             }),
         );
         self
     }
+
+    /// Emits linkage for the items selected by a resource collection.
+    #[must_use]
+    pub fn toCollection<R: JsonApiResource>(
+        mut self,
+        name: &'a str,
+        resolve: impl FnOnce() -> ResourceResult<ResourceCollection<R>> + 'a,
+    ) -> Self {
+        self.0.insert(
+            name,
+            Box::new(move |request, paths, included| {
+                include_many(resolve()?.items(), request, paths, included)
+            }),
+        );
+        self
+    }
+}
+
+fn include_many(
+    resources: &[impl JsonApiResource],
+    request: &Request,
+    paths: &[&str],
+    included: &mut Vec<Value>,
+) -> ResourceResult<Value> {
+    resources
+        .iter()
+        .map(|resource| include(resource, request, paths, included))
+        .collect()
 }
 
 fn include(

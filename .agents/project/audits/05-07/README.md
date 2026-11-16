@@ -74,3 +74,9 @@
 - 非字符串 `include` 按没有请求关联处理。非字符串 `fields[type]` 保留该类型的字段集记录，但投影为空。未指定该类型字段集时保留全部属性。字符串中存在空路径段仍返回 400。 [固定 Laravel 请求矩阵](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiRequestTest.php)
 - SQLite／MySQL 8.4.13 共 11 项回归通过。真实 HTTP 覆盖对象单资源、集合、嵌入 Eloquent 关联、保留字段、无效标识与非字符串查询。MySQL 确认非字符串 include 只执行读取主资源的一次 SELECT。合入并行完成的 05-09 基线后额外复验 3 项授权测试。Rust 格式、全目标严格 Clippy、实际 `./artisan inspire`、三语代码示例执行、VitePress 和 15 项浏览器检查通过。Sanctum 既有格式差异仅在隔离副本处理。
 - 固定版还覆盖关系闭包返回资源集合并保留嵌套筛选。OpenRust 现有 `toMany` 的输入为 `Vec<R>`。该入口及可见行为纳入 05-07 最终复核。
+
+## 05-07 整单元验收
+
+- 固定 Laravel 的关系闭包可返回已筛选的资源集合。Rust 增加 `JsonApiRelationships::toCollection`，和向量关系共用标识、稀疏字段和复合文档投影。嵌套 include 只遍历集合选中的项，关联输出是标识数组。SQLite／MySQL 8.4.13 的实际 HTTP 验证公开项及其子项进入 included，私有项及其子项被排除，空集合返回 `data: []`，解析错误在请求该关联时传播，未请求时不执行解析器。 [固定 Laravel 集合关联用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiResourceTest.php)
+- 按 05-07 计划复核单资源、集合和键、普通／简易／游标分页、条件属性和关系、空结果与响应钩子，固定 JSON:API 章节的类型与标识、字段、关联、深度、链接、元数据及生成器已有分项验收。本批额外在合入数据库启动调整的 `643f4f03e` 基线上复跑 17 项资源、分页、模型、授权回归和 2 项 Artisan 生成器测试。格式、全目标严格 Clippy、真实 `./artisan inspire`、三语集合示例执行、VitePress 构建和 15 项浏览器检查通过。Sanctum 既有格式差异只在隔离副本处理。 [固定 API Resources 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md)
+- Rust 使用 trait、编译期默认资源映射和应用容器，生成后显式声明模块。对象数据源采用 JSON Map，关联自动加载采用已登记路径，错误的点分 include 字符串继续返回 400。05-03 与 05-06 前置已闭合，05-07 记为闭合。

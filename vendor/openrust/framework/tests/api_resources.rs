@@ -252,8 +252,8 @@ impl JsonApiResource for PersonResource {
 
     fn includePath(path: &str) -> Option<&'static str> {
         match path {
-            "reports" => Some("directReports"),
-            "reports.reports" => Some("directReports.directReports"),
+            "reports" | "visibleReports" => Some("directReports"),
+            "reports.reports" | "visibleReports.reports" => Some("directReports.directReports"),
             _ => None,
         }
     }
@@ -298,6 +298,23 @@ impl JsonApiResource for PersonResource {
                         PersonResource::make(Account::from_state(account.state().clone()))
                     })
                     .collect())
+            })
+            .toCollection("visibleReports", || {
+                if request.headers().contains_key("x-fail-collection") {
+                    return Err(HttpError::InvalidRequest);
+                }
+                let reports: Vec<_> = self
+                    .account
+                    .getRelation::<RelatedCollection<Account>>("directReports")
+                    .into_iter()
+                    .flatten()
+                    .filter(|account| {
+                        !request.headers().contains_key("x-empty-collection")
+                            && !matches!(account.getAttribute("name"), Some(Value::Text(name)) if name == "Private")
+                    })
+                    .map(|account| PersonResource::make(Account::from_state(account.state().clone())))
+                    .collect();
+                Ok(ResourceCollection::new(reports))
             })
             .toOne::<PersonResource>("manager", || Ok(None))
             .toOne("thing", || Ok(Some(thing(json!(99)))))
@@ -1099,6 +1116,11 @@ async fn verify(config: Json) {
     verify_json_options(address).await;
     verify_json_api(address).await;
     verify_json_api_autoload(address, mysql.then_some(&connection)).await;
+    connection.statement(
+        "INSERT INTO resource_accounts VALUES (50, 1, 'Private', 'secret'), (51, 50, 'Private child', 'secret')",
+        &[],
+    ).await.unwrap();
+    verify_json_api_relationship_collection(address).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -1108,6 +1130,40 @@ async fn verify(config: Json) {
         .statement("DROP TABLE resource_memberships", &[])
         .await
         .unwrap();
+}
+
+async fn verify_json_api_relationship_collection(address: SocketAddr) {
+    let path = "/api/person/auto?include=visibleReports.reports";
+    let (headers, document) = request(address, "GET", path, "", 200).await;
+    assert!(headers.contains("content-type: application/vnd.api+json"));
+    assert_eq!(
+        document["data"]["relationships"]["visibleReports"],
+        json!({"data":[{"id":"2","type":"people"}]}),
+    );
+    let included = document["included"].as_array().unwrap();
+    assert_eq!(included.len(), 2);
+    assert_eq!(included[0]["id"], "2");
+    assert_eq!(
+        included[0]["relationships"]["reports"],
+        json!({"data":[{"id":"3","type":"people"}]}),
+    );
+    assert_eq!(included[1]["id"], "3");
+    let (_, empty) = request(address, "GET", path, "X-Empty-Collection: yes\r\n", 200).await;
+    assert_eq!(
+        empty["data"]["relationships"]["visibleReports"],
+        json!({"data":[]})
+    );
+    assert!(empty.get("included").is_none());
+    request(address, "GET", path, "X-Fail-Collection: yes\r\n", 400).await;
+    let (_, omitted) = request(
+        address,
+        "GET",
+        "/api/person/auto",
+        "X-Fail-Collection: yes\r\n",
+        200,
+    )
+    .await;
+    assert!(omitted["data"].get("relationships").is_none());
 }
 
 async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection>) {

@@ -260,6 +260,22 @@ pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'stati
 }
 ```
 
+### 集合關聯 {#jsonapi-collection-relationships}
+
+關聯解析器回傳 `ResourceCollection` 時使用 `JsonApiRelationships::toCollection`。巢狀 include 只套用到解析器回傳的結果。回傳集合前篩除記錄，可同時將該記錄及其後代排除在文件之外。
+
+```rust
+use openrust::http::resources::{
+    json::ResourceCollection,
+    json_api::{JsonApiRelationships, JsonApiResource},
+};
+
+pub fn relationships<R: JsonApiResource + 'static>(visible: Vec<R>) -> JsonApiRelationships<'static> {
+    JsonApiRelationships::default()
+        .toCollection("reports", move || Ok(ResourceCollection::new(visible)))
+}
+```
+
 ### 自動載入關聯 {#jsonapi-automatic-loading}
 
 實作 `includePath`，將允許的 JSON:API 路徑映射至 `Model::namedRelations` 登記的路徑，並透過 `modelMut` 傳回模型。路由回傳單一資源、集合或分頁時，框架會在序列化前批次補載缺少的關聯。`toRelationships` 宣告的閉包讀取載入結果。手動建立回應時，使用 `toResponseAsync(request).await`。

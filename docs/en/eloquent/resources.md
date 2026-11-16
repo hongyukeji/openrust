@@ -260,6 +260,22 @@ pub fn relationships<M: Model>(editor: Option<M>) -> JsonApiRelationships<'stati
 }
 ```
 
+### Collection Relationships {#jsonapi-collection-relationships}
+
+Use `JsonApiRelationships::toCollection` when a resolver returns a `ResourceCollection`. Nested include paths apply to the items selected by that resolver. Filter the collection before returning it to exclude both an item and its descendants from the document.
+
+```rust
+use openrust::http::resources::{
+    json::ResourceCollection,
+    json_api::{JsonApiRelationships, JsonApiResource},
+};
+
+pub fn relationships<R: JsonApiResource + 'static>(visible: Vec<R>) -> JsonApiRelationships<'static> {
+    JsonApiRelationships::default()
+        .toCollection("reports", move || Ok(ResourceCollection::new(visible)))
+}
+```
+
 ### Automatic Relationship Loading {#jsonapi-automatic-loading}
 
 Map each allowed JSON:API path to a path registered in `Model::namedRelations` by implementing `includePath`. Return the model from `modelMut`. When a route returns a resource or a collection, including a page, the framework batches missing relationships before serialization. The resolvers registered in `toRelationships` read the loaded results. For manual response construction, call `toResponseAsync(request).await`.
