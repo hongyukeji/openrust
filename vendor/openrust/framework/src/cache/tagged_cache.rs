@@ -9,7 +9,7 @@ use super::{
 
 /// A cache repository scoped to an ordered list of tags.
 pub struct TaggedCache {
-    repository: Repository,
+    pub(super) repository: Repository,
     tags: Arc<TagSet>,
 }
 

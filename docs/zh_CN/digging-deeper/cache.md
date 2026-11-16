@@ -122,3 +122,21 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
     manager.store(Some("failover"))?.get("status").await
 }
 ```
+
+## 缓存事件 {#cache-events}
+
+通过应用事件分发器监听 `CacheHit::NAME`、`KeyWritten::NAME` 和 `CacheLocksFlushed::NAME` 等事件。`openrust::cache::events` 中的事件携带所选存储名。读写事件提供调用方传入的键和适用的有序标签。批量读取先派发 `RetrievingManyKeys`，再逐个派发命中或未命中事件。
+
+在 `config/cache.rs` 的具体存储配置中设置 `events: false` 可关闭该仓库的事件。故障切换仓库默认关闭，底层每个存储仍按自身配置派发。记忆化仓库在访问底层时派发事件，命中记忆化快照的重复读取没有额外事件。
+
+同步监听器失败时，操作返回错误。写入前的监听器失败会阻止写入，写入后的监听器失败会保留已写入的值。原子 `pull` 的读取和删除前置事件都在存储操作前发出。
+
+测试缓存命中时，先写入 `reports/latest`，再通过已启动的 `TestApp` 读取并断言：
+
+```rust
+use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
+
+let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let _ = cache.get("reports/latest").await?;
+events.assertDispatched(CacheHit::NAME);
+```

@@ -595,6 +595,15 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
             .unwrap(),
     );
     kernel.bootstrap().await.unwrap();
+    let dispatcher = kernel
+        .get_application()
+        .container()
+        .make::<openrust::events::Dispatcher>()
+        .unwrap();
+    let events = dispatcher.fake(&[
+        openrust::cache::events::KeyWritten::NAME,
+        openrust::cache::events::CacheFlushed::NAME,
+    ]);
     let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let address = listener.local_addr().unwrap();
     let service = transport.with_state(Arc::new(kernel)).into_make_service();
@@ -628,6 +637,8 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
     .unwrap();
     server.abort();
     let _ = server.await;
+    events.assertDispatchedTimes(openrust::cache::events::KeyWritten::NAME, 1);
+    events.assertDispatchedTimes(openrust::cache::events::CacheFlushed::NAME, 1);
     root.success(&["inspire"]);
 }
 

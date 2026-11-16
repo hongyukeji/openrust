@@ -158,11 +158,9 @@ impl FailoverStore {
 }
 
 macro_rules! forward_operation {
-    ($name:ident($($argument:ident: $ty:ty),*) -> $output:ty) => {
+    ($name:ident($($argument:ident: $ty:ty),*) -> $output:ty, $store:ident => $action:expr) => {
         fn $name<'a>(&'a self, $($argument: $ty),*) -> CacheFuture<'a, CacheResult<$output>> {
-            self.attempt(move |store| Box::pin(async move {
-                store.get_store().$name($($argument),*).await
-            }))
+            self.attempt(move |$store| Box::pin(async move { $action.await }))
         }
     };
 }
@@ -176,20 +174,20 @@ impl Store for FailoverStore {
         true
     }
 
-    forward_operation!(get(key: &'a str) -> Option<Value>);
-    forward_operation!(many(keys: &'a [&'a str]) -> Vec<Option<Value>>);
-    forward_operation!(put(key: &'a str, value: &'a Value, seconds: NonZeroU64) -> bool);
-    forward_operation!(put_many(values: &'a [(String, Value)], seconds: NonZeroU64) -> bool);
-    forward_operation!(add(key: &'a str, value: &'a Value, seconds: Option<NonZeroU64>) -> bool);
-    forward_operation!(pull(key: &'a str) -> Option<Value>);
-    forward_operation!(forever(key: &'a str, value: &'a Value) -> bool);
-    forward_operation!(touch(key: &'a str, seconds: NonZeroU64) -> bool);
-    forward_operation!(forget(key: &'a str) -> bool);
-    forward_operation!(increment(key: &'a str, amount: i64) -> i64);
-    forward_operation!(decrement(key: &'a str, amount: i64) -> i64);
+    forward_operation!(get(key: &'a str) -> Option<Value>, store => store.get(key));
+    forward_operation!(many(keys: &'a [&'a str]) -> Vec<Option<Value>>, store => store.many(keys));
+    forward_operation!(put(key: &'a str, value: &'a Value, seconds: NonZeroU64) -> bool, store => store.put_seconds(key, value, Some(seconds)));
+    forward_operation!(put_many(values: &'a [(String, Value)], seconds: NonZeroU64) -> bool, store => store.put_many_seconds(values, seconds));
+    forward_operation!(add(key: &'a str, value: &'a Value, seconds: Option<NonZeroU64>) -> bool, store => store.get_store().add(key, value, seconds));
+    forward_operation!(pull(key: &'a str) -> Option<Value>, store => store.pull(key));
+    forward_operation!(forever(key: &'a str, value: &'a Value) -> bool, store => store.forever(key, value));
+    forward_operation!(touch(key: &'a str, seconds: NonZeroU64) -> bool, store => store.get_store().touch(key, seconds));
+    forward_operation!(forget(key: &'a str) -> bool, store => store.forget(key));
+    forward_operation!(increment(key: &'a str, amount: i64) -> i64, store => store.increment(key, amount));
+    forward_operation!(decrement(key: &'a str, amount: i64) -> i64, store => store.decrement(key, amount));
 
     fn flush(&self) -> CacheFuture<'_, CacheResult<bool>> {
-        self.attempt(|store| Box::pin(async move { store.get_store().flush().await }))
+        self.attempt(|store| Box::pin(async move { store.flush().await }))
     }
 
     fn get_prefix(&self) -> &str {

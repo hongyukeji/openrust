@@ -56,3 +56,11 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离基线 `fcec8adaf`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 8.5、Predis 和真实 Redis 8.10.3 的 ArrayStore 与 RedisStore 对照通过。MySQL 8.4.13 与两个独立 Redis 8.10.3 下 13 项缓存回归通过，覆盖文件门闩、清锁后重新获取、旧持有者释放保护、MySQL 锁表和数据隔离、Redis 独立库与地址别名、命令选项冲突、实际 HTTP 和 Artisan。实际清锁删除专用锁库中的标记键，普通值与标签值保留。
 - 三语文档中的清锁与标签清理命令实际运行通过。VitePress 构建与 18 项浏览器检查通过。
 - 变更文件格式和工作区严格 Clippy 通过。全仓格式仅报告基线中已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理本批 2.7 GiB Cargo 产物和文档缓存后，磁盘可用 60.71 GB（56.54 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-locks.OuLPjlei`。
+
+## 缓存操作事件
+
+- 对照固定 Laravel [Repository](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php)、[Cache Events](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#events)、CacheManager 和 Artisan ClearCommand。openrust-v0.x 未提供这套类型化缓存事件。复用现有应用事件分发器和 Fake。
+- 普通和具名仓库派发读写、批量读写、忘记、全量清理和锁清理事件，标签仓库使用原始键和顺序标签。配置可禁用指定存储的事件。Failover 外层默认关闭，底层各仓库遵循自身配置。Memoized 层只在访问底层时派发相关事件。Artisan 的 `cache:clearing` 和 `cache:cleared` 包裹数据或标签清理，`--locks` 独立派发锁事件。
+- Rust 的 `pull` 维持原子读取删除，两个前置事件均在操作前触发。原生原子 `add`、正 TTL 的 `touch` 和计数操作直接调用底层。同步监听失败通过缓存错误返回，前置失败阻止写入，后置失败保留已完成的写入。底层返回错误时只保留已经派发的前置事件。
+- 隔离基线 `4268ee1f4`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 对照验证事件顺序、标签载荷和批量清锁。MySQL 8.4.13 与两个 Redis 8.10.3 下通过 13 项缓存回归、3 项事件专项与真实 HTTP。Artisan 命令内核验证清理事件次序，实际二进制验证各清理命令，文档中的 Fake 断言在测试中执行。
+- Redis memo 的 2 项回归、变更文件格式、工作区严格 Clippy、VitePress 和 18 项三语浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理本批 3.6 GiB Cargo 产物和文档缓存后，磁盘可用 60.66 GB（56.49 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-events.XhhZSFxI`。

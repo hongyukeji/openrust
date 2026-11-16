@@ -122,3 +122,21 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
     manager.store(Some("failover"))?.get("status").await
 }
 ```
+
+## 快取事件 {#cache-events}
+
+透過應用程式事件分派器監聽 `CacheHit::NAME`、`KeyWritten::NAME` 和 `CacheLocksFlushed::NAME` 等事件。`openrust::cache::events` 中的事件帶有所選儲存名稱。讀寫事件提供呼叫端傳入的鍵和適用的有序標籤。批次讀取先分派 `RetrievingManyKeys`，再逐一分派命中或未命中事件。
+
+在 `config/cache.rs` 的個別儲存設定加上 `events: false` 可停用該儲存庫的事件。容錯移轉儲存庫預設停用，底層各儲存仍依自身設定分派。記憶化儲存庫存取底層時會分派事件，命中記憶化快照的重複讀取沒有額外事件。
+
+同步監聽器失敗時，操作會回傳錯誤。寫入前的監聽器失敗會阻止寫入，寫入後的監聽器失敗會保留已寫入的值。原子 `pull` 的讀取及刪除前置事件均在儲存操作前分派。
+
+測試快取命中時，先寫入 `reports/latest`，再透過已啟動的 `TestApp` 讀取並確認：
+
+```rust
+use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
+
+let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let _ = cache.get("reports/latest").await?;
+events.assertDispatched(CacheHit::NAME);
+```

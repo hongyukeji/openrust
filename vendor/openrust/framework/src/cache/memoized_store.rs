@@ -183,7 +183,7 @@ impl Store for MemoizedStore {
             match self.observe(key) {
                 Observation::Hit(value) => Ok(value),
                 Observation::Miss(stamp) => {
-                    Ok(self.record(key, stamp, self.backend().get(key).await?))
+                    Ok(self.record(key, stamp, self.repository.get(key).await?))
                 }
             }
         })
@@ -200,7 +200,7 @@ impl Store for MemoizedStore {
             let mut values = if missing.is_empty() {
                 Vec::new().into_iter()
             } else {
-                self.backend().many(&missing).await?.into_iter()
+                self.repository.many(&missing).await?.into_iter()
             };
             Ok(keys
                 .iter()
@@ -219,7 +219,7 @@ impl Store for MemoizedStore {
         value: &'a Value,
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(self.write(key, self.backend().put(key, value, seconds)))
+        Box::pin(self.write(key, self.repository.put_seconds(key, value, Some(seconds))))
     }
 
     fn put_many<'a>(
@@ -232,7 +232,7 @@ impl Store for MemoizedStore {
                 .iter()
                 .map(|(key, _)| self.begin_write(key))
                 .collect();
-            self.backend().put_many(values, seconds).await
+            self.repository.put_many_seconds(values, seconds).await
         })
     }
 
@@ -246,11 +246,11 @@ impl Store for MemoizedStore {
     }
 
     fn pull<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
-        Box::pin(self.write(key, self.backend().pull(key)))
+        Box::pin(self.write(key, self.repository.pull(key)))
     }
 
     fn forever<'a>(&'a self, key: &'a str, value: &'a Value) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(self.write(key, self.backend().forever(key, value)))
+        Box::pin(self.write(key, self.repository.forever(key, value)))
     }
 
     fn touch<'a>(
@@ -262,7 +262,7 @@ impl Store for MemoizedStore {
     }
 
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>> {
-        Box::pin(self.write(key, self.backend().forget(key)))
+        Box::pin(self.write(key, self.repository.forget(key)))
     }
 
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
@@ -276,7 +276,7 @@ impl Store for MemoizedStore {
     fn flush(&self) -> CacheFuture<'_, CacheResult<bool>> {
         Box::pin(async move {
             let _flush = self.begin_flush();
-            self.backend().flush().await
+            self.repository.flush().await
         })
     }
 

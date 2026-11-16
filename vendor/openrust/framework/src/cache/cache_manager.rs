@@ -149,6 +149,10 @@ impl CacheManager {
         {
             return Err(CacheError::UnsupportedDriver);
         }
+        let events = match config.get("events") {
+            None => config.get("driver").and_then(serde_json::Value::as_str) != Some("failover"),
+            Some(value) => value.as_bool().ok_or(CacheError::InvalidConfiguration)?,
+        };
         let options =
             serde_json::from_value(config).map_err(|_| CacheError::InvalidConfiguration)?;
         let store = match options {
@@ -215,7 +219,11 @@ impl CacheManager {
                 )?))
             }
         };
-        let store = Arc::new(store);
+        let store = Arc::new(if events {
+            store.with_events(self.inner.owner.clone(), name)
+        } else {
+            store
+        });
         stores.insert(name.to_owned(), Arc::clone(&store));
         Ok(store)
     }

@@ -42,6 +42,14 @@ impl Cache {
         Ok(Self::store(None)?.supportsTags())
     }
 
+    pub async fn many(keys: &[&str]) -> CacheResult<Vec<Option<Value>>> {
+        Self::store(None)?.many(keys).await
+    }
+
+    pub async fn putMany(values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
+        Self::store(None)?.putMany(values, ttl).await
+    }
+
     pub async fn get(key: &str) -> CacheResult<Option<Value>> {
         Self::store(None)?.get(key).await
     }

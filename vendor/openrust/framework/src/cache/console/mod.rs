@@ -1,14 +1,25 @@
 mod prune_stale_tags_command;
 
+use std::sync::Arc;
+
 use clap::{Arg, ArgAction};
 
 use crate::{
-    cache::Cache,
+    cache::{
+        Cache,
+        events::{CacheCleared, CacheClearing},
+    },
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::cache::Repository as _,
+    contracts::{
+        cache::Repository as _,
+        container::Container as _,
+        events::{Dispatcher as _, Event},
+        foundation::Application as _,
+    },
+    events::{Dispatcher, EventContext},
     foundation::Application,
 };
 
@@ -24,7 +35,7 @@ impl Command for CacheCommand {
 
     fn handle<'a>(
         &'a self,
-        _: &'a Application,
+        application: &'a Application,
         input: &'a Input,
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
@@ -46,8 +57,22 @@ impl Command for CacheCommand {
                     ));
                 }
             }
-            let store = Cache::store(input.get_one::<String>("store").map(String::as_str))
-                .map_err(console_error)?;
+            let name = input.get_one::<String>("store");
+            let dispatch = !self.forget && !locks;
+            let dispatcher = dispatch
+                .then(|| application.container().make::<Dispatcher>().ok())
+                .flatten();
+            if let Some(dispatcher) = &dispatcher {
+                notify(
+                    dispatcher,
+                    CacheClearing {
+                        storeName: name.cloned(),
+                        tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
+                    },
+                )
+                .await?;
+            }
+            let store = Cache::store(name.map(String::as_str)).map_err(console_error)?;
             let cleared = if self.forget {
                 let key = input.get_one::<String>("key").expect("required cache key");
                 store.forget(key).await
@@ -60,6 +85,16 @@ impl Command for CacheCommand {
             }
             .map_err(console_error)?;
             if cleared {
+                if let Some(dispatcher) = &dispatcher {
+                    notify(
+                        dispatcher,
+                        CacheCleared {
+                            storeName: name.cloned(),
+                            tags: tags.iter().map(|tag| (*tag).to_owned()).collect(),
+                        },
+                    )
+                    .await?;
+                }
                 output.info(if self.forget {
                     "The key has been removed from the cache."
                 } else if locks {
@@ -78,6 +113,14 @@ impl Command for CacheCommand {
             }
         })
     }
+}
+
+async fn notify(dispatcher: &Dispatcher, event: impl Event) -> Result<(), ConsoleError> {
+    dispatcher
+        .dispatch(Arc::new(event), &mut EventContext::new())
+        .await
+        .map_err(console_error)?;
+    Ok(())
 }
 
 fn console_error(error: impl std::fmt::Display) -> ConsoleError {

@@ -122,3 +122,21 @@ pub async fn cache_status(manager: &CacheManager) -> CacheResult<Option<Value>> 
     manager.store(Some("failover"))?.get("status").await
 }
 ```
+
+## Cache Events {#cache-events}
+
+Register listeners for cache events such as `CacheHit::NAME`, `KeyWritten::NAME` and `CacheLocksFlushed::NAME` through the application event dispatcher. Events in `openrust::cache::events` carry the selected store name. Read and write events expose the developer's key and ordered tags where applicable. Bulk reads dispatch `RetrievingManyKeys`, followed by a hit or miss for each requested key.
+
+Set `events: false` on an individual store in `config/cache.rs` to disable its repository events. Failover repositories default to disabled and still use the event settings of each backing store. Memoized repositories forward events when they access the backing store. Repeated reads served from the memoized snapshot don't produce another event.
+
+If a synchronous listener fails, the operation returns its error. An error from a listener before a write prevents the write. An error after the write leaves the stored value in place. For atomic `pull`, the retrieval and removal pre-events both run before the store operation.
+
+To assert a cache hit in a test, seed `reports/latest` and call the repository from a booted `TestApp`:
+
+```rust
+use openrust::{cache::events::CacheHit, contracts::cache::Repository as _};
+
+let events = app.fakeEvents(&[CacheHit::NAME]).await?;
+let _ = cache.get("reports/latest").await?;
+events.assertDispatched(CacheHit::NAME);
+```

@@ -1,29 +1,248 @@
 use std::{
     future::Future,
     num::NonZeroU64,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::{Duration, SystemTime},
 };
 
-use crate::contracts::cache::{Lock, LockProvider, Repository as Contract, Store};
+use crate::{
+    container::Container,
+    contracts::{
+        cache::{Lock, LockProvider, Repository as Contract, Store},
+        container::Container as _,
+        events::{Dispatcher as _, Event},
+    },
+    events::{Dispatcher, EventContext},
+};
 
-use super::{CacheError, CacheFuture, CacheResult, TaggedCache, Ttl, Value};
+use super::{CacheError, CacheFuture, CacheResult, TaggedCache, Ttl, Value, backend, events::*};
 
 /// Applies application-level semantics to a cache store.
-pub struct Repository(Arc<dyn Store>);
+pub struct Repository {
+    store: Arc<dyn Store>,
+    events: Option<RepositoryEvents>,
+}
+
+#[derive(Clone)]
+struct RepositoryEvents {
+    owner: Weak<Container>,
+    store_name: String,
+    tags: Vec<String>,
+}
+
+impl RepositoryEvents {
+    async fn emit<E: Event>(
+        &self,
+        event: impl FnOnce(Option<String>, Vec<String>) -> E,
+    ) -> CacheResult<()> {
+        let Some(dispatcher) = self
+            .owner
+            .upgrade()
+            .and_then(|owner| owner.make::<Dispatcher>().ok())
+        else {
+            return Ok(());
+        };
+        dispatcher
+            .dispatch(
+                Arc::new(event(Some(self.store_name.clone()), self.tags.clone())),
+                &mut EventContext::new(),
+            )
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+}
 
 #[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
 impl Repository {
     pub fn tags(&self, names: &[&str]) -> CacheResult<TaggedCache> {
-        Arc::clone(&self.0).tags(names)
+        let mut tagged = Arc::clone(&self.store).tags(names)?;
+        if let Some(events) = &self.events {
+            let mut events = events.clone();
+            events.tags = names.iter().map(|name| (*name).to_owned()).collect();
+            tagged.repository.events = Some(events);
+        }
+        Ok(tagged)
     }
 
     pub fn supportsTags(&self) -> bool {
-        self.0.supports_tags()
+        self.store.supports_tags()
     }
 
     pub fn new(store: Arc<dyn Store>) -> Self {
-        Self(store)
+        Self {
+            store,
+            events: None,
+        }
+    }
+
+    pub(super) fn with_events(mut self, owner: Weak<Container>, store_name: &str) -> Self {
+        self.events = Some(RepositoryEvents {
+            owner,
+            store_name: store_name.to_owned(),
+            tags: Vec::new(),
+        });
+        self
+    }
+
+    async fn emit<E: Event>(
+        &self,
+        event: impl FnOnce(Option<String>, Vec<String>) -> E,
+    ) -> CacheResult<()> {
+        if let Some(events) = &self.events {
+            events.emit(event).await?;
+        }
+        Ok(())
+    }
+
+    async fn retrieved(&self, key: &str, value: Option<&Value>) -> CacheResult<()> {
+        if let Some(value) = value.filter(|value| !value.is_null()) {
+            self.emit(|store_name, tags| CacheHit {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+                value: value.clone(),
+            })
+            .await
+        } else {
+            self.emit(|store_name, tags| CacheMissed {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await
+        }
+    }
+
+    async fn written(
+        &self,
+        key: &str,
+        value: &Value,
+        seconds: Option<u64>,
+        success: bool,
+    ) -> CacheResult<()> {
+        if success {
+            self.emit(|store_name, tags| KeyWritten {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+                value: value.clone(),
+                seconds,
+            })
+            .await
+        } else {
+            self.emit(|store_name, tags| KeyWriteFailed {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+                value: value.clone(),
+                seconds,
+            })
+            .await
+        }
+    }
+
+    async fn forgotten(&self, key: &str, success: bool) -> CacheResult<()> {
+        if success {
+            self.emit(|store_name, tags| KeyForgotten {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await
+        } else {
+            self.emit(|store_name, tags| KeyForgetFailed {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await
+        }
+    }
+
+    pub async fn many(&self, keys: &[&str]) -> CacheResult<Vec<Option<Value>>> {
+        self.emit(|store_name, tags| RetrievingManyKeys {
+            storeName: store_name,
+            tags,
+            key: keys.first().copied().unwrap_or_default().into(),
+            keys: keys.iter().map(|key| (*key).to_owned()).collect(),
+        })
+        .await?;
+        let values = self.store.many(keys).await?;
+        for (key, value) in keys.iter().zip(&values) {
+            self.retrieved(key, value.as_ref()).await?;
+        }
+        Ok(values)
+    }
+
+    pub async fn putMany(&self, values: &[(String, Value)], ttl: Option<Ttl>) -> CacheResult<bool> {
+        match ttl {
+            Some(ttl) => match seconds(ttl) {
+                Some(seconds) => self.put_many_seconds(values, seconds).await,
+                None => {
+                    let mut forgotten = true;
+                    for (key, _) in values {
+                        forgotten &= self.forget(key).await?;
+                    }
+                    Ok(forgotten)
+                }
+            },
+            None => {
+                let mut written = true;
+                for (key, value) in values {
+                    written &= self.forever(key, value).await?;
+                }
+                Ok(written)
+            }
+        }
+    }
+
+    pub(super) async fn put_seconds(
+        &self,
+        key: &str,
+        value: &Value,
+        seconds: Option<NonZeroU64>,
+    ) -> CacheResult<bool> {
+        self.emit(|store_name, tags| WritingKey {
+            storeName: store_name,
+            key: key.into(),
+            tags,
+            value: value.clone(),
+            seconds: seconds.map(NonZeroU64::get),
+        })
+        .await?;
+        let result = match seconds {
+            Some(seconds) => self.store.put(key, value, seconds).await?,
+            None => self.store.forever(key, value).await?,
+        };
+        self.written(key, value, seconds.map(NonZeroU64::get), result)
+            .await?;
+        Ok(result)
+    }
+
+    pub(super) async fn put_many_seconds(
+        &self,
+        entries: &[(String, Value)],
+        seconds: NonZeroU64,
+    ) -> CacheResult<bool> {
+        self.emit(|store_name, tags| WritingManyKeys {
+            storeName: store_name,
+            tags,
+            key: entries
+                .first()
+                .map(|(key, _)| key.clone())
+                .unwrap_or_default(),
+            keys: entries.iter().map(|(key, _)| key.clone()).collect(),
+            values: entries.iter().map(|(_, value)| value.clone()).collect(),
+            seconds: Some(seconds.get()),
+        })
+        .await?;
+        let result = self.store.put_many(entries, seconds).await?;
+        for (key, value) in entries {
+            self.written(key, value, Some(seconds.get()), result)
+                .await?;
+        }
+        Ok(result)
     }
 
     pub async fn has(&self, key: &str) -> CacheResult<bool> {
@@ -49,25 +268,70 @@ impl Repository {
     }
 
     pub fn supportsFlushingLocks(&self) -> bool {
-        self.0.lock_flusher().is_some()
+        self.store.lock_flusher().is_some()
     }
 
     pub async fn flushLocks(&self) -> CacheResult<bool> {
-        self.0
+        let store = self
+            .store
             .lock_flusher()
-            .ok_or(CacheError::LockFlushUnsupported)?
-            .flushLocks()
-            .await
+            .ok_or(CacheError::LockFlushUnsupported)?;
+        self.emit(|store_name, _| CacheLocksFlushing {
+            storeName: store_name,
+        })
+        .await?;
+        let result = store.flushLocks().await?;
+        if result {
+            self.emit(|store_name, _| CacheLocksFlushed {
+                storeName: store_name,
+            })
+            .await?;
+        } else {
+            self.emit(|store_name, _| CacheLocksFlushFailed {
+                storeName: store_name,
+            })
+            .await?;
+        }
+        Ok(result)
     }
 
     pub async fn flush(&self) -> CacheResult<bool> {
-        self.0.flush().await
+        self.emit(|store_name, tags| CacheFlushing {
+            storeName: store_name,
+            tags,
+        })
+        .await?;
+        let result = self.store.flush().await?;
+        if result {
+            self.emit(|store_name, tags| CacheFlushed {
+                storeName: store_name,
+                tags,
+            })
+            .await?;
+        } else {
+            self.emit(|store_name, tags| CacheFlushFailed {
+                storeName: store_name,
+                tags,
+            })
+            .await?;
+        }
+        Ok(result)
     }
 }
 
 impl Contract for Repository {
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
-        self.0.get(key)
+        Box::pin(async move {
+            self.emit(|store_name, tags| RetrievingKey {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await?;
+            let value = self.store.get(key).await?;
+            self.retrieved(key, value.as_ref()).await?;
+            Ok(value)
+        })
     }
 
     fn put<'a>(
@@ -77,10 +341,10 @@ impl Contract for Repository {
         ttl: Option<Ttl>,
     ) -> CacheFuture<'a, CacheResult<bool>> {
         match ttl {
-            None => self.0.forever(key, value),
+            None => self.forever(key, value),
             Some(ttl) => match seconds(ttl) {
-                Some(seconds) => self.0.put(key, value, seconds),
-                None => self.0.forget(key),
+                Some(seconds) => Box::pin(self.put_seconds(key, value, Some(seconds))),
+                None => self.forget(key),
             },
         }
     }
@@ -92,43 +356,70 @@ impl Contract for Repository {
         ttl: Option<Ttl>,
     ) -> CacheFuture<'a, CacheResult<bool>> {
         match ttl {
-            None => self.0.add(key, value, None),
+            None => self.store.add(key, value, None),
             Some(ttl) => match seconds(ttl) {
-                Some(seconds) => self.0.add(key, value, Some(seconds)),
+                Some(seconds) => self.store.add(key, value, Some(seconds)),
                 None => Box::pin(async { Ok(false) }),
             },
         }
     }
 
     fn forever<'a>(&'a self, key: &'a str, value: &'a Value) -> CacheFuture<'a, CacheResult<bool>> {
-        self.0.forever(key, value)
+        Box::pin(self.put_seconds(key, value, None))
     }
 
     fn touch<'a>(&'a self, key: &'a str, ttl: Ttl) -> CacheFuture<'a, CacheResult<bool>> {
         match seconds(ttl) {
-            Some(seconds) => self.0.touch(key, seconds),
-            None => self.0.forget(key),
+            Some(seconds) => self.store.touch(key, seconds),
+            None => self.forget(key),
         }
     }
 
     fn pull<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
-        self.0.pull(key)
+        Box::pin(async move {
+            self.emit(|store_name, tags| RetrievingKey {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await?;
+            self.emit(|store_name, tags| ForgettingKey {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await?;
+            let value = self.store.pull(key).await?;
+            self.retrieved(key, value.as_ref()).await?;
+            self.forgotten(key, value.is_some()).await?;
+            Ok(value)
+        })
     }
 
     fn forget<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<bool>> {
-        self.0.forget(key)
+        Box::pin(async move {
+            self.emit(|store_name, tags| ForgettingKey {
+                storeName: store_name,
+                key: key.into(),
+                tags,
+            })
+            .await?;
+            let result = self.store.forget(key).await?;
+            self.forgotten(key, result).await?;
+            Ok(result)
+        })
     }
 
     fn increment<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        self.0.increment(key, amount)
+        self.store.increment(key, amount)
     }
 
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>> {
-        self.0.decrement(key, amount)
+        self.store.decrement(key, amount)
     }
 
     fn get_store(&self) -> &dyn Store {
-        self.0.as_ref()
+        self.store.as_ref()
     }
 }
 
@@ -139,14 +430,14 @@ impl LockProvider for Repository {
         lease: Option<Duration>,
         owner: Option<&str>,
     ) -> CacheResult<Box<dyn Lock>> {
-        self.0
+        self.store
             .lock_provider()
             .ok_or(CacheError::LocksUnsupported)?
             .lock(name, lease, owner)
     }
 
     fn restore_lock(&self, name: &str, owner: &str) -> CacheResult<Box<dyn Lock>> {
-        self.0
+        self.store
             .lock_provider()
             .ok_or(CacheError::LocksUnsupported)?
             .restore_lock(name, owner)
