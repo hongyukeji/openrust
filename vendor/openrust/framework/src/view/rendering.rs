@@ -8,7 +8,7 @@ use std::{
 
 use super::{
     Factory, FragmentSelection, ViewData, ViewError, ViewResult, ViewValue,
-    compilers::BladeExtensions,
+    compilers::BladeExtensions, component::ResolvedComponent,
 };
 
 /// State owned by one render tree. A layout inherits sections from its child.
@@ -250,21 +250,33 @@ impl<'a> RenderContext<'a> {
         name: &str,
         properties: Arc<ViewData>,
         slots: HashMap<String, RenderSlot>,
+        resolved: Option<ResolvedComponent>,
     ) -> ViewResult<String> {
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
         nested.component_attributes = Some((*properties).clone());
         nested.component_data.push(properties.clone());
-        factory.render_component(name, &properties, &mut nested)
+        factory.render_component(name, &properties, resolved, &mut nested)
     }
 
-    fn nested(&self) -> ViewResult<(&'a Factory, Self)> {
+    pub(super) fn resolve_component(
+        &self,
+        name: &str,
+        properties: &ViewData,
+    ) -> ViewResult<Option<ResolvedComponent>> {
+        self.nested_factory()?.resolve_component(name, properties)
+    }
+
+    fn nested_factory(&self) -> ViewResult<&'a Factory> {
         if self.depth >= 64 {
             return Err(render_error("Blade views are nested too deeply."));
         }
-        let factory = self
-            .factory
-            .ok_or_else(|| render_error("Nested views require a view factory."))?;
+        self.factory
+            .ok_or_else(|| render_error("Nested views require a view factory."))
+    }
+
+    fn nested(&self) -> ViewResult<(&'a Factory, Self)> {
+        let factory = self.nested_factory()?;
         Ok((
             factory,
             Self {

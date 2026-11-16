@@ -348,6 +348,27 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         }
     }
 
+    struct ScopedPanel {
+        caption: String,
+        render_id: usize,
+    }
+
+    impl Component for ScopedPanel {
+        fn data(&self) -> ViewData {
+            ViewData::from_iter([
+                ("caption".into(), self.caption.clone().into()),
+                ("renderId".into(), self.render_id.into()),
+            ])
+        }
+
+        fn render(&self) -> ViewResult<ComponentOutput> {
+            Ok(ComponentOutput::InlineTemplate(
+                "<article>{{ $caption }}#{{ $renderId }}:{{ $heading }}:{{ $slot }}</article>"
+                    .to_owned(),
+            ))
+        }
+    }
+
     fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<String> {
         let mut view = factory.make("contract_card", ViewData::new(), ViewData::new())?;
         view.with("title", "<card>".into());
@@ -464,6 +485,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/switch", || view("switch_cases"))?;
                 Route::get("/bad-switch", || view("bad_switch"))?;
                 Route::get("/aware", || view("aware_page").with("color", "<blue>"))?;
+                Route::get("/scoped-slot", || {
+                    view("scoped_slot").with("component", "outside")
+                })?;
                 Route::get("/javascript", || {
                     let text = "</script><b>'&\"\n\u{2028}";
                     view("javascript")
@@ -498,6 +522,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             }),
         );
         factory.component("badge", |_| Ok(Badge));
+        let renders = std::sync::atomic::AtomicUsize::new(0);
+        factory.component("scoped-panel", move |_| {
+            Ok(ScopedPanel {
+                caption: format!("<{app}>"),
+                render_id: renders.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
+            })
+        });
         let openrust::view::engines::Engine::Blade(engine) =
             factory.getEngineResolver().resolve("blade").unwrap()
         else {
@@ -785,6 +816,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_switch", "@switch(0)@default x@default y@endswitch"),
         (
+            "scoped_slot",
+            concat!(
+                "<x-scoped-panel><x-slot:heading>{{ $component->caption }}</x-slot:heading>",
+                "{{ $component->renderId }}</x-scoped-panel>|{{ $component }}",
+            ),
+        ),
+        (
             "javascript",
             concat!(
                 "<script>const text = {{ Js::from($text) }};",
@@ -957,6 +995,16 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "twothree| good1|truefalse|Ready/no sidebar"
     );
     assert!(send(first, "/bad-switch", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/scoped-slot", 200),
+        send(second, "/scoped-slot", 200)
+    );
+    assert_eq!(a, "<article>&lt;A&gt;#1:&lt;A&gt;:1</article>|outside");
+    assert_eq!(b, "<article>&lt;B&gt;#1:&lt;B&gt;:1</article>|outside");
+    assert_eq!(
+        send(first, "/scoped-slot", 200).await,
+        "<article>&lt;A&gt;#2:&lt;A&gt;:2</article>|outside"
+    );
     let html = send(first, "/javascript", 200).await;
     assert_eq!(html.matches("</script>").count(), 1);
     assert!(html.contains(

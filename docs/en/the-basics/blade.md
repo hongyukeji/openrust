@@ -135,6 +135,16 @@ Put `@props` at the start of the component template. The list can contain prop n
 
 Render `{{ $attributes }}` to emit the bag. `merge` adds defaults and preserves caller values for ordinary attributes. `class` and `style` combine their default and caller text. HTML attribute values are escaped. Null and false are omitted.
 
+#### Scoped Slots {#scoped-slots}
+
+A registered Rust component can expose view values through `Component::data`. A slot reads those values through `$component`, and the component template reads the same values as ordinary variables. Compute values from component methods in Rust before returning them.
+
+```html
+<x-scoped-panel>
+    <x-slot:heading>{{ $component->caption }}</x-slot:heading>
+</x-scoped-panel>
+```
+
 ### Accessing Parent Component Data {#component-parent-data}
 
 Declare `@aware` at the start of the child template, alongside `@props`. The nearest component's explicitly passed value wins. A default defined only by the parent's `@props` stays local to that parent.

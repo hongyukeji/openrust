@@ -1452,12 +1452,20 @@ fn render_nodes<'a>(
                         })
                         .collect::<ViewData>(),
                 );
+                let component = context.resolve_component(name, &properties)?;
+                let scope = component
+                    .as_ref()
+                    .map(|component| ViewValue::Object(component.data.clone()));
+                let mut slot_bindings = bindings.to_vec();
+                if let Some(scope) = &scope {
+                    slot_bindings.push(("component", scope));
+                }
                 let mut rendered = std::collections::HashMap::new();
                 let jump = context.with_component_data(
                     properties.clone(),
                     |context| -> ViewResult<Option<Jump>> {
                         let mut default = String::new();
-                        render_block!(body, data, bindings, &mut default, context);
+                        render_block!(body, data, &slot_bindings, &mut default, context);
                         rendered.insert(
                             "slot".to_owned(),
                             RenderSlot {
@@ -1466,16 +1474,19 @@ fn render_nodes<'a>(
                             },
                         );
                         for slot in slots {
-                            let name = slot_name(value(&slot.name, data, bindings))?;
+                            let name = slot_name(value(&slot.name, data, &slot_bindings))?;
                             let attributes = slot
                                 .attributes
                                 .iter()
                                 .map(|(name, expression)| {
-                                    (name.clone(), value(expression, data, bindings).clone())
+                                    (
+                                        name.clone(),
+                                        value(expression, data, &slot_bindings).clone(),
+                                    )
                                 })
                                 .collect();
                             let mut html = String::new();
-                            render_block!(&slot.body, data, bindings, &mut html, context);
+                            render_block!(&slot.body, data, &slot_bindings, &mut html, context);
                             rendered.insert(
                                 name,
                                 RenderSlot {
@@ -1490,7 +1501,7 @@ fn render_nodes<'a>(
                 if jump.is_some() {
                     return Ok(jump);
                 }
-                output.push_str(&context.component(name, properties, rendered)?);
+                output.push_str(&context.component(name, properties, rendered, component)?);
             }
             Node::Slot(_) => return Err(render_error("Blade named slots require a component.")),
         }

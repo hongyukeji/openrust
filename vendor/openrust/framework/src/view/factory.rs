@@ -13,8 +13,8 @@ use crate::contracts::view::{
 
 use super::{
     Component, ComponentOutput, FileViewFinder, View, ViewBinding, ViewData, ViewError, ViewFinder,
-    ViewResult, ViewValue, compilers::BladeCompiler, engines::EngineResolver,
-    file_view_finder::ViewSource, rendering::RenderContext,
+    ViewResult, ViewValue, compilers::BladeCompiler, component::ResolvedComponent,
+    engines::EngineResolver, file_view_finder::ViewSource, rendering::RenderContext,
 };
 
 /// Creates named views from the application's finder and engines.
@@ -31,7 +31,7 @@ enum ResolvedSource<'a> {
     Embedded { name: &'a str, source: &'static str },
 }
 
-type ComponentRenderer = Arc<dyn Fn(&ViewData) -> ViewResult<ComponentOutput> + Send + Sync>;
+type ComponentResolver = Arc<dyn Fn(&ViewData) -> ViewResult<ResolvedComponent> + Send + Sync>;
 
 type ViewCallback = Arc<dyn Fn(&mut View) -> ViewResult<()> + Send + Sync>;
 
@@ -40,7 +40,7 @@ struct ViewEvents {
     shared: ViewData,
     creators: Vec<(String, ViewCallback)>,
     composers: Vec<(String, ViewCallback)>,
-    components: HashMap<String, ComponentRenderer>,
+    components: HashMap<String, ComponentResolver>,
 }
 
 impl Factory {
@@ -148,32 +148,50 @@ impl Factory {
         name: impl Into<String>,
         resolve: impl Fn(&ViewData) -> ViewResult<C> + Send + Sync + 'static,
     ) {
-        self.events
-            .write()
-            .unwrap()
-            .components
-            .insert(name.into(), Arc::new(move |data| resolve(data)?.render()));
+        self.events.write().unwrap().components.insert(
+            name.into(),
+            Arc::new(move |data| {
+                let component = resolve(data)?;
+                let output = component.render()?;
+                Ok(ResolvedComponent {
+                    output,
+                    data: component.data(),
+                })
+            }),
+        );
+    }
+
+    pub(super) fn resolve_component(
+        &self,
+        name: &str,
+        properties: &ViewData,
+    ) -> ViewResult<Option<ResolvedComponent>> {
+        let resolver = self.events.read().unwrap().components.get(name).cloned();
+        resolver.map(|resolver| resolver(properties)).transpose()
     }
 
     pub(super) fn render_component(
         &self,
         name: &str,
         properties: &ViewData,
+        component: Option<ResolvedComponent>,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        let component = self.events.read().unwrap().components.get(name).cloned();
         match component {
-            Some(component) => match component(properties)? {
-                ComponentOutput::View(mut view) => {
-                    let mut data = properties.clone();
-                    data.extend(std::mem::take(&mut view.data));
-                    view.data = data;
-                    self.render_view(view, context)
+            Some(component) => {
+                let mut data = properties.clone();
+                data.extend(component.data);
+                match component.output {
+                    ComponentOutput::View(mut view) => {
+                        data.extend(std::mem::take(&mut view.data));
+                        view.data = data;
+                        self.render_view(view, context)
+                    }
+                    ComponentOutput::InlineTemplate(source) => {
+                        self.compiler().render_inline(name, &source, &data, context)
+                    }
                 }
-                ComponentOutput::InlineTemplate(source) => self
-                    .compiler()
-                    .render_inline(name, &source, properties, context),
-            },
+            }
             None => {
                 let (base, name) = if let Some((namespace, name)) = name.split_once("::") {
                     (format!("{namespace}::components.{name}"), name)

@@ -81,3 +81,8 @@
 
 - 对照固定 [ManagesComponents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesComponents.php) 和 `CompilesComponents::compileAware`。Rust 在组件体与插槽渲染阶段维护显式属性的作用域。模板开头的 `@aware` 保存声明顺序并读取最近一层值，父组件内部的 `@props` 默认值留在该模板。旧版无此 Blade 指令。
 - macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证默认和具名插槽内的继承、组件模板中的子组件、最近值、父默认值的作用域、回退和转义。隔离副本通过全工作区格式与严格 Clippy。实际 Artisan 缓存和清理三语示例，三语构建与 12 项浏览器组合通过。
+
+## 作用域插槽
+
+- 对照固定 [类组件编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesComponents.php) 和 Blade Scoped Slots 章节。Rust 先解析一次已注册组件并收集 `Component::data`，默认与具名槽通过 `$component` 读取该数据，组件本体通过普通变量读取。运行时方法发现对应 Rust 中的显式数据计算，已有组件使用默认空数据。旧版 MiniJinja 无对应类组件插槽。
+- macOS ARM64、Rust 1.94.0。8 项定向测试通过。真实 HTTP 验证两应用隔离、组件实例序号、默认与具名槽、外部变量恢复及转义。隔离副本通过工作区格式与严格 Clippy，实际 Artisan 缓存和清理三语示例，三语构建与 12 项浏览器组合通过。

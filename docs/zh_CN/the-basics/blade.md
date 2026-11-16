@@ -135,6 +135,16 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 使用 `{{ $attributes }}` 输出属性包。`merge` 添加默认值，普通属性以调用方的值为准，`class` 和 `style` 合并默认值与调用方的文本。HTML 属性值会转义，null 和 false 会省略。
 
+#### 作用域插槽 {#scoped-slots}
+
+已注册的 Rust 组件可通过 `Component::data` 提供视图值。插槽通过 `$component` 读取这些值，组件模板通过普通变量读取同一份数据。组件方法的结果在 Rust 中计算后传入。
+
+```html
+<x-scoped-panel>
+    <x-slot:heading>{{ $component->caption }}</x-slot:heading>
+</x-scoped-panel>
+```
+
 ### 读取父组件数据 {#component-parent-data}
 
 在子组件模板开头使用 `@aware`，可与 `@props` 一起声明。最近一层组件显式传入的值优先。父组件通过 `@props` 声明的默认值只用于该父组件。

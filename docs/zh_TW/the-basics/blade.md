@@ -135,6 +135,16 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 使用 `{{ $attributes }}` 輸出屬性袋。`merge` 提供預設值，一般屬性以呼叫端的值為準，`class` 和 `style` 合併預設值與呼叫端的文字。HTML 屬性值會跳脫，null 和 false 會省略。
 
+#### 作用域插槽 {#scoped-slots}
+
+已註冊的 Rust 元件可透過 `Component::data` 提供視圖值。插槽透過 `$component` 讀取這些值，元件範本透過一般變數讀取同一份資料。元件方法的結果在 Rust 中計算後傳入。
+
+```html
+<x-scoped-panel>
+    <x-slot:heading>{{ $component->caption }}</x-slot:heading>
+</x-scoped-panel>
+```
+
 ### 讀取父元件資料 {#component-parent-data}
 
 在子元件範本開頭使用 `@aware`，可與 `@props` 一起宣告。最近一層元件明確傳入的值優先。父元件透過 `@props` 宣告的預設值只用於該父元件。
