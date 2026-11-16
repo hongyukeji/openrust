@@ -44,15 +44,6 @@
 
 从仓库根目录执行。使用独立测试库，测试会建表、删表和写入数据。先用测试账号连接与测试 URL 相同的主机、端口及库名，执行 `SELECT VERSION()`，确认实际连接的是 MySQL 8.4.x，再运行测试。
 
-需要临时 Docker 实例时，从仓库根目录执行以下命令。入口创建本次独立的 MySQL 8.4 容器和数据卷，待数据库就绪后通过 `OPENRUST_TEST_MYSQL_URL` 传递连接地址，并在测试结束后回收容器和卷。
-
-```sh
-python3 docker/accept.py --mysql -- cargo +1.94.0 test --locked \
-  -p openrust-framework --test database_query query_builder_runs_on_mysql_8_4 -- --exact
-```
-
-使用已有测试实例时，可手动验证并设置连接地址。
-
 ```sh
 mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u acceptance -p openrust_acceptance \
   --batch --skip-column-names -e 'SELECT VERSION()'
@@ -82,28 +73,6 @@ cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships 
 可先执行 `cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships -- --list` 核对完整测试名。用 `-p`、`--test` 和 `--exact` 定位到指定测试，并确认输出实际执行且通过了预期用例。日常验收避开无筛选的 `cargo test --workspace --locked`，该命令会运行工作区的 SQLite 等数据库测试。
 
 `--exact` 只筛选测试函数。执行前核对函数及其辅助夹具实际使用的驱动。`relationship_keys_and_query_counts_on_mysql` 的连接隔离夹具也使用独立的 MySQL 连接。遇到其他在单个函数内混跑多数据库的用例，先拆出独立的 MySQL 用例，或让夹具随本用例选择驱动，再精确执行。仍混用多数据库的用例统一留到发布前验收。
-
-### 临时 Docker 验收
-
-Reverb 的跨进程、集群及 Redis 重启测试使用同批的临时 MySQL 和 Redis。先用 `cargo +1.94.0 build --locked --features reverb --bin main` 构建测试二进制，并在 Python 环境安装 `websockets`，再从仓库根目录执行。可通过 `REVERB_TEST_BINARY` 指定测试二进制。
-
-```sh
-python3 docker/accept.py --mysql --redis -- python3 tests/reverb_runtime.py
-```
-
-直接运行 Reverb 脚本时，仍可通过 `REVERB_TEST_MYSQL_URL` 和 `REVERB_TEST_REDIS_URL` 接入独立的现有测试服务。Redis 重启用例只对验收入口创建并标记的本批 Redis 容器执行。旧的 `REVERB_TEST_RESTART_REDIS_CONTAINER` 参数须取消设置。
-
-本地临时构建从仓库根目录经 [Docker 验收入口](../../docker/accept.py) 执行，使用本次专属的 Buildx `docker-container` builder。入口需要 macOS 或 Linux 上的 Python 3、Docker 和 Buildx。前台命令沿用入口提供的 Docker 上下文和 builder。下例中的 Dockerfile 和上下文使用本次实际验收目录。
-
-```sh
-python3 docker/accept.py -- docker buildx build \
-  --output type=local,dest=./tmp/docker-output ./tmp/ubuntu-acceptance
-```
-
-- 只需二进制时直接导出到指定目录。需要运行临时镜像时，在入口的前台命令中用 `docker buildx build --load --tag "$OPENRUST_ACCEPTANCE_IMAGE" --label "$OPENRUST_ACCEPTANCE_LABEL" ...`，用 `docker run --label "$OPENRUST_ACCEPTANCE_LABEL" ...` 标记本次验收容器。Compose 沿用入口提供的 `COMPOSE_PROJECT_NAME`，将临时镜像显式设为同一标签和名称。等待所有验收命令结束再退出入口。
-- 成功、命令失败或收到 Ctrl+C、TERM、HUP 时，入口回收本次附属 BuildKit 缓存及匹配的临时镜像、容器、测试卷和 Compose 网络。自行创建的一次性卷用 `docker volume create --label "$OPENRUST_ACCEPTANCE_LABEL" "$OPENRUST_ACCEPTANCE_RUN-data"` 创建，再显式挂到容器的数据路径。仅为本次验收新建的一次性卷添加该标签，现有卷、匿名卷和 bind mount 保留。验收日志和导出产物放在调用方指定位置。
-- 强制杀进程或 Docker 暂时失联后，下次启动使用本机登记和运行锁复查同一 Docker 守护进程。只有锁已释放、没有运行中的验收容器、BuildKit 无在途记录或正在使用的缓存时，才回收对应遗留。仍在用或无法确认状态的记录保留并留待复查。登记位于 `${XDG_STATE_HOME:-$HOME/.local/state}/openrust/docker-acceptance/`。
-- 收尾记录本次验收编号、各项结果和可核实的占用变化。全局 Docker 清理命令会涉及共享资源，本流程使用本次资源的精确归属清理。见[实测记录](audits/docker-acceptance.md)。
 
 ## 持续开发交接
 

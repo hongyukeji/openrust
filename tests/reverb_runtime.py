@@ -182,19 +182,7 @@ async def client_event(peer, channel, event):
     }))
 
 
-def restart_managed_redis(container):
-    run = os.environ["OPENRUST_ACCEPTANCE_RUN"]
-    container_id, name, label = subprocess.check_output(
-        ["docker", "inspect", "--type", "container", "--format",
-         '{{.Id}}|{{.Name}}|{{index .Config.Labels "io.openrust.acceptance.run"}}', container],
-        text=True, timeout=15,
-    ).rstrip("\n").split("|", 2)
-    if name != f"/{run}-redis" or label != run:
-        raise RuntimeError("Redis restart requires the current acceptance run's fixture")
-    subprocess.run(["docker", "restart", container_id], check=True, capture_output=True, timeout=15)
-
-
-async def verify_cluster(base, redis_url, mysql_url, redis_container=None):
+async def verify_cluster(base, redis_url, mysql_url):
     prefix = uuid.uuid4().hex
     common = dict(os.environ, APP_HOST="127.0.0.1", CACHE_STORE="file",
                   DB_CONNECTION="mysql", DB_URL=mysql_url,
@@ -300,8 +288,8 @@ async def verify_cluster(base, redis_url, mysql_url, redis_container=None):
             assert (await frame(second, "pusher_internal:member_added"))[1]["user_id"] == "carol"
             await quiet(second, other)
 
-            if redis_container:
-                restart_managed_redis(redis_container)
+            if redis_container := os.environ.get("REVERB_TEST_RESTART_REDIS_CONTAINER"):
+                subprocess.run(["docker", "restart", redis_container], check=True, capture_output=True, timeout=15)
                 await asyncio.gather(*(asyncio.wait_for(peer.wait_closed(), 10) for peer in (fresh, second, other)))
                 loop = asyncio.get_running_loop()
                 deadline = loop.time() + 16
@@ -340,16 +328,9 @@ async def verify_cluster(base, redis_url, mysql_url, redis_container=None):
 
 
 if __name__ == "__main__":
-    if os.environ.get("REVERB_TEST_RESTART_REDIS_CONTAINER"):
-        raise SystemExit("For the Redis restart test, unset REVERB_TEST_RESTART_REDIS_CONTAINER "
-                         "and run docker/accept.py --mysql --redis -- python3 tests/reverb_runtime.py")
-    managed_redis = os.environ.get("OPENRUST_ACCEPTANCE_REDIS_URL")
-    redis_url = managed_redis or os.environ.get("REVERB_TEST_REDIS_URL")
-    mysql_url = os.environ.get("OPENRUST_ACCEPTANCE_MYSQL_URL") or os.environ.get("REVERB_TEST_MYSQL_URL")
     with tempfile.TemporaryDirectory(prefix="openrust-reverb-") as directory:
         asyncio.run(verify(Path(directory)))
-        if redis_url:
+        if redis_url := os.environ.get("REVERB_TEST_REDIS_URL"):
             asyncio.run(verify_redis(Path(directory), redis_url))
-            if mysql_url:
-                redis_container = os.environ["OPENRUST_ACCEPTANCE_REDIS_CONTAINER"] if managed_redis else None
-                asyncio.run(verify_cluster(Path(directory), redis_url, mysql_url, redis_container))
+            if mysql_url := os.environ.get("REVERB_TEST_MYSQL_URL"):
+                asyncio.run(verify_cluster(Path(directory), redis_url, mysql_url))

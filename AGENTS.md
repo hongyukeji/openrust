@@ -6,5 +6,3 @@
 - 应用代码放在根应用的对应目录，框架源码放在 `vendor/openrust/framework/`。测试代码放在所属应用或 crate 的 `tests/` 目录。
 - 按[文档规范](.agents/project/conventions.md#文档规范)维护三语文档，示例随功能验收。
 - 按[验收清单](.agents/project/conventions.md#验收清单)运行与改动相符的检查并记录结果。暂存、提交和推送遵循用户的当次授权。
-- 新建临时 MySQL 8.4 或 Redis 8 实例时使用 [Docker 验收入口](docker/accept.py) 的 `--mysql` 或 `--redis` 模式，由入口回收本批容器和测试卷。两项可以一起使用。
-- 表目录和限定 Schema 清库复验使用 `sh tests/table_catalog.sh`，跨库权限只授予本批临时 MySQL 实例内的测试账号。
