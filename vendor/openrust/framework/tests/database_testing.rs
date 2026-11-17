@@ -10,6 +10,7 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
         DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        events::{MigrationStarted, QueryExecuted, TransactionBeginning},
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
         seeder::{Seeder, SeederContext, SeederEntry, SeederRegistry},
@@ -74,6 +75,35 @@ struct InventoryProvider;
 
 struct RefreshSeeder;
 
+struct MigrationEventProbe;
+
+static PAUSE_MIGRATION_EVENT_PROBE: AtomicBool = AtomicBool::new(false);
+static MIGRATION_EVENT_PROBE_STARTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+static RESUME_MIGRATION_EVENT_PROBE: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+impl Seeder for MigrationEventProbe {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let mut transaction = context.connection().beginTransaction().await?;
+            transaction
+                .select("SELECT 701 AS selected_probe", &[])
+                .await?;
+            transaction.rollBack(None).await?;
+            if PAUSE_MIGRATION_EVENT_PROBE.swap(false, Ordering::Relaxed) {
+                MIGRATION_EVENT_PROBE_STARTED.notify_one();
+                RESUME_MIGRATION_EVENT_PROBE.notified().await;
+            }
+            DB::connection(Some("reports"))?
+                .select("SELECT 702 AS other_probe", &[])
+                .await?;
+            Ok(())
+        })
+    }
+}
+
 static REFRESH_RUNS: AtomicUsize = AtomicUsize::new(0);
 static PAUSE_REFRESH_SEEDER: AtomicBool = AtomicBool::new(false);
 static REFRESH_SEEDER_STARTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
@@ -110,6 +140,7 @@ impl ServiceProvider for InventoryProvider {
             static SEEDERS: &[SeederEntry] = &[
                 SeederEntry::new("DatabaseSeeder", &SeedItems),
                 SeederEntry::new("RefreshSeeder", &RefreshSeeder),
+                SeederEntry::new("MigrationEventProbe", &MigrationEventProbe),
             ];
             app.container()
                 .instance(Arc::new(MigrationRegistry(MIGRATIONS)))?;
@@ -118,6 +149,100 @@ impl ServiceProvider for InventoryProvider {
             Ok(())
         })
     }
+}
+
+#[tokio::test]
+async fn mysql_refresh_mutes_only_selected_connection_events_during_preparation()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut app = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+        builder.withProviders(vec![Box::new(InventoryProvider)])
+    })
+    .await?;
+    let events = app
+        .fakeEvents(&[
+            QueryExecuted::NAME,
+            TransactionBeginning::NAME,
+            MigrationStarted::NAME,
+        ])
+        .await?;
+    let db = app.database().await?;
+    db.enableQueryLog();
+    let recorded = |sql: &str| {
+        events.dispatched(QueryExecuted::NAME).iter().any(|event| {
+            event
+                .downcast_ref::<QueryExecuted>()
+                .is_some_and(|query| query.sql == sql)
+        })
+    };
+    let options = RefreshDatabaseOptions {
+        without_migration_events: true,
+        seeder: Some("MigrationEventProbe".into()),
+        ..Default::default()
+    };
+    PAUSE_MIGRATION_EVENT_PROBE.store(true, Ordering::Relaxed);
+    let refresh = app.refreshDatabase(options.clone(), |app| {
+        Box::pin(async {
+            app.database()
+                .await?
+                .select("SELECT 703 AS callback_probe", &[])
+                .await?;
+            Ok(())
+        })
+    });
+    let observe = async {
+        let ready = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            MIGRATION_EVENT_PROBE_STARTED.notified(),
+        )
+        .await;
+        let result = if ready.is_ok() {
+            db.select("SELECT 705 AS concurrent_probe", &[]).await
+        } else {
+            Err(DatabaseError::InvalidConfiguration(
+                "migration event probe did not reach its pause",
+            ))
+        };
+        RESUME_MIGRATION_EVENT_PROBE.notify_one();
+        result
+    };
+    let (refresh, concurrent) = tokio::join!(refresh, observe);
+    refresh?;
+    concurrent?;
+    assert!(!recorded("SELECT 1"));
+    assert!(!recorded("SELECT 701 AS selected_probe"));
+    assert!(recorded("SELECT 702 AS other_probe"));
+    assert!(recorded("SELECT 703 AS callback_probe"));
+    assert!(recorded("SELECT 705 AS concurrent_probe"));
+    assert!(
+        db.getQueryLog()
+            .iter()
+            .any(|entry| entry.query == "SELECT 701 AS selected_probe")
+    );
+    assert!(events.dispatched(TransactionBeginning::NAME).is_empty());
+    assert_eq!(events.dispatched(MigrationStarted::NAME).len(), 1);
+
+    let missing = RefreshDatabaseOptions {
+        seeder: Some("MissingSeeder".into()),
+        ..options
+    };
+    app.refreshDatabase::<()>(missing, |_| {
+        Box::pin(async { panic!("failed seed must not run the callback") })
+    })
+    .await
+    .unwrap_err();
+    db.select("SELECT 704 AS after_failed_refresh", &[]).await?;
+    assert!(recorded("SELECT 704 AS after_failed_refresh"));
+    app.artisan(["migrate:fresh", "--seeder=MigrationEventProbe"])
+        .await
+        .assertSuccessful();
+    assert!(recorded("SELECT 701 AS selected_probe"));
+    assert!(!events.dispatched(TransactionBeginning::NAME).is_empty());
+    app.close().await?;
+    Ok(())
 }
 
 #[tokio::test]

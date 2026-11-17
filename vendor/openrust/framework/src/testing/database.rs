@@ -11,7 +11,7 @@ use serde_json::json;
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        Connection, DatabaseFuture, DatabaseManager, Value,
+        Connection, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         test_mysql::{MySqlTestDatabase, MySqlTestOwners},
         test_transaction,
     },
@@ -35,10 +35,15 @@ pub struct RefreshDatabaseOptions {
     pub seeder: Option<String>,
     /// Named MySQL connections to roll back. An empty list selects the default.
     pub connections_to_transact: Vec<String>,
+    /// Mute the selected connections' events during migration preparation.
+    pub without_migration_events: bool,
 }
 
 pub(super) enum RefreshState {
-    Preparing(RefreshDatabaseOptions, tokio::task::JoinHandle<TestCommand>),
+    Preparing(
+        RefreshDatabaseOptions,
+        tokio::task::JoinHandle<DatabaseResult<TestCommand>>,
+    ),
     Ready(RefreshDatabaseOptions),
 }
 
@@ -261,8 +266,6 @@ impl TestApp {
         }
         let prepared = self.refreshed.take();
         if !matches!(prepared, Some(RefreshState::Ready(ready)) if ready == options) {
-            // Open the owned pool before Artisan can consider missing-database creation.
-            connection.select("SELECT 1", &[]).await?;
             let mut arguments = vec![
                 "migrate:fresh".to_owned(),
                 format!("--database={}", connection.getName()),
@@ -276,7 +279,16 @@ impl TestApp {
             } else if options.seed {
                 arguments.push("--seed".into());
             }
-            let task = self.spawn_artisan(arguments.into_iter().map(Into::into).collect());
+            let muted = if options.without_migration_events {
+                connections.clone()
+            } else {
+                Vec::new()
+            };
+            let task = self.spawn_refresh(
+                connection,
+                muted,
+                arguments.into_iter().map(Into::into).collect(),
+            );
             self.refreshed = Some(RefreshState::Preparing(options.clone(), task));
             self.finish_refresh().await?;
             self.refreshed = None;
@@ -293,7 +305,7 @@ impl TestApp {
         let result = task.await;
         let options = options.clone();
         self.refreshed = None;
-        let command = result?;
+        let command = result??;
         if command.status != 0 {
             return Err(io::Error::other(format!(
                 "refreshDatabase migration exited with {}: {}",

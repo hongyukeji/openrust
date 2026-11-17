@@ -43,6 +43,8 @@ async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 
 遷移或 Seeder 失敗會直接傳回錯誤，可以再次呼叫以重試準備。回呼傳回錯誤且交易復原成功時會保留基線。交易中斷或選項變更後，下次呼叫會重新準備。呼叫在遷移期間被取消時，下一次更新會先等待執行中的遷移結束。
 
+將 `without_migration_events` 設為 `true`，可在準備期間抑制所選連線的查詢等連線事件。遷移生命週期事件、查詢日誌和其他連線的事件仍可使用。測試回呼和準備階段以外的命令會正常分發連線事件。
+
 ## MySQL 交易隔離 {#mysql-transaction-isolation}
 
 為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.databaseTransaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。

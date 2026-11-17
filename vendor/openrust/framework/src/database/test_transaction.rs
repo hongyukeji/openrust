@@ -44,7 +44,7 @@ impl Session {
     }
 }
 
-fn same_session(owner: &Connection, connection: &Connection) -> bool {
+pub(super) fn same_session(owner: &Connection, connection: &Connection) -> bool {
     owner.same_query_source(connection)
         || (owner.name == connection.name
             && owner.model_container.ptr_eq(&connection.model_container))

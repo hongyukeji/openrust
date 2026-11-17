@@ -20,6 +20,7 @@ use super::{
         TransactionBeginning, TransactionCommitted, TransactionCommitting, TransactionEvent,
         TransactionRolledBack,
     },
+    test_events,
     test_transaction::QueryPhysical,
 };
 
@@ -370,6 +371,9 @@ impl Transaction {
     }
 
     async fn fire<E: TransactionEvent>(&mut self) -> DatabaseResult<()> {
+        if test_events::muted(&self.connection) {
+            return Ok(());
+        }
         let Some(owner) =
             Connection::model_container(Some(&self.connection)).filter(|owner| owner.has("events"))
         else {

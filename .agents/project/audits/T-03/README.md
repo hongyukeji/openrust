@@ -32,3 +32,9 @@
 - `TestApp::mysqlConnections` 逐名分配独立托管库，第一条为默认。各池匹配自己的归属记录，关闭会尝试清理所有已分配库。用 `RefreshDatabaseOptions::connections_to_transact` 或 `databaseTransactionOn` 选择回滚连接，空列表使用默认。启动失败回滚已开启的事务，结束时逐条尝试回滚。默认库由 `migrate:fresh` 准备，其他库继续走显式 Artisan 迁移。
 - 隔离基线 `6b9fc960b`，真实 MySQL 8.4.13 验证双库独立租约、HTTP 和进程内 Artisan 的同用例写入、读别名复用、重复选择拒绝、启动与回滚失败的清理、仅选择一条连接时其他连接的正常提交，以及归属失败时仍清理其余库。复验 MySQL 单连接事务、迁移准备与归属三项。
 - Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项小节浏览器检查通过。本批临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 78.83 GB（73.41 GiB），周额度剩余 50%。迁移事件抑制及进程中断后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-multi.tZsd4tuc`。
+
+## RefreshDatabase 迁移准备的连接事件抑制
+
+- 固定 Laravel 的 `WithoutMigrationEvents` 在准备阶段停用所选连接的事件分发器。上游回归检查迁移查询与测试查询的分界，Migrator 继续使用自己的生命周期分发器。旧版没有同名夹具选项，本批复用当前连接身份、查询观察器及应用与任务作用域。 [固定 Laravel 夹具](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/RefreshDatabase.php) · [固定 Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/Testing/LazilyRefreshDatabaseWithoutMigrationEventsTest.php)
+- `RefreshDatabaseOptions::without_migration_events` 只在准备任务内抑制所选连接的查询、事务与连接建立事件。查询日志、迁移生命周期、未选连接以及其他任务仍按原路径。真实 MySQL 8.4.13 验证选中与未选连接、同一连接的并发任务、回调和普通 Artisan、失败后恢复，以及事务事件和日志行为。三项 MySQL 回归覆盖迁移重试及取消、具名多连接和单连接事务。
+- 隔离基线 `97778566c`。Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项正文浏览器检查通过。本批临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 78.80 GB（73.39 GiB），周额度剩余 50%。进程中断后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-migration-events.48Cmf1p8`。

@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 20:10（北京时间）T-03 [迁移准备的连接事件抑制](audits/T-03/README.md#refreshdatabase-迁移准备的连接事件抑制)。真实 MySQL 8.4.13 验证任务及连接隔离、失败恢复和普通 Artisan。全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
 - 2026-11-17 20:03（北京时间）T-03 [MySQL 多连接测试事务](audits/T-03/README.md#mysql-多连接测试事务)。真实 MySQL 8.4.13 验证双库选择、HTTP 与 Artisan、部分启动或回滚失败以及未选连接的正常提交。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
 - 2026-11-17 19:54（北京时间）T-03 [MySQL RefreshDatabase 迁移准备](audits/T-03/README.md#mysql-refreshdatabase-迁移准备)。真实 MySQL 8.4.13 验证迁移与 Seeder、重复回滚、失败重试和迁移中取消后续用。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
 - 2026-11-17 19:45（北京时间）T-03 [MySQL 测试库归属与租约](audits/T-03/README.md#mysql-测试库归属与租约)。真实 MySQL 8.4.13 验证并行库、Artisan 迁移及重建、业务池关闭、外部占用和归属拒绝。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
@@ -33,9 +34,9 @@
 - 2026-11-17 16:11（北京时间）04-05 [MySQL 数据库验证规则](audits/04-05/README.md#mysql-数据库验证规则)通过真实 MySQL 8.4.13、HTTP 和独立 Artisan 验收。核心账本维持 59/66。
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
-- 下一批继续 T-03，接入固定 Laravel 的迁移事件抑制，再处理进程中断后的归属恢复。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
+- 下一批继续 T-03，复用旧版归属日志与租约，接入进程中断后的 MySQL 测试库恢复。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 50%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和隔离 Cargo 产物已回收。项目磁盘可用 78.83 GB（73.41 GiB），继续前以实测读数复查。
+- 周额度剩余 50%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和隔离 Cargo 产物已回收。项目磁盘可用 78.80 GB（73.39 GiB），继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

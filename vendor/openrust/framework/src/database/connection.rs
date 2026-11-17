@@ -36,6 +36,7 @@ use super::{
         QueryNotification, QueryRole,
     },
     query_log::{PreviewScope, QueryLog},
+    test_events,
     test_transaction::{self, QueryPhysical},
     transaction::BeginCallback,
     value,
@@ -827,6 +828,9 @@ impl Connection {
     }
 
     async fn fire_established(&self) -> DatabaseResult<()> {
+        if test_events::muted(self) {
+            return Ok(());
+        }
         let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events"))
         else {
             return Ok(());
@@ -1101,7 +1105,10 @@ impl Connection {
         read_write_type: QueryRole,
     ) -> DatabaseResult<Option<QueryNotification>> {
         self.query_duration.add(time);
-        if let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events")) {
+        if !test_events::muted(self)
+            && let Some(owner) =
+                Self::model_container(Some(self)).filter(|owner| owner.has("events"))
+        {
             let dispatcher = owner
                 .get::<Dispatcher>("events")
                 .map_err(DatabaseError::Unavailable)?;

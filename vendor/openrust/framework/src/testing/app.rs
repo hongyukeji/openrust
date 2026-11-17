@@ -6,7 +6,7 @@ use tokio::task::JoinHandle;
 use crate::{
     console::Output,
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
-    database::test_mysql::MySqlTestDatabase,
+    database::{Connection, DatabaseResult, test_events, test_mysql::MySqlTestDatabase},
     events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
@@ -99,8 +99,18 @@ impl TestApp {
         run_artisan(self.app.share(), arguments).await
     }
 
-    pub(super) fn spawn_artisan(&self, arguments: Vec<OsString>) -> JoinHandle<TestCommand> {
-        tokio::spawn(run_artisan(self.app.share(), arguments))
+    pub(super) fn spawn_refresh(
+        &self,
+        connection: Connection,
+        muted: Vec<Connection>,
+        arguments: Vec<OsString>,
+    ) -> JoinHandle<DatabaseResult<TestCommand>> {
+        let app = self.app.share();
+        tokio::spawn(test_events::without_connections(muted, async move {
+            // Open the owned pool before Artisan can consider missing-database creation.
+            connection.select("SELECT 1", &[]).await?;
+            Ok(run_artisan(app, arguments).await)
+        }))
     }
 
     /// Boots the application and replaces a container service for subsequent resolutions.

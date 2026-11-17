@@ -43,6 +43,8 @@ async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 
 迁移或 Seeder 失败会直接返回错误，可以再次调用来重试准备。回调返回错误且回滚成功时保留基线。事务中断或选项变化后，下次调用会重新准备。调用在迁移期间被取消时，下一次刷新先等待正在运行的迁移结束。
 
+将 `without_migration_events` 设为 `true`，可在准备期间抑制所选连接的查询等连接事件。迁移生命周期事件、查询日志和其他连接的事件仍可使用。测试回调和准备阶段之外的命令会正常分发连接事件。
+
 ## MySQL 事务隔离 {#mysql-transaction-isolation}
 
 为测试应用配置专用的 MySQL 测试库。先运行迁移和基础填充，再调用 `test.databaseTransaction`。回调中，使用默认连接的 HTTP 请求、进程内 Artisan 命令和数据库断言共用一个会话。成功和失败都会回滚，应用事务使用保存点。
