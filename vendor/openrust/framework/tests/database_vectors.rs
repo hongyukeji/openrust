@@ -300,6 +300,57 @@ async fn vector_queries_run_on_pgvector() {
     };
     verify_distances(&db).await;
     verify_model_queries(&db).await;
+    db.transaction(
+        |transaction| {
+            Box::pin(async move {
+                let mut schema = transaction.getSchemaBuilder();
+                let error = schema
+                    .table("documents", |table| {
+                        table.integer("online_probe");
+                        table
+                            .vectorIndex("embedding", Some("online_probe_idx"))
+                            .online();
+                    })
+                    .await
+                    .unwrap_err();
+                assert!(matches!(
+                    error,
+                    DatabaseError::UnsupportedSchema(
+                        "PostgreSQL online indexes require autocommit"
+                    )
+                ));
+                assert!(!schema.hasColumn("documents", "online_probe").await?);
+                Ok(())
+            })
+        },
+        1,
+    )
+    .await
+    .unwrap();
+
+    let mut session = db.getSchemaBuilder().session().await.unwrap();
+    let mut schema = session.getSchemaBuilder();
+    schema
+        .table("documents", |table| {
+            table
+                .vectorIndex("embedding", Some("session_online_probe"))
+                .online();
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .hasIndex("documents", "session_online_probe")
+            .await
+            .unwrap()
+    );
+    schema
+        .table("documents", |table| {
+            table.dropVectorIndex("session_online_probe")
+        })
+        .await
+        .unwrap();
+    session.close().await.unwrap();
     let rows = db
         .table("documents")
         .whereVectorSimilarTo("embedding", &[1.0, 0.0], 0.7, true)

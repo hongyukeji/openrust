@@ -268,6 +268,10 @@ impl SchemaSession {
         self.after_query(sql, bindings, start).await
     }
 
+    pub(super) fn in_transaction(&mut self) -> DatabaseResult<bool> {
+        Ok(self.physical()?.in_transaction())
+    }
+
     pub(super) async fn execute_schema(&mut self, statements: Vec<String>) -> DatabaseResult<()> {
         self.connection.ensure_real_operation()?;
         if !self.connection.is_sqlite() {

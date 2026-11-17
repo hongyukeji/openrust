@@ -61,6 +61,7 @@ pub struct IndexDefinition {
     pub(super) language: Option<String>,
     pub(super) operator_class: Option<String>,
     pub(super) inplace: bool,
+    pub(super) online: bool,
     pub(super) lock: Option<String>,
 }
 
@@ -75,11 +76,12 @@ impl IndexDefinition {
             language: None,
             operator_class: None,
             inplace: false,
+            online: false,
             lock: None,
         }
     }
 
-    /// Specifies the MySQL index method, independently of the DDL algorithm.
+    /// Specifies the index method independently of the DDL algorithm.
     pub fn algorithm(&mut self, method: &str) -> &mut Self {
         self.algorithm = Some(method.to_owned());
         self
@@ -96,6 +98,12 @@ impl IndexDefinition {
         self
     }
 
+    /// Requests a concurrent PostgreSQL index build.
+    pub fn online(&mut self) -> &mut Self {
+        self.online = true;
+        self
+    }
+
     pub fn lock(&mut self, mode: &str) -> &mut Self {
         self.lock = Some(mode.to_owned());
         self
@@ -104,7 +112,7 @@ impl IndexDefinition {
 
 #[allow(non_snake_case, reason = "Matches Laravel's index modifiers")]
 impl IndexDefinition {
-    /// Chooses the PostgreSQL operator class of a vector index.
+    /// Chooses a PostgreSQL operator class or MariaDB options for a vector index.
     pub fn operatorClass(&mut self, operator_class: &str) -> &mut Self {
         self.operator_class = Some(operator_class.to_owned());
         self

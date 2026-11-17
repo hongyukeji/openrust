@@ -494,6 +494,10 @@ Calling `index()` on a vector column creates a cosine index. PostgreSQL uses HNS
 
 Drop a named index with `dropVectorIndex("semantic_idx")` or the conventional index with `dropVectorIndexColumns(&["embedding"])`. See [vector similarity queries](./queries.md#vector-similarity-clauses) for querying the column.
 
+On MariaDB, `operatorClass("M=8 DISTANCE=euclidean")` sets vector index options. `M` accepts 3 through 200, and `DISTANCE` accepts `cosine` or `euclidean`. The Query Builder’s vector search methods use cosine distance.
+
+To build a PostgreSQL vector index while accepting writes, see [PostgreSQL online indexes](#postgresql-online-indexes).
+
 ### MySQL Column Modifiers
 
 Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.
@@ -945,6 +949,20 @@ async fn revise_imports() -> DatabaseResult<()> {
 ```
 
 Pass multiple names to `dropColumn` to drop them in one MySQL ALTER statement. Chain `instant()` or `lock()` to request an online DDL option. If the engine rejects the statement, the columns in that statement remain in place. Earlier statements in the same blueprint may already have completed.
+
+#### PostgreSQL Online Indexes {#postgresql-online-indexes}
+
+Call `online()` on an ordinary, unique, full-text, or vector index to use PostgreSQL’s `CREATE INDEX CONCURRENTLY`. The index can wait for existing transactions while other sessions continue writing.
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::table("documents", |table| {
+    table.vectorIndex("embedding", Some("documents_vector_search")).online();
+}).await?;
+```
+
+Use the connection’s Schema builder. A blueprint containing an online index runs its statements individually in autocommit mode. Keep that blueprint separate from changes you want to apply atomically. An active framework-managed transaction rejects the blueprint before executing any of its statements. A failed concurrent build can leave an invalid index, which you can drop before retrying.
 
 #### Foreign IDs from Models {#foreign-ids-from-models}
 

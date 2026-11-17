@@ -548,6 +548,9 @@ impl Grammar {
     }
 
     fn primary_key(&self, index: &IndexDefinition) -> DatabaseResult<String> {
+        if index.online {
+            return Err(DatabaseError::UnsupportedSchema("online primary key"));
+        }
         Ok(format!(
             "primary key{} ({})",
             self.index_method(index)?,
@@ -556,6 +559,12 @@ impl Grammar {
     }
 
     fn add_index(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
+        if index.online
+            && (!self.postgres() || matches!(index.kind, IndexType::Primary | IndexType::Spatial))
+        {
+            return Err(DatabaseError::UnsupportedSchema("online index"));
+        }
+        let concurrently = if index.online { "concurrently " } else { "" };
         let quoted;
         let columns = match index.raw_expression.as_deref() {
             Some(expression) => {
@@ -603,7 +612,7 @@ impl Grammar {
                 .collect::<DatabaseResult<Vec<_>>>()?
                 .join(" || ");
             return Ok(format!(
-                "create index {} on {} using gin (({vectors}))",
+                "create index {concurrently}{} on {} using gin (({vectors}))",
                 self.identifier(name)?,
                 self.qualified(table)?
             ));
@@ -634,7 +643,7 @@ impl Grammar {
                 _ => return Err(DatabaseError::UnsupportedSchema("SQLite index kind")),
             };
             Ok(format!(
-                "{verb} {} on {} ({columns})",
+                "{verb} {concurrently}{} on {} ({columns})",
                 if self.postgres() || self.sql_server() {
                     self.identifier(name)?
                 } else {
@@ -679,19 +688,21 @@ impl Grammar {
                 Some(schema) => format!("{}.{}", self.identifier(schema)?, self.identifier(class)?),
                 None => self.identifier(class)?,
             };
+            let concurrently = if index.online { "concurrently " } else { "" };
             Ok(format!(
-                "create index {name} on {table} using {method} ({column} {class})"
+                "create index {concurrently}{name} on {table} using {method} ({column} {class})"
             ))
         } else if self.mariadb() {
-            if index.algorithm.is_some() || index.operator_class.is_some() {
+            if index.algorithm.is_some() {
                 return Err(DatabaseError::UnsupportedSchema(
-                    "MariaDB vector index method or operator class",
+                    "MariaDB vector index method",
                 ));
             }
+            let (neighbors, distance) = maria_vector_options(index.operator_class.as_deref())?;
             let options =
                 self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
             Ok(format!(
-                "alter table {table} add vector index {name} ({column}) M=6 DISTANCE=cosine{options}"
+                "alter table {table} add vector index {name} ({column}) M={neighbors} DISTANCE={distance}{options}"
             ))
         } else {
             Err(DatabaseError::UnsupportedSchema("vector index"))
@@ -1272,6 +1283,35 @@ fn sql_server_type(kind: &ColumnType) -> DatabaseResult<String> {
         }
         _ => return Err(DatabaseError::UnsupportedSchema("SQL Server column type")),
     })
+}
+
+fn maria_vector_options(options: Option<&str>) -> DatabaseResult<(u16, &'static str)> {
+    let invalid = || DatabaseError::InvalidSchema("MariaDB vector index options");
+    let mut neighbors = None;
+    let mut distance = None;
+    for option in options.unwrap_or_default().split_ascii_whitespace() {
+        let (name, value) = option.split_once('=').ok_or_else(invalid)?;
+        if name.eq_ignore_ascii_case("M") && neighbors.is_none() {
+            neighbors = Some(
+                value
+                    .parse::<u16>()
+                    .ok()
+                    .filter(|value| (3..=200).contains(value))
+                    .ok_or_else(invalid)?,
+            );
+        } else if name.eq_ignore_ascii_case("DISTANCE") && distance.is_none() {
+            distance = Some(if value.eq_ignore_ascii_case("cosine") {
+                "cosine"
+            } else if value.eq_ignore_ascii_case("euclidean") {
+                "euclidean"
+            } else {
+                return Err(invalid());
+            });
+        } else {
+            return Err(invalid());
+        }
+    }
+    Ok((neighbors.unwrap_or(6), distance.unwrap_or("cosine")))
 }
 
 fn primary_for_new_auto_column(column: &ColumnDefinition, command: &Command) -> bool {

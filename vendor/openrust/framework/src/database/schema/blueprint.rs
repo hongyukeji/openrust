@@ -54,6 +54,11 @@ macro_rules! column_types {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Blueprint API")]
 impl Blueprint {
+    pub(super) fn has_online_index(&self) -> bool {
+        self.commands
+            .iter()
+            .any(|command| matches!(command, Command::Index(index) if index.online))
+    }
     fn column(&mut self, name: &str, kind: ColumnType) -> &mut ColumnDefinition {
         let mut column = ColumnDefinition::new(name, kind);
         if let Some(after) = &mut self.after {

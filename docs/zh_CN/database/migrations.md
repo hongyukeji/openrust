@@ -494,6 +494,10 @@ Schema::create("documents", |table| {
 
 用 `dropVectorIndex("semantic_idx")` 删除命名索引，或用 `dropVectorIndexColumns(&["embedding"])` 删除约定名称的索引。查询方式见[向量相似度查询](./queries.md#vector-similarity-clauses)。
 
+MariaDB 可通过 `operatorClass("M=8 DISTANCE=euclidean")` 设置向量索引参数。`M` 接受 3 到 200，`DISTANCE` 接受 `cosine` 或 `euclidean`。查询构建器的向量搜索方法使用余弦距离。
+
+需要在写入期间构建向量索引时，见 [PostgreSQL 在线索引](#postgresql-online-indexes)。
+
 ### MySQL 列修饰符
 
 用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。
@@ -945,6 +949,20 @@ async fn revise_imports() -> DatabaseResult<()> {
 ```
 
 向 `dropColumn` 传入多个列名，可在同一条 MySQL ALTER 语句中删除。可链式调用 `instant()` 或 `lock()` 请求在线 DDL 选项。引擎拒绝该语句时，这条语句涉及的列会保留。同一个 Blueprint 中较早的语句可能已经执行。
+
+#### PostgreSQL 在线索引 {#postgresql-online-indexes}
+
+普通索引、唯一索引、全文索引和向量索引可调用 `online()`，使用 PostgreSQL 的 `CREATE INDEX CONCURRENTLY`。构建可等待已有事务，其他会话仍能继续写入。
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::table("documents", |table| {
+    table.vectorIndex("embedding", Some("documents_vector_search")).online();
+}).await?;
+```
+
+使用连接的 Schema 构建器。包含在线索引的 Blueprint 逐条以自动提交方式执行。需要原子应用的变更应另用一个 Blueprint。若框架管理的事务处于活动状态，这个 Blueprint 会在执行任何语句前被拒绝。并发构建失败可能留下无效索引，可删除后再试。
 
 #### 从模型定义外键列 {#foreign-ids-from-models}
 

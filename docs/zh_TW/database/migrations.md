@@ -494,6 +494,10 @@ Schema::create("documents", |table| {
 
 用 `dropVectorIndex("semantic_idx")` 刪除具名索引，或用 `dropVectorIndexColumns(&["embedding"])` 刪除慣例名稱的索引。查詢方式見[向量相似度查詢](./queries.md#vector-similarity-clauses)。
 
+MariaDB 可透過 `operatorClass("M=8 DISTANCE=euclidean")` 設定向量索引參數。`M` 接受 3 到 200，`DISTANCE` 接受 `cosine` 或 `euclidean`。查詢建構器的向量搜尋方法使用餘弦距離。
+
+需要在寫入期間建置向量索引時，見 [PostgreSQL 線上索引](#postgresql-online-indexes)。
+
 ### MySQL 欄位修飾詞
 
 用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。
@@ -945,6 +949,20 @@ async fn revise_imports() -> DatabaseResult<()> {
 ```
 
 將多個欄位名稱傳給 `dropColumn`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
+
+#### PostgreSQL 線上索引 {#postgresql-online-indexes}
+
+一般索引、唯一索引、全文索引和向量索引可呼叫 `online()`，使用 PostgreSQL 的 `CREATE INDEX CONCURRENTLY`。建置可等待現有交易，其他工作階段仍可繼續寫入。
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::table("documents", |table| {
+    table.vectorIndex("embedding", Some("documents_vector_search")).online();
+}).await?;
+```
+
+使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
 
 #### 從模型定義外鍵欄位 {#foreign-ids-from-models}
 

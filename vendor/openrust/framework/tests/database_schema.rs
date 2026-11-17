@@ -157,6 +157,86 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
 }
 
 #[tokio::test]
+async fn postgres_online_index_preview_uses_concurrent_ddl() {
+    let db = connection(json!({"driver":"pgsql"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("documents", |table| {
+                        table.index(&["title"], Some("docs_title")).online();
+                        table
+                            .unique(&["external_id"], Some("docs_external"))
+                            .online();
+                        table.fullText(&["title"], Some("docs_search")).online();
+                        table.vectorIndex("embedding", Some("docs_vector")).online();
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 4);
+    for (entry, expected) in preview.iter().zip([
+        "create index concurrently \"docs_title\" on \"documents\" (\"title\")",
+        "create unique index concurrently \"docs_external\" on \"documents\" (\"external_id\")",
+        "create index concurrently \"docs_search\" on \"documents\" using gin",
+        "create index concurrently \"docs_vector\" on \"documents\" using hnsw",
+    ]) {
+        assert!(entry.query.starts_with(expected), "{}", entry.query);
+        assert_eq!(
+            entry.read_write_type,
+            openrust::database::events::QueryRole::Write
+        );
+    }
+}
+
+#[tokio::test]
+async fn mariadb_vector_index_options_are_validated_and_compiled() {
+    let db = connection(json!({"driver":"mariadb"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("documents", |table| {
+                        table
+                            .vectorIndex("embedding", Some("semantic"))
+                            .operatorClass("distance=EUCLIDEAN M=8");
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        preview[0].query,
+        "alter table `documents` add vector index `semantic` (`embedding`) M=8 DISTANCE=euclidean"
+    );
+    for options in ["M=2", "M=201", "M=8 M=9", "DISTANCE=dot", "M=8; SELECT 1"] {
+        let result = db
+            .getSchemaBuilder()
+            .table("documents", |table| {
+                table.vectorIndex("embedding", None).operatorClass(options);
+            })
+            .await;
+        assert!(matches!(
+            result,
+            Err(DatabaseError::InvalidSchema("MariaDB vector index options"))
+        ));
+    }
+    let result = db
+        .getSchemaBuilder()
+        .table("documents", |table| {
+            table.vectorIndex("embedding", None).online();
+        })
+        .await;
+    assert!(matches!(
+        result,
+        Err(DatabaseError::UnsupportedSchema("online index"))
+    ));
+}
+
+#[tokio::test]
 async fn postgres_vector_extension_previews_on_the_writer_with_quoted_identifiers() {
     let db = connection(json!({"driver":"pgsql"}));
     let preview = db

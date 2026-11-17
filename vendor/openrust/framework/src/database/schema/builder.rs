@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Row, Transaction, Value,
+    test_transaction,
 };
 
 use super::{
@@ -125,6 +126,14 @@ impl<'connection> Builder<'connection> {
         blueprint
     }
 
+    fn online_blueprint(&self, blueprint: &Blueprint) -> DatabaseResult<bool> {
+        let online = blueprint.has_online_index();
+        if online && !self.grammar.postgres() {
+            return Err(DatabaseError::UnsupportedSchema("online index"));
+        }
+        Ok(online)
+    }
+
     /// Creates a database on the selected connection's server or a new SQLite file.
     pub async fn createDatabase(&mut self, name: &str) -> DatabaseResult<bool> {
         if self.grammar.postgres() {
@@ -181,6 +190,31 @@ impl<'connection> Builder<'connection> {
         }
     }
 
+    async fn execute_blueprint(
+        &mut self,
+        statements: Vec<String>,
+        online: bool,
+    ) -> DatabaseResult<()> {
+        if !online {
+            return self.execute(statements).await;
+        }
+        let transaction = match &mut self.executor {
+            Executor::Transaction(_) => true,
+            Executor::Connection(connection) => test_transaction::active(connection),
+            Executor::Session(session) => session.in_transaction()?,
+            Executor::Pretend(_) => false,
+        };
+        if transaction {
+            return Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL online indexes require autocommit",
+            ));
+        }
+        for sql in statements {
+            self.execute_postgres_database_ddl(sql).await?;
+        }
+        Ok(())
+    }
+
     fn validate_sqlite_database_path(&self, name: &str) -> DatabaseResult<()> {
         if !matches!(self.executor, Executor::Connection(_)) {
             return Err(DatabaseError::UnsupportedSchema(
@@ -202,8 +236,14 @@ impl<'connection> Builder<'connection> {
         let mut resolved_table = self.grammar.table(table)?;
         let mut blueprint = self.blueprint(table, true);
         configure(&mut blueprint);
+        let online = self.online_blueprint(&blueprint)?;
         self.mariadb_version_for(&blueprint).await?;
         if blueprint.temporary {
+            if online {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "online index on temporary table",
+                ));
+            }
             if !matches!(self.executor, Executor::Session(_) | Executor::Pretend(_)) {
                 return Err(DatabaseError::UnsupportedSchema(
                     "temporary table requires a schema session",
@@ -218,7 +258,7 @@ impl<'connection> Builder<'connection> {
             return self.execute(sql).await;
         }
         let sql = self.grammar.create(&resolved_table, blueprint)?;
-        self.execute(sql).await
+        self.execute_blueprint(sql, online).await
     }
 
     fn resolve_table(&self, name: &str) -> DatabaseResult<Table> {
@@ -265,6 +305,7 @@ impl<'connection> Builder<'connection> {
         let mut blueprint = self.blueprint(table, false);
         let table = resolved_table;
         configure(&mut blueprint);
+        let online = self.online_blueprint(&blueprint)?;
         let version = self.mariadb_version_for(&blueprint).await?;
         if version.is_some_and(|version| version < (10, 5, 2))
             && mariadb::has_rename(&blueprint)
@@ -300,7 +341,7 @@ impl<'connection> Builder<'connection> {
                 .await;
         }
         let sql = self.grammar.alter(&table, blueprint)?;
-        self.execute(sql).await
+        self.execute_blueprint(sql, online).await
     }
 
     pub async fn ensureVectorExtensionExists(
