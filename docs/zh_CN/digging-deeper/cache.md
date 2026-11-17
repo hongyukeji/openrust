@@ -184,6 +184,23 @@ pub async fn report() -> CacheResult<Value> {
 }
 ```
 
+## 仓库设置 {#cache-repository-settings}
+
+`getName`、`getStore` 和 `getEventDispatcher` 分别读取已配置的仓库名称、底层存储和事件分发器。具名仓库关闭缓存事件后仍可读取名称。创建标签仓库时，它会继承来源仓库的名称、事件分发器和默认时长。
+
+`putWithDefault` 使用 `getDefaultCacheTime` 返回的时长，初始值为 3600 秒。显式调用 `put(key, value, None)` 会永久保存。用 `setDefaultCacheTime` 修改自有仓库的默认时长，`setStore` 和 `setEventDispatcher` 也用于自有仓库。克隆后的仓库共享底层存储，每份副本可各自替换设置。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn cache_report() -> CacheResult<bool> {
+    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    repository.setDefaultCacheTime(Some(60));
+    let reports = repository.tags(&["reports"])?;
+    reports.putWithDefault("latest", &Value::from("ready")).await
+}
+```
+
 ## 缓存标签 {#cache-tags}
 
 使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array`、`redis`、`failover` 和 `null` 接受标签。当前直接选择其他存储会返回标签不受支持的错误。

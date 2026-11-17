@@ -385,10 +385,10 @@ impl CacheManager {
             Some(Value::Null) => true,
             Some(value) => value.as_bool().ok_or(CacheError::InvalidConfiguration)?,
         };
-        let repository = Repository::new(store);
+        let name = config.get("store").and_then(Value::as_str);
+        let repository = Repository::new(store).with_name(name);
         if events {
-            let name = config.get("store").and_then(Value::as_str);
-            Ok(repository.with_events(self.inner.owner.clone(), name))
+            Ok(repository.with_events(self.inner.owner.clone()))
         } else {
             Ok(repository)
         }

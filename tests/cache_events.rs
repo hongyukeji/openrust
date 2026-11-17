@@ -259,3 +259,74 @@ async fn cache_listener_errors_preserve_mutation_order() {
     let _ = cache.get("reports/latest").await.unwrap();
     events.assertDispatched(CacheHit::NAME);
 }
+
+#[tokio::test]
+async fn repository_settings_survive_tagging_and_only_modify_owned_repositories() {
+    use openrust::{
+        cache::ArrayStore,
+        contracts::{cache::Store, events::Dispatcher as EventDispatcher},
+    };
+    use std::time::Duration;
+
+    let mut app = TestApp::create(configure).unwrap();
+    let app_events = app.fakeEvents(&[]).await.unwrap();
+    let manager = app.app().container().make::<CacheManager>().unwrap();
+    let default = manager.store(None).unwrap();
+    let dispatcher: Arc<dyn EventDispatcher> = app.app().container().make::<Dispatcher>().unwrap();
+    assert!(Arc::ptr_eq(
+        &dispatcher,
+        &default.getEventDispatcher().unwrap()
+    ));
+    assert_eq!(default.getName(), Some("array"));
+    assert_eq!(default.getDefaultCacheTime(), Some(3600));
+    let named = manager
+        .build(serde_json::json!({"name":"isolated","driver":"array","events":false}))
+        .unwrap();
+    assert_eq!(named.getName(), Some("isolated"));
+    assert!(named.getEventDispatcher().is_none());
+
+    let quiet = manager.store(Some("quiet")).unwrap();
+    let mut copy = quiet.as_ref().clone();
+    assert_eq!(quiet.getName(), Some("quiet"));
+    assert!(quiet.getEventDispatcher().is_none());
+    assert!(Arc::ptr_eq(&quiet.getStore(), &copy.getStore()));
+    let replacement: Arc<dyn Store> = Arc::new(ArrayStore::new());
+    let events = Arc::new(Dispatcher::new());
+    let recorded = events.fake(&[]);
+    let explicit: Arc<dyn EventDispatcher> = events;
+    copy.setStore(replacement.clone())
+        .setDefaultCacheTime(Some(1));
+    copy.setEventDispatcher(explicit.clone());
+    assert!(Arc::ptr_eq(&copy.getStore(), &replacement));
+    assert_eq!(quiet.getDefaultCacheTime(), Some(3600));
+    assert!(quiet.getEventDispatcher().is_none());
+
+    let tagged = copy.tags(&["reports", "daily"]).unwrap();
+    assert_eq!(tagged.getName(), Some("quiet"));
+    assert!(Arc::ptr_eq(
+        &tagged.getEventDispatcher().unwrap(),
+        &explicit
+    ));
+    assert_eq!(tagged.getDefaultCacheTime(), Some(1));
+    copy.setDefaultCacheTime(None);
+    assert!(copy.putWithDefault("forever", &1.into()).await.unwrap());
+    assert!(tagged.putWithDefault("latest", &2.into()).await.unwrap());
+    assert!(tagged.put("permanent", &3.into(), None).await.unwrap());
+    assert!(quiet.missing("forever").await.unwrap());
+    assert!(copy.missing("latest").await.unwrap());
+
+    let writes = recorded.dispatched(WritingKey::NAME);
+    let write = writes[1].downcast_ref::<WritingKey>().unwrap();
+    assert_eq!(write.key, "latest");
+    assert_eq!(write.storeName.as_deref(), Some("quiet"));
+    assert_eq!(write.tags, ["reports", "daily"]);
+    assert_eq!(write.seconds, Some(1));
+    app_events.assertNotDispatched(WritingKey::NAME);
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert!(tagged.missing("latest").await.unwrap());
+    assert_eq!(tagged.get("permanent").await.unwrap(), Some(3.into()));
+    assert_eq!(copy.get("forever").await.unwrap(), Some(1.into()));
+    copy.setDefaultCacheTime(Some(0));
+    assert!(copy.putWithDefault("forever", &4.into()).await.unwrap());
+    assert!(copy.missing("forever").await.unwrap());
+}

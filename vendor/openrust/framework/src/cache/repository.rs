@@ -10,7 +10,7 @@ use crate::{
     contracts::{
         cache::{Lock, LockProvider, Repository as Contract, Store},
         container::Container as _,
-        events::{Dispatcher as _, Event},
+        events::{Dispatcher as EventDispatcher, Event},
     },
     events::{Dispatcher, EventContext},
 };
@@ -24,37 +24,16 @@ use super::{
 #[derive(Clone)]
 pub struct Repository {
     store: Arc<dyn Store>,
-    events: Option<RepositoryEvents>,
-}
-
-#[derive(Clone)]
-struct RepositoryEvents {
-    owner: Weak<Container>,
-    store_name: Option<String>,
+    name: Option<String>,
+    default_cache_time: Option<i64>,
+    dispatcher: Option<RepositoryDispatcher>,
     tags: Vec<String>,
 }
 
-impl RepositoryEvents {
-    async fn emit<E: Event>(
-        &self,
-        event: impl FnOnce(Option<String>, Vec<String>) -> E,
-    ) -> CacheResult<()> {
-        let Some(dispatcher) = self
-            .owner
-            .upgrade()
-            .and_then(|owner| owner.make::<Dispatcher>().ok())
-        else {
-            return Ok(());
-        };
-        dispatcher
-            .dispatch(
-                Arc::new(event(self.store_name.clone(), self.tags.clone())),
-                &mut EventContext::new(),
-            )
-            .await
-            .map_err(backend)?;
-        Ok(())
-    }
+#[derive(Clone)]
+enum RepositoryDispatcher {
+    Application(Weak<Container>),
+    Explicit(Arc<dyn EventDispatcher>),
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
@@ -102,11 +81,12 @@ impl Repository {
 
     pub fn tags(&self, names: &[&str]) -> CacheResult<TaggedCache> {
         let mut tagged = Arc::clone(&self.store).tags(names)?;
-        if let Some(events) = &self.events {
-            let mut events = events.clone();
-            events.tags = names.iter().map(|name| (*name).to_owned()).collect();
-            tagged.repository.events = Some(events);
+        tagged.repository.name.clone_from(&self.name);
+        tagged.repository.default_cache_time = self.default_cache_time;
+        if self.dispatcher.is_some() {
+            tagged.repository.dispatcher.clone_from(&self.dispatcher);
         }
+        tagged.repository.tags = names.iter().map(|name| (*name).to_owned()).collect();
         Ok(tagged)
     }
 
@@ -117,25 +97,85 @@ impl Repository {
     pub fn new(store: Arc<dyn Store>) -> Self {
         Self {
             store,
-            events: None,
+            name: None,
+            default_cache_time: Some(3600),
+            dispatcher: None,
+            tags: Vec::new(),
         }
     }
 
-    pub(super) fn with_events(mut self, owner: Weak<Container>, store_name: Option<&str>) -> Self {
-        self.events = Some(RepositoryEvents {
-            owner,
-            store_name: store_name.map(str::to_owned),
-            tags: Vec::new(),
-        });
+    pub(super) fn with_name(mut self, name: Option<&str>) -> Self {
+        self.name = name.map(str::to_owned);
         self
+    }
+
+    pub(super) fn with_events(mut self, owner: Weak<Container>) -> Self {
+        self.dispatcher = Some(RepositoryDispatcher::Application(owner));
+        self
+    }
+
+    /// Returns the name assigned when the repository was constructed.
+    pub fn getName(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Returns a handle to this repository's storage backend.
+    pub fn getStore(&self) -> Arc<dyn Store> {
+        Arc::clone(&self.store)
+    }
+
+    /// Replaces the storage backend on a uniquely borrowed repository.
+    pub fn setStore(&mut self, store: Arc<dyn Store>) -> &mut Self {
+        self.store = store;
+        self
+    }
+
+    /// Returns the current event dispatcher, if event delivery is configured.
+    pub fn getEventDispatcher(&self) -> Option<Arc<dyn EventDispatcher>> {
+        match self.dispatcher.as_ref()? {
+            RepositoryDispatcher::Application(owner) => owner
+                .upgrade()?
+                .make::<Dispatcher>()
+                .ok()
+                .map(|dispatcher| dispatcher as Arc<dyn EventDispatcher>),
+            RepositoryDispatcher::Explicit(dispatcher) => Some(Arc::clone(dispatcher)),
+        }
+    }
+
+    /// Overrides event delivery for this repository.
+    pub fn setEventDispatcher(&mut self, dispatcher: Arc<dyn EventDispatcher>) {
+        self.dispatcher = Some(RepositoryDispatcher::Explicit(dispatcher));
+    }
+
+    /// Returns the lifetime used by `putWithDefault`, in seconds.
+    pub fn getDefaultCacheTime(&self) -> Option<i64> {
+        self.default_cache_time
+    }
+
+    /// Sets the default lifetime. `None` writes values indefinitely.
+    pub fn setDefaultCacheTime(&mut self, seconds: Option<i64>) -> &mut Self {
+        self.default_cache_time = seconds;
+        self
+    }
+
+    /// Writes a value with this repository's default lifetime.
+    pub async fn putWithDefault(&self, key: &str, value: &Value) -> CacheResult<bool> {
+        self.put(key, value, self.default_cache_time.map(Ttl::Seconds))
+            .await
     }
 
     async fn emit<E: Event>(
         &self,
         event: impl FnOnce(Option<String>, Vec<String>) -> E,
     ) -> CacheResult<()> {
-        if let Some(events) = &self.events {
-            events.emit(event).await?;
+        if let Some(dispatcher) = self.getEventDispatcher() {
+            dispatcher
+                .dispatch(
+                    Arc::new(event(self.name.clone(), self.tags.clone())),
+                    &mut EventContext::new(),
+                )
+                .await
+                .map_err(backend)?;
         }
         Ok(())
     }

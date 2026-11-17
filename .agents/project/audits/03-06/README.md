@@ -19,7 +19,7 @@
 
 ## 后续边界
 
-Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移生成器、回调持锁与其他存储驱动的完成情况按核心账本跟踪。Windows 文件锁实机未测。下一单元 03-07 使用已通过的 01-01 配置基础。
+Redis Cluster 由 [03-09](../03-09/README.md) 跟踪。Windows 文件锁实机及托管 DynamoDB、IAM 部署留待发布验收。配置、使用、标签、锁及扩展驱动的证据见各节和整单元验收。
 
 ## 缓存故障切换
 
@@ -184,3 +184,18 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离基线 `7f4bf30b`，Rust 1.94.0、macOS arm64。固定 PHP 8.5 验证五类读取、默认值、类型失败、批量读写和删除语义。array、file、MySQL 8.4.13 和 Redis 8.10.3 通过默认值、类型、重复键和部分删除验收。44 项缓存回归、2 项 Redis 集成回归通过，后者确认真实 PTTL 和独立进程锁。MySQL 和 Redis 的双进程 HTTP 验证写入、类型校验、读取、缺失和部分删除，实际 Artisan `cache:forget` 和 `inspire` 通过。
 - 严格 Clippy、变更范围格式、三语站点、24 项浏览器检查和三语示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。两轮 MySQL、三轮 Redis 已回收。清理 4.6 GiB 隔离 Cargo 产物及文档缓存后，项目卷可用 57.31 GB（53.37 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-typed.isSLAdF4`。
 - 固定 Repository 的名称、底层仓库、事件分发器和默认缓存时长仍待核对。默认时长在 Laravel 关联数组写入语法中使用，需核对 Rust 显式写入方式和标签仓库继承。03-06 继续开放。
+
+## 仓库设置与标签继承
+
+- 对照固定 Laravel [Repository::tags](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L847)、[仓库设置](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L947) 及 [CacheManager::repository](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/CacheManager.php#L418)。旧版未找到同名契约。复用现有应用事件分发、具名仓库和标签存储。
+- `getName` 保留关闭事件的具名仓库名称。`getStore` 和 `getEventDispatcher` 返回底层存储及分发器的共享句柄。`setStore`、`setEventDispatcher` 和 `setDefaultCacheTime` 作用于唯一借用的仓库。仓库克隆共享存储，替换本地配置不改变已存在的其他仓库。应用分发器继续通过所属容器解析，标签仓库创建时继承名称、分发器和默认时长。
+- Laravel 的关联数组写入在 Rust 通过显式异步 `putWithDefault` 表达。默认时长 3600 秒，零时长删除，`None` 永久保存。显式 `put(key, value, None)` 的永久保存语义保持一致。
+- 隔离基线 `c5005221c`，Rust 1.94.0、macOS arm64。固定 PHP 8.5 验证名称、底层存储替换、标签继承、分发器、默认时长及删除。Rust 验证事件关闭仍保留名称、标签事件内容、克隆修改隔离、默认到期和显式永久保存。MySQL 8.4.13 和 Redis 8.10.3 双进程 HTTP 通过元数据、到期和永久写入验收，Redis 同时验证标签到期。真实 Artisan `cache:forget`、`inspire`、MySQL 迁移和重置通过。
+- 45 项缓存相关回归通过。另用 Memcached 1.6.45 复验 TCP、SASL 和权重配置，用 DynamoDB Local 3.3.2 复验批量写入、计数、到期和原子锁。严格 Clippy、变更范围格式、三语站点、18 项浏览器检查和 Rust 示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。
+- 临时 MySQL、Redis、Memcached 和 DynamoDB 已回收。清理 4.4 GiB 隔离编译产物和文档缓存后，项目卷可用 57.28 GB（53.35 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-repository.wQBhPXmZ`。
+
+## 03-06 整单元验收
+
+- 以[交付计划](../../plan.md#unit-03-06)的配置、缓存使用和原子锁范围验收。array、file 和独立 MySQL 的过期、原子写、锁所有权与多实例竞争都已有实测，本轮在当前主线对缓存、驱动、事件和 memo 回归复验。
+- 固定 Cache 章节中回填、后台刷新、默认值、助手、批量操作、标签、锁回调与并发限制、故障切换、自定义驱动和事件均有对应接口、三语文档及行为证据。Rust 以 `Value`、类型化闭包及显式异步读写表达 PHP 动态类型和数组访问。自定义驱动与类型化扩展替代 PHP 的运行时宏转发。
+- Redis Cluster、Windows 文件锁和托管 DynamoDB／IAM 依各自范围继续验收。缓存主线按 03-06 关闭，应用基础服务 7/9，核心账本 51/66。

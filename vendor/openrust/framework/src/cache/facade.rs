@@ -2,7 +2,10 @@ use std::{future::Future, sync::Arc, time::Duration};
 
 use crate::{
     container::ServiceKey,
-    contracts::cache::{Lock, LockProvider, Repository as _},
+    contracts::{
+        cache::{Lock, LockProvider, Repository as _, Store},
+        events::Dispatcher,
+    },
     support::facades::Facade,
 };
 
@@ -76,6 +79,26 @@ impl Cache {
 
     pub fn tags(names: &[&str]) -> CacheResult<TaggedCache> {
         Self::store(None)?.tags(names)
+    }
+
+    pub fn getName() -> CacheResult<Option<String>> {
+        Ok(Self::store(None)?.getName().map(str::to_owned))
+    }
+
+    pub fn getStore() -> CacheResult<Arc<dyn Store>> {
+        Ok(Self::store(None)?.getStore())
+    }
+
+    pub fn getEventDispatcher() -> CacheResult<Option<Arc<dyn Dispatcher>>> {
+        Ok(Self::store(None)?.getEventDispatcher())
+    }
+
+    pub fn getDefaultCacheTime() -> CacheResult<Option<i64>> {
+        Ok(Self::store(None)?.getDefaultCacheTime())
+    }
+
+    pub async fn putWithDefault(key: &str, value: &Value) -> CacheResult<bool> {
+        Self::store(None)?.putWithDefault(key, value).await
     }
 
     pub fn supportsTags() -> CacheResult<bool> {

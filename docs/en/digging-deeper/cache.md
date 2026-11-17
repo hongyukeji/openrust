@@ -184,6 +184,23 @@ pub async fn report() -> CacheResult<Value> {
 }
 ```
 
+## Repository settings {#cache-repository-settings}
+
+`getName`, `getStore`, and `getEventDispatcher` expose the configured store name, backend, and dispatcher. A named repository keeps its name when cache events are disabled. A tagged repository inherits the name, dispatcher, and default lifetime of its parent at creation.
+
+`putWithDefault` uses `getDefaultCacheTime`, which starts at 3600 seconds. An explicit `put(key, value, None)` stores the value indefinitely. Use `setDefaultCacheTime` on an owned repository to change the default. `setStore` and `setEventDispatcher` also configure an owned repository. Cloning shares the backend while allowing each copy to replace its own settings.
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn cache_report() -> CacheResult<bool> {
+    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    repository.setDefaultCacheTime(Some(60));
+    let reports = repository.tags(&["reports"])?;
+    reports.putWithDefault("latest", &Value::from("ready")).await
+}
+```
+
 ## Cache Tags {#cache-tags}
 
 Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array`, `redis`, `failover`, and `null` stores accept tags. Other directly selected stores currently return a tagging error.

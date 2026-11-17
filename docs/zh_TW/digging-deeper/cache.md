@@ -184,6 +184,23 @@ pub async fn report() -> CacheResult<Value> {
 }
 ```
 
+## 儲存庫設定 {#cache-repository-settings}
+
+`getName`、`getStore` 和 `getEventDispatcher` 分別讀取已設定的儲存庫名稱、底層儲存空間和事件分派器。具名儲存庫停用快取事件後仍可讀取名稱。建立標籤儲存庫時，會繼承來源儲存庫的名稱、事件分派器和預設有效時間。
+
+`putWithDefault` 使用 `getDefaultCacheTime` 回傳的時間，初始值為 3600 秒。明確呼叫 `put(key, value, None)` 會永久保存。使用 `setDefaultCacheTime` 修改自有儲存庫的預設有效時間。`setStore` 和 `setEventDispatcher` 也用於自有儲存庫。複製後的儲存庫共用底層儲存空間，每份副本可以各自取代設定。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn cache_report() -> CacheResult<bool> {
+    let mut repository = Cache::store(Some("redis"))?.as_ref().clone();
+    repository.setDefaultCacheTime(Some(60));
+    let reports = repository.tags(&["reports"])?;
+    reports.putWithDefault("latest", &Value::from("ready")).await
+}
+```
+
 ## 快取標籤 {#cache-tags}
 
 使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array`、`redis`、`failover` 和 `null` 接受標籤。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
