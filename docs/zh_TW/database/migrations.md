@@ -132,7 +132,7 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 
 ## 回復遷移
 
-`migrate:rollback` 按反向順序撤銷最近一批遷移。用 `--step` 指定筆數，或用 `--batch` 指定批次。
+`migrate:rollback` 預設在寫入連線中只選取帳本裡最近記錄的一批，再按遷移逆序回滾。用 `--step` 指定筆數，或用 `--batch` 指定批次。
 
 ```sh
 ./artisan migrate:rollback --pretend

@@ -107,3 +107,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 隔离基线 `cc9667837` 的 MySQL 8.4.13 框架控制台回归已验收预演、路径筛选、实际执行、两个应用的名单隔离、清空后补跑及回滚。状态仍显示尚未登记的排除项为 `Pending`。
 - 同一 MySQL 环境通过迁移状态和根应用账本回归。将三语共用示例编入独立应用，从服务提供者的 `boot` 调用，实测 Artisan 只预演和执行第二条迁移。首轮示例编译发现 `ProviderResult` 不接收类型参数，三语修正后重新编译并执行通过。
 - Rust 1.94.0 全仓格式、严格 Clippy、实际 `main artisan inspire`、三语站点及 18 项浏览器检查通过。临时 MySQL、本批 3.6 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.30 GB（58.95 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-exclusions.UonJZpW3`。
+
+## 默认回滚与迁移账本读取
+
+- 对照固定 Laravel `DatabaseMigrationRepository::getLast`、`getRan` 与 `getMigrationBatches`。旧版先取迁移名及批次，再在内存中筛选。当前默认回滚在写库同一条查询中用 `MAX(batch)` 子查询限定记录，仍按迁移名逆序。迁移检查仅查询迁移名，状态批次查询仅选择迁移名和批次。 [固定 Laravel 迁移账本](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/DatabaseMigrationRepository.php) · [Laravel 回滚章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#rolling-back-migrations)
+- 在 `da656c9b7` 隔离基线的 MySQL 8.4.13 上，普通读连接因指定库不存在而返回错误。账本最新批次、已执行名及批次列表都成功，查询日志确认三次查询均走写连接。空账本返回空列表，多个批次排序正确，最新批次仅传输相应记录。
+- 框架的迁移状态回归通过。实际根应用二进制执行 `migrate:rollback --pretend` 和默认 `migrate:rollback`，预演只列最新批次，实际撤销只移除最新批次的表和账本记录。早期用户表及其迁移记录保留，重新迁移成功。
+- Rust 1.94.0 全仓格式、严格 Clippy、`main artisan inspire`、三语站点及 18 项浏览器检查通过。临时 MySQL、本批 3.3 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.27 GB（58.93 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-ledger-query.jdYdibZs`。

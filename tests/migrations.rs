@@ -428,6 +428,18 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
+    let preview = success(run(&["migrate:rollback", "--pretend"]));
+    assert!(preview.contains("create_cache_table:") && !preview.contains("create_users_table:"));
+    assert!(schema.hasTable("cache").await.unwrap());
+    let rollback = success(run(&["migrate:rollback"]));
+    assert!(
+        rollback.contains("create_cache_table DONE")
+            && !rollback.contains("create_users_table DONE")
+    );
+    assert!(!schema.hasTable("cache").await.unwrap());
+    assert!(schema.hasTable("users").await.unwrap());
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
+    assert!(success(run(&["migrate"])).contains("create_cache_table DONE"));
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
     let seed = [

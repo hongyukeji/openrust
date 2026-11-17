@@ -132,7 +132,7 @@ If another process holds the lock, the command reports that it is already runnin
 
 ## Rolling Back Migrations
 
-`migrate:rollback` rolls back the latest batch in reverse order. Use `--step` to select a number of migrations, or `--batch` to select a specific batch.
+By default, `migrate:rollback` selects only the latest recorded batch on the write connection and rolls it back in reverse migration order. Use `--step` to select a number of migrations, or `--batch` to select a specific batch.
 
 ```sh
 ./artisan migrate:rollback --pretend

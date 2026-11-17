@@ -132,7 +132,7 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 
 ## 回滚迁移
 
-`migrate:rollback` 按逆序撤销最近一批迁移。用 `--step` 指定条数，或用 `--batch` 指定批次。
+`migrate:rollback` 默认在写库中只选取账本里最近记录的一批，再按迁移逆序回滚。用 `--step` 指定条数，或用 `--batch` 指定批次。
 
 ```sh
 ./artisan migrate:rollback --pretend

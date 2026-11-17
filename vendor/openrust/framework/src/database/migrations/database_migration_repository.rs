@@ -48,9 +48,16 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
 
     fn get_ran(&mut self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>> {
         Box::pin(async move {
-            let mut records = self.records().await?;
-            records.reverse();
-            Ok(records.into_iter().map(|record| record.migration).collect())
+            self.connection()?
+                .table(&self.table)
+                .useWritePdo()
+                .orderBy("batch", "asc")
+                .orderBy("migration", "asc")
+                .pluck("migration")
+                .await?
+                .iter()
+                .map(migration_name)
+                .collect()
         })
     }
 
@@ -94,23 +101,42 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
 
     fn get_last(&mut self) -> DatabaseFuture<'_, DatabaseResult<Vec<MigrationRecord>>> {
         Box::pin(async move {
-            let records = self.records().await?;
-            let batch = records.first().map(|record| record.batch);
-            Ok(records
-                .into_iter()
-                .take_while(|record| Some(record.batch) == batch)
-                .collect())
+            let connection = self.connection()?;
+            let latest = connection
+                .table(&self.table)
+                .selectRaw("max(batch)", vec![]);
+            connection
+                .table(&self.table)
+                .useWritePdo()
+                .select(["id", "migration", "batch"])
+                .whereSub("batch", "=", &latest)?
+                .orderByDesc("migration")
+                .get()
+                .await?
+                .iter()
+                .map(record)
+                .collect()
         })
     }
 
     fn get_migration_batches(&mut self) -> DatabaseFuture<'_, DatabaseResult<Vec<(String, u64)>>> {
         Box::pin(async move {
-            let mut records = self.records().await?;
-            records.reverse();
-            Ok(records
-                .into_iter()
-                .map(|record| (record.migration, record.batch))
-                .collect())
+            self.connection()?
+                .table(&self.table)
+                .useWritePdo()
+                .select(["migration", "batch"])
+                .orderBy("batch", "asc")
+                .orderBy("migration", "asc")
+                .get()
+                .await?
+                .iter()
+                .map(|row| {
+                    Ok((
+                        migration_name(ledger_column(row, "migration")?)?,
+                        unsigned(ledger_column(row, "batch")?)?,
+                    ))
+                })
+                .collect()
         })
     }
 
@@ -202,17 +228,22 @@ fn unsigned(value: &Value) -> DatabaseResult<u64> {
     }
 }
 
-fn record(row: &Row) -> DatabaseResult<MigrationRecord> {
-    let get = |key| {
-        row.get(key)
-            .ok_or(DatabaseError::InvalidMigration("ledger column"))
-    };
-    let Value::Text(migration) = get("migration")? else {
+fn ledger_column<'a>(row: &'a Row, key: &str) -> DatabaseResult<&'a Value> {
+    row.get(key)
+        .ok_or(DatabaseError::InvalidMigration("ledger column"))
+}
+
+fn migration_name(value: &Value) -> DatabaseResult<String> {
+    let Value::Text(migration) = value else {
         return Err(DatabaseError::InvalidMigration("ledger name"));
     };
+    Ok(migration.clone())
+}
+
+fn record(row: &Row) -> DatabaseResult<MigrationRecord> {
     Ok(MigrationRecord {
-        id: unsigned(get("id")?)?,
-        migration: migration.clone(),
-        batch: unsigned(get("batch")?)?,
+        id: unsigned(ledger_column(row, "id")?)?,
+        migration: migration_name(ledger_column(row, "migration")?)?,
+        batch: unsigned(ledger_column(row, "batch")?)?,
     })
 }

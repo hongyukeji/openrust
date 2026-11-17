@@ -85,6 +85,76 @@ static ENTRIES: &[MigrationEntry] = &[
 ];
 
 #[tokio::test]
+async fn mysql_migration_repository_projects_history_and_selects_the_latest_batch_on_the_writer() {
+    use openrust::database::{
+        events::QueryRole,
+        migrations::{DatabaseMigrationRepository, MigrationRepositoryInterface},
+    };
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let mut reader = url::Url::parse(&url).unwrap();
+    reader.set_path("/openrust_missing_ledger_replica");
+    let manager = Arc::new(DatabaseManager::new(
+        Arc::new(Repository::new(BTreeMap::from([(
+            "database".into(),
+            json!({"default":"mysql","connections":{"mysql":{
+                "url":url, "read":{"url":reader.as_str()}, "prefix":"repo_"
+            }}}),
+        )]))),
+        ".",
+    ));
+    let connection = manager.connection(None).unwrap();
+    assert!(connection.select("select 1", &[]).await.is_err());
+    let mut repository = DatabaseMigrationRepository::new(manager, None, "history");
+    repository.create_repository().await.unwrap();
+    assert!(repository.get_last().await.unwrap().is_empty());
+    for (migration, batch) in [("alpha", 2), ("older", 1), ("zeta", 2)] {
+        repository.log(migration, batch).await.unwrap();
+    }
+
+    connection.enableQueryLog();
+    let latest = repository.get_last().await.unwrap();
+    assert_eq!(
+        latest
+            .iter()
+            .map(|row| (row.migration.as_str(), row.batch))
+            .collect::<Vec<_>>(),
+        [("zeta", 2), ("alpha", 2)]
+    );
+    assert!(latest.iter().all(|row| row.id > 0));
+    let history = repository.get_ran().await.unwrap();
+    assert_eq!(history, ["older", "alpha", "zeta"]);
+    let batches = repository.get_migration_batches().await.unwrap();
+    assert_eq!(
+        batches
+            .iter()
+            .map(|(name, batch)| (name.as_str(), *batch))
+            .collect::<Vec<_>>(),
+        [("older", 1), ("alpha", 2), ("zeta", 2)]
+    );
+    let log = connection.getQueryLog();
+    assert_eq!(log.len(), 3);
+    assert!(
+        log.iter()
+            .all(|entry| entry.read_write_type == QueryRole::Write)
+    );
+    assert!(log[0].query.contains("`batch` = (select max(batch)"));
+    assert!(
+        log[1]
+            .query
+            .starts_with("select `migration` from `repo_history`")
+    );
+    assert!(
+        log[2]
+            .query
+            .starts_with("select `migration`, `batch` from `repo_history`")
+    );
+}
+
+#[tokio::test]
 async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
     use openrust::{
         contracts::{container::Container as _, foundation::Application as _},
