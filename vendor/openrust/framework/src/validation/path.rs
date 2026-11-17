@@ -101,7 +101,7 @@ fn segment(key: String, literal_star: bool) -> Segment {
         Segment::Key(key)
     }
 }
-fn join(prefix: &str, key: &str) -> Result<String> {
+pub(super) fn join(prefix: &str, key: &str) -> Result<String> {
     if prefix.len().saturating_add(key.len()) > MAX_PATH {
         return Err(limit());
     }

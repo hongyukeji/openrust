@@ -71,6 +71,34 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+## Validating Files {#validating-files}
+
+Use `Data::fromRequest` for manual multipart validation. Form requests include uploads automatically. Access validated uploads by dotted path with `validated.file`, including indexed paths such as `attachments.0`. The JSON view represents file leaves as null.
+
+`mimes` and `mimetypes` infer the type from file content. `extensions` checks the client's filename extension. Use both when the content type and filename extension matter. Use `image:allow_svg` or `File::image(true)` to accept SVG. The `size`, `min`, `max` and `between` rules measure files in kilobytes of 1,024 bytes.
+
+```rust
+use openrust::{
+    contracts::validation::Validator as _,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Validator,
+    validation::{Data, Rule, RuleSet, rules::File},
+};
+
+fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = Data::fromRequest(request).await?;
+        let rules = RuleSet::new().field("image", [
+            Rule::required(),
+            File::image(false).max("2mb").into(),
+        ])?;
+        let validated = Validator::make(data, rules)?.validate().await?;
+        let size = validated.file("image").map(|file| file.getSize());
+        Response::json(StatusCode::OK, serde_json::json!({ "size": size }))
+    })
+}
+```
+
 ## Validation Error Response Format
 
 For requests that expect JSON, a validation failure returns HTTP 422 with `message` and an `errors` object keyed by field. Expanded keys use dot notation, such as `users.0.email`. Override rule messages and attribute labels in the active locale’s `lang/<locale>/validation.json`.

@@ -13,7 +13,9 @@ use openrust::{
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
     routing::RoutingError,
     support::facades::{Lang, Route, Validator},
-    validation::{Data, Rule, RuleSet, ValidatedInput, ValidationFuture, ValidationResult},
+    validation::{
+        Data, Rule, RuleSet, ValidatedInput, ValidationFuture, ValidationResult, rules::File,
+    },
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -142,10 +144,82 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     })
 }
 
+struct Upload(String);
+
+impl FormRequest for Upload {
+    fn prepareForValidation(&mut self, data: &mut Data) -> ValidationResult<()> {
+        let mut value = data.as_value().clone();
+        value["title"] = json!("prepared");
+        data.replace(value)
+    }
+
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        match self.0.as_str() {
+            "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
+            "image" => RuleSet::parse([("attachments.*", "required|image")]),
+            "fluent" => RuleSet::parse([
+                ("attachments", "required|array"),
+                ("title", "required|string"),
+            ])?
+            .field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::types(["image/*", "png"])
+                        .extensions(["PNG"])
+                        .min(1)
+                        .max("0.002mb")
+                        .into(),
+                ],
+            ),
+            _ => RuleSet::parse([
+                ("attachments", "required|array"),
+                (
+                    "attachments.*",
+                    "required|nullable|file|mimes:png|mimetypes:image/*|extensions:png|size:1|between:1,2",
+                ),
+                ("title", "required|string"),
+            ]),
+        }
+    }
+}
+
+fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.route("mode").unwrap().to_owned();
+        let input = if mode == "manual" {
+            let data = Data::fromRequest(request).await?;
+            let rules = RuleSet::parse([("attachments.0.title", "required|string")])?.field(
+                "attachments.0.image",
+                [Rule::required(), File::image(false).max("2mb").into()],
+            )?;
+            Validator::make(data, rules)?.validate().await?
+        } else {
+            Upload(mode.clone()).validateResolved(request).await?
+        };
+        let path = if mode == "manual" {
+            "attachments.0.image"
+        } else {
+            "attachments.0"
+        };
+        let file = input.file(path);
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "input": input.all(),
+                "filename": file.map(|file| file.getClientOriginalName()),
+                "size": file.map(|file| file.getSize()),
+                "unvalidated": input.file("unvalidated").is_some(),
+            }),
+        )
+    })
+}
+
 fn register() -> Result<(), RoutingError> {
     Route::r#match(&[Method::POST], "/submit/{locale}", form)?;
     Route::r#match(&[Method::POST], "/manual", manual)?;
     Route::r#match(&[Method::POST], "/presence/{mode}", presence)?;
+    Route::r#match(&[Method::POST], "/upload/{mode}", upload)?;
     Ok(())
 }
 
@@ -175,16 +249,35 @@ async fn serve(app: Application) -> (SocketAddr, tokio::task::JoinHandle<()>) {
 }
 
 async fn send(address: SocketAddr, path: &str, body: Value, denied: bool, status: u16) -> Value {
+    let denied = if denied { "X-Denied: yes\r\n" } else { "" };
+    send_bytes(
+        address,
+        path,
+        "application/json",
+        body.to_string().as_bytes(),
+        denied,
+        status,
+    )
+    .await
+}
+
+async fn send_bytes(
+    address: SocketAddr,
+    path: &str,
+    content_type: &str,
+    body: &[u8],
+    headers: &str,
+    status: u16,
+) -> Value {
     timeout(Duration::from_secs(5), async {
         let mut socket = TcpStream::connect(address).await.unwrap();
-        let body = body.to_string();
-        let denied = if denied { "X-Denied: yes\r\n" } else { "" };
-        let wire = format!("POST {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{denied}Connection: close\r\n\r\n{body}",body.len());
+        let wire = format!("POST {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n{headers}Connection: close\r\n\r\n", body.len());
         socket.write_all(wire.as_bytes()).await.unwrap();
+        socket.write_all(body).await.unwrap();
         let mut response = String::new();
         socket.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with(&format!("HTTP/1.1 {status} ")), "{response}");
-        let (headers,body) = response.split_once("\r\n\r\n").unwrap();
+        let (headers, body) = response.split_once("\r\n\r\n").unwrap();
         assert!(headers.contains("content-type: application/json"));
         serde_json::from_str(body).unwrap()
     }).await.unwrap()
@@ -447,4 +540,148 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
         .await
         .unwrap();
     std::fs::remove_dir_all(root).unwrap();
+}
+
+async fn upload_file(
+    address: SocketAddr,
+    mode: &str,
+    filename: &str,
+    mime: &str,
+    bytes: &[u8],
+    status: u16,
+) -> Value {
+    let mut body = format!("--upload-boundary\r\nContent-Disposition: form-data; name=\"attachments[]\"; filename=\"{filename}\"\r\nContent-Type: {mime}\r\n\r\n").into_bytes();
+    body.extend_from_slice(bytes);
+    body.extend_from_slice(b"\r\n--upload-boundary\r\nContent-Disposition: form-data; name=\"unvalidated\"; filename=\"private.txt\"\r\nContent-Type: text/plain\r\n\r\nsecret\r\n--upload-boundary--\r\n");
+    send_bytes(
+        address,
+        &format!("/api/upload/{mode}"),
+        "multipart/form-data; boundary=upload-boundary",
+        &body,
+        "",
+        status,
+    )
+    .await
+}
+
+#[tokio::test]
+async fn validates_typed_multipart_files_in_form_requests_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
+    png.resize(1024, 0);
+    let accepted = upload_file(address, "rules", "avatar.PNG", "text/plain", &png, 200).await;
+    assert_eq!(
+        accepted,
+        json!({
+            "input": {"attachments": [null], "title": "prepared"},
+            "filename": "avatar.PNG", "size": 1024, "unvalidated": false,
+        })
+    );
+    upload_file(
+        address,
+        "fluent",
+        "avatar.png",
+        "application/octet-stream",
+        &png,
+        200,
+    )
+    .await;
+    let disguised = upload_file(
+        address,
+        "rules",
+        "avatar.png",
+        "image/png",
+        b"ordinary text",
+        422,
+    )
+    .await;
+    let errors = disguised["errors"]["attachments.0"].as_array().unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.as_str().unwrap().contains("file of type: png"))
+    );
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.as_str().unwrap().contains("file of type: image/*"))
+    );
+    let extension = upload_file(address, "rules", "avatar.txt", "image/png", &png, 422).await;
+    assert_eq!(
+        extension["errors"]["attachments.0"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        extension["errors"]["attachments.0"][0]
+            .as_str()
+            .unwrap()
+            .contains("extensions: png")
+    );
+
+    let mut nested = b"--probe\r\nContent-Disposition: form-data; name=\"attachments[0][title]\"\r\n\r\nCover\r\n--probe\r\nContent-Disposition: form-data; name=\"attachments[0][image]\"; filename=\"cover.png\"\r\nContent-Type: text/plain\r\n\r\n".to_vec();
+    nested.extend_from_slice(&png);
+    nested.extend_from_slice(b"\r\n--probe--\r\n");
+    let manual = send_bytes(
+        address,
+        "/api/upload/manual",
+        "multipart/form-data; boundary=probe",
+        &nested,
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(
+        manual["input"],
+        json!({"attachments":[{"title":"Cover","image":null}]})
+    );
+    assert_eq!(manual["filename"], "cover.png");
+
+    png.push(0);
+    let oversize = upload_file(address, "rules", "avatar.png", "image/png", &png, 422).await;
+    assert_eq!(
+        oversize["errors"]["attachments.0"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        oversize["errors"]["attachments.0"][0]
+            .as_str()
+            .unwrap()
+            .contains("1 kilobytes")
+    );
+    upload_file(address, "image", "avatar.PhP8", "image/png", &png, 422).await;
+    let svg = b"<?xml version=\"1.0\"?><svg xmlns=\"http://www.w3.org/2000/svg\"></svg>";
+    upload_file(address, "image", "avatar.svg", "image/svg+xml", svg, 422).await;
+    upload_file(address, "svg", "avatar.svg", "text/plain", svg, 200).await;
+    upload_file(
+        address,
+        "svg",
+        "fake.svg",
+        "image/svg+xml",
+        b"<?xml version=\"1.0\"?><document><svg/></document>",
+        422,
+    )
+    .await;
+    let fake = send(
+        address,
+        "/api/upload/rules",
+        json!({"attachments":[{"name":"avatar.png","mime":"image/png"}]}),
+        false,
+        422,
+    )
+    .await;
+    assert!(
+        fake["errors"]["attachments.0"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| error.as_str().unwrap().contains("must be a file."))
+    );
+    send(address, "/api/upload/rules", json!({}), false, 422).await;
+    server.abort();
 }

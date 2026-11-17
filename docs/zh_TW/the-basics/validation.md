@@ -71,6 +71,34 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+## 檔案驗證 {#validating-files}
+
+手動驗證 multipart 時使用 `Data::fromRequest`。FormRequest 會自動包含上傳檔案。透過 `validated.file` 讀取已驗證的檔案，支援 `attachments.0` 等點路徑。JSON 檢視中的檔案位置表示為 null。
+
+`mimes` 和 `mimetypes` 從檔案內容推斷類型，`extensions` 檢查用戶端檔名的副檔名。內容和副檔名都有要求時可同時使用。用 `image:allow_svg` 或 `File::image(true)` 接受 SVG。`size`、`min`、`max` 和 `between` 以 KiB 計量檔案大小，每 KiB 為 1,024 位元組。
+
+```rust
+use openrust::{
+    contracts::validation::Validator as _,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Validator,
+    validation::{Data, Rule, RuleSet, rules::File},
+};
+
+fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let data = Data::fromRequest(request).await?;
+        let rules = RuleSet::new().field("image", [
+            Rule::required(),
+            File::image(false).max("2mb").into(),
+        ])?;
+        let validated = Validator::make(data, rules)?.validate().await?;
+        let size = validated.file("image").map(|file| file.getSize());
+        Response::json(StatusCode::OK, serde_json::json!({ "size": size }))
+    })
+}
+```
+
 ## 驗證錯誤回應格式
 
 請求預期 JSON 時，驗證失敗回傳 HTTP 422，本文包含 `message` 和依欄位索引的 `errors`。展開後的欄位用點路徑表示，例如 `users.0.email`。可在目前語言的 `lang/<locale>/validation.json` 中覆寫規則訊息和欄位名稱。

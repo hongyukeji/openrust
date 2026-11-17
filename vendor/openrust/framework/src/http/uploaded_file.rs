@@ -1,16 +1,30 @@
-use std::sync::{Arc, OnceLock};
+use std::{
+    fmt,
+    sync::{Arc, OnceLock},
+};
 
 use axum::body::Bytes;
 
 use crate::filesystem::{FilesystemError, FilesystemResult, Storage, Visibility, WriteOptions};
 
 /// A received upload with untrusted client metadata and bounded file content.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct UploadedFile {
     path: String,
     media_type: Option<String>,
     content: Bytes,
     hash_name: Arc<OnceLock<String>>,
+}
+
+impl fmt::Debug for UploadedFile {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("UploadedFile")
+            .field("path", &self.path)
+            .field("media_type", &self.media_type)
+            .field("size", &self.content.len())
+            .finish_non_exhaustive()
+    }
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's uploaded-file API")]
@@ -49,15 +63,19 @@ impl UploadedFile {
 
     /// Detects a file extension from the received bytes.
     pub fn extension(&self) -> Option<&'static str> {
+        self.detected_type().map(|(extension, _)| extension)
+    }
+
+    pub(crate) fn detected_type(&self) -> Option<(&'static str, &'static str)> {
         if let Some(kind) = infer::get(&self.content) {
-            return Some(kind.extension());
+            return Some((kind.extension(), kind.mime_type()));
         }
         let text = std::str::from_utf8(&self.content).ok()?;
         (!text.is_empty()
             && text.chars().all(|character| {
                 !character.is_control() || matches!(character, '\t' | '\n' | '\r' | '\u{c}')
             }))
-        .then_some("txt")
+        .then_some(("txt", "text/plain"))
     }
 
     /// Returns the same server-generated basename for this upload and its clones.

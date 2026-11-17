@@ -24,3 +24,11 @@
 - 三语文档示例编译并运行。站点构建、12 项通用浏览器检查及 6 项数据库规则正文／导航检查通过。基线 `409950b79` 和本批均复现 `validation_web.rs:176` 的重定向路径差异，基线及当前均返回 `/`，测试期望 `/edit?step=1`。
 - Rust 1.94.0 的改动文件格式、工作区严格 Clippy 和独立 `./artisan inspire` 通过。全仓格式仍只报告基线的 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.4 GiB 隔离 Cargo 产物和文档缓存，验收日志保留于 `/private/tmp/openrust-04-05-presence.GGTDZGlB`。
 - 单元继续跟踪文件规则、FormRequest 自动注入、Laravel 引号 CSV 参数与 PHP 动态类型边界。额外数据库驱动按发布验收验证。核心账本维持 59/66。
+
+## Multipart 文件验证
+
+- 对照固定 Laravel 的 `File`、`validateImage`、`validateMimes`、`validateMimetypes` 和 `validateExtensions`，参考固定 Goravel 的 multipart 输入数据袋。核对旧版 `http/request/{uploaded_file,mime}.rs` 的内容推断和客户端类型分离思路。当前 `UploadedFile` 已持有受请求体限制约束的 `Bytes`，继续复用现有解析器与 `infer`，用 XML 根元素识别显式允许的 SVG。 [固定 Laravel File](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Rules/File.php) · [固定 Goravel 数据袋](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/data_bag.go)
+- `Data::fromRequest` 供手动验证与 FormRequest 共用，合并标量和嵌套上传。`ValidatedInput::file` 按验证路径读取已选上传，JSON 投影在文件位置保留 null。字符串和流式规则涵盖文件、图片、内容类型、原始扩展名与大小，区分上游规定的文件大小单位和流式单位后缀。
+- MySQL 8.4.13 环境下 `request_input`、`validation_http` 和 `validation_paths` 共 22 项通过。实际 HTTP 包含客户端 MIME 篡改、名称扩展名不匹配、PHP 文件名拒绝、SVG 显式允许、文件大小边界、JSON 仿冒文件、验证后读取和过滤未选上传。
+- 额外复验手动 multipart 路径中同一数组成员的文本和文件合并。Rust 1.94.0 的改动文件格式、工作区严格 Clippy、独立 `./artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查均通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412` 差异。临时 MySQL、3.4 GiB 隔离 Cargo 产物及文档缓存已回收。验收日志保留于 `/private/tmp/openrust-04-05-files.3FebuwxX`。
+- 单元继续跟踪图片尺寸、文件编码和不同平台 MIME 推断差异，以及 FormRequest 自动注入与数据库规则剩余边界。核心账本维持 59/66。

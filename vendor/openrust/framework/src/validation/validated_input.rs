@@ -1,26 +1,33 @@
+use std::collections::BTreeMap;
+
 use serde_json::Map;
 
+use crate::http::UploadedFile;
+
 use super::{
-    ValidationResult, Value,
+    Data, ValidationResult, Value,
     path::{self, Segment},
 };
 
 /// Contains only the attributes selected by the validator.
 #[derive(Clone, Debug)]
-pub struct ValidatedInput(Value);
+pub struct ValidatedInput {
+    input: Value,
+    files: BTreeMap<String, UploadedFile>,
+}
 
 impl ValidatedInput {
     pub fn all(&self) -> &Value {
-        &self.0
+        &self.input
     }
 
     pub fn into_value(self) -> Value {
-        self.0
+        self.input
     }
 
     pub fn get(&self, attribute: &str) -> Option<&Value> {
         let segments = path::parse(attribute).ok()?;
-        segments.iter().try_fold(&self.0, |value, segment| {
+        segments.iter().try_fold(&self.input, |value, segment| {
             let Segment::Key(key) = segment else {
                 return None;
             };
@@ -32,8 +39,12 @@ impl ValidatedInput {
         })
     }
 
+    pub fn file(&self, attribute: &str) -> Option<&UploadedFile> {
+        self.files.get(attribute)
+    }
+
     pub(super) fn project(
-        input: &Value,
+        data: &Data,
         fields: &[(String, Option<&Value>)],
     ) -> ValidationResult<Self> {
         let mut selected = Map::new();
@@ -56,7 +67,17 @@ impl ValidatedInput {
             let segments = path::parse(field)?;
             insert(&mut selected, &segments, value);
         }
-        Ok(Self(shape(selected, input)))
+        let mut result = Self {
+            input: shape(selected, data.as_value()),
+            files: BTreeMap::new(),
+        };
+        result.files = data
+            .uploads()
+            .iter()
+            .filter(|(path, _)| result.get(path).is_some())
+            .map(|(path, file)| (path.clone(), file.clone()))
+            .collect();
+        Ok(result)
     }
 }
 

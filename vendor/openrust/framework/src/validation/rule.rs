@@ -4,7 +4,7 @@ use crate::contracts::validation::ValidationRule;
 
 use super::{
     ValidationError, ValidationResult, Value,
-    rules::{Exists, Unique},
+    rules::{Exists, File, Unique},
 };
 
 /// A fluent validation rule or application-defined rule.
@@ -24,6 +24,9 @@ pub(super) enum Kind {
     Array,
     Min(usize),
     Max(usize),
+    Size(usize),
+    Between(usize, usize),
+    File(File),
     Exists(Exists),
     Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
@@ -85,9 +88,22 @@ impl Rule {
             "integer" => Self::integer(),
             "boolean" => Self::boolean(),
             "array" => Self::array(),
+            "file" => File::default().into(),
+            "image" => File::image(false).into(),
             _ => match rule.split_once(':') {
                 Some(("min", bound)) => Self::min(bound.parse().map_err(|_| invalid())?),
                 Some(("max", bound)) => Self::max(bound.parse().map_err(|_| invalid())?),
+                Some(("size", bound)) => Self(Kind::Size(bound.parse().map_err(|_| invalid())?)),
+                Some(("between", bounds)) => {
+                    let (min, max) = bounds.split_once(',').ok_or_else(invalid)?;
+                    Self(Kind::Between(
+                        min.parse().map_err(|_| invalid())?,
+                        max.parse().map_err(|_| invalid())?,
+                    ))
+                }
+                Some((name @ ("image" | "mimes" | "mimetypes" | "extensions"), arguments)) => {
+                    File::parse(name, arguments)?.into()
+                }
                 Some((kind @ ("exists" | "unique"), arguments)) => {
                     let arguments: Vec<_> = arguments.split(',').collect();
                     let (table, rest) = arguments

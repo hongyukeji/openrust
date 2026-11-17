@@ -350,6 +350,13 @@ impl Request {
         })
     }
 
+    pub(crate) async fn validation_uploads(
+        &mut self,
+    ) -> Result<(&Value, &[UploadedFile]), HttpError> {
+        let payload = self.payload().await?;
+        Ok((&payload.file_indices, &payload.files))
+    }
+
     /// Returns a multipart upload by field name or dotted array index.
     pub async fn file(&mut self, key: &str) -> Result<Option<UploadedFile>, HttpError> {
         let payload = self.payload().await?;

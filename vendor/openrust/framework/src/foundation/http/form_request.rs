@@ -22,12 +22,7 @@ pub trait FormRequest: Send + Sync {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<ValidatedInput, HttpError>> {
         Box::pin(async move {
-            let mut data = Data::new(
-                request
-                    .input(None)
-                    .await?
-                    .unwrap_or_else(|| serde_json::json!({})),
-            )?;
+            let mut data = Data::fromRequest(request).await?;
             self.prepareForValidation(&mut data)?;
             self.authorize(request, &data)
                 .await

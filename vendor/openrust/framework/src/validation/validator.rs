@@ -8,6 +8,7 @@ use super::{
     Data, DatabasePresenceVerifier, Rule, RuleContext, RuleFailure, RuleSet, ValidatedInput,
     ValidationError, ValidationException, ValidationFuture, ValidationResult, Value, path,
     rule::{Kind, integer, is_empty, size},
+    rules::size_failure,
 };
 
 /// Evaluates the configured rules against one input value.
@@ -117,7 +118,7 @@ impl Validator {
             }
         }
         if errors.is_empty() {
-            self.result = Some(ValidatedInput::project(self.data.as_value(), &fields)?);
+            self.result = Some(ValidatedInput::project(&self.data, &fields)?);
         }
         self.errors = errors;
         Ok(())
@@ -132,11 +133,26 @@ impl Validator {
         nullable: bool,
         numeric: bool,
     ) -> ValidationResult<Vec<RuleFailure>> {
+        let file = self.data.file(attribute);
+        if let Some(file) = file {
+            let bounds = match rule {
+                Kind::Min(bound) => Some((Some(*bound), None)),
+                Kind::Max(bound) => Some((None, Some(*bound))),
+                Kind::Size(bound) => Some((Some(*bound), Some(*bound))),
+                Kind::Between(min, max) => Some((Some(*min), Some(*max))),
+                _ => None,
+            };
+            if let Some((min, max)) = bounds {
+                return Ok(size_failure(file.getSize(), min, max).into_iter().collect());
+            }
+        }
         let failure = match (rule, value) {
-            (Kind::Required, value) if value.is_none_or(is_empty) => Some("required"),
+            (Kind::Required, value) if file.is_none() && value.is_none_or(is_empty) => {
+                Some("required")
+            }
             (Kind::Present, None) => Some("present"),
             (_, None) => None,
-            (_, Some(Value::Null)) if nullable => None,
+            (_, Some(Value::Null)) if nullable && file.is_none() => None,
             (_, Some(Value::String(value))) if value.trim().is_empty() => None,
             (Kind::String, Some(value)) if !value.is_string() => Some("string"),
             (Kind::Integer, Some(value)) if integer(value).is_none() => Some("integer"),
@@ -148,27 +164,38 @@ impl Validator {
                 Some("boolean")
             }
             (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
+            (Kind::File(rule), Some(_)) => return rule.failures(file),
+            (Kind::Size(bound), Some(value)) => {
+                return Ok(scalar_size(
+                    value,
+                    numeric,
+                    "size",
+                    &[("size", *bound)],
+                    |n| n == *bound as i128,
+                ));
+            }
+            (Kind::Between(min, max), Some(value)) => {
+                return Ok(scalar_size(
+                    value,
+                    numeric,
+                    "between",
+                    &[("min", *min), ("max", *max)],
+                    |n| n >= *min as i128 && n <= *max as i128,
+                ));
+            }
             (Kind::Min(bound) | Kind::Max(bound), Some(value)) => {
                 let minimum = matches!(rule, Kind::Min(_));
                 let kind = if minimum { "min" } else { "max" };
-                let observed = size(value, numeric);
-                if observed.is_some_and(|(number, _)| {
+                return Ok(scalar_size(value, numeric, kind, &[(kind, *bound)], |n| {
                     if minimum {
-                        number >= *bound as i128
+                        n >= *bound as i128
                     } else {
-                        number <= *bound as i128
+                        n <= *bound as i128
                     }
-                }) {
-                    return Ok(Vec::new());
-                }
-                let category = observed.map_or(
-                    if numeric { "numeric" } else { "string" },
-                    |(_, category)| category,
-                );
-                let mut failure = RuleFailure::new(format!("validation.{kind}.{category}"));
-                failure.replacements.insert(kind.into(), bound.to_string());
-                return Ok(vec![failure]);
+                }));
             }
+            (Kind::Exists(_), Some(_)) if file.is_some() => Some("exists"),
+            (Kind::Unique(_), Some(_)) if file.is_some() => Some("unique"),
             (Kind::Exists(rule), Some(value)) => {
                 let column = rule
                     .target
@@ -304,6 +331,30 @@ fn contains(rules: &[Rule], test: impl Fn(&Kind) -> bool) -> bool {
     rules.iter().any(|Rule(rule)| test(rule))
 }
 
+fn scalar_size(
+    value: &Value,
+    numeric: bool,
+    rule: &str,
+    bounds: &[(&str, usize)],
+    passes: impl FnOnce(i128) -> bool,
+) -> Vec<RuleFailure> {
+    let observed = size(value, numeric);
+    if observed.is_some_and(|(number, _)| passes(number)) {
+        return Vec::new();
+    }
+    let category = observed.map_or(
+        if numeric { "numeric" } else { "string" },
+        |(_, category)| category,
+    );
+    let mut failure = RuleFailure::new(format!("validation.{rule}.{category}"));
+    failure.replacements.extend(
+        bounds
+            .iter()
+            .map(|(key, bound)| ((*key).into(), bound.to_string())),
+    );
+    vec![failure]
+}
+
 fn unescape(attribute: &str) -> String {
     let mut escaped = false;
     attribute
@@ -349,6 +400,20 @@ fn fallback(rule: &str) -> &str {
         "array" => "The :attribute field must be an array.",
         "exists" => "The selected :attribute is invalid.",
         "unique" => "The :attribute has already been taken.",
+        "file" => "The :attribute field must be a file.",
+        "image" => "The :attribute field must be an image.",
+        "mimes" | "mimetypes" => "The :attribute field must be a file of type: :values.",
+        "extensions" => "The :attribute field must have one of the following extensions: :values.",
+        "min.file" => "The :attribute field must be at least :min kilobytes.",
+        "max.file" => "The :attribute field must not be greater than :max kilobytes.",
+        "size.file" => "The :attribute field must be :size kilobytes.",
+        "between.file" => "The :attribute field must be between :min and :max kilobytes.",
+        "size.string" => "The :attribute field must be :size characters.",
+        "size.array" => "The :attribute field must contain :size items.",
+        "size.numeric" => "The :attribute field must be :size.",
+        "between.string" => "The :attribute field must be between :min and :max characters.",
+        "between.array" => "The :attribute field must have between :min and :max items.",
+        "between.numeric" => "The :attribute field must be between :min and :max.",
         "min.string" => "The :attribute field must be at least :min characters.",
         "max.string" => "The :attribute field must not be greater than :max characters.",
         "min.array" => "The :attribute field must have at least :min items.",
