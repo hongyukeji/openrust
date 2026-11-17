@@ -70,7 +70,10 @@ impl dyn LockContract {
     }
 }
 
-async fn run_locked<T, F>(lock: ScopedLock, callback: impl FnOnce() -> F) -> CacheResult<T>
+pub(super) async fn run_locked<T, F>(
+    lock: ScopedLock,
+    callback: impl FnOnce() -> F,
+) -> CacheResult<T>
 where
     F: Future<Output = CacheResult<T>>,
 {
@@ -79,7 +82,7 @@ where
     result
 }
 
-async fn acquire_scoped(
+pub(super) async fn acquire_scoped(
     mut lock: Box<dyn LockContract>,
     wait: Option<Duration>,
 ) -> CacheResult<Option<ScopedLock>> {
@@ -140,7 +143,7 @@ impl Drop for PendingAcquisition {
     }
 }
 
-struct ScopedLock {
+pub(super) struct ScopedLock {
     lock: Option<Box<dyn LockContract>>,
     runtime: Option<Handle>,
 }

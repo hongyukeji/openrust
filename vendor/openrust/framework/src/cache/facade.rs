@@ -6,7 +6,10 @@ use crate::{
     support::facades::Facade,
 };
 
-use super::{CacheError, CacheManager, CacheResult, Repository, TaggedCache, Ttl, Value};
+use super::{
+    CacheError, CacheManager, CacheResult, Repository, TaggedCache, Ttl, Value,
+    limiters::ConcurrencyLimiterBuilder,
+};
 
 /// Resolves cache operations for the current application.
 pub struct Cache;
@@ -149,6 +152,35 @@ impl Cache {
 
     pub async fn flush() -> CacheResult<bool> {
         Self::store(None)?.flush().await
+    }
+
+    /// Builds a concurrency limiter on the default cache store.
+    pub fn funnel(name: impl Into<String>) -> CacheResult<ConcurrencyLimiterBuilder> {
+        Self::store(None)?.funnel(name)
+    }
+
+    /// Runs a single callback under an exclusive lock, waiting up to ten seconds.
+    pub async fn withoutOverlapping<T, F>(key: &str, callback: impl FnOnce() -> F) -> CacheResult<T>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        Self::store(None)?.withoutOverlapping(key, callback).await
+    }
+
+    /// Uses explicit lease and wait durations in seconds, with an optional owner token.
+    pub async fn withoutOverlappingWith<T, F>(
+        key: &str,
+        callback: impl FnOnce() -> F,
+        lock_for: u64,
+        wait_for: u64,
+        owner: Option<&str>,
+    ) -> CacheResult<T>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        Self::store(None)?
+            .withoutOverlappingWith(key, callback, lock_for, wait_for, owner)
+            .await
     }
 
     pub fn lock(name: &str, lease: Option<Duration>) -> CacheResult<Box<dyn Lock>> {

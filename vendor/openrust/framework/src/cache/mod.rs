@@ -15,6 +15,7 @@ mod facade;
 mod failover_store;
 mod file_lock;
 mod file_store;
+pub mod limiters;
 mod lock;
 mod memcached_connector;
 mod memcached_lock;
@@ -93,6 +94,7 @@ pub enum CacheError {
     LockFlushUnsupported,
     LockStoreNotSeparate,
     LockTimeout,
+    LimiterTimeout,
     LockInspectionUnsupported,
     LockRetryIntervalUnsupported,
     Backend {
@@ -186,6 +188,7 @@ impl std::fmt::Display for CacheError {
                 f.write_str("The cache store does not support clearing the entire store.")
             }
             Self::LockTimeout => f.write_str("Timed out acquiring the cache lock."),
+            Self::LimiterTimeout => f.write_str("Timed out acquiring a cache concurrency slot."),
             Self::LockInspectionUnsupported => {
                 f.write_str("This cache lock does not support owner inspection.")
             }

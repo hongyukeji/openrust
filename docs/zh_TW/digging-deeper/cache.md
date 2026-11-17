@@ -163,6 +163,27 @@ pub async fn cache_report() -> CacheResult<Option<bool>> {
 
 Future 被取消或回呼 panic 時，Tokio 會排程清理。執行階段結束而無法清理時，有限租期可讓鎖到期。
 
+### 並行限制 {#concurrency-limiting}
+
+`Cache::withoutOverlapping(key, callback).await?` 對同一個鍵一次只執行一個回呼，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待時間，並接受選用的擁有者權杖。租期為零時使用驅動程式的預設值。無法取得鎖時回傳 `CacheError::LockTimeout`。
+
+使用 `Cache::funnel` 允許多個回呼並行執行。各應用程式執行個體須使用同一個共用鎖儲存空間、快取前綴、限制器名稱和並行上限。租期應涵蓋回呼的執行時間，到期後其他呼叫端可以取得該名額。`null` 儲存庫允許所有呼叫通過。
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn generate_report() -> CacheResult<&'static str> {
+    Cache::funnel("reports:generate:")?
+        .limit(3)
+        .releaseAfter(60)
+        .block(10)
+        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .await
+}
+```
+
+用 `limit` 設定並行名額。租期預設 60 秒，等待預設 3 秒，`sleep(milliseconds)` 預設 250 毫秒。`block(0)` 只掃描一次名額。`then(callback)` 回傳 `CacheError::LimiterTimeout`，`thenWith(callback, fallback)` 可在回呼中處理該錯誤。可用 `Cache::store(Some("redis"))?.funnel(name)?` 選取具名儲存庫。缺少原子鎖能力的儲存庫回傳 `CacheError::LocksUnsupported`。
+
 ### 清除快取鎖 {#clearing-cache-locks}
 
 使用 `Cache::flushLocks().await?` 清除預設儲存的鎖，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定儲存。Artisan 也可以指定儲存名稱。

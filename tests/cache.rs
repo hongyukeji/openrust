@@ -2093,3 +2093,172 @@ async fn scoped_lock_callbacks_release_redis_ownership() {
     let second = root.cache(None).await;
     verify_lock_callbacks(&first, &second).await;
 }
+
+async fn verify_cache_concurrency(first: Arc<Repository>, second: Arc<Repository>) {
+    use tokio::sync::oneshot;
+
+    let mut external = second.lock("reports1", None, None).unwrap();
+    assert!(external.get().await.unwrap());
+    let (started, running) = oneshot::channel();
+    let (resume, held) = oneshot::channel();
+    let limiter = first.funnel("reports").unwrap().limit(2).releaseAfter(30);
+    let task = tokio::spawn(limiter.then(|| async move {
+        started.send(()).unwrap();
+        held.await.unwrap();
+        Ok(42)
+    }));
+    running.await.unwrap();
+
+    let attempt = || second.funnel("reports").unwrap().limit(2).block(0);
+    let unused = || async { panic!("all slots are held") };
+    assert!(matches!(
+        attempt().then(unused).await,
+        Err(CacheError::LimiterTimeout)
+    ));
+    assert_eq!(
+        attempt()
+            .thenWith(unused, |error| async move {
+                assert!(matches!(error, CacheError::LimiterTimeout));
+                Ok(429)
+            })
+            .await
+            .unwrap(),
+        429
+    );
+    assert_eq!(
+        second
+            .funnel("exports")
+            .unwrap()
+            .limit(1)
+            .block(0)
+            .then(|| async { Ok(1) })
+            .await
+            .unwrap(),
+        1
+    );
+
+    let release = async {
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(external.release().await.unwrap());
+    };
+    let callback = || async { Err::<(), _>(CacheError::InvalidValue) };
+    let wait = second.funnel("reports").unwrap().limit(2).block(2).sleep(5);
+    let (_, result) = tokio::join!(
+        release,
+        wait.thenWith(callback, |_| async { panic!("unexpected fallback") })
+    );
+    assert!(matches!(result, Err(CacheError::InvalidValue)));
+    assert_eq!(
+        attempt().then(|| async { Ok("reused") }).await.unwrap(),
+        "reused"
+    );
+    resume.send(()).unwrap();
+    assert_eq!(task.await.unwrap().unwrap(), 42);
+
+    let (started, running) = oneshot::channel();
+    let limiter = first.funnel("reports").unwrap().limit(1).releaseAfter(10);
+    let task = tokio::spawn(limiter.then(|| async move {
+        started.send(()).unwrap();
+        std::future::pending::<Result<(), CacheError>>().await
+    }));
+    running.await.unwrap();
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
+    second
+        .funnel("reports")
+        .unwrap()
+        .limit(1)
+        .block(2)
+        .sleep(5)
+        .then(|| async { Ok(()) })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        first
+            .withoutOverlappingWith(
+                "exclusive",
+                || async {
+                    let blocked = second
+                        .withoutOverlappingWith("exclusive", unused, 10, 0, None)
+                        .await;
+                    assert!(matches!(blocked, Err(CacheError::LockTimeout)));
+                    let mut lock = second.lock("exclusive", None, Some("fixture-owner"))?;
+                    assert!(lock.isOwnedByCurrentProcess().await?);
+                    Ok("done")
+                },
+                10,
+                0,
+                Some("fixture-owner")
+            )
+            .await
+            .unwrap(),
+        "done"
+    );
+    second
+        .withoutOverlapping("exclusive", || async { Ok(()) })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn cache_concurrency_uses_local_lock_stores() {
+    let root = Sandbox::new("array-concurrency", "CACHE_STORE=array\n");
+    let array = root.cache(None).await;
+    verify_cache_concurrency(array.clone(), array).await;
+
+    let root = Sandbox::new("file-concurrency", "CACHE_STORE=file\n");
+    verify_cache_concurrency(root.cache(None).await, root.cache(None).await).await;
+    assert!(matches!(
+        root.cache(Some("session")).await.funnel("reports"),
+        Err(CacheError::LocksUnsupported)
+    ));
+}
+
+#[tokio::test]
+async fn cache_concurrency_shares_mysql_slots_between_applications() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") else {
+        assert!(std::env::var_os("CACHE_CONCURRENCY_FIXTURES_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "mysql-concurrency",
+        &format!(
+            "CACHE_STORE=database\nCACHE_PREFIX=concurrency:\nDB_CONNECTION=mysql\nDB_URL={url}\n"
+        ),
+    );
+    root.success(&["migrate"]);
+    verify_cache_concurrency(root.cache(None).await, root.cache(None).await).await;
+    root.success(&["migrate:reset"]);
+}
+
+#[tokio::test]
+async fn cache_concurrency_shares_redis_slots_between_applications() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") else {
+        assert!(std::env::var_os("CACHE_CONCURRENCY_FIXTURES_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "redis-concurrency",
+        &format!("CACHE_STORE=redis\nCACHE_PREFIX=concurrency:\nREDIS_URL={url}\n"),
+    );
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    verify_cache_concurrency(first.clone(), second.clone()).await;
+
+    let (started, running) = tokio::sync::oneshot::channel();
+    let (resume, held) = tokio::sync::oneshot::channel();
+    let limiter = first.funnel("lease").unwrap().limit(1).releaseAfter(1);
+    let task = tokio::spawn(limiter.then(|| async move {
+        started.send(()).unwrap();
+        held.await.unwrap();
+        Ok(())
+    }));
+    running.await.unwrap();
+    let mut replacement = second.lock("lease1", None, None).unwrap();
+    replacement.block(Duration::from_secs(4)).await.unwrap();
+    resume.send(()).unwrap();
+    task.await.unwrap().unwrap();
+    assert!(replacement.isOwnedByCurrentProcess().await.unwrap());
+    assert!(replacement.release().await.unwrap());
+}

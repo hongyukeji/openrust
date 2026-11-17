@@ -145,3 +145,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离基线 `133076188`，Rust 1.94.0、macOS arm64。固定 PHP 基线比较通过状态检查、空缓存语义和间隔传递。Rust 的真实 MySQL 8.4.13 和 Redis 8.10.3 验证无主、跨句柄所有者、过期以及竞争下的 10 毫秒等待和零间隔。array、file、null、Memcached 1.6.45 与 DynamoDB Local 3.3.2 各自通过对应状态回归。实际二进制在 MySQL 与 Redis 上验证 HTTP 获取、查询、独立 Artisan 清锁，再次 HTTP 查询未锁定。
 - 相关缓存、事件、memo 和 `artisan inspire` 回归通过。变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查及三语 Rust 示例编译通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
 - 临时容器已回收，清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.56 GB（53.61 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-lock-state.y9PfTwST`。
+
+## 并发限制
+
+- 对照固定 Laravel [并发限制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#concurrency-limiting)、[Repository](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L728) 和 [ConcurrencyLimiter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Limiters/ConcurrencyLimiter.php)。openrust-v0.x 未找到这两个缓存入口。复用锁契约、所有者校验和异步取消清理。
+- `Cache::funnel` 和具名仓库的 `funnel` 使用同一存储中 `name1` 到 `nameN` 的锁槽。默认租期 60 秒、等待 3 秒、重试 250 毫秒。Rust 的 `releaseAfter` 和 `block` 接受秒数，重试使用可让出执行权的单调时钟。`then` 保留 `LimiterTimeout`，有第二个闭包的调用写为 `thenWith`。`Cache::withoutOverlapping` 使用单个锁和默认 10 秒等待，显式租期、等待和令牌用 `withoutOverlappingWith`。默认租期依驱动而定。
+- 隔离基线 `b83ba27ff`，Rust 1.94.0、macOS arm64。固定 PHP 8.5 夹具通过锁槽顺序、同轮令牌、租期、重试、超时、回退和异常释放。Rust 在 array、file、MySQL 8.4.13 和 Redis 8.10.3 上通过共享配额、独立名称、等待重试、回调错误与取消释放、显式所有者及单槽互斥。Redis 验证租期到期后前任无法释放新锁，session 缓存验证不支持原子锁时的错误。缓存、缓存驱动、事件及 memo 共 39 项回归通过。
+- 两个实际应用进程共享 MySQL 或 Redis。占满时 HTTP 返回 429，释放后返回 200，失败请求返回 500 后仍可继续取得槽位。独立 Artisan 验证 `cache:forget` 和 `inspire`，MySQL 迁移及重置通过。变更范围格式、工作区严格 Clippy、三语 VitePress、18 项浏览器检查和三语示例编译通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
+- 两轮临时 MySQL 和 Redis 夹具已回收。清理 4.4 GiB 隔离 Cargo 产物和文档缓存后，项目盘可用 57.44 GB（53.50 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-funnel.vQuD3v0O`。
+- [取回并存储缓存](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#retrieve-and-store)及[过期后后台刷新](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#stale-while-revalidate)仍需 `rememberWithWarmth`、`rememberForever` 和 `flexible`，其中 `flexible` 可核对 openrust-v0.x 的 `get_stale_while_revalidate` 和对应回归。03-06 整单元保持开放。

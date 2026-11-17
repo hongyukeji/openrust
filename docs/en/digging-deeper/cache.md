@@ -163,6 +163,27 @@ pub async fn cache_report() -> CacheResult<Option<bool>> {
 
 Tokio schedules cleanup if the future is cancelled or the callback panics. A finite lease still lets the lock expire when runtime shutdown prevents cleanup.
 
+### Concurrency limiting {#concurrency-limiting}
+
+`Cache::withoutOverlapping(key, callback).await?` runs one callback at a time for that key and waits up to 10 seconds. `withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` takes the lease and wait in seconds and an optional owner token. A zero lease uses the store's default. An unavailable lock returns `CacheError::LockTimeout`.
+
+Use `Cache::funnel` to allow several concurrent callbacks. All application instances must use the same shared lock store, cache prefix, limiter name, and limit. Set the lease long enough for a callback to finish. Once it expires, another caller can take the slot. A `null` store allows every caller through.
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn generate_report() -> CacheResult<&'static str> {
+    Cache::funnel("reports:generate:")?
+        .limit(3)
+        .releaseAfter(60)
+        .block(10)
+        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .await
+}
+```
+
+Set the slot count with `limit`. The default lease and wait are 60 and 3 seconds. `sleep(milliseconds)` defaults to 250 ms. Set `block(0)` to scan the slots once. Use `then(callback)` to receive `CacheError::LimiterTimeout`, or `thenWith(callback, fallback)` to handle that error in a callback. Use `Cache::store(Some("redis"))?.funnel(name)?` to select a named store. Stores without atomic locks return `CacheError::LocksUnsupported`.
+
 ### Clearing cache locks {#clearing-cache-locks}
 
 Use `Cache::flushLocks().await?` for the default store, or `Cache::store(Some("database"))?.flushLocks().await?` for a named store. Artisan accepts the same optional store name.

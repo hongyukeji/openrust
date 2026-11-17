@@ -15,7 +15,10 @@ use crate::{
     events::{Dispatcher, EventContext},
 };
 
-use super::{CacheError, CacheFuture, CacheResult, TaggedCache, Ttl, Value, backend, events::*};
+use super::{
+    CacheError, CacheFuture, CacheResult, TaggedCache, Ttl, Value, backend, events::*,
+    limiters::ConcurrencyLimiterBuilder,
+};
 
 /// Applies application-level semantics to a cache store.
 pub struct Repository {
@@ -55,6 +58,47 @@ impl RepositoryEvents {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Cache Repository API")]
 impl Repository {
+    /// Builds a concurrency limiter on this repository's store.
+    pub fn funnel(&self, name: impl Into<String>) -> CacheResult<ConcurrencyLimiterBuilder> {
+        self.store
+            .lock_provider()
+            .ok_or(CacheError::LocksUnsupported)?;
+        Ok(ConcurrencyLimiterBuilder::new(
+            Arc::clone(&self.store),
+            name.into(),
+        ))
+    }
+
+    /// Runs a single callback under an exclusive lock, waiting up to ten seconds.
+    pub async fn withoutOverlapping<T, F>(
+        &self,
+        key: &str,
+        callback: impl FnOnce() -> F,
+    ) -> CacheResult<T>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        self.withoutOverlappingWith(key, callback, 0, 10, None)
+            .await
+    }
+
+    /// Uses explicit lease and wait durations in seconds, with an optional owner token.
+    pub async fn withoutOverlappingWith<T, F>(
+        &self,
+        key: &str,
+        callback: impl FnOnce() -> F,
+        lock_for: u64,
+        wait_for: u64,
+        owner: Option<&str>,
+    ) -> CacheResult<T>
+    where
+        F: Future<Output = CacheResult<T>>,
+    {
+        self.lock(key, Some(Duration::from_secs(lock_for)), owner)?
+            .blockWith(Duration::from_secs(wait_for), callback)
+            .await
+    }
+
     pub fn tags(&self, names: &[&str]) -> CacheResult<TaggedCache> {
         let mut tagged = Arc::clone(&self.store).tags(names)?;
         if let Some(events) = &self.events {

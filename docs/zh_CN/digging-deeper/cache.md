@@ -163,6 +163,27 @@ pub async fn cache_report() -> CacheResult<Option<bool>> {
 
 Future 被取消或回调 panic 时，Tokio 会调度清理。运行时退出导致清理无法执行时，有限租期允许锁到期。
 
+### 并发限制 {#concurrency-limiting}
+
+`Cache::withoutOverlapping(key, callback).await?` 对同一键一次只执行一个回调，最多等待 10 秒。`withoutOverlappingWith(key, callback, lock_for, wait_for, owner)` 以秒指定租期和等待时间，并接受可选的所有者令牌。租期为零时使用驱动默认值。无法获得锁时返回 `CacheError::LockTimeout`。
+
+使用 `Cache::funnel` 允许多个回调并行执行。各应用实例须使用同一个共享锁存储、缓存前缀、限制器名称和并发上限。租期应覆盖回调的执行时间，到期后其他调用者可以取得该名额。`null` 仓库允许所有调用通过。
+
+```rust
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn generate_report() -> CacheResult<&'static str> {
+    Cache::funnel("reports:generate:")?
+        .limit(3)
+        .releaseAfter(60)
+        .block(10)
+        .thenWith(|| async { Ok("generated") }, |_| async { Ok("busy") })
+        .await
+}
+```
+
+用 `limit` 设置并发名额。租期默认 60 秒，等待默认 3 秒，`sleep(milliseconds)` 默认 250 毫秒。`block(0)` 只扫描一次名额。`then(callback)` 返回 `CacheError::LimiterTimeout`，`thenWith(callback, fallback)` 可在回调中处理该错误。可用 `Cache::store(Some("redis"))?.funnel(name)?` 选取具名仓库。缺少原子锁能力的仓库返回 `CacheError::LocksUnsupported`。
+
 ### 清除缓存锁 {#clearing-cache-locks}
 
 使用 `Cache::flushLocks().await?` 清除默认存储的锁，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定存储。Artisan 同样可以指定存储名。
