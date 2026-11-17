@@ -404,3 +404,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 在 `a026d1a3c` 隔离快照上执行 MySQL 8.4.13 的 34 项 Schema 回归。实测目录中的命名、前缀及四种引用组合，拒绝错误父键，删除父记录时依约将子列置为 NULL。使用 `sh tests/table_catalog.sh` 验证表及视图目录、限定 Schema 清库和旁库保留。首轮测试名筛选额外命中一项 SQLite 回归，复验通过 `--skip sqlite_` 仅执行 MySQL。
 - 三语共用示例经独立 Artisan 在 MySQL 上执行，确认 Laravel 风格的具名 UUID 外键可创建、读取和按名删除。实际 `main artisan inspire`、三语站点及 18 项浏览器检查通过。
 - Rust 1.94.0 全仓格式及严格 Clippy 通过。临时 MySQL、本批 3.7 GiB 隔离 Cargo 产物和文档缓存已回收。磁盘可用 64.02 GB（59.62 GiB），周额度剩余 48%，第二窗口无读数。日志与独立 Artisan 示例留在 `/private/tmp/openrust-02-05-schema-audit.qMDFgXQI`。
+
+## ULID 列长度
+
+- 对照固定 Laravel 的 `Blueprint::ulid`、`foreignUlid` 及固定 Goravel 的可选长度。Rust 用 `ulidWith(name, length)` 与 `foreignUlidWith(name, length)` 表达显式长度，沿用 `char` 的驱动编译和校验。原入口及按模型推断的 ULID 外键保持标准 26 字符。旧版没有可直接提取的对应方法。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1476) · [Laravel ULID 列](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-method-ulid) · [Goravel Blueprint](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/schema/blueprint.go#L109)
+- 隔离基线 `3beeea1a9` 上，MySQL 8.4.13 的 35 项 Schema 回归通过。实测默认与显式列宽、前缀、32 字符数据写入、拒绝无父键数据及级联删除。
+- `sh tests/table_catalog.sh` 的表目录及限定库清理均通过。三语共用 Rust 示例用独立 Artisan 执行并核对列宽、外键目标和级联规则。实际 `main artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、本批 3.7 GiB Cargo 产物和文档缓存已回收。磁盘可用 63.95 GB（59.56 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-05-ulid-width.CQXzFzvy`。

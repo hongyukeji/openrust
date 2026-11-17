@@ -243,7 +243,12 @@ impl Blueprint {
     }
 
     pub fn ulid(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.char(name, 26)
+        self.ulidWith(name, 26)
+    }
+
+    /// Defines a ULID column with an explicit character length.
+    pub fn ulidWith(&mut self, name: &str, length: u32) -> &mut ColumnDefinition {
+        self.char(name, length)
     }
 
     /// Places the callback's columns in order after an existing MySQL column.
@@ -472,7 +477,12 @@ impl Blueprint {
     }
 
     pub fn foreignUlid(&mut self, name: &str) -> ForeignIdColumnDefinition<'_> {
-        self.ulid(name);
+        self.foreignUlidWith(name, 26)
+    }
+
+    /// Defines a foreign ULID column with an explicit character length.
+    pub fn foreignUlidWith(&mut self, name: &str, length: u32) -> ForeignIdColumnDefinition<'_> {
+        self.ulidWith(name, length);
         ForeignIdColumnDefinition::new(self, name)
     }
 

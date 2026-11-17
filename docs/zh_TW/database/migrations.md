@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
 
+### ULID 欄位長度 {#ulid-column-length}
+
+用 `ulidWith(name, length)` 和 `foreignUlidWith(name, length)` 為匯入的識別碼指定字元欄寬。`ulid` 和 `foreignUlid` 預設仍為 26。這些方法設定欄寬。標準 ULID 仍為 26 個字元。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_import_tables() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.ulidWith("id", 32).primary();
+    }).await?;
+    Schema::create("import_entries", |table| {
+        table.id();
+        table.foreignUlidWith("import_id", 32)
+            .constrainedOn("imports", "id", None)
+            .cascadeOnDelete();
+    }).await
+}
+```
+
 ### 檢查 SQLite 欄位 {#inspecting-sqlite-columns}
 
 SQLite 欄位宣告為 `VARCHAR(32)` 時，`getColumnType(..., false)` 回傳 `varchar`，`getColumnType(..., true)` 回傳 `varchar(32)`。欄位未宣告型別時，兩者都回傳空字串。

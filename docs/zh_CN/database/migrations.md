@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
 
+### ULID 列长度 {#ulid-column-length}
+
+用 `ulidWith(name, length)` 和 `foreignUlidWith(name, length)` 为导入的标识符指定字符列宽。`ulid` 和 `foreignUlid` 默认仍为 26。这些方法设置列宽。标准 ULID 仍是 26 个字符。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_import_tables() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.ulidWith("id", 32).primary();
+    }).await?;
+    Schema::create("import_entries", |table| {
+        table.id();
+        table.foreignUlidWith("import_id", 32)
+            .constrainedOn("imports", "id", None)
+            .cascadeOnDelete();
+    }).await
+}
+```
+
 ### 检查 SQLite 列 {#inspecting-sqlite-columns}
 
 SQLite 列声明为 `VARCHAR(32)` 时，`getColumnType(..., false)` 返回 `varchar`，`getColumnType(..., true)` 返回 `varchar(32)`。列未声明类型时，两者都返回空字符串。

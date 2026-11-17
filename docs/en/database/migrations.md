@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### ULID Column Length {#ulid-column-length}
+
+Use `ulidWith(name, length)` and `foreignUlidWith(name, length)` to declare a different character width for imported identifiers. `ulid` and `foreignUlid` keep the standard width of 26. These methods set the column width. A standard ULID still contains 26 characters.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_import_tables() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.ulidWith("id", 32).primary();
+    }).await?;
+    Schema::create("import_entries", |table| {
+        table.id();
+        table.foreignUlidWith("import_id", 32)
+            .constrainedOn("imports", "id", None)
+            .cascadeOnDelete();
+    }).await
+}
+```
+
 ### Inspecting SQLite Columns {#inspecting-sqlite-columns}
 
 For a SQLite column declared as `VARCHAR(32)`, `getColumnType(..., false)` returns `varchar` and `getColumnType(..., true)` returns `varchar(32)`. Both return an empty string for a column declared without a type.

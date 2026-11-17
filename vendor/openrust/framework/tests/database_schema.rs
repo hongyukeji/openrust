@@ -1090,6 +1090,65 @@ async fn mysql_compiles_and_enforces_additional_column_types() {
     verify_additional_column_types(connection(json!({"url":url})), true).await;
 }
 
+#[tokio::test]
+async fn mysql_configures_ulid_and_foreign_ulid_lengths() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("ulid_imports", |table| {
+            table.ulidWith("id", 32).primary();
+            table.ulid("standard_id");
+        })
+        .await
+        .unwrap();
+    schema
+        .create("ulid_import_entries", |table| {
+            table.id();
+            table
+                .foreignUlidWith("import_id", 32)
+                .constrainedOn("ulid_imports", "id", None)
+                .cascadeOnDelete();
+            table.foreignUlid("standard_ref").nullable();
+        })
+        .await
+        .unwrap();
+
+    for (table, column, width) in [
+        ("ulid_imports", "id", "char(32)"),
+        ("ulid_imports", "standard_id", "char(26)"),
+        ("ulid_import_entries", "import_id", "char(32)"),
+        ("ulid_import_entries", "standard_ref", "char(26)"),
+    ] {
+        assert_eq!(
+            schema.getColumnType(table, column, true).await.unwrap(),
+            width
+        );
+    }
+    let import = "IMPORT01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    let standard = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    assert_eq!(import.len(), 32);
+    db.insert(
+        "insert into app_ulid_imports (id, standard_id) values (?, ?)",
+        &[import.into(), standard.into()],
+    )
+    .await
+    .unwrap();
+    let insert = "insert into app_ulid_import_entries (import_id) values (?)";
+    db.insert(insert, &[import.into()]).await.unwrap();
+    assert!(db.insert(insert, &[standard.into()]).await.is_err());
+    db.delete(
+        "delete from app_ulid_imports where id = ?",
+        &[import.into()],
+    )
+    .await
+    .unwrap();
+    assert_eq!(db.table("ulid_import_entries").count("*").await.unwrap(), 0);
+}
+
 async fn verify_generated_columns(db: Connection, mysql: bool) {
     let mut schema = db.getSchemaBuilder();
     schema.dropIfExists("generated_samples").await.unwrap();
