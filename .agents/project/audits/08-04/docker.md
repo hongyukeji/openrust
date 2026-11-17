@@ -25,3 +25,12 @@ BuildKit 直连镜像分发和 crates.io 时遇到网络失败，隔离 builder 
 - 在隔离 MySQL 8.4.13 和 Redis 上验证宿主机开发端口、Artisan 密钥生成、生产 12 项迁移和重复迁移。实际访问首页和 `/up`，核对非 root 运行、只读 public、storage 相对挂载读写，以及 Redis Worker 处理排队邮件。
 - 两个独立应用实例共享 MySQL 和 Redis。SIGTERM 正常退出，重建应用保留存储，使用同一宿主目录重建数据库和 Redis 后，迁移账本仍有 12 条记录。用本地测试证书验证 HTTPS 反向代理请求；正式环境证书待发布验收。
 - 容器、镜像、BuildKit 缓存和移交源码包已清理。验收通过后，BuildKit 资源自动移除，sudo 启动的 Docker 客户端留下的 root 属主登记目录按精确路径补清。复核 Docker 临时资源与 BuildKit 缓存均为 0。本地保留验收日志；远端的 MySQL／Redis 绑定数据保存到私有持久目录。宿主可用由 105.41 GB 增至 111.98 GB，实测净增约 6.57 GB。
+
+## 原生 Ubuntu x86_64 发布复验
+
+复用历史验收的 Ubuntu 24.04.3 LTS x86_64 主机，现有 SSH 登录和免交互 Docker 权限可用。使用 `07307c6e159b8f8b97e999d4439fe9ea6dd091e3` 的 Git 归档，Docker Engine 29.9.3、Compose 5.7.1 和 Buildx 0.39.0 在原生 x86_64 上完成 Rust 1.94.0 锁定 release 构建。使用该提交的 Dockerfile 和 Compose 文件启动独立部署。初轮隔离夹具的解包掩码导致镜像内视图权限不足。复验按 Git 归档的原始文件模式解包。
+
+- MySQL 8.4.13 和 Redis 8.10.3 的宿主回环端口可用。真实 Artisan `key:generate --show`、`migrate --force`、幂等重跑、`migrate:status` 和 `inspire` 通过，迁移账本共 12 条。首页、`/up` 和挂载的公共文件均返回 200，UID 为 10001，公共目录只读，存储目录可写。
+- 默认 Runner 和独立 Artisan `queue:work redis --once` 分别处理隔离的 Redis 邮件任务。独立 Worker 返回当前任务的成功事件，两条队列均消费完成且失败账本为空。
+- 两个 Compose 应用实例共用 MySQL 与 Redis，两个实例的首页及健康路由均通过。SIGTERM 退出码为 0。重建应用后存储仍可读，重建 MySQL／Redis 后迁移账本仍有 12 条记录。通过本地测试证书访问 HTTPS 代理的 `/up`。
+- 本批 Compose 容器、专用 Buildx 构建器和缓存、应用镜像、临时源码与站点已清理。复查 Docker 卷清单无变化，MySQL 和 Redis 绑定数据保留在远端私有目录。远端可用空间清理后为 103.31 GiB，比构建器清理前增加 7.05 GiB。三语站点构建、12 项通用导航和 6 项发布矩阵浏览器检查通过。

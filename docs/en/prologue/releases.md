@@ -19,7 +19,8 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 | SQL Server 2017 (14.0.3570.2), 2022 (16.0.4325.4) | Rust TDS with verified TLS, 12 migrations, idempotent rerun, HTTP, database sessions and Artisan job processing with Linux amd64 server containers in a compatibility environment |
 | PostgreSQL 10–18 | Isolated databases, 12 migrations, idempotent rerun, Artisan database worker, HTTP and database session writes. Job dispatch and reservation were also exercised on 10 and 18 |
 | Redis 8.10 | Queue acceptance and Reverb publication between two processes |
-| Ubuntu 24.04 x86_64 and Docker Desktop on Apple Silicon | Earlier native amd64 container acceptance on Ubuntu. The fresh release was rebuilt and ran in Docker Desktop amd64 compatibility mode with SQLite, Artisan, HTTP, persistent storage and SIGTERM shutdown |
+| Ubuntu 24.04.3 LTS x86_64, Docker Engine 29.9.3 | Native Rust 1.94.0 release build from `07307c6e1`, Compose with MySQL and Redis, 12 migrations, real HTTP and Artisan, a Redis job, shared database and cache across two app instances, storage persistence and SIGTERM shutdown |
+| Docker Desktop on Apple Silicon, amd64 compatibility mode | SQLite, Artisan, HTTP, persistent storage and SIGTERM shutdown |
 | Windows 11 Pro ARM64 build 26200.9457 in Parallels | Native ARM64 MSVC release executable. SQLite migrations, Artisan, welcome and health routes, public files, relocation and graceful Ctrl+C passed. Docker Desktop backend unverified |
 
 The platform and driver rows cover the scenarios listed. Check the corresponding feature guide for its scope, such as [Reverb scaling](../packages/reverb.md). For standalone artifacts, follow [Deployment](../getting-started/deployment.md).
@@ -30,7 +31,6 @@ The database rows record release acceptance. PostgreSQL 10–18 results apply to
 
 | Target | Environment or access needed |
 | --- | --- |
-| Native Linux x86_64 | Access to a native x86_64 Linux host with Docker Engine, Compose and Buildx. The test account needs permission to build images and start and stop an isolated deployment with writable storage. |
 | Windows Docker Desktop | Access to a Windows host with functioning Docker Desktop in Linux-container mode and a supported backend. The test account needs access to a Windows directory to verify read-only public files and writable storage. The available ARM64 guest lacks a working WSL 2 backend. |
 | Production TLS | The actual HTTPS URL and deployed hostname, a trusted certificate chain, and access to run read-only Artisan commands for the same deployment. TLS 1.2 and 1.3 have passed on the local proxy with a test CA. |
 | Managed AWS SQS Standard and FIFO | Two isolated queue URLs, one Standard and one FIFO, their AWS region, an isolated MySQL batch ledger, and credentials scoped to the queues. The core checks use `sqs:SendMessage` (including batch sends), `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`. Include the session token if using temporary credentials. |

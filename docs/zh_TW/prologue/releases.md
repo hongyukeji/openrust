@@ -19,7 +19,8 @@
 | SQL Server 2017（14.0.3570.2）、2022（16.0.4325.4） | 對 Linux amd64 相容環境中的伺服器容器實測 Rust TDS 和 TLS 驗證、12 項遷移、等冪重跑、HTTP、資料庫工作階段及 Artisan 工作處理 |
 | PostgreSQL 10–18 | 隔離資料庫、12 項遷移、重複執行、Artisan 資料庫 Worker、HTTP 與資料庫工作階段寫入。另在 10 和 18 實測工作派送與保留 |
 | Redis 8.10 | 佇列驗收及兩個程序間的 Reverb 發佈 |
-| Ubuntu 24.04 x86_64 和 Apple Silicon 上的 Docker Desktop | Ubuntu 已有原生 amd64 容器驗收。當前發佈映像在 Docker Desktop 的 amd64 相容模式複驗 SQLite、Artisan、HTTP、持久儲存與 SIGTERM 結束 |
+| Ubuntu 24.04.3 LTS x86_64、Docker Engine 29.9.3 | 從 `07307c6e1` 使用 Rust 1.94.0 原生建置發佈映像，實測 Compose 的 MySQL 與 Redis、12 項遷移、HTTP 和 Artisan、Redis 工作、雙應用程式執行個體共用資料庫與快取、儲存持續性及 SIGTERM 結束 |
+| Apple Silicon 上的 Docker Desktop、amd64 相容模式 | SQLite、Artisan、HTTP、持續性儲存與 SIGTERM 結束 |
 | Parallels 中的 Windows 11 Pro ARM64 Build 26200.9457 | 原生 ARM64 MSVC 發佈版通過 SQLite 遷移、Artisan、首頁與健康路由、公開檔案、目錄遷移和 Ctrl+C 優雅結束。Docker Desktop 後端尚待驗收 |
 
 各平台與驅動的驗收範圍見表，功能邊界見相應指南，例如 [Reverb 擴充套件](../packages/reverb.md)。獨立產物的建置與執行見[部署](../getting-started/deployment.md)。
@@ -30,7 +31,6 @@
 
 | 目標 | 所需環境或權限 |
 | --- | --- |
-| 原生 Linux x86_64 | 可存取的原生 Linux x86_64 主機，已安裝 Docker Engine、Compose 和 Buildx。測試帳戶可建置映像、啟停隔離部署並寫入測試儲存空間。 |
 | Windows Docker Desktop | 可存取的 Windows 主機，Docker Desktop 的 Linux 容器後端可運作。測試帳戶可存取 Windows 目錄，以驗證唯讀公開檔案與可寫入的儲存空間。目前 ARM64 客體沒有可運作的 WSL 2 後端。 |
 | 正式環境 TLS | 實際 HTTPS URL、部署主機名稱、受信任的憑證鏈，以及在同一部署執行唯讀 Artisan 命令的權限。本機反向代理已使用測試 CA 驗證 TLS 1.2 和 1.3。 |
 | 受管 AWS SQS 標準／FIFO | 兩條隔離佇列的 URL（標準與 FIFO 各一）、AWS 區域、隔離的 MySQL 批次帳本，以及僅授予測試佇列權限的憑證。核心檢查需要 `sqs:SendMessage`（含批次傳送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用臨時憑證時需同時設定工作階段權杖。 |
