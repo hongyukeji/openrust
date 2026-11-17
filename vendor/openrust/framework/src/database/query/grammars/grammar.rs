@@ -29,6 +29,7 @@ pub(crate) struct Grammar {
     dialect: Dialect,
     prefix: Arc<str>,
     upsert_alias: bool,
+    mariadb: bool,
 }
 
 impl Grammar {
@@ -37,6 +38,14 @@ impl Grammar {
             dialect: Dialect::MySql,
             upsert_alias,
             prefix: prefix.into(),
+            mariadb: false,
+        }
+    }
+
+    pub(crate) fn mariadb(prefix: &str) -> Self {
+        Self {
+            mariadb: true,
+            ..Self::mysql(prefix, false)
         }
     }
 
@@ -45,6 +54,7 @@ impl Grammar {
             dialect: Dialect::Sqlite,
             upsert_alias: false,
             prefix: prefix.into(),
+            mariadb: false,
         }
     }
 
@@ -53,7 +63,12 @@ impl Grammar {
             dialect: Dialect::Postgres,
             upsert_alias: false,
             prefix: prefix.into(),
+            mariadb: false,
         }
+    }
+
+    pub(crate) fn is_mariadb(&self) -> bool {
+        self.mariadb
     }
 
     pub(crate) fn is_postgres(&self) -> bool {

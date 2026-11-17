@@ -27,6 +27,7 @@ pub(super) enum ColumnType {
     Jsonb,
     IpAddress,
     MacAddress,
+    Uuid,
     Year,
     Spatial(&'static str, u32),
     Date,

@@ -54,3 +54,11 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - 原生 Linux x86_64、Windows Docker Desktop、生产 TLS 与托管 AWS SQS 标准／FIFO 保留到环境就绪后验收。08-04 保持开放。
 
 三语站点构建、12 项通用浏览器检查和 6 项 MySQL 5.7 发布矩阵与 TLS 配置导航检查通过。已清理隔离数据库、镜像标签、MySQL 归档、证书、站点与构建产物。
+
+## MariaDB 连接与方言
+
+- `mariadb` 连接与 `mariadb://` URL 通过 SQLx 的 MySQL 协议池和 Rustls 接通。沿用 MySQL TLS 模式及证书校验、角色连接与严格 SQL 模式，MariaDB 使用独立的方言选择。旧版 `6d1a8192` 的兼容矩阵列出 MariaDB 10.3 下限，未提供可复用的 MariaDB 专用驱动。 [固定 Laravel MariaDB 连接器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/MariaDbConnector.php)
+- 按基线实现生成 JSON 列的 `json_value`、JSON 路径更新、拒绝 lateral join、10.7 起原生 UUID、10.5.2 前读取原列定义后重命名，以及 10.6 起跳过被锁定的队列行。两端实测 JSON 字符串、布尔、对象更新、旧默认值与排序规则保留、UUID 类型及空间列声明。 [固定 Laravel 查询方言](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/MariaDbGrammar.php) · [固定 Laravel Schema 方言](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MariaDbGrammar.php)
+- 两个 ARM64 隔离容器分别运行 MariaDB 10.3.39 和 11.8.9。真实应用均通过具名和 URL 连接、12 项迁移及幂等重跑、Artisan、首页和 `/up`、数据库会话写入和 SIGTERM。测试账号要求 TLS，拒绝明文、错误 CA 和错误主机名。数据库队列的 HTTP 派发与独立 Artisan Worker 作业、重试和失败回归在两版均通过。
+
+严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项发布矩阵导航检查通过。MariaDB 容器、镜像标签、证书、隔离站点和构建目录已清理。

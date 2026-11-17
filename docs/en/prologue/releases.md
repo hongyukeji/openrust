@@ -14,6 +14,7 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 | SQLite 3.51.3 | Clean checkout, 12 application migrations, Artisan and HTTP |
 | MySQL 5.7.44, Oracle generic Linux archive | TLS 1.2 with certificate and server-name verification, 12 migrations, idempotent rerun, HTTP, database sessions and Artisan job processing |
 | MySQL 8.0.46, 8.4.13 | Isolated databases, 12 migrations, idempotent rerun, Artisan database worker, HTTP and database session writes |
+| MariaDB 10.3.39, 11.8.9 | Verified TLS, 12 migrations, idempotent rerun, HTTP, database sessions, JSON and Schema checks, and Artisan job processing |
 | PostgreSQL 10–18 | Isolated databases, 12 migrations, idempotent rerun, Artisan database worker, HTTP and database session writes. Job dispatch and reservation were also exercised on 10 and 18 |
 | Redis 8.10 | Queue acceptance and Reverb publication between two processes |
 | Ubuntu 24.04 x86_64 and Docker Desktop on Apple Silicon | Earlier native amd64 container acceptance on Ubuntu. The fresh release was rebuilt and ran in Docker Desktop amd64 compatibility mode with SQLite, Artisan, HTTP, persistent storage and SIGTERM shutdown |
@@ -21,7 +22,7 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 
 The platform and driver rows cover the scenarios listed. Check the corresponding feature guide for its scope, such as [Reverb scaling](../packages/reverb.md). For standalone artifacts, follow [Deployment](../getting-started/deployment.md).
 
-The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. The MySQL 5.7.44 Oracle Linux 7 container build failed ECDHE negotiation with OpenRust's TLS client. See [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls) for the tested server configuration. The MariaDB and SQL Server connection names are reserved. Both currently return an unavailable driver.
+The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. The MySQL 5.7.44 Oracle Linux 7 container build failed ECDHE negotiation with OpenRust's TLS client. See [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls) for the tested server configuration and [MariaDB](../database/getting-started.md#mariadb) for its connection settings. The reserved SQL Server connection currently returns an unavailable driver.
 
 The available Windows ARM64 guest lacks nested virtualization and a working WSL 2 backend. Its standalone deployment is verified. The Windows Docker Desktop run and a native Ubuntu rerun of the current release remain pending.
 

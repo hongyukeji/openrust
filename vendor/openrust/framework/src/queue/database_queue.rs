@@ -114,6 +114,8 @@ impl DatabaseQueue {
             let mut transaction = self.connection.beginTransaction().await.map_err(backend)?;
             let lock = if self.connection.is_postgres() {
                 "for update skip locked"
+            } else if self.connection.is_mariadb() {
+                "for update /*M!100600 skip locked */"
             } else {
                 // MySQL evaluates the versioned clause on the server that owns this transaction.
                 "for update /*!80001 skip locked */"

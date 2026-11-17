@@ -30,7 +30,7 @@ pub(super) fn parse(config: Value) -> DatabaseResult<Map<String, Value>> {
         config.insert("sqlite_url".into(), format!("sqlite:{tail}").into());
         return Ok(config);
     }
-    if !matches!(driver, "mysql" | "pgsql") {
+    if !matches!(driver, "mysql" | "mariadb" | "pgsql") {
         return Err(DatabaseError::UnsupportedDriver);
     }
     let url = url::Url::parse(&url).map_err(|_| DatabaseError::InvalidConfiguration("url"))?;

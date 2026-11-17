@@ -2938,3 +2938,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 13:45（北京时间）08-04 [MySQL 5.7 TLS 与驱动边界](audits/08-04/README.md#mysql-57-tls-与驱动边界)。Oracle MySQL 5.7.44 通用归档在强制 TLS 1.2 和证书校验下完成 12 项迁移、HTTP 和 Artisan Worker。MySQL 5.7.44／8.4.13 均通过 HTTP 队列和 Artisan 作业回归，严格 Clippy、三语站点与 18 项浏览器检查通过。Oracle Linux 7 旧镜像 ECDHE 和 MariaDB／SQL Server 驱动仍有缺口，08-04 保持开放。隔离产物已清理，项目卷可用 77,398,440 KiB，周额度剩余 62%。
 
 - 2026-11-17 13:51（北京时间）04-02 [响应头与缓存控制](audits/04-02/README.md#响应头与缓存控制)。请求和响应 12 项、应用 HTTP 16 项、固定 Laravel/PHP 8.5 对照、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。回收 4.0 GiB 本批 Cargo 产物后，项目盘可用 75.68 GB（70.48 GiB），周额度剩余 62%，第二窗口无读数。核心账本维持 56/66。
+
+- 2026-11-17 13:58（北京时间）08-04 [MariaDB 连接与方言](audits/08-04/README.md#mariadb-连接与方言)。MariaDB 10.3.39／11.8.9 通过 TLS、12 项迁移及幂等重跑、真实 HTTP、数据库会话、SQL／Schema 和 Artisan 作业、重试及失败验收。严格 Clippy、三语站点与 18 项浏览器检查通过。MariaDB 临时资源已清理，项目卷可用 74,456,344 KiB，周额度剩余 62%。继续 SQL Server 接入，08-04 保持开放。

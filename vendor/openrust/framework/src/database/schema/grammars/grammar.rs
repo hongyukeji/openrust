@@ -19,6 +19,7 @@ pub(in crate::database::schema) struct Grammar {
     database: Arc<str>,
     table_options: Arc<TableOptions>,
     sqlite_json_types: SqliteJsonTypes,
+    mariadb_native_uuid: bool,
 }
 
 #[derive(Clone)]
@@ -35,6 +36,7 @@ impl Grammar {
             database: connection.getDatabaseName().into(),
             table_options: connection.table_options.clone(),
             sqlite_json_types: connection.sqlite_json_types,
+            mariadb_native_uuid: false,
         }
     }
 
@@ -48,6 +50,14 @@ impl Grammar {
 
     pub fn mysql(&self) -> bool {
         self.grammar.is_mysql()
+    }
+
+    pub fn mariadb(&self) -> bool {
+        self.grammar.is_mariadb()
+    }
+
+    pub fn use_native_mariadb_uuid(&mut self, enabled: bool) {
+        self.mariadb_native_uuid = enabled;
     }
 
     pub fn parse_schema_and_table(reference: &str) -> DatabaseResult<(Option<&str>, &str)> {
@@ -842,6 +852,9 @@ impl Grammar {
         if generated.json && expression.contains("->") {
             let (column, path) = self.grammar.json_selector(expression)?;
             let path = path.ok_or(DatabaseError::InvalidSchema("generated JSON column path"))?;
+            if self.grammar.is_mariadb() {
+                return Ok(format!("json_value({column}, {})", self.string(&path)?));
+            }
             let expression = format!("json_extract({column}, {})", self.string(&path)?);
             return Ok(if self.mysql() {
                 format!("json_unquote({expression})")
@@ -966,11 +979,18 @@ impl Grammar {
             ColumnType::IpAddress if mysql => "varchar(45)",
             ColumnType::MacAddress if mysql => "varchar(17)",
             ColumnType::IpAddress | ColumnType::MacAddress => "varchar",
+            ColumnType::Uuid if self.mariadb_native_uuid => "uuid",
+            ColumnType::Uuid if mysql => "char(36)",
+            ColumnType::Uuid => "varchar",
             ColumnType::Spatial(subtype, srid) if mysql => {
                 return Ok(if *srid == 0 {
                     (*subtype).into()
                 } else {
-                    format!("{subtype} srid {srid}")
+                    if self.grammar.is_mariadb() {
+                        format!("{subtype} ref_system_id={srid}")
+                    } else {
+                        format!("{subtype} srid {srid}")
+                    }
                 });
             }
             ColumnType::Spatial(_, _) => "geometry",
@@ -1039,7 +1059,9 @@ impl Grammar {
             Value::Unsigned(value) => Ok(value.to_string()),
             Value::Real(value) if value.is_finite() => Ok(value.to_string()),
             Value::Text(value) => self.string(value),
-            Value::Json(value) if !self.mysql() => self.string(&value.to_string()),
+            Value::Json(value) if !self.mysql() || self.grammar.is_mariadb() => {
+                self.string(&value.to_string())
+            }
             Value::Json(value) => Ok(format!(
                 "(cast({} as json))",
                 self.string(&value.to_string())?

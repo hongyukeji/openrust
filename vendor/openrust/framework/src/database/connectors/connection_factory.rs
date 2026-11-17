@@ -95,6 +95,9 @@ fn resolve(
         .transpose()?;
     let prefix = write_options.string("prefix", "")?;
     let grammar = match &writer {
+        Pool::Mysql(_) if write_options.string("driver", "")? == "mariadb" => {
+            Grammar::mariadb(prefix)
+        }
         Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
         Pool::Sqlite(_) => Grammar::sqlite(prefix),
         Pool::Postgres(_) => Grammar::postgres(prefix),
@@ -190,7 +193,7 @@ fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
     let timeout = Duration::from_secs(timeout);
     match config.string("driver", "")? {
         "sqlite" => sqlite(config, root, max, timeout),
-        "mysql" => mysql(config, root, max, timeout),
+        "mysql" | "mariadb" => mysql(config, root, max, timeout),
         "pgsql" => postgres(config, root, max, timeout),
         _ => Err(DatabaseError::UnsupportedDriver),
     }

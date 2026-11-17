@@ -1095,6 +1095,10 @@ impl Connection {
         self.grammar.is_postgres()
     }
 
+    pub(crate) fn is_mariadb(&self) -> bool {
+        self.grammar.is_mariadb()
+    }
+
     pub(crate) fn queue_table(&self, table: &str) -> DatabaseResult<String> {
         self.grammar.table(table)
     }

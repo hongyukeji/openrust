@@ -239,7 +239,7 @@ impl Blueprint {
     }
 
     pub fn uuid(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.char(name, 36)
+        self.column(name, ColumnType::Uuid)
     }
 
     pub fn ulid(&mut self, name: &str) -> &mut ColumnDefinition {

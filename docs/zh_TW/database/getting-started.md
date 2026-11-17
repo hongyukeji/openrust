@@ -6,6 +6,12 @@
 
 MySQL 使用 `DB_CONNECTION=mysql`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。應用程式透過 `DB_URL` 設定連線的 `url`，由它提供驅動及連線憑證。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 啟用憑證及主機名稱驗證，也可在連線設定中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 驗證憑證鏈及伺服器名稱。`verify_ca` 驗證憑證鏈。
 
+### MariaDB {#mariadb}
+
+設定 `DB_CONNECTION=mariadb`，主機、資料庫、憑證及 TLS 設定與 MySQL 相同。透過 `DB_URL` 設定時使用 `mariadb://`。若要驗證伺服器憑證及名稱，請將 `MYSQL_ATTR_SSL_CA` 指向伺服器 CA 憑證，並讓 `DB_HOST` 使用憑證所涵蓋的名稱或位址。
+
+MariaDB 方言支援 JSON 欄位更新與由 JSON 產生欄位。`uuid()` 在 10.7 之前使用 `char(36)`，從 10.7 起使用原生 `uuid`。資料庫佇列從 10.6 起使用 `SKIP LOCKED`。實測版本請參閱[發佈矩陣](../prologue/releases.md)。
+
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
 MySQL 5.7.44 需要能透過 ECDHE 協商 TLS 1.2 的伺服器建置。Oracle 通用 Linux 封存檔使用 RSA 伺服器憑證及下列 `mysqld` 設定通過驗收。透過 `ssl-ca`、`ssl-cert` 和 `ssl-key` 設定 CA、伺服器憑證及私密金鑰。

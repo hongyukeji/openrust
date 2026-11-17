@@ -10,6 +10,7 @@ use super::{
 };
 
 mod catalog;
+mod mariadb;
 mod sqlite;
 
 enum Executor<'connection> {
@@ -178,6 +179,7 @@ impl<'connection> Builder<'connection> {
         let mut resolved_table = self.grammar.table(table)?;
         let mut blueprint = self.blueprint(table, true);
         configure(&mut blueprint);
+        self.mariadb_version_for(&blueprint).await?;
         if blueprint.temporary {
             if !matches!(self.executor, Executor::Session(_) | Executor::Pretend(_)) {
                 return Err(DatabaseError::UnsupportedSchema(
@@ -240,6 +242,13 @@ impl<'connection> Builder<'connection> {
         let mut blueprint = self.blueprint(table, false);
         let table = resolved_table;
         configure(&mut blueprint);
+        let version = self.mariadb_version_for(&blueprint).await?;
+        if version.is_some_and(|version| version < (10, 5, 2))
+            && mariadb::has_rename(&blueprint)
+            && !blueprint.temporary
+        {
+            return self.mariadb_legacy_alter(&table, blueprint).await;
+        }
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
             if matches!(self.executor, Executor::Pretend(_)) {
                 return Err(DatabaseError::UnsupportedSchema(

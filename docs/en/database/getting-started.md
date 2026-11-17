@@ -6,6 +6,12 @@ The application reads `config/database.rs`. The default connection is `sqlite`. 
 
 For MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection's `url`, populated by `DB_URL` in the application configuration, can supply the driver and credentials. MySQL requires TLS. Set `MYSQL_ATTR_SSL_CA` for certificate and host verification, or configure `ssl_mode` and `ssl_ca` on the connection. `verify_identity` checks the certificate chain and server name. `verify_ca` checks the certificate chain.
 
+### MariaDB {#mariadb}
+
+Set `DB_CONNECTION=mariadb` and use the same host, database, credential and TLS settings as MySQL. Use `mariadb://` when supplying `DB_URL`. To verify the server certificate and name, set `MYSQL_ATTR_SSL_CA` to the server CA certificate and use a `DB_HOST` covered by the server certificate.
+
+The MariaDB grammar supports JSON column updates and generated JSON values. `uuid()` uses `char(36)` before MariaDB 10.7 and the native `uuid` type from 10.7. The database queue uses `SKIP LOCKED` from MariaDB 10.6. See the [release matrix](../prologue/releases.md) for tested versions.
+
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
 MySQL 5.7.44 needs a server build that can negotiate TLS 1.2 with ECDHE. The Oracle generic Linux archive passed with an RSA server certificate and the following `mysqld` settings. Supply the CA, server certificate and private key through `ssl-ca`, `ssl-cert` and `ssl-key`.

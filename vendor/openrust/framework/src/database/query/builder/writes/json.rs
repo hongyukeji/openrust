@@ -32,7 +32,12 @@ pub(super) fn compile_assignments(
     for (field, changes) in json {
         let column = write_column(grammar, &field)?;
         if grammar.is_mysql() {
-            let pairs = vec!["?, cast(? as json)"; changes.len()].join(", ");
+            let pair = if grammar.is_mariadb() {
+                "?, json_extract(?, '$')"
+            } else {
+                "?, cast(? as json)"
+            };
+            let pairs = vec![pair; changes.len()].join(", ");
             assignments.push(format!("{column} = json_set({column}, {pairs})"));
             for (path, value) in changes {
                 bindings.push(mysql_path(&path)?.into());

@@ -254,7 +254,7 @@ impl Builder<'_> {
         alias: &str,
         kind: JoinType,
     ) -> DatabaseResult<Self> {
-        if !self.grammar.is_mysql() {
+        if !self.grammar.is_mysql() || self.grammar.is_mariadb() {
             return Err(DatabaseError::InvalidQuery("lateral join dialect"));
         }
         self.join_sub(query, alias, kind, |join| join)
