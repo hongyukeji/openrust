@@ -8,8 +8,9 @@ struct TestRoot(PathBuf);
 
 impl TestRoot {
     fn new() -> Self {
-        let path =
-            std::env::temp_dir().join(format!("openrust-grpc-install-{}", std::process::id()));
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("openrust-grpc-{}-{id}", std::process::id()));
         fs::create_dir(&path).unwrap();
         Self(path)
     }
@@ -100,6 +101,39 @@ mod process {
     }
 
     fn register(_: &Application, routes: &mut RoutesBuilder) -> ProviderResult {
+        use openrust::grpc::{Grpc, tonic::transport::ServerTlsConfig};
+        if let Some(root) = std::env::var_os("GRPC_TEST_TLS_MATERIAL").map(std::path::PathBuf::from)
+        {
+            let options = Grpc::server()?;
+            options.set_credentials(
+                ServerTlsConfig::new()
+                    .identity(identity(&root, "server")?)
+                    .client_ca_root(root_ca(&root)?),
+            );
+            options.add_interceptor(|mut request| {
+                if request
+                    .metadata()
+                    .get("x-grpc-step")
+                    .is_none_or(|value| value != "client-3")
+                {
+                    return Err(tonic::Status::unauthenticated("missing metadata"));
+                }
+                request
+                    .metadata_mut()
+                    .insert("x-grpc-step", "server-1".parse().unwrap());
+                Ok(request)
+            });
+            options.add_interceptor(|request| {
+                if request
+                    .metadata()
+                    .get("x-grpc-step")
+                    .is_none_or(|value| value != "server-1")
+                {
+                    return Err(tonic::Status::failed_precondition("out of order"));
+                }
+                Ok(request)
+            });
+        }
         let (_, health) = tonic_health::server::health_reporter();
         routes.add_service(health);
         Ok(())
@@ -130,20 +164,27 @@ mod process {
     }
 
     fn start(host: &str) -> Process {
-        Process(
-            Command::new(std::env::current_exe().unwrap())
-                .args([
-                    "--ignored",
-                    "--exact",
-                    "process::grpc_entry_fixture",
-                    "--nocapture",
-                ])
-                .env("GRPC_TEST_HOST", host)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .unwrap(),
-        )
+        start_server(host, None)
+    }
+
+    fn start_server(host: &str, tls: Option<&std::path::Path>) -> Process {
+        let mut child = Command::new(std::env::current_exe().unwrap());
+        child
+            .args([
+                "--ignored",
+                "--exact",
+                "process::grpc_entry_fixture",
+                "--nocapture",
+            ])
+            .env("GRPC_TEST_HOST", host)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(tls) = tls {
+            child.env("GRPC_TEST_TLS_MATERIAL", tls);
+        } else {
+            child.env_remove("GRPC_TEST_TLS_MATERIAL");
+        }
+        Process(child.spawn().unwrap())
     }
 
     fn readiness(server: &mut Process) -> (SocketAddr, SocketAddr) {
@@ -161,7 +202,10 @@ mod process {
             let line = receive
                 .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
                 .unwrap();
-            if let Some(addr) = line.strip_prefix("OpenRust gRPC listening on http://") {
+            if let Some(addr) = line
+                .strip_prefix("OpenRust gRPC listening on http://")
+                .or_else(|| line.strip_prefix("OpenRust gRPC listening on https://"))
+            {
                 grpc = Some(addr.parse().unwrap());
             }
             if let Some(addr) = line.strip_prefix("OpenRust listening on http://") {
@@ -343,13 +387,14 @@ mod process {
             .set(
                 "grpc.clients",
                 json!({
-                    "health":{"host":peer.ip().to_string(), "port":peer.port().to_string()},
-                    "inlined":{"host":peer.to_string()},
-                    "uri":{"endpoint":format!("http://{peer}")},
-                    "bad":{"host":"127.0.0.1", "port":-1},
-                    "bad_uri":{"endpoint":format!("http://{peer}/path")},
-                    "closed":{"endpoint":format!("http://{unused}"),"connect_timeout_ms":500}
-                }),
+                        "health":{"host":peer.ip().to_string(), "port":peer.port().to_string()},
+                        "inlined":{"host":peer.to_string()},
+                        "uri":{"endpoint":format!("http://{peer}")},
+                        "bad":{"host":"127.0.0.1", "port":-1},
+                        "bad_uri":{"endpoint":format!("http://{peer}/path")},
+                "bad_port_uri":{"endpoint":"http://127.0.0.1:0"},
+                        "closed":{"endpoint":format!("http://{unused}"),"connect_timeout_ms":500}
+                    }),
             )
             .unwrap();
         app
@@ -357,10 +402,8 @@ mod process {
 
     #[tokio::test]
     async fn named_clients_work_in_http_and_artisan() {
-        use axum::{extract::State, handler::Handler as _};
         use openrust::{
-            contracts::{foundation::Application as _, http::Kernel as _},
-            foundation::http::Kernel,
+            contracts::foundation::Application as _,
             grpc::{GrpcClientError, GrpcClients},
         };
         use std::sync::Arc;
@@ -380,7 +423,7 @@ mod process {
             registry.connect("absent"),
             Err(GrpcClientError::UnknownClient(_))
         ));
-        for name in ["bad", "bad_uri"] {
+        for name in ["bad", "bad_uri", "bad_port_uri"] {
             assert!(matches!(
                 registry.connect(name),
                 Err(GrpcClientError::InvalidConfig { .. })
@@ -400,6 +443,18 @@ mod process {
             .unwrap()
             .set("grpc.clients.health", json!({"host":""}))
             .unwrap();
+        assert_http_probe(app).await;
+        let artisan = client_fixture(peer).await;
+        assert_eq!(
+            artisan.handleCommand(&["grpc:probe".into()]).await.unwrap(),
+            0
+        );
+    }
+
+    async fn assert_http_probe(app: Application) {
+        use axum::{extract::State, handler::Handler as _};
+        use openrust::{contracts::http::Kernel as _, foundation::http::Kernel};
+        use std::sync::Arc;
         let mut kernel = Kernel::new(app);
         kernel.bootstrap().await.unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -429,17 +484,238 @@ mod process {
             .output()
             .await
             .unwrap();
+        http.abort();
+        assert!(http.await.unwrap_err().is_cancelled());
         assert!(response.status.success(), "{response:?}");
         assert_eq!(
             serde_json::from_slice::<serde_json::Value>(&response.stdout).unwrap(),
             json!({"status":"SERVING"})
         );
-        let artisan = client_fixture(peer).await;
+    }
+
+    fn root_ca(root: &std::path::Path) -> std::io::Result<tonic::transport::Certificate> {
+        Ok(tonic::transport::Certificate::from_pem(std::fs::read(
+            root.join("ca.pem"),
+        )?))
+    }
+
+    fn identity(root: &std::path::Path, name: &str) -> std::io::Result<tonic::transport::Identity> {
+        Ok(tonic::transport::Identity::from_pem(
+            std::fs::read(root.join(format!("{name}.pem")))?,
+            std::fs::read(root.join(format!("{name}.key")))?,
+        ))
+    }
+
+    fn certificates() -> super::TestRoot {
+        let root = super::TestRoot::new();
+        let openssl = |args: &[&str]| {
+            let result = Command::new("openssl")
+                .current_dir(&root.0)
+                .args(args)
+                .output()
+                .unwrap();
+            assert!(
+                result.status.success(),
+                "openssl: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+        };
+        openssl(&[
+            "req",
+            "-new",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-x509",
+            "-days",
+            "2",
+            "-subj",
+            "/CN=OpenRust Probe CA",
+            "-keyout",
+            "ca.key",
+            "-out",
+            "ca.pem",
+        ]);
+        for (name, usages) in [
+            (
+                "server",
+                "subjectAltName=DNS:localhost
+extendedKeyUsage=serverAuth
+",
+            ),
+            (
+                "client",
+                "extendedKeyUsage=clientAuth
+",
+            ),
+        ] {
+            let request = format!("{name}.csr");
+            let key = format!("{name}.key");
+            let certificate = format!("{name}.pem");
+            std::fs::write(root.0.join("extensions"), usages).unwrap();
+            openssl(&[
+                "req",
+                "-new",
+                "-newkey",
+                "rsa:2048",
+                "-nodes",
+                "-subj",
+                "/CN=localhost",
+                "-keyout",
+                &key,
+                "-out",
+                &request,
+            ]);
+            openssl(&[
+                "x509",
+                "-req",
+                "-in",
+                &request,
+                "-CA",
+                "ca.pem",
+                "-CAkey",
+                "ca.key",
+                "-CAcreateserial",
+                "-extfile",
+                "extensions",
+                "-days",
+                "2",
+                "-out",
+                &certificate,
+            ]);
+        }
+        root
+    }
+
+    async fn secure_client_fixture(root: &std::path::Path, peer: SocketAddr) -> Application {
+        use openrust::{contracts::foundation::Application as _, grpc::GrpcClients};
+        use tonic::transport::ClientTlsConfig;
+        let app = client_fixture(peer).await;
+        let clients = app.make::<GrpcClients>().await.unwrap();
+        let ca = root_ca(root).unwrap();
+        let trust = ClientTlsConfig::new()
+            .ca_certificate(ca)
+            .domain_name("localhost");
+        let authenticated = trust.clone().identity(identity(root, "client").unwrap());
+        clients.register_credentials("mtls", authenticated.clone());
+        clients.register_credentials("wrong-domain", authenticated.domain_name("wrong.example"));
+        clients.register_credentials("no-identity", trust);
+        clients.register_credentials(
+            "untrusted-ca",
+            ClientTlsConfig::new()
+                .domain_name("localhost")
+                .identity(identity(root, "client").unwrap()),
+        );
+        clients.register_interceptor("first", |mut request| {
+            request
+                .metadata_mut()
+                .insert("x-grpc-step", "client-1".parse().unwrap());
+            Ok(request)
+        });
+        for (group, expected, next) in [
+            ("first", "client-1", "client-2"),
+            ("second", "client-2", "client-3"),
+        ] {
+            clients.register_interceptor(group, move |mut request| {
+                if request
+                    .metadata()
+                    .get("x-grpc-step")
+                    .is_none_or(|step| step != expected)
+                {
+                    return Err(tonic::Status::failed_precondition("out of order"));
+                }
+                request
+                    .metadata_mut()
+                    .insert("x-grpc-step", next.parse().unwrap());
+                Ok(request)
+            });
+        }
+        clients.register_interceptor("denied", |_| {
+            Err(tonic::Status::permission_denied("client rejected"))
+        });
+        let config = app.config().unwrap();
+        for (name, group, interceptors) in [
+            ("health", "mtls", vec!["first", "unused", "second"]),
+            ("absent-group", "missing", vec![]),
+            ("wrong-domain", "wrong-domain", vec![]),
+            ("no-identity", "no-identity", vec![]),
+            ("untrusted-ca", "untrusted-ca", vec![]),
+            ("missing-metadata", "mtls", vec![]),
+            ("client-denied", "mtls", vec!["denied"]),
+        ] {
+            config
+                .set(
+                    &format!("grpc.clients.{name}"),
+                    json!({
+                        "host":peer.to_string(), "credentials": group, "interceptors":interceptors,
+                        "connect_timeout_ms":1000, "timeout_ms":2000,
+                    }),
+                )
+                .unwrap();
+        }
+        config
+            .set(
+                "grpc.clients.bad-scheme",
+                json!({"endpoint":format!("http://{peer}"),"credentials":"mtls"}),
+            )
+            .unwrap();
+        config
+            .set(
+                "grpc.clients.invalid-interceptors",
+                json!({"host":peer.to_string(),"interceptors":"first"}),
+            )
+            .unwrap();
+        app
+    }
+
+    #[tokio::test]
+    async fn mtls_and_interceptors_work_in_http_and_artisan() {
+        use openrust::grpc::{GrpcClientError, GrpcClients};
+        let material = certificates();
+        let mut server = start_server("127.0.0.1", Some(&material.0));
+        let (_, peer) = readiness(&mut server);
+        let app = secure_client_fixture(&material.0, peer).await;
+        let connections = app.make::<GrpcClients>().await.unwrap();
+        for name in ["absent-group", "bad-scheme", "invalid-interceptors"] {
+            assert!(matches!(
+                connections.connect(name),
+                Err(GrpcClientError::InvalidConfig { .. })
+            ));
+        }
+        for (name, code) in [
+            ("wrong-domain", None),
+            ("no-identity", None),
+            ("untrusted-ca", None),
+            ("missing-metadata", Some(tonic::Code::Unauthenticated)),
+            ("client-denied", Some(tonic::Code::PermissionDenied)),
+        ] {
+            let status = tokio::time::timeout(
+                Duration::from_secs(4),
+                HealthClient::new(connections.connect(name).unwrap())
+                    .check(HealthCheckRequest { service: "".into() }),
+            )
+            .await
+            .unwrap()
+            .unwrap_err();
+            if let Some(code) = code {
+                assert_eq!(status.code(), code, "{name}: {status:?}");
+            } else {
+                use std::error::Error as _;
+                assert!(
+                    matches!(
+                        status.code(),
+                        tonic::Code::Unavailable | tonic::Code::Unknown
+                    ) && status.source().is_some(),
+                    "{name}: {status:?}"
+                );
+            }
+        }
+
+        assert_http_probe(app).await;
+        let artisan = secure_client_fixture(&material.0, peer).await;
         assert_eq!(
             artisan.handleCommand(&["grpc:probe".into()]).await.unwrap(),
             0
         );
-        http.abort();
-        assert!(http.await.unwrap_err().is_cancelled());
     }
 }

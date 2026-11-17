@@ -121,7 +121,7 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | 范围 | 基线状态 | 待验收或确认 |
 | --- | --- | --- |
 | [08-02 Reverb](08-02/README.md) | [按模拟验收口径闭合](08-02/README.md#08-02-模拟验收与闭合)。缓存频道、统计与批量发布、Redis 扩展、Artisan 和 Echo 均已实测。具名 Pusher 驱动通过隔离模拟服务验收 | 托管 Pusher TLS 和部署配置实机验证 |
-| [08-03 gRPC](08-03/README.md) | 服务端及[命名客户端](08-03/README.md#命名客户端)已用真实 Tonic 验收 | 凭据及拦截器 |
+| [08-03 gRPC](08-03/README.md) | [已闭合](08-03/README.md#08-03-整单元验收)。监听、命名客户端、mTLS 凭据及双端拦截器通过真实 Tonic、HTTP 和 Artisan 验收 | — |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存已随 07-07 验收。 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |

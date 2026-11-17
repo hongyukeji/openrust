@@ -1,15 +1,20 @@
 //! gRPC service registration and transport.
 
 mod clients;
+mod options;
 
-pub use clients::{Grpc, GrpcChannel, GrpcClientError, GrpcClients, GrpcInterceptor};
+pub use clients::{Grpc, GrpcChannel, GrpcClientError, GrpcClients};
+pub use options::{GrpcInterceptor, GrpcServerOptions};
 pub use tonic::{self, service::RoutesBuilder};
 
 use std::{future::Future, io, sync::Arc};
 
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
-use tonic::{service::Routes, transport::Server};
+use tonic::{
+    service::{InterceptorLayer, Routes},
+    transport::Server,
+};
 
 use crate::{
     config::Value,
@@ -26,11 +31,20 @@ pub(crate) type Registrar = fn(&Application, &mut RoutesBuilder) -> ProviderResu
 pub(crate) struct ConfiguredServer {
     routes: Routes,
     config: Arc<dyn Repository>,
+    options: Arc<GrpcServerOptions>,
 }
 
 impl ConfiguredServer {
-    pub(crate) fn new(routes: Routes, config: Arc<dyn Repository>) -> Self {
-        Self { routes, config }
+    pub(crate) fn new(
+        routes: Routes,
+        config: Arc<dyn Repository>,
+        options: Arc<GrpcServerOptions>,
+    ) -> Self {
+        Self {
+            routes,
+            config,
+            options,
+        }
     }
 }
 
@@ -67,12 +81,16 @@ impl ApplicationRunner for ConfiguredServer {
         context: RunnerContext,
     ) -> HttpFuture<'_, RuntimeResult<Option<RunningService>>> {
         Box::pin(async move {
-            Ok(Runner::bind(self.routes.clone(), self.config.as_ref())
-                .await?
-                .map(|runner| {
-                    let service: RunningService = Box::pin(runner.serve(context.cancelled_owned()));
-                    service
-                }))
+            Ok(Runner::bind(
+                self.routes.clone(),
+                self.config.as_ref(),
+                self.options.as_ref(),
+            )
+            .await?
+            .map(|runner| {
+                let service: RunningService = Box::pin(runner.serve(context.cancelled_owned()));
+                service
+            }))
         })
     }
 }
@@ -80,10 +98,17 @@ impl ApplicationRunner for ConfiguredServer {
 struct Runner {
     listener: TcpListener,
     routes: Routes,
+    server: Server,
+    interceptor: GrpcInterceptor,
+    tls: bool,
 }
 
 impl Runner {
-    async fn bind(routes: Routes, config: &dyn Repository) -> io::Result<Option<Self>> {
+    async fn bind(
+        routes: Routes,
+        config: &dyn Repository,
+        options: &GrpcServerOptions,
+    ) -> Result<Option<Self>, Box<dyn std::error::Error + Send + Sync>> {
         let host = match config.get("grpc.host") {
             None | Some(Value::Null) => return Ok(None),
             Some(Value::String(host)) if host.trim().is_empty() => return Ok(None),
@@ -92,9 +117,19 @@ impl Runner {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "grpc.host must be a string",
-                ));
+                )
+                .into());
             }
         };
+        let (credentials, interceptor) = options.snapshot();
+        let mut server = Server::builder();
+        let tls = credentials.is_some();
+        if let Some(credentials) = credentials {
+            if rustls::crypto::CryptoProvider::get_default().is_none() {
+                let _ = rustls::crypto::ring::default_provider().install_default();
+            }
+            server = server.tls_config(credentials)?;
+        }
         let listener = if host.matches(':').count() == 1 || host.contains("]:") {
             TcpListener::bind(&host).await
         } else {
@@ -116,15 +151,23 @@ impl Runner {
         .map_err(|error| {
             io::Error::new(error.kind(), format!("cannot bind gRPC listener: {error}"))
         })?;
-        Ok(Some(Self { listener, routes }))
+        Ok(Some(Self {
+            listener,
+            routes,
+            server,
+            interceptor,
+            tls,
+        }))
     }
 
     async fn serve(self, shutdown: impl Future<Output = ()>) -> ProviderResult {
         println!(
-            "OpenRust gRPC listening on http://{}",
+            "OpenRust gRPC listening on {}://{}",
+            if self.tls { "https" } else { "http" },
             self.listener.local_addr()?
         );
-        Server::builder()
+        self.server
+            .layer(InterceptorLayer::new(self.interceptor))
             .add_routes(self.routes)
             .serve_with_incoming_shutdown(TcpListenerStream::new(self.listener), shutdown)
             .await?;

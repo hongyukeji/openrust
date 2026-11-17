@@ -694,6 +694,11 @@ impl Application {
             .container
             .instanceNamed::<dyn config::Repository>("config", config.clone())
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let grpc_options = Arc::new(grpc::GrpcServerOptions::default());
+        self.shared
+            .container
+            .instance(grpc_options.clone())
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let loaded = match cached {
             Some(values) => Repository::new(values),
             None => LoadConfiguration::bootstrap(
@@ -874,6 +879,7 @@ impl Application {
             self.register_runner(Arc::new(grpc::ConfiguredServer::new(
                 routes.routes(),
                 config,
+                grpc_options,
             )));
         }
 

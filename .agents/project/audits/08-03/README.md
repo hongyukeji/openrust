@@ -2,7 +2,7 @@
 
 这是 OpenRust 扩展，对照固定 [Goravel 配置](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/config/grpc.go) 和 [gRPC Runner](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/grpc/runners.go)。复用旧版 `6d1a8192` 的 Tonic 服务注册、已绑定 TCP 监听器、Tonic Health 客户端与关闭验证，以及工作区现有的编译型装配。
 
-`install:grpc` 在应用源码中加入 `routes/grpc.rs` 和 `withGrpc` 注册入口，重复运行保留现有代码。Provider 与 HTTP 路由装配完成后执行一次 gRPC 注册，应用启动阶段使用共享服务生命周期绑定监听，任一监听绑定失败时终止启动。Artisan 复用装配且无需绑定监听。当前服务端使用明文 HTTP/2，TLS 由反向代理终止。命名客户端、客户端凭据与拦截器配置待接入。
+`install:grpc` 在应用源码中加入 `routes/grpc.rs` 和 `withGrpc` 注册入口，重复运行保留现有代码。Provider 与 HTTP 路由装配完成后执行一次 gRPC 注册，应用启动阶段使用共享服务生命周期绑定监听，任一监听绑定失败时终止启动。Artisan 复用装配且无需绑定监听。服务端默认使用明文 HTTP/2。命名客户端、TLS 凭据与拦截器的后续验收见下文。
 
 ## 验收
 
@@ -18,3 +18,14 @@
 - 对照固定 Goravel 的 `grpc.clients`、按名缓存和惰性建立连接。Rust 复用旧版的 Tonic 共享连接和端点验证，支持主机及端口、内嵌端口和完整 HTTP 端点。通过应用容器的 `GrpcClients` 或当前作用域的 `Grpc::connect` 获取连接。 [固定 Goravel Connect](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/grpc/application.go#L53)
 - 实际 HTTP `/grpc-probe` 和 Artisan `grpc:probe` 使用命名连接访问独立进程的 Tonic Health。实测三种地址、连接复用、未知名称、错误配置和端口不可用，回归 `install:grpc`、服务状态、绑定冲突和关停。
 - Rust 1.94.0 锁定离线，4 项 gRPC 回归及 1 项独立子进程夹具、工作区全目标全特性严格 Clippy、三语站点和 12 项浏览器检查通过。凭据和拦截器待后续验收。
+
+## 凭据与拦截器
+
+- 对照固定 Goravel 的客户端凭据组、客户端拦截器组与服务端选项，复用旧版 Tonic TLS 信任根、域名、客户端身份与服务端 CA 策略。显式凭据组未知时，Rust 返回配置错误，避免退回明文。未知拦截器组沿用固定版的跳过行为。组按配置顺序执行，组内和服务端拦截器按注册顺序执行。 [固定 Goravel gRPC Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/grpc/application.go#L197)
+- 真实 Tonic 验证双向 TLS、顺序执行和请求元数据。错误域名、不受信任的 CA、缺少客户端证书均被 TLS 拒绝。未知凭据、协议不匹配及错误的拦截器配置返回配置错误，客户端拒绝与服务端拒绝分别保留 `PERMISSION_DENIED` 和 `UNAUTHENTICATED`。
+- HTTP `/grpc-probe` 与实际 Artisan `grpc:probe` 都通过命名客户端、mTLS 和双端拦截器到达独立 Tonic 服务。明文连接及服务端监听回归通过。
+
+## 08-03 整单元验收
+
+- 前置 00-03 已闭合。Rust 1.94.0 锁定离线验证 5 项 gRPC 回归和 1 项由测试启动的子进程夹具，包含安装、监听冲突、关停、命名客户端、凭据和拦截器。工作区全目标全特性严格 Clippy 和改动文件格式通过。
+- 三语 VitePress 构建、12 项浏览器检查及两个新增章节的三语锚点通过。已清理 TLS 证书夹具、临时站点和专用测试可执行文件。08-03 闭合。

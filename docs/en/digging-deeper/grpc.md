@@ -30,7 +30,7 @@ This example requires the `tonic-health` dependency in the application.
 
 Set `GRPC_HOST` and `GRPC_PORT` before starting the application. Leave the host empty to disable the listener. The HTTP and gRPC ports are bound before either reports readiness. A bind failure stops startup, and the listeners share graceful shutdown. Artisan boots the application without binding the gRPC port.
 
-This listener accepts plaintext gRPC over HTTP/2. Use a TLS terminator when serving clients over an untrusted network.
+The listener uses plaintext HTTP/2 by default. Configure server credentials to serve TLS directly, or terminate TLS at a reverse proxy.
 
 ## Named clients {#named-clients}
 
@@ -49,3 +49,30 @@ Define outgoing connections in the `clients` object returned by `config/grpc.rs`
 ```
 
 Use `Grpc::connect("health")` in HTTP handlers and Artisan commands. You can also resolve `GrpcClients` from the application container. Pass the returned service to a generated Tonic client, such as `HealthClient::new(Grpc::connect("health")?)`. A missing client or malformed address fails during resolution. Network failures surface from the RPC.
+
+## Credentials and interceptors {#credentials-and-interceptors}
+
+Register Tonic credentials and interceptor groups during application boot, before resolving a client or starting the listener. Assign their names in the client configuration.
+
+```rust
+use openrust::grpc::{Grpc, tonic::transport::ClientTlsConfig};
+
+Grpc::clients()?.register_credentials(
+    "internal-tls",
+    ClientTlsConfig::new().ca_certificate(internal_ca).domain_name("health.example.test"),
+);
+Grpc::clients()?.register_interceptor("request-id", |mut request| {
+    request.metadata_mut().insert("x-request-id", "grpc-probe".parse().unwrap());
+    Ok(request)
+});
+```
+
+```json
+{"host":"health.example.test","port":50051,"credentials":"internal-tls","interceptors":["request-id"]}
+```
+
+A TLS group makes a host-and-port client use HTTPS. An explicit HTTPS endpoint requires a registered group. An unknown group or a scheme that disagrees with the credentials is a configuration error.
+
+Client interceptor groups run in the order listed in configuration, with each group running in registration order. Unregistered interceptor groups are skipped. Use `Grpc::server()?.add_interceptor(...)` to add a server interceptor across all registered services. Returning a Tonic status stops the chain and returns that status to the caller.
+
+Use `Grpc::server()?.set_credentials(ServerTlsConfig::new().identity(server_identity))` for server TLS. To require mutual TLS, add `client_ca_root(client_ca)` on the server and `identity(client_identity)` in the matching client credentials.
