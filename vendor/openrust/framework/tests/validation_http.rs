@@ -271,6 +271,18 @@ impl FormRequest for Upload {
             }
             "encoding-ucs2" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-2")]),
             "encoding-ucs4" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-4")]),
+            "encoding-base64" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:BASE64")])
+            }
+            "encoding-qp" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:Quoted-Printable")])
+            }
+            "encoding-entities" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:HTML-ENTITIES")])
+            }
+            "encoding-uu" => RuleSet::parse([("attachments.*", "required|file|encoding:UUENCODE")]),
+            "strict-base64" => RuleSet::new().field("value", [Rule::required(), Rule::base64()]),
+            "strict-base64-string" => RuleSet::parse([("value", "required|base64")]),
             "encoding-input" => RuleSet::parse([("metadata", "required|array|encoding:ASCII")]),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
@@ -1429,5 +1441,107 @@ async fn real_uploads_classify_file_content_and_distinguish_legacy_encodings() {
     }
     assert!(RuleSet::parse([("file", "encoding:latin1")]).is_err());
     assert!(RuleSet::parse([("file", "encoding:US-ASCII")]).is_err());
+    server.abort();
+}
+
+#[tokio::test]
+async fn transfer_encoding_and_canonical_base64_follow_laravel_over_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for encoded in ["Zg==", "AAAA", "aGVsbG8="] {
+        send(
+            address,
+            "/api/upload/strict-base64-string",
+            json!({"value":encoded}),
+            false,
+            200,
+        )
+        .await;
+    }
+    let long = "YWJj".repeat(4096);
+    send(
+        address,
+        "/api/upload/strict-base64",
+        json!({"value":long}),
+        false,
+        200,
+    )
+    .await;
+    for permissive in [
+        "A",
+        "Zg",
+        "Zh==",
+        "Zg=== ",
+        "Z g= =",
+        "Zg==YQ==",
+        "Zm9v\r\nYmFy",
+    ] {
+        upload_file(
+            address,
+            "encoding-base64",
+            "encoded.txt",
+            "text/plain",
+            permissive.as_bytes(),
+            200,
+        )
+        .await;
+        let invalid = send(
+            address,
+            "/api/upload/strict-base64",
+            json!({"value":permissive}),
+            false,
+            422,
+        )
+        .await;
+        assert_eq!(
+            invalid["errors"]["value"],
+            json!(["The value field must be a valid Base64 string."])
+        );
+    }
+    let invalid_type = send(
+        address,
+        "/api/upload/strict-base64",
+        json!({"value":12}),
+        false,
+        422,
+    )
+    .await;
+    assert_eq!(
+        invalid_type["errors"]["value"],
+        json!(["The value field must be a valid Base64 string."])
+    );
+    for invalid in [b"Zg==-".as_slice(), b"Zg==\x0b", b"YWJj\0", b"Zg==\xff"] {
+        let invalid = upload_file(
+            address,
+            "encoding-base64",
+            "encoded.txt",
+            "application/octet-stream",
+            invalid,
+            422,
+        )
+        .await;
+        assert_eq!(
+            invalid["errors"]["attachments.0"],
+            json!(["The attachments.0 field must be encoded in BASE64."])
+        );
+    }
+    for (mode, payload) in [
+        ("encoding-qp", b"caf=C3=A9\r\nnext=0G\xff".as_slice()),
+        (
+            "encoding-entities",
+            b"&amp; &unknown; &#xZZ; \xff".as_slice(),
+        ),
+        ("encoding-uu", b"begin 644 file\n#0V%T\n`\nend\n".as_slice()),
+        ("encoding-uu", b"begin 644 file\n!\xff\n".as_slice()),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "encoded.txt",
+            "application/octet-stream",
+            payload,
+            200,
+        )
+        .await;
+    }
     server.abort();
 }

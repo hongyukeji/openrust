@@ -117,6 +117,19 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 }
 ```
 
+### Transfer Encoding {#transfer-encoding}
+
+Use `base64` for canonical Base64 text. For an uploaded file, `encoding:BASE64` checks the PHP mbstring Base64 alphabet, which allows `=`, space, tab, CR, and LF anywhere in the input. The mbstring compatibility check for `Quoted-Printable`, `HTML-ENTITIES` and `UUENCODE` accepts arbitrary bytes.
+
+```rust
+use openrust::validation::{Rule, RuleSet, ValidationResult, rules::File};
+
+fn transfer_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([("value", "required|base64")])?
+        .field("upload", [Rule::required(), File::default().encoding("BASE64").into()])
+}
+```
+
 ## Validation Error Response Format
 
 For requests that expect JSON, a validation failure returns HTTP 422 with `message` and an `errors` object keyed by field. Expanded keys use dot notation, such as `users.0.email`. Override rule messages and attribute labels in the active locale’s `lang/<locale>/validation.json`.

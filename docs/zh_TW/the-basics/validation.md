@@ -117,6 +117,19 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
 }
 ```
 
+### 傳輸編碼 {#transfer-encoding}
+
+用 `base64` 驗證標準格式的 Base64 字串。上傳檔案的 `encoding:BASE64` 按 PHP mbstring 檢查字元表，允許 `=`、空格、定位字元及 CR/LF 出現在任意位置。`Quoted-Printable`、`HTML-ENTITIES` 和 `UUENCODE` 的 mbstring 相容檢查接受任意位元組。
+
+```rust
+use openrust::validation::{Rule, RuleSet, ValidationResult, rules::File};
+
+fn transfer_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([("value", "required|base64")])?
+        .field("upload", [Rule::required(), File::default().encoding("BASE64").into()])
+}
+```
+
 ## 驗證錯誤回應格式
 
 請求預期 JSON 時，驗證失敗回傳 HTTP 422，本文包含 `message` 和依欄位索引的 `errors`。展開後的欄位用點路徑表示，例如 `users.0.email`。可在目前語言的 `lang/<locale>/validation.json` 中覆寫規則訊息和欄位名稱。

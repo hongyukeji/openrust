@@ -62,3 +62,10 @@
 - JSON 容器使用语法检测，UTF-16 文本识别字节序标记，空文件匹配 `application/x-empty`。扩展名规则继续读取客户端文件名。编码规则按受支持的 Laravel 名称解析，SJIS 与 CP932 使用各自的字节范围，EUC-CN 保留双字节范围，UCS 固定宽度校验与 UTF Unicode 标量校验各自独立。固定 Goravel 的 MIME 与编码规则用作实现参考。 [固定 Goravel 验证规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go)
 - 实际 MySQL 8.4.13 环境下，文件系统、上传与验证路径回归共 34 项通过。三语示例在实际 multipart HTTP 上通过 200 和 422。传输编码、部分旧式编码表及未纳入 MIME 样本的格式仍需核定兼容边界。核心账本维持 59/66。
 - Rust 1.94.0 改动文件格式、工作区严格 Clippy、独立 Artisan、三语站点和 18 项浏览器检查通过。集成独立格式提交 `45a982138` 后复查全仓格式通过。临时 MySQL、3.5 GiB 隔离 Cargo 产物和文档缓存已回收，PHP 对照及验收日志保留于 `/private/tmp/openrust-04-05-file-coverage.fTlKoYPe`。
+
+## 传输编码与规范 Base64
+
+- 固定 Laravel `validateEncoding` 使用 PHP mbstring 的传输编码检查，`validateBase64` 使用严格解码及规范字符串比较。PHP 8.5.12 容器内的 mbstring 源码显示，旧式 BASE64 忽略 `=`、空格、制表符及 CR/LF。Quoted-Printable、HTML-ENTITIES 和 UUENCODE 的解码分支接受任意字节。固定 Goravel 的编码规则和旧版传输格式 MIME 表均已核对，复用当前 `base64` 依赖的严格流式解码，避免为了验证保留整份解码后的数据。 [固定 Laravel 验证规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php) · [Laravel Encoding](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding) · [固定 Goravel 编码规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1712)
+- PHP 直接执行固定 Laravel 验证 trait，校验 BASE64 的 256 种字节、另外三种传输编码的 9,000 个确定性样本，以及严格 Base64 的正反例。真实 MySQL 8.4.13 环境的 HTTP 和验证路径共 10 项通过。新增 HTTP 覆盖宽松与规范规则的不同结果、非字符串、长输入、错误字符和 multipart 字节。三语示例分别实测 HTTP 200 和两条 422 路径。
+- Rust 1.94.0 全仓格式、工作区严格 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 隔离 Cargo 产物及文档缓存。PHP 对照和验收日志保留于 `/private/tmp/openrust-04-05-transfer.9mTJpuvo`。
+- UTF-7／UTF7-IMAP 等状态型编码、部分旧式字表、其他文件格式和交付单元完整复验仍待核定。核心账本维持 59/66。

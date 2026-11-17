@@ -12,7 +12,8 @@ pub(in crate::validation) struct EncodingRule {
 #[derive(Clone, Copy)]
 enum Codec {
     Ascii,
-    Latin1,
+    AnyByte,
+    Base64,
     Utf8,
     Utf16,
     Ucs2,
@@ -28,7 +29,11 @@ impl EncodingRule {
         let label = name.to_ascii_lowercase();
         let codec = match label.as_str() {
             "ascii" | "7bit" => Codec::Ascii,
-            "iso-8859-1" | "8bit" => Codec::Latin1,
+            // mbstring's legacy transfer decoders accept input without reporting malformed bytes.
+            "iso-8859-1" | "8bit" | "quoted-printable" | "html-entities" | "uuencode" => {
+                Codec::AnyByte
+            }
+            "base64" => Codec::Base64,
             "utf-8" => Codec::Utf8,
             "utf-16" => Codec::Utf16,
             "utf-32" => Codec::Utf32(None),
@@ -63,7 +68,11 @@ impl EncodingRule {
     pub fn bytes(&self, value: &[u8]) -> bool {
         match self.codec {
             Codec::Ascii => value.is_ascii(),
-            Codec::Latin1 => true,
+            Codec::AnyByte => true,
+            Codec::Base64 => value.iter().all(|byte| {
+                byte.is_ascii_alphanumeric()
+                    || matches!(byte, b'+' | b'/' | b'=' | b' ' | b'\t' | b'\r' | b'\n')
+            }),
             Codec::Utf8 => std::str::from_utf8(value).is_ok(),
             Codec::Utf16 => match value.strip_prefix(b"\xff\xfe") {
                 Some(value) => decode(encoding_rs::UTF_16LE, value),

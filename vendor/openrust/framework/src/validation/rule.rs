@@ -21,6 +21,7 @@ pub(super) enum Kind {
     String,
     Integer,
     Boolean,
+    Base64,
     Array,
     Min(usize),
     Max(usize),
@@ -59,6 +60,9 @@ impl Rule {
     pub fn boolean() -> Self {
         Self(Kind::Boolean)
     }
+    pub fn base64() -> Self {
+        Self(Kind::Base64)
+    }
     pub fn array() -> Self {
         Self(Kind::Array)
     }
@@ -92,6 +96,7 @@ impl Rule {
             "string" => Self::string(),
             "integer" => Self::integer(),
             "boolean" => Self::boolean(),
+            "base64" => Self::base64(),
             "array" => Self::array(),
             "file" => File::default().into(),
             "image" => File::image(false).into(),

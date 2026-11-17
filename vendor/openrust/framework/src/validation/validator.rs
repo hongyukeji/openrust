@@ -165,6 +165,9 @@ impl Validator {
             }
             (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
             (Kind::Dimensions(rule), Some(_)) => (!rule.passes(file)?).then_some("dimensions"),
+            (Kind::Base64, Some(value)) if !value.as_str().is_some_and(canonical_base64) => {
+                Some("base64")
+            }
             (Kind::Encoding(rule), Some(value)) => {
                 let valid = file.map_or_else(|| rule.value(value), |file| rule.bytes(&file.get()));
                 return Ok((!valid).then(|| rule.failure()).into_iter().collect());
@@ -395,6 +398,17 @@ fn replace(template: &str, replacements: &BTreeMap<String, String>) -> String {
     output
 }
 
+fn canonical_base64(value: &str) -> bool {
+    use base64::{engine::general_purpose::STANDARD, read::DecoderReader};
+
+    !value.is_empty()
+        && std::io::copy(
+            &mut DecoderReader::new(value.as_bytes(), &STANDARD),
+            &mut std::io::sink(),
+        )
+        .is_ok()
+}
+
 fn fallback(rule: &str) -> &str {
     match rule {
         "required" => "The :attribute field is required.",
@@ -403,6 +417,7 @@ fn fallback(rule: &str) -> &str {
         "integer" => "The :attribute field must be an integer.",
         "boolean" => "The :attribute field must be true or false.",
         "array" => "The :attribute field must be an array.",
+        "base64" => "The :attribute field must be a valid Base64 string.",
         "exists" => "The selected :attribute is invalid.",
         "unique" => "The :attribute has already been taken.",
         "dimensions" => "The :attribute field has invalid image dimensions.",
