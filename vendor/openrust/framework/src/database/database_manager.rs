@@ -3,7 +3,10 @@ use std::{
     collections::HashMap,
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock, Weak},
+    sync::{
+        Arc, Mutex, RwLock, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serde_json::Value;
@@ -39,6 +42,7 @@ pub struct DatabaseManager {
     connections: Mutex<HashMap<String, Connection>>,
     container: Weak<Container>,
     schema_defaults: Arc<RwLock<SchemaDefaults>>,
+    destructive_commands_prohibited: AtomicBool,
     mysql_test_owners: Option<Arc<MySqlTestOwners>>,
     test_query_counts: Option<Weak<TestQueryCounts>>,
 }
@@ -52,6 +56,7 @@ impl DatabaseManager {
             connections: Mutex::default(),
             container: Weak::new(),
             schema_defaults: Arc::default(),
+            destructive_commands_prohibited: AtomicBool::new(false),
             mysql_test_owners: None,
             test_query_counts: None,
         }
@@ -96,6 +101,15 @@ impl DatabaseManager {
 
     pub(super) fn set_morph_key_type(&self, kind: MorphKeyType) {
         self.update_schema_defaults(|defaults| defaults.morph_key_type = kind);
+    }
+
+    pub(super) fn set_destructive_commands_prohibited(&self, prohibited: bool) {
+        self.destructive_commands_prohibited
+            .store(prohibited, Ordering::Relaxed);
+    }
+
+    pub(super) fn destructive_commands_prohibited(&self) -> bool {
+        self.destructive_commands_prohibited.load(Ordering::Relaxed)
     }
 
     pub(super) fn update_schema_defaults(&self, update: impl FnOnce(&mut SchemaDefaults)) {

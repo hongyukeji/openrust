@@ -80,6 +80,22 @@ Use `--database` to select the ledger connection and `--step` to give each migra
 
 Production commands that change schema prompt for confirmation. Use `--force` for a deployment that has already approved those changes. MySQL and SQLite migrations can contain multiple DDL statements. If one fails, earlier successful statements may still be present. Inspect the failing migration before retrying.
 
+### Prohibiting Destructive Commands {#prohibiting-destructive-commands}
+
+Set the policy in a service provider's `boot` hook. This example prohibits `db:wipe`, `migrate:fresh`, `migrate:refresh`, `migrate:reset` and `migrate:rollback` in production. A prohibited command exits with status 1 before connecting to the database, even with `--force`. The policy applies to the current application. `migrate` and `migrate:status` remain available.
+
+```rust
+fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+    Box::pin(async move {
+        use openrust::support::facades::DB;
+
+        let production = app.environment(Some("production".into()))?;
+        DB::prohibitDestructiveCommands(bool::from(&production))?;
+        Ok(())
+    })
+}
+```
+
 ### Migration Transactions {#migration-transactions}
 
 On PostgreSQL and SQL Server, each migration runs its `up` or `down` method in a transaction by default. Use the supplied `MigrationContext` to run Schema changes and SQL on that transaction. Migration listeners can use the transaction supplied by their event context. If the migration or a synchronous lifecycle listener fails before commit, its changes roll back and the ledger keeps its prior state.

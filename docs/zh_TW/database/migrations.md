@@ -80,6 +80,22 @@ impl Migration for Definition {
 
 正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
 
+### 禁止破壞性命令 {#prohibiting-destructive-commands}
+
+在服務提供者的 `boot` 鉤子中設定策略。下例在生產環境停用 `db:wipe`、`migrate:fresh`、`migrate:refresh`、`migrate:reset` 和 `migrate:rollback`。即使傳入 `--force`，停用的命令也會在連線至資料庫前以狀態碼 1 結束。這項策略作用於目前的應用程式，仍可執行 `migrate` 和 `migrate:status`。
+
+```rust
+fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+    Box::pin(async move {
+        use openrust::support::facades::DB;
+
+        let production = app.environment(Some("production".into()))?;
+        DB::prohibitDestructiveCommands(bool::from(&production))?;
+        Ok(())
+    })
+}
+```
+
 ### 遷移交易 {#migration-transactions}
 
 PostgreSQL 和 SQL Server 預設將一項遷移的 `up` 或 `down` 放在一個交易中。使用傳入的 `MigrationContext` 執行 Schema 變更和 SQL，遷移監聽器可使用事件上下文提供的交易。遷移或同步生命週期監聽器在交易提交前失敗時，會回滾本次變更，帳本保留原先狀態。

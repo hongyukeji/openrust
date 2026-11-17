@@ -550,6 +550,78 @@ async fn failed_migration_leaves_prior_batch_and_retry_is_serialized() {
 }
 
 #[tokio::test]
+async fn destructive_migration_prohibition_is_local_to_the_application() {
+    use openrust::{
+        foundation::Application,
+        http::HttpFuture,
+        support::{ProviderResult, ServiceProvider, facades::DB},
+        testing::TestApp,
+    };
+
+    struct ProhibitDestructiveCommands;
+
+    impl ServiceProvider for ProhibitDestructiveCommands {
+        fn boot(&mut self, _: &Application) -> HttpFuture<'_, ProviderResult> {
+            Box::pin(async {
+                DB::prohibitDestructiveCommands(true)?;
+                Ok(())
+            })
+        }
+    }
+
+    let create = |prohibit| {
+        TestApp::create(|builder| {
+            let builder = builder.withConfig(|_, _| {
+                Ok([(
+                    "database".into(),
+                    json!({
+                        "default": "sqlite",
+                        "connections": {"sqlite": {"driver": "sqlite", "database": ":memory:"}},
+                    }),
+                )]
+                .into())
+            });
+            if prohibit {
+                builder.withProviders(vec![Box::new(ProhibitDestructiveCommands)])
+            } else {
+                builder
+            }
+        })
+        .unwrap()
+    };
+
+    let mut protected = create(true);
+    protected
+        .artisan(["migrate", "--force"])
+        .await
+        .assertSuccessful();
+    let mut independent = create(false);
+    independent
+        .artisan(["migrate", "--force"])
+        .await
+        .assertSuccessful();
+    for command in [
+        "db:wipe",
+        "migrate:fresh",
+        "migrate:refresh",
+        "migrate:reset",
+        "migrate:rollback",
+    ] {
+        let result = protected.artisan([command, "--force"]).await;
+        result.assertExitCode(1);
+        assert!(result.stdout.contains("This command is prohibited"));
+    }
+    independent
+        .artisan(["db:wipe", "--force"])
+        .await
+        .assertSuccessful();
+    protected
+        .artisan(["migrate:status"])
+        .await
+        .assertSuccessful();
+}
+
+#[tokio::test]
 async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
     use std::{path::Path, sync::Mutex};
 

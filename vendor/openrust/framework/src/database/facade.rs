@@ -42,6 +42,14 @@ impl DB {
             .connection(name)
     }
 
+    /// Controls destructive database Artisan commands for the current application.
+    pub fn prohibitDestructiveCommands(prohibit: bool) -> DatabaseResult<()> {
+        Self::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .set_destructive_commands_prohibited(prohibit);
+        Ok(())
+    }
+
     /// Returns the configured prefix of the current application's default connection.
     pub fn getTablePrefix() -> DatabaseResult<String> {
         Ok(Self::connection(None)?.getTablePrefix().to_owned())

@@ -192,11 +192,21 @@ impl Command for MigrationCommand {
             if self.kind == Kind::Make {
                 return make(app.base_path(), matches, output);
             }
-            if matches!(
+            let destructive = matches!(
                 self.kind,
-                Kind::Run | Kind::Rollback | Kind::Reset | Kind::Refresh | Kind::Fresh | Kind::Wipe
-            ) && !confirm(app, matches)?
+                Kind::Rollback | Kind::Reset | Kind::Refresh | Kind::Fresh | Kind::Wipe
+            );
+            if destructive
+                && app
+                    .container()
+                    .get::<DatabaseManager>("db")
+                    .map_err(console_error)?
+                    .destructive_commands_prohibited()
             {
+                output.comment("This command is prohibited from running in this environment.");
+                return Ok(1);
+            }
+            if (destructive || self.kind == Kind::Run) && !confirm(app, matches)? {
                 output.stdout.push_str(&crate::console::command_cancelled());
                 output.stdout.push('\n');
                 return Ok(1);
