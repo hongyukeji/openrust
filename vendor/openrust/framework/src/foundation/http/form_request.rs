@@ -1,7 +1,8 @@
 use crate::{
     auth::access::AuthorizationError,
-    contracts::validation::Validator as _,
+    contracts::{container::Container as _, validation::Validator as _},
     http::{HttpError, HttpFuture, Request},
+    support::facades::current_container,
     validation::{
         Data, RuleSet, ValidatedInput, ValidationError, ValidationFuture, ValidationResult,
     },
@@ -70,5 +71,48 @@ pub trait FormRequest: Send + Sync {
         _input: &ValidatedInput,
     ) -> ValidationResult<()> {
         Ok(())
+    }
+}
+
+/// A form request and its validated input, injected before the action runs.
+pub struct ValidatedFormRequest<F> {
+    form: F,
+    input: ValidatedInput,
+}
+
+impl<F> ValidatedFormRequest<F> {
+    pub fn form(&self) -> &F {
+        &self.form
+    }
+
+    pub fn validated(&self) -> &ValidatedInput {
+        &self.input
+    }
+
+    pub fn into_parts(self) -> (F, ValidatedInput) {
+        (self.form, self.input)
+    }
+}
+
+impl<F: FormRequest + Default + 'static> ValidatedFormRequest<F> {
+    pub(crate) async fn resolve(request: &mut Request) -> Result<Self, HttpError> {
+        let mut form = if let Some(container) = current_container().filter(|app| app.bound::<F>()) {
+            let form = request
+                .withContainer(container.makeAsync::<F>())
+                .await
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+            std::sync::Arc::into_inner(form).ok_or_else(|| HttpError::Internal {
+                source: std::io::Error::other(
+                    "A form request binding must return an owned instance for each resolution.",
+                )
+                .into(),
+            })?
+        } else {
+            F::default()
+        };
+        let input = form.validateResolved(request).await?;
+        Ok(Self { form, input })
     }
 }

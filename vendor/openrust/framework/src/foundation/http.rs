@@ -11,7 +11,7 @@ use termination::Termination;
 pub(crate) use termination::terminable;
 use tokio_util::task::TaskTracker;
 
-pub use form_request::{FormRequest, FormRequestError};
+pub use form_request::{FormRequest, FormRequestError, ValidatedFormRequest};
 pub use health_check::HealthCheck;
 
 use std::sync::Arc;

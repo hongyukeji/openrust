@@ -4,6 +4,7 @@ pub(crate) mod binding;
 pub(crate) mod console;
 mod controller_dispatcher;
 mod error;
+mod form_request_handler;
 pub mod middleware;
 mod model_response;
 mod redirector;

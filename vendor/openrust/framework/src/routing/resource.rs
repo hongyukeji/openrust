@@ -1,8 +1,13 @@
 use std::{any::type_name, collections::HashMap, panic::Location, sync::Arc};
 
-use crate::{http::Method, support::Str};
+use crate::{
+    contracts::routing::Handler, foundation::http::FormRequest, http::Method, support::Str,
+};
 
-use super::{ControllerDispatcher, Route, Router, RoutingError, controller_dispatcher::Action};
+use super::{
+    ControllerDispatcher, Route, Router, RoutingError,
+    controller_dispatcher::{Action, FormAction},
+};
 
 /// An action in a Laravel-style resource controller.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -95,7 +100,8 @@ impl ResourceKind {
 
 /// Typed controller actions and options for registering a named resource.
 pub struct ResourceController<C> {
-    actions: HashMap<ResourceAction, Action<C>>,
+    actions: HashMap<ResourceAction, Arc<dyn Handler>>,
+    controller: std::marker::PhantomData<fn() -> C>,
     only: Option<Vec<ResourceAction>>,
     except: Vec<ResourceAction>,
     names: HashMap<ResourceAction, String>,
@@ -110,6 +116,7 @@ impl<C> Default for ResourceController<C> {
     fn default() -> Self {
         Self {
             actions: HashMap::new(),
+            controller: std::marker::PhantomData,
             only: None,
             except: Vec::new(),
             names: HashMap::new(),
@@ -127,8 +134,28 @@ impl<C> ResourceController<C> {
         Self::default()
     }
 
-    pub fn action(mut self, action: ResourceAction, handler: Action<C>) -> Self {
-        self.actions.insert(action, handler);
+    pub fn action(mut self, action: ResourceAction, handler: Action<C>) -> Self
+    where
+        C: Send + Sync + 'static,
+    {
+        self.actions
+            .insert(action, Arc::new(ControllerDispatcher::new(handler)));
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's FormRequest terminology")]
+    pub fn actionWithFormRequest<F: FormRequest + Default + 'static>(
+        mut self,
+        action: ResourceAction,
+        handler: FormAction<C, F>,
+    ) -> Self
+    where
+        C: Send + Sync + 'static,
+    {
+        self.actions.insert(
+            action,
+            Arc::new(ControllerDispatcher::withFormRequest(handler)),
+        );
         self
     }
 
@@ -327,8 +354,7 @@ impl Router {
                 _ => base.to_owned(),
             };
             let uri = format!("{prefix}/{path}");
-            let mut route =
-                self.prepare_route(&uri, Arc::new(ControllerDispatcher::new(*handler)))?;
+            let mut route = self.prepare_route(&uri, Arc::clone(handler))?;
             let route_name = controller.names.get(&action).cloned().unwrap_or_else(|| {
                 format!("{}.{}", if shallow { leaf } else { name }, action.name())
             });

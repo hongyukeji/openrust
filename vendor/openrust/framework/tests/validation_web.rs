@@ -6,7 +6,7 @@ use openrust::{
     foundation::{
         Application,
         configuration::Routing,
-        http::{FormRequest, Kernel},
+        http::{FormRequest, Kernel, ValidatedFormRequest},
     },
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
     routing::RoutingError,
@@ -48,6 +48,12 @@ struct Update {
     explicit: bool,
 }
 
+impl Default for Update {
+    fn default() -> Self {
+        Self { explicit: true }
+    }
+}
+
 impl FormRequest for Update {
     fn rules(&self) -> ValidationResult<RuleSet> {
         RuleSet::parse([("name", "required|string")])
@@ -69,11 +75,8 @@ fn submit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
-fn explicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async move {
-        Update { explicit: true }.validateResolved(request).await?;
-        Ok(Response::empty(StatusCode::NO_CONTENT))
-    })
+async fn explicit(_: ValidatedFormRequest<Update>) -> Result<Response, HttpError> {
+    Ok(Response::empty(StatusCode::NO_CONTENT))
 }
 
 fn manual(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

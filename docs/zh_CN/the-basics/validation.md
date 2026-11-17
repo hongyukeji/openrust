@@ -44,17 +44,20 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 流式规则支持附加查询条件和软删除筛选。更新记录时，用 `ignore` 传入可信的记录标识，或把应用已解析并授权的模型传给 `ignoreModel`。并发写入的唯一性由数据库唯一约束保证。
 
-## 表单请求验证
+## 表单请求验证 {#form-request-validation}
 
-为端点实现 `FormRequest`。`validateResolved` 依次执行 `prepareForValidation`、`authorize`、规则验证和 `passedValidation`。授权拒绝时返回 HTTP 403。
+把 `ValidatedFormRequest<F>` 声明为 action 的类型参数。路由在调用 action 前创建表单请求，依次准备输入、授权、验证并调用 `passedValidation`。授权拒绝返回 HTTP 403。
 
 ```rust
 use openrust::{
-    foundation::http::FormRequest,
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    foundation::http::{FormRequest, ValidatedFormRequest},
+    http::{HttpError, Method, Response, StatusCode},
+    routing::RoutingError,
+    support::facades::Route,
     validation::{RuleSet, ValidationResult},
 };
 
+#[derive(Default)]
 struct StoreUser;
 
 impl FormRequest for StoreUser {
@@ -63,13 +66,16 @@ impl FormRequest for StoreUser {
     }
 }
 
-fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async move {
-        let input = StoreUser.validateResolved(request).await?;
-        Response::json(StatusCode::OK, input.into_value())
-    })
+async fn store(form: ValidatedFormRequest<StoreUser>) -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, form.validated().all())
+}
+
+fn register() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/users", store)
 }
 ```
+
+表单请求实现 `Default` 用于构造。需要构造依赖时，可在容器中为表单类型注册瞬态绑定。普通控制器方法用 `ControllerDispatcher::withFormRequest`，资源控制器用 `ResourceController::actionWithFormRequest`。两种控制器都可接收原始请求及其路由参数。需要显式验证时调用 `validateResolved`。
 
 ## 文件验证 {#validating-files}
 

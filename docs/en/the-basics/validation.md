@@ -44,17 +44,20 @@ fn account_rules() -> ValidationResult<RuleSet> {
 
 Fluent rules support query constraints and soft-deleted rows. When updating a row, use `ignore` with a trusted identifier or `ignoreModel` with a model already resolved and authorized by the application. Use a database unique constraint to enforce uniqueness across concurrent writes.
 
-## Form Request Validation
+## Form Request Validation {#form-request-validation}
 
-Implement `FormRequest` for the endpoint. `validateResolved` runs `prepareForValidation`, `authorize`, validation and `passedValidation` in that order. An authorization denial returns HTTP 403.
+Use `ValidatedFormRequest<F>` as a typed action parameter. The router creates the form request, prepares the input, authorizes, validates, and calls `passedValidation` before dispatching the action. An authorization denial returns HTTP 403.
 
 ```rust
 use openrust::{
-    foundation::http::FormRequest,
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    foundation::http::{FormRequest, ValidatedFormRequest},
+    http::{HttpError, Method, Response, StatusCode},
+    routing::RoutingError,
+    support::facades::Route,
     validation::{RuleSet, ValidationResult},
 };
 
+#[derive(Default)]
 struct StoreUser;
 
 impl FormRequest for StoreUser {
@@ -63,13 +66,16 @@ impl FormRequest for StoreUser {
     }
 }
 
-fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async move {
-        let input = StoreUser.validateResolved(request).await?;
-        Response::json(StatusCode::OK, input.into_value())
-    })
+async fn store(form: ValidatedFormRequest<StoreUser>) -> Result<Response, HttpError> {
+    Response::json(StatusCode::OK, form.validated().all())
+}
+
+fn register() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/users", store)
 }
 ```
+
+A form request implements `Default` for construction. A transient container binding for the form type can supply constructor dependencies. Use `ControllerDispatcher::withFormRequest` for a controller method or `ResourceController::actionWithFormRequest` for a resource action. A controller using either adapter also receives the original request and its route parameters. Call `validateResolved` for explicit validation.
 
 ## Validating Files {#validating-files}
 

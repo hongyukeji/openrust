@@ -1,7 +1,8 @@
-use std::{io, marker::PhantomData};
+use std::io;
 
 use crate::{
     contracts::{container::Container as _, routing::Handler},
+    foundation::http::{FormRequest, ValidatedFormRequest},
     http::{HttpError, HttpFuture, Request, Response},
     support::facades::current_container,
 };
@@ -9,17 +10,39 @@ use crate::{
 pub(super) type Action<C> =
     for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
 
+type Dispatch<C> = dyn for<'a> Fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>
+    + Send
+    + Sync;
+
 /// Dispatches a typed controller action through the current application's container.
 pub struct ControllerDispatcher<C> {
-    action: Action<C>,
-    controller: PhantomData<fn() -> C>,
+    action: Box<Dispatch<C>>,
 }
 
-impl<C> ControllerDispatcher<C> {
+impl<C: 'static> ControllerDispatcher<C> {
     pub fn new(action: Action<C>) -> Self {
         Self {
-            action,
-            controller: PhantomData,
+            action: Box::new(action),
+        }
+    }
+}
+
+pub(super) type FormAction<C, F> = for<'a> fn(
+    &'a C,
+    &'a mut Request,
+    ValidatedFormRequest<F>,
+) -> HttpFuture<'a, Result<Response, HttpError>>;
+
+impl<C: Sync + 'static> ControllerDispatcher<C> {
+    #[allow(non_snake_case, reason = "Matches Laravel's FormRequest terminology")]
+    pub fn withFormRequest<F: FormRequest + Default + 'static>(action: FormAction<C, F>) -> Self {
+        Self {
+            action: Box::new(move |controller, request| {
+                Box::pin(async move {
+                    let form = ValidatedFormRequest::resolve(request).await?;
+                    action(controller, request, form).await
+                })
+            }),
         }
     }
 }

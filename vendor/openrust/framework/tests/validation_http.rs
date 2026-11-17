@@ -1,18 +1,31 @@
-use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::access::{AuthorizationError, Response as Authorization},
-    contracts::{http::Kernel as _, validation::Validator as _},
+    contracts::{
+        container::Container as _, foundation::Application as _, http::Kernel as _,
+        validation::Validator as _,
+    },
     database::DatabaseManager,
     foundation::{
         Application,
         configuration::Routing,
-        http::{FormRequest, Kernel},
+        http::{FormRequest, Kernel, ValidatedFormRequest},
     },
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
-    routing::RoutingError,
+    routing::{ControllerDispatcher, ResourceAction, ResourceController, RoutingError},
     support::facades::{Lang, Route, Validator},
+    support::{ProviderResult, ServiceProvider},
     validation::{
         Data, Rule, RuleSet, ValidatedInput, ValidationFuture, ValidationResult, rules::File,
     },
@@ -262,6 +275,135 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             }),
         )
     })
+}
+
+#[derive(Default)]
+struct Injected {
+    stage: u8,
+    factory: usize,
+}
+
+impl FormRequest for Injected {
+    fn prepareForValidation(&mut self, data: &mut Data) -> ValidationResult<()> {
+        assert_eq!(self.stage, 0);
+        self.stage = 1;
+        let mut input = data.as_value().clone();
+        if let Some(name) = input.get("name").and_then(Value::as_str) {
+            input["name"] = name.trim().into();
+        }
+        data.replace(input)
+    }
+
+    fn authorize<'a>(
+        &'a self,
+        request: &'a mut Request,
+        _: &'a Data,
+    ) -> ValidationFuture<'a, Result<(), AuthorizationError>> {
+        Box::pin(async move {
+            assert_eq!(self.stage, 1);
+            if request.headers().contains_key("x-denied") {
+                return Err(AuthorizationError::Denied(Authorization::deny(
+                    "Injected form denied.",
+                )));
+            }
+            Ok(())
+        })
+    }
+
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        assert_eq!(self.stage, 1);
+        RuleSet::parse([("name", "required|string|min:2")])
+    }
+
+    fn passedValidation(
+        &mut self,
+        request: &mut Request,
+        _: &ValidatedInput,
+    ) -> ValidationResult<()> {
+        assert_eq!(self.stage, 1);
+        self.stage = 2;
+        request.parts_mut().extensions.insert("validated");
+        Ok(())
+    }
+}
+
+async fn injected(form: ValidatedFormRequest<Injected>) -> Result<Response, HttpError> {
+    Response::json(
+        StatusCode::OK,
+        json!({
+            "name":form.validated().get("name"),
+            "stage":form.form().stage,
+            "factory":form.form().factory
+        }),
+    )
+}
+
+struct InjectionController(Arc<AtomicUsize>);
+
+impl InjectionController {
+    fn store<'a>(
+        &'a self,
+        request: &'a mut Request,
+        form: ValidatedFormRequest<Injected>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Response::json(
+                StatusCode::OK,
+                json!({
+                    "name":form.validated().get("name"),
+                    "stage":form.form().stage,
+                    "factory":form.form().factory,
+                    "workspace":request.route("workspace"),
+                    "hook":request.parts().extensions.get::<&'static str>(),
+                }),
+            )
+        })
+    }
+}
+
+struct InjectionProvider {
+    calls: Arc<AtomicUsize>,
+    forms: Arc<AtomicUsize>,
+}
+
+impl ServiceProvider for InjectionProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let calls = self.calls.clone();
+            app.container()
+                .singleton::<InjectionController, _>(move |_| {
+                    Ok(Arc::new(InjectionController(calls.clone())))
+                })?;
+            let forms = self.forms.clone();
+            app.container()
+                .bindAsync::<Injected, _>(move |_| {
+                    let forms = forms.clone();
+                    Box::pin(async move {
+                        tokio::task::yield_now().await;
+                        let factory = forms.fetch_add(1, Ordering::Relaxed) + 1;
+                        Ok(Arc::new(Injected { stage: 0, factory }))
+                    })
+                })
+                .await?;
+            Ok(())
+        })
+    }
+}
+
+fn inject_routes() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/injected", injected)?;
+    Route::r#match(
+        &[Method::POST],
+        "/injected/{workspace}",
+        ControllerDispatcher::withFormRequest(InjectionController::store),
+    )?;
+    Route::apiResource(
+        "injected-posts",
+        ResourceController::new()
+            .only(&[ResourceAction::Store])
+            .actionWithFormRequest(ResourceAction::Store, InjectionController::store),
+    )
 }
 
 fn register() -> Result<(), RoutingError> {
@@ -936,4 +1078,81 @@ async fn validates_upload_dimensions_and_encoding_over_real_http() {
     )
     .await;
     server.abort();
+}
+
+#[tokio::test]
+async fn route_and_controller_arguments_resolve_form_requests_before_actions() {
+    let root = std::env::temp_dir();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let forms = Arc::new(AtomicUsize::new(0));
+    let default_app = Application::configure(root.clone())
+        .withRouting(Routing::default().api(inject_routes))
+        .create()
+        .unwrap();
+    let bound_app = Application::configure(root)
+        .withProviders(vec![Box::new(InjectionProvider {
+            calls: calls.clone(),
+            forms: forms.clone(),
+        })])
+        .withRouting(Routing::default().api(inject_routes))
+        .create()
+        .unwrap();
+    let (default_addr, default_server) = serve(default_app).await;
+    let (bound_addr, bound_server) = serve(bound_app).await;
+    let (default, direct, resource) = tokio::join!(
+        send(
+            default_addr,
+            "/api/injected",
+            json!({"name":"  Ada  "}),
+            false,
+            200
+        ),
+        send(
+            bound_addr,
+            "/api/injected/team",
+            json!({"name":"  Grace  "}),
+            false,
+            200
+        ),
+        send(
+            bound_addr,
+            "/api/injected-posts",
+            json!({"name":"  Lin  "}),
+            false,
+            200
+        ),
+    );
+    assert_eq!(default, json!({"name":"Ada","stage":2,"factory":0}));
+    assert_eq!(direct["workspace"], "team");
+    assert_eq!(direct["name"], "Grace");
+    assert_eq!(resource["name"], "Lin");
+    assert_eq!(resource["stage"], 2);
+    assert_eq!(direct["hook"], "validated");
+    assert_eq!(resource["hook"], "validated");
+    let mut indices = [
+        direct["factory"].as_u64().unwrap(),
+        resource["factory"].as_u64().unwrap(),
+    ];
+    indices.sort();
+    assert_eq!(indices, [1, 2]);
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+
+    let denied = send(bound_addr, "/api/injected/team", json!({}), true, 403).await;
+    assert_eq!(denied["message"], "Injected form denied.");
+    let invalid = send(
+        bound_addr,
+        "/api/injected-posts",
+        json!({"name":" "}),
+        false,
+        422,
+    )
+    .await;
+    assert_eq!(
+        invalid["errors"]["name"],
+        json!(["The name field is required."])
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    assert_eq!(forms.load(Ordering::Relaxed), 4);
+    default_server.abort();
+    bound_server.abort();
 }
