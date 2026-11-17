@@ -1,9 +1,10 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::access::{AuthorizationError, Response as Authorization},
     contracts::{http::Kernel as _, validation::Validator as _},
+    database::DatabaseManager,
     foundation::{
         Application,
         configuration::Routing,
@@ -12,7 +13,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
     routing::RoutingError,
     support::facades::{Lang, Route, Validator},
-    validation::{Data, RuleSet, ValidatedInput, ValidationFuture, ValidationResult},
+    validation::{Data, Rule, RuleSet, ValidatedInput, ValidationFuture, ValidationResult},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -98,9 +99,53 @@ fn manual(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
+fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.route("mode").unwrap();
+        let rules = match mode {
+            "fluent" => RuleSet::new()
+                .field(
+                    "ids",
+                    [Rule::exists("directory.accounts", Some("account_id"))
+                        .whereIn("tenant", vec![7.into(), 8.into()])
+                        .withoutTrashed(None)
+                        .using(|query| query.r#where("account_id", ">", 0))
+                        .into()],
+                )?
+                .field(
+                    "email",
+                    [Rule::unique("directory.accounts", Some("email"))
+                        .ignore(1, Some("account_id"))
+                        .r#where("tenant", 7)
+                        .withoutTrashed(None)
+                        .into()],
+                )?,
+            "tenants" => RuleSet::parse([("tenant", "exists:directory.accounts")])?,
+            "update" => {
+                RuleSet::parse([("email", "unique:directory.accounts,email,[id],account_id")])?
+            }
+            "broken" => RuleSet::parse([("id", "integer|exists:directory.absent,account_id")])?,
+            _ => RuleSet::parse([
+                (
+                    "email",
+                    "unique:accounts,NULL,NULL,id,tenant,7,deleted_at,NULL",
+                ),
+                (
+                    "users.*.account_id",
+                    "exists:directory.accounts,NULL,tenant,!8,deleted_at,NULL",
+                ),
+            ])?,
+        };
+        let data = Data::new(request.input(None).await?.unwrap())?;
+        let input = Validator::make(data, rules)?.validate().await?;
+        Response::json(StatusCode::OK, input.into_value())
+    })
+}
+
 fn register() -> Result<(), RoutingError> {
     Route::r#match(&[Method::POST], "/submit/{locale}", form)?;
     Route::r#match(&[Method::POST], "/manual", manual)?;
+    Route::r#match(&[Method::POST], "/presence/{mode}", presence)?;
     Ok(())
 }
 
@@ -116,6 +161,10 @@ async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         .withRouting(Routing::default().api(register))
         .create()
         .unwrap();
+    serve(app).await
+}
+
+async fn serve(app: Application) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -278,4 +327,124 @@ async fn custom_rules_respect_presence_nullable_bail_and_custom_messages() {
     );
     assert!(validator.errors().get("absent").is_empty());
     assert!(validator.errors().get("null").is_empty());
+}
+
+fn presence_config(url: &str, prefix: &str) -> BTreeMap<String, Value> {
+    BTreeMap::from([(
+        "database".into(),
+        json!({"default":"directory", "connections":{"directory":{
+            "url":url,"prefix":prefix,"read":{"url":"mysql://invalid:invalid@127.0.0.1:1/invalid","port":1}
+        }}}),
+    )])
+}
+
+#[tokio::test]
+async fn database_validation_uses_mysql_write_connection_over_real_http() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let prefix = format!("validate_{:016x}_", fastrand::u64(..));
+    let config = presence_config(&url, &prefix);
+    let db = DatabaseManager::new(
+        Arc::new(openrust::config::Repository::new(config.clone())),
+        ".",
+    )
+    .connection(None)
+    .unwrap();
+    let table = format!("{prefix}accounts");
+    db.statement(&format!("CREATE TABLE {table} (account_id INT PRIMARY KEY, email VARCHAR(100), tenant INT, deleted_at INT)"), &[])
+        .await
+        .unwrap();
+    db.statement(&format!("INSERT INTO {table} VALUES (1,'owned@example.test',7,NULL), (2,'foreign@example.test',8,NULL), (3,'deleted@example.test',7,1), (4,'second@example.test',7,NULL)"), &[])
+        .await
+        .unwrap();
+    let root = std::env::temp_dir().join(&prefix);
+    std::fs::create_dir(&root).unwrap();
+    let app = Application::configure(root.clone())
+        .withConfig(|base, _| {
+            Ok(presence_config(
+                &std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap(),
+                base.file_name().unwrap().to_str().unwrap(),
+            ))
+        })
+        .withRouting(Routing::default().api(register))
+        .create()
+        .unwrap();
+    let (address, server) = serve(app).await;
+    let call = |mode, payload, status| send(address, mode, payload, false, status);
+    assert_eq!(
+        call(
+            "/api/presence/fluent",
+            json!({"ids":[1,1,4],"email":"owned@example.test"}),
+            200
+        )
+        .await,
+        json!({"ids":[1,1,4],"email":"owned@example.test"}),
+    );
+    let fluent = call(
+        "/api/presence/fluent",
+        json!({"ids":[1,3,777],"email":"second@example.test"}),
+        422,
+    )
+    .await;
+    assert_eq!(
+        fluent["errors"]["ids"],
+        json!(["The selected ids is invalid."])
+    );
+    assert_eq!(
+        fluent["errors"]["email"],
+        json!(["The email has already been taken."])
+    );
+    let duplicate = call(
+        "/api/presence/strings",
+        json!({"email":"owned@example.test","users":[{"account_id":2}]}),
+        422,
+    )
+    .await;
+    assert_eq!(
+        duplicate["errors"]["email"],
+        json!(["The email has already been taken."])
+    );
+    assert_eq!(
+        duplicate["errors"]["users.0.account_id"],
+        json!(["The selected users.0.account id is invalid."])
+    );
+    for email in [
+        "foreign@example.test",
+        "deleted@example.test",
+        "a'b@example.test",
+    ] {
+        call(
+            "/api/presence/strings",
+            json!({"email":email,"users":[{"account_id":1}]}),
+            200,
+        )
+        .await;
+    }
+    call(
+        "/api/presence/update",
+        json!({"id":1,"email":"owned@example.test"}),
+        200,
+    )
+    .await;
+    call(
+        "/api/presence/fluent",
+        json!({"ids":[],"email":"owned@example.test"}),
+        200,
+    )
+    .await;
+    let wrong_type = call("/api/presence/broken", json!({"id":"not-an-integer"}), 422).await;
+    assert_eq!(
+        wrong_type["errors"]["id"],
+        json!(["The id field must be an integer."])
+    );
+    call("/api/presence/tenants", json!({"tenant":[7,8,7]}), 200).await;
+    call("/api/presence/tenants", json!({"tenant":[7,999]}), 422).await;
+    call("/api/presence/broken", json!({"id":1}), 500).await;
+    server.abort();
+    db.statement(&format!("DROP TABLE {table}"), &[])
+        .await
+        .unwrap();
+    std::fs::remove_dir_all(root).unwrap();
 }

@@ -8,7 +8,7 @@ use crate::{
     translation::Translator,
 };
 
-use super::Factory;
+use super::{DatabasePresenceVerifier, Factory};
 
 /// Registers the application's validation factory.
 pub struct ValidationServiceProvider;
@@ -18,9 +18,11 @@ impl ServiceProvider for ValidationServiceProvider {
         Box::pin(async move {
             let container = app.container();
             container.singletonNamed("validator", |container| {
-                Ok(Arc::new(Factory::new(
-                    container.get::<Translator>("translator")?,
-                )))
+                let mut factory = Factory::new(container.get::<Translator>("translator")?);
+                factory.setPresenceVerifier(DatabasePresenceVerifier::new(
+                    container.make::<dyn crate::database::ConnectionResolverInterface>()?,
+                ));
+                Ok(Arc::new(factory))
             })?;
             container.alias(
                 "validator",

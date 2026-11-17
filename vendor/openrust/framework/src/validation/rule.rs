@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use crate::contracts::validation::ValidationRule;
 
-use super::{ValidationError, ValidationResult, Value};
+use super::{
+    ValidationError, ValidationResult, Value,
+    rules::{Exists, Unique},
+};
 
 /// A fluent validation rule or application-defined rule.
 #[derive(Clone)]
@@ -21,6 +24,8 @@ pub(super) enum Kind {
     Array,
     Min(usize),
     Max(usize),
+    Exists(Exists),
+    Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
 }
 
@@ -58,6 +63,12 @@ impl Rule {
     pub fn max(bound: usize) -> Self {
         Self(Kind::Max(bound))
     }
+    pub fn exists(table: &str, column: Option<&str>) -> Exists {
+        Exists::new(table, column)
+    }
+    pub fn unique(table: &str, column: Option<&str>) -> Unique {
+        Unique::new(table, column)
+    }
     pub fn custom(rule: impl ValidationRule + 'static) -> Self {
         Self(Kind::Custom(Arc::new(rule)))
     }
@@ -77,6 +88,18 @@ impl Rule {
             _ => match rule.split_once(':') {
                 Some(("min", bound)) => Self::min(bound.parse().map_err(|_| invalid())?),
                 Some(("max", bound)) => Self::max(bound.parse().map_err(|_| invalid())?),
+                Some((kind @ ("exists" | "unique"), arguments)) => {
+                    let arguments: Vec<_> = arguments.split(',').collect();
+                    let (table, rest) = arguments
+                        .split_first()
+                        .filter(|(table, _)| !table.is_empty())
+                        .ok_or_else(invalid)?;
+                    if kind == "exists" {
+                        Exists::parse(table, rest)?.into()
+                    } else {
+                        Unique::parse(table, rest)?.into()
+                    }
+                }
                 _ => return Err(invalid()),
             },
         })

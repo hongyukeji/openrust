@@ -1,6 +1,7 @@
 //! Validation rules, results, and error reporting.
 
 mod data;
+mod database_presence_verifier;
 pub(crate) mod facade;
 mod factory;
 mod path;
@@ -15,6 +16,7 @@ mod validator;
 use std::{error::Error, future::Future, pin::Pin};
 
 pub use data::Data;
+pub use database_presence_verifier::DatabasePresenceVerifier;
 pub use factory::Factory;
 pub use rule::Rule;
 pub use rule_set::RuleSet;

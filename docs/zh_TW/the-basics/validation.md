@@ -25,6 +25,25 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+## 資料庫驗證規則 {#database-validation-rules}
+
+用 `exists:table,column` 要求存在符合條件的資料列，用 `unique:table,column` 拒絕已有的值。省略欄位名稱時使用欄位名，在資料表名稱前加 `connection.` 可指定具名連線。兩條規則都使用寫入連線。陣列形式的 `exists` 用一次查詢檢查所有不同的值是否存在。
+
+```rust
+use openrust::validation::{Rule, RuleSet, ValidationResult};
+
+fn account_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+        .field("email", [
+            Rule::unique("directory.accounts", Some("email"))
+                .withoutTrashed(None)
+                .into(),
+        ])
+}
+```
+
+流暢介面支援附加查詢條件和軟刪除篩選。更新資料列時，用 `ignore` 傳入可信的識別碼，或將應用程式已解析並授權的模型傳給 `ignoreModel`。並行寫入的唯一性由資料庫唯一約束保證。
+
 ## 表單請求驗證
 
 為端點實作 `FormRequest`。`validateResolved` 依序執行 `prepareForValidation`、`authorize`、規則驗證和 `passedValidation`。授權遭拒時回傳 HTTP 403。

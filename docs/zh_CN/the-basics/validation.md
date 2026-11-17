@@ -25,6 +25,25 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+## 数据库验证规则 {#database-validation-rules}
+
+用 `exists:table,column` 要求存在匹配行，用 `unique:table,column` 拒绝已有值。省略列名时使用字段名，在表名前加 `connection.` 可指定具名连接。两条规则都使用写连接。数组形式的 `exists` 用一次查询检查所有不同的值是否存在。
+
+```rust
+use openrust::validation::{Rule, RuleSet, ValidationResult};
+
+fn account_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+        .field("email", [
+            Rule::unique("directory.accounts", Some("email"))
+                .withoutTrashed(None)
+                .into(),
+        ])
+}
+```
+
+流式规则支持附加查询条件和软删除筛选。更新记录时，用 `ignore` 传入可信的记录标识，或把应用已解析并授权的模型传给 `ignoreModel`。并发写入的唯一性由数据库唯一约束保证。
+
 ## 表单请求验证
 
 为端点实现 `FormRequest`。`validateResolved` 依次执行 `prepareForValidation`、`authorize`、规则验证和 `passedValidation`。授权拒绝时返回 HTTP 403。

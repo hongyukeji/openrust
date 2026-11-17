@@ -5,8 +5,8 @@ use crate::{
 };
 
 use super::{
-    Data, Rule, RuleContext, RuleFailure, RuleSet, ValidatedInput, ValidationError,
-    ValidationException, ValidationFuture, ValidationResult, Value, path,
+    Data, DatabasePresenceVerifier, Rule, RuleContext, RuleFailure, RuleSet, ValidatedInput,
+    ValidationError, ValidationException, ValidationFuture, ValidationResult, Value, path,
     rule::{Kind, integer, is_empty, size},
 };
 
@@ -15,6 +15,7 @@ pub struct Validator {
     data: Data,
     rules: RuleSet,
     translator: Option<Arc<Translator>>,
+    presence: Option<DatabasePresenceVerifier>,
     messages: BTreeMap<String, String>,
     attributes: BTreeMap<String, String>,
     errors: MessageBag,
@@ -26,6 +27,7 @@ impl Validator {
         data: Data,
         rules: RuleSet,
         translator: Option<Arc<Translator>>,
+        presence: Option<DatabasePresenceVerifier>,
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
     ) -> Self {
@@ -33,6 +35,7 @@ impl Validator {
             data,
             rules,
             translator,
+            presence,
             messages,
             attributes,
             errors: MessageBag::default(),
@@ -56,25 +59,56 @@ impl Validator {
         let mut errors = MessageBag::default();
         let mut budget = path::Budget::default();
         let mut fields = Vec::new();
-        let context = RuleContext { data: &self.data };
         for (pattern, rules) in &self.rules.0 {
             let nullable = contains(rules, |rule| matches!(rule, Kind::Nullable));
             let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
             let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
             let numeric = contains(rules, |rule| matches!(rule, Kind::Integer));
-            for (attribute, value) in self.data.expand(pattern, &mut budget)? {
+            let presence_rules = contains(rules, |rule| {
+                matches!(rule, Kind::Exists(_) | Kind::Unique(_))
+            });
+            let segments = path::parse(pattern)?;
+            let wildcard = presence_rules
+                && segments
+                    .iter()
+                    .any(|part| matches!(part, path::Segment::Any));
+            for (attribute, value) in path::expand(self.data.as_value(), &segments, &mut budget)? {
                 if !sometimes || value.is_some() {
+                    let attribute_for_query = if wildcard {
+                        attribute
+                            .rsplit('.')
+                            .next()
+                            .filter(|last| last.parse::<f64>().is_err())
+                            .unwrap_or(&attribute)
+                    } else {
+                        &attribute
+                    };
+                    let mut failed =
+                        presence_rules && !errors.get(&unescape(&attribute)).is_empty();
                     for Rule(rule) in rules {
-                        let failures =
-                            evaluate(rule, value, &context, &attribute, nullable, numeric).await?;
-                        let failed = !failures.is_empty();
+                        if failed && matches!(rule, Kind::Exists(_) | Kind::Unique(_)) {
+                            continue;
+                        }
+                        let failures = self
+                            .evaluate(
+                                rule,
+                                value,
+                                &attribute,
+                                attribute_for_query,
+                                nullable,
+                                numeric,
+                            )
+                            .await?;
+                        failed |= !failures.is_empty();
+                        let stop = !failures.is_empty()
+                            && (bail || matches!(rule, Kind::Required | Kind::Present));
                         for failure in failures {
                             errors.add(
                                 unescape(&attribute),
                                 self.format_message(pattern, &attribute, failure),
                             );
                         }
-                        if failed && (bail || matches!(rule, Kind::Required | Kind::Present)) {
+                        if stop {
                             break;
                         }
                     }
@@ -87,6 +121,97 @@ impl Validator {
         }
         self.errors = errors;
         Ok(())
+    }
+
+    async fn evaluate(
+        &self,
+        rule: &Kind,
+        value: Option<&Value>,
+        attribute: &str,
+        attribute_for_query: &str,
+        nullable: bool,
+        numeric: bool,
+    ) -> ValidationResult<Vec<RuleFailure>> {
+        let failure = match (rule, value) {
+            (Kind::Required, value) if value.is_none_or(is_empty) => Some("required"),
+            (Kind::Present, None) => Some("present"),
+            (_, None) => None,
+            (_, Some(Value::Null)) if nullable => None,
+            (_, Some(Value::String(value))) if value.trim().is_empty() => None,
+            (Kind::String, Some(value)) if !value.is_string() => Some("string"),
+            (Kind::Integer, Some(value)) if integer(value).is_none() => Some("integer"),
+            (Kind::Boolean, Some(value))
+                if !value.is_boolean()
+                    && !matches!(value.as_i64(), Some(0 | 1))
+                    && !matches!(value.as_str(), Some("0" | "1")) =>
+            {
+                Some("boolean")
+            }
+            (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
+            (Kind::Min(bound) | Kind::Max(bound), Some(value)) => {
+                let minimum = matches!(rule, Kind::Min(_));
+                let kind = if minimum { "min" } else { "max" };
+                let observed = size(value, numeric);
+                if observed.is_some_and(|(number, _)| {
+                    if minimum {
+                        number >= *bound as i128
+                    } else {
+                        number <= *bound as i128
+                    }
+                }) {
+                    return Ok(Vec::new());
+                }
+                let category = observed.map_or(
+                    if numeric { "numeric" } else { "string" },
+                    |(_, category)| category,
+                );
+                let mut failure = RuleFailure::new(format!("validation.{kind}.{category}"));
+                failure.replacements.insert(kind.into(), bound.to_string());
+                return Ok(vec![failure]);
+            }
+            (Kind::Exists(rule), Some(value)) => {
+                let column = rule
+                    .target
+                    .column
+                    .clone()
+                    .unwrap_or_else(|| unescape(attribute_for_query));
+                (!self
+                    .presence()?
+                    .exists(&rule.target, &column, value)
+                    .await?)
+                    .then_some("exists")
+            }
+            (Kind::Unique(rule), Some(value)) => {
+                let column = rule
+                    .target
+                    .column
+                    .clone()
+                    .unwrap_or_else(|| unescape(attribute_for_query));
+                (!self
+                    .presence()?
+                    .unique(rule, &column, value, &self.data)
+                    .await?)
+                    .then_some("unique")
+            }
+            (Kind::Custom(rule), Some(value)) => {
+                let context = RuleContext { data: &self.data };
+                return rule.validate(&context, attribute, Some(value)).await;
+            }
+            _ => None,
+        };
+        Ok(failure
+            .into_iter()
+            .map(|rule| RuleFailure::new(format!("validation.{rule}")))
+            .collect())
+    }
+
+    fn presence(&self) -> ValidationResult<&DatabasePresenceVerifier> {
+        self.presence
+            .as_ref()
+            .ok_or_else(|| ValidationError::Execution {
+                source: std::io::Error::other("database presence verifier is not configured")
+                    .into(),
+            })
     }
 
     fn format_message(&self, pattern: &str, attribute: &str, mut failure: RuleFailure) -> String {
@@ -179,62 +304,6 @@ fn contains(rules: &[Rule], test: impl Fn(&Kind) -> bool) -> bool {
     rules.iter().any(|Rule(rule)| test(rule))
 }
 
-async fn evaluate(
-    rule: &Kind,
-    value: Option<&Value>,
-    context: &RuleContext<'_>,
-    attribute: &str,
-    nullable: bool,
-    numeric: bool,
-) -> ValidationResult<Vec<RuleFailure>> {
-    let failure = match (rule, value) {
-        (Kind::Required, value) if value.is_none_or(is_empty) => Some("required"),
-        (Kind::Present, None) => Some("present"),
-        (_, None) => None,
-        (_, Some(Value::Null)) if nullable => None,
-        (_, Some(Value::String(value))) if value.trim().is_empty() => None,
-        (Kind::String, Some(value)) if !value.is_string() => Some("string"),
-        (Kind::Integer, Some(value)) if integer(value).is_none() => Some("integer"),
-        (Kind::Boolean, Some(value))
-            if !value.is_boolean()
-                && !matches!(value.as_i64(), Some(0 | 1))
-                && !matches!(value.as_str(), Some("0" | "1")) =>
-        {
-            Some("boolean")
-        }
-        (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
-        (Kind::Min(bound) | Kind::Max(bound), Some(value)) => {
-            let minimum = matches!(rule, Kind::Min(_));
-            let kind = if minimum { "min" } else { "max" };
-            let observed = size(value, numeric);
-            if observed.is_some_and(|(number, _)| {
-                if minimum {
-                    number >= *bound as i128
-                } else {
-                    number <= *bound as i128
-                }
-            }) {
-                return Ok(Vec::new());
-            }
-            let category = observed.map_or(
-                if numeric { "numeric" } else { "string" },
-                |(_, category)| category,
-            );
-            let mut failure = RuleFailure::new(format!("validation.{kind}.{category}"));
-            failure.replacements.insert(kind.into(), bound.to_string());
-            return Ok(vec![failure]);
-        }
-        (Kind::Custom(rule), Some(value)) => {
-            return rule.validate(context, attribute, Some(value)).await;
-        }
-        _ => None,
-    };
-    Ok(failure
-        .into_iter()
-        .map(|rule| RuleFailure::new(format!("validation.{rule}")))
-        .collect())
-}
-
 fn unescape(attribute: &str) -> String {
     let mut escaped = false;
     attribute
@@ -278,6 +347,8 @@ fn fallback(rule: &str) -> &str {
         "integer" => "The :attribute field must be an integer.",
         "boolean" => "The :attribute field must be true or false.",
         "array" => "The :attribute field must be an array.",
+        "exists" => "The selected :attribute is invalid.",
+        "unique" => "The :attribute has already been taken.",
         "min.string" => "The :attribute field must be at least :min characters.",
         "max.string" => "The :attribute field must not be greater than :max characters.",
         "min.array" => "The :attribute field must have at least :min items.",

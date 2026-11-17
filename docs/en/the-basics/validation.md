@@ -25,6 +25,25 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+## Database Validation Rules {#database-validation-rules}
+
+Use `exists:table,column` to require a matching row and `unique:table,column` to reject an existing value. Omit the column to use the field name and prefix the table with `connection.` to select a named database connection. Both rules use the write connection. For an array, `exists` uses one query to check that all distinct values exist.
+
+```rust
+use openrust::validation::{Rule, RuleSet, ValidationResult};
+
+fn account_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+        .field("email", [
+            Rule::unique("directory.accounts", Some("email"))
+                .withoutTrashed(None)
+                .into(),
+        ])
+}
+```
+
+Fluent rules support query constraints and soft-deleted rows. When updating a row, use `ignore` with a trusted identifier or `ignoreModel` with a model already resolved and authorized by the application. Use a database unique constraint to enforce uniqueness across concurrent writes.
+
 ## Form Request Validation
 
 Implement `FormRequest` for the endpoint. `validateResolved` runs `prepareForValidation`, `authorize`, validation and `passedValidation` in that order. An authorization denial returns HTTP 403.

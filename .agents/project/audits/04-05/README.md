@@ -15,3 +15,12 @@
 - 三语各两个代码示例编译并分别完成实际 HTTP 200 与 422。 `./artisan inspire` 退出 0。VitePress 构建、12 项通用浏览器组合及 6 项 Validation 正文和导航检查通过。
 
 下一批 04-06 依赖本单元与已验收的 04-04 Session。
+
+## MySQL 数据库验证规则
+
+- 对照固定 Laravel 的 `validateExists`、`validateUnique`、`DatabasePresenceVerifier` 和 `DatabaseRule`。旧版 `v0.x` 没有数据库存在性验证器和对应测试。本批复用当前连接解析器、参数化查询 Builder 与验证规则的路径和错误处理。 [Laravel 数据库规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php) · [Laravel DatabasePresenceVerifier](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/DatabasePresenceVerifier.php)
+- 字符串与流式 `exists`、`unique` 接入应用容器的写连接。数组存在性校验按不同值计数，前置规则失败时跳过数据库查询。支持具名连接、默认列、附加查询条件、软删除筛选及排除已有记录。Laravel 动态模型类名对应 Rust 的 `fromModel`，接受已知类型的模型实例。测试覆盖显式记录标识和字段路径排除。
+- 使用 `python3 -B tests/mysql_acceptance.py` 和真实 MySQL 8.4.13 验收，HTTP 与路径共 5 项通过。HTTP 夹具把读取端口指向不可用地址，验证查询只走写端。重复输入、数据库重复行、缺失引用、租户过滤、软删除、参数绑定、JSON 422 和执行异常 500 均通过。
+- 三语文档示例编译并运行。站点构建、12 项通用浏览器检查及 6 项数据库规则正文／导航检查通过。基线 `409950b79` 和本批均复现 `validation_web.rs:176` 的重定向路径差异，基线及当前均返回 `/`，测试期望 `/edit?step=1`。
+- Rust 1.94.0 的改动文件格式、工作区严格 Clippy 和独立 `./artisan inspire` 通过。全仓格式仍只报告基线的 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.4 GiB 隔离 Cargo 产物和文档缓存，验收日志保留于 `/private/tmp/openrust-04-05-presence.GGTDZGlB`。
+- 单元继续跟踪文件规则、FormRequest 自动注入、Laravel 引号 CSV 参数与 PHP 动态类型边界。额外数据库驱动按发布验收验证。核心账本维持 59/66。
