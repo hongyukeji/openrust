@@ -88,7 +88,9 @@ fn register() -> Result<(), RoutingError> {
 
 `mimes` 和 `mimetypes` 從檔案內容推斷類型，`extensions` 檢查用戶端檔名的副檔名。內容和副檔名都有要求時可同時使用。用 `image:allow_svg` 或 `File::image(true)` 接受 SVG。`size`、`min`、`max` 和 `between` 以 KiB 計量檔案大小，每 KiB 為 1,024 位元組。
 
-用 `dimensions` 限制寬、高或長寬比。比例可寫成小數或 `16/9` 這樣的分數。圖片規則允許的 SVG 會略過點陣圖尺寸限制。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 檢查檔案位元組。支援 UTF-8、ASCII、UTF-16、UTF-32、SJIS 等 Rust 解碼器可辨識的編碼。
+內容偵測會將 JSON 物件和陣列辨識為 `application/json`，將 CSV 內容辨識為純文字，並將空上傳辨識為 `application/x-empty`。需要檢查用戶端檔名的 CSV 副檔名時，使用 `extensions:csv`。
+
+用 `dimensions` 限制寬、高或長寬比。比例可寫成小數或 `16/9` 這樣的分數。圖片規則允許的 SVG 會略過點陣圖尺寸限制。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 檢查檔案位元組。可使用 UTF-8、ASCII、UTF-16、UTF-32、SJIS、CP932 和 EUC-CN 等受支援的 Laravel 編碼名稱。Windows Shift-JIS 擴充使用 CP932 或 SJIS-win。
 
 ```rust
 use openrust::{

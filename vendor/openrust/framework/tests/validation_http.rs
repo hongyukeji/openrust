@@ -249,6 +249,28 @@ impl FormRequest for Upload {
             "encoding-utf32-bom" => {
                 RuleSet::parse([("attachments.*", "required|file|encoding:UTF-32")])
             }
+            "mime-json" => RuleSet::parse([(
+                "attachments.*",
+                "required|file|mimes:json|mimetypes:application/json",
+            )]),
+            "mime-text" => RuleSet::parse([(
+                "attachments.*",
+                "required|file|mimes:txt|mimetypes:text/plain",
+            )]),
+            "mime-empty" => RuleSet::parse([(
+                "attachments.*",
+                "required|file|mimetypes:application/x-empty",
+            )]),
+            "mime-pdf" => RuleSet::parse([(
+                "attachments.*",
+                "required|file|mimes:pdf|mimetypes:application/pdf",
+            )]),
+            "encoding-cp932" => RuleSet::parse([("attachments.*", "required|file|encoding:CP932")]),
+            "encoding-euc-cn" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:EUC-CN")])
+            }
+            "encoding-ucs2" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-2")]),
+            "encoding-ucs4" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-4")]),
             "encoding-input" => RuleSet::parse([("metadata", "required|array|encoding:ASCII")]),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
@@ -1293,4 +1315,119 @@ async fn route_and_controller_arguments_resolve_form_requests_before_actions() {
     assert_eq!(forms.load(Ordering::Relaxed), 4);
     default_server.abort();
     bound_server.abort();
+}
+
+#[tokio::test]
+async fn real_uploads_classify_file_content_and_distinguish_legacy_encodings() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for bytes in [br#"{"hello":"world"}"#.as_slice(), b"[]".as_slice()] {
+        upload_file(
+            address,
+            "mime-json",
+            "payload.bin",
+            "text/plain",
+            bytes,
+            200,
+        )
+        .await;
+    }
+    for bytes in [b"null".as_slice(), b"[] unfinished".as_slice()] {
+        upload_file(
+            address,
+            "mime-json",
+            "payload.json",
+            "application/json",
+            bytes,
+            422,
+        )
+        .await;
+        upload_file(
+            address,
+            "mime-text",
+            "payload.json",
+            "application/json",
+            bytes,
+            200,
+        )
+        .await;
+    }
+    upload_file(
+        address,
+        "mime-text",
+        "utf16.txt",
+        "application/octet-stream",
+        b"\xff\xfeA\x00B\x00\n\x00",
+        200,
+    )
+    .await;
+    upload_file(
+        address,
+        "mime-text",
+        "table.csv",
+        "text/csv",
+        b"id,name\n1,Ada\n2,Lin\n",
+        200,
+    )
+    .await;
+    upload_file(address, "mime-empty", "empty.txt", "text/plain", b"", 200).await;
+    upload_file(
+        address,
+        "mime-pdf",
+        "file.bin",
+        "text/plain",
+        b"%PDF-1.4\n%%EOF\n",
+        200,
+    )
+    .await;
+    upload_file(
+        address,
+        "mime-pdf",
+        "file.pdf",
+        "application/pdf",
+        b"hello",
+        422,
+    )
+    .await;
+
+    for (mode, good, bad) in [
+        (
+            "encoding-sjis",
+            b"\x82\xa0".as_slice(),
+            b"\x87\x90".as_slice(),
+        ),
+        ("encoding-cp932", b"\x87\x90".as_slice(), b"\x80".as_slice()),
+        (
+            "encoding-euc-cn",
+            b"\xbe\xbf".as_slice(),
+            b"\x81\x40".as_slice(),
+        ),
+        ("encoding-ucs2", b"\xd8\x00".as_slice(), b"\xd8".as_slice()),
+        (
+            "encoding-ucs4",
+            b"\x00\x11\x00\x00".as_slice(),
+            b"\xff\xff\xff\xff".as_slice(),
+        ),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            good,
+            200,
+        )
+        .await;
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            bad,
+            422,
+        )
+        .await;
+    }
+    assert!(RuleSet::parse([("file", "encoding:latin1")]).is_err());
+    assert!(RuleSet::parse([("file", "encoding:US-ASCII")]).is_err());
+    server.abort();
 }

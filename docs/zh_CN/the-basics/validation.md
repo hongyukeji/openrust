@@ -88,7 +88,9 @@ fn register() -> Result<(), RoutingError> {
 
 `mimes` 和 `mimetypes` 从文件内容推断类型，`extensions` 检查客户端文件名的扩展名。内容和扩展名都有要求时可同时使用。用 `image:allow_svg` 或 `File::image(true)` 接受 SVG。`size`、`min`、`max` 和 `between` 以 KiB 计量文件大小，每 KiB 为 1,024 字节。
 
-用 `dimensions` 限制宽、高或宽高比。比例可写成小数或 `16/9` 这样的分数。图片规则允许的 SVG 会跳过位图尺寸约束。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 检查文件字节。支持 UTF-8、ASCII、UTF-16、UTF-32、SJIS 等 Rust 解码器可识别的编码。
+内容检测将 JSON 对象和数组识别为 `application/json`，将 CSV 内容识别为纯文本，将空上传识别为 `application/x-empty`。需要检查客户端文件名的 CSV 扩展名时，使用 `extensions:csv`。
+
+用 `dimensions` 限制宽、高或宽高比。比例可写成小数或 `16/9` 这样的分数。图片规则允许的 SVG 会跳过位图尺寸约束。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 检查文件字节。可使用 UTF-8、ASCII、UTF-16、UTF-32、SJIS、CP932 和 EUC-CN 等受支持的 Laravel 编码名称。Windows Shift-JIS 扩展使用 CP932 或 SJIS-win。
 
 ```rust
 use openrust::{

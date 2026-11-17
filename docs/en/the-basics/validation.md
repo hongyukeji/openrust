@@ -88,7 +88,9 @@ Use `Data::fromRequest` for manual multipart validation. Form requests include u
 
 `mimes` and `mimetypes` infer the type from file content. `extensions` checks the client's filename extension. Use both when the content type and filename extension matter. Use `image:allow_svg` or `File::image(true)` to accept SVG. The `size`, `min`, `max` and `between` rules measure files in kilobytes of 1,024 bytes.
 
-Use `dimensions` to constrain width, height, or aspect ratio. Ratios can be decimals or fractions such as `16/9`. SVG accepted by the image rule bypasses raster dimension checks. Use `encoding:UTF-8` or `File::default().encoding("UTF-8")` to check a file's bytes. Supported encodings include UTF-8, ASCII, UTF-16, UTF-32, SJIS and other encodings available through the Rust decoder.
+Content checks recognize JSON objects and arrays as `application/json`, CSV content as plain text, and empty uploads as `application/x-empty`. Use `extensions:csv` when the client's CSV filename extension matters.
+
+Use `dimensions` to constrain width, height, or aspect ratio. Ratios can be decimals or fractions such as `16/9`. SVG accepted by the image rule bypasses raster dimension checks. Use `encoding:UTF-8` or `File::default().encoding("UTF-8")` to check a file's bytes. Use supported Laravel encoding names such as UTF-8, ASCII, UTF-16, UTF-32, SJIS, CP932, or EUC-CN. Choose CP932 or SJIS-win for Windows Shift-JIS extensions.
 
 ```rust
 use openrust::{

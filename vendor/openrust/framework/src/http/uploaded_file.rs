@@ -13,7 +13,13 @@ pub struct UploadedFile {
     path: String,
     media_type: Option<String>,
     content: Bytes,
-    hash_name: Arc<OnceLock<String>>,
+    metadata: Arc<UploadMetadata>,
+}
+
+#[derive(Default)]
+struct UploadMetadata {
+    detected_type: OnceLock<Option<(&'static str, &'static str)>>,
+    hash_name: OnceLock<String>,
 }
 
 impl fmt::Debug for UploadedFile {
@@ -34,7 +40,7 @@ impl UploadedFile {
             path,
             media_type,
             content,
-            hash_name: Arc::default(),
+            metadata: Arc::default(),
         }
     }
 
@@ -63,24 +69,21 @@ impl UploadedFile {
 
     /// Detects a file extension from the received bytes.
     pub fn extension(&self) -> Option<&'static str> {
-        self.detected_type().map(|(extension, _)| extension)
+        self.detected_type()
+            .map(|(extension, _)| extension)
+            .filter(|extension| !extension.is_empty())
     }
 
     pub(crate) fn detected_type(&self) -> Option<(&'static str, &'static str)> {
-        if let Some(kind) = infer::get(&self.content) {
-            return Some((kind.extension(), kind.mime_type()));
-        }
-        let text = std::str::from_utf8(&self.content).ok()?;
-        (!text.is_empty()
-            && text.chars().all(|character| {
-                !character.is_control() || matches!(character, '\t' | '\n' | '\r' | '\u{c}')
-            }))
-        .then_some(("txt", "text/plain"))
+        *self
+            .metadata
+            .detected_type
+            .get_or_init(|| detect_type(&self.content))
     }
 
     /// Returns the same server-generated basename for this upload and its clones.
     pub fn hashName(&self) -> FilesystemResult<&str> {
-        if let Some(name) = self.hash_name.get() {
+        if let Some(name) = self.metadata.hash_name.get() {
             return Ok(name);
         }
         let mut name = random_name()?;
@@ -88,7 +91,7 @@ impl UploadedFile {
             name.push('.');
             name.push_str(extension);
         }
-        Ok(self.hash_name.get_or_init(|| name))
+        Ok(self.metadata.hash_name.get_or_init(|| name))
     }
 
     pub async fn store(
@@ -136,6 +139,47 @@ impl UploadedFile {
             )
             .await
     }
+}
+
+fn detect_type(content: &[u8]) -> Option<(&'static str, &'static str)> {
+    if let Some(kind) = infer::get(content) {
+        return Some((kind.extension(), kind.mime_type()));
+    }
+    if content.is_empty() {
+        return Some(("", "application/x-empty"));
+    }
+    let first = content
+        .iter()
+        .copied()
+        .find(|byte| !byte.is_ascii_whitespace());
+    if matches!(first, Some(b'{' | b'['))
+        && serde_json::from_slice::<serde::de::IgnoredAny>(content).is_ok()
+    {
+        return Some(("json", "application/json"));
+    }
+    let utf16 = content
+        .strip_prefix(b"\xff\xfe")
+        .map(|text| (text, true))
+        .or_else(|| content.strip_prefix(b"\xfe\xff").map(|text| (text, false)));
+    if let Some((bytes, little_endian)) = utf16 {
+        let (units, remainder) = bytes.as_chunks::<2>();
+        let text = units.iter().map(|unit| {
+            if little_endian {
+                u16::from_le_bytes(*unit)
+            } else {
+                u16::from_be_bytes(*unit)
+            }
+        });
+        return (remainder.is_empty()
+            && char::decode_utf16(text).all(|character| character.is_ok_and(printable)))
+        .then_some(("txt", "text/plain"));
+    }
+    let text = std::str::from_utf8(content).ok()?;
+    text.chars().all(printable).then_some(("txt", "text/plain"))
+}
+
+fn printable(character: char) -> bool {
+    !character.is_control() || matches!(character, '\t' | '\n' | '\r' | '\u{c}')
 }
 
 pub(crate) fn random_name() -> FilesystemResult<String> {

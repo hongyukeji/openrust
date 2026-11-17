@@ -55,3 +55,10 @@
 - PHP 8.5.12 直接执行固定 Laravel 参数解析和验证 trait，核对引号、文本和数值 ID、动态排除、科学计数与浮点去重。真实 MySQL 8.4.13 的 HTTP 和验证路径共 8 项通过。三语数据库示例在真实 HTTP 上验证命中与拒绝路径。
 - 固定 Goravel 的存在性与唯一性规则也通过数据库 Builder 查询，字符串参数契约按固定 Laravel 保留。Rust 1.94.0 变更文件格式、严格工作区 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。全仓格式仍有既有 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.1 GiB 隔离 Cargo 产物和文档缓存。验收日志保留于 `/private/tmp/openrust-04-05-db-boundaries.WLNsceH7`。 [固定 Goravel 数据库规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1753)
 - 04-05 仍待复核文件格式和编码覆盖，额外数据库驱动归入发布验收。核心账本维持 59/66。
+
+## 上传内容类型与常用编码对照
+
+- PHP 8.5.12 的 Fileinfo 样本与固定 Laravel `validateEncoding` 对照覆盖 JSON 对象及数组、JSON 标量、CSV、带 BOM 的 UTF-16、空文件和 PDF，以及 SJIS、CP932、EUC-CN、UCS-2 和 UCS-4 正反例。旧版复用内容推断与文件名分离的契约，当前基于同一 `UploadedFile` 的受限字节和共享缓存，在多条验证规则及存储命名中复用结果。 [固定 Laravel 文件规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php)
+- JSON 容器使用语法检测，UTF-16 文本识别字节序标记，空文件匹配 `application/x-empty`。扩展名规则继续读取客户端文件名。编码规则按受支持的 Laravel 名称解析，SJIS 与 CP932 使用各自的字节范围，EUC-CN 保留双字节范围，UCS 固定宽度校验与 UTF Unicode 标量校验各自独立。固定 Goravel 的 MIME 与编码规则用作实现参考。 [固定 Goravel 验证规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go)
+- 实际 MySQL 8.4.13 环境下，文件系统、上传与验证路径回归共 34 项通过。三语示例在实际 multipart HTTP 上通过 200 和 422。传输编码、部分旧式编码表及未纳入 MIME 样本的格式仍需核定兼容边界。核心账本维持 59/66。
+- Rust 1.94.0 改动文件格式、工作区严格 Clippy、独立 Artisan、三语站点和 18 项浏览器检查通过。集成独立格式提交 `45a982138` 后复查全仓格式通过。临时 MySQL、3.5 GiB 隔离 Cargo 产物和文档缓存已回收，PHP 对照及验收日志保留于 `/private/tmp/openrust-04-05-file-coverage.fTlKoYPe`。
