@@ -1,8 +1,8 @@
-use std::{fmt::Write as _, sync::Arc};
+use std::{borrow::Cow, fmt::Write as _, sync::Arc};
 
 use crate::database::{
     Connection, DatabaseError, DatabaseResult, Value,
-    query::grammars::Grammar as QueryGrammar,
+    query::{Expression, grammars::Grammar as QueryGrammar},
     schema::{
         Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition, SqliteJsonTypes,
         TableOptions,
@@ -634,6 +634,7 @@ impl Grammar {
         if !self.mysql()
             && (column.invisible
                 || column.current_on_update
+                || column.on_update.is_some()
                 || column.position.is_some()
                 || column.instant
                 || column.lock.is_some())
@@ -679,6 +680,7 @@ impl Grammar {
                 || column.increment
                 || column.primary
                 || column.current_on_update
+                || column.on_update.is_some()
             {
                 return Err(DatabaseError::InvalidSchema("generated column modifiers"));
             }
@@ -703,13 +705,27 @@ impl Grammar {
             )
             .expect("writing to a String");
         }
-        if column.current_on_update {
-            let precision = match column.kind {
-                ColumnType::DateTime(precision) | ColumnType::Timestamp(precision) => precision,
-                _ => return Err(DatabaseError::InvalidSchema("on-update timestamp column")),
-            };
-            write!(sql, " on update {}", current_timestamp(precision))
-                .expect("writing to a String");
+        let on_update = match (
+            &column.kind,
+            column.current_on_update,
+            column.on_update.as_deref(),
+        ) {
+            (_, false, None) => None,
+            (ColumnType::DateTime(precision) | ColumnType::Timestamp(precision), true, _) => {
+                Some(Cow::Owned(current_timestamp(*precision)))
+            }
+            (
+                ColumnType::DateTime(_) | ColumnType::Timestamp(_) | ColumnType::Raw(_),
+                false,
+                Some(expression),
+            ) => Some(Cow::Borrowed(schema_expression(
+                expression,
+                "column on-update expression",
+            )?)),
+            _ => return Err(DatabaseError::InvalidSchema("on-update timestamp column")),
+        };
+        if let Some(expression) = on_update {
+            write!(sql, " on update {expression}").expect("writing to a String");
         }
         if column.invisible {
             sql.push_str(" invisible");
@@ -792,14 +808,12 @@ impl Grammar {
             | ColumnType::Integer
             | ColumnType::BigInteger => "integer",
             ColumnType::String(length) | ColumnType::Char(length) => {
-                if *length == 0 || *length > 65_535 {
+                let fixed = matches!(kind, ColumnType::Char(_));
+                let max = if mysql && fixed { 255 } else { 65_535 };
+                if *length > max || (*length == 0 && !(mysql && fixed)) {
                     return Err(DatabaseError::InvalidSchema("column length"));
                 }
-                let name = if matches!(kind, ColumnType::Char(_)) {
-                    "char"
-                } else {
-                    "varchar"
-                };
+                let name = if fixed { "char" } else { "varchar" };
                 return Ok(if mysql {
                     format!("{name}({length})")
                 } else {
@@ -917,11 +931,8 @@ impl Grammar {
         let value = match value {
             DefaultValue::Value(value) => value,
             DefaultValue::Expression(expression) => {
-                let sql = expression
-                    .unbound_sql()
-                    .filter(|sql| !sql.trim().is_empty() && !sql.contains('\0'))
-                    .ok_or(DatabaseError::InvalidSchema("column default expression"))?;
-                return Ok(sql.to_owned());
+                return schema_expression(expression, "column default expression")
+                    .map(str::to_owned);
             }
             DefaultValue::CurrentTimestamp => return Ok(self.current_default(kind)),
         };
@@ -966,6 +977,16 @@ impl Grammar {
         };
         Ok(format!("'{}'", value.replace('\'', "''")))
     }
+}
+
+fn schema_expression<'a>(
+    expression: &'a Expression,
+    label: &'static str,
+) -> DatabaseResult<&'a str> {
+    expression
+        .unbound_sql()
+        .filter(|sql| !sql.trim().is_empty() && !sql.contains('\0'))
+        .ok_or(DatabaseError::InvalidSchema(label))
 }
 
 fn mysql_option<'a>(value: &'a str, option: &'static str) -> DatabaseResult<&'a str> {

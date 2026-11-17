@@ -428,6 +428,25 @@ async fn create_entries() -> DatabaseResult<()> {
 
 `timestamps()` and `timestampsTz()` use the configured precision. Use `timestampsWith` or `timestampsTzWith` for an explicit precision. `datetimes` creates nullable DATETIME columns for `created_at` and `updated_at`. `softDeletesDatetime` creates the nullable DATETIME soft-delete column. SQLite uses its native column declarations.
 
+#### MySQL Column Lengths and Update Expressions {#mysql-column-lengths-and-update-expressions}
+
+On MySQL, use `char(name, 0)` for an empty fixed-width character column. `CHAR` allows up to 255 characters. A zero length in `binaryWith` behaves like `binary` and creates a BLOB. Positive lengths create BINARY or VARBINARY depending on the `fixed` argument.
+
+Use `onUpdate` with a trusted SQL expression for a TIMESTAMP or DATETIME column. Match the expression’s fractional precision to the column. When both update modifiers are specified, `useCurrentOnUpdate` uses the column’s precision and takes precedence.
+
+```rust
+use openrust::database::{query::Expression, schema::Blueprint};
+
+fn define_import_status(table: &mut Blueprint) {
+    table.id();
+    table.char("flag", 0).nullable();
+    table.binaryWith("payload", 0, false).nullable();
+    table.dateTime("changed_at", 3)
+        .useCurrent()
+        .onUpdate(Expression::new("NOW(3)"));
+}
+```
+
 #### Floating-Point Precision and Raw Columns {#float-precision-and-raw-columns}
 
 `float()` uses Laravel’s default precision of 53 bits. Use `floatWith(name, precision)` to set it explicitly. On MySQL, precision 1–24 selects FLOAT and 25–53 selects DOUBLE. Use precision 0 for a native FLOAT declaration without a precision argument. SQLite uses its native floating-point behavior regardless of the requested precision.

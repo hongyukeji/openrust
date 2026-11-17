@@ -349,7 +349,17 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 
 - 对照固定 Laravel Blueprint 的 `integerIncrements` 和 MySQL Grammar 的 `modifyIncrement`。旧版 `v0.x` 未找到复合主键与自增组合的回归，沿用现有 Blueprint 命令、显式主键及自增起始值的编译路径。 [Laravel 自增列语法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1270)
 - MySQL Blueprint 有表级主键命令时，自增列只输出 `AUTO_INCREMENT`，整个主键按显式列顺序生成。`autoIncrement()` 保留原列的有符号或无符号属性。`id` 及各 `*Increments` 快捷方法继续生成无符号键，新增 `integerIncrements` 别名。InnoDB 仍要求自增列为某个索引的首列。 [MySQL InnoDB 自增规则](https://dev.mysql.com/doc/refman/8.4/en/innodb-auto-increment-handling.html)
-- 隔离基线 `01777330`、Rust 1.94.0。真实 MySQL 8.4.13 的 27 项 Schema 回归通过。新用例验证复合主键目录、有符号列写入负数、起始值分配、变更后的主键与序列、无符号别名。另用 `sh tests/table_catalog.sh` 验证写连接目录和限定 Schema 清库。
+- 隔离基线 `01777330`、Rust 1.94.0。27 项 Schema 回归通过，其中 MySQL 8.4.13 有 26 项，名称筛选同时带入 1 项 SQLite 用例。新用例验证复合主键目录、有符号列写入负数、起始值分配、变更后的主键与序列、无符号别名。另用 `sh tests/table_catalog.sh` 验证写连接目录和限定 Schema 清库。
 - 三语共有示例经实际 Artisan 执行 `migrate --pretend`、`migrate` 和 `migrate:rollback`，验证预演无表、建表后的列和索引、回滚移除表。`main artisan inspire` 通过。
 - 严格工作区 Clippy、改动文件格式、三语站点构建、12 项通用和 6 项专题浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批日常外部驱动验收使用 MySQL，其他驱动实机覆盖按发布范围跟踪。证据目录 `/private/tmp/openrust-02-05-mysql-types.muP968Hh`。02-05 仍跟踪其余类型和方言修饰符。
 - 三轮临时 MySQL 已回收，另清理本批 4.1 GiB Cargo 产物及文档缓存。项目磁盘可用 115.05 GB（107.15 GiB），周额度剩余 66%，第二窗口无读数。
+
+
+## MySQL 列长度与更新表达式
+
+- 对照固定 Laravel MySQL Grammar 的 `typeBinary`、`modifyOnUpdate` 和时间列类型处理。旧版 `v0.x` 未找到零长度及显式更新表达式的实现，沿用当前 Blueprint、列类型编译及 `Expression` 对默认值的校验。 [Laravel 二进制类型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1030) · [Laravel 更新修饰符](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1257)
+- MySQL 的 `CHAR` 接受 0–255。`binaryWith` 长度为零时使用原生 BLOB，正数长度继续区分 BINARY 和 VARBINARY。`onUpdate(Expression)` 接受应用提供的不带绑定的 MySQL 时间列更新表达式，`useCurrentOnUpdate()` 优先并使用列精度。生成列及其他方言的现有规则继续执行。 [MySQL CHAR](https://dev.mysql.com/doc/refman/8.4/en/char.html) · [MySQL 时间列自动更新](https://dev.mysql.com/doc/refman/8.4/en/timestamp-initialization.html)
+- 隔离基线 `5813fcb9`、Rust 1.94.0。按驱动筛选后的 29 项 MySQL 8.4.13 Schema 回归通过，覆盖列宽边界、二进制往返、原生时间列更新、修改精度及无效声明拒绝。首轮名称筛选带入一项 SQLite 测试，复验已将其排除并单独执行原有 MySQL 建表入口。表目录和限定 Schema 清库通过。
+- 三语共用示例经实际 Artisan 执行迁移预演、迁移和回滚。核对预演无表、实际列类型和回滚后表已移除。`main artisan inspire`、严格工作区 Clippy、变更文件格式、三语站点及 18 项浏览器检查通过。全仓格式只报告既有 `sanctum_authentication.rs:1412`。
+- 02-05 仍跟踪默认值修饰符和其他方言。证据目录 `/private/tmp/openrust-02-05-width-time.v6lgHeoV`。
+- 临时 MySQL 与本轮隔离产物已回收，清理 Cargo 产物 4.1 GiB。磁盘可用 115.02 GB（107.12 GiB），周额度剩余 66%，第二窗口无读数。

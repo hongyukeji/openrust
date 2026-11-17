@@ -200,8 +200,11 @@ impl Blueprint {
         )
     }
 
-    /// A bounded binary column with fixed or variable length.
+    /// A fixed or variable binary column. Zero selects the ordinary binary type.
     pub fn binaryWith(&mut self, name: &str, length: u32, fixed: bool) -> &mut ColumnDefinition {
+        if length == 0 {
+            return self.binary(name);
+        }
         self.column(name, ColumnType::SizedBinary(length, fixed))
     }
 

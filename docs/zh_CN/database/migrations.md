@@ -428,6 +428,25 @@ async fn create_entries() -> DatabaseResult<()> {
 
 `timestamps()` 和 `timestampsTz()` 使用配置的精度。用 `timestampsWith` 或 `timestampsTzWith` 指定精度。`datetimes` 创建可空的 `created_at` 和 `updated_at` DATETIME 列。`softDeletesDatetime` 创建可空的 DATETIME 软删除列。SQLite 使用原生列声明。
 
+#### MySQL 列长度与更新表达式 {#mysql-column-lengths-and-update-expressions}
+
+在 MySQL 上用 `char(name, 0)` 创建长度为零的定长字符列。CHAR 最多支持 255 个字符。`binaryWith` 长度为零时与 `binary` 一样创建 BLOB，正数长度则按 `fixed` 参数创建 BINARY 或 VARBINARY。
+
+通过 `onUpdate` 为 TIMESTAMP 或 DATETIME 列指定可信 SQL 表达式。表达式的小数秒精度应与列一致。两个更新修饰符同时指定时，`useCurrentOnUpdate` 按列精度生成表达式并优先使用。
+
+```rust
+use openrust::database::{query::Expression, schema::Blueprint};
+
+fn define_import_status(table: &mut Blueprint) {
+    table.id();
+    table.char("flag", 0).nullable();
+    table.binaryWith("payload", 0, false).nullable();
+    table.dateTime("changed_at", 3)
+        .useCurrent()
+        .onUpdate(Expression::new("NOW(3)"));
+}
+```
+
 #### 浮点精度与原生列定义 {#float-precision-and-raw-columns}
 
 `float()` 使用 Laravel 默认的 53 位精度。用 `floatWith(name, precision)` 显式设置精度。MySQL 的 1–24 位对应 FLOAT，25–53 位对应 DOUBLE。用 0 声明不带精度参数的原生 FLOAT。SQLite 按原生浮点规则存储，精度参数不改变存储行为。

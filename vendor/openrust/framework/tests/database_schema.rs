@@ -2028,6 +2028,147 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_preserves_zero_and_boundary_column_lengths() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url}));
+    let mut schema = db.getSchemaBuilder();
+    let name = "column_width_edges";
+    schema.dropIfExists(name).await.unwrap();
+    schema
+        .create(name, |table| {
+            table.id();
+            table.char("optional_flag", 0).nullable();
+            table.char("fixed_label", 255);
+            table.binaryWith("payload", 0, true);
+            table.binaryWith("token", 255, true).nullable();
+            table.binaryWith("variable", 511, false).nullable();
+        })
+        .await
+        .unwrap();
+
+    for (column, expected) in [
+        ("optional_flag", "char(0)"),
+        ("fixed_label", "char(255)"),
+        ("payload", "blob"),
+        ("token", "binary(255)"),
+        ("variable", "varbinary(511)"),
+    ] {
+        assert_eq!(
+            schema.getColumnType(name, column, true).await.unwrap(),
+            expected
+        );
+    }
+    let payload = vec![0, 1, 255, 0];
+    db.insert("insert into column_width_edges (optional_flag, fixed_label, payload) values ('', 'valid', ?)", &[Value::Bytes(payload.clone())])
+        .await.unwrap();
+    assert_eq!(
+        db.table(name).value("payload").await.unwrap(),
+        Value::Bytes(payload)
+    );
+
+    let result = schema
+        .table(name, |table| {
+            table.integer("not_added");
+            table.char("too_wide", 256);
+        })
+        .await;
+    assert!(matches!(
+        result,
+        Err(DatabaseError::InvalidSchema("column length"))
+    ));
+    assert!(!schema.hasColumn(name, "not_added").await.unwrap());
+    schema.drop(name).await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_compiles_explicit_temporal_on_update_expressions() {
+    use openrust::database::query::Expression;
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url}));
+    let mut schema = db.getSchemaBuilder();
+    let name = "temporal_update_expression";
+    let initial = "2020-01-01 00:00:00";
+    schema.dropIfExists(name).await.unwrap();
+    schema
+        .create(name, |table| {
+            table.id();
+            table.integer("status");
+            table
+                .dateTime("handled_at", 3)
+                .default(initial)
+                .onUpdate(Expression::new("NOW(3)"));
+            table
+                .timestamp("changed_at", 6)
+                .default(initial)
+                .useCurrentOnUpdate()
+                .onUpdate(Expression::new("unused_expression"));
+        })
+        .await
+        .unwrap();
+
+    db.insert(
+        "insert into temporal_update_expression (status) values (0)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let timestamps = "select date_format(handled_at, '%Y-%m-%d %H:%i:%s.%f') as handled_at, date_format(changed_at, '%Y-%m-%d %H:%i:%s.%f') as changed_at from temporal_update_expression";
+    let row = db.selectOne(timestamps, &[]).await.unwrap().unwrap();
+    for column in ["handled_at", "changed_at"] {
+        assert_eq!(row.get(column), Some(&format!("{initial}.000000").into()));
+    }
+    db.update("update temporal_update_expression set status = 1", &[])
+        .await
+        .unwrap();
+    let row = db.selectOne(timestamps, &[]).await.unwrap().unwrap();
+    for column in ["handled_at", "changed_at"] {
+        assert!(
+            matches!(row.get(column), Some(Value::Text(value)) if value.len() == 26 && !value.starts_with(initial))
+        );
+    }
+
+    schema
+        .table(name, |table| {
+            table
+                .dateTime("handled_at", 6)
+                .default(initial)
+                .onUpdate(Expression::new("CURRENT_TIMESTAMP(6)"))
+                .change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema
+            .getColumnType(name, "handled_at", true)
+            .await
+            .unwrap(),
+        "datetime(6)"
+    );
+
+    let result = schema
+        .table(name, |table| {
+            table.integer("not_added");
+            table
+                .timestamp("bound", 3)
+                .onUpdate(Expression::new("NOW(?)").with_bindings(vec![3.into()]));
+        })
+        .await;
+    assert!(matches!(
+        result,
+        Err(DatabaseError::InvalidSchema("column on-update expression"))
+    ));
+    assert!(!schema.hasColumn(name, "not_added").await.unwrap());
+    schema.drop(name).await.unwrap();
+}
+
+#[tokio::test]
 async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_increment() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

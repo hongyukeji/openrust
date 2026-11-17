@@ -87,6 +87,7 @@ pub struct ColumnDefinition {
     pub(super) charset: Option<String>,
     pub(super) collation: Option<String>,
     pub(super) current_on_update: bool,
+    pub(super) on_update: Option<Box<Expression>>,
     pub(super) invisible: bool,
     pub(super) position: Option<Position>,
     pub(super) instant: bool,
@@ -115,6 +116,7 @@ impl ColumnDefinition {
             charset: None,
             collation: None,
             current_on_update: false,
+            on_update: None,
             invisible: false,
             position: None,
             instant: false,
@@ -217,6 +219,14 @@ impl ColumnDefinition {
     /// Updates a MySQL timestamp or datetime when another value in the row changes.
     pub fn useCurrentOnUpdate(&mut self) -> &mut Self {
         self.current_on_update = true;
+        self
+    }
+
+    /// Sets a trusted MySQL ON UPDATE expression for a temporal column.
+    ///
+    /// `useCurrentOnUpdate` takes precedence when both modifiers are present.
+    pub fn onUpdate(&mut self, expression: Expression) -> &mut Self {
+        self.on_update = Some(Box::new(expression));
         self
     }
 
