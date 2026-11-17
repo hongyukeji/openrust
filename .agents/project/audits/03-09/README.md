@@ -81,3 +81,10 @@
 - 在 `8d7a31a6d` 的隔离快照上，新增回归先在原实现中复现待回收记录残留。修复后 `sh tests/redis_cluster.sh` 在 Redis 8.10.3 通过全部 4 项集群回归。单个索引的 320 个引用分批扫描后，仅保留 160 个有效值。另验证清空中断后的旧值和新代际隔离，以及单机 Redis 的连接、缓存、锁与标签清理。
 - 实际双进程 HTTP 验证共享缓存、自然过期和新代际写入。独立 Artisan 验证 `cache:clear redis --tags=artists` 的失败与成功路径，验证 `cache:prune-stale-tags` 的默认存储、显式存储、重复运行和旧代际回收。检查 Redis 物理键确认旧索引和待回收记录均已删除。根应用 `artisan inspire` 通过。
 - Rust 1.94.0 改动文件格式、工作区严格 Clippy、三语站点构建和 18 项浏览器检查通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412` 差异。本批验收日志保留于 `/private/tmp/openrust-03-09-prune.QAkmUtvQ`。
+
+## 显式删除后的空标签索引回收
+
+- 对照固定 Laravel 的有序集合、集群分批清空与 `cache:prune-stale-tags {store?}`。OpenRust 的集群标签将每个存储的索引登记在同槽集合中，供过期清理分批遍历。`forget` 或 `pull` 删除最后一个成员时，在同一个 Lua 操作中移除空索引的登记，同一标签写入新值时重新登记。核对 `v0.x` 的 `redis_tags.rs` 和 `tests/unit/cache/tag_identity.rs`，沿用空索引回收思路与标签组合隔离回归。 [Laravel Cache Tags](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#cache-tags) · [Laravel 集群标签清空](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php#L210)
+- 在 `e46343b50` 的隔离快照上，用 Redis 8.10.3 复现空有序集合已消失、登记仍在。修复后 `sh tests/redis_cluster.sh` 的四项回归与单机 Redis 回归通过。覆盖 `forget`、`pull`、重新登记、多标签共享索引及 320 条引用的分批清理。
+- 实际双进程 HTTP 验证删除、取回与重新登记，并用 Redis `SISMEMBER` 核对登记。独立 Artisan 验证默认和显式存储的 `cache:prune-stale-tags`、重复清理、清空中断时保留仍有值的旧代际，以及陈旧代际最终回收。根应用 `artisan inspire` 通过。
+- Rust 1.94.0 改动文件格式、工作区严格 Clippy、三语站点构建和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。临时 Redis 和隔离编译产物已回收，日志保留于 `/private/tmp/openrust-03-09-empty-index.OJOms75f`。

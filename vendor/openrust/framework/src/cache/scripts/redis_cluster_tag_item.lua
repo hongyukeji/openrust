@@ -14,7 +14,11 @@ local result = tagged_item(operation, item, input, option, indexes)
 if type(result) == 'table' and result.err then return result end
 if operation ~= 'get' then
     for _, index in ipairs(indexes) do
-        if redis.call('EXISTS', index) == 1 then redis.call('SADD', registry, index) end
+        if redis.call('EXISTS', index) == 1 then
+            redis.call('SADD', registry, index)
+        elseif operation == 'forget' or operation == 'pull' then
+            redis.call('SREM', registry, index)
+        end
     end
 end
 return {result}

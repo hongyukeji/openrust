@@ -1055,7 +1055,30 @@ async fn redis_cluster_tags_flush_and_prune() {
             .await
             .unwrap()
     };
+    let registered = async |key: &str| {
+        let (prefix, _) = key.rsplit_once("index:").unwrap();
+        let registry = format!("{prefix}indexes");
+        connection
+            .command("SISMEMBER", &[registry.as_bytes(), key.as_bytes()])
+            .await
+            .unwrap()
+            == RedisValue::Int(1)
+    };
     let people = index("people").await;
+    let removable = plain.tags(&["removable", "people"]).unwrap();
+    let removable_index = index("removable").await;
+    assert!(removable.forever("item", &9.into()).await.unwrap());
+    assert!(registered(&removable_index).await);
+    assert!(removable.forget("item").await.unwrap());
+    assert!(!exists(&removable_index).await);
+    assert!(!registered(&removable_index).await);
+    assert!(registered(&people).await);
+    assert!(removable.forever("item", &10.into()).await.unwrap());
+    assert!(registered(&removable_index).await);
+    assert_eq!(removable.pull("item").await.unwrap(), Some(10.into()));
+    assert!(!registered(&removable_index).await);
+    assert_eq!(count(&people).await, RedisValue::Int(2));
+
     assert!(
         left.put("short", &1.into(), Some(Ttl::Seconds(10)))
             .await
