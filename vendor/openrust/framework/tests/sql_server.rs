@@ -341,3 +341,141 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
     schema.drop("changes.entries").await.unwrap();
     db.statement("drop schema changes", &[]).await.unwrap();
 }
+
+#[tokio::test]
+async fn sql_server_computed_columns_switch_persistence_in_place() {
+    use openrust::database::schema::GenerationType;
+
+    let root = tempfile::tempdir().unwrap();
+    let preview = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"driver":"sqlsrv","prefix":"test_"}),
+            root.path(),
+        )
+        .unwrap();
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                schema
+                    .create("dbo.computed_totals", |table| {
+                        table.integer("quantity");
+                        table.computed("twice", "quantity * 2").persisted();
+                    })
+                    .await?;
+                schema
+                    .table("dbo.computed_totals", |table| {
+                        table.computed("twice", "quantity * 2").persisted().change();
+                        table.computed("twice", "quantity * 2").change();
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert!(
+        statements[0]
+            .query
+            .contains("[twice] as (quantity * 2) persisted")
+    );
+    assert_eq!(
+        statements[2].query,
+        "alter table [dbo].[test_computed_totals] alter column [twice] add persisted"
+    );
+    assert_eq!(
+        statements[4].query,
+        "alter table [dbo].[test_computed_totals] alter column [twice] drop persisted"
+    );
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = ConnectionFactory
+        .make("sqlsrv", json!({"url":url}), root.path())
+        .unwrap();
+    let mut schema = db.getSchemaBuilder();
+    let table = format!("dbo.computed_totals_{:016x}", fastrand::u64(..));
+    schema
+        .create(&table, |table| {
+            table.integer("quantity");
+            table.computed("twice", "quantity * 2");
+            table.computed("wall_time", "getdate()");
+        })
+        .await
+        .unwrap();
+    db.statement(&format!("insert into {table} (quantity) values (3)"), &[])
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .table(&table, |table| {
+                table.computed("twice", "quantity * 2").persisted().change();
+                table
+                    .computed("wall_time", "getdate()")
+                    .persisted()
+                    .change();
+            })
+            .await
+            .is_err()
+    );
+    let column = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    assert_eq!(
+        column.generation.as_ref().unwrap().kind,
+        GenerationType::Virtual
+    );
+
+    schema
+        .table(&table, |table| {
+            table.computed("twice", "quantity * 2").persisted().change();
+        })
+        .await
+        .unwrap();
+    let persisted = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    assert_eq!(
+        persisted.generation.as_ref().unwrap().kind,
+        GenerationType::Stored
+    );
+    assert_eq!(
+        db.scalar(&format!("select twice from {table}"), &[])
+            .await
+            .unwrap(),
+        6.into()
+    );
+    db.statement(&format!("update {table} set quantity = 4"), &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar(&format!("select twice from {table}"), &[])
+            .await
+            .unwrap(),
+        8.into()
+    );
+
+    schema
+        .table(&table, |table| {
+            table.computed("twice", "quantity * 2").change();
+        })
+        .await
+        .unwrap();
+    let computed = schema.getColumn(&table, "twice").await.unwrap().unwrap();
+    assert_eq!(
+        computed.generation.as_ref().unwrap().kind,
+        GenerationType::Virtual
+    );
+    assert_eq!(
+        computed.generation.unwrap().expression,
+        persisted.generation.unwrap().expression
+    );
+    db.statement(&format!("update {table} set quantity = 5"), &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar(&format!("select twice from {table}"), &[])
+            .await
+            .unwrap(),
+        10.into()
+    );
+    schema.drop(&table).await.unwrap();
+}

@@ -346,6 +346,12 @@ impl Blueprint {
         self.column(name, ColumnType::Float(precision))
     }
 
+    /// Defines a SQL Server computed column using a trusted SQL expression.
+    pub fn computed(&mut self, name: &str, expression: impl Into<String>) -> &mut ColumnDefinition {
+        self.column(name, ColumnType::Computed)
+            .virtualAs(expression)
+    }
+
     /// Adds a column using a trusted, database-specific SQL definition.
     pub fn rawColumn(
         &mut self,

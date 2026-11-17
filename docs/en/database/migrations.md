@@ -1092,6 +1092,20 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### SQL Server Computed Columns {#sql-server-computed-columns}
+
+Use `computed(name, expression)` with a trusted SQL expression. SQL Server infers the column type. Add `persisted()` to store the computed value. For an existing computed column, `persisted().change()` stores the value and `change()` alone switches back to recomputing on read. Both changes use the existing expression. SQL Server checks whether that expression can be persisted.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.computed("twice", "quantity * 2").persisted().change();
+    }).await
+}
+```
+
 #### SQL Server Online Indexes {#sql-server-online-indexes}
 
 On SQL Server editions that support online index operations, call `online()` on `index()` or `unique()` to use `WITH (ONLINE = ON)`. Keep the default [migration transaction](#migration-transactions). Use `dropForeign(name)` to remove a foreign key by its constraint name.

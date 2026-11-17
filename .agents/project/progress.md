@@ -3134,3 +3134,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 03:03（北京时间）02-05 [SQL Server 原生改列与默认约束](audits/02-05/README.md#sql-server-原生改列与默认约束)。SQL Server 2022 实际 HTTP 与 Artisan、MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 临时数据库和本批产物已回收，磁盘可用 104.38 GB（97.21 GiB），提交前周额度剩余 42%。
 
 - 2026-11-18 03:10（北京时间）02-05 [PostgreSQL JSON 选择器生成列](audits/02-05/README.md#postgresql-json-选择器生成列)。PostgreSQL 18.6 实际 HTTP、Artisan，MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 临时数据库和本批产物已回收，磁盘可用 104.34 GB（97.17 GiB），提交前周额度剩余 42%。
+
+- 2026-11-18 03:17（北京时间）02-05 [SQL Server 计算列持久化切换](audits/02-05/README.md#sql-server-计算列持久化切换)。SQL Server 2022 实际 HTTP、Artisan；MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 临时数据库和本批产物已回收，磁盘可用 102.08 GB（95.07 GiB），提交前周额度剩余 41%。

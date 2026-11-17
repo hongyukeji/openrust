@@ -1027,7 +1027,12 @@ impl Grammar {
         {
             return Err(DatabaseError::UnsupportedSchema("MySQL column modifier"));
         }
-        let kind = self.column_type(&column.kind, &column.name)?;
+        let computed = matches!(column.kind, ColumnType::Computed);
+        let kind = if computed && self.sql_server() {
+            String::new()
+        } else {
+            self.column_type(&column.kind, &column.name)?
+        };
         let integer = matches!(
             column.kind,
             ColumnType::TinyInteger
@@ -1037,7 +1042,7 @@ impl Grammar {
                 | ColumnType::BigInteger
         );
         let sql_server_change = self.sql_server() && column.change;
-        if sql_server_change && column.generated.is_some() {
+        if sql_server_change && column.generated.is_some() && !computed {
             return Err(DatabaseError::UnsupportedSchema(
                 "SQL Server computed column change",
             ));
@@ -1086,6 +1091,13 @@ impl Grammar {
                 || column.on_update.is_some()
             {
                 return Err(DatabaseError::InvalidSchema("generated column modifiers"));
+            }
+            if sql_server_change {
+                let operation = if generated.stored { "add" } else { "drop" };
+                return Ok(format!(
+                    "{} {operation} persisted",
+                    self.identifier(&column.name)?
+                ));
             }
             let expression = self.generated_expression(generated)?;
             let mode = match (self.postgres(), generated.stored) {
@@ -1423,6 +1435,11 @@ impl Grammar {
             }
             ColumnType::Float(_) => "float",
             ColumnType::Double => "double",
+            ColumnType::Computed => {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "SQL Server computed column",
+                ));
+            }
             ColumnType::Raw(definition) => {
                 if definition.trim().is_empty() || definition.contains('\0') {
                     return Err(DatabaseError::InvalidSchema("raw column definition"));

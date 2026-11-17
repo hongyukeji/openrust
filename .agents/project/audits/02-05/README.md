@@ -507,3 +507,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 对照固定 Laravel PostgreSQL 的 `wrapJsonSelector` 和生成列修饰符。Rust 的 `storedAsJson()` 和 `virtualAsJson()` 逐级使用 `->`，末端使用 `->>` 取文本。复用现有路径分段规则及旧版 `397f308f4` 中 `pg_json_path_template` 的整数判定和 `E` 字面量转义，保持反斜线语义。 [固定 Laravel PostgreSQL 查询 Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/PostgresGrammar.php) · [PostgreSQL JSON 运算符](https://www.postgresql.org/docs/18/functions-json.html)
 - PostgreSQL 18.6 定向回归覆盖嵌套数组、负下标、前导零对象键、引号和反斜线、缺失路径返回 NULL、索引和数据更新，也在 `standard_conforming_strings = off` 下执行。实际 Artisan 预演、迁移和回滚通过，HTTP 验证存储列和虚拟列在源 JSON 更新后返回新值，回滚后表已移除。
 - PostgreSQL 定向测试、MySQL 8.4.13 生成列及 `sh tests/table_catalog.sh`、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。核心账本维持 62/66。临时数据库和本批编译产物已回收，项目盘空间净增 3.70 GB（3.44 GiB），剩余 104.34 GB（97.17 GiB）。提交前周额度剩余 42%。日志和验收夹具保留于 `/private/tmp/openrust-02-05-pg-json-generated.DDhSn8Ff`。
+
+## SQL Server 计算列持久化切换
+
+- 对照固定 Laravel 的 `Blueprint::computed` 与 `SqlServerGrammar::modifyPersisted`。Rust 复用现有生成列定义与表达式编译，创建时使用 `AS (...)` 和可选的 `PERSISTED`，变更时用 SQL Server 原生 `ALTER COLUMN … ADD/DROP PERSISTED` 保留数据库的现有表达式。旧版 `v0.x` 未找到相关 SQL Server 迁移实现。 [固定 Laravel Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1552) · [SQL Server ALTER TABLE](https://learn.microsoft.com/en-us/sql/t-sql/statements/alter-table-transact-sql#add--drop-persisted)
+- SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过四项 Schema／TDS 和一项迁移事务回归。实际 Artisan 预演、非确定性表达式失败后状态和账本恢复、迁移重试及回滚通过。实际 HTTP 验证开启持久化、源数据更新后重算、回滚后恢复非持久化。目录表达式在切换前后保持一致。
+- MySQL 8.4.13 生成列及表目录、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。SQL Server 仍待核对表、列和索引的原生重命名。SQL Server 2017 和原生 Linux x86_64 待发布复验。核心账本维持 62/66。
+- 临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 102.08 GB（95.07 GiB）。提交前周额度剩余 41%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-computed.uuQBeItW`。

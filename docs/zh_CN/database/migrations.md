@@ -1092,6 +1092,20 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### SQL Server 计算列 {#sql-server-computed-columns}
+
+用 `computed(name, expression)` 传入可信 SQL 表达式，由 SQL Server 推断列类型。追加 `persisted()` 会存储计算结果。对现有计算列，`persisted().change()` 开启持久化，仅调用 `change()` 会恢复为读取时计算。两种切换都沿用现有表达式，由 SQL Server 判断该表达式能否持久化。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.computed("twice", "quantity * 2").persisted().change();
+    }).await
+}
+```
+
 #### SQL Server 在线索引 {#sql-server-online-indexes}
 
 在支持在线索引操作的 SQL Server 版本上，给 `index()` 或 `unique()` 调用 `online()` 以使用 `WITH (ONLINE = ON)`。保留默认的[迁移事务](#migration-transactions)。用 `dropForeign(name)` 按约束名删除外键。

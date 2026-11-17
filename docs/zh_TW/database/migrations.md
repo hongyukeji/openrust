@@ -1092,6 +1092,20 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### SQL Server 計算欄位 {#sql-server-computed-columns}
+
+用 `computed(name, expression)` 傳入可信 SQL 運算式，由 SQL Server 推斷欄位型別。加上 `persisted()` 會儲存計算結果。對既有計算欄位，`persisted().change()` 啟用持久化，單獨呼叫 `change()` 則恢復為讀取時計算。兩種切換都沿用既有運算式，由 SQL Server 判斷該運算式能否持久化。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.computed("twice", "quantity * 2").persisted().change();
+    }).await
+}
+```
+
 #### SQL Server 線上索引 {#sql-server-online-indexes}
 
 在支援線上索引操作的 SQL Server 版本上，對 `index()` 或 `unique()` 呼叫 `online()` 以使用 `WITH (ONLINE = ON)`。保留預設的[遷移交易](#migration-transactions)。使用 `dropForeign(name)` 依約束名稱移除外鍵。

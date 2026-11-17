@@ -35,6 +35,7 @@ pub(super) enum ColumnType {
     DateTime(u8),
     Timestamp(u8),
     Time(u8),
+    Computed,
     Raw(String),
 }
 
@@ -281,6 +282,16 @@ impl ColumnDefinition {
     /// Computes and stores the column using a trusted SQL expression.
     pub fn storedAs(&mut self, expression: impl Into<String>) -> &mut Self {
         self.generated(expression, true, false)
+    }
+
+    /// Persists a SQL Server computed column.
+    pub fn persisted(&mut self) -> &mut Self {
+        if matches!(self.kind, ColumnType::Computed)
+            && let Some(generated) = &mut self.generated
+        {
+            generated.stored = true;
+        }
+        self
     }
 
     /// Computes the column from a JSON selector when read.
