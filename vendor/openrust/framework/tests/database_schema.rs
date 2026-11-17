@@ -156,6 +156,44 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
     }
 }
 
+#[tokio::test]
+async fn postgres_column_and_foreign_key_catalogs_use_native_metadata_and_qualified_names() {
+    let db = connection(json!({"driver":"pgsql", "prefix":"app_"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                assert!(schema.getColumns("tenant.posts").await?.is_empty());
+                assert!(schema.getForeignKeys("posts").await?.is_empty());
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 2);
+    let columns = &preview[0].query;
+    assert!(columns.contains("pg_catalog.pg_attribute"));
+    assert!(columns.contains("coalesce(nullif('tenant', ''), pg_catalog.current_schema()::text)"));
+    assert!(columns.contains("c.relname::text = 'app_posts'"));
+    assert!(columns.contains("not a.attisdropped"));
+    assert!(columns.contains("to_jsonb(a)->>'attgenerated'"));
+    assert!(columns.contains("a.attidentity <> ''"));
+    assert!(columns.contains("a.attnum = any(p.conkey)"));
+
+    let keys = &preview[1].query;
+    assert!(keys.contains("coalesce(nullif('', ''), pg_catalog.current_schema()::text)"));
+    assert!(keys.contains("source.relname::text = 'app_posts'"));
+    assert!(keys.contains("unnest(con.conkey, con.confkey) with ordinality"));
+    assert!(keys.contains("order by con.conname, pair.position"));
+    assert!(keys.contains("target_ns.nspname::text as foreign_schema"));
+    assert!(keys.contains("when 'n' then 'set null'"));
+    assert!(
+        preview
+            .iter()
+            .all(|entry| entry.read_write_type == openrust::database::events::QueryRole::Write)
+    );
+}
+
 async fn verify(db: Connection, mysql: bool) {
     let mut schema = db.getSchemaBuilder();
     schema.dropIfExists("posts").await.unwrap();

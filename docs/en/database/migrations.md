@@ -749,6 +749,8 @@ async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<Strin
 
 `Schema::getColumn` returns the metadata for one column. Column names are compared case-insensitively. Rust returns `None` when the column is absent, and database errors propagate through `DatabaseResult`.
 
+On PostgreSQL, column inspection includes identity and serial flags, primary-key membership, and generated expressions. An unqualified table name uses the server’s current schema. Pass a qualified name to inspect a table in another schema.
+
 ```rust
 use openrust::{
     database::{DatabaseResult, schema::Column},
@@ -980,6 +982,8 @@ Use `dropForeignColumns` for a foreign key’s local columns, or `dropForeign` f
 #### Inspecting Foreign Keys {#inspecting-foreign-keys}
 
 Use `getForeignKeys` to inspect the local columns, target schema and table, target columns, and update and delete actions. A composite key’s columns are returned in constraint order.
+
+On PostgreSQL, the catalog reports the constraint name and the referenced schema. Local and referenced columns are paired in constraint order, including compound keys that target a different schema.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

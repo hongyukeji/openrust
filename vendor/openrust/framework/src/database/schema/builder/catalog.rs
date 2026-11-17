@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
-use super::{Builder, Executor};
+use super::{Builder, Executor, postgres};
 use crate::database::schema::{
     Column, ColumnGeneration, ForeignKey, GenerationType, Index, KeySelector, SchemaFallback,
     SchemaInfo, TableInfo, ViewInfo,
@@ -366,6 +366,8 @@ impl Builder<'_> {
                 "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment, collation_name as collation, case when extra like '%VIRTUAL GENERATED%' then 'virtual' when extra like '%STORED GENERATED%' then 'stored' end as generation_kind, generation_expression as generation_expression from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
                 parameters,
             )
+        } else if self.grammar.postgres() {
+            (postgres::COLUMNS, postgres_table_parameters(&table))
         } else if self.grammar.sql_server() {
             (
                 "select c.name, ty.name as type_name, ty.name as full_type, c.is_nullable as nullable, d.definition as default_value, c.is_identity as auto_increment, cast(case when exists (select 1 from sys.index_columns ic join sys.indexes i on i.object_id=ic.object_id and i.index_id=ic.index_id where ic.object_id=c.object_id and ic.column_id=c.column_id and i.is_primary_key=1) then 1 else 0 end as bit) as primary_key, cast(null as nvarchar(255)) as comment, c.collation_name as collation, case when computed.is_persisted=1 then 'stored' when c.is_computed=1 then 'virtual' end as generation_kind, computed.definition as generation_expression from sys.columns c join sys.types ty on ty.user_type_id=c.user_type_id join sys.tables t on t.object_id=c.object_id join sys.schemas s on s.schema_id=t.schema_id left join sys.default_constraints d on d.object_id=c.default_object_id left join sys.computed_columns computed on computed.object_id=c.object_id and computed.column_id=c.column_id where s.name=? and t.name=? order by c.column_id",
@@ -425,7 +427,11 @@ impl Builder<'_> {
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
         let generated = columns.iter().any(|column| column.generation.is_some());
-        if !self.grammar.mysql() && !self.grammar.sql_server() && !columns.is_empty() {
+        if !self.grammar.mysql()
+            && !self.grammar.sql_server()
+            && !self.grammar.postgres()
+            && !columns.is_empty()
+        {
             let schema = self
                 .grammar
                 .identifier(self.grammar.catalog_schema(&table))?;
@@ -633,6 +639,8 @@ impl Builder<'_> {
                 "select k.constraint_name as key_id, k.column_name as column_name, k.referenced_table_schema as foreign_schema, k.referenced_table_name as foreign_table, k.referenced_column_name as foreign_column, lower(r.delete_rule) as on_delete, lower(r.update_rule) as on_update from information_schema.key_column_usage k join information_schema.referential_constraints r on r.constraint_schema = k.constraint_schema and r.constraint_name = k.constraint_name and r.table_name = k.table_name where k.table_schema = coalesce(nullif(?, ''), database()) and k.table_name = ? and k.referenced_table_name is not null order by k.constraint_name, k.ordinal_position",
                 parameters,
             )
+        } else if self.grammar.postgres() {
+            (postgres::FOREIGN_KEYS, postgres_table_parameters(&table))
         } else {
             let [schema, name] = parameters;
             (
@@ -648,9 +656,7 @@ impl Builder<'_> {
             .map(|parts| {
                 let row = &parts[0];
                 Ok(ForeignKey {
-                    name: self
-                        .grammar
-                        .mysql()
+                    name: (self.grammar.mysql() || self.grammar.postgres())
                         .then(|| text(row, "key_id"))
                         .transpose()?,
                     columns: parts
@@ -669,6 +675,13 @@ impl Builder<'_> {
             })
             .collect()
     }
+}
+
+fn postgres_table_parameters(table: &Table) -> [Value; 2] {
+    [
+        table.schema.as_deref().unwrap_or_default().into(),
+        table.name.as_str().into(),
+    ]
 }
 
 fn postgres_schema_filter(column: &str, schemas: Option<&[&str]>) -> (String, Vec<Value>) {

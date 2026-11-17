@@ -424,3 +424,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `getSchemas()`、表目录、视图目录和 `hasView()` 查询写连接的 PostgreSQL 原生目录。`getSchemas()` 用服务器的 `current_schema()` 标记实际首选 Schema；未指定范围的表和视图目录排除系统 Schema。显式范围绑定为参数。未限定的视图存在检查遵循服务器有效搜索路径。 [固定 Laravel PostgresGrammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L60)
 - 隔离基线 `7ace723df` 的无网络测试验证角色配置、Schema 名称和 SQL 预演。真实 PostgreSQL 目录数据、权限与搜索路径验收留待发布矩阵。列及外键目录继续单独跟踪。
 - `sh tests/table_catalog.sh` 在真实 MySQL 8.4.13 上通过表目录和限定清库两项。隔离根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.5 GiB 本批 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-05-postgres-catalog.OxnViG7U`。
+
+## PostgreSQL 列与外键目录
+
+- 对照固定 Laravel v13.40.0 的 `PostgresGrammar::compileColumns`、`compileForeignKeys` 和 `PostgresProcessor`。检查旧版 `6d1a81924` 的 `database/schema/grammar.rs`，沿用 `pg_attribute` 和未限定名使用服务器 `current_schema()` 的做法。 [固定 Laravel PostgresGrammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L141) · [固定 Laravel PostgresProcessor](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Processors/PostgresProcessor.php)
+- 列目录报告格式化类型、默认值、identity／serial、主键、注释、排序规则和生成表达式。通过行 JSON 读取可选的 `attgenerated`，让同一条查询覆盖 PostgreSQL 10–11 的目录结构，避免额外版本查询。外键保留名称、目标 Schema、删除和更新动作，按约束位置逐列配对，列名中的逗号仍属名称本身。 [PostgreSQL 列目录](https://www.postgresql.org/docs/current/catalog-pg-attribute.html) · [PostgreSQL 约束目录](https://www.postgresql.org/docs/current/catalog-pg-constraint.html)
+- 隔离基线 `812a882c7` 的无网络预演覆盖写连接、限定名、表前缀、生成列和复合外键 SQL。真实 PostgreSQL 返回数据、不同版本生成列与跨 Schema 外键留待发布验收。
+- MySQL 8.4.13 Schema、生成列及外键三项回归通过。独立 Artisan、Rust 1.94.0 全仓格式、严格 Clippy、三语站点、12 项通用和 12 项章节浏览器检查通过。已回收临时 MySQL、2.9 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-02-05-postgres-columns.gawPvd1g`。

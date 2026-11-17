@@ -749,6 +749,8 @@ async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<Strin
 
 `Schema::getColumn` 返回指定列的元数据。匹配列名时忽略大小写。列不存在时 Rust 返回 `None`，数据库错误通过 `DatabaseResult` 传播。
 
+在 PostgreSQL 中，列目录返回 identity 和 serial 标记、主键成员关系与生成表达式。未限定的表名使用服务器当前 Schema。可传入限定名检查其他 Schema 的表。
+
 ```rust
 use openrust::{
     database::{DatabaseResult, schema::Column},
@@ -980,6 +982,8 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 #### 检查外键 {#inspecting-foreign-keys}
 
 用 `getForeignKeys` 查看本地列、目标 Schema 和表、目标列以及更新和删除动作。复合外键的列按约束定义顺序返回。
+
+在 PostgreSQL 中，外键目录返回约束名和引用的 Schema。复合外键的本地列和目标列按约束顺序配对，也适用于跨 Schema 引用。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

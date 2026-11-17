@@ -749,6 +749,8 @@ async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<Strin
 
 `Schema::getColumn` 回傳指定欄位的中繼資料。比對欄位名稱時忽略大小寫。欄位不存在時 Rust 回傳 `None`，資料庫錯誤透過 `DatabaseResult` 傳遞。
 
+在 PostgreSQL 中，欄位目錄回傳 identity 與 serial 標記、主鍵成員關係及生成運算式。未限定的資料表名稱使用伺服器目前的 Schema。可傳入限定名稱檢查其他 Schema 的資料表。
+
 ```rust
 use openrust::{
     database::{DatabaseResult, schema::Column},
@@ -980,6 +982,8 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 #### 檢查外鍵 {#inspecting-foreign-keys}
 
 用 `getForeignKeys` 查看本地欄位、目標 Schema 和資料表、目標欄位以及更新和刪除動作。複合外鍵的欄位依照約束定義順序回傳。
+
+在 PostgreSQL 中，外鍵目錄回傳約束名稱及參照的 Schema。複合外鍵的本地欄位與目標欄位依約束順序配對，也適用於跨 Schema 參照。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

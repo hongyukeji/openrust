@@ -31,6 +31,53 @@ const TYPES: &str = "
       )
     order by n.nspname, t.typname";
 
+// PostgreSQL 10 and 11 lack pg_attribute.attgenerated. Reading the optional
+// field from the row keeps a single query valid across supported versions.
+pub(super) const COLUMNS: &str = "
+    select a.attname::text as name, t.typname::text as type_name,
+           pg_catalog.format_type(a.atttypid, a.atttypmod) as full_type,
+           not a.attnotnull as nullable,
+           case when gen.kind = '' then expression.value end as default_value,
+           (a.attidentity <> '' or coalesce(expression.value like 'nextval(%', false)) as auto_increment,
+           exists (select 1 from pg_catalog.pg_constraint p
+                   where p.conrelid = c.oid and p.contype = 'p' and a.attnum = any(p.conkey)) as primary_key,
+           pg_catalog.col_description(c.oid, a.attnum) as comment,
+           coll.collcollate as collation,
+           case gen.kind when 's' then 'stored' when 'v' then 'virtual' end as generation_kind,
+           case when gen.kind <> '' then expression.value end as generation_expression
+    from pg_catalog.pg_attribute a
+    join pg_catalog.pg_class c on c.oid = a.attrelid
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    join pg_catalog.pg_type t on t.oid = a.atttypid
+    left join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+    left join pg_catalog.pg_collation coll on coll.oid = a.attcollation
+    cross join lateral (select coalesce(pg_catalog.to_jsonb(a)->>'attgenerated', '') as kind) gen
+    cross join lateral (select pg_catalog.pg_get_expr(d.adbin, d.adrelid) as value) expression
+    where n.nspname::text = coalesce(nullif(?, ''), pg_catalog.current_schema()::text)
+      and c.relname::text = ? and a.attnum > 0 and not a.attisdropped
+    order by a.attnum";
+
+pub(super) const FOREIGN_KEYS: &str = "
+    select con.conname::text as key_id, source_col.attname::text as column_name,
+           target_ns.nspname::text as foreign_schema, target.relname::text as foreign_table,
+           target_col.attname::text as foreign_column,
+           case con.confdeltype when 'a' then 'no action' when 'r' then 'restrict'
+                when 'c' then 'cascade' when 'n' then 'set null' when 'd' then 'set default' end as on_delete,
+           case con.confupdtype when 'a' then 'no action' when 'r' then 'restrict'
+                when 'c' then 'cascade' when 'n' then 'set null' when 'd' then 'set default' end as on_update
+    from pg_catalog.pg_constraint con
+    join pg_catalog.pg_class source on source.oid = con.conrelid
+    join pg_catalog.pg_namespace source_ns on source_ns.oid = source.relnamespace
+    join pg_catalog.pg_class target on target.oid = con.confrelid
+    join pg_catalog.pg_namespace target_ns on target_ns.oid = target.relnamespace
+    cross join lateral unnest(con.conkey, con.confkey) with ordinality as pair(source_num, target_num, position)
+    join pg_catalog.pg_attribute source_col on source_col.attrelid = source.oid and source_col.attnum = pair.source_num
+    join pg_catalog.pg_attribute target_col on target_col.attrelid = target.oid and target_col.attnum = pair.target_num
+    where con.contype = 'f'
+      and source_ns.nspname::text = coalesce(nullif(?, ''), pg_catalog.current_schema()::text)
+      and source.relname::text = ?
+    order by con.conname, pair.position";
+
 pub(super) async fn drop_schema_objects(
     connection: &Connection,
     drop_tables: bool,
