@@ -1318,6 +1318,9 @@ impl Grammar {
             return Err(DatabaseError::InvalidSchema("generated column expression"));
         }
         if generated.json && expression.contains("->") {
+            if self.postgres() {
+                return self.grammar.postgres_json_selector(expression);
+            }
             let (column, path) = self.grammar.json_selector(expression)?;
             let path = path.ok_or(DatabaseError::InvalidSchema("generated JSON column path"))?;
             if self.grammar.is_mariadb() || self.sql_server() {

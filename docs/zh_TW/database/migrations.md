@@ -1009,6 +1009,23 @@ async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()>
 }
 ```
 
+#### PostgreSQL JSON 選擇器生成欄位 {#postgresql-generated-json-selectors}
+
+用 `storedAsJson()` 或 `virtualAsJson()` 定義生成欄位，使用 `->` 存取巢狀鍵、方括號存取陣列索引。PostgreSQL 將路徑末項擷取成文字。路徑缺少或 JSON null 會傳回 SQL NULL，路徑可能沒有值時，請宣告 `nullable()`。`01` 這類路徑項目是物件鍵，`[-1]` 選擇陣列最後一項。儲存欄位與虛擬欄位沿用[上文的 PostgreSQL 版本要求](#postgresql-generated-and-identity)。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn create_json_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().create("finance.fixture", |table| {
+        table.integer("id");
+        table.jsonb("payload");
+        table.string("label", 80).storedAsJson("payload->items[0]->label").nullable().index();
+        table.string("locale", 20).virtualAsJson("payload->settings->locale").nullable();
+    }).await
+}
+```
+
 #### PostgreSQL 索引方法與重新命名 {#postgresql-index-methods}
 
 使用 `algorithm("brin")` 指定 PostgreSQL 索引存取方法。由伺服器檢查方法及其是否支援目標欄位或運算式。可與 `online()` 一起使用。`renameIndex()` 從帶有 Schema 的資料表名稱繼承 Schema，也接受明確限定 Schema 的舊索引名稱。資料表與舊索引名稱都未限定 Schema 時，PostgreSQL 依 `search_path` 尋找舊索引。重新命名後的索引仍在原 Schema。

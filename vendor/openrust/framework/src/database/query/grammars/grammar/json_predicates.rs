@@ -125,6 +125,44 @@ impl Grammar {
             .map_or((selector, None), |(column, path)| (column, Some(path)));
         Ok((self.column(column)?, path.map(json_path).transpose()?))
     }
+
+    pub(in crate::database) fn postgres_json_selector(
+        &self,
+        selector: &str,
+    ) -> DatabaseResult<String> {
+        let (column, path) = selector
+            .split_once("->")
+            .ok_or(DatabaseError::InvalidQuery("JSON path"))?;
+        if path.contains('\0') {
+            return Err(DatabaseError::InvalidQuery("JSON path"));
+        }
+        let mut attributes = Vec::new();
+        for segment in path.split("->") {
+            let (key, indices) = path_segment(segment);
+            if !key.is_empty() || indices.is_empty() {
+                attributes.push(key);
+            }
+            attributes.extend(indices.split_terminator(']').map(|index| &index[1..]));
+        }
+        let mut expression = self.column(column)?;
+        let last = attributes.len() - 1;
+        for (index, attribute) in attributes.into_iter().enumerate() {
+            expression.push_str(if index == last { "->>" } else { "->" });
+            expression.push_str(&postgres_json_attribute(attribute));
+        }
+        Ok(expression)
+    }
+}
+
+fn postgres_json_attribute(attribute: &str) -> String {
+    let value = attribute.trim_matches([' ', '\t', '\n', '\r', '\u{b}']);
+    let digits = value.strip_prefix(['+', '-']).unwrap_or(value);
+    if (digits == "0" || !digits.starts_with('0'))
+        && let Ok(index) = value.parse::<i64>()
+    {
+        return index.to_string();
+    }
+    format!("E'{}'", attribute.replace('\\', "\\\\").replace('\'', "''"))
 }
 
 fn sqlite_json_scalar(value: &JsonValue) -> DatabaseResult<Value> {

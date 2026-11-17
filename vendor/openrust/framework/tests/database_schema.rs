@@ -6591,3 +6591,120 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn postgres_generated_json_columns_use_native_selector_semantics() {
+    let preview = connection(json!({"driver":"pgsql"}));
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .create("tenant.documents", |table| {
+                        table.jsonb("payload");
+                        table
+                            .string("label", 80)
+                            .storedAsJson("payload->items[0][1]->owner's\\name");
+                        table.string("code", 20).virtualAsJson("payload->codes->01");
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    let sql = &statements[0].query;
+    assert!(sql.contains("\"payload\"->E'items'->0->1->>E'owner''s\\\\name'"));
+    assert!(sql.contains("\"payload\"->E'codes'->>E'01'"));
+    assert!(!sql.contains("json_extract"));
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_GENERATED_JSON_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_GENERATED_JSON").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut tx = db.beginTransaction().await.unwrap();
+    tx.statement("set local standard_conforming_strings = off", &[])
+        .await
+        .unwrap();
+    tx.getSchemaBuilder()
+        .create("generated_json", |table| {
+            table.integer("id");
+            table.jsonb("payload");
+            table
+                .string("label", 80)
+                .storedAsJson("payload->items[0][1]->owner's\\name")
+                .nullable()
+                .index();
+            table
+                .string("code", 20)
+                .virtualAsJson("payload->codes->01")
+                .nullable();
+            table
+                .string("last", 20)
+                .virtualAsJson("payload->names[-1]")
+                .nullable();
+        })
+        .await
+        .unwrap();
+    let payload = |label: &str| {
+        Value::Json(json!({
+            "items":[[{},{"owner's\\name":label}]],
+            "codes":{"01":"zero-prefixed"},
+            "names":["first","last"]
+        }))
+    };
+    tx.statement(
+        "insert into generated_json (id,payload) values (?, ?), (?, ?)",
+        &[
+            1.into(),
+            payload("one"),
+            2.into(),
+            Value::Json(json!({"items":null})),
+        ],
+    )
+    .await
+    .unwrap();
+    let mut schema = tx.getSchemaBuilder();
+    let column = schema
+        .getColumn("generated_json", "label")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(column.generation.unwrap().kind, GenerationType::Stored);
+    assert!(
+        schema
+            .hasIndex("generated_json", "generated_json_label_index")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        tx.scalar(
+            "select label || ':' || code || ':' || last from generated_json where id=1",
+            &[]
+        )
+        .await
+        .unwrap(),
+        "one:zero-prefixed:last".into()
+    );
+    assert_eq!(
+        tx.scalar(
+            "select label is null and code is null and last is null from generated_json where id=2",
+            &[]
+        )
+        .await
+        .unwrap(),
+        true.into()
+    );
+    tx.statement(
+        "update generated_json set payload = ? where id = 1",
+        &[payload("two")],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        tx.scalar("select label from generated_json where id=1", &[])
+            .await
+            .unwrap(),
+        "two".into()
+    );
+    tx.rollBack(None).await.unwrap();
+}

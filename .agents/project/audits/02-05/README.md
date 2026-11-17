@@ -501,3 +501,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过三项 Schema／TDS 用例及迁移事务用例。验证默认约束名转义、列级检查移除、表级检查和其他列默认值保留，以及收窄失败后原数据和旧默认约束恢复。实际 Artisan 预演、失败后账本无记录、成功重跑及回滚通过。HTTP 验证去除默认约束和删列，以及回滚后列与默认约束恢复。
 - MySQL 8.4.13 改列及表目录回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。原生 Linux x86_64 与 SQL Server 2017 仍待发布复验。SQL Server 计算列的持久化方式切换尚待对齐。
 - 核心账本维持 62/66。临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 104.38 GB（97.21 GiB）。提交前周额度剩余 42%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-change.xipEUxRa`。
+
+## PostgreSQL JSON 选择器生成列
+
+- 对照固定 Laravel PostgreSQL 的 `wrapJsonSelector` 和生成列修饰符。Rust 的 `storedAsJson()` 和 `virtualAsJson()` 逐级使用 `->`，末端使用 `->>` 取文本。复用现有路径分段规则及旧版 `397f308f4` 中 `pg_json_path_template` 的整数判定和 `E` 字面量转义，保持反斜线语义。 [固定 Laravel PostgreSQL 查询 Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/PostgresGrammar.php) · [PostgreSQL JSON 运算符](https://www.postgresql.org/docs/18/functions-json.html)
+- PostgreSQL 18.6 定向回归覆盖嵌套数组、负下标、前导零对象键、引号和反斜线、缺失路径返回 NULL、索引和数据更新，也在 `standard_conforming_strings = off` 下执行。实际 Artisan 预演、迁移和回滚通过，HTTP 验证存储列和虚拟列在源 JSON 更新后返回新值，回滚后表已移除。
+- PostgreSQL 定向测试、MySQL 8.4.13 生成列及 `sh tests/table_catalog.sh`、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。核心账本维持 62/66。临时数据库和本批编译产物已回收，项目盘空间净增 3.70 GB（3.44 GiB），剩余 104.34 GB（97.17 GiB）。提交前周额度剩余 42%。日志和验收夹具保留于 `/private/tmp/openrust-02-05-pg-json-generated.DDhSn8Ff`。
