@@ -28,6 +28,7 @@ pub use crate::pipeline::Pipeline;
 pub use crate::process::Process;
 pub use crate::queue::QueueFacade as Queue;
 pub use crate::redis::Redis;
+pub use crate::session::Session;
 pub use crate::translation::Lang;
 pub use crate::validation::facade::Validator;
 pub use config::Config;

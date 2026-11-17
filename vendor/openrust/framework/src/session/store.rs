@@ -88,6 +88,21 @@ impl Store {
         }
     }
 
+    /// Checks for non-null old input at a key, or any entries in the old input bag.
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn hasOldInput(&self, key: Option<&str>) -> bool {
+        match key {
+            Some(key) => self
+                .getOldInput(Some(key))
+                .is_some_and(|value| !value.is_null()),
+            None => match self.getOldInput(None) {
+                Some(Value::Array(items)) => !items.is_empty(),
+                Some(Value::Object(items)) => !items.is_empty(),
+                _ => false,
+            },
+        }
+    }
+
     /// Flashes one error bag while preserving other bags from this request.
     #[allow(non_snake_case, reason = "Matches Laravel's error bag conventions")]
     pub fn flashErrors(

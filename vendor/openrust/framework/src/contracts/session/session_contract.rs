@@ -27,6 +27,19 @@ pub trait Session: Send + Sync {
     fn forget(&mut self, keys: &[&str]);
     fn flush(&mut self);
 
+    /// Stores each key and value using the same path rules as `put`.
+    fn putMany(&mut self, values: &[(String, Value)]) -> SessionResult<()> {
+        for (key, value) in values {
+            self.put(key, value.clone())?;
+        }
+        Ok(())
+    }
+
+    /// Replaces the supplied attributes and keeps all other attributes.
+    fn replace(&mut self, values: &[(String, Value)]) -> SessionResult<()> {
+        self.putMany(values)
+    }
+
     /// Returns matching top-level keys, including explicitly null values.
     fn only(&self, keys: &[&str]) -> BTreeMap<String, Value> {
         let attributes = self.all();

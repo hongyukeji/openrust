@@ -1,6 +1,7 @@
 use std::{
+    collections::HashMap,
     path::PathBuf,
-    sync::{Arc, OnceLock},
+    sync::{Arc, OnceLock, RwLock},
     time::Duration,
 };
 
@@ -8,6 +9,7 @@ use serde::Deserialize;
 
 use crate::{
     cache::CacheManager,
+    container::Container,
     contracts::{
         container::Container as _,
         encryption::Encrypter,
@@ -76,10 +78,15 @@ pub struct SessionManager {
     settings: Settings,
     database: Arc<DatabaseManager>,
     array: ArraySessionHandler,
-    cache: Option<CacheBasedSessionHandler>,
+    cache: Arc<CacheManager>,
+    cache_handler: OnceLock<CacheBasedSessionHandler>,
+    factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     base: PathBuf,
     lifetime: Duration,
 }
+
+type DriverFactory =
+    dyn Fn(&Container, &Request) -> SessionResult<Box<dyn SessionHandler>> + Send + Sync;
 
 pub(super) struct RequestSession {
     pub(super) store: Store,
@@ -90,7 +97,7 @@ impl SessionManager {
     pub(crate) fn new(
         config: Option<Value>,
         database: Arc<DatabaseManager>,
-        cache: &CacheManager,
+        cache: Arc<CacheManager>,
         base: PathBuf,
     ) -> SessionResult<Self> {
         let settings: Settings = match config {
@@ -108,42 +115,66 @@ impl SessionManager {
             return Err(SessionError::Configuration);
         }
         let lifetime = Duration::from_secs(lifetime);
-        let store_name = |driver| {
-            settings
-                .store
-                .as_deref()
-                .filter(|name| !name.is_empty())
-                .unwrap_or(driver)
-        };
-        let cache = match settings.driver.as_deref() {
-            Some("redis") => Some(CacheBasedSessionHandler::new(
-                Arc::new(
-                    cache
-                        .redis_session_store(
-                            store_name("redis"),
-                            settings.connection.as_deref(),
-                            settings.prefix.as_deref(),
-                        )
-                        .map_err(|_| SessionError::Configuration)?,
-                ),
-                lifetime,
-            )),
-            Some(driver @ ("apc" | "memcached" | "dynamodb")) => {
-                let repository = cache
-                    .store(Some(store_name(driver)))
-                    .map_err(|_| SessionError::Configuration)?;
-                Some(CacheBasedSessionHandler::new(repository, lifetime))
-            }
-            _ => None,
-        };
         Ok(Self {
             settings,
             database,
             array: ArraySessionHandler::new(lifetime),
             cache,
+            cache_handler: OnceLock::new(),
+            factories: RwLock::default(),
             base,
             lifetime,
         })
+    }
+
+    /// Registers a creator for a fresh handler on each request using the named driver.
+    pub fn extend<H: SessionHandler + 'static>(
+        &self,
+        driver: impl Into<String>,
+        factory: impl Fn(&Container, &Request) -> SessionResult<H> + Send + Sync + 'static,
+    ) -> SessionResult<&Self> {
+        let driver = driver.into();
+        if driver.trim().is_empty() {
+            return Err(SessionError::Configuration);
+        }
+        let previous = self
+            .factories
+            .write()
+            .map_err(|_| SessionError::Storage)?
+            .insert(
+                driver,
+                Arc::new(move |container, request| Ok(Box::new(factory(container, request)?))),
+            );
+        drop(previous);
+        Ok(self)
+    }
+
+    fn cache_handler(&self, driver: &str) -> SessionResult<CacheBasedSessionHandler> {
+        if let Some(handler) = self.cache_handler.get() {
+            return Ok(handler.clone());
+        }
+        let store = self
+            .settings
+            .store
+            .as_deref()
+            .filter(|name| !name.is_empty())
+            .unwrap_or(driver);
+        let repository = if driver == "redis" {
+            self.cache
+                .redis_session_store(
+                    store,
+                    self.settings.connection.as_deref(),
+                    self.settings.prefix.as_deref(),
+                )
+                .map(Arc::new)
+        } else {
+            self.cache.store(Some(store))
+        }
+        .map_err(|_| SessionError::Configuration)?;
+        Ok(self
+            .cache_handler
+            .get_or_init(|| CacheBasedSessionHandler::new(repository, self.lifetime))
+            .clone())
     }
 
     pub(crate) fn cookie_name(&self) -> &str {
@@ -182,51 +213,65 @@ impl SessionManager {
         id: Option<&str>,
     ) -> SessionResult<Option<RequestSession>> {
         let mut database_user = None;
-        let handler: Box<dyn SessionHandler> = match self.settings.driver.as_deref() {
-            None => return Ok(None),
-            Some("database") => {
-                let db = self
-                    .database
-                    .connection(self.settings.connection.as_deref())
-                    .map_err(|_| SessionError::Storage)?;
-                let mut handler =
-                    DatabaseSessionHandler::new(db, &self.settings.table, self.settings.lifetime)?;
-                handler.setMetadata(DatabaseSessionMetadata {
-                    user_id: None,
-                    ip_address: Some(request.ip().map(|address| address.to_string())),
-                    user_agent: Some(
-                        request
-                            .headers()
-                            .get(::http::header::USER_AGENT)
-                            .map(|agent| String::from_utf8_lossy(agent.as_bytes()).into_owned())
-                            .unwrap_or_default(),
-                    ),
-                });
-                database_user = Some(handler.track_request_user());
-                Box::new(handler)
+        let Some(driver) = self.settings.driver.as_deref() else {
+            return Ok(None);
+        };
+        let custom = self
+            .factories
+            .read()
+            .map_err(|_| SessionError::Storage)?
+            .get(driver)
+            .cloned();
+        let handler: Box<dyn SessionHandler> = if let Some(factory) = custom {
+            let container = facades::current_container().ok_or(SessionError::Configuration)?;
+            factory(&container, request)?
+        } else {
+            match driver {
+                "database" => {
+                    let db = self
+                        .database
+                        .connection(self.settings.connection.as_deref())
+                        .map_err(|_| SessionError::Storage)?;
+                    let mut handler = DatabaseSessionHandler::new(
+                        db,
+                        &self.settings.table,
+                        self.settings.lifetime,
+                    )?;
+                    handler.setMetadata(DatabaseSessionMetadata {
+                        user_id: None,
+                        ip_address: Some(request.ip().map(|address| address.to_string())),
+                        user_agent: Some(
+                            request
+                                .headers()
+                                .get(::http::header::USER_AGENT)
+                                .map(|agent| String::from_utf8_lossy(agent.as_bytes()).into_owned())
+                                .unwrap_or_default(),
+                        ),
+                    });
+                    database_user = Some(handler.track_request_user());
+                    Box::new(handler)
+                }
+                "array" => Box::new(self.array.clone()),
+                "file" | "native" => {
+                    let directory = match &self.settings.files {
+                        Some(path) if path.as_os_str().is_empty() => {
+                            return Err(SessionError::Configuration);
+                        }
+                        Some(path) => self.base.join(path),
+                        None => self.base.join("storage/framework/sessions"),
+                    };
+                    Box::new(FileSessionHandler::new(directory, self.lifetime)?)
+                }
+                "null" => Box::new(NullSessionHandler),
+                "cookie" => Box::new(CookieSessionHandler::for_request(
+                    request,
+                    id,
+                    self.settings.lifetime,
+                    self.settings.expire_on_close,
+                )?),
+                "redis" | "apc" | "memcached" | "dynamodb" => Box::new(self.cache_handler(driver)?),
+                _ => return Err(SessionError::Configuration),
             }
-            Some("array") => Box::new(self.array.clone()),
-            Some("file" | "native") => {
-                let directory = match &self.settings.files {
-                    Some(path) if path.as_os_str().is_empty() => {
-                        return Err(SessionError::Configuration);
-                    }
-                    Some(path) => self.base.join(path),
-                    None => self.base.join("storage/framework/sessions"),
-                };
-                Box::new(FileSessionHandler::new(directory, self.lifetime)?)
-            }
-            Some("null") => Box::new(NullSessionHandler),
-            Some("cookie") => Box::new(CookieSessionHandler::for_request(
-                request,
-                id,
-                self.settings.lifetime,
-                self.settings.expire_on_close,
-            )?),
-            Some("redis" | "apc" | "memcached" | "dynamodb") => {
-                Box::new(self.cache.clone().ok_or(SessionError::Configuration)?)
-            }
-            Some(_) => return Err(SessionError::Configuration),
         };
         let handler = if self.settings.encrypt {
             let encrypter = facades::current_container()

@@ -36,6 +36,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                     "name": request.old(Some("profile.name")),
                     "explicit_null": request.old(Some("profile.description")).is_some(),
                     "all": request.old(None),
+                    "has_name": request.session()?.hasOldInput(Some("profile.name")),
+                    "has_null": request.session()?.hasOldInput(Some("profile.description")),
+                    "has_any": request.session()?.hasOldInput(None),
                 }),
             );
         }
@@ -77,8 +80,12 @@ fn session_data_route(request: &mut Request, action: &str) -> Result<Response, H
 
     let session = request.session_mut()?;
     if action == "seed" {
-        session.put("profile.name", json!("Ada"))?;
-        session.put("profile.note", Value::Null)?;
+        session.putMany(&[
+            ("profile.name".into(), json!("before")),
+            ("profile.note".into(), Value::Null),
+        ])?;
+        session.replace(&[("profile.name".into(), json!("Ada"))])?;
+        assert!(session.exists("profile.note"));
         session.push("teams", json!("ops"))?;
         session.put("mixed", json!({"2": "existing", "label": true}))?;
         session.push("mixed", json!("new"))?;
@@ -1116,6 +1123,89 @@ async fn a_failed_save_preserves_flash_state_for_retry() {
 }
 
 #[tokio::test]
+async fn provider_registers_a_request_bound_session_driver_per_application() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use openrust::{
+        contracts::session::SessionHandler as _,
+        session::{ArraySessionHandler, SessionError},
+        support::{ProviderResult, ServiceProvider, facades::Session as SessionFacade},
+    };
+
+    struct Custom {
+        storage: ArraySessionHandler,
+        resolutions: Arc<AtomicUsize>,
+    }
+
+    impl ServiceProvider for Custom {
+        fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                let storage = self.storage.clone();
+                let resolutions = self.resolutions.clone();
+                SessionFacade::extend("redis", move |_, request| {
+                    if !request.headers().contains_key("user-agent") {
+                        return Err(SessionError::Configuration);
+                    }
+                    resolutions.fetch_add(1, Ordering::Relaxed);
+                    Ok(storage.clone())
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    let start =
+        async || {
+            let root = tempfile::tempdir().unwrap();
+            let storage = ArraySessionHandler::new(Duration::from_secs(60));
+            let resolutions = Arc::new(AtomicUsize::new(0));
+            let app =
+                Application::configure(root.path().to_path_buf())
+                    .withConfig(|_, _| {
+                        Ok([
+                ("app".into(), json!({"key": "a".repeat(32)})),
+                ("session".into(), json!({
+                    "driver": "redis", "store": "unavailable",
+                    "cookie": "probe_session", "encrypt": true, "expire_on_close": true,
+                })),
+            ].into())
+                    })
+                    .withProviders(vec![Box::new(Custom {
+                        storage: storage.clone(),
+                        resolutions: resolutions.clone(),
+                    }) as Box<dyn ServiceProvider>])
+                    .withRouting(Routing::default().web(register))
+                    .create()
+                    .unwrap();
+            let mut kernel = Kernel::new(app);
+            kernel.bootstrap().await.unwrap();
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let service = transport.with_state(Arc::new(kernel)).into_make_service();
+            let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+            (root, storage, resolutions, address, server)
+        };
+    let (_root, mut storage, calls, first, first_server) = start().await;
+    let (_other, _, other_calls, second, second_server) = start().await;
+    let seeded = send(first, "seed", "").await;
+    let (cookie, state) = read(&seeded);
+    let payload = storage
+        .read(state["id"].as_str().unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(Encrypter::appearsEncrypted(
+        std::str::from_utf8(&payload).unwrap()
+    ));
+    assert_eq!(read(&send(first, "read", cookie).await).1["name"], "Ada");
+    assert!(read(&send(second, "read", cookie).await).1["name"].is_null());
+    assert_eq!(calls.load(Ordering::Relaxed), 2);
+    assert_eq!(other_calls.load(Ordering::Relaxed), 1);
+    first_server.abort();
+    second_server.abort();
+}
+
+#[tokio::test]
 async fn old_input_can_be_read_once_through_the_http_request() {
     let (address, server, _) = start("array", true).await;
     let flashed = send(address, "flash-input", "").await;
@@ -1125,14 +1215,15 @@ async fn old_input_can_be_read_once_through_the_http_request() {
     assert_eq!(
         values,
         json!({
-            "name":"Ada","explicit_null":true,"all":{"profile":{"name":"Ada","description":null}}
+            "name":"Ada","explicit_null":true,"all":{"profile":{"name":"Ada","description":null}},
+            "has_name":true,"has_null":false,"has_any":true,
         })
     );
     let expired = send(address, "old", cookie).await;
     let (_, values) = read(&expired);
     assert_eq!(
         values,
-        json!({"name":null,"explicit_null":false,"all":null})
+        json!({"name":null,"explicit_null":false,"all":null,"has_name":false,"has_null":false,"has_any":false})
     );
     server.abort();
 }

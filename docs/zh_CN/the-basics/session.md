@@ -38,6 +38,8 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 用 `push` 向数组或关联数组追加值。`increment` 和 `decrement` 接收显式整数步长，返回更新后的 JSON 值。输入无效时返回错误并保留原值。
 
+用 `putMany` 同时写入多个键，支持点号路径。`replace` 更新指定键并保留其他属性。`hasOldInput(Some(key))` 检查指定闪存字段是否非空，`hasOldInput(None)` 检查旧输入是否包含任何条目。
+
 ## 闪存数据
 
 `flash` 写入的值在当前请求和下一次请求可用。用 `keep` 延长指定字段的可用期，或用 `reflash` 将所有闪存数据保留到再下一次请求。
@@ -86,3 +88,31 @@ Route::getWith("/profile", remember, |route| {
 用 `SESSION_BLOCK=true` 为所有启动会话的路由启用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 设置默认值，两者均默认 10 秒。路由上的显式设置覆盖默认值。`withoutBlocking()` 清除路由级设置。开启全局阻塞后，这条路由仍使用全局设置。
 
 用 `SESSION_BLOCK_STORE` 选择支持原子锁的缓存存储，例如 `redis`。省略该配置时使用默认缓存存储。多个应用进程需要使用共享存储，`array` 缓存只协调同一进程中的请求。
+
+## 添加自定义会话驱动
+
+实现 `SessionHandler`，负责读取、写入、删除和回收会话记录。处理器存储框架提供的字节。在服务提供者的 `boot` 方法中调用 `Session::extend` 注册工厂。工厂可访问当前容器和请求，为本次请求创建处理器。
+
+```rust
+use std::time::Duration;
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    session::ArraySessionHandler,
+    support::{ProviderResult, ServiceProvider, facades::Session},
+};
+
+struct AppSessionProvider;
+
+impl ServiceProvider for AppSessionProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            let storage = ArraySessionHandler::new(Duration::from_secs(120 * 60));
+            Session::extend("app_memory", move |_, _| Ok(storage.clone()))?;
+            Ok(())
+        })
+    }
+}
+```
+
+将此服务提供者注册到应用并设置 `SESSION_DRIVER=app_memory`。示例将记录保存在应用进程内，跨进程持久化可使用共享后端。

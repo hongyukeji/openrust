@@ -79,3 +79,10 @@
 - 固定 Laravel 的原生 Store 在 PHP 8.5.12 通过行为对照。Rust 在基线 `8e5bcf3b3`、macOS arm64、Rust 1.94.0 上通过真实 MySQL 8.4.13 跨三次 HTTP 请求的读写回归。覆盖字面键与点号路径、显式空值、惰性命中与回调失败、关联数组递增键、数值字符串与浮点提升、无效值及再次读取。
 - MySQL 和 Redis 8.10.3 共 19 项 Session、Cookie 和 CSRF 回归通过。独立 Artisan、严格 Clippy、改动文件格式、三语站点和 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412` 差异。临时服务和 3.3 GiB Cargo 产物已回收，日志保留于 `/private/tmp/openrust-04-04-session-data.SgXufiV4`。
 - 04-04 继续核对批量写入、旧输入存在检查和应用级自定义 Session 驱动注册。 [Laravel Session 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md)
+
+## 自定义驱动与整单元验收
+
+- 对照固定 Laravel Store 和 SessionManager，接通 `putMany`、合并式 `replace`、`hasOldInput` 和 Provider `boot` 中的 `Session::extend`。沿用旧版 `v0.x` 批量属性处理和可替换后端机制。Rust 为每次请求创建 handler，应用以自己的工厂共享底层存储。内置缓存连接按需解析，注册同名驱动时优先调用应用工厂。 [Laravel SessionManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/SessionManager.php) · [Laravel 自定义会话驱动](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md#adding-custom-session-drivers)
+- 固定 Laravel Store 在 PHP 8.5.12 通过批量合并、点号键和旧输入的空值判断。隔离基线 `596af0a6d` 在真实 MySQL 8.4.13 和 Redis 8.10.3 通过 20 项 Session、Cookie 和 CSRF 回归。TCP 验证 Provider 注册、同名驱动跨应用隔离、每请求创建和加密包装。三语文档使用同一可编译 Provider 示例。
+- 三语 Provider 示例实际编译，通过真实 HTTP 用同一 Cookie 连续计数。独立 Artisan、严格 Clippy、改动文件格式、三语站点及 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。临时服务及 3.9 GiB 本批 Cargo 产物已回收，日志保留于 `/private/tmp/openrust-04-04-session-extension.o0Ye3y1K`。
+- 04-04 计划范围闭合。现有验收覆盖默认 Cookie、Session、CSRF 栈、真实 MySQL 会话生命周期、Redis 请求锁、其他核心驱动和自定义驱动。Rust 业务代码通过请求访问会话，载荷使用 JSON。PHP 专用 APCu、托管后端和发布环境各按对应范围跟踪。Precognition 单独作为扩展交付。

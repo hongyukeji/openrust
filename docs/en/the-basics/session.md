@@ -38,6 +38,8 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 Use `push` to append to an array or associative array. `increment` and `decrement` take an explicit integer amount and return the new JSON value. An invalid input returns an error and preserves the original entry.
 
+Use `putMany` to set multiple keys, including dotted paths. `replace` updates the supplied keys and keeps the other attributes. Use `hasOldInput(Some(key))` to check for a non-null flashed field, or `hasOldInput(None)` to check whether the old input bag has any entries.
+
 ## Flash Data
 
 `flash` makes a value available immediately and on the next request. Use `keep` for selected keys or `reflash` for all flash data to retain it for another request.
@@ -86,3 +88,31 @@ The first argument is the lock lifetime and the second is the maximum time to wa
 Set `SESSION_BLOCK=true` to apply blocking to every route that starts a session. Configure the defaults with `SESSION_BLOCK_LOCK_SECONDS` and `SESSION_BLOCK_WAIT_SECONDS` (both 10 seconds). A route's explicit settings override the defaults. `withoutBlocking()` clears the route-specific settings. When global blocking is enabled, the route still uses the global settings.
 
 Set `SESSION_BLOCK_STORE` to a cache store that supports atomic locks, such as `redis`. The default cache store is used when this option is unset. Use a shared store across application processes. The `array` cache only coordinates requests within one process.
+
+## Adding Custom Session Drivers
+
+Implement `SessionHandler` to read, write, destroy and collect session records. The handler stores bytes supplied by the framework. Register a factory with `Session::extend` in a service provider's `boot` method. It receives the current container and request, and creates a handler for that request.
+
+```rust
+use std::time::Duration;
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    session::ArraySessionHandler,
+    support::{ProviderResult, ServiceProvider, facades::Session},
+};
+
+struct AppSessionProvider;
+
+impl ServiceProvider for AppSessionProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            let storage = ArraySessionHandler::new(Duration::from_secs(120 * 60));
+            Session::extend("app_memory", move |_, _| Ok(storage.clone()))?;
+            Ok(())
+        })
+    }
+}
+```
+
+Register this provider with the application and set `SESSION_DRIVER=app_memory`. The example keeps records in the application process. A shared backend can persist records across processes.

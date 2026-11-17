@@ -38,6 +38,8 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 用 `push` 向陣列或關聯陣列追加值。`increment` 和 `decrement` 接收明確的整數步長，傳回更新後的 JSON 值。輸入無效時傳回錯誤並保留原值。
 
+用 `putMany` 同時寫入多個鍵，支援點號路徑。`replace` 更新指定鍵並保留其他屬性。`hasOldInput(Some(key))` 檢查指定快閃欄位是否非空，`hasOldInput(None)` 檢查舊輸入是否包含任何項目。
+
 ## 快閃資料
 
 `flash` 寫入的值在目前請求和下一次請求可用。用 `keep` 延長指定欄位的可用時間，或用 `reflash` 將所有快閃資料保留到再下一次請求。
@@ -86,3 +88,31 @@ Route::getWith("/profile", remember, |route| {
 用 `SESSION_BLOCK=true` 為所有啟動工作階段的路由啟用阻塞。用 `SESSION_BLOCK_LOCK_SECONDS` 和 `SESSION_BLOCK_WAIT_SECONDS` 設定預設值，兩者均預設為 10 秒。路由上的明確設定覆蓋預設值。`withoutBlocking()` 清除路由層級設定。啟用全域阻塞後，這條路由仍使用全域設定。
 
 用 `SESSION_BLOCK_STORE` 選擇支援不可分割鎖定的快取儲存體，例如 `redis`。省略此設定時使用預設快取儲存體。多個應用程式程序需要使用共用儲存體，`array` 快取只協調同一個程序中的請求。
+
+## 新增自訂工作階段驅動程式
+
+實作 `SessionHandler`，負責讀取、寫入、刪除和回收工作階段記錄。處理器儲存框架提供的位元組。在服務提供者的 `boot` 方法中呼叫 `Session::extend` 註冊工廠。工廠可存取目前容器和請求，為這次請求建立處理器。
+
+```rust
+use std::time::Duration;
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    session::ArraySessionHandler,
+    support::{ProviderResult, ServiceProvider, facades::Session},
+};
+
+struct AppSessionProvider;
+
+impl ServiceProvider for AppSessionProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            let storage = ArraySessionHandler::new(Duration::from_secs(120 * 60));
+            Session::extend("app_memory", move |_, _| Ok(storage.clone()))?;
+            Ok(())
+        })
+    }
+}
+```
+
+將這個服務提供者註冊到應用程式並設定 `SESSION_DRIVER=app_memory`。範例將記錄保存在應用程式程序內，跨程序持久化可使用共用後端。

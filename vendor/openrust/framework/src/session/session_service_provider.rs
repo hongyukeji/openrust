@@ -27,7 +27,7 @@ impl ServiceProvider for SessionServiceProvider {
                 let config = container.get::<dyn Repository>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let cache = container.get::<CacheManager>("cache")?;
-                SessionManager::new(config.get("session"), database, &cache, base.clone())
+                SessionManager::new(config.get("session"), database, cache, base.clone())
                     .map(Arc::new)
                     .map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "session",
