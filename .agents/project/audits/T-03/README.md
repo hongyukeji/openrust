@@ -67,3 +67,10 @@
 - `TestApp::seed()` 运行 `DatabaseSeeder`，`seedWith` 接收名称切片，`seedOn` 显式选择连接。每项调用同一应用的 Artisan，非零退出状态返回错误并停止列表。测试回调里的 Seeder 写入沿用已选连接的事务范围。
 - 隔离基线 `05f147478`。用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1` 验证真实 MySQL 8.4.13 十一项。覆盖默认填充、空列表、限定名称、实际插入顺序、未知 Seeder 及列表停止、双库回滚和未选库独立提交。
 - 三语示例提取后在独立 MySQL 运行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-test-seeders.caL3ZHPb`。
+
+## 逐用例迁移与回滚
+
+- 对照固定 Laravel 的 `DatabaseMigrations::runDatabaseMigrations`、`CanConfigureMigrationCommands` 及 `DatabaseMigrationsTest`。固定 Goravel 通过 Artisan 启动夹具迁移。核对 `v0.x` 的迁移机制和测试库租约，复用现有受管 MySQL 夹具、迁移命令与已验证的应用作用域。 [Laravel 数据库重置](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md#resetting-the-database-after-each-test) · [Laravel DatabaseMigrations 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/Testing/DatabaseMigrationsTest.php)
+- `runDatabaseMigrations` 通过 `migrate:fresh` 准备受管默认库，允许回调自行提交事务，随后在同一库执行 `migrate:rollback`。支持默认或具名 Seeder、清除视图。回调返回错误或 panic 时仍回滚，并保留原始失败。Rust 用 Future 回调表达测试边界，取消后由 `close().await` 或下一次数据库重置等待并完成回滚。PostgreSQL 的类型清理随驱动验收跟踪。
+- 隔离基线 `e0c46b1b2`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，真实 MySQL 8.4.13 十三项通过。覆盖实际 Artisan、视图和 Seeder 参数、HTTP 写入对独立任务可见、第二库隔离、回调错误、panic、准备失败后的回滚和再次执行、重入拒绝，以及取消后关闭时收到回滚完成事件。
+- 三语文档示例在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-database-migrations.16ZLf7Ig`。

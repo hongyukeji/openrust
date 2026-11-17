@@ -21,7 +21,10 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::{TestApp, TestCommand};
+use super::{
+    TestApp, TestCommand,
+    database_migrations::{finish_database_work, fresh_migration_arguments},
+};
 
 const FILE: &str = "testing.sqlite";
 
@@ -207,15 +210,13 @@ impl TestApp {
             // Keep the schema lease until any in-flight migration unwinds.
             let _ = task.await;
         }
-        let queries = self.query_counts.finish();
+        let migration = self.settle_database_migrations().await;
+        let queries = self.query_counts.finish().map_err(Into::into);
         let mysql = std::mem::take(&mut self.mysql);
         drop(self);
-        let cleanup = close_mysql(mysql).await;
-        if let (Err(queries), Err(cleanup)) = (&queries, &cleanup) {
-            return Err(io::Error::other(format!("{queries}\n{cleanup}")).into());
-        }
-        queries.and(cleanup)?;
-        Ok(())
+        let cleanup = close_mysql(mysql).await.map_err(Into::into);
+        let checks = finish_database_work(migration, queries);
+        finish_database_work(checks, cleanup)
     }
 
     /// Boots the test application and resolves its default database connection.
@@ -341,11 +342,7 @@ impl TestApp {
             options.connections_to_transact.iter().map(String::as_str),
         )?;
         test_transaction::validate(&connections)?;
-        let owners = self.app().container().make::<MySqlTestOwners>()?;
-        if !owners
-            .0
-            .get(connection.getName())
-            .is_some_and(|owner| owner.is_schema(connection.getDatabaseName()))
+        if !self.owns_mysql_schema(&connection)?
             || test_transaction::active(&connection)
             || connections.iter().any(test_transaction::active)
         {
@@ -354,36 +351,22 @@ impl TestApp {
             )
             .into());
         }
-        if matches!(self.refreshed, Some(RefreshState::Preparing(..))) {
-            // A cancelled caller can leave its migration running. Settle it
-            // before retrying or starting a differently configured refresh.
-            let _ = self.finish_refresh().await;
-        }
+        self.settle_database_migrations().await?;
+        self.wait_for_refresh().await;
         let prepared = self.refreshed.take();
         if !matches!(prepared, Some(RefreshState::Ready(ready)) if ready == options) {
-            let mut arguments = vec![
-                "migrate:fresh".to_owned(),
-                format!("--database={}", connection.getName()),
-                "--no-interaction".to_owned(),
-            ];
-            if options.drop_views {
-                arguments.push("--drop-views".into());
-            }
-            if let Some(seeder) = &options.seeder {
-                arguments.push(format!("--seeder={seeder}"));
-            } else if options.seed {
-                arguments.push("--seed".into());
-            }
+            let arguments = fresh_migration_arguments(
+                &connection,
+                options.drop_views,
+                options.seed,
+                options.seeder.as_deref(),
+            );
             let muted = if options.without_migration_events {
                 connections.clone()
             } else {
                 Vec::new()
             };
-            let task = self.spawn_refresh(
-                connection,
-                muted,
-                arguments.into_iter().map(Into::into).collect(),
-            );
+            let task = self.spawn_migration_command(connection, muted, arguments);
             self.refreshed = Some(RefreshState::Preparing(options.clone(), task));
             self.finish_refresh().await?;
             self.refreshed = None;
@@ -391,6 +374,28 @@ impl TestApp {
         let result = test_transaction::run(connections, async { test(self).await }).await?;
         self.refreshed = Some(RefreshState::Ready(options));
         result
+    }
+
+    pub(super) fn owns_mysql_schema(&self, connection: &Connection) -> DatabaseResult<bool> {
+        if self.mysql.is_empty() {
+            return Ok(false);
+        }
+        let owners = self
+            .app()
+            .container()
+            .make::<MySqlTestOwners>()
+            .map_err(crate::database::DatabaseError::Unavailable)?;
+        Ok(owners
+            .0
+            .get(connection.getName())
+            .is_some_and(|owner| owner.is_schema(connection.getDatabaseName())))
+    }
+
+    pub(super) async fn wait_for_refresh(&mut self) {
+        if matches!(self.refreshed, Some(RefreshState::Preparing(..))) {
+            // A cancelled caller can leave its migration running.
+            let _ = self.finish_refresh().await;
+        }
     }
 
     async fn finish_refresh(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {

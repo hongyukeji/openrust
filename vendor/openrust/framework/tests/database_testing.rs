@@ -21,7 +21,7 @@ use openrust::{
     },
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider, facades::Route},
-    testing::{RefreshDatabaseOptions, TestApp},
+    testing::{DatabaseMigrationsOptions, RefreshDatabaseOptions, TestApp},
 };
 use serde_json::json;
 use sqlx::{Connection as _, MySqlConnection};
@@ -696,6 +696,166 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
     .fetch_one(server)
     .await?;
     Ok(count != 0)
+}
+
+#[tokio::test]
+async fn mysql_database_migrations_rebuilds_and_rolls_back_the_owned_schema()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+        builder
+            .withProviders(vec![Box::new(InventoryProvider)])
+            .withRouting(Routing::default().web(|| {
+                Route::get("/write", write_item)?;
+                Ok(())
+            }))
+    })
+    .await?;
+    test.artisan(["migrate"]).await.assertSuccessful();
+    test.artisan(["migrate", "--database=reports", "--seed"])
+        .await
+        .assertSuccessful();
+    let primary = test.database().await?;
+    primary
+        .unprepared("CREATE VIEW migration_probe AS SELECT 1 AS n")
+        .await?;
+    test.runDatabaseMigrations(
+        DatabaseMigrationsOptions {
+            drop_views: true,
+            seed: true,
+            seeder: Some("SecondSeeder".into()),
+        },
+        |test| {
+            Box::pin(async {
+                test.assertDatabaseHas("items", &[("name", "second".into())])
+                    .await?;
+                test.assertDatabaseCount("items", 1).await?;
+                let db = test.database().await?;
+                assert!(!db.getSchemaBuilder().hasView("migration_probe").await?);
+                test.get("/write")
+                    .await?
+                    .assertStatus(StatusCode::NO_CONTENT);
+                assert_eq!(
+                    tokio::spawn(async move { db.table("items").count("*").await }).await??,
+                    2
+                );
+
+                let nested = test
+                    .runDatabaseMigrations(DatabaseMigrationsOptions::default(), |_| {
+                        Box::pin(async { Ok(()) })
+                    })
+                    .await
+                    .unwrap_err();
+                assert!(nested.to_string().contains("still active"), "{nested}");
+                Ok(())
+            })
+        },
+    )
+    .await?;
+    assert!(!primary.getSchemaBuilder().hasTable("items").await?);
+    test.assertDatabaseCountOn("items", 1, Some("reports"))
+        .await?;
+
+    let error = test
+        .runDatabaseMigrations(
+            DatabaseMigrationsOptions {
+                seed: true,
+                ..Default::default()
+            },
+            |test| {
+                Box::pin(async {
+                    test.assertDatabaseCount("items", 1).await?;
+                    Err::<(), _>(std::io::Error::other("migration test callback failed").into())
+                })
+            },
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "migration test callback failed");
+    assert!(!primary.getSchemaBuilder().hasTable("items").await?);
+
+    let error = test
+        .runDatabaseMigrations::<()>(
+            DatabaseMigrationsOptions {
+                seeder: Some("UnknownSeeder".into()),
+                ..Default::default()
+            },
+            |_| Box::pin(async { panic!("the callback ran after failed preparation") }),
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("migrate:fresh exited with 1"),
+        "{error}"
+    );
+    assert!(!primary.getSchemaBuilder().hasTable("items").await?);
+    use futures_util::FutureExt as _;
+    let panicked = std::panic::AssertUnwindSafe(
+        test.runDatabaseMigrations::<()>(DatabaseMigrationsOptions::default(), |_| {
+            Box::pin(async { panic!("original test panic") })
+        }),
+    )
+    .catch_unwind()
+    .await
+    .unwrap_err();
+    assert_eq!(
+        panicked.downcast_ref::<&str>(),
+        Some(&"original test panic")
+    );
+    assert!(!primary.getSchemaBuilder().hasTable("items").await?);
+    test.runDatabaseMigrations(DatabaseMigrationsOptions::default(), |test| {
+        Box::pin(async { test.assertDatabaseEmpty("items").await })
+    })
+    .await?;
+    assert!(!primary.getSchemaBuilder().hasTable("items").await?);
+    test.close().await
+}
+
+#[tokio::test]
+async fn mysql_database_migrations_closes_an_interrupted_test_after_rollback()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust::database::events::{MigrationMethod, MigrationsEnded};
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut test = TestApp::mysql(&url, |builder| {
+        builder.withProviders(vec![Box::new(InventoryProvider)])
+    })
+    .await?;
+    let events = test.fakeEvents(&[MigrationsEnded::NAME]).await?;
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let signal = entered.clone();
+    let mut pending = Box::pin(test.runDatabaseMigrations(
+        DatabaseMigrationsOptions::default(),
+        move |_| {
+            Box::pin(async move {
+                signal.notify_one();
+                std::future::pending::<Result<(), Box<dyn Error + Send + Sync>>>().await
+            })
+        },
+    ));
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::select! {
+            () = entered.notified() => {}
+            result = &mut pending => panic!("test finished before cancellation: {result:?}"),
+        }
+    })
+    .await?;
+    drop(pending);
+    events.assertDispatchedTimes(MigrationsEnded::NAME, 1);
+    test.close().await?;
+    let methods: Vec<_> = events
+        .dispatched(MigrationsEnded::NAME)
+        .iter()
+        .map(|event| event.downcast_ref::<MigrationsEnded>().unwrap().method)
+        .collect();
+    assert_eq!(methods, [MigrationMethod::Up, MigrationMethod::Down]);
+    Ok(())
 }
 
 #[tokio::test]

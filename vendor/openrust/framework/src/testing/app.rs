@@ -15,7 +15,7 @@ use crate::{
     http::{Body, Request},
 };
 
-use super::{TestCommand, TestResponse, database::RefreshState};
+use super::{TestCommand, TestResponse, database::RefreshState, database_migrations::MigrationRun};
 
 const RESPONSE_LIMIT: usize = 1024 * 1024;
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -26,6 +26,7 @@ pub struct TestApp {
     http: Option<Kernel>,
     pub(super) mysql: Vec<MySqlTestDatabase>,
     pub(super) refreshed: Option<RefreshState>,
+    pub(super) migration_run: Option<MigrationRun>,
     pub(super) query_counts: Arc<TestQueryCounts>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
@@ -56,6 +57,7 @@ impl TestApp {
             http: None,
             mysql: Vec::new(),
             refreshed: None,
+            migration_run: None,
             query_counts,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
@@ -106,7 +108,7 @@ impl TestApp {
         run_artisan(self.app.share(), arguments).await
     }
 
-    pub(super) fn spawn_refresh(
+    pub(super) fn spawn_migration_command(
         &self,
         connection: Connection,
         muted: Vec<Connection>,

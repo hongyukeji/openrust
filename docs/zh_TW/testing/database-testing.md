@@ -78,6 +78,22 @@ async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Er
 
 將 `without_migration_events` 設為 `true`，可在準備期間抑制所選連線的查詢等連線事件。遷移生命週期事件、查詢日誌和其他連線的事件仍可使用。測試回呼和準備階段以外的命令會正常分發連線事件。
 
+## 重建與復原遷移 {#database-migrations}
+
+需要在測試中自行提交交易時，使用 `runDatabaseMigrations`。它會在夾具的受管預設 MySQL 連線先執行 `migrate:fresh`，回呼結束後再執行 `migrate:rollback`。回呼回傳錯誤或 panic 時也會復原同一個測試資料庫。
+
+設定 `drop_views` 可在重建時一併刪除檢視表。設定 `seed` 可執行預設 Seeder，也可透過 `seeder` 指定名稱。取消該 Future 後，呼叫 `close().await` 或啟動下一次資料庫重設，完成待處理的復原。
+
+```rust
+use openrust::testing::{DatabaseMigrationsOptions, TestApp};
+
+async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.runDatabaseMigrations(DatabaseMigrationsOptions::default(), |test| {
+        Box::pin(async { test.assertDatabaseEmpty("items").await })
+    }).await
+}
+```
+
 ## MySQL 交易隔離 {#mysql-transaction-isolation}
 
 為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.databaseTransaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。

@@ -78,6 +78,22 @@ A migration or Seeder failure returns before the callback and leaves the fixture
 
 Set `without_migration_events: true` to mute query and other connection events on the selected connections during preparation. Migration lifecycle events, query logs, and events from other connections remain available. The test callback and commands run outside preparation dispatch connection events normally.
 
+## Rebuilding and rolling back migrations {#database-migrations}
+
+Use `runDatabaseMigrations` when a test needs to commit its own transactions. On the fixture’s managed default MySQL connection, it runs `migrate:fresh` before the callback and `migrate:rollback` afterward, including when the callback returns an error or panics. The rollback targets the same schema used for preparation.
+
+Set `drop_views` to include views in the rebuild. Set `seed` to run the default seeder, or supply `seeder` to select a named one. After cancelling the future, call `close().await` or start another database reset to finish the pending rollback.
+
+```rust
+use openrust::testing::{DatabaseMigrationsOptions, TestApp};
+
+async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.runDatabaseMigrations(DatabaseMigrationsOptions::default(), |test| {
+        Box::pin(async { test.assertDatabaseEmpty("items").await })
+    }).await
+}
+```
+
 ## MySQL transaction isolation {#mysql-transaction-isolation}
 
 Configure the test application to use a dedicated MySQL test database. Run migrations and baseline seeders before calling `test.databaseTransaction`. Inside the callback, HTTP requests, in-process Artisan commands, and database assertions on the default connection share one session. The helper rolls back on success or error, and application transactions use savepoints.
