@@ -8,6 +8,24 @@
 
 在 Builder 回呼中依應用程式的組裝方式註冊遷移和 Seeder，再執行 `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`。在同一夾具內重新建表和填充時使用 `migrate:fresh --seed`。新夾具從空資料庫檔案開始，透過各自的資料庫檔案實現隔離。
 
+## 受管 MySQL 測試資料庫 {#managed-mysql-test-schemas}
+
+用 `TestApp::mysql` 在專用 MySQL 測試伺服器上分配獨立資料庫。在 Builder 中註冊遷移和 Seeder，再透過 Artisan 執行。帳號需要建立與刪除測試資料庫、建立歸屬標記預存程序，以及讀取 `performance_schema` 伺服器活動資料表的權限。
+
+```rust
+use openrust::testing::TestApp;
+
+async fn run_migrations(
+    admin_url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut test = TestApp::mysql(admin_url, |builder| builder).await?;
+    test.artisan(["migrate"]).await.assertSuccessful();
+    test.close().await
+}
+```
+
+呼叫 `close().await` 等待清理。它先關閉應用程式連線池，再核對管理租約、歸屬標記及其他使用中的連線。核對失敗時，錯誤會提供保留的資料庫名稱以便檢查。夾具被捨棄時，會在仍運作的 Tokio runtime 上嘗試清理。
+
 ## MySQL 交易隔離 {#mysql-transaction-isolation}
 
 為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.databaseTransaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。

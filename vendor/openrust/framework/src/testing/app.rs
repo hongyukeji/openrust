@@ -5,6 +5,7 @@ use tempfile::TempDir;
 use crate::{
     console::Output,
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
+    database::test_mysql::MySqlTestDatabase,
     events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
@@ -19,6 +20,7 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct TestApp {
     app: Application,
     http: Option<Kernel>,
+    pub(super) mysql: Option<MySqlTestDatabase>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
@@ -44,6 +46,7 @@ impl TestApp {
         Ok(Self {
             app,
             http: None,
+            mysql: None,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
             _directory: directory,

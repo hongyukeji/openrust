@@ -8,6 +8,24 @@ Use `TestApp::sqlite` to give each test application its own SQLite file. During 
 
 Register application migrations and seeders in the builder callback as you would in the application. Then run `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`. To rebuild the schema and seed again in the same fixture, use `migrate:fresh --seed`. Each new fixture starts with an empty database file. Each database file provides a separate test boundary.
 
+## Managed MySQL test schemas {#managed-mysql-test-schemas}
+
+Use `TestApp::mysql` to allocate a private schema on a dedicated MySQL test server. Register migrations and seeders in the builder, then run them through Artisan. The account needs permission to create and drop test schemas, install an ownership routine, and read the server activity tables in `performance_schema`.
+
+```rust
+use openrust::testing::TestApp;
+
+async fn run_migrations(
+    admin_url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut test = TestApp::mysql(admin_url, |builder| builder).await?;
+    test.artisan(["migrate"]).await.assertSuccessful();
+    test.close().await
+}
+```
+
+Call `close().await` to wait for cleanup. It closes application pools and deletes the schema only after verifying the management lease, ownership marker, and absence of other connected sessions. If a check fails, the error reports the schema name for inspection. A dropped fixture attempts cleanup while its Tokio runtime is running.
+
 ## MySQL transaction isolation {#mysql-transaction-isolation}
 
 Configure the test application to use a dedicated MySQL test database. Run migrations and baseline seeders before calling `test.databaseTransaction`. Inside the callback, HTTP requests, in-process Artisan commands, and database assertions on the default connection share one session. The helper rolls back on success or error, and application transactions use savepoints.

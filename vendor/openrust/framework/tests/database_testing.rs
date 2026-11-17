@@ -17,6 +17,7 @@ use openrust::{
     testing::TestApp,
 };
 use serde_json::json;
+use sqlx::{Connection as _, MySqlConnection};
 
 struct CreateItems;
 
@@ -287,4 +288,86 @@ fn write_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         })?;
         Ok(Response::empty(StatusCode::NO_CONTENT))
     })
+}
+
+#[tokio::test]
+async fn managed_mysql_test_schemas_keep_ownership_and_close_their_pools()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let configure =
+        |builder: ApplicationBuilder| builder.withProviders(vec![Box::new(InventoryProvider)]);
+    let mut server = MySqlConnection::connect(&url).await?;
+    let (first, second) = tokio::join!(
+        TestApp::mysql(&url, configure),
+        TestApp::mysql(&url, configure)
+    );
+    let mut first = first?;
+    let mut second = second?;
+    first
+        .artisan(["migrate", "--seed"])
+        .await
+        .assertSuccessful();
+    second.artisan(["migrate"]).await.assertSuccessful();
+    first.assertDatabaseCount("items", 1).await?;
+    second.assertDatabaseCount("items", 0).await?;
+    let first_db = first.database().await?;
+    let second_db = second.database().await?;
+    let first_name = first_db.getDatabaseName().to_owned();
+    let second_name = second_db.getDatabaseName().to_owned();
+    assert_ne!(first_name, second_name);
+    first
+        .artisan(["migrate:fresh", "--seed"])
+        .await
+        .assertSuccessful();
+    first.assertDatabaseCount("items", 1).await?;
+    first.close().await?;
+    assert!(!schema_exists(&mut server, &first_name).await?);
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(3),
+            first_db.table("items").count("*"),
+        )
+        .await?
+        .is_err()
+    );
+    assert!(schema_exists(&mut server, &second_name).await?);
+
+    let mut selected = url::Url::parse(&url)?;
+    selected.set_path(&format!("/{second_name}"));
+    let foreign = MySqlConnection::connect(selected.as_str()).await?;
+    let busy = second.close().await.unwrap_err();
+    assert!(busy.to_string().contains("busy"), "{busy}");
+    assert!(schema_exists(&mut server, &second_name).await?);
+    foreign.close().await?;
+
+    let mut changed = TestApp::mysql(&url, configure).await?;
+    let connection = changed.database().await?;
+    let name = connection.getDatabaseName().to_owned();
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "DROP PROCEDURE `{name}`.`openrust_fixture_owner`"
+    )))
+    .execute(&mut server)
+    .await?;
+    connection.disconnect();
+    assert!(connection.select("SELECT 1", &[]).await.is_err());
+    let rejected = changed.close().await.unwrap_err();
+    assert!(
+        rejected.to_string().contains("ownership marker"),
+        "{rejected}"
+    );
+    assert!(schema_exists(&mut server, &name).await?);
+    Ok(())
+}
+
+async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool, sqlx::Error> {
+    let count: i64 = sqlx::query_scalar(
+        "SELECT CAST(COUNT(*) AS SIGNED) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?",
+    )
+    .bind(name)
+    .fetch_one(server)
+    .await?;
+    Ok(count != 0)
 }

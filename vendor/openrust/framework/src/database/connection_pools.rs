@@ -6,7 +6,7 @@ use std::{
 
 use tokio::sync::OnceCell;
 
-use super::{DatabaseResult, connection::Pool};
+use super::{DatabaseError, DatabaseResult, connection::Pool, test_mysql::MySqlTestOwner};
 
 /// The physical pools for one generation of a logical connection.
 pub(super) struct PoolGeneration {
@@ -63,20 +63,32 @@ impl PoolGeneration {
 pub(super) struct ConnectionPools {
     current: Mutex<Option<Arc<PoolGeneration>>>,
     resolve: Box<dyn Fn() -> DatabaseResult<PoolGeneration> + Send + Sync>,
+    mysql_test_owner: Option<Arc<MySqlTestOwner>>,
 }
 
 impl ConnectionPools {
     pub(super) fn new(
         initial: PoolGeneration,
+        mysql_test_owner: Option<Arc<MySqlTestOwner>>,
         resolve: impl Fn() -> DatabaseResult<PoolGeneration> + Send + Sync + 'static,
     ) -> Self {
         Self {
             current: Mutex::new(Some(Arc::new(initial))),
             resolve: Box::new(resolve),
+            mysql_test_owner,
         }
     }
 
     pub(super) fn generation(&self) -> DatabaseResult<Arc<PoolGeneration>> {
+        if self
+            .mysql_test_owner
+            .as_ref()
+            .is_some_and(|owner| !owner.active())
+        {
+            return Err(DatabaseError::InvalidConfiguration(
+                "closed MySQL test schema",
+            ));
+        }
         let mut current = self
             .current
             .lock()

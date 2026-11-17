@@ -3,8 +3,11 @@ use std::{error::Error, fs::File};
 use serde_json::json;
 
 use crate::{
-    contracts::foundation::Application as _,
-    database::{Connection, DatabaseFuture, DatabaseManager, Value, test_transaction},
+    contracts::{container::Container as _, foundation::Application as _},
+    database::{
+        Connection, DatabaseFuture, DatabaseManager, Value, test_mysql::MySqlTestDatabase,
+        test_transaction,
+    },
     foundation::{Application, configuration::ApplicationBuilder},
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
@@ -15,6 +18,26 @@ use super::TestApp;
 const FILE: &str = "testing.sqlite";
 
 struct Sqlite;
+
+struct Mysql {
+    url: String,
+}
+
+impl ServiceProvider for Mysql {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            let config = app.config()?;
+            config.set(
+                "database.connections",
+                json!({
+                    "mysql": {"url": self.url, "acquire_timeout": 2}
+                }),
+            )?;
+            config.set("database.default", json!("mysql"))?;
+            Ok(())
+        })
+    }
+}
 
 impl ServiceProvider for Sqlite {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -51,6 +74,38 @@ impl TestApp {
             .create_new(true)
             .open(fixture.root().join(FILE))?;
         Ok(fixture)
+    }
+
+    /// Creates an application owning a new schema on a dedicated MySQL test server.
+    pub async fn mysql(
+        admin_url: &str,
+        configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let database = MySqlTestDatabase::create(admin_url).await?;
+        let provider = Box::new(Mysql {
+            url: database.url.clone(),
+        });
+        let mut fixture =
+            match Self::create(|builder| configure(builder.withProviders(vec![provider]))) {
+                Ok(fixture) => fixture,
+                Err(error) => {
+                    database.close().await?;
+                    return Err(error);
+                }
+            };
+        fixture.app().container().instance(database.owner.clone())?;
+        fixture.mysql = Some(database);
+        Ok(fixture)
+    }
+
+    /// Releases the test application and waits for owned schema cleanup.
+    pub async fn close(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mysql = self.mysql.take();
+        drop(self);
+        if let Some(mysql) = mysql {
+            mysql.close().await?;
+        }
+        Ok(())
     }
 
     /// Boots the test application and resolves its default database connection.

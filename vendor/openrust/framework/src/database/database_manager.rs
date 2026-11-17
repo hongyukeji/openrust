@@ -24,6 +24,7 @@ use super::{
     connectors::ConnectionFactory,
     events::QueryRole,
     schema::{MorphKeyType, SchemaDefaults},
+    test_mysql::MySqlTestOwner,
 };
 
 tokio::task_local! {
@@ -37,6 +38,7 @@ pub struct DatabaseManager {
     connections: Mutex<HashMap<String, Connection>>,
     container: Weak<Container>,
     schema_defaults: Arc<RwLock<SchemaDefaults>>,
+    mysql_test_owner: Option<Arc<MySqlTestOwner>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -48,11 +50,17 @@ impl DatabaseManager {
             connections: Mutex::default(),
             container: Weak::new(),
             schema_defaults: Arc::default(),
+            mysql_test_owner: None,
         }
     }
 
     pub(super) fn with_container(mut self, container: Weak<Container>) -> Self {
         self.container = container;
+        self
+    }
+
+    pub(super) fn with_mysql_test_owner(mut self, owner: Option<Arc<MySqlTestOwner>>) -> Self {
+        self.mysql_test_owner = owner;
         self
     }
 
@@ -157,8 +165,12 @@ impl DatabaseManager {
         let config = self.config.clone();
         let base_name = base.to_owned();
         let resolved_name = name.to_owned();
-        let mut connection =
-            ConnectionFactory.make_for_role(connection_name, &self.root, role, move || {
+        let mut connection = ConnectionFactory.make_for_role(
+            connection_name,
+            &self.root,
+            role,
+            self.mysql_test_owner.clone(),
+            move || {
                 match config.get("database.connections") {
                     Some(Value::Object(connections)) => connections.get(&base_name).cloned(),
                     None if base_name == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),
@@ -166,7 +178,8 @@ impl DatabaseManager {
                     _ => return Err(DatabaseError::InvalidConfiguration("database.connections")),
                 }
                 .ok_or_else(|| DatabaseError::UnknownConnection(resolved_name.clone()))
-            })?;
+            },
+        )?;
         connection.model_container.clone_from(&self.container);
         connection.schema_defaults.clone_from(&self.schema_defaults);
         connection.model_timezone = match self.config.get("app.timezone") {

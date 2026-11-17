@@ -15,6 +15,7 @@ use super::super::{
     events::QueryRole,
     query::grammars::Grammar,
     schema::{SqliteJsonTypes, TableOptions},
+    test_mysql::MySqlTestOwner,
 };
 
 /// Creates logical connections from configuration and driver connectors.
@@ -22,7 +23,7 @@ pub struct ConnectionFactory;
 
 impl ConnectionFactory {
     pub fn make(&self, name: &str, config: Value, root: &Path) -> DatabaseResult<Connection> {
-        self.make_for_role(name, root, None, move || Ok(config.clone()))
+        self.make_for_role(name, root, None, None, move || Ok(config.clone()))
     }
 
     pub(in crate::database) fn make_for_role(
@@ -30,9 +31,10 @@ impl ConnectionFactory {
         name: &str,
         root: &Path,
         role: Option<QueryRole>,
+        mysql_test_owner: Option<Arc<MySqlTestOwner>>,
         reload: impl Fn() -> DatabaseResult<Value> + Send + Sync + 'static,
     ) -> DatabaseResult<Connection> {
-        let options = resolve(reload()?, root, role)?;
+        let options = resolve(reload()?, root, role, mysql_test_owner.as_ref())?;
         let sqlite = matches!(options.pools.writer, Pool::Sqlite(_));
         let root = root.to_owned();
         Ok(Connection {
@@ -42,13 +44,17 @@ impl ConnectionFactory {
             table_options: options.table_options,
             grammar: options.grammar,
             database: options.database,
-            pools: Arc::new(ConnectionPools::new(options.pools, move || {
-                let fresh = resolve(reload()?, &root, role)?.pools;
-                if matches!(fresh.writer, Pool::Sqlite(_)) != sqlite {
-                    return Err(invalid("reconnecting with a different database driver"));
-                }
-                Ok(fresh)
-            })),
+            pools: Arc::new(ConnectionPools::new(
+                options.pools,
+                mysql_test_owner.clone(),
+                move || {
+                    let fresh = resolve(reload()?, &root, role, mysql_test_owner.as_ref())?.pools;
+                    if matches!(fresh.writer, Pool::Sqlite(_)) != sqlite {
+                        return Err(invalid("reconnecting with a different database driver"));
+                    }
+                    Ok(fresh)
+                },
+            )),
             sqlite,
             sticky: options.sticky,
             model_timezone: chrono_tz::UTC,
@@ -78,6 +84,7 @@ fn resolve(
     config: Value,
     root: &Path,
     role: Option<QueryRole>,
+    mysql_test_owner: Option<&Arc<MySqlTestOwner>>,
 ) -> DatabaseResult<ConnectionOptions> {
     tokio::runtime::Handle::try_current().map_err(|_| invalid("Tokio runtime"))?;
     let mut base = configuration_url_parser::parse(config)?;
@@ -85,12 +92,12 @@ fn resolve(
     let write = base.remove("write");
     let sticky = Options(base.clone()).boolean("sticky", false)?;
     let write_options = merge(&base, write, "write")?;
-    let (mut database, mut writer) = make_pool(&write_options, root)?;
+    let (mut database, mut writer) = make_pool(&write_options, root, mysql_test_owner)?;
     let mut reader = read
         .filter(|value| !value.is_null() && role != Some(QueryRole::Direct))
         .map(|read| {
             let options = merge(&base, Some(read), "read")?;
-            make_pool(&options, root)
+            make_pool(&options, root, mysql_test_owner)
         })
         .transpose()?;
     let prefix = write_options.string("prefix", "")?;
@@ -182,7 +189,15 @@ fn merge(
     Ok(Options(options))
 }
 
-fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
+fn make_pool(
+    config: &Options,
+    root: &Path,
+    mysql_test_owner: Option<&Arc<MySqlTestOwner>>,
+) -> DatabaseResult<(String, Pool)> {
+    let driver = config.string("driver", "")?;
+    if mysql_test_owner.is_some_and(|owner| driver != "mysql" || !owner.active()) {
+        return Err(invalid("inactive or invalid MySQL test schema"));
+    }
     let max = u32::try_from(config.integer("max_connections", 10)?)
         .ok()
         .filter(|value| *value > 0)
@@ -192,9 +207,9 @@ fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
         return Err(invalid("acquire_timeout"));
     }
     let timeout = Duration::from_secs(timeout);
-    match config.string("driver", "")? {
+    match driver {
         "sqlite" => sqlite(config, root, max, timeout),
-        "mysql" | "mariadb" => mysql(config, root, max, timeout),
+        "mysql" | "mariadb" => mysql(config, root, max, timeout, mysql_test_owner),
         "pgsql" => postgres(config, root, max, timeout),
         "sqlsrv" => sql_server(config, root, max, timeout),
         _ => Err(DatabaseError::UnsupportedDriver),
@@ -399,6 +414,7 @@ fn mysql(
     root: &Path,
     max: u32,
     timeout: Duration,
+    mysql_test_owner: Option<&Arc<MySqlTestOwner>>,
 ) -> DatabaseResult<(String, Pool)> {
     let port = u16::try_from(config.integer("port", 3306)?)
         .ok()
@@ -472,11 +488,17 @@ fn mysql(
     let pools = hosts
         .into_iter()
         .map(|host| {
-            MySqlPoolOptions::new()
+            let verify_owner = mysql_test_owner.cloned();
+            let active_owner = mysql_test_owner.cloned();
+            let pool = MySqlPoolOptions::new()
                 .max_connections(max)
                 .acquire_timeout(timeout)
                 .after_connect(move |connection, _| {
+                    let owner = verify_owner.clone();
                     Box::pin(async move {
+                        if let Some(owner) = owner {
+                            owner.verify_pool(connection).await?;
+                        }
                         sqlx::query("SET SESSION sql_mode = ?")
                             .bind(mode)
                             .execute(connection)
@@ -484,7 +506,15 @@ fn mysql(
                         Ok(())
                     })
                 })
-                .connect_lazy_with(options.clone().host(host))
+                .before_acquire(move |_, _| {
+                    let active = active_owner.as_ref().is_none_or(|owner| owner.active());
+                    Box::pin(async move { Ok(active) })
+                })
+                .connect_lazy_with(options.clone().host(host));
+            if let Some(owner) = mysql_test_owner {
+                owner.attach(&pool);
+            }
+            pool
         })
         .collect();
     Ok((database.to_owned(), Pool::Mysql(pools)))

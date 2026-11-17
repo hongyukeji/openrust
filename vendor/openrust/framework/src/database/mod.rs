@@ -23,6 +23,7 @@ mod query_log;
 pub mod schema;
 pub mod seeder;
 mod sql_server;
+pub(crate) mod test_mysql;
 pub(crate) mod test_transaction;
 mod transaction;
 mod value;

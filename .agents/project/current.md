@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 19:45（北京时间）T-03 [MySQL 测试库归属与租约](audits/T-03/README.md#mysql-测试库归属与租约)。真实 MySQL 8.4.13 验证并行库、Artisan 迁移及重建、业务池关闭、外部占用和归属拒绝。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
 - 2026-11-17 19:32（北京时间）T-03 [MySQL 测试事务隔离](audits/T-03/README.md#mysql-测试事务隔离)。真实 MySQL 8.4.13 的 HTTP 内核、进程内 Artisan、嵌套事务、回滚和取消通过。定向回归、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。
 - 2026-11-17 19:21（北京时间）04-07 [Redis Cluster 多额度与整单元验收](audits/04-07/README.md#redis-cluster-多额度与-04-07-整单元验收)。集群五项、真实双进程 HTTP、单机 Redis、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本更新为 61/66，04 HTTP 请求链为 9/9。
 - 2026-11-17 19:14（北京时间）04-07 [认证模型属性配额](audits/04-07/README.md#认证模型属性配额)。Redis 8.10.3 双进程真实 HTTP、MySQL 8.4.13 两种用户提供器、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。待 Redis Cluster 多额度原子计数，核心账本维持 60/66。
@@ -30,9 +31,9 @@
 - 2026-11-17 16:11（北京时间）04-05 [MySQL 数据库验证规则](audits/04-05/README.md#mysql-数据库验证规则)通过真实 MySQL 8.4.13、HTTP 和独立 Artisan 验收。核心账本维持 59/66。
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
-- 下一批继续 T-03，按旧版归属与租约机制实现 MySQL 测试库管理，再接 RefreshDatabase 迁移准备。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
+- 下一批继续 T-03，接入 RefreshDatabase 的迁移准备与重复用例回滚，再处理多连接与中断后的恢复。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 51%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和隔离 Cargo 产物已回收。项目磁盘可用 80.71 GB（75.17 GiB），继续前以实测读数复查。
+- 周额度剩余 50%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和隔离 Cargo 产物已回收。项目磁盘可用 80.42 GB（74.89 GiB），继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 
