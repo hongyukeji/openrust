@@ -125,3 +125,10 @@
 - 在隔离基线 `9a8520eb4` 的 Redis 8.10.3 集群上，新增回归复现无效 UTF-8 代际使清空失败。同槽 Lua 现在按原始字节移除格式错误的集合项，只返回有效代际供后续分批回收。待回收键类型不符时，脚本在更换当前代际前返回错误，修复键类型后可以重试。
 - `sh tests/redis_cluster.sh` 四项通过，单机 Redis 标签回归通过。用实际双进程 HTTP 验证跨进程写读、自然过期及指定标签 `flushStale()`。独立 Artisan 验证 `cache:prune-stale-tags [redis]`、已空退役索引回收、有效退役值保留及重复执行，并用 `cache:clear redis --tags=artists` 验证无效代际和错误键类型的不同处理。根应用二进制的 `artisan inspire` 通过。
 - Rust 1.94.0 全仓格式与严格 Clippy、三语站点、12 项通用和 6 项缓存文档浏览器检查通过。已回收临时 Redis 和本批文档产物，保留复用的隔离 Cargo 目标目录。项目磁盘可用 66.30 GB（61.74 GiB），周额度剩余 51%。日志保留于 `/private/tmp/openrust-03-09-retirement.cxlQvfd7`。
+
+## Redis Cluster 标签与过期清理复验
+
+- 标签与清理实现已经随 `f2e8d6248`、`36077918f` 和后续容错修复提交。本批基于 `994f564b7` 隔离复验。固定 Laravel 的 `RedisTaggedCache` 分批清空标签值，`RedisTagSet` 按过期分数修剪引用。OpenRust 延续旧版 `v0.x` 中 `redis_tags.rs` 的分批和代际机制，用同槽 Lua 核对值键是否仍存在，同时回收过期及已删除值的引用。 [固定 Laravel Cache Tags](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#cache-tags) · [固定 Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L88)
+- 真实 Redis 8.10.3 三主节点双进程 HTTP 验证跨进程读写、TTL、选定标签 `flushStale()` 隔离、`forget` 与 `pull` 后的空索引登记回收。独立 Artisan 验证默认及指定存储的 `cache:prune-stale-tags`、重复运行、无效引用清理与有效值保留。按标签清空遇到错误索引类型返回 1，恢复有序集合后重跑同一命令，确认旧值、索引与待回收记录同时移除。单机 Redis 标签回归与根应用 `./artisan inspire` 通过。
+- 首轮完整集群回归在副本刚升主后出现一次 `CLUSTERDOWN`，原测试原样复跑通过。故障切换用例现在同时等待 `ROLE` 为主节点和 `CLUSTER INFO` 的 `cluster_state:ok`，再验证读恢复和单次写入，保留丢回执写入不重放的断言。
+- 更新测试后使用两个新建 Redis 夹具，各通过 `sh tests/redis_cluster.sh` 的五项回归。Rust 1.94.0 全仓格式与严格 Clippy、三语站点构建、12 项通用和 6 项缓存文档浏览器检查通过。已回收临时 Redis、4.1 GiB 隔离 Cargo 产物及文档缓存。日志保留于 `/private/tmp/openrust-03-09-head-recheck.2xYqGjo4`。

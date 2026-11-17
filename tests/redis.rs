@@ -880,10 +880,14 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
     }
     cluster_cli(&container, &source_port, &["SHUTDOWN", "NOSAVE"]);
     let deadline = tokio::time::Instant::now() + Duration::from_secs(18);
-    while !cluster_cli(&container, &replica_port, &["ROLE"]).starts_with("master\n") {
+    while !cluster_cli(&container, &replica_port, &["ROLE"]).starts_with("master\n")
+        || !cluster_cli(&container, &replica_port, &["CLUSTER", "INFO"])
+            .lines()
+            .any(|line| line == "cluster_state:ok")
+    {
         assert!(
             tokio::time::Instant::now() < deadline,
-            "replica did not become primary"
+            "replica did not become a ready primary"
         );
         tokio::time::sleep(Duration::from_millis(150)).await;
     }
