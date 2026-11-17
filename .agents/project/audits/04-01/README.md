@@ -36,3 +36,11 @@
 - 隔离基线 `58ae2ab0`，Rust 1.94.0。16 项应用 HTTP 回归与 4 项框架 URL 回归通过。真实请求验证同一动态域名上的 GET 使用新 `slug` 绑定、POST 保留旧 `id` 绑定、可选参数及错误域名。Artisan 用相同注册组合核对方法、URI、域名、动作及筛选。
 - 实际二进制运行三语共用的 `route:list --domain=example.test --action=PostController --json` 示例，另验证普通文本、应用 `-vv` 示例和 `artisan inspire`。三语站点及 18 项浏览器检查通过。证据目录 `/private/tmp/openrust-04-01-route-metadata.gpU7sdLZ`。
 - 严格工作区 Clippy 与改动文件格式通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 4.2 GiB 隔离 Cargo 产物已回收，磁盘可用 112.20 GB（104.49 GiB），周额度剩余 64%，第二窗口无读数。
+
+## 路由约束表达式
+
+- 对照固定 Laravel 的路由约束及 Symfony 的命名参数捕获。旧版 `v0.x` 未发现对等的正则参数约束引擎，本批沿用当前路由注册、域名编译和参数提取。常规表达式使用原有 `regex` 线性路径。环视和命名反向引用由 `fancy-regex` 处理，回溯上限 100,000 步，超出时作为未匹配处理。Rust 保留参数约束末尾的转义字面量。 [Laravel 参数约束](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/routing.md#parameters-regular-expression-constraints) · [Symfony RouteCompiler](https://github.com/symfony/routing/blob/v7.4.0/RouteCompiler.php)
+- Rust 1.94.0 使用 `8d7a31a6d` 隔离快照通过 16 项真实 HTTP 及 4 项 URL 回归。验证环视、命名反向引用、转义美元符、参数捕获、约束不满足时的 404，以及无效表达式保留原路由。实际二进制执行 `route:list -vv --json --middleware=SubstituteBindings` 和 `artisan inspire`。PHP 8.5 与 Symfony v7.4.0 对照验证两个扩展表达式的匹配、捕获及拒绝结果。
+- PHP 对照接受 `(*MARK:word)`，当前 Rust 引擎拒绝注册。任意 PCRE 等价和 Windows 实机仍待后续验收。本批保留 04-01 开放及账本 55/66。
+- 严格工作区 Clippy 和改动文件格式通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412`。三语站点构建和 18 项浏览器检查覆盖共同约束正文及根路径、子路径。证据目录 `/private/tmp/openrust-04-01-route-constraints.0vH6r7Lq`。
+- 新增 `fancy-regex` 0.19.2 采用 MIT，最低 Rust 1.66。传递依赖 `bit-set`、`bit-vec` 0.8.0 采用 Apache-2.0 或 MIT。`cargo deny --offline check` 的来源与禁用项检查通过，基线与本批均报告默认许可清单拒绝及既有 `paste`、`pin-utils` 维护提示。本批新增的三条许可提示对应上述三个依赖。

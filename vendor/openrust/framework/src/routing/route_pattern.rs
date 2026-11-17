@@ -5,6 +5,31 @@ use regex::{Regex, RegexBuilder};
 use super::RoutingError;
 
 const SEPARATORS: &str = "/,;.:-_~+*=@|";
+const ROUTE_BACKTRACK_LIMIT: usize = 100_000;
+
+enum Matcher {
+    Linear(Regex),
+    Extended(Box<fancy_regex::Regex>),
+}
+
+impl Matcher {
+    fn compile(expression: &str, host: bool) -> Result<Self, regex::Error> {
+        RegexBuilder::new(expression)
+            .case_insensitive(host)
+            .dot_matches_new_line(true)
+            .build()
+            .map(Self::Linear)
+            .or_else(|source| {
+                fancy_regex::RegexBuilder::new(expression)
+                    .case_insensitive(host)
+                    .dot_matches_new_line(true)
+                    .backtrack_limit(ROUTE_BACKTRACK_LIMIT)
+                    .build()
+                    .map(|regex| Self::Extended(Box::new(regex)))
+                    .map_err(|_| source)
+            })
+    }
+}
 
 enum Token<'a> {
     Literal(&'a str),
@@ -25,7 +50,7 @@ impl Token<'_> {
 }
 
 pub(super) struct RoutePattern {
-    regex: Regex,
+    regex: Matcher,
     parameters: Vec<(String, Option<String>)>,
     uri_without_binding_fields: Option<String>,
 }
@@ -178,14 +203,12 @@ impl RoutePattern {
         }
         expression.push_str(&")?".repeat(tokens.len() - optional_start));
         expression.push_str(r"\z");
-        let regex = RegexBuilder::new(&expression)
-            .case_insensitive(host)
-            .dot_matches_new_line(true)
-            .build()
-            .map_err(|source| RoutingError::InvalidRoutePattern {
+        let regex = Matcher::compile(&expression, host).map_err(|source| {
+            RoutingError::InvalidRoutePattern {
                 uri: uri.to_owned(),
                 source,
-            })?;
+            }
+        })?;
         Ok(Self {
             regex,
             uri_without_binding_fields,
@@ -197,7 +220,12 @@ impl RoutePattern {
     }
 
     pub(super) fn matches(&self, path: &str) -> bool {
-        self.regex.is_match(path)
+        match &self.regex {
+            Matcher::Linear(regex) => regex.is_match(path),
+            Matcher::Extended(regex) => regex
+                .captures(path)
+                .is_ok_and(|captures| captures.is_some()),
+        }
     }
 
     pub(super) fn uri_without_binding_fields(&self) -> Option<&str> {
@@ -213,17 +241,40 @@ impl RoutePattern {
         path: &str,
         defaults: &HashMap<String, String>,
     ) -> Vec<(String, String)> {
-        let captures = self.regex.captures(path).expect("route already matched");
+        match &self.regex {
+            Matcher::Linear(regex) => {
+                let captures = regex.captures(path).expect("route already matched");
+                self.parameter_values(defaults, |name| {
+                    captures.name(name).map(|value| value.as_str())
+                })
+            }
+            Matcher::Extended(regex) => {
+                let captures = regex
+                    .captures(path)
+                    .ok()
+                    .flatten()
+                    .expect("route already matched");
+                self.parameter_values(defaults, |name| {
+                    captures.name(name).map(|value| value.as_str())
+                })
+            }
+        }
+    }
+
+    fn parameter_values<'a>(
+        &self,
+        defaults: &HashMap<String, String>,
+        mut capture: impl FnMut(&str) -> Option<&'a str>,
+    ) -> Vec<(String, String)> {
         let mut remaining_defaults = defaults.clone();
         let mut parameters: Vec<_> = self
             .parameters
             .iter()
             .filter_map(|(name, _)| {
                 let default = remaining_defaults.remove(name);
-                let value = captures
-                    .name(name)
+                let value = capture(name)
                     .filter(|value| !value.is_empty())
-                    .map(|value| value.as_str().to_owned())
+                    .map(str::to_owned)
                     .or(default)?;
                 Some((name.clone(), value))
             })
@@ -241,14 +292,23 @@ pub(super) fn constraint(name: &str, expression: &str) -> Result<String, Routing
     let expression = expression
         .strip_suffix('$')
         .or_else(|| expression.strip_suffix(r"\z"))
+        .filter(|prefix| trailing_backslashes(prefix).is_multiple_of(2))
         .unwrap_or(expression);
-    if expression.is_empty() || Regex::new(expression).is_err() {
+    if expression.is_empty() || Matcher::compile(expression, false).is_err() {
         return Err(RoutingError::InvalidConstraint {
             parameter: name.to_owned(),
             expression: expression.to_owned(),
         });
     }
     Ok(expression.to_owned())
+}
+
+fn trailing_backslashes(prefix: &str) -> usize {
+    prefix
+        .bytes()
+        .rev()
+        .take_while(|byte| *byte == b'\\')
+        .count()
 }
 
 fn valid_name(name: &str) -> bool {

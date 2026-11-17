@@ -657,6 +657,15 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
                     Ok(())
                 },
             )?;
+            router
+                .get("/lookahead/{id}", show_route)?
+                .r#where("id", r"(?!admin\z)[a-z]+")?;
+            router
+                .get("/repeat/{id}", show_route)?
+                .r#where("id", r"(?P<segment>[a-z]+)-\k<segment>")?;
+            router
+                .get("/currency/{id}", show_route)?
+                .r#where("id", r"^[0-9]+\$$")?;
             router.pattern("id", "^[0-9]+$")?;
             router.group(
                 RouteGroup::new()
@@ -883,6 +892,9 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             ("/profiles", "-|overview|-"),
             ("/profiles/7", "7|overview|-"),
             ("/profiles/%37/activity/?tab=ignored", "7|activity|-"),
+            ("/lookahead/edition", "edition|-|-"),
+            ("/repeat/same-same", "same-same|-|-"),
+            ("/currency/42%24", "42$|-|-"),
             ("/format/Html", "Html|-|-"),
             ("/format/Html.v2", "Html|v2|-"),
             ("/choice/7", "7|-|-"),
@@ -896,7 +908,7 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
             assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected, "{path}");
         }
-        for path in ["/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
+        for path in ["/lookahead/admin", "/repeat/same-other", "/currency/42", "/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
             assert!(send("GET", path).starts_with("HTTP/1.1 404 "), "{path}");
             let response = send("POST", path);
             assert!(response.starts_with("HTTP/1.1 404 "), "{path}: {response}");
