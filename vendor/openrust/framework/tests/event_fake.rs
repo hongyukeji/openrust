@@ -20,7 +20,7 @@ use openrust::{
     },
     foundation::configuration::Routing,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    support::facades::{Event, Facade, Route},
+    support::facades::{DB, Event, Facade, Route},
     testing::TestApp,
 };
 
@@ -244,6 +244,109 @@ async fn scoped_event_fakes_restore_after_errors_and_cancellation() -> TestResul
     assert_eq!(selected.load(Ordering::Relaxed), 3);
     assert_eq!(base.load(Ordering::Relaxed), 1);
     assert_eq!(replaced.load(Ordering::Relaxed), 1);
+    Ok(())
+}
+
+fn numeric_payload(event: &dyn Payload) -> Option<u64> {
+    event
+        .downcast_ref::<NamedEvent<u64>>()
+        .map(|event| *event.payload())
+}
+
+fn fake_matching_events(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let fake = Event::fakeWhen(&["filter.exact", "filter.excluded"], |event| {
+            match event.name() {
+                "filter.exact" | "filter.excluded" => {
+                    panic!("exact and excluded names are resolved before the predicate")
+                }
+                "filter.numeric" => numeric_payload(event).is_some_and(|value| value >= 2),
+                "greeting.saved" => true,
+                name => name == TransactionBeginning::NAME,
+            }
+        })?;
+        fake.except(&["filter.excluded"]).exceptWhen(|event| {
+            event.name() == "filter.numeric" && numeric_payload(event) == Some(3)
+        });
+
+        for value in 1_u64..=4 {
+            Event::dispatch(NamedEvent::new("filter.numeric", value)).await?;
+        }
+        Event::dispatch(NamedEvent::new("filter.numeric", "not a number")).await?;
+        Event::dispatch(NamedEvent::new("filter.exact", ())).await?;
+        Event::dispatch(NamedEvent::new("filter.excluded", ())).await?;
+
+        let mut transaction = DB::beginTransaction()
+            .await
+            .map_err(EventError::Transaction)?;
+        let dispatch = Event::dispatchAfterCommit(Saved, &mut transaction).await?;
+        assert!(matches!(dispatch, DispatchResult::Deferred));
+        transaction
+            .rollBack(None)
+            .await
+            .map_err(EventError::Transaction)?;
+        fake.assertDispatchedOnce(TransactionBeginning::NAME)
+            .assertNotDispatched(TransactionRolledBack::NAME)
+            .assertNotDispatched("greeting.saved")
+            .assertDispatchedOnce("filter.exact")
+            .assertNotDispatched("filter.excluded");
+        let mut transaction = DB::beginTransaction()
+            .await
+            .map_err(EventError::Transaction)?;
+        Event::dispatchAfterCommit(Saved, &mut transaction).await?;
+        fake.assertNotDispatched("greeting.saved");
+        transaction
+            .commit()
+            .await
+            .map_err(EventError::Transaction)?;
+        fake.assertDispatchedOnce("greeting.saved");
+
+        Event::fakeForWhen(
+            async {
+                Event::dispatch(NamedEvent::new("filter.numeric", 1_u64)).await?;
+                Event::dispatch(NamedEvent::new("filter.numeric", 2_u64)).await?;
+                Ok(())
+            },
+            &[],
+            |event| numeric_payload(event) == Some(1),
+        )
+        .await?;
+        Event::dispatch(NamedEvent::new("filter.numeric", 2_u64)).await?;
+
+        fake.assertDispatchedWhere("filter.numeric", |event| {
+            fake.assertDispatchedTimes("filter.numeric", 3);
+            numeric_payload(event) == Some(4)
+        })
+        .assertNotDispatchedWhere("filter.numeric", |event| {
+            matches!(numeric_payload(event), Some(1 | 3))
+        });
+        let recorded: Vec<_> = fake
+            .dispatchedWhere("filter.numeric", |event| numeric_payload(event).is_some())
+            .iter()
+            .filter_map(|event| numeric_payload(event.as_ref()))
+            .collect();
+        assert_eq!(recorded, [2, 4, 2]);
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+#[tokio::test]
+async fn predicates_select_payloads_without_hiding_other_events() -> TestResult {
+    let mut app = TestApp::sqlite(|builder| {
+        builder.withRouting(Routing::default().web(|| Route::get("/filter", fake_matching_events)))
+    })?;
+    app.boot().await?;
+    let dispatcher = app.app().make::<Dispatcher>().await?;
+    let observed = Arc::new(AtomicUsize::new(0));
+    dispatcher.listen(
+        "filter.*",
+        Arc::new(Count(observed.clone())),
+        Delivery::Sync,
+    )?;
+    app.get("/filter")
+        .await?
+        .assertStatus(StatusCode::NO_CONTENT);
+    assert_eq!(observed.load(Ordering::Relaxed), 5);
     Ok(())
 }
 

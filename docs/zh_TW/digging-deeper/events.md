@@ -156,3 +156,26 @@ assert_eq!(order_id, 42);
 ```
 
 作用域隨回呼的 Future 生效，並繫結對應的分發器。巢狀作用域結束時會還原外層替身，傳回錯誤或取消也一樣。並行請求與獨立衍生的工作使用各自的作用域或應用程式層級的替身。
+
+### 依事件酬載篩選 {#matching-event-payloads}
+
+在應用程式作用域內，`Event::fakeWhen` 依事件全名或接收事件的回呼選取事件。`Event::fakeForWhen` 在非同步回呼內套用相同規則。名稱清單為空時，由篩選回呼決定。`except` 和 `exceptWhen` 讓符合排除規則的事件繼續交給一般監聽器，即使替身已選取該事件。
+
+```rust
+use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
+
+let is_priority = |event: &dyn Payload| {
+    event.name() == "orders.created"
+        && event.downcast_ref::<NamedEvent<u64>>()
+            .is_some_and(|order| *order.payload() >= 42)
+};
+let fake = Event::fakeWhen(&[], is_priority)?;
+Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
+Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
+
+fake.assertDispatchedOnce("orders.created")
+    .assertDispatchedWhere("orders.created", is_priority)
+    .assertNotDispatchedWhere("orders.created", |event| !is_priority(event));
+```
+
+使用 `dispatchedWhere` 依派發順序讀取符合條件的酬載。帶有 `Where` 的方法接收篩選回呼，依名稱的方法沿用現有簽章。

@@ -170,7 +170,7 @@ impl Dispatcher {
         registrations.listeners.has_listeners(name)
             || self
                 .active_fake(&registrations)
-                .is_some_and(|fake| fake.matches(name))
+                .is_some_and(|fake| fake.may_match_name(name))
     }
 
     pub fn listing(&self) -> Vec<(String, Vec<&'static str>)> {
@@ -229,12 +229,10 @@ impl Dispatcher {
 
     /// Records the selected events for this application. An empty slice selects all events.
     pub fn fake(&self, events: &[&str]) -> Arc<EventFake> {
-        self.install_fake(events, &[])
+        self.install_fake(EventFake::new(events, &[]))
     }
 
-    pub(crate) fn install_fake(&self, events: &[&str], except: &[&str]) -> Arc<EventFake> {
-        let fake = Arc::new(EventFake::new(events));
-        fake.except(except);
+    pub(crate) fn install_fake(&self, fake: Arc<EventFake>) -> Arc<EventFake> {
         if let Some(scoped) = self.scoped_fake() {
             let previous = std::mem::replace(
                 &mut *scoped
@@ -252,12 +250,9 @@ impl Dispatcher {
 
     pub(crate) async fn with_fake<T>(
         &self,
-        events: &[&str],
-        except: &[&str],
+        fake: Arc<EventFake>,
         callback: impl Future<Output = EventResult<T>>,
     ) -> EventResult<T> {
-        let fake = Arc::new(EventFake::new(events));
-        fake.except(except);
         let mut scopes = SCOPED_FAKES.try_with(Vec::clone).unwrap_or_default();
         scopes.push(ScopedFake {
             dispatcher: self.registrations.clone(),
@@ -331,7 +326,7 @@ impl Dispatcher {
                         .contains(&event.as_ref().type_id()),
             )
         };
-        let fake = fake.filter(|fake| fake.matches(event.name()));
+        let fake = fake.filter(|fake| fake.matches(event.as_ref()));
         if after_commit {
             let socket = context.socket.clone();
             if let Some(transaction) = context.active_transaction() {

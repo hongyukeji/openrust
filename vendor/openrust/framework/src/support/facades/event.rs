@@ -37,7 +37,15 @@ impl Event {
 
     /// Records all events except those allowed to reach their listeners.
     pub fn fakeExcept(events: &[&str]) -> EventResult<Arc<EventFake>> {
-        Ok(Self::dispatcher()?.install_fake(&[], events))
+        Ok(Self::dispatcher()?.install_fake(EventFake::new(&[], events)))
+    }
+
+    /// Fakes events selected by their exact name or the given predicate.
+    pub fn fakeWhen(
+        events: &[&str],
+        predicate: impl Fn(&dyn Payload) -> bool + Send + Sync + 'static,
+    ) -> EventResult<Arc<EventFake>> {
+        Ok(Self::dispatcher()?.install_fake(EventFake::matching(events, predicate)))
     }
 
     /// Fakes selected events while the callback runs in the current task.
@@ -45,7 +53,9 @@ impl Event {
         callback: impl Future<Output = EventResult<T>>,
         events: &[&str],
     ) -> EventResult<T> {
-        Self::dispatcher()?.with_fake(events, &[], callback).await
+        Self::dispatcher()?
+            .with_fake(EventFake::new(events, &[]), callback)
+            .await
     }
 
     /// Allows the named events and fakes all others during the callback.
@@ -53,7 +63,20 @@ impl Event {
         callback: impl Future<Output = EventResult<T>>,
         events: &[&str],
     ) -> EventResult<T> {
-        Self::dispatcher()?.with_fake(&[], events, callback).await
+        Self::dispatcher()?
+            .with_fake(EventFake::new(&[], events), callback)
+            .await
+    }
+
+    /// Fakes events selected by exact name or predicate while the callback runs.
+    pub async fn fakeForWhen<T>(
+        callback: impl Future<Output = EventResult<T>>,
+        events: &[&str],
+        predicate: impl Fn(&dyn Payload) -> bool + Send + Sync + 'static,
+    ) -> EventResult<T> {
+        Self::dispatcher()?
+            .with_fake(EventFake::matching(events, predicate), callback)
+            .await
     }
 
     pub fn listen(name: &str, listener: Arc<dyn Listener>, delivery: Delivery) -> EventResult<()> {

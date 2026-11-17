@@ -156,3 +156,26 @@ assert_eq!(order_id, 42);
 ```
 
 The scope follows the callback's future for its dispatcher. A nested scope restores the outer fake when it ends, including on error or cancellation. Concurrent requests and independently spawned tasks use their own scope or the application-wide fake.
+
+### Matching event payloads {#matching-event-payloads}
+
+In an application scope, `Event::fakeWhen` selects events by exact name or by a predicate that receives the event. `Event::fakeForWhen` uses the same selector inside an async callback. An empty name list leaves selection to the predicate. `except` and `exceptWhen` let matching events reach their ordinary listeners even when selected by the fake.
+
+```rust
+use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
+
+let is_priority = |event: &dyn Payload| {
+    event.name() == "orders.created"
+        && event.downcast_ref::<NamedEvent<u64>>()
+            .is_some_and(|order| *order.payload() >= 42)
+};
+let fake = Event::fakeWhen(&[], is_priority)?;
+Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
+Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
+
+fake.assertDispatchedOnce("orders.created")
+    .assertDispatchedWhere("orders.created", is_priority)
+    .assertNotDispatchedWhere("orders.created", |event| !is_priority(event));
+```
+
+Use `dispatchedWhere` to read matching payloads in dispatch order. The `Where` methods take a predicate while the name-only methods retain their existing signatures.

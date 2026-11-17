@@ -156,3 +156,26 @@ assert_eq!(order_id, 42);
 ```
 
 作用域随回调的 Future 生效，并绑定对应的分发器。嵌套作用域在结束时恢复外层替身，返回错误或取消也一样。并发请求与单独派生的任务使用各自的作用域或应用级替身。
+
+### 按事件负载筛选 {#matching-event-payloads}
+
+在应用作用域内，`Event::fakeWhen` 按事件全名或接收事件的回调选择事件。`Event::fakeForWhen` 在异步回调内应用相同规则。名称列表为空时，由筛选回调决定。`except` 和 `exceptWhen` 让符合排除规则的事件继续交给常规监听器，即使替身已选中该事件。
+
+```rust
+use openrust::{contracts::events::Event as Payload, events::NamedEvent, support::facades::Event};
+
+let is_priority = |event: &dyn Payload| {
+    event.name() == "orders.created"
+        && event.downcast_ref::<NamedEvent<u64>>()
+            .is_some_and(|order| *order.payload() >= 42)
+};
+let fake = Event::fakeWhen(&[], is_priority)?;
+Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
+Event::dispatch(NamedEvent::new("orders.created", 17_u64)).await?;
+
+fake.assertDispatchedOnce("orders.created")
+    .assertDispatchedWhere("orders.created", is_priority)
+    .assertNotDispatchedWhere("orders.created", |event| !is_priority(event));
+```
+
+用 `dispatchedWhere` 按派发顺序读取符合条件的负载。带 `Where` 的方法接收筛选回调，按名称的方法沿用现有签名。
