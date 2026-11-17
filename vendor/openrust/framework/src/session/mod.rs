@@ -43,6 +43,7 @@ pub type SessionResult<T> = Result<T, SessionError>;
 pub enum SessionError {
     Configuration,
     Encoding,
+    InvalidValue,
     PayloadTooLarge,
     Storage,
     Clock,
@@ -55,6 +56,7 @@ impl std::fmt::Display for SessionError {
         f.write_str(match self {
             Self::Configuration => "invalid session configuration",
             Self::Encoding => "invalid session payload",
+            Self::InvalidValue => "invalid session attribute value",
             Self::PayloadTooLarge => "session payload exceeds the configured limit",
             Self::Storage => "session storage is unavailable",
             Self::Clock => "session clock is unavailable",

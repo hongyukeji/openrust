@@ -72,3 +72,10 @@
 - 根应用执行 `artisan migrate --force`，实际二进制连续两次 HTTP 使用同一 Cookie，直接查询 MySQL 确认单条记录且 `user_id IS NULL`。本批日常数据库验收使用 MySQL 8.4，SQLite 测试留在发布矩阵。
 - 04-04 保持开放。对照固定文档后，仍有 `only`、`except`、`missing`、`remember`、`push`、`increment` 和 `decrement` 等会话读写 API 待补。 [Laravel Session 数据读写](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md#interacting-with-the-session)
 - 实际 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、改动文件格式、三语站点和 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。临时服务与 3.5 GiB 构建产物已回收，日志保留于 `/private/tmp/openrust-04-04-session-user.09DT51qV`。
+
+## 会话筛选、惰性填充与计数
+
+- 对照固定 Laravel 的 Store 与 Arr，复用旧版 `v0.x` 的顶层筛选、点号路径移除、关联数组追加及 PHP 整数溢出提升规则。现有 Session trait 新增默认方法 `only`、`except`、`missing`、`hasAny`、`remember`、`push`、`increment` 和 `decrement`。Rust 使用可失败闭包、显式整数步长和 JSON 数值，转换失败保留原属性。 [Laravel Store](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/Store.php#L250)
+- 固定 Laravel 的原生 Store 在 PHP 8.5.12 通过行为对照。Rust 在基线 `8e5bcf3b3`、macOS arm64、Rust 1.94.0 上通过真实 MySQL 8.4.13 跨三次 HTTP 请求的读写回归。覆盖字面键与点号路径、显式空值、惰性命中与回调失败、关联数组递增键、数值字符串与浮点提升、无效值及再次读取。
+- MySQL 和 Redis 8.10.3 共 19 项 Session、Cookie 和 CSRF 回归通过。独立 Artisan、严格 Clippy、改动文件格式、三语站点和 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412` 差异。临时服务和 3.3 GiB Cargo 产物已回收，日志保留于 `/private/tmp/openrust-04-04-session-data.SgXufiV4`。
+- 04-04 继续核对批量写入、旧输入存在检查和应用级自定义 Session 驱动注册。 [Laravel Session 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md)

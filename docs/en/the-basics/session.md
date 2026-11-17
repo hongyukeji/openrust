@@ -34,6 +34,10 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
+`only` selects top-level keys. `except` removes keys or dotted paths from a copy. `exists` and `missing` distinguish an explicitly null value from an absent key, while `has` and `hasAny` require a non-null value. Use `remember` with a fallible closure to compute and store a value only when the key is absent or null.
+
+Use `push` to append to an array or associative array. `increment` and `decrement` take an explicit integer amount and return the new JSON value. An invalid input returns an error and preserves the original entry.
+
 ## Flash Data
 
 `flash` makes a value available immediately and on the next request. Use `keep` for selected keys or `reflash` for all flash data to retain it for another request.

@@ -34,6 +34,10 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
+`only` 筛选顶层键，`except` 从副本中移除指定键或点号路径。`exists` 和 `missing` 区分显式空值与缺失键，`has` 和 `hasAny` 检查非空值。`remember` 接收返回 `Result` 的闭包，只在键缺失或值为空时计算并保存。
+
+用 `push` 向数组或关联数组追加值。`increment` 和 `decrement` 接收显式整数步长，返回更新后的 JSON 值。输入无效时返回错误并保留原值。
+
 ## 闪存数据
 
 `flash` 写入的值在当前请求和下一次请求可用。用 `keep` 延长指定字段的可用期，或用 `reflash` 将所有闪存数据保留到再下一次请求。

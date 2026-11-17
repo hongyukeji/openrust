@@ -34,6 +34,10 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
+`only` 篩選頂層鍵，`except` 從副本移除指定鍵或點號路徑。`exists` 和 `missing` 區分明確空值與缺少的鍵，`has` 和 `hasAny` 檢查非空值。`remember` 接收傳回 `Result` 的閉包，只在鍵缺少或值為空時運算並儲存。
+
+用 `push` 向陣列或關聯陣列追加值。`increment` 和 `decrement` 接收明確的整數步長，傳回更新後的 JSON 值。輸入無效時傳回錯誤並保留原值。
+
 ## 快閃資料
 
 `flash` 寫入的值在目前請求和下一次請求可用。用 `keep` 延長指定欄位的可用時間，或用 `reflash` 將所有快閃資料保留到再下一次請求。

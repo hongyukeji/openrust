@@ -42,6 +42,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         if let Some(action) = action.strip_prefix("cache-") {
             return session_cache_route(request, action).await;
         }
+        if let Some(action) = action.strip_prefix("data-") {
+            return session_data_route(request, action);
+        }
         let session = request.session_mut()?;
         match action.as_str() {
             "seed" => {
@@ -67,6 +70,61 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             }),
         )
     })
+}
+
+fn session_data_route(request: &mut Request, action: &str) -> Result<Response, HttpError> {
+    use openrust::session::SessionError;
+
+    let session = request.session_mut()?;
+    if action == "seed" {
+        session.put("profile.name", json!("Ada"))?;
+        session.put("profile.note", Value::Null)?;
+        session.push("teams", json!("ops"))?;
+        session.put("mixed", json!({"2": "existing", "label": true}))?;
+        session.push("mixed", json!("new"))?;
+        session.put("counter", json!(" 2.5 "))?;
+        assert_eq!(session.increment("counter", 2)?, json!(4.5));
+        assert_eq!(session.decrement("counter", 1)?, json!(3.5));
+        session.put("overflow", json!(i64::MAX))?;
+        assert!(session.increment("overflow", 1)?.as_f64().unwrap() >= 9_223_372_036_854_775_808.0);
+        assert!(matches!(
+            session.increment("teams", 1),
+            Err(SessionError::InvalidValue)
+        ));
+        assert!(matches!(
+            session.push("counter", json!(1)),
+            Err(SessionError::InvalidValue)
+        ));
+        assert!(matches!(
+            session.remember("unavailable", || Err(SessionError::Storage)),
+            Err(SessionError::Storage)
+        ));
+        assert!(session.missing("unavailable"));
+    } else if action == "continue" {
+        session.push("teams", json!("dev"))?;
+        assert_eq!(session.increment("counter", -1)?, json!(2.5));
+    }
+    let remembered = if action == "seed" {
+        session.remember("profile.note", || Ok(json!("computed")))?
+    } else {
+        session.remember("profile.note", || panic!("callback must be lazy"))?
+    };
+    session.put("explicit_null", Value::Null)?;
+    assert!(session.exists("explicit_null") && !session.has("explicit_null"));
+    assert!(!session.missing("explicit_null") && session.missing("absent"));
+    assert!(session.hasAny(&["absent", "profile.name"]));
+    let only = session.only(&["profile.name", "explicit_null"]);
+    let except = session.except(&["profile.note", "mixed"]);
+    assert!(!except.contains_key("mixed"));
+    assert_eq!(session.get("profile.note"), Some(&remembered));
+    Response::json(
+        StatusCode::OK,
+        json!({
+            "only": only, "profile": except["profile"], "remembered": remembered,
+            "teams": session.get("teams"), "mixed": session.get("mixed"),
+            "counter": session.get("counter"),
+        }),
+    )
 }
 
 async fn session_cache_route(request: &mut Request, action: &str) -> Result<Response, HttpError> {
@@ -742,6 +800,36 @@ async fn redis_sessions_override_the_named_cache_connection_and_prefix() {
     assert!(expired["name"].is_null());
     assert_ne!(expired["token"], rotated["token"]);
     second_server.abort();
+}
+
+#[tokio::test]
+async fn session_data_operations_persist_on_mysql() {
+    let configured = std::env::var_os("OPENRUST_TEST_SESSION_MYSQL_URL").is_some();
+    assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());
+    if !configured {
+        return;
+    }
+    let (address, server, database) = start("database", true).await;
+    let seeded = send(address, "data-seed", "").await;
+    let (cookie, seeded) = read(&seeded);
+    assert_eq!(seeded["only"], json!({"explicit_null": null}));
+    assert_eq!(seeded["profile"], json!({"name": "Ada"}));
+    assert_eq!(
+        seeded["mixed"],
+        json!({"2": "existing", "label": true, "3": "new"})
+    );
+    assert_eq!(seeded["remembered"], "computed");
+    let updated = send(address, "data-continue", cookie).await;
+    let (cookie, updated) = read(&updated);
+    assert_eq!(updated["teams"], json!(["ops", "dev"]));
+    assert_eq!(updated["counter"], json!(2.5));
+    assert_eq!(read(&send(address, "data-read", cookie).await).1, updated);
+    server.abort();
+    database
+        .unwrap()
+        .statement("DROP TABLE sessions", &[])
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
