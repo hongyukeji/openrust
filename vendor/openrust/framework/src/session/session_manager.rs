@@ -16,9 +16,9 @@ use crate::{
 };
 
 use super::{
-    ArraySessionHandler, CacheBasedSessionHandler, DatabaseSessionHandler, DatabaseSessionMetadata,
-    EncryptedStore, FileSessionHandler, NullSessionHandler, SessionError, SessionResult, Store,
-    Value,
+    ArraySessionHandler, CacheBasedSessionHandler, CookieSessionHandler, DatabaseSessionHandler,
+    DatabaseSessionMetadata, EncryptedStore, FileSessionHandler, NullSessionHandler, SessionError,
+    SessionResult, Store, Value,
 };
 
 #[derive(Deserialize)]
@@ -153,6 +153,9 @@ impl SessionManager {
         if !self.settings.block && options.is_none_or(|route| route.lock_seconds == 0) {
             return Ok(None);
         }
+        if self.settings.driver.as_deref() == Some("cookie") {
+            return Err(SessionError::Configuration.into());
+        }
         let lease = options
             .map(|route| route.lock_seconds)
             .filter(|seconds| *seconds != 0)
@@ -164,7 +167,11 @@ impl SessionManager {
             .map_err(super::blocking::http_error)
     }
 
-    pub(crate) fn build(&self, request: &Request) -> SessionResult<Option<Store>> {
+    pub(crate) fn build(
+        &self,
+        request: &Request,
+        id: Option<&str>,
+    ) -> SessionResult<Option<Store>> {
         let handler: Box<dyn SessionHandler> = match self.settings.driver.as_deref() {
             None => return Ok(None),
             Some("database") => {
@@ -199,6 +206,12 @@ impl SessionManager {
                 Box::new(FileSessionHandler::new(directory, self.lifetime)?)
             }
             Some("null") => Box::new(NullSessionHandler),
+            Some("cookie") => Box::new(CookieSessionHandler::for_request(
+                request,
+                id,
+                self.settings.lifetime,
+                self.settings.expire_on_close,
+            )?),
             Some("redis" | "apc" | "memcached" | "dynamodb") => {
                 Box::new(self.cache.clone().ok_or(SessionError::Configuration)?)
             }

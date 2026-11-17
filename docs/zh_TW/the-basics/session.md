@@ -8,7 +8,9 @@
 
 用 `SESSION_DRIVER=redis`、`memcached` 或 `dynamodb` 將工作階段儲存在快取後端。`SESSION_STORE` 選擇具名快取儲存，預設使用驅動程式名稱。Redis 的 `SESSION_CONNECTION` 選擇連線名稱，預設為 `default`。應用程式設定中的 `session.prefix` 可覆寫 Redis 工作階段使用的快取前綴。工作階段使用獨立的 Redis 儲存庫，一般快取保留自己的連線和前綴。後端會在 `SESSION_LIFETIME` 分鐘後使儲存內容失效。
 
-設定工作階段驅動程式後，預設 `web` 群組會在處理器執行前啟動工作階段。自訂群組需要將 `EncryptCookies` 放在 `StartSession` 前面。
+用 `SESSION_DRIVER=cookie` 將工作階段儲存在兩個加密 Cookie 中。設定的工作階段 Cookie 保存 ID，以該 ID 命名的 Cookie 保存內容和有效期限。`SESSION_EXPIRE_ON_CLOSE` 讓瀏覽器在關閉時捨棄 Cookie，內容仍受有效期限約束。加密後的內容 Cookie 回應標頭上限為 4096 位元組。輪替並刪除舊工作階段時，目前的瀏覽器會收到舊內容 Cookie 的到期指令。複製的一對 Cookie 在有效期限內仍可重播。工作階段阻塞需要伺服器端驅動程式。
+
+設定工作階段驅動程式後，預設 `web` 群組會在處理器執行前啟動工作階段。自訂群組需要將 `EncryptCookies` 放在 `StartSession` 前面。 Cookie 驅動程式還需要在兩者之間放置 `AddQueuedCookiesToResponse`。
 
 ## 使用工作階段
 

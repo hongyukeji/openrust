@@ -8,7 +8,9 @@ Use `SESSION_DRIVER=file` to keep sessions in `storage/framework/sessions`. Set 
 
 Use `SESSION_DRIVER=redis`, `memcached`, or `dynamodb` to store sessions in a cache backend. `SESSION_STORE` selects a named cache store and defaults to the driver name. For Redis, `SESSION_CONNECTION` selects a named Redis connection and defaults to `default`. The `session.prefix` configuration can override the Redis cache prefix for sessions. Session settings are applied to a dedicated Redis repository, so the ordinary cache keeps its own connection and prefix. The backend expires payloads after `SESSION_LIFETIME` minutes.
 
-The default `web` group starts the session before the handler when a session driver is configured. For custom groups, place `EncryptCookies` before `StartSession`.
+Use `SESSION_DRIVER=cookie` to store the session in two encrypted cookies. The configured session cookie carries the ID. The cookie named by that ID carries the payload and its expiry. `SESSION_EXPIRE_ON_CLOSE` sets browser-session cookies while preserving the payload expiry. The encrypted payload cookie has a 4096-byte header limit. Rotation with destruction expires the old payload cookie in the current browser. A copied cookie pair can be replayed until its expiry. Session blocking requires a server-side driver.
+
+The default `web` group starts the session before the handler when a session driver is configured. For custom groups, place `EncryptCookies` before `StartSession`. The Cookie driver also needs `AddQueuedCookiesToResponse` between them.
 
 ## Interacting with the Session
 

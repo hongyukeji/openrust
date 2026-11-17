@@ -168,7 +168,10 @@ impl EncryptCookies {
         } else {
             format!("{name}={ciphertext};{attributes}")
         };
-        if wire.len() > 64 * 1024 {
+        let limit = cookie
+            .and_then(crate::cookie::Cookie::encrypted_header_limit)
+            .unwrap_or(64 * 1024);
+        if wire.len() > limit {
             return Err(CookieError.into());
         }
         let mut result = HeaderValue::from_str(&wire).map_err(|_| CookieError)?;

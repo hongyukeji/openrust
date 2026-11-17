@@ -56,3 +56,11 @@
 - 隔离基线 `56c82c9e`，macOS arm64、Rust 1.94.0。真实 TCP 在 Redis 8.10.3 和 MySQL 8.4.13 上通过 11 项会话回归，包括 Redis 锁、具名存储、Redis 连接和前缀覆盖、闪存、轮换删除、TTL 及过期。
 - 两个独立应用进程使用同一 Cookie 验证 Redis、Memcached 和 DynamoDB Local 持久化。Redis 还核对默认数据连接和 TTL 续期，独立 Artisan `cache:forget` 清除普通缓存的同名键并保留会话记录。DynamoDB Local 验证存储期限，托管服务实测仍按发布范围跟踪。
 - 独立 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、变更文件格式、三语站点及 24 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。本批临时服务和 2.9 GiB Cargo 产物已回收，日志保留于 `/private/tmp/openrust-04-04-cache-session.Lw8luH0j`。04-04 接续 Cookie 会话驱动。
+
+## Cookie 会话驱动
+
+- 对照固定 Laravel 的 `CookieSessionHandler`、`StartSession` 和双 Cookie 会话测试，沿用旧版 `v0.x` 的请求绑定、`data`／`expires` 封装和队列删除。配置名 Cookie 携带 ID，同 ID 命名的 Cookie 携带载荷。复用外层 `EncryptCookies` 的名字签名和密钥轮换支持，Cookie 会话也可用 `SESSION_ENCRYPT` 另行加密载荷。 [Laravel CookieSessionHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/CookieSessionHandler.php) · [Laravel Cookie 会话测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Session/CookieSessionHandlerTest.php)
+- Rust 将最终加密载荷 Cookie 的响应头限制为 4096 字节，超限返回错误。轮换销毁排队注销当前浏览器的旧载荷，其他副本在内嵌期限内仍有效。Cookie 会话明确拒绝阻塞配置。自定义 Web 栈使用 `EncryptCookies`、`AddQueuedCookiesToResponse`、`StartSession` 的顺序。
+- 在 `4427acf` 隔离基线上，macOS arm64、Rust 1.94.0 实际通过 18 项 Cookie、CSRF 与 Session 回归，其中 MySQL 8.4.13 与 Redis 8.10.3 均为临时实机服务。HTTP 覆盖加密与浏览器关闭属性、轮换删除、篡改和过期载荷、超限及阻塞拒绝。两个真实应用进程使用同一 Cookie，通过解密验证 ID 与 CSRF 令牌一致，应用没有落地会话文件。
+- 独立 Artisan `inspire`、`route:list --json --method=HEAD`、工作区严格 Clippy、改动文件格式、三语站点及 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。日志保存于 `/private/tmp/openrust-04-04-cookie.VBFKbfOU`。
+- 下一批核对数据库 Session 在写回时记录认证用户 ID 的行为。当前数据库请求元数据已记录 IP 和 User-Agent，认证用户 ID 尚未自动写回。

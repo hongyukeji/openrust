@@ -29,11 +29,12 @@ impl Middleware for StartSession {
             if !request.cookie_is_protected(manager.cookie_name()) {
                 return Err(SessionError::UnprotectedCookie.into());
             }
-            let Some(mut session) = manager.build(request)? else {
+            let id = request.cookie(Some(manager.cookie_name()))?;
+            let id = id.as_ref().and_then(serde_json::Value::as_str);
+            let Some(mut session) = manager.build(request, id)? else {
                 return Ok(next.run(request).await);
             };
-            let id = request.cookie(Some(manager.cookie_name()))?;
-            session.setId(id.as_ref().and_then(serde_json::Value::as_str))?;
+            session.setId(id)?;
             let lock = manager.lock(request.session_block, session.getId()).await?;
             let response = handle_session(&manager, request, next, session).await;
             if let Some(lock) = lock {

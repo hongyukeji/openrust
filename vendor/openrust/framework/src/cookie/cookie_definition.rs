@@ -55,6 +55,7 @@ pub struct Cookie {
     value: Option<String>,
     expires: Option<SystemTime>,
     options: CookieOptions,
+    encrypted_header_limit: Option<usize>,
 }
 
 impl fmt::Debug for Cookie {
@@ -88,6 +89,7 @@ impl Cookie {
             value: value.map(str::to_owned),
             expires,
             options,
+            encrypted_header_limit: None,
         };
         cookie.to_header(false)?;
         Ok(cookie)
@@ -119,7 +121,18 @@ impl Cookie {
     }
 
     pub fn with_value(&self, value: &str) -> Result<Self, CookieError> {
-        Self::new(&self.name, Some(value), self.expires, self.options.clone())
+        let mut cookie = Self::new(&self.name, Some(value), self.expires, self.options.clone())?;
+        cookie.encrypted_header_limit = self.encrypted_header_limit;
+        Ok(cookie)
+    }
+
+    pub(crate) fn with_encrypted_header_limit(mut self, bytes: usize) -> Self {
+        self.encrypted_header_limit = Some(bytes);
+        self
+    }
+
+    pub(super) fn encrypted_header_limit(&self) -> Option<usize> {
+        self.encrypted_header_limit
     }
 
     pub fn to_header(&self, secure_default: bool) -> Result<HeaderValue, CookieError> {

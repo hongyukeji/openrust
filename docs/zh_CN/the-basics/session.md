@@ -8,7 +8,9 @@
 
 用 `SESSION_DRIVER=redis`、`memcached` 或 `dynamodb` 将会话保存在缓存后端。`SESSION_STORE` 选择具名缓存存储，默认使用驱动名。Redis 的 `SESSION_CONNECTION` 选择连接名，默认为 `default`。应用配置中的 `session.prefix` 可覆盖 Redis 会话使用的缓存前缀。会话使用独立的 Redis 仓库，普通缓存保留自己的连接和前缀。后端在 `SESSION_LIFETIME` 分钟后使载荷过期。
 
-配置会话驱动后，默认 `web` 组会在处理器运行前启动会话。自定义组需要把 `EncryptCookies` 放在 `StartSession` 前面。
+用 `SESSION_DRIVER=cookie` 将会话保存在两个加密 Cookie 中。配置的会话 Cookie 保存 ID，以该 ID 命名的 Cookie 保存载荷和有效期。`SESSION_EXPIRE_ON_CLOSE` 使浏览器在关闭时丢弃 Cookie，载荷仍受有效期约束。加密后的载荷 Cookie 响应头上限为 4096 字节。轮换并删除旧会话时，当前浏览器会收到旧载荷 Cookie 的过期指令。已复制的一对 Cookie 在有效期内仍可重放。会话阻塞需要服务端驱动。
+
+配置会话驱动后，默认 `web` 组会在处理器运行前启动会话。自定义组需要把 `EncryptCookies` 放在 `StartSession` 前面。 Cookie 驱动还需要在两者之间放置 `AddQueuedCookiesToResponse`。
 
 ## 使用会话
 

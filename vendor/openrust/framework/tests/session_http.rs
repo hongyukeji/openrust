@@ -54,6 +54,7 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "keep" => session.keep(&["message"]),
             "rotate" => session.regenerate(true).await?,
             "invalidate" => session.invalidate().await?,
+            "oversized" => session.put("padding", json!("x".repeat(3000)))?,
             _ => {}
         }
         Response::json(
@@ -297,17 +298,25 @@ async fn send(address: SocketAddr, action: &str, cookie: &str) -> String {
 
 fn read(response: &str) -> (&str, Value) {
     assert!(response.starts_with("HTTP/1.1 200 "), "{response}");
-    let header = response
-        .lines()
-        .filter_map(|line| line.strip_prefix("set-cookie: "))
-        .find(|value| value.starts_with("probe_session="))
-        .unwrap();
+    let header = cookie_header(response, "probe_session");
     assert!(header.contains("; httponly"));
     assert!(!header.contains("Max-Age="));
     (
         header.split(';').next().unwrap(),
         serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap(),
     )
+}
+
+fn cookie_header<'a>(response: &'a str, name: &str) -> &'a str {
+    response
+        .lines()
+        .filter_map(|line| line.strip_prefix("set-cookie: "))
+        .find(|value| {
+            value
+                .split_once('=')
+                .is_some_and(|(prefix, _)| prefix == name)
+        })
+        .unwrap_or_else(|| panic!("missing response cookie {name}"))
 }
 
 async fn verify(driver: &'static str) {
@@ -405,13 +414,16 @@ async fn start_local_driver(
     driver: &str,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     fn config(driver: &str) -> std::collections::BTreeMap<String, Value> {
+        let cookie = driver.starts_with("cookie");
         [
             ("app".into(), json!({"key": "a".repeat(32)})),
             (
                 "session".into(),
                 json!({
-                    "driver": driver, "files": "sessions", "cookie": "probe_session",
-                    "lifetime": 1, "encrypt": true, "expire_on_close": true, "lottery": [1,1]
+                    "driver": if cookie {"cookie"} else {driver},
+                    "files": "sessions", "cookie": "probe_session",
+                    "lifetime": 1, "encrypt": driver != "cookie-clear", "expire_on_close": true,
+                    "lottery": [1,1], "block": driver == "cookie-lock"
                 }),
             ),
         ]
@@ -422,6 +434,9 @@ async fn start_local_driver(
         "file" => builder.withConfig(|_, _| Ok(config("file"))),
         "native" => builder.withConfig(|_, _| Ok(config("native"))),
         "null" => builder.withConfig(|_, _| Ok(config("null"))),
+        "cookie" => builder.withConfig(|_, _| Ok(config("cookie"))),
+        "cookie-clear" => builder.withConfig(|_, _| Ok(config("cookie-clear"))),
+        "cookie-lock" => builder.withConfig(|_, _| Ok(config("cookie-lock"))),
         _ => unreachable!(),
     }
     .withRouting(Routing::default().web(register))
@@ -434,6 +449,82 @@ async fn start_local_driver(
     let service = transport.with_state(Arc::new(kernel)).into_make_service();
     let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
     (address, server)
+}
+
+#[tokio::test]
+async fn cookie_sessions_round_trip_and_rotate_across_applications() {
+    use openrust::cookie::CookieValuePrefix;
+
+    let root = tempfile::tempdir().unwrap();
+    let (first, first_server) = start_local_driver(root.path(), "cookie").await;
+    let original = send(first, "seed", "").await;
+    let (pointer, state) = read(&original);
+    let id = state["id"].as_str().unwrap();
+    let payload_header = cookie_header(&original, id);
+    assert!(payload_header.len() <= 4096);
+    assert!(payload_header.contains("; httponly"));
+    assert!(!payload_header.contains("Max-Age="));
+    let payload_cookie = payload_header.split(';').next().unwrap();
+    assert!(!payload_header.contains("Ada"));
+    let jar = format!("{pointer}; {payload_cookie}");
+    first_server.abort();
+
+    let (second, second_server) = start_local_driver(root.path(), "cookie").await;
+    let continued = send(second, "read", &jar).await;
+    let (_, continued_state) = read(&continued);
+    assert_eq!(continued_state["id"], state["id"]);
+    assert_eq!(continued_state["token"], state["token"]);
+    assert_eq!(continued_state["name"], "Ada");
+    assert_eq!(continued_state["message"], "Saved");
+
+    let rotated = send(second, "rotate", &jar).await;
+    let (_, rotated_state) = read(&rotated);
+    assert_ne!(rotated_state["id"], state["id"]);
+    assert_ne!(rotated_state["token"], state["token"]);
+    assert_eq!(rotated_state["name"], "Ada");
+    assert!(cookie_header(&rotated, id).contains("Max-Age=0"));
+    assert!(!cookie_header(&rotated, rotated_state["id"].as_str().unwrap()).contains("Max-Age="));
+
+    for cookies in [pointer.to_owned(), format!("{pointer}; {id}=tampered")] {
+        let (_, fresh) = read(&send(second, "read", &cookies).await);
+        assert!(fresh["name"].is_null());
+        assert_ne!(fresh["token"], state["token"]);
+    }
+
+    let encrypter = Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap();
+    let ciphertext =
+        percent_encoding::percent_decode_str(payload_cookie.split_once('=').unwrap().1)
+            .decode_utf8()
+            .unwrap();
+    let decoded = encrypter.decryptString(&ciphertext).unwrap();
+    let mut envelope: Value = serde_json::from_slice(
+        CookieValuePrefix::validate(id, &decoded, encrypter.getAllKeys()).unwrap(),
+    )
+    .unwrap();
+    assert!(Encrypter::appearsEncrypted(
+        envelope["data"].as_str().unwrap()
+    ));
+    envelope["expires"] = 0.into();
+    let mut expired = CookieValuePrefix::create(id, encrypter.getKey()).to_vec();
+    expired.extend(serde_json::to_vec(&envelope).unwrap());
+    let expired = encrypter.encryptString(&expired).unwrap();
+    let (_, fresh) = read(&send(second, "read", &format!("{pointer}; {id}={expired}")).await);
+    assert!(fresh["name"].is_null());
+    assert_ne!(fresh["token"], state["token"]);
+    assert!(!root.path().join("sessions").exists());
+    second_server.abort();
+}
+
+#[tokio::test]
+async fn cookie_sessions_reject_over_budget_headers_and_session_blocking() {
+    let root = tempfile::tempdir().unwrap();
+    for (driver, action) in [("cookie-clear", "oversized"), ("cookie-lock", "seed")] {
+        let (address, server) = start_local_driver(root.path(), driver).await;
+        let response = send(address, action, "").await;
+        assert!(response.starts_with("HTTP/1.1 500 "));
+        assert!(!response.contains("set-cookie:"));
+        server.abort();
+    }
 }
 
 #[tokio::test]
