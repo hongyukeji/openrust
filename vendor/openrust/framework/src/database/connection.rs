@@ -69,6 +69,7 @@ pub struct Connection {
     pub(super) sqlite_json_types: super::schema::SqliteJsonTypes,
     pub(super) table_options: Arc<super::schema::TableOptions>,
     pub(super) postgres_dont_drop: Arc<[String]>,
+    pub(super) postgres_schemas: Arc<[String]>,
     pub(super) grammar: super::query::grammars::Grammar,
     pub(super) database: Arc<str>,
     pub(super) pools: Arc<ConnectionPools>,

@@ -48,6 +48,7 @@ impl ConnectionFactory {
             sqlite_json_types: options.sqlite_json_types,
             table_options: options.table_options,
             postgres_dont_drop: options.postgres_dont_drop,
+            postgres_schemas: options.postgres_schemas,
             grammar: options.grammar,
             database: options.database,
             pools: Arc::new(ConnectionPools::new(
@@ -85,6 +86,7 @@ struct ConnectionOptions {
     sqlite_json_types: SqliteJsonTypes,
     table_options: Arc<TableOptions>,
     postgres_dont_drop: Arc<[String]>,
+    postgres_schemas: Arc<[String]>,
     sticky: bool,
     has_direct_connection: bool,
     pools: PoolGeneration,
@@ -123,12 +125,13 @@ fn resolve(
         merge(&base, write, "write")?
     };
     let (mut database, mut writer) = make_pool(&write_options, root, mysql_test_owner)?;
-    let mut reader = read
+    let read_options = read
         .filter(|value| !value.is_null() && role != Some(QueryRole::Direct))
-        .map(|read| {
-            let options = merge(&base, Some(read), "read")?;
-            make_pool(&options, root, mysql_test_owner)
-        })
+        .map(|read| merge(&base, Some(read), "read"))
+        .transpose()?;
+    let mut reader = read_options
+        .as_ref()
+        .map(|options| make_pool(options, root, mysql_test_owner))
         .transpose()?;
     let prefix = write_options.string("prefix", "")?;
     let grammar = match &writer {
@@ -208,12 +211,34 @@ fn resolve(
     } else {
         Arc::default()
     };
+    let postgres_schemas = if matches!(writer, Pool::Postgres(_)) {
+        let options = if role == Some(QueryRole::Read) {
+            read_options.as_ref().unwrap_or(&write_options)
+        } else {
+            &write_options
+        };
+        let username = options.string("username", "root")?;
+        postgres_search_path(options)?
+            .into_iter()
+            .map(|schema| {
+                if schema == "$user" {
+                    username.to_owned()
+                } else {
+                    schema
+                }
+            })
+            .collect::<Vec<_>>()
+            .into()
+    } else {
+        Arc::default()
+    };
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
         prefix_indexes: write_options.boolean("prefix_indexes", false)?,
         table_options: Arc::new(table_options),
         postgres_dont_drop,
+        postgres_schemas,
         sqlite_json_types,
         sticky,
         has_direct_connection,
@@ -351,6 +376,11 @@ fn postgres(
         .string("sslmode", "prefer")?
         .parse::<PgSslMode>()
         .map_err(|_| invalid("sslmode"))?;
+    let path = postgres_search_path(config)?
+        .into_iter()
+        .map(|schema| Grammar::postgres("").quote(&schema))
+        .collect::<DatabaseResult<Vec<_>>>()?
+        .join(",");
     let mut options = PgConnectOptions::new()
         .host(host)
         .port(port)
@@ -358,7 +388,7 @@ fn postgres(
         .password(config.string("password", "")?)
         .database(database)
         .ssl_mode(sslmode)
-        .options([("search_path", config.string("search_path", "public")?)]);
+        .options([("search_path", path)]);
     if let Some(certificate) = postgres_ssl_ca(config, root)? {
         options = options.ssl_root_cert(certificate);
     }
@@ -367,6 +397,73 @@ fn postgres(
         .acquire_timeout(timeout)
         .connect_lazy_with(options);
     Ok((database.to_owned(), Pool::Postgres(pool)))
+}
+
+fn postgres_search_path(options: &Options) -> DatabaseResult<Vec<String>> {
+    for key in ["search_path", "schema"] {
+        let schemas = match options.0.get(key) {
+            None | Some(Value::Null) => continue,
+            Some(Value::Array(items)) => items
+                .iter()
+                .map(|item| {
+                    item.as_str()
+                        .filter(|name| !name.is_empty() && !name.contains('\0'))
+                        .map(str::to_owned)
+                        .ok_or_else(|| invalid(key))
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?,
+            Some(Value::String(path)) => {
+                parse_postgres_search_path(path).ok_or_else(|| invalid(key))?
+            }
+            _ => return Err(invalid(key)),
+        };
+        if !schemas.is_empty() {
+            return Ok(schemas);
+        }
+    }
+    Ok(vec!["public".into()])
+}
+
+fn parse_postgres_search_path(mut path: &str) -> Option<Vec<String>> {
+    let mut schemas = Vec::new();
+    path = path.trim();
+    while !path.is_empty() {
+        let (schema, rest) = if let Some(quote @ ('"' | '\'')) = path.chars().next() {
+            let mut schema = String::new();
+            let mut rest = &path[1..];
+            loop {
+                let end = rest.find(quote)?;
+                schema.push_str(&rest[..end]);
+                rest = &rest[end + 1..];
+                if let Some(next) = rest.strip_prefix(quote) {
+                    schema.push(quote);
+                    rest = next;
+                } else {
+                    break;
+                }
+            }
+            (schema, rest.trim_start())
+        } else {
+            let end = path.find(',').unwrap_or(path.len());
+            let schema = path[..end].trim_end();
+            if schema.contains(['"', '\'']) || schema.chars().any(char::is_whitespace) {
+                return None;
+            }
+            (schema.to_owned(), &path[end..])
+        };
+        if schema.is_empty() || schema.contains('\0') {
+            return None;
+        }
+        schemas.push(schema);
+        if rest.is_empty() {
+            return Some(schemas);
+        }
+        path = rest.strip_prefix(',')?.trim_start();
+        if path.is_empty() {
+            return None;
+        }
+    }
+    Some(schemas)
 }
 
 fn postgres_ssl_ca(options: &Options, root: &Path) -> DatabaseResult<Option<PathBuf>> {

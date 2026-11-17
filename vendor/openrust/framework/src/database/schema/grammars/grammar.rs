@@ -17,6 +17,7 @@ pub(in crate::database::schema) struct Grammar {
     grammar: QueryGrammar,
     prefix_indexes: bool,
     database: Arc<str>,
+    postgres_schemas: Arc<[String]>,
     table_options: Arc<TableOptions>,
     sqlite_json_types: SqliteJsonTypes,
     mariadb_native_uuid: bool,
@@ -34,6 +35,7 @@ impl Grammar {
             grammar: connection.grammar.clone(),
             prefix_indexes: connection.prefix_indexes,
             database: connection.getDatabaseName().into(),
+            postgres_schemas: Arc::clone(&connection.postgres_schemas),
             table_options: connection.table_options.clone(),
             sqlite_json_types: connection.sqlite_json_types,
             mariadb_native_uuid: false,
@@ -88,12 +90,18 @@ impl Grammar {
         if self.mysql() {
             &self.database
         } else if self.postgres() {
-            "public"
+            self.postgres_schemas
+                .first()
+                .map_or("public", String::as_str)
         } else if self.sql_server() {
             "dbo"
         } else {
             "main"
         }
+    }
+
+    pub fn postgres_schemas(&self) -> &[String] {
+        &self.postgres_schemas
     }
 
     pub fn catalog_schema<'a>(&'a self, table: &'a Table) -> &'a str {

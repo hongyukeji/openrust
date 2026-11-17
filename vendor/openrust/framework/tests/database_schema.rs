@@ -81,6 +81,81 @@ fn connection(config: Json) -> Connection {
         .unwrap()
 }
 
+#[tokio::test]
+async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_queries() {
+    let settings = Repository::new(BTreeMap::from([(
+        "database".into(),
+        json!({"default":"pgsql","connections":{"pgsql":{
+            "driver":"pgsql", "username":"app_role", "prefix":"app_",
+            "search_path": r#""Tenant, A", "$user", "Double""Quote""#,
+            "read":{"search_path":["replica", "public"]},
+            "direct":{"search_path":["Migration Admin", "$user"], "username":"migration_role"}
+        }}}),
+    )]));
+    let manager = DatabaseManager::new(Arc::new(settings), ".");
+    for (name, expected) in [
+        (None, vec!["Tenant, A", "app_role", "Double\"Quote"]),
+        (Some("pgsql::read"), vec!["replica", "public"]),
+        (
+            Some("pgsql::direct"),
+            vec!["Migration Admin", "migration_role"],
+        ),
+    ] {
+        let db = manager.connection(name).unwrap();
+        let schema = db.getSchemaBuilder();
+        assert_eq!(schema.getCurrentSchemaName(), expected[0]);
+        assert_eq!(schema.getCurrentSchemaListing(), expected);
+        assert_eq!(
+            schema
+                .parseSchemaAndTable("records", SchemaFallback::Current)
+                .unwrap(),
+            (Some(expected[0]), "records"),
+        );
+    }
+    let legacy = connection(json!({"driver":"pgsql", "schema":["legacy", "public"]}));
+    assert_eq!(
+        legacy.getSchemaBuilder().getCurrentSchemaListing(),
+        ["legacy", "public"]
+    );
+
+    let db = manager.connection(None).unwrap();
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                assert!(schema.getSchemas().await?.is_empty());
+                assert!(schema.getTables(None).await?.is_empty());
+                assert!(
+                    schema
+                        .getTablesIn(&["Tenant, A", "public"])
+                        .await?
+                        .is_empty()
+                );
+                assert!(schema.getViews(None).await?.is_empty());
+                assert!(schema.getViewsIn(&["Tenant, A"]).await?.is_empty());
+                assert!(!schema.hasView("records").await?);
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 6);
+    for (entry, fragment) in preview.iter().zip([
+        "pg_catalog.current_schema()",
+        "pg_catalog.pg_total_relation_size",
+        "n.nspname::text in ('Tenant, A', 'public')",
+        "pg_catalog.pg_views",
+        "schemaname::text in ('Tenant, A')",
+        "pg_catalog.current_schemas(false)",
+    ]) {
+        assert!(entry.query.contains(fragment), "{}", entry.query);
+        assert_eq!(
+            entry.read_write_type,
+            openrust::database::events::QueryRole::Write
+        );
+    }
+}
+
 async fn verify(db: Connection, mysql: bool) {
     let mut schema = db.getSchemaBuilder();
     schema.dropIfExists("posts").await.unwrap();

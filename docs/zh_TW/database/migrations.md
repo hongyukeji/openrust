@@ -764,6 +764,8 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 `getSchemas()` 列出可見的 Schema，並標記目前使用的 Schema。SQLite 也會回傳各 Schema 的檔案路徑。在 MySQL 上，`getViews(None)` 列出所有可見使用者 Schema 的檢視表。在 SQLite 上，它查詢目前寫入工作階段中的所有 Schema。可用 `getViews(Some(name))` 指定一個，或用 `getViewsIn(&[...])` 指定多個。 `getCurrentSchemaName()` 和 `getCurrentSchemaListing()` 依寫入連線設定回傳目前的 Schema。MySQL 回傳設定的資料庫名稱，SQLite 回傳 `main`。這兩個方法讀取連線設定，無須執行 SQL。
 
+在 PostgreSQL 中，`getCurrentSchemaListing()` 依設定順序回傳 `search_path`，並將 `$user` 解析為所選端點的使用者名稱。可使用逗號分隔的字串或 Schema 名稱陣列。`getCurrentSchemaName()` 回傳第一項。資料庫目錄方法查詢所選寫入連線，`getSchemas()` 標記伺服器實際使用的目前 Schema。
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

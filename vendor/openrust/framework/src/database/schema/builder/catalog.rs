@@ -41,6 +41,9 @@ impl Builder<'_> {
 
     /// Returns the connection's default schema lookup list.
     pub fn getCurrentSchemaListing(&self) -> Vec<String> {
+        if self.grammar.postgres() {
+            return self.grammar.postgres_schemas().to_vec();
+        }
         vec![self.getCurrentSchemaName().to_owned()]
     }
 
@@ -66,6 +69,8 @@ impl Builder<'_> {
                 "select schema_name as name, null as path, schema_name = database() as is_default from information_schema.schemata where schema_name not in {MYSQL_SYSTEM_SCHEMAS} order by schema_name"
             );
             &mysql_sql
+        } else if self.grammar.postgres() {
+            "select nspname::text as name, null::text as path, coalesce(nspname = pg_catalog.current_schema(), false) as is_default from pg_catalog.pg_namespace where nspname !~ '^pg_' and nspname <> 'information_schema' order by nspname"
         } else if self.grammar.sql_server() {
             "select name, cast(null as nvarchar(255)) as path, cast(case when name=schema_name() then 1 else 0 end as bit) as is_default from sys.schemas where principal_id < 16384 order by name"
         } else {
@@ -88,6 +93,7 @@ impl Builder<'_> {
         match schema {
             Some(schema) => self.getViewsIn(&[schema]).await,
             None if self.grammar.mysql() => self.mysql_views(None).await,
+            None if self.grammar.postgres() => self.postgres_views(None).await,
             None if self.grammar.sql_server() => self.sql_server_views(None).await,
             None if matches!(self.executor, Executor::Connection(_)) => {
                 let mut session = self.session().await?;
@@ -108,6 +114,9 @@ impl Builder<'_> {
         if self.grammar.mysql() {
             return self.mysql_views(Some(schemas)).await;
         }
+        if self.grammar.postgres() {
+            return self.postgres_views(Some(schemas)).await;
+        }
         if self.grammar.sql_server() {
             return self.sql_server_views(Some(schemas)).await;
         }
@@ -124,6 +133,14 @@ impl Builder<'_> {
 
     pub async fn hasView(&mut self, view: &str) -> DatabaseResult<bool> {
         let view = self.resolve_table(view)?;
+        if self.grammar.postgres() {
+            let schema = view.schema.as_deref().unwrap_or_default();
+            let rows = self.select(
+                "select 1 from pg_catalog.pg_views where viewname::text = ? and (schemaname::text = ? or (? = '' and schemaname = any(pg_catalog.current_schemas(false)))) limit 1",
+                &[view.name.into(), schema.into(), schema.into()],
+            ).await?;
+            return Ok(!rows.is_empty());
+        }
         let schema = self.grammar.catalog_schema(&view).to_owned();
         Ok(self
             .getViews(Some(&schema))
@@ -154,6 +171,18 @@ impl Builder<'_> {
         let schemas = self.getSchemas().await?;
         let names: Vec<_> = schemas.iter().map(|schema| schema.name.as_str()).collect();
         self.sqlite_views(&names).await
+    }
+
+    async fn postgres_views(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<ViewInfo>> {
+        let (filter, bindings) = postgres_schema_filter("schemaname", schemas);
+        let sql = format!(
+            "select viewname::text as name, schemaname::text as schema_name, definition from pg_catalog.pg_views where {filter} order by schemaname, viewname"
+        );
+        self.select(&sql, &bindings)
+            .await?
+            .iter()
+            .map(view_info)
+            .collect()
     }
 
     async fn sql_server_views(
@@ -267,6 +296,14 @@ impl Builder<'_> {
             (
                 format!(
                     "select table_name as name, table_schema as schema_name, cast(data_length + index_length as unsigned) as size, engine as engine, table_collation as collation, table_comment as comment from information_schema.tables where table_type in ('BASE TABLE', 'SYSTEM VERSIONED') and {filter} order by table_schema, table_name"
+                ),
+                bindings,
+            )
+        } else if self.grammar.postgres() {
+            let (filter, bindings) = postgres_schema_filter("n.nspname", schemas);
+            (
+                format!(
+                    "select c.relname::text as name, n.nspname::text as schema_name, pg_catalog.pg_total_relation_size(c.oid) as size, null::text as engine, null::text as collation, pg_catalog.obj_description(c.oid, 'pg_class') as comment from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace where c.relkind in ('r','p') and {filter} order by n.nspname, c.relname"
                 ),
                 bindings,
             )
@@ -631,6 +668,16 @@ impl Builder<'_> {
                 })
             })
             .collect()
+    }
+}
+
+fn postgres_schema_filter(column: &str, schemas: Option<&[&str]>) -> (String, Vec<Value>) {
+    match schemas {
+        Some(schemas) => schema_filter(&format!("{column}::text"), schemas),
+        None => (
+            format!("{column} !~ '^pg_' and {column} <> 'information_schema'"),
+            Vec::new(),
+        ),
     }
 }
 

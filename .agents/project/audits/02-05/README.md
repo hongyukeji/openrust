@@ -417,3 +417,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - PostgreSQL 的 `CREATE DATABASE` 与 `DROP DATABASE` 要求事务外执行。普通 Builder 使用写连接执行单条原生 SQL，Schema Session 保留租约并使用同一物理连接。事务 Builder 返回明确错误，预演记录 SQL。删除时须连接到同一服务器的另一个数据库。 [PostgreSQL CREATE DATABASE](https://www.postgresql.org/docs/current/sql-createdatabase.html#SQL-CREATEDATABASE-NOTES) · [PostgreSQL DROP DATABASE](https://www.postgresql.org/docs/current/sql-dropdatabase.html#SQL-DROPDATABASE-NOTES)
 - 隔离基线 `a84ad3f70` 的无网络预演验证带引号的库名、配置编码以及同名路径的哨兵文件保留。真实 MySQL 8.4.13 的建库、同名拒绝、默认字符集和排序规则、重复删除均通过。真实 PostgreSQL 建删库、权限与事务边界按发布矩阵验收。
 - `sh tests/table_catalog.sh` 在 MySQL 8.4.13 上通过表目录与限定清库两项。隔离根应用 `./artisan inspire`、Rust 1.94.0 全仓格式与严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.5 GiB 本批 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-05-postgres-database.mOFNqzD6`。
+
+## PostgreSQL 搜索路径与 Schema 目录
+
+- 对照固定 Laravel v13.40.0 的 `PostgresConnector`、`PostgresBuilder` 与 `PostgresGrammar`，核对旧版 `6d1a81924` 后未发现可复用的搜索路径或 Schema 目录实现。Rust 的同步 Schema 名称接口保留，按照所选端点配置返回顺序及首项，把 `$user` 解析为该端点用户名。连接启动和目录接口共用配置解析，支持名称数组、逗号分隔列表和 `schema` 回退。对引号内的逗号、空格及双引号按单个名称处理。 [固定 Laravel PostgresBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/PostgresBuilder.php#L82) · [固定 Laravel 搜索路径解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/ParsesSearchPath.php)
+- `getSchemas()`、表目录、视图目录和 `hasView()` 查询写连接的 PostgreSQL 原生目录。`getSchemas()` 用服务器的 `current_schema()` 标记实际首选 Schema；未指定范围的表和视图目录排除系统 Schema。显式范围绑定为参数。未限定的视图存在检查遵循服务器有效搜索路径。 [固定 Laravel PostgresGrammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L60)
+- 隔离基线 `7ace723df` 的无网络测试验证角色配置、Schema 名称和 SQL 预演。真实 PostgreSQL 目录数据、权限与搜索路径验收留待发布矩阵。列及外键目录继续单独跟踪。
+- `sh tests/table_catalog.sh` 在真实 MySQL 8.4.13 上通过表目录和限定清库两项。隔离根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.5 GiB 本批 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-05-postgres-catalog.OxnViG7U`。

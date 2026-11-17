@@ -764,6 +764,8 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 `getSchemas()` lists the visible schemas and marks the selected one. SQLite also reports each schema’s file path. `getViews(None)` returns views from all visible user schemas on MySQL or all schemas on the SQLite write session. Use `getViews(Some(name))` for one schema or `getViewsIn(&[...])` for an explicit list. `getCurrentSchemaName()` and `getCurrentSchemaListing()` use the configured write connection. MySQL uses its configured database, and SQLite uses `main`. These two methods read connection settings without issuing SQL.
 
+On PostgreSQL, `getCurrentSchemaListing()` returns the configured `search_path` in order, with `$user` resolved to the selected endpoint’s username. Use a comma-separated string or an array of schema names. `getCurrentSchemaName()` returns the first entry. The database catalog methods query the selected writer, and `getSchemas()` marks the schema currently in use by the server.
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 
