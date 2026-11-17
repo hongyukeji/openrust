@@ -225,6 +225,27 @@ pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Valu
 }
 ```
 
+### 限制每组返回的行数 {#group-limit}
+
+调用 `groupLimit(count, column)` 限制分区列每个值对应的返回行数。用 `orderBy` 决定每组保留哪些行。需要确定顺序时，加入唯一列作为同值排序条件。`offset` 在每组内跳过指定行数，分组限额为零时返回空结果。
+
+查询构造器使用 `row_number()` 排名，返回的行隐藏内部排名列。需要对 UNION 结果分组限额时，先把 UNION 构造成派生表。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection.table("group_items")
+        .r#where("active", "=", true)
+        .orderByDesc("score")
+        .orderBy("id", "asc")
+        .groupLimit(1, "category")
+        .offset(1)
+        .get()
+        .await
+}
+```
+
 ## 插入语句
 
 `insert` 接收一个或多个 `Record`，批量记录使用相同的列。`insertOrIgnore` 使用驱动原生的忽略行为，并返回影响行数。`insertUsing` 接收目标列和选择查询。`insertGetId` 从同一次执行结果取得主键。

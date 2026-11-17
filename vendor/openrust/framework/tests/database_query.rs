@@ -534,6 +534,111 @@ async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
     );
 }
 
+#[tokio::test]
+async fn group_limits_rank_each_partition_on_mysql_8_4() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    db.unprepared("DROP TABLE IF EXISTS app_group_items")
+        .await
+        .unwrap();
+    db.unprepared("CREATE TABLE app_group_items (id BIGINT PRIMARY KEY, category VARCHAR(20), score INT, active BOOL)").await.unwrap();
+    db.unprepared(
+        "INSERT INTO app_group_items VALUES
+         (1, 'a', 100, 1), (2, 'a', 90, 1), (3, 'a', 80, 1),
+         (4, 'b', 60, 1), (5, 'b', 40, 1), (6, 'b', 30, 1),
+         (7, 'a', 200, 0)",
+    )
+    .await
+    .unwrap();
+
+    let ranked = || {
+        db.table("group_items")
+            .select(["id", "category", "score"])
+            .r#where("active", "=", true)
+            .orderByRaw("case when score >= ? then 0 else 1 end", vec![70.into()])
+            .orderByDesc("score")
+            .groupLimit(1, "category")
+            .offset(1)
+    };
+    assert_eq!(
+        ranked().toSql().unwrap(),
+        "select * from (select `id`, `category`, `score`, row_number() over (partition by `category` order by case when score >= ? then 0 else 1 end, `score` desc) as `laravel_row` from `app_group_items` where `active` = ?) as `laravel_table` where `laravel_row` <= ? and `laravel_row` > ? order by `laravel_row`"
+    );
+    assert_eq!(
+        ranked().getBindings().unwrap(),
+        [70.into(), true.into(), 2.into(), 1.into()]
+    );
+    for rows in [
+        ranked().get().await.unwrap(),
+        ranked().cursor().try_collect::<Vec<_>>().await.unwrap(),
+    ] {
+        assert!(rows.iter().all(|row| row.get("laravel_row").is_none()));
+        let ids = rows
+            .iter()
+            .map(|row| row.get("id").unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains(&&2.into()) && ids.contains(&&5.into()));
+    }
+    assert_eq!(ranked().count("*").await.unwrap(), 2);
+    assert!(
+        !db.table("group_items")
+            .groupLimit(0, "category")
+            .exists()
+            .await
+            .unwrap()
+    );
+    let ids = db
+        .table("group_items")
+        .fromSub(&ranked(), "ranked_items")
+        .unwrap()
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+        .unwrap();
+    assert_eq!(ids, [2.into(), 5.into()]);
+
+    let union = db
+        .table("group_items")
+        .select(["id", "category", "score"])
+        .whereIn("id", vec![1.into(), 2.into()])
+        .unionAll(
+            &db.table("group_items")
+                .select(["id", "category", "score"])
+                .whereIn("id", vec![4.into(), 5.into()]),
+        )
+        .unwrap();
+    assert!(
+        db.table("group_items")
+            .unionAll(&db.table("group_items"))
+            .unwrap()
+            .groupLimit(1, "category")
+            .toSql()
+            .is_err()
+    );
+    let mut combined = db
+        .table("group_items")
+        .fromSub(&union, "candidates")
+        .unwrap()
+        .orderByDesc("score")
+        .groupLimit(1, "category")
+        .pluck("id")
+        .await
+        .unwrap();
+    combined.sort_by_key(|value| match value {
+        Value::Integer(id) => *id,
+        _ => unreachable!("expected numeric id"),
+    });
+    assert_eq!(combined, [1.into(), 4.into()]);
+
+    let grouped = db.table("group_items").groupLimit(1, "category");
+    assert!(grouped.delete().await.is_err());
+    assert_eq!(db.table("group_items").count("*").await.unwrap(), 7);
+}
+
 async fn verify_json_predicates(db: Connection, mysql: bool) {
     db.statement("DROP TABLE IF EXISTS app_json_predicates", &[])
         .await

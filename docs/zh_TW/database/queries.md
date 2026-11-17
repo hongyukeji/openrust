@@ -225,6 +225,27 @@ pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Valu
 }
 ```
 
+### 限制每組回傳的資料列數 {#group-limit}
+
+呼叫 `groupLimit(count, column)` 限制分區欄位每個值對應的回傳列數。用 `orderBy` 決定每組保留哪些資料列。需要固定順序時，加入唯一欄位作為同值排序條件。`offset` 在每組內略過指定列數，分組上限為零時回傳空結果。
+
+查詢建構器使用 `row_number()` 排名，回傳的資料列會隱藏內部排名欄位。需要對 UNION 結果套用分組上限時，先將 UNION 組成衍生資料表。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection.table("group_items")
+        .r#where("active", "=", true)
+        .orderByDesc("score")
+        .orderBy("id", "asc")
+        .groupLimit(1, "category")
+        .offset(1)
+        .get()
+        .await
+}
+```
+
 ## 插入陳述式
 
 `insert` 接受一個或多個 `Record`，批次資料使用相同的欄位。`insertOrIgnore` 使用驅動程式原生的忽略行為，並傳回受影響的資料列數。`insertUsing` 接受目標欄位與選擇查詢。`insertGetId` 從同一次執行結果取得主鍵。

@@ -89,6 +89,11 @@ enum Order {
     FullText(Vec<String>, String, super::FullTextOptions),
 }
 
+struct GroupLimit {
+    partition: String,
+    limit: Option<u64>,
+}
+
 /// Builds and executes a query using the grammar of the selected connection.
 pub struct Builder<'connection> {
     executor: Executor<'connection>,
@@ -108,7 +113,7 @@ pub struct Builder<'connection> {
     orders: Vec<Order>,
     limit: Option<u64>,
     offset: Option<u64>,
-    group_limit: Option<String>,
+    group_limit: Option<GroupLimit>,
     use_write: bool,
 }
 
@@ -290,9 +295,21 @@ impl<'connection> Builder<'connection> {
         self.orderBy(column, "asc")
     }
 
+    /// Limits the rows returned for each value of the partition column.
+    pub fn groupLimit(mut self, limit: u64, column: &str) -> Self {
+        self.group_limit = Some(GroupLimit {
+            partition: column.into(),
+            limit: Some(limit),
+        });
+        self
+    }
+
     pub(in crate::database) fn group_limit(mut self, partition: &str) -> Self {
-        if self.limit.is_some() || self.offset.is_some() {
-            self.group_limit = Some(partition.into());
+        if self.group_limit.is_none() && (self.limit.is_some() || self.offset.is_some()) {
+            self.group_limit = Some(GroupLimit {
+                partition: partition.into(),
+                limit: self.limit.take(),
+            });
         }
         self
     }
@@ -394,7 +411,8 @@ impl<'connection> Builder<'connection> {
                     self.union_offset = Some(offset);
                 }
                 let (sql, bindings) = self.compile(None)?;
-                let rows = self.execute(&sql, &bindings).await?;
+                let mut rows = self.execute(&sql, &bindings).await?;
+                self.remove_group_rank(&mut rows);
                 let length = rows.len() as u64;
                 if length == 0 {
                     break;
@@ -412,22 +430,17 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
-        let partition = self.group_limit.take();
-        let (sql, bindings) = self.compile_select(partition.as_deref())?;
+        let (sql, bindings) = self.compile(None)?;
         let mut rows = self.execute(&sql, &bindings).await?;
-        if partition.is_some() {
-            for row in &mut rows {
-                row.remove_last_column();
-            }
-        }
+        self.remove_group_rank(&mut rows);
         Ok(rows)
     }
 
     /// Streams the query results without collecting them into a vector.
     pub fn cursor(mut self) -> DatabaseCursor<'connection> {
         Box::pin(async_stream::try_stream! {
-            let partition = self.group_limit.take();
-            let (sql, bindings) = self.compile_select(partition.as_deref())?;
+            let grouped = self.group_limit.is_some();
+            let (sql, bindings) = self.compile(None)?;
             let mut rows = match &mut self.executor {
                 Executor::Connection(connection) =>
                     connection.cursor_with_mode(&sql, &bindings, self.use_write),
@@ -435,7 +448,7 @@ impl<'connection> Builder<'connection> {
                 Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery"))?,
             };
             while let Some(mut row) = rows.try_next().await? {
-                if partition.is_some() {
+                if grouped {
                     row.remove_last_column();
                 }
                 yield row;
@@ -443,36 +456,44 @@ impl<'connection> Builder<'connection> {
         })
     }
 
-    fn compile_select(&mut self, partition: Option<&str>) -> DatabaseResult<(String, Vec<Value>)> {
-        let Some(partition) = partition else {
-            return self.compile(None);
-        };
-        let partition = self.grammar.column(partition)?;
+    fn remove_group_rank(&self, rows: &mut [Row]) {
+        if self.group_limit.is_some() {
+            rows.iter_mut().for_each(Row::remove_last_column);
+        }
+    }
+
+    fn compile_group_limit(
+        &self,
+        group: &GroupLimit,
+        database: Option<&str>,
+    ) -> DatabaseResult<(String, Vec<Value>)> {
+        if !self.unions.is_empty() {
+            return Err(DatabaseError::InvalidQuery("group limit with union"));
+        }
+        let partition = self.grammar.column(&group.partition)?;
         let rank = self.grammar.quote("laravel_row")?;
         let alias = self.grammar.quote("laravel_table")?;
         let mut window = format!("row_number() over (partition by {partition}");
         let mut window_bindings = Vec::new();
         self.compile_orders(&self.orders, &mut window, &mut window_bindings)?;
-        use std::fmt::Write as _;
         write!(window, ") as {rank}").expect("writing to String");
-        if self.columns.is_empty() {
-            self.columns.push("*".into());
-        }
-        self.columns.push(
-            Expression::new(&window)
-                .with_bindings(window_bindings)
-                .into(),
-        );
-        self.orders.clear();
-        let offset = self.offset.take().unwrap_or(0);
-        let limit = self.limit.take();
-        let (sql, mut bindings) = self.compile(None)?;
-        let mut wrapped = format!("select * from ({sql}) as {alias} where {rank} > ?");
+        let rank_projection = Expression::new(window).with_bindings(window_bindings);
+        let (sql, mut bindings) =
+            self.compile_components(None, database, Some(&rank_projection))?;
+        let mut wrapped = format!("select * from ({sql}) as {alias}");
         let bound = |value: u64| Value::Integer(i64::try_from(value).unwrap_or(i64::MAX));
-        bindings.push(bound(offset));
-        if let Some(limit) = limit {
-            write!(wrapped, " and {rank} <= ?").expect("writing to String");
-            bindings.push(bound(offset.saturating_add(limit)));
+        if let Some(limit) = group.limit {
+            write!(wrapped, " where {rank} <= ?").expect("writing to String");
+            bindings.push(bound(self.offset.unwrap_or(0).saturating_add(limit)));
+        }
+        if let Some(offset) = self.offset {
+            let separator = if group.limit.is_some() {
+                "and"
+            } else {
+                "where"
+            };
+            write!(wrapped, " {separator} {rank} > ?").expect("writing to String");
+            bindings.push(bound(offset));
         }
         write!(wrapped, " order by {rank}").expect("writing to String");
         Ok((wrapped, bindings))
@@ -597,25 +618,44 @@ impl<'connection> Builder<'connection> {
         aggregate: Option<(&str, &str)>,
         database: Option<&str>,
     ) -> DatabaseResult<(String, Vec<Value>)> {
+        if let Some(group) = &self.group_limit {
+            let (sql, bindings) = self.compile_group_limit(group, database)?;
+            return match aggregate {
+                Some((function, column)) => {
+                    Ok((self.wrap_aggregate(function, column, &sql)?, bindings))
+                }
+                None => Ok((sql, bindings)),
+            };
+        }
         if let Some((function, column)) = aggregate
             && !self.unions.is_empty()
         {
             let (sql, bindings) = self.compile_with_database(None, database)?;
-            let distinct = if self.distinct && column != "*" {
-                "distinct "
-            } else {
-                ""
-            };
-            let column = self.grammar.column(column)?;
-            let alias = self.grammar.column("aggregate")?;
-            let subquery = self.grammar.table("temp_table")?;
-            return Ok((
-                format!(
-                    "select {function}({distinct}{column}) as {alias} from ({sql}) as {subquery}"
-                ),
-                bindings,
-            ));
+            return Ok((self.wrap_aggregate(function, column, &sql)?, bindings));
         }
+        self.compile_components(aggregate, database, None)
+    }
+
+    fn wrap_aggregate(&self, function: &str, column: &str, sql: &str) -> DatabaseResult<String> {
+        let distinct = if self.distinct && column != "*" {
+            "distinct "
+        } else {
+            ""
+        };
+        let column = self.grammar.column(column)?;
+        let alias = self.grammar.column("aggregate")?;
+        let subquery = self.grammar.table("temp_table")?;
+        Ok(format!(
+            "select {function}({distinct}{column}) as {alias} from ({sql}) as {subquery}"
+        ))
+    }
+
+    fn compile_components(
+        &self,
+        aggregate: Option<(&str, &str)>,
+        database: Option<&str>,
+        rank: Option<&Expression>,
+    ) -> DatabaseResult<(String, Vec<Value>)> {
         let mut sql = String::from("select ");
         let mut bindings = Vec::new();
         let sql_server = self.grammar.is_sql_server();
@@ -643,6 +683,11 @@ impl<'connection> Builder<'connection> {
             }
         }
 
+        if let Some(rank) = rank {
+            sql.push_str(", ");
+            sql.push_str(&rank.sql);
+            bindings.extend_from_slice(&rank.bindings);
+        }
         sql.push_str(" from ");
         sql.push_str(
             &self
@@ -670,25 +715,27 @@ impl<'connection> Builder<'connection> {
                 .compile(&self.grammar, &mut sql, &mut bindings)?;
         }
 
-        let ordered = !self.orders.is_empty() && (aggregate.is_none() || !self.groups.is_empty());
+        let ordered = rank.is_none()
+            && !self.orders.is_empty()
+            && (aggregate.is_none() || !self.groups.is_empty());
         if ordered {
             self.compile_orders(&self.orders, &mut sql, &mut bindings)?;
         }
 
+        let offset = if rank.is_some() { None } else { self.offset };
         if sql_server {
-            if self.limit != Some(0) && (self.limit.is_some() || self.offset.is_some()) {
+            if self.limit != Some(0) && (self.limit.is_some() || offset.is_some()) {
                 if !ordered {
                     sql.push_str(" order by (select 0)");
                 }
                 use std::fmt::Write as _;
-                write!(sql, " offset {} rows", self.offset.unwrap_or(0))
-                    .expect("writing to String");
+                write!(sql, " offset {} rows", offset.unwrap_or(0)).expect("writing to String");
                 if let Some(limit) = self.limit {
                     write!(sql, " fetch next {limit} rows only").expect("writing to String");
                 }
             }
         } else {
-            Grammar::pagination(&mut sql, self.limit, self.offset);
+            Grammar::pagination(&mut sql, self.limit, offset);
         }
         if let Some(exclusive) = self.lock {
             sql.push_str(self.grammar.lock(exclusive));

@@ -410,7 +410,8 @@ impl Builder<'_> {
     }
 
     fn validate_write_query(&self) -> DatabaseResult<()> {
-        if !self.unions.is_empty()
+        if self.group_limit.is_some()
+            || !self.unions.is_empty()
             || !self.groups.is_empty()
             || !self.havings.is_empty()
             || self.lock.is_some()

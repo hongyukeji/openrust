@@ -57,3 +57,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - 隔离基线 `11b7692dd`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_query --locked --offline mysql -- --test-threads=1` 验证真实 MySQL 8.4.13 五项。覆盖前缀、包含端点的范围、否定和 OR、表达式绑定、空列表、NULL 与列表外值、次级排序、UNION 绑定及无效标识符。
 - 三语示例提取后在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-02-04-order-ranges.OHYXbP3W`。
 - 02-02 的剩余 PostgreSQL 独立直连及池化路由仍随该驱动验收。02-04 继续核对公开分组限额接口及向量等方言能力。
+
+## 公开分组限额
+
+- 对照固定 Laravel 的 `Builder::groupLimit` 与 `Grammar::compileGroupLimit`。按分区生成 `row_number()`，先绑定窗口排序的参数，再绑定后续条件与排名边界。公开方法复用已有 Eloquent 分组限额编译路径。检查旧版 `v0.x` 查询代码及测试和固定 Goravel 查询层，没有可直接复用的同名实现。 [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L3258) · [Laravel 查询文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#limit-and-offset)
+- MySQL 8.4.13 的 6 项查询回归和 1 项 Eloquent 关系回归通过。验证 SQL 预览与执行的绑定顺序、每组排序及偏移、零限额、计数、游标隐藏排名列和关联预加载。为避免直接组合时丢失 UNION 分支，同层组合返回错误，已实测用 `fromSub` 包住 UNION 后再排名。分组查询拒绝更新和删除，实测拒绝后原表依然保留全部记录。
+- 三语示例在同一真实 MySQL 夹具上分别执行通过。Rust 1.94.0 全仓格式与严格 Clippy、真实 Artisan、三语站点和 18 项浏览器检查通过。其他数据库方言及向量能力随对应驱动验收。临时 MySQL、本批 3.1 GiB 隔离 Cargo 产物和文档缓存已回收。项目磁盘可用 64.26 GB（59.85 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-04-group-limit.I7Wj6OIb`。

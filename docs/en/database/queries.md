@@ -225,6 +225,27 @@ pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Valu
 }
 ```
 
+### Limit rows within each group {#group-limit}
+
+Call `groupLimit(count, column)` to limit the rows for each value of the partition column. `orderBy` selects the rows retained within each group. Use a unique tie-breaker when the order must be deterministic. `offset` skips rows within each group, and a group limit of zero returns no rows.
+
+The builder ranks rows with `row_number()` and hides the rank column from returned rows. Wrap a union in a derived table before applying a group limit.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection.table("group_items")
+        .r#where("active", "=", true)
+        .orderByDesc("score")
+        .orderBy("id", "asc")
+        .groupLimit(1, "category")
+        .offset(1)
+        .get()
+        .await
+}
+```
+
 ## Insert Statements
 
 `insert` accepts one or more `Record` values. Each record in a batch has the same columns. `insertOrIgnore` returns the driver's affected-row count and uses its native ignore behavior. `insertUsing` takes a column list and a select query. `insertGetId` returns the key from the same execution result.
