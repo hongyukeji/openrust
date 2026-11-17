@@ -24,4 +24,16 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 注册驱动名和构造
 
 实现 `ShouldDispatchAfterCommit` 并通过 `Dispatcher::markAfterCommit::<E>()` 标记事件后，活跃事务中的事件将延迟到提交后分发。队列广播也遵循 `broadcastAfterCommit` 和队列连接的 `after_commit`。使用 `EventContext::toOthers(&request)` 将请求的 `X-Socket-ID` 传给驱动，供驱动排除来源连接。
 
+## 发送匿名广播 {#anonymous-broadcasting}
+
+使用 `Broadcast::on("news")`、`Broadcast::private("orders.42")` 或 `Broadcast::presence("rooms.42")` 创建匿名广播。`Broadcast::on` 也接受频道列表。通过 `r#as` 设置发送名称，通过 `with` 设置 JSON 载荷，通过 `via` 选择广播连接。默认发送名称是 `AnonymousEvent`。
+
+等待 `send()` 执行常规队列投递，或等待 `sendNow()` 同步发送。请求包含 `X-Socket-ID` 时，`toOthers(&request)` 排除来源套接字。默认受众包含来源套接字。
+
+## 唯一队列广播 {#unique-broadcasts}
+
+实现 `contracts::broadcasting::ShouldBeUnique` 后，用 `Dispatcher::registerUniqueBroadcast::<E>()` 注册。唯一性由事件的 Rust 类型和 `uniqueId()` 共同确定。用 `uniqueFor()` 设定锁租期秒数，用 `uniqueVia()` 选择具名缓存存储。默认 ID 为空，锁无到期时间并使用默认缓存存储。
+
+锁已被持有时，队列派发 `UniqueJobSkipped`。重试期间继续持锁，任务成功或永久失败后释放。同步广播无需唯一锁。显式 Rust 事务中的唯一队列投递在提交时获取锁，事务回滚会丢弃待投递任务。事务活跃期间，唯一投递若显式指定 `broadcastAfterCommit() == Some(false)`，会返回配置错误。
+
 内置连接为 `null` 和 `log`。启用 [Reverb 扩展包](../packages/reverb.md) 后可使用兼容 Pusher 的传输。

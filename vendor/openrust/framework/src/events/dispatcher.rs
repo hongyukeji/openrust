@@ -5,9 +5,11 @@ use std::{
 };
 
 use crate::{
-    broadcasting::{BroadcastEvent, BroadcastException, JOB},
+    broadcasting::{BroadcastEvent, BroadcastException, JOB, UniqueBroadcast},
     container::Container,
-    contracts::broadcasting::{Factory as BroadcastFactory, ShouldBroadcast, ShouldBroadcastNow},
+    contracts::broadcasting::{
+        Factory as BroadcastFactory, ShouldBeUnique, ShouldBroadcast, ShouldBroadcastNow,
+    },
     contracts::container::{BindingResolutionError, Container as _},
     contracts::events::{
         Dispatcher as Contract, Event, Listener, ShouldDispatchAfterCommit, Subscriber,
@@ -31,12 +33,15 @@ struct Registrations {
     fake: Option<Arc<EventFake>>,
 }
 
+type BroadcastUnique = fn(&dyn Event) -> Option<UniqueBroadcast>;
+
 type BroadcastSource = for<'a> fn(&'a dyn Event) -> Option<&'a dyn ShouldBroadcast>;
 
 #[derive(Clone, Copy)]
 struct BroadcastRegistration {
     event: BroadcastSource,
     immediate: bool,
+    unique: Option<BroadcastUnique>,
 }
 
 struct DeferredEvents {
@@ -114,15 +119,27 @@ impl Dispatcher {
 
     /// Registers the broadcast contract for this compiled event type.
     pub fn registerBroadcast<E: ShouldBroadcast>(&self) {
-        self.register_broadcast::<E>(false);
+        self.register_broadcast::<E>(false, None);
     }
 
     /// Registers the synchronous broadcast contract for this compiled event type.
     pub fn registerBroadcastNow<E: ShouldBroadcastNow>(&self) {
-        self.register_broadcast::<E>(true);
+        self.register_broadcast::<E>(true, None);
     }
 
-    fn register_broadcast<E: ShouldBroadcast>(&self, immediate: bool) {
+    /// Registers a broadcast event whose queued deliveries acquire a uniqueness lock.
+    pub fn registerUniqueBroadcast<E: ShouldBeUnique>(&self) {
+        self.register_broadcast::<E>(
+            false,
+            Some(|event| event.downcast_ref::<E>().map(UniqueBroadcast::for_event)),
+        );
+    }
+
+    fn register_broadcast<E: ShouldBroadcast>(
+        &self,
+        immediate: bool,
+        unique: Option<BroadcastUnique>,
+    ) {
         self.write().broadcasts.insert(
             TypeId::of::<E>(),
             BroadcastRegistration {
@@ -132,6 +149,7 @@ impl Dispatcher {
                         .map(|event| event as &dyn ShouldBroadcast)
                 },
                 immediate,
+                unique,
             },
         );
     }
@@ -312,11 +330,13 @@ impl Dispatcher {
         let Some(registration) = registration else {
             return Ok(());
         };
-        let event = (registration.event)(event).ok_or(EventError::InvalidPayload)?;
-        let Some(delivery) = BroadcastEvent::from_event(event, context.socket.as_deref()) else {
+        let source = event;
+        let event = (registration.event)(source).ok_or(EventError::InvalidPayload)?;
+        let Some(mut delivery) = BroadcastEvent::from_event(event, context.socket.as_deref())
+        else {
             return Ok(());
         };
-        if registration.immediate {
+        if registration.immediate || event.shouldBroadcastNow() {
             let owner = self.owner.upgrade().ok_or_else(|| {
                 EventError::Broadcast(BroadcastException::Backend(
                     std::io::Error::other("Broadcast application is unavailable.").into(),
@@ -330,6 +350,7 @@ impl Dispatcher {
                 .await
                 .map_err(EventError::Broadcast)?;
         } else {
+            delivery.unique = registration.unique.and_then(|unique| unique(source));
             let payload = crate::queue::Payload::new(JOB, delivery).map_err(EventError::Queue)?;
             let options = crate::queue::DispatchOptions {
                 connection: event.broadcastQueueConnection().map(str::to_owned),

@@ -27,6 +27,11 @@ macro_rules! queue_event {
 }
 
 queue_event!(
+    /// A queued job was skipped because its uniqueness lock is already held.
+    UniqueJobSkipped { job: Payload }
+);
+
+queue_event!(
     /// A monitored queue has reached its configured size threshold.
     QueueBusy { connection_name: String, queue: String, size: u64 }
 );

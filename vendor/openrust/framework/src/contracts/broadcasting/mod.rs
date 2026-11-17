@@ -97,9 +97,30 @@ pub trait ShouldBroadcast: Event {
     fn broadcastQueueConnection(&self) -> Option<&str> {
         None
     }
+    fn broadcastSocket(&self) -> Option<&str> {
+        None
+    }
+    fn shouldBroadcastNow(&self) -> bool {
+        false
+    }
     fn broadcastAfterCommit(&self) -> Option<bool> {
         None
     }
 }
 
 pub trait ShouldBroadcastNow: ShouldBroadcast {}
+
+/// A queued broadcast that allows only one pending delivery per event type and ID.
+pub trait ShouldBeUnique: ShouldBroadcast {
+    fn uniqueId(&self) -> &str {
+        ""
+    }
+
+    fn uniqueFor(&self) -> Option<u64> {
+        None
+    }
+
+    fn uniqueVia(&self) -> Option<&str> {
+        None
+    }
+}

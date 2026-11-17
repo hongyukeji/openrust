@@ -6,6 +6,7 @@ use crate::{
         broadcasting::Factory, config::Repository, container::Container as _,
         foundation::Application as _,
     },
+    events::Dispatcher,
     foundation::Application,
     queue::QueueManager,
     support::{ProviderResult, ServiceProvider},
@@ -35,6 +36,9 @@ impl ServiceProvider for BroadcastServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.make::<Dispatcher>()
+                .await?
+                .registerBroadcast::<super::AnonymousEvent>();
             let queue = app.make::<QueueManager>().await?;
             let factory = app.make::<dyn Factory>().await?;
             queue.register(

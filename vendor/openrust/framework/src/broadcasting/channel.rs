@@ -34,6 +34,36 @@ impl BroadcastChannel {
     }
 }
 
+impl From<Channel> for BroadcastChannel {
+    fn from(channel: Channel) -> Self {
+        Self::Public(channel)
+    }
+}
+
+impl From<PrivateChannel> for BroadcastChannel {
+    fn from(channel: PrivateChannel) -> Self {
+        Self::Private(channel)
+    }
+}
+
+impl From<PresenceChannel> for BroadcastChannel {
+    fn from(channel: PresenceChannel) -> Self {
+        Self::Presence(channel)
+    }
+}
+
+impl From<String> for BroadcastChannel {
+    fn from(name: String) -> Self {
+        Self::Public(Channel { name })
+    }
+}
+
+impl From<&str> for BroadcastChannel {
+    fn from(name: &str) -> Self {
+        name.to_owned().into()
+    }
+}
+
 use std::{any::Any, collections::HashMap};
 
 use regex::Regex;

@@ -24,4 +24,16 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 註冊驅動名稱及建
 
 實作 `ShouldDispatchAfterCommit` 並透過 `Dispatcher::markAfterCommit::<E>()` 標記事件後，進行中交易內的事件將延後至提交後分派。佇列廣播也遵循 `broadcastAfterCommit` 和佇列連線的 `after_commit`。使用 `EventContext::toOthers(&request)` 將請求的 `X-Socket-ID` 傳給驅動程式，供驅動程式排除來源連線。
 
+## 傳送匿名廣播 {#anonymous-broadcasting}
+
+使用 `Broadcast::on("news")`、`Broadcast::private("orders.42")` 或 `Broadcast::presence("rooms.42")` 建立匿名廣播。`Broadcast::on` 也接受頻道清單。透過 `r#as` 設定傳送名稱，透過 `with` 設定 JSON 資料，透過 `via` 選擇廣播連線。預設傳送名稱為 `AnonymousEvent`。
+
+等待 `send()` 執行一般佇列投遞，或等待 `sendNow()` 同步傳送。請求包含 `X-Socket-ID` 時，`toOthers(&request)` 會排除來源通訊端。預設接收對象包含來源通訊端。
+
+## 唯一佇列廣播 {#unique-broadcasts}
+
+實作 `contracts::broadcasting::ShouldBeUnique` 後，用 `Dispatcher::registerUniqueBroadcast::<E>()` 註冊。唯一性由事件的 Rust 型別和 `uniqueId()` 共同決定。用 `uniqueFor()` 設定鎖定期限秒數，用 `uniqueVia()` 選擇具名快取儲存區。預設 ID 為空，鎖定無到期時間並使用預設快取儲存區。
+
+鎖定已被持有時，佇列派送 `UniqueJobSkipped`。重試期間維持鎖定，工作成功或永久失敗後釋放。同步廣播無需唯一鎖定。顯式 Rust 交易中的唯一佇列投遞在提交時取得鎖定，交易回復會捨棄待投遞工作。交易進行期間，唯一投遞若明確指定 `broadcastAfterCommit() == Some(false)`，會回傳設定錯誤。
+
 內建連線為 `null` 和 `log`。啟用 [Reverb 擴充套件](../packages/reverb.md) 後可使用相容 Pusher 的傳輸。

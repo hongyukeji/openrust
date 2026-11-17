@@ -24,4 +24,16 @@ Implement `ShouldBroadcast` and register the compiled type with `Dispatcher::reg
 
 Mark an event implementing `ShouldDispatchAfterCommit` with `Dispatcher::markAfterCommit::<E>()` to defer its dispatch when a transaction is active. Queued broadcasts also honor `broadcastAfterCommit` and the queue connection's `after_commit` setting. Use `EventContext::toOthers(&request)` to forward the request's `X-Socket-ID` to the driver for exclusion.
 
+## Sending anonymous broadcasts {#anonymous-broadcasting}
+
+Use `Broadcast::on("news")`, `Broadcast::private("orders.42")`, or `Broadcast::presence("rooms.42")` to build an anonymous broadcast. `Broadcast::on` also accepts a list of channels. Set the wire name with `r#as`, the JSON payload with `with`, and the broadcast connection with `via`. Without a custom name, the wire name is `AnonymousEvent`.
+
+Await `send()` for normal queue delivery or `sendNow()` for synchronous delivery. `toOthers(&request)` excludes the source socket when the request includes `X-Socket-ID`. Other sends include the source socket in the audience.
+
+## Unique queued broadcasts {#unique-broadcasts}
+
+Implement `contracts::broadcasting::ShouldBeUnique` and register the type with `Dispatcher::registerUniqueBroadcast::<E>()`. Uniqueness is scoped to the Rust event type and its `uniqueId()`. Use `uniqueFor()` to set a lease in seconds and `uniqueVia()` to select a named cache store. The defaults are an empty ID, a lock with no expiration, and the default cache store.
+
+The queue emits `UniqueJobSkipped` when a lock already exists. The lock remains held across retries and is released when the worker succeeds or the job fails permanently. Synchronous broadcasts do not take a uniqueness lock. Within an explicit Rust transaction, unique queue deliveries acquire the lock at commit. A rollback drops the pending delivery. An active transaction rejects an explicit `broadcastAfterCommit() == Some(false)` on a unique delivery.
+
 The built-in connections are `null` and `log`. Enable the [Reverb package](../packages/reverb.md) for a Pusher-compatible transport.

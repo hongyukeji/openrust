@@ -1,5 +1,6 @@
 use std::{
     ffi::OsString,
+    path::Path,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -17,7 +18,10 @@ use openrust::{
     },
     contracts::{
         auth::Authenticatable,
-        broadcasting::{Broadcaster, ChannelHandler, Factory, ShouldBroadcast, ShouldBroadcastNow},
+        broadcasting::{
+            Broadcaster, ChannelHandler, Factory, ShouldBeUnique, ShouldBroadcast,
+            ShouldBroadcastNow,
+        },
         events::{Dispatcher as _, Event, ShouldDispatchAfterCommit},
         foundation::Application as _,
         http::Kernel as _,
@@ -28,10 +32,13 @@ use openrust::{
     },
     events::{DispatchResult, Dispatcher, EventContext},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{Request, Response, StatusCode},
-    queue::{JobContext, QueueManager},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    queue::{JobContext, QueueManager, events::UniqueJobSkipped},
     routing::{Router, RoutingError},
-    support::{ProviderResult, ServiceProvider, facades::Broadcast},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{Broadcast, DB},
+    },
 };
 use serde_json::{Value, json};
 
@@ -165,6 +172,9 @@ impl ServiceProvider for Register {
             dispatcher.registerBroadcastNow::<Notice<1>>();
             dispatcher.markAfterCommit::<Notice<1>>();
             dispatcher.registerBroadcast::<Notice<2>>();
+            dispatcher.registerUniqueBroadcast::<UniqueNotice<1>>();
+            dispatcher.registerUniqueBroadcast::<UniqueNotice<2>>();
+            dispatcher.registerUniqueBroadcast::<UniqueNotice<3>>();
             Ok(())
         })
     }
@@ -208,6 +218,44 @@ impl<const MODE: u8> ShouldBroadcast for Notice<MODE> {
 }
 impl ShouldBroadcastNow for Notice<1> {}
 impl ShouldDispatchAfterCommit for Notice<1> {}
+
+struct UniqueNotice<const KIND: u8>(String);
+
+impl<const KIND: u8> Event for UniqueNotice<KIND> {
+    fn name(&self) -> &str {
+        "unique.notice"
+    }
+}
+
+impl<const KIND: u8> ShouldBroadcast for UniqueNotice<KIND> {
+    fn broadcastOn(&self) -> Vec<BroadcastChannel> {
+        vec!["unique".into()]
+    }
+    fn broadcastData(&self) -> BroadcastPayload {
+        BroadcastPayload::from_iter([("id".into(), json!(self.0)), ("kind".into(), json!(KIND))])
+    }
+    fn broadcastQueue(&self) -> Option<&str> {
+        Some("broadcasts")
+    }
+    fn shouldBroadcastNow(&self) -> bool {
+        KIND == 3
+    }
+    fn broadcastAfterCommit(&self) -> Option<bool> {
+        Some(true)
+    }
+}
+
+impl<const KIND: u8> ShouldBeUnique for UniqueNotice<KIND> {
+    fn uniqueId(&self) -> &str {
+        &self.0
+    }
+    fn uniqueFor(&self) -> Option<u64> {
+        Some(if self.0 == "expiring" { 1 } else { 60 })
+    }
+    fn uniqueVia(&self) -> Option<&str> {
+        Some("event-locks")
+    }
+}
 
 struct Room(ModelState);
 
@@ -275,7 +323,80 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
     router.bind("explicit", |context| {
         Box::pin(async move { Ok((context.value() == "key").then(|| "bound".to_owned())) })
     });
+    router.get("/broadcast/anonymous-now", anonymous_now)?;
+    router.get("/broadcast/anonymous", anonymous_queued)?;
+    router.get("/broadcast/unique/{id}", send_unique::<1>)?;
+    router.get("/broadcast/unique-other/{id}", send_unique::<2>)?;
+    router.get("/broadcast/unique-now/{id}", send_unique::<3>)?;
+    router.get("/broadcast/commit/{id}", transaction_unique::<true>)?;
+    router.get("/broadcast/rollback/{id}", transaction_unique::<false>)?;
     Ok(router)
+}
+
+fn anonymous_now(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Broadcast::on([
+            BroadcastChannel::from("news"),
+            PrivateChannel {
+                name: "alerts".into(),
+            }
+            .into(),
+        ])
+        .r#as("anonymous.ready")
+        .with(BroadcastPayload::from_iter([("ok".into(), json!(true))]))
+        .toOthers(request)
+        .sendNow()
+        .await?;
+        Broadcast::private("discarded")
+            .via("null")
+            .sendNow()
+            .await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+fn anonymous_queued(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Broadcast::presence("lobby").send().await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+fn send_unique<const KIND: u8>(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let id = request.route("id").unwrap().to_owned();
+        openrust::support::facades::Event::dispatch(UniqueNotice::<KIND>(id)).await?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+fn transaction_unique<const COMMIT: bool>(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let id = request.route("id").unwrap().to_owned();
+        let database = DB::connection(None).map_err(internal)?;
+        let mut transaction = database.beginTransaction().await.map_err(internal)?;
+        openrust::support::facades::Event::dispatchInTransaction(
+            UniqueNotice::<1>(id),
+            &mut transaction,
+        )
+        .await?;
+        if COMMIT {
+            transaction.commit().await.map_err(internal)?;
+        } else {
+            transaction.rollBack(None).await.map_err(internal)?;
+        }
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+fn internal(source: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(source),
+    }
 }
 
 fn channels() -> BroadcastResult<()> {
@@ -340,15 +461,21 @@ fn channels() -> BroadcastResult<()> {
 }
 
 fn application(recorder: Arc<Recorder>) -> Application {
-    Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| {
+    application_at(recorder, &std::env::temp_dir())
+}
+
+fn application_at(recorder: Arc<Recorder>, root: &Path) -> Application {
+    Application::configure(root.to_path_buf())
+        .withConfig(|root, _| {
+            let sqlite_file = root.join("broadcast-probe.sqlite");
+            let database = if sqlite_file.is_file() { sqlite_file.to_string_lossy() } else { ":memory:".into() };
             Ok([
                 ("app".into(), json!({"key": "x".repeat(32)})),
                 ("auth".into(), json!({"guards":{"header":{"driver":"header"},"empty":{"driver":"empty"}}})),
-                ("database".into(), json!({"default":"broadcast","connections":{"broadcast":{"driver":"sqlite","database":":memory:"}}})),
+                ("database".into(), json!({"default":"broadcast","connections":{"broadcast":{"driver":"sqlite","database":database}}})),
                 ("session".into(), json!({"driver":"array","lottery":[0,100]})),
                 ("broadcasting".into(), json!({"default":"probe","connections":{"probe":{"driver":"record"}}})),
-                ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
+                ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"},"event-locks":{"driver":"file","path":"broadcast-locks"}}})),
                 ("queue".into(), json!({"default":"db","connections":{"db":{"driver":"database","queue":"default","table":"jobs","retry_after":30}}})),
             ].into())
         })
@@ -507,18 +634,7 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
         .unwrap()
         .connection(None)
         .unwrap();
-    db.getSchemaBuilder()
-        .create("jobs", |table| {
-            table.id();
-            table.string("queue", 255).index();
-            table.longText("payload");
-            table.unsignedInteger("attempts");
-            table.unsignedBigInteger("reserved_at").nullable();
-            table.unsignedBigInteger("available_at");
-            table.unsignedBigInteger("created_at");
-        })
-        .await
-        .unwrap();
+    create_jobs(&db).await;
     let manager = app.make::<BroadcastManager>().await.unwrap();
     assert!(Arc::ptr_eq(
         &manager.connection(None).unwrap(),
@@ -615,5 +731,173 @@ async fn broadcast_deliveries_respect_transaction_boundaries_and_queue_retry() {
             payload,
             Some("123.456".into())
         )
+    );
+}
+
+async fn create_jobs(db: &openrust::database::Connection) {
+    db.getSchemaBuilder()
+        .create("jobs", |table| {
+            table.id();
+            table.string("queue", 255).index();
+            table.longText("payload");
+            table.unsignedInteger("attempts");
+            table.unsignedBigInteger("reserved_at").nullable();
+            table.unsignedBigInteger("available_at");
+            table.unsignedBigInteger("created_at");
+        })
+        .await
+        .unwrap();
+}
+
+async fn artisan_work(recorder: Arc<Recorder>, root: &Path, selected: &str, tries: u8) {
+    let arguments = [
+        OsString::from("queue:work"),
+        OsString::from(format!("--queue={selected}")),
+        OsString::from("--once"),
+        OsString::from(format!("--tries={tries}")),
+    ];
+    assert_eq!(
+        application_at(recorder, root)
+            .handleCommand(&arguments)
+            .await
+            .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn actual_http_and_artisan_deliver_anonymous_and_unique_broadcasts() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::File::create(root.path().join("broadcast-probe.sqlite")).unwrap();
+    let recorder = Arc::new(Recorder::default());
+    let mut kernel = Kernel::new(application_at(recorder.clone(), root.path()));
+    kernel.bootstrap().await.unwrap();
+    let app = kernel.get_application();
+    let db = app
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    create_jobs(&db).await;
+    let queue = app
+        .make::<QueueManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let fake = app
+        .make::<Dispatcher>()
+        .await
+        .unwrap()
+        .fake(&[UniqueJobSkipped::NAME]);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport.with_state(Arc::new(kernel)).into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let get = |path: &str| {
+        let request = client
+            .get(format!("http://{address}/broadcast/{path}"))
+            .header("X-Socket-ID", "123.456");
+        async move {
+            assert_eq!(
+                request.send().await.unwrap().status(),
+                StatusCode::NO_CONTENT
+            );
+        }
+    };
+
+    get("anonymous-now").await;
+    assert_eq!(
+        *recorder.delivered.lock().unwrap(),
+        vec![(
+            vec!["news".into(), "private-alerts".into()],
+            "anonymous.ready".into(),
+            BroadcastPayload::from_iter([("ok".into(), json!(true))]),
+            Some("123.456".into()),
+        )]
+    );
+    assert_eq!(queue.size(Some("default")).await.unwrap(), 0);
+    get("anonymous").await;
+    assert_eq!(queue.size(Some("default")).await.unwrap(), 1);
+    artisan_work(recorder.clone(), root.path(), "default", 1).await;
+    assert_eq!(
+        recorder.delivered.lock().unwrap()[1],
+        (
+            vec!["presence-lobby".into()],
+            "AnonymousEvent".into(),
+            BroadcastPayload::new(),
+            None
+        )
+    );
+
+    get("rollback/same").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
+    get("commit/same").await;
+    get("unique/same").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 1);
+    let skipped = fake.dispatched(UniqueJobSkipped::NAME);
+    let job = &skipped[0]
+        .as_ref()
+        .downcast_ref::<UniqueJobSkipped>()
+        .unwrap()
+        .job;
+    assert_eq!(job.data()["event"], "unique.notice");
+    assert_eq!(job.data()["payload"]["id"], "same");
+    assert_eq!(skipped.len(), 1);
+
+    recorder.fail_once.store(true, Ordering::SeqCst);
+    artisan_work(recorder.clone(), root.path(), "broadcasts", 2).await;
+    get("unique/same").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 1);
+    assert_eq!(fake.dispatched(UniqueJobSkipped::NAME).len(), 2);
+    artisan_work(recorder.clone(), root.path(), "broadcasts", 2).await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
+
+    tokio::join!(get("unique/same"), get("unique/same"));
+    assert_eq!(fake.dispatched(UniqueJobSkipped::NAME).len(), 3);
+    get("unique-other/same").await;
+    get("unique/another").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 3);
+    recorder.fail_once.store(true, Ordering::SeqCst);
+    artisan_work(recorder.clone(), root.path(), "broadcasts", 1).await;
+    get("unique/same").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 3);
+    for _ in 0..3 {
+        artisan_work(recorder.clone(), root.path(), "broadcasts", 1).await;
+    }
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
+
+    get("unique/expiring").await;
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    get("unique/expiring").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 2);
+    artisan_work(recorder.clone(), root.path(), "broadcasts", 1).await;
+    get("unique/expiring").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 1);
+    artisan_work(recorder.clone(), root.path(), "broadcasts", 1).await;
+
+    get("unique-now/same").await;
+    get("unique-now/same").await;
+    assert_eq!(queue.size(Some("broadcasts")).await.unwrap(), 0);
+    server.abort();
+    assert!(server.await.unwrap_err().is_cancelled());
+    let delivered = recorder.delivered.lock().unwrap();
+    assert_eq!(delivered.len(), 10);
+    assert!(
+        delivered[8..]
+            .iter()
+            .all(|delivery| delivery.2["kind"] == 3)
     );
 }

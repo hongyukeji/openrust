@@ -1,5 +1,6 @@
 //! Channel authorization, broadcaster selection, and queued event delivery.
 
+mod anonymous_event;
 mod broadcast_controller;
 mod broadcast_event;
 mod broadcast_manager;
@@ -9,9 +10,10 @@ mod facade;
 
 use std::{collections::BTreeMap, error::Error, fmt, future::Future, pin::Pin};
 
+pub use anonymous_event::{AnonymousChannels, AnonymousEvent};
 pub use broadcast_controller::BroadcastController;
 pub use broadcast_event::BroadcastEvent;
-pub(crate) use broadcast_event::JOB;
+pub(crate) use broadcast_event::{JOB, UniqueBroadcast};
 pub use broadcast_manager::BroadcastManager;
 pub use broadcast_service_provider::BroadcastServiceProvider;
 pub use channel::{
@@ -89,4 +91,13 @@ pub enum ChannelAuthorization {
     Denied,
     Allowed,
     Presence(BroadcastPayload),
+}
+
+pub(crate) fn request_socket(request: &crate::http::Request) -> Option<String> {
+    request
+        .headers()
+        .get("x-socket-id")
+        .and_then(|header| header.to_str().ok())
+        .filter(|socket| !socket.is_empty())
+        .map(str::to_owned)
 }

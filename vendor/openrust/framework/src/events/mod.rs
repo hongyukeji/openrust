@@ -137,12 +137,7 @@ impl<'tx> EventContext<'tx> {
     /// Excludes the request's originating socket from this broadcast.
     #[allow(non_snake_case, reason = "Matches Laravel's broadcast API")]
     pub fn toOthers(mut self, request: &crate::http::Request) -> Self {
-        self.socket = request
-            .headers()
-            .get("x-socket-id")
-            .and_then(|header| header.to_str().ok())
-            .filter(|socket| !socket.is_empty())
-            .map(str::to_owned);
+        self.socket = crate::broadcasting::request_socket(request);
         self
     }
 

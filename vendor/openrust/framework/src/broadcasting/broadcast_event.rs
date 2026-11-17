@@ -3,8 +3,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contracts::broadcasting::{Factory, ShouldBroadcast},
-    queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult},
+    contracts::broadcasting::{Factory, ShouldBeUnique, ShouldBroadcast},
+    queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult, UniqueJob},
 };
 
 use super::{BroadcastChannel, BroadcastException, BroadcastPayload, BroadcastResult};
@@ -19,6 +19,26 @@ pub struct BroadcastEvent {
     payload: BroadcastPayload,
     connections: Vec<String>,
     socket: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) unique: Option<UniqueBroadcast>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct UniqueBroadcast {
+    id: String,
+    for_seconds: Option<u64>,
+    via: Option<String>,
+}
+
+impl UniqueBroadcast {
+    pub(crate) fn for_event<E: ShouldBeUnique>(event: &E) -> Self {
+        let name = std::any::type_name::<E>();
+        Self {
+            id: format!("{}:{name}:{}", name.len(), event.uniqueId()),
+            for_seconds: event.uniqueFor(),
+            via: event.uniqueVia().map(str::to_owned),
+        }
+    }
 }
 
 impl BroadcastEvent {
@@ -40,7 +60,8 @@ impl BroadcastEvent {
                 .broadcastWith()
                 .unwrap_or_else(|| event.broadcastData()),
             connections: event.broadcastConnections(),
-            socket: socket.map(str::to_owned),
+            socket: event.broadcastSocket().or(socket).map(str::to_owned),
+            unique: None,
         })
     }
 
@@ -65,6 +86,18 @@ impl BroadcastEvent {
 pub(super) struct DeliverBroadcast(pub(super) Arc<dyn Factory>);
 
 impl crate::contracts::queue::JobHandler for DeliverBroadcast {
+    #[allow(non_snake_case, reason = "Matches the queue handler contract")]
+    fn uniqueJob(&self, payload: &Payload) -> Option<UniqueJob> {
+        let unique: UniqueBroadcast =
+            serde_json::from_value(payload.data().get("unique")?.clone()).ok()?;
+        Some(UniqueJob {
+            id: unique.id,
+            for_seconds: unique.for_seconds,
+            via: unique.via,
+            until_processing: false,
+        })
+    }
+
     fn handle<'a>(
         &'a self,
         _: &'a mut JobContext<'_>,

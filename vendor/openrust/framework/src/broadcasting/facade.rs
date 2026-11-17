@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    BroadcastException, BroadcastManager, BroadcastResult, ChannelBindings, ChannelOptions,
-    ChannelRegistry,
+    AnonymousChannels, AnonymousEvent, BroadcastException, BroadcastManager, BroadcastResult,
+    ChannelBindings, ChannelOptions, ChannelRegistry, PresenceChannel, PrivateChannel,
 };
 
 tokio::task_local! {
@@ -30,6 +30,18 @@ impl Facade for Broadcast {
 }
 
 impl Broadcast {
+    pub fn on(channels: impl Into<AnonymousChannels>) -> AnonymousEvent {
+        AnonymousEvent::new(channels.into())
+    }
+
+    pub fn private(name: impl Into<String>) -> AnonymousEvent {
+        Self::on(PrivateChannel { name: name.into() })
+    }
+
+    pub fn presence(name: impl Into<String>) -> AnonymousEvent {
+        Self::on(PresenceChannel { name: name.into() })
+    }
+
     pub fn connection(name: Option<&str>) -> BroadcastResult<Arc<dyn Broadcaster>> {
         Self::getFacadeRoot()
             .map_err(|error| BroadcastException::Backend(Box::new(error)))?

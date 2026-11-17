@@ -32,7 +32,9 @@ use crate::{
 use super::{
     DatabaseQueue, DispatchOptions, DispatchResult, JobPopCallback, Payload, Queue, QueueError,
     QueueResult, RedisQueue, SyncQueue, backend,
-    events::{JobRetryRequested, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed},
+    events::{
+        JobRetryRequested, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, UniqueJobSkipped,
+    },
     failed::{FailedJob, FailedJobProviderInterface},
     new_id, queue_name,
     worker_control::WorkerControl,
@@ -1586,6 +1588,21 @@ async fn dispatch_unique(
         return dispatch(queue, &payload, options).await;
     };
     if !super::unique_job::acquire(&owner, &mut payload, policy).await? {
+        let dispatcher = owner
+            .make::<Dispatcher>()
+            .map_err(QueueError::Unavailable)?;
+        if dispatcher.observes(UniqueJobSkipped::NAME) {
+            application_scope(owner, async {
+                dispatcher
+                    .dispatch(
+                        Arc::new(UniqueJobSkipped { job: payload }),
+                        &mut EventContext::new(),
+                    )
+                    .await
+            })
+            .await
+            .map_err(backend)?;
+        }
         return Ok(DispatchResult::Duplicate);
     }
     let result = dispatch(queue, &payload, options).await;
