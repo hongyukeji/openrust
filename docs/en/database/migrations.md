@@ -1092,6 +1092,23 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### Renaming SQL Server Tables, Columns and Indexes {#sql-server-renaming}
+
+On SQL Server, `rename()`, `renameColumn()` and `renameIndex()` use `sys.sp_rename`. A table rename keeps the current Schema. The connection’s table prefix applies to both table names. An index retains its indexed columns and data. Update application code and stored SQL that still refer to the old name.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn rename_fixture(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.fixture", |table| {
+        table.renameColumn("score", "score_new");
+        table.renameIndex("ix_fixture", "ix_new");
+    }).await?;
+    schema.rename("finance.fixture", "finance.archive").await
+}
+```
+
 #### SQL Server Computed Columns {#sql-server-computed-columns}
 
 Use `computed(name, expression)` with a trusted SQL expression. SQL Server infers the column type. Add `persisted()` to store the computed value. For an existing computed column, `persisted().change()` stores the value and `change()` alone switches back to recomputing on read. Both changes use the existing expression. SQL Server checks whether that expression can be persisted.

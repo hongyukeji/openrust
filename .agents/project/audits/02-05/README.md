@@ -514,3 +514,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过四项 Schema／TDS 和一项迁移事务回归。实际 Artisan 预演、非确定性表达式失败后状态和账本恢复、迁移重试及回滚通过。实际 HTTP 验证开启持久化、源数据更新后重算、回滚后恢复非持久化。目录表达式在切换前后保持一致。
 - MySQL 8.4.13 生成列及表目录、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。SQL Server 仍待核对表、列和索引的原生重命名。SQL Server 2017 和原生 Linux x86_64 待发布复验。核心账本维持 62/66。
 - 临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 102.08 GB（95.07 GiB）。提交前周额度剩余 41%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-computed.uuQBeItW`。
+
+## SQL Server 表列与索引重命名
+
+- 对照固定 Laravel 的 `compileRename`、`compileRenameColumn` 和 `compileRenameIndex`，分别使用 `sys.sp_rename` 的 `OBJECT`、`COLUMN` 和 `INDEX`。Rust 对旧对象按 Schema、表及成员逐段引用，新名称作为单段 Unicode 字符串传入。表前缀应用于新旧表名，拒绝跨 Schema 重命名和超出 `sysname` 长度的新名称。旧版 `v0.x` 未找到对应的 `sp_rename` 实现。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php) · [SQL Server sp_rename](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-rename-transact-sql)
+- SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过五项 Schema／TDS 和一项迁移事务回归。覆盖带前缀的表以及含中文、方括号和引号的对象名，重命名后能按新名读取原行和索引，反向改名正常。真实 Artisan 验证预演、索引同名失败时撤销先前列重命名且账本无新增、成功重试及回滚。实际 HTTP 前后均读取原值及对应索引名。
+- MySQL 8.4.13 三项回归、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。SQL Server 主键约束的删除仍待对齐，SQL Server 2017 及原生 Linux x86_64 待发布复验。核心账本维持 62/66。
+- 临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 102.05 GB（95.04 GiB）。提交前周额度剩余 41%。验收日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-rename.IZhrxcXS`。

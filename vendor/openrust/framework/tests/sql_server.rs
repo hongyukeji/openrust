@@ -479,3 +479,115 @@ async fn sql_server_computed_columns_switch_persistence_in_place() {
     );
     schema.drop(&table).await.unwrap();
 }
+
+#[tokio::test]
+async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
+    let root = tempfile::tempdir().unwrap();
+    let preview = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"driver":"sqlsrv","prefix":"app_"}),
+            root.path(),
+        )
+        .unwrap();
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                schema
+                    .table("tenant.entries", |table| {
+                        table.renameColumn("old]'", "new]'");
+                        table.renameIndex("ix_old", "ix_new");
+                    })
+                    .await?;
+                schema.rename("tenant.entries", "tenant.archive").await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        statements
+            .iter()
+            .map(|entry| entry.query.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "exec sys.sp_rename N'[tenant].[app_entries].[old]]'']', N'new]''', N'COLUMN'",
+            "exec sys.sp_rename N'[tenant].[app_entries].[ix_old]', N'ix_new', N'INDEX'",
+            "exec sys.sp_rename N'[tenant].[app_entries]', N'app_archive', N'OBJECT'",
+        ]
+    );
+    assert!(
+        preview
+            .getSchemaBuilder()
+            .rename("tenant.entries", "other.archive")
+            .await
+            .is_err()
+    );
+    let long_name = "x".repeat(129);
+    assert!(
+        preview
+            .getSchemaBuilder()
+            .table("tenant.entries", |table| {
+                table.renameIndex("ix_old", &long_name);
+            })
+            .await
+            .is_err()
+    );
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = ConnectionFactory
+        .make("sqlsrv", json!({"url":url,"prefix":"app_"}), root.path())
+        .unwrap();
+    let suffix = fastrand::u64(..);
+    let from = format!("dbo.rename_from_{suffix:016x}");
+    let to = format!("dbo.rename_to_]'新_{suffix:016x}");
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create(&from, |table| {
+            table.integer("score");
+            table.index(&["score"], Some("ix_score"));
+        })
+        .await
+        .unwrap();
+    db.table(&from)
+        .insert(&[Record::from([("score".into(), 7.into())])])
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .table(&from, |table| {
+                table.renameColumn("score", "renamed");
+                table.renameColumn("missing", "unused");
+            })
+            .await
+            .is_err()
+    );
+    assert!(schema.hasColumn(&from, "score").await.unwrap());
+    assert!(!schema.hasColumn(&from, "renamed").await.unwrap());
+    schema
+        .table(&from, |table| {
+            table.renameColumn("score", "value]'新");
+            table.renameIndex("ix_score", "ix]'新");
+        })
+        .await
+        .unwrap();
+    schema.rename(&from, &to).await.unwrap();
+    assert!(!schema.hasTable(&from).await.unwrap());
+    assert!(schema.hasTable(&to).await.unwrap());
+    assert!(schema.hasColumn(&to, "value]'新").await.unwrap());
+    assert!(schema.hasIndex(&to, "ix]'新").await.unwrap());
+    assert_eq!(db.table(&to).value("value]'新").await.unwrap(), 7.into());
+    schema
+        .table(&to, |table| {
+            table.renameColumn("value]'新", "score");
+            table.renameIndex("ix]'新", "ix_score");
+        })
+        .await
+        .unwrap();
+    schema.rename(&to, &from).await.unwrap();
+    assert_eq!(db.table(&from).value("score").await.unwrap(), 7.into());
+    schema.drop(&from).await.unwrap();
+}

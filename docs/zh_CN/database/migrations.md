@@ -1092,6 +1092,23 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### 重命名 SQL Server 的表、列和索引 {#sql-server-renaming}
+
+在 SQL Server 上，`rename()`、`renameColumn()` 和 `renameIndex()` 使用 `sys.sp_rename`。表重命名在原 Schema 内完成，连接的表前缀同时应用于旧表名和新表名。索引保留原索引列和数据。应用代码和存储的 SQL 若仍引用旧名称，需要相应更新。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn rename_fixture(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.fixture", |table| {
+        table.renameColumn("score", "score_new");
+        table.renameIndex("ix_fixture", "ix_new");
+    }).await?;
+    schema.rename("finance.fixture", "finance.archive").await
+}
+```
+
 #### SQL Server 计算列 {#sql-server-computed-columns}
 
 用 `computed(name, expression)` 传入可信 SQL 表达式，由 SQL Server 推断列类型。追加 `persisted()` 会存储计算结果。对现有计算列，`persisted().change()` 开启持久化，仅调用 `change()` 会恢复为读取时计算。两种切换都沿用现有表达式，由 SQL Server 判断该表达式能否持久化。

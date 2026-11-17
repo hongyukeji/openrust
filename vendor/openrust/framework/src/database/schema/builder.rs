@@ -521,6 +521,11 @@ impl<'connection> Builder<'connection> {
     pub async fn rename(&mut self, from: &str, to: &str) -> DatabaseResult<()> {
         let from = self.resolve_table(from)?;
         let mut to = self.grammar.table(to)?;
+        if self.grammar.sql_server() {
+            return self
+                .execute(vec![self.grammar.sql_server_rename_table(&from, &to)?])
+                .await;
+        }
         let temporary = match &self.executor {
             Executor::Session(session) => session.temporary_index(&from),
             _ => None,

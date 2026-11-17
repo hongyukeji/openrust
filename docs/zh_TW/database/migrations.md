@@ -1092,6 +1092,23 @@ async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### 重新命名 SQL Server 資料表、欄位與索引 {#sql-server-renaming}
+
+在 SQL Server 上，`rename()`、`renameColumn()` 和 `renameIndex()` 使用 `sys.sp_rename`。資料表重新命名在原 Schema 內完成，連線的資料表前綴套用到新舊名稱。索引會保留原索引欄位和資料。應用程式碼和儲存的 SQL 若仍引用舊名稱，需要一併更新。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn rename_fixture(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.fixture", |table| {
+        table.renameColumn("score", "score_new");
+        table.renameIndex("ix_fixture", "ix_new");
+    }).await?;
+    schema.rename("finance.fixture", "finance.archive").await
+}
+```
+
 #### SQL Server 計算欄位 {#sql-server-computed-columns}
 
 用 `computed(name, expression)` 傳入可信 SQL 運算式，由 SQL Server 推斷欄位型別。加上 `persisted()` 會儲存計算結果。對既有計算欄位，`persisted().change()` 啟用持久化，單獨呼叫 `change()` 則恢復為讀取時計算。兩種切換都沿用既有運算式，由 SQL Server 判斷該運算式能否持久化。

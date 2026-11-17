@@ -147,6 +147,37 @@ impl Grammar {
             .map(|columns| columns.join(", "))
     }
 
+    pub fn sql_server_rename_table(&self, from: &Table, to: &Table) -> DatabaseResult<String> {
+        if to.schema.is_some() && to.schema != from.schema {
+            return Err(DatabaseError::UnsupportedSchema(
+                "SQL Server cross-schema table rename",
+            ));
+        }
+        self.sql_server_rename(&self.qualified(from)?, &to.name, "OBJECT")
+    }
+
+    fn sql_server_rename_member(
+        &self,
+        table: &str,
+        from: &str,
+        to: &str,
+        kind: &str,
+    ) -> DatabaseResult<String> {
+        self.sql_server_rename(&format!("{table}.{}", self.identifier(from)?), to, kind)
+    }
+
+    fn sql_server_rename(&self, from: &str, to: &str, kind: &str) -> DatabaseResult<String> {
+        if to.is_empty() || to.encode_utf16().count() > 128 {
+            return Err(DatabaseError::InvalidSchema("SQL Server rename target"));
+        }
+        Ok(format!(
+            "exec sys.sp_rename {}, {}, {}",
+            self.string(from)?,
+            self.string(to)?,
+            self.string(kind)?
+        ))
+    }
+
     fn conventional_name(&self, table: &Table, columns: &[String], suffix: &str) -> String {
         let name = if self.prefix_indexes {
             &table.name
@@ -418,6 +449,9 @@ impl Grammar {
                     }
                 }
                 Command::Foreign(foreign) => sql.push(self.add_foreign(table, &foreign)?),
+                Command::RenameColumn(from, to) if self.sql_server() => {
+                    sql.push(self.sql_server_rename_member(&qualified, &from, &to, "COLUMN")?)
+                }
                 Command::RenameColumn(from, to) => sql.push(format!(
                     "alter table {qualified} rename column {} to {}",
                     self.identifier(&from)?,
@@ -460,6 +494,9 @@ impl Grammar {
                     }
                 }
 
+                Command::RenameIndex(from, to) if self.sql_server() => {
+                    sql.push(self.sql_server_rename_member(&qualified, &from, &to, "INDEX")?)
+                }
                 Command::RenameIndex(from, to) if self.mysql() => sql.push(format!(
                     "alter table {qualified} rename index {} to {}",
                     self.identifier(&from)?,
