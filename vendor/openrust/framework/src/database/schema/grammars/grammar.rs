@@ -657,12 +657,18 @@ impl Grammar {
     }
 
     fn index_sql(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
-        if index.online
-            && (!self.postgres() || matches!(index.kind, IndexType::Primary | IndexType::Spatial))
-        {
-            return Err(DatabaseError::UnsupportedSchema("online index"));
-        }
-        let concurrently = if index.online { "concurrently " } else { "" };
+        let (concurrently, online) = match (index.online, index.kind) {
+            (false, _) => ("", ""),
+            (true, IndexType::Index | IndexType::Unique) if self.sql_server() => {
+                ("", " with (online = on)")
+            }
+            (true, kind)
+                if self.postgres() && !matches!(kind, IndexType::Primary | IndexType::Spatial) =>
+            {
+                ("concurrently ", "")
+            }
+            (true, _) => return Err(DatabaseError::UnsupportedSchema("online index")),
+        };
         let quoted;
         let columns = match index.raw_expression.as_deref() {
             Some(expression) => {
@@ -753,7 +759,7 @@ impl Grammar {
                 _ => return Err(DatabaseError::UnsupportedSchema("SQLite index kind")),
             };
             Ok(format!(
-                "{verb} {concurrently}{} on {} ({columns})",
+                "{verb} {concurrently}{} on {} ({columns}){online}",
                 if self.postgres() || self.sql_server() {
                     self.identifier(name)?
                 } else {
@@ -851,7 +857,7 @@ impl Grammar {
     fn drop_foreign(&self, table: &str, name: &str) -> DatabaseResult<String> {
         let kind = if self.mysql() {
             "foreign key"
-        } else if self.postgres() {
+        } else if self.postgres() || self.sql_server() {
             "constraint"
         } else {
             return Err(DatabaseError::UnsupportedSchema("foreign key drop"));

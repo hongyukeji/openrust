@@ -1018,6 +1018,18 @@ Schema::table("documents", |table| {
 
 遷移中使用線上索引時，覆寫 [`withinTransaction()`](#migration-transactions) 並回傳 `false`。使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
 
+#### SQL Server 線上索引 {#sql-server-online-indexes}
+
+在支援線上索引操作的 SQL Server 版本上，對 `index()` 或 `unique()` 呼叫 `online()` 以使用 `WITH (ONLINE = ON)`。保留預設的[遷移交易](#migration-transactions)。使用 `dropForeign(name)` 依約束名稱移除外鍵。
+
+```rust
+schema.table("dbo.fixture_entries", |table| {
+    table.index(&["score"], Some("fixture_search")).online();
+    table.unique(&["parent_id"], Some("fixture_unique")).online();
+    table.dropForeign("fixture_parent");
+}).await?;
+```
+
 #### 從模型定義外鍵欄位 {#foreign-ids-from-models}
 
 使用 `foreignIdFor::<Model>(None)`，由 Eloquent 模型提供外鍵欄位名稱。`constrained()` 讀取模型的資料表和主鍵名稱，也支援自訂名稱。傳入 `Some(name)` 可指定引用端的欄位名稱。

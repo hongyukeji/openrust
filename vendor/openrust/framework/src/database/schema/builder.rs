@@ -128,10 +128,10 @@ impl<'connection> Builder<'connection> {
 
     fn online_blueprint(&self, blueprint: &Blueprint) -> DatabaseResult<bool> {
         let online = blueprint.has_online_index();
-        if online && !self.grammar.postgres() {
+        if online && !(self.grammar.postgres() || self.grammar.sql_server()) {
             return Err(DatabaseError::UnsupportedSchema("online index"));
         }
-        Ok(online)
+        Ok(online && self.grammar.postgres())
     }
 
     /// Creates a database on the selected connection's server or a new SQLite file.

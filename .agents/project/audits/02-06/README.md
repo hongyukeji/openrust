@@ -172,3 +172,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 实际 Artisan 通过非交互拒绝和强制建库、带空格的相对路径及 URL 路径、`migrate:fresh`、只读和 immutable 拒绝、已有损坏文件保留以及快照回归。真实伪终端拒绝后文件不存在，直接回车同意后创建文件并写入迁移账本。使用新库的实际 HTTP `GET /up` 返回 200，独立 `artisan inspire` 正常退出。MySQL 8.4.13 缺库创建及无建库权限的拒绝通过。
 - SQLite 原子建库竞争回归和 PostgreSQL 启动协议回归通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。本批临时 MySQL、编译和文档产物已回收，磁盘空间净增 3.47 GB（3.23 GiB），可用 104.98 GB（97.77 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志与隔离 SQLite 样本保留于 `/private/tmp/openrust-02-06-sqlite-create.4MhjNckb`。
 - SQL Server 迁移事务和发布版本矩阵继续跟踪。下一批回到 02-02，补 PgBouncer 在关闭预备语句跟踪时的事务池模式。
+
+## 真实 SQL Server 迁移失败回滚
+
+- 复用固定 Laravel 迁移事务与同一连接写入语义。共享 PostgreSQL 事务测试中的失败夹具，SQL Server 用普通整数列写入，避免 IDENTITY 专有规则干扰事务断言。真实 SQL Server 2022 Developer 16.0.4325.4 验证事务内 DDL、DML 和迁移账本，并复跑 PostgreSQL 18.6 同组测试。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php#L16) · [固定 Laravel Migrator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/Migrator.php#L390)
+- 真实二进制的独立 Artisan 预演和执行均通过。实际 `up` 在在线索引与外键 DDL 完成后触发 SQL 错误，命令退出 1，表和账本均未留下记录。成功重跑后，`down` 在删表后触发错误，命令退出 1，表、索引和账本均恢复。再次回滚成功，HTTP 确认目录变化，`artisan inspire` 通过。测试也验证显式退出事务时已写入的表和数据继续存在，失败迁移不写入账本。
+- 核心账本维持 62/66。临时容器、证书及隔离编译和文档产物已回收，项目卷可用空间净增 3.95 GB（3.68 GiB），剩余 102.33 GB（95.30 GiB）。提交前周额度剩余 42%。原生 Linux x86_64 和其他支持版本仍待发布复验。日志保留于 `/private/tmp/openrust-02-05-sqlsrv.1X6pMKI8`。

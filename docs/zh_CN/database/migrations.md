@@ -1018,6 +1018,18 @@ Schema::table("documents", |table| {
 
 迁移中使用在线索引时，覆盖 [`withinTransaction()`](#migration-transactions) 并返回 `false`。使用连接的 Schema 构建器。包含在线索引的 Blueprint 逐条以自动提交方式执行。需要原子应用的变更应另用一个 Blueprint。若框架管理的事务处于活动状态，这个 Blueprint 会在执行任何语句前被拒绝。并发构建失败可能留下无效索引，可删除后再试。
 
+#### SQL Server 在线索引 {#sql-server-online-indexes}
+
+在支持在线索引操作的 SQL Server 版本上，给 `index()` 或 `unique()` 调用 `online()` 以使用 `WITH (ONLINE = ON)`。保留默认的[迁移事务](#migration-transactions)。用 `dropForeign(name)` 按约束名删除外键。
+
+```rust
+schema.table("dbo.fixture_entries", |table| {
+    table.index(&["score"], Some("fixture_search")).online();
+    table.unique(&["parent_id"], Some("fixture_unique")).online();
+    table.dropForeign("fixture_parent");
+}).await?;
+```
+
 #### 从模型定义外键列 {#foreign-ids-from-models}
 
 用 `foreignIdFor::<Model>(None)` 让 Eloquent 模型提供外键列名。`constrained()` 读取模型的表名与主键名，支持自定义名称。传入 `Some(name)` 可指定引用方的列名。

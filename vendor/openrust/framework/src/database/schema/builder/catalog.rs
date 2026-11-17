@@ -398,7 +398,7 @@ impl Builder<'_> {
                 parameters,
             )
         } else if self.grammar.postgres() {
-            (postgres::COLUMNS, postgres_table_parameters(&table))
+            (postgres::COLUMNS, optional_schema_parameters(&table))
         } else if self.grammar.sql_server() {
             (
                 "select c.name, ty.name as type_name, ty.name as full_type, c.is_nullable as nullable, d.definition as default_value, c.is_identity as auto_increment, cast(case when exists (select 1 from sys.index_columns ic join sys.indexes i on i.object_id=ic.object_id and i.index_id=ic.index_id where ic.object_id=c.object_id and ic.column_id=c.column_id and i.is_primary_key=1) then 1 else 0 end as bit) as primary_key, cast(null as nvarchar(255)) as comment, c.collation_name as collation, case when computed.is_persisted=1 then 'stored' when c.is_computed=1 then 'virtual' end as generation_kind, computed.definition as generation_expression from sys.columns c join sys.types ty on ty.user_type_id=c.user_type_id join sys.tables t on t.object_id=c.object_id join sys.schemas s on s.schema_id=t.schema_id left join sys.default_constraints d on d.object_id=c.default_object_id left join sys.computed_columns computed on computed.object_id=c.object_id and computed.column_id=c.column_id where s.name=? and t.name=? order by c.column_id",
@@ -562,10 +562,19 @@ impl Builder<'_> {
                  left join pg_attribute a on a.attrelid = tc.oid and a.attnum = keys.num \
                  where tn.nspname = coalesce(nullif(?, ''), current_schema()) and tc.relname = ? \
                  order by ic.relname, keys.ord",
-                vec![
-                    identifier.schema.as_deref().unwrap_or_default().into(),
-                    identifier.name.as_str().into(),
-                ],
+                optional_schema_parameters(&identifier).to_vec(),
+            )
+        } else if self.grammar.sql_server() {
+            (
+                "select i.name, c.name as column_name, lower(i.type_desc) as index_type, \
+                 i.is_unique as unique_key, i.is_primary_key as primary_key \
+                 from sys.indexes i join sys.tables t on t.object_id = i.object_id \
+                 join sys.schemas s on s.schema_id = t.schema_id \
+                 join sys.index_columns ic on ic.object_id = i.object_id and ic.index_id = i.index_id \
+                 join sys.columns c on c.object_id = ic.object_id and c.column_id = ic.column_id \
+                 where s.name = coalesce(nullif(?, ''), schema_name()) and t.name = ? and i.name is not null \
+                 order by i.name, ic.key_ordinal, ic.index_column_id",
+                optional_schema_parameters(&identifier).to_vec(),
             )
         } else {
             let [schema, name] = parameters;
@@ -592,7 +601,11 @@ impl Builder<'_> {
                 name
             };
             let index = indexes.entry((name.clone(), primary)).or_insert(Index {
-                name,
+                name: if self.grammar.sql_server() {
+                    name.to_ascii_lowercase()
+                } else {
+                    name
+                },
                 columns: Vec::new(),
                 index_type: optional_text(&row, "index_type")?,
                 unique: flag(&row, "unique_key")?,
@@ -671,7 +684,24 @@ impl Builder<'_> {
                 parameters,
             )
         } else if self.grammar.postgres() {
-            (postgres::FOREIGN_KEYS, postgres_table_parameters(&table))
+            (postgres::FOREIGN_KEYS, optional_schema_parameters(&table))
+        } else if self.grammar.sql_server() {
+            (
+                "select fk.name as key_id, c.name as column_name, fs.name as foreign_schema, \
+                 ft.name as foreign_table, fc.name as foreign_column, \
+                 lower(replace(fk.delete_referential_action_desc, '_', ' ')) as on_delete, \
+                 lower(replace(fk.update_referential_action_desc, '_', ' ')) as on_update \
+                 from sys.foreign_keys fk join sys.foreign_key_columns fkc on fkc.constraint_object_id = fk.object_id \
+                 join sys.tables t on t.object_id = fk.parent_object_id \
+                 join sys.schemas s on s.schema_id = t.schema_id \
+                 join sys.columns c on c.object_id = t.object_id and c.column_id = fkc.parent_column_id \
+                 join sys.tables ft on ft.object_id = fk.referenced_object_id \
+                 join sys.schemas fs on fs.schema_id = ft.schema_id \
+                 join sys.columns fc on fc.object_id = ft.object_id and fc.column_id = fkc.referenced_column_id \
+                 where s.name = coalesce(nullif(?, ''), schema_name()) and t.name = ? \
+                 order by fk.name, fkc.constraint_column_id",
+                optional_schema_parameters(&table),
+            )
         } else {
             let [schema, name] = parameters;
             (
@@ -687,9 +717,11 @@ impl Builder<'_> {
             .map(|parts| {
                 let row = &parts[0];
                 Ok(ForeignKey {
-                    name: (self.grammar.mysql() || self.grammar.postgres())
-                        .then(|| text(row, "key_id"))
-                        .transpose()?,
+                    name: (self.grammar.mysql()
+                        || self.grammar.postgres()
+                        || self.grammar.sql_server())
+                    .then(|| text(row, "key_id"))
+                    .transpose()?,
                     columns: parts
                         .iter()
                         .map(|part| text(part, "column_name"))
@@ -708,7 +740,7 @@ impl Builder<'_> {
     }
 }
 
-fn postgres_table_parameters(table: &Table) -> [Value; 2] {
+fn optional_schema_parameters(table: &Table) -> [Value; 2] {
     [
         table.schema.as_deref().unwrap_or_default().into(),
         table.name.as_str().into(),

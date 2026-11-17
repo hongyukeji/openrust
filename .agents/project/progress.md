@@ -3124,3 +3124,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 02:27（北京时间）03-09 [Redis Cluster 分批回收旧标签代际](audits/03-09/README.md#redis-cluster-分批回收旧标签代际)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 临时 Redis 及本批产物已回收，磁盘可用 102.16 GB（95.14 GiB），提交前周额度剩余 42%。
 
 - 2026-11-18 02:30（北京时间）02-05 [PostgreSQL 普通索引方法与重命名](audits/02-05/README.md#postgresql-普通索引方法与重命名)。真实 PostgreSQL 18.6 索引、HTTP 与 Artisan 预演迁移回滚、MySQL 8.4.13 三项回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 临时数据库和本批产物已回收，磁盘可用 100.94 GB（94.00 GiB），提交前周额度剩余 42%。
+
+- 2026-11-18 02:39（北京时间）02-05／02-06 [SQL Server 在线索引与具名外键](audits/02-05/README.md#sql-server-在线索引与具名外键)与[SQL Server 迁移失败回滚](audits/02-06/README.md#真实-sql-server-迁移失败回滚)。真实 SQL Server 2022、HTTP、Artisan、PostgreSQL 18.6 事务、MySQL 8.4.13 两项、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 本批产物已回收，磁盘可用 102.33 GB（95.30 GiB），提交前周额度剩余 42%。

@@ -474,3 +474,9 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - PostgreSQL 18.6 定向测试验证 BRIN、在线 hash、原生表达式、限定名重命名、事务回滚和同名索引隔离。实际 Artisan 预演、迁移和回滚通过，HTTP 在迁移后查到重命名后的 BRIN 索引，在回滚后确认索引已移除。修复普通多语句 Schema 预演尝试建立真实事务的问题，预演记录 SQL 且不创建表。
 - PostgreSQL 九项定向回归、MySQL 8.4.13 索引与在线删列、`sh tests/table_catalog.sh` 表目录和限定 Schema 清库、`./artisan inspire`、Rust 1.94.0 全仓格式及严格 Clippy 通过。三语站点构建以及两种部署路径的 18 项浏览器检查通过。
 - 核心账本维持 62/66。临时数据库及本批隔离产物已回收，项目卷可用空间净增 0.06 GB（0.06 GiB），剩余 100.94 GB（94.00 GiB）。提交前周额度剩余 42%。日志保留于 `/private/tmp/openrust-02-05-postgres-index.gOaxm8is`。
+
+## SQL Server 在线索引与具名外键
+
+- 对照固定 Laravel v13.40.0 的普通及唯一索引、具名外键删除和目录查询。在 `sqlsrv` 上，`online()` 生成 `WITH (ONLINE = ON)`，在默认迁移事务内执行。命名外键生成 `ALTER TABLE … DROP CONSTRAINT`。索引和外键目录使用 SQL Server 系统视图，返回结构化结果及外键动作。旧版 `v0.x` 未找到对应的 SQL Server Blueprint 实现。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php)
+- 使用官方 SQL Server 2022 Developer 16.0.4325.4，Linux amd64 兼容容器运行于 Apple Silicon，在真实 TLS 连接上验收建表与更新时的在线索引、外键删除、约束名转义预演和实际系统目录。HTTP 确认普通与唯一索引存在、外键已移除。实际 Artisan 预演显示对应 SQL，迁移失败和成功重跑另见[迁移事务验收](../02-06/README.md#真实-sql-server-迁移失败回滚)。
+- SQL Server 两项 DDL／TDS 回归、MySQL 8.4.13 表目录与限定 Schema 清库、Rust 1.94.0 全仓格式与严格 Clippy、三语站点构建和 18 项浏览器检查通过。原生 Linux x86_64 和 SQL Server 2017 的新增 DDL 回归留在发布矩阵。

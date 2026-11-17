@@ -123,3 +123,96 @@ async fn sql_server_tds_bindings_transactions_and_schema() {
     );
     schema.dropIfExists(&table).await.unwrap();
 }
+
+#[tokio::test]
+async fn sql_server_online_indexes_and_named_foreign_key_drop() {
+    let root = tempfile::tempdir().unwrap();
+    let preview = ConnectionFactory
+        .make("sqlsrv", json!({"driver":"sqlsrv"}), root.path())
+        .unwrap();
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("dbo.entries", |table| {
+                        table.index(&["score"], Some("search")).online();
+                        table.unique(&["ref"], Some("unique_ref")).online();
+                        table.dropForeign("entry]parent");
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        statements
+            .iter()
+            .map(|entry| entry.query.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "create index [search] on [dbo].[entries] ([score]) with (online = on)",
+            "create unique index [unique_ref] on [dbo].[entries] ([ref]) with (online = on)",
+            "alter table [dbo].[entries] drop constraint [entry]]parent]",
+        ]
+    );
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = ConnectionFactory
+        .make("sqlsrv", json!({"url":url}), root.path())
+        .unwrap();
+    let suffix = fastrand::u64(..);
+    let parent = format!("dbo.parents_{suffix:016x}");
+    let child = format!("dbo.entries_{suffix:016x}");
+    let foreign = format!("entry_parent_{suffix:016x}");
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create(&parent, |table| {
+            table.id();
+        })
+        .await
+        .unwrap();
+    schema
+        .create(&child, |table| {
+            table.id();
+            table.bigInteger("parent_id");
+            table.integer("score");
+            table.integer("ref");
+            table
+                .foreign(&["parent_id"], Some(&foreign))
+                .references("id")
+                .on(&parent);
+            table.index(&["score"], Some("search")).online();
+        })
+        .await
+        .unwrap();
+    let keys = schema.getForeignKeys(&child).await.unwrap();
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].name.as_deref(), Some(foreign.as_str()));
+    assert_eq!(keys[0].columns, ["parent_id"]);
+    assert_eq!(keys[0].foreign_schema.as_deref(), Some("dbo"));
+    assert_eq!(keys[0].foreign_columns, [Some("id".into())]);
+    assert_eq!(keys[0].on_delete, "no action");
+    schema
+        .table(&child, |table| {
+            table.unique(&["ref"], Some("unique_ref")).online();
+            table.dropForeign(&foreign);
+        })
+        .await
+        .unwrap();
+
+    let indexes = schema.getIndexes(&child).await.unwrap();
+    assert!(indexes.iter().any(|index| index.name == "search"
+        && !index.unique
+        && index.columns == [Some("score".into())]));
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.name == "unique_ref" && index.unique)
+    );
+    assert!(schema.getForeignKeys(&child).await.unwrap().is_empty());
+    schema.dropIfExists(&parent).await.unwrap();
+    schema.dropIfExists(&child).await.unwrap();
+}

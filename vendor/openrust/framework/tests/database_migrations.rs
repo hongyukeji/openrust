@@ -84,14 +84,14 @@ static ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new("database/migrations/0004_skipped.rs", &SKIP),
 ];
 
-struct PostgresMigration {
+struct TransactionProbe {
     table: &'static str,
     transactional: bool,
     fail_up: AtomicBool,
     fail_down: AtomicBool,
 }
 
-impl Migration for PostgresMigration {
+impl Migration for TransactionProbe {
     fn withinTransaction(&self) -> bool {
         self.transactional
     }
@@ -104,7 +104,7 @@ impl Migration for PostgresMigration {
             context
                 .getSchemaBuilder()
                 .create(self.table, |table| {
-                    table.id();
+                    table.integer("id");
                 })
                 .await?;
             context
@@ -114,7 +114,9 @@ impl Migration for PostgresMigration {
                 )
                 .await?;
             if self.fail_up.swap(false, Ordering::SeqCst) {
-                return Err(DatabaseError::InvalidMigration("postgres up failure"));
+                return Err(DatabaseError::InvalidMigration(
+                    "transaction probe up failure",
+                ));
             }
             Ok(())
         })
@@ -127,20 +129,22 @@ impl Migration for PostgresMigration {
         Box::pin(async move {
             context.getSchemaBuilder().drop(self.table).await?;
             if self.fail_down.swap(false, Ordering::SeqCst) {
-                return Err(DatabaseError::InvalidMigration("postgres down failure"));
+                return Err(DatabaseError::InvalidMigration(
+                    "transaction probe down failure",
+                ));
             }
             Ok(())
         })
     }
 }
 
-static PG_ATOMIC: PostgresMigration = PostgresMigration {
+static PG_ATOMIC: TransactionProbe = TransactionProbe {
     table: "migration_atomic_probe",
     transactional: true,
     fail_up: AtomicBool::new(true),
     fail_down: AtomicBool::new(true),
 };
-static PG_AUTOCOMMIT: PostgresMigration = PostgresMigration {
+static PG_AUTOCOMMIT: TransactionProbe = TransactionProbe {
     table: "migration_autocommit_probe",
     transactional: false,
     fail_up: AtomicBool::new(true),
@@ -157,24 +161,61 @@ async fn postgres_migration_transactions_roll_back_schema_and_data_before_updati
         assert!(std::env::var_os("OPENRUST_REQUIRE_MIGRATION_POSTGRES").is_none());
         return;
     };
+    assert_migration_transaction_rollback("pgsql", &url, PG_ENTRIES).await;
+}
+
+static SQL_SERVER_ATOMIC: TransactionProbe = TransactionProbe {
+    table: "migration_atomic_probe",
+    transactional: true,
+    fail_up: AtomicBool::new(true),
+    fail_down: AtomicBool::new(true),
+};
+static SQL_SERVER_AUTOCOMMIT: TransactionProbe = TransactionProbe {
+    table: "migration_autocommit_probe",
+    transactional: false,
+    fail_up: AtomicBool::new(true),
+    fail_down: AtomicBool::new(false),
+};
+static SQL_SERVER_ENTRIES: &[MigrationEntry] = &[
+    MigrationEntry::new("database/migrations/0001_atomic.rs", &SQL_SERVER_ATOMIC),
+    MigrationEntry::new(
+        "database/migrations/0002_autocommit.rs",
+        &SQL_SERVER_AUTOCOMMIT,
+    ),
+];
+
+#[tokio::test]
+async fn sql_server_migration_transactions_roll_back_schema_and_data_before_updating_the_ledger() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    assert_migration_transaction_rollback("sqlsrv", &url, SQL_SERVER_ENTRIES).await;
+}
+
+async fn assert_migration_transaction_rollback(
+    connection: &str,
+    url: &str,
+    entries: &'static [MigrationEntry],
+) {
     let root = tempfile::tempdir().unwrap();
     let manager = Arc::new(DatabaseManager::new(
         Arc::new(Repository::new(BTreeMap::from([(
             "database".into(),
-            json!({"default":"pgsql","connections":{"pgsql":{"url":url}}}),
+            json!({"default":connection,"connections":{(connection):{"url":url}}}),
         )]))),
         root.path(),
     ));
     let db = manager.connection(None).unwrap();
     let migrator = Migrator::new(
         manager,
-        Arc::new(MigrationRegistry(PG_ENTRIES)),
+        Arc::new(MigrationRegistry(entries)),
         "transaction_history".into(),
         root.path().to_path_buf(),
     );
     let mut schema = db.getSchemaBuilder();
-    let atomic = [root.path().join(PG_ENTRIES[0].path)];
-    let autocommit = [root.path().join(PG_ENTRIES[1].path)];
+    let atomic = [root.path().join(entries[0].path)];
+    let autocommit = [root.path().join(entries[1].path)];
 
     let failed_up = migrator
         .run(None, &atomic, RunOptions::default())
@@ -185,13 +226,16 @@ async fn postgres_migration_transactions_roll_back_schema_and_data_before_updati
         matches!(failed_up, DatabaseError::MigrationFailed { .. }),
         "{failed_up:?}"
     );
-    assert!(!schema.hasTable(PG_ATOMIC.table).await.unwrap());
+    assert!(!schema.hasTable("migration_atomic_probe").await.unwrap());
     assert_eq!(db.table("transaction_history").count("*").await.unwrap(), 0);
     migrator
         .run(None, &atomic, RunOptions::default())
         .await
         .unwrap();
-    assert_eq!(db.table(PG_ATOMIC.table).count("*").await.unwrap(), 1);
+    assert_eq!(
+        db.table("migration_atomic_probe").count("*").await.unwrap(),
+        1
+    );
 
     assert!(matches!(
         migrator
@@ -199,21 +243,31 @@ async fn postgres_migration_transactions_roll_back_schema_and_data_before_updati
             .await,
         Err(DatabaseError::MigrationFailed { .. })
     ));
-    assert_eq!(db.table(PG_ATOMIC.table).count("*").await.unwrap(), 1);
+    assert_eq!(
+        db.table("migration_atomic_probe").count("*").await.unwrap(),
+        1
+    );
     assert_eq!(db.table("transaction_history").count("*").await.unwrap(), 1);
     migrator
         .rollback(None, &atomic, RollbackOptions::default())
         .await
         .unwrap();
-    assert!(!schema.hasTable(PG_ATOMIC.table).await.unwrap());
+    assert!(!schema.hasTable("migration_atomic_probe").await.unwrap());
 
     assert!(matches!(
         migrator.run(None, &autocommit, RunOptions::default()).await,
         Err(DatabaseError::MigrationFailed { .. })
     ));
-    assert_eq!(db.table(PG_AUTOCOMMIT.table).count("*").await.unwrap(), 1);
+    assert_eq!(
+        db.table("migration_autocommit_probe")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
     assert_eq!(db.table("transaction_history").count("*").await.unwrap(), 0);
-    schema.drop(PG_AUTOCOMMIT.table).await.unwrap();
+    schema.drop("migration_autocommit_probe").await.unwrap();
+    schema.drop("transaction_history").await.unwrap();
 }
 
 #[tokio::test]

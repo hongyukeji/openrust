@@ -1018,6 +1018,18 @@ Schema::table("documents", |table| {
 
 Inside a migration, override [`withinTransaction()`](#migration-transactions) to return `false`. Use the connection’s Schema builder. A blueprint containing an online index runs its statements individually in autocommit mode. Keep that blueprint separate from changes you want to apply atomically. An active framework-managed transaction rejects the blueprint before executing any of its statements. A failed concurrent build can leave an invalid index, which you can drop before retrying.
 
+#### SQL Server Online Indexes {#sql-server-online-indexes}
+
+On SQL Server editions that support online index operations, call `online()` on `index()` or `unique()` to use `WITH (ONLINE = ON)`. Keep the default [migration transaction](#migration-transactions). Use `dropForeign(name)` to remove a foreign key by its constraint name.
+
+```rust
+schema.table("dbo.fixture_entries", |table| {
+    table.index(&["score"], Some("fixture_search")).online();
+    table.unique(&["parent_id"], Some("fixture_unique")).online();
+    table.dropForeign("fixture_parent");
+}).await?;
+```
+
 #### Foreign IDs from Models {#foreign-ids-from-models}
 
 Use `foreignIdFor::<Model>(None)` to let an Eloquent model supply the reference column name. `constrained()` uses the model’s table and primary key, including custom names. Pass `Some(name)` to use a different column name in the referencing table.
