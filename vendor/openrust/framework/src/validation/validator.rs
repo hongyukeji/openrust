@@ -164,6 +164,11 @@ impl Validator {
                 Some("boolean")
             }
             (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
+            (Kind::Dimensions(rule), Some(_)) => (!rule.passes(file)?).then_some("dimensions"),
+            (Kind::Encoding(rule), Some(value)) => {
+                let valid = file.map_or_else(|| rule.value(value), |file| rule.bytes(&file.get()));
+                return Ok((!valid).then(|| rule.failure()).into_iter().collect());
+            }
             (Kind::File(rule), Some(_)) => return rule.failures(file),
             (Kind::Size(bound), Some(value)) => {
                 return Ok(scalar_size(
@@ -400,6 +405,8 @@ fn fallback(rule: &str) -> &str {
         "array" => "The :attribute field must be an array.",
         "exists" => "The selected :attribute is invalid.",
         "unique" => "The :attribute has already been taken.",
+        "dimensions" => "The :attribute field has invalid image dimensions.",
+        "encoding" => "The :attribute field must be encoded in :encoding.",
         "file" => "The :attribute field must be a file.",
         "image" => "The :attribute field must be an image.",
         "mimes" | "mimetypes" => "The :attribute field must be a file of type: :values.",

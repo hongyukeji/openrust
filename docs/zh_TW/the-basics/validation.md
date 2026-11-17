@@ -77,6 +77,8 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 `mimes` 和 `mimetypes` 從檔案內容推斷類型，`extensions` 檢查用戶端檔名的副檔名。內容和副檔名都有要求時可同時使用。用 `image:allow_svg` 或 `File::image(true)` 接受 SVG。`size`、`min`、`max` 和 `between` 以 KiB 計量檔案大小，每 KiB 為 1,024 位元組。
 
+用 `dimensions` 限制寬、高或長寬比。比例可寫成小數或 `16/9` 這樣的分數。圖片規則允許的 SVG 會略過點陣圖尺寸限制。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 檢查檔案位元組。支援 UTF-8、ASCII、UTF-16、UTF-32、SJIS 等 Rust 解碼器可辨識的編碼。
+
 ```rust
 use openrust::{
     contracts::validation::Validator as _,
@@ -90,7 +92,10 @@ fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let data = Data::fromRequest(request).await?;
         let rules = RuleSet::new().field("image", [
             Rule::required(),
-            File::image(false).max("2mb").into(),
+            File::image(false)
+                .dimensions(Rule::dimensions().minWidth(256).ratio("1/1"))
+                .max("2mb")
+                .into(),
         ])?;
         let validated = Validator::make(data, rules)?.validate().await?;
         let size = validated.file("image").map(|file| file.getSize());

@@ -31,6 +31,27 @@ pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
     Format::try_from(::image::guess_format(bytes).map_err(decode_error)?)
 }
 
+/// Reads image metadata without decoding pixels or applying EXIF orientation.
+pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    let dimensions = match identify(bytes).ok()? {
+        Format::Avif | Format::Heic => {
+            use oxideav_heif::{HeifFile, props::ItemProperties};
+            let file = HeifFile::parse_borrowed(bytes).ok()?;
+            let meta = file.meta().ok()?;
+            let props = ItemProperties::resolve(meta, file.primary_item().ok()?.id).ok()?;
+            let size = props.ispe()?;
+            (size.width, size.height)
+        }
+        Format::Jxl => return None,
+        _ => ImageReader::new(Cursor::new(bytes))
+            .with_guessed_format()
+            .ok()?
+            .into_dimensions()
+            .ok()?,
+    };
+    (dimensions.0 > 0 && dimensions.1 > 0).then_some(dimensions)
+}
+
 pub(super) fn decode(
     contents: &[u8],
     format: Format,

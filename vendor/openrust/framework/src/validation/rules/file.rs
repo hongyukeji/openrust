@@ -3,6 +3,8 @@ use crate::{
     validation::{Rule, RuleFailure, ValidationError, ValidationResult, rule::Kind},
 };
 
+use super::{Dimensions, EncodingRule};
+
 #[derive(Clone)]
 enum Check {
     Uploaded,
@@ -69,6 +71,8 @@ pub struct File {
     checks: Vec<Check>,
     minimum: Option<FileSize>,
     maximum: Option<FileSize>,
+    dimensions: Option<Dimensions>,
+    encoding: Option<String>,
 }
 
 impl Default for File {
@@ -107,6 +111,16 @@ impl File {
         if !extensions.is_empty() {
             self.checks.push(Check::Extensions(extensions));
         }
+        self
+    }
+
+    pub fn dimensions(mut self, dimensions: Dimensions) -> Self {
+        self.dimensions = Some(dimensions);
+        self
+    }
+
+    pub fn encoding(mut self, encoding: impl Into<String>) -> Self {
+        self.encoding = Some(encoding.into());
         self
     }
 
@@ -230,6 +244,19 @@ impl File {
         {
             failures.push(failure);
         }
+        if let Some(dimensions) = &self.dimensions
+            && !dimensions.passes(file)?
+        {
+            failures.push(RuleFailure::new("validation.dimensions"));
+        }
+        if let Some(encoding) = &self.encoding {
+            let encoding = EncodingRule::parse(encoding)?;
+            if let Some(file) = file
+                && !encoding.bytes(&file.get())
+            {
+                failures.push(encoding.failure());
+            }
+        }
         Ok(failures)
     }
 
@@ -238,6 +265,8 @@ impl File {
             checks: vec![check],
             minimum: None,
             maximum: None,
+            dimensions: None,
+            encoding: None,
         }
     }
 }
@@ -290,7 +319,7 @@ fn blocked(extension: &str, accepted: &[String]) -> bool {
     ) && !accepted.iter().any(|value| value == "php")
 }
 
-fn detect_type(file: &UploadedFile) -> (&'static str, &'static str) {
+pub(super) fn detect_type(file: &UploadedFile) -> (&'static str, &'static str) {
     let kind = file
         .detected_type()
         .unwrap_or(("", "application/octet-stream"));

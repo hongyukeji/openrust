@@ -4,7 +4,7 @@ use crate::contracts::validation::ValidationRule;
 
 use super::{
     ValidationError, ValidationResult, Value,
-    rules::{Exists, File, Unique},
+    rules::{Dimensions, EncodingRule, Exists, File, Unique},
 };
 
 /// A fluent validation rule or application-defined rule.
@@ -27,6 +27,8 @@ pub(super) enum Kind {
     Size(usize),
     Between(usize, usize),
     File(File),
+    Dimensions(Dimensions),
+    Encoding(EncodingRule),
     Exists(Exists),
     Unique(Unique),
     Custom(Arc<dyn ValidationRule>),
@@ -66,6 +68,9 @@ impl Rule {
     pub fn max(bound: usize) -> Self {
         Self(Kind::Max(bound))
     }
+    pub fn dimensions() -> Dimensions {
+        Dimensions::default()
+    }
     pub fn exists(table: &str, column: Option<&str>) -> Exists {
         Exists::new(table, column)
     }
@@ -93,6 +98,10 @@ impl Rule {
             _ => match rule.split_once(':') {
                 Some(("min", bound)) => Self::min(bound.parse().map_err(|_| invalid())?),
                 Some(("max", bound)) => Self::max(bound.parse().map_err(|_| invalid())?),
+                Some(("dimensions", arguments)) => Dimensions::parse(arguments)?.into(),
+                Some(("encoding", argument)) => {
+                    Self(Kind::Encoding(EncodingRule::parse(argument)?))
+                }
                 Some(("size", bound)) => Self(Kind::Size(bound.parse().map_err(|_| invalid())?)),
                 Some(("between", bounds)) => {
                     let (min, max) = bounds.split_once(',').ok_or_else(invalid)?;

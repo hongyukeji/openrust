@@ -3394,6 +3394,7 @@ dependencies = [
  "deunicode",
  "digest_auth",
  "dotenvy",
+ "encoding_rs",
  "fake",
  "fastrand",
  "fixed_decimal",

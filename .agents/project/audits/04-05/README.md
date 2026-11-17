@@ -32,3 +32,11 @@
 - MySQL 8.4.13 环境下 `request_input`、`validation_http` 和 `validation_paths` 共 22 项通过。实际 HTTP 包含客户端 MIME 篡改、名称扩展名不匹配、PHP 文件名拒绝、SVG 显式允许、文件大小边界、JSON 仿冒文件、验证后读取和过滤未选上传。
 - 额外复验手动 multipart 路径中同一数组成员的文本和文件合并。Rust 1.94.0 的改动文件格式、工作区严格 Clippy、独立 `./artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查均通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412` 差异。临时 MySQL、3.4 GiB 隔离 Cargo 产物及文档缓存已回收。验收日志保留于 `/private/tmp/openrust-04-05-files.3FebuwxX`。
 - 单元继续跟踪图片尺寸、文件编码和不同平台 MIME 推断差异，以及 FormRequest 自动注入与数据库规则剩余边界。核心账本维持 59/66。
+
+## 图片尺寸与文件编码
+
+- `dimensions`、`Rule::dimensions()` 和 `File::dimensions` 对照固定 Laravel 的宽高约束、宽高比容差与 SVG 例外。框架读取 JPEG、PNG、WebP 等图片头部或 AVIF／HEIC 主图元数据。尺寸取编码记录值，贴合 Laravel 的 `getimagesize`。 [固定 Laravel 尺寸 Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Rules/Dimensions.php) · [固定 Laravel 文件尺寸读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/FileHelpers.php)
+- `encoding` 和 `File::encoding` 核对上传字节及普通输入中的字符串，支持严格字节序列校验和 UTF-16／UTF-32 的字节序标记。复用锁定版本 `encoding_rs` 和现有图片读取链路，旧版可复用部分为上传字节访问与 MIME 区分。PHP mbstring 的完整编码名称和边界继续跟踪。 [固定 Laravel 编码与尺寸实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php)
+- PHP 8.5.12 执行固定 Laravel 的验证 trait，JPEG、WebP、AVIF 为 100 × 100，HEIC 样本编码尺寸为 112 × 112。UTF-8、ASCII、UTF-16、UTF-32、SJIS 正反例均通过。OpenRust 实际 multipart HTTP 验证同类输入、比例容差、损坏元数据、SVG、跨缓冲区 SJIS 和 422。
+- 实际 MySQL 8.4.13 环境下，图片、HTTP 与验证路径专项共 21 项通过。FormRequest 自动注入、数据库规则和图片格式／编码对应的其他边界仍待收尾。核心账本维持 59/66。
+- Rust 1.94.0 的改动文件格式、严格工作区 Clippy、独立 `./artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.5 GiB 隔离 Cargo 产物和文档缓存。PHP 对照样本和验收日志保留于 `/private/tmp/openrust-04-05-file-metadata.SVa57vhG`。

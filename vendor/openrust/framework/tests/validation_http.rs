@@ -155,6 +155,55 @@ impl FormRequest for Upload {
 
     fn rules(&self) -> ValidationResult<RuleSet> {
         match self.0.as_str() {
+            "dimensions" => RuleSet::parse([(
+                "attachments.*",
+                "required|dimensions:min_width=100,max_height=100,min_ratio=0.99,max_ratio=101/100,ratio=1.009",
+            )]),
+            "dimensions-heic" => {
+                RuleSet::parse([("attachments.*", "required|dimensions:width=112,height=112")])
+            }
+            "dimensions-fluent" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::image(false)
+                        .dimensions(
+                            Rule::dimensions()
+                                .width(100)
+                                .height(100)
+                                .minHeight(100)
+                                .maxWidth(100)
+                                .ratioBetween("99/100", 1.01),
+                        )
+                        .into(),
+                ],
+            ),
+            "svg-dimensions" => RuleSet::parse([(
+                "attachments.*",
+                "required|image:allow_svg|dimensions:width=999",
+            )]),
+            "encoding" => RuleSet::parse([("attachments.*", "required|file|encoding:UTF-8")]),
+            "encoding-fluent" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("ASCII").into()],
+            ),
+            "encoding-sjis" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("SJIS").into()],
+            ),
+            "encoding-utf16" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:UTF-16BE")])
+            }
+            "encoding-utf32" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:UTF-32LE")])
+            }
+            "encoding-utf16-bom" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:UTF-16")])
+            }
+            "encoding-utf32-bom" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:UTF-32")])
+            }
+            "encoding-input" => RuleSet::parse([("metadata", "required|array|encoding:ASCII")]),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -683,5 +732,208 @@ async fn validates_typed_multipart_files_in_form_requests_over_real_http() {
             .any(|error| error.as_str().unwrap().contains("must be a file."))
     );
     send(address, "/api/upload/rules", json!({}), false, 422).await;
+    server.abort();
+}
+
+fn validation_png(width: u32, height: u32) -> Vec<u8> {
+    use ::image::{ExtendedColorType, ImageEncoder as _, codecs::png::PngEncoder};
+    let mut output = Vec::new();
+    PngEncoder::new(&mut output)
+        .write_image(
+            &vec![0; (width * height) as usize],
+            width,
+            height,
+            ExtendedColorType::L8,
+        )
+        .unwrap();
+    output
+}
+
+#[tokio::test]
+async fn validates_upload_dimensions_and_encoding_over_real_http() {
+    assert!(RuleSet::parse([("file", "encoding:FOOBAR")]).is_err());
+    assert!(RuleSet::parse([("file", "dimensions:ratio=1/0")]).is_err());
+    let (address, server) = start(std::env::temp_dir()).await;
+    let square = validation_png(100, 100);
+    let near_square = validation_png(101, 100);
+    let rectangle = validation_png(105, 100);
+    for png in [square.as_slice(), near_square.as_slice()] {
+        upload_file(
+            address,
+            "dimensions",
+            "size.png",
+            "application/octet-stream",
+            png,
+            200,
+        )
+        .await;
+    }
+    upload_file(
+        address,
+        "dimensions-fluent",
+        "size.png",
+        "text/plain",
+        &square,
+        200,
+    )
+    .await;
+    for (mode, bytes) in [
+        ("dimensions", rectangle.as_slice()),
+        ("dimensions", b"image/png is not metadata".as_slice()),
+        ("dimensions-fluent", near_square.as_slice()),
+    ] {
+        let invalid = upload_file(address, mode, "size.png", "image/png", bytes, 422).await;
+        assert_eq!(
+            invalid["errors"]["attachments.0"],
+            json!(["The attachments.0 field has invalid image dimensions."])
+        );
+    }
+    use openrust::image::{Format, ImageManager, Limits};
+    let image = ImageManager::new(Limits::default()).fromBytes(square.clone());
+    for format in [Format::Jpeg, Format::Webp, Format::Avif, Format::Heic] {
+        let bytes = image.clone().encode(format).toBytes().await.unwrap();
+        let mode = if format == Format::Heic {
+            "dimensions-heic"
+        } else {
+            "dimensions"
+        };
+        upload_file(
+            address,
+            mode,
+            &format!("size.{}", format.extension()),
+            "application/octet-stream",
+            &bytes,
+            200,
+        )
+        .await;
+    }
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg"/>"#;
+    upload_file(
+        address,
+        "svg-dimensions",
+        "size.svg",
+        "application/octet-stream",
+        svg,
+        200,
+    )
+    .await;
+
+    upload_file(
+        address,
+        "encoding",
+        "text.txt",
+        "application/octet-stream",
+        "☃".as_bytes(),
+        200,
+    )
+    .await;
+    let invalid_utf8 = upload_file(
+        address,
+        "encoding",
+        "text.txt",
+        "text/plain; charset=utf-8",
+        b"\xf0\x28\x8c\x28",
+        422,
+    )
+    .await;
+    assert_eq!(
+        invalid_utf8["errors"]["attachments.0"],
+        json!(["The attachments.0 field must be encoded in UTF-8."])
+    );
+    upload_file(
+        address,
+        "encoding-fluent",
+        "text.txt",
+        "text/plain",
+        b"Rust",
+        200,
+    )
+    .await;
+    upload_file(
+        address,
+        "encoding-fluent",
+        "text.txt",
+        "text/plain",
+        "☃".as_bytes(),
+        422,
+    )
+    .await;
+    let mut sjis = [0x82, 0xa0].repeat(3000);
+    upload_file(
+        address,
+        "encoding-sjis",
+        "text.txt",
+        "application/octet-stream",
+        &sjis,
+        200,
+    )
+    .await;
+    sjis.push(0x82);
+    upload_file(
+        address,
+        "encoding-sjis",
+        "text.txt",
+        "application/octet-stream",
+        &sjis,
+        422,
+    )
+    .await;
+    for (mode, valid, invalid) in [
+        (
+            "encoding-utf16",
+            b"\x00A".as_slice(),
+            b"\xd8\x00".as_slice(),
+        ),
+        (
+            "encoding-utf32",
+            b"A\x00\x00\x00".as_slice(),
+            b"\x00\x00\x11\x00".as_slice(),
+        ),
+        (
+            "encoding-utf16-bom",
+            b"\xff\xfeA\x00".as_slice(),
+            b"\xff\xfe\x00\xd8".as_slice(),
+        ),
+        (
+            "encoding-utf32-bom",
+            b"\xff\xfe\x00\x00A\x00\x00\x00".as_slice(),
+            b"\xff\xfe\x00\x00\x00\x00\x11\x00".as_slice(),
+        ),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "text.txt",
+            "application/octet-stream",
+            valid,
+            200,
+        )
+        .await;
+        upload_file(
+            address,
+            mode,
+            "text.txt",
+            "application/octet-stream",
+            invalid,
+            422,
+        )
+        .await;
+    }
+    send(
+        address,
+        "/api/upload/encoding-input",
+        json!({"metadata":{"key":["ok",3]}}),
+        false,
+        200,
+    )
+    .await;
+    send(
+        address,
+        "/api/upload/encoding-input",
+        json!({"metadata":{"☃":["ok"]}}),
+        false,
+        422,
+    )
+    .await;
     server.abort();
 }
