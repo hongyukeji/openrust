@@ -57,7 +57,7 @@ fn normalize(value: &Json) -> DatabaseResult<Vec<Json>> {
 fn component(value: &Json) -> DatabaseResult<Json> {
     let value = match value {
         Json::Number(value) => value.as_f64().ok_or_else(invalid)?,
-        Json::String(value) => super::primitive::numeric_prefix(value)
+        Json::String(value) => crate::support::input_scalars::numeric_prefix(value)
             .map_or(Ok(0.0), |prefix| prefix.parse().map_err(|_| invalid()))?,
         Json::Bool(value) => f64::from(u8::from(*value)),
         Json::Null => 0.0,

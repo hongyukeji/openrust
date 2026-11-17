@@ -64,6 +64,20 @@ fn stream(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn scalar_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut values = Vec::new();
+        for strict in [false, true] {
+            values.push(json!({
+                "integer": request.integer("value", 42, strict).await?,
+                "float": request.float("value", 1.25, strict).await?,
+                "boolean": request.boolean("value", true, strict).await?,
+            }));
+        }
+        Response::json(StatusCode::OK, values)
+    })
+}
+
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
@@ -85,6 +99,7 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
                 "/input",
                 ControllerDispatcher::new(EchoController::show),
             )?;
+            Route::r#match(&[Method::GET, Method::POST], "/scalars", scalar_input)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -226,4 +241,87 @@ async fn real_http_dispatches_controllers_and_reads_json_form_uploads_and_stream
     assert_eq!(body, "5\r\nfirst\r\n6\r\nsecond\r\n0\r\n\r\n");
     one.abort();
     two.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_strict_and_permissive_scalar_input() {
+    let (address, server) = start("scalars").await;
+    for (payload, permissive, strict) in [
+        (json!({}), (42, 1.25, true), (42, 1.25, true)),
+        (json!({"value": null}), (0, 0.0, false), (42, 1.25, true)),
+        (json!({"value": false}), (0, 0.0, false), (42, 1.25, false)),
+        (json!({"value": [1]}), (1, 1.0, false), (42, 1.25, true)),
+        (json!({"value": "  01 "}), (1, 1.0, false), (42, 1.0, true)),
+        (
+            json!({"value": " -1.25e2tail "}),
+            (-125, -125.0, false),
+            (42, 1.25, true),
+        ),
+        (
+            json!({"value": "1e-400"}),
+            (0, 0.0, false),
+            (42, 1.25, true),
+        ),
+        (
+            json!({"value": "0e-400"}),
+            (0, 0.0, false),
+            (42, 1.25, true),
+        ),
+        (
+            json!({"value": "  YeS  "}),
+            (0, 0.0, true),
+            (42, 1.25, true),
+        ),
+        (
+            json!({"value": "  OFF  "}),
+            (0, 0.0, false),
+            (42, 1.25, false),
+        ),
+        (json!({"value": 1.0}), (1, 1.0, true), (1, 1.0, true)),
+        (
+            json!({"value": 1e14}),
+            (100_000_000_000_000, 1e14, false),
+            (42, 1e14, true),
+        ),
+        (
+            json!({"value": "9223372036854775808"}),
+            (i64::MAX, 9_223_372_036_854_775_808.0, false),
+            (42, 9_223_372_036_854_775_808.0, true),
+        ),
+    ] {
+        let bytes = serde_json::to_vec(&payload).unwrap();
+        let (_, body) = send(address, "POST", "/scalars", "application/json", &bytes, 200).await;
+        let response: Value = serde_json::from_str(&body).unwrap();
+        let expected = [permissive, strict]
+            .map(|(integer, float, boolean)| json!({"integer": integer, "float": float, "boolean": boolean}));
+        assert_eq!(response, json!(expected), "{payload}");
+    }
+    let (_, body) = send(address, "GET", "/scalars?value=19", "", b"", 200).await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()[1]["integer"],
+        19
+    );
+    let (_, body) = send(
+        address,
+        "POST",
+        "/scalars?value=19",
+        "application/x-www-form-urlencoded",
+        b"value=2.5",
+        200,
+    )
+    .await;
+    let response: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(response[0]["integer"], 2);
+    assert_eq!(response[1]["integer"], 42);
+    assert_eq!(response[1]["float"], 2.5);
+    send(
+        address,
+        "POST",
+        "/scalars?value=19",
+        "application/json",
+        b"{broken",
+        400,
+    )
+    .await;
+    server.abort();
 }

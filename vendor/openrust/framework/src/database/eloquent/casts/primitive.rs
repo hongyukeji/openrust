@@ -1,4 +1,7 @@
-use crate::database::{Connection, DatabaseError, DatabaseResult, Value};
+use crate::{
+    database::{Connection, DatabaseError, DatabaseResult, Value},
+    support::input_scalars::numeric_prefix,
+};
 
 use super::{
     BinaryFormat, CastsAttributes, CastsInboundAttributes, ClassCast, EncryptedCast, EnumCast,
@@ -207,41 +210,4 @@ fn integer_string(text: &str) -> i64 {
     } else {
         truncate(number)
     }
-}
-
-pub(super) fn numeric_prefix(text: &str) -> Option<&str> {
-    let text = text.trim_start_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
-    let bytes = text.as_bytes();
-    let mut cursor = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
-    let start = cursor;
-    while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
-        cursor += 1;
-    }
-    let mut digits = cursor - start;
-    if bytes.get(cursor) == Some(&b'.') {
-        cursor += 1;
-        let fraction = cursor;
-        while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
-            cursor += 1;
-        }
-        digits += cursor - fraction;
-    }
-    if digits == 0 {
-        return None;
-    }
-    let end = cursor;
-    if matches!(bytes.get(cursor), Some(b'e' | b'E')) {
-        cursor += 1;
-        if matches!(bytes.get(cursor), Some(b'+' | b'-')) {
-            cursor += 1;
-        }
-        let exponent = cursor;
-        while bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
-            cursor += 1;
-        }
-        if cursor == exponent {
-            cursor = end;
-        }
-    }
-    Some(&text[..cursor])
 }

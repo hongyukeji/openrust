@@ -13,6 +13,7 @@ pub mod facades;
 mod fluent;
 mod helpers;
 mod html_string;
+pub(crate) mod input_scalars;
 mod lazy_collection;
 mod lottery;
 pub(crate) mod markdown;

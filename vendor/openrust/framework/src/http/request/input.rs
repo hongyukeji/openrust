@@ -3,6 +3,7 @@ use futures_util::{StreamExt as _, stream};
 use serde_json::{Map, Value};
 
 use crate::http::{Body, HttpError, Method, Request, UploadedFile};
+use crate::support::input_scalars;
 
 use super::{query, variables::VariableBag};
 
@@ -131,6 +132,44 @@ impl Request {
             Ok(lookup(fields, &segments))
         } else {
             Ok(lookup(&query, &segments))
+        }
+    }
+
+    /// Reads a signed 64-bit input, using `default` for missing or invalid strict values.
+    pub async fn integer(
+        &mut self,
+        key: &str,
+        default: i64,
+        strict: bool,
+    ) -> Result<i64, HttpError> {
+        match self.input(Some(key)).await? {
+            Some(value) if !strict || input_scalars::valid_integer(&value) => {
+                Ok(input_scalars::integer(&value))
+            }
+            _ => Ok(default),
+        }
+    }
+
+    /// Reads a floating-point input, using `default` for missing or invalid strict values.
+    pub async fn float(&mut self, key: &str, default: f64, strict: bool) -> Result<f64, HttpError> {
+        match self.input(Some(key)).await? {
+            Some(value) if !strict || input_scalars::valid_float(&value) => {
+                Ok(input_scalars::float(&value))
+            }
+            _ => Ok(default),
+        }
+    }
+
+    /// Reads Laravel's boolean tokens, with a fallback for invalid strict values.
+    pub async fn boolean(
+        &mut self,
+        key: &str,
+        default: bool,
+        strict: bool,
+    ) -> Result<bool, HttpError> {
+        match self.input(Some(key)).await? {
+            Some(value) => Ok(input_scalars::boolean(&value, default, strict)),
+            None => Ok(default),
         }
     }
 
