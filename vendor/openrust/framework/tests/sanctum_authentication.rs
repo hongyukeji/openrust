@@ -1412,7 +1412,10 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert_eq!(response.json::<Value>().await.unwrap(), json!({"id":42,"name":"Custom account"}));
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"id":42,"name":"Custom account"})
+    );
     server.abort();
 }
 
