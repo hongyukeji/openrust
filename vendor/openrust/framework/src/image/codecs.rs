@@ -33,6 +33,12 @@ pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
 
 /// Reads image metadata without decoding pixels or applying EXIF orientation.
 pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    match bytes.first_chunk::<4>()? {
+        b"II*\0" => return super::directory_dimensions::tiff(bytes, true),
+        b"MM\0*" => return super::directory_dimensions::tiff(bytes, false),
+        b"\0\0\x01\0" => return super::directory_dimensions::ico(bytes),
+        _ => {}
+    }
     let dimensions = match identify(bytes).ok()? {
         Format::Avif | Format::Heic => {
             use oxideav_heif::{HeifFile, props::ItemProperties};

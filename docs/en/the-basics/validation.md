@@ -92,6 +92,8 @@ Content checks recognize JSON objects and arrays as `application/json`, CSV cont
 
 Use `dimensions` to constrain width, height, or aspect ratio. Ratios can be decimals or fractions such as `16/9`. SVG accepted by the image rule bypasses raster dimension checks. Use `encoding:UTF-8` or `File::default().encoding("UTF-8")` to check a file's bytes. Use supported Laravel encoding names such as UTF-8, ASCII, UTF-16, UTF-32, SJIS, CP932, or EUC-CN. Choose CP932 or SJIS-win for Windows Shift-JIS extensions.
 
+For TIFF and ICO uploads, combine `file` with a size rule such as `dimensions:width=100,height=100`. TIFF dimensions come from the first image directory. ICO dimensions come from the last entry with the highest bit depth. These checks read metadata without decoding pixels. Laravel’s `image` rule excludes TIFF and ICO.
+
 ```rust
 use openrust::{
     contracts::validation::Validator as _,

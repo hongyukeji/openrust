@@ -2,6 +2,7 @@
 
 mod animation;
 mod codecs;
+mod directory_dimensions;
 mod facade;
 mod heif_encoder;
 mod image_pipeline;

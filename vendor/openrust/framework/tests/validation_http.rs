@@ -208,6 +208,9 @@ impl FormRequest for Upload {
             "dimensions-heic" => {
                 RuleSet::parse([("attachments.*", "required|dimensions:width=112,height=112")])
             }
+            "dimensions-icon" => {
+                RuleSet::parse([("attachments.*", "required|dimensions:width=256,height=256")])
+            }
             "dimensions-fluent" => RuleSet::new().field(
                 "attachments.*",
                 [
@@ -1069,6 +1072,73 @@ fn validation_png(width: u32, height: u32) -> Vec<u8> {
         )
         .unwrap();
     output
+}
+
+#[tokio::test]
+async fn validates_tiff_and_ico_dimensions_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    let little_tiff = b"II*\0\x08\0\0\0\x02\0\
+        \0\x01\x03\0\x01\0\0\0\x64\0\0\0\
+        \x01\x01\x04\0\x01\0\0\0\x64\0\0\0\
+        \0\0\0\0";
+    // The EXIF width entry overrides the earlier width in the first directory.
+    let big_tiff = b"MM\0*\0\0\0\x08\0\x03\
+        \x01\0\0\x03\0\0\0\x01\0\x80\0\0\
+        \x01\x01\0\x04\0\0\0\x01\0\0\0\x64\
+        \xa0\x02\0\x01\0\0\0\x01\x64\0\0\0\
+        \0\0\0\0";
+    for bytes in [little_tiff.as_slice(), big_tiff.as_slice()] {
+        upload_file(address, "dimensions", "size.tiff", "text/plain", bytes, 200).await;
+        upload_file(address, "image", "size.tiff", "image/tiff", bytes, 422).await;
+    }
+    for bytes in [
+        &little_tiff[..little_tiff.len() - 1],
+        b"II*\0\xff\xff\xff\xff",
+        b"II+\0\0\0\0\0",
+    ] {
+        upload_file(address, "dimensions", "size.tiff", "image/tiff", bytes, 422).await;
+    }
+
+    let mut icons = b"\0\0\x01\0\x03\0".to_vec();
+    for (size, depth) in [(128, 8_u16), (64, 32), (100, 32)] {
+        let mut entry = [0; 16];
+        entry[..2].fill(size);
+        entry[6..8].copy_from_slice(&depth.to_le_bytes());
+        icons.extend_from_slice(&entry);
+    }
+    upload_file(address, "dimensions", "size.ico", "text/plain", &icons, 200).await;
+    upload_file(address, "image", "size.ico", "image/x-icon", &icons, 422).await;
+    icons.pop();
+    upload_file(
+        address,
+        "dimensions",
+        "size.ico",
+        "image/x-icon",
+        &icons,
+        422,
+    )
+    .await;
+    upload_file(
+        address,
+        "dimensions-icon",
+        "size.ico",
+        "image/x-icon",
+        b"\0\0\x01\0\x01\0",
+        200,
+    )
+    .await;
+    for bytes in [b"\0\0\x01\0\0\0", b"\0\0\x01\0\0\x01", b"\0\0\x02\0\x01\0"] {
+        upload_file(
+            address,
+            "dimensions",
+            "size.ico",
+            "image/x-icon",
+            bytes,
+            422,
+        )
+        .await;
+    }
+    server.abort();
 }
 
 #[tokio::test]

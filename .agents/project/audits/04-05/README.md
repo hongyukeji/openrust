@@ -76,3 +76,9 @@
 - 对照固定 Laravel／PHP 的 136,114 个向量通过，覆盖两种编码各自的全部 65,536 个单独 UTF-16 码元、直接字节、移位结束字节、随机码元组合和损坏尾位。真实 MySQL 8.4.13 环境下，HTTP 与验证路径共 11 项通过。实际上传覆盖两个字符表、代理对和 422。三语示例在真实 HTTP 上返回 200 与 422。
 - Rust 1.94.0 全仓格式、工作区严格 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。临时 MySQL、3.3 GiB 隔离 Cargo 产物和文档缓存已回收。对照样本和验收日志保留于 `/private/tmp/openrust-04-05-utf7.TSfFRsQR`。
 - 下一批处理 TIFF 和 ICO 图片尺寸。相同的真实 100 × 100 TIFF、ICO 样本在 PHP `getimagesize` 可读，OpenRust `dimensions` 实测返回 HTTP 422。其他旧式字表和文件格式仍待按整单元验收核定。核心账本维持 59/66。
+
+## TIFF 与 ICO 图片尺寸
+
+- 固定 Laravel 的 `validateDimensions` 读取 `FileHelpers::dimensions()` 所用的 PHP `getimagesize`。本批对照 PHP 8.5.12 的 TIFF／ICO 目录逻辑。TIFF 校验首个图像目录的范围，处理大小端、内联尺寸和 EXIF 尺寸覆盖。ICO 取位深最高的完整条目，并在位深相同时取最后一项。零宽高编码和只有合法条目计数的 ICO 头沿用 PHP 的 256 像素回退。Rust 使用受边界检查的切片读取，无须解码像素或增加图像处理依赖。固定 Goravel 的 `ruleDimensions` 和旧版 `v0.x` 已核对，旧版未找到对应目录解析可复用。 [Laravel FileHelpers](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/FileHelpers.php#L62) · [Laravel Dimensions 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-dimensions) · [Goravel 尺寸规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1539)
+- 固定 Laravel PHP trait 与 OpenRust 实际 multipart HTTP 对照 17 个样本，包括真实 100 × 100 TIFF／ICO、EXIF 尺寸、符号整数、ICO 多条目和不完整目录。有效尺寸匹配与不匹配均通过对照，BigTIFF、TIFF 越界偏移和残缺目录返回 422。三语示例的 `file` 与 `dimensions` 组合已随真实上传执行，Laravel `image` 仍排除 TIFF／ICO。
+- 真实 MySQL 8.4.13 环境下，图片、验证 HTTP 和验证路径共 26 项回归通过。根应用 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.3 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-tiff.wPcej4uK`。其他 PHP 图片格式与旧式编码表仍待核定，核心账本维持 59/66。
