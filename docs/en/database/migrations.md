@@ -92,6 +92,25 @@ Use `--graceful` to report an execution error as a warning and return exit code 
 ./artisan migrate --graceful
 ```
 
+### Excluding Pending Migrations {#excluding-pending-migrations}
+
+Call `withoutMigrations` on the application’s migrator from a service provider to exclude named migrations from apply and pretend operations. Use the migration name or its `.rs` path. A later call replaces the list, and an empty slice clears it. Status continues to report the ledger and migration conditions, and rollback uses the recorded batch history.
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    database::migrations::Migrator,
+    foundation::Application,
+    support::ProviderResult,
+};
+
+fn configure_migrations(app: &Application) -> ProviderResult {
+    let migrator = app.container().get::<Migrator>("migrator")?;
+    migrator.withoutMigrations(&["database/migrations/0001_create_first.rs"]);
+    Ok(())
+}
+```
+
 ### Creating a Missing MySQL Database {#creating-a-missing-database}
 
 When the configured MySQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create that database.

@@ -26,6 +26,7 @@ pub struct Migrator {
     manager: Arc<DatabaseManager>,
     registry: Arc<MigrationRegistry>,
     packages: RwLock<Vec<&'static MigrationEntry>>,
+    migrations_to_skip: RwLock<BTreeSet<String>>,
     table: String,
     root: PathBuf,
     execution: tokio::sync::Mutex<()>,
@@ -72,10 +73,25 @@ impl Migrator {
             manager,
             registry,
             packages: RwLock::default(),
+            migrations_to_skip: RwLock::default(),
             table,
             root,
             execution: tokio::sync::Mutex::new(()),
         }
+    }
+
+    /// Replaces the pending migrations excluded by this application.
+    #[allow(non_snake_case, reason = "Matches Laravel's Migrator API")]
+    pub fn withoutMigrations(&self, migrations: &[&str]) {
+        let names = migrations
+            .iter()
+            .filter_map(|migration| Path::new(migration).file_name()?.to_str())
+            .map(|name| name.strip_suffix(".rs").unwrap_or(name).to_owned())
+            .collect();
+        *self
+            .migrations_to_skip
+            .write()
+            .expect("migration exclusions lock poisoned") = names;
     }
 
     pub(crate) fn add_package_migrations(&self, migrations: &'static [MigrationEntry]) {
@@ -279,10 +295,16 @@ impl Migrator {
             repository.create_repository().await?;
         }
         let ran: BTreeSet<_> = ran.into_iter().collect();
-        let pending: Vec<_> = files
-            .into_iter()
-            .filter(|(name, _)| !ran.contains(name))
-            .collect();
+        let pending: Vec<_> = {
+            let excluded = self
+                .migrations_to_skip
+                .read()
+                .expect("migration exclusions lock poisoned");
+            files
+                .into_iter()
+                .filter(|(name, _)| !ran.contains(name) && !excluded.contains(name))
+                .collect()
+        };
         let method = MigrationMethod::Up;
         if pending.is_empty() {
             self.manager

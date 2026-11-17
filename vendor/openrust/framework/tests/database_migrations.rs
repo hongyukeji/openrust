@@ -85,6 +85,87 @@ static ENTRIES: &[MigrationEntry] = &[
 ];
 
 #[tokio::test]
+async fn mysql_artisan_excludes_named_pending_migrations_per_application() {
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        testing::TestApp,
+    };
+
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    const FIRST_PATH: &str = "database/migrations/0001_create_first.rs";
+    static EXCLUSIONS: &[MigrationEntry] = &[
+        MigrationEntry::new(FIRST_PATH, &FIRST),
+        MigrationEntry::new("database/migrations/0002_create_third.rs", &THIRD),
+    ];
+    let create = || {
+        TestApp::create(|builder| {
+            builder
+                .withConfig(|_, _| {
+                    let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+                    Ok([(
+                        "database".into(),
+                        json!({
+                            "default": "mysql",
+                            "connections": {"mysql": {"url": url, "prefix": "excluded_"}},
+                            "migrations": {"table": "history"}
+                        }),
+                    )]
+                    .into())
+                })
+                .withMigrations(EXCLUSIONS)
+        })
+        .unwrap()
+    };
+    let mut app = create();
+    app.boot().await.unwrap();
+    let migrator = app.app().container().get::<Migrator>("migrator").unwrap();
+    migrator.withoutMigrations(&[FIRST_PATH]);
+
+    let planned = app.artisan(["migrate", "--pretend"]).await;
+    planned.assertSuccessful();
+    assert!(planned.stdout.contains("0002_create_third"));
+    assert!(!planned.stdout.contains("0001_create_first"));
+    let mut other = create();
+    let independent = other
+        .artisan(["migrate", "--pretend", "--path", FIRST_PATH])
+        .await;
+    independent.assertSuccessful();
+    assert!(independent.stdout.contains("0001_create_first"));
+
+    migrator.withoutMigrations(&["0001_create_first"]);
+    let excluded = app.artisan(["migrate", "--path", FIRST_PATH]).await;
+    excluded.assertSuccessful();
+    assert!(excluded.stdout.contains("Nothing to migrate"));
+    app.artisan(["migrate"])
+        .await
+        .assertSuccessful()
+        .expectsOutput("0002_create_third DONE");
+    app.artisan(["migrate:status"])
+        .await
+        .assertSuccessful()
+        .expectsOutput("0001_create_first Pending")
+        .expectsOutput("0002_create_third [1] Ran");
+    migrator.withoutMigrations(&[]);
+    app.artisan(["migrate", "--path", FIRST_PATH])
+        .await
+        .assertSuccessful()
+        .expectsOutput("0001_create_first DONE");
+    migrator.withoutMigrations(&["0001_create_first"]);
+    app.artisan(["migrate:rollback", "--step=1"])
+        .await
+        .assertSuccessful()
+        .expectsOutput("0001_create_first DONE");
+    app.artisan(["migrate:status"])
+        .await
+        .assertSuccessful()
+        .expectsOutput("0001_create_first Pending")
+        .expectsOutput("0002_create_third [1] Ran");
+}
+
+#[tokio::test]
 async fn mysql_artisan_status_distinguishes_initial_skips_from_pending() {
     use openrust::testing::TestApp;
 

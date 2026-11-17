@@ -100,3 +100,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 以 `fb7bba359` 为隔离基线。在真实 MySQL 8.4.13 上，先执行用户表迁移，再制造缓存表冲突。普通模式退出 1，`--graceful` 显示失败迁移名并退出 0，账本只保留已成功的一项，后续任务表尚未创建。删除冲突表后重跑，待执行列表为空。
 - 根应用的独立 Artisan 回归还核对未知 Seeder 的普通失败与警告模式，以及拒绝生产确认时仍退出 1。三语共用的 `./artisan migrate --graceful` 行为通过独立二进制验证。
 - Rust 1.94.0 全仓格式、严格 Clippy、实际 `main artisan inspire`、三语站点与 18 项浏览器检查通过。临时 MySQL、本批 2.8 GiB Cargo 产物及文档缓存已回收。磁盘可用 62.68 GB（58.37 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-graceful.I7KI0i3E`。
+
+## 按名称排除待执行迁移
+
+- 对照固定 Laravel `Migrator::withoutMigrations`、`pendingMigrations` 与 `StatusCommand`。Rust 在应用容器的 Migrator 实例保存名单，在选出本次待执行迁移时一次读取。接受迁移名和 `.rs` 路径，重复调用替换名单。实际执行和预演采用同一筛选，状态和回滚沿用账本。旧版未找到同名公开入口。 [固定 Laravel Migrator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/Migrator.php) · [Laravel Running Migrations](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#running-migrations)
+- 隔离基线 `cc9667837` 的 MySQL 8.4.13 框架控制台回归已验收预演、路径筛选、实际执行、两个应用的名单隔离、清空后补跑及回滚。状态仍显示尚未登记的排除项为 `Pending`。
+- 同一 MySQL 环境通过迁移状态和根应用账本回归。将三语共用示例编入独立应用，从服务提供者的 `boot` 调用，实测 Artisan 只预演和执行第二条迁移。首轮示例编译发现 `ProviderResult` 不接收类型参数，三语修正后重新编译并执行通过。
+- Rust 1.94.0 全仓格式、严格 Clippy、实际 `main artisan inspire`、三语站点及 18 项浏览器检查通过。临时 MySQL、本批 3.6 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.30 GB（58.95 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-exclusions.UonJZpW3`。

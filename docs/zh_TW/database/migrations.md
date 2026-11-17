@@ -92,6 +92,25 @@ impl Migration for Definition {
 ./artisan migrate --graceful
 ```
 
+### 排除指定的待執行遷移 {#excluding-pending-migrations}
+
+在服務提供者中呼叫目前應用程式遷移器的 `withoutMigrations`，可按名稱從實際執行和預演中排除待執行遷移。可以傳入遷移名稱或 `.rs` 路徑。再次呼叫會取代清單，傳入空切片可清空。狀態仍根據帳本與遷移條件顯示，回滾仍按帳本批次執行。
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    database::migrations::Migrator,
+    foundation::Application,
+    support::ProviderResult,
+};
+
+fn configure_migrations(app: &Application) -> ProviderResult {
+    let migrator = app.container().get::<Migrator>("migrator")?;
+    migrator.withoutMigrations(&["database/migrations/0001_create_first.rs"]);
+    Ok(())
+}
+```
+
 ### 建立缺少的 MySQL 資料庫 {#creating-a-missing-database}
 
 設定的 MySQL 資料庫不存在時，`migrate` 會在建立前提示確認。無人值守部署可使用 `--force`。選定的寫入帳號需要有權建立該資料庫。
