@@ -38,3 +38,11 @@
 - 固定 Laravel 的 `WithoutMigrationEvents` 在准备阶段停用所选连接的事件分发器。上游回归检查迁移查询与测试查询的分界，Migrator 继续使用自己的生命周期分发器。旧版没有同名夹具选项，本批复用当前连接身份、查询观察器及应用与任务作用域。 [固定 Laravel 夹具](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/RefreshDatabase.php) · [固定 Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/Testing/LazilyRefreshDatabaseWithoutMigrationEventsTest.php)
 - `RefreshDatabaseOptions::without_migration_events` 只在准备任务内抑制所选连接的查询、事务与连接建立事件。查询日志、迁移生命周期、未选连接以及其他任务仍按原路径。真实 MySQL 8.4.13 验证选中与未选连接、同一连接的并发任务、回调和普通 Artisan、失败后恢复，以及事务事件和日志行为。三项 MySQL 回归覆盖迁移重试及取消、具名多连接和单连接事务。
 - 隔离基线 `97778566c`。Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项正文浏览器检查通过。本批临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 78.80 GB（73.39 GiB），周额度剩余 50%。进程中断后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-migration-events.48Cmf1p8`。
+
+## MySQL 测试进程中断后的恢复
+
+- 固定 Laravel 并行测试使用进程令牌分配并清理数据库，Goravel 参考仍为容器测试数据库及实际 Artisan 迁移。复核旧版 `testing/database/ownership.rs` 的先记归属、再建库，以及 `lease.rs`、`marker.rs` 的回收校验。Rust 夹具用私有目录内的不可变记录和 MySQL 会话租约清理被强制终止的独立库。 [固定 Laravel 数据库测试](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md) · [固定 Laravel 并行数据库](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/testing.md#parallel-testing-and-databases)
+- `TestApp::mysqlWithRecovery` 及 `mysqlConnectionsWithRecovery` 在创建每个库之前原子写入并同步记录。记录包含服务器 UUID 和归属令牌，连接凭据由调用者另行提供。 `recoverMysql` 逐份恢复，要求服务器一致、取得租约、库内归属标记匹配、没有活动外部连接。MySQL 明确返回库不存在时移除记录。权限不足、库忙或归属无法验证时保留记录。
+- 隔离基线 `095b16728`。用 `python3 -B tests/mysql_acceptance.py` 在 MySQL 8.4.13 跑七项数据库夹具回归。子进程执行真实 Artisan `migrate --seed` 后被强制终止。父进程验证活租约及忙库拒绝、权限不足及归属不匹配时保留记录、恢复成功并保留另一夹具、普通关闭删除记录，以及重复恢复。HTTP 事务、迁移重试、事件抑制与具名连接回归通过。
+- 三语文档示例提取后在独立 MySQL 8.4.13 夹具中执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档与隔离 Cargo 产物已回收。证据目录 `/private/tmp/openrust-T-03-mysql-recovery.y1DfxNzB`。
+- 剩余 Laravel 差异包含独立重置策略 `DatabaseMigrations`、`DatabaseTruncation`，Seeder 测试入口，以及空表、软删除、模型存在性和查询次数等数据库断言。继续按小批对照并验证。

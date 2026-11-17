@@ -26,6 +26,21 @@ async fn run_migrations(
 
 呼叫 `close().await` 等待清理。它先關閉應用程式連線池，再核對管理租約、歸屬標記及其他使用中的連線。核對失敗時，錯誤會提供保留的資料庫名稱以便檢查。夾具被捨棄時，會在仍運作的 Tokio runtime 上嘗試清理。
 
+### 復原遺留的 MySQL 測試資料庫 {#recovering-mysql-test-schemas}
+
+若要在測試程序遭終止後復原，請使用 `TestApp::mysqlWithRecovery` 或 `TestApp::mysqlConnectionsWithRecovery`。傳入夾具暫存根目錄之外、已存在的本機私有目錄。Unix 上使用權限 `0700`。每個資料庫在建立前會寫入一份 `openrust_test_<id>.json` 歸屬紀錄。紀錄包含伺服器識別碼和歸屬權杖，須妥善保管。連線 URL 和憑證另行保存。
+
+在新程序中傳入歸屬紀錄路徑和原專用測試伺服器的管理連線 URL。刪除資料庫之前，復原流程會驗證伺服器 UUID、取得資料庫租約，再檢查歸屬預存程序與連線活動。租約仍被持有、資料庫仍在使用或無法驗證歸屬時，復原會回傳錯誤並保留紀錄。清理成功後會刪除紀錄，重複復原會直接成功。
+
+```rust
+use std::path::Path;
+use openrust::testing::TestApp;
+
+async fn recover_test_schema(admin_url: &str, receipt: &Path) -> std::io::Result<()> {
+    TestApp::recoverMysql(admin_url, receipt).await
+}
+```
+
 ## 更新資料庫 {#refreshing-the-database}
 
 在受管 MySQL 夾具上呼叫 `refreshDatabase`。它在首次回呼前執行 `migrate:fresh`，後續回呼使用同一組選項時沿用遷移後的基線。每次回呼都有獨立的復原交易。具名 Seeder 優先於 `seed`。

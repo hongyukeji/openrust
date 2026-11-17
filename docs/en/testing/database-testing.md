@@ -26,6 +26,21 @@ async fn run_migrations(
 
 Call `close().await` to wait for cleanup. It closes application pools and deletes the schema only after verifying the management lease, ownership marker, and absence of other connected sessions. If a check fails, the error reports the schema name for inspection. A dropped fixture attempts cleanup while its Tokio runtime is running.
 
+### Recovering an abandoned MySQL test schema {#recovering-mysql-test-schemas}
+
+To recover after a test process is terminated, use `TestApp::mysqlWithRecovery` or `TestApp::mysqlConnectionsWithRecovery`. Pass an existing private directory on the local filesystem, outside the fixture’s temporary root. On Unix, use mode `0700`. Each schema gets an `openrust_test_<id>.json` receipt before creation. The receipt contains a server identifier and an ownership token. Keep it private. Connection URLs and credentials stay outside the receipt.
+
+From a fresh process, pass the receipt path and the original dedicated test server’s management URL. Recovery checks the server UUID, acquires the schema lease, and verifies the ownership routine and server activity before dropping a schema. When a lease is held, the schema is busy, or ownership cannot be verified, recovery returns an error and keeps the receipt. Successful cleanup removes it. Repeating recovery after cleanup succeeds without taking any action.
+
+```rust
+use std::path::Path;
+use openrust::testing::TestApp;
+
+async fn recover_test_schema(admin_url: &str, receipt: &Path) -> std::io::Result<()> {
+    TestApp::recoverMysql(admin_url, receipt).await
+}
+```
+
 ## Refreshing the database {#refreshing-the-database}
 
 Use `refreshDatabase` with a managed MySQL fixture. It runs `migrate:fresh` before the first callback and reuses the migrated baseline for later callbacks with the same options. Each callback runs in its own rollback transaction. A named seeder takes precedence over `seed`.

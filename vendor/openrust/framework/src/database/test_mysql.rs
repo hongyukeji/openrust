@@ -1,6 +1,9 @@
+mod receipt;
+
 use std::{
     collections::BTreeMap,
     io,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -9,6 +12,8 @@ use std::{
 };
 
 use sqlx::{Connection as _, MySqlConnection, MySqlPool};
+
+use receipt::Receipt;
 
 const MARKER: &str = "openrust_fixture_owner";
 const SESSION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -102,10 +107,11 @@ pub(crate) struct MySqlTestDatabase {
     pub(crate) owner: Arc<MySqlTestOwner>,
     pub(crate) url: String,
     admin: Option<MySqlConnection>,
+    receipt: Option<PathBuf>,
 }
 
 impl MySqlTestDatabase {
-    pub(crate) async fn create(admin_url: &str) -> io::Result<Self> {
+    pub(crate) async fn create(admin_url: &str, journal: Option<&Path>) -> io::Result<Self> {
         let mut url = url::Url::parse(admin_url)
             .ok()
             .filter(|url| url.scheme() == "mysql")
@@ -117,25 +123,13 @@ impl MySqlTestDatabase {
         };
         let name = format!("openrust_test_{}", random()?);
         let token = random()?;
-        let mut admin = tokio::time::timeout(SESSION_TIMEOUT, MySqlConnection::connect(admin_url))
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .ok_or_else(|| io::Error::other("could not connect to the MySQL test server"))?;
-        let (server, session): (String, u64) =
-            sqlx::query_as("SELECT @@server_uuid, CONNECTION_ID()")
-                .fetch_one(&mut admin)
-                .await
-                .map_err(|_| failure(&name, "could not verify the management session"))?;
-
-        let held: Option<i64> = sqlx::query_scalar("SELECT GET_LOCK(?, 0)")
-            .bind(&name)
-            .fetch_one(&mut admin)
-            .await
-            .map_err(|_| failure(&name, "could not acquire the lease"))?;
-        if held != Some(1) {
-            return Err(failure(&name, "the lease is already held"));
-        }
+        let mut admin = connect(admin_url).await?;
+        let (server, session) = identity(&mut admin, &name).await?;
+        lease(&mut admin, &name).await?;
+        // The record must exist before CREATE. A record alone never authorizes DROP.
+        let receipt = journal
+            .map(|directory| Receipt::publish(directory, &name, &server, &token))
+            .transpose()?;
         // Both the schema name and the marker token use generated hexadecimal identifiers.
         sqlx::raw_sql(sqlx::AssertSqlSafe(format!("CREATE DATABASE `{name}`")))
             .execute(&mut admin)
@@ -160,13 +154,57 @@ impl MySqlTestDatabase {
             }),
             url: url.into(),
             admin: Some(admin),
+            receipt,
         })
+    }
+
+    pub(crate) async fn recover(admin_url: &str, path: &Path) -> io::Result<()> {
+        let Some((name, receipt)) = Receipt::read(path)? else {
+            return Ok(());
+        };
+        let mut admin = connect(admin_url).await?;
+        let (server, session) = identity(&mut admin, name).await?;
+        if server != receipt.server {
+            return Err(failure(
+                name,
+                "the recovery receipt belongs to another server",
+            ));
+        }
+        lease(&mut admin, name).await?;
+        // Information schema hides databases from unprivileged users. Inspect the
+        // server's result directly so an access error cannot erase the receipt.
+        let select = sqlx::raw_sql(sqlx::AssertSqlSafe(format!("USE `{name}`")))
+            .execute(&mut admin)
+            .await;
+        match select {
+            Ok(_) => {
+                let owner = MySqlTestOwner {
+                    name: name.into(),
+                    token: receipt.token,
+                    server,
+                    session,
+                    active: AtomicBool::new(false),
+                    pools: Mutex::default(),
+                };
+                cleanup(admin, &owner, Vec::new()).await?;
+            }
+            Err(error)
+                if error
+                    .as_database_error()
+                    .and_then(|error| error.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
+                    .is_some_and(|error| error.number() == 1049) => {}
+            Err(_) => return Err(failure(name, "could not verify the recorded schema")),
+        }
+        Receipt::remove(path)
     }
 
     pub(crate) async fn close(mut self) -> io::Result<()> {
         let pools = self.owner.deactivate();
         if let Some(admin) = self.admin.take() {
             cleanup(admin, &self.owner, pools).await?;
+            if let Some(receipt) = self.receipt.take() {
+                Receipt::remove(&receipt)?;
+            }
         }
         Ok(())
     }
@@ -179,13 +217,47 @@ impl Drop for MySqlTestDatabase {
             && let Ok(runtime) = tokio::runtime::Handle::try_current()
         {
             let owner = self.owner.clone();
+            let receipt = self.receipt.take();
             runtime.spawn(async move {
-                if let Err(error) = cleanup(admin, &owner, pools).await {
+                let result = cleanup(admin, &owner, pools)
+                    .await
+                    .and_then(|()| receipt.as_deref().map_or(Ok(()), Receipt::remove));
+                if let Err(error) = result {
                     eprintln!("{error}");
                 }
             });
         }
     }
+}
+
+async fn connect(admin_url: &str) -> io::Result<MySqlConnection> {
+    if !url::Url::parse(admin_url).is_ok_and(|url| url.scheme() == "mysql") {
+        return Err(io::Error::other("expected a MySQL test server URL"));
+    }
+    tokio::time::timeout(SESSION_TIMEOUT, MySqlConnection::connect(admin_url))
+        .await
+        .ok()
+        .and_then(Result::ok)
+        .ok_or_else(|| io::Error::other("could not connect to the MySQL test server"))
+}
+
+async fn identity(admin: &mut MySqlConnection, name: &str) -> io::Result<(String, u64)> {
+    sqlx::query_as("SELECT @@server_uuid, CONNECTION_ID()")
+        .fetch_one(admin)
+        .await
+        .map_err(|_| failure(name, "could not verify the management session"))
+}
+
+async fn lease(admin: &mut MySqlConnection, name: &str) -> io::Result<()> {
+    let held: Option<i64> = sqlx::query_scalar("SELECT GET_LOCK(?, 0)")
+        .bind(name)
+        .fetch_one(admin)
+        .await
+        .map_err(|_| failure(name, "could not acquire the lease"))?;
+    if held == Some(1) {
+        return Ok(());
+    }
+    Err(failure(name, "the lease is already held"))
 }
 
 async fn cleanup(

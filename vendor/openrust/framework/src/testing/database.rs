@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fs::File,
     io,
+    path::Path,
     sync::Arc,
 };
 
@@ -116,6 +117,39 @@ impl TestApp {
         connections: &[(&str, &str)],
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::create_mysql(connections, None, configure).await
+    }
+
+    /// Creates an owned test schema and records it in an existing private directory.
+    pub async fn mysqlWithRecovery(
+        admin_url: &str,
+        directory: &Path,
+        configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::mysqlConnectionsWithRecovery(&[("mysql", admin_url)], directory, configure).await
+    }
+
+    /// Creates owned schemas with independent recovery receipts for each named connection.
+    pub async fn mysqlConnectionsWithRecovery(
+        connections: &[(&str, &str)],
+        directory: &Path,
+        configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        Self::create_mysql(connections, Some(directory), configure).await
+    }
+
+    /// Cleans up one abandoned schema on the original dedicated MySQL test server.
+    /// A missing receipt is a no-op. Ownership, busy-schema, or lease failures
+    /// retain the receipt so cleanup can be retried after inspection.
+    pub async fn recoverMysql(admin_url: &str, receipt: &Path) -> io::Result<()> {
+        MySqlTestDatabase::recover(admin_url, receipt).await
+    }
+
+    async fn create_mysql(
+        connections: &[(&str, &str)],
+        journal: Option<&Path>,
+        configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut names = BTreeSet::new();
         let Some(&(default, _)) = connections.first() else {
             return Err(io::Error::other("at least one MySQL test connection is required").into());
@@ -133,7 +167,7 @@ impl TestApp {
         let mut configs = BTreeMap::new();
         let mut owners = BTreeMap::new();
         for &(name, url) in connections {
-            let database = match MySqlTestDatabase::create(url).await {
+            let database = match MySqlTestDatabase::create(url, journal).await {
                 Ok(database) => database,
                 Err(error) => {
                     close_mysql(databases).await?;

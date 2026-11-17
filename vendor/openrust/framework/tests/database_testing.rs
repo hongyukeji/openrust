@@ -524,6 +524,150 @@ async fn managed_mysql_test_schemas_keep_ownership_and_close_their_pools()
     Ok(())
 }
 
+#[tokio::test]
+async fn mysql_recovers_a_fixture_after_process_kill() -> Result<(), Box<dyn Error + Send + Sync>> {
+    use std::{fs, path::Path, time::Duration};
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let configure =
+        |builder: ApplicationBuilder| builder.withProviders(vec![Box::new(InventoryProvider)]);
+    const CHILD_DIRECTORY: &str = "OPENRUST_TEST_MYSQL_RECOVERY_CHILD";
+    if let Some(directory) = std::env::var_os(CHILD_DIRECTORY) {
+        let directory = Path::new(&directory);
+        let mut fixture = TestApp::mysqlWithRecovery(&url, directory, configure).await?;
+        fixture
+            .artisan(["migrate", "--seed"])
+            .await
+            .assertSuccessful();
+        fixture.assertDatabaseCount("items", 1).await?;
+        let database = fixture.database().await?;
+        fs::write(directory.join("schema.tmp"), database.getDatabaseName())?;
+        fs::rename(directory.join("schema.tmp"), directory.join("ready"))?;
+        std::future::pending::<()>().await;
+        unreachable!();
+    }
+
+    let journal = tempfile::tempdir()?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(journal.path(), fs::Permissions::from_mode(0o700))?;
+    }
+    let mut child = tokio::process::Command::new(std::env::current_exe()?)
+        .args([
+            "--exact",
+            "mysql_recovers_a_fixture_after_process_kill",
+            "--nocapture",
+        ])
+        .env(CHILD_DIRECTORY, journal.path())
+        .kill_on_drop(true)
+        .spawn()?;
+    let ready = journal.path().join("ready");
+    let name = tokio::time::timeout(Duration::from_secs(20), async {
+        loop {
+            if ready.exists() {
+                return fs::read_to_string(&ready);
+            }
+            if let Some(status) = child.try_wait()? {
+                return Err(std::io::Error::other(format!(
+                    "fixture child exited early: {status}"
+                )));
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await??;
+    let receipt = journal.path().join(format!("{name}.json"));
+    let original = fs::read(&receipt)?;
+    let mut server = MySqlConnection::connect(&url).await?;
+    assert!(schema_exists(&mut server, &name).await?);
+    let held = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    assert!(held.to_string().contains("lease is already held"), "{held}");
+
+    let mut selected = url::Url::parse(&url)?;
+    selected.set_path(&format!("/{name}"));
+    let foreign = MySqlConnection::connect(selected.as_str()).await?;
+    child.kill().await?;
+    assert!(!child.wait().await?.success());
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let free: Option<i64> = sqlx::query_scalar("SELECT IS_FREE_LOCK(?)")
+                .bind(&name)
+                .fetch_one(&mut server)
+                .await?;
+            if free == Some(1) {
+                return Ok::<_, sqlx::Error>(());
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+    })
+    .await??;
+    let busy = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    assert!(busy.to_string().contains("busy"), "{busy}");
+    foreign.close().await?;
+    assert_eq!(fs::read(&receipt)?, original);
+    assert!(schema_exists(&mut server, &name).await?);
+
+    sqlx::raw_sql("CREATE USER 'fixture_no_schema'@'%' IDENTIFIED BY 'test-only'")
+        .execute(&mut server)
+        .await?;
+    let mut restricted = url::Url::parse(&url)?;
+    restricted.set_username("fixture_no_schema").unwrap();
+    restricted.set_password(Some("test-only")).unwrap();
+    restricted.set_path("/");
+    let invisible = TestApp::recoverMysql(restricted.as_str(), &receipt)
+        .await
+        .unwrap_err();
+    assert!(
+        invisible.to_string().contains("could not verify"),
+        "{invisible}"
+    );
+    assert_eq!(fs::read(&receipt)?, original);
+    sqlx::raw_sql("DROP USER 'fixture_no_schema'@'%'")
+        .execute(&mut server)
+        .await?;
+
+    let mut altered: serde_json::Value = serde_json::from_slice(&original)?;
+    altered["server"] = json!("00000000-0000-0000-0000-000000000000");
+    fs::write(&receipt, serde_json::to_vec(&altered)?)?;
+    let other = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    assert!(other.to_string().contains("another server"), "{other}");
+    altered = serde_json::from_slice(&original)?;
+    altered["token"] = json!("00000000000000000000000000000000");
+    fs::write(&receipt, serde_json::to_vec(&altered)?)?;
+    let rejected = TestApp::recoverMysql(&url, &receipt).await.unwrap_err();
+    assert!(
+        rejected.to_string().contains("ownership marker"),
+        "{rejected}"
+    );
+    assert!(receipt.exists() && schema_exists(&mut server, &name).await?);
+
+    let mut independent = TestApp::mysqlWithRecovery(&url, journal.path(), configure).await?;
+    let other_name = independent.database().await?.getDatabaseName().to_owned();
+    let independent_receipt = journal.path().join(format!("{other_name}.json"));
+    assert!(independent_receipt.exists());
+    fs::write(&receipt, &original)?;
+    TestApp::recoverMysql(&url, &receipt).await?;
+    assert!(!receipt.exists() && !schema_exists(&mut server, &name).await?);
+    assert!(schema_exists(&mut server, &other_name).await?);
+    // Replay a receipt left behind after the database was already dropped.
+    fs::write(&receipt, original)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&receipt, fs::Permissions::from_mode(0o600))?;
+    }
+    TestApp::recoverMysql(&url, &receipt).await?;
+    TestApp::recoverMysql(&url, &receipt).await?;
+    assert!(!receipt.exists());
+    independent.close().await?;
+    assert!(!independent_receipt.exists() && !schema_exists(&mut server, &other_name).await?);
+    Ok(())
+}
+
 async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool, sqlx::Error> {
     let count: i64 = sqlx::query_scalar(
         "SELECT CAST(COUNT(*) AS SIGNED) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?",
