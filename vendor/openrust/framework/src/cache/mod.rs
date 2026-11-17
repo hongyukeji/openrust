@@ -99,6 +99,7 @@ pub enum CacheError {
     InvalidOwner,
     Unavailable(crate::contracts::container::BindingResolutionError),
     TagsUnsupported,
+    StaleTagPruningUnsupported,
     LocksUnsupported,
     FlushUnsupported,
     LockFlushUnsupported,
@@ -190,6 +191,9 @@ impl std::fmt::Display for CacheError {
             Self::InvalidOwner => f.write_str("Invalid cache lock owner."),
             Self::Unavailable(_) => f.write_str("The application cache is unavailable."),
             Self::TagsUnsupported => f.write_str("This cache store does not support tagging."),
+            Self::StaleTagPruningUnsupported => {
+                f.write_str("This cache store does not support pruning stale tags.")
+            }
             Self::LockFlushUnsupported => {
                 f.write_str("This cache store does not support clearing locks.")
             }

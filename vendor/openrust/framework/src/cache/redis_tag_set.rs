@@ -126,6 +126,31 @@ impl RedisTagSet {
         }
     }
 
+    pub(super) async fn prune_selected(&self) -> CacheResult<()> {
+        let value_prefix = format!("{}value:", self.prefix);
+        for tag in &self.tags {
+            let metadata = format!("{}generation:{tag}", self.prefix);
+            let id: Option<String> = self
+                .connection
+                .query_slot(::redis::cmd("GET").arg(&metadata))
+                .await
+                .map_err(backend)?;
+            let Some(id) = id else { continue };
+            if !valid_digest(&id, 32) {
+                return Err(CacheError::InvalidValue);
+            }
+            let index = format!("{}index:{tag}:{id}", self.prefix);
+            if self.connection.is_cluster() {
+                let pending = format!("{}pending:{tag}", self.prefix);
+                self.prune_cluster_index(&self.registry(), &index, &pending, &id)
+                    .await?;
+            } else {
+                self.prune_index(&index, &value_prefix).await?;
+            }
+        }
+        Ok(())
+    }
+
     async fn prune_index(&self, index: &str, value_prefix: &str) -> CacheResult<()> {
         let mut cursor = 0;
         loop {
@@ -192,4 +217,11 @@ impl RedisTagSet {
         }
         Ok(format!("{tag}:{next}"))
     }
+}
+
+fn valid_digest(id: &str, length: usize) -> bool {
+    id.len() == length
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }

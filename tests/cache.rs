@@ -493,6 +493,10 @@ async fn tagged_cache_preserves_order_duplicates_and_application_boundaries() {
     for (tagged, value) in cases {
         assert_eq!(tagged.get(key).await.unwrap(), Some(value.into()));
     }
+    assert!(matches!(
+        ordered.flushStale().await,
+        Err(CacheError::StaleTagPruningUnsupported)
+    ));
     cache.forever(key, &0.into()).await.unwrap();
     let metadata = ordered.getTags().getNamespace().await.unwrap();
     assert!(cache.tags(&["artists"]).unwrap().flush().await.unwrap());
@@ -767,6 +771,14 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert_eq!(cardinality(&authors).await, RedisValue::Int(2));
     tokio::time::sleep(Duration::from_millis(1100)).await;
     assert_eq!(unrelated.get("short").await.unwrap(), None);
+    let unknown = unrelated.getTags().tagKey("unknown");
+    let selected = plain.tags(&["authors", "unknown"]).unwrap();
+    assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
+    assert!(selected.flushStale().await.unwrap());
+    assert_eq!(cardinality(&authors).await, RedisValue::Int(1));
+    assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
+    assert!(!exists(&unknown).await);
+    assert_eq!(unrelated.get("same").await.unwrap(), Some(4.into()));
     root.success(&["cache:prune-stale-tags", "redis"]);
     assert_eq!(cardinality(&authors).await, RedisValue::Int(1));
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(0));

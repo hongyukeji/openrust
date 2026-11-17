@@ -112,3 +112,9 @@
 - 双进程 HTTP 验证跨进程读取、自然到期及新代际写入。独立 Artisan 验证 `cache:clear redis --tags=artists` 清空成功、Redis 索引类型错误返回 1，以及 `cache:prune-stale-tags [redis]` 默认与显式存储、失败恢复和重复执行。修剪保留仍有有效值的旧代际，在索引清空后移除待回收记录。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式与严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 Redis、4.0 GiB 隔离 Cargo 产物和文档缓存。日志保留于 `/private/tmp/openrust-03-09-drain.JSagLq7c`。
 - 现有 `cache:prune-stale-tags` 是存储级清理。固定 Laravel 的 `Cache::tags([...])->flushStale()` 是按指定标签清理索引的公开入口，另待对齐。 [Laravel RedisStoreTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
+
+## 按指定标签清理过期引用
+
+- 对照固定 Laravel 的 `RedisTaggedCache::flushStale`、`RedisTagSet::flushStaleEntries` 和 `RedisStoreTest`。新增 `Cache::tags(&["daily"])?.flushStale().await?`，成功时返回 `true`。复核旧版 `b62ae7c72` 的 `redis_tags.rs`，保留分批清理和代际隔离。Laravel 按过期分数清理，OpenRust 的 Lua 核验值键是否仍存在，也能移除显式删除留下的引用。所选标签只扫描当前代际，存储级 Artisan 继续回收旧代际。 [固定 Laravel 公开入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php#L264) · [固定 Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
+- 空标签列表直接成功，未知标签不创建代际。为共享的 Rust `TaggedCache` 返回明确的非 Redis 驱动错误。固定 Laravel 的 memo 标签装饰器转发是单独的 03-06 配套，直接选用 Redis 仓储的入口已接通。 [固定 Laravel memo 标签测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/MemoizedTaggedCacheTest.php#L225)
+- 在 `9a0013a4f` 隔离快照上，Redis 8.10.3 集群四项、单机和 Array 回归通过。双进程 HTTP 调用三语文档中的 `flushStale()`，同一到期值在 `artists` 索引中被移除，在 `daily` 索引中保留到独立 Artisan 执行 `cache:prune-stale-tags redis`。原生 `ZCARD` 核对索引，HTTP 验证有效值仍能读取。实际 Artisan 还通过默认存储、重复清理和按标签清空失败恢复回归。Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。证据目录 `/private/tmp/openrust-03-09-flush-stale.73uNk3Jx`。

@@ -1088,6 +1088,18 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert_eq!(count(&people).await, RedisValue::Int(3));
     tokio::time::sleep(Duration::from_millis(1150)).await;
     assert_eq!(ordered.get("short").await.unwrap(), None);
+    let artist = index("artists").await;
+    let unknown = left.getTags().tagKey("unknown");
+    assert!(!exists(&unknown).await);
+    assert!(peer.tags(&[]).unwrap().flushStale().await.unwrap());
+    assert_eq!(count(&artist).await, RedisValue::Int(3));
+    let selected = peer.tags(&["artists", "unknown", "artists"]).unwrap();
+    assert!(selected.flushStale().await.unwrap());
+    assert_eq!(count(&artist).await, RedisValue::Int(2));
+    assert_eq!(count(&people).await, RedisValue::Int(3));
+    assert!(!exists(&unknown).await);
+    assert_eq!(ordered.get("item").await.unwrap(), Some(2.into()));
+    assert!(selected.flushStale().await.unwrap());
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&people).await, RedisValue::Int(2));
 

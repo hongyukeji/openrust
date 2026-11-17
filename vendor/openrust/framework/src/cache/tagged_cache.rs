@@ -3,8 +3,8 @@ use std::{num::NonZeroU64, ops::Deref, sync::Arc};
 use crate::contracts::cache::{LockProvider, Store};
 
 use super::{
-    CacheFuture, CacheResult, RedisStore, Repository, TagSet, Value, engine::key_digest,
-    redis_tagged_cache::RedisTaggedCache,
+    CacheError, CacheFuture, CacheResult, RedisStore, Repository, TagSet, Value,
+    engine::key_digest, redis_tagged_cache::RedisTaggedCache,
 };
 
 /// A cache repository scoped to an ordered list of tags.
@@ -33,6 +33,17 @@ impl TaggedCache {
 
     pub fn getTags(&self) -> &TagSet {
         &self.tags
+    }
+
+    /// Removes stale references from the selected Redis tags without clearing live values.
+    pub async fn flushStale(&self) -> CacheResult<bool> {
+        self.tags
+            .redis
+            .as_ref()
+            .ok_or(CacheError::StaleTagPruningUnsupported)?
+            .prune_selected()
+            .await?;
+        Ok(true)
     }
 
     pub async fn taggedItemKey(&self, key: &str) -> CacheResult<String> {

@@ -1,6 +1,6 @@
 use ::redis::{Cmd, FromRedisValue, ToRedisArgs};
 
-use super::{BATCH_SIZE, RedisTagSet};
+use super::{BATCH_SIZE, RedisTagSet, valid_digest};
 use crate::cache::{CacheError, CacheResult, backend, engine::key_digest, tag_set::generation};
 
 const GENERATIONS: &str = include_str!("../scripts/redis_cluster_tag_generations.lua");
@@ -47,7 +47,7 @@ impl RedisTagSet {
         format!("{}value:{digest}", self.prefix)
     }
 
-    fn registry(&self) -> String {
+    pub(super) fn registry(&self) -> String {
         format!("{}indexes", self.prefix)
     }
 
@@ -182,7 +182,7 @@ impl RedisTagSet {
         }
     }
 
-    async fn prune_cluster_index(
+    pub(super) async fn prune_cluster_index(
         &self,
         registry: &str,
         index: &str,
@@ -257,11 +257,4 @@ fn cluster_script(script: &str, key_count: usize) -> Cmd {
     let mut command = ::redis::cmd("EVAL");
     command.arg(script).arg(key_count);
     command
-}
-
-fn valid_digest(id: &str, length: usize) -> bool {
-    id.len() == length
-        && id
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
