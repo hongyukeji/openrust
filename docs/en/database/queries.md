@@ -236,6 +236,8 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 
 MySQL and PostgreSQL accept scalar, array, and object candidates. SQLite containment accepts scalar candidates. A key whose value is JSON null still exists. PostgreSQL uses native JSONB containment for both `json` and `jsonb` columns. Its length predicate uses `jsonb_array_length` on the selected array. Key checks support object keys and array indexes, including negative indexes such as `options->languages[-1]`. Missing keys and SQL NULL documents return false for key existence. PostgreSQL escapes path segments as SQL literals and binds the candidate and object key separately.
 
+SQL Server uses `OPENJSON` for scalar containment, key existence, and length comparisons. A length comparison counts array items or object members, and an absent path or SQL NULL document produces a count of zero. Member names are case-sensitive, and array positions can be checked with paths such as `options->languages[0]`. These queries require database compatibility level 130 or higher.
+
 ### JSON Overlap {#json-overlap}
 
 `whereJsonOverlaps` checks whether the selected JSON value shares an element or key-value pair with the candidate. MySQL uses `JSON_OVERLAPS`. `whereJsonDoesntOverlap` negates the predicate, and both have `orWhere` variants. For a missing path or SQL NULL document, MySQL returns SQL NULL, which a WHERE clause filters out even when the predicate is negated.

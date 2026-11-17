@@ -3154,3 +3154,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 04:30（北京时间）02-04 [PostgreSQL JSON 路径更新与限额写入](audits/02-04/README.md#postgresql-json-路径更新与限额写入)。真实 PostgreSQL 18.6 双准备模式、HTTP 与独立 Artisan、MySQL 8.4.13 查询和写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。 临时实例和本批隔离产物已回收，磁盘可用 101.68 GB（94.69 GiB），提交前周额度剩余 40%，第二窗口无读数。
 
 - 2026-11-18 04:39（北京时间）02-04 [PostgreSQL 原生清空表与序列重置](audits/02-04/README.md#postgresql-原生清空表与序列重置)。真实 PostgreSQL 18.6、HTTP 与独立 Artisan、MySQL 8.4.13 查询及写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。 临时实例和本批隔离产物已回收，磁盘可用 101.63 GB（94.65 GiB），提交前周额度剩余 40%，第二窗口无读数。
+
+- 2026-11-18 04:46（北京时间）02-04 [SQL Server JSON WHERE 谓词](audits/02-04/README.md#sql-server-json-where-谓词)。真实 SQL Server 2022、HTTP 与独立 Artisan、MySQL 8.4.13 查询及写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。 临时实例和本批隔离产物已回收，磁盘可用 101.58 GB（94.60 GiB），提交前周额度剩余 40%，第二窗口无读数。

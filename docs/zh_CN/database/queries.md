@@ -236,6 +236,8 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 
 MySQL 和 PostgreSQL 支持标量、数组及对象候选值。SQLite 的包含条件接受标量。值为 JSON null 的键仍存在。PostgreSQL 对 `json` 和 `jsonb` 列使用原生 JSONB 包含运算，并用 `jsonb_array_length` 检查所选数组的长度。键存在条件支持对象键和数组索引，包括 `options->languages[-1]` 这样的负索引。键缺失或文档为 SQL NULL 时，存在条件返回 false。PostgreSQL 将路径段转义为 SQL 字面量，候选值和对象键分别绑定。
 
+SQL Server 使用 `OPENJSON` 检查标量包含、键存在和长度。长度条件统计数组元素或对象成员，路径缺失或文档为 SQL NULL 时计数为零。成员名区分大小写，可用 `options->languages[0]` 这类路径检查数组位置。数据库兼容级别须为 130 或更高。
+
 ### JSON 重叠 {#json-overlap}
 
 `whereJsonOverlaps` 检查选中的 JSON 值是否与候选值共享元素或键值对。MySQL 使用 `JSON_OVERLAPS`。`whereJsonDoesntOverlap` 对谓词取反，两者均有 `orWhere` 变体。路径不存在或文档为 SQL NULL 时，MySQL 返回 SQL NULL，WHERE 会过滤该行，取反时也是如此。

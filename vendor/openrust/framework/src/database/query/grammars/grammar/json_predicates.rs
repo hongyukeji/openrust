@@ -26,13 +26,15 @@ impl Grammar {
                 bindings.push(Value::Json(value.clone()));
                 Ok(format!("{document} @> ?::jsonb"))
             }
-            Dialect::SqlServer => Err(DatabaseError::UnsupportedOperation(
-                "SQL Server JSON predicate",
-            )),
+            Dialect::SqlServer => {
+                bindings.push(json_scalar(value, self.dialect)?);
+                let rows = self.sql_server_json_rows(selector, bindings)?;
+                Ok(format!("? in (select [value] from {rows})"))
+            }
             Dialect::Sqlite => {
                 let (column, path) = self.json_selector(selector)?;
                 let path_parameter = if path.is_some() { ", ?" } else { "" };
-                let value = sqlite_json_scalar(value)?;
+                let value = json_scalar(value, self.dialect)?;
                 bindings.extend(path.map(Value::from));
                 bindings.push(value);
                 Ok(format!(
@@ -82,9 +84,12 @@ impl Grammar {
                 Ok(format!("ifnull(json_contains_path({column}, 'one', ?), 0)"))
             }
             Dialect::Postgres => self.postgres_json_contains_key(selector, bindings),
-            Dialect::SqlServer => Err(DatabaseError::UnsupportedOperation(
-                "SQL Server JSON predicate",
-            )),
+            Dialect::SqlServer => {
+                let (parent, key) = sql_server_json_key(selector)?;
+                bindings.push(key.into());
+                let rows = self.sql_server_json_rows(parent, bindings)?;
+                Ok(format!("? in (select [key] from {rows})"))
+            }
             Dialect::Sqlite => {
                 let (column, path) = self.json_selector(selector)?;
                 let path_parameter = if path.is_some() { ", ?" } else { "" };
@@ -107,9 +112,8 @@ impl Grammar {
                 return Ok(format!("jsonb_array_length({document})"));
             }
             Dialect::SqlServer => {
-                return Err(DatabaseError::UnsupportedOperation(
-                    "SQL Server JSON length",
-                ));
+                let rows = self.sql_server_json_rows(selector, bindings)?;
+                return Ok(format!("(select count(*) from {rows})"));
             }
         };
         let (column, path) = self.json_selector(selector)?;
@@ -126,6 +130,17 @@ impl Grammar {
             .split_once("->")
             .map_or((selector, None), |(column, path)| (column, Some(path)));
         Ok((self.column(column)?, path.map(json_path).transpose()?))
+    }
+
+    fn sql_server_json_rows(
+        &self,
+        selector: &str,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<String> {
+        let (column, path) = self.json_selector(selector)?;
+        let path_parameter = if path.is_some() { ", ?" } else { "" };
+        bindings.extend(path.map(Value::from));
+        Ok(format!("openjson({column}{path_parameter})"))
     }
 
     pub(in crate::database) fn postgres_json_selector(
@@ -237,22 +252,52 @@ fn postgres_bracket_bound(key: &str) -> Option<(&str, u64)> {
     ))
 }
 
-fn sqlite_json_scalar(value: &JsonValue) -> DatabaseResult<Value> {
+fn sql_server_json_key(selector: &str) -> DatabaseResult<(&str, &str)> {
+    let (parent, key) = selector
+        .rsplit_once("->")
+        .ok_or(DatabaseError::InvalidQuery("JSON key path is required"))?;
+    if key.contains('\0') {
+        return Err(DatabaseError::InvalidQuery("JSON path"));
+    }
+    if let Some((stem, index)) = key.strip_suffix(']').and_then(|key| key.rsplit_once('['))
+        && !index.is_empty()
+        && index.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        let parent = if stem.is_empty() {
+            parent
+        } else {
+            &selector[..parent.len() + 2 + stem.len()]
+        };
+        let index = index.trim_start_matches('0');
+        return Ok((parent, if index.is_empty() { "0" } else { index }));
+    }
+    Ok((parent, key))
+}
+
+fn json_scalar(value: &JsonValue, dialect: Dialect) -> DatabaseResult<Value> {
     Ok(match value {
         JsonValue::Null => Value::Null,
+        JsonValue::Bool(value) if dialect == Dialect::SqlServer => value.to_string().into(),
         JsonValue::Bool(value) => Value::Bool(*value),
         JsonValue::String(value) => value.clone().into(),
         JsonValue::Number(value) => match value.as_i64() {
             Some(integer) => integer.into(),
+            None if dialect == Dialect::SqlServer && value.is_u64() => {
+                Value::Unsigned(value.as_u64().expect("unsigned JSON number"))
+            }
             None => Value::Real(
                 value
                     .as_f64()
-                    .ok_or(DatabaseError::InvalidQuery("SQLite JSON numeric value"))?,
+                    .ok_or(DatabaseError::InvalidQuery("JSON numeric value"))?,
             ),
         },
         _ => {
             return Err(DatabaseError::InvalidQuery(
-                "SQLite JSON containment requires a scalar",
+                if dialect == Dialect::SqlServer {
+                    "SQL Server JSON containment requires a scalar"
+                } else {
+                    "SQLite JSON containment requires a scalar"
+                },
             ));
         }
     })

@@ -236,6 +236,8 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 
 MySQL 和 PostgreSQL 支援純量、陣列及物件候選值。SQLite 的包含條件接受純量。值為 JSON null 的鍵仍存在。PostgreSQL 對 `json` 和 `jsonb` 欄位使用原生 JSONB 包含運算，並用 `jsonb_array_length` 檢查所選陣列的長度。鍵存在條件支援物件鍵和陣列索引，包括 `options->languages[-1]` 這樣的負索引。鍵不存在或文件為 SQL NULL 時，存在條件會傳回 false。PostgreSQL 將路徑區段跳脫為 SQL 常值，候選值和物件鍵分開繫結。
 
+SQL Server 使用 `OPENJSON` 檢查純量包含、鍵存在和長度。長度條件會計算陣列元素或物件成員，路徑不存在或文件為 SQL NULL 時，計數為零。成員名稱區分大小寫，可用 `options->languages[0]` 這類路徑檢查陣列位置。資料庫相容性層級須為 130 或更高。
+
 ### JSON 重疊 {#json-overlap}
 
 `whereJsonOverlaps` 檢查所選 JSON 值是否與候選值共享元素或鍵值對。MySQL 使用 `JSON_OVERLAPS`。`whereJsonDoesntOverlap` 將述詞取反，兩者均有 `orWhere` 變體。路徑不存在或文件為 SQL NULL 時，MySQL 傳回 SQL NULL，WHERE 會篩除該列，取反時亦然。

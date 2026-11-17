@@ -1083,6 +1083,184 @@ async fn json_predicates_run_on_mysql_8_4() {
 }
 
 #[tokio::test]
+async fn json_predicates_run_on_sql_server() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_JSON_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER_JSON").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    db.statement(
+        "CREATE TABLE dbo.app_json_probe (id integer PRIMARY KEY, document nvarchar(max), seen integer DEFAULT 0)",
+        &[],
+    )
+    .await
+    .unwrap();
+    for (id, document) in [
+        (
+            1,
+            Value::Json(json!({
+                "settings": {"tags": ["en", "de"], "marker": null},
+                "flags": [true, false],
+                "nums": [17, 23],
+                "groups": [[{"Present":null}]],
+                "dotted.key": {"O'Reilly": ["yes"]},
+            })),
+        ),
+        (2, Value::Json(json!({"settings": {"tags": ["en"]}}))),
+        (3, Value::Null),
+    ] {
+        db.insert(
+            "INSERT INTO dbo.app_json_probe (id, document) VALUES (?, ?)",
+            &[id.into(), document],
+        )
+        .await
+        .unwrap();
+    }
+    let table = || db.table("dbo.json_probe as j");
+    let tags = "j.document->settings->tags";
+    let marker = "j.document->settings->marker";
+    let query = table()
+        .whereNested(|group| {
+            group
+                .whereJsonContains(tags, json!("de"))
+                .orWhereJsonLength(tags, "=", 0)
+        })
+        .r#where("j.id", ">", 0);
+    let path = Value::from(r#"$."settings"."tags""#);
+    assert_eq!(
+        query.getBindings().unwrap(),
+        ["de".into(), path.clone(), path, 0.into(), 0.into()]
+    );
+    assert_eq!(
+        query.orderBy("j.id", "asc").pluck("j.id").await.unwrap(),
+        [1.into(), 3.into()]
+    );
+    assert_eq!(
+        table()
+            .whereJsonDoesntContain(tags, json!("de"))
+            .orderBy("j.id", "asc")
+            .pluck("j.id")
+            .await
+            .unwrap(),
+        [2.into(), 3.into()],
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .value("j.id")
+            .await
+            .unwrap(),
+        1.into(),
+    );
+    assert_eq!(
+        table()
+            .whereJsonDoesntContainKey(marker)
+            .orderBy("j.id", "asc")
+            .pluck("j.id")
+            .await
+            .unwrap(),
+        [2.into(), 3.into()],
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey("j.document->settings->Marker")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey("j.document->groups[0][00]")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey("j.document->groups[0][1]")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey("j.document->dotted.key->O'Reilly")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        table()
+            .whereJsonContains("j.document->flags", json!(true))
+            .value("j.id")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    assert_eq!(
+        table()
+            .whereJsonContains("j.document->nums", json!(23))
+            .value("j.id")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    assert_eq!(
+        table()
+            .whereJsonLength("j.document->settings", "=", 2)
+            .value("j.id")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    assert!(matches!(
+        table().whereJsonContains(tags, json!(["de"])).toSql(),
+        Err(DatabaseError::InvalidQuery(
+            "SQL Server JSON containment requires a scalar"
+        ))
+    ));
+    assert!(matches!(
+        table().whereJsonOverlaps(tags, json!("de")).toSql(),
+        Err(DatabaseError::UnsupportedOperation("JSON overlaps"))
+    ));
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    let changed = transaction
+        .table("dbo.json_probe")
+        .whereJsonContains("document->settings->tags", json!("de"))
+        .whereJsonContainsKey("document->settings->marker")
+        .update(BTreeMap::from([("seen".into(), 1.into())]))
+        .await
+        .unwrap();
+    assert_eq!(changed, 1);
+    assert_eq!(
+        transaction
+            .table("dbo.json_probe")
+            .whereJsonContainsKey("document->settings->marker")
+            .value("seen")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .value("j.seen")
+            .await
+            .unwrap(),
+        0.into()
+    );
+    db.statement("DROP TABLE dbo.app_json_probe", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
     let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_JSON_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_JSON").is_none());
