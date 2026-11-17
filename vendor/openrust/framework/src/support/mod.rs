@@ -28,6 +28,7 @@ mod timebox;
 mod uri;
 mod view_error_bag;
 
+pub use crate::cache::cache;
 pub use arr::{Arr, ArrValueError};
 pub use benchmark::Benchmark;
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};

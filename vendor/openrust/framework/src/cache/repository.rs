@@ -298,6 +298,38 @@ impl Repository {
         Ok(!self.has(key).await?)
     }
 
+    /// Reads a non-null value, returning the supplied default on a miss.
+    pub async fn getOr(&self, key: &str, default: Value) -> CacheResult<Value> {
+        self.getOrElse(key, || async { Ok(default) }).await
+    }
+
+    /// Resolves the default only when the key is missing or contains null.
+    pub async fn getOrElse<F>(&self, key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>>,
+    {
+        match self.get(key).await?.filter(|value| !value.is_null()) {
+            Some(value) => Ok(value),
+            None => default().await,
+        }
+    }
+
+    /// Atomically removes the entry, returning a default if it was missing or null.
+    pub async fn pullOr(&self, key: &str, default: Value) -> CacheResult<Value> {
+        self.pullOrElse(key, || async { Ok(default) }).await
+    }
+
+    /// Atomically removes the entry before resolving the default on a miss.
+    pub async fn pullOrElse<F>(&self, key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>>,
+    {
+        match self.pull(key).await?.filter(|value| !value.is_null()) {
+            Some(value) => Ok(value),
+            None => default().await,
+        }
+    }
+
     pub async fn remember(
         &self,
         key: &str,

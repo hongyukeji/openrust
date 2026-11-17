@@ -164,3 +164,13 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 实际 HTTP 在 MySQL 和 Redis 中均先返回旧值，进程间读回刷新值。真实 Artisan 夹具命令 `fixture:refresh` 输出旧值，退出后另一进程读到新值。实际 `cache:forget`、`inspire` 及 MySQL 迁移和重置通过。严格 Clippy、变更文件格式、三语 VitePress、24 项浏览器检查和三语 Rust 示例编译通过。全仓格式仍仅有既有 `sanctum_authentication.rs:1412` 排版差异。
 - 临时夹具已回收。清理 4.8 GiB 隔离编译产物及文档缓存后，项目卷可用 57.40 GB（53.46 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-refresh.8Iz4BAP7`。
 - [缓存读取默认值](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#retrieving-items-from-the-cache)、[取回并删除的默认值](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#retrieve-delete)和[全局 `cache` 助手](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#the-cache-helper)继续跟踪，03-06 仍开放。
+
+## 读取默认值与缓存助手
+
+- 对照固定 Laravel [Repository 的读取和取回删除](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L128)及 [cache 助手源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/helpers.php#L281)。旧版未找到带默认值和全局助手的同名契约。复用当前仓库的读取、事件、原子取回删除和应用作用域。
+- 新增 `getOr`、`getOrElse`、`pullOr`、`pullOrElse`。键缺失或缓存值为 null 时才使用默认值，保留零值和后端错误。`pullOrElse` 先执行原子取回删除再计算默认值。两个消费者只有一个得到原值，且默认回调执行时写入的新值不会被后续删除。Laravel 的默认回调在 `forget` 之前执行，Rust 沿用原子语义。
+- `cache()` 获取应用缓存管理器。`cache!` 按参数提供管理器、读值、带默认值读、写入。和固定 PHP 实现一样，非空键值组的写入只使用第一项，批量写入继续使用 `Cache::putMany`。Rust 的写入形式要求至少一项，读值的无默认参数形式保留 `Option<Value>`。
+- 隔离基线 `a9af88cbc`，Rust 1.94.0，macOS arm64。固定 PHP 8.5 验证缺失、null、零值、惰性默认、取回删除、管理器和首项写入。array、file、MySQL 8.4.13 和 Redis 8.10.3 通过竞争和默认值验收，session 缓存验证错误直接传播，双应用 array 验证作用域。43 项缓存相关回归通过。
+- 实际 MySQL 和 Redis 双进程 HTTP 验证助手读写、缺失回退和并行取回。实际 Artisan `cache:forget`、`inspire` 和 MySQL 迁移、重置通过。严格 Clippy、变更范围格式、三语 VitePress、30 项浏览器检查和三语示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。
+- 临时夹具已回收。清理 4.4 GiB 隔离 Cargo 产物及文档缓存后，磁盘可用 57.37 GB（53.43 GiB），周额度剩余 68%，无第二窗口读数。证据目录 `/private/tmp/openrust-03-06-defaults.Y5aCtYKb`。
+- 固定 Repository 另有 `string`、`integer`、`float`、`boolean`、`array` 类型化读取，以及带默认值的批量读取和 `getMultiple`、`setMultiple`、`deleteMultiple` 等兼容入口。后续按仓库契约审计和验收，03-06 暂维持开放。

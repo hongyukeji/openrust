@@ -94,6 +94,17 @@ impl Cache {
         Self::store(None)?.get(key).await
     }
 
+    pub async fn getOr(key: &str, default: Value) -> CacheResult<Value> {
+        Self::store(None)?.getOr(key, default).await
+    }
+
+    pub async fn getOrElse<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>>,
+    {
+        Self::store(None)?.getOrElse(key, default).await
+    }
+
     pub async fn put(key: &str, value: &Value, ttl: Option<Ttl>) -> CacheResult<bool> {
         Self::store(None)?.put(key, value, ttl).await
     }
@@ -120,6 +131,17 @@ impl Cache {
 
     pub async fn pull(key: &str) -> CacheResult<Option<Value>> {
         Self::store(None)?.pull(key).await
+    }
+
+    pub async fn pullOr(key: &str, default: Value) -> CacheResult<Value> {
+        Self::store(None)?.pullOr(key, default).await
+    }
+
+    pub async fn pullOrElse<F>(key: &str, default: impl FnOnce() -> F) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>>,
+    {
+        Self::store(None)?.pullOrElse(key, default).await
     }
 
     pub async fn forget(key: &str) -> CacheResult<bool> {

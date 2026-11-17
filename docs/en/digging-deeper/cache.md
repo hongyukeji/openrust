@@ -75,6 +75,18 @@ Use `Cache::store(Some("file"))` for a named store or call the facade directly f
 ./artisan cache:clear file
 ```
 
+### Retrieving items from the cache {#retrieving-items-from-the-cache}
+
+Use `getOr(key, default)` for a value or `getOrElse(key, resolve)` for an asynchronous fallback. Missing entries and cached JSON `null` use the default. A hit leaves the fallback untouched. Backend errors still propagate, and fallback results are only returned to the caller.
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_title() -> CacheResult<Value> {
+    Cache::getOrElse("reports:title", || async { Ok(Value::from("Untitled")) }).await
+}
+```
+
 ### Retrieve and store {#retrieve-store}
 
 `remember` returns a cached value or resolves and stores it on a miss. `rememberWithWarmth` returns `(value, warm)`. `warm` is `true` for a non-null cache hit. `rememberWithWarmthFor` computes the TTL from the resolved value on a miss. `rememberForever` and its alias `sear` store the result without an expiry.
@@ -105,6 +117,10 @@ pub async fn refresh_report() -> CacheResult<Value> {
 
 Deferred refresh uses an atomic cache lock. A queued refresh skips its resolver if another caller has refreshed the same generation. A failed refresh leaves the old value available until its original expiry. `flexibleWith` accepts two `Ttl` values and `FlexibleOptions` for a custom lock lease, owner token, or `always_defer` after failure. A repository call outside an application lifecycle can read stale data until expiry. Deferred resolvers capture owned values so they can outlive the request handler.
 
+### Retrieve and delete {#retrieve-delete}
+
+Use `pullOr(key, default)` or `pullOrElse(key, resolve)` with a default. Both use the store's atomic `pull` before resolving a missing or null value. If two callers pull the same non-null entry, only one receives it.
+
 ## Cache Memoization {#cache-memoization}
 
 Use `Cache::memo(None)` for the default store or `Cache::memo(Some("redis"))` for a named store. The first lookup reads the backend. Repeated lookups reuse hits and misses in the current HTTP request or queue job. Changes made through the memoized repository invalidate the affected keys before forwarding to the backend. Writes made through the plain repository become visible after invalidation or in the next request or job. Outside a managed lifecycle, each call creates a separate memoized repository. A repository retained from a completed lifecycle reads the backend directly.
@@ -120,6 +136,21 @@ pub async fn report() -> CacheResult<Option<Value>> {
     let cache = Cache::memo(Some("redis"))?;
     let _ = cache.get("reports/latest").await?;
     Cache::memo(Some("redis"))?.get("reports/latest").await
+}
+```
+
+## The cache helper {#the-cache-helper}
+
+`cache!()` or `openrust::support::cache()` resolves the current application's manager. Use `.store(None)?` on it to get the default repository. `cache!(key).await?` reads a value as `Option<Value>`, and `cache!(key, default).await?` supplies a default.
+
+The write form accepts a nonempty set of key/value pairs and an `Option<Ttl>`. Like the fixed Laravel helper, it writes the first entry. Use `Cache::putMany` to write all entries.
+
+```rust
+use openrust::{cache, cache::{CacheResult, Ttl, Value}};
+
+pub async fn report() -> CacheResult<Value> {
+    cache!({ "reports:latest" => Value::from("ready") }, Some(Ttl::Seconds(60))).await?;
+    cache!("reports:latest", Value::from("pending")).await
 }
 ```
 

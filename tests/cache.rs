@@ -2496,3 +2496,164 @@ async fn flexible_refresh_respects_lifecycle_and_generation() {
         assert!(std::env::var_os("CACHE_FLEXIBLE_FIXTURES_REQUIRED").is_none());
     }
 }
+
+async fn verify_cache_defaults(first: &Repository, second: &Repository) {
+    let null = Value::from(serde_json::Value::Null);
+    first.forever("null", &null).await.unwrap();
+    assert_eq!(
+        first.getOr("null", "default".into()).await.unwrap(),
+        "default".into()
+    );
+    assert_eq!(first.get("null").await.unwrap(), Some(null));
+    assert_eq!(
+        first
+            .getOrElse("missing", || async { Ok("computed".into()) })
+            .await
+            .unwrap(),
+        "computed".into()
+    );
+    assert!(first.missing("missing").await.unwrap());
+    first.forever("zero", &0.into()).await.unwrap();
+    assert_eq!(
+        first
+            .getOrElse("zero", || async { panic!("fallback on a hit") })
+            .await
+            .unwrap(),
+        0.into()
+    );
+    let (left, right) = tokio::join!(
+        first.pullOr("zero", "empty".into()),
+        second.pullOrElse("zero", || async { Ok("empty".into()) }),
+    );
+    let values = [left.unwrap(), right.unwrap()];
+    assert!(values.contains(&0.into()));
+    assert!(values.contains(&"empty".into()));
+    assert_eq!(first.get("zero").await.unwrap(), None);
+    assert!(matches!(
+        first
+            .pullOrElse("null", || async { Err(CacheError::InvalidValue) })
+            .await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert_eq!(first.get("null").await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn cache_defaults_keep_atomic_pull_and_propagate_backend_errors() {
+    let root = Sandbox::new("defaults-array", "CACHE_STORE=array\n");
+    let array = root.cache(None).await;
+    verify_cache_defaults(&array, &array).await;
+    assert!(matches!(
+        root.cache(Some("session"))
+            .await
+            .getOrElse("key", || async { panic!("fallback on a backend error") })
+            .await,
+        Err(CacheError::SessionUnavailable)
+    ));
+
+    let root = Sandbox::new("defaults-file", "CACHE_STORE=file\n");
+    verify_cache_defaults(
+        root.cache(None).await.as_ref(),
+        root.cache(None).await.as_ref(),
+    )
+    .await;
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") {
+        let root = Sandbox::new(
+            "defaults-redis",
+            &format!("CACHE_STORE=redis\nCACHE_PREFIX=defaults:\nREDIS_URL={url}\n"),
+        );
+        verify_cache_defaults(
+            root.cache(None).await.as_ref(),
+            root.cache(None).await.as_ref(),
+        )
+        .await;
+    } else {
+        assert!(std::env::var_os("CACHE_DEFAULT_FIXTURES_REQUIRED").is_none());
+    }
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") {
+        let root = Sandbox::new(
+            "defaults-mysql",
+            &format!(
+                "CACHE_STORE=database\nCACHE_PREFIX=defaults:\nDB_CONNECTION=mysql\nDB_URL={url}\n"
+            ),
+        );
+        root.success(&["migrate"]);
+        verify_cache_defaults(
+            root.cache(None).await.as_ref(),
+            root.cache(None).await.as_ref(),
+        )
+        .await;
+        root.success(&["migrate:reset"]);
+    } else {
+        assert!(std::env::var_os("CACHE_DEFAULT_FIXTURES_REQUIRED").is_none());
+    }
+}
+
+#[tokio::test]
+async fn cache_helper_resolves_the_current_application_and_writes_first_entry() {
+    use openrust::{
+        cache,
+        contracts::http::Kernel as _,
+        foundation::{configuration::Routing, http::Kernel},
+        http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+        routing::{Router, RoutingError},
+    };
+
+    fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            assert!(Arc::ptr_eq(&cache!()?, &openrust::support::cache()?));
+            if request.uri().path() == "/write" {
+                assert!(cache!({"read" => Value::from("ready"), "ignored" => Value::from("ignored")}, None).await?);
+                assert_eq!(cache!("ignored").await?, None);
+            }
+            let value = cache!("read", Value::from("missing")).await?;
+            Response::json(
+                if value.as_str() == Some("ready") {
+                    StatusCode::OK
+                } else {
+                    StatusCode::NOT_FOUND
+                },
+                value.as_str(),
+            )
+        })
+    }
+
+    fn routes(_: &Application) -> Result<Router, RoutingError> {
+        let mut router = Router::new();
+        router.get("/write", endpoint)?;
+        router.get("/read", endpoint)?;
+        Ok(router)
+    }
+
+    async fn send(kernel: &Kernel, path: &str) -> StatusCode {
+        let (parts, body) = axum::http::Request::get(path)
+            .body(Body::empty())
+            .unwrap()
+            .into_parts();
+        kernel
+            .handle(&mut Request::from_parts(parts, body))
+            .await
+            .status()
+    }
+
+    assert!(matches!(cache!(), Err(CacheError::Unavailable(_))));
+    let root = Sandbox::new("helper-scope", "CACHE_STORE=array\n");
+    let application = || {
+        Kernel::new(
+            Application::configure(root.0.clone())
+                .withConfig(config::load)
+                .withRouting(Routing::new(routes))
+                .create()
+                .unwrap(),
+        )
+    };
+    let mut first = application();
+    let mut second = application();
+    first.bootstrap().await.unwrap();
+    second.bootstrap().await.unwrap();
+    assert_eq!(send(&first, "/write").await, StatusCode::OK);
+    assert_eq!(send(&second, "/read").await, StatusCode::NOT_FOUND);
+    assert_eq!(send(&first, "/read").await, StatusCode::OK);
+}

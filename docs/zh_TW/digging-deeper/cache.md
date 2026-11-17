@@ -75,6 +75,18 @@ CACHE_STORAGE_PATH=framework/cache/items
 ./artisan cache:clear file
 ```
 
+### 讀取快取項目 {#retrieving-items-from-the-cache}
+
+`getOr(key, default)` 接受預設值，`getOrElse(key, resolve)` 接受非同步後援閉包。鍵缺少或快取值為 JSON `null` 時使用預設值，命中時略過後援。後端錯誤仍回傳給呼叫端，後援計算的結果只回傳給呼叫端。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_title() -> CacheResult<Value> {
+    Cache::getOrElse("reports:title", || async { Ok(Value::from("Untitled")) }).await
+}
+```
+
 ### 讀取並回填 {#retrieve-store}
 
 `remember` 回傳快取值，未命中時執行計算並寫入快取。`rememberWithWarmth` 回傳 `(value, warm)`，命中非空值時 `warm` 為 `true`。`rememberWithWarmthFor` 在未命中時根據計算結果設定 TTL。`rememberForever` 和別名 `sear` 將計算結果寫入快取且不設定到期時間。
@@ -105,6 +117,10 @@ pub async fn refresh_report() -> CacheResult<Value> {
 
 背景更新使用快取原子鎖。如果其他呼叫端已更新同一代快取，等待執行的更新會略過計算。更新失敗時，舊值可以繼續使用到原定到期時間。`flexibleWith` 接受兩個 `Ttl` 和 `FlexibleOptions`，可設定鎖租期、擁有者權杖或失敗後仍更新的 `always_defer`。在應用程式生命週期之外直接呼叫儲存庫時，可讀取舊值直到到期。背景計算需要擷取擁有所有權的值，以便在請求處理函式回傳後執行。
 
+### 取回並刪除 {#retrieve-delete}
+
+`pullOr(key, default)` 和 `pullOrElse(key, resolve)` 支援預設值。兩者先執行儲存庫的原子 `pull`，項目缺少或值為 `null` 時再使用預設值。兩個呼叫同時取回同一非空項目時，只有一個能取得該值。
+
 ## 快取記憶化 {#cache-memoization}
 
 用 `Cache::memo(None)` 選擇預設儲存庫，或用 `Cache::memo(Some("redis"))` 選擇具名儲存庫。首次查詢會存取後端，同一 HTTP 請求或佇列工作內的重複查詢會重用命中及未命中結果。透過記憶化儲存庫修改項目會先清除對應的記憶體結果，再寫入後端。一般儲存庫的寫入在記憶體結果失效後或下一個請求、工作中可見。 在框架管理的生命週期之外，每次呼叫都會建立獨立的記憶化儲存庫。從已結束的生命週期保留的儲存庫會直接讀取後端。
@@ -120,6 +136,21 @@ pub async fn report() -> CacheResult<Option<Value>> {
     let cache = Cache::memo(Some("redis"))?;
     let _ = cache.get("reports/latest").await?;
     Cache::memo(Some("redis"))?.get("reports/latest").await
+}
+```
+
+## cache 輔助工具 {#the-cache-helper}
+
+`cache!()` 或 `openrust::support::cache()` 取得目前應用程式的快取管理員。呼叫 `.store(None)?` 取得預設儲存庫。`cache!(key).await?` 回傳 `Option<Value>`，`cache!(key, default).await?` 支援預設值。
+
+寫入形式接受至少一組鍵值和 `Option<Ttl>`。與固定 Laravel 的輔助工具一致，它只寫入第一項。需要寫入全部項目時使用 `Cache::putMany`。
+
+```rust
+use openrust::{cache, cache::{CacheResult, Ttl, Value}};
+
+pub async fn report() -> CacheResult<Value> {
+    cache!({ "reports:latest" => Value::from("ready") }, Some(Ttl::Seconds(60))).await?;
+    cache!("reports:latest", Value::from("pending")).await
 }
 ```
 
