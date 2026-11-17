@@ -17,6 +17,7 @@ pub(crate) struct Settings {
     pub(crate) host: String,
     pub(crate) port: u16,
     pub(crate) path: String,
+    pub(crate) hostname: Option<String>,
     pub(crate) max_request_size: usize,
     scaling: Option<Scaling>,
 }
@@ -85,6 +86,7 @@ struct AppSettings {
 
 pub(crate) struct ReverbRuntime {
     pub(crate) settings: Settings,
+    pub(crate) debug: bool,
     applications: Vec<AppSettings>,
 }
 
@@ -114,6 +116,7 @@ impl ReverbRuntime {
             })?;
         Ok(Self {
             settings,
+            debug: false,
             applications,
         })
     }
@@ -213,7 +216,8 @@ impl ReverbRuntime {
                 applications,
                 &self.settings.path,
                 self.settings.max_request_size,
-            )?;
+            )?
+            .with_debug(self.debug);
             if let Some(scaling) = self
                 .settings
                 .scaling
@@ -237,8 +241,27 @@ impl ReverbRuntime {
                     )
                 })?;
             let address = listener.local_addr()?;
+            let hostname = self.settings.hostname.as_deref().unwrap_or_default();
+            if hostname.chars().any(char::is_control) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid Reverb hostname.",
+                )
+                .into());
+            }
+            let advertised = if hostname.is_empty() || hostname == self.settings.host {
+                String::new()
+            } else {
+                format!(" ({hostname})")
+            };
+            let path = self.settings.path.trim_matches('/');
+            let path = if path.is_empty() {
+                String::new()
+            } else {
+                format!("/{path}")
+            };
             Ok(Box::pin(async move {
-                println!("Reverb listening on ws://{address}");
+                println!("Reverb listening on ws://{address}{path}{advertised}");
                 server.serve(listener, shutdown).await?;
                 Ok(())
             }) as RunningService)

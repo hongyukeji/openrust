@@ -21,6 +21,8 @@ cargo build --features reverb
 ./target/debug/main artisan reverb:restart
 ```
 
+`reverb:start --hostname=edge.example.com` 會在綁定位址旁顯示用戶端連線的主機名稱，預設讀取 `REVERB_HOST`。實際綁定由 `--host` 和 `--port` 決定。使用 `--debug` 在終端機顯示連線、協定事件和發布診斷。
+
 重新啟動命令會將訊號寫入應用程式快取。同一部主機可使用 `CACHE_STORE=file` 共用訊號。獨立程序收到訊號後會關閉監聽器和連線，可由程序管理器再次啟動。內嵌程序隨應用程式關閉及重新啟動。
 
 ## 廣播與擴展 {#broadcasting-and-scaling}
@@ -40,3 +42,26 @@ Redis Pub/Sub 跨節點投遞已簽署的 HTTP 發佈和已授權的用戶端事
 使用簽章 GET 請求查詢 `/apps/{id}/connections`、`/apps/{id}/channels`、`/apps/{id}/channels/{channel}` 或 `/apps/{id}/channels/{channel}/users`。頻道清單可用 `filter_by_prefix` 篩選，透過 `info` 選擇 `subscription_count`、`user_count` 或 `cache` 等欄位。啟用 Redis 擴充後，監聽器合併各回應節點的統計，並移除重複的在線頻道使用者 ID。
 
 帶有 `cache-`、`private-cache-` 或 `presence-cache-` 前綴的頻道，在訂閱成功後重播最近一次事件。快取為空時傳送 `pusher:cache_miss`。頻道授權依然適用。遵循 Reverb 的快取生命週期，各監聽器在有本機訂閱者時保留快取，最後一位本機訂閱者離開後清除。
+
+## Laravel Echo {#laravel-echo}
+
+安裝 `laravel-echo` 與 `pusher-js`。下列範例連線到本機未啟用 TLS 的 Reverb 監聽器。設定路徑前綴時，請將 `wsPath` 設為伺服器路徑。
+
+```js
+import Echo from "laravel-echo"
+import Pusher from "pusher-js"
+
+const echo = new Echo({
+  broadcaster: "reverb",
+  Pusher,
+  key: "your-public-app-key",
+  wsHost: window.location.hostname,
+  wsPort: 8080,
+  forceTLS: false,
+  enabledTransports: ["ws"],
+})
+
+echo.channel("news").listen(".article.updated", event => console.log(event))
+```
+
+使用 `echo.private("orders.42")` 訂閱私人頻道，使用 `echo.join("rooms.42")` 加入在線頻道。兩者都透過應用程式的 `/broadcasting/auth` 和已註冊的頻道守衛授權。連線恢復後，Echo 會自動重新訂閱。

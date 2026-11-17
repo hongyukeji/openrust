@@ -109,6 +109,12 @@ impl SignedRequest {
 
     async fn dispatch(&self, deliveries: Vec<Delivery>) -> Result<(), StatusCode> {
         for delivery in deliveries {
+            if self.state.debug {
+                eprintln!(
+                    "[reverb] publishing app={:?} event={:?} channels={:?}",
+                    delivery.app_id, delivery.event, delivery.channels
+                );
+            }
             if let Some(publisher) = &self.state.publisher {
                 publisher
                     .publish(&delivery)

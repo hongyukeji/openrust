@@ -5,7 +5,7 @@
 - Cargo 特性 `reverb` 启用可选扩展。内嵌 HTTP 和 Reverb 在 Tokio 中先绑定再就绪，共用关停信号。独立 `reverb:start` 支持监听主机、端口和路径覆盖，`reverb:restart` 通过共享缓存让独立进程退出，交由进程管理器重新拉起。
 - Pusher 协议处理 WebSocket 握手、Origin、连接限制、心跳、公开／私有／在线频道、成员变更和客户端事件。HMAC 验证频道授权和 HTTP 发布。框架通过频道指定的守卫解析在线成员身份，保留字符串身份中的前导零。
 - Redis Pub/Sub 跨进程投递已签名的 HTTP 发布及客户端事件，按应用和频道分发并排除来源套接字。启用扩展时在线频道返回全局成员列表和人数。Rust 通过有界队列限制慢客户端积压，并关闭无法跟上的连接。
-- TLS 在反向代理终止。Pusher 缓存频道、统计和批量事件接口、Artisan 的 `--hostname` 与 `--debug` 仍待补齐。Echo 浏览器库及外部托管 Pusher 服务未验收。
+- TLS 在反向代理终止。缓存频道、统计、批量事件、Artisan 参数及 Echo 的后续验收见下文。
 
 ## 验收
 
@@ -30,3 +30,14 @@
 - 在现有 HMAC 校验下接通连接数、频道列表／前缀筛选、单频道占用及成员列表。单次发布与批量发布可返回频道统计；先校验整批，再按顺序投递，并保留各事件的来源排除。Redis 扩展收集响应节点的统计并对在线成员 ID 去重。 [固定 MetricsHandler](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/MetricsHandler.php) [固定 EventsBatchController](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/Http/Controllers/EventsBatchController.php)
 - Rust 1.94.0，Reverb 8 项回归、全目标严格 Clippy、含 Reverb 特性的实际二进制构建通过。实际 `reverb:start` 启动两个独立进程和专用 Redis 8.10.3，签名 HTTP 与真实 WebSocket 验证了跨节点连接数、成员去重、批次顺序及来源排除、缓存未命中与重放。内嵌启动、Artisan 隔离、路径覆盖和 `reverb:restart` 回归通过。
 - 三语 VitePress 构建以及 12 项浏览器检查和三语新增锚点通过。专用 Redis、临时站点和本批可执行文件已清理。
+
+## Artisan 主机名、诊断与 Echo
+
+- 固定 Reverb 的 `--hostname` 覆盖公开主机名，监听地址仍由主机和端口选项决定。Rust 启动横幅显示实际地址、路径和公开主机名，默认读取 `REVERB_HOST`。 `--debug` 输出连接、事件、频道和发布诊断，日志仅记录元数据。 [固定 StartServer](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Servers/Reverb/Console/Commands/StartServer.php)
+- 实际应用二进制验证 `help reverb:start`、独立启动的主机名与路径覆盖、默认主机名、诊断开关、HTTP 健康和签名发布、WebSocket Ping/Pong、 `reverb:restart` 与连接关闭。
+- Google Chrome 157 中使用 Laravel Echo 2.2.6 与 pusher-js 8.6.0，实测公开、私有和在线频道订阅、实际框架 HTTP 授权、在线成员数据和签名 HTTP 投递。主动断开底层 WebSocket 后，Echo 自动使用新套接字重新授权和订阅，三个频道各收到一次新事件。可在临时目录安装固定版本客户端，设置 `OPENRUST_REVERB_ECHO_MODULES` 指向其 `node_modules` 后运行 Reverb `transport` 测试。 [固定 Laravel Echo 客户端配置](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/broadcasting.md#client-reverb)
+- 8 项 Reverb 回归、工作区全目标全特性严格 Clippy、改动文件格式、三语 VitePress 构建、12 项浏览器检查及三语新增锚点通过。
+
+- 独立 MySQL 8.4.13、Redis 8.10.3 与三个实际应用通过全局在线成员、跨进程客户端事件、应用隔离、节点退出和租期清除。Redis 容器使用固定回环发布端口，实测重启后客户端可重新订阅且成员快照无残留。
+
+外部托管 Pusher 仍待使用隔离测试应用验证，当前无可用测试凭据。08-02 维持开放。

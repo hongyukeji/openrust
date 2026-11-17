@@ -36,6 +36,10 @@ impl Command for StartServer {
             if let Some(path) = input.matches().get_one::<String>("path") {
                 runtime.settings.path.clone_from(path);
             }
+            if let Some(hostname) = input.matches().get_one::<String>("hostname") {
+                runtime.settings.hostname = Some(hostname.clone());
+            }
+            runtime.debug = input.matches().get_flag("debug");
             let cache = app
                 .make::<CacheManager>()
                 .await

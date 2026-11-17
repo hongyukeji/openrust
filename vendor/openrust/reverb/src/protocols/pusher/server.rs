@@ -56,6 +56,7 @@ struct App {
 }
 
 struct ServerState {
+    debug: bool,
     prefix: String,
     ids: HashMap<String, Arc<App>>,
     keys: HashMap<String, Arc<App>>,
@@ -119,6 +120,7 @@ impl Server {
         }
         Ok(Self {
             state: Arc::new(ServerState {
+                debug: false,
                 prefix: if prefix.is_empty() {
                     String::new()
                 } else {
@@ -133,6 +135,14 @@ impl Server {
             max_request_size,
             subscriber: None,
         })
+    }
+
+    /// Enables protocol diagnostics without dumping payloads or credentials.
+    pub(crate) fn with_debug(mut self, debug: bool) -> Self {
+        Arc::get_mut(&mut self.state)
+            .expect("unshared listener state")
+            .debug = debug;
+        self
     }
 
     /// Connects this listener to a shared Redis delivery channel before accepting traffic.
@@ -303,14 +313,7 @@ async fn upgrade(
         .max_frame_size(app.configuration.max_message_size)
         .on_upgrade(move |socket| async move {
             let _active = active;
-            session(
-                socket,
-                app,
-                allowed,
-                state.shutdown.clone(),
-                state.publisher.as_ref(),
-            )
-            .await;
+            session(socket, app, allowed, &state).await;
         })
 }
 
@@ -342,19 +345,14 @@ fn origin_allowed(application: &Application, headers: &HeaderMap) -> bool {
     })
 }
 
-async fn session(
-    mut websocket: WebSocket,
-    app: Arc<App>,
-    allowed: bool,
-    shutdown: CancellationToken,
-    publisher: Option<&Publisher>,
-) {
+async fn session(mut websocket: WebSocket, app: Arc<App>, allowed: bool, state: &ServerState) {
     if !allowed {
         send_frame(&mut websocket, error(4009, "Origin not allowed")).await;
         return;
     }
     let socket = format!("{}.{}", fastrand::u32(..), fastrand::u32(..));
-    let disconnected = shutdown.child_token();
+    let publisher = state.publisher.as_ref();
+    let disconnected = state.shutdown.child_token();
     let (send, mut receive) = mpsc::channel(64);
     if !app.broker.connect(
         socket.clone(),
@@ -366,6 +364,9 @@ async fn session(
         return;
     }
 
+    if state.debug {
+        eprintln!("[reverb] connected socket={socket}");
+    }
     let hello = Frame::new(
         "pusher:connection_established",
         json!({
@@ -398,7 +399,7 @@ async fn session(
                         Message::Text(text) => tokio::select! {
                             biased;
                             () = disconnected.cancelled() => break,
-                            frame = client_message(&app, &socket, &text, publisher) => frame,
+                            frame = client_message(&app, &socket, &text, publisher, state.debug) => frame,
                         },
                         Message::Close(_) => break,
                         Message::Ping(_) | Message::Pong(_) => None,
@@ -410,14 +411,23 @@ async fn session(
                     Some(outgoing)
                 }
             };
-            if let Some(frame) = outgoing
-                && !send_frame(&mut websocket, frame).await
-            {
-                break;
+            if let Some(frame) = outgoing {
+                if state.debug {
+                    eprintln!(
+                        "[reverb] sending socket={socket} event={:?} channel={:?}",
+                        frame.event, frame.channel
+                    );
+                }
+                if !send_frame(&mut websocket, frame).await {
+                    break;
+                }
             }
         }
     }
     let distributed = app.broker.remove_connection(&socket);
+    if state.debug {
+        eprintln!("[reverb] disconnected socket={socket}");
+    }
     if let Some(publisher) = publisher {
         let id = &app.configuration.id;
         let socket = &socket;
@@ -460,10 +470,17 @@ async fn client_message(
     socket: &str,
     input: &str,
     publisher: Option<&Publisher>,
+    debug: bool,
 ) -> Option<Frame> {
     let Ok(message) = serde_json::from_str::<ClientMessage>(input) else {
         return Some(error(4200, "Invalid message format"));
     };
+    if debug {
+        eprintln!(
+            "[reverb] received socket={socket} event={:?}",
+            message.event
+        );
+    }
     match message.event.as_str() {
         "pusher:ping" => Some(Frame::new("pusher:pong", "{}".into(), None)),
         "pusher:pong" => None,

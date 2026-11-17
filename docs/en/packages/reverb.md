@@ -21,6 +21,8 @@ For a separate process, set `REVERB_MODE=standalone` and start Reverb through Ar
 ./target/debug/main artisan reverb:restart
 ```
 
+`reverb:start --hostname=edge.example.com` displays the public hostname alongside the bound address. It defaults to `REVERB_HOST`. The listener still binds to `--host` and `--port`. Use `--debug` for connection, protocol-event, and publication diagnostics in the terminal.
+
 The restart command writes a signal to the application's cache. Use a shared cache store such as `CACHE_STORE=file` on one host. The standalone process closes its listeners and connections on receipt of the signal. A process manager can start it again. The embedded process follows the application's shutdown and restart lifecycle.
 
 ## Broadcasting and scaling {#broadcasting-and-scaling}
@@ -40,3 +42,26 @@ Send signed requests to `POST /apps/{id}/events` or `POST /apps/{id}/batch_event
 Use signed GET requests to `/apps/{id}/connections`, `/apps/{id}/channels`, `/apps/{id}/channels/{channel}`, or `/apps/{id}/channels/{channel}/users`. Use `filter_by_prefix` to restrict a channel list and `info` to select fields such as `subscription_count`, `user_count`, or `cache`. With Redis scaling, the listener combines responding nodes' snapshots and deduplicates presence user IDs.
 
 Channels beginning with `cache-`, `private-cache-`, or `presence-cache-` replay the last event after subscription succeeds, or emit `pusher:cache_miss` if there is no cached event. Channel authorization still applies. As in Reverb, each listener holds that cache while the channel has local subscribers and discards it when the last local subscriber leaves.
+
+## Laravel Echo {#laravel-echo}
+
+Install `laravel-echo` and `pusher-js`. This example connects to a local non-TLS Reverb listener. Set `wsPath` to the configured server path when using a path prefix.
+
+```js
+import Echo from "laravel-echo"
+import Pusher from "pusher-js"
+
+const echo = new Echo({
+  broadcaster: "reverb",
+  Pusher,
+  key: "your-public-app-key",
+  wsHost: window.location.hostname,
+  wsPort: 8080,
+  forceTLS: false,
+  enabledTransports: ["ws"],
+})
+
+echo.channel("news").listen(".article.updated", event => console.log(event))
+```
+
+Use `echo.private("orders.42")` for private channels and `echo.join("rooms.42")` for presence channels. Both use the application’s `/broadcasting/auth` endpoint and registered channel guards. Echo subscribes again when its connection is restored.

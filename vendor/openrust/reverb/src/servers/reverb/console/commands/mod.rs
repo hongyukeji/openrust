@@ -21,7 +21,18 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                     .long("port")
                     .value_parser(clap::value_parser!(u16)),
             )
-            .arg(clap::Arg::new("path").long("path")),
+            .arg(clap::Arg::new("path").long("path"))
+            .arg(
+                clap::Arg::new("hostname")
+                    .long("hostname")
+                    .help("The hostname clients use to reach the server"),
+            )
+            .arg(
+                clap::Arg::new("debug")
+                    .long("debug")
+                    .action(clap::ArgAction::SetTrue)
+                    .help("Display protocol diagnostics in the terminal"),
+            ),
     ))))?;
     Artisan::add(Box::new(RestartServer(CommandDefinition::new(
         clap::Command::new("reverb:restart").about("Restart the Reverb server"),

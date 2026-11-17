@@ -371,6 +371,13 @@ fn room_channel() -> openrust::broadcasting::BroadcastResult<()> {
         support::facades::Broadcast,
     };
     Broadcast::channelWithOptions(
+        "orders.{id}",
+        |_: &dyn Authenticatable, _: &ChannelParameters| Ok(ChannelAuthorization::Allowed),
+        ChannelOptions {
+            guards: vec!["test".into()],
+        },
+    )?;
+    Broadcast::channelWithOptions(
         "room.{id}",
         |_: &dyn Authenticatable, parameters: &ChannelParameters| {
             Ok(ChannelAuthorization::Presence(
@@ -406,7 +413,9 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
         foundation::{Application as Framework, http::Kernel},
     };
 
-    let reverb = Running::start(vec![application("test", "test-key")]).await;
+    let mut configuration = application("test", "test-key");
+    configuration.allowed_origins.push("127.0.0.1".into());
+    let reverb = Running::start(vec![configuration]).await;
     let mut app = Framework::configure(std::env::temp_dir())
         .withConfig(|_, _| {
             Ok([(
@@ -511,6 +520,27 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
         .await
         .unwrap();
     assert_eq!(expected(&mut websocket, "message").await, json!({"id":9}));
+    if std::env::var_os("OPENRUST_REVERB_ECHO_MODULES").is_some() {
+        let endpoint = format!("http://{}", reverb.address);
+        let auth = format!("http://{address}");
+        let script =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../tests/reverb_echo.mjs");
+        let result = tokio::task::spawn_blocking(move || {
+            std::process::Command::new("node")
+                .arg(script)
+                .args([&auth, &endpoint, PREFIX])
+                .output()
+                .unwrap()
+        })
+        .await
+        .unwrap();
+        assert!(
+            result.status.success(),
+            "Echo acceptance failed: {}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        print!("{}", String::from_utf8_lossy(&result.stdout));
+    }
     framework.abort();
     reverb.stop().await;
 }

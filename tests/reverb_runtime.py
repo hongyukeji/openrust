@@ -48,7 +48,8 @@ async def verify(base):
                APP_PORT=str(http), CACHE_STORE="file", REVERB_ENABLED="true",
                APP_DISABLED_RUNNERS="queue",
                REVERB_SERVER_HOST="127.0.0.1", REVERB_SERVER_PORT=str(reverb),
-               REVERB_APP_KEY="probe", REVERB_APP_SECRET="probe-secret", REVERB_APP_ID="42")
+               REVERB_APP_KEY="probe", REVERB_APP_SECRET="probe-secret", REVERB_APP_ID="42",
+               REVERB_HOST="configured-reverb.example.test")
     with subprocess.Popen([binary], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as server:
         try:
             await wait_port(http, server)
@@ -68,13 +69,32 @@ async def verify(base):
             if server.poll() is None:
                 server.terminate()
             assert server.wait(timeout=5) == 0, server.communicate()
+        out, err = server.communicate()
+    assert b"(configured-reverb.example.test)" in out, out
+    assert b"[reverb]" not in err, err
+
     env["REVERB_MODE"] = "standalone"
-    with subprocess.Popen([binary, "artisan", "reverb:start", f"--port={standalone}", "--path=/socket"], env=env,
-                          stdout=subprocess.PIPE, stderr=subprocess.PIPE) as server:
+    help_output = command(env, "help", "reverb:start")
+    assert help_output.returncode == 0 and "--hostname" in help_output.stdout and "--debug" in help_output.stdout
+    with subprocess.Popen(
+        [binary, "artisan", "reverb:start", f"--port={standalone}", "--path=/socket",
+         "--hostname=edge-reverb.example.test", "--debug"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    ) as server:
         try:
             await wait_port(standalone, server)
+            with urllib.request.urlopen(f"http://127.0.0.1:{standalone}/socket/up", timeout=3) as health:
+                assert json.load(health) == {"health": "OK"}
             async with connect(f"ws://127.0.0.1:{standalone}/socket/app/probe") as ws:
                 assert json.loads(await ws.recv())["event"] == "pusher:connection_established"
+                await ws.send(json.dumps({"event": "pusher:ping"}))
+                await frame(ws, "pusher:pong")
+                await ws.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": "probe-debug"}}))
+                await frame(ws, "pusher_internal:subscription_succeeded")
+                assert signed_api(standalone, "/apps/42/events", {
+                    "channel": "probe-debug", "name": "debug-event", "data": '"probe-opaque-value"',
+                }, server_prefix="/socket") == {}
+                assert (await frame(ws, "debug-event"))[1] == "probe-opaque-value"
                 result = command(env, "reverb:restart")
                 assert result.returncode == 0, result.stderr
                 await asyncio.wait_for(ws.wait_closed(), 5)
@@ -83,10 +103,16 @@ async def verify(base):
             if server.poll() is None:
                 server.terminate()
                 server.wait(timeout=5)
-    print("Embedded HTTP and WebSocket, bind failure, Artisan isolation, standalone overrides and restart passed")
+        out, err = server.communicate()
+    assert f"ws://127.0.0.1:{standalone}/socket (edge-reverb.example.test)".encode() in out, out
+    assert b"[reverb] connected" in err and b'event="pusher:ping"' in err and b'event="pusher:pong"' in err, err
+    assert b'[reverb] publishing' in err and b'event="debug-event"' in err, err
+    assert b"configured-reverb.example.test" not in out
+    assert b"probe-secret" not in err and b"probe-opaque-value" not in err
+    print("Embedded HTTP and WebSocket, Artisan help, hostname overrides, debug opt-in and restart passed")
 
 
-def signed_api(port, path, payload=None, **parameters):
+def signed_api(port, path, payload=None, *, server_prefix="", **parameters):
     method = "POST" if payload is not None else "GET"
     body = json.dumps(payload, separators=(",", ":")).encode() if payload is not None else None
     query = {"auth_key": "probe", "auth_timestamp": "1700000000", "auth_version": "1.0", **parameters}
@@ -94,7 +120,7 @@ def signed_api(port, path, payload=None, **parameters):
         query["body_md5"] = hashlib.md5(body).hexdigest()
     signing = f"{method}\n{path}\n" + "&".join(f"{key}={value}" for key, value in sorted(query.items()))
     query["auth_signature"] = hmac.new(b"probe-secret", signing.encode(), hashlib.sha256).hexdigest()
-    url = f"http://127.0.0.1:{port}{path}?{urllib.parse.urlencode(query)}"
+    url = f"http://127.0.0.1:{port}{server_prefix}{path}?{urllib.parse.urlencode(query)}"
     with urllib.request.urlopen(urllib.request.Request(url, data=body), timeout=5) as response:
         return json.load(response)
 
