@@ -969,6 +969,22 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 Pass multiple names to `dropColumn` to drop them in one MySQL ALTER statement. Chain `instant()` or `lock()` to request an online DDL option. If the engine rejects the statement, the columns in that statement remain in place. Earlier statements in the same blueprint may already have completed.
 
+#### PostgreSQL Index Methods and Renaming {#postgresql-index-methods}
+
+Use `algorithm("brin")` to choose a PostgreSQL index access method. The server checks the method and whether it supports the indexed columns or expressions. You can combine it with `online()`. `renameIndex()` inherits the schema from a schema-qualified table name. You can explicitly qualify the old index name. If both the table and the old index name are unqualified, PostgreSQL resolves the old index name through `search_path`. The new name stays in the existing index schema.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn index_references() -> DatabaseResult<()> {
+    Schema::table("archive.documents", |table| {
+        table.index(&["external_id"], Some("documents_reference_idx")).algorithm("brin");
+        table.renameIndex("documents_reference_idx", "documents_reference_brin");
+    })
+    .await
+}
+```
+
 #### PostgreSQL Unique Constraints {#postgresql-unique-constraints}
 
 Use `unique()` to create a named PostgreSQL constraint. On PostgreSQL 15 and later, `nullsNotDistinct(true)` treats NULL values as equal. `nullsNotDistinct(false)` explicitly keeps them distinct. Use `deferrable(true).initiallyImmediate(false)` to check uniqueness at commit. With `online()` or an explicit `algorithm("btree")`, the builder creates the supporting index before attaching it to the constraint. `dropUnique()` removes the constraint and its index. It can also remove a standalone unique index created by earlier OpenRust migrations on the same table.

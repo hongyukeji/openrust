@@ -467,3 +467,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `dropUnique` 优先移除具名约束和其支持索引。针对早期 OpenRust 生成的独立唯一索引，在目标表锁内检查索引归属及唯一性，再执行删除。定向回归验证保留同表普通索引和另一张表的唯一索引。
 - PostgreSQL 18.6 真实验证重复 NULL、显式相异、延迟检查、未修正的重复值回滚、基于显式 btree 的约束、在线索引附加及旧索引兼容删除。实际 Artisan 预演输出建索引和附加约束两条命令，随后运行与回滚均成功。真实 HTTP 查得具名约束，回滚后约束及支持索引均消失。独立 `artisan inspire` 通过。
 - PostgreSQL 在线 DDL 预演、MySQL 8.4.13 三项回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。本批临时数据库、编译与文档产物已回收，磁盘可用空间净增 3.60 GB（3.35 GiB），剩余 104.73 GB（97.54 GiB）。提交前周额度剩余 42%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-05-postgres-unique.HqXNEEEs`。
+
+## PostgreSQL 普通索引方法与重命名
+
+- 对照固定 Laravel v13.40.0 的 `compileIndex`、`compileRenameIndex` 和 `wrapIndex`。PostgreSQL 普通索引与原生表达式索引支持 `algorithm()` 与 `online()`。Rust 校验访问方法为单个 PostgreSQL 标识符，由数据库判断安装状态和列兼容性。重命名沿用表名的显式 Schema 或旧索引的限定名，未限定时由 PostgreSQL 按 `search_path` 解析。未在 `v0.x` 找到对应普通索引方法和重命名实现。 [固定 Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php)
+- PostgreSQL 18.6 定向测试验证 BRIN、在线 hash、原生表达式、限定名重命名、事务回滚和同名索引隔离。实际 Artisan 预演、迁移和回滚通过，HTTP 在迁移后查到重命名后的 BRIN 索引，在回滚后确认索引已移除。修复普通多语句 Schema 预演尝试建立真实事务的问题，预演记录 SQL 且不创建表。
+- PostgreSQL 九项定向回归、MySQL 8.4.13 索引与在线删列、`sh tests/table_catalog.sh` 表目录和限定 Schema 清库、`./artisan inspire`、Rust 1.94.0 全仓格式及严格 Clippy 通过。三语站点构建以及两种部署路径的 18 项浏览器检查通过。
+- 核心账本维持 62/66。临时数据库及本批隔离产物已回收，项目卷可用空间净增 0.06 GB（0.06 GiB），剩余 100.94 GB（94.00 GiB）。提交前周额度剩余 42%。日志保留于 `/private/tmp/openrust-02-05-postgres-index.gOaxm8is`。

@@ -164,7 +164,10 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
             Box::pin(async move {
                 db.getSchemaBuilder()
                     .table("documents", |table| {
-                        table.index(&["title"], Some("docs_title")).online();
+                        table
+                            .index(&["title"], Some("docs_title"))
+                            .algorithm("hash")
+                            .online();
                         table
                             .unique(&["external_id"], Some("docs_external"))
                             .online();
@@ -178,7 +181,7 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
         .unwrap();
     assert_eq!(preview.len(), 5);
     for (entry, expected) in preview.iter().zip([
-        "create index concurrently \"docs_title\" on \"documents\" (\"title\")",
+        "create index concurrently \"docs_title\" on \"documents\" using hash (\"title\")",
         "create unique index concurrently \"docs_external\" on \"documents\" (\"external_id\")",
         "alter table \"documents\" add constraint \"docs_external\" unique using index \"docs_external\"",
         "create index concurrently \"docs_search\" on \"documents\" using gin",
@@ -190,6 +193,138 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
             openrust::database::events::QueryRole::Write
         );
     }
+}
+
+#[tokio::test]
+async fn postgres_ordinary_index_methods_and_renames_preserve_schema() {
+    let preview = connection(json!({"driver":"pgsql"}));
+    let queries = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("tenant.entries", |table| {
+                        table.renameIndex("lookup", "ordered");
+                        table.renameIndex("tenant.ordered", "lookup");
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        queries[0].query,
+        "alter index \"tenant\".\"lookup\" rename to \"ordered\""
+    );
+    assert_eq!(
+        queries[1].query,
+        "alter index \"tenant\".\"ordered\" rename to \"lookup\""
+    );
+    for method in ["", "1brin", "brin btree", "brin; select 1"] {
+        let rejected = preview
+            .getSchemaBuilder()
+            .table("tenant.entries", |table| {
+                table.index(&["number"], Some("lookup")).algorithm(method);
+            })
+            .await;
+        assert!(matches!(
+            rejected,
+            Err(DatabaseError::InvalidSchema("PostgreSQL index method"))
+        ));
+    }
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_INDEX_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_INDEX").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    db.unprepared("create schema tenant; create schema neighbor; create table tenant.entries (number integer, label text); create table neighbor.entries (number integer); create index lookup on neighbor.entries (number)")
+        .await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .table("tenant.entries", |table| {
+            table.index(&["number"], Some("lookup")).algorithm("BRIN");
+            table
+                .index(&["number"], Some("hashed"))
+                .algorithm("hash")
+                .online();
+            table
+                .rawIndex("lower(label)", "lookup_lower")
+                .algorithm("btree");
+        })
+        .await
+        .unwrap();
+    let entries = schema.getIndexes("tenant.entries").await.unwrap();
+    for (name, method) in [
+        ("lookup", "brin"),
+        ("hashed", "hash"),
+        ("lookup_lower", "btree"),
+    ] {
+        let index = entries.iter().find(|index| index.name == name).unwrap();
+        assert_eq!(index.index_type.as_deref(), Some(method));
+    }
+    let rollback = db
+        .transaction(
+            |tx| {
+                Box::pin(async {
+                    tx.getSchemaBuilder()
+                        .table("tenant.entries", |table| {
+                            table.renameIndex("lookup", "rolled_back")
+                        })
+                        .await?;
+                    Err::<(), _>(DatabaseError::InvalidSchema("rollback rename"))
+                })
+            },
+            1,
+        )
+        .await;
+    assert!(matches!(
+        rollback,
+        Err(DatabaseError::InvalidSchema("rollback rename"))
+    ));
+    assert!(
+        schema
+            .getIndexes("tenant.entries")
+            .await
+            .unwrap()
+            .iter()
+            .any(|index| index.name == "lookup")
+    );
+    schema
+        .table("tenant.entries", |table| {
+            table.renameIndex("lookup", "ordered")
+        })
+        .await
+        .unwrap();
+    schema
+        .table("tenant.entries", |table| {
+            table.renameIndex("tenant.ordered", "qualified")
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .getIndexes("tenant.entries")
+            .await
+            .unwrap()
+            .iter()
+            .any(|index| index.name == "qualified" && index.index_type.as_deref() == Some("brin"))
+    );
+    assert_eq!(
+        schema.getIndexes("neighbor.entries").await.unwrap()[0].name,
+        "lookup"
+    );
+    schema
+        .table("tenant.entries", |table| table.dropIndex("qualified"))
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .getIndexes("tenant.entries")
+            .await
+            .unwrap()
+            .iter()
+            .all(|index| index.name != "qualified")
+    );
 }
 
 #[tokio::test]

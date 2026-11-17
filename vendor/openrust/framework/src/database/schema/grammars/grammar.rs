@@ -437,6 +437,19 @@ impl Grammar {
                     self.identifier(&from)?,
                     self.identifier(&to)?
                 )),
+                Command::RenameIndex(from, to) if self.postgres() => {
+                    let (schema, name) = Self::parse_schema_and_table(&from)?;
+                    let source = match schema {
+                        Some(schema) => {
+                            format!("{}.{}", self.identifier(schema)?, self.identifier(name)?)
+                        }
+                        None => self.qualified_index(table, name)?,
+                    };
+                    sql.push(format!(
+                        "alter index {source} rename to {}",
+                        self.identifier(&to)?
+                    ));
+                }
                 Command::RenameIndex(_, _) => {
                     return Err(DatabaseError::UnsupportedSchema(
                         "SQLite index rename requires recreating the index",
@@ -677,6 +690,18 @@ impl Grammar {
         if index.operator_class.is_some() {
             return Err(DatabaseError::UnsupportedSchema(
                 "operator class on non-vector index",
+            ));
+        }
+        if self.postgres() && index.kind == IndexType::Index {
+            self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+            let method = match index.algorithm.as_deref() {
+                Some(method) => format!(" using {}", postgres_index_method(method)?),
+                None => String::new(),
+            };
+            return Ok(format!(
+                "create index {concurrently}{} on {}{method} ({columns})",
+                self.identifier(name)?,
+                self.qualified(table)?
             ));
         }
         let method = self.index_method(index)?;
@@ -1469,6 +1494,18 @@ fn current_timestamp(precision: u8) -> String {
 
 fn postgres_string(value: &str) -> String {
     format!("E'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
+}
+
+fn postgres_index_method(method: &str) -> DatabaseResult<&str> {
+    let identifier_start =
+        |byte: u8| byte.is_ascii_alphabetic() || byte == b'_' || !byte.is_ascii();
+    let mut bytes = method.bytes();
+    if !bytes.next().is_some_and(identifier_start)
+        || !bytes.all(|byte| identifier_start(byte) || byte.is_ascii_digit() || byte == b'$')
+    {
+        return Err(DatabaseError::InvalidSchema("PostgreSQL index method"));
+    }
+    Ok(method)
 }
 
 fn constraint_timing(

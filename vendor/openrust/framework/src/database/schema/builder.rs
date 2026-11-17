@@ -558,7 +558,7 @@ impl<'connection> Builder<'connection> {
                 output.extend(statements);
                 Ok(())
             }
-            Executor::Connection(connection) if self.grammar.mysql() => {
+            Executor::Connection(connection) if self.grammar.mysql() || connection.pretending() => {
                 for sql in statements {
                     connection.statement(&sql, &[]).await?;
                 }

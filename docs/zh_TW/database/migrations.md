@@ -969,6 +969,22 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 將多個欄位名稱傳給 `dropColumn`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
 
+#### PostgreSQL 索引方法與重新命名 {#postgresql-index-methods}
+
+使用 `algorithm("brin")` 指定 PostgreSQL 索引存取方法。由伺服器檢查方法及其是否支援目標欄位或運算式。可與 `online()` 一起使用。`renameIndex()` 從帶有 Schema 的資料表名稱繼承 Schema，也接受明確限定 Schema 的舊索引名稱。資料表與舊索引名稱都未限定 Schema 時，PostgreSQL 依 `search_path` 尋找舊索引。重新命名後的索引仍在原 Schema。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn index_references() -> DatabaseResult<()> {
+    Schema::table("archive.documents", |table| {
+        table.index(&["external_id"], Some("documents_reference_idx")).algorithm("brin");
+        table.renameIndex("documents_reference_idx", "documents_reference_brin");
+    })
+    .await
+}
+```
+
 #### PostgreSQL 唯一約束 {#postgresql-unique-constraints}
 
 使用 `unique()` 建立具名 PostgreSQL 約束。PostgreSQL 15 及以上可用 `nullsNotDistinct(true)` 將 NULL 視為相等，以 `nullsNotDistinct(false)` 明確保留 NULL 相異行為。`deferrable(true).initiallyImmediate(false)` 將檢查延後到交易提交。`online()` 或明確指定 `algorithm("btree")` 時會先建立支援索引，再把索引附加到約束。`dropUnique()` 移除約束及其索引，也能移除早期 OpenRust 遷移在同一資料表上建立的獨立唯一索引。
