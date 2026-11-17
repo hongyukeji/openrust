@@ -20,7 +20,8 @@ pub struct Middleware {
     pub(crate) prepended: usize,
     pub(crate) maintenance_exceptions: Vec<String>,
     pub(crate) registry: MiddlewareRegistry,
-    pub(crate) trusted_proxies: crate::http::ProxyPolicy,
+    pub(crate) trusted_proxies: Option<crate::http::ProxyPolicy>,
+    pub(crate) trusted_hosts: Option<crate::http::TrustedHosts>,
     default_web: bool,
     #[cfg(feature = "sanctum")]
     stateful_api: bool,
@@ -35,7 +36,8 @@ impl Default for Middleware {
             prepended: 0,
             maintenance_exceptions: Vec::new(),
             registry: MiddlewareRegistry::default(),
-            trusted_proxies: crate::http::ProxyPolicy::default(),
+            trusted_proxies: None,
+            trusted_hosts: None,
             default_web: true,
             #[cfg(feature = "sanctum")]
             stateful_api: false,
@@ -93,8 +95,33 @@ impl Middleware {
         reason = "Matches Laravel's middleware configuration API"
     )]
     pub fn trustProxies(&mut self, at: &[&str], headers: u8) -> Result<&mut Self, ConfigError> {
-        self.trusted_proxies = crate::http::ProxyPolicy::new(at, headers)?;
+        self.trusted_proxies = Some(crate::http::ProxyPolicy::new(at, headers)?);
         Ok(self)
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's middleware configuration API"
+    )]
+    pub fn trustHosts(&mut self, at: &[&str], subdomains: bool) -> Result<&mut Self, ConfigError> {
+        self.trusted_hosts = Some(crate::http::TrustedHosts::new(at, subdomains)?);
+        Ok(self)
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's dynamic trusted-host configuration"
+    )]
+    pub fn trustHostsWith<Fut>(
+        &mut self,
+        at: impl Fn() -> Fut + Send + Sync + 'static,
+        subdomains: bool,
+    ) -> &mut Self
+    where
+        Fut: std::future::Future<Output = Result<Vec<String>, ConfigError>> + Send + 'static,
+    {
+        self.trusted_hosts = Some(crate::http::TrustedHosts::using(at, subdomains));
+        self
     }
 
     pub fn append(&mut self, middleware: Arc<dyn HttpMiddleware>) -> &mut Self {

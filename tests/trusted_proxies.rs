@@ -3,7 +3,11 @@ use std::{net::SocketAddr, sync::Arc};
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::http::Kernel as _,
-    foundation::{Application, configuration::Routing, http::Kernel},
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+        http::Kernel,
+    },
     http::{
         HttpError, HttpFuture, Request, RequestSecurity, Response, StatusCode, TrustedProxyHeaders,
     },
@@ -44,10 +48,18 @@ async fn start(
     at: &'static [&'static str],
     headers: u8,
 ) -> (SocketAddr, tokio::task::JoinHandle<()>) {
-    let app = Application::configure(std::env::temp_dir())
-        .withMiddleware(move |middleware| {
+    start_with(|builder| {
+        builder.withMiddleware(move |middleware| {
             middleware.trustProxies(at, headers).unwrap();
         })
+    })
+    .await
+}
+
+async fn start_with(
+    configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    let app = configure(Application::configure(std::env::temp_dir()))
         .withRouting(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/probe", proxy_info)?;
@@ -71,9 +83,19 @@ async fn start(
 }
 
 async fn request(address: SocketAddr, uri: &str, fields: &str, status: u16) -> Value {
+    request_with_host(address, uri, "backend.test", fields, status).await
+}
+
+async fn request_with_host(
+    address: SocketAddr,
+    uri: &str,
+    host: &str,
+    fields: &str,
+    status: u16,
+) -> Value {
     let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
     stream.write_all(format!(
-        "GET {uri} HTTP/1.1\r\nHost: backend.test\r\nAccept: application/json\r\nConnection: close\r\n{fields}\r\n",
+        "GET {uri} HTTP/1.1\r\nHost: {host}\r\nAccept: application/json\r\nConnection: close\r\n{fields}\r\n",
     ).as_bytes()).await.unwrap();
     let mut reply = String::new();
     stream.read_to_string(&mut reply).await.unwrap();
@@ -149,5 +171,129 @@ async fn requires_a_trusted_peer_and_rejects_conflicting_forwarding_fields() {
         400,
     )
     .await;
+    second.abort();
+}
+
+#[tokio::test]
+async fn validates_incoming_and_effective_hosts_against_pcre_and_application_subdomains() {
+    let (address, server) = start_with(|builder| {
+        builder
+            .withConfig(|_, _| {
+                Ok([(
+                    "app".into(),
+                    json!({"env":"production","url":"https://example.test"}),
+                )]
+                .into())
+            })
+            .withMiddleware(|middleware| {
+                middleware
+                    .trustHosts(&[r"^(?=backend\.)backend\.test$"], true)
+                    .unwrap();
+                middleware
+                    .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                    .unwrap();
+            })
+    })
+    .await;
+    let data = request(
+        address,
+        "/probe",
+        "X-Forwarded-Host: Api.Example.Test\r\nX-Forwarded-Proto: https\r\n",
+        200,
+    )
+    .await;
+    assert_eq!(data["url"], "https://api.example.test/probe");
+    request(address, "/probe", "X-Forwarded-Host: other.test\r\n", 400).await;
+    request_with_host(
+        address,
+        "/probe",
+        "other.test",
+        "X-Forwarded-Host: api.example.test\r\n",
+        400,
+    )
+    .await;
+    request_with_host(address, "/probe", "deep.api.example.test:8080", "", 200).await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn resolves_dynamic_host_patterns_and_skips_them_in_local_environment() {
+    use openrust::support::facades::Config;
+
+    let (production, first) = start_with(|builder| {
+        builder
+            .withConfig(|_, _| {
+                Ok([
+                    (
+                        "app".into(),
+                        json!({"env":"production","url":"https://example.test"}),
+                    ),
+                    ("probe".into(), json!({"host":r"^backend\.test$"})),
+                ]
+                .into())
+            })
+            .withMiddleware(|middleware| {
+                middleware.trustHostsWith(
+                    || async {
+                        let value = Config::get("probe.host")?.expect("host pattern");
+                        Ok(vec![value.as_str().expect("string pattern").to_owned()])
+                    },
+                    false,
+                );
+            })
+    })
+    .await;
+    request(production, "/probe", "", 200).await;
+    request_with_host(production, "/probe", "example.test", "", 400).await;
+    first.abort();
+
+    let (local, second) = start_with(|builder| {
+        builder
+            .withConfig(|_, _| Ok([("app".into(), json!({"env":"local"}))].into()))
+            .withMiddleware(|middleware| {
+                middleware.trustHostsWith(|| async { panic!("disabled callback ran") }, false);
+            })
+    })
+    .await;
+    request_with_host(local, "/probe", "other.test", "", 200).await;
+    second.abort();
+}
+
+#[tokio::test]
+async fn honors_proxy_deployment_presets_and_explicit_configuration_precedence() {
+    fn config(
+        _: &std::path::Path,
+        _: &openrust::config::Environment,
+    ) -> Result<std::collections::BTreeMap<String, Value>, openrust::config::ConfigError> {
+        Ok([(
+            "trustedproxy".into(),
+            json!({
+                "proxies":"127.0.0.0/8, 10.0.0.0/8",
+                "headers":"HEADER_X_FORWARDED_AWS_ELB",
+            }),
+        )]
+        .into())
+    }
+    let fields = concat!(
+        "X-Forwarded-For: 203.0.113.7, 10.0.0.8\r\n",
+        "X-Forwarded-Proto: https\r\nX-Forwarded-Host: ignored.test\r\nX-Forwarded-Port: 8443\r\n",
+    );
+    let (configured, first) = start_with(|builder| builder.withConfig(config)).await;
+    let data = request(configured, "/probe", fields, 200).await;
+    assert_eq!(data["url"], "https://backend.test:8443/probe");
+    assert_eq!(data["ips"], json!(["203.0.113.7"]));
+    first.abort();
+
+    let (disabled, second) = start_with(|builder| {
+        builder.withConfig(config).withMiddleware(|middleware| {
+            middleware
+                .trustProxies(&[], TrustedProxyHeaders::DEFAULT)
+                .unwrap();
+        })
+    })
+    .await;
+    let data = request(disabled, "/probe", fields, 200).await;
+    assert_eq!(data["url"], "http://backend.test/probe");
+    assert_eq!(data["ips"], json!(["127.0.0.1"]));
     second.abort();
 }

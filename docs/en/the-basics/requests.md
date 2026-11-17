@@ -53,3 +53,19 @@ use openrust::http::TrustedProxyHeaders;
 The default mask is `TrustedProxyHeaders::DEFAULT` for X-Forwarded fields. Use `FORWARDED` for RFC 7239 or `AWS_ELB` for the AWS load balancer fields. A conflict between two enabled header families returns HTTP 400.
 
 `Request::ip` returns the nearest untrusted client address from the chain. `Request::ips` returns the resolved addresses, and `Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.
+
+When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or a Laravel preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trustProxies` policy takes precedence, including an empty address list.
+
+## Configuring Trusted Hosts {#configuring-trusted-hosts}
+
+Enable `trustHosts` to restrict the original and effective hosts. Patterns are case-insensitive PCRE expressions matched against the hostname without its port. A rejected host returns HTTP 400 before routing.
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trustHosts(&[r"^edge\.example\.com$"], true)
+        .expect("valid host patterns");
+})
+```
+
+With `subdomains` enabled, the hostname in `app.url` and its subdomains are also trusted. Use `trustHostsWith` to resolve patterns asynchronously for each request. Host checks are skipped in the exact `local` and `testing` environments.

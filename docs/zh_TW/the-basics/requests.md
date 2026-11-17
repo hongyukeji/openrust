@@ -53,3 +53,19 @@ use openrust::http::TrustedProxyHeaders;
 預設遮罩 `TrustedProxyHeaders::DEFAULT` 對應 X-Forwarded 欄位。RFC 7239 使用 `FORWARDED`，AWS 負載平衡欄位使用 `AWS_ELB`。同時啟用的兩組標頭發生衝突時回傳 HTTP 400。
 
 `Request::ip` 回傳鏈中離應用程式最近的非可信任用戶端位址，`Request::ips` 回傳解析出的位址。`Request::secure` 反映有效協定。URL 產生使用轉送後的來源與前綴，路由比對使用實際收到的路徑。
+
+應用程式裝配未指定代理策略時，HTTP 啟動會從設定儲存庫讀取 `trustedproxy.proxies`，支援以逗號分隔的字串或陣列。選用的 `trustedproxy.headers` 支援數值遮罩或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 預設名稱。明確的 `trustProxies` 優先，包含空位址清單。
+
+## 設定可信任 Host {#configuring-trusted-hosts}
+
+啟用 `trustHosts` 可限制原始和轉送後的主機名稱。模式使用不區分大小寫的 PCRE 運算式，比對移除連接埠的主機名稱。驗證失敗時，在進入路由前回傳 HTTP 400。
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trustHosts(&[r"^edge\.example\.com$"], true)
+        .expect("valid host patterns");
+})
+```
+
+啟用 `subdomains` 可同時信任 `app.url` 的主機及其子網域。用 `trustHostsWith` 可在每次請求時非同步取得模式。環境名稱恰好為 `local` 或 `testing` 時會略過 Host 驗證。

@@ -7,7 +7,10 @@ use axum::extract::ConnectInfo;
 use http::{HeaderMap, Uri, header::HOST, uri::Authority};
 
 use super::{HttpError, Request};
-use crate::config::ConfigError;
+use crate::{
+    config::{ConfigError, Value},
+    contracts::config::Repository,
+};
 
 /// Native transport security supplied by the server accepting the connection.
 #[derive(Clone, Copy, Debug)]
@@ -45,6 +48,50 @@ pub(crate) struct ProxyPolicy {
 }
 
 impl ProxyPolicy {
+    pub(crate) fn from_config(config: &dyn Repository) -> Result<Self, ConfigError> {
+        let values = config.get("trustedproxy.proxies");
+        let invalid = || {
+            invalid_configuration(
+                "trustedproxy.proxies",
+                "a comma-separated string or an array of proxy addresses",
+            )
+        };
+        let addresses: Vec<_> = match &values {
+            None | Some(Value::Null) => return Ok(Self::default()),
+            Some(Value::String(value)) => value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .collect(),
+            Some(Value::Array(values)) => values
+                .iter()
+                .map(|value| value.as_str().ok_or_else(invalid))
+                .collect::<Result<_, _>>()?,
+            _ => return Err(invalid()),
+        };
+        use TrustedProxyHeaders as H;
+        let headers = match config.get("trustedproxy.headers") {
+            None | Some(Value::Null) => H::DEFAULT,
+            Some(Value::String(name)) => match name.as_str() {
+                "HEADER_FORWARDED" => H::FORWARDED,
+                "HEADER_X_FORWARDED_FOR" => H::FOR,
+                "HEADER_X_FORWARDED_HOST" => H::HOST,
+                "HEADER_X_FORWARDED_PROTO" => H::PROTO,
+                "HEADER_X_FORWARDED_PORT" => H::PORT,
+                "HEADER_X_FORWARDED_PREFIX" => H::PREFIX,
+                "HEADER_X_FORWARDED_AWS_ELB" => H::AWS_ELB,
+                _ => H::DEFAULT,
+            },
+            Some(value) => value
+                .as_u64()
+                .and_then(|number| u8::try_from(number).ok())
+                .ok_or_else(|| {
+                    invalid_configuration("trustedproxy.headers", "a header mask or preset name")
+                })?,
+        };
+        Self::new(&addresses, headers)
+    }
+
     pub(crate) fn new(at: &[&str], headers: u8) -> Result<Self, ConfigError> {
         use TrustedProxyHeaders as H;
         if headers & !(H::DEFAULT | H::FORWARDED) != 0 {
@@ -85,7 +132,6 @@ impl ProxyPolicy {
     }
 
     pub(crate) fn apply(&self, request: &mut Request) -> Result<(), HttpError> {
-        request.proxy = ProxyRequest::default();
         let incoming = request.parts();
         let transport = incoming
             .extensions
@@ -371,7 +417,7 @@ fn split_quoted(raw: &str, delimiter: char) -> Result<Vec<&str>, HttpError> {
     Ok(parts)
 }
 
-fn parse_authority(value: &str) -> Result<Authority, HttpError> {
+pub(super) fn parse_authority(value: &str) -> Result<Authority, HttpError> {
     let authority = value.parse::<Authority>().map_err(invalid_request)?;
     let suffix = authority
         .as_str()

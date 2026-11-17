@@ -49,6 +49,29 @@ impl Kernel {
         }
     }
 
+    async fn prepare_request_origin(
+        &self,
+        request: &mut Request,
+    ) -> Result<(), crate::http::HttpError> {
+        request.proxy = Default::default();
+        let hosts = if let Some(policy) = &self.middleware.trusted_hosts {
+            let snapshot = policy.snapshot().await?;
+            snapshot.check_incoming(request)?;
+            Some(snapshot)
+        } else {
+            None
+        };
+        self.middleware
+            .trusted_proxies
+            .as_ref()
+            .expect("ready kernel has a proxy policy")
+            .apply(request)?;
+        if let Some(hosts) = hosts {
+            hosts.check_effective(request)?;
+        }
+        Ok(())
+    }
+
     fn bootstrap_http(
         &mut self,
         configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
@@ -62,6 +85,26 @@ impl Kernel {
                     .application
                     .config()
                     .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                if self.middleware.trusted_proxies.is_none() {
+                    self.middleware.trusted_proxies = Some(
+                        crate::http::ProxyPolicy::from_config(config.as_ref())
+                            .map_err(|source| BootstrapError::ConfigurationFailed { source })?,
+                    );
+                }
+                if let Some(hosts) = &mut self.middleware.trusted_hosts {
+                    let environment = self
+                        .application
+                        .container()
+                        .get::<str>("env")
+                        .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                    if matches!(environment.as_ref(), "local" | "testing") {
+                        self.middleware.trusted_hosts = None;
+                    } else {
+                        hosts
+                            .configure(config.as_ref())
+                            .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+                    }
+                }
                 self.middleware
                     .configure_web(config.as_ref())
                     .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
@@ -127,7 +170,7 @@ impl http::Kernel for Kernel {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
-                if let Err(error) = self.middleware.trusted_proxies.apply(request) {
+                if let Err(error) = self.prepare_request_origin(request).await {
                     return self
                         .application
                         .shared

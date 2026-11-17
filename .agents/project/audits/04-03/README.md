@@ -31,3 +31,11 @@
 - Rust 对启用头的冲突在请求入口返回 400，并将转发端口限制为有效 `u16` 端口。平台 Host 后缀自动开启信任、`trustedproxy` 配置文件回退和可信 Host 白名单继续跟踪。当前默认需要应用显式配置代理地址。
 - 真实 TCP 与 Symfony/PHP 8.5 对照验证 IPv4 链、IPv6、HTTPS、端口、前缀、可信和非可信对端及冲突拒绝。04-03 保持开放，后续核对可信 Host 和部署配置的剩余边界。
 - 隔离基线 `0c02b34c` 使用 Rust 1.94.0，通过应用 HTTP 16 项、可信代理 2 项、会话 HTTP 8 项、URL 4 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412`。验收日志保存于 `/private/tmp/openrust-04-03-trusted-proxy.nkwaRr69`。
+
+## 可信 Host 与部署配置
+
+- 对照固定 Laravel `TrustHosts` 和 `TrustProxies`，复用 `v0.x` 的 PCRE Host 模式、应用域名回退和请求局部校验。`trustHosts` 编译静态模式，`trustHostsWith` 允许在当前应用作用域按请求异步解析。模式按主机名匹配，区分端口和主机的解析边界。在 `local` 与 `testing` 跳过校验。 [Laravel 可信 Host](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#configuring-trusted-hosts)
+- 入口按同一请求快照校验原始 Host 和有效转发 Host，失败在路由前返回 400。静态模式在装配时编译，动态模式回调错误交给异常处理器。启用子域时从 `app.url` 追加应用主机及子域匹配。
+- 应用装配未设置代理策略时读取 `trustedproxy.proxies` 与可选 `trustedproxy.headers`。后者复用 Laravel 的位掩码和预设语义作为 OpenRust 配置扩展。显式空代理列表优先于配置回退，便于停用转发头信任。托管入口仍要求明确的代理地址配置，任意 Host 字符串不会启用代理信任。
+- 真实 TCP 与固定 PHP 8.5 对照通过 PCRE 前瞻、大小写、应用子域、异步模式、环境跳过、AWS 头预设及配置回退。真实请求另验证原始 Host 即使带允许的转发 Host 仍受校验，以及空代理策略覆盖回退。下一批核对 CORS 条件跳过和长终止回调下的优雅退出。
+- 隔离基线 `201519cde` 使用 Rust 1.94.0，通过应用 HTTP 16 项、可信代理与 Host 5 项、会话 HTTP 8 项、URL 4 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412`。验收日志保存于 `/private/tmp/openrust-04-03-trusted-hosts.5ht4Maip`。

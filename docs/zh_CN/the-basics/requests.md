@@ -53,3 +53,19 @@ use openrust::http::TrustedProxyHeaders;
 默认掩码 `TrustedProxyHeaders::DEFAULT` 对应 X-Forwarded 字段。RFC 7239 使用 `FORWARDED`，AWS 负载均衡字段使用 `AWS_ELB`。同时启用的两组头部出现冲突时返回 HTTP 400。
 
 `Request::ip` 返回链中离应用最近的非可信客户端地址，`Request::ips` 返回解析出的地址。`Request::secure` 反映有效协议。URL 生成使用转发后的来源与前缀，路由匹配使用实际收到的路径。
+
+应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 预设名。显式 `trustProxies` 优先，包括空地址列表。
+
+## 配置可信 Host {#configuring-trusted-hosts}
+
+启用 `trustHosts` 可限制原始和转发后的主机名。模式使用不区分大小写的 PCRE 表达式，匹配去掉端口的主机名。未通过校验时，在进入路由前返回 HTTP 400。
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trustHosts(&[r"^edge\.example\.com$"], true)
+        .expect("valid host patterns");
+})
+```
+
+启用 `subdomains` 可同时信任 `app.url` 的主机及其子域。用 `trustHostsWith` 可在每次请求时异步获取模式。环境名恰好为 `local` 或 `testing` 时跳过 Host 校验。
