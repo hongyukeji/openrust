@@ -85,6 +85,72 @@ static ENTRIES: &[MigrationEntry] = &[
 ];
 
 #[tokio::test]
+async fn mysql_artisan_status_distinguishes_initial_skips_from_pending() {
+    use openrust::testing::TestApp;
+
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    const FIRST_PATH: &str = "database/migrations/0001_initial_skip.rs";
+    const SECOND_PATH: &str = "database/migrations/0002_ready.rs";
+    static STATUS_ENTRIES: &[MigrationEntry] = &[
+        MigrationEntry::new(FIRST_PATH, &SKIP),
+        MigrationEntry::new(SECOND_PATH, &FIRST),
+        MigrationEntry::new("database/migrations/0003_later_skip.rs", &SKIP),
+    ];
+    let mut app = TestApp::create(|builder| {
+        builder
+            .withConfig(|_, _| {
+                let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+                Ok([(
+                    "database".into(),
+                    json!({
+                        "default": "mysql",
+                        "connections": {"mysql": {"url": url, "prefix": "status_"}},
+                        "migrations": {"table": "history"}
+                    }),
+                )]
+                .into())
+            })
+            .withMigrations(STATUS_ENTRIES)
+    })
+    .unwrap();
+
+    app.artisan(["migrate:status", "--pending=17"])
+        .await
+        .assertExitCode(1);
+    app.artisan(["migrate:install"]).await.assertExitCode(0);
+    let status = app.artisan(["migrate:status"]).await;
+    status
+        .assertExitCode(0)
+        .expectsOutput("0001_initial_skip Skipped")
+        .expectsOutput("0002_ready Pending")
+        .expectsOutput("0003_later_skip Pending");
+    let pending = app.artisan(["migrate:status", "--pending=17"]).await;
+    pending
+        .assertExitCode(17)
+        .expectsOutput("0002_ready Pending");
+    assert!(!pending.stdout.contains("0001_initial_skip"));
+    let filtered = app
+        .artisan(["migrate:status", "--pending=17", "--path", FIRST_PATH])
+        .await;
+    filtered.assertExitCode(0);
+    assert!(filtered.stdout.contains("No pending migrations"));
+    app.artisan(["migrate", "--path", SECOND_PATH])
+        .await
+        .assertExitCode(0);
+    app.artisan(["migrate:status"])
+        .await
+        .assertExitCode(0)
+        .expectsOutput("0002_ready [1] Ran")
+        .expectsOutput("0003_later_skip Skipped");
+    let finished = app.artisan(["migrate:status", "--pending=17"]).await;
+    finished.assertExitCode(0);
+    assert!(finished.stdout.contains("No pending migrations"));
+}
+
+#[tokio::test]
 async fn failed_migration_leaves_prior_batch_and_retry_is_serialized() {
     let manager = Arc::new(DatabaseManager::new(
         Arc::new(Repository::new(BTreeMap::from([(

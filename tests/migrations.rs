@@ -381,6 +381,9 @@ async fn verify(mysql: Option<&str>) {
     assert!(!schema.hasTable("users").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
     assert!(success(run(&["migrate:status", "--pending"])).contains("Pending"));
+    let pending = run(&["migrate:status", "--pending=17"]);
+    assert_eq!(pending.status.code(), Some(17));
+    assert!(String::from_utf8_lossy(&pending.stdout).contains("Pending"));
 
     let path = "database/migrations/0001_01_01_000000_create_users_table.rs";
     let database = if mysql.is_some() { "mysql" } else { "sqlite" };
@@ -404,6 +407,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
+    assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
         12 + u64::from(sanctum_migration().is_some())

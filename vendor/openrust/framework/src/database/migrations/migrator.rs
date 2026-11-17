@@ -131,6 +131,46 @@ impl Migrator {
         database: Option<&str>,
         paths: &[PathBuf],
     ) -> DatabaseResult<Option<Vec<MigrationStatus>>> {
+        Ok(self
+            .status_entries(database, paths)
+            .await?
+            .map(|entries| entries.into_iter().map(|(_, status)| status).collect()))
+    }
+
+    pub(crate) async fn status_with_skips(
+        &self,
+        database: Option<&str>,
+        paths: &[PathBuf],
+    ) -> DatabaseResult<Option<Vec<(MigrationStatus, bool)>>> {
+        let Some(entries) = self.status_entries(database, paths).await? else {
+            return Ok(None);
+        };
+        let mut has_pending = false;
+        let mut statuses = Vec::with_capacity(entries.len());
+        for (entry, status) in entries {
+            let mut skipped = false;
+            if status.batch.is_none() && !has_pending {
+                let connection = self
+                    .manager
+                    .connection(entry.migration.getConnection().or(database))?;
+                let mut context = MigrationContext::new(connection, false);
+                skipped = !entry
+                    .migration
+                    .shouldRun(&mut context)
+                    .await
+                    .map_err(|error| migration_error(&status.name, error))?;
+                has_pending = !skipped;
+            }
+            statuses.push((status, skipped));
+        }
+        Ok(Some(statuses))
+    }
+
+    async fn status_entries(
+        &self,
+        database: Option<&str>,
+        paths: &[PathBuf],
+    ) -> DatabaseResult<Option<Vec<(&MigrationEntry, MigrationStatus)>>> {
         let mut repository = self.repository(database);
         if !repository.repository_exists().await? {
             return Ok(None);
@@ -142,10 +182,10 @@ impl Migrator {
             .collect();
         Ok(Some(
             self.files(paths)?
-                .into_keys()
-                .map(|name| {
+                .into_iter()
+                .map(|(name, entry)| {
                     let batch = batches.get(&name).copied();
-                    MigrationStatus { name, batch }
+                    (entry, MigrationStatus { name, batch })
                 })
                 .collect(),
         ))

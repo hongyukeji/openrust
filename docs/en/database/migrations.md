@@ -74,6 +74,16 @@ Use `--database` to select the ledger connection and `--step` to give each migra
 
 Production commands that change schema prompt for confirmation. Use `--force` for a deployment that has already approved those changes. MySQL and SQLite migrations can contain multiple DDL statements. If one fails, earlier successful statements may still be present. Inspect the failing migration before retrying.
 
+### Checking for Pending Migrations {#checking-pending-migrations}
+
+Use `--pending` to list only pending migrations. Use `--pending=17` to make the command return 17 when that list is nonempty. An empty list returns 0. The explicit exit code must be between 0 and 255. A missing migration ledger returns 1. Use `--path` and `--database` to scope the check.
+
+```sh
+./artisan migrate:status --pending=17
+```
+
+Before the first pending migration, a migration whose `shouldRun` condition is false appears as `Skipped`. Subsequent unrecorded migrations appear as `Pending` because earlier migrations may change the database state used by their conditions.
+
 ### Creating a Missing MySQL Database {#creating-a-missing-database}
 
 When the configured MySQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create that database.

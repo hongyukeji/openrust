@@ -144,7 +144,13 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                     .arg(Arg::new("seeder").long("seeder"));
             }
             if kind == Kind::Status {
-                syntax = syntax.arg(flag("pending"));
+                syntax = syntax.arg(
+                    Arg::new("pending")
+                        .long("pending")
+                        .num_args(0..=1)
+                        .default_missing_value("0")
+                        .value_parser(clap::value_parser!(u8)),
+                );
             }
         }
         let definition = CommandDefinition::new(syntax);
@@ -236,23 +242,38 @@ impl Command for MigrationCommand {
                 }
                 Kind::Status => {
                     let Some(status) = migrator
-                        .status(database, &paths)
+                        .status_with_skips(database, &paths)
                         .await
                         .map_err(console_error)?
                     else {
                         output.stderr.push_str("Migration table not found.\n");
                         return Ok(1);
                     };
-                    output.stdout.push_str("Migration name / Batch / Status\n");
-                    for row in status {
-                        match row.batch {
-                            Some(batch) if !matches.get_flag("pending") => {
-                                writeln!(output.stdout, "{} [{}] Ran", row.name, batch).unwrap()
-                            }
-                            Some(_) => {}
-                            None => writeln!(output.stdout, "{} Pending", row.name).unwrap(),
-                        }
+                    let pending_exit = matches.get_one::<u8>("pending").copied();
+                    let mut rows = status
+                        .into_iter()
+                        .filter(|(row, skipped)| {
+                            pending_exit.is_none() || (row.batch.is_none() && !skipped)
+                        })
+                        .peekable();
+                    if rows.peek().is_none() {
+                        output.info(if pending_exit.is_some() {
+                            "No pending migrations"
+                        } else {
+                            "No migrations found"
+                        });
+                        return Ok(0);
                     }
+                    output.stdout.push_str("Migration name / Batch / Status\n");
+                    for (row, skipped) in rows {
+                        match row.batch {
+                            Some(batch) => writeln!(output.stdout, "{} [{}] Ran", row.name, batch),
+                            None if skipped => writeln!(output.stdout, "{} Skipped", row.name),
+                            None => writeln!(output.stdout, "{} Pending", row.name),
+                        }
+                        .unwrap();
+                    }
+                    return Ok(i32::from(pending_exit.unwrap_or(0)));
                 }
                 Kind::Run => {
                     let pretend = matches.get_flag("pretend");

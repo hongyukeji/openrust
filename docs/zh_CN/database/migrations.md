@@ -74,6 +74,16 @@ impl Migration for Definition {
 
 生产环境中改变结构的命令会要求确认。部署流程已确认变更时可传 `--force`。MySQL 和 SQLite 的单项迁移可能包含多条 DDL，其中一条失败时，先前成功的语句可能已生效。重试前先检查失败的迁移。
 
+### 检查待执行迁移 {#checking-pending-migrations}
+
+使用 `--pending` 只列出待执行的迁移。使用 `--pending=17` 时，有待执行迁移则返回 17，列表为空则返回 0。显式退出码范围为 0 到 255，迁移账本不存在时返回 1。可通过 `--path` 和 `--database` 限定检查范围。
+
+```sh
+./artisan migrate:status --pending=17
+```
+
+遇到第一个待执行迁移前，`shouldRun` 返回 false 的迁移显示为 `Skipped`。此后的未登记迁移显示为 `Pending`，因为前序迁移可能改变后续条件所依赖的数据库状态。
+
 ### 创建缺失的 MySQL 数据库 {#creating-a-missing-database}
 
 配置的 MySQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建该数据库。

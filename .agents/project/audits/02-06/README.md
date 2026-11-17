@@ -86,3 +86,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - `migrate:refresh` 先回滚，后运行迁移。正数 `--step` 限定回滚范围，零和省略都回滚全部。回滚阶段要求能够连接目标库，MySQL 缺库错误直接传播。
 - 迁移账本为空时加载该连接的默认快照，Artisan 显示加载提示，并按恢复的账本跳过已有迁移。
 - 临时 MySQL 8.4.13 上通过真实二进制账本和快照回归。覆盖缺库失败、默认快照恢复、`--step=1` 保留早期表数据及 `--step=0` 完整重跑。三语 `./artisan migrate:refresh --database=mysql --step=1`、`./artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 待迁移检查与退出码
+
+- 对照固定 Laravel `StatusCommand` 的 `--pending[=code]`、缺失迁移账本、条件跳过与空列表处理。Rust 用能直接传入进程退出码的 `u8` 表达用户指定值。沿用当前迁移账本及编译清单，公开 `Migrator::status` 继续查询账本。旧版未找到可复用的同名 Artisan 命令。 [固定 Laravel StatusCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/StatusCommand.php) · [Laravel Running Migrations](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#running-migrations)
+- 基于 `4953d4f77` 隔离验收。真实 MySQL 8.4.13 上，根应用命令验收无账本退出 1、只筛选待迁移项以及指定退出码。用三语共用示例的独立 Artisan 运行确认，迁移前退出 17，迁移后显示 `No pending migrations` 并退出 0。
+- 框架控制台验收已执行路径筛选、`Skipped`／`Pending`／`Ran` 的转换、已执行项显示批次、仅跳过项时退出 0。首个待迁移项之后保持 `Pending`，待前序迁移完成后再求值条件。
+- `sh tests/table_catalog.sh` 的表目录及限定库清理、实际 `main artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。数据库创建、快照和 Redis 隔离的历史验收仍各自追踪，本批按待迁移检查的范围实测。临时 MySQL、本批 3.5 GiB Cargo 产物和文档缓存已回收。磁盘可用 63.25 GB（58.91 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-status.hRPakDvy`。

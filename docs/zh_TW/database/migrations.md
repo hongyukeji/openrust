@@ -74,6 +74,16 @@ impl Migration for Definition {
 
 正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
 
+### 檢查待執行遷移 {#checking-pending-migrations}
+
+使用 `--pending` 只列出待執行的遷移。使用 `--pending=17` 時，有待執行遷移則回傳 17，清單為空則回傳 0。明確指定的結束碼範圍為 0 到 255，遷移帳本不存在時回傳 1。可透過 `--path` 和 `--database` 限定檢查範圍。
+
+```sh
+./artisan migrate:status --pending=17
+```
+
+遇到第一個待執行遷移前，`shouldRun` 回傳 false 的遷移顯示為 `Skipped`。此後尚未登記的遷移顯示為 `Pending`，因為前序遷移可能改變後續條件所依賴的資料庫狀態。
+
 ### 建立缺少的 MySQL 資料庫 {#creating-a-missing-database}
 
 設定的 MySQL 資料庫不存在時，`migrate` 會在建立前提示確認。無人值守部署可使用 `--force`。選定的寫入帳號需要有權建立該資料庫。
