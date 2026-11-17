@@ -2262,3 +2262,237 @@ async fn cache_concurrency_shares_redis_slots_between_applications() {
     assert!(replacement.isOwnedByCurrentProcess().await.unwrap());
     assert!(replacement.release().await.unwrap());
 }
+
+#[tokio::test]
+async fn remember_reports_warmth_and_only_resolves_missing_non_null_values() {
+    let root = Sandbox::new("remember", "CACHE_STORE=array\n");
+    let cache = root.cache(None).await;
+    let ttl = Some(Ttl::Seconds(10));
+    cache
+        .put("cached-null", &serde_json::Value::Null.into(), ttl)
+        .await
+        .unwrap();
+    assert_eq!(
+        cache
+            .rememberWithWarmthFor(
+                "cached-null",
+                |value| {
+                    assert_eq!(value, &Value::from(1));
+                    ttl
+                },
+                async { Ok(1.into()) }
+            )
+            .await
+            .unwrap(),
+        (1.into(), false)
+    );
+    assert_eq!(
+        cache
+            .rememberWithWarmthFor("cached-null", |_| panic!("expiry already set"), async {
+                panic!("already cached")
+            })
+            .await
+            .unwrap(),
+        (1.into(), true)
+    );
+    assert_eq!(
+        cache
+            .rememberForever("permanent", async { Ok(2.into()) })
+            .await
+            .unwrap(),
+        2.into()
+    );
+    assert_eq!(
+        cache
+            .sear("permanent", async { panic!("already cached") })
+            .await
+            .unwrap(),
+        2.into()
+    );
+    assert!(matches!(
+        cache
+            .remember("error", ttl, async { Err(CacheError::InvalidValue) })
+            .await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert!(cache.missing("error").await.unwrap());
+}
+
+async fn verify_flexible(root: &Sandbox) {
+    use openrust::{
+        cache::FlexibleOptions,
+        contracts::http::Kernel as _,
+        foundation::{configuration::Routing, http::Kernel},
+        http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+        routing::{Router, RoutingError},
+        support::facades::Cache,
+    };
+
+    fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        let path = request.uri().path().to_owned();
+        Box::pin(async move {
+            if path == "/double" {
+                Cache::flexible("report", [0, 30], || async {
+                    panic!("replaced named callback")
+                })
+                .await?;
+            }
+            let status = if path == "/failure" || path == "/always" {
+                StatusCode::BAD_REQUEST
+            } else {
+                StatusCode::OK
+            };
+            let always = path == "/always";
+            let value = Cache::flexibleWith(
+                "report",
+                [Ttl::Seconds(0), Ttl::Seconds(30)],
+                move || async move {
+                    if path == "/refresh-error" {
+                        return Err(CacheError::InvalidValue);
+                    }
+                    Ok(Value::from(path.as_str()))
+                },
+                FlexibleOptions {
+                    always_defer: always,
+                    ..FlexibleOptions::default()
+                },
+            )
+            .await?;
+            Response::json(status, value.as_str())
+        })
+    }
+
+    fn routes(_: &Application) -> Result<Router, RoutingError> {
+        let mut router = Router::new();
+        for uri in [
+            "/double",
+            "/success",
+            "/failure",
+            "/always",
+            "/refresh-error",
+        ] {
+            router.get(uri, endpoint)?;
+        }
+        Ok(router)
+    }
+
+    fn request(path: &str) -> Request {
+        let (parts, body) = axum::http::Request::get(path)
+            .body(Body::empty())
+            .unwrap()
+            .into_parts();
+        Request::from_parts(parts, body)
+    }
+
+    let mut kernel = Kernel::new(
+        Application::configure(root.0.clone())
+            .withConfig(config::load)
+            .withRouting(Routing::new(routes))
+            .create()
+            .unwrap(),
+    );
+    kernel.bootstrap().await.unwrap();
+    let cache = kernel
+        .get_application()
+        .container()
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(None)
+        .unwrap();
+    assert_eq!(
+        cache
+            .flexible("report", [5, 30], || async { Ok("seed".into()) })
+            .await
+            .unwrap(),
+        "seed".into()
+    );
+    assert_eq!(
+        cache
+            .flexible("report", [5, 30], || async { panic!("fresh cache") })
+            .await
+            .unwrap(),
+        "seed".into()
+    );
+
+    let mut first = request("/double");
+    let mut second = request("/success");
+    let first_response = kernel.handle(&mut first).await;
+    let second_response = kernel.handle(&mut second).await;
+    assert_eq!(first_response.status(), StatusCode::OK);
+    assert_eq!(second_response.status(), StatusCode::OK);
+    assert_eq!(cache.get("report").await.unwrap(), Some("seed".into()));
+    kernel
+        .terminate(first.parts(), first_response.parts())
+        .await;
+    kernel
+        .terminate(second.parts(), second_response.parts())
+        .await;
+    assert_eq!(cache.get("report").await.unwrap(), Some("/double".into()));
+
+    for (path, status, expected) in [
+        ("/failure", StatusCode::BAD_REQUEST, "/double"),
+        ("/always", StatusCode::BAD_REQUEST, "/always"),
+        ("/refresh-error", StatusCode::OK, "/always"),
+        ("/success", StatusCode::OK, "/success"),
+    ] {
+        let mut request = request(path);
+        let response = kernel.handle(&mut request).await;
+        assert_eq!(response.status(), status);
+        kernel.terminate(request.parts(), response.parts()).await;
+        assert_eq!(cache.get("report").await.unwrap(), Some(expected.into()));
+    }
+    assert_eq!(
+        cache
+            .flexible("short", [0, 1], || async { Ok("initial".into()) })
+            .await
+            .unwrap(),
+        "initial".into()
+    );
+    assert_eq!(
+        cache
+            .flexible("short", [0, 1], || async {
+                panic!("no active deferred scope")
+            })
+            .await
+            .unwrap(),
+        "initial".into()
+    );
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(
+        cache
+            .flexible("short", [0, 1], || async { Ok("regenerated".into()) })
+            .await
+            .unwrap(),
+        "regenerated".into()
+    );
+}
+
+#[tokio::test]
+async fn flexible_refresh_respects_lifecycle_and_generation() {
+    let root = Sandbox::new("flexible-array", "CACHE_STORE=array\n");
+    verify_flexible(&root).await;
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") {
+        let root = Sandbox::new(
+            "flexible-redis",
+            &format!("CACHE_STORE=redis\nCACHE_PREFIX=flexible:\nREDIS_URL={url}\n"),
+        );
+        verify_flexible(&root).await;
+    } else {
+        assert!(std::env::var_os("CACHE_FLEXIBLE_FIXTURES_REQUIRED").is_none());
+    }
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") {
+        let root = Sandbox::new(
+            "flexible-mysql",
+            &format!(
+                "CACHE_STORE=database\nCACHE_PREFIX=flexible:\nDB_CONNECTION=mysql\nDB_URL={url}\n"
+            ),
+        );
+        root.success(&["migrate"]);
+        verify_flexible(&root).await;
+        root.success(&["migrate:reset"]);
+    } else {
+        assert!(std::env::var_os("CACHE_FLEXIBLE_FIXTURES_REQUIRED").is_none());
+    }
+}

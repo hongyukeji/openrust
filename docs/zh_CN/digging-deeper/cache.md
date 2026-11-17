@@ -75,6 +75,36 @@ CACHE_STORAGE_PATH=framework/cache/items
 ./artisan cache:clear file
 ```
 
+### 读取并回填 {#retrieve-store}
+
+`remember` 返回缓存值，未命中时执行计算并写入缓存。`rememberWithWarmth` 返回 `(value, warm)`，命中非空值时 `warm` 为 `true`。`rememberWithWarmthFor` 在未命中时根据计算结果设置 TTL。`rememberForever` 和别名 `sear` 将计算结果写入缓存且不设到期时间。
+
+```rust
+use openrust::{cache::{CacheResult, Ttl, Value}, support::facades::Cache};
+
+pub async fn load_report() -> CacheResult<(Value, bool)> {
+    Cache::rememberWithWarmth("reports:latest", Some(Ttl::Seconds(60)), async {
+        Ok(Value::from("ready"))
+    }).await
+}
+```
+
+### 过期后后台刷新 {#swr}
+
+`flexible(key, [fresh, expires], resolve)` 接收从同一次写入开始计时的两个秒数。在 `fresh` 之前直接读取缓存。在 `fresh` 和 `expires` 之间先返回旧值，再于成功的响应、命令或任务结束后刷新。缓存未命中或已到期时，先计算再返回。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn refresh_report() -> CacheResult<Value> {
+    Cache::flexible("reports:summary", [5, 10], || async {
+        Ok(Value::from("ready"))
+    }).await
+}
+```
+
+后台刷新使用缓存原子锁。如果其他调用者已经刷新同一代缓存，等待执行的刷新会跳过计算。刷新失败时，旧值可以继续使用到原定到期时间。`flexibleWith` 接受两个 `Ttl` 和 `FlexibleOptions`，可设置锁租期、所有者令牌或失败后仍刷新的 `always_defer`。在应用生命周期之外直接调用仓库时，可读取旧值直到到期。后台计算需要捕获自有值，以便在请求处理函数返回后执行。
+
 ## 缓存记忆化 {#cache-memoization}
 
 用 `Cache::memo(None)` 选择默认仓储，或用 `Cache::memo(Some("redis"))` 选择命名仓储。首次查询访问后端，同一 HTTP 请求或队列任务内的重复查询复用命中及未命中结果。通过记忆化仓储修改条目会先清除对应的内存结果，再写入后端。普通仓储的写入在内存结果失效后或下一个请求、任务中可见。 在框架管理的生命周期之外，每次调用都会创建独立的记忆化仓储。从已结束的生命周期保留的仓储会直接读取后端。

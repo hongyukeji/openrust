@@ -75,6 +75,36 @@ CACHE_STORAGE_PATH=framework/cache/items
 ./artisan cache:clear file
 ```
 
+### 讀取並回填 {#retrieve-store}
+
+`remember` 回傳快取值，未命中時執行計算並寫入快取。`rememberWithWarmth` 回傳 `(value, warm)`，命中非空值時 `warm` 為 `true`。`rememberWithWarmthFor` 在未命中時根據計算結果設定 TTL。`rememberForever` 和別名 `sear` 將計算結果寫入快取且不設定到期時間。
+
+```rust
+use openrust::{cache::{CacheResult, Ttl, Value}, support::facades::Cache};
+
+pub async fn load_report() -> CacheResult<(Value, bool)> {
+    Cache::rememberWithWarmth("reports:latest", Some(Ttl::Seconds(60)), async {
+        Ok(Value::from("ready"))
+    }).await
+}
+```
+
+### 到期後背景更新 {#swr}
+
+`flexible(key, [fresh, expires], resolve)` 接收從同一次寫入開始計時的兩個秒數。在 `fresh` 之前直接讀取快取。在 `fresh` 和 `expires` 之間先回傳舊值，再於成功的回應、命令或工作結束後更新。快取未命中或已到期時，先計算再回傳。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn refresh_report() -> CacheResult<Value> {
+    Cache::flexible("reports:summary", [5, 10], || async {
+        Ok(Value::from("ready"))
+    }).await
+}
+```
+
+背景更新使用快取原子鎖。如果其他呼叫端已更新同一代快取，等待執行的更新會略過計算。更新失敗時，舊值可以繼續使用到原定到期時間。`flexibleWith` 接受兩個 `Ttl` 和 `FlexibleOptions`，可設定鎖租期、擁有者權杖或失敗後仍更新的 `always_defer`。在應用程式生命週期之外直接呼叫儲存庫時，可讀取舊值直到到期。背景計算需要擷取擁有所有權的值，以便在請求處理函式回傳後執行。
+
 ## 快取記憶化 {#cache-memoization}
 
 用 `Cache::memo(None)` 選擇預設儲存庫，或用 `Cache::memo(Some("redis"))` 選擇具名儲存庫。首次查詢會存取後端，同一 HTTP 請求或佇列工作內的重複查詢會重用命中及未命中結果。透過記憶化儲存庫修改項目會先清除對應的記憶體結果，再寫入後端。一般儲存庫的寫入在記憶體結果失效後或下一個請求、工作中可見。 在框架管理的生命週期之外，每次呼叫都會建立獨立的記憶化儲存庫。從已結束的生命週期保留的儲存庫會直接讀取後端。

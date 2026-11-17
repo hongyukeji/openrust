@@ -21,6 +21,7 @@ pub(crate) struct DeferredCallbacks {
 }
 
 struct Callback {
+    name: Option<String>,
     always: Arc<AtomicBool>,
     action: Action,
 }
@@ -156,9 +157,22 @@ pub(crate) fn enqueue_with_skip<E>(
 where
     E: std::error::Error + Send + Sync + 'static,
 {
-    register(|_| Action::Local {
+    register(None, |_| Action::Local {
         future: boxed(future),
         skipped: skipped.map(boxed),
+    })
+}
+
+pub(crate) fn enqueue_named<E>(
+    name: String,
+    future: HttpFuture<'static, std::result::Result<(), E>>,
+) -> Result<DeferredCallback>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    register(Some(name), |_| Action::Local {
+        future: boxed(future),
+        skipped: None,
     })
 }
 
@@ -173,7 +187,7 @@ pub(super) fn enqueue_run(
     run: DeferredRun,
     execute: impl FnOnce(DeferredRun) -> HttpFuture<'static, Result<()>>,
 ) -> Result<DeferredCallback> {
-    register(|transfer| {
+    register(None, |transfer| {
         if transfer {
             Action::Transfer(run)
         } else {
@@ -197,19 +211,30 @@ pub(crate) fn restore(owner: Arc<Container>, transferred: TransferredRun) -> Res
     Ok(())
 }
 
-fn register(action: impl FnOnce(bool) -> Action) -> Result<DeferredCallback> {
+fn register(name: Option<String>, action: impl FnOnce(bool) -> Action) -> Result<DeferredCallback> {
     CURRENT
         .try_with(|current| {
             let always = Arc::new(AtomicBool::new(false));
             let action = action(current.transfer);
-            current
+            let mut callbacks = current
                 .callbacks
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(Callback {
-                    always: always.clone(),
-                    action,
-                });
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let duplicate = name
+                .as_ref()
+                .and_then(|name| {
+                    callbacks
+                        .iter()
+                        .position(|item| item.name.as_ref() == Some(name))
+                })
+                .map(|index| callbacks.remove(index));
+            callbacks.push(Callback {
+                name,
+                always: always.clone(),
+                action,
+            });
+            drop(callbacks);
+            drop(duplicate);
             DeferredCallback(always)
         })
         .map_err(|_| Error::OutsideRequest)

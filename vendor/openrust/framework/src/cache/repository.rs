@@ -21,6 +21,7 @@ use super::{
 };
 
 /// Applies application-level semantics to a cache store.
+#[derive(Clone)]
 pub struct Repository {
     store: Arc<dyn Store>,
     events: Option<RepositoryEvents>,
@@ -303,12 +304,52 @@ impl Repository {
         ttl: Option<Ttl>,
         resolve: impl Future<Output = CacheResult<Value>>,
     ) -> CacheResult<Value> {
+        self.rememberWithWarmth(key, ttl, resolve)
+            .await
+            .map(|(value, _)| value)
+    }
+
+    /// Returns the cached value or resolves it, with a flag indicating a non-null hit.
+    pub async fn rememberWithWarmth(
+        &self,
+        key: &str,
+        ttl: Option<Ttl>,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<(Value, bool)> {
+        self.rememberWithWarmthFor(key, |_| ttl, resolve).await
+    }
+
+    /// Computes the expiry from the resolved value on a miss.
+    pub async fn rememberWithWarmthFor(
+        &self,
+        key: &str,
+        ttl: impl FnOnce(&Value) -> Option<Ttl>,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<(Value, bool)> {
         if let Some(value) = self.get(key).await?.filter(|value| !value.is_null()) {
-            return Ok(value);
+            return Ok((value, true));
         }
         let value = resolve.await?;
-        self.put(key, &value, ttl).await?;
-        Ok(value)
+        self.put(key, &value, ttl(&value)).await?;
+        Ok((value, false))
+    }
+
+    /// Resolves a missing value and stores it without an expiry.
+    pub async fn rememberForever(
+        &self,
+        key: &str,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<Value> {
+        self.remember(key, None, resolve).await
+    }
+
+    /// Alias for `rememberForever`.
+    pub async fn sear(
+        &self,
+        key: &str,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<Value> {
+        self.rememberForever(key, resolve).await
     }
 
     pub fn supportsFlushingLocks(&self) -> bool {
@@ -488,7 +529,7 @@ impl LockProvider for Repository {
     }
 }
 
-fn seconds(ttl: Ttl) -> Option<NonZeroU64> {
+pub(super) fn seconds(ttl: Ttl) -> Option<NonZeroU64> {
     match ttl {
         Ttl::Seconds(value) => NonZeroU64::new(value.try_into().ok()?),
         Ttl::Until(time) => {

@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    CacheError, CacheManager, CacheResult, Repository, TaggedCache, Ttl, Value,
+    CacheError, CacheManager, CacheResult, FlexibleOptions, Repository, TaggedCache, Ttl, Value,
     limiters::ConcurrencyLimiterBuilder,
 };
 
@@ -140,6 +140,65 @@ impl Cache {
         resolve: impl Future<Output = CacheResult<Value>>,
     ) -> CacheResult<Value> {
         Self::store(None)?.remember(key, ttl, resolve).await
+    }
+
+    pub async fn rememberWithWarmth(
+        key: &str,
+        ttl: Option<Ttl>,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<(Value, bool)> {
+        Self::store(None)?
+            .rememberWithWarmth(key, ttl, resolve)
+            .await
+    }
+
+    pub async fn rememberWithWarmthFor(
+        key: &str,
+        ttl: impl FnOnce(&Value) -> Option<Ttl>,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<(Value, bool)> {
+        Self::store(None)?
+            .rememberWithWarmthFor(key, ttl, resolve)
+            .await
+    }
+
+    pub async fn rememberForever(
+        key: &str,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<Value> {
+        Self::store(None)?.rememberForever(key, resolve).await
+    }
+
+    pub async fn sear(
+        key: &str,
+        resolve: impl Future<Output = CacheResult<Value>>,
+    ) -> CacheResult<Value> {
+        Self::store(None)?.sear(key, resolve).await
+    }
+
+    pub async fn flexible<F>(
+        key: &str,
+        ttl: [i64; 2],
+        resolve: impl FnOnce() -> F + Send + 'static,
+    ) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>> + Send + 'static,
+    {
+        Self::store(None)?.flexible(key, ttl, resolve).await
+    }
+
+    pub async fn flexibleWith<F>(
+        key: &str,
+        ttl: [Ttl; 2],
+        resolve: impl FnOnce() -> F + Send + 'static,
+        options: FlexibleOptions,
+    ) -> CacheResult<Value>
+    where
+        F: Future<Output = CacheResult<Value>> + Send + 'static,
+    {
+        Self::store(None)?
+            .flexibleWith(key, ttl, resolve, options)
+            .await
     }
 
     pub fn supportsFlushingLocks() -> CacheResult<bool> {
