@@ -25,6 +25,7 @@ use super::{
     events::QueryRole,
     schema::{MorphKeyType, SchemaDefaults},
     test_mysql::MySqlTestOwners,
+    test_query_counts::TestQueryCounts,
 };
 
 tokio::task_local! {
@@ -39,6 +40,7 @@ pub struct DatabaseManager {
     container: Weak<Container>,
     schema_defaults: Arc<RwLock<SchemaDefaults>>,
     mysql_test_owners: Option<Arc<MySqlTestOwners>>,
+    test_query_counts: Option<Weak<TestQueryCounts>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -51,6 +53,7 @@ impl DatabaseManager {
             container: Weak::new(),
             schema_defaults: Arc::default(),
             mysql_test_owners: None,
+            test_query_counts: None,
         }
     }
 
@@ -59,8 +62,13 @@ impl DatabaseManager {
         self
     }
 
-    pub(super) fn with_mysql_test_owners(mut self, owners: Option<Arc<MySqlTestOwners>>) -> Self {
+    pub(super) fn with_test_services(
+        mut self,
+        owners: Option<Arc<MySqlTestOwners>>,
+        query_counts: Option<Weak<TestQueryCounts>>,
+    ) -> Self {
         self.mysql_test_owners = owners;
+        self.test_query_counts = query_counts;
         self
     }
 
@@ -192,6 +200,9 @@ impl DatabaseManager {
             },
         )?;
         connection.model_container.clone_from(&self.container);
+        connection
+            .test_query_counts
+            .clone_from(&self.test_query_counts);
         connection.schema_defaults.clone_from(&self.schema_defaults);
         connection.model_timezone = match self.config.get("app.timezone") {
             None => chrono_tz::UTC,

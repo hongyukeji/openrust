@@ -64,6 +64,7 @@ impl ConnectionFactory {
             query_duration: Arc::default(),
             query_role: role,
             query_log: Arc::default(),
+            test_query_counts: None,
             before_executing: Arc::default(),
             before_transaction: Arc::default(),
         })

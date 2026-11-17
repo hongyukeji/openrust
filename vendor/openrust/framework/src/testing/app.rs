@@ -6,7 +6,10 @@ use tokio::task::JoinHandle;
 use crate::{
     console::Output,
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
-    database::{Connection, DatabaseResult, test_events, test_mysql::MySqlTestDatabase},
+    database::{
+        Connection, DatabaseResult, test_events, test_mysql::MySqlTestDatabase,
+        test_query_counts::TestQueryCounts,
+    },
     events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
@@ -23,6 +26,7 @@ pub struct TestApp {
     http: Option<Kernel>,
     pub(super) mysql: Vec<MySqlTestDatabase>,
     pub(super) refreshed: Option<RefreshState>,
+    pub(super) query_counts: Arc<TestQueryCounts>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
@@ -45,11 +49,14 @@ impl TestApp {
             .withConfig(|_, _| Ok([("app".into(), serde_json::json!({"env": "testing"}))].into()));
         let app = configure(builder).create()?;
         app.use_testing_environment();
+        let query_counts = Arc::new(TestQueryCounts::default());
+        app.container().instance(query_counts.clone())?;
         Ok(Self {
             app,
             http: None,
             mysql: Vec::new(),
             refreshed: None,
+            query_counts,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
             _directory: directory,
@@ -140,6 +147,16 @@ impl TestApp {
     /// Returns the fixture's application root.
     pub fn root(&self) -> &Path {
         self.app.base_path()
+    }
+}
+
+impl Drop for TestApp {
+    fn drop(&mut self) {
+        if !std::thread::panicking()
+            && let Err(error) = self.query_counts.finish()
+        {
+            panic!("{error}");
+        }
     }
 }
 

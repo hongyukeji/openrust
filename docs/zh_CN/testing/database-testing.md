@@ -145,3 +145,21 @@ async fn assert_archived(
     test.assertSoftDeletedModel(model).await
 }
 ```
+
+### 数据库查询次数 {#expects-database-query-count}
+
+在需要统计的代码前调用 `expectsDatabaseQueryCount(expected, None)`。它统计当前测试应用所有连接产生的查询。传入 `Some("reports")` 可限定为具名连接。计入 `pretend` 模式生成的查询。执行失败的 SQL 和夹具准备期关闭数据库事件时的查询不计入。
+
+调用 `close().await` 核对次数并等待测试库清理。次数不符会返回错误，夹具仍会清理测试库。夹具正常离开作用域时，次数不符会使测试失败。
+
+```rust
+use openrust::testing::TestApp;
+
+async fn count_queries(
+    mut test: TestApp,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.expectsDatabaseQueryCount(1, None).await?;
+    test.database().await?.select("SELECT 1", &[]).await?;
+    test.close().await
+}
+```

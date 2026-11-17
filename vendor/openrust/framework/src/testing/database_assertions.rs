@@ -11,6 +11,20 @@ type AssertionResult = Result<(), Box<dyn Error + Send + Sync>>;
     reason = "Matches Laravel's database testing assertions"
 )]
 impl TestApp {
+    /// Expects exactly this many queries from this point until fixture teardown.
+    /// With no connection name, all connections of this application count.
+    pub async fn expectsDatabaseQueryCount(
+        &mut self,
+        expected: u64,
+        connection: Option<&str>,
+    ) -> AssertionResult {
+        let selected = self.database_on(connection).await?;
+        let label = connection.unwrap_or_else(|| selected.getName()).to_owned();
+        self.query_counts
+            .expect(expected, label, connection.map(|_| selected));
+        Ok(())
+    }
+
     /// Asserts that the default connection has a matching row.
     pub async fn assertDatabaseHas(
         &mut self,

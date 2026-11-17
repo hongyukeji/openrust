@@ -7,7 +7,10 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::{ConnectionResolverInterface, DatabaseManager, test_mysql::MySqlTestOwners};
+use super::{
+    ConnectionResolverInterface, DatabaseManager, test_mysql::MySqlTestOwners,
+    test_query_counts::TestQueryCounts,
+};
 
 /// Registers database services with the application container.
 pub struct DatabaseServiceProvider;
@@ -26,10 +29,16 @@ impl ServiceProvider for DatabaseServiceProvider {
                 } else {
                     None
                 };
+                let key = crate::container::ServiceKey::typed::<TestQueryCounts>();
+                let counts = if container.has(key.clone()) {
+                    Some(Arc::downgrade(&container.get::<TestQueryCounts>(key)?))
+                } else {
+                    None
+                };
                 Ok(Arc::new(
                     DatabaseManager::new(config, root.clone())
                         .with_container(owner.clone())
-                        .with_mysql_test_owners(mysql_test_owners),
+                        .with_test_services(mysql_test_owners, counts),
                 ))
             })?;
             container.alias(

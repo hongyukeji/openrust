@@ -679,6 +679,104 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
 }
 
 #[tokio::test]
+async fn mysql_counts_queries_through_teardown_on_the_selected_connections()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+
+    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+        builder
+            .withProviders(vec![Box::new(InventoryProvider)])
+            .withRouting(Routing::default().web(|| {
+                Route::get("/write", write_item)?;
+                Ok(())
+            }))
+    })
+    .await?;
+    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate", "--database=reports"])
+        .await
+        .assertSuccessful();
+    let primary = app.database().await?;
+    let manager = app.app().make::<DatabaseManager>().await?;
+    let reader = manager.connection(Some("reports::read"))?;
+    primary.select("SELECT 1", &[]).await?;
+    assert!(
+        app.expectsDatabaseQueryCount(0, Some("unknown"))
+            .await
+            .is_err()
+    );
+
+    let mut isolated = TestApp::mysql(&url, |builder| builder).await?;
+    isolated.expectsDatabaseQueryCount(1, None).await?;
+
+    let events = app.fakeEvents(&[QueryExecuted::NAME]).await?;
+    app.expectsDatabaseQueryCount(4, None).await?;
+    app.expectsDatabaseQueryCount(2, Some("primary")).await?;
+    app.expectsDatabaseQueryCount(1, Some("reports")).await?;
+    app.expectsDatabaseQueryCount(1, Some("reports::read"))
+        .await?;
+    app.get("/write")
+        .await?
+        .assertStatus(StatusCode::NO_CONTENT);
+    app.artisan(["db:seed", "--database=reports"])
+        .await
+        .assertSuccessful();
+    reader.select("SELECT 1", &[]).await?;
+    let preview = primary
+        .pretend(|connection| {
+            Box::pin(async {
+                connection.select("SELECT 2", &[]).await?;
+                Ok(())
+            })
+        })
+        .await?;
+    assert_eq!(preview.len(), 1);
+    assert!(
+        primary
+            .select("SELECT * FROM absent_query_counter_table", &[])
+            .await
+            .is_err()
+    );
+    isolated.database().await?.select("SELECT 3", &[]).await?;
+    events.assertDispatchedTimes(QueryExecuted::NAME, 4);
+    app.close().await?;
+    isolated.close().await
+}
+
+#[tokio::test]
+async fn mysql_query_count_mismatch_still_cleans_up_the_fixture()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut fixture = TestApp::mysql(&url, |builder| builder).await?;
+    let name = fixture.database().await?.getDatabaseName().to_owned();
+    fixture.expectsDatabaseQueryCount(3, None).await?;
+    let error = fixture.close().await.unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "Expected 3 database queries on the [mysql] connection. 0 occurred."
+    );
+    let mut server = MySqlConnection::connect(&url).await?;
+    assert!(!schema_exists(&mut server, &name).await?);
+
+    let mut dropped = TestApp::mysql(&url, |builder| builder).await?;
+    dropped.expectsDatabaseQueryCount(0, None).await?;
+    dropped.database().await?.select("SELECT 1", &[]).await?;
+    let panic =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(dropped))).unwrap_err();
+    assert_eq!(
+        panic.downcast_ref::<String>().map(String::as_str),
+        Some("Expected 0 database queries on the [mysql] connection. 1 occurred.")
+    );
+    Ok(())
+}
+
+#[tokio::test]
 async fn mysql_database_assertions_select_connections_and_include_soft_deleted_models()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     use futures_util::FutureExt as _;

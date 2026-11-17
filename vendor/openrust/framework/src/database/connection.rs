@@ -80,6 +80,8 @@ pub struct Connection {
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,
     pub(super) query_log: Arc<QueryLog>,
+    pub(super) test_query_counts:
+        Option<std::sync::Weak<super::test_query_counts::TestQueryCounts>>,
     pub(super) before_executing: Arc<Mutex<Vec<BeforeExecutingCallback>>>,
     pub(super) before_transaction: Arc<Mutex<Vec<BeginCallback>>>,
 }
@@ -1105,7 +1107,16 @@ impl Connection {
         read_write_type: QueryRole,
     ) -> DatabaseResult<Option<QueryNotification>> {
         self.query_duration.add(time);
-        if !test_events::muted(self)
+        let muted = test_events::muted(self);
+        if !muted
+            && let Some(counts) = self
+                .test_query_counts
+                .as_ref()
+                .and_then(std::sync::Weak::upgrade)
+        {
+            counts.record(self);
+        }
+        if !muted
             && let Some(owner) =
                 Self::model_container(Some(self)).filter(|owner| owner.has("events"))
         {

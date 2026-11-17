@@ -53,3 +53,10 @@
 - 接通空表、软删除、存活行、模型存在和模型缺失断言。模型按实际表、连接名和主键校验，直接查行，因此保留软删除行的存在语义。表断言以 `On` 方法声明可选连接，软删除的 `On` 方法还可指定列。Rust 用独立模型方法和显式循环表达 PHP 的模型重载及批量参数。查询次数断言仍待接入。
 - 隔离基线 `d5f02e59c`，运行 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，MySQL 8.4.13 八项通过。两套独立库用 Artisan 建同名表，验证命名连接、空表、空值、自定义主键和软删除列。软删除后按模型仍可查到，物理删除后断言缺失，存活行断言因缺行而失败。
 - 三语代码示例提取后在独立 MySQL 8.4.13 夹具中通过。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-assertions.nBwMSdyq`。
+
+## 数据库查询次数断言
+
+- 对照固定 Laravel 的 `InteractsWithDatabase::expectsDatabaseQueryCount` 与 `FoundationInteractsWithDatabaseTest::testExpectsDatabaseQueryCount`，保留注册后计数、默认的应用总数、具名连接身份筛选、`pretend` 和关闭时精确核对。复核旧版 `v0.x` 的测试数据库夹具及固定 Goravel 的容器数据库，沿用隔离和实际 Artisan 入口。 [Laravel 查询次数断言](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md#expects-database-query-count) · [固定 Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/FoundationInteractsWithDatabaseTest.php#L465)
+- Rust 在应用夹具的查询事件生成点记录，不受事件替身的交付选择影响。夹具关闭前核对，显式 `close().await` 先核对再清库并返回错误，正常析构时按断言失败处理。已在异常展开时保留原始 panic。数据库准备阶段被抑制的事件和失败 SQL 不计入。
+- 隔离基线 `90fca6a2e`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，MySQL 8.4.13 十项通过。新增验证 HTTP 内核、进程内 Artisan、不同命名连接与读别名、两个应用隔离、事件替身、查询预演和失败 SQL。计数不符时，显式关闭仍回收测试库，普通析构报告断言失败。
+- 三语示例在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-query-count.5Ai3V5mb`。

@@ -145,3 +145,21 @@ async fn assert_archived(
     test.assertSoftDeletedModel(model).await
 }
 ```
+
+### Database query counts {#expects-database-query-count}
+
+Call `expectsDatabaseQueryCount(expected, None)` before the code you want to measure. The count includes observed queries from every connection in the test application. Pass `Some("reports")` to count queries from that named connection. Queries observed in `pretend` mode count, while failed SQL statements and queries with database events suppressed during fixture preparation do not.
+
+Finish the test with `close().await` to check the number and wait for schema cleanup. A mismatch returns an error even though cleanup still runs. When a fixture goes out of scope normally, a mismatch fails the test.
+
+```rust
+use openrust::testing::TestApp;
+
+async fn count_queries(
+    mut test: TestApp,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.expectsDatabaseQueryCount(1, None).await?;
+    test.database().await?.select("SELECT 1", &[]).await?;
+    test.close().await
+}
+```

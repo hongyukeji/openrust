@@ -207,9 +207,14 @@ impl TestApp {
             // Keep the schema lease until any in-flight migration unwinds.
             let _ = task.await;
         }
+        let queries = self.query_counts.finish();
         let mysql = std::mem::take(&mut self.mysql);
         drop(self);
-        close_mysql(mysql).await?;
+        let cleanup = close_mysql(mysql).await;
+        if let (Err(queries), Err(cleanup)) = (&queries, &cleanup) {
+            return Err(io::Error::other(format!("{queries}\n{cleanup}")).into());
+        }
+        queries.and(cleanup)?;
         Ok(())
     }
 
