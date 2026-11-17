@@ -5,7 +5,7 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseManager, Value,
         events::QueryBindings,
-        query::{Expression, Record, UpsertUpdate},
+        query::{Expression, Record, UpsertUpdate, ValueOperand},
     },
 };
 use serde_json::{Value as Json, json};
@@ -31,6 +31,154 @@ fn mysql_url() -> Option<String> {
     let url = std::env::var("OPENRUST_TEST_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     url
+}
+
+#[tokio::test]
+async fn postgres_update_from_sources_conditions_and_rollback() {
+    let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
+    assert!(matches!(
+        sqlite
+            .table("unused")
+            .updateFrom(record([("score", 1.into())]))
+            .await,
+        Err(DatabaseError::UnsupportedOperation("updateFrom"))
+    ));
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_UPDATE_FROM_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_UPDATE_FROM").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    db.unprepared(
+        "CREATE SCHEMA update_probe;
+         CREATE TABLE update_probe.app_orders (id int PRIMARY KEY, region int, score int, options jsonb);
+         CREATE TABLE update_probe.app_prices (order_id int, amount int, currency text, options jsonb);
+         CREATE TABLE update_probe.app_regions (id int PRIMARY KEY, name text);
+         INSERT INTO update_probe.app_orders VALUES (1, 1, 0, '{}'), (2, 1, 0, '{}'), (3, 2, 0, '{}');
+         INSERT INTO update_probe.app_prices VALUES (1, 10, 'USD', '{}'), (2, 8, 'USD', '{}'), (3, 15, 'USD', '{}'), (1, 40, 'EUR', '{}');
+         INSERT INTO update_probe.app_regions VALUES (1, 'west'), (2, 'east');",
+    ).await.unwrap();
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    let orders = transaction.table("update_probe.orders as o");
+    let prices = orders
+        .subquery("update_probe.prices")
+        .r#where("currency", "=", "USD");
+    db.enableQueryLog();
+    assert_eq!(
+        orders
+            .selectRaw("?", vec![999.into()])
+            .joinSub(&prices, "p", |join| join
+                .on("o.id", "=", "p.order_id")
+                .r#where("p.amount", ">", 9))
+            .unwrap()
+            .joinWith("update_probe.regions as r", |join| join
+                .on("o.region", "=", "r.id")
+                .r#where("r.name", "=", "west"))
+            .r#where("o.id", ">", 0)
+            .limit(0)
+            .updateFrom(BTreeMap::from([
+                (
+                    "o.score".into(),
+                    ValueOperand::from(
+                        Expression::new(r#""app_p"."amount" + ?"#).with_bindings(vec![2.into()])
+                    )
+                ),
+                ("o.options->active".into(), true.into()),
+                (
+                    "o.options->note".into(),
+                    Expression::new("to_jsonb(cast(? as text))")
+                        .with_bindings(vec!["checked".into()])
+                        .into()
+                ),
+            ]))
+            .await
+            .unwrap(),
+        1
+    );
+    let logged = &db.getQueryLog()[0];
+    assert!(logged.query.contains(r#"update "update_probe"."app_orders" as "app_o" set "score" = "app_p"."amount" + ?, "options" = jsonb_set(jsonb_set("app_o"."options"::jsonb"#));
+    assert!(logged.query.contains(r#"from (select * from "update_probe"."app_prices" where "currency" = ?) as "app_p", "update_probe"."app_regions" as "app_r" where "app_o"."id" > ? and "app_o"."id" = "app_p"."order_id""#));
+    assert!(
+        matches!(&logged.bindings, QueryBindings::Positional(values) if values == &[
+            2.into(), "active".into(), Value::Json(json!(true)), "note".into(), "checked".into(),
+            "USD".into(), 0.into(), 9.into(), "west".into()
+        ])
+    );
+    let updated = transaction
+        .table("update_probe.orders")
+        .r#where("id", "=", 1)
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(updated[0].get("score"), Some(&12.into()));
+    assert_eq!(
+        updated[0].get("options"),
+        Some(&Value::Json(json!({"active": true, "note": "checked"})))
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.table("update_probe.orders")
+            .r#where("score", "=", 0)
+            .count("*")
+            .await
+            .unwrap(),
+        3
+    );
+
+    assert_eq!(
+        db.table("update_probe.orders as o")
+            .joinWith("update_probe.regions as r", |join| join
+                .on("o.region", "=", "r.id")
+                .r#where("r.name", "=", "east"))
+            .updateFrom(record([("score", 5.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.table("update_probe.orders")
+            .r#where("score", "=", 5)
+            .value("id")
+            .await
+            .unwrap(),
+        3.into()
+    );
+    assert_eq!(
+        db.table("update_probe.orders as o")
+            .joinWith("update_probe.regions as r", |join| join
+                .orOn("o.region", "=", "r.id")
+                .r#where("r.name", "=", "east"))
+            .r#where("o.id", "=", 999)
+            .updateFrom(record([("score", 7.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.table("update_probe.orders")
+            .r#where("score", "=", 7)
+            .value("id")
+            .await
+            .unwrap(),
+        3.into()
+    );
+    assert_eq!(
+        db.table("update_probe.orders")
+            .r#where("id", "=", 2)
+            .updateFrom(record([("score", 6.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(matches!(
+        db.table("update_probe.orders")
+            .updateFrom(Record::new())
+            .await,
+        Err(DatabaseError::InvalidQuery("update assignments"))
+    ));
+    db.unprepared("DROP SCHEMA update_probe CASCADE")
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

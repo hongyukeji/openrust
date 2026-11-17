@@ -399,6 +399,23 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
 
+### PostgreSQL updates from joined sources {#postgresql-update-from}
+
+Use `updateFrom` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in Laravel, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, query::Record};
+
+pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> {
+    connection
+        .table("orders as o")
+        .join("payments as p", "o.id", "=", "p.order_id")
+        .r#where("p.state", "=", "paid")
+        .updateFrom(Record::from([("status".into(), "verified".into())]))
+        .await
+}
+```
+
 ### SQL Server joined and limited writes {#sql-server-bounded-writes}
 
 Update and delete operations with joins target the table or its alias using `FROM`. For writes without joins, a positive limit uses `TOP`. With an order, SQL Server selects the target rows using an ordered `TOP` subquery. As in Laravel, joined writes and writes with a positive offset apply no limit. A zero limit also omits `TOP`.

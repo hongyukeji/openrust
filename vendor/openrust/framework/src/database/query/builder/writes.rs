@@ -1,9 +1,9 @@
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use crate::database::{DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{Builder, Executor};
-use crate::database::query::{Record, UpsertUpdate, grammars::Grammar};
+use crate::database::query::{Record, UpsertUpdate, ValueOperand, grammars::Grammar};
 
 mod json;
 
@@ -275,6 +275,47 @@ impl Builder<'_> {
         self.update_values(values, Record::new(), "+").await
     }
 
+    /// Updates a PostgreSQL target using joined sources in the FROM clause.
+    pub async fn updateFrom<V: Into<ValueOperand>>(
+        mut self,
+        values: BTreeMap<String, V>,
+    ) -> DatabaseResult<u64> {
+        if !self.grammar.is_postgres() {
+            return Err(DatabaseError::UnsupportedOperation("updateFrom"));
+        }
+        let target = self.source.table_name()?;
+        let table = self.grammar.table(target)?;
+        let qualifier = self.grammar.table(table_reference(target))?;
+        let (assignments, mut bindings) =
+            json::compile_assignments(&self.grammar, values, Some(&qualifier))?;
+        if assignments.is_empty() {
+            return Err(DatabaseError::InvalidQuery("update assignments"));
+        }
+        let mut sql = format!("update {table} set {}", assignments.join(", "));
+        for (index, join) in self.joins.iter().enumerate() {
+            sql.push_str(if index == 0 { " from " } else { ", " });
+            sql.push_str(&join.source.compile(&self.grammar, None, &mut bindings)?);
+        }
+        self.compile_predicates(&mut sql, &mut bindings)?;
+        let mut has_predicates = !self.predicates.is_empty();
+        for join in &self.joins {
+            if join.clause.0.is_empty() {
+                continue;
+            }
+            if !has_predicates {
+                sql.push_str(" where ");
+            }
+            join.clause.0.compile_continued(
+                &self.grammar,
+                &mut sql,
+                &mut bindings,
+                has_predicates,
+            )?;
+            has_predicates = true;
+        }
+        self.affect(&sql, &bindings).await
+    }
+
     pub async fn increment(
         self,
         column: &str,
@@ -335,7 +376,7 @@ impl Builder<'_> {
             assignments.push(format!("{target} = {source} {operator} ?"));
             bindings.push(value);
         }
-        let (columns, parameters) = json::compile_assignments(&self.grammar, values)?;
+        let (columns, parameters) = json::compile_assignments(&self.grammar, values, None)?;
         assignments.extend(columns);
         bindings.extend(parameters);
         if assignments.is_empty() {

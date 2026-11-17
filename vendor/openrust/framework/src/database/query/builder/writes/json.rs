@@ -4,17 +4,19 @@ use serde_json::{Map, Value as Json};
 
 use crate::database::{
     DatabaseError, DatabaseResult, Value,
-    query::{Record, grammars::Grammar},
+    query::{ValueOperand, grammars::Grammar},
 };
 
-pub(super) fn compile_assignments(
+pub(super) fn compile_assignments<V: Into<ValueOperand>>(
     grammar: &Grammar,
-    values: Record,
+    values: BTreeMap<String, V>,
+    target: Option<&str>,
 ) -> DatabaseResult<(Vec<String>, Vec<Value>)> {
     let mut assignments = Vec::new();
     let mut bindings = Vec::new();
-    let mut json = BTreeMap::<String, Vec<(String, Json)>>::new();
+    let mut json = BTreeMap::<String, Vec<(String, ValueOperand)>>::new();
     for (column, value) in values {
+        let value = value.into();
         if let Some((field, path)) = column.split_once("->") {
             if grammar.is_sql_server() {
                 return Err(DatabaseError::UnsupportedOperation(
@@ -31,11 +33,19 @@ pub(super) fn compile_assignments(
             };
             json.entry(field.to_owned())
                 .or_default()
-                .push((path.to_owned(), json_value(value)?));
+                .push((path.to_owned(), value));
         } else {
             let column = write_column(grammar, &column)?;
-            assignments.push(format!("{column} = ?"));
-            bindings.push(value);
+            match value {
+                ValueOperand::Value(value) => {
+                    assignments.push(format!("{column} = ?"));
+                    bindings.push(value);
+                }
+                ValueOperand::Expression(expression) => {
+                    assignments.push(format!("{column} = {}", expression.sql));
+                    bindings.extend(expression.bindings);
+                }
+            }
         }
     }
 
@@ -51,10 +61,15 @@ pub(super) fn compile_assignments(
             assignments.push(format!("{column} = json_set({column}, {pairs})"));
             for (path, value) in changes {
                 bindings.push(mysql_path(&path)?.into());
-                bindings.push(value.to_string().into());
+                bindings.push(json_value(value)?.to_string().into());
             }
         } else if grammar.is_postgres() {
-            assignments.push(postgres_assignment(&column, changes, &mut bindings)?);
+            assignments.push(postgres_assignment(
+                &column,
+                target,
+                changes,
+                &mut bindings,
+            )?);
         } else {
             assignments.push(format!(
                 "{column} = json_patch(ifnull({column}, json('{{}}')), json(?))"
@@ -62,7 +77,7 @@ pub(super) fn compile_assignments(
             let mut patch = Json::Object(Map::new());
             for (path, value) in changes {
                 let segments: Vec<_> = path.split("->").flat_map(|key| key.split('.')).collect();
-                set_patch(&mut patch, &segments, value)?;
+                set_patch(&mut patch, &segments, json_value(value)?)?;
             }
             bindings.push(patch.to_string().into());
         }
@@ -72,20 +87,34 @@ pub(super) fn compile_assignments(
 
 fn postgres_assignment(
     column: &str,
-    changes: Vec<(String, Json)>,
+    target: Option<&str>,
+    changes: Vec<(String, ValueOperand)>,
     bindings: &mut Vec<Value>,
 ) -> DatabaseResult<String> {
-    let mut sql = format!(
-        "{column} = {}{column}::jsonb",
-        "jsonb_set(".repeat(changes.len())
-    );
+    let mut sql = format!("{column} = {}", "jsonb_set(".repeat(changes.len()));
+    if let Some(target) = target {
+        sql.push_str(target);
+        sql.push('.');
+    }
+    sql.push_str(column);
+    sql.push_str("::jsonb");
     for (path, value) in changes {
         let path = Grammar::postgres_json_path(&path)?;
         let placeholders = vec!["?"; path.len()].join(", ");
-        write!(sql, ", array[{placeholders}]::text[], ?::jsonb)")
+        write!(sql, ", array[{placeholders}]::text[], ")
             .expect("writing to a String is infallible");
         bindings.extend(path.into_iter().map(Value::from));
-        bindings.push(Value::Json(value));
+        match value {
+            ValueOperand::Expression(expression) => {
+                write!(sql, "({})::jsonb)", expression.sql)
+                    .expect("writing to a String is infallible");
+                bindings.extend(expression.bindings);
+            }
+            value => {
+                sql.push_str("?::jsonb)");
+                bindings.push(Value::Json(json_value(value)?));
+            }
+        }
     }
     Ok(sql)
 }
@@ -103,7 +132,10 @@ fn unqualified(column: &str) -> &str {
     column.rsplit_once('.').map_or(column, |(_, field)| field)
 }
 
-fn json_value(value: Value) -> DatabaseResult<Json> {
+fn json_value(value: ValueOperand) -> DatabaseResult<Json> {
+    let ValueOperand::Value(value) = value else {
+        return Err(DatabaseError::InvalidQuery("JSON update value"));
+    };
     Ok(match value {
         Value::Null => Json::Null,
         Value::Bool(value) => Json::Bool(value),

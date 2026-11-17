@@ -399,6 +399,23 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的联结或限额更新和删除通过 `ctid` 子查询选出目标行。
 
+### PostgreSQL 联结来源更新 {#postgresql-update-from}
+
+在 PostgreSQL 上调用 `updateFrom`，根据联结来源更新目标表。PostgreSQL 在 `FROM` 中列出来源，并将联结条件接在 `WHERE` 的查询条件之后。与 Laravel 一样，这种写法会忽略排序、限额和偏移。绑定普通值可使用 `Record`。需要混合绑定值和可信 SQL 表达式时使用 `ValueOperand`。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, query::Record};
+
+pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> {
+    connection
+        .table("orders as o")
+        .join("payments as p", "o.id", "=", "p.order_id")
+        .r#where("p.state", "=", "paid")
+        .updateFrom(Record::from([("status".into(), "verified".into())]))
+        .await
+}
+```
+
 ### SQL Server 联结与限额写入 {#sql-server-bounded-writes}
 
 联结更新和删除使用 `FROM` 指定目标表或其别名。无联结时，正数限额使用 `TOP`。有排序时，SQL Server 通过带排序的 `TOP` 子查询确定目标行。按 Laravel 的行为，带联结或正数偏移的写入会忽略限额，限额为零也会省略 `TOP`。

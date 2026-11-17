@@ -48,9 +48,9 @@ enum JoinType {
 }
 
 pub(super) struct Join {
-    source: Source,
+    pub(super) source: Source,
     kind: JoinType,
-    clause: JoinClause,
+    pub(super) clause: JoinClause,
 }
 
 impl Join {

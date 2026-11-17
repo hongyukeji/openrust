@@ -399,6 +399,23 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標列。
 
+### PostgreSQL 聯結來源更新 {#postgresql-update-from}
+
+在 PostgreSQL 上呼叫 `updateFrom`，依聯結來源更新目標資料表。PostgreSQL 在 `FROM` 中列出來源，並將聯結條件接在 `WHERE` 的查詢條件之後。與 Laravel 相同，此寫法會忽略排序、限額與位移。繫結一般值可使用 `Record`。需要混合繫結值與可信的 SQL 運算式時使用 `ValueOperand`。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, query::Record};
+
+pub async fn verify_paid_orders(connection: &Connection) -> DatabaseResult<u64> {
+    connection
+        .table("orders as o")
+        .join("payments as p", "o.id", "=", "p.order_id")
+        .r#where("p.state", "=", "paid")
+        .updateFrom(Record::from([("status".into(), "verified".into())]))
+        .await
+}
+```
+
 ### SQL Server 聯結與限額寫入 {#sql-server-bounded-writes}
 
 聯結更新和刪除使用 `FROM` 指定目標資料表或其別名。無聯結時，正數限額使用 `TOP`。有排序時，SQL Server 透過帶排序的 `TOP` 子查詢決定目標資料列。依 Laravel 的行為，帶聯結或正數位移的寫入會忽略限額，限額為零也會省略 `TOP`。

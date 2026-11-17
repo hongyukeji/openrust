@@ -158,8 +158,18 @@ impl Conditions {
         sql: &mut String,
         bindings: &mut Vec<Value>,
     ) -> DatabaseResult<()> {
+        self.compile_continued(grammar, sql, bindings, false)
+    }
+
+    pub(super) fn compile_continued(
+        &self,
+        grammar: &Grammar,
+        sql: &mut String,
+        bindings: &mut Vec<Value>,
+        has_predicates: bool,
+    ) -> DatabaseResult<()> {
         for (index, (boolean, predicate)) in self.0.iter().enumerate() {
-            if index > 0 {
+            if has_predicates || index > 0 {
                 sql.push_str(match boolean {
                     Boolean::And => " and ",
                     Boolean::Or => " or ",
