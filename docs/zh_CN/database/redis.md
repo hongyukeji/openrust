@@ -35,6 +35,8 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 
 Redis 返回 `MOVED` 或 `ASK` 时，OpenRust 会为内置单键操作跟随重定向，包括缓存锁。重定向次数由首个种子节点的 `max_retries` 限制，设为零时直接返回重定向错误。连接中断时 Redis 可能已经执行命令，框架会返回错误并让后续请求重连。主节点切换后，后续请求可以发现新的主节点。其他带键的原始命令收到重定向时，框架用 Redis 的 `COMMAND GETKEYS` 核对全部键，确认都属于目标槽后才跟随。此机制需要授权 `COMMAND GETKEYS`。核对失败时返回原始重定向错误。跨槽命令的部分分片可能已执行，应用应按部分成功处理。队列 Worker 的专用阻塞连接使用直连。迁槽期间，同槽命令涉及的键分处两个节点时，Redis 可能返回 `TRYAGAIN`，标签缓存的原子操作也适用。
 
+启用 TLS 时，所有种子都使用 `rediss://`，并将签发证书的 CA 加入进程信任库。客户端连接发现的节点和跟随重定向时都会校验证书。Redis 返回空主机名时，框架沿用实际响应节点的主机名或 IP，并使用重定向给出的端口。
+
 ## 与 Redis 交互
 
 在应用作用域内使用 `Redis` 门面。`Redis::get` 返回可选字节值，`Redis::set` 写入字节，两者都会应用 `REDIS_PREFIX`。用 `Redis::connection(Some("cache"))` 选择其他连接。

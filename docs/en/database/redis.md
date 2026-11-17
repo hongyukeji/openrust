@@ -35,6 +35,8 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 
 When Redis returns `MOVED` or `ASK`, OpenRust follows the redirection for built-in single-key operations, including cache locks. The first seed’s `max_retries` limits these redirections. Set it to zero to return redirection errors directly. If the connection drops before Redis replies, OpenRust returns an error. The application decides whether to retry because Redis may already have applied the command. Later requests reconnect and discover the new primary after failover. For other raw keyed commands, OpenRust uses Redis `COMMAND GETKEYS` on redirection and follows the redirect if all reported keys match its slot. Grant `COMMAND GETKEYS` to use this fallback. When slot verification fails, the original redirect is returned. A command sent to multiple slots can have succeeded on some shards before another rejects it, so handle such failures as partial results. The queue worker’s dedicated blocking transport uses a standalone connection. During slot migration, Redis can return `TRYAGAIN` for same-slot commands when their keys are split between nodes, including atomic tagged cache operations.
 
+For TLS, use `rediss://` on every seed and make the issuing CA available to the process trust store. The client verifies certificates on discovered nodes and when following redirects. If Redis sends an empty endpoint, OpenRust reuses the hostname or IP of the node that replied and connects to the port in the redirect.
+
 ## Interacting With Redis
 
 Use the `Redis` facade inside the application scope. `Redis::get` returns optional bytes, and `Redis::set` writes bytes. These methods apply `REDIS_PREFIX`. Select another connection with `Redis::connection(Some("cache"))`.

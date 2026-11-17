@@ -164,6 +164,12 @@ impl Settings {
                 .set_addr(ConnectionAddr::Tcp(self.host, self.port))
                 .set_redis_settings(settings)
         };
+        if matches!(info.addr(), ConnectionAddr::TcpTls { .. })
+            && rustls::crypto::CryptoProvider::get_default().is_none()
+        {
+            // Rustls cannot infer a provider when workspace dependencies enable both backends.
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
         Ok(info)
     }
 }

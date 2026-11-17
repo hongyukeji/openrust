@@ -35,6 +35,8 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 
 Redis 回傳 `MOVED` 或 `ASK` 時，OpenRust 會為內建單鍵操作跟隨重新導向，包括快取鎖。重新導向次數由第一個種子節點的 `max_retries` 限制，設為零時直接回傳重新導向錯誤。連線中斷時 Redis 可能已執行指令，框架會回傳錯誤並讓後續請求重新連線。主節點切換後，後續請求可以找到新的主節點。其他帶鍵的原始指令收到重新導向時，框架用 Redis 的 `COMMAND GETKEYS` 核對全部鍵，確認均屬於目標槽後才跟隨。此機制需要授權 `COMMAND GETKEYS`。核對失敗時回傳原始重新導向錯誤。跨槽指令的部分分片可能已執行，應用程式應按部分成功處理。佇列 Worker 的專用阻塞連線使用直連。遷移槽期間，同槽指令涉及的鍵分處兩個節點時，Redis 可能回傳 `TRYAGAIN`，快取標籤的原子操作也適用。
 
+啟用 TLS 時，所有種子都使用 `rediss://`，並將簽發憑證的 CA 加入程序信任庫。用戶端連線至探索到的節點和跟隨重新導向時都會驗證憑證。Redis 回傳空主機名稱時，框架沿用實際回應節點的主機名稱或 IP，並使用重新導向指定的連接埠。
+
 ## 與 Redis 互動
 
 在應用程式作用域內使用 `Redis` 門面。`Redis::get` 回傳可選的位元組值，`Redis::set` 寫入位元組，兩者都會套用 `REDIS_PREFIX`。用 `Redis::connection(Some("cache"))` 選擇其他連線。

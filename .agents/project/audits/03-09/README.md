@@ -60,3 +60,10 @@
 - 在隔离基线 `f2e8d6248` 使用 Redis 8.10.3 验证二进制键的 HSET/HGET、同槽 MSET、跨槽部分成功、受限 ACL、丢失回执时 INCR 只执行一次、主节点切换。实际分批迁移标签数据发生 `TRYAGAIN` 时保留原值，键迁齐后随 ASK、MOVED 读回，再按标签清除。单机 Redis 回归通过。
 - 双进程 HTTP 执行原始 HSET/HGET 并跨越 ASK 和 MOVED，独立 Artisan `cache:forget` 清除该键，`artisan inspire` 正常退出。改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查及 6 项 Redis 重定向文档检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。
 - 临时 Redis 与本批隔离产物已回收。项目卷可用 115.27 GB（107.36 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-raw.HeNbotf2`。真实 TLS 和首次响应无主机名的重定向待补，核心闭合数本批保持原值。
+
+## 03-09 整单元验收
+
+- 对照固定 Laravel 的 PhpRedis 集群 TLS 配置以及 Redis 的空端点规则。旧版支持识别 `rediss://`，未找到原生集群空端点处理。Rust 保留实际响应节点的连接主机，收到空端点时只采用 Redis 指定的新端口。初次连接与重定向沿用相同 TLS 方式和证书校验。修复工作区同时启用两个 Rustls 后端导致首次握手无法选择默认后端的问题，沿用项目的 ring 方案并保留应用已安装的后端。 [固定 Laravel 集群连接](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Redis/Connectors/PhpRedisConnector.php#L46) · [Redis 空端点规则](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#moved-redirection)
+- 在隔离基线 `2f43411d1` 上使用 Redis 8.10.3 启动三主节点 TLS 集群。实际连接验收通过可信 CA、拒绝无关 CA、不可达种子后发现健康节点、原始命令的空主机名 `ASK` 和 `MOVED`。使用真实双进程 HTTP 重现两种响应，独立 Artisan `cache:forget` 删除对应键，`artisan inspire` 通过。
+- 复跑单机和明文集群夹具，覆盖具名连接、缓存和锁、标签及过期索引、迁槽、故障切换、丢回执后的写入边界。改动文件格式、严格工作区 Clippy、三语站点、12 项通用浏览器和 6 项 TLS 文档检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。
+- 项目计划的 Redis 连接、序列化、原始命令、缓存与并发锁已有真实驱动及 HTTP／Artisan 证据，03-09 闭合。TLS 验收覆盖服务端凭证与 CA，使用 Redis ACL 密码认证。临时 Redis、测试证书和隔离编译产物已回收。磁盘可用 115.25 GB（107.33 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tls.yIUEEKY5`。

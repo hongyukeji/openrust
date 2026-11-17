@@ -4,13 +4,15 @@ use ::redis::{
     AsyncConnectionConfig, Client, ConnectionInfo, FromRedisValue,
     aio::{ConnectionManager, ConnectionManagerConfig},
     cluster::{ClusterClient, ClusterConfig},
-    cluster_async::ClusterConnection,
 };
 use tokio::sync::OnceCell;
 
 use crate::contracts::redis::Connection as Contract;
 
-use super::{Subscription, cluster::Cluster};
+use super::{
+    Subscription,
+    cluster::{Cluster, ClusterTransport},
+};
 use crate::redis::{RedisError, RedisFuture, RedisResult, Value, backend};
 
 /// A named Redis command connection with a shared reconnecting transport.
@@ -31,7 +33,7 @@ enum Backend {
 #[derive(Clone)]
 enum Transport {
     Standalone(ConnectionManager),
-    Cluster(ClusterConnection),
+    Cluster(ClusterTransport),
 }
 
 impl Connection {
@@ -128,7 +130,7 @@ impl Connection {
                         .map(Transport::Standalone),
                     Backend::Cluster(cluster) => cluster
                         .client
-                        .get_async_connection()
+                        .get_async_generic_connection()
                         .await
                         .map(Transport::Cluster),
                 }

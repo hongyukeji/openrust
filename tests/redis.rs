@@ -1101,3 +1101,126 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert_eq!(plain.get("item").await.unwrap(), Some(1.into()));
     assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
 }
+
+#[tokio::test]
+async fn redis_cluster_tls_follows_hostless_redirects() {
+    use openrust::redis::Value as RedisValue;
+    use serde_json::json;
+
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_TLS_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_TLS").is_none());
+        return;
+    };
+    let container = std::env::var("OPENRUST_TEST_REDIS_TLS_CONTAINER").unwrap();
+    let source = std::env::var("OPENRUST_TEST_REDIS_TLS_SOURCE").unwrap();
+    let destination = std::env::var("OPENRUST_TEST_REDIS_TLS_DESTINATION").unwrap();
+    let seed = format!("rediss://:cluster-fixture@127.0.0.1:{port}/0");
+    let manager = RedisManager::new(Arc::new(openrust::config::Repository::new(
+        [(
+            "database".into(),
+            json!({"redis":{
+                "direct":{"url":seed,"max_retries":0},
+                "clusters":{"tls":[{"url":"rediss://:cluster-fixture@127.0.0.2:1/0"},{"url":seed}]}
+            }}),
+        )]
+        .into(),
+    )));
+    let connection = manager.connection(Some("tls")).unwrap();
+    let initial = connection.get("{one}:tls").await;
+    if std::env::var_os("OPENRUST_TEST_REDIS_TLS_UNTRUSTED").is_some() {
+        assert!(initial.is_err(), "untrusted Redis certificate was accepted");
+        let error = manager
+            .connection(Some("direct"))
+            .unwrap()
+            .command("PING", &[])
+            .await
+            .unwrap_err();
+        assert!(format!("{error:?}").contains("UnknownIssuer"), "{error:?}");
+        return;
+    }
+    assert_eq!(initial.unwrap(), None);
+
+    let cli = |port: &str, args: &[&str]| {
+        let result = Command::new("docker")
+            .args(["exec", "-e", "REDISCLI_AUTH=cluster-fixture", &container])
+            .args([
+                "redis-cli",
+                "--raw",
+                "--tls",
+                "--cacert",
+                "/tls/ca.pem",
+                "-p",
+                port,
+            ])
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{args:?}: {result:?}");
+        String::from_utf8(result.stdout).unwrap().trim().to_owned()
+    };
+    let slot = "9084";
+    let source_id = cli(&source, &["CLUSTER", "MYID"]);
+    let destination_id = cli(&destination, &["CLUSTER", "MYID"]);
+    assert_eq!(cli(&source, &["CLUSTER", "KEYSLOT", "{one}:tls"]), slot);
+    assert_eq!(
+        cli(
+            &source,
+            &[
+                "CONFIG",
+                "SET",
+                "cluster-preferred-endpoint-type",
+                "unknown-endpoint"
+            ]
+        ),
+        "OK"
+    );
+    assert_eq!(
+        cli(
+            &destination,
+            &["CLUSTER", "SETSLOT", slot, "IMPORTING", &source_id]
+        ),
+        "OK"
+    );
+    assert_eq!(
+        cli(
+            &source,
+            &["CLUSTER", "SETSLOT", slot, "MIGRATING", &destination_id]
+        ),
+        "OK"
+    );
+    assert_eq!(
+        cli(&source, &["HGET", "{one}:tls", "field"]),
+        format!("ASK {slot} :{destination}")
+    );
+    assert_eq!(
+        connection
+            .command("HSET", &[b"{one}:tls", b"field", b"secure"])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
+    assert_eq!(
+        connection
+            .command("HGET", &[b"{one}:tls", b"field"])
+            .await
+            .unwrap(),
+        RedisValue::BulkString(b"secure".to_vec())
+    );
+    for node in [&destination, &source, &port] {
+        assert_eq!(
+            cli(node, &["CLUSTER", "SETSLOT", slot, "NODE", &destination_id]),
+            "OK"
+        );
+    }
+    assert_eq!(
+        cli(&source, &["HGET", "{one}:tls", "field"]),
+        format!("MOVED {slot} :{destination}")
+    );
+    assert_eq!(
+        connection
+            .command("HGET", &[b"{one}:tls", b"field"])
+            .await
+            .unwrap(),
+        RedisValue::BulkString(b"secure".to_vec())
+    );
+}
