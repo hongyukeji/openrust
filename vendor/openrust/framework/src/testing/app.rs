@@ -21,7 +21,7 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct TestApp {
     app: Application,
     http: Option<Kernel>,
-    pub(super) mysql: Option<MySqlTestDatabase>,
+    pub(super) mysql: Vec<MySqlTestDatabase>,
     pub(super) refreshed: Option<RefreshState>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
@@ -48,7 +48,7 @@ impl TestApp {
         Ok(Self {
             app,
             http: None,
-            mysql: None,
+            mysql: Vec::new(),
             refreshed: None,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,

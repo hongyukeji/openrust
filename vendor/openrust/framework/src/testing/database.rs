@@ -1,11 +1,18 @@
-use std::{error::Error, fs::File, io};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    error::Error,
+    fs::File,
+    io,
+    sync::Arc,
+};
 
 use serde_json::json;
 
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        Connection, DatabaseFuture, DatabaseManager, Value, test_mysql::MySqlTestDatabase,
+        Connection, DatabaseFuture, DatabaseManager, Value,
+        test_mysql::{MySqlTestDatabase, MySqlTestOwners},
         test_transaction,
     },
     foundation::{Application, configuration::ApplicationBuilder},
@@ -26,6 +33,8 @@ pub struct RefreshDatabaseOptions {
     pub seed: bool,
     /// Run this named seeder instead of the default.
     pub seeder: Option<String>,
+    /// Named MySQL connections to roll back. An empty list selects the default.
+    pub connections_to_transact: Vec<String>,
 }
 
 pub(super) enum RefreshState {
@@ -36,20 +45,16 @@ pub(super) enum RefreshState {
 struct Sqlite;
 
 struct Mysql {
-    url: String,
+    connections: BTreeMap<String, serde_json::Value>,
+    default: String,
 }
 
 impl ServiceProvider for Mysql {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
             let config = app.config()?;
-            config.set(
-                "database.connections",
-                json!({
-                    "mysql": {"url": self.url, "acquire_timeout": 2}
-                }),
-            )?;
-            config.set("database.default", json!("mysql"))?;
+            config.set("database.connections", json!(self.connections))?;
+            config.set("database.default", json!(self.default))?;
             Ok(())
         })
     }
@@ -97,20 +102,63 @@ impl TestApp {
         admin_url: &str,
         configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let database = MySqlTestDatabase::create(admin_url).await?;
+        Self::mysqlConnections(&[("mysql", admin_url)], configure).await
+    }
+
+    /// Creates an owned MySQL test schema for each named connection.
+    /// The first connection is the application's default.
+    pub async fn mysqlConnections(
+        connections: &[(&str, &str)],
+        configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let mut names = BTreeSet::new();
+        let Some(&(default, _)) = connections.first() else {
+            return Err(io::Error::other("at least one MySQL test connection is required").into());
+        };
+        if connections
+            .iter()
+            .any(|(name, _)| name.is_empty() || name.contains("::") || !names.insert(*name))
+        {
+            return Err(io::Error::other(
+                "MySQL test connection names must be unique and unqualified",
+            )
+            .into());
+        }
+        let mut databases = Vec::with_capacity(connections.len());
+        let mut configs = BTreeMap::new();
+        let mut owners = BTreeMap::new();
+        for &(name, url) in connections {
+            let database = match MySqlTestDatabase::create(url).await {
+                Ok(database) => database,
+                Err(error) => {
+                    close_mysql(databases).await?;
+                    return Err(error.into());
+                }
+            };
+            configs.insert(
+                name.to_owned(),
+                json!({"url": database.url, "acquire_timeout": 2}),
+            );
+            owners.insert(name.to_owned(), database.owner.clone());
+            databases.push(database);
+        }
         let provider = Box::new(Mysql {
-            url: database.url.clone(),
+            connections: configs,
+            default: default.into(),
         });
         let mut fixture =
             match Self::create(|builder| configure(builder.withProviders(vec![provider]))) {
                 Ok(fixture) => fixture,
                 Err(error) => {
-                    database.close().await?;
+                    close_mysql(databases).await?;
                     return Err(error);
                 }
             };
-        fixture.app().container().instance(database.owner.clone())?;
-        fixture.mysql = Some(database);
+        fixture
+            .app()
+            .container()
+            .instance(Arc::new(MySqlTestOwners(owners)))?;
+        fixture.mysql = databases;
         Ok(fixture)
     }
 
@@ -120,11 +168,9 @@ impl TestApp {
             // Keep the schema lease until any in-flight migration unwinds.
             let _ = task.await;
         }
-        let mysql = self.mysql.take();
+        let mysql = std::mem::take(&mut self.mysql);
         drop(self);
-        if let Some(mysql) = mysql {
-            mysql.close().await?;
-        }
+        close_mysql(mysql).await?;
         Ok(())
     }
 
@@ -150,8 +196,23 @@ impl TestApp {
         )
             -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
     ) -> Result<T, Box<dyn Error + Send + Sync>> {
-        let connection = self.database().await?;
-        test_transaction::run(connection, async { test(self).await }).await?
+        self.databaseTransactionOn(&[], test).await
+    }
+
+    /// Runs one test in a rollback transaction on each selected MySQL connection.
+    /// An empty list selects the default.
+    pub async fn databaseTransactionOn<T>(
+        &mut self,
+        names: &[&str],
+        test: impl for<'a> FnOnce(
+            &'a mut TestApp,
+        )
+            -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
+    ) -> Result<T, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        let manager = self.app().make::<DatabaseManager>().await?;
+        let connections = select_connections(&manager, names.iter().copied())?;
+        test_transaction::run(connections, async { test(self).await }).await?
     }
 
     /// Prepares a managed MySQL schema, then runs one rollback-isolated test.
@@ -167,16 +228,27 @@ impl TestApp {
         )
             -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
     ) -> Result<T, Box<dyn Error + Send + Sync>> {
-        let owner = self
-            .mysql
-            .as_ref()
-            .ok_or_else(|| {
-                io::Error::other("refreshDatabase requires a managed MySQL test schema")
-            })?
-            .owner
-            .clone();
-        let connection = self.database().await?;
-        if !owner.is_schema(connection.getDatabaseName()) || test_transaction::active(&connection) {
+        if self.mysql.is_empty() {
+            return Err(
+                io::Error::other("refreshDatabase requires a managed MySQL test schema").into(),
+            );
+        }
+        self.boot().await?;
+        let manager = self.app().make::<DatabaseManager>().await?;
+        let connection = manager.connection(None)?;
+        let connections = select_connections(
+            &manager,
+            options.connections_to_transact.iter().map(String::as_str),
+        )?;
+        test_transaction::validate(&connections)?;
+        let owners = self.app().container().make::<MySqlTestOwners>()?;
+        if !owners
+            .0
+            .get(connection.getName())
+            .is_some_and(|owner| owner.is_schema(connection.getDatabaseName()))
+            || test_transaction::active(&connection)
+            || connections.iter().any(test_transaction::active)
+        {
             return Err(io::Error::other(
                 "refreshDatabase requires the owned default connection outside a test transaction",
             )
@@ -209,7 +281,7 @@ impl TestApp {
             self.finish_refresh().await?;
             self.refreshed = None;
         }
-        let result = test_transaction::run(connection, async { test(self).await }).await?;
+        let result = test_transaction::run(connections, async { test(self).await }).await?;
         self.refreshed = Some(RefreshState::Ready(options));
         result
     }
@@ -287,4 +359,26 @@ impl TestApp {
             });
         Ok(query.exists().await?)
     }
+}
+
+fn select_connections<'a>(
+    manager: &DatabaseManager,
+    mut names: impl Iterator<Item = &'a str>,
+) -> crate::database::DatabaseResult<Vec<Connection>> {
+    let Some(first) = names.next() else {
+        return Ok(vec![manager.connection(None)?]);
+    };
+    std::iter::once(first)
+        .chain(names)
+        .map(|name| manager.connection(Some(name)))
+        .collect()
+}
+
+async fn close_mysql(databases: Vec<MySqlTestDatabase>) -> io::Result<()> {
+    let mut result = Ok(());
+    for database in databases {
+        let closed = database.close().await;
+        result = result.and(closed);
+    }
+    result
 }

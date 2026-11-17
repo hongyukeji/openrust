@@ -3034,3 +3034,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 19:45（北京时间）T-03 [MySQL 测试库归属与租约](audits/T-03/README.md#mysql-测试库归属与租约)。真实 MySQL 8.4.13 验证并行库、Artisan 迁移及重建、业务池关闭、外部占用和归属拒绝。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。 本批 Cargo 清理 2.9 GiB，项目磁盘可用 80.42 GB（74.89 GiB），周额度剩余 50%。
 
 - 2026-11-17 19:54（北京时间）T-03 [MySQL RefreshDatabase 迁移准备](audits/T-03/README.md#mysql-refreshdatabase-迁移准备)。真实 MySQL 8.4.13 验证迁移与 Seeder、重复回滚、失败重试和迁移中取消后续用。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。 本批 Cargo 清理 2.9 GiB，项目磁盘可用 79.44 GB（73.98 GiB），周额度剩余 50%。
+
+- 2026-11-17 20:03（北京时间）T-03 [MySQL 多连接测试事务](audits/T-03/README.md#mysql-多连接测试事务)。真实 MySQL 8.4.13 验证双库选择、HTTP 与 Artisan、部分启动或回滚失败以及未选连接的正常提交。独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 61/66。 本批 Cargo 清理 2.9 GiB，项目磁盘可用 78.83 GB（73.41 GiB），周额度剩余 50%。

@@ -9,7 +9,7 @@ use std::{
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        DB, DatabaseError, DatabaseFuture, DatabaseResult, Value,
+        DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
         seeder::{Seeder, SeederContext, SeederEntry, SeederRegistry},
@@ -407,6 +407,147 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
     .fetch_one(server)
     .await?;
     Ok(count != 0)
+}
+
+#[tokio::test]
+async fn mysql_refresh_rolls_back_every_selected_connection()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+        builder
+            .withProviders(vec![Box::new(InventoryProvider)])
+            .withRouting(Routing::default().web(|| {
+                Route::get("/write", write_item)?;
+                Ok(())
+            }))
+    })
+    .await?;
+    app.artisan(["migrate", "--database=reports", "--seed"])
+        .await
+        .assertSuccessful();
+    let options = RefreshDatabaseOptions {
+        seed: true,
+        connections_to_transact: vec!["primary".into(), "reports".into()],
+        ..Default::default()
+    };
+    let manager = app.app().make::<DatabaseManager>().await?;
+    let primary = manager.connection(None)?;
+    let reports = manager.connection(Some("reports"))?;
+    assert_ne!(primary.getDatabaseName(), reports.getDatabaseName());
+    app.refreshDatabase(options, |app| {
+        Box::pin(async {
+            app.get("/write")
+                .await?
+                .assertStatus(StatusCode::NO_CONTENT);
+            app.artisan(["db:seed", "--database=reports"])
+                .await
+                .assertSuccessful();
+            app.assertDatabaseCount("items", 2).await?;
+            let manager = app.app().make::<DatabaseManager>().await?;
+            assert_eq!(
+                manager
+                    .connection(Some("reports::read"))?
+                    .table("items")
+                    .count("*")
+                    .await?,
+                2
+            );
+            Ok(())
+        })
+    })
+    .await?;
+    assert_eq!(primary.table("items").count("*").await?, 1);
+    assert_eq!(reports.table("items").count("*").await?, 1);
+
+    app.databaseTransactionOn::<()>(&["primary", "primary::read"], |_| {
+        Box::pin(async { panic!("duplicate connection selection must not run the callback") })
+    })
+    .await
+    .unwrap_err();
+
+    let failure = app
+        .databaseTransactionOn(&["primary", "reports"], |app| {
+            Box::pin(async {
+                app.get("/write")
+                    .await?
+                    .assertStatus(StatusCode::NO_CONTENT);
+                let manager = app.app().make::<DatabaseManager>().await?;
+                let reports = manager.connection(Some("reports"))?;
+                drop(reports.beginTransaction().await?);
+                Ok(())
+            })
+        })
+        .await
+        .unwrap_err();
+    assert!(failure.to_string().contains("transaction"));
+    assert_eq!(primary.table("items").count("*").await?, 1);
+    assert_eq!(reports.table("items").count("*").await?, 1);
+
+    app.databaseTransactionOn(&["reports"], |app| {
+        Box::pin(async {
+            app.get("/write")
+                .await?
+                .assertStatus(StatusCode::NO_CONTENT);
+            app.artisan(["db:seed", "--database=reports"])
+                .await
+                .assertSuccessful();
+            Ok(())
+        })
+    })
+    .await?;
+    assert_eq!(primary.table("items").count("*").await?, 2);
+    assert_eq!(reports.table("items").count("*").await?, 1);
+    app.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn mysql_multi_connection_setup_failure_unwinds_opened_sessions()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut app =
+        TestApp::mysqlConnections(&[("unavailable", &url), ("primary", &url)], |builder| {
+            builder
+        })
+        .await?;
+    app.boot().await?;
+    let manager = app.app().make::<DatabaseManager>().await?;
+    let name = manager
+        .connection(Some("unavailable"))?
+        .getDatabaseName()
+        .to_owned();
+    let mut server = MySqlConnection::connect(&url).await?;
+    sqlx::raw_sql(sqlx::AssertSqlSafe(format!(
+        "DROP PROCEDURE `{name}`.`openrust_fixture_owner`"
+    )))
+    .execute(&mut server)
+    .await?;
+    assert!(
+        app.databaseTransactionOn::<()>(&["primary", "unavailable"], |_| {
+            Box::pin(async { panic!("partial transaction setup must not run the callback") })
+        })
+        .await
+        .is_err()
+    );
+    let primary = manager.connection(Some("primary"))?;
+    primary.select("SELECT 1", &[]).await?;
+    let primary_name = primary.getDatabaseName().to_owned();
+    assert!(
+        app.close()
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("ownership marker")
+    );
+    assert!(!schema_exists(&mut server, &primary_name).await?);
+    assert!(schema_exists(&mut server, &name).await?);
+    Ok(())
 }
 
 #[tokio::test]

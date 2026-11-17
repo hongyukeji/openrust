@@ -17,7 +17,7 @@
 | 06 URL、后台任务与通知 | 8/8 | 06-01 [URL、重定向和签名](06-01/README.md#06-01-整单元验收)；06-02 事件与监听器；06-03–04 任务派发和 Worker；06-05 调度；06-06 [邮件与通知](06-06/README.md#06-06-整单元验收)；06-07 密码重置和邮箱验证；06-08 Artisan 帮助及交互本地化 | — |
 | 07 框架专题 | 7/7 | 07-01 [Helpers／Strings](07-01/README.md#整单元验收)；07-02 [HTTP Client](07-02/README.md#整单元验收)；07-03 [Processes](07-03/README.md#整单元验收)；07-04 [Concurrency](07-04/README.md#整单元验收)；07-05 [Images](07-05/README.md#07-05-整单元验收)；07-06 [Search](07-06/README.md#07-06-整单元验收)；07-07 [Package Development](07-07/README.md#07-07-整单元验收) | — |
 | 08-01 框架广播 | 1/1 | 08-01 [频道授权、事件分发和唯一任务](08-01/README.md#08-01-整单元验收) | — |
-| T 测试能力 | 3/4 | T-01 [测试入口、应用与环境](T-01/README.md#测试环境与整单元复核)；T-02 HTTP／Artisan 测试入口；T-04 容器与事件替身 | T-03 [MySQL 测试事务隔离](T-03/README.md#mysql-测试事务隔离)和[测试库归属与租约](T-03/README.md#mysql-测试库归属与租约)及 [RefreshDatabase 迁移准备](T-03/README.md#mysql-refreshdatabase-迁移准备)已验收，待多连接、迁移事件抑制及进程中断后恢复 |
+| T 测试能力 | 3/4 | T-01 [测试入口、应用与环境](T-01/README.md#测试环境与整单元复核)；T-02 HTTP／Artisan 测试入口；T-04 容器与事件替身 | T-03 [MySQL 测试事务隔离](T-03/README.md#mysql-测试事务隔离)和[测试库归属与租约](T-03/README.md#mysql-测试库归属与租约)及 [RefreshDatabase 迁移准备](T-03/README.md#mysql-refreshdatabase-迁移准备)、[MySQL 多连接测试事务](T-03/README.md#mysql-多连接测试事务)已验收，待迁移事件抑制及进程中断后恢复 |
 
 03-09 的 Redis Cluster 标签保留[主线复验](03-09/README.md#redis-cluster-标签主线复验)记录。已补验[标签清空中断后的过期索引清理](03-09/README.md#标签清空中断后的过期索引清理)、[显式删除后的空标签索引回收](03-09/README.md#显式删除后的空标签索引回收)、[集群标签索引的无效引用清理](03-09/README.md#集群标签索引的无效引用清理)、[集群标签索引登记容错](03-09/README.md#集群标签索引登记容错)和[按标签清空时清理无效引用](03-09/README.md#按标签清空时清理无效引用)。[指定 Redis 标签的 `flushStale()`](03-09/README.md#按指定标签清理过期引用)也已通过。[集群标签待回收集合容错](03-09/README.md#集群标签待回收集合容错)已通过。03-09 维持闭合。跨单元的 [memo 标签装饰器](03-06/memoization.md)待补。
 

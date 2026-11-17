@@ -17,6 +17,39 @@ struct Session {
     physical: Arc<Mutex<Option<PhysicalConnection>>>,
 }
 
+impl Session {
+    async fn start(connection: Connection) -> DatabaseResult<Self> {
+        let mut physical = connection.acquire(false).await?;
+        // Keep test-session settings out of the application's pooled connections.
+        physical.retire_on_drop(true);
+        physical
+            .control("begin test transaction", TransactionCommand::Begin)
+            .await?;
+        Ok(Self {
+            connection,
+            physical: Arc::new(Mutex::new(Some(physical))),
+        })
+    }
+
+    async fn rollback(self) -> DatabaseResult<()> {
+        let mut physical = self
+            .physical
+            .try_lock()
+            .map_err(|_| DatabaseError::UnsupportedOperation("test database session is in use"))?
+            .take()
+            .ok_or(DatabaseError::TransactionInterrupted)?;
+        physical
+            .control("roll back test transaction", TransactionCommand::RollBack)
+            .await
+    }
+}
+
+fn same_session(owner: &Connection, connection: &Connection) -> bool {
+    owner.same_query_source(connection)
+        || (owner.name == connection.name
+            && owner.model_container.ptr_eq(&connection.model_container))
+}
+
 tokio::task_local! {
     static SESSIONS: Vec<Session>;
 }
@@ -27,12 +60,7 @@ fn session(connection: &Connection) -> Option<Session> {
             sessions
                 .iter()
                 .rev()
-                .find(|session| {
-                    let owner = &session.connection;
-                    owner.same_query_source(connection)
-                        || (owner.name == connection.name
-                            && owner.model_container.ptr_eq(&connection.model_container))
-                })
+                .find(|session| same_session(&session.connection, connection))
                 .cloned()
         })
         .ok()
@@ -60,37 +88,51 @@ pub(super) fn checkout(connection: &Connection) -> DatabaseResult<Option<QueryPh
     }))
 }
 
+pub(crate) fn validate(connections: &[Connection]) -> DatabaseResult<()> {
+    for (index, connection) in connections.iter().enumerate() {
+        if !connection.grammar.is_mysql()
+            || active(connection)
+            || connections[..index]
+                .iter()
+                .any(|other| same_session(connection, other))
+        {
+            return Err(DatabaseError::UnsupportedOperation(
+                "test transactions require distinct unscoped MySQL connections",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) async fn run<T>(
-    connection: Connection,
+    connections: Vec<Connection>,
     test: impl Future<Output = T>,
 ) -> DatabaseResult<T> {
-    if !connection.grammar.is_mysql() || active(&connection) {
-        return Err(DatabaseError::UnsupportedOperation(
-            "a test transaction requires an unscoped MySQL connection",
-        ));
+    validate(&connections)?;
+    let mut started = Vec::with_capacity(connections.len());
+    for connection in connections {
+        match Session::start(connection).await {
+            Ok(session) => started.push(session),
+            Err(error) => {
+                let _ = rollback(started).await;
+                return Err(error);
+            }
+        }
     }
-    let mut physical = connection.acquire(false).await?;
-    // Keep test-session settings out of the application's pooled connections.
-    physical.retire_on_drop(true);
-    physical
-        .control("begin test transaction", TransactionCommand::Begin)
-        .await?;
-    let physical = Arc::new(Mutex::new(Some(physical)));
     let mut sessions = SESSIONS.try_with(Clone::clone).unwrap_or_default();
-    sessions.push(Session {
-        connection,
-        physical: physical.clone(),
-    });
+    sessions.extend(started.iter().cloned());
     let result = SESSIONS.scope(sessions, test).await;
-    let mut physical = physical
-        .try_lock()
-        .map_err(|_| DatabaseError::UnsupportedOperation("test database session is in use"))?
-        .take()
-        .ok_or(DatabaseError::TransactionInterrupted)?;
-    physical
-        .control("roll back test transaction", TransactionCommand::RollBack)
-        .await?;
+    rollback(started).await?;
     Ok(result)
+}
+
+async fn rollback(sessions: Vec<Session>) -> DatabaseResult<()> {
+    let mut result = Ok(());
+    for session in sessions.into_iter().rev() {
+        let rollback = session.rollback().await;
+        result = result.and(rollback);
+    }
+    result
 }
 
 pub(super) enum QueryPhysical {

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     io,
     sync::{
         Arc, Mutex,
@@ -12,6 +13,8 @@ use sqlx::{Connection as _, MySqlConnection, MySqlPool};
 const MARKER: &str = "openrust_fixture_owner";
 const SESSION_TIMEOUT: Duration = Duration::from_secs(5);
 const CLOSE_TIMEOUT: Duration = Duration::from_secs(2);
+
+pub(crate) struct MySqlTestOwners(pub BTreeMap<String, Arc<MySqlTestOwner>>);
 
 pub(crate) struct MySqlTestOwner {
     name: String,

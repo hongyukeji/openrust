@@ -60,6 +60,31 @@ async fn check_seeded_items(test: &mut TestApp) -> Result<(), Box<dyn std::error
 
 使用 InnoDB 資料表。結構變更在回呼外執行。同一工作階段上的操作應逐一等待完成。另行啟動的工作、外部程序和其他具名連線有各自的交易邊界。
 
+## 多個測試連線 {#multiple-test-connections}
+
+呼叫 `TestApp::mysqlConnections`，為每個具名伺服器 URL 建立獨立的受管資料庫。第一個名稱成為預設連線。`refreshDatabase` 透過 `migrate:fresh` 準備預設連線。在回呼前用 `migrate --database=<名稱>` 準備次要資料庫。
+
+```rust
+use openrust::testing::{RefreshDatabaseOptions, TestApp};
+
+async fn run_test(
+    url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut test = TestApp::mysqlConnections(&[("mysql", url), ("reports", url)], |builder| {
+        builder
+    }).await?;
+    test.artisan(["migrate", "--database=reports"]).await.assertSuccessful();
+    let options = RefreshDatabaseOptions {
+        connections_to_transact: vec!["mysql".into(), "reports".into()],
+        ..Default::default()
+    };
+    test.refreshDatabase(options, |_| Box::pin(async { Ok(()) })).await?;
+    test.close().await
+}
+```
+
+用 `connections_to_transact` 選擇每次回呼結束後復原的連線，空清單選用預設連線。夾具已準備好時，`databaseTransactionOn` 可直接執行相同的復原流程。
+
 ## 資料庫斷言
 
 用 `assertDatabaseHas` 和 `assertDatabaseMissing` 檢查指定欄位值的紀錄，包括空值。用 `assertDatabaseCount` 檢查紀錄數。

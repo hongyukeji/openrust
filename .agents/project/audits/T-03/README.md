@@ -25,3 +25,10 @@
 - `TestApp::refreshDatabase` 在受管 MySQL 夹具上使用同一组选项准备一次，支持默认或具名 Seeder 与清除视图。普通回调结束后回滚，回滚成功后复用基线。迁移失败或事务失效后可重试。迁移等待被取消时，夹具持有任务并等待其完成后再决定复用或重试，避免并行重建同一库。
 - 隔离基线 `b932c1e0d`。真实 MySQL 8.4.13 验证具名 Seeder 首次失败后同选项重试、成功与回调错误后回滚、有效基线复用、异常事务后的重建、选项改变时清除视图、迁移中取消后复用同一准备任务及默认 Seeder。管理租约和默认连接事务两项回归另行通过。
 - Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项小节浏览器检查通过。临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 79.44 GB（73.98 GiB），周额度剩余 50%。多连接事务、迁移事件抑制及进程级异常后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-refresh.MF86Nmvt`。
+
+## MySQL 多连接测试事务
+
+- 对照固定 Laravel `RefreshDatabase::connectionsToTransact`、`beginDatabaseTransaction` 与默认连接迁移。复核旧版 `testing/database/{lease,owned_pool,resources}.rs`，沿用按数据库核验租约和归属的模式。旧版没有同一测试内对多个具名连接开启回滚事务的 API。 [固定 Laravel RefreshDatabase](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/RefreshDatabase.php) · [固定 Laravel 数据库测试指南](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md)
+- `TestApp::mysqlConnections` 逐名分配独立托管库，第一条为默认。各池匹配自己的归属记录，关闭会尝试清理所有已分配库。用 `RefreshDatabaseOptions::connections_to_transact` 或 `databaseTransactionOn` 选择回滚连接，空列表使用默认。启动失败回滚已开启的事务，结束时逐条尝试回滚。默认库由 `migrate:fresh` 准备，其他库继续走显式 Artisan 迁移。
+- 隔离基线 `6b9fc960b`，真实 MySQL 8.4.13 验证双库独立租约、HTTP 和进程内 Artisan 的同用例写入、读别名复用、重复选择拒绝、启动与回滚失败的清理、仅选择一条连接时其他连接的正常提交，以及归属失败时仍清理其余库。复验 MySQL 单连接事务、迁移准备与归属三项。
+- Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项小节浏览器检查通过。本批临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 78.83 GB（73.41 GiB），周额度剩余 50%。迁移事件抑制及进程中断后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-multi.tZsd4tuc`。

@@ -7,7 +7,7 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::{ConnectionResolverInterface, DatabaseManager, test_mysql::MySqlTestOwner};
+use super::{ConnectionResolverInterface, DatabaseManager, test_mysql::MySqlTestOwners};
 
 /// Registers database services with the application container.
 pub struct DatabaseServiceProvider;
@@ -20,16 +20,16 @@ impl ServiceProvider for DatabaseServiceProvider {
             let container = application.container();
             container.singletonNamed("db", move |container| {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
-                let key = crate::container::ServiceKey::typed::<MySqlTestOwner>();
-                let mysql_test_owner = if container.has(key.clone()) {
-                    Some(container.get::<MySqlTestOwner>(key)?)
+                let key = crate::container::ServiceKey::typed::<MySqlTestOwners>();
+                let mysql_test_owners = if container.has(key.clone()) {
+                    Some(container.get::<MySqlTestOwners>(key)?)
                 } else {
                     None
                 };
                 Ok(Arc::new(
                     DatabaseManager::new(config, root.clone())
                         .with_container(owner.clone())
-                        .with_mysql_test_owner(mysql_test_owner),
+                        .with_mysql_test_owners(mysql_test_owners),
                 ))
             })?;
             container.alias(

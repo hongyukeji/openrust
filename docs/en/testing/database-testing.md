@@ -60,6 +60,31 @@ async fn check_seeded_items(test: &mut TestApp) -> Result<(), Box<dyn std::error
 
 Use InnoDB tables. Run schema changes outside the callback. Await each operation on the session before starting another. Spawned tasks, external processes, and other named connections run outside the callback’s transaction.
 
+## Multiple test connections {#multiple-test-connections}
+
+Call `TestApp::mysqlConnections` with named server URLs to create an owned schema for each connection. The first name becomes the default. With `refreshDatabase`, `migrate:fresh` prepares the default connection. Prepare any secondary schemas with `migrate --database=<name>` before the callback.
+
+```rust
+use openrust::testing::{RefreshDatabaseOptions, TestApp};
+
+async fn run_test(
+    url: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut test = TestApp::mysqlConnections(&[("mysql", url), ("reports", url)], |builder| {
+        builder
+    }).await?;
+    test.artisan(["migrate", "--database=reports"]).await.assertSuccessful();
+    let options = RefreshDatabaseOptions {
+        connections_to_transact: vec!["mysql".into(), "reports".into()],
+        ..Default::default()
+    };
+    test.refreshDatabase(options, |_| Box::pin(async { Ok(()) })).await?;
+    test.close().await
+}
+```
+
+Set `connections_to_transact` to select the connections that roll back after each callback. An empty list selects the default. For an already prepared fixture, `databaseTransactionOn` runs the same rollback lifecycle without a schema refresh.
+
 ## Database assertions
 
 Use `assertDatabaseHas` and `assertDatabaseMissing` to check row values, including nulls. Use `assertDatabaseCount` to check the row count.

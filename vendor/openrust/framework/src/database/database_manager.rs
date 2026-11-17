@@ -24,7 +24,7 @@ use super::{
     connectors::ConnectionFactory,
     events::QueryRole,
     schema::{MorphKeyType, SchemaDefaults},
-    test_mysql::MySqlTestOwner,
+    test_mysql::MySqlTestOwners,
 };
 
 tokio::task_local! {
@@ -38,7 +38,7 @@ pub struct DatabaseManager {
     connections: Mutex<HashMap<String, Connection>>,
     container: Weak<Container>,
     schema_defaults: Arc<RwLock<SchemaDefaults>>,
-    mysql_test_owner: Option<Arc<MySqlTestOwner>>,
+    mysql_test_owners: Option<Arc<MySqlTestOwners>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -50,7 +50,7 @@ impl DatabaseManager {
             connections: Mutex::default(),
             container: Weak::new(),
             schema_defaults: Arc::default(),
-            mysql_test_owner: None,
+            mysql_test_owners: None,
         }
     }
 
@@ -59,8 +59,8 @@ impl DatabaseManager {
         self
     }
 
-    pub(super) fn with_mysql_test_owner(mut self, owner: Option<Arc<MySqlTestOwner>>) -> Self {
-        self.mysql_test_owner = owner;
+    pub(super) fn with_mysql_test_owners(mut self, owners: Option<Arc<MySqlTestOwners>>) -> Self {
+        self.mysql_test_owners = owners;
         self
     }
 
@@ -165,11 +165,22 @@ impl DatabaseManager {
         let config = self.config.clone();
         let base_name = base.to_owned();
         let resolved_name = name.to_owned();
+        let mysql_test_owner = self
+            .mysql_test_owners
+            .as_ref()
+            .map(|owners| {
+                owners
+                    .0
+                    .get(base)
+                    .cloned()
+                    .ok_or_else(|| DatabaseError::UnknownConnection(name.into()))
+            })
+            .transpose()?;
         let mut connection = ConnectionFactory.make_for_role(
             connection_name,
             &self.root,
             role,
-            self.mysql_test_owner.clone(),
+            mysql_test_owner,
             move || {
                 match config.get("database.connections") {
                     Some(Value::Object(connections)) => connections.get(&base_name).cloned(),
