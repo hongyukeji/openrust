@@ -235,9 +235,6 @@ impl RedisTagSet {
                     .and_then(|id| std::str::from_utf8(id).ok())
                     .is_some_and(|id| valid_digest(id, 64))
             });
-        if retire && !invalid.is_empty() {
-            return Err(CacheError::InvalidValue);
-        }
         self.query(
             cluster_script(CLEANUP, 3 + values.len())
                 .arg(registry)

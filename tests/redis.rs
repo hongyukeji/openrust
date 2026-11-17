@@ -1186,16 +1186,18 @@ async fn redis_cluster_tags_flush_and_prune() {
     let artist = index("artists").await;
     let invalid = connection.key("tags*?:item");
     connection
-        .command("ZADD", &[artist.as_bytes(), b"-2", invalid.as_bytes()])
-        .await
-        .unwrap();
-    assert!(plain.tags(&["artists"]).unwrap().flush().await.is_err());
-    assert!(exists(&physical[0]).await);
-    assert!(exists(&invalid).await);
-    assert_eq!(ordered.get("item").await.unwrap(), None);
-    assert!(ordered.forever("replacement", &6.into()).await.unwrap());
-    connection
-        .command("ZREM", &[artist.as_bytes(), invalid.as_bytes()])
+        .command(
+            "ZADD",
+            &[
+                artist.as_bytes(),
+                b"-2",
+                invalid.as_bytes(),
+                b"-2",
+                foreign_key.as_bytes(),
+                b"-2",
+                invalid_bytes,
+            ],
+        )
         .await
         .unwrap();
     assert!(plain.tags(&["artists"]).unwrap().flush().await.unwrap());
@@ -1204,6 +1206,9 @@ async fn redis_cluster_tags_flush_and_prune() {
     }
     plain.get_store().flush_stale_tags().await.unwrap();
     assert!(!exists(&people).await);
+    assert!(!registered(&artist).await);
+    assert!(exists(&invalid).await);
+    assert_eq!(ordered.get("item").await.unwrap(), None);
     assert_eq!(plain.get("item").await.unwrap(), Some(1.into()));
     assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
 
@@ -1214,6 +1219,21 @@ async fn redis_cluster_tags_flush_and_prune() {
     let (prefix, suffix) = retired_index.rsplit_once("index:").unwrap();
     let (tag, _) = suffix.split_once(':').unwrap();
     let pending = format!("{prefix}pending:{tag}");
+    let backup = format!("{retired_index}:backup");
+    connection
+        .command("RENAME", &[retired_index.as_bytes(), backup.as_bytes()])
+        .await
+        .unwrap();
+    connection
+        .command("SET", &[retired_index.as_bytes(), b"wrong type"])
+        .await
+        .unwrap();
+    assert!(interrupted.flush().await.is_err());
+    assert_eq!(interrupted.get("retired").await.unwrap(), None);
+    connection
+        .command("RENAME", &[backup.as_bytes(), retired_index.as_bytes()])
+        .await
+        .unwrap();
     connection
         .command(
             "ZADD",
@@ -1221,7 +1241,6 @@ async fn redis_cluster_tags_flush_and_prune() {
         )
         .await
         .unwrap();
-    assert!(interrupted.flush().await.is_err());
     assert!(interrupted.forever("current", &8.into()).await.unwrap());
     plain.get_store().flush_stale_tags().await.unwrap();
     assert!(exists(&retired_value).await);

@@ -104,3 +104,11 @@
 - `sh tests/redis_cluster.sh` 四项通过。新增断言验证错误格式、非 UTF-8 和其他存储的登记项被移除，合法索引的 322 条引用清理后保留 160 条，其他存储的索引和值仍可用。同版单机 Redis 的连接、缓存、锁和标签清理回归通过。
 - 实际双进程 HTTP 验证标签读写、跨进程共享、自然过期、`forget` 和 `pull`。独立 Artisan 验证 `cache:prune-stale-tags` 默认及显式存储、重复清理和标签清空后的代际隔离。用 Redis 原生命令复核无效登记被移除，实际外部键和有效索引仍在。根应用 `./artisan inspire` 通过。
 - Rust 1.94.0 的改动文件格式、工作区严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍只报告基线的 `sanctum_authentication.rs:1412` 差异。已回收临时 Redis、4.7 GiB 隔离 Cargo 产物和文档缓存。验收日志保留于 `/private/tmp/openrust-03-09-registry`。
+
+## 按标签清空时清理无效引用
+
+- 固定 Laravel 的 `RedisTaggedCache::flushClusteredConnection` 分批删除指定标签的值，`RedisTagSet::flushStaleEntries` 单独清理过期索引。对照旧版 `b62ae7c72` 的 `redis_tags.rs` 和 `tag_identity.rs`，沿用分批处理、代际隔离与成员校验。OpenRust 集群的 Lua 继续把当前存储的有效值声明为同槽键。格式错误及跨存储引用作为参数从索引移除，其指向的键不被访问。 [Laravel RedisTaggedCache](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php#L210) · [Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L88)
+- 在 `5cbbce621` 隔离快照的 Redis 8.10.3 集群上复现无效引用导致清空返回 `InvalidValue`。修复后 `sh tests/redis_cluster.sh` 四项和真实单机回归通过，覆盖跨批次删除、非 UTF-8 成员、普通键、跨槽的其他存储和错误索引类型后的恢复。原生 Redis 命令确认缓存值、索引登记和待回收记录的实际状态。
+- 双进程 HTTP 验证跨进程读取、自然到期及新代际写入。独立 Artisan 验证 `cache:clear redis --tags=artists` 清空成功、Redis 索引类型错误返回 1，以及 `cache:prune-stale-tags [redis]` 默认与显式存储、失败恢复和重复执行。修剪保留仍有有效值的旧代际，在索引清空后移除待回收记录。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式与严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 Redis、4.0 GiB 隔离 Cargo 产物和文档缓存。日志保留于 `/private/tmp/openrust-03-09-drain.JSagLq7c`。
+- 现有 `cache:prune-stale-tags` 是存储级清理。固定 Laravel 的 `Cache::tags([...])->flushStale()` 是按指定标签清理索引的公开入口，另待对齐。 [Laravel RedisStoreTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
