@@ -44,3 +44,11 @@
 - PHP 对照接受 `(*MARK:word)`，当前 Rust 引擎拒绝注册。任意 PCRE 等价和 Windows 实机仍待后续验收。本批保留 04-01 开放及账本 55/66。
 - 严格工作区 Clippy 和改动文件格式通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412`。三语站点构建和 18 项浏览器检查覆盖共同约束正文及根路径、子路径。证据目录 `/private/tmp/openrust-04-01-route-constraints.0vH6r7Lq`。
 - 新增 `fancy-regex` 0.19.2 采用 MIT，最低 Rust 1.66。传递依赖 `bit-set`、`bit-vec` 0.8.0 采用 Apache-2.0 或 MIT。`cargo deny --offline check` 的来源与禁用项检查通过，基线与本批均报告默认许可清单拒绝及既有 `paste`、`pin-utils` 维护提示。本批新增的三条许可提示对应上述三个依赖。
+
+## 显式约束的 PCRE2 匹配
+
+- 固定 Laravel 用 UTF-8 Symfony 路由编译器。显式约束改走 PCRE2，沿用 Symfony 的非捕获组转换和 Rust 的转义字面量保留规则。普通路由继续走原有线性引擎。PCRE2 启用 UTF-8 和 Unicode 属性，解释执行的匹配、深度和堆限制分别为 100,000、1,000 和 8 MiB。限额错误按未匹配处理。 [Laravel 路由编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Route.php#L1389) · [PCRE2 资源限制](https://www.pcre.org/current/doc/html/pcre2pattern.html)
+- 对照 PHP 8.5 的 PCRE2 10.44 和 Symfony v7.4.0 编译结果，实测 `(*MARK:...)`、占有量词、Unicode 属性和 Unicode 十进制数字，复验环视及命名反向引用。真实 HTTP 同时检查匹配时的参数与约束不满足时的 404。
+- `pcre2` 0.2.11、`pcre2-sys` 0.2.10 的包装代码采用 Unlicense 或 MIT。绑定可使用系统 PCRE2，也可编译随包提供的 PCRE2 10.46。本批使用捆绑库验证独立构建，仅使用普通解释器匹配。上游公开的 JIT、DFA、模式转换及序列化接口未参与路由匹配。 [PCRE2 上游版本说明](https://github.com/PCRE2Project/pcre2/releases)
+- PHP 对照确认 `/pair/{id}/{slug}` 的 `slug` 可用 `\k<id>` 引用前一个路由变量。Rust 目前提前单独校验每项约束，跨变量反向引用仍待接通。不同 PCRE2 版本和发布平台仍需复验。04-01 保持开放，账本维持 55/66。
+- Rust 1.94.0 在 `22fc4cf0e` 隔离快照通过 16 项 HTTP、4 项 URL 回归、实际 `route:list -vv --json --middleware=SubstituteBindings` 及 `artisan inspire`。工作区严格 Clippy、改动文件格式和 18 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。`cargo deny --offline check` 的来源与禁用项通过，许可清单与既有依赖维护告警仍报告失败。隔离产物已回收，证据目录 `/private/tmp/openrust-04-01-pcre.9SFIcm2K`。

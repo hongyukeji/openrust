@@ -8,7 +8,7 @@
 
 `{id}` 表示必填参数。在末尾参数上加 `?` 即可省略它，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 读取匹配值。省略参数时返回 `None`，也可以用路由的 `defaults` 提供字符串默认值。参数后面还有必填参数或固定文本时，该参数仍须提供。
 
-用 `Route::r#where` 指定正则表达式，也可使用 `where_number`、`where_alpha`、`where_alpha_numeric`、`where_uuid`、`where_ulid` 或 `where_in`。在注册路由前调用 `Router::pattern`，可给后续路由的同名参数设置约束。单条路由上的约束优先。`where_in` 将值拼成正则的备选分支，正则元字符保留原义。常规表达式使用 Rust 的 `regex` 引擎。约束也可使用环视，例如 `r"(?!admin\z)[a-z]+"`，以及命名反向引用。这类表达式使用另一引擎，回溯上限为 100,000 步，超过上限按未匹配处理。路由注册时会拒绝 `(*MARK:...)` 等 PCRE 专用语法。
+用 `Route::r#where` 指定正则表达式，也可使用 `where_number`、`where_alpha`、`where_alpha_numeric`、`where_uuid`、`where_ulid` 或 `where_in`。在注册路由前调用 `Router::pattern`，可给后续路由的同名参数设置约束。单条路由上的约束优先。`where_in` 将值拼成正则的备选分支，正则元字符保留原义。没有显式约束的路由使用 Rust 的线性正则引擎。显式约束使用 PCRE2，支持环视、命名反向引用和 `(*MARK:...)`。例如，`r"(?!admin\z)[a-z]+"` 排除 `admin`。匹配使用 UTF-8 和 Unicode 字符属性。无效表达式会使注册失败。运行时达到 PCRE2 的匹配、深度或堆内存上限时，按未匹配处理。反向引用须在同一个参数约束内解析。
 
 匹配时按 UTF-8 对路径执行百分号解码，并忽略查询字符串。解码结果无效时返回 HTTP 400。匹配路由和检查可用方法时都应用约束。例如 `/profiles/{id?}` 是限制数字 ID 的 GET 路由时，`POST /profiles/7` 返回 405 和 `Allow`。如果没有其他路由匹配该路径，`POST /profiles/alice` 返回 404。
 

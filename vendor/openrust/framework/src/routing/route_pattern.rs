@@ -5,30 +5,20 @@ use regex::{Regex, RegexBuilder};
 use super::RoutingError;
 
 const SEPARATORS: &str = "/,;.:-_~+*=@|";
-const ROUTE_BACKTRACK_LIMIT: usize = 100_000;
+const PCRE_LIMITS: &str = "(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)(*LIMIT_HEAP=8192)";
 
 enum Matcher {
     Linear(Regex),
-    Extended(Box<fancy_regex::Regex>),
+    Pcre(Box<pcre2::bytes::Regex>),
 }
 
-impl Matcher {
-    fn compile(expression: &str, host: bool) -> Result<Self, regex::Error> {
-        RegexBuilder::new(expression)
-            .case_insensitive(host)
-            .dot_matches_new_line(true)
-            .build()
-            .map(Self::Linear)
-            .or_else(|source| {
-                fancy_regex::RegexBuilder::new(expression)
-                    .case_insensitive(host)
-                    .dot_matches_new_line(true)
-                    .backtrack_limit(ROUTE_BACKTRACK_LIMIT)
-                    .build()
-                    .map(|regex| Self::Extended(Box::new(regex)))
-                    .map_err(|_| source)
-            })
-    }
+fn compile_pcre(expression: &str, host: bool) -> Result<pcre2::bytes::Regex, pcre2::Error> {
+    pcre2::bytes::RegexBuilder::new()
+        .utf(true)
+        .ucp(true)
+        .caseless(host)
+        .dotall(true)
+        .build(&format!("{PCRE_LIMITS}{expression}"))
 }
 
 enum Token<'a> {
@@ -161,6 +151,7 @@ impl RoutePattern {
             .rposition(|token| !matches!(token, Token::Parameter { optional: true, .. }))
             .map_or(0, |index| index + 1);
         let mut expression = String::from(r"\A");
+        let mut constrained = false;
         for (index, token) in tokens.iter().enumerate() {
             match token {
                 Token::Literal(text) => expression.push_str(&regex::escape(text)),
@@ -179,6 +170,7 @@ impl RoutePattern {
 
                     let default;
                     let constraint = if let Some(constraint) = constraints.get(*name) {
+                        constrained = true;
                         constraint.as_str()
                     } else {
                         let separator = tokens[index + 1..]
@@ -203,12 +195,24 @@ impl RoutePattern {
         }
         expression.push_str(&")?".repeat(tokens.len() - optional_start));
         expression.push_str(r"\z");
-        let regex = Matcher::compile(&expression, host).map_err(|source| {
-            RoutingError::InvalidRoutePattern {
-                uri: uri.to_owned(),
-                source,
-            }
-        })?;
+        let regex = if constrained {
+            compile_pcre(&expression, host)
+                .map(|regex| Matcher::Pcre(Box::new(regex)))
+                .map_err(|source| RoutingError::InvalidPcreRoutePattern {
+                    uri: uri.to_owned(),
+                    source,
+                })?
+        } else {
+            RegexBuilder::new(&expression)
+                .case_insensitive(host)
+                .dot_matches_new_line(true)
+                .build()
+                .map(Matcher::Linear)
+                .map_err(|source| RoutingError::InvalidRoutePattern {
+                    uri: uri.to_owned(),
+                    source,
+                })?
+        };
         Ok(Self {
             regex,
             uri_without_binding_fields,
@@ -222,9 +226,15 @@ impl RoutePattern {
     pub(super) fn matches(&self, path: &str) -> bool {
         match &self.regex {
             Matcher::Linear(regex) => regex.is_match(path),
-            Matcher::Extended(regex) => regex
-                .captures(path)
-                .is_ok_and(|captures| captures.is_some()),
+            Matcher::Pcre(regex) => regex.captures(path.as_bytes()).is_ok_and(|captures| {
+                captures.is_some_and(|captures| {
+                    self.parameters.iter().all(|(name, _)| {
+                        captures
+                            .name(name)
+                            .is_none_or(|value| std::str::from_utf8(value.as_bytes()).is_ok())
+                    })
+                })
+            }),
         }
     }
 
@@ -248,14 +258,16 @@ impl RoutePattern {
                     captures.name(name).map(|value| value.as_str())
                 })
             }
-            Matcher::Extended(regex) => {
+            Matcher::Pcre(regex) => {
                 let captures = regex
-                    .captures(path)
+                    .captures(path.as_bytes())
                     .ok()
                     .flatten()
                     .expect("route already matched");
                 self.parameter_values(defaults, |name| {
-                    captures.name(name).map(|value| value.as_str())
+                    captures
+                        .name(name)
+                        .and_then(|value| std::str::from_utf8(value.as_bytes()).ok())
                 })
             }
         }
@@ -294,13 +306,41 @@ pub(super) fn constraint(name: &str, expression: &str) -> Result<String, Routing
         .or_else(|| expression.strip_suffix(r"\z"))
         .filter(|prefix| trailing_backslashes(prefix).is_multiple_of(2))
         .unwrap_or(expression);
-    if expression.is_empty() || Matcher::compile(expression, false).is_err() {
+    let normalized = noncapturing_groups(expression);
+    if expression.is_empty() || compile_pcre(&normalized, false).is_err() {
         return Err(RoutingError::InvalidConstraint {
             parameter: name.to_owned(),
             expression: expression.to_owned(),
         });
     }
-    Ok(expression.to_owned())
+    Ok(normalized)
+}
+
+// Symfony removes unnamed captures before inserting the route parameter's own capture.
+fn noncapturing_groups(expression: &str) -> String {
+    let bytes = expression.as_bytes();
+    let mut normalized = String::new();
+    let mut copied = 0;
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            b'\\' => cursor += 1,
+            b'(' if cursor + 2 < bytes.len() => {
+                cursor += 1;
+                if matches!(bytes[cursor], b'?' | b'*') {
+                    cursor += 1;
+                } else {
+                    normalized.push_str(&expression[copied..cursor]);
+                    normalized.push_str("?:");
+                    copied = cursor;
+                }
+            }
+            _ => {}
+        }
+        cursor += 1;
+    }
+    normalized.push_str(&expression[copied..]);
+    normalized
 }
 
 fn trailing_backslashes(prefix: &str) -> usize {

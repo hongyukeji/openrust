@@ -8,7 +8,7 @@
 
 `{id}` 表示必填參數。在末尾參數加上 `?` 即可省略，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 讀取符合的值。省略參數時傳回 `None`，也可以用路由的 `defaults` 提供字串預設值。參數後面還有必填參數或固定文字時，仍須提供該參數。
 
-用 `Route::r#where` 指定正規表示式，也可使用 `where_number`、`where_alpha`、`where_alpha_numeric`、`where_uuid`、`where_ulid` 或 `where_in`。在註冊路由前呼叫 `Router::pattern`，可替後續路由的同名參數設定限制。單一路由上的限制優先。`where_in` 將值接成正規表示式的替代分支，特殊字元保留原義。一般表示式使用 Rust 的 `regex` 引擎。限制也可使用環視，例如 `r"(?!admin\z)[a-z]+"`，以及具名反向參照。這類表示式使用另一引擎，回溯上限為 100,000 步，超過上限視為未比對。路由註冊時會拒絕 `(*MARK:...)` 等 PCRE 專用語法。
+用 `Route::r#where` 指定正規表示式，也可使用 `where_number`、`where_alpha`、`where_alpha_numeric`、`where_uuid`、`where_ulid` 或 `where_in`。在註冊路由前呼叫 `Router::pattern`，可替後續路由的同名參數設定限制。單一路由上的限制優先。`where_in` 將值接成正規表示式的替代分支，特殊字元保留原義。沒有明確限制的路由使用 Rust 的線性正規表示式引擎。明確限制使用 PCRE2，支援環視、具名反向參照和 `(*MARK:...)`。例如，`r"(?!admin\z)[a-z]+"` 排除 `admin`。比對使用 UTF-8 和 Unicode 字元屬性。無效表示式會使註冊失敗。執行時達到 PCRE2 的比對、深度或堆積記憶體上限時，視為未比對。反向參照須在同一個參數限制內解析。
 
 比對時以 UTF-8 對路徑執行百分號解碼，並忽略查詢字串。解碼結果無效時傳回 HTTP 400。比對路由與檢查可用方法時都會套用限制。例如 `/profiles/{id?}` 是限制數字 ID 的 GET 路由時，`POST /profiles/7` 傳回 405 和 `Allow`。如果沒有其他路由符合該路徑，`POST /profiles/alice` 傳回 404。
 

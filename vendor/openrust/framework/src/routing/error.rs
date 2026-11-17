@@ -38,6 +38,10 @@ pub enum RoutingError {
         uri: String,
         source: regex::Error,
     },
+    InvalidPcreRoutePattern {
+        uri: String,
+        source: pcre2::Error,
+    },
     UnknownMiddleware {
         name: String,
     },
@@ -77,6 +81,9 @@ impl fmt::Display for RoutingError {
             Self::InvalidRoutePattern { uri, source } => {
                 write!(f, "invalid pattern for route {uri:?}: {source}")
             }
+            Self::InvalidPcreRoutePattern { uri, source } => {
+                write!(f, "invalid PCRE pattern for route {uri:?}: {source}")
+            }
             Self::UnknownRouteParameter { name, uri } => {
                 write!(f, "unknown parameter {name:?} on route {uri:?}")
             }
@@ -93,6 +100,7 @@ impl Error for RoutingError {
         match self {
             Self::ContainerFailed { source } => Some(source),
             Self::InvalidRoutePattern { source, .. } => Some(source),
+            Self::InvalidPcreRoutePattern { source, .. } => Some(source),
             Self::BroadcastRegistration { source } => Some(source),
             Self::StaticMountConfiguration { source } => Some(source),
             _ => None,

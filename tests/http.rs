@@ -666,6 +666,18 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
             router
                 .get("/currency/{id}", show_route)?
                 .r#where("id", r"^[0-9]+\$$")?;
+            router
+                .get("/marked/{id}", show_route)?
+                .r#where("id", r"(?:[a-z]+(*MARK:word)|[0-9]+(*MARK:number))")?;
+            router
+                .get("/unicode/{id}", show_route)?
+                .r#where("id", r"\p{L}+")?;
+            router
+                .get("/digits/{id}", show_route)?
+                .r#where("id", r"\d+")?;
+            router
+                .get("/possessive/{id}", show_route)?
+                .r#where("id", r"(?:a++a|b++c)")?;
             router.pattern("id", "^[0-9]+$")?;
             router.group(
                 RouteGroup::new()
@@ -895,6 +907,11 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             ("/lookahead/edition", "edition|-|-"),
             ("/repeat/same-same", "same-same|-|-"),
             ("/currency/42%24", "42$|-|-"),
+            ("/marked/hello", "hello|-|-"),
+            ("/marked/42", "42|-|-"),
+            ("/unicode/caf%C3%A9", "café|-|-"),
+            ("/digits/%D9%A4", "٤|-|-"),
+            ("/possessive/bbbc", "bbbc|-|-"),
             ("/format/Html", "Html|-|-"),
             ("/format/Html.v2", "Html|v2|-"),
             ("/choice/7", "7|-|-"),
@@ -908,7 +925,7 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
             assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected, "{path}");
         }
-        for path in ["/lookahead/admin", "/repeat/same-other", "/currency/42", "/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
+        for path in ["/lookahead/admin", "/repeat/same-other", "/currency/42", "/marked/hello42", "/unicode/42", "/possessive/aaa", "/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
             assert!(send("GET", path).starts_with("HTTP/1.1 404 "), "{path}");
             let response = send("POST", path);
             assert!(response.starts_with("HTTP/1.1 404 "), "{path}: {response}");
