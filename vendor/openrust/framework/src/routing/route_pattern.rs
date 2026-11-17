@@ -6,6 +6,9 @@ use super::RoutingError;
 
 const SEPARATORS: &str = "/,;.:-_~+*=@|";
 const PCRE_LIMITS: &str = "(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)(*LIMIT_HEAP=8192)";
+// PCRE2's public compile error codes for unresolved absolute and relative references.
+const PCRE_BAD_SUBPATTERN_REFERENCE: i32 = 115;
+const PCRE_BAD_RELATIVE_REFERENCE: i32 = 129;
 
 enum Matcher {
     Linear(Regex),
@@ -307,7 +310,14 @@ pub(super) fn constraint(name: &str, expression: &str) -> Result<String, Routing
         .filter(|prefix| trailing_backslashes(prefix).is_multiple_of(2))
         .unwrap_or(expression);
     let normalized = noncapturing_groups(expression);
-    if expression.is_empty() || compile_pcre(&normalized, false).is_err() {
+    // Route variables contribute captures only when the full path or host is compiled.
+    let invalid_syntax = compile_pcre(&normalized, false).is_err_and(|error| {
+        !matches!(
+            error.code(),
+            PCRE_BAD_SUBPATTERN_REFERENCE | PCRE_BAD_RELATIVE_REFERENCE
+        )
+    });
+    if expression.is_empty() || invalid_syntax {
         return Err(RoutingError::InvalidConstraint {
             parameter: name.to_owned(),
             expression: expression.to_owned(),

@@ -52,3 +52,10 @@
 - `pcre2` 0.2.11、`pcre2-sys` 0.2.10 的包装代码采用 Unlicense 或 MIT。绑定可使用系统 PCRE2，也可编译随包提供的 PCRE2 10.46。本批使用捆绑库验证独立构建，仅使用普通解释器匹配。上游公开的 JIT、DFA、模式转换及序列化接口未参与路由匹配。 [PCRE2 上游版本说明](https://github.com/PCRE2Project/pcre2/releases)
 - PHP 对照确认 `/pair/{id}/{slug}` 的 `slug` 可用 `\k<id>` 引用前一个路由变量。Rust 目前提前单独校验每项约束，跨变量反向引用仍待接通。不同 PCRE2 版本和发布平台仍需复验。04-01 保持开放，账本维持 55/66。
 - Rust 1.94.0 在 `22fc4cf0e` 隔离快照通过 16 项 HTTP、4 项 URL 回归、实际 `route:list -vv --json --middleware=SubstituteBindings` 及 `artisan inspire`。工作区严格 Clippy、改动文件格式和 18 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。`cargo deny --offline check` 的来源与禁用项通过，许可清单与既有依赖维护告警仍报告失败。隔离产物已回收，证据目录 `/private/tmp/openrust-04-01-pcre.9SFIcm2K`。
+
+## 跨参数反向引用与整单元验收
+
+- 固定 Laravel 将路径与域名分别交给 Symfony 编译。OpenRust 保留约束的预校验，只把 PCRE2 的未解析子模式引用延后到完整路径或域名编译阶段。直接路由约束、分组和全局模式都使用同一流程。引用仍未解析时，路由变更或注册失败，原路由及方法索引保持可用。旧版 `v0.x` 未发现对应表达式引擎，路由集合验收场景沿用本单元既有用例。 [Laravel 路由编译](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Route.php#L1389) · [Symfony 路由编译器](https://github.com/symfony/routing/blob/v7.4.0/RouteCompiler.php)
+- Symfony v7.4.0 与 PHP 8.5 对照通过命名引用、相对引用、尾部可选参数和域名捕获。实际 HTTP 对照通过同一组成功与 404，并覆盖全局模式和分组前缀。回归确认无效语法即时拒绝，无法解析的引用在完整路由编译时失败。
+- 依交付计划核对 GET、HEAD、OPTIONS、404、405、必填与可选参数、分组作用域、文本与 JSON `route:list`，以及绑定字段、动作、域名和中间件诊断。结合前批具名 URL、模式编译及本批跨变量引用实测，04-01 核心单元闭合，账本更新为 56/66。不同 PCRE2 版本及 Windows 实机留到发布矩阵复验。
+- `faa57a979` 隔离快照以 Rust 1.94.0 和捆绑 PCRE2 运行，16 项 HTTP、4 项 URL、实际 `route:list -vv --json --middleware=SubstituteBindings` 和 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查通过。改动文件格式通过，全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。已清理本批独占产物，证据目录 `/private/tmp/openrust-04-01-cross-ref.nSix2LRX`。

@@ -678,6 +678,27 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
             router
                 .get("/possessive/{id}", show_route)?
                 .r#where("id", r"(?:a++a|b++c)")?;
+            router
+                .get("/paired/{id}/{tab?}", show_route)?
+                .r#where("tab", r"\k<id>")?;
+            router.group(
+                RouteGroup::new()
+                    .prefix("relative/{id}")
+                    .r#where("tab", r"\g{-2}")?,
+                |router| {
+                    router.get("/{tab}", show_route)?;
+                    Ok(())
+                },
+            )?;
+            router.group(
+                RouteGroup::new()
+                    .domain("{id}.{tab}.example.net")
+                    .r#where("tab", r"\k<id>")?,
+                |router| {
+                    router.get("/domain-pair", show_route)?;
+                    Ok(())
+                },
+            )?;
             router.pattern("id", "^[0-9]+$")?;
             router.group(
                 RouteGroup::new()
@@ -720,6 +741,8 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
                 .middleware_name("stop")
                 .withoutMiddleware("stop");
             router.get("/{id?}", show_route)?.where_number("id")?;
+            router.pattern("path", r"\k<id>")?;
+            router.get("/global-pair/{id}/{path}", show_route)?;
             Ok(router)
         }))
 }
@@ -898,6 +921,10 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
         assert!(post.ends_with("acme|id:17|-"), "{post}");
         let wrong_domain = send_to("GET", "/bound/demo/summary", "example.test");
         assert!(wrong_domain.starts_with("HTTP/1.1 404 "), "{wrong_domain}");
+        let matched_domain = send_to("GET", "/domain-pair", "key.key.example.net");
+        assert!(matched_domain.starts_with("HTTP/1.1 200 ") && matched_domain.ends_with("key|key|-"), "{matched_domain}");
+        let invalid_domain = send_to("GET", "/domain-pair", "key.other.example.net");
+        assert!(invalid_domain.starts_with("HTTP/1.1 404 "), "{invalid_domain}");
         for (path, expected) in [
             ("/", "-|-|-"),
             ("/007", "007|-|-"),
@@ -912,6 +939,10 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             ("/unicode/caf%C3%A9", "café|-|-"),
             ("/digits/%D9%A4", "٤|-|-"),
             ("/possessive/bbbc", "bbbc|-|-"),
+            ("/paired/key", "key|-|-"),
+            ("/paired/key/key", "key|key|-"),
+            ("/relative/key/key", "key|key|-"),
+            ("/global-pair/7/7", "7|-|7"),
             ("/format/Html", "Html|-|-"),
             ("/format/Html.v2", "Html|v2|-"),
             ("/choice/7", "7|-|-"),
@@ -925,7 +956,7 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
             assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
             assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected, "{path}");
         }
-        for path in ["/lookahead/admin", "/repeat/same-other", "/currency/42", "/marked/hello42", "/unicode/42", "/possessive/aaa", "/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
+        for path in ["/lookahead/admin", "/repeat/same-other", "/currency/42", "/marked/hello42", "/unicode/42", "/possessive/aaa", "/paired/key/other", "/relative/key/other", "/global-pair/7/8", "/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
             assert!(send("GET", path).starts_with("HTTP/1.1 404 "), "{path}");
             let response = send("POST", path);
             assert!(response.starts_with("HTTP/1.1 404 "), "{path}: {response}");
@@ -1001,10 +1032,26 @@ async fn middleware_configuration_errors_fail_before_serving() {
 
 #[tokio::test]
 async fn invalid_constraint_leaves_the_previous_pattern_active() {
+    use openrust::routing::RoutingError;
+
     let mut router = Router::new();
     router.pattern("id", "[0-9]+").unwrap();
+    assert!(router.pattern("id", "(").is_err());
+    assert!(RouteGroup::new().r#where("id", "(").is_err());
     let route = router.get("/items/{id}", explicit).unwrap();
-    assert!(route.r#where("id", "(").is_err());
+    assert!(matches!(
+        route.r#where("id", "("),
+        Err(RoutingError::InvalidConstraint { .. })
+    ));
+    assert!(matches!(
+        route.r#where("id", r"\k<missing>"),
+        Err(RoutingError::InvalidPcreRoutePattern { .. })
+    ));
+    router.pattern("id", r"\k<missing>").unwrap();
+    assert!(matches!(
+        router.get("/items/{id}", explicit),
+        Err(RoutingError::InvalidPcreRoutePattern { .. })
+    ));
     let (mut matched, _) = request(Method::GET, "/items/7");
     assert_eq!(
         router.dispatch(&mut matched).await.unwrap().status(),
