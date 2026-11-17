@@ -235,6 +235,20 @@ impl DynamoDbStore {
         Ok(result.item)
     }
 
+    pub(super) async fn read_lock_owner(&self, key: &str) -> CacheResult<Option<String>> {
+        let Some(item) = self.read(key, true).await? else {
+            return Ok(None);
+        };
+        self.value(&item, now())?
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_owned)
+                    .ok_or(CacheError::InvalidOwner)
+            })
+            .transpose()
+    }
+
     async fn write(&self, key: &str, value: &Value, expiry: i64) -> CacheResult<bool> {
         self.getClient()
             .await

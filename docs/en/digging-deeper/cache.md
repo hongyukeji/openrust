@@ -119,6 +119,27 @@ Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to 
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.
 
+### Lock status and retry interval {#lock-status}
+
+`isLocked().await?` checks whether the backend holds the lock. `isOwnedBy(token).await?` compares an owner token, while `isOwnedByCurrentProcess().await?` compares the token of this handle. `isOwnedBy(None).await?` checks for no owner. Status checks do not acquire or renew a lock. The `null` store always reports unlocked and uses the handle token for ownership checks.
+
+`betweenBlockedAttemptsSleepFor(milliseconds)` sets the interval for `block` and `blockWith` on the returned handle. The default is 250 ms. A zero interval yields to other Tokio tasks between attempts.
+
+```rust
+use std::time::Duration;
+
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn ready_for_report() -> CacheResult<bool> {
+    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
+        .betweenBlockedAttemptsSleepFor(25)?;
+    lock.block(Duration::from_secs(2)).await?;
+    let owned = lock.isOwnedByCurrentProcess().await;
+    lock.release().await?;
+    owned
+}
+```
+
 ### Run a callback while holding a lock {#lock-callbacks}
 
 Use `getWith` to try once or `blockWith` to wait. Both take ownership of the handle and release its lock after the callback returns, including an error result. `getWith` returns `None` on contention. `blockWith` returns `CacheError::LockTimeout` on timeout. Neither invokes the callback when acquisition fails.

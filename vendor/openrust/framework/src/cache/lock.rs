@@ -19,6 +19,27 @@ use super::{
     reason = "Matches Laravel's callback-based lock operations"
 )]
 impl dyn LockContract {
+    /// Compares the backend owner with the given token. `None` tests for no owner.
+    pub async fn isOwnedBy<'a>(&mut self, owner: impl Into<Option<&'a str>>) -> CacheResult<bool> {
+        Ok(self.current_owner().await?.as_deref() == owner.into())
+    }
+
+    /// Compares the backend owner with this handle's token.
+    pub async fn isOwnedByCurrentProcess(&mut self) -> CacheResult<bool> {
+        Ok(self.current_owner().await?.as_deref() == Some(self.owner()))
+    }
+
+    /// Sets the interval used by `block` and `blockWith` on this handle.
+    pub fn betweenBlockedAttemptsSleepFor(
+        mut self: Box<Self>,
+        milliseconds: u64,
+    ) -> CacheResult<Box<Self>> {
+        *self
+            .retry_interval_mut()
+            .ok_or(CacheError::LockRetryIntervalUnsupported)? = Duration::from_millis(milliseconds);
+        Ok(self)
+    }
+
     /// Attempts once, returning `None` if another owner is holding the lock.
     pub async fn getWith<T, F>(
         self: Box<Self>,
@@ -144,6 +165,8 @@ impl Drop for ScopedLock {
     }
 }
 
+pub(super) const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_millis(250);
+
 /// Coordinates acquisition and ownership for an atomic cache lock.
 pub struct Lock {
     engine: Engine,
@@ -151,6 +174,7 @@ pub struct Lock {
     owner: String,
     lease: Option<Duration>,
     database: bool,
+    retry_interval: Duration,
 }
 
 impl Lock {
@@ -168,6 +192,7 @@ impl Lock {
             owner,
             lease,
             database,
+            retry_interval: DEFAULT_RETRY_INTERVAL,
         })
     }
 
@@ -198,7 +223,8 @@ impl LockContract for Lock {
     }
 
     fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(block_lock(self, wait))
+        let interval = self.retry_interval;
+        Box::pin(block_lock(self, wait, interval))
     }
 
     fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -233,6 +259,26 @@ impl LockContract for Lock {
         )
     }
 
+    fn current_owner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
+        Box::pin(async move {
+            self.engine
+                .read(self.key.clone())
+                .await?
+                .map(|record| {
+                    record
+                        .value
+                        .as_str()
+                        .map(str::to_owned)
+                        .ok_or(CacheError::InvalidOwner)
+                })
+                .transpose()
+        })
+    }
+
+    fn retry_interval_mut(&mut self) -> Option<&mut Duration> {
+        Some(&mut self.retry_interval)
+    }
+
     fn owner(&self) -> &str {
         &self.owner
     }
@@ -255,7 +301,11 @@ pub(super) fn lock_owner(owner: Option<&str>) -> CacheResult<String> {
     })
 }
 
-pub(super) async fn block_lock(lock: &mut dyn LockContract, wait: Duration) -> CacheResult<()> {
+pub(super) async fn block_lock(
+    lock: &mut dyn LockContract,
+    wait: Duration,
+    interval: Duration,
+) -> CacheResult<()> {
     let deadline = tokio::time::Instant::now()
         .checked_add(wait)
         .ok_or(CacheError::InvalidValue)?;
@@ -267,7 +317,11 @@ pub(super) async fn block_lock(lock: &mut dyn LockContract, wait: Duration) -> C
         if remaining.is_zero() {
             return Err(CacheError::LockTimeout);
         }
-        tokio::time::sleep(remaining.min(Duration::from_millis(250))).await;
+        if interval.is_zero() {
+            tokio::task::yield_now().await;
+        } else {
+            tokio::time::sleep(remaining.min(interval)).await;
+        }
         if tokio::time::Instant::now() >= deadline {
             return Err(CacheError::LockTimeout);
         }

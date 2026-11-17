@@ -93,6 +93,8 @@ pub enum CacheError {
     LockFlushUnsupported,
     LockStoreNotSeparate,
     LockTimeout,
+    LockInspectionUnsupported,
+    LockRetryIntervalUnsupported,
     Backend {
         source: Box<dyn Error + Send + Sync>,
     },
@@ -184,6 +186,12 @@ impl std::fmt::Display for CacheError {
                 f.write_str("The cache store does not support clearing the entire store.")
             }
             Self::LockTimeout => f.write_str("Timed out acquiring the cache lock."),
+            Self::LockInspectionUnsupported => {
+                f.write_str("This cache lock does not support owner inspection.")
+            }
+            Self::LockRetryIntervalUnsupported => {
+                f.write_str("This cache lock does not support a custom retry interval.")
+            }
             Self::Backend { .. } => f.write_str("The cache backend operation failed."),
         }
     }

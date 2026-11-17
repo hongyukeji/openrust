@@ -119,6 +119,27 @@ async fn store_report() -> Result<bool, CacheError> {
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。
 
+### 锁状态与重试间隔 {#lock-status}
+
+`isLocked().await?` 查询后端是否持有锁。`isOwnedBy(token).await?` 比对指定令牌，`isOwnedByCurrentProcess().await?` 比对当前句柄的令牌。`isOwnedBy(None).await?` 检查是否没有所有者。状态查询不会获取锁或续期。`null` 存储始终报告未锁定，所有者查询使用当前句柄的令牌。
+
+`betweenBlockedAttemptsSleepFor(milliseconds)` 设置返回句柄的 `block` 和 `blockWith` 重试间隔，默认 250 毫秒。间隔为 0 时，每次重试前让出 Tokio 执行权。
+
+```rust
+use std::time::Duration;
+
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn ready_for_report() -> CacheResult<bool> {
+    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
+        .betweenBlockedAttemptsSleepFor(25)?;
+    lock.block(Duration::from_secs(2)).await?;
+    let owned = lock.isOwnedByCurrentProcess().await;
+    lock.release().await?;
+    owned
+}
+```
+
 ### 持锁执行回调 {#lock-callbacks}
 
 用 `getWith` 尝试一次，或用 `blockWith` 等待。两者接管锁句柄，在回调返回时释放锁，包括回调出错的情况。锁被占用时，`getWith` 返回 `None`。等待超时则由 `blockWith` 返回 `CacheError::LockTimeout`。获取失败时均不会调用回调。

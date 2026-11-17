@@ -4,7 +4,7 @@ use crate::contracts::cache::{Lock, Store};
 
 use super::{
     CacheError, CacheFuture, CacheResult, DynamoDbStore, Value,
-    lock::{block_lock, lock_owner},
+    lock::{DEFAULT_RETRY_INTERVAL, block_lock, lock_owner},
 };
 
 /// An atomic lock leased through a DynamoDB cache item.
@@ -13,6 +13,7 @@ pub struct DynamoDbLock {
     key: String,
     owner: String,
     lease: NonZeroU64,
+    retry_interval: Duration,
 }
 
 impl DynamoDbLock {
@@ -27,6 +28,7 @@ impl DynamoDbLock {
             key,
             owner: lock_owner(owner)?,
             lease: lease_seconds(lease)?,
+            retry_interval: DEFAULT_RETRY_INTERVAL,
         })
     }
 }
@@ -45,7 +47,8 @@ impl Lock for DynamoDbLock {
     }
 
     fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(block_lock(self, wait))
+        let interval = self.retry_interval;
+        Box::pin(block_lock(self, wait, interval))
     }
 
     fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -66,6 +69,14 @@ impl Lock for DynamoDbLock {
 
     fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>> {
         Box::pin(async move { self.store.forget(&self.key).await.map(|_| ()) })
+    }
+
+    fn current_owner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
+        Box::pin(self.store.read_lock_owner(&self.key))
+    }
+
+    fn retry_interval_mut(&mut self) -> Option<&mut Duration> {
+        Some(&mut self.retry_interval)
     }
 
     fn owner(&self) -> &str {

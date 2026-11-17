@@ -4,7 +4,7 @@ use crate::{contracts::cache::Lock as LockContract, redis::connections::Connecti
 
 use super::{
     CacheError, CacheFuture, CacheResult, backend,
-    lock::{block_lock, lock_owner},
+    lock::{DEFAULT_RETRY_INTERVAL, block_lock, lock_owner},
 };
 
 const RELEASE: &str = r#"
@@ -30,6 +30,7 @@ pub struct RedisLock {
     key: String,
     owner: String,
     lease: Option<Duration>,
+    retry_interval: Duration,
 }
 
 impl RedisLock {
@@ -44,6 +45,7 @@ impl RedisLock {
             key,
             lease,
             owner: lock_owner(owner)?,
+            retry_interval: DEFAULT_RETRY_INTERVAL,
         })
     }
 }
@@ -63,7 +65,8 @@ impl LockContract for RedisLock {
     }
 
     fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(block_lock(self, wait))
+        let interval = self.retry_interval;
+        Box::pin(block_lock(self, wait, interval))
     }
 
     fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -105,6 +108,19 @@ impl LockContract for RedisLock {
                 .await
                 .map_err(backend)
         })
+    }
+
+    fn current_owner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
+        Box::pin(async move {
+            self.connection
+                .query(::redis::cmd("GET").arg(&self.key))
+                .await
+                .map_err(backend)
+        })
+    }
+
+    fn retry_interval_mut(&mut self) -> Option<&mut Duration> {
+        Some(&mut self.retry_interval)
     }
 
     fn owner(&self) -> &str {

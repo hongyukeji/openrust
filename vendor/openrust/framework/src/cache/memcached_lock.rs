@@ -4,8 +4,8 @@ use crate::contracts::cache::Lock;
 
 use super::{
     CacheError, CacheFuture, CacheResult,
-    lock::{block_lock, lock_owner},
-    memcached_connector::{ADD, Client, DELETE, GET, SET, validate_key},
+    lock::{DEFAULT_RETRY_INTERVAL, block_lock, lock_owner},
+    memcached_connector::{ADD, Client, DELETE, GET, Item, SET, validate_key},
 };
 
 /// An owner-checked atomic Memcached lock.
@@ -14,6 +14,7 @@ pub struct MemcachedLock {
     key: String,
     owner: String,
     lease: Option<Duration>,
+    retry_interval: Duration,
 }
 
 impl MemcachedLock {
@@ -29,15 +30,21 @@ impl MemcachedLock {
             key,
             lease,
             owner: lock_owner(owner)?,
+            retry_interval: DEFAULT_RETRY_INTERVAL,
         })
+    }
+
+    async fn read_item(&self) -> CacheResult<Option<Item>> {
+        self.client
+            .command(GET, self.key.clone(), Vec::new(), Vec::new(), 0)
+            .await?
+            .item()
     }
 
     async fn owned_version(&self) -> CacheResult<Option<u64>> {
         Ok(self
-            .client
-            .command(GET, self.key.clone(), Vec::new(), Vec::new(), 0)
+            .read_item()
             .await?
-            .item()?
             .filter(|item| item.value == self.owner.as_bytes())
             .map(|item| item.cas))
     }
@@ -71,7 +78,8 @@ impl Lock for MemcachedLock {
     }
 
     fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(block_lock(self, wait))
+        let interval = self.retry_interval;
+        Box::pin(block_lock(self, wait, interval))
     }
 
     fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -94,6 +102,19 @@ impl Lock for MemcachedLock {
 
     fn force_release(&mut self) -> CacheFuture<'_, CacheResult<()>> {
         Box::pin(async move { self.delete(0).await.map(|_| ()) })
+    }
+
+    fn current_owner(&mut self) -> CacheFuture<'_, CacheResult<Option<String>>> {
+        Box::pin(async move {
+            self.read_item()
+                .await?
+                .map(|item| String::from_utf8(item.value).map_err(|_| CacheError::InvalidOwner))
+                .transpose()
+        })
+    }
+
+    fn retry_interval_mut(&mut self) -> Option<&mut Duration> {
+        Some(&mut self.retry_interval)
     }
 
     fn owner(&self) -> &str {

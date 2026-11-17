@@ -136,3 +136,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
 - 核对完整原子锁章节后，将 `Lock::isLocked`、`Lock::isOwnedBy`、`Lock::isOwnedByCurrentProcess`、`Lock::betweenBlockedAttemptsSleepFor` 和 [Cache::funnel](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#concurrency-limiting) 列为 03-06 剩余缺口。
 - 临时 MySQL 与 Redis 容器已回收，清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.61 GB（53.65 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-lock-callback.qGNd35ta`。
+
+## 锁状态与重试间隔
+
+- 对照固定 Laravel [Lock 状态和重试间隔](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Lock.php#L153)及 [NoLock](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/NoLock.php#L47)。openrust-v0.x 未找到对应接口，复用现有各驱动的读路径与共享等待循环。
+- `isLocked`、`isOwnedBy` 和 `isOwnedByCurrentProcess` 读取有效所有者，不获取或续期。DynamoDB 用强一致读取。空缓存仓库按固定 Laravel 行为始终报告未锁定，所有者比较使用当前句柄令牌。
+- `betweenBlockedAttemptsSleepFor` 在返回句柄上设置等待间隔，适用于 `block` 与 `blockWith`。默认 250 毫秒，间隔为零时在重试前让出 Tokio 执行权。等待仍按既有截止时间运行。Rust 通过对象安全的驱动方法提供扩展，已有自定义锁实现无需新增必填方法，未实现的能力返回类型化错误。
+- 隔离基线 `133076188`，Rust 1.94.0、macOS arm64。固定 PHP 基线比较通过状态检查、空缓存语义和间隔传递。Rust 的真实 MySQL 8.4.13 和 Redis 8.10.3 验证无主、跨句柄所有者、过期以及竞争下的 10 毫秒等待和零间隔。array、file、null、Memcached 1.6.45 与 DynamoDB Local 3.3.2 各自通过对应状态回归。实际二进制在 MySQL 与 Redis 上验证 HTTP 获取、查询、独立 Artisan 清锁，再次 HTTP 查询未锁定。
+- 相关缓存、事件、memo 和 `artisan inspire` 回归通过。变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查及三语 Rust 示例编译通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
+- 临时容器已回收，清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.56 GB（53.61 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-lock-state.y9PfTwST`。

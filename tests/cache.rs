@@ -126,6 +126,8 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
     let mut contender = second
         .lock("resource", Some(Duration::from_secs(3)), None)
         .unwrap();
+    assert!(!first_lock.isLocked().await.unwrap());
+    assert!(first_lock.isOwnedBy(None).await.unwrap());
     let (left, right) = tokio::join!(first_lock.get(), contender.get());
     let (held, waiting) = if left.unwrap() {
         assert!(!right.unwrap());
@@ -138,6 +140,9 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
         waiting.block(Duration::from_millis(15)).await,
         Err(CacheError::LockTimeout)
     ));
+    assert!(waiting.isLocked().await.unwrap());
+    assert!(!waiting.isOwnedByCurrentProcess().await.unwrap());
+    assert!(waiting.isOwnedBy(held.owner()).await.unwrap());
     assert!(!waiting.release().await.unwrap());
     assert!(!waiting.refresh(None).await.unwrap());
     let mut restored = second.restore_lock("resource", held.owner()).unwrap();
@@ -148,6 +153,7 @@ async fn exercise(first: &Repository, second: &Repository, db: bool) {
             .unwrap()
     );
     tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(!restored.isLocked().await.unwrap());
     assert!(waiting.get().await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(waiting.release().await.unwrap());
@@ -1056,8 +1062,12 @@ async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
     assert_eq!(tagged.get("one").await.unwrap(), None);
     assert!(tagged.flush().await.unwrap());
 
-    let mut first = cache.lock("no-lock", None, None).unwrap();
+    let first = cache.lock("no-lock", None, None).unwrap();
     let mut second = cache.lock("no-lock", None, None).unwrap();
+    let mut first = first.betweenBlockedAttemptsSleepFor(0).unwrap();
+    assert!(!first.isLocked().await.unwrap());
+    assert!(first.isOwnedByCurrentProcess().await.unwrap());
+    assert!(!first.isOwnedBy(None).await.unwrap());
     assert_ne!(first.owner(), second.owner());
     assert!(first.get().await.unwrap());
     assert!(second.get().await.unwrap());
@@ -1397,7 +1407,11 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     let mut other = second
         .lock("rebuild", Some(Duration::from_secs(3)), Some("second"))
         .unwrap();
+    assert!(!owner.isLocked().await.unwrap());
     assert!(owner.get().await.unwrap());
+    assert!(owner.isOwnedByCurrentProcess().await.unwrap());
+    assert!(other.isOwnedBy("first").await.unwrap());
+    assert!(!other.isOwnedByCurrentProcess().await.unwrap());
     assert!(!other.get().await.unwrap());
     assert!(matches!(
         other.block(Duration::from_millis(25)).await,
@@ -1414,7 +1428,9 @@ async fn memcached_values_tags_and_owner_checked_locks_are_shared() {
     );
     tokio::time::sleep(Duration::from_millis(1200)).await;
     assert!(second.get("expiring").await.unwrap().is_none());
+    assert!(!restored.isLocked().await.unwrap());
     assert!(other.get().await.unwrap());
+    assert!(restored.isOwnedBy("second").await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(
         other
@@ -1694,7 +1710,11 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
         .lock("guard", Some(Duration::from_secs(1)), Some("first"))
         .unwrap();
     let mut other = second.lock("guard", None, Some("second")).unwrap();
+    assert!(!owner.isLocked().await.unwrap());
     assert!(owner.get().await.unwrap());
+    assert!(owner.isOwnedByCurrentProcess().await.unwrap());
+    assert!(other.isOwnedBy("first").await.unwrap());
+    assert!(!other.isOwnedByCurrentProcess().await.unwrap());
     assert!(!other.get().await.unwrap());
     assert!(!other.refresh(None).await.unwrap());
     assert!(!other.release().await.unwrap());
@@ -1713,7 +1733,9 @@ async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
     assert!(second.get("expiring").await.unwrap().is_none());
     assert!(!first.touch("expiring", ttl).await.unwrap());
     assert!(first.add("expiring", &7.into(), None).await.unwrap());
+    assert!(!restored.isLocked().await.unwrap());
     assert!(other.get().await.unwrap());
+    assert!(restored.isOwnedBy("second").await.unwrap());
     assert!(!restored.release().await.unwrap());
     assert!(other.refresh(None).await.unwrap());
     assert!(other.release().await.unwrap());
@@ -1817,6 +1839,10 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     let lease = Some(Duration::from_secs(30));
     let wait = Duration::from_secs(3);
     let key = "held-during-callback";
+    let mut inspector = first.lock(key, lease, None).unwrap();
+    assert!(!inspector.isLocked().await.unwrap());
+    assert!(inspector.isOwnedBy(None).await.unwrap());
+
     let result = first
         .lock(key, lease, None)
         .unwrap()
@@ -1831,6 +1857,10 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
 
     let mut contender = second.lock(key, lease, None).unwrap();
     assert!(contender.get().await.unwrap());
+    assert!(inspector.isLocked().await.unwrap());
+    assert!(inspector.isOwnedBy(contender.owner()).await.unwrap());
+    assert!(!inspector.isOwnedByCurrentProcess().await.unwrap());
+    assert!(contender.isOwnedByCurrentProcess().await.unwrap());
     let mut called = false;
     let missed = first
         .lock(key, lease, None)
@@ -1855,6 +1885,39 @@ async fn verify_lock_callbacks(first: &Repository, second: &Repository) {
     assert!(matches!(timeout, Err(CacheError::LockTimeout)));
     assert!(!called);
     assert!(contender.release().await.unwrap());
+
+    let retry_wait = Duration::from_millis(200);
+    assert!(contender.get().await.unwrap());
+    let candidate = first
+        .lock(key, lease, None)
+        .unwrap()
+        .betweenBlockedAttemptsSleepFor(10)
+        .unwrap();
+    let release = async {
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        contender.release().await
+    };
+    let (released, retried) = tokio::join!(
+        release,
+        candidate.blockWith(retry_wait, || async { Ok(42) })
+    );
+    assert!(released.unwrap());
+    assert_eq!(retried.unwrap(), 42);
+
+    assert!(contender.get().await.unwrap());
+    let mut candidate = first
+        .lock(key, lease, None)
+        .unwrap()
+        .betweenBlockedAttemptsSleepFor(0)
+        .unwrap();
+    let release = async {
+        tokio::time::sleep(Duration::from_millis(40)).await;
+        contender.release().await
+    };
+    let (released, retried) = tokio::join!(release, candidate.block(retry_wait));
+    assert!(released.unwrap());
+    retried.unwrap();
+    assert!(candidate.release().await.unwrap());
 
     let failed = first
         .lock(key, lease, None)

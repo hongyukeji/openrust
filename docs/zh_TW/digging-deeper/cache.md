@@ -119,6 +119,27 @@ async fn store_report() -> Result<bool, CacheError> {
 
 用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。
 
+### 鎖定狀態與重試間隔 {#lock-status}
+
+`isLocked().await?` 查詢後端是否持有鎖。`isOwnedBy(token).await?` 比對指定權杖，`isOwnedByCurrentProcess().await?` 比對目前控制代碼的權杖。`isOwnedBy(None).await?` 檢查是否沒有擁有者。狀態查詢不會取得鎖或續期。`null` 儲存庫始終回報未鎖定，擁有者查詢使用目前控制代碼的權杖。
+
+`betweenBlockedAttemptsSleepFor(milliseconds)` 設定傳回之控制代碼的 `block` 和 `blockWith` 重試間隔，預設為 250 毫秒。間隔為 0 時，每次重試前會讓出 Tokio 執行權。
+
+```rust
+use std::time::Duration;
+
+use openrust::{cache::CacheResult, support::facades::Cache};
+
+pub async fn ready_for_report() -> CacheResult<bool> {
+    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?
+        .betweenBlockedAttemptsSleepFor(25)?;
+    lock.block(Duration::from_secs(2)).await?;
+    let owned = lock.isOwnedByCurrentProcess().await;
+    lock.release().await?;
+    owned
+}
+```
+
 ### 持鎖執行回呼 {#lock-callbacks}
 
 用 `getWith` 嘗試一次，或用 `blockWith` 等待。兩者接管鎖的控制代碼，在回呼傳回時釋放鎖，包含回呼出錯的情況。鎖被占用時，`getWith` 傳回 `None`。等待逾時則由 `blockWith` 傳回 `CacheError::LockTimeout`。取得失敗時均不會呼叫回呼。
