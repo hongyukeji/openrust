@@ -32,3 +32,10 @@
 - 对照固定 Laravel `ThrottleRequests::resolveMaxAttempts` 和 Redis 版本的共享参数路径。保留命名限流优先和访客／认证分支，认证分支可读取同名属性。数据库用户提供器直接读取列，应用 Eloquent 模型通过 `Authenticatable::getAuthAttribute` 委托现有属性访问器和转换。自定义认证用户可实现同一接口。额度接受有符号 64 位范围内的非负数和数值字符串，小数向零截断。复核旧版 `http/rate_limit.rs`，沿用认证标识与访客 IP 分桶；旧版没有属性配额接口。 [固定 Laravel 节流中间件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Middleware/ThrottleRequests.php#L170)
 - 在隔离基线 `1c9da1168` 上，以真实 HTTP 复验 Array 和 Redis 8.10.3。锁定测试六项通过，覆盖命名限流仍优先、访客固定额度、数字与字符串属性、缺失或无效属性、不同身份隔离，以及两个独立进程共用额度和 429。真实 MySQL 8.4.13 的会话用例通过，Eloquent 会话用户和数据库 Token 用户均从持久化属性取得额度。
 - Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项路由正文浏览器检查通过。临时 Redis、MySQL 和本批产物已回收，Cargo 清理 3.3 GiB，项目卷可用 80.97 GB（75.41 GiB），周额度剩余 51%。Redis Cluster 多额度同槽尚待验收。证据目录 `/private/tmp/openrust-04-07-model-quota.RwoStlgY`。
+
+## Redis Cluster 多额度与 04-07 整单元验收
+
+- 对照固定 Laravel 的 `ThrottleRequestsWithRedis` 和 `DurationLimiter`。Laravel 用单键脚本处理各项限流。OpenRust 保留一次脚本检查并扣减该命名策略的所有额度，以免因后续额度拒绝而消耗前置额度。复核旧版 `core/rate_limit.rs`、`http/rate_limit.rs` 和真实 Redis 回归，旧版未提供 Cluster 多键计数实现。 [固定 Laravel Redis 节流](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Middleware/ThrottleRequestsWithRedis.php) · [固定 Laravel 路由文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/routing.md#throttling-with-redis)
+- 基线 `e451aed47` 在 Redis 8.10.3 集群上的双额度请求复现 HTTP 500。命名策略按名称和连接前缀派生槽标签，槽标签放在用户前缀之前，避免其中的花括号改变 Redis 的槽解析。数值节流及单机物理键保持原格式。已有集群命名计数的旧键按原 TTL 过期，升级开启新窗口。
+- 真 Redis 8.10.3 集群上的 `sh tests/redis_cluster.sh` 五项通过。双进程 HTTP 验证多额度计数、后置额度拒绝不消耗前置额度、条件计数、访客和认证模型配额，以及 24 次同时竞争中 5 次通过、19 次返回 429。单机 Redis 和 Array 定向回归通过，并复验旧有的 Redis 跨槽读写、独立锁库、标签清理、迁槽和故障切换。
+- Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan route:list`、三语站点、12 项通用和 6 项路由到 Redis 配置的浏览器检查通过。临时 Redis 与本批产物已回收，Cargo 清理 3.8 GiB。项目卷可用 81.05 GB（75.49 GiB），周额度剩余 51%。证据目录 `/private/tmp/openrust-04-07-cluster-quota.MgGkhGxn`。

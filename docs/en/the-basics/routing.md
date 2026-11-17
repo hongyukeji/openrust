@@ -139,6 +139,8 @@ Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upl
 
 Call `middleware.throttleWithRedis()` in `withMiddleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.
 
+With a [default Redis cluster](../database/redis.md#clusters), all counters for one named policy share a hash slot so Redis can check and charge them together. Different named policies can use different slots. Upgrading from the previous Cluster key layout starts a new window for named policies. The old counters expire at their original times.
+
 ## Route Model Binding
 
 Use `Route::model::<Post>("post")?` to register an explicit binding in the application’s router. A route can also declare the model for its own parameter using the router’s `.model::<Post>("post")?` method. Read the resolved model from `request.route_model::<Post>("post")`. Missing models produce a 404. A route can supply a custom response with `missing`.

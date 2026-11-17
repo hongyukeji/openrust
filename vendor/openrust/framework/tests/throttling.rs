@@ -38,6 +38,12 @@ impl ServiceProvider for Limits {
             RateLimiter::r#for("9", |_| Limit::perMinute(1))?;
             RateLimiter::r#for("short", |_| Limit::perSecond(2))?;
             RateLimiter::r#for("shared", |_| Limit::perMinute(5))?;
+            RateLimiter::r#for("multi-shared", |_| {
+                vec![
+                    Limit::perMinute(7).by("overall"),
+                    Limit::perMinute(5).by("strict"),
+                ]
+            })?;
             RateLimiter::r#for("multi", |request| {
                 let mut limits = vec![Limit::perMinute(4).by("first")];
                 if request.is("multi") {
@@ -172,6 +178,9 @@ fn routes() -> Result<(), RoutingError> {
             .get("/shared", empty)?
             .middleware_name("throttle:shared");
         router
+            .get("/multi-shared", empty)?
+            .middleware_name("throttle:multi-shared");
+        router
             .get("/after/{result}", downstream)?
             .middleware_name("throttle:after");
         router
@@ -236,7 +245,15 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
                     json!({"defaults":{"guard":"header"},"guards":{"header":{"driver":"header"}}}),
                 ),
             ]);
-            if let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_PORT") {
+            if let Ok(port) = std::env::var("OPENRUST_THROTTLE_CLUSTER_PORT") {
+                let prefix = std::env::var("OPENRUST_THROTTLE_FIXTURE").unwrap_or_default();
+                config.insert(
+                    "database".into(),
+                    json!({"redis":{"options":{"prefix":prefix},"clusters":{
+                        "default":[{"port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"}]
+                    }}}),
+                );
+            } else if let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_PORT") {
                 let prefix = std::env::var("OPENRUST_THROTTLE_FIXTURE").unwrap_or_default();
                 let url = format!("redis://127.0.0.1:{port}/");
                 config.insert(
@@ -357,13 +374,16 @@ impl Drop for Fixture {
     }
 }
 
-fn fixture(prefix: &str) -> (SocketAddr, Fixture) {
-    let child = Command::new(std::env::current_exe().unwrap())
+fn fixture(prefix: &str, cluster_port: Option<&str>) -> (SocketAddr, Fixture) {
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command
         .args(["--exact", "redis_fixture_process", "--nocapture"])
         .env("OPENRUST_THROTTLE_FIXTURE", prefix)
-        .stdout(Stdio::piped())
-        .spawn()
-        .unwrap();
+        .stdout(Stdio::piped());
+    if let Some(port) = cluster_port {
+        command.env("OPENRUST_THROTTLE_CLUSTER_PORT", port);
+    }
+    let child = command.spawn().unwrap();
     let mut fixture = Fixture(child);
     let stdout = fixture.0.stdout.take().unwrap();
     let (ready, address) = std::sync::mpsc::channel();
@@ -388,11 +408,15 @@ async fn redis_admission_is_atomic_across_two_http_processes() {
         return;
     }
     let prefix = format!("openrust-throttle-{:016x}:", fastrand::u64(..));
-    let (first, _first) = fixture(&prefix);
-    let (second, _second) = fixture(&prefix);
+    let (first, _first) = fixture(&prefix, None);
+    let (second, _second) = fixture(&prefix, None);
+    exercise_concurrent(first, second, "/shared").await;
+}
+
+async fn exercise_concurrent(first: SocketAddr, second: SocketAddr, path: &'static str) {
     let mut requests = tokio::task::JoinSet::new();
     for i in 0..24 {
-        requests.spawn(send(if i % 2 == 0 { first } else { second }, "/shared"));
+        requests.spawn(send(if i % 2 == 0 { first } else { second }, path));
     }
     let mut allowed = 0;
     let mut denied = 0;
@@ -504,7 +528,32 @@ async fn numeric_throttling_shares_identity_buckets_across_redis_processes() {
         return;
     }
     let prefix = format!("openrust-throttle-{:016x}:", fastrand::u64(..));
-    let (first, _first) = fixture(&prefix);
-    let (second, _second) = fixture(&prefix);
+    let (first, _first) = fixture(&prefix, None);
+    let (second, _second) = fixture(&prefix, None);
+    exercise_numeric(first, second).await;
+}
+
+#[tokio::test]
+async fn redis_cluster_admits_all_named_quotas_atomically() {
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    };
+    let prefix = format!("{{}}:openrust-throttle-{:016x}:", fastrand::u64(..));
+    let (first, _first) = fixture(&prefix, Some(&port));
+    let (second, _second) = fixture(&prefix, Some(&port));
+    let accepted = send(first, "/multi").await;
+    assert_eq!(status(&accepted), 204, "{accepted}");
+    assert!(accepted.contains("x-ratelimit-limit: 1"));
+    let denied = send(second, "/multi").await;
+    assert_eq!(status(&denied), 429, "{denied}");
+    assert!(denied.contains("retry-after:"));
+    let probe = send(second, "/multi-probe").await;
+    assert_eq!(status(&probe), 204, "{probe}");
+    assert!(probe.contains("x-ratelimit-remaining: 2"), "{probe}");
+    assert_eq!(status(&send(first, "/after/success").await), 204);
+    assert_eq!(status(&send(second, "/after/failure").await), 400);
+    assert_eq!(status(&send(first, "/after/success").await), 429);
+    exercise_concurrent(first, second, "/multi-shared").await;
     exercise_numeric(first, second).await;
 }

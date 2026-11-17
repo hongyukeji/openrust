@@ -139,6 +139,8 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 在 `withMiddleware` 中呼叫 `middleware.throttleWithRedis()`，讓命名和數字節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。
 
+使用[預設 Redis 叢集](../database/redis.md#clusters)時，同一命名策略的計數器位於同一雜湊槽，Redis 可以一起檢查和計數。不同命名策略可以使用不同的槽。從舊叢集鍵格式升級後，命名策略開啟新的計數視窗，舊計數器依原到期時間清除。
+
 ## 路由模型繫結
 
 使用 `Route::model::<Post>("post")?` 在應用程式 Router 註冊顯式繫結。也可以透過 Router 回傳的路由呼叫 `.model::<Post>("post")?`，為該路由宣告模型參數。使用 `request.route_model::<Post>("post")` 讀取已解析的模型。模型缺失回傳 404，可透過 `missing` 自訂回應。

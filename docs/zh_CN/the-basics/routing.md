@@ -139,6 +139,8 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 在 `withMiddleware` 中调用 `middleware.throttleWithRedis()`，让命名和数字节流别名使用默认 Redis 连接。使用相同 Redis 连接设置和键前缀的进程共享配额。Redis 原子检查并消耗各项额度。使用 `after` 的规则在响应返回后计数。
 
+使用[默认 Redis 集群](../database/redis.md#clusters)时，同一命名策略的计数器位于同一哈希槽，Redis 可以一起检查和计数。不同命名策略可以使用不同的槽。从旧集群键格式升级后，命名策略开启新的计数窗口，旧计数器按原到期时间清理。
+
 ## 路由模型绑定
 
 使用 `Route::model::<Post>("post")?` 在应用 Router 注册显式绑定。也可以通过 Router 返回的路由调用 `.model::<Post>("post")?`，为该路由声明模型参数。使用 `request.route_model::<Post>("post")` 读取已解析的模型。模型缺失返回 404，可通过 `missing` 自定义响应。

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     cache::{
         CacheError, CacheResult,
-        rate_limiting::counters::{Admission, Bucket, Quota, validate},
+        rate_limiting::counters::{self, Admission, Bucket, Quota, validate},
     },
     redis::connections::Connection,
 };
@@ -39,16 +39,41 @@ return result
 /// Applies fixed-duration counters in a single atomic Redis command.
 pub struct DurationLimiter {
     connection: Arc<Connection>,
+    cluster_tag: Option<String>,
 }
 
 impl DurationLimiter {
     pub fn new(connection: Arc<Connection>) -> Self {
-        Self { connection }
+        Self {
+            connection,
+            cluster_tag: None,
+        }
+    }
+
+    pub(crate) fn for_http_policy(mut self, name: &str) -> Self {
+        if self.connection.is_cluster() {
+            self.cluster_tag = Some(counters::key(
+                "http-redis-slot",
+                name,
+                &self.connection.key(""),
+            ));
+        }
+        self
+    }
+
+    fn key(&self, key: &str) -> String {
+        let key = self.connection.key(key);
+        if let Some(tag) = &self.cluster_tag {
+            // The policy tag must precede any braces in the connection prefix.
+            format!("{{{tag}}}:{key}")
+        } else {
+            key
+        }
     }
 
     pub(crate) async fn clear(&self, key: &str) -> CacheResult<()> {
         self.connection
-            .query::<u64>(::redis::cmd("DEL").arg(self.connection.key(key)))
+            .query_slot::<u64>(::redis::cmd("DEL").arg(self.key(key)))
             .await
             .map(|_| ())
             .map_err(|source| CacheError::Backend {
@@ -61,7 +86,7 @@ impl DurationLimiter {
         let mut command = ::redis::cmd("EVAL");
         command.arg(ADMIT).arg(quotas.len());
         for quota in quotas {
-            command.arg(self.connection.key(&quota.key));
+            command.arg(self.key(&quota.key));
         }
         for quota in quotas {
             command
@@ -69,13 +94,14 @@ impl DurationLimiter {
                 .arg(quota.decay)
                 .arg(u8::from(quota.charge));
         }
-        let result: Vec<u64> =
-            self.connection
-                .query(&command)
-                .await
-                .map_err(|source| CacheError::Backend {
-                    source: Box::new(source),
-                })?;
+        let result: Vec<u64> = if quotas.len() == 1 || self.cluster_tag.is_some() {
+            self.connection.query_slot(&command).await
+        } else {
+            self.connection.query(&command).await
+        }
+        .map_err(|source| CacheError::Backend {
+            source: Box::new(source),
+        })?;
         match result.split_first() {
             Some((&0, buckets)) if buckets.len() == quotas.len() * 2 => Ok(Admission::Allowed(
                 buckets

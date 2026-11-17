@@ -67,6 +67,7 @@ pub(super) async fn handle(
     } else {
         RateLimiter::limiter(name).map_err(internal)?
     };
+    let named_policy = named.is_some();
     let (namespace, limits) = if let Some(callback) = named {
         let limits = match callback(request) {
             LimiterResponse::Limit(limit) => vec![limit],
@@ -82,9 +83,12 @@ pub(super) async fn handle(
         return Ok(next.run(request).await);
     }
     let backend = if redis {
-        Backend::Redis(DurationLimiter::new(
-            Redis::connection(None).map_err(internal)?,
-        ))
+        let limiter = DurationLimiter::new(Redis::connection(None).map_err(internal)?);
+        Backend::Redis(if named_policy {
+            limiter.for_http_policy(namespace)
+        } else {
+            limiter
+        })
     } else {
         let limiter = RateLimiter::getFacadeRoot()
             .map_err(CacheError::Unavailable)
