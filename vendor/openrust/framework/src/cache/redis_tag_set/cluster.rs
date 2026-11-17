@@ -106,7 +106,7 @@ impl RedisTagSet {
                 // Redis checks declared keys before running the script, even if absent.
                 None => format!("{index_prefix}{next}"),
             };
-            let retired: Option<Vec<String>> = self
+            let rotated: Option<u64> = self
                 .query(
                     cluster_script(RETIRE, 3)
                         .arg(&metadata)
@@ -116,29 +116,11 @@ impl RedisTagSet {
                         .arg(&next),
                 )
                 .await?;
-            let Some(retired) = retired else { continue };
-            for id in retired {
-                if !valid_digest(&id, 32) {
-                    return Err(CacheError::InvalidValue);
-                }
-                let index = format!("{index_prefix}{id}");
-                loop {
-                    let items: Vec<Vec<u8>> = self
-                        .query(
-                            ::redis::cmd("ZRANGE")
-                                .arg(&index)
-                                .arg(0)
-                                .arg(BATCH_SIZE - 1),
-                        )
-                        .await?;
-                    if !self
-                        .cleanup(&registry, &index, &pending, &id, &items, true)
-                        .await?
-                    {
-                        break;
-                    }
-                }
+            if rotated.is_none() {
+                continue;
             }
+            self.cleanup_pending_generations(&registry, &index_prefix, &pending, true)
+                .await?;
             return Ok(format!("{tag}:{next}"));
         }
         Err(CacheError::InvalidValue)
@@ -223,7 +205,8 @@ impl RedisTagSet {
                     .strip_prefix(&pending_prefix)
                     .filter(|tag| valid_digest(tag, 64))
                 {
-                    self.prune_pending_generations(registry, index_prefix, pending, tag)
+                    let prefix = format!("{index_prefix}{tag}:");
+                    self.cleanup_pending_generations(registry, &prefix, pending, false)
                         .await?;
                 }
             }
@@ -234,12 +217,12 @@ impl RedisTagSet {
         }
     }
 
-    async fn prune_pending_generations(
+    async fn cleanup_pending_generations(
         &self,
         registry: &str,
         index_prefix: &str,
         pending: &str,
-        tag: &str,
+        retire: bool,
     ) -> CacheResult<()> {
         let mut cursor = 0_u64;
         loop {
@@ -261,9 +244,14 @@ impl RedisTagSet {
                     invalid.push(generation.as_slice());
                     continue;
                 };
-                let index = format!("{index_prefix}{tag}:{id}");
-                self.cleanup(registry, &index, pending, id, &[], false)
-                    .await?;
+                let index = format!("{index_prefix}{id}");
+                if retire {
+                    self.drain_cluster_index(registry, &index, pending, id)
+                        .await?;
+                } else {
+                    self.cleanup(registry, &index, pending, id, &[], false)
+                        .await?;
+                }
             }
             for batch in invalid.chunks(BATCH_SIZE) {
                 self.query::<u64>(::redis::cmd("SREM").arg(pending).arg(batch))
@@ -273,6 +261,26 @@ impl RedisTagSet {
                 return Ok(());
             }
             cursor = next;
+        }
+    }
+
+    async fn drain_cluster_index(
+        &self,
+        registry: &str,
+        index: &str,
+        pending: &str,
+        id: &str,
+    ) -> CacheResult<()> {
+        loop {
+            let items: Vec<Vec<u8>> = self
+                .query(::redis::cmd("ZRANGE").arg(index).arg(0).arg(BATCH_SIZE - 1))
+                .await?;
+            if !self
+                .cleanup(registry, index, pending, id, &items, true)
+                .await?
+            {
+                return Ok(());
+            }
         }
     }
 

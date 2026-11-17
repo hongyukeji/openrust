@@ -1371,23 +1371,27 @@ async fn redis_cluster_tags_flush_and_prune() {
     let current_value = interrupted.taggedItemKey("current").await.unwrap();
     let current_index = index("interrupted").await;
     let (current_prefix, current_generation) = current_index.rsplit_once(':').unwrap();
-    let empty_retirement = "0123456789abcdef0123456789abcdef";
-    assert!(!exists(&format!("{current_prefix}:{empty_retirement}")).await);
+    let retirements: Vec<String> = (0..320).map(|id| format!("{id:032x}")).collect();
+    let mut pending_members = vec![pending.as_bytes(), b"malformed", b"\xff"];
+    pending_members.extend(retirements.iter().map(String::as_bytes));
+    connection.command("SADD", &pending_members).await.unwrap();
+    let older_index = format!("{current_prefix}:{}", retirements[0]);
     connection
         .command(
-            "SADD",
-            &[
-                pending.as_bytes(),
-                b"malformed",
-                b"\xff",
-                empty_retirement.as_bytes(),
-            ],
+            "ZADD",
+            &[older_index.as_bytes(), b"-1", retired_value.as_bytes()],
         )
+        .await
+        .unwrap();
+    connection
+        .command("SET", &[retired_value.as_bytes(), b"7"])
         .await
         .unwrap();
     assert!(interrupted.flush().await.unwrap());
     assert!(!exists(&pending).await);
     assert!(!exists(&current_value).await);
+    assert!(!exists(&retired_value).await);
+    assert!(!exists(&older_index).await);
     assert!(!registered(&current_index).await);
 
     let empty_generation = interrupted.getTags().tagId("interrupted").await.unwrap();

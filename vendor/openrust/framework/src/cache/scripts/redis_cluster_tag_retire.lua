@@ -9,12 +9,4 @@ if previous ~= '' and redis.call('EXISTS', index) == 1 then
     redis.call('SADD', pending, previous)
 end
 redis.call('SET', metadata, next)
-local retired = {}
-for _, id in ipairs(redis.call('SMEMBERS', pending)) do
-    if #id == 32 and string.match(id, '^[0-9a-f]+$') then
-        retired[#retired + 1] = id
-    else
-        redis.call('SREM', pending, id)
-    end
-end
-return retired
+return 1
