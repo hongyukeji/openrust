@@ -47,6 +47,7 @@ impl ConnectionFactory {
             prefix_indexes: options.prefix_indexes,
             sqlite_json_types: options.sqlite_json_types,
             table_options: options.table_options,
+            postgres_dont_drop: options.postgres_dont_drop,
             grammar: options.grammar,
             database: options.database,
             pools: Arc::new(ConnectionPools::new(
@@ -83,6 +84,7 @@ struct ConnectionOptions {
     prefix_indexes: bool,
     sqlite_json_types: SqliteJsonTypes,
     table_options: Arc<TableOptions>,
+    postgres_dont_drop: Arc<[String]>,
     sticky: bool,
     has_direct_connection: bool,
     pools: PoolGeneration,
@@ -188,11 +190,30 @@ fn resolve(
         && matches!(writer, Pool::Mysql(_) | Pool::Postgres(_))
         && base.get("database").and_then(Value::as_str) == Some(database.as_str()))
     .then(|| database.clone());
+    let postgres_dont_drop = if matches!(writer, Pool::Postgres(_)) {
+        match write_options.0.get("dont_drop") {
+            None | Some(Value::Null) => vec!["spatial_ref_sys".into()].into(),
+            Some(Value::Array(tables)) => tables
+                .iter()
+                .map(|table| {
+                    table
+                        .as_str()
+                        .map(str::to_owned)
+                        .ok_or_else(|| invalid("dont_drop"))
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?
+                .into(),
+            _ => return Err(invalid("dont_drop")),
+        }
+    } else {
+        Arc::default()
+    };
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
         prefix_indexes: write_options.boolean("prefix_indexes", false)?,
         table_options: Arc::new(table_options),
+        postgres_dont_drop,
         sqlite_json_types,
         sticky,
         has_direct_connection,

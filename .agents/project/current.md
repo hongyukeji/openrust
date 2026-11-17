@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 23:20（北京时间）02-06 [PostgreSQL 限定 Schema 清库](audits/02-06/README.md#postgresql-限定-schema-清库)。无网络清库 SQL、真实 MySQL 8.4.13 的表目录、限定清库和 Artisan 快照回归、独立 Artisan、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-17 23:10（北京时间）02-06 [PostgreSQL Schema 转储与恢复](audits/02-06/README.md#postgresql-schema-转储与恢复)。PostgreSQL 客户端参数测试、真实 MySQL 8.4.13 独立 Artisan 转储恢复、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-17 22:59（北京时间）02-06 [创建缺失的 PostgreSQL 数据库](audits/02-06/README.md#创建缺失的-postgresql-数据库)。PostgreSQL 协议及端点测试、MySQL 8.4.13 独立 Artisan 缺库迁移回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-17 22:49（北京时间）02-05 [PostgreSQL 数据库级 DDL](audits/02-05/README.md#postgresql-数据库级-ddl)。无网络 SQL 预演、MySQL 8.4.13 建删库及表目录和限定清库三项、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
@@ -57,7 +58,7 @@
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
 - 02-02 的 PostgreSQL 独立端点和迁移路由已通过配置测试，真实 PostgreSQL 直连及事务池语句准备尚待处理与验收。02-04 向量及其他方言能力随对应驱动验收。下一批核对 02-05 剩余 MySQL Schema 项，再接续 02-06。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 46%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和 3.4 GiB 隔离 Cargo 产物已回收。项目磁盘可用 62.81 GB（58.50 GiB），继续前以实测读数复查。
+- 周额度剩余 46%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和 3.6 GiB 隔离 Cargo 产物已回收。项目磁盘可用 62.73 GB（58.42 GiB），继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

@@ -154,7 +154,9 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 
 ### 重建資料庫 {#rebuilding-mysql-with-fresh}
 
-通過正式環境確認後，`migrate:fresh` 可以用選定的寫入帳號建立缺少的 MySQL 或 PostgreSQL 資料庫。資料庫已存在且沒有遷移帳本時，指令直接執行遷移，保留既有資料表。在 MySQL 中，用 `--schema-path` 選擇要還原的快照。
+通過正式環境確認後，`migrate:fresh` 可以用選定的寫入帳號建立缺少的 MySQL 或 PostgreSQL 資料庫。資料庫已存在且沒有遷移帳本時，指令直接執行遷移，保留既有資料表。用 `--schema-path` 選擇要還原的快照。
+
+在 PostgreSQL 中，`db:wipe` 和 `migrate:fresh` 的清理階段以選定寫入連線實際生效的 `search_path` 為起點。連線的 `dont_drop` 清單接受實體資料表名稱或附 Schema 的名稱，預設為 `["spatial_ref_sys"]`。用 `--drop-views` 一併刪除檢視表，用 `--drop-types` 刪除使用者定義的型別與定義域。PostgreSQL 的串聯刪除可能影響其他 Schema 的相依物件。
 
 ```sh
 ./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql
@@ -694,6 +696,8 @@ SQLite 使用檔案路徑。目標路徑已存在時會建立失敗，原資料�
 #### 刪除全部資料表或檢視表 {#dropping-all-tables-or-views}
 
 `dropAllTables()` 刪除所選連線目前 Schema 中的永久資料表，`dropAllViews()` 刪除同一 Schema 中的檢視表。即使設定了資料表前置詞，方法仍會處理該類型的全部物件。操作獨立資料庫時，請使用具名連線。
+
+PostgreSQL 採用與 [`db:wipe` 相同的 Schema 範圍和排除規則](#rebuilding-mysql-with-fresh)。用 `dropAllTypes()` 刪除使用者定義的型別與定義域。
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

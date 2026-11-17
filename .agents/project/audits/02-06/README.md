@@ -128,3 +128,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - PostgreSQL 用 `pg_dump` 保存 SQL 定义，并通过写连接解析迁移账本所在 Schema，仅追加该表数据。SQL 用 `psql` 加载，归档文件用 `pg_restore`。恢复客户端启用单事务及错误退出。配置直连时，命令使用其端点、用户及 TLS 设置，默认文件名沿用基准连接名，便于跨平台使用。 [psql 选项](https://www.postgresql.org/docs/current/app-psql.html) · [pg_restore 选项](https://www.postgresql.org/docs/current/app-pgrestore.html)
 - 隔离基线 `1b061e6c7` 的无网络回归验证客户端选取、连接串转义、TLS 参数和恢复错误退出参数。真实 PostgreSQL 转储、恢复和账本验证留待发布矩阵。已存在账本的 PostgreSQL 库仍缺 `migrate:fresh` 所需的清库能力，单独跟踪。
 - 真实 MySQL 8.4.13 通过独立 Artisan 转储、恢复、无账本数据选项、无业务数据、恢复错误、裁剪及迁移账本验证。根应用 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.4 GiB 本批 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-schema.rkT6ygzi`。
+
+## PostgreSQL 限定 Schema 清库
+
+- 对照固定 Laravel v13.40.0 的 `PostgresBuilder`、`WipeCommand` 和 Grammar 断言。核对旧版 `6d1a81924`，未找到同等的 Schema 清库入口。本批复用现有事务、写连接、迁移账本检查和 Artisan 生产确认。 [固定 Laravel PostgresBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/PostgresBuilder.php) · [固定 Laravel WipeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/WipeCommand.php)
+- PostgreSQL 在同一个写连接事务中枚举和删除对象。查询基于服务器实际生效的 `search_path`，排除系统 Schema。表名支持 `dont_drop` 物理名与限定名，默认保留 `spatial_ref_sys`。清理依 Laravel 顺序执行可选视图、表、可选用户类型和域。目录名称逐段转义，批量 DDL 使用 `CASCADE`，依赖影响可跨 Schema。成功后 Artisan 迁移清理退役原连接池。
+- `migrate:fresh` 保留已有账本才清库的判定。Schema 提供 `dropAllTables()`、`dropAllViews()` 和 `dropAllTypes()`。隔离基线 `a3d175ca6` 的无网络测试验证排除、限定名、带引号名称和空目标。真实 PostgreSQL 的对象枚举、级联与快照重建留待发布验收。
+- 真实 MySQL 8.4.13 通过表目录、限定 Schema 清库和 Artisan 快照转储恢复三项回归。根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.6 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-wipe.yEPquOZh`。

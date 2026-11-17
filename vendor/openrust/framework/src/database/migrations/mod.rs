@@ -9,6 +9,7 @@ mod migration_result;
 mod migrator;
 mod schema_state;
 
+pub(crate) use migrator::WipeOptions;
 pub(super) use schema_state::SchemaCredentials;
 
 pub use database_migration_repository::DatabaseMigrationRepository;

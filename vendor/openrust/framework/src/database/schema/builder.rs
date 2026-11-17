@@ -11,6 +11,7 @@ use super::{
 
 mod catalog;
 mod mariadb;
+mod postgres;
 mod sqlite;
 
 enum Executor<'connection> {
@@ -354,28 +355,48 @@ impl<'connection> Builder<'connection> {
 
     /// Drops permanent tables in the selected database.
     pub async fn dropAllTables(&mut self) -> DatabaseResult<()> {
-        self.drop_schema_objects(true, false).await
+        self.drop_schema_objects(true, false, false).await
     }
 
     /// Drops views in the selected database.
     pub async fn dropAllViews(&mut self) -> DatabaseResult<()> {
-        self.drop_schema_objects(false, true).await
+        self.drop_schema_objects(false, true, false).await
+    }
+
+    /// Drops user-defined types and domains in the selected PostgreSQL schemas.
+    pub async fn dropAllTypes(&mut self) -> DatabaseResult<()> {
+        self.drop_schema_objects(false, false, true).await
     }
 
     pub(in crate::database) async fn drop_schema_objects(
         &mut self,
         drop_tables: bool,
         drop_views: bool,
+        drop_types: bool,
     ) -> DatabaseResult<()> {
         let Executor::Connection(connection) = &self.executor else {
             return Err(DatabaseError::UnsupportedSchema(
                 "schema cleanup requires a connection builder",
             ));
         };
+        if self.grammar.postgres() {
+            return postgres::drop_schema_objects(connection, drop_tables, drop_views, drop_types)
+                .await;
+        }
+        if drop_types {
+            return Err(DatabaseError::UnsupportedSchema(
+                "dropping types requires PostgreSQL",
+            ));
+        }
         if self.grammar.mysql() {
             return connection
                 .drop_mysql_schema_objects(drop_tables, drop_views)
                 .await;
+        }
+        if !connection.is_sqlite() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "dropping database objects",
+            ));
         }
         let grammar = connection.grammar.clone();
         connection.sqlite_schema_transaction(move |transaction, _| Box::pin(async move {

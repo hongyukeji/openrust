@@ -39,6 +39,12 @@ pub struct RunOptions {
     pub step: bool,
 }
 
+#[derive(Clone, Copy, Default)]
+pub(crate) struct WipeOptions {
+    pub drop_views: bool,
+    pub drop_types: bool,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RollbackOptions {
     pub pretend: bool,
@@ -664,8 +670,23 @@ impl Migrator {
     }
 
     pub async fn wipe(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {
+        self.wipe_with_options(
+            database,
+            WipeOptions {
+                drop_views,
+                ..WipeOptions::default()
+            },
+        )
+        .await
+    }
+
+    pub(crate) async fn wipe_with_options(
+        &self,
+        database: Option<&str>,
+        options: WipeOptions,
+    ) -> DatabaseResult<()> {
         let _guard = self.execution.lock().await;
-        self.wipe_schema(database, drop_views).await
+        Self::wipe_schema(&self.resolveConnection(database)?, options).await
     }
 
     pub async fn fresh(
@@ -675,9 +696,19 @@ impl Migrator {
         step: bool,
         drop_views: bool,
     ) -> DatabaseResult<Vec<MigrationOutcome>> {
-        self.fresh_with_schema(database, paths, step, drop_views, None, None)
-            .await
-            .map(|(rows, _)| rows)
+        self.fresh_with_schema(
+            database,
+            paths,
+            step,
+            WipeOptions {
+                drop_views,
+                ..WipeOptions::default()
+            },
+            None,
+            None,
+        )
+        .await
+        .map(|(rows, _)| rows)
     }
 
     pub(crate) async fn fresh_with_schema(
@@ -685,14 +716,20 @@ impl Migrator {
         database: Option<&str>,
         paths: &[PathBuf],
         step: bool,
-        drop_views: bool,
+        wipe: WipeOptions,
         schema_path: Option<&Path>,
         confirm_create: Option<ConfirmDatabaseCreation<'_>>,
     ) -> DatabaseResult<(Vec<MigrationOutcome>, bool)> {
         let _guard = self.execution.lock().await;
         self.files(paths)?;
+        let connection = self.resolveConnection(database)?;
+        if wipe.drop_types && !connection.is_postgres() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "dropping types requires PostgreSQL",
+            ));
+        }
         match self.repository(database).repository_exists().await {
-            Ok(true) => self.wipe_schema(database, drop_views).await?,
+            Ok(true) => Self::wipe_schema(&connection, wipe).await?,
             Ok(false) => {}
             Err(error)
                 if confirm_create.is_some() && MissingDatabase::from_error(&error).is_some() => {}
@@ -711,11 +748,15 @@ impl Migrator {
         .await
     }
 
-    async fn wipe_schema(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {
-        self.resolveConnection(database)?
+    async fn wipe_schema(connection: &Connection, options: WipeOptions) -> DatabaseResult<()> {
+        connection
             .getSchemaBuilder()
-            .drop_schema_objects(true, drop_views)
-            .await
+            .drop_schema_objects(true, options.drop_views, options.drop_types)
+            .await?;
+        if connection.is_postgres() {
+            connection.disconnect();
+        }
+        Ok(())
     }
 
     pub fn root(&self) -> &Path {

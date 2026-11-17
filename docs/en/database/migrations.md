@@ -154,7 +154,9 @@ Run `migrate:refresh` to roll back applied migrations and run them again. A posi
 
 ### Rebuilding a Database {#rebuilding-mysql-with-fresh}
 
-After any production confirmation, `migrate:fresh` can create a missing MySQL or PostgreSQL database with the selected write account. If the database exists and has no migration ledger, the command starts migrations without clearing its tables. On MySQL, use `--schema-path` to select the snapshot to restore.
+After any production confirmation, `migrate:fresh` can create a missing MySQL or PostgreSQL database with the selected write account. If the database exists and has no migration ledger, the command starts migrations without clearing its tables. Use `--schema-path` to select the snapshot to restore.
+
+On PostgreSQL, `db:wipe` and the cleanup phase of `migrate:fresh` start from the schemas in the selected write connection’s effective `search_path`. The connection’s `dont_drop` list accepts physical table names or schema-qualified names and defaults to `["spatial_ref_sys"]`. Use `--drop-views` to also remove views and `--drop-types` to remove user-defined types and domains. PostgreSQL cascades can affect dependent objects in other schemas.
 
 ```sh
 ./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql
@@ -694,6 +696,8 @@ On SQLite, supply a file path. Creation fails if the path already exists, preser
 #### Dropping All Tables or Views {#dropping-all-tables-or-views}
 
 `dropAllTables()` removes permanent tables from the selected connection’s current schema. `dropAllViews()` removes views from that schema. These methods apply to all objects of the requested kind, even when a table prefix is configured. Use a named connection when targeting a separate database.
+
+PostgreSQL follows the [same schema scope and table exclusions as `db:wipe`](#rebuilding-mysql-with-fresh). Use `dropAllTypes()` to drop its user-defined types and domains.
 
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};

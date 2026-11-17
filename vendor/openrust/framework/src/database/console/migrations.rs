@@ -19,7 +19,7 @@ use crate::{
         events::DatabaseRefreshed,
         migrations::{
             MigrationCreator, MigrationOutcome, MigrationResult, Migrator, RollbackOptions,
-            RunOptions,
+            RunOptions, WipeOptions,
         },
         seeder,
     },
@@ -353,17 +353,12 @@ impl Command for MigrationCommand {
                     report(output, result.up, false, "Nothing to migrate.");
                 }
                 Kind::Fresh => {
-                    if matches.get_flag("drop-types") {
-                        return Err(ConsoleError::new(
-                            "Dropping types is only supported by PostgreSQL.",
-                        ));
-                    }
                     let (rows, loaded) = migrator
                         .fresh_with_schema(
                             database,
                             &paths,
                             matches.get_flag("step"),
-                            matches.get_flag("drop-views"),
+                            wipe_options(matches),
                             matches.get_one::<String>("schema-path").map(Path::new),
                             Some(&|_| Ok(true)),
                         )
@@ -375,13 +370,8 @@ impl Command for MigrationCommand {
                     report(output, rows, false, "Nothing to migrate.");
                 }
                 Kind::Wipe => {
-                    if matches.get_flag("drop-types") {
-                        return Err(ConsoleError::new(
-                            "Dropping types is only supported by PostgreSQL.",
-                        ));
-                    }
                     migrator
-                        .wipe(database, matches.get_flag("drop-views"))
+                        .wipe_with_options(database, wipe_options(matches))
                         .await
                         .map_err(console_error)?;
                     output.info("Database wiped successfully.");
@@ -405,6 +395,13 @@ impl Command for MigrationCommand {
             }
             Ok(0)
         })
+    }
+}
+
+fn wipe_options(matches: &clap::ArgMatches) -> WipeOptions {
+    WipeOptions {
+        drop_views: matches.get_flag("drop-views"),
+        drop_types: matches.get_flag("drop-types"),
     }
 }
 
