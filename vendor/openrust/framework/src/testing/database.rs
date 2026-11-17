@@ -1,4 +1,4 @@
-use std::{error::Error, fs::File};
+use std::{error::Error, fs::File, io};
 
 use serde_json::json;
 
@@ -13,9 +13,25 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::TestApp;
+use super::{TestApp, TestCommand};
 
 const FILE: &str = "testing.sqlite";
+
+/// MySQL migration and seeding options for `TestApp::refreshDatabase`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RefreshDatabaseOptions {
+    /// Include views when rebuilding the schema.
+    pub drop_views: bool,
+    /// Run the default seeder after migration.
+    pub seed: bool,
+    /// Run this named seeder instead of the default.
+    pub seeder: Option<String>,
+}
+
+pub(super) enum RefreshState {
+    Preparing(RefreshDatabaseOptions, tokio::task::JoinHandle<TestCommand>),
+    Ready(RefreshDatabaseOptions),
+}
 
 struct Sqlite;
 
@@ -100,6 +116,10 @@ impl TestApp {
 
     /// Releases the test application and waits for owned schema cleanup.
     pub async fn close(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if let Some(RefreshState::Preparing(_, task)) = self.refreshed.take() {
+            // Keep the schema lease until any in-flight migration unwinds.
+            let _ = task.await;
+        }
         let mysql = self.mysql.take();
         drop(self);
         if let Some(mysql) = mysql {
@@ -132,6 +152,86 @@ impl TestApp {
     ) -> Result<T, Box<dyn Error + Send + Sync>> {
         let connection = self.database().await?;
         test_transaction::run(connection, async { test(self).await }).await?
+    }
+
+    /// Prepares a managed MySQL schema, then runs one rollback-isolated test.
+    ///
+    /// The first use, a change of options, or an interrupted transaction
+    /// triggers a fresh migration. A test error with a successful rollback
+    /// preserves the prepared baseline for the next call.
+    pub async fn refreshDatabase<T>(
+        &mut self,
+        options: RefreshDatabaseOptions,
+        test: impl for<'a> FnOnce(
+            &'a mut TestApp,
+        )
+            -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
+    ) -> Result<T, Box<dyn Error + Send + Sync>> {
+        let owner = self
+            .mysql
+            .as_ref()
+            .ok_or_else(|| {
+                io::Error::other("refreshDatabase requires a managed MySQL test schema")
+            })?
+            .owner
+            .clone();
+        let connection = self.database().await?;
+        if !owner.is_schema(connection.getDatabaseName()) || test_transaction::active(&connection) {
+            return Err(io::Error::other(
+                "refreshDatabase requires the owned default connection outside a test transaction",
+            )
+            .into());
+        }
+        if matches!(self.refreshed, Some(RefreshState::Preparing(..))) {
+            // A cancelled caller can leave its migration running. Settle it
+            // before retrying or starting a differently configured refresh.
+            let _ = self.finish_refresh().await;
+        }
+        let prepared = self.refreshed.take();
+        if !matches!(prepared, Some(RefreshState::Ready(ready)) if ready == options) {
+            // Open the owned pool before Artisan can consider missing-database creation.
+            connection.select("SELECT 1", &[]).await?;
+            let mut arguments = vec![
+                "migrate:fresh".to_owned(),
+                format!("--database={}", connection.getName()),
+                "--no-interaction".to_owned(),
+            ];
+            if options.drop_views {
+                arguments.push("--drop-views".into());
+            }
+            if let Some(seeder) = &options.seeder {
+                arguments.push(format!("--seeder={seeder}"));
+            } else if options.seed {
+                arguments.push("--seed".into());
+            }
+            let task = self.spawn_artisan(arguments.into_iter().map(Into::into).collect());
+            self.refreshed = Some(RefreshState::Preparing(options.clone(), task));
+            self.finish_refresh().await?;
+            self.refreshed = None;
+        }
+        let result = test_transaction::run(connection, async { test(self).await }).await?;
+        self.refreshed = Some(RefreshState::Ready(options));
+        result
+    }
+
+    async fn finish_refresh(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let Some(RefreshState::Preparing(options, task)) = &mut self.refreshed else {
+            return Ok(());
+        };
+        let result = task.await;
+        let options = options.clone();
+        self.refreshed = None;
+        let command = result?;
+        if command.status != 0 {
+            return Err(io::Error::other(format!(
+                "refreshDatabase migration exited with {}: {}",
+                command.status,
+                command.stderr.trim()
+            ))
+            .into());
+        }
+        self.refreshed = Some(RefreshState::Ready(options));
+        Ok(())
     }
 
     /// Asserts that a table contains a row matching the supplied values.

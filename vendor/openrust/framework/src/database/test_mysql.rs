@@ -27,6 +27,10 @@ impl MySqlTestOwner {
         self.active.load(Ordering::Acquire)
     }
 
+    pub(crate) fn is_schema(&self, name: &str) -> bool {
+        self.active() && self.name == name
+    }
+
     pub(crate) fn attach(&self, pool: &MySqlPool) {
         let mut pools = self
             .pools

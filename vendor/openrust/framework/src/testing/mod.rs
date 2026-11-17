@@ -7,4 +7,5 @@ mod response;
 
 pub use app::TestApp;
 pub use command::TestCommand;
+pub use database::RefreshDatabaseOptions;
 pub use response::TestResponse;

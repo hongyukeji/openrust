@@ -1,6 +1,7 @@
 use std::{error::Error, ffi::OsString, path::Path, sync::Arc, time::Duration};
 
 use tempfile::TempDir;
+use tokio::task::JoinHandle;
 
 use crate::{
     console::Output,
@@ -11,7 +12,7 @@ use crate::{
     http::{Body, Request},
 };
 
-use super::{TestCommand, TestResponse};
+use super::{TestCommand, TestResponse, database::RefreshState};
 
 const RESPONSE_LIMIT: usize = 1024 * 1024;
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -21,6 +22,7 @@ pub struct TestApp {
     app: Application,
     http: Option<Kernel>,
     pub(super) mysql: Option<MySqlTestDatabase>,
+    pub(super) refreshed: Option<RefreshState>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
@@ -47,6 +49,7 @@ impl TestApp {
             app,
             http: None,
             mysql: None,
+            refreshed: None,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
             _directory: directory,
@@ -93,13 +96,11 @@ impl TestApp {
         arguments: impl IntoIterator<Item = impl Into<OsString>>,
     ) -> TestCommand {
         let arguments: Vec<_> = arguments.into_iter().map(Into::into).collect();
-        let mut output = Output::default();
-        let status = self.app.share().run_console(&arguments, &mut output).await;
-        TestCommand {
-            status,
-            stdout: output.stdout,
-            stderr: output.stderr,
-        }
+        run_artisan(self.app.share(), arguments).await
+    }
+
+    pub(super) fn spawn_artisan(&self, arguments: Vec<OsString>) -> JoinHandle<TestCommand> {
+        tokio::spawn(run_artisan(self.app.share(), arguments))
     }
 
     /// Boots the application and replaces a container service for subsequent resolutions.
@@ -129,5 +130,15 @@ impl TestApp {
     /// Returns the fixture's application root.
     pub fn root(&self) -> &Path {
         self.app.base_path()
+    }
+}
+
+async fn run_artisan(app: Application, arguments: Vec<OsString>) -> TestCommand {
+    let mut output = Output::default();
+    let status = app.run_console(&arguments, &mut output).await;
+    TestCommand {
+        status,
+        stdout: output.stdout,
+        stderr: output.stderr,
     }
 }

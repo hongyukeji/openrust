@@ -26,6 +26,23 @@ async fn run_migrations(
 
 Call `close().await` to wait for cleanup. It closes application pools and deletes the schema only after verifying the management lease, ownership marker, and absence of other connected sessions. If a check fails, the error reports the schema name for inspection. A dropped fixture attempts cleanup while its Tokio runtime is running.
 
+## Refreshing the database {#refreshing-the-database}
+
+Use `refreshDatabase` with a managed MySQL fixture. It runs `migrate:fresh` before the first callback and reuses the migrated baseline for later callbacks with the same options. Each callback runs in its own rollback transaction. A named seeder takes precedence over `seed`.
+
+```rust
+use openrust::testing::{RefreshDatabaseOptions, TestApp};
+
+async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let options = RefreshDatabaseOptions { seed: true, ..Default::default() };
+    test.refreshDatabase(options, |test| Box::pin(async move {
+        test.assertDatabaseCount("items", 1).await
+    })).await
+}
+```
+
+A migration or Seeder failure returns before the callback and leaves the fixture ready to retry preparation. A callback error with a successful rollback preserves the baseline. An interrupted transaction or changed options rebuilds it on the next call. If a caller is cancelled during migration, the next refresh waits for that migration to finish first.
+
 ## MySQL transaction isolation {#mysql-transaction-isolation}
 
 Configure the test application to use a dedicated MySQL test database. Run migrations and baseline seeders before calling `test.databaseTransaction`. Inside the callback, HTTP requests, in-process Artisan commands, and database assertions on the default connection share one session. The helper rolls back on success or error, and application transactions use savepoints.

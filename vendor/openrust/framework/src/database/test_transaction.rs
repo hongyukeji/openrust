@@ -39,7 +39,7 @@ fn session(connection: &Connection) -> Option<Session> {
         .flatten()
 }
 
-pub(super) fn active(connection: &Connection) -> bool {
+pub(crate) fn active(connection: &Connection) -> bool {
     session(connection).is_some()
 }
 

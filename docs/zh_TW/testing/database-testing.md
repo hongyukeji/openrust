@@ -26,6 +26,23 @@ async fn run_migrations(
 
 呼叫 `close().await` 等待清理。它先關閉應用程式連線池，再核對管理租約、歸屬標記及其他使用中的連線。核對失敗時，錯誤會提供保留的資料庫名稱以便檢查。夾具被捨棄時，會在仍運作的 Tokio runtime 上嘗試清理。
 
+## 更新資料庫 {#refreshing-the-database}
+
+在受管 MySQL 夾具上呼叫 `refreshDatabase`。它在首次回呼前執行 `migrate:fresh`，後續回呼使用同一組選項時沿用遷移後的基線。每次回呼都有獨立的復原交易。具名 Seeder 優先於 `seed`。
+
+```rust
+use openrust::testing::{RefreshDatabaseOptions, TestApp};
+
+async fn check_baseline(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let options = RefreshDatabaseOptions { seed: true, ..Default::default() };
+    test.refreshDatabase(options, |test| Box::pin(async move {
+        test.assertDatabaseCount("items", 1).await
+    })).await
+}
+```
+
+遷移或 Seeder 失敗會直接傳回錯誤，可以再次呼叫以重試準備。回呼傳回錯誤且交易復原成功時會保留基線。交易中斷或選項變更後，下次呼叫會重新準備。呼叫在遷移期間被取消時，下一次更新會先等待執行中的遷移結束。
+
 ## MySQL 交易隔離 {#mysql-transaction-isolation}
 
 為測試應用程式設定專用的 MySQL 測試庫。先執行遷移和基礎填充，再呼叫 `test.databaseTransaction`。回呼中，使用預設連線的 HTTP 請求、程序內 Artisan 命令和資料庫斷言共用一個工作階段。成功和失敗都會回復，應用程式交易使用儲存點。

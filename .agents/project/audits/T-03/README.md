@@ -18,3 +18,10 @@
 - `TestApp::mysql` 在指定测试服务器严格创建随机库，应用端新物理连接核验服务器 UUID、选中的库、租约持有者及归属标记。夹具关闭时先停用并回收应用池，再以原管理会话验证租约、标记及服务器活动状态。外部会话仍选中库或归属验证失败时保留该库，返回含库名的错误。显式 `close().await` 等待结果，普通析构在仍运行的 Tokio runtime 上尝试清理。进程中断后的恢复记录与重领仍待接入。
 - 隔离基线 `7fad0453a`，真实 MySQL 8.4.13 验证并发创建独立库、实际 Artisan 迁移与 Seeder、`migrate:fresh` 后标记保留并清库、提前取得的连接句柄关闭后失效、外部连接占用时保留、标记变化时重连与清理拒绝。复验上批默认连接事务隔离。
 - Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项小节浏览器检查通过。临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 80.42 GB（74.89 GiB），周额度剩余 50%。证据目录 `/private/tmp/openrust-T-03-mysql-ownership.mzG7QzzJ`。
+
+## MySQL RefreshDatabase 迁移准备
+
+- 对照固定 Laravel `RefreshDatabase::refreshTestDatabase` 和 `CanConfigureMigrationCommands`，首次执行 `migrate:fresh` 后再开始测试事务。复核旧版 `testing/database.rs` 的建库后迁移和清理状态，沿用已验收的 SQLx 归属夹具与实际 Artisan 命令。 [固定 Laravel RefreshDatabase](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/RefreshDatabase.php) · [固定 Laravel 迁移选项](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/Traits/CanConfigureMigrationCommands.php)
+- `TestApp::refreshDatabase` 在受管 MySQL 夹具上使用同一组选项准备一次，支持默认或具名 Seeder 与清除视图。普通回调结束后回滚，回滚成功后复用基线。迁移失败或事务失效后可重试。迁移等待被取消时，夹具持有任务并等待其完成后再决定复用或重试，避免并行重建同一库。
+- 隔离基线 `b932c1e0d`。真实 MySQL 8.4.13 验证具名 Seeder 首次失败后同选项重试、成功与回调错误后回滚、有效基线复用、异常事务后的重建、选项改变时清除视图、迁移中取消后复用同一准备任务及默认 Seeder。管理租约和默认连接事务两项回归另行通过。
+- Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项小节浏览器检查通过。临时 MySQL 和隔离产物已回收，Cargo 清理 2.9 GiB。项目卷可用 79.44 GB（73.98 GiB），周额度剩余 50%。多连接事务、迁移事件抑制及进程级异常后的归属恢复待补。证据目录 `/private/tmp/openrust-T-03-mysql-refresh.MF86Nmvt`。

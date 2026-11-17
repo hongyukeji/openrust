@@ -1,9 +1,15 @@
-use std::{error::Error, sync::Arc};
+use std::{
+    error::Error,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+};
 
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        DB, DatabaseFuture, DatabaseResult, Value,
+        DB, DatabaseError, DatabaseFuture, DatabaseResult, Value,
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
         seeder::{Seeder, SeederContext, SeederEntry, SeederRegistry},
@@ -14,7 +20,7 @@ use openrust::{
     },
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider, facades::Route},
-    testing::TestApp,
+    testing::{RefreshDatabaseOptions, TestApp},
 };
 use serde_json::json;
 use sqlx::{Connection as _, MySqlConnection};
@@ -66,6 +72,34 @@ impl Seeder for SeedItems {
 
 struct InventoryProvider;
 
+struct RefreshSeeder;
+
+static REFRESH_RUNS: AtomicUsize = AtomicUsize::new(0);
+static PAUSE_REFRESH_SEEDER: AtomicBool = AtomicBool::new(false);
+static REFRESH_SEEDER_STARTED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+static RESUME_REFRESH_SEEDER: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+impl Seeder for RefreshSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            SeedItems.run(context).await?;
+            if REFRESH_RUNS.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(DatabaseError::InvalidConfiguration(
+                    "intentional refresh seeder failure",
+                ));
+            }
+            if PAUSE_REFRESH_SEEDER.swap(false, Ordering::Relaxed) {
+                REFRESH_SEEDER_STARTED.notify_one();
+                RESUME_REFRESH_SEEDER.notified().await;
+            }
+            Ok(())
+        })
+    }
+}
+
 impl ServiceProvider for InventoryProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
@@ -73,7 +107,10 @@ impl ServiceProvider for InventoryProvider {
                 "database/migrations/0001_create_items.rs",
                 &CreateItems,
             )];
-            static SEEDERS: &[SeederEntry] = &[SeederEntry::new("DatabaseSeeder", &SeedItems)];
+            static SEEDERS: &[SeederEntry] = &[
+                SeederEntry::new("DatabaseSeeder", &SeedItems),
+                SeederEntry::new("RefreshSeeder", &RefreshSeeder),
+            ];
             app.container()
                 .instance(Arc::new(MigrationRegistry(MIGRATIONS)))?;
             app.container()
@@ -370,4 +407,145 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
     .fetch_one(server)
     .await?;
     Ok(count != 0)
+}
+
+#[tokio::test]
+async fn mysql_refresh_database_prepares_once_and_retries_after_interruption()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut test = TestApp::mysql(&url, |builder| {
+        builder
+            .withProviders(vec![Box::new(InventoryProvider)])
+            .withRouting(Routing::default().web(|| {
+                Route::get("/write", write_item)?;
+                Ok(())
+            }))
+    })
+    .await?;
+    let options = RefreshDatabaseOptions {
+        seed: true,
+        seeder: Some("RefreshSeeder".into()),
+        ..Default::default()
+    };
+    let failure = test
+        .refreshDatabase::<()>(options.clone(), |_| {
+            Box::pin(async { panic!("test callback ran before the baseline was prepared") })
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        failure
+            .to_string()
+            .contains("intentional refresh seeder failure"),
+        "{failure}"
+    );
+
+    test.refreshDatabase(options.clone(), |test| {
+        Box::pin(async {
+            test.assertDatabaseCount("items", 1).await?;
+            test.get("/write")
+                .await?
+                .assertStatus(StatusCode::NO_CONTENT);
+            test.assertDatabaseCount("items", 2).await
+        })
+    })
+    .await?;
+    let error = test
+        .refreshDatabase(options.clone(), |test| {
+            Box::pin(async {
+                test.assertDatabaseCount("items", 1).await?;
+                test.get("/write")
+                    .await?
+                    .assertStatus(StatusCode::NO_CONTENT);
+                Err::<(), Box<dyn Error + Send + Sync>>("test callback error".into())
+            })
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "test callback error");
+    assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 2);
+    test.assertDatabaseCount("items", 1).await?;
+
+    let disrupted = test
+        .refreshDatabase(options.clone(), |test| {
+            Box::pin(async {
+                let connection = test.database().await?;
+                let abandoned = connection.beginTransaction().await?;
+                drop(abandoned);
+                Ok(())
+            })
+        })
+        .await
+        .unwrap_err();
+    assert!(disrupted.to_string().contains("transaction"));
+    test.refreshDatabase(options.clone(), |test| {
+        Box::pin(async { test.assertDatabaseCount("items", 1).await })
+    })
+    .await?;
+    assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 3);
+
+    test.database()
+        .await?
+        .statement("CREATE VIEW refresh_probe AS SELECT id FROM items", &[])
+        .await?;
+    test.refreshDatabase(
+        RefreshDatabaseOptions {
+            drop_views: true,
+            ..options
+        },
+        |test| {
+            Box::pin(async {
+                test.assertDatabaseCount("items", 1).await?;
+                assert!(
+                    test.database()
+                        .await?
+                        .table("refresh_probe")
+                        .count("*")
+                        .await
+                        .is_err()
+                );
+                Ok(())
+            })
+        },
+    )
+    .await?;
+    assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 4);
+
+    let options = RefreshDatabaseOptions {
+        seed: true,
+        seeder: Some("RefreshSeeder".into()),
+        ..Default::default()
+    };
+    PAUSE_REFRESH_SEEDER.store(true, Ordering::Relaxed);
+    {
+        let pending = test.refreshDatabase::<()>(options.clone(), |_| {
+            Box::pin(async { panic!("cancelled test callback should never run") })
+        });
+        tokio::pin!(pending);
+        tokio::select! {
+            result = &mut pending => panic!("preparation returned before cancellation: {result:?}"),
+            () = REFRESH_SEEDER_STARTED.notified() => {}
+            () = tokio::time::sleep(std::time::Duration::from_secs(10)) => panic!("seeder did not start"),
+        }
+    }
+    RESUME_REFRESH_SEEDER.notify_one();
+    test.refreshDatabase(options, |test| {
+        Box::pin(async { test.assertDatabaseCount("items", 1).await })
+    })
+    .await?;
+    assert_eq!(REFRESH_RUNS.load(Ordering::Relaxed), 5);
+
+    test.refreshDatabase(
+        RefreshDatabaseOptions {
+            seed: true,
+            ..Default::default()
+        },
+        |test| Box::pin(async { test.assertDatabaseCount("items", 1).await }),
+    )
+    .await?;
+    test.close().await?;
+    Ok(())
 }
