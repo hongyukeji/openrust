@@ -1109,6 +1109,31 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert_eq!(count(&paged_index).await, RedisValue::Int(320));
     let foreign_key = foreign.taggedItemKey("item").await.unwrap();
     let invalid_bytes = b"\xffinvalid";
+    let (prefix, _) = paged_index.rsplit_once("index:").unwrap();
+    let registry = format!("{prefix}indexes");
+    let foreign_tag = foreign.getTags().tagKey("artists");
+    let foreign_id = foreign.getTags().tagId("artists").await.unwrap();
+    let foreign_index = format!(
+        "{}index:{foreign_id}",
+        foreign_tag.rsplit_once("generation:").unwrap().0
+    );
+    let invalid_index = format!("{prefix}index:invalid");
+    connection
+        .command("SET", &[invalid_index.as_bytes(), b"unrelated"])
+        .await
+        .unwrap();
+    connection
+        .command(
+            "SADD",
+            &[
+                registry.as_bytes(),
+                foreign_index.as_bytes(),
+                invalid_index.as_bytes(),
+                invalid_bytes,
+            ],
+        )
+        .await
+        .unwrap();
     connection
         .command(
             "ZADD",
@@ -1125,6 +1150,23 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert_eq!(count(&paged_index).await, RedisValue::Int(322));
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&paged_index).await, RedisValue::Int(160));
+    for member in [
+        foreign_index.as_bytes(),
+        invalid_index.as_bytes(),
+        invalid_bytes,
+    ] {
+        assert_eq!(
+            connection
+                .command("SISMEMBER", &[registry.as_bytes(), member])
+                .await
+                .unwrap(),
+            RedisValue::Int(0)
+        );
+    }
+    assert!(registered(&paged_index).await);
+    assert!(registered(&foreign_index).await);
+    assert_eq!(count(&foreign_index).await, RedisValue::Int(1));
+    assert!(exists(&invalid_index).await);
     assert!(exists(&foreign_key).await);
     assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
     for number in 0..320 {

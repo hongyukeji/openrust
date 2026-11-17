@@ -149,7 +149,7 @@ impl RedisTagSet {
         let index_prefix = format!("{}index:", self.prefix);
         let mut cursor = 0_u64;
         loop {
-            let (next, indexes): (u64, Vec<String>) = self
+            let (next, indexes): (u64, Vec<Vec<u8>>) = self
                 .query(
                     ::redis::cmd("SSCAN")
                         .arg(&registry)
@@ -158,18 +158,21 @@ impl RedisTagSet {
                         .arg(BATCH_SIZE),
                 )
                 .await?;
-            for index in indexes {
-                let Some((tag, id)) = index
-                    .strip_prefix(&index_prefix)
-                    .and_then(|part| part.split_once(':'))
-                else {
-                    return Err(CacheError::InvalidValue);
+            let mut invalid = Vec::new();
+            for member in &indexes {
+                let Some((index, tag, id)) = std::str::from_utf8(member).ok().and_then(|index| {
+                    let (tag, id) = index.strip_prefix(&index_prefix)?.split_once(':')?;
+                    (valid_digest(tag, 64) && valid_digest(id, 32)).then_some((index, tag, id))
+                }) else {
+                    invalid.push(member.as_slice());
+                    continue;
                 };
-                if !valid_digest(tag, 64) || !valid_digest(id, 32) {
-                    return Err(CacheError::InvalidValue);
-                }
                 let pending = format!("{}pending:{tag}", self.prefix);
-                self.prune_cluster_index(&registry, &index, &pending, id)
+                self.prune_cluster_index(&registry, index, &pending, id)
+                    .await?;
+            }
+            for batch in invalid.chunks(BATCH_SIZE) {
+                self.query::<u64>(::redis::cmd("SREM").arg(&registry).arg(batch))
                     .await?;
             }
             if next == 0 {
