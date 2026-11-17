@@ -33,6 +33,8 @@ impl DatabaseQueue {
     fn clock(&self) -> &'static str {
         if self.connection.is_sqlite() {
             "unixepoch()"
+        } else if self.connection.is_postgres() {
+            "floor(extract(epoch from statement_timestamp()))::bigint"
         } else {
             "unix_timestamp()"
         }
@@ -76,7 +78,10 @@ impl DatabaseQueue {
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<Option<String>> {
         let queue = queue_name(queue, &self.queue)?;
-        let (sql, bindings) = self.insert(queue, payload.encode()?, 0, delay)?;
+        let (mut sql, bindings) = self.insert(queue, payload.encode()?, 0, delay)?;
+        if self.connection.is_postgres() {
+            sql.push_str(" returning id");
+        }
         let id =
             if let Some(transaction) = transaction.filter(|tx| tx.belongs_to(&self.connection)) {
                 transaction.insert_get_id(&sql, &bindings).await

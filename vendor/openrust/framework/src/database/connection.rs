@@ -1091,6 +1091,10 @@ impl Connection {
         self.sqlite
     }
 
+    pub(crate) fn is_postgres(&self) -> bool {
+        self.grammar.is_postgres()
+    }
+
     pub(crate) fn queue_table(&self, table: &str) -> DatabaseResult<String> {
         self.grammar.table(table)
     }

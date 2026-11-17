@@ -27,6 +27,8 @@ Run migrations from the new release before sending traffic to it:
 
 For a fresh SQLite deployment, create the configured database file before running migrations. Existing deployments reuse their application key and persistent data. See [Migrations](../database/migrations.md).
 
+For MySQL or PostgreSQL, confirm the server version against the [release matrix](../prologue/releases.md). OpenRust requires TLS for MySQL connections. The application starts a database queue worker by default. Keep the queue tables migrated when using that worker.
+
 ## Start HTTP and Artisan
 
 ```sh
@@ -99,6 +101,8 @@ The isolated release probe exercised TLS 1.2 and 1.3 with a test CA. The product
 ## Docker deployment {#docker-deployment}
 
 Use Docker Engine with Compose and Buildx on Linux, or Docker Desktop in Linux-container mode on macOS or Windows. The same Dockerfile builds Linux `amd64` and `arm64` images. Run the commands below from the repository root. On Windows PowerShell use `Copy-Item docker/.env.example docker/.env` for the first step.
+
+On Windows ARM64 the Docker Desktop backend requires working WSL 2. A Windows virtual machine needs nested virtualization exposed by its hypervisor. See the [Docker Desktop requirements](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements).
 
 For local development, start MySQL 8.4 and Redis and run the app on the host. Set the application's root `.env` to `DB_CONNECTION=mysql`, `DB_HOST=127.0.0.1`, `DB_PORT=33060`, `REDIS_HOST=127.0.0.1`, and `REDIS_PORT=16379`. Use the same MySQL database, username and password as `docker/.env`. Set `CACHE_STORE=redis` and `QUEUE_CONNECTION=redis` to use Redis. Generate an application key if it is empty, then run `./artisan migrate` and `cargo run`. On Windows PowerShell use `.\artisan.bat`.
 

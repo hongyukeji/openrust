@@ -27,6 +27,8 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 首次部署 SQLite 时先创建配置指定的数据库文件。已有应用继续使用其应用密钥和持久化数据。见[迁移](../database/migrations.md)。
 
+使用 MySQL 或 PostgreSQL 时，先在[发布矩阵](../prologue/releases.md)核对服务端版本。OpenRust 的 MySQL 连接要求 TLS。应用默认启动数据库队列 Worker，使用时需先完成队列表迁移。
+
 ## 启动 HTTP 与 Artisan
 
 ```sh
@@ -99,6 +101,8 @@ $app = Join-Path $PWD 'release/main.exe'
 ## Docker 部署 {#docker-deployment}
 
 Linux 使用带 Compose 和 Buildx 的 Docker Engine，macOS 和 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支持构建 Linux `amd64` 和 `arm64` 镜像。以下命令从仓库根目录执行，Windows PowerShell 第一步用 `Copy-Item docker/.env.example docker/.env`。
+
+Windows ARM64 的 Docker Desktop 后端需要可运行的 WSL 2。Windows 虚拟机需要虚拟化平台提供嵌套虚拟化。参见 [Docker Desktop 系统要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements)。
 
 本地开发可只启动 MySQL 8.4 和 Redis，应用在宿主机运行。根目录的应用 `.env` 设置 `DB_CONNECTION=mysql`、`DB_HOST=127.0.0.1`、`DB_PORT=33060`、`REDIS_HOST=127.0.0.1` 和 `REDIS_PORT=16379`；MySQL 库名、账号和密码与 `docker/.env` 一致。使用 Redis 缓存和队列时设置 `CACHE_STORE=redis` 和 `QUEUE_CONNECTION=redis`。应用密钥为空时先生成密钥，再执行 `./artisan migrate` 和 `cargo run`。Windows PowerShell 使用 `.\artisan.bat`。
 

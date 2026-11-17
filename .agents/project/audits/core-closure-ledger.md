@@ -125,7 +125,7 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存已随 07-07 验收。 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
-| [08-04 发布](08-04/README.md) | 干净检出安装、Linux amd64 兼容环境镜像、Windows ARM64 独立部署、SQLite 3.51.3／MySQL 8.4.13／PostgreSQL 18.6 与本地 TLS 验收通过 | 本轮原生 Linux x86_64 复验、Windows Docker Desktop、生产 TLS、其余目标数据库版本及托管 AWS SQS 标准／FIFO 实机验收 |
+| [08-04 发布](08-04/README.md) | 干净检出安装、Linux amd64 兼容环境镜像、Windows ARM64 独立部署、SQLite 3.51.3／MySQL 8.0.46 和 8.4.13／PostgreSQL 10–18 实测版本及本地 TLS 验收通过 | 原生 Linux x86_64 当前版本复验、Windows Docker Desktop、MySQL 5.7 TLS、MariaDB 和 SQL Server 驱动边界、生产 TLS 与托管 AWS SQS 标准／FIFO 实机验收 |
 
 ### Sanctum、API 安装与资源发布复核（2026-11-15）
 

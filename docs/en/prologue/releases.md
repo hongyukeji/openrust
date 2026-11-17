@@ -12,15 +12,17 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 | Linux ARM64, Debian Bookworm container, Rust 1.94.0 | Standalone deployment, HTTP, SQLite migrations and Artisan under an unprivileged user |
 | Linux ARM64, Debian Bookworm container, LinuxKit 7.0.14 | Default same-process startup, SQLite queue parity with Artisan and graceful shutdown on SIGTERM |
 | SQLite 3.51.3 | Clean checkout, 12 application migrations, Artisan and HTTP |
-| MySQL 8.4.13 | Isolated database, 12 migrations, idempotent rerun, Artisan and application HTTP |
-| PostgreSQL 18.6 | Isolated database, 12 migrations, idempotent rerun, Artisan and application HTTP |
+| MySQL 8.0.46, 8.4.13 | Isolated databases, 12 migrations, idempotent rerun, Artisan database worker, HTTP and database session writes |
+| PostgreSQL 10–18 | Isolated databases, 12 migrations, idempotent rerun, Artisan database worker, HTTP and database session writes. Job dispatch and reservation were also exercised on 10 and 18 |
 | Redis 8.10 | Queue acceptance and Reverb publication between two processes |
 | Ubuntu 24.04 x86_64 and Docker Desktop on Apple Silicon | Earlier native amd64 container acceptance on Ubuntu. The fresh release was rebuilt and ran in Docker Desktop amd64 compatibility mode with SQLite, Artisan, HTTP, persistent storage and SIGTERM shutdown |
 | Windows 11 Pro ARM64 build 26200.9457 in Parallels | Native ARM64 MSVC release executable. SQLite migrations, Artisan, welcome and health routes, public files, relocation and graceful Ctrl+C passed. Docker Desktop backend unverified |
 
 The platform and driver rows cover the scenarios listed. Check the corresponding feature guide for its scope, such as [Reverb scaling](../packages/reverb.md). For standalone artifacts, follow [Deployment](../getting-started/deployment.md).
 
-The database rows record the versions exercised by the release probe. MariaDB and SQL Server currently return an unavailable driver. Other server versions need their own deployment checks.
+The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. MySQL 5.7.44 failed the required TLS handshake with the tested server image. MariaDB and SQL Server currently return an unavailable driver.
+
+The available Windows ARM64 guest lacks nested virtualization and a working WSL 2 backend. Its standalone deployment is verified. The Windows Docker Desktop run and a native Ubuntu rerun of the current release remain pending.
 
 TLS 1.2 and 1.3 passed through a local reverse proxy using a test CA, with certificate chain and hostname verification. Validation against a production endpoint is pending.
 

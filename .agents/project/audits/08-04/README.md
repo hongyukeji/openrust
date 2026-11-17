@@ -33,3 +33,14 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - 当前环境未提供托管 AWS SQS 标准／FIFO 的隔离队列和可用权限。此前 ElasticMQ 验收记录保留，托管 SQS 的 IAM、签名、可见性超时、去重及重试仍待实机测试。
 
 三语站点构建、12 项通用浏览器检查，以及根路径和 `/docs/` 下的 6 项安装、Windows／TLS 部署与发布矩阵导航检查通过。已清理隔离检出、构建产物、临时容器与数据卷、Windows 来宾测试目录、证书与站点。08-04 保持开放。
+
+## 数据库版本复验与平台前置条件
+
+- 以 `a1b12f149` 的干净检出和本批数据库队列修复构建独立应用。固定 Laravel 文档的数据库下限为 MariaDB 10.3、MySQL 5.7、PostgreSQL 10、SQLite 3.26 和 SQL Server 2017。OpenRust 默认使用随二进制编译的 SQLite，服务端数据库按实测版本记录。 [固定 Laravel 数据库范围](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#introduction)
+- SQLite 3.51.3、MySQL 8.0.46／8.4.13、PostgreSQL 10.21／11.16／12.22／13.23／14.25／15.20／16.16／17.12／18.6 通过 12 项迁移、幂等重跑、`migrate:status`、`inspire`、独立 `queue:work`、首页和 `/up`，并验证进程收到 SIGTERM 后退出为 0。MySQL、PostgreSQL 服务使用本地 ARM64 容器和隔离数据库，另核对了应用写入数据库会话。
+- PostgreSQL 迁移成功后，默认数据库 Worker 曾因使用 MySQL 的时钟函数退出。改用 PostgreSQL 语句时间的 Unix 秒值，入队使用 `RETURNING id`，继续使用基线的 `FOR UPDATE SKIP LOCKED`。真实 HTTP 回归在 PostgreSQL 10.21、18.6、SQLite 和 MySQL 8.4.13 上验证了派发、预留、延迟、释放、删除和事务，队列测试严格 Clippy 通过。 [固定 Laravel 数据库队列](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/DatabaseQueue.php#L489)
+- 官方 MySQL 5.7.44 镜像在本地 amd64 兼容环境中启动，容器内客户端连接成功，应用的必需 TLS 握手收到 `HandshakeFailure`。服务端限定测试的 ECDHE 套件时连容器内客户端也未握手成功。该版本仍待验证，MariaDB 与 SQL Server 仍归未接入的驱动范围。
+- 核对了 [原生 Ubuntu x86_64](docker.md#原生-ubuntu-x86_64-实机) 在 `57bab2532` 的部署记录。当前工作区只有 Apple Silicon 宿主及本地 Docker 上下文，当前版本仍待原生 x86_64 目标主机复验。Windows 11 ARM64 来宾实测无 Docker Desktop，`wsl --status` 返回 50，来宾报告未启用虚拟化且无 SLAT。Parallels 的 Windows ARM64 来宾缺少 WSL 2 所需的嵌套虚拟化。核对后恢复来宾原停止状态，Windows Docker Desktop 待目标宿主。 [Docker Desktop 系统要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements) · [Parallels Windows ARM64 限制](https://kb.parallels.com/en/129497)
+- 按约定保留生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验收，08-04 保持开放。
+
+三语站点构建、12 项通用浏览器检查和 6 项发布矩阵导航检查通过。已清理本批隔离源码、Cargo 产物、站点、数据库容器以及新拉取的数据库镜像标签。
