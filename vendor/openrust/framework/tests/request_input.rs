@@ -131,6 +131,37 @@ fn stream_download(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     })
 }
 
+fn binary_file(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::support::facades::Config;
+
+    Box::pin(async move {
+        let root = Config::get("probe.file_root")
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?
+            .expect("fixture root");
+        let root = PathBuf::from(root.as_str().expect("fixture path"));
+        let headers = HeaderMap::new();
+        match request.uri().path() {
+            "/download" => {
+                Response::download(
+                    root.join("document.txt"),
+                    Some("résumé.txt"),
+                    headers,
+                    "attachment",
+                )
+                .await
+            }
+            "/download-default" => {
+                Response::download(root.join("document.txt"), None, headers, "inline").await
+            }
+            "/file-missing" => Response::file(root.join("missing.txt"), headers).await,
+            "/file-zero" => Response::file(root.join("empty.bin"), headers).await,
+            _ => Response::file(root.join("document.txt"), headers).await,
+        }
+    })
+}
+
 fn response_factory(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use axum::http::{HeaderName, HeaderValue};
     use openrust::support::facades::View;
@@ -335,6 +366,7 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
 
 async fn start_at(label: &'static str, root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root)
+        .withConfig(|base, _| Ok([("probe".into(), json!({"file_root": base}))].into()))
         .withProviders(vec![Box::new(Provider(label))])
         .withRouting(Routing::default().web(|| {
             Route::r#match(
@@ -375,6 +407,19 @@ async fn start_at(label: &'static str, root: PathBuf) -> (SocketAddr, tokio::tas
             Route::get("/stream.json", stream_json)?;
             Route::get("/stream.events", event_stream)?;
             Route::get("/stream.download", stream_download)?;
+            for path in [
+                "/file",
+                "/download",
+                "/download-default",
+                "/file-missing",
+                "/file-zero",
+            ] {
+                Route::get(path, binary_file)?;
+            }
+            Route::getWith("/file-cached", binary_file, |route| {
+                route.middleware_name("cache.headers:private;max_age=60;etag=release");
+                Ok(())
+            })?;
             for path in [
                 "/response.jsonp",
                 "/response.md",
@@ -1282,5 +1327,121 @@ async fn real_http_serves_jsonp_markdown_empty_and_view_responses() {
     assert!(headers.contains("\r\nx-probe: view"));
     assert!(headers.contains("\r\ncontent-type: text/html; charset=utf-8"));
     assert_eq!(body, "Hello &lt;Ada&gt;!");
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_prepares_file_responses_after_cache_middleware() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::write(root.path().join("document.txt"), b"0123456789").unwrap();
+    std::fs::write(root.path().join("empty.bin"), b"").unwrap();
+    let (address, server) = start_at("binary-file", root.path().into()).await;
+
+    let (headers, body) = send(address, "GET", "/file", "", b"", 200).await;
+    assert_eq!(body, "0123456789");
+    assert!(headers.contains("\r\ncontent-length: 10"));
+    assert!(headers.contains("\r\ncontent-type: text/plain; charset=utf-8"));
+    assert!(headers.contains("\r\naccept-ranges: bytes"));
+    assert!(headers.contains("\r\ncache-control: public"));
+    assert!(!headers.contains("\r\ncontent-disposition:"));
+    let modified = headers
+        .lines()
+        .find_map(|line| line.strip_prefix("last-modified: "))
+        .unwrap();
+
+    for (method, fields, status, expected, content_range) in [
+        (
+            "GET",
+            "Range: bytes=2-4\r\n",
+            206,
+            "234",
+            Some("bytes 2-4/10"),
+        ),
+        (
+            "GET",
+            "Range: bytes=7-\r\n",
+            206,
+            "789",
+            Some("bytes 7-9/10"),
+        ),
+        (
+            "GET",
+            "Range: bytes=-2\r\n",
+            206,
+            "89",
+            Some("bytes 8-9/10"),
+        ),
+        ("GET", "Range: bytes=12-15\r\n", 416, "", Some("bytes */10")),
+        ("GET", "Range: bytes=0-1,5-6\r\n", 200, "0123456789", None),
+        ("GET", "Range: bytes=bad-9\r\n", 200, "0123456789", None),
+        ("HEAD", "Range: bytes=0-1\r\n", 200, "", None),
+        (
+            "GET",
+            "Range: bytes=0-1\r\nIf-Range: \"stale\"\r\n",
+            200,
+            "0123456789",
+            None,
+        ),
+    ] {
+        let (headers, body) =
+            send_with_headers(address, method, "/file", "", b"", status, fields).await;
+        assert_eq!(body, expected, "{method} {fields}");
+        let actual = headers
+            .lines()
+            .find_map(|line| line.strip_prefix("content-range: "));
+        assert_eq!(actual, content_range);
+        let length = if method == "HEAD" { 10 } else { expected.len() };
+        assert!(
+            headers
+                .lines()
+                .any(|line| line == format!("content-length: {length}"))
+        );
+    }
+    let (_, body) = send_with_headers(
+        address,
+        "GET",
+        "/file",
+        "",
+        b"",
+        206,
+        &format!("Range: bytes=0-1\r\nIf-Range: {modified}\r\n"),
+    )
+    .await;
+    assert_eq!(body, "01");
+
+    let (headers, body) = send_with_headers(
+        address,
+        "GET",
+        "/file-cached",
+        "",
+        b"",
+        206,
+        "Range: bytes=2-3\r\nIf-Range: \"release\"\r\n",
+    )
+    .await;
+    assert_eq!(body, "23");
+    assert!(headers.contains("\r\ncache-control: max-age=60, private"));
+    let (headers, body) = send_with_headers(
+        address,
+        "GET",
+        "/file-cached",
+        "",
+        b"",
+        304,
+        "Range: bytes=50-70\r\nIf-None-Match: W/\"release\"\r\n",
+    )
+    .await;
+    assert!(body.is_empty() && !headers.contains("\r\ncontent-range:"));
+    assert!(headers.contains("\r\netag: \"release\""));
+
+    let (headers, body) = send(address, "GET", "/download", "", b"", 200).await;
+    assert_eq!(body, "0123456789");
+    assert!(headers.contains("\r\ncontent-disposition: attachment; filename=resume.txt; filename*=utf-8''r%C3%A9sum%C3%A9.txt"));
+    let (headers, _) = send(address, "HEAD", "/download-default", "", b"", 200).await;
+    assert!(headers.contains("\r\ncontent-disposition: inline; filename=document.txt"));
+
+    let (headers, body) = send(address, "GET", "/file-zero", "", b"", 200).await;
+    assert!(body.is_empty() && headers.contains("\r\ncontent-length: 0"));
+    send(address, "GET", "/file-missing", "", b"", 500).await;
     server.abort();
 }

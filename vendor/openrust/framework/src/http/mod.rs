@@ -3,6 +3,7 @@
 use std::{future::Future, pin::Pin};
 
 mod api_response;
+mod binary_file_response;
 mod body;
 pub mod client;
 mod download;

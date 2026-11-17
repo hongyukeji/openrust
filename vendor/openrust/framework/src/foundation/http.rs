@@ -169,6 +169,7 @@ impl http::Kernel for Kernel {
                     ),
                 ));
                 let mut response = deferred.scope(request_lifecycle).await;
+                response.prepare_binary_file(request.method(), request.headers());
                 request.exceptions = previous_exceptions;
                 request.api_prefix = previous_api_prefix;
                 let mut middleware = std::mem::take(&mut request.route_terminators);

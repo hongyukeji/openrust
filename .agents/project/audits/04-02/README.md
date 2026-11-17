@@ -82,3 +82,11 @@
 - PHP 8.5 对照固定代码验证 Unicode 回调与载荷转义、缺省回调、无效回调、Markdown 类型与正文、空响应及视图候选列表与响应元数据。真实 HTTP 验证 Blade 回退模板、变量转义、状态和响应头，并覆盖 HEAD 与无正文状态。
 - 隔离基线 `21fa32269` 上使用 Rust 1.94.0 通过请求与响应 13 项、视图 5 项和应用 HTTP 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-response-factory.xmTozYkc`。
 - 04-02 保持开放。下一批核对 `file`／`download` 的二进制文件响应、条件请求、Range 与下载处置头。响应宏及流式差异继续跟踪。
+
+## 二进制文件响应
+
+- 对照固定 Laravel `ResponseFactory::file` 与 `download`，以及 Symfony 7.4.0 `BinaryFileResponse` 的文件元数据、处置头、Range 和 `If-Range`。旧版 `v0.x` 未发现 `If-Range` 实现。本批复用现有文件名编码、缓存指令合并及 Tokio 流式读取。 [Laravel 响应工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResponseFactory.php#L270) · [Symfony 文件响应](https://github.com/symfony/http-foundation/blob/v7.4.0/BinaryFileResponse.php)
+- 文件从同一已打开的句柄读取。HTTP Kernel 在响应中间件之后选择区间，因此 `cache.headers` 可以先设置 ETag 或返回 304。默认媒体类型按扩展名判断，调用方可显式设置类型。文件响应提供单个字节区间，忽略畸形和多区间请求并回送完整文件。`If-Range` 使用强 ETag 或与 `Last-Modified` 完全一致的日期。416 明确发送 `Content-Length: 0`。
+- 固定 Laravel/PHP 8.5 验证 GET、HEAD、闭合区间、开放区间、后缀区间、304、416、`If-Range` 和下载处置头。对照使用固定媒体类型和 ASCII 文件名回退。真实 HTTP 另覆盖默认媒体类型、UTF-8 回退、空文件、缺失文件和忽略多区间请求。
+- 隔离基线 `e370b439d` 上使用 Rust 1.94.0 通过请求与响应 14 项、文件系统 9 项和应用 HTTP 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-binary-file.IsQej8Qt`。
+- 04-02 保持开放。后续核对响应宏与流式差异。Symfony 的发送后删文件及可信代理文件转发为独立扩展，当前两个构造器从框架进程直接发送本地文件。

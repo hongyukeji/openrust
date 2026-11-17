@@ -124,6 +124,16 @@ Use `Response::markdown(status, content)` to send Markdown source with `text/mar
 
 Use `Response::noContent()` for an empty HTTP 204 response. Use `Response::empty(status)` to select another status and `withHeaders` to attach headers.
 
+### File Downloads {#file-downloads}
+
+Use `Response::download(path, name, headers, "attachment").await` to send a local file as a download. Pass `Some(name)` to change the download name or `None` to use the file's name. Use `"inline"` to set an inline disposition.
+
+### File Responses {#file-responses}
+
+Use `Response::file(path, headers).await` to serve a local file with its content type and length. Both methods stream a regular file selected by the application and set a public cache policy by default.
+
+The HTTP kernel prepares a single byte range after response middleware. A matching `If-Range` can use a strong ETag or the file's `Last-Modified` header. HEAD sends the full file's metadata without a body. Apply `cache.headers` when a route needs cache revalidation and `304 Not Modified` responses. Malformed and multi-range requests receive the full file.
+
 ## Streamed Responses {#streamed-responses}
 
 ### Streamed JSON Responses {#streamed-json-responses}

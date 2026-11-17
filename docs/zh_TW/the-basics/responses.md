@@ -124,6 +124,16 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 
 用 `Response::noContent()` 回傳無本文的 HTTP 204。用 `Response::empty(status)` 指定其他狀態碼，用 `withHeaders` 附加回應標頭。
 
+### 檔案下載 {#file-downloads}
+
+用 `Response::download(path, name, headers, "attachment").await` 下載本機檔案。傳入 `Some(name)` 指定下載名稱，傳入 `None` 沿用原檔名。使用 `"inline"` 可指定行內處置。
+
+### 檔案回應 {#file-responses}
+
+用 `Response::file(path, headers).await` 回傳本機檔案、媒體類型與長度。兩種方法都將應用程式選定的一般檔案分段傳送，預設採用公開快取策略。
+
+HTTP Kernel 在回應中介層後處理單一位元組區間。`If-Range` 可比對強 ETag 或檔案的 `Last-Modified`。HEAD 回傳完整檔案的中繼資料，本文為空。需要快取重新驗證及 `304 Not Modified` 時，為路由設定 `cache.headers`。格式無效或含多個區間的請求會回傳完整檔案。
+
 ## 串流回應 {#streamed-responses}
 
 ### 串流 JSON 回應 {#streamed-json-responses}

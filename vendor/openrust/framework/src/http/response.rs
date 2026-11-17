@@ -11,6 +11,7 @@ use super::{Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponsePar
 pub struct Response {
     parts: ResponseParts,
     pub(super) body: Body,
+    pub(super) binary_file: Option<super::binary_file_response::BinaryFile>,
 }
 
 impl Response {
@@ -184,7 +185,11 @@ impl Response {
     }
 
     pub fn from_parts(parts: ResponseParts, body: Body) -> Self {
-        Self { parts, body }
+        Self {
+            parts,
+            body,
+            binary_file: None,
+        }
     }
     pub fn parts(&self) -> &ResponseParts {
         &self.parts

@@ -86,7 +86,11 @@ impl SetCacheHeaders {
         if !matches!(*method, Method::GET | Method::HEAD) || !response.status().is_success() {
             return Ok(response);
         }
-        let length = response.body.size_hint().exact();
+        let length = if response.binary_file.is_some() {
+            None
+        } else {
+            response.body.size_hint().exact()
+        };
         if method != Method::HEAD && length == Some(0) {
             return Ok(response);
         }
@@ -121,7 +125,7 @@ impl SetCacheHeaders {
         if let Some(date) = &self.last_modified {
             headers.insert(LAST_MODIFIED, last_modified(date)?);
         }
-        self.cache_control(headers);
+        apply_cache_control(headers, &self.directives, self.public);
         if is_not_modified(request_headers, headers) {
             response.parts_mut().status = StatusCode::NOT_MODIFIED;
             response.body = Body::empty();
@@ -137,58 +141,62 @@ impl SetCacheHeaders {
         }
         Ok(response)
     }
+}
 
-    fn cache_control(&self, headers: &mut HeaderMap) {
-        let mut directives = Directives::new();
-        for value in headers.get_all(CACHE_CONTROL) {
-            if let Ok(value) = value.to_str() {
-                for directive in comma_list(value) {
-                    let (name, value) = match directive.split_once('=') {
-                        Some((name, value)) => (name, Some(value.trim().to_owned())),
-                        None => (directive, Some(String::new())),
-                    };
-                    directives.insert(name.trim().to_ascii_lowercase(), value);
-                }
+pub(in crate::http) fn set_public_cache_control(headers: &mut HeaderMap) {
+    apply_cache_control(headers, &Directives::new(), Some(true));
+}
+
+fn apply_cache_control(headers: &mut HeaderMap, configured: &Directives, public: Option<bool>) {
+    let mut directives = Directives::new();
+    for value in headers.get_all(CACHE_CONTROL) {
+        if let Ok(value) = value.to_str() {
+            for directive in comma_list(value) {
+                let (name, value) = match directive.split_once('=') {
+                    Some((name, value)) => (name, Some(value.trim().to_owned())),
+                    None => (directive, Some(String::new())),
+                };
+                directives.insert(name.trim().to_ascii_lowercase(), value);
             }
         }
-        directives.extend(self.directives.clone());
-        if let Some(public) = self.public {
-            let (include, remove) = if public {
-                ("public", "private")
-            } else {
-                ("private", "public")
-            };
-            directives.remove(remove);
-            directives.insert(include.into(), Some(String::new()));
-        }
-        let mut policy = directives
-            .iter()
-            .filter_map(|(key, value)| {
-                value.as_ref().map(|value| {
-                    if value.is_empty() {
-                        key.clone()
-                    } else {
-                        format!("{key}={value}")
-                    }
-                })
+    }
+    directives.extend(configured.clone());
+    if let Some(public) = public {
+        let (include, remove) = if public {
+            ("public", "private")
+        } else {
+            ("private", "public")
+        };
+        directives.remove(remove);
+        directives.insert(include.into(), Some(String::new()));
+    }
+    let mut policy = directives
+        .iter()
+        .filter_map(|(key, value)| {
+            value.as_ref().map(|value| {
+                if value.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{key}={value}")
+                }
             })
-            .collect::<Vec<_>>()
-            .join(", ");
-        if policy.is_empty() {
-            policy = if headers.contains_key(LAST_MODIFIED) || headers.contains_key(EXPIRES) {
-                "private, must-revalidate".into()
-            } else {
-                "no-cache, private".into()
-            };
-        } else if !["public", "private", "s-maxage"]
-            .iter()
-            .any(|key| directives.get(*key).is_some_and(Option::is_some))
-        {
-            policy.push_str(", private");
-        }
-        if let Ok(value) = HeaderValue::from_str(&policy) {
-            headers.insert(CACHE_CONTROL, value);
-        }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    if policy.is_empty() {
+        policy = if headers.contains_key(LAST_MODIFIED) || headers.contains_key(EXPIRES) {
+            "private, must-revalidate".into()
+        } else {
+            "no-cache, private".into()
+        };
+    } else if !["public", "private", "s-maxage"]
+        .iter()
+        .any(|key| directives.get(*key).is_some_and(Option::is_some))
+    {
+        policy.push_str(", private");
+    }
+    if let Ok(value) = HeaderValue::from_str(&policy) {
+        headers.insert(CACHE_CONTROL, value);
     }
 }
 

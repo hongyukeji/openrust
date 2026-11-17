@@ -124,6 +124,16 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 
 用 `Response::noContent()` 返回无正文的 HTTP 204。用 `Response::empty(status)` 指定其他状态码，用 `withHeaders` 附加响应头。
 
+### 文件下载 {#file-downloads}
+
+用 `Response::download(path, name, headers, "attachment").await` 下载本地文件。传入 `Some(name)` 指定下载名，传入 `None` 沿用原文件名。使用 `"inline"` 可指定内联处置。
+
+### 文件响应 {#file-responses}
+
+用 `Response::file(path, headers).await` 返回本地文件、媒体类型和长度。两种方法都将应用选定的普通文件按块发送，默认采用公开缓存策略。
+
+HTTP Kernel 在响应中间件后处理单个字节区间。`If-Range` 可匹配强 ETag 或文件的 `Last-Modified`。HEAD 返回完整文件的元数据，正文为空。需要缓存重新验证和 `304 Not Modified` 时，为路由配置 `cache.headers`。格式无效或含多个区间的请求返回完整文件。
+
 ## 流式响应 {#streamed-responses}
 
 ### 流式 JSON 响应 {#streamed-json-responses}
