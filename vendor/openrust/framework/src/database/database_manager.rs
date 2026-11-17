@@ -73,13 +73,21 @@ impl DatabaseManager {
     }
 
     pub(super) async fn dispatch_migration_event(&self, event: impl Event) -> DatabaseResult<()> {
+        self.dispatch_migration_event_in(event, None).await
+    }
+
+    pub(super) async fn dispatch_migration_event_in(
+        &self,
+        event: impl Event,
+        transaction: Option<&mut super::Transaction>,
+    ) -> DatabaseResult<()> {
         let Some(owner) = self.container.upgrade() else {
             return Ok(());
         };
         let dispatcher = owner
             .get::<Dispatcher>("events")
             .map_err(DatabaseError::Unavailable)?;
-        let mut context = EventContext::new();
+        let mut context = transaction.map_or_else(EventContext::new, EventContext::in_transaction);
         application_scope(owner, dispatcher.dispatch(Arc::new(event), &mut context))
             .await
             .map_err(|error| DatabaseError::MigrationEvent(Box::new(error)))?;

@@ -1,10 +1,15 @@
-use crate::database::{Connection, DatabaseFuture, DatabaseResult, Value, schema};
+use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, Value, schema};
 
 /// A compiled migration registered with the application.
 #[allow(non_snake_case, reason = "Matches Laravel's Migration API")]
 pub trait Migration: Send + Sync {
     fn getConnection(&self) -> Option<&str> {
         None
+    }
+
+    /// Allows the migrator to run the whole migration in a schema transaction.
+    fn withinTransaction(&self) -> bool {
+        true
     }
 
     fn shouldRun<'a>(
@@ -27,6 +32,7 @@ pub trait Migration: Send + Sync {
 /// Executes migration operations on the selected connection, or records SQL in pretend mode.
 pub struct MigrationContext {
     connection: Connection,
+    transaction: Option<Transaction>,
     statements: Option<Vec<String>>,
 }
 
@@ -35,6 +41,7 @@ impl MigrationContext {
     pub(super) fn new(connection: Connection, pretend: bool) -> Self {
         Self {
             connection,
+            transaction: None,
             statements: pretend.then(Vec::new),
         }
     }
@@ -42,7 +49,10 @@ impl MigrationContext {
     pub fn getSchemaBuilder(&mut self) -> schema::Builder<'_> {
         match &mut self.statements {
             Some(statements) => schema::Builder::pretend(&self.connection, statements),
-            None => self.connection.getSchemaBuilder(),
+            None => match &mut self.transaction {
+                Some(transaction) => transaction.getSchemaBuilder(),
+                None => self.connection.getSchemaBuilder(),
+            },
         }
     }
 
@@ -51,7 +61,10 @@ impl MigrationContext {
             statements.push(sql.to_owned());
             return Ok(true);
         }
-        self.connection.statement(sql, bindings).await
+        match &mut self.transaction {
+            Some(transaction) => transaction.statement(sql, bindings).await,
+            None => self.connection.statement(sql, bindings).await,
+        }
     }
 
     pub fn getName(&self) -> &str {
@@ -60,6 +73,24 @@ impl MigrationContext {
 
     pub(super) fn take_statements(self) -> Vec<String> {
         self.statements.unwrap_or_default()
+    }
+
+    pub(super) async fn begin_transaction(&mut self, enabled: bool) -> DatabaseResult<()> {
+        if enabled && (self.connection.is_postgres() || self.connection.is_sql_server()) {
+            self.transaction = Some(self.connection.beginTransaction().await?);
+        }
+        Ok(())
+    }
+
+    pub(super) fn transaction(&mut self) -> Option<&mut Transaction> {
+        self.transaction.as_mut()
+    }
+
+    pub(super) async fn finish(&mut self, result: DatabaseResult<()>) -> DatabaseResult<()> {
+        match self.transaction.take() {
+            Some(mut transaction) => transaction.finish(1, result).await,
+            None => result,
+        }
     }
 }
 

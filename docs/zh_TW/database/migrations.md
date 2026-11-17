@@ -76,6 +76,18 @@ impl Migration for Definition {
 
 正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
 
+### 遷移交易 {#migration-transactions}
+
+PostgreSQL 和 SQL Server 預設將一項遷移的 `up` 或 `down` 放在一個交易中。使用傳入的 `MigrationContext` 執行 Schema 變更和 SQL，遷移監聽器可使用事件上下文提供的交易。遷移或同步生命週期監聽器在交易提交前失敗時，會回滾本次變更，帳本保留原先狀態。
+
+需要自動提交的操作，例如 [PostgreSQL 線上索引](#postgresql-online-indexes)，可在該遷移的 `impl Migration` 中覆寫 `withinTransaction()`。退出交易後，後續陳述式失敗時，已完成的變更可能保留。`--pretend` 顯示 SQL，不會啟動遷移交易。
+
+```rust
+fn withinTransaction(&self) -> bool {
+    false
+}
+```
+
 ### 檢查待執行遷移 {#checking-pending-migrations}
 
 使用 `--pending` 只列出待執行的遷移。使用 `--pending=17` 時，有待執行遷移則回傳 17，清單為空則回傳 0。明確指定的結束碼範圍為 0 到 255，遷移帳本不存在時回傳 1。可透過 `--path` 和 `--database` 限定檢查範圍。
@@ -962,7 +974,7 @@ Schema::table("documents", |table| {
 }).await?;
 ```
 
-使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
+遷移中使用線上索引時，覆寫 [`withinTransaction()`](#migration-transactions) 並回傳 `false`。使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
 
 #### 從模型定義外鍵欄位 {#foreign-ids-from-models}
 

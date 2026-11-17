@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 01:16（北京时间）02-06 [整条迁移的事务与显式退出](audits/02-06/README.md#整条迁移的事务与显式退出)。PostgreSQL 18.4 实际 HTTP、独立 Artisan 和迁移事务回归，MySQL 8.4.13 五项、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。SQL Server 事务待真实驱动验收，核心账本维持 62/66。
 - 2026-11-18 01:11（北京时间）03-09 [Redis Cluster 过期清理回收无效代际标识](audits/03-09/README.md#redis-cluster-过期清理回收无效代际标识)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 00:56（北京时间）02-05 [PostgreSQL 在线索引与 MariaDB 向量索引参数](audits/02-05/README.md#postgresql-在线索引与-mariadb-向量索引参数)。真实 PostgreSQL 并发写入、MariaDB 参数、双驱动实际 HTTP 和 Artisan、MySQL 8.4.13 回归、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 00:45（北京时间）02-04 [文本嵌入与向量查询](audits/02-04/README.md#文本嵌入与向量查询)。本地协议服务、真实 PostgreSQL／pgvector 和 MariaDB HTTP、独立 Artisan、MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。

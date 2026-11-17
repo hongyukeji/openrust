@@ -76,6 +76,18 @@ Use `--database` to select the ledger connection and `--step` to give each migra
 
 Production commands that change schema prompt for confirmation. Use `--force` for a deployment that has already approved those changes. MySQL and SQLite migrations can contain multiple DDL statements. If one fails, earlier successful statements may still be present. Inspect the failing migration before retrying.
 
+### Migration Transactions {#migration-transactions}
+
+On PostgreSQL and SQL Server, each migration runs its `up` or `down` method in a transaction by default. Use the supplied `MigrationContext` to run Schema changes and SQL on that transaction. Migration listeners can use the transaction supplied by their event context. If the migration or a synchronous lifecycle listener fails before commit, its changes roll back and the ledger keeps its prior state.
+
+Override `withinTransaction()` in the migration’s `impl Migration` block for operations that require autocommit, such as [PostgreSQL online indexes](#postgresql-online-indexes). An opted-out migration can leave completed changes in place after a later failure. `--pretend` displays SQL without starting the migration transaction.
+
+```rust
+fn withinTransaction(&self) -> bool {
+    false
+}
+```
+
 ### Checking for Pending Migrations {#checking-pending-migrations}
 
 Use `--pending` to list only pending migrations. Use `--pending=17` to make the command return 17 when that list is nonempty. An empty list returns 0. The explicit exit code must be between 0 and 255. A missing migration ledger returns 1. Use `--path` and `--database` to scope the check.
@@ -962,7 +974,7 @@ Schema::table("documents", |table| {
 }).await?;
 ```
 
-Use the connection’s Schema builder. A blueprint containing an online index runs its statements individually in autocommit mode. Keep that blueprint separate from changes you want to apply atomically. An active framework-managed transaction rejects the blueprint before executing any of its statements. A failed concurrent build can leave an invalid index, which you can drop before retrying.
+Inside a migration, override [`withinTransaction()`](#migration-transactions) to return `false`. Use the connection’s Schema builder. A blueprint containing an online index runs its statements individually in autocommit mode. Keep that blueprint separate from changes you want to apply atomically. An active framework-managed transaction rejects the blueprint before executing any of its statements. A failed concurrent build can leave an invalid index, which you can drop before retrying.
 
 #### Foreign IDs from Models {#foreign-ids-from-models}
 

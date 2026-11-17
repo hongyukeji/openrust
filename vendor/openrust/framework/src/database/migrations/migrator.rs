@@ -395,13 +395,41 @@ impl Migrator {
         pretend: bool,
     ) -> DatabaseResult<()> {
         let migration = entry.migration;
+        context
+            .begin_transaction(!pretend && migration.withinTransaction())
+            .await
+            .map_err(|error| migration_error(name, error))?;
+        let result = self
+            .run_migration_body(entry, name, method, context, pretend)
+            .await;
+        let completed = result.is_ok();
+        let result = context.finish(result).await;
+        if completed {
+            result.map_err(|error| migration_error(name, error))
+        } else {
+            result
+        }
+    }
+
+    async fn run_migration_body(
+        &self,
+        entry: &MigrationEntry,
+        name: &str,
+        method: MigrationMethod,
+        context: &mut MigrationContext,
+        pretend: bool,
+    ) -> DatabaseResult<()> {
+        let migration = entry.migration;
         if !pretend {
             self.manager
-                .dispatch_migration_event(MigrationStarted {
-                    migration,
-                    method,
-                    name: name.to_owned(),
-                })
+                .dispatch_migration_event_in(
+                    MigrationStarted {
+                        migration,
+                        method,
+                        name: name.to_owned(),
+                    },
+                    context.transaction(),
+                )
                 .await?;
         }
         match method {
@@ -411,11 +439,14 @@ impl Migrator {
         .map_err(|error| migration_error(name, error))?;
         if !pretend {
             self.manager
-                .dispatch_migration_event(MigrationEnded {
-                    migration,
-                    method,
-                    name: name.to_owned(),
-                })
+                .dispatch_migration_event_in(
+                    MigrationEnded {
+                        migration,
+                        method,
+                        name: name.to_owned(),
+                    },
+                    context.transaction(),
+                )
                 .await?;
         }
         Ok(())

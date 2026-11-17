@@ -76,6 +76,18 @@ impl Migration for Definition {
 
 生产环境中改变结构的命令会要求确认。部署流程已确认变更时可传 `--force`。MySQL 和 SQLite 的单项迁移可能包含多条 DDL，其中一条失败时，先前成功的语句可能已生效。重试前先检查失败的迁移。
 
+### 迁移事务 {#migration-transactions}
+
+PostgreSQL 和 SQL Server 默认将一条迁移的 `up` 或 `down` 放在一个事务中。使用传入的 `MigrationContext` 执行 Schema 变更和 SQL，迁移监听器可使用事件上下文提供的事务。迁移或同步生命周期监听器在事务提交前失败时，本次变更会回滚，账本保留原状态。
+
+需要自动提交的操作，例如 [PostgreSQL 在线索引](#postgresql-online-indexes)，可在该迁移的 `impl Migration` 中覆盖 `withinTransaction()`。退出事务后，后续语句失败时已完成的变更可能保留。`--pretend` 显示 SQL，不启动迁移事务。
+
+```rust
+fn withinTransaction(&self) -> bool {
+    false
+}
+```
+
 ### 检查待执行迁移 {#checking-pending-migrations}
 
 使用 `--pending` 只列出待执行的迁移。使用 `--pending=17` 时，有待执行迁移则返回 17，列表为空则返回 0。显式退出码范围为 0 到 255，迁移账本不存在时返回 1。可通过 `--path` 和 `--database` 限定检查范围。
@@ -962,7 +974,7 @@ Schema::table("documents", |table| {
 }).await?;
 ```
 
-使用连接的 Schema 构建器。包含在线索引的 Blueprint 逐条以自动提交方式执行。需要原子应用的变更应另用一个 Blueprint。若框架管理的事务处于活动状态，这个 Blueprint 会在执行任何语句前被拒绝。并发构建失败可能留下无效索引，可删除后再试。
+迁移中使用在线索引时，覆盖 [`withinTransaction()`](#migration-transactions) 并返回 `false`。使用连接的 Schema 构建器。包含在线索引的 Blueprint 逐条以自动提交方式执行。需要原子应用的变更应另用一个 Blueprint。若框架管理的事务处于活动状态，这个 Blueprint 会在执行任何语句前被拒绝。并发构建失败可能留下无效索引，可删除后再试。
 
 #### 从模型定义外键列 {#foreign-ids-from-models}
 

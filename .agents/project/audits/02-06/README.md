@@ -142,3 +142,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - `schema:dump --database=pgsql` 使用真实 `pg_dump`，快照包含表结构和迁移账本。业务行未写入快照。独立 Artisan 通过真实 `psql` 恢复 SQL，真实 `pg_restore` 恢复归档，无效 SQL 让恢复事务回滚。测试包装器先核对客户端收到直连端口，再映射到同一个隔离容器的本地端口。
 - `migrate:fresh` 重建目标 Schema，保留相邻 Schema 的哨兵行。`db:wipe --drop-views --drop-types` 清空指定搜索路径中的表、视图、类型和域，保留相邻 Schema 的数据与其他 Schema 的迁移账本。其他驱动快照和 PostgreSQL 版本矩阵继续跟踪。 [Laravel 快照](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/PostgresSchemaState.php) · [Laravel 清库](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/WipeCommand.php)
 - 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。
+
+## 整条迁移的事务与显式退出
+
+- 对照固定 Laravel v13.40.0，PostgreSQL 与 SQL Server 默认将一条迁移的 `MigrationStarted`、`up`／`down` 和 `MigrationEnded` 放在一个事务中，成功返回后再更新账本。复核旧版 `6d1a81924` 的 `migration_uses_transaction`、应用和回滚实现，沿用 PostgreSQL 默认事务和逐条回滚的语义，账本的写入时序按固定 Laravel。 [固定 Laravel Migrator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/Migrator.php#L390)
+- Rust 的 `MigrationContext` 显式持有选定连接的事务，Schema 和 SQL 都可通过该上下文执行，同步监听器通过 `EventContext::transaction()` 加入。迁移可用 `withinTransaction()` 返回 `false`，允许 PostgreSQL 在线索引等自动提交语句。预演不启动迁移事务。直接新取连接的操作不参与该事务。
+- PostgreSQL 18.4 集成测试通过。实际二进制的独立 Artisan 覆盖预演、DDL 和 DML 同时回滚、结束监听器失败回滚、失败后重跑、`down` 失败保留数据与账本、默认事务拒绝在线索引和显式退出后创建有效索引。HTTP 实测读取已提交的迁移写入和监听器写入，之后 Artisan 回滚成功。SQL Server 的真实驱动验收、其他版本矩阵和驱动快照继续跟踪，核心账本维持 62/66。
+- MySQL 8.4.13 迁移仓储和 Artisan 状态三项、`sh tests/table_catalog.sh` 两项、根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语站点及 18 项浏览器检查通过。本批容器和隔离产物已回收，磁盘空间净增 3.88 GB（3.62 GiB），可用 105.11 GB（97.89 GiB）。提交前周额度剩余 43%，第二窗口无读数。配置脚本及日志保留于 `/private/tmp/openrust-02-06-migration-transactions.EMrJgz6P`。

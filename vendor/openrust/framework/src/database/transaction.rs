@@ -485,7 +485,16 @@ impl Transaction {
         callback: impl for<'a> FnOnce(&'a mut Self) -> DatabaseFuture<'a, DatabaseResult<T>>,
     ) -> DatabaseResult<T> {
         let level = self.level;
-        match callback(self).await {
+        let result = callback(self).await;
+        self.finish(level, result).await
+    }
+
+    pub(super) async fn finish<T>(
+        &mut self,
+        level: u32,
+        result: DatabaseResult<T>,
+    ) -> DatabaseResult<T> {
+        match result {
             Ok(result) if self.level == level => match self.commit().await {
                 Ok(()) => Ok(result),
                 Err(error @ DatabaseError::AfterCommit { .. }) => Err(error),
