@@ -20,6 +20,35 @@ impl IndexType {
     }
 }
 
+/// A fluent column index declaration.
+#[derive(Clone)]
+pub enum ColumnIndex {
+    /// Adds the conventionally named index.
+    Add,
+    /// Adds an explicitly named index.
+    Named(String),
+    /// Drops the conventionally named index when changing the column.
+    Drop,
+}
+
+impl From<bool> for ColumnIndex {
+    fn from(enabled: bool) -> Self {
+        if enabled { Self::Add } else { Self::Drop }
+    }
+}
+
+impl From<&str> for ColumnIndex {
+    fn from(name: &str) -> Self {
+        Self::Named(name.to_owned())
+    }
+}
+
+impl From<String> for ColumnIndex {
+    fn from(name: String) -> Self {
+        Self::Named(name)
+    }
+}
+
 /// An index with optional database-specific algorithm and lock modifiers.
 pub struct IndexDefinition {
     pub(super) kind: IndexType,

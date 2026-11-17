@@ -1,5 +1,7 @@
 use crate::database::{Value, query::Expression};
 
+use super::{ColumnIndex, IndexDefinition, blueprint::Command, index_definition::IndexType};
+
 #[derive(Clone)]
 pub(super) enum ColumnType {
     TinyInteger,
@@ -83,9 +85,7 @@ pub struct ColumnDefinition {
     pub(super) unsigned: bool,
     pub(super) increment: bool,
     pub(super) primary: bool,
-    pub(super) unique: bool,
-    pub(super) indexed: bool,
-    pub(super) spatial_indexed: bool,
+    indexes: Vec<(IndexType, ColumnIndex)>,
     pub(super) default: Option<DefaultValue>,
     pub(super) current_default: CurrentDefault,
     pub(super) generated: Option<GeneratedColumn>,
@@ -113,9 +113,7 @@ impl ColumnDefinition {
             unsigned: false,
             increment: false,
             primary: false,
-            unique: false,
-            indexed: false,
-            spatial_indexed: false,
+            indexes: Vec::new(),
             default: None,
             current_default: CurrentDefault::Unset,
             generated: None,
@@ -177,18 +175,71 @@ impl ColumnDefinition {
     }
 
     pub fn unique(&mut self) -> &mut Self {
-        self.unique = true;
-        self
+        self.uniqueWith(true)
+    }
+
+    pub fn uniqueWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+        self.set_index(IndexType::Unique, index.into())
     }
 
     pub fn index(&mut self) -> &mut Self {
-        self.indexed = true;
-        self
+        self.indexWith(true)
+    }
+
+    pub fn indexWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+        self.set_index(IndexType::Index, index.into())
+    }
+
+    pub fn fullText(&mut self) -> &mut Self {
+        self.fullTextWith(true)
+    }
+
+    pub fn fullTextWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+        self.set_index(IndexType::FullText, index.into())
     }
 
     pub fn spatialIndex(&mut self) -> &mut Self {
-        self.spatial_indexed = true;
+        self.spatialIndexWith(true)
+    }
+
+    pub fn spatialIndexWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
+        self.set_index(IndexType::Spatial, index.into())
+    }
+
+    fn set_index(&mut self, kind: IndexType, modifier: ColumnIndex) -> &mut Self {
+        if let Some((_, current)) = self.indexes.iter_mut().find(|(key, _)| *key == kind) {
+            *current = modifier;
+        } else {
+            self.indexes.push((kind, modifier));
+        }
         self
+    }
+
+    pub(super) fn index_commands<'a>(
+        &'a self,
+        previous_name: &'a str,
+        inline_unique: bool,
+    ) -> impl Iterator<Item = Command> + 'a {
+        self.indexes
+            .iter()
+            .filter_map(move |(kind, modifier)| match modifier {
+                ColumnIndex::Add if inline_unique && *kind == IndexType::Unique => None,
+                ColumnIndex::Add => Some(Command::Index(IndexDefinition::new(
+                    *kind,
+                    &[&self.name],
+                    None,
+                ))),
+                ColumnIndex::Named(name) => Some(Command::Index(IndexDefinition::new(
+                    *kind,
+                    &[&self.name],
+                    Some(name),
+                ))),
+                ColumnIndex::Drop if self.change => Some(Command::DropIndexColumns(
+                    *kind,
+                    vec![previous_name.to_owned()],
+                )),
+                ColumnIndex::Drop => None,
+            })
     }
 
     pub fn default(&mut self, value: impl Into<DefaultValue>) -> &mut Self {

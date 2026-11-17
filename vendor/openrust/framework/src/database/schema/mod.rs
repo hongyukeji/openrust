@@ -19,7 +19,7 @@ pub use drop_column_definition::DropColumnDefinition;
 pub use facade::Schema;
 pub use foreign_id_column_definition::ForeignIdColumnDefinition;
 pub use foreign_key_definition::ForeignKeyDefinition;
-pub use index_definition::IndexDefinition;
+pub use index_definition::{ColumnIndex, IndexDefinition};
 pub use session::SchemaSession;
 
 #[derive(Clone, Copy, Default)]

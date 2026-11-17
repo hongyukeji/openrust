@@ -731,6 +731,24 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 只改名时用 `renameColumn`。在 SQLite 上，用 `renameColumn` 改名，再单独用 `change()` 更新列定义。
 
+#### 修改列与索引 {#changing-columns-and-their-indexes}
+
+仅调用 `change()` 时保留索引和外键。用 `uniqueWith(false)` 或 `indexWith(false)` 配合 `change()`，可按约定名称删除索引。同一次操作重命名列时，删除按旧列名查找索引，新索引使用新列名。
+
+使用 `indexWith("name")`、`uniqueWith("name")`、`fullTextWith("name")` 或 `spatialIndexWith("name")` 添加具名列索引。删除自定义名称的索引时，使用相应的表级删除方法。MySQL 要求保留外键依赖的索引，直到显式删除约束或提供另一个可用索引。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn change_region_code(table: &mut Blueprint) {
+    table.string("postal_code", 30)
+        .uniqueWith(false)
+        .indexWith("region_lookup")
+        .renameTo("region_code")
+        .change();
+}
+```
+
 #### 按列列表删除索引 {#dropping-indexes-by-columns}
 
 将有序列列表传给 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可删除该类型下使用默认名称的索引。自定义名称的索引使用相应的按名称删除方法。

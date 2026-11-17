@@ -372,3 +372,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `1f2891c1`，Rust 1.94.0 和 MySQL 8.4.13。31 项 MySQL Schema 回归通过。新用例覆盖虚拟列、存储列及 JSON 生成列的 NULL 读取，显式非空、改列后的写入约束、两种调用顺序、TIME 及整数的显式默认值，以及 ALTER 后再次写入。表目录和限定 Schema 清库通过。
 - 三语共用示例经实际 Artisan 验证迁移预演无表、迁移后的列可空性与默认值、回滚移除表。`main artisan inspire`、严格 Clippy 和改动文件格式通过。三语站点构建和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。证据目录 `/private/tmp/openrust-02-05-generated-defaults.RSqrneGV`。
 - 临时 MySQL、4.1 GiB 隔离 Cargo 产物及文档缓存已回收，磁盘可用 114.97 GB（107.07 GiB），周额度剩余 65%，第二窗口无读数。
+
+
+## 修改列与索引
+
+- 对照固定 Laravel 的 `Blueprint::addFluentIndexes` 和列变更文档。旧版 `v0.x` 未找到具名或删除形式的列级二级索引声明。沿用当前索引命令、连接前缀规则和 SQLite 表重建的索引执行路径。 [Laravel Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L202) · [Laravel 修改列](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#modifying-columns)
+- Rust 的 `uniqueWith`、`indexWith`、`fullTextWith` 和 `spatialIndexWith` 接收名称或布尔值。`false` 只在 `change()` 时产生按约定名称删除的命令。保留同一列独立声明多个二级索引操作的能力。重命名时按旧列名解析删除目标，新增索引引用新列。派生索引命令在显式 Blueprint 命令之后执行。
+- 隔离基线 `ab9a08e9`，Rust 1.94.0 和真实 MySQL 8.4.13。32 项 Schema 回归通过，覆盖改列后保留索引及外键、外键继续拒绝无效记录、改列并重命名后删除约定唯一索引、创建具名普通及全文索引、显式删除外键后移除支撑索引，以及保留既有记录。表目录和限定 Schema 清库通过。
+- 三语共用示例经实际 Artisan 验证预演无表、迁移后的新旧索引状态和回滚移除表，`main artisan inspire` 通过。证据目录 `/private/tmp/openrust-02-05-fluent-indexes.w24DQ7ue`。
+- 严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 SQLite 路径完成编译，日常真实驱动验收为 MySQL。临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.63 GB（104.89 GiB），周额度剩余 65%，第二窗口无读数。

@@ -731,6 +731,24 @@ async fn revise_import_labels() -> DatabaseResult<()> {
 
 For a rename alone, use `renameColumn`. On SQLite, use `renameColumn` for the rename and a separate `change()` for the new definition.
 
+#### Changing Columns and Their Indexes {#changing-columns-and-their-indexes}
+
+A plain `change()` preserves indexes and foreign keys. Use `uniqueWith(false)` or `indexWith(false)` with `change()` to remove an index by its conventional name. When renaming the column during the same operation, removal uses its old name and a new index uses the new column.
+
+Use `indexWith("name")`, `uniqueWith("name")`, `fullTextWith("name")`, or `spatialIndexWith("name")` to add a named column index. To remove a custom-named index, use the corresponding table-level drop method. MySQL requires an index that backs a foreign key until you explicitly drop the constraint or provide another suitable index.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn change_region_code(table: &mut Blueprint) {
+    table.string("postal_code", 30)
+        .uniqueWith(false)
+        .indexWith("region_lookup")
+        .renameTo("region_code")
+        .change();
+}
+```
+
 #### Dropping Indexes by Column List {#dropping-indexes-by-columns}
 
 Pass the ordered column list to `dropIndexColumns`, `dropUniqueColumns`, `dropFullTextColumns`, or `dropSpatialIndexColumns` to drop an index created with the default name for its kind. For a custom name, use the corresponding method that takes the name.

@@ -185,12 +185,9 @@ async fn rebuild_table(
                     column.primary = false;
                     column.increment = false;
                 }
-                if constraints
+                let inline_unique = constraints
                     .iter()
-                    .any(|constraint| constraint.kind == sql::InlineKind::Unique)
-                {
-                    column.unique = false;
-                }
+                    .any(|constraint| constraint.kind == sql::InlineKind::Unique);
                 let mut definition = grammar.column(&column, false)?;
                 for constraint in constraints {
                     definition.push(' ');
@@ -203,21 +200,7 @@ async fn rebuild_table(
                     }
                 }
                 columns[index] = definition;
-                for (enabled, kind) in [
-                    (column.unique, IndexType::Unique),
-                    (column.indexed, IndexType::Index),
-                    (column.spatial_indexed, IndexType::Spatial),
-                ] {
-                    if enabled {
-                        new_indexes.push(Command::Index(
-                            crate::database::schema::IndexDefinition::new(
-                                kind,
-                                &[&column.name],
-                                None,
-                            ),
-                        ));
-                    }
-                }
+                new_indexes.extend(column.index_commands(&column.name, inline_unique));
             }
             Command::Foreign(foreign) => {
                 if foreign.inplace || foreign.lock.is_some() {

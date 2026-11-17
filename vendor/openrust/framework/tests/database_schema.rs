@@ -2028,6 +2028,116 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url, "prefix": "it_", "prefix_indexes": true}));
+    let mut schema = db.getSchemaBuilder();
+    let parent = "fluent_index_parents";
+    let child = "fluent_index_children";
+    for name in [child, parent] {
+        schema.dropIfExists(name).await.unwrap();
+    }
+    schema
+        .create(parent, |table| {
+            table.id();
+        })
+        .await
+        .unwrap();
+    schema
+        .create(child, |table| {
+            table.id();
+            table.unsignedBigInteger("parent_id");
+            table.index(&["parent_id"], None);
+            table
+                .foreign(&["parent_id"], Some("fluent_parent"))
+                .references("id")
+                .on(parent);
+            table.string("postal_code", 10).unique();
+            table.text("body").fullTextWith("fluent_body_search");
+        })
+        .await
+        .unwrap();
+    db.insert("insert into it_fluent_index_parents (id) values (1)", &[])
+        .await
+        .unwrap();
+    db.insert("insert into it_fluent_index_children (parent_id, postal_code, body) values (1, 'AA', 'searchable')", &[]).await.unwrap();
+
+    schema
+        .table(child, |table| {
+            table.string("postal_code", 20).change();
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .hasIndex(child, "it_fluent_index_children_postal_code_unique")
+            .await
+            .unwrap()
+    );
+    assert_eq!(schema.getForeignKeys(child).await.unwrap().len(), 1);
+    assert!(
+        db.insert("insert into it_fluent_index_children (parent_id, postal_code, body) values (9, 'BB', 'invalid parent')", &[]).await.is_err()
+    );
+
+    schema
+        .table(child, |table| {
+            table
+                .string("postal_code", 30)
+                .uniqueWith(false)
+                .indexWith("fluent_region_lookup")
+                .renameTo("region_code")
+                .change();
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndex(child, "it_fluent_index_children_postal_code_unique")
+            .await
+            .unwrap()
+    );
+    let indexes = schema.getIndexes(child).await.unwrap();
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.name == "fluent_region_lookup"
+                && index.columns == [Some("region_code".into())]
+                && !index.unique)
+    );
+    assert!(schema.hasIndex(child, "fluent_body_search").await.unwrap());
+    assert_eq!(
+        db.table(child).value("region_code").await.unwrap(),
+        "AA".into()
+    );
+    db.insert("insert into it_fluent_index_children (parent_id, region_code, body) values (1, 'AA', 'duplicate allowed')", &[]).await.unwrap();
+
+    schema
+        .table(child, |table| {
+            table
+                .unsignedBigInteger("parent_id")
+                .indexWith(false)
+                .change();
+            table.dropForeign("fluent_parent");
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndex(child, "it_fluent_index_children_parent_id_index")
+            .await
+            .unwrap()
+    );
+    assert!(schema.getForeignKeys(child).await.unwrap().is_empty());
+    assert_eq!(db.table(child).count("*").await.unwrap(), 2);
+    for name in [child, parent] {
+        schema.drop(name).await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

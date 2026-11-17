@@ -177,7 +177,7 @@ impl Grammar {
                     }
                     columns += 1;
                     definitions.push(self.column(&column, explicit_primary)?);
-                    self.column_indexes(table, &column, &mut indexes)?;
+                    self.column_indexes(table, &column, &column.name, &mut indexes)?;
                     self.column_start(&qualified, &column, &mut starting_values);
                 }
                 Command::Index(index) if index.kind == IndexType::Primary => {
@@ -279,9 +279,11 @@ impl Grammar {
         let qualified = self.qualified(table)?;
         let mut sql = Vec::new();
         let mut starting_values = Vec::new();
+        let mut indexes = Vec::new();
         for command in blueprint.commands {
             match command {
                 Command::Column(mut column) => {
+                    let mut previous_name = None;
                     let rename;
                     let verb = if column.change {
                         if !self.mysql() {
@@ -291,7 +293,7 @@ impl Grammar {
                         }
                         if let Some(name) = column.rename_to.take() {
                             rename = format!("change column {}", self.identifier(&column.name)?);
-                            column.name = name;
+                            previous_name = Some(std::mem::replace(&mut column.name, name));
                             &rename
                         } else {
                             "modify column"
@@ -307,7 +309,12 @@ impl Grammar {
                             column.lock.as_deref()
                         )?
                     ));
-                    self.column_indexes(table, &column, &mut sql)?;
+                    self.column_indexes(
+                        table,
+                        &column,
+                        previous_name.as_deref().unwrap_or(&column.name),
+                        &mut indexes,
+                    )?;
                     self.column_start(&qualified, &column, &mut starting_values);
                 }
                 Command::Index(index) => sql.push(self.add_index(table, &index)?),
@@ -391,6 +398,7 @@ impl Grammar {
                 }
             }
         }
+        sql.extend(indexes);
         sql.extend(starting_values);
         Ok(sql)
     }
@@ -411,18 +419,19 @@ impl Grammar {
         &self,
         table: &Table,
         column: &ColumnDefinition,
+        previous_name: &str,
         indexes: &mut Vec<String>,
     ) -> DatabaseResult<()> {
-        for (enabled, kind) in [
-            (column.unique, IndexType::Unique),
-            (column.indexed, IndexType::Index),
-            (column.spatial_indexed, IndexType::Spatial),
-        ] {
-            if enabled {
-                indexes.push(
-                    self.add_index(table, &IndexDefinition::new(kind, &[&column.name], None))?,
-                );
-            }
+        for command in column.index_commands(previous_name, false) {
+            let sql = match command {
+                Command::Index(index) => self.add_index(table, &index)?,
+                Command::DropIndexColumns(kind, columns) => self.drop_index(
+                    table,
+                    &self.conventional_name(table, &columns, kind.suffix()),
+                )?,
+                _ => unreachable!("column index command"),
+            };
+            indexes.push(sql);
         }
         Ok(())
     }
