@@ -1,6 +1,7 @@
 //! Shared framework extension points.
 
 mod arr;
+mod backed_enum;
 mod benchmark;
 pub(crate) mod calendar;
 mod collection;
@@ -31,6 +32,7 @@ mod view_error_bag;
 
 pub use crate::cache::cache;
 pub use arr::{Arr, ArrValueError};
+pub use backed_enum::{BackedEnum, EnumBacking};
 pub use benchmark::Benchmark;
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};

@@ -23,3 +23,10 @@
 - PHP 8.5 调用固定 Laravel trait，对照 13 组宽松及严格结果。真实 HTTP 覆盖相同的缺失值、显式 null、容器、数字前缀、前导零、极小指数、整数边界及布尔值。另验证表单覆盖同名查询键、GET 查询和无效 JSON 的 400。MySQL 8.4.13 复验同一扫描器的 Eloquent 数值与向量转换。
 - 04-02 继续跟踪 Stringable、日期、枚举、数组与剩余控制器契约，核心账本维持 56/66。
 - `8c9e5948d` 的隔离快照以 Rust 1.94.0 运行 `request_input` 真实回环测试、MySQL `eloquent_models`、实际 `route:list --json --method=HEAD` 与 `artisan inspire`。严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。MySQL 夹具与本批产物已回收，日志留在 `/private/tmp/openrust-04-02-scalar.ojacQXuJ`。
+
+## Stringable、集合与枚举
+
+- 对照固定 Laravel 的 `string`、`str`、`array`、`collect`、`enum` 和 `enums`。从旧版 `6d1a81924` 的 `support/typed.rs`、`backed_enum.rs` 和 `scalars.rs` 提取字符串转换、弱类型 backing 与按键过滤。沿用当前异步输入与保键 Collection。单键或整组输入使用 `Option<&str>`，指定多键的选择另行跟踪。 [固定 Laravel 输入方法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php)
+- PHP 8.5 使用固定 Laravel trait 和 Stringable，对照默认值、标量转数组、键和重复项、未知 case 与非法类型。真实 HTTP 另验证正文覆盖同名查询键。Rust 用 `r#enum` 保留方法名称，非法 backing 作为客户端输入错误映射到 HTTP 400。
+- 04-02 后续为日期、时间间隔、指定多键与剩余控制器契约。核心账本维持 56/66。
+- `41f1738dc` 隔离快照用 Rust 1.94.0 通过 3 项真实 HTTP、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批产物已回收，日志保留于 `/private/tmp/openrust-04-02-input-values.ZNyHgVFP`。

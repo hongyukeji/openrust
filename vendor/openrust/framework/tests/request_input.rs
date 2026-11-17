@@ -6,7 +6,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
     routing::ControllerDispatcher,
-    support::{ProviderResult, ServiceProvider, facades::Route},
+    support::{BackedEnum, ProviderResult, ServiceProvider, facades::Route},
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -78,6 +78,58 @@ fn scalar_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 
+#[derive(serde::Serialize)]
+enum Stage {
+    Draft,
+    Ready,
+}
+
+impl BackedEnum for Stage {
+    type Backing = String;
+
+    fn try_from_backing(backing: String) -> Option<Self> {
+        match backing.as_str() {
+            "draft" => Some(Self::Draft),
+            "ready" => Some(Self::Ready),
+            _ => None,
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+enum Toggle {
+    Off,
+    On,
+}
+
+impl BackedEnum for Toggle {
+    type Backing = i64;
+
+    fn try_from_backing(backing: i64) -> Option<Self> {
+        match backing {
+            0 => Some(Self::Off),
+            1 => Some(Self::On),
+            _ => None,
+        }
+    }
+}
+
+fn typed_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let text = request.string("label", "fallback", true).await?.trim();
+        let loose = request.str("label", "fallback", false).await?;
+        let items = request.array(Some("items")).await?;
+        let collected: Vec<_> = request.collect(Some("items")).await?.into_iter().collect();
+        let stage = request.r#enum("stage", Some(Stage::Draft)).await?;
+        let toggle = request.r#enum::<Toggle>("toggle", None).await?;
+        let cases: Vec<_> = request.enums::<Stage>("list").await?.into_iter().collect();
+        Response::json(
+            StatusCode::OK,
+            json!({"text": text, "loose": loose, "items": items, "collected": collected, "stage": stage, "toggle": toggle, "cases": cases}),
+        )
+    })
+}
+
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
@@ -100,6 +152,7 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
                 ControllerDispatcher::new(EchoController::show),
             )?;
             Route::r#match(&[Method::GET, Method::POST], "/scalars", scalar_input)?;
+            Route::r#match(&[Method::POST], "/typed-values", typed_values)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -323,5 +376,48 @@ async fn real_http_reads_strict_and_permissive_scalar_input() {
         400,
     )
     .await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_fluent_strings_arrays_and_backed_enums() {
+    let (address, server) = start("typed-values").await;
+    let path = "/typed-values?label=query&stage=draft";
+    let (_, body) = send(address, "POST", path, "application/json", br#"{"label":"  published  ","items":{"z":9,"0":1,"a":2},"stage":"ready","toggle":"1.0","list":["ready","unknown","draft","ready"]}"#, 200).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({"text":"published", "loose":"  published  ", "items":{"z":9,"0":1,"a":2}, "collected":[["z",9],[0,1],["a",2]], "stage":"Ready", "toggle":"On", "cases":[[0,"Ready"],[2,"Draft"],[3,"Ready"]]})
+    );
+
+    let (_, body) = send(address, "POST", path, "application/json", br#"{"label":null,"items":false,"stage":"none","toggle":false,"list":{"first":"draft","skip":"unknown","again":"draft"}}"#, 200).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({"text":"fallback", "loose":"", "items":[false], "collected":[[0,false]], "stage":"Draft", "toggle":"Off", "cases":[["first","Draft"],["again","Draft"]]})
+    );
+
+    let (_, body) = send(
+        address,
+        "POST",
+        "/typed-values",
+        "application/json",
+        b"{}",
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({"text":"fallback", "loose":"fallback", "items":[], "collected":[], "stage":"Draft", "toggle":null, "cases":[]})
+    );
+
+    for invalid in [
+        br#"{"stage":[]}"#.as_slice(),
+        br#"{"toggle":"1tail"}"#,
+        br#"{"list":["ready",{}]}"#,
+    ] {
+        send(address, "POST", path, "application/json", invalid, 400).await;
+    }
     server.abort();
 }

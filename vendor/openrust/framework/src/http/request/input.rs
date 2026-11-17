@@ -3,7 +3,7 @@ use futures_util::{StreamExt as _, stream};
 use serde_json::{Map, Value};
 
 use crate::http::{Body, HttpError, Method, Request, UploadedFile};
-use crate::support::input_scalars;
+use crate::support::{BackedEnum, Collection, EnumBacking as _, Stringable, input_scalars};
 
 use super::{query, variables::VariableBag};
 
@@ -171,6 +171,80 @@ impl Request {
             Some(value) => Ok(input_scalars::boolean(&value, default, strict)),
             None => Ok(default),
         }
+    }
+
+    /// Reads input as a fluent string.
+    pub async fn string(
+        &mut self,
+        key: &str,
+        default: &str,
+        strict: bool,
+    ) -> Result<Stringable, HttpError> {
+        let value = self.input(Some(key)).await?;
+        Ok(Stringable::from(match value {
+            Some(value) if !strict || value.is_string() || value.is_number() => {
+                input_scalars::string(value)
+            }
+            _ => default.to_owned(),
+        }))
+    }
+
+    /// Alias for [`Self::string`].
+    pub async fn str(
+        &mut self,
+        key: &str,
+        default: &str,
+        strict: bool,
+    ) -> Result<Stringable, HttpError> {
+        self.string(key, default, strict).await
+    }
+
+    /// Reads a keyed input as a PHP-style array, or the entire input bag when omitted.
+    pub async fn array(&mut self, key: Option<&str>) -> Result<Value, HttpError> {
+        Ok(match self.input(key).await? {
+            None | Some(Value::Null) => Value::Array(Vec::new()),
+            Some(value @ (Value::Array(_) | Value::Object(_))) => value,
+            Some(value) => Value::Array(vec![value]),
+        })
+    }
+
+    /// Wraps array input in a keyed collection.
+    pub async fn collect(&mut self, key: Option<&str>) -> Result<Collection, HttpError> {
+        Ok(input_collection(self.array(key).await?))
+    }
+
+    /// Reads a backed enum, returning `default` for empty or unrecognized values.
+    pub async fn r#enum<E: BackedEnum>(
+        &mut self,
+        key: &str,
+        default: Option<E>,
+    ) -> Result<Option<E>, HttpError> {
+        let Some(value) = self
+            .input(Some(key))
+            .await?
+            .filter(|value| !empty_enum_input(value))
+        else {
+            return Ok(default);
+        };
+        Ok(E::try_from_backing(E::Backing::from_input(&value)?).or(default))
+    }
+
+    /// Reads backed enum cases while preserving their original collection keys.
+    pub async fn enums<E: BackedEnum>(&mut self, key: &str) -> Result<Collection<E>, HttpError> {
+        let Some(value) = self
+            .input(Some(key))
+            .await?
+            .filter(|value| !empty_enum_input(value))
+        else {
+            return Ok(Collection::new());
+        };
+        let mut cases = Collection::new();
+        for (key, value) in input_collection(value).iter() {
+            if let Some(case) = E::try_from_backing(E::Backing::from_input(value)?) {
+                cases.put(key.clone(), case);
+            }
+        }
+        Ok(cases)
     }
 
     /// Reads the JSON body independently of query parameters.
@@ -390,6 +464,23 @@ fn multipart_error(error: multer::Error) -> InputFailure {
             InputFailure::Limit
         }
         _ => InputFailure::Invalid,
+    }
+}
+
+fn empty_enum_input(value: &Value) -> bool {
+    value.is_null()
+        || value.as_str().is_some_and(|text| {
+            text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\0'])
+                .is_empty()
+        })
+}
+
+fn input_collection(value: Value) -> Collection {
+    match value {
+        Value::Null => Collection::new(),
+        Value::Object(entries) => Collection::fromEntries(entries),
+        Value::Array(items) => Collection::make(items),
+        scalar => Collection::make([scalar]),
     }
 }
 

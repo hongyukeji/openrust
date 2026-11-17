@@ -12,6 +12,10 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 缺失值使用默认值。启用严格模式后，无效值也使用默认值。例如，`"01"` 无法作为严格整数读取，但可以作为浮点数读取。关闭严格模式后，数值按 PHP 强制转换，可读取字符串开头的数字部分。布尔读取忽略大小写，识别 `1`、`true`、`on`、`yes` 为真，`0`、`false`、`off`、`no` 为假。宽松模式下未识别的布尔输入返回 false。正文格式错误仍会返回输入错误。
 
+用 `request.string("label", "fallback", true).await?.trim()` 获取可链式操作的字符串，`request.str` 是同义入口。严格模式接受文本和数字。`request.array(Some("items")).await?` 保留列表和关联对象，将标量包成单项列表，缺失值或 null 返回空列表。`request.collect` 返回保留原键的集合。传入 `None` 可读取整组输入。
+
+实现 `BackedEnum`，并以 `String` 或 `i64` 为 backing 类型。用 `request.r#enum::<Stage>("stage", None).await?` 读取单项，用 `request.enums::<Stage>("list").await?` 读取集合。集合保留原键和重复项，跳过未知 case。单项遇到未知 case 时采用给定默认值。无法转换的 backing 类型返回 HTTP 400。
+
 ## 文件
 
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。

@@ -12,6 +12,10 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 缺少值時使用預設值。啟用嚴格模式後，無效值也使用預設值。例如，`"01"` 無法讀作嚴格整數，但可以讀作浮點數。關閉嚴格模式後，數值依 PHP 強制轉換，可讀取字串開頭的數字部分。布林讀取忽略大小寫，識別 `1`、`true`、`on`、`yes` 為真，`0`、`false`、`off`、`no` 為假。寬鬆模式下無法識別的布林輸入會傳回 false。正文格式錯誤仍會傳回輸入錯誤。
 
+使用 `request.string("label", "fallback", true).await?.trim()` 取得可鏈式操作的字串，`request.str` 是同義入口。嚴格模式接受文字和數字。`request.array(Some("items")).await?` 保留清單和關聯物件，將純量包成單項清單，缺少值或 null 時傳回空清單。`request.collect` 傳回保留原始鍵的集合。傳入 `None` 可讀取整組輸入。
+
+實作 `BackedEnum`，並以 `String` 或 `i64` 為 backing 型別。用 `request.r#enum::<Stage>("stage", None).await?` 讀取單項，用 `request.enums::<Stage>("list").await?` 讀取集合。集合保留原始鍵和重複項目，略過未知 case。單項遇到未知 case 時採用給定的預設值。無法轉換的 backing 型別會傳回 HTTP 400。
+
 ## 檔案
 
 用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。

@@ -12,6 +12,10 @@ Use `request.integer("value", 42, true).await?`, `request.float("value", 1.25, t
 
 A missing value uses the fallback. With strict mode enabled, invalid values also use the fallback. For example, `"01"` is invalid as a strict integer but is valid as a float. With strict mode disabled, numeric reads use PHP casts and can read a leading numeric portion. Boolean reads recognize `1`, `true`, `on`, and `yes` case-insensitively. The recognized false values are `0`, `false`, `off`, and `no`. Unrecognized boolean input returns false in permissive mode. Malformed request bodies still return an input error.
 
+Use `request.string("label", "fallback", true).await?.trim()` for a fluent string. `request.str` is an alias. Strict strings accept text and numbers. `request.array(Some("items")).await?` preserves lists and keyed objects, wraps scalars into a one-item list, and returns an empty list for null or missing values. `request.collect` returns a collection with the same keys. Pass `None` to read the input bag.
+
+Implement `BackedEnum` with a `String` or `i64` backing. Use `request.r#enum::<Stage>("stage", None).await?` for one case, or `request.enums::<Stage>("list").await?` for a collection. The list keeps original keys and duplicate cases while skipping unknown cases. A single unknown case uses the supplied fallback. An invalid backing type returns HTTP 400.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.

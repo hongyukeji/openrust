@@ -7,6 +7,19 @@ use serde_json::Value;
 const TWO_TO_63: f64 = 9_223_372_036_854_775_808.0;
 const FILTER_WHITESPACE: [char; 5] = [' ', '\t', '\r', '\u{b}', '\n'];
 
+pub(crate) fn string(value: Value) -> String {
+    match value {
+        Value::Null | Value::Bool(false) => String::new(),
+        Value::Bool(true) => "1".to_owned(),
+        Value::String(text) => text,
+        Value::Number(number) => number.as_i64().map_or_else(
+            || double_string(number.as_f64().unwrap_or_default()),
+            |integer| integer.to_string(),
+        ),
+        Value::Array(_) | Value::Object(_) => "Array".to_owned(),
+    }
+}
+
 pub(crate) fn integer(value: &Value) -> i64 {
     match value {
         Value::Null | Value::Bool(false) => 0,
@@ -71,7 +84,7 @@ fn decimal_text(text: &str) -> Cow<'_, str> {
     }
 }
 
-fn decimal_float(text: &str) -> Option<f64> {
+pub(super) fn decimal_float(text: &str) -> Option<f64> {
     decimal_text(text).parse().ok()
 }
 
@@ -135,7 +148,7 @@ fn double_integer(number: f64) -> i64 {
 
 // 默认 precision=14；对应 zend_gcvt 的 dtoa(mode=2, ndigit=14) 后布局。
 // Rust 科学格式先给出同等有效数字，再按 PHP 的阈值与 E/+/.0 规则排版。
-fn double_string(number: f64) -> String {
+pub(super) fn double_string(number: f64) -> String {
     if number.is_nan() {
         return "NAN".to_owned();
     }
