@@ -20,6 +20,53 @@ async fn replaces_a_service() -> Result<(), Box<dyn std::error::Error + Send + S
 
 事件断言见[事件测试](../digging-deeper/events.md#testing)。
 
+## 门面调用记录 {#facade-spies}
+
+使用 `TestApp::spy` 在当前测试应用中替换门面服务并记录后续调用。已有应用作用域时，也可直接调用门面的 `spy`。Rust 替身实现相同的服务 trait，并显式记录测试需要检查的调用。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::ServiceKey,
+    support::facades::Facade,
+    testing::{FacadeSpy, TestApp},
+};
+
+trait Reporter: Send + Sync {
+    fn send(&self, report: &str);
+}
+
+struct Reports;
+
+impl Facade for Reports {
+    type Service = dyn Reporter;
+
+    fn getFacadeAccessor() -> ServiceKey {
+        ServiceKey::typed::<dyn Reporter>()
+    }
+}
+
+struct RecordingReporter(FacadeSpy<String>);
+
+impl Reporter for RecordingReporter {
+    fn send(&self, report: &str) {
+        self.0.record("send", report.to_owned());
+    }
+}
+
+#[tokio::test]
+async fn records_reports() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| builder)?;
+    let spy = app.spy::<Reports, _>(|calls| Arc::new(RecordingReporter(calls))).await?;
+
+    app.app().make::<dyn Reporter>().await?.send("daily");
+    spy.shouldHaveReceived("send").with("daily".to_owned()).once();
+    Ok(())
+}
+```
+
+`received` 按调用顺序返回参数。可用 `with` 按值筛选，或用 `withArgs` 按回调筛选，再用 `once` 或 `times` 检查次数。`shouldNotHaveReceived` 断言方法未被调用。需要保留原服务的行为时，替身可以将调用转发给此前解析的实例。
+
 ## 控制测试时间 {#interacting-with-time}
 
 `TestApp::travelTo` 将应用时钟冻结在给定的 `Date`。`freezeTime` 冻结当前时刻，`freezeSecond` 冻结在当前整秒。用 `travel(5).minutes().await?` 向前移动，传负数可向后移动。天、周、月和年的计算使用测试应用的时区。调用 `travelBack().await?` 恢复系统时间。

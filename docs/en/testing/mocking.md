@@ -20,6 +20,53 @@ async fn replaces_a_service() -> Result<(), Box<dyn std::error::Error + Send + S
 
 For event-specific assertions, see [Testing events](../digging-deeper/events.md#testing).
 
+## Facade spies {#facade-spies}
+
+Use `TestApp::spy` to replace a facade's service in one test application and record subsequent calls. Inside an active application scope, use the facade's `spy` method directly. Rust's replacement implements the same service trait and explicitly records the calls that the test should observe.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::ServiceKey,
+    support::facades::Facade,
+    testing::{FacadeSpy, TestApp},
+};
+
+trait Reporter: Send + Sync {
+    fn send(&self, report: &str);
+}
+
+struct Reports;
+
+impl Facade for Reports {
+    type Service = dyn Reporter;
+
+    fn getFacadeAccessor() -> ServiceKey {
+        ServiceKey::typed::<dyn Reporter>()
+    }
+}
+
+struct RecordingReporter(FacadeSpy<String>);
+
+impl Reporter for RecordingReporter {
+    fn send(&self, report: &str) {
+        self.0.record("send", report.to_owned());
+    }
+}
+
+#[tokio::test]
+async fn records_reports() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| builder)?;
+    let spy = app.spy::<Reports, _>(|calls| Arc::new(RecordingReporter(calls))).await?;
+
+    app.app().make::<dyn Reporter>().await?.send("daily");
+    spy.shouldHaveReceived("send").with("daily".to_owned()).once();
+    Ok(())
+}
+```
+
+`received` returns arguments in call order. Chain `with` or `withArgs` to filter by value or predicate, and use `once` or `times` to check counts. `shouldNotHaveReceived` checks that no call was recorded. A replacement may forward calls to a previously resolved service when the test needs its behavior.
+
 ## Interacting with time {#interacting-with-time}
 
 `TestApp::travelTo` freezes the application clock at a `Date`. `freezeTime` uses the current instant, and `freezeSecond` drops its fractional second. Use `travel(5).minutes().await?` to move forward or pass a negative number to move backward. Days, weeks, months and years follow the fixture's application timezone. `travelBack().await?` restores the system clock.

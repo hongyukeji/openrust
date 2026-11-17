@@ -13,12 +13,15 @@ use crate::{
     events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
-    support::TestClock,
+    support::{
+        TestClock,
+        facades::{Facade, application_scope},
+    },
 };
 
 use super::{
-    TestCommand, TestResponse, database::RefreshState, database_migrations::MigrationRun,
-    database_truncation::TruncationState,
+    FacadeSpy, TestCommand, TestResponse, database::RefreshState,
+    database_migrations::MigrationRun, database_truncation::TruncationState,
 };
 
 const RESPONSE_LIMIT: usize = 1024 * 1024;
@@ -139,6 +142,15 @@ impl TestApp {
     ) -> Result<Arc<T>, Box<dyn Error + Send + Sync>> {
         self.boot().await?;
         Ok(self.app.container().instance(instance)?)
+    }
+
+    /// Installs a recording replacement for the facade in this test application.
+    pub async fn spy<F: Facade, A: Send + Sync + 'static>(
+        &mut self,
+        replacement: impl FnOnce(FacadeSpy<A>) -> Arc<F::Service>,
+    ) -> Result<FacadeSpy<A>, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        Ok(application_scope(self.app.container_handle(), async { F::spy(replacement) }).await?)
     }
 
     /// Boots the application and records the selected events. An empty slice selects all.

@@ -1,6 +1,7 @@
 use crate::{
     container::{Container, ServiceKey},
     contracts::container::{BindingResolutionError, Container as _},
+    testing::FacadeSpy,
 };
 use std::{
     any::{Any, type_name},
@@ -288,6 +289,16 @@ pub trait Facade {
             drop(previous);
             context.container.instance_key(key, instance)
         })
+    }
+
+    /// Installs a typed replacement that records calls on behalf of this facade.
+    fn spy<A: Send + Sync + 'static>(
+        replacement: impl FnOnce(FacadeSpy<A>) -> Arc<Self::Service>,
+    ) -> Result<FacadeSpy<A>, BindingResolutionError> {
+        with_context(|_| Ok(()))?;
+        let spy = FacadeSpy::new();
+        Self::swap(replacement(spy.clone()))?;
+        Ok(spy)
     }
 }
 pub(crate) async fn application_scope<F: Future>(
