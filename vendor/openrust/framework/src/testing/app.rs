@@ -40,6 +40,7 @@ impl TestApp {
         let builder = Application::configure(directory.path().canonicalize()?)
             .withConfig(|_, _| Ok([("app".into(), serde_json::json!({"env": "testing"}))].into()));
         let app = configure(builder).create()?;
+        app.use_testing_environment();
         Ok(Self {
             app,
             http: None,

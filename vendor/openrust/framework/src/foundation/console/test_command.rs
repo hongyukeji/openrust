@@ -56,6 +56,7 @@ impl Command for TestCommand {
             let process = Process::command(command)
                 .map_err(process_error)?
                 .path(app.base_path())
+                .env([("APP_ENV", "testing")])
                 .forever();
 
             if output.streams_to_terminal() {

@@ -52,6 +52,7 @@ pub(super) struct ApplicationState {
     basePath: PathBuf,
     publicPath: RwLock<Option<PathBuf>>,
     load_config: ConfigLoader,
+    testing_environment: AtomicBool,
     pub(super) container: Arc<Container>,
     providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
     registered_runners: Mutex<Vec<Arc<dyn Runner>>>,
@@ -366,6 +367,7 @@ impl Application {
             basePath,
             publicPath: RwLock::new(None),
             load_config,
+            testing_environment: AtomicBool::new(false),
             container,
             providers: Mutex::new(providers),
             registered_runners: Mutex::default(),
@@ -623,6 +625,12 @@ impl Application {
         self.boot_with_configuration_signal(selected, None).await
     }
 
+    pub(crate) fn use_testing_environment(&self) {
+        self.shared
+            .testing_environment
+            .store(true, Ordering::Relaxed);
+    }
+
     pub(super) async fn boot_with_configuration_signal(
         &mut self,
         selected: Option<&str>,
@@ -668,8 +676,13 @@ impl Application {
             path: cache_path,
             environment,
             values: cached,
-        } = ConfigurationCache::bootstrap(&self.shared.basePath, selected, use_cache)
-            .map_err(configuration_failed)?;
+        } = ConfigurationCache::bootstrap(
+            &self.shared.basePath,
+            selected,
+            use_cache,
+            self.shared.testing_environment.load(Ordering::Relaxed),
+        )
+        .map_err(configuration_failed)?;
         let package_cache = self.shared.basePath.join(
             environment
                 .values

@@ -615,11 +615,30 @@ fn artisan_runs_real_cargo_tests_with_forwarded_arguments_and_exit_status() {
         "[package]\nname = \"artisan-test-probe\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
     )
     .unwrap();
+    fs::write(root.0.join(".env"), "APP_NAME=ordinary\n").unwrap();
+    fs::write(root.0.join(".env.testing"), "APP_NAME=testing-fixture\n").unwrap();
     fs::write(
         root.0.join("src/lib.rs"),
         r#"
 #[test]
-fn probe() { println!("stdout marker"); eprintln!("stderr marker"); }
+fn probe() {
+    assert_eq!(std::env::var("APP_ENV").as_deref(), Ok("testing"));
+    let binary = std::env::var_os("OPENRUST_T01_TEST_BINARY").unwrap();
+    for (key, expected) in [
+        ("app.name", "testing-fixture"),
+        ("cache.default", "array"),
+        ("session.driver", "array"),
+    ] {
+        let result = std::process::Command::new(&binary)
+            .args(["artisan", "config:show", key])
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert!(String::from_utf8_lossy(&result.stdout).contains(expected), "{result:?}");
+    }
+    println!("stdout marker");
+    eprintln!("stderr marker");
+}
 
 #[test]
 fn probe_fails() { panic!("test failure marker"); }
@@ -631,6 +650,12 @@ fn probe_fails() { panic!("test failure marker"); }
             .arg("artisan")
             .args(args)
             .env("APP_BASE_PATH", &root.0)
+            .env("OPENRUST_T01_TEST_BINARY", env!("CARGO_BIN_EXE_main"))
+            .env("APP_ENV", "production")
+            .env_remove("APP_NAME")
+            .env_remove("CACHE_STORE")
+            .env_remove("SESSION_DRIVER")
+            .env_remove("APP_CONFIG_CACHE")
             .env("CARGO_TARGET_DIR", root.0.join("target"))
             .env("CARGO_NET_OFFLINE", "true")
             .output()

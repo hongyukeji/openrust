@@ -21,8 +21,9 @@ impl ConfigurationCache {
         base: &Path,
         selected: Option<&str>,
         use_cache: bool,
+        testing: bool,
     ) -> Result<Self, ConfigError> {
-        let mut environment = LoadEnvironmentVariables::snapshot(base, selected)?;
+        let mut environment = LoadEnvironmentVariables::snapshot(base, selected, testing)?;
         let mut path = Self::path(base, &environment);
         let mut values = if use_cache { Self::read(&path)? } else { None };
         if values.is_none() {

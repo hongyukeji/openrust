@@ -10,12 +10,13 @@ impl LoadEnvironmentVariables {
         base_path: &Path,
         selected_env: Option<&str>,
     ) -> Result<Environment, ConfigError> {
-        Self::load(Self::snapshot(base_path, selected_env)?)
+        Self::load(Self::snapshot(base_path, selected_env, false)?)
     }
 
     pub(crate) fn snapshot(
         base_path: &Path,
         selected_env: Option<&str>,
+        testing: bool,
     ) -> Result<Environment, ConfigError> {
         let mut environment = Environment {
             file: base_path.join(".env"),
@@ -23,6 +24,13 @@ impl LoadEnvironmentVariables {
                 .filter_map(|(key, value)| key.into_string().ok().map(|key| (key, value)))
                 .collect(),
         };
+        if testing {
+            environment
+                .values
+                .insert("APP_ENV".into(), "testing".into());
+            environment.values.remove("APP_CONFIG_CACHE");
+            environment.values.remove("APP_PACKAGES_CACHE");
+        }
         let process_env = environment
             .get_utf8("APP_ENV")?
             .filter(|name| !name.is_empty() && *name != "0");
@@ -58,19 +66,26 @@ impl LoadEnvironmentVariables {
 
     pub(crate) fn load(mut environment: Environment) -> Result<Environment, ConfigError> {
         let path = &environment.file;
-        let entries = match dotenvy::from_path_iter(path) {
-            Ok(entries) => entries,
-            Err(error) if error.not_found() => return Ok(environment),
+        let file_values = match dotenvy::from_path_iter(path) {
+            Ok(entries) => entries
+                .collect::<Result<std::collections::HashMap<_, _>, _>>()
+                .map_err(|error| file_error(path, error))?,
+            Err(error) if error.not_found() => Default::default(),
             Err(error) => return Err(file_error(path, error)),
         };
-        let file_values = entries
-            .collect::<Result<std::collections::HashMap<_, _>, _>>()
-            .map_err(|error| file_error(path, error))?;
         for (key, value) in file_values {
             environment
                 .values
                 .entry(key)
                 .or_insert_with(|| value.into());
+        }
+        if environment.get("APP_ENV") == Some("testing") {
+            for key in ["CACHE_STORE", "SESSION_DRIVER"] {
+                environment
+                    .values
+                    .entry(key.into())
+                    .or_insert_with(|| "array".into());
+            }
         }
         Ok(environment)
     }

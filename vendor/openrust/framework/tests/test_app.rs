@@ -53,6 +53,82 @@ async fn defaults_to_testing_environment() -> Result<(), Box<dyn Error + Send + 
 }
 
 #[tokio::test]
+async fn selects_local_testing_environment_on_http_and_artisan_first_boot()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust::{
+        foundation::configuration::Routing,
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
+        support::facades::{Config, Route},
+    };
+
+    fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            Response::json(
+                StatusCode::OK,
+                json!({"label": Config::stringOr("app.label", "")}),
+            )
+        })
+    }
+
+    let configure = |builder: ApplicationBuilder| {
+        builder
+            .withRouting(Routing::default().web(|| Route::get("/fixture", probe)))
+            .withConfig(|_, env| {
+                Ok([(
+                    "app".into(),
+                    json!({
+                        "env": env.get_utf8("APP_ENV")?,
+                        "label": env.get_utf8("OPENRUST_T01_FIXTURE")?,
+                    }),
+                )]
+                .into())
+            })
+    };
+    let mut first = TestApp::create(configure)?;
+    let mut second = TestApp::create(configure)?;
+    let mut fallback = TestApp::create(configure)?;
+    for fixture in [&first, &second, &fallback] {
+        fs::write(
+            fixture.root().join(".env"),
+            "APP_ENV=production\nOPENRUST_T01_FIXTURE=fallback\n",
+        )?;
+    }
+    fs::write(
+        first.root().join(".env.testing"),
+        "OPENRUST_T01_FIXTURE=first\n",
+    )?;
+    fs::write(
+        second.root().join(".env.testing"),
+        "OPENRUST_T01_FIXTURE=second\n",
+    )?;
+
+    let (http, artisan) = tokio::join!(
+        first.get("/fixture"),
+        second.artisan(["config:show", "app.label"])
+    );
+    http?.assertOk().assertExactJson(&json!({"label": "first"}));
+    artisan
+        .assertSuccessful()
+        .expectsOutput("  app.label  second");
+    second
+        .get("/fixture")
+        .await?
+        .assertExactJson(&json!({"label": "second"}));
+    fallback
+        .get("/fixture")
+        .await?
+        .assertExactJson(&json!({"label": "fallback"}));
+    for fixture in [&first, &second, &fallback] {
+        assert_eq!(
+            fixture.app().config()?.get("app.env"),
+            Some(json!("testing"))
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn dispatches_http_and_captures_artisan_output_without_leaking_state()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     use openrust::{

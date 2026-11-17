@@ -13,6 +13,10 @@ cargo +1.94.0 test --workspace --locked
 
 Artisan 從應用程式根目錄執行 Cargo，即時輸出結果並回傳 Cargo 的結束狀態。優先使用環境中的 `CARGO` 執行檔，未設定時從執行檔搜尋路徑呼叫 `cargo`。
 
+## 測試環境 {#test-environment}
+
+Artisan 給 Cargo 子程序設定 `APP_ENV=testing`。應用程式以該環境啟動時優先讀取 `.env.testing`，缺少時讀取 `.env`。程序環境和所選檔案都未定義 `CACHE_STORE` 或 `SESSION_DRIVER` 時，引導器分別補上 `array`。資料庫測試設定應放在測試環境中。修改環境設定前，可用 `./artisan config:clear` 清除應用程式的設定快取。
+
 ## 建立測試應用程式
 
 用 `TestApp` 建立具有獨立暫存根目錄和服務容器的應用程式。啟動前可在 `test.root()` 下準備測試檔案。回呼接收一般應用程式 Builder，可以註冊本次測試所需的 Provider、路由和設定。
@@ -31,6 +35,8 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 ```
 
 `boot` 執行應用程式引導，無須繫結連接埠。預設設定使用 `testing` 環境，自訂設定載入器提供自己的設定。測試夾具離開作用域時清理其暫存目錄。測試輔助工具不修改程序環境和工作目錄。
+
+在首次 `boot`、HTTP 請求或 Artisan 命令前，把 `.env.testing` 寫入 `test.root()`。設定載入器可以從環境參數讀取目前夾具內的值，收到的 `APP_ENV` 為 `testing`。夾具忽略從程序繼承的 `APP_CONFIG_CACHE` 和 `APP_PACKAGES_CACHE` 路徑。
 
 ## 建立測試 {#creating-tests}
 

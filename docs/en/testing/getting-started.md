@@ -13,6 +13,10 @@ cargo +1.94.0 test --workspace --locked
 
 Artisan runs Cargo from the application root, streams its output and returns its exit status. It uses the `CARGO` executable from the environment when set, otherwise `cargo` from the executable search path.
 
+## Test environment {#test-environment}
+
+Artisan sets `APP_ENV=testing` for the Cargo child process. When the application boots with that setting, it selects `.env.testing` if present and otherwise reads `.env`. The bootstrap supplies `array` for `CACHE_STORE` and `SESSION_DRIVER` when neither the process environment nor the selected file defines them. Keep test database settings in the test environment and clear any application configuration cache with `./artisan config:clear` before changing its settings.
+
 ## Creating a test application
 
 Use `TestApp` to create an application with its own temporary root and service container. Create local fixtures under `test.root()` before boot. The callback receives the normal application builder and can register the providers, routes and configuration required by the test.
@@ -31,6 +35,8 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 ```
 
 `boot` runs the application bootstrap without binding a port. The default configuration uses the `testing` environment. A custom configuration loader supplies its own settings. Each fixture removes its temporary directory when dropped. The helper leaves the process environment and working directory alone.
+
+Write `.env.testing` under `test.root()` before the first `boot`, HTTP request or Artisan command. A configuration loader can read the fixture’s values from its environment argument. The fixture gives the loader `APP_ENV=testing` and ignores inherited `APP_CONFIG_CACHE` and `APP_PACKAGES_CACHE` paths.
 
 ## Creating tests {#creating-tests}
 
