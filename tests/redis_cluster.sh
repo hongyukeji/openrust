@@ -97,4 +97,5 @@ cargo +1.94.0 test --test redis --locked --offline redis_cluster_routes_commands
 export OPENRUST_TEST_REDIS_CLUSTER_SECOND_PORT="$second"
 export OPENRUST_TEST_REDIS_INDEPENDENT_CLUSTER_PORT="$independent" OPENRUST_TEST_REDIS_CLUSTER_STANDALONE_PORT="$standalone"
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_flushes_only_a_separate_lock_database -- --exact
+cargo +1.94.0 test --test redis --locked --offline redis_cluster_tags_flush_and_prune -- --exact
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_migrates_and_recovers_without_replaying_a_write -- --exact

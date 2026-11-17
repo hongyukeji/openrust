@@ -223,6 +223,8 @@ Read the item with the same ordered list, including any repeated names. To inval
 
 Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to expired or deleted values. This command preserves live values. Pass a store name, or omit it to use the default store.
 
+On Redis Cluster, a tagged cache namespace uses one hash slot derived from the connection and store prefixes. This keeps each value and its tag indexes in the same slot for atomic Lua updates. Untagged keys continue to use normal cluster routing. Distribute tagged workloads across stores or prefixes when one slot becomes a bottleneck.
+
 ## Atomic Locks
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.

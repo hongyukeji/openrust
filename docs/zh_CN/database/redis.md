@@ -56,6 +56,6 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 
 设置 `CACHE_STORE=redis` 可选择 Redis 作为默认缓存。`REDIS_CACHE_CONNECTION` 指定数据连接，`REDIS_CACHE_LOCK_CONNECTION` 指定锁连接，默认分别为 `cache` 和 `default`。过期及锁操作见[缓存](../digging-deeper/cache.md)。
 
-将 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 设置为集群名称，可将缓存值或单个锁放在集群上。跨槽批量读保持输入顺序，批量写逐项路由。`cache:clear` 清空全部主节点。缓存标签目前使用直连。收到明确的槽重定向时，缓存批量读取会逐键查询。
+将 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 设置为集群名称，可将缓存值或单个锁放在集群上。跨槽批量读保持输入顺序，批量写逐项路由。`cache:clear` 清空全部主节点。集群也支持缓存标签。清除与修剪用法见[缓存标签](../digging-deeper/cache.md#cache-tags)。收到明确的槽重定向时，缓存批量读取会逐键查询。
 
 仅清锁支持独立 Redis 逻辑库或独立 Redis Cluster。Redis 会清空整个锁后端。缓存连接与锁连接须指向不同的逻辑库或集群。涉及集群时，需要允许 `CLUSTER INFO`、`CLUSTER NODES`，直连的一侧还需允许 `INFO CLUSTER`，以便框架在清理前识别指向同一集群的别名。

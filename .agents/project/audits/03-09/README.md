@@ -43,3 +43,12 @@
 - 在隔离基线 `a73b475da` 用 Redis 8.10.3 验证同集群别名与直连别名拒绝、两个独立集群之间清锁、集群和直连的两种组合，以及分片锁与数据哨兵。实际双进程 HTTP 和独立 Artisan 验证别名拒绝和成功清理，缓存值均保留。单机 Redis、原有集群槽迁移与故障切换、`artisan inspire` 通过。
 - 改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查及 6 项 Redis 页面检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。临时 Redis 与本批隔离缓存已回收。项目卷可用 52.79 GB（49.17 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-locks.dEsERJoU`。
 - 03-09 待集群标签和其他原始命令的重定向覆盖，核心账本保持 51/66。
+
+## Redis Cluster 标签与过期索引清理
+
+- 固定 Laravel 的 RedisTagSet 用有序集合跟踪标签成员，RedisTaggedCache 在集群上按标签分批清除，Artisan 使用 `cache:prune-stale-tags`。核对旧版 `v0.x` 的 `redis_tags.rs` 和标签身份测试，复用代际核验、物理索引、分批退役及失败后续做机制。 [Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php) · [Laravel 集群标签清理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php#L210)
+- Rust 根据连接与缓存存储前缀确定一个标签槽，显式声明 Lua 访问的键，并在写入前校验快照代际。标签可跨组合清理且按顺序区分身份。单槽让值写入与索引登记保持原子，热点可按不同前缀分散。标签修剪按注册索引分页，仅移除已无对应值的索引引用。Redis 直连原有键格式及普通集群缓存的分片机制继续使用原实现。 [Redis EVAL 键声明](https://redis.io/docs/latest/commands/eval/)
+- 隔离基线 `bdfec17e5`，Rust 1.94.0、Redis 8.10.3。实际集群脚本覆盖有序和重复标签、跨客户端读取、普通键与不同前缀隔离、计数、续期、过期引用、超过一批的物理清除、无效引用导致清理中断及可恢复。现有集群连接、锁、槽迁移和故障切换全部复验。Redis 直连标签与缓存入口回归通过。
+- 两个实际 HTTP 进程分别写入和读回标签值。独立 Artisan `cache:prune-stale-tags redis` 修剪过期引用并保留有效值，`cache:clear redis --tags=artists` 清除匹配标签并保留普通值和其他标签，`artisan inspire` 正常退出。
+- 改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查和 6 项标签文档链接检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。临时 Redis 与本批隔离产物已回收。项目卷可用 117.29 GB（109.23 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tags.lo4O4vrg`。
+- 03-09 整单元继续跟踪其他原始 Redis 命令的重定向，以及真实 TLS 和无主机名重定向；标签脚本跨迁移窗口的专门回归待补。本批不调整核心账本闭合数。

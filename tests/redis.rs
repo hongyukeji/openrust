@@ -509,10 +509,7 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
         repository.flushLocks().await,
         Err(CacheError::LockStoreNotSeparate)
     ));
-    assert!(matches!(
-        repository.tags(&["reports"]),
-        Err(CacheError::TagsUnsupported)
-    ));
+    assert!(repository.supportsTags());
     assert!(repository.flush().await.unwrap());
     assert_eq!(peer.get(right).await.unwrap(), None);
     for key in ["{one}:report", "{two}:report", "{three}:report"] {
@@ -820,4 +817,126 @@ async fn redis_cluster_flushes_only_a_separate_lock_database() {
         assert!(right.current_owner().await.unwrap().is_none());
         assert_eq!(store.get(sentinel).await.unwrap(), Some("keep".into()));
     }
+}
+
+#[tokio::test]
+async fn redis_cluster_tags_flush_and_prune() {
+    use openrust::{
+        cache::{RedisStore, Repository},
+        redis::Value as RedisValue,
+    };
+    use serde_json::json;
+
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    };
+    let settings = Arc::new(openrust::config::Repository::new(
+        [(
+            "database".into(),
+            json!({"redis":{"options":{"prefix":"{other}:"},"clusters":{
+                "tags":[{"port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"}]
+            }}}),
+        )]
+        .into(),
+    ));
+    let connection = RedisManager::new(settings.clone())
+        .connection(Some("tags"))
+        .unwrap();
+    let peer = RedisManager::new(settings)
+        .connection(Some("tags"))
+        .unwrap();
+    let store = |connection: Arc<openrust::redis::connections::Connection>, prefix: &str| {
+        Repository::new(Arc::new(RedisStore::new(
+            connection.clone(),
+            connection,
+            prefix.into(),
+        )))
+    };
+    let plain = store(connection.clone(), "tags*?:");
+    let peer = store(peer, "tags*?:");
+    let unrelated = store(connection.clone(), "unrelated:");
+    let left = plain.tags(&["artists", "people"]).unwrap();
+    let ordered = peer.tags(&["artists", "people"]).unwrap();
+    let reversed = peer.tags(&["people", "artists", "artists"]).unwrap();
+    let foreign = unrelated.tags(&["artists", "people"]).unwrap();
+    assert!(plain.forever("item", &1.into()).await.unwrap());
+    assert!(left.forever("item", &2.into()).await.unwrap());
+    assert!(reversed.forever("item", &3.into()).await.unwrap());
+    assert!(foreign.forever("item", &4.into()).await.unwrap());
+    assert_eq!(ordered.get("item").await.unwrap(), Some(2.into()));
+    assert_eq!(reversed.get("item").await.unwrap(), Some(3.into()));
+    assert_eq!(left.get("missing").await.unwrap(), None);
+    assert!(!left.add("item", &5.into(), None).await.unwrap());
+    assert_eq!(left.increment("counter", i64::MAX).await.unwrap(), i64::MAX);
+    assert_eq!(left.decrement("counter", 3).await.unwrap(), i64::MAX - 3);
+    assert_eq!(
+        ordered.pull("counter").await.unwrap(),
+        Some((i64::MAX - 3).into())
+    );
+    assert_eq!(left.get("counter").await.unwrap(), None);
+
+    let exists = async |key: &str| {
+        connection
+            .command("EXISTS", &[key.as_bytes()])
+            .await
+            .unwrap()
+            == RedisValue::Int(1)
+    };
+    let index = async |name: &str| {
+        let key = left.getTags().tagKey(name);
+        let id = left.getTags().tagId(name).await.unwrap();
+        format!("{}index:{id}", key.split_once("generation:").unwrap().0)
+    };
+    let count = async |key: &str| {
+        connection
+            .command("ZCARD", &[key.as_bytes()])
+            .await
+            .unwrap()
+    };
+    let people = index("people").await;
+    assert!(
+        left.put("short", &1.into(), Some(Ttl::Seconds(10)))
+            .await
+            .unwrap()
+    );
+    assert!(left.touch("short", Ttl::Seconds(1)).await.unwrap());
+    assert_eq!(count(&people).await, RedisValue::Int(3));
+    tokio::time::sleep(Duration::from_millis(1150)).await;
+    assert_eq!(ordered.get("short").await.unwrap(), None);
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(count(&people).await, RedisValue::Int(2));
+
+    let mut physical = vec![
+        left.taggedItemKey("item").await.unwrap(),
+        reversed.taggedItemKey("item").await.unwrap(),
+    ];
+    for number in 0..130 {
+        let key = number.to_string();
+        assert!(left.add(&key, &number.into(), None).await.unwrap());
+        physical.push(left.taggedItemKey(&key).await.unwrap());
+    }
+    let artist = index("artists").await;
+    let invalid = connection.key("tags*?:item");
+    connection
+        .command("ZADD", &[artist.as_bytes(), b"-2", invalid.as_bytes()])
+        .await
+        .unwrap();
+    assert!(plain.tags(&["artists"]).unwrap().flush().await.is_err());
+    assert!(exists(&physical[0]).await);
+    assert!(exists(&invalid).await);
+    assert_eq!(ordered.get("item").await.unwrap(), None);
+    assert!(ordered.forever("replacement", &6.into()).await.unwrap());
+    connection
+        .command("ZREM", &[artist.as_bytes(), invalid.as_bytes()])
+        .await
+        .unwrap();
+    assert!(plain.tags(&["artists"]).unwrap().flush().await.unwrap());
+    for key in physical {
+        assert!(!exists(&key).await);
+    }
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert!(!exists(&people).await);
+    assert_eq!(plain.get("item").await.unwrap(), Some(1.into()));
+    assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
 }

@@ -223,6 +223,8 @@ async fn store_report() -> Result<bool, CacheError> {
 
 运行 `./artisan cache:prune-stale-tags redis` 可清理已过期或已删除值的索引引用，仍有效的值保留。可显式指定存储名，也可省略以使用默认存储。
 
+在 Redis Cluster 上，框架根据连接前缀和存储前缀为标签命名空间选择一个哈希槽，使值与标签索引能够通过 Lua 原子更新。普通缓存键继续按集群规则分片。单槽成为瓶颈时，可以用不同存储或前缀分散标签缓存负载。
+
 ## 原子锁
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。

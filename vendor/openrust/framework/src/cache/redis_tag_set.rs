@@ -1,3 +1,5 @@
+mod cluster;
+
 use std::sync::Arc;
 
 use ::redis::{FromRedisValue, ToRedisArgs};
@@ -10,6 +12,7 @@ use super::{
 
 const ITEM: &str = concat!(
     include_str!("scripts/redis_counter.lua"),
+    include_str!("scripts/redis_tagged_item_operations.lua"),
     include_str!("scripts/redis_tagged_item.lua"),
 );
 const RETIRE: &str = include_str!("scripts/redis_retire_tag.lua");
@@ -25,9 +28,15 @@ pub(super) struct RedisTagSet {
 
 impl RedisTagSet {
     pub(super) fn new(store: &RedisStore, names: &[&str]) -> Self {
+        let prefix = store.data.key(&store.key("tagged:v1:"));
+        let prefix = if store.data.is_cluster() {
+            format!("{{{}}}:{prefix}", key_digest(&prefix))
+        } else {
+            prefix
+        };
         Self {
             connection: Arc::clone(&store.data),
-            prefix: store.data.key(&store.key("tagged:v1:")),
+            prefix,
             tags: names.iter().map(|name| key_digest(name)).collect(),
         }
     }
@@ -39,6 +48,9 @@ impl RedisTagSet {
         input: impl ToRedisArgs + Send,
         option: impl ToRedisArgs + Send,
     ) -> CacheResult<T> {
+        if self.connection.is_cluster() {
+            return self.cluster_item(operation, key, input, option).await;
+        }
         self.connection
             .query(
                 ::redis::cmd("EVAL")
@@ -57,10 +69,16 @@ impl RedisTagSet {
     }
 
     pub(super) async fn namespace(&self) -> CacheResult<String> {
+        if self.connection.is_cluster() {
+            return self.cluster_namespace().await;
+        }
         self.item("namespace", "", "", "").await
     }
 
     pub(super) async fn item_key(&self, key: &str) -> CacheResult<String> {
+        if self.connection.is_cluster() {
+            return self.cluster_item_key(key).await;
+        }
         self.item("key", key, "", "").await
     }
 
@@ -79,6 +97,9 @@ impl RedisTagSet {
     }
 
     pub(super) async fn prune(&self) -> CacheResult<()> {
+        if self.connection.is_cluster() {
+            return self.cluster_prune().await;
+        }
         let mut pattern = String::new();
         for character in self.prefix.chars() {
             if matches!(character, '*' | '?' | '[' | ']' | '\\') {
@@ -128,6 +149,9 @@ impl RedisTagSet {
     }
 
     pub(super) async fn flush(&self, name: &str) -> CacheResult<String> {
+        if self.connection.is_cluster() {
+            return self.cluster_flush(name).await;
+        }
         let tag = key_digest(name);
         let pending = format!("{}pending:{tag}", self.prefix);
         let index = format!("{}index:{tag}:", self.prefix);

@@ -25,6 +25,7 @@ impl Cluster {
         &self,
         mut transport: ClusterConnection,
         command: &Cmd,
+        known_single_target: bool,
     ) -> RedisResult<T> {
         let mut result = command.query_async(&mut transport).await;
         for _ in 0..self.redirects {
@@ -34,7 +35,7 @@ impl Cluster {
             let Some((address, _)) = error.redirect_node() else {
                 break;
             };
-            if !single_target(command) {
+            if !known_single_target && !single_target(command) {
                 break;
             }
             let Some((host, port)) = split_address(address) else {

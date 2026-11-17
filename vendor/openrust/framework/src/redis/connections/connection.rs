@@ -61,13 +61,29 @@ impl Connection {
     }
 
     pub(crate) async fn query<T: FromRedisValue>(&self, command: &::redis::Cmd) -> RedisResult<T> {
+        self.query_command(command, false).await
+    }
+
+    // The caller has already ensured this command targets one Redis slot.
+    pub(crate) async fn query_slot<T: FromRedisValue>(
+        &self,
+        command: &::redis::Cmd,
+    ) -> RedisResult<T> {
+        self.query_command(command, true).await
+    }
+
+    async fn query_command<T: FromRedisValue>(
+        &self,
+        command: &::redis::Cmd,
+        known_single_target: bool,
+    ) -> RedisResult<T> {
         match self.transport().await? {
             Transport::Standalone(mut transport) => command.query_async(&mut transport).await,
             Transport::Cluster(transport) => {
                 let Backend::Cluster(cluster) = &self.client else {
                     unreachable!("cluster transport")
                 };
-                cluster.query(transport, command).await
+                cluster.query(transport, command, known_single_target).await
             }
         }
         .map_err(backend)

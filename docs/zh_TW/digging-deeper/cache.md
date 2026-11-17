@@ -223,6 +223,8 @@ async fn store_report() -> Result<bool, CacheError> {
 
 執行 `./artisan cache:prune-stale-tags redis` 可清除已到期或已刪除值的索引參照，仍有效的值會保留。可指定儲存名稱，或省略以使用預設儲存。
 
+在 Redis Cluster 上，框架依連線前綴和儲存前綴為標籤命名空間選擇一個雜湊槽，讓值與標籤索引可透過 Lua 原子更新。一般快取鍵繼續按叢集規則分片。單槽成為瓶頸時，可使用不同儲存或前綴分散標籤快取負載。
+
 ## 原子鎖
 
 用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。

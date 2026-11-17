@@ -56,6 +56,6 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 
 設定 `CACHE_STORE=redis` 可選擇 Redis 作為預設快取。`REDIS_CACHE_CONNECTION` 指定資料連線，`REDIS_CACHE_LOCK_CONNECTION` 指定鎖連線，預設分別為 `cache` 和 `default`。到期及鎖操作請參閱[快取](../digging-deeper/cache.md)。
 
-將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。快取標籤目前使用直連。收到明確的槽重新導向時，快取批次讀取會逐鍵查詢。
+將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。叢集也支援快取標籤。清除與修剪用法見[快取標籤](../digging-deeper/cache.md#cache-tags)。收到明確的槽重新導向時，快取批次讀取會逐鍵查詢。
 
 僅清除鎖支援獨立的 Redis 邏輯資料庫或獨立的 Redis Cluster。Redis 會清空整個鎖後端。快取連線與鎖連線須指向不同的邏輯資料庫或叢集。涉及叢集時，需允許 `CLUSTER INFO`、`CLUSTER NODES`，直連的一端另需允許 `INFO CLUSTER`，以便框架在清除前辨識指向同一叢集的別名。

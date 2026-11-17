@@ -56,6 +56,6 @@ A lost command connection reconnects for subsequent requests. A command with an 
 
 Set `CACHE_STORE=redis` to select Redis as the default cache. The cache uses `REDIS_CACHE_CONNECTION` for data and `REDIS_CACHE_LOCK_CONNECTION` for locks, with defaults of `cache` and `default`. See [Cache](../digging-deeper/cache.md) for expiry and lock operations.
 
-Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache currently uses standalone connections. During an explicit slot redirection, cache batch reads fall back to individual key reads.
+Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache also supports clusters. See [cache tags](../digging-deeper/cache.md#cache-tags) for flushing and pruning. During an explicit slot redirection, cache batch reads fall back to individual key reads.
 
 Lock-only clearing supports a dedicated standalone database or a dedicated cluster. Redis flushes the entire lock backend. The cache and lock connections must point to different databases or clusters. When a cluster is involved, allow `CLUSTER INFO`, `CLUSTER NODES`, and `INFO CLUSTER` on a standalone peer so OpenRust can detect aliases before clearing.

@@ -100,23 +100,15 @@ impl RedisStore {
 
 impl Store for RedisStore {
     fn tags(self: Arc<Self>, names: &[&str]) -> CacheResult<TaggedCache> {
-        if self.data.is_cluster() {
-            return Err(CacheError::TagsUnsupported);
-        }
         Ok(TaggedCache::redis(self, names))
     }
 
     fn flush_stale_tags(&self) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(async move {
-            if self.data.is_cluster() {
-                return Err(CacheError::TagsUnsupported);
-            }
-            RedisTagSet::new(self, &[]).prune().await
-        })
+        Box::pin(async move { RedisTagSet::new(self, &[]).prune().await })
     }
 
     fn supports_tags(&self) -> bool {
-        !self.data.is_cluster()
+        true
     }
 
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
