@@ -1162,6 +1162,24 @@ async fn redis_cluster_tags_flush_and_prune() {
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&people).await, RedisValue::Int(2));
 
+    let scored = plain.tags(&["scored", "scored-peer"]).unwrap();
+    assert!(scored.forever("value", &11.into()).await.unwrap());
+    let scored_key = scored.taggedItemKey("value").await.unwrap();
+    let scoped_index = index("scored").await;
+    let peer_index = index("scored-peer").await;
+    for index in [&scoped_index, &peer_index] {
+        connection
+            .command("ZADD", &[index.as_bytes(), b"0", scored_key.as_bytes()])
+            .await
+            .unwrap();
+    }
+    assert!(plain.tags(&["scored"]).unwrap().flushStale().await.unwrap());
+    assert_eq!(count(&scoped_index).await, RedisValue::Int(0));
+    assert_eq!(count(&peer_index).await, RedisValue::Int(1));
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(count(&peer_index).await, RedisValue::Int(0));
+    assert_eq!(scored.get("value").await.unwrap(), Some(11.into()));
+
     let paged = plain.tags(&["paged"]).unwrap();
     let mut deleted = Vec::new();
     for number in 0..320 {

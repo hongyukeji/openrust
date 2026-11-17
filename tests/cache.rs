@@ -784,6 +784,21 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(0));
     assert_eq!(unrelated.get("same").await.unwrap(), Some(4.into()));
 
+    let scored = plain.tags(&["scored"]).unwrap();
+    assert!(scored.forever("value", &11.into()).await.unwrap());
+    let scored_key = scored.taggedItemKey("value").await.unwrap();
+    let scored_index = index("scored").await;
+    redis
+        .command(
+            "ZADD",
+            &[scored_index.as_bytes(), b"0", scored_key.as_bytes()],
+        )
+        .await
+        .unwrap();
+    root.success(&["cache:prune-stale-tags"]);
+    assert_eq!(cardinality(&scored_index).await, RedisValue::Int(0));
+    assert_eq!(scored.get("value").await.unwrap(), Some(11.into()));
+
     let old_key = unrelated.taggedItemKey("same").await.unwrap();
     // An invalid reference interrupts the first drain without deleting ordinary keys.
     let ordinary = "tags-cache*?-same";

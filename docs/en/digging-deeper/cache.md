@@ -227,7 +227,7 @@ Read the item with the same ordered list, including any repeated names. To inval
 
 To remove stale references from selected Redis tags, call `Cache::tags(&["daily"])?.flushStale().await?`. It scans the current generation of each selected tag and preserves live values and other tag indexes. An empty list leaves the store untouched.
 
-Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to expired or deleted values. This command preserves live values. Pass a store name, or omit it to use the default store.
+Run `./artisan cache:prune-stale-tags redis` to prune the entire store. Both forms use the Redis server clock and the expiry recorded in each sorted set, and remove references whose value keys are already missing. Pruning changes only the indexes. It preserves the cache values and the references to existing entries without an expiry. Pass a store name, or omit it to use the default store.
 
 On Redis Cluster, store-wide pruning also discovers tag indexes on the primary that owns the store's tag slot. If Redis evicts the index registry, pruning rediscovers surviving indexes, removes stale references, and keeps live values. If a pending generation’s index and registry entry are both missing, pruning removes the pending record. Pruning also discards malformed pending generation identifiers. The command checks up to 128 pending generations at a time in a same-slot Redis operation. It keeps any pending generation that still has indexed values so a later tag flush can finish.
 
