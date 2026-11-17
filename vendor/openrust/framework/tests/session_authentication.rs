@@ -12,10 +12,12 @@ use openrust::{
         http::Kernel as _,
         session::Session as _,
     },
+    cookie::CookieValuePrefix,
     database::{
         DatabaseManager, Value,
         eloquent::{Model, ModelMetadata, ModelState},
     },
+    encryption::{Cipher, Encrypter},
     foundation::{Application, configuration::Routing, http::Kernel},
     hashing::HashOptions,
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
@@ -83,8 +85,11 @@ fn field<'a>(user: &'a User, name: &str) -> Option<&'a str> {
 
 fn web() -> Result<(), RoutingError> {
     Route::get("/session", session)?;
+    Route::get("/quiet", quiet_session)?;
+    Route::get("/selected", selected_session)?;
     Route::r#match(&[Method::POST], "/login", login)?;
     Route::r#match(&[Method::POST], "/logout", logout)?;
+    Route::r#match(&[Method::POST], "/logout-current", logout_current)?;
     Route::group(openrust::routing::RouteGroup::new(), |router| {
         router.get("/private", session)?.middleware_name("auth");
         router
@@ -131,6 +136,19 @@ fn session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     })
 }
 
+fn quiet_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(
+        async move { Response::json(StatusCode::OK, json!({"id": request.session()?.getId()})) },
+    )
+}
+
+fn selected_session(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Auth::shouldUse(request, "custom")?;
+        quiet_session(request).await
+    })
+}
+
 fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let email = request
@@ -166,6 +184,15 @@ fn logout(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .logoutAndInvalidate()
             .await?;
         session(request).await
+    })
+}
+
+fn logout_current(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Auth::sessionGuard(request, None)?
+            .logoutCurrentDevice()
+            .await?;
+        quiet_session(request).await
     })
 }
 
@@ -229,7 +256,22 @@ async fn get(address: SocketAddr, path: &str, cookie: &str, status: u16) -> Wire
     .await
 }
 
-async fn verify(database: Json) {
+async fn assert_session_user(
+    connection: &openrust::database::Connection,
+    session: &Wire,
+    user: Value,
+) {
+    let row = connection
+        .table("auth_test_sessions")
+        .r#where("id", "=", session.body["id"].as_str().unwrap())
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.get("user_id"), Some(&user));
+}
+
+async fn verify(database: Json, database_sessions: bool) {
     let mut app = Application::configure(std::env::temp_dir())
         .withConfig(|_, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
@@ -254,6 +296,13 @@ async fn verify(database: Json) {
     let config = app.container().get::<dyn Repository>("config").unwrap();
     config.set("database.default", json!("test")).unwrap();
     config.set("database.connections.test", database).unwrap();
+    if database_sessions {
+        config.set("session.driver", json!("database")).unwrap();
+        config
+            .set("session.table", json!("auth_test_sessions"))
+            .unwrap();
+        config.set("session.encrypt", json!(true)).unwrap();
+    }
     let connection = app
         .container()
         .make::<DatabaseManager>()
@@ -293,6 +342,14 @@ async fn verify(database: Json) {
         connection.statement(sql, &[]).await.unwrap();
     }
     connection.statement("INSERT INTO auth_test_users VALUES ('001', 'a@example.test', ?, NULL, 'CaseSensitive')", &[hash.clone().into()]).await.unwrap();
+    if database_sessions {
+        for sql in [
+            "DROP TABLE IF EXISTS auth_test_sessions",
+            "CREATE TABLE auth_test_sessions (id VARCHAR(40) PRIMARY KEY, user_id VARCHAR(20), ip_address VARCHAR(45), user_agent TEXT, payload LONGTEXT NOT NULL, last_activity BIGINT NOT NULL)",
+        ] {
+            connection.statement(sql, &[]).await.unwrap();
+        }
+    }
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -312,6 +369,9 @@ async fn verify(database: Json) {
     );
     get(address, "/private/missing", "", 401).await;
     let initial = get(address, "/session", "", 200).await;
+    if database_sessions {
+        assert_session_user(&connection, &initial, Value::Null).await;
+    }
     let old_session = initial.cookie("auth_session");
     let guest_header = format!("Cookie: {old_session}\r\n");
     let rejected = r#"{"email":"other@example.test","password":"wrong"}"#;
@@ -332,6 +392,9 @@ async fn verify(database: Json) {
     )
     .await;
     assert_eq!(login.body["user"], "001");
+    if database_sessions {
+        assert_session_user(&connection, &login, "001".into()).await;
+    }
     let stored = connection
         .table("auth_test_users")
         .first()
@@ -352,7 +415,15 @@ async fn verify(database: Json) {
     assert_ne!(login.body["csrf"], initial.body["csrf"]);
     let logged_in = login.cookie("auth_session");
     let remember = login.cookie("remember_web");
-    assert!(!remember.contains("001"));
+    let encrypter = Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap();
+    let encrypted = percent_encoding::percent_decode_str(remember.split_once('=').unwrap().1)
+        .decode_utf8()
+        .unwrap();
+    let clear = encrypter.decryptString(&encrypted).unwrap();
+    let clear =
+        CookieValuePrefix::validate("remember_web", &clear, encrypter.getAllKeys()).unwrap();
+    let recaller: Json = serde_json::from_slice(clear).unwrap();
+    assert_eq!(recaller["id"], "001");
     assert!(
         login
             .headers
@@ -374,10 +445,42 @@ async fn verify(database: Json) {
             .headers
             .contains("location: /")
     );
+    if database_sessions {
+        connection
+            .statement(
+                "UPDATE auth_test_sessions SET user_id = NULL WHERE id = ?",
+                &[login.body["id"].as_str().unwrap().into()],
+            )
+            .await
+            .unwrap();
+        let quiet = get(address, "/quiet", &logged_in, 200).await;
+        assert_eq!(quiet.body["id"], login.body["id"]);
+        assert_session_user(&connection, &quiet, "001".into()).await;
+        let selected = send(address, "GET", "/selected", "X-Test-User: 001\r\n", "", 200).await;
+        assert_session_user(&connection, &selected, "001".into()).await;
+        let default = get(address, "/quiet", &selected.cookie("auth_session"), 200).await;
+        assert_eq!(default.body["id"], selected.body["id"]);
+        assert_session_user(&connection, &default, Value::Null).await;
+
+        let current = send(
+            address,
+            "POST",
+            "/logout-current",
+            &format!("Cookie: {logged_in}\r\n"),
+            "",
+            200,
+        )
+        .await;
+        assert_eq!(current.body["id"], login.body["id"]);
+        assert_session_user(&connection, &current, Value::Null).await;
+    }
 
     let recalled = get(address, "/session", &remember, 200).await;
     assert_eq!(recalled.body["user"], "001");
     assert_eq!(recalled.body["remember"], true);
+    if database_sessions {
+        assert_session_user(&connection, &recalled, "001".into()).await;
+    }
     let restored = recalled.cookie("auth_session");
     let logout = send(
         address,
@@ -389,6 +492,9 @@ async fn verify(database: Json) {
     )
     .await;
     assert!(logout.body["user"].is_null());
+    if database_sessions {
+        assert_session_user(&connection, &logout, Value::Null).await;
+    }
     assert_ne!(logout.body["id"], recalled.body["id"]);
     assert_ne!(logout.body["csrf"], recalled.body["csrf"]);
     assert!(get(address, "/session", &remember, 200).await.body["user"].is_null());
@@ -457,6 +563,12 @@ async fn verify(database: Json) {
     assert!(get(address, "/session", &old_remember, 200).await.body["user"].is_null());
 
     server.abort();
+    if database_sessions {
+        connection
+            .statement("DROP TABLE auth_test_sessions", &[])
+            .await
+            .unwrap();
+    }
     connection
         .statement("DROP TABLE auth_test_users", &[])
         .await
@@ -465,7 +577,7 @@ async fn verify(database: Json) {
 
 #[tokio::test]
 async fn session_authentication_on_sqlite() {
-    verify(json!({"driver":"sqlite","database":":memory:"})).await;
+    verify(json!({"driver":"sqlite","database":":memory:"}), false).await;
 }
 
 #[tokio::test]
@@ -473,7 +585,7 @@ async fn session_authentication_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
-        verify(json!({"url":url})).await;
+        verify(json!({"url":url}), true).await;
     }
 }
 

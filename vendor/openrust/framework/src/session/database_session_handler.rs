@@ -1,4 +1,7 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    sync::{Arc, OnceLock},
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
@@ -29,6 +32,7 @@ pub struct DatabaseSessionHandler {
     table: String,
     lifetime: Duration,
     metadata: DatabaseSessionMetadata,
+    request_user: Option<Arc<OnceLock<Value>>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's database session API")]
@@ -51,12 +55,17 @@ impl DatabaseSessionHandler {
             table,
             lifetime: Duration::from_secs(seconds),
             metadata: DatabaseSessionMetadata::default(),
+            request_user: None,
         })
     }
 
     pub fn setMetadata(&mut self, metadata: DatabaseSessionMetadata) -> &mut Self {
         self.metadata = metadata;
         self
+    }
+
+    pub(super) fn track_request_user(&mut self) -> Arc<OnceLock<Value>> {
+        self.request_user.get_or_insert_with(Arc::default).clone()
     }
 
     /// Checks row existence, including expired rows that have not been collected.
@@ -83,7 +92,12 @@ impl DatabaseSessionHandler {
             ("last_activity".into(), now()?.into()),
             ("payload".into(), STANDARD.encode(payload).into()),
         ]);
-        if let Some(user_id) = &self.metadata.user_id {
+        if let Some(user_id) = self
+            .request_user
+            .as_deref()
+            .and_then(OnceLock::get)
+            .or(self.metadata.user_id.as_ref())
+        {
             row.insert("user_id".into(), user_id.clone());
         }
         if let Some(ip) = &self.metadata.ip_address {

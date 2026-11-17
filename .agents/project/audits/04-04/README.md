@@ -64,3 +64,11 @@
 - 在 `4427acf` 隔离基线上，macOS arm64、Rust 1.94.0 实际通过 18 项 Cookie、CSRF 与 Session 回归，其中 MySQL 8.4.13 与 Redis 8.10.3 均为临时实机服务。HTTP 覆盖加密与浏览器关闭属性、轮换删除、篡改和过期载荷、超限及阻塞拒绝。两个真实应用进程使用同一 Cookie，通过解密验证 ID 与 CSRF 令牌一致，应用没有落地会话文件。
 - 独立 Artisan `inspire`、`route:list --json --method=HEAD`、工作区严格 Clippy、改动文件格式、三语站点及 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。日志保存于 `/private/tmp/openrust-04-04-cookie.VBFKbfOU`。
 - 下一批核对数据库 Session 在写回时记录认证用户 ID 的行为。当前数据库请求元数据已记录 IP 和 User-Agent，认证用户 ID 尚未自动写回。
+
+## 数据库会话认证用户写回
+
+- 对照固定 Laravel 的 `DatabaseSessionHandler::addUserInformation`，复用旧版 `v0.x` 在数据库会话保存阶段投影当前守卫身份的做法。HTTP 中间件在路由执行后、释放请求会话前解析选中的守卫。数据库处理器按本次请求写入原始类型的用户 ID，访客清为 SQL `NULL`。未配置守卫的嵌入式应用保留原有列处理。 [Laravel DatabaseSessionHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/DatabaseSessionHandler.php#L209)
+- 基线 `2e7d5db1b`，macOS arm64、Rust 1.94.0。真实 MySQL 8.4.13 验证访客、登录、未主动调用 Guard 的后续请求、请求级替换守卫、同 ID 退出及失效轮换后的 SQL 元数据。记住登录 Cookie 改用解密和名称绑定验证，精确核对前导零标识 `001`。MySQL、Redis 8.10.3 上共通过 19 项适用的认证、Cookie、CSRF 和会话回归。
+- 根应用执行 `artisan migrate --force`，实际二进制连续两次 HTTP 使用同一 Cookie，直接查询 MySQL 确认单条记录且 `user_id IS NULL`。本批日常数据库验收使用 MySQL 8.4，SQLite 测试留在发布矩阵。
+- 04-04 保持开放。对照固定文档后，仍有 `only`、`except`、`missing`、`remember`、`push`、`increment` 和 `decrement` 等会话读写 API 待补。 [Laravel Session 数据读写](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md#interacting-with-the-session)
+- 实际 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、改动文件格式、三语站点和 24 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。临时服务与 3.5 GiB 构建产物已回收，日志保留于 `/private/tmp/openrust-04-04-session-user.09DT51qV`。

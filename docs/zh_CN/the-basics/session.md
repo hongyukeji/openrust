@@ -4,6 +4,8 @@
 
 用 `SESSION_DRIVER=database` 将会话保存在配置的数据库和 `sessions` 表中。使用会话路由前先运行应用迁移。`array` 驱动将数据保存在当前应用进程中。用 `SESSION_ENCRYPT=true` 加密存储载荷。
 
+配置认证守卫后，数据库驱动在请求结束时把当前守卫的用户 ID 写入 `user_id`。访客请求写入 `NULL`。自定义会话表的 `user_id` 列类型应能保存应用使用的用户标识。
+
 用 `SESSION_DRIVER=file` 将会话保存在 `storage/framework/sessions`。可通过应用配置的 `session.files` 指定其他目录。`native` 是 `file` 的别名。用 `SESSION_DRIVER=null` 在当前请求中使用会话，请求结束后丢弃会话状态。
 
 用 `SESSION_DRIVER=redis`、`memcached` 或 `dynamodb` 将会话保存在缓存后端。`SESSION_STORE` 选择具名缓存存储，默认使用驱动名。Redis 的 `SESSION_CONNECTION` 选择连接名，默认为 `default`。应用配置中的 `session.prefix` 可覆盖 Redis 会话使用的缓存前缀。会话使用独立的 Redis 仓库，普通缓存保留自己的连接和前缀。后端在 `SESSION_LIFETIME` 分钟后使载荷过期。

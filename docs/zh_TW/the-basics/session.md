@@ -4,6 +4,8 @@
 
 用 `SESSION_DRIVER=database` 將工作階段儲存在設定的資料庫和 `sessions` 資料表中。使用工作階段路由前先執行應用程式遷移。`array` 驅動程式將資料保存在目前的應用程式程序中。用 `SESSION_ENCRYPT=true` 加密儲存內容。
 
+設定驗證守衛後，資料庫驅動程式會在請求結束時將目前守衛的使用者 ID 寫入 `user_id`。訪客請求寫入 `NULL`。自訂工作階段資料表的 `user_id` 欄位型別應能儲存應用程式使用的使用者識別碼。
+
 用 `SESSION_DRIVER=file` 將工作階段儲存在 `storage/framework/sessions`。可透過應用程式設定的 `session.files` 指定其他目錄。`native` 是 `file` 的別名。用 `SESSION_DRIVER=null` 在目前請求中使用工作階段，請求結束後捨棄工作階段狀態。
 
 用 `SESSION_DRIVER=redis`、`memcached` 或 `dynamodb` 將工作階段儲存在快取後端。`SESSION_STORE` 選擇具名快取儲存，預設使用驅動程式名稱。Redis 的 `SESSION_CONNECTION` 選擇連線名稱，預設為 `default`。應用程式設定中的 `session.prefix` 可覆寫 Redis 工作階段使用的快取前綴。工作階段使用獨立的 Redis 儲存庫，一般快取保留自己的連線和前綴。後端會在 `SESSION_LIFETIME` 分鐘後使儲存內容失效。

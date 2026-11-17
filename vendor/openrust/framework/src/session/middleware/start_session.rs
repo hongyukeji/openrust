@@ -3,8 +3,8 @@ use crate::{
         container::Container as _, http::Middleware, routing::UrlGenerator as _, session::Session,
     },
     http::{HttpError, HttpFuture, Method, Next, Request, Response},
-    session::{SessionError, SessionManager, Store},
-    support::facades::{URL, current_container},
+    session::{SessionError, SessionManager, session_manager::RequestSession},
+    support::facades::{Auth, URL, current_container},
 };
 
 /// Loads the request session and persists it on the response path.
@@ -34,8 +34,10 @@ impl Middleware for StartSession {
             let Some(mut session) = manager.build(request, id)? else {
                 return Ok(next.run(request).await);
             };
-            session.setId(id)?;
-            let lock = manager.lock(request.session_block, session.getId()).await?;
+            session.store.setId(id)?;
+            let lock = manager
+                .lock(request.session_block, session.store.getId())
+                .await?;
             let response = handle_session(&manager, request, next, session).await;
             if let Some(lock) = lock {
                 let release = lock.release().await;
@@ -52,12 +54,21 @@ async fn handle_session(
     manager: &SessionManager,
     request: &mut Request,
     next: Next<'_>,
-    mut session: Store,
+    RequestSession {
+        store: mut session,
+        database_user,
+    }: RequestSession,
 ) -> Result<Response, HttpError> {
     session.start().await?;
     manager.collect_garbage(&mut session).await?;
     request.setLaravelSession(session);
     let mut response = next.run(request).await;
+    // Login and logout can change the identity. The guard still needs the active store.
+    if let Some(database_user) = database_user
+        && let Some(user) = Auth::manager()?.database_session_user(request).await?
+    {
+        let _ = database_user.set(user);
+    }
     let mut session = request.take_session().ok_or(SessionError::Configuration)?;
     if request.matched_route
         && request.method() == Method::GET

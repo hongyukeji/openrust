@@ -280,6 +280,22 @@ impl AuthManager {
         AuthContext::get(request)?.selected.as_deref()
     }
 
+    pub(crate) async fn database_session_user(
+        &self,
+        request: &mut Request,
+    ) -> AuthResult<Option<crate::database::Value>> {
+        if Self::selected_guard(request).is_none()
+            && self
+                .config
+                .get(&format!("auth.guards.{}", self.getDefaultDriver()))
+                .is_none_or(|config| config.is_null())
+        {
+            return Ok(None);
+        }
+        let id = self.guard(request, None)?.id().await?;
+        Ok(Some(id.map_or(crate::database::Value::Null, Into::into)))
+    }
+
     pub(crate) fn guard_name(&self, request: &Request, name: Option<&str>) -> AuthResult<String> {
         self.guard_config(request, name).map(|(name, _)| name)
     }

@@ -1,4 +1,8 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 use serde::Deserialize;
 
@@ -75,6 +79,11 @@ pub struct SessionManager {
     cache: Option<CacheBasedSessionHandler>,
     base: PathBuf,
     lifetime: Duration,
+}
+
+pub(super) struct RequestSession {
+    pub(super) store: Store,
+    pub(super) database_user: Option<Arc<OnceLock<crate::database::Value>>>,
 }
 
 impl SessionManager {
@@ -167,11 +176,12 @@ impl SessionManager {
             .map_err(super::blocking::http_error)
     }
 
-    pub(crate) fn build(
+    pub(super) fn build(
         &self,
         request: &Request,
         id: Option<&str>,
-    ) -> SessionResult<Option<Store>> {
+    ) -> SessionResult<Option<RequestSession>> {
+        let mut database_user = None;
         let handler: Box<dyn SessionHandler> = match self.settings.driver.as_deref() {
             None => return Ok(None),
             Some("database") => {
@@ -192,6 +202,7 @@ impl SessionManager {
                             .unwrap_or_default(),
                     ),
                 });
+                database_user = Some(handler.track_request_user());
                 Box::new(handler)
             }
             Some("array") => Box::new(self.array.clone()),
@@ -226,7 +237,11 @@ impl SessionManager {
         } else {
             handler
         };
-        Store::new(&self.settings.cookie, handler).map(Some)
+        let store = Store::new(&self.settings.cookie, handler)?;
+        Ok(Some(RequestSession {
+            store,
+            database_user,
+        }))
     }
 
     pub(crate) async fn collect_garbage(&self, store: &mut Store) -> SessionResult<()> {
