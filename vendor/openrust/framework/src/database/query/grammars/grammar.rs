@@ -24,6 +24,13 @@ pub(in crate::database::query) enum DatePart {
     Year,
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::database::query) enum IndexHintKind {
+    Use,
+    Force,
+    Ignore,
+}
+
 /// Compiles identifiers and pagination for the connection's SQL dialect.
 #[derive(Clone)]
 pub(crate) struct Grammar {
@@ -103,6 +110,48 @@ impl Grammar {
 
     pub(crate) fn is_postgres(&self) -> bool {
         self.dialect == Dialect::Postgres
+    }
+
+    pub(in crate::database::query) fn table_hints(
+        &self,
+        hint: Option<(IndexHintKind, &str)>,
+        lock: Option<bool>,
+        sql: &mut String,
+    ) -> DatabaseResult<()> {
+        if self.is_sql_server() {
+            return compile_sql_server_hints(hint, lock, sql);
+        }
+        let Some((kind, names)) = hint else {
+            return Ok(());
+        };
+        match self.dialect {
+            Dialect::MySql => {
+                for name in names.split(',') {
+                    validate_index_name(name.trim_ascii())?;
+                }
+                sql.push_str(match kind {
+                    IndexHintKind::Use => " use index (",
+                    IndexHintKind::Force => " force index (",
+                    IndexHintKind::Ignore => " ignore index (",
+                });
+                sql.push_str(names);
+                sql.push(')');
+            }
+            Dialect::Sqlite if matches!(kind, IndexHintKind::Force) => {
+                let mut indexes = names.split(',').map(str::trim_ascii);
+                let first = indexes.next().expect("split always yields a first element");
+                validate_index_name(first)?;
+                for name in indexes {
+                    validate_index_name(name)?;
+                }
+                if !names.contains(',') && !first.eq_ignore_ascii_case("primary") {
+                    sql.push_str(" indexed by ");
+                    sql.push_str(first);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub(in crate::database::query) fn lateral_join(
@@ -475,4 +524,48 @@ impl Grammar {
             write!(sql, " offset {offset}").expect("writing to a String");
         }
     }
+}
+
+fn validate_index_name(name: &str) -> DatabaseResult<()> {
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$'))
+    {
+        return Err(DatabaseError::InvalidQuery("index name"));
+    }
+    Ok(())
+}
+
+fn compile_sql_server_hints(
+    hint: Option<(IndexHintKind, &str)>,
+    lock: Option<bool>,
+    sql: &mut String,
+) -> DatabaseResult<()> {
+    let force = match hint {
+        Some((IndexHintKind::Force, index)) => {
+            validate_index_name(index)?;
+            Some(index)
+        }
+        _ => None,
+    };
+    if lock.is_none() && force.is_none() {
+        return Ok(());
+    }
+    sql.push_str(" with (");
+    if let Some(exclusive) = lock {
+        sql.push_str(if exclusive {
+            "rowlock, updlock, holdlock"
+        } else {
+            "rowlock, holdlock"
+        });
+    }
+    if let Some(index) = force {
+        if lock.is_some() {
+            sql.push_str(", ");
+        }
+        write!(sql, "index([{index}])").expect("writing to a String is infallible");
+    }
+    sql.push(')');
+    Ok(())
 }

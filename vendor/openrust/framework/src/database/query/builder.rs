@@ -9,7 +9,7 @@ use crate::database::{
 use super::{
     Conditions, Expression,
     conditions::{date_methods, predicate_methods},
-    grammars::{DatePart, Grammar},
+    grammars::{DatePart, Grammar, IndexHintKind},
 };
 
 mod chunks;
@@ -106,6 +106,7 @@ pub struct Builder<'connection> {
     union_limit: Option<u64>,
     union_offset: Option<u64>,
     lock: Option<bool>,
+    index_hint: Option<(IndexHintKind, String)>,
     columns: Vec<Column>,
     distinct: bool,
     predicates: Conditions,
@@ -162,6 +163,7 @@ impl<'connection> Builder<'connection> {
             union_limit: None,
             union_offset: None,
             lock: None,
+            index_hint: None,
             columns: Vec::new(),
             distinct: false,
             predicates: Conditions::default(),
@@ -349,6 +351,31 @@ impl<'connection> Builder<'connection> {
     pub fn useWritePdo(mut self) -> Self {
         self.use_write = true;
         self
+    }
+
+    pub fn useIndex(self, index: &str) -> Self {
+        self.with_index_hint(IndexHintKind::Use, index)
+    }
+
+    pub fn forceIndex(self, index: &str) -> Self {
+        self.with_index_hint(IndexHintKind::Force, index)
+    }
+
+    pub fn ignoreIndex(self, index: &str) -> Self {
+        self.with_index_hint(IndexHintKind::Ignore, index)
+    }
+
+    fn with_index_hint(mut self, kind: IndexHintKind, index: &str) -> Self {
+        self.index_hint = Some((kind, index.to_owned()));
+        self
+    }
+
+    fn compile_table_hints(&self, sql: &mut String, lock: Option<bool>) -> DatabaseResult<()> {
+        let hint = self
+            .index_hint
+            .as_ref()
+            .map(|(kind, name)| (*kind, name.as_str()));
+        self.grammar.table_hints(hint, lock, sql)
     }
 
     pub fn lockForUpdate(mut self) -> Self {
@@ -695,13 +722,7 @@ impl<'connection> Builder<'connection> {
                 .source
                 .compile(&self.grammar, database, &mut bindings)?,
         );
-        if sql_server && let Some(exclusive) = self.lock {
-            sql.push_str(if exclusive {
-                " with (rowlock, updlock, holdlock)"
-            } else {
-                " with (rowlock, holdlock)"
-            });
-        }
+        self.compile_table_hints(&mut sql, self.lock)?;
         self.compile_joins(&mut sql, &mut bindings)?;
 
         self.compile_predicates(&mut sql, &mut bindings)?;

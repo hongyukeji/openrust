@@ -54,6 +54,24 @@ Use `lazy(count)`, `lazyById(count, column, alias)` or `lazyByIdDesc` to consume
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.
 
+### Index hints {#index-hints}
+
+The last index hint on a query takes effect. MySQL and MariaDB support `useIndex`, `forceIndex`, and `ignoreIndex`, with one name or a comma-separated list. SQL Server applies `forceIndex` to a single index and combines it with any row-lock hints on the same table. SQLite applies `forceIndex` to a single index other than `PRIMARY`. SQL Server and SQLite ignore the other two methods. PostgreSQL ignores all three. Use index names defined by the application.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("items")
+        .forceIndex("idx_score")
+        .r#where("score", "=", score)
+        .orderBy("id", "asc")
+        .get()
+        .await
+}
+```
+
 ## Joins
 
 Use `join`, `leftJoin`, `rightJoin`, or `crossJoin`. For an ON clause with several conditions, pass a closure to `joinWith` or `leftJoinWith`. `on` compares columns and `r#where` binds a value. Use `joinSub` to join a derived query.

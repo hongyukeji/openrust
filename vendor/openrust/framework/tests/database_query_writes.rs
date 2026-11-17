@@ -34,6 +34,166 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn query_index_hints_follow_driver_rules() {
+    let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
+    sqlite
+        .unprepared(
+            "create table index_items (id integer primary key, score int);
+        create index idx_score on index_items (score);
+        insert into index_items values (1, 7), (2, 8);",
+        )
+        .await
+        .unwrap();
+    let table = || sqlite.table("index_items as i");
+    let query = table()
+        .useIndex("unused")
+        .forceIndex(" idx_score ")
+        .r#where("i.score", "=", 7);
+    assert!(
+        query
+            .toSql()
+            .unwrap()
+            .contains(r#"as "i" indexed by idx_score where"#)
+    );
+    assert_eq!(query.getBindings().unwrap(), [7.into()]);
+    assert_eq!(query.value("i.id").await.unwrap(), 1.into());
+    for query in [
+        table().useIndex("ignored"),
+        table().forceIndex("idx_score").ignoreIndex("ignored"),
+        table().forceIndex("PRIMARY"),
+        table().forceIndex("idx_score, other"),
+    ] {
+        assert_eq!(query.toSql().unwrap(), table().toSql().unwrap());
+    }
+    assert!(matches!(
+        table().forceIndex("idx_score, invalid-name").toSql(),
+        Err(DatabaseError::InvalidQuery("index name"))
+    ));
+    sqlite.enableQueryLog();
+    assert_eq!(
+        sqlite
+            .table("index_items")
+            .forceIndex("idx_score")
+            .r#where("score", "=", 8)
+            .limit(1)
+            .update(record([("score", 9.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(
+        sqlite.getQueryLog()[0]
+            .query
+            .contains(r#"from "index_items" indexed by idx_score"#)
+    );
+
+    let postgres = connection(json!({"url":"postgres://localhost/index_hints"}));
+    assert_eq!(
+        postgres
+            .table("index_items")
+            .forceIndex("idx_score")
+            .toSql()
+            .unwrap(),
+        postgres.table("index_items").toSql().unwrap()
+    );
+
+    for url in [
+        mysql_url(),
+        std::env::var("OPENRUST_TEST_MARIADB_INDEX_URL").ok(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let db = connection(json!({"url":url, "prefix":"app_"}));
+        db.unprepared(
+            "create table app_index_items (id int primary key, score int, index idx_score (score))",
+        )
+        .await
+        .unwrap();
+        db.unprepared("insert into app_index_items values (1, 7), (2, 8)")
+            .await
+            .unwrap();
+        let table = || db.table("index_items as i").r#where("i.score", "=", 7);
+        for (query, expected) in [
+            (
+                table().useIndex("PRIMARY,idx_score"),
+                "use index (PRIMARY,idx_score)",
+            ),
+            (
+                table().useIndex("PRIMARY").forceIndex("idx_score"),
+                "force index (idx_score)",
+            ),
+            (table().ignoreIndex("idx_score"), "ignore index (idx_score)"),
+        ] {
+            assert!(query.toSql().unwrap().contains(expected));
+            assert_eq!(query.getBindings().unwrap(), [7.into()]);
+            assert_eq!(query.value("i.id").await.unwrap(), 1.into());
+        }
+        for invalid in ["", "idx_score,", "idx.score", "idx_score --"] {
+            assert!(matches!(
+                table().forceIndex(invalid).toSql(),
+                Err(DatabaseError::InvalidQuery("index name"))
+            ));
+        }
+        db.unprepared("drop table app_index_items").await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn sql_server_combines_index_and_lock_hints() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    db.unprepared(
+        "create table dbo.app_index_items (id int primary key, score int);
+        create index idx_score on dbo.app_index_items (score);
+        insert into dbo.app_index_items values (1, 7), (2, 8);",
+    )
+    .await
+    .unwrap();
+    let table = || db.table("dbo.index_items as i").r#where("i.score", "=", 7);
+    assert_eq!(
+        table().useIndex("ignored").toSql().unwrap(),
+        table().toSql().unwrap()
+    );
+    assert_eq!(
+        table().ignoreIndex("ignored").toSql().unwrap(),
+        table().toSql().unwrap()
+    );
+    assert!(matches!(
+        table().forceIndex("idx_score, another").toSql(),
+        Err(DatabaseError::InvalidQuery("index name"))
+    ));
+    let query = table().forceIndex("idx_score");
+    assert!(
+        query
+            .toSql()
+            .unwrap()
+            .contains("as [app_i] with (index([idx_score])) where")
+    );
+    assert_eq!(query.value("i.id").await.unwrap(), 1.into());
+    let mut transaction = db.beginTransaction().await.unwrap();
+    let query = transaction
+        .table("dbo.index_items as i")
+        .forceIndex("idx_score")
+        .lockForUpdate()
+        .r#where("i.score", "=", 7);
+    assert!(
+        query
+            .toSql()
+            .unwrap()
+            .contains("with (rowlock, updlock, holdlock, index([idx_score]))")
+    );
+    assert_eq!(query.value("i.id").await.unwrap(), 1.into());
+    transaction.rollBack(None).await.unwrap();
+    db.unprepared("drop table dbo.app_index_items")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn cross_and_straight_join_variants() {
     let mut connections = vec![(
         connection(json!({"driver":"sqlite","database":":memory:","prefix":"app_"})),

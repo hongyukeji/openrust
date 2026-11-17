@@ -565,6 +565,7 @@ impl Builder<'_> {
                 " where \"{identity}\" in (select {reference}.\"{identity}\" from {}",
                 self.grammar.table(table)?
             ));
+            self.compile_table_hints(sql, None)?;
             self.compile_joins(sql, bindings)?;
             self.compile_predicates(sql, bindings)?;
             self.compile_orders(&self.orders, sql, bindings)?;

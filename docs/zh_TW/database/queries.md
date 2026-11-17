@@ -54,6 +54,24 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 
 用 `select` 指定傳回欄位，用 `addSelect` 附加欄位。欄名支援 `as` 別名。`distinct()` 去除重複資料列。語法編譯器引用識別字並套用連線的資料表前綴。用 `selectRaw` 或 `DB::raw` 明確傳入受信任的運算式。值個別繫結，識別字從應用程式預先定義的名稱中選擇。
 
+### 索引提示 {#index-hints}
+
+同一查詢以最後設定的索引提示為準。MySQL 和 MariaDB 支援 `useIndex`、`forceIndex` 及 `ignoreIndex`，可指定單一名稱或以逗號分隔的多個名稱。SQL Server 的 `forceIndex` 接收單一索引，並與同表的資料列鎖定提示合併。SQLite 的 `forceIndex` 對單一非 `PRIMARY` 索引生效。SQL Server 與 SQLite 忽略其餘兩種方法。PostgreSQL 忽略這三種提示。請使用應用程式定義的索引名稱。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn indexed_items(connection: &Connection, score: i64) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("items")
+        .forceIndex("idx_score")
+        .r#where("score", "=", score)
+        .orderBy("id", "asc")
+        .get()
+        .await
+}
+```
+
 ## 聯結
 
 使用 `join`、`leftJoin`、`rightJoin` 或 `crossJoin`。需要多個 ON 條件時，將閉包傳給 `joinWith` 或 `leftJoinWith`。`on` 比較欄位，`r#where` 繫結值。`joinSub` 可聯結衍生查詢。
