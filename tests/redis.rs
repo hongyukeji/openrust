@@ -674,6 +674,23 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         tags.get("entry").await.unwrap(),
         Some("before-migration".into())
     );
+    tags.forever("expired", &"will-expire".into())
+        .await
+        .unwrap();
+    let expired_item = tags.taggedItemKey("expired").await.unwrap();
+    assert_eq!(
+        cluster_cli(&container, &source_port, &["PEXPIREAT", &expired_item, "1"]),
+        "1"
+    );
+    let artists = tags.getTags().tagId("artists").await.unwrap();
+    let artists_index = format!(
+        "{}index:{artists}",
+        metadata.rsplit_once("generation:").unwrap().0
+    );
+    assert_eq!(
+        cluster_cli(&container, &source_port, &["ZCARD", &artists_index]),
+        "2"
+    );
 
     assert_eq!(
         cluster_cli(
@@ -793,6 +810,21 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         .await
         .unwrap_err();
     assert!(format!("{error:?}").contains("TryAgain"), "{error:?}");
+    let selected = tagged_store.tags(&["artists"]).unwrap();
+    for error in [
+        selected.flushStale().await.unwrap_err(),
+        tagged_store
+            .get_store()
+            .flush_stale_tags()
+            .await
+            .unwrap_err(),
+    ] {
+        assert!(format!("{error:?}").contains("TryAgain"), "{error:?}");
+    }
+    assert_eq!(
+        cluster_cli(&container, &source_port, &["ZCARD", &artists_index]),
+        "2"
+    );
     let remaining = cluster_cli(
         &container,
         &source_port,
@@ -851,6 +883,13 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         tags.get("entry").await.unwrap(),
         Some("before-migration".into())
     );
+    selected.flushStale().await.unwrap();
+    tagged_store.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(
+        cluster_cli(&container, &destination_port, &["ZCARD", &artists_index]),
+        "1"
+    );
+    assert_eq!(tags.get("expired").await.unwrap(), None);
     assert!(
         tagged_store
             .tags(&["artists"])

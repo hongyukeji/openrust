@@ -132,3 +132,10 @@
 - 真实 Redis 8.10.3 三主节点双进程 HTTP 验证跨进程读写、TTL、选定标签 `flushStale()` 隔离、`forget` 与 `pull` 后的空索引登记回收。独立 Artisan 验证默认及指定存储的 `cache:prune-stale-tags`、重复运行、无效引用清理与有效值保留。按标签清空遇到错误索引类型返回 1，恢复有序集合后重跑同一命令，确认旧值、索引与待回收记录同时移除。单机 Redis 标签回归与根应用 `./artisan inspire` 通过。
 - 首轮完整集群回归在副本刚升主后出现一次 `CLUSTERDOWN`，原测试原样复跑通过。故障切换用例现在同时等待 `ROLE` 为主节点和 `CLUSTER INFO` 的 `cluster_state:ok`，再验证读恢复和单次写入，保留丢回执写入不重放的断言。
 - 更新测试后使用两个新建 Redis 夹具，各通过 `sh tests/redis_cluster.sh` 的五项回归。Rust 1.94.0 全仓格式与严格 Clippy、三语站点构建、12 项通用和 6 项缓存文档浏览器检查通过。已回收临时 Redis、4.1 GiB 隔离 Cargo 产物及文档缓存。日志保留于 `/private/tmp/openrust-03-09-head-recheck.2xYqGjo4`。
+
+## Redis Cluster 槽迁移期间的过期标签清理
+
+- 对照固定 Laravel v13.40.0 的 `RedisTaggedCache`、`RedisTagSet::flushStaleEntries`、`CacheRedisTaggedCacheTest` 与 `cache:prune-stale-tags {store?}`。上游按过期分数清理标签引用，OpenRust 沿用旧版 `b62ae7c72` 的分批与代际设计，用同槽 Lua 核对引用的值键是否存在。Redis 在同一批的键分布于两个节点时可拒绝多键操作。本批沿用现有错误传播和手动重试语义。 [固定 Laravel 标签清理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L85) · [固定 Laravel 命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/PruneStaleTagsCommand.php) · [Redis 多键操作规范](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#multi-keys-operations)
+- 隔离基线 `0c8e828d7` 的 `sh tests/redis_cluster.sh` 在真实 Redis 8.10.3 上五项通过。新增回归先迁移有效值，保留源节点的索引与到期引用。指定标签和整个储存的清理均返回 `TRYAGAIN`，失败批次保留两条引用。迁移完整个槽后清理只剩有效引用，随后按标签清空仍能移除有效值。真实单机 Redis 标签回归通过。
+- 独立三主节点集群上运行两个 HTTP 进程及独立 Artisan。拆槽期间 `flushStale()` 的 HTTP 调用返回 500，`cache:prune-stale-tags redis` 退出码为 1，两个标签仍各有两条引用。完成槽迁移后，同一 HTTP 请求仅修剪指定标签，Artisan 再修剪另一标签。指定与默认存储的命令都以 0 退出，重复清理成功，跨进程读取有效值正常。最后执行 `cache:clear redis --tags=artists`，旧值从 Redis 删除，普通值与其他标签保留。根应用的 `./artisan inspire` 通过。
+- Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。系统默认工具链运行的 `./artisan inspire` 有 macOS 链接器 unwind 表大小警告，命令仍正常退出。Rust 1.94.0 构建的二进制直接运行 `artisan inspire` 也通过。临时 Redis、本批 6.3 GiB 隔离 Cargo 产物和文档缓存已回收。项目磁盘可用 61.06 GB（56.86 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tag-migration.nswsel7B`。
