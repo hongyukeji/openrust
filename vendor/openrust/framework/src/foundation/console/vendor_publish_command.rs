@@ -2,7 +2,7 @@ use std::{
     collections::BTreeSet,
     fs,
     io::{self, IsTerminal as _},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::atomic::Ordering,
 };
 
@@ -385,7 +385,7 @@ pub(super) fn publish_package_if_migration_missing(
 ) -> io::Result<Option<VendorTagPublished>> {
     let resources: Vec<_> = resources.into_iter().collect();
     for asset in &resources {
-        if asset.migration && published_migration(&root.join(&asset.path))?.is_some() {
+        if asset.migration && published_migration(root, &root.join(&asset.path))?.is_some() {
             return Ok(None);
         }
     }
@@ -408,7 +408,7 @@ fn publish_locked(
     for resource in resources {
         let mut target = root.join(&resource.path);
         if resource.migration {
-            target = migration_destination(target, timestamp)?;
+            target = migration_destination(root, target, timestamp)?;
         }
         let source_path = resource.source_path();
         match resource.source {
@@ -419,6 +419,9 @@ fn publish_locked(
                     .push(file_notice(source_path, target, skipped));
             }
             PublishSource::Path(source) => {
+                if source.starts_with(root) {
+                    checked_path(root, &source)?;
+                }
                 let kind = match fs::symlink_metadata(&source) {
                     Ok(meta) => meta.file_type(),
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
@@ -439,7 +442,7 @@ fn publish_locked(
                     for path in files {
                         let mut destination = target.join(&path);
                         if resource.migration {
-                            destination = migration_destination(destination, timestamp)?;
+                            destination = migration_destination(root, destination, timestamp)?;
                         }
                         publish_file(root, &destination, existing, force, || {
                             fs::read(source.join(&path))
@@ -481,19 +484,7 @@ fn publish_file<B: AsRef<[u8]>>(
     force: bool,
     bytes: impl FnOnce() -> io::Result<B>,
 ) -> io::Result<Option<&'static str>> {
-    let relative = target
-        .strip_prefix(root)
-        .map_err(|_| invalid_path(target))?;
-    let mut current = root.to_owned();
-    for component in relative.components() {
-        current.push(component);
-        match fs::symlink_metadata(&current) {
-            Ok(meta) if meta.file_type().is_symlink() => return Err(invalid_path(&current)),
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => break,
-            Err(error) => return Err(error),
-        }
-    }
+    checked_path(root, target)?;
     let exists = target.try_exists()?;
     if existing && !exists {
         return Ok(Some("does not exist"));
@@ -513,6 +504,29 @@ fn publish_file<B: AsRef<[u8]>>(
     }
 }
 
+fn checked_path(root: &Path, target: &Path) -> io::Result<()> {
+    let relative = target
+        .strip_prefix(root)
+        .map_err(|_| invalid_path(target))?;
+    if relative
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(invalid_path(target));
+    }
+    let mut current = root.to_owned();
+    for component in relative.components() {
+        current.push(component);
+        match fs::symlink_metadata(&current) {
+            Ok(meta) if meta.file_type().is_symlink() => return Err(invalid_path(&current)),
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => break,
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
 fn invalid_path(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
@@ -521,6 +535,7 @@ fn invalid_path(path: &Path) -> io::Error {
 }
 
 fn migration_destination(
+    root: &Path,
     original: PathBuf,
     timestamp: &mut Option<NaiveDateTime>,
 ) -> io::Result<PathBuf> {
@@ -531,7 +546,7 @@ fn migration_destination(
     else {
         return Ok(original);
     };
-    if let Some(path) = published_migration(&original)? {
+    if let Some(path) = published_migration(root, &original)? {
         return Ok(path);
     }
     let parent = original.parent().expect("publication path has a parent");
@@ -543,7 +558,8 @@ fn migration_destination(
     Ok(path)
 }
 
-fn published_migration(original: &Path) -> io::Result<Option<PathBuf>> {
+fn published_migration(root: &Path, original: &Path) -> io::Result<Option<PathBuf>> {
+    checked_path(root, original)?;
     let Some((_, suffix)) = original
         .file_name()
         .and_then(|name| name.to_str())

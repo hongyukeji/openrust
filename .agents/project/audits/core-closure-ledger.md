@@ -15,7 +15,7 @@
 | 04 HTTP 请求链 | 3/9 | 04-06 Web 表单回传；04-08 异常报告限流；04-09 上传、下载与普通对象 URL | 04-01–05 路由诊断、请求及控制器接口、可信代理与转发 HTTPS、Session 额外驱动、文件和数据库验证规则；04-07 认证模型属性配额及额外 Redis 部署形态 |
 | 05 Eloquent、认证与 API | 9/9 | 05-01 模型读写和作用域；05-02 关系、加载与集合；05-03 属性转换与序列化；05-04 工厂与 Seeder；05-05 路由模型绑定；05-06 数据库分页；05-07 [API Resources](05-07/README.md#05-07-整单元验收)；05-08 [Guard 和会话认证](05-08/README.md#登录限流事件与整单元验收)；05-09 [Gate 和 Policy](05-09/README.md) | — |
 | 06 URL、后台任务与通知 | 8/8 | 06-01 [URL、重定向和签名](06-01/README.md#06-01-整单元验收)；06-02 事件与监听器；06-03–04 任务派发和 Worker；06-05 调度；06-06 [邮件与通知](06-06/README.md#06-06-整单元验收)；06-07 密码重置和邮箱验证；06-08 Artisan 帮助及交互本地化 | — |
-| 07 框架专题 | 6/7 | 07-01 [Helpers／Strings](07-01/README.md#整单元验收)；07-02 [HTTP Client](07-02/README.md#整单元验收)；07-03 [Processes](07-03/README.md#整单元验收)；07-04 [Concurrency](07-04/README.md#整单元验收)；07-05 [Images](07-05/README.md#07-05-整单元验收)；07-06 [Search](07-06/README.md#07-06-整单元验收) | 07-07 包资源发布和发现 |
+| 07 框架专题 | 6/7 | 07-01 [Helpers／Strings](07-01/README.md#整单元验收)；07-02 [HTTP Client](07-02/README.md#整单元验收)；07-03 [Processes](07-03/README.md#整单元验收)；07-04 [Concurrency](07-04/README.md#整单元验收)；07-05 [Images](07-05/README.md#07-05-整单元验收)；07-06 [Search](07-06/README.md#07-06-整单元验收) | 07-07 [发布筛选、覆盖及路径已验收](07-07/README.md#vendorpublish-筛选覆盖与路径)，待包自动发现与清单缓存 |
 | 08-01 框架广播 | 0/1 | 频道授权与分发有范围验收 | 模型频道参数绑定、匿名广播及广播唯一任务 |
 | T 测试能力 | 3/4 | T-01 测试应用；T-02 HTTP／Artisan 测试入口；T-04 容器与事件替身 | T-03 RefreshDatabase 事务策略及其他驱动测试库管理 |
 
@@ -113,7 +113,7 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | [08-02 Reverb](08-02/README.md) | WebSocket、跨节点签名发布／客户端事件、Redis 全局在线成员、节点退出清理和 Redis 重启恢复已实测 | Pusher 缓存频道、统计和批量事件接口、Artisan 的 `--hostname`／`--debug`，Echo 与外部托管 Pusher 验收 |
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
-| `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 07-07 的包发现及完整的包开发验收继续跟踪。 |
+| `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存纳入 07-07。 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | macOS ARM64、Linux ARM64 和部分 Windows 运行路径已有实测 | Linux x86_64、Windows 完整部署、生产 TLS、目标数据库版本矩阵及托管 AWS SQS 标准／FIFO 实机验收 |
 

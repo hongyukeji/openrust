@@ -59,6 +59,23 @@ pub(crate) fn register_paths(
     tag: &str,
     migration: bool,
 ) -> ProviderResult {
+    for (source, _) in paths {
+        if source.as_os_str().is_empty()
+            || (!source.is_absolute()
+                && source.components().any(|part| {
+                    matches!(
+                        part,
+                        Component::ParentDir | Component::Prefix(_) | Component::RootDir
+                    )
+                }))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "relative publish source must stay within the application",
+            )
+            .into());
+        }
+    }
     register_sources(
         app,
         provider,

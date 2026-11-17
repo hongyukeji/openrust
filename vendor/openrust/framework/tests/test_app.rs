@@ -506,3 +506,81 @@ async fn publishes_pagination_templates_and_preserves_overrides()
     assert_eq!(fs::read(file)?, original);
     Ok(())
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn artisan_rejects_publish_paths_through_application_symlinks()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use std::{os::unix::fs::symlink, path::Path};
+
+    use openrust::{
+        foundation::Application,
+        http::HttpFuture,
+        support::{ProviderResult, ServiceProvider},
+    };
+
+    struct Assets;
+    impl ServiceProvider for Assets {
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                self.publishesPaths(
+                    app,
+                    &[(
+                        Path::new("package/link/source.txt"),
+                        Path::new("public/unsafe.txt"),
+                    )],
+                    "source-link",
+                )?;
+                self.publishes(
+                    app,
+                    &[("public/link/target.txt", b"overwrite")],
+                    "target-link",
+                )?;
+                self.publishesMigrations(
+                    app,
+                    &[(
+                        "database/migrations/2000_01_01_000000_example.rs",
+                        b"migration",
+                    )],
+                    "migration-link",
+                )
+            })
+        }
+    }
+
+    let outside = TestApp::create(|builder| builder)?;
+    let outside = outside.root();
+    for (name, contents) in [
+        ("source.txt", "outside source"),
+        ("target.txt", "outside target"),
+    ] {
+        fs::write(outside.join(name), contents)?;
+    }
+
+    let mut app = TestApp::create(|builder| builder.withProviders(vec![Box::new(Assets)]))?;
+    let root = app.root().to_owned();
+    for directory in ["package", "public", "database"] {
+        fs::create_dir_all(root.join(directory))?;
+    }
+    symlink(outside, root.join("package/link"))?;
+    symlink(outside, root.join("public/link"))?;
+    symlink(outside, root.join("database/migrations"))?;
+    for tag in ["source-link", "target-link", "migration-link"] {
+        let result = app
+            .artisan(["vendor:publish", &format!("--tag={tag}"), "--force"])
+            .await;
+        result.assertExitCode(1);
+        assert!(
+            result.stderr.contains("Unsupported publish path"),
+            "{}",
+            result.stderr
+        );
+    }
+    assert!(!root.join("public/unsafe.txt").exists());
+    assert_eq!(
+        fs::read_to_string(outside.join("target.txt"))?,
+        "outside target"
+    );
+    assert!(!outside.join("2000_01_01_000000_example.rs").exists());
+    Ok(())
+}
