@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 07:07（北京时间）T-04 [事务生命周期事件与替身回归](audits/T-04/README.md#事务生命周期事件与替身回归)。SQLite、真实 MySQL 8.4.13、整仓串行 1,326 项标准测试与两个自定义测试程序、格式、严格 Clippy、Artisan 和三语站点及 18 项浏览器检查通过。9 项标准测试忽略。编译与文档产物已回收，磁盘可用 100.48 GB（93.58 GiB），周额度剩余 37%。
 - 2026-11-18 06:57（北京时间）00-03 [Provider 注册与 stub 发布的整合回归](audits/00-03/README.md#provider-注册与-stub-发布的整合回归)。26 项启动集成用例、实际 Artisan 生成和重建、HTTP 与 Artisan 引导生成的 Provider、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时产物已回收，磁盘可用 100.52 GB（93.61 GiB），周额度剩余 37%。
 - 2026-11-18 06:51（北京时间）03-09 [过期标签清理的存储选择与主线复验](audits/03-09/README.md#过期标签清理的存储选择与主线复验)。Redis 8.10.3 集群五项、单机一项、双进程实际 HTTP 和 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 Redis 与隔离产物，磁盘可用 100.57 GB（93.66 GiB），提交前周额度剩余 38%。核心账本维持 66/66。
 - 2026-11-18 06:40（北京时间）08-04 [旧版 MySQL 与 MariaDB 驱动复验](audits/08-04/README.md#旧版-mysql-与-mariadb-驱动复验)。在 `d4570522f` 的干净归档，用独立 MySQL 5.7.44 派生镜像和 MariaDB 10.3.39 复验 SQLx 握手、影响行数、真实 HTTP 与 Artisan、12 项迁移和幂等重跑。TLS 1.2／1.3 的证书与主机名校验通过，三语站点和 18 项浏览器检查通过。核心账本维持 66/66。回收编译和文档产物时项目卷净增 4.86 GB（4.53 GiB），剩余 96.67 GB（90.03 GiB）。周额度剩余 38%，第二窗口无读数。
@@ -111,7 +112,6 @@
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
 - 数据库核心下一项为 02-04，继续按[数据库方言对账](audits/database-dialects.md)核对查询能力，并接续 02-05 和 02-06。完整数据库版本与跨平台矩阵在发布前复验。DynamoDB 托管服务及 Windows 实机继续按各自范围跟踪。03-06 的 memo 标签装饰器与 `flushStale()` 转发已通过[验收](audits/03-06/memoization.md#标签仓储的记忆化与过期清理)。
-- 整仓基线中的 Provider 并发生成与 stub 发布断言已由 [00-03 整合回归](audits/00-03/README.md#provider-注册与-stub-发布的整合回归) 复验关闭。仍需定位 `event_fake_records_committed_dispatches_and_discards_rolled_back_dispatches` 的回滚分支收到 2 个事件（预期 0）。基线日志见 `/private/tmp/openrust-integration-current.Bs3P2TXn/workspace.log`。
 - 周额度剩余 46%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和 2.9 GiB 隔离 Cargo 产物已回收。项目磁盘可用 62.16 GB（57.89 GiB），继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。

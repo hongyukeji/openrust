@@ -11,6 +11,9 @@ use openrust::{
         events::{Dispatcher as _, Event as Payload, Listener, ShouldDispatchAfterCommit},
         foundation::Application as _,
     },
+    database::events::{
+        TransactionBeginning, TransactionCommitted, TransactionCommitting, TransactionRolledBack,
+    },
     events::{
         Delivery, DispatchResult, Dispatcher, EventContext, EventFuture, EventResult,
         ListenerResponse, NamedEvent,
@@ -218,12 +221,16 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
         .dispatch(Arc::new(Saved), &mut EventContext::in_transaction(&mut tx))
         .await?;
     assert!(matches!(result, DispatchResult::Deferred));
-    fake.assertNothingDispatched();
+    fake.assertDispatchedTimes(TransactionBeginning::NAME, 1)
+        .assertNotDispatched("greeting.saved");
 
     let replacement = app.fakeEvents(&[]).await?;
     tx.commit().await?;
     fake.assertDispatchedTimes("greeting.saved", 1);
-    replacement.assertNothingDispatched();
+    replacement
+        .assertDispatchedTimes(TransactionCommitting::NAME, 1)
+        .assertDispatchedTimes(TransactionCommitted::NAME, 1)
+        .assertNotDispatched("greeting.saved");
 
     let mut tx = connection.beginTransaction().await?;
     assert!(matches!(
@@ -233,7 +240,11 @@ async fn verify_commit(mut app: TestApp) -> TestResult {
         DispatchResult::Deferred
     ));
     tx.rollBack(None).await?;
-    replacement.assertNothingDispatched();
+    replacement
+        .assertDispatchedTimes(TransactionBeginning::NAME, 1)
+        .assertDispatchedTimes(TransactionRolledBack::NAME, 1)
+        .assertNotDispatched("greeting.saved");
+    fake.assertDispatchedTimes("greeting.saved", 1);
     assert_eq!(count.load(Ordering::Relaxed), 0);
     Ok(())
 }

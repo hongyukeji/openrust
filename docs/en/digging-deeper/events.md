@@ -135,3 +135,5 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 ```
 
 Faked events skip listeners, queueing and broadcasting. Events deferred until commit are recorded only after that commit. Rollback discards them. `dispatched` exposes recorded payloads for typed inspection. The fake lasts for the fixture or until another fake is installed.
+
+An all-events fake also records database transaction lifecycle events, such as `TransactionBeginning` and `TransactionRolledBack`. To check that rollback discarded a deferred application event, select that event when installing the fake or use `assertNotDispatched` with its name.

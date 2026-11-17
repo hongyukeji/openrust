@@ -135,3 +135,5 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 ```
 
 被 fake 的事件會略過監聽器、佇列及廣播。提交後派發的事件在交易提交後才記錄，回復會捨棄事件。使用 `dispatched` 取得記錄的酬載並檢查具體型別。替身隨測試應用程式釋放，也可透過再次安裝 fake 替換。
+
+選取所有事件時，替身也會記錄 `TransactionBeginning`、`TransactionRolledBack` 等資料庫交易生命週期事件。驗證復原是否捨棄某個延遲派發的應用程式事件時，可在安裝替身時只選取該事件，或使用 `assertNotDispatched` 驗證該事件名稱。
