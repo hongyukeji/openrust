@@ -276,8 +276,24 @@ impl Grammar {
         let mut sql = Vec::new();
         let mut starting_values = Vec::new();
         let mut indexes = Vec::new();
-        let mut commands = blueprint.commands.into_iter().peekable();
-        while let Some(command) = commands.next() {
+        let mut commands = blueprint.commands.into_iter();
+        while let Some(mut command) = commands.next() {
+            let mut drop_primary = "";
+            if self.mysql() && matches!(command, Command::DropIndex(IndexType::Primary, _)) {
+                match commands.as_slice() {
+                    [Command::Index(index), ..] if index.kind == IndexType::Primary => {
+                        drop_primary = "drop primary key, ";
+                        command = commands.next().expect("primary index command");
+                    }
+                    [Command::Column(column), primary, ..]
+                        if primary_for_new_auto_column(column, primary) =>
+                    {
+                        drop_primary = "drop primary key, ";
+                        command = commands.next().expect("auto-increment column command");
+                    }
+                    _ => {}
+                }
+            }
             match command {
                 Command::Column(mut column) => {
                     let mut previous_name = None;
@@ -298,14 +314,28 @@ impl Grammar {
                     } else {
                         "add column"
                     };
-                    sql.push(format!(
-                        "alter table {qualified} {verb} {}{}",
-                        self.column(&column, explicit_primary)?,
-                        self.ddl_options(
-                            column.instant.then_some("instant"),
-                            column.lock.as_deref()
-                        )?
-                    ));
+                    let definition = self.column(&column, explicit_primary)?;
+                    let compound_primary = if self.mysql()
+                        && matches!(commands.as_slice(), [primary, ..] if primary_for_new_auto_column(&column, primary))
+                    {
+                        commands.next()
+                    } else {
+                        None
+                    };
+                    let algorithm = column.instant.then_some("instant");
+                    let lock = column.lock.as_deref();
+                    if let Some(Command::Index(index)) = compound_primary {
+                        let primary = self.primary_key(&index)?;
+                        let options = self.column_primary_options(algorithm, lock, &index)?;
+                        sql.push(format!(
+                            "alter table {qualified} {drop_primary}{verb} {definition}, add {primary}{options}"
+                        ));
+                    } else {
+                        let options = self.ddl_options(algorithm, lock)?;
+                        sql.push(format!(
+                            "alter table {qualified} {verb} {definition}{options}"
+                        ));
+                    }
                     self.column_indexes(
                         table,
                         &column,
@@ -313,6 +343,14 @@ impl Grammar {
                         &mut indexes,
                     )?;
                     self.column_start(&qualified, &column, &mut starting_values);
+                }
+                Command::Index(index) if !drop_primary.is_empty() => {
+                    let primary = self.primary_key(&index)?;
+                    let options = self
+                        .ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+                    sql.push(format!(
+                        "alter table {qualified} {drop_primary}add {primary}{options}"
+                    ));
                 }
                 Command::Index(index) => sql.push(self.add_index(table, &index)?),
                 Command::TableComment(comment) => {
@@ -362,17 +400,7 @@ impl Grammar {
                     ));
                 }
                 Command::DropIndex(IndexType::Primary, _) if self.mysql() => {
-                    if let Some(Command::Index(index)) = commands.next_if(
-                        |command| matches!(command, Command::Index(index) if index.kind == IndexType::Primary),
-                    ) {
-                        let primary = self.primary_key(&index)?;
-                        let options = self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
-                        sql.push(format!(
-                            "alter table {qualified} drop primary key, add {primary}{options}"
-                        ));
-                    } else {
-                        sql.push(format!("alter table {qualified} drop primary key"));
-                    }
+                    sql.push(format!("alter table {qualified} drop primary key"));
                 }
                 Command::DropIndex(IndexType::Primary, _) => {
                     return Err(DatabaseError::UnsupportedSchema(
@@ -441,6 +469,31 @@ impl Grammar {
             indexes.push(sql);
         }
         Ok(())
+    }
+
+    fn column_primary_options(
+        &self,
+        column_algorithm: Option<&str>,
+        column_lock: Option<&str>,
+        index: &IndexDefinition,
+    ) -> DatabaseResult<String> {
+        if column_algorithm.is_some() && index.inplace {
+            return Err(DatabaseError::InvalidSchema(
+                "conflicting MySQL ALTER algorithms",
+            ));
+        }
+        let index_lock = index.lock.as_deref();
+        if let (Some(column), Some(index)) = (column_lock, index_lock)
+            && !column.eq_ignore_ascii_case(index)
+        {
+            return Err(DatabaseError::InvalidSchema(
+                "conflicting MySQL ALTER lock modes",
+            ));
+        }
+        self.ddl_options(
+            column_algorithm.or(index.inplace.then_some("inplace")),
+            column_lock.or(index_lock),
+        )
     }
 
     fn primary_key(&self, index: &IndexDefinition) -> DatabaseResult<String> {
@@ -1019,6 +1072,13 @@ impl Grammar {
         };
         Ok(format!("'{}'", value.replace('\'', "''")))
     }
+}
+
+fn primary_for_new_auto_column(column: &ColumnDefinition, command: &Command) -> bool {
+    !column.change
+        && column.increment
+        && matches!(command, Command::Index(index)
+            if index.kind == IndexType::Primary && index.columns.contains(&column.name))
 }
 
 fn schema_expression<'a>(

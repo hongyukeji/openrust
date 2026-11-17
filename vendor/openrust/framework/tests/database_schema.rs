@@ -2028,6 +2028,131 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_adds_auto_increment_and_compound_primary_key_to_existing_rows() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url, "prefix": "it_"}));
+    let mut schema = db.getSchemaBuilder();
+    let unkeyed = "add_auto_unkeyed";
+    let keyed = "add_auto_keyed";
+    for name in [unkeyed, keyed] {
+        schema.dropIfExists(name).await.unwrap();
+    }
+
+    schema
+        .create(unkeyed, |table| {
+            table.integer("tenant_id");
+            table.string("payload", 30);
+        })
+        .await
+        .unwrap();
+    db.insert(
+        "insert into it_add_auto_unkeyed (tenant_id, payload) values (1, 'first'), (1, 'second')",
+        &[],
+    )
+    .await
+    .unwrap();
+    schema
+        .table(unkeyed, |table| {
+            table.bigIncrements("id").first().startingValue(42);
+            table.primary(&["id", "tenant_id"], None).lock("shared");
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes(unkeyed).await.unwrap();
+    assert_eq!(indexes.len(), 1);
+    assert!(indexes[0].primary);
+    assert_eq!(
+        indexes[0].columns,
+        [Some("id".into()), Some("tenant_id".into())]
+    );
+    assert_eq!(
+        schema.getColumnListing(unkeyed).await.unwrap(),
+        ["id", "tenant_id", "payload"]
+    );
+    assert_eq!(db.table(unkeyed).count("*").await.unwrap(), 2);
+    assert_eq!(
+        db.table(unkeyed)
+            .insertGetId(BTreeMap::from([
+                ("tenant_id".into(), 2.into()),
+                ("payload".into(), "third".into())
+            ]))
+            .await
+            .unwrap(),
+        42.into()
+    );
+
+    schema
+        .create(keyed, |table| {
+            table.integer("legacy_id").primary();
+        })
+        .await
+        .unwrap();
+    db.insert(
+        "insert into it_add_auto_keyed (legacy_id) values (1), (2)",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let invalid = schema
+        .table(keyed, |table| {
+            table.dropPrimary();
+            table.bigIncrements("id");
+            table.primary(&["legacy_id", "id"], None);
+        })
+        .await;
+    assert!(invalid.is_err());
+    assert!(!schema.hasColumn(keyed, "id").await.unwrap());
+    assert_eq!(
+        schema.getIndexes(keyed).await.unwrap()[0].columns,
+        [Some("legacy_id".into())]
+    );
+    assert_eq!(db.table(keyed).count("*").await.unwrap(), 2);
+
+    let conflicting = schema
+        .table(keyed, |table| {
+            table.dropPrimary();
+            table.bigIncrements("id").lock("shared");
+            table.primary(&["id", "legacy_id"], None).lock("exclusive");
+        })
+        .await;
+    assert!(matches!(
+        conflicting,
+        Err(DatabaseError::InvalidSchema(
+            "conflicting MySQL ALTER lock modes"
+        ))
+    ));
+    assert!(!schema.hasColumn(keyed, "id").await.unwrap());
+
+    schema
+        .table(keyed, |table| {
+            table.dropPrimary();
+            table.bigIncrements("id").lock("SHARED");
+            table
+                .primary(&["id", "legacy_id"], None)
+                .inplace()
+                .lock("shared");
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes(keyed).await.unwrap();
+    assert_eq!(indexes.len(), 1);
+    assert_eq!(
+        indexes[0].columns,
+        [Some("id".into()), Some("legacy_id".into())]
+    );
+    let id = schema.getColumn(keyed, "id").await.unwrap().unwrap();
+    assert!(id.auto_increment && id.primary);
+    assert_eq!(db.table(keyed).count("*").await.unwrap(), 2);
+    for name in [unkeyed, keyed] {
+        schema.drop(name).await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn mysql_replaces_primary_keys_in_one_alter_statement() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

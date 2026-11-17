@@ -762,6 +762,21 @@ fn replace_import_key(table: &mut Blueprint) {
 }
 ```
 
+#### Adding an Auto-Increment Column and a Primary Key {#adding-an-auto-increment-column-and-a-primary-key}
+
+On an existing MySQL table, declare the new auto-increment column immediately before its primary key in the same callback. OpenRust emits one ALTER TABLE statement. Keep the auto-increment column first in the primary key when it has no other supporting index. To replace an existing primary key, call `dropPrimary()` immediately before the column declaration.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn add_import_key(table: &mut Blueprint) {
+    table.bigIncrements("id");
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
+Column and index lock settings must agree when both are specified. MySQL validates the chosen algorithm and lock mode for the combined operation.
+
 #### Dropping Indexes by Column List {#dropping-indexes-by-columns}
 
 Pass the ordered column list to `dropIndexColumns`, `dropUniqueColumns`, `dropFullTextColumns`, or `dropSpatialIndexColumns` to drop an index created with the default name for its kind. For a custom name, use the corresponding method that takes the name.

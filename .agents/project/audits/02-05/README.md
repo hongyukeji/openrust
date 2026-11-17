@@ -389,3 +389,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `dff6799a`，Rust 1.94.0 和真实 MySQL 8.4.13。33 项 Schema 回归通过。新用例验证在原主键是自增列唯一支撑索引时切换到同列开头的复合主键、`ALGORITHM=INPLACE` 和 `LOCK=NONE`、保留序列、重复数据拒绝替换时保留旧主键，以及独立删除。表目录与限定 Schema 清库通过。
 - 三语共用示例经实际 Artisan 验证预演仅输出一条替换语句且未创建表、实际复合主键目录、自增列保留和回滚。`main artisan inspire` 通过。证据目录 `/private/tmp/openrust-02-05-primary.kDHrlym6`。
 - 严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。期间 Reverb 独立提交已进入主线，Schema 与迁移文档基线未变。本批临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.15 GB（104.45 GiB），周额度剩余 65%，第二窗口无读数。
+
+
+## 同时新增自增列和主键
+
+- 对照固定 Laravel MySQL Grammar 的 `compileAdd`、`modifyIncrement` 和 InnoDB 自增索引要求。旧版 `v0.x` 未找到这个组合。Rust 在同一 Blueprint 中将相邻的新增自增列和包含该列的显式主键合并为一条 ALTER TABLE。若紧接在 `dropPrimary()` 后，也将删除旧主键纳入同一语句。新列和新主键的在线 DDL 选项共同作用于语句，冲突声明在执行前拒绝。保留现有起始值命令。 [Laravel 列添加](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L293) · [InnoDB 自增索引要求](https://dev.mysql.com/doc/refman/8.4/en/innodb-auto-increment-handling.html)
+- 隔离基线 `90bd762f`，Rust 1.94.0 与 MySQL 8.4.13。34 项 Schema 回归通过。覆盖给有数据的表新增自增列和复合主键、替换旧主键、列位置与起始值、合并锁选项、主键次序错误时保留旧表和记录。表目录和限定 Schema 清库通过。
+- 三语共用示例通过实际 Artisan 验证预演无表、迁移后真实主键和自增列、回滚移除表。证据目录 `/private/tmp/openrust-02-05-add-auto-key.IvEvLHj5`。
+- `main artisan inspire`、严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。期间合入的 Reverb 提交与本批源码及迁移文档无交集。临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.26 GB（104.55 GiB），周额度剩余 65%，第二窗口无读数。

@@ -762,6 +762,21 @@ fn replace_import_key(table: &mut Blueprint) {
 }
 ```
 
+#### 同时新增自增列和主键 {#adding-an-auto-increment-column-and-a-primary-key}
+
+在已有 MySQL 表的同一个改表回调中，声明新自增列，随后紧接着声明包含它的主键。OpenRust 会生成一条 ALTER TABLE。自增列没有其他支撑索引时，应放在主键首位。若已有主键，在声明新列前紧接着调用 `dropPrimary()`。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn add_import_key(table: &mut Blueprint) {
+    table.bigIncrements("id");
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
+列和索引同时指定锁模式时，两者必须一致。MySQL 会检查合并操作所选用的算法和锁模式。
+
 #### 按列列表删除索引 {#dropping-indexes-by-columns}
 
 将有序列列表传给 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可删除该类型下使用默认名称的索引。自定义名称的索引使用相应的按名称删除方法。

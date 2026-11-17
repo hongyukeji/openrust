@@ -762,6 +762,21 @@ fn replace_import_key(table: &mut Blueprint) {
 }
 ```
 
+#### 同時新增自動遞增欄位及主鍵 {#adding-an-auto-increment-column-and-a-primary-key}
+
+在既有 MySQL 資料表的同一個變更回呼中，宣告新的自動遞增欄位後，緊接著宣告包含該欄位的主鍵。OpenRust 會產生一條 ALTER TABLE。自動遞增欄位缺少其他支援索引時，應放在主鍵的第一欄。若已有主鍵，請在宣告新欄位前緊接呼叫 `dropPrimary()`。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn add_import_key(table: &mut Blueprint) {
+    table.bigIncrements("id");
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
+欄位和索引同時指定鎖定模式時，兩者必須一致。MySQL 會檢查合併操作選用的演算法及鎖定模式。
+
 #### 依欄位清單移除索引 {#dropping-indexes-by-columns}
 
 將有序欄位清單傳給 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可移除該類型下使用預設名稱的索引。自訂名稱的索引使用對應的依名稱移除方法。
