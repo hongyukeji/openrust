@@ -99,6 +99,10 @@ impl ModelMetadata {
         self
     }
 
+    pub(crate) const fn deleted_at_column(&self) -> Option<&'static str> {
+        self.deleted_at
+    }
+
     pub const fn softDeletes(mut self, deleted_at: &'static str) -> Self {
         self.deleted_at = Some(deleted_at);
         self

@@ -12,7 +12,7 @@ use serde_json::json;
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        Connection, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        Connection, DatabaseFuture, DatabaseManager, DatabaseResult,
         test_mysql::{MySqlTestDatabase, MySqlTestOwners},
         test_transaction,
     },
@@ -215,12 +215,19 @@ impl TestApp {
 
     /// Boots the test application and resolves its default database connection.
     pub async fn database(&mut self) -> Result<Connection, Box<dyn Error + Send + Sync>> {
+        self.database_on(None).await
+    }
+
+    pub(super) async fn database_on(
+        &mut self,
+        connection: Option<&str>,
+    ) -> Result<Connection, Box<dyn Error + Send + Sync>> {
         self.boot().await?;
         Ok(self
             .app()
             .make::<DatabaseManager>()
             .await?
-            .connection(None)?)
+            .connection(connection)?)
     }
 
     /// Runs a test against the default MySQL connection and rolls back its writes.
@@ -350,60 +357,6 @@ impl TestApp {
         }
         self.refreshed = Some(RefreshState::Ready(options));
         Ok(())
-    }
-
-    /// Asserts that a table contains a row matching the supplied values.
-    pub async fn assertDatabaseHas(
-        &mut self,
-        table: &str,
-        columns: &[(&str, Value)],
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        assert!(
-            self.database_contains(table, columns).await?,
-            "no matching row in {table}"
-        );
-        Ok(())
-    }
-
-    /// Asserts that a table has no row matching the supplied values.
-    pub async fn assertDatabaseMissing(
-        &mut self,
-        table: &str,
-        columns: &[(&str, Value)],
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        assert!(
-            !self.database_contains(table, columns).await?,
-            "matching row found in {table}"
-        );
-        Ok(())
-    }
-
-    /// Asserts that a table contains exactly the specified number of rows.
-    pub async fn assertDatabaseCount(
-        &mut self,
-        table: &str,
-        expected: u64,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        assert_eq!(
-            self.database().await?.table(table).count("*").await?,
-            expected,
-            "row count for {table}"
-        );
-        Ok(())
-    }
-
-    async fn database_contains(
-        &mut self,
-        table: &str,
-        columns: &[(&str, Value)],
-    ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-        let connection = self.database().await?;
-        let query = columns
-            .iter()
-            .fold(connection.table(table), |query, (column, value)| {
-                query.whereNullSafeEquals(column, value.clone())
-            });
-        Ok(query.exists().await?)
     }
 }
 

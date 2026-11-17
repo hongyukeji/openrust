@@ -3,6 +3,7 @@
 mod app;
 mod command;
 mod database;
+mod database_assertions;
 mod response;
 
 pub use app::TestApp;

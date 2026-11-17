@@ -104,7 +104,7 @@ async fn run_test(
 
 ## 資料庫斷言
 
-用 `assertDatabaseHas` 和 `assertDatabaseMissing` 檢查指定欄位值的紀錄，包括空值。用 `assertDatabaseCount` 檢查紀錄數。
+用 `assertDatabaseHas` 和 `assertDatabaseMissing` 檢查資料列的值，支援空值。用 `assertDatabaseCount` 核對資料列數，用 `assertDatabaseEmpty` 檢查空資料表。對應的 `On` 方法接受選填的連線名稱。
 
 ```rust
 use openrust::{database::query::Record, testing::TestApp};
@@ -125,5 +125,23 @@ async fn keeps_records_in_the_test_database() -> Result<(), Box<dyn std::error::
     test.assertDatabaseHas("items", &[("name", "fixture".into())]).await?;
     test.assertDatabaseCount("items", 1).await?;
     Ok(())
+}
+```
+
+### 軟刪除與模型斷言 {#soft-deletion-and-model-assertions}
+
+`assertSoftDeleted` 要求符合條件的資料列在 `deleted_at` 有值。`assertNotSoftDeleted` 要求存在符合條件的資料列，且其 `deleted_at` 為空。需要指定欄位名稱或連線時，使用 `assertSoftDeletedOn` 或 `assertNotSoftDeletedOn`。
+
+將 Eloquent 模型傳給 `assertModelExists` 或 `assertModelMissing`，依模型連線和主鍵查詢。已軟刪除的資料列仍視為存在。`assertSoftDeletedModel` 和 `assertNotSoftDeletedModel` 也會使用模型設定的軟刪除欄位。
+
+```rust
+use openrust::{database::eloquent::Model, testing::TestApp};
+
+async fn assert_archived(
+    test: &mut TestApp,
+    model: &impl Model,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.assertModelExists(model).await?;
+    test.assertSoftDeletedModel(model).await
 }
 ```

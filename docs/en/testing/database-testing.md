@@ -104,7 +104,7 @@ Set `connections_to_transact` to select the connections that roll back after eac
 
 ## Database assertions
 
-Use `assertDatabaseHas` and `assertDatabaseMissing` to check row values, including nulls. Use `assertDatabaseCount` to check the row count.
+Use `assertDatabaseHas` and `assertDatabaseMissing` to check row values, including nulls. Use `assertDatabaseCount` to check the row count and `assertDatabaseEmpty` to require zero rows. The corresponding `On` methods accept an optional connection name.
 
 ```rust
 use openrust::{database::query::Record, testing::TestApp};
@@ -125,5 +125,23 @@ async fn keeps_records_in_the_test_database() -> Result<(), Box<dyn std::error::
     test.assertDatabaseHas("items", &[("name", "fixture".into())]).await?;
     test.assertDatabaseCount("items", 1).await?;
     Ok(())
+}
+```
+
+### Soft deletion and model assertions {#soft-deletion-and-model-assertions}
+
+`assertSoftDeleted` requires a matching row with a non-null `deleted_at`. `assertNotSoftDeleted` requires a matching row with a null `deleted_at`. For a custom column or named connection, use `assertSoftDeletedOn` or `assertNotSoftDeletedOn`.
+
+Pass an Eloquent model to `assertModelExists` and `assertModelMissing`. They check the primary key on the model’s connection and count soft-deleted rows as present. `assertSoftDeletedModel` and `assertNotSoftDeletedModel` also use the model’s configured soft-deletion column.
+
+```rust
+use openrust::{database::eloquent::Model, testing::TestApp};
+
+async fn assert_archived(
+    test: &mut TestApp,
+    model: &impl Model,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.assertModelExists(model).await?;
+    test.assertSoftDeletedModel(model).await
 }
 ```

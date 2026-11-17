@@ -679,6 +679,126 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
 }
 
 #[tokio::test]
+async fn mysql_database_assertions_select_connections_and_include_soft_deleted_models()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use futures_util::FutureExt as _;
+    use openrust::database::eloquent::{Model, ModelMetadata, ModelState};
+
+    struct Report(ModelState);
+
+    impl Model for Report {
+        fn metadata() -> &'static ModelMetadata {
+            static METADATA: ModelMetadata = ModelMetadata::new("items")
+                .connection("reports")
+                .primaryKey("name")
+                .softDeletes("archived_at");
+            &METADATA
+        }
+
+        fn from_state(state: ModelState) -> Self {
+            Self(state)
+        }
+
+        fn state(&self) -> &ModelState {
+            &self.0
+        }
+
+        fn state_mut(&mut self) -> &mut ModelState {
+            &mut self.0
+        }
+    }
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+        builder.withProviders(vec![Box::new(InventoryProvider)])
+    })
+    .await?;
+    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate", "--database=reports"])
+        .await
+        .assertSuccessful();
+    let primary = app.database().await?;
+    let reports = app
+        .app()
+        .make::<DatabaseManager>()
+        .await?
+        .connection(Some("reports"))?;
+    primary
+        .getSchemaBuilder()
+        .table("items", |table| {
+            table.softDeletes();
+        })
+        .await?;
+    reports
+        .getSchemaBuilder()
+        .table("items", |table| {
+            table.softDeletesWith(Some("archived_at"), None);
+        })
+        .await?;
+
+    app.assertDatabaseEmpty("items").await?;
+    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    let name = [("name", "report".into())];
+    let row = Record::from([("name".into(), "report".into())]);
+    reports
+        .table("items")
+        .insert(std::slice::from_ref(&row))
+        .await?;
+    primary.table("items").insert(&[row]).await?;
+    app.assertDatabaseCountOn("items", 1, Some("reports"))
+        .await?;
+    app.assertDatabaseHasOn("items", &[("description", Value::Null)], Some("reports"))
+        .await?;
+    app.assertDatabaseMissingOn("items", &[("name", "absent".into())], Some("reports"))
+        .await?;
+    app.assertNotSoftDeleted("items", &name).await?;
+
+    let mut model = Report::from_state(ModelState::default());
+    model.setAttribute("name", "report");
+    app.assertModelExists(&model).await?;
+    app.assertNotSoftDeletedModel(&model).await?;
+    reports
+        .table("items")
+        .r#where("name", "=", "report")
+        .update(Record::from([(
+            "archived_at".into(),
+            "2026-11-17 10:00:00".into(),
+        )]))
+        .await?;
+    app.assertSoftDeletedModel(&model).await?;
+    app.assertModelExists(&model).await?;
+    app.assertNotSoftDeleted("items", &name).await?;
+    primary
+        .table("items")
+        .r#where("name", "=", "report")
+        .update(Record::from([(
+            "deleted_at".into(),
+            "2026-11-17 10:00:00".into(),
+        )]))
+        .await?;
+    app.assertSoftDeleted("items", &name).await?;
+
+    reports
+        .table("items")
+        .r#where("name", "=", "report")
+        .delete()
+        .await?;
+    app.assertModelMissing(&model).await?;
+    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    assert!(
+        std::panic::AssertUnwindSafe(app.assertNotSoftDeletedModel(&model))
+            .catch_unwind()
+            .await
+            .is_err()
+    );
+    app.assertDatabaseCount("items", 1).await?;
+    app.close().await
+}
+
+#[tokio::test]
 async fn mysql_refresh_rolls_back_every_selected_connection()
 -> Result<(), Box<dyn Error + Send + Sync>> {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {

@@ -46,3 +46,10 @@
 - 隔离基线 `095b16728`。用 `python3 -B tests/mysql_acceptance.py` 在 MySQL 8.4.13 跑七项数据库夹具回归。子进程执行真实 Artisan `migrate --seed` 后被强制终止。父进程验证活租约及忙库拒绝、权限不足及归属不匹配时保留记录、恢复成功并保留另一夹具、普通关闭删除记录，以及重复恢复。HTTP 事务、迁移重试、事件抑制与具名连接回归通过。
 - 三语文档示例提取后在独立 MySQL 8.4.13 夹具中执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档与隔离 Cargo 产物已回收。证据目录 `/private/tmp/openrust-T-03-mysql-recovery.y1DfxNzB`。
 - 剩余 Laravel 差异包含独立重置策略 `DatabaseMigrations`、`DatabaseTruncation`，Seeder 测试入口，以及空表、软删除、模型存在性和查询次数等数据库断言。继续按小批对照并验证。
+
+## 数据库行、软删除及模型断言
+
+- 对照固定 Laravel `InteractsWithDatabase`、`NotSoftDeletedInDatabase` 和 `FoundationInteractsWithDatabaseTest`。复核旧版 `v0.x` 的数据库夹具及测试，沿用连接隔离，行值匹配复用当前查询构建器的空值安全等值条件。 [Laravel Available Assertions](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md#available-assertions) · [Laravel 断言回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/FoundationInteractsWithDatabaseTest.php)
+- 接通空表、软删除、存活行、模型存在和模型缺失断言。模型按实际表、连接名和主键校验，直接查行，因此保留软删除行的存在语义。表断言以 `On` 方法声明可选连接，软删除的 `On` 方法还可指定列。Rust 用独立模型方法和显式循环表达 PHP 的模型重载及批量参数。查询次数断言仍待接入。
+- 隔离基线 `d5f02e59c`，运行 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，MySQL 8.4.13 八项通过。两套独立库用 Artisan 建同名表，验证命名连接、空表、空值、自定义主键和软删除列。软删除后按模型仍可查到，物理删除后断言缺失，存活行断言因缺行而失败。
+- 三语代码示例提取后在独立 MySQL 8.4.13 夹具中通过。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-assertions.nBwMSdyq`。
