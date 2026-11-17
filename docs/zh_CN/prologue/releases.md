@@ -13,6 +13,7 @@
 | Linux ARM64、Debian Bookworm 容器、LinuxKit 7.0.14 | 默认同进程启动、SQLite 队列与独立 Artisan 对照、SIGTERM 优雅退出 |
 | SQLite 3.51.3 | 干净检出、12 项应用迁移、Artisan 与 HTTP |
 | MySQL 5.7.44，Oracle 通用 Linux 归档 | TLS 1.2 证书和服务器名称校验、12 项迁移、幂等重跑、HTTP、数据库会话和 Artisan 作业处理 |
+| MySQL 5.7.44，Oracle Linux 7 派生镜像 | 在 amd64 兼容环境通过 TLS 1.2 和 ECDHE 校验、12 项迁移、幂等重跑、HTTP、数据库会话及 Artisan 作业处理 |
 | MySQL 8.0.46、8.4.13 | 隔离数据库、12 项迁移、重复执行、Artisan 数据库 Worker、HTTP 与数据库会话写入 |
 | MariaDB 10.3.39、11.8.9 | TLS 校验、12 项迁移、幂等重跑、HTTP、数据库会话、JSON 与 Schema 检查及 Artisan 作业处理 |
 | SQL Server 2017（14.0.3570.2）、2022（16.0.4325.4） | 对 Linux amd64 兼容环境中的服务端容器实测 Rust TDS 和 TLS 校验、12 项迁移、幂等重跑、HTTP、数据库会话及 Artisan 作业处理 |
@@ -23,7 +24,7 @@
 
 各平台与驱动的验收范围见表，功能边界见相应指南，例如 [Reverb 扩展](../packages/reverb.md)。独立产物的构建和运行见[部署](../getting-started/deployment.md)。
 
-数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。基于 Oracle Linux 7 的 MySQL 5.7.44 容器构建未能与 OpenRust 的 TLS 客户端协商 ECDHE。实测连接配置见 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
+数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。Oracle Linux 7 原镜像需构建[启用 ECDHE 的派生镜像](../database/getting-started.md#mysql-57-oracle-linux-7)以接入 OpenRust。实测连接配置见 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
 
 当前 Windows ARM64 来宾缺少嵌套虚拟化和可运行的 WSL 2 后端，独立部署已验收。Windows Docker Desktop 和当前版本的原生 Ubuntu 复验仍待目标环境。
 

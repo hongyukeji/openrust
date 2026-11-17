@@ -71,3 +71,13 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - 本轮 SQL Server 安装使用预建数据库。其他 SQL Server 版本、Schema 转储与高级方言操作未纳入本次实测。旧 MySQL 镜像的 ECDHE 边界，以及原生 Linux x86_64、Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 仍在账本中，08-04 保持开放。
 
 工作区严格 Clippy、改动文件格式、三语站点构建、12 项通用浏览器检查和 6 项 SQL Server 支持矩阵导航检查通过。工作区全量格式检查报出干净基线中已有的 `sanctum_authentication.rs` 格式差异。SQL Server 与 MySQL 回归容器已清理，本批新拉取的 SQL Server 镜像标签、隔离源码、构建目录、证书和站点已移除。
+
+## Oracle Linux 7 的 MySQL 5.7.44 ECDHE
+
+- 从 `201519c` 的干净检出锁定构建应用。官方 `mysql:5.7` amd64 镜像的 `openssl-libs` 为 `1.0.2k-26.el7_9`。在强制 TLS 1.2 和同一张 RSA 证书下，原版可协商 DHE，但在 ECDHE 握手中返回失败，Rustls 应用的 Artisan 连接也失败。MySQL 5.7 源码初始化了临时 DH，OpenSSL 1.0.2 提供单独启用自动临时曲线选择的控制项。 [MySQL 固定版本的 TLS 初始化](https://github.com/mysql/mysql-server/blob/mysql-5.7.44/vio/viosslfactories.c) · [OpenSSL 1.0.2k 的 ECDH 接口](https://github.com/openssl/openssl/blob/OpenSSL_1_0_2k/ssl/ssl.h#L1979)
+- `docker/mysql57-ecdhe` 从原版摘要构建派生镜像。纯 Rust 共享库仅随 `mysqld` 加载，并在原 OpenSSL 上下文创建后启用 `SSL_CTX_set_ecdh_auto`。库未引入新的动态依赖，原版和派生镜像的 `/usr/sbin/mysqld` SHA-256 相同。运行入口强制安全传输、TLS 1.2 和 ECDHE-RSA AES-GCM 套件，应用沿用 Rustls、CA 和名称校验。
+- 以 Apple Silicon 上的 amd64 兼容环境构建并运行派生镜像。独立客户端实测 `ECDHE-RSA-AES128-GCM-SHA256` 与 P-256，证书链及 IP 校验通过。仅允许 DHE 的探针、明文客户端、应用禁用 TLS 的配置、错误 CA 和错误主机名均被拒绝。即使容器参数传入关闭安全传输及 TLS 1.1，实测生效策略仍要求 TLS 1.2 和 ECDHE。
+- 派生镜像通过真实 `migrate --force` 的 12 项迁移及幂等重跑、`migrate:status`、`inspire`、首页、`/up`、数据库会话和 SIGTERM。独立数据库通过 HTTP 队列派发、Artisan Worker 作业、重试与失败回归。
+- Oracle Linux 7 兼容项按派生镜像验收。原生 Linux x86_64、Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 继续按目标环境验收，08-04 保持开放。
+
+Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用工作区严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项旧镜像发布矩阵导航检查通过。全量格式检查仍报出基线已有的 `sanctum_authentication.rs` 差异。临时容器、镜像及专用 Buildx 构建器、交叉目标、证书、隔离源码、Cargo 产物和站点已清理。

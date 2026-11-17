@@ -29,7 +29,17 @@ tls_version=TLSv1.2
 ssl_cipher=ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384
 ```
 
-應用程式的 `MYSQL_ATTR_SSL_CA` 指向 CA 憑證，`DB_HOST` 使用伺服器憑證中的名稱或位址。[發佈矩陣](../prologue/releases.md)中的 Oracle Linux 7 容器建置可用其原生用戶端協商 DHE，ECDHE 協商失敗。
+應用程式的 `MYSQL_ATTR_SSL_CA` 指向 CA 憑證，`DB_HOST` 使用伺服器憑證中的名稱或位址。
+
+#### Oracle Linux 7 映像 {#mysql-57-oracle-linux-7}
+
+原版 `mysql:5.7` 映像缺少 OpenRust 所需的伺服器端 ECDHE 設定。從儲存庫根目錄建置衍生映像。它為固定的 MySQL 5.7.44 伺服器啟用臨時曲線選擇，並套用上方的 TLS 設定。
+
+```sh
+docker build --platform linux/amd64 -t openrust/mysql57-ecdhe docker/mysql57-ecdhe
+```
+
+使用 `openrust/mysql57-ecdhe` 時沿用原映像的資料庫掛載與環境變數。掛載 RSA 伺服器憑證和私密金鑰，並將容器內的路徑傳給 `--ssl-ca`、`--ssl-cert` 和 `--ssl-key`。應用程式透過 `MYSQL_ATTR_SSL_CA` 和 `DB_HOST` 驗證憑證與伺服器名稱。請參閱[發佈矩陣](../prologue/releases.md)。
 
 ### 讀寫連線
 

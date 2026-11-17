@@ -29,7 +29,17 @@ tls_version=TLSv1.2
 ssl_cipher=ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384
 ```
 
-Set the application's `MYSQL_ATTR_SSL_CA` to the CA certificate and use a `DB_HOST` present in the server certificate. The Oracle Linux 7 container build exercised in the [release matrix](../prologue/releases.md) could negotiate DHE with its native client, but failed ECDHE negotiation.
+Set the application's `MYSQL_ATTR_SSL_CA` to the CA certificate and use a `DB_HOST` present in the server certificate.
+
+#### Oracle Linux 7 image {#mysql-57-oracle-linux-7}
+
+The original `mysql:5.7` image lacks the server-side ECDHE setup needed by OpenRust. Build the derived image from the repository root. It enables ephemeral curve selection for the pinned MySQL 5.7.44 server and applies the TLS settings above.
+
+```sh
+docker build --platform linux/amd64 -t openrust/mysql57-ecdhe docker/mysql57-ecdhe
+```
+
+Use `openrust/mysql57-ecdhe` with the original image's database mount and environment variables. Mount the RSA server certificate and key and pass `--ssl-ca`, `--ssl-cert` and `--ssl-key` with their container paths. The application verifies the certificate and server name using `MYSQL_ATTR_SSL_CA` and `DB_HOST`. See the [release matrix](../prologue/releases.md).
 
 ### Read and Write Connections
 
