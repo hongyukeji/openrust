@@ -119,3 +119,10 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - Rust 1.94.0，真实 MySQL 8.4.13 与 SQLite 共 61 项定向回归通过。覆盖同一任务内并发隔离、写入不落库、预演事件、嵌套、错误和取消、原始绑定、游标、事务内预演、不可用 SQLite 数据库预演，以及既有 HTTP、迁移和事件相关回归。1 个子进程夹具由父测试启动。严格 Clippy 和变更文件格式检查通过。
 - 两种驱动均通过实际 Artisan 执行三语共用示例并核对更新前后状态和查询事件。原生 `main artisan inspire`、VitePress 构建、12 项站点浏览器组合和 6 项预演小节检查通过。
 - 02-02 继续跟踪 PostgreSQL 独立直连及池化路由，随该驱动接入验收。本批保留该单元待闭合状态。
+
+## PostgreSQL 直连端点选择
+
+- 对照固定 Laravel 的 `ConfiguresPooledConnections`、`Connection::hasDirectConnection` 和 `Migrator::resolveConnection`。OpenRust 按具名连接缓存独立的直连池，`::direct` 从连接基础配置合并 PostgreSQL 直连选项，无独立配置时回退到写端点。迁移上下文和账本访问默认选择独立端点，显式角色仍优先。旧版未找到可复用的直连配置。 [Laravel 连接配置](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/Concerns/ConfiguresPooledConnections.php) · [Laravel 迁移连接](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/Migrator.php)
+- 隔离基线 `37ef76c7c`。无网络配置回归验证普通连接保留写端点、迁移默认路由至独立端点、显式角色优先、前缀继承、错误驱动拒绝和默认连接名不变。首轮发现空 `direct` URL 误走基础端点，调整后回退至写端点，最终快照通过。
+- 真实 MySQL 8.4.13 的读写路由与断线恢复、`::direct` 回退、独立 Artisan 的迁移账本回归均通过。PostgreSQL 独立端点连通性、`pooled` 的事务池兼容及运行验收仍待发布矩阵。
+- Rust 1.94.0 全仓格式、严格 Clippy、`main artisan inspire`、三语站点及 18 项浏览器检查通过。本批临时 MySQL、3.3 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.22 GB（58.88 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-02-direct-route.Arix2t9P`。

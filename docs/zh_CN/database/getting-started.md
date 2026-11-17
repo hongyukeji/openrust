@@ -121,7 +121,11 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 #### 直连别名 {#direct-connection-alias}
 
-对 MySQL 和 SQLite，`DB::connection(Some("mysql::direct"))` 会让读写操作都使用该连接的写端点。将 `mysql` 替换为实际连接名。查询日志和事件记录为 `QueryRole::Direct`。Laravel 未配置独立直连端点时也回退到写端点。绕过事务连接池的 PostgreSQL 独立端点需要 PostgreSQL 驱动支持。
+对 MySQL 和 SQLite，`DB::connection(Some("mysql::direct"))` 会让读写操作都使用该连接的写端点。将 `mysql` 替换为实际连接名。查询日志和事件记录为 `QueryRole::Direct`。Laravel 未配置独立直连端点时也回退到写端点。
+
+PostgreSQL 的 `direct` 配置非空时，`DB::connection(Some("pgsql::direct"))` 选择独立端点。按需设置 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 和 `DB_DIRECT_SSLMODE`。具名连接的 `direct` 选项继承其基础配置。迁移和账本操作默认走该端点。显式的 `::read`、`::write`、`::direct` 后缀按调用方指定的角色执行。
+
+端点选择已通过无网络的配置测试。PostgreSQL 与事务连接池的运行时验收归入发布检查。
 
 #### 断开、重连及清除连接 {#reconnecting-database-connections}
 

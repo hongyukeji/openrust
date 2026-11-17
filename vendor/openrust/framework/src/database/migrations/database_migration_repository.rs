@@ -24,7 +24,7 @@ impl DatabaseMigrationRepository {
     }
 
     fn connection(&self) -> DatabaseResult<Connection> {
-        self.manager.connection(self.source.as_deref())
+        self.manager.migration_connection(self.source.as_deref())
     }
 
     pub(super) async fn records(&self) -> DatabaseResult<Vec<MigrationRecord>> {

@@ -57,6 +57,7 @@ impl ConnectionFactory {
             )),
             sqlite,
             sticky: options.sticky,
+            has_direct_connection: options.has_direct_connection,
             model_timezone: chrono_tz::UTC,
             model_container: std::sync::Weak::new(),
             schema_defaults: Arc::default(),
@@ -78,6 +79,7 @@ struct ConnectionOptions {
     sqlite_json_types: SqliteJsonTypes,
     table_options: Arc<TableOptions>,
     sticky: bool,
+    has_direct_connection: bool,
     pools: PoolGeneration,
 }
 
@@ -91,8 +93,28 @@ fn resolve(
     let mut base = configuration_url_parser::parse(config)?;
     let read = base.remove("read");
     let write = base.remove("write");
+    let direct = base.remove("direct").filter(|value| {
+        base.get("driver").and_then(Value::as_str) == Some("pgsql")
+            && match value {
+                Value::Null | Value::Bool(false) => false,
+                Value::Object(config) => !config.is_empty(),
+                Value::Array(configs) => !configs.is_empty(),
+                Value::String(url) => !url.is_empty(),
+                _ => true,
+            }
+    });
+    let has_direct_connection = direct.is_some();
+    let use_direct = role == Some(QueryRole::Direct) && has_direct_connection;
     let sticky = Options(base.clone()).boolean("sticky", false)?;
-    let write_options = merge(&base, write, "write")?;
+    let write_options = if use_direct {
+        let options = merge(&base, direct, "direct")?;
+        if options.string("driver", "")? != "pgsql" {
+            return Err(invalid("direct driver"));
+        }
+        options
+    } else {
+        merge(&base, write, "write")?
+    };
     let (mut database, mut writer) = make_pool(&write_options, root, mysql_test_owner)?;
     let mut reader = read
         .filter(|value| !value.is_null() && role != Some(QueryRole::Direct))
@@ -159,6 +181,7 @@ fn resolve(
         table_options: Arc::new(table_options),
         sqlite_json_types,
         sticky,
+        has_direct_connection,
         pools: PoolGeneration {
             writer,
             schema_credentials,

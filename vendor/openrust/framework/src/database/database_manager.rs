@@ -152,6 +152,15 @@ impl DatabaseManager {
         self.connection_named(&name)
     }
 
+    pub(super) fn migration_connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
+        let connection = self.connection(name)?;
+        if connection.query_role.is_none() && connection.hasDirectConnection() {
+            self.connection_named(&format!("{}::direct", connection.getName()))
+        } else {
+            Ok(connection)
+        }
+    }
+
     fn connection_named(&self, name: &str) -> DatabaseResult<Connection> {
         if let Some(connection) = self.connections().get(name).cloned() {
             return Ok(connection);

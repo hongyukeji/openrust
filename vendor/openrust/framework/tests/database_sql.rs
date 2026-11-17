@@ -888,6 +888,69 @@ async fn sqlite_direct_alias_uses_the_writer_and_reports_its_own_name() {
 }
 
 #[tokio::test]
+async fn postgres_direct_endpoint_and_migration_role_resolve_without_connecting() {
+    use openrust::database::migrations::{MigrationRegistry, Migrator};
+
+    let root = Root::new();
+    let manager = Arc::new(manager(
+        &root,
+        json!({"default":"split","connections":{
+            "split":{
+                "url":"postgresql://base_user@localhost/base_db", "prefix":"app_",
+                "read":{"database":"read_db"},
+                "write":{"database":"write_db"},
+                "direct":{"url":"postgresql://direct_user@localhost/direct_db"}
+            },
+            "fallback":{"driver":"pgsql","database":"fallback_db","direct":{}},
+            "empty_url":{"driver":"pgsql","database":"base_db",
+                         "write":{"database":"only_writer"},"direct":""},
+            "invalid":{"driver":"pgsql","direct":{"url":"mysql://localhost/wrong_driver"}}
+        }}),
+    ));
+    let base = manager.connection(None).unwrap();
+    assert!(base.hasDirectConnection());
+    assert_eq!(base.getDatabaseName(), "write_db");
+    let direct = manager.connection(Some("split::direct")).unwrap();
+    assert!(direct.hasDirectConnection());
+    assert_eq!(direct.getName(), "split::direct");
+    assert_eq!(direct.getDatabaseName(), "direct_db");
+    assert_eq!(direct.getTablePrefix(), "app_");
+
+    let migrator = Migrator::new(
+        manager.clone(),
+        Arc::new(MigrationRegistry(&[])),
+        "migrations".into(),
+        root.0.clone(),
+    );
+    for (name, database) in [
+        (None, "direct_db"),
+        (Some("split"), "direct_db"),
+        (Some("split::direct"), "direct_db"),
+        (Some("split::write"), "write_db"),
+        (Some("split::read"), "read_db"),
+        (Some("fallback"), "fallback_db"),
+        (Some("fallback::direct"), "fallback_db"),
+        (Some("empty_url::direct"), "only_writer"),
+    ] {
+        assert_eq!(
+            migrator.resolveConnection(name).unwrap().getDatabaseName(),
+            database
+        );
+    }
+    assert!(
+        !manager
+            .connection(Some("fallback"))
+            .unwrap()
+            .hasDirectConnection()
+    );
+    assert!(matches!(
+        migrator.resolveConnection(Some("invalid")),
+        Err(DatabaseError::InvalidConfiguration("direct driver"))
+    ));
+    assert_eq!(manager.getDefaultConnection().unwrap(), "split");
+}
+
+#[tokio::test]
 async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
@@ -898,12 +961,14 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
         &root,
         json!({"default":"split","connections":{
             "split":{"url":url,"read":{"host":["127.0.0.1","127.0.0.2"]},"sticky":true,
+                     "direct":{"url":"postgresql://localhost/unused"},
                      "max_connections":1,"acquire_timeout":2},
             "control":{"url":url,"max_connections":1,"acquire_timeout":2}
         }}),
     );
     let direct = db.connection(Some("split::direct")).unwrap();
     assert_eq!(direct.getName(), "split::direct");
+    assert!(!direct.hasDirectConnection());
     direct
         .statement("SET @openrust_direct_probe = 23", &[])
         .await

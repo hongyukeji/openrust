@@ -105,6 +105,12 @@ impl Migrator {
         &self.table
     }
 
+    /// Resolves a migration connection, preferring a configured PostgreSQL direct endpoint.
+    #[allow(non_snake_case, reason = "Matches Laravel's Migrator API")]
+    pub fn resolveConnection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
+        self.manager.migration_connection(name)
+    }
+
     fn repository(&self, database: Option<&str>) -> DatabaseMigrationRepository {
         DatabaseMigrationRepository::new(self.manager.clone(), database, &self.table)
     }
@@ -166,9 +172,8 @@ impl Migrator {
         for (entry, status) in entries {
             let mut skipped = false;
             if status.batch.is_none() && !has_pending {
-                let connection = self
-                    .manager
-                    .connection(entry.migration.getConnection().or(database))?;
+                let connection =
+                    self.resolveConnection(entry.migration.getConnection().or(database))?;
                 let mut context = MigrationContext::new(connection, false);
                 skipped = !entry
                     .migration
@@ -247,7 +252,7 @@ impl Migrator {
                 if confirm_create.is_some()
                     && database_creation::missing_mysql_database(&error) =>
             {
-                let connection = self.manager.connection(database)?;
+                let connection = self.resolveConnection(database)?;
                 if !database_creation::can_create(&connection)? {
                     return Err(error);
                 }
@@ -266,7 +271,7 @@ impl Migrator {
         };
         let mut loaded = false;
         if ran.is_empty() && !options.pretend {
-            let connection = self.manager.connection(database)?;
+            let connection = self.resolveConnection(database)?;
             if let Some(path) = self.schema_to_load(connection.getName(), schema_path)? {
                 if connection.pools.generation()?.schema_credentials.is_none() {
                     return Err(DatabaseError::UnsupportedSchema(
@@ -323,8 +328,7 @@ impl Migrator {
             .await?;
         for (name, entry) in pending {
             let mut context = MigrationContext::new(
-                self.manager
-                    .connection(entry.migration.getConnection().or(database))?,
+                self.resolveConnection(entry.migration.getConnection().or(database))?,
                 options.pretend,
             );
             if !options.pretend
@@ -418,7 +422,7 @@ impl Migrator {
         prune: bool,
     ) -> DatabaseResult<()> {
         let _guard = self.execution.lock().await;
-        let connection = self.manager.connection(database)?;
+        let connection = self.resolveConnection(database)?;
         let path = match path {
             Some(path) => self.root.join(path),
             None => self.default_schema_path(connection.getName(), "sql")?,
@@ -635,8 +639,7 @@ impl Migrator {
                 continue;
             };
             let mut context = MigrationContext::new(
-                self.manager
-                    .connection(entry.migration.getConnection().or(database))?,
+                self.resolveConnection(entry.migration.getConnection().or(database))?,
                 options.pretend,
             );
             self.run_migration(entry, name, method, &mut context, options.pretend)
@@ -712,8 +715,7 @@ impl Migrator {
     }
 
     async fn wipe_schema(&self, database: Option<&str>, drop_views: bool) -> DatabaseResult<()> {
-        self.manager
-            .connection(database)?
+        self.resolveConnection(database)?
             .getSchemaBuilder()
             .drop_schema_objects(true, drop_views)
             .await

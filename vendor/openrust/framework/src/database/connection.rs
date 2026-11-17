@@ -73,6 +73,7 @@ pub struct Connection {
     pub(super) pools: Arc<ConnectionPools>,
     pub(super) sqlite: bool,
     pub(super) sticky: bool,
+    pub(super) has_direct_connection: bool,
     pub(super) model_timezone: chrono_tz::Tz,
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) schema_defaults: Arc<std::sync::RwLock<super::schema::SchemaDefaults>>,
@@ -1295,6 +1296,11 @@ impl Connection {
 
     pub fn getDatabaseName(&self) -> &str {
         &self.database
+    }
+
+    /// Reports whether PostgreSQL has a separate direct endpoint configured.
+    pub fn hasDirectConnection(&self) -> bool {
+        self.has_direct_connection
     }
 
     /// Returns the prefix applied to logical table names on this connection.
