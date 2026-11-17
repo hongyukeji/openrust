@@ -69,3 +69,10 @@
 - PHP 直接执行固定 Laravel 验证 trait，校验 BASE64 的 256 种字节、另外三种传输编码的 9,000 个确定性样本，以及严格 Base64 的正反例。真实 MySQL 8.4.13 环境的 HTTP 和验证路径共 10 项通过。新增 HTTP 覆盖宽松与规范规则的不同结果、非字符串、长输入、错误字符和 multipart 字节。三语示例分别实测 HTTP 200 和两条 422 路径。
 - Rust 1.94.0 全仓格式、工作区严格 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 隔离 Cargo 产物及文档缓存。PHP 对照和验收日志保留于 `/private/tmp/openrust-04-05-transfer.9mTJpuvo`。
 - UTF-7／UTF7-IMAP 等状态型编码、部分旧式字表、其他文件格式和交付单元完整复验仍待核定。核心账本维持 59/66。
+
+## UTF-7 与 UTF7-IMAP
+
+- 字符串与流式 `encoding` 支持两种 UTF-7。验证器逐段读取移位字节，校验变体各自的字符表、UTF-16 代理对、尾部位及结束符，使用固定大小的位缓冲。对照固定 Laravel 的编码入口和 PHP 8.5.12 容器内的 mbstring 源码，保留标准 UTF-7 和 IMAP 变体各自的终止行为。固定 Goravel 的编码入口已核对，旧版没有找到可复用的 UTF-7 实现。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding) · [固定 Goravel 编码规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1712)
+- 对照固定 Laravel／PHP 的 136,114 个向量通过，覆盖两种编码各自的全部 65,536 个单独 UTF-16 码元、直接字节、移位结束字节、随机码元组合和损坏尾位。真实 MySQL 8.4.13 环境下，HTTP 与验证路径共 11 项通过。实际上传覆盖两个字符表、代理对和 422。三语示例在真实 HTTP 上返回 200 与 422。
+- Rust 1.94.0 全仓格式、工作区严格 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。临时 MySQL、3.3 GiB 隔离 Cargo 产物和文档缓存已回收。对照样本和验收日志保留于 `/private/tmp/openrust-04-05-utf7.TSfFRsQR`。
+- 下一批处理 TIFF 和 ICO 图片尺寸。相同的真实 100 × 100 TIFF、ICO 样本在 PHP `getimagesize` 可读，OpenRust `dimensions` 实测返回 HTTP 422。其他旧式字表和文件格式仍待按整单元验收核定。核心账本维持 59/66。

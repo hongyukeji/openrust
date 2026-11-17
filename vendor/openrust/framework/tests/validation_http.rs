@@ -283,6 +283,14 @@ impl FormRequest for Upload {
             "encoding-uu" => RuleSet::parse([("attachments.*", "required|file|encoding:UUENCODE")]),
             "strict-base64" => RuleSet::new().field("value", [Rule::required(), Rule::base64()]),
             "strict-base64-string" => RuleSet::parse([("value", "required|base64")]),
+            "encoding-utf7" => RuleSet::parse([("attachments.*", "required|file|encoding:UTF-7")]),
+            "encoding-utf7-imap" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("UTF7-IMAP").into(),
+                ],
+            ),
             "encoding-input" => RuleSet::parse([("metadata", "required|array|encoding:ASCII")]),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
@@ -1542,6 +1550,61 @@ async fn transfer_encoding_and_canonical_base64_follow_laravel_over_http() {
             200,
         )
         .await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn shifted_utf7_encodings_follow_their_byte_and_termination_rules_over_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, valid, invalid) in [
+        (
+            "encoding-utf7",
+            ["Caf+AOk-", "+AOk!", "+2D3eAA-", "+//8-", "+-", "+", "+AOk"].as_slice(),
+            ["+AOl-", "+2AA-", "+3AA-", "+A", "+AOk~", "+.", "\\", "~"].as_slice(),
+        ),
+        (
+            "encoding-utf7-imap",
+            ["Caf&AOk-", "&2D3eAA-", "&,,8-", "&-", "&ACY-", "\\", "~"].as_slice(),
+            [
+                "&AOl-", "&2AA-", "&3AA-", "&//8-", "&AEE-", "&AOk", "&", "\n",
+            ]
+            .as_slice(),
+        ),
+    ] {
+        for sample in valid {
+            upload_file(
+                address,
+                mode,
+                "encoded.txt",
+                "application/octet-stream",
+                sample.as_bytes(),
+                200,
+            )
+            .await;
+        }
+        for sample in invalid {
+            let invalid = upload_file(
+                address,
+                mode,
+                "encoded.txt",
+                "application/octet-stream",
+                sample.as_bytes(),
+                422,
+            )
+            .await;
+            let label = if mode == "encoding-utf7" {
+                "UTF-7"
+            } else {
+                "UTF7-IMAP"
+            };
+            assert_eq!(
+                invalid["errors"]["attachments.0"],
+                json!([format!(
+                    "The attachments.0 field must be encoded in {label}."
+                )])
+            );
+        }
     }
     server.abort();
 }

@@ -1,3 +1,5 @@
+mod utf7;
+
 use encoding_rs::{DecoderResult, Encoding};
 
 use crate::validation::{RuleFailure, ValidationError, ValidationResult, Value};
@@ -14,6 +16,7 @@ enum Codec {
     Ascii,
     AnyByte,
     Base64,
+    Utf7(utf7::Variant),
     Utf8,
     Utf16,
     Ucs2,
@@ -34,6 +37,8 @@ impl EncodingRule {
                 Codec::AnyByte
             }
             "base64" => Codec::Base64,
+            "utf-7" => Codec::Utf7(utf7::Variant::Standard),
+            "utf7-imap" => Codec::Utf7(utf7::Variant::Imap),
             "utf-8" => Codec::Utf8,
             "utf-16" => Codec::Utf16,
             "utf-32" => Codec::Utf32(None),
@@ -73,6 +78,7 @@ impl EncodingRule {
                 byte.is_ascii_alphanumeric()
                     || matches!(byte, b'+' | b'/' | b'=' | b' ' | b'\t' | b'\r' | b'\n')
             }),
+            Codec::Utf7(variant) => variant.check(value),
             Codec::Utf8 => std::str::from_utf8(value).is_ok(),
             Codec::Utf16 => match value.strip_prefix(b"\xff\xfe") {
                 Some(value) => decode(encoding_rs::UTF_16LE, value),

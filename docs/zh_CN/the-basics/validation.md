@@ -130,6 +130,21 @@ fn transfer_rules() -> ValidationResult<RuleSet> {
 }
 ```
 
+### UTF-7 与 UTF7-IMAP {#utf7-encoding}
+
+用 `UTF-7` 检查标准 UTF-7，用 `UTF7-IMAP` 检查 IMAP 的变体。两者都会检查移位段中的 UTF-16 码元，拒绝错误的代理对和非零填充位。UTF7-IMAP 的每个移位段都须以 `-` 结束。
+
+```rust
+use openrust::validation::{RuleSet, ValidationResult};
+
+fn mailbox_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([
+        ("subject", "required|string|encoding:UTF-7"),
+        ("folder", "required|string|encoding:UTF7-IMAP"),
+    ])
+}
+```
+
 ## 验证错误响应格式
 
 请求期望 JSON 时，验证失败返回 HTTP 422，正文包含 `message` 和按字段索引的 `errors`。展开后的字段用点路径表示，例如 `users.0.email`。可在当前语言的 `lang/<locale>/validation.json` 中覆盖规则消息和字段名称。

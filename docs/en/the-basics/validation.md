@@ -130,6 +130,21 @@ fn transfer_rules() -> ValidationResult<RuleSet> {
 }
 ```
 
+### UTF-7 and UTF7-IMAP {#utf7-encoding}
+
+Use `UTF-7` for standard UTF-7 or `UTF7-IMAP` for IMAP's modified form. Both check shifted UTF-16 units and reject malformed surrogate pairs and nonzero padding bits. UTF7-IMAP requires a closing `-` for each shifted sequence.
+
+```rust
+use openrust::validation::{RuleSet, ValidationResult};
+
+fn mailbox_rules() -> ValidationResult<RuleSet> {
+    RuleSet::parse([
+        ("subject", "required|string|encoding:UTF-7"),
+        ("folder", "required|string|encoding:UTF7-IMAP"),
+    ])
+}
+```
+
 ## Validation Error Response Format
 
 For requests that expect JSON, a validation failure returns HTTP 422 with `message` and an `errors` object keyed by field. Expanded keys use dot notation, such as `users.0.email`. Override rule messages and attribute labels in the active locale’s `lang/<locale>/validation.json`.
