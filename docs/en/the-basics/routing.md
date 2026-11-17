@@ -52,6 +52,12 @@ Use `-v` to show the middleware declared on each route. Use `-vv` to expand grou
 ./artisan route:list -vv --json --middleware=SubstituteBindings
 ```
 
+The route list preserves binding fields such as `{post:slug}`, optional markers and domain patterns such as `{tenant}.example.test`. Text and JSON output include the controller action registered with `setAction`. A later route for the same method, domain and path replaces the earlier route even if the binding field changes. Other methods keep their original routes.
+
+```sh
+./artisan route:list --domain=example.test --action=PostController --json
+```
+
 ## Route Parameters
 
 Use `{id}` for a required parameter or `{id?}` for a trailing optional parameter. Set defaults with `defaults`. A parameter that fails a route constraint falls through to other routes or returns 404.

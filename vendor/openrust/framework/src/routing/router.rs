@@ -589,7 +589,8 @@ impl Registrar for Router {
             let routes = self.by_method.entry(method.clone()).or_default();
             if let Some(slot) = routes.iter_mut().find(|&&mut entry| {
                 let previous = &self.routes[entry];
-                previous.uri == route.uri && previous.domain == route.domain
+                previous.registration_uri() == route.registration_uri()
+                    && previous.domain == route.domain
             }) {
                 *slot = index;
             } else {

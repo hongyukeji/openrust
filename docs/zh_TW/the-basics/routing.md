@@ -52,6 +52,12 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list -vv --json --middleware=SubstituteBindings
 ```
 
+路由清單保留 `{post:slug}` 等繫結欄位、選用標記和 `{tenant}.example.test` 等網域樣板。文字和 JSON 輸出皆包含透過 `setAction` 登記的控制器動作。相同方法、網域和路徑的後一次註冊會取代前一次，即使繫結欄位不同。其他 HTTP 方法仍使用原路由。
+
+```sh
+./artisan route:list --domain=example.test --action=PostController --json
+```
+
 ## 路由參數
 
 必要參數寫成 `{id}`，尾端的選用參數寫成 `{id?}`，預設值使用 `defaults` 設定。參數未符合限制時，繼續比對其他路由，均未比對成功則回傳 404。

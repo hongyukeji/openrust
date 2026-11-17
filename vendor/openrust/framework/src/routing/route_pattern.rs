@@ -27,6 +27,7 @@ impl Token<'_> {
 pub(super) struct RoutePattern {
     regex: Regex,
     parameters: Vec<(String, Option<String>)>,
+    uri_without_binding_fields: Option<String>,
 }
 
 impl RoutePattern {
@@ -104,6 +105,32 @@ impl RoutePattern {
             tokens.push(Token::Literal(remaining));
         }
 
+        let uri_without_binding_fields =
+            parameters
+                .iter()
+                .any(|(_, field)| field.is_some())
+                .then(|| {
+                    let mut path = String::with_capacity(uri.len());
+                    for token in &tokens {
+                        match token {
+                            Token::Literal(text) => path.push_str(text),
+                            Token::Parameter {
+                                name,
+                                separator,
+                                optional,
+                            } => {
+                                path.push_str(separator);
+                                path.push('{');
+                                path.push_str(name);
+                                if *optional {
+                                    path.push('?');
+                                }
+                                path.push('}');
+                            }
+                        }
+                    }
+                    path
+                });
         let optional_start = tokens
             .iter()
             .rposition(|token| !matches!(token, Token::Parameter { optional: true, .. }))
@@ -161,6 +188,7 @@ impl RoutePattern {
             })?;
         Ok(Self {
             regex,
+            uri_without_binding_fields,
             parameters: parameters
                 .into_iter()
                 .map(|(name, field)| (name.to_owned(), field.map(str::to_owned)))
@@ -170,6 +198,10 @@ impl RoutePattern {
 
     pub(super) fn matches(&self, path: &str) -> bool {
         self.regex.is_match(path)
+    }
+
+    pub(super) fn uri_without_binding_fields(&self) -> Option<&str> {
+        self.uri_without_binding_fields.as_deref()
     }
 
     pub(super) fn binding_fields(&self) -> &[(String, Option<String>)] {

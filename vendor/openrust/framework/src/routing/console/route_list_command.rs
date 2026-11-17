@@ -72,7 +72,7 @@ impl Command for RouteListCommand {
                 writeln!(output.stdout, "{json}").unwrap();
             } else {
                 for route in &routes {
-                    writeln!(
+                    write!(
                         output.stdout,
                         "{:12} {}{} {}",
                         route.method,
@@ -84,6 +84,10 @@ impl Command for RouteListCommand {
                         route.name.as_deref().unwrap_or_default(),
                     )
                     .unwrap();
+                    if route.action != "Closure" {
+                        write!(output.stdout, " › {}", route.action).unwrap();
+                    }
+                    writeln!(output.stdout).unwrap();
                     if verbosity > 0 {
                         for middleware in &route.middleware {
                             writeln!(output.stdout, "             {middleware}").unwrap();

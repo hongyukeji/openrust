@@ -27,3 +27,12 @@
 - 实际应用二进制验证普通、`-v`、`-vv` 与两个 JSON 形式，运行三语文档的 `route:list -vv --json --middleware=SubstituteBindings` 和 `artisan inspire`。三语站点与 18 项浏览器检查通过。证据目录 `/private/tmp/openrust-04-01-route-list.SHPuOhOH`。
 - 命名 URL 在 [06-01](../06-01/README.md) 另有验收。04-01 的动态域名与控制器动作诊断继续跟踪，任意 PCRE 表达式兼容和 Windows 实机尚未覆盖。
 - 严格工作区 Clippy 与改动文件格式通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 3.7 GiB 隔离 Cargo 产物已回收，磁盘可用 112.22 GB（104.51 GiB），周额度剩余 65%，第二窗口无读数。
+
+
+## 路由绑定字段与动作诊断
+
+- 对照固定 Laravel 的 `RouteUri::parse`、`RouteCollection::addToCollections` 和 `RouteListCommand::resolveUri`。旧版 `v0.x` 有路由集合和注册用例，未找到对等的 Artisan 输出。Rust 保留已登记的 URI 供 URL 生成和命令诊断，另为含绑定字段的模板生成注册键。注册键保留参数名及可选标记，绑定字段独立交给解析器。 [Laravel RouteUri](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RouteUri.php) · [Laravel 路由集合](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RouteCollection.php)
+- 方法、域名和注册键相同时覆盖对应的生效方法。文本与 JSON 均显示动态域名、绑定字段和 `setAction` 登记的动作。Rust 同时保留可选绑定字段的 `?`；默认输出仍以现有生效方法和 JSON 字段结构为准。
+- 隔离基线 `58ae2ab0`，Rust 1.94.0。16 项应用 HTTP 回归与 4 项框架 URL 回归通过。真实请求验证同一动态域名上的 GET 使用新 `slug` 绑定、POST 保留旧 `id` 绑定、可选参数及错误域名。Artisan 用相同注册组合核对方法、URI、域名、动作及筛选。
+- 实际二进制运行三语共用的 `route:list --domain=example.test --action=PostController --json` 示例，另验证普通文本、应用 `-vv` 示例和 `artisan inspire`。三语站点及 18 项浏览器检查通过。证据目录 `/private/tmp/openrust-04-01-route-metadata.gpU7sdLZ`。
+- 严格工作区 Clippy 与改动文件格式通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 4.2 GiB 隔离 Cargo 产物已回收，磁盘可用 112.20 GB（104.49 GiB），周额度剩余 64%，第二窗口无读数。

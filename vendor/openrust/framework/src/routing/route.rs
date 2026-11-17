@@ -74,6 +74,12 @@ impl Route {
         })
     }
 
+    pub(super) fn registration_uri(&self) -> &str {
+        self.pattern
+            .uri_without_binding_fields()
+            .unwrap_or(&self.uri)
+    }
+
     pub(super) fn url_pattern(&self) -> super::RouteUrlGenerator {
         super::RouteUrlGenerator::new(self.uri.clone(), self.domain.clone(), self.defaults.clone())
     }

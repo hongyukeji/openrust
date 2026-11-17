@@ -583,6 +583,18 @@ fn show_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
     })
 }
 
+fn show_bound_post(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let tenant = request.route("tenant").unwrap();
+        let post = request.route_model::<String>("post").unwrap();
+        let tab = request.route("tab").unwrap_or("-");
+        Ok(Response::new(
+            StatusCode::OK,
+            Body::from(format!("{tenant}|{post}|{tab}")),
+        ))
+    })
+}
+
 fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
     use openrust::routing::MiddlewareEntry;
     use std::any::TypeId;
@@ -614,6 +626,37 @@ fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
         })
         .withRouting(Routing::new(|_| {
             let mut router = Router::new();
+            use openrust::routing::middleware::SubstituteBindings;
+
+            router.bind("post", |binding| {
+                Box::pin(async move {
+                    Ok(Some(format!(
+                        "{}:{}",
+                        binding.field().unwrap_or("-"),
+                        binding.value()
+                    )))
+                })
+            });
+            router.group(
+                RouteGroup::new().domain("{tenant}.example.test"),
+                |router| {
+                    router
+                        .r#match(
+                            &[Method::GET, Method::POST],
+                            "/bound/{post:id}/{tab:code?}",
+                            show_bound_post,
+                        )?
+                        .middleware(Arc::new(SubstituteBindings))
+                        .setAction("PostController@byId")?
+                        .name("posts.by_id");
+                    router
+                        .get("/bound/{post:slug}/{tab:code?}", show_bound_post)?
+                        .middleware(Arc::new(SubstituteBindings))
+                        .setAction("PostController@bySlug")?
+                        .name("posts.by_slug");
+                    Ok(())
+                },
+            )?;
             router.pattern("id", "^[0-9]+$")?;
             router.group(
                 RouteGroup::new()
@@ -754,6 +797,50 @@ async fn route_list_describes_the_effective_middleware_order() {
 }
 
 #[tokio::test]
+async fn route_list_keeps_binding_fields_domains_and_live_controller_actions() {
+    use openrust::testing::TestApp;
+    use serde_json::Value;
+
+    let mut app = TestApp::create(network_application).unwrap();
+    let routes = app
+        .artisan([
+            "route:list",
+            "--domain={tenant}.example.test",
+            "--sort=definition",
+            "--json",
+        ])
+        .await;
+    routes.assertSuccessful();
+    let routes: Vec<Value> = serde_json::from_str(&routes.stdout).unwrap();
+    assert_eq!(routes.len(), 2);
+    assert_eq!(routes[0]["domain"], "{tenant}.example.test");
+    assert_eq!(routes[0]["method"], "POST");
+    assert_eq!(routes[0]["uri"], "bound/{post:id}/{tab:code?}");
+    assert_eq!(routes[0]["action"], "PostController@byId");
+    assert_eq!(routes[1]["method"], "GET|HEAD");
+    assert_eq!(routes[1]["uri"], "bound/{post:slug}/{tab:code?}");
+    assert_eq!(routes[1]["action"], "PostController@bySlug");
+
+    let text = app
+        .artisan([
+            "route:list",
+            "--domain={tenant}.example.test",
+            "--action=PostController@bySlug",
+        ])
+        .await;
+    text.assertSuccessful();
+    assert!(
+        text.stdout
+            .contains("{tenant}.example.test/bound/{post:slug}/{tab:code?}")
+    );
+    assert!(
+        text.stdout
+            .contains("posts.by_slug › PostController@bySlug")
+    );
+    assert!(!text.stdout.contains("PostController@byId"));
+}
+
+#[tokio::test]
 async fn real_http_requests_cover_optional_constraints_and_named_middleware_priority() {
     use axum::handler::Handler as _;
     use std::{
@@ -773,16 +860,23 @@ async fn real_http_requests_cover_optional_constraints_and_named_middleware_prio
     let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
 
     tokio::task::spawn_blocking(move || {
-        let send = |method: &str, path: &str| {
+        let send_to = |method: &str, path: &str, host: &str| {
             let timeout = Duration::from_secs(5);
             let mut socket = TcpStream::connect_timeout(&address, timeout).unwrap();
             socket.set_read_timeout(Some(timeout)).unwrap();
             socket.set_write_timeout(Some(timeout)).unwrap();
-            write!(socket, "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n").unwrap();
+            write!(socket, "{method} {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").unwrap();
             let mut response = String::new();
             socket.read_to_string(&mut response).unwrap();
             response
         };
+        let send = |method: &str, path: &str| send_to(method, path, &address.to_string());
+        let get = send_to("GET", "/bound/demo/summary", "acme.example.test");
+        assert!(get.ends_with("acme|slug:demo|summary"), "{get}");
+        let post = send_to("POST", "/bound/17", "acme.example.test");
+        assert!(post.ends_with("acme|id:17|-"), "{post}");
+        let wrong_domain = send_to("GET", "/bound/demo/summary", "example.test");
+        assert!(wrong_domain.starts_with("HTTP/1.1 404 "), "{wrong_domain}");
         for (path, expected) in [
             ("/", "-|-|-"),
             ("/007", "007|-|-"),
