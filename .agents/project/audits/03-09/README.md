@@ -74,3 +74,10 @@
 - `sh tests/redis_cluster.sh` 的 4 项测试通过，覆盖过期索引修剪、按标签分批清理、隔离、迁槽和故障切换。真实单机 Redis 的连接与标签清理用例复验通过。
 - 实际双进程 HTTP 验证写入、跨进程读取和自然过期。独立 Artisan `cache:prune-stale-tags redis` 移除过期索引引用并保留有效缓存，`cache:clear redis --tags=artists` 保留普通值和其他标签值。`./artisan inspire` 通过。
 - 工作区严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项标签文档链路检查通过。全仓格式检查仍只报告既有的 `sanctum_authentication.rs:1412` 差异。既有三语文档覆盖本次验证的命令和行为。临时 Redis 与本批隔离产物已回收，日志保留于 `/private/tmp/openrust-03-09-recheck.yJc324Uv`。
+
+## 标签清空中断后的过期索引清理
+
+- 对照固定 Laravel 的有序集合、集群分批清空和 `cache:prune-stale-tags {store?}`。旧版 `v0.x` 的 `redis_tags.rs` 用 Lua 回收清空中断留下的旧代际。本批复用当前单槽 Lua，在移除空索引的同时解除该代际的待回收记录。索引中仍有值时，过期清理保留该记录，后续标签清空仍可继续。 [Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php) · [Laravel 清理命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/PruneStaleTagsCommand.php)
+- 在 `8d7a31a6d` 的隔离快照上，新增回归先在原实现中复现待回收记录残留。修复后 `sh tests/redis_cluster.sh` 在 Redis 8.10.3 通过全部 4 项集群回归。单个索引的 320 个引用分批扫描后，仅保留 160 个有效值。另验证清空中断后的旧值和新代际隔离，以及单机 Redis 的连接、缓存、锁与标签清理。
+- 实际双进程 HTTP 验证共享缓存、自然过期和新代际写入。独立 Artisan 验证 `cache:clear redis --tags=artists` 的失败与成功路径，验证 `cache:prune-stale-tags` 的默认存储、显式存储、重复运行和旧代际回收。检查 Redis 物理键确认旧索引和待回收记录均已删除。根应用 `artisan inspire` 通过。
+- Rust 1.94.0 改动文件格式、工作区严格 Clippy、三语站点构建和 18 项浏览器检查通过。全仓格式仍只报告既有的 `sanctum_authentication.rs:1412` 差异。本批验收日志保留于 `/private/tmp/openrust-03-09-prune.QAkmUtvQ`。

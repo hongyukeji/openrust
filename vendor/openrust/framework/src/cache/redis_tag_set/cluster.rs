@@ -132,7 +132,7 @@ impl RedisTagSet {
                         )
                         .await?;
                     if !self
-                        .cleanup(&registry, &index, &pending, &id, &items)
+                        .cleanup(&registry, &index, &pending, &id, &items, true)
                         .await?
                     {
                         break;
@@ -168,7 +168,9 @@ impl RedisTagSet {
                 if !valid_digest(tag, 64) || !valid_digest(id, 32) {
                     return Err(CacheError::InvalidValue);
                 }
-                self.prune_cluster_index(&registry, &index).await?;
+                let pending = format!("{}pending:{tag}", self.prefix);
+                self.prune_cluster_index(&registry, &index, &pending, id)
+                    .await?;
             }
             if next == 0 {
                 return Ok(());
@@ -177,7 +179,13 @@ impl RedisTagSet {
         }
     }
 
-    async fn prune_cluster_index(&self, registry: &str, index: &str) -> CacheResult<()> {
+    async fn prune_cluster_index(
+        &self,
+        registry: &str,
+        index: &str,
+        pending: &str,
+        id: &str,
+    ) -> CacheResult<()> {
         let mut cursor = 0_u64;
         loop {
             let (next, entries): (u64, Vec<(String, f64)>) = self
@@ -192,10 +200,14 @@ impl RedisTagSet {
             let items: Vec<String> = entries.into_iter().map(|(key, _)| key).collect();
             let mut exists = true;
             for batch in items.chunks(BATCH_SIZE) {
-                exists = self.cleanup(registry, index, registry, "", batch).await?;
+                exists = self
+                    .cleanup(registry, index, pending, id, batch, false)
+                    .await?;
             }
             if items.is_empty() {
-                exists = self.cleanup(registry, index, registry, "", &[]).await?;
+                exists = self
+                    .cleanup(registry, index, pending, id, &[], false)
+                    .await?;
             }
             if next == 0 || !exists {
                 return Ok(());
@@ -211,6 +223,7 @@ impl RedisTagSet {
         pending: &str,
         retirement: &str,
         items: &[String],
+        retire: bool,
     ) -> CacheResult<bool> {
         let prefix = format!("{}value:", self.prefix);
         if !items.iter().all(|item| {
@@ -225,7 +238,8 @@ impl RedisTagSet {
                 .arg(index)
                 .arg(pending)
                 .arg(items)
-                .arg(retirement),
+                .arg(retirement)
+                .arg(retire),
         )
         .await
     }

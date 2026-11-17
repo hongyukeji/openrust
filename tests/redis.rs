@@ -1068,6 +1068,29 @@ async fn redis_cluster_tags_flush_and_prune() {
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&people).await, RedisValue::Int(2));
 
+    let paged = plain.tags(&["paged"]).unwrap();
+    let mut deleted = Vec::new();
+    for number in 0..320 {
+        let key = number.to_string();
+        assert!(paged.forever(&key, &number.into()).await.unwrap());
+        if number % 2 == 0 {
+            deleted.push(paged.taggedItemKey(&key).await.unwrap());
+        }
+    }
+    let keys = deleted.iter().map(String::as_bytes).collect::<Vec<_>>();
+    assert_eq!(
+        connection.command("DEL", &keys).await.unwrap(),
+        RedisValue::Int(160)
+    );
+    let paged_index = index("paged").await;
+    assert_eq!(count(&paged_index).await, RedisValue::Int(320));
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(count(&paged_index).await, RedisValue::Int(160));
+    for number in 0..320 {
+        let expected = (number % 2 != 0).then(|| number.into());
+        assert_eq!(paged.get(&number.to_string()).await.unwrap(), expected);
+    }
+
     let mut physical = vec![
         left.taggedItemKey("item").await.unwrap(),
         reversed.taggedItemKey("item").await.unwrap(),
@@ -1100,6 +1123,38 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!exists(&people).await);
     assert_eq!(plain.get("item").await.unwrap(), Some(1.into()));
     assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
+
+    let interrupted = plain.tags(&["interrupted"]).unwrap();
+    assert!(interrupted.forever("retired", &7.into()).await.unwrap());
+    let retired_value = interrupted.taggedItemKey("retired").await.unwrap();
+    let retired_index = index("interrupted").await;
+    let (prefix, suffix) = retired_index.rsplit_once("index:").unwrap();
+    let (tag, _) = suffix.split_once(':').unwrap();
+    let pending = format!("{prefix}pending:{tag}");
+    connection
+        .command(
+            "ZADD",
+            &[retired_index.as_bytes(), b"-2", invalid.as_bytes()],
+        )
+        .await
+        .unwrap();
+    assert!(interrupted.flush().await.is_err());
+    connection
+        .command("ZREM", &[retired_index.as_bytes(), invalid.as_bytes()])
+        .await
+        .unwrap();
+    assert!(interrupted.forever("current", &8.into()).await.unwrap());
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert!(exists(&retired_value).await);
+    assert!(exists(&pending).await);
+    connection
+        .command("DEL", &[retired_value.as_bytes()])
+        .await
+        .unwrap();
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert!(!exists(&retired_index).await);
+    assert!(!exists(&pending).await);
+    assert_eq!(interrupted.get("current").await.unwrap(), Some(8.into()));
 }
 
 #[tokio::test]
