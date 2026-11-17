@@ -106,6 +106,8 @@ Shift-JIS 文件校验还支持 `SJIS-mac`、`SJIS-2004`、`SJIS-Mobile#DOCOMO`�
 
 HZ、EUC-TW 和 ISO-2022-KR 文件可用 `encoding:HZ`、`File::default().encoding("EUC-TW")` 或 `encoding:ISO-2022-KR` 校验。HZ 和 ISO-2022-KR 的转义与移位遵循 PHP mbstring，EUC-TW 检查 CNS 11643 第 1、2、14 平面的已分配位置。
 
+四种移动版 UTF-8 按标准 UTF-8 校验字节。可用 `encoding:UTF-8-Mobile#DOCOMO` 或 `File::default().encoding("UTF-8-Mobile#SOFTBANK")`，另外两个名称为 `UTF-8-Mobile#KDDI-A` 和 `UTF-8-Mobile#KDDI-B`。校验保留原始字节中的私用区字符。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

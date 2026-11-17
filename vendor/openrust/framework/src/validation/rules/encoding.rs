@@ -76,7 +76,11 @@ impl EncodingRule {
             "base64" => Codec::Base64,
             "utf-7" => Codec::Utf7(utf7::Variant::Standard),
             "utf7-imap" => Codec::Utf7(utf7::Variant::Imap),
-            "utf-8" => Codec::Utf8,
+            "utf-8"
+            | "utf-8-mobile#docomo"
+            | "utf-8-mobile#kddi-a"
+            | "utf-8-mobile#kddi-b"
+            | "utf-8-mobile#softbank" => Codec::Utf8,
             "utf-16" => Codec::Utf16,
             "utf-32" => Codec::Utf32(None),
             "utf-32be" => Codec::Utf32(Some(false)),

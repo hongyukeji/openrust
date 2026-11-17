@@ -106,6 +106,8 @@ Use `encoding:ISO-2022-JP` or `encoding:JIS` to check Japanese escape sequences 
 
 For HZ, EUC-TW, and ISO-2022-KR uploads, use `encoding:HZ`, `File::default().encoding("EUC-TW")`, or `encoding:ISO-2022-KR`. PHP mbstring validates the escape and shift sequences of HZ and ISO-2022-KR. Its EUC-TW validation covers the assigned positions in CNS 11643 planes 1, 2, and 14.
 
+The four carrier-specific UTF-8 encodings use standard UTF-8 byte validation. For example, use `encoding:UTF-8-Mobile#DOCOMO` or `File::default().encoding("UTF-8-Mobile#SOFTBANK")`. The other two names are `UTF-8-Mobile#KDDI-A` and `UTF-8-Mobile#KDDI-B`. Validation preserves private-use characters in the original bytes.
+
 For TIFF and ICO uploads, combine `file` with a size rule such as `dimensions:width=100,height=100`. TIFF dimensions come from the first image directory. ICO dimensions come from the last entry with the highest bit depth. These checks read metadata without decoding pixels. Laravel’s `image` rule excludes TIFF and ICO.
 
 PSD and JPEG 2000 uploads can use the same rules. For a JP2 file, dimensions come from its first root-level codestream. For a raw JPEG 2000 codestream, dimensions come from its SIZ marker. Both formats are outside Laravel’s `image` rule.

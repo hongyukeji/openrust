@@ -143,3 +143,13 @@
 - 独立八组遍历共 524,288 个 PHP 字节结果通过，覆盖 HZ 与 ISO-2022-KR 的普通和移位状态，以及 EUC-TW 的双字节和三个平面前缀。
 - 实际 multipart HTTP 复验上述矩阵及 12,032 个固定 Laravel 样本，共 536,320 个上传值，覆盖转义、截断、全部 EUC-TW 平面选择字节和确定性混合序列。MySQL 8.4.13 下 21 项验证回归通过，三语文档规则均随 HTTP 验证执行。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-hz.ppqxtT3w`。当前 PHP 的编码名称中剩四个移动版 UTF-8，整单元对照待完成，核心账本维持 59/66。
+
+## 04-05 整单元验收
+
+- 补齐 PHP `mb_list_encodings()` 的 79 个正式名称。四个 UTF-8 移动版名称沿用 PHP mbstring 的 UTF-8 字节校验，保持原始字节。按固定 Laravel 的 `validateEncoding` 只接受正式名称，名称比较不区分大小写。PHP 8.5.12 逐码点及代理区完成 4,456,448 个比较，固定 Laravel 与实际 multipart HTTP 完成 267,264 个字节序列比较，全部一致。
+- 在隔离快照上以 Rust 1.94.0 和真实 MySQL 8.4.13 复验。六个定向测试目标合计 62 项通过，覆盖手动 Validator、嵌套与通配字段、null 与缺失、异步规则、数据投影、错误消息本地化、请求与控制器 FormRequest 注入、授权 403、真实 API 422、文件及数据库规则。固定文档对应 [手动验证器](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#manually-creating-validators)、[FormRequest](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#form-request-validation)和 [JSON 错误响应](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#validation-error-response-format)。
+- 工作区格式与严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项验证文档浏览器检查通过。临时 MySQL 已回收，隔离 Cargo 目录继续用于 04-06。证据目录 `/private/tmp/openrust-04-05-mobile-utf8.FFFjCdyd`。
+
+## 04-06 Web 重定向回归
+
+- 邻接单元的 `validation_web` 复测一项通过、一项失败。无 Referer 的表单校验失败时，Session 保存的完整上一页 URL 被相对路径过滤拒绝，302 回退到 `/`，期望为 `/edit?step=1`。该问题已在本记录的 MySQL 数据库验证批次复现。本次将 04-06 重新列为待验收，04-05 按其独立的 API、Validator 和 FormRequest 范围闭合，核心账本维持 59/66。

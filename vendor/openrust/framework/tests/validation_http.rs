@@ -393,6 +393,20 @@ impl FormRequest for Upload {
             "encoding-iso-2022-kr" => {
                 RuleSet::parse([("attachments.*", "required|file|encoding:ISO-2022-KR")])
             }
+            "encoding-utf-8-mobile-docomo"
+            | "encoding-utf-8-mobile-kddi-a"
+            | "encoding-utf-8-mobile-kddi-b" => {
+                let carrier = &self.0["encoding-utf-8-mobile-".len()..];
+                let rule = format!("required|file|encoding:UTF-8-Mobile#{carrier}");
+                RuleSet::parse([("attachments.*", rule.as_str())])
+            }
+            "encoding-utf-8-mobile-softbank" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("UTF-8-Mobile#SOFTBANK").into(),
+                ],
+            ),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1664,6 +1678,48 @@ async fn validates_hz_euc_tw_and_iso_2022_kr_over_real_http() {
         .await;
         assert!(response["errors"]["attachments.0"].is_array());
     }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_mobile_utf8_encodings_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for mode in [
+        "encoding-utf-8-mobile-docomo",
+        "encoding-utf-8-mobile-kddi-a",
+        "encoding-utf-8-mobile-kddi-b",
+        "encoding-utf-8-mobile-softbank",
+    ] {
+        for bytes in ["日😀\u{e63e}\u{f0000}".as_bytes(), b"plain"] {
+            upload_file(
+                address,
+                mode,
+                "data.bin",
+                "application/octet-stream",
+                bytes,
+                200,
+            )
+            .await;
+        }
+        for bytes in [
+            b"\xc0\xaf".as_slice(),
+            b"\xed\xa0\x80",
+            b"\xf0\x9f\x98",
+            b"\xf4\x90\x80\x80",
+        ] {
+            let rejected = upload_file(
+                address,
+                mode,
+                "data.bin",
+                "application/octet-stream",
+                bytes,
+                422,
+            )
+            .await;
+            assert!(rejected["errors"]["attachments.0"].is_array());
+        }
+    }
+    assert!(RuleSet::parse([("value", "encoding:UTF-8-Mobile#KDDI")]).is_err());
     server.abort();
 }
 
