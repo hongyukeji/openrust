@@ -749,6 +749,19 @@ fn change_region_code(table: &mut Blueprint) {
 }
 ```
 
+#### 替換 MySQL 主鍵 {#replacing-a-mysql-primary-key}
+
+在同一個 MySQL 資料表變更回呼中依序緊接呼叫 `dropPrimary()` 和 `primary(...)`，OpenRust 會產生一條 ALTER TABLE。自動遞增欄位須為某個可用索引的第一欄，例如下例的複合主鍵。儲存引擎支援時，可在新主鍵宣告中指定 `inplace()` 或 `lock("none")`。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn replace_import_key(table: &mut Blueprint) {
+    table.dropPrimary();
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
 #### 依欄位清單移除索引 {#dropping-indexes-by-columns}
 
 將有序欄位清單傳給 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可移除該類型下使用預設名稱的索引。自訂名稱的索引使用對應的依名稱移除方法。

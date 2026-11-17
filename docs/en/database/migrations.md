@@ -749,6 +749,19 @@ fn change_region_code(table: &mut Blueprint) {
 }
 ```
 
+#### Replacing a MySQL Primary Key {#replacing-a-mysql-primary-key}
+
+Call `dropPrimary()` immediately before `primary(...)` in the same MySQL table callback. OpenRust emits one ALTER TABLE statement. Keep an auto-increment column first in a suitable index, such as the new primary key in this example. Add index options such as `inplace()` or `lock("none")` to the replacement declaration when the engine supports them.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn replace_import_key(table: &mut Blueprint) {
+    table.dropPrimary();
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
 #### Dropping Indexes by Column List {#dropping-indexes-by-columns}
 
 Pass the ordered column list to `dropIndexColumns`, `dropUniqueColumns`, `dropFullTextColumns`, or `dropSpatialIndexColumns` to drop an index created with the default name for its kind. For a custom name, use the corresponding method that takes the name.

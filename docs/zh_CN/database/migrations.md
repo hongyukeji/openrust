@@ -749,6 +749,19 @@ fn change_region_code(table: &mut Blueprint) {
 }
 ```
 
+#### 替换 MySQL 主键 {#replacing-a-mysql-primary-key}
+
+在同一个 MySQL 改表回调中紧接着调用 `dropPrimary()` 和 `primary(...)`，OpenRust 会生成一条 ALTER TABLE。自增列必须是某个可用索引的首列，例如下例的复合主键。存储引擎支持时，可在新主键声明上指定 `inplace()` 或 `lock("none")`。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn replace_import_key(table: &mut Blueprint) {
+    table.dropPrimary();
+    table.primary(&["id", "tenant_id"], None);
+}
+```
+
 #### 按列列表删除索引 {#dropping-indexes-by-columns}
 
 将有序列列表传给 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns` 或 `dropSpatialIndexColumns`，可删除该类型下使用默认名称的索引。自定义名称的索引使用相应的按名称删除方法。

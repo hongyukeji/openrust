@@ -2028,6 +2028,103 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_replaces_primary_keys_in_one_alter_statement() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix": "it_"}));
+    let mut schema = db.getSchemaBuilder();
+    let serial = "replace_primary_serial";
+    let repeated = "replace_primary_duplicate";
+    for name in [serial, repeated] {
+        schema.dropIfExists(name).await.unwrap();
+    }
+    schema
+        .create(serial, |table| {
+            table.id().startingValue(24);
+            table.integer("tenant_id");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table(serial)
+            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .await
+            .unwrap(),
+        24.into()
+    );
+    schema
+        .table(serial, |table| {
+            table.dropPrimary();
+            table
+                .primary(&["id", "tenant_id"], None)
+                .inplace()
+                .lock("NONE");
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes(serial).await.unwrap();
+    assert_eq!(indexes.len(), 1);
+    assert!(indexes[0].primary);
+    assert_eq!(
+        indexes[0].columns,
+        [Some("id".into()), Some("tenant_id".into())]
+    );
+    assert!(
+        schema
+            .getColumn(serial, "id")
+            .await
+            .unwrap()
+            .unwrap()
+            .auto_increment
+    );
+    assert_eq!(
+        db.table(serial)
+            .insertGetId(BTreeMap::from([("tenant_id".into(), 2.into())]))
+            .await
+            .unwrap(),
+        25.into()
+    );
+
+    schema
+        .create(repeated, |table| {
+            table.integer("id").primary();
+            table.integer("repeated");
+        })
+        .await
+        .unwrap();
+    db.insert(
+        "insert into it_replace_primary_duplicate (id, repeated) values (1, 7), (2, 7)",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert!(
+        schema
+            .table(repeated, |table| {
+                table.dropPrimary();
+                table.primary(&["repeated"], None);
+            })
+            .await
+            .is_err()
+    );
+    let indexes = schema.getIndexes(repeated).await.unwrap();
+    assert_eq!(indexes.len(), 1);
+    assert!(indexes[0].primary);
+    assert_eq!(indexes[0].columns, [Some("id".into())]);
+    assert_eq!(db.table(repeated).count("*").await.unwrap(), 2);
+    schema
+        .table(repeated, |table| table.dropPrimary())
+        .await
+        .unwrap();
+    assert!(schema.getIndexes(repeated).await.unwrap().is_empty());
+    for name in [serial, repeated] {
+        schema.drop(name).await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn mysql_changes_columns_with_fluent_index_changes_and_foreign_keys() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

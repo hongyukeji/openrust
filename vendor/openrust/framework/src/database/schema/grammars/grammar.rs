@@ -186,11 +186,7 @@ impl Grammar {
                             "primary key modifiers on create",
                         ));
                     }
-                    constraints.push(format!(
-                        "primary key{} ({})",
-                        self.index_method(&index)?,
-                        self.columns(&index.columns)?
-                    ));
+                    constraints.push(self.primary_key(&index)?);
                 }
                 Command::Index(index) => indexes.push(self.add_index(table, &index)?),
                 Command::Foreign(foreign) if foreign.inplace || foreign.lock.is_some() => {
@@ -280,7 +276,8 @@ impl Grammar {
         let mut sql = Vec::new();
         let mut starting_values = Vec::new();
         let mut indexes = Vec::new();
-        for command in blueprint.commands {
+        let mut commands = blueprint.commands.into_iter().peekable();
+        while let Some(command) = commands.next() {
             match command {
                 Command::Column(mut column) => {
                     let mut previous_name = None;
@@ -365,7 +362,17 @@ impl Grammar {
                     ));
                 }
                 Command::DropIndex(IndexType::Primary, _) if self.mysql() => {
-                    sql.push(format!("alter table {qualified} drop primary key"))
+                    if let Some(Command::Index(index)) = commands.next_if(
+                        |command| matches!(command, Command::Index(index) if index.kind == IndexType::Primary),
+                    ) {
+                        let primary = self.primary_key(&index)?;
+                        let options = self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+                        sql.push(format!(
+                            "alter table {qualified} drop primary key, add {primary}{options}"
+                        ));
+                    } else {
+                        sql.push(format!("alter table {qualified} drop primary key"));
+                    }
                 }
                 Command::DropIndex(IndexType::Primary, _) => {
                     return Err(DatabaseError::UnsupportedSchema(
@@ -434,6 +441,14 @@ impl Grammar {
             indexes.push(sql);
         }
         Ok(())
+    }
+
+    fn primary_key(&self, index: &IndexDefinition) -> DatabaseResult<String> {
+        Ok(format!(
+            "primary key{} ({})",
+            self.index_method(index)?,
+            self.columns(&index.columns)?
+        ))
     }
 
     fn add_index(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {

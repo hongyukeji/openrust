@@ -381,3 +381,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `ab9a08e9`，Rust 1.94.0 和真实 MySQL 8.4.13。32 项 Schema 回归通过，覆盖改列后保留索引及外键、外键继续拒绝无效记录、改列并重命名后删除约定唯一索引、创建具名普通及全文索引、显式删除外键后移除支撑索引，以及保留既有记录。表目录和限定 Schema 清库通过。
 - 三语共用示例经实际 Artisan 验证预演无表、迁移后的新旧索引状态和回滚移除表，`main artisan inspire` 通过。证据目录 `/private/tmp/openrust-02-05-fluent-indexes.w24DQ7ue`。
 - 严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 SQLite 路径完成编译，日常真实驱动验收为 MySQL。临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.63 GB（104.89 GiB），周额度剩余 65%，第二窗口无读数。
+
+
+## MySQL 主键替换
+
+- 对照固定 Laravel 的 `dropPrimary` 与 `primary` 及 MySQL InnoDB 主键 DDL。旧版 `v0.x` 未找到相邻主键替换的处理。Rust 复用现有命令与主键列编译，在 MySQL 中合并同一 Blueprint 内相邻的 `dropPrimary()`、`primary(...)`，使用原生单条 ALTER TABLE。保留新主键的索引方法和在线 DDL 选项。单独删除主键继续执行原命令。 [Laravel 主键删除](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L526) · [MySQL 主键操作](https://dev.mysql.com/doc/refman/8.4/en/innodb-online-ddl-operations.html)
+- 隔离基线 `dff6799a`，Rust 1.94.0 和真实 MySQL 8.4.13。33 项 Schema 回归通过。新用例验证在原主键是自增列唯一支撑索引时切换到同列开头的复合主键、`ALGORITHM=INPLACE` 和 `LOCK=NONE`、保留序列、重复数据拒绝替换时保留旧主键，以及独立删除。表目录与限定 Schema 清库通过。
+- 三语共用示例经实际 Artisan 验证预演仅输出一条替换语句且未创建表、实际复合主键目录、自增列保留和回滚。`main artisan inspire` 通过。证据目录 `/private/tmp/openrust-02-05-primary.kDHrlym6`。
+- 严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。期间 Reverb 独立提交已进入主线，Schema 与迁移文档基线未变。本批临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.15 GB（104.45 GiB），周额度剩余 65%，第二窗口无读数。
