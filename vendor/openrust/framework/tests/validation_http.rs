@@ -329,6 +329,23 @@ impl FormRequest for Upload {
                 "attachments.*",
                 [Rule::required(), File::default().encoding("UHC").into()],
             ),
+            "encoding-euc-jp" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:EUC-JP")])
+            }
+            "encoding-eucjp-win" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:eucJP-win")])
+            }
+            "encoding-cp51932" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("CP51932").into()],
+            ),
+            "encoding-euc-jp-2004" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("EUC-JP-2004").into(),
+                ],
+            ),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1406,6 +1423,63 @@ async fn validates_gb_encodings_over_real_http() {
         422,
     )
     .await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_japanese_euc_encodings_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, valid, invalid) in [
+        ("encoding-euc-jp", b"a\x8f\xa2\xaf", b"a\xad\xa1b"),
+        ("encoding-eucjp-win", b"a\x8f\xf3\xf3", b"a\x8f\xf3\xf2"),
+        ("encoding-cp51932", b"a\xfc\xf1b", b"a\x8f\xa2\xaf"),
+        ("encoding-euc-jp-2004", b"a\x8f\xa1\xa1", b"a\x8f\xa2\xaf"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            valid,
+            200,
+        )
+        .await;
+        let response = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            invalid,
+            422,
+        )
+        .await;
+        assert!(response["errors"]["attachments.0"].is_array());
+    }
+    for mode in [
+        "encoding-euc-jp",
+        "encoding-eucjp-win",
+        "encoding-cp51932",
+        "encoding-euc-jp-2004",
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            b"\x8e\xa1",
+            200,
+        )
+        .await;
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            b"\x8f\xa1",
+            422,
+        )
+        .await;
+    }
     server.abort();
 }
 

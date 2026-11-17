@@ -98,6 +98,8 @@ For East Asian double-byte uploads, choose the encoding used by the file. `encod
 
 Use `encoding:EUC-CN` for its assigned two-byte positions and `encoding:CP936` for the Windows byte repertoire. `encoding:GB18030` and `File::default().encoding("GB18030-2022")` follow PHP mbstring’s byte validation. Both accept the same two-byte and four-byte sequences.
 
+Use `encoding:EUC-JP` or `encoding:eucJP-win` for their respective Japanese byte tables. The fluent file rule also accepts `File::default().encoding("CP51932")` and `File::default().encoding("EUC-JP-2004")`. PHP mbstring defines the assigned two-byte and three-byte positions for each variant.
+
 For TIFF and ICO uploads, combine `file` with a size rule such as `dimensions:width=100,height=100`. TIFF dimensions come from the first image directory. ICO dimensions come from the last entry with the highest bit depth. These checks read metadata without decoding pixels. Laravel’s `image` rule excludes TIFF and ICO.
 
 PSD and JPEG 2000 uploads can use the same rules. For a JP2 file, dimensions come from its first root-level codestream. For a raw JPEG 2000 codestream, dimensions come from its SIZ marker. Both formats are outside Laravel’s `image` rule.

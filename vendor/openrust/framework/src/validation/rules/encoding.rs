@@ -1,4 +1,5 @@
 mod double_byte;
+mod euc_jp;
 mod gb18030;
 mod utf7;
 
@@ -27,6 +28,7 @@ enum Codec {
     ShiftJis { windows: bool },
     Cp936,
     Gb18030,
+    EucJp(euc_jp::Variant),
     DoubleByte(fn(u8, u8) -> bool),
     Utf32(Option<bool>),
     Decoder(&'static Encoding),
@@ -76,7 +78,10 @@ impl EncodingRule {
             "ucs-4le" => Codec::Ucs4(true),
             "sjis" => Codec::ShiftJis { windows: false },
             "cp932" | "sjis-win" => Codec::ShiftJis { windows: true },
-            "eucjp-win" => Codec::Decoder(encoding_rs::EUC_JP),
+            "euc-jp" => Codec::EucJp(euc_jp::Variant::Standard),
+            "eucjp-win" => Codec::EucJp(euc_jp::Variant::Windows),
+            "cp51932" => Codec::EucJp(euc_jp::Variant::Cp51932),
+            "euc-jp-2004" => Codec::EucJp(euc_jp::Variant::Jis2004),
             "euc-cn" => Codec::DoubleByte(double_byte::euc_cn),
             "cp936" => Codec::Cp936,
             "gb18030" | "gb18030-2022" => Codec::Gb18030,
@@ -84,7 +89,7 @@ impl EncodingRule {
             "cp950" => Codec::DoubleByte(double_byte::cp950),
             "euc-kr" => Codec::DoubleByte(double_byte::euc_kr),
             "uhc" => Codec::DoubleByte(double_byte::uhc),
-            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" => Codec::Decoder(
+            "utf-16be" | "utf-16le" | "iso-2022-jp" => Codec::Decoder(
                 Encoding::for_label_no_replacement(label.as_bytes())
                     .ok_or(ValidationError::InvalidRule)?,
             ),
@@ -140,6 +145,7 @@ impl EncodingRule {
                 }
             }),
             Codec::Gb18030 => gb18030::check(value),
+            Codec::EucJp(variant) => variant.check(value),
             Codec::DoubleByte(accepts) => valid_pairs(value, |lead, trail| {
                 if trail.is_some_and(|trail| accepts(lead, trail)) {
                     2
