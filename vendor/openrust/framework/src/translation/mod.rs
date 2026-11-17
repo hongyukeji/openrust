@@ -6,6 +6,7 @@ mod file_loader;
 mod locale;
 mod lookup;
 mod message_selector;
+mod replacement;
 mod translation_service_provider;
 mod translator;
 
@@ -16,6 +17,7 @@ pub use file_loader::FileLoader;
 pub use locale::canonical_locale;
 pub use lookup::MissingTranslation;
 pub use message_selector::{MessageSelector, PluralCount};
+pub use replacement::Replacement;
 pub use translation_service_provider::TranslationServiceProvider;
 pub use translator::Translator;
 
@@ -53,6 +55,9 @@ pub enum TranslationError {
     InvalidLocale,
     InvalidKey,
     UnexpectedType,
+    InvalidTag,
+    MissingStringable(&'static str),
+    StringableFormat(std::fmt::Error),
     CatalogChanged,
     Source(Box<dyn std::error::Error + Send + Sync>),
     Unavailable(crate::contracts::container::BindingResolutionError),
@@ -67,6 +72,13 @@ impl std::fmt::Display for TranslationError {
             Self::UnexpectedType => {
                 formatter.write_str("Translation value has an unexpected type.")
             }
+            Self::InvalidTag => formatter.write_str("Invalid translation tag name."),
+            Self::MissingStringable(name) => {
+                write!(formatter, "No translation formatter for {name}.")
+            }
+            Self::StringableFormat(_) => {
+                formatter.write_str("Could not format translation object.")
+            }
             Self::CatalogChanged => {
                 formatter.write_str("Translation catalog changed during loading.")
             }
@@ -80,6 +92,7 @@ impl std::error::Error for TranslationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Source(source) => Some(source.as_ref()),
+            Self::StringableFormat(source) => Some(source),
             Self::Unavailable(source) => Some(source),
             _ => None,
         }

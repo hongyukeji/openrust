@@ -1,6 +1,7 @@
 #![allow(non_snake_case, reason = "Matches Laravel's translator API")]
 
 use std::{
+    any::Any,
     collections::{BTreeMap, HashMap, HashSet},
     future::Future,
     path::PathBuf,
@@ -10,11 +11,12 @@ use std::{
 use crate::contracts::translation::{Loader, Translator as Contract};
 
 use super::{
-    FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResource,
-    TranslationResult,
+    FileLoader, Line, Lines, MessageSelector, PluralCount, Replacement, TranslationError,
+    TranslationResource, TranslationResult,
     file_loader::{merge::indexed, valid_group, valid_segment},
     locale::canonical_locale,
     lookup::{LookupHooks, MissingTranslation},
+    replacement::{Stringables, replace},
 };
 
 type Replacements = BTreeMap<String, String>;
@@ -56,6 +58,7 @@ pub struct Translator {
     loaded: Mutex<HashMap<CatalogKey, Catalog>>,
     identity: Arc<()>,
     hooks: LookupHooks,
+    stringables: Stringables,
 }
 
 impl Translator {
@@ -75,6 +78,7 @@ impl Translator {
             loaded: Mutex::default(),
             identity: Arc::new(()),
             hooks: LookupHooks::default(),
+            stringables: Stringables::default(),
         })
     }
 
@@ -286,6 +290,21 @@ impl Translator {
         self.hooks.missing(MissingTranslation {
             key,
             replacements,
+            mixed_replacements: &[],
+            locale,
+            fallback: true,
+        })
+    }
+
+    fn missing_with(&self, key: &str, args: &[(&str, Replacement<'_>)], locale: &str) -> String {
+        let replacements = args
+            .iter()
+            .filter_map(|(name, value)| Some(((*name).into(), value.as_text()?.into())))
+            .collect();
+        self.hooks.missing(MissingTranslation {
+            key,
+            replacements: &replacements,
+            mixed_replacements: args,
             locale,
             fallback: true,
         })
@@ -297,13 +316,35 @@ impl Translator {
         replacements: &Replacements,
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        let locale = self.resolve_locale(locale)?;
-        let text = match self.lookup(key, &locale, true)?.map(|found| found.line) {
-            Some(Line::Text(text)) => text,
-            Some(_) => return Err(TranslationError::UnexpectedType),
-            None => self.missing(key, replacements, &locale),
-        };
+        let text = self.string_line(key, locale, |locale| {
+            self.missing(key, replacements, locale)
+        })?;
         Ok(replace(&text, replacements))
+    }
+
+    /// Translates text with ordered scalar, tag, and object replacements.
+    pub fn stringWith(
+        &self,
+        key: &str,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<String> {
+        let text = self.string_line(key, locale, |locale| self.missing_with(key, args, locale))?;
+        self.stringables.replace(text, args, None)
+    }
+
+    fn string_line(
+        &self,
+        key: &str,
+        locale: Option<&str>,
+        missing: impl FnOnce(&str) -> String,
+    ) -> TranslationResult<String> {
+        let locale = self.resolve_locale(locale)?;
+        match self.lookup(key, &locale, true)?.map(|found| found.line) {
+            Some(Line::Text(text)) => Ok(text),
+            Some(_) => Err(TranslationError::UnexpectedType),
+            None => Ok(missing(&locale)),
+        }
     }
 
     pub fn array(
@@ -312,22 +353,39 @@ impl Translator {
         replacements: &Replacements,
         locale: Option<&str>,
     ) -> TranslationResult<Lines> {
+        let lines = self.array_lines(key, locale, |locale| {
+            self.missing(key, replacements, locale)
+        })?;
+        map_lines(lines, &|text| Ok(replace(&text, replacements)))
+    }
+
+    /// Applies ordered replacements to every text leaf in a group or list.
+    pub fn arrayWith(
+        &self,
+        key: &str,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<Lines> {
+        let lines = self.array_lines(key, locale, |locale| self.missing_with(key, args, locale))?;
+        map_lines(lines, &|text| self.stringables.replace(text, args, None))
+    }
+
+    fn array_lines(
+        &self,
+        key: &str,
+        locale: Option<&str>,
+        missing: impl FnOnce(&str) -> String,
+    ) -> TranslationResult<Lines> {
         let locale = self.resolve_locale(locale)?;
-        let mut lines = match self.lookup(key, &locale, true)?.map(|found| found.line) {
-            Some(Line::Group(lines)) => lines,
-            Some(Line::List(lines)) => lines
-                .into_iter()
-                .enumerate()
-                .map(|(index, line)| (index.to_string(), line))
-                .collect(),
-            Some(_) => return Err(TranslationError::UnexpectedType),
+        match self.lookup(key, &locale, true)?.map(|found| found.line) {
+            Some(Line::Group(lines)) => Ok(lines),
+            Some(Line::List(lines)) => Ok(indexed(lines)),
+            Some(_) => Err(TranslationError::UnexpectedType),
             None => {
-                self.missing(key, replacements, &locale);
-                return Err(TranslationError::UnexpectedType);
+                missing(&locale);
+                Err(TranslationError::UnexpectedType)
             }
-        };
-        replace_lines(&mut lines, replacements);
-        Ok(lines)
+        }
     }
 
     pub fn choose(
@@ -337,8 +395,41 @@ impl Translator {
         replacements: &Replacements,
         locale: Option<&str>,
     ) -> TranslationResult<String> {
-        let locale = self.resolve_locale(locale)?;
         let count = count.into();
+        let chosen = self.select_choice(key, count, locale)?;
+        let mut replacements = replacements.clone();
+        replacements
+            .entry("count".into())
+            .or_insert_with(|| count.to_string());
+        Ok(replace(&chosen, &replacements))
+    }
+
+    /// Selects a plural form before invoking replacement callbacks.
+    pub fn choiceWith(
+        &self,
+        key: &str,
+        count: impl Into<PluralCount>,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<String> {
+        let count = count.into();
+        let chosen = self.select_choice(key, count, locale)?;
+        self.stringables
+            .replace(chosen, args, Some(count.to_string()))
+    }
+
+    /// Registers a formatter for one concrete Rust type on this translator.
+    pub fn stringable<T: Any>(&self, formatter: impl Fn(&T) -> String + Send + Sync + 'static) {
+        self.stringables.register(formatter);
+    }
+
+    fn select_choice(
+        &self,
+        key: &str,
+        count: PluralCount,
+        locale: Option<&str>,
+    ) -> TranslationResult<String> {
+        let locale = self.resolve_locale(locale)?;
         let found = match self
             .lookup(key, &locale, false)?
             .filter(|found| found.exists(key))
@@ -358,12 +449,7 @@ impl Translator {
                 self.fallback.clone(),
             ),
         };
-        let chosen = MessageSelector.choose(&line, count, &selected)?;
-        let mut replacements = replacements.clone();
-        replacements
-            .entry("count".into())
-            .or_insert_with(|| count.to_string());
-        Ok(replace(chosen, &replacements))
+        Ok(MessageSelector.choose(&line, count, &selected)?.to_owned())
     }
 
     fn resolve_locale(&self, locale: Option<&str>) -> TranslationResult<String> {
@@ -594,53 +680,27 @@ fn find_child<'a>(line: &'a Line, key: &str) -> Option<&'a Line> {
     }
 }
 
-fn replace_lines(lines: &mut Lines, replacements: &Replacements) {
-    for line in lines.values_mut() {
-        replace_line(line, replacements);
-    }
+fn map_lines(
+    lines: Lines,
+    render: &impl Fn(String) -> TranslationResult<String>,
+) -> TranslationResult<Lines> {
+    lines
+        .into_iter()
+        .map(|(key, line)| Ok((key, map_line(line, render)?)))
+        .collect()
 }
 
-fn replace_line(line: &mut Line, replacements: &Replacements) {
+fn map_line(
+    line: Line,
+    render: &impl Fn(String) -> TranslationResult<String>,
+) -> TranslationResult<Line> {
     match line {
-        Line::Text(text) => *text = replace(text, replacements),
-        Line::Group(group) => replace_lines(group, replacements),
+        Line::Text(text) => render(text).map(Line::Text),
+        Line::Group(group) => map_lines(group, render).map(Line::Group),
         Line::List(list) => list
-            .iter_mut()
-            .for_each(|line| replace_line(line, replacements)),
+            .into_iter()
+            .map(|line| map_line(line, render))
+            .collect::<TranslationResult<_>>()
+            .map(Line::List),
     }
-}
-
-fn replace(text: &str, replacements: &Replacements) -> String {
-    if replacements.is_empty() {
-        return text.to_owned();
-    }
-    let mut tokens = BTreeMap::new();
-    for (key, value) in replacements {
-        if !key.is_empty() {
-            tokens.insert(format!(":{}", key.to_uppercase()), value.to_uppercase());
-            tokens.insert(format!(":{}", title(key)), title(value));
-            tokens.insert(format!(":{key}"), value.clone());
-        }
-    }
-    let mut tokens: Vec<_> = tokens.into_iter().collect();
-    tokens.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
-    let mut output = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(index) = rest.find(':') {
-        output.push_str(&rest[..index]);
-        rest = &rest[index..];
-        if let Some((token, value)) = tokens.iter().find(|(token, _)| rest.starts_with(token)) {
-            output.push_str(value);
-            rest = &rest[token.len()..];
-        } else {
-            output.push(':');
-            rest = &rest[1..];
-        }
-    }
-    output.push_str(rest);
-    output
-}
-
-fn title(value: &str) -> String {
-    super::choice_case::titlecase_first(value)
 }

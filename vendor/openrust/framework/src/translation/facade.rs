@@ -1,12 +1,12 @@
 #![allow(non_snake_case, reason = "Matches Laravel's Lang API")]
 
-use std::{collections::BTreeMap, future::Future, path::PathBuf};
+use std::{any::Any, collections::BTreeMap, future::Future, path::PathBuf};
 
 use crate::{container::ServiceKey, contracts::translation::Loader, support::facades::Facade};
 
 use super::{
-    Line, Lines, MissingTranslation, PluralCount, TranslationError, TranslationResource,
-    TranslationResult, Translator,
+    Line, Lines, MissingTranslation, PluralCount, Replacement, TranslationError,
+    TranslationResource, TranslationResult, Translator,
 };
 
 /// Accesses the translator for the current application.
@@ -50,6 +50,46 @@ impl Lang {
         Self::getFacadeRoot()
             .map_err(TranslationError::Unavailable)?
             .array(key, replacements, locale)
+    }
+
+    pub fn getWith(
+        key: &str,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<String> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .stringWith(key, args, locale)
+    }
+
+    pub fn arrayWith(
+        key: &str,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<Lines> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .arrayWith(key, args, locale)
+    }
+
+    pub fn choiceWith(
+        key: &str,
+        count: impl Into<PluralCount>,
+        args: &[(&str, Replacement<'_>)],
+        locale: Option<&str>,
+    ) -> TranslationResult<String> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .choiceWith(key, count, args, locale)
+    }
+
+    pub fn stringable<T: Any>(
+        formatter: impl Fn(&T) -> String + Send + Sync + 'static,
+    ) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .stringable(formatter);
+        Ok(())
     }
 
     pub fn has(key: &str, locale: Option<&str>, fallback: bool) -> TranslationResult<bool> {

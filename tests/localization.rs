@@ -6,7 +6,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     support::facades::{Lang, Route},
-    translation::{__, TranslationError, trans_choice},
+    translation::{__, Line, Replacement, TranslationError, trans_choice},
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -18,9 +18,13 @@ struct Root(PathBuf);
 
 impl Root {
     fn new(default_locale: &str) -> Self {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static NEXT_ROOT: AtomicUsize = AtomicUsize::new(0);
+
         let path = std::env::temp_dir().join(format!(
-            "openrust-localization-{}-{default_locale}",
-            std::process::id()
+            "openrust-localization-{}-{default_locale}-{}",
+            std::process::id(),
+            NEXT_ROOT.fetch_add(1, Ordering::Relaxed),
         ));
         fs::create_dir(&path).unwrap();
         fs::write(
@@ -141,6 +145,69 @@ fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
+struct NoticeLabel(&'static str);
+
+impl std::fmt::Display for NoticeLabel {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+
+fn install_translation_replacements(
+    _: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Lang::stringable(|label: &NoticeLabel| format!("custom {}", label.0))
+            .map_err(http_error)?;
+        Lang::handleMissingKeysUsing(|missing| match missing.key {
+            "replacements.missing" => {
+                assert_eq!(missing.replacements.get("name").unwrap(), "Ada");
+                assert_eq!(
+                    missing.mixed_replacements[1]
+                        .1
+                        .as_object::<NoticeLabel>()
+                        .unwrap()
+                        .0,
+                    "status"
+                );
+                assert!(missing.mixed_replacements[2].1.as_tag().is_some());
+                Some("<mark>:name</mark> :LABEL".into())
+            }
+            "replacements.items" => {
+                assert!(missing.mixed_replacements.is_empty());
+                Some("{1} <unused>one</unused>|[2,*] <mark>:count :label</mark>".into())
+            }
+            _ => None,
+        })
+        .map_err(http_error)?;
+        Ok(Response::new(StatusCode::OK, Body::from("installed")))
+    })
+}
+
+fn mixed_translation(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let label = NoticeLabel("status");
+        let args = [
+            ("name", "Ada".into()),
+            ("label", Replacement::display(&label)),
+            ("mark", Replacement::tag(|content| format!("[{content}]"))),
+            (
+                "unused",
+                Replacement::tag(|_| panic!("unchosen branch was formatted")),
+            ),
+        ];
+        let result = (|| -> Result<Value, TranslationError> {
+            Ok(json!({
+                "missing": Lang::getWith("replacements.missing", &args, None)?,
+                "choice": Lang::choiceWith("replacements.items", 2_i64, &args, None)?,
+                "label": Lang::getWith(":label", &args, None)?,
+            }))
+        })()
+        .map_err(http_error)?;
+        Response::json(StatusCode::OK, result)
+    })
+}
+
 fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         use openrust::translation::Line;
@@ -230,6 +297,8 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             }
             Route::get("/install-hooks", install_lookup_hooks)?;
             Route::get("/hooks", lookup_hooks)?;
+            Route::get("/install-replacements", install_translation_replacements)?;
+            Route::get("/mixed-translation", mixed_translation)?;
             Route::get("/register-runtime-lines", register_runtime_lines)?;
             Route::get("/load-external-lines", load_external_lines)?;
             Route::get("/default", default_locale)
@@ -872,4 +941,139 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
             .unwrap(),
         "concurrent"
     );
+}
+
+#[tokio::test]
+async fn translation_replacements_are_isolated_across_http_applications() {
+    let left = Root::new("en_CA");
+    let right = Root::new("en_AU");
+    let ((first, one), (second, two)) = tokio::join!(start(&left), start(&right));
+    assert_eq!(send(first, "/install-replacements").await, "installed");
+    let (changed, default) = tokio::join!(
+        send(first, "/mixed-translation"),
+        send(second, "/mixed-translation")
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&changed).unwrap(),
+        json!({"missing": "[Ada] CUSTOM STATUS", "choice": "[2 custom status]", "label": "custom status"})
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&default).unwrap(),
+        json!({"missing": "replacements.missing", "choice": "replacements.items", "label": "status"})
+    );
+    one.abort();
+    two.abort();
+}
+
+#[test]
+fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
+    use openrust::translation::{FileLoader, Translator};
+    use std::cell::Cell;
+
+    let root = Root::new("replacement-order");
+    let translator = Translator::new(
+        FileLoader::new(root.0.join("lang")),
+        "en".into(),
+        "en".into(),
+    )
+    .unwrap();
+    translator
+        .addLines(
+            [
+                (
+                    "render.leaves".into(),
+                    Line::List(vec![
+                        Line::Text("<mark>:name</mark><mark>x</mark>".into()),
+                        Line::List(vec![Line::Text("<mark>a\nb</mark>:NAME :S".into())]),
+                    ]),
+                ),
+                (
+                    "render.items".into(),
+                    Line::Text("{1} one|[2,*] :count :Count :COUNT".into()),
+                ),
+            ],
+            "en",
+            None,
+        )
+        .unwrap();
+    let calls = Cell::new(0);
+    let args = [
+        (
+            "mark",
+            Replacement::tag(|raw| {
+                calls.set(calls.get() + 1);
+                format!("<tail>{raw}</tail>")
+            }),
+        ),
+        ("tail", Replacement::tag(|raw| format!("[{raw}]"))),
+        ("name", "ada".into()),
+        ("s", "some name".into()),
+    ];
+    let rendered = translator.arrayWith("render.leaves", &args, None).unwrap();
+    assert_eq!(rendered["0"], Line::Text("[ada][x]".into()));
+    assert_eq!(
+        rendered["1"],
+        Line::List(vec![Line::Text("<mark>a\nb</mark>ADA SOME NAME".into())])
+    );
+    assert_eq!(calls.get(), 2);
+    assert_eq!(
+        translator
+            .stringWith(
+                ":name-long :name <mark>tail</mark> <mark>X<mark>Y</mark>Z</mark>",
+                &[
+                    ("name", "<mark>literal</mark>".into()),
+                    ("name-long", ":name".into()),
+                    ("mark", Replacement::tag(|text| format!("[{text}]"))),
+                ],
+                None
+            )
+            .unwrap(),
+        ":name <mark>literal</mark> [tail] [X<mark>Y]Z</mark>"
+    );
+    assert_eq!(
+        translator
+            .choiceWith("render.items", 2_i64, &[("count", "two".into())], None,)
+            .unwrap(),
+        "two Two TWO"
+    );
+    assert!(matches!(
+        translator.stringWith(
+            ":label",
+            &[("label", Replacement::object(&NoticeLabel("x")))],
+            None
+        ),
+        Err(TranslationError::MissingStringable(_))
+    ));
+    assert!(matches!(
+        translator.stringWith("hello", &[("x.*", Replacement::tag(str::to_owned))], None),
+        Err(TranslationError::InvalidTag)
+    ));
+}
+
+#[test]
+fn stringable_callbacks_can_reenter_the_translator() {
+    use openrust::translation::{FileLoader, Translator};
+
+    let root = Root::new("replacement-reentry");
+    let translator = Arc::new(
+        Translator::new(
+            FileLoader::new(root.0.join("lang")),
+            "en".into(),
+            "en".into(),
+        )
+        .unwrap(),
+    );
+    let owner = Arc::downgrade(&translator);
+    translator.stringable(move |label: &NoticeLabel| {
+        let owner = owner.upgrade().unwrap();
+        owner.stringable(|_: &NoticeLabel| "new".into());
+        owner.string(label.0, &BTreeMap::new(), None).unwrap()
+    });
+    let value = NoticeLabel("messages.fallback");
+    let args = [("label", Replacement::object(&value))];
+    assert_eq!(
+        translator.stringWith(":label", &args, None).unwrap(),
+        "English fallback"
+    );
+    assert_eq!(translator.stringWith(":label", &args, None).unwrap(), "new");
 }

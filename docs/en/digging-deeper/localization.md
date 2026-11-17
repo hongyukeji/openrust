@@ -94,6 +94,44 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 }
 ```
 
+### Replacing Parameters in Translation Strings {#replacing-parameters-in-translation-strings}
+
+Use `Lang::getWith` to pass an ordered list of text, tags, and objects. A callback receives the contents of each matching `<name>…</name>` on the same line. Tag callbacks run in argument order before text placeholders are substituted. Use `Lang::arrayWith` to replace values within a group or list. `Lang::choiceWith` picks the plural form before applying replacements.
+
+#### Object Replacement Formatting {#object-replacement-formatting}
+
+Register a formatter for the concrete Rust type with `Lang::stringable` in the application scope, typically in `AppServiceProvider::boot`. Use `Replacement::object` when registration is required, or `Replacement::display` to use the type’s `Display` implementation when no formatter is registered. To use a Rust enum, pass the desired variant name or value explicitly, or register a formatter for the enum.
+
+For example, define `payments.notice` in `lang/en/payments.json`.
+
+```json
+{"notice": "<mark>Paid</mark> :amount"}
+```
+
+```rust
+use openrust::{
+    support::facades::Lang,
+    translation::{Replacement, TranslationResult},
+};
+
+pub struct Amount(pub u32);
+
+pub fn register_formatters() -> TranslationResult<()> {
+    Lang::stringable(|amount: &Amount| format!("{} USD", amount.0))
+}
+
+pub fn payment_notice(amount: &Amount) -> TranslationResult<String> {
+    Lang::getWith(
+        "payments.notice",
+        &[
+            ("amount", Replacement::object(amount)),
+            ("mark", Replacement::tag(|text| format!("[{text}]"))),
+        ],
+        None,
+    )
+}
+```
+
 ## Pluralization
 
 Use `trans_choice` to select a form. Explicit conditions such as `{0}` or `[2,*]` are tried first. Otherwise, the selector uses the matching locale’s plural rules. It provides `:count` automatically.
@@ -119,6 +157,10 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 ```
 
 Use lowercase language codes and underscores in application configuration, catalog names, and documentation paths. Use uppercase region codes and title-case script codes. Examples include `en`, `en_GB`, `fr_CA`, `es_419`, `sr_Latn_RS`, `zh_CN`, and `zh_TW`. Locale input accepts hyphens, underscores, and mixed case. `zh-Hans` resolves to `zh_CN` and `zh-Hant` resolves to `zh_TW`. Explicit locales such as `zh_HK` and `zh_Hant_HK` keep their own catalogs. HTML uses language tags such as `zh-CN` and `zh-TW`. Rename any existing catalogs to match the normalized identifiers.
+
+## Overriding Package Language Files {#overriding-package-language-files}
+
+To override a package translation such as `shop::cart.summary.heading`, define the same key in `lang/vendor/shop/en/cart.json`. Use the package namespace, locale, and group name from the original translation. Only the entries provided by the application are overridden. Other entries still come from the package.
 
 ## Artisan translations {#artisan-translations}
 

@@ -4,12 +4,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use super::{TranslationResult, locale::canonical_locale};
+use super::{Replacement, TranslationResult, locale::canonical_locale};
 
 /// The context passed to the application's missing translation handler.
 pub struct MissingTranslation<'a> {
     pub key: &'a str,
     pub replacements: &'a BTreeMap<String, String>,
+    /// Ordered arguments from a mixed lookup, including tags and objects.
+    pub mixed_replacements: &'a [(&'a str, Replacement<'a>)],
     pub locale: &'a str,
     pub fallback: bool,
 }

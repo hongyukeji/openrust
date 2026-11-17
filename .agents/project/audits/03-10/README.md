@@ -5,7 +5,7 @@
 - 对照固定 Laravel Translator、FileLoader、MessageSelector、TranslationServiceProvider 与翻译测试。Goravel 的应用容器保存 loader 与 translator，作为 OpenRust 装配参考。 [Laravel Localization](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md) · [Goravel TranslationServiceProvider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/translation/service_provider.go)
 - 应用级翻译服务按需读取并缓存资源，分组和列表可用点号读取。分组键查当前语言及回退语言，普通 JSON 字面键只查当前语言。缺失键返回键本身。包路径覆盖递归合并，拒绝路径穿越，解析失败留待重试。
 - 从 `openrust-v0.x` 的 `6d1a8192` 提取复数规则、范围、替换大小写与 Unicode 首字母映射，附 Zend 和 Unicode 许可。计数区分整数和双精度，精确整数避免预先转换成浮点。复数选择使用命中资源的语言规则，支持调用方提供 `:count`。
-- Rust 分组资源使用 JSON。应用和任务通过 `Lang::withLocale` 切换作用域语言，任务结束或取消时 Tokio 恢复外层作用域。翻译 API 以 `Result` 公开资源错误。ICU 扩展、动态翻译源、Artisan 输出本地化和 Windows 实机仍待覆盖。Artisan 本地化归入 06-08。
+- Rust 分组资源使用 JSON。应用和任务通过 `Lang::withLocale` 切换作用域语言，任务结束或取消时 Tokio 恢复外层作用域。翻译 API 以 `Result` 公开资源错误。异步翻译源及标签与对象替换见下方续批。Artisan 输出本地化归入 06-08，Windows 实机留到发布验收，额外 ICU MessageFormat 语法超出固定 Laravel 机制。
 
 ## 验收
 
@@ -52,3 +52,13 @@ macOS ARM64 使用 Rust 1.94.0 构建真实二进制，在临时应用运行默�
 - 隔离基线 `be904515c`。Rust 1.94.0 的 13 项定向回归通过。双应用实际 HTTP 验证自定义异步源和隔离。真实 JSON Loader 验证批次中途解析失败、修复后重载、字面 JSON 与分组同步发布；并发测试验证较新的分组更新得以保留。
 - 三语共用示例经实际 Artisan 验证读入失败退出 1，以及修复后在 `en`、`fr-CA`、`zh-Hant` 正常读取并替换；`lang:publish` 及 `inspire` 通过。工作区严格 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。
 - 本批隔离缓存已回收。磁盘可用 115.13 GB（107.22 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-10-loader.83tMTXpO`。03-10 接续替换扩展复核，核心账本保持 54/66。
+
+
+## 标签回调、对象格式化与整单元验收
+
+- 对照固定 Laravel Translator 的 `makeReplacements`、`stringable`、`choice` 和对应标签、对象测试。复用 `v0.x` 的有序标签替换、具体类型格式化器及锁外回调方案。Goravel 的应用级 translator 装配保持现有实现。 [Laravel 替换实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php#L284) · [Laravel 对象格式化](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md#object-replacement-formatting)
+- `Lang::getWith`、`arrayWith`、`choiceWith` 接收有序参数，旧文本入口继续支持字符串映射。标签回调按传入顺序运行，标量和对象占位符随后单次替换。复数先选择分支，自动提供 `:count` 并允许显式覆盖。缺键回调可通过 `mixed_replacements` 查看原始参数。
+- 类型格式化通过 `Lang::stringable` 在应用内登记，覆盖同一类型的上一处理器。Rust 使用显式 `Replacement::display` 对应 PHP 对象的字符串化。没有格式化器的 `Replacement::object` 返回类型明确的错误。Rust 枚举按调用方给定的值或注册格式化器处理。标签名称按字面匹配。
+- 隔离基线 `852e97bd9`、Rust 1.94.0。工作区严格 Clippy 及 16 项定向回归通过。真实 HTTP 覆盖双应用隔离、缺键回调、复数选择。分组和列表的叶值替换、标签顺序、失配错误和格式化器重入也通过。三语同一 Rust 与 JSON 示例经实际 Artisan 验证 `en`、`fr-CA` 和 `zh-Hant`，另运行 `lang:publish` 与 `inspire`。
+- 三语站点构建、12 项通用和 6 项专题浏览器检查通过，补齐包语言文件覆盖说明。全仓格式检查仅报告既有的 `sanctum_authentication.rs:1412`。证据目录 `/private/tmp/openrust-03-10-replacements.F3uNDJcJ`。
+- 计划要求的三语真实请求、替换、复数、缺键与回退均通过，03-10 闭合。

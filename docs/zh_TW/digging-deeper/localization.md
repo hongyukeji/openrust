@@ -94,6 +94,44 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 }
 ```
 
+### 取代翻譯字串中的參數 {#replacing-parameters-in-translation-strings}
+
+使用 `Lang::getWith` 依序傳入文字、標籤和物件。回呼接收同一行上每個相符的 `<name>…</name>` 的內容。標籤回呼依參數順序執行，接著取代文字預留位置。使用 `Lang::arrayWith` 取代群組或清單中的值。使用 `Lang::choiceWith` 時先選擇複數分支，再執行取代。
+
+#### 格式化物件取代值 {#object-replacement-formatting}
+
+在應用程式作用域內使用 `Lang::stringable` 為具體 Rust 型別註冊格式化器，通常放在 `AppServiceProvider::boot`。型別必須註冊格式化器時使用 `Replacement::object`。允許在未註冊時使用該型別的 `Display` 實作，則使用 `Replacement::display`。Rust 列舉可明確傳入變體名稱或值，也可為列舉註冊格式化器。
+
+例如，在 `lang/en/payments.json` 中定義 `payments.notice`。
+
+```json
+{"notice": "<mark>Paid</mark> :amount"}
+```
+
+```rust
+use openrust::{
+    support::facades::Lang,
+    translation::{Replacement, TranslationResult},
+};
+
+pub struct Amount(pub u32);
+
+pub fn register_formatters() -> TranslationResult<()> {
+    Lang::stringable(|amount: &Amount| format!("{} USD", amount.0))
+}
+
+pub fn payment_notice(amount: &Amount) -> TranslationResult<String> {
+    Lang::getWith(
+        "payments.notice",
+        &[
+            ("amount", Replacement::object(amount)),
+            ("mark", Replacement::tag(|text| format!("[{text}]"))),
+        ],
+        None,
+    )
+}
+```
+
 ## 複數
 
 使用 `trans_choice` 選擇形式。先比對 `{0}`、`[2,*]` 等明確條件，其餘情況依找到翻譯的地區複數規則選擇。函式會自動提供 `:count`。
@@ -119,6 +157,10 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 ```
 
 應用設定、語言檔案與文件路徑統一使用底線標識。語言小寫，地區大寫，文字代碼首字母大寫。例如 `en`、`en_GB`、`fr_CA`、`es_419`、`sr_Latn_RS`、`zh_CN`、`zh_TW`。輸入接受連字號、底線與不同大小寫。`zh-Hans` 解析為 `zh_CN`，`zh-Hant` 解析為 `zh_TW`。明確指定的 `zh_HK`、`zh_Hant_HK` 等繼續讀取各自的語言檔案。HTML 使用 `zh-CN`、`zh-TW` 等語言標籤。既有語言檔案需改為正規化後的名稱。
+
+## 覆寫套件語言檔案 {#overriding-package-language-files}
+
+要覆寫 `shop::cart.summary.heading` 等套件翻譯，請在 `lang/vendor/shop/en/cart.json` 中定義同一個鍵。目錄與檔名沿用原翻譯的命名空間、語言及群組。應用程式只覆寫自己定義的項目，其餘項目仍由套件提供。
 
 ## Artisan 翻譯 {#artisan-translations}
 
