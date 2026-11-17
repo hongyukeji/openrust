@@ -1,4 +1,4 @@
-use std::{num::NonZeroU64, sync::Arc, time::Duration};
+use std::{error::Error as _, num::NonZeroU64, sync::Arc, time::Duration};
 
 use crate::{
     contracts::cache::{CanFlushLocks, Lock, LockProvider, Store},
@@ -9,6 +9,11 @@ use super::{
     CacheError, CacheFuture, CacheResult, RedisLock, TaggedCache, Value, backend,
     redis_tag_set::RedisTagSet,
 };
+
+const NUMERIC_COUNTER: &str = concat!(
+    include_str!("scripts/redis_counter.lua"),
+    "\nreturn integer_counter(KEYS[1], ARGV[1], ARGV[2])\n",
+);
 
 /// Cache storage for the Redis driver.
 pub struct RedisStore {
@@ -61,14 +66,35 @@ impl RedisStore {
     }
 
     async fn counter(&self, key: &str, command: &str, amount: i64) -> CacheResult<i64> {
-        self.data
-            .query(
-                ::redis::cmd(command)
-                    .arg(self.data.key(&self.key(key)))
-                    .arg(amount),
-            )
-            .await
-            .map_err(backend)
+        let key = self.data.key(&self.key(key));
+        let result = self
+            .data
+            .query(::redis::cmd(command).arg(&key).arg(amount))
+            .await;
+        match result {
+            Err(error)
+                if error
+                    .source()
+                    .and_then(|cause| cause.downcast_ref::<::redis::RedisError>())
+                    .and_then(::redis::RedisError::detail)
+                    == Some("value is not an integer or out of range") =>
+            {
+                let value: String = self
+                    .data
+                    .query(
+                        ::redis::cmd("EVAL")
+                            .arg(NUMERIC_COUNTER)
+                            .arg(1)
+                            .arg(key)
+                            .arg(command)
+                            .arg(amount),
+                    )
+                    .await
+                    .map_err(backend)?;
+                value.parse().map_err(|_| CacheError::InvalidValue)
+            }
+            result => result.map_err(backend),
+        }
     }
 }
 
@@ -264,7 +290,10 @@ impl LockProvider for RedisStore {
 
 pub(super) fn encode(value: &Value) -> CacheResult<Vec<u8>> {
     if let Some(integer) = value.as_i64() {
-        return Ok(integer.to_string().into_bytes());
+        return Ok(match value.as_str() {
+            Some(text) => format!("n{integer}:{text}").into_bytes(),
+            None => integer.to_string().into_bytes(),
+        });
     }
     let mut bytes = vec![b'j'];
     serde_json::to_writer(&mut bytes, value).map_err(backend)?;
@@ -272,6 +301,19 @@ pub(super) fn encode(value: &Value) -> CacheResult<Vec<u8>> {
 }
 
 pub(super) fn decode(bytes: &[u8]) -> CacheResult<Value> {
+    if let Some(payload) = bytes.strip_prefix(b"n") {
+        let (integer, text) = std::str::from_utf8(payload)
+            .ok()
+            .and_then(|entry| entry.split_once(':'))
+            .ok_or(CacheError::InvalidValue)?;
+        let integer = integer
+            .parse::<i64>()
+            .map_err(|_| CacheError::InvalidValue)?;
+        let result = Value::from(text);
+        return (result.as_i64() == Some(integer))
+            .then_some(result)
+            .ok_or(CacheError::InvalidValue);
+    }
     if let Some(payload) = bytes.strip_prefix(b"j") {
         return serde_json::from_slice(payload).map_err(backend);
     }

@@ -87,6 +87,36 @@ pub async fn report_title() -> CacheResult<Value> {
 }
 ```
 
+### Typed cache reads {#typed-cache-values}
+
+Use `string`, `integer`, `float`, `boolean`, or `array` to validate the value after a read. Pass `None` for no default or `Some(value)` to cover a missing or null entry. Use the matching `OrElse` method for a lazy default. An incompatible value or default returns `CacheError::InvalidType`. Strings and booleans are checked by type, numeric reads accept validated numeric strings, and `array` accepts JSON arrays and objects.
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_limit() -> CacheResult<i64> {
+    Cache::integer("reports:limit", Some(Value::from(10))).await
+}
+```
+
+Redis preserves the spelling and type of newly written numeric strings. Existing integer entries remain readable as integers. Incrementing or decrementing a numeric string converts it to an integer and preserves its lifetime. This conversion uses a Redis script.
+
+### Batch operations {#cache-batch-operations}
+
+`getMultiple(keys, default)` returns a map in input order with a shared optional default. `manyOr` accepts a default for each key, and `manyOrElse` resolves defaults lazily by key. The reads query the store once, and a missing or null value uses the default. Use `set` and `setMultiple` to write, `delete` and `deleteMultiple` to remove entries, and `clear` to flush the selected store. A batch delete attempts the remaining keys after a missing entry and returns `false` if any key was absent.
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_state() -> CacheResult<Value> {
+    let entries = Cache::manyOr(&[
+        ("reports:title", Value::from("Untitled")),
+        ("reports:limit", Value::from(10)),
+    ]).await?;
+    Ok(entries["reports:title"].clone())
+}
+```
+
 ### Retrieve and store {#retrieve-store}
 
 `remember` returns a cached value or resolves and stores it on a miss. `rememberWithWarmth` returns `(value, warm)`. `warm` is `true` for a non-null cache hit. `rememberWithWarmthFor` computes the TTL from the resolved value on a miss. `rememberForever` and its alias `sear` store the result without an expiry.

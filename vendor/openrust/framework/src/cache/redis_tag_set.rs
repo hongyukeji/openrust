@@ -8,7 +8,10 @@ use super::{
     CacheError, CacheResult, RedisStore, backend, engine::key_digest, tag_set::generation,
 };
 
-const ITEM: &str = include_str!("scripts/redis_tagged_item.lua");
+const ITEM: &str = concat!(
+    include_str!("scripts/redis_counter.lua"),
+    include_str!("scripts/redis_tagged_item.lua"),
+);
 const RETIRE: &str = include_str!("scripts/redis_retire_tag.lua");
 const PRUNE: &str = include_str!("scripts/redis_prune_tag.lua");
 const DRAIN: &str = include_str!("scripts/redis_drain_tag.lua");

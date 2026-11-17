@@ -262,6 +262,26 @@ async fn named_redis_connections_cache_and_locks_work_across_entrypoints() {
         openrust::redis::Value::Int(milliseconds) if milliseconds > 0
     ));
     assert!(repository.touch("counter", Ttl::Seconds(1)).await.unwrap());
+    let stored = " +12 ";
+    repository
+        .put("text-counter", &Value::from(stored), ttl)
+        .await
+        .unwrap();
+    assert_eq!(
+        repository.string("text-counter", None).await.unwrap(),
+        stored
+    );
+    assert_eq!(second.increment("text-counter", 1).await.unwrap(), 13);
+    assert_eq!(
+        repository.get("text-counter").await.unwrap(),
+        Some(Value::from(13))
+    );
+    let key = data.key("cache:text-counter");
+    assert!(matches!(
+        data.command("PTTL", &[key.as_bytes()]).await.unwrap(),
+        openrust::redis::Value::Int(milliseconds) if milliseconds > 0
+    ));
+
     let mut held = repository
         .lock("lease", Some(Duration::from_secs(5)), None)
         .unwrap();

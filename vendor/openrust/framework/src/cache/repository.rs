@@ -225,11 +225,8 @@ impl Repository {
             Some(ttl) => match seconds(ttl) {
                 Some(seconds) => self.put_many_seconds(values, seconds).await,
                 None => {
-                    let mut forgotten = true;
-                    for (key, _) in values {
-                        forgotten &= self.forget(key).await?;
-                    }
-                    Ok(forgotten)
+                    let keys: Vec<_> = values.iter().map(|(key, _)| key.as_str()).collect();
+                    self.deleteMultiple(&keys).await
                 }
             },
             None => {

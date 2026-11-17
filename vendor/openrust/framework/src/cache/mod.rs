@@ -2,6 +2,7 @@
 
 mod array_lock;
 mod array_store;
+mod batch;
 mod cache_manager;
 mod cache_service_provider;
 pub(crate) mod console;
@@ -38,6 +39,7 @@ mod store;
 mod store_registry;
 mod tag_set;
 mod tagged_cache;
+mod typed;
 
 use std::{error::Error, future::Future, pin::Pin, time::SystemTime};
 
@@ -88,6 +90,10 @@ pub enum CacheError {
     FailoverCycle,
     StoreResolutionCycle,
     InvalidValue,
+    InvalidType {
+        key: String,
+        expected: &'static str,
+    },
     MissingCounter,
     SessionUnavailable,
     InvalidOwner,
@@ -174,6 +180,9 @@ impl std::fmt::Display for CacheError {
             Self::StoreResolutionCycle => f.write_str("Cache store resolution contains a cycle."),
             Self::FailoverCycle => f.write_str("Cache failover stores form a cycle."),
             Self::InvalidValue => f.write_str("Invalid cache value or expiration."),
+            Self::InvalidType { key, expected } => {
+                write!(f, "Cache value for key [{key}] must be {expected}.")
+            }
             Self::MissingCounter => f.write_str("The cache counter does not exist."),
             Self::SessionUnavailable => {
                 f.write_str("Session cache requires an active HTTP session.")

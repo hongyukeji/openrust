@@ -87,6 +87,36 @@ pub async fn report_title() -> CacheResult<Value> {
 }
 ```
 
+### 型別化讀取 {#typed-cache-values}
+
+用 `string`、`integer`、`float`、`boolean` 和 `array` 驗證讀取結果。預設值傳 `None` 或 `Some(value)`，鍵缺少或值為 null 時使用。延遲計算的預設值用對應的 `OrElse` 方法。快取值或預設值的型別不符時回傳 `CacheError::InvalidType`。字串和布林值按型別驗證，數字方法接受有效的數字字串，`array` 接受 JSON 陣列和物件。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_limit() -> CacheResult<i64> {
+    Cache::integer("reports:limit", Some(Value::from(10))).await
+}
+```
+
+Redis 保留新寫入的數字字串及其原始寫法。既有整數項目可繼續按整數讀取。增減數字字串時會使用 Redis 指令碼把項目轉成整數，並保留到期時間。
+
+### 批次操作 {#cache-batch-operations}
+
+`getMultiple(keys, default)` 按輸入順序回傳對應表，可傳入統一的預設值。`manyOr` 為每個鍵接收預設值，`manyOrElse` 按鍵延遲計算預設值。批次讀取只呼叫一次儲存空間，缺少的鍵和 null 使用預設值。`set` 和 `setMultiple` 寫入，`delete` 和 `deleteMultiple` 移除項目，`clear` 清空所選儲存庫。批次刪除遇到缺少的鍵會繼續，並在任一鍵缺少時回傳 `false`。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_state() -> CacheResult<Value> {
+    let entries = Cache::manyOr(&[
+        ("reports:title", Value::from("Untitled")),
+        ("reports:limit", Value::from(10)),
+    ]).await?;
+    Ok(entries["reports:title"].clone())
+}
+```
+
 ### 讀取並回填 {#retrieve-store}
 
 `remember` 回傳快取值，未命中時執行計算並寫入快取。`rememberWithWarmth` 回傳 `(value, warm)`，命中非空值時 `warm` 為 `true`。`rememberWithWarmthFor` 在未命中時根據計算結果設定 TTL。`rememberForever` 和別名 `sear` 將計算結果寫入快取且不設定到期時間。

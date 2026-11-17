@@ -53,13 +53,9 @@ elseif operation == 'touch' then
     result = redis.call('EXPIRE', item, input)
     if result == 0 then return 0 end
 else
-    if operation == 'increment' then
-        redis.call('INCRBY', item, input)
-    else
-        redis.call('DECRBY', item, input)
-    end
-    -- Return the integer as bytes to keep full i64 precision across Lua.
-    result = redis.call('GET', item)
+    local command = operation == 'increment' and 'INCRBY' or 'DECRBY'
+    result = integer_counter(item, command, input)
+    if type(result) == 'table' then return result end
 end
 
 local score = redis.call('PTTL', item)

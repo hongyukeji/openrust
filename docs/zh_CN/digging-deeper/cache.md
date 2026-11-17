@@ -87,6 +87,36 @@ pub async fn report_title() -> CacheResult<Value> {
 }
 ```
 
+### 类型化读取 {#typed-cache-values}
+
+用 `string`、`integer`、`float`、`boolean` 和 `array` 校验读取结果。默认值传 `None` 或 `Some(value)`，键缺失或值为 null 时使用。惰性默认值用对应的 `OrElse` 方法。缓存值或默认值的类型不符合要求时返回 `CacheError::InvalidType`。字符串和布尔值按类型校验，数字方法接受有效的数字字符串，`array` 接受 JSON 数组和对象。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_limit() -> CacheResult<i64> {
+    Cache::integer("reports:limit", Some(Value::from(10))).await
+}
+```
+
+Redis 保留新写入的数字字符串及其原始写法。已有整数条目可继续按整数读取。增减数字字符串时会使用 Redis 脚本把条目转成整数，并保留到期时间。
+
+### 批量操作 {#cache-batch-operations}
+
+`getMultiple(keys, default)` 按输入顺序返回映射，可传入统一的默认值。`manyOr` 为每个键接收默认值，`manyOrElse` 按键计算惰性默认值。批量读取只调用一次存储，缺失键和 null 使用默认值。`set` 和 `setMultiple` 写入，`delete` 和 `deleteMultiple` 移除条目，`clear` 清空所选仓库。批量删除遇到缺失键会继续，并在任一键缺失时返回 `false`。
+
+```rust
+use openrust::{cache::{CacheResult, Value}, support::facades::Cache};
+
+pub async fn report_state() -> CacheResult<Value> {
+    let entries = Cache::manyOr(&[
+        ("reports:title", Value::from("Untitled")),
+        ("reports:limit", Value::from(10)),
+    ]).await?;
+    Ok(entries["reports:title"].clone())
+}
+```
+
 ### 读取并回填 {#retrieve-store}
 
 `remember` 返回缓存值，未命中时执行计算并写入缓存。`rememberWithWarmth` 返回 `(value, warm)`，命中非空值时 `warm` 为 `true`。`rememberWithWarmthFor` 在未命中时根据计算结果设置 TTL。`rememberForever` 和别名 `sear` 将计算结果写入缓存且不设到期时间。

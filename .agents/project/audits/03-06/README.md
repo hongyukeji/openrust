@@ -174,3 +174,13 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 实际 MySQL 和 Redis 双进程 HTTP 验证助手读写、缺失回退和并行取回。实际 Artisan `cache:forget`、`inspire` 和 MySQL 迁移、重置通过。严格 Clippy、变更范围格式、三语 VitePress、30 项浏览器检查和三语示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。
 - 临时夹具已回收。清理 4.4 GiB 隔离 Cargo 产物及文档缓存后，磁盘可用 57.37 GB（53.43 GiB），周额度剩余 68%，无第二窗口读数。证据目录 `/private/tmp/openrust-03-06-defaults.Y5aCtYKb`。
 - 固定 Repository 另有 `string`、`integer`、`float`、`boolean`、`array` 类型化读取，以及带默认值的批量读取和 `getMultiple`、`setMultiple`、`deleteMultiple` 等兼容入口。后续按仓库契约审计和验收，03-06 暂维持开放。
+
+## 类型化读取与批量接口
+
+- 对照固定 Laravel [Repository 的类型化读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L243)、[批量读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Repository.php#L163)及 [CacheRepositoryTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Cache/CacheRepositoryTest.php)。旧版未发现对应的 Laravel 接口，复用当前仓库的默认值、事件和驱动批量读写。
+- `string`、`integer`、`float`、`boolean`、`array` 在读取后校验类型，并提供 `OrElse` 惰性默认值。Rust 用 JSON 数组和对象表示 Laravel 的列表与关联数组，二进制值保持独立类型。数字读取验证有限值、整数范围、数字字符串和科学计数等边界。整数从浮点读取时按默认 PHP 精度应用数量级边界，并校验 Rust 的实际数值是否为整数。
+- `getMultiple`、`manyOr`、`manyOrElse` 批量读取具名值，结果保留首次出现的键顺序。重复键的逐键默认值以最后一项为准，字符串键保持字符串。兼容 `set`、`setMultiple`、`delete`、`deleteMultiple` 和 `clear`。批量删除中单项返回 `false` 时继续尝试后续键。
+- 初次真实 Redis 回归发现原编码把数字字符串写成整数。新写入保留字符串和原拼写，原生整数仍使用原有编码和原生命令。普通及带标签的数字字符串计数复用 Lua 原子转换，保留 TTL，溢出时恢复原始字符串。既有整数条目继续可读，之前已转成整数的字符串无法恢复其原始类型，无需迁移旧值。
+- 隔离基线 `7f4bf30b`，Rust 1.94.0、macOS arm64。固定 PHP 8.5 验证五类读取、默认值、类型失败、批量读写和删除语义。array、file、MySQL 8.4.13 和 Redis 8.10.3 通过默认值、类型、重复键和部分删除验收。44 项缓存回归、2 项 Redis 集成回归通过，后者确认真实 PTTL 和独立进程锁。MySQL 和 Redis 的双进程 HTTP 验证写入、类型校验、读取、缺失和部分删除，实际 Artisan `cache:forget` 和 `inspire` 通过。
+- 严格 Clippy、变更范围格式、三语站点、24 项浏览器检查和三语示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。两轮 MySQL、三轮 Redis 已回收。清理 4.6 GiB 隔离 Cargo 产物及文档缓存后，项目卷可用 57.31 GB（53.37 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-typed.isSLAdF4`。
+- 固定 Repository 的名称、底层仓库、事件分发器和默认缓存时长仍待核对。默认时长在 Laravel 关联数组写入语法中使用，需核对 Rust 显式写入方式和标签仓库继承。03-06 继续开放。

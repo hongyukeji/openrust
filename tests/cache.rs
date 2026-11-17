@@ -2657,3 +2657,196 @@ async fn cache_helper_resolves_the_current_application_and_writes_first_entry() 
     assert_eq!(send(&second, "/read").await, StatusCode::NOT_FOUND);
     assert_eq!(send(&first, "/read").await, StatusCode::OK);
 }
+
+async fn verify_typed_and_batch(cache: &Repository) {
+    use serde_json::json;
+
+    let input = [
+        ("title".into(), "Rust".into()),
+        ("count".into(), " +12 ".into()),
+        ("zero".into(), Value::from(0)),
+        ("ratio".into(), ".5e1".into()),
+        ("listed".into(), json!(false).into()),
+        ("tags".into(), json!(["news"]).into()),
+        ("indexed".into(), json!({"topic":"news"}).into()),
+        ("null".into(), json!(null).into()),
+        ("padded".into(), "012".into()),
+        ("ratio-underflow".into(), "1e-600".into()),
+    ];
+    assert!(
+        cache
+            .setMultiple(&input, Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(cache.string("title", None).await.unwrap(), "Rust");
+    assert_eq!(cache.integer("count", None).await.unwrap(), 12);
+    assert_eq!(cache.float("ratio", None).await.unwrap(), 5.0);
+    assert!(!cache.boolean("listed", None).await.unwrap());
+    assert_eq!(cache.array("tags", None).await.unwrap(), json!(["news"]));
+    assert_eq!(
+        cache.array("indexed", None).await.unwrap(),
+        json!({"topic":"news"})
+    );
+    assert_eq!(
+        cache
+            .stringOrElse("null", || async { Ok("fallback".into()) })
+            .await
+            .unwrap(),
+        "fallback"
+    );
+    assert_eq!(
+        cache
+            .integerOrElse("count", || async { panic!("cached value") })
+            .await
+            .unwrap(),
+        12
+    );
+    assert!(
+        cache
+            .boolean("missing", Some(json!(true).into()))
+            .await
+            .unwrap()
+    );
+    assert!(matches!(
+        cache.integer("padded", None).await,
+        Err(CacheError::InvalidType {
+            expected: "integer",
+            ..
+        })
+    ));
+    assert!(matches!(
+        cache.integer("ratio", None).await,
+        Err(CacheError::InvalidType { .. })
+    ));
+    assert!(matches!(
+        cache.float("ratio-underflow", None).await,
+        Err(CacheError::InvalidType {
+            expected: "float",
+            ..
+        })
+    ));
+    assert!(
+        matches!(cache.string("zero", Some("fallback".into())).await, Err(CacheError::InvalidType { key, expected: "string" }) if key == "zero")
+    );
+    assert!(matches!(
+        cache.array("missing", None).await,
+        Err(CacheError::InvalidType { .. })
+    ));
+
+    let multiple = cache
+        .getMultiple(&["count", "null", "missing", "count"], Some(7.into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        multiple.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["count", "null", "missing"]
+    );
+    assert_eq!(multiple["count"], Some(" +12 ".into()));
+    assert_eq!(multiple["null"], Some(7.into()));
+    assert_eq!(multiple["missing"], Some(7.into()));
+    let without_default = cache.getMultiple(&["null", "missing"], None).await.unwrap();
+    assert_eq!(without_default["null"], None);
+    assert_eq!(without_default["missing"], None);
+    let separate = cache
+        .manyOr(&[
+            ("null", 2.into()),
+            ("missing", 3.into()),
+            ("null", 4.into()),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(separate["null"], 4.into());
+    assert_eq!(separate["missing"], 3.into());
+    let lazy = cache
+        .manyOrElse(&["zero", "null", "missing", "null"], |key| async move {
+            assert_ne!(key, "zero");
+            Ok(Value::from(key))
+        })
+        .await
+        .unwrap();
+    assert_eq!(lazy["zero"], 0.into());
+    assert_eq!(lazy["null"], "null".into());
+    assert_eq!(lazy["missing"], "missing".into());
+    assert!(cache.missing("missing").await.unwrap());
+
+    assert!(cache.set("delete", &1.into(), None).await.unwrap());
+    assert!(cache.delete("delete").await.unwrap());
+    assert!(
+        !cache
+            .deleteMultiple(&["missing", "title", "zero"])
+            .await
+            .unwrap()
+    );
+    assert!(cache.missing("title").await.unwrap());
+    assert!(cache.missing("zero").await.unwrap());
+    assert!(
+        !cache
+            .setMultiple(&input, Some(Ttl::Seconds(0)))
+            .await
+            .unwrap()
+    );
+    assert!(cache.missing("count").await.unwrap());
+    assert!(cache.set("clear", &1.into(), None).await.unwrap());
+    assert!(cache.clear().await.unwrap());
+    assert!(cache.missing("clear").await.unwrap());
+}
+
+#[tokio::test]
+async fn cache_typed_and_batch_methods_keep_values_defaults_and_deletion_semantics() {
+    for driver in ["array", "file"] {
+        let root = Sandbox::new(
+            &format!("typed-{driver}"),
+            &format!("CACHE_STORE={driver}\n"),
+        );
+        verify_typed_and_batch(root.cache(None).await.as_ref()).await;
+    }
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") {
+        let root = Sandbox::new(
+            "typed-redis",
+            &format!(
+                "CACHE_STORE=redis\nCACHE_PREFIX=typed:\nREDIS_CACHE_DB=11\nREDIS_URL={url}\n"
+            ),
+        );
+        let cache = root.cache(None).await;
+        verify_typed_and_batch(&cache).await;
+        let tagged = cache.tags(&["typed"]).unwrap();
+        for repo in [cache.as_ref(), &*tagged] {
+            let ttl = Some(Ttl::Seconds(30));
+            repo.put("numeric-text", &" +12 ".into(), ttl)
+                .await
+                .unwrap();
+            assert_eq!(repo.string("numeric-text", None).await.unwrap(), " +12 ");
+            assert_eq!(repo.increment("numeric-text", 1).await.unwrap(), 13);
+            repo.put("overflow-text", &"9223372036854775807".into(), ttl)
+                .await
+                .unwrap();
+            assert!(repo.increment("overflow-text", 1).await.is_err());
+            assert_eq!(
+                repo.string("overflow-text", None).await.unwrap(),
+                "9223372036854775807"
+            );
+            assert_eq!(
+                repo.decrement("overflow-text", 1).await.unwrap(),
+                i64::MAX - 1
+            );
+        }
+    } else {
+        assert!(std::env::var_os("CACHE_TYPED_FIXTURES_REQUIRED").is_none());
+    }
+
+    if let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") {
+        let root = Sandbox::new(
+            "typed-mysql",
+            &format!(
+                "CACHE_STORE=database\nCACHE_PREFIX=typed:\nDB_CONNECTION=mysql\nDB_URL={url}\n"
+            ),
+        );
+        root.success(&["migrate"]);
+        verify_typed_and_batch(root.cache(None).await.as_ref()).await;
+        root.success(&["migrate:reset"]);
+    } else {
+        assert!(std::env::var_os("CACHE_TYPED_FIXTURES_REQUIRED").is_none());
+    }
+}
