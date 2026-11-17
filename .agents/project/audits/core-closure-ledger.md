@@ -21,6 +21,8 @@
 
 03-09 的 Redis Cluster 标签保留[主线复验](03-09/README.md#redis-cluster-标签主线复验)记录。已补验[标签清空中断后的过期索引清理](03-09/README.md#标签清空中断后的过期索引清理)、[显式删除后的空标签索引回收](03-09/README.md#显式删除后的空标签索引回收)、[集群标签索引的无效引用清理](03-09/README.md#集群标签索引的无效引用清理)、[集群标签索引登记容错](03-09/README.md#集群标签索引登记容错)和[按标签清空时清理无效引用](03-09/README.md#按标签清空时清理无效引用)。[指定 Redis 标签的 `flushStale()`](03-09/README.md#按指定标签清理过期引用)也已通过。[集群标签待回收集合容错](03-09/README.md#集群标签待回收集合容错)已通过。[当前主线复验](03-09/README.md#redis-cluster-标签与过期清理复验)再次确认真实集群和单机 Redis、双进程 HTTP 和独立 Artisan。[槽迁移期间的标签清理及重试](03-09/README.md#redis-cluster-槽迁移期间的过期标签清理)已通过真实 Redis、HTTP 与 Artisan 验收。[标签登记丢失后的恢复](03-09/README.md#redis-cluster-标签登记丢失后的恢复)已验证部分重建时找回未登记的索引。[索引丢失后的空代际回收](03-09/README.md#redis-cluster-索引丢失后的空代际回收)已验证索引和登记同时丢失时回收空记录，并保留仍有引用的旧代际。[清理无效代际标识](03-09/README.md#redis-cluster-过期清理回收无效代际标识)已验证存储级修剪移除无效二进制及文本标识，并保留有值的旧代际。[Redis Cluster 分批回收旧标签代际](03-09/README.md#redis-cluster-分批回收旧标签代际)已通过真实 Redis、HTTP 与 Artisan，验证清空可跨多页回收旧代际。[Redis Cluster 存储级清理分批回收空代际](03-09/README.md#redis-cluster-存储级清理分批回收空代际)已验证同槽批量检查空代际，以及索引类型异常后的重试。[按到期分数清理](03-09/README.md#redis-标签按到期分数清理)已通过真实 Redis 单机和集群、双进程 HTTP 及独立 Artisan。03-09 维持闭合。跨单元的 [memo 标签装饰器与 `flushStale()`](03-06/memoization.md#标签仓储的记忆化与过期清理)已通过真实 Redis 单机和集群验收。
 
+03-09 在当前主线再次通过[过期标签清理的存储选择与主线复验](03-09/README.md#过期标签清理的存储选择与主线复验)。显式非 Redis 存储的空操作与无效存储的失败均保留默认 Redis 的索引。
+
 ## 01-02 容器与延迟 Provider
 
 固定 Laravel 的 18 个容器属性、11 个容器测试文件和 Provider 仓库测试已按行为复核。条件绑定、请求和 Artisan 作用域、延迟 Provider 服务键及事件、回调、重绑定和并发隔离通过整单元回归。以编译目录表达 Provider 元数据，保留服务键和事件的不同启动顺序。 [验收](01-02/README.md)

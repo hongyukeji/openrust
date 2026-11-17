@@ -779,6 +779,8 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
     assert!(!exists(&unknown).await);
     assert_eq!(unrelated.get("same").await.unwrap(), Some(4.into()));
+    root.success(&["cache:prune-stale-tags", "array"]);
+    assert_eq!(cardinality(&people_index).await, RedisValue::Int(133));
     root.success(&["cache:prune-stale-tags", "redis"]);
     assert_eq!(cardinality(&authors).await, RedisValue::Int(1));
     assert_eq!(cardinality(&people_index).await, RedisValue::Int(0));
