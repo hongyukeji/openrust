@@ -507,7 +507,7 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
     assert!(other.release().await.unwrap());
     assert!(matches!(
         repository.flushLocks().await,
-        Err(CacheError::LockFlushUnsupported)
+        Err(CacheError::LockStoreNotSeparate)
     ));
     assert!(matches!(
         repository.tags(&["reports"]),
@@ -747,4 +747,77 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         cluster_cli(&container, &replica_port, &["GET", &physical]),
         "new-primary"
     );
+}
+
+#[tokio::test]
+async fn redis_cluster_flushes_only_a_separate_lock_database() {
+    use openrust::{
+        cache::RedisStore,
+        contracts::cache::{CanFlushLocks as _, Store as _},
+    };
+    use serde_json::json;
+
+    if std::env::var_os("OPENRUST_TEST_REDIS_CLUSTER_PORT").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    }
+    let seed = |name| {
+        let port = std::env::var(name).unwrap().parse::<u16>().unwrap();
+        json!({"host":"127.0.0.1","port":port,"password":"cluster-fixture"})
+    };
+    let second = seed("OPENRUST_TEST_REDIS_CLUSTER_SECOND_PORT");
+    let manager = RedisManager::new(Arc::new(openrust::config::Repository::new(
+        [(
+            "database".into(),
+            json!({"redis":{
+                "direct_cluster_alias":second,
+                "direct":seed("OPENRUST_TEST_REDIS_CLUSTER_STANDALONE_PORT"),
+                "clusters":{
+                    "data":[seed("OPENRUST_TEST_REDIS_CLUSTER_PORT")],
+                    "alias":[second],
+                    "independent":[seed("OPENRUST_TEST_REDIS_INDEPENDENT_CLUSTER_PORT")]
+                },
+            }}),
+        )]
+        .into(),
+    )));
+    let connection = |name| manager.connection(Some(name)).unwrap();
+    let store =
+        |data, locks| RedisStore::new(connection(data), connection(locks), "flush-fixture:".into());
+    let sentinel = "{c}:cache";
+    let ttl = NonZeroU64::new(30).unwrap();
+    let data = store("data", "data");
+    assert!(data.put(sentinel, &"keep".into(), ttl).await.unwrap());
+
+    for (cache, locks) in [
+        ("data", "alias"),
+        ("data", "direct_cluster_alias"),
+        ("direct_cluster_alias", "data"),
+    ] {
+        assert!(matches!(
+            store(cache, locks).flushLocks().await,
+            Err(CacheError::LockStoreNotSeparate)
+        ));
+        assert_eq!(data.get(sentinel).await.unwrap(), Some("keep".into()));
+    }
+
+    for (cache, locks) in [
+        ("data", "independent"),
+        ("data", "direct"),
+        ("direct", "independent"),
+    ] {
+        let store = store(cache, locks);
+        assert!(store.put(sentinel, &"keep".into(), ttl).await.unwrap());
+        let mut left = store
+            .lock("{one}:left", Some(Duration::from_secs(30)), None)
+            .unwrap();
+        let mut right = store
+            .lock("{two}:right", Some(Duration::from_secs(30)), None)
+            .unwrap();
+        assert!(left.get().await.unwrap() && right.get().await.unwrap());
+        assert!(store.flushLocks().await.unwrap());
+        assert!(left.current_owner().await.unwrap().is_none());
+        assert!(right.current_owner().await.unwrap().is_none());
+        assert_eq!(store.get(sentinel).await.unwrap(), Some("keep".into()));
+    }
 }

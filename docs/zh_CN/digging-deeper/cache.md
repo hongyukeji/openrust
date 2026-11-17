@@ -303,6 +303,8 @@ pub async fn generate_report() -> CacheResult<&'static str> {
 
 清锁命令会清除所选锁存储中的所有锁，包括同一后端中其他前缀的锁。数组和文件存储分别保存锁与普通条目。数据库需要独立锁表。Redis 会清空整个专用锁库。同一 Redis 实例应使用不同的逻辑库编号。不同入口配置相同库编号时，OpenRust 会先核对 Redis 实例标识，连接需要允许 `INFO SERVER`。
 
+仅清锁支持独立 Redis 逻辑库或独立 Redis Cluster。Redis 会清空整个锁后端。缓存连接与锁连接须指向不同的逻辑库或集群。涉及集群时，需要允许 `CLUSTER INFO`、`CLUSTER NODES`，直连的一侧还需允许 `INFO CLUSTER`，以便框架在清理前识别指向同一集群的别名。 [Redis 集群配置](../database/redis.md)
+
 `--tags` 清理匹配的标签条目。非空 `--tags` 与 `--locks` 同时使用会失败。
 
 ## Redis 存储

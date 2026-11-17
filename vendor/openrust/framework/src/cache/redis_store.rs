@@ -258,7 +258,7 @@ impl Store for RedisStore {
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
-        (!self.data.is_cluster() && !self.locks.is_cluster()).then_some(self)
+        Some(self)
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
@@ -268,10 +268,16 @@ impl Store for RedisStore {
 
 impl CanFlushLocks for RedisStore {
     fn hasSeparateLockStore(&self) -> bool {
-        self.data
-            .standalone_location()
-            .zip(self.locks.standalone_location())
-            .is_some_and(|(data, locks)| data != locks)
+        if Arc::ptr_eq(&self.data, &self.locks) {
+            return false;
+        }
+        match (
+            self.data.standalone_location(),
+            self.locks.standalone_location(),
+        ) {
+            (Some(data), Some(locks)) => data != locks,
+            _ => true,
+        }
     }
 
     fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -279,7 +285,15 @@ impl CanFlushLocks for RedisStore {
             if !self.hasSeparateLockStore() {
                 return Err(CacheError::LockStoreNotSeparate);
             }
-            if self.data.standalone_location().map(|(index, _)| index)
+            if self.data.is_cluster() || self.locks.is_cluster() {
+                // Node IDs identify the same physical cluster across seed aliases and promotions.
+                let (data, locks) =
+                    tokio::try_join!(self.data.cluster_members(), self.locks.cluster_members())
+                        .map_err(backend)?;
+                if !data.is_disjoint(&locks) {
+                    return Err(CacheError::LockStoreNotSeparate);
+                }
+            } else if self.data.standalone_location().map(|(index, _)| index)
                 == self.locks.standalone_location().map(|(index, _)| index)
             {
                 // Different connection addresses can lead to the same Redis database.

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use ::redis::{
     AsyncConnectionConfig, Client, ConnectionInfo, FromRedisValue,
@@ -136,6 +136,40 @@ impl Connection {
             .find_map(|line| line.strip_prefix("run_id:").filter(|id| !id.is_empty()))
             .map(str::to_owned)
             .ok_or(RedisError::InvalidConfiguration)
+    }
+
+    pub(crate) async fn cluster_members(&self) -> RedisResult<HashSet<String>> {
+        if !self.is_cluster() {
+            let info: String = self.query(::redis::cmd("INFO").arg("cluster")).await?;
+            match info
+                .lines()
+                .find_map(|line| line.strip_prefix("cluster_enabled:"))
+            {
+                Some("0") => return Ok(HashSet::new()),
+                Some("1") => (),
+                _ => return Err(RedisError::InvalidConfiguration),
+            }
+        }
+        let status: String = self.query(::redis::cmd("CLUSTER").arg("INFO")).await?;
+        if !status.lines().any(|line| line == "cluster_state:ok") {
+            return Err(RedisError::InvalidConfiguration);
+        }
+        let nodes: String = self.query(::redis::cmd("CLUSTER").arg("NODES")).await?;
+        let mut members = HashSet::new();
+        for line in nodes.lines() {
+            let id = line
+                .split_whitespace()
+                .next()
+                .ok_or(RedisError::InvalidConfiguration)?;
+            if id.len() != 40 || !id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(RedisError::InvalidConfiguration);
+            }
+            members.insert(id.to_owned());
+        }
+        if members.is_empty() {
+            return Err(RedisError::InvalidConfiguration);
+        }
+        Ok(members)
     }
 
     /// Applies the connection prefix to a key used in a raw command.

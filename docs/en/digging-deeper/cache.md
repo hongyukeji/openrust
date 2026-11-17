@@ -303,6 +303,8 @@ Use `Cache::flushLocks().await?` for the default store, or `Cache::store(Some("d
 
 The lock command clears all locks in the selected lock store, including locks from other prefixes that share that backend. Array and file stores keep lock records separate from value records. Database stores require a separate lock table. Redis clears the entire dedicated lock database. Use a different database number on a shared Redis server. For different addresses with the same database number, OpenRust checks the Redis server IDs before clearing. The connection must permit `INFO SERVER` in that case.
 
+Lock-only clearing supports a dedicated standalone database or a dedicated cluster. Redis flushes the entire lock backend. The cache and lock connections must point to different databases or clusters. When a cluster is involved, allow `CLUSTER INFO`, `CLUSTER NODES`, and `INFO CLUSTER` on a standalone peer so OpenRust can detect aliases before clearing. [Redis cluster setup](../database/redis.md)
+
 `--tags` clears matching tagged values. Combining nonempty `--tags` with `--locks` fails.
 
 ## Redis Store

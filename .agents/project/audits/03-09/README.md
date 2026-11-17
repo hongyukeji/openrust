@@ -35,3 +35,11 @@
 - 在 `85b31347c` 隔离快照上使用 Redis 8.10.3 的三主三副本运行 `sh tests/redis_cluster.sh`。验收覆盖 ASK、MOVED、零重定向上限、迁移期间的跨槽缓存批量读、实际停止主节点后的副本提升、同一应用连接恢复读写。专用回环代理丢弃一次 INCR 成功回执，客户端收到错误，直接读取源节点计数为 1。
 - 实际双进程 HTTP、独立 Artisan `cache:forget`、`cache:clear` 和 `artisan inspire` 通过，另复验真实单机 Redis。变更文件格式、工作区严格 Clippy、三语站点构建、12 项通用和 6 项 Redis 页面浏览器检查及集群文档 Rust 示例编译通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412` 差异。
 - 本批夹具、隔离 Cargo 产物和文档缓存均已回收。项目卷可用 57.16 GB（53.23 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-topology.mmkmHPre`。03-09 整单元待集群标签、仅清锁和剩余原始命令边界，核心账本保持 51/66。
+
+## 独立 Redis Cluster 清锁
+
+- 固定 Laravel 的 `RedisStore::flushLocks` 要求独立锁库，再对锁连接执行 `FLUSHDB`。在旧版 `v0.x` 未找到 Redis Cluster 清锁实现。复用现有锁连接、仓库事件和 Artisan `cache:clear --locks`。 [固定 Laravel RedisStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisStore.php#L290)
+- 使用集群节点 ID 拒绝同一个集群的不同种子连接和指向其中节点的直连别名。拓扑查询出现错误时终止清理。确认锁库独立后，Redis 对锁连接执行 `FLUSHDB`，具名集群连接会覆盖各主节点。三语 Redis 和缓存文档记录作用范围及 ACL 所需命令。
+- 在隔离基线 `a73b475da` 用 Redis 8.10.3 验证同集群别名与直连别名拒绝、两个独立集群之间清锁、集群和直连的两种组合，以及分片锁与数据哨兵。实际双进程 HTTP 和独立 Artisan 验证别名拒绝和成功清理，缓存值均保留。单机 Redis、原有集群槽迁移与故障切换、`artisan inspire` 通过。
+- 改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查及 6 项 Redis 页面检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。临时 Redis 与本批隔离缓存已回收。项目卷可用 52.79 GB（49.17 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-locks.dEsERJoU`。
+- 03-09 待集群标签和其他原始命令的重定向覆盖，核心账本保持 51/66。

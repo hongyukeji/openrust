@@ -12,16 +12,16 @@ for port in random.sample(range(18000,27000), 200):
         with socket.socket() as sock:
             sock.bind(('127.0.0.1',port))
         picked.append(str(port))
-        if len(picked)==6:
+        if len(picked)==10:
             print(' '.join(picked)); break
     except OSError:
         pass
 else:
-    raise RuntimeError('could not find six local ports')
+    raise RuntimeError('could not find ten local ports')
 PY
 )
 set -- $ports
-first=$1 second=$2 third=$3 fourth=$4 fifth=$5 sixth=$6
+first=$1 second=$2 third=$3 fourth=$4 fifth=$5 sixth=$6 standalone=$7 independent=$8 independent_second=$9 independent_third=${10}
 fixture=$(mktemp -d)
 proxy_pid=
 
@@ -49,14 +49,21 @@ trap 'exit 129' HUP
 cid=$(docker run --detach --rm --name "$name" --tmpfs /data:rw,size=64m \
     -p "127.0.0.1::$first" -p "127.0.0.1:$second:$second" -p "127.0.0.1:$third:$third" \
     -p "127.0.0.1:$fourth:$fourth" -p "127.0.0.1:$fifth:$fifth" -p "127.0.0.1:$sixth:$sixth" \
+    -p "127.0.0.1:$standalone:$standalone" -p "127.0.0.1:$independent:$independent" \
+    -p "127.0.0.1:$independent_second:$independent_second" -p "127.0.0.1:$independent_third:$independent_third" \
     --entrypoint /bin/sh "$image" -ec '
+    standalone=$1
+    shift
+    redis-server --port "$standalone" --bind 0.0.0.0 --protected-mode no \
+        --requirepass cluster-fixture --save "" --appendonly no &
     for port do
         redis-server --port "$port" --bind 0.0.0.0 --protected-mode no --cluster-enabled yes \
             --cluster-config-file "/data/nodes-$port.conf" --cluster-announce-ip 127.0.0.1 \
             --requirepass cluster-fixture --masterauth cluster-fixture --cluster-node-timeout 2000 --save "" --appendonly no &
     done
     wait
-' redis-fixture "$first" "$second" "$third" "$fourth" "$fifth" "$sixth")
+' redis-fixture "$standalone" "$first" "$second" "$third" "$fourth" "$fifth" "$sixth" \
+    "$independent" "$independent_second" "$independent_third")
 for port do
     tries=0
     until test "$(docker exec -e REDISCLI_AUTH=cluster-fixture "$cid" redis-cli -p "$port" ping 2>/dev/null)" = PONG; do
@@ -67,6 +74,8 @@ docker exec -e REDISCLI_AUTH=cluster-fixture "$cid" redis-cli --cluster create \
     "127.0.0.1:$first" "127.0.0.1:$second" "127.0.0.1:$third" \
     "127.0.0.1:$fourth" "127.0.0.1:$fifth" "127.0.0.1:$sixth" \
     --cluster-replicas 1 --cluster-yes
+docker exec -e REDISCLI_AUTH=cluster-fixture "$cid" redis-cli --cluster create \
+    "127.0.0.1:$independent" "127.0.0.1:$independent_second" "127.0.0.1:$independent_third" --cluster-yes
 backend=$(docker port "$cid" "$first/tcp")
 python3 -B tests/redis_cluster_proxy.py "$first" "${backend##*:}" "$fixture" &
 proxy_pid=$!
@@ -76,11 +85,16 @@ until test -f "$fixture/ready"; do
     tries=$((tries+1)); test "$tries" -lt 40; sleep .1
 done
 tries=0
-until docker exec -e REDISCLI_AUTH=cluster-fixture "$cid" redis-cli -p "$first" cluster info | grep 'cluster_state:ok' >/dev/null; do
-    tries=$((tries+1)); test "$tries" -lt 40; sleep .2
+for port in "$first" "$independent"; do
+    until docker exec -e REDISCLI_AUTH=cluster-fixture "$cid" redis-cli -p "$port" cluster info | grep 'cluster_state:ok' >/dev/null; do
+        tries=$((tries+1)); test "$tries" -lt 40; sleep .2
+    done
 done
 docker exec "$cid" redis-server --version
 export OPENRUST_TEST_REDIS_CLUSTER_PORT="$first" OPENRUST_REQUIRE_REDIS_CLUSTER=1
 export OPENRUST_TEST_REDIS_CLUSTER_CONTAINER="$cid" OPENRUST_TEST_REDIS_CLUSTER_FIXTURE="$fixture"
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_routes_commands_and_cache_locks_across_shards -- --exact
+export OPENRUST_TEST_REDIS_CLUSTER_SECOND_PORT="$second"
+export OPENRUST_TEST_REDIS_INDEPENDENT_CLUSTER_PORT="$independent" OPENRUST_TEST_REDIS_CLUSTER_STANDALONE_PORT="$standalone"
+cargo +1.94.0 test --test redis --locked --offline redis_cluster_flushes_only_a_separate_lock_database -- --exact
 cargo +1.94.0 test --test redis --locked --offline redis_cluster_migrates_and_recovers_without_replaying_a_write -- --exact

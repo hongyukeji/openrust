@@ -303,6 +303,8 @@ pub async fn generate_report() -> CacheResult<&'static str> {
 
 清鎖命令會清除所選鎖儲存內的所有鎖，包括共用相同後端的其他前綴。陣列和檔案儲存分別保存鎖與一般項目。資料庫需要獨立的鎖資料表。Redis 會清空整個專用鎖資料庫。同一 Redis 執行個體應使用不同的邏輯資料庫編號。不同入口設定相同編號時，OpenRust 會先核對 Redis 執行個體識別碼，連線需允許 `INFO SERVER`。
 
+僅清除鎖支援獨立的 Redis 邏輯資料庫或獨立的 Redis Cluster。Redis 會清空整個鎖後端。快取連線與鎖連線須指向不同的邏輯資料庫或叢集。涉及叢集時，需允許 `CLUSTER INFO`、`CLUSTER NODES`，直連的一端另需允許 `INFO CLUSTER`，以便框架在清除前辨識指向同一叢集的別名。 [Redis 叢集設定](../database/redis.md)
+
 `--tags` 會清除符合標籤的項目。同時使用非空的 `--tags` 與 `--locks` 會失敗。
 
 ## Redis 儲存
