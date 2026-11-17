@@ -11,12 +11,20 @@
 | macOS ARM64、Rust 1.94.0 | 源码安装、独立部署、HTTP 和 Artisan |
 | Linux ARM64、Debian Bookworm 容器、Rust 1.94.0 | 以非特权用户运行独立产物、HTTP、SQLite 迁移和 Artisan |
 | Linux ARM64、Debian Bookworm 容器、LinuxKit 7.0.14 | 默认同进程启动、SQLite 队列与独立 Artisan 对照、SIGTERM 优雅退出 |
-| SQLite | 新应用迁移和独立应用启动 |
-| MySQL 8.4 | macOS ARM64 独立产物迁移及框架 Eloquent 集成验收 |
+| SQLite 3.51.3 | 干净检出、12 项应用迁移、Artisan 与 HTTP |
+| MySQL 8.4.13 | 隔离数据库、12 项迁移、重复执行、Artisan 与应用 HTTP |
+| PostgreSQL 18.6 | 隔离数据库、12 项迁移、重复执行、Artisan 与应用 HTTP |
 | Redis 8.10 | 队列验收及两个进程间的 Reverb 发布 |
-| Linux x86_64 和 Windows 二进制 | 目标平台实机验收待完成 |
+| Ubuntu 24.04 x86_64 与 Apple Silicon 上的 Docker Desktop | Ubuntu 已有原生 amd64 容器验收。当前发布镜像在 Docker Desktop 的 amd64 兼容模式复验 SQLite、Artisan、HTTP、持久存储与 SIGTERM 关停 |
+| Parallels 中的 Windows 11 Pro ARM64 Build 26200.9457 | 原生 ARM64 MSVC 发布版通过 SQLite 迁移、Artisan、首页与健康路由、公共文件、目录迁移和 Ctrl+C 优雅退出。Docker Desktop 后端未验收 |
 
 各平台与驱动的验收范围见表，功能边界见相应指南，例如 [Reverb 扩展](../packages/reverb.md)。独立产物的构建和运行见[部署](../getting-started/deployment.md)。
+
+数据库行记录发布探针实测的版本。MariaDB 与 SQL Server 当前返回驱动不可用。其他服务端版本需单独部署验证。
+
+本地反向代理通过测试 CA 验证了 TLS 1.2 与 1.3、证书链和主机名。生产端点仍待实机验收。
+
+托管 AWS SQS 标准／FIFO 仍待实机验收。ElasticMQ 的证据见队列实现记录。
 
 ## 变更
 

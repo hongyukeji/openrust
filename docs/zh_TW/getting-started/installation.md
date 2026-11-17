@@ -24,7 +24,7 @@ HTTP 預設監聽 `127.0.0.1:8000`。存取 `http://localhost:8000/` 查看歡�
 
 應用程式也能在沒有環境檔案時啟動。需要其他連接埠時，在 `.env` 中設定 `APP_PORT=9081`。範本的 `APP_URL="http://localhost:${APP_PORT}"` 會展開連接埠變數。處理程序環境優先於檔案中的同名值，例如 `APP_PORT=9081 cargo +1.94.0 run --locked` 會監聽 9081。URL 覆寫和環境檔案選擇見[設定](configuration.md)。
 
-Windows 可用 `copy .env.example .env` 複製範本，再執行 `artisan.bat inspire`。Windows 實機執行仍待驗收。
+Windows 可用 `copy .env.example .env` 複製範本，再執行 `artisan.bat inspire`。使用目標架構的 MSVC Rust 工具鏈。獨立發佈可依 Windows 部署步驟執行。 [Windows 獨立部署](deployment.md#windows-standalone)
 
 ## 建置獨立發佈產物
 

@@ -11,12 +11,20 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 | macOS ARM64, Rust 1.94.0 | Source installation and standalone deployment, HTTP and Artisan |
 | Linux ARM64, Debian Bookworm container, Rust 1.94.0 | Standalone deployment, HTTP, SQLite migrations and Artisan under an unprivileged user |
 | Linux ARM64, Debian Bookworm container, LinuxKit 7.0.14 | Default same-process startup, SQLite queue parity with Artisan and graceful shutdown on SIGTERM |
-| SQLite | Fresh application migration and standalone application startup |
-| MySQL 8.4 | Standalone migrations on macOS ARM64 and framework Eloquent integration acceptance |
+| SQLite 3.51.3 | Clean checkout, 12 application migrations, Artisan and HTTP |
+| MySQL 8.4.13 | Isolated database, 12 migrations, idempotent rerun, Artisan and application HTTP |
+| PostgreSQL 18.6 | Isolated database, 12 migrations, idempotent rerun, Artisan and application HTTP |
 | Redis 8.10 | Queue acceptance and Reverb publication between two processes |
-| Linux x86_64 and Windows binaries | Native target acceptance pending |
+| Ubuntu 24.04 x86_64 and Docker Desktop on Apple Silicon | Earlier native amd64 container acceptance on Ubuntu. The fresh release was rebuilt and ran in Docker Desktop amd64 compatibility mode with SQLite, Artisan, HTTP, persistent storage and SIGTERM shutdown |
+| Windows 11 Pro ARM64 build 26200.9457 in Parallels | Native ARM64 MSVC release executable. SQLite migrations, Artisan, welcome and health routes, public files, relocation and graceful Ctrl+C passed. Docker Desktop backend unverified |
 
 The platform and driver rows cover the scenarios listed. Check the corresponding feature guide for its scope, such as [Reverb scaling](../packages/reverb.md). For standalone artifacts, follow [Deployment](../getting-started/deployment.md).
+
+The database rows record the versions exercised by the release probe. MariaDB and SQL Server currently return an unavailable driver. Other server versions need their own deployment checks.
+
+TLS 1.2 and 1.3 passed through a local reverse proxy using a test CA, with certificate chain and hostname verification. Validation against a production endpoint is pending.
+
+Managed AWS SQS Standard and FIFO deployment validation is pending. ElasticMQ evidence is recorded with the queue implementation.
 
 ## Changes
 

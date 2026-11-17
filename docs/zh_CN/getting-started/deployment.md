@@ -68,6 +68,34 @@ Ctrl+C、Unix SIGTERM 或 Runner 运行失败时，应用按 `shutdownPriority` 
 ```
 HTTP、受管 Worker 和调度器共用应用进程。受管 Worker 沿用独立 `queue:work` 的超时、重试和退出码。进程 RSS 包含三个服务的内存占用，因此受管 Worker 不套用独立内存门槛。独立 `queue:work` 保留现有内存上限。启用强制超时的任务仍由隔离执行器运行。Ctrl+C 或 Unix SIGTERM 会停止接收新工作，并等待在途 HTTP 请求、队列任务和调度任务完成。应用进程会传递 Worker 的非零退出码。
 
+## Windows 独立部署 {#windows-standalone}
+
+使用目标架构的 Rust 和 MSVC Build Tools 构建发布产物。全新 SQLite 部署先准备可执行文件、资源、公共文件和环境，再创建数据库并执行迁移。
+
+```powershell
+cargo +1.94.0 build --locked --release --features standalone
+New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
+Copy-Item target/release/main.exe release/
+Copy-Item resources, public release/ -Recurse
+Copy-Item .env.example release/.env
+New-Item -ItemType File release/database/database.sqlite
+$env:APP_ENV = 'production'
+$env:APP_DEBUG = 'false'
+$app = Join-Path $PWD 'release/main.exe'
+& $app artisan key:generate --force
+& $app artisan migrate --force
+& $app artisan inspire
+& $app
+```
+
+后续发布应保留应用密钥、数据库和可写存储。服务管理器可从其他工作目录运行 `main.exe`，也可用 `APP_BASE_PATH` 指定绝对应用根目录。
+
+## TLS 终止 {#tls-termination}
+
+将应用绑定在私有地址，由反向代理或负载均衡器终止 TLS。把 `APP_URL` 设为公开 HTTPS 地址，并配置代理转发公开主机名和协议。从客户端验证证书链和主机名，检查 HTTPS 首页和健康路由。
+
+隔离发布探针已用测试 CA 验证 TLS 1.2 和 1.3。生产端点和实际部署证书仍待环境验收。
+
 ## Docker 部署 {#docker-deployment}
 
 Linux 使用带 Compose 和 Buildx 的 Docker Engine，macOS 和 Windows 使用 Linux 容器模式的 Docker Desktop。同一份 Dockerfile 支持构建 Linux `amd64` 和 `arm64` 镜像。以下命令从仓库根目录执行，Windows PowerShell 第一步用 `Copy-Item docker/.env.example docker/.env`。

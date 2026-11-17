@@ -10,7 +10,11 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 pub(super) struct StagedKeyFile<'a> {
     path: &'a Path,
-    _lock: fs::File,
+    #[cfg_attr(
+        not(windows),
+        allow(dead_code, reason = "Retains the environment file lock")
+    )]
+    lock: fs::File,
     temporary: std::path::PathBuf,
     original: zeroize::Zeroizing<String>,
     committed: bool,
@@ -19,10 +23,7 @@ pub(super) struct StagedKeyFile<'a> {
 impl StagedKeyFile<'_> {
     pub(super) fn commit(mut self) -> Result<(), ConsoleError> {
         require_regular_file(self.path)?;
-        let current = zeroize::Zeroizing::new(
-            fs::read_to_string(self.path)
-                .map_err(|_| failure("Unable to reread the environment file."))?,
-        );
+        let current = self.read_current()?;
         if *current != *self.original {
             return Err(failure(
                 "The environment file changed before the key could be written.",
@@ -33,6 +34,64 @@ impl StagedKeyFile<'_> {
         self.committed = true;
         Ok(())
     }
+
+    #[cfg(not(windows))]
+    fn read_current(&self) -> Result<zeroize::Zeroizing<String>, ConsoleError> {
+        fs::read_to_string(self.path)
+            .map(zeroize::Zeroizing::new)
+            .map_err(|_| failure("Unable to reread the environment file."))
+    }
+
+    #[cfg(windows)]
+    fn read_current(&mut self) -> Result<zeroize::Zeroizing<String>, ConsoleError> {
+        use std::{
+            io::{Seek as _, SeekFrom},
+            os::windows::fs::OpenOptionsExt as _,
+        };
+        use windows_sys::Win32::Storage::FileSystem::{
+            FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
+        };
+
+        // A Windows exclusive lock permits content reads only through its own handle.
+        let current = OpenOptions::new()
+            .access_mode(FILE_READ_ATTRIBUTES)
+            .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+            .open(self.path)
+            .map_err(|_| failure("Unable to inspect the current environment file."))?;
+        if file_identity(&current)? != file_identity(&self.lock)? {
+            return Err(failure(
+                "The environment file changed before the key could be written.",
+            ));
+        }
+        drop(current);
+        let mut text = zeroize::Zeroizing::new(String::new());
+        self.lock
+            .seek(SeekFrom::Start(0))
+            .and_then(|_| self.lock.read_to_string(&mut text))
+            .map_err(|_| failure("Unable to reread the environment file."))?;
+        Ok(text)
+    }
+}
+
+#[cfg(windows)]
+fn file_identity(file: &fs::File) -> Result<(u32, u32, u32), ConsoleError> {
+    use std::{mem::MaybeUninit, os::windows::io::AsRawHandle as _};
+    use windows_sys::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+
+    let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::uninit();
+    // The open file keeps the handle valid and the API initializes info on success.
+    let success = unsafe { GetFileInformationByHandle(file.as_raw_handle(), info.as_mut_ptr()) };
+    if success == 0 {
+        return Err(failure("Unable to identify the environment file."));
+    }
+    let info = unsafe { info.assume_init() };
+    Ok((
+        info.dwVolumeSerialNumber,
+        info.nFileIndexHigh,
+        info.nFileIndexLow,
+    ))
 }
 
 impl Drop for StagedKeyFile<'_> {
@@ -92,7 +151,7 @@ pub(super) fn stage_key_file<'a>(
         .map_err(|_| failure("Unable to create the temporary environment file."))?;
     let staged = StagedKeyFile {
         path,
-        _lock: lock,
+        lock,
         temporary,
         original,
         committed: false,

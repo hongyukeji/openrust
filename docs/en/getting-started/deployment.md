@@ -68,6 +68,34 @@ New long-running services join application startup by default once they are regi
 ```
 HTTP, the managed Worker, and the scheduler share the application process. The managed Worker uses the same timeout, retries, and exit codes as independent `queue:work`. It skips the Worker memory limit because process RSS includes all three services. Independent `queue:work` retains its memory limit. Jobs configured for hard timeouts still run in isolated executors. Ctrl+C or Unix SIGTERM stops accepting new work and waits for active requests, queue jobs, and scheduled tasks. The application propagates a nonzero Worker exit code.
 
+## Windows standalone deployment {#windows-standalone}
+
+Build the release with Rust and the MSVC build tools for the target architecture. On a fresh SQLite deployment, stage the executable, resources, public files, and environment before creating the database and applying migrations.
+
+```powershell
+cargo +1.94.0 build --locked --release --features standalone
+New-Item -ItemType Directory -Path release, release/database, release/storage/app/public
+Copy-Item target/release/main.exe release/
+Copy-Item resources, public release/ -Recurse
+Copy-Item .env.example release/.env
+New-Item -ItemType File release/database/database.sqlite
+$env:APP_ENV = 'production'
+$env:APP_DEBUG = 'false'
+$app = Join-Path $PWD 'release/main.exe'
+& $app artisan key:generate --force
+& $app artisan migrate --force
+& $app artisan inspire
+& $app
+```
+
+For subsequent releases, preserve the application key, database, and writable storage. A service manager can run `main.exe` from another working directory. `APP_BASE_PATH` can select an absolute application root.
+
+## TLS termination {#tls-termination}
+
+Bind the application to a private address and terminate TLS at your reverse proxy or load balancer. Set `APP_URL` to the public HTTPS origin and configure the proxy to pass the public host and scheme. Verify the certificate chain and hostname from a client and check both the welcome page and health route over HTTPS.
+
+The isolated release probe exercised TLS 1.2 and 1.3 with a test CA. The production endpoint and its deployed certificate remain deployment checks.
+
 ## Docker deployment {#docker-deployment}
 
 Use Docker Engine with Compose and Buildx on Linux, or Docker Desktop in Linux-container mode on macOS or Windows. The same Dockerfile builds Linux `amd64` and `arm64` images. Run the commands below from the repository root. On Windows PowerShell use `Copy-Item docker/.env.example docker/.env` for the first step.

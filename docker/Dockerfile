@@ -13,6 +13,7 @@ RUN set -eu; \
       *) echo "Unsupported Linux architecture: $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     if [ "$BUILDARCH" != "$TARGETARCH" ]; then \
+      sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources; \
       apt-get update; \
       case "$TARGETARCH" in \
         amd64) apt-get install -y --no-install-recommends gcc-x86-64-linux-gnu libc6-dev-amd64-cross ;; \
@@ -39,7 +40,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     install -D -m 0755 "$CARGO_TARGET_DIR/$triple/release/main" /out/main
 
 FROM debian:bookworm-slim AS runtime
-RUN apt-get update \
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+RUN sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -m 0755 -o 10001 -g 10001 /app/storage
