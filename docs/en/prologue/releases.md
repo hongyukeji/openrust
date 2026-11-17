@@ -27,9 +27,11 @@ The platform and driver rows cover the scenarios listed. Check the corresponding
 
 The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. The original Oracle Linux 7 image requires the [ECDHE-enabled derived image](../database/getting-started.md#mysql-57-oracle-linux-7) for OpenRust. See [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls), [MariaDB](../database/getting-started.md#mariadb) and [SQL Server](../database/getting-started.md#sql-server) for tested connection settings.
 
-## Pending deployment acceptance {#pending-deployment-acceptance}
+## Production simulation and live deployment checks {#pending-deployment-acceptance}
 
-| Target | Local acceptance | Remaining live acceptance |
+Release acceptance for 08-04 is complete under the production simulation scope. The live deployment checks below cover each target environment.
+
+| Target | Local acceptance | Live deployment checks |
 | --- | --- | --- |
 | Windows Docker Desktop | Windows PowerShell parsed Compose profiles and bind paths with spaces. The Windows ARM64 standalone build passed HTTP and Artisan. | A reachable Windows host running the Docker Desktop Linux-container backend and an account able to use Docker, Compose and Buildx and read/write a Windows test directory. Verify a clean build and deployment, read-only public files, persistent writable storage, HTTP and Artisan. |
 | Production TLS | A local proxy verified TLS 1.2/1.3, hostname and CA checks, rejection of a missing intermediate, and leaf rotation on the same endpoint with real HTTP and a Secure session cookie. | Verify the real HTTPS URL, deployed hostname, served chain and protocol policy, the welcome and health routes, and read-only Artisan for the same deployment. |

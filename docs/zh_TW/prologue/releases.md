@@ -27,9 +27,11 @@
 
 資料庫列記錄發佈驗收結果。PostgreSQL 10–18 的結果以實測修補版本為準。Oracle Linux 7 原映像需建置[啟用 ECDHE 的衍生映像](../database/getting-started.md#mysql-57-oracle-linux-7)以接入 OpenRust。實測連線設定請參閱 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
 
-## 待實機驗收 {#pending-deployment-acceptance}
+## 模擬正式環境與實機驗證 {#pending-deployment-acceptance}
 
-| 目標 | 已有本機驗收 | 剩餘實機驗收 |
+08-04 已按模擬正式環境驗收結案。表中列有各目標環境的實機驗證項目。
+
+| 目標 | 已有本機驗收 | 實機驗證 |
 | --- | --- | --- |
 | Windows Docker Desktop | Windows PowerShell 已解析 Compose profile 和含空格的繫結路徑。Windows ARM64 獨立發佈已通過 HTTP 和 Artisan。 | 需要可登入且執行 Docker Desktop Linux 容器後端的 Windows 主機，測試帳戶可使用 Docker、Compose 和 Buildx，並讀寫隔離的 Windows 測試目錄。實測乾淨建置、部署、唯讀 public、可寫的持續性 storage、HTTP 和 Artisan。 |
 | 正式環境 TLS | 本機代理已驗證 TLS 1.2／1.3、主機名稱與 CA 驗證、缺少中繼憑證時拒絕、同一端點輪替終端憑證、真實 HTTP 與 Secure 工作階段 Cookie。 | 在真實 HTTPS 位址核對部署主機名稱、憑證鏈和協定原則，實測首頁和健康路由，並對同一部署執行唯讀 Artisan。 |

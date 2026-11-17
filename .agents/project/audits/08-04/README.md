@@ -97,6 +97,14 @@ Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用�
 - **生产 TLS** 复查确认本地配置未给出生产验收 HTTPS URL。需提供实际 URL 与部署主机名、可受信任的证书链以及同一部署的只读 Artisan 权限。目标就绪后核对 TLS、证书校验、首页与 `/up`，并通过 `migrate:status` 核对运行中的发布实例。现有本地测试 CA 的 TLS 1.2／1.3 记录继续保留。
 - **托管 AWS SQS 标准／FIFO** 复查仅发现区域配置，未发现隔离队列 URL 或可用的 AWS 凭据来源。需要标准及 FIFO 各一条隔离队列的完整 URL、对应区域、隔离 MySQL 批次账本和队列范围内的 `SendMessage`、`ReceiveMessage`、`DeleteMessage`、`ChangeMessageVisibility`、`GetQueueAttributes`。批量发送使用 `SendMessage` 权限。临时凭据还需要会话令牌，使用自管 KMS 密钥的队列需向生产者授予 `kms:Decrypt` 和 `kms:GenerateDataKey`，向消费者授予 `kms:Decrypt`。 [AWS SQS API 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html) · [SQS KMS 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html)
 
-原生 Ubuntu x86_64 发布复验通过。Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 待目标环境验收。08-04 保持开放。
+Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验证在目标环境就绪后执行。
 
 三语支持矩阵已同步模拟补测及实机条件。三语站点构建、12 项通用浏览器检查和 6 项矩阵检查通过。模拟服务已退出，隔离源码、构建、证书和站点已清理。
+
+## 08-04 模拟正式环境验收与闭合
+
+2026-11-17 经用户确认，08-04 按模拟正式环境验收闭合。
+
+- 安装、独立发布、数据库版本矩阵与原生 Ubuntu x86_64 部署沿用已验收结果。Ubuntu 复验使用 `07307c6e1`，包含 Compose 部署、持久化挂载、真实 HTTP、Artisan 迁移和独立 Worker。 [原生 Ubuntu 发布复验](docker.md#原生-ubuntu-x86_64-发布复验)
+- Windows 采用 ARM64 独立发布的真实 HTTP 和 Artisan、PowerShell 的 Compose 配置和绑定路径验收，以及 Ubuntu 的容器挂载行为实测。生产 TLS 采用本地生产模式应用、测试 CA、证书链校验和轮换验收。托管 SQS 标准／FIFO 采用 ElasticMQ 的投递与失败恢复实测，以及独立端点对真实 Artisan 请求的 SigV4 与会话令牌校验。 [模拟验收补测](#模拟验收补测)
+- 真实 Windows Docker Desktop 文件共享与容器生命周期、生产域名及实际证书、AWS IAM／STS 与托管标准／FIFO 服务行为仍列为发布时的实机验证。 [环境与权限](#剩余实机环境复查)
