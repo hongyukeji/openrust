@@ -2,7 +2,10 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
     config::Repository,
-    database::{Connection, DatabaseError, DatabaseManager, Row, Value},
+    database::{
+        Connection, DatabaseError, DatabaseManager, DatabaseResult, Row, Value,
+        eloquent::{Builder, Model, ModelMetadata, ModelState, Scope},
+    },
 };
 use serde_json::json;
 
@@ -14,6 +17,40 @@ fn connection(driver: &str, url: Option<&str>) -> Connection {
     DatabaseManager::new(Arc::new(settings), ".")
         .connection(None)
         .unwrap()
+}
+
+struct Document(ModelState);
+
+impl Model for Document {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("documents").timestamps(None, None);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+        &[("visible", &VisibleDocuments)]
+    }
+}
+
+struct VisibleDocuments;
+
+impl Scope<Document> for VisibleDocuments {
+    fn apply(&self, builder: &mut Builder<'_, Document>) -> DatabaseResult<()> {
+        builder.r#where("id", "<", 3);
+        Ok(())
+    }
 }
 
 #[tokio::test]
@@ -99,6 +136,45 @@ async fn vector_queries_reject_unsupported_drivers_and_invalid_inputs() {
     ));
 }
 
+#[tokio::test]
+async fn nested_vector_predicates_compile_with_the_outer_query_grammar() {
+    for driver in ["pgsql", "mariadb"] {
+        let db = connection(driver, None);
+        let query = db
+            .table("documents")
+            .r#where("id", "<", 3)
+            .whereNested(|group| {
+                group
+                    .whereVectorDistanceLessThan("embedding", &[1.0, 0.0], 0.3)
+                    .orWhereVectorDistanceLessThan("embedding", &[0.0, 1.0], 0.0)
+            });
+        let sql = query.toSql().unwrap();
+        assert!(sql.contains("< ? and ("));
+        assert!(sql.contains(" <= ? or "));
+        assert!(sql.ends_with(" <= ?)"));
+        assert_eq!(
+            query.getBindings().unwrap(),
+            [
+                3.into(),
+                "[1.0,0.0]".into(),
+                Value::Real(0.3),
+                "[0.0,1.0]".into(),
+                Value::Real(0.0),
+            ],
+        );
+    }
+    let sqlite = connection("sqlite", None);
+    assert!(matches!(
+        sqlite
+            .table("documents")
+            .whereNested(|group| group.whereVectorDistanceLessThan("embedding", &[1.0], 0.3))
+            .toSql(),
+        Err(DatabaseError::UnsupportedOperation(
+            "vector distance queries"
+        ))
+    ));
+}
+
 fn fixture(driver: &str, setting: &str) -> Option<Connection> {
     match std::env::var(setting) {
         Ok(url) => Some(connection(driver, Some(&url))),
@@ -174,12 +250,56 @@ async fn verify_distances(db: &Connection) {
     assert_eq!(ids(&either), [2, 3]);
 }
 
+async fn verify_model_queries(db: &Connection) {
+    let vector = [1.0, 0.0];
+    let orthogonal = [0.0, 1.0];
+    let rows = db
+        .table("documents")
+        .select(["id"])
+        .r#where("id", "<", 3)
+        .whereNested(|group| {
+            group
+                .whereVectorDistanceLessThan("embedding", &vector, 0.3)
+                .orWhereVectorDistanceLessThan("embedding", &orthogonal, 0.0)
+        })
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(ids(&rows), [1, 2]);
+
+    let mut query = Document::queryOn(db)
+        .select(["id"])
+        .selectVectorDistance("embedding", &vector, Some("distance"))
+        .unwrap()
+        .whereVectorSimilarTo("embedding", &vector, 0.7, true)
+        .unwrap();
+    // The orthogonal document satisfies the OR arm but is outside the global scope.
+    query.orWhereVectorDistanceLessThan("embedding", &orthogonal, 0.0);
+    let rows = query.get().await.unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].getAttribute("id"), Some(&2.into()));
+    assert_eq!(rows[1].getAttribute("id"), Some(&1.into()));
+    assert!(
+        matches!(rows[1].getAttribute("distance"), Some(Value::Real(distance)) if (*distance - 0.2).abs() < 1e-6)
+    );
+
+    let mut query = Document::queryOn(db).select(["id"]).orderBy("id", "asc");
+    query
+        .whereVectorDistanceLessThan("embedding", &vector, 0.3)
+        .whereNested(|group| group.orWhereVectorDistanceLessThan("embedding", &vector, 0.3));
+    let rows = query.get().await.unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].getAttribute("id"), Some(&1.into()));
+}
+
 #[tokio::test]
 async fn vector_queries_run_on_pgvector() {
     let Some(db) = fixture("pgsql", "OPENRUST_TEST_PGVECTOR_URL") else {
         return;
     };
     verify_distances(&db).await;
+    verify_model_queries(&db).await;
     let rows = db
         .table("documents")
         .whereVectorSimilarTo("embedding", &[1.0, 0.0], 0.7, true)
@@ -200,6 +320,7 @@ async fn vector_queries_run_on_mariadb() {
         return;
     };
     verify_distances(&db).await;
+    verify_model_queries(&db).await;
     let rows = db
         .table("documents")
         .whereVectorSimilarTo("embedding", &[1.0, 0.0], 0.7, true)

@@ -171,6 +171,20 @@ pub async fn related_documents(
 
 可單獨使用 `selectVectorDistance`、`whereVectorDistanceLessThan`、`orWhereVectorDistanceLessThan` 和 `orderByVectorDistance`。距離篩選包含等於上限的結果。查詢 PostgreSQL 向量欄位時，結果以文字表示向量。MariaDB 回傳向量的位元組值。
 
+Eloquent 建構器提供相同的向量方法。可在 `whereNested` 中將距離述詞與其他條件分組。Eloquent 全域作用域約束整個群組，包括每個 `orWhereVectorDistanceLessThan` 分支。
+
+```rust
+use openrust::database::eloquent::Model;
+
+let mut query = Document::queryOn(&connection).select(["id"]);
+query.whereNested(|group| {
+    group
+        .whereVectorDistanceLessThan("embedding", &primary, 0.3)
+        .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
+});
+let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+```
+
 ## JSON WHERE 子句
 
 用 `whereJsonContains` 和 `whereJsonDoesntContain` 判斷 JSON 是否包含指定值，用 `whereJsonContainsKey` 和 `whereJsonDoesntContainKey` 檢查路徑是否存在，用 `whereJsonLength` 比較長度。用 `->` 分隔路徑段，也可附加 `groups[0]` 這樣的索引。每個方法都有 `orWhere` 變體。

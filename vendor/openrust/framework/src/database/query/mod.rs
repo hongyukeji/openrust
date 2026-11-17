@@ -6,6 +6,7 @@ mod expression;
 pub mod grammars;
 mod join_clause;
 pub mod processors;
+pub(super) mod vector;
 
 pub use builder::{Builder, Column};
 pub(super) use builder::{

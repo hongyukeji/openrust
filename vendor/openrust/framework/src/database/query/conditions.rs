@@ -3,6 +3,7 @@ use crate::database::{DatabaseError, DatabaseResult, Value};
 use super::{
     Column, Expression,
     grammars::{DatePart, Grammar},
+    vector,
 };
 
 /// How PostgreSQL turns a search term into a tsquery.
@@ -83,6 +84,7 @@ enum Predicate {
     Group(Conditions, bool),
     Like(String, String, bool, bool),
     FullText(Vec<String>, String, FullTextOptions),
+    VectorDistance(Column, Vec<f64>, f64),
     Date(DatePart, String, String, String),
     BetweenColumns(String, [String; 2], bool),
     ValueBetween(ValueOperand, [Column; 2], bool),
@@ -139,6 +141,11 @@ impl Conditions {
                     }
                 }
                 Predicate::FullText(columns, ..) => columns.iter_mut().for_each(qualify),
+                Predicate::VectorDistance(column, ..) => {
+                    if let Column::Identifier(name) = column {
+                        qualify(name);
+                    }
+                }
                 Predicate::Group(conditions, _) => conditions.qualify_columns(table),
                 Predicate::Raw(_) => {}
             }
@@ -521,6 +528,34 @@ impl Conditions {
 
     predicate_methods!();
 
+    /// Keeps rows within the given cosine distance in this group.
+    pub fn whereVectorDistanceLessThan(
+        mut self,
+        column: impl Into<Column>,
+        vector: &[f64],
+        max_distance: f64,
+    ) -> Self {
+        self.vector_distance(false, column.into(), vector, max_distance);
+        self
+    }
+
+    pub fn orWhereVectorDistanceLessThan(
+        mut self,
+        column: impl Into<Column>,
+        vector: &[f64],
+        max_distance: f64,
+    ) -> Self {
+        self.vector_distance(true, column.into(), vector, max_distance);
+        self
+    }
+
+    fn vector_distance(&mut self, or: bool, column: Column, vector: &[f64], max_distance: f64) {
+        self.push(
+            or,
+            Predicate::VectorDistance(column, vector.to_vec(), max_distance),
+        );
+    }
+
     fn push(&mut self, or: bool, predicate: Predicate) {
         let boolean = if or { Boolean::Or } else { Boolean::And };
         self.0.push((boolean, predicate));
@@ -798,6 +833,10 @@ impl Predicate {
             Self::FullText(columns, value, options) => {
                 sql.push_str(&grammar.full_text(columns, *options)?);
                 bindings.push(value.clone().into());
+            }
+            Self::VectorDistance(column, values, max_distance) => {
+                sql.push_str(&vector::distance(grammar, column, values, bindings)?);
+                vector::append_max_distance(sql, bindings, *max_distance)?;
             }
             Self::JsonContains(selector, value, negated) => {
                 if *negated {

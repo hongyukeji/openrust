@@ -171,6 +171,20 @@ pub async fn related_documents(
 
 Use `selectVectorDistance`, `whereVectorDistanceLessThan`, `orWhereVectorDistanceLessThan`, and `orderByVectorDistance` independently when you need finer control. The distance filter includes the maximum distance. When projecting a PostgreSQL vector column, the result contains the vector as text. MariaDB returns the vector as bytes.
 
+Eloquent builders expose the same vector methods. Use the distance predicates inside `whereNested` to group them with other conditions. Eloquent applies global scopes to the full group, including every `orWhereVectorDistanceLessThan` branch.
+
+```rust
+use openrust::database::eloquent::Model;
+
+let mut query = Document::queryOn(&connection).select(["id"]);
+query.whereNested(|group| {
+    group
+        .whereVectorDistanceLessThan("embedding", &primary, 0.3)
+        .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
+});
+let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+```
+
 ## JSON Where Clauses
 
 Use `whereJsonContains` and `whereJsonDoesntContain` to test JSON containment, `whereJsonContainsKey` and `whereJsonDoesntContainKey` to check path existence, and `whereJsonLength` to compare the length. Separate path segments with `->` and append indexes such as `groups[0]`. Each method has an `orWhere` variant.

@@ -396,6 +396,51 @@ impl<M: Model> Builder<'_, M> {
         self
     }
 
+    pub fn whereVectorDistanceLessThan(
+        &mut self,
+        column: impl Into<query::Column>,
+        vector: &[f64],
+        max_distance: f64,
+    ) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).whereVectorDistanceLessThan(
+            column,
+            vector,
+            max_distance,
+        );
+        self
+    }
+
+    pub fn orWhereVectorDistanceLessThan(
+        &mut self,
+        column: impl Into<query::Column>,
+        vector: &[f64],
+        max_distance: f64,
+    ) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).orWhereVectorDistanceLessThan(
+            column,
+            vector,
+            max_distance,
+        );
+        self
+    }
+
+    pub fn whereVectorSimilarTo(
+        mut self,
+        column: impl Into<query::Column>,
+        vector: &[f64],
+        min_similarity: f64,
+        order: bool,
+    ) -> DatabaseResult<Self> {
+        let max_distance = query::vector::similarity_max_distance(min_similarity)?;
+        let column = column.into();
+        self.whereVectorDistanceLessThan(column.clone(), vector, max_distance);
+        if order {
+            self.orderByVectorDistance(column, vector)
+        } else {
+            Ok(self)
+        }
+    }
+
     pub fn whereKey(&mut self, value: impl Into<Value>) -> &mut Self {
         self.r#where(M::metadata().primary_key, "=", value)
     }
@@ -415,6 +460,16 @@ impl<M: Model> Builder<'_, M> {
     pub fn select(mut self, columns: impl IntoIterator<Item = impl Into<query::Column>>) -> Self {
         self.default_counts = false;
         self.select_relation_columns(columns)
+    }
+
+    pub fn selectVectorDistance(
+        mut self,
+        column: impl Into<query::Column>,
+        vector: &[f64],
+        alias: Option<&str>,
+    ) -> DatabaseResult<Self> {
+        self.query = self.query.selectVectorDistance(column, vector, alias)?;
+        Ok(self)
     }
 
     /// Applies attribute casts to models retrieved or created by this query.
@@ -440,6 +495,15 @@ impl<M: Model> Builder<'_, M> {
     pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
         self.query = self.query.orderBy(column, direction);
         self
+    }
+
+    pub fn orderByVectorDistance(
+        mut self,
+        column: impl Into<query::Column>,
+        vector: &[f64],
+    ) -> DatabaseResult<Self> {
+        self.query = self.query.orderByVectorDistance(column, vector)?;
+        Ok(self)
     }
 
     pub(super) fn order_by_full_text(

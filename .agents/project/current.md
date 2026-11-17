@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 00:24（北京时间）02-04 [Eloquent 向量查询与嵌套条件](audits/02-04/README.md#eloquent-向量查询与嵌套条件)。真实 PostgreSQL／pgvector、MariaDB、双驱动 HTTP 与独立 Artisan、MySQL 8.4.13 模型作用域回归、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 00:17（北京时间）02-04 [向量相似度查询](audits/02-04/README.md#向量相似度查询)。真实 PostgreSQL／pgvector 与 MariaDB、双驱动实际 HTTP 和 Artisan、MySQL 8.4.13 定向回归、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 00:07（北京时间）02-06 [真实 PostgreSQL 缺库、快照与限定 Schema 清库](audits/02-06/README.md#真实-postgresql-缺库快照与限定-schema-清库)。PostgreSQL 18.6 的独立 Artisan 缺库拒绝和创建、直连转储、SQL 与归档恢复、无效 SQL 回滚及限定 Schema 清库通过。核心账本维持 62/66。
 - 2026-11-18 00:07（北京时间）02-05 [PostgreSQL 类型目录与真实目录验收](audits/02-05/README.md#postgresql-类型目录与真实目录验收)。PostgreSQL 18.6 真实 HTTP 验证 Schema、表、视图、类型、列和复合外键。预演、MySQL 8.4.13 表目录和限定清库、独立 Artisan、Rust 1.94.0 格式及严格 Clippy、三语站点和两种部署路径的浏览器检查通过。核心账本维持 62/66。
