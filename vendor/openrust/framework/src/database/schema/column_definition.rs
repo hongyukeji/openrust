@@ -138,9 +138,9 @@ impl ColumnDefinition {
         self
     }
 
+    /// Enables auto-increment without changing the column's signedness.
     pub fn autoIncrement(&mut self) -> &mut Self {
         self.increment = true;
-        self.unsigned = true;
         self
     }
 

@@ -524,6 +524,20 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
+#### 自動遞增欄位與明確主鍵 {#auto-incrementing-columns-and-explicit-primary-keys}
+
+`integerIncrements("id")` 是 `increments("id")` 的別名，兩者皆建立無號整數。`autoIncrement()` 修飾符保留欄位型別的有號或無號設定。在 MySQL 中，資料表層級的 `primary` 宣告決定完整主鍵欄位。InnoDB 要求自動遞增欄位是某個索引的第一欄。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_entries(table: &mut Blueprint) {
+    table.integer("entry_id").autoIncrement().startingValue(500);
+    table.integer("import_id");
+    table.primary(&["entry_id", "import_id"], None);
+}
+```
+
 #### 條件式 Schema 變更 {#conditional-schema-changes}
 
 使用 `whenTableHasColumn`、`whenTableDoesntHaveColumn`、`whenTableHasIndex`、`whenTableDoesntHaveIndex`，只在目錄檢查符合條件時執行 Blueprint。目錄檢查和後續的 Schema 陳述式是兩次操作。

@@ -524,6 +524,20 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Auto-Incrementing Columns and Explicit Primary Keys {#auto-incrementing-columns-and-explicit-primary-keys}
+
+Use `integerIncrements("id")` as an alias for `increments("id")`. Both create an unsigned integer. The `autoIncrement()` modifier preserves the signedness of the column type. On MySQL, a table-level `primary` declaration supplies the entire primary key. InnoDB requires the auto-increment column to be the leading column in an index.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_entries(table: &mut Blueprint) {
+    table.integer("entry_id").autoIncrement().startingValue(500);
+    table.integer("import_id");
+    table.primary(&["entry_id", "import_id"], None);
+}
+```
+
 #### Conditional Schema Changes {#conditional-schema-changes}
 
 Use `whenTableHasColumn`, `whenTableDoesntHaveColumn`, `whenTableHasIndex`, and `whenTableDoesntHaveIndex` to run a blueprint only when its catalog check matches. The check and subsequent schema statement are separate operations.

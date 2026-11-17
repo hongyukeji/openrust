@@ -180,7 +180,7 @@ async fn rebuild_table(
                     .any(|constraint| constraint.kind == sql::InlineKind::Primary)
                 {
                     if requested_increment {
-                        grammar.column(&column)?;
+                        grammar.column(&column, false)?;
                     }
                     column.primary = false;
                     column.increment = false;
@@ -191,7 +191,7 @@ async fn rebuild_table(
                 {
                     column.unique = false;
                 }
-                let mut definition = grammar.column(&column)?;
+                let mut definition = grammar.column(&column, false)?;
                 for constraint in constraints {
                     definition.push(' ');
                     definition.push_str(&columns[index][constraint.range]);

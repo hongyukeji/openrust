@@ -524,6 +524,20 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 设置自增列的起始值。实际可用的下一个值由 MySQL 结合已有数据决定。SQLite 使用原生序列，使用 MySQL 在线 DDL 修饰符时返回方言错误。
 
+#### 自增列与显式主键 {#auto-incrementing-columns-and-explicit-primary-keys}
+
+`integerIncrements("id")` 是 `increments("id")` 的别名，两者都创建无符号整数。`autoIncrement()` 修饰符保留列类型的有符号或无符号设定。在 MySQL 中，表级 `primary` 声明决定完整的主键列。InnoDB 要求自增列是某个索引的首列。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_entries(table: &mut Blueprint) {
+    table.integer("entry_id").autoIncrement().startingValue(500);
+    table.integer("import_id");
+    table.primary(&["entry_id", "import_id"], None);
+}
+```
+
 #### 条件式 Schema 变更 {#conditional-schema-changes}
 
 用 `whenTableHasColumn`、`whenTableDoesntHaveColumn`、`whenTableHasIndex`、`whenTableDoesntHaveIndex`，仅在目录检查满足条件时执行 Blueprint。目录检查与随后的 Schema 语句是两次操作。

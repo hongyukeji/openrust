@@ -343,3 +343,13 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `sh tests/table_catalog.sh` 在临时 MySQL 8.4.13 上通过写连接的表与视图目录，以及实际 Artisan `db:wipe`、`migrate:fresh` 和旁库标记行保留检查。第二个临时 MySQL 8.4.13 上的 26 项 Schema 回归及 `main artisan inspire` 通过。
 - 02-05 涉及的八个 Rust 文件通过 Rust 1.94.0 格式检查，`cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings` 通过。全仓格式检查只报告 `sanctum_authentication.rs:1412`，已核对与 Blueprint 补丁前的文件一致。
 - 两轮 MySQL 夹具已回收，并清理本轮独立 target。项目卷可用 53.96 GB（50.25 GiB），周额度剩余 68%，第二窗口无读数。日志存于 `/private/tmp/openrust-02-05-blueprint-resume.6MjrCHZ6`。本轮复验范围通过，02-05 的其余类型和方言修饰符继续跟踪。
+
+
+## 自增列与显式主键
+
+- 对照固定 Laravel Blueprint 的 `integerIncrements` 和 MySQL Grammar 的 `modifyIncrement`。旧版 `v0.x` 未找到复合主键与自增组合的回归，沿用现有 Blueprint 命令、显式主键及自增起始值的编译路径。 [Laravel 自增列语法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1270)
+- MySQL Blueprint 有表级主键命令时，自增列只输出 `AUTO_INCREMENT`，整个主键按显式列顺序生成。`autoIncrement()` 保留原列的有符号或无符号属性。`id` 及各 `*Increments` 快捷方法继续生成无符号键，新增 `integerIncrements` 别名。InnoDB 仍要求自增列为某个索引的首列。 [MySQL InnoDB 自增规则](https://dev.mysql.com/doc/refman/8.4/en/innodb-auto-increment-handling.html)
+- 隔离基线 `01777330`、Rust 1.94.0。真实 MySQL 8.4.13 的 27 项 Schema 回归通过。新用例验证复合主键目录、有符号列写入负数、起始值分配、变更后的主键与序列、无符号别名。另用 `sh tests/table_catalog.sh` 验证写连接目录和限定 Schema 清库。
+- 三语共有示例经实际 Artisan 执行 `migrate --pretend`、`migrate` 和 `migrate:rollback`，验证预演无表、建表后的列和索引、回滚移除表。`main artisan inspire` 通过。
+- 严格工作区 Clippy、改动文件格式、三语站点构建、12 项通用和 6 项专题浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批日常外部驱动验收使用 MySQL，其他驱动实机覆盖按发布范围跟踪。证据目录 `/private/tmp/openrust-02-05-mysql-types.muP968Hh`。02-05 仍跟踪其余类型和方言修饰符。
+- 三轮临时 MySQL 已回收，另清理本批 4.1 GiB Cargo 产物及文档缓存。项目磁盘可用 115.05 GB（107.15 GiB），周额度剩余 66%，第二窗口无读数。

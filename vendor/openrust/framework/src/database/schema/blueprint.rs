@@ -90,6 +90,12 @@ impl Blueprint {
         self.creating
     }
 
+    pub(super) fn has_explicit_primary(&self) -> bool {
+        self.commands.iter().any(
+            |command| matches!(command, Command::Index(index) if index.kind == IndexType::Primary),
+        )
+    }
+
     /// Iterates over pending column definitions in declaration order.
     pub fn getColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
         self.commands.iter().filter_map(|command| match command {
@@ -123,23 +129,28 @@ impl Blueprint {
     }
 
     pub fn tinyIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.tinyInteger(name).autoIncrement()
+        self.unsignedTinyInteger(name).autoIncrement()
     }
 
     pub fn smallIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.smallInteger(name).autoIncrement()
+        self.unsignedSmallInteger(name).autoIncrement()
     }
 
     pub fn mediumIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.mediumInteger(name).autoIncrement()
+        self.unsignedMediumInteger(name).autoIncrement()
     }
 
     pub fn increments(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.integer(name).autoIncrement()
+        self.unsignedInteger(name).autoIncrement()
+    }
+
+    /// Declares an unsigned auto-incrementing integer, like `increments`.
+    pub fn integerIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.increments(name)
     }
 
     pub fn bigIncrements(&mut self, name: &str) -> &mut ColumnDefinition {
-        self.bigInteger(name).autoIncrement()
+        self.unsignedBigInteger(name).autoIncrement()
     }
 
     pub fn unsignedTinyInteger(&mut self, name: &str) -> &mut ColumnDefinition {

@@ -2028,6 +2028,88 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_preserves_explicit_primary_and_integer_signedness_with_auto_increment() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut schema = db.getSchemaBuilder();
+    let name = "composite_increment";
+    let alias = "integer_increment_alias";
+    for table in [name, alias] {
+        schema.dropIfExists(table).await.unwrap();
+    }
+
+    schema
+        .create(name, |table| {
+            table.integer("id").autoIncrement().startingValue(500);
+            table.integer("tenant_id");
+            table.primary(&["id", "tenant_id"], None);
+        })
+        .await
+        .unwrap();
+    let primary = schema.getIndexes(name).await.unwrap();
+    assert_eq!(primary.len(), 1);
+    assert!(primary[0].primary);
+    assert_eq!(
+        primary[0].columns,
+        [Some("id".into()), Some("tenant_id".into())]
+    );
+    let id = schema.getColumn(name, "id").await.unwrap().unwrap();
+    assert_eq!(id.full_type, "int");
+    assert!(id.auto_increment);
+    db.insert(
+        "insert into composite_increment (id, tenant_id) values (-1, 1)",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table(name)
+            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .await
+            .unwrap(),
+        500.into()
+    );
+
+    schema
+        .table(name, |table| {
+            table.bigInteger("id").autoIncrement().change();
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumnType(name, "id", true).await.unwrap(),
+        "bigint"
+    );
+    assert_eq!(
+        schema.getIndexes(name).await.unwrap()[0].columns,
+        [Some("id".into()), Some("tenant_id".into())]
+    );
+    assert_eq!(
+        db.table(name)
+            .insertGetId(BTreeMap::from([("tenant_id".into(), 1.into())]))
+            .await
+            .unwrap(),
+        501.into()
+    );
+
+    schema
+        .create(alias, |table| {
+            table.integerIncrements("serial");
+        })
+        .await
+        .unwrap();
+    let column = schema.getColumn(alias, "serial").await.unwrap().unwrap();
+    assert_eq!(column.full_type, "int unsigned");
+    assert!(column.primary && column.auto_increment);
+    for table in [name, alias] {
+        schema.dropIfExists(table).await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn mysql_applies_instant_column_changes_locks_and_starting_values() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
