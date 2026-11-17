@@ -112,8 +112,14 @@ impl DatabaseQueue {
                 .next()
         } else {
             let mut transaction = self.connection.beginTransaction().await.map_err(backend)?;
+            let lock = if self.connection.is_postgres() {
+                "for update skip locked"
+            } else {
+                // MySQL evaluates the versioned clause on the server that owns this transaction.
+                "for update /*!80001 skip locked */"
+            };
             let sql = format!(
-                "select id, payload, attempts from {table} where {ready} order by id limit 1 for update skip locked"
+                "select id, payload, attempts from {table} where {ready} order by id limit 1 {lock}"
             );
             let row = transaction
                 .selectOne(&sql, &bindings)

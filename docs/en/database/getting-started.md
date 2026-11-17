@@ -6,6 +6,19 @@ The application reads `config/database.rs`. The default connection is `sqlite`. 
 
 For MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection's `url`, populated by `DB_URL` in the application configuration, can supply the driver and credentials. MySQL requires TLS. Set `MYSQL_ATTR_SSL_CA` for certificate and host verification, or configure `ssl_mode` and `ssl_ca` on the connection. `verify_identity` checks the certificate chain and server name. `verify_ca` checks the certificate chain.
 
+### MySQL 5.7 TLS {#mysql-57-tls}
+
+MySQL 5.7.44 needs a server build that can negotiate TLS 1.2 with ECDHE. The Oracle generic Linux archive passed with an RSA server certificate and the following `mysqld` settings. Supply the CA, server certificate and private key through `ssl-ca`, `ssl-cert` and `ssl-key`.
+
+```ini
+[mysqld]
+require_secure_transport=ON
+tls_version=TLSv1.2
+ssl_cipher=ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384
+```
+
+Set the application's `MYSQL_ATTR_SSL_CA` to the CA certificate and use a `DB_HOST` present in the server certificate. The Oracle Linux 7 container build exercised in the [release matrix](../prologue/releases.md) could negotiate DHE with its native client, but failed ECDHE negotiation.
+
 ### Read and Write Connections
 
 Set `read` and `write` inside a named connection in `config/database.rs`. Each role inherits the common options and overrides its own values. For MySQL, a host list is shuffled when the pool is configured, and acquisition tries the next host when a host is unavailable. Supply the password from your environment.

@@ -12,6 +12,7 @@
 | Linux ARM64、Debian Bookworm 容器、Rust 1.94.0 | 以非特权用户运行独立产物、HTTP、SQLite 迁移和 Artisan |
 | Linux ARM64、Debian Bookworm 容器、LinuxKit 7.0.14 | 默认同进程启动、SQLite 队列与独立 Artisan 对照、SIGTERM 优雅退出 |
 | SQLite 3.51.3 | 干净检出、12 项应用迁移、Artisan 与 HTTP |
+| MySQL 5.7.44，Oracle 通用 Linux 归档 | TLS 1.2 证书和服务器名称校验、12 项迁移、幂等重跑、HTTP、数据库会话和 Artisan 作业处理 |
 | MySQL 8.0.46、8.4.13 | 隔离数据库、12 项迁移、重复执行、Artisan 数据库 Worker、HTTP 与数据库会话写入 |
 | PostgreSQL 10–18 | 隔离数据库、12 项迁移、重复执行、Artisan 数据库 Worker、HTTP 与数据库会话写入。另在 10 和 18 实测任务派发与预留 |
 | Redis 8.10 | 队列验收及两个进程间的 Reverb 发布 |
@@ -20,7 +21,7 @@
 
 各平台与驱动的验收范围见表，功能边界见相应指南，例如 [Reverb 扩展](../packages/reverb.md)。独立产物的构建和运行见[部署](../getting-started/deployment.md)。
 
-数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。测试镜像中的 MySQL 5.7.44 未通过必需的 TLS 握手。MariaDB 与 SQL Server 当前返回驱动不可用。
+数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。基于 Oracle Linux 7 的 MySQL 5.7.44 容器构建未能与 OpenRust 的 TLS 客户端协商 ECDHE。实测服务端配置见 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)。MariaDB 和 SQL Server 已预留连接名，当前均返回驱动不可用。
 
 当前 Windows ARM64 来宾缺少嵌套虚拟化和可运行的 WSL 2 后端，独立部署已验收。Windows Docker Desktop 和当前版本的原生 Ubuntu 复验仍待目标环境。
 

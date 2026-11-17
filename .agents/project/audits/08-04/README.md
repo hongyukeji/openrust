@@ -44,3 +44,13 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - 按约定保留生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验收，08-04 保持开放。
 
 三语站点构建、12 项通用浏览器检查和 6 项发布矩阵导航检查通过。已清理本批隔离源码、Cargo 产物、站点、数据库容器以及新拉取的数据库镜像标签。
+
+## MySQL 5.7 TLS 与驱动边界
+
+- 从 `22acc2558` 的干净检出锁定构建。隔离运行官方 `mysql:5.7` 的 5.7.44 Oracle Linux 7 构建，确认它动态链接 OpenSSL 1.0.2k。RSA 证书的独立客户端协商 `DHE-RSA-AES128-GCM-SHA256` 成功，使用相同证书测试 ECDHE 时收到握手失败，Rust 应用也拒绝该端点。单独换用 ECDSA 证书仍未接通 ECDHE。 [MySQL 5.7 TLS 库说明](https://dev.mysql.com/doc/mysql-security-excerpt/5.7/en/ssl-libraries.html)
+- 在同一 amd64 兼容环境使用 Oracle `mysql-5.7.44-linux-glibc2.12-x86_64.tar.gz` 的实际 `mysqld`。服务端强制安全传输，限定 TLS 1.2 和 ECDHE-RSA AES-GCM，独立探针协商 `ECDHE-RSA-AES128-GCM-SHA256`，证书链及地址校验通过。应用设置 `MYSQL_ATTR_SSL_CA` 后通过连接，明文连接、应用禁用 TLS 的配置、错误 CA 和独立客户端校验错误主机名均被拒绝。 [Oracle MySQL 归档](https://downloads.mysql.com/archives/community/)
+- 真实应用通过 12 项迁移、幂等重跑、`migrate:status`、`inspire`、`queue:work`、首页和 `/up`、数据库会话写入与 SIGTERM。固定 Laravel 在 MySQL 8.0.1 起使用 `SKIP LOCKED`，旧版本回退到行锁。Rust 通过 MySQL 版本注释让当前事务连接上的服务器选择语句，两种 MySQL 版本分别通过真实 HTTP 队列及 Artisan 作业执行、重试和失败回归，复测版本为 5.7.44 和 8.4.13。队列测试严格 Clippy 通过。 [固定 Laravel 的队列锁选择](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/DatabaseQueue.php#L489)
+- `mariadb` 和 `sqlsrv` 分别使用真实 `artisan migrate:status`，均以 1 退出并报告驱动不可用。应用配置已预留两者，连接工厂的物理连接池和 SQL 方言目前仅接通 SQLite、MySQL 及 PostgreSQL。MariaDB 仍需独立接通连接名、版本能力和 Schema 方言。SQL Server 仍缺 TDS 连接与 TLS、参数绑定和 SQL／Schema 方言。两者都需要真实服务的连接、迁移、HTTP 和 Worker 验收。
+- 原生 Linux x86_64、Windows Docker Desktop、生产 TLS 与托管 AWS SQS 标准／FIFO 保留到环境就绪后验收。08-04 保持开放。
+
+三语站点构建、12 项通用浏览器检查和 6 项 MySQL 5.7 发布矩阵与 TLS 配置导航检查通过。已清理隔离数据库、镜像标签、MySQL 归档、证书、站点与构建产物。

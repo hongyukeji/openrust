@@ -6,6 +6,19 @@
 
 MySQL 使用 `DB_CONNECTION=mysql`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。应用配置通过 `DB_URL` 设置连接的 `url`，由其提供驱动和连接凭据。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 启用证书与主机名验证，也可在连接配置中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 校验证书链和服务器名称。`verify_ca` 校验证书链。
 
+### MySQL 5.7 TLS {#mysql-57-tls}
+
+MySQL 5.7.44 需要能通过 ECDHE 协商 TLS 1.2 的服务端构建。Oracle 通用 Linux 归档使用 RSA 服务端证书和以下 `mysqld` 配置通过验收。通过 `ssl-ca`、`ssl-cert` 和 `ssl-key` 配置 CA、服务端证书及私钥。
+
+```ini
+[mysqld]
+require_secure_transport=ON
+tls_version=TLSv1.2
+ssl_cipher=ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384
+```
+
+应用的 `MYSQL_ATTR_SSL_CA` 指向 CA 证书，`DB_HOST` 使用服务端证书中的名称或地址。[发布矩阵](../prologue/releases.md)中的 Oracle Linux 7 容器构建可用其原生客户端协商 DHE，ECDHE 协商失败。
+
 ### 读写连接
 
 在 `config/database.rs` 的具名连接中配置 `read` 和 `write`。每个角色继承公共配置，并覆盖自己的字段。MySQL 在建立池配置时打乱主机列表，主机不可用时尝试下一个。密码由环境提供。
