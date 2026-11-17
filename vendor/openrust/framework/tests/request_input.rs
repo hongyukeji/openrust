@@ -160,6 +160,30 @@ fn dated_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 
+fn interval_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let interval = request.interval("duration", None).await?;
+        let explicit = request.interval("seconds", Some("second")).await?;
+        request.interval("invalid_unit", Some("sec")).await?;
+        let values = [interval, explicit].map(|value| {
+            value.map(|span| {
+                json!([
+                    span.years,
+                    span.months,
+                    span.days,
+                    span.hours,
+                    span.minutes,
+                    span.seconds,
+                    span.microseconds,
+                    span.invert,
+                    span.total_days()
+                ])
+            })
+        });
+        Response::json(StatusCode::OK, values)
+    })
+}
+
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
@@ -184,6 +208,7 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
             Route::r#match(&[Method::GET, Method::POST], "/scalars", scalar_input)?;
             Route::r#match(&[Method::POST], "/typed-values", typed_values)?;
             Route::r#match(&[Method::POST], "/dated-values", dated_values)?;
+            Route::r#match(&[Method::POST], "/intervals", interval_values)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -526,6 +551,48 @@ async fn real_http_reads_dates_and_selects_named_input_paths() {
             400,
         )
         .await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_calendar_intervals_and_explicit_units() {
+    let (address, server) = start("intervals").await;
+    for (body, expected) in [
+        (
+            br#"{"duration":"P1Y2M3DT4H5M6.123456S","seconds":"90.125suffix"}"#.as_slice(),
+            json!([
+                [1, 2, 3, 4, 5, 6, 123456, false, null],
+                [0, 0, 0, 0, 0, 90, 125000, false, null]
+            ]),
+        ),
+        (
+            br#"{"duration":"2 hours 30 minutes","seconds":-1.25}"#,
+            json!([
+                [0, 0, 0, 2, 30, 0, 0, false, null],
+                [0, 0, 0, 0, 0, -1, -250000, false, null]
+            ]),
+        ),
+        (
+            br#"{"duration":"2 days ago","seconds":" "}"#,
+            json!([[0, 0, -2, 0, 0, 0, 0, false, null], null]),
+        ),
+        (br#"{"duration":3,"seconds":null}"#, json!([null, null])),
+        (b"{}", json!([null, null])),
+    ] {
+        let path = if body == b"{}" {
+            "/intervals"
+        } else {
+            "/intervals?duration=4%20hours"
+        };
+        let (_, actual) = send(address, "POST", path, "application/json", body, 200).await;
+        assert_eq!(serde_json::from_str::<Value>(&actual).unwrap(), expected);
+    }
+    for body in [
+        br#"{"duration":"P1Q"}"#.as_slice(),
+        br#"{"invalid_unit":10}"#,
+    ] {
+        send(address, "POST", "/intervals", "application/json", body, 400).await;
     }
     server.abort();
 }

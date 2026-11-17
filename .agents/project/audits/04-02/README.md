@@ -37,3 +37,10 @@
 - 多键接口复用点号路径读取与 `Arr` 写入、删除规则。Rust 的 `arrayOnly`、`collectOnly` 表达 PHP 方法接收键数组的分支，multipart 文件继续经上传对象读取。真实 HTTP 验证嵌套命中、保留显式 null、省略缺失键、查询补入与移除子键。
 - PHP 8.5 `DateTimeImmutable` 对照通过固定偏移、IANA 时区、相对日期、微秒和负时间戳，另验证格式与自由表达式的失败。如果继续核对 Carbon 特有行为，沿用旧版转换用例。04-02 尚待时间间隔与控制器契约，核心账本维持 56/66。
 - `eb1193f99` 隔离快照使用 Rust 1.94.0 通过 4 项真实 HTTP、3 项 Calendar 回归、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批产物已回收，日志保留于 `/private/tmp/openrust-04-02-date.IKxksx7z`。
+
+## 请求时间间隔
+
+- 对照固定 Laravel 的 `interval` 和 Carbon 3.8.4。从旧版 `6d1a81924` 提取 ISO、自然语言与显式单位解析及其黄金用例，复用当前请求输入、标量转换和 Calendar 预算。区间保留各日历分量、带符号的微秒和方向。显式单位下的 90 秒仍保存在秒分量内。 [固定 Laravel interval](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php#L369) · [CarbonInterval 3.8.4](https://github.com/briannesbitt/Carbon/blob/3.8.4/src/Carbon/CarbonInterval.php)
+- PHP 8.5 使用固定 trait 与 Carbon 3.8.4 对照 10 组结果，旧版 240 条黄金用例移入框架测试并通过。真实 HTTP 验证 ISO 和自然语言区间、单位数值前缀、带符号微秒、空值、正文优先级和非法单位。无法解析的区间返回 400，超出解析预算返回 413。剩余复杂 timelib 相对指令保留在兼容边界，未覆盖的表达式报错。
+- 下一批核对资源控制器与剩余响应契约，04-02 保持开放，核心账本维持 56/66。
+- `086b95415` 隔离快照以 Rust 1.94.0 通过 5 项真实 HTTP、14 项 Calendar 测试、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批 Cargo 与文档产物已回收，日志留在 `/private/tmp/openrust-04-02-interval.w2QYPZyV`。

@@ -3,6 +3,7 @@
 mod abbreviations;
 mod civil;
 mod format;
+mod interval;
 mod lexer;
 mod parse;
 mod posix;
@@ -15,6 +16,7 @@ mod zone;
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 pub(crate) use format::display as format_php_date;
+pub use interval::{InputInterval, IntervalError};
 use serde_json::Value;
 use zone::ResolvedTimezone;
 

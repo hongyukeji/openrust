@@ -34,7 +34,7 @@ pub use crate::cache::cache;
 pub use arr::{Arr, ArrValueError};
 pub use backed_enum::{BackedEnum, EnumBacking};
 pub use benchmark::Benchmark;
-pub use calendar::InputDate;
+pub use calendar::{InputDate, InputInterval, IntervalError};
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};
 pub use date::{

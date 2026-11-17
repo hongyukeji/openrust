@@ -287,6 +287,19 @@ impl Request {
             })
     }
 
+    /// Reads a calendar interval from an ISO or human expression, or a value in the selected unit.
+    pub async fn interval(
+        &mut self,
+        key: &str,
+        unit: Option<&str>,
+    ) -> Result<Option<crate::support::InputInterval>, HttpError> {
+        let value = self.input(Some(key)).await?;
+        crate::support::InputInterval::parse(value.as_ref(), unit).map_err(|error| match error {
+            crate::support::IntervalError::Limit => HttpError::PayloadTooLarge,
+            _ => HttpError::InvalidRequest,
+        })
+    }
+
     /// Selects named input paths, omitting missing keys and preserving explicit null.
     pub async fn only(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
         let input = self.input(None).await?.unwrap_or_else(empty);

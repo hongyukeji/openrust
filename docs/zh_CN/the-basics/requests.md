@@ -20,6 +20,8 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 用 `request.only(&["user.name", "user.note"]).await?` 选取嵌套输入，并保留显式 null。`request.except` 从输入副本移除指定路径。`arrayOnly` 和 `collectOnly` 分别对应 `array` 和 `collect` 的多键读取。这些方法选择输入值，上传文件用 `request.file` 读取。
 
+用 `request.interval("duration", None).await?` 读取 ISO 8601 区间或 `2 hours 30 minutes` 等表达式。字段以指定单位提供值时，使用 `request.interval("seconds", Some("second")).await?`。结果保留日历分量和微秒，显式传入的 90 秒仍在秒分量中。缺失或空白输入返回 `None`，无效区间或单位返回 HTTP 400。
+
 ## 文件
 
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。

@@ -20,6 +20,8 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 使用 `request.only(&["user.name", "user.note"]).await?` 選取巢狀輸入，並保留明確提供的 null。`request.except` 從輸入副本移除指定路徑。`arrayOnly` 和 `collectOnly` 分別對應 `array` 和 `collect` 的多鍵讀取。這些方法選取輸入值，上傳檔案由 `request.file` 讀取。
 
+使用 `request.interval("duration", None).await?` 讀取 ISO 8601 區間或 `2 hours 30 minutes` 等表示式。欄位以指定單位提供數值時，使用 `request.interval("seconds", Some("second")).await?`。結果保留日曆分量和微秒，明確傳入的 90 秒仍屬於秒分量。缺少輸入或只有空白時傳回 `None`，區間或單位無效時傳回 HTTP 400。
+
 ## 檔案
 
 用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。

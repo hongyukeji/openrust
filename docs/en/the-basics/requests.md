@@ -20,6 +20,8 @@ Use `request.date("when", None, None).await?` to parse a date using the applicat
 
 Use `request.only(&["user.name", "user.note"]).await?` to select nested input while retaining explicit null values. `request.except` removes paths from a copy of the input. Use `arrayOnly` and `collectOnly` for the multi-key forms of `array` and `collect`. These methods select input values. Read multipart uploads through `request.file`.
 
+Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.
