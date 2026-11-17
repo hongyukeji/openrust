@@ -158,3 +158,29 @@ let response = Response::streamJson(StatusCode::OK, data);
 ### 串流下載 {#streamed-downloads}
 
 `Response::streamDownload` 分段傳送下載內容。提供檔名時，框架依指定的處置方式產生 `Content-Disposition`，並視需要附加 UTF-8 檔名。檔名為 `None` 時，由呼叫端提供的回應標頭決定處置方式。
+
+## 回應巨集 {#response-macros}
+
+在 Service Provider 的 `boot` 中註冊非同步回應巨集。巨集接收 JSON 值參數並回傳 HTTP 回應。
+
+```rust
+use openrust::{
+    http::{HttpError, Response as HttpResponse, StatusCode},
+    support::facades::Response,
+};
+
+Response::r#macro("caps", |arguments| async move {
+    let [serde_json::Value::String(value)] = arguments.as_slice() else {
+        return Err(HttpError::InvalidRequest);
+    };
+    HttpResponse::json(StatusCode::OK, value.to_uppercase())
+})?;
+```
+
+在路由或控制器中按名稱呼叫。
+
+```rust
+Response::call("caps", vec!["hello".into()]).await
+```
+
+`hasMacro` 檢查目前的工廠。`mixin` 接收明確列出的 `ResponseMacro` 與替換開關。`flushMacros` 清空目前應用程式的登記表。每個應用程式使用自己的回應工廠。

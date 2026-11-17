@@ -158,3 +158,29 @@ let response = Response::streamJson(StatusCode::OK, data);
 ### 流式下载 {#streamed-downloads}
 
 `Response::streamDownload` 按块发送下载内容。提供文件名时，框架按指定的处置方式生成 `Content-Disposition`，并按需附加 UTF-8 文件名。文件名为 `None` 时，由调用者提供的响应头决定处置方式。
+
+## 响应宏 {#response-macros}
+
+在 Service Provider 的 `boot` 中注册异步响应宏。宏接收 JSON 值参数并返回 HTTP 响应。
+
+```rust
+use openrust::{
+    http::{HttpError, Response as HttpResponse, StatusCode},
+    support::facades::Response,
+};
+
+Response::r#macro("caps", |arguments| async move {
+    let [serde_json::Value::String(value)] = arguments.as_slice() else {
+        return Err(HttpError::InvalidRequest);
+    };
+    HttpResponse::json(StatusCode::OK, value.to_uppercase())
+})?;
+```
+
+在路由或控制器中按名称调用。
+
+```rust
+Response::call("caps", vec!["hello".into()]).await
+```
+
+`hasMacro` 检查当前工厂。`mixin` 接收显式列出的 `ResponseMacro` 和替换开关。`flushMacros` 清空当前应用的注册表。每个应用使用自己的响应工厂。

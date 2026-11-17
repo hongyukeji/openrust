@@ -5,6 +5,7 @@ mod event;
 mod facade;
 pub use event::Event;
 mod redirect;
+mod response;
 mod url;
 pub use crate::auth::{Auth, access::GateFacade as Gate, passwords::Password};
 pub use crate::broadcasting::Broadcast;
@@ -36,6 +37,7 @@ pub(crate) use facade::{
     isolated_scope, scope,
 };
 pub use redirect::Redirect;
+pub use response::Response;
 pub use url::URL;
 
 use std::{

@@ -5,13 +5,16 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
-        Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode,
-        StreamedEvent, StreamedJson,
+        Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, ResponseMacro,
+        StatusCode, StreamedEvent, StreamedJson,
     },
     routing::{
         ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
     },
-    support::{BackedEnum, ProviderResult, ServiceProvider, facades::Route},
+    support::{
+        BackedEnum, ProviderResult, ServiceProvider,
+        facades::{Response as ResponseFacade, Route},
+    },
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -83,6 +86,65 @@ impl ServiceProvider for Provider {
             Ok(())
         })
     }
+
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        let label = self.0;
+        Box::pin(async move {
+            ResponseFacade::r#macro("caps", move |arguments| async move {
+                let [Value::String(text)] = arguments.as_slice() else {
+                    return Err(HttpError::InvalidRequest);
+                };
+                tokio::task::yield_now().await;
+                Response::json(StatusCode::CREATED, json!([label, text.to_uppercase()]))
+            })?;
+            ResponseFacade::mixin(
+                [
+                    (
+                        "caps",
+                        ResponseMacro::new(|_| async { Ok(Response::noContent()) }),
+                    ),
+                    (
+                        "replace",
+                        ResponseMacro::new(|_| async { Ok(Response::noContent()) }),
+                    ),
+                ],
+                false,
+            )?;
+            ResponseFacade::mixin(
+                [(
+                    "replace",
+                    ResponseMacro::new(|_| async { Response::json(StatusCode::OK, "replaced") }),
+                )],
+                true,
+            )?;
+            Ok(())
+        })
+    }
+}
+
+fn response_macro(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        match request.uri().path() {
+            "/macro-flush" => {
+                ResponseFacade::flushMacros().map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+                Ok(Response::noContent())
+            }
+            "/macro-present" => {
+                let present =
+                    ResponseFacade::hasMacro("caps").map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+                Response::json(StatusCode::OK, present)
+            }
+            "/macro-replace" => ResponseFacade::call("replace", vec![]).await,
+            _ => {
+                let arguments = request.query(Some("value"))?.into_iter().collect();
+                ResponseFacade::call("caps", arguments).await
+            }
+        }
+    })
 }
 
 fn stream(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -407,6 +469,10 @@ async fn start_at(label: &'static str, root: PathBuf) -> (SocketAddr, tokio::tas
             Route::get("/stream.json", stream_json)?;
             Route::get("/stream.events", event_stream)?;
             Route::get("/stream.download", stream_download)?;
+            for path in ["/macro", "/macro-present", "/macro-replace"] {
+                Route::get(path, response_macro)?;
+            }
+            Route::r#match(&[Method::POST], "/macro-flush", response_macro)?;
             for path in [
                 "/file",
                 "/download",
@@ -1444,4 +1510,37 @@ async fn real_http_prepares_file_responses_after_cache_middleware() {
     assert!(body.is_empty() && headers.contains("\r\ncontent-length: 0"));
     send(address, "GET", "/file-missing", "", b"", 500).await;
     server.abort();
+}
+
+#[tokio::test]
+async fn real_http_dispatches_provider_macros_in_each_application() {
+    let ((first, first_server), (second, second_server)) =
+        tokio::join!(start("macro-first"), start("macro-second"));
+    let (left, right) = tokio::join!(
+        send(first, "GET", "/macro?value=caf%C3%A9", "", b"", 201),
+        send(second, "GET", "/macro?value=hello", "", b"", 201),
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&left.1).unwrap(),
+        json!(["macro-first", "CAFÉ"])
+    );
+    assert_eq!(
+        serde_json::from_str::<Value>(&right.1).unwrap(),
+        json!(["macro-second", "HELLO"])
+    );
+
+    let (_, body) = send(first, "GET", "/macro-replace", "", b"", 200).await;
+    assert_eq!(body, "\"replaced\"");
+    send(first, "GET", "/macro", "", b"", 400).await;
+    send(first, "POST", "/macro-flush", "", b"", 204).await;
+    let (_, body) = send(first, "GET", "/macro-present", "", b"", 200).await;
+    assert_eq!(body, "false");
+    send(first, "GET", "/macro?value=gone", "", b"", 500).await;
+    let (_, body) = send(second, "GET", "/macro?value=still", "", b"", 201).await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap(),
+        json!(["macro-second", "STILL"])
+    );
+    first_server.abort();
+    second_server.abort();
 }

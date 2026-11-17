@@ -90,3 +90,11 @@
 - 固定 Laravel/PHP 8.5 验证 GET、HEAD、闭合区间、开放区间、后缀区间、304、416、`If-Range` 和下载处置头。对照使用固定媒体类型和 ASCII 文件名回退。真实 HTTP 另覆盖默认媒体类型、UTF-8 回退、空文件、缺失文件和忽略多区间请求。
 - 隔离基线 `e370b439d` 上使用 Rust 1.94.0 通过请求与响应 14 项、文件系统 9 项和应用 HTTP 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-binary-file.IsQej8Qt`。
 - 04-02 保持开放。后续核对响应宏与流式差异。Symfony 的发送后删文件及可信代理文件转发为独立扩展，当前两个构造器从框架进程直接发送本地文件。
+
+## 响应宏
+
+- 对照固定 Laravel 的响应工厂与 `Macroable`。旧版 `v0.x` 的 URL 对照夹具带有上游 `Macroable`，未找到可复用的 Rust 响应宏。复用当前容器单例、Facade 作用域与 Service Provider `boot`。 [Laravel Response Macros](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#response-macros) · [Laravel Macroable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Macroable/Traits/Macroable.php)
+- `Response::r#macro` 在应用作用域内注册异步闭包，同名注册替换。`call` 显式按名称传递 JSON 值参数。`mixin` 接收明确列出的 `ResponseMacro` 和替换开关。`hasMacro` 与 `flushMacros` 只作用于当前应用。Rust 通过具名调用与显式 mixin 清单表达 PHP 动态方法分发及反射。宏执行期间释放注册表锁。
+- 固定 Laravel/PHP 8.5 验证注册、动态调用、mixin 替换、清空与未知宏。真实 HTTP 在两个同时运行的应用中验证同名宏隔离、参数错误、mixin 优先级，以及清空后的 500 和其他应用继续服务。
+- 隔离基线 `6fb24a3f3` 使用 Rust 1.94.0 通过请求与响应 15 项、应用 HTTP 16 项和容器生命周期 4 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-response-macros.mCHBYg4O`。
+- 04-02 保持开放。下一批核对流式响应的 JSON 转义、事件错误报告与浏览器消费。

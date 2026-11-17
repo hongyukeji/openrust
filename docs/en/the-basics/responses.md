@@ -158,3 +158,29 @@ Once the headers have been sent, a source or serialization error ends the body w
 ### Streamed Downloads {#streamed-downloads}
 
 `Response::streamDownload` sends byte chunks as a download. With a filename, it builds `Content-Disposition` using the requested disposition and adds a UTF-8 filename when needed. With `None`, the supplied headers determine the disposition.
+
+## Response Macros {#response-macros}
+
+Register an asynchronous response macro from a service provider's `boot` method. The macro receives the arguments as JSON values and returns an HTTP response.
+
+```rust
+use openrust::{
+    http::{HttpError, Response as HttpResponse, StatusCode},
+    support::facades::Response,
+};
+
+Response::r#macro("caps", |arguments| async move {
+    let [serde_json::Value::String(value)] = arguments.as_slice() else {
+        return Err(HttpError::InvalidRequest);
+    };
+    HttpResponse::json(StatusCode::OK, value.to_uppercase())
+})?;
+```
+
+Call it by name from a route or controller.
+
+```rust
+Response::call("caps", vec!["hello".into()]).await
+```
+
+`hasMacro` checks the current factory. `mixin` takes explicitly listed `ResponseMacro` values and a replacement flag. `flushMacros` clears the current application's registry. Each application has its own factory.

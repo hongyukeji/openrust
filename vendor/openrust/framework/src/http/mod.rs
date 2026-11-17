@@ -15,6 +15,7 @@ mod redirect_response;
 mod request;
 pub mod resources;
 mod response;
+mod response_factory;
 mod streamed_response;
 mod uploaded_file;
 
@@ -32,6 +33,8 @@ pub(crate) use request::context as request_context;
 pub use request::{Request, RequestAttributes};
 pub(crate) use request::{parse_query, parse_uri_query};
 pub use response::Response;
+pub(crate) use response_factory::ResponseServiceProvider;
+pub use response_factory::{ResponseFactory, ResponseMacro};
 pub use streamed_response::{StreamedEvent, StreamedJson};
 pub use uploaded_file::UploadedFile;
 pub(crate) use uploaded_file::random_name as random_upload_name;
