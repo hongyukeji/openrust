@@ -367,3 +367,155 @@ async fn named_redis_connections_cache_and_locks_work_across_entrypoints() {
     assert!(surviving.release().await.unwrap());
     server.abort();
 }
+
+#[tokio::test]
+async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
+    use openrust::{cache::CacheManager, redis::RedisError};
+    use serde_json::json;
+
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    };
+    let root =
+        Root(std::env::temp_dir().join(format!("openrust-redis-cluster-{}", std::process::id())));
+    fs::create_dir(&root.0).unwrap();
+    fs::write(root.0.join(".env"), "CACHE_STORE=redis\nREDIS_CACHE_CONNECTION=sharded\nREDIS_CACHE_LOCK_CONNECTION=sharded\nCACHE_PREFIX=cache:\nREDIS_PREFIX=fixture:\n").unwrap();
+    let app = || {
+        Application::configure(root.0.clone()).withConfig(|base, env| {
+        let mut config = config::load(base, env)?;
+        let cluster_port: u16 = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT").unwrap().parse().unwrap();
+        config.get_mut("database").unwrap()["redis"]["clusters"] = json!({
+            "sharded": [{"host":"127.0.0.1","port":1,"password":"cluster-fixture"},{"url":format!("redis://:cluster-fixture@127.0.0.1:{cluster_port}/0")}],
+            "invalid": [{"port":cluster_port,"database":1}],
+            "invalid_url": [{"url":format!("redis://127.0.0.1:{cluster_port}/2")}],
+            "overflow": [{"port":cluster_port,"max_retries":100}],
+            "empty": [],
+            "default": []
+        });
+        Ok(config)
+    }).create().unwrap()
+    };
+    let mut first = app();
+    let mut second = app();
+    first.boot().await.unwrap();
+    second.boot().await.unwrap();
+    let manager = first.container().get::<RedisManager>("redis").unwrap();
+    for invalid in ["invalid", "invalid_url", "overflow", "empty"] {
+        assert!(matches!(
+            manager.connection(Some(invalid)),
+            Err(RedisError::InvalidConfiguration)
+        ));
+    }
+    assert!(manager.connection(None).is_ok()); // A direct definition precedes the same cluster name.
+    let connection = manager.connection(Some("sharded")).unwrap();
+    assert!(Arc::ptr_eq(
+        &connection,
+        &manager.connection(Some("sharded")).unwrap()
+    ));
+    assert_eq!(connection.key("{one}:report"), "fixture:{one}:report");
+
+    // Only one live seed is supplied. Redis must discover the other primary nodes.
+    let status = connection.command("CLUSTER", &[b"INFO"]).await.unwrap();
+    assert!(
+        format!("{status:?}").contains("cluster_state:ok"),
+        "{status:?} from seed {port}"
+    );
+    for key in ["{one}:report", "{two}:report", "{three}:report"] {
+        connection.set(key, key.as_bytes()).await.unwrap();
+        assert_eq!(
+            connection.get(key).await.unwrap(),
+            Some(key.as_bytes().to_vec())
+        );
+    }
+    let mut subscription = connection.subscribe(&["fixture-events"]).await.unwrap();
+    connection
+        .command("PUBLISH", &[b"fixture-events", b"ready"])
+        .await
+        .unwrap();
+    let message = tokio::time::timeout(Duration::from_secs(3), subscription.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(message.get_payload::<String>().unwrap(), "ready");
+    let mut patterns = connection.psubscribe(&["fixture-*"]).await.unwrap();
+    connection
+        .command("PUBLISH", &[b"fixture-pattern", b"matched"])
+        .await
+        .unwrap();
+    let message = tokio::time::timeout(Duration::from_secs(3), patterns.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(message.get_payload::<String>().unwrap(), "matched");
+
+    let repository = first
+        .container()
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(None)
+        .unwrap();
+    let peer = second
+        .container()
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(None)
+        .unwrap();
+    let ttl = Some(Ttl::Seconds(15));
+    let left = "{one}:cache";
+    let right = "{two}:cache";
+    assert!(
+        repository
+            .putMany(
+                &[(left.into(), "left".into()), (right.into(), "right".into())],
+                ttl
+            )
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        peer.many(&[right, "{three}:missing", left, right])
+            .await
+            .unwrap(),
+        [
+            Some("right".into()),
+            None,
+            Some("left".into()),
+            Some("right".into())
+        ]
+    );
+    let (left_pull, right_pull) = tokio::join!(repository.pull(left), peer.pull(left));
+    assert_ne!(left_pull.unwrap().is_some(), right_pull.unwrap().is_some());
+
+    let lease = Some(Duration::from_secs(3));
+    let mut owner = repository
+        .lock("{three}:lock", lease, Some("fixture-owner"))
+        .unwrap();
+    let mut other = peer.lock("{three}:lock", lease, None).unwrap();
+    assert!(owner.get().await.unwrap());
+    assert!(!other.get().await.unwrap());
+    assert!(!other.release().await.unwrap());
+    assert!(owner.refresh(lease).await.unwrap());
+    assert!(
+        peer.restore_lock("{three}:lock", owner.owner())
+            .unwrap()
+            .release()
+            .await
+            .unwrap()
+    );
+    assert!(other.get().await.unwrap());
+    assert!(other.release().await.unwrap());
+    assert!(matches!(
+        repository.flushLocks().await,
+        Err(CacheError::LockFlushUnsupported)
+    ));
+    assert!(matches!(
+        repository.tags(&["reports"]),
+        Err(CacheError::TagsUnsupported)
+    ));
+    assert!(repository.flush().await.unwrap());
+    assert_eq!(peer.get(right).await.unwrap(), None);
+    for key in ["{one}:report", "{two}:report", "{three}:report"] {
+        assert_eq!(connection.get(key).await.unwrap(), None);
+    }
+}

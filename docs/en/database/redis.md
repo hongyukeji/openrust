@@ -6,6 +6,35 @@ Define connections under `database.redis` in `config/database.rs`. The applicati
 
 `REDIS_URL` can specify a Redis endpoint. A database in the URL takes precedence over the configured database. Use a URL without a database path to keep separate logical databases on the same server.
 
+### Clusters {#clusters}
+
+Add a named seed list under `database.redis.clusters` in `config/database.rs`. For a name defined both directly and under `clusters`, OpenRust uses the direct connection. `options.cluster` selects native Redis Cluster with the value `redis`. Native Cluster uses database 0 and discovers the remaining nodes from the seeds.
+
+```json
+{
+  "clusters": {
+    "sharded": [
+      { "host": "127.0.0.1", "port": 7000 },
+      { "url": "redis://127.0.0.1:7001/0" }
+    ]
+  }
+}
+```
+
+Use `Redis::connection(Some("sharded"))` to select the cluster. Raw commands take Redis arguments. When a Redis command needs multiple keys in one slot, use a common hash tag such as `{reports}`.
+
+```rust
+use openrust::{redis::RedisResult, support::facades::Redis};
+
+pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
+    let connection = Redis::connection(Some("sharded"))?;
+    connection.set("{reports}:latest", b"ready").await?;
+    connection.get("{reports}:latest").await
+}
+```
+
+Cluster retry limits and delay bounds come from `max_retries`, `backoff_base`, and `backoff_cap` on the first seed. The native client can retry after a connection error, so a command with an uncertain outcome may be replayed. A retry limit of zero also disables automatic redirect retries. The queue worker’s dedicated blocking transport uses a standalone connection.
+
 ## Interacting With Redis
 
 Use the `Redis` facade inside the application scope. `Redis::get` returns optional bytes, and `Redis::set` writes bytes. These methods apply `REDIS_PREFIX`. Select another connection with `Redis::connection(Some("cache"))`.
@@ -26,3 +55,5 @@ A lost command connection reconnects for subsequent requests. A command with an 
 ## Redis Cache
 
 Set `CACHE_STORE=redis` to select Redis as the default cache. The cache uses `REDIS_CACHE_CONNECTION` for data and `REDIS_CACHE_LOCK_CONNECTION` for locks, with defaults of `cache` and `default`. See [Cache](../digging-deeper/cache.md) for expiry and lock operations.
+
+Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache and lock-only clearing currently require standalone connections.

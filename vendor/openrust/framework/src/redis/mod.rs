@@ -25,6 +25,7 @@ pub type RedisResult<T> = Result<T, RedisError>;
 #[non_exhaustive]
 pub enum RedisError {
     InvalidConfiguration,
+    UnsupportedClusterOperation(&'static str),
     Unavailable(crate::contracts::container::BindingResolutionError),
     UnknownConnection {
         name: String,
@@ -38,6 +39,12 @@ impl std::fmt::Display for RedisError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidConfiguration => formatter.write_str("Invalid Redis configuration."),
+            Self::UnsupportedClusterOperation(operation) => {
+                write!(
+                    formatter,
+                    "Redis Cluster does not support {operation} through this connection."
+                )
+            }
             Self::Unavailable(_) => formatter.write_str("Redis manager is unavailable."),
             Self::UnknownConnection { name } => {
                 write!(formatter, "Unknown Redis connection '{name}'.")

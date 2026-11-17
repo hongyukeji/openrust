@@ -100,15 +100,23 @@ impl RedisStore {
 
 impl Store for RedisStore {
     fn tags(self: Arc<Self>, names: &[&str]) -> CacheResult<TaggedCache> {
+        if self.data.is_cluster() {
+            return Err(CacheError::TagsUnsupported);
+        }
         Ok(TaggedCache::redis(self, names))
     }
 
     fn flush_stale_tags(&self) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(async move { RedisTagSet::new(self, &[]).prune().await })
+        Box::pin(async move {
+            if self.data.is_cluster() {
+                return Err(CacheError::TagsUnsupported);
+            }
+            RedisTagSet::new(self, &[]).prune().await
+        })
     }
 
     fn supports_tags(&self) -> bool {
-        true
+        !self.data.is_cluster()
     }
 
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
@@ -148,6 +156,14 @@ impl Store for RedisStore {
     ) -> CacheFuture<'a, CacheResult<bool>> {
         Box::pin(async move {
             if values.is_empty() {
+                return Ok(true);
+            }
+            if self.data.is_cluster() {
+                for (key, value) in values {
+                    if !self.write(key, value, Some(seconds), false).await? {
+                        return Ok(false);
+                    }
+                }
                 return Ok(true);
             }
             let mut pipeline = ::redis::pipe();
@@ -232,7 +248,7 @@ impl Store for RedisStore {
     }
 
     fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
-        Some(self)
+        (!self.data.is_cluster() && !self.locks.is_cluster()).then_some(self)
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
@@ -242,8 +258,10 @@ impl Store for RedisStore {
 
 impl CanFlushLocks for RedisStore {
     fn hasSeparateLockStore(&self) -> bool {
-        self.data.database_index() != self.locks.database_index()
-            || self.data.address() != self.locks.address()
+        self.data
+            .standalone_location()
+            .zip(self.locks.standalone_location())
+            .is_some_and(|(data, locks)| data != locks)
     }
 
     fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -251,7 +269,9 @@ impl CanFlushLocks for RedisStore {
             if !self.hasSeparateLockStore() {
                 return Err(CacheError::LockStoreNotSeparate);
             }
-            if self.data.database_index() == self.locks.database_index() {
+            if self.data.standalone_location().map(|(index, _)| index)
+                == self.locks.standalone_location().map(|(index, _)| index)
+            {
                 // Different connection addresses can lead to the same Redis database.
                 let (data, locks) = tokio::try_join!(self.data.server_id(), self.locks.server_id())
                     .map_err(backend)?;

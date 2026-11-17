@@ -17,3 +17,13 @@
 - 文档构建成功，根路径与子路径通过 12 项通用浏览器检查和 6 项 Redis、缓存交叉链接检查。
 
 下一批为 03-10 国际化、回退和复数，依赖已验收的 01-01 配置。
+
+## 原生 Redis Cluster
+
+- 对照固定 Laravel [Clusters](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/redis.md#clusters)和 [RedisManager 的具名连接解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Redis/RedisManager.php#L99)。旧版未发现原生集群客户端。复用现有具名连接、URL 与凭据合并、前缀、单键锁脚本和应用容器绑定。
+- `database.redis.clusters` 接受具名种子列表，直连定义优先。现有 `redis` 1.8.0 启用 `cluster-async`，追加 MIT 授权的 `crc16` 0.4.0。集群只有数据库 0，RESP3 支撑普通与模式订阅的独立连接。保留同名缓存连接复用。集群重试设置来自首个种子，拒绝会让客户端退避计算溢出的参数。
+- 缓存值、原子取回和普通持有者锁可跨主节点路由。分片批量读保留输入顺序，批量写逐项执行，各槽之间没有共享事务。普通清库由客户端分发到全部主节点。集群标签、仅清锁及队列的专用阻塞连接暂按各自能力边界返回错误。
+- 基线 `4a769cf1a`，Rust 1.94.0、macOS arm64。实际 Redis 8.10.3 三主节点覆盖 16384 槽。验证不可用种子后的发现、密码与 URL、非零库和空列表拒绝、同名直连优先、跨槽读写与顺序、Pub/Sub 和模式订阅、跨实例原子取回、续期、令牌释放和全主节点清库。`sh tests/redis_cluster.sh` 可复验。在带认证集群上通过实际双进程 HTTP，以及独立 Artisan `cache:forget`、`cache:clear`，另复验单机 Redis 入口和 `artisan inspire`。
+- 变更文件格式、严格 Clippy、三语 VitePress、18 项浏览器检查和 Rust 示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。`cargo deny --offline check` 无项目配置，基线和本批都报告默认许可清单拒绝及 `paste`、`pin-utils` 的既有 unmaintained 提示。本批额外的许可提示来自 `crc16`，已核对其 MIT 授权。依赖禁用和来源检查通过。
+- 本批集群和单机夹具已回收。清理 4.0 GiB 隔离编译产物和文档缓存后，项目卷可用 57.22 GB（53.29 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-cluster.4SFbXqqD`。
+- 03-09 保持开放。下一步验证槽迁移与主节点故障切换，收口连接中断后结果未知命令的重试边界，并补标签和仅清锁的集群验收。已验收的单机连接行为保持当前契约。

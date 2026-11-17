@@ -79,7 +79,7 @@ pulldown-cmark = { version = "=0.13.6", default-features = false, features = ["h
 regex = "1.12"
 regex-syntax = "0.8"
 ravif = { version = "=0.13.0", default-features = false }
-redis = { version = "=1.8.0", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
+redis = { version = "=1.8.0", default-features = false, features = ["cluster-async", "connection-manager", "tokio-rustls-comp"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }

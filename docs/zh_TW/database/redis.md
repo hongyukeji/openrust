@@ -6,6 +6,35 @@
 
 可透過 `REDIS_URL` 設定端點。URL 內的資料庫編號優先於設定的編號。若要讓兩個連線使用同一 Redis 執行個體的不同邏輯資料庫，請省略 URL 中的資料庫路徑。
 
+### 叢集 {#clusters}
+
+在 `config/database.rs` 的 `database.redis.clusters` 中定義具名的種子節點清單。同名直連和叢集同時存在時，優先使用直連。`options.cluster` 使用 `redis` 選取原生 Redis Cluster。叢集使用資料庫 0，並透過種子節點探索其他節點。
+
+```json
+{
+  "clusters": {
+    "sharded": [
+      { "host": "127.0.0.1", "port": 7000 },
+      { "url": "redis://127.0.0.1:7001/0" }
+    ]
+  }
+}
+```
+
+透過 `Redis::connection(Some("sharded"))` 選取叢集。原生命令接受 Redis 參數。需要多個鍵位於同一槽位時，使用共同的雜湊標籤，例如 `{reports}`。
+
+```rust
+use openrust::{redis::RedisResult, support::facades::Redis};
+
+pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
+    let connection = Redis::connection(Some("sharded"))?;
+    connection.set("{reports}:latest", b"ready").await?;
+    connection.get("{reports}:latest").await
+}
+```
+
+叢集的重試次數與延遲範圍取第一個種子節點的 `max_retries`、`backoff_base` 和 `backoff_cap`。原生用戶端可能在連線錯誤後重試，結果未知的指令因此可能被重放。重試次數為零時也會停用自動重新導向重試。佇列 Worker 的專用阻塞連線使用直連。
+
 ## 與 Redis 互動
 
 在應用程式作用域內使用 `Redis` 門面。`Redis::get` 回傳可選的位元組值，`Redis::set` 寫入位元組，兩者都會套用 `REDIS_PREFIX`。用 `Redis::connection(Some("cache"))` 選擇其他連線。
@@ -26,3 +55,5 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 ## Redis 快取
 
 設定 `CACHE_STORE=redis` 可選擇 Redis 作為預設快取。`REDIS_CACHE_CONNECTION` 指定資料連線，`REDIS_CACHE_LOCK_CONNECTION` 指定鎖連線，預設分別為 `cache` 和 `default`。到期及鎖操作請參閱[快取](../digging-deeper/cache.md)。
+
+將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。快取標籤和僅清除鎖目前使用直連。
