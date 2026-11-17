@@ -10,8 +10,23 @@ use tokio::{
     net::TcpListener,
 };
 
-use super::{DatabaseError, MissingDatabase, Pool};
+use super::{DatabaseCreation, DatabaseError, MissingDatabase, Pool, create_sqlite_database};
 use crate::{config::Repository, database::DatabaseManager};
+
+#[tokio::test]
+async fn concurrent_sqlite_creation_preserves_the_winning_file() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("database.sqlite");
+    let (first, second) = tokio::join!(
+        create_sqlite_database(path.clone()),
+        create_sqlite_database(path.clone()),
+    );
+    first.unwrap();
+    second.unwrap();
+    std::fs::write(&path, b"existing database bytes").unwrap();
+    create_sqlite_database(path.clone()).await.unwrap();
+    assert_eq!(std::fs::read(path).unwrap(), b"existing database bytes");
+}
 
 async fn postgres_startup_error(code: &str) -> DatabaseError {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -69,9 +84,12 @@ async fn postgres_missing_database_selects_the_configured_direct_writer_only() {
         ".",
     );
     let direct = manager.migration_connection(None).unwrap();
-    let creation = missing.prepare(&direct).unwrap().unwrap();
-    assert_eq!(creation.sql, "create database \"app\"\"quoted\"");
-    let Pool::Postgres(pool) = &creation.generation.writer else {
+    let Some(DatabaseCreation::Server { generation, sql }) = missing.prepare(&direct).unwrap()
+    else {
+        panic!("expected a server creation request");
+    };
+    assert_eq!(sql, "create database \"app\"\"quoted\"");
+    let Pool::Postgres(pool) = &generation.writer else {
         panic!("expected the PostgreSQL writer");
     };
     let selected = pool.connect_options();

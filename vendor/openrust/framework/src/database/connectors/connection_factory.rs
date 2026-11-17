@@ -189,10 +189,24 @@ fn resolve(
     } else {
         SqliteJsonTypes::default()
     };
-    let creation_database = (role != Some(QueryRole::Read)
-        && matches!(writer, Pool::Mysql(_) | Pool::Postgres(_))
-        && base.get("database").and_then(Value::as_str) == Some(database.as_str()))
-    .then(|| database.clone());
+    let can_create = match &writer {
+        Pool::Sqlite(_) if database != ":memory:" => {
+            let url = write_options.string("sqlite_url", "")?;
+            !url.split_once('?').is_some_and(|(_, query)| {
+                url::form_urlencoded::parse(query.as_bytes()).any(|(key, value)| {
+                    matches!(
+                        (key.as_ref(), value.as_ref()),
+                        ("mode", "ro") | ("immutable", "true" | "1")
+                    )
+                })
+            })
+        }
+        Pool::Mysql(_) | Pool::Postgres(_) => {
+            base.get("database").and_then(Value::as_str) == Some(database.as_str())
+        }
+        _ => false,
+    };
+    let creation_database = (role != Some(QueryRole::Read) && can_create).then(|| database.clone());
     let postgres_dont_drop = if matches!(writer, Pool::Postgres(_)) {
         match write_options.0.get("dont_drop") {
             None | Some(Value::Null) => vec!["spatial_ref_sys".into()].into(),

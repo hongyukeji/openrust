@@ -164,3 +164,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 实际 Artisan 验证文件库、内存库、自定义路径、`migrate:fresh`、`--without-migration-data` 和损坏 SQL 回滚。验证 RTree 结构恢复且影子表由 SQLite 重新建立，索引、视图、触发器和历史账本保留，业务行排除，自增计数重新开始。通过实际 HTTP `GET /up` 和独立 `./artisan inspire`。MySQL 8.4.13 快照端到端回归通过。
 - Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。本批容器与编译、文档产物已回收，磁盘空间净增 3.40 GB（3.16 GiB），可用 105.04 GB（97.83 GiB）。提交前周额度剩余 43%，第二窗口无读数。验收日志与隔离 SQLite 样本保留于 `/private/tmp/openrust-02-06-sqlite-snapshot.cVpDUNZ1`。
 - 下一批按固定 Laravel 补 SQLite 缺库的创建确认。SQL Server 事务与发布版本矩阵继续跟踪。
+
+## SQLite 缺库创建确认
+
+- 对照固定 Laravel v13.40.0 的 `MigrateCommand::createMissingSqliteDatabase`。当 SQLite 文件缺失时，`migrate` 在交互式终端询问并默认同意。非交互运行须提供 `--force`，否则保留缺失状态。之前的 `migrate:fresh` 调用继续复用已有确认与创建授权。复核旧版 `6d1a81924` 的 SQLite 文件解析及普通连接的禁止隐式创建设置，Rust 延续普通连接独立于迁移创建授权的行为。 [固定 Laravel MigrateCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php#L187)
+- Rust 只处理缺失的 SQLite 写库路径。保留只读与 immutable URL、缺失父目录、目录和现有损坏文件的错误。使用系统原子独占创建，竞争者先创建的常规文件被保留，已有内容不会被截断。
+- 实际 Artisan 通过非交互拒绝和强制建库、带空格的相对路径及 URL 路径、`migrate:fresh`、只读和 immutable 拒绝、已有损坏文件保留以及快照回归。真实伪终端拒绝后文件不存在，直接回车同意后创建文件并写入迁移账本。使用新库的实际 HTTP `GET /up` 返回 200，独立 `artisan inspire` 正常退出。MySQL 8.4.13 缺库创建及无建库权限的拒绝通过。
+- SQLite 原子建库竞争回归和 PostgreSQL 启动协议回归通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。本批临时 MySQL、编译和文档产物已回收，磁盘空间净增 3.47 GB（3.23 GiB），可用 104.98 GB（97.77 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志与隔离 SQLite 样本保留于 `/private/tmp/openrust-02-06-sqlite-create.4MhjNckb`。
+- SQL Server 迁移事务和发布版本矩阵继续跟踪。下一批回到 02-02，补 PgBouncer 在关闭预备语句跟踪时的事务池模式。

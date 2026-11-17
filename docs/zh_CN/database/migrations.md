@@ -133,7 +133,10 @@ fn configure_migrations(app: &Application) -> ProviderResult {
 
 配置的 MySQL 或 PostgreSQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建数据库。PostgreSQL 会使用选定的迁移端点，包括已配置的直连端点，并临时连接 `postgres` 管理库。
 
+对于 SQLite，`migrate` 会询问是否在配置的路径创建缺失的数据库文件。无人值守时使用 `--force`。未指定该选项时，`--no-interaction` 会保留文件缺失状态。数据库文件的父目录需已存在。已有文件和只读连接不参与自动创建。
+
 ```sh
+./artisan migrate --database=sqlite --force
 ./artisan migrate --database=mysql --force
 ./artisan migrate --database=pgsql --force
 ```

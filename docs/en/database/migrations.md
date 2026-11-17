@@ -133,7 +133,10 @@ fn configure_migrations(app: &Application) -> ProviderResult {
 
 When the configured MySQL or PostgreSQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create the database. PostgreSQL uses the selected migration endpoint, including a configured direct endpoint, and temporarily connects to the `postgres` maintenance database.
 
+For SQLite, `migrate` offers to create a missing database file at the configured path. For unattended runs, pass `--force`. Without this flag, `--no-interaction` leaves the file absent. The parent directory must already exist. Existing files and read-only connections are excluded from automatic creation.
+
 ```sh
+./artisan migrate --database=sqlite --force
 ./artisan migrate --database=mysql --force
 ./artisan migrate --database=pgsql --force
 ```

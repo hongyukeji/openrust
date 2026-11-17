@@ -413,12 +413,20 @@ fn confirm_database_creation(
         return Ok(true);
     }
     let mut output = io::stderr().lock();
-    writeln!(
-        output,
-        "The database {:?} does not exist on the {:?} connection.",
-        connection.getDatabaseName(),
-        connection.getName()
-    )
+    if connection.is_sqlite() {
+        writeln!(
+            output,
+            "The SQLite database configured for this application does not exist: {}",
+            connection.getDatabaseName()
+        )
+    } else {
+        writeln!(
+            output,
+            "The database {:?} does not exist on the {:?} connection.",
+            connection.getDatabaseName(),
+            connection.getName()
+        )
+    }
     .map_err(DatabaseError::SchemaIo)?;
     write!(output, "Would you like to create it? [Y/n] ").map_err(DatabaseError::SchemaIo)?;
     output.flush().map_err(DatabaseError::SchemaIo)?;

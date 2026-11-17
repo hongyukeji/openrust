@@ -915,6 +915,77 @@ async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
 }
 
 #[tokio::test]
+async fn sqlite_artisan_creates_only_approved_missing_database_files() {
+    let root = Root::new();
+    let migration = application_migrations::entries()[0].path;
+    let target = root.0.join("database/app file.sqlite");
+    let migrate = |path: &str, flags: &[&str]| {
+        root.command("local", None, &["migrate", "--path", migration])
+            .env("DB_DATABASE", path)
+            .args(flags)
+            .output()
+            .unwrap()
+    };
+    let rejected = migrate("database/app file.sqlite", &["--no-interaction"]);
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(!target.exists());
+    success(migrate(
+        "database/app file.sqlite",
+        &["--no-interaction", "--force"],
+    ));
+    assert!(target.is_file());
+    assert!(
+        success(migrate("database/app file.sqlite", &["--no-interaction"]))
+            .contains("Nothing to migrate.")
+    );
+
+    for options in ["mode=ro", "immutable=1"] {
+        let readonly = root
+            .command("local", None, &["migrate", "--force"])
+            .env(
+                "DB_URL",
+                format!("sqlite://database/readonly.sqlite?{options}"),
+            )
+            .output()
+            .unwrap();
+        assert_eq!(readonly.status.code(), Some(1));
+        assert!(!root.0.join("database/readonly.sqlite").exists());
+    }
+    let url = root
+        .command("local", None, &["migrate", "--force", "--path", migration])
+        .env("DB_URL", "sqlite://database/url%20file.sqlite")
+        .output()
+        .unwrap();
+    success(url);
+    assert!(root.0.join("database/url file.sqlite").is_file());
+
+    let directory = migrate("database", &["--force"]);
+    assert_eq!(directory.status.code(), Some(1));
+    assert!(root.0.join("database").is_dir());
+    let orphan = migrate("absent/orphan.sqlite", &["--force"]);
+    assert_eq!(orphan.status.code(), Some(1));
+    assert!(!root.0.join("absent").exists());
+
+    let corrupt = root.0.join("database/corrupt.sqlite");
+    fs::write(&corrupt, "existing file").unwrap();
+    let failed = migrate("database/corrupt.sqlite", &["--force"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(fs::read_to_string(corrupt).unwrap(), "existing file");
+
+    let fresh = root
+        .command(
+            "local",
+            None,
+            &["migrate:fresh", "--no-interaction", "--path", migration],
+        )
+        .env("DB_DATABASE", "database/fresh.sqlite")
+        .output()
+        .unwrap();
+    success(fresh);
+    assert!(root.0.join("database/fresh.sqlite").is_file());
+}
+
+#[tokio::test]
 async fn sqlite_artisan_dumps_and_restores_schema_and_migration_history() {
     let source = Root::new();
     let database = source.connection(None);

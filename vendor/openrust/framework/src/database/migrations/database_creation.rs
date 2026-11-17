@@ -1,17 +1,21 @@
-use std::sync::Arc;
+use std::{fs, io, path::PathBuf, sync::Arc};
 
 use sqlx::{
     Connection as _,
     mysql::{MySqlConnectOptions, MySqlConnection, MySqlDatabaseError},
     postgres::{PgConnection, PgDatabaseError},
+    sqlite::SqliteError,
 };
 
 use crate::database::{
     Connection, DatabaseError, DatabaseResult, connection::Pool, connection_pools::PoolGeneration,
 };
 
+const SQLITE_CANTOPEN: u32 = 14;
+
 #[derive(Clone, Copy)]
 pub(super) enum MissingDatabase {
+    Sqlite,
     Mysql,
     Postgres,
 }
@@ -22,6 +26,14 @@ impl MissingDatabase {
             return None;
         };
         let error = source.as_database_error()?;
+        if error.try_downcast_ref::<SqliteError>().is_some()
+            && error
+                .code()
+                .and_then(|code| code.parse::<u32>().ok())
+                .is_some_and(|code| code & 0xff == SQLITE_CANTOPEN)
+        {
+            return Some(Self::Sqlite);
+        }
         if error
             .try_downcast_ref::<MySqlDatabaseError>()
             .is_some_and(|error| error.number() == 1049)
@@ -43,6 +55,15 @@ impl MissingDatabase {
             return Ok(None);
         }
         let verb = match (self, &generation.writer) {
+            (Self::Sqlite, Pool::Sqlite(pool)) => {
+                let path = pool.connect_options().get_filename().to_path_buf();
+                return Ok(match fs::symlink_metadata(&path) {
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                        Some(DatabaseCreation::Sqlite(path))
+                    }
+                    _ => None,
+                });
+            }
             (Self::Mysql, Pool::Mysql(_)) => "create database if not exists",
             (Self::Postgres, Pool::Postgres(_)) if connection.getDatabaseName() != "postgres" => {
                 "create database"
@@ -50,21 +71,28 @@ impl MissingDatabase {
             _ => return Ok(None),
         };
         let target = connection.grammar.quote(connection.getDatabaseName())?;
-        Ok(Some(DatabaseCreation {
+        Ok(Some(DatabaseCreation::Server {
             generation,
             sql: format!("{verb} {target}"),
         }))
     }
 }
 
-pub(super) struct DatabaseCreation {
-    generation: Arc<PoolGeneration>,
-    sql: String,
+pub(super) enum DatabaseCreation {
+    Sqlite(PathBuf),
+    Server {
+        generation: Arc<PoolGeneration>,
+        sql: String,
+    },
 }
 
 impl DatabaseCreation {
     pub(super) async fn create(self) -> DatabaseResult<()> {
-        if let Pool::Postgres(pool) = &self.generation.writer {
+        let (generation, sql) = match self {
+            Self::Sqlite(path) => return create_sqlite_database(path).await,
+            Self::Server { generation, sql } => (generation, sql),
+        };
+        if let Pool::Postgres(pool) = &generation.writer {
             let options = pool.connect_options().as_ref().clone().database("postgres");
             return tokio::time::timeout(pool.options().get_acquire_timeout(), async {
                 let mut session =
@@ -73,7 +101,7 @@ impl DatabaseCreation {
                         .map_err(DatabaseError::driver(
                             "connect to PostgreSQL maintenance database",
                         ))?;
-                sqlx::raw_sql(sqlx::AssertSqlSafe(self.sql.as_str()))
+                sqlx::raw_sql(sqlx::AssertSqlSafe(sql.as_str()))
                     .execute(&mut session)
                     .await
                     .map_err(DatabaseError::driver("create database"))?;
@@ -82,7 +110,25 @@ impl DatabaseCreation {
             .await
             .map_err(|_| DatabaseError::driver("create database")(sqlx::Error::PoolTimedOut))?;
         }
-        create_mysql_database(&self.generation, &self.sql).await
+        create_mysql_database(&generation, &sql).await
+    }
+}
+
+async fn create_sqlite_database(path: PathBuf) -> DatabaseResult<()> {
+    let result = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .await;
+    match result {
+        Ok(_) => Ok(()),
+        Err(error)
+            if error.kind() == io::ErrorKind::AlreadyExists
+                && fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_file()) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(DatabaseError::SchemaIo(error)),
     }
 }
 
