@@ -325,8 +325,14 @@ impl Builder<'_> {
                 return Err(DatabaseError::InvalidQuery("increment amount"));
             }
             values.remove(&column);
-            let column = self.grammar.column(&column)?;
-            assignments.push(format!("{column} = {column} {operator} ?"));
+            let target = if self.grammar.is_sql_server() && column.contains('.') {
+                Some(json::write_column(&self.grammar, &column)?)
+            } else {
+                None
+            };
+            let source = self.grammar.column(&column)?;
+            let target = target.as_deref().unwrap_or(&source);
+            assignments.push(format!("{target} = {source} {operator} ?"));
             bindings.push(value);
         }
         let (columns, parameters) = json::compile_assignments(&self.grammar, values)?;
@@ -335,8 +341,13 @@ impl Builder<'_> {
         if assignments.is_empty() {
             return Err(DatabaseError::InvalidQuery("update assignments"));
         }
+        let assignments = assignments.join(", ");
+        if self.grammar.is_sql_server() {
+            let sql = self.compile_sql_server_write(table, Some(&assignments), &mut bindings)?;
+            return self.affect(&sql, &bindings).await;
+        }
         sql.push_str(" set ");
-        sql.push_str(&assignments.join(", "));
+        sql.push_str(&assignments);
         self.compile_write_tail(table, &mut sql, &mut bindings)?;
         self.affect(&sql, &bindings).await
     }
@@ -344,8 +355,12 @@ impl Builder<'_> {
     pub async fn delete(mut self) -> DatabaseResult<u64> {
         self.validate_write_query()?;
         let table = self.source.table_name()?;
-        let target = self.grammar.table(table)?;
         let mut bindings = Vec::new();
+        if self.grammar.is_sql_server() {
+            let sql = self.compile_sql_server_write(table, None, &mut bindings)?;
+            return self.affect(&sql, &bindings).await;
+        }
+        let target = self.grammar.table(table)?;
         let mut sql = if self.grammar.is_mysql() && !self.joins.is_empty() {
             let alias = self.grammar.table(table_reference(table))?;
             let mut sql = format!("delete {alias} from {target}");
@@ -361,11 +376,7 @@ impl Builder<'_> {
     pub async fn truncate(mut self) -> DatabaseResult<()> {
         let table = self.source.table_name()?;
         let target = self.grammar.table(table)?;
-        if table
-            .as_bytes()
-            .windows(4)
-            .any(|part| part.eq_ignore_ascii_case(b" as "))
-        {
+        if table_alias(table).is_some() {
             return Err(DatabaseError::InvalidQuery("truncate table alias"));
         }
         let native_sql = if self.grammar.is_postgres() {
@@ -433,12 +444,66 @@ impl Builder<'_> {
         {
             return Err(DatabaseError::InvalidQuery("MySQL write pagination"));
         }
-        if !self.grammar.is_mysql() && self.offset.is_some() && self.limit.is_none() {
+        if !self.grammar.is_mysql()
+            && !self.grammar.is_sql_server()
+            && self.offset.is_some()
+            && self.limit.is_none()
+        {
             return Err(DatabaseError::InvalidQuery(
                 "SQLite write offset requires limit",
             ));
         }
         Ok(())
+    }
+
+    fn compile_sql_server_write(
+        &self,
+        table: &str,
+        assignments: Option<&str>,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<String> {
+        let table_sql = self.grammar.table(table)?;
+        let top = self.limit.filter(|&limit| {
+            limit > 0 && self.offset.unwrap_or_default() == 0 && self.joins.is_empty()
+        });
+        let ordered_top = top.filter(|_| !self.orders.is_empty());
+        let reference = if table_alias(table).is_some() || ordered_top.is_some() {
+            Some(self.grammar.table(table_reference(table))?)
+        } else {
+            None
+        };
+        let from_target = reference.is_some() || !self.joins.is_empty();
+        let target = reference.as_deref().unwrap_or(&table_sql);
+        let mut sql = match assignments {
+            Some(_) => String::from("update "),
+            None => String::from("delete "),
+        };
+        if let Some(limit) = top.filter(|_| ordered_top.is_none()) {
+            sql.push_str(&format!("top ({limit}) "));
+        }
+        if !from_target && assignments.is_none() {
+            sql.push_str("from ");
+        }
+        sql.push_str(target);
+        if let Some(assignments) = assignments {
+            sql.push_str(" set ");
+            sql.push_str(assignments);
+        }
+        if let Some(limit) = ordered_top {
+            sql.push_str(&format!(" from (select top ({limit}) * from {table_sql}"));
+            self.compile_predicates(&mut sql, bindings)?;
+            self.compile_orders(&self.orders, &mut sql, bindings)?;
+            sql.push_str(") as ");
+            sql.push_str(target);
+        } else {
+            if from_target {
+                sql.push_str(" from ");
+                sql.push_str(&table_sql);
+                self.compile_joins(&mut sql, bindings)?;
+            }
+            self.compile_predicates(&mut sql, bindings)?;
+        }
+        Ok(sql)
     }
 
     fn compile_write_tail(
@@ -588,12 +653,13 @@ async fn truncate_sqlite(
 }
 
 fn table_reference(table: &str) -> &str {
-    if let Some(index) = table
+    table_alias(table).unwrap_or_else(|| table.rsplit('.').next().expect("at least one segment"))
+}
+
+fn table_alias(table: &str) -> Option<&str> {
+    table
         .as_bytes()
         .windows(4)
         .position(|part| part.eq_ignore_ascii_case(b" as "))
-    {
-        return &table[index + 4..];
-    }
-    table.rsplit('.').next().expect("at least one segment")
+        .map(|index| &table[index + 4..])
 }

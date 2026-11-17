@@ -90,7 +90,7 @@ fn postgres_assignment(
     Ok(sql)
 }
 
-fn write_column(grammar: &Grammar, column: &str) -> DatabaseResult<String> {
+pub(super) fn write_column(grammar: &Grammar, column: &str) -> DatabaseResult<String> {
     let column = if grammar.is_mysql() {
         column
     } else {

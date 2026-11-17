@@ -373,6 +373,25 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標列。
 
+### SQL Server 聯結與限額寫入 {#sql-server-bounded-writes}
+
+聯結更新和刪除使用 `FROM` 指定目標資料表或其別名。無聯結時，正數限額使用 `TOP`。有排序時，SQL Server 透過帶排序的 `TOP` 子查詢決定目標資料列。依 Laravel 的行為，帶聯結或正數位移的寫入會忽略限額，限額為零也會省略 `TOP`。
+
+```rust
+use std::collections::BTreeMap;
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn activate_latest(connection: &Connection) -> DatabaseResult<u64> {
+    connection
+        .table("event_archive")
+        .r#where("score", "=", 0)
+        .orderBy("id", "desc")
+        .limit(1)
+        .update(BTreeMap::from([("score".into(), 1.into())]))
+        .await
+}
+```
+
 ### 更新 JSON 欄位 {#updating-json-columns}
 
 將 `options->preferences->enabled` 這類鍵傳給 `update`。MySQL 使用 `JSON_SET`，支援陣列索引。SQLite 使用合併修補，值為 null 的成員會移除對應的鍵。

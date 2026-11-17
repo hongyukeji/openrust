@@ -373,6 +373,25 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
 
+### SQL Server joined and limited writes {#sql-server-bounded-writes}
+
+Update and delete operations with joins target the table or its alias using `FROM`. For writes without joins, a positive limit uses `TOP`. With an order, SQL Server selects the target rows using an ordered `TOP` subquery. As in Laravel, joined writes and writes with a positive offset apply no limit. A zero limit also omits `TOP`.
+
+```rust
+use std::collections::BTreeMap;
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn activate_latest(connection: &Connection) -> DatabaseResult<u64> {
+    connection
+        .table("event_archive")
+        .r#where("score", "=", 0)
+        .orderBy("id", "desc")
+        .limit(1)
+        .update(BTreeMap::from([("score".into(), 1.into())]))
+        .await
+}
+```
+
 ### Updating JSON Columns {#updating-json-columns}
 
 Pass a key such as `options->preferences->enabled` to `update`. MySQL applies `JSON_SET` and supports array indexes. SQLite applies a merge patch, where a null member removes that key.

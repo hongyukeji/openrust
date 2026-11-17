@@ -34,6 +34,171 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn sql_server_joined_and_bounded_writes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    db.unprepared(
+        "CREATE TABLE dbo.app_write_probe (id int PRIMARY KEY, group_id int, score int);
+         CREATE TABLE dbo.app_write_groups (id int PRIMARY KEY, active int);
+         INSERT INTO dbo.app_write_groups VALUES (1, 1), (2, 0);
+         INSERT INTO dbo.app_write_probe VALUES (1, 1, 0), (2, 2, 0), (3, 1, 0), (4, 2, 0), (5, 1, 0);",
+    ).await.unwrap();
+
+    let table = || db.table("dbo.write_probe");
+    let joined = || {
+        db.table("dbo.write_probe AS p")
+            .joinWith("dbo.write_groups as g", |join| {
+                join.on("p.group_id", "=", "g.id")
+                    .r#where("g.active", "=", 1)
+            })
+            .r#where("p.id", ">", 1)
+    };
+
+    db.enableQueryLog();
+    assert_eq!(
+        joined()
+            .selectRaw("?", vec![99.into()])
+            .limit(1)
+            .increment("p.score", 7, record([("p.group_id", 1.into())]))
+            .await
+            .unwrap(),
+        2
+    );
+    let logged = &db.getQueryLog()[0];
+    assert!(logged.query.starts_with("update [app_p] set [score] = [app_p].[score] + ?, [group_id] = ? from [dbo].[app_write_probe] as [app_p] inner join "));
+    assert!(!logged.query.contains("top ("));
+    assert!(matches!(&logged.bindings, QueryBindings::Positional(values)
+        if values == &[7.into(), 1.into(), 1.into(), 1.into()]));
+
+    db.flushQueryLog();
+    assert_eq!(
+        table()
+            .join(
+                "dbo.write_groups",
+                "write_probe.group_id",
+                "=",
+                "write_groups.id"
+            )
+            .r#where("write_probe.id", "=", 3)
+            .update(record([("score", 8.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(
+        db.getQueryLog()[0]
+            .query
+            .starts_with("update [dbo].[app_write_probe] set ")
+    );
+
+    db.flushQueryLog();
+    assert_eq!(
+        table()
+            .r#where("id", ">", 2)
+            .orderByRaw(
+                "case when [id] = ? then 0 else 1 end, [id] desc",
+                vec![3.into()]
+            )
+            .limit(1)
+            .update(record([("score", 9.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    let logged = &db.getQueryLog()[0];
+    assert_eq!(
+        logged.query,
+        "update [app_write_probe] set [score] = ? from (select top (1) * from [dbo].[app_write_probe] where [id] > ? order by case when [id] = ? then 0 else 1 end, [id] desc) as [app_write_probe]"
+    );
+    assert!(matches!(&logged.bindings, QueryBindings::Positional(values)
+        if values == &[9.into(), 2.into(), 3.into()]));
+    assert_eq!(
+        table().r#where("score", "=", 9).value("id").await.unwrap(),
+        3.into()
+    );
+
+    assert_eq!(
+        table()
+            .r#where("group_id", "=", 2)
+            .limit(2)
+            .update(record([("score", 6.into())]))
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        table()
+            .r#where("score", "=", 6)
+            .limit(1)
+            .offset(3)
+            .update(record([("score", 8.into())]))
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        table()
+            .r#where("score", "=", 8)
+            .limit(0)
+            .update(record([("score", 4.into())]))
+            .await
+            .unwrap(),
+        2
+    );
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    assert_eq!(
+        transaction
+            .table("dbo.write_probe as p")
+            .r#where("p.id", ">", 1)
+            .orderBy("p.id", "desc")
+            .limit(1)
+            .delete()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        transaction
+            .table("dbo.write_probe")
+            .r#where("id", "=", 5)
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(table().count("*").await.unwrap(), 5);
+
+    assert_eq!(joined().delete().await.unwrap(), 2);
+    assert_eq!(
+        db.table("dbo.write_probe as p")
+            .r#where("p.score", "=", 4)
+            .limit(1)
+            .delete()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        table()
+            .r#where("score", "=", 4)
+            .limit(1)
+            .delete()
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(table().value("id").await.unwrap(), 1.into());
+    db.unprepared("DROP TABLE dbo.app_write_probe; DROP TABLE dbo.app_write_groups")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn sql_server_truncate_and_json_write_boundary() {
     let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
