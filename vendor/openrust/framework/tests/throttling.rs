@@ -8,12 +8,13 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    auth::{AuthIdentifier, AuthManager},
+    auth::{AuthIdentifier, AuthManager, AuthResult},
     cache::rate_limiting::{Attempt, Limit},
     contracts::{
         auth::Authenticatable, container::Container as _, foundation::Application as _,
         http::Kernel as _,
     },
+    database::Value,
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
@@ -79,6 +80,14 @@ impl Authenticatable for Identity {
     fn set_remember_token(&mut self, _: Option<String>) {}
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
+    }
+    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+        Ok(match name {
+            "upload_limit" => Some(Value::Text(" 3.9 ".into())),
+            "job_limit" => Some(Value::Integer(2)),
+            "invalid_limit" => Some(Value::Bool(true)),
+            _ => None,
+        })
     }
 }
 
@@ -187,6 +196,10 @@ fn routes() -> Result<(), RoutingError> {
             ("/fraction", "throttle:1,0.02,fraction"),
             ("/numeric-name", "throttle:9"),
             ("/explicit-numeric", "throttle:9,1,explicit"),
+            ("/model-budget", "throttle:1|upload_limit,1,model"),
+            ("/model-direct", "throttle:job_limit,1,model-direct"),
+            ("/model-invalid", "throttle:invalid_limit,1,model-invalid"),
+            ("/model-missing", "throttle:missing_limit,1,model-missing"),
         ] {
             router.get(path, empty)?.middleware_name(throttle);
         }
@@ -454,6 +467,27 @@ async fn exercise_numeric(first: SocketAddr, second: SocketAddr) {
     assert!(named.contains("x-ratelimit-limit: 1"), "{named}");
     let numeric = send(second, "/explicit-numeric").await;
     assert!(numeric.contains("x-ratelimit-limit: 9"), "{numeric}");
+
+    let guest = send(first, "/model-budget").await;
+    assert!(guest.contains("x-ratelimit-limit: 1"), "{guest}");
+    assert_eq!(status(&send(second, "/model-budget").await), 429);
+    for (address, remaining) in [(first, 2), (second, 1), (first, 0)] {
+        let allowed = send_as(address, "/model-budget", "example.test", Some("alpha")).await;
+        assert_eq!(status(&allowed), 204, "{allowed}");
+        assert!(allowed.contains("x-ratelimit-limit: 3"), "{allowed}");
+        assert!(allowed.contains(&format!("x-ratelimit-remaining: {remaining}")));
+    }
+    let denied = send_as(second, "/model-budget", "example.test", Some("alpha")).await;
+    assert_eq!(status(&denied), 429, "{denied}");
+    let independent = send_as(second, "/model-budget", "example.test", Some("beta")).await;
+    assert_eq!(status(&independent), 204, "{independent}");
+    let direct = send_as(first, "/model-direct", "example.test", Some("alpha")).await;
+    assert!(direct.contains("x-ratelimit-limit: 2"), "{direct}");
+    assert_eq!(status(&send(first, "/model-direct").await), 500);
+    for path in ["/model-invalid", "/model-missing"] {
+        let invalid = send_as(first, path, "example.test", Some("alpha")).await;
+        assert_eq!(status(&invalid), 500, "{invalid}");
+    }
 }
 
 #[tokio::test]

@@ -228,4 +228,7 @@ impl Authenticatable for DatabaseUser {
     fn get_remember_token_name(&self) -> &str {
         &self.remember
     }
+    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+        Ok(self.get(name).cloned())
+    }
 }

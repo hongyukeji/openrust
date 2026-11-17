@@ -133,6 +133,8 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `middleware_name("throttle:30,0.5,uploads:")` 将额度设为每 30 秒 30 次。只写 `throttle` 时默认每分钟 60 次。`throttle:5|20,1,uploads:` 分别给访客和已认证用户每分钟 5 次和 20 次。访客按路由声明的域名和连接对端 IP 共享额度，已认证请求按认证标识共享额度。为不同规则设置不同的前缀即可分别计数。
 
+使用 `throttle:5|upload_limit,1,uploads:` 可以从认证用户读取 `upload_limit`，访客仍使用固定额度。数据库用户提供器可读取字段。应用模型可通过 `Authenticatable::getAuthAttribute` 暴露属性，并委托 `Model::getAttributeValue` 应用访问器与类型转换。额度接受有符号 64 位范围内的非负数和数值字符串。属性缺失或非数字属于配置错误。
+
 ### 使用 Redis 节流
 
 在 `withMiddleware` 中调用 `middleware.throttleWithRedis()`，让命名和数字节流别名使用默认 Redis 连接。使用相同 Redis 连接设置和键前缀的进程共享配额。Redis 原子检查并消耗各项额度。使用 `after` 的规则在响应返回后计数。

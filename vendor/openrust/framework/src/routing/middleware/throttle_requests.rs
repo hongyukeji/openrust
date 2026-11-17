@@ -11,6 +11,7 @@ use crate::{
         },
     },
     contracts::http::Middleware,
+    database::Value,
     http::{HeaderMap, HttpError, HttpFuture, Next, Request, Response},
     redis::limiters::DurationLimiter,
     support::facades::{Facade, RateLimiter, Redis},
@@ -193,7 +194,20 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
         }
         None => attempts,
     };
-    let max_attempts = attempts.parse::<u64>().map_err(|_| invalid())?;
+    let literal = attempts.trim_ascii();
+    let max_attempts = match literal.parse::<u64>() {
+        Ok(max) => Some(max),
+        Err(_) => match literal.parse::<f64>() {
+            Ok(max) if max.is_finite() => numeric_attempts(max),
+            _ => match &user {
+                Some(user) => user
+                    .getAuthAttribute(attempts)?
+                    .and_then(attribute_attempts),
+                None => None,
+            },
+        },
+    }
+    .ok_or_else(invalid)?;
     let key = match user {
         Some(user) => match user.get_auth_identifier() {
             AuthIdentifier::Integer(id) => format!("{prefix}:user:{id}"),
@@ -218,6 +232,26 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
         }
     };
     Ok(Limit::new(key, max_attempts, seconds as u64))
+}
+
+fn attribute_attempts(value: Value) -> Option<u64> {
+    match value {
+        Value::Integer(max) => u64::try_from(max).ok(),
+        Value::Unsigned(max) => Some(max),
+        Value::Real(max) => numeric_attempts(max),
+        Value::Text(max) => {
+            let max = max.trim_ascii();
+            max.parse()
+                .ok()
+                .or_else(|| numeric_attempts(max.parse().ok()?))
+        }
+        _ => None,
+    }
+}
+
+fn numeric_attempts(max: f64) -> Option<u64> {
+    const EXCLUSIVE_MAX: f64 = 9_223_372_036_854_775_808.0;
+    (0.0..EXCLUSIVE_MAX).contains(&max).then_some(max as u64)
 }
 
 fn headers(limit: &Limit, bucket: Bucket, retry: Option<u64>) -> Result<HeaderMap, HttpError> {

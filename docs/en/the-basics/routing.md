@@ -133,6 +133,8 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 Use `middleware_name("throttle:30,0.5,uploads:")` for 30 requests per 30 seconds. A bare `throttle` allows 60 requests per minute. `throttle:5|20,1,uploads:` allows five requests per minute for guests and twenty for authenticated users. Guests share a bucket by the declared route domain and peer IP. Authenticated requests share a bucket by their authentication identifier. Give policies different prefixes to keep their quotas separate.
 
+Use `throttle:5|upload_limit,1,uploads:` to read the authenticated user’s `upload_limit` while retaining a fixed guest quota. Database-provider users expose their columns. An application model can expose its attributes through `Authenticatable::getAuthAttribute`, delegating to `Model::getAttributeValue` for accessors and casts. Quotas accept non-negative numbers and numeric strings within the signed 64-bit range. A missing or nonnumeric attribute is a configuration error.
+
 ### Throttling With Redis
 
 Call `middleware.throttleWithRedis()` in `withMiddleware` to resolve named and numeric throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.

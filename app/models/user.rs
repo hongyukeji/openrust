@@ -65,6 +65,10 @@ impl Authenticatable for User {
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
+    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+        self.getAttributeValue(name)
+            .map_err(|source| AuthError::Backend(Box::new(source)))
+    }
     fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
         Some(self)
     }

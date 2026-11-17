@@ -2,7 +2,7 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    auth::{AuthIdentifier, AuthManager, Credentials},
+    auth::{AuthError, AuthIdentifier, AuthManager, AuthResult, Credentials},
     contracts::{
         auth::{Authenticatable, Guard as _, StatefulGuard as _},
         config::Repository,
@@ -74,6 +74,10 @@ impl Authenticatable for User {
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
     }
+    fn getAuthAttribute(&self, name: &str) -> AuthResult<Option<Value>> {
+        self.getAttributeValue(name)
+            .map_err(|source| AuthError::Backend(Box::new(source)))
+    }
 }
 
 fn field<'a>(user: &'a User, name: &str) -> Option<&'a str> {
@@ -93,6 +97,9 @@ fn web() -> Result<(), RoutingError> {
     Route::group(openrust::routing::RouteGroup::new(), |router| {
         router.get("/private", session)?.middleware_name("auth");
         router
+            .get("/quota", session)?
+            .middleware_name("throttle:quota,1,web-quota");
+        router
             .get("/private/{account}", session)?
             .model::<User>("account")?
             .middleware_name("auth");
@@ -104,6 +111,13 @@ fn web() -> Result<(), RoutingError> {
 fn api() -> Result<(), RoutingError> {
     Route::get("/token", token)?;
     Route::get("/request", custom_request)?;
+    Route::group(openrust::routing::RouteGroup::new(), |router| {
+        router
+            .get("/quota", token)?
+            .middleware_name("auth:api")
+            .middleware_name("throttle:quota,1,api-quota");
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -337,11 +351,11 @@ async fn verify(database: Json, database_sessions: bool) {
         .unwrap();
     for sql in [
         "DROP TABLE IF EXISTS auth_test_users",
-        "CREATE TABLE auth_test_users (identity VARCHAR(20) PRIMARY KEY, email VARCHAR(50), password VARCHAR(100), remember_token VARCHAR(100), api_token VARCHAR(100))",
+        "CREATE TABLE auth_test_users (identity VARCHAR(20) PRIMARY KEY, email VARCHAR(50), password VARCHAR(100), remember_token VARCHAR(100), api_token VARCHAR(100), quota INTEGER)",
     ] {
         connection.statement(sql, &[]).await.unwrap();
     }
-    connection.statement("INSERT INTO auth_test_users VALUES ('001', 'a@example.test', ?, NULL, 'CaseSensitive')", &[hash.clone().into()]).await.unwrap();
+    connection.statement("INSERT INTO auth_test_users VALUES ('001', 'a@example.test', ?, NULL, 'CaseSensitive', 1)", &[hash.clone().into()]).await.unwrap();
     if database_sessions {
         for sql in [
             "DROP TABLE IF EXISTS auth_test_sessions",
@@ -414,6 +428,9 @@ async fn verify(database: Json, database_sessions: bool) {
     assert_ne!(login.body["id"], initial.body["id"]);
     assert_ne!(login.body["csrf"], initial.body["csrf"]);
     let logged_in = login.cookie("auth_session");
+    let quota = get(address, "/quota", &logged_in, 200).await;
+    assert!(quota.headers.contains("x-ratelimit-limit: 1"));
+    get(address, "/quota", &logged_in, 429).await;
     let remember = login.cookie("remember_web");
     let encrypter = Encrypter::new([b'a'; 32], Cipher::Aes256Cbc).unwrap();
     let encrypted = percent_encoding::percent_decode_str(remember.split_once('=').unwrap().1)
@@ -511,6 +528,10 @@ async fn verify(database: Json, database_sessions: bool) {
     .await;
     assert_eq!(bearer.body["user"], "001");
     assert!(!bearer.headers.contains("set-cookie:"));
+    let bearer_header = "Authorization: Bearer CaseSensitive\r\n";
+    let quota = send(address, "GET", "/api/quota", bearer_header, "", 200).await;
+    assert!(quota.headers.contains("x-ratelimit-limit: 1"));
+    send(address, "GET", "/api/quota", bearer_header, "", 429).await;
     assert!(
         send(
             address,

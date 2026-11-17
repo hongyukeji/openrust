@@ -26,3 +26,9 @@
 - 在已有数字参数和认证 ID 支持上补齐 `throttle` 的每分钟 60 次默认值、数字参数的命名策略解析优先级、小数分钟和 `访客|认证` 配额。访客按路由声明的域名和连接 IP 计数。认证请求按原始认证标识计数。复核旧版 `http/rate_limit.rs` 的用户或 IP 策略，沿用当前框架固定窗口和原子 Redis 计数。 [Laravel ThrottleRequests](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Middleware/ThrottleRequests.php#L80-L215)
 - macOS arm64、Rust 1.94.0，`cargo test -p openrust-framework --test named_limiters --test throttling --locked --offline` 通过六项。真实 HTTP 覆盖默认额度、访客与认证额度、身份隔离、不同路由前缀、通配域名、不同路由域名、客户端 Host 变化、额度响应头、429、到期恢复和数字名称的命名策略。使用 Redis 8.10.3 复验两个独立 HTTP 进程共享认证与访客的配额。
 - 小数分钟转换为整秒，现有后端支持 1 秒至 365 天窗口。Laravel 可从认证模型的动态属性读取配额，Rust 的 `Authenticatable` 接口公开认证标识，按应用属性配置额度可使用命名限流器。Redis Cluster 留到发布前验收。
+
+## 认证模型属性配额
+
+- 对照固定 Laravel `ThrottleRequests::resolveMaxAttempts` 和 Redis 版本的共享参数路径。保留命名限流优先和访客／认证分支，认证分支可读取同名属性。数据库用户提供器直接读取列，应用 Eloquent 模型通过 `Authenticatable::getAuthAttribute` 委托现有属性访问器和转换。自定义认证用户可实现同一接口。额度接受有符号 64 位范围内的非负数和数值字符串，小数向零截断。复核旧版 `http/rate_limit.rs`，沿用认证标识与访客 IP 分桶；旧版没有属性配额接口。 [固定 Laravel 节流中间件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Middleware/ThrottleRequests.php#L170)
+- 在隔离基线 `1c9da1168` 上，以真实 HTTP 复验 Array 和 Redis 8.10.3。锁定测试六项通过，覆盖命名限流仍优先、访客固定额度、数字与字符串属性、缺失或无效属性、不同身份隔离，以及两个独立进程共用额度和 429。真实 MySQL 8.4.13 的会话用例通过，Eloquent 会话用户和数据库 Token 用户均从持久化属性取得额度。
+- Rust 1.94.0 全仓格式、严格 Clippy、独立 `./artisan inspire`、三语站点、12 项通用和 6 项路由正文浏览器检查通过。临时 Redis、MySQL 和本批产物已回收，Cargo 清理 3.3 GiB，项目卷可用 80.97 GB（75.41 GiB），周额度剩余 51%。Redis Cluster 多额度同槽尚待验收。证据目录 `/private/tmp/openrust-04-07-model-quota.RwoStlgY`。
