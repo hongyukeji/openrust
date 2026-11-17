@@ -1,6 +1,7 @@
 mod double_byte;
 mod euc_jp;
 mod gb18030;
+mod shift_jis;
 mod utf7;
 
 use encoding_rs::{DecoderResult, Encoding};
@@ -25,7 +26,7 @@ enum Codec {
     Utf16,
     Ucs2,
     Ucs4(bool),
-    ShiftJis { windows: bool },
+    ShiftJis(shift_jis::Variant),
     Cp936,
     Gb18030,
     EucJp(euc_jp::Variant),
@@ -76,8 +77,13 @@ impl EncodingRule {
             "ucs-2" | "ucs-2be" | "ucs-2le" => Codec::Ucs2,
             "ucs-4" | "ucs-4be" => Codec::Ucs4(false),
             "ucs-4le" => Codec::Ucs4(true),
-            "sjis" => Codec::ShiftJis { windows: false },
-            "cp932" | "sjis-win" => Codec::ShiftJis { windows: true },
+            "sjis" => Codec::ShiftJis(shift_jis::Variant::Standard),
+            "cp932" | "sjis-win" | "sjis-mobile#docomo" | "sjis-mobile#kddi" => {
+                Codec::ShiftJis(shift_jis::Variant::Windows)
+            }
+            "sjis-mac" => Codec::ShiftJis(shift_jis::Variant::Mac),
+            "sjis-2004" => Codec::ShiftJis(shift_jis::Variant::Jis2004),
+            "sjis-mobile#softbank" => Codec::ShiftJis(shift_jis::Variant::SoftBank),
             "euc-jp" => Codec::EucJp(euc_jp::Variant::Standard),
             "eucjp-win" => Codec::EucJp(euc_jp::Variant::Windows),
             "cp51932" => Codec::EucJp(euc_jp::Variant::Cp51932),
@@ -120,21 +126,7 @@ impl EncodingRule {
             Codec::Ucs4(little_endian) => {
                 fixed_width_4(value, little_endian, |unit| unit != u32::MAX)
             }
-            Codec::ShiftJis { windows } => {
-                valid_pairs(value, |lead, trail| {
-                    let standard = matches!(lead, 0x81..=0x86 | 0x88..=0x9F | 0xE0..=0xEA);
-                    let extension = windows && matches!(lead, 0x87 | 0xEB..=0xFC);
-                    if matches!(lead, 0xA1..=0xDF) {
-                        1
-                    } else if (standard || extension)
-                        && matches!(trail, Some(0x40..=0x7E | 0x80..=0xFC))
-                    {
-                        2
-                    } else {
-                        0
-                    }
-                }) && decode(encoding_rs::SHIFT_JIS, value)
-            }
+            Codec::ShiftJis(variant) => variant.check(value),
             Codec::Cp936 => valid_pairs(value, |lead, trail| {
                 if matches!(lead, 0x80 | 0xff) {
                     1

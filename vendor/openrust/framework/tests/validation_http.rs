@@ -269,6 +269,28 @@ impl FormRequest for Upload {
                 "required|file|mimes:pdf|mimetypes:application/pdf",
             )]),
             "encoding-cp932" => RuleSet::parse([("attachments.*", "required|file|encoding:CP932")]),
+            "encoding-sjis-win" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:SJIS-win")])
+            }
+            "encoding-sjis-mac" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:SJIS-mac")])
+            }
+            "encoding-sjis-2004" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:SJIS-2004")])
+            }
+            "encoding-sjis-mobile-docomo" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:SJIS-Mobile#DOCOMO")])
+            }
+            "encoding-sjis-mobile-kddi" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:SJIS-Mobile#KDDI")])
+            }
+            "encoding-sjis-mobile-softbank" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("SJIS-Mobile#SOFTBANK").into(),
+                ],
+            ),
             "encoding-euc-cn" => {
                 RuleSet::parse([("attachments.*", "required|file|encoding:EUC-CN")])
             }
@@ -1476,6 +1498,72 @@ async fn validates_japanese_euc_encodings_over_real_http() {
             "data.bin",
             "application/octet-stream",
             b"\x8f\xa1",
+            422,
+        )
+        .await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_shift_jis_extensions_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, good, bad) in [
+        (
+            "encoding-sjis",
+            b"\x82\xa0".as_slice(),
+            b"\x87\x40".as_slice(),
+        ),
+        ("encoding-sjis-mac", b"\x80\xa0\xff", b"\x85\x54"),
+        ("encoding-sjis-2004", b"\xfc\xf4", b"\xfc\xf5"),
+        (
+            "encoding-sjis-mobile-softbank",
+            b"\x1b$E\x22\x0fa",
+            b"\x1b$E\x21\x0f",
+        ),
+        ("encoding-sjis-mobile-softbank", b"\x1b$Q\x23", b"\x1b$"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            good,
+            200,
+        )
+        .await;
+        let response = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            bad,
+            422,
+        )
+        .await;
+        assert!(response["errors"]["attachments.0"].is_array());
+    }
+    for mode in [
+        "encoding-cp932",
+        "encoding-sjis-win",
+        "encoding-sjis-mobile-docomo",
+        "encoding-sjis-mobile-kddi",
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            b"\x87\x40",
+            200,
+        )
+        .await;
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            b"\x87\x5e",
             422,
         )
         .await;

@@ -100,6 +100,8 @@ fn register() -> Result<(), RoutingError> {
 
 日文 EUC 文件可按实际字表使用 `encoding:EUC-JP` 或 `encoding:eucJP-win`。Fluent 文件规则也支持 `File::default().encoding("CP51932")` 和 `File::default().encoding("EUC-JP-2004")`。各变体已分配的双字节和三字节位置按 PHP mbstring 校验。
 
+Shift-JIS 文件校验还支持 `SJIS-mac`、`SJIS-2004`、`SJIS-Mobile#DOCOMO`、`SJIS-Mobile#KDDI` 和 `SJIS-Mobile#SOFTBANK`。按实际编码选择规则，例如 `encoding:SJIS-mac` 或 `File::default().encoding("SJIS-Mobile#SOFTBANK")`。SoftBank 变体也会验证旧式表情转义序列。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

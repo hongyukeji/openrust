@@ -122,3 +122,10 @@
 - 穷举每个变体的 256 个单字节、65,536 个双字节及全部 65,536 个 `8F` 前缀后的双字节组合。原有 WHATWG 解码器对 EUC-JP 有 457 处接受结果差异，对 eucJP-win 有 1,612 处。修订后的字节校验全部通过固定 Laravel 对照。
 - 固定 Laravel PHP trait 与实际 multipart HTTP 逐文件对照 529,408 个值，覆盖上述穷举、4,096 个确定性混合序列及截断。MySQL 8.4.13 环境下 18 项验证回归通过，三语文档的声明式及 Fluent 规则实际运行。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-euc-jp.OSERGLP0`。其余 Shift-JIS 变体、多字节与状态型编码和整单元对照待完成，核心账本维持 59/66。
+
+## Shift-JIS 与移动变体
+
+- 对照固定 Laravel `validateEncoding` 和 PHP 8.5.12 mbstring。保留 SJIS、CP932／SJIS-win 的字节契约，新增 SJIS-mac、SJIS-2004 和 DoCoMo、KDDI、SoftBank 三个移动标签。DoCoMo 和 KDDI 在有效字节范围上共用 CP932，SoftBank 另外校验旧式表情转义中的选择符、字节范围与复位。完整选择符和有效表情字节允许在输入结束时省略复位。固定 Goravel 与旧版实现已核对，旧版未找到可复用的对应验证。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding)
+- 独立穷举显示原 SJIS、CP932 在单、双字节上已与 PHP 一致。本批使用相同的字节扫描和各自的可接受位置来支持其他变体，保留原始输入。
+- 八个标签的单、双字节穷举、8,192 个确定性混合序列及 3,330 个 SoftBank 转义样本，共 537,858 个上传值，与固定 Laravel PHP trait 的实际 multipart HTTP 对照通过。MySQL 8.4.13 下 19 项验证回归通过，三语文档的声明式与 Fluent 文件规则已通过实际上传。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-sjis.hj2stQIR`。状态型编码、其余多字节编码和整单元对照待完成，核心账本维持 59/66。
