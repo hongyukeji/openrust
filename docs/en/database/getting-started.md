@@ -317,6 +317,20 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 
 For manual control, call `beginTransaction().await?`, then call `commit` or `rollBack(None)` on the returned handle. Calling `beginTransaction` on the handle creates a savepoint. `rollBack(Some(level))` rolls back to the given nesting level. Level zero aborts the whole transaction. Dropping an active handle rolls back its pending work. MySQL statements such as DDL can implicitly commit, so keep them outside transactions that require atomicity.
 
+### Shared connection interface {#connection-interface}
+
+Use `&mut dyn ConnectionInterface` when the same SQL or builder code runs on a pooled `Connection` or a pinned `Transaction`. Pass named or positional `Bindings` explicitly. For `select`, `selectOne`, `scalar`, and `cursor`, passing `false` requests the writer on a pooled connection. A transaction always runs the query on its own session. Create, commit, and roll back transactions through the concrete connection and transaction handles.
+
+```rust
+use openrust::database::{Bindings, ConnectionInterface, DatabaseResult, Value};
+
+pub async fn answer(connection: &mut dyn ConnectionInterface) -> DatabaseResult<Value> {
+    connection
+        .scalar("SELECT :answer AS answer", Bindings::Named(&[("answer", 42.into())]), false)
+        .await
+}
+```
+
 ### SQL Server Automatic Transaction Rollback {#sql-server-automatic-rollback}
 
 SQL Server can roll back an entire transaction when a statement fails. When a transaction callback returns that error, OpenRust checks the server’s transaction state before it issues a rollback. If the server already rolled back, the callback returns the original statement error and the transaction handle closes. If the remaining transaction cannot roll back to a savepoint, OpenRust rolls back the whole transaction. On a confirmed rollback, applicable `afterRollBack()` callbacks run.

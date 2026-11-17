@@ -317,6 +317,20 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 
 手动控制时调用 `beginTransaction().await?`，然后在返回的句柄上调用 `commit` 或 `rollBack(None)`。在句柄上再次调用 `beginTransaction` 会创建保存点。`rollBack(Some(level))` 回滚至指定层级，层级零回滚整个事务。丢弃活动句柄会回滚尚未提交的操作。MySQL 的 DDL 等语句可能隐式提交，请放在要求原子性的事务之外。
 
+### 共用连接接口 {#connection-interface}
+
+同一段 SQL 或构建器代码需要同时支持池化 `Connection` 和绑定物理会话的 `Transaction` 时，可使用 `&mut dyn ConnectionInterface`。显式传入命名或位置 `Bindings`。`select`、`selectOne`、`scalar` 和 `cursor` 的读角色参数传入 `false` 时，池化连接走写库。事务中的查询始终使用事务自己的会话。事务的开始、提交和回滚由具体的连接与事务句柄管理。
+
+```rust
+use openrust::database::{Bindings, ConnectionInterface, DatabaseResult, Value};
+
+pub async fn answer(connection: &mut dyn ConnectionInterface) -> DatabaseResult<Value> {
+    connection
+        .scalar("SELECT :answer AS answer", Bindings::Named(&[("answer", 42.into())]), false)
+        .await
+}
+```
+
 ### SQL Server 自动回滚 {#sql-server-automatic-rollback}
 
 SQL Server 在语句失败时可能自动撤销整条事务。事务回调返回该错误时，OpenRust 会先检查服务端事务状态。服务端已回滚时，回调返回原始语句错误，事务句柄关闭。剩余事务无法回滚到保存点时，OpenRust 会回滚整条事务。确认回滚后，执行相应的 `afterRollBack()` 回调。

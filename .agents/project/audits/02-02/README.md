@@ -5,7 +5,7 @@
 - `ConnectionFactory` 合并 `read`、`write` 与公共配置，MySQL 接受主机列表。读操作优先使用读池，具名连接允许 `::read` 和 `::write`。`selectFromWriteConnection` 强制单次查询走写库。`sticky` 和强制走写库状态以逻辑连接为单位，由当前 HTTP/Artisan 作用域保管。独立管理器以逻辑连接的克隆共享状态。
 - 事务借用一个写库物理连接，支持回调、手动提交和回滚、任意层级保存点回退及并发错误重试。参考旧版 `6d1a8192` 的 `src/database/mod.rs` 中事务回调显式传入句柄，以及 `src/database/sqlite/provider_tests.rs` 的保存点隔离回归。SQLx 的事务管理器跟踪物理层级。MySQL 中断或死锁的租约关闭后重新取连接，SQLite 通过 worker 排队回滚，并校验归还后的事务深度。
 - Rust 的回调通过借用 `Transaction` 独占会话，异步返回 `DatabaseFuture`。调用方显式设置总尝试次数，零次返回配置错误。上层仍以 `Result` 传播驱动错误。
-- 读库空闲连接丢失时池可换用新物理连接。运行中连接断开后的自动语句重放、`::direct`、查询事件及跨 Query Builder/Schema 的 `ConnectionInterface` 仍待接通。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
+- 读库空闲连接丢失时池可换用新物理连接。运行中断线重放、`::direct`、查询事件及跨 Query Builder／Schema 的 `ConnectionInterface` 见[整单元验收](#连接接口与-02-02-整单元验收)。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
 
 ## 验收
 
@@ -147,3 +147,10 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过七项 Schema／TDS 和一项迁移事务回归。嵌套事务实测服务器撤销整条事务后保留原始错误，内外层回滚回调各一次，原句柄关闭，连接池可继续承接新事务。普通保存点回滚与外层提交仍通过。另在真实 SQL Server 的 TRY/CATCH 批次由重复主键错误 2627 触发 `XACT_STATE() = -1`，执行框架生成的嵌套回滚 SQL 后回到状态 0，原事务未留下写入。
 - 实际 Artisan 与 HTTP 使用无效的限定外键目标复验，保留原始 SQL Server 错误 1767，失败写入未提交、迁移账本无新增。迁移重试、回滚和后续请求通过。MySQL 8.4.13 的事务事件、保存点回调和嵌套死锁重试回归及全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。
 - 原生 Linux x86_64 及 SQL Server 2017 留待发布复验，核心账本维持 62/66。临时数据库和本批产物已回收，复验清理后项目盘可用空间净增 2.27 GB（2.12 GiB），剩余 101.88 GB（94.88 GiB）。提交前周额度剩余 41%，第二窗口无读数。日志和夹具位于 `/private/tmp/openrust-02-02-sqlsrv-rollback.lFm05PkI`。
+
+## 连接接口与 02-02 整单元验收
+
+- 对照固定 Laravel v13.40.0 的 `ConnectionInterface`。旧版 `6d1a81924` 没有同名 trait 可直接复用，本批沿用当前连接、事务、Query Builder、Schema Builder 和驱动绑定。普通 `Connection` 与 `Transaction` 实现同一接口，可通过 `&mut dyn ConnectionInterface` 调用。查询方法沿用 Laravel 命名，显式 `Bindings` 支持位置与命名参数。PHP 连接管理事务层级，Rust 由 `Transaction` 持有物理会话，事务开始、提交、回滚与预演沿用现有具体类型 API。 [固定 Laravel 接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/ConnectionInterface.php)
+- 隔离基线 `49adae04a`，真实 MySQL 8.4.13。通过实际会话 ID 验证 `scalar` 和流式 `cursor` 的读写选择，以及事务里的读取仍走同一写会话。事务内通过 Schema Builder 验证表存在，命名参数插入与带别名的 Query Builder 读取通过，回滚后行数为零。同一三语示例编入实际二进制，HTTP 返回 200，独立 Artisan `db:interface` 退出 0，共用接口分别读取普通连接和事务。数据库 SQL 套件 32 项通过。首轮发现未知驱动回归仍使用已支持的 `sqlsrv`，已改用未知驱动名。
+- 按交付计划复核读写隔离、sticky、事务提交／回滚、保存点、重试和取消后的会话恢复。当前 MySQL 回归与既有[事务生命周期](#事务生命周期事件)、[在途断线重放](#执行中断线与语句重放)、[PostgreSQL 直连](#真实-postgresql-直连与-pgbouncer-事务池)、[PgBouncer 无语句跟踪](#pgbouncer-关闭预备语句跟踪)及[SQL Server 自动回滚](#sql-server-自动回滚保留原始错误)相互补足。02-02 核心验收闭合，完整数据库版本与跨平台发布矩阵沿用[数据库方言对账](../database-dialects.md)。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本更新为 63/66。临时 MySQL 与本批隔离编译和文档产物已回收，项目磁盘可用空间净增 8.65 GB（8.06 GiB），剩余 101.76 GB（94.77 GiB）。提交前周额度剩余 41%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-02-interface.YzO4B68u`。

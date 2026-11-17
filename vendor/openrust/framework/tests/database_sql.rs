@@ -22,7 +22,8 @@ use openrust::{
         http::Kernel as _,
     },
     database::{
-        Bindings, Connection, DatabaseError, DatabaseManager, Transaction, Value,
+        Bindings, Connection, ConnectionInterface, DatabaseError, DatabaseManager, Transaction,
+        Value,
         events::{
             ConnectionEstablished, QueryBindings, QueryExecuted, QueryRole, TransactionBeginning,
             TransactionCommitted, TransactionCommitting, TransactionRolledBack,
@@ -163,7 +164,7 @@ async fn sqlite_uses_default_file_and_rejects_bad_connections_and_driver_errors(
             "connections":{
                 "memory":{"driver":"mysql","url":"sqlite3::memory:"},
                 "missing_file":{"driver":"sqlite","database":"missing.sqlite"},
-                "unsupported":{"driver":"sqlsrv"}
+                "unsupported":{"driver":"not-a-driver"}
             }
         }),
     );
@@ -322,17 +323,26 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, serde_json::Valu
 }
 
 async fn probe_value() -> Result<Value, DatabaseError> {
-    let id = DB::transaction(
-        |transaction| Box::pin(transaction.table("probe").value("id")),
-        1,
-    )
-    .await?;
-    let named = DB::selectFromWriteConnection(
-        "SELECT id FROM probe WHERE id = :id",
-        Bindings::Named(&[("id", id.clone())]),
-    )
-    .await?;
-    assert_eq!(named.first().and_then(|row| row.get_at(0)), Some(&id));
+    let id = DB::transaction(|transaction| Box::pin(interface_probe(transaction)), 1).await?;
+    let mut connection = DB::connection(None)?;
+    assert_eq!(interface_probe(&mut connection).await?, id);
+    Ok(id)
+}
+
+async fn interface_probe(connection: &mut dyn ConnectionInterface) -> Result<Value, DatabaseError> {
+    let id = connection
+        .table("probe", Some("p"))
+        .useWritePdo()
+        .value("p.id")
+        .await?;
+    let found = connection
+        .scalar(
+            "SELECT id FROM probe WHERE id = :id",
+            Bindings::Named(&[("id", id.clone())]),
+            false,
+        )
+        .await?;
+    assert_eq!(found, id);
     Ok(id)
 }
 
@@ -980,7 +990,7 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
             .unwrap(),
         23.into()
     );
-    let split = db.connection(None).unwrap();
+    let mut split = db.connection(None).unwrap();
     let writer = split
         .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])
         .await
@@ -997,11 +1007,68 @@ async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
         writer_id
     );
     transaction.rollBack(None).await.unwrap();
+    let role_probe = "SELECT CONNECTION_ID()";
+    for (read, expected) in [(true, &reader_id), (false, &writer_id)] {
+        let connection: &mut dyn ConnectionInterface = &mut split;
+        assert_eq!(
+            &connection
+                .scalar(role_probe, (&[]).into(), read)
+                .await
+                .unwrap(),
+            expected
+        );
+        let rows: Vec<_> = connection
+            .cursor(role_probe, (&[]).into(), read)
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(rows[0].get_at(0), Some(expected));
+    }
+    let mut transaction = split.beginTransaction().await.unwrap();
+    let connection: &mut dyn ConnectionInterface = &mut transaction;
+    assert_eq!(connection.getDatabaseName(), split.getDatabaseName());
+    assert_eq!(
+        connection
+            .scalar(role_probe, (&[]).into(), true)
+            .await
+            .unwrap(),
+        writer_id
+    );
+    transaction.rollBack(None).await.unwrap();
 
     split
         .statement("CREATE TABLE IF NOT EXISTS rust_split_probe (id INT)", &[])
         .await
         .unwrap();
+    let mut transaction = split.beginTransaction().await.unwrap();
+    let connection: &mut dyn ConnectionInterface = &mut transaction;
+    assert!(
+        connection
+            .getSchemaBuilder()
+            .hasTable("rust_split_probe")
+            .await
+            .unwrap()
+    );
+    assert!(
+        connection
+            .insert(
+                "INSERT INTO rust_split_probe (id) VALUES (:id)",
+                Bindings::Named(&[("id", 31.into())]),
+            )
+            .await
+            .unwrap()
+    );
+    let expression = connection.raw("q.id + 1 as incremented");
+    let row = connection
+        .table("rust_split_probe", Some("q"))
+        .select([expression])
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.get("incremented"), Some(&32.into()));
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(split.table("rust_split_probe").count("*").await.unwrap(), 0);
     assert_eq!(
         split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
         writer_id

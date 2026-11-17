@@ -1491,11 +1491,20 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
+        self.select_one_with_role(sql, bindings, true).await
+    }
+
+    pub(super) async fn select_one_with_role<'a>(
+        &self,
+        sql: &str,
+        bindings: impl Into<Bindings<'a>>,
+        use_read: bool,
+    ) -> DatabaseResult<Option<Row>> {
         observed_query!(
             self,
             sql,
             bindings,
-            true,
+            use_read,
             |physical, values| physical.select_one(sql, values),
             None,
             || (),

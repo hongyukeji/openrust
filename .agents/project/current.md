@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 04:14（北京时间）02-02 [连接接口与 02-02 整单元验收](audits/02-02/README.md#连接接口与-02-02-整单元验收)。真实 MySQL 8.4.13、32 项数据库 SQL 回归、独立 HTTP 与 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过，核心账本更新为 63/66。
 - 2026-11-18 04:04（北京时间）03-06 [标签仓储的记忆化与过期清理](audits/03-06/memoization.md#标签仓储的记忆化与过期清理)。真实 Redis 单机和集群、HTTP、Artisan、Array、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 03:52（北京时间）02-02 [SQL Server 自动回滚保留原始错误](audits/02-02/README.md#sql-server-自动回滚保留原始错误)。SQL Server 2022 实际 HTTP 与 Artisan、MySQL 8.4.13 事务回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 03:48（北京时间）03-09 [Redis Cluster 存储级清理分批回收空代际](audits/03-09/README.md#redis-cluster-存储级清理分批回收空代际)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。320 个空代际的清理中，Redis 记录的 EVAL 调用从 326 次降至 8 次。核心账本维持 62/66。 临时 Redis 与本批隔离 Cargo 和文档产物已回收，项目卷可用空间净增 14.47 GB（13.48 GiB），剩余 101.89 GB（94.89 GiB）。提交前周额度剩余 41%，第二窗口无读数。
@@ -88,7 +89,7 @@
 - 2026-11-17 16:11（北京时间）04-05 [MySQL 数据库验证规则](audits/04-05/README.md#mysql-数据库验证规则)通过真实 MySQL 8.4.13、HTTP 和独立 Artisan 验收。核心账本维持 59/66。
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
-- 02-02 的 PostgreSQL 独立端点和迁移路由已通过配置测试，真实 PostgreSQL 直连及事务池语句准备尚待处理与验收。02-04 向量及其他方言能力随对应驱动验收。下一批核对 02-05 剩余 MySQL Schema 项，再接续 02-06。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
+- 数据库核心下一项为 02-04，继续按[数据库方言对账](audits/database-dialects.md)核对查询能力，并接续 02-05 和 02-06。完整数据库版本与跨平台矩阵在发布前复验。DynamoDB 托管服务及 Windows 实机继续按各自范围跟踪。03-06 的 memo 标签装饰器与 `flushStale()` 转发已通过[验收](audits/03-06/memoization.md#标签仓储的记忆化与过期清理)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
 - 周额度剩余 46%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批临时 MySQL、文档和 2.9 GiB 隔离 Cargo 产物已回收。项目磁盘可用 62.16 GB（57.89 GiB），继续前以实测读数复查。
 
