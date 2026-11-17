@@ -94,6 +94,26 @@ async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error:
 }
 ```
 
+## 测试之间清空表 {#database-truncation}
+
+每次测试前，在受管夹具上调用 `truncateDatabaseTables`。首次调用在默认连接执行 `migrate:fresh`。后续调用清空所选连接中有数据的表，并按选项重新填充默认连接。用 `drop_views` 控制首次重建时是否删除视图，用 `seed` 或 `seeder` 选择填充方式。
+
+`connections_to_truncate` 为空时使用默认连接。`tables` 提供共享过滤规则，`tables_by_connection` 为具名连接指定规则。过滤项使用目录中的实际表名，可带库名限定。`only` 非空时只清空列出的表，否则保留 `except` 中的表和迁移记录表。
+
+清表在独占写会话中关闭并恢复外键检查。MySQL 清表会隐式提交，应在测试事务外调用。取消 Future 后，下一次数据库重置或 `close().await` 会等待仍在执行的清表。
+
+```rust
+use openrust::testing::{DatabaseTruncationOptions, TestApp};
+
+async fn reset_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.truncateDatabaseTables(DatabaseTruncationOptions {
+        seed: true,
+        ..Default::default()
+    }).await?;
+    test.assertDatabaseCount("items", 1).await
+}
+```
+
 ## MySQL 事务隔离 {#mysql-transaction-isolation}
 
 为测试应用配置专用的 MySQL 测试库。先运行迁移和基础填充，再调用 `test.databaseTransaction`。回调中，使用默认连接的 HTTP 请求、进程内 Artisan 命令和数据库断言共用一个会话。成功和失败都会回滚，应用事务使用保存点。
@@ -135,6 +155,10 @@ async fn run_test(
 ```
 
 用 `connections_to_transact` 选择每次回调结束后回滚的连接，空列表选择默认连接。夹具已经准备好时，`databaseTransactionOn` 可直接运行同样的回滚流程。
+
+## 模型工厂 {#model-factories}
+
+发起请求或检查数据库前，可用模型工厂创建测试记录。模型工厂使用应用的 Eloquent 连接，写入遵循同一夹具的事务规则。工厂定义与状态见 [Eloquent 工厂](../eloquent/factories.md)。
 
 ## 数据库断言
 

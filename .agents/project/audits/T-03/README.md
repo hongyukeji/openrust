@@ -74,3 +74,11 @@
 - `runDatabaseMigrations` 通过 `migrate:fresh` 准备受管默认库，允许回调自行提交事务，随后在同一库执行 `migrate:rollback`。支持默认或具名 Seeder、清除视图。回调返回错误或 panic 时仍回滚，并保留原始失败。Rust 用 Future 回调表达测试边界，取消后由 `close().await` 或下一次数据库重置等待并完成回滚。PostgreSQL 的类型清理随驱动验收跟踪。
 - 隔离基线 `e0c46b1b2`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，真实 MySQL 8.4.13 十三项通过。覆盖实际 Artisan、视图和 Seeder 参数、HTTP 写入对独立任务可见、第二库隔离、回调错误、panic、准备失败后的回滚和再次执行、重入拒绝，以及取消后关闭时收到回滚完成事件。
 - 三语文档示例在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-database-migrations.16ZLf7Ig`。
+
+## 测试清表与 T-03 整单元验收
+
+- 对照固定 Laravel 的 `DatabaseTruncation` 和 `DatabaseTruncationTest`。保留首次 `migrate:fresh`、后续按连接及表过滤清理有数据的表、默认连接重新填充及默认保留迁移记录。对照固定 Goravel 的测试数据库迁移和填充命令，复核 `v0.x` 的独立测试库及归属租约。 [Laravel 数据库重置](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md#resetting-the-database-after-each-test) · [固定 Laravel 清表回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/Testing/DatabaseTruncationTest.php)
+- `truncateDatabaseTables` 按受管 MySQL 夹具保存迁移状态。每次从当前库读取表目录，并在同一独占会话中停用及恢复外键检查。表过滤使用实际目录名称或库名限定形式，支持具名连接覆盖。Rust 测试可在调用前后执行自己的准备步骤。取消后下一次重置或 `close().await` 会等待已启动的清表任务。
+- 隔离基线 `c85d7e562`。使用 `python3 -B tests/mysql_acceptance.py` 复跑真实 MySQL 8.4.13 的十四项数据库夹具回归。覆盖前缀及自定义迁移记录表、按连接过滤、限定名、外键状态、空表自增保留、重新填充、失败重试及取消后等待关闭。此前的事务、归属恢复、断言、查询计数、Seeder 与逐用例迁移也在同批通过。
+- 三语清表示例在独立 MySQL 执行，模型工厂文档在两种站点挂载位置均可访问。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-truncate.JtVgCh2v`。
+- T-03 按交付计划闭合。原有 SQLite 独立文件夹具的迁移、填充及断言见本页开头的验收。此次重置策略验收范围是受管 MySQL 8.4，其他数据库的扩展和兼容性随对应驱动验收跟踪。

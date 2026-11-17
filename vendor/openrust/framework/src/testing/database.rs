@@ -211,11 +211,13 @@ impl TestApp {
             let _ = task.await;
         }
         let migration = self.settle_database_migrations().await;
+        let truncation = self.finish_truncation().await;
         let queries = self.query_counts.finish().map_err(Into::into);
         let mysql = std::mem::take(&mut self.mysql);
         drop(self);
         let cleanup = close_mysql(mysql).await.map_err(Into::into);
-        let checks = finish_database_work(migration, queries);
+        let resets = finish_database_work(migration, truncation);
+        let checks = finish_database_work(resets, queries);
         finish_database_work(checks, cleanup)
     }
 
@@ -352,6 +354,7 @@ impl TestApp {
             .into());
         }
         self.settle_database_migrations().await?;
+        self.invalidate_truncation().await?;
         self.wait_for_refresh().await;
         let prepared = self.refreshed.take();
         if !matches!(prepared, Some(RefreshState::Ready(ready)) if ready == options) {
@@ -419,7 +422,7 @@ impl TestApp {
     }
 }
 
-fn select_connections<'a>(
+pub(super) fn select_connections<'a>(
     manager: &DatabaseManager,
     mut names: impl Iterator<Item = &'a str>,
 ) -> crate::database::DatabaseResult<Vec<Connection>> {

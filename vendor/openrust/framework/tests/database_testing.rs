@@ -21,7 +21,10 @@ use openrust::{
     },
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider, facades::Route},
-    testing::{DatabaseMigrationsOptions, RefreshDatabaseOptions, TestApp},
+    testing::{
+        DatabaseMigrationsOptions, DatabaseTruncationOptions, DatabaseTruncationTables,
+        RefreshDatabaseOptions, TestApp,
+    },
 };
 use serde_json::json;
 use sqlx::{Connection as _, MySqlConnection};
@@ -696,6 +699,166 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
     .fetch_one(server)
     .await?;
     Ok(count != 0)
+}
+
+#[tokio::test]
+async fn mysql_database_truncation_preserves_schema_filters_and_reseeds()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    struct TruncationConfig;
+
+    impl ServiceProvider for TruncationConfig {
+        fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                let config = app.config()?;
+                config.set("database.connections.mysql.prefix", json!("fixture_"))?;
+                config.set("database.migrations.table", json!("history"))?;
+                Ok(())
+            })
+        }
+    }
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut test = TestApp::mysqlConnections(&[("mysql", &url), ("reports", &url)], |builder| {
+        builder.withProviders(vec![
+            Box::new(InventoryProvider),
+            Box::new(TruncationConfig),
+        ])
+    })
+    .await?;
+    test.artisan(["migrate", "--database=reports", "--seed"])
+        .await
+        .assertSuccessful();
+    let manager = test.app().make::<DatabaseManager>().await?;
+    let mysql = manager.connection(None)?;
+    let reports = manager.connection(Some("reports"))?;
+    assert_eq!(mysql.getTablePrefix(), "fixture_");
+    let options = DatabaseTruncationOptions {
+        seed: true,
+        seeder: Some("SecondSeeder".into()),
+        connections_to_truncate: vec!["mysql".into(), "reports".into()],
+        tables: DatabaseTruncationTables {
+            except: vec!["fixture_keep".into()],
+            ..Default::default()
+        },
+        tables_by_connection: [(
+            "reports".into(),
+            DatabaseTruncationTables {
+                only: vec![format!("{}.items", reports.getDatabaseName())],
+                except: vec!["items".into()],
+            },
+        )]
+        .into(),
+        ..Default::default()
+    };
+    test.truncateDatabaseTables(options.clone()).await?;
+    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+        .await?;
+    test.assertDatabaseCountOn("items", 1, Some("reports"))
+        .await?;
+    mysql
+        .unprepared("create table fixture_keep (id int primary key)")
+        .await?;
+    mysql
+        .unprepared("insert into fixture_keep values (1)")
+        .await?;
+    mysql.unprepared("create table fixture_children (id int primary key, item_id bigint unsigned, foreign key (item_id) references fixture_items (id))").await?;
+    mysql
+        .unprepared("insert into fixture_children values (1, 1)")
+        .await?;
+    mysql
+        .unprepared("create table fixture_empty (id int auto_increment primary key)")
+        .await?;
+    mysql
+        .unprepared("insert into fixture_empty values (null)")
+        .await?;
+    mysql.unprepared("delete from fixture_empty").await?;
+    reports
+        .unprepared("create table notes (id int primary key)")
+        .await?;
+    reports.unprepared("insert into notes values (1)").await?;
+    test.seed().await?;
+
+    let events = test.fakeEvents(&[QueryExecuted::NAME]).await?;
+    test.truncateDatabaseTables(options.clone()).await?;
+    assert!(events.dispatched(QueryExecuted::NAME).iter().all(|event| {
+        !event
+            .downcast_ref::<QueryExecuted>()
+            .unwrap()
+            .sql
+            .starts_with("truncate table ")
+    }));
+    test.assertDatabaseCount("items", 1).await?;
+    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+        .await?;
+    test.assertDatabaseCount("keep", 1).await?;
+    test.assertDatabaseCount("history", 1).await?;
+    test.assertDatabaseEmpty("children").await?;
+    mysql
+        .unprepared("insert into fixture_empty values (null)")
+        .await?;
+    test.assertDatabaseHas("empty", &[("id", 2_i64.into())])
+        .await?;
+    test.assertDatabaseEmptyOn("items", Some("reports")).await?;
+    test.assertDatabaseCountOn("notes", 1, Some("reports"))
+        .await?;
+    assert!(
+        mysql
+            .unprepared("insert into fixture_children values (1, 999)")
+            .await
+            .is_err()
+    );
+
+    let mut failing = options.clone();
+    failing.seeder = Some("UnknownSeeder".into());
+    let error = test.truncateDatabaseTables(failing).await.unwrap_err();
+    assert!(
+        error.to_string().contains("db:seed exited with 1"),
+        "{error}"
+    );
+    test.assertDatabaseEmpty("items").await?;
+    test.truncateDatabaseTables(options.clone()).await?;
+    test.assertDatabaseHas("items", &[("id", 1_i64.into()), ("name", "second".into())])
+        .await?;
+    test.assertDatabaseCount("keep", 1).await?;
+    test.assertDatabaseCountOn("notes", 1, Some("reports"))
+        .await?;
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let release = Arc::new(tokio::sync::Notify::new());
+    let started = entered.clone();
+    let allowed = release.clone();
+    let pause_once = AtomicBool::new(true);
+    mysql.beforeExecuting(move |sql, _, _, _| {
+        let pause = sql.starts_with("truncate table ") && pause_once.swap(false, Ordering::Relaxed);
+        let started = started.clone();
+        let allowed = allowed.clone();
+        Box::pin(async move {
+            if pause {
+                started.notify_one();
+                allowed.notified().await;
+            }
+            Ok(())
+        })
+    });
+    let mut pending = Box::pin(test.truncateDatabaseTables(options));
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::select! {
+            () = entered.notified() => {}
+            result = &mut pending => panic!("truncation finished before cancellation: {result:?}"),
+        }
+    })
+    .await?;
+    drop(pending);
+    let mut closing = Box::pin(test.close());
+    let waiting = tokio::time::timeout(std::time::Duration::from_millis(25), &mut closing).await;
+    release.notify_one();
+    assert!(
+        waiting.is_err(),
+        "fixture closed before its truncation task finished"
+    );
+    closing.await
 }
 
 #[tokio::test]

@@ -85,6 +85,10 @@ impl Migrator {
             .extend(migrations);
     }
 
+    pub(crate) fn migration_table(&self) -> &str {
+        &self.table
+    }
+
     fn repository(&self, database: Option<&str>) -> DatabaseMigrationRepository {
         DatabaseMigrationRepository::new(self.manager.clone(), database, &self.table)
     }

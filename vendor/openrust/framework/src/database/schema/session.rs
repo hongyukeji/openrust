@@ -8,7 +8,7 @@ use crate::{
     events::EventContext,
 };
 
-use super::{Builder, grammars::Table};
+use super::{Builder, TableInfo, grammars::Table};
 
 /// A leased write session for connection-local schema settings and operations.
 pub struct SchemaSession {
@@ -152,6 +152,30 @@ impl SchemaSession {
 
     pub fn getSchemaBuilder(&mut self) -> Builder<'_> {
         Builder::session_builder(self)
+    }
+
+    pub(crate) async fn truncate_nonempty_catalog_table(
+        &mut self,
+        table: &TableInfo,
+    ) -> DatabaseResult<()> {
+        if !self.connection.grammar.is_mysql() || table.schema != self.connection.getDatabaseName()
+        {
+            return Err(DatabaseError::InvalidSchema(
+                "expected a table in the current MySQL schema",
+            ));
+        }
+        let database = self.connection.grammar.quote(&table.schema)?;
+        let name = self.connection.grammar.quote(&table.name)?;
+        let target = format!("{database}.{name}");
+        if !self
+            .select(&format!("select 1 from {target} limit 1"), &[])
+            .await?
+            .is_empty()
+        {
+            self.statement(&format!("truncate table {target}"), &[])
+                .await?;
+        }
+        Ok(())
     }
 
     pub async fn enableForeignKeyConstraints(&mut self) -> DatabaseResult<bool> {

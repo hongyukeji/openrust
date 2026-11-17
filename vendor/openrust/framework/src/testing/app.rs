@@ -15,7 +15,10 @@ use crate::{
     http::{Body, Request},
 };
 
-use super::{TestCommand, TestResponse, database::RefreshState, database_migrations::MigrationRun};
+use super::{
+    TestCommand, TestResponse, database::RefreshState, database_migrations::MigrationRun,
+    database_truncation::TruncationState,
+};
 
 const RESPONSE_LIMIT: usize = 1024 * 1024;
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
@@ -27,6 +30,7 @@ pub struct TestApp {
     pub(super) mysql: Vec<MySqlTestDatabase>,
     pub(super) refreshed: Option<RefreshState>,
     pub(super) migration_run: Option<MigrationRun>,
+    pub(super) truncation: Option<TruncationState>,
     pub(super) query_counts: Arc<TestQueryCounts>,
     #[cfg(feature = "sanctum")]
     pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
@@ -58,6 +62,7 @@ impl TestApp {
             mysql: Vec::new(),
             refreshed: None,
             migration_run: None,
+            truncation: None,
             query_counts,
             #[cfg(feature = "sanctum")]
             sanctum_identity: None,
@@ -162,7 +167,7 @@ impl Drop for TestApp {
     }
 }
 
-async fn run_artisan(app: Application, arguments: Vec<OsString>) -> TestCommand {
+pub(super) async fn run_artisan(app: Application, arguments: Vec<OsString>) -> TestCommand {
     let mut output = Output::default();
     let status = app.run_console(&arguments, &mut output).await;
     TestCommand {

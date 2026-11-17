@@ -94,6 +94,26 @@ async fn check_empty_items(test: &mut TestApp) -> Result<(), Box<dyn std::error:
 }
 ```
 
+## Truncating tables between tests {#database-truncation}
+
+Call `truncateDatabaseTables` before each test on the managed fixture. The first call runs `migrate:fresh` on the default connection. Later calls truncate populated tables on the selected connections and reseed the default connection when requested. Set `drop_views` for the first rebuild, and use `seed` or `seeder` to select how data is restored.
+
+An empty `connections_to_truncate` selects the default connection. Use `tables` for shared filters and `tables_by_connection` for connection-specific filters. Match physical catalog names, either bare or schema-qualified. A nonempty `only` list selects the tables to truncate. Otherwise, `except` and the migration ledger are retained.
+
+The reset uses a dedicated write session to disable and restore foreign-key checks. MySQL truncation commits implicitly, so call this method outside test transactions. If the future is cancelled, the next reset or `close().await` waits for the pending work.
+
+```rust
+use openrust::testing::{DatabaseTruncationOptions, TestApp};
+
+async fn reset_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.truncateDatabaseTables(DatabaseTruncationOptions {
+        seed: true,
+        ..Default::default()
+    }).await?;
+    test.assertDatabaseCount("items", 1).await
+}
+```
+
 ## MySQL transaction isolation {#mysql-transaction-isolation}
 
 Configure the test application to use a dedicated MySQL test database. Run migrations and baseline seeders before calling `test.databaseTransaction`. Inside the callback, HTTP requests, in-process Artisan commands, and database assertions on the default connection share one session. The helper rolls back on success or error, and application transactions use savepoints.
@@ -135,6 +155,10 @@ async fn run_test(
 ```
 
 Set `connections_to_transact` to select the connections that roll back after each callback. An empty list selects the default. For an already prepared fixture, `databaseTransactionOn` runs the same rollback lifecycle without a schema refresh.
+
+## Model factories {#model-factories}
+
+Create test records with the model’s factory before issuing requests or checking database state. The factory uses the application’s Eloquent connection, so its writes follow the same fixture transaction rules. See [Eloquent factories](../eloquent/factories.md) for factory definitions and states.
 
 ## Database assertions
 

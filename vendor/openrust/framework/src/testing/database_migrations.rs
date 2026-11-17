@@ -13,7 +13,7 @@ use crate::database::{Connection, DatabaseFuture, DatabaseResult, test_transacti
 
 use super::{TestApp, TestCommand};
 
-type TestResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
+pub(super) type TestResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 type MigrationTask = JoinHandle<DatabaseResult<TestCommand>>;
 
 /// Options for rebuilding the managed test schema before a migration test.
@@ -54,6 +54,7 @@ impl TestApp {
             .into());
         }
         self.settle_database_migrations().await?;
+        self.invalidate_truncation().await?;
         self.wait_for_refresh().await;
         self.refreshed = None;
 
@@ -145,7 +146,7 @@ pub(super) fn fresh_migration_arguments(
     arguments
 }
 
-fn migration_arguments(command: &str, connection: &Connection) -> Vec<OsString> {
+pub(super) fn migration_arguments(command: &str, connection: &Connection) -> Vec<OsString> {
     vec![
         command.into(),
         format!("--database={}", connection.getName()).into(),
@@ -153,7 +154,7 @@ fn migration_arguments(command: &str, connection: &Connection) -> Vec<OsString> 
     ]
 }
 
-fn migration_command_result(command: &str, result: TestCommand) -> TestResult<()> {
+pub(super) fn migration_command_result(command: &str, result: TestCommand) -> TestResult<()> {
     if result.status == 0 {
         return Ok(());
     }
