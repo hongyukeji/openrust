@@ -67,3 +67,10 @@
 - 在隔离基线 `2f43411d1` 上使用 Redis 8.10.3 启动三主节点 TLS 集群。实际连接验收通过可信 CA、拒绝无关 CA、不可达种子后发现健康节点、原始命令的空主机名 `ASK` 和 `MOVED`。使用真实双进程 HTTP 重现两种响应，独立 Artisan `cache:forget` 删除对应键，`artisan inspire` 通过。
 - 复跑单机和明文集群夹具，覆盖具名连接、缓存和锁、标签及过期索引、迁槽、故障切换、丢回执后的写入边界。改动文件格式、严格工作区 Clippy、三语站点、12 项通用浏览器和 6 项 TLS 文档检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。
 - 项目计划的 Redis 连接、序列化、原始命令、缓存与并发锁已有真实驱动及 HTTP／Artisan 证据，03-09 闭合。TLS 验收覆盖服务端凭证与 CA，使用 Redis ACL 密码认证。临时 Redis、测试证书和隔离编译产物已回收。磁盘可用 115.25 GB（107.33 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tls.yIUEEKY5`。
+
+## Redis Cluster 标签主线复验
+
+- 以本地 `f09174548` 的隔离快照使用 Rust 1.94.0 和 Redis 8.10.3 复验。标签实现已随 `f2e8d6248` 提交，整单元已随 `fb2a0bf39` 闭合。再次对照固定 Laravel 的标签索引、集群分批清理和 `cache:prune-stale-tags`，保留单槽 Lua 原子更新。 [Laravel 清理命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/PruneStaleTagsCommand.php)
+- `sh tests/redis_cluster.sh` 的 4 项测试通过，覆盖过期索引修剪、按标签分批清理、隔离、迁槽和故障切换。真实单机 Redis 的连接与标签清理用例复验通过。
+- 实际双进程 HTTP 验证写入、跨进程读取和自然过期。独立 Artisan `cache:prune-stale-tags redis` 移除过期索引引用并保留有效缓存，`cache:clear redis --tags=artists` 保留普通值和其他标签值。`./artisan inspire` 通过。
+- 工作区严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项标签文档链路检查通过。全仓格式检查仍只报告既有的 `sanctum_authentication.rs:1412` 差异。既有三语文档覆盖本次验证的命令和行为。临时 Redis 与本批隔离产物已回收，日志保留于 `/private/tmp/openrust-03-09-recheck.yJc324Uv`。
