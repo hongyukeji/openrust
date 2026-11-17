@@ -369,9 +369,29 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 `update` 傳回受影響的資料列數。`updateOrInsert` 先檢查資料是否存在，再執行寫入。需要在一條 SQL 內處理插入與衝突時使用 `upsert`。`increment` 和 `decrement` 在 SQL 中運算，並可一併更新其他欄位。
 
-### 更新 JSON 欄位
+PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標列。
+
+### 更新 JSON 欄位 {#updating-json-columns}
 
 將 `options->preferences->enabled` 這類鍵傳給 `update`。MySQL 使用 `JSON_SET`，支援陣列索引。SQLite 使用合併修補，值為 null 的成員會移除對應的鍵。
+
+PostgreSQL 對 `json` 和 `jsonb` 欄位使用 `jsonb_set`，路徑區段和新的 JSON 值分開繫結。物件鍵以箭頭分隔，陣列索引使用方括號，支援負索引。路徑區段內的點屬於鍵名。同一欄位的多個路徑依記錄的鍵順序在同一指派中套用。JSON null 會寫入成員。缺少的中間物件維持原樣，SQL NULL 文件仍為 SQL NULL。
+
+```rust
+use std::collections::BTreeMap;
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseResult<u64> {
+    connection
+        .table("users")
+        .r#where("id", "=", id)
+        .update(BTreeMap::from([
+            ("options->preferences->enabled".into(), true.into()),
+            ("options->preferences->channel".into(), "email".into()),
+        ]))
+        .await
+}
+```
 
 ## 刪除陳述式
 

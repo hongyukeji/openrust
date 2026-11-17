@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 04:30（北京时间）02-04 [PostgreSQL JSON 路径更新与限额写入](audits/02-04/README.md#postgresql-json-路径更新与限额写入)。真实 PostgreSQL 18.6 双准备模式、HTTP 与独立 Artisan、MySQL 8.4.13 查询和写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 04:23（北京时间）02-04 [PostgreSQL JSON WHERE 谓词](audits/02-04/README.md#postgresql-json-where-谓词)。真实 PostgreSQL 18.6 双准备模式、生成列、HTTP 与独立 Artisan、MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 04:14（北京时间）02-02 [连接接口与 02-02 整单元验收](audits/02-02/README.md#连接接口与-02-02-整单元验收)。真实 MySQL 8.4.13、32 项数据库 SQL 回归、独立 HTTP 与 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过，核心账本更新为 63/66。
 - 2026-11-18 04:04（北京时间）03-06 [标签仓储的记忆化与过期清理](audits/03-06/memoization.md#标签仓储的记忆化与过期清理)。真实 Redis 单机和集群、HTTP、Artisan、Array、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。

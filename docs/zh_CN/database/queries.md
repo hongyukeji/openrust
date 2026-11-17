@@ -369,9 +369,29 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 `update` 返回影响行数。`updateOrInsert` 先检查记录是否存在，再执行写入。需要在一条 SQL 内处理插入和冲突时使用 `upsert`。`increment` 和 `decrement` 在 SQL 中运算，并可附带更新其他列。
 
-### 更新 JSON 列
+PostgreSQL 的联结或限额更新和删除通过 `ctid` 子查询选出目标行。
+
+### 更新 JSON 列 {#updating-json-columns}
 
 向 `update` 传入形如 `options->preferences->enabled` 的键。MySQL 使用 `JSON_SET`，支持数组下标。SQLite 使用合并补丁，值为 null 的成员会删除对应键。
+
+PostgreSQL 对 `json` 和 `jsonb` 列使用 `jsonb_set`，路径段和新的 JSON 值分别绑定。对象键用箭头分隔，数组索引用方括号，支持负索引。路径段内的点属于键名。同一列的多个路径按记录的键顺序在一个赋值中应用。JSON null 会写入成员。缺失的中间对象保持原状，SQL NULL 文档仍为 SQL NULL。
+
+```rust
+use std::collections::BTreeMap;
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseResult<u64> {
+    connection
+        .table("users")
+        .r#where("id", "=", id)
+        .update(BTreeMap::from([
+            ("options->preferences->enabled".into(), true.into()),
+            ("options->preferences->channel".into(), "email".into()),
+        ]))
+        .await
+}
+```
 
 ## 删除语句
 

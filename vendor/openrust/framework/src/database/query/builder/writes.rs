@@ -441,8 +441,13 @@ impl Builder<'_> {
         if !self.grammar.is_mysql() && (!self.joins.is_empty() || self.limit.is_some()) {
             let reference = table_reference(table);
             let reference = self.grammar.table(reference)?;
+            let identity = if self.grammar.is_postgres() {
+                "ctid"
+            } else {
+                "rowid"
+            };
             sql.push_str(&format!(
-                " where \"rowid\" in (select {reference}.\"rowid\" from {}",
+                " where \"{identity}\" in (select {reference}.\"{identity}\" from {}",
                 self.grammar.table(table)?
             ));
             self.compile_joins(sql, bindings)?;

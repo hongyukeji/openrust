@@ -369,9 +369,29 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 `update` returns the affected row count. `updateOrInsert` performs an existence check followed by a write. Use `upsert` when the insert and conflict handling must run in one statement. `increment` and `decrement` perform arithmetic in SQL and can set extra columns.
 
-### Updating JSON Columns
+PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
+
+### Updating JSON Columns {#updating-json-columns}
 
 Pass a key such as `options->preferences->enabled` to `update`. MySQL applies `JSON_SET` and supports array indexes. SQLite applies a merge patch, where a null member removes that key.
+
+PostgreSQL uses `jsonb_set` on both `json` and `jsonb` columns. Each path segment and the new JSON value are bound separately. Use arrows for object keys and brackets for array indexes, including negative indexes. A dot within a path segment is part of the key. Multiple paths on the same column are applied in record key order within one assignment. JSON null is stored as a member value. Missing intermediate objects are left alone, and a SQL NULL document remains SQL NULL.
+
+```rust
+use std::collections::BTreeMap;
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseResult<u64> {
+    connection
+        .table("users")
+        .r#where("id", "=", id)
+        .update(BTreeMap::from([
+            ("options->preferences->enabled".into(), true.into()),
+            ("options->preferences->channel".into(), "email".into()),
+        ]))
+        .await
+}
+```
 
 ## Delete Statements
 

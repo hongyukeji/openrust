@@ -144,6 +144,17 @@ impl Grammar {
         let Some((column, path)) = selector.split_once("->") else {
             return self.column(selector);
         };
+        let attributes = Self::postgres_json_path(path)?;
+        let mut expression = self.column(column)?;
+        let last = attributes.len() - 1;
+        for (index, attribute) in attributes.into_iter().enumerate() {
+            expression.push_str(if text && index == last { "->>" } else { "->" });
+            expression.push_str(&postgres_json_attribute(attribute));
+        }
+        Ok(expression)
+    }
+
+    pub(in crate::database::query) fn postgres_json_path(path: &str) -> DatabaseResult<Vec<&str>> {
         if path.contains('\0') {
             return Err(DatabaseError::InvalidQuery("JSON path"));
         }
@@ -155,13 +166,7 @@ impl Grammar {
             }
             attributes.extend(indices.split_terminator(']').map(|index| &index[1..]));
         }
-        let mut expression = self.column(column)?;
-        let last = attributes.len() - 1;
-        for (index, attribute) in attributes.into_iter().enumerate() {
-            expression.push_str(if text && index == last { "->>" } else { "->" });
-            expression.push_str(&postgres_json_attribute(attribute));
-        }
-        Ok(expression)
+        Ok(attributes)
     }
 
     fn postgres_json_contains_key(

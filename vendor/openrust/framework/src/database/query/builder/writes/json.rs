@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Write as _};
 
 use serde_json::{Map, Value as Json};
 
@@ -19,6 +19,11 @@ pub(super) fn compile_assignments(
             if field.is_empty() || path.split("->").any(str::is_empty) {
                 return Err(DatabaseError::InvalidQuery("JSON update path"));
             }
+            let field = if grammar.is_postgres() {
+                unqualified(field)
+            } else {
+                field
+            };
             json.entry(field.to_owned())
                 .or_default()
                 .push((path.to_owned(), json_value(value)?));
@@ -43,6 +48,8 @@ pub(super) fn compile_assignments(
                 bindings.push(mysql_path(&path)?.into());
                 bindings.push(value.to_string().into());
             }
+        } else if grammar.is_postgres() {
+            assignments.push(postgres_assignment(&column, changes, &mut bindings)?);
         } else {
             assignments.push(format!(
                 "{column} = json_patch(ifnull({column}, json('{{}}')), json(?))"
@@ -58,13 +65,37 @@ pub(super) fn compile_assignments(
     Ok((assignments, bindings))
 }
 
+fn postgres_assignment(
+    column: &str,
+    changes: Vec<(String, Json)>,
+    bindings: &mut Vec<Value>,
+) -> DatabaseResult<String> {
+    let mut sql = format!(
+        "{column} = {}{column}::jsonb",
+        "jsonb_set(".repeat(changes.len())
+    );
+    for (path, value) in changes {
+        let path = Grammar::postgres_json_path(&path)?;
+        let placeholders = vec!["?"; path.len()].join(", ");
+        write!(sql, ", array[{placeholders}]::text[], ?::jsonb)")
+            .expect("writing to a String is infallible");
+        bindings.extend(path.into_iter().map(Value::from));
+        bindings.push(Value::Json(value));
+    }
+    Ok(sql)
+}
+
 fn write_column(grammar: &Grammar, column: &str) -> DatabaseResult<String> {
     let column = if grammar.is_mysql() {
         column
     } else {
-        column.rsplit('.').next().expect("at least one segment")
+        unqualified(column)
     };
     grammar.column(column)
+}
+
+fn unqualified(column: &str) -> &str {
+    column.rsplit_once('.').map_or(column, |(_, field)| field)
 }
 
 fn json_value(value: Value) -> DatabaseResult<Json> {

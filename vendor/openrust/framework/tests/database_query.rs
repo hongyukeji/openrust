@@ -1247,6 +1247,153 @@ async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
     }
 }
 
+#[tokio::test]
+async fn json_updates_run_on_postgres_in_both_prepare_modes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_JSON_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_JSON").is_none());
+        return;
+    };
+    for (emulate, storage) in [
+        (false, "jsonb"),
+        (false, "json"),
+        (true, "jsonb"),
+        (true, "json"),
+    ] {
+        let db = connection(json!({"url":url,"prefix":"app_","emulate_prepares":emulate}));
+        db.statement(
+            &format!("CREATE TABLE app_json_updates (id integer PRIMARY KEY, options {storage}, seen integer DEFAULT 0)"),
+            &[],
+        )
+        .await
+        .unwrap();
+        let original = json!({
+            "items": [{"enabled":false}, {"enabled":false}],
+            "profile": {"marker":true, "keep":10},
+        });
+        db.insert(
+            "INSERT INTO app_json_updates (id, options) VALUES (?, ?), (?, NULL)",
+            &[1.into(), Value::Json(original.clone()), 2.into()],
+        )
+        .await
+        .unwrap();
+        let mut transaction = db.beginTransaction().await.unwrap();
+        let count = transaction
+            .table("json_updates as j")
+            .join("json_updates as peer", "j.id", "=", "peer.id")
+            .r#where("j.id", "=", 1)
+            .whereJsonContainsKey("j.options->profile")
+            .orderBy("j.id", "asc")
+            .limit(1)
+            .update(BTreeMap::from([
+                ("j.options->items[-1]->enabled".into(), true.into()),
+                (
+                    "options->profile->a.b'\\,?".into(),
+                    Value::Json(json!([1, 2])),
+                ),
+                ("options->profile->display.name".into(), "O'Reilly".into()),
+                ("options->profile->marker".into(), Value::Null),
+                ("options->missing->nested".into(), true.into()),
+                (
+                    "options->added".into(),
+                    Value::Json(json!({"kind":"native"})),
+                ),
+                ("seen".into(), 7.into()),
+            ]))
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+        let row = transaction
+            .table("json_updates")
+            .r#where("id", "=", 1)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.get("seen"), Some(&7.into()));
+        assert_eq!(
+            row.get("options"),
+            Some(&Value::Json(json!({
+                "items": [{"enabled":false}, {"enabled":true}],
+                "profile": {
+                    "a.b'\\,?": [1,2],
+                    "display.name": "O'Reilly",
+                    "marker": null,
+                    "keep": 10,
+                },
+                "added": {"kind":"native"},
+            })))
+        );
+        transaction.rollBack(None).await.unwrap();
+        let row = db
+            .table("json_updates")
+            .r#where("id", "=", 1)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.get("seen"), Some(&0.into()));
+        assert_eq!(row.get("options"), Some(&Value::Json(original)));
+        assert_eq!(
+            db.table("json_updates")
+                .r#where("id", "=", 2)
+                .update(BTreeMap::from([("options->missing".into(), true.into()),]))
+                .await
+                .unwrap(),
+            1,
+        );
+        assert_eq!(
+            db.table("json_updates")
+                .r#where("id", "=", 2)
+                .value("options")
+                .await
+                .unwrap(),
+            Value::Null
+        );
+        assert!(matches!(
+            db.table("json_updates")
+                .update(BTreeMap::from([(
+                    "options->invalid\0key".into(),
+                    true.into()
+                )]))
+                .await,
+            Err(DatabaseError::InvalidQuery("JSON path"))
+        ));
+        assert!(
+            db.table("json_updates")
+                .updateOrInsert(
+                    BTreeMap::from([("id".into(), 1.into())]),
+                    BTreeMap::from([("options->profile->committed".into(), true.into())]),
+                )
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            db.table("json_updates")
+                .whereJsonContains("options->profile", json!({"committed": true}))
+                .value("id")
+                .await
+                .unwrap(),
+            1.into(),
+        );
+        assert_eq!(
+            db.table("json_updates")
+                .orderBy("id", "desc")
+                .limit(1)
+                .delete()
+                .await
+                .unwrap(),
+            1,
+        );
+        assert_eq!(
+            db.table("json_updates").pluck("id").await.unwrap(),
+            [1.into()]
+        );
+        db.statement("DROP TABLE app_json_updates", &[])
+            .await
+            .unwrap();
+    }
+}
+
 async fn verify_cursor(db: Connection) {
     db.statement("DROP TABLE IF EXISTS cursor_records", &[])
         .await
