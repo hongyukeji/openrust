@@ -133,3 +133,10 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - 验证应用与服务器的搜索路径一致时，池化连接使用预期 Schema，直连可使用独立路径。夹具的 HTTP Web 路由需要有效 `APP_KEY`。SQLx 使用原生预备语句，本次通过 PgBouncer 的具名语句跟踪获得兼容。Laravel 的 PDO 模拟预备策略和未启用语句跟踪的事务池仍待验收。
 - 三语连接文档已列出 PgBouncer 配置和迁移直连要求。隔离站点 12 项通用和 6 项连接文档浏览器检查通过。
 - 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。
+
+## PgBouncer 关闭预备语句跟踪
+
+- 对照固定 Laravel v13.40.0 的 `ConfiguresPooledConnections`。PostgreSQL 的 `pooled=true` 或独立 `direct` 配置使池化读写默认模拟预备。直连默认采用原生预备。Rust 允许在连接及各端点用 `emulate_prepares` 显式覆盖。复核旧版 `6d1a81924`，未找到可复用的事务池模拟预备实现。 [固定 Laravel 连接配置](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/Concerns/ConfiguresPooledConnections.php)
+- 模拟模式使用 PostgreSQL 简单查询协议。框架解析命名、位置和原生编号绑定，按类型编码值，避开 SQL 引号和嵌套注释中的占位符。扩展和用户自定义类型按服务器返回的文本读取。框架诊断继续使用原 SQL 和独立绑定，模拟模式关闭 SQLx 对已展开语句的日志。 [PgBouncer 具名语句跟踪](https://www.pgbouncer.org/config.html#max_prepared_statements)
+- 真实 PostgreSQL 18.6 和 PgBouncer 1.26.1，事务池、两个后端并轮换，`max_prepared_statements=0`。通过文字、整型、浮点、布尔、NULL、二进制、JSON、自定义枚举、命名绑定、重复编号、流式读取、重复事务及失败回滚后的查询回归。24 个并发实际 HTTP 请求跨两个后端，验证池化和直连各自的数据库及绑定值。独立 Artisan 迁移只写直连账本，`artisan inspire` 通过。
+- 框架查询回归、MySQL 8.4.13 表目录与限定 Schema 清库、Rust 1.94.0 全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。本批临时容器、隔离产物和临时镜像标签已回收，磁盘空间净增 3.66 GB（3.41 GiB），可用 104.90 GB（97.70 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-02-pgbouncer-untracked.HOsPMhtp`。

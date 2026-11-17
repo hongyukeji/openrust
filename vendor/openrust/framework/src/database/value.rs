@@ -143,6 +143,13 @@ fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value
         "TIME" => row
             .try_get::<chrono::NaiveTime, _>(index)
             .map(|value| Value::Text(value.to_string())),
+        _ if row
+            .try_get_raw(index)
+            .is_ok_and(|raw| raw.format() == PgValueFormat::Text) =>
+        {
+            // Simple queries do not perform a separate lookup for extension and custom types.
+            row.try_get_unchecked::<String, _>(index).map(Value::Text)
+        }
         _ => row.try_get::<String, _>(index).map(Value::Text),
     };
     value.map_err(DatabaseError::driver("decode"))

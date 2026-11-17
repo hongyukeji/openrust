@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 01:57（北京时间）02-02 [PgBouncer 关闭预备语句跟踪](audits/02-02/README.md#pgbouncer-关闭预备语句跟踪)。PostgreSQL 18.6、PgBouncer 1.26.1 关闭跟踪、双后端实际 HTTP、独立 Artisan、MySQL 8.4.13 回归、Rust 全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 01:44（北京时间）02-06 [SQLite 缺库创建确认](audits/02-06/README.md#sqlite-缺库创建确认)。真实终端确认和拒绝、强制创建、原子并发、只读路径、实际 HTTP 和 Artisan、MySQL 8.4.13 及 PostgreSQL 协议回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 01:36（北京时间）02-06 [SQLite Schema 快照](audits/02-06/README.md#sqlite-schema-快照)。文件库和内存库的实际 Artisan、恢复错误回滚及 HTTP、MySQL 8.4.13 快照回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 01:26（北京时间）02-06 [MariaDB 原生 Schema 快照](audits/02-06/README.md#mariadb-原生-schema-快照)。MariaDB 11.8.9 的两种 TLS 配置、实际 Artisan 与 HTTP、MySQL 8.4.13 快照回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。

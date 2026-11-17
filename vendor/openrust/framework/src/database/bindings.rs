@@ -38,9 +38,25 @@ impl<'a> Bindings<'a> {
                 sql: Cow::Borrowed(sql),
                 values: Either::Left(values),
             }),
-            Self::Named(values) => {
-                prepare_named(sql, values.iter().map(|(key, value)| (*key, value)), mysql)
-            }
+            Self::Named(values) => prepare_named(
+                sql,
+                values.iter().map(|(key, value)| (*key, value)),
+                mysql,
+                false,
+            ),
+        }
+    }
+
+    pub(super) fn prepare_postgres(self, sql: &'a str) -> DatabaseResult<PreparedBindings<'a>> {
+        match self {
+            Self::Positional(_) => self.prepare(sql, false).map(PreparedBindings::postgres),
+            Self::Named(values) => prepare_named(
+                sql,
+                values.iter().map(|(key, value)| (*key, value)),
+                false,
+                true,
+            )
+            .map(PreparedBindings::postgres),
         }
     }
 }
@@ -70,12 +86,12 @@ impl<'a> PreparedBindings<'a> {
         let mut index = 0;
         while let Some(&byte) = bytes.get(pos) {
             let tail = &bytes[pos..];
-            let quoted = if postgres {
-                postgres_dollar_quote(tail)
+            let skipped = if postgres {
+                skip_postgres(tail)
             } else {
-                None
+                skip_sql(tail, false)
             };
-            if let Some(len) = quoted.or_else(|| skip_sql(tail, false)) {
+            if let Some(len) = skipped {
                 pos += len;
             } else if byte == b'?' {
                 sql.push_str(&self.sql[start..pos]);
@@ -103,6 +119,141 @@ impl<'a> PreparedBindings<'a> {
             Either::Right(values) => Either::Right(values.iter().copied()),
         }
     }
+
+    pub(super) fn emulate_postgres(&self) -> DatabaseResult<String> {
+        let values: Vec<_> = self.values().collect();
+        let mut seen = vec![false; values.len()];
+        let mut sql = String::with_capacity(self.sql.len());
+        let mut start = 0;
+        let mut offset = 0;
+        let bytes = self.sql.as_bytes();
+        while let Some(tail) = bytes.get(offset..).filter(|tail| !tail.is_empty()) {
+            if let Some(len) = skip_postgres(tail) {
+                offset += len;
+            } else if tail[0] == b'$' && tail.get(1).is_some_and(u8::is_ascii_digit) {
+                let end = offset
+                    + 1
+                    + tail[1..]
+                        .iter()
+                        .take_while(|byte| byte.is_ascii_digit())
+                        .count();
+                let parameter = self.sql[offset + 1..end]
+                    .parse::<usize>()
+                    .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL parameter index"))?;
+                let index = parameter
+                    .checked_sub(1)
+                    .filter(|&index| index < values.len())
+                    .ok_or(DatabaseError::InvalidBindings {
+                        expected: parameter,
+                        actual: values.len(),
+                    })?;
+                sql.push_str(&self.sql[start..offset]);
+                postgres_literal(&mut sql, values[index])?;
+                seen[index] = true;
+                start = end;
+                offset = end;
+            } else {
+                offset += 1;
+            }
+        }
+        let expected = seen.into_iter().filter(|used| *used).count();
+        if expected != values.len() {
+            return Err(DatabaseError::InvalidBindings {
+                expected,
+                actual: values.len(),
+            });
+        }
+        sql.push_str(&self.sql[start..]);
+        Ok(sql)
+    }
+}
+
+fn postgres_literal(sql: &mut String, value: &Value) -> DatabaseResult<()> {
+    fn string_literal(sql: &mut String, value: &str) -> DatabaseResult<()> {
+        if value.contains('\0') {
+            return Err(DatabaseError::InvalidQuery(
+                "PostgreSQL text parameter contains NUL",
+            ));
+        }
+        // Encode the payload without SQL delimiters, independent of session escaping settings.
+        sql.push_str("E'");
+        for byte in value.bytes() {
+            write!(sql, "\\x{byte:02x}").expect("writing to a String");
+        }
+        sql.push('\'');
+        Ok(())
+    }
+    match value {
+        Value::Null => sql.push_str("NULL"),
+        Value::Bool(value) => sql.push_str(if *value { "TRUE" } else { "FALSE" }),
+        Value::Integer(value) => write!(sql, "({value})").expect("writing to a String"),
+        Value::Unsigned(value) => {
+            let value = i64::try_from(*value)
+                .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL integer parameter"))?;
+            write!(sql, "({value})").expect("writing to a String");
+        }
+        Value::Real(value) => write!(sql, "('{value}'::float8)").expect("writing to a String"),
+        Value::Text(value) => string_literal(sql, value)?,
+        Value::Bytes(value) => {
+            sql.push_str("(E'\\\\x");
+            for byte in value {
+                write!(sql, "{byte:02x}").expect("writing to a String");
+            }
+            sql.push_str("'::bytea)");
+        }
+        Value::Json(value) => {
+            sql.push('(');
+            string_literal(sql, &value.to_string())?;
+            sql.push_str("::jsonb)");
+        }
+    }
+    Ok(())
+}
+
+fn skip_postgres(tail: &[u8]) -> Option<usize> {
+    let first = *tail.first()?;
+    if tail.starts_with(b"/*") {
+        let mut offset = 2;
+        let mut depth = 1;
+        while let Some(pair) = tail.get(offset..offset + 2) {
+            match pair {
+                b"/*" => {
+                    depth += 1;
+                    offset += 2;
+                }
+                b"*/" => {
+                    depth -= 1;
+                    offset += 2;
+                    if depth == 0 {
+                        return Some(offset);
+                    }
+                }
+                _ => offset += 1,
+            }
+        }
+        return Some(tail.len());
+    }
+    if matches!(first, b'e' | b'E') && tail.get(1) == Some(&b'\'') {
+        return Some(1 + quoted_len(&tail[1..], b'\'', true));
+    }
+    if matches!(first, b'\'' | b'"') {
+        return Some(quoted_len(tail, first, false));
+    }
+    if tail.starts_with(b"--") {
+        return Some(
+            tail.iter()
+                .position(|byte| matches!(byte, b'\r' | b'\n'))
+                .unwrap_or(tail.len()),
+        );
+    }
+    if first.is_ascii_alphabetic() || first == b'_' || !first.is_ascii() {
+        return Some(
+            tail.iter()
+                .take_while(|&&byte| name_byte(byte) || byte == b'$' || !byte.is_ascii())
+                .count(),
+        );
+    }
+    postgres_dollar_quote(tail)
 }
 
 fn postgres_dollar_quote(tail: &[u8]) -> Option<usize> {
@@ -110,7 +261,11 @@ fn postgres_dollar_quote(tail: &[u8]) -> Option<usize> {
     if rest.first()?.is_ascii_digit() {
         return None;
     }
-    let tag = rest.iter().take_while(|byte| name_byte(**byte)).count() + 1;
+    let tag = rest
+        .iter()
+        .take_while(|byte| name_byte(**byte) || !byte.is_ascii())
+        .count()
+        + 1;
     if tail.get(tag) != Some(&b'$') {
         return None;
     }
@@ -135,6 +290,7 @@ fn prepare_named<'a>(
     sql: &str,
     bindings: impl ExactSizeIterator<Item = (&'a str, &'a Value)>,
     mysql: bool,
+    postgres: bool,
 ) -> DatabaseResult<PreparedBindings<'a>> {
     let capacity = bindings.len();
     let mut names = BTreeMap::new();
@@ -155,7 +311,12 @@ fn prepare_named<'a>(
     let bytes = sql.as_bytes();
     while let Some(&byte) = bytes.get(offset) {
         let tail = &bytes[offset..];
-        if let Some(length) = skip_sql(tail, mysql) {
+        let skipped = if postgres {
+            skip_postgres(tail)
+        } else {
+            skip_sql(tail, mysql)
+        };
+        if let Some(length) = skipped {
             offset += length;
         } else if tail.starts_with(b"::") {
             offset += tail.iter().take_while(|&&b| b == b':').count();
@@ -239,6 +400,7 @@ pub(super) fn render_query(
             sql,
             values.iter().map(|(key, value)| (key.as_str(), value)),
             mysql,
+            false,
         )?,
     };
     let bindings = prepared

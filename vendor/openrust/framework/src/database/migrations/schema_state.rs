@@ -54,7 +54,7 @@ pub(super) async fn dump(
     let mut staging = tempfile::NamedTempFile::new_in(parent).map_err(DatabaseError::SchemaIo)?;
     if connection.is_sqlite() {
         sqlite::dump(connection, path, migration_table, staging.as_file_mut()).await?;
-    } else if let Pool::Postgres(pool) = &generation.writer {
+    } else if let Pool::Postgres(pool, _) = &generation.writer {
         postgres::dump(
             connection,
             pool,
@@ -131,7 +131,7 @@ pub(super) async fn load(
     }
     let generation = connection.pools.generation()?;
     let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
-    if let Pool::Postgres(pool) = &generation.writer {
+    if let Pool::Postgres(pool, _) = &generation.writer {
         return postgres::load(pool, credentials, path).await;
     }
     let state =

@@ -89,7 +89,7 @@ async fn postgres_missing_database_selects_the_configured_direct_writer_only() {
         panic!("expected a server creation request");
     };
     assert_eq!(sql, "create database \"app\"\"quoted\"");
-    let Pool::Postgres(pool) = &generation.writer else {
+    let Pool::Postgres(pool, _) = &generation.writer else {
         panic!("expected the PostgreSQL writer");
     };
     let selected = pool.connect_options();

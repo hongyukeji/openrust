@@ -65,7 +65,7 @@ impl MissingDatabase {
                 });
             }
             (Self::Mysql, Pool::Mysql(_)) => "create database if not exists",
-            (Self::Postgres, Pool::Postgres(_)) if connection.getDatabaseName() != "postgres" => {
+            (Self::Postgres, Pool::Postgres(..)) if connection.getDatabaseName() != "postgres" => {
                 "create database"
             }
             _ => return Ok(None),
@@ -92,7 +92,7 @@ impl DatabaseCreation {
             Self::Sqlite(path) => return create_sqlite_database(path).await,
             Self::Server { generation, sql } => (generation, sql),
         };
-        if let Pool::Postgres(pool) = &generation.writer {
+        if let Pool::Postgres(pool, _) = &generation.writer {
             let options = pool.connect_options().as_ref().clone().database("postgres");
             return tokio::time::timeout(pool.options().get_acquire_timeout(), async {
                 let mut session =

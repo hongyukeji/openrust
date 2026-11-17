@@ -23,6 +23,156 @@ fn connection(config: Json) -> Connection {
 }
 
 #[tokio::test]
+async fn postgres_transaction_pool_binds_without_named_statements() {
+    let Ok(pooled) = std::env::var("OPENRUST_TEST_PGBOUNCER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_PGBOUNCER").is_none());
+        return;
+    };
+    let direct = std::env::var("OPENRUST_TEST_POSTGRES_DIRECT_URL").unwrap();
+    let manager = DatabaseManager::new(
+        Arc::new(Repository::new(BTreeMap::from([(
+            "database".into(),
+            json!({"default":"test","connections":{"test":{"url":pooled,"direct":{"url":direct}}}}),
+        )]))),
+        ".",
+    );
+    let pool = manager.connection(None).unwrap();
+    let direct = manager.connection(Some("test::direct")).unwrap();
+    assert_ne!(
+        pool.scalar("select current_database()::text", &[])
+            .await
+            .unwrap(),
+        direct
+            .scalar("select current_database()::text", &[])
+            .await
+            .unwrap()
+    );
+    pool.statement(
+        "create table pooled_bindings (id integer primary key, label text)",
+        &[],
+    )
+    .await
+    .unwrap();
+    pool.statement("create type pooled_status as enum ('ready')", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        pool.scalar("select ?::pooled_status", &["ready".into()])
+            .await
+            .unwrap(),
+        "ready".into()
+    );
+    let label = "single ' quote, backslash \\, 中文, $1";
+    assert_eq!(
+        pool.affectingStatement(
+            "insert into pooled_bindings values (?, ?)",
+            &[1.into(), label.into()]
+        )
+        .await
+        .unwrap(),
+        1
+    );
+    let values = [
+        Value::Bytes(vec![0, 39, 255]),
+        Value::Json(json!({"quoted":label})),
+        Value::Null,
+        Value::Bool(true),
+        Value::Real(-1.25),
+    ];
+    let row = pool
+        .selectOne(
+            "select ?::bytea, ?::jsonb, ?::text, ?::boolean, ?::float8",
+            &values,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        row.columns()
+            .iter()
+            .map(|(_, value)| value)
+            .collect::<Vec<_>>(),
+        values.iter().collect::<Vec<_>>()
+    );
+    let bindings = [("probe", Value::from(label))];
+    assert_eq!(
+        pool.scalar(
+            "select :probe::text /* outer /* :ignored */ ? */",
+            openrust::database::Bindings::Named(&bindings),
+        )
+        .await
+        .unwrap(),
+        label.into()
+    );
+    assert_eq!(
+        pool.scalar("select (array[$1::int, $1::int])[2]", &[7.into()])
+            .await
+            .unwrap(),
+        7.into()
+    );
+    let rows = pool
+        .cursor(
+            "select label from pooled_bindings where id = ?",
+            &[1.into()],
+        )
+        .try_collect::<Vec<_>>()
+        .await
+        .unwrap();
+    assert_eq!(rows[0].get("label"), Some(&label.into()));
+    for number in 2..10 {
+        pool.transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.statement(
+                        "insert into pooled_bindings values (?, ?)",
+                        &[number.into(), "in a transaction".into()],
+                    )
+                    .await?;
+                    assert_eq!(
+                        tx.scalar(
+                            "select count(*) from pooled_bindings where id = ?",
+                            &[number.into()]
+                        )
+                        .await?,
+                        1.into()
+                    );
+                    Ok(())
+                })
+            },
+            1,
+        )
+        .await
+        .unwrap();
+    }
+    let failed = pool
+        .transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.statement(
+                        "insert into pooled_bindings values (?, ?)",
+                        &[10.into(), "rollback".into()],
+                    )
+                    .await?;
+                    tx.statement(
+                        "insert into pooled_bindings values (?, ?)",
+                        &[1.into(), "duplicate".into()],
+                    )
+                    .await?;
+                    Ok(())
+                })
+            },
+            1,
+        )
+        .await;
+    assert!(failed.is_err());
+    assert_eq!(pool.table("pooled_bindings").count("*").await.unwrap(), 9);
+    assert!(matches!(
+        pool.scalar("select $2::int", &[1.into()]).await,
+        Err(DatabaseError::InvalidBindings { .. })
+    ));
+}
+
+#[tokio::test]
 async fn compiles_dialect_identifiers_and_bindings_in_clause_order() {
     for (driver, delimiter) in [("sqlite", '"'), ("mysql", '`')] {
         let db = connection(json!({"driver": driver, "database": ":memory:", "prefix":"app_"}));

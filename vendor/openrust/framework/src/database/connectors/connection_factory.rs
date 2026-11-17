@@ -7,7 +7,7 @@ use std::{
 
 use serde_json::{Map, Value};
 use sqlx::{
-    Connection as _,
+    ConnectOptions as _, Connection as _,
     mysql::{MySqlConnectOptions, MySqlPoolOptions, MySqlSslMode},
     postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
@@ -114,9 +114,16 @@ fn resolve(
     });
     let has_direct_connection = direct.is_some();
     let use_direct = role == Some(QueryRole::Direct) && has_direct_connection;
+    if use_direct {
+        base.remove("pooled");
+        base.remove("emulate_prepares");
+    } else if has_direct_connection {
+        base.insert("pooled".into(), Value::Bool(true));
+    }
     let sticky = Options(base.clone()).boolean("sticky", false)?;
     let write_options = if use_direct {
-        let options = merge(&base, direct, "direct")?;
+        let mut options = merge(&base, direct, "direct")?;
+        options.0.remove("pooled");
         if options.string("driver", "")? != "pgsql" {
             return Err(invalid("direct driver"));
         }
@@ -140,7 +147,7 @@ fn resolve(
         }
         Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
         Pool::Sqlite(_) => Grammar::sqlite(prefix),
-        Pool::Postgres(_) => Grammar::postgres(prefix),
+        Pool::Postgres(..) => Grammar::postgres(prefix),
         Pool::SqlServer(_) => Grammar::sql_server(prefix),
     };
     match role {
@@ -163,7 +170,7 @@ fn resolve(
             collation: configured("collation")?,
             engine: configured("engine")?,
         },
-        Pool::Postgres(_) => TableOptions {
+        Pool::Postgres(..) => TableOptions {
             charset: configured("charset")?,
             ..TableOptions::default()
         },
@@ -175,7 +182,7 @@ fn resolve(
             password: write_options.string("password", "")?.to_owned(),
             ssl_ca: mysql_ssl_ca(&write_options, root)?,
         }),
-        (Pool::Postgres(_), _) => Some(super::super::migrations::SchemaCredentials {
+        (Pool::Postgres(..), _) => Some(super::super::migrations::SchemaCredentials {
             password: write_options.string("password", "")?.to_owned(),
             ssl_ca: postgres_ssl_ca(&write_options, root)?,
         }),
@@ -201,13 +208,13 @@ fn resolve(
                 })
             })
         }
-        Pool::Mysql(_) | Pool::Postgres(_) => {
+        Pool::Mysql(_) | Pool::Postgres(..) => {
             base.get("database").and_then(Value::as_str) == Some(database.as_str())
         }
         _ => false,
     };
     let creation_database = (role != Some(QueryRole::Read) && can_create).then(|| database.clone());
-    let postgres_dont_drop = if matches!(writer, Pool::Postgres(_)) {
+    let postgres_dont_drop = if matches!(writer, Pool::Postgres(..)) {
         match write_options.0.get("dont_drop") {
             None | Some(Value::Null) => vec!["spatial_ref_sys".into()].into(),
             Some(Value::Array(tables)) => tables
@@ -225,7 +232,7 @@ fn resolve(
     } else {
         Arc::default()
     };
-    let postgres_schemas = if matches!(writer, Pool::Postgres(_)) {
+    let postgres_schemas = if matches!(writer, Pool::Postgres(..)) {
         let options = if role == Some(QueryRole::Read) {
             read_options.as_ref().unwrap_or(&write_options)
         } else {
@@ -383,6 +390,7 @@ fn postgres(
     max: u32,
     timeout: Duration,
 ) -> DatabaseResult<(String, Pool)> {
+    let emulate = config.boolean("emulate_prepares", config.boolean("pooled", false)?)?;
     let database = config.string("database", "openrust")?;
     let host = config.string("host", "127.0.0.1")?;
     let port = u16::try_from(config.integer("port", 5432)?).map_err(|_| invalid("port"))?;
@@ -406,11 +414,17 @@ fn postgres(
     if let Some(certificate) = postgres_ssl_ca(config, root)? {
         options = options.ssl_root_cert(certificate);
     }
+    if emulate {
+        // Framework query events retain the original statement and separate bindings.
+        options = options
+            .disable_statement_logging()
+            .statement_cache_capacity(0);
+    }
     let pool = PgPoolOptions::new()
         .max_connections(max)
         .acquire_timeout(timeout)
         .connect_lazy_with(options);
-    Ok((database.to_owned(), Pool::Postgres(pool)))
+    Ok((database.to_owned(), Pool::Postgres(pool, emulate)))
 }
 
 fn postgres_search_path(options: &Options) -> DatabaseResult<Vec<String>> {
