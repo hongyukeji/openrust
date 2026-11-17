@@ -706,6 +706,10 @@ impl Application {
         config.replace_with(loaded);
         self.shared
             .container
+            .instance(Arc::new(grpc::GrpcClients::new(config.clone())))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared
+            .container
             .instanceNamed("env.file", Arc::new(environment.file))
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let name = match selected {

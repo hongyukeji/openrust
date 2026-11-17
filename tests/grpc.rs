@@ -261,4 +261,185 @@ mod process {
         assert!(stderr.contains("cannot bind gRPC listener"), "{stderr}");
         assert!(!stdout.contains("OpenRust listening on"));
     }
+    fn register_client_route() -> Result<(), openrust::routing::RoutingError> {
+        use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+        fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+            Box::pin(async {
+                let channel = openrust::grpc::Grpc::connect("health").map_err(|source| {
+                    HttpError::Internal {
+                        source: Box::new(source),
+                    }
+                })?;
+                let status = HealthClient::new(channel)
+                    .check(HealthCheckRequest { service: "".into() })
+                    .await
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?
+                    .into_inner()
+                    .status();
+                Response::json(StatusCode::OK, json!({"status":status.as_str_name()}))
+            })
+        }
+        openrust::support::facades::Route::get("/grpc-probe", probe)
+    }
+
+    struct GrpcProbe(openrust::console::CommandDefinition);
+
+    impl openrust::console::Command for GrpcProbe {
+        fn definition(&self) -> &openrust::console::CommandDefinition {
+            &self.0
+        }
+
+        fn handle<'a>(
+            &'a self,
+            _: &'a Application,
+            _: &'a openrust::console::Input,
+            output: &'a mut openrust::console::Output,
+        ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>>
+        {
+            Box::pin(async move {
+                let fail = |source: &dyn std::error::Error| {
+                    openrust::console::ConsoleError::new(source.to_string())
+                };
+                let channel =
+                    openrust::grpc::Grpc::connect("health").map_err(|error| fail(&error))?;
+                let status = HealthClient::new(channel)
+                    .check(HealthCheckRequest { service: "".into() })
+                    .await
+                    .map_err(|error| fail(&error))?
+                    .into_inner()
+                    .status();
+                output.comment(status.as_str_name());
+                Ok(i32::from(status != ServingStatus::Serving))
+            })
+        }
+    }
+
+    fn register_probe(
+        artisan: &mut openrust::console::Application,
+    ) -> Result<(), openrust::console::ConsoleError> {
+        artisan.add_command(Box::new(GrpcProbe(
+            openrust::console::CommandDefinition::new(clap::Command::new("grpc:probe")),
+        )))
+    }
+
+    async fn client_fixture(peer: SocketAddr) -> Application {
+        use openrust::contracts::foundation::Application as _;
+        let mut app = Application::configure(std::env::temp_dir())
+            .withRouting(
+                openrust::foundation::configuration::Routing::default().web(register_client_route),
+            )
+            .withCommands(register_probe)
+            .create()
+            .unwrap();
+        app.boot().await.unwrap();
+        let unused = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        app.config()
+            .unwrap()
+            .set(
+                "grpc.clients",
+                json!({
+                    "health":{"host":peer.ip().to_string(), "port":peer.port().to_string()},
+                    "inlined":{"host":peer.to_string()},
+                    "uri":{"endpoint":format!("http://{peer}")},
+                    "bad":{"host":"127.0.0.1", "port":-1},
+                    "bad_uri":{"endpoint":format!("http://{peer}/path")},
+                    "closed":{"endpoint":format!("http://{unused}"),"connect_timeout_ms":500}
+                }),
+            )
+            .unwrap();
+        app
+    }
+
+    #[tokio::test]
+    async fn named_clients_work_in_http_and_artisan() {
+        use axum::{extract::State, handler::Handler as _};
+        use openrust::{
+            contracts::{foundation::Application as _, http::Kernel as _},
+            foundation::http::Kernel,
+            grpc::{GrpcClientError, GrpcClients},
+        };
+        use std::sync::Arc;
+        let mut server = start("127.0.0.1");
+        let (_, peer) = readiness(&mut server);
+        let app = client_fixture(peer).await;
+        let registry = app.make::<GrpcClients>().await.unwrap();
+        assert!(Arc::ptr_eq(&registry, &app.make().await.unwrap()));
+        for name in ["health", "inlined", "uri"] {
+            let result = HealthClient::new(registry.connect(name).unwrap())
+                .check(HealthCheckRequest { service: "".into() })
+                .await
+                .unwrap();
+            assert_eq!(result.into_inner().status(), ServingStatus::Serving);
+        }
+        assert!(matches!(
+            registry.connect("absent"),
+            Err(GrpcClientError::UnknownClient(_))
+        ));
+        for name in ["bad", "bad_uri"] {
+            assert!(matches!(
+                registry.connect(name),
+                Err(GrpcClientError::InvalidConfig { .. })
+            ));
+        }
+        let failure = tokio::time::timeout(
+            Duration::from_secs(3),
+            HealthClient::new(registry.connect("closed").unwrap())
+                .check(HealthCheckRequest { service: "".into() }),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        assert_eq!(failure.code(), tonic::Code::Unavailable);
+
+        app.config()
+            .unwrap()
+            .set("grpc.clients.health", json!({"host":""}))
+            .unwrap();
+        let mut kernel = Kernel::new(app);
+        kernel.bootstrap().await.unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let http = tokio::spawn(async move {
+            async fn request(
+                State(kernel): State<Arc<Kernel>>,
+                request: axum::extract::Request,
+            ) -> axum::response::Response {
+                kernel.handleTransport(request).await
+            }
+            axum::serve(
+                listener,
+                request.with_state(Arc::new(kernel)).into_make_service(),
+            )
+            .await
+            .unwrap();
+        });
+        let response = tokio::process::Command::new("curl")
+            .args([
+                "--fail",
+                "--silent",
+                "--max-time",
+                "5",
+                &format!("http://{address}/grpc-probe"),
+            ])
+            .output()
+            .await
+            .unwrap();
+        assert!(response.status.success(), "{response:?}");
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&response.stdout).unwrap(),
+            json!({"status":"SERVING"})
+        );
+        let artisan = client_fixture(peer).await;
+        assert_eq!(
+            artisan.handleCommand(&["grpc:probe".into()]).await.unwrap(),
+            0
+        );
+        http.abort();
+        assert!(http.await.unwrap_err().is_cancelled());
+    }
 }

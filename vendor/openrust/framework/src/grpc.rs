@@ -1,5 +1,8 @@
 //! gRPC service registration and transport.
 
+mod clients;
+
+pub use clients::{Grpc, GrpcChannel, GrpcClientError, GrpcClients, GrpcInterceptor};
 pub use tonic::{self, service::RoutesBuilder};
 
 use std::{future::Future, io, sync::Arc};

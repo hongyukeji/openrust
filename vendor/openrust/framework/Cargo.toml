@@ -94,7 +94,7 @@ tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "pro
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.20", features = ["io", "rt"] }
 
-tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "server"] }
+tonic = { version = "~0.14.6", default-features = false, features = ["channel", "codegen", "router", "server"] }
 
 bigdecimal = "=0.4.11"
 chrono-tz = "=0.10.4"

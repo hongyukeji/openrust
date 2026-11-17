@@ -12,3 +12,9 @@
 - 三语站点构建、12 项通用浏览器检查和 6 项 gRPC 侧栏链接及页面检查通过，覆盖根路径和 `/docs/`。
 
 下一单元 08-04 安装、部署和发布资料。
+
+## 命名客户端
+
+- 对照固定 Goravel 的 `grpc.clients`、按名缓存和惰性建立连接。Rust 复用旧版的 Tonic 共享连接和端点验证，支持主机及端口、内嵌端口和完整 HTTP 端点。通过应用容器的 `GrpcClients` 或当前作用域的 `Grpc::connect` 获取连接。 [固定 Goravel Connect](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/grpc/application.go#L53)
+- 实际 HTTP `/grpc-probe` 和 Artisan `grpc:probe` 使用命名连接访问独立进程的 Tonic Health。实测三种地址、连接复用、未知名称、错误配置和端口不可用，回归 `install:grpc`、服务状态、绑定冲突和关停。
+- Rust 1.94.0 锁定离线，4 项 gRPC 回归及 1 项独立子进程夹具、工作区全目标全特性严格 Clippy、三语站点和 12 项浏览器检查通过。凭据和拦截器待后续验收。

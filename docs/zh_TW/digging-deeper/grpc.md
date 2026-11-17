@@ -31,3 +31,21 @@ pub(crate) fn register(_app: &Application, services: &mut RoutesBuilder) -> Prov
 啟動應用程式前設定 `GRPC_HOST` 和 `GRPC_PORT`。主機為空時停用監聽。HTTP 和 gRPC 連接埠繫結後才回報就緒，繫結失敗會終止啟動，兩者共用優雅關閉流程。Artisan 引導應用程式時無須繫結 gRPC 連接埠。
 
 監聽器接收經 HTTP/2 傳輸的明文 gRPC。面向不受信任的網路時，由 TLS 代理終止加密連線。
+
+## 具名用戶端 {#named-clients}
+
+在 `config/grpc.rs` 回傳的 `clients` 物件中宣告對外連線。每個用戶端名稱對應目前應用程式共享的惰性 Tonic 連線，首次 RPC 時建立連線。
+
+```rust
+"clients": {
+    "health": {
+        "host": "127.0.0.1",
+        "port": 50051,
+        "connect_timeout_ms": 1000,
+        "timeout_ms": 2000,
+    },
+    "billing": {"endpoint": "http://billing.example.test:50051"},
+},
+```
+
+在 HTTP 處理器和 Artisan 命令中使用 `Grpc::connect("health")`，也可以從應用程式容器解析 `GrpcClients`。將回傳的服務傳給產生的 Tonic 用戶端，例如 `HealthClient::new(Grpc::connect("health")?)`。缺少用戶端或位址格式錯誤會在解析時回傳錯誤，網路故障由 RPC 回傳。
