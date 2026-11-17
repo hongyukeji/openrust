@@ -92,6 +92,8 @@ fn register() -> Result<(), RoutingError> {
 
 用 `dimensions` 限制寬、高或長寬比。比例可寫成小數或 `16/9` 這樣的分數。圖片規則允許的 SVG 會略過點陣圖尺寸限制。用 `encoding:UTF-8` 或 `File::default().encoding("UTF-8")` 檢查檔案位元組。可使用 UTF-8、ASCII、UTF-16、UTF-32、SJIS、CP932 和 EUC-CN 等受支援的 Laravel 編碼名稱。Windows Shift-JIS 擴充使用 CP932 或 SJIS-win。
 
+單位元組檔案可用 `encoding:CP850` 或 `File::default().encoding("ArmSCII-8")` 驗證。CP850 接受所有位元組。ArmSCII-8 以及存在未定義位置的 Windows 和 ISO 編碼依 PHP mbstring 的字表拒絕這些位元組。編碼驗證保留上傳檔案的原始位元組。
+
 TIFF 和 ICO 上傳可以使用 `file` 和 `dimensions:width=100,height=100` 一起驗證。TIFF 從第一個影像目錄取得尺寸，ICO 從位元深度最高的項目取得尺寸，位元深度相同時取最後一個。尺寸驗證只讀取中繼資料。Laravel 的 `image` 規則排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上傳也可以使用這組規則。JP2 從第一個根層級碼流讀取尺寸，裸 JPEG 2000 碼流從 SIZ 標記讀取尺寸。Laravel 的 `image` 規則也排除這兩種格式。

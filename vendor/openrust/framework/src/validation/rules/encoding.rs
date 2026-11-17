@@ -15,6 +15,7 @@ pub(in crate::validation) struct EncodingRule {
 enum Codec {
     Ascii,
     AnyByte,
+    RejectBytes(fn(u8) -> bool),
     Base64,
     Utf7(utf7::Variant),
     Utf8,
@@ -32,9 +33,31 @@ impl EncodingRule {
         let label = name.to_ascii_lowercase();
         let codec = match label.as_str() {
             "ascii" | "7bit" => Codec::Ascii,
-            // mbstring's legacy transfer decoders accept input without reporting malformed bytes.
-            "iso-8859-1" | "8bit" | "quoted-printable" | "html-entities" | "uuencode" => {
-                Codec::AnyByte
+            // These single-byte encodings map every byte. The legacy transfer decoders
+            // also accept arbitrary input, including bytes they discard while decoding.
+            "8bit" | "quoted-printable" | "html-entities" | "uuencode" | "cp850" | "cp866"
+            | "koi8-r" | "koi8-u" | "windows-1252" | "iso-8859-1" | "iso-8859-2" | "iso-8859-4"
+            | "iso-8859-5" | "iso-8859-9" | "iso-8859-10" | "iso-8859-13" | "iso-8859-14"
+            | "iso-8859-15" | "iso-8859-16" => Codec::AnyByte,
+            // Match PHP mbstring's undefined positions rather than the WHATWG tables.
+            "windows-1251" => Codec::RejectBytes(|byte| byte == 0x98),
+            "windows-1254" => {
+                Codec::RejectBytes(|byte| matches!(byte, 0x81 | 0x8d..=0x90 | 0x9d..=0x9e))
+            }
+            "armscii-8" => Codec::RejectBytes(|byte| matches!(byte, 0xa1 | 0xff)),
+            "iso-8859-3" => Codec::RejectBytes(|byte| {
+                matches!(byte, 0xa5 | 0xae | 0xbe | 0xc3 | 0xd0 | 0xe3 | 0xf0)
+            }),
+            "iso-8859-6" => Codec::RejectBytes(|byte| {
+                matches!(
+                    byte,
+                    0xa1..=0xa3 | 0xa5..=0xab | 0xae..=0xba | 0xbc..=0xbe | 0xc0
+                        | 0xdb..=0xdf | 0xf3..=0xff
+                )
+            }),
+            "iso-8859-7" => Codec::RejectBytes(|byte| matches!(byte, 0xae | 0xd2 | 0xff)),
+            "iso-8859-8" => {
+                Codec::RejectBytes(|byte| matches!(byte, 0xa1 | 0xbf..=0xde | 0xfb | 0xfc | 0xff))
             }
             "base64" => Codec::Base64,
             "utf-7" => Codec::Utf7(utf7::Variant::Standard),
@@ -54,14 +77,12 @@ impl EncodingRule {
             "cp936" => Codec::Decoder(encoding_rs::GBK),
             "uhc" => Codec::Decoder(encoding_rs::EUC_KR),
             "big-5" | "cp950" => Codec::Decoder(encoding_rs::BIG5),
-            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" | "gb18030" | "euc-kr"
-            | "windows-1251" | "windows-1252" | "windows-1254" | "iso-8859-2" | "iso-8859-3"
-            | "iso-8859-4" | "iso-8859-5" | "iso-8859-6" | "iso-8859-7" | "iso-8859-8"
-            | "iso-8859-9" | "iso-8859-10" | "iso-8859-13" | "iso-8859-14" | "iso-8859-15"
-            | "iso-8859-16" | "cp866" | "koi8-r" | "koi8-u" => Codec::Decoder(
-                Encoding::for_label_no_replacement(label.as_bytes())
-                    .ok_or(ValidationError::InvalidRule)?,
-            ),
+            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" | "gb18030" | "euc-kr" => {
+                Codec::Decoder(
+                    Encoding::for_label_no_replacement(label.as_bytes())
+                        .ok_or(ValidationError::InvalidRule)?,
+                )
+            }
             _ => return Err(ValidationError::InvalidRule),
         };
         Ok(Self {
@@ -74,6 +95,7 @@ impl EncodingRule {
         match self.codec {
             Codec::Ascii => value.is_ascii(),
             Codec::AnyByte => true,
+            Codec::RejectBytes(rejects) => !value.iter().copied().any(rejects),
             Codec::Base64 => value.iter().all(|byte| {
                 byte.is_ascii_alphanumeric()
                     || matches!(byte, b'+' | b'/' | b'=' | b' ' | b'\t' | b'\r' | b'\n')

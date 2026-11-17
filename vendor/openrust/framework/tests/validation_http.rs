@@ -295,6 +295,17 @@ impl FormRequest for Upload {
                 ],
             ),
             "encoding-input" => RuleSet::parse([("metadata", "required|array|encoding:ASCII")]),
+            "encoding-cp850" => RuleSet::parse([("attachments.*", "required|file|encoding:CP850")]),
+            "encoding-armscii" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("ArmSCII-8").into(),
+                ],
+            ),
+            "encoding-windows-1254" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:Windows-1254")])
+            }
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1242,6 +1253,46 @@ async fn validates_legacy_image_dimensions_over_real_http() {
     ] {
         upload_file(address, "dimensions", name, "text/plain", good, 200).await;
         upload_file(address, "dimensions", name, "text/plain", bad, 422).await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_single_byte_encodings_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    let bytes: Vec<_> = (0..=u8::MAX).collect();
+    upload_file(
+        address,
+        "encoding-cp850",
+        "data.bin",
+        "application/octet-stream",
+        &bytes,
+        200,
+    )
+    .await;
+    for (mode, good, bad) in [
+        ("encoding-armscii", b"abc\xa2\xfe", b"abc\xa1\xff"),
+        ("encoding-windows-1254", b"abc\x8c\x91", b"abc\x8e\x9e"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            good,
+            200,
+        )
+        .await;
+        let rejected = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            bad,
+            422,
+        )
+        .await;
+        assert!(rejected["errors"]["attachments.0"].is_array());
     }
     server.abort();
 }

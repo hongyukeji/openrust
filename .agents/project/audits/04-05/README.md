@@ -95,3 +95,9 @@
 - SWC 复用已锁定的 `flate2` 1.1.11，声明为框架直接依赖。以固定大小缓冲区读取并检查 zlib 结束及校验和，只保留舞台矩形所需字节。PHP 允许的压缩与未压缩 SWF 走尺寸验证，LZMA 型 SWF 沿用 PHP 的拒绝行为。
 - 固定 Laravel／PHP 与实际 multipart HTTP 的 29 个对照样本通过，覆盖合法尺寸、宽高不符、IFF 块长度越界、WBMP 上限、XBM 宏取值、SWF 截断和损坏压缩流。MySQL 8.4.13 环境下共 28 项图片与验证回归通过，其中 SWC 上传回归跨越多个解压缓冲区。三语站点、18 项浏览器检查及文档规则的实际上传组合通过。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.7 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-legacy-image.Vc7TozQA`。旧式编码表及整单元对照尚待完成，核心账本维持 59/66。
+
+## 单字节编码字表
+
+- 按固定 Laravel 的 `validateEncoding` 与 PHP 8.5.12 mbstring，补齐 `CP850` 和 `ArmSCII-8`。对全部有定义的编码直接接受任意字节。Windows-1251／1254、ArmSCII-8 和 ISO-8859-3／6／7／8 按 PHP 拒绝未定义位置。Rust 只验证字节，不转码。固定 Goravel 的编码规则和旧版实现已核对，旧版未找到 CP850 或 ArmSCII-8 验证可复用。 [固定 Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding) · [固定 Goravel 编码规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1712)
+- 枚举 PHP 下 25 个单字节编码的全部 256 个字节、空输入、全部合法字节组合和全字节组合，共 6,475 个向量。固定 Laravel PHP trait 与真实 multipart HTTP 逐个对照通过。MySQL 8.4.13 的 15 项验证回归通过，覆盖三语示例的字符串形式文件规则与 Fluent 文件规则，以及单字节非法位置的 422。三语站点与 18 项浏览器检查通过。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-single-byte.VyopsajR`。多字节、状态型编码及整单元对照待完成，核心账本维持 59/66。
