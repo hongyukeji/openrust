@@ -969,6 +969,25 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 Pass multiple names to `dropColumn` to drop them in one MySQL ALTER statement. Chain `instant()` or `lock()` to request an online DDL option. If the engine rejects the statement, the columns in that statement remain in place. Earlier statements in the same blueprint may already have completed.
 
+#### PostgreSQL Unique Constraints {#postgresql-unique-constraints}
+
+Use `unique()` to create a named PostgreSQL constraint. On PostgreSQL 15 and later, `nullsNotDistinct(true)` treats NULL values as equal. `nullsNotDistinct(false)` explicitly keeps them distinct. Use `deferrable(true).initiallyImmediate(false)` to check uniqueness at commit. With `online()` or an explicit `algorithm("btree")`, the builder creates the supporting index before attaching it to the constraint. `dropUnique()` removes the constraint and its index. It can also remove a standalone unique index created by earlier OpenRust migrations on the same table.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn require_unique_reference() -> DatabaseResult<()> {
+    Schema::table("documents", |table| {
+        table
+            .unique(&["external_id"], Some("documents_external_unique"))
+            .nullsNotDistinct(true)
+            .deferrable(true)
+            .initiallyImmediate(false);
+    })
+    .await
+}
+```
+
 #### PostgreSQL Online Indexes {#postgresql-online-indexes}
 
 Call `online()` on an ordinary, unique, full-text, or vector index to use PostgreSQL’s `CREATE INDEX CONCURRENTLY`. The index can wait for existing transactions while other sessions continue writing.

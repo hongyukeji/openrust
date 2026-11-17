@@ -969,6 +969,25 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 向 `dropColumn` 传入多个列名，可在同一条 MySQL ALTER 语句中删除。可链式调用 `instant()` 或 `lock()` 请求在线 DDL 选项。引擎拒绝该语句时，这条语句涉及的列会保留。同一个 Blueprint 中较早的语句可能已经执行。
 
+#### PostgreSQL 唯一约束 {#postgresql-unique-constraints}
+
+用 `unique()` 创建具名 PostgreSQL 约束。PostgreSQL 15 及以上可用 `nullsNotDistinct(true)` 将 NULL 视为相等，用 `nullsNotDistinct(false)` 明确保留 NULL 相异行为。`deferrable(true).initiallyImmediate(false)` 将检查延迟到事务提交。`online()` 或显式 `algorithm("btree")` 会先创建支持索引，再将它附加到约束。`dropUnique()` 删除约束及其索引，也可以删除早期 OpenRust 迁移在同一张表上生成的独立唯一索引。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn require_unique_reference() -> DatabaseResult<()> {
+    Schema::table("documents", |table| {
+        table
+            .unique(&["external_id"], Some("documents_external_unique"))
+            .nullsNotDistinct(true)
+            .deferrable(true)
+            .initiallyImmediate(false);
+    })
+    .await
+}
+```
+
 #### PostgreSQL 在线索引 {#postgresql-online-indexes}
 
 普通索引、唯一索引、全文索引和向量索引可调用 `online()`，使用 PostgreSQL 的 `CREATE INDEX CONCURRENTLY`。构建可等待已有事务，其他会话仍能继续写入。

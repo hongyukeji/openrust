@@ -225,7 +225,7 @@ impl Grammar {
                     }
                     constraints.push(self.primary_key(&index)?);
                 }
-                Command::Index(index) => indexes.push(self.add_index(table, &index)?),
+                Command::Index(index) => self.add_index(table, &index, &mut indexes)?,
                 Command::Foreign(foreign)
                     if foreign.inplace || foreign.lock.is_some() || foreign.not_valid =>
                 {
@@ -395,7 +395,7 @@ impl Grammar {
                         "alter table {qualified} {drop_primary}add {primary}{options}"
                     ));
                 }
-                Command::Index(index) => sql.push(self.add_index(table, &index)?),
+                Command::Index(index) => self.add_index(table, &index, &mut sql)?,
                 Command::TableComment(comment) => {
                     if self.mysql() {
                         sql.push(self.table_comment(&qualified, &comment)?);
@@ -486,6 +486,8 @@ impl Grammar {
                 self.identifier(name)?,
                 self.qualified(table)?
             ))
+        } else if self.postgres() && kind == IndexType::Unique {
+            self.drop_postgres_unique(table, name)
         } else {
             Ok(format!("drop index {}", self.qualified_index(table, name)?))
         }
@@ -499,16 +501,15 @@ impl Grammar {
         indexes: &mut Vec<String>,
     ) -> DatabaseResult<()> {
         for command in column.index_commands(previous_name, false) {
-            let sql = match command {
-                Command::Index(index) => self.add_index(table, &index)?,
-                Command::DropIndexColumns(kind, columns) => self.drop_index(
+            match command {
+                Command::Index(index) => self.add_index(table, &index, indexes)?,
+                Command::DropIndexColumns(kind, columns) => indexes.push(self.drop_index(
                     table,
                     kind,
                     &self.conventional_name(table, &columns, kind.suffix()),
-                )?,
+                )?),
                 _ => unreachable!("column index command"),
-            };
-            indexes.push(sql);
+            }
         }
         Ok(())
     }
@@ -539,6 +540,11 @@ impl Grammar {
     }
 
     fn primary_key(&self, index: &IndexDefinition) -> DatabaseResult<String> {
+        if index.has_unique_modifiers() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL unique constraint modifiers",
+            ));
+        }
         if index.online {
             return Err(DatabaseError::UnsupportedSchema("online primary key"));
         }
@@ -549,7 +555,95 @@ impl Grammar {
         ))
     }
 
-    fn add_index(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
+    fn add_index(
+        &self,
+        table: &Table,
+        index: &IndexDefinition,
+        statements: &mut Vec<String>,
+    ) -> DatabaseResult<()> {
+        if self.postgres() && index.kind == IndexType::Unique {
+            return self.add_postgres_unique(table, index, statements);
+        }
+        if index.has_unique_modifiers() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL unique constraint modifiers",
+            ));
+        }
+        statements.push(self.index_sql(table, index)?);
+        Ok(())
+    }
+
+    fn add_postgres_unique(
+        &self,
+        table: &Table,
+        index: &IndexDefinition,
+        statements: &mut Vec<String>,
+    ) -> DatabaseResult<()> {
+        self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+        if index.operator_class.is_some() || index.raw_expression.is_some() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL unique constraint expression or operator class",
+            ));
+        }
+        let method = match index.algorithm.as_deref() {
+            None => "",
+            Some(method) if method.eq_ignore_ascii_case("btree") => " using btree",
+            Some(_) => {
+                return Err(DatabaseError::InvalidSchema(
+                    "PostgreSQL unique index method",
+                ));
+            }
+        };
+        let default_name = self.conventional_name(table, &index.columns, "unique");
+        let name = self.identifier(index.name.as_deref().unwrap_or(&default_name))?;
+        let table = self.qualified(table)?;
+        let columns = self.columns(&index.columns)?;
+        let nulls = match index.nulls_not_distinct {
+            Some(true) => " nulls not distinct",
+            Some(false) => " nulls distinct",
+            None => "",
+        };
+        let mut statement = format!("alter table {table} add constraint {name} unique");
+        if index.online || !method.is_empty() {
+            let concurrently = if index.online { "concurrently " } else { "" };
+            statements.push(format!(
+                "create unique index {concurrently}{name} on {table}{method} ({columns}){nulls}"
+            ));
+            write!(statement, " using index {name}").expect("writing to a String");
+        } else {
+            write!(statement, "{nulls} ({columns})").expect("writing to a String");
+        }
+        constraint_timing(&mut statement, index.deferrable, index.initially_immediate);
+        statements.push(statement);
+        Ok(())
+    }
+
+    fn drop_postgres_unique(&self, table: &Table, name: &str) -> DatabaseResult<String> {
+        let qualified = self.qualified(table)?;
+        let constraint = self.identifier(name)?;
+        let target = postgres_string(&qualified);
+        let index = postgres_string(name);
+        // Earlier OpenRust migrations created standalone indexes for unique constraints.
+        let body = format!(
+            "declare index_schema text;
+             begin
+                 alter table {qualified} drop constraint {constraint};
+             exception when undefined_object then
+                 lock table {qualified} in access exclusive mode;
+                 select ns.nspname into index_schema
+                 from pg_catalog.pg_index as i
+                 join pg_catalog.pg_class as c on c.oid = i.indexrelid
+                 join pg_catalog.pg_namespace as ns on ns.oid = c.relnamespace
+                 where i.indrelid = pg_catalog.to_regclass({target})
+                       and i.indisunique and c.relname = cast({index} as pg_catalog.name);
+                 if not found then raise; end if;
+                 execute pg_catalog.format('drop index %I.%I', index_schema, {index});
+             end;"
+        );
+        Ok(format!("do {}", postgres_string(&body)))
+    }
+
+    fn index_sql(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
         if index.online
             && (!self.postgres() || matches!(index.kind, IndexType::Primary | IndexType::Spatial))
         {
@@ -805,20 +899,7 @@ impl Grammar {
                     "PostgreSQL foreign key modifiers",
                 ));
             }
-            if let Some(deferrable) = foreign.deferrable {
-                sql.push_str(if deferrable {
-                    " deferrable"
-                } else {
-                    " not deferrable"
-                });
-                if deferrable && let Some(immediate) = foreign.initially_immediate {
-                    sql.push_str(if immediate {
-                        " initially immediate"
-                    } else {
-                        " initially deferred"
-                    });
-                }
-            }
+            constraint_timing(&mut sql, foreign.deferrable, foreign.initially_immediate);
             if foreign.not_valid {
                 sql.push_str(" not valid");
             }
@@ -1383,5 +1464,30 @@ fn current_timestamp(precision: u8) -> String {
         format!("CURRENT_TIMESTAMP({precision})")
     } else {
         "CURRENT_TIMESTAMP".into()
+    }
+}
+
+fn postgres_string(value: &str) -> String {
+    format!("E'{}'", value.replace('\\', "\\\\").replace('\'', "''"))
+}
+
+fn constraint_timing(
+    sql: &mut String,
+    deferrable: Option<bool>,
+    initially_immediate: Option<bool>,
+) {
+    if let Some(deferrable) = deferrable {
+        sql.push_str(if deferrable {
+            " deferrable"
+        } else {
+            " not deferrable"
+        });
+        if deferrable && let Some(immediate) = initially_immediate {
+            sql.push_str(if immediate {
+                " initially immediate"
+            } else {
+                " initially deferred"
+            });
+        }
     }
 }

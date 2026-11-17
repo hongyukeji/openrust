@@ -176,10 +176,11 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
         })
         .await
         .unwrap();
-    assert_eq!(preview.len(), 4);
+    assert_eq!(preview.len(), 5);
     for (entry, expected) in preview.iter().zip([
         "create index concurrently \"docs_title\" on \"documents\" (\"title\")",
         "create unique index concurrently \"docs_external\" on \"documents\" (\"external_id\")",
+        "alter table \"documents\" add constraint \"docs_external\" unique using index \"docs_external\"",
         "create index concurrently \"docs_search\" on \"documents\" using gin",
         "create index concurrently \"docs_vector\" on \"documents\" using hnsw",
     ]) {
@@ -189,6 +190,107 @@ async fn postgres_online_index_preview_uses_concurrent_ddl() {
             openrust::database::events::QueryRole::Write
         );
     }
+}
+
+#[tokio::test]
+async fn postgres_unique_constraints_support_null_semantics_and_existing_indexes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_UNIQUE_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_UNIQUE").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    db.unprepared("create schema tenant; create table tenant.accounts (reference integer); create table tenant.legacy (reference integer); create table tenant.other (reference integer); create unique index legacy_reference on tenant.legacy (reference); create index ordinary_reference on tenant.legacy (reference); create unique index other_reference on tenant.other (reference)")
+        .await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .table("tenant.accounts", |table| {
+            table
+                .unique(&["reference"], None)
+                .nullsNotDistinct(true)
+                .deferrable(true)
+                .initiallyImmediate(false);
+        })
+        .await
+        .unwrap();
+    db.transaction(|tx| Box::pin(async {
+        tx.statement("insert into tenant.accounts values (null), (null)", &[]).await?;
+                tx.statement("update tenant.accounts set reference = 1 where ctid = (select ctid from tenant.accounts limit 1)", &[]).await?;
+        Ok(())
+    }),1).await.unwrap();
+    assert!(
+        db.statement("insert into tenant.accounts values (null)", &[])
+            .await
+            .is_err()
+    );
+    assert_eq!(db.table("tenant.accounts").count("*").await.unwrap(), 2);
+    schema
+        .table("tenant.accounts", |table| {
+            table.dropUniqueColumns(&["reference"])
+        })
+        .await
+        .unwrap();
+    schema
+        .table("tenant.accounts", |table| {
+            table
+                .unique(&["reference"], Some("online_reference"))
+                .algorithm("btree")
+                .online()
+                .nullsNotDistinct(true);
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar("select i.indnullsnotdistinct from pg_constraint c join pg_index i on i.indexrelid = c.conindid where c.conname = 'online_reference'", &[]).await.unwrap(),
+        true.into()
+    );
+    assert!(
+        db.statement("insert into tenant.accounts values (null)", &[])
+            .await
+            .is_err()
+    );
+    schema
+        .table("tenant.accounts", |table| {
+            table.dropUnique("online_reference")
+        })
+        .await
+        .unwrap();
+    schema
+        .table("tenant.accounts", |table| {
+            table
+                .unique(&["reference"], Some("distinct_reference"))
+                .algorithm("btree")
+                .nullsNotDistinct(false)
+                .deferrable(false);
+        })
+        .await
+        .unwrap();
+    db.statement("insert into tenant.accounts values (null)", &[])
+        .await
+        .unwrap();
+    schema
+        .table("tenant.accounts", |table| {
+            table.dropUnique("distinct_reference")
+        })
+        .await
+        .unwrap();
+    schema
+        .table("tenant.legacy", |table| {
+            table.dropUnique("legacy_reference")
+        })
+        .await
+        .unwrap();
+    for index in ["ordinary_reference", "other_reference"] {
+        assert!(
+            schema
+                .table("tenant.legacy", |table| table.dropUnique(index))
+                .await
+                .is_err()
+        );
+    }
+    assert_eq!(
+        db.scalar("select count(*) from pg_indexes where schemaname = 'tenant' and indexname in ('ordinary_reference','other_reference')", &[]).await.unwrap(),
+        2.into()
+    );
 }
 
 #[tokio::test]

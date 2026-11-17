@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 02:15（北京时间）02-05 [PostgreSQL 唯一约束与在线附加](audits/02-05/README.md#postgresql-唯一约束与在线附加)。PostgreSQL 18.6 真实约束、Artisan 预演迁移回滚及 HTTP、MySQL 8.4.13 三项回归、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 02:07（北京时间）02-05 [PostgreSQL 外键变更与验证时机](audits/02-05/README.md#postgresql-外键变更与验证时机)。真实 PostgreSQL 18.6 定向回归、Artisan 预演迁移回滚及 HTTP、MySQL 8.4.13 三项回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。02-04 至 02-06 剩余项已按驱动对账。核心账本维持 62/66。
 - 2026-11-18 01:57（北京时间）02-02 [PgBouncer 关闭预备语句跟踪](audits/02-02/README.md#pgbouncer-关闭预备语句跟踪)。PostgreSQL 18.6、PgBouncer 1.26.1 关闭跟踪、双后端实际 HTTP、独立 Artisan、MySQL 8.4.13 回归、Rust 全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 01:44（北京时间）02-06 [SQLite 缺库创建确认](audits/02-06/README.md#sqlite-缺库创建确认)。真实终端确认和拒绝、强制创建、原子并发、只读路径、实际 HTTP 和 Artisan、MySQL 8.4.13 及 PostgreSQL 协议回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。

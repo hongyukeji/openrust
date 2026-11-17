@@ -62,6 +62,9 @@ pub struct IndexDefinition {
     pub(super) operator_class: Option<String>,
     pub(super) inplace: bool,
     pub(super) online: bool,
+    pub(super) nulls_not_distinct: Option<bool>,
+    pub(super) deferrable: Option<bool>,
+    pub(super) initially_immediate: Option<bool>,
     pub(super) lock: Option<String>,
 }
 
@@ -77,6 +80,9 @@ impl IndexDefinition {
             operator_class: None,
             inplace: false,
             online: false,
+            nulls_not_distinct: None,
+            deferrable: None,
+            initially_immediate: None,
             lock: None,
         }
     }
@@ -112,6 +118,30 @@ impl IndexDefinition {
 
 #[allow(non_snake_case, reason = "Matches Laravel's index modifiers")]
 impl IndexDefinition {
+    /// Controls whether a PostgreSQL unique constraint treats NULL values as equal.
+    pub fn nullsNotDistinct(&mut self, enabled: bool) -> &mut Self {
+        self.nulls_not_distinct = Some(enabled);
+        self
+    }
+
+    /// Controls whether PostgreSQL can defer this unique constraint until commit.
+    pub fn deferrable(&mut self, enabled: bool) -> &mut Self {
+        self.deferrable = Some(enabled);
+        self
+    }
+
+    /// Chooses the initial check timing for a deferrable PostgreSQL unique constraint.
+    pub fn initiallyImmediate(&mut self, enabled: bool) -> &mut Self {
+        self.initially_immediate = Some(enabled);
+        self
+    }
+
+    pub(super) fn has_unique_modifiers(&self) -> bool {
+        self.nulls_not_distinct.is_some()
+            || self.deferrable.is_some()
+            || self.initially_immediate.is_some()
+    }
+
     /// Chooses a PostgreSQL operator class or MariaDB options for a vector index.
     pub fn operatorClass(&mut self, operator_class: &str) -> &mut Self {
         self.operator_class = Some(operator_class.to_owned());
