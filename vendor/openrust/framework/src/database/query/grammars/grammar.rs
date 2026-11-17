@@ -215,6 +215,22 @@ impl Grammar {
         })
     }
 
+    pub(in crate::database::query) fn vector_distance(
+        &self,
+        column: &str,
+    ) -> DatabaseResult<String> {
+        if self.is_postgres() {
+            // SQLx binds the serialized vector as text. Let PostgreSQL parse the vector.
+            Ok(format!("({column} <=> cast(cast(? as text) as vector))"))
+        } else if self.is_mariadb() {
+            Ok(format!("vec_distance_cosine({column}, vec_fromtext(?))"))
+        } else {
+            Err(DatabaseError::UnsupportedOperation(
+                "vector distance queries",
+            ))
+        }
+    }
+
     pub(in crate::database::query) fn full_text(
         &self,
         columns: &[String],

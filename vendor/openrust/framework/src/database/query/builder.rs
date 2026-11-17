@@ -15,6 +15,7 @@ use super::{
 mod chunks;
 mod pagination;
 mod subqueries;
+mod vectors;
 mod writes;
 
 pub(in crate::database) use chunks::{

@@ -1,5 +1,8 @@
 use sqlx::{
-    Column as _, Row as _, TypeInfo as _, ValueRef as _, mysql::MySqlRow, postgres::PgRow,
+    Column as _, Row as _, TypeInfo as _, ValueRef as _,
+    mysql::MySqlRow,
+    postgres::PgRow,
+    postgres::{PgValueFormat, PgValueRef},
     sqlite::SqliteRow,
 };
 
@@ -102,6 +105,14 @@ decode_row!(mysql, MySqlRow, mysql_value);
 decode_row!(postgres, PgRow, postgres_value);
 
 fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value> {
+    if kind == "vector" {
+        let raw = row
+            .try_get_raw(index)
+            .map_err(DatabaseError::driver("decode"))?;
+        return postgres_vector(raw)
+            .map(Value::Text)
+            .map_err(|error| DatabaseError::driver("decode")(sqlx::Error::Decode(error)));
+    }
     let value = match kind {
         "BOOL" => row.try_get::<bool, _>(index).map(Value::Bool),
         "INT2" => row
@@ -135,6 +146,28 @@ fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value
         _ => row.try_get::<String, _>(index).map(Value::Text),
     };
     value.map_err(DatabaseError::driver("decode"))
+}
+
+fn postgres_vector(raw: PgValueRef<'_>) -> Result<String, sqlx::error::BoxDynError> {
+    if raw.format() == PgValueFormat::Text {
+        return Ok(raw.as_str()?.to_owned());
+    }
+    // pgvector sends a big-endian dimension and reserved field, then float32 values.
+    let (header, body) = raw
+        .as_bytes()?
+        .split_at_checked(4)
+        .ok_or("missing vector header")?;
+    let dimensions = usize::from(u16::from_be_bytes([header[0], header[1]]));
+    if header[2..] != [0, 0] || dimensions == 0 || body.len() != dimensions * 4 {
+        return Err("invalid vector payload".into());
+    }
+    let values = body
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_be_bytes(*bytes))
+        .collect::<Vec<_>>();
+    Ok(serde_json::to_string(&values)?)
 }
 
 fn sqlite_value(row: &SqliteRow, index: usize, kind: &str) -> DatabaseResult<Value> {

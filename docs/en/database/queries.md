@@ -145,6 +145,32 @@ async fn active_customers(
 
 MySQL runs the entire statement with the outer connection’s permissions. Grant that connection access to the referenced tables.
 
+### Vector Similarity Clauses {#vector-similarity-clauses}
+
+Vector queries use cosine distance on PostgreSQL with the `pgvector` extension and on MariaDB 11.7 or later. Enable PostgreSQL support with `CREATE EXTENSION IF NOT EXISTS vector` before creating the vector column.
+
+`whereVectorSimilarTo` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction. Generate embeddings from text before passing them to the builder.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn related_documents(
+    connection: &Connection,
+    embedding: &[f64],
+) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("documents")
+        .select(["id"])
+        .selectVectorDistance("embedding", embedding, Some("distance"))?
+        .whereVectorSimilarTo("embedding", embedding, 0.7, true)?
+        .limit(10)
+        .get()
+        .await
+}
+```
+
+Use `selectVectorDistance`, `whereVectorDistanceLessThan`, `orWhereVectorDistanceLessThan`, and `orderByVectorDistance` independently when you need finer control. The distance filter includes the maximum distance. When projecting a PostgreSQL vector column, the result contains the vector as text. MariaDB returns the vector as bytes.
+
 ## JSON Where Clauses
 
 Use `whereJsonContains` and `whereJsonDoesntContain` to test JSON containment, `whereJsonContainsKey` and `whereJsonDoesntContainKey` to check path existence, and `whereJsonLength` to compare the length. Separate path segments with `->` and append indexes such as `groups[0]`. Each method has an `orWhere` variant.

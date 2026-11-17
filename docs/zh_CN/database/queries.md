@@ -145,6 +145,32 @@ async fn active_customers(
 
 MySQL 用外层连接的权限执行整条语句。外层连接的账号需要有权访问引用的表。
 
+### 向量相似度子句 {#vector-similarity-clauses}
+
+向量查询使用 PostgreSQL 的 `pgvector` 扩展或 MariaDB 11.7 及以上版本的余弦距离。PostgreSQL 创建向量列前，先执行 `CREATE EXTENSION IF NOT EXISTS vector`。
+
+`whereVectorSimilarTo` 接收数值向量、0 到 1 的最低相似度，以及是否将最相似的行排在前面的标志。传入 `false` 可自行排序。相似度 1 匹配方向相同的向量。文本需要先转换为向量，再传给构建器。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn related_documents(
+    connection: &Connection,
+    embedding: &[f64],
+) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("documents")
+        .select(["id"])
+        .selectVectorDistance("embedding", embedding, Some("distance"))?
+        .whereVectorSimilarTo("embedding", embedding, 0.7, true)?
+        .limit(10)
+        .get()
+        .await
+}
+```
+
+可独立使用 `selectVectorDistance`、`whereVectorDistanceLessThan`、`orWhereVectorDistanceLessThan` 和 `orderByVectorDistance`。距离过滤包含等于上限的结果。查询 PostgreSQL 向量列时，结果以文本表示向量。MariaDB 返回向量的字节值。
+
 ## JSON WHERE 子句
 
 用 `whereJsonContains` 和 `whereJsonDoesntContain` 判断 JSON 是否包含指定值，用 `whereJsonContainsKey` 和 `whereJsonDoesntContainKey` 检查路径是否存在，用 `whereJsonLength` 比较长度。用 `->` 分隔路径段，也可附加 `groups[0]` 这样的索引。每个方法都有 `orWhere` 变体。
