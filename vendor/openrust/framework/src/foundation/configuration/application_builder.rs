@@ -22,6 +22,7 @@ pub struct ApplicationBuilder {
     base_path: PathBuf,
     load_config: ConfigLoader,
     providers: Vec<Box<dyn ServiceProvider>>,
+    packages: crate::foundation::PackageManifest,
     migrations: Option<&'static [MigrationEntry]>,
     seeders: Option<&'static [SeederEntry]>,
     routing: Option<Routing>,
@@ -43,6 +44,7 @@ impl ApplicationBuilder {
             base_path,
             load_config: |_, _| Ok(BTreeMap::new()),
             providers: Vec::new(),
+            packages: Default::default(),
             migrations: None,
             seeders: None,
             routing: None,
@@ -62,6 +64,12 @@ impl ApplicationBuilder {
 
     pub fn withProviders(mut self, providers: Vec<Box<dyn ServiceProvider>>) -> Self {
         self.providers.extend(providers);
+        self
+    }
+
+    /// Installs the package catalog generated for this application's Cargo target.
+    pub fn withPackages(mut self, manifest: crate::foundation::PackageManifest) -> Self {
+        self.packages = manifest;
         self
     }
 
@@ -156,15 +164,18 @@ impl ApplicationBuilder {
                     middleware.preventRequestsDuringMaintenance([path]);
                 }));
         }
+        let mut providers = self.packages.providers();
+        providers.extend(self.providers);
         let application = Application::new(
             base_path,
             self.load_config,
-            self.providers,
+            providers,
             routing,
             self.middleware_configurators,
             self.commands,
             self.exceptions,
         );
+        let _ = application.shared.package_manifest.set(self.packages);
         let container = &application.shared.container;
         if let Some(entries) = self.migrations {
             container

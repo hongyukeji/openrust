@@ -15,7 +15,7 @@ use crate::{
     http::HttpFuture,
     routing::RoutingError,
     translation::Translator,
-    view::Factory,
+    view::{Component, Factory, ViewData, ViewResult},
 };
 
 /// The result of a service provider lifecycle hook.
@@ -137,6 +137,42 @@ pub trait ServiceProvider: Any + Send + Sync {
             app.make::<Translator>()
                 .await?
                 .add_package_namespace(namespace, path.to_owned())?;
+            Ok(())
+        })
+    }
+
+    /// Register a package's anonymous JSON translations.
+    fn loadJsonTranslationsFrom<'a>(
+        &'a self,
+        app: &'a Application,
+        path: &'a Path,
+    ) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.make::<Translator>()
+                .await?
+                .add_package_json_path(path.to_owned());
+            Ok(())
+        })
+    }
+
+    /// Register a compiled Blade component under a package prefix and alias.
+    fn loadViewComponentsAs<'a, C: Component + 'static>(
+        &'a self,
+        app: &'a Application,
+        prefix: &'a str,
+        alias: &'a str,
+        resolve: fn(&ViewData) -> ViewResult<C>,
+    ) -> HttpFuture<'a, ProviderResult>
+    where
+        Self: Sized,
+    {
+        Box::pin(async move {
+            let name = if prefix.is_empty() {
+                alias.to_owned()
+            } else {
+                format!("{prefix}-{alias}")
+            };
+            app.make::<Factory>().await?.component(name, resolve);
             Ok(())
         })
     }

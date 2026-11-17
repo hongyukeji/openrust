@@ -15,6 +15,7 @@ fn main() -> io::Result<()> {
     println!("cargo:rerun-if-changed={SEEDERS}");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory"));
     let output = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo build output directory"));
+    openrust_package_discovery::generate()?;
     generate_migrations(&root, &output)?;
     generate_seeders(&root, &output)?;
     fs::write(

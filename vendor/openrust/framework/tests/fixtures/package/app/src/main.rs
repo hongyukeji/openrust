@@ -8,7 +8,7 @@ use openrust::{
     routing::RoutingError,
     support::{ServiceProvider, facades::Route},
 };
-use package_probe::ProbeProvider;
+include!(concat!(env!("OUT_DIR"), "/openrust_packages.rs"));
 use serde_json::json;
 
 fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
@@ -51,7 +51,12 @@ impl ServiceProvider for HostProvider {
     ) -> openrust::http::HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             let config = app.config()?;
-            if env::var_os("PROBE_RESOURCES").is_some() {
+            if app
+                .packageManifest()
+                .packages()
+                .iter()
+                .any(|p| p.name == "package-probe")
+            {
                 assert_eq!(
                     config.get("probe"),
                     Some(json!({
@@ -75,13 +80,10 @@ fn ready(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 
 fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
-    let mut providers: Vec<Box<dyn ServiceProvider>> = vec![Box::new(HostProvider)];
-    if let Some(path) = env::var_os("PROBE_RESOURCES") {
-        providers.push(Box::new(ProbeProvider(path.into())));
-    }
     Ok(Application::configure(env::current_dir()?)
         .withConfig(config)
-        .withProviders(providers)
+        .withPackages(OPENRUST_PACKAGES)
+        .withProviders(vec![Box::new(HostProvider)])
         .create()?)
 }
 

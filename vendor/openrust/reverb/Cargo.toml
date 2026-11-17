@@ -6,6 +6,10 @@ rust-version = "1.94"
 license = "MIT"
 publish = false
 
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
 [dependencies]
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
 md-5 = "0.11"

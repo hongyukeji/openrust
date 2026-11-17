@@ -4,6 +4,11 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+aliases = { OpenRustProbe = "ProbeProvider" }
+
 [dependencies]
 openrust = { package = "openrust-framework", path = "../../../.." }
 serde_json = "1"

@@ -2,9 +2,26 @@
 
 ## 安裝與服務提供者
 
-將擴充套件加入 Cargo 依賴，再將其 Provider 加入 `bootstrap/providers.rs`。OpenRust 將 Provider 和資源註冊函式編譯進應用程式，由應用程式在組裝時明確選擇 Provider。
+將擴充套件新增為 Cargo 相依套件。OpenRust 按目前目標與特性探索已宣告的套件。需要明確裝配時，將 Provider 加入 `bootstrap/providers.rs`。
 
 在 Provider 的 `register` 中繫結服務，並呼叫 `mergeConfigFrom(app, defaults, key)` 合併套件預設值，應用程式設定覆寫第一層的同名鍵。使用 `replaceConfigRecursivelyFrom(app, defaults, key)` 保留巢狀預設值，陣列按索引由應用程式覆寫。預設值使用 JSON 物件或陣列，設定鍵使用應用程式的點號路徑。
+
+## 套件自動探索 {#package-discovery}
+
+擴充套件透過 Cargo 資訊清單宣告探索資訊，並匯出 `openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>>`。下例也匯出一個型別化的 Rust 別名。
+
+```toml
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+aliases = { ExampleFacade = "facades::Example" }
+```
+
+OpenRust 應用程式在 `build.rs` 呼叫 `openrust_package_discovery::generate()`，透過 `withPackages` 裝配產生的清單。Provider 工廠和別名都會編譯。部署後的執行檔可直接使用已連結的清單啟動。
+
+在應用程式的 `[package.metadata.openrust.discovery]` 下設定 `version = 1` 和 `dont-discover = ["example-package"]`。`["*"]` 停用所有自動探索。套件也可宣告要排除的套件名稱。排除清單中的套件仍可明確註冊 Provider。
+
+執行 `./artisan package:discover` 可從已連結的清單重建 `bootstrap/cache/packages.json`，執行 `./artisan clear-compiled` 可清除該檔案。連結套件後，下次啟動會重建遺失或過期的清單。相依套件、特性或排除規則變更後需重新編譯應用程式。 用 `APP_PACKAGES_CACHE` 可指定其他清單路徑。
 
 ## 資源
 
@@ -15,12 +32,12 @@
 | `loadRoutesFrom` | 使用 `Route` 宣告路由的編譯型函式。應用程式先註冊自己的路由，再註冊套件路由。 |
 | `loadViewsFrom` | 檢視目錄和命名空間。使用預設檢視根目錄時，`probe::welcome` 優先讀取應用程式的 `resources/views/vendor/probe/welcome.html`，缺少時讀取套件檢視。 |
 | `loadTranslationsFrom` | 翻譯目錄和命名空間。`lang/vendor/probe/en/messages.json` 可覆寫 `probe::messages.title` 的英文內容，其餘鍵繼續回退至套件翻譯。 |
+| `loadJsonTranslationsFrom` | 匿名 JSON 翻譯目錄。應用程式對應語言的 JSON 可覆寫套件內同名翻譯。 |
+| `loadViewComponentsAs` | 為編譯型元件登記前綴與別名。例如前綴 `probe` 和別名 `badge` 會渲染為 `<x-probe-badge />`。套件的 `views/components` 中的匿名元件可透過 `<x-probe::badge />` 使用。 |
 | `loadMigrationsFrom` | 靜態的編譯型 `MigrationEntry` 切片。Artisan 使用應用程式的遷移紀錄執行和回復套件遷移。 |
 | `commands` | 使用 `Artisan` 註冊命令的編譯型函式，由主控台核心啟動時呼叫。 |
 
 透過啟動時載入的 Provider 註冊套件 HTTP 路由，確保路由組裝時能夠讀取。部署時隨應用程式散佈檢視和翻譯檔，並將發佈後的目錄傳給 Provider。可執行的宿主與 Provider 請見[獨立 crate 驗收範例](https://github.com/hongyukeji/openrust/tree/master/vendor/openrust/framework/tests/fixtures/package)。
-
-OpenRust 使用 Cargo 明確安裝擴充套件並註冊 Provider。
 
 ## 發佈資源
 

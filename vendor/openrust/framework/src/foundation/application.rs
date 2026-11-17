@@ -65,6 +65,8 @@ pub(super) struct ApplicationState {
     package_routes: Mutex<Option<Vec<PackageRoutes>>>,
     pub(crate) publishable: Mutex<Vec<crate::support::PublishableResource>>,
     pub(crate) keep_published_migration_dates: AtomicBool,
+    pub(super) package_manifest: OnceLock<super::PackageManifest>,
+    pub(super) package_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     middleware: OnceLock<Middleware>,
@@ -103,6 +105,16 @@ impl Application {
             });
         }
         Ok(basePath)
+    }
+
+    /// The packages linked by this application's Cargo build.
+    #[allow(non_snake_case, reason = "Follows application accessors")]
+    pub fn packageManifest(&self) -> super::PackageManifest {
+        self.shared
+            .package_manifest
+            .get()
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Runs the HTTP kernel and any configured companion services.
@@ -346,6 +358,8 @@ impl Application {
             package_routes: Mutex::new(Some(Vec::new())),
             publishable: Mutex::default(),
             keep_published_migration_dates: AtomicBool::new(false),
+            package_manifest: OnceLock::new(),
+            package_cache_path: OnceLock::new(),
             package_commands: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
             middleware: OnceLock::new(),
@@ -635,6 +649,18 @@ impl Application {
             values: cached,
         } = ConfigurationCache::bootstrap(&self.shared.basePath, selected, use_cache)
             .map_err(configuration_failed)?;
+        let package_cache = self.shared.basePath.join(
+            environment
+                .values
+                .get("APP_PACKAGES_CACHE")
+                .filter(|path| !path.is_empty())
+                .map_or_else(|| Path::new("bootstrap/cache/packages.json"), Path::new),
+        );
+        // The linked catalog also works in deployments with read-only resources.
+        let _ = self
+            .packageManifest()
+            .ensure_cache(&self.shared.basePath, &package_cache);
+        let _ = self.shared.package_cache_path.set(package_cache);
         self.shared
             .container
             .instanceNamed("config.cache.path", Arc::new(cache_path))

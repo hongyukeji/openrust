@@ -3312,6 +3312,7 @@ dependencies = [
  "chrono",
  "clap",
  "openrust-framework",
+ "openrust-package-discovery",
  "openrust-reverb",
  "serde",
  "serde_json",
@@ -3410,6 +3411,13 @@ dependencies = [
  "uuid",
  "windows-sys 0.61.2",
  "zeroize",
+]
+
+[[package]]
+name = "openrust-package-discovery"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

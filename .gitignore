@@ -20,3 +20,6 @@
 /.history/
 .DS_Store
 Thumbs.db
+
+# Compiled application package catalog
+/bootstrap/cache/packages.json

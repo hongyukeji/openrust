@@ -14,11 +14,29 @@ use openrust::{
         facades::{Artisan, Route},
     },
     translation::__,
-    view::view,
+    view::{Component, ComponentOutput, ViewResult, view},
 };
 use serde_json::json;
 
 pub struct ProbeProvider(pub PathBuf);
+
+pub fn openrust_providers() -> Vec<Box<dyn ServiceProvider>> {
+    let resources = std::env::var_os("PROBE_RESOURCES").map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources"),
+        PathBuf::from,
+    );
+    vec![Box::new(ProbeProvider(resources))]
+}
+
+struct Mark;
+
+impl Component for Mark {
+    fn render(&self) -> ViewResult<ComponentOutput> {
+        Ok(ComponentOutput::InlineTemplate(
+            "Typed package component".into(),
+        ))
+    }
+}
 
 impl ServiceProvider for ProbeProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -37,6 +55,8 @@ impl ServiceProvider for ProbeProvider {
             let translator = app.make::<openrust::translation::Translator>().await?;
             let key = "probe::messages.title";
             assert_eq!(translator.string(key, &Default::default(), None)?, key);
+            let literal = "JSON package only";
+            let _ = translator.string(literal, &Default::default(), None)?;
             Ok(())
         })
     }
@@ -47,6 +67,10 @@ impl ServiceProvider for ProbeProvider {
             self.loadViewsFrom(app, &self.0.join("views"), "probe")
                 .await?;
             self.loadTranslationsFrom(app, &self.0.join("lang"), "probe")
+                .await?;
+            self.loadJsonTranslationsFrom(app, &self.0.join("lang"))
+                .await?;
+            self.loadViewComponentsAs(app, "probe", "mark", |_| Ok(Mark))
                 .await?;
             self.loadMigrationsFrom(app, MIGRATIONS).await?;
             self.commands(app, commands);
@@ -59,6 +83,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/package", || view("probe::welcome"))?;
     Route::get("/package/fallback", || view("probe::fallback"))?;
     Route::get("/package/messages", messages)?;
+    Route::get("/package/components", || view("probe::components-demo"))?;
     Ok(())
 }
 
@@ -74,6 +99,8 @@ fn messages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             json!({
                 "title": message("probe::messages.title")?,
                 "fallback": message("probe::messages.fallback")?,
+                "json_title": message("JSON common")?,
+                "json_fallback": message("JSON package only")?,
             }),
         )
     })

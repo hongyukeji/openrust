@@ -61,7 +61,12 @@ def check_http(binary, root, env, installed):
                 assert json.loads(body) == {
                     "title": "App title",
                     "fallback": "Package fallback",
+                    "json_title": "App JSON title",
+                    "json_fallback": "Package JSON fallback",
                 }
+                status, body = response(base_url, "/package/components")
+                assert status == 200
+                assert "Typed package component" in body and "Anonymous package component" in body
             else:
                 assert response(base_url, "/package")[0] == 404
         finally:
@@ -87,6 +92,7 @@ def check_sqlite(binary, root, env):
 
 def main():
     binary = Path(sys.argv[1]).resolve()
+    excluded = [Path(argument).resolve() for argument in sys.argv[2:]]
     fixture = Path(__file__).resolve().parent
     env = os.environ.copy()
     mysql_url = env.pop("PROBE_MYSQL_URL", None)
@@ -98,18 +104,44 @@ def main():
         root = release / "app"
         write(root, "resources/views/vendor/probe/welcome.html", "App welcome")
         write(root, "lang/vendor/probe/en/messages.json", '{"title":"App title"}')
-        installed = dict(env, PROBE_RESOURCES=str(assets))
+        write(root, "lang/en.json", '{"JSON common":"App JSON title"}')
+        installed = dict(env, PROBE_RESOURCES=str(assets), PATH="")
+        cache = root / "bootstrap/cache/packages.json"
         check_http(binary, root, installed, True)
         assert "Verify the installed package" in artisan(binary, root, installed, "help", "package:probe")
         assert "App title" in artisan(binary, root, installed, "package:probe")
         check_sqlite(binary, root, installed)
-        check_http(binary, root, env, False)
-        assert "package:probe" not in artisan(binary, root, env, "list")
+        expected = json.loads(cache.read_text())
+        assert [p["name"] for p in expected] == ["package-probe"]
+        assert expected[0]["library"] == "probe_extension"
+        assert expected[0]["aliases"] == [["OpenRustProbe", "ProbeProvider"]]
+        discover = artisan(binary, root, installed, "package:discover")
+        assert "Discovering packages" in discover and "package-probe" in discover
+        cache.write_text("broken cache")
+        check_http(binary, root, installed, True)
+        assert json.loads(cache.read_text()) == expected
+        assert "cleared" in artisan(binary, root, installed, "clear-compiled")
+        assert not cache.exists()
+        check_http(binary, root, installed, True)
+        assert json.loads(cache.read_text()) == expected
+        custom = dict(installed, APP_PACKAGES_CACHE="runtime/packages.json")
+        custom_cache = root / "runtime/packages.json"
+        assert "rebuilt" in artisan(binary, root, custom, "package:discover")
+        assert json.loads(custom_cache.read_text()) == expected
+        assert "cleared" in artisan(binary, root, custom, "clear-compiled")
+        assert not custom_cache.exists() and cache.is_file()
+        check_http(binary, root, custom, True)
+        assert json.loads(custom_cache.read_text()) == expected
+        for excluded_binary in excluded:
+            cache.write_text(json.dumps(expected))
+            check_http(excluded_binary, root, installed, False)
+            assert "package:probe" not in artisan(excluded_binary, root, installed, "list")
+            assert json.loads(cache.read_text()) == []
         if mysql_url:
             mysql = dict(installed, PROBE_MYSQL_URL=mysql_url)
             assert "0001_create_package_probe" in artisan(binary, root, mysql, "migrate", "--force")
             assert "0001_create_package_probe" in artisan(binary, root, mysql, "migrate:rollback", "--force")
-    print("Package HTTP, overrides, isolation, Artisan and SQLite passed")
+    print("Package HTTP, overrides, discovery, cache commands, Artisan and SQLite passed")
     if mysql_url:
         print("Package MySQL migration and rollback passed")
 

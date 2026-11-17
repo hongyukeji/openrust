@@ -584,3 +584,73 @@ async fn artisan_rejects_publish_paths_through_application_symlinks()
     assert!(!outside.join("2000_01_01_000000_example.rs").exists());
     Ok(())
 }
+
+#[tokio::test]
+async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust::{
+        foundation::{Application, DiscoveredPackage, PackageManifest, configuration::Routing},
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
+        routing::RoutingError,
+        support::{ProviderResult, ServiceProvider, facades::Route},
+    };
+
+    struct Provider;
+    impl ServiceProvider for Provider {
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async { self.loadRoutesFrom(app, package_routes) })
+        }
+    }
+    fn providers() -> Vec<Box<dyn ServiceProvider>> {
+        vec![Box::new(Provider)]
+    }
+    fn package_routes() -> Result<(), RoutingError> {
+        fn endpoint(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+            Box::pin(async { Ok(Response::new(StatusCode::OK, "linked provider".into())) })
+        }
+        Route::get("/discovered", endpoint)
+    }
+
+    static ENTRIES: &[DiscoveredPackage] = &[DiscoveredPackage::new(
+        "fixture",
+        "1.0.0",
+        "renamed_dependency",
+        &[],
+        providers,
+    )];
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .withPackages(PackageManifest::new(ENTRIES))
+            .withRouting(Routing::default())
+    })?;
+    let cache = app.root().join("bootstrap/cache/packages.json");
+    app.get("/discovered").await?.assertOk();
+    let original = fs::read(&cache)?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&original)?[0]["name"],
+        "fixture"
+    );
+    fs::write(&cache, r#"[{"name":"unlinked"}]"#)?;
+    app.get("/discovered").await?.assertOk();
+    app.artisan(["package:discover"]).await.assertSuccessful();
+    assert_eq!(fs::read(&cache)?, original);
+    fs::write(cache.with_file_name("unrelated.json"), "keep")?;
+    app.artisan(["clear-compiled"]).await.assertSuccessful();
+    assert!(!cache.exists());
+    assert!(cache.with_file_name("unrelated.json").is_file());
+    app.artisan(["clear-compiled"]).await.assertSuccessful();
+
+    let mut excluded = TestApp::create(|builder| builder.withRouting(Routing::default()))?;
+    excluded
+        .get("/discovered")
+        .await?
+        .assertStatus(openrust::http::StatusCode::NOT_FOUND);
+    assert!(
+        !excluded
+            .root()
+            .join("bootstrap/cache/packages.json")
+            .exists()
+    );
+    Ok(())
+}

@@ -16,6 +16,7 @@ use super::{Line, Lines, TranslationError, TranslationFuture, TranslationResult}
 /// Loads application and package translations from configured directories.
 pub struct FileLoader {
     paths: Vec<PathBuf>,
+    json_paths: RwLock<Vec<PathBuf>>,
     namespaces: RwLock<HashMap<String, PathBuf>>,
 }
 
@@ -23,6 +24,7 @@ impl Clone for FileLoader {
     fn clone(&self) -> Self {
         Self {
             paths: self.paths.clone(),
+            json_paths: RwLock::new(self.json_paths.read().unwrap().clone()),
             namespaces: RwLock::new(self.namespaces.read().unwrap().clone()),
         }
     }
@@ -32,12 +34,18 @@ impl FileLoader {
     pub fn new(path: PathBuf) -> Self {
         Self {
             paths: vec![path],
+            json_paths: RwLock::default(),
             namespaces: RwLock::default(),
         }
     }
 
     pub fn addPath(&mut self, path: PathBuf) {
         self.paths.push(path);
+    }
+
+    /// Add an anonymous JSON translation directory before the application roots.
+    pub fn addJsonPath(&self, path: PathBuf) {
+        self.json_paths.write().unwrap().push(path);
     }
 
     pub fn addNamespace(&mut self, namespace: impl Into<String>, path: PathBuf) {
@@ -59,7 +67,8 @@ impl FileLoader {
         }
         let mut lines = Lines::new();
         if group == "*" && namespace == Some("*") {
-            for root in &self.paths {
+            let json_paths = self.json_paths.read().unwrap().clone();
+            for root in json_paths.iter().chain(&self.paths) {
                 merge(
                     &mut lines,
                     read(root, Path::new(&format!("{locale}.json")))?,

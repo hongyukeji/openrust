@@ -17,6 +17,7 @@ mod lang_publish_command;
 mod maintenance_command;
 mod model_make_command;
 mod observer_make_command;
+mod package_manifest_command;
 mod policy_make_command;
 mod provider_make_command;
 mod resource_make_command;
@@ -122,6 +123,7 @@ impl Kernel {
                             #[cfg(feature = "sanctum")]
                             crate::sanctum::prune_expired::register(&mut self.artisan)?;
                             vendor_publish_command::register(&mut self.artisan)?;
+                            package_manifest_command::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::queue::console::register(&mut self.artisan)?;
                             crate::notifications::console::register(&mut self.artisan)?;

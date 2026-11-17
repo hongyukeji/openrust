@@ -69,6 +69,12 @@ impl Translator {
         Ok(())
     }
 
+    pub(crate) fn add_package_json_path(&self, path: PathBuf) {
+        let mut loaded = self.loaded.lock().unwrap();
+        self.loader.addJsonPath(path);
+        loaded.retain(|key, _| key.group != "*" || key.namespace.as_deref() != Some("*"));
+    }
+
     pub fn locale(&self) -> String {
         ACTIVE_LOCALES
             .try_with(|locales| locales.get(&self.identity()).cloned())

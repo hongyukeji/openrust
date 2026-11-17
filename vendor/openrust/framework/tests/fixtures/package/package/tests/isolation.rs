@@ -4,6 +4,7 @@ use openrust::{
     console::Application as Artisan,
     contracts::{console::Kernel as _, foundation::Application as _},
     foundation::{Application, console::Kernel},
+    testing::TestApp,
     translation::Translator,
     view::Factory,
 };
@@ -11,9 +12,11 @@ use package_probe::ProbeProvider;
 
 #[tokio::test]
 async fn boot_keeps_package_services_and_commands_in_their_application() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let release = TestApp::create(|builder| builder).unwrap();
+    let root = release.root().to_owned();
+    let resources = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources");
     let first = Application::configure(root.clone())
-        .withProviders(vec![Box::new(ProbeProvider(root.join("resources")))])
+        .withProviders(vec![Box::new(ProbeProvider(resources))])
         .create()
         .unwrap();
     let second = Application::configure(root).create().unwrap();
@@ -45,6 +48,16 @@ async fn boot_keeps_package_services_and_commands_in_their_application() {
         let translator = application.make::<Translator>().await.unwrap();
         assert_eq!(
             translator.string(key, &Default::default(), None).unwrap(),
+            expected
+        );
+    }
+    let literal = "JSON package only";
+    for (application, expected) in [(app, "Package JSON fallback"), (uninstalled, literal)] {
+        let translator = application.make::<Translator>().await.unwrap();
+        assert_eq!(
+            translator
+                .string(literal, &Default::default(), None)
+                .unwrap(),
             expected
         );
     }
