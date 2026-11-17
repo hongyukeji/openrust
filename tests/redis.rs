@@ -1026,7 +1026,8 @@ async fn redis_cluster_flushes_only_a_separate_lock_database() {
 #[tokio::test]
 async fn redis_cluster_tags_flush_and_prune() {
     use openrust::{
-        cache::{RedisStore, Repository},
+        cache::{CacheManager, RedisStore, Repository},
+        database::DatabaseManager,
         redis::Value as RedisValue,
     };
     use serde_json::json;
@@ -1036,14 +1037,25 @@ async fn redis_cluster_tags_flush_and_prune() {
         return;
     };
     let settings = Arc::new(openrust::config::Repository::new(
-        [(
-            "database".into(),
-            json!({"redis":{"options":{"prefix":"{other}:"},"clusters":{
-                "tags":[{"port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"}]
-            }}}),
-        )]
+        [
+            (
+                "database".into(),
+                json!({"redis":{"options":{"prefix":"{other}:"},"clusters":{
+                    "tags":[{"port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"}]
+                }}}),
+            ),
+            (
+                "cache".into(),
+                json!({"default":"redis","stores":{
+                    "redis":{"driver":"redis","connection":"tags","prefix":"tags*?:"}
+                }}),
+            ),
+        ]
         .into(),
     ));
+    let root = std::env::temp_dir();
+    let databases = Arc::new(DatabaseManager::new(settings.clone(), &root));
+    let cache = CacheManager::new(settings.clone(), databases, root);
     let connection = RedisManager::new(settings.clone())
         .connection(Some("tags"))
         .unwrap();
@@ -1136,12 +1148,16 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!exists(&unknown).await);
     assert!(peer.tags(&[]).unwrap().flushStale().await.unwrap());
     assert_eq!(count(&artist).await, RedisValue::Int(3));
-    let selected = peer.tags(&["artists", "unknown", "artists"]).unwrap();
+    let memo = cache.memo(None).unwrap();
+    let same = memo.tags(&["artists", "people"]).unwrap();
+    assert_eq!(same.get("item").await.unwrap(), Some(2.into()));
+    let selected = memo.tags(&["artists", "unknown", "artists"]).unwrap();
     assert!(selected.flushStale().await.unwrap());
     assert_eq!(count(&artist).await, RedisValue::Int(2));
     assert_eq!(count(&people).await, RedisValue::Int(3));
     assert!(!exists(&unknown).await);
     assert_eq!(ordered.get("item").await.unwrap(), Some(2.into()));
+    assert_eq!(same.get("item").await.unwrap(), Some(2.into()));
     assert!(selected.flushStale().await.unwrap());
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&people).await, RedisValue::Int(2));

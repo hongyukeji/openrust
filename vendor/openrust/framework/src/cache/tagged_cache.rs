@@ -4,13 +4,14 @@ use crate::contracts::cache::{LockProvider, Store};
 
 use super::{
     CacheError, CacheFuture, CacheResult, RedisStore, Repository, TagSet, Value,
-    engine::key_digest, redis_tagged_cache::RedisTaggedCache,
+    engine::key_digest, memoized_store::MemoizedStore, redis_tagged_cache::RedisTaggedCache,
 };
 
 /// A cache repository scoped to an ordered list of tags.
 pub struct TaggedCache {
     pub(super) repository: Repository,
-    tags: Arc<TagSet>,
+    pub(super) memoized_parent: Option<Arc<MemoizedStore>>,
+    pub(super) tags: Arc<TagSet>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's TaggedCache API")]
@@ -19,6 +20,7 @@ impl TaggedCache {
         let tags = Arc::new(TagSet::new(store, names));
         Self {
             repository: Repository::new(Arc::new(TaggedStore(Arc::clone(&tags)))),
+            memoized_parent: None,
             tags,
         }
     }
@@ -27,12 +29,32 @@ impl TaggedCache {
         let tags = Arc::new(TagSet::redis(store, names));
         Self {
             repository: Repository::new(Arc::new(RedisTaggedCache::new(Arc::clone(&tags)))),
+            memoized_parent: None,
             tags,
         }
     }
 
     pub fn getTags(&self) -> &TagSet {
         &self.tags
+    }
+
+    /// Discards the selected tag group's memoized results without touching the store.
+    pub fn flushMemoized(&self) {
+        if let Some(parent) = &self.memoized_parent {
+            parent.flush_memoized_tags(self.tags.getNames());
+        }
+    }
+
+    /// Clears the entire store when called through a memoized tagged view.
+    pub async fn clear(&self) -> CacheResult<bool> {
+        match &self.memoized_parent {
+            Some(parent) => parent.flush().await,
+            None => {
+                self.repository
+                    .clear_store(Arc::clone(&self.tags.store))
+                    .await
+            }
+        }
     }
 
     /// Removes stale references from the selected Redis tags without clearing live values.

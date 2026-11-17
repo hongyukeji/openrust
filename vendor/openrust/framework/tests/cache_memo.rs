@@ -56,7 +56,59 @@ async fn exercise() -> CacheResult<i64> {
     assert!(memo.touch("missing", Ttl::Seconds(60)).await?);
     assert_eq!(memo.pull("missing").await?, Some("out-of-band".into()));
     assert!(memo.get("missing").await?.is_none());
+    exercise_tags(counter).await?;
     Ok(counter)
+}
+
+async fn exercise_tags(initial: i64) -> CacheResult<()> {
+    let plain = Cache::store(Some("redis"))?;
+    let memo = Cache::memo(Some("redis"))?;
+    assert!(memo.supportsTags());
+    let live = plain.tags(&["memo-first", "memo-second"])?;
+    let first = memo.tags(&["memo-first"])?;
+    let ordered = memo.tags(&["memo-first", "memo-second"])?;
+    let reversed = memo.tags(&["memo-second", "memo-first"])?;
+    let unrelated = memo.tags(&["memo-unrelated"])?;
+    assert_eq!(ordered.getName(), Some("redis"));
+
+    live.forever("key", &initial.into()).await?;
+    first.forever("key", &2.into()).await?;
+    reversed.forever("key", &3.into()).await?;
+    assert_eq!(
+        ordered.many(&["key", "missing"]).await?,
+        [Some(initial.into()), None]
+    );
+    assert_eq!(first.get("key").await?, Some(2.into()));
+    assert_eq!(reversed.get("key").await?, Some(3.into()));
+    unrelated.forever("key", &7.into()).await?;
+    assert_eq!(unrelated.get("key").await?, Some(7.into()));
+    plain
+        .tags(&["memo-unrelated"])?
+        .forever("key", &8.into())
+        .await?;
+
+    live.forever("key", &4.into()).await?;
+    live.forever("missing", &5.into()).await?;
+    let reopened = Cache::memo(None)?.tags(&["memo-first", "memo-second"])?;
+    assert!(reopened.flushStale().await?);
+    assert_eq!(
+        reopened.many(&["missing", "key", "key"]).await?,
+        [None, Some(initial.into()), Some(initial.into())]
+    );
+    assert!(!reopened.add("key", &6.into(), None).await?);
+    assert_eq!(ordered.get("key").await?, Some(4.into()));
+    live.forever("key", &9.into()).await?;
+    reopened.flushMemoized();
+    assert_eq!(ordered.get("key").await?, Some(9.into()));
+    assert_eq!(unrelated.get("key").await?, Some(7.into()));
+    assert!(live.flush().await?);
+    assert_eq!(ordered.get("key").await?, Some(9.into()));
+    assert!(first.flush().await?);
+    assert_eq!(ordered.get("key").await?, None);
+    assert_eq!(reversed.get("key").await?, None);
+    assert_eq!(unrelated.get("key").await?, Some(8.into()));
+    assert!(memo.get("counter").await?.is_some());
+    Ok(())
 }
 
 fn endpoint(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -206,6 +258,44 @@ async fn redis_memoized_cache_expires_between_http_requests_and_worker_jobs() {
     for key in KEYS {
         plain.forget(key).await.unwrap();
     }
+    let container = fixture.app().container();
+    let worker_cache = container.make::<CacheManager>().unwrap();
+    verify_store_clear(container, &worker_cache).await.unwrap();
+}
+
+async fn verify_store_clear(
+    container: &openrust::container::Container,
+    cache: &CacheManager,
+) -> CacheResult<()> {
+    use openrust::{
+        cache::events::{CacheFlushed, CacheFlushing, RetrievingKey},
+        events::Dispatcher,
+    };
+
+    let dispatcher = container.make::<Dispatcher>().unwrap();
+    let events = dispatcher.fake(&[RetrievingKey::NAME, CacheFlushing::NAME, CacheFlushed::NAME]);
+    container
+        .scope(async {
+            let memo = cache.memo(None)?;
+            let tags = memo.tags(&["clear-first"])?;
+            let other = memo.tags(&["clear-second"])?;
+            memo.forever("clear-probe", &1.into()).await?;
+            tags.forever("clear-probe", &2.into()).await?;
+            other.forever("clear-probe", &3.into()).await?;
+            assert_eq!(memo.get("clear-probe").await?, Some(1.into()));
+            assert_eq!(tags.get("clear-probe").await?, Some(2.into()));
+            assert_eq!(other.get("clear-probe").await?, Some(3.into()));
+            assert_eq!(tags.get("clear-probe").await?, Some(2.into()));
+            events.assertDispatchedTimes(RetrievingKey::NAME, 3);
+            assert!(tags.clear().await?);
+            assert_eq!(memo.get("clear-probe").await?, None);
+            assert_eq!(tags.get("clear-probe").await?, None);
+            assert_eq!(other.get("clear-probe").await?, None);
+            events.assertDispatchedTimes(CacheFlushing::NAME, 1);
+            events.assertDispatchedTimes(CacheFlushed::NAME, 1);
+            Ok(())
+        })
+        .await
 }
 
 #[tokio::test]
@@ -246,5 +336,20 @@ async fn memo_handle_cannot_serve_a_stale_snapshot_after_its_scope_closes() -> R
     let mut lock = outside.lock("memo-test", Some(Duration::from_secs(1)), None)?;
     assert!(lock.get().await?);
     assert!(lock.release().await?);
+    let live = plain.tags(&["reports"])?;
+    let tagged = outside.tags(&["reports"])?;
+    live.forever("example", &"old".into()).await?;
+    assert_eq!(tagged.get("example").await?, Some("old".into()));
+    assert!(live.flush().await?);
+    assert_eq!(tagged.get("example").await?, None);
+    assert!(matches!(
+        tagged.flushStale().await,
+        Err(CacheError::StaleTagPruningUnsupported)
+    ));
+    tagged.forever("example", &"after tag flush".into()).await?;
+    assert!(plain.get("miss").await?.is_some());
+    assert!(tagged.clear().await?);
+    assert_eq!(outside.get("miss").await?, None);
+    assert_eq!(tagged.get("example").await?, None);
     Ok(())
 }

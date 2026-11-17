@@ -169,6 +169,10 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+在支援標籤的儲存上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命週期內，完全相同的有序標籤清單會共用命中和未命中，改變順序或重複項目會選取其他標籤群組。透過記憶化標籤儲存庫寫入會使對應鍵失效。呼叫標籤儲存庫的 `flush()` 會清空後端所選標籤，並使該儲存的所有標籤群組快照失效。呼叫 `clear()` 會清空整個儲存，包括一般快取值。呼叫 `flushMemoized()` 只清除所選標籤群組的記憶化結果。
+
+在 Redis 上，`flushStale().await?` 會轉送給所選標籤，清理到期索引參照，並保留有效值及記憶化結果。透過獨立的一般 Redis 儲存庫清空標籤後，本生命週期仍可讀取已記憶化的舊結果，直到記憶化檢視使它們失效。
+
 ## cache 輔助工具 {#the-cache-helper}
 
 `cache!()` 或 `openrust::support::cache()` 取得目前應用程式的快取管理員。呼叫 `.store(None)?` 取得預設儲存庫。`cache!(key).await?` 回傳 `Option<Value>`，`cache!(key, default).await?` 支援預設值。

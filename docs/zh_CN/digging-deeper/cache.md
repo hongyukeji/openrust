@@ -169,6 +169,10 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+在支持标签的存储上，可用 `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`。同一生命周期内，完全相同的有序标签列表共享命中和未命中，改变顺序或重复项会选择其他标签组。通过记忆化标签仓储写入会使对应键失效。调用标签仓储的 `flush()` 会清空后端所选标签，并使该存储的全部标签组快照失效。调用 `clear()` 会清空整个存储，包括普通缓存值。调用 `flushMemoized()` 只清除所选标签组的记忆化结果。
+
+在 Redis 上，`flushStale().await?` 会转发给所选标签，清理过期索引引用，并保留有效值及记忆化结果。通过独立的普通 Redis 仓储清空标签后，本生命周期仍可读取已记忆化的旧结果，直到记忆化视图将它们失效。
+
 ## cache 助手 {#the-cache-helper}
 
 `cache!()` 或 `openrust::support::cache()` 获取当前应用的缓存管理器。调用 `.store(None)?` 取得默认仓库。`cache!(key).await?` 返回 `Option<Value>`，`cache!(key, default).await?` 支持默认值。

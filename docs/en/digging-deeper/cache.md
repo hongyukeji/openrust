@@ -169,6 +169,10 @@ pub async fn report() -> CacheResult<Option<Value>> {
 }
 ```
 
+On a store that supports tags, use `Cache::memo(Some("redis"))?.tags(&["reports", "daily"])?`. The same ordered list shares memoized hits and misses within the lifecycle. Reordering or repeating tags selects a different group. A tagged memoized write invalidates the affected key. Calling `flush()` on the tagged view clears the selected tags in the backend and invalidates all memoized tag groups for the store. Calling `clear()` clears the entire store, including untagged values. Call `flushMemoized()` to discard only the selected group’s memoized results.
+
+On Redis, `flushStale().await?` forwards to the selected tags and removes stale index references. It preserves live values and memoized results. A tag flush through a separate Redis repository leaves this lifecycle's memoized results available until the memoized view invalidates them.
+
 ## The cache helper {#the-cache-helper}
 
 `cache!()` or `openrust::support::cache()` resolves the current application's manager. Use `.store(None)?` on it to get the default repository. `cache!(key).await?` reads a value as `Option<Value>`, and `cache!(key, default).await?` supplies a default.

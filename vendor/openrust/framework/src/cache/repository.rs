@@ -104,6 +104,21 @@ impl Repository {
         }
     }
 
+    pub(super) fn memoized_view(&self, store: Arc<dyn Store>) -> Self {
+        Self {
+            store,
+            dispatcher: None,
+            ..self.clone()
+        }
+    }
+
+    pub(super) async fn clear_store(&self, store: Arc<dyn Store>) -> CacheResult<bool> {
+        let mut repository = self.clone();
+        repository.store = store;
+        repository.tags.clear();
+        repository.flush().await
+    }
+
     pub(super) fn with_name(mut self, name: Option<&str>) -> Self {
         self.name = name.map(str::to_owned);
         self

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     future::Future,
     num::NonZeroU64,
@@ -7,7 +8,7 @@ use std::{
 
 use crate::contracts::cache::{CanFlushLocks, LockProvider, Repository as _, Store};
 
-use super::{CacheFuture, CacheResult, Repository, Value};
+use super::{CacheFuture, CacheResult, Repository, TagSet, TaggedCache, Value};
 
 #[derive(Default)]
 pub(super) struct MemoizedRepositories {
@@ -31,15 +32,33 @@ impl MemoizedRepositories {
 
 pub(super) struct MemoizedStore {
     repository: Arc<Repository>,
-    state: Mutex<State>,
+    state: Arc<Mutex<MemoizedValues>>,
     lifetime: Option<Weak<()>>,
+    tags: Option<Arc<TagSet>>,
+}
+
+#[derive(Default)]
+struct MemoizedValues {
+    plain: State,
+    tagged: HashMap<Vec<String>, State>,
+    plain_flushes: usize,
+    tagged_flushes: usize,
 }
 
 #[derive(Default)]
 struct State {
     entries: HashMap<String, Entry>,
     flush_epoch: u64,
-    flushes: usize,
+}
+
+impl State {
+    fn invalidate(&mut self) {
+        self.flush_epoch = self.flush_epoch.wrapping_add(1);
+        self.entries.retain(|_, entry| {
+            entry.read = Read::Unobserved;
+            entry.writes != 0
+        });
+    }
 }
 
 #[derive(Default)]
@@ -63,20 +82,36 @@ enum Observation {
 
 impl MemoizedStore {
     pub(super) fn wrap(repository: Arc<Repository>, lifetime: Option<Weak<()>>) -> Arc<Repository> {
-        Arc::new(Repository::new(Arc::new(Self {
-            repository,
-            state: Mutex::default(),
+        let store = Arc::new(Self {
+            repository: Arc::clone(&repository),
+            state: Arc::default(),
             lifetime,
-        })))
+            tags: None,
+        });
+        Arc::new(repository.memoized_view(store))
     }
 
     fn backend(&self) -> &dyn Store {
         self.repository.get_store()
     }
 
+    pub(super) fn flush_memoized_tags(&self, names: &[String]) {
+        if let Some(tags) = self.state().tagged.get_mut(names) {
+            tags.invalidate();
+        }
+    }
+
+    async fn memo_namespace(&self) -> CacheResult<Option<String>> {
+        match &self.tags {
+            // Laravel's RedisTagSet uses stable tag keys for memoized lookups.
+            Some(tags) if tags.redis.is_none() => tags.getNamespace().await.map(Some),
+            _ => Ok(None),
+        }
+    }
+
     fn observe(&self, key: &str) -> Observation {
-        let mut state = self.state();
-        if state.flushes != 0
+        let mut values = self.state();
+        if self.flushing(&values)
             || self
                 .lifetime
                 .as_ref()
@@ -84,6 +119,7 @@ impl MemoizedStore {
         {
             return Observation::Miss(None);
         }
+        let state = self.store_state(&mut values);
         let epoch = state.flush_epoch;
         let entry = match state.entries.get_mut(key) {
             Some(entry) => entry,
@@ -104,11 +140,14 @@ impl MemoizedStore {
         let Some(observation) = observation else {
             return value;
         };
-        let mut state = self.state();
+        let mut values = self.state();
+        if self.flushing(&values) {
+            return value;
+        }
+        let state = self.store_state(&mut values);
         let epoch = state.flush_epoch;
         // Reads overlapping a write or flush cannot restore a stale entry.
-        if state.flushes == 0
-            && let Some(entry) = state.entries.get_mut(key)
+        if let Some(entry) = state.entries.get_mut(key)
             && entry.writes == 0
             && observation == (epoch, entry.revision)
         {
@@ -120,9 +159,11 @@ impl MemoizedStore {
         value
     }
 
-    fn begin_write<'a>(&'a self, key: &'a str) -> Write<'a> {
+    fn begin_write<'a>(&'a self, key: impl Into<Cow<'a, str>>) -> Write<'a> {
+        let key = key.into();
         let mut state = self.state();
-        let entry = state.entries.entry(key.to_owned()).or_default();
+        let state = self.store_state(&mut state);
+        let entry = state.entries.entry(key.as_ref().to_owned()).or_default();
         entry.read = Read::Unobserved;
         entry.revision = entry.revision.wrapping_add(1);
         entry.writes += 1;
@@ -134,36 +175,70 @@ impl MemoizedStore {
         key: &str,
         operation: impl Future<Output = CacheResult<T>>,
     ) -> CacheResult<T> {
-        let _write = self.begin_write(key);
+        let namespace = self.memo_namespace().await?;
+        let _write = self.begin_write(memo_key(namespace.as_deref(), key));
         operation.await
     }
 
     fn begin_flush(&self) -> Flush<'_> {
         let mut state = self.state();
-        state.flush_epoch = state.flush_epoch.wrapping_add(1);
-        state.flushes += 1;
-        state.entries.retain(|_, entry| {
-            entry.read = Read::Unobserved;
-            entry.writes != 0
-        });
+        if self.tags.is_none() {
+            state.plain_flushes += 1;
+            state.plain.invalidate();
+        }
+        state.tagged_flushes += 1;
+        for tags in state.tagged.values_mut() {
+            tags.invalidate();
+        }
         Flush(self)
     }
 
-    fn state(&self) -> std::sync::MutexGuard<'_, State> {
+    fn state(&self) -> std::sync::MutexGuard<'_, MemoizedValues> {
         self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn store_state<'a>(&self, values: &'a mut MemoizedValues) -> &'a mut State {
+        match &self.tags {
+            Some(tags) => values
+                .tagged
+                .get_mut(tags.getNames())
+                .expect("registered memoized tags"),
+            None => &mut values.plain,
+        }
+    }
+
+    fn flushing(&self, values: &MemoizedValues) -> bool {
+        if self.tags.is_some() {
+            values.tagged_flushes != 0
+        } else {
+            values.plain_flushes != 0
+        }
+    }
+}
+
+fn memo_key<'a>(namespace: Option<&str>, key: &'a str) -> Cow<'a, str> {
+    match namespace {
+        Some(namespace) => Cow::Owned(format!("{namespace}:{key}")),
+        None => Cow::Borrowed(key),
     }
 }
 
 struct Write<'a> {
     store: &'a MemoizedStore,
-    key: &'a str,
+    key: Cow<'a, str>,
 }
 
 impl Drop for Write<'_> {
     fn drop(&mut self) {
-        if let Some(entry) = self.store.state().entries.get_mut(self.key) {
+        let mut values = self.store.state();
+        if let Some(entry) = self
+            .store
+            .store_state(&mut values)
+            .entries
+            .get_mut(self.key.as_ref())
+        {
             entry.writes -= 1;
         }
     }
@@ -173,17 +248,44 @@ struct Flush<'a>(&'a MemoizedStore);
 
 impl Drop for Flush<'_> {
     fn drop(&mut self) {
-        self.0.state().flushes -= 1;
+        let mut state = self.0.state();
+        state.tagged_flushes -= 1;
+        if self.0.tags.is_none() {
+            state.plain_flushes -= 1;
+        }
     }
 }
 
 impl Store for MemoizedStore {
+    fn tags(self: Arc<Self>, names: &[&str]) -> CacheResult<TaggedCache> {
+        let mut tagged = self.repository.tags(names)?;
+        self.state()
+            .tagged
+            .entry(tagged.tags.getNames().to_vec())
+            .or_default();
+        let store = Arc::new(Self {
+            repository: Arc::new(tagged.repository.clone()),
+            state: Arc::clone(&self.state),
+            lifetime: self.lifetime.clone(),
+            tags: Some(Arc::clone(&tagged.tags)),
+        });
+        tagged.repository = tagged.repository.memoized_view(store);
+        tagged.memoized_parent = Some(self);
+        Ok(tagged)
+    }
+
+    fn supports_tags(&self) -> bool {
+        self.backend().supports_tags()
+    }
+
     fn get<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>> {
         Box::pin(async move {
-            match self.observe(key) {
+            let namespace = self.memo_namespace().await?;
+            let memo_key = memo_key(namespace.as_deref(), key);
+            match self.observe(&memo_key) {
                 Observation::Hit(value) => Ok(value),
                 Observation::Miss(stamp) => {
-                    Ok(self.record(key, stamp, self.repository.get(key).await?))
+                    Ok(self.record(&memo_key, stamp, self.repository.get(key).await?))
                 }
             }
         })
@@ -191,7 +293,11 @@ impl Store for MemoizedStore {
 
     fn many<'a>(&'a self, keys: &'a [&'a str]) -> CacheFuture<'a, CacheResult<Vec<Option<Value>>>> {
         Box::pin(async move {
-            let observations: Vec<_> = keys.iter().map(|key| self.observe(key)).collect();
+            let namespace = self.memo_namespace().await?;
+            let observations: Vec<_> = keys
+                .iter()
+                .map(|key| self.observe(&memo_key(namespace.as_deref(), key)))
+                .collect();
             let missing: Vec<_> = keys
                 .iter()
                 .zip(&observations)
@@ -207,7 +313,11 @@ impl Store for MemoizedStore {
                 .zip(observations)
                 .map(|(key, entry)| match entry {
                     Observation::Hit(value) => value,
-                    Observation::Miss(stamp) => self.record(key, stamp, values.next().flatten()),
+                    Observation::Miss(stamp) => self.record(
+                        &memo_key(namespace.as_deref(), key),
+                        stamp,
+                        values.next().flatten(),
+                    ),
                 })
                 .collect())
         })
@@ -228,9 +338,10 @@ impl Store for MemoizedStore {
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>> {
         Box::pin(async move {
+            let namespace = self.memo_namespace().await?;
             let _writes: Vec<_> = values
                 .iter()
-                .map(|(key, _)| self.begin_write(key))
+                .map(|(key, _)| self.begin_write(memo_key(namespace.as_deref(), key)))
                 .collect();
             self.repository.put_many_seconds(values, seconds).await
         })
