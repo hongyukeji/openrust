@@ -8,6 +8,24 @@
 
 在 Builder 回调中按应用的装配方式注册迁移和 Seeder，再运行 `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`。在同一夹具内重新建表和填充时使用 `migrate:fresh --seed`。新夹具从空数据库文件开始，通过各自的数据库文件实现隔离。
 
+### 运行 Seeder {#running-seeders}
+
+调用 `test.seed().await?` 执行已注册的 `DatabaseSeeder`。用 `seedWith` 传入一个或多个 Seeder 名称，按列表顺序执行。空列表直接返回成功。用 `seedOn("reports", None)` 在具名连接上运行默认 Seeder，或传入 `Some(&[...])` 选择指定的 Seeder。
+
+每个 Seeder 都通过关闭交互的 Artisan `db:seed` 执行。命令失败时立即返回错误并停止列表。处于测试事务时，选中连接上的写入随该事务回滚。其他连接按各自的事务边界提交。
+
+```rust
+use openrust::testing::TestApp;
+
+async fn populate(
+    test: &mut TestApp,
+    seeders: &[&str],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.seed().await?;
+    test.seedWith(seeders).await
+}
+```
+
 ## 托管 MySQL 测试库 {#managed-mysql-test-schemas}
 
 用 `TestApp::mysql` 在专用 MySQL 测试服务器上分配独立库。在 Builder 中注册迁移和 Seeder，再通过 Artisan 执行。账号需要创建及删除测试库、创建归属标记例程，以及读取 `performance_schema` 中服务活动表的权限。

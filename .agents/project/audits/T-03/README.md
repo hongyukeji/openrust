@@ -60,3 +60,10 @@
 - Rust 在应用夹具的查询事件生成点记录，不受事件替身的交付选择影响。夹具关闭前核对，显式 `close().await` 先核对再清库并返回错误，正常析构时按断言失败处理。已在异常展开时保留原始 panic。数据库准备阶段被抑制的事件和失败 SQL 不计入。
 - 隔离基线 `90fca6a2e`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1`，MySQL 8.4.13 十项通过。新增验证 HTTP 内核、进程内 Artisan、不同命名连接与读别名、两个应用隔离、事件替身、查询预演和失败 SQL。计数不符时，显式关闭仍回收测试库，普通析构报告断言失败。
 - 三语示例在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-query-count.5Ai3V5mb`。
+
+## Seeder 测试入口
+
+- 固定 Laravel 的 `InteractsWithDatabase::seed` 把默认 Seeder 或名称列表交给 Artisan `db:seed`，按列表顺序关闭交互执行。核对上游 `DatabaseSeederTest`、固定 Goravel 的测试 `Database.Seed` 和旧版 `v0.x` 的 `database/seed.rs`。沿用旧版经应用容器运行 Seeder 的入口，复用当前编译注册表和 Artisan。 [Laravel Running Seeders](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md#running-seeders) · [固定 Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Testing/Concerns/InteractsWithDatabase.php#L407)
+- `TestApp::seed()` 运行 `DatabaseSeeder`，`seedWith` 接收名称切片，`seedOn` 显式选择连接。每项调用同一应用的 Artisan，非零退出状态返回错误并停止列表。测试回调里的 Seeder 写入沿用已选连接的事务范围。
+- 隔离基线 `05f147478`。用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_testing --locked --offline mysql_ -- --test-threads=1` 验证真实 MySQL 8.4.13 十一项。覆盖默认填充、空列表、限定名称、实际插入顺序、未知 Seeder 及列表停止、双库回滚和未选库独立提交。
+- 三语示例提取后在独立 MySQL 运行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-T-03-test-seeders.caL3ZHPb`。

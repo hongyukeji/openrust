@@ -8,6 +8,24 @@
 
 在 Builder 回呼中依應用程式的組裝方式註冊遷移和 Seeder，再執行 `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`。在同一夾具內重新建表和填充時使用 `migrate:fresh --seed`。新夾具從空資料庫檔案開始，透過各自的資料庫檔案實現隔離。
 
+### 執行 Seeder {#running-seeders}
+
+呼叫 `test.seed().await?` 執行已註冊的 `DatabaseSeeder`。用 `seedWith` 傳入一個或多個 Seeder 名稱，依清單順序執行。空清單會直接成功。用 `seedOn("reports", None)` 在具名連線上執行預設 Seeder，或傳入 `Some(&[...])` 選擇指定的 Seeder。
+
+每個 Seeder 都透過停用互動的 Artisan `db:seed` 執行。指令失敗時會立即回傳錯誤並停止清單。位於測試交易時，選定連線的寫入會隨該交易復原。其他連線依各自的交易邊界提交。
+
+```rust
+use openrust::testing::TestApp;
+
+async fn populate(
+    test: &mut TestApp,
+    seeders: &[&str],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.seed().await?;
+    test.seedWith(seeders).await
+}
+```
+
 ## 受管 MySQL 測試資料庫 {#managed-mysql-test-schemas}
 
 用 `TestApp::mysql` 在專用 MySQL 測試伺服器上分配獨立資料庫。在 Builder 中註冊遷移和 Seeder，再透過 Artisan 執行。帳號需要建立與刪除測試資料庫、建立歸屬標記預存程序，以及讀取 `performance_schema` 伺服器活動資料表的權限。

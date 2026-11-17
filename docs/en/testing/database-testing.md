@@ -8,6 +8,24 @@ Use `TestApp::sqlite` to give each test application its own SQLite file. During 
 
 Register application migrations and seeders in the builder callback as you would in the application. Then run `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`. To rebuild the schema and seed again in the same fixture, use `migrate:fresh --seed`. Each new fixture starts with an empty database file. Each database file provides a separate test boundary.
 
+### Running seeders {#running-seeders}
+
+Call `test.seed().await?` to run the registered `DatabaseSeeder`. For one or more named seeders, pass their names to `seedWith`. The list runs in order and an empty list is a no-op. Use `seedOn("reports", None)` for the default seeder on a named connection, or pass `Some(&[...])` to select specific seeders.
+
+Each seeder runs through Artisan `db:seed` with prompts disabled. A failed command returns an error and stops the list. Inside a test transaction, the writes on each selected connection roll back with that transaction. Other connections retain their own commit behavior.
+
+```rust
+use openrust::testing::TestApp;
+
+async fn populate(
+    test: &mut TestApp,
+    seeders: &[&str],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.seed().await?;
+    test.seedWith(seeders).await
+}
+```
+
 ## Managed MySQL test schemas {#managed-mysql-test-schemas}
 
 Use `TestApp::mysql` to allocate a private schema on a dedicated MySQL test server. Register migrations and seeders in the builder, then run them through Artisan. The account needs permission to create and drop test schemas, install an ownership routine, and read the server activity tables in `performance_schema`.

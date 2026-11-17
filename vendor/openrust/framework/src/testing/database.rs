@@ -12,7 +12,7 @@ use serde_json::json;
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        Connection, DatabaseFuture, DatabaseManager, DatabaseResult,
+        Connection, DatabaseFuture, DatabaseManager, DatabaseResult, seeder,
         test_mysql::{MySqlTestDatabase, MySqlTestOwners},
         test_transaction,
     },
@@ -233,6 +233,55 @@ impl TestApp {
             .make::<DatabaseManager>()
             .await?
             .connection(connection)?)
+    }
+
+    /// Runs the registered default `DatabaseSeeder` through Artisan.
+    pub async fn seed(&mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.seedWith(&[seeder::DEFAULT]).await
+    }
+
+    /// Runs the named seeders in the supplied order on the default connection.
+    pub async fn seedWith(&mut self, seeders: &[&str]) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.run_seeders(seeders, None).await
+    }
+
+    /// Runs seeders on the selected connection. Pass `None` for the default seeder.
+    pub async fn seedOn(
+        &mut self,
+        connection: &str,
+        seeders: Option<&[&str]>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.run_seeders(seeders.unwrap_or(&[seeder::DEFAULT]), Some(connection))
+            .await
+    }
+
+    async fn run_seeders(
+        &mut self,
+        seeders: &[&str],
+        connection: Option<&str>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        for name in seeders {
+            let args = [
+                "db:seed".into(),
+                "--no-interaction".into(),
+                format!("--class={name}"),
+            ];
+            let command = self
+                .artisan(
+                    args.into_iter()
+                        .chain(connection.map(|name| format!("--database={name}"))),
+                )
+                .await;
+            if command.status != 0 {
+                return Err(io::Error::other(format!(
+                    "db:seed {name} exited with {}: {}",
+                    command.status,
+                    command.stderr.trim()
+                ))
+                .into());
+            }
+        }
+        Ok(())
     }
 
     /// Runs a test against the default MySQL connection and rolls back its writes.

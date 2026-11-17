@@ -71,6 +71,24 @@ impl Seeder for SeedItems {
     }
 }
 
+struct OrderedSeeder(&'static str);
+
+impl Seeder for OrderedSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            context
+                .connection()
+                .table("items")
+                .insert(&[Record::from([("name".into(), self.0.into())])])
+                .await?;
+            Ok(())
+        })
+    }
+}
+
 struct InventoryProvider;
 
 struct RefreshSeeder;
@@ -139,6 +157,8 @@ impl ServiceProvider for InventoryProvider {
             )];
             static SEEDERS: &[SeederEntry] = &[
                 SeederEntry::new("DatabaseSeeder", &SeedItems),
+                SeederEntry::new("FirstSeeder", &OrderedSeeder("first")),
+                SeederEntry::new("SecondSeeder", &OrderedSeeder("second")),
                 SeederEntry::new("RefreshSeeder", &RefreshSeeder),
                 SeederEntry::new("MigrationEventProbe", &MigrationEventProbe),
             ];
@@ -676,6 +696,91 @@ async fn schema_exists(server: &mut MySqlConnection, name: &str) -> Result<bool,
     .fetch_one(server)
     .await?;
     Ok(count != 0)
+}
+
+#[tokio::test]
+async fn mysql_test_seeders_follow_artisan_order_and_rollback_boundaries()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    };
+    let mut app = TestApp::mysqlConnections(&[("primary", &url), ("reports", &url)], |builder| {
+        builder.withProviders(vec![Box::new(InventoryProvider)])
+    })
+    .await?;
+    app.artisan(["migrate"]).await.assertSuccessful();
+    app.artisan(["migrate", "--database=reports"])
+        .await
+        .assertSuccessful();
+
+    app.seed().await?;
+    app.seedWith(&[]).await?;
+    app.seedOn("reports", Some(&[])).await?;
+    app.assertDatabaseCount("items", 1).await?;
+    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+
+    app.databaseTransactionOn(&["primary", "reports"], |test| {
+        Box::pin(async {
+            test.seedWith(&["Database\\Seeders\\SecondSeeder", "FirstSeeder"])
+                .await?;
+            let order = test
+                .database()
+                .await?
+                .select("SELECT name FROM items ORDER BY id", &[])
+                .await?;
+            assert_eq!(
+                order
+                    .iter()
+                    .map(|row| row.get("name").unwrap())
+                    .collect::<Vec<_>>(),
+                vec![
+                    &Value::from("seeded"),
+                    &Value::from("second"),
+                    &Value::from("first")
+                ],
+            );
+            test.seedOn("reports", None).await?;
+            let error = test
+                .seedOn(
+                    "reports",
+                    Some(&["FirstSeeder", "UnknownSeeder", "SecondSeeder"]),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("db:seed UnknownSeeder exited with 1"),
+                "{error}"
+            );
+            test.assertDatabaseHasOn("items", &[("name", "first".into())], Some("reports"))
+                .await?;
+            test.assertDatabaseMissingOn("items", &[("name", "second".into())], Some("reports"))
+                .await?;
+            test.assertDatabaseCountOn("items", 2, Some("reports"))
+                .await
+        })
+    })
+    .await?;
+    app.assertDatabaseCount("items", 1).await?;
+    app.assertDatabaseEmptyOn("items", Some("reports")).await?;
+
+    // With only the default connection in a test transaction, reports stays independent.
+    app.databaseTransaction(|test| {
+        Box::pin(async {
+            test.seedWith(&["FirstSeeder"]).await?;
+            test.seedOn("reports", Some(&["SecondSeeder"])).await?;
+            Err::<(), _>(std::io::Error::other("stop the test callback").into())
+        })
+    })
+    .await
+    .unwrap_err();
+    app.assertDatabaseMissing("items", &[("name", "first".into())])
+        .await?;
+    app.assertDatabaseHasOn("items", &[("name", "second".into())], Some("reports"))
+        .await?;
+    app.close().await
 }
 
 #[tokio::test]
