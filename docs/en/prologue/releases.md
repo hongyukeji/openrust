@@ -29,11 +29,13 @@ The database rows record release acceptance. PostgreSQL 10–18 results apply to
 
 ## Pending deployment acceptance {#pending-deployment-acceptance}
 
-| Target | Environment or access needed |
-| --- | --- |
-| Windows Docker Desktop | A reachable Windows host with Docker Desktop running Linux containers. The test account must run `docker info`, `docker compose version` and `docker buildx version` and have read/write access to an isolated Windows test directory for the bind mounts. The available Parallels ARM64 guest has no Docker Desktop or usable WSL 2 backend. |
-| Production TLS | The actual HTTPS URL and deployed hostname, a trusted certificate chain, and access to run read-only Artisan commands for the same deployment. TLS 1.2 and 1.3 have passed on the local proxy with a test CA. |
-| Managed AWS SQS Standard and FIFO | Two isolated queue URLs, one Standard and one FIFO, their AWS region, an isolated MySQL batch ledger, and credentials scoped to the queues. The core checks use `sqs:SendMessage` (including batch sends), `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`. Include the session token if using temporary credentials. |
+| Target | Local acceptance | Remaining live acceptance |
+| --- | --- | --- |
+| Windows Docker Desktop | Windows PowerShell parsed Compose profiles and bind paths with spaces. The Windows ARM64 standalone build passed HTTP and Artisan. | A reachable Windows host running the Docker Desktop Linux-container backend and an account able to use Docker, Compose and Buildx and read/write a Windows test directory. Verify a clean build and deployment, read-only public files, persistent writable storage, HTTP and Artisan. |
+| Production TLS | A local proxy verified TLS 1.2/1.3, hostname and CA checks, rejection of a missing intermediate, and leaf rotation on the same endpoint with real HTTP and a Secure session cookie. | Verify the real HTTPS URL, deployed hostname, served chain and protocol policy, the welcome and health routes, and read-only Artisan for the same deployment. |
+| Managed AWS SQS Standard and FIFO | ElasticMQ covered delivery semantics and batch recovery. A separate loopback verifier recomputed SigV4 on real Artisan send, metrics, receive and delete requests for both queues and rejected a missing session token and an invalid signature. | Two isolated queue URLs, one Standard and one FIFO, their region, scoped IAM credentials and an isolated MySQL batch ledger. Verify AWS-side IAM and temporary credentials, queue metrics, redelivery, FIFO deduplication and recovery with real workers. |
+
+Scope the test credentials to `sqs:SendMessage` (including batch sends), `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility` and `sqs:GetQueueAttributes`. Include the session token for temporary credentials.
 
 Queue permissions are listed in the [AWS SQS API reference](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html).
 

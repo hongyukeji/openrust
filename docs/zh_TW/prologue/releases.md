@@ -29,11 +29,13 @@
 
 ## 待實機驗收 {#pending-deployment-acceptance}
 
-| 目標 | 所需環境或權限 |
-| --- | --- |
-| Windows Docker Desktop | 可登入的 Windows 主機，Docker Desktop 正在執行 Linux 容器後端。測試帳戶須能執行 `docker info`、`docker compose version` 和 `docker buildx version`，並能讀寫用於繫結掛載的隔離 Windows 測試目錄。現有 Parallels ARM64 客體沒有 Docker Desktop 和可用的 WSL 2 後端。 |
-| 正式環境 TLS | 實際 HTTPS URL、部署主機名稱、受信任的憑證鏈，以及在同一部署執行唯讀 Artisan 命令的權限。本機反向代理已使用測試 CA 驗證 TLS 1.2 和 1.3。 |
-| 受管 AWS SQS 標準／FIFO | 兩條隔離佇列的 URL（標準與 FIFO 各一）、AWS 區域、隔離的 MySQL 批次帳本，以及僅授予測試佇列權限的憑證。核心檢查需要 `sqs:SendMessage`（含批次傳送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用臨時憑證時需同時設定工作階段權杖。 |
+| 目標 | 已有本機驗收 | 剩餘實機驗收 |
+| --- | --- | --- |
+| Windows Docker Desktop | Windows PowerShell 已解析 Compose profile 和含空格的繫結路徑。Windows ARM64 獨立發佈已通過 HTTP 和 Artisan。 | 需要可登入且執行 Docker Desktop Linux 容器後端的 Windows 主機，測試帳戶可使用 Docker、Compose 和 Buildx，並讀寫隔離的 Windows 測試目錄。實測乾淨建置、部署、唯讀 public、可寫的持續性 storage、HTTP 和 Artisan。 |
+| 正式環境 TLS | 本機代理已驗證 TLS 1.2／1.3、主機名稱與 CA 驗證、缺少中繼憑證時拒絕、同一端點輪替終端憑證、真實 HTTP 與 Secure 工作階段 Cookie。 | 在真實 HTTPS 位址核對部署主機名稱、憑證鏈和協定原則，實測首頁和健康路由，並對同一部署執行唯讀 Artisan。 |
+| 受管 AWS SQS 標準／FIFO | ElasticMQ 已驗證傳遞語意和批次復原。獨立回送端點重新計算兩種佇列的真實 Artisan 傳送、指標、接收及刪除請求的 SigV4，並拒絕缺少工作階段權杖和無效簽章。 | 需要標準與 FIFO 各一條隔離佇列的 URL、對應區域、佇列範圍 IAM 憑證和隔離 MySQL 批次帳本。使用真實 Worker 驗證 AWS 端 IAM 與臨時憑證、佇列指標、重新傳遞、FIFO 去重和失敗復原。 |
+
+測試憑證須限制在測試佇列，具備 `sqs:SendMessage`（含批次傳送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes` 權限。使用臨時憑證時須同時設定工作階段權杖。
 
 佇列權限請參閱 [AWS SQS API 參考](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html)。
 

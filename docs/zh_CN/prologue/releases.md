@@ -29,11 +29,13 @@
 
 ## 待实机验收 {#pending-deployment-acceptance}
 
-| 目标 | 所需环境或权限 |
-| --- | --- |
-| Windows Docker Desktop | 可登录的 Windows 主机，Docker Desktop 正在运行 Linux 容器后端。测试账号须能执行 `docker info`、`docker compose version` 和 `docker buildx version`，并能读写用于绑定挂载的隔离 Windows 测试目录。现有 Parallels ARM64 来宾没有 Docker Desktop 和可用的 WSL 2 后端。 |
-| 生产 TLS | 实际 HTTPS URL、部署主机名、可受信任的证书链，以及在同一部署执行只读 Artisan 命令的权限。本地反向代理已用测试 CA 验证 TLS 1.2 和 1.3。 |
-| 托管 AWS SQS 标准／FIFO | 两条隔离队列的 URL（标准与 FIFO 各一）、AWS 区域、隔离 MySQL 批次账本，以及仅授予测试队列权限的凭据。核心检查需要 `sqs:SendMessage`（包含批量发送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用临时凭据时需同时配置会话令牌。 |
+| 目标 | 已有本地验收 | 剩余实机验收 |
+| --- | --- | --- |
+| Windows Docker Desktop | Windows PowerShell 已解析 Compose profile 和含空格的绑定路径。Windows ARM64 独立发布已通过 HTTP 和 Artisan。 | 需要可登录且运行 Docker Desktop Linux 容器后端的 Windows 主机，测试账号可使用 Docker、Compose 和 Buildx，并读写隔离的 Windows 测试目录。实测干净构建、部署、只读 public、可写持久化 storage、HTTP 和 Artisan。 |
+| 生产 TLS | 本地代理验证了 TLS 1.2／1.3、主机名与 CA 校验、缺少中间证书时拒绝、同一端点轮换叶证书、真实 HTTP 与 Secure 会话 Cookie。 | 在真实 HTTPS 地址核对部署主机名、证书链和协议策略，实测首页和健康路由，并对同一部署运行只读 Artisan。 |
+| 托管 AWS SQS 标准／FIFO | ElasticMQ 已验证投递语义和批次恢复。独立回环端点重算两种队列的真实 Artisan 发送、指标、接收及删除请求的 SigV4，并拒绝缺少会话令牌和无效签名。 | 需要标准与 FIFO 各一条隔离队列的 URL、对应区域、队列范围 IAM 凭据和隔离 MySQL 批次账本。用真实 Worker 验证 AWS 侧 IAM 与临时凭据、队列指标、重投递、FIFO 去重和失败恢复。 |
+
+测试凭据须限制在测试队列，具备 `sqs:SendMessage`（含批量发送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes` 权限。使用临时凭据时须同时配置会话令牌。
 
 队列权限见 [AWS SQS API 参考](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html)。
 

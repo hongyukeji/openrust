@@ -82,6 +82,14 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 
 Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用工作区严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项旧镜像发布矩阵导航检查通过。全量格式检查仍报出基线已有的 `sanctum_authentication.rs` 差异。临时容器、镜像及专用 Buildx 构建器、交叉目标、证书、隔离源码、Cargo 产物和站点已清理。
 
+## 模拟验收补测
+
+以 `4acfcb05b` 的干净归档和 Rust 1.94.0 构建独立应用。08-02 的闭合采用用户确认的 Pusher 协议模拟口径。
+
+- Windows 复核既有 PowerShell／Compose 配置解析、带空格的挂载路径及 Windows ARM64 独立发布的真实 HTTP 和 Artisan。容器内的只读 public、可写 storage 和重建持久化已有 Ubuntu x86_64 实测。Windows Docker Desktop 的文件共享和容器生命周期留给目标后端。 [Docker 专项](docker.md)
+- 本地 TLS 既有用例覆盖 TLS 1.2／1.3、证书信任、主机名和生产模式应用。本次新建根 CA、中间 CA 和两张同名称叶证书。客户端仅信任根 CA，代理漏送中间证书时握手失败，补齐链后首页和 `/up` 返回 200。通过同一 HTTPS 监听器换用新证书，客户端核对不同指纹并再次访问成功，首页的 Secure 会话 Cookie 保留。应用的实际 Artisan 迁移和 `migrate:status` 同时通过。
+- ElasticMQ 已验证标准队列可见性超时和重投递、FIFO 顺序和去重、溢出载荷、批量逐项失败和 SQL 确认失败恢复。本次用独立回环端点和合成临时凭据重算 AWS JSON 请求的 SigV4，核对区域、服务、请求体及签名中的会话令牌。标准和 FIFO 均通过真实 `queue:retry`、`queue:monitor`、`queue:work`，对应发送、指标、接收与删除。模拟端点对缺令牌或错误签名返回 403，Artisan 退出 1。实际 AWS IAM、STS 会话及服务端语义仍待目标环境。 [既有队列验收](../06-03/sqs.md) · [批量与失败验收](../06-03/external-batches.md) · [AWS SigV4](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html)
+
 ## 剩余实机环境复查
 
 - **原生 Linux x86_64** 已复用 Ubuntu 24.04.3 LTS x86_64 主机并验收 `07307c6e1`。完成隔离 Compose 部署、真实 HTTP 和 Artisan、Redis 作业消费、挂载持久化和优雅关停。 [原生 Ubuntu 发布复验](docker.md#原生-ubuntu-x86_64-发布复验)
@@ -91,4 +99,4 @@ Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用�
 
 原生 Ubuntu x86_64 发布复验通过。Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 待目标环境验收。08-04 保持开放。
 
-本轮 Windows 环境复查同步更新三语支持矩阵。三语站点构建、12 项通用浏览器检查和 6 项待验收矩阵检查通过，临时站点已清理。
+三语支持矩阵已同步模拟补测及实机条件。三语站点构建、12 项通用浏览器检查和 6 项矩阵检查通过。模拟服务已退出，隔离源码、构建、证书和站点已清理。
