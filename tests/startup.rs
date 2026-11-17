@@ -716,11 +716,25 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 28);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
-    assert!(!other.0.join("stubs").exists());
+    let other_stubs = other.0.join("stubs");
+    assert!(!other_stubs.exists());
+    assert!(run(&other.0, &["stub:publish"]).status.success());
+    let published = |directory: &Path| {
+        fs::read_dir(directory)
+            .unwrap()
+            .map(|entry| {
+                let entry = entry.unwrap();
+                (entry.file_name(), fs::read(entry.path()).unwrap())
+            })
+            .collect::<std::collections::BTreeMap<_, _>>()
+    };
+    let serial = published(&other_stubs);
+    let mut concurrent = published(&stubs);
+    concurrent.insert("console.rs.stub".into(), original.as_bytes().to_vec());
+    assert_eq!(concurrent, serial);
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
-    assert_eq!(fs::read_to_string(&console).unwrap(), original);
+    assert_eq!(published(&stubs), serial);
 
     for entry in fs::read_dir(&stubs).unwrap() {
         let path = entry.unwrap().path();
@@ -904,6 +918,10 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
     let entry =
         "Box::new(crate::app::providers::reports::report_service_provider::ReportServiceProvider),";
     assert_eq!(registry_text.matches(entry).count(), 1);
+    assert!(
+        registry_text.find("Box::new(AppServiceProvider),").unwrap()
+            < registry_text.find(entry).unwrap()
+    );
     assert!(
         fs::read_to_string(&modules)
             .unwrap()

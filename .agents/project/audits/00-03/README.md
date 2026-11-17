@@ -55,3 +55,10 @@ python3 /tmp/openrust-00-03-evidence/.agents/project/audits/00-03/verify_runtime
 ## 2026-11-12 遗漏回归补交
 
 并行应用 Facade 隔离、注册错误传播、CLI 与程序化命令参数一致，3 项。 与同文件其他单元按测试项拆分。隔离副本用 Rust 1.94.0 锁定离线运行当前分块测试及严格 Clippy，均通过。三语正文沿用原提交。
+
+## Provider 注册与 stub 发布的整合回归
+
+- 在 `59d12d0ea` 的干净归档复验。固定 Laravel 的 `make:provider` 生成服务提供者后追加到 bootstrap 注册文件，`stub:publish` 按其模板清单发布并支持 `--existing`、`--force`。OpenRust 延续旧版生成后更新编译模块与注册列表的方式，沿用现有源码锁和替换机制，补齐标准 Provider 列表的单行形式。保留现有顺序，自定义布局无法识别时提示手动注册。 [固定 Laravel ProviderMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ProviderMakeCommand.php#L39) · [固定 Laravel StubPublishCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/StubPublishCommand.php#L31)
+- 启动集成测试 26 项通过。两个实际进程并发生成同名 Provider 时仅一个成功，注册顺序、重试补注册及自定义 stub 均通过。并发发布的文件名和内容与独立发布的 32 个模板比对，保留用户文件的检查通过。强制重发后所有文件与独立发布字节一致。
+- 在隔离源码中以 `./artisan make:provider Reports/ReportServiceProvider` 生成 Provider，重新编译成功。临时在生成的 `boot` 钩子输出标记，独立 `./artisan inspire` 和运行中的 HTTP 服务均执行了该钩子，`GET /up` 返回 200，服务收到 SIGINT 后退出 0。
+- Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建、12 项通用及 6 项 Provider 文档浏览器检查通过。整仓测试剩余的事件替身回滚断言单独跟踪。临时编译和站点产物已回收，项目卷可用空间净增 7.90 GB（7.35 GiB），清理后为 100.52 GB（93.61 GiB），提交前周额度剩余 37%。日志在 `/private/tmp/openrust-artisan-generators.z0sp1W8I`。

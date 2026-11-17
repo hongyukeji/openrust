@@ -14,7 +14,7 @@
 ./artisan make:provider Reports/ReportServiceProvider
 ```
 
-命令创建 `app/providers/reports/report_service_provider.rs`，声明模块并把 Provider 追加到 `bootstrap/providers.rs`。重新构建后即可使用。可在生成的钩子内添加服务绑定和初始化。
+命令创建 `app/providers/reports/report_service_provider.rs`，声明模块并把 Provider 追加到 `bootstrap/providers.rs`。标准 Provider 列表写成单行或多行均可识别。重新构建后即可使用。可在生成的钩子内添加服务绑定和初始化。
 
 使用 `-f` 或 `--force` 替换 Provider 源码。如果自定义 bootstrap 的列表无法定位，Artisan 会提示手动注册位置。可通过 `stub:publish` 发布并修改 `stubs/provider.rs.stub`。
 

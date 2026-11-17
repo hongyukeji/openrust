@@ -137,23 +137,7 @@ fn generate(root: &Path, name: &str, force: bool) -> Result<PathBuf, ConsoleErro
     let updated = if registered {
         None
     } else {
-        if previous
-            .lines()
-            .filter(|line| line.trim() == "vec![")
-            .count()
-            != 1
-        {
-            return Err(ConsoleError::new(format!(
-                "Cannot locate the provider list in {}. Register {registration} manually.",
-                registry.display()
-            )));
-        }
-        Some(insert_before(
-            &previous,
-            &registry,
-            &registration,
-            |line| line.trim_end_matches(['\r', '\n']) == "    ]",
-        )?)
+        Some(append_registration(&previous, &registry, &registration)?)
     };
 
     let code = Stub::Provider
@@ -175,6 +159,70 @@ fn generate(root: &Path, name: &str, force: bool) -> Result<PathBuf, ConsoleErro
         replace(&registry, &previous, &updated)?;
     }
     Ok(relative)
+}
+
+fn append_registration(
+    source: &str,
+    path: &Path,
+    registration: &str,
+) -> Result<String, ConsoleError> {
+    let manual = || {
+        ConsoleError::new(format!(
+            "Cannot locate the provider list in {}. Register {registration} manually.",
+            path.display()
+        ))
+    };
+    let mut vectors = source
+        .lines()
+        .enumerate()
+        .filter(|(_, line)| line.trim_start().starts_with("vec!["));
+    let (line_number, line) = vectors.next().ok_or_else(&manual)?;
+    if vectors.next().is_some() {
+        return Err(manual());
+    }
+    if line.trim_end() == "    vec![" {
+        return insert_before(source, path, &format!("    {registration}"), |line| {
+            line.trim_end_matches(['\r', '\n']) == "    ]"
+        });
+    }
+
+    let entries = line
+        .trim_end()
+        .strip_prefix("    vec![")
+        .and_then(|line| line.strip_suffix(']'))
+        .ok_or_else(&manual)?
+        .trim();
+    let entries = entries.strip_suffix(',').unwrap_or(entries).trim_end();
+    let newline = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut list = format!("    vec![{newline}");
+    for entry in entries.split(',').filter(|_| !entries.is_empty()) {
+        let entry = entry.trim();
+        let provider = entry
+            .strip_prefix("Box::new(")
+            .and_then(|entry| entry.strip_suffix(')'))
+            .ok_or_else(&manual)?;
+        if provider.is_empty()
+            || !provider
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':' | b'#'))
+        {
+            return Err(manual());
+        }
+        list.push_str(&format!("        {entry},{newline}"));
+    }
+    list.push_str(&format!("        {registration}{newline}    ]"));
+    let offset: usize = source
+        .split_inclusive('\n')
+        .take(line_number)
+        .map(str::len)
+        .sum();
+    let mut updated = source.to_owned();
+    updated.replace_range(offset..offset + line.len(), &list);
+    Ok(updated)
 }
 
 struct ModuleEdit {

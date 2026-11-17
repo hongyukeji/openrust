@@ -14,7 +14,7 @@ From a source checkout, generate a provider and add it to the application’s co
 ./artisan make:provider Reports/ReportServiceProvider
 ```
 
-The command creates `app/providers/reports/report_service_provider.rs`, declares the modules, and appends the provider to `bootstrap/providers.rs`. Rebuild the application before using it. The generated hooks are ready for your service bindings and initialization.
+The command creates `app/providers/reports/report_service_provider.rs`, declares the modules, and appends the provider to `bootstrap/providers.rs`. It recognizes the standard provider list in both single-line and multiline form. Rebuild the application before using it. The generated hooks are ready for your service bindings and initialization.
 
 Use `-f` or `--force` to replace the provider source. If Artisan cannot locate the provider list in a custom bootstrap, it reports where to register the provider. Use `stub:publish` to publish and customize `stubs/provider.rs.stub`.
 

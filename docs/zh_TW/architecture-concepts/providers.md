@@ -14,7 +14,7 @@
 ./artisan make:provider Reports/ReportServiceProvider
 ```
 
-命令建立 `app/providers/reports/report_service_provider.rs`、宣告模組，並將 Provider 加入 `bootstrap/providers.rs` 的清單末端。重新建置後即可使用。可在產生的掛鉤內加入服務綁定和初始化。
+命令建立 `app/providers/reports/report_service_provider.rs`、宣告模組，並將 Provider 加入 `bootstrap/providers.rs` 的清單末端。標準 Provider 清單寫成單行或多行皆可辨識。重新建置後即可使用。可在產生的掛鉤內加入服務綁定和初始化。
 
 使用 `-f` 或 `--force` 取代 Provider 原始碼。若無法定位自訂 bootstrap 的清單，Artisan 會提示手動註冊位置。可透過 `stub:publish` 發佈並修改 `stubs/provider.rs.stub`。
 
