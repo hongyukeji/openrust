@@ -156,3 +156,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - Rust 继续要求加密。MariaDB 11.8.9 双客户端实测仅传 `--ssl` 可退回明文，显式启用服务器验证时拒绝无 TLS 的服务端。因此快照使用 11.4 或更新的客户端，支持默认配置下的 MariaDB 自动验证，以及指定服务器 CA 和主机名的 `verify_identity`。客户端没有等价的仅 CA 模式，快照拒绝 `verify_ca` 并给出配置错误。 [MariaDB 自动 TLS 验证](https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/zero-configuration-ssl)
 - 真实 MariaDB 11.8.9 分别用默认 TLS 和配置 CA 验收实际 Artisan。覆盖快照结构、账本、自增计数、业务行排除、视图、例程、触发器、`--without-migration-data`、`--prune`、无效 SQL 失败和自定义路径下的 `migrate:fresh`。`migrate:refresh` 复验默认快照恢复。实际 HTTP `GET /up` 和独立 `artisan inspire` 均通过。MySQL 8.4.13 原生快照回归通过。
 - Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建及 18 项浏览器检查通过。临时实例、证书和本批隔离产物已回收，磁盘空间净增 2.89 GB（2.69 GiB），可用 105.07 GB（97.86 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-06-mariadb-snapshot.as80uhK5`。
+
+## SQLite Schema 快照
+
+- 对照固定 Laravel v13.40.0 的 `SqliteSchemaState`。快照保存表、视图、索引、触发器、虚拟表和迁移账本，排除业务行、SQLite 内部表和虚拟表影子表。复核旧版 `6d1a81924`，未找到对应的 SQLite 快照接口。 [固定 Laravel SqliteSchemaState](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/SqliteSchemaState.php)
+- Rust 直接在应用的 SQLite 写连接上从 `sqlite_schema` 与 `pragma_table_list` 导出，避免依赖额外的 SQLite 命令行工具，也能在原连接上恢复内存库。SQLite 恢复使用框架事务，迁移前的空账本和快照 DDL 共用该事务。导出沿用临时文件原子替换，并拒绝将输出指向数据库文件及其运行时附属文件。
+- 实际 Artisan 验证文件库、内存库、自定义路径、`migrate:fresh`、`--without-migration-data` 和损坏 SQL 回滚。验证 RTree 结构恢复且影子表由 SQLite 重新建立，索引、视图、触发器和历史账本保留，业务行排除，自增计数重新开始。通过实际 HTTP `GET /up` 和独立 `./artisan inspire`。MySQL 8.4.13 快照端到端回归通过。
+- Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。本批容器与编译、文档产物已回收，磁盘空间净增 3.40 GB（3.16 GiB），可用 105.04 GB（97.83 GiB）。提交前周额度剩余 43%，第二窗口无读数。验收日志与隔离 SQLite 样本保留于 `/private/tmp/openrust-02-06-sqlite-snapshot.cVpDUNZ1`。
+- 下一批按固定 Laravel 补 SQLite 缺库的创建确认。SQL Server 事务与发布版本矩阵继续跟踪。

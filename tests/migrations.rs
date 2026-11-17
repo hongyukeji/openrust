@@ -915,6 +915,144 @@ async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
 }
 
 #[tokio::test]
+async fn sqlite_artisan_dumps_and_restores_schema_and_migration_history() {
+    let source = Root::new();
+    let database = source.connection(None);
+    let migration = application_migrations::entries()[0].path;
+    let name = std::path::Path::new(migration)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    success(source.run("local", None, &["migrate", "--path", migration]));
+    database
+        .unprepared(
+            "CREATE TABLE snapshot_rows (id integer PRIMARY KEY AUTOINCREMENT, label text);
+             CREATE INDEX snapshot_label ON snapshot_rows (label);
+             CREATE VIEW snapshot_view AS SELECT label FROM snapshot_rows;
+             CREATE TRIGGER snapshot_label_trim AFTER INSERT ON snapshot_rows BEGIN
+                 UPDATE snapshot_rows SET label = trim(new.label) WHERE id = new.id;
+             END;
+             CREATE VIRTUAL TABLE snapshot_bounds USING rtree(id, min_x, max_x);
+             INSERT INTO snapshot_rows (id, label) VALUES (99, 'business data to exclude');
+             INSERT INTO snapshot_bounds VALUES (99, 0, 10)",
+        )
+        .await
+        .unwrap();
+    success(source.run("local", None, &["schema:dump"]));
+    let snapshot = source.0.join("database/schema/sqlite-schema.sql");
+    let dump = fs::read_to_string(&snapshot).unwrap();
+    for expected in [
+        "CREATE INDEX snapshot_label",
+        "CREATE TRIGGER snapshot_label_trim",
+        "CREATE VIRTUAL TABLE snapshot_bounds",
+        name,
+    ] {
+        assert!(dump.contains(expected), "{expected}");
+    }
+    for excluded in [
+        "sqlite_sequence",
+        "snapshot_bounds_node",
+        "business data to exclude",
+    ] {
+        assert!(!dump.contains(excluded), "{excluded}");
+    }
+    success(source.run(
+        "local",
+        None,
+        &[
+            "schema:dump",
+            "--without-migration-data",
+            "--path=structure.sql",
+        ],
+    ));
+    assert!(
+        !fs::read_to_string(source.0.join("structure.sql"))
+            .unwrap()
+            .contains(name)
+    );
+    for reserved in ["database/database.sqlite", "database/database.sqlite-wal"] {
+        let result = source.run("local", None, &["schema:dump", "--path", reserved]);
+        assert_eq!(result.status.code(), Some(1));
+        assert!(
+            String::from_utf8_lossy(&result.stderr)
+                .contains("snapshot path is a SQLite database file")
+        );
+    }
+    assert_eq!(database.table("snapshot_rows").count("*").await.unwrap(), 1);
+
+    let target = Root::new();
+    success(target.run("local", None, &["migrate:install"]));
+    fs::write(
+        target.0.join("broken.sql"),
+        "CREATE TABLE partial_snapshot (id int); INVALID SQL;",
+    )
+    .unwrap();
+    let failed = target.run("local", None, &["migrate", "--schema-path=broken.sql"]);
+    assert_eq!(failed.status.code(), Some(1));
+    let restored = target.connection(None);
+    let mut schema = restored.getSchemaBuilder();
+    assert!(!schema.hasTable("partial_snapshot").await.unwrap());
+    assert_eq!(restored.table("migrations").count("*").await.unwrap(), 0);
+    let path = snapshot.to_str().unwrap();
+    let options = ["migrate", "--schema-path", path, "--path", migration];
+    let output = success(target.run("local", None, &options));
+    assert!(output.contains("Loading stored database schemas."));
+    assert!(output.contains("Nothing to migrate."));
+    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert_eq!(restored.table("migrations").count("*").await.unwrap(), 1);
+    assert_eq!(restored.table("snapshot_rows").count("*").await.unwrap(), 0);
+    assert_eq!(
+        restored.table("snapshot_bounds").count("*").await.unwrap(),
+        0
+    );
+    restored
+        .statement(
+            "INSERT INTO snapshot_rows (label) VALUES (' trimmed ')",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        restored
+            .table("snapshot_view")
+            .value("label")
+            .await
+            .unwrap(),
+        "trimmed".into()
+    );
+    assert_eq!(
+        restored.table("snapshot_rows").value("id").await.unwrap(),
+        1.into()
+    );
+    let fresh = success(target.run(
+        "local",
+        None,
+        &[
+            "migrate:fresh",
+            "--drop-views",
+            "--schema-path",
+            path,
+            "--path",
+            migration,
+        ],
+    ));
+    assert!(fresh.contains("Loading stored database schemas."));
+    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert_eq!(restored.table("snapshot_rows").count("*").await.unwrap(), 0);
+
+    let memory = success(
+        target
+            .command("local", None, &options)
+            .env("DB_DATABASE", ":memory:")
+            .output()
+            .unwrap(),
+    );
+    assert!(memory.contains("Loading stored database schemas."));
+    assert!(memory.contains("Nothing to migrate."));
+}
+
+#[tokio::test]
 async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

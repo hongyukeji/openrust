@@ -18,6 +18,8 @@ For MariaDB, use `./artisan schema:dump --database=mariadb`. Export and restore 
 
 For PostgreSQL, `./artisan schema:dump --database=pgsql` uses `pg_dump` to export SQL definitions and the migration ledger. Restoration uses `psql` for SQL files and `pg_restore` for PostgreSQL archives. Use a `.sql` extension for a custom dump path and install the corresponding clients on PATH. If the connection has a direct endpoint, the tools use it, and the default filename uses the configured connection name.
 
+For SQLite, run `./artisan schema:dump --database=sqlite`. The snapshot preserves tables, indexes, views, triggers, virtual tables, and migration history. It leaves out application rows, internal SQLite tables, and virtual-table shadow tables, which SQLite recreates. OpenRust uses its SQLite connection for export and restore, including restoration into an in-memory database. Restore runs in a framework-managed transaction. Custom snapshot scripts should leave transaction control to the framework.
+
 ```sh
 ./artisan schema:dump --database=mysql
 ./artisan migrate --database=mysql

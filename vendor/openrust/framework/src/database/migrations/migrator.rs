@@ -283,13 +283,11 @@ impl Migrator {
             if let Some(path) =
                 self.schema_to_load(schema_connection_name(&connection), schema_path)?
             {
-                if connection.pools.generation()?.schema_credentials.is_none() {
-                    return Err(schema_state::UNSUPPORTED);
-                }
-                if installed {
+                schema_state::ensure_supported(&connection)?;
+                if installed && !connection.is_sqlite() {
                     repository.delete_repository().await?;
                 }
-                schema_state::load(&connection, &path).await?;
+                schema_state::load(&connection, &path, installed.then_some(&self.table)).await?;
                 installed = repository.repository_exists().await?;
                 if installed {
                     ran = repository.get_ran().await?;

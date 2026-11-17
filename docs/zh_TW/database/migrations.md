@@ -18,6 +18,8 @@ OpenRust 在建置時自動探索 `database/migrations/` 中的 Rust 遷移。�
 
 對 PostgreSQL 執行 `./artisan schema:dump --database=pgsql`，由 `pg_dump` 匯出 SQL 定義及遷移帳本。還原 SQL 檔案使用 `psql`，還原 PostgreSQL 封存檔使用 `pg_restore`。自訂傾印路徑使用 `.sql` 副檔名，並將對應的用戶端加入 PATH。設定直連端點時，工具使用該端點，預設檔名取設定中的連線名稱。
 
+對 SQLite 執行 `./artisan schema:dump --database=sqlite`。快照儲存資料表、索引、檢視表、觸發器、虛擬表及遷移帳本，排除業務資料列、SQLite 內部表和虛擬表影子表。影子表由 SQLite 在還原時重建。OpenRust 使用內建 SQLite 連線匯出與還原，支援還原至記憶體資料庫。還原由框架開啟交易，自訂快照指令碼應由框架統一控制交易。
+
 ```sh
 ./artisan schema:dump --database=mysql
 ./artisan migrate --database=mysql

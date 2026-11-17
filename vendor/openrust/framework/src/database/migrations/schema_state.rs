@@ -12,10 +12,20 @@ use tokio::process::Command;
 use crate::database::{Connection, DatabaseError, DatabaseResult, connection::Pool};
 
 mod postgres;
+mod sqlite;
 
-pub(super) const UNSUPPORTED: DatabaseError = DatabaseError::UnsupportedSchema(
-    "schema snapshots require a MySQL, MariaDB, or PostgreSQL write connection",
+const UNSUPPORTED: DatabaseError = DatabaseError::UnsupportedSchema(
+    "schema snapshots require a SQLite, MySQL, MariaDB, or PostgreSQL write connection",
 );
+
+pub(super) fn ensure_supported(connection: &Connection) -> DatabaseResult<()> {
+    if connection.query_role == Some(crate::database::events::QueryRole::Read)
+        || (!connection.is_sqlite() && connection.pools.generation()?.schema_credentials.is_none())
+    {
+        return Err(UNSUPPORTED);
+    }
+    Ok(())
+}
 
 pub(in crate::database) struct SchemaCredentials {
     pub password: String,
@@ -34,24 +44,27 @@ pub(super) async fn dump(
     path: &Path,
     migration_table: Option<&str>,
 ) -> DatabaseResult<()> {
+    ensure_supported(connection)?;
     let generation = connection.pools.generation()?;
-    let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     fs::create_dir_all(parent).map_err(DatabaseError::SchemaIo)?;
     let mut staging = tempfile::NamedTempFile::new_in(parent).map_err(DatabaseError::SchemaIo)?;
-    if let Pool::Postgres(pool) = &generation.writer {
+    if connection.is_sqlite() {
+        sqlite::dump(connection, path, migration_table, staging.as_file_mut()).await?;
+    } else if let Pool::Postgres(pool) = &generation.writer {
         postgres::dump(
             connection,
             pool,
-            credentials,
+            generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?,
             migration_table,
             staging.as_file_mut(),
         )
         .await?;
     } else {
+        let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
         let state =
             SchemaState::resolve(&generation.writer, credentials, connection.is_mariadb()).await?;
         dump_mysql(connection, &state, migration_table, staging.as_file_mut()).await?;
@@ -108,7 +121,14 @@ async fn dump_mysql(
     Ok(())
 }
 
-pub(super) async fn load(connection: &Connection, path: &Path) -> DatabaseResult<()> {
+pub(super) async fn load(
+    connection: &Connection,
+    path: &Path,
+    empty_ledger: Option<&str>,
+) -> DatabaseResult<()> {
+    if connection.is_sqlite() {
+        return sqlite::load(connection, path, empty_ledger).await;
+    }
     let generation = connection.pools.generation()?;
     let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
     if let Pool::Postgres(pool) = &generation.writer {
