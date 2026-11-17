@@ -1323,7 +1323,15 @@ async fn redis_cluster_tags_flush_and_prune() {
     let evicted_generation = "0123456789abcdef0123456789abcdef";
     assert!(!exists(&format!("{prefix}index:{tag}:{evicted_generation}")).await);
     connection
-        .command("SADD", &[pending.as_bytes(), evicted_generation.as_bytes()])
+        .command(
+            "SADD",
+            &[
+                pending.as_bytes(),
+                evicted_generation.as_bytes(),
+                b"malformed",
+                b"\xff",
+            ],
+        )
         .await
         .unwrap();
     let registry = format!("{prefix}indexes");
@@ -1343,7 +1351,13 @@ async fn redis_cluster_tags_flush_and_prune() {
         RedisValue::Int(0)
     );
     assert!(exists(&retired_value).await);
-    assert!(exists(&pending).await);
+    assert_eq!(
+        connection
+            .command("SCARD", &[pending.as_bytes()])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
     assert_eq!(count(&retired_index).await, RedisValue::Int(1));
     connection
         .command("DEL", &[retired_value.as_bytes()])

@@ -252,14 +252,22 @@ impl RedisTagSet {
                         .arg(BATCH_SIZE),
                 )
                 .await?;
+            let mut invalid = Vec::new();
             for generation in &generations {
-                if let Ok(id) = std::str::from_utf8(generation)
-                    && valid_digest(id, 32)
-                {
-                    let index = format!("{index_prefix}{tag}:{id}");
-                    self.cleanup(registry, &index, pending, id, &[], false)
-                        .await?;
-                }
+                let Some(id) = std::str::from_utf8(generation)
+                    .ok()
+                    .filter(|id| valid_digest(id, 32))
+                else {
+                    invalid.push(generation.as_slice());
+                    continue;
+                };
+                let index = format!("{index_prefix}{tag}:{id}");
+                self.cleanup(registry, &index, pending, id, &[], false)
+                    .await?;
+            }
+            for batch in invalid.chunks(BATCH_SIZE) {
+                self.query::<u64>(::redis::cmd("SREM").arg(pending).arg(batch))
+                    .await?;
             }
             if next == 0 {
                 return Ok(());
