@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::database::{DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{Builder, Executor};
-use crate::database::query::{Record, UpsertUpdate, ValueOperand, grammars::Grammar};
+use crate::database::query::{Record, UpdateValue, UpsertUpdate, ValueOperand, grammars::Grammar};
 
 mod json;
 
@@ -275,6 +275,28 @@ impl Builder<'_> {
         self.update_values(values, Record::new(), "+").await
     }
 
+    /// Updates column values using bound data, expressions, or scalar subqueries.
+    pub async fn updateWith(
+        self,
+        values: BTreeMap<String, UpdateValue<'_, '_>>,
+    ) -> DatabaseResult<u64> {
+        let values = values
+            .into_iter()
+            .map(|(column, value)| {
+                let value = match value {
+                    UpdateValue::Operand(value) => value,
+                    UpdateValue::Subquery(query) => {
+                        let mut expression = self.subquery_expression(query)?;
+                        expression.sql = format!("({})", expression.sql);
+                        ValueOperand::Expression(expression)
+                    }
+                };
+                Ok((column, value))
+            })
+            .collect::<DatabaseResult<BTreeMap<_, _>>>()?;
+        self.update_values(values, Record::new(), "+").await
+    }
+
     /// Updates a PostgreSQL target using joined sources in the FROM clause.
     pub async fn updateFrom<V: Into<ValueOperand>>(
         mut self,
@@ -344,9 +366,9 @@ impl Builder<'_> {
         self.update_values(extra, columns, "-").await
     }
 
-    async fn update_values(
+    async fn update_values<V: Into<ValueOperand>>(
         mut self,
-        mut values: Record,
+        mut values: BTreeMap<String, V>,
         arithmetic: Record,
         operator: &str,
     ) -> DatabaseResult<u64> {

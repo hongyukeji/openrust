@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 05:40（北京时间）02-04 [更新表达式与标量子查询](audits/02-04/README.md#更新表达式与标量子查询)。真实 MySQL 8.4.13、MariaDB 11.8.9、PostgreSQL 18.6、SQL Server 2022、SQLite，四驱动 HTTP／Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 05:34（北京时间）02-04 [查询原生锁定子句](audits/02-04/README.md#查询原生锁定子句)。真实 MySQL 8.4.13、PostgreSQL 18.6、SQL Server 2022 的双事务锁定和三驱动 HTTP／Artisan，全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 05:27（北京时间）02-04 [查询索引提示](audits/02-04/README.md#查询索引提示)。真实 MySQL 8.4.13、MariaDB 11.8.9、SQL Server 2022、SQLite 与三驱动 HTTP／Artisan，全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 05:20（北京时间）02-04 [交叉联结与固定顺序联结](audits/02-04/README.md#交叉联结与固定顺序联结)。真实 MySQL 8.4.13 与 MariaDB 11.8.9、双驱动 HTTP 与独立 Artisan、MySQL 查询与写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。

@@ -52,17 +52,28 @@ pub(super) fn compile_assignments<V: Into<ValueOperand>>(
     for (field, changes) in json {
         let column = write_column(grammar, &field)?;
         if grammar.is_mysql() {
-            let pair = if grammar.is_mariadb() {
-                "?, json_extract(?, '$')"
+            let literal = if grammar.is_mariadb() {
+                "json_extract(?, '$')"
             } else {
-                "?, cast(? as json)"
+                "cast(? as json)"
             };
-            let pairs = vec![pair; changes.len()].join(", ");
-            assignments.push(format!("{column} = json_set({column}, {pairs})"));
+            let mut sql = format!("{column} = json_set({column}");
             for (path, value) in changes {
                 bindings.push(mysql_path(&path)?.into());
-                bindings.push(json_value(value)?.to_string().into());
+                sql.push_str(", ?, ");
+                match value {
+                    ValueOperand::Expression(expression) => {
+                        sql.push_str(&expression.sql);
+                        bindings.extend(expression.bindings);
+                    }
+                    value => {
+                        sql.push_str(literal);
+                        bindings.push(json_value(value)?.to_string().into());
+                    }
+                }
             }
+            sql.push(')');
+            assignments.push(sql);
         } else if grammar.is_postgres() {
             assignments.push(postgres_assignment(
                 &column,

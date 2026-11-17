@@ -439,6 +439,41 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標列。
 
+### 更新運算式與純量子查詢 {#update-expressions}
+
+使用 `updateWith` 混合繫結值、可信的 SQL `Expression` 與 `UpdateValue::Subquery` 指派。透過目標建構器的 `subquery` 建立關聯子查詢，資料庫為每筆相符資料求值，並依自身規則處理空結果或多筆結果。MySQL、MariaDB 與 PostgreSQL 的 JSON 路徑支援運算式。SQLite 合併修補接收字面值。
+
+```rust
+use std::collections::BTreeMap;
+
+use openrust::database::{
+    Connection, DatabaseResult,
+    query::{Expression, UpdateValue},
+};
+
+pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult<u64> {
+    let accounts = connection.table("accounts as a");
+    let credits = accounts
+        .subquery("entries as e")
+        .selectRaw("sum(amount)", vec![])
+        .whereColumn("e.account_id", "=", "a.id")
+        .r#where("e.state", "=", "posted");
+
+    accounts
+        .r#where("a.id", "=", id)
+        .updateWith(BTreeMap::from([
+            ("credits".into(), UpdateValue::Subquery(&credits)),
+            (
+                "note".into(),
+                Expression::new("coalesce(?, 'pending')")
+                    .with_bindings(vec!["refreshed".into()])
+                    .into(),
+            ),
+        ]))
+        .await
+}
+```
+
 ### PostgreSQL 聯結來源更新 {#postgresql-update-from}
 
 在 PostgreSQL 上呼叫 `updateFrom`，依聯結來源更新目標資料表。PostgreSQL 在 `FROM` 中列出來源，並將聯結條件接在 `WHERE` 的查詢條件之後。與 Laravel 相同，此寫法會忽略排序、限額與位移。繫結一般值可使用 `Record`。需要混合繫結值與可信的 SQL 運算式時使用 `ValueOperand`。

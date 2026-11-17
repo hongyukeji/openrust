@@ -5,7 +5,7 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseManager, Value,
         events::QueryBindings,
-        query::{Expression, Record, UpsertUpdate, ValueOperand},
+        query::{Expression, Record, UpdateValue, UpsertUpdate, ValueOperand},
     },
 };
 use serde_json::{Value as Json, json};
@@ -31,6 +31,175 @@ fn mysql_url() -> Option<String> {
     let url = std::env::var("OPENRUST_TEST_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     url
+}
+
+#[tokio::test]
+async fn update_assignments_accept_values_expressions_and_scalar_queries() {
+    let sqlite = connection(json!({"driver":"sqlite","database":":memory:","prefix":"app_"}));
+    let postgres = std::env::var("OPENRUST_TEST_POSTGRES_UPDATE_VALUES_URL").ok();
+    assert!(
+        postgres.is_some() || std::env::var_os("OPENRUST_REQUIRE_POSTGRES_UPDATE_VALUES").is_none()
+    );
+    let sql_server = std::env::var("OPENRUST_TEST_SQL_SERVER_URL").ok();
+    assert!(sql_server.is_some() || std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+    let mut databases = vec![(sqlite, "sqlite", "text")];
+    for (url, driver, json_type) in [
+        (mysql_url(), "mysql", "json"),
+        (
+            std::env::var("OPENRUST_TEST_MARIADB_UPDATE_VALUES_URL").ok(),
+            "mariadb",
+            "json",
+        ),
+        (postgres, "pgsql", "jsonb"),
+        (sql_server, "sqlsrv", "nvarchar(max)"),
+    ] {
+        if let Some(url) = url {
+            databases.push((
+                connection(json!({"url":url,"prefix":"app_"})),
+                driver,
+                json_type,
+            ));
+        }
+    }
+
+    for (db, driver, json_type) in databases {
+        for sql in [
+            format!("create table app_credit_accounts (id int primary key, credits int, enabled int, note varchar(40), options {json_type})"),
+            "create table app_credit_events (account_id int, amount int, state varchar(40))".into(),
+            "insert into app_credit_accounts values (1,0,0,'original','{}'), (2,0,0,'original','{}'), (3,0,0,'original','{}')".into(),
+            "insert into app_credit_events values (1,5,'posted'), (2,4,'posted'), (2,5,'posted'), (2,99,'draft')".into(),
+        ] {
+            db.unprepared(&sql).await.unwrap();
+        }
+        let mut transaction = db.beginTransaction().await.unwrap();
+        let accounts = transaction.table("credit_accounts as a");
+        let credits = accounts
+            .subquery("credit_events as e")
+            .selectRaw("sum(amount)", vec![])
+            .whereColumn("e.account_id", "=", "a.id")
+            .r#where("e.state", "=", "posted");
+        db.enableQueryLog();
+        assert_eq!(
+            accounts
+                .r#where("a.id", ">", 1)
+                .orderBy("a.id", "asc")
+                .limit(1)
+                .updateWith(BTreeMap::from([
+                    ("credits".into(), UpdateValue::Subquery(&credits)),
+                    ("enabled".into(), 1.into()),
+                    (
+                        "note".into(),
+                        Expression::new("coalesce(?, 'unset')")
+                            .with_bindings(vec!["posted total".into()])
+                            .into()
+                    ),
+                ]))
+                .await
+                .unwrap(),
+            1,
+            "{driver}"
+        );
+        let log = &db.getQueryLog()[0];
+        assert!(log.query.contains(" = (select sum(amount)"), "{driver}");
+        assert!(matches!(&log.bindings, QueryBindings::Positional(values)
+            if values == &["posted".into(), 1.into(), "posted total".into(), 1.into()]));
+        let row = transaction
+            .table("credit_accounts")
+            .r#where("id", "=", 2)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.get("credits"), Some(&9.into()));
+        assert_eq!(row.get("enabled"), Some(&1.into()));
+        assert_eq!(row.get("note"), Some(&"posted total".into()));
+        assert_eq!(
+            transaction
+                .table("credit_accounts")
+                .r#where("id", "=", 3)
+                .value("credits")
+                .await
+                .unwrap(),
+            0.into()
+        );
+        transaction.rollBack(None).await.unwrap();
+        assert_eq!(
+            db.table("credit_accounts")
+                .r#where("id", "=", 2)
+                .value("credits")
+                .await
+                .unwrap(),
+            0.into()
+        );
+
+        let account = db.table("credit_accounts as a").r#where("a.id", "=", 3);
+        let empty = account
+            .subquery("credit_events as e")
+            .select(["e.amount"])
+            .whereColumn("e.account_id", "=", "a.id");
+        account
+            .updateWith(BTreeMap::from([(
+                "credits".into(),
+                UpdateValue::Subquery(&empty),
+            )]))
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table("credit_accounts")
+                .r#where("id", "=", 3)
+                .value("credits")
+                .await
+                .unwrap(),
+            Value::Null
+        );
+
+        let foreign = connection(json!({"driver":"sqlite","database":":memory:"}));
+        assert!(matches!(
+            db.table("credit_accounts")
+                .updateWith(BTreeMap::from([(
+                    "credits".into(),
+                    UpdateValue::Subquery(&foreign.table("outside"))
+                ),]))
+                .await,
+            Err(DatabaseError::InvalidQuery("subquery connection"))
+        ));
+
+        if matches!(driver, "mysql" | "mariadb" | "pgsql") {
+            let expression = if driver == "pgsql" {
+                "to_jsonb(cast(? as text))"
+            } else {
+                "concat(?, '')"
+            };
+            assert_eq!(
+                db.table("credit_accounts")
+                    .r#where("id", "=", 2)
+                    .updateWith(BTreeMap::from([
+                        (
+                            "options->label".into(),
+                            Expression::new(expression)
+                                .with_bindings(vec!["posted".into()])
+                                .into()
+                        ),
+                        ("options->rank".into(), 2.into()),
+                    ]))
+                    .await
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                db.table("credit_accounts")
+                    .whereJsonContains("options->label", json!("posted"))
+                    .value("id")
+                    .await
+                    .unwrap(),
+                2.into()
+            );
+        }
+        db.unprepared("drop table app_credit_events").await.unwrap();
+        db.unprepared("drop table app_credit_accounts")
+            .await
+            .unwrap();
+    }
 }
 
 #[tokio::test]

@@ -439,6 +439,41 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
 
+### Update expressions and scalar subqueries {#update-expressions}
+
+Use `updateWith` to mix bound values, trusted SQL `Expression` values, and `UpdateValue::Subquery` assignments. Build a correlated subquery with `subquery` on the target builder. The database evaluates it for each matching row and determines the result of an empty or multi-row subquery. For JSON paths, MySQL, MariaDB, and PostgreSQL also accept expressions. SQLite merge patches accept literal values.
+
+```rust
+use std::collections::BTreeMap;
+
+use openrust::database::{
+    Connection, DatabaseResult,
+    query::{Expression, UpdateValue},
+};
+
+pub async fn refresh_credits(connection: &Connection, id: i64) -> DatabaseResult<u64> {
+    let accounts = connection.table("accounts as a");
+    let credits = accounts
+        .subquery("entries as e")
+        .selectRaw("sum(amount)", vec![])
+        .whereColumn("e.account_id", "=", "a.id")
+        .r#where("e.state", "=", "posted");
+
+    accounts
+        .r#where("a.id", "=", id)
+        .updateWith(BTreeMap::from([
+            ("credits".into(), UpdateValue::Subquery(&credits)),
+            (
+                "note".into(),
+                Expression::new("coalesce(?, 'pending')")
+                    .with_bindings(vec!["refreshed".into()])
+                    .into(),
+            ),
+        ]))
+        .await
+}
+```
+
 ### PostgreSQL updates from joined sources {#postgresql-update-from}
 
 Use `updateFrom` on PostgreSQL to update a target using joined sources. PostgreSQL lists the sources in `FROM` and applies their join conditions after the query predicates in `WHERE`. As in Laravel, this form ignores ordering, limit, and offset. Use a `Record` for bound values or `ValueOperand` to mix bound values with trusted SQL expressions.
