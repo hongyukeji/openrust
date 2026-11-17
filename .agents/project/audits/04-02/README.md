@@ -74,3 +74,11 @@
 - PHP 8.5 在固定源码上验证摘要、缓存头、弱 ETag、时间条件及优先级、POST 和错误响应跳过、流式行为、通配符及显式 ETag。真实 HTTP 另覆盖日期配置、重复条件头、删除多个响应头及带引号的扩展缓存指令。
 - 隔离基线 `378d13609` 上使用 Rust 1.94.0 通过请求和响应回归 12 项、应用 HTTP 回归 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。改动文件格式通过，全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。验收日志保留于 `/private/tmp/openrust-04-02-cache-headers.spf4Ki9x`。
 - 04-02 保持开放。下一批核对文件与其他响应工厂，后续核对响应宏和流式差异。
+
+## 视图、JSONP、Markdown 与空响应
+
+- 对照固定 `ResponseFactory` 的 `view`、`jsonp`、`markdown`、`noContent` 与 Symfony 7.4.0 的 JSONP 和内容准备。旧版 `v0.x` 的 `NoContent` 属于 HTTP 200 业务响应封装，现有 `Response::empty` 已提供 HTTP 空响应基础。复用当前 Blade 渲染和 `View::first`，以 `Response::view` 显式传入请求上下文、状态和响应头。 [Laravel 响应工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResponseFactory.php) · [Laravel 其他响应类型](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#other-response-types)
+- JSONP 校验点分名称、方括号字面量键和保留字，发送 `/**/callback(json);` 与 UTF-8 JavaScript 响应头。回调含控制字符或 Unicode 行分隔符时拒绝。无效回调映射为 `InvalidRequest` 和 HTTP 400，上游抛出 `InvalidArgumentException`。使用 `None` 时沿用普通 JSON 响应。Markdown 发送原文，`noContent()` 对应默认 204，其他状态使用 `empty(status)`。
+- PHP 8.5 对照固定代码验证 Unicode 回调与载荷转义、缺省回调、无效回调、Markdown 类型与正文、空响应及视图候选列表与响应元数据。真实 HTTP 验证 Blade 回退模板、变量转义、状态和响应头，并覆盖 HEAD 与无正文状态。
+- 隔离基线 `21fa32269` 上使用 Rust 1.94.0 通过请求与响应 13 项、视图 5 项和应用 HTTP 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-response-factory.xmTozYkc`。
+- 04-02 保持开放。下一批核对 `file`／`download` 的二进制文件响应、条件请求、Range 与下载处置头。响应宏及流式差异继续跟踪。

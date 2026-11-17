@@ -1,8 +1,11 @@
 use axum::body::Bytes;
-use http::{HeaderName, HeaderValue, header::CONTENT_TYPE};
+use http::{
+    HeaderName, HeaderValue,
+    header::{CONTENT_LENGTH, CONTENT_TYPE},
+};
 use serde::Serialize;
 
-use super::{Body, HeaderMap, HttpError, Method, ResponseParts, StatusCode};
+use super::{Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode};
 
 /// An outgoing HTTP response with owned metadata and body.
 pub struct Response {
@@ -22,6 +25,41 @@ impl Response {
         Self::new(status, Body::empty())
     }
 
+    /// Creates an empty 204 response. Use `empty` to select another status.
+    #[allow(non_snake_case, reason = "Matches Laravel's response factory API")]
+    pub fn noContent() -> Self {
+        Self::empty(StatusCode::NO_CONTENT)
+    }
+
+    /// Returns Markdown source for the client to render.
+    pub fn markdown(status: StatusCode, content: impl Into<String>) -> Self {
+        if !Self::allows_body(status) {
+            return Self::empty(status);
+        }
+        Self::new(status, Body::from(content.into())).header(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/markdown; charset=utf-8"),
+        )
+    }
+
+    /// Renders a view in the current request with the supplied status and headers.
+    pub fn view(
+        status: StatusCode,
+        view: crate::view::View,
+        headers: HeaderMap,
+        request: &mut Request,
+    ) -> HttpFuture<'_, Result<Self, HttpError>> {
+        Box::pin(async move {
+            let mut response = view.render(request).await?.withHeaders(headers);
+            response.parts.status = status;
+            if !Self::allows_body(status) {
+                response.body = Body::empty();
+                response = response.withoutHeaders([CONTENT_TYPE, CONTENT_LENGTH]);
+            }
+            Ok(response)
+        })
+    }
+
     pub fn json(status: StatusCode, data: impl Serialize) -> Result<Self, HttpError> {
         Self::json_with(status, || {
             serde_json::to_vec(&data).map_err(|source| HttpError::Internal {
@@ -34,14 +72,17 @@ impl Response {
         status: StatusCode,
         encode: impl FnOnce() -> Result<Vec<u8>, HttpError>,
     ) -> Result<Self, HttpError> {
-        if status.is_informational()
-            || matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
-        {
+        if !Self::allows_body(status) {
             return Ok(Self::empty(status));
         }
         let bytes = encode()?;
         Ok(Self::new(status, Body::from(bytes))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
+    }
+
+    pub(super) fn allows_body(status: StatusCode) -> bool {
+        !status.is_informational()
+            && !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
     }
 
     pub fn stream<T, E>(

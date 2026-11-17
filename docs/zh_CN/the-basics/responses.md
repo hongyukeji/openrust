@@ -106,6 +106,24 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 
 向 `withInput` 传入 `None` 时，读取请求的表单或 JSON 字段和查询参数。上传文件会被排除。使用 `onlyInput` 或 `exceptInput` 按点路径筛选字段。下一次请求可用 `request.old(Some("name"))` 读取旧输入，并从会话读取闪存值。
 
+## 其他响应类型 {#other-response-types}
+
+### 视图响应 {#view-responses}
+
+用 `Response::view` 渲染已准备好的视图，并指定状态码和响应头。可以传入 `view("name")`，也可以用 `View::first` 门面选择第一个可用模板。渲染保留当前请求的上下文。
+
+### JSONP 响应 {#jsonp-responses}
+
+用 `Response::jsonp(status, Some(callback), data)` 将 JSON 数据传给 JavaScript 回调。回调名支持点分名称和方括号字面量键。无效回调名返回 HTTP 400。传入 `None` 返回普通 JSON 响应。
+
+### Markdown 响应 {#markdown-responses}
+
+用 `Response::markdown(status, content)` 发送 Markdown 源文本，媒体类型为 `text/markdown; charset=utf-8`。由客户端决定如何渲染。
+
+### 空响应 {#empty-responses}
+
+用 `Response::noContent()` 返回无正文的 HTTP 204。用 `Response::empty(status)` 指定其他状态码，用 `withHeaders` 附加响应头。
+
 ## 流式响应 {#streamed-responses}
 
 ### 流式 JSON 响应 {#streamed-json-responses}

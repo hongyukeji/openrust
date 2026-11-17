@@ -106,6 +106,24 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 
 Pass `None` to `withInput` to read form or JSON fields and query parameters from the request. Uploaded files are excluded. Use `onlyInput` or `exceptInput` to select fields by dot path. The next request can read old input with `request.old(Some("name"))` and flashed values from the session.
 
+## Other Response Types {#other-response-types}
+
+### View Responses {#view-responses}
+
+Use `Response::view` to render a prepared view with a status and headers. Pass a view from `view("name")` or select the first available template with the `View::first` facade. Rendering preserves the current request context.
+
+### JSONP Responses {#jsonp-responses}
+
+Use `Response::jsonp(status, Some(callback), data)` to send a JavaScript callback with JSON data. A callback may use dotted names and literal bracket keys. Invalid callback names produce HTTP 400. Passing `None` returns an ordinary JSON response.
+
+### Markdown Responses {#markdown-responses}
+
+Use `Response::markdown(status, content)` to send Markdown source with `text/markdown; charset=utf-8`. Clients decide how to render it.
+
+### Empty Responses {#empty-responses}
+
+Use `Response::noContent()` for an empty HTTP 204 response. Use `Response::empty(status)` to select another status and `withHeaders` to attach headers.
+
 ## Streamed Responses {#streamed-responses}
 
 ### Streamed JSON Responses {#streamed-json-responses}

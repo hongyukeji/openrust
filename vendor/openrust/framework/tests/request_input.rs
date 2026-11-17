@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
@@ -128,6 +128,49 @@ fn stream_download(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     Box::pin(async {
         let content = futures_util::stream::iter([Ok::<_, std::io::Error>("first"), Ok("second")]);
         Response::streamDownload(content, Some("résumé.txt"), HeaderMap::new(), "attachment")
+    })
+}
+
+fn response_factory(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use axum::http::{HeaderName, HeaderValue};
+    use openrust::support::facades::View;
+
+    Box::pin(async move {
+        match request.uri().path() {
+            "/response.jsonp" => {
+                let callback = request.query(Some("callback"))?;
+                let callback = callback
+                    .as_ref()
+                    .map(|value| value.as_str().ok_or(HttpError::InvalidRequest))
+                    .transpose()?;
+                Response::jsonp(StatusCode::OK, callback, "café / 😀 </script>")
+            }
+            "/response.md" => {
+                let status = if request.query(Some("empty"))?.is_some() {
+                    StatusCode::NOT_MODIFIED
+                } else {
+                    StatusCode::ACCEPTED
+                };
+                Ok(Response::markdown(status, "# Heading\n"))
+            }
+            "/response-empty" => Ok(Response::noContent().header(
+                HeaderName::from_static("x-probe"),
+                HeaderValue::from_static("empty"),
+            )),
+            _ => {
+                let view = View::first(&["missing", "answer"], Default::default())
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?
+                    .with("name", "<Ada>");
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    HeaderName::from_static("x-probe"),
+                    HeaderValue::from_static("view"),
+                );
+                Response::view(StatusCode::CREATED, view, headers, request).await
+            }
+        }
     })
 }
 
@@ -287,7 +330,11 @@ async fn transport(
 }
 
 async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>) {
-    let app = Application::configure(std::env::temp_dir())
+    start_at(label, std::env::temp_dir()).await
+}
+
+async fn start_at(label: &'static str, root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    let app = Application::configure(root)
         .withProviders(vec![Box::new(Provider(label))])
         .withRouting(Routing::default().web(|| {
             Route::r#match(
@@ -328,6 +375,14 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
             Route::get("/stream.json", stream_json)?;
             Route::get("/stream.events", event_stream)?;
             Route::get("/stream.download", stream_download)?;
+            for path in [
+                "/response.jsonp",
+                "/response.md",
+                "/response-empty",
+                "/response-view",
+            ] {
+                Route::get(path, response_factory)?;
+            }
             Route::group(
                 RouteGroup::default().middleware_name(
                     "cache.headers:public;max_age=2628000;etag;last_modified=1704067200",
@@ -1161,5 +1216,71 @@ async fn real_http_removes_headers_and_applies_cache_validators() {
         let (headers, _) = send(address, method, path, "", b"", status).await;
         assert!(!headers.contains("\r\ncache-control:") && !headers.contains("\r\netag:"));
     }
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_serves_jsonp_markdown_empty_and_view_responses() {
+    let root = tempfile::tempdir().unwrap();
+    let views = root.path().join("resources/views");
+    std::fs::create_dir_all(&views).unwrap();
+    std::fs::write(views.join("answer.blade.html"), "Hello {{ $name }}!").unwrap();
+    let (address, server) = start_at("response-factory", root.path().into()).await;
+
+    let (headers, body) = send(
+        address,
+        "GET",
+        "/response.jsonp?callback=app.handlers%5B2%5D",
+        "",
+        b"",
+        200,
+    )
+    .await;
+    assert!(headers.contains("\r\ncontent-type: text/javascript; charset=utf-8"));
+    assert_eq!(
+        body,
+        r#"/**/app.handlers[2]("caf\u00e9 \/ \ud83d\ude00 <\/script>");"#
+    );
+    let (_, body) = send(
+        address,
+        "GET",
+        "/response.jsonp?callback=%E5%BA%94%E7%AD%94%5B%22done%22%5D",
+        "",
+        b"",
+        200,
+    )
+    .await;
+    assert!(body.starts_with("/**/应答[\"done\"]("));
+    let (headers, body) = send(address, "GET", "/response.jsonp", "", b"", 200).await;
+    assert!(headers.contains("\r\ncontent-type: application/json"));
+    assert_eq!(
+        serde_json::from_str::<String>(&body).unwrap(),
+        "café / 😀 </script>"
+    );
+    for path in [
+        "/response.jsonp?callback=alert%281%29",
+        "/response.jsonp?callback=class",
+        "/response.jsonp?callback=valid%0a",
+        "/response.jsonp?callback%5B%5D=valid",
+    ] {
+        send(address, "GET", path, "", b"", 400).await;
+    }
+
+    let (headers, body) = send(address, "GET", "/response.md", "", b"", 202).await;
+    assert!(headers.contains("\r\ncontent-type: text/markdown; charset=utf-8"));
+    assert_eq!(body, "# Heading\n");
+    let (_, body) = send(address, "HEAD", "/response.md", "", b"", 202).await;
+    assert!(body.is_empty());
+    let (headers, body) = send(address, "GET", "/response.md?empty=1", "", b"", 304).await;
+    assert!(!headers.contains("\r\ncontent-type:") && body.is_empty());
+
+    let (headers, body) = send(address, "GET", "/response-empty", "", b"", 204).await;
+    assert!(headers.contains("\r\nx-probe: empty"));
+    assert!(!headers.contains("\r\ncontent-type:") && body.is_empty());
+
+    let (headers, body) = send(address, "GET", "/response-view", "", b"", 201).await;
+    assert!(headers.contains("\r\nx-probe: view"));
+    assert!(headers.contains("\r\ncontent-type: text/html; charset=utf-8"));
+    assert_eq!(body, "Hello &lt;Ada&gt;!");
     server.abort();
 }

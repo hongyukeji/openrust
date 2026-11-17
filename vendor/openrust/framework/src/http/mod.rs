@@ -7,6 +7,7 @@ mod body;
 pub mod client;
 mod download;
 mod error;
+mod jsonp_response;
 pub mod middleware;
 mod next;
 mod redirect_response;
