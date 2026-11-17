@@ -317,6 +317,10 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 
 手動控制時呼叫 `beginTransaction().await?`，然後在傳回的控制代碼上呼叫 `commit` 或 `rollBack(None)`。在控制代碼上再次呼叫 `beginTransaction` 會建立儲存點。`rollBack(Some(level))` 復原到指定層級，層級零復原整個交易。捨棄活動的控制代碼會復原尚未提交的操作。MySQL 的 DDL 等陳述式可能隱含提交，請放在要求不可分割性的交易之外。
 
+### SQL Server 自動回滾 {#sql-server-automatic-rollback}
+
+SQL Server 在陳述式失敗時可能自動回滾整筆交易。交易回呼傳回該錯誤時，OpenRust 會先檢查伺服器端交易狀態。伺服器已回滾時，回呼會傳回原始陳述式錯誤並關閉交易控制代碼。若剩餘交易無法回滾至儲存點，OpenRust 會回滾整筆交易。確認回滾後，執行對應的 `afterRollBack()` 回呼。
+
 ### 交易事件 {#transaction-events}
 
 透過應用程式事件分派器訂閱。`TransactionBeginning` 在交易或儲存點建立後觸發。`TransactionCommitting` 在最外層提交前觸發。`TransactionCommitted` 在交易層級下降並執行該層應執行的提交回呼後觸發。`TransactionRolledBack` 在明確復原或交易回呼失敗引發的復原完成後觸發一次。

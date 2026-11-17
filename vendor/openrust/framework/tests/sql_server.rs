@@ -763,3 +763,115 @@ async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
         .await
         .unwrap();
 }
+
+#[tokio::test]
+async fn sql_server_keeps_original_error_when_server_already_rolled_back() {
+    use openrust::database::DatabaseError;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let root = tempfile::tempdir().unwrap();
+    let db = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"url":url,"max_connections":1}),
+            root.path(),
+        )
+        .unwrap();
+    let table = "dbo.automatic_rollback_probe";
+    db.getSchemaBuilder()
+        .create(table, |table| {
+            table.integer("id");
+        })
+        .await
+        .unwrap();
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let mut tx = db.beginTransaction().await.unwrap();
+    let outer = callbacks.clone();
+    tx.afterRollBack(move || {
+        Box::pin(async move {
+            outer.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    })
+    .unwrap();
+    tx.statement("insert into dbo.automatic_rollback_probe values (1)", &[])
+        .await
+        .unwrap();
+    let inner = callbacks.clone();
+    let failure = tx
+        .transaction(move |tx| {
+            Box::pin(async move {
+                tx.afterRollBack(move || {
+                    Box::pin(async move {
+                        inner.fetch_add(1, Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
+                tx.statement(
+                    "rollback transaction; throw 51017, 'original SQL Server error', 1",
+                    &[],
+                )
+                .await
+            })
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(failure, DatabaseError::SqlServer { source: tiberius::error::Error::Server(error), .. } if error.code() == 51017)
+    );
+    assert_eq!(tx.transactionLevel(), 0);
+    assert_eq!(callbacks.load(Ordering::SeqCst), 2);
+    assert!(matches!(
+        tx.statement("insert into dbo.automatic_rollback_probe values (2)", &[])
+            .await,
+        Err(DatabaseError::TransactionClosed)
+    ));
+    assert_eq!(db.table(table).count("*").await.unwrap(), 0);
+
+    let failure = db
+        .transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.getSchemaBuilder()
+                        .table(table, |table| {
+                            table
+                                .foreign(&["id"], Some("rollback_probe_fk"))
+                                .references("id")
+                                .on("dbo.nonexistent_rollback_target");
+                        })
+                        .await
+                })
+            },
+            1,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(failure, DatabaseError::SqlServer { source: tiberius::error::Error::Server(error), .. } if error.code() == 1767)
+    );
+    assert_eq!(
+        db.scalar("select xact_state()", &[]).await.unwrap(),
+        0.into()
+    );
+    db.transaction(
+        |tx| {
+            Box::pin(async move {
+                tx.statement("insert into dbo.automatic_rollback_probe values (3)", &[])
+                    .await?;
+                Ok(())
+            })
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(db.table(table).value("id").await.unwrap(), 3.into());
+    db.getSchemaBuilder().drop(table).await.unwrap();
+}

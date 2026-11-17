@@ -189,10 +189,7 @@ impl Lease {
                 return Ok(());
             }
             TransactionCommand::Commit => "commit transaction".into(),
-            TransactionCommand::RollBack if self.depth > 1 => {
-                format!("rollback transaction openrust_{}", self.depth)
-            }
-            TransactionCommand::RollBack => "rollback transaction".into(),
+            TransactionCommand::RollBack => return self.rollback().await,
             TransactionCommand::BeginImmediate => {
                 return Err(DatabaseError::UnsupportedOperation(
                     "SQL Server immediate transaction",
@@ -205,6 +202,35 @@ impl Lease {
         } else {
             self.depth -= 1;
         }
+        Ok(())
+    }
+
+    async fn rollback(&mut self) -> DatabaseResult<()> {
+        if self.depth <= 1 {
+            self.raw("if xact_state() <> 0 rollback transaction")
+                .await?;
+            self.depth = 0;
+            return Ok(());
+        }
+
+        // A doomed transaction cannot roll back to a savepoint. State zero
+        // means the server already rolled back the entire transaction.
+        let sql = format!(
+            "declare @state smallint = xact_state(); \
+             if @state = -1 rollback transaction; \
+             else if @state = 1 rollback transaction openrust_{}; \
+             select @state as [state]",
+            self.depth
+        );
+        let row = self.fetch_optional(&sql, std::iter::empty()).await?;
+        self.depth = match row.as_ref().and_then(|row| row.get("state")) {
+            Some(Value::Integer(1)) => self.depth - 1,
+            Some(Value::Integer(-1 | 0)) => 0,
+            _ => {
+                self.dirty = true;
+                return Err(DatabaseError::TransactionInterrupted);
+            }
+        };
         Ok(())
     }
 

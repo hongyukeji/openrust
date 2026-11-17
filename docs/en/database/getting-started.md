@@ -317,6 +317,10 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 
 For manual control, call `beginTransaction().await?`, then call `commit` or `rollBack(None)` on the returned handle. Calling `beginTransaction` on the handle creates a savepoint. `rollBack(Some(level))` rolls back to the given nesting level. Level zero aborts the whole transaction. Dropping an active handle rolls back its pending work. MySQL statements such as DDL can implicitly commit, so keep them outside transactions that require atomicity.
 
+### SQL Server Automatic Transaction Rollback {#sql-server-automatic-rollback}
+
+SQL Server can roll back an entire transaction when a statement fails. When a transaction callback returns that error, OpenRust checks the server’s transaction state before it issues a rollback. If the server already rolled back, the callback returns the original statement error and the transaction handle closes. If the remaining transaction cannot roll back to a savepoint, OpenRust rolls back the whole transaction. On a confirmed rollback, applicable `afterRollBack()` callbacks run.
+
 ### Transaction Events {#transaction-events}
 
 Subscribe through the application event dispatcher. `TransactionBeginning` fires after a transaction or savepoint starts. `TransactionCommitting` fires immediately before the outer commit. `TransactionCommitted` fires after the transaction level decreases and the applicable commit callbacks have run. `TransactionRolledBack` fires once after an explicit rollback or the rollback of a failed transaction callback.

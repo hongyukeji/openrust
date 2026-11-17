@@ -140,3 +140,10 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - 模拟模式使用 PostgreSQL 简单查询协议。框架解析命名、位置和原生编号绑定，按类型编码值，避开 SQL 引号和嵌套注释中的占位符。扩展和用户自定义类型按服务器返回的文本读取。框架诊断继续使用原 SQL 和独立绑定，模拟模式关闭 SQLx 对已展开语句的日志。 [PgBouncer 具名语句跟踪](https://www.pgbouncer.org/config.html#max_prepared_statements)
 - 真实 PostgreSQL 18.6 和 PgBouncer 1.26.1，事务池、两个后端并轮换，`max_prepared_statements=0`。通过文字、整型、浮点、布尔、NULL、二进制、JSON、自定义枚举、命名绑定、重复编号、流式读取、重复事务及失败回滚后的查询回归。24 个并发实际 HTTP 请求跨两个后端，验证池化和直连各自的数据库及绑定值。独立 Artisan 迁移只写直连账本，`artisan inspire` 通过。
 - 框架查询回归、MySQL 8.4.13 表目录与限定 Schema 清库、Rust 1.94.0 全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。本批临时容器、隔离产物和临时镜像标签已回收，磁盘空间净增 3.66 GB（3.41 GiB），可用 104.90 GB（97.70 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-02-pgbouncer-untracked.HOsPMhtp`。
+
+## SQL Server 自动回滚保留原始错误
+
+- 固定 Laravel 在最外层回滚前通过 PDO 检查服务器事务状态。Rust TDS 在回滚批次中检查 `XACT_STATE()`，服务器已经撤销的事务直接清理本地句柄，仍可提交的事务按保存点回滚，无法提交的嵌套事务执行整条回滚。确认整条回滚时清空各层状态并运行相关回滚回调。旧版 `v0.x` 未找到对应 TDS 状态处理。 [固定 Laravel 事务](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/ManagesTransactions.php) · [SQL Server XACT_STATE](https://learn.microsoft.com/en-us/sql/t-sql/functions/xact-state-transact-sql)
+- SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过七项 Schema／TDS 和一项迁移事务回归。嵌套事务实测服务器撤销整条事务后保留原始错误，内外层回滚回调各一次，原句柄关闭，连接池可继续承接新事务。普通保存点回滚与外层提交仍通过。另在真实 SQL Server 的 TRY/CATCH 批次由重复主键错误 2627 触发 `XACT_STATE() = -1`，执行框架生成的嵌套回滚 SQL 后回到状态 0，原事务未留下写入。
+- 实际 Artisan 与 HTTP 使用无效的限定外键目标复验，保留原始 SQL Server 错误 1767，失败写入未提交、迁移账本无新增。迁移重试、回滚和后续请求通过。MySQL 8.4.13 的事务事件、保存点回调和嵌套死锁重试回归及全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。
+- 原生 Linux x86_64 及 SQL Server 2017 留待发布复验，核心账本维持 62/66。临时数据库和本批产物已回收，复验清理后项目盘可用空间净增 2.27 GB（2.12 GiB），剩余 101.88 GB（94.88 GiB）。提交前周额度剩余 41%，第二窗口无读数。日志和夹具位于 `/private/tmp/openrust-02-02-sqlsrv-rollback.lFm05PkI`。

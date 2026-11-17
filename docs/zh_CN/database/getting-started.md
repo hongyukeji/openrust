@@ -317,6 +317,10 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 
 手动控制时调用 `beginTransaction().await?`，然后在返回的句柄上调用 `commit` 或 `rollBack(None)`。在句柄上再次调用 `beginTransaction` 会创建保存点。`rollBack(Some(level))` 回滚至指定层级，层级零回滚整个事务。丢弃活动句柄会回滚尚未提交的操作。MySQL 的 DDL 等语句可能隐式提交，请放在要求原子性的事务之外。
 
+### SQL Server 自动回滚 {#sql-server-automatic-rollback}
+
+SQL Server 在语句失败时可能自动撤销整条事务。事务回调返回该错误时，OpenRust 会先检查服务端事务状态。服务端已回滚时，回调返回原始语句错误，事务句柄关闭。剩余事务无法回滚到保存点时，OpenRust 会回滚整条事务。确认回滚后，执行相应的 `afterRollBack()` 回调。
+
 ### 事务事件 {#transaction-events}
 
 通过应用事件分发器订阅。`TransactionBeginning` 在事务或保存点建立后触发。`TransactionCommitting` 在最外层提交前触发。`TransactionCommitted` 在事务层级下降并执行该层应运行的提交回调后触发。`TransactionRolledBack` 在显式回滚或事务回调失败引发的回滚完成后触发一次。

@@ -452,11 +452,19 @@ impl Transaction {
             return Ok(());
         }
         let original_level = self.level;
+        let sql_server = self.connection.grammar.is_sql_server();
         let result = async {
             while self.level > toLevel {
-                self.physical()?
+                let physical = self.physical()?;
+                physical
                     .control("roll back", TransactionCommand::RollBack)
                     .await?;
+                if sql_server && !physical.in_transaction() {
+                    self.level = 0;
+                    // A scoped test session cannot be used after its outer transaction is gone.
+                    self.physical.take();
+                    break;
+                }
                 self.level -= 1;
             }
             Ok::<_, DatabaseError>(())
