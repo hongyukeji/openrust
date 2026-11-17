@@ -31,6 +31,10 @@
 
 从 `2d1f83dfd` 的干净源码归档在 macOS ARM64 上用 Rust 1.94.0 和提交的锁文件构建独立发布二进制。发布目录从其他工作目录启动，连接 MySQL 8.4.13 和 Redis 8.10.3。密钥生成、12 项迁移与幂等重跑、首页和健康路由、两类公共文件、数据库会话、受管和独立 Redis Worker，以及 SIGTERM 优雅退出均通过。搬移发布目录后仍可访问公共存储和原迁移账本。
 
+## 旧版 MySQL 与 MariaDB 驱动复验 {#older-mysql-family-recheck}
+
+Oracle Linux 7 ECDHE 派生镜像中的 MySQL 5.7.44 和 MariaDB 10.3.39 分别通过 TLS 1.2 和 TLS 1.3 校验及影响行数回归。HTTP 和 Artisan 都验证了原值更新和重复行 upsert，两个版本均通过应用迁移与幂等重跑。MySQL 服务端运行于 amd64 兼容环境，MariaDB 服务端运行于 ARM64。默认行为及连接覆盖见[影响行数](../database/queries.md#mysql-affected-rows)。
+
 ## 模拟正式环境与实机验证 {#pending-deployment-acceptance}
 
 08-04 已按模拟正式环境验收闭合。表中列有各目标环境的实机验证项。

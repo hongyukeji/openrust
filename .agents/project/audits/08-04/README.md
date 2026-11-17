@@ -117,3 +117,11 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - Rust 1.94.0 格式检查通过。相同源码的工作区严格 Clippy 已随 [02-04](../02-04/README.md#mysql-和-mariadb-影响行数与整单元验收) 验收。本批三语站点与 `/` 和 `/docs/` 下 12 项通用及 6 项发布小节浏览器检查通过。
 - 对照计划与三语文档映射，归档中 104 个本地路径均有三语文件，对照引用的计划锚点齐备。31 行生态映射仍标记范围待确认，文件存在是导航与对应关系的证据，具体功能以交付单元验收为准。 [Laravel 文档对照](../../plans/laravel-docs-delivery-map.md)
 - 源码归档和临时服务隔离运行，产物已回收。项目卷净增 2.12 GB（1.97 GiB），余量 100.69 GB（93.78 GiB）。周额度剩余 38%，第二窗口无读数。日志保留于 `/private/tmp/openrust-08-04-current-package.64Mt1XJp`。现有 08-04 模拟验收结论继续有效，实机 Windows Docker Desktop、生产 TLS、托管 SQS、SQL Server 原生 x86_64 和商业嵌入服务各按既有发布检查跟踪。
+
+## 旧版 MySQL 与 MariaDB 驱动复验
+
+- 固定 Laravel 的数据库范围包含 MySQL 5.7 和 MariaDB 10.3。核对 `openrust-v0.x` 的旧兼容范围并复用现行正式版 [MySQL 5.7 ECDHE 派生镜像](#oracle-linux-7-的-mysql-5744-ecdhe)、应用启动入口和 [02-04 影响行数回归](../02-04/README.md#mysql-和-mariadb-影响行数与整单元验收)。 [固定 Laravel 数据库范围](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#introduction) · [MySQL ROW_COUNT](https://dev.mysql.com/doc/refman/5.7/en/information-functions.html#function_row-count) · [MariaDB ROW_COUNT](https://mariadb.com/docs/server/reference/sql-functions/secondary-functions/information-functions/row_count)
+- 在 macOS ARM64 用 `d4570522f` 的干净归档和 Rust 1.94.0 离线锁定构建。MySQL 5.7.44 服务使用按摘要构建的 Oracle Linux 7 ECDHE 派生镜像，通过 Docker 的 amd64 兼容后端运行。MariaDB 10.3.39 服务运行于原生 ARM64。两套服务使用隔离临时库和测试证书。
+- 两版的 `mysql_family_reports_changed_rows_by_default` 定向测试均通过，覆盖原生 SQL、默认的实际修改行数、连接级匹配行覆盖、upsert 和事务回滚。真实 HTTP 及独立 Artisan 通过 Query Builder 验证原值、实际更新和重复行。会话分别协商 TLS 1.2 和 TLS 1.3。在同端点的控制检查中，证书链验证成功，开启服务器名验证后拒绝不匹配的名称。
+- 应用二进制在两版分别通过 `migrate --force` 的 12 项迁移和幂等重跑、`migrate:status --pending=17` 以及 `inspire`。格式检查通过。相同代码的严格 Clippy 已随 02-04 通过。三语站点、12 项通用浏览器检查及两种部署路径下的 6 项发布到 Query Builder 文档链路通过。
+- 本批核实旧版 MySQL 与 MariaDB 的握手和受影响写入行为。临时数据库、证书、专用构建器、临时镜像及隔离产物已回收，日志保留于 `/private/tmp/openrust-08-04-found-rows-minimum.hg0TaIjL`。回收编译和文档产物时项目卷净增 4.86 GB（4.53 GiB），剩余 96.67 GB（90.03 GiB）。周额度剩余 38%，第二窗口无读数。

@@ -31,6 +31,10 @@
 
 從 `2d1f83dfd` 的乾淨原始碼封存檔在 macOS ARM64 上使用 Rust 1.94.0 與已提交的鎖定檔建置獨立發布執行檔。發布目錄從其他工作目錄啟動，連線至 MySQL 8.4.13 與 Redis 8.10.3。金鑰產生、12 項遷移與冪等重跑、首頁和健康路由、兩類公共檔案、資料庫會話、受管和獨立 Redis Worker，以及 SIGTERM 優雅結束均通過。搬移發布目錄後仍可存取公共儲存空間和原遷移帳本。
 
+## 舊版 MySQL 與 MariaDB 驅動複驗 {#older-mysql-family-recheck}
+
+Oracle Linux 7 ECDHE 衍生映像中的 MySQL 5.7.44 和 MariaDB 10.3.39 分別通過 TLS 1.2 和 TLS 1.3 驗證及影響列數迴歸。HTTP 和 Artisan 都驗證了原值更新和重複列 upsert，兩個版本均通過應用程式遷移與等冪重跑。MySQL 伺服器執行於 amd64 相容環境，MariaDB 伺服器執行於 ARM64。預設行為與連線覆寫見[影響列數](../database/queries.md#mysql-affected-rows)。
+
 ## 模擬正式環境與實機驗證 {#pending-deployment-acceptance}
 
 08-04 已按模擬正式環境驗收結案。表中列有各目標環境的實機驗證項目。

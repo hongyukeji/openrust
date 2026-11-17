@@ -14,6 +14,6 @@
 
 ## 发布验收
 
-- 依固定 Laravel 支持范围复验各数据库最低及支持版本。发布矩阵覆盖真实数据库、SQL 方言及跨平台产物。
+- 依固定 Laravel 支持范围复验各数据库最低及支持版本。发布矩阵覆盖真实数据库、SQL 方言及跨平台产物。[旧版 MySQL 与 MariaDB 握手专项](08-04/README.md#旧版-mysql-与-mariadb-驱动复验)已在 MySQL 5.7.44 和 MariaDB 10.3.39 复验了 TLS 与影响行数。
 - SQL Server 在原生 Linux x86_64 上验收带 TLS 的连接、Schema、查询和 Artisan 迁移。现有证据来自 Apple Silicon 的 Linux amd64 兼容容器。
 - 通过实际商业嵌入服务复验凭据配置、响应和失败恢复。现有[文本嵌入与向量查询](02-04/README.md#文本嵌入与向量查询)证据来自本地协议夹具及真实数据库。
