@@ -175,6 +175,8 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 启用会话的 Web 路由验证失败时，会重定向回表单，并把错误和提交的输入闪存到下一次请求。Blade 视图通过 `$errors` 取得当前请求的错误包。可用 `request.old(Some("profile.name"))` 回填字段。
 
+重定向依次使用显式配置的目标、同源 Referer、会话保存的上一页。上一页的查询字符串会保留。没有可用目标时重定向到 `/`。
+
 ### 命名错误包
 
 在验证器上调用 `validateWithBag("profile")`，或覆盖 `FormRequest::errorBag`，即可指定错误包。在 Blade 中，`$errors->profile->name` 选择该包内 name 字段的消息。

@@ -175,6 +175,8 @@ For requests that expect JSON, a validation failure returns HTTP 422 with `messa
 
 A failed validation on a session-backed web route redirects to the form and flashes its errors and submitted input for the next request. Blade views receive the request’s error bags as `$errors`. Use `request.old(Some("profile.name"))` to repopulate a field.
 
+The redirect uses the configured target first, then a same-origin Referer, then the previous page stored in the session. The previous page's query string is retained. If no target is available, the response redirects to `/`.
+
 ### Named Error Bags
 
 Use `validateWithBag("profile")` on a validator or override `FormRequest::errorBag` to name the bag. In Blade, `$errors->profile->name` selects the messages for the name field in that bag.

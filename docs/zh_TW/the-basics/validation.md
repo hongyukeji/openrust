@@ -175,6 +175,8 @@ fn mailbox_rules() -> ValidationResult<RuleSet> {
 
 啟用工作階段的 Web 路由驗證失敗時，會重新導向表單，並將錯誤及送出的輸入快閃至下一次請求。Blade 檢視透過 `$errors` 取得目前請求的錯誤包。可用 `request.old(Some("profile.name"))` 回填欄位。
 
+重新導向依序使用明確設定的目標、同源 Referer、工作階段記錄的上一頁。上一頁的查詢字串會保留。沒有可用目標時會重新導向至 `/`。
+
 ### 命名錯誤包
 
 在驗證器上呼叫 `validateWithBag("profile")`，或覆寫 `FormRequest::errorBag`，即可指定錯誤包。在 Blade 中，`$errors->profile->name` 選取該包內 name 欄位的訊息。

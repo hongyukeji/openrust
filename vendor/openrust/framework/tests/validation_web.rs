@@ -223,6 +223,10 @@ async fn browser_validation_redirects_and_flashes_filtered_input_and_named_error
         body(&next, 200),
         json!({"errors":null,"old":null,"nested":null})
     );
+    let form = send(address, "GET", "/edit?step=2", "", "").await;
+    let headers = session_cookie(&form) + JSON;
+    let without_referer = send(address, "POST", "/submit", &headers, "{}").await;
+    redirect(&without_referer, "/edit?step=2");
     server.abort();
 }
 

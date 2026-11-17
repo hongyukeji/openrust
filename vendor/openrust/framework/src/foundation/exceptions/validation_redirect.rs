@@ -23,10 +23,13 @@ pub(super) async fn response(
     let target = exception
         .redirect_target()
         .and_then(local_location)
-        .or_else(|| referer(request))
+        .or_else(|| {
+            let referer = request.headers().get(REFERER)?.to_str().ok()?;
+            previous_location(request, referer)
+        })
         .or_else(|| {
             let previous = request.session().ok()?.previousUrl()?;
-            local_location(previous)
+            previous_location(request, previous)
         })
         .unwrap_or_else(|| HeaderValue::from_static("/"));
     let mut input = request
@@ -66,13 +69,12 @@ fn local_location(target: &str) -> Option<HeaderValue> {
     HeaderValue::from_str(target).ok()
 }
 
-fn referer(request: &Request) -> Option<HeaderValue> {
-    let referer = request.headers().get(REFERER)?.to_str().ok()?;
-    if referer.starts_with('/') {
-        return local_location(referer);
+fn previous_location(request: &Request, target: &str) -> Option<HeaderValue> {
+    if target.starts_with('/') {
+        return local_location(target);
     }
     // Compare the URL origin before stripping it from Location.
-    let url = url::Url::parse(referer).ok()?;
+    let url = url::Url::parse(target).ok()?;
     if !matches!(url.scheme(), "http" | "https")
         || !url.username().is_empty()
         || url.password().is_some()
