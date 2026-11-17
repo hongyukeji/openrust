@@ -27,3 +27,11 @@
 - 变更文件格式、严格 Clippy、三语 VitePress、18 项浏览器检查和 Rust 示例编译通过。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。`cargo deny --offline check` 无项目配置，基线和本批都报告默认许可清单拒绝及 `paste`、`pin-utils` 的既有 unmaintained 提示。本批额外的许可提示来自 `crc16`，已核对其 MIT 授权。依赖禁用和来源检查通过。
 - 本批集群和单机夹具已回收。清理 4.0 GiB 隔离编译产物和文档缓存后，项目卷可用 57.22 GB（53.29 GiB），周额度剩余 68%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-cluster.4SFbXqqD`。
 - 03-09 保持开放。下一步验证槽迁移与主节点故障切换，收口连接中断后结果未知命令的重试边界，并补标签和仅清锁的集群验收。已验收的单机连接行为保持当前契约。
+
+## 2026-11-17 09:36 槽迁移、主节点切换与写入重试
+
+- 固定 Laravel 的 PhpRedis 集群连接将 `command_retries` 默认为零。旧版 `v0.x` 无集群重定向实现。Rust 关闭 redis 1.8.0 的命令自动重试，保留拓扑刷新和后续请求的传输恢复。框架只对已覆盖的单目标操作跟随 Redis 的明确 `MOVED` 和 `ASK`，上限取首个种子的 `max_retries`。ASKING 与原命令在同一连接按序发送。 [固定 Laravel 集群连接](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Redis/Connectors/PhpRedisConnector.php#L46) · [Redis Cluster 规范](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#ask-redirection)
+- 原生路由保留常规批量读取的分片并发。Cache 批量读取收到明确槽重定向时，逐键查询并保持缺失项、重复项和输入顺序。连接错误由调用方处理。其他原始命令的重定向仍需扩展，未携带主机名的重定向和真实 TLS 待补验。
+- 在 `85b31347c` 隔离快照上使用 Redis 8.10.3 的三主三副本运行 `sh tests/redis_cluster.sh`。验收覆盖 ASK、MOVED、零重定向上限、迁移期间的跨槽缓存批量读、实际停止主节点后的副本提升、同一应用连接恢复读写。专用回环代理丢弃一次 INCR 成功回执，客户端收到错误，直接读取源节点计数为 1。
+- 实际双进程 HTTP、独立 Artisan `cache:forget`、`cache:clear` 和 `artisan inspire` 通过，另复验真实单机 Redis。变更文件格式、工作区严格 Clippy、三语站点构建、12 项通用和 6 项 Redis 页面浏览器检查及集群文档 Rust 示例编译通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412` 差异。
+- 本批夹具、隔离 Cargo 产物和文档缓存均已回收。项目卷可用 57.16 GB（53.23 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-topology.mmkmHPre`。03-09 整单元待集群标签、仅清锁和剩余原始命令边界，核心账本保持 51/66。

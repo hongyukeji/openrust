@@ -33,7 +33,7 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 }
 ```
 
-Cluster retry limits and delay bounds come from `max_retries`, `backoff_base`, and `backoff_cap` on the first seed. The native client can retry after a connection error, so a command with an uncertain outcome may be replayed. A retry limit of zero also disables automatic redirect retries. The queue worker’s dedicated blocking transport uses a standalone connection.
+When Redis returns `MOVED` or `ASK`, OpenRust follows the redirection for built-in single-key operations, including cache locks. The first seed’s `max_retries` limits these redirections. Set it to zero to return redirection errors directly. If the connection drops before Redis replies, OpenRust returns an error. The application decides whether to retry because Redis may already have applied the command. Later requests reconnect and discover the new primary after failover. Raw commands outside the supported single-key operations can return redirection errors. The queue worker’s dedicated blocking transport uses a standalone connection.
 
 ## Interacting With Redis
 
@@ -56,4 +56,4 @@ A lost command connection reconnects for subsequent requests. A command with an 
 
 Set `CACHE_STORE=redis` to select Redis as the default cache. The cache uses `REDIS_CACHE_CONNECTION` for data and `REDIS_CACHE_LOCK_CONNECTION` for locks, with defaults of `cache` and `default`. See [Cache](../digging-deeper/cache.md) for expiry and lock operations.
 
-Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache and lock-only clearing currently require standalone connections.
+Set `REDIS_CACHE_CONNECTION` or `REDIS_CACHE_LOCK_CONNECTION` to a cluster name for cache values or individual locks. Cluster batch reads preserve input order across slots. Batch writes route each entry separately. `cache:clear` clears all primary nodes. Tagged cache and lock-only clearing currently require standalone connections. During an explicit slot redirection, cache batch reads fall back to individual key reads.

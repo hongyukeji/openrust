@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use ::redis::{
-    AsyncConnectionConfig, Client, FromRedisValue,
+    AsyncConnectionConfig, Client, ConnectionInfo, FromRedisValue,
     aio::{ConnectionManager, ConnectionManagerConfig},
     cluster::{ClusterClient, ClusterConfig},
     cluster_async::ClusterConnection,
@@ -10,7 +10,7 @@ use tokio::sync::OnceCell;
 
 use crate::contracts::redis::Connection as Contract;
 
-use super::Subscription;
+use super::{Subscription, cluster::Cluster};
 use crate::redis::{RedisError, RedisFuture, RedisResult, Value, backend};
 
 /// A named Redis command connection with a shared reconnecting transport.
@@ -25,7 +25,7 @@ enum Backend {
         client: Client,
         config: ConnectionManagerConfig,
     },
-    Cluster(ClusterClient),
+    Cluster(Cluster),
 }
 
 #[derive(Clone)]
@@ -43,9 +43,14 @@ impl Connection {
         }
     }
 
-    pub(crate) fn cluster(client: ClusterClient, prefix: String) -> Self {
+    pub(crate) fn cluster(
+        client: ClusterClient,
+        seed: ConnectionInfo,
+        redirects: u32,
+        prefix: String,
+    ) -> Self {
         Self {
-            client: Backend::Cluster(client),
+            client: Backend::Cluster(Cluster::new(client, seed, redirects)),
             transport: OnceCell::new(),
             prefix,
         }
@@ -58,7 +63,12 @@ impl Connection {
     pub(crate) async fn query<T: FromRedisValue>(&self, command: &::redis::Cmd) -> RedisResult<T> {
         match self.transport().await? {
             Transport::Standalone(mut transport) => command.query_async(&mut transport).await,
-            Transport::Cluster(mut transport) => command.query_async(&mut transport).await,
+            Transport::Cluster(transport) => {
+                let Backend::Cluster(cluster) = &self.client else {
+                    unreachable!("cluster transport")
+                };
+                cluster.query(transport, command).await
+            }
         }
         .map_err(backend)
     }
@@ -100,9 +110,11 @@ impl Connection {
                         .get_connection_manager_with_config(config.clone())
                         .await
                         .map(Transport::Standalone),
-                    Backend::Cluster(client) => {
-                        client.get_async_connection().await.map(Transport::Cluster)
-                    }
+                    Backend::Cluster(cluster) => cluster
+                        .client
+                        .get_async_connection()
+                        .await
+                        .map(Transport::Cluster),
                 }
             })
             .await
@@ -166,9 +178,10 @@ impl Connection {
                 }
                 Ok(Subscription::new(subscription.into_on_message()))
             }
-            Backend::Cluster(client) => {
+            Backend::Cluster(cluster) => {
                 let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-                let mut transport = client
+                let mut transport = cluster
+                    .client
                     .get_async_connection_with_config(ClusterConfig::new().set_push_sender(sender))
                     .await
                     .map_err(backend)?;

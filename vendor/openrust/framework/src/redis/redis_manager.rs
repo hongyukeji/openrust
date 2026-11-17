@@ -210,8 +210,10 @@ fn cluster_connection(
             Ok(info.set_redis_settings(redis))
         })
         .collect::<RedisResult<Vec<_>>>()?;
+    let seed = seeds[0].clone();
     let client = ClusterClient::builder(seeds)
-        .retries(retries)
+        // Network errors may arrive after a write committed. Only follow explicit redirects.
+        .retries(0)
         .retry_wait_formula(EXPONENT_FACTOR, EXPONENT_BASE)
         .min_retry_wait(min_wait)
         .max_retry_wait(max_wait)
@@ -219,5 +221,5 @@ fn cluster_connection(
         .response_timeout(Duration::from_secs(5))
         .build()
         .map_err(|_| RedisError::InvalidConfiguration)?;
-    Ok(Connection::cluster(client, prefix))
+    Ok(Connection::cluster(client, seed, retries, prefix))
 }

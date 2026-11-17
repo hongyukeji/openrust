@@ -33,7 +33,7 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 }
 ```
 
-叢集的重試次數與延遲範圍取第一個種子節點的 `max_retries`、`backoff_base` 和 `backoff_cap`。原生用戶端可能在連線錯誤後重試，結果未知的指令因此可能被重放。重試次數為零時也會停用自動重新導向重試。佇列 Worker 的專用阻塞連線使用直連。
+Redis 回傳 `MOVED` 或 `ASK` 時，OpenRust 會為內建單鍵操作跟隨重新導向，包括快取鎖。重新導向次數由第一個種子節點的 `max_retries` 限制，設為零時直接回傳重新導向錯誤。連線中斷時 Redis 可能已執行指令，框架會回傳錯誤並讓後續請求重新連線。主節點切換後，後續請求可以找到新的主節點。未涵蓋的原始指令可能回傳重新導向錯誤。佇列 Worker 的專用阻塞連線使用直連。
 
 ## 與 Redis 互動
 
@@ -56,4 +56,4 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 
 設定 `CACHE_STORE=redis` 可選擇 Redis 作為預設快取。`REDIS_CACHE_CONNECTION` 指定資料連線，`REDIS_CACHE_LOCK_CONNECTION` 指定鎖連線，預設分別為 `cache` 和 `default`。到期及鎖操作請參閱[快取](../digging-deeper/cache.md)。
 
-將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。快取標籤和僅清除鎖目前使用直連。
+將 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 設定為叢集名稱，可將快取值或個別鎖放在叢集上。跨槽批次讀取維持輸入順序，批次寫入逐項路由。`cache:clear` 清空所有主節點。快取標籤和僅清除鎖目前使用直連。收到明確的槽重新導向時，快取批次讀取會逐鍵查詢。

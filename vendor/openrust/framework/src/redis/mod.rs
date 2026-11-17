@@ -35,6 +35,12 @@ pub enum RedisError {
     },
 }
 
+impl RedisError {
+    pub(crate) fn is_cluster_redirect(&self) -> bool {
+        matches!(self.source().and_then(|cause| cause.downcast_ref::<::redis::RedisError>()), Some(error) if error.redirect_node().is_some())
+    }
+}
+
 impl std::fmt::Display for RedisError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

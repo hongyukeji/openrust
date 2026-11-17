@@ -132,7 +132,17 @@ impl Store for RedisStore {
             for key in keys {
                 command.arg(self.data.key(&self.key(key)));
             }
-            let bytes: Vec<Option<Vec<u8>>> = self.data.query(&command).await.map_err(backend)?;
+            let result: Result<Vec<Option<Vec<u8>>>, _> = self.data.query(&command).await;
+            let bytes = match result {
+                Err(error) if self.data.is_cluster() && error.is_cluster_redirect() => {
+                    let mut values = Vec::with_capacity(keys.len());
+                    for key in keys {
+                        values.push(self.read(key, "GET").await?);
+                    }
+                    return Ok(values);
+                }
+                result => result.map_err(backend)?,
+            };
             bytes
                 .iter()
                 .map(|bytes| bytes.as_deref().map(decode).transpose())

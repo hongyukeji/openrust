@@ -519,3 +519,232 @@ async fn redis_cluster_routes_commands_and_cache_locks_across_shards() {
         assert_eq!(connection.get(key).await.unwrap(), None);
     }
 }
+
+fn cluster_cli(container: &str, port: &str, args: &[&str]) -> String {
+    let result = Command::new("docker")
+        .args(["exec", "-e", "REDISCLI_AUTH=cluster-fixture", container])
+        .args(["redis-cli", "--raw", "-p", port])
+        .args(args)
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{args:?}: {result:?}");
+    String::from_utf8(result.stdout).unwrap().trim().into()
+}
+
+fn cluster_replica_read(container: &str, port: &str, key: &str) -> String {
+    use std::{io::Write as _, process::Stdio};
+
+    let mut client = Command::new("docker")
+        .args([
+            "exec",
+            "-i",
+            "-e",
+            "REDISCLI_AUTH=cluster-fixture",
+            container,
+        ])
+        .args(["redis-cli", "--raw", "-p", port])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writeln!(client.stdin.take().unwrap(), "READONLY\nGET {key}").unwrap();
+    let result = client.wait_with_output().unwrap();
+    assert!(result.status.success(), "{result:?}");
+    String::from_utf8(result.stdout).unwrap().trim().into()
+}
+
+#[tokio::test]
+async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
+    use openrust::{cache::RedisStore, contracts::cache::Store as _};
+    use serde_json::json;
+
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_CLUSTER").is_none());
+        return;
+    };
+    let container = std::env::var("OPENRUST_TEST_REDIS_CLUSTER_CONTAINER").unwrap();
+    let directory = std::env::var_os("OPENRUST_TEST_REDIS_CLUSTER_FIXTURE").unwrap();
+    let seed = json!({"host":"127.0.0.1","port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"});
+    let mut without_redirects = seed.clone();
+    without_redirects["max_retries"] = json!(0);
+    let manager = RedisManager::new(Arc::new(openrust::config::Repository::new(
+        [(
+            "database".into(),
+            json!({"redis":{"options":{"prefix":"fixture:"},"clusters":{
+                "topology":[seed],
+                "no_redirects":[without_redirects],
+            }}}),
+        )]
+        .into(),
+    )));
+    let connection = manager.connection(Some("topology")).unwrap();
+
+    // The server increments the key. The relay drops its acknowledgment once.
+    let lost_reply = "{two}:lost-reply";
+    let physical = connection.key(lost_reply);
+    connection.set(lost_reply, b"0").await.unwrap();
+    assert_eq!(cluster_cli(&container, &port, &["GET", &physical]), "0");
+    assert!(
+        connection
+            .command("INCR", &[physical.as_bytes()])
+            .await
+            .is_err()
+    );
+    assert!(
+        PathBuf::from(directory)
+            .join("acknowledgment-dropped")
+            .is_file()
+    );
+    assert_eq!(cluster_cli(&container, &port, &["GET", &physical]), "1");
+
+    let nodes = cluster_cli(&container, &port, &["CLUSTER", "NODES"]);
+    let nodes: Vec<Vec<&str>> = nodes
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    let node_port = |address: &str| {
+        address
+            .split('@')
+            .next()
+            .unwrap()
+            .rsplit_once(':')
+            .unwrap()
+            .1
+            .to_owned()
+    };
+    let is_primary = |node: &&Vec<&str>| node[2].split(',').any(|flag| flag == "master");
+    let source = nodes
+        .iter()
+        .filter(is_primary)
+        .find(|node| node.contains(&"5461-10922"))
+        .unwrap();
+    let destination = nodes
+        .iter()
+        .filter(is_primary)
+        .find(|node| node.contains(&"10923-16383"))
+        .unwrap();
+    let source_port = node_port(source[1]);
+    let destination_port = node_port(destination[1]);
+    let slot = "9084";
+    let migrating_key = "{one}:moving";
+    let physical = connection.key(migrating_key);
+
+    assert_eq!(
+        cluster_cli(&container, &port, &["CLUSTER", "KEYSLOT", &physical]),
+        slot
+    );
+    assert_eq!(
+        cluster_cli(
+            &container,
+            &destination_port,
+            &["CLUSTER", "SETSLOT", slot, "IMPORTING", source[0]]
+        ),
+        "OK"
+    );
+    assert_eq!(
+        cluster_cli(
+            &container,
+            &source_port,
+            &["CLUSTER", "SETSLOT", slot, "MIGRATING", destination[0]]
+        ),
+        "OK"
+    );
+    assert!(cluster_cli(&container, &source_port, &["GET", &physical]).starts_with("ASK 9084 "));
+    assert!(
+        manager
+            .connection(Some("no_redirects"))
+            .unwrap()
+            .set(migrating_key, b"must-not-arrive")
+            .await
+            .is_err()
+    );
+    connection.set(migrating_key, b"migrated").await.unwrap();
+    assert_eq!(
+        connection.get(migrating_key).await.unwrap().unwrap(),
+        b"migrated"
+    );
+
+    let cache = RedisStore::new(connection.clone(), connection.clone(), "cache:".into());
+    let ttl = NonZeroU64::new(30).unwrap();
+    let moving = "{one}:cache-moving";
+    let stable = "{two}:cache-stable";
+    assert!(cache.put(moving, &"moving".into(), ttl).await.unwrap());
+    assert!(cache.put(stable, &"stable".into(), ttl).await.unwrap());
+    assert_eq!(
+        cache
+            .many(&[moving, stable, "{one}:cache-missing", moving])
+            .await
+            .unwrap(),
+        [
+            Some("moving".into()),
+            Some("stable".into()),
+            None,
+            Some("moving".into())
+        ]
+    );
+
+    for node in [
+        destination_port.as_str(),
+        source_port.as_str(),
+        port.as_str(),
+    ] {
+        assert_eq!(
+            cluster_cli(
+                &container,
+                node,
+                &["CLUSTER", "SETSLOT", slot, "NODE", destination[0]]
+            ),
+            "OK"
+        );
+    }
+    assert!(cluster_cli(&container, &source_port, &["GET", &physical]).starts_with("MOVED 9084 "));
+    assert_eq!(
+        connection.get(migrating_key).await.unwrap().unwrap(),
+        b"migrated"
+    );
+
+    let replica = nodes.iter().find(|node| node[3] == source[0]).unwrap();
+    let replica_port = node_port(replica[1]);
+    let surviving_key = "{c}:survives";
+    let physical = connection.key(surviving_key);
+    connection.set(surviving_key, b"replicated").await.unwrap();
+    assert_eq!(
+        cluster_cli(&container, &source_port, &["GET", &physical]),
+        "replicated"
+    );
+    let replicated = tokio::time::Instant::now() + Duration::from_secs(8);
+    while cluster_replica_read(&container, &replica_port, &physical) != "OK\nreplicated" {
+        assert!(
+            tokio::time::Instant::now() < replicated,
+            "replica did not receive the write"
+        );
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+    cluster_cli(&container, &source_port, &["SHUTDOWN", "NOSAVE"]);
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(18);
+    while !cluster_cli(&container, &replica_port, &["ROLE"]).starts_with("master\n") {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "replica did not become primary"
+        );
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+    loop {
+        match connection.get(surviving_key).await {
+            Ok(Some(value)) => {
+                assert_eq!(value, b"replicated");
+                break;
+            }
+            result => assert!(
+                tokio::time::Instant::now() < deadline,
+                "cluster read did not recover: {result:?}"
+            ),
+        }
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+    connection.set(surviving_key, b"new-primary").await.unwrap();
+    assert_eq!(
+        cluster_cli(&container, &replica_port, &["GET", &physical]),
+        "new-primary"
+    );
+}

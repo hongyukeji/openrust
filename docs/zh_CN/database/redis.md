@@ -33,7 +33,7 @@ pub async fn cluster_report() -> RedisResult<Option<Vec<u8>>> {
 }
 ```
 
-集群的重试次数与延迟范围取首个种子节点的 `max_retries`、`backoff_base` 和 `backoff_cap`。原生客户端可能在连接错误后重试，结果未知的命令因此可能被重放。重试次数为零时也会关闭自动重定向重试。队列 Worker 的专用阻塞连接使用直连。
+Redis 返回 `MOVED` 或 `ASK` 时，OpenRust 会为内置单键操作跟随重定向，包括缓存锁。重定向次数由首个种子节点的 `max_retries` 限制，设为零时直接返回重定向错误。连接中断时 Redis 可能已经执行命令，框架会返回错误并让后续请求重连。主节点切换后，后续请求可以发现新的主节点。未覆盖的原始命令可能返回重定向错误。队列 Worker 的专用阻塞连接使用直连。
 
 ## 与 Redis 交互
 
@@ -56,4 +56,4 @@ pub async fn redis_report() -> RedisResult<Option<Vec<u8>>> {
 
 设置 `CACHE_STORE=redis` 可选择 Redis 作为默认缓存。`REDIS_CACHE_CONNECTION` 指定数据连接，`REDIS_CACHE_LOCK_CONNECTION` 指定锁连接，默认分别为 `cache` 和 `default`。过期及锁操作见[缓存](../digging-deeper/cache.md)。
 
-将 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 设置为集群名称，可将缓存值或单个锁放在集群上。跨槽批量读保持输入顺序，批量写逐项路由。`cache:clear` 清空全部主节点。缓存标签和仅清锁目前使用直连。
+将 `REDIS_CACHE_CONNECTION` 或 `REDIS_CACHE_LOCK_CONNECTION` 设置为集群名称，可将缓存值或单个锁放在集群上。跨槽批量读保持输入顺序，批量写逐项路由。`cache:clear` 清空全部主节点。缓存标签和仅清锁目前使用直连。收到明确的槽重定向时，缓存批量读取会逐键查询。
