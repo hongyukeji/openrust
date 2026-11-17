@@ -149,3 +149,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - Rust 的 `MigrationContext` 显式持有选定连接的事务，Schema 和 SQL 都可通过该上下文执行，同步监听器通过 `EventContext::transaction()` 加入。迁移可用 `withinTransaction()` 返回 `false`，允许 PostgreSQL 在线索引等自动提交语句。预演不启动迁移事务。直接新取连接的操作不参与该事务。
 - PostgreSQL 18.4 集成测试通过。实际二进制的独立 Artisan 覆盖预演、DDL 和 DML 同时回滚、结束监听器失败回滚、失败后重跑、`down` 失败保留数据与账本、默认事务拒绝在线索引和显式退出后创建有效索引。HTTP 实测读取已提交的迁移写入和监听器写入，之后 Artisan 回滚成功。SQL Server 的真实驱动验收、其他版本矩阵和驱动快照继续跟踪，核心账本维持 62/66。
 - MySQL 8.4.13 迁移仓储和 Artisan 状态三项、`sh tests/table_catalog.sh` 两项、根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语站点及 18 项浏览器检查通过。本批容器和隔离产物已回收，磁盘空间净增 3.88 GB（3.62 GiB），可用 105.11 GB（97.89 GiB）。提交前周额度剩余 43%，第二窗口无读数。配置脚本及日志保留于 `/private/tmp/openrust-02-06-migration-transactions.EMrJgz6P`。
+
+## MariaDB 原生 Schema 快照
+
+- 对照固定 Laravel v13.40.0 的 `MariaDbSchemaState`。按选定写连接调用 `mariadb-dump` 和 `mariadb`，复用现有快照原子替换、结构和账本分批导出及自增计数清理。MariaDB 客户端不接收 Oracle MySQL 特有的 GTID 和统计参数。复核旧版 `6d1a81924`，未找到对应的原生快照命令。 [固定 Laravel MariaDbSchemaState](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/MariaDbSchemaState.php)
+- Rust 继续要求加密。MariaDB 11.8.9 双客户端实测仅传 `--ssl` 可退回明文，显式启用服务器验证时拒绝无 TLS 的服务端。因此快照使用 11.4 或更新的客户端，支持默认配置下的 MariaDB 自动验证，以及指定服务器 CA 和主机名的 `verify_identity`。客户端没有等价的仅 CA 模式，快照拒绝 `verify_ca` 并给出配置错误。 [MariaDB 自动 TLS 验证](https://mariadb.com/docs/server/security/encryption/data-in-transit-encryption/zero-configuration-ssl)
+- 真实 MariaDB 11.8.9 分别用默认 TLS 和配置 CA 验收实际 Artisan。覆盖快照结构、账本、自增计数、业务行排除、视图、例程、触发器、`--without-migration-data`、`--prune`、无效 SQL 失败和自定义路径下的 `migrate:fresh`。`migrate:refresh` 复验默认快照恢复。实际 HTTP `GET /up` 和独立 `artisan inspire` 均通过。MySQL 8.4.13 原生快照回归通过。
+- Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建及 18 项浏览器检查通过。临时实例、证书和本批隔离产物已回收，磁盘空间净增 2.89 GB（2.69 GiB），可用 105.07 GB（97.86 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-06-mariadb-snapshot.as80uhK5`。

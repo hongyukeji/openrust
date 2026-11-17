@@ -14,6 +14,8 @@ During a build, OpenRust discovers Rust migrations in `database/migrations/`. Us
 
 Run `schema:dump` to save MySQL table definitions, views, routines, and triggers with the migration ledger. It excludes application rows and resets table auto-increment counters. The MySQL 8.4 `mysqldump` and `mysql` clients must be on PATH.
 
+For MariaDB, use `./artisan schema:dump --database=mariadb`. Export and restore use `mariadb-dump` and `mariadb` from MariaDB 11.4 or later, with TLS verification enabled. In the default `required` mode they use MariaDB’s automatic verification when the server and authentication plugin support it. For CA and hostname verification, configure `verify_identity` with the server CA. If a connection uses `verify_ca`, select `verify_identity` with the correct server name before running a snapshot command.
+
 For PostgreSQL, `./artisan schema:dump --database=pgsql` uses `pg_dump` to export SQL definitions and the migration ledger. Restoration uses `psql` for SQL files and `pg_restore` for PostgreSQL archives. Use a `.sql` extension for a custom dump path and install the corresponding clients on PATH. If the connection has a direct endpoint, the tools use it, and the default filename uses the configured connection name.
 
 ```sh

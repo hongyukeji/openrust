@@ -14,6 +14,8 @@ OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。�
 
 用 `schema:dump` 保存 MySQL 表定义、视图、例程、触发器和迁移账本。转储不包含业务数据，并重置表的自增计数。PATH 中需有 MySQL 8.4 的 `mysqldump` 和 `mysql` 客户端。
 
+对 MariaDB 执行 `./artisan schema:dump --database=mariadb`。导出和恢复使用 MariaDB 11.4 或更新版本的 `mariadb-dump` 与 `mariadb`，工具会启用 TLS 验证。默认的 `required` 模式下，服务器和认证插件支持时，使用 MariaDB 的自动验证。需要验证服务器 CA 和主机名时，配置 `verify_identity` 并提供服务器 CA。连接配置为 `verify_ca` 时，执行快照命令前请改用 `verify_identity` 并填写正确的服务器名称。
+
 对 PostgreSQL 执行 `./artisan schema:dump --database=pgsql`，由 `pg_dump` 导出 SQL 定义和迁移账本。恢复 SQL 文件用 `psql`，恢复 PostgreSQL 归档用 `pg_restore`。自定义转储路径使用 `.sql` 扩展名，并将相应客户端加入 PATH。配置直连端点时，工具使用该端点，默认文件名取配置中的连接名。
 
 ```sh

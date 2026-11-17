@@ -923,9 +923,27 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     if std::env::var_os("OPENRUST_TEST_SCHEMA_DUMP").is_none() {
         return;
     }
+    artisan_dumps_and_restores_schema_and_migration_history("mysql", &url).await;
+}
+
+#[tokio::test]
+async fn mariadb_artisan_dumps_and_restores_schema_and_migration_history() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MARIADB_SCHEMA_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MARIADB_SCHEMA").is_none());
+        return;
+    };
+    artisan_dumps_and_restores_schema_and_migration_history("mariadb", &url).await;
+}
+
+async fn artisan_dumps_and_restores_schema_and_migration_history(driver: &str, url: &str) {
     let root = Root::new();
-    let db = root.connection(Some(&url));
-    let run = |args: &[&str]| root.run("local", Some(&url), args);
+    let db = root.connection(Some(url));
+    let run = |args: &[&str]| {
+        root.command("local", Some(url), args)
+            .env("DB_CONNECTION", driver)
+            .output()
+            .unwrap()
+    };
     let source = application_migrations::entries()[0].path;
     let name = std::path::Path::new(source)
         .file_stem()
@@ -957,8 +975,8 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     db.unprepared("create procedure snapshot_ready() select 1")
         .await
         .unwrap();
-    success(run(&["schema:dump", "--database=mysql"]));
-    let snapshot = root.0.join("database/schema/mysql-schema.sql");
+    success(run(&["schema:dump", "--database", driver]));
+    let snapshot = root.0.join(format!("database/schema/{driver}-schema.sql"));
     let dump = fs::read_to_string(&snapshot).unwrap();
     assert!(dump.contains("CREATE TABLE `snapshot_rows`") && dump.contains("snapshot_view"));
     assert!(dump.contains("INSERT INTO `migrations`") && dump.contains(name));
@@ -1003,7 +1021,8 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     let failed = run(&["migrate", "--schema-path=database/schema/invalid.sql"]);
     assert_eq!(failed.status.code(), Some(1));
     assert!(
-        String::from_utf8_lossy(&failed.stderr).contains("database schema command mysql failed")
+        String::from_utf8_lossy(&failed.stderr)
+            .contains(&format!("database schema command {driver} failed"))
     );
     assert!(!schema.hasTable("migrations").await.unwrap());
 
@@ -1045,7 +1064,11 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     let (endpoint, _) = url.rsplit_once('/').unwrap();
     let missing_name = "openrust-refresh-missing";
     let missing = format!("{endpoint}/{missing_name}");
-    let failed = root.run("local", Some(&missing), &["migrate:refresh", "--force"]);
+    let failed = root
+        .command("local", Some(&missing), &["migrate:refresh", "--force"])
+        .env("DB_CONNECTION", driver)
+        .output()
+        .unwrap();
     assert_eq!(failed.status.code(), Some(1));
     assert!(
         !db.table("information_schema.schemata")
