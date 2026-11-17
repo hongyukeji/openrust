@@ -44,6 +44,30 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 }
 ```
 
+### 從自訂來源載入分組 {#loading-custom-translation-sources}
+
+在應用程式的非同步入口向 `Lang::loadFrom` 傳入 `Loader`。每個資源指定語言、分組和選用的命名空間。框架一次替換這批分組。讀取失敗或其中一個分組在載入期間被執行期更新時，保留目前的目錄。後續翻譯查詢仍為同步呼叫。
+
+```rust
+use openrust::{
+    contracts::translation::Loader,
+    support::facades::Lang,
+    translation::{TranslationResource, TranslationResult},
+};
+
+pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
+    Lang::loadFrom(
+        source,
+        &[TranslationResource {
+            locale: "en",
+            group: "notices",
+            namespace: None,
+        }],
+    )
+    .await
+}
+```
+
 ## 取得翻譯字串
 
 使用 `__` 讀取文字。預留位置支援 `:name`、`:Name` 和 `:NAME`。群組和清單使用 `Lang::array` 讀取。缺少翻譯時回傳鍵本身。JSON 字面鍵在所選語言內查找，群組鍵可使用設定的備援語言。

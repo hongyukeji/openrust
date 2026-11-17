@@ -2,10 +2,11 @@
 
 use std::{collections::BTreeMap, future::Future, path::PathBuf};
 
-use crate::{container::ServiceKey, support::facades::Facade};
+use crate::{container::ServiceKey, contracts::translation::Loader, support::facades::Facade};
 
 use super::{
-    Line, Lines, MissingTranslation, PluralCount, TranslationError, TranslationResult, Translator,
+    Line, Lines, MissingTranslation, PluralCount, TranslationError, TranslationResource,
+    TranslationResult, Translator,
 };
 
 /// Accesses the translator for the current application.
@@ -119,6 +120,16 @@ impl Lang {
         Self::getFacadeRoot()
             .map_err(TranslationError::Unavailable)?
             .load(namespace, group, locale)
+    }
+
+    pub async fn loadFrom(
+        loader: &dyn Loader,
+        resources: &[TranslationResource<'_>],
+    ) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .loadFrom(loader, resources)
+            .await
     }
 
     pub fn addLines(

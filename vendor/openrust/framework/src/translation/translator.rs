@@ -1,16 +1,17 @@
 #![allow(non_snake_case, reason = "Matches Laravel's translator API")]
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     future::Future,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use crate::contracts::translation::Translator as Contract;
+use crate::contracts::translation::{Loader, Translator as Contract};
 
 use super::{
-    FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResult,
+    FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResource,
+    TranslationResult,
     file_loader::{merge::indexed, valid_group, valid_segment},
     locale::canonical_locale,
     lookup::{LookupHooks, MissingTranslation},
@@ -18,7 +19,7 @@ use super::{
 
 type Replacements = BTreeMap<String, String>;
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 struct CatalogKey {
     locale: String,
     group: String,
@@ -129,6 +130,60 @@ impl Translator {
         let locale = canonical_locale(locale)?;
         let namespace = catalog_namespace(group, namespace)?;
         self.catalog(&locale, group, namespace)?;
+        Ok(())
+    }
+
+    /// Materializes exact groups from an asynchronous loader before publishing them together.
+    pub async fn loadFrom(
+        &self,
+        loader: &dyn Loader,
+        resources: &[TranslationResource<'_>],
+    ) -> TranslationResult<()> {
+        let mut seen = HashSet::with_capacity(resources.len());
+        let mut keys = Vec::with_capacity(resources.len());
+        for resource in resources {
+            let locale = canonical_locale(resource.locale)?;
+            let namespace = catalog_namespace(resource.group, resource.namespace)?;
+            let key = CatalogKey {
+                locale,
+                group: resource.group.to_owned(),
+                namespace: namespace.map(str::to_owned),
+            };
+            if seen.insert(key.clone()) {
+                keys.push(key);
+            }
+        }
+        let versions: Vec<_> = {
+            let loaded = self.loaded.lock().unwrap();
+            keys.iter()
+                .map(|key| runtime_lines(&loaded, key).cloned())
+                .collect()
+        };
+        let mut incoming = Vec::with_capacity(keys.len());
+        for key in &keys {
+            incoming.push(
+                loader
+                    .load(&key.locale, &key.group, key.namespace.as_deref())
+                    .await?,
+            );
+        }
+        let mut loaded = self.loaded.lock().unwrap();
+        for (key, previous) in keys.iter().zip(&versions) {
+            match (runtime_lines(&loaded, key), previous.as_ref()) {
+                (None, None) => (),
+                (Some(current), Some(previous)) if Arc::ptr_eq(current, previous) => (),
+                _ => return Err(TranslationError::CatalogChanged),
+            }
+        }
+        for (key, lines) in keys.into_iter().zip(incoming) {
+            loaded.insert(
+                key,
+                Catalog {
+                    lines: Arc::new(lines),
+                    runtime: true,
+                },
+            );
+        }
         Ok(())
     }
 
@@ -448,6 +503,16 @@ impl Contract for Translator {
             self.locale = locale;
         }
     }
+}
+
+fn runtime_lines<'a>(
+    loaded: &'a HashMap<CatalogKey, Catalog>,
+    key: &CatalogKey,
+) -> Option<&'a Arc<Lines>> {
+    loaded
+        .get(key)
+        .filter(|catalog| catalog.runtime)
+        .map(|catalog| &catalog.lines)
 }
 
 fn catalog_namespace<'a>(

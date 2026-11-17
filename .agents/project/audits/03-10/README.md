@@ -44,3 +44,11 @@ macOS ARM64 使用 Rust 1.94.0 构建真实二进制，在临时应用运行默�
 - 公开 `Lang::addPath`、`addJsonPath`、`addNamespace`、`load` 和 `addLines`。应用根目录的字面键在 JSON 专用目录之后应用。运行期批量登记先校验再写入，按调用方的条目顺序处理点号路径。Laravel 规则下首次登记的分组视作已加载，需保留文件原有行时可先 `load`。旧有框架 Provider 的缓存失效仍覆盖文件目录，已明确登记的运行期分组保留。
 - 隔离基线 `abc0f40f5`、Rust 1.94.0。10 项定向回归通过，包括两套实际 HTTP 应用的登记隔离、规范语言别名、目录覆盖、包覆盖、列表索引和无效批次拒绝。三语示例经实际 Artisan 在 `en`、`fr-CA`、`zh-Hant` 运行，并实跑 `lang:publish` 和 `inspire`。
 - 改动文件格式、严格工作区 Clippy、三语文档站、12 项通用及 6 项正文浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。本批隔离缓存已回收。磁盘可用 115.17 GB（107.26 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-10-sources.RugiEP1U`。核心账本保持 54/66。
+
+## 可插拔异步翻译源
+
+- 固定 Laravel 通过 Loader 契约读取指定语言、分组与命名空间。Rust 沿用现有异步 Loader，以及旧版 `v0.x` 先物化再发布的做法，经 `Lang::loadFrom` 显式写入当前应用的目录，后续翻译调用仍同步。 [固定 Laravel Loader 契约](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Translation/Loader.php) · [固定 Laravel 服务注册](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/TranslationServiceProvider.php)
+- 批次校验语言及分组并对语言别名去重，按资源顺序异步读取。全部成功后一次性替换请求指定的完整分组。并发修改同一分组时返回 `CatalogChanged`，保留更新。外部来源若需跨资源一致性，可由 Loader 自己固定读事务或来源快照。
+- 隔离基线 `be904515c`。Rust 1.94.0 的 13 项定向回归通过。双应用实际 HTTP 验证自定义异步源和隔离。真实 JSON Loader 验证批次中途解析失败、修复后重载、字面 JSON 与分组同步发布；并发测试验证较新的分组更新得以保留。
+- 三语共用示例经实际 Artisan 验证读入失败退出 1，以及修复后在 `en`、`fr-CA`、`zh-Hant` 正常读取并替换；`lang:publish` 及 `inspire` 通过。工作区严格 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。
+- 本批隔离缓存已回收。磁盘可用 115.13 GB（107.22 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-10-loader.83tMTXpO`。03-10 接续替换扩展复核，核心账本保持 54/66。

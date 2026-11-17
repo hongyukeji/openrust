@@ -155,6 +155,46 @@ fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 
+fn load_external_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::translation::TranslationResource;
+        Lang::loadFrom(
+            &ExternalLoader,
+            &[TranslationResource {
+                locale: "zh-Hant",
+                group: "messages",
+                namespace: None,
+            }],
+        )
+        .await
+        .map_err(http_error)?;
+        Ok(Response::new(StatusCode::OK, Body::from("loaded")))
+    })
+}
+
+struct ExternalLoader;
+
+impl openrust::contracts::translation::Loader for ExternalLoader {
+    fn load<'a>(
+        &'a self,
+        locale: &'a str,
+        group: &'a str,
+        namespace: Option<&'a str>,
+    ) -> openrust::translation::TranslationFuture<
+        'a,
+        openrust::translation::TranslationResult<openrust::translation::Lines>,
+    > {
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            assert_eq!((locale, group, namespace), ("zh_TW", "messages", None));
+            Ok(BTreeMap::from([(
+                "welcome".into(),
+                openrust::translation::Line::Text("外部 :name".into()),
+            )]))
+        })
+    }
+}
+
 fn http_error(source: TranslationError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -191,6 +231,7 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             Route::get("/install-hooks", install_lookup_hooks)?;
             Route::get("/hooks", lookup_hooks)?;
             Route::get("/register-runtime-lines", register_runtime_lines)?;
+            Route::get("/load-external-lines", load_external_lines)?;
             Route::get("/default", default_locale)
         }))
         .create()
@@ -667,5 +708,168 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
             .string("layered.view.title", &args, None)
             .unwrap(),
         "overlay"
+    );
+}
+
+#[tokio::test]
+async fn asynchronous_source_loads_for_only_the_selected_http_application() {
+    let first_root = Root::new("fr_FR");
+    let second_root = Root::new("en_AU");
+    let ((first, one), (second, two)) = tokio::join!(start(&first_root), start(&second_root));
+    let before: Value = serde_json::from_str(&send(first, "/zh-TW").await).unwrap();
+    assert_eq!(before["greeting"], "您好，ada");
+    assert_eq!(send(first, "/load-external-lines").await, "loaded");
+    let (loaded, original) = tokio::join!(send(first, "/zh-TW"), send(second, "/zh-Hant"));
+    let loaded: Value = serde_json::from_str(&loaded).unwrap();
+    let original: Value = serde_json::from_str(&original).unwrap();
+    assert_eq!(loaded["greeting"], "外部 ada");
+    assert_eq!(original["greeting"], "您好，ada");
+    one.abort();
+    two.abort();
+}
+
+#[tokio::test]
+async fn asynchronous_translation_source_publishes_only_complete_batches() {
+    use openrust::translation::{FileLoader, TranslationResource, Translator};
+
+    let root = Root::new("batch-loader");
+    let source = root.0.join("source");
+    fs::create_dir_all(source.join("zh_CN")).unwrap();
+    fs::write(
+        source.join("zh_CN/messages.json"),
+        r#"{"welcome":"新 :name"}"#,
+    )
+    .unwrap();
+    fs::write(source.join("zh_CN.json"), "{invalid").unwrap();
+    let loader = FileLoader::new(source.clone());
+    let translator = Translator::new(
+        FileLoader::new(root.0.join("lang")),
+        "zh_CN".into(),
+        "en".into(),
+    )
+    .unwrap();
+    let args = BTreeMap::from([("name".into(), "Ada".into())]);
+    let resources = [
+        TranslationResource {
+            locale: "zh-Hans",
+            group: "messages",
+            namespace: Some("*"),
+        },
+        TranslationResource {
+            locale: "zh_CN",
+            group: "*",
+            namespace: None,
+        },
+    ];
+    assert_eq!(
+        translator.string("messages.welcome", &args, None).unwrap(),
+        "你好，Ada"
+    );
+    assert!(matches!(
+        translator.loadFrom(&loader, &resources).await,
+        Err(TranslationError::Source(_))
+    ));
+    assert_eq!(
+        translator.string("messages.welcome", &args, None).unwrap(),
+        "你好，Ada"
+    );
+    assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
+    fs::write(source.join("zh_CN.json"), r#"{"Hello":"新字面鍵"}"#).unwrap();
+    translator.loadFrom(&loader, &resources).await.unwrap();
+    assert_eq!(
+        translator.string("messages.welcome", &args, None).unwrap(),
+        "新 Ada"
+    );
+    assert_eq!(translator.string("Hello", &args, None).unwrap(), "新字面鍵");
+    assert_eq!(
+        translator.string("messages.fallback", &args, None).unwrap(),
+        "English fallback"
+    );
+}
+
+#[tokio::test]
+async fn asynchronous_translation_source_preserves_concurrent_writes() {
+    use openrust::{
+        contracts::translation::Loader,
+        translation::{
+            FileLoader, Line, Lines, TranslationFuture, TranslationResource, TranslationResult,
+            Translator,
+        },
+    };
+    use tokio::sync::Notify;
+
+    #[derive(Default)]
+    struct PausedLoader {
+        started: Notify,
+        resume: Notify,
+    }
+
+    impl Loader for PausedLoader {
+        fn load<'a>(
+            &'a self,
+            locale: &'a str,
+            group: &'a str,
+            namespace: Option<&'a str>,
+        ) -> TranslationFuture<'a, TranslationResult<Lines>> {
+            Box::pin(async move {
+                assert_eq!((locale, group, namespace), ("zh_CN", "messages", None));
+                self.started.notify_one();
+                self.resume.notified().await;
+                Ok(BTreeMap::from([(
+                    "welcome".into(),
+                    Line::Text("stale".into()),
+                )]))
+            })
+        }
+    }
+
+    let root = Root::new("loader-concurrent");
+    let translator = Translator::new(
+        FileLoader::new(root.0.join("lang")),
+        "zh_CN".into(),
+        "en".into(),
+    )
+    .unwrap();
+    let resources = [
+        TranslationResource {
+            locale: "zh-CN",
+            group: "messages",
+            namespace: None,
+        },
+        TranslationResource {
+            locale: "zh-Hans",
+            group: "messages",
+            namespace: Some("*"),
+        },
+    ];
+    let loader = PausedLoader::default();
+    let result = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        tokio::join!(translator.loadFrom(&loader, &resources), async {
+            loader.started.notified().await;
+            // An ordinary lazy read can race with a load without becoming a runtime write.
+            assert_eq!(
+                translator
+                    .string("messages.welcome", &BTreeMap::new(), None)
+                    .unwrap(),
+                "你好，:name"
+            );
+            translator
+                .addLines(
+                    [("messages.welcome".into(), Line::Text("concurrent".into()))],
+                    "zh_CN",
+                    None,
+                )
+                .unwrap();
+            loader.resume.notify_one();
+        })
+    })
+    .await
+    .unwrap();
+    assert!(matches!(result.0, Err(TranslationError::CatalogChanged)));
+    assert_eq!(
+        translator
+            .string("messages.welcome", &BTreeMap::new(), None)
+            .unwrap(),
+        "concurrent"
     );
 }

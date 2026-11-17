@@ -44,6 +44,30 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 }
 ```
 
+### Loading Groups From a Custom Source {#loading-custom-translation-sources}
+
+Pass a `Loader` to `Lang::loadFrom` at an async application boundary. Each resource identifies one locale, group, and optional namespace. The returned lines replace the selected groups together. A loader error or a concurrent runtime write to one of those groups leaves the batch unpublished. Subsequent lookups stay synchronous.
+
+```rust
+use openrust::{
+    contracts::translation::Loader,
+    support::facades::Lang,
+    translation::{TranslationResource, TranslationResult},
+};
+
+pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
+    Lang::loadFrom(
+        source,
+        &[TranslationResource {
+            locale: "en",
+            group: "notices",
+            namespace: None,
+        }],
+    )
+    .await
+}
+```
+
 ## Retrieving Translation Strings
 
 Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Use `Lang::array` for a group or list. A missing key is returned as text. Literal JSON keys are looked up in the selected locale. Grouped keys can fall back to the configured language.

@@ -19,6 +19,14 @@ pub use message_selector::{MessageSelector, PluralCount};
 pub use translation_service_provider::TranslationServiceProvider;
 pub use translator::Translator;
 
+/// Identifies one exact group to load from an asynchronous translation source.
+#[derive(Clone, Copy, Debug)]
+pub struct TranslationResource<'a> {
+    pub locale: &'a str,
+    pub group: &'a str,
+    pub namespace: Option<&'a str>,
+}
+
 /// A loaded translation group.
 pub type Lines = BTreeMap<String, Line>;
 
@@ -45,6 +53,7 @@ pub enum TranslationError {
     InvalidLocale,
     InvalidKey,
     UnexpectedType,
+    CatalogChanged,
     Source(Box<dyn std::error::Error + Send + Sync>),
     Unavailable(crate::contracts::container::BindingResolutionError),
 }
@@ -57,6 +66,9 @@ impl std::fmt::Display for TranslationError {
             Self::InvalidKey => formatter.write_str("Invalid translation key."),
             Self::UnexpectedType => {
                 formatter.write_str("Translation value has an unexpected type.")
+            }
+            Self::CatalogChanged => {
+                formatter.write_str("Translation catalog changed during loading.")
             }
             Self::Source(_) => formatter.write_str("Could not load translation catalog."),
             Self::Unavailable(_) => formatter.write_str("Translation service is unavailable."),
