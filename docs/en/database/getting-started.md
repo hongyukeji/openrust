@@ -125,7 +125,7 @@ On MySQL and SQLite, `DB::connection(Some("mysql::direct"))` (using your configu
 
 For PostgreSQL, a nonempty `direct` configuration selects a separate endpoint for `DB::connection(Some("pgsql::direct"))`. Set `DB_DIRECT_HOST`, `DB_DIRECT_PORT`, `DB_DIRECT_USERNAME`, `DB_DIRECT_PASSWORD`, and `DB_DIRECT_SSLMODE` as needed. A named connection’s `direct` options inherit its base configuration. Migrations select that endpoint by default, including ledger access. Explicit `::read`, `::write`, and `::direct` suffixes preserve the caller’s choice.
 
-Endpoint selection has been verified without opening a PostgreSQL connection. PostgreSQL and transaction-pooler runtime checks are part of release acceptance.
+When using PgBouncer in transaction mode, enable named prepared statement tracking with a nonzero `max_prepared_statements`. OpenRust uses SQLx prepared statements. Keep the application and server `search_path` settings aligned, since the pooler can ignore client startup options. Keep migrations on the direct connection.
 
 #### Reconnecting and Purging Connections {#reconnecting-database-connections}
 

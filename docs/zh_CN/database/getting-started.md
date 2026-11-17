@@ -125,7 +125,7 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 PostgreSQL 的 `direct` 配置非空时，`DB::connection(Some("pgsql::direct"))` 选择独立端点。按需设置 `DB_DIRECT_HOST`、`DB_DIRECT_PORT`、`DB_DIRECT_USERNAME`、`DB_DIRECT_PASSWORD` 和 `DB_DIRECT_SSLMODE`。具名连接的 `direct` 选项继承其基础配置。迁移和账本操作默认走该端点。显式的 `::read`、`::write`、`::direct` 后缀按调用方指定的角色执行。
 
-端点选择已通过无网络的配置测试。PostgreSQL 与事务连接池的运行时验收归入发布检查。
+使用 PgBouncer 事务池模式时，将 `max_prepared_statements` 设为非零值以跟踪命名预备语句。OpenRust 使用 SQLx 预备语句。让应用和数据库服务器的 `search_path` 保持一致，因为连接池可能忽略客户端启动选项。迁移继续使用直连。
 
 #### 断开、重连及清除连接 {#reconnecting-database-connections}
 

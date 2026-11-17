@@ -3088,3 +3088,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 23:36（北京时间）02-05 [PostgreSQL 列与外键目录](audits/02-05/README.md#postgresql-列与外键目录)。PostgreSQL SQL 预演、MySQL 8.4.13 三项元数据回归、独立 Artisan、全仓格式、严格 Clippy、三语站点及 24 项浏览器检查通过。核心账本维持 62/66。 本批回收 2.9 GiB Cargo 产物，项目磁盘可用 62.16 GB（57.89 GiB），周额度剩余 46%。真实 PostgreSQL 目录待发布验收。
 
 - 2026-11-17 23:58（北京时间）03-09 [Redis Cluster 索引丢失后的空代际回收](audits/03-09/README.md#redis-cluster-索引丢失后的空代际回收)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。 临时 Redis 和本批隔离编译及文档产物已回收，项目卷可用空间增加 14.41 GB（13.42 GiB），剩余 104.33 GB（97.16 GiB）。周额度剩余 45%，第二窗口无读数。
+
+- 2026-11-18 00:07（北京时间）02-02 [真实 PostgreSQL 直连与 PgBouncer 事务池](audits/02-02/README.md#真实-postgresql-直连与-pgbouncer-事务池)。PostgreSQL 18.6 与 PgBouncer 1.26.1 的 24 个并发 HTTP 请求、显式直连和迁移账本路由通过。三语部署说明及 6 项浏览器检查通过。核心账本维持 62/66。

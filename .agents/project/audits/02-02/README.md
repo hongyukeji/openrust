@@ -126,3 +126,10 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - 隔离基线 `37ef76c7c`。无网络配置回归验证普通连接保留写端点、迁移默认路由至独立端点、显式角色优先、前缀继承、错误驱动拒绝和默认连接名不变。首轮发现空 `direct` URL 误走基础端点，调整后回退至写端点，最终快照通过。
 - 真实 MySQL 8.4.13 的读写路由与断线恢复、`::direct` 回退、独立 Artisan 的迁移账本回归均通过。PostgreSQL 独立端点连通性、`pooled` 的事务池兼容及运行验收仍待发布矩阵。
 - Rust 1.94.0 全仓格式、严格 Clippy、`main artisan inspire`、三语站点及 18 项浏览器检查通过。本批临时 MySQL、3.3 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.22 GB（58.88 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-02-direct-route.Arix2t9P`。
+
+## 真实 PostgreSQL 直连与 PgBouncer 事务池
+
+- 沿用固定 Laravel 的连接角色和迁移选择机制。隔离 PostgreSQL 18.6 配合 PgBouncer 1.26.1 使用 SCRAM、`pool_mode=transaction`、单条后端连接及 `max_prepared_statements=64`。将池端点的同名连接映射到另一物理数据库，24 个并发 HTTP 请求以实际数据库名与整数绑定区分普通查询和显式直连。迁移只在直连数据库写入账本。 [Laravel 直连配置](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/Concerns/ConfiguresPooledConnections.php) · [PgBouncer 语句跟踪](https://www.pgbouncer.org/config.html#max_prepared_statements)
+- 验证应用与服务器的搜索路径一致时，池化连接使用预期 Schema，直连可使用独立路径。夹具的 HTTP Web 路由需要有效 `APP_KEY`。SQLx 使用原生预备语句，本次通过 PgBouncer 的具名语句跟踪获得兼容。Laravel 的 PDO 模拟预备策略和未启用语句跟踪的事务池仍待验收。
+- 三语连接文档已列出 PgBouncer 配置和迁移直连要求。隔离站点 12 项通用和 6 项连接文档浏览器检查通过。
+- 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。
