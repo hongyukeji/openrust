@@ -397,6 +397,18 @@ pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseR
 
 Apply conditions and call `delete()` to get the affected row count. Without a filter the deletion applies to the entire table. Use `truncate()` to clear a table and reset its generated IDs. Run it outside a MySQL transaction because MySQL implicitly commits this statement.
 
+### PostgreSQL table truncation {#postgresql-truncate}
+
+PostgreSQL uses `TRUNCATE … RESTART IDENTITY CASCADE` by default. It clears the target table and the tables that reference it through foreign keys, and resets their owned sequences. Set `cascade_on_truncate` to `false` on a PostgreSQL connection to use PostgreSQL’s default refusal when other tables reference the target. When run on a transaction handle, the data and sequence resets roll back with that transaction.
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
+    connection.table("event_archive").truncate().await
+}
+```
+
 ## Pessimistic Locking
 
 Use `lockForUpdate` or `sharedLock` inside a transaction. MySQL holds the row locks until commit or rollback. SQLite uses its normal transaction locking and has no equivalent row lock clause.

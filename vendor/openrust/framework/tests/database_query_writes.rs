@@ -33,6 +33,121 @@ fn mysql_url() -> Option<String> {
     url
 }
 
+#[tokio::test]
+async fn postgres_truncate_restarts_identities_with_configured_cascade_and_rollback() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_TRUNCATE_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_TRUNCATE").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    let restrict = connection(json!({"url":url, "prefix":"app_", "cascade_on_truncate":false}));
+    db.statement("CREATE SCHEMA truncate_probe", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE truncate_probe.app_parents (id integer GENERATED ALWAYS AS IDENTITY (START WITH 11) PRIMARY KEY, label text NOT NULL)",
+        &[],
+    ).await.unwrap();
+    db.statement(
+        "CREATE TABLE truncate_probe.app_children (id integer GENERATED ALWAYS AS IDENTITY (START WITH 101) PRIMARY KEY, parent_id integer NOT NULL REFERENCES truncate_probe.app_parents (id))",
+        &[],
+    ).await.unwrap();
+    db.statement("CREATE TABLE public.app_parents (id integer)", &[])
+        .await
+        .unwrap();
+    db.insert("INSERT INTO public.app_parents VALUES (71)", &[])
+        .await
+        .unwrap();
+    db.insert(
+        "INSERT INTO truncate_probe.app_parents (label) VALUES ('one'), ('two')",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.insert(
+        "INSERT INTO truncate_probe.app_children (parent_id) VALUES (11), (12)",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let parents = "truncate_probe.parents";
+    let children = "truncate_probe.children";
+    let error = restrict.table(parents).truncate().await.unwrap_err();
+    let DatabaseError::Driver { source, .. } = error else {
+        panic!("expected PostgreSQL driver error, got {error}");
+    };
+    assert_eq!(
+        source
+            .as_database_error()
+            .and_then(|error| error.code())
+            .as_deref(),
+        Some("0A000"),
+    );
+    assert_eq!(db.table(parents).count("*").await.unwrap(), 2);
+    assert_eq!(db.table(children).count("*").await.unwrap(), 2);
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction.table(parents).truncate().await.unwrap();
+    assert_eq!(transaction.table(parents).count("*").await.unwrap(), 0);
+    assert_eq!(transaction.table(children).count("*").await.unwrap(), 0);
+    assert_eq!(
+        transaction
+            .table(parents)
+            .insertGetId(record([("label", "rolled back".into())]))
+            .await
+            .unwrap(),
+        11.into(),
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(db.table(parents).count("*").await.unwrap(), 2);
+    assert_eq!(db.table(children).count("*").await.unwrap(), 2);
+    assert_eq!(
+        db.table(parents)
+            .insertGetId(record([("label", "next".into())]))
+            .await
+            .unwrap(),
+        13.into(),
+    );
+
+    db.enableQueryLog();
+    db.table(parents).truncate().await.unwrap();
+    assert_eq!(
+        db.getQueryLog()[0].query,
+        r#"truncate table "truncate_probe"."app_parents" restart identity cascade"#,
+    );
+    assert_eq!(db.table(parents).count("*").await.unwrap(), 0);
+    assert_eq!(db.table(children).count("*").await.unwrap(), 0);
+    assert_eq!(
+        db.table("public.parents").value("id").await.unwrap(),
+        71.into()
+    );
+    assert_eq!(
+        db.table(parents)
+            .insertGetId(record([("label", "restart".into())]))
+            .await
+            .unwrap(),
+        11.into(),
+    );
+    assert_eq!(
+        db.table(children)
+            .insertGetId(record([("parent_id", 11.into())]))
+            .await
+            .unwrap(),
+        101.into(),
+    );
+    assert!(matches!(
+        db.table("truncate_probe.parents as p").truncate().await,
+        Err(DatabaseError::InvalidQuery("truncate table alias"))
+    ));
+    db.statement("DROP SCHEMA truncate_probe CASCADE", &[])
+        .await
+        .unwrap();
+    db.statement("DROP TABLE public.app_parents", &[])
+        .await
+        .unwrap();
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS app_q_items; DROP TABLE IF EXISTS app_q_groups; DROP TABLE IF EXISTS app_q_archive").await.unwrap();
     let id = if mysql {

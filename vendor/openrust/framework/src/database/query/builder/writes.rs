@@ -368,15 +368,24 @@ impl Builder<'_> {
         {
             return Err(DatabaseError::InvalidQuery("truncate table alias"));
         }
-        if self.grammar.is_mysql() {
-            return match &self.executor {
-                Executor::Connection(connection) => connection
-                    .statement(&format!("truncate table {target}"), &[])
-                    .await
-                    .map(|_| ()),
-                Executor::Transaction(_) => Err(DatabaseError::InvalidQuery(
-                    "MySQL truncate implicitly commits",
-                )),
+        let native_sql = if self.grammar.is_postgres() {
+            Some(self.grammar.postgres_truncate(&target))
+        } else if self.grammar.is_mysql() {
+            Some(format!("truncate table {target}"))
+        } else {
+            None
+        };
+        if let Some(sql) = native_sql {
+            return match &mut self.executor {
+                Executor::Connection(connection) => {
+                    connection.statement(&sql, &[]).await.map(|_| ())
+                }
+                Executor::Transaction(_) if self.grammar.is_mysql() => Err(
+                    DatabaseError::InvalidQuery("MySQL truncate implicitly commits"),
+                ),
+                Executor::Transaction(transaction) => {
+                    transaction.statement(&sql, &[]).await.map(|_| ())
+                }
                 Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
             };
         }

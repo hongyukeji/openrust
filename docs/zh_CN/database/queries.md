@@ -397,6 +397,18 @@ pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseR
 
 设置条件后调用 `delete()` 返回影响行数。未设置条件时，删除作用于整张表。`truncate()` 清空表并重置自增主键。MySQL 的该语句会隐式提交，请在事务外运行。
 
+### PostgreSQL 清空表 {#postgresql-truncate}
+
+PostgreSQL 默认使用 `TRUNCATE … RESTART IDENTITY CASCADE`，清空目标表及通过外键引用它的表，并重置这些表拥有的序列。在 PostgreSQL 连接中将 `cascade_on_truncate` 设为 `false` 时，若有其他表引用目标表，PostgreSQL 会拒绝清空。通过事务句柄执行时，回滚会恢复数据及序列。
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
+    connection.table("event_archive").truncate().await
+}
+```
+
 ## 悲观锁
 
 在事务中使用 `lockForUpdate` 或 `sharedLock`。MySQL 持有行锁直至提交或回滚。SQLite 采用自身的事务锁机制，没有对应的行锁子句。

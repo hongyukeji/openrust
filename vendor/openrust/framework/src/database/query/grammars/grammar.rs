@@ -31,6 +31,7 @@ pub(crate) struct Grammar {
     prefix: Arc<str>,
     upsert_alias: bool,
     mariadb: bool,
+    truncate_cascade: bool,
 }
 
 impl Grammar {
@@ -40,6 +41,7 @@ impl Grammar {
             upsert_alias,
             prefix: prefix.into(),
             mariadb: false,
+            truncate_cascade: false,
         }
     }
 
@@ -56,6 +58,7 @@ impl Grammar {
             upsert_alias: false,
             prefix: prefix.into(),
             mariadb: false,
+            truncate_cascade: false,
         }
     }
 
@@ -65,7 +68,22 @@ impl Grammar {
             upsert_alias: false,
             prefix: prefix.into(),
             mariadb: false,
+            truncate_cascade: true,
         }
+    }
+
+    pub(crate) fn with_truncate_cascade(mut self, cascade: bool) -> Self {
+        self.truncate_cascade = cascade;
+        self
+    }
+
+    pub(in crate::database::query) fn postgres_truncate(&self, target: &str) -> String {
+        let cascade = if self.truncate_cascade {
+            " cascade"
+        } else {
+            ""
+        };
+        format!("truncate table {target} restart identity{cascade}")
     }
 
     pub(crate) fn is_mariadb(&self) -> bool {

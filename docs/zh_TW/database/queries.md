@@ -397,6 +397,18 @@ pub async fn enable_notifications(connection: &Connection, id: i64) -> DatabaseR
 
 設定條件後呼叫 `delete()`，會傳回受影響的資料列數。未設定條件時，刪除會套用到整張資料表。`truncate()` 清空資料表並重設自動遞增主鍵。MySQL 的此陳述式會隱含提交，請在交易外執行。
 
+### PostgreSQL 清空資料表 {#postgresql-truncate}
+
+PostgreSQL 預設使用 `TRUNCATE … RESTART IDENTITY CASCADE`，清空目標資料表及透過外鍵參照它的資料表，並重設這些資料表擁有的序列。在 PostgreSQL 連線中將 `cascade_on_truncate` 設為 `false` 時，若其他資料表參照目標資料表，PostgreSQL 會拒絕清空。透過交易控制代碼執行時，回滾會還原資料和序列。
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
+    connection.table("event_archive").truncate().await
+}
+```
+
 ## 悲觀鎖定
 
 在交易中使用 `lockForUpdate` 或 `sharedLock`。MySQL 持有資料列鎖直到提交或復原。SQLite 採用自身的交易鎖定機制，沒有對應的資料列鎖定子句。

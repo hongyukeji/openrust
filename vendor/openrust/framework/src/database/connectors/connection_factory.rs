@@ -147,7 +147,8 @@ fn resolve(
         }
         Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
         Pool::Sqlite(_) => Grammar::sqlite(prefix),
-        Pool::Postgres(..) => Grammar::postgres(prefix),
+        Pool::Postgres(..) => Grammar::postgres(prefix)
+            .with_truncate_cascade(write_options.boolean("cascade_on_truncate", true)?),
         Pool::SqlServer(_) => Grammar::sql_server(prefix),
     };
     match role {
