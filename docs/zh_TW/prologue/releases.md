@@ -31,7 +31,7 @@
 
 | 目標 | 所需環境或權限 |
 | --- | --- |
-| Windows Docker Desktop | 可存取的 Windows 主機，Docker Desktop 的 Linux 容器後端可運作。測試帳戶可存取 Windows 目錄，以驗證唯讀公開檔案與可寫入的儲存空間。目前 ARM64 客體沒有可運作的 WSL 2 後端。 |
+| Windows Docker Desktop | 可登入的 Windows 主機，Docker Desktop 正在執行 Linux 容器後端。測試帳戶須能執行 `docker info`、`docker compose version` 和 `docker buildx version`，並能讀寫用於繫結掛載的隔離 Windows 測試目錄。現有 Parallels ARM64 客體沒有 Docker Desktop 和可用的 WSL 2 後端。 |
 | 正式環境 TLS | 實際 HTTPS URL、部署主機名稱、受信任的憑證鏈，以及在同一部署執行唯讀 Artisan 命令的權限。本機反向代理已使用測試 CA 驗證 TLS 1.2 和 1.3。 |
 | 受管 AWS SQS 標準／FIFO | 兩條隔離佇列的 URL（標準與 FIFO 各一）、AWS 區域、隔離的 MySQL 批次帳本，以及僅授予測試佇列權限的憑證。核心檢查需要 `sqs:SendMessage`（含批次傳送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用臨時憑證時需同時設定工作階段權杖。 |
 

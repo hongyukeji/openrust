@@ -31,7 +31,7 @@ The database rows record release acceptance. PostgreSQL 10–18 results apply to
 
 | Target | Environment or access needed |
 | --- | --- |
-| Windows Docker Desktop | Access to a Windows host with functioning Docker Desktop in Linux-container mode and a supported backend. The test account needs access to a Windows directory to verify read-only public files and writable storage. The available ARM64 guest lacks a working WSL 2 backend. |
+| Windows Docker Desktop | A reachable Windows host with Docker Desktop running Linux containers. The test account must run `docker info`, `docker compose version` and `docker buildx version` and have read/write access to an isolated Windows test directory for the bind mounts. The available Parallels ARM64 guest has no Docker Desktop or usable WSL 2 backend. |
 | Production TLS | The actual HTTPS URL and deployed hostname, a trusted certificate chain, and access to run read-only Artisan commands for the same deployment. TLS 1.2 and 1.3 have passed on the local proxy with a test CA. |
 | Managed AWS SQS Standard and FIFO | Two isolated queue URLs, one Standard and one FIFO, their AWS region, an isolated MySQL batch ledger, and credentials scoped to the queues. The core checks use `sqs:SendMessage` (including batch sends), `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`. Include the session token if using temporary credentials. |
 

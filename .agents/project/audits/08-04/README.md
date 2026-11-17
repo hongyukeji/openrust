@@ -85,10 +85,10 @@ Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用�
 ## 剩余实机环境复查
 
 - **原生 Linux x86_64** 已复用 Ubuntu 24.04.3 LTS x86_64 主机并验收 `07307c6e1`。完成隔离 Compose 部署、真实 HTTP 和 Artisan、Redis 作业消费、挂载持久化和优雅关停。 [原生 Ubuntu 发布复验](docker.md#原生-ubuntu-x86_64-发布复验)
-- **Windows Docker Desktop** 复查时启动现有 Windows 11 ARM64 来宾进行只读复查。Docker Desktop 和 CLI 均不存在，`wsl --status` 返回 50，来宾报告固件虚拟化和 SLAT 不可用。复查结束后恢复来宾停止状态。需要可运行 Docker Desktop Linux 容器后端的 Windows 主机，以及 Windows 目录共享与读写权限。 [Docker Desktop 系统要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements) · [Parallels 来宾限制](https://kb.parallels.com/en/129497)
+- **Windows Docker Desktop** 以 `8dc6ac3ca` 为本轮起点，启动现有 Windows 11 ARM64 来宾（Build 26200）复查。系统与用户安装位置均未找到 Docker Desktop，Docker 服务和 CLI 不存在，`wsl --status` 返回 50，固件虚拟化和 SLAT 均报告不可用。两套本地 Docker 上下文均连接 macOS 上的 Linux aarch64 后端。来宾已恢复停止状态。尚缺可登录的 Windows 主机、可用的 Docker Desktop Linux 容器后端，以及测试账号的 Docker、Compose、Buildx 和隔离 Windows 挂载目录读写权限。目标就绪后，从最新提交验证镜像构建、Compose 部署、只读 public、可写且重建后保留的 storage、实际首页与 `/up`、Artisan 迁移和 Worker。 [Docker Desktop 系统要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements) · [Parallels 来宾限制](https://kb.parallels.com/en/129497)
 - **生产 TLS** 复查确认本地配置未给出生产验收 HTTPS URL。需提供实际 URL 与部署主机名、可受信任的证书链以及同一部署的只读 Artisan 权限。目标就绪后核对 TLS、证书校验、首页与 `/up`，并通过 `migrate:status` 核对运行中的发布实例。现有本地测试 CA 的 TLS 1.2／1.3 记录继续保留。
 - **托管 AWS SQS 标准／FIFO** 复查仅发现区域配置，未发现隔离队列 URL 或可用的 AWS 凭据来源。需要标准及 FIFO 各一条隔离队列的完整 URL、对应区域、隔离 MySQL 批次账本和队列范围内的 `SendMessage`、`ReceiveMessage`、`DeleteMessage`、`ChangeMessageVisibility`、`GetQueueAttributes`。批量发送使用 `SendMessage` 权限。临时凭据还需要会话令牌，使用自管 KMS 密钥的队列需向生产者授予 `kms:Decrypt` 和 `kms:GenerateDataKey`，向消费者授予 `kms:Decrypt`。 [AWS SQS API 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html) · [SQS KMS 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html)
 
 原生 Ubuntu x86_64 发布复验通过。Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 待目标环境验收。08-04 保持开放。
 
-三语站点构建、12 项通用浏览器检查和 6 项待验收矩阵检查通过。临时站点已清理。
+本轮 Windows 环境复查同步更新三语支持矩阵。三语站点构建、12 项通用浏览器检查和 6 项待验收矩阵检查通过，临时站点已清理。

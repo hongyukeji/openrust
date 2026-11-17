@@ -31,7 +31,7 @@
 
 | 目标 | 所需环境或权限 |
 | --- | --- |
-| Windows Docker Desktop | 可访问的 Windows 主机，Docker Desktop 的 Linux 容器后端可运行。测试账号可访问 Windows 目录，以验证只读公共文件和可写存储。当前 ARM64 来宾没有可运行的 WSL 2 后端。 |
+| Windows Docker Desktop | 可登录的 Windows 主机，Docker Desktop 正在运行 Linux 容器后端。测试账号须能执行 `docker info`、`docker compose version` 和 `docker buildx version`，并能读写用于绑定挂载的隔离 Windows 测试目录。现有 Parallels ARM64 来宾没有 Docker Desktop 和可用的 WSL 2 后端。 |
 | 生产 TLS | 实际 HTTPS URL、部署主机名、可受信任的证书链，以及在同一部署执行只读 Artisan 命令的权限。本地反向代理已用测试 CA 验证 TLS 1.2 和 1.3。 |
 | 托管 AWS SQS 标准／FIFO | 两条隔离队列的 URL（标准与 FIFO 各一）、AWS 区域、隔离 MySQL 批次账本，以及仅授予测试队列权限的凭据。核心检查需要 `sqs:SendMessage`（包含批量发送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用临时凭据时需同时配置会话令牌。 |
 
