@@ -84,6 +84,14 @@ impl Migration for Definition {
 
 遇到第一個待執行遷移前，`shouldRun` 回傳 false 的遷移顯示為 `Skipped`。此後尚未登記的遷移顯示為 `Pending`，因為前序遷移可能改變後續條件所依賴的資料庫狀態。
 
+### 以警告回報遷移失敗 {#graceful-migrations}
+
+使用 `--graceful` 時，遷移或 Seeder 的執行錯誤會顯示為警告，指令結束碼為 0。失敗的遷移仍是待執行狀態，此前成功的遷移仍保留在帳本中。正式環境確認仍然生效。
+
+```sh
+./artisan migrate --graceful
+```
+
 ### 建立缺少的 MySQL 資料庫 {#creating-a-missing-database}
 
 設定的 MySQL 資料庫不存在時，`migrate` 會在建立前提示確認。無人值守部署可使用 `--force`。選定的寫入帳號需要有權建立該資料庫。

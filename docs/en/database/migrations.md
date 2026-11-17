@@ -84,6 +84,14 @@ Use `--pending` to list only pending migrations. Use `--pending=17` to make the 
 
 Before the first pending migration, a migration whose `shouldRun` condition is false appears as `Skipped`. Subsequent unrecorded migrations appear as `Pending` because earlier migrations may change the database state used by their conditions.
 
+### Reporting Migration Failures as Warnings {#graceful-migrations}
+
+Use `--graceful` to report an execution error as a warning and return exit code 0. This covers migration and seeding errors. The failed migration remains pending, and any earlier successful migrations remain recorded. Production confirmation still applies.
+
+```sh
+./artisan migrate --graceful
+```
+
 ### Creating a Missing MySQL Database {#creating-a-missing-database}
 
 When the configured MySQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create that database.

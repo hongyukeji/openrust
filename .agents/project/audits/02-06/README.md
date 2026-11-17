@@ -93,3 +93,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 基于 `4953d4f77` 隔离验收。真实 MySQL 8.4.13 上，根应用命令验收无账本退出 1、只筛选待迁移项以及指定退出码。用三语共用示例的独立 Artisan 运行确认，迁移前退出 17，迁移后显示 `No pending migrations` 并退出 0。
 - 框架控制台验收已执行路径筛选、`Skipped`／`Pending`／`Ran` 的转换、已执行项显示批次、仅跳过项时退出 0。首个待迁移项之后保持 `Pending`，待前序迁移完成后再求值条件。
 - `sh tests/table_catalog.sh` 的表目录及限定库清理、实际 `main artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。数据库创建、快照和 Redis 隔离的历史验收仍各自追踪，本批按待迁移检查的范围实测。临时 MySQL、本批 3.5 GiB Cargo 产物和文档缓存已回收。磁盘可用 63.25 GB（58.91 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-status.hRPakDvy`。
+
+## 迁移失败警告与继续退出
+
+- 对照固定 Laravel `MigrateCommand::handle`。生产确认仍先执行，`--graceful` 只改变迁移或 Seeder 执行错误的报告和退出码。Rust 在执行分支内处理 `Result`，复用原迁移与账本流程。旧版有迁移失败回归，没有对应的 Artisan 选项。 [固定 Laravel MigrateCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php)
+- 以 `fb7bba359` 为隔离基线。在真实 MySQL 8.4.13 上，先执行用户表迁移，再制造缓存表冲突。普通模式退出 1，`--graceful` 显示失败迁移名并退出 0，账本只保留已成功的一项，后续任务表尚未创建。删除冲突表后重跑，待执行列表为空。
+- 根应用的独立 Artisan 回归还核对未知 Seeder 的普通失败与警告模式，以及拒绝生产确认时仍退出 1。三语共用的 `./artisan migrate --graceful` 行为通过独立二进制验证。
+- Rust 1.94.0 全仓格式、严格 Clippy、实际 `main artisan inspire`、三语站点与 18 项浏览器检查通过。临时 MySQL、本批 2.8 GiB Cargo 产物及文档缓存已回收。磁盘可用 62.68 GB（58.37 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-graceful.I7KI0i3E`。

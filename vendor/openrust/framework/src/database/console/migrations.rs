@@ -121,6 +121,9 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             if matches!(kind, Kind::Run | Kind::Fresh) {
                 syntax = syntax.arg(Arg::new("schema-path").long("schema-path"));
             }
+            if kind == Kind::Run {
+                syntax = syntax.arg(flag("graceful"));
+            }
             if matches!(kind, Kind::Rollback | Kind::Refresh) {
                 syntax = syntax.arg(
                     Arg::new("step")
@@ -281,29 +284,39 @@ impl Command for MigrationCommand {
                         |connection: &Connection| confirm_database_creation(matches, connection);
                     let can_confirm = matches.get_flag("force")
                         || (!matches.get_flag("no-interaction") && io::stdin().is_terminal());
-                    let (rows, loaded) = migrator
-                        .run_with_schema(
-                            database,
-                            &paths,
-                            RunOptions {
-                                pretend,
-                                step: matches.get_flag("step"),
-                            },
-                            matches.get_one::<String>("schema-path").map(Path::new),
-                            if can_confirm {
-                                Some(&confirm_create)
-                            } else {
-                                None
-                            },
-                        )
-                        .await
-                        .map_err(console_error)?;
-                    if loaded {
-                        output.info("Loading stored database schemas.");
+                    let result = async {
+                        let (rows, loaded) = migrator
+                            .run_with_schema(
+                                database,
+                                &paths,
+                                RunOptions {
+                                    pretend,
+                                    step: matches.get_flag("step"),
+                                },
+                                matches.get_one::<String>("schema-path").map(Path::new),
+                                if can_confirm {
+                                    Some(&confirm_create)
+                                } else {
+                                    None
+                                },
+                            )
+                            .await
+                            .map_err(console_error)?;
+                        if loaded {
+                            output.info("Loading stored database schemas.");
+                        }
+                        report(output, rows, pretend, "Nothing to migrate.");
+                        if matches.get_flag("seed") && !pretend {
+                            seed(app, database, matches, output).await?;
+                        }
+                        Ok::<(), ConsoleError>(())
                     }
-                    report(output, rows, pretend, "Nothing to migrate.");
-                    if matches.get_flag("seed") && !pretend {
-                        seed(app, database, matches, output).await?;
+                    .await;
+                    if let Err(error) = result {
+                        if !matches.get_flag("graceful") {
+                            return Err(error);
+                        }
+                        output.comment(&format!("  WARN  {error}"));
                     }
                 }
                 Kind::Rollback => {

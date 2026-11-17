@@ -373,6 +373,13 @@ async fn verify(mysql: Option<&str>) {
     let cancelled = root.run("production", mysql, &["migrate", "--no-interaction"]);
     assert_eq!(cancelled.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&cancelled.stdout).contains("cancelled"));
+    let cancelled = root.run(
+        "production",
+        mysql,
+        &["migrate", "--graceful", "--no-interaction"],
+    );
+    assert_eq!(cancelled.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&cancelled.stdout).contains("cancelled"));
     assert!(!schema.hasTable("migrations").await.unwrap());
 
     let preview = success(run(&["migrate", "--pretend"]));
@@ -399,7 +406,23 @@ async fn verify(mysql: Option<&str>) {
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
     assert!(schema.hasTable("users").await.unwrap());
     assert!(schema.hasTable("sessions").await.unwrap());
-    assert!(success(run(&["migrate"])).contains("DONE"));
+    schema
+        .create("cache", |table| {
+            table.id();
+        })
+        .await
+        .unwrap();
+    let failed = run(&["migrate"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("create_cache_table"));
+    let graceful = success(run(&["migrate", "--graceful"]));
+    assert!(graceful.contains("WARN") && graceful.contains("create_cache_table"));
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 1);
+    assert!(schema.hasTable("users").await.unwrap());
+    assert!(!schema.hasTable("jobs").await.unwrap());
+    schema.drop("cache").await.unwrap();
+    let repaired = success(run(&["migrate", "--graceful"]));
+    assert!(repaired.contains("DONE") && !repaired.contains("WARN"));
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("cache_locks").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
@@ -407,6 +430,19 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
+    let seed = [
+        "migrate",
+        "--seed",
+        "--seeder=MissingMigrationFixtureSeeder",
+    ];
+    assert_eq!(run(&seed).status.code(), Some(1));
+    let graceful = success(run(&[
+        "migrate",
+        "--graceful",
+        "--seed",
+        "--seeder=MissingMigrationFixtureSeeder",
+    ]));
+    assert!(graceful.contains("WARN") && graceful.contains("MissingMigrationFixtureSeeder"));
     assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),

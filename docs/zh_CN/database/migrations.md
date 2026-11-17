@@ -84,6 +84,14 @@ impl Migration for Definition {
 
 遇到第一个待执行迁移前，`shouldRun` 返回 false 的迁移显示为 `Skipped`。此后的未登记迁移显示为 `Pending`，因为前序迁移可能改变后续条件所依赖的数据库状态。
 
+### 以警告报告迁移失败 {#graceful-migrations}
+
+使用 `--graceful` 时，迁移或 Seeder 的执行错误显示为警告，命令退出码为 0。失败的迁移仍处于待执行状态，此前成功的迁移仍保留在账本中。生产环境确认仍然生效。
+
+```sh
+./artisan migrate --graceful
+```
+
 ### 创建缺失的 MySQL 数据库 {#creating-a-missing-database}
 
 配置的 MySQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建该数据库。
