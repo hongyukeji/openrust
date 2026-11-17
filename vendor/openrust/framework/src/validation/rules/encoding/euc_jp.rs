@@ -19,7 +19,7 @@ impl Variant {
         true
     }
 
-    fn plane_one(self, row: u8, column: u8) -> bool {
+    pub(super) fn plane_one(self, row: u8, column: u8) -> bool {
         match self {
             Self::Standard => jis_0208(row, column),
             Self::Windows => {
@@ -49,7 +49,7 @@ impl Variant {
         }
     }
 
-    fn plane_two(self, row: u8, column: u8) -> bool {
+    pub(super) fn plane_two(self, row: u8, column: u8) -> bool {
         match self {
             Self::Standard => jis_0212(row, column),
             Self::Windows => {
@@ -71,7 +71,7 @@ fn full_row(column: u8) -> bool {
     matches!(column, 0xa1..=0xfe)
 }
 
-fn vendor_row(row: u8, column: u8) -> bool {
+pub(super) fn vendor_row(row: u8, column: u8) -> bool {
     row == 0xad && matches!(column, 0xa1..=0xbe | 0xc0..=0xd6 | 0xdf..=0xfc)
 }
 

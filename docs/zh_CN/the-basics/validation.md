@@ -102,6 +102,8 @@ fn register() -> Result<(), RoutingError> {
 
 Shift-JIS 文件校验还支持 `SJIS-mac`、`SJIS-2004`、`SJIS-Mobile#DOCOMO`、`SJIS-Mobile#KDDI` 和 `SJIS-Mobile#SOFTBANK`。按实际编码选择规则，例如 `encoding:SJIS-mac` 或 `File::default().encoding("SJIS-Mobile#SOFTBANK")`。SoftBank 变体也会验证旧式表情转义序列。
 
+`encoding:ISO-2022-JP` 和 `encoding:JIS` 校验日文转义序列，并要求输入结束前切回 ASCII。文件规则也支持 `ISO-2022-JP-MS`、`ISO-2022-JP-2004`、`ISO-2022-JP-MOBILE#KDDI` 及 `CP50220` 至 `CP50222`，各变体按 PHP mbstring 校验字表和结束状态。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

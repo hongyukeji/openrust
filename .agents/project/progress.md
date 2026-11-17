@@ -3014,3 +3014,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 18:21（北京时间）04-05 [日文 EUC 编码](audits/04-05/README.md#euc-jpeucjp-wincp51932-与-euc-jp-2004)。EUC-JP、eucJP-win、CP51932 与 EUC-JP-2004 在固定 Laravel／PHP 8.5.12 下通过 529,408 个实际 multipart HTTP 对照。MySQL 8.4.13 下 18 项回归、根应用 Artisan、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB Cargo 产物和文档缓存，项目磁盘可用 81.66 GB（76.06 GiB），周额度剩余 52%，核心账本维持 59/66。
 
 - 2026-11-17 18:28（北京时间）04-05 [Shift-JIS 与移动变体](audits/04-05/README.md#shift-jis-与移动变体)。八个标签含 SoftBank 旧式表情转义，与固定 Laravel／PHP 8.5.12 的 537,858 个实际 multipart HTTP 对照通过。MySQL 8.4.13 下 19 项回归、根应用 Artisan、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB Cargo 产物和文档缓存，项目磁盘可用 81.62 GB（76.02 GiB），周额度剩余 52%，核心账本维持 59/66。
+
+- 2026-11-17 18:36（北京时间）04-05 [JIS 与 ISO-2022-JP 系列](audits/04-05/README.md#jis-与-iso-2022-jp-系列)。八个编码标签的 4,718,592 个字节校验结果及 65,584 个实际 multipart HTTP 对照与固定 Laravel／PHP 8.5.12 一致。MySQL 8.4.13 下 20 项回归、独立 Artisan、全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB Cargo 产物和文档缓存，项目磁盘可用 81.57 GB（75.97 GiB），周额度剩余 52%，核心账本维持 59/66。

@@ -129,3 +129,10 @@
 - 独立穷举显示原 SJIS、CP932 在单、双字节上已与 PHP 一致。本批使用相同的字节扫描和各自的可接受位置来支持其他变体，保留原始输入。
 - 八个标签的单、双字节穷举、8,192 个确定性混合序列及 3,330 个 SoftBank 转义样本，共 537,858 个上传值，与固定 Laravel PHP trait 的实际 multipart HTTP 对照通过。MySQL 8.4.13 下 19 项验证回归通过，三语文档的声明式与 Fluent 文件规则已通过实际上传。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-sjis.hj2stQIR`。状态型编码、其余多字节编码和整单元对照待完成，核心账本维持 59/66。
+
+## JIS 与 ISO-2022-JP 系列
+
+- 对照固定 Laravel 的 `validateEncoding` 与 PHP 8.5.12 mbstring。实现 JIS、ISO-2022-JP、ISO-2022-JP-MS、ISO-2022-JP-2004、ISO-2022-JP-MOBILE#KDDI 和 CP50220／21／22 的验证行为。复用日文 EUC 已核定的 JIS 字表，按各变体处理转义、移位和扩展。JIS 与标准 ISO-2022-JP 要求以 ASCII 状态结束，另外六个标签按各自的 PHP 解码检查保留结尾行为。固定 Goravel 与旧版已核对，旧版未找到可复用的对应验证。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding)
+- 八个标签分别在九种前置序列下穷举所有双字节，累计 4,718,592 个校验结果与 PHP 一致。原 ISO-2022-JP 解码器在该矩阵中有 5,387 处结果差异。
+- 固定 Laravel PHP trait 与实际 multipart HTTP 对照 65,584 个上传值，包括转义选择符穷举、截断、移位、恢复 ASCII、扩展字表和 8,192 个确定性混合序列。MySQL 8.4.13 下 20 项验证回归通过，三语文档规则已通过实际上传。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-jis.DkSJ1cSM`。其余多字节、状态型编码和整单元对照待完成，核心账本维持 59/66。

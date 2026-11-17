@@ -368,6 +368,23 @@ impl FormRequest for Upload {
                     File::default().encoding("EUC-JP-2004").into(),
                 ],
             ),
+            "encoding-jis"
+            | "encoding-iso-2022-jp"
+            | "encoding-iso-2022-jp-ms"
+            | "encoding-iso-2022-jp-2004"
+            | "encoding-cp50220"
+            | "encoding-cp50221"
+            | "encoding-cp50222" => {
+                let rule = format!("required|file|encoding:{}", &self.0["encoding-".len()..]);
+                RuleSet::parse([("attachments.*", rule.as_str())])
+            }
+            "encoding-iso-2022-jp-mobile-kddi" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("ISO-2022-JP-MOBILE#KDDI").into(),
+                ],
+            ),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1567,6 +1584,42 @@ async fn validates_shift_jis_extensions_over_real_http() {
             422,
         )
         .await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_iso_2022_jp_variants_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, good, bad) in [
+        ("encoding-jis", b"\x0e!\x0f".as_slice(), b"\x0e!".as_slice()),
+        ("encoding-iso-2022-jp", b"\x1b$B$\x22\x1b(B", b"\x1b$B$\x22"),
+        ("encoding-iso-2022-jp-ms", b"\x1b$(?!~", b"\x1b$(?5!"),
+        ("encoding-iso-2022-jp-2004", b"\x1b$(P!!", b"\x1b$(P\x22!"),
+        ("encoding-iso-2022-jp-mobile-kddi", b"\x1b$Bu!", b"\x1b$By!"),
+        ("encoding-cp50220", b"\x1b$(D\x22/", b"\x1b$(P!!"),
+        ("encoding-cp50221", b"\x1b(I!", b"\x1b("),
+        ("encoding-cp50222", b"\x1b$B\x97,", b"\x1b$B\x97-"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            good,
+            200,
+        )
+        .await;
+        let response = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            bad,
+            422,
+        )
+        .await;
+        assert!(response["errors"]["attachments.0"].is_array());
     }
     server.abort();
 }

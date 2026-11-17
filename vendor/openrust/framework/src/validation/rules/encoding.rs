@@ -1,6 +1,7 @@
 mod double_byte;
 mod euc_jp;
 mod gb18030;
+mod iso_2022_jp;
 mod shift_jis;
 mod utf7;
 
@@ -30,6 +31,7 @@ enum Codec {
     Cp936,
     Gb18030,
     EucJp(euc_jp::Variant),
+    Iso2022Jp(iso_2022_jp::Variant),
     DoubleByte(fn(u8, u8) -> bool),
     Utf32(Option<bool>),
     Decoder(&'static Encoding),
@@ -95,7 +97,13 @@ impl EncodingRule {
             "cp950" => Codec::DoubleByte(double_byte::cp950),
             "euc-kr" => Codec::DoubleByte(double_byte::euc_kr),
             "uhc" => Codec::DoubleByte(double_byte::uhc),
-            "utf-16be" | "utf-16le" | "iso-2022-jp" => Codec::Decoder(
+            "jis" => Codec::Iso2022Jp(iso_2022_jp::Variant::Jis),
+            "iso-2022-jp" => Codec::Iso2022Jp(iso_2022_jp::Variant::Standard),
+            "iso-2022-jp-ms" => Codec::Iso2022Jp(iso_2022_jp::Variant::Microsoft),
+            "iso-2022-jp-2004" => Codec::Iso2022Jp(iso_2022_jp::Variant::Jis2004),
+            "iso-2022-jp-mobile#kddi" => Codec::Iso2022Jp(iso_2022_jp::Variant::Kddi),
+            "cp50220" | "cp50221" | "cp50222" => Codec::Iso2022Jp(iso_2022_jp::Variant::Cp5022x),
+            "utf-16be" | "utf-16le" => Codec::Decoder(
                 Encoding::for_label_no_replacement(label.as_bytes())
                     .ok_or(ValidationError::InvalidRule)?,
             ),
@@ -138,6 +146,7 @@ impl EncodingRule {
             }),
             Codec::Gb18030 => gb18030::check(value),
             Codec::EucJp(variant) => variant.check(value),
+            Codec::Iso2022Jp(variant) => variant.check(value),
             Codec::DoubleByte(accepts) => valid_pairs(value, |lead, trail| {
                 if trail.is_some_and(|trail| accepts(lead, trail)) {
                     2
