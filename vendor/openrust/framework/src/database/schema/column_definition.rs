@@ -78,6 +78,20 @@ pub(super) struct GeneratedColumn {
     pub(super) json: bool,
 }
 
+#[derive(Clone)]
+pub(super) enum Identity {
+    Default,
+    Options(Expression),
+}
+
+#[derive(Clone, Default)]
+pub(super) struct PostgresColumnModifiers {
+    pub(super) identity: Option<Identity>,
+    pub(super) always: bool,
+    pub(super) drop_expression: bool,
+    pub(super) using: Option<Expression>,
+}
+
 /// A column's type and modifiers.
 #[derive(Clone)]
 pub struct ColumnDefinition {
@@ -92,7 +106,7 @@ pub struct ColumnDefinition {
     pub(super) current_default: CurrentDefault,
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
-    pub(super) using: Option<Box<Expression>>,
+    pub(super) postgres: Option<Box<PostgresColumnModifiers>>,
     pub(super) rename_to: Option<String>,
     pub(super) comment: Option<String>,
     pub(super) charset: Option<String>,
@@ -121,7 +135,7 @@ impl ColumnDefinition {
             current_default: CurrentDefault::Unset,
             generated: None,
             change: false,
-            using: None,
+            postgres: None,
             rename_to: None,
             comment: None,
             charset: None,
@@ -288,6 +302,30 @@ impl ColumnDefinition {
         self
     }
 
+    /// Retains the values of a PostgreSQL stored generated column as ordinary data.
+    pub fn dropExpression(&mut self) -> &mut Self {
+        self.postgres_modifiers().drop_expression = true;
+        self
+    }
+
+    /// Uses a PostgreSQL identity sequence for this column.
+    pub fn generatedAs(&mut self) -> &mut Self {
+        self.postgres_modifiers().identity = Some(Identity::Default);
+        self
+    }
+
+    /// Configures a PostgreSQL identity sequence with trusted SQL options.
+    pub fn generatedAsWith(&mut self, options: Expression) -> &mut Self {
+        self.postgres_modifiers().identity = Some(Identity::Options(options));
+        self
+    }
+
+    /// Uses PostgreSQL's GENERATED ALWAYS identity mode.
+    pub fn always(&mut self) -> &mut Self {
+        self.postgres_modifiers().always = true;
+        self
+    }
+
     pub fn useCurrent(&mut self) -> &mut Self {
         self.current_default = CurrentDefault::AfterExplicit;
         self
@@ -365,7 +403,11 @@ impl ColumnDefinition {
 
     /// Converts existing values with a trusted PostgreSQL expression during change.
     pub fn using(&mut self, expression: Expression) -> &mut Self {
-        self.using = Some(Box::new(expression));
+        self.postgres_modifiers().using = Some(expression);
         self
+    }
+
+    fn postgres_modifiers(&mut self) -> &mut PostgresColumnModifiers {
+        self.postgres.get_or_insert_with(Box::default)
     }
 }

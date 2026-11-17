@@ -487,3 +487,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - PostgreSQL 18.6 定向集成覆盖 Schema 限定名、类型转换、保留索引、修改与移除默认值和注释、多列修改失败回滚。实际 Artisan 预演未修改数据，错误转换未写入账本，修正后迁移与回滚通过。实际 HTTP 验证修改后的精度及回滚后的原列宽，独立 `artisan inspire` 通过。
 - 十项 PostgreSQL 定向测试、MySQL 8.4.13 索引和 `sh tests/table_catalog.sh` 两项回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。生成表达式及显式 identity 修饰符变更仍待单独处理。
 - 核心账本维持 62/66。临时数据库和本批构建产物已回收，项目卷可用空间净增 3.70 GB（3.44 GiB），剩余 104.49 GB（97.32 GiB）。提交前周额度剩余 42%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-05-pg-change.vKGPj1Mq`。
+
+## PostgreSQL 生成列与显式 Identity
+
+- 对照固定 Laravel 的 `modifyStoredAs`、`modifyVirtualAs` 和 `modifyGeneratedAs`。OpenRust 为 PostgreSQL 生成原生 `STORED`／`VIRTUAL` 和 `GENERATED … AS IDENTITY`。Rust 使用 `dropExpression().change()` 表达 Laravel 的 `storedAs(null)->change()`，并用 `generatedAsWith(Expression)` 显式传入可信的序列选项。显式 identity 由 Blueprint 单独定义主键，重复声明 identity 时按 Laravel 的机制重建序列。PostgreSQL 专用修饰符复用一个按需分配的容器，Schema 命令的内联大小保持不变。未在 `v0.x` 找到对应的 PostgreSQL DDL 实现。 [固定 Laravel Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) · [PostgreSQL 生成列](https://www.postgresql.org/docs/18/ddl-generated-columns.html)
+- PostgreSQL 18.6 实测覆盖 `ALWAYS` 拒绝显式值、`BY DEFAULT` 接受显式值、序列起始和替换、移除 identity、存储值保留和虚拟列重算。实际 Artisan 预演、失败后零表和零账本、重试和回滚通过。HTTP 验证生成列和自增目录状态，独立 `artisan inspire` 通过。
+- PostgreSQL 定向测试、MySQL 8.4.13 生成列及 `sh tests/table_catalog.sh`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。PostgreSQL JSON 选择器形式的生成列，以及 SQL Server 原生改列继续跟踪。
+- 核心账本维持 62/66。临时数据库及本批编译和文档产物已回收，项目卷可用空间净增 3.70 GB（3.44 GiB），剩余 104.45 GB（97.28 GiB）。提交前周额度剩余 42%，第二窗口无读数。验收脚本与日志保留于 `/private/tmp/openrust-02-05-pg-generation.qRd0mXaU`。

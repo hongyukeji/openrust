@@ -988,6 +988,27 @@ async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### PostgreSQL 生成列与 Identity {#postgresql-generated-and-identity}
+
+PostgreSQL 12 及以上用 `storedAs()` 定义存储生成列，18 及以上用 `virtualAs()` 定义虚拟生成列。PostgreSQL 13 及以上可对存储生成列用 `dropExpression().change()` 移除表达式，保留当前值作为普通数据。PostgreSQL 拒绝移除虚拟生成表达式，Schema Builder 拒绝通过 `change()` 替换生成表达式。
+
+用 `generatedAs()` 定义 `BY DEFAULT` identity，追加 `always()` 则要求使用生成值。用 `generatedAsWith(Expression)` 传入 `start with 10` 等可信序列选项。显式 identity 由 Blueprint 单独定义主键。在 `change()` 中显式声明会按新定义重建序列，省略 identity 修饰符可以移除 identity。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
+
+async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().create("finance.fixture", |table| {
+        table.bigInteger("seq")
+            .generatedAsWith(Expression::new("start with 10"))
+            .always();
+        table.integer("base");
+        table.integer("saved").storedAs("base * 2");
+        table.integer("computed").virtualAs("base + 1");
+    }).await
+}
+```
+
 #### PostgreSQL 索引方法与重命名 {#postgresql-index-methods}
 
 用 `algorithm("brin")` 指定 PostgreSQL 索引访问方法。由服务器检查方法及其是否支持目标列或表达式。可以与 `online()` 组合。`renameIndex()` 从带 Schema 的表名继承 Schema，也接受显式限定 Schema 的旧索引名。表名和旧索引名都没有限定 Schema 时，PostgreSQL 按 `search_path` 查找旧索引。重命名后的索引仍在原 Schema。

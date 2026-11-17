@@ -988,6 +988,27 @@ async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
 }
 ```
 
+#### PostgreSQL Generated and Identity Columns {#postgresql-generated-and-identity}
+
+Use `storedAs()` for a stored generated column on PostgreSQL 12 or later, and `virtualAs()` for a virtual generated column on PostgreSQL 18 or later. On PostgreSQL 13 or later, call `dropExpression().change()` on a stored generated column to keep its current values as ordinary data. PostgreSQL rejects dropping a virtual expression, and the Schema Builder rejects replacing a generated expression through `change()`.
+
+Use `generatedAs()` for `BY DEFAULT` identity or chain `always()` to require generated values. With `generatedAsWith(Expression)`, pass trusted sequence options such as `start with 10`. Explicit identity alone leaves the primary key definition to the Blueprint. On `change()`, explicit identity replaces the sequence using the new definition. Omit identity modifiers to remove identity.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
+
+async fn create_generated_table(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().create("finance.fixture", |table| {
+        table.bigInteger("seq")
+            .generatedAsWith(Expression::new("start with 10"))
+            .always();
+        table.integer("base");
+        table.integer("saved").storedAs("base * 2");
+        table.integer("computed").virtualAs("base + 1");
+    }).await
+}
+```
+
 #### PostgreSQL Index Methods and Renaming {#postgresql-index-methods}
 
 Use `algorithm("brin")` to choose a PostgreSQL index access method. The server checks the method and whether it supports the indexed columns or expressions. You can combine it with `online()`. `renameIndex()` inherits the schema from a schema-qualified table name. You can explicitly qualify the old index name. If both the table and the old index name are unqualified, PostgreSQL resolves the old index name through `search_path`. The new name stays in the existing index schema.
