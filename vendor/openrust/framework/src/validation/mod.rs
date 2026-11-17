@@ -6,6 +6,7 @@ pub(crate) mod facade;
 mod factory;
 mod path;
 mod rule;
+mod rule_parameters;
 mod rule_set;
 pub mod rules;
 mod validated_input;

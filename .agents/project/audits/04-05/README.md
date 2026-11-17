@@ -47,3 +47,11 @@
 - 每次解析构造独立表单实例。默认使用 `Default`，可用当前应用容器中的瞬态绑定提供依赖。实际双应用与并发 HTTP 验证默认和异步容器构造、预处理、授权、规则、通过钩子、403／422 阻止 action、原始路由参数及资源路由。三语示例各自实测 HTTP 200 与 422。
 - 基于集成提交 `1d3565b91`，真实 MySQL 8.4.13 环境的请求及验证回归 24 项通过，Web 显式重定向与命名错误包定向用例通过。严格 Clippy、独立 Artisan、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍有基线 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.5 GiB 隔离 Cargo 产物和文档缓存。验收日志保留于 `/private/tmp/openrust-04-05-form-request.9VShGSKk`。
 - 单元还需核对数据库规则的字符串参数、类型边界及文件格式和编码覆盖。核心账本维持 59/66。
+
+## 数据库规则参数与标量边界
+
+- `exists` 和 `unique` 字符串参数按固定 Laravel 的 CSV 规则保留引号内的逗号、双引号与转义。字符串规则排除 ID 沿用整数正规化与反斜杠处理。文本主键 `001` 保留前导零，`+1` 正规化为 `1`。规则解析与查询继续使用现有 SQL 参数绑定。旧版未找到可复用的数据库规则字符串解析。 [固定 Laravel 参数解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/ValidationRuleParser.php) · [固定 Laravel 数据库规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php)
+- 数组 `exists` 按 PHP 默认字符串精度 14 计算不同标量数，查询使用实际绑定值。嵌套数组和对象作为查询值返回验证错误。动态排除使用确切字段路径，缺失、null 或复合值不会排除记录。
+- PHP 8.5.12 直接执行固定 Laravel 参数解析和验证 trait，核对引号、文本和数值 ID、动态排除、科学计数与浮点去重。真实 MySQL 8.4.13 的 HTTP 和验证路径共 8 项通过。三语数据库示例在真实 HTTP 上验证命中与拒绝路径。
+- 固定 Goravel 的存在性与唯一性规则也通过数据库 Builder 查询，字符串参数契约按固定 Laravel 保留。Rust 1.94.0 变更文件格式、严格工作区 Clippy、独立 Artisan、三语站点及 18 项浏览器检查通过。全仓格式仍有既有 `sanctum_authentication.rs:1412` 差异。已回收临时 MySQL、3.1 GiB 隔离 Cargo 产物和文档缓存。验收日志保留于 `/private/tmp/openrust-04-05-db-boundaries.WLNsceH7`。 [固定 Goravel 数据库规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1753)
+- 04-05 仍待复核文件格式和编码覆盖，额外数据库驱动归入发布验收。核心账本维持 59/66。

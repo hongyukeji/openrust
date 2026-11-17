@@ -29,11 +29,16 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 Use `exists:table,column` to require a matching row and `unique:table,column` to reject an existing value. Omit the column to use the field name and prefix the table with `connection.` to select a named database connection. Both rules use the write connection. For an array, `exists` uses one query to check that all distinct values exist.
 
+In string rules, quote parameter values that contain commas, for example `exists:directory.references,reference,namespace,"team,west"`. A text exclusion ID such as `001` keeps its leading zeros. Array existence checks use Laravel's scalar string representation to count distinct inputs.
+
 ```rust
 use openrust::validation::{Rule, RuleSet, ValidationResult};
 
 fn account_rules() -> ValidationResult<RuleSet> {
-    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+    RuleSet::parse([
+        ("account_id", "required|integer|exists:directory.accounts"),
+        ("ref", r#"exists:directory.references,reference,namespace,"team,west""#),
+    ])?
         .field("email", [
             Rule::unique("directory.accounts", Some("email"))
                 .withoutTrashed(None)

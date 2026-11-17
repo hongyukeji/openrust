@@ -21,5 +21,5 @@ pub(super) use file::size_failure;
 pub use file::{File, FileSize};
 pub use in_rule::In;
 pub use password::Password;
-pub(super) use unique::Exclusion;
 pub use unique::Unique;
+pub(super) use unique::{Exclusion, prepare_id};

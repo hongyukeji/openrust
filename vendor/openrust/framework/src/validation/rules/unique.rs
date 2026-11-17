@@ -1,6 +1,6 @@
 use crate::{
     database::{Value, eloquent::Model, query::Conditions},
-    validation::{Rule, ValidationResult, rule::Kind},
+    validation::{Rule, ValidationError, ValidationResult, path, rule::Kind},
 };
 
 use super::database_rule::{DatabaseRule, database_conditions};
@@ -39,8 +39,17 @@ impl Unique {
 
     pub fn ignore(mut self, id: impl Into<Value>, column: Option<&str>) -> Self {
         let id = id.into();
-        self.exclusion = (!matches!(id, Value::Null))
-            .then(|| Exclusion::Value(column.unwrap_or(&self.key_column).to_owned(), id));
+        self.exclusion = (!matches!(id, Value::Null)
+            && !matches!(&id, Value::Text(text) if text == "NULL"))
+        .then(|| {
+            Exclusion::Value(
+                column
+                    .filter(|value| !value.is_empty())
+                    .unwrap_or(&self.key_column)
+                    .to_owned(),
+                id,
+            )
+        });
         self
     }
 
@@ -60,13 +69,24 @@ impl Unique {
             .get(1)
             .filter(|id| !id.eq_ignore_ascii_case("null"))
         {
-            let column = arguments.get(2).copied().unwrap_or("id");
-            if let Some(path) = id.strip_prefix('[').and_then(|id| id.strip_suffix(']')) {
-                rule.exclusion = Some(Exclusion::Input(column.to_owned(), path.to_owned()));
-            } else {
-                let id = id
-                    .parse::<i64>()
-                    .map_or_else(|_| Value::from(*id), Value::Integer);
+            let column = arguments
+                .get(2)
+                .copied()
+                .filter(|column| !column.is_empty())
+                .unwrap_or("id");
+            if let Some((_, remainder)) = id.split_once('[')
+                && let Some((attribute, _)) = remainder.rsplit_once(']')
+                && !attribute.contains('\n')
+            {
+                if attribute.is_empty()
+                    || path::parse(attribute)?
+                        .iter()
+                        .any(|segment| matches!(segment, path::Segment::Any))
+                {
+                    return Err(ValidationError::InvalidRule);
+                }
+                rule.exclusion = Some(Exclusion::Input(column.to_owned(), attribute.to_owned()));
+            } else if let Some(id) = prepare_id(id) {
                 rule = rule.ignore(id, Some(column));
             }
         }
@@ -80,4 +100,33 @@ impl From<Unique> for Rule {
     fn from(rule: Unique) -> Self {
         Rule(Kind::Unique(rule))
     }
+}
+
+/// Normalize a string-rule ID using Laravel's integer and backslash handling.
+pub(in crate::validation) fn prepare_id(id: &str) -> Option<Value> {
+    if id.eq_ignore_ascii_case("null") {
+        return None;
+    }
+    let number = id.trim_matches(|character: char| character.is_ascii_whitespace());
+    let digits = number.strip_prefix(['+', '-']).unwrap_or(number);
+    if !(digits.len() > 1 && digits.starts_with('0'))
+        && let Ok(number) = number.parse::<i64>()
+    {
+        return Some(Value::Text(number.to_string()));
+    }
+
+    let mut chars = id.chars();
+    let mut unescaped = String::with_capacity(id.len());
+    while let Some(character) = chars.next() {
+        if character == '\\' {
+            unescaped.extend(
+                chars
+                    .next()
+                    .map(|escaped| if escaped == '0' { '\0' } else { escaped }),
+            );
+        } else {
+            unescaped.push(character);
+        }
+    }
+    (unescaped != "NULL").then_some(Value::Text(unescaped))
 }

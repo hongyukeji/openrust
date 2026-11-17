@@ -29,11 +29,16 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `exists:table,column` 要求存在匹配行，用 `unique:table,column` 拒绝已有值。省略列名时使用字段名，在表名前加 `connection.` 可指定具名连接。两条规则都使用写连接。数组形式的 `exists` 用一次查询检查所有不同的值是否存在。
 
+字符串规则的参数值含逗号时，用双引号包住该值，如 `exists:directory.references,reference,namespace,"team,west"`。用于排除记录的文本 ID 如 `001` 会保留前导零。数组存在性验证按 Laravel 的标量字符串形式统计不同输入。
+
 ```rust
 use openrust::validation::{Rule, RuleSet, ValidationResult};
 
 fn account_rules() -> ValidationResult<RuleSet> {
-    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+    RuleSet::parse([
+        ("account_id", "required|integer|exists:directory.accounts"),
+        ("ref", r#"exists:directory.references,reference,namespace,"team,west""#),
+    ])?
         .field("email", [
             Rule::unique("directory.accounts", Some("email"))
                 .withoutTrashed(None)

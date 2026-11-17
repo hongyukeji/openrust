@@ -29,11 +29,16 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 用 `exists:table,column` 要求存在符合條件的資料列，用 `unique:table,column` 拒絕已有的值。省略欄位名稱時使用欄位名，在資料表名稱前加 `connection.` 可指定具名連線。兩條規則都使用寫入連線。陣列形式的 `exists` 用一次查詢檢查所有不同的值是否存在。
 
+字串規則的參數值含逗號時，用雙引號包住該值，如 `exists:directory.references,reference,namespace,"team,west"`。用於排除資料列的文字 ID 如 `001` 會保留前導零。陣列存在性驗證按 Laravel 的純量字串形式統計不同輸入。
+
 ```rust
 use openrust::validation::{Rule, RuleSet, ValidationResult};
 
 fn account_rules() -> ValidationResult<RuleSet> {
-    RuleSet::parse([("account_id", "required|integer|exists:directory.accounts")])?
+    RuleSet::parse([
+        ("account_id", "required|integer|exists:directory.accounts"),
+        ("ref", r#"exists:directory.references,reference,namespace,"team,west""#),
+    ])?
         .field("email", [
             Rule::unique("directory.accounts", Some("email"))
                 .withoutTrashed(None)

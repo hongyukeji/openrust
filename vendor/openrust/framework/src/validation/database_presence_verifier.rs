@@ -6,7 +6,7 @@ use crate::database::{
 
 use super::{
     Data, ValidationError, ValidationResult, Value,
-    rules::{DatabaseRule, Exclusion, Unique},
+    rules::{DatabaseRule, Exclusion, Unique, prepare_id},
 };
 
 /// Queries the application's write connections for database validation rules.
@@ -84,7 +84,8 @@ impl DatabasePresenceVerifier {
                 .into_iter()
                 .next()
                 .and_then(|(_, value)| value)
-                .and_then(binding)
+                .filter(|value| !matches!(value, Value::Null | Value::Object(_) | Value::Array(_)))
+                .and_then(|value| prepare_id(&distinct_input(value)))
                 .map(|id| (column, id)),
             None => None,
         };
@@ -142,7 +143,29 @@ fn distinct_input(value: &Value) -> String {
         Value::Null | Value::Bool(false) => String::new(),
         Value::Bool(true) => "1".into(),
         Value::String(value) => value.clone(),
-        Value::Number(value) => value.to_string().trim_end_matches(".0").to_owned(),
+        Value::Number(value) => value
+            .as_f64()
+            .filter(|_| value.is_f64())
+            .map_or_else(|| value.to_string(), php_float),
         _ => unreachable!("non-scalar values are rejected before comparison"),
+    }
+}
+
+fn php_float(value: f64) -> String {
+    // PHP's default string precision is 14 significant digits.
+    let scientific = format!("{value:.13e}");
+    let (mantissa, exponent) = scientific.split_once('e').expect("scientific float");
+    let exponent = exponent.parse::<i32>().expect("scientific exponent");
+    let mantissa = mantissa.trim_end_matches('0').trim_end_matches('.');
+    if !(-4..14).contains(&exponent) {
+        let decimal = if mantissa.contains('.') { "" } else { ".0" };
+        return format!("{mantissa}{decimal}E{exponent:+}");
+    }
+    let precision = (13 - exponent) as usize;
+    let fixed = format!("{value:.precision$}");
+    if fixed.contains('.') {
+        fixed.trim_end_matches('0').trim_end_matches('.').to_owned()
+    } else {
+        fixed
     }
 }

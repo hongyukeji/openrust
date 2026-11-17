@@ -114,7 +114,9 @@ impl Rule {
                     File::parse(name, arguments)?.into()
                 }
                 Some((kind @ ("exists" | "unique"), arguments)) => {
-                    let arguments: Vec<_> = arguments.split(',').collect();
+                    let parsed = super::rule_parameters::csv(arguments);
+                    let arguments: Vec<_> =
+                        parsed.iter().map(std::convert::AsRef::as_ref).collect();
                     let (table, rest) = arguments
                         .split_first()
                         .filter(|(table, _)| !table.is_empty())

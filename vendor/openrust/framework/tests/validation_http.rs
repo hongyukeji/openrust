@@ -139,6 +139,39 @@ fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             "update" => {
                 RuleSet::parse([("email", "unique:directory.accounts,email,[id],account_id")])?
             }
+            "csv" => RuleSet::parse([
+                (
+                    "alias",
+                    r#"unique:directory.references,alias,NULL,reference,namespace,"team,west""#,
+                ),
+                (
+                    "ref",
+                    r#"exists:directory.references,reference,namespace,"team,west""#,
+                ),
+            ])?,
+            "quoted-ignore" => RuleSet::parse([(
+                "alias",
+                r#"unique:directory.references,alias,"ref""quote",reference"#,
+            )])?,
+            "slash-ignore" => RuleSet::parse([(
+                "alias",
+                r#"unique:directory.references,alias,"ref\\slash",reference"#,
+            )])?,
+            "padded-ignore" => {
+                RuleSet::parse([("alias", "unique:directory.references,alias,001,reference")])?
+            }
+            "dynamic-ignore" => RuleSet::parse([(
+                "alias",
+                "unique:directory.references,alias,[meta.id],reference",
+            )])?,
+            "numeric-ignore" => {
+                RuleSet::parse([("alias", "unique:directory.references,alias,+1,reference")])?
+            }
+            "numbers" => RuleSet::parse([("numbers", "exists:directory.references,number")])?,
+            "types" => RuleSet::parse([
+                ("exists", "exists:directory.absent,id"),
+                ("unique", "unique:directory.absent,id"),
+            ])?,
             "broken" => RuleSet::parse([("id", "integer|exists:directory.absent,account_id")])?,
             _ => RuleSet::parse([
                 (
@@ -643,6 +676,28 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
     db.statement(&format!("INSERT INTO {table} VALUES (1,'owned@example.test',7,NULL), (2,'foreign@example.test',8,NULL), (3,'deleted@example.test',7,1), (4,'second@example.test',7,NULL)"), &[])
         .await
         .unwrap();
+    let references = format!("{prefix}references");
+    db.statement(&format!("CREATE TABLE {references} (reference VARCHAR(64) PRIMARY KEY, alias VARCHAR(64), namespace VARCHAR(64), number DOUBLE)"), &[])
+        .await.unwrap();
+    for (reference, alias, namespace, number) in [
+        ("001", "padded", "team,west", 1e20),
+        ("1", "canonical", "team,east", 1.0),
+        ("ref\"quote", "quoted", "team,west", 1.234567890123456),
+        ("ref\\slash", "escaped", "team,east", 0.0),
+    ] {
+        use openrust::database::Value as Binding;
+        db.statement(
+            &format!("INSERT INTO {references} VALUES (?, ?, ?, ?)"),
+            &[
+                Binding::from(reference),
+                alias.into(),
+                namespace.into(),
+                Binding::Real(number),
+            ],
+        )
+        .await
+        .unwrap();
+    }
     let root = std::env::temp_dir().join(&prefix);
     std::fs::create_dir(&root).unwrap();
     let app = Application::configure(root.clone())
@@ -726,8 +781,91 @@ async fn database_validation_uses_mysql_write_connection_over_real_http() {
     call("/api/presence/tenants", json!({"tenant":[7,8,7]}), 200).await;
     call("/api/presence/tenants", json!({"tenant":[7,999]}), 422).await;
     call("/api/presence/broken", json!({"id":1}), 500).await;
+    let csv = call(
+        "/api/presence/csv",
+        json!({"alias":"padded","ref":"1"}),
+        422,
+    )
+    .await;
+    assert_eq!(
+        csv["errors"]["alias"],
+        json!(["The alias has already been taken."])
+    );
+    assert_eq!(
+        csv["errors"]["ref"],
+        json!(["The selected ref is invalid."])
+    );
+    call(
+        "/api/presence/csv",
+        json!({"alias":"canonical","ref":"001"}),
+        200,
+    )
+    .await;
+    for (uri, alias) in [
+        ("/api/presence/padded-ignore", "padded"),
+        ("/api/presence/numeric-ignore", "canonical"),
+        ("/api/presence/quoted-ignore", "quoted"),
+        ("/api/presence/slash-ignore", "escaped"),
+    ] {
+        call(uri, json!({"alias":alias}), 200).await;
+    }
+    call(
+        "/api/presence/padded-ignore",
+        json!({"alias":"canonical"}),
+        422,
+    )
+    .await;
+    call(
+        "/api/presence/dynamic-ignore",
+        json!({"alias":"padded","meta":{"id":"001"}}),
+        200,
+    )
+    .await;
+    call(
+        "/api/presence/dynamic-ignore",
+        json!({"alias":"escaped","meta":{"id":"ref\\\\slash"}}),
+        200,
+    )
+    .await;
+    call(
+        "/api/presence/dynamic-ignore",
+        json!({"alias":"canonical","meta":{"id":null}}),
+        422,
+    )
+    .await;
+    call(
+        "/api/presence/dynamic-ignore",
+        json!({"alias":"canonical","meta":{"id":[1]}}),
+        422,
+    )
+    .await;
+    for numbers in [
+        json!([1, 1.0, "1", true]),
+        json!([1e20, "1.0E+20"]),
+        json!([1.234567890123456, "1.2345678901235"]),
+    ] {
+        call("/api/presence/numbers", json!({"numbers":numbers}), 200).await;
+    }
+    call("/api/presence/numbers", json!({"numbers":[0,"-0"]}), 422).await;
+    let types = call(
+        "/api/presence/types",
+        json!({"exists":[[]],"unique":{}}),
+        422,
+    )
+    .await;
+    assert_eq!(
+        types["errors"]["exists"],
+        json!(["The selected exists is invalid."])
+    );
+    assert_eq!(
+        types["errors"]["unique"],
+        json!(["The unique has already been taken."])
+    );
     server.abort();
     db.statement(&format!("DROP TABLE {table}"), &[])
+        .await
+        .unwrap();
+    db.statement(&format!("DROP TABLE {references}"), &[])
         .await
         .unwrap();
     std::fs::remove_dir_all(root).unwrap();
