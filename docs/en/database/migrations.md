@@ -768,6 +768,8 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 On PostgreSQL, `getCurrentSchemaListing()` returns the configured `search_path` in order, with `$user` resolved to the selected endpoint’s username. Use a comma-separated string or an array of schema names. `getCurrentSchemaName()` returns the first entry. The database catalog methods query the selected writer, and `getSchemas()` marks the schema currently in use by the server.
 
+`Schema::getTypes(None)` lists PostgreSQL types across user schemas. Pass `Some(schema)` or use `Schema::getTypesIn(&[...])` to limit the scope. Each result provides a qualified name, type, category, and an `implicit` flag for generated arrays and multiranges. Other drivers return an unsupported-schema error.
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

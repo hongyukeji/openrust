@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     Blueprint, Builder, Column, ForeignKey, Index, KeySelector, MorphKeyType, SchemaFallback,
-    SchemaInfo, SchemaSession, TableInfo, ViewInfo,
+    SchemaInfo, SchemaSession, TableInfo, TypeInfo, ViewInfo,
 };
 
 /// Schema operations on the current application's default database connection.
@@ -139,6 +139,14 @@ impl Schema {
 
     pub async fn getSchemas() -> DatabaseResult<Vec<SchemaInfo>> {
         Self::default_builder()?.getSchemas().await
+    }
+
+    pub async fn getTypes(schema: Option<&str>) -> DatabaseResult<Vec<TypeInfo>> {
+        Self::default_builder()?.getTypes(schema).await
+    }
+
+    pub async fn getTypesIn(schemas: &[&str]) -> DatabaseResult<Vec<TypeInfo>> {
+        Self::default_builder()?.getTypesIn(schemas).await
     }
 
     pub async fn getViews(schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {

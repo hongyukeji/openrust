@@ -157,6 +157,44 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
 }
 
 #[tokio::test]
+async fn postgres_type_catalog_uses_the_writer_and_supports_schema_filters() {
+    let db = connection(json!({"driver":"pgsql"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                assert!(schema.getTypes(None).await?.is_empty());
+                assert!(schema.getTypes(Some("tenant")).await?.is_empty());
+                assert!(schema.getTypesIn(&["tenant", "public"]).await?.is_empty());
+                assert!(schema.getTypesIn(&[]).await?.is_empty());
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 3);
+    assert!(preview[0].query.contains("pg_catalog.pg_type"));
+    assert!(preview[0].query.contains("or t.typtype = 'm') as implicit"));
+    assert!(preview[0].query.contains("schema <> 'information_schema'"));
+    assert!(preview[1].query.contains("schema::text in ('tenant')"));
+    assert!(
+        preview[2]
+            .query
+            .contains("schema::text in ('tenant', 'public')")
+    );
+    assert!(
+        preview
+            .iter()
+            .all(|entry| entry.read_write_type == openrust::database::events::QueryRole::Write)
+    );
+    let mysql = connection(json!({"driver":"mysql"}));
+    assert!(matches!(
+        mysql.getSchemaBuilder().getTypes(None).await,
+        Err(DatabaseError::UnsupportedSchema(_))
+    ));
+}
+
+#[tokio::test]
 async fn postgres_column_and_foreign_key_catalogs_use_native_metadata_and_qualified_names() {
     let db = connection(json!({"driver":"pgsql", "prefix":"app_"}));
     let preview = db

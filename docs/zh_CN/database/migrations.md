@@ -768,6 +768,8 @@ async fn inspect_title() -> DatabaseResult<Option<Column>> {
 
 在 PostgreSQL 中，`getCurrentSchemaListing()` 按配置顺序返回 `search_path`，并将 `$user` 解析为所选端点的用户名。可以使用逗号分隔的字符串或 Schema 名称数组。`getCurrentSchemaName()` 返回第一项。数据库目录方法查询所选写连接，`getSchemas()` 标记服务器实际使用的当前 Schema。
 
+`Schema::getTypes(None)` 列出 PostgreSQL 用户 Schema 中的类型。可传入 `Some(schema)`，或用 `Schema::getTypesIn(&[...])` 限定范围。每项包含限定名、类型、类别，以及标识自动生成数组和多范围类型的 `implicit` 字段。其他驱动返回不支持的 Schema 操作错误。
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

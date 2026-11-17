@@ -5,7 +5,7 @@ use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 use super::{Builder, Executor, postgres};
 use crate::database::schema::{
     Column, ColumnGeneration, ForeignKey, GenerationType, Index, KeySelector, SchemaFallback,
-    SchemaInfo, TableInfo, ViewInfo,
+    SchemaInfo, TableInfo, TypeInfo, ViewInfo,
     grammars::{Grammar, Table},
 };
 
@@ -86,6 +86,37 @@ impl Builder<'_> {
                     default: flag(row, "is_default")?,
                 })
             })
+            .collect()
+    }
+
+    /// Lists PostgreSQL types in one schema or across all user schemas.
+    pub async fn getTypes(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<TypeInfo>> {
+        self.catalog_types(schema.as_ref().map(std::slice::from_ref))
+            .await
+    }
+
+    pub async fn getTypesIn(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TypeInfo>> {
+        self.catalog_types(Some(schemas)).await
+    }
+
+    async fn catalog_types(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<TypeInfo>> {
+        if !self.grammar.postgres() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "type catalog requires PostgreSQL",
+            ));
+        }
+        if schemas.is_some_and(<[&str]>::is_empty) {
+            return Ok(Vec::new());
+        }
+        let (filter, bindings) = postgres_schema_filter("schema", schemas);
+        let sql = format!(
+            "select * from ({}) as type_catalog where {filter} order by schema, name",
+            postgres::TYPES
+        );
+        self.select(&sql, &bindings)
+            .await?
+            .iter()
+            .map(type_info)
             .collect()
     }
 
@@ -698,6 +729,48 @@ fn schema_filter(column: &str, schemas: &[&str]) -> (String, Vec<Value>) {
     let parameters = vec!["?"; schemas.len()].join(", ");
     let bindings = schemas.iter().copied().map(Value::from).collect();
     (format!("{column} in ({parameters})"), bindings)
+}
+
+fn type_info(row: &Row) -> DatabaseResult<TypeInfo> {
+    let name = text(row, "name")?;
+    let schema = text(row, "schema")?;
+    let kind = match text(row, "type_code")?.as_str() {
+        "b" => Some("base"),
+        "c" => Some("composite"),
+        "d" => Some("domain"),
+        "e" => Some("enum"),
+        "p" => Some("pseudo"),
+        "r" => Some("range"),
+        "m" => Some("multirange"),
+        _ => None,
+    };
+    let category = match text(row, "category_code")?.as_str() {
+        "A" => Some("array"),
+        "B" => Some("boolean"),
+        "C" => Some("composite"),
+        "D" => Some("date_time"),
+        "E" => Some("enum"),
+        "G" => Some("geometric"),
+        "I" => Some("network_address"),
+        "N" => Some("numeric"),
+        "P" => Some("pseudo"),
+        "R" => Some("range"),
+        "S" => Some("string"),
+        "T" => Some("timespan"),
+        "U" => Some("user_defined"),
+        "V" => Some("bit_string"),
+        "X" => Some("unknown"),
+        "Z" => Some("internal_use"),
+        _ => None,
+    };
+    Ok(TypeInfo {
+        schema_qualified_name: format!("{schema}.{name}"),
+        name,
+        schema,
+        implicit: flag(row, "implicit")?,
+        r#type: kind.map(str::to_owned),
+        category: category.map(str::to_owned),
+    })
 }
 
 fn view_info(row: &Row) -> DatabaseResult<ViewInfo> {

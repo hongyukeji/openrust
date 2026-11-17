@@ -431,3 +431,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 列目录报告格式化类型、默认值、identity／serial、主键、注释、排序规则和生成表达式。通过行 JSON 读取可选的 `attgenerated`，让同一条查询覆盖 PostgreSQL 10–11 的目录结构，避免额外版本查询。外键保留名称、目标 Schema、删除和更新动作，按约束位置逐列配对，列名中的逗号仍属名称本身。 [PostgreSQL 列目录](https://www.postgresql.org/docs/current/catalog-pg-attribute.html) · [PostgreSQL 约束目录](https://www.postgresql.org/docs/current/catalog-pg-constraint.html)
 - 隔离基线 `812a882c7` 的无网络预演覆盖写连接、限定名、表前缀、生成列和复合外键 SQL。真实 PostgreSQL 返回数据、不同版本生成列与跨 Schema 外键留待发布验收。
 - MySQL 8.4.13 Schema、生成列及外键三项回归通过。独立 Artisan、Rust 1.94.0 全仓格式、严格 Clippy、三语站点、12 项通用和 12 项章节浏览器检查通过。已回收临时 MySQL、2.9 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-02-05-postgres-columns.gawPvd1g`。
+
+## PostgreSQL 类型目录与真实目录验收
+
+- 对照固定 Laravel 的 Schema Builder、PostgreSQL Grammar 和 Processor。旧版未找到等价的类型目录。复用当前 Schema 写连接和清库使用的类型查询，公开 `getTypes(Option<&str>)`、`getTypesIn(&[&str])` 和 `TypeInfo`。Rust 以 `None` 表示全部用户 Schema，显式空列表沿用现有目录接口的空选择行为。目录保留自动数组和 multirange 的 `implicit` 标记，清库跳过这些隐式类型。 [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L256) · [Laravel Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L112) · [Laravel Processor](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Processors/PostgresProcessor.php#L31)
+- 真实 PostgreSQL 18.6 的 HTTP 验证三种范围查询、系统 Schema 排除、限定名称、枚举、域、range、multirange 及隐式数组。核对服务器实际首选 Schema、表与视图目录、identity、存储生成列和跨 Schema 复合外键。真实限定清库同时删除视图、表、类型和域，并保留相邻 Schema 数据。更早的 PostgreSQL 版本与其他方言修饰符仍按发布矩阵跟踪。
+- 两项定向 Rust 测试覆盖查询预演的写连接、绑定和清库排除规则。MySQL 8.4.13 的 `sh tests/table_catalog.sh` 两项、实际 Artisan、全仓格式和严格 Clippy 通过。三语站点构建、12 项通用和 6 项类型目录浏览器检查通过。
+- 开始真实验证前，确认主仓及本批标准缓存已闲置再清理。第一阶段项目卷实测从 58.06 GB（54.07 GiB） 增至 107.01 GB（99.66 GiB）。
+- 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。 临时 PostgreSQL、PgBouncer 与本批隔离产物已清理。该次清理后磁盘可用 106.46 GB（99.15 GiB），净增 8.68 GB（8.09 GiB）。周额度剩余 45%，第二窗口无读数。

@@ -71,6 +71,17 @@ pub struct ViewInfo {
     pub definition: Option<String>,
 }
 
+/// A PostgreSQL type read from the database catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeInfo {
+    pub name: String,
+    pub schema: String,
+    pub schema_qualified_name: String,
+    pub implicit: bool,
+    pub r#type: Option<String>,
+    pub category: Option<String>,
+}
+
 /// A table read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableInfo {

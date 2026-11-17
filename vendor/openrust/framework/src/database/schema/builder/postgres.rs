@@ -12,24 +12,22 @@ const RELATIONS: &str = "
       and c.relkind::text in (?, ?)
     order by n.nspname, c.relname";
 
-const TYPES: &str = "
-    select n.nspname::text as schema, t.typname::text as name, (t.typtype = 'd') as domain
+pub(super) const TYPES: &str = "
+    select n.nspname::text as schema, t.typname::text as name,
+           t.typtype::text as type_code, t.typcategory::text as category_code,
+           ((t.typinput = 'pg_catalog.array_in'::pg_catalog.regproc
+             and t.typoutput = 'pg_catalog.array_out'::pg_catalog.regproc)
+             or t.typtype = 'm') as implicit
     from pg_catalog.pg_type t join pg_catalog.pg_namespace n on n.oid = t.typnamespace
     left join pg_catalog.pg_class c on c.oid = t.typrelid
     left join pg_catalog.pg_type el on el.oid = t.typelem
     left join pg_catalog.pg_class ce on ce.oid = el.typrelid
-    where n.nspname = any(pg_catalog.current_schemas(false))
-      and n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
-      and ((t.typrelid = 0 and (ce.relkind = 'c' or ce.relkind is null)) or c.relkind = 'c')
-      and not (t.typinput = 'pg_catalog.array_in'::pg_catalog.regproc
-           and t.typoutput = 'pg_catalog.array_out'::pg_catalog.regproc)
-      and t.typtype <> 'm'
+    where ((t.typrelid = 0 and (ce.relkind = 'c' or ce.relkind is null)) or c.relkind = 'c')
       and not exists (
           select 1 from pg_catalog.pg_depend d
           where d.classid = 'pg_catalog.pg_type'::pg_catalog.regclass
             and d.objid in (t.oid, t.typelem) and d.deptype = 'e'
-      )
-    order by n.nspname, t.typname";
+      )";
 
 // PostgreSQL 10 and 11 lack pg_attribute.attgenerated. Reading the optional
 // field from the row keeps a single query valid across supported versions.
@@ -105,11 +103,17 @@ pub(super) async fn drop_schema_objects(
                         drop_group(transaction, &grammar, "table", &tables, &excluded).await?;
                     }
                     if drop_types {
+                        let sql = format!(
+                            "select * from ({TYPES}) as type_catalog
+                             where schema = any(pg_catalog.current_schemas(false)::text[])
+                               and schema !~ '^pg_' and schema <> 'information_schema'
+                               and not implicit order by schema, name"
+                        );
                         let (domains, types): (Vec<_>, Vec<_>) = transaction
-                            .select(TYPES, &[])
+                            .select(&sql, &[])
                             .await?
                             .into_iter()
-                            .partition(|row| row.get("domain") == Some(&Value::Bool(true)));
+                            .partition(|row| matches!(row.get("type_code"), Some(Value::Text(kind)) if kind == "d"));
                         drop_group(transaction, &grammar, "type", &types, &[]).await?;
                         drop_group(transaction, &grammar, "domain", &domains, &[]).await?;
                     }
