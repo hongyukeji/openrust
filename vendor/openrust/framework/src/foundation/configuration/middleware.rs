@@ -5,6 +5,7 @@ use crate::{
     contracts::{config::Repository, http::Middleware as HttpMiddleware},
     cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
     foundation::http::middleware::PreventRequestForgery,
+    http::{Request, middleware::CorsSkipCallback},
     routing::{
         MiddlewareEntry,
         middleware::{MiddlewareRegistry, SubstituteBindings},
@@ -22,6 +23,7 @@ pub struct Middleware {
     pub(crate) registry: MiddlewareRegistry,
     pub(crate) trusted_proxies: Option<crate::http::ProxyPolicy>,
     pub(crate) trusted_hosts: Option<crate::http::TrustedHosts>,
+    pub(crate) cors_skip_callbacks: Vec<CorsSkipCallback>,
     default_web: bool,
     #[cfg(feature = "sanctum")]
     stateful_api: bool,
@@ -38,6 +40,7 @@ impl Default for Middleware {
             registry: MiddlewareRegistry::default(),
             trusted_proxies: None,
             trusted_hosts: None,
+            cors_skip_callbacks: Vec::new(),
             default_web: true,
             #[cfg(feature = "sanctum")]
             stateful_api: false,
@@ -88,6 +91,19 @@ impl Default for Middleware {
 impl Middleware {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Skips CORS for requests matching this callback in the current application.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's middleware configuration names"
+    )]
+    pub fn skipCorsWhen(
+        &mut self,
+        callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.cors_skip_callbacks.push(Arc::new(callback));
+        self
     }
 
     #[allow(

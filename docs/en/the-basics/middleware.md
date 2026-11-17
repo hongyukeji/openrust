@@ -16,9 +16,11 @@ Use `withoutMiddleware("name")` on a route or group to exclude a named alias or 
 
 Implement `TerminableMiddleware` to receive request and response metadata after the HTTP transport releases the response body. In `withMiddleware`, use `appendTerminable`, `prependTerminable` or `aliasTerminable`. For a concrete entry in a group, use `MiddlewareEntry::terminable`.
 
-The kernel calls the selected route hooks in resolved order, then the global hooks. The same registered instance handles both phases. A stream may keep the hook pending while the transport consumes it. Hooks also run when a client disconnects and the transport drops the body. The server waits for pending hooks during graceful shutdown.
+The kernel calls the selected route hooks in resolved order, then the global hooks. The same registered instance handles both phases. A stream may keep the hook pending while the transport consumes it. Hooks also run when a client disconnects and the transport drops the body.
 
 An application using `Kernel::handle` directly must call `Kernel::terminate` with the request and response parts after its transport finishes. The built-in HTTP server handles this automatically.
+
+On graceful shutdown, the built-in HTTP server stops accepting new connections and waits for open connections and pending termination hooks before the process exits.
 
 ## Default Web and API Groups
 

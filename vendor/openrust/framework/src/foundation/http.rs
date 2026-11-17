@@ -108,8 +108,11 @@ impl Kernel {
                 self.middleware
                     .configure_web(config.as_ref())
                     .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
-                let cors = crate::http::middleware::HandleCors::from_config(config.get("cors"))
-                    .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+                let cors = crate::http::middleware::HandleCors::from_config(
+                    config.get("cors"),
+                    &self.middleware.cors_skip_callbacks,
+                )
+                .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
                 self.views = Some(
                     self.application
                         .container()

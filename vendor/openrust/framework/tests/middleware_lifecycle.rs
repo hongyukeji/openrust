@@ -1,4 +1,12 @@
-use std::{any::TypeId, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    any::TypeId,
+    net::SocketAddr,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
@@ -20,6 +28,10 @@ use tokio::{
 };
 
 const TIMEOUT: Duration = Duration::from_secs(5);
+
+#[cfg(unix)]
+#[path = "middleware_lifecycle/shutdown.rs"]
+mod shutdown;
 
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
@@ -129,7 +141,15 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     assert!(host_match.starts_with("HTTP/1.1 204 "));
     assert!(host_match.contains("access-control-allow-origin: https://client.test"));
 
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let calls = callbacks.clone();
     let disabled = Application::configure(std::env::temp_dir())
+        .withMiddleware(move |middleware| {
+            middleware.skipCorsWhen(move |_| {
+                calls.fetch_add(1, Ordering::Relaxed);
+                false
+            });
+        })
         .withRouting(Routing::default().api(routes))
         .create()
         .unwrap();
@@ -139,8 +159,61 @@ async fn cors_uses_host_paths_and_wraps_real_http_errors() {
     let without_cors = send(disabled_address, "GET /api/data HTTP/1.1\r\nHost: app.test\r\nOrigin: https://client.test\r\nConnection: close\r\n\r\n").await;
     assert!(without_cors.starts_with("HTTP/1.1 200 "));
     assert!(!without_cors.contains("access-control-allow-origin"));
+    assert_eq!(callbacks.load(Ordering::Relaxed), 1);
     disabled_server.abort();
     server.abort();
+}
+
+#[tokio::test]
+async fn cors_skip_callbacks_apply_only_to_the_configured_application() {
+    let application = || {
+        Application::configure(std::env::temp_dir())
+            .withConfig(|_, _| {
+                Ok([(
+                    "cors".into(),
+                    json!({"paths": ["api/*"], "allowed_origins": ["*"]}),
+                )]
+                .into())
+            })
+            .withRouting(Routing::default().api(routes))
+    };
+    let mut skipped = Kernel::new(
+        application()
+            .withMiddleware(|middleware| {
+                middleware
+                    .skipCorsWhen(|request| request.is("api/internal/*"))
+                    .skipCorsWhen(|request| request.headers().contains_key("x-skip-cors"));
+            })
+            .create()
+            .unwrap(),
+    );
+    skipped.bootstrap().await.unwrap();
+    let (skipped, skipped_server) = listen(Arc::new(skipped)).await;
+    let mut ordinary = Kernel::new(application().create().unwrap());
+    ordinary.bootstrap().await.unwrap();
+    let (ordinary, ordinary_server) = listen(Arc::new(ordinary)).await;
+
+    let preflight = "OPTIONS /api/internal/missing HTTP/1.1\r\nHost: app.test\r\nOrigin: https://client.test\r\nAccess-Control-Request-Method: GET\r\nConnection: close\r\n\r\n";
+    let passed = send(skipped, preflight).await;
+    assert!(passed.starts_with("HTTP/1.1 404 "), "{passed}");
+    assert!(!passed.contains("access-control-"));
+    assert!(!passed.contains("\r\nvary: "));
+    let intercepted = send(ordinary, preflight).await;
+    assert!(intercepted.starts_with("HTTP/1.1 204 "), "{intercepted}");
+    assert!(intercepted.contains("access-control-allow-origin: *"));
+
+    let actual = "GET /api/data HTTP/1.1\r\nHost: app.test\r\nOrigin: https://client.test\r\nConnection: close\r\n";
+    let passed = send(skipped, &format!("{actual}X-Skip-Cors: 1\r\n\r\n")).await;
+    assert!(passed.starts_with("HTTP/1.1 200 "));
+    assert!(passed.contains("vary: Accept-Encoding, Origin"));
+    assert!(!passed.contains("access-control-"));
+    assert!(
+        send(skipped, &format!("{actual}\r\n"))
+            .await
+            .contains("access-control-allow-origin: *")
+    );
+    skipped_server.abort();
+    ordinary_server.abort();
 }
 
 #[tokio::test]

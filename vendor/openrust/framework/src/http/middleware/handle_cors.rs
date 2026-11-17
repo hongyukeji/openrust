@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use ::http::{HeaderName, HeaderValue, header::*};
 use regex::RegexSet;
@@ -12,6 +12,7 @@ use crate::{
 
 /// Answers CORS preflights and adds policy headers to matching HTTP responses.
 pub struct HandleCors {
+    skip_callbacks: Vec<SkipCallback>,
     paths: Paths,
     origins: Origins,
     methods: Allowed,
@@ -20,6 +21,8 @@ pub struct HandleCors {
     max_age: Option<HeaderValue>,
     credentials: bool,
 }
+
+pub(crate) type SkipCallback = Arc<dyn Fn(&Request) -> bool + Send + Sync>;
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
@@ -136,16 +139,27 @@ enum Allowed {
 }
 
 impl HandleCors {
-    pub(crate) fn from_config(value: Option<Value>) -> Result<Option<Self>, ConfigError> {
-        let Some(value) = value else { return Ok(None) };
-        let options: Options = serde_json::from_value(value)
-            .map_err(|_| invalid("cors", "an object with valid CORS options"))?;
-        let paths = options.paths;
-        if matches!(&paths, Paths::List(paths) if paths.is_empty())
-            || matches!(&paths, Paths::ByHost(paths) if paths.is_empty())
-        {
-            return Ok(None);
-        }
+    pub(crate) fn from_config(
+        value: Option<Value>,
+        skip_callbacks: &[SkipCallback],
+    ) -> Result<Option<Self>, ConfigError> {
+        let options: Options = value
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(|_| invalid("cors", "an object with valid CORS options"))?
+            .unwrap_or_default();
+        let paths_empty = match &options.paths {
+            Paths::List(paths) => paths.is_empty(),
+            Paths::ByHost(paths) => paths.is_empty(),
+        };
+        let options = if paths_empty {
+            if skip_callbacks.is_empty() {
+                return Ok(None);
+            }
+            Options::default()
+        } else {
+            options
+        };
         let origins = Origins::new(
             options.allowed_origins,
             options.allowed_origins_patterns,
@@ -179,7 +193,8 @@ impl HandleCors {
             )?)
         };
         Ok(Some(Self {
-            paths,
+            skip_callbacks: skip_callbacks.to_vec(),
+            paths: options.paths,
             origins,
             methods,
             headers,
@@ -235,7 +250,8 @@ impl Middleware for HandleCors {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            if !self.paths.matches(request) {
+            if self.skip_callbacks.iter().any(|skip| skip(request)) || !self.paths.matches(request)
+            {
                 return Ok(next.run(request).await);
             }
             let preflight = request.method() == Method::OPTIONS

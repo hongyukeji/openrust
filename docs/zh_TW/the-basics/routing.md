@@ -95,6 +95,8 @@ fn register() -> Result<(), RoutingError> {
 
 未設定 `CORS_PATHS` 時，`cors.paths` 沿用 Laravel 的預設路徑 `api/*` 和 `sanctum/csrf-cookie`。API 路由前綴與 CORS 路徑各自設定。若 API 掛載到 `/v1`，可設定 `CORS_PATHS=v1/*,sanctum/csrf-cookie` 為這些路徑啟用 CORS。設定 `CORS_PATHS=*` 可涵蓋所有路徑，設定 `CORS_PATHS=` 可停用 CORS。跨來源憑證預設關閉。路徑映射可按主機覆寫路徑，用數字字串鍵表示共用路徑。`allowed_origins_patterns` 使用 Rust 正規表示式引擎支援的模式。HTTP 核心在啟動時載入並驗證策略。
 
+在 `withMiddleware` 中呼叫 `middleware.skipCorsWhen(|request| request.is("api/internal/*"));`，可在目前的應用程式中依請求略過 CORS。任一回呼傳回 `true` 時，`HandleCors` 將請求交給後續中介軟體並保留既有回應標頭。預檢 `OPTIONS` 同樣適用。
+
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
   -H 'Origin: https://example.com' \

@@ -39,3 +39,11 @@
 - 应用装配未设置代理策略时读取 `trustedproxy.proxies` 与可选 `trustedproxy.headers`。后者复用 Laravel 的位掩码和预设语义作为 OpenRust 配置扩展。显式空代理列表优先于配置回退，便于停用转发头信任。托管入口仍要求明确的代理地址配置，任意 Host 字符串不会启用代理信任。
 - 真实 TCP 与固定 PHP 8.5 对照通过 PCRE 前瞻、大小写、应用子域、异步模式、环境跳过、AWS 头预设及配置回退。真实请求另验证原始 Host 即使带允许的转发 Host 仍受校验，以及空代理策略覆盖回退。下一批核对 CORS 条件跳过和长终止回调下的优雅退出。
 - 隔离基线 `201519cde` 使用 Rust 1.94.0，通过应用 HTTP 16 项、可信代理与 Host 5 项、会话 HTTP 8 项、URL 4 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412`。验收日志保存于 `/private/tmp/openrust-04-03-trusted-hosts.5ht4Maip`。
+
+## CORS 条件跳过与整单元验收
+
+- 固定 Laravel 的 `HandleCors::skipWhen` 在匹配路径和处理预检前按注册顺序求值。Rust 在 `withMiddleware` 中提供应用级 `skipCorsWhen`，同进程各应用独立持有回调。即使没有启用 CORS 路径，注册的回调仍运行。沿用旧版 `v0.x` 的 Origin 与传输层回归场景，旧版 `CorsLayer` 无对应的条件跳过接口。 [Laravel HandleCors](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Middleware/HandleCors.php)
+- 真实 TCP 验证普通预检 204、跳过后路由 404、实际请求 200、应用间隔离与原有响应头保留。CORS 错误响应、来源拒绝、按主机覆写、无路径及无效配置继续覆盖。真实子进程在收到 SIGINT 后关闭监听口，等待已启动的终止回调。释放回调后验证恰好执行一次并以状态 0 退出。流式正文结束与客户端断开沿用现有回归。 [Laravel 终止中间件](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/middleware.md#terminable-middleware)
+- 隔离基线 `3fa7d3847`，macOS arm64 与 Rust 1.94.0。中间件、维护页与排除共 8 项、应用 HTTP 16 项、可信代理与 Host 5 项通过。根应用三语 curl 示例通过实际 HTTP 预检，`./artisan inspire` 和 `./artisan route:list --json --method=HEAD` 均通过。工作区严格 Clippy、改动文件格式、VitePress 三语及 24 项浏览器检查通过。
+- 扩展执行的 `tests/startup.rs` 共 24 项通过，Provider 并发生成和 stub 数量两项在本批及未修改的基线上均失败，移交 Artisan 回归单独跟踪。全仓格式仍只报告既有 `sanctum_authentication.rs:1412`。本批回收 4.3 GiB 隔离 Cargo 产物与文档缓存，日志保留于 `/private/tmp/openrust-04-03-cors.xPTK6F2C`。
+- 04-03 的计划验收项闭合。OpenRust 显式配置可信代理并在应用级隔离 CORS 回调。Windows 信号及托管入口的部署验证留在发布验收范围。

@@ -95,6 +95,8 @@ Set the paths, origins, methods and headers in `config/cors.rs`. The global `Han
 
 When `CORS_PATHS` is unset, `cors.paths` matches Laravel’s defaults, `api/*` and `sanctum/csrf-cookie`. The API route prefix and CORS paths are configured independently. If your API is mounted at `/v1`, set `CORS_PATHS=v1/*,sanctum/csrf-cookie` to allow CORS on those paths. Set `CORS_PATHS=*` to cover all paths or `CORS_PATHS=` to disable CORS. Cross-origin credentials are disabled by default. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
+Inside `withMiddleware`, use `middleware.skipCorsWhen(|request| request.is("api/internal/*"));` to bypass CORS for matching requests in the current application. When a callback returns `true`, `HandleCors` passes the request to the remaining middleware and leaves the response headers untouched. This also applies to `OPTIONS` preflights.
+
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
   -H 'Origin: https://example.com' \
