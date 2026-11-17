@@ -1,20 +1,16 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    io,
-    sync::Arc,
-    time::Duration,
-};
+mod rest_api;
+
+use std::{collections::HashMap, io, sync::Arc, time::Duration};
 
 use axum::{
-    Json, Router,
-    body::Bytes,
+    Router,
     extract::{
-        DefaultBodyLimit, Path, RawQuery, State,
+        DefaultBodyLimit, Path, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::{HeaderMap, StatusCode, header::ORIGIN},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
 };
 use futures_util::{StreamExt as _, stream};
 use serde::Deserialize;
@@ -60,6 +56,7 @@ struct App {
 }
 
 struct ServerState {
+    prefix: String,
     ids: HashMap<String, Arc<App>>,
     keys: HashMap<String, Arc<App>>,
     shutdown: CancellationToken,
@@ -70,7 +67,6 @@ struct ServerState {
 /// Pusher-compatible Reverb listener for configured applications.
 pub struct Server {
     state: Arc<ServerState>,
-    prefix: String,
     max_request_size: usize,
     subscriber: Option<Subscriber>,
 }
@@ -123,17 +119,17 @@ impl Server {
         }
         Ok(Self {
             state: Arc::new(ServerState {
+                prefix: if prefix.is_empty() {
+                    String::new()
+                } else {
+                    format!("/{prefix}")
+                },
                 ids,
                 keys,
                 shutdown: CancellationToken::new(),
                 sockets: TaskTracker::new(),
                 publisher: None,
             }),
-            prefix: if prefix.is_empty() {
-                String::new()
-            } else {
-                format!("/{prefix}")
-            },
             max_request_size,
             subscriber: None,
         })
@@ -158,27 +154,38 @@ impl Server {
         let socket_shutdown = self.state.shutdown.clone();
         let sockets = self.state.sockets.clone();
         let stop_sockets = socket_shutdown.clone();
-        let redis = self.subscriber.map(|subscriber| {
-            let state = self.state.clone();
-            let presence = state.clone();
-            let stop = stop_sockets.clone();
-            tokio::spawn(subscriber.run(
-                stop,
-                move |delivery| state.deliver_cluster(delivery),
-                move || presence.close_presence(),
-            ))
-        });
+        let redis =
+            self.subscriber
+                .zip(self.state.publisher.clone())
+                .map(|(subscriber, publisher)| {
+                    let state = self.state.clone();
+                    let presence = state.clone();
+                    let metrics = state.clone();
+                    let stop = stop_sockets.clone();
+                    tokio::spawn(subscriber.run(
+                        stop,
+                        publisher,
+                        move |delivery| state.deliver_cluster(delivery),
+                        move |request| {
+                            metrics
+                                .ids
+                                .get(&request.app_id)
+                                .map_or_else(Default::default, |app| {
+                                    app.broker
+                                        .metrics(&request.selected, request.prefix.as_deref())
+                                })
+                        },
+                        move || presence.close_presence(),
+                    ))
+                });
         let presence = self.state.publisher.clone().map(|publisher| {
             let state = self.state.clone();
             let stop = stop_sockets.clone();
             tokio::spawn(async move { state.refresh_presence(publisher, stop).await })
         });
         let router = Router::new()
-            .route(&format!("{}/app/{{key}}", self.prefix), get(upgrade))
-            .route(
-                &format!("{}/apps/{{id}}/events", self.prefix),
-                post(publish),
-            )
+            .route(&format!("{}/app/{{key}}", self.state.prefix), get(upgrade))
+            .merge(rest_api::routes(&self.state.prefix))
             .layer(DefaultBodyLimit::max(self.max_request_size))
             .with_state(self.state);
         let result = axum::serve(listener, router)
@@ -246,6 +253,7 @@ impl ServerState {
         let delivery = match message {
             ScalingMessage::Event(delivery) => return self.deliver(delivery),
             ScalingMessage::Presence(delivery) => delivery,
+            ScalingMessage::Metrics(_) => return,
         };
         let (Some(app), Some(channel)) = (
             self.ids.get(&delivery.app_id),
@@ -270,7 +278,7 @@ impl ServerState {
             let mut frame = Frame::new(&delivery.event, delivery.data.clone(), Some(&channel));
             frame.user_id.clone_from(&delivery.user_id);
             app.broker
-                .broadcast(&channel, &frame, delivery.excluded.as_deref());
+                .broadcast_event(&channel, &frame, delivery.excluded.as_deref());
         }
     }
 }
@@ -592,7 +600,7 @@ async fn client_event(
             .await
             .map_err(|_| error(4200, "Event scaling is unavailable"))?;
     } else {
-        app.broker.broadcast(&channel, &frame, Some(socket));
+        app.broker.broadcast_event(&channel, &frame, Some(socket));
     }
     Ok(())
 }
@@ -603,81 +611,4 @@ fn error(code: u16, message: &str) -> Frame {
         json!({"code": code, "message": message}).to_string(),
         None,
     )
-}
-
-#[derive(Deserialize)]
-struct Publish {
-    name: String,
-    data: String,
-    channel: Option<String>,
-    #[serde(default)]
-    channels: Vec<String>,
-    socket_id: Option<String>,
-}
-
-async fn publish(
-    State(state): State<Arc<ServerState>>,
-    Path(id): Path<String>,
-    RawQuery(query): RawQuery,
-    body: Bytes,
-) -> Response {
-    let Some(app) = state.ids.get(&id) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let mut parameters = BTreeMap::new();
-    for (key, value) in url::form_urlencoded::parse(query.as_deref().unwrap_or("").as_bytes()) {
-        if parameters
-            .insert(key.into_owned(), value.into_owned())
-            .is_some()
-        {
-            return StatusCode::BAD_REQUEST.into_response();
-        }
-    }
-    if parameters.get("auth_key") != Some(&app.configuration.key)
-        || !signatures::verify_request(
-            app.configuration.secret.as_bytes(),
-            "POST",
-            &format!("/apps/{id}/events"),
-            &parameters,
-            &body,
-        )
-    {
-        return StatusCode::UNAUTHORIZED.into_response();
-    }
-    let Ok(mut event) = serde_json::from_slice::<Publish>(&body) else {
-        return StatusCode::UNPROCESSABLE_ENTITY.into_response();
-    };
-    if event.channels.is_empty()
-        && let Some(channel) = event.channel
-    {
-        event.channels.push(channel);
-    }
-    if event.name.is_empty()
-        || event.channels.is_empty()
-        || event.data.is_empty()
-        || event
-            .channels
-            .iter()
-            .any(|channel| !super::channels::valid_channel(channel))
-    {
-        return StatusCode::UNPROCESSABLE_ENTITY.into_response();
-    }
-    event.channels.sort_unstable();
-    event.channels.dedup();
-    let delivery = Delivery {
-        app_id: id,
-        channels: event.channels,
-        event: event.name,
-        data: event.data,
-        excluded: event.socket_id,
-        user_id: None,
-    };
-    if let Some(publisher) = &state.publisher {
-        if publisher.publish(&delivery).await.is_err() {
-            return StatusCode::SERVICE_UNAVAILABLE.into_response();
-        }
-    } else {
-        state.deliver(delivery);
-    }
-    Json(json!({})).into_response()
 }

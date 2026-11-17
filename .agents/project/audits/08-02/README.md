@@ -23,3 +23,10 @@
 - Rust 1.94.0，macOS Apple Silicon。隔离 Git 基线仅覆盖本批 Reverb 源码。离线锁定 Reverb 测试 7 项、格式、全目标严格 Clippy、实际应用二进制 `cargo build --features reverb --bin main`、三语 VitePress 构建及 Chromium 12 项通用和 6 项扩展锚点检查通过。
 - `python3 tests/reverb_runtime.py` 使用同一实际二进制启动三个内嵌 HTTP／Reverb 进程。两个节点共享应用凭据，第三节点使用独立应用 ID 与 Key，三个节点使用独立测试 MySQL 8.4.13、Redis 8.10.3 和同一扩展频道。节点一执行 `artisan migrate --force`，节点二读取 `migrate:status`，三个节点分别访问 `/up`。先回归独立／内嵌启动、端口冲突、Artisan 隔离、应用重启和签名 HTTP 发布跨进程单次投递、来源排除。
 - 真实 WebSocket 验收同一用户跨节点多连接只计一人、成员原始 JSON、跨节点首次加入及最后离开、断线重连、节点 SIGKILL 后租期清除、节点 SIGTERM 后成员移除。私有和在线客户端事件跨节点单次到达，来源连接、其他频道和其他应用均未收到，非法签名和未加入频道的发布被拒绝，伪造成员 ID 被忽略。重启带持久化的 Redis 容器后，在线频道连接关闭，节点重新订阅，客户端重连获得无残留成员的快照。用固定回环发布端口复现重启，测试脚本可通过 `REVERB_TEST_BINARY`、`REVERB_TEST_MYSQL_URL`、`REVERB_TEST_REDIS_URL` 和可选的 `REVERB_TEST_RESTART_REDIS_CONTAINER` 复验。
+
+## 缓存频道、统计与批量事件
+
+- 固定 Reverb 在订阅成功后重放最近的业务帧，缓存为空时只发送 `pusher:cache_miss` 的事件与频道。内部成员通知不写入缓存。最后一个本机订阅离开时清除缓存。托管 Pusher 的长时间保留行为另有契约。 [固定 CacheChannel](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/Channels/CacheChannel.php) [固定 EventHandler](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/EventHandler.php)
+- 在现有 HMAC 校验下接通连接数、频道列表／前缀筛选、单频道占用及成员列表。单次发布与批量发布可返回频道统计；先校验整批，再按顺序投递，并保留各事件的来源排除。Redis 扩展收集响应节点的统计并对在线成员 ID 去重。 [固定 MetricsHandler](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/MetricsHandler.php) [固定 EventsBatchController](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/Http/Controllers/EventsBatchController.php)
+- Rust 1.94.0，Reverb 8 项回归、全目标严格 Clippy、含 Reverb 特性的实际二进制构建通过。实际 `reverb:start` 启动两个独立进程和专用 Redis 8.10.3，签名 HTTP 与真实 WebSocket 验证了跨节点连接数、成员去重、批次顺序及来源排除、缓存未命中与重放。内嵌启动、Artisan 隔离、路径覆盖和 `reverb:restart` 回归通过。
+- 三语 VitePress 构建以及 12 项浏览器检查和三语新增锚点通过。专用 Redis、临时站点和本批可执行文件已清理。

@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::Mutex,
 };
 
@@ -18,6 +18,7 @@ pub struct Member {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Frame {
     pub event: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub data: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel: Option<String>,
@@ -57,6 +58,35 @@ type Subscribers = HashMap<String, Subscription>;
 struct State {
     connections: HashMap<String, Connection>,
     channels: HashMap<String, Subscribers>,
+    cached: HashMap<String, Frame>,
+}
+
+/// A snapshot of subscriptions in the current listener.
+#[derive(Default, Deserialize, Serialize)]
+pub(crate) struct Metrics {
+    pub(crate) connections: usize,
+    pub(crate) channels: BTreeMap<String, ChannelMetrics>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub(crate) struct ChannelMetrics {
+    pub(crate) subscriptions: usize,
+    pub(crate) users: BTreeSet<String>,
+    pub(crate) cache: Option<Frame>,
+}
+
+impl Metrics {
+    pub(crate) fn merge(&mut self, other: Self) {
+        self.connections += other.connections;
+        for (name, snapshot) in other.channels {
+            let current = self.channels.entry(name).or_default();
+            current.subscriptions += snapshot.subscriptions;
+            current.users.extend(snapshot.users);
+            if snapshot.cache.is_some() {
+                current.cache = snapshot.cache;
+            }
+        }
+    }
 }
 
 /// Maintains one Reverb application's sockets and channel memberships.
@@ -141,6 +171,7 @@ impl ChannelBroker {
         };
         let subscribed = Frame::on_channel("pusher_internal:subscription_succeeded", data, channel);
         state.send(socket, &subscribed);
+        state.replay_cache(socket, channel);
         if let Some(member) = joined {
             let added = Frame::on_channel(
                 "pusher_internal:member_added",
@@ -221,6 +252,7 @@ impl ChannelBroker {
         {
             subscription.ready = true;
             state.send(socket, frame);
+            state.replay_cache(socket, channel);
         }
     }
 
@@ -295,7 +327,46 @@ impl ChannelBroker {
     }
 
     pub fn publish(&self, channel: &str, event: &str, data: String, excluded: Option<&str>) {
-        self.broadcast(channel, &Frame::new(event, data, Some(channel)), excluded);
+        self.broadcast_event(channel, &Frame::new(event, data, Some(channel)), excluded);
+    }
+
+    pub(crate) fn broadcast_event(&self, channel: &str, frame: &Frame, excluded: Option<&str>) {
+        let mut state = self.state.lock().unwrap();
+        if is_cache_channel(channel) && state.channels.contains_key(channel) {
+            state.cached.insert(channel.into(), frame.clone());
+        }
+        state.publish(channel, frame, excluded);
+    }
+
+    pub(crate) fn metrics(&self, selected: &[String], prefix: Option<&str>) -> Metrics {
+        let state = self.state.lock().unwrap();
+        let channels = state
+            .channels
+            .iter()
+            .filter(|(channel, _)| selected.is_empty() || selected.contains(channel))
+            .filter(|(channel, _)| prefix.is_none_or(|prefix| channel.starts_with(prefix)))
+            .filter_map(|(name, subscribers)| {
+                let active: Vec<_> = subscribers.values().filter(|item| item.ready).collect();
+                (!active.is_empty()).then(|| {
+                    (
+                        name.clone(),
+                        ChannelMetrics {
+                            subscriptions: active.len(),
+                            users: active
+                                .iter()
+                                .filter_map(|item| item.member.as_ref())
+                                .map(|member| member.user_id.clone())
+                                .collect(),
+                            cache: state.cached.get(name).cloned(),
+                        },
+                    )
+                })
+            })
+            .collect();
+        Metrics {
+            connections: state.connections.len(),
+            channels,
+        }
     }
 
     pub(crate) fn broadcast(&self, channel: &str, frame: &Frame, excluded: Option<&str>) {
@@ -318,6 +389,7 @@ impl State {
         let departed = member.filter(|member| !has_member(subscribers, &member.user_id));
         if subscribers.is_empty() {
             self.channels.remove(channel);
+            self.cached.remove(channel);
         }
         if let Some(member) = departed {
             let removed = Frame::on_channel(
@@ -328,6 +400,18 @@ impl State {
             self.publish(channel, &removed, None);
         }
         distributed
+    }
+
+    fn replay_cache(&self, socket: &str, channel: &str) {
+        if is_cache_channel(channel) {
+            match self.cached.get(channel) {
+                Some(frame) => self.send(socket, frame),
+                None => self.send(
+                    socket,
+                    &Frame::new("pusher:cache_miss", String::new(), Some(channel)),
+                ),
+            }
+        }
     }
 
     fn send(&self, socket: &str, frame: &Frame) {
@@ -354,6 +438,12 @@ fn has_member(subscribers: &Subscribers, user_id: &str) -> bool {
         .values()
         .filter_map(|subscription| subscription.member.as_ref())
         .any(|member| member.user_id == user_id)
+}
+
+fn is_cache_channel(channel: &str) -> bool {
+    ["cache", "private-cache-", "presence-cache-"]
+        .iter()
+        .any(|prefix| channel.starts_with(prefix))
 }
 
 pub(crate) fn valid_channel(channel: &str) -> bool {

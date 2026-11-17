@@ -62,28 +62,72 @@ impl Running {
         body: &str,
         change_body: bool,
     ) -> reqwest::Response {
-        let path = format!("/apps/{id}/events");
+        self.request(
+            reqwest::Method::POST,
+            &format!("/apps/{id}/events"),
+            key,
+            &[],
+            body,
+            if change_body { "{}" } else { body },
+        )
+        .await
+    }
+
+    async fn request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        key: &str,
+        parameters: &[(&str, &str)],
+        signed: &str,
+        body: &str,
+    ) -> reqwest::Response {
         let mut query = BTreeMap::from([
             ("auth_key".into(), key.to_owned()),
             ("auth_timestamp".into(), "1700000000".into()),
             ("auth_version".into(), "1.0".into()),
         ]);
-        let signature = sign_request(SECRET.as_bytes(), "POST", &path, &query, body.as_bytes());
+        query.extend(
+            parameters
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string())),
+        );
+        let signature = sign_request(
+            SECRET.as_bytes(),
+            method.as_str(),
+            path,
+            &query,
+            signed.as_bytes(),
+        );
         query.insert("auth_signature".into(), signature);
         reqwest::Client::builder()
             .timeout(Duration::from_secs(3))
             .build()
             .unwrap()
-            .post(format!("http://{}{PREFIX}{path}", self.address))
+            .request(method, format!("http://{}{PREFIX}{path}", self.address))
             .query(&query)
-            .body(if change_body {
-                "{}".to_owned()
-            } else {
-                body.to_owned()
-            })
+            .body(body.to_owned())
             .send()
             .await
             .unwrap()
+    }
+
+    async fn get(&self, path: &str, parameters: &[(&str, &str)]) -> reqwest::Response {
+        self.request(reqwest::Method::GET, path, "test-key", parameters, "", "")
+            .await
+    }
+
+    async fn batch(&self, payload: Value) -> reqwest::Response {
+        let body = payload.to_string();
+        self.request(
+            reqwest::Method::POST,
+            "/apps/test/batch_events",
+            "test-key",
+            &[],
+            &body,
+            &body,
+        )
+        .await
     }
 
     async fn stop(self) {
@@ -469,4 +513,189 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
     assert_eq!(expected(&mut websocket, "message").await, json!({"id":9}));
     framework.abort();
     reverb.stop().await;
+}
+
+#[tokio::test]
+async fn signed_rest_metrics_batch_and_cache_channels_follow_reverb() {
+    let run = Running::start(vec![
+        application("test", "test-key"),
+        application("other", "other-key"),
+    ])
+    .await;
+    let mut first = run.socket("test-key", ORIGIN).await;
+    let first_id = hello(&mut first).await;
+    let mut next_client = run.socket("test-key", ORIGIN).await;
+    let next_id = hello(&mut next_client).await;
+    let mut other = run.socket("other-key", ORIGIN).await;
+    hello(&mut other).await;
+    let cache = "cache-news";
+    let private = "private-cache-draft";
+    let presence = "presence-cache-room";
+    let member = json!({"user_id":"007","user_info":{"name":"First"}});
+    for (channel, member) in [
+        (cache, None),
+        (private, None),
+        (presence, Some(member.clone())),
+    ] {
+        subscribe(&mut first, &first_id, channel, member).await;
+        assert_eq!(
+            next(&mut first).await,
+            json!({"event":"pusher:cache_miss","channel":channel})
+        );
+    }
+    for channel in [cache, private, presence] {
+        assert_eq!(
+            run.publish(
+                "test",
+                "test-key",
+                &json!({"name":"ready","data":"{}","channel":channel}).to_string(),
+                false
+            )
+            .await
+            .status(),
+            200
+        );
+        assert_eq!(expected(&mut first, "ready").await, json!({}));
+    }
+    for (channel, member) in [(cache, None), (private, None), (presence, Some(member))] {
+        subscribe(&mut next_client, &next_id, channel, member).await;
+        assert_eq!(expected(&mut next_client, "ready").await, json!({}));
+    }
+
+    assert_eq!(
+        run.get("/apps/test/connections", &[])
+            .await
+            .json::<Value>()
+            .await
+            .unwrap(),
+        json!({"connections":2})
+    );
+    let wrong = run
+        .request(
+            reqwest::Method::GET,
+            "/apps/test/connections",
+            "other-key",
+            &[],
+            "",
+            "",
+        )
+        .await;
+    assert_eq!(wrong.status(), 401);
+    let channels = run
+        .get(
+            "/apps/test/channels",
+            &[
+                ("filter_by_prefix", "cache-"),
+                ("info", "subscription_count,cache"),
+            ],
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(
+        channels,
+        json!({"channels":{"cache-news":{"subscription_count":2,"cache":{"event":"ready","channel":cache,"data":"{}"}}}})
+    );
+    let info = run
+        .get(
+            "/apps/test/channels/presence-cache-room",
+            &[("info", "user_count,subscription_count")],
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap();
+    assert_eq!(info, json!({"occupied":true,"user_count":1}));
+    assert_eq!(
+        run.get("/apps/test/channels/presence-cache-room/users", &[])
+            .await
+            .json::<Value>()
+            .await
+            .unwrap(),
+        json!({"users":[{"id":"007"}]})
+    );
+    assert_eq!(
+        run.get("/apps/test/channels/cache-news/users", &[])
+            .await
+            .status(),
+        400
+    );
+    assert_eq!(
+        run.get("/apps/test/channels/missing/users", &[])
+            .await
+            .status(),
+        404
+    );
+    assert_eq!(
+        run.get(
+            "/apps/test/channels/missing",
+            &[("info", "subscription_count")]
+        )
+        .await
+        .json::<Value>()
+        .await
+        .unwrap(),
+        json!({"occupied":false})
+    );
+
+    let invalid = run
+        .batch(json!({"batch":[
+            {"name":"no-delivery","data":"{}","channel":cache},
+            {"name":"invalid","data":{},"channel":cache}
+        ]}))
+        .await;
+    assert_eq!(invalid.status(), 422);
+    assert_quiet(&mut first).await;
+    assert_quiet(&mut next_client).await;
+    let response = run.batch(json!({"batch":[
+        {"name":"one","data":r#"{"sequence":1}"#,"channel":cache,"socket_id":first_id,"info":"subscription_count"},
+        {"name":"two","data":r#"{"sequence":2}"#,"channel":cache},
+        {"name":"three","data":"{}","channel":presence,"info":"user_count"}
+    ]})).await;
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"batch":[{"subscription_count":2},{},{"user_count":1}]})
+    );
+    assert_eq!(expected(&mut first, "two").await, json!({"sequence":2}));
+    assert_eq!(
+        expected(&mut next_client, "one").await,
+        json!({"sequence":1})
+    );
+    assert_eq!(
+        expected(&mut next_client, "two").await,
+        json!({"sequence":2})
+    );
+    expected(&mut first, "three").await;
+    expected(&mut next_client, "three").await;
+    assert_quiet(&mut other).await;
+    let event = run.publish("test", "test-key", &json!({"name":"snapshot","data":"{}","channels":[cache,"missing"],"info":"occupied,subscription_count"}).to_string(), false).await;
+    assert_eq!(
+        event.json::<Value>().await.unwrap(),
+        json!({"channels":{(cache):{"occupied":true,"subscription_count":2},"missing":{"occupied":false}}})
+    );
+    let empty = run
+        .batch(json!({"batch":[{"name":"silent","data":"{}","channel":"empty"}]}))
+        .await;
+    assert_eq!(empty.json::<Value>().await.unwrap(), json!({"batch":{}}));
+
+    first.close(None).await.unwrap();
+    next_client.close(None).await.unwrap();
+    let mut cold = run.socket("test-key", ORIGIN).await;
+    let cold_id = hello(&mut cold).await;
+    for _ in 0..30 {
+        let result = run
+            .get("/apps/test/channels/cache-news", &[])
+            .await
+            .json::<Value>()
+            .await
+            .unwrap();
+        if result == json!({"occupied":false}) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    subscribe(&mut cold, &cold_id, cache, None).await;
+    assert_eq!(next(&mut cold).await["event"], "pusher:cache_miss");
+    run.stop().await;
 }

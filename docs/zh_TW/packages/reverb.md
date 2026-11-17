@@ -32,3 +32,11 @@ cargo build --features reverb
 訂閱在線頻道時，用戶端會收到全域成員清單和人數。同一使用者建立多個連線仍只計一人，其他訂閱者只會看到該使用者首次加入與最後一次離開。Redis 可用時，節點正常結束會移除其連線。節點異常結束後，仍有訂閱者的節點大約每 2 秒檢查一次，清理已逾 10 秒租期的連線。新訂閱傳回成員清單前也會清理過期連線。
 
 Redis Pub/Sub 跨節點投遞已簽署的 HTTP 發佈和已授權的用戶端事件。用戶端事件只傳送給同一應用程式、同一頻道的其他訂閱連線，排除傳送者的連線。節點失去 Redis 訂閱時會關閉本節點的在線頻道連線，由用戶端在恢復後重新連線並訂閱。事件盡力投遞，斷線期間錯過的事件不會補送。
+
+## Pusher HTTP API 與快取頻道 {#pusher-http-api}
+
+向 `POST /apps/{id}/events` 或 `POST /apps/{id}/batch_events` 傳送簽章請求。批次請求的 `batch` 陣列依序投遞，每項包含事件名稱、頻道、JSON 編碼的 `data`，以及選用的 `socket_id` 和 `info`。伺服器先驗證整批資料，再投遞事件。兩個端點都可以回傳所要求的頻道統計。
+
+使用簽章 GET 請求查詢 `/apps/{id}/connections`、`/apps/{id}/channels`、`/apps/{id}/channels/{channel}` 或 `/apps/{id}/channels/{channel}/users`。頻道清單可用 `filter_by_prefix` 篩選，透過 `info` 選擇 `subscription_count`、`user_count` 或 `cache` 等欄位。啟用 Redis 擴充後，監聽器合併各回應節點的統計，並移除重複的在線頻道使用者 ID。
+
+帶有 `cache-`、`private-cache-` 或 `presence-cache-` 前綴的頻道，在訂閱成功後重播最近一次事件。快取為空時傳送 `pusher:cache_miss`。頻道授權依然適用。遵循 Reverb 的快取生命週期，各監聽器在有本機訂閱者時保留快取，最後一位本機訂閱者離開後清除。

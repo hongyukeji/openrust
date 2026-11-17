@@ -32,3 +32,11 @@ Set `REVERB_SCALING_ENABLED=true` on each instance. Nodes for one app use the sa
 New presence subscriptions receive the cluster-wide member list and count. A user with multiple sockets counts once, and other subscribers see that user's first join and last leave. Graceful exits remove the sockets when Redis is reachable. After an abrupt exit, a surviving node with subscribers prunes expired sockets using a 10-second lease and a roughly 2-second check. A new subscription also removes expired entries before returning the roster.
 
 Redis Pub/Sub delivers signed HTTP publications and authorized client events across nodes. Client events go to other subscribers in the same app and channel, excluding the sending socket. When a node loses its Redis subscription, it closes its presence sockets so clients reconnect and subscribe again after recovery. Delivery is best effort, with no replay of events missed during an outage.
+
+## Pusher HTTP API and cache channels {#pusher-http-api}
+
+Send signed requests to `POST /apps/{id}/events` or `POST /apps/{id}/batch_events`. A batch accepts an ordered `batch` array with an event name, channel, JSON-encoded `data`, and optional `socket_id` and `info` per item. The server validates the whole batch before dispatching it. Both endpoints can return the requested channel statistics.
+
+Use signed GET requests to `/apps/{id}/connections`, `/apps/{id}/channels`, `/apps/{id}/channels/{channel}`, or `/apps/{id}/channels/{channel}/users`. Use `filter_by_prefix` to restrict a channel list and `info` to select fields such as `subscription_count`, `user_count`, or `cache`. With Redis scaling, the listener combines responding nodes' snapshots and deduplicates presence user IDs.
+
+Channels beginning with `cache-`, `private-cache-`, or `presence-cache-` replay the last event after subscription succeeds, or emit `pusher:cache_miss` if there is no cached event. Channel authorization still applies. As in Reverb, each listener holds that cache while the channel has local subscribers and discards it when the last local subscriber leaves.

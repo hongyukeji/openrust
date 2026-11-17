@@ -86,12 +86,25 @@ async def verify(base):
     print("Embedded HTTP and WebSocket, bind failure, Artisan isolation, standalone overrides and restart passed")
 
 
+def signed_api(port, path, payload=None, **parameters):
+    method = "POST" if payload is not None else "GET"
+    body = json.dumps(payload, separators=(",", ":")).encode() if payload is not None else None
+    query = {"auth_key": "probe", "auth_timestamp": "1700000000", "auth_version": "1.0", **parameters}
+    if body is not None:
+        query["body_md5"] = hashlib.md5(body).hexdigest()
+    signing = f"{method}\n{path}\n" + "&".join(f"{key}={value}" for key, value in sorted(query.items()))
+    query["auth_signature"] = hmac.new(b"probe-secret", signing.encode(), hashlib.sha256).hexdigest()
+    url = f"http://127.0.0.1:{port}{path}?{urllib.parse.urlencode(query)}"
+    with urllib.request.urlopen(urllib.request.Request(url, data=body), timeout=5) as response:
+        return json.load(response)
+
+
 async def verify_redis(base, redis_url):
     ports = [socket_port() for _ in range(2)]
     env = dict(os.environ, APP_BASE_PATH=str(base), CACHE_STORE="file",
                REVERB_SERVER_HOST="127.0.0.1", REVERB_APP_KEY="probe",
                REVERB_APP_SECRET="probe-secret", REVERB_APP_ID="42",
-               REVERB_SCALING_ENABLED="true", REVERB_SCALING_CHANNEL="reverb-acceptance",
+               REVERB_SCALING_ENABLED="true", REVERB_SCALING_CHANNEL=f"reverb-acceptance-{uuid.uuid4().hex}",
                REDIS_URL=redis_url, REDIS_TIMEOUT="3")
     processes = [
         subprocess.Popen([binary, "artisan", "reverb:start", f"--port={port}"], env=env,
@@ -106,36 +119,45 @@ async def verify_redis(base, redis_url):
             connect(f"ws://127.0.0.1:{ports[1]}/app/probe") as second,
         ):
             socket_ids = []
+            cache = "cache-probe"
+            room = "presence-probe"
             for peer in [first, second]:
                 hello = json.loads(await asyncio.wait_for(peer.recv(), 3))
                 socket_ids.append(json.loads(hello["data"])["socket_id"])
-                await peer.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": "probe"}}))
-                response = json.loads(await asyncio.wait_for(peer.recv(), 3))
-                assert response["event"] == "pusher_internal:subscription_succeeded"
-            path = "/apps/42/events"
-            body = json.dumps({"name": "distributed", "data": "{}", "channels": ["probe"],
-                               "socket_id": socket_ids[0]}, separators=(",", ":")).encode()
-            query = {"auth_key": "probe", "auth_timestamp": "1700000000", "auth_version": "1.0",
-                     "body_md5": hashlib.md5(body).hexdigest()}
-            signing = "POST\n" + path + "\n" + "&".join(f"{key}={value}" for key, value in sorted(query.items()))
-            query["auth_signature"] = hmac.new(b"probe-secret", signing.encode(), hashlib.sha256).hexdigest()
-            url = f"http://127.0.0.1:{ports[0]}{path}?{urllib.parse.urlencode(query)}"
-            with urllib.request.urlopen(urllib.request.Request(url, data=body), timeout=3) as response:
-                assert response.status == 200
-            assert json.loads(await asyncio.wait_for(second.recv(), 3))["event"] == "distributed"
-            for peer in [first, second]:
-                try:
-                    await asyncio.wait_for(peer.recv(), .2)
-                except TimeoutError:
-                    pass
-                else:
-                    raise AssertionError("Redis delivery was duplicated or sent to the origin")
+                await subscribe(peer, socket_ids[-1], cache, "probe")
+                miss = json.loads(await asyncio.wait_for(peer.recv(), 3))
+                assert miss == {"event": "pusher:cache_miss", "channel": cache}
+                await subscribe(peer, socket_ids[-1], room, "probe", "007")
+            for port in ports:
+                assert signed_api(port, "/apps/42/connections") == {"connections": 2}
+                assert signed_api(port, f"/apps/42/channels/{room}", info="user_count") == {
+                    "occupied": True, "user_count": 1}
+                assert signed_api(port, f"/apps/42/channels/{room}/users") == {"users": [{"id": "007"}]}
+            published = signed_api(ports[0], "/apps/42/events", {
+                "name": "distributed", "data": "{}", "channels": [cache],
+                "socket_id": socket_ids[0], "info": "subscription_count"})
+            assert published == {"channels": {cache: {"subscription_count": 2}}}
+            await frame(second, "distributed")
+            await quiet(first, second)
+
+            response = signed_api(ports[1], "/apps/42/batch_events", {"batch": [
+                {"name": "first", "data": "{}", "channel": cache, "socket_id": socket_ids[1]},
+                {"name": "last", "data": "{\"version\":2}", "channel": cache, "info": "subscription_count"},
+            ]})
+            assert response == {"batch": [{}, {"subscription_count": 2}]}, response
+            await frame(first, "first")
+            assert (await frame(first, "last"))[1] == {"version": 2}
+            assert (await frame(second, "last"))[1] == {"version": 2}
+            async with connect(f"ws://127.0.0.1:{ports[0]}/app/probe") as newcomer:
+                _, hello = await frame(newcomer, "pusher:connection_established")
+                await subscribe(newcomer, hello["socket_id"], cache, "probe")
+                assert (await frame(newcomer, "last"))[1] == {"version": 2}
     finally:
         for process in processes:
             if process.poll() is None:
                 process.terminate()
             assert process.wait(timeout=5) == 0, process.communicate()
-    print("Redis signed publication reached a different process once and excluded its source socket")
+    print("Two Redis nodes passed signed metrics, deduplicated users, ordered batch delivery, socket exclusion and cache replay")
 
 
 async def frame(peer, event, timeout=3):

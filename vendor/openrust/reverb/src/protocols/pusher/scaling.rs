@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tokio::time;
 use tokio_util::sync::CancellationToken;
 
-use super::channels::{Frame, Member};
+use super::channels::{Frame, Member, Metrics};
 
 pub(super) const PRESENCE_SWEEP: Duration = Duration::from_secs(2);
 const LEASE: Duration = Duration::from_secs(10);
@@ -38,6 +38,7 @@ pub(super) struct Delivery {
 pub(super) enum Message {
     Event(Delivery),
     Presence(PresenceDelivery),
+    Metrics(MetricRequest),
 }
 
 #[derive(Deserialize)]
@@ -46,6 +47,14 @@ pub(super) struct PresenceDelivery {
     pub(super) frame: Frame,
     pub(super) recipient: Option<String>,
     pub(super) excluded: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub(super) struct MetricRequest {
+    id: u64,
+    pub(super) app_id: String,
+    pub(super) selected: Vec<String>,
+    pub(super) prefix: Option<String>,
 }
 
 pub(super) struct Subscriber {
@@ -58,6 +67,7 @@ pub(super) struct Subscriber {
 
 #[derive(Clone)]
 pub(super) struct Publisher {
+    client: Client,
     connection: ConnectionManager,
     channel: String,
     timeout: Duration,
@@ -85,13 +95,14 @@ impl Subscriber {
         let subscribed = Arc::new(AtomicBool::new(true));
         Ok((
             Self {
-                client,
+                client: client.clone(),
                 connection,
                 channel: channel.clone(),
                 timeout,
                 subscribed: subscribed.clone(),
             },
             Publisher {
+                client,
                 connection: publisher,
                 channel,
                 timeout,
@@ -103,7 +114,9 @@ impl Subscriber {
     pub(super) async fn run(
         mut self,
         stop: CancellationToken,
+        publisher: Publisher,
         deliver: impl Fn(Message),
+        metrics: impl Fn(&MetricRequest) -> Metrics,
         disconnected: impl Fn(),
     ) {
         loop {
@@ -117,7 +130,17 @@ impl Subscriber {
                 let Some(message) = message else { break };
                 if let Ok(delivery) = serde_json::from_slice::<Message>(message.get_payload_bytes())
                 {
-                    deliver(delivery);
+                    match delivery {
+                        Message::Metrics(request) => {
+                            let response = metrics(&request);
+                            let reply = publisher.metric_reply(request.id);
+                            tokio::select! {
+                                () = stop.cancelled() => return,
+                                _ = publisher.publish_to(&reply, &response) => (),
+                            }
+                        }
+                        delivery => deliver(delivery),
+                    }
                 }
             }
             drop(messages);
@@ -146,22 +169,76 @@ impl Subscriber {
 
 impl Publisher {
     pub(super) async fn publish(&self, delivery: &Delivery) -> io::Result<()> {
-        let bytes = serde_json::to_vec(delivery)?;
+        if self.publish_to(&self.channel, delivery).await? == 0 {
+            return Err(redis_error());
+        }
+        Ok(())
+    }
+
+    async fn publish_to(&self, channel: &str, message: &impl Serialize) -> io::Result<usize> {
+        let bytes = serde_json::to_vec(message)?;
         let mut connection = self.connection.clone();
-        let published: usize = time::timeout(
+        time::timeout(
             self.timeout,
             redis::cmd("PUBLISH")
-                .arg(&self.channel)
+                .arg(channel)
                 .arg(bytes)
                 .query_async(&mut connection),
         )
         .await
         .map_err(|_| redis_error())?
-        .map_err(|_| redis_error())?;
-        if published == 0 {
+        .map_err(|_| redis_error())
+    }
+
+    fn metric_reply(&self, id: u64) -> String {
+        format!(
+            "reverb:metrics:{}:{}:{id:016x}",
+            self.channel.len(),
+            self.channel
+        )
+    }
+
+    pub(super) async fn metrics(
+        &self,
+        app: &str,
+        selected: &[String],
+        prefix: Option<&str>,
+    ) -> io::Result<Metrics> {
+        if !self.subscribed.load(Ordering::Acquire) {
             return Err(redis_error());
         }
-        Ok(())
+        let request = MetricRequest {
+            id: fastrand::u64(..),
+            app_id: app.into(),
+            selected: selected.into(),
+            prefix: prefix.map(str::to_owned),
+        };
+        let mut reply =
+            subscribe(&self.client, &self.metric_reply(request.id), self.timeout).await?;
+        let expected = self.publish_to(&self.channel, &request).await?;
+        if expected == 0 {
+            return Err(redis_error());
+        }
+        let mut messages = reply.on_message();
+        let mut combined = Metrics::default();
+        let mut received = 0;
+        let _ = time::timeout(self.timeout.min(Duration::from_secs(10)), async {
+            while received < expected {
+                let Some(message) = messages.next().await else {
+                    break;
+                };
+                if let Ok(metrics) = serde_json::from_slice::<Metrics>(message.get_payload_bytes())
+                {
+                    combined.merge(metrics);
+                    received += 1;
+                }
+            }
+        })
+        .await;
+        if received == 0 {
+            return Err(redis_error());
+        }
+        Ok(combined)
     }
 
     pub(super) async fn join(

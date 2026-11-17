@@ -32,3 +32,11 @@ cargo build --features reverb
 订阅在线频道时，客户端收到全局成员列表和人数。同一用户建立多条连接仍只计一人，其他订阅者只会看到该用户的首次加入和最后一次离开。Redis 可用时，节点正常退出会移除其连接。节点异常退出后，仍有订阅者的节点大约每 2 秒检查一次，清理 10 秒租期已到期的连接。新订阅返回成员列表前也会清理过期连接。
 
 Redis Pub/Sub 跨节点投递签名的 HTTP 发布和已授权的客户端事件。客户端事件只发给同一应用、同一频道的其他订阅连接，排除发送者的连接。节点失去 Redis 订阅时会关闭本节点的在线频道连接，由客户端在恢复后重连并重新订阅。事件尽力投递，断线期间错过的事件不会补发。
+
+## Pusher HTTP API 与缓存频道 {#pusher-http-api}
+
+向 `POST /apps/{id}/events` 或 `POST /apps/{id}/batch_events` 发送签名请求。批量请求的 `batch` 数组按顺序投递，每项包含事件名、频道、JSON 编码的 `data`，以及可选的 `socket_id` 和 `info`。服务端先校验整个批次，再投递事件。两个接口都可返回请求的频道统计。
+
+使用签名 GET 请求查询 `/apps/{id}/connections`、`/apps/{id}/channels`、`/apps/{id}/channels/{channel}` 或 `/apps/{id}/channels/{channel}/users`。频道列表可用 `filter_by_prefix` 筛选，使用 `info` 选择 `subscription_count`、`user_count` 或 `cache` 等字段。启用 Redis 扩展后，监听器合并各响应节点的统计，并对在线频道用户 ID 去重。
+
+带有 `cache-`、`private-cache-` 或 `presence-cache-` 前缀的频道，在订阅成功后重放最近一次事件。缓存为空时发送 `pusher:cache_miss`。频道授权仍然适用。遵循 Reverb 的缓存生命周期，各监听器在有本机订阅者时保留缓存，最后一位本机订阅者离开后清除。
