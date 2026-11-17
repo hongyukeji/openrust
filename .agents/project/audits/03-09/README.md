@@ -52,3 +52,11 @@
 - 两个实际 HTTP 进程分别写入和读回标签值。独立 Artisan `cache:prune-stale-tags redis` 修剪过期引用并保留有效值，`cache:clear redis --tags=artists` 清除匹配标签并保留普通值和其他标签，`artisan inspire` 正常退出。
 - 改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查和 6 项标签文档链接检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。临时 Redis 与本批隔离产物已回收。项目卷可用 117.29 GB（109.23 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tags.lo4O4vrg`。
 - 03-09 整单元继续跟踪其他原始 Redis 命令的重定向，以及真实 TLS 和无主机名重定向；标签脚本跨迁移窗口的专门回归待补。本批不调整核心账本闭合数。
+
+## 原始命令重定向与标签迁槽
+
+- 固定 Laravel 的 PhpRedisClusterConnection 复用 RedisCluster 的协议路由。旧版 `v0.x` 未找到原生 ASK/MOVED 实现。本批沿用现有显式重定向机制，原始命令需要额外键验证时向 Redis 查询 `COMMAND GETKEYS`。只有返回的全部键都匹配重定向槽，才跟随服务器给出的目的地址。键参数保留原始字节。 [Laravel 集群连接](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Redis/Connections/PhpRedisClusterConnection.php) · [Redis COMMAND GETKEYS](https://redis.io/docs/latest/commands/command-getkeys/)
+- ACL 拒绝键查询、键无法核对或命令跨槽时，保留原始响应。跨槽写入可能部分成功。ASKING 与命令继续在同一连接按序发送，分别核对两条命令的结果，使后续明确重定向仍受同一上限约束。连接中断后的写入结果由调用方处理。 [Redis Cluster 重定向规范](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#moved-redirection)
+- 在隔离基线 `f2e8d6248` 使用 Redis 8.10.3 验证二进制键的 HSET/HGET、同槽 MSET、跨槽部分成功、受限 ACL、丢失回执时 INCR 只执行一次、主节点切换。实际分批迁移标签数据发生 `TRYAGAIN` 时保留原值，键迁齐后随 ASK、MOVED 读回，再按标签清除。单机 Redis 回归通过。
+- 双进程 HTTP 执行原始 HSET/HGET 并跨越 ASK 和 MOVED，独立 Artisan `cache:forget` 清除该键，`artisan inspire` 正常退出。改动文件格式、严格 Clippy、三语站点、12 项通用浏览器检查及 6 项 Redis 重定向文档检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。
+- 临时 Redis 与本批隔离产物已回收。项目卷可用 115.27 GB（107.36 GiB），周额度剩余 67%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-raw.HeNbotf2`。真实 TLS 和首次响应无主机名的重定向待补，核心闭合数本批保持原值。

@@ -3,7 +3,7 @@ use std::time::Duration;
 use ::redis::{
     Arg, AsyncConnectionConfig, Client, Cmd, ConnectionAddr, ConnectionInfo, ErrorKind,
     FromRedisValue, RedisResult, ServerErrorKind, cluster::ClusterClient,
-    cluster_async::ClusterConnection,
+    cluster_async::ClusterConnection, cluster_routing::Slot,
 };
 
 pub(super) struct Cluster {
@@ -28,19 +28,26 @@ impl Cluster {
         known_single_target: bool,
     ) -> RedisResult<T> {
         let mut result = command.query_async(&mut transport).await;
+        let mut verified_slot = None;
         for _ in 0..self.redirects {
             let Err(error) = &result else {
                 break;
             };
-            let Some((address, _)) = error.redirect_node() else {
+            let Some((address, slot)) = error.redirect_node() else {
                 break;
             };
-            if !known_single_target && !single_target(command) {
-                break;
-            }
             let Some((host, port)) = split_address(address) else {
                 break;
             };
+            if !known_single_target && !single_target(command) {
+                let Some(slot) = Slot::new(slot) else { break };
+                if verified_slot.is_none() {
+                    verified_slot = command_slot(&mut transport, command).await;
+                }
+                if verified_slot != Some(slot) {
+                    break;
+                }
+            }
             let ask = error.kind() == ErrorKind::Server(ServerErrorKind::Ask);
             result = self.query_redirect(command, host, port, ask).await;
         }
@@ -77,13 +84,14 @@ impl Cluster {
             .await?;
         if ask {
             // The importing node grants permission for exactly the following command.
-            ::redis::pipe()
+            let (asking, result): (RedisResult<()>, RedisResult<T>) = ::redis::pipe()
+                .ignore_errors()
                 .cmd("ASKING")
-                .ignore()
                 .add_command(command.clone())
-                .query_async::<(T,)>(&mut connection)
-                .await
-                .map(|(result,)| result)
+                .query_async(&mut connection)
+                .await?;
+            asking?;
+            result
         } else {
             command.query_async(&mut connection).await
         }
@@ -141,4 +149,24 @@ fn single_target(command: &Cmd) -> bool {
     .iter()
     .any(|key| name.eq_ignore_ascii_case(key))
         && matches!(args.nth(1), Some(Arg::Simple(b"1")))
+}
+
+/// Verify uncommon commands only after a redirect. Fan-out writes may have already
+/// succeeded on another shard, so the original command must target just this slot.
+async fn command_slot(transport: &mut ClusterConnection, command: &Cmd) -> Option<Slot> {
+    let mut metadata = ::redis::cmd("COMMAND");
+    metadata.arg("GETKEYS");
+    for argument in command.args_iter() {
+        let Arg::Simple(bytes) = argument else {
+            return None;
+        };
+        metadata.arg(bytes);
+    }
+    let keys: Vec<Vec<u8>> = metadata.query_async(transport).await.ok()?;
+    let (first, remaining) = keys.split_first()?;
+    let slot = Slot::for_key(first);
+    remaining
+        .iter()
+        .all(|key| Slot::for_key(key) == slot)
+        .then_some(slot)
 }

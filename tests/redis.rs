@@ -564,12 +564,16 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
     let seed = json!({"host":"127.0.0.1","port":port.parse::<u16>().unwrap(),"password":"cluster-fixture"});
     let mut without_redirects = seed.clone();
     without_redirects["max_retries"] = json!(0);
+    let mut restricted_seed = seed.clone();
+    restricted_seed["username"] = json!("fixture-limited");
+    restricted_seed["password"] = json!("fixture-limited-password");
     let manager = RedisManager::new(Arc::new(openrust::config::Repository::new(
         [(
             "database".into(),
             json!({"redis":{"options":{"prefix":"fixture:"},"clusters":{
                 "topology":[seed],
                 "no_redirects":[without_redirects],
+                "restricted":[restricted_seed],
             }}}),
         )]
         .into(),
@@ -609,6 +613,25 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
             .1
             .to_owned()
     };
+    for node in &nodes {
+        assert_eq!(
+            cluster_cli(
+                &container,
+                &node_port(node[1]),
+                &[
+                    "ACL",
+                    "SETUSER",
+                    "fixture-limited",
+                    "on",
+                    ">fixture-limited-password",
+                    "~*",
+                    "+@all",
+                    "-command|getkeys"
+                ]
+            ),
+            "OK"
+        );
+    }
     let is_primary = |node: &&Vec<&str>| node[2].split(',').any(|flag| flag == "master");
     let source = nodes
         .iter()
@@ -630,6 +653,28 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         cluster_cli(&container, &port, &["CLUSTER", "KEYSLOT", &physical]),
         slot
     );
+    // This namespace's tag metadata and item keys share the migrating slot.
+    let tagged_store = openrust::cache::Repository::new(Arc::new(RedisStore::new(
+        connection.clone(),
+        connection.clone(),
+        "migration-8430:".into(),
+    )));
+    let tags = tagged_store.tags(&["artists", "daily"]).unwrap();
+    let metadata = tags.getTags().tagKey("artists");
+    assert_eq!(
+        cluster_cli(&container, &port, &["CLUSTER", "KEYSLOT", &metadata]),
+        slot
+    );
+    assert!(
+        tags.forever("entry", &"before-migration".into())
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        tags.get("entry").await.unwrap(),
+        Some("before-migration".into())
+    );
+
     assert_eq!(
         cluster_cli(
             &container,
@@ -659,6 +704,104 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
     assert_eq!(
         connection.get(migrating_key).await.unwrap().unwrap(),
         b"migrated"
+    );
+
+    let restricted = manager.connection(Some("restricted")).unwrap();
+    let blocked_key = connection.key("{one}:acl");
+    let error = restricted
+        .command("HSET", &[blocked_key.as_bytes(), b"field", b"denied"])
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("Ask"), "{error:?}");
+    assert_eq!(connection.get("{one}:acl").await.unwrap(), None);
+    restricted.set("{one}:acl", b"single-key").await.unwrap();
+    assert_eq!(
+        connection.get("{one}:acl").await.unwrap().unwrap(),
+        b"single-key"
+    );
+
+    let mut hash = connection.key("{one}:hash").into_bytes();
+    hash.extend_from_slice(&[0, 0xff]);
+    use openrust::redis::Value as RedisValue;
+    assert_eq!(
+        connection
+            .command("hset", &[&hash, b"field", b"binary-key"])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
+    assert_eq!(
+        connection
+            .command("HGET", &[&hash, b"field"])
+            .await
+            .unwrap(),
+        RedisValue::BulkString(b"binary-key".to_vec())
+    );
+
+    let left = connection.key("{one}:raw-left");
+    let right = connection.key("{one}:raw-right");
+    // Redis allows the same-slot multi-key operation during import once all keys exist there.
+    connection.set("{one}:raw-left", b"old").await.unwrap();
+    connection.set("{one}:raw-right", b"old").await.unwrap();
+    assert_eq!(
+        connection
+            .command("MSET", &[left.as_bytes(), b"1", right.as_bytes(), b"2"])
+            .await
+            .unwrap(),
+        RedisValue::Okay
+    );
+    let stable_raw = connection.key("{two}:raw-stable");
+    let moving_raw = connection.key("{one}:raw-mixed");
+    let error = connection
+        .command(
+            "MSET",
+            &[
+                stable_raw.as_bytes(),
+                b"stable",
+                moving_raw.as_bytes(),
+                b"moving",
+            ],
+        )
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("Ask"), "{error:?}");
+    assert_eq!(
+        connection.get("{two}:raw-stable").await.unwrap().unwrap(),
+        b"stable"
+    );
+    assert_eq!(connection.get("{one}:raw-mixed").await.unwrap(), None);
+
+    let migrate = |keys: &[&str]| {
+        let mut args = vec![
+            "MIGRATE",
+            "127.0.0.1",
+            &destination_port,
+            "",
+            "0",
+            "5000",
+            "AUTH",
+            "cluster-fixture",
+            "KEYS",
+        ];
+        args.extend_from_slice(keys);
+        assert_eq!(cluster_cli(&container, &source_port, &args), "OK");
+    };
+    let tagged_item = tags.taggedItemKey("entry").await.unwrap();
+    migrate(&[&tagged_item]);
+    let error = tags
+        .forever("entry", &"interrupted".into())
+        .await
+        .unwrap_err();
+    assert!(format!("{error:?}").contains("TryAgain"), "{error:?}");
+    let remaining = cluster_cli(
+        &container,
+        &source_port,
+        &["CLUSTER", "GETKEYSINSLOT", slot, "128"],
+    );
+    migrate(&remaining.lines().collect::<Vec<_>>());
+    assert_eq!(
+        tags.get("entry").await.unwrap(),
+        Some("before-migration".into())
     );
 
     let cache = RedisStore::new(connection.clone(), connection.clone(), "cache:".into());
@@ -699,6 +842,24 @@ async fn redis_cluster_migrates_and_recovers_without_replaying_a_write() {
         connection.get(migrating_key).await.unwrap().unwrap(),
         b"migrated"
     );
+
+    assert_eq!(
+        connection.get("{one}:raw-left").await.unwrap().unwrap(),
+        b"1"
+    );
+    assert_eq!(
+        tags.get("entry").await.unwrap(),
+        Some("before-migration".into())
+    );
+    assert!(
+        tagged_store
+            .tags(&["artists"])
+            .unwrap()
+            .flush()
+            .await
+            .unwrap()
+    );
+    assert_eq!(tags.get("entry").await.unwrap(), None);
 
     let replica = nodes.iter().find(|node| node[3] == source[0]).unwrap();
     let replica_port = node_port(replica[1]);
