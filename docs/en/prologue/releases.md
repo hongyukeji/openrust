@@ -27,6 +27,10 @@ The platform and driver rows cover the scenarios listed. Check the corresponding
 
 The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. The original Oracle Linux 7 image requires the [ECDHE-enabled derived image](../database/getting-started.md#mysql-57-oracle-linux-7) for OpenRust. See [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls), [MariaDB](../database/getting-started.md#mariadb) and [SQL Server](../database/getting-started.md#sql-server) for tested connection settings.
 
+## Standalone Package Recheck {#standalone-package-recheck}
+
+On macOS ARM64, a clean archive of `2d1f83dfd` built the standalone release binary with Rust 1.94.0 and the committed lockfile. The release directory ran from a separate working directory with MySQL 8.4.13 and Redis 8.10.3. Key generation, 12 migrations, an idempotent rerun, the home and health routes, both public file mounts, database sessions, both managed and independent Redis workers, and graceful SIGTERM all passed. Moving the release directory preserved access to public storage and the existing migration ledger.
+
 ## Production simulation and live deployment checks {#pending-deployment-acceptance}
 
 Release acceptance for 08-04 is complete under the production simulation scope. The live deployment checks below cover each target environment.

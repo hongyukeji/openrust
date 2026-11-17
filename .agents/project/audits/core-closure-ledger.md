@@ -127,6 +127,8 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | [按模拟正式环境验收闭合](08-04/README.md#08-04-模拟正式环境验收与闭合)。干净检出安装、[原生 Ubuntu x86_64 发布复验](08-04/docker.md#原生-ubuntu-x86_64-发布复验)（`07307c6e1`）、Linux amd64 兼容环境镜像、Windows ARM64 独立部署、SQLite 3.51.3／MySQL 5.7.44 Oracle 通用归档和 Oracle Linux 7 ECDHE 派生镜像、8.0.46／8.4.13／MariaDB 10.3.39 和 11.8.9／PostgreSQL 10–18 实测版本／SQL Server 2017 和 2022 TDS，以及[本地 TLS 证书链与轮换、SQS 标准／FIFO SigV4 模拟补测](08-04/README.md#模拟验收补测)通过 | Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的发布实机验证，见[环境与权限复查](08-04/README.md#剩余实机环境复查) |
 
+08-04 [主线独立发布包复验](08-04/README.md#主线独立发布包与交付对照复验)已验证 `2d1f83dfd` 的离线锁定归档、MySQL 和 Redis、HTTP、Artisan、搬移与关停。三语映射的 104 个本地路径完整，范围待确认的生态条目继续在交付计划中跟踪。
+
 ### Sanctum、API 安装与资源发布复核（2026-11-15）
 
 复核快照 `c8b60fb8`。对照固定 Laravel 13.40.0 和 Sanctum 4.4.0，复用以下实际验收。Windows 首装见 `f6cfc23e`，截至 `a12a274f` 的重建与迁移失败行为见 [Windows 重建复验](sanctum-03/README.md#windows-重建复验)，Windows 发布交互见 `707ab390`。本轮只执行新增或受影响的验收。

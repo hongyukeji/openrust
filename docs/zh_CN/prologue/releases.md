@@ -27,6 +27,10 @@
 
 数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。Oracle Linux 7 原镜像需构建[启用 ECDHE 的派生镜像](../database/getting-started.md#mysql-57-oracle-linux-7)以接入 OpenRust。实测连接配置见 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
 
+## 独立发布包复验 {#standalone-package-recheck}
+
+从 `2d1f83dfd` 的干净源码归档在 macOS ARM64 上用 Rust 1.94.0 和提交的锁文件构建独立发布二进制。发布目录从其他工作目录启动，连接 MySQL 8.4.13 和 Redis 8.10.3。密钥生成、12 项迁移与幂等重跑、首页和健康路由、两类公共文件、数据库会话、受管和独立 Redis Worker，以及 SIGTERM 优雅退出均通过。搬移发布目录后仍可访问公共存储和原迁移账本。
+
 ## 模拟正式环境与实机验证 {#pending-deployment-acceptance}
 
 08-04 已按模拟正式环境验收闭合。表中列有各目标环境的实机验证项。

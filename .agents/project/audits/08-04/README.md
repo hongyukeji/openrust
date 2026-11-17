@@ -108,3 +108,12 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 安装、独立发布、数据库版本矩阵与原生 Ubuntu x86_64 部署沿用已验收结果。Ubuntu 复验使用 `07307c6e1`，包含 Compose 部署、持久化挂载、真实 HTTP、Artisan 迁移和独立 Worker。 [原生 Ubuntu 发布复验](docker.md#原生-ubuntu-x86_64-发布复验)
 - Windows 采用 ARM64 独立发布的真实 HTTP 和 Artisan、PowerShell 的 Compose 配置和绑定路径验收，以及 Ubuntu 的容器挂载行为实测。生产 TLS 采用本地生产模式应用、测试 CA、证书链校验和轮换验收。托管 SQS 标准／FIFO 采用 ElasticMQ 的投递与失败恢复实测，以及独立端点对真实 Artisan 请求的 SigV4 与会话令牌校验。 [模拟验收补测](#模拟验收补测)
 - 真实 Windows Docker Desktop 文件共享与容器生命周期、生产域名及实际证书、AWS IAM／STS 与托管标准／FIFO 服务行为仍列为发布时的实机验证。 [环境与权限](#剩余实机环境复查)
+
+## 主线独立发布包与交付对照复验
+
+- 对照固定 Laravel 部署的公开目录、健康路由和 Worker 生命周期，以及固定 Goravel 的编译型入口。旧版 `openrust-v0.x` 已有 Docker 与独立产物装配，本批沿用当前正式版独立产物流程和既有实际邮件 Worker 验收载荷。 [Laravel 部署](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md) · [Goravel 入口](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/main.go)
+- 以 `2d1f83dfd` 的 `git archive` 源码在 macOS ARM64 上执行 `cargo +1.94.0 build --locked --offline --release --features standalone --bin main`。确认 Mach-O ARM64，锁定元数据唯一解析归档内的 `sqlx-mysql 0.9.0`。运行目录无 Rust 源文件，启动从另一个工作目录执行，无 Cargo 或 `APP_BASE_PATH`。
+- 在真实 MySQL 8.4.13 与 Redis 8.10.3 上验证密钥生成、12 项迁移和幂等重跑、待迁移状态、`inspire`、首页、`/up`、网站 `public/` 和存储磁盘访问、数据库会话写入。默认受管 Worker 和独立 `main artisan queue:work redis --once` 分别消费一条实际 Redis 邮件任务，失败表为空。两次 SIGTERM 均退出 0 并释放端口。搬移发布目录后公共存储和迁移账本仍可用。
+- Rust 1.94.0 格式检查通过。相同源码的工作区严格 Clippy 已随 [02-04](../02-04/README.md#mysql-和-mariadb-影响行数与整单元验收) 验收。本批三语站点与 `/` 和 `/docs/` 下 12 项通用及 6 项发布小节浏览器检查通过。
+- 对照计划与三语文档映射，归档中 104 个本地路径均有三语文件，对照引用的计划锚点齐备。31 行生态映射仍标记范围待确认，文件存在是导航与对应关系的证据，具体功能以交付单元验收为准。 [Laravel 文档对照](../../plans/laravel-docs-delivery-map.md)
+- 源码归档和临时服务隔离运行，产物已回收。项目卷净增 2.12 GB（1.97 GiB），余量 100.69 GB（93.78 GiB）。周额度剩余 38%，第二窗口无读数。日志保留于 `/private/tmp/openrust-08-04-current-package.64Mt1XJp`。现有 08-04 模拟验收结论继续有效，实机 Windows Docker Desktop、生产 TLS、托管 SQS、SQL Server 原生 x86_64 和商业嵌入服务各按既有发布检查跟踪。
