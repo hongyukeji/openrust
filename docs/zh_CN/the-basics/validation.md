@@ -96,6 +96,8 @@ fn register() -> Result<(), RoutingError> {
 
 验证东亚双字节文件时，请选择文件实际使用的编码。`encoding:BIG-5` 和 `encoding:EUC-KR` 检查标准字节范围，对应的 Windows 扩展可用 `File::default().encoding("CP950")` 或 `File::default().encoding("UHC")`。各编码按 PHP mbstring 的字表拒绝不完整字节对和未分配位置。
 
+`encoding:EUC-CN` 校验该编码已分配的双字节位置，`encoding:CP936` 校验 Windows 的字节范围。`encoding:GB18030` 和 `File::default().encoding("GB18030-2022")` 都遵循 PHP mbstring，接受相同的双字节及四字节序列。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

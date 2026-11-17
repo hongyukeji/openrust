@@ -108,3 +108,10 @@
 - 对原先使用的 WHATWG 解码器逐字节对照，BIG-5 有 4,850 处差异，CP950 有 1,193 处，EUC-KR 有 8,822 处，UHC 的单字节及双字节穷举一致。
 - 每个编码覆盖全部 256 个单字节、65,536 个双字节和 1,024 个确定性混合序列，共 267,264 个向量。固定 Laravel PHP trait 与实际 multipart HTTP 逐文件核对 200 与 422，通过全部对照。首轮复验发现 UHC 的 `81 A1` 扩展遗漏，修正并加入回归。三语文档示例随声明式与 Fluent 文件规则实际执行。MySQL 8.4.13 环境下 16 项验证回归、三语站点及 18 项浏览器检查通过。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-double-byte.HOTrRMmb`。其余多字节、状态型编码和整单元对照待完成，核心账本维持 59/66。
+
+## EUC-CN、CP936 与 GB18030
+
+- 对照固定 Laravel `validateEncoding` 与 PHP 8.5.12 mbstring。EUC-CN 按已分配的双字节位置校验。CP936 接受 PHP 支持的 `0x80`、`0xFF` 单字节及双字节范围。新增 `GB18030-2022`；两版 GB18030 的字节有效性相同，支持 ASCII、双字节和两个已分配的四字节指针区间。校验保留原始字节，版本间的字符映射差异属于转码行为。固定 Goravel 与旧版已核对，旧版未找到可复用的对应验证器。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding)
+- 单、双字节穷举对照中，原有实现的 EUC-CN 有 733 处差异，CP936 有 260 处，GB18030 有 258 处。两版 GB18030 各自的 1,587,600 个四字节候选逐项对照 PHP mbstring，Rust 字节扫描全部一致。
+- 固定 Laravel PHP trait 与真实 multipart HTTP 对照的 268,190 个上传值全部通过，含四种编码的单、双字节穷举，两个四字节区间的边界与截断，以及 4,096 个确定性混合序列。MySQL 8.4.13 环境下 17 项验证回归通过。三语文档中的声明式和 Fluent 规则实际运行，三语站点与 18 项浏览器检查通过。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-gb18030.Tq5zNRpJ`。其余多字节、状态型编码和整单元对照待完成，核心账本维持 59/66。

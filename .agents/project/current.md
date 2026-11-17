@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 18:15（北京时间）04-05 [EUC-CN、CP936 与 GB18030](audits/04-05/README.md#euc-cncp936-与-gb18030)通过 268,190 个实际 multipart HTTP 对照、两版 GB18030 共 3,175,200 个四字节候选、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
 - 2026-11-17 18:09（北京时间）04-05 [BIG-5、CP950、EUC-KR 与 UHC](audits/04-05/README.md#big-5cp950euc-kr-与-uhc)通过 267,264 个固定 Laravel／PHP 与实际 multipart HTTP 对照、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
 - 2026-11-17 18:01（北京时间）04-05 [单字节编码字表](audits/04-05/README.md#单字节编码字表)通过 PHP 的 25 个编码、6,475 个实际 multipart HTTP 对照、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
 - 2026-11-17 17:55（北京时间）04-05 [IFF、WBMP、XBM 与 SWF 图片尺寸](audits/04-05/README.md#iffwbmpxbm-与-swf-图片尺寸)通过固定 Laravel／PHP 的 29 个样本、实际 multipart HTTP、MySQL 8.4.13 回归和独立 Artisan。核心账本维持 59/66。
@@ -19,9 +20,9 @@
 - 2026-11-17 16:11（北京时间）04-05 [MySQL 数据库验证规则](audits/04-05/README.md#mysql-数据库验证规则)通过真实 MySQL 8.4.13、HTTP 和独立 Artisan 验收。核心账本维持 59/66。
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
-- 下一批继续 04-05，优先核对 EUC-CN、CP936、GB18030 和 GB18030-2022 的字节边界，再继续其余多字节与状态型编码。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
+- 下一批继续 04-05，优先核对 EUC-JP、eucJP-win、CP51932 和 EUC-JP-2004 的双字节及三字节字表，再核对其余多字节与状态型编码。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 52%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.75 GB（76.13 GiB）。继续前以实测读数复查。
+- 周额度剩余 52%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.71 GB（76.10 GiB）。继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

@@ -272,6 +272,17 @@ impl FormRequest for Upload {
             "encoding-euc-cn" => {
                 RuleSet::parse([("attachments.*", "required|file|encoding:EUC-CN")])
             }
+            "encoding-cp936" => RuleSet::parse([("attachments.*", "required|file|encoding:CP936")]),
+            "encoding-gb18030" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:GB18030")])
+            }
+            "encoding-gb18030-2022" => RuleSet::new().field(
+                "attachments.*",
+                [
+                    Rule::required(),
+                    File::default().encoding("GB18030-2022").into(),
+                ],
+            ),
             "encoding-ucs2" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-2")]),
             "encoding-ucs4" => RuleSet::parse([("attachments.*", "required|file|encoding:UCS-4")]),
             "encoding-base64" => {
@@ -1341,6 +1352,60 @@ async fn validates_big5_and_korean_byte_sequences_over_real_http() {
             assert!(response["errors"]["attachments.0"].is_array());
         }
     }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_gb_encodings_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, valid, invalid) in [
+        ("encoding-euc-cn", b"a\xa1\xa1b", b"a\xa2\xa1b"),
+        ("encoding-cp936", b"a\x80\xffb", b"a\x81\x7fb"),
+        ("encoding-gb18030", b"\x84\x31\xa4\x39", b"\x84\x31\xa5\x30"),
+        (
+            "encoding-gb18030-2022",
+            b"\xe3\x32\x9a\x35",
+            b"\xe3\x32\x9a\x36",
+        ),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            valid,
+            200,
+        )
+        .await;
+        let response = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            invalid,
+            422,
+        )
+        .await;
+        assert!(response["errors"]["attachments.0"].is_array());
+    }
+    upload_file(
+        address,
+        "encoding-gb18030",
+        "data.bin",
+        "application/octet-stream",
+        b"\x90\x30\x81\x30",
+        200,
+    )
+    .await;
+    upload_file(
+        address,
+        "encoding-gb18030-2022",
+        "data.bin",
+        "application/octet-stream",
+        b"\x90\x30\x81",
+        422,
+    )
+    .await;
     server.abort();
 }
 

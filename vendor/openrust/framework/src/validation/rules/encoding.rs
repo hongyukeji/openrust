@@ -1,4 +1,5 @@
 mod double_byte;
+mod gb18030;
 mod utf7;
 
 use encoding_rs::{DecoderResult, Encoding};
@@ -24,7 +25,8 @@ enum Codec {
     Ucs2,
     Ucs4(bool),
     ShiftJis { windows: bool },
-    EucCn,
+    Cp936,
+    Gb18030,
     DoubleByte(fn(u8, u8) -> bool),
     Utf32(Option<bool>),
     Decoder(&'static Encoding),
@@ -75,13 +77,14 @@ impl EncodingRule {
             "sjis" => Codec::ShiftJis { windows: false },
             "cp932" | "sjis-win" => Codec::ShiftJis { windows: true },
             "eucjp-win" => Codec::Decoder(encoding_rs::EUC_JP),
-            "euc-cn" => Codec::EucCn,
-            "cp936" => Codec::Decoder(encoding_rs::GBK),
+            "euc-cn" => Codec::DoubleByte(double_byte::euc_cn),
+            "cp936" => Codec::Cp936,
+            "gb18030" | "gb18030-2022" => Codec::Gb18030,
             "big-5" => Codec::DoubleByte(double_byte::big5),
             "cp950" => Codec::DoubleByte(double_byte::cp950),
             "euc-kr" => Codec::DoubleByte(double_byte::euc_kr),
             "uhc" => Codec::DoubleByte(double_byte::uhc),
-            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" | "gb18030" => Codec::Decoder(
+            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" => Codec::Decoder(
                 Encoding::for_label_no_replacement(label.as_bytes())
                     .ok_or(ValidationError::InvalidRule)?,
             ),
@@ -127,15 +130,16 @@ impl EncodingRule {
                     }
                 }) && decode(encoding_rs::SHIFT_JIS, value)
             }
-            Codec::EucCn => {
-                valid_pairs(value, |lead, trail| {
-                    if matches!(lead, 0xA1..=0xF7) && matches!(trail, Some(0xA1..=0xFE)) {
-                        2
-                    } else {
-                        0
-                    }
-                }) && decode(encoding_rs::GBK, value)
-            }
+            Codec::Cp936 => valid_pairs(value, |lead, trail| {
+                if matches!(lead, 0x80 | 0xff) {
+                    1
+                } else if trail.is_some_and(|trail| double_byte::gbk(lead, trail)) {
+                    2
+                } else {
+                    0
+                }
+            }),
+            Codec::Gb18030 => gb18030::check(value),
             Codec::DoubleByte(accepts) => valid_pairs(value, |lead, trail| {
                 if trail.is_some_and(|trail| accepts(lead, trail)) {
                     2
