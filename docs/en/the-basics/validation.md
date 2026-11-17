@@ -96,6 +96,8 @@ For TIFF and ICO uploads, combine `file` with a size rule such as `dimensions:wi
 
 PSD and JPEG 2000 uploads can use the same rules. For a JP2 file, dimensions come from its first root-level codestream. For a raw JPEG 2000 codestream, dimensions come from its SIZ marker. Both formats are outside Laravel’s `image` rule.
 
+The same metadata check covers IFF bitmaps, WBMP, XBM, and SWF with an uncompressed or zlib-compressed body. SWF dimensions come from its stage rectangle.
+
 ```rust
 use openrust::{
     contracts::validation::Validator as _,

@@ -40,6 +40,7 @@ dotenvy = "0.15.7"
 encoding_rs = "0.8.44"
 fastrand = "2.4.1"
 fake = { version = "=5.1.0", default-features = false }
+flate2 = "=1.1.11"
 async-stream = "0.3.6"
 futures-util = { version = "0.3", default-features = false }
 gif = "=0.14.2"

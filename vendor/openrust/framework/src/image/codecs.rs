@@ -5,7 +5,7 @@ use ::image::{
 };
 
 use super::{
-    Error, Format, Limits, Result, directory_dimensions,
+    Error, Format, Limits, Result, directory_dimensions, legacy_dimensions,
     metadata::{self, Metadata},
 };
 
@@ -37,15 +37,19 @@ pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
         b"II*\0" => return directory_dimensions::tiff(bytes, true),
         b"MM\0*" => return directory_dimensions::tiff(bytes, false),
         b"\0\0\x01\0" => return directory_dimensions::ico(bytes),
-        b"\xff\x4f\xff\x51" => return directory_dimensions::jpeg2000(bytes),
+        b"FORM" => return legacy_dimensions::iff(bytes),
+        _ if bytes.starts_with(b"FWS") => return legacy_dimensions::swf(bytes),
+        _ if bytes.starts_with(b"CWS") => return legacy_dimensions::swc(bytes),
+        _ if bytes.starts_with(b"\xff\x4f\xff") => return directory_dimensions::jpeg2000(bytes),
         _ if bytes.starts_with(b"8BP") => return directory_dimensions::psd(bytes),
         _ if bytes.starts_with(b"\0\0\0\x0cjP  \r\n\x87\n") => {
             return directory_dimensions::jp2(&bytes[12..]);
         }
         _ => {}
     }
-    let dimensions = match identify(bytes).ok()? {
-        Format::Avif | Format::Heic => {
+    let dimensions = match identify(bytes) {
+        Err(_) => return legacy_dimensions::wbmp(bytes).or_else(|| legacy_dimensions::xbm(bytes)),
+        Ok(Format::Avif | Format::Heic) => {
             use oxideav_heif::{HeifFile, props::ItemProperties};
             let file = HeifFile::parse_borrowed(bytes).ok()?;
             let meta = file.meta().ok()?;
@@ -53,8 +57,8 @@ pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
             let size = props.ispe()?;
             (size.width, size.height)
         }
-        Format::Jxl => return None,
-        _ => ImageReader::new(Cursor::new(bytes))
+        Ok(Format::Jxl) => return None,
+        Ok(_) => ImageReader::new(Cursor::new(bytes))
             .with_guessed_format()
             .ok()?
             .into_dimensions()

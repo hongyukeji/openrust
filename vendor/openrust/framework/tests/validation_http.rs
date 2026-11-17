@@ -1213,6 +1213,40 @@ async fn validates_psd_and_jpeg2000_dimensions_over_real_http() {
 }
 
 #[tokio::test]
+async fn validates_legacy_image_dimensions_over_real_http() {
+    use std::io::Write as _;
+
+    let (address, server) = start(std::env::temp_dir()).await;
+    let iff = b"FORM\0\0\0\0ILBMANNO\0\0\0\x03abc\0BMHD\0\0\0\x09\0\x64\0\x64\0\0\0\0\x01";
+    let wbmp = b"\0\x80\0\x64\x64";
+    let xbm = b"/* XBM */\n#define a_width 100\n#define a_height 100\n";
+    let mut swf = [0; 40];
+    swf[..4].copy_from_slice(b"FWS\x08");
+    swf[4] = 40;
+    swf[8..15].copy_from_slice(b"\x60\0\x3e\x80\0\x3e\x80");
+    let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&swf[8..]).unwrap();
+    let pixels = (0..=u8::MAX).collect::<Vec<_>>();
+    for _ in 0..40 {
+        encoder.write_all(&pixels).unwrap();
+    }
+    let mut swc = b"CWS\x08\0\0\0\0".to_vec();
+    swc.extend(encoder.finish().unwrap());
+
+    for (name, good, bad) in [
+        ("size.iff", iff.as_slice(), &iff[..iff.len() - 1]),
+        ("size.wbmp", wbmp.as_slice(), b"\0\0\x90\x01\x64"),
+        ("size.xbm", xbm.as_slice(), b"#define file_width 100\n"),
+        ("size.swf", swf.as_slice(), &swf[..39]),
+        ("compressed.swf", swc.as_slice(), &swc[..swc.len() - 1]),
+    ] {
+        upload_file(address, "dimensions", name, "text/plain", good, 200).await;
+        upload_file(address, "dimensions", name, "text/plain", bad, 422).await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
 async fn validates_upload_dimensions_and_encoding_over_real_http() {
     assert!(RuleSet::parse([("file", "encoding:FOOBAR")]).is_err());
     assert!(RuleSet::parse([("file", "dimensions:ratio=1/0")]).is_err());

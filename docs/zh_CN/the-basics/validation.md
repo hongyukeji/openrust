@@ -96,6 +96,8 @@ TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。
 
+相同的元数据校验也支持 IFF 位图、WBMP、XBM，以及未压缩或使用 zlib 压缩的 SWF。SWF 的尺寸来自舞台矩形。
+
 ```rust
 use openrust::{
     contracts::validation::Validator as _,

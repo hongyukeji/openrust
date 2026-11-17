@@ -3398,6 +3398,7 @@ dependencies = [
  "fake",
  "fastrand",
  "fixed_decimal",
+ "flate2",
  "futures-util",
  "gif",
  "http 1.5.0",

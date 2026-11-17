@@ -8,6 +8,7 @@ mod heif_encoder;
 mod image_pipeline;
 mod instance;
 mod jxl_sequence;
+mod legacy_dimensions;
 mod metadata;
 mod native_driver;
 mod sequence;

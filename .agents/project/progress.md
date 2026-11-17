@@ -3002,3 +3002,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 17:43（北京时间） 04-05 [TIFF 与 ICO 图片尺寸](audits/04-05/README.md#tiff-与-ico-图片尺寸)。固定 Laravel／PHP 8.5.12 的 17 个样本与实际 multipart HTTP 对照通过，MySQL 8.4.13 环境下共 26 项图片与验证回归通过。独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收临时 MySQL、3.3 GiB Cargo 产物和文档缓存，项目磁盘可用 81.97 GB（76.34 GiB），周额度剩余 53%，核心账本维持 59/66。
 
 - 2026-11-17 17:49（北京时间）04-05 [PSD 与 JPEG 2000 图片尺寸](audits/04-05/README.md#psd-与-jpeg-2000-图片尺寸)。固定 Laravel／PHP 8.5.12 的 26 个样本与真实 multipart HTTP 对照通过，MySQL 8.4.13 环境下共 27 项图片与验证回归通过。独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收临时 MySQL、3.3 GiB Cargo 产物和文档缓存，项目磁盘可用 81.93 GB（76.30 GiB），周额度剩余 53%，核心账本维持 59/66。
+
+- 2026-11-17 17:55（北京时间）04-05 [IFF、WBMP、XBM 与 SWF 图片尺寸](audits/04-05/README.md#iffwbmpxbm-与-swf-图片尺寸)。固定 Laravel／PHP 8.5.12 的 29 个样本通过实际 multipart HTTP 对照。MySQL 8.4.13 环境 28 项图片与验证回归、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.7 GiB Cargo 产物和文档缓存，项目磁盘可用 81.88 GB（76.26 GiB），周额度剩余 52%，核心账本维持 59/66。

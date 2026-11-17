@@ -88,3 +88,10 @@
 - 按固定 Laravel `dimensions` 所调用的 PHP 8.5.12 `getimagesize` 读取 PSD／PSB 文件头、JPEG 2000 裸码流的 SIZ 标记，以及 JP2 第一个根级 `jp2c` 码流。JPEG 2000 采用 PHP 报告的参考网格尺寸 `Xsiz`／`Ysiz`。JP2 保留延伸到文件末尾的根级码流行为，也复现缺失根级码流、扩展长度盒和越界偏移的拒绝行为。Rust 按切片边界读取，无须解码像素或引入依赖。固定 Goravel 的尺寸规则和旧版 MIME 表已核对，旧版未找到可复用的尺寸解析。 [Laravel FileHelpers](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/FileHelpers.php#L62) · [Laravel Dimensions 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-dimensions)
 - 以真实 PSD、JP2、裸码流及边界夹具共 26 个样本执行固定 Laravel trait 与真实 multipart HTTP 对照。尺寸匹配返回 200，尺寸不匹配、缺少可读文件头或组件计数越界返回 422。三语示例的 `file` 和 `dimensions` 组合实际执行。MySQL 8.4.13 环境下图片、验证 HTTP 和验证路径共 27 项回归通过。三语站点及 18 项浏览器检查通过。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy 通过。已回收临时 MySQL、3.3 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-psd-jp2.peCCCPGJ`。IFF、WBMP、XBM、SWF／SWC 和旧式编码兼容仍待核定，核心账本维持 59/66。
+
+## IFF、WBMP、XBM 与 SWF 图片尺寸
+
+- 对照固定 Laravel 的 `FileHelpers::dimensions()`、PHP 8.5.12 `getimagesize` 及固定 Goravel 的尺寸规则。IFF 读取 ILBM／PBM 的 BMHD，处理奇数长度块的填充。WBMP 读取 Type 0 文件的变长尺寸，保留 2048 上限。XBM 读取预处理宏尺寸。SWF／SWC 从舞台矩形读取 twip 并转换为像素。旧版找到格式 MIME 表，未找到对应尺寸解析。 [Laravel FileHelpers](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/FileHelpers.php#L62) · [Laravel 尺寸规则](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-dimensions)
+- SWC 复用已锁定的 `flate2` 1.1.11，声明为框架直接依赖。以固定大小缓冲区读取并检查 zlib 结束及校验和，只保留舞台矩形所需字节。PHP 允许的压缩与未压缩 SWF 走尺寸验证，LZMA 型 SWF 沿用 PHP 的拒绝行为。
+- 固定 Laravel／PHP 与实际 multipart HTTP 的 29 个对照样本通过，覆盖合法尺寸、宽高不符、IFF 块长度越界、WBMP 上限、XBM 宏取值、SWF 截断和损坏压缩流。MySQL 8.4.13 环境下共 28 项图片与验证回归通过，其中 SWC 上传回归跨越多个解压缓冲区。三语站点、18 项浏览器检查及文档规则的实际上传组合通过。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.7 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-legacy-image.Vc7TozQA`。旧式编码表及整单元对照尚待完成，核心账本维持 59/66。
