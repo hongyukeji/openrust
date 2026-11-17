@@ -81,3 +81,14 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - Oracle Linux 7 兼容项按派生镜像验收。原生 Linux x86_64、Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 继续按目标环境验收，08-04 保持开放。
 
 Rust 共享库通过严格 Clippy、改动文件格式和镜像构建。应用工作区严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项旧镜像发布矩阵导航检查通过。全量格式检查仍报出基线已有的 `sanctum_authentication.rs` 差异。临时容器、镜像及专用 Buildx 构建器、交叉目标、证书、隔离源码、Cargo 产物和站点已清理。
+
+## 剩余实机环境复查
+
+- **原生 Linux x86_64** 复查确认本机为 macOS ARM64，可用 Docker 上下文只连接本地 aarch64 后端。未找到可用于当前版本复验的原生目标主机。既有 Ubuntu `57bab2532` 的原生证据继续保留。当前版本需要可登录的原生 x86_64 Linux 主机，以及构建镜像、启停隔离 Compose 部署和读写测试挂载的权限。 [原生 Ubuntu 历史实测](docker.md#原生-ubuntu-x86_64-实机)
+- **Windows Docker Desktop** 复查时启动现有 Windows 11 ARM64 来宾进行只读复查。Docker Desktop 和 CLI 均不存在，`wsl --status` 返回 50，来宾报告固件虚拟化和 SLAT 不可用。复查结束后恢复来宾停止状态。需要可运行 Docker Desktop Linux 容器后端的 Windows 主机，以及 Windows 目录共享与读写权限。 [Docker Desktop 系统要求](https://docs.docker.com/desktop/setup/install/windows-install/#system-requirements) · [Parallels 来宾限制](https://kb.parallels.com/en/129497)
+- **生产 TLS** 复查确认本地配置未给出生产验收 HTTPS URL。需提供实际 URL 与部署主机名、可受信任的证书链以及同一部署的只读 Artisan 权限。目标就绪后核对 TLS、证书校验、首页与 `/up`，并通过 `migrate:status` 核对运行中的发布实例。现有本地测试 CA 的 TLS 1.2／1.3 记录继续保留。
+- **托管 AWS SQS 标准／FIFO** 复查仅发现区域配置，未发现隔离队列 URL 或可用的 AWS 凭据来源。需要标准及 FIFO 各一条隔离队列的完整 URL、对应区域、隔离 MySQL 批次账本和队列范围内的 `SendMessage`、`ReceiveMessage`、`DeleteMessage`、`ChangeMessageVisibility`、`GetQueueAttributes`。批量发送使用 `SendMessage` 权限。临时凭据还需要会话令牌，使用自管 KMS 密钥的队列需向生产者授予 `kms:Decrypt` 和 `kms:GenerateDataKey`，向消费者授予 `kms:Decrypt`。 [AWS SQS API 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html) · [SQS KMS 权限](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-key-management.html)
+
+本次完成环境复查。四项待实机验收。原有真实 HTTP、Artisan 和模拟服务证据继续保留。08-04 保持开放。
+
+三语站点构建、12 项通用浏览器检查和 6 项待验收矩阵检查通过。临时站点已清理。

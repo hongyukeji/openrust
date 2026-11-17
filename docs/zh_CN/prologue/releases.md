@@ -26,11 +26,16 @@
 
 数据库行记录发布验收结果。PostgreSQL 10–18 的结果以实测补丁版本为准。Oracle Linux 7 原镜像需构建[启用 ECDHE 的派生镜像](../database/getting-started.md#mysql-57-oracle-linux-7)以接入 OpenRust。实测连接配置见 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
 
-当前 Windows ARM64 来宾缺少嵌套虚拟化和可运行的 WSL 2 后端，独立部署已验收。Windows Docker Desktop 和当前版本的原生 Ubuntu 复验仍待目标环境。
+## 待实机验收 {#pending-deployment-acceptance}
 
-本地反向代理通过测试 CA 验证了 TLS 1.2 与 1.3、证书链和主机名。生产端点仍待实机验收。
+| 目标 | 所需环境或权限 |
+| --- | --- |
+| 原生 Linux x86_64 | 可访问的原生 Linux x86_64 主机，已安装 Docker Engine、Compose 和 Buildx。测试账号可构建镜像、启停隔离部署并写入测试存储。 |
+| Windows Docker Desktop | 可访问的 Windows 主机，Docker Desktop 的 Linux 容器后端可运行。测试账号可访问 Windows 目录，以验证只读公共文件和可写存储。当前 ARM64 来宾没有可运行的 WSL 2 后端。 |
+| 生产 TLS | 实际 HTTPS URL、部署主机名、可受信任的证书链，以及在同一部署执行只读 Artisan 命令的权限。本地反向代理已用测试 CA 验证 TLS 1.2 和 1.3。 |
+| 托管 AWS SQS 标准／FIFO | 两条隔离队列的 URL（标准与 FIFO 各一）、AWS 区域、隔离 MySQL 批次账本，以及仅授予测试队列权限的凭据。核心检查需要 `sqs:SendMessage`（包含批量发送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用临时凭据时需同时配置会话令牌。 |
 
-托管 AWS SQS 标准／FIFO 仍待实机验收。ElasticMQ 的证据见队列实现记录。
+队列权限见 [AWS SQS API 参考](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html)。
 
 ## 变更
 

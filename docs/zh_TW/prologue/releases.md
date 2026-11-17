@@ -26,11 +26,16 @@
 
 資料庫列記錄發佈驗收結果。PostgreSQL 10–18 的結果以實測修補版本為準。Oracle Linux 7 原映像需建置[啟用 ECDHE 的衍生映像](../database/getting-started.md#mysql-57-oracle-linux-7)以接入 OpenRust。實測連線設定請參閱 [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls)、[MariaDB](../database/getting-started.md#mariadb) 和 [SQL Server](../database/getting-started.md#sql-server)。
 
-目前 Windows ARM64 客體缺少巢狀虛擬化和可運作的 WSL 2 後端，獨立部署已通過驗收。Windows Docker Desktop 和目前版本的原生 Ubuntu 複驗仍需目標環境。
+## 待實機驗收 {#pending-deployment-acceptance}
 
-本機反向代理透過測試 CA 驗證了 TLS 1.2 與 1.3、憑證鏈和主機名稱。正式端點仍待實機驗收。
+| 目標 | 所需環境或權限 |
+| --- | --- |
+| 原生 Linux x86_64 | 可存取的原生 Linux x86_64 主機，已安裝 Docker Engine、Compose 和 Buildx。測試帳戶可建置映像、啟停隔離部署並寫入測試儲存空間。 |
+| Windows Docker Desktop | 可存取的 Windows 主機，Docker Desktop 的 Linux 容器後端可運作。測試帳戶可存取 Windows 目錄，以驗證唯讀公開檔案與可寫入的儲存空間。目前 ARM64 客體沒有可運作的 WSL 2 後端。 |
+| 正式環境 TLS | 實際 HTTPS URL、部署主機名稱、受信任的憑證鏈，以及在同一部署執行唯讀 Artisan 命令的權限。本機反向代理已使用測試 CA 驗證 TLS 1.2 和 1.3。 |
+| 受管 AWS SQS 標準／FIFO | 兩條隔離佇列的 URL（標準與 FIFO 各一）、AWS 區域、隔離的 MySQL 批次帳本，以及僅授予測試佇列權限的憑證。核心檢查需要 `sqs:SendMessage`（含批次傳送）、`sqs:ReceiveMessage`、`sqs:DeleteMessage`、`sqs:ChangeMessageVisibility` 和 `sqs:GetQueueAttributes`。使用臨時憑證時需同時設定工作階段權杖。 |
 
-託管 AWS SQS 標準／FIFO 仍待實機驗收。ElasticMQ 的證據見佇列實作紀錄。
+佇列權限請參閱 [AWS SQS API 參考](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html)。
 
 ## 變更
 

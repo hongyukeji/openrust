@@ -26,11 +26,16 @@ The platform and driver rows cover the scenarios listed. Check the corresponding
 
 The database rows record release acceptance. PostgreSQL 10–18 results apply to the tested patch versions. The original Oracle Linux 7 image requires the [ECDHE-enabled derived image](../database/getting-started.md#mysql-57-oracle-linux-7) for OpenRust. See [MySQL 5.7 TLS](../database/getting-started.md#mysql-57-tls), [MariaDB](../database/getting-started.md#mariadb) and [SQL Server](../database/getting-started.md#sql-server) for tested connection settings.
 
-The available Windows ARM64 guest lacks nested virtualization and a working WSL 2 backend. Its standalone deployment is verified. The Windows Docker Desktop run and a native Ubuntu rerun of the current release remain pending.
+## Pending deployment acceptance {#pending-deployment-acceptance}
 
-TLS 1.2 and 1.3 passed through a local reverse proxy using a test CA, with certificate chain and hostname verification. Validation against a production endpoint is pending.
+| Target | Environment or access needed |
+| --- | --- |
+| Native Linux x86_64 | Access to a native x86_64 Linux host with Docker Engine, Compose and Buildx. The test account needs permission to build images and start and stop an isolated deployment with writable storage. |
+| Windows Docker Desktop | Access to a Windows host with functioning Docker Desktop in Linux-container mode and a supported backend. The test account needs access to a Windows directory to verify read-only public files and writable storage. The available ARM64 guest lacks a working WSL 2 backend. |
+| Production TLS | The actual HTTPS URL and deployed hostname, a trusted certificate chain, and access to run read-only Artisan commands for the same deployment. TLS 1.2 and 1.3 have passed on the local proxy with a test CA. |
+| Managed AWS SQS Standard and FIFO | Two isolated queue URLs, one Standard and one FIFO, their AWS region, an isolated MySQL batch ledger, and credentials scoped to the queues. The core checks use `sqs:SendMessage` (including batch sends), `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:ChangeMessageVisibility`, and `sqs:GetQueueAttributes`. Include the session token if using temporary credentials. |
 
-Managed AWS SQS Standard and FIFO deployment validation is pending. ElasticMQ evidence is recorded with the queue implementation.
+Queue permissions are listed in the [AWS SQS API reference](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html).
 
 ## Changes
 
