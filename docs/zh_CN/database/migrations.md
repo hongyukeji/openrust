@@ -10,9 +10,11 @@
 
 OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。手写文件和 `make:migration` 生成的文件都使用 `YYYY_MM_DD_HHMMSS_name.rs` 命名，并提供实现 `Migration` 的 `Definition`。重新构建后，`bootstrap/app.rs` 的 `withMigrations` 会接入自动生成的清单。文件名决定迁移账本名称，`--path` 从已编译的迁移中选择。生成到自定义目录的迁移需另行接入应用。
 
-### 压缩 MySQL 迁移 {#squashing-migrations}
+### 压缩迁移 {#squashing-migrations}
 
 用 `schema:dump` 保存 MySQL 表定义、视图、例程、触发器和迁移账本。转储不包含业务数据，并重置表的自增计数。PATH 中需有 MySQL 8.4 的 `mysqldump` 和 `mysql` 客户端。
+
+对 PostgreSQL 执行 `./artisan schema:dump --database=pgsql`，由 `pg_dump` 导出 SQL 定义和迁移账本。恢复 SQL 文件用 `psql`，恢复 PostgreSQL 归档用 `pg_restore`。自定义转储路径使用 `.sql` 扩展名，并将相应客户端加入 PATH。配置直连端点时，工具使用该端点，默认文件名取配置中的连接名。
 
 ```sh
 ./artisan schema:dump --database=mysql

@@ -121,3 +121,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - SQLx 提供 PostgreSQL 原生 SQLSTATE，因此使用 `3D000` 识别缺库。复制选定写连接的端点、认证和 TLS 配置，通过短连接进入 `postgres` 管理库，执行已转义的 `CREATE DATABASE`。成功后在原连接重查迁移账本，共享配置保持原值。只读别名或覆盖了基准库名的端点不会触发自动建库。 [PostgreSQL 错误码](https://www.postgresql.org/docs/current/errcodes-appendix.html)
 - 在隔离基线 `b249e3e7b` 上用 PostgreSQL 协议夹具验证 SQLx 对 `3D000` 的分类及认证、权限和连接错误的排除。同时验证直连端点、TLS 配置、库名转义及建库资格。实际 PostgreSQL 服务器的管理库连接、权限和建库后的迁移账本留待发布验收。
 - 真实 MySQL 8.4.13 用独立 Artisan 复验无交互拒绝、强制建库、读连接拒绝、权限不足、重复迁移、`migrate:fresh` 建库和已有表保留。根应用 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。已回收本批临时 MySQL、3.4 GiB Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-create.lOKJraPT`。
+
+## PostgreSQL Schema 转储与恢复
+
+- 对照固定 Laravel v13.40.0 的 `PostgresSchemaState` 和压缩迁移章节。检查旧版 `6d1a81924`，未找到 `pg_dump` 或 `schema:dump` 接线。复用主线的迁移账本、客户端退出码检查及临时文件发布。 [固定 Laravel SchemaState](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/PostgresSchemaState.php) · [固定 Laravel 压缩迁移](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#squashing-migrations)
+- PostgreSQL 用 `pg_dump` 保存 SQL 定义，并通过写连接解析迁移账本所在 Schema，仅追加该表数据。SQL 用 `psql` 加载，归档文件用 `pg_restore`。恢复客户端启用单事务及错误退出。配置直连时，命令使用其端点、用户及 TLS 设置，默认文件名沿用基准连接名，便于跨平台使用。 [psql 选项](https://www.postgresql.org/docs/current/app-psql.html) · [pg_restore 选项](https://www.postgresql.org/docs/current/app-pgrestore.html)
+- 隔离基线 `1b061e6c7` 的无网络回归验证客户端选取、连接串转义、TLS 参数和恢复错误退出参数。真实 PostgreSQL 转储、恢复和账本验证留待发布矩阵。已存在账本的 PostgreSQL 库仍缺 `migrate:fresh` 所需的清库能力，单独跟踪。
+- 真实 MySQL 8.4.13 通过独立 Artisan 转储、恢复、无账本数据选项、无业务数据、恢复错误、裁剪及迁移账本验证。根应用 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.4 GiB 本批 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-schema.rkT6ygzi`。

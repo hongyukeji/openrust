@@ -1,4 +1,9 @@
-use std::{path::Path, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use serde_json::{Map, Value};
 use sqlx::{
@@ -159,13 +164,17 @@ fn resolve(
         },
         _ => TableOptions::default(),
     };
-    let schema_credentials = if matches!(writer, Pool::Mysql(_)) && role != Some(QueryRole::Read) {
-        Some(super::super::migrations::SchemaCredentials {
+    let schema_credentials = match (&writer, role) {
+        (_, Some(QueryRole::Read)) => None,
+        (Pool::Mysql(_), _) => Some(super::super::migrations::SchemaCredentials {
             password: write_options.string("password", "")?.to_owned(),
             ssl_ca: mysql_ssl_ca(&write_options, root)?,
-        })
-    } else {
-        None
+        }),
+        (Pool::Postgres(_), _) => Some(super::super::migrations::SchemaCredentials {
+            password: write_options.string("password", "")?.to_owned(),
+            ssl_ca: postgres_ssl_ca(&write_options, root)?,
+        }),
+        _ => None,
     };
     let sqlite_json_types = if matches!(writer, Pool::Sqlite(_)) {
         SqliteJsonTypes {
@@ -329,15 +338,19 @@ fn postgres(
         .database(database)
         .ssl_mode(sslmode)
         .options([("search_path", config.string("search_path", "public")?)]);
-    let certificate = config.string("sslrootcert", "")?;
-    if !certificate.is_empty() {
-        options = options.ssl_root_cert(root.join(certificate));
+    if let Some(certificate) = postgres_ssl_ca(config, root)? {
+        options = options.ssl_root_cert(certificate);
     }
     let pool = PgPoolOptions::new()
         .max_connections(max)
         .acquire_timeout(timeout)
         .connect_lazy_with(options);
     Ok((database.to_owned(), Pool::Postgres(pool)))
+}
+
+fn postgres_ssl_ca(options: &Options, root: &Path) -> DatabaseResult<Option<PathBuf>> {
+    let certificate = options.string("sslrootcert", "")?;
+    Ok((!certificate.is_empty()).then(|| root.join(certificate)))
 }
 
 fn sqlite(

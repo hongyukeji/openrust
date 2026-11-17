@@ -10,9 +10,11 @@ Use `make:migration` to create a timestamped Rust source file in `database/migra
 
 During a build, OpenRust discovers Rust migrations in `database/migrations/`. Use the `YYYY_MM_DD_HHMMSS_name.rs` filename format and expose a `Definition` implementing `Migration`. This applies to both handwritten migrations and files created by `make:migration`. Rebuild the application to include them. The generated list is passed to `withMigrations` in `bootstrap/app.rs`. The filename still determines the ledger name, and `--path` selects from the compiled migrations. For generation into a custom directory, register those entries with the application separately.
 
-### Squashing MySQL Migrations {#squashing-migrations}
+### Squashing Migrations {#squashing-migrations}
 
 Run `schema:dump` to save MySQL table definitions, views, routines, and triggers with the migration ledger. It excludes application rows and resets table auto-increment counters. The MySQL 8.4 `mysqldump` and `mysql` clients must be on PATH.
+
+For PostgreSQL, `./artisan schema:dump --database=pgsql` uses `pg_dump` to export SQL definitions and the migration ledger. Restoration uses `psql` for SQL files and `pg_restore` for PostgreSQL archives. Use a `.sql` extension for a custom dump path and install the corresponding clients on PATH. If the connection has a direct endpoint, the tools use it, and the default filename uses the configured connection name.
 
 ```sh
 ./artisan schema:dump --database=mysql

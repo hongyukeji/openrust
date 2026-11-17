@@ -11,6 +11,12 @@ use tokio::process::Command;
 
 use crate::database::{Connection, DatabaseError, DatabaseResult, connection::Pool};
 
+mod postgres;
+
+pub(super) const UNSUPPORTED: DatabaseError = DatabaseError::UnsupportedSchema(
+    "schema snapshots require a MySQL or PostgreSQL write connection",
+);
+
 pub(in crate::database) struct SchemaCredentials {
     pub password: String,
     pub ssl_ca: Option<PathBuf>,
@@ -28,38 +34,25 @@ pub(super) async fn dump(
     migration_table: Option<&str>,
 ) -> DatabaseResult<()> {
     let generation = connection.pools.generation()?;
-    let state =
-        SchemaState::resolve(&generation.writer, generation.schema_credentials.as_ref()).await?;
+    let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     fs::create_dir_all(parent).map_err(DatabaseError::SchemaIo)?;
     let mut staging = tempfile::NamedTempFile::new_in(parent).map_err(DatabaseError::SchemaIo)?;
-    let raw = tempfile::tempfile().map_err(DatabaseError::SchemaIo)?;
-    let mut command = state.dump_command()?;
-    command.args(["--routines", "--no-data", "--", state.database()?]);
-    let mut raw = run_dump(command, raw).await?;
-
-    remove_auto_increment(&mut raw, staging.as_file_mut())?;
-    if let Some(table) = migration_table {
-        let mut command = state.dump_command()?;
-        command.args([
-            "--no-create-info",
-            "--skip-triggers",
-            "--skip-extended-insert",
-            "--compact",
-            "--complete-insert",
-            "--",
-            state.database()?,
-            table,
-        ]);
-        let mut ledger = run_dump(
-            command,
-            tempfile::tempfile().map_err(DatabaseError::SchemaIo)?,
+    if let Pool::Postgres(pool) = &generation.writer {
+        postgres::dump(
+            connection,
+            pool,
+            credentials,
+            migration_table,
+            staging.as_file_mut(),
         )
         .await?;
-        io::copy(&mut ledger, staging.as_file_mut()).map_err(DatabaseError::SchemaIo)?;
+    } else {
+        let state = SchemaState::resolve(&generation.writer, Some(credentials)).await?;
+        dump_mysql(connection, &state, migration_table, staging.as_file_mut()).await?;
     }
     staging
         .as_file()
@@ -71,10 +64,49 @@ pub(super) async fn dump(
     Ok(())
 }
 
+async fn dump_mysql(
+    connection: &Connection,
+    state: &SchemaState<'_>,
+    migration_table: Option<&str>,
+    output: &mut File,
+) -> DatabaseResult<()> {
+    let raw = tempfile::tempfile().map_err(DatabaseError::SchemaIo)?;
+    let mut command = state.dump_command()?;
+    command.args(["--routines", "--no-data", "--", state.database()?]);
+    let mut raw = run_dump(command, "mysqldump", raw).await?;
+
+    remove_auto_increment(&mut raw, output)?;
+    if let Some(table) = migration_table {
+        let table = format!("{}{table}", connection.getTablePrefix());
+        let mut command = state.dump_command()?;
+        command.args([
+            "--no-create-info",
+            "--skip-triggers",
+            "--skip-extended-insert",
+            "--compact",
+            "--complete-insert",
+            "--",
+            state.database()?,
+            &table,
+        ]);
+        let mut ledger = run_dump(
+            command,
+            "mysqldump",
+            tempfile::tempfile().map_err(DatabaseError::SchemaIo)?,
+        )
+        .await?;
+        io::copy(&mut ledger, output).map_err(DatabaseError::SchemaIo)?;
+    }
+    Ok(())
+}
+
 pub(super) async fn load(connection: &Connection, path: &Path) -> DatabaseResult<()> {
     let generation = connection.pools.generation()?;
-    let state =
-        SchemaState::resolve(&generation.writer, generation.schema_credentials.as_ref()).await?;
+    let credentials = generation.schema_credentials.as_ref().ok_or(UNSUPPORTED)?;
+    if let Pool::Postgres(pool) = &generation.writer {
+        return postgres::load(pool, credentials, path).await;
+    }
+    let state = SchemaState::resolve(&generation.writer, Some(credentials)).await?;
     let file = File::open(path).map_err(DatabaseError::SchemaIo)?;
     let mut command = state.command("mysql");
     command
@@ -90,9 +122,7 @@ impl<'a> SchemaState<'a> {
         credentials: Option<&'a SchemaCredentials>,
     ) -> DatabaseResult<Self> {
         let (Pool::Mysql(pools), Some(credentials)) = (pool, credentials) else {
-            return Err(DatabaseError::UnsupportedSchema(
-                "schema snapshots require a MySQL write connection",
-            ));
+            return Err(UNSUPPORTED);
         };
         let (last, others) = pools.split_last().expect("configured MySQL pools");
         for pool in others {
@@ -166,12 +196,16 @@ impl<'a> SchemaState<'a> {
     }
 }
 
-async fn run_dump(mut command: Command, mut output: File) -> DatabaseResult<File> {
+async fn run_dump(
+    mut command: Command,
+    program: &'static str,
+    mut output: File,
+) -> DatabaseResult<File> {
     use std::io::Seek as _;
     command
         .stdin(Stdio::null())
         .stdout(output.try_clone().map_err(DatabaseError::SchemaIo)?);
-    run(command, "mysqldump").await?;
+    run(command, program).await?;
     output.rewind().map_err(DatabaseError::SchemaIo)?;
     Ok(output)
 }
@@ -185,6 +219,9 @@ async fn run(mut command: Command, program: &'static str) -> DatabaseResult<()> 
             if error.kind() == io::ErrorKind::NotFound {
                 DatabaseError::UnsupportedSchema(match program {
                     "mysql" => "mysql client is required for schema restore",
+                    "psql" => "psql client is required for PostgreSQL schema restore",
+                    "pg_restore" => "pg_restore client is required for PostgreSQL archive restore",
+                    "pg_dump" => "pg_dump client is required for PostgreSQL schema export",
                     _ => "mysqldump client is required for schema export",
                 })
             } else {

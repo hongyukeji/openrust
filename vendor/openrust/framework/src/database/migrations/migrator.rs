@@ -274,11 +274,11 @@ impl Migrator {
         let mut loaded = false;
         if ran.is_empty() && !options.pretend {
             let connection = self.resolveConnection(database)?;
-            if let Some(path) = self.schema_to_load(connection.getName(), schema_path)? {
+            if let Some(path) =
+                self.schema_to_load(schema_connection_name(&connection), schema_path)?
+            {
                 if connection.pools.generation()?.schema_credentials.is_none() {
-                    return Err(DatabaseError::UnsupportedSchema(
-                        "schema snapshots require a MySQL write connection",
-                    ));
+                    return Err(schema_state::UNSUPPORTED);
                 }
                 if installed {
                     repository.delete_repository().await?;
@@ -427,7 +427,7 @@ impl Migrator {
         let connection = self.resolveConnection(database)?;
         let path = match path {
             Some(path) => self.root.join(path),
-            None => self.default_schema_path(connection.getName(), "sql")?,
+            None => self.default_schema_path(schema_connection_name(&connection), "sql")?,
         };
         if prune
             && self
@@ -441,15 +441,11 @@ impl Migrator {
             ));
         }
         let ledger = if include_ledger && self.repository(database).repository_exists().await? {
-            Some(format!(
-                "{}{}",
-                connection.grammar.table_prefix(),
-                self.table
-            ))
+            Some(self.table.as_str())
         } else {
             None
         };
-        schema_state::dump(&connection, &path, ledger.as_deref()).await?;
+        schema_state::dump(&connection, &path, ledger).await?;
         let connectionName = connection.getName().to_owned();
         self.manager
             .dispatch_migration_event(SchemaDumped {
@@ -725,6 +721,15 @@ impl Migrator {
     pub fn root(&self) -> &Path {
         &self.root
     }
+}
+
+fn schema_connection_name(connection: &Connection) -> &str {
+    let name = connection.getName();
+    if connection.is_postgres() {
+        // The direct transport is an endpoint alias for the same snapshot.
+        return name.strip_suffix("::direct").unwrap_or(name);
+    }
+    name
 }
 
 fn migration_error(migration: &str, source: DatabaseError) -> DatabaseError {
