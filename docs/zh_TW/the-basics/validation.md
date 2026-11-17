@@ -94,6 +94,8 @@ fn register() -> Result<(), RoutingError> {
 
 單位元組檔案可用 `encoding:CP850` 或 `File::default().encoding("ArmSCII-8")` 驗證。CP850 接受所有位元組。ArmSCII-8 以及存在未定義位置的 Windows 和 ISO 編碼依 PHP mbstring 的字表拒絕這些位元組。編碼驗證保留上傳檔案的原始位元組。
 
+驗證東亞雙位元組檔案時，請選擇檔案實際使用的編碼。`encoding:BIG-5` 和 `encoding:EUC-KR` 檢查標準位元組範圍，對應的 Windows 擴充可用 `File::default().encoding("CP950")` 或 `File::default().encoding("UHC")`。各編碼依 PHP mbstring 的字表拒絕不完整位元組對與未分配位置。
+
 TIFF 和 ICO 上傳可以使用 `file` 和 `dimensions:width=100,height=100` 一起驗證。TIFF 從第一個影像目錄取得尺寸，ICO 從位元深度最高的項目取得尺寸，位元深度相同時取最後一個。尺寸驗證只讀取中繼資料。Laravel 的 `image` 規則排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上傳也可以使用這組規則。JP2 從第一個根層級碼流讀取尺寸，裸 JPEG 2000 碼流從 SIZ 標記讀取尺寸。Laravel 的 `image` 規則也排除這兩種格式。

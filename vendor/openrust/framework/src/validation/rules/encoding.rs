@@ -1,3 +1,4 @@
+mod double_byte;
 mod utf7;
 
 use encoding_rs::{DecoderResult, Encoding};
@@ -24,6 +25,7 @@ enum Codec {
     Ucs4(bool),
     ShiftJis { windows: bool },
     EucCn,
+    DoubleByte(fn(u8, u8) -> bool),
     Utf32(Option<bool>),
     Decoder(&'static Encoding),
 }
@@ -75,14 +77,14 @@ impl EncodingRule {
             "eucjp-win" => Codec::Decoder(encoding_rs::EUC_JP),
             "euc-cn" => Codec::EucCn,
             "cp936" => Codec::Decoder(encoding_rs::GBK),
-            "uhc" => Codec::Decoder(encoding_rs::EUC_KR),
-            "big-5" | "cp950" => Codec::Decoder(encoding_rs::BIG5),
-            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" | "gb18030" | "euc-kr" => {
-                Codec::Decoder(
-                    Encoding::for_label_no_replacement(label.as_bytes())
-                        .ok_or(ValidationError::InvalidRule)?,
-                )
-            }
+            "big-5" => Codec::DoubleByte(double_byte::big5),
+            "cp950" => Codec::DoubleByte(double_byte::cp950),
+            "euc-kr" => Codec::DoubleByte(double_byte::euc_kr),
+            "uhc" => Codec::DoubleByte(double_byte::uhc),
+            "utf-16be" | "utf-16le" | "euc-jp" | "iso-2022-jp" | "gb18030" => Codec::Decoder(
+                Encoding::for_label_no_replacement(label.as_bytes())
+                    .ok_or(ValidationError::InvalidRule)?,
+            ),
             _ => return Err(ValidationError::InvalidRule),
         };
         Ok(Self {
@@ -134,6 +136,13 @@ impl EncodingRule {
                     }
                 }) && decode(encoding_rs::GBK, value)
             }
+            Codec::DoubleByte(accepts) => valid_pairs(value, |lead, trail| {
+                if trail.is_some_and(|trail| accepts(lead, trail)) {
+                    2
+                } else {
+                    0
+                }
+            }),
             Codec::Utf32(little_endian) => {
                 let (value, little_endian) = match little_endian {
                     Some(order) => (value, order),

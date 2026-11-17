@@ -101,3 +101,10 @@
 - 按固定 Laravel 的 `validateEncoding` 与 PHP 8.5.12 mbstring，补齐 `CP850` 和 `ArmSCII-8`。对全部有定义的编码直接接受任意字节。Windows-1251／1254、ArmSCII-8 和 ISO-8859-3／6／7／8 按 PHP 拒绝未定义位置。Rust 只验证字节，不转码。固定 Goravel 的编码规则和旧版实现已核对，旧版未找到 CP850 或 ArmSCII-8 验证可复用。 [固定 Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding) · [固定 Goravel 编码规则](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/validation/rules.go#L1712)
 - 枚举 PHP 下 25 个单字节编码的全部 256 个字节、空输入、全部合法字节组合和全字节组合，共 6,475 个向量。固定 Laravel PHP trait 与真实 multipart HTTP 逐个对照通过。MySQL 8.4.13 的 15 项验证回归通过，覆盖三语示例的字符串形式文件规则与 Fluent 文件规则，以及单字节非法位置的 422。三语站点与 18 项浏览器检查通过。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-single-byte.VyopsajR`。多字节、状态型编码及整单元对照待完成，核心账本维持 59/66。
+
+## BIG-5、CP950、EUC-KR 与 UHC
+
+- 对照固定 Laravel `validateEncoding` 与 PHP 8.5.12 mbstring。分别核定每个编码的 ASCII、首尾字节范围和未分配位置。BIG-5 与 CP950、EUC-KR 与 UHC 使用各自的 PHP 字节规则，上传内容按原字节验证。固定 Goravel 编码规则和旧版已核对，旧版未找到对应字表验证可复用。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding)
+- 对原先使用的 WHATWG 解码器逐字节对照，BIG-5 有 4,850 处差异，CP950 有 1,193 处，EUC-KR 有 8,822 处，UHC 的单字节及双字节穷举一致。
+- 每个编码覆盖全部 256 个单字节、65,536 个双字节和 1,024 个确定性混合序列，共 267,264 个向量。固定 Laravel PHP trait 与实际 multipart HTTP 逐文件核对 200 与 422，通过全部对照。首轮复验发现 UHC 的 `81 A1` 扩展遗漏，修正并加入回归。三语文档示例随声明式与 Fluent 文件规则实际执行。MySQL 8.4.13 环境下 16 项验证回归、三语站点及 18 项浏览器检查通过。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy 通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-double-byte.HOTrRMmb`。其余多字节、状态型编码和整单元对照待完成，核心账本维持 59/66。

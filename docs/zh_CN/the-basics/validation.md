@@ -94,6 +94,8 @@ fn register() -> Result<(), RoutingError> {
 
 单字节文件可用 `encoding:CP850` 或 `File::default().encoding("ArmSCII-8")` 校验。CP850 接受所有字节。ArmSCII-8 以及存在未定义位置的 Windows 和 ISO 编码按 PHP mbstring 的字表拒绝这些字节。编码校验保留上传文件原始字节。
 
+验证东亚双字节文件时，请选择文件实际使用的编码。`encoding:BIG-5` 和 `encoding:EUC-KR` 检查标准字节范围，对应的 Windows 扩展可用 `File::default().encoding("CP950")` 或 `File::default().encoding("UHC")`。各编码按 PHP mbstring 的字表拒绝不完整字节对和未分配位置。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

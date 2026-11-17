@@ -94,6 +94,8 @@ Use `dimensions` to constrain width, height, or aspect ratio. Ratios can be deci
 
 For single-byte uploads, use `encoding:CP850` or `File::default().encoding("ArmSCII-8")`. CP850 accepts every byte. ArmSCII-8 and the Windows or ISO encodings with undefined positions reject those bytes according to PHP mbstring. Encoding validation preserves the uploaded bytes.
 
+For East Asian double-byte uploads, choose the encoding used by the file. `encoding:BIG-5` and `encoding:EUC-KR` check the standard byte ranges. Use `File::default().encoding("CP950")` or `File::default().encoding("UHC")` for the corresponding Windows extensions. Each encoding rejects incomplete pairs and unassigned byte positions according to PHP mbstring.
+
 For TIFF and ICO uploads, combine `file` with a size rule such as `dimensions:width=100,height=100`. TIFF dimensions come from the first image directory. ICO dimensions come from the last entry with the highest bit depth. These checks read metadata without decoding pixels. Laravel’s `image` rule excludes TIFF and ICO.
 
 PSD and JPEG 2000 uploads can use the same rules. For a JP2 file, dimensions come from its first root-level codestream. For a raw JPEG 2000 codestream, dimensions come from its SIZ marker. Both formats are outside Laravel’s `image` rule.

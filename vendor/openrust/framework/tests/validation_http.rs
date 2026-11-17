@@ -306,6 +306,18 @@ impl FormRequest for Upload {
             "encoding-windows-1254" => {
                 RuleSet::parse([("attachments.*", "required|file|encoding:Windows-1254")])
             }
+            "encoding-big-5" => RuleSet::parse([("attachments.*", "required|file|encoding:BIG-5")]),
+            "encoding-cp950" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("CP950").into()],
+            ),
+            "encoding-euc-kr" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:EUC-KR")])
+            }
+            "encoding-uhc" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("UHC").into()],
+            ),
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1293,6 +1305,41 @@ async fn validates_single_byte_encodings_over_real_http() {
         )
         .await;
         assert!(rejected["errors"]["attachments.0"].is_array());
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_big5_and_korean_byte_sequences_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, valid, invalid) in [
+        ("encoding-big-5", b"a\xa4\x40b", b"a\x81\x40b"),
+        ("encoding-cp950", b"a\x81\x40b", b"a\xa3\xc0b"),
+        ("encoding-euc-kr", b"a\xb0\xa1b", b"a\xc6\x41b"),
+        ("encoding-uhc", b"a\xc6\x41b", b"a\xc6\x53b"),
+        ("encoding-uhc", b"a\x81\xa1b", b"a\x81\x80b"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            valid,
+            200,
+        )
+        .await;
+        for bytes in [invalid.as_slice(), &valid[..2]] {
+            let response = upload_file(
+                address,
+                mode,
+                "data.bin",
+                "application/octet-stream",
+                bytes,
+                422,
+            )
+            .await;
+            assert!(response["errors"]["attachments.0"].is_array());
+        }
     }
     server.abort();
 }

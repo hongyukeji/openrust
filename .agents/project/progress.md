@@ -3006,3 +3006,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 17:55（北京时间）04-05 [IFF、WBMP、XBM 与 SWF 图片尺寸](audits/04-05/README.md#iffwbmpxbm-与-swf-图片尺寸)。固定 Laravel／PHP 8.5.12 的 29 个样本通过实际 multipart HTTP 对照。MySQL 8.4.13 环境 28 项图片与验证回归、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.7 GiB Cargo 产物和文档缓存，项目磁盘可用 81.88 GB（76.26 GiB），周额度剩余 52%，核心账本维持 59/66。
 
 - 2026-11-17 18:01（北京时间）04-05 [单字节编码字表](audits/04-05/README.md#单字节编码字表)。补齐 CP850 与 ArmSCII-8，并对齐 Windows 和 ISO 单字节保留位置。25 个编码共 6,475 个实际 multipart HTTP 与固定 Laravel／PHP 8.5.12 对照通过。MySQL 8.4.13 下 15 项回归、根应用 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收临时 MySQL、3.1 GiB Cargo 产物和文档缓存，项目磁盘可用 81.82 GB（76.20 GiB），周额度剩余 52%，核心账本维持 59/66。
+
+- 2026-11-17 18:09（北京时间）04-05 [BIG-5、CP950、EUC-KR 与 UHC](audits/04-05/README.md#big-5cp950euc-kr-与-uhc)。267,264 个向量与固定 Laravel／PHP 8.5.12 的实际 multipart HTTP 对照通过，MySQL 8.4.13 下 16 项回归、根应用 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB Cargo 产物和文档缓存，项目磁盘可用 81.75 GB（76.13 GiB），周额度剩余 52%，核心账本维持 59/66。
