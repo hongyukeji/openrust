@@ -6,6 +6,7 @@ pub(super) enum IndexType {
     Index,
     FullText,
     Spatial,
+    Vector,
 }
 
 impl IndexType {
@@ -16,6 +17,7 @@ impl IndexType {
             Self::Index => "index",
             Self::FullText => "fulltext",
             Self::Spatial => "spatialindex",
+            Self::Vector => "vectorindex",
         }
     }
 }
@@ -57,6 +59,7 @@ pub struct IndexDefinition {
     pub(super) name: Option<String>,
     pub(super) algorithm: Option<String>,
     pub(super) language: Option<String>,
+    pub(super) operator_class: Option<String>,
     pub(super) inplace: bool,
     pub(super) lock: Option<String>,
 }
@@ -70,6 +73,7 @@ impl IndexDefinition {
             name: name.map(str::to_owned),
             algorithm: None,
             language: None,
+            operator_class: None,
             inplace: false,
             lock: None,
         }
@@ -94,6 +98,15 @@ impl IndexDefinition {
 
     pub fn lock(&mut self, mode: &str) -> &mut Self {
         self.lock = Some(mode.to_owned());
+        self
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's index modifiers")]
+impl IndexDefinition {
+    /// Chooses the PostgreSQL operator class of a vector index.
+    pub fn operatorClass(&mut self, operator_class: &str) -> &mut Self {
+        self.operator_class = Some(operator_class.to_owned());
         self
     }
 }

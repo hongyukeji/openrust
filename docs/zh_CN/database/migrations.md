@@ -469,6 +469,31 @@ async fn create_places() -> DatabaseResult<()> {
 
 MySQL 校验声明的子类型和非零 SRID。非空空间列可以通过 `spatialIndex()` 声明索引。SQLite 声明 `geometry` 类型并支持存入二进制值，空间函数和空间索引需要具备空间能力的数据库。
 
+### 向量列 {#vector-columns}
+
+PostgreSQL 声明向量列前，先启用已安装的 `pgvector` 扩展。传入 `None` 使用默认 Schema，也可用 `Some(schema)` 指定扩展所在的 Schema。连接的搜索路径需要能解析该扩展。MariaDB 11.7 及以上版本原生支持向量列。
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::ensureVectorExtensionExists(None).await?;
+```
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::create("documents", |table| {
+    table.id();
+    table.vector("embedding", Some(1536)).index();
+}).await?;
+```
+
+两种驱动都支持显式维度。PostgreSQL 也接受 `None` 创建不限定维度的向量列。默认余弦索引使用固定维度。MariaDB 需要显式维度，参与索引的列须为非空。
+
+对向量列调用 `index()` 会建立余弦索引。PostgreSQL 使用 HNSW 和 `vector_cosine_ops`，MariaDB 使用 `VECTOR INDEX`、`M=6` 和余弦距离。可用 `vectorIndex("embedding", Some("semantic_idx"))` 指定名称。PostgreSQL 可用 `algorithm("ivfflat")` 和 `operatorClass("vector_l2_ops")` 选择其他索引方法与运算符类。查询使用的距离表达式应与运算符类匹配。
+
+用 `dropVectorIndex("semantic_idx")` 删除命名索引，或用 `dropVectorIndexColumns(&["embedding"])` 删除约定名称的索引。查询方式见[向量相似度查询](./queries.md#vector-similarity-clauses)。
+
 ### MySQL 列修饰符
 
 用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。

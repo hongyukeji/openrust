@@ -147,7 +147,7 @@ MySQL runs the entire statement with the outer connection’s permissions. Grant
 
 ### Vector Similarity Clauses {#vector-similarity-clauses}
 
-Vector queries use cosine distance on PostgreSQL with the `pgvector` extension and on MariaDB 11.7 or later. Enable PostgreSQL support with `CREATE EXTENSION IF NOT EXISTS vector` before creating the vector column.
+Vector queries use cosine distance on PostgreSQL with the `pgvector` extension and on MariaDB 11.7 or later. See [vector columns](./migrations.md#vector-columns) for enabling the PostgreSQL extension and declaring the column and index.
 
 `whereVectorSimilarTo` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction. Generate embeddings from text before passing them to the builder.
 

@@ -3098,3 +3098,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 00:17（北京时间）02-04 [向量相似度查询](audits/02-04/README.md#向量相似度查询)。真实 PostgreSQL／pgvector 与 MariaDB、双驱动实际 HTTP 和 Artisan、MySQL 8.4.13 定向回归、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。临时 PostgreSQL、MariaDB 及 MySQL 验收容器和本批 Cargo／文档产物已回收。项目卷可用空间增加 3.04 GB（2.83 GiB），剩余 104.84 GB（97.64 GiB）。周额度剩余 45%，第二窗口无读数。
 
 - 2026-11-18 00:24（北京时间）02-04 [Eloquent 向量查询与嵌套条件](audits/02-04/README.md#eloquent-向量查询与嵌套条件)。真实 PostgreSQL／pgvector、MariaDB、双驱动 HTTP 与独立 Artisan、MySQL 8.4.13 模型作用域回归、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。本批临时数据库及隔离 Cargo 和文档产物已回收，项目卷可用空间增加 3.04 GB（2.84 GiB），剩余 105.06 GB（97.85 GiB）。周额度剩余 45%，第二窗口无读数。
+
+- 2026-11-18 00:35（北京时间）02-05 [向量扩展、列与索引](audits/02-05/README.md#向量扩展列与索引)。PostgreSQL／pgvector 与 MariaDB 的真实迁移、回滚和 HTTP，MySQL 8.4.13 定向回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。临时数据库及本批 Cargo 和文档产物已回收，项目卷可用空间净增 3.75 GB（3.50 GiB），剩余 105.02 GB（97.81 GiB）。周额度剩余 44%，第二窗口无读数。

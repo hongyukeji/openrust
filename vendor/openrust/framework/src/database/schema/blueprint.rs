@@ -242,6 +242,11 @@ impl Blueprint {
         self.column(name, ColumnType::Uuid)
     }
 
+    /// Adds a native vector column, with an optional dimension on PostgreSQL.
+    pub fn vector(&mut self, name: &str, dimensions: Option<u32>) -> &mut ColumnDefinition {
+        self.column(name, ColumnType::Vector(dimensions))
+    }
+
     pub fn ulid(&mut self, name: &str) -> &mut ColumnDefinition {
         self.ulidWith(name, 26)
     }
@@ -576,6 +581,10 @@ impl Blueprint {
         self.add_index(IndexType::Spatial, columns, name)
     }
 
+    pub fn vectorIndex(&mut self, column: &str, name: Option<&str>) -> &mut IndexDefinition {
+        self.add_index(IndexType::Vector, &[column], name)
+    }
+
     pub fn charset(&mut self, charset: &str) {
         self.table_options.charset = Some(charset.to_owned());
     }
@@ -715,6 +724,15 @@ impl Blueprint {
     /// Drops the index named by the table, ordered columns, and index kind.
     pub fn dropSpatialIndexColumns(&mut self, columns: &[&str]) {
         self.drop_index_columns(IndexType::Spatial, columns);
+    }
+
+    pub fn dropVectorIndex(&mut self, name: &str) {
+        self.commands
+            .push(Command::DropIndex(IndexType::Vector, name.into()));
+    }
+
+    pub fn dropVectorIndexColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::Vector, columns);
     }
 
     fn drop_index_columns(&mut self, kind: IndexType, columns: &[&str]) {

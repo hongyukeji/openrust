@@ -157,6 +157,125 @@ async fn postgres_schema_catalog_uses_the_configured_search_path_and_native_quer
 }
 
 #[tokio::test]
+async fn postgres_vector_extension_previews_on_the_writer_with_quoted_identifiers() {
+    let db = connection(json!({"driver":"pgsql"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                schema.ensureVectorExtensionExists(None).await?;
+                schema
+                    .ensureExtensionExists("special\"ext", Some("app\"extensions"))
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 2);
+    assert_eq!(
+        preview[0].query,
+        "create extension if not exists \"vector\""
+    );
+    assert_eq!(
+        preview[1].query,
+        "create extension if not exists \"special\"\"ext\" schema \"app\"\"extensions\""
+    );
+    assert!(
+        preview
+            .iter()
+            .all(|entry| entry.read_write_type == openrust::database::events::QueryRole::Write)
+    );
+}
+
+#[tokio::test]
+async fn mariadb_vector_ddl_previews_fluent_and_explicit_indexes() {
+    let db = connection(json!({"driver":"mariadb"}));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                schema
+                    .create("documents", |table| {
+                        table.id();
+                        table.vector("embedding", Some(3)).index();
+                    })
+                    .await?;
+                schema
+                    .table("documents", |table| {
+                        table.dropVectorIndexColumns(&["embedding"])
+                    })
+                    .await?;
+                schema
+                    .table("documents", |table| {
+                        table.vectorIndex("embedding", Some("semantic"));
+                    })
+                    .await?;
+                schema
+                    .table("documents", |table| table.dropVectorIndex("semantic"))
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 5);
+    assert!(preview[0].query.contains("`embedding` vector(3) not null"));
+    assert_eq!(
+        preview[1].query,
+        "alter table `documents` add vector index `documents_embedding_vectorindex` (`embedding`) M=6 DISTANCE=cosine"
+    );
+    assert_eq!(
+        preview[2].query,
+        "alter table `documents` drop index `documents_embedding_vectorindex`"
+    );
+    assert_eq!(
+        preview[3].query,
+        "alter table `documents` add vector index `semantic` (`embedding`) M=6 DISTANCE=cosine"
+    );
+    assert_eq!(
+        preview[4].query,
+        "alter table `documents` drop index `semantic`"
+    );
+}
+
+#[tokio::test]
+async fn vector_schema_rejects_missing_dimensions_and_unsupported_drivers() {
+    let maria = connection(json!({"driver":"mariadb"}));
+    assert!(matches!(
+        maria
+            .getSchemaBuilder()
+            .create("documents", |table| {
+                table.vector("embedding", None);
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("MariaDB vector dimensions"))
+    ));
+    for driver in ["mysql", "sqlite", "sqlsrv"] {
+        let db = connection(json!({"driver":driver}));
+        let mut schema = db.getSchemaBuilder();
+        assert!(matches!(
+            schema.ensureVectorExtensionExists(None).await,
+            Err(DatabaseError::UnsupportedSchema(_))
+        ));
+        assert!(matches!(
+            schema
+                .create("documents", |table| {
+                    table.vector("embedding", Some(3));
+                })
+                .await,
+            Err(DatabaseError::UnsupportedSchema("vector column"))
+        ));
+        assert!(matches!(
+            schema
+                .table("documents", |table| {
+                    table.vectorIndex("embedding", None);
+                })
+                .await,
+            Err(DatabaseError::UnsupportedSchema("vector index"))
+        ));
+    }
+}
+
+#[tokio::test]
 async fn postgres_type_catalog_uses_the_writer_and_supports_schema_filters() {
     let db = connection(json!({"driver":"pgsql"}));
     let preview = db

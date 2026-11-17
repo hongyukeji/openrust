@@ -147,7 +147,7 @@ MySQL 使用外層連線的權限執行整個陳述式。外層連線的帳號�
 
 ### 向量相似度子句 {#vector-similarity-clauses}
 
-向量查詢使用 PostgreSQL 的 `pgvector` 擴充功能或 MariaDB 11.7 及以上版本的餘弦距離。PostgreSQL 建立向量欄位前，先執行 `CREATE EXTENSION IF NOT EXISTS vector`。
+向量查詢使用 PostgreSQL 的 `pgvector` 擴充功能或 MariaDB 11.7 及以上版本的餘弦距離。啟用 PostgreSQL 擴充功能、宣告欄位和索引的方法見[向量欄位](./migrations.md#vector-columns)。
 
 `whereVectorSimilarTo` 接收數值向量、0 到 1 的最低相似度，以及是否將最相似的資料列排在前面的旗標。傳入 `false` 可自訂排序。相似度 1 符合方向相同的向量。文字須先轉換為向量，再傳入建構器。
 

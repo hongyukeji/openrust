@@ -303,6 +303,34 @@ impl<'connection> Builder<'connection> {
         self.execute(sql).await
     }
 
+    pub async fn ensureVectorExtensionExists(
+        &mut self,
+        schema: Option<&str>,
+    ) -> DatabaseResult<()> {
+        self.ensureExtensionExists("vector", schema).await
+    }
+
+    pub async fn ensureExtensionExists(
+        &mut self,
+        name: &str,
+        schema: Option<&str>,
+    ) -> DatabaseResult<()> {
+        if !self.grammar.postgres() {
+            return Err(DatabaseError::UnsupportedSchema("PostgreSQL extension"));
+        }
+        let name = self.grammar.identifier(name)?;
+        let suffix = match schema.filter(|schema| !schema.trim().is_empty()) {
+            Some(schema) => format!(" schema {}", self.grammar.identifier(schema)?),
+            None => String::new(),
+        };
+        let sql = format!("create extension if not exists {name}{suffix}");
+        if let Executor::Connection(connection) = &self.executor {
+            connection.statement(&sql, &[]).await?;
+            return Ok(());
+        }
+        self.execute(vec![sql]).await
+    }
+
     pub async fn whenTableHasColumn(
         &mut self,
         table: &str,

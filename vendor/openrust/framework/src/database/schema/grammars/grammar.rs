@@ -448,13 +448,13 @@ impl Grammar {
                         "SQLite primary key drop requires a table rebuild",
                     ));
                 }
-                Command::DropIndex(_, name) => sql.push(self.drop_index(table, &name)?),
+                Command::DropIndex(kind, name) => sql.push(self.drop_index(table, kind, &name)?),
                 Command::DropIndexColumns(kind, columns) => {
                     if columns.is_empty() {
                         return Err(DatabaseError::InvalidSchema("empty column list"));
                     }
                     let name = self.conventional_name(table, &columns, kind.suffix());
-                    sql.push(self.drop_index(table, &name)?);
+                    sql.push(self.drop_index(table, kind, &name)?);
                 }
                 Command::DropForeign(name) if self.mysql() => sql.push(format!(
                     "alter table {qualified} drop foreign key {}",
@@ -479,7 +479,10 @@ impl Grammar {
         Ok(sql)
     }
 
-    fn drop_index(&self, table: &Table, name: &str) -> DatabaseResult<String> {
+    fn drop_index(&self, table: &Table, kind: IndexType, name: &str) -> DatabaseResult<String> {
+        if kind == IndexType::Vector && !self.postgres() && !self.mariadb() {
+            return Err(DatabaseError::UnsupportedSchema("vector index"));
+        }
         if self.mysql() {
             Ok(format!(
                 "alter table {} drop index {}",
@@ -509,6 +512,7 @@ impl Grammar {
                 Command::Index(index) => self.add_index(table, &index)?,
                 Command::DropIndexColumns(kind, columns) => self.drop_index(
                     table,
+                    kind,
                     &self.conventional_name(table, &columns, kind.suffix()),
                 )?,
                 _ => unreachable!("column index command"),
@@ -565,7 +569,6 @@ impl Grammar {
                 &quoted
             }
         };
-        let method = self.index_method(index)?;
         let default;
         let name = match &index.name {
             Some(name) => name,
@@ -574,6 +577,15 @@ impl Grammar {
                 &default
             }
         };
+        if index.kind == IndexType::Vector {
+            return self.vector_index(table, name, columns, index);
+        }
+        if index.operator_class.is_some() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "operator class on non-vector index",
+            ));
+        }
+        let method = self.index_method(index)?;
         if self.postgres() && index.kind == IndexType::FullText {
             self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
             let language = index
@@ -634,6 +646,55 @@ impl Grammar {
                     self.identifier(&table.name)?
                 }
             ))
+        }
+    }
+
+    fn vector_index(
+        &self,
+        table: &Table,
+        name: &str,
+        column: &str,
+        index: &IndexDefinition,
+    ) -> DatabaseResult<String> {
+        let name = self.identifier(name)?;
+        let table = self.qualified(table)?;
+        if self.postgres() {
+            self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+            let method = match index.algorithm.as_deref() {
+                None | Some("hnsw") => "hnsw",
+                Some("ivfflat") => "ivfflat",
+                _ => {
+                    return Err(DatabaseError::InvalidSchema(
+                        "PostgreSQL vector index method",
+                    ));
+                }
+            };
+            let (schema, class) = Self::parse_schema_and_table(
+                index
+                    .operator_class
+                    .as_deref()
+                    .unwrap_or("vector_cosine_ops"),
+            )?;
+            let class = match schema {
+                Some(schema) => format!("{}.{}", self.identifier(schema)?, self.identifier(class)?),
+                None => self.identifier(class)?,
+            };
+            Ok(format!(
+                "create index {name} on {table} using {method} ({column} {class})"
+            ))
+        } else if self.mariadb() {
+            if index.algorithm.is_some() || index.operator_class.is_some() {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "MariaDB vector index method or operator class",
+                ));
+            }
+            let options =
+                self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+            Ok(format!(
+                "alter table {table} add vector index {name} ({column}) M=6 DISTANCE=cosine{options}"
+            ))
+        } else {
+            Err(DatabaseError::UnsupportedSchema("vector index"))
         }
     }
 
@@ -917,6 +978,19 @@ impl Grammar {
     }
 
     fn column_type(&self, kind: &ColumnType, column: &str) -> DatabaseResult<String> {
+        if let ColumnType::Vector(dimensions) = kind {
+            if !self.postgres() && !self.mariadb() {
+                return Err(DatabaseError::UnsupportedSchema("vector column"));
+            }
+            return match dimensions {
+                Some(0) | None if self.mariadb() => {
+                    Err(DatabaseError::InvalidSchema("MariaDB vector dimensions"))
+                }
+                Some(0) => Err(DatabaseError::InvalidSchema("vector dimensions")),
+                Some(dimensions) => Ok(format!("vector({dimensions})")),
+                None => Ok("vector".into()),
+            };
+        }
         if self.sql_server() {
             return sql_server_type(kind);
         }
@@ -1048,6 +1122,7 @@ impl Grammar {
                 });
             }
             ColumnType::Spatial(_, _) => "geometry",
+            ColumnType::Vector(_) => unreachable!("vector types handled above"),
             ColumnType::Year if mysql => "year",
             ColumnType::Year => "integer",
             ColumnType::Json | ColumnType::Jsonb if mysql => "json",

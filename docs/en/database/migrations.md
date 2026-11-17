@@ -469,6 +469,31 @@ async fn create_places() -> DatabaseResult<()> {
 
 MySQL enforces the declared subtype and any nonzero SRID. A non-null spatial column can declare an index with `spatialIndex()`. SQLite declares a `geometry` column and supports storing binary values. Spatial functions and spatial indexes require a spatial-capable database.
 
+### Vector Columns {#vector-columns}
+
+On PostgreSQL, enable the installed `pgvector` extension before declaring a vector column. Pass `None` to use the default schema or `Some(schema)` to place the extension explicitly. The extension must be visible on the connection’s search path. MariaDB 11.7 and later provide vector columns natively.
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::ensureVectorExtensionExists(None).await?;
+```
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::create("documents", |table| {
+    table.id();
+    table.vector("embedding", Some(1536)).index();
+}).await?;
+```
+
+Both drivers accept an explicit dimension. PostgreSQL also accepts `None` for a column without a fixed dimension. Use a fixed dimension for the default cosine index. MariaDB requires an explicit dimension and a non-null indexed column.
+
+Calling `index()` on a vector column creates a cosine index. PostgreSQL uses HNSW with `vector_cosine_ops`. MariaDB uses `VECTOR INDEX` with `M=6` and cosine distance. Use `vectorIndex("embedding", Some("semantic_idx"))` to choose a name. On PostgreSQL, `algorithm("ivfflat")` and `operatorClass("vector_l2_ops")` select another index method and distance operator class. The operator class must match the distance expression used by the query.
+
+Drop a named index with `dropVectorIndex("semantic_idx")` or the conventional index with `dropVectorIndexColumns(&["embedding"])`. See [vector similarity queries](./queries.md#vector-similarity-clauses) for querying the column.
+
 ### MySQL Column Modifiers
 
 Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.

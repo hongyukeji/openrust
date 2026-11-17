@@ -147,7 +147,7 @@ MySQL 用外层连接的权限执行整条语句。外层连接的账号需要�
 
 ### 向量相似度子句 {#vector-similarity-clauses}
 
-向量查询使用 PostgreSQL 的 `pgvector` 扩展或 MariaDB 11.7 及以上版本的余弦距离。PostgreSQL 创建向量列前，先执行 `CREATE EXTENSION IF NOT EXISTS vector`。
+向量查询使用 PostgreSQL 的 `pgvector` 扩展或 MariaDB 11.7 及以上版本的余弦距离。启用 PostgreSQL 扩展、声明列和索引的方法见[向量列](./migrations.md#vector-columns)。
 
 `whereVectorSimilarTo` 接收数值向量、0 到 1 的最低相似度，以及是否将最相似的行排在前面的标志。传入 `false` 可自行排序。相似度 1 匹配方向相同的向量。文本需要先转换为向量，再传给构建器。
 

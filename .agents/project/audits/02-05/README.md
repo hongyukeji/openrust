@@ -439,3 +439,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 两项定向 Rust 测试覆盖查询预演的写连接、绑定和清库排除规则。MySQL 8.4.13 的 `sh tests/table_catalog.sh` 两项、实际 Artisan、全仓格式和严格 Clippy 通过。三语站点构建、12 项通用和 6 项类型目录浏览器检查通过。
 - 开始真实验证前，确认主仓及本批标准缓存已闲置再清理。第一阶段项目卷实测从 58.06 GB（54.07 GiB） 增至 107.01 GB（99.66 GiB）。
 - 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。 临时 PostgreSQL、PgBouncer 与本批隔离产物已清理。该次清理后磁盘可用 106.46 GB（99.15 GiB），净增 8.68 GB（8.09 GiB）。周额度剩余 45%，第二窗口无读数。
+
+## 向量扩展、列与索引
+
+- 对照固定 Laravel 的 `ensureExtensionExists`、`ensureVectorExtensionExists`、向量列和 fluent `index`。旧版未找到可复用的向量扩展及索引迁移。Schema Facade 和 Builder 支持幂等地启用已安装的扩展，可选 Schema 使用标识符转义。PostgreSQL 列支持显式或可变维度，MariaDB 列需要显式维度。 [固定 Laravel 迁移文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-method-vector) · [固定 Laravel Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php)
+- PostgreSQL fluent `index()` 使用 HNSW 与 `vector_cosine_ops`，显式 `vectorIndex` 可选择 HNSW 或 IVFFlat 及命名运算符类。MariaDB 生成 `VECTOR INDEX`、`M=6 DISTANCE=cosine`。支持按名称或按约定列名删除。PostgreSQL 在线建索引及 MariaDB 自定义向量索引参数继续跟踪。 [pgvector](https://github.com/pgvector/pgvector/tree/v0.8.2) · [MariaDB 向量 DDL](https://mariadb.com/docs/server/reference/sql-structure/vectors/create-table-with-vectors)
+- 三项定向 Schema 回归覆盖扩展 SQL、引号、索引名称与不支持的驱动。PostgreSQL 18.4／pgvector 0.8.2 和 MariaDB 11.8.9 均通过实际 Artisan 预演、迁移、重复调用、回滚和重新迁移。预演后向量表不存在，PostgreSQL 扩展未启用。迁移后核对原生列、HNSW／IVFFlat 运算符类及 MariaDB 索引，真实 HTTP 查询和五项向量查询回归通过。回滚清除表及索引并保留 PostgreSQL 扩展。
+- MySQL 8.4.13 的 `sh tests/table_catalog.sh` 两项通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过，向量查询到向量列的链接在两种部署路径上通过。核心账本维持 62/66。临时数据库及本批 Cargo 和文档产物已回收，项目卷可用空间净增 3.75 GB（3.50 GiB），剩余 105.02 GB（97.81 GiB）。周额度剩余 44%，第二窗口无读数。验收脚本和日志位于 `/private/tmp/openrust-02-05-vector-schema.XixtCbCw`。

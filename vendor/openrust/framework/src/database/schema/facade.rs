@@ -77,6 +77,18 @@ impl Schema {
         Self::default_builder()?.createDatabase(name).await
     }
 
+    pub async fn ensureVectorExtensionExists(schema: Option<&str>) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .ensureVectorExtensionExists(schema)
+            .await
+    }
+
+    pub async fn ensureExtensionExists(name: &str, schema: Option<&str>) -> DatabaseResult<()> {
+        Self::default_builder()?
+            .ensureExtensionExists(name, schema)
+            .await
+    }
+
     pub async fn dropDatabaseIfExists(name: &str) -> DatabaseResult<bool> {
         Self::default_builder()?.dropDatabaseIfExists(name).await
     }

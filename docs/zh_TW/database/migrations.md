@@ -469,6 +469,31 @@ async fn create_places() -> DatabaseResult<()> {
 
 MySQL 驗證宣告的子型別和非零 SRID。對於不可為 NULL 的空間欄位，可用 `spatialIndex()` 宣告索引。SQLite 宣告 `geometry` 型別並支援存入二進位值，空間函式和空間索引需要具備空間能力的資料庫。
 
+### 向量欄位 {#vector-columns}
+
+PostgreSQL 宣告向量欄位前，先啟用已安裝的 `pgvector` 擴充功能。傳入 `None` 使用預設 Schema，也可用 `Some(schema)` 指定擴充功能所在的 Schema。連線的搜尋路徑需要能解析該擴充功能。MariaDB 11.7 及以上版本原生支援向量欄位。
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::ensureVectorExtensionExists(None).await?;
+```
+
+```rust
+use openrust::support::facades::Schema;
+
+Schema::create("documents", |table| {
+    table.id();
+    table.vector("embedding", Some(1536)).index();
+}).await?;
+```
+
+兩種驅動程式都支援明確指定維度。PostgreSQL 也接受 `None` 建立不限維度的向量欄位。預設餘弦索引使用固定維度。MariaDB 需要明確指定維度，建立索引的欄位須為非空。
+
+對向量欄位呼叫 `index()` 會建立餘弦索引。PostgreSQL 使用 HNSW 和 `vector_cosine_ops`，MariaDB 使用 `VECTOR INDEX`、`M=6` 和餘弦距離。可用 `vectorIndex("embedding", Some("semantic_idx"))` 指定名稱。PostgreSQL 可用 `algorithm("ivfflat")` 和 `operatorClass("vector_l2_ops")` 選擇其他索引方法與運算子類別。查詢使用的距離運算式應與運算子類別相符。
+
+用 `dropVectorIndex("semantic_idx")` 刪除具名索引，或用 `dropVectorIndexColumns(&["embedding"])` 刪除慣例名稱的索引。查詢方式見[向量相似度查詢](./queries.md#vector-similarity-clauses)。
+
 ### MySQL 欄位修飾詞
 
 用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。

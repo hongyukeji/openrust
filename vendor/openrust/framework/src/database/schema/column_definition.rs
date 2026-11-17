@@ -30,6 +30,7 @@ pub(super) enum ColumnType {
     Uuid,
     Year,
     Spatial(&'static str, u32),
+    Vector(Option<u32>),
     Date,
     DateTime(u8),
     Timestamp(u8),
@@ -188,7 +189,12 @@ impl ColumnDefinition {
     }
 
     pub fn indexWith(&mut self, index: impl Into<ColumnIndex>) -> &mut Self {
-        self.set_index(IndexType::Index, index.into())
+        let kind = if matches!(self.kind, ColumnType::Vector(_)) {
+            IndexType::Vector
+        } else {
+            IndexType::Index
+        };
+        self.set_index(kind, index.into())
     }
 
     pub fn fullText(&mut self) -> &mut Self {
