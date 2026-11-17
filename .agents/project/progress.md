@@ -3074,3 +3074,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 22:29（北京时间）02-02 [PostgreSQL 直连端点选择](audits/02-02/README.md#postgresql-直连端点选择)。无网络配置测试、真实 MySQL 8.4.13 的连接路由与独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。 本批 Cargo 清理 3.3 GiB，项目磁盘可用 63.22 GB（58.88 GiB），周额度剩余 47%。
 
 - 2026-11-17 22:43（北京时间）03-09 [Redis Cluster 标签登记丢失后的恢复](audits/03-09/README.md#redis-cluster-标签登记丢失后的恢复)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。 本批 Cargo 清理 4.1 GiB，项目磁盘可用 63.11 GB（58.78 GiB），周额度剩余 47%。
+
+- 2026-11-17 22:49（北京时间）02-05 [PostgreSQL 数据库级 DDL](audits/02-05/README.md#postgresql-数据库级-ddl)。无网络 SQL 预演、MySQL 8.4.13 建删库及表目录和限定清库三项、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。 已回收 3.5 GiB Cargo 产物，项目磁盘可用 63.04 GB（58.71 GiB），周额度剩余 47%。真实 PostgreSQL 待发布验收。

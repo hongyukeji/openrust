@@ -670,6 +670,8 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 `createDatabase` 在所选 MySQL 服务器创建数据库，并采用连接配置的字符集和排序规则。数据库同名时返回错误。`dropDatabaseIfExists` 删除指定数据库，数据库已不存在时仍成功。
 
+在 PostgreSQL 中，这两个方法在事务外执行数据库级 DDL。建库时，连接配置若提供字符集，就用它指定数据库编码。创建前先连接到一个已存在的数据库。删除时，请连接到同一服务器上的另一个数据库。
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

@@ -126,7 +126,10 @@ impl<'connection> Builder<'connection> {
 
     /// Creates a database on the selected connection's server or a new SQLite file.
     pub async fn createDatabase(&mut self, name: &str) -> DatabaseResult<bool> {
-        if self.grammar.mysql() || self.grammar.sql_server() {
+        if self.grammar.postgres() {
+            self.execute_postgres_database_ddl(self.grammar.create_database(name)?)
+                .await?;
+        } else if self.grammar.mysql() || self.grammar.sql_server() {
             self.execute(vec![self.grammar.create_database(name)?])
                 .await?;
         } else {
@@ -143,7 +146,11 @@ impl<'connection> Builder<'connection> {
 
     /// Drops a database on the selected connection's server or removes a SQLite file.
     pub async fn dropDatabaseIfExists(&mut self, name: &str) -> DatabaseResult<bool> {
-        if self.grammar.mysql() || self.grammar.sql_server() {
+        if self.grammar.postgres() {
+            let name = self.grammar.identifier(name)?;
+            self.execute_postgres_database_ddl(format!("drop database if exists {name}"))
+                .await?;
+        } else if self.grammar.mysql() || self.grammar.sql_server() {
             let name = self.grammar.identifier(name)?;
             self.execute(vec![format!("drop database if exists {name}")])
                 .await?;
@@ -156,6 +163,21 @@ impl<'connection> Builder<'connection> {
             }
         }
         Ok(true)
+    }
+
+    async fn execute_postgres_database_ddl(&mut self, sql: String) -> DatabaseResult<()> {
+        // PostgreSQL database-level DDL must run as a standalone statement.
+        match &mut self.executor {
+            Executor::Connection(connection) => connection.unprepared(&sql).await.map(|_| ()),
+            Executor::Session(session) => session.execute_database_ddl(&sql).await,
+            Executor::Pretend(output) => {
+                output.push(sql);
+                Ok(())
+            }
+            Executor::Transaction(_) => Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL database DDL requires autocommit",
+            )),
+        }
     }
 
     fn validate_sqlite_database_path(&self, name: &str) -> DatabaseResult<()> {

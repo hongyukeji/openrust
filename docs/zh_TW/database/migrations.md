@@ -670,6 +670,8 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 `createDatabase` 在所選 MySQL 伺服器建立資料庫，並採用連線設定的字元集與定序。資料庫同名時會回傳錯誤。`dropDatabaseIfExists` 刪除指定資料庫，資料庫已不存在時仍會成功。
 
+在 PostgreSQL 中，這兩個方法在交易外執行資料庫層級的 DDL。建立時，連線設定若提供字元集，就用它指定資料庫編碼。建立前先連線至一個已存在的資料庫。刪除時，請連線至同一伺服器上的另一個資料庫。
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

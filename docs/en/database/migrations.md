@@ -670,6 +670,8 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 `createDatabase` creates a database on the selected MySQL server using the connection’s configured character set and collation. It returns an error if the name already exists. `dropDatabaseIfExists` removes the named database and succeeds if it is already absent.
 
+On PostgreSQL, both methods execute database-level DDL outside transactions. Creation uses the connection’s configured character set as the database encoding when supplied. Connect to an existing database before creating another one. To drop a database, connect to a different database on the same server.
+
 ```rust
 use openrust::{database::DatabaseResult, support::facades::Schema};
 

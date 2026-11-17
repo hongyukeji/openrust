@@ -4498,6 +4498,36 @@ async fn mysql_applies_schema_callbacks_only_when_column_and_index_conditions_ma
 }
 
 #[tokio::test]
+async fn postgres_previews_database_ddl_without_using_the_filesystem() {
+    let db = connection(json!({
+        "driver": "pgsql", "database": "postgres", "charset": "UTF8", "prefix": "app_"
+    }));
+    let directory = tempfile::tempdir().unwrap();
+    let preserved = directory.path().join("retained");
+    std::fs::write(&preserved, b"keep").unwrap();
+    let name = preserved.to_str().unwrap().to_owned();
+    let drop_sql = format!("drop database if exists \"{}\"", name.replace('"', "\"\""));
+    let preview = db
+        .pretend(|db| {
+            Box::pin(async move {
+                let mut schema = db.getSchemaBuilder();
+                assert!(schema.createDatabase("reports\"archive").await?);
+                assert!(schema.dropDatabaseIfExists(&name).await?);
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 2);
+    assert_eq!(
+        preview[0].query,
+        "create database \"reports\"\"archive\" encoding \"UTF8\""
+    );
+    assert_eq!(preview[1].query, drop_sql);
+    assert_eq!(std::fs::read(preserved).unwrap(), b"keep");
+}
+
+#[tokio::test]
 async fn mysql_creates_and_drops_explicit_databases_with_connection_defaults() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

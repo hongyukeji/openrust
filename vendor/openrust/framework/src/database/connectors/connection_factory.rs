@@ -143,18 +143,21 @@ fn resolve(
         Some(QueryRole::Write) => reader = None,
         Some(QueryRole::Direct) | None => {}
     }
-    let table_options = if matches!(writer, Pool::Mysql(_)) {
-        let configured = |key| -> DatabaseResult<Option<String>> {
-            let value = write_options.string(key, "")?;
-            Ok((!value.is_empty()).then(|| value.to_owned()))
-        };
-        TableOptions {
+    let configured = |key| -> DatabaseResult<Option<String>> {
+        let value = write_options.string(key, "")?;
+        Ok((!value.is_empty()).then(|| value.to_owned()))
+    };
+    let table_options = match &writer {
+        Pool::Mysql(_) => TableOptions {
             charset: configured("charset")?,
             collation: configured("collation")?,
             engine: configured("engine")?,
-        }
-    } else {
-        TableOptions::default()
+        },
+        Pool::Postgres(_) => TableOptions {
+            charset: configured("charset")?,
+            ..TableOptions::default()
+        },
+        _ => TableOptions::default(),
     };
     let schema_credentials = if matches!(writer, Pool::Mysql(_)) && role != Some(QueryRole::Read) {
         Some(super::super::migrations::SchemaCredentials {

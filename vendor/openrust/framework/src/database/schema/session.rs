@@ -259,6 +259,15 @@ impl SchemaSession {
         Ok(start)
     }
 
+    pub(super) async fn execute_database_ddl(&mut self, sql: &str) -> DatabaseResult<()> {
+        let bindings = (&[]).into();
+        self.before_query(sql, bindings).await?;
+        let start = Instant::now();
+        self.physical()?.unprepared(sql).await?;
+        self.connection.setRecordModificationState(true);
+        self.after_query(sql, bindings, start).await
+    }
+
     pub(super) async fn execute_schema(&mut self, statements: Vec<String>) -> DatabaseResult<()> {
         self.connection.ensure_real_operation()?;
         if !self.connection.is_sqlite() {

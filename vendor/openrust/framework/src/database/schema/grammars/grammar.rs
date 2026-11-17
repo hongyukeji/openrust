@@ -157,6 +157,13 @@ impl Grammar {
 
     pub fn create_database(&self, name: &str) -> DatabaseResult<String> {
         let mut sql = format!("create database {}", self.identifier(name)?);
+        if self.postgres() {
+            if let Some(charset) = &self.table_options.charset {
+                write!(sql, " encoding {}", self.identifier(charset)?)
+                    .expect("writing to a String");
+            }
+            return Ok(sql);
+        }
         for (value, clause) in [
             (self.table_options.charset.as_deref(), "character set"),
             (self.table_options.collation.as_deref(), "collate"),
