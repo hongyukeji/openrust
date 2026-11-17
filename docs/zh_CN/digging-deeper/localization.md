@@ -23,6 +23,28 @@
 
 使用 `__` 读取文本。占位符支持 `:name`、`:Name` 和 `:NAME`。分组和列表使用 `Lang::array` 读取。缺失翻译返回键本身。JSON 字面键在所选语言内查找，分组键可以回退到配置的语言。
 
+### 语言回退与缺失键 {#translation-lookup-hooks}
+
+使用 `Lang::has(key, locale, true)` 检查包含回退语言的翻译，使用 `Lang::hasForLocale(key, locale)` 仅检查指定语言。两种检查都会跳过缺键回调。在应用作用域内登记钩子后，可调整分组翻译的回退顺序，JSON 字面键仍优先。缺键回调返回的文本会继续处理占位符，返回 `None` 时使用原键。
+
+```rust
+use openrust::{support::facades::Lang, translation::TranslationResult};
+
+pub fn register_lookup_hooks() -> TranslationResult<()> {
+    Lang::determineLocalesUsing(|locales| {
+        let mut locales = locales.to_vec();
+        if locales.first().is_some_and(|locale| locale == "fr_CA") {
+            locales.insert(1, "fr".into());
+        }
+        locales
+    })?;
+
+    Lang::handleMissingKeysUsing(|missing| {
+        (missing.key == "messages.welcome").then(|| "Hello, :name".into())
+    })
+}
+```
+
 ## 复数
 
 使用 `trans_choice` 选择形式。先匹配 `{0}`、`[2,*]` 等显式条件，其余情况按命中翻译的地区复数规则选择。函数自动提供 `:count`。

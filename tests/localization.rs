@@ -31,7 +31,7 @@ impl Root {
         for (locale, source) in [
             (
                 "en",
-                r#"{"welcome":"Hi :Name / :NAME","items":"one item|:count items","fallback":"English fallback","nested":{"values":[":name","second"]}}"#,
+                r#"{"welcome":"Hi :Name / :NAME","items":"one item|:count items","fallback":"English fallback","nested":{"values":[":name","second"]},"identity":"messages.identity","empty":[]}"#,
             ),
             (
                 "zh_CN",
@@ -46,7 +46,11 @@ impl Root {
             fs::create_dir_all(&directory).unwrap();
             fs::write(directory.join("messages.json"), source).unwrap();
         }
-        fs::write(path.join("lang/zh_CN.json"), r#"{"Hello":"你好"}"#).unwrap();
+        fs::write(
+            path.join("lang/zh_CN.json"),
+            r#"{"Hello":"你好","Literal Zero":"0"}"#,
+        )
+        .unwrap();
         fs::write(
             path.join("lang/en.json"),
             r#"{"English only":"Only in English"}"#,
@@ -95,6 +99,48 @@ fn default_locale(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     })
 }
 
+fn install_lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Lang::determineLocalesUsing(|locales| {
+            ["zh-Hant".into(), "zh_TW".into()]
+                .into_iter()
+                .chain(locales.iter().cloned())
+                .collect()
+        })
+        .map_err(http_error)?;
+        Lang::handleMissingKeysUsing(|missing| {
+            if missing.key == "missing.plural" {
+                assert!(missing.replacements.is_empty());
+                return Some("{1} one|[2,*] :count selected".into());
+            }
+            let nested = Lang::get("nested.missing", &BTreeMap::new(), None).unwrap();
+            Some(format!("{}|{}|{nested}|:Name", missing.key, missing.locale))
+        })
+        .map_err(http_error)?;
+        Ok(Response::new(StatusCode::OK, Body::from("installed")))
+    })
+}
+
+fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let replacements = BTreeMap::from([("name".into(), "ada".into())]);
+        let lines = (|| -> Result<Value, TranslationError> {
+            Ok(json!({
+                "chosen": Lang::get("messages.welcome", &replacements, None)?,
+                "literal": Lang::get("Hello", &replacements, Some("zh-Hans"))?,
+                "missing": Lang::get("missing.key", &replacements, None)?,
+                "missing_exists": Lang::has("missing.key", None, true)?,
+                "literal_zero_exists": Lang::hasForLocale("Literal Zero", Some("zh-CN"))?,
+                "exact": Lang::hasForLocale("messages.welcome", None)?,
+                "fallback": Lang::has("messages.welcome", None, true)?,
+                "plural": Lang::choice("missing.plural", 2_i64, &replacements, None)?,
+            }))
+        })()
+        .map_err(http_error)?;
+        Response::json(StatusCode::OK, lines)
+    })
+}
+
 fn http_error(source: TranslationError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -128,6 +174,8 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             ] {
                 Route::get(route, translate)?;
             }
+            Route::get("/install-hooks", install_lookup_hooks)?;
+            Route::get("/hooks", lookup_hooks)?;
             Route::get("/default", default_locale)
         }))
         .create()
@@ -327,5 +375,101 @@ async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
             .string("broken.value", &replacements, None)
             .unwrap(),
         "fixed"
+    );
+}
+
+#[tokio::test]
+async fn translation_lookup_hooks_are_local_to_each_http_application() {
+    let configured = Root::new("en_GB");
+    let untouched = Root::new("en_US");
+    let ((first, one), (second, two)) = tokio::join!(start(&configured), start(&untouched));
+    assert_eq!(send(first, "/install-hooks").await, "installed");
+    let (changed, default) = tokio::join!(send(first, "/hooks"), send(second, "/hooks"));
+    let changed: Value = serde_json::from_str(&changed).unwrap();
+    let default: Value = serde_json::from_str(&default).unwrap();
+    assert_eq!(changed["chosen"], "您好，ada");
+    assert_eq!(changed["literal"], "你好");
+    assert_eq!(changed["missing"], "missing.key|en_GB|nested.missing|Ada");
+    assert_eq!(changed["missing_exists"], false);
+    assert_eq!(changed["literal_zero_exists"], true);
+    assert_eq!(changed["exact"], false);
+    assert_eq!(changed["fallback"], true);
+    assert_eq!(changed["plural"], "2 selected");
+    assert_eq!(default["chosen"], "Hi Ada / ADA");
+    assert_eq!(default["missing"], "missing.key");
+    assert_eq!(default["plural"], "missing.plural");
+    one.abort();
+    two.abort();
+}
+
+#[test]
+fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
+    use openrust::translation::{FileLoader, Translator};
+    use std::{
+        panic::AssertUnwindSafe,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    let root = Root::new("lookup-hooks");
+    let translator = Translator::new(
+        FileLoader::new(root.0.join("lang")),
+        "en".into(),
+        "en".into(),
+    )
+    .unwrap();
+    let args = BTreeMap::new();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let count = Arc::clone(&calls);
+    translator.handleMissingKeysUsing(move |missing| {
+        assert_eq!(missing.locale, "en");
+        assert!(missing.fallback);
+        count.fetch_add(1, Ordering::Relaxed);
+        None
+    });
+    for key in ["messages.identity", "messages.empty", "missing.key"] {
+        assert!(!translator.hasForLocale(key, None).unwrap());
+        assert!(!translator.has(key, None, true).unwrap());
+    }
+    assert!(
+        translator
+            .has("Literal Zero", Some("zh-Hans"), true)
+            .unwrap()
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        translator.string("missing.key", &args, None).unwrap(),
+        "missing.key"
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+    translator.determineLocalesUsing(|_| vec!["../unsafe".into()]);
+    assert!(translator.hasForLocale("messages.welcome", None).unwrap());
+    assert_eq!(
+        translator.string("Hello", &args, Some("zh-Hans")).unwrap(),
+        "你好"
+    );
+    assert!(matches!(
+        translator.string("messages.welcome", &args, None),
+        Err(TranslationError::InvalidLocale)
+    ));
+    translator.clearLocaleResolver();
+    translator.handleMissingKeysUsing(|_| panic!("test-only hook panic"));
+    assert!(
+        std::panic::catch_unwind(AssertUnwindSafe(|| translator.string(
+            "missing.key",
+            &args,
+            None
+        )))
+        .is_err()
+    );
+    translator.handleMissingKeysUsing(|_| Some("restored".into()));
+    assert_eq!(
+        translator.string("missing.key", &args, None).unwrap(),
+        "restored"
+    );
+    translator.clearMissingKeyHandler();
+    assert_eq!(
+        translator.string("missing.key", &args, None).unwrap(),
+        "missing.key"
     );
 }

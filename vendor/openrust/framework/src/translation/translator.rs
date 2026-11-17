@@ -11,7 +11,9 @@ use crate::contracts::translation::Translator as Contract;
 
 use super::{
     FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResult,
-    file_loader::valid_segment, locale::canonical_locale,
+    file_loader::valid_segment,
+    locale::canonical_locale,
+    lookup::{LookupHooks, MissingTranslation},
 };
 
 type Replacements = BTreeMap<String, String>;
@@ -21,6 +23,18 @@ struct CatalogKey {
     locale: String,
     group: String,
     namespace: Option<String>,
+}
+
+struct ResolvedLine {
+    line: Line,
+    locale: String,
+    literal: bool,
+}
+
+impl ResolvedLine {
+    fn exists(&self, key: &str) -> bool {
+        self.literal || !matches!(&self.line, Line::Text(text) if text == key)
+    }
 }
 
 tokio::task_local! {
@@ -34,6 +48,7 @@ pub struct Translator {
     fallback: String,
     loaded: Mutex<HashMap<CatalogKey, Arc<Lines>>>,
     identity: Arc<()>,
+    hooks: LookupHooks,
 }
 
 impl Translator {
@@ -52,6 +67,7 @@ impl Translator {
             fallback: canonical_locale(&fallback)?,
             loaded: Mutex::default(),
             identity: Arc::new(()),
+            hooks: LookupHooks::default(),
         })
     }
 
@@ -98,6 +114,51 @@ impl Translator {
         Arc::as_ptr(&self.identity) as usize
     }
 
+    /// Checks the selected locale and, when enabled, the configured fallback order.
+    pub fn has(&self, key: &str, locale: Option<&str>, fallback: bool) -> TranslationResult<bool> {
+        let locale = self.resolve_locale(locale)?;
+        Ok(self
+            .lookup(key, &locale, fallback)?
+            .is_some_and(|line| line.exists(key)))
+    }
+
+    pub fn hasForLocale(&self, key: &str, locale: Option<&str>) -> TranslationResult<bool> {
+        self.has(key, locale, false)
+    }
+
+    /// Installs an application-level handler for missing keys.
+    pub fn handleMissingKeysUsing(
+        &self,
+        handler: impl Fn(MissingTranslation<'_>) -> Option<String> + Send + Sync + 'static,
+    ) {
+        self.hooks.set_missing(Some(Arc::new(handler)));
+    }
+
+    pub fn clearMissingKeyHandler(&self) {
+        self.hooks.set_missing(None);
+    }
+
+    /// Replaces the search order for grouped translations with fallback enabled.
+    pub fn determineLocalesUsing(
+        &self,
+        resolver: impl Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
+    ) {
+        self.hooks.set_locales(Some(Arc::new(resolver)));
+    }
+
+    pub fn clearLocaleResolver(&self) {
+        self.hooks.set_locales(None);
+    }
+
+    fn missing(&self, key: &str, replacements: &Replacements, locale: &str) -> String {
+        self.hooks.missing(MissingTranslation {
+            key,
+            replacements,
+            locale,
+            fallback: true,
+        })
+    }
+
     pub fn string(
         &self,
         key: &str,
@@ -105,12 +166,10 @@ impl Translator {
         locale: Option<&str>,
     ) -> TranslationResult<String> {
         let locale = self.resolve_locale(locale)?;
-        let text = match self.lookup(key, &locale, true)? {
-            Some((Line::Text(text), _)) => text,
-            Some((Line::Group(_) | Line::List(_), _)) => {
-                return Err(TranslationError::UnexpectedType);
-            }
-            None => key.to_owned(),
+        let text = match self.lookup(key, &locale, true)?.map(|found| found.line) {
+            Some(Line::Text(text)) => text,
+            Some(_) => return Err(TranslationError::UnexpectedType),
+            None => self.missing(key, replacements, &locale),
         };
         Ok(replace(&text, replacements))
     }
@@ -122,14 +181,18 @@ impl Translator {
         locale: Option<&str>,
     ) -> TranslationResult<Lines> {
         let locale = self.resolve_locale(locale)?;
-        let mut lines = match self.lookup(key, &locale, true)? {
-            Some((Line::Group(lines), _)) => lines,
-            Some((Line::List(lines), _)) => lines
+        let mut lines = match self.lookup(key, &locale, true)?.map(|found| found.line) {
+            Some(Line::Group(lines)) => lines,
+            Some(Line::List(lines)) => lines
                 .into_iter()
                 .enumerate()
                 .map(|(index, line)| (index.to_string(), line))
                 .collect(),
-            _ => return Err(TranslationError::UnexpectedType),
+            Some(_) => return Err(TranslationError::UnexpectedType),
+            None => {
+                self.missing(key, replacements, &locale);
+                return Err(TranslationError::UnexpectedType);
+            }
         };
         replace_lines(&mut lines, replacements);
         Ok(lines)
@@ -144,17 +207,24 @@ impl Translator {
     ) -> TranslationResult<String> {
         let locale = self.resolve_locale(locale)?;
         let count = count.into();
-        let found = match self.lookup(key, &locale, false)? {
+        let found = match self
+            .lookup(key, &locale, false)?
+            .filter(|found| found.exists(key))
+        {
             Some(line) => Some(line),
-            None if locale != self.fallback => self.lookup(key, &self.fallback, false)?,
-            None => None,
+            None => self.lookup(key, &self.fallback, true)?,
         };
         let (line, selected) = match found {
-            Some((Line::Text(line), selected)) => (line, selected),
-            Some((Line::Group(_) | Line::List(_), _)) => {
-                return Err(TranslationError::UnexpectedType);
-            }
-            None => (key.to_owned(), self.fallback.clone()),
+            Some(ResolvedLine {
+                line: Line::Text(line),
+                locale,
+                ..
+            }) => (line, locale),
+            Some(_) => return Err(TranslationError::UnexpectedType),
+            None => (
+                self.missing(key, &Replacements::new(), &self.fallback),
+                self.fallback.clone(),
+            ),
         };
         let chosen = MessageSelector.choose(&line, count, &selected)?;
         let mut replacements = replacements.clone();
@@ -176,13 +246,17 @@ impl Translator {
         key: &str,
         locale: &str,
         fallback: bool,
-    ) -> TranslationResult<Option<(Line, String)>> {
+    ) -> TranslationResult<Option<ResolvedLine>> {
         if let Some(line) = self.catalog(locale, "*", Some("*"))?.get(key).cloned() {
             let line = match line {
                 Line::Text(text) if text.is_empty() || text == "0" => Line::Text(key.to_owned()),
                 line => line,
             };
-            return Ok(Some((line, locale.to_owned())));
+            return Ok(Some(ResolvedLine {
+                line,
+                locale: locale.to_owned(),
+                literal: true,
+            }));
         }
         let (namespace, name) = key
             .split_once("::")
@@ -195,13 +269,23 @@ impl Translator {
         {
             return Ok(None);
         }
-        if let Some(line) = self.group_line(locale, group, namespace, item)? {
-            return Ok(Some((line, locale.to_owned())));
-        }
-        if fallback && locale != self.fallback {
+        if !fallback {
             return Ok(self
-                .group_line(&self.fallback, group, namespace, item)?
-                .map(|line| (line, self.fallback.clone())));
+                .group_line(locale, group, namespace, item)?
+                .map(|line| ResolvedLine {
+                    line,
+                    locale: locale.to_owned(),
+                    literal: false,
+                }));
+        }
+        for locale in self.hooks.locales(locale, &self.fallback)? {
+            if let Some(line) = self.group_line(&locale, group, namespace, item)? {
+                return Ok(Some(ResolvedLine {
+                    line,
+                    locale,
+                    literal: false,
+                }));
+            }
         }
         Ok(None)
     }
@@ -216,9 +300,13 @@ impl Translator {
         let lines = self.catalog(locale, group, namespace)?;
         Ok(match item {
             Some(item) => find(&lines, item).cloned(),
-            None if !lines.is_empty() => Some(Line::Group((*lines).clone())),
-            None => None,
-        })
+            None => Some(Line::Group((*lines).clone())),
+        }
+        .filter(|line| match line {
+            Line::Group(lines) => !lines.is_empty(),
+            Line::List(lines) => !lines.is_empty(),
+            Line::Text(_) => true,
+        }))
     }
 
     fn catalog(

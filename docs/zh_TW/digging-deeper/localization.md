@@ -23,6 +23,28 @@
 
 使用 `__` 讀取文字。預留位置支援 `:name`、`:Name` 和 `:NAME`。群組和清單使用 `Lang::array` 讀取。缺少翻譯時回傳鍵本身。JSON 字面鍵在所選語言內查找，群組鍵可使用設定的備援語言。
 
+### 語言回退與缺少的鍵 {#translation-lookup-hooks}
+
+使用 `Lang::has(key, locale, true)` 檢查含回退語言的翻譯，使用 `Lang::hasForLocale(key, locale)` 僅檢查指定語言。兩種檢查都會略過缺鍵回呼。在應用程式作用域內登記掛鉤後，可調整分組翻譯的回退順序，JSON 字面鍵仍優先。缺鍵回呼傳回的文字會繼續處理預留位置，傳回 `None` 時使用原鍵。
+
+```rust
+use openrust::{support::facades::Lang, translation::TranslationResult};
+
+pub fn register_lookup_hooks() -> TranslationResult<()> {
+    Lang::determineLocalesUsing(|locales| {
+        let mut locales = locales.to_vec();
+        if locales.first().is_some_and(|locale| locale == "fr_CA") {
+            locales.insert(1, "fr".into());
+        }
+        locales
+    })?;
+
+    Lang::handleMissingKeysUsing(|missing| {
+        (missing.key == "messages.welcome").then(|| "Hello, :name".into())
+    })
+}
+```
+
 ## 複數
 
 使用 `trans_choice` 選擇形式。先比對 `{0}`、`[2,*]` 等明確條件，其餘情況依找到翻譯的地區複數規則選擇。函式會自動提供 `:count`。

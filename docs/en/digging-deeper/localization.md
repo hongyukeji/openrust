@@ -23,6 +23,28 @@ Put grouped translations in files such as `lang/en/messages.json`. Retrieve nest
 
 Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Use `Lang::array` for a group or list. A missing key is returned as text. Literal JSON keys are looked up in the selected locale. Grouped keys can fall back to the configured language.
 
+### Fallback and Missing Keys {#translation-lookup-hooks}
+
+Use `Lang::has(key, locale, true)` to check fallback translations and `Lang::hasForLocale(key, locale)` for an exact locale. Existence checks skip the missing-key handler. Register lookup hooks inside the application scope. The locale callback can reorder grouped lookups. A literal JSON match takes precedence. The missing-key handler can return replacement text, which then receives normal placeholder replacements. Returning `None` keeps the original key.
+
+```rust
+use openrust::{support::facades::Lang, translation::TranslationResult};
+
+pub fn register_lookup_hooks() -> TranslationResult<()> {
+    Lang::determineLocalesUsing(|locales| {
+        let mut locales = locales.to_vec();
+        if locales.first().is_some_and(|locale| locale == "fr_CA") {
+            locales.insert(1, "fr".into());
+        }
+        locales
+    })?;
+
+    Lang::handleMissingKeysUsing(|missing| {
+        (missing.key == "messages.welcome").then(|| "Hello, :name".into())
+    })
+}
+```
+
 ## Pluralization
 
 Use `trans_choice` to select a form. Explicit conditions such as `{0}` or `[2,*]` are tried first. Otherwise, the selector uses the matching locale’s plural rules. It provides `:count` automatically.

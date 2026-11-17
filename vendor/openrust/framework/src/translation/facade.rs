@@ -4,7 +4,9 @@ use std::{collections::BTreeMap, future::Future};
 
 use crate::{container::ServiceKey, support::facades::Facade};
 
-use super::{Lines, PluralCount, TranslationError, TranslationResult, Translator};
+use super::{
+    Lines, MissingTranslation, PluralCount, TranslationError, TranslationResult, Translator,
+};
 
 /// Accesses the translator for the current application.
 pub struct Lang;
@@ -47,6 +49,50 @@ impl Lang {
         Self::getFacadeRoot()
             .map_err(TranslationError::Unavailable)?
             .array(key, replacements, locale)
+    }
+
+    pub fn has(key: &str, locale: Option<&str>, fallback: bool) -> TranslationResult<bool> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .has(key, locale, fallback)
+    }
+
+    pub fn hasForLocale(key: &str, locale: Option<&str>) -> TranslationResult<bool> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .hasForLocale(key, locale)
+    }
+
+    pub fn handleMissingKeysUsing(
+        handler: impl Fn(MissingTranslation<'_>) -> Option<String> + Send + Sync + 'static,
+    ) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .handleMissingKeysUsing(handler);
+        Ok(())
+    }
+
+    pub fn clearMissingKeyHandler() -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .clearMissingKeyHandler();
+        Ok(())
+    }
+
+    pub fn determineLocalesUsing(
+        resolver: impl Fn(&[String]) -> Vec<String> + Send + Sync + 'static,
+    ) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .determineLocalesUsing(resolver);
+        Ok(())
+    }
+
+    pub fn clearLocaleResolver() -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .clearLocaleResolver();
+        Ok(())
     }
 
     pub fn getLocale() -> TranslationResult<String> {
