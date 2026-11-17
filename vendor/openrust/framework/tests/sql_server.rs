@@ -235,7 +235,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
                         table
                             .string("label]'", Some(20))
                             .nullable()
-                            .default("ignored")
+                            .default("replacement")
                             .change();
                         table.dropColumn(&["score", "amount"]);
                     })
@@ -244,7 +244,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
         })
         .await
         .unwrap();
-    assert_eq!(statements.len(), 4);
+    assert_eq!(statements.len(), 5);
     assert!(
         statements[0]
             .query
@@ -261,6 +261,10 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
     assert_eq!(
         statements[3].query,
         "alter table [dbo].[test_entries] drop column [score], [amount]"
+    );
+    assert_eq!(
+        statements[4].query,
+        "alter table [dbo].[test_entries] add default N'replacement' for [label]]']"
     );
 
     let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
@@ -301,7 +305,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
             table
                 .string("label", Some(20))
                 .nullable()
-                .default("ignored")
+                .default("replacement")
                 .change();
             table.dropColumn(&["score", "amount"]);
         })
@@ -317,7 +321,7 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
         ["label", "keeper"]
     );
     assert!(columns[0].nullable);
-    assert!(columns[0].default.is_none());
+    assert!(columns[0].default.is_some());
     assert!(columns[1].default.is_some());
     assert_eq!(db.scalar("select count(*) from sys.check_constraints where parent_object_id = object_id('changes.entries') and name = 'keeper_check'", &[]).await.unwrap(), 1.into());
     assert_eq!(
@@ -326,6 +330,24 @@ async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
             .unwrap(),
         "long value".into()
     );
+    db.statement("insert into changes.entries default values", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar(
+            "select count(*) from changes.entries where label = N'replacement'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        1.into()
+    );
+    schema
+        .table("changes.entries", |table| {
+            table.string("label", Some(20)).nullable().change();
+        })
+        .await
+        .unwrap();
     db.statement("insert into changes.entries default values", &[])
         .await
         .unwrap();
@@ -590,4 +612,154 @@ async fn sql_server_renames_tables_columns_and_indexes_without_losing_data() {
     schema.rename(&to, &from).await.unwrap();
     assert_eq!(db.table(&from).value("score").await.unwrap(), 7.into());
     schema.drop(&from).await.unwrap();
+}
+
+#[tokio::test]
+async fn sql_server_creates_and_drops_named_and_discovered_primary_keys() {
+    let root = tempfile::tempdir().unwrap();
+    let preview = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"driver":"sqlsrv","prefix":"app_","prefix_indexes":true}),
+            root.path(),
+        )
+        .unwrap();
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("dbo.entries", |table| {
+                        table.primary(&["id"], Some("pk]entries"));
+                        table.dropPrimaryNamed("pk]entries");
+                        table.dropPrimaryColumns(&["id", "tenant_id"]);
+                        table.dropPrimary();
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        statements[0].query,
+        "alter table [dbo].[app_entries] add constraint [pk]]entries] primary key ([id])"
+    );
+    assert_eq!(
+        statements[1].query,
+        "alter table [dbo].[app_entries] drop constraint [pk]]entries]"
+    );
+    assert_eq!(
+        statements[2].query,
+        "alter table [dbo].[app_entries] drop constraint [dbo_app_entries_id_tenant_id_primary]"
+    );
+    assert!(
+        statements[3]
+            .query
+            .contains("object_id(N'[dbo].[app_entries]') and type = 'PK'")
+    );
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"url":url,"prefix":"app_","prefix_indexes":true}),
+            root.path(),
+        )
+        .unwrap();
+    let suffix = fastrand::u64(..);
+    let parent_schema = format!("pk_test_{suffix:016x}");
+    db.unprepared(&format!("create schema {parent_schema}"))
+        .await
+        .unwrap();
+    let parent = format!("{parent_schema}.primary_parent");
+    let child = format!("dbo.primary_child_{suffix:016x}");
+    let key = format!("primary_]'父_{suffix:016x}");
+    let foreign = format!("foreign_{suffix:016x}");
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create(&parent, |table| {
+            table.integer("id");
+            table.integer("tenant_id");
+            table.primary(&["id"], Some(&key));
+        })
+        .await
+        .unwrap();
+    schema
+        .create(&child, |table| {
+            table.integer("parent_id");
+            table
+                .foreign(&["parent_id"], Some(&foreign))
+                .references("id")
+                .on(&parent);
+        })
+        .await
+        .unwrap();
+    db.table(&parent)
+        .insert(&[Record::from([
+            ("id".into(), 1.into()),
+            ("tenant_id".into(), 3.into()),
+        ])])
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .table(&parent, |table| table.dropPrimaryNamed(&key))
+            .await
+            .is_err()
+    );
+    assert!(schema.hasIndex(&parent, &key).await.unwrap());
+    schema
+        .table(&child, |table| table.dropForeign(&foreign))
+        .await
+        .unwrap();
+    schema
+        .table(&parent, |table| table.dropPrimary())
+        .await
+        .unwrap();
+    assert!(!schema.hasIndex(&parent, &key).await.unwrap());
+    assert!(
+        schema
+            .table(&parent, |table| table.dropPrimary())
+            .await
+            .is_err()
+    );
+    schema
+        .table(&parent, |table| {
+            table.primary(&["tenant_id", "id"], None);
+        })
+        .await
+        .unwrap();
+    let index = schema
+        .getIndexes(&parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|index| index.primary)
+        .unwrap();
+    assert_eq!(index.columns, [Some("tenant_id".into()), Some("id".into())]);
+    schema
+        .table(&parent, |table| {
+            table.dropPrimaryColumns(&["tenant_id", "id"])
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table(&parent).value("tenant_id").await.unwrap(),
+        3.into()
+    );
+    assert!(
+        !schema
+            .getIndexes(&parent)
+            .await
+            .unwrap()
+            .iter()
+            .any(|index| index.primary)
+    );
+    schema.drop(&child).await.unwrap();
+    schema.drop(&parent).await.unwrap();
+    db.statement(&format!("drop schema {parent_schema}"), &[])
+        .await
+        .unwrap();
 }

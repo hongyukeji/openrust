@@ -1077,7 +1077,7 @@ Inside a migration, override [`withinTransaction()`](#migration-transactions) to
 
 #### Changing and Dropping SQL Server Columns {#sql-server-column-changes}
 
-On SQL Server, `change()` removes the column’s current default constraint before altering its type and nullability. Laravel also omits `default()` from the SQL Server change statement. To set a new default, add it separately with `ALTER TABLE … ADD DEFAULT … FOR …` in the same migration.
+On SQL Server, `change()` removes the column’s current default constraint before altering its type and nullability. When you supply `default()`, the builder applies the replacement in a separate `ADD DEFAULT … FOR …` statement in the same migration. Leaving out `default()` removes the old default.
 
 When `dropColumn()` removes columns, the builder first removes their default constraints and column-level checks. Remove any table-level constraints that depend on those columns before dropping them.
 
@@ -1120,6 +1120,20 @@ async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
     cx.getSchemaBuilder().table("finance.fixture", |table| {
         table.computed("twice", "quantity * 2").persisted().change();
     }).await
+}
+```
+
+#### SQL Server Primary Key Constraints {#sql-server-primary-key-constraints}
+
+Use `primary(columns, Some(name))` to create a named primary key on a new or existing table. Use `dropPrimaryNamed(name)` to remove it. Supply ordered columns to `dropPrimaryColumns()` if the key uses the conventional name. The no-argument `dropPrimary()` looks up the current primary key on the selected table. SQL Server rejects the operation while a foreign key references that primary key.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn remove_primary_key(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.child", |table| table.dropForeign("fixture_foreign")).await?;
+    schema.table("finance.fixture", |table| table.dropPrimaryNamed("fixture_key")).await
 }
 ```
 

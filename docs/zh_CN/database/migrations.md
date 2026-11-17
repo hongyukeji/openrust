@@ -1077,7 +1077,7 @@ Schema::table("documents", |table| {
 
 #### 修改和删除 SQL Server 列 {#sql-server-column-changes}
 
-SQL Server 的 `change()` 会先移除现有默认约束，再修改列类型和空值约束。Laravel 在 SQL Server 的改列语句中也会省略 `default()`。如需设置新默认值，在同一迁移中另用 `ALTER TABLE … ADD DEFAULT … FOR …`。
+SQL Server 的 `change()` 会先移除现有默认约束，再修改列类型和空值约束。如果声明了 `default()`，构建器会在同一迁移中用单独的 `ADD DEFAULT … FOR …` 语句设置新值。省略 `default()` 会移除旧默认值。
 
 用 `dropColumn()` 删除列时，构建器会先移除这些列的默认约束和列级检查约束。引用这些列的表级约束需要先显式移除。
 
@@ -1120,6 +1120,20 @@ async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
     cx.getSchemaBuilder().table("finance.fixture", |table| {
         table.computed("twice", "quantity * 2").persisted().change();
     }).await
+}
+```
+
+#### SQL Server 主键约束 {#sql-server-primary-key-constraints}
+
+用 `primary(columns, Some(name))` 在新表或现有表上创建具名主键，再用 `dropPrimaryNamed(name)` 删除。使用约定名称的主键可通过 `dropPrimaryColumns()` 传入有序列名来删除。无参 `dropPrimary()` 会查询目标表上的实际主键。仍有外键引用该主键时，SQL Server 会拒绝删除。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn remove_primary_key(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.child", |table| table.dropForeign("fixture_foreign")).await?;
+    schema.table("finance.fixture", |table| table.dropPrimaryNamed("fixture_key")).await
 }
 ```
 

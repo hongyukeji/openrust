@@ -1077,7 +1077,7 @@ Schema::table("documents", |table| {
 
 #### 修改及刪除 SQL Server 欄位 {#sql-server-column-changes}
 
-SQL Server 的 `change()` 會先移除現有預設約束，再修改欄位型別與空值約束。Laravel 在 SQL Server 的改欄位陳述式中也會省略 `default()`。如需設定新預設值，請在同一遷移中另用 `ALTER TABLE … ADD DEFAULT … FOR …`。
+SQL Server 的 `change()` 會先移除現有預設約束，再修改欄位型別與空值約束。如果宣告了 `default()`，建構器會在同一遷移中用獨立的 `ADD DEFAULT … FOR …` 陳述式設定新值。省略 `default()` 會移除舊預設值。
 
 用 `dropColumn()` 刪除欄位時，建構器會先移除這些欄位的預設約束與欄位層級檢查約束。引用這些欄位的資料表層級約束需要先明確移除。
 
@@ -1120,6 +1120,20 @@ async fn persist_total(cx: &mut MigrationContext) -> DatabaseResult<()> {
     cx.getSchemaBuilder().table("finance.fixture", |table| {
         table.computed("twice", "quantity * 2").persisted().change();
     }).await
+}
+```
+
+#### SQL Server 主鍵約束 {#sql-server-primary-key-constraints}
+
+用 `primary(columns, Some(name))` 在新表或既有資料表建立具名主鍵，再使用 `dropPrimaryNamed(name)` 移除。使用慣例名稱的主鍵可透過 `dropPrimaryColumns()` 傳入依序排列的欄位名稱來移除。無參數的 `dropPrimary()` 會查詢目標資料表上的實際主鍵。仍有外鍵參照該主鍵時，SQL Server 會拒絕移除。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn remove_primary_key(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    let mut schema = cx.getSchemaBuilder();
+    schema.table("finance.child", |table| table.dropForeign("fixture_foreign")).await?;
+    schema.table("finance.fixture", |table| table.dropPrimaryNamed("fixture_key")).await
 }
 ```
 

@@ -255,7 +255,11 @@ impl Grammar {
                             "primary key modifiers on create",
                         ));
                     }
-                    constraints.push(self.primary_key(&index)?);
+                    constraints.push(if self.sql_server() {
+                        self.sql_server_primary_key(table, &index)?
+                    } else {
+                        self.primary_key(&index)?
+                    });
                 }
                 Command::Index(index) => self.add_index(table, &index, &mut indexes)?,
                 Command::Foreign(foreign)
@@ -347,6 +351,7 @@ impl Grammar {
         let qualified = self.qualified(table)?;
         let mut sql = Vec::new();
         let mut starting_values = Vec::new();
+        let mut defaults = Vec::new();
         let mut indexes = Vec::new();
         let mut commands = blueprint.commands.into_iter();
         while let Some(mut command) = commands.next() {
@@ -379,6 +384,15 @@ impl Grammar {
                         false,
                     )?);
                     sql.push(format!("alter table {qualified} alter column {definition}"));
+                    if let Some(value) = self.column_default(&column)
+                        && !matches!(value, DefaultValue::Value(Value::Null))
+                    {
+                        defaults.push(format!(
+                            "alter table {qualified} add default {} for {}",
+                            self.default_value(value, &column.kind)?,
+                            self.identifier(&column.name)?
+                        ));
+                    }
                     self.column_indexes(table, &column, &column.name, &mut indexes)?;
                 }
                 Command::Column(mut column) => {
@@ -523,6 +537,9 @@ impl Grammar {
                 Command::DropIndex(IndexType::Primary, _) if self.mysql() => {
                     sql.push(format!("alter table {qualified} drop primary key"));
                 }
+                Command::DropIndex(IndexType::Primary, name) if self.sql_server() => {
+                    sql.push(self.sql_server_drop_primary(&qualified, &name)?);
+                }
                 Command::DropIndex(IndexType::Primary, _) => {
                     return Err(DatabaseError::UnsupportedSchema(
                         "SQLite primary key drop requires a table rebuild",
@@ -545,12 +562,21 @@ impl Grammar {
         }
         sql.extend(indexes);
         sql.extend(starting_values);
+        sql.extend(defaults);
         Ok(sql)
     }
 
     fn drop_index(&self, table: &Table, kind: IndexType, name: &str) -> DatabaseResult<String> {
         if kind == IndexType::Vector && !self.postgres() && !self.mariadb() {
             return Err(DatabaseError::UnsupportedSchema("vector index"));
+        }
+        if kind == IndexType::Primary {
+            if self.sql_server() {
+                return self.sql_server_drop_primary(&self.qualified(table)?, name);
+            }
+            return Err(DatabaseError::UnsupportedSchema(
+                "primary key drop by columns",
+            ));
         }
         if self.mysql() {
             Ok(format!(
@@ -639,6 +665,15 @@ impl Grammar {
         index: &IndexDefinition,
         statements: &mut Vec<String>,
     ) -> DatabaseResult<()> {
+        if self.sql_server() && index.kind == IndexType::Primary {
+            self.ddl_options(index.inplace.then_some("inplace"), index.lock.as_deref())?;
+            statements.push(format!(
+                "alter table {} add {}",
+                self.qualified(table)?,
+                self.sql_server_primary_key(table, index)?
+            ));
+            return Ok(());
+        }
         if self.postgres() && index.kind == IndexType::Unique {
             return self.add_postgres_unique(table, index, statements);
         }
@@ -649,6 +684,34 @@ impl Grammar {
         }
         statements.push(self.index_sql(table, index)?);
         Ok(())
+    }
+
+    fn sql_server_primary_key(
+        &self,
+        table: &Table,
+        index: &IndexDefinition,
+    ) -> DatabaseResult<String> {
+        let default = self.conventional_name(table, &index.columns, "primary");
+        let name = self.identifier(index.name.as_deref().unwrap_or(&default))?;
+        Ok(format!("constraint {name} {}", self.primary_key(index)?))
+    }
+
+    fn sql_server_drop_primary(&self, table: &str, name: &str) -> DatabaseResult<String> {
+        if !name.is_empty() {
+            return Ok(format!(
+                "alter table {table} drop constraint {}",
+                self.identifier(name)?
+            ));
+        }
+        let object = self.string(table)?;
+        let drop = self.string(&format!("alter table {table} drop constraint "))?;
+        Ok(format!(
+            "declare @name sysname = (select name from sys.key_constraints \
+                 where parent_object_id = object_id({object}) and type = 'PK'); \
+             if @name is null throw 50000, N'Primary key constraint not found', 1; \
+             declare @sql nvarchar(max) = {drop} + quotename(@name); \
+             exec sys.sp_executesql @sql"
+        ))
     }
 
     fn add_postgres_unique(
@@ -945,6 +1008,7 @@ impl Grammar {
         )?;
         if !self.mysql()
             && !self.postgres()
+            && !self.sql_server()
             && target.schema.is_some()
             && target.schema != table.schema
         {
@@ -952,7 +1016,7 @@ impl Grammar {
                 "SQLite cross-schema foreign key",
             ));
         }
-        let reference = if self.mysql() || self.postgres() {
+        let reference = if self.mysql() || self.postgres() || self.sql_server() {
             self.qualified(&target)?
         } else {
             self.identifier(&target.name)?

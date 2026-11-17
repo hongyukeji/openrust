@@ -497,7 +497,7 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 
 ## SQL Server 原生改列与默认约束
 
-- 对照固定 Laravel 的 `compileChange`、`compileDropColumn` 和 `compileDropDefaultConstraint`。改列先按 Schema 限定的物理表名查询系统目录并删除现有默认约束，再执行原生 `ALTER COLUMN`。删除列先移除该列的默认约束和列级检查，表级约束由迁移显式处理。沿用 Laravel 的 `default()` 不参与 SQL Server 改列规则，新默认值可在同一迁移另行设置。Rust 对系统目录返回的约束名使用 `QUOTENAME`，处理包含方括号的原生名称。旧版 `v0.x` 未找到可复用的 SQL Server 默认约束 DDL。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php#L239)
+- 对照固定 Laravel 的 `compileChange`、`compileDropColumn` 和 `compileDropDefaultConstraint`。改列先按 Schema 限定的物理表名查询系统目录并删除现有默认约束，再执行原生 `ALTER COLUMN`。删除列先移除该列的默认约束和列级检查，表级约束由迁移显式处理。该批仅覆盖移除默认约束，显式默认值的独立 DDL 已在[后续批次](#sql-server-主键约束与改列默认值)补齐。Rust 对系统目录返回的约束名使用 `QUOTENAME`，处理包含方括号的原生名称。旧版 `v0.x` 未找到可复用的 SQL Server 默认约束 DDL。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php#L239)
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过三项 Schema／TDS 用例及迁移事务用例。验证默认约束名转义、列级检查移除、表级检查和其他列默认值保留，以及收窄失败后原数据和旧默认约束恢复。实际 Artisan 预演、失败后账本无记录、成功重跑及回滚通过。HTTP 验证去除默认约束和删列，以及回滚后列与默认约束恢复。
 - MySQL 8.4.13 改列及表目录回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。原生 Linux x86_64 与 SQL Server 2017 仍待发布复验。SQL Server 计算列的持久化方式切换尚待对齐。
 - 核心账本维持 62/66。临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 104.38 GB（97.21 GiB）。提交前周额度剩余 42%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-change.xipEUxRa`。
@@ -521,3 +521,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过五项 Schema／TDS 和一项迁移事务回归。覆盖带前缀的表以及含中文、方括号和引号的对象名，重命名后能按新名读取原行和索引，反向改名正常。真实 Artisan 验证预演、索引同名失败时撤销先前列重命名且账本无新增、成功重试及回滚。实际 HTTP 前后均读取原值及对应索引名。
 - MySQL 8.4.13 三项回归、全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。SQL Server 主键约束的删除仍待对齐，SQL Server 2017 及原生 Linux x86_64 待发布复验。核心账本维持 62/66。
 - 临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 102.05 GB（95.04 GiB）。提交前周额度剩余 41%。验收日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-rename.IZhrxcXS`。
+
+## SQL Server 主键约束与改列默认值
+
+- 对照固定 Laravel 的 `compilePrimary`、`compileDropPrimary` 和 `compileDefault`。创建和修改表时支持具名主键，按名称或约定列序删除约束。Rust 保留无参 `dropPrimary()`，从 SQL Server 系统目录查找实际主键，包含服务器自动命名的约束。修复改列时忽略显式默认值的差异，改列后通过独立 DDL 添加新默认约束。外键 DDL 保留目标 Schema。旧版 `v0.x` 未找到可直接复用的对应 SQL Server 实现。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php#L257)
+- SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过六项 Schema／TDS 和一项迁移事务回归。实测具名和自动发现主键、复合主键列排序、跨 Schema 外键、缺失及被引用的主键删除失败，以及显式默认值替换与省略时移除。真实 Artisan 失败迁移保留旧默认约束与数据，账本无新增。重试后 HTTP 读取新默认值和已移除的主键，回滚后恢复主键、外键和旧默认值。
+- MySQL 8.4.13 主键、默认表达式和表目录回归，全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。核心账本维持 62/66。SQL Server 2017 和原生 Linux x86_64 待发布复验。
+- 非法外键目标诊断曾观察到 SQL Server 自动撤销事务后，后续回滚错误覆盖了原始错误。实际恢复迁移已通过，TDS 自动撤销后的原始错误保留问题列入 02-02。临时数据库、证书及本批产物已回收，项目盘可用空间净增 3.96 GB（3.69 GiB），剩余 102.00 GB（94.99 GiB）。提交前周额度剩余 41%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-primary.LOLH47cH`。

@@ -717,6 +717,17 @@ impl Blueprint {
             .push(Command::DropIndex(IndexType::Primary, String::new()));
     }
 
+    /// Drops a primary key by its constraint name on SQL Server.
+    pub fn dropPrimaryNamed(&mut self, name: &str) {
+        self.commands
+            .push(Command::DropIndex(IndexType::Primary, name.into()));
+    }
+
+    /// Drops the primary key named by the table and ordered columns on SQL Server.
+    pub fn dropPrimaryColumns(&mut self, columns: &[&str]) {
+        self.drop_index_columns(IndexType::Primary, columns);
+    }
+
     pub fn dropFullText(&mut self, name: &str) {
         self.commands
             .push(Command::DropIndex(IndexType::FullText, name.into()));
