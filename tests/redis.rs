@@ -1166,6 +1166,28 @@ async fn redis_cluster_tags_flush_and_prune() {
     let invalid_bytes = b"\xffinvalid";
     let (prefix, _) = paged_index.rsplit_once("index:").unwrap();
     let registry = format!("{prefix}indexes");
+    let expired_only = plain.tags(&["expired-only"]).unwrap();
+    assert!(expired_only.forever("gone", &6.into()).await.unwrap());
+    let expired_index = index("expired-only").await;
+    let expired_key = expired_only.taggedItemKey("gone").await.unwrap();
+    connection
+        .command("DEL", &[registry.as_bytes(), expired_key.as_bytes()])
+        .await
+        .unwrap();
+    assert!(!registered(&paged_index).await);
+    // A subsequent tagged write recreates only part of the lost registration set.
+    let recent = plain.tags(&["recent"]).unwrap();
+    assert!(recent.forever("live", &7.into()).await.unwrap());
+    let recent_index = index("recent").await;
+    assert!(registered(&recent_index).await);
+    assert!(!registered(&expired_index).await);
+    plain.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(count(&paged_index).await, RedisValue::Int(160));
+    assert!(registered(&paged_index).await);
+    assert!(!exists(&expired_index).await);
+    assert!(!registered(&expired_index).await);
+    assert!(registered(&recent_index).await);
+    assert_eq!(recent.get("live").await.unwrap(), Some(7.into()));
     let foreign_tag = foreign.getTags().tagKey("artists");
     let foreign_id = foreign.getTags().tagId("artists").await.unwrap();
     let foreign_index = format!(
@@ -1202,7 +1224,7 @@ async fn redis_cluster_tags_flush_and_prune() {
         )
         .await
         .unwrap();
-    assert_eq!(count(&paged_index).await, RedisValue::Int(322));
+    assert_eq!(count(&paged_index).await, RedisValue::Int(162));
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&paged_index).await, RedisValue::Int(160));
     for member in [

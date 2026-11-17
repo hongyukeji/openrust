@@ -139,3 +139,10 @@
 - 隔离基线 `0c8e828d7` 的 `sh tests/redis_cluster.sh` 在真实 Redis 8.10.3 上五项通过。新增回归先迁移有效值，保留源节点的索引与到期引用。指定标签和整个储存的清理均返回 `TRYAGAIN`，失败批次保留两条引用。迁移完整个槽后清理只剩有效引用，随后按标签清空仍能移除有效值。真实单机 Redis 标签回归通过。
 - 独立三主节点集群上运行两个 HTTP 进程及独立 Artisan。拆槽期间 `flushStale()` 的 HTTP 调用返回 500，`cache:prune-stale-tags redis` 退出码为 1，两个标签仍各有两条引用。完成槽迁移后，同一 HTTP 请求仅修剪指定标签，Artisan 再修剪另一标签。指定与默认存储的命令都以 0 退出，重复清理成功，跨进程读取有效值正常。最后执行 `cache:clear redis --tags=artists`，旧值从 Redis 删除，普通值与其他标签保留。根应用的 `./artisan inspire` 通过。
 - Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。系统默认工具链运行的 `./artisan inspire` 有 macOS 链接器 unwind 表大小警告，命令仍正常退出。Rust 1.94.0 构建的二进制直接运行 `artisan inspire` 也通过。临时 Redis、本批 6.3 GiB 隔离 Cargo 产物和文档缓存已回收。项目磁盘可用 61.06 GB（56.86 GiB），周额度剩余 48%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-09-tag-migration.nswsel7B`。
+
+## Redis Cluster 标签登记丢失后的恢复
+
+- 固定 Laravel v13.40.0 的 `RedisStore::currentTags` 通过连接与存储前缀扫描索引，再由 `flushStaleTags` 分批修剪。复核旧版 `6d1a81924` 的 `redis_tags.rs` 与 `tag_identity.rs`，沿用分批清理和前缀隔离。OpenRust 的存储级清理在标签槽主节点执行有序集合的前缀扫描，补录仍存在的合法索引，再用原有同槽 Lua 清理。即使登记集合已经被后续写入部分重建，也能找回漏登索引。 [固定 Laravel RedisStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisStore.php#L326)
+- 在隔离基线 `598451f45` 上，用真实 Redis 8.10.3 原生命令删除登记集合模拟淘汰，再通过正常写入部分重建。在基线中，当前仍有 160 个有效值的索引保留了全部 320 条引用。修复后仅保留 160 条有效引用，空索引及其登记被回收，另一个前缀的索引和值仍可使用。`sh tests/redis_cluster.sh` 五项通过，真实单机 Redis 标签回归通过。
+- 双进程 HTTP 验证自然过期和跨进程读写。独立 Artisan 验证 `cache:prune-stale-tags redis` 找回两个漏登索引、剔除过期引用并保留有效值，默认存储清理可重复执行。另复验槽迁移期间 HTTP 返回 500、Artisan 返回 1，迁移完成后两者重试成功。根应用 `./artisan inspire` 通过。
+- Rust 1.94.0 工作区格式、严格 Clippy、三语站点构建、12 项通用和 6 项缓存文档浏览器检查通过。已回收临时 Redis、4.1 GiB 本批隔离 Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-03-09-registry-recovery.RkCPiCmn`。

@@ -147,6 +147,8 @@ impl RedisTagSet {
     pub(super) async fn cluster_prune(&self) -> CacheResult<()> {
         let registry = self.registry();
         let index_prefix = format!("{}index:", self.prefix);
+        self.recover_cluster_indexes(&registry, &index_prefix)
+            .await?;
         let mut cursor = 0_u64;
         loop {
             let (next, indexes): (u64, Vec<Vec<u8>>) = self
@@ -160,10 +162,7 @@ impl RedisTagSet {
                 .await?;
             let mut invalid = Vec::new();
             for member in &indexes {
-                let Some((index, tag, id)) = std::str::from_utf8(member).ok().and_then(|index| {
-                    let (tag, id) = index.strip_prefix(&index_prefix)?.split_once(':')?;
-                    (valid_digest(tag, 64) && valid_digest(id, 32)).then_some((index, tag, id))
-                }) else {
+                let Some((index, tag, id)) = cluster_index(member, &index_prefix) else {
                     invalid.push(member.as_slice());
                     continue;
                 };
@@ -173,6 +172,30 @@ impl RedisTagSet {
             }
             for batch in invalid.chunks(BATCH_SIZE) {
                 self.query::<u64>(::redis::cmd("SREM").arg(&registry).arg(batch))
+                    .await?;
+            }
+            if next == 0 {
+                return Ok(());
+            }
+            cursor = next;
+        }
+    }
+
+    async fn recover_cluster_indexes(&self, registry: &str, index_prefix: &str) -> CacheResult<()> {
+        let pattern = self.index_pattern();
+        let mut cursor = 0;
+        loop {
+            let (next, keys) = self
+                .connection
+                .scan_slot_sorted_sets(registry, &pattern, cursor, BATCH_SIZE)
+                .await
+                .map_err(backend)?;
+            let indexes: Vec<_> = keys
+                .iter()
+                .filter_map(|key| cluster_index(key, index_prefix).map(|(index, _, _)| index))
+                .collect();
+            for batch in indexes.chunks(BATCH_SIZE) {
+                self.query::<u64>(::redis::cmd("SADD").arg(registry).arg(batch))
                     .await?;
             }
             if next == 0 {
@@ -251,6 +274,12 @@ impl RedisTagSet {
     async fn query<T: FromRedisValue>(&self, command: &Cmd) -> CacheResult<T> {
         self.connection.query_slot(command).await.map_err(backend)
     }
+}
+
+fn cluster_index<'a>(member: &'a [u8], prefix: &str) -> Option<(&'a str, &'a str, &'a str)> {
+    let index = std::str::from_utf8(member).ok()?;
+    let (tag, id) = index.strip_prefix(prefix)?.split_once(':')?;
+    (valid_digest(tag, 64) && valid_digest(id, 32)).then_some((index, tag, id))
 }
 
 fn cluster_script(script: &str, key_count: usize) -> Cmd {

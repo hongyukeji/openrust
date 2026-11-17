@@ -225,6 +225,8 @@ To remove stale references from selected Redis tags, call `Cache::tags(&["daily"
 
 Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to expired or deleted values. This command preserves live values. Pass a store name, or omit it to use the default store.
 
+On Redis Cluster, store-wide pruning also discovers tag indexes on the primary that owns the store's tag slot. If Redis evicts the index registry, pruning rediscovers surviving indexes, removes stale references, and keeps live values.
+
 During Redis Cluster slot migration, Redis may return `TRYAGAIN` when a cleanup batch references missing keys or its keys are split between nodes. When it does, `flushStale()` returns an error and `cache:prune-stale-tags` exits with status 1. After slot migration completes, run the same cleanup again. Batches that already completed stay applied, and retrying skips references that were already removed.
 
 If a Redis Cluster tag flush is interrupted, run `./artisan cache:clear redis --tags=artists` again to finish removing the retired values. A retry drains valid retired generations and discards malformed generation identifiers. If a Redis key has an unexpected type, the command exits with status 1. Restore the expected key type before retrying.

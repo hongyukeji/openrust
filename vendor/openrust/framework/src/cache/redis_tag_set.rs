@@ -100,14 +100,7 @@ impl RedisTagSet {
         if self.connection.is_cluster() {
             return self.cluster_prune().await;
         }
-        let mut pattern = String::new();
-        for character in self.prefix.chars() {
-            if matches!(character, '*' | '?' | '[' | ']' | '\\') {
-                pattern.push('\\');
-            }
-            pattern.push(character);
-        }
-        pattern.push_str("index:*");
+        let pattern = self.index_pattern();
         let value_prefix = format!("{}value:", self.prefix);
         let mut cursor = 0;
         loop {
@@ -124,6 +117,18 @@ impl RedisTagSet {
             }
             cursor = next;
         }
+    }
+
+    fn index_pattern(&self) -> String {
+        let mut pattern = String::new();
+        for character in self.prefix.chars() {
+            if matches!(character, '*' | '?' | '[' | ']' | '\\') {
+                pattern.push('\\');
+            }
+            pattern.push(character);
+        }
+        pattern.push_str("index:*");
+        pattern
     }
 
     pub(super) async fn prune_selected(&self) -> CacheResult<()> {

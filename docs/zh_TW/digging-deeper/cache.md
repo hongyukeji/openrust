@@ -225,6 +225,8 @@ async fn store_report() -> Result<bool, CacheError> {
 
 執行 `./artisan cache:prune-stale-tags redis` 可清除已到期或已刪除值的索引參照，仍有效的值會保留。可指定儲存名稱，或省略以使用預設儲存。
 
+在 Redis Cluster 中，儲存層級的清理也會在負責該儲存標籤插槽的主節點尋找標籤索引。若 Redis 淘汰了索引登記集合，清理可重新發現仍存在的索引、移除過期參照並保留有效值。
+
 Redis Cluster 插槽遷移期間，清理批次涉及缺少的鍵，或同一批次的鍵分布於不同節點時，Redis 可能回傳 `TRYAGAIN`。此時 `flushStale()` 回傳錯誤，`cache:prune-stale-tags` 以狀態碼 1 結束。插槽遷移完成後可重試同一清理。已完成的批次會保留結果，重試時會略過已移除的參照。
 
 如果 Redis Cluster 中的標籤清空中斷，可再次執行 `./artisan cache:clear redis --tags=artists`，繼續刪除舊世代的值。重試時會清理有效的退役世代，並移除格式無效的世代識別碼。如果 Redis 鍵型別異常，命令會以狀態碼 1 結束。恢復正確的鍵型別後即可重試。

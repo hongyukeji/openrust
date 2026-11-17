@@ -225,6 +225,8 @@ async fn store_report() -> Result<bool, CacheError> {
 
 运行 `./artisan cache:prune-stale-tags redis` 可清理已过期或已删除值的索引引用，仍有效的值保留。可显式指定存储名，也可省略以使用默认存储。
 
+在 Redis Cluster 中，存储级清理还会在负责该存储标签槽的主节点查找标签索引。如果 Redis 淘汰了索引登记集合，清理可重新发现仍存在的索引，移除过期引用并保留有效值。
+
 Redis Cluster 槽迁移期间，清理批次涉及缺失的键，或同一批次的键分布在不同节点时，Redis 可能返回 `TRYAGAIN`。此时 `flushStale()` 返回错误，`cache:prune-stale-tags` 以状态码 1 退出。槽迁移完成后可重试同一清理。已完成的批次保留结果，重试会跳过已移除的引用。
 
 如果 Redis Cluster 中的标签清空中断，可再次执行 `./artisan cache:clear redis --tags=artists`，继续删除旧代际的值。重试时会清理有效的退役代际，并移除格式无效的代际标识。如果 Redis 键类型异常，命令以状态码 1 退出。恢复正确的键类型后即可重试。
