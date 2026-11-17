@@ -24,6 +24,11 @@ pub trait Middleware: Any + Send + Sync {
         Any::type_id(self)
     }
 
+    /// Returns the concrete middleware type for diagnostic output.
+    fn middleware_type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     /// Exposes the optional post-response lifecycle hook.
     fn terminable(&self) -> Option<&dyn TerminableMiddleware> {
         None

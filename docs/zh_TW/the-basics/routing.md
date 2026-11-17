@@ -46,6 +46,12 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list --json --method=HEAD
 ```
 
+用 `-v` 查看各路由宣告的中介層。用 `-vv` 展開中介層群組，依請求執行順序顯示型別名稱，並套用排除規則及保留別名參數。輸出範圍為路由中介層。使用 `--json` 時，`middleware` 維持陣列，`--middleware` 依目前詳細等級的內容篩選。
+
+```sh
+./artisan route:list -vv --json --middleware=SubstituteBindings
+```
+
 ## 路由參數
 
 必要參數寫成 `{id}`，尾端的選用參數寫成 `{id?}`，預設值使用 `defaults` 設定。參數未符合限制時，繼續比對其他路由，均未比對成功則回傳 404。

@@ -46,6 +46,12 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list --json --method=HEAD
 ```
 
+用 `-v` 查看每条路由声明的中间件。用 `-vv` 展开中间件组，按请求执行顺序显示类型名称，并应用排除规则和保留别名参数。输出范围为路由中间件。使用 `--json` 时，`middleware` 仍是数组，`--middleware` 按当前详细级别的内容筛选。
+
+```sh
+./artisan route:list -vv --json --middleware=SubstituteBindings
+```
+
 ## 路由参数
 
 必填参数写成 `{id}`，末尾的可选参数写成 `{id?}`，默认值用 `defaults` 设置。参数不符合约束时，继续匹配其他路由，均未匹配则返回 404。

@@ -46,6 +46,12 @@ Run `route:list` to see active routes. Use `--json` for structured output. Filte
 ./artisan route:list --json --method=HEAD
 ```
 
+Use `-v` to show the middleware declared on each route. Use `-vv` to expand groups and see the middleware type names in request order, with exclusions applied and alias parameters retained. The output covers route middleware. With `--json`, `middleware` remains an array, and `--middleware` filters the view selected by the verbosity level.
+
+```sh
+./artisan route:list -vv --json --middleware=SubstituteBindings
+```
+
 ## Route Parameters
 
 Use `{id}` for a required parameter or `{id?}` for a trailing optional parameter. Set defaults with `defaults`. A parameter that fails a route constraint falls through to other routes or returns 404.

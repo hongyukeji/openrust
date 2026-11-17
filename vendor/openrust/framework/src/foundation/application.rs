@@ -212,14 +212,34 @@ impl Application {
             .push(register);
     }
 
-    pub(crate) fn route_info(&self) -> Vec<crate::routing::RouteInfo> {
-        self.shared
+    pub(crate) fn route_info(
+        &self,
+        expanded_middleware: bool,
+    ) -> Result<Vec<crate::routing::RouteInfo>, BootstrapError> {
+        let middleware = if expanded_middleware {
+            let mut middleware = self.configured_middleware().clone();
+            let config = self
+                .configuration_repository()
+                .map_err(|source| BootstrapError::ContainerFailed { source })?;
+            middleware
+                .configure_web(config.as_ref())
+                .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
+            Some(middleware)
+        } else {
+            None
+        };
+        let routes = self
+            .shared
             .routes
             .lock()
-            .expect("application routes lock poisoned")
-            .as_ref()
-            .map(Router::getRoutes)
-            .unwrap_or_default()
+            .expect("application routes lock poisoned");
+        match (routes.as_ref(), middleware) {
+            (Some(router), Some(middleware)) => router
+                .resolved_route_info(&middleware.registry)
+                .map_err(|source| BootstrapError::RoutingFailed { source }),
+            (Some(router), None) => Ok(router.getRoutes()),
+            (None, _) => Ok(Vec::new()),
+        }
     }
 
     pub(crate) fn configuration_repository(

@@ -180,6 +180,29 @@ impl MiddlewareRegistry {
         Ok(stack)
     }
 
+    pub(super) fn describe_stack(&self, stack: &MiddlewareStack) -> Vec<String> {
+        let parameters: HashMap<_, _> = self
+            .parameterized_aliases
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .filter_map(|(alias, instance)| {
+                let (_, parameters) = alias.split_once(':')?;
+                Some((middleware_identity(instance), parameters.to_owned()))
+            })
+            .collect();
+        stack
+            .iter()
+            .map(|instance| {
+                let kind = instance.middleware_type_name();
+                parameters.get(&middleware_identity(instance)).map_or_else(
+                    || kind.to_owned(),
+                    |parameters| format!("{kind}:{parameters}"),
+                )
+            })
+            .collect()
+    }
+
     pub(crate) fn resolve_stack(
         &self,
         entries: &[MiddlewareEntry],

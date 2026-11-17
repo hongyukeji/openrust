@@ -7,7 +7,11 @@ use openrust::{
         http::{Kernel as _, Middleware},
         routing::Registrar as _,
     },
-    foundation::{Application, configuration::Routing, http::Kernel},
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+        http::Kernel,
+    },
     http::{Body, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{MiddlewareEntry, RouteGroup, Router},
     support::facades::Broadcast,
@@ -579,11 +583,11 @@ fn show_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
     })
 }
 
-async fn network_kernel() -> Kernel {
+fn network_application(builder: ApplicationBuilder) -> ApplicationBuilder {
     use openrust::routing::MiddlewareEntry;
     use std::any::TypeId;
 
-    let app = Application::configure(std::env::current_dir().unwrap())
+    builder
         .withMiddleware(|middleware| {
             middleware.append(ranked::<2>("global", false));
             middleware.alias("late", ranked::<2>("late", false));
@@ -646,9 +650,18 @@ async fn network_kernel() -> Kernel {
             router.get("/fixed/{id?}/end", show_route)?;
             router.get("/uuid/{id}", show_route)?.where_uuid("id")?;
             router.get("/ulid/{id}", show_route)?.where_ulid("id")?;
+            router
+                .get("/diagnostics", show_route)?
+                .middleware_name("signed:relative")
+                .middleware_name("stop")
+                .withoutMiddleware("stop");
             router.get("/{id?}", show_route)?.where_number("id")?;
             Ok(router)
         }))
+}
+
+async fn network_kernel() -> Kernel {
+    let app = network_application(Application::configure(std::env::current_dir().unwrap()))
         .create()
         .unwrap();
     let mut kernel = Kernel::new(app);
@@ -680,6 +693,64 @@ async fn network_handler(
         .join(",");
     parts.headers.insert("x-trace", events.parse().unwrap());
     axum::response::Response::from_parts(parts, body)
+}
+
+#[tokio::test]
+async fn route_list_describes_the_effective_middleware_order() {
+    use openrust::{routing::middleware::ValidateSignature, testing::TestApp};
+    use serde_json::{Value, json};
+    use std::any::type_name;
+
+    let mut app = TestApp::create(network_application).unwrap();
+    let regular = app.artisan(["route:list", "--path=profiles/{id?}"]).await;
+    regular.assertSuccessful();
+    assert!(!regular.stdout.contains("outer"));
+    let declared = app
+        .artisan(["route:list", "--path=profiles/{id?}", "-v"])
+        .await;
+    declared.assertSuccessful();
+    assert!(declared.stdout.contains("outer"));
+    assert!(declared.stdout.contains("late"));
+
+    let expanded = app
+        .artisan(["route:list", "--path=profiles/{id?}", "--json", "-vv"])
+        .await;
+    expanded.assertSuccessful();
+    let routes: Vec<Value> = serde_json::from_str(&expanded.stdout).unwrap();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(
+        routes[0]["middleware"],
+        json!([
+            type_name::<Ranked<0>>(),
+            type_name::<Ranked<2>>(),
+            type_name::<Record>(),
+            type_name::<Record>()
+        ])
+    );
+
+    let diagnostics = app
+        .artisan([
+            "route:list",
+            "--path=diagnostics",
+            "--json",
+            "--middleware=ValidateSignature",
+            "-vv",
+        ])
+        .await;
+    diagnostics.assertSuccessful();
+    let routes: Vec<Value> = serde_json::from_str(&diagnostics.stdout).unwrap();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(
+        routes[0]["middleware"],
+        json!([format!("{}:relative", type_name::<ValidateSignature>())])
+    );
+
+    let original = app
+        .artisan(["route:list", "--path=profiles/{id?}", "--json"])
+        .await;
+    original.assertSuccessful();
+    let routes: Vec<Value> = serde_json::from_str(&original.stdout).unwrap();
+    assert_eq!(routes[0]["middleware"], json!(["outer", "late", "Closure"]));
 }
 
 #[tokio::test]

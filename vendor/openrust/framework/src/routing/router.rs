@@ -141,6 +141,28 @@ impl Router {
 
     #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
     pub fn getRoutes(&self) -> Vec<RouteInfo> {
+        self.routes_with_info().map(|(_, info)| info).collect()
+    }
+
+    pub(crate) fn resolved_route_info(
+        &self,
+        registry: &MiddlewareRegistry,
+    ) -> Result<Vec<RouteInfo>, RoutingError> {
+        let groups = registry.resolve_groups()?;
+        self.routes_with_info()
+            .map(|(route, mut info)| {
+                let stack = registry.resolve_stack(
+                    &route.middleware,
+                    &route.excluded_middleware,
+                    &groups,
+                )?;
+                info.middleware = registry.describe_stack(&stack);
+                Ok(info)
+            })
+            .collect()
+    }
+
+    fn routes_with_info(&self) -> impl Iterator<Item = (&Route, RouteInfo)> {
         let mut methods_by_route = vec![Vec::new(); self.routes.len()];
         for (method, indices) in &self.by_method {
             for &index in indices {
@@ -169,29 +191,31 @@ impl Router {
                     .unwrap_or(&route.uri);
                 let file = route.definition.file().replace('\\', "/");
                 let vendor = file.split('/').any(|component| component == "vendor");
-                RouteInfo {
-                    domain: route.domain.clone(),
-                    method: methods.join("|"),
-                    uri: uri.to_owned(),
-                    name: route.getName().map(str::to_owned),
-                    action: route
-                        .controller_action
-                        .as_deref()
-                        .unwrap_or(route.action)
-                        .to_owned(),
-                    path: format!("{file}:{}", route.definition.line()),
-                    vendor,
-                    middleware: route
-                        .middleware
-                        .iter()
-                        .map(|middleware| match middleware {
-                            MiddlewareEntry::Named(name) => name.clone(),
-                            MiddlewareEntry::Instance(_) => "Closure".to_owned(),
-                        })
-                        .collect(),
-                }
+                (
+                    route,
+                    RouteInfo {
+                        domain: route.domain.clone(),
+                        method: methods.join("|"),
+                        uri: uri.to_owned(),
+                        name: route.getName().map(str::to_owned),
+                        action: route
+                            .controller_action
+                            .as_deref()
+                            .unwrap_or(route.action)
+                            .to_owned(),
+                        path: format!("{file}:{}", route.definition.line()),
+                        vendor,
+                        middleware: route
+                            .middleware
+                            .iter()
+                            .map(|middleware| match middleware {
+                                MiddlewareEntry::Named(name) => name.clone(),
+                                MiddlewareEntry::Instance(_) => "Closure".to_owned(),
+                            })
+                            .collect(),
+                    },
+                )
             })
-            .collect()
     }
 
     #[track_caller]

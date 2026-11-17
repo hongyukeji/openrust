@@ -17,3 +17,13 @@
 - 三语文档站通过构建、12 项通用浏览器检查、6 项路由正文专项检查，覆盖根路径与 `/docs/`。
 
 下一批 04-02 依赖本批路由入口。
+
+
+## route:list 中间件诊断
+
+- 对照固定 Laravel `RouteListCommand` 的详细级别和 `gatherRouteMiddleware`。旧版 `v0.x` 有命名中间件注册、分组及验收，未找到 `route:list` 的对等输出。本批复用现有应用配置、别名、分组与 HTTP 路由执行的解析器。 [固定 Laravel 命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/RouteListCommand.php)
+- `-v` 输出 Rust 应用在路由上登记的中间件名称和组名。`-vv` 展开组，应用排除、优先级排序与去重，显示实际 Rust 中间件类型。参数化别名保留参数，可终止中间件显示其底层类型。诊断单独准备解析配置，HTTP 路由的运行状态不受影响。默认 JSON 保持已有字符串数组，`--middleware` 按所选视图筛选。
+- 隔离基线 `91db2996`，Rust 1.94.0。15 项 HTTP 回归通过，其中真实回环请求与命令复用同一应用装配，验证嵌套组、执行顺序与重复中间件。Artisan 集成覆盖无详细参数、`-v`、`-vv --json`、有效类型筛选、排除和参数保留。
+- 实际应用二进制验证普通、`-v`、`-vv` 与两个 JSON 形式，运行三语文档的 `route:list -vv --json --middleware=SubstituteBindings` 和 `artisan inspire`。三语站点与 18 项浏览器检查通过。证据目录 `/private/tmp/openrust-04-01-route-list.SHPuOhOH`。
+- 命名 URL 在 [06-01](../06-01/README.md) 另有验收。04-01 的动态域名与控制器动作诊断继续跟踪，任意 PCRE 表达式兼容和 Windows 实机尚未覆盖。
+- 严格工作区 Clippy 与改动文件格式通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。本批 3.7 GiB 隔离 Cargo 产物已回收，磁盘可用 112.22 GB（104.51 GiB），周额度剩余 65%，第二窗口无读数。

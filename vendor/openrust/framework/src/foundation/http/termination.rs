@@ -26,6 +26,10 @@ impl<M: TerminableMiddleware> Middleware for Terminable<M> {
         TypeId::of::<M>()
     }
 
+    fn middleware_type_name(&self) -> &'static str {
+        self.0.middleware_type_name()
+    }
+
     fn terminable(&self) -> Option<&dyn TerminableMiddleware> {
         Some(self.0.as_ref())
     }

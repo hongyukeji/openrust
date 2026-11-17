@@ -27,7 +27,10 @@ impl Command for RouteListCommand {
         Box::pin(async move {
             let input = input.matches();
             let filter = |name| input.get_one::<String>(name).map(String::as_str);
-            let mut routes = application.route_info();
+            let verbosity = input.get_count("verbose");
+            let mut routes = application
+                .route_info(verbosity >= 2)
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
             let method = filter("method").map(str::to_ascii_uppercase);
             routes.retain(|route| {
                 method
@@ -81,6 +84,11 @@ impl Command for RouteListCommand {
                         route.name.as_deref().unwrap_or_default(),
                     )
                     .unwrap();
+                    if verbosity > 0 {
+                        for middleware in &route.middleware {
+                            writeln!(output.stdout, "             {middleware}").unwrap();
+                        }
+                    }
                 }
                 writeln!(output.stdout, "Showing [{}] routes", routes.len()).unwrap();
             }
