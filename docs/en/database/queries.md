@@ -56,7 +56,7 @@ Use `lazy(count)`, `lazyById(count, column, alias)` or `lazyByIdDesc` to consume
 
 ## Joins
 
-Use `join`, `leftJoin`, `rightJoin`, or `crossJoin`. For an ON clause with several conditions, pass a closure to `joinWith` or `leftJoinWith`. `on` compares columns and `r#where` binds a value. Use `joinSub` to join a derived query. MySQL supports correlated `joinLateral` and `leftJoinLateral`.
+Use `join`, `leftJoin`, `rightJoin`, or `crossJoin`. For an ON clause with several conditions, pass a closure to `joinWith` or `leftJoinWith`. `on` compares columns and `r#where` binds a value. Use `joinSub` to join a derived query.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -72,6 +72,32 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
         .joinSub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
         .select(["i.code", "i.stock"])
         .orderBy("i.code", "asc")
+        .get()
+        .await
+}
+```
+
+### Lateral Joins {#lateral-joins}
+
+Use `joinLateral` or `leftJoinLateral` on PostgreSQL, MySQL 8.0.14+, and SQL Server. Put the correlation in the subquery with `whereColumn`. The left join keeps outer rows with no match and returns null for their right-side columns. PostgreSQL and MySQL use `JOIN LATERAL`, and SQL Server uses `CROSS APPLY` or `OUTER APPLY`.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    let users = connection.table("users as u");
+    let posts = users
+        .subquery("posts as p")
+        .select(["p.id as post_id"])
+        .whereColumn("p.user_id", "=", "u.id")
+        .r#where("p.published", "=", 1)
+        .orderByDesc("p.id")
+        .limit(1);
+
+    users
+        .leftJoinLateral(&posts, "latest")?
+        .select(["u.id", "latest.post_id"])
+        .orderBy("u.id", "asc")
         .get()
         .await
 }

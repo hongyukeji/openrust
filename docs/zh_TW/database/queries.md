@@ -56,7 +56,7 @@ async fn process_by_id(db: &Connection) -> DatabaseResult<bool> {
 
 ## 聯結
 
-使用 `join`、`leftJoin`、`rightJoin` 或 `crossJoin`。需要多個 ON 條件時，將閉包傳給 `joinWith` 或 `leftJoinWith`。`on` 比較欄位，`r#where` 繫結值。`joinSub` 可聯結衍生查詢。MySQL 支援相關 `joinLateral` 和 `leftJoinLateral`。
+使用 `join`、`leftJoin`、`rightJoin` 或 `crossJoin`。需要多個 ON 條件時，將閉包傳給 `joinWith` 或 `leftJoinWith`。`on` 比較欄位，`r#where` 繫結值。`joinSub` 可聯結衍生查詢。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -72,6 +72,32 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
         .joinSub(&groups, "regional", |join| join.on("i.group_id", "=", "regional.id"))?
         .select(["i.code", "i.stock"])
         .orderBy("i.code", "asc")
+        .get()
+        .await
+}
+```
+
+### 關聯子查詢聯結 {#lateral-joins}
+
+PostgreSQL、MySQL 8.0.14+ 與 SQL Server 支援 `joinLateral` 和 `leftJoinLateral`。在子查詢中以 `whereColumn` 參照外層欄位。左聯結保留未配對的外層資料列，右側欄位傳回 null。PostgreSQL 與 MySQL 使用 `JOIN LATERAL`，SQL Server 使用 `CROSS APPLY` 或 `OUTER APPLY`。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn latest_posts(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    let users = connection.table("users as u");
+    let posts = users
+        .subquery("posts as p")
+        .select(["p.id as post_id"])
+        .whereColumn("p.user_id", "=", "u.id")
+        .r#where("p.published", "=", 1)
+        .orderByDesc("p.id")
+        .limit(1);
+
+    users
+        .leftJoinLateral(&posts, "latest")?
+        .select(["u.id", "latest.post_id"])
+        .orderBy("u.id", "asc")
         .get()
         .await
 }

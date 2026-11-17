@@ -105,6 +105,23 @@ impl Grammar {
         self.dialect == Dialect::Postgres
     }
 
+    pub(in crate::database::query) fn lateral_join(
+        &self,
+        left: bool,
+    ) -> DatabaseResult<(&'static str, &'static str)> {
+        match (self.dialect, self.mariadb, left) {
+            (Dialect::MySql | Dialect::Postgres, false, false) => {
+                Ok((" inner join lateral ", " on true"))
+            }
+            (Dialect::MySql | Dialect::Postgres, false, true) => {
+                Ok((" left join lateral ", " on true"))
+            }
+            (Dialect::SqlServer, _, false) => Ok((" cross apply ", "")),
+            (Dialect::SqlServer, _, true) => Ok((" outer apply ", "")),
+            _ => Err(DatabaseError::InvalidQuery("lateral join dialect")),
+        }
+    }
+
     pub(crate) fn quote(&self, name: &str) -> DatabaseResult<String> {
         if name.is_empty() || name.contains('\0') {
             return Err(DatabaseError::InvalidQuery("identifier"));

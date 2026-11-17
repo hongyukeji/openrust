@@ -34,6 +34,119 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn correlated_lateral_joins_on_postgres_and_sql_server() {
+    for (url_var, required_var, inner_operator, left_operator) in [
+        (
+            "OPENRUST_TEST_POSTGRES_LATERAL_URL",
+            "OPENRUST_REQUIRE_POSTGRES_LATERAL",
+            "inner join lateral",
+            "left join lateral",
+        ),
+        (
+            "OPENRUST_TEST_SQL_SERVER_URL",
+            "OPENRUST_REQUIRE_SQL_SERVER",
+            "cross apply",
+            "outer apply",
+        ),
+    ] {
+        let Ok(url) = std::env::var(url_var) else {
+            assert!(std::env::var_os(required_var).is_none());
+            continue;
+        };
+        let db = connection(json!({"url":url, "prefix":"app_"}));
+        db.unprepared(
+            "CREATE TABLE app_lateral_groups (id int PRIMARY KEY);
+             CREATE TABLE app_lateral_items (id int PRIMARY KEY, group_id int, score int);
+             INSERT INTO app_lateral_groups VALUES (1), (2), (3);
+             INSERT INTO app_lateral_items VALUES (11, 1, 7), (12, 1, 8), (21, 2, 9), (31, 3, 3);",
+        )
+        .await
+        .unwrap();
+
+        let groups = || {
+            db.table("lateral_groups as g")
+                .select(["g.id", "best.item_id"])
+                .selectRaw("cast(? as int) as marker", vec![123.into()])
+                .r#where("g.id", ">", 0)
+                .orderBy("g.id", "asc")
+        };
+        let items = groups()
+            .subquery("lateral_items as i")
+            .select(["i.id as item_id"])
+            .whereColumn("i.group_id", "=", "g.id")
+            .r#where("i.score", ">", 5)
+            .orderByDesc("i.score")
+            .limit(1);
+
+        let inner = groups().joinLateral(&items, "best").unwrap();
+        let sql = inner.toSql().unwrap();
+        assert!(sql.contains(inner_operator));
+        assert_eq!(
+            sql.contains(" on true"),
+            inner_operator == "inner join lateral"
+        );
+        assert_eq!(
+            inner.getBindings().unwrap(),
+            [123.into(), 5.into(), 0.into()]
+        );
+        assert_eq!(
+            inner.pluck("best.item_id").await.unwrap(),
+            [12.into(), 21.into()]
+        );
+
+        let left = groups().leftJoinLateral(&items, "best").unwrap();
+        assert!(left.toSql().unwrap().contains(left_operator));
+        let rows = left.get().await.unwrap();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[2].get("id"), Some(&3.into()));
+        assert_eq!(rows[2].get("item_id"), Some(&Value::Null));
+        assert_eq!(rows[2].get("marker"), Some(&123.into()));
+
+        let other = connection(json!({"url":url, "prefix":"app_"}));
+        assert!(matches!(
+            groups().joinLateral(&other.table("lateral_items"), "best"),
+            Err(DatabaseError::InvalidQuery("subquery connection"))
+        ));
+
+        let mut transaction = db.beginTransaction().await.unwrap();
+        transaction
+            .insert("INSERT INTO app_lateral_items VALUES (32, 3, 12)", &[])
+            .await
+            .unwrap();
+        let group = transaction
+            .table("lateral_groups as g")
+            .r#where("g.id", "=", 3);
+        let item = group
+            .subquery("lateral_items as i")
+            .select(["i.id as item_id"])
+            .whereColumn("i.group_id", "=", "g.id")
+            .orderByDesc("i.score")
+            .limit(1);
+        assert_eq!(
+            group
+                .joinLateral(&item, "best")
+                .unwrap()
+                .value("best.item_id")
+                .await
+                .unwrap(),
+            32.into()
+        );
+        transaction.rollBack(None).await.unwrap();
+        assert_eq!(
+            db.table("lateral_items")
+                .r#where("id", "=", 32)
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        db.unprepared("DROP TABLE app_lateral_items; DROP TABLE app_lateral_groups")
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
 async fn sql_server_joined_and_bounded_writes() {
     let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());

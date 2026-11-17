@@ -41,8 +41,10 @@ enum JoinType {
     Left,
     Right,
     Cross,
-    Lateral,
-    LeftLateral,
+    Lateral {
+        operator: &'static str,
+        condition: &'static str,
+    },
 }
 
 pub(super) struct Join {
@@ -63,12 +65,11 @@ impl Join {
             JoinType::Left => " left join ",
             JoinType::Right => " right join ",
             JoinType::Cross => " cross join ",
-            JoinType::Lateral => " inner join lateral ",
-            JoinType::LeftLateral => " left join lateral ",
+            JoinType::Lateral { operator, .. } => operator,
         });
         sql.push_str(&self.source.compile(grammar, None, bindings)?);
-        if matches!(self.kind, JoinType::Lateral | JoinType::LeftLateral) {
-            sql.push_str(" on true");
+        if let JoinType::Lateral { condition, .. } = self.kind {
+            sql.push_str(condition);
         } else if !self.clause.0.is_empty() {
             sql.push_str(" on ");
             self.clause.0.compile(grammar, sql, bindings)?;
@@ -241,23 +242,24 @@ impl Builder<'_> {
     }
 
     pub fn joinLateral(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.join_lateral(query, alias, JoinType::Lateral)
+        self.join_lateral(query, alias, false)
     }
 
     pub fn leftJoinLateral(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
-        self.join_lateral(query, alias, JoinType::LeftLateral)
+        self.join_lateral(query, alias, true)
     }
 
-    fn join_lateral(
-        self,
-        query: &Builder<'_>,
-        alias: &str,
-        kind: JoinType,
-    ) -> DatabaseResult<Self> {
-        if !self.grammar.is_mysql() || self.grammar.is_mariadb() {
-            return Err(DatabaseError::InvalidQuery("lateral join dialect"));
-        }
-        self.join_sub(query, alias, kind, |join| join)
+    fn join_lateral(self, query: &Builder<'_>, alias: &str, left: bool) -> DatabaseResult<Self> {
+        let (operator, condition) = self.grammar.lateral_join(left)?;
+        self.join_sub(
+            query,
+            alias,
+            JoinType::Lateral {
+                operator,
+                condition,
+            },
+            |join| join,
+        )
     }
 
     fn join_sub(

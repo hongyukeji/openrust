@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 05:08（北京时间）02-04 [PostgreSQL 与 SQL Server 关联子查询联结](audits/02-04/README.md#postgresql-与-sql-server-关联子查询联结)。真实 PostgreSQL 18.6 与 SQL Server 2022、双驱动 HTTP 与独立 Artisan、MySQL 8.4.13 查询与写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 05:01（北京时间）02-04 [SQL Server 联结与限额写入](audits/02-04/README.md#sql-server-联结与限额写入)。真实 SQL Server 2022、HTTP 与独立 Artisan、MySQL 8.4.13 查询与写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 04:54（北京时间）02-04 [SQL Server 原生清空表与 JSON 路径写入边界](audits/02-04/README.md#sql-server-原生清空表与-json-路径写入边界)。真实 SQL Server 2022、HTTP 与独立 Artisan、MySQL 8.4.13 查询及写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
 - 2026-11-18 04:46（北京时间）02-04 [SQL Server JSON WHERE 谓词](audits/02-04/README.md#sql-server-json-where-谓词)。真实 SQL Server 2022、HTTP 与独立 Artisan、MySQL 8.4.13 查询及写入回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。
