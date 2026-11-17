@@ -175,19 +175,19 @@ impl RedisTagSet {
                     .await?;
             }
             if next == 0 {
-                return Ok(());
+                return self.prune_empty_retirements(&registry, &index_prefix).await;
             }
             cursor = next;
         }
     }
 
     async fn recover_cluster_indexes(&self, registry: &str, index_prefix: &str) -> CacheResult<()> {
-        let pattern = self.index_pattern();
+        let pattern = self.key_pattern("index:*");
         let mut cursor = 0;
         loop {
             let (next, keys) = self
                 .connection
-                .scan_slot_sorted_sets(registry, &pattern, cursor, BATCH_SIZE)
+                .scan_slot_keys(registry, &pattern, "zset", cursor, BATCH_SIZE)
                 .await
                 .map_err(backend)?;
             let indexes: Vec<_> = keys
@@ -197,6 +197,69 @@ impl RedisTagSet {
             for batch in indexes.chunks(BATCH_SIZE) {
                 self.query::<u64>(::redis::cmd("SADD").arg(registry).arg(batch))
                     .await?;
+            }
+            if next == 0 {
+                return Ok(());
+            }
+            cursor = next;
+        }
+    }
+
+    async fn prune_empty_retirements(&self, registry: &str, index_prefix: &str) -> CacheResult<()> {
+        let pending_prefix = format!("{}pending:", self.prefix);
+        let pattern = self.key_pattern("pending:*");
+        let mut cursor = 0;
+        loop {
+            let (next, keys) = self
+                .connection
+                .scan_slot_keys(registry, &pattern, "set", cursor, BATCH_SIZE)
+                .await
+                .map_err(backend)?;
+            for key in &keys {
+                let Ok(pending) = std::str::from_utf8(key) else {
+                    continue;
+                };
+                if let Some(tag) = pending
+                    .strip_prefix(&pending_prefix)
+                    .filter(|tag| valid_digest(tag, 64))
+                {
+                    self.prune_pending_generations(registry, index_prefix, pending, tag)
+                        .await?;
+                }
+            }
+            if next == 0 {
+                return Ok(());
+            }
+            cursor = next;
+        }
+    }
+
+    async fn prune_pending_generations(
+        &self,
+        registry: &str,
+        index_prefix: &str,
+        pending: &str,
+        tag: &str,
+    ) -> CacheResult<()> {
+        let mut cursor = 0_u64;
+        loop {
+            let (next, generations): (u64, Vec<Vec<u8>>) = self
+                .query(
+                    ::redis::cmd("SSCAN")
+                        .arg(pending)
+                        .arg(cursor)
+                        .arg("COUNT")
+                        .arg(BATCH_SIZE),
+                )
+                .await?;
+            for generation in &generations {
+                if let Ok(id) = std::str::from_utf8(generation)
+                    && valid_digest(id, 32)
+                {
+                    let index = format!("{index_prefix}{tag}:{id}");
+                    self.cleanup(registry, &index, pending, id, &[], false)
+                        .await?;
+                }
             }
             if next == 0 {
                 return Ok(());

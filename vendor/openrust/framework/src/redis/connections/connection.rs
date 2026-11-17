@@ -77,10 +77,11 @@ impl Connection {
     }
 
     /// SCAN has no key argument, so explicitly route it to the primary for the pattern's slot.
-    pub(crate) async fn scan_slot_sorted_sets(
+    pub(crate) async fn scan_slot_keys(
         &self,
         key: &str,
         pattern: &str,
+        key_type: &str,
         cursor: u64,
         count: usize,
     ) -> RedisResult<(u64, Vec<Vec<u8>>)> {
@@ -95,7 +96,7 @@ impl Connection {
             .arg("COUNT")
             .arg(count)
             .arg("TYPE")
-            .arg("zset");
+            .arg(key_type);
         let route = Route::with_key(key, SlotAddr::Master);
         let result = transport
             .route_command(

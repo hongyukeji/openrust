@@ -1319,7 +1319,29 @@ async fn redis_cluster_tags_flush_and_prune() {
         .await
         .unwrap();
     assert!(interrupted.forever("current", &8.into()).await.unwrap());
+    // The registry and the retired index may both be evicted before pruning.
+    let evicted_generation = "0123456789abcdef0123456789abcdef";
+    assert!(!exists(&format!("{prefix}index:{tag}:{evicted_generation}")).await);
+    connection
+        .command("SADD", &[pending.as_bytes(), evicted_generation.as_bytes()])
+        .await
+        .unwrap();
+    let registry = format!("{prefix}indexes");
+    connection
+        .command("DEL", &[registry.as_bytes()])
+        .await
+        .unwrap();
     plain.get_store().flush_stale_tags().await.unwrap();
+    assert_eq!(
+        connection
+            .command(
+                "SISMEMBER",
+                &[pending.as_bytes(), evicted_generation.as_bytes()]
+            )
+            .await
+            .unwrap(),
+        RedisValue::Int(0)
+    );
     assert!(exists(&retired_value).await);
     assert!(exists(&pending).await);
     assert_eq!(count(&retired_index).await, RedisValue::Int(1));
