@@ -136,9 +136,29 @@ The HTTP kernel prepares a single byte range after response middleware. A matchi
 
 ## Streamed Responses {#streamed-responses}
 
+For a stream of raw chunks, `Response::stream` sends `X-Accel-Buffering: no`.
+
+### Consuming Streamed Responses {#consuming-streamed-responses}
+
+Use the Fetch body reader to read chunks as they arrive. For a streamed JSON document, accumulate the text and parse it when the stream completes.
+
+Use `EventSource` for SSE. Listen for the event name and close the connection on the default end marker.
+
+```javascript
+const source = new EventSource('/events');
+source.addEventListener('snapshot', (event) => {
+    renderSnapshot(JSON.parse(event.data));
+});
+source.addEventListener('update', (event) => {
+    if (event.data === '</stream>') source.close();
+});
+```
+
 ### Streamed JSON Responses {#streamed-json-responses}
 
 Use `Response::streamJson` with `StreamedJson::object` to wrap a stream of rows in a JSON object. `StreamedJson::items` serializes each row as it arrives. Use `StreamedJson::value` for fixed values and `StreamedJson::array` for nested arrays. Use `StreamedJson::entries` to stream key-value pairs into a JSON object.
+
+Streamed JSON and JSON event payloads use Laravel's default string escaping. SSE JSON preserves non-ASCII text apart from characters that require escaping.
 
 ```rust
 use futures_util::stream;
@@ -153,7 +173,7 @@ let response = Response::streamJson(StatusCode::OK, data);
 
 `Response::eventStream` sends `text/event-stream` and disables cache and proxy buffering. `StreamedEvent::message` uses the `update` event. Use `StreamedEvent::new` for named text events and `StreamedEvent::json` for JSON payloads. The default last event carries `</stream>`. Use `Response::eventStreamWithEnd` to supply a final event or pass `None` to omit it.
 
-Once the headers have been sent, a source or serialization error ends the body with a transport error. SSE sends its final event only when the source completes successfully.
+Once the headers have been sent, a JSON or download source failure ends the body with a transport error. An SSE source failure in the application is reported through its exception handler. The SSE connection closes without a final event.
 
 ### Streamed Downloads {#streamed-downloads}
 

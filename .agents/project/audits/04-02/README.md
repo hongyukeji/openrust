@@ -98,3 +98,11 @@
 - 固定 Laravel/PHP 8.5 验证注册、动态调用、mixin 替换、清空与未知宏。真实 HTTP 在两个同时运行的应用中验证同名宏隔离、参数错误、mixin 优先级，以及清空后的 500 和其他应用继续服务。
 - 隔离基线 `6fb24a3f3` 使用 Rust 1.94.0 通过请求与响应 15 项、应用 HTTP 16 项和容器生命周期 4 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查。全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-response-macros.mCHBYg4O`。
 - 04-02 保持开放。下一批核对流式响应的 JSON 转义、事件错误报告与浏览器消费。
+
+## 流式响应与整单元验收
+
+- 对照固定 Laravel 的 `ResponseFactory::stream`、`eventStream`、`Js::encode` 及 Symfony `StreamedJsonResponse`。旧版 `v0.x` 未找到对应流式响应。复用现有 Serde 串流、JSONP 编码器与应用异常处理。`stream` 的原始数据流发送 `X-Accel-Buffering: no`，JSON、下载与磁盘响应维持各自的响应头。 [Laravel 响应工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResponseFactory.php#L135) · [Laravel Js 编码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Js.php#L24) · [Symfony 流式 JSON](https://github.com/symfony/http-foundation/blob/v7.4.0/StreamedJsonResponse.php)
+- PHP 8.5 对照验证 HTML 特殊字符、斜杠、Unicode 与代理缓冲响应头。流式 JSON 对键和值统一使用 Symfony 默认字符串转义，SSE JSON 的非 ASCII 默认行为跟随 `Js::encode`。应用中的 SSE 数据源错误由原应用的异常处理器报告，关闭流且省略结束标记。无应用作用域时通过响应体返回错误。Rust 数值和数据模型继续采用 Serde。
+- 真实 HTTP 验证转义后的字节、原应用报告一次以及无结束标记；Chromium 用 `Fetch` 在放行第二项前读到第一项，并用 `EventSource` 解析命名 JSON 事件与正常结束标记。浏览器消费验收使用标准 Web API。React、Vue 和 Svelte 的 Laravel 客户端套件保留在应用依赖范围。
+- 核对交付计划，JSON、表单、multipart、响应头、流式响应、控制器分派、正文错误与状态码均有真实入口证据。上传保存归 04-09，Windows 实机归 08-04。Rust 保留已有请求正文上限和类型化接口。
+- 隔离基线 `64cc3fd4e` 使用 Rust 1.94.0 通过请求与响应 16 项、文件系统 9 项、应用 HTTP 16 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项文档浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412`。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-stream-parity.4762ezYh`。

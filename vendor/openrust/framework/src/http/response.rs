@@ -94,7 +94,10 @@ impl Response {
         T: Into<Bytes> + 'static,
         E: Into<Box<dyn std::error::Error + Send + Sync>> + 'static,
     {
-        Self::new(status, Body::from_stream(stream))
+        Self::new(status, Body::from_stream(stream)).header(
+            HeaderName::from_static("x-accel-buffering"),
+            HeaderValue::from_static("no"),
+        )
     }
 
     pub fn header(mut self, name: HeaderName, value: HeaderValue) -> Self {

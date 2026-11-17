@@ -3,7 +3,11 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
-    foundation::{Application, configuration::Routing, http::Kernel},
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+        http::Kernel,
+    },
     http::{
         Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, ResponseMacro,
         StatusCode, StreamedEvent, StreamedJson,
@@ -164,6 +168,7 @@ fn stream_json(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             StreamedJson::object([
                 ("users", StreamedJson::items(users)),
                 ("counts", StreamedJson::entries(counts)),
+                ("<é&", StreamedJson::value("<é>/\"&'😀\u{2028}")?),
                 (
                     "meta",
                     StreamedJson::array([
@@ -176,11 +181,21 @@ fn stream_json(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
-fn event_stream(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async {
+fn event_stream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if request.query(Some("fail"))?.is_some() {
+            let events = futures_util::stream::iter([
+                Ok(StreamedEvent::message("before failure")),
+                Err(std::io::Error::other("sse fixture interruption")),
+            ]);
+            return Ok(Response::eventStream(events));
+        }
         let events = futures_util::stream::iter([
             Ok::<_, HttpError>(StreamedEvent::message("line\r\nnext\rfinal")),
-            StreamedEvent::json("snapshot", json!({"ready":true})),
+            StreamedEvent::json(
+                "snapshot",
+                json!({"ready":true,"text":"<é>/\"&'😀\u{2028}"}),
+            ),
         ]);
         Ok(Response::eventStream(events))
     })
@@ -427,7 +442,15 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
 }
 
 async fn start_at(label: &'static str, root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
-    let app = Application::configure(root)
+    start_with(label, root, |builder| builder).await
+}
+
+async fn start_with(
+    label: &'static str,
+    root: PathBuf,
+    configure: impl FnOnce(ApplicationBuilder) -> ApplicationBuilder,
+) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    let app = configure(Application::configure(root))
         .withConfig(|base, _| Ok([("probe".into(), json!({"file_root": base}))].into()))
         .withProviders(vec![Box::new(Provider(label))])
         .withRouting(Routing::default().web(|| {
@@ -675,6 +698,7 @@ async fn real_http_dispatches_controllers_and_reads_json_form_uploads_and_stream
     socket.read_to_string(&mut rejected).await.unwrap();
     assert!(rejected.starts_with("HTTP/1.1 413 "), "{rejected}");
     let (headers, body) = send(first, "GET", "/stream", "", b"", 200).await;
+    assert!(headers.contains("\r\nx-accel-buffering: no"));
     assert!(headers.contains("\r\ntransfer-encoding: chunked"));
     assert_eq!(body, "5\r\nfirst\r\n6\r\nsecond\r\n0\r\n\r\n");
     one.abort();
@@ -1182,18 +1206,25 @@ async fn real_http_streams_json_events_and_downloads() {
     assert!(headers.contains("\r\ntransfer-encoding: chunked"));
     assert_eq!(
         serde_json::from_str::<Value>(&chunked_content(&body)).unwrap(),
-        json!({"users":[1,2],"counts":{"active":2},"meta":["ready",[]]})
+        json!({"users":[1,2],"counts":{"active":2},"<é&":"<é>/\"&'😀\u{2028}","meta":["ready",[]]})
     );
+    assert!(chunked_content(&body).contains(
+        r#""\u003C\u00e9\u0026":"\u003C\u00e9\u003E\/\u0022\u0026\u0027\ud83d\ude00\u2028""#,
+    ));
     let (_, body) = send(address, "HEAD", "/stream.json", "", b"", 200).await;
     assert!(body.is_empty());
 
     let (headers, body) = send(address, "GET", "/stream.events", "", b"", 200).await;
-    assert!(headers.contains("\r\ncontent-type: text/event-stream"));
-    assert!(headers.contains("\r\ncache-control: no-cache"));
+    assert!(headers.contains("\r\ncontent-type: text/event-stream; charset=utf-8"));
+    assert!(headers.contains("\r\ncache-control: no-cache, private"));
     assert!(headers.contains("\r\nx-accel-buffering: no"));
     assert_eq!(
         chunked_content(&body),
-        "event: update\ndata: line\ndata: next\ndata: final\n\nevent: snapshot\ndata: {\"ready\":true}\n\nevent: update\ndata: </stream>\n\n"
+        concat!(
+            "event: update\ndata: line\ndata: next\ndata: final\n\nevent: snapshot\ndata: ",
+            r#"{"ready":true,"text":"\u003Cé\u003E\/\u0022\u0026\u0027😀\u2028"}"#,
+            "\n\nevent: update\ndata: </stream>\n\n"
+        )
     );
 
     let (headers, body) = send(address, "GET", "/stream.download", "", b"", 200).await;
@@ -1543,4 +1574,31 @@ async fn real_http_dispatches_provider_macros_in_each_application() {
     );
     first_server.abort();
     second_server.abort();
+}
+
+#[tokio::test]
+async fn sse_reports_source_errors_in_the_originating_application() {
+    use openrust::{foundation::configuration::ReportDecision, support::facades::Config};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let reports = Arc::new(AtomicUsize::new(0));
+    let observed = reports.clone();
+    let (address, server) = start_with("stream-failure", std::env::temp_dir(), |builder| {
+        builder.withExceptions(move |exceptions| {
+            exceptions.report::<std::io::Error>(move |error| {
+                assert_eq!(error.to_string(), "sse fixture interruption");
+                assert!(Config::get("probe.file_root").unwrap().is_some());
+                observed.fetch_add(1, Ordering::Relaxed);
+                ReportDecision::Stop
+            });
+        })
+    })
+    .await;
+    let (_, body) = send(address, "GET", "/stream.events?fail=1", "", b"", 200).await;
+    assert_eq!(
+        chunked_content(&body),
+        "event: update\ndata: before failure\n\n"
+    );
+    assert_eq!(reports.load(Ordering::Relaxed), 1);
+    server.abort();
 }

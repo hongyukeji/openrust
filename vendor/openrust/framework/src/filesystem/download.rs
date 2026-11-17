@@ -4,7 +4,7 @@ use http::{
 };
 use tokio_util::io::ReaderStream;
 
-use crate::http::{HeaderMap, Response, StatusCode, filename_header};
+use crate::http::{Body, HeaderMap, Response, StatusCode, filename_header};
 
 use super::{FilesystemError, FilesystemReader, FilesystemResult};
 
@@ -43,6 +43,10 @@ impl OpenedFile {
                 filename_header(disposition, name).map_err(|_| FilesystemError::InvalidPath)?,
             );
         }
-        Ok(Response::stream(StatusCode::OK, ReaderStream::new(self.reader)).withHeaders(headers))
+        Ok(Response::new(
+            StatusCode::OK,
+            Body::from_stream(ReaderStream::new(self.reader)),
+        )
+        .withHeaders(headers))
     }
 }

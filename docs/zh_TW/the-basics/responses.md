@@ -136,9 +136,29 @@ HTTP Kernel 在回應中介層後處理單一位元組區間。`If-Range` 可比
 
 ## 串流回應 {#streamed-responses}
 
+使用 `Response::stream` 傳送原始資料區塊時，回應會帶上 `X-Accel-Buffering: no`。
+
+### 在瀏覽器中讀取串流回應 {#consuming-streamed-responses}
+
+使用 Fetch 的本文讀取器可以逐段讀取內容。對於串流 JSON 文件，可累積文字，在串流結束後解析。
+
+SSE 可以用 `EventSource` 依事件名稱監聽，收到預設結束標記後關閉連線。
+
+```javascript
+const source = new EventSource('/events');
+source.addEventListener('snapshot', (event) => {
+    renderSnapshot(JSON.parse(event.data));
+});
+source.addEventListener('update', (event) => {
+    if (event.data === '</stream>') source.close();
+});
+```
+
 ### 串流 JSON 回應 {#streamed-json-responses}
 
 透過 `Response::streamJson` 和 `StreamedJson::object` 將資料列串流放進 JSON 物件。`StreamedJson::items` 在每列到達時序列化。固定值使用 `StreamedJson::value`，巢狀陣列使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可將鍵值對逐項寫入 JSON 物件。
+
+串流 JSON 與 JSON 事件資料沿用 Laravel 的預設字串跳脫。SSE JSON 保留無須跳脫的非 ASCII 文字。
 
 ```rust
 use futures_util::stream;
@@ -153,7 +173,7 @@ let response = Response::streamJson(StatusCode::OK, data);
 
 `Response::eventStream` 傳送 `text/event-stream` 並關閉快取與代理緩衝。`StreamedEvent::message` 使用 `update` 事件。具名文字事件使用 `StreamedEvent::new`，JSON 資料使用 `StreamedEvent::json`。預設結束事件帶有 `</stream>`。`Response::eventStreamWithEnd` 接收自訂結束事件，傳入 `None` 可省略結束事件。
 
-回應標頭送出後，資料來源或序列化失敗會以傳輸錯誤結束本文。只有資料來源成功完成時才傳送 SSE 結束事件。
+回應標頭送出後，JSON 或下載資料來源失敗會以傳輸錯誤結束本文。應用程式中的 SSE 資料來源失敗時，會交由目前應用程式的例外處理器回報，連線關閉且不傳送結束事件。
 
 ### 串流下載 {#streamed-downloads}
 

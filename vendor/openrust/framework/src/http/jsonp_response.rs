@@ -1,7 +1,9 @@
-use std::{io, sync::LazyLock};
+use std::sync::LazyLock;
 
 use http::{HeaderValue, header::CONTENT_TYPE};
 use serde::Serialize;
+
+use super::json_formatter::JsonFormatter;
 
 use super::{Body, HttpError, Response, StatusCode};
 
@@ -96,36 +98,11 @@ fn encode(callback: &str, data: impl Serialize) -> Result<Vec<u8>, HttpError> {
     let mut output = Vec::from(b"/**/".as_slice());
     output.extend_from_slice(callback.as_bytes());
     output.push(b'(');
-    data.serialize(&mut serde_json::Serializer::with_formatter(
-        &mut output,
-        JsonpFormatter,
-    ))
-    .map_err(|source| HttpError::Internal {
-        source: Box::new(source),
-    })?;
+    JsonFormatter::JSONP
+        .write(&mut output, &data)
+        .map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
     output.extend_from_slice(b");");
     Ok(output)
-}
-
-struct JsonpFormatter;
-
-impl serde_json::ser::Formatter for JsonpFormatter {
-    fn write_string_fragment<W: ?Sized + io::Write>(
-        &mut self,
-        writer: &mut W,
-        fragment: &str,
-    ) -> io::Result<()> {
-        for character in fragment.chars() {
-            match character {
-                '/' => writer.write_all(br"\/")?,
-                value if value.is_ascii() => writer.write_all(&[value as u8])?,
-                value => {
-                    for unit in value.encode_utf16(&mut [0; 2]) {
-                        write!(writer, "\\u{unit:04x}")?;
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
 }

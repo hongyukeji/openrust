@@ -136,9 +136,29 @@ HTTP Kernel 在响应中间件后处理单个字节区间。`If-Range` 可匹配
 
 ## 流式响应 {#streamed-responses}
 
+使用 `Response::stream` 发送原始数据块时，响应会带上 `X-Accel-Buffering: no`。
+
+### 在浏览器中消费流式响应 {#consuming-streamed-responses}
+
+使用 Fetch 的正文读取器可以逐块读取内容。对于流式 JSON 文档，可累积文本，在流结束后解析。
+
+SSE 可以用 `EventSource` 按事件名监听，收到默认结束标记后关闭连接。
+
+```javascript
+const source = new EventSource('/events');
+source.addEventListener('snapshot', (event) => {
+    renderSnapshot(JSON.parse(event.data));
+});
+source.addEventListener('update', (event) => {
+    if (event.data === '</stream>') source.close();
+});
+```
+
 ### 流式 JSON 响应 {#streamed-json-responses}
 
 通过 `Response::streamJson` 和 `StreamedJson::object` 将数据行流放进 JSON 对象。`StreamedJson::items` 在每行到达时序列化。固定值使用 `StreamedJson::value`，嵌套数组使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可将键值对逐项写入 JSON 对象。
+
+流式 JSON 与 JSON 事件载荷沿用 Laravel 的默认字符串转义。SSE JSON 保留无需转义的非 ASCII 文本。
 
 ```rust
 use futures_util::stream;
@@ -153,7 +173,7 @@ let response = Response::streamJson(StatusCode::OK, data);
 
 `Response::eventStream` 发送 `text/event-stream` 并关闭缓存和代理缓冲。`StreamedEvent::message` 使用 `update` 事件。命名文本事件使用 `StreamedEvent::new`，JSON 数据使用 `StreamedEvent::json`。默认结束事件携带 `</stream>`。`Response::eventStreamWithEnd` 接收自定义结束事件，传入 `None` 可省略结束事件。
 
-响应头发出后，数据源或序列化失败会以传输错误结束正文。只有数据源成功完成时才发送 SSE 结束事件。
+响应头发出后，JSON 或下载数据源失败会以传输错误结束正文。应用中的 SSE 数据源失败时，会交给当前应用的异常处理器报告，连接关闭且不发送结束事件。
 
 ### 流式下载 {#streamed-downloads}
 

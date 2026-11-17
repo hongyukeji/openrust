@@ -8,6 +8,7 @@ mod body;
 pub mod client;
 mod download;
 mod error;
+mod json_formatter;
 mod jsonp_response;
 pub mod middleware;
 mod next;

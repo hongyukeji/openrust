@@ -4,12 +4,24 @@ use async_stream::try_stream;
 use axum::body::Bytes;
 use futures_util::{Stream, StreamExt as _, stream};
 use http::{
-    HeaderName, HeaderValue,
+    HeaderValue,
     header::{CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE},
 };
 use serde::Serialize;
 
-use super::{HeaderMap, HttpError, Response, StatusCode, filename_header};
+use crate::{
+    container::ServiceKey,
+    contracts::{
+        container::Container as _,
+        debug::{Exception, ExceptionHandler},
+    },
+    support::facades,
+};
+
+use super::{
+    Body, HeaderMap, HttpError, Response, StatusCode, filename_header,
+    json_formatter::JsonFormatter,
+};
 
 type StreamError = Box<dyn Error + Send + Sync>;
 type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, StreamError>> + Send>>;
@@ -20,9 +32,12 @@ pub struct StreamedJson(ByteStream);
 impl StreamedJson {
     /// Serializes a value before response headers are sent.
     pub fn value(value: impl Serialize) -> Result<Self, HttpError> {
-        let bytes = serde_json::to_vec(&value).map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let mut bytes = Vec::new();
+        JsonFormatter::STREAM
+            .write(&mut bytes, &value)
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
         Ok(Self(Box::pin(stream::once(async {
             Ok(Bytes::from(bytes))
         }))))
@@ -35,7 +50,7 @@ impl StreamedJson {
         E: Into<StreamError>,
     {
         Self::sequence(b"[", b"]", source, |item, bytes| {
-            serde_json::to_writer(bytes, &item)
+            JsonFormatter::STREAM.write(bytes, &item)
         })
     }
 
@@ -47,9 +62,9 @@ impl StreamedJson {
         E: Into<StreamError>,
     {
         Self::sequence(b"{", b"}", source, |(key, value): (K, T), bytes| {
-            serde_json::to_writer(&mut *bytes, key.as_ref())?;
+            JsonFormatter::STREAM.write(&mut *bytes, &key.as_ref())?;
             bytes.push(b':');
-            serde_json::to_writer(bytes, &value)
+            JsonFormatter::STREAM.write(bytes, &value)
         })
     }
 
@@ -114,7 +129,7 @@ impl StreamedJson {
                     prefix.push(b',');
                 }
                 if let Some(key) = key {
-                    serde_json::to_writer(&mut prefix, &key)?;
+                    JsonFormatter::STREAM.write(&mut prefix, &key)?;
                     prefix.push(b':');
                 }
                 if !prefix.is_empty() {
@@ -155,9 +170,13 @@ impl StreamedEvent {
     }
 
     pub fn json(event: impl Into<String>, data: impl Serialize) -> Result<Self, HttpError> {
-        let data = serde_json::to_string(&data).map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let mut bytes = Vec::new();
+        JsonFormatter::EVENT
+            .write(&mut bytes, &data)
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        let data = String::from_utf8(bytes).expect("JSON serializer writes UTF-8");
         Self::new(event, data)
     }
 
@@ -186,7 +205,7 @@ impl Response {
         {
             return Self::empty(status);
         }
-        Self::stream(status, data.0)
+        Self::new(status, Body::from_stream(data.0))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
     }
 
@@ -207,24 +226,40 @@ impl Response {
     where
         E: Into<StreamError> + 'static,
     {
+        let reporter = facades::current_container().and_then(|container| {
+            let handler = container
+                .get::<dyn ExceptionHandler>(ServiceKey::typed::<dyn ExceptionHandler>())
+                .ok()?;
+            Some((container, handler))
+        });
         let events = try_stream! {
             let mut source = std::pin::pin!(source.map(|event| {
                 event.map_err(Into::<StreamError>::into).map(StreamedEvent::encode)
             }));
             while let Some(event) = source.next().await {
-                yield event?;
+                match event {
+                    Ok(frame) => yield frame,
+                    Err(error) => {
+                        if let Some((container, handler)) = &reporter {
+                            facades::scope(container.clone(), async {
+                                let _ = handler.report(&Exception::Error(error.as_ref())).await;
+                            }).await;
+                            return;
+                        }
+                        Err(error)?;
+                    }
+                }
             }
             if let Some(event) = end {
                 yield event.encode();
             }
         };
         Self::stream::<Bytes, StreamError>(StatusCode::OK, events)
-            .header(CONTENT_TYPE, HeaderValue::from_static("text/event-stream"))
-            .header(CACHE_CONTROL, HeaderValue::from_static("no-cache"))
             .header(
-                HeaderName::from_static("x-accel-buffering"),
-                HeaderValue::from_static("no"),
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/event-stream; charset=utf-8"),
             )
+            .header(CACHE_CONTROL, HeaderValue::from_static("no-cache, private"))
     }
 
     pub fn streamDownload<T, E>(
@@ -240,6 +275,6 @@ impl Response {
         if let Some(name) = name {
             headers.insert(CONTENT_DISPOSITION, filename_header(disposition, name)?);
         }
-        Ok(Self::stream(StatusCode::OK, source).withHeaders(headers))
+        Ok(Self::new(StatusCode::OK, Body::from_stream(source)).withHeaders(headers))
     }
 }
