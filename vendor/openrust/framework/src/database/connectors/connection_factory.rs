@@ -636,6 +636,7 @@ fn mysql(
         .username(config.string("username", "root")?)
         .password(config.string("password", "")?)
         .charset(charset)
+        .found_rows(config.boolean("found_rows", false)?)
         .pipes_as_concat(false)
         .ssl_mode(ssl_mode);
     if !database.is_empty() {

@@ -164,3 +164,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - 真实 PostgreSQL 18.6 数据库和 SQLite 文件库均通过 HTTP 写入和独立 Artisan `db:insert-results`。回归覆盖别名、命名主键、重复与其他约束冲突、选取插入、写连接、sticky、事务回滚和不支持方言。实际 MySQL 8.4.13 与 SQLite 回归包括 34 项查询和写入，以及 3 项 Eloquent 模型用例。
 - Rust 1.94.0 工作区格式和严格 Clippy、`./artisan inspire`、三语构建及 12 项通用、6 项章节浏览器检查通过。本批临时数据库及隔离产物已回收，日志保留于 `/private/tmp/openrust-02-04-insert-results.RM1Ntmi1`。
 - 联结、子查询、锁、upsert 和主键返回的已验收范围见上述分批记录。PostgreSQL 全文已由 [07-06](../07-06/README.md#postgresql-全文索引排序和分页) 真实验收。MySQL 影响行数的核心差异仍在跟踪，SQLx 0.9.0 在握手中启用 `CLIENT_FOUND_ROWS` 并只公开服务端计数，匹配但未改动的行会计入结果。完整驱动及外部服务验证单独列于[发布验收](../database-dialects.md#发布验收)。
+
+## MySQL 和 MariaDB 影响行数与整单元验收
+
+- 固定 Laravel 的 `Connection::affectingStatement` 返回 PDO 语句得到的影响行数。MySQL／MariaDB 默认统计实际变化的行数。OpenRust 锁定的 SQLx 0.9.0 默认在握手中启用 `CLIENT_FOUND_ROWS`，已合并的上游配置接口尚未进入该发行版。旧版 `openrust-v0.x` 未找到这个开关，复用当前连接工厂和查询执行器。 [Laravel Connection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php) · [Laravel MySQL Connector](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/MySqlConnector.php) · [SQLx #4334](https://github.com/transact-rs/sqlx/pull/4334)
+- 校验原始发布归档后，仅将 `sqlx-mysql` 放入工作区并回移上游两个驱动源码文件的改动，原许可证及来源说明随驱动保留。SQLx 自身保留原默认行为，OpenRust 在应用连接上默认关闭该标志，连接配置 `found_rows: true` 可选用匹配行数。这是握手选项，查询、事务和连接池不增加往返或补发 SQL。Cargo 锁定的其余依赖保持原版本。支持的 SQLx 发行版包含该接口后，移除工作区补丁。 [MySQL ROW_COUNT](https://dev.mysql.com/doc/refman/8.4/en/information-functions.html#function_row-count)
+- 在隔离基线 `c2eb93ca7` 用实际 MySQL 8.4.13 与 MariaDB 11.8.9 测试匹配但未变化／未匹配返回 0，实际变化返回 1，upsert 插入／不变／变化分别返回 1、0、2。覆盖显式匹配行模式、原生 SQL、事务中的计数和回滚。两个驱动的实际 HTTP POST 与独立 Artisan 均验证 Query Builder 的默认计数，根应用 `./artisan inspire` 通过。
+- MySQL 8.4.13 夹具环境下，Query Builder 查询与写入、数据库 SQL、Eloquent 和迁移共 78 项定向回归通过，包含 SQLite 和按各自环境执行的条件用例。Rust 1.94.0 全仓格式、严格 Clippy、三语构建和两种部署路径下 18 项浏览器检查通过。验收日志保留于 `/private/tmp/openrust-02-04-affected-rows.qnIsVXmO`。
+- 对照计划的联结、UNION、子查询、写入、悲观锁与事务要求。现有真实证据包含[首批查询与写入](#验收)、[upsert 冲突赋值](#upsert-冲突赋值)、[跨方言联结](#postgresql-与-sql-server-关联子查询联结)、[原生锁](#查询原生锁定子句)、[更新表达式](#更新表达式与标量子查询)及[命名主键返回](#插入冲突与返回主键)。本批关闭默认行数差异，02-04 核心范围闭合。完整数据库版本、原生 Linux x86_64 和商业嵌入服务仍由[发布验收](../database-dialects.md#发布验收)跟踪。项目卷净增 9.15 GB（8.52 GiB），剩余 100.85 GB（93.92 GiB）。周额度剩余 38%，第二窗口无读数。

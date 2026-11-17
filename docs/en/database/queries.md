@@ -458,6 +458,10 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL applies joins and limits on updates or deletes by selecting the target rows in a subquery using `ctid`.
 
+### Affected Rows on MySQL and MariaDB {#mysql-affected-rows}
+
+MySQL and MariaDB count rows actually changed by an update. An update that sets a matching row to its current values returns `0`. An upsert reports `1` for an insert, `2` for a changed duplicate row, and `0` for an unchanged duplicate row. Set the connection option `"found_rows": true` to use matched-row counting instead.
+
 ### Update expressions and scalar subqueries {#update-expressions}
 
 Use `updateWith` to mix bound values, trusted SQL `Expression` values, and `UpdateValue::Subquery` assignments. Build a correlated subquery with `subquery` on the target builder. The database evaluates it for each matching row and determines the result of an empty or multi-row subquery. For JSON paths, MySQL, MariaDB, and PostgreSQL also accept expressions. SQLite merge patches accept literal values.

@@ -1954,6 +1954,105 @@ async fn sqlite_upsert_applies_mixed_assignments_only_on_conflict() {
 }
 
 #[tokio::test]
+async fn mysql_family_reports_changed_rows_by_default() {
+    let mysql = mysql_url();
+    let mariadb = std::env::var("OPENRUST_TEST_MARIADB_AFFECTED_ROWS_URL").ok();
+    assert!(
+        mariadb.is_some() || std::env::var_os("OPENRUST_REQUIRE_MARIADB_AFFECTED_ROWS").is_none()
+    );
+
+    for url in mysql.iter().chain(&mariadb) {
+        let db = connection(json!({"url": url}));
+        let matched = connection(json!({"url": url, "found_rows": true}));
+        db.unprepared(
+            "create table q_affected_rows (id integer primary key, stock integer not null)",
+        )
+        .await
+        .unwrap();
+        let item = |stock| record([("id", 1.into()), ("stock", Value::Integer(stock))]);
+        let table = || db.table("q_affected_rows");
+        let stock = |value| record([("stock", Value::Integer(value))]);
+        let upsert = |row| async { table().upsert(&[row], &["id"], Some(&["stock"])).await };
+        assert_eq!(upsert(item(10)).await.unwrap(), 1);
+        assert_eq!(upsert(item(10)).await.unwrap(), 0);
+        assert_eq!(upsert(item(11)).await.unwrap(), 2);
+        assert_eq!(
+            table()
+                .r#where("id", "=", 2)
+                .update(stock(11))
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            table()
+                .r#where("id", "=", 1)
+                .update(stock(11))
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            table()
+                .r#where("id", "=", 1)
+                .update(stock(12))
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            matched
+                .table("q_affected_rows")
+                .r#where("id", "=", 1)
+                .update(stock(12))
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            matched
+                .table("q_affected_rows")
+                .upsert(&[item(12)], &["id"], Some(&["stock"]))
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.affectingStatement(
+                "update q_affected_rows set stock = ? where id = ?",
+                &[12.into(), 1.into()]
+            )
+            .await
+            .unwrap(),
+            0
+        );
+        let mut tx = db.beginTransaction().await.unwrap();
+        assert_eq!(
+            tx.table("q_affected_rows")
+                .r#where("id", "=", 1)
+                .update(stock(12))
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            tx.table("q_affected_rows")
+                .r#where("id", "=", 1)
+                .update(stock(13))
+                .await
+                .unwrap(),
+            1
+        );
+        tx.rollBack(None).await.unwrap();
+        assert_eq!(
+            table().r#where("id", "=", 1).value("stock").await.unwrap(),
+            12.into()
+        );
+        db.unprepared("drop table q_affected_rows").await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn mysql_upsert_applies_mixed_assignments_with_either_insert_reference() {
     let Some(url) = mysql_url() else {
         return;

@@ -458,6 +458,10 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的联结或限额更新和删除通过 `ctid` 子查询选出目标行。
 
+### MySQL 与 MariaDB 的影响行数 {#mysql-affected-rows}
+
+MySQL 和 MariaDB 的更新返回实际修改的行数。把匹配行更新为原值时返回 `0`。upsert 插入新行时返回 `1`，修改重复行时返回 `2`，重复行未变化时返回 `0`。在连接配置中设置 `"found_rows": true` 可改为统计匹配行。
+
 ### 更新表达式与标量子查询 {#update-expressions}
 
 使用 `updateWith` 混合绑定值、可信 SQL `Expression` 和 `UpdateValue::Subquery` 赋值。通过目标构造器的 `subquery` 创建关联子查询，数据库对每条匹配记录求值，并按自身规则处理空结果或多行结果。MySQL、MariaDB 和 PostgreSQL 的 JSON 路径支持表达式。SQLite 合并补丁接收字面值。

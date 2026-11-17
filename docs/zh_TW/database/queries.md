@@ -458,6 +458,10 @@ pub async fn import_stock(connection: &Connection, code: &str, stock: i64) -> Da
 
 PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標列。
 
+### MySQL 與 MariaDB 的影響列數 {#mysql-affected-rows}
+
+MySQL 和 MariaDB 的更新回傳實際修改的列數。把符合條件的資料列更新為原值時回傳 `0`。upsert 插入新列時回傳 `1`，修改重複列時回傳 `2`，重複列未變更時回傳 `0`。在連線設定中設為 `"found_rows": true` 可改為統計符合條件的列。
+
 ### 更新運算式與純量子查詢 {#update-expressions}
 
 使用 `updateWith` 混合繫結值、可信的 SQL `Expression` 與 `UpdateValue::Subquery` 指派。透過目標建構器的 `subquery` 建立關聯子查詢，資料庫為每筆相符資料求值，並依自身規則處理空結果或多筆結果。MySQL、MariaDB 與 PostgreSQL 的 JSON 路徑支援運算式。SQLite 合併修補接收字面值。
