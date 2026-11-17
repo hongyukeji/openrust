@@ -13,6 +13,7 @@ use crate::{
     events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
+    support::TestClock,
 };
 
 use super::{
@@ -26,6 +27,7 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 /// An application with its own configuration, container, and temporary root.
 pub struct TestApp {
     app: Application,
+    pub(super) clock: Arc<TestClock>,
     http: Option<Kernel>,
     pub(super) mysql: Vec<MySqlTestDatabase>,
     pub(super) refreshed: Option<RefreshState>,
@@ -56,8 +58,11 @@ impl TestApp {
         app.use_testing_environment();
         let query_counts = Arc::new(TestQueryCounts::default());
         app.container().instance(query_counts.clone())?;
+        let clock = Arc::new(TestClock::default());
+        app.container().instance(clock.clone())?;
         Ok(Self {
             app,
+            clock,
             http: None,
             mysql: Vec::new(),
             refreshed: None,

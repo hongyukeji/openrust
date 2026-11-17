@@ -6,8 +6,9 @@ pub(in crate::database::eloquent) fn timestamp(
     connection: &Connection,
     format: &str,
 ) -> DatabaseResult<Value> {
+    let owner = Connection::model_container(Some(connection));
     format_for_storage(
-        chrono::Utc::now().with_timezone(&connection.model_timezone),
+        crate::support::utc_now_for(owner.as_deref()).with_timezone(&connection.model_timezone),
         format,
     )
 }

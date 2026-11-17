@@ -179,3 +179,5 @@ macOS arm64、Rust 1.94.0。锁定离线工作区测试退出码为 0，日志�
 T-04 的 [作用域内事件替身](T-04/README.md#作用域内的事件替身)通过同一进程的并发 TCP HTTP、SQLite 和真实 MySQL 事件回归、Artisan 以及三语示例。
 
 T-04 的 [事件负载筛选与断言](T-04/README.md#按事件负载筛选与断言)通过真实 HTTP、SQLite 和 MySQL 事件回归、Artisan 以及三语示例。
+
+T-04 的 [测试时间控制](T-04/README.md#控制测试时间)通过应用隔离、HTTP、Artisan、SQLite 模型时间戳、真实 MySQL 模型回归和三语示例。

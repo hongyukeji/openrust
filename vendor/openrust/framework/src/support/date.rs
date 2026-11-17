@@ -1,11 +1,12 @@
-use std::time::SystemTime;
-
 use chrono::{
     DateTime, Datelike, LocalResult, Months, NaiveDateTime, Offset, TimeDelta, TimeZone, Utc,
 };
 use chrono_tz::{GapInfo, Tz, TzOffset};
 
 use super::facades::Config;
+
+mod clock;
+pub(crate) use clock::{TestClock, utc_now_for};
 
 /// An IANA timezone used by OpenRust date helpers.
 pub use chrono_tz::Tz as DateTimezone;
@@ -131,10 +132,7 @@ pub fn now(timezone: Option<Tz>) -> Result<Date, DateError> {
             None => chrono_tz::UTC,
         },
     };
-    Ok(Date::fromUtc(
-        DateTime::<Utc>::from(SystemTime::now()),
-        timezone,
-    ))
+    Ok(Date::fromUtc(clock::utc_now(), timezone))
 }
 
 pub fn today(timezone: Option<Tz>) -> Result<Date, DateError> {
