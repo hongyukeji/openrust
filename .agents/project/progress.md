@@ -3092,3 +3092,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 00:07（北京时间）02-02 [真实 PostgreSQL 直连与 PgBouncer 事务池](audits/02-02/README.md#真实-postgresql-直连与-pgbouncer-事务池)。PostgreSQL 18.6 与 PgBouncer 1.26.1 的 24 个并发 HTTP 请求、显式直连和迁移账本路由通过。三语部署说明及 6 项浏览器检查通过。核心账本维持 62/66。
 
 - 2026-11-18 00:07（北京时间）02-05 [PostgreSQL 类型目录与真实目录验收](audits/02-05/README.md#postgresql-类型目录与真实目录验收)。PostgreSQL 18.6 真实 HTTP 验证 Schema、表、视图、类型、列和复合外键。预演、MySQL 8.4.13 表目录和限定清库、独立 Artisan、Rust 1.94.0 格式及严格 Clippy、三语站点和两种部署路径的浏览器检查通过。核心账本维持 62/66。 临时 PostgreSQL、PgBouncer 与本批隔离产物已清理。该次清理后磁盘可用 106.46 GB（99.15 GiB），净增 8.68 GB（8.09 GiB）。周额度剩余 45%，第二窗口无读数。
+
+- 2026-11-18 00:07（北京时间）02-06 [真实 PostgreSQL 缺库、快照与限定 Schema 清库](audits/02-06/README.md#真实-postgresql-缺库快照与限定-schema-清库)。PostgreSQL 18.6 的独立 Artisan 缺库拒绝和创建、直连转储、SQL 与归档恢复、无效 SQL 回滚及限定 Schema 清库通过。核心账本维持 62/66。

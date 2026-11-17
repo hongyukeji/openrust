@@ -135,3 +135,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - PostgreSQL 在同一个写连接事务中枚举和删除对象。查询基于服务器实际生效的 `search_path`，排除系统 Schema。表名支持 `dont_drop` 物理名与限定名，默认保留 `spatial_ref_sys`。清理依 Laravel 顺序执行可选视图、表、可选用户类型和域。目录名称逐段转义，批量 DDL 使用 `CASCADE`，依赖影响可跨 Schema。成功后 Artisan 迁移清理退役原连接池。
 - `migrate:fresh` 保留已有账本才清库的判定。Schema 提供 `dropAllTables()`、`dropAllViews()` 和 `dropAllTypes()`。隔离基线 `a3d175ca6` 的无网络测试验证排除、限定名、带引号名称和空目标。真实 PostgreSQL 的对象枚举、级联与快照重建留待发布验收。
 - 真实 MySQL 8.4.13 通过表目录、限定 Schema 清库和 Artisan 快照转储恢复三项回归。根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.6 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-wipe.yEPquOZh`。
+
+## 真实 PostgreSQL 缺库、快照与限定 Schema 清库
+
+- 沿用固定 Laravel 的迁移连接选择、缺库提示、快照加载与清库机制。真实 PostgreSQL 18.6 上，`migrate --no-interaction` 因目标库不存在返回 1，保留原状。加入 `--force` 创建 PostgreSQL 数据库并运行根应用迁移。普通迁移的账本仅写直连端点。
+- `schema:dump --database=pgsql` 使用真实 `pg_dump`，快照包含表结构和迁移账本。业务行未写入快照。独立 Artisan 通过真实 `psql` 恢复 SQL，真实 `pg_restore` 恢复归档，无效 SQL 让恢复事务回滚。测试包装器先核对客户端收到直连端口，再映射到同一个隔离容器的本地端口。
+- `migrate:fresh` 重建目标 Schema，保留相邻 Schema 的哨兵行。`db:wipe --drop-views --drop-types` 清空指定搜索路径中的表、视图、类型和域，保留相邻 Schema 的数据与其他 Schema 的迁移账本。其他驱动快照和 PostgreSQL 版本矩阵继续跟踪。 [Laravel 快照](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/PostgresSchemaState.php) · [Laravel 清库](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/WipeCommand.php)
+- 验收脚本、日志和快照保留在 `/private/tmp/openrust-02-05-postgres-types.ZYsFwGbc`。
