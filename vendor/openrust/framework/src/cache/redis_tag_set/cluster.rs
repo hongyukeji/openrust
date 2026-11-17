@@ -11,6 +11,7 @@ const ITEM: &str = concat!(
 );
 const RETIRE: &str = include_str!("../scripts/redis_cluster_tag_retire.lua");
 const CLEANUP: &str = include_str!("../scripts/redis_cluster_tag_cleanup.lua");
+const PRUNE_RETIREMENTS: &str = include_str!("../scripts/redis_cluster_tag_prune_retirements.lua");
 const GENERATION_ATTEMPTS: usize = 16;
 
 impl RedisTagSet {
@@ -236,6 +237,7 @@ impl RedisTagSet {
                 )
                 .await?;
             let mut invalid = Vec::new();
+            let mut valid = Vec::new();
             for generation in &generations {
                 let Some(id) = std::str::from_utf8(generation)
                     .ok()
@@ -244,14 +246,21 @@ impl RedisTagSet {
                     invalid.push(generation.as_slice());
                     continue;
                 };
-                let index = format!("{index_prefix}{id}");
                 if retire {
+                    let index = format!("{index_prefix}{id}");
                     self.drain_cluster_index(registry, &index, pending, id)
                         .await?;
                 } else {
-                    self.cleanup(registry, &index, pending, id, &[], false)
-                        .await?;
+                    valid.push(id);
                 }
+            }
+            for batch in valid.chunks(BATCH_SIZE) {
+                let mut command = cluster_script(PRUNE_RETIREMENTS, 2 + batch.len());
+                command.arg(registry).arg(pending);
+                for id in batch {
+                    command.arg(format!("{index_prefix}{id}"));
+                }
+                self.query::<()>(command.arg(batch)).await?;
             }
             for batch in invalid.chunks(BATCH_SIZE) {
                 self.query::<u64>(::redis::cmd("SREM").arg(pending).arg(batch))

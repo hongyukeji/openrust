@@ -1320,20 +1320,10 @@ async fn redis_cluster_tags_flush_and_prune() {
         .unwrap();
     assert!(interrupted.forever("current", &8.into()).await.unwrap());
     // The registry and the retired index may both be evicted before pruning.
-    let evicted_generation = "0123456789abcdef0123456789abcdef";
-    assert!(!exists(&format!("{prefix}index:{tag}:{evicted_generation}")).await);
-    connection
-        .command(
-            "SADD",
-            &[
-                pending.as_bytes(),
-                evicted_generation.as_bytes(),
-                b"malformed",
-                b"\xff",
-            ],
-        )
-        .await
-        .unwrap();
+    let retirements: Vec<String> = (0..320).map(|id| format!("{id:032x}")).collect();
+    let mut pending_members = vec![pending.as_bytes(), b"malformed", b"\xff"];
+    pending_members.extend(retirements.iter().map(String::as_bytes));
+    connection.command("SADD", &pending_members).await.unwrap();
     let registry = format!("{prefix}indexes");
     connection
         .command("DEL", &[registry.as_bytes()])
@@ -1344,7 +1334,7 @@ async fn redis_cluster_tags_flush_and_prune() {
         connection
             .command(
                 "SISMEMBER",
-                &[pending.as_bytes(), evicted_generation.as_bytes()]
+                &[pending.as_bytes(), retirements[0].as_bytes()]
             )
             .await
             .unwrap(),
@@ -1371,7 +1361,6 @@ async fn redis_cluster_tags_flush_and_prune() {
     let current_value = interrupted.taggedItemKey("current").await.unwrap();
     let current_index = index("interrupted").await;
     let (current_prefix, current_generation) = current_index.rsplit_once(':').unwrap();
-    let retirements: Vec<String> = (0..320).map(|id| format!("{id:032x}")).collect();
     let mut pending_members = vec![pending.as_bytes(), b"malformed", b"\xff"];
     pending_members.extend(retirements.iter().map(String::as_bytes));
     connection.command("SADD", &pending_members).await.unwrap();
