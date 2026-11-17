@@ -88,3 +88,28 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 ```
 
 Pass `None` to `withInput` to read form or JSON fields and query parameters from the request. Uploaded files are excluded. Use `onlyInput` or `exceptInput` to select fields by dot path. The next request can read old input with `request.old(Some("name"))` and flashed values from the session.
+
+## Streamed Responses {#streamed-responses}
+
+### Streamed JSON Responses {#streamed-json-responses}
+
+Use `Response::streamJson` with `StreamedJson::object` to wrap a stream of rows in a JSON object. `StreamedJson::items` serializes each row as it arrives. Use `StreamedJson::value` for fixed values and `StreamedJson::array` for nested arrays. Use `StreamedJson::entries` to stream key-value pairs into a JSON object.
+
+```rust
+use futures_util::stream;
+use openrust::http::{HttpError, Response, StatusCode, StreamedJson};
+
+let users = stream::iter([Ok::<_, HttpError>(1), Ok(2)]);
+let data = StreamedJson::object([("users", StreamedJson::items(users))]);
+let response = Response::streamJson(StatusCode::OK, data);
+```
+
+### Event Streams (SSE) {#event-streams}
+
+`Response::eventStream` sends `text/event-stream` and disables cache and proxy buffering. `StreamedEvent::message` uses the `update` event. Use `StreamedEvent::new` for named text events and `StreamedEvent::json` for JSON payloads. The default last event carries `</stream>`. Use `Response::eventStreamWithEnd` to supply a final event or pass `None` to omit it.
+
+Once the headers have been sent, a source or serialization error ends the body with a transport error. SSE sends its final event only when the source completes successfully.
+
+### Streamed Downloads {#streamed-downloads}
+
+`Response::streamDownload` sends byte chunks as a download. With a filename, it builds `Content-Disposition` using the requested disposition and adds a UTF-8 filename when needed. With `None`, the supplied headers determine the disposition.

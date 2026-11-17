@@ -58,3 +58,11 @@
 - 嵌套单例保留父参数，子路径使用固定 URI。浅层配置按上游只将编辑、更新、删除移出父路径。显式 `only` 可覆盖两个 API 入口的默认动作集，再沿用生命周期和 `except` 筛选。
 - 真实 HTTP 验证单例路径、生命周期、浅层路由与 404／405，定向回归覆盖显式动作选择、命名和父参数绑定字段。实际 Artisan 与固定 PHP 注册器对照。04-02 下一批核对剩余响应契约，核心账本维持 56/66。
 - `4bad17635` 隔离快照以 Rust 1.94.0 通过请求输入套件 9 项和路由 HTTP 16 项。实际 `route:list --json --sort=definition` 的 13 条路由通过 PHP 对照，`artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-singleton.YIt9p9Dj`。
+
+## 流式响应
+
+- 对照固定 Laravel 的 `streamJson`、`eventStream` 和 `streamDownload`，以及 Symfony 7.4.0 的 JSON 生成器与下载处置头。旧版 `v0.x` 未发现对应三种响应构造器，沿用现有 Rust 异步响应体并提取文件系统共用的文件名编码。 [Laravel 流式响应](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#streamed-responses) · [Laravel ResponseFactory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResponseFactory.php)
+- PHP 根据生成器的首键区分数组与对象，Rust 由 `StreamedJson::items` 和 `entries` 显式选择，空键值流可生成 `{}`。JSON 使用 Serde 转义。SSE 保留 `update`、多行 `data` 和默认 `</stream>`，可自定义或省略结束事件。Laravel 报告流中异常后停止发送，Rust 将发送后的错误交给 HTTP 响应体，避免发送成功结束事件。流式下载保留可选文件名和处置类型，支持 UTF-8 `filename*`。
+- 隔离基线 `22acc2558` 上的真实 HTTP 覆盖逐项 JSON、键值对象、嵌套空数组、HEAD 无正文、SSE 帧与响应头、下载内容与 UTF-8 文件名。受控数据源验证首块在源就绪前发出，另覆盖流中失败、可选结束帧与无效输入。PHP 8.5 调用固定 `ResponseFactory` 与 Symfony 7.4.0 对照上述可比较的 JSON、SSE 帧和下载文件名。下载对照固定 ASCII 回退名以单独核对处置头。
+- Rust 1.94.0 请求与响应回归 11 项、本地文件系统 9 项、应用 HTTP 16 项通过。实际 `route:list --json --method=HEAD` 和 `artisan inspire`、工作区严格 Clippy、改动文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报告既有的 `sanctum_authentication.rs:1412`。隔离产物已清理，验收日志保留于 `/private/tmp/openrust-04-02-streams.lm10Ah3l`。
+- 04-02 仍需核对 `withoutHeader`、`cache.headers`、文件与其他响应工厂及响应宏。Laravel 前端流式消费套件和 Serde/PHP 转义差异仍需按公开契约核对。

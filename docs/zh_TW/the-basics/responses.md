@@ -88,3 +88,28 @@ async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
 ```
 
 向 `withInput` 傳入 `None` 時，讀取請求的表單或 JSON 欄位及查詢參數。上傳檔案會被排除。使用 `onlyInput` 或 `exceptInput` 依點路徑篩選欄位。下一次請求可用 `request.old(Some("name"))` 讀取舊輸入，並從工作階段讀取暫存值。
+
+## 串流回應 {#streamed-responses}
+
+### 串流 JSON 回應 {#streamed-json-responses}
+
+透過 `Response::streamJson` 和 `StreamedJson::object` 將資料列串流放進 JSON 物件。`StreamedJson::items` 在每列到達時序列化。固定值使用 `StreamedJson::value`，巢狀陣列使用 `StreamedJson::array`。使用 `StreamedJson::entries` 可將鍵值對逐項寫入 JSON 物件。
+
+```rust
+use futures_util::stream;
+use openrust::http::{HttpError, Response, StatusCode, StreamedJson};
+
+let users = stream::iter([Ok::<_, HttpError>(1), Ok(2)]);
+let data = StreamedJson::object([("users", StreamedJson::items(users))]);
+let response = Response::streamJson(StatusCode::OK, data);
+```
+
+### 伺服器傳送事件（SSE） {#event-streams}
+
+`Response::eventStream` 傳送 `text/event-stream` 並關閉快取與代理緩衝。`StreamedEvent::message` 使用 `update` 事件。具名文字事件使用 `StreamedEvent::new`，JSON 資料使用 `StreamedEvent::json`。預設結束事件帶有 `</stream>`。`Response::eventStreamWithEnd` 接收自訂結束事件，傳入 `None` 可省略結束事件。
+
+回應標頭送出後，資料來源或序列化失敗會以傳輸錯誤結束本文。只有資料來源成功完成時才傳送 SSE 結束事件。
+
+### 串流下載 {#streamed-downloads}
+
+`Response::streamDownload` 分段傳送下載內容。提供檔名時，框架依指定的處置方式產生 `Content-Disposition`，並視需要附加 UTF-8 檔名。檔名為 `None` 時，由呼叫端提供的回應標頭決定處置方式。

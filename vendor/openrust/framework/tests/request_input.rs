@@ -4,7 +4,10 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{
+        HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode, StreamedEvent,
+        StreamedJson,
+    },
     routing::{ControllerDispatcher, ResourceAction, ResourceController, Router, RoutingError},
     support::{BackedEnum, ProviderResult, ServiceProvider, facades::Route},
 };
@@ -84,6 +87,45 @@ fn stream(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let chunks = futures_util::stream::iter([Ok::<_, std::io::Error>("first"), Ok("second")]);
         Ok(Response::stream(StatusCode::OK, chunks))
+    })
+}
+
+fn stream_json(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let users = futures_util::stream::iter([Ok::<_, std::io::Error>(1), Ok(2)]);
+        let empty = futures_util::stream::empty::<Result<i32, std::io::Error>>();
+        let counts = futures_util::stream::iter([Ok::<_, std::io::Error>(("active", 2))]);
+        Ok(Response::streamJson(
+            StatusCode::OK,
+            StreamedJson::object([
+                ("users", StreamedJson::items(users)),
+                ("counts", StreamedJson::entries(counts)),
+                (
+                    "meta",
+                    StreamedJson::array([
+                        StreamedJson::value("ready")?,
+                        StreamedJson::items(empty),
+                    ]),
+                ),
+            ]),
+        ))
+    })
+}
+
+fn event_stream(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let events = futures_util::stream::iter([
+            Ok::<_, HttpError>(StreamedEvent::message("line\r\nnext\rfinal")),
+            StreamedEvent::json("snapshot", json!({"ready":true})),
+        ]);
+        Ok(Response::eventStream(events))
+    })
+}
+
+fn stream_download(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let content = futures_util::stream::iter([Ok::<_, std::io::Error>("first"), Ok("second")]);
+        Response::streamDownload(content, Some("résumé.txt"), HeaderMap::new(), "attachment")
     })
 }
 
@@ -258,6 +300,9 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
                     .scoped(&[("photo", "slug")]),
             )?;
             Route::singleton("preferences", photo_resource().destroyable())?;
+            Route::get("/stream.json", stream_json)?;
+            Route::get("/stream.events", event_stream)?;
+            Route::get("/stream.download", stream_download)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -879,4 +924,101 @@ fn singleton_routes_apply_explicit_selection_and_keep_binding_metadata() {
             "{method} {path}"
         );
     }
+}
+
+fn chunked_content(mut body: &str) -> String {
+    let mut result = String::new();
+    loop {
+        let (length, next) = body.split_once("\r\n").unwrap();
+        let length = usize::from_str_radix(length, 16).unwrap();
+        if length == 0 {
+            return result;
+        }
+        result.push_str(&next[..length]);
+        body = next[length..].strip_prefix("\r\n").unwrap();
+    }
+}
+
+#[tokio::test]
+async fn real_http_streams_json_events_and_downloads() {
+    let (address, server) = start("streams").await;
+    let (headers, body) = send(address, "GET", "/stream.json", "", b"", 200).await;
+    assert!(headers.contains("\r\ncontent-type: application/json"));
+    assert!(headers.contains("\r\ntransfer-encoding: chunked"));
+    assert_eq!(
+        serde_json::from_str::<Value>(&chunked_content(&body)).unwrap(),
+        json!({"users":[1,2],"counts":{"active":2},"meta":["ready",[]]})
+    );
+    let (_, body) = send(address, "HEAD", "/stream.json", "", b"", 200).await;
+    assert!(body.is_empty());
+
+    let (headers, body) = send(address, "GET", "/stream.events", "", b"", 200).await;
+    assert!(headers.contains("\r\ncontent-type: text/event-stream"));
+    assert!(headers.contains("\r\ncache-control: no-cache"));
+    assert!(headers.contains("\r\nx-accel-buffering: no"));
+    assert_eq!(
+        chunked_content(&body),
+        "event: update\ndata: line\ndata: next\ndata: final\n\nevent: snapshot\ndata: {\"ready\":true}\n\nevent: update\ndata: </stream>\n\n"
+    );
+
+    let (headers, body) = send(address, "GET", "/stream.download", "", b"", 200).await;
+    assert!(headers.contains("\r\ncontent-disposition: attachment; filename=resume.txt; filename*=utf-8''r%C3%A9sum%C3%A9.txt"));
+    assert_eq!(chunked_content(&body), "firstsecond");
+    server.abort();
+}
+
+#[tokio::test]
+async fn response_streams_preserve_failure_and_lazy_sources() {
+    use futures_util::{StreamExt as _, stream};
+
+    let (release, ready) = tokio::sync::oneshot::channel::<()>();
+    let source = stream::once(async {
+        ready.await.unwrap();
+        Ok::<_, std::io::Error>(1)
+    });
+    let mut response = Response::streamJson(StatusCode::OK, StreamedJson::items(source));
+    let mut body = response.take_body().into_data_stream();
+    let first = tokio::time::timeout(std::time::Duration::from_secs(1), body.next()).await;
+    assert_eq!(first.unwrap().unwrap().unwrap().as_ref(), b"[");
+    release.send(()).unwrap();
+    assert_eq!(body.next().await.unwrap().unwrap().as_ref(), b"1");
+    assert_eq!(body.next().await.unwrap().unwrap().as_ref(), b"]");
+
+    let source = stream::iter([Err::<StreamedEvent, _>(std::io::Error::other(
+        "ended early",
+    ))]);
+    let mut response = Response::eventStream(source);
+    let mut body = response.take_body().into_data_stream();
+    assert!(body.next().await.unwrap().is_err());
+    assert!(body.next().await.is_none());
+
+    let empty = || stream::empty::<Result<StreamedEvent, std::io::Error>>();
+    let mut response = Response::eventStreamWithEnd(empty(), None);
+    assert!(
+        response
+            .take_body()
+            .into_data_stream()
+            .next()
+            .await
+            .is_none()
+    );
+    let end = StreamedEvent::new("done", "ok").unwrap();
+    let mut response = Response::eventStreamWithEnd(empty(), Some(end));
+    let mut body = response.take_body().into_data_stream();
+    assert_eq!(
+        body.next().await.unwrap().unwrap().as_ref(),
+        b"event: done\ndata: ok\n\n"
+    );
+    assert!(body.next().await.is_none());
+
+    assert!(StreamedEvent::new("injected\nevent", "data").is_err());
+    assert!(
+        Response::streamDownload(
+            stream::empty::<Result<String, std::io::Error>>(),
+            Some("../unsafe"),
+            HeaderMap::new(),
+            "attachment"
+        )
+        .is_err()
+    );
 }
