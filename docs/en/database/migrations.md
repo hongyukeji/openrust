@@ -366,6 +366,28 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` exposes the generation mode and expression. MySQL and SQLite support both modes when creating tables. SQLite’s native ALTER can add a virtual column. Add a stored column when creating a table, or use a migration that explicitly rebuilds the table.
 
+#### MySQL Generated Columns and Current Defaults {#mysql-generated-columns-and-current-defaults}
+
+MySQL generated columns allow NULL by default. Use `nullableWith(false)` to require a value, or `nullable()` to allow NULL explicitly. Regular columns are required by default.
+
+On MySQL, `useCurrent()` takes precedence over an explicit default on DATE, YEAR, DATETIME, and TIMESTAMP, regardless of modifier order. The database supplies the current date, year, or timestamp, using column precision for timestamps. Other column types keep their explicit default.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_metrics(table: &mut Blueprint) {
+    table.id();
+    table.integer("quantity").nullable();
+    table.integer("doubled").virtualAs("quantity * 2");
+    table.integer("total")
+        .storedAs("COALESCE(quantity, 0)")
+        .nullableWith(false);
+    table.timestamp("recorded_at", 3)
+        .useCurrent()
+        .default("2000-01-01 00:00:00");
+}
+```
+
 ### Spatial Columns {#spatial-columns}
 
 Use `geometry` or `geography` to declare a spatial column. The optional subtype selects a MySQL type such as `point` or `multipolygon`. The default SRID is 0 for `geometry` and 4326 for `geography`. Pass `Some(0)` to omit the SRID restriction.

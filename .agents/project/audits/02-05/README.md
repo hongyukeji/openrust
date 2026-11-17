@@ -363,3 +363,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 三语共用示例经实际 Artisan 执行迁移预演、迁移和回滚。核对预演无表、实际列类型和回滚后表已移除。`main artisan inspire`、严格工作区 Clippy、变更文件格式、三语站点及 18 项浏览器检查通过。全仓格式只报告既有 `sanctum_authentication.rs:1412`。
 - 02-05 仍跟踪默认值修饰符和其他方言。证据目录 `/private/tmp/openrust-02-05-width-time.v6lgHeoV`。
 - 临时 MySQL 与本轮隔离产物已回收，清理 Cargo 产物 4.1 GiB。磁盘可用 115.02 GB（107.12 GiB），周额度剩余 66%，第二窗口无读数。
+
+
+## MySQL 生成列与当前时间默认值
+
+- 对照固定 Laravel MySQL Grammar 的 `modifyNullable`、`typeDate`、`typeYear`、`typeDateTime` 与 `typeTimestamp`。旧版 `v0.x` 未找到这两类组合的实现。沿用现有 Blueprint 与列编译路径。 [Laravel 生成列可空性](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1211) · [Laravel 列修饰符](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#column-modifiers)
+- MySQL 的生成列在未显式声明可空性时允许 NULL，普通列仍默认非空。保留 `nullable()` 并以 `nullableWith(false)` 对应 Laravel 的 `nullable(false)`。`useCurrent()` 在 MySQL DATE、YEAR、DATETIME 和 TIMESTAMP 上优先于显式默认值，其他 MySQL 类型保留显式默认值。保留其他方言的既有默认值调用顺序。
+- 隔离基线 `1f2891c1`，Rust 1.94.0 和 MySQL 8.4.13。31 项 MySQL Schema 回归通过。新用例覆盖虚拟列、存储列及 JSON 生成列的 NULL 读取，显式非空、改列后的写入约束、两种调用顺序、TIME 及整数的显式默认值，以及 ALTER 后再次写入。表目录和限定 Schema 清库通过。
+- 三语共用示例经实际 Artisan 验证迁移预演无表、迁移后的列可空性与默认值、回滚移除表。`main artisan inspire`、严格 Clippy 和改动文件格式通过。三语站点构建和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。证据目录 `/private/tmp/openrust-02-05-generated-defaults.RSqrneGV`。
+- 临时 MySQL、4.1 GiB 隔离 Cargo 产物及文档缓存已回收，磁盘可用 114.97 GB（107.07 GiB），周额度剩余 65%，第二窗口无读数。

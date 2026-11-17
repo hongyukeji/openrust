@@ -7,7 +7,7 @@ use crate::database::{
         Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition, SqliteJsonTypes,
         TableOptions,
         blueprint::Command,
-        column_definition::{ColumnType, DefaultValue, GeneratedColumn, Position},
+        column_definition::{ColumnType, CurrentDefault, DefaultValue, GeneratedColumn, Position},
         index_definition::IndexType,
     },
 };
@@ -650,7 +650,9 @@ impl Grammar {
                 | ColumnType::Integer
                 | ColumnType::BigInteger
         );
-        if column.increment && (!integer || column.nullable || column.default.is_some()) {
+        let default = self.column_default(column);
+        let nullable = column.nullable.unwrap_or(false);
+        if column.increment && (!integer || nullable || default.is_some()) {
             return Err(DatabaseError::InvalidSchema("auto increment column"));
         }
         let mut sql = format!("{} {kind}", self.identifier(&column.name)?);
@@ -676,7 +678,7 @@ impl Grammar {
             write!(sql, " collate {collation}").expect("writing to a String");
         }
         if let Some(generated) = &column.generated {
-            if column.default.is_some()
+            if default.is_some()
                 || column.increment
                 || column.primary
                 || column.current_on_update
@@ -687,17 +689,13 @@ impl Grammar {
             let expression = self.generated_expression(generated)?;
             let mode = if generated.stored { " stored" } else { "" };
             write!(sql, " as ({expression}){mode}").expect("writing to a String");
-            if !column.nullable {
+            if !column.nullable.unwrap_or_else(|| self.mysql()) {
                 sql.push_str(" not null");
             }
         } else {
-            sql.push_str(if column.nullable {
-                " null"
-            } else {
-                " not null"
-            });
+            sql.push_str(if nullable { " null" } else { " not null" });
         }
-        if let Some(default) = &column.default {
+        if let Some(default) = default {
             write!(
                 sql,
                 " default {}",
@@ -925,6 +923,26 @@ impl Grammar {
             }
         };
         Ok(scalar.into())
+    }
+
+    fn column_default<'a>(&self, column: &'a ColumnDefinition) -> Option<&'a DefaultValue> {
+        let current = if self.mysql() {
+            column.current_default != CurrentDefault::Unset
+                && matches!(
+                    column.kind,
+                    ColumnType::Date
+                        | ColumnType::Year
+                        | ColumnType::DateTime(_)
+                        | ColumnType::Timestamp(_)
+                )
+        } else {
+            column.current_default == CurrentDefault::AfterExplicit
+        };
+        if current {
+            Some(&DefaultValue::CurrentTimestamp)
+        } else {
+            column.default.as_ref()
+        }
     }
 
     fn default_value(&self, value: &DefaultValue, kind: &ColumnType) -> DatabaseResult<String> {

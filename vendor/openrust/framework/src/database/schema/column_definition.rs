@@ -54,6 +54,13 @@ impl From<Expression> for DefaultValue {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum CurrentDefault {
+    Unset,
+    BeforeExplicit,
+    AfterExplicit,
+}
+
 #[derive(Clone)]
 pub(super) enum Position {
     First,
@@ -72,7 +79,7 @@ pub(super) struct GeneratedColumn {
 pub struct ColumnDefinition {
     pub(super) name: String,
     pub(super) kind: ColumnType,
-    pub(super) nullable: bool,
+    pub(super) nullable: Option<bool>,
     pub(super) unsigned: bool,
     pub(super) increment: bool,
     pub(super) primary: bool,
@@ -80,6 +87,7 @@ pub struct ColumnDefinition {
     pub(super) indexed: bool,
     pub(super) spatial_indexed: bool,
     pub(super) default: Option<DefaultValue>,
+    pub(super) current_default: CurrentDefault,
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
     pub(super) rename_to: Option<String>,
@@ -101,7 +109,7 @@ impl ColumnDefinition {
         Self {
             name: name.to_owned(),
             kind,
-            nullable: false,
+            nullable: None,
             unsigned: false,
             increment: false,
             primary: false,
@@ -109,6 +117,7 @@ impl ColumnDefinition {
             indexed: false,
             spatial_indexed: false,
             default: None,
+            current_default: CurrentDefault::Unset,
             generated: None,
             change: false,
             rename_to: None,
@@ -131,7 +140,12 @@ impl ColumnDefinition {
     }
 
     pub fn nullable(&mut self) -> &mut Self {
-        self.nullable = true;
+        self.nullableWith(true)
+    }
+
+    /// Sets nullability explicitly, including on generated columns.
+    pub fn nullableWith(&mut self, nullable: bool) -> &mut Self {
+        self.nullable = Some(nullable);
         self
     }
 
@@ -179,6 +193,9 @@ impl ColumnDefinition {
 
     pub fn default(&mut self, value: impl Into<DefaultValue>) -> &mut Self {
         self.default = Some(value.into());
+        if self.current_default == CurrentDefault::AfterExplicit {
+            self.current_default = CurrentDefault::BeforeExplicit;
+        }
         self
     }
 
@@ -212,7 +229,7 @@ impl ColumnDefinition {
     }
 
     pub fn useCurrent(&mut self) -> &mut Self {
-        self.default = Some(DefaultValue::CurrentTimestamp);
+        self.current_default = CurrentDefault::AfterExplicit;
         self
     }
 

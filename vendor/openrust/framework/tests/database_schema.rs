@@ -2028,6 +2028,170 @@ async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
 }
 
 #[tokio::test]
+async fn mysql_generated_columns_keep_explicit_and_default_nullability() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url}));
+    let mut schema = db.getSchemaBuilder();
+    let name = "generated_nullability";
+    schema.dropIfExists(name).await.unwrap();
+    schema
+        .create(name, |table| {
+            table.id();
+            table.integer("base").nullable();
+            table.json("payload").nullable();
+            table.integer("twice").virtualAs("base * 2");
+            table.integer("total").storedAs("base + 10").nullable();
+            table.string("label", 24).virtualAsJson("payload->label");
+            table
+                .string("stored_label", 24)
+                .storedAsJson("payload->label");
+            table
+                .integer("required")
+                .storedAs("COALESCE(base, 0)")
+                .nullable()
+                .nullableWith(false);
+        })
+        .await
+        .unwrap();
+
+    for column in ["twice", "total", "label", "stored_label"] {
+        assert!(
+            schema
+                .getColumn(name, column)
+                .await
+                .unwrap()
+                .unwrap()
+                .nullable
+        );
+    }
+    assert!(
+        !schema
+            .getColumn(name, "required")
+            .await
+            .unwrap()
+            .unwrap()
+            .nullable
+    );
+    db.insert(
+        "insert into generated_nullability (base) values (NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let row = db.table(name).first().await.unwrap().unwrap();
+    for column in ["twice", "total", "label", "stored_label"] {
+        assert_eq!(row.get(column), Some(&Value::Null));
+    }
+    assert_eq!(row.get("required"), Some(&0.into()));
+
+    db.update("update generated_nullability set base = 4", &[])
+        .await
+        .unwrap();
+    schema
+        .table(name, |table| {
+            table
+                .integer("twice")
+                .virtualAs("base * 2")
+                .nullableWith(false)
+                .change();
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .getColumn(name, "twice")
+            .await
+            .unwrap()
+            .unwrap()
+            .nullable
+    );
+    assert_eq!(db.table(name).value("twice").await.unwrap(), 8.into());
+    assert!(
+        db.update("update generated_nullability set base = NULL", &[])
+            .await
+            .is_err()
+    );
+    schema.drop(name).await.unwrap();
+}
+
+#[tokio::test]
+async fn mysql_current_defaults_override_explicit_values_only_for_supported_types() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url}));
+    let mut schema = db.getSchemaBuilder();
+    let name = "temporal_current_defaults";
+    schema.dropIfExists(name).await.unwrap();
+    schema
+        .create(name, |table| {
+            table.id();
+            table.date("today").useCurrent().default("2000-01-01");
+            table.year("this_year").default(2000).useCurrent();
+            table
+                .dateTime("started_at", 3)
+                .default("2000-01-01 00:00:00")
+                .useCurrent();
+            table
+                .timestamp("touched_at", 6)
+                .useCurrent()
+                .default("2000-01-01 00:00:00");
+            table
+                .time("start_time", 3)
+                .default("07:08:09.123")
+                .useCurrent();
+            table.integer("counted").useCurrent().default(7);
+            table
+                .integer("generated")
+                .virtualAs("counted + 1")
+                .useCurrent();
+        })
+        .await
+        .unwrap();
+    db.insert("insert into temporal_current_defaults () values ()", &[])
+        .await
+        .unwrap();
+    let query = || {
+        db.selectOne(
+        "select count(*) as matched from temporal_current_defaults where today = curdate() and this_year = year(curdate()) and abs(timestampdiff(second, started_at, now())) < 60 and abs(timestampdiff(second, touched_at, now())) < 60 and start_time = '07:08:09.123' and counted = 7 and `generated` = 8",
+        &[],
+    )
+    };
+    assert_eq!(
+        query().await.unwrap().unwrap().get("matched"),
+        Some(&1.into())
+    );
+
+    schema
+        .table(name, |table| {
+            table
+                .dateTime("started_at", 3)
+                .useCurrent()
+                .default("2000-01-01 00:00:00")
+                .change();
+            table
+                .time("start_time", 3)
+                .useCurrent()
+                .default("07:08:09.123")
+                .change();
+        })
+        .await
+        .unwrap();
+    db.insert("insert into temporal_current_defaults () values ()", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        query().await.unwrap().unwrap().get("matched"),
+        Some(&2.into())
+    );
+    schema.drop(name).await.unwrap();
+}
+
+#[tokio::test]
 async fn mysql_preserves_zero_and_boundary_column_lengths() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());

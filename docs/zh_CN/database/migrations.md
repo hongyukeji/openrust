@@ -366,6 +366,28 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` 返回生成模式和表达式。MySQL 和 SQLite 建表时都支持这两种模式。SQLite 原生 ALTER 可追加虚拟列。存储型生成列可在建表时定义，也可通过显式重建表的迁移添加。
 
+#### MySQL 生成列与当前时间默认值 {#mysql-generated-columns-and-current-defaults}
+
+MySQL 生成列默认允许 NULL。用 `nullableWith(false)` 要求生成值非空，或用 `nullable()` 显式允许 NULL。普通列默认要求非空。
+
+在 MySQL 上，DATE、YEAR、DATETIME 和 TIMESTAMP 列的 `useCurrent()` 优先于显式默认值，调用顺序不影响结果。数据库提供当前日期、年份或时间戳，时间戳沿用列精度。其他列类型保留显式默认值。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_metrics(table: &mut Blueprint) {
+    table.id();
+    table.integer("quantity").nullable();
+    table.integer("doubled").virtualAs("quantity * 2");
+    table.integer("total")
+        .storedAs("COALESCE(quantity, 0)")
+        .nullableWith(false);
+    table.timestamp("recorded_at", 3)
+        .useCurrent()
+        .default("2000-01-01 00:00:00");
+}
+```
+
 ### 空间列 {#spatial-columns}
 
 用 `geometry` 或 `geography` 声明空间列。可选子类型对应 MySQL 的 `point`、`multipolygon` 等类型。`geometry` 的默认 SRID 为 0，`geography` 为 4326。传入 `Some(0)` 时省略 SRID 限制。

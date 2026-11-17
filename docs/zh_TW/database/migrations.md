@@ -366,6 +366,28 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` 傳回生成模式和運算式。MySQL 和 SQLite 建立資料表時都支援這兩種模式。SQLite 原生 ALTER 可新增虛擬欄位。儲存型生成欄位可在建立資料表時定義，也可透過明確重建資料表的遷移新增。
 
+#### MySQL 產生欄位與目前時間預設值 {#mysql-generated-columns-and-current-defaults}
+
+MySQL 產生欄位預設允許 NULL。使用 `nullableWith(false)` 要求產生值不可為空，或使用 `nullable()` 明確允許 NULL。一般欄位預設不可為空。
+
+在 MySQL 上，DATE、YEAR、DATETIME 和 TIMESTAMP 欄位的 `useCurrent()` 優先於明確指定的預設值，呼叫順序不影響結果。資料庫提供目前的日期、年份或時間戳記，時間戳記沿用欄位精度。其他欄位型別保留明確指定的預設值。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn define_import_metrics(table: &mut Blueprint) {
+    table.id();
+    table.integer("quantity").nullable();
+    table.integer("doubled").virtualAs("quantity * 2");
+    table.integer("total")
+        .storedAs("COALESCE(quantity, 0)")
+        .nullableWith(false);
+    table.timestamp("recorded_at", 3)
+        .useCurrent()
+        .default("2000-01-01 00:00:00");
+}
+```
+
 ### 空間欄位 {#spatial-columns}
 
 用 `geometry` 或 `geography` 宣告空間欄位。選用的子型別對應 MySQL 的 `point`、`multipolygon` 等型別。`geometry` 的預設 SRID 為 0，`geography` 為 4326。傳入 `Some(0)` 時省略 SRID 限制。
