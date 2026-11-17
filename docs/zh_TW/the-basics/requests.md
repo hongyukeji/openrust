@@ -35,3 +35,21 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 ## 舊輸入
 
 用 `request.old(Some("profile.name"))` 讀取巢狀舊輸入，用 `request.old(None)` 讀取整個舊輸入集合。快閃值在下一次請求可用，明確的 null 會保留。
+
+## 設定可信任代理 {#configuring-trusted-proxies}
+
+在應用程式裝配時設定可信任的代理位址。來自非可信任對端的轉送標頭不會生效。策略接受 IPv4 與 IPv6 的確切位址和 CIDR。標頭遮罩指定允許代理設定的欄位。
+
+```rust
+use openrust::http::TrustedProxyHeaders;
+
+.withMiddleware(|middleware| {
+    middleware
+        .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
+        .expect("valid trusted proxy policy");
+})
+```
+
+預設遮罩 `TrustedProxyHeaders::DEFAULT` 對應 X-Forwarded 欄位。RFC 7239 使用 `FORWARDED`，AWS 負載平衡欄位使用 `AWS_ELB`。同時啟用的兩組標頭發生衝突時回傳 HTTP 400。
+
+`Request::ip` 回傳鏈中離應用程式最近的非可信任用戶端位址，`Request::ips` 回傳解析出的位址。`Request::secure` 反映有效協定。URL 產生使用轉送後的來源與前綴，路由比對使用實際收到的路徑。

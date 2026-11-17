@@ -27,7 +27,9 @@ impl URL {
     }
 
     pub fn generator() -> UrlResult<UrlGenerator> {
-        let mut urls = Self::service()?.with_uri(request_context::with_url_uri());
+        let mut urls = Self::service()?
+            .with_uri(request_context::with_url_uri())
+            .with_base_url(request_context::base_url().unwrap_or_default());
         request_context::with_attributes(|attributes| urls.merge_defaults(attributes));
         Ok(urls)
     }

@@ -112,7 +112,13 @@ pub(super) async fn listen_for(
         })
 }
 
-async fn handle(State(kernel): State<Arc<Kernel>>, request: TransportRequest) -> TransportResponse {
+async fn handle(
+    State(kernel): State<Arc<Kernel>>,
+    mut request: TransportRequest,
+) -> TransportResponse {
+    request
+        .extensions_mut()
+        .insert(crate::http::RequestSecurity(false));
     kernel.handleTransport(request).await
 }
 

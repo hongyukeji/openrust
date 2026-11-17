@@ -32,6 +32,7 @@ pub struct UrlGenerator {
     routes: Arc<UrlRoutes>,
     config: Arc<dyn Repository>,
     uri: Option<Uri>,
+    base_url: String,
     previous: Option<String>,
     defaults: HashMap<String, String>,
 }
@@ -217,6 +218,7 @@ impl UrlGenerator {
             routes: Arc::new(routes),
             config,
             uri: None,
+            base_url: String::new(),
             previous: None,
             defaults: HashMap::new(),
         }
@@ -227,6 +229,11 @@ impl UrlGenerator {
             uri,
             ..self.clone()
         }
+    }
+
+    pub(crate) fn with_base_url(mut self, base_url: String) -> Self {
+        self.base_url = base_url;
+        self
     }
 
     /// Returns a generator with additional defaults, without mutating the application service.
@@ -270,7 +277,9 @@ impl UrlGenerator {
         reason = "Matches Laravel's request-scoped URL generator"
     )]
     pub fn forRequest(&self, request: &Request) -> Self {
-        let mut urls = self.with_uri(Some(request_uri(request)));
+        let mut urls = self
+            .with_uri(Some(request_uri(request)))
+            .with_base_url(request.getBaseUrl().to_owned());
         urls.merge_defaults(request.attributes());
         let same_origin = |target: &&str| {
             let target = *target;
@@ -303,7 +312,7 @@ impl UrlGenerator {
             .as_ref()
             .and_then(|uri| Some(format!("{}://{}", uri.scheme_str()?, uri.authority()?)))
         {
-            Some(origin) => valid_http_url(&origin)?,
+            Some(origin) => valid_http_url(&format!("{origin}{}", self.base_url))?,
             None => valid_http_url(
                 &self
                     .string_config("app.url")
@@ -357,7 +366,11 @@ impl UrlGenerator {
         let mut target = if mode == SignatureMode::Absolute {
             let root = self.with_uri(Some(request_uri(request))).root(None)?;
             let path = request.uri().path().trim_end_matches('/');
-            format!("{}{path}", root.origin().ascii_serialization())
+            format!(
+                "{}{base}{path}",
+                root.origin().ascii_serialization(),
+                base = request.getBaseUrl()
+            )
         } else {
             format!("/{}", request.uri().path().trim_matches('/'))
         };

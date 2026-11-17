@@ -35,3 +35,21 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 ## 旧输入
 
 用 `request.old(Some("profile.name"))` 读取嵌套旧输入，用 `request.old(None)` 读取整个旧输入集合。闪存值在下一次请求可用，显式 null 会保留。
+
+## 配置可信代理 {#configuring-trusted-proxies}
+
+在应用装配时配置可信代理地址。来自非可信对端的转发头不会生效。策略接受 IPv4 和 IPv6 的精确地址与 CIDR。头部掩码指定允许代理设置的字段。
+
+```rust
+use openrust::http::TrustedProxyHeaders;
+
+.withMiddleware(|middleware| {
+    middleware
+        .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
+        .expect("valid trusted proxy policy");
+})
+```
+
+默认掩码 `TrustedProxyHeaders::DEFAULT` 对应 X-Forwarded 字段。RFC 7239 使用 `FORWARDED`，AWS 负载均衡字段使用 `AWS_ELB`。同时启用的两组头部出现冲突时返回 HTTP 400。
+
+`Request::ip` 返回链中离应用最近的非可信客户端地址，`Request::ips` 返回解析出的地址。`Request::secure` 反映有效协议。URL 生成使用转发后的来源与前缀，路由匹配使用实际收到的路径。

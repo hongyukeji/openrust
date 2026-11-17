@@ -127,6 +127,14 @@ impl http::Kernel for Kernel {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
+                if let Err(error) = self.middleware.trusted_proxies.apply(request) {
+                    return self
+                        .application
+                        .shared
+                        .exceptions
+                        .render_http(request, &error)
+                        .await;
+                }
                 let previous_exceptions = request
                     .exceptions
                     .replace(self.application.shared.exceptions.clone());
@@ -157,6 +165,7 @@ impl http::Kernel for Kernel {
                     self.application.container_handle(),
                     request.uri().clone(),
                     request.headers().get(::http::header::HOST).cloned(),
+                    request.getBaseUrl().to_owned(),
                     attributes,
                     crate::view::middleware::request_scope(
                         crate::cookie::middleware::request_scope(

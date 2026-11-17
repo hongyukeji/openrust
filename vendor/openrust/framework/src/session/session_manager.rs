@@ -134,13 +134,7 @@ impl SessionManager {
                     DatabaseSessionHandler::new(db, &self.settings.table, self.settings.lifetime)?;
                 handler.setMetadata(DatabaseSessionMetadata {
                     user_id: None,
-                    ip_address: Some(
-                        request
-                            .parts()
-                            .extensions
-                            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-                            .map(|info| info.0.ip().to_string()),
-                    ),
+                    ip_address: Some(request.ip().map(|address| address.to_string())),
                     user_agent: Some(
                         request
                             .headers()

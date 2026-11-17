@@ -35,3 +35,21 @@ Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(Non
 ## Old Input
 
 Call `request.old(Some("profile.name"))` to retrieve a nested flashed field or `request.old(None)` to retrieve the input bag. The value is available on the next request. An explicit null is preserved.
+
+## Configuring Trusted Proxies {#configuring-trusted-proxies}
+
+Configure trusted proxy addresses during application assembly. Forwarding headers from an untrusted peer have no effect. The policy accepts exact IP addresses and CIDRs for IPv4 and IPv6. The header mask selects which fields the proxy can set.
+
+```rust
+use openrust::http::TrustedProxyHeaders;
+
+.withMiddleware(|middleware| {
+    middleware
+        .trustProxies(&["192.0.2.10", "10.20.0.0/16"], TrustedProxyHeaders::DEFAULT)
+        .expect("valid trusted proxy policy");
+})
+```
+
+The default mask is `TrustedProxyHeaders::DEFAULT` for X-Forwarded fields. Use `FORWARDED` for RFC 7239 or `AWS_ELB` for the AWS load balancer fields. A conflict between two enabled header families returns HTTP 400.
+
+`Request::ip` returns the nearest untrusted client address from the chain. `Request::ips` returns the resolved addresses, and `Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.

@@ -23,3 +23,11 @@
 ## 2026-11-12 遗漏回归补交
 
 路由可选参数和约束、真实 HTTP 中间件优先级、短路、404/405、HEAD 和注册顺序，新增 8 项。 与同文件其他单元按测试项拆分。隔离副本用 Rust 1.94.0 锁定离线运行当前分块测试及严格 Clippy，均通过。三语正文沿用原提交。
+
+## 可信代理与转发 HTTPS
+
+- 对照固定 Laravel `TrustProxies`、Symfony 7.4.0 请求与旧版 `v0.x` 的 `proxy.rs`、`client_ip.rs` 和请求 URL 对照夹具。复用头部位掩码、按可信链过滤客户端地址、CIDR 与带引号的 `Forwarded` 解析思路。信任策略由 `withMiddleware` 在应用级装配，请求发布自己的代理元数据。 [Laravel 可信代理](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#configuring-trusted-proxies) · [Laravel TrustProxies](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Middleware/TrustProxies.php)
+- 只有可信 socket 对端的启用字段可影响请求。URL、CORS、Cookie 安全属性、访客限流和数据库会话使用处理后的协议、来源或客户端地址。外部前缀进入 URL 生成，路由匹配与原始头部读取保持各自职责。内置 HTTP listener 显式标记明文传输，外部 TLS 适配器可注入 `RequestSecurity`。
+- Rust 对启用头的冲突在请求入口返回 400，并将转发端口限制为有效 `u16` 端口。平台 Host 后缀自动开启信任、`trustedproxy` 配置文件回退和可信 Host 白名单继续跟踪。当前默认需要应用显式配置代理地址。
+- 真实 TCP 与 Symfony/PHP 8.5 对照验证 IPv4 链、IPv6、HTTPS、端口、前缀、可信和非可信对端及冲突拒绝。04-03 保持开放，后续核对可信 Host 和部署配置的剩余边界。
+- 隔离基线 `0c02b34c` 使用 Rust 1.94.0，通过应用 HTTP 16 项、可信代理 2 项、会话 HTTP 8 项、URL 4 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412`。验收日志保存于 `/private/tmp/openrust-04-03-trusted-proxy.nkwaRr69`。

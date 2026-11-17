@@ -71,7 +71,8 @@ impl Paths {
                 || authority.as_ref().is_some_and(|authority| {
                     let scheme = request.uri().scheme_str().unwrap_or("http");
                     let url = format!(
-                        "{scheme}://{authority}{}",
+                        "{scheme}://{authority}{}{}",
+                        request.getBaseUrl(),
                         request
                             .uri()
                             .path_and_query()

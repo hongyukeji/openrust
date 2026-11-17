@@ -68,6 +68,7 @@ struct RequestContext {
     container: Arc<Container>,
     uri: crate::http::Uri,
     host: Option<::http::HeaderValue>,
+    base_url: String,
     attributes: RequestAttributes,
     identity: OnceLock<Arc<()>>,
     session_cache: Mutex<Option<crate::session::CacheAttributes>>,
@@ -139,6 +140,7 @@ pub(crate) async fn scope<F: Future>(
     container: Arc<Container>,
     uri: crate::http::Uri,
     host: Option<::http::HeaderValue>,
+    base_url: String,
     attributes: RequestAttributes,
     future: F,
 ) -> F::Output {
@@ -148,6 +150,7 @@ pub(crate) async fn scope<F: Future>(
                 container,
                 uri,
                 host,
+                base_url,
                 attributes,
                 identity: OnceLock::new(),
                 session_cache: Mutex::default(),
@@ -168,6 +171,10 @@ pub(crate) fn with_attributes<T>(get: impl FnOnce(&RequestAttributes) -> T) -> O
 
 pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
     with_context(|context| crate::routing::url_uri(&context.uri, context.host.as_ref()))
+}
+
+pub(crate) fn base_url() -> Option<String> {
+    with_context(|context| context.base_url.clone())
 }
 
 fn with_context<T>(get: impl FnOnce(&RequestContext) -> T) -> Option<T> {

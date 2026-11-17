@@ -26,6 +26,7 @@ pub use context::RequestAttributes;
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
     parts: RequestParts,
+    pub(crate) proxy: super::ProxyRequest,
     real_method: Option<Method>,
     body: Body,
     pub(crate) received_at: Instant,
@@ -59,6 +60,7 @@ impl Request {
     pub fn from_parts(parts: RequestParts, body: Body) -> Self {
         Self {
             parts,
+            proxy: Default::default(),
             real_method: None,
             body,
             received_at: Instant::now(),
@@ -108,7 +110,7 @@ impl Request {
     }
 
     pub fn uri(&self) -> &Uri {
-        &self.parts.uri
+        self.proxy.uri.as_ref().unwrap_or(&self.parts.uri)
     }
     /// Returns the query bag or an exact top-level key, independently of the body.
     pub fn query(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
@@ -211,7 +213,32 @@ impl Request {
     }
 
     pub(crate) fn is_secure(&self) -> bool {
-        self.uri().scheme_str() == Some("https")
+        self.secure()
+    }
+
+    pub fn secure(&self) -> bool {
+        self.proxy
+            .secure
+            .unwrap_or_else(|| self.uri().scheme_str() == Some("https"))
+    }
+
+    pub fn ip(&self) -> Option<std::net::IpAddr> {
+        self.ips().first().copied()
+    }
+
+    pub fn ips(&self) -> &[std::net::IpAddr] {
+        self.proxy.ips.as_deref().unwrap_or_else(|| {
+            self.parts
+                .extensions
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|info| self.proxy.peer.get_or_init(|| info.0.ip()))
+                .map_or(&[], std::slice::from_ref)
+        })
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's request URL API")]
+    pub fn getBaseUrl(&self) -> &str {
+        &self.proxy.prefix
     }
 
     /// Returns the decoded URL path without surrounding slashes, or `/` for the root.
@@ -259,7 +286,10 @@ impl Request {
                 .uri()
                 .path_and_query()
                 .map_or("/", ::http::uri::PathAndQuery::as_str);
-            matches_pattern(&format!("{scheme}://{authority}{target}"), pattern)
+            matches_pattern(
+                &format!("{scheme}://{authority}{}{target}", self.getBaseUrl()),
+                pattern,
+            )
         })
     }
 

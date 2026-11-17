@@ -20,6 +20,7 @@ pub struct Middleware {
     pub(crate) prepended: usize,
     pub(crate) maintenance_exceptions: Vec<String>,
     pub(crate) registry: MiddlewareRegistry,
+    pub(crate) trusted_proxies: crate::http::ProxyPolicy,
     default_web: bool,
     #[cfg(feature = "sanctum")]
     stateful_api: bool,
@@ -34,6 +35,7 @@ impl Default for Middleware {
             prepended: 0,
             maintenance_exceptions: Vec::new(),
             registry: MiddlewareRegistry::default(),
+            trusted_proxies: crate::http::ProxyPolicy::default(),
             default_web: true,
             #[cfg(feature = "sanctum")]
             stateful_api: false,
@@ -84,6 +86,15 @@ impl Default for Middleware {
 impl Middleware {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's middleware configuration API"
+    )]
+    pub fn trustProxies(&mut self, at: &[&str], headers: u8) -> Result<&mut Self, ConfigError> {
+        self.trusted_proxies = crate::http::ProxyPolicy::new(at, headers)?;
+        Ok(self)
     }
 
     pub fn append(&mut self, middleware: Arc<dyn HttpMiddleware>) -> &mut Self {

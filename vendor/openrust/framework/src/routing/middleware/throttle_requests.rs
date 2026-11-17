@@ -212,10 +212,8 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
                 .get::<super::MatchedRouteDomain>()
                 .map_or("", |domain| domain.0.as_str());
             let ip = request
-                .parts()
-                .extensions
-                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-                .map_or_else(|| "unknown".into(), |address| address.0.ip().to_string());
+                .ip()
+                .map_or_else(|| "unknown".into(), |address| address.to_string());
             format!("{prefix}:guest:{domain}:{ip}")
         }
     };
