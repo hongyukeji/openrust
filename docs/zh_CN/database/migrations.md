@@ -878,6 +878,19 @@ async fn drop_photo_reference() -> DatabaseResult<()> {
 
 模型 ID 默认使用无符号大整数。模型为主键生成 UUID 或 ULID 时选用对应列类型。可用 `foreignUuidFor` 和 `foreignUlidFor` 显式选择格式。手动分配 ID 的模型可以覆盖 `Model::getKeyType`。删除没有外键约束的列时用 `dropForeignIdFor`。
 
+#### 外键约束命名 {#naming-foreign-keys}
+
+用 `constrainedWith(table, column, index_name)` 分别覆盖外键的引用表、引用列或约束名。省略引用表或引用列时沿用模型提供的值。未提供模型时，引用列默认是 `id`，表名根据本地列名最后一个 `_<引用列>` 之前的部分取复数。删除具名约束时，向 `dropForeign` 传入约束名。
+
+```rust
+Schema::table("attachments", |table| {
+    table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+        .nullable()
+        .constrainedWith(None, None, Some("attachments_photo"))
+        .nullOnDelete();
+}).await?;
+```
+
 #### SQLite 内联约束 {#sqlite-inline-constraints}
 
 变更 SQLite 列时，已有的内联主键、UNIQUE、CHECK 和 REFERENCES 子句会保留。重建后的表仍有自增主键时，也会恢复其自增序列。传入 `change()` 的列定义决定类型、是否可空及默认值。

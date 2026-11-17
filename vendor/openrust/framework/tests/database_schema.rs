@@ -3399,6 +3399,124 @@ mod model_foreign_keys {
     }
 
     #[tokio::test]
+    async fn mysql_overrides_foreign_id_constraint_defaults_independently() {
+        let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+            assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+            return;
+        };
+        let db = connection(json!({"url":url,"prefix":"override_"}));
+        let mut schema = db.getSchemaBuilder();
+        schema
+            .create("workspaces", |table| {
+                table.id();
+                table.unsignedBigInteger("code").unique();
+            })
+            .await
+            .unwrap();
+        schema
+            .create("team_people", |table| {
+                table.idWith("owner_no");
+                table.unsignedBigInteger("legacy_no").unique();
+            })
+            .await
+            .unwrap();
+        schema
+            .create("reviewers", |table| {
+                table.idWith("owner_no");
+            })
+            .await
+            .unwrap();
+        schema
+            .create("assignments", |table| {
+                table.id();
+                table
+                    .foreignId("workspace_code")
+                    .nullable()
+                    .constrainedWith(None, Some("code"), Some("assignments_workspace"))
+                    .nullOnDelete();
+                table
+                    .foreignIdFor::<AuditOwner>(Some("author_ref"))
+                    .constrainedWith(None, None, Some("assignments_author"));
+                table
+                    .foreignIdFor::<AuditOwner>(Some("legacy_ref"))
+                    .constrainedWith(None, Some("legacy_no"), Some("assignments_legacy"));
+                table
+                    .foreignIdFor::<AuditOwner>(Some("reviewer_ref"))
+                    .constrainedWith(Some("reviewers"), None, Some("assignments_reviewer"));
+            })
+            .await
+            .unwrap();
+
+        let foreign = schema.getForeignKeys("assignments").await.unwrap();
+        assert_eq!(foreign.len(), 4);
+        for (name, column, table, key) in [
+            (
+                "assignments_workspace",
+                "workspace_code",
+                "workspaces",
+                "code",
+            ),
+            (
+                "assignments_author",
+                "author_ref",
+                "team_people",
+                "owner_no",
+            ),
+            (
+                "assignments_legacy",
+                "legacy_ref",
+                "team_people",
+                "legacy_no",
+            ),
+            (
+                "assignments_reviewer",
+                "reviewer_ref",
+                "reviewers",
+                "owner_no",
+            ),
+        ] {
+            assert!(
+                foreign
+                    .iter()
+                    .any(|foreign| foreign.name.as_deref() == Some(name)
+                        && foreign.columns == [column]
+                        && foreign.foreign_table == format!("override_{table}")
+                        && foreign.foreign_columns.as_slice() == [Some(key.to_owned())]),
+                "{name}"
+            );
+        }
+
+        db.insert(
+            "insert into override_workspaces (id, code) values (1, 20)",
+            &[],
+        )
+        .await
+        .unwrap();
+        db.insert(
+            "insert into override_team_people (owner_no, legacy_no) values (2, 30)",
+            &[],
+        )
+        .await
+        .unwrap();
+        db.insert("insert into override_reviewers (owner_no) values (3)", &[])
+            .await
+            .unwrap();
+        let insert = "insert into override_assignments (workspace_code, author_ref, legacy_ref, reviewer_ref) values (20, 2, 30, ?)";
+        db.insert(insert, &[3.into()]).await.unwrap();
+        assert!(db.insert(insert, &[2.into()]).await.is_err());
+        db.delete("delete from override_workspaces where id = 1", &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            db.table("assignments")
+                .value("workspace_code")
+                .await
+                .unwrap(),
+            Value::Null
+        );
+    }
+
+    #[tokio::test]
     async fn sqlite_references_and_drops_model_foreign_keys() {
         verify(connection(
             json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),

@@ -43,15 +43,30 @@ impl<'a> ForeignIdColumnDefinition<'a> {
     }
 
     pub fn constrained(self) -> &'a mut ForeignKeyDefinition {
-        if let Some((table, column)) = self.model_target {
-            return self.constrainedOn(table, column, None);
+        self.constrainedWith(None, None, None)
+    }
+
+    /// Overrides individual parts of the inferred foreign key reference.
+    pub fn constrainedWith(
+        self,
+        table: Option<&str>,
+        column: Option<&str>,
+        index_name: Option<&str>,
+    ) -> &'a mut ForeignKeyDefinition {
+        let column = column
+            .or(self.model_target.map(|(_, key)| key))
+            .unwrap_or("id");
+        if let Some(table) = table.or(self.model_target.map(|(table, _)| table)) {
+            return self.references(column, index_name).on(table);
         }
+
+        let suffix = format!("_{column}");
         let name = self
             .name
-            .rsplit_once("_id")
+            .rsplit_once(&suffix)
             .map_or(self.name.as_str(), |(name, _)| name);
         let table = pluralizer::pluralize(name, 2, false);
-        self.constrainedOn(&table, "id", None)
+        self.references(column, index_name).on(&table)
     }
 
     pub fn references(self, column: &str, name: Option<&str>) -> &'a mut ForeignKeyDefinition {
@@ -66,9 +81,6 @@ impl<'a> ForeignIdColumnDefinition<'a> {
         column: &str,
         name: Option<&str>,
     ) -> &'a mut ForeignKeyDefinition {
-        self.blueprint
-            .foreign(&[&self.name], name)
-            .references(column)
-            .on(table)
+        self.constrainedWith(Some(table), Some(column), name)
     }
 }

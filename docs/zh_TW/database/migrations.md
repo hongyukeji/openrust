@@ -878,6 +878,19 @@ async fn drop_photo_reference() -> DatabaseResult<()> {
 
 模型 ID 預設使用無號大整數。模型為主鍵產生 UUID 或 ULID 時會採用對應欄位類型。可用 `foreignUuidFor` 和 `foreignUlidFor` 明確選擇格式。手動指派 ID 的模型可覆寫 `Model::getKeyType`。刪除沒有外鍵約束的欄位時可用 `dropForeignIdFor`。
 
+#### 外鍵約束命名 {#naming-foreign-keys}
+
+用 `constrainedWith(table, column, index_name)` 個別覆寫外鍵的參照表、參照欄位或約束名稱。省略參照表或參照欄位時沿用模型提供的值。未提供模型時，參照欄位預設是 `id`，表名根據本地欄位名稱最後一個 `_<參照欄位>` 之前的部分取複數。刪除具名約束時，向 `dropForeign` 傳入約束名稱。
+
+```rust
+Schema::table("attachments", |table| {
+    table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+        .nullable()
+        .constrainedWith(None, None, Some("attachments_photo"))
+        .nullOnDelete();
+}).await?;
+```
+
 #### SQLite 內嵌約束 {#sqlite-inline-constraints}
 
 修改 SQLite 欄位時，既有的內嵌主鍵、UNIQUE、CHECK 和 REFERENCES 子句會保留。重建後的資料表若仍有自動遞增主鍵，也會還原其序列。傳入 `change()` 的欄位定義決定型別、是否可為 NULL 及預設值。

@@ -878,6 +878,19 @@ async fn drop_photo_reference() -> DatabaseResult<()> {
 
 Model IDs default to an unsigned big integer. A model that generates UUIDs or ULIDs for its primary key selects the corresponding column type. Use `foreignUuidFor` and `foreignUlidFor` to select a format explicitly, or override `Model::getKeyType` for manually assigned IDs. Use `dropForeignIdFor` for a column that has no constraint.
 
+#### Naming a Foreign Key {#naming-foreign-keys}
+
+Use `constrainedWith(table, column, index_name)` to override individual parts of a foreign key. An omitted table or column keeps the value supplied by the model. Without a model, the referenced column defaults to `id`, and the table name is inferred by pluralizing the part of the local column name before the last `_<referenced column>`. Pass an explicit name to `dropForeign` when removing a named constraint.
+
+```rust
+Schema::table("attachments", |table| {
+    table.foreignIdFor::<PhotoAsset>(Some("photo_ref"))
+        .nullable()
+        .constrainedWith(None, None, Some("attachments_photo"))
+        .nullOnDelete();
+}).await?;
+```
+
 #### SQLite Inline Constraints {#sqlite-inline-constraints}
 
 Changing a SQLite column preserves its existing inline primary key, UNIQUE, CHECK and REFERENCES clauses. The rebuild also preserves the auto-increment sequence when the rebuilt table retains its auto-increment key. The column definition passed to `change()` controls the type, nullability and default.

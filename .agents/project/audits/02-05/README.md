@@ -397,3 +397,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `90bd762f`，Rust 1.94.0 与 MySQL 8.4.13。34 项 Schema 回归通过。覆盖给有数据的表新增自增列和复合主键、替换旧主键、列位置与起始值、合并锁选项、主键次序错误时保留旧表和记录。表目录和限定 Schema 清库通过。
 - 三语共用示例通过实际 Artisan 验证预演无表、迁移后真实主键和自增列、回滚移除表。证据目录 `/private/tmp/openrust-02-05-add-auto-key.IvEvLHj5`。
 - `main artisan inspire`、严格工作区 Clippy、改动文件格式、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。期间合入的 Reverb 提交与本批源码及迁移文档无交集。临时 MySQL 和 4.1 GiB 隔离 Cargo 产物已回收，磁盘可用 112.26 GB（104.55 GiB），周额度剩余 65%，第二窗口无读数。
+
+## 外键引用默认值与约束命名
+
+- 对照固定 Laravel `ForeignIdColumnDefinition::constrained($table, $column, $indexName)`。Rust 用 `constrainedWith(Option<&str>, Option<&str>, Option<&str>)` 表达三个独立选项，沿用 `constrained()` 和 `constrainedOn(...)`。省略引用表或引用列时保留模型元数据。没有模型时缺省引用列为 `id`，按选定引用列从本地列名推导目标表。固定 Goravel 的 Blueprint 作类型化接口参考。旧版没有可直接提取的同名实现。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/ForeignIdColumnDefinition.php#L34) · [Laravel 外键文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#foreign-key-constraints)
+- 在 `a026d1a3c` 隔离快照上执行 MySQL 8.4.13 的 34 项 Schema 回归。实测目录中的命名、前缀及四种引用组合，拒绝错误父键，删除父记录时依约将子列置为 NULL。使用 `sh tests/table_catalog.sh` 验证表及视图目录、限定 Schema 清库和旁库保留。首轮测试名筛选额外命中一项 SQLite 回归，复验通过 `--skip sqlite_` 仅执行 MySQL。
+- 三语共用示例经独立 Artisan 在 MySQL 上执行，确认 Laravel 风格的具名 UUID 外键可创建、读取和按名删除。实际 `main artisan inspire`、三语站点及 18 项浏览器检查通过。
+- Rust 1.94.0 全仓格式及严格 Clippy 通过。临时 MySQL、本批 3.7 GiB 隔离 Cargo 产物和文档缓存已回收。磁盘可用 64.02 GB（59.62 GiB），周额度剩余 48%，第二窗口无读数。日志与独立 Artisan 示例留在 `/private/tmp/openrust-02-05-schema-audit.qMDFgXQI`。
