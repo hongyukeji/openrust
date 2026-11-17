@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 17:49（北京时间）04-05 [PSD 与 JPEG 2000 图片尺寸](audits/04-05/README.md#psd-与-jpeg-2000-图片尺寸)通过固定 Laravel／PHP 的 26 个样本、实际 multipart HTTP、MySQL 8.4.13 回归和独立 Artisan。核心账本维持 59/66。
 - 2026-11-17 17:43（北京时间） 04-05 [TIFF 与 ICO 图片尺寸](audits/04-05/README.md#tiff-与-ico-图片尺寸)通过固定 Laravel／PHP 17 个样本、实际 multipart HTTP、MySQL 8.4.13 回归和独立 Artisan。核心账本维持 59/66。
 - 2026-11-17 17:35（北京时间）03-09 [按指定标签清理过期引用](audits/03-09/README.md#按指定标签清理过期引用)通过 Redis 集群和单机、双进程 HTTP、独立 Artisan 和三语文档验收。核心账本维持 59/66。
 - 2026-11-17 17:29（北京时间）03-09 [按标签清空时清理无效引用](audits/03-09/README.md#按标签清空时清理无效引用)通过真实 Redis 集群和单机、双进程 HTTP、独立 Artisan 与三语文档验收。存储级过期清理已复验。
@@ -15,9 +16,9 @@
 - 2026-11-17 16:11（北京时间）04-05 [MySQL 数据库验证规则](audits/04-05/README.md#mysql-数据库验证规则)通过真实 MySQL 8.4.13、HTTP 和独立 Artisan 验收。核心账本维持 59/66。
 - 2026-11-17 16:00（北京时间）03-09 [集群标签索引登记容错](audits/03-09/README.md#集群标签索引登记容错)已通过真实 Redis、HTTP 和独立 Artisan 验收，维持已闭合状态。
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
-- 下一批按 04-05 继续对照 PHP 图片元数据格式，优先核定 PSD 和 JPEG 2000，再复核旧式字表及整单元闭合。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
+- 下一批按 04-05 核定 PHP 的 IFF、WBMP、XBM、SWF／SWC 图片尺寸，再复核旧式字表及整单元闭合。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 53%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.97 GB（76.34 GiB）。继续前以实测读数复查。
+- 周额度剩余 53%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.93 GB（76.30 GiB）。继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

@@ -1142,6 +1142,77 @@ async fn validates_tiff_and_ico_dimensions_over_real_http() {
 }
 
 #[tokio::test]
+async fn validates_psd_and_jpeg2000_dimensions_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    let mut psd = [0; 22];
+    psd[..4].copy_from_slice(b"8BPS");
+    psd[5] = 1;
+    psd[17] = 100;
+    psd[21] = 100;
+    upload_file(address, "dimensions", "size.psd", "text/plain", &psd, 200).await;
+    upload_file(
+        address,
+        "dimensions",
+        "size.psd",
+        "text/plain",
+        &psd[..21],
+        422,
+    )
+    .await;
+
+    let mut stream = [0; 42];
+    stream[..4].copy_from_slice(b"\xff\x4f\xff\x51");
+    stream[5] = 41;
+    stream[11] = 100;
+    stream[15] = 100;
+    stream[19] = 50; // PHP reports Xsiz, independent of XOsiz.
+    stream[41] = 1;
+    upload_file(
+        address,
+        "dimensions",
+        "size.j2k",
+        "text/plain",
+        &stream,
+        200,
+    )
+    .await;
+    upload_file(
+        address,
+        "dimensions",
+        "size.j2k",
+        "text/plain",
+        &stream[..41],
+        422,
+    )
+    .await;
+
+    let sig = b"\0\0\0\x0cjP  \r\n\x87\n";
+    let mut jp2 = sig.to_vec();
+    jp2.extend_from_slice(b"\0\0\0\x0cfreepad!");
+    let codestream = jp2.len();
+    jp2.extend_from_slice(b"\0\0\0\0jp2c");
+    jp2.extend_from_slice(&stream);
+    upload_file(address, "dimensions", "size.jp2", "text/plain", &jp2, 200).await;
+    jp2[codestream + 3] = 1;
+    upload_file(address, "dimensions", "size.jp2", "text/plain", &jp2, 422).await;
+    jp2[codestream + 3] = 0;
+    jp2[codestream + 4..codestream + 8].copy_from_slice(b"jp2h");
+    upload_file(address, "dimensions", "size.jp2", "text/plain", &jp2, 422).await;
+
+    stream[40] = 1;
+    upload_file(
+        address,
+        "dimensions",
+        "size.j2k",
+        "text/plain",
+        &stream,
+        422,
+    )
+    .await;
+    server.abort();
+}
+
+#[tokio::test]
 async fn validates_upload_dimensions_and_encoding_over_real_http() {
     assert!(RuleSet::parse([("file", "encoding:FOOBAR")]).is_err());
     assert!(RuleSet::parse([("file", "dimensions:ratio=1/0")]).is_err());

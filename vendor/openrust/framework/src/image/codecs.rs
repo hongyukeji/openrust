@@ -5,7 +5,7 @@ use ::image::{
 };
 
 use super::{
-    Error, Format, Limits, Result,
+    Error, Format, Limits, Result, directory_dimensions,
     metadata::{self, Metadata},
 };
 
@@ -34,9 +34,14 @@ pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
 /// Reads image metadata without decoding pixels or applying EXIF orientation.
 pub(crate) fn encoded_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
     match bytes.first_chunk::<4>()? {
-        b"II*\0" => return super::directory_dimensions::tiff(bytes, true),
-        b"MM\0*" => return super::directory_dimensions::tiff(bytes, false),
-        b"\0\0\x01\0" => return super::directory_dimensions::ico(bytes),
+        b"II*\0" => return directory_dimensions::tiff(bytes, true),
+        b"MM\0*" => return directory_dimensions::tiff(bytes, false),
+        b"\0\0\x01\0" => return directory_dimensions::ico(bytes),
+        b"\xff\x4f\xff\x51" => return directory_dimensions::jpeg2000(bytes),
+        _ if bytes.starts_with(b"8BP") => return directory_dimensions::psd(bytes),
+        _ if bytes.starts_with(b"\0\0\0\x0cjP  \r\n\x87\n") => {
+            return directory_dimensions::jp2(&bytes[12..]);
+        }
         _ => {}
     }
     let dimensions = match identify(bytes).ok()? {
