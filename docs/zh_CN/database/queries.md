@@ -521,4 +521,24 @@ SQL Server 执行原生 `TRUNCATE TABLE`，重置标识列起始值。若目标�
 
 ## 悲观锁
 
-在事务中使用 `lockForUpdate` 或 `sharedLock`。MySQL 持有行锁直至提交或回滚。SQLite 采用自身的事务锁机制，没有对应的行锁子句。
+在事务内使用 `lockForUpdate` 或 `sharedLock`。`lock(true)` 和 `lock(false)` 对应相同的模式。加锁查询使用写连接。SQLite 采用自身的事务锁定方式，省略行锁子句。
+
+### 原生锁定子句 {#native-locking-clauses}
+
+可向 `lock` 传入应用定义的 SQL 子句。MySQL 和 PostgreSQL 可用 `FOR UPDATE SKIP LOCKED`，SQL Server 可用 `WITH (UPDLOCK, ROWLOCK, READPAST)`。SQL Server 同时使用 `forceIndex` 时，自定义锁必须写成 `WITH (...)` 列表。请勿将请求输入拼入子句。
+
+```rust
+use openrust::database::{DatabaseResult, Row, Transaction};
+
+pub async fn next_unlocked(
+    transaction: &mut Transaction,
+    lock_clause: &'static str,
+) -> DatabaseResult<Option<Row>> {
+    transaction
+        .table("job_slots")
+        .orderBy("id", "asc")
+        .lock(lock_clause)
+        .first()
+        .await
+}
+```

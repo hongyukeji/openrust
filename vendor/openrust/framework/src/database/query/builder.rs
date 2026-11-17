@@ -7,7 +7,7 @@ use crate::database::{
 };
 
 use super::{
-    Conditions, Expression,
+    Conditions, Expression, QueryLock,
     conditions::{date_methods, predicate_methods},
     grammars::{DatePart, Grammar, IndexHintKind},
 };
@@ -105,7 +105,7 @@ pub struct Builder<'connection> {
     union_orders: Vec<Order>,
     union_limit: Option<u64>,
     union_offset: Option<u64>,
-    lock: Option<bool>,
+    lock: Option<QueryLock>,
     index_hint: Option<(IndexHintKind, String)>,
     columns: Vec<Column>,
     distinct: bool,
@@ -370,7 +370,11 @@ impl<'connection> Builder<'connection> {
         self
     }
 
-    fn compile_table_hints(&self, sql: &mut String, lock: Option<bool>) -> DatabaseResult<()> {
+    fn compile_table_hints(
+        &self,
+        sql: &mut String,
+        lock: Option<&QueryLock>,
+    ) -> DatabaseResult<()> {
         let hint = self
             .index_hint
             .as_ref()
@@ -378,14 +382,18 @@ impl<'connection> Builder<'connection> {
         self.grammar.table_hints(hint, lock, sql)
     }
 
-    pub fn lockForUpdate(mut self) -> Self {
-        self.lock = Some(true);
+    /// Routes a pessimistic locking read through the write connection.
+    pub fn lock(mut self, lock: impl Into<QueryLock>) -> Self {
+        self.lock = Some(lock.into());
         self.useWritePdo()
     }
 
-    pub fn sharedLock(mut self) -> Self {
-        self.lock = Some(false);
-        self.useWritePdo()
+    pub fn lockForUpdate(self) -> Self {
+        self.lock(true)
+    }
+
+    pub fn sharedLock(self) -> Self {
+        self.lock(false)
     }
 
     pub fn toSql(&self) -> DatabaseResult<String> {
@@ -722,7 +730,7 @@ impl<'connection> Builder<'connection> {
                 .source
                 .compile(&self.grammar, database, &mut bindings)?,
         );
-        self.compile_table_hints(&mut sql, self.lock)?;
+        self.compile_table_hints(&mut sql, self.lock.as_ref())?;
         self.compile_joins(&mut sql, &mut bindings)?;
 
         self.compile_predicates(&mut sql, &mut bindings)?;
@@ -759,8 +767,8 @@ impl<'connection> Builder<'connection> {
         } else {
             Grammar::pagination(&mut sql, self.limit, offset);
         }
-        if let Some(exclusive) = self.lock {
-            sql.push_str(self.grammar.lock(exclusive));
+        if let Some(lock) = &self.lock {
+            self.grammar.compile_lock(lock, &mut sql);
         }
         if !self.unions.is_empty() {
             sql = self.compile_unions(sql, &mut bindings)?;

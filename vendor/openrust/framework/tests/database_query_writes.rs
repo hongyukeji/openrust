@@ -34,6 +34,123 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn native_query_locks_skip_and_revisit_rows() {
+    let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
+    assert_eq!(
+        sqlite
+            .table("lock_rows")
+            .lock("for update skip locked")
+            .toSql()
+            .unwrap(),
+        sqlite.table("lock_rows").toSql().unwrap()
+    );
+    let postgres = std::env::var("OPENRUST_TEST_POSTGRES_LOCK_URL").ok();
+    assert!(postgres.is_some() || std::env::var_os("OPENRUST_REQUIRE_POSTGRES_LOCK").is_none());
+    let sql_server = std::env::var("OPENRUST_TEST_SQL_SERVER_URL").ok();
+    assert!(sql_server.is_some() || std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+    for (url, native, before_where) in [
+        (mysql_url(), "for update skip locked", false),
+        (postgres, "for update skip locked", false),
+        (sql_server, "WITH (updlock, rowlock, readpast)", true),
+    ] {
+        let Some(url) = url else { continue };
+        let db = connection(json!({"url":url, "max_connections":3, "acquire_timeout":5}));
+        db.unprepared("create table lock_rows (id int primary key)")
+            .await
+            .unwrap();
+        db.unprepared("insert into lock_rows values (1), (2)")
+            .await
+            .unwrap();
+        if before_where {
+            db.unprepared("create index idx_lock_id on lock_rows (id)")
+                .await
+                .unwrap();
+            let combination = db.table("lock_rows").forceIndex("idx_lock_id").lock(native);
+            assert!(
+                combination
+                    .toSql()
+                    .unwrap()
+                    .contains("with (updlock, rowlock, readpast, index([idx_lock_id]))")
+            );
+            assert_eq!(
+                combination.r#where("id", "=", 1).value("id").await.unwrap(),
+                1.into()
+            );
+            assert!(matches!(
+                db.table("lock_rows")
+                    .forceIndex("idx_lock_id")
+                    .lock("not a hint list")
+                    .toSql(),
+                Err(DatabaseError::InvalidQuery(
+                    "SQL Server combined table hints"
+                ))
+            ));
+            db.unprepared("drop index idx_lock_id on lock_rows")
+                .await
+                .unwrap();
+        }
+        let default = db.table("lock_rows").lockForUpdate().toSql().unwrap();
+        assert_eq!(
+            db.table("lock_rows")
+                .lock(native)
+                .lock(true)
+                .toSql()
+                .unwrap(),
+            default
+        );
+        assert_eq!(
+            db.table("lock_rows").lock(false).toSql().unwrap(),
+            db.table("lock_rows").sharedLock().toSql().unwrap()
+        );
+        let mut holder = db.beginTransaction().await.unwrap();
+        assert_eq!(
+            holder
+                .table("lock_rows")
+                .lock(true)
+                .r#where("id", "=", 1)
+                .value("id")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        let mut reader = db.beginTransaction().await.unwrap();
+        let query = reader
+            .table("lock_rows")
+            .lock(native)
+            .r#where("id", ">", 0)
+            .orderBy("id", "asc");
+        let sql = query.toSql().unwrap();
+        assert_eq!(
+            sql.find(native).unwrap() < sql.find(" where ").unwrap(),
+            before_where
+        );
+        assert_eq!(query.getBindings().unwrap(), [0.into()]);
+        assert_eq!(
+            tokio::time::timeout(std::time::Duration::from_secs(5), query.value("id"))
+                .await
+                .unwrap()
+                .unwrap(),
+            2.into()
+        );
+        reader.rollBack(None).await.unwrap();
+        holder.rollBack(None).await.unwrap();
+        let mut reader = db.beginTransaction().await.unwrap();
+        assert_eq!(
+            reader
+                .table("lock_rows")
+                .lock(native.to_owned())
+                .orderBy("id", "asc")
+                .value("id")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        reader.commit().await.unwrap();
+        db.unprepared("drop table lock_rows").await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn query_index_hints_follow_driver_rules() {
     let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
     sqlite

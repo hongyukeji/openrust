@@ -22,6 +22,35 @@ pub use join_clause::JoinClause;
 /// Named column values for an insert or update.
 pub type Record = std::collections::BTreeMap<String, crate::database::Value>;
 
+/// A pessimistic lock mode or an application-defined SQL locking clause.
+pub enum QueryLock {
+    Exclusive,
+    Shared,
+    Raw(String),
+}
+
+impl From<bool> for QueryLock {
+    fn from(exclusive: bool) -> Self {
+        if exclusive {
+            Self::Exclusive
+        } else {
+            Self::Shared
+        }
+    }
+}
+
+impl From<&str> for QueryLock {
+    fn from(sql: &str) -> Self {
+        Self::Raw(sql.to_owned())
+    }
+}
+
+impl From<String> for QueryLock {
+    fn from(sql: String) -> Self {
+        Self::Raw(sql)
+    }
+}
+
 /// The value assigned to a column when an upsert finds a conflict.
 pub enum UpsertUpdate<'a> {
     /// Copy the named column from the attempted insert.

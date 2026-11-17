@@ -4,7 +4,7 @@ use std::{fmt::Write as _, sync::Arc};
 
 use crate::database::{
     DatabaseError, DatabaseResult,
-    query::{FullTextOptions, PostgresFullTextMode},
+    query::{FullTextOptions, PostgresFullTextMode, QueryLock},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -115,7 +115,7 @@ impl Grammar {
     pub(in crate::database::query) fn table_hints(
         &self,
         hint: Option<(IndexHintKind, &str)>,
-        lock: Option<bool>,
+        lock: Option<&QueryLock>,
         sql: &mut String,
     ) -> DatabaseResult<()> {
         if self.is_sql_server() {
@@ -499,13 +499,16 @@ impl Grammar {
         self.upsert_alias
     }
 
-    pub(crate) fn lock(&self, exclusive: bool) -> &'static str {
-        match (self.dialect, exclusive) {
-            (Dialect::MySql | Dialect::Postgres, true) => " for update",
-            (Dialect::Postgres, false) => " for share",
-            (Dialect::MySql, false) => " lock in share mode",
-            (Dialect::Sqlite | Dialect::SqlServer, _) => "",
-        }
+    pub(in crate::database::query) fn compile_lock(&self, lock: &QueryLock, sql: &mut String) {
+        let clause = match (self.dialect, lock) {
+            (Dialect::MySql | Dialect::Postgres, QueryLock::Exclusive) => "for update",
+            (Dialect::Postgres, QueryLock::Shared) => "for share",
+            (Dialect::MySql, QueryLock::Shared) => "lock in share mode",
+            (Dialect::MySql | Dialect::Postgres, QueryLock::Raw(clause)) => clause,
+            (Dialect::Sqlite | Dialect::SqlServer, _) => return,
+        };
+        sql.push(' ');
+        sql.push_str(clause);
     }
 
     pub(crate) fn wrap_union(&self, sql: &str) -> String {
@@ -539,7 +542,7 @@ fn validate_index_name(name: &str) -> DatabaseResult<()> {
 
 fn compile_sql_server_hints(
     hint: Option<(IndexHintKind, &str)>,
-    lock: Option<bool>,
+    lock: Option<&QueryLock>,
     sql: &mut String,
 ) -> DatabaseResult<()> {
     let force = match hint {
@@ -549,16 +552,23 @@ fn compile_sql_server_hints(
         }
         _ => None,
     };
+    let lock = match lock {
+        Some(QueryLock::Exclusive) => Some("rowlock, updlock, holdlock"),
+        Some(QueryLock::Shared) => Some("rowlock, holdlock"),
+        Some(QueryLock::Raw(clause)) if force.is_none() => {
+            sql.push(' ');
+            sql.push_str(clause);
+            return Ok(());
+        }
+        Some(QueryLock::Raw(clause)) => Some(sql_server_hint_list(clause)?),
+        None => None,
+    };
     if lock.is_none() && force.is_none() {
         return Ok(());
     }
     sql.push_str(" with (");
-    if let Some(exclusive) = lock {
-        sql.push_str(if exclusive {
-            "rowlock, updlock, holdlock"
-        } else {
-            "rowlock, holdlock"
-        });
+    if let Some(lock) = lock {
+        sql.push_str(lock);
     }
     if let Some(index) = force {
         if lock.is_some() {
@@ -568,4 +578,20 @@ fn compile_sql_server_hints(
     }
     sql.push(')');
     Ok(())
+}
+
+fn sql_server_hint_list(clause: &str) -> DatabaseResult<&str> {
+    let clause = clause.trim_ascii();
+    if clause
+        .get(..4)
+        .is_some_and(|word| word.eq_ignore_ascii_case("with"))
+        && let Some(hints) = clause[4..].trim_ascii_start().strip_prefix('(')
+        && let Some(hints) = hints.strip_suffix(')')
+        && !hints.trim_ascii().is_empty()
+    {
+        return Ok(hints.trim_ascii());
+    }
+    Err(DatabaseError::InvalidQuery(
+        "SQL Server combined table hints",
+    ))
 }

@@ -521,4 +521,24 @@ SQL Server executes native `TRUNCATE TABLE`. It resets the identity seed and rej
 
 ## Pessimistic Locking
 
-Use `lockForUpdate` or `sharedLock` inside a transaction. MySQL holds the row locks until commit or rollback. SQLite uses its normal transaction locking and has no equivalent row lock clause.
+Use `lockForUpdate` or `sharedLock` inside a transaction. `lock(true)` and `lock(false)` select the same modes. A locking query uses the write connection. SQLite applies its normal transaction locking and omits row-lock clauses.
+
+### Native locking clauses {#native-locking-clauses}
+
+Pass an application-defined SQL clause to `lock` for options such as `FOR UPDATE SKIP LOCKED` on MySQL and PostgreSQL or `WITH (UPDLOCK, ROWLOCK, READPAST)` on SQL Server. On SQL Server, a custom lock combined with `forceIndex` must use a `WITH (...)` list. Never put request input into the clause.
+
+```rust
+use openrust::database::{DatabaseResult, Row, Transaction};
+
+pub async fn next_unlocked(
+    transaction: &mut Transaction,
+    lock_clause: &'static str,
+) -> DatabaseResult<Option<Row>> {
+    transaction
+        .table("job_slots")
+        .orderBy("id", "asc")
+        .lock(lock_clause)
+        .first()
+        .await
+}
+```
