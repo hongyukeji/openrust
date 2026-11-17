@@ -141,6 +141,20 @@ fn lookup_hooks(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
+fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::translation::Line;
+        Lang::load(None, "messages", "zh-Hans").map_err(http_error)?;
+        Lang::addLines(
+            [("messages.welcome".into(), Line::Text("运行期 :name".into()))],
+            "zh-CN",
+            None,
+        )
+        .map_err(http_error)?;
+        Ok(Response::new(StatusCode::OK, Body::from("installed")))
+    })
+}
+
 fn http_error(source: TranslationError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -176,6 +190,7 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             }
             Route::get("/install-hooks", install_lookup_hooks)?;
             Route::get("/hooks", lookup_hooks)?;
+            Route::get("/register-runtime-lines", register_runtime_lines)?;
             Route::get("/default", default_locale)
         }))
         .create()
@@ -471,5 +486,186 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
     assert_eq!(
         translator.string("missing.key", &args, None).unwrap(),
         "missing.key"
+    );
+}
+
+#[tokio::test]
+async fn runtime_translation_lines_extend_a_loaded_group_in_only_one_http_application() {
+    let changed = Root::new("fr_CA");
+    let original = Root::new("en_CA");
+    let ((first, one), (second, two)) = tokio::join!(start(&changed), start(&original));
+    assert_eq!(send(first, "/register-runtime-lines").await, "installed");
+    let (changed, original) = tokio::join!(send(first, "/zh-Hans"), send(second, "/zh_Hans"));
+    let changed: Value = serde_json::from_str(&changed).unwrap();
+    let original: Value = serde_json::from_str(&original).unwrap();
+    assert_eq!(changed["greeting"], "运行期 ada");
+    assert_eq!(changed["choice"], "2 个项目");
+    assert_eq!(original["greeting"], "你好，ada");
+    one.abort();
+    two.abort();
+}
+
+#[test]
+fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
+    use openrust::translation::{FileLoader, Line, Translator};
+
+    let root = Root::new("paths");
+    let lang = root.0.join("lang");
+    let extra = root.0.join("extra");
+    let json = root.0.join("json-only");
+    let package = root.0.join("package");
+    for path in [
+        extra.join("en"),
+        extra.join("vendor/shop/en"),
+        package.join("en"),
+        json.clone(),
+    ] {
+        fs::create_dir_all(path).unwrap();
+    }
+    fs::write(
+        lang.join("en/layered.json"),
+        r#"{"labels":["first","second"],"view":{"title":"base","note":"keep"}}"#,
+    )
+    .unwrap();
+    fs::write(extra.join("en/messages.json"), r#"{"welcome":"new file"}"#).unwrap();
+    fs::write(
+        extra.join("en/layered.json"),
+        r#"{"labels":["overlay"],"view":{"title":"overlay"}}"#,
+    )
+    .unwrap();
+    fs::write(lang.join("en/cold.json"), r#"{"existing":"from disk"}"#).unwrap();
+    fs::write(
+        package.join("en/cart.json"),
+        r#"{"title":"package","detail":"package detail"}"#,
+    )
+    .unwrap();
+    fs::write(
+        extra.join("vendor/shop/en/cart.json"),
+        r#"{"title":"local"}"#,
+    )
+    .unwrap();
+    fs::write(
+        json.join("en.json"),
+        r#"{"Shared":{"first":"json first","extra":"not copied"},"JSON only":"first path"}"#,
+    )
+    .unwrap();
+    fs::write(
+        extra.join("en.json"),
+        r#"{"Shared":{"first":"application"},"JSON only":"second path"}"#,
+    )
+    .unwrap();
+
+    let translator = Translator::new(FileLoader::new(lang), "en".into(), "en".into()).unwrap();
+    let args = BTreeMap::new();
+    translator.load(Some("*"), "messages", "EN").unwrap();
+    translator.addPath(extra);
+    translator.addJsonPath(json);
+    translator.addNamespace("shop", package).unwrap();
+    assert_eq!(
+        translator.string("messages.welcome", &args, None).unwrap(),
+        "Hi :Name / :NAME"
+    );
+    assert_eq!(
+        translator.string("layered.labels.0", &args, None).unwrap(),
+        "overlay"
+    );
+    assert_eq!(
+        translator.string("layered.labels.1", &args, None).unwrap(),
+        "second"
+    );
+    assert_eq!(
+        translator.string("layered.view.note", &args, None).unwrap(),
+        "keep"
+    );
+    assert_eq!(
+        translator.string("JSON only", &args, None).unwrap(),
+        "second path"
+    );
+    assert_eq!(
+        translator.array("Shared", &args, None).unwrap(),
+        BTreeMap::from([("first".into(), Line::Text("application".into()))])
+    );
+
+    translator.load(Some("shop"), "cart", "en").unwrap();
+    assert_eq!(
+        translator.string("shop::cart.title", &args, None).unwrap(),
+        "local"
+    );
+    translator
+        .addLines(
+            [
+                ("cart.title".into(), Line::Text("runtime".into())),
+                ("cart.summary.stock".into(), Line::Text("ready".into())),
+            ],
+            "en",
+            Some("shop"),
+        )
+        .unwrap();
+    assert_eq!(
+        translator
+            .string("shop::cart.summary.stock", &args, None)
+            .unwrap(),
+        "ready"
+    );
+    assert_eq!(
+        translator.string("shop::cart.title", &args, None).unwrap(),
+        "runtime"
+    );
+    assert_eq!(
+        translator.string("shop::cart.detail", &args, None).unwrap(),
+        "package detail"
+    );
+
+    translator
+        .addLines(
+            [
+                (
+                    "layered.labels.1".into(),
+                    Line::Text("updated second".into()),
+                ),
+                ("layered.labels.7".into(), Line::Text("sparse".into())),
+                ("cold.runtime".into(), Line::Text("registered".into())),
+            ],
+            "EN",
+            None,
+        )
+        .unwrap();
+    assert_eq!(
+        translator.string("layered.labels.0", &args, None).unwrap(),
+        "overlay"
+    );
+    assert_eq!(
+        translator.string("layered.labels.1", &args, None).unwrap(),
+        "updated second"
+    );
+    assert_eq!(
+        translator.string("layered.labels.7", &args, None).unwrap(),
+        "sparse"
+    );
+    assert_eq!(
+        translator.string("cold.runtime", &args, None).unwrap(),
+        "registered"
+    );
+    assert!(!translator.hasForLocale("cold.existing", None).unwrap());
+
+    let error = translator
+        .addLines(
+            [
+                (
+                    "layered.view.title".into(),
+                    Line::Text("invalid batch".into()),
+                ),
+                ("bad-key".into(), Line::Text("invalid".into())),
+            ],
+            "en",
+            None,
+        )
+        .unwrap_err();
+    assert!(matches!(error, TranslationError::InvalidKey));
+    assert_eq!(
+        translator
+            .string("layered.view.title", &args, None)
+            .unwrap(),
+        "overlay"
     );
 }

@@ -19,6 +19,31 @@ Put grouped translations in files such as `lang/en/messages.json`. Retrieve nest
 }
 ```
 
+### Registering Paths and Translation Lines {#registering-translation-sources}
+
+Register directories through `Lang::addPath`, `Lang::addJsonPath`, or `Lang::addNamespace` in the application scope before the first lookup. Later paths override earlier paths. Grouped catalogs merge recursively, including list indexes. Literal JSON keys are replaced as a whole. Application roots are applied after JSON-only roots.
+
+Use `Lang::addLines` with dotted group keys. A newly registered group starts with the supplied lines. To extend a file-backed group, call `Lang::load` first. Loaded groups are cached for the application, so later path registration applies to future loads.
+
+```rust
+use std::path::PathBuf;
+
+use openrust::{
+    support::facades::Lang,
+    translation::{Line, TranslationResult},
+};
+
+pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
+    Lang::addPath(directory)?;
+    Lang::load(None, "messages", "en")?;
+    Lang::addLines(
+        [("messages.runtime".into(), Line::Text("Registered :name".into()))],
+        "en",
+        None,
+    )
+}
+```
+
 ## Retrieving Translation Strings
 
 Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Use `Lang::array` for a group or list. A missing key is returned as text. Literal JSON keys are looked up in the selected locale. Grouped keys can fall back to the configured language.

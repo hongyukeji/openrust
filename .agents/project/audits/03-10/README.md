@@ -37,3 +37,10 @@ macOS ARM64 使用 Rust 1.94.0 构建真实二进制，在临时应用运行默�
 - 隔离基线 `fb2a0bf39`，Rust 1.94.0。定向测试 8 项通过，包括两套实际 HTTP 应用、中文别名、缺键处理、精确存在性、回退顺序、复数、非法语言拒绝、回调 panic 后恢复、Validator 翻译。三语文档共用示例编译后，实际 Artisan 以 `fr-CA`、`zh-Hant` 和 `en` 验证回退及替换，另实跑 `lang:publish` 与 `inspire`。
 - 改动文件格式、工作区严格 Clippy、三语构建、12 项通用浏览器和 6 项正文锚点／示例检查通过。全仓格式仍报告既有 `sanctum_authentication.rs:1412`。本批隔离构建缓存已回收。磁盘可用 115.21 GB（107.29 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-10-hooks.KqyTG6Ej`。
 - 03-10 接续运行期翻译行、动态加载源及替换扩展。核心账本保持 54/66。
+
+## 运行期翻译行与目录登记
+
+- 对照固定 Laravel 的 `Translator::addLines`、`load` 与 `FileLoader` 的路径登记和覆盖顺序。复用旧版 `v0.x` 的 JSON 字面键整项覆盖、分组递归覆盖和列表按索引合并。 [固定 Laravel Translator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php#L322) · [固定 Laravel FileLoader](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/FileLoader.php)
+- 公开 `Lang::addPath`、`addJsonPath`、`addNamespace`、`load` 和 `addLines`。应用根目录的字面键在 JSON 专用目录之后应用。运行期批量登记先校验再写入，按调用方的条目顺序处理点号路径。Laravel 规则下首次登记的分组视作已加载，需保留文件原有行时可先 `load`。旧有框架 Provider 的缓存失效仍覆盖文件目录，已明确登记的运行期分组保留。
+- 隔离基线 `abc0f40f5`、Rust 1.94.0。10 项定向回归通过，包括两套实际 HTTP 应用的登记隔离、规范语言别名、目录覆盖、包覆盖、列表索引和无效批次拒绝。三语示例经实际 Artisan 在 `en`、`fr-CA`、`zh-Hant` 运行，并实跑 `lang:publish` 和 `inspire`。
+- 改动文件格式、严格工作区 Clippy、三语文档站、12 项通用及 6 项正文浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412`。本批隔离缓存已回收。磁盘可用 115.17 GB（107.26 GiB），周额度剩余 66%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-10-sources.RugiEP1U`。核心账本保持 54/66。

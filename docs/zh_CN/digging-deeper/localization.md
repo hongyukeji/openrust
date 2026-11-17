@@ -19,6 +19,31 @@
 }
 ```
 
+### 登记目录和运行期翻译行 {#registering-translation-sources}
+
+在应用作用域内首次查找之前，用 `Lang::addPath`、`Lang::addJsonPath` 或 `Lang::addNamespace` 登记目录。较晚登记的目录覆盖较早的目录。分组资源递归合并，包括列表索引。JSON 字面键按整项覆盖。应用目录在 JSON 专用目录之后加载。
+
+用 `Lang::addLines` 登记带点号的分组键。首次登记的分组以提供的翻译行为准。要扩展文件中的分组，先调用 `Lang::load`。加载后的分组在应用内缓存，后续路径登记作用于之后加载的分组。
+
+```rust
+use std::path::PathBuf;
+
+use openrust::{
+    support::facades::Lang,
+    translation::{Line, TranslationResult},
+};
+
+pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
+    Lang::addPath(directory)?;
+    Lang::load(None, "messages", "en")?;
+    Lang::addLines(
+        [("messages.runtime".into(), Line::Text("Registered :name".into()))],
+        "en",
+        None,
+    )
+}
+```
+
 ## 获取翻译字符串
 
 使用 `__` 读取文本。占位符支持 `:name`、`:Name` 和 `:NAME`。分组和列表使用 `Lang::array` 读取。缺失翻译返回键本身。JSON 字面键在所选语言内查找，分组键可以回退到配置的语言。

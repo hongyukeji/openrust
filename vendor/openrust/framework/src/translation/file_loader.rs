@@ -11,11 +11,14 @@ use cap_std::{ambient_authority, fs::Dir};
 
 use crate::contracts::translation::Loader;
 
-use super::{Line, Lines, TranslationError, TranslationFuture, TranslationResult};
+pub(super) mod merge;
+
+use self::merge::merge;
+use super::{Lines, TranslationError, TranslationFuture, TranslationResult};
 
 /// Loads application and package translations from configured directories.
 pub struct FileLoader {
-    paths: Vec<PathBuf>,
+    paths: RwLock<Vec<PathBuf>>,
     json_paths: RwLock<Vec<PathBuf>>,
     namespaces: RwLock<HashMap<String, PathBuf>>,
 }
@@ -23,7 +26,7 @@ pub struct FileLoader {
 impl Clone for FileLoader {
     fn clone(&self) -> Self {
         Self {
-            paths: self.paths.clone(),
+            paths: RwLock::new(self.paths.read().unwrap().clone()),
             json_paths: RwLock::new(self.json_paths.read().unwrap().clone()),
             namespaces: RwLock::new(self.namespaces.read().unwrap().clone()),
         }
@@ -33,14 +36,14 @@ impl Clone for FileLoader {
 impl FileLoader {
     pub fn new(path: PathBuf) -> Self {
         Self {
-            paths: vec![path],
+            paths: RwLock::new(vec![path]),
             json_paths: RwLock::default(),
             namespaces: RwLock::default(),
         }
     }
 
-    pub fn addPath(&mut self, path: PathBuf) {
-        self.paths.push(path);
+    pub fn addPath(&self, path: PathBuf) {
+        self.paths.write().unwrap().push(path);
     }
 
     /// Add an anonymous JSON translation directory before the application roots.
@@ -65,20 +68,17 @@ impl FileLoader {
         if !valid_segment(locale) {
             return Err(TranslationError::InvalidLocale);
         }
+        let paths = self.paths.read().unwrap();
         let mut lines = Lines::new();
         if group == "*" && namespace == Some("*") {
             let json_paths = self.json_paths.read().unwrap().clone();
-            for root in json_paths.iter().chain(&self.paths) {
-                merge(
-                    &mut lines,
-                    read(root, Path::new(&format!("{locale}.json")))?,
-                );
+            for root in json_paths.iter().chain(paths.iter()) {
+                lines.extend(read(root, Path::new(&format!("{locale}.json")))?);
             }
             return Ok(lines);
         }
-        if !group.split('/').all(valid_segment)
-            || namespace.is_some_and(|namespace| !valid_segment(namespace))
-        {
+        let namespace = namespace.filter(|namespace| *namespace != "*");
+        if !valid_group(group) || namespace.is_some_and(|namespace| !valid_segment(namespace)) {
             return Err(TranslationError::InvalidKey);
         }
         let relative = Path::new(locale).join(format!("{group}.json"));
@@ -87,14 +87,14 @@ impl FileLoader {
                 return Ok(lines);
             };
             lines = read(&package, &relative)?;
-            for root in &self.paths {
+            for root in paths.iter() {
                 merge(
                     &mut lines,
                     read(root, &Path::new("vendor").join(namespace).join(&relative))?,
                 );
             }
         } else {
-            for root in &self.paths {
+            for root in paths.iter() {
                 merge(&mut lines, read(root, &relative)?);
             }
         }
@@ -130,6 +130,10 @@ pub(super) fn valid_segment(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
+pub(super) fn valid_group(value: &str) -> bool {
+    value.split('/').all(valid_segment)
+}
+
 fn read(root: &Path, relative: &Path) -> TranslationResult<Lines> {
     let bytes = match Dir::open_ambient_dir(root, ambient_authority())
         .and_then(|root| root.read(relative))
@@ -139,15 +143,4 @@ fn read(root: &Path, relative: &Path) -> TranslationResult<Lines> {
         Err(error) => return Err(TranslationError::Source(Box::new(error))),
     };
     serde_json::from_slice(&bytes).map_err(|source| TranslationError::Source(Box::new(source)))
-}
-
-fn merge(lines: &mut Lines, overlay: Lines) {
-    for (key, value) in overlay {
-        match (lines.get_mut(&key), value) {
-            (Some(Line::Group(base)), Line::Group(overlay)) => merge(base, overlay),
-            (_, value) => {
-                lines.insert(key, value);
-            }
-        }
-    }
 }

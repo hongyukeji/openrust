@@ -1,11 +1,11 @@
 #![allow(non_snake_case, reason = "Matches Laravel's Lang API")]
 
-use std::{collections::BTreeMap, future::Future};
+use std::{collections::BTreeMap, future::Future, path::PathBuf};
 
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    Lines, MissingTranslation, PluralCount, TranslationError, TranslationResult, Translator,
+    Line, Lines, MissingTranslation, PluralCount, TranslationError, TranslationResult, Translator,
 };
 
 /// Accesses the translator for the current application.
@@ -93,6 +93,42 @@ impl Lang {
             .map_err(TranslationError::Unavailable)?
             .clearLocaleResolver();
         Ok(())
+    }
+
+    pub fn addPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .addPath(path.into());
+        Ok(())
+    }
+
+    pub fn addJsonPath(path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .addJsonPath(path.into());
+        Ok(())
+    }
+
+    pub fn addNamespace(namespace: &str, path: impl Into<PathBuf>) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .addNamespace(namespace, path.into())
+    }
+
+    pub fn load(namespace: Option<&str>, group: &str, locale: &str) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .load(namespace, group, locale)
+    }
+
+    pub fn addLines(
+        lines: impl IntoIterator<Item = (String, Line)>,
+        locale: &str,
+        namespace: Option<&str>,
+    ) -> TranslationResult<()> {
+        Self::getFacadeRoot()
+            .map_err(TranslationError::Unavailable)?
+            .addLines(lines, locale, namespace)
     }
 
     pub fn getLocale() -> TranslationResult<String> {

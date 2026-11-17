@@ -19,6 +19,31 @@
 }
 ```
 
+### 登記目錄與執行期翻譯 {#registering-translation-sources}
+
+在應用程式作用域首次查找之前，用 `Lang::addPath`、`Lang::addJsonPath` 或 `Lang::addNamespace` 登記目錄。較晚登記的目錄會覆蓋較早的目錄。分組資源遞迴合併，包括清單索引。JSON 字面鍵以整項覆蓋。應用程式目錄在 JSON 專用目錄之後載入。
+
+用 `Lang::addLines` 登記帶點號的分組鍵。首次登記的分組以提供的翻譯為準。要擴充檔案中的分組，先呼叫 `Lang::load`。載入後的分組會留在應用程式快取，後續路徑登記適用於之後載入的分組。
+
+```rust
+use std::path::PathBuf;
+
+use openrust::{
+    support::facades::Lang,
+    translation::{Line, TranslationResult},
+};
+
+pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
+    Lang::addPath(directory)?;
+    Lang::load(None, "messages", "en")?;
+    Lang::addLines(
+        [("messages.runtime".into(), Line::Text("Registered :name".into()))],
+        "en",
+        None,
+    )
+}
+```
+
 ## 取得翻譯字串
 
 使用 `__` 讀取文字。預留位置支援 `:name`、`:Name` 和 `:NAME`。群組和清單使用 `Lang::array` 讀取。缺少翻譯時回傳鍵本身。JSON 字面鍵在所選語言內查找，群組鍵可使用設定的備援語言。

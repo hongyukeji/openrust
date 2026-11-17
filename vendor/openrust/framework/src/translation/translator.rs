@@ -11,7 +11,7 @@ use crate::contracts::translation::Translator as Contract;
 
 use super::{
     FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResult,
-    file_loader::valid_segment,
+    file_loader::{merge::indexed, valid_group, valid_segment},
     locale::canonical_locale,
     lookup::{LookupHooks, MissingTranslation},
 };
@@ -23,6 +23,12 @@ struct CatalogKey {
     locale: String,
     group: String,
     namespace: Option<String>,
+}
+
+#[derive(Default)]
+struct Catalog {
+    lines: Arc<Lines>,
+    runtime: bool,
 }
 
 struct ResolvedLine {
@@ -46,7 +52,7 @@ pub struct Translator {
     loader: Arc<FileLoader>,
     locale: String,
     fallback: String,
-    loaded: Mutex<HashMap<CatalogKey, Arc<Lines>>>,
+    loaded: Mutex<HashMap<CatalogKey, Catalog>>,
     identity: Arc<()>,
     hooks: LookupHooks,
 }
@@ -81,14 +87,85 @@ impl Translator {
         }
         let mut loaded = self.loaded.lock().unwrap();
         self.loader.add_namespace(namespace.to_owned(), path);
-        loaded.retain(|key, _| key.namespace.as_deref() != Some(namespace));
+        loaded
+            .retain(|key, catalog| catalog.runtime || key.namespace.as_deref() != Some(namespace));
         Ok(())
     }
 
     pub(crate) fn add_package_json_path(&self, path: PathBuf) {
         let mut loaded = self.loaded.lock().unwrap();
         self.loader.addJsonPath(path);
-        loaded.retain(|key, _| key.group != "*" || key.namespace.as_deref() != Some("*"));
+        loaded.retain(|key, catalog| {
+            catalog.runtime || key.group != "*" || key.namespace.as_deref() != Some("*")
+        });
+    }
+
+    /// Adds a language directory for subsequent group and literal JSON loads.
+    pub fn addPath(&self, path: PathBuf) {
+        self.loader.addPath(path);
+    }
+
+    /// Adds a directory for subsequent anonymous JSON catalog loads.
+    pub fn addJsonPath(&self, path: PathBuf) {
+        self.loader.addJsonPath(path);
+    }
+
+    /// Adds or replaces a package namespace for subsequent loads.
+    pub fn addNamespace(&self, namespace: &str, path: PathBuf) -> TranslationResult<()> {
+        if !valid_segment(namespace) {
+            return Err(TranslationError::InvalidKey);
+        }
+        self.loader.add_namespace(namespace.to_owned(), path);
+        Ok(())
+    }
+
+    /// Loads and caches a group so later runtime lines can extend it.
+    pub fn load(
+        &self,
+        namespace: Option<&str>,
+        group: &str,
+        locale: &str,
+    ) -> TranslationResult<()> {
+        let locale = canonical_locale(locale)?;
+        let namespace = catalog_namespace(group, namespace)?;
+        self.catalog(&locale, group, namespace)?;
+        Ok(())
+    }
+
+    /// Adds dotted keys to the loaded groups of the given locale and namespace.
+    pub fn addLines(
+        &self,
+        lines: impl IntoIterator<Item = (String, Line)>,
+        locale: &str,
+        namespace: Option<&str>,
+    ) -> TranslationResult<()> {
+        let locale = canonical_locale(locale)?;
+        let entries = lines
+            .into_iter()
+            .map(|(key, value)| {
+                let (group, item) = key.split_once('.').ok_or(TranslationError::InvalidKey)?;
+                if item.is_empty() {
+                    return Err(TranslationError::InvalidKey);
+                }
+                let namespace = catalog_namespace(group, namespace)?;
+                Ok((
+                    CatalogKey {
+                        locale: locale.clone(),
+                        group: group.to_owned(),
+                        namespace: namespace.map(str::to_owned),
+                    },
+                    item.to_owned(),
+                    value,
+                ))
+            })
+            .collect::<TranslationResult<Vec<_>>>()?;
+        let mut loaded = self.loaded.lock().unwrap();
+        for (key, item, line) in entries {
+            let catalog = loaded.entry(key).or_default();
+            set_line(Arc::make_mut(&mut catalog.lines), &item, line);
+            catalog.runtime = true;
+        }
+        Ok(())
     }
 
     pub fn locale(&self) -> String {
@@ -264,9 +341,7 @@ impl Translator {
         let (group, item) = name
             .split_once('.')
             .map_or((name, None), |(group, item)| (group, Some(item)));
-        if !group.split('/').all(valid_segment)
-            || namespace.is_some_and(|namespace| !valid_segment(namespace))
-        {
+        if !valid_group(group) || namespace.is_some_and(|namespace| !valid_segment(namespace)) {
             return Ok(None);
         }
         if !fallback {
@@ -322,10 +397,16 @@ impl Translator {
         };
         let mut loaded = self.loaded.lock().unwrap();
         if let Some(lines) = loaded.get(&key) {
-            return Ok(lines.clone());
+            return Ok(Arc::clone(&lines.lines));
         }
         let lines = Arc::new(self.loader.load_lines(locale, group, namespace)?);
-        loaded.insert(key, lines.clone());
+        loaded.insert(
+            key,
+            Catalog {
+                lines: Arc::clone(&lines),
+                runtime: false,
+            },
+        );
         Ok(lines)
     }
 }
@@ -366,6 +447,60 @@ impl Contract for Translator {
         if let Ok(locale) = canonical_locale(locale) {
             self.locale = locale;
         }
+    }
+}
+
+fn catalog_namespace<'a>(
+    group: &str,
+    namespace: Option<&'a str>,
+) -> TranslationResult<Option<&'a str>> {
+    let namespace = namespace.filter(|namespace| *namespace != "*");
+    if group == "*" && namespace.is_none() {
+        return Ok(Some("*"));
+    }
+    if !valid_group(group) || namespace.is_some_and(|namespace| !valid_segment(namespace)) {
+        return Err(TranslationError::InvalidKey);
+    }
+    Ok(namespace)
+}
+
+fn set_line(lines: &mut Lines, key: &str, value: Line) {
+    if let Some((first, rest)) = key.split_once('.') {
+        let child = lines
+            .entry(first.to_owned())
+            .or_insert_with(|| Line::Group(Lines::new()));
+        set_child(child, rest, value);
+    } else {
+        lines.insert(key.to_owned(), value);
+    }
+}
+
+fn set_child(current: &mut Line, key: &str, value: Line) {
+    let (first, rest) = key
+        .split_once('.')
+        .map_or((key, None), |(first, rest)| (first, Some(rest)));
+    if let Line::List(items) = current
+        && let Ok(index) = first.parse::<usize>()
+        && index.to_string() == first
+        && index <= items.len()
+    {
+        if index == items.len() {
+            items.push(Line::Group(Lines::new()));
+        }
+        match rest {
+            Some(rest) => set_child(&mut items[index], rest, value),
+            None => items[index] = value,
+        }
+        return;
+    }
+    if !matches!(current, Line::Group(_)) {
+        let previous = std::mem::replace(current, Line::Group(Lines::new()));
+        if let Line::List(items) = previous {
+            *current = Line::Group(indexed(items));
+        }
+    }
+    if let Line::Group(lines) = current {
+        set_line(lines, key, value);
     }
 }
 
