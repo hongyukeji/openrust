@@ -334,6 +334,10 @@ impl Grammar {
                 }
             }
             match command {
+                Command::Column(column) if self.postgres() && column.change => {
+                    self.postgres_change(&qualified, &column, &mut sql)?;
+                    self.column_indexes(table, &column, &column.name, &mut indexes)?;
+                }
                 Command::Column(mut column) => {
                     let mut previous_name = None;
                     let rename;
@@ -972,6 +976,11 @@ impl Grammar {
         column: &ColumnDefinition,
         explicit_primary: bool,
     ) -> DatabaseResult<String> {
+        if column.using.is_some() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "USING requires a PostgreSQL column change",
+            ));
+        }
         if column.rename_to.is_some() {
             return Err(DatabaseError::InvalidSchema("renameTo requires change"));
         }
@@ -1115,6 +1124,61 @@ impl Grammar {
         Ok(sql)
     }
 
+    fn postgres_change(
+        &self,
+        table: &str,
+        column: &ColumnDefinition,
+        statements: &mut Vec<String>,
+    ) -> DatabaseResult<()> {
+        if column.rename_to.is_some()
+            || column.generated.is_some()
+            || column.charset.is_some()
+            || column.invisible
+            || column.current_on_update
+            || column.on_update.is_some()
+            || column.position.is_some()
+            || column.instant
+            || column.lock.is_some()
+            || column.start.is_some()
+            || matches!(column.kind, ColumnType::Enum(_) | ColumnType::Set(_))
+        {
+            return Err(DatabaseError::UnsupportedSchema(
+                "PostgreSQL column change modifier",
+            ));
+        }
+        let name = self.identifier(&column.name)?;
+        let kind = self.column_type(&column.kind, &column.name)?;
+        let mut actions = vec![format!("alter column {name} type {kind}")];
+        if let Some(collation) = &column.collation {
+            actions[0].push_str(&format!(" collate {}", self.identifier(collation)?));
+        }
+        if let Some(using) = &column.using {
+            actions[0].push_str(" using ");
+            actions[0].push_str(schema_expression(using, "column conversion expression")?);
+        }
+        let nullability = if column.nullable.unwrap_or(false) {
+            "drop not null"
+        } else {
+            "set not null"
+        };
+        actions.push(format!("alter column {name} {nullability}"));
+        if !column.increment {
+            actions.push(format!("alter column {name} drop identity if exists"));
+            let default = match self.column_default(column) {
+                Some(DefaultValue::Value(Value::Null)) | None => "drop default".into(),
+                Some(value) => format!("set default {}", self.default_value(value, &column.kind)?),
+            };
+            actions.push(format!("alter column {name} {default}"));
+        }
+        let comment = match column.comment.as_deref() {
+            Some(comment) => self.string(comment)?,
+            None => "null".into(),
+        };
+        statements.push(format!("alter table {table} {}", actions.join(", ")));
+        statements.push(format!("comment on column {table}.{name} is {comment}"));
+        Ok(())
+    }
+
     fn generated_expression(&self, generated: &GeneratedColumn) -> DatabaseResult<String> {
         let expression = generated.expression.trim();
         if expression.is_empty() || expression.contains('\0') {
@@ -1189,7 +1253,7 @@ impl Grammar {
                     return Err(DatabaseError::InvalidSchema("column length"));
                 }
                 let name = if fixed { "char" } else { "varchar" };
-                return Ok(if mysql {
+                return Ok(if mysql || self.postgres() {
                     format!("{name}({length})")
                 } else {
                     "varchar".into()
@@ -1205,7 +1269,7 @@ impl Grammar {
             ColumnType::Boolean if mysql => "tinyint(1)",
             ColumnType::Boolean => "tinyint(1)",
             ColumnType::Decimal(total, places) if *total > 0 && *total <= 65 && places <= total => {
-                return Ok(if mysql {
+                return Ok(if mysql || self.postgres() {
                     format!("decimal({total}, {places})")
                 } else {
                     "numeric".into()

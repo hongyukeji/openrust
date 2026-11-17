@@ -92,6 +92,7 @@ pub struct ColumnDefinition {
     pub(super) current_default: CurrentDefault,
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
+    pub(super) using: Option<Box<Expression>>,
     pub(super) rename_to: Option<String>,
     pub(super) comment: Option<String>,
     pub(super) charset: Option<String>,
@@ -120,6 +121,7 @@ impl ColumnDefinition {
             current_default: CurrentDefault::Unset,
             generated: None,
             change: false,
+            using: None,
             rename_to: None,
             comment: None,
             charset: None,
@@ -358,6 +360,12 @@ impl ColumnDefinition {
 
     pub fn change(&mut self) -> &mut Self {
         self.change = true;
+        self
+    }
+
+    /// Converts existing values with a trusted PostgreSQL expression during change.
+    pub fn using(&mut self, expression: Expression) -> &mut Self {
+        self.using = Some(Box::new(expression));
         self
     }
 }

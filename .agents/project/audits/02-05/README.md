@@ -480,3 +480,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 对照固定 Laravel v13.40.0 的普通及唯一索引、具名外键删除和目录查询。在 `sqlsrv` 上，`online()` 生成 `WITH (ONLINE = ON)`，在默认迁移事务内执行。命名外键生成 `ALTER TABLE … DROP CONSTRAINT`。索引和外键目录使用 SQL Server 系统视图，返回结构化结果及外键动作。旧版 `v0.x` 未找到对应的 SQL Server Blueprint 实现。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php)
 - 使用官方 SQL Server 2022 Developer 16.0.4325.4，Linux amd64 兼容容器运行于 Apple Silicon，在真实 TLS 连接上验收建表与更新时的在线索引、外键删除、约束名转义预演和实际系统目录。HTTP 确认普通与唯一索引存在、外键已移除。实际 Artisan 预演显示对应 SQL，迁移失败和成功重跑另见[迁移事务验收](../02-06/README.md#真实-sql-server-迁移失败回滚)。
 - SQL Server 两项 DDL／TDS 回归、MySQL 8.4.13 表目录与限定 Schema 清库、Rust 1.94.0 全仓格式与严格 Clippy、三语站点构建和 18 项浏览器检查通过。原生 Linux x86_64 和 SQL Server 2017 的新增 DDL 回归留在发布矩阵。
+
+## PostgreSQL 列类型转换与修饰符
+
+- 对照固定 Laravel v13.40.0 的 `PostgresGrammar::compileChange`、`compileComment` 和迁移文档。PostgreSQL 的 `change()` 使用原生 `ALTER COLUMN TYPE`，随后处理空值约束、默认值及列注释。字符串宽度和十进制精度保留在 PostgreSQL 类型定义中。Rust 复用 `Expression` 表达可信的 `USING` SQL，拒绝绑定参数。旧版 `v0.x` 未找到对应的 PostgreSQL 改列实现。 [Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L286) · [Laravel 修改列文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#modifying-columns)
+- PostgreSQL 18.6 定向集成覆盖 Schema 限定名、类型转换、保留索引、修改与移除默认值和注释、多列修改失败回滚。实际 Artisan 预演未修改数据，错误转换未写入账本，修正后迁移与回滚通过。实际 HTTP 验证修改后的精度及回滚后的原列宽，独立 `artisan inspire` 通过。
+- 十项 PostgreSQL 定向测试、MySQL 8.4.13 索引和 `sh tests/table_catalog.sh` 两项回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。生成表达式及显式 identity 修饰符变更仍待单独处理。
+- 核心账本维持 62/66。临时数据库和本批构建产物已回收，项目卷可用空间净增 3.70 GB（3.44 GiB），剩余 104.49 GB（97.32 GiB）。提交前周额度剩余 42%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-05-pg-change.vKGPj1Mq`。

@@ -6246,3 +6246,139 @@ async fn mysql_resolves_blueprints_in_preview_and_real_ddl() {
     );
     schema.drop("resolver_probe").await.unwrap();
 }
+
+#[tokio::test]
+async fn postgres_changes_column_types_and_modifiers_atomically() {
+    use openrust::database::query::Expression;
+
+    let preview = connection(json!({"driver":"pgsql","prefix":"spec_"}));
+    let queries = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("tenant.entries", |table| {
+                        table
+                            .decimal("amount", 7, 2)
+                            .using(Expression::new("trim(amount)::numeric / 100"))
+                            .default(1)
+                            .nullable()
+                            .comment("owner's amount")
+                            .change();
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(queries.len(), 2);
+    assert_eq!(
+        queries[0].query,
+        "alter table \"tenant\".\"spec_entries\" alter column \"amount\" type decimal(7, 2) using trim(amount)::numeric / 100, alter column \"amount\" drop not null, alter column \"amount\" drop identity if exists, alter column \"amount\" set default 1"
+    );
+    assert_eq!(
+        queries[1].query,
+        "comment on column \"tenant\".\"spec_entries\".\"amount\" is 'owner''s amount'"
+    );
+    assert!(matches!(
+        preview
+            .getSchemaBuilder()
+            .table("entries", |table| {
+                table
+                    .integer("amount")
+                    .using(Expression::new("?").with_bindings(vec![1.into()]))
+                    .change();
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("column conversion expression"))
+    ));
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_CHANGE_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_CHANGE").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    db.unprepared("create schema tenant; create table tenant.amounts (amount varchar(8) not null, marker varchar(16)); insert into tenant.amounts values ('01250', 'known'); create index amount_marker on tenant.amounts (marker)")
+        .await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    assert!(
+        schema
+            .table("tenant.amounts", |table| {
+                table.string("marker", Some(12)).nullable().change();
+                table
+                    .integer("amount")
+                    .using(Expression::new("'invalid' || amount"))
+                    .change();
+            })
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        schema
+            .getColumnType("tenant.amounts", "marker", true)
+            .await
+            .unwrap(),
+        "character varying(16)"
+    );
+    schema
+        .table("tenant.amounts", |table| {
+            table
+                .decimal("amount", 7, 2)
+                .using(Expression::new("amount::numeric / 100"))
+                .default(1)
+                .nullable()
+                .comment("owner's amount")
+                .change();
+        })
+        .await
+        .unwrap();
+    let column = schema
+        .getColumn("tenant.amounts", "amount")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(column.full_type, "numeric(7,2)");
+    assert!(column.nullable);
+    assert_eq!(column.comment.as_deref(), Some("owner's amount"));
+    assert_eq!(
+        db.scalar(
+            "select amount::text from tenant.amounts where marker='known'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        "12.50".into()
+    );
+    db.statement("insert into tenant.amounts(marker) values ('default')", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar(
+            "select amount::text from tenant.amounts where marker='default'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        "1.00".into()
+    );
+    assert!(
+        schema
+            .hasIndex("tenant.amounts", "amount_marker")
+            .await
+            .unwrap()
+    );
+    schema
+        .table("tenant.amounts", |table| {
+            table.decimal("amount", 7, 2).change();
+        })
+        .await
+        .unwrap();
+    let column = schema
+        .getColumn("tenant.amounts", "amount")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!column.nullable);
+    assert!(column.default.is_none());
+    assert!(column.comment.is_none());
+    db.unprepared("drop schema tenant cascade").await.unwrap();
+}

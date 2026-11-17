@@ -969,6 +969,25 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 將多個欄位名稱傳給 `dropColumn`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
 
+#### 修改 PostgreSQL 欄位 {#postgresql-column-changes}
+
+用 `change()` 宣告欄位的新型別、空值約束、預設值及註解。需要保留的修飾符應重新宣告。現有索引會保留，也可明確要求變更。PostgreSQL 需要明確轉換時，用 `using()` 傳入可信 SQL 運算式來轉換既有值。舊預設值無法轉換成新型別時，先移除舊預設值，再於新定義上宣告所需的預設值。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
+
+async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.decimal("amount", 7, 2)
+            .using(Expression::new("amount::numeric / 100"))
+            .default(1)
+            .nullable()
+            .comment("owner's amount")
+            .change();
+    }).await
+}
+```
+
 #### PostgreSQL 索引方法與重新命名 {#postgresql-index-methods}
 
 使用 `algorithm("brin")` 指定 PostgreSQL 索引存取方法。由伺服器檢查方法及其是否支援目標欄位或運算式。可與 `online()` 一起使用。`renameIndex()` 從帶有 Schema 的資料表名稱繼承 Schema，也接受明確限定 Schema 的舊索引名稱。資料表與舊索引名稱都未限定 Schema 時，PostgreSQL 依 `search_path` 尋找舊索引。重新命名後的索引仍在原 Schema。

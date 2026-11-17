@@ -969,6 +969,25 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 Pass multiple names to `dropColumn` to drop them in one MySQL ALTER statement. Chain `instant()` or `lock()` to request an online DDL option. If the engine rejects the statement, the columns in that statement remain in place. Earlier statements in the same blueprint may already have completed.
 
+#### Changing PostgreSQL Columns {#postgresql-column-changes}
+
+Use `change()` to declare the column’s new type, nullability, default and comment. Restate the modifiers you want to keep. Existing indexes remain in place unless you request an index change. If PostgreSQL needs an explicit conversion, pass a trusted SQL expression with `using()`. The expression applies to existing values. If an old default cannot be cast to the new type, remove it before the type change and declare the desired default on the new definition.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
+
+async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.decimal("amount", 7, 2)
+            .using(Expression::new("amount::numeric / 100"))
+            .default(1)
+            .nullable()
+            .comment("owner's amount")
+            .change();
+    }).await
+}
+```
+
 #### PostgreSQL Index Methods and Renaming {#postgresql-index-methods}
 
 Use `algorithm("brin")` to choose a PostgreSQL index access method. The server checks the method and whether it supports the indexed columns or expressions. You can combine it with `online()`. `renameIndex()` inherits the schema from a schema-qualified table name. You can explicitly qualify the old index name. If both the table and the old index name are unqualified, PostgreSQL resolves the old index name through `search_path`. The new name stays in the existing index schema.

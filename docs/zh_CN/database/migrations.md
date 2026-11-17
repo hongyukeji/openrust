@@ -969,6 +969,25 @@ async fn revise_imports() -> DatabaseResult<()> {
 
 向 `dropColumn` 传入多个列名，可在同一条 MySQL ALTER 语句中删除。可链式调用 `instant()` 或 `lock()` 请求在线 DDL 选项。引擎拒绝该语句时，这条语句涉及的列会保留。同一个 Blueprint 中较早的语句可能已经执行。
 
+#### 修改 PostgreSQL 列 {#postgresql-column-changes}
+
+用 `change()` 声明列的新类型、空值约束、默认值和注释。需要保留的修饰符要重新声明。现有索引会保留，可显式请求变更。PostgreSQL 需要显式转换时，用 `using()` 传入可信 SQL 表达式来转换现有值。旧默认值无法转换为新类型时，先移除旧默认值，再在新定义上声明所需默认值。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext, query::Expression};
+
+async fn update_amount(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.decimal("amount", 7, 2)
+            .using(Expression::new("amount::numeric / 100"))
+            .default(1)
+            .nullable()
+            .comment("owner's amount")
+            .change();
+    }).await
+}
+```
+
 #### PostgreSQL 索引方法与重命名 {#postgresql-index-methods}
 
 用 `algorithm("brin")` 指定 PostgreSQL 索引访问方法。由服务器检查方法及其是否支持目标列或表达式。可以与 `online()` 组合。`renameIndex()` 从带 Schema 的表名继承 Schema，也接受显式限定 Schema 的旧索引名。表名和旧索引名都没有限定 Schema 时，PostgreSQL 按 `search_path` 查找旧索引。重命名后的索引仍在原 Schema。
