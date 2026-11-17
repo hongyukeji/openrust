@@ -441,6 +441,40 @@ impl<M: Model> Builder<'_, M> {
         }
     }
 
+    pub async fn whereVectorSimilarToText(
+        self,
+        column: impl Into<query::Column> + Send,
+        text: &str,
+        min_similarity: f64,
+        order: bool,
+    ) -> DatabaseResult<Self> {
+        query::vector::similarity_max_distance(min_similarity)?;
+        let vector = self.query.text_vector(text).await?;
+        self.whereVectorSimilarTo(column, &vector, min_similarity, order)
+    }
+
+    pub async fn whereVectorDistanceLessThanText(
+        &mut self,
+        column: impl Into<query::Column> + Send,
+        text: &str,
+        max_distance: f64,
+    ) -> DatabaseResult<&mut Self> {
+        query::vector::validate_max_distance(max_distance)?;
+        let vector = self.query.text_vector(text).await?;
+        Ok(self.whereVectorDistanceLessThan(column, &vector, max_distance))
+    }
+
+    pub async fn orWhereVectorDistanceLessThanText(
+        &mut self,
+        column: impl Into<query::Column> + Send,
+        text: &str,
+        max_distance: f64,
+    ) -> DatabaseResult<&mut Self> {
+        query::vector::validate_max_distance(max_distance)?;
+        let vector = self.query.text_vector(text).await?;
+        Ok(self.orWhereVectorDistanceLessThan(column, &vector, max_distance))
+    }
+
     pub fn whereKey(&mut self, value: impl Into<Value>) -> &mut Self {
         self.r#where(M::metadata().primary_key, "=", value)
     }
@@ -469,6 +503,19 @@ impl<M: Model> Builder<'_, M> {
         alias: Option<&str>,
     ) -> DatabaseResult<Self> {
         self.query = self.query.selectVectorDistance(column, vector, alias)?;
+        Ok(self)
+    }
+
+    pub async fn selectVectorDistanceText(
+        mut self,
+        column: impl Into<query::Column> + Send,
+        text: &str,
+        alias: Option<&str>,
+    ) -> DatabaseResult<Self> {
+        self.query = self
+            .query
+            .selectVectorDistanceText(column, text, alias)
+            .await?;
         Ok(self)
     }
 
@@ -503,6 +550,15 @@ impl<M: Model> Builder<'_, M> {
         vector: &[f64],
     ) -> DatabaseResult<Self> {
         self.query = self.query.orderByVectorDistance(column, vector)?;
+        Ok(self)
+    }
+
+    pub async fn orderByVectorDistanceText(
+        mut self,
+        column: impl Into<query::Column> + Send,
+        text: &str,
+    ) -> DatabaseResult<Self> {
+        self.query = self.query.orderByVectorDistanceText(column, text).await?;
         Ok(self)
     }
 

@@ -95,6 +95,7 @@ pub enum DatabaseError {
         relation: String,
     },
     InvalidQuery(&'static str),
+    Embedding(Box<dyn std::error::Error + Send + Sync>),
     AttributeEncryption(crate::encryption::EncryptException),
     AttributeDecryption(crate::encryption::DecryptException),
     AttributeHashing(crate::hashing::HashError),
@@ -179,6 +180,7 @@ impl std::fmt::Display for DatabaseError {
             Self::FakerIo(error) => write!(formatter, "Faker file operation failed: {error}"),
             Self::UnknownFakerFormatter(name) => write!(formatter, "Unknown format {name:?}"),
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
+            Self::Embedding(_) => formatter.write_str("could not resolve a text embedding"),
             Self::AttributeEncryption(_) => {
                 formatter.write_str("could not encrypt model attribute")
             }
@@ -267,6 +269,7 @@ impl std::error::Error for DatabaseError {
             | Self::ConnectionEvent(source)
             | Self::MigrationEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
+            Self::Embedding(source) => Some(source.as_ref()),
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),
             Self::AttributeHashing(source) => Some(source),

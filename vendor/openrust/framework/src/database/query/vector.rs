@@ -1,6 +1,6 @@
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
-use super::{Column, grammars::Grammar};
+use super::{Column, embeddings, grammars::Grammar};
 
 pub(in crate::database) fn similarity_max_distance(similarity: f64) -> DatabaseResult<f64> {
     if !(0.0..=1.0).contains(&similarity) {
@@ -17,7 +17,7 @@ pub(super) fn distance(
     vector: &[f64],
     bindings: &mut Vec<Value>,
 ) -> DatabaseResult<String> {
-    if vector.is_empty() || vector.iter().any(|value| !value.is_finite()) {
+    if !embeddings::valid(vector) {
         return Err(DatabaseError::InvalidQuery(
             "vector must contain finite values",
         ));
@@ -36,12 +36,17 @@ pub(super) fn append_max_distance(
     bindings: &mut Vec<Value>,
     max_distance: f64,
 ) -> DatabaseResult<()> {
+    validate_max_distance(max_distance)?;
+    sql.push_str(" <= ?");
+    bindings.push(Value::Real(max_distance));
+    Ok(())
+}
+
+pub(in crate::database) fn validate_max_distance(max_distance: f64) -> DatabaseResult<()> {
     if !max_distance.is_finite() {
         return Err(DatabaseError::InvalidQuery(
             "vector distance must be finite",
         ));
     }
-    sql.push_str(" <= ?");
-    bindings.push(Value::Real(max_distance));
     Ok(())
 }

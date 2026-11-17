@@ -76,3 +76,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - 固定 Laravel 的 Eloquent Builder 将向量调用转发给底层 Query Builder，并在应用作用域时对含 OR 的条件分组。旧版未找到可复用的向量谓词。OpenRust 显式暴露同名的投影、距离过滤、组合相似度及排序方法。距离过滤沿用 Eloquent 谓词组，投影和排序委托现有 Query Builder。嵌套条件中的列名、向量和最大距离保持为结构化谓词，在外层查询的方言中编译。 [固定 Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L2162) · [固定 Laravel 向量查询](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#vector-similarity-clauses)
 - `database_vectors` 五项，含 PostgreSQL 18.4／pgvector 0.8.2 与 MariaDB 11.8.9 的真实运行。两种驱动均验证括号内的 AND／OR 绑定顺序、距离投影和模型结果、作用域外匹配被排除。SQL 编译另验证不支持的方言。两个隔离 HTTP 实例用实际 Eloquent 路由返回相同的文档 ID 与距离，两个实例均通过独立 `./artisan inspire`。
 - MySQL 8.4.13 的模型持久化及全局作用域回归、Rust 1.94.0 格式与严格 Clippy、三语站点构建和 18 项浏览器检查通过。Schema 向量列和索引、文本自动嵌入继续跟踪。核心账本维持 62/66。本批临时数据库及隔离 Cargo 和文档产物已回收，项目卷可用空间增加 3.04 GB（2.84 GiB），剩余 105.06 GB（97.85 GiB）。周额度剩余 45%，第二窗口无读数。验收脚本和日志位于 `/private/tmp/openrust-02-04-eloquent-vector.ycbGZhVB`。
+
+## 文本嵌入与向量查询
+
+- 对照固定 Laravel 的字符串向量参数、AI SDK 的 Provider 与 30 天缓存。旧版未找到可复用的文本嵌入。Query Builder 和 Eloquent 各提供五个带 `Text` 后缀的异步入口，嵌入在组装 SQL 前解析，数值方法继续同步。复用原有向量投影、谓词、排序及 Eloquent 作用域。 [固定 Laravel 向量查询](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#vector-similarity-clauses) · [固定 Laravel 嵌入缓存](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/ai-sdk.md#caching-embeddings)
+- 应用通过容器注册 `Embeddings`，内置 OpenAI 兼容 HTTP 适配器复用现有客户端。缓存使用当前应用的默认存储，缓存键区分 Provider、端点、模型、凭据、维度和原文。无效响应和 Provider 失败不写入缓存。文本入口按需启用，完整 Laravel AI SDK 仍独立跟踪。
+- 两项回归使用真实本地 TCP 嵌入端点，验证重复调用、跨应用隔离、模型切换、错误维度、503 后重试、未配置 Provider 以及拒绝不支持的驱动。真实 PostgreSQL 18.4／pgvector 0.8.2 和 MariaDB 11.8.9 的独立二进制通过 Eloquent 文本距离投影、OR 与作用域、结果排序和缓存重用，实际 Artisan 通过。两种数据库五项原有向量回归通过。Provider 验收使用隔离的兼容协议服务，商业端点另行验证。
+- MySQL 8.4.13 定向回归、Rust 1.94.0 格式与严格 Clippy、三语站点构建及 18 项浏览器检查通过。核心账本维持 62/66。已回收临时数据库和本批隔离 Cargo／文档产物，项目卷可用空间增加 3.24 GB（3.01 GiB），剩余 105.27 GB（98.04 GiB）。周额度剩余 44%，第二窗口无读数。验收脚本和日志位于 `/private/tmp/openrust-02-04-text-vector.2RSOzEDe`。

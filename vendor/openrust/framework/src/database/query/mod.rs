@@ -2,6 +2,7 @@
 
 mod builder;
 mod conditions;
+pub mod embeddings;
 mod expression;
 pub mod grammars;
 mod join_clause;

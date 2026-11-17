@@ -1,7 +1,7 @@
-use crate::database::{DatabaseError, DatabaseResult};
+use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
 
 use super::{Builder, Column, Expression};
-use crate::database::query::vector;
+use crate::database::query::{embeddings, vector};
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
 impl Builder<'_> {
@@ -76,6 +76,75 @@ impl Builder<'_> {
     ) -> DatabaseResult<Self> {
         let Expression { sql, bindings } = self.vector_distance(&column.into(), vector)?;
         Ok(self.orderByRaw(&format!("{sql} asc"), bindings))
+    }
+
+    pub async fn selectVectorDistanceText(
+        self,
+        column: impl Into<Column> + Send,
+        text: &str,
+        alias: Option<&str>,
+    ) -> DatabaseResult<Self> {
+        let vector = self.text_vector(text).await?;
+        self.selectVectorDistance(column, &vector, alias)
+    }
+
+    pub async fn whereVectorSimilarToText(
+        self,
+        column: impl Into<Column> + Send,
+        text: &str,
+        min_similarity: f64,
+        order: bool,
+    ) -> DatabaseResult<Self> {
+        vector::similarity_max_distance(min_similarity)?;
+        let vector = self.text_vector(text).await?;
+        self.whereVectorSimilarTo(column, &vector, min_similarity, order)
+    }
+
+    pub async fn whereVectorDistanceLessThanText(
+        self,
+        column: impl Into<Column> + Send,
+        text: &str,
+        max_distance: f64,
+    ) -> DatabaseResult<Self> {
+        vector::validate_max_distance(max_distance)?;
+        let vector = self.text_vector(text).await?;
+        self.whereVectorDistanceLessThan(column, &vector, max_distance)
+    }
+
+    pub async fn orWhereVectorDistanceLessThanText(
+        self,
+        column: impl Into<Column> + Send,
+        text: &str,
+        max_distance: f64,
+    ) -> DatabaseResult<Self> {
+        vector::validate_max_distance(max_distance)?;
+        let vector = self.text_vector(text).await?;
+        self.orWhereVectorDistanceLessThan(column, &vector, max_distance)
+    }
+
+    pub async fn orderByVectorDistanceText(
+        self,
+        column: impl Into<Column> + Send,
+        text: &str,
+    ) -> DatabaseResult<Self> {
+        let vector = self.text_vector(text).await?;
+        self.orderByVectorDistance(column, &vector)
+    }
+
+    pub(in crate::database) fn text_vector<'a>(
+        &self,
+        text: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<f64>>> {
+        let supported = self.grammar.is_postgres() || self.grammar.is_mariadb();
+        let connection = self.executor.source().clone();
+        Box::pin(async move {
+            if !supported {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "vector distance queries",
+                ));
+            }
+            embeddings::cached_for(connection, text).await
+        })
     }
 
     fn vector_distance(&self, column: &Column, vector: &[f64]) -> DatabaseResult<Expression> {

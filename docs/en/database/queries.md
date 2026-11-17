@@ -149,7 +149,7 @@ MySQL runs the entire statement with the outer connection’s permissions. Grant
 
 Vector queries use cosine distance on PostgreSQL with the `pgvector` extension and on MariaDB 11.7 or later. See [vector columns](./migrations.md#vector-columns) for enabling the PostgreSQL extension and declaring the column and index.
 
-`whereVectorSimilarTo` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction. Generate embeddings from text before passing them to the builder.
+`whereVectorSimilarTo` takes a numeric embedding, a minimum similarity from 0 to 1, and a flag for sorting the closest rows first. Pass `false` to provide your own sort. A score of 1 matches an identical direction.
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -183,6 +183,36 @@ query.whereNested(|group| {
         .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
 });
 let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+```
+
+#### Text Embeddings {#text-embeddings}
+
+Register an `Embeddings` service in the application container. The built-in `HttpEmbeddingProvider` accepts the complete URL of an OpenAI-compatible embeddings endpoint, the model, its token, and optional dimensions. Read these settings from trusted application configuration. For another provider, implement `EmbeddingProvider` and register it with `Embeddings::new`.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    database::query::embeddings::{Embeddings, HttpEmbeddingProvider},
+};
+
+let provider = HttpEmbeddingProvider::new(&endpoint, model, token, Some(1536))?;
+app.container().instance(Arc::new(Embeddings::new(provider)))?;
+```
+
+In Query Builder and Eloquent, the vector methods with a `Text` suffix resolve the embedding asynchronously before adding the SQL clause. The numeric methods remain synchronous. Query text is sent to the configured provider on a cache miss. Successful embeddings are cached for 30 days in the application’s default cache, keyed by provider identity and input. The built-in identity includes the endpoint, model, credentials, and dimensions.
+
+```rust
+let documents = connection
+    .table("documents")
+    .select(["id"])
+    .selectVectorDistanceText("embedding", "Rust web frameworks", Some("distance"))
+    .await?
+    .whereVectorSimilarToText("embedding", "Rust web frameworks", 0.7, true)
+    .await?
+    .limit(10)
+    .get()
+    .await?;
 ```
 
 ## JSON Where Clauses

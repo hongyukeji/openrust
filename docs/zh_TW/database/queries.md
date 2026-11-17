@@ -149,7 +149,7 @@ MySQL 使用外層連線的權限執行整個陳述式。外層連線的帳號�
 
 向量查詢使用 PostgreSQL 的 `pgvector` 擴充功能或 MariaDB 11.7 及以上版本的餘弦距離。啟用 PostgreSQL 擴充功能、宣告欄位和索引的方法見[向量欄位](./migrations.md#vector-columns)。
 
-`whereVectorSimilarTo` 接收數值向量、0 到 1 的最低相似度，以及是否將最相似的資料列排在前面的旗標。傳入 `false` 可自訂排序。相似度 1 符合方向相同的向量。文字須先轉換為向量，再傳入建構器。
+`whereVectorSimilarTo` 接收數值向量、0 到 1 的最低相似度，以及是否將最相似的資料列排在前面的旗標。傳入 `false` 可自訂排序。相似度 1 符合方向相同的向量。
 
 ```rust
 use openrust::database::{Connection, DatabaseResult, Row};
@@ -183,6 +183,36 @@ query.whereNested(|group| {
         .orWhereVectorDistanceLessThan("embedding", &alternate, 0.2)
 });
 let documents = query.orderByVectorDistance("embedding", &primary)?.get().await?;
+```
+
+#### 文字嵌入 {#text-embeddings}
+
+在應用程式容器中註冊 `Embeddings`。內建的 `HttpEmbeddingProvider` 接受相容 OpenAI 嵌入協定的完整端點 URL、模型、權杖和選用維度。請從受信任的應用程式設定讀取這些值。其他服務可實作 `EmbeddingProvider`，再透過 `Embeddings::new` 註冊。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    database::query::embeddings::{Embeddings, HttpEmbeddingProvider},
+};
+
+let provider = HttpEmbeddingProvider::new(&endpoint, model, token, Some(1536))?;
+app.container().instance(Arc::new(Embeddings::new(provider)))?;
+```
+
+Query Builder 和 Eloquent 中帶 `Text` 後綴的方法會先非同步產生向量，再組裝 SQL 子句。數值向量方法維持同步。快取未命中時，查詢文字會傳送給設定的 Provider。成功結果依 Provider 識別與文字在應用程式預設快取中保存 30 天。內建識別包含端點、模型、憑證及維度。
+
+```rust
+let documents = connection
+    .table("documents")
+    .select(["id"])
+    .selectVectorDistanceText("embedding", "Rust web frameworks", Some("distance"))
+    .await?
+    .whereVectorSimilarToText("embedding", "Rust web frameworks", 0.7, true)
+    .await?
+    .limit(10)
+    .get()
+    .await?;
 ```
 
 ## JSON WHERE 子句
