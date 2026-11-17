@@ -4,6 +4,8 @@
 
 Use `SESSION_DRIVER=database` to persist sessions in the configured database and `sessions` table. Apply the application migration before serving session-backed routes. The `array` driver keeps data in the current application process. Set `SESSION_ENCRYPT=true` to encrypt the stored payload.
 
+Use `SESSION_DRIVER=file` to keep sessions in `storage/framework/sessions`. Set `session.files` in application configuration to use another directory. The `native` driver is an alias for `file`. Use `SESSION_DRIVER=null` to expose session state for the current request and discard it when the request ends.
+
 The default `web` group starts the session before the handler when a session driver is configured. For custom groups, place `EncryptCookies` before `StartSession`.
 
 ## Interacting with the Session

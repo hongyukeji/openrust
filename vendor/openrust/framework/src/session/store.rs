@@ -20,6 +20,10 @@ pub(super) const MAX_PAYLOAD_BYTES: usize = 1024 * 1024;
 const ID_LENGTH: usize = 40;
 pub(crate) const PASSWORD_CONFIRMED_AT: &str = "auth.password_confirmed_at";
 
+pub(super) fn valid_id(id: &str) -> bool {
+    id.len() == ID_LENGTH && id.bytes().all(|byte| byte.is_ascii_alphanumeric())
+}
+
 pub(crate) fn unix_seconds() -> i64 {
     chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).timestamp()
 }
@@ -166,9 +170,7 @@ impl Session for Store {
     }
 
     fn setId(&mut self, id: Option<&str>) -> SessionResult<()> {
-        self.id = match id.filter(|id| {
-            id.len() == ID_LENGTH && id.bytes().all(|byte| byte.is_ascii_alphanumeric())
-        }) {
+        self.id = match id.filter(|id| valid_id(id)) {
             Some(id) => id.to_owned(),
             None => random_id()?,
         };

@@ -21,10 +21,11 @@ impl ServiceProvider for SessionServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
-            container.singletonNamed("session", |container| {
+            let base = app.base_path().to_path_buf();
+            container.singletonNamed("session", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
-                SessionManager::new(config.get("session"), database)
+                SessionManager::new(config.get("session"), database, base.clone())
                     .map(Arc::new)
                     .map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "session",

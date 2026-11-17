@@ -4,6 +4,8 @@
 
 用 `SESSION_DRIVER=database` 将会话保存在配置的数据库和 `sessions` 表中。使用会话路由前先运行应用迁移。`array` 驱动将数据保存在当前应用进程中。用 `SESSION_ENCRYPT=true` 加密存储载荷。
 
+用 `SESSION_DRIVER=file` 将会话保存在 `storage/framework/sessions`。可通过应用配置的 `session.files` 指定其他目录。`native` 是 `file` 的别名。用 `SESSION_DRIVER=null` 在当前请求中使用会话，请求结束后丢弃会话状态。
+
 配置会话驱动后，默认 `web` 组会在处理器运行前启动会话。自定义组需要把 `EncryptCookies` 放在 `StartSession` 前面。
 
 ## 使用会话

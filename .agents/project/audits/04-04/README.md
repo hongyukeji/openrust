@@ -40,3 +40,11 @@
 - HTTP 测试验证来源与令牌分支、伪造失败 419、仅来源失败 403、绑定前拒绝、请求正文复用、加密 XSRF Cookie、API 无会话 Cookie、应用间和请求间错误袋隔离。实际主程序在 MySQL 8.4.13 上连续两次 `GET /` 共用同一会话记录，`GET /up` 返回 200 且无 Cookie。 `./artisan migrate --force` 与 `./artisan inspire` 正常退出。
 - Rust 1.94.0 隔离工作区格式、测试和严格 Clippy 通过，417 项测试通过。三语配置示例通过编译和真实 HTTP 验收，VitePress 构建、12 项通用浏览器检查和 18 项 CSRF、Middleware、Session 正文检查通过。
 - 04-04 的计划验收项已通过。剩余差异包括代理 HTTPS 信任、PHP 序列化载荷互读、会话锁、上一 URL 和额外驱动。表单错误包的写入和旧输入回传由 04-06 接续。
+
+## 文件与空会话驱动
+
+- 对照固定 Laravel 的 `SessionManager`、`FileSessionHandler`、`NullSessionHandler` 和文件会话测试。旧版 `v0.x` 的会话后端包含数据库、Redis 和 Cookie 机制，本批沿用现有 Store 和 40 位 ID 校验。文件原子写入沿用当前文件缓存的同目录重命名与跨进程锁做法。 [Laravel SessionManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/SessionManager.php) · [Laravel 文件会话测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Session/FileSessionHandlerTest.php)
+- `file` 和 `native` 使用同一驱动，按文件修改时间判断过期，由既有 Session 清理概率触发回收。写入、删除和过期清理使用同目录跨进程锁。读取使用原子发布后的文件内容，读写均受 1 MiB 上限约束。配置 `session.files` 可覆盖目录，相对路径基于应用根。环境中的 `SESSION_DRIVER=null` 选择空驱动，程序配置中的 JSON null 表示关闭会话中间件。会话载荷继续使用 Rust JSON，可按现有配置加密。
+- 隔离基线 `eb7fb55b`，macOS arm64、Rust 1.94.0。真实 HTTP 验证文件跨应用读取、闪存、轮换、过期和清理、超限 500、空驱动请求间丢弃状态。实际应用二进制重启后以相同 Cookie 读取同一文件会话，空驱动两次启动均成功并无会话文件。
+- 临时 MySQL 8.4.13 上通过真实数据库会话和会话缓存回归，与纯 HTTP 相关用例同批运行。MySQL 联合 Redis 锁的用例按夹具条件跳过。独立 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、变更文件格式、三语文档构建及 24 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。日志保留于 `/private/tmp/openrust-04-04-drivers.TGDGDo6e`。
+- 04-04 保持开放，后续补接缓存会话驱动、Redis 专用连接和 Cookie 会话驱动。

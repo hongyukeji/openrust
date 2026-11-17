@@ -400,6 +400,122 @@ async fn request_sessions_round_trip_through_array_storage() {
     server.abort();
 }
 
+async fn start_local_driver(
+    root: &std::path::Path,
+    driver: &str,
+) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+    fn config(driver: &str) -> std::collections::BTreeMap<String, Value> {
+        [
+            ("app".into(), json!({"key": "a".repeat(32)})),
+            (
+                "session".into(),
+                json!({
+                    "driver": driver, "files": "sessions", "cookie": "probe_session",
+                    "lifetime": 1, "encrypt": true, "expire_on_close": true, "lottery": [1,1]
+                }),
+            ),
+        ]
+        .into()
+    }
+    let builder = Application::configure(root.to_path_buf());
+    let app = match driver {
+        "file" => builder.withConfig(|_, _| Ok(config("file"))),
+        "native" => builder.withConfig(|_, _| Ok(config("native"))),
+        "null" => builder.withConfig(|_, _| Ok(config("null"))),
+        _ => unreachable!(),
+    }
+    .withRouting(Routing::default().web(register))
+    .create()
+    .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+    (address, server)
+}
+
+#[tokio::test]
+async fn file_sessions_persist_across_applications_and_prune_expired_files() {
+    use std::{fs, time::SystemTime};
+
+    let root = tempfile::tempdir().unwrap();
+    let (first, first_server) = start_local_driver(root.path(), "file").await;
+    let seeded = send(first, "seed", "").await;
+    let (cookie, original) = read(&seeded);
+    let directory = root.path().join("sessions");
+    let initial_file = directory.join(original["id"].as_str().unwrap());
+    let stored = fs::read_to_string(&initial_file).unwrap();
+    assert!(Encrypter::appearsEncrypted(&stored));
+    assert!(!stored.contains("Ada"));
+    first_server.abort();
+    first_server.await.unwrap_err();
+
+    let (second, second_server) = start_local_driver(root.path(), "native").await;
+    let continued = send(second, "read", cookie).await;
+    let (cookie, continued) = read(&continued);
+    assert_eq!(continued["id"], original["id"]);
+    assert_eq!(continued["token"], original["token"]);
+    assert_eq!(continued["name"], "Ada");
+    assert_eq!(continued["message"], "Saved");
+    let rotated = send(second, "rotate", cookie).await;
+    let (cookie, rotated) = read(&rotated);
+    assert_ne!(rotated["id"], original["id"]);
+    assert_eq!(rotated["name"], "Ada");
+    assert!(!initial_file.exists());
+
+    let expired = directory.join(rotated["id"].as_str().unwrap());
+    let orphaned = directory.join("0".repeat(40));
+    let other = directory.join("README");
+    fs::write(&orphaned, b"expired").unwrap();
+    fs::write(&other, b"keep").unwrap();
+    for path in [&expired, &orphaned, &other] {
+        fs::OpenOptions::new()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(SystemTime::now() - Duration::from_secs(120))
+            .unwrap();
+    }
+    let (_, expired_response) = read(&send(second, "read", cookie).await);
+    assert!(expired_response["name"].is_null());
+    assert_ne!(expired_response["token"], rotated["token"]);
+    assert!(
+        expired.exists(),
+        "the response should store a fresh session"
+    );
+    assert!(!orphaned.exists());
+    assert!(other.exists());
+    let invalidated = send(second, "invalidate", cookie).await;
+    let (cookie, invalidated) = read(&invalidated);
+    assert_ne!(invalidated["id"], rotated["id"]);
+    assert!(!expired.exists());
+    fs::File::create(directory.join(invalidated["id"].as_str().unwrap()))
+        .unwrap()
+        .set_len(1024 * 1024 + 1)
+        .unwrap();
+    let oversized = send(second, "read", cookie).await;
+    assert!(oversized.starts_with("HTTP/1.1 500 "));
+    assert!(!oversized.contains("set-cookie:"));
+    second_server.abort();
+}
+
+#[tokio::test]
+async fn null_sessions_discard_changes_and_rotate_tokens_between_requests() {
+    let root = tempfile::tempdir().unwrap();
+    let (address, server) = start_local_driver(root.path(), "null").await;
+    let seeded = send(address, "seed", "").await;
+    let (cookie, original) = read(&seeded);
+    assert_eq!(original["name"], "Ada");
+    let (_, next) = read(&send(address, "read", cookie).await);
+    assert_eq!(next["id"], original["id"]);
+    assert_ne!(next["token"], original["token"]);
+    assert!(next["name"].is_null() && next["message"].is_null());
+    assert!(!root.path().join("sessions").exists());
+    server.abort();
+}
+
 #[tokio::test]
 async fn request_sessions_round_trip_through_mysql() {
     let configured = std::env::var_os("OPENRUST_TEST_SESSION_MYSQL_URL").is_some();

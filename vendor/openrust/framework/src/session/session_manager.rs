@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use serde::Deserialize;
 
@@ -16,7 +16,7 @@ use crate::{
 
 use super::{
     ArraySessionHandler, DatabaseSessionHandler, DatabaseSessionMetadata, EncryptedStore,
-    SessionError, SessionResult, Store, Value,
+    FileSessionHandler, NullSessionHandler, SessionError, SessionResult, Store, Value,
 };
 
 #[derive(Deserialize)]
@@ -27,6 +27,7 @@ struct Settings {
     lifetime: u64,
     expire_on_close: bool,
     connection: Option<String>,
+    files: Option<PathBuf>,
     table: String,
     http_only: bool,
     partitioned: bool,
@@ -46,6 +47,7 @@ impl Default for Settings {
             lifetime: 120,
             expire_on_close: false,
             connection: None,
+            files: None,
             table: "sessions".into(),
             http_only: true,
             partitioned: false,
@@ -64,6 +66,7 @@ pub struct SessionManager {
     settings: Settings,
     database: Arc<DatabaseManager>,
     array: ArraySessionHandler,
+    base: PathBuf,
     lifetime: Duration,
 }
 
@@ -71,6 +74,7 @@ impl SessionManager {
     pub(crate) fn new(
         config: Option<Value>,
         database: Arc<DatabaseManager>,
+        base: PathBuf,
     ) -> SessionResult<Self> {
         let settings: Settings = match config {
             None | Some(Value::Null) => Settings::default(),
@@ -91,6 +95,7 @@ impl SessionManager {
             settings,
             database,
             array: ArraySessionHandler::new(lifetime),
+            base,
             lifetime,
         })
     }
@@ -146,6 +151,17 @@ impl SessionManager {
                 Box::new(handler)
             }
             Some("array") => Box::new(self.array.clone()),
+            Some("file" | "native") => {
+                let directory = match &self.settings.files {
+                    Some(path) if path.as_os_str().is_empty() => {
+                        return Err(SessionError::Configuration);
+                    }
+                    Some(path) => self.base.join(path),
+                    None => self.base.join("storage/framework/sessions"),
+                };
+                Box::new(FileSessionHandler::new(directory, self.lifetime)?)
+            }
+            Some("null") => Box::new(NullSessionHandler),
             Some(_) => return Err(SessionError::Configuration),
         };
         let handler = if self.settings.encrypt {

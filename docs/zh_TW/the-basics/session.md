@@ -4,6 +4,8 @@
 
 用 `SESSION_DRIVER=database` 將工作階段儲存在設定的資料庫和 `sessions` 資料表中。使用工作階段路由前先執行應用程式遷移。`array` 驅動程式將資料保存在目前的應用程式程序中。用 `SESSION_ENCRYPT=true` 加密儲存內容。
 
+用 `SESSION_DRIVER=file` 將工作階段儲存在 `storage/framework/sessions`。可透過應用程式設定的 `session.files` 指定其他目錄。`native` 是 `file` 的別名。用 `SESSION_DRIVER=null` 在目前請求中使用工作階段，請求結束後捨棄工作階段狀態。
+
 設定工作階段驅動程式後，預設 `web` 群組會在處理器執行前啟動工作階段。自訂群組需要將 `EncryptCookies` 放在 `StartSession` 前面。
 
 ## 使用工作階段
