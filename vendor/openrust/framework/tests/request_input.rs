@@ -5,10 +5,12 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
-        HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode, StreamedEvent,
-        StreamedJson,
+        Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode,
+        StreamedEvent, StreamedJson,
     },
-    routing::{ControllerDispatcher, ResourceAction, ResourceController, Router, RoutingError},
+    routing::{
+        ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
+    },
     support::{BackedEnum, ProviderResult, ServiceProvider, facades::Route},
 };
 use serde_json::{Value, json};
@@ -126,6 +128,29 @@ fn stream_download(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     Box::pin(async {
         let content = futures_util::stream::iter([Ok::<_, std::io::Error>("first"), Ok("second")]);
         Response::streamDownload(content, Some("résumé.txt"), HeaderMap::new(), "attachment")
+    })
+}
+
+fn cache_response(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use axum::http::{HeaderName, HeaderValue};
+
+    Box::pin(async move {
+        Ok(match request.uri().path() {
+            "/cacheable" => {
+                let debug = HeaderName::from_static("x-debug");
+                let remove = HeaderName::from_static("x-remove");
+                Response::new(StatusCode::OK, Body::from("cache me"))
+                    .header(debug.clone(), HeaderValue::from_static("one"))
+                    .header(remove.clone(), HeaderValue::from_static("two"))
+                    .withoutHeaders([debug, remove])
+            }
+            "/cache-date" => Response::new(StatusCode::OK, Body::from("date")),
+            "/cache-manual" => Response::new(StatusCode::OK, Body::from("manual")).header(
+                axum::http::header::CACHE_CONTROL,
+                HeaderValue::from_static("private, no-transform, ext=\"a,b\""),
+            ),
+            _ => Response::empty(StatusCode::NOT_FOUND),
+        })
     })
 }
 
@@ -303,6 +328,38 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
             Route::get("/stream.json", stream_json)?;
             Route::get("/stream.events", event_stream)?;
             Route::get("/stream.download", stream_download)?;
+            Route::group(
+                RouteGroup::default().middleware_name(
+                    "cache.headers:public;max_age=2628000;etag;last_modified=1704067200",
+                ),
+                |router| {
+                    router.r#match(
+                        &[Method::GET, Method::HEAD, Method::POST],
+                        "/cacheable",
+                        cache_response,
+                    )?;
+                    Ok(())
+                },
+            )?;
+            Route::getWith("/cache-date", cache_response, |route| {
+                route.middleware_name("cache.headers:last_modified=2024-01-01 00:00:00 UTC");
+                Ok(())
+            })?;
+            Route::getWith("/cache-stream", stream, |route| {
+                route.middleware_name("cache.headers:s_maxage=600;etag");
+                Ok(())
+            })?;
+            Route::getWith("/cache-manual", cache_response, |route| {
+                use openrust::http::middleware::SetCacheHeaders;
+                route.middleware_name(SetCacheHeaders::using(
+                    "s_maxage=30;private;no_transform=0;etag=manual",
+                ));
+                Ok(())
+            })?;
+            Route::getWith("/cache-invalid-status", cache_response, |route| {
+                route.middleware_name("cache.headers:public;etag");
+                Ok(())
+            })?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -326,9 +383,21 @@ async fn send(
     body: &[u8],
     status: u16,
 ) -> (String, String) {
+    send_with_headers(address, method, path, media, body, status, "").await
+}
+
+async fn send_with_headers(
+    address: SocketAddr,
+    method: &str,
+    path: &str,
+    media: &str,
+    body: &[u8],
+    status: u16,
+    additional: &str,
+) -> (String, String) {
     let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
     let header = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: {media}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: {media}\r\nContent-Length: {}\r\nConnection: close\r\n{additional}\r\n",
         body.len()
     );
     socket.write_all(header.as_bytes()).await.unwrap();
@@ -1021,4 +1090,76 @@ async fn response_streams_preserve_failure_and_lazy_sources() {
         )
         .is_err()
     );
+}
+
+#[tokio::test]
+async fn real_http_removes_headers_and_applies_cache_validators() {
+    let (address, server) = start("cache-headers").await;
+    let (headers, body) = send(address, "GET", "/cacheable", "", b"", 200).await;
+    // Fixed Laravel / PHP 8.5 hash('xxh128', 'cache me').
+    let tag = "\"a9c4c77c2e3f060abb5bb0773cfe00bf\"";
+    assert_eq!(body, "cache me");
+    assert!(headers.contains("\r\ncache-control: max-age=2628000, public"));
+    assert!(headers.contains(&format!("\r\netag: {tag}")));
+    assert!(headers.contains("\r\nlast-modified: Mon, 01 Jan 2024 00:00:00 GMT"));
+    assert!(!headers.contains("\r\nx-debug:") && !headers.contains("\r\nx-remove:"));
+
+    let fields = format!("If-None-Match: \"other,tag\"\r\nIf-None-Match: W/{tag}\r\n");
+    let (headers, body) =
+        send_with_headers(address, "HEAD", "/cacheable", "", b"", 304, &fields).await;
+    assert!(body.is_empty());
+    assert!(headers.contains(&format!("\r\netag: {tag}")));
+    assert!(!headers.contains("\r\nlast-modified:") && !headers.contains("\r\ncontent-type:"));
+    let (_, body) = send_with_headers(
+        address,
+        "GET",
+        "/cacheable",
+        "",
+        b"",
+        200,
+        "If-None-Match: \"different\"\r\nIf-Modified-Since: Mon, 01 Jan 2024 00:00:00 GMT\r\n",
+    )
+    .await;
+    assert_eq!(body, "cache me");
+
+    let (headers, body) = send_with_headers(
+        address,
+        "GET",
+        "/cache-date",
+        "",
+        b"",
+        304,
+        "If-Modified-Since: Mon, 01 Jan 2024 00:00:00 GMT\r\n",
+    )
+    .await;
+    assert!(body.is_empty());
+    assert!(headers.contains("\r\ncache-control: private, must-revalidate"));
+
+    let (headers, body) = send(address, "GET", "/cache-stream", "", b"", 200).await;
+    assert!(headers.contains("\r\ncache-control: public, s-maxage=600"));
+    assert!(!headers.contains("\r\netag:"));
+    assert_eq!(chunked_content(&body), "firstsecond");
+
+    let (headers, body) = send_with_headers(
+        address,
+        "GET",
+        "/cache-manual",
+        "",
+        b"",
+        304,
+        "If-None-Match: *\r\n",
+    )
+    .await;
+    assert!(body.is_empty());
+    assert!(headers.contains("\r\netag: \"manual\""));
+    assert!(headers.contains("\r\ncache-control: ext=\"a,b\", private, s-maxage=30"));
+
+    for (method, path, status) in [
+        ("POST", "/cacheable", 200),
+        ("GET", "/cache-invalid-status", 404),
+    ] {
+        let (headers, _) = send(address, method, path, "", b"", status).await;
+        assert!(!headers.contains("\r\ncache-control:") && !headers.contains("\r\netag:"));
+    }
+    server.abort();
 }

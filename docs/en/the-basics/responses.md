@@ -6,6 +6,23 @@ Use `Response::json` for a JSON payload and an explicit status. Use `header` or 
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
 
+### Attaching Headers to Responses {#attaching-headers-to-responses}
+
+Use `withoutHeader` with one typed header name or `withoutHeaders` with a collection of names. Both methods return the response for chaining.
+
+#### Cache Control Middleware {#cache-control-middleware}
+
+Apply `cache.headers` to the routes that need a cache policy. Separate directives with semicolons and write option names in `snake_case`. The middleware applies to successful GET and HEAD responses. With `etag`, it reuses an existing validator or hashes the available response body with XXH3-128, the same digest Laravel uses for `xxh128`. Use `etag=value` to provide a validator for a stream without buffering it.
+
+```rust
+Route::getWith("/cacheable", cache_response, |route| {
+    route.middleware_name("cache.headers:public;max_age=2628000;etag");
+    Ok(())
+})?;
+```
+
+Set `last_modified` to a Unix timestamp or a date expression. A matching `If-None-Match` or `If-Modified-Since` can return `304 Not Modified` with an empty body. When both request validators and an ETag are available, the ETag comparison takes precedence.
+
 ## Attaching Cookies to Responses
 
 In a middleware stack containing `AddQueuedCookiesToResponse`, use `Cookie::queue` to attach a cookie after the handler returns. For direct attachment, use `response.cookie(&cookie, request)?`. Place `EncryptCookies` before the queue middleware so it protects both directly attached and queued cookies. The factory inherits path, domain, secure and SameSite defaults from the session configuration. A lifetime of zero creates a browser-session cookie.

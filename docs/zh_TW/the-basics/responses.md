@@ -6,6 +6,23 @@
 
 輸入讀取及 JSON 回應的完整範例見[控制器](./controllers.md)。
 
+### 附加回應標頭 {#attaching-headers-to-responses}
+
+用 `withoutHeader` 移除一個具型別的回應標頭，用 `withoutHeaders` 批次移除。兩者都回傳回應，可繼續鏈式呼叫。
+
+#### 快取控制中介層 {#cache-control-middleware}
+
+在需要快取策略的路由上使用 `cache.headers`。選項名稱使用 `snake_case`，以分號分隔。中介層處理成功的 GET 和 HEAD 回應。指定 `etag` 時沿用既有驗證器，或以與 Laravel `xxh128` 相同的 XXH3-128 摘要計算回應本文。串流回應可用 `etag=value` 明確提供驗證器，無須緩衝整個串流。
+
+```rust
+Route::getWith("/cacheable", cache_response, |route| {
+    route.middleware_name("cache.headers:public;max_age=2628000;etag");
+    Ok(())
+})?;
+```
+
+`last_modified` 接受 Unix 時間戳或日期運算式。`If-None-Match` 或 `If-Modified-Since` 相符時可回傳無本文的 `304 Not Modified`。當請求同時提供兩個驗證條件且回應有 ETag 時，優先比較 ETag。
+
 ## 向回應附加 Cookie
 
 在包含 `AddQueuedCookiesToResponse` 的中介軟體堆疊中，用 `Cookie::queue` 將 Cookie 加入佇列，處理器回傳後由中介軟體寫入回應。也可以用 `response.cookie(&cookie, request)?` 直接附加。把 `EncryptCookies` 放在佇列中介軟體之前，讓它同時保護直接附加和排入佇列的 Cookie。 工廠從 Session 設定繼承路徑、網域、Secure 和 SameSite 預設值。有效期限設為零會建立瀏覽器工作階段 Cookie。

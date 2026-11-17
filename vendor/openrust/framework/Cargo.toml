@@ -45,6 +45,7 @@ gif = "=0.14.2"
 http = "1.0"
 http-body = "1.0"
 httpdate = "1.0.3"
+xxhash-rust = { version = "=0.8.19", features = ["xxh3"] }
 digest_auth = "=0.3.1"
 fixed_decimal = { version = "=0.7.3", features = ["ryu"] }
 icu_decimal = { version = "=2.4.0", features = ["alloc"] }

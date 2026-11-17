@@ -6,6 +6,23 @@
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
 
+### 向响应附加响应头 {#attaching-headers-to-responses}
+
+用 `withoutHeader` 删除一个类型化响应头，用 `withoutHeaders` 批量删除。两者都返回响应，可以继续链式调用。
+
+#### 缓存控制中间件 {#cache-control-middleware}
+
+在需要缓存策略的路由上使用 `cache.headers`。选项名使用 `snake_case`，用分号分隔。中间件处理成功的 GET 和 HEAD 响应。指定 `etag` 时沿用已有的验证器，或用与 Laravel `xxh128` 相同的 XXH3-128 摘要计算响应体。流式响应可用 `etag=value` 显式提供验证器，无需缓冲整个流。
+
+```rust
+Route::getWith("/cacheable", cache_response, |route| {
+    route.middleware_name("cache.headers:public;max_age=2628000;etag");
+    Ok(())
+})?;
+```
+
+`last_modified` 接受 Unix 时间戳或日期表达式。`If-None-Match` 或 `If-Modified-Since` 匹配时可以返回无正文的 `304 Not Modified`。当请求同时提供两个验证条件且响应有 ETag 时，优先比较 ETag。
+
 ## 向响应附加 Cookie
 
 在包含 `AddQueuedCookiesToResponse` 的中间件栈中，用 `Cookie::queue` 将 Cookie 加入队列，处理器返回后由中间件写入响应。也可以用 `response.cookie(&cookie, request)?` 直接附加。把 `EncryptCookies` 放在队列中间件之前，让它同时保护直接附加和排队写入的 Cookie。 工厂从 Session 配置继承路径、域、Secure 和 SameSite 默认值。有效期设为零会创建浏览器会话 Cookie。

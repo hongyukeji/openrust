@@ -7,7 +7,7 @@ use super::{Body, HeaderMap, HttpError, Method, ResponseParts, StatusCode};
 /// An outgoing HTTP response with owned metadata and body.
 pub struct Response {
     parts: ResponseParts,
-    body: Body,
+    pub(super) body: Body,
 }
 
 impl Response {
@@ -63,6 +63,25 @@ impl Response {
     #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
     pub fn withHeaders(mut self, headers: HeaderMap) -> Self {
         self.parts.headers.extend(headers);
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn withoutHeader(mut self, name: HeaderName) -> Self {
+        if name == ::http::header::SET_COOKIE {
+            self.parts
+                .extensions
+                .remove::<crate::cookie::ResponseCookies>();
+        }
+        self.parts.headers.remove(name);
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn withoutHeaders(mut self, names: impl IntoIterator<Item = HeaderName>) -> Self {
+        for name in names {
+            self = self.withoutHeader(name);
+        }
         self
     }
 

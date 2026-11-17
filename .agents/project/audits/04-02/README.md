@@ -66,3 +66,11 @@
 - 隔离基线 `22acc2558` 上的真实 HTTP 覆盖逐项 JSON、键值对象、嵌套空数组、HEAD 无正文、SSE 帧与响应头、下载内容与 UTF-8 文件名。受控数据源验证首块在源就绪前发出，另覆盖流中失败、可选结束帧与无效输入。PHP 8.5 调用固定 `ResponseFactory` 与 Symfony 7.4.0 对照上述可比较的 JSON、SSE 帧和下载文件名。下载对照固定 ASCII 回退名以单独核对处置头。
 - Rust 1.94.0 请求与响应回归 11 项、本地文件系统 9 项、应用 HTTP 16 项通过。实际 `route:list --json --method=HEAD` 和 `artisan inspire`、工作区严格 Clippy、改动文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报告既有的 `sanctum_authentication.rs:1412`。隔离产物已清理，验收日志保留于 `/private/tmp/openrust-04-02-streams.lm10Ah3l`。
 - 04-02 仍需核对 `withoutHeader`、`cache.headers`、文件与其他响应工厂及响应宏。Laravel 前端流式消费套件和 Serde/PHP 转义差异仍需按公开契约核对。
+
+## 响应头与缓存控制
+
+- 对照固定 Laravel 的 `ResponseTrait::withoutHeader`、`SetCacheHeaders` 和 Symfony 7.4.0 的 `setCache`、`isNotModified`。旧版 `v0.x` 未找到可复用的响应头移除或缓存中间件。Rust 用类型化 `HeaderName` 及 `withoutHeader`／`withoutHeaders` 表达单个和批量删除，内置 `cache.headers` 复用路由中间件参数解析。 [Laravel 响应头文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#cache-control-middleware) · [Laravel 中间件源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Middleware/SetCacheHeaders.php)
+- 成功的 GET 和 HEAD 可合并缓存指令、使用现有或显式验证器，并根据请求转为 304。自动摘要复用锁定版本 `xxhash-rust` 0.8.19 的 XXH3-128，与 PHP `hash('xxh128', ...)` 结果一致。常规流式响应保留逐块发送。日期表达式复用日历解析，日期优先级按固定 Symfony 处理。
+- PHP 8.5 在固定源码上验证摘要、缓存头、弱 ETag、时间条件及优先级、POST 和错误响应跳过、流式行为、通配符及显式 ETag。真实 HTTP 另覆盖日期配置、重复条件头、删除多个响应头及带引号的扩展缓存指令。
+- 隔离基线 `378d13609` 上使用 Rust 1.94.0 通过请求和响应回归 12 项、应用 HTTP 回归 16 项，实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项浏览器检查。改动文件格式通过，全仓格式仍仅报告既有 `sanctum_authentication.rs:1412` 差异。验收日志保留于 `/private/tmp/openrust-04-02-cache-headers.spf4Ki9x`。
+- 04-02 保持开放。下一批核对文件与其他响应工厂，后续核对响应宏和流式差异。

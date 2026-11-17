@@ -106,7 +106,7 @@ impl MiddlewareRegistry {
         if name == "signed" {
             return Some(Arc::new(ValidateSignature::absolute()));
         }
-        let (alias, parameters) = if name == "throttle" {
+        let (alias, parameters) = if matches!(name, "throttle" | "cache.headers") {
             (name, "")
         } else {
             let (alias, parameters) = name.split_once(':')?;
@@ -127,6 +127,9 @@ impl MiddlewareRegistry {
                 Arc::new(ThrottleRequestsWithRedis::new(parameters))
             }
             "throttle" => Arc::new(ThrottleRequests::new(parameters)),
+            "cache.headers" => {
+                Arc::new(crate::http::middleware::SetCacheHeaders::parse(parameters)?)
+            }
             "auth" => Arc::new(crate::auth::middleware::Authenticate::new(
                 parameters.split(','),
             )),
