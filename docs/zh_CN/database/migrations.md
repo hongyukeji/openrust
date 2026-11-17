@@ -291,6 +291,20 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
 
+### PostgreSQL 全文搜索向量列 {#postgresql-tsvector-columns}
+
+在 PostgreSQL 上用 `tsvector` 声明原生全文搜索向量列。下例把从 `body` 生成的向量存入列，并为该列建立 GIN 索引。其他驱动会返回不支持该列类型的 Schema 错误。
+
+```rust
+table.text("body");
+table
+    .tsvector("search_terms")
+    .storedAs("to_tsvector('english', body)");
+table
+    .index(&["search_terms"], Some("documents_search_terms"))
+    .algorithm("gin");
+```
+
 ### ULID 列长度 {#ulid-column-length}
 
 用 `ulidWith(name, length)` 和 `foreignUlidWith(name, length)` 为导入的标识符指定字符列宽。`ulid` 和 `foreignUlid` 默认仍为 26。这些方法设置列宽。标准 ULID 仍是 26 个字符。

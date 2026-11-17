@@ -6593,6 +6593,24 @@ async fn postgres_generated_columns_and_explicit_identity_use_native_modes() {
 }
 
 #[tokio::test]
+async fn tsvector_rejects_unsupported_schema_dialects_before_executing_ddl() {
+    for driver in ["sqlite", "mysql", "mariadb", "sqlsrv"] {
+        let db = connection(json!({"driver": driver, "database": ":memory:"}));
+        let error = db
+            .getSchemaBuilder()
+            .create("documents", |table| {
+                table.tsvector("search_terms");
+            })
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, DatabaseError::UnsupportedSchema("tsvector column")),
+            "{driver}: {error:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn postgres_generated_json_columns_use_native_selector_semantics() {
     let preview = connection(json!({"driver":"pgsql"}));
     let statements = preview

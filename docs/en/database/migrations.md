@@ -291,6 +291,20 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### PostgreSQL Search Vector Columns {#postgresql-tsvector-columns}
+
+On PostgreSQL, use `tsvector` to declare a native search vector column. This example stores the vector generated from `body` and uses a GIN index over the stored column. Other drivers return an unsupported schema error.
+
+```rust
+table.text("body");
+table
+    .tsvector("search_terms")
+    .storedAs("to_tsvector('english', body)");
+table
+    .index(&["search_terms"], Some("documents_search_terms"))
+    .algorithm("gin");
+```
+
 ### ULID Column Length {#ulid-column-length}
 
 Use `ulidWith(name, length)` and `foreignUlidWith(name, length)` to declare a different character width for imported identifiers. `ulid` and `foreignUlid` keep the standard width of 26. These methods set the column width. A standard ULID still contains 26 characters.

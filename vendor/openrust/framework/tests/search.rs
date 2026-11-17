@@ -615,10 +615,29 @@ async fn postgres_uses_gin_and_ranks_before_pagination() {
             .await
             .unwrap()
     );
-    db.statement(
-        &format!("alter table {prefix}articles add column search_terms tsvector generated always as (to_tsvector('english', body)) stored"),
-        &[],
-    ).await.unwrap();
+    schema
+        .table("articles", |table| {
+            table
+                .tsvector("search_terms")
+                .storedAs("to_tsvector('english', body)");
+            table
+                .index(&["search_terms"], Some("article_search_terms"))
+                .algorithm("gin");
+        })
+        .await
+        .unwrap();
+    let column = schema
+        .getColumn("articles", "search_terms")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(column.type_name, "tsvector");
+    assert!(
+        schema
+            .hasIndex("articles", "article_search_terms")
+            .await
+            .unwrap()
+    );
     let stored = FullTextOptions::Postgres {
         language: "english",
         mode: PostgresFullTextMode::Plain,

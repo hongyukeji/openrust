@@ -528,3 +528,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过六项 Schema／TDS 和一项迁移事务回归。实测具名和自动发现主键、复合主键列排序、跨 Schema 外键、缺失及被引用的主键删除失败，以及显式默认值替换与省略时移除。真实 Artisan 失败迁移保留旧默认约束与数据，账本无新增。重试后 HTTP 读取新默认值和已移除的主键，回滚后恢复主键、外键和旧默认值。
 - MySQL 8.4.13 主键、默认表达式和表目录回归，全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。核心账本维持 62/66。SQL Server 2017 和原生 Linux x86_64 待发布复验。
 - 非法外键目标诊断曾观察到 SQL Server 自动撤销事务后，后续回滚错误覆盖了原始错误。实际恢复迁移已通过，TDS 自动撤销后的原始错误保留问题列入 02-02。临时数据库、证书及本批产物已回收，项目盘可用空间净增 3.96 GB（3.69 GiB），剩余 102.00 GB（94.99 GiB）。提交前周额度剩余 41%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-primary.LOLH47cH`。
+
+## PostgreSQL 全文搜索向量列与整单元验收
+
+- 固定 Laravel 的 `Blueprint::tsvector` 由 PostgreSQL Grammar 声明原生列类型。OpenRust 复用类型分派、生成列和 PostgreSQL 普通索引算法，无需 pgvector 扩展。SQLite、MySQL、MariaDB 和 SQL Server 会在执行 DDL 前返回类型错误。旧版 `openrust-v0.x` 未找到对应类型，沿用既有同连接目录查询和方言校验契约。 [Laravel Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php) · [Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php)
+- 在隔离基线 `2bd8dec09` 使用真实 PostgreSQL 18.6 运行三语共享示例。`migrate --pretend` 输出列和索引语句且未创建表，实际迁移后通过 HTTP 读取原生类型与全文匹配数，更新源列后匹配数变化。原生 EXPLAIN 命中 GIN Bitmap Index Scan。Artisan 回滚移除表和索引，HTTP 确认目录无该列。`main artisan inspire` 通过。
+- 实际 PostgreSQL 全文搜索回归和不支持方言回归各一项通过。MySQL 8.4.13 的 36 项 Schema 回归以及 `sh tests/table_catalog.sh` 两项通过。表目录与限定 Schema 清库保留旁库数据。Rust 1.94.0 全仓格式和严格 Clippy 通过。三语站点及 `/` 和 `/docs/` 下 12 项通用与 6 项章节浏览器检查通过。日志保留于 `/private/tmp/openrust-schema-contract.aqmuihMe`。
+- 结合前次已提交的实测证据，逐项覆盖计划的建表、改表与回滚、表和列元数据、索引和外键及不支持操作。实际目录与限定名见[目录验收](#表目录范围与限定名)及[当前主线复验](#2026-11-17-0925-主线复验)；列和索引见[修改列与索引](#修改列与索引)、[PostgreSQL 列类型转换](#postgresql-列类型转换与修饰符)、[SQL Server 主键约束](#sql-server-主键约束与改列默认值)；外键检查和失败恢复见[外键检查会话](#外键检查会话)、[SQLite 内联约束](#sqlite-内联约束)和[PostgreSQL 外键变更](#postgresql-外键变更与验证时机)。SQL Server 的事务原始错误保留已由 [02-02](../02-02/README.md#sql-server-自动回滚保留原始错误)验收。
+- 按交付计划闭合 02-05 核心范围。SQLite 重建使用独占写会话和自有事务，MySQL 隐式提交的 DDL 由连接级 Builder 执行。SQL Server 原生 Linux x86_64 与完整数据库版本、平台矩阵留在[发布验收](../database-dialects.md#发布验收)。项目卷净增 8.17 GB（7.60 GiB），剩余 100.96 GB（94.03 GiB）。周额度剩余 39%，第二窗口无读数。

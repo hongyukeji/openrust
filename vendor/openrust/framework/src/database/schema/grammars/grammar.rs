@@ -1450,6 +1450,13 @@ impl Grammar {
     }
 
     fn column_type(&self, kind: &ColumnType, column: &str) -> DatabaseResult<String> {
+        if matches!(kind, ColumnType::TsVector) {
+            return if self.postgres() {
+                Ok("tsvector".into())
+            } else {
+                Err(DatabaseError::UnsupportedSchema("tsvector column"))
+            };
+        }
         if let ColumnType::Vector(dimensions) = kind {
             if !self.postgres() && !self.mariadb() {
                 return Err(DatabaseError::UnsupportedSchema("vector column"));
@@ -1600,6 +1607,7 @@ impl Grammar {
             }
             ColumnType::Spatial(_, _) => "geometry",
             ColumnType::Vector(_) => unreachable!("vector types handled above"),
+            ColumnType::TsVector => unreachable!("tsvector handled above"),
             ColumnType::Year if mysql => "year",
             ColumnType::Year => "integer",
             ColumnType::Json | ColumnType::Jsonb if mysql => "json",

@@ -25,6 +25,7 @@ pub(super) enum ColumnType {
     Set(Vec<String>),
     Json,
     Jsonb,
+    TsVector,
     IpAddress,
     MacAddress,
     Uuid,
