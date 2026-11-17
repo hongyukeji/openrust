@@ -427,7 +427,7 @@ impl Route {
         name: &str,
         controller: crate::routing::ResourceController<C>,
     ) -> Result<(), RoutingError> {
-        Self::register_resource(name, controller, false)
+        Self::register_resource(name, controller, crate::routing::ResourceKind::Resource)
     }
 
     #[track_caller]
@@ -436,14 +436,31 @@ impl Route {
         name: &str,
         controller: crate::routing::ResourceController<C>,
     ) -> Result<(), RoutingError> {
-        Self::register_resource(name, controller, true)
+        Self::register_resource(name, controller, crate::routing::ResourceKind::ApiResource)
+    }
+
+    #[track_caller]
+    pub fn singleton<C: Send + Sync + 'static>(
+        name: &str,
+        controller: crate::routing::ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resource(name, controller, crate::routing::ResourceKind::Singleton)
+    }
+
+    #[track_caller]
+    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    pub fn apiSingleton<C: Send + Sync + 'static>(
+        name: &str,
+        controller: crate::routing::ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resource(name, controller, crate::routing::ResourceKind::ApiSingleton)
     }
 
     #[track_caller]
     fn register_resource<C: Send + Sync + 'static>(
         name: &str,
         controller: crate::routing::ResourceController<C>,
-        api: bool,
+        kind: crate::routing::ResourceKind,
     ) -> Result<(), RoutingError> {
         let definition = std::panic::Location::caller();
         ROUTER
@@ -452,7 +469,7 @@ impl Route {
                     .router
                     .try_borrow_mut()
                     .map_err(|_| RoutingError::RegistrationBorrowed)?
-                    .register_resource(name, controller, api, definition)
+                    .register_resource(name, controller, kind, definition)
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }

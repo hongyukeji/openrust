@@ -248,6 +248,16 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
                         Ok(())
                     }),
             )?;
+            Route::singleton("profile", photo_resource())?;
+            Route::apiSingleton(
+                "api/albums.thumbnail",
+                photo_resource()
+                    .creatable()
+                    .shallow()
+                    .parameters(&[("albums", "photo")])
+                    .scoped(&[("photo", "slug")]),
+            )?;
+            Route::singleton("preferences", photo_resource().destroyable())?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -778,4 +788,95 @@ fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
             .any(|route| route.name.as_deref() == Some("pictures.read")
                 && route.uri == "photos/{image:slug}")
     );
+    router
+        .apiResource(
+            "api/forms",
+            photo_resource().only(&[ResourceAction::Create]),
+        )
+        .unwrap();
+    assert!(
+        router
+            .getRoutes()
+            .iter()
+            .any(|route| route.method == "GET|HEAD"
+                && route.uri == "api/forms/create"
+                && route.name.as_deref() == Some("forms.create"))
+    );
+}
+
+#[tokio::test]
+async fn real_http_dispatches_singletons_with_lifecycle_and_shallow_paths() {
+    let (address, server) = start("singleton").await;
+    for (method, path, action, parent) in [
+        ("GET", "/profile", "member", None),
+        ("GET", "/profile/edit", "edit", None),
+        ("PUT", "/profile", "update", None),
+        ("PATCH", "/profile", "update", None),
+        ("DELETE", "/preferences", "destroy", None),
+        ("GET", "/api/albums/7/thumbnail", "member", Some("7")),
+        ("POST", "/api/albums/7/thumbnail", "store", Some("7")),
+        ("PATCH", "/api/thumbnail", "update", None),
+        ("DELETE", "/api/thumbnail", "destroy", None),
+    ] {
+        let (_, body) = send(address, method, path, "", b"", 200).await;
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap(),
+            json!(["singleton", action, parent, null, null])
+        );
+    }
+    for (method, path, status) in [
+        ("POST", "/profile", 405),
+        ("DELETE", "/profile", 405),
+        ("POST", "/preferences", 405),
+        ("GET", "/profile/3", 404),
+        ("GET", "/profile/create", 404),
+        ("GET", "/api/albums/7/thumbnail/create", 404),
+        ("GET", "/api/thumbnail/edit", 404),
+        ("GET", "/api/thumbnail", 405),
+        ("PATCH", "/api/albums/7/thumbnail", 405),
+    ] {
+        send(address, method, path, "", b"", status).await;
+    }
+    server.abort();
+}
+
+#[test]
+fn singleton_routes_apply_explicit_selection_and_keep_binding_metadata() {
+    let mut router = Router::new();
+    router
+        .apiSingleton(
+            "pages.summary",
+            photo_resource()
+                .only(&[ResourceAction::Edit])
+                .names(&[(ResourceAction::Edit, "summary.change")]),
+        )
+        .unwrap();
+    let routes = router.getRoutes();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].method, "GET|HEAD");
+    assert_eq!(routes[0].uri, "pages/{page}/summary/edit");
+    assert_eq!(routes[0].name.as_deref(), Some("summary.change"));
+    router
+        .singleton(
+            "profiles.card",
+            photo_resource()
+                .creatable()
+                .destroyable()
+                .scoped(&[("profile", "slug")]),
+        )
+        .unwrap();
+    let routes = router.getRoutes();
+    assert_eq!(routes.len(), 7);
+    for (method, path) in [
+        ("GET|HEAD", "profiles/{profile:slug}/card/create"),
+        ("POST", "profiles/{profile:slug}/card"),
+        ("DELETE", "profiles/{profile:slug}/card"),
+    ] {
+        assert!(
+            routes
+                .iter()
+                .any(|route| route.method == method && route.uri == path),
+            "{method} {path}"
+        );
+    }
 }

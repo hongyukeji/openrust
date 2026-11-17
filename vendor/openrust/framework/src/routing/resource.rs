@@ -55,6 +55,44 @@ impl ResourceAction {
 
 type Configure = dyn Fn(ResourceAction, &mut Route) -> Result<(), RoutingError>;
 
+#[derive(Clone, Copy, Default)]
+enum SingletonLifecycle {
+    #[default]
+    Existing,
+    Destroyable,
+    Creatable,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ResourceKind {
+    Resource,
+    ApiResource,
+    Singleton,
+    ApiSingleton,
+}
+
+impl ResourceKind {
+    fn singleton(self) -> bool {
+        matches!(self, Self::Singleton | Self::ApiSingleton)
+    }
+
+    fn actions(self, lifecycle: SingletonLifecycle) -> &'static [ResourceAction] {
+        use ResourceAction::{Create, Destroy, Edit, Show, Store, Update};
+        if !self.singleton() {
+            return &ResourceAction::DEFAULTS;
+        }
+        match lifecycle {
+            SingletonLifecycle::Existing => &[Show, Edit, Update],
+            SingletonLifecycle::Destroyable => &[Show, Edit, Update, Destroy],
+            SingletonLifecycle::Creatable => &[Show, Edit, Update, Create, Store, Destroy],
+        }
+    }
+
+    fn uses_shallow(self, action: ResourceAction) -> bool {
+        action.member() && !(self.singleton() && action == ResourceAction::Show)
+    }
+}
+
 /// Typed controller actions and options for registering a named resource.
 pub struct ResourceController<C> {
     actions: HashMap<ResourceAction, Action<C>>,
@@ -64,6 +102,7 @@ pub struct ResourceController<C> {
     parameters: HashMap<String, String>,
     bindings: HashMap<String, String>,
     shallow: bool,
+    singleton_lifecycle: SingletonLifecycle,
     configure: Option<Box<Configure>>,
 }
 
@@ -77,6 +116,7 @@ impl<C> Default for ResourceController<C> {
             parameters: HashMap::new(),
             bindings: HashMap::new(),
             shallow: false,
+            singleton_lifecycle: SingletonLifecycle::default(),
             configure: None,
         }
     }
@@ -134,6 +174,20 @@ impl<C> ResourceController<C> {
         self
     }
 
+    /// Enables creation, storage, and deletion for a singleton.
+    pub fn creatable(mut self) -> Self {
+        self.singleton_lifecycle = SingletonLifecycle::Creatable;
+        self
+    }
+
+    /// Enables deletion for a singleton.
+    pub fn destroyable(mut self) -> Self {
+        if matches!(self.singleton_lifecycle, SingletonLifecycle::Existing) {
+            self.singleton_lifecycle = SingletonLifecycle::Destroyable;
+        }
+        self
+    }
+
     /// Configures each prepared route before it is registered.
     pub fn configure(
         mut self,
@@ -165,7 +219,7 @@ impl Router {
         name: &str,
         controller: ResourceController<C>,
     ) -> Result<(), RoutingError> {
-        self.register_resource(name, controller, false, Location::caller())
+        self.register_resource(name, controller, ResourceKind::Resource, Location::caller())
     }
 
     #[track_caller]
@@ -174,14 +228,47 @@ impl Router {
         name: &str,
         controller: ResourceController<C>,
     ) -> Result<(), RoutingError> {
-        self.register_resource(name, controller, true, Location::caller())
+        self.register_resource(
+            name,
+            controller,
+            ResourceKind::ApiResource,
+            Location::caller(),
+        )
+    }
+
+    #[track_caller]
+    pub fn singleton<C: Send + Sync + 'static>(
+        &mut self,
+        name: &str,
+        controller: ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        self.register_resource(
+            name,
+            controller,
+            ResourceKind::Singleton,
+            Location::caller(),
+        )
+    }
+
+    #[track_caller]
+    pub fn apiSingleton<C: Send + Sync + 'static>(
+        &mut self,
+        name: &str,
+        controller: ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        self.register_resource(
+            name,
+            controller,
+            ResourceKind::ApiSingleton,
+            Location::caller(),
+        )
     }
 
     pub(crate) fn register_resource<C: Send + Sync + 'static>(
         &mut self,
         name: &str,
         controller: ResourceController<C>,
-        api: bool,
+        kind: ResourceKind,
         definition: &'static Location<'static>,
     ) -> Result<(), RoutingError> {
         let (prefix, name) = name.rsplit_once('/').unwrap_or(("", name));
@@ -204,10 +291,14 @@ impl Router {
                 .expect("writing to String");
         }
         collection.push_str(leaf);
-        let member_key = controller.wildcard(leaf);
+        let member_key = (!kind.singleton()).then(|| controller.wildcard(leaf));
         let mut prepared = Vec::new();
-        for action in ResourceAction::DEFAULTS {
-            if (api && matches!(action, ResourceAction::Create | ResourceAction::Edit))
+        let default_api_filter =
+            matches!(kind, ResourceKind::ApiResource | ResourceKind::ApiSingleton)
+                && controller.only.is_none();
+        for &action in kind.actions(controller.singleton_lifecycle) {
+            if (default_api_filter
+                && matches!(action, ResourceAction::Create | ResourceAction::Edit))
                 || controller
                     .only
                     .as_ref()
@@ -222,12 +313,17 @@ impl Router {
                     action: action.name(),
                 }
             })?;
-            let shallow = controller.shallow && action.member();
+            let shallow = controller.shallow && kind.uses_shallow(action);
             let base = if shallow { leaf } else { &collection };
+            let member = || {
+                member_key
+                    .as_deref()
+                    .map_or_else(|| base.to_owned(), |key| format!("{base}/{key}"))
+            };
             let path = match action {
                 ResourceAction::Create => format!("{base}/create"),
-                ResourceAction::Edit => format!("{base}/{member_key}/edit"),
-                action if action.member() => format!("{base}/{member_key}"),
+                ResourceAction::Edit => format!("{}/edit", member()),
+                action if action.member() => member(),
                 _ => base.to_owned(),
             };
             let uri = format!("{prefix}/{path}");

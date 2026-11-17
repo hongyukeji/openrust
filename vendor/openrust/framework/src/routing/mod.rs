@@ -22,6 +22,7 @@ pub use error::RoutingError;
 pub use middleware::MiddlewareEntry;
 #[doc(hidden)]
 pub use model_response::ModelResponse;
+pub(crate) use resource::ResourceKind;
 pub use resource::{ResourceAction, ResourceController};
 pub use route::Route;
 pub use route_group::RouteGroup;
