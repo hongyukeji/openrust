@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-17 18:57（北京时间）03-09 [集群标签待回收集合容错](audits/03-09/README.md#集群标签待回收集合容错)通过真实 Redis Cluster 与单机、双进程 HTTP、独立 Artisan、Rust 1.94.0 严格检查和三语站点验收。核心账本维持 59/66。
 - 2026-11-17 18:45（北京时间）04-05 [HZ、EUC-TW 与 ISO-2022-KR](audits/04-05/README.md#hzeuc-tw-与-iso-2022-kr)通过固定 Laravel／PHP 与 536,320 个实际 multipart HTTP 对照、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
 - 2026-11-17 18:36（北京时间）04-05 [JIS 与 ISO-2022-JP 系列](audits/04-05/README.md#jis-与-iso-2022-jp-系列)通过 4,718,592 个字节校验对照及 65,584 个实际 multipart HTTP 对照、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
 - 2026-11-17 18:28（北京时间）04-05 [Shift-JIS 与移动变体](audits/04-05/README.md#shift-jis-与移动变体)通过 537,858 个固定 Laravel／PHP 与实际 multipart HTTP 对照、MySQL 8.4.13 回归、独立 Artisan 和三语文档检查。核心账本维持 59/66。
@@ -26,7 +27,7 @@
 - 2026-11-17 15:51（北京时间）04-04 [自定义驱动与整单元验收](audits/04-04/README.md#自定义驱动与整单元验收)通过固定 Laravel、真实 MySQL 和 Redis、HTTP 及 Artisan。核心账本更新为 59/66。
 - 下一批继续 04-05，对照四个移动版 UTF-8 编码，随后依据固定 Laravel 验收整单元。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。memo 标签装饰器与 `flushStale()` 转发已记入 [03-06](audits/03-06/memoization.md)。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 52%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.38 GB（75.79 GiB）。继续前以实测读数复查。
+- 周额度剩余 51%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批 Redis 夹具和文档产物已回收，隔离编译缓存继续复用。项目磁盘可用 66.30 GB（61.74 GiB），继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

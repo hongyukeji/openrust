@@ -1266,6 +1266,50 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert!(!exists(&retired_index).await);
     assert!(!exists(&pending).await);
     assert_eq!(interrupted.get("current").await.unwrap(), Some(8.into()));
+
+    let current_value = interrupted.taggedItemKey("current").await.unwrap();
+    let current_index = index("interrupted").await;
+    let (current_prefix, current_generation) = current_index.rsplit_once(':').unwrap();
+    let empty_retirement = "0123456789abcdef0123456789abcdef";
+    assert!(!exists(&format!("{current_prefix}:{empty_retirement}")).await);
+    connection
+        .command(
+            "SADD",
+            &[
+                pending.as_bytes(),
+                b"malformed",
+                b"\xff",
+                empty_retirement.as_bytes(),
+            ],
+        )
+        .await
+        .unwrap();
+    assert!(interrupted.flush().await.unwrap());
+    assert!(!exists(&pending).await);
+    assert!(!exists(&current_value).await);
+    assert!(!registered(&current_index).await);
+
+    let empty_generation = interrupted.getTags().tagId("interrupted").await.unwrap();
+    assert_ne!(
+        empty_generation.rsplit_once(':').unwrap().1,
+        current_generation
+    );
+    connection
+        .command("SET", &[pending.as_bytes(), b"wrong type"])
+        .await
+        .unwrap();
+    assert!(interrupted.flush().await.is_err());
+    assert_eq!(
+        interrupted.getTags().tagId("interrupted").await.unwrap(),
+        empty_generation
+    );
+    connection
+        .command("DEL", &[pending.as_bytes()])
+        .await
+        .unwrap();
+    assert!(interrupted.forever("recovered", &9.into()).await.unwrap());
+    assert!(interrupted.flush().await.unwrap());
+    assert_eq!(interrupted.get("recovered").await.unwrap(), None);
 }
 
 #[tokio::test]
