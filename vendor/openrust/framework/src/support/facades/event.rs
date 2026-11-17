@@ -35,6 +35,27 @@ impl Event {
         Ok(Self::dispatcher()?.fake(events))
     }
 
+    /// Records all events except those allowed to reach their listeners.
+    pub fn fakeExcept(events: &[&str]) -> EventResult<Arc<EventFake>> {
+        Ok(Self::dispatcher()?.install_fake(&[], events))
+    }
+
+    /// Fakes selected events while the callback runs in the current task.
+    pub async fn fakeFor<T>(
+        callback: impl Future<Output = EventResult<T>>,
+        events: &[&str],
+    ) -> EventResult<T> {
+        Self::dispatcher()?.with_fake(events, &[], callback).await
+    }
+
+    /// Allows the named events and fakes all others during the callback.
+    pub async fn fakeExceptFor<T>(
+        callback: impl Future<Output = EventResult<T>>,
+        events: &[&str],
+    ) -> EventResult<T> {
+        Self::dispatcher()?.with_fake(&[], events, callback).await
+    }
+
     pub fn listen(name: &str, listener: Arc<dyn Listener>, delivery: Delivery) -> EventResult<()> {
         Self::dispatcher()?.listen(name, listener, delivery)
     }

@@ -15,7 +15,7 @@ use openrust::{
         TransactionBeginning, TransactionCommitted, TransactionCommitting, TransactionRolledBack,
     },
     events::{
-        Delivery, DispatchResult, Dispatcher, EventContext, EventFuture, EventResult,
+        Delivery, DispatchResult, Dispatcher, EventContext, EventError, EventFuture, EventResult,
         ListenerResponse, NamedEvent,
     },
     foundation::configuration::Routing,
@@ -160,6 +160,90 @@ async fn test_app_replaces_a_service_and_fakes_events_in_one_application() -> Te
         .await?
         .assertStatus(StatusCode::NO_CONTENT);
     assert_eq!(first_count.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+fn fake_for_request(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let global = Event::fakeExcept(&["scope.selected", "scope.replaced"])?;
+        let (entered, ready) = tokio::sync::oneshot::channel();
+        let (release, resumed) = tokio::sync::oneshot::channel();
+        let scoped = Event::fakeFor(
+            async {
+                entered.send(()).unwrap();
+                resumed.await.unwrap();
+                Event::dispatch(NamedEvent::new("scope.selected", ())).await?;
+                Event::dispatch(NamedEvent::new("scope.base", ())).await?;
+
+                let nested = Event::fakeExceptFor(
+                    async {
+                        Event::dispatch(NamedEvent::new("scope.selected", ())).await?;
+                        Event::dispatch(NamedEvent::new("scope.base", ())).await?;
+                        Err::<(), _>(EventError::InvalidPayload)
+                    },
+                    &["scope.selected"],
+                )
+                .await;
+                assert!(matches!(nested, Err(EventError::InvalidPayload)));
+                Event::dispatch(NamedEvent::new("scope.selected", ())).await?;
+
+                let local = Event::fake(&["scope.replaced"])?;
+                Event::dispatch(NamedEvent::new("scope.replaced", ())).await?;
+                local.assertDispatchedTimes("scope.replaced", 1);
+                Ok(42)
+            },
+            &["scope.selected"],
+        );
+        let sibling = async {
+            ready.await.unwrap();
+            let dispatched = Event::dispatch(NamedEvent::new("scope.selected", ())).await;
+            release.send(()).unwrap();
+            dispatched
+        };
+        let (value, dispatched) = tokio::join!(scoped, sibling);
+        dispatched?;
+        assert_eq!(value?, 42);
+
+        let timeout = tokio::time::timeout(
+            std::time::Duration::ZERO,
+            Event::fakeFor(std::future::pending::<EventResult<()>>(), &[]),
+        )
+        .await;
+        assert!(timeout.is_err());
+        Event::dispatch(NamedEvent::new("scope.selected", ())).await?;
+        Event::dispatch(NamedEvent::new("scope.replaced", ())).await?;
+        Event::dispatch(NamedEvent::new("scope.base", ())).await?;
+        global
+            .assertDispatchedTimes("scope.base", 1)
+            .assertNotDispatched("scope.selected")
+            .assertNotDispatched("scope.replaced");
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+
+#[tokio::test]
+async fn scoped_event_fakes_restore_after_errors_and_cancellation() -> TestResult {
+    let mut app = TestApp::create(|builder| {
+        builder.withRouting(Routing::default().web(|| Route::get("/scoped", fake_for_request)))
+    })?;
+    app.boot().await?;
+    let dispatcher = app.app().make::<Dispatcher>().await?;
+    let selected = Arc::new(AtomicUsize::new(0));
+    let base = Arc::new(AtomicUsize::new(0));
+    let replaced = Arc::new(AtomicUsize::new(0));
+    for (name, count) in [
+        ("scope.selected", &selected),
+        ("scope.base", &base),
+        ("scope.replaced", &replaced),
+    ] {
+        dispatcher.listen(name, Arc::new(Count(count.clone())), Delivery::Sync)?;
+    }
+    app.get("/scoped")
+        .await?
+        .assertStatus(StatusCode::NO_CONTENT);
+    assert_eq!(selected.load(Ordering::Relaxed), 3);
+    assert_eq!(base.load(Ordering::Relaxed), 1);
+    assert_eq!(replaced.load(Ordering::Relaxed), 1);
     Ok(())
 }
 

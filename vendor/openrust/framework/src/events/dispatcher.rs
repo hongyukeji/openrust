@@ -1,7 +1,7 @@
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
-    sync::{Arc, RwLock, Weak},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use crate::{
@@ -57,8 +57,15 @@ struct DeferredEvent {
     socket: Option<String>,
 }
 
+#[derive(Clone)]
+struct ScopedFake {
+    dispatcher: Arc<RwLock<Registrations>>,
+    fake: Arc<Mutex<Arc<EventFake>>>,
+}
+
 tokio::task_local! {
     static DEFERRED_EVENTS: Option<DeferredEvents>;
+    static SCOPED_FAKES: Vec<ScopedFake>;
 }
 
 /// Registers and dispatches events to listeners in one application.
@@ -161,9 +168,8 @@ impl Dispatcher {
     pub(crate) fn observes(&self, name: &str) -> bool {
         let registrations = self.read();
         registrations.listeners.has_listeners(name)
-            || registrations
-                .fake
-                .as_ref()
+            || self
+                .active_fake(&registrations)
                 .is_some_and(|fake| fake.matches(name))
     }
 
@@ -223,10 +229,64 @@ impl Dispatcher {
 
     /// Records the selected events for this application. An empty slice selects all events.
     pub fn fake(&self, events: &[&str]) -> Arc<EventFake> {
+        self.install_fake(events, &[])
+    }
+
+    pub(crate) fn install_fake(&self, events: &[&str], except: &[&str]) -> Arc<EventFake> {
         let fake = Arc::new(EventFake::new(events));
+        fake.except(except);
+        if let Some(scoped) = self.scoped_fake() {
+            let previous = std::mem::replace(
+                &mut *scoped
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                fake.clone(),
+            );
+            drop(previous);
+            return fake;
+        }
         let previous = self.write().fake.replace(fake.clone());
         drop(previous);
         fake
+    }
+
+    pub(crate) async fn with_fake<T>(
+        &self,
+        events: &[&str],
+        except: &[&str],
+        callback: impl Future<Output = EventResult<T>>,
+    ) -> EventResult<T> {
+        let fake = Arc::new(EventFake::new(events));
+        fake.except(except);
+        let mut scopes = SCOPED_FAKES.try_with(Vec::clone).unwrap_or_default();
+        scopes.push(ScopedFake {
+            dispatcher: self.registrations.clone(),
+            fake: Arc::new(Mutex::new(fake)),
+        });
+        SCOPED_FAKES.scope(scopes, callback).await
+    }
+
+    fn scoped_fake(&self) -> Option<Arc<Mutex<Arc<EventFake>>>> {
+        SCOPED_FAKES
+            .try_with(|scopes| {
+                scopes
+                    .iter()
+                    .rev()
+                    .find(|scope| Arc::ptr_eq(&scope.dispatcher, &self.registrations))
+                    .map(|scope| scope.fake.clone())
+            })
+            .unwrap_or_default()
+    }
+
+    fn active_fake(&self, registrations: &Registrations) -> Option<Arc<EventFake>> {
+        self.scoped_fake()
+            .map(|scope| {
+                scope
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone()
+            })
+            .or_else(|| registrations.fake.clone())
     }
 
     async fn dispatch_event(
@@ -264,7 +324,7 @@ impl Dispatcher {
         let (fake, after_commit) = {
             let registrations = self.read();
             (
-                registrations.fake.clone(),
+                self.active_fake(&registrations),
                 always_defer
                     || registrations
                         .deferred_types

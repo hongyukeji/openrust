@@ -137,3 +137,22 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 Faked events skip listeners, queueing and broadcasting. Events deferred until commit are recorded only after that commit. Rollback discards them. `dispatched` exposes recorded payloads for typed inspection. The fake lasts for the fixture or until another fake is installed.
 
 An all-events fake also records database transaction lifecycle events, such as `TransactionBeginning` and `TransactionRolledBack`. To check that rollback discarded a deferred application event, select that event when installing the fake or use `assertNotDispatched` with its name.
+
+### Scoped event fakes {#scoped-event-fakes}
+
+In an application scope, `Event::fakeFor` runs an async callback with a temporary fake and returns the callback's result. An empty list selects every event. `Event::fakeExceptFor` instead allows the listed events to reach their listeners and fakes the rest. Use `Event::fakeExcept` for the same selection across the application until another fake is installed.
+
+```rust
+use openrust::{events::NamedEvent, support::facades::Event};
+
+let order_id = Event::fakeFor(
+    async {
+        Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
+        Ok(42_u64)
+    },
+    &["orders.created"],
+).await?;
+assert_eq!(order_id, 42);
+```
+
+The scope follows the callback's future for its dispatcher. A nested scope restores the outer fake when it ends, including on error or cancellation. Concurrent requests and independently spawned tasks use their own scope or the application-wide fake.

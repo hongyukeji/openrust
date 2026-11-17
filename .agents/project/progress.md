@@ -3192,3 +3192,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 06:57（北京时间）00-03 [Provider 注册与 stub 发布的整合回归](audits/00-03/README.md#provider-注册与-stub-发布的整合回归)。26 项启动集成用例、实际 Artisan 生成和重建、HTTP 与 Artisan 引导生成的 Provider、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时产物已回收，磁盘可用 100.52 GB（93.61 GiB），周额度剩余 37%。
 
 - 2026-11-18 07:07（北京时间）T-04 [事务生命周期事件与替身回归](audits/T-04/README.md#事务生命周期事件与替身回归)。SQLite、真实 MySQL 8.4.13、整仓串行 1,326 项标准测试与两个自定义测试程序、格式、严格 Clippy、Artisan 和三语站点及 18 项浏览器检查通过。9 项标准测试忽略。编译与文档产物已回收，磁盘可用 100.48 GB（93.58 GiB），周额度剩余 37%。
+
+- 2026-11-18 07:18（北京时间）T-04 [作用域内的事件替身](audits/T-04/README.md#作用域内的事件替身)。`Event::fakeFor`、`fakeExceptFor` 和 `fakeExcept` 通过并发 TCP HTTP、SQLite 与真实 MySQL 8.4.13 的 11 项定向事件回归、三语示例实跑、严格 Clippy、Artisan 和 18 项浏览器检查。磁盘可用 100.39 GB（93.50 GiB），周额度剩余 37%。

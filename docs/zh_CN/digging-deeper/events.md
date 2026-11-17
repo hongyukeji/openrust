@@ -137,3 +137,22 @@ async fn records_order_events() -> Result<(), Box<dyn std::error::Error + Send +
 被 fake 的事件跳过监听器、队列和广播。提交后分发的事件在事务提交后才记录，回滚会丢弃事件。用 `dispatched` 取得已记录的负载并检查具体类型。替身随测试应用释放，也可通过再次安装 fake 替换。
 
 选中所有事件时，替身也会记录 `TransactionBeginning`、`TransactionRolledBack` 等数据库事务生命周期事件。验证回滚丢弃某个延迟派发的应用事件时，可在安装替身时只选择该事件，或用 `assertNotDispatched` 断言该事件名。
+
+### 作用域内的事件替身 {#scoped-event-fakes}
+
+在应用作用域内，`Event::fakeFor` 使用临时替身执行异步回调，并返回回调的结果。空列表选择所有事件。`Event::fakeExceptFor` 允许列出的事件交给监听器，其余事件由替身记录。若要在整个应用中使用相同的排除规则，可调用 `Event::fakeExcept`，直到安装另一个替身。
+
+```rust
+use openrust::{events::NamedEvent, support::facades::Event};
+
+let order_id = Event::fakeFor(
+    async {
+        Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?;
+        Ok(42_u64)
+    },
+    &["orders.created"],
+).await?;
+assert_eq!(order_id, 42);
+```
+
+作用域随回调的 Future 生效，并绑定对应的分发器。嵌套作用域在结束时恢复外层替身，返回错误或取消也一样。并发请求与单独派生的任务使用各自的作用域或应用级替身。
