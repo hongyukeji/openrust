@@ -111,12 +111,13 @@ fn configure_migrations(app: &Application) -> ProviderResult {
 }
 ```
 
-### Creating a Missing MySQL Database {#creating-a-missing-database}
+### Creating a Missing Database {#creating-a-missing-database}
 
-When the configured MySQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create that database.
+When the configured MySQL or PostgreSQL database is missing, `migrate` prompts before creating it. For unattended deployment, use `--force`. The selected write account must have permission to create the database. PostgreSQL uses the selected migration endpoint, including a configured direct endpoint, and temporarily connects to the `postgres` maintenance database.
 
 ```sh
 ./artisan migrate --database=mysql --force
+./artisan migrate --database=pgsql --force
 ```
 
 ### Isolating Migration Execution {#isolating-migration-execution}
@@ -149,9 +150,9 @@ Run `migrate:refresh` to roll back applied migrations and run them again. A posi
 ./artisan migrate:refresh --database=mysql --step=1
 ```
 
-### Rebuilding a MySQL Database {#rebuilding-mysql-with-fresh}
+### Rebuilding a Database {#rebuilding-mysql-with-fresh}
 
-After any production confirmation, `migrate:fresh` can create a missing MySQL database with the selected write account. If the database exists and has no migration ledger, the command starts migrations without clearing its tables. Use `--schema-path` to select the snapshot to restore.
+After any production confirmation, `migrate:fresh` can create a missing MySQL or PostgreSQL database with the selected write account. If the database exists and has no migration ledger, the command starts migrations without clearing its tables. On MySQL, use `--schema-path` to select the snapshot to restore.
 
 ```sh
 ./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql

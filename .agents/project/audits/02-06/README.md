@@ -114,3 +114,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 在 `da656c9b7` 隔离基线的 MySQL 8.4.13 上，普通读连接因指定库不存在而返回错误。账本最新批次、已执行名及批次列表都成功，查询日志确认三次查询均走写连接。空账本返回空列表，多个批次排序正确，最新批次仅传输相应记录。
 - 框架的迁移状态回归通过。实际根应用二进制执行 `migrate:rollback --pretend` 和默认 `migrate:rollback`，预演只列最新批次，实际撤销只移除最新批次的表和账本记录。早期用户表及其迁移记录保留，重新迁移成功。
 - Rust 1.94.0 全仓格式、严格 Clippy、`main artisan inspire`、三语站点及 18 项浏览器检查通过。临时 MySQL、本批 3.3 GiB Cargo 产物及文档缓存已回收。磁盘可用 63.27 GB（58.93 GiB），周额度剩余 47%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-06-ledger-query.jdYdibZs`。
+
+## 创建缺失的 PostgreSQL 数据库
+
+- 对照 Laravel v13.40.0 的 `MigrateCommand` 和 `FreshCommand`，在迁移账本首次检查确认目标数据库缺失后，沿用 Artisan 对建库的确认规则。核对旧版 `6d1a81924` 及其数据库测试，未找到等价的 PostgreSQL 缺库创建流程，复用当前 MySQL 的确认、建库与账本重查接线。 [固定 Laravel MigrateCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php#L179) · [固定 Laravel FreshCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/FreshCommand.php#L67)
+- SQLx 提供 PostgreSQL 原生 SQLSTATE，因此使用 `3D000` 识别缺库。复制选定写连接的端点、认证和 TLS 配置，通过短连接进入 `postgres` 管理库，执行已转义的 `CREATE DATABASE`。成功后在原连接重查迁移账本，共享配置保持原值。只读别名或覆盖了基准库名的端点不会触发自动建库。 [PostgreSQL 错误码](https://www.postgresql.org/docs/current/errcodes-appendix.html)
+- 在隔离基线 `b249e3e7b` 上用 PostgreSQL 协议夹具验证 SQLx 对 `3D000` 的分类及认证、权限和连接错误的排除。同时验证直连端点、TLS 配置、库名转义及建库资格。实际 PostgreSQL 服务器的管理库连接、权限和建库后的迁移账本留待发布验收。
+- 真实 MySQL 8.4.13 用独立 Artisan 复验无交互拒绝、强制建库、读连接拒绝、权限不足、重复迁移、`migrate:fresh` 建库和已有表保留。根应用 `./artisan inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。已回收本批临时 MySQL、3.4 GiB Cargo 产物及文档缓存。证据目录 `/private/tmp/openrust-02-06-postgres-create.lOKJraPT`。

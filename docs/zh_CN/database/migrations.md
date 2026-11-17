@@ -111,12 +111,13 @@ fn configure_migrations(app: &Application) -> ProviderResult {
 }
 ```
 
-### 创建缺失的 MySQL 数据库 {#creating-a-missing-database}
+### 创建缺失的数据库 {#creating-a-missing-database}
 
-配置的 MySQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建该数据库。
+配置的 MySQL 或 PostgreSQL 数据库不存在时，`migrate` 会在创建前提示确认。无人值守部署可使用 `--force`。选定的写库账号需要有权创建数据库。PostgreSQL 会使用选定的迁移端点，包括已配置的直连端点，并临时连接 `postgres` 管理库。
 
 ```sh
 ./artisan migrate --database=mysql --force
+./artisan migrate --database=pgsql --force
 ```
 
 ### 隔离迁移执行 {#isolating-migration-execution}
@@ -149,9 +150,9 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 ./artisan migrate:refresh --database=mysql --step=1
 ```
 
-### 重建 MySQL 数据库 {#rebuilding-mysql-with-fresh}
+### 重建数据库 {#rebuilding-mysql-with-fresh}
 
-通过生产环境确认后，`migrate:fresh` 可以用选定的写库账号创建缺失的 MySQL 数据库。数据库已存在且没有迁移账本时，命令直接执行迁移，保留已有表。用 `--schema-path` 选择要恢复的快照。
+通过生产环境确认后，`migrate:fresh` 可以用选定的写库账号创建缺失的 MySQL 或 PostgreSQL 数据库。数据库已存在且没有迁移账本时，命令直接执行迁移，保留已有表。在 MySQL 中，用 `--schema-path` 选择要恢复的快照。
 
 ```sh
 ./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql

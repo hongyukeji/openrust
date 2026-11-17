@@ -16,7 +16,8 @@ use crate::database::{
 
 use super::{
     DatabaseMigrationRepository, MigrationContext, MigrationEntry, MigrationRegistry,
-    MigrationRepositoryInterface, MigrationResult, database_creation, schema_state,
+    MigrationRepositoryInterface, MigrationResult, database_creation::MissingDatabase,
+    schema_state,
 };
 
 type ConfirmDatabaseCreation<'a> = &'a (dyn Fn(&Connection) -> DatabaseResult<bool> + Send + Sync);
@@ -248,21 +249,22 @@ impl Migrator {
         let mut repository = self.repository(database);
         let mut installed = match repository.repository_exists().await {
             Ok(installed) => installed,
-            Err(error)
-                if confirm_create.is_some()
-                    && database_creation::missing_mysql_database(&error) =>
-            {
-                let connection = self.resolveConnection(database)?;
-                if !database_creation::can_create(&connection)? {
+            Err(error) => {
+                let (Some(confirm), Some(missing)) =
+                    (confirm_create, MissingDatabase::from_error(&error))
+                else {
                     return Err(error);
-                }
-                if !confirm_create.expect("creation policy was checked")(&connection)? {
+                };
+                let connection = self.resolveConnection(database)?;
+                let Some(creation) = missing.prepare(&connection)? else {
+                    return Err(error);
+                };
+                if !confirm(&connection)? {
                     return Err(DatabaseError::DatabaseCreationDeclined);
                 }
-                database_creation::create_mysql_database(&connection).await?;
+                creation.create().await?;
                 repository.repository_exists().await?
             }
-            Err(error) => return Err(error),
         };
         let mut ran = if installed {
             repository.get_ran().await?
@@ -697,8 +699,7 @@ impl Migrator {
             Ok(true) => self.wipe_schema(database, drop_views).await?,
             Ok(false) => {}
             Err(error)
-                if confirm_create.is_some()
-                    && database_creation::missing_mysql_database(&error) => {}
+                if confirm_create.is_some() && MissingDatabase::from_error(&error).is_some() => {}
             Err(error) => return Err(error),
         }
         self.run_pending(

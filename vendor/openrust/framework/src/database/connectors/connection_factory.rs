@@ -163,8 +163,6 @@ fn resolve(
         Some(super::super::migrations::SchemaCredentials {
             password: write_options.string("password", "")?.to_owned(),
             ssl_ca: mysql_ssl_ca(&write_options, root)?,
-            configured_database: base.get("database").and_then(Value::as_str)
-                == Some(database.as_str()),
         })
     } else {
         None
@@ -177,6 +175,10 @@ fn resolve(
     } else {
         SqliteJsonTypes::default()
     };
+    let creation_database = (role != Some(QueryRole::Read)
+        && matches!(writer, Pool::Mysql(_) | Pool::Postgres(_))
+        && base.get("database").and_then(Value::as_str) == Some(database.as_str()))
+    .then(|| database.clone());
     Ok(ConnectionOptions {
         database: database.into(),
         grammar,
@@ -188,6 +190,7 @@ fn resolve(
         pools: PoolGeneration {
             writer,
             schema_credentials,
+            creation_database,
             reader: reader.map(|(_, pool)| pool),
             established: Default::default(),
         },

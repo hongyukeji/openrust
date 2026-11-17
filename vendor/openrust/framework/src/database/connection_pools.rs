@@ -12,6 +12,7 @@ use super::{DatabaseError, DatabaseResult, connection::Pool, test_mysql::MySqlTe
 pub(super) struct PoolGeneration {
     pub writer: Pool,
     pub schema_credentials: Option<super::migrations::SchemaCredentials>,
+    pub creation_database: Option<String>,
     pub reader: Option<Pool>,
     pub established: OnceCell<()>,
 }
