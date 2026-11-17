@@ -88,3 +88,11 @@
 - 在 `e46343b50` 的隔离快照上，用 Redis 8.10.3 复现空有序集合已消失、登记仍在。修复后 `sh tests/redis_cluster.sh` 的四项回归与单机 Redis 回归通过。覆盖 `forget`、`pull`、重新登记、多标签共享索引及 320 条引用的分批清理。
 - 实际双进程 HTTP 验证删除、取回与重新登记，并用 Redis `SISMEMBER` 核对登记。独立 Artisan 验证默认和显式存储的 `cache:prune-stale-tags`、重复清理、清空中断时保留仍有值的旧代际，以及陈旧代际最终回收。根应用 `artisan inspire` 通过。
 - Rust 1.94.0 改动文件格式、工作区严格 Clippy、三语站点构建和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。临时 Redis 和隔离编译产物已回收，日志保留于 `/private/tmp/openrust-03-09-empty-index.OJOms75f`。
+
+## 集群标签索引的无效引用清理
+
+- 对照固定 Laravel 的 `RedisStore::flushStaleTags`、`RedisTagSet::flushStaleEntries` 和 `RedisStoreTest`。Laravel 按过期分数移除有序集合成员。OpenRust 在同一个 Lua 操作中核验缓存值是否存在，以兼顾过期、显式删除和其他标签清空留下的引用。继续沿用旧版 `b62ae7c72` 的分批清理和按代际隔离思路。 [Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L88) · [Laravel RedisStoreTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
+- 在隔离基线 `791788113` 的 Redis 8.10.3 上复现索引含无效引用时修剪中断。Redis 成员按原始字节处理。当前存储内的合法值键继续作为 Lua 的 `KEYS` 传入，无效成员仅作为 `ARGV` 传入并从索引移除。跨槽或跨存储成员不会作为 Redis 键访问。旧代际仍有有效值时，修剪保留其待回收记录。
+- `sh tests/redis_cluster.sh` 复跑四项通过。标签回归验证分批清理 322 条引用后保留 160 条有效引用，覆盖非法 UTF-8、其他存储引用和中断后的旧代际。首次集群拓扑测试在主节点切换后收到瞬时 `CLUSTERDOWN`，新夹具复跑通过。真实单机 Redis 回归通过。
+- 实际双进程 HTTP 验证标签值共享、自然过期和删除。独立 Artisan 验证默认与显式存储修剪、按标签清空的失败与恢复、重复修剪，以及其他值保留。修剪后用 Redis 原生命令核对无效引用已移除。根应用 `./artisan inspire` 通过。
+- Rust 1.94.0 的改动文件格式、工作区严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批 Redis 夹具、5.6 GiB 隔离 Cargo 产物和文档缓存已回收。日志保留于 `/private/tmp/openrust-03-09-prune-invalid.EsOuxYdC`。

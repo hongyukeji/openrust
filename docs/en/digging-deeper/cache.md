@@ -223,6 +223,8 @@ Read the item with the same ordered list, including any repeated names. To inval
 
 Run `./artisan cache:prune-stale-tags redis` to remove sorted-set references to expired or deleted values. This command preserves live values. Pass a store name, or omit it to use the default store.
 
+In Redis Cluster, pruning also discards malformed references in the selected store's tag indexes. References to another store are removed from the index without accessing that store's values.
+
 On Redis Cluster, a tagged cache namespace uses one hash slot derived from the connection and store prefixes. This keeps each value and its tag indexes in the same slot for atomic Lua updates. When `forget` or `pull` removes the last member of a tag index, the same update removes its registry entry. Pruning scans the store's tag indexes in batches. If an interrupted tag flush leaves an old generation pending, pruning clears that record once the generation's index is empty. Untagged keys continue to use normal cluster routing. Distribute tagged workloads across stores or prefixes when one slot becomes a bottleneck.
 
 ## Atomic Locks

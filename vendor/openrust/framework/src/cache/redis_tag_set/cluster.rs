@@ -123,7 +123,7 @@ impl RedisTagSet {
                 }
                 let index = format!("{index_prefix}{id}");
                 loop {
-                    let items: Vec<String> = self
+                    let items: Vec<Vec<u8>> = self
                         .query(
                             ::redis::cmd("ZRANGE")
                                 .arg(&index)
@@ -188,7 +188,7 @@ impl RedisTagSet {
     ) -> CacheResult<()> {
         let mut cursor = 0_u64;
         loop {
-            let (next, entries): (u64, Vec<(String, f64)>) = self
+            let (next, entries): (u64, Vec<(Vec<u8>, f64)>) = self
                 .query(
                     ::redis::cmd("ZSCAN")
                         .arg(index)
@@ -197,7 +197,7 @@ impl RedisTagSet {
                         .arg(BATCH_SIZE),
                 )
                 .await?;
-            let items: Vec<String> = entries.into_iter().map(|(key, _)| key).collect();
+            let items: Vec<_> = entries.into_iter().map(|(key, _)| key).collect();
             let mut exists = true;
             for batch in items.chunks(BATCH_SIZE) {
                 exists = self
@@ -222,24 +222,28 @@ impl RedisTagSet {
         index: &str,
         pending: &str,
         retirement: &str,
-        items: &[String],
+        items: &[Vec<u8>],
         retire: bool,
     ) -> CacheResult<bool> {
         let prefix = format!("{}value:", self.prefix);
-        if !items.iter().all(|item| {
-            item.strip_prefix(&prefix)
-                .is_some_and(|id| valid_digest(id, 64))
-        }) {
+        let (values, invalid): (Vec<_>, Vec<_>) =
+            items.iter().map(Vec::as_slice).partition(|item| {
+                item.strip_prefix(prefix.as_bytes())
+                    .and_then(|id| std::str::from_utf8(id).ok())
+                    .is_some_and(|id| valid_digest(id, 64))
+            });
+        if retire && !invalid.is_empty() {
             return Err(CacheError::InvalidValue);
         }
         self.query(
-            cluster_script(CLEANUP, 3 + items.len())
+            cluster_script(CLEANUP, 3 + values.len())
                 .arg(registry)
                 .arg(index)
                 .arg(pending)
-                .arg(items)
+                .arg(values)
                 .arg(retirement)
-                .arg(retire),
+                .arg(retire)
+                .arg(invalid),
         )
         .await
     }

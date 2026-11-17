@@ -1107,8 +1107,26 @@ async fn redis_cluster_tags_flush_and_prune() {
     );
     let paged_index = index("paged").await;
     assert_eq!(count(&paged_index).await, RedisValue::Int(320));
+    let foreign_key = foreign.taggedItemKey("item").await.unwrap();
+    let invalid_bytes = b"\xffinvalid";
+    connection
+        .command(
+            "ZADD",
+            &[
+                paged_index.as_bytes(),
+                b"-1",
+                foreign_key.as_bytes(),
+                b"-1",
+                invalid_bytes,
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(count(&paged_index).await, RedisValue::Int(322));
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&paged_index).await, RedisValue::Int(160));
+    assert!(exists(&foreign_key).await);
+    assert_eq!(foreign.get("item").await.unwrap(), Some(4.into()));
     for number in 0..320 {
         let expected = (number % 2 != 0).then(|| number.into());
         assert_eq!(paged.get(&number.to_string()).await.unwrap(), expected);
@@ -1162,14 +1180,11 @@ async fn redis_cluster_tags_flush_and_prune() {
         .await
         .unwrap();
     assert!(interrupted.flush().await.is_err());
-    connection
-        .command("ZREM", &[retired_index.as_bytes(), invalid.as_bytes()])
-        .await
-        .unwrap();
     assert!(interrupted.forever("current", &8.into()).await.unwrap());
     plain.get_store().flush_stale_tags().await.unwrap();
     assert!(exists(&retired_value).await);
     assert!(exists(&pending).await);
+    assert_eq!(count(&retired_index).await, RedisValue::Int(1));
     connection
         .command("DEL", &[retired_value.as_bytes()])
         .await
