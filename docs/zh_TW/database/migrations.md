@@ -1043,6 +1043,27 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 用 `dropForeignColumns` 依本地欄位刪除外鍵，或用 `dropForeign` 刪除有明確名稱的外鍵。兩種方法都支援內嵌 REFERENCES 和資料表層級外鍵。用 `dropPrimary` 刪除內嵌或資料表層級主鍵。其餘內嵌約束仍然生效。
 
+#### PostgreSQL 外鍵 {#postgresql-foreign-keys}
+
+使用 Schema 限定名稱新增跨 Schema 外鍵。PostgreSQL 預設驗證既有資料列。`notValid()` 會略過這次掃描，之後新增或修改外鍵值時仍會檢查。`deferrable(true).initiallyImmediate(false)` 將檢查延後到提交交易。`initiallyImmediate(true)` 預設在各陳述式結束時檢查。使用 `dropForeign(name)` 移除具名外鍵，或以 `dropForeignColumns(&[...])` 移除按慣例命名的外鍵。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn constrain_books() -> DatabaseResult<()> {
+    Schema::table("library.books", |table| {
+        table
+            .foreign(&["author_id"], Some("books_author_foreign"))
+            .references("id")
+            .on("authors.records")
+            .deferrable(true)
+            .initiallyImmediate(false)
+            .notValid();
+    })
+    .await
+}
+```
+
 #### 檢查外鍵 {#inspecting-foreign-keys}
 
 用 `getForeignKeys` 查看本地欄位、目標 Schema 和資料表、目標欄位以及更新和刪除動作。複合外鍵的欄位依照約束定義順序回傳。

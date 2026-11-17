@@ -1043,6 +1043,27 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 Use `dropForeignColumns` for a foreign key’s local columns, or `dropForeign` for an explicitly named constraint. Both forms can remove inline REFERENCES or table-level foreign keys. Use `dropPrimary` to remove an inline or table-level primary key. Other inline constraints remain in force.
 
+#### PostgreSQL Foreign Keys {#postgresql-foreign-keys}
+
+Use qualified table names to add a foreign key across schemas. By default, PostgreSQL checks a new constraint against existing rows. Call `notValid()` to skip that scan while still checking new rows and changes to the foreign key. Call `deferrable(true).initiallyImmediate(false)` to check at transaction commit. Use `initiallyImmediate(true)` to check at the end of each statement by default. Drop a key with `dropForeign(name)` or `dropForeignColumns(&[...])` for a conventionally named key.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn constrain_books() -> DatabaseResult<()> {
+    Schema::table("library.books", |table| {
+        table
+            .foreign(&["author_id"], Some("books_author_foreign"))
+            .references("id")
+            .on("authors.records")
+            .deferrable(true)
+            .initiallyImmediate(false)
+            .notValid();
+    })
+    .await
+}
+```
+
 #### Inspecting Foreign Keys {#inspecting-foreign-keys}
 
 Use `getForeignKeys` to inspect the local columns, target schema and table, target columns, and update and delete actions. A composite key’s columns are returned in constraint order.

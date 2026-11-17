@@ -314,6 +314,7 @@ impl<'connection> Builder<'connection> {
             return self.mariadb_legacy_alter(&table, blueprint).await;
         }
         if !self.grammar.mysql()
+            && !self.grammar.postgres()
             && !self.grammar.sql_server()
             && blueprint.commands.iter().any(sqlite::requires_catalog)
         {

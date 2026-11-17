@@ -1043,6 +1043,27 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 用 `dropForeignColumns` 按本地列删除外键，或用 `dropForeign` 删除有显式名称的外键。两种方法都支持内联 REFERENCES 和表级外键。用 `dropPrimary` 删除内联或表级主键。其余内联约束继续生效。
 
+#### PostgreSQL 外键 {#postgresql-foreign-keys}
+
+用 Schema 限定名添加跨 Schema 外键。PostgreSQL 默认验证已有行。`notValid()` 跳过这次扫描，后续插入或修改外键值时仍会检查。`deferrable(true).initiallyImmediate(false)` 将检查推迟到提交事务。`initiallyImmediate(true)` 默认在每条语句结束时检查。用 `dropForeign(name)` 删除命名外键，或用 `dropForeignColumns(&[...])` 删除按约定命名的外键。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn constrain_books() -> DatabaseResult<()> {
+    Schema::table("library.books", |table| {
+        table
+            .foreign(&["author_id"], Some("books_author_foreign"))
+            .references("id")
+            .on("authors.records")
+            .deferrable(true)
+            .initiallyImmediate(false)
+            .notValid();
+    })
+    .await
+}
+```
+
 #### 检查外键 {#inspecting-foreign-keys}
 
 用 `getForeignKeys` 查看本地列、目标 Schema 和表、目标列以及更新和删除动作。复合外键的列按约束定义顺序返回。

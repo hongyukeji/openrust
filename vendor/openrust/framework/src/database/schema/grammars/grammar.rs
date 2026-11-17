@@ -226,7 +226,9 @@ impl Grammar {
                     constraints.push(self.primary_key(&index)?);
                 }
                 Command::Index(index) => indexes.push(self.add_index(table, &index)?),
-                Command::Foreign(foreign) if foreign.inplace || foreign.lock.is_some() => {
+                Command::Foreign(foreign)
+                    if foreign.inplace || foreign.lock.is_some() || foreign.not_valid =>
+                {
                     indexes.push(self.add_foreign(table, &foreign)?);
                 }
                 Command::Foreign(foreign) => constraints.push(self.foreign(table, &foreign)?),
@@ -456,21 +458,10 @@ impl Grammar {
                     let name = self.conventional_name(table, &columns, kind.suffix());
                     sql.push(self.drop_index(table, kind, &name)?);
                 }
-                Command::DropForeign(name) if self.mysql() => sql.push(format!(
-                    "alter table {qualified} drop foreign key {}",
-                    self.identifier(&name)?
-                )),
-                Command::DropForeignColumns(columns) if self.mysql() => {
+                Command::DropForeign(name) => sql.push(self.drop_foreign(&qualified, &name)?),
+                Command::DropForeignColumns(columns) => {
                     let name = self.conventional_name(table, &columns, "foreign");
-                    sql.push(format!(
-                        "alter table {qualified} drop foreign key {}",
-                        self.identifier(&name)?
-                    ));
-                }
-                Command::DropForeign(_) | Command::DropForeignColumns(_) => {
-                    return Err(DatabaseError::UnsupportedSchema(
-                        "SQLite foreign key drop requires a table rebuild",
-                    ));
+                    sql.push(self.drop_foreign(&qualified, &name)?);
                 }
             }
         }
@@ -722,7 +713,7 @@ impl Grammar {
     }
 
     fn add_foreign(&self, table: &Table, foreign: &ForeignKeyDefinition) -> DatabaseResult<String> {
-        if !self.mysql() && !self.sql_server() {
+        if !self.mysql() && !self.postgres() && !self.sql_server() {
             return Err(DatabaseError::UnsupportedSchema(
                 "SQLite foreign key addition requires a table rebuild",
             ));
@@ -738,6 +729,20 @@ impl Grammar {
         ))
     }
 
+    fn drop_foreign(&self, table: &str, name: &str) -> DatabaseResult<String> {
+        let kind = if self.mysql() {
+            "foreign key"
+        } else if self.postgres() {
+            "constraint"
+        } else {
+            return Err(DatabaseError::UnsupportedSchema("foreign key drop"));
+        };
+        Ok(format!(
+            "alter table {table} drop {kind} {}",
+            self.identifier(name)?
+        ))
+    }
+
     pub fn foreign(&self, table: &Table, foreign: &ForeignKeyDefinition) -> DatabaseResult<String> {
         if foreign.columns.len() != foreign.foreign_columns.len() {
             return Err(DatabaseError::InvalidSchema("foreign key column count"));
@@ -748,12 +753,16 @@ impl Grammar {
                 .as_deref()
                 .ok_or(DatabaseError::InvalidSchema("foreign table"))?,
         )?;
-        if !self.mysql() && target.schema.is_some() && target.schema != table.schema {
+        if !self.mysql()
+            && !self.postgres()
+            && target.schema.is_some()
+            && target.schema != table.schema
+        {
             return Err(DatabaseError::UnsupportedSchema(
                 "SQLite cross-schema foreign key",
             ));
         }
-        let reference = if self.mysql() {
+        let reference = if self.mysql() || self.postgres() {
             self.qualified(&target)?
         } else {
             self.identifier(&target.name)?
@@ -785,6 +794,33 @@ impl Grammar {
                     return Err(DatabaseError::InvalidSchema("foreign key action"));
                 }
                 write!(sql, " {clause} {action}").expect("writing to a String");
+            }
+        }
+        if foreign.deferrable.is_some()
+            || foreign.initially_immediate.is_some()
+            || foreign.not_valid
+        {
+            if !self.postgres() {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "PostgreSQL foreign key modifiers",
+                ));
+            }
+            if let Some(deferrable) = foreign.deferrable {
+                sql.push_str(if deferrable {
+                    " deferrable"
+                } else {
+                    " not deferrable"
+                });
+                if deferrable && let Some(immediate) = foreign.initially_immediate {
+                    sql.push_str(if immediate {
+                        " initially immediate"
+                    } else {
+                        " initially deferred"
+                    });
+                }
+            }
+            if foreign.not_valid {
+                sql.push_str(" not valid");
             }
         }
         Ok(sql)

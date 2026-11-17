@@ -6,6 +6,9 @@ pub struct ForeignKeyDefinition {
     pub(super) foreign_table: Option<String>,
     pub(super) on_update: Option<String>,
     pub(super) on_delete: Option<String>,
+    pub(super) deferrable: Option<bool>,
+    pub(super) initially_immediate: Option<bool>,
+    pub(super) not_valid: bool,
     pub(super) inplace: bool,
     pub(super) lock: Option<String>,
 }
@@ -20,6 +23,9 @@ impl ForeignKeyDefinition {
             foreign_table: None,
             on_update: None,
             on_delete: None,
+            deferrable: None,
+            initially_immediate: None,
+            not_valid: false,
             inplace: false,
             lock: None,
         }
@@ -46,6 +52,24 @@ impl ForeignKeyDefinition {
 
     pub fn onUpdate(&mut self, action: &str) -> &mut Self {
         self.on_update = Some(action.to_owned());
+        self
+    }
+
+    /// Controls whether PostgreSQL can defer constraint checks until commit.
+    pub fn deferrable(&mut self, enabled: bool) -> &mut Self {
+        self.deferrable = Some(enabled);
+        self
+    }
+
+    /// Chooses the initial check timing for a deferrable PostgreSQL constraint.
+    pub fn initiallyImmediate(&mut self, enabled: bool) -> &mut Self {
+        self.initially_immediate = Some(enabled);
+        self
+    }
+
+    /// Skips validation of existing rows when PostgreSQL adds the foreign key.
+    pub fn notValid(&mut self) -> &mut Self {
+        self.not_valid = true;
         self
     }
 

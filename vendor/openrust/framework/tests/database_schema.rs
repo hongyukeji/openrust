@@ -394,6 +394,104 @@ async fn postgres_type_catalog_uses_the_writer_and_supports_schema_filters() {
 }
 
 #[tokio::test]
+async fn postgres_foreign_keys_support_validation_timing_and_qualified_targets() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_FOREIGN_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_FOREIGN").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    db.unprepared("create schema parents; create schema children; create table parents.records (id integer primary key); create table children.records (id integer primary key, parent_id integer not null); insert into children.records values (1, 100)")
+        .await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .table("children.records", |table| {
+            table
+                .foreign(&["parent_id"], None)
+                .references("id")
+                .on("parents.records")
+                .deferrable(true)
+                .initiallyImmediate(false)
+                .notValid();
+        })
+        .await
+        .unwrap_or_else(|error| panic!("{error}: {:?}", std::error::Error::source(&error)));
+    let keys = schema.getForeignKeys("children.records").await.unwrap();
+    assert_eq!(keys[0].foreign_schema.as_deref(), Some("parents"));
+    let settings = db.selectOne(
+        "select condeferrable, condeferred, convalidated from pg_constraint where conname = ? and conrelid = 'children.records'::regclass",
+        &[keys[0].name.as_deref().unwrap().into()],
+    ).await.unwrap().unwrap();
+    assert_eq!(settings.get_at(0), Some(&true.into()));
+    assert_eq!(settings.get_at(1), Some(&true.into()));
+    assert_eq!(settings.get_at(2), Some(&false.into()));
+    db.transaction(
+        |tx| {
+            Box::pin(async move {
+                tx.statement("insert into children.records values (2, 200)", &[])
+                    .await?;
+                tx.statement("insert into parents.records values (200)", &[])
+                    .await?;
+                Ok(())
+            })
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    let failed = db
+        .transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.statement("insert into children.records values (3, 300)", &[])
+                        .await?;
+                    Ok(())
+                })
+            },
+            1,
+        )
+        .await;
+    assert!(failed.is_err());
+    assert_eq!(db.table("children.records").count("*").await.unwrap(), 2);
+    schema
+        .table("children.records", |table| {
+            table.dropForeignColumns(&["parent_id"])
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .getForeignKeys("children.records")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    schema
+        .create("children.fresh", |table| {
+            table.integer("parent_id");
+            table
+                .foreign(&["parent_id"], Some("explicit_fk"))
+                .references("id")
+                .on("parents.records")
+                .deferrable(true)
+                .initiallyImmediate(true);
+        })
+        .await
+        .unwrap();
+    assert!(
+        db.statement("insert into children.fresh values (999)", &[])
+            .await
+            .is_err()
+    );
+    schema
+        .table("children.fresh", |table| table.dropForeign("explicit_fk"))
+        .await
+        .unwrap();
+    db.statement("insert into children.fresh values (999)", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn postgres_column_and_foreign_key_catalogs_use_native_metadata_and_qualified_names() {
     let db = connection(json!({"driver":"pgsql", "prefix":"app_"}));
     let preview = db

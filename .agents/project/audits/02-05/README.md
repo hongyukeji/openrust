@@ -453,3 +453,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - MariaDB 的 `operatorClass` 接受经过校验的 `M` 与 `DISTANCE`，保留 Laravel 默认的 `M=6 DISTANCE=cosine`。自定义距离可选余弦或欧氏，向量查询构建器继续使用余弦距离。 [固定 Laravel MariaDB Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MariaDbGrammar.php#L62) · [MariaDB 向量索引](https://mariadb.com/docs/server/reference/sql-structure/vectors/create-table-with-vectors)
 - 真实 PostgreSQL 18.4／pgvector 0.8.2 的 Artisan 预演、执行和回滚通过。原生目录显示四种在线索引有效。通过 `pg_stat_progress_create_index` 观察构建等待旧写事务时，第二个连接在 500 ms 锁等待上限下完成写入，回滚后新行仍存在。真实 Schema Session 在线建索引通过，显式事务中的拒绝产生零 Blueprint 变更。
 - 真实 MariaDB 11.8.9 验证预演、`M=8 DISTANCE=euclidean` 原生目录、原生欧氏排序、迁移回滚；两种驱动通过真实 HTTP 与独立 Artisan，五项向量回归和两项 SQL 预演通过。MySQL 8.4.13 两项定向回归、Rust 1.94.0 格式、严格 Clippy、三语站点及 18 项浏览器检查通过。核心账本维持 62/66。本批临时数据库和隔离 Cargo／文档产物已回收，项目卷可用空间净增 3.18 GB（2.96 GiB），剩余 105.24 GB（98.01 GiB）。周额度剩余 44%，第二窗口无读数。验收脚本和日志位于 `/private/tmp/openrust-02-05-online-index.kDZNI6hB`。
+
+## PostgreSQL 外键变更与验证时机
+
+- 对照固定 Laravel v13.40.0 的 `compileForeign` 与 `compileDropForeign`。PostgreSQL 直接执行原生增删外键，保留目标表的 Schema 限定名，支持 `deferrable(bool)`、`initiallyImmediate(bool)` 和 `notValid()`。需跳过已有行验证的约束通过 `ALTER TABLE` 安装。旧版仅找到 SQLite 内联延迟约束夹具，未找到同等 PostgreSQL Blueprint 实现。 [固定 Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php#L490)
+- 隔离基线首先复现 PostgreSQL 改表进入 SQLite 重建路径并执行 `PRAGMA`。修正后用 PostgreSQL 18.6 验证已有孤儿行保留、延迟检查、提交失败回滚、立即检查及按名称或列删除。建表时直接声明的外键和已有表新增外键均保留跨 Schema 目标。
+- 真实 Artisan `migrate --pretend` 输出跨 Schema `REFERENCES`、延迟检查和 `NOT VALID`，未创建迁移表结构。实际迁移和回滚都通过。HTTP 在回滚前读取目标 Schema，回滚后外键消失，原行仍在。独立 `artisan inspire` 通过。剩余差异见[数据库方言对账](../database-dialects.md)。
+- MySQL 8.4.13 外键、表目录和限定清库回归通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。本批临时数据库、编译和文档产物已回收，磁盘空间净增 3.60 GB（3.35 GiB），可用 104.85 GB（97.65 GiB）。提交前周额度剩余 43%，第二窗口无读数。日志保留于 `/private/tmp/openrust-02-05-postgres-foreign.AJIaNo9n`。
