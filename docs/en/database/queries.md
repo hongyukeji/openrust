@@ -77,6 +77,28 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
 }
 ```
 
+### Cross and straight joins {#cross-and-straight-joins}
+
+Use `crossJoinSub` to pair each outer row with every row of a derived query. On MySQL and MariaDB, `straightJoin` keeps the left source before the right source in the join order. Use `straightJoinWhere` to bind a value in the join condition, `straightJoinWith` for a closure, or `straightJoinSub` for a derived source.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    let orders = connection.table("orders as o");
+    let labels = orders.subquery("labels").r#where("active", "=", 1);
+
+    orders
+        .straightJoin("payments as p", "o.id", "=", "p.order_id")
+        .crossJoinSub(&labels, "label")?
+        .r#where("p.state", "=", "paid")
+        .select(["o.id", "label.code"])
+        .orderBy("label.code", "asc")
+        .get()
+        .await
+}
+```
+
 ### Lateral Joins {#lateral-joins}
 
 Use `joinLateral` or `leftJoinLateral` on PostgreSQL, MySQL 8.0.14+, and SQL Server. Put the correlation in the subquery with `whereColumn`. The left join keeps outer rows with no match and returns null for their right-side columns. PostgreSQL and MySQL use `JOIN LATERAL`, and SQL Server uses `CROSS APPLY` or `OUTER APPLY`.

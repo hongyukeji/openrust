@@ -77,6 +77,28 @@ pub async fn items_in_region(connection: &Connection, region: &str) -> DatabaseR
 }
 ```
 
+### 交叉联结与固定顺序联结 {#cross-and-straight-joins}
+
+使用 `crossJoinSub` 将每一条外层记录与派生查询的每一条记录配对。MySQL 和 MariaDB 的 `straightJoin` 保持左侧来源先于右侧来源。使用 `straightJoinWhere` 在联结条件中绑定值，`straightJoinWith` 接收闭包，`straightJoinSub` 接收派生查询。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+
+pub async fn label_paid_orders(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    let orders = connection.table("orders as o");
+    let labels = orders.subquery("labels").r#where("active", "=", 1);
+
+    orders
+        .straightJoin("payments as p", "o.id", "=", "p.order_id")
+        .crossJoinSub(&labels, "label")?
+        .r#where("p.state", "=", "paid")
+        .select(["o.id", "label.code"])
+        .orderBy("label.code", "asc")
+        .get()
+        .await
+}
+```
+
 ### 关联子查询联结 {#lateral-joins}
 
 PostgreSQL、MySQL 8.0.14+ 和 SQL Server 支持 `joinLateral` 与 `leftJoinLateral`。在子查询中用 `whereColumn` 引用外层列。左联结保留未匹配的外层行，右侧列返回 null。PostgreSQL 与 MySQL 使用 `JOIN LATERAL`，SQL Server 使用 `CROSS APPLY` 或 `OUTER APPLY`。

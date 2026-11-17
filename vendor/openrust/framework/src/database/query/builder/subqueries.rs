@@ -41,6 +41,7 @@ enum JoinType {
     Left,
     Right,
     Cross,
+    Straight,
     Lateral {
         operator: &'static str,
         condition: &'static str,
@@ -65,6 +66,10 @@ impl Join {
             JoinType::Left => " left join ",
             JoinType::Right => " right join ",
             JoinType::Cross => " cross join ",
+            JoinType::Straight if grammar.is_mysql() => " straight_join ",
+            JoinType::Straight => {
+                return Err(DatabaseError::UnsupportedOperation("straight joins"));
+            }
             JoinType::Lateral { operator, .. } => operator,
         });
         sql.push_str(&self.source.compile(grammar, None, bindings)?);
@@ -212,6 +217,45 @@ impl Builder<'_> {
             JoinType::Cross,
             JoinClause::default(),
         )
+    }
+
+    pub fn crossJoinSub(self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
+        self.join_sub(query, alias, JoinType::Cross, |join| join)
+    }
+
+    pub fn straightJoin(self, table: &str, column: &str, operator: &str, other: &str) -> Self {
+        self.straightJoinWith(table, |join| join.on(column, operator, other))
+    }
+
+    pub fn straightJoinWhere(
+        self,
+        table: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> Self {
+        self.straightJoinWith(table, |join| join.r#where(column, operator, value))
+    }
+
+    pub fn straightJoinWith(
+        self,
+        table: &str,
+        configure: impl FnOnce(JoinClause) -> JoinClause,
+    ) -> Self {
+        self.add_join(
+            Source::Table(table.into()),
+            JoinType::Straight,
+            configure(JoinClause::default()),
+        )
+    }
+
+    pub fn straightJoinSub(
+        self,
+        query: &Builder<'_>,
+        alias: &str,
+        configure: impl FnOnce(JoinClause) -> JoinClause,
+    ) -> DatabaseResult<Self> {
+        self.join_sub(query, alias, JoinType::Straight, configure)
     }
 
     pub fn joinSub(

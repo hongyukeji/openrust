@@ -34,6 +34,99 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn cross_and_straight_join_variants() {
+    let mut connections = vec![(
+        connection(json!({"driver":"sqlite","database":":memory:","prefix":"app_"})),
+        false,
+    )];
+    if let Some(url) = mysql_url() {
+        connections.push((connection(json!({"url":url, "prefix":"app_"})), true));
+    }
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MARIADB_JOIN_URL") {
+        connections.push((connection(json!({"url":url, "prefix":"app_"})), true));
+    }
+    for (db, mysql_family) in connections {
+        for sql in [
+            "CREATE TABLE app_join_orders (id int PRIMARY KEY)",
+            "CREATE TABLE app_join_labels (order_id int, code varchar(20))",
+            "INSERT INTO app_join_orders VALUES (1), (2), (3)",
+            "INSERT INTO app_join_labels VALUES (1, 'blue'), (2, 'blue'), (3, 'red')",
+        ] {
+            db.unprepared(sql).await.unwrap();
+        }
+        let orders = || db.table("join_orders as o");
+        let labels = orders()
+            .subquery("join_labels")
+            .r#where("code", "=", "blue");
+        let cross = orders()
+            .crossJoinSub(&labels, "b")
+            .unwrap()
+            .r#where("o.id", ">", 1)
+            .orderBy("o.id", "asc");
+        assert!(cross.toSql().unwrap().contains(" cross join (select"));
+        assert_eq!(cross.getBindings().unwrap(), ["blue".into(), 1.into()]);
+        assert_eq!(
+            cross.pluck("o.id").await.unwrap(),
+            [2.into(), 2.into(), 3.into(), 3.into()]
+        );
+
+        let straight = orders().straightJoin("join_labels as b", "o.id", "=", "b.order_id");
+        let straight_sub = orders()
+            .straightJoinSub(&labels, "b", |join| {
+                join.on("o.id", "=", "b.order_id")
+                    .r#where("b.order_id", ">", 1)
+            })
+            .unwrap()
+            .r#where("o.id", "<", 4);
+        if mysql_family {
+            assert!(
+                straight
+                    .toSql()
+                    .unwrap()
+                    .contains(" straight_join `app_join_labels` as `app_b` on ")
+            );
+            assert_eq!(straight.count("*").await.unwrap(), 3);
+            assert_eq!(
+                straight_sub.getBindings().unwrap(),
+                ["blue".into(), 1.into(), 4.into()]
+            );
+            assert_eq!(straight_sub.pluck("o.id").await.unwrap(), [2.into()]);
+            assert_eq!(
+                orders()
+                    .straightJoinWhere("join_labels as b", "b.code", "=", "red")
+                    .r#where("o.id", "=", 1)
+                    .count("*")
+                    .await
+                    .unwrap(),
+                1
+            );
+            assert_eq!(
+                orders()
+                    .straightJoinWith("join_labels as b", |join| {
+                        join.on("o.id", "=", "b.order_id")
+                            .r#where("b.code", "=", "red")
+                    })
+                    .value("o.id")
+                    .await
+                    .unwrap(),
+                3.into()
+            );
+        } else {
+            assert!(matches!(
+                straight.toSql(),
+                Err(DatabaseError::UnsupportedOperation("straight joins"))
+            ));
+            assert!(matches!(
+                straight_sub.get().await,
+                Err(DatabaseError::UnsupportedOperation("straight joins"))
+            ));
+        }
+        db.unprepared("DROP TABLE app_join_labels").await.unwrap();
+        db.unprepared("DROP TABLE app_join_orders").await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn postgres_update_from_sources_conditions_and_rollback() {
     let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
     assert!(matches!(
