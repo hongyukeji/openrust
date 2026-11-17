@@ -1058,6 +1058,23 @@ Schema::table("documents", |table| {
 
 遷移中使用線上索引時，覆寫 [`withinTransaction()`](#migration-transactions) 並回傳 `false`。使用連線的 Schema 建構器。包含線上索引的 Blueprint 會逐一以自動提交模式執行。需要原子套用的變更應另用一個 Blueprint。若框架管理的交易仍在進行，這個 Blueprint 會在執行任何陳述式之前遭拒絕。並行建置失敗可能留下無效索引，可刪除後再試。
 
+#### 修改及刪除 SQL Server 欄位 {#sql-server-column-changes}
+
+SQL Server 的 `change()` 會先移除現有預設約束，再修改欄位型別與空值約束。Laravel 在 SQL Server 的改欄位陳述式中也會省略 `default()`。如需設定新預設值，請在同一遷移中另用 `ALTER TABLE … ADD DEFAULT … FOR …`。
+
+用 `dropColumn()` 刪除欄位時，建構器會先移除這些欄位的預設約束與欄位層級檢查約束。引用這些欄位的資料表層級約束需要先明確移除。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.string("label", Some(20)).nullable().change();
+        table.dropColumn(&["score"]);
+    }).await
+}
+```
+
 #### SQL Server 線上索引 {#sql-server-online-indexes}
 
 在支援線上索引操作的 SQL Server 版本上，對 `index()` 或 `unique()` 呼叫 `online()` 以使用 `WITH (ONLINE = ON)`。保留預設的[遷移交易](#migration-transactions)。使用 `dropForeign(name)` 依約束名稱移除外鍵。

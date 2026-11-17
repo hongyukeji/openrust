@@ -1058,6 +1058,23 @@ Schema::table("documents", |table| {
 
 迁移中使用在线索引时，覆盖 [`withinTransaction()`](#migration-transactions) 并返回 `false`。使用连接的 Schema 构建器。包含在线索引的 Blueprint 逐条以自动提交方式执行。需要原子应用的变更应另用一个 Blueprint。若框架管理的事务处于活动状态，这个 Blueprint 会在执行任何语句前被拒绝。并发构建失败可能留下无效索引，可删除后再试。
 
+#### 修改和删除 SQL Server 列 {#sql-server-column-changes}
+
+SQL Server 的 `change()` 会先移除现有默认约束，再修改列类型和空值约束。Laravel 在 SQL Server 的改列语句中也会省略 `default()`。如需设置新默认值，在同一迁移中另用 `ALTER TABLE … ADD DEFAULT … FOR …`。
+
+用 `dropColumn()` 删除列时，构建器会先移除这些列的默认约束和列级检查约束。引用这些列的表级约束需要先显式移除。
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.string("label", Some(20)).nullable().change();
+        table.dropColumn(&["score"]);
+    }).await
+}
+```
+
 #### SQL Server 在线索引 {#sql-server-online-indexes}
 
 在支持在线索引操作的 SQL Server 版本上，给 `index()` 或 `unique()` 调用 `online()` 以使用 `WITH (ONLINE = ON)`。保留默认的[迁移事务](#migration-transactions)。用 `dropForeign(name)` 按约束名删除外键。

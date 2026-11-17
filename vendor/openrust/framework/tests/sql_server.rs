@@ -216,3 +216,128 @@ async fn sql_server_online_indexes_and_named_foreign_key_drop() {
     schema.dropIfExists(&parent).await.unwrap();
     schema.dropIfExists(&child).await.unwrap();
 }
+
+#[tokio::test]
+async fn sql_server_column_changes_and_drops_handle_dependent_constraints() {
+    let root = tempfile::tempdir().unwrap();
+    let preview = ConnectionFactory
+        .make(
+            "sqlsrv",
+            json!({"driver":"sqlsrv","prefix":"test_"}),
+            root.path(),
+        )
+        .unwrap();
+    let statements = preview
+        .pretend(|db| {
+            Box::pin(async move {
+                db.getSchemaBuilder()
+                    .table("dbo.entries", |table| {
+                        table
+                            .string("label]'", Some(20))
+                            .nullable()
+                            .default("ignored")
+                            .change();
+                        table.dropColumn(&["score", "amount"]);
+                    })
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(statements.len(), 4);
+    assert!(
+        statements[0]
+            .query
+            .contains("object_id(N'[dbo].[test_entries]')")
+    );
+    assert!(statements[0].query.contains("c.name in (N'label]''')"));
+    assert!(statements[0].query.contains("quotename(d.name)"));
+    assert!(!statements[0].query.contains("sys.check_constraints"));
+    assert_eq!(
+        statements[1].query,
+        "alter table [dbo].[test_entries] alter column [label]]'] nvarchar(20) null"
+    );
+    assert!(statements[2].query.contains("sys.check_constraints"));
+    assert_eq!(
+        statements[3].query,
+        "alter table [dbo].[test_entries] drop column [score], [amount]"
+    );
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = ConnectionFactory
+        .make("sqlsrv", json!({"url":url}), root.path())
+        .unwrap();
+    db.unprepared("create schema changes").await.unwrap();
+    db.statement("create table changes.entries (label nvarchar(12) constraint [Default]]Label] default N'long value' not null, score int constraint [Default]]Score] default 4 constraint [Check]]Score] check (score >= 0), amount int default 5, keeper int constraint keep_default default 6, constraint keeper_check check (keeper >= 0))", &[]).await.unwrap();
+    db.statement("insert into changes.entries default values", &[])
+        .await
+        .unwrap();
+    let mut schema = db.getSchemaBuilder();
+    let result = schema
+        .table("changes.entries", |table| {
+            table.string("label", Some(2)).nullable().change();
+        })
+        .await;
+    assert!(result.is_err());
+    let column = schema
+        .getColumn("changes.entries", "label")
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!column.nullable);
+    assert!(column.default.is_some());
+    assert_eq!(
+        db.scalar("select label from changes.entries", &[])
+            .await
+            .unwrap(),
+        "long value".into()
+    );
+
+    schema
+        .table("changes.entries", |table| {
+            table
+                .string("label", Some(20))
+                .nullable()
+                .default("ignored")
+                .change();
+            table.dropColumn(&["score", "amount"]);
+        })
+        .await
+        .unwrap();
+
+    let columns = schema.getColumns("changes.entries").await.unwrap();
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        ["label", "keeper"]
+    );
+    assert!(columns[0].nullable);
+    assert!(columns[0].default.is_none());
+    assert!(columns[1].default.is_some());
+    assert_eq!(db.scalar("select count(*) from sys.check_constraints where parent_object_id = object_id('changes.entries') and name = 'keeper_check'", &[]).await.unwrap(), 1.into());
+    assert_eq!(
+        db.scalar("select label from changes.entries", &[])
+            .await
+            .unwrap(),
+        "long value".into()
+    );
+    db.statement("insert into changes.entries default values", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.scalar(
+            "select count(*) from changes.entries where label is null and keeper = 6",
+            &[]
+        )
+        .await
+        .unwrap(),
+        1.into()
+    );
+    schema.drop("changes.entries").await.unwrap();
+    db.statement("drop schema changes", &[]).await.unwrap();
+}

@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 03:03（北京时间）02-05 [SQL Server 原生改列与默认约束](audits/02-05/README.md#sql-server-原生改列与默认约束)。SQL Server 2022 实际 HTTP 与 Artisan、MySQL 8.4.13 回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 02:55（北京时间）02-05 [PostgreSQL 生成列与显式 Identity](audits/02-05/README.md#postgresql-生成列与显式-identity)。真实 PostgreSQL 18.6、HTTP 与 Artisan、MySQL 8.4.13 生成列和目录回归、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 02:45（北京时间）02-05 [PostgreSQL 列类型转换与修饰符](audits/02-05/README.md#postgresql-列类型转换与修饰符)。PostgreSQL 18.6 实际 HTTP 与 Artisan、MySQL 8.4.13 三项、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。
 - 2026-11-18 02:39（北京时间）02-05／02-06 [SQL Server 在线索引与具名外键](audits/02-05/README.md#sql-server-在线索引与具名外键)与[SQL Server 迁移失败回滚](audits/02-06/README.md#真实-sql-server-迁移失败回滚)。真实 SQL Server 2022、HTTP、Artisan、PostgreSQL 18.6 事务、MySQL 8.4.13 两项、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 62/66。

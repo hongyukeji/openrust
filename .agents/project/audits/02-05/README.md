@@ -494,3 +494,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - PostgreSQL 18.6 实测覆盖 `ALWAYS` 拒绝显式值、`BY DEFAULT` 接受显式值、序列起始和替换、移除 identity、存储值保留和虚拟列重算。实际 Artisan 预演、失败后零表和零账本、重试和回滚通过。HTTP 验证生成列和自增目录状态，独立 `artisan inspire` 通过。
 - PostgreSQL 定向测试、MySQL 8.4.13 生成列及 `sh tests/table_catalog.sh`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。PostgreSQL JSON 选择器形式的生成列，以及 SQL Server 原生改列继续跟踪。
 - 核心账本维持 62/66。临时数据库及本批编译和文档产物已回收，项目卷可用空间净增 3.70 GB（3.44 GiB），剩余 104.45 GB（97.28 GiB）。提交前周额度剩余 42%，第二窗口无读数。验收脚本与日志保留于 `/private/tmp/openrust-02-05-pg-generation.qRd0mXaU`。
+
+## SQL Server 原生改列与默认约束
+
+- 对照固定 Laravel 的 `compileChange`、`compileDropColumn` 和 `compileDropDefaultConstraint`。改列先按 Schema 限定的物理表名查询系统目录并删除现有默认约束，再执行原生 `ALTER COLUMN`。删除列先移除该列的默认约束和列级检查，表级约束由迁移显式处理。沿用 Laravel 的 `default()` 不参与 SQL Server 改列规则，新默认值可在同一迁移另行设置。Rust 对系统目录返回的约束名使用 `QUOTENAME`，处理包含方括号的原生名称。旧版 `v0.x` 未找到可复用的 SQL Server 默认约束 DDL。 [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php#L239)
+- SQL Server 2022 Developer 16.0.4325.4 在 Apple Silicon 的 Linux amd64 兼容容器中通过三项 Schema／TDS 用例及迁移事务用例。验证默认约束名转义、列级检查移除、表级检查和其他列默认值保留，以及收窄失败后原数据和旧默认约束恢复。实际 Artisan 预演、失败后账本无记录、成功重跑及回滚通过。HTTP 验证去除默认约束和删列，以及回滚后列与默认约束恢复。
+- MySQL 8.4.13 改列及表目录回归、Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。原生 Linux x86_64 与 SQL Server 2017 仍待发布复验。SQL Server 计算列的持久化方式切换尚待对齐。
+- 核心账本维持 62/66。临时数据库、证书和本批编译及文档产物已回收，项目盘可用空间净增 3.96 GB（3.68 GiB），剩余 104.38 GB（97.21 GiB）。提交前周额度剩余 42%。日志和夹具位于 `/private/tmp/openrust-02-05-sqlsrv-change.xipEUxRa`。

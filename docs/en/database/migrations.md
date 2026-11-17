@@ -1058,6 +1058,23 @@ Schema::table("documents", |table| {
 
 Inside a migration, override [`withinTransaction()`](#migration-transactions) to return `false`. Use the connection’s Schema builder. A blueprint containing an online index runs its statements individually in autocommit mode. Keep that blueprint separate from changes you want to apply atomically. An active framework-managed transaction rejects the blueprint before executing any of its statements. A failed concurrent build can leave an invalid index, which you can drop before retrying.
 
+#### Changing and Dropping SQL Server Columns {#sql-server-column-changes}
+
+On SQL Server, `change()` removes the column’s current default constraint before altering its type and nullability. Laravel also omits `default()` from the SQL Server change statement. To set a new default, add it separately with `ALTER TABLE … ADD DEFAULT … FOR …` in the same migration.
+
+When `dropColumn()` removes columns, the builder first removes their default constraints and column-level checks. Remove any table-level constraints that depend on those columns before dropping them.
+
+```rust
+use openrust::database::{DatabaseResult, migrations::MigrationContext};
+
+async fn update_columns(cx: &mut MigrationContext) -> DatabaseResult<()> {
+    cx.getSchemaBuilder().table("finance.fixture", |table| {
+        table.string("label", Some(20)).nullable().change();
+        table.dropColumn(&["score"]);
+    }).await
+}
+```
+
 #### SQL Server Online Indexes {#sql-server-online-indexes}
 
 On SQL Server editions that support online index operations, call `online()` on `index()` or `unique()` to use `WITH (ONLINE = ON)`. Keep the default [migration transaction](#migration-transactions). Use `dropForeign(name)` to remove a foreign key by its constraint name.

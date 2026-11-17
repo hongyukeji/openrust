@@ -340,6 +340,16 @@ impl Grammar {
                     self.postgres_change(&qualified, &column, &mut sql)?;
                     self.column_indexes(table, &column, &column.name, &mut indexes)?;
                 }
+                Command::Column(column) if self.sql_server() && column.change => {
+                    let definition = self.column(&column, false)?;
+                    sql.push(self.sql_server_drop_column_constraints(
+                        &qualified,
+                        std::slice::from_ref(&column.name),
+                        false,
+                    )?);
+                    sql.push(format!("alter table {qualified} alter column {definition}"));
+                    self.column_indexes(table, &column, &column.name, &mut indexes)?;
+                }
                 Command::Column(mut column) => {
                     let mut previous_name = None;
                     let rename;
@@ -418,6 +428,18 @@ impl Grammar {
                         self.ddl_options(drop.instant.then_some("instant"), drop.lock.as_deref())?;
                     if drop.columns.is_empty() {
                         return Err(DatabaseError::InvalidSchema("empty column list"));
+                    }
+                    if self.sql_server() {
+                        sql.push(self.sql_server_drop_column_constraints(
+                            &qualified,
+                            &drop.columns,
+                            true,
+                        )?);
+                        sql.push(format!(
+                            "alter table {qualified} drop column {}",
+                            self.columns(&drop.columns)?
+                        ));
+                        continue;
                     }
                     let clauses = drop
                         .columns
@@ -1014,13 +1036,24 @@ impl Grammar {
                 | ColumnType::Integer
                 | ColumnType::BigInteger
         );
-        let default = self.column_default(column);
+        let sql_server_change = self.sql_server() && column.change;
+        if sql_server_change && column.generated.is_some() {
+            return Err(DatabaseError::UnsupportedSchema(
+                "SQL Server computed column change",
+            ));
+        }
+        let default = if sql_server_change {
+            None
+        } else {
+            self.column_default(column)
+        };
         let nullable = column.nullable.unwrap_or(false);
-        if column.increment && (!integer || nullable || default.is_some()) {
+        let increment = column.increment && !sql_server_change;
+        if increment && (!integer || nullable || default.is_some()) {
             return Err(DatabaseError::InvalidSchema("auto increment column"));
         }
         let mut sql = format!("{} {kind}", self.identifier(&column.name)?);
-        if self.sql_server() && column.increment {
+        if self.sql_server() && increment {
             sql.push_str(" identity(1,1)");
         }
         if self.mysql() && column.unsigned {
@@ -1119,7 +1152,7 @@ impl Grammar {
             if !explicit_primary && (column.increment || column.primary) {
                 sql.push_str(" primary key");
             }
-        } else if column.increment {
+        } else if increment {
             if self.mysql() {
                 sql.push_str(" auto_increment");
                 if !explicit_primary && (!column.change || column.primary) {
@@ -1132,7 +1165,7 @@ impl Grammar {
             } else {
                 sql.push_str(" primary key autoincrement");
             }
-        } else if column.primary {
+        } else if column.primary && !sql_server_change {
             sql.push_str(" primary key");
         }
         if self.mysql()
@@ -1147,6 +1180,40 @@ impl Grammar {
             }
             None => {}
         }
+        Ok(sql)
+    }
+
+    fn sql_server_drop_column_constraints(
+        &self,
+        table: &str,
+        columns: &[String],
+        dropping_columns: bool,
+    ) -> DatabaseResult<String> {
+        let table_literal = self.string(table)?;
+        let drop = self.string(&format!("alter table {table} drop constraint "))?;
+        let columns = columns
+            .iter()
+            .map(|name| self.string(name))
+            .collect::<DatabaseResult<Vec<_>>>()?
+            .join(", ");
+        let mut sql = format!(
+            "declare @sql nvarchar(max) = N''; \
+             select @sql += {drop} + quotename(d.name) + N';' \
+             from sys.default_constraints d join sys.columns c \
+                 on c.object_id = d.parent_object_id and c.column_id = d.parent_column_id \
+             where d.parent_object_id = object_id({table_literal}) and c.name in ({columns}); "
+        );
+        if dropping_columns {
+            write!(
+                sql,
+                "select @sql += {drop} + quotename(k.name) + N';' \
+                 from sys.check_constraints k join sys.columns c \
+                     on c.object_id = k.parent_object_id and c.column_id = k.parent_column_id \
+                 where k.parent_object_id = object_id({table_literal}) and c.name in ({columns}); "
+            )
+            .expect("writing to a String");
+        }
+        sql.push_str("exec sys.sp_executesql @sql");
         Ok(sql)
     }
 
