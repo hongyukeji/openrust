@@ -10,7 +10,8 @@ use crate::{
 };
 
 use super::{
-    BroadcastException, BroadcastManager, BroadcastResult, ChannelOptions, ChannelRegistry,
+    BroadcastException, BroadcastManager, BroadcastResult, ChannelBindings, ChannelOptions,
+    ChannelRegistry,
 };
 
 tokio::task_local! {
@@ -58,8 +59,23 @@ impl Broadcast {
         handler: impl ChannelHandler + 'static,
         options: ChannelOptions,
     ) -> BroadcastResult<()> {
+        Self::channelWithBindings(pattern, handler, options, ChannelBindings::default())
+    }
+
+    /// Registers channel parameters that use model route binding.
+    #[allow(non_snake_case, reason = "Matches Laravel channel binding naming")]
+    pub fn channelWithBindings(
+        pattern: &str,
+        handler: impl ChannelHandler + 'static,
+        options: ChannelOptions,
+        bindings: ChannelBindings,
+    ) -> BroadcastResult<()> {
         CHANNELS
-            .try_with(|channels| channels.borrow_mut().register(pattern, handler, options))
+            .try_with(|channels| {
+                channels
+                    .borrow_mut()
+                    .register(pattern, handler, options, bindings)
+            })
             .map_err(|_| BroadcastException::NoRegistrationScope)?
     }
 

@@ -304,6 +304,10 @@ impl Router {
         }
     }
 
+    pub(crate) fn parameter_bindings(&self) -> &HashMap<String, Resolver> {
+        &self.bindings
+    }
+
     pub fn bind<T, F>(&mut self, name: impl Into<String>, resolve: F) -> &mut Self
     where
         T: Send + Sync + 'static,

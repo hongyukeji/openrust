@@ -28,10 +28,10 @@ impl BroadcastController {
         router: &mut Router,
         register: fn() -> BroadcastResult<()>,
     ) -> Result<(), RoutingError> {
-        let channels = Arc::new(
-            Broadcast::register(register)
-                .map_err(|source| RoutingError::BroadcastRegistration { source })?,
-        );
+        let mut channels = Broadcast::register(register)
+            .map_err(|source| RoutingError::BroadcastRegistration { source })?;
+        channels.use_route_bindings(router.parameter_bindings());
+        let channels = Arc::new(channels);
         let container = app.container();
         container
             .instance(channels.clone())
@@ -85,6 +85,7 @@ fn http_error(error: BroadcastException) -> HttpError {
         BroadcastException::AccessDenied => {
             HttpError::AuthorizationDenied("Broadcast channel access denied.".into())
         }
+        BroadcastException::Binding(error) => error,
         BroadcastException::InvalidChannel => HttpError::InvalidRequest,
         source => HttpError::Internal {
             source: Box::new(source),

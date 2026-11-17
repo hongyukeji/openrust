@@ -12,6 +12,10 @@ Register channel rules with `Broadcast::channel` and load them through `Routing:
 
 Rules such as `orders.{id}` receive the authenticated user and named parameters. Return `ChannelAuthorization::Allowed` for an authorized private subscription or `ChannelAuthorization::Presence(data)` to expose the specified member data. Use `channelWithOptions` to select the guard lookup order. Run `artisan channel:list` to inspect the registered patterns.
 
+Use `channelWithBindings` with `ChannelBindings::default().model::<Order>("order")` for `orders.{order}`. Implement `ChannelHandler::joinBound` and read the model with `models.get::<Order>("order")`. This uses the model’s route key, including a custom key such as a slug. A missing implicit model denies authorization with HTTP 403. Explicit router bindings registered with `Router::bind` or `Router::model` take precedence for the same parameter name. A missing explicit binding returns HTTP 404. Channel models are resolved independently of one another.
+
+Overlapping rules run in registration order using the first matching pattern's guards. Return `ChannelAuthorization::Abstain` to try the next rule, or `Denied` to deny the request immediately.
+
 ## Defining broadcast events
 
 Implement `ShouldBroadcast` and register the compiled type with `Dispatcher::registerBroadcast::<E>()` in a provider. Normal event dispatch then queues the delivery. For an event implementing `ShouldBroadcastNow`, use `registerBroadcastNow::<E>()` to deliver it synchronously.

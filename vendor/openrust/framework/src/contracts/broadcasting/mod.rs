@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::{
     broadcasting::{
         BroadcastChannel, BroadcastFuture, BroadcastPayload, BroadcastResult, ChannelAuthorization,
-        ChannelParameters,
+        ChannelModels, ChannelParameters,
     },
     contracts::{auth::Authenticatable, events::Event},
     http::{Request, Response},
@@ -42,9 +42,20 @@ pub trait Broadcaster: Send + Sync {
 pub trait ChannelHandler: Send + Sync {
     fn join<'a>(
         &'a self,
+        _user: &'a dyn Authenticatable,
+        _parameters: &'a ChannelParameters,
+    ) -> BroadcastFuture<'a, BroadcastResult<ChannelAuthorization>> {
+        Box::pin(async { Ok(ChannelAuthorization::Denied) })
+    }
+
+    fn joinBound<'a>(
+        &'a self,
         user: &'a dyn Authenticatable,
         parameters: &'a ChannelParameters,
-    ) -> BroadcastFuture<'a, BroadcastResult<ChannelAuthorization>>;
+        _models: &'a ChannelModels,
+    ) -> BroadcastFuture<'a, BroadcastResult<ChannelAuthorization>> {
+        self.join(user, parameters)
+    }
 }
 
 impl<F> ChannelHandler for F

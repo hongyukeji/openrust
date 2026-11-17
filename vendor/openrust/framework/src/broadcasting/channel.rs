@@ -34,12 +34,18 @@ impl BroadcastChannel {
     }
 }
 
+use std::{any::Any, collections::HashMap};
+
 use regex::Regex;
 
 use crate::{
     auth::{Auth, AuthIdentifier},
-    contracts::{auth::Authenticatable, broadcasting::ChannelHandler},
-    http::Request,
+    contracts::{auth::Authenticatable, broadcasting::ChannelHandler, routing::UrlRoutable},
+    http::{HttpError, Request, RequestParts},
+    routing::{
+        BindingContext,
+        binding::{self, Resolver, RouteModels},
+    },
 };
 
 use super::{
@@ -50,6 +56,7 @@ use super::{
 #[derive(Default)]
 pub struct ChannelRegistry {
     rules: Vec<Rule>,
+    explicit: HashMap<String, Resolver>,
 }
 
 struct Rule {
@@ -57,6 +64,28 @@ struct Rule {
     pattern: Regex,
     handler: Box<dyn ChannelHandler>,
     options: ChannelOptions,
+    bindings: ChannelBindings,
+}
+
+/// Models to resolve by their capture names using the model route-key lookup.
+#[derive(Default)]
+pub struct ChannelBindings(HashMap<String, Resolver>);
+
+impl ChannelBindings {
+    pub fn model<T: UrlRoutable>(mut self, name: impl Into<String>) -> Self {
+        self.0.insert(name.into(), binding::model::<T>());
+        self
+    }
+}
+
+/// Typed values resolved for a matching channel.
+#[derive(Default)]
+pub struct ChannelModels(RouteModels);
+
+impl ChannelModels {
+    pub fn get<T: Any>(&self, name: &str) -> Option<&T> {
+        self.0.get(name)?.downcast_ref()
+    }
 }
 
 impl ChannelRegistry {
@@ -65,6 +94,7 @@ impl ChannelRegistry {
         name: &str,
         handler: impl ChannelHandler + 'static,
         options: ChannelOptions,
+        bindings: ChannelBindings,
     ) -> BroadcastResult<()> {
         let mut expression = String::from(r"\A");
         let mut rest = name;
@@ -92,11 +122,19 @@ impl ChannelRegistry {
         expression.push_str(&regex::escape(rest));
         expression.push_str(r"\z");
         let pattern = Regex::new(&expression).map_err(|_| BroadcastException::InvalidChannel)?;
+        if bindings
+            .0
+            .keys()
+            .any(|key| !pattern.capture_names().flatten().any(|name| name == key))
+        {
+            return Err(BroadcastException::InvalidChannel);
+        }
         let rule = Rule {
             name: name.to_owned(),
             pattern,
             handler: Box::new(handler),
             options,
+            bindings,
         };
         if let Some(previous) = self.rules.iter_mut().find(|rule| rule.name == name) {
             *previous = rule;
@@ -104,6 +142,10 @@ impl ChannelRegistry {
             self.rules.push(rule);
         }
         Ok(())
+    }
+
+    pub(crate) fn use_route_bindings(&mut self, bindings: &HashMap<String, Resolver>) {
+        self.explicit.clone_from(bindings);
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -116,10 +158,7 @@ impl ChannelRegistry {
         channel: &str,
         user: &dyn Authenticatable,
     ) -> BroadcastResult<ChannelAuthorization> {
-        match self.matched(channel) {
-            Some((rule, parameters)) => rule.handler.join(user, &parameters).await,
-            None => Ok(ChannelAuthorization::Denied),
-        }
+        self.authorize_matching(channel, user, None).await
     }
 
     /// Resolves the matching rule's guards against the incoming request.
@@ -145,9 +184,14 @@ impl ChannelRegistry {
         channel: &str,
         request: &mut Request,
     ) -> BroadcastResult<(Option<AuthIdentifier>, ChannelAuthorization)> {
-        let Some((rule, parameters)) = self.matched(channel) else {
+        let Some(rule) = self
+            .rules
+            .iter()
+            .find(|rule| rule.pattern.is_match(channel))
+        else {
             return Ok((None, ChannelAuthorization::Denied));
         };
+        let parts = request.parts().clone();
         let guards = rule.options.guards.iter().map(|guard| Some(guard.as_str()));
         let default = rule.options.guards.is_empty().then_some(None);
         for name in default.into_iter().chain(guards) {
@@ -158,7 +202,7 @@ impl ChannelRegistry {
                 .await
                 .map_err(|error| BroadcastException::Backend(Box::new(error)))?
             {
-                let authorization = rule.handler.join(user, &parameters).await?;
+                let authorization = self.authorize_matching(channel, user, Some(&parts)).await?;
                 return Ok((Some(user.get_auth_identifier()), authorization));
             }
         }
@@ -169,20 +213,48 @@ impl ChannelRegistry {
         self.rules.iter().map(|rule| rule.name.as_str())
     }
 
-    fn matched(&self, channel: &str) -> Option<(&Rule, ChannelParameters)> {
-        self.rules.iter().find_map(|rule| {
-            let captures = rule.pattern.captures(channel)?;
-            let parameters = rule
-                .pattern
-                .capture_names()
-                .flatten()
-                .filter_map(|name| {
-                    captures
-                        .name(name)
-                        .map(|value| (name.into(), value.as_str().into()))
+    async fn authorize_matching(
+        &self,
+        channel: &str,
+        user: &dyn Authenticatable,
+        request: Option<&RequestParts>,
+    ) -> BroadcastResult<ChannelAuthorization> {
+        for rule in &self.rules {
+            let Some(captures) = rule.pattern.captures(channel) else {
+                continue;
+            };
+            let mut parameters = ChannelParameters::new();
+            let mut models = ChannelModels::default();
+            for name in rule.pattern.capture_names().flatten() {
+                let value = &captures[name];
+                parameters.insert(name.into(), value.into());
+                let explicit = self.explicit.get(name);
+                let Some(resolve) = explicit.or_else(|| rule.bindings.0.get(name)) else {
+                    continue;
+                };
+                let request = request.ok_or(BroadcastException::AccessDenied)?;
+                let model = resolve(BindingContext {
+                    request,
+                    value,
+                    field: None,
+                    parent: None,
+                    with_trashed: false,
+                    models: &models.0,
                 })
-                .collect();
-            Some((rule, parameters))
-        })
+                .await
+                .map_err(BroadcastException::Binding)?;
+                let model = model.ok_or(if explicit.is_some() {
+                    BroadcastException::Binding(HttpError::NotFound)
+                } else {
+                    BroadcastException::AccessDenied
+                })?;
+                models.0.insert(name.into(), model);
+            }
+            let decision = rule.handler.joinBound(user, &parameters, &models).await?;
+            if !matches!(decision, ChannelAuthorization::Abstain) {
+                return Ok(decision);
+            }
+        }
+        Ok(ChannelAuthorization::Denied)
     }
 }

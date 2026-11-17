@@ -14,7 +14,10 @@ pub use broadcast_event::BroadcastEvent;
 pub(crate) use broadcast_event::JOB;
 pub use broadcast_manager::BroadcastManager;
 pub use broadcast_service_provider::BroadcastServiceProvider;
-pub use channel::{BroadcastChannel, Channel, ChannelRegistry, PresenceChannel, PrivateChannel};
+pub use channel::{
+    BroadcastChannel, Channel, ChannelBindings, ChannelModels, ChannelRegistry, PresenceChannel,
+    PrivateChannel,
+};
 pub use facade::Broadcast;
 
 pub type BroadcastFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -27,6 +30,7 @@ pub enum BroadcastException {
     NoRegistrationScope,
     InvalidChannel,
     AccessDenied,
+    Binding(crate::http::HttpError),
     UnknownConnection(String),
     InvalidConnection(String),
     UnknownDriver(String),
@@ -42,6 +46,7 @@ impl fmt::Display for BroadcastException {
             }
             Self::InvalidChannel => formatter.write_str("Invalid broadcast channel pattern."),
             Self::AccessDenied => formatter.write_str("Broadcast channel access denied."),
+            Self::Binding(_) => formatter.write_str("Broadcast channel binding failed."),
             Self::UnknownConnection(name) => {
                 write!(formatter, "Unknown broadcast connection '{name}'.")
             }
@@ -61,6 +66,7 @@ impl fmt::Display for BroadcastException {
 impl Error for BroadcastException {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::Binding(error) => Some(error),
             Self::Backend(error) => Some(error.as_ref()),
             _ => None,
         }
@@ -78,6 +84,8 @@ pub struct ChannelOptions {
 
 /// Authorization decisions for private and presence subscriptions.
 pub enum ChannelAuthorization {
+    /// Continue evaluating later matching rules.
+    Abstain,
     Denied,
     Allowed,
     Presence(BroadcastPayload),

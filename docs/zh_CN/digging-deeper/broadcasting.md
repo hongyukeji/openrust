@@ -12,6 +12,10 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 注册驱动名和构造
 
 `orders.{id}` 等规则接收已认证用户和命名参数。允许私有订阅时返回 `ChannelAuthorization::Allowed`，公开在线成员资料时返回 `ChannelAuthorization::Presence(data)`。用 `channelWithOptions` 指定守卫的查找顺序。运行 `artisan channel:list` 查看注册的规则。
 
+对于 `orders.{order}`，使用 `channelWithBindings` 和 `ChannelBindings::default().model::<Order>("order")` 声明模型参数。实现 `ChannelHandler::joinBound`，通过 `models.get::<Order>("order")` 读取模型。查询使用模型的路由键，支持 slug 等自定义键。隐式模型缺失时返回 HTTP 403。同名的 `Router::bind` 或 `Router::model` 显式绑定优先，查找不到时返回 HTTP 404。各频道模型分别解析。
+
+重叠规则按注册顺序执行，使用首个匹配规则指定的守卫。返回 `ChannelAuthorization::Abstain` 继续尝试下一条规则，返回 `Denied` 则立即拒绝。
+
 ## 定义广播事件
 
 实现 `ShouldBroadcast`，在 Provider 中调用 `Dispatcher::registerBroadcast::<E>()` 注册编译后的类型。常规事件分发随后将投递送入队列。实现 `ShouldBroadcastNow` 的事件使用 `registerBroadcastNow::<E>()` 注册，分发时同步投递。

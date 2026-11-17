@@ -12,21 +12,25 @@ use openrust::{
     auth::{AuthIdentifier, AuthManager},
     broadcasting::{
         BroadcastChannel, BroadcastException, BroadcastFuture, BroadcastManager, BroadcastPayload,
-        BroadcastResult, Channel, ChannelAuthorization, ChannelOptions, ChannelParameters,
-        PresenceChannel, PrivateChannel,
+        BroadcastResult, Channel, ChannelAuthorization, ChannelBindings, ChannelModels,
+        ChannelOptions, ChannelParameters, PresenceChannel, PrivateChannel,
     },
     contracts::{
         auth::Authenticatable,
-        broadcasting::{Broadcaster, Factory, ShouldBroadcast, ShouldBroadcastNow},
+        broadcasting::{Broadcaster, ChannelHandler, Factory, ShouldBroadcast, ShouldBroadcastNow},
         events::{Dispatcher as _, Event, ShouldDispatchAfterCommit},
         foundation::Application as _,
         http::Kernel as _,
     },
-    database::DatabaseManager,
+    database::{
+        DatabaseManager, Value as DbValue,
+        eloquent::{Model, ModelMetadata, ModelState},
+    },
     events::{DispatchResult, Dispatcher, EventContext},
-    foundation::{Application, http::Kernel},
+    foundation::{Application, configuration::Routing, http::Kernel},
     http::{Request, Response, StatusCode},
     queue::{JobContext, QueueManager},
+    routing::{Router, RoutingError},
     support::{ProviderResult, ServiceProvider, facades::Broadcast},
 };
 use serde_json::{Value, json};
@@ -79,7 +83,9 @@ impl Broadcaster for Recorder {
             let response = match result {
                 ChannelAuthorization::Presence(data) => json!({"member": data}),
                 ChannelAuthorization::Allowed => json!({"authorized": true}),
-                ChannelAuthorization::Denied => return Err(BroadcastException::AccessDenied),
+                ChannelAuthorization::Denied | ChannelAuthorization::Abstain => {
+                    return Err(BroadcastException::AccessDenied);
+                }
             };
             Response::json(StatusCode::OK, response)
                 .map_err(|source| BroadcastException::Backend(Box::new(source)))
@@ -154,6 +160,7 @@ impl ServiceProvider for Register {
                         .then(|| Box::new(Identity) as Box<dyn Authenticatable>))
                 })
             });
+            auth.viaRequest("empty", |_| Box::pin(async { Ok(None) }));
             let dispatcher = app.make::<Dispatcher>().await?;
             dispatcher.registerBroadcastNow::<Notice<1>>();
             dispatcher.markAfterCommit::<Notice<1>>();
@@ -202,6 +209,75 @@ impl<const MODE: u8> ShouldBroadcast for Notice<MODE> {
 impl ShouldBroadcastNow for Notice<1> {}
 impl ShouldDispatchAfterCommit for Notice<1> {}
 
+struct Room(ModelState);
+
+impl Model for Room {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("channel_rooms").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+    fn getRouteKeyName() -> &'static str {
+        "slug"
+    }
+}
+
+struct RoomChannel;
+
+impl ChannelHandler for RoomChannel {
+    fn joinBound<'a>(
+        &'a self,
+        user: &'a dyn Authenticatable,
+        parameters: &'a ChannelParameters,
+        models: &'a ChannelModels,
+    ) -> BroadcastFuture<'a, BroadcastResult<ChannelAuthorization>> {
+        Box::pin(async move {
+            if let Some(value) = models.get::<String>("explicit") {
+                return Ok(if value == "bound" {
+                    ChannelAuthorization::Allowed
+                } else {
+                    ChannelAuthorization::Denied
+                });
+            }
+            let room = models
+                .get::<Room>("room")
+                .expect("room argument should be bound");
+            let owner = room.getAttributeValue("owner").unwrap();
+            let allowed = match owner {
+                Some(DbValue::Text(owner)) => {
+                    user.get_auth_identifier() == AuthIdentifier::String(owner)
+                }
+                _ => false,
+            };
+            Ok(if allowed {
+                ChannelAuthorization::Presence(BroadcastPayload::from_iter([(
+                    "room".into(),
+                    json!(parameters["room"].clone()),
+                )]))
+            } else {
+                ChannelAuthorization::Denied
+            })
+        })
+    }
+}
+
+fn routes(_: &Application) -> Result<Router, RoutingError> {
+    let mut router = Router::new();
+    router.bind("explicit", |context| {
+        Box::pin(async move { Ok((context.value() == "key").then(|| "bound".to_owned())) })
+    });
+    Ok(router)
+}
+
 fn channels() -> BroadcastResult<()> {
     let options = || ChannelOptions {
         guards: vec!["header".into()],
@@ -227,7 +303,40 @@ fn channels() -> BroadcastResult<()> {
             )))
         },
         options(),
-    )
+    )?;
+    Broadcast::channelWithBindings(
+        "models.{room}",
+        RoomChannel,
+        ChannelOptions {
+            guards: vec!["empty".into(), "header".into()],
+        },
+        ChannelBindings::default().model::<Room>("room"),
+    )?;
+    Broadcast::channelWithBindings(
+        "explicit.{explicit}",
+        RoomChannel,
+        options(),
+        ChannelBindings::default().model::<Room>("explicit"),
+    )?;
+    Broadcast::channelWithOptions(
+        "overlap.{room}",
+        |_: &dyn Authenticatable, parameters: &ChannelParameters| {
+            Ok(if parameters["room"] == "deny" {
+                ChannelAuthorization::Denied
+            } else {
+                ChannelAuthorization::Abstain
+            })
+        },
+        options(),
+    )?;
+    for pattern in ["overlap.allow", "overlap.deny"] {
+        Broadcast::channelWithOptions(
+            pattern,
+            |_: &dyn Authenticatable, _: &ChannelParameters| Ok(ChannelAuthorization::Allowed),
+            options(),
+        )?;
+    }
+    Ok(())
 }
 
 fn application(recorder: Arc<Recorder>) -> Application {
@@ -235,13 +344,15 @@ fn application(recorder: Arc<Recorder>) -> Application {
         .withConfig(|_, _| {
             Ok([
                 ("app".into(), json!({"key": "x".repeat(32)})),
-                ("auth".into(), json!({"guards":{"header":{"driver":"header"}}})),
+                ("auth".into(), json!({"guards":{"header":{"driver":"header"},"empty":{"driver":"empty"}}})),
+                ("database".into(), json!({"default":"broadcast","connections":{"broadcast":{"driver":"sqlite","database":":memory:"}}})),
                 ("session".into(), json!({"driver":"array","lottery":[0,100]})),
                 ("broadcasting".into(), json!({"default":"probe","connections":{"probe":{"driver":"record"}}})),
                 ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
                 ("queue".into(), json!({"default":"db","connections":{"db":{"driver":"database","queue":"default","table":"jobs","retry_after":30}}})),
             ].into())
         })
+        .withRouting(Routing::new(routes))
         .withBroadcasting(channels)
         .withProviders(vec![Box::new(Register(recorder))])
         .create().unwrap()
@@ -256,7 +367,29 @@ async fn transport(
 
 #[tokio::test]
 async fn actual_channel_requests_use_guard_rules_and_presence_payloads() {
-    let mut kernel = Kernel::new(application(Arc::default()));
+    let mut app = application(Arc::default());
+    app.boot().await.unwrap();
+    let db = app
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    db.getSchemaBuilder()
+        .create("channel_rooms", |table| {
+            table.id();
+            table.string("slug", 100).unique();
+            table.string("owner", 100);
+        })
+        .await
+        .unwrap();
+    db.statement(
+        "insert into channel_rooms (slug, owner) values ('lobby', '42'), ('other', '99')",
+        &[],
+    )
+    .await
+    .unwrap();
+    let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -292,6 +425,38 @@ async fn actual_channel_requests_use_guard_rules_and_presence_payloads() {
         ("GET", "orders.42", "42", 403, Value::Null),
         ("GET", "private-missing.42", "42", 403, Value::Null),
         ("PUT", "private-orders.42", "42", 405, Value::Null),
+        (
+            "POST",
+            "presence-models.lobby",
+            "42",
+            200,
+            json!({"member":{"room":"lobby"}}),
+        ),
+        ("GET", "presence-models.other", "42", 403, Value::Null),
+        ("GET", "presence-models.missing", "42", 403, Value::Null),
+        (
+            "GET",
+            "presence-models.lobby",
+            "anonymous",
+            403,
+            Value::Null,
+        ),
+        (
+            "GET",
+            "private-explicit.key",
+            "42",
+            200,
+            json!({"authorized":true}),
+        ),
+        ("GET", "private-explicit.missing", "42", 404, Value::Null),
+        (
+            "GET",
+            "private-overlap.allow",
+            "42",
+            200,
+            json!({"authorized":true}),
+        ),
+        ("GET", "private-overlap.deny", "42", 403, Value::Null),
     ] {
         let response = client
             .request(

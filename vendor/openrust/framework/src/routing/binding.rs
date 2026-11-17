@@ -7,7 +7,7 @@ use crate::{
 };
 
 pub(crate) type RouteModels = HashMap<String, ParameterValue>;
-pub(super) type Resolver = Arc<
+pub(crate) type Resolver = Arc<
     dyn for<'a> Fn(BindingContext<'a>) -> HttpFuture<'a, Result<Option<ParameterValue>, HttpError>>
         + Send
         + Sync,
@@ -74,7 +74,7 @@ where
     })
 }
 
-pub(super) fn model<T: UrlRoutable>() -> Resolver {
+pub(crate) fn model<T: UrlRoutable>() -> Resolver {
     resolver(|mut binding| {
         binding.field = binding.field.or_else(|| Some(T::get_route_key_name()));
         if binding.parent.is_some() {

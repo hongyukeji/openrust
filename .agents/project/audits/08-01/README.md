@@ -4,7 +4,7 @@
 
 - 应用按配置解析并缓存广播连接，内置 `null`、`log`，支持显式注册驱动。`Routing::channels` 和 `withBroadcasting` 启用 Web 组的 GET／POST 授权路由，排除请求伪造防护中间件并保留频道守卫、命名参数和驱动授权。Artisan `channel:list` 显示当前应用的规则。
 - Rust 通过编译型事件注册把具体类型接到既有 Dispatcher，以显式 `broadcastData` 表达可广播字段。同步投递及队列投递共用一份交付数据；队列序列化在分发时捕获的载荷和频道。事务回滚丢弃延迟操作；提交后由既有事务回调或队列处理。来源套接字由 `EventContext::toOthers` 读取并转交驱动。
-- Reverb 签名、客户端订阅、在线成员名单协议和跨进程 Redis 属于 08-02。Pusher、Ably 和 Mercure 的外部传输、模型频道参数自动绑定、广播唯一任务及匿名广播仍待实现。
+- Reverb 签名、客户端订阅、在线成员名单协议和跨进程 Redis 属于 08-02。Pusher、Ably 和 Mercure 的外部传输、当时模型频道参数绑定、广播唯一任务及匿名广播仍待实现。
 
 ## 验收
 
@@ -18,3 +18,9 @@
 ## 2026-11-12 遗漏回归补交
 
 独立频道注册作用域、GET/POST 授权、无驱动拒绝及 Web 中间件轨迹，新增 1 项。 与同文件其他单元按测试项拆分。隔离副本用 Rust 1.94.0 锁定离线运行当前分块测试及严格 Clippy，均通过。三语正文沿用原提交。
+
+## 频道授权与模型参数绑定
+
+- 固定 Laravel 依注册顺序匹配频道，先尝试同名显式路由绑定，再尝试频道参数的模型解析。隐式模型未找到返回 403，显式模型未找到沿用路由错误。Rust 通过 `ChannelBindings` 声明模型，复用 `UrlRoutable`、现有路由解析器及模型自定义键。守卫沿用首个匹配规则的顺序。回调拒绝立即终止，弃权继续匹配。 [固定 Broadcaster](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Broadcasting/Broadcasters/Broadcaster.php)
+- 真实 TCP HTTP 端点以 SQLite 验证 slug 模型绑定、成员数据、模型不存在、其他所有者和无身份拒绝、守卫回退、显式绑定优先与缺失、重叠规则的拒绝和继续。实际 Artisan `channel:list` 列出七个规则，现有数据库广播与 `queue:work` 回归通过。
+- Rust 1.94.0 锁定离线运行 2 项广播回归及工作区全目标全特性严格 Clippy。三语站点构建和浏览器检查通过。匿名广播和唯一任务仍待验收。
