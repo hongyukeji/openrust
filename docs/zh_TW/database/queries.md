@@ -234,7 +234,7 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 }
 ```
 
-MySQL 支援純量和陣列候選值。SQLite 的包含條件接受純量。值為 JSON null 的鍵依然存在。路徑和值均透過參數繫結傳入 SQL。
+MySQL 和 PostgreSQL 支援純量、陣列及物件候選值。SQLite 的包含條件接受純量。值為 JSON null 的鍵仍存在。PostgreSQL 對 `json` 和 `jsonb` 欄位使用原生 JSONB 包含運算，並用 `jsonb_array_length` 檢查所選陣列的長度。鍵存在條件支援物件鍵和陣列索引，包括 `options->languages[-1]` 這樣的負索引。鍵不存在或文件為 SQL NULL 時，存在條件會傳回 false。PostgreSQL 將路徑區段跳脫為 SQL 常值，候選值和物件鍵分開繫結。
 
 ### JSON 重疊 {#json-overlap}
 

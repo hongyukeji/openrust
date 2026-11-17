@@ -83,3 +83,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - 应用通过容器注册 `Embeddings`，内置 OpenAI 兼容 HTTP 适配器复用现有客户端。缓存使用当前应用的默认存储，缓存键区分 Provider、端点、模型、凭据、维度和原文。无效响应和 Provider 失败不写入缓存。文本入口按需启用，完整 Laravel AI SDK 仍独立跟踪。
 - 两项回归使用真实本地 TCP 嵌入端点，验证重复调用、跨应用隔离、模型切换、错误维度、503 后重试、未配置 Provider 以及拒绝不支持的驱动。真实 PostgreSQL 18.4／pgvector 0.8.2 和 MariaDB 11.8.9 的独立二进制通过 Eloquent 文本距离投影、OR 与作用域、结果排序和缓存重用，实际 Artisan 通过。两种数据库五项原有向量回归通过。Provider 验收使用隔离的兼容协议服务，商业端点另行验证。
 - MySQL 8.4.13 定向回归、Rust 1.94.0 格式与严格 Clippy、三语站点构建及 18 项浏览器检查通过。核心账本维持 62/66。已回收临时数据库和本批隔离 Cargo／文档产物，项目卷可用空间增加 3.24 GB（3.01 GiB），剩余 105.27 GB（98.04 GiB）。周额度剩余 44%，第二窗口无读数。验收脚本和日志位于 `/private/tmp/openrust-02-04-text-vector.2RSOzEDe`。
+
+## PostgreSQL JSON WHERE 谓词
+
+- 对照固定 Laravel v13.40.0 的 PostgreSQL Grammar。复用旧版 `6d1a81924` 的 `json_contains.rs`、`json_contains_key.rs` 中 JSONB 包含、对象成员存在及数组长度判定的思路，沿用本版已支持生成列的 PostgreSQL 选择器。把 `whereJsonContains`、`whereJsonContainsKey`、`whereJsonLength` 接入既有条件树，保留否定、OR、嵌套及写入条件。 [固定 Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/PostgresGrammar.php#L267-L323)
+- PostgreSQL 的包含与长度使用原生 JSONB 运算。对象成员使用 PostgreSQL 原生操作符 `?`，键值独立绑定并用既有 `??` 重写约定区分操作符和占位符。数组索引用长度判断，缺失路径和 SQL NULL 文档的键存在检查返回 false；JSON null 成员仍存在。路径选择器保留转义过的 JSON 键和类型化下标。
+- 隔离基线 `6cf1472a0` 使用真实 PostgreSQL 18.6。对 `json` 和 `jsonb` 各测试原生预备及模拟预备，覆盖对象与数组包含、长度、嵌套 OR、否定、带点号／引号／反斜杠／问号的键、负数组索引、超大下标、SQL NULL 和 JSON null、事务更新及回滚。真实 PostgreSQL 生成列回归通过。同一个三语示例用实际 HTTP 返回 200、独立 Artisan `db:postgres-json` 返回 0，均只读到预期的用户。
+- MySQL 8.4.13 环境下 `database_query` 套件 15 项通过，含 SQLite 本地回归，PostgreSQL 真实连接另由前述夹具验收。独立 `./artisan inspire`、Rust 1.94.0 全仓格式及严格 Clippy、三语站点和 18 项浏览器检查通过。核心账本维持 63/66。临时数据库和本批隔离编译与文档产物已回收，项目磁盘可用空间净增 8.76 GB（8.16 GiB），剩余 101.72 GB（94.73 GiB）。提交前周额度剩余 40%，第二窗口无读数。证据目录 `/private/tmp/openrust-02-04-postgres-json.rIaM7Zeq`。

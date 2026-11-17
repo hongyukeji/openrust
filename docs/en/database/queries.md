@@ -234,7 +234,7 @@ pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>>
 }
 ```
 
-MySQL accepts scalar and array candidates. SQLite containment accepts scalar candidates. A key whose value is JSON null still exists. Paths and values are bound separately from SQL.
+MySQL and PostgreSQL accept scalar, array, and object candidates. SQLite containment accepts scalar candidates. A key whose value is JSON null still exists. PostgreSQL uses native JSONB containment for both `json` and `jsonb` columns. Its length predicate uses `jsonb_array_length` on the selected array. Key checks support object keys and array indexes, including negative indexes such as `options->languages[-1]`. Missing keys and SQL NULL documents return false for key existence. PostgreSQL escapes path segments as SQL literals and binds the candidate and object key separately.
 
 ### JSON Overlap {#json-overlap}
 

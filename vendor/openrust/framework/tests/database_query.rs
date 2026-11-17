@@ -1082,6 +1082,171 @@ async fn json_predicates_run_on_mysql_8_4() {
     verify_json_predicates(connection(json!({"url":url,"prefix":"app_"})), true).await;
 }
 
+#[tokio::test]
+async fn json_predicates_run_on_postgres_in_both_prepare_modes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_JSON_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_JSON").is_none());
+        return;
+    };
+    for (emulate, storage) in [
+        (false, "jsonb"),
+        (false, "json"),
+        (true, "jsonb"),
+        (true, "json"),
+    ] {
+        let db = connection(json!({"url":url,"prefix":"app_","emulate_prepares":emulate}));
+        db.statement(
+            &format!("CREATE TABLE app_json_paths (id integer PRIMARY KEY, document {storage}, seen integer DEFAULT 0)"),
+            &[],
+        )
+        .await
+        .unwrap();
+        for (id, document) in [
+            (
+                1,
+                Value::Json(json!({
+                    "settings": {"tags": ["en", "de"], "marker": null},
+                    "groups": [[{"x": null}]],
+                    "nested'\\?": {"dotted.key?'": null},
+                })),
+            ),
+            (
+                2,
+                Value::Json(json!({"settings": {"tags": []}, "groups": {"0": [null]}})),
+            ),
+            (3, Value::Null),
+        ] {
+            db.insert(
+                "INSERT INTO app_json_paths (id, document) VALUES (?, ?)",
+                &[id.into(), document],
+            )
+            .await
+            .unwrap();
+        }
+        let table = || db.table("json_paths as j");
+        let tags = "j.document->settings->tags";
+        let marker = "j.document->settings->marker";
+        let query = table()
+            .whereNested(|group| {
+                group
+                    .whereJsonContains(tags, json!(["en", "de"]))
+                    .orWhereJsonLength(tags, "=", 0)
+            })
+            .r#where("j.id", ">", 0);
+        assert_eq!(
+            query.getBindings().unwrap(),
+            [Value::Json(json!(["en", "de"])), 0.into(), 0.into(),]
+        );
+        assert_eq!(
+            query.orderBy("j.id", "asc").pluck("j.id").await.unwrap(),
+            [1.into(), 2.into()]
+        );
+        assert_eq!(
+            table()
+                .whereJsonContains("j.document", json!({"settings":{"marker":null}}))
+                .value("j.id")
+                .await
+                .unwrap(),
+            1.into(),
+        );
+        assert_eq!(
+            table()
+                .whereJsonDoesntContainKey(marker)
+                .orderBy("id", "asc")
+                .pluck("id")
+                .await
+                .unwrap(),
+            [2.into(), 3.into()],
+        );
+        assert_eq!(
+            table()
+                .whereJsonDoesntContain(tags, json!("de"))
+                .pluck("id")
+                .await
+                .unwrap(),
+            [2.into()],
+        );
+        let quoted = "j.document->nested'\\?->dotted.key?'";
+        assert_eq!(
+            table()
+                .whereJsonContainsKey(quoted)
+                .value("j.id")
+                .await
+                .unwrap(),
+            1.into(),
+        );
+        assert_eq!(
+            table()
+                .whereJsonContainsKey("j.document->groups[0][-1]")
+                .value("j.id")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            table()
+                .whereJsonContainsKey("j.document->groups[0]")
+                .value("j.id")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        assert_eq!(
+            table()
+                .whereJsonContainsKey("j.document->groups[9]")
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            table()
+                .whereJsonContainsKey("j.document->groups[999999999999999999999]")
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        assert!(
+            table()
+                .whereJsonContainsKey("j.document->invalid\0key")
+                .toSql()
+                .is_err()
+        );
+
+        let mut transaction = db.beginTransaction().await.unwrap();
+        let changed = transaction
+            .table("json_paths")
+            .whereJsonContains("document->settings->tags", json!("de"))
+            .whereJsonContainsKey("document->settings->marker")
+            .update(BTreeMap::from([("seen".into(), 1.into())]))
+            .await
+            .unwrap();
+        assert_eq!(changed, 1);
+        assert_eq!(
+            transaction
+                .table("json_paths")
+                .whereJsonContainsKey("document->settings->marker")
+                .value("seen")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        transaction.rollBack(None).await.unwrap();
+        assert_eq!(
+            table()
+                .whereJsonContainsKey(marker)
+                .value("j.seen")
+                .await
+                .unwrap(),
+            0.into()
+        );
+        db.statement("DROP TABLE app_json_paths", &[])
+            .await
+            .unwrap();
+    }
+}
+
 async fn verify_cursor(db: Connection) {
     db.statement("DROP TABLE IF EXISTS cursor_records", &[])
         .await
