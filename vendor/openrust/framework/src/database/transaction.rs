@@ -20,6 +20,7 @@ use super::{
         TransactionBeginning, TransactionCommitted, TransactionCommitting, TransactionEvent,
         TransactionRolledBack,
     },
+    test_transaction::QueryPhysical,
 };
 
 pub(super) type BeginCallback = Arc<
@@ -37,7 +38,7 @@ pub(super) type BeginCallback = Arc<
 /// that must participate in the transaction.
 pub struct Transaction {
     connection: Connection,
-    physical: Option<PhysicalConnection>,
+    physical: Option<QueryPhysical>,
     level: u32,
     sqlite_schema_session: Option<SqliteSchemaSession>,
     transactions: DatabaseTransactionsManager,
@@ -125,7 +126,8 @@ impl Connection {
         self.run_before_transaction(None).await?;
         let mut replayed = false;
         loop {
-            let lease = self.acquire_query(false).await?;
+            let mut lease = self.acquire_query(false).await?;
+            lease.physical.begin_nested();
             let mut transaction = Transaction {
                 connection: self.clone(),
                 physical: Some(lease.physical),
@@ -140,8 +142,11 @@ impl Connection {
                 Ok(()) => return Ok(transaction),
                 Err(error)
                     if transaction.level == 0
-                        && self.retry_lost_connection(&lease.generation, &error, &mut replayed) => {
-                }
+                        && self.retry_lost_connection(
+                            lease.generation.as_ref(),
+                            &error,
+                            &mut replayed,
+                        ) => {}
                 Err(error) => return Err(error),
             }
         }
@@ -170,7 +175,7 @@ impl Connection {
                 .await?;
             let mut transaction = Transaction {
                 connection,
-                physical: Some(physical),
+                physical: Some(QueryPhysical::Pooled(physical)),
                 level: 0,
                 sqlite_schema_session: Some(SqliteSchemaSession {
                     foreign_keys,
@@ -241,6 +246,7 @@ macro_rules! observed_transaction_query {
             return Ok($preview);
         }
         let start = Instant::now();
+        $transaction.physical()?.validate($sql, true)?;
         $before();
         let result = $transaction.physical()?.$operation($sql, bindings).await?;
         let elapsed = start.elapsed();
@@ -298,14 +304,17 @@ impl Transaction {
         .map(|result| result.insert_id)
     }
 
-    fn physical(&mut self) -> DatabaseResult<&mut PhysicalConnection> {
+    fn physical(&mut self) -> DatabaseResult<&mut QueryPhysical> {
         self.physical
             .as_mut()
             .ok_or(DatabaseError::TransactionClosed)
     }
 
     async fn release_session(&mut self) -> DatabaseResult<()> {
-        let physical = self.physical.take();
+        let physical = self.physical.take().map(|mut physical| {
+            physical.end_nested();
+            physical
+        });
         if let (Some(mut physical), Some(settings)) = (physical, self.sqlite_schema_session.take())
         {
             physical
@@ -492,7 +501,7 @@ impl Transaction {
         if self
             .physical
             .as_ref()
-            .is_some_and(PhysicalConnection::interrupted)
+            .is_some_and(|physical| physical.interrupted())
         {
             self.physical.take();
             self.level = 0;
@@ -566,6 +575,7 @@ impl Transaction {
             let mut elapsed = Duration::ZERO;
             {
                 let physical = self.physical()?;
+                physical.validate(sql, true)?;
                 let prepared = physical.prepare(sql, bindings)?;
                 let mut rows = std::pin::pin!(physical.cursor(&prepared));
                 loop {
@@ -692,6 +702,7 @@ impl Transaction {
             return Ok(true);
         }
         let start = Instant::now();
+        self.physical()?.validate(sql, false)?;
         let result = self.physical()?.unprepared(sql).await?;
         let elapsed = start.elapsed();
         self.connection.setRecordModificationState(true);

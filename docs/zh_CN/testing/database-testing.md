@@ -8,6 +8,23 @@
 
 在 Builder 回调中按应用的装配方式注册迁移和 Seeder，再运行 `test.artisan(["migrate", "--seed"]).await.assertSuccessful()`。在同一夹具内重新建表和填充时使用 `migrate:fresh --seed`。新夹具从空数据库文件开始，通过各自的数据库文件实现隔离。
 
+## MySQL 事务隔离 {#mysql-transaction-isolation}
+
+为测试应用配置专用的 MySQL 测试库。先运行迁移和基础填充，再调用 `test.databaseTransaction`。回调中，使用默认连接的 HTTP 请求、进程内 Artisan 命令和数据库断言共用一个会话。成功和失败都会回滚，应用事务使用保存点。
+
+```rust
+use openrust::testing::TestApp;
+
+async fn check_seeded_items(test: &mut TestApp) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    test.databaseTransaction(|test| Box::pin(async move {
+        test.artisan(["db:seed"]).await.assertSuccessful();
+        test.assertDatabaseHas("items", &[("name", "seeded".into())]).await
+    })).await
+}
+```
+
+使用 InnoDB 表。结构变更在回调外执行。同一会话上的操作应逐个等待完成。另行启动的任务、外部进程和其他具名连接有各自的事务边界。
+
 ## 数据库断言
 
 用 `assertDatabaseHas` 和 `assertDatabaseMissing` 检查指定字段值的记录，包括空值。用 `assertDatabaseCount` 检查记录数。

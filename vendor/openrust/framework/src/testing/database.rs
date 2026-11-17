@@ -4,7 +4,7 @@ use serde_json::json;
 
 use crate::{
     contracts::foundation::Application as _,
-    database::{Connection, DatabaseManager, Value},
+    database::{Connection, DatabaseFuture, DatabaseManager, Value, test_transaction},
     foundation::{Application, configuration::ApplicationBuilder},
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
@@ -61,6 +61,22 @@ impl TestApp {
             .make::<DatabaseManager>()
             .await?
             .connection(None)?)
+    }
+
+    /// Runs a test against the default MySQL connection and rolls back its writes.
+    ///
+    /// Prepare the schema and any shared fixtures before entering the callback.
+    /// Requests dispatched by this test application and its Artisan commands
+    /// participate when they use its default connection on the current task.
+    pub async fn databaseTransaction<T>(
+        &mut self,
+        test: impl for<'a> FnOnce(
+            &'a mut TestApp,
+        )
+            -> DatabaseFuture<'a, Result<T, Box<dyn Error + Send + Sync>>>,
+    ) -> Result<T, Box<dyn Error + Send + Sync>> {
+        let connection = self.database().await?;
+        test_transaction::run(connection, async { test(self).await }).await?
     }
 
     /// Asserts that a table contains a row matching the supplied values.

@@ -36,6 +36,7 @@ use super::{
         QueryNotification, QueryRole,
     },
     query_log::{PreviewScope, QueryLog},
+    test_transaction::{self, QueryPhysical},
     transaction::BeginCallback,
     value,
 };
@@ -126,9 +127,9 @@ pub(super) enum PhysicalConnection {
     SqlServer(Box<super::sql_server::Lease>),
 }
 
-pub(super) struct QueryLease {
-    pub physical: PhysicalConnection,
-    pub generation: Arc<PoolGeneration>,
+pub(super) struct QueryLease<T = QueryPhysical> {
+    pub physical: T,
+    pub generation: Option<Arc<PoolGeneration>>,
     role: QueryRole,
     wait: Duration,
 }
@@ -706,6 +707,7 @@ macro_rules! observed_query {
                 generation,
             } = $connection.acquire_query($read).await?;
             let start = Instant::now();
+            $physical.validate($sql, true)?;
             $before();
             let result = $operation.await;
             elapsed += wait + start.elapsed();
@@ -719,7 +721,11 @@ macro_rules! observed_query {
                     break Ok::<_, DatabaseError>(result);
                 }
                 Err(error)
-                    if $connection.retry_lost_connection(&generation, &error, &mut replayed) => {}
+                    if $connection.retry_lost_connection(
+                        generation.as_ref(),
+                        &error,
+                        &mut replayed,
+                    ) => {}
                 Err(error) => break Err(error),
             }
         }
@@ -842,7 +848,14 @@ impl Connection {
 
     pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
         self.ensure_real_operation()?;
-        self.acquire_query(read).await.map(|lease| lease.physical)
+        if test_transaction::active(self) {
+            return Err(DatabaseError::UnsupportedOperation(
+                "this database operation requires a session outside the test transaction",
+            ));
+        }
+        self.acquire_pooled_query(read)
+            .await
+            .map(|lease| lease.physical)
     }
 
     pub(super) fn ensure_real_operation(&self) -> DatabaseResult<()> {
@@ -859,6 +872,32 @@ impl Connection {
     }
 
     pub(super) async fn acquire_query(&self, read: bool) -> DatabaseResult<QueryLease> {
+        if let Some(physical) = test_transaction::checkout(self)? {
+            return Ok(QueryLease {
+                physical,
+                generation: None,
+                role: QueryRole::Write,
+                wait: Duration::ZERO,
+            });
+        }
+        let QueryLease {
+            physical,
+            generation,
+            role,
+            wait,
+        } = self.acquire_pooled_query(read).await?;
+        Ok(QueryLease {
+            physical: QueryPhysical::Pooled(physical),
+            generation,
+            role,
+            wait,
+        })
+    }
+
+    async fn acquire_pooled_query(
+        &self,
+        read: bool,
+    ) -> DatabaseResult<QueryLease<PhysicalConnection>> {
         let mut wait = Duration::ZERO;
         loop {
             let generation = self.pools.generation()?;
@@ -880,7 +919,7 @@ impl Connection {
                         physical,
                         role,
                         wait,
-                        generation,
+                        generation: Some(generation),
                     });
                 }
             }
@@ -889,10 +928,13 @@ impl Connection {
 
     pub(super) fn retry_lost_connection(
         &self,
-        generation: &Arc<PoolGeneration>,
+        generation: Option<&Arc<PoolGeneration>>,
         error: &DatabaseError,
         replayed: &mut bool,
     ) -> bool {
+        let Some(generation) = generation else {
+            return false;
+        };
         if *replayed || is_establishing(generation) {
             return false;
         }
@@ -1306,6 +1348,7 @@ impl Connection {
             let mut delivered = false;
             loop {
                 let QueryLease { mut physical, role, wait, generation } = self.acquire_query(!write).await?;
+                physical.validate(sql, true)?;
                 elapsed += wait;
                 let result = {
                     let prepared = physical.prepare(sql, bindings)?;
@@ -1330,7 +1373,7 @@ impl Connection {
                         self.dispatch_query(sql, bindings, elapsed, role).await?;
                         break;
                     }
-                    Err(error) if !delivered && self.retry_lost_connection(&generation, &error, &mut replayed) => {}
+                    Err(error) if !delivered && self.retry_lost_connection(generation.as_ref(), &error, &mut replayed) => {}
                     Err(error) => Err(error)?,
                 }
             }
@@ -1482,6 +1525,11 @@ impl Connection {
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
+        if test_transaction::active(self) {
+            return Err(DatabaseError::UnsupportedOperation(
+                "test transaction requires a prepared transactional statement",
+            ));
+        }
         observed_query!(
             self,
             sql,

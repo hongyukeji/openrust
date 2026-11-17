@@ -3,14 +3,17 @@ use std::{error::Error, sync::Arc};
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
-        DatabaseFuture, DatabaseResult, Value,
+        DB, DatabaseFuture, DatabaseResult, Value,
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
         seeder::{Seeder, SeederContext, SeederEntry, SeederRegistry},
     },
-    foundation::{Application, configuration::ApplicationBuilder},
-    http::HttpFuture,
-    support::{ProviderResult, ServiceProvider},
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+    },
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::{ProviderResult, ServiceProvider, facades::Route},
     testing::TestApp,
 };
 use serde_json::json;
@@ -156,4 +159,132 @@ async fn migrations_and_seeders_only_change_their_own_sqlite_fixture()
     drop(second);
     assert!(!second_root.exists());
     Ok(())
+}
+
+#[tokio::test]
+async fn mysql_test_transaction_shares_http_artisan_and_nested_writes()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return Ok(());
+    }
+    let configure = |builder: ApplicationBuilder| {
+        builder
+            .withConfig(|_, _| {
+                let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+                Ok([(
+                    "database".into(),
+                    json!({
+                        "default": "mysql", "connections": {"mysql": {"url": url}},
+                    }),
+                )]
+                .into())
+            })
+            .withProviders(vec![Box::new(InventoryProvider)])
+            .withRouting(Routing::default().web(|| {
+                Route::get("/write", write_item)?;
+                Ok(())
+            }))
+    };
+    let mut test = TestApp::create(configure)?;
+    let mut observer = TestApp::create(configure)?;
+    test.artisan(["migrate", "--seed"]).await.assertSuccessful();
+    let external = observer.database().await?;
+
+    test.databaseTransaction(|test| {
+        Box::pin(async {
+            test.assertDatabaseCount("items", 1).await?;
+            test.get("/write")
+                .await?
+                .assertStatus(StatusCode::NO_CONTENT);
+            test.artisan(["db:seed"]).await.assertSuccessful();
+            test.assertDatabaseHas("items", &[("name", "http".into())])
+                .await?;
+            let db = test.database().await?;
+            let mut nested = db.beginTransaction().await?;
+            nested
+                .table("items")
+                .insert(&[Record::from([("name".into(), "nested".into())])])
+                .await?;
+            nested.commit().await?;
+            test.assertDatabaseCount("items", 4).await?;
+            assert!(
+                db.statement("CREATE TABLE must_not_exist (id INT)", &[])
+                    .await
+                    .is_err()
+            );
+            Ok(())
+        })
+    })
+    .await?;
+    assert_eq!(external.table("items").count("*").await?, 1);
+    test.assertDatabaseMissing("items", &[("name", "http".into())])
+        .await?;
+
+    let error = test
+        .databaseTransaction(|test| {
+            Box::pin(async {
+                test.artisan(["db:seed"]).await.assertSuccessful();
+                Err::<(), Box<dyn Error + Send + Sync>>("callback failed".into())
+            })
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "callback failed");
+    assert_eq!(external.table("items").count("*").await?, 1);
+
+    let interrupted = test
+        .databaseTransaction(|test| {
+            Box::pin(async {
+                let db = test.database().await?;
+                let mut abandoned = db.beginTransaction().await?;
+                abandoned
+                    .table("items")
+                    .insert(&[Record::from([("name".into(), "abandoned".into())])])
+                    .await?;
+                drop(abandoned);
+                assert!(db.table("items").count("*").await.is_err());
+                Ok(())
+            })
+        })
+        .await
+        .unwrap_err();
+    assert!(interrupted.to_string().contains("transaction"));
+    assert_eq!(external.table("items").count("*").await?, 1);
+
+    {
+        let (written, ready) = tokio::sync::oneshot::channel();
+        let test = test.databaseTransaction(|test| {
+            Box::pin(async move {
+                test.get("/write")
+                    .await?
+                    .assertStatus(StatusCode::NO_CONTENT);
+                written.send(()).unwrap();
+                std::future::pending::<Result<(), Box<dyn Error + Send + Sync>>>().await
+            })
+        });
+        tokio::pin!(test);
+        tokio::select! {
+            result = &mut test => panic!("test transaction returned before cancellation: {result:?}"),
+            result = ready => result?,
+        }
+    }
+    assert_eq!(external.table("items").count("*").await?, 1);
+    Ok(())
+}
+
+fn write_item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        async {
+            DB::connection(None)?
+                .table("items")
+                .insert(&[Record::from([("name".into(), "http".into())])])
+                .await
+        }
+        .await
+        .map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
 }
