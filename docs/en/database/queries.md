@@ -379,6 +379,8 @@ Pass a key such as `options->preferences->enabled` to `update`. MySQL applies `J
 
 PostgreSQL uses `jsonb_set` on both `json` and `jsonb` columns. Each path segment and the new JSON value are bound separately. Use arrows for object keys and brackets for array indexes, including negative indexes. A dot within a path segment is part of the key. Multiple paths on the same column are applied in record key order within one assignment. JSON null is stored as a member value. Missing intermediate objects are left alone, and a SQL NULL document remains SQL NULL.
 
+On SQL Server, passing a JSON path to `update` returns an unsupported-operation error before executing SQL. You can still replace the entire document by passing the column name and a `Value::Json` value.
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::database::{Connection, DatabaseResult};
@@ -410,6 +412,10 @@ pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
     connection.table("event_archive").truncate().await
 }
 ```
+
+### SQL Server table truncation {#sql-server-truncate}
+
+SQL Server executes native `TRUNCATE TABLE`. It resets the identity seed and rejects truncation of a table referenced by a foreign key from another table. When run on a transaction handle, rollback restores the data and identity state.
 
 ## Pessimistic Locking
 

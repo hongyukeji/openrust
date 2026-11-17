@@ -34,6 +34,117 @@ fn mysql_url() -> Option<String> {
 }
 
 #[tokio::test]
+async fn sql_server_truncate_and_json_write_boundary() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_SQL_SERVER_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    db.unprepared("CREATE SCHEMA truncate_probe").await.unwrap();
+    db.statement(
+        "CREATE TABLE truncate_probe.app_events (id int IDENTITY(51, 1) PRIMARY KEY, label nvarchar(40), options nvarchar(max))",
+        &[],
+    ).await.unwrap();
+    db.statement("CREATE TABLE dbo.app_events (id int PRIMARY KEY)", &[])
+        .await
+        .unwrap();
+    db.insert("INSERT INTO dbo.app_events VALUES (71)", &[])
+        .await
+        .unwrap();
+
+    let events = "truncate_probe.events";
+    let insert = || {
+        record([
+            ("label", "seed".into()),
+            ("options", Value::Json(json!({"enabled":false}))),
+        ])
+    };
+    assert_eq!(
+        db.table(events).insertGetId(insert()).await.unwrap(),
+        51.into()
+    );
+    assert_eq!(
+        db.table(events).insertGetId(insert()).await.unwrap(),
+        52.into()
+    );
+
+    db.enableQueryLog();
+    assert!(matches!(
+        db.table(events)
+            .r#where("id", "=", 51)
+            .update(record([("options->enabled", true.into())]))
+            .await,
+        Err(DatabaseError::UnsupportedOperation(
+            "SQL Server JSON path update"
+        ))
+    ));
+    assert!(db.getQueryLog().is_empty());
+    assert_eq!(
+        db.table(events)
+            .r#where("id", "=", 51)
+            .update(record([("options", Value::Json(json!({"enabled":true})))]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.table(events)
+            .whereJsonContains("options", json!(true))
+            .value("id")
+            .await
+            .unwrap(),
+        51.into()
+    );
+
+    db.statement(
+        "CREATE TABLE truncate_probe.app_children (event_id int REFERENCES truncate_probe.app_events (id))",
+        &[],
+    ).await.unwrap();
+    let blocked = db.table(events).truncate().await.unwrap_err();
+    assert!(matches!(
+        blocked, DatabaseError::SqlServer { source: tiberius::error::Error::Server(error), .. }
+            if error.code() == 4712
+    ));
+    assert_eq!(db.table(events).count("*").await.unwrap(), 2);
+    db.statement("DROP TABLE truncate_probe.app_children", &[])
+        .await
+        .unwrap();
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction.table(events).truncate().await.unwrap();
+    assert_eq!(transaction.table(events).count("*").await.unwrap(), 0);
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(db.table(events).count("*").await.unwrap(), 2);
+    assert_eq!(
+        db.table(events).insertGetId(insert()).await.unwrap(),
+        53.into()
+    );
+
+    db.flushQueryLog();
+    db.table(events)
+        .r#where("id", "=", 51)
+        .truncate()
+        .await
+        .unwrap();
+    assert_eq!(
+        db.getQueryLog()[0].query,
+        "truncate table [truncate_probe].[app_events]"
+    );
+    assert_eq!(db.table(events).count("*").await.unwrap(), 0);
+    assert_eq!(db.table("dbo.events").value("id").await.unwrap(), 71.into());
+    assert_eq!(
+        db.table(events).insertGetId(insert()).await.unwrap(),
+        51.into()
+    );
+    assert!(matches!(
+        db.table("truncate_probe.events as e").truncate().await,
+        Err(DatabaseError::InvalidQuery("truncate table alias"))
+    ));
+    db.unprepared("DROP TABLE truncate_probe.app_events; DROP TABLE dbo.app_events; DROP SCHEMA truncate_probe")
+        .await.unwrap();
+}
+
+#[tokio::test]
 async fn postgres_truncate_restarts_identities_with_configured_cascade_and_rollback() {
     let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_TRUNCATE_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_TRUNCATE").is_none());

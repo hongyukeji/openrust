@@ -370,7 +370,7 @@ impl Builder<'_> {
         }
         let native_sql = if self.grammar.is_postgres() {
             Some(self.grammar.postgres_truncate(&target))
-        } else if self.grammar.is_mysql() {
+        } else if self.grammar.is_mysql() || self.grammar.is_sql_server() {
             Some(format!("truncate table {target}"))
         } else {
             None

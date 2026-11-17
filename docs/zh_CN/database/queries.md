@@ -379,6 +379,8 @@ PostgreSQL 的联结或限额更新和删除通过 `ctid` 子查询选出目标�
 
 PostgreSQL 对 `json` 和 `jsonb` 列使用 `jsonb_set`，路径段和新的 JSON 值分别绑定。对象键用箭头分隔，数组索引用方括号，支持负索引。路径段内的点属于键名。同一列的多个路径按记录的键顺序在一个赋值中应用。JSON null 会写入成员。缺失的中间对象保持原状，SQL NULL 文档仍为 SQL NULL。
 
+在 SQL Server 上，向 `update` 传入 JSON 路径会在执行 SQL 前返回不支持操作的错误。仍可传入列名和 `Value::Json` 值来替换整份文档。
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::database::{Connection, DatabaseResult};
@@ -410,6 +412,10 @@ pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
     connection.table("event_archive").truncate().await
 }
 ```
+
+### SQL Server 清空表 {#sql-server-truncate}
+
+SQL Server 执行原生 `TRUNCATE TABLE`，重置标识列起始值。若目标表被其他表的外键引用，数据库会拒绝清空。通过事务句柄执行时，回滚会恢复数据和标识列状态。
 
 ## 悲观锁
 

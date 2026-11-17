@@ -379,6 +379,8 @@ PostgreSQL 的聯結或限額更新和刪除透過 `ctid` 子查詢選出目標�
 
 PostgreSQL 對 `json` 和 `jsonb` 欄位使用 `jsonb_set`，路徑區段和新的 JSON 值分開繫結。物件鍵以箭頭分隔，陣列索引使用方括號，支援負索引。路徑區段內的點屬於鍵名。同一欄位的多個路徑依記錄的鍵順序在同一指派中套用。JSON null 會寫入成員。缺少的中間物件維持原樣，SQL NULL 文件仍為 SQL NULL。
 
+在 SQL Server 上，將 JSON 路徑傳給 `update` 會在執行 SQL 前傳回不支援操作的錯誤。仍可傳入欄位名稱和 `Value::Json` 值來取代整份文件。
+
 ```rust
 use std::collections::BTreeMap;
 use openrust::database::{Connection, DatabaseResult};
@@ -410,6 +412,10 @@ pub async fn reset_events(connection: &Connection) -> DatabaseResult<()> {
     connection.table("event_archive").truncate().await
 }
 ```
+
+### SQL Server 清空資料表 {#sql-server-truncate}
+
+SQL Server 執行原生 `TRUNCATE TABLE`，重設識別欄位的起始值。若其他資料表的外部索引鍵參照目標資料表，資料庫會拒絕清空。透過交易控制代碼執行時，回滾會還原資料與識別欄位狀態。
 
 ## 悲觀鎖定
 

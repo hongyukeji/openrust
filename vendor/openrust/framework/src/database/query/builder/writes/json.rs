@@ -16,6 +16,11 @@ pub(super) fn compile_assignments(
     let mut json = BTreeMap::<String, Vec<(String, Json)>>::new();
     for (column, value) in values {
         if let Some((field, path)) = column.split_once("->") {
+            if grammar.is_sql_server() {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "SQL Server JSON path update",
+                ));
+            }
             if field.is_empty() || path.split("->").any(str::is_empty) {
                 return Err(DatabaseError::InvalidQuery("JSON update path"));
             }
