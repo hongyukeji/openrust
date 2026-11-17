@@ -104,6 +104,8 @@ Shift-JIS 文件校验还支持 `SJIS-mac`、`SJIS-2004`、`SJIS-Mobile#DOCOMO`�
 
 `encoding:ISO-2022-JP` 和 `encoding:JIS` 校验日文转义序列，并要求输入结束前切回 ASCII。文件规则也支持 `ISO-2022-JP-MS`、`ISO-2022-JP-2004`、`ISO-2022-JP-MOBILE#KDDI` 及 `CP50220` 至 `CP50222`，各变体按 PHP mbstring 校验字表和结束状态。
 
+HZ、EUC-TW 和 ISO-2022-KR 文件可用 `encoding:HZ`、`File::default().encoding("EUC-TW")` 或 `encoding:ISO-2022-KR` 校验。HZ 和 ISO-2022-KR 的转义与移位遵循 PHP mbstring，EUC-TW 检查 CNS 11643 第 1、2、14 平面的已分配位置。
+
 TIFF 和 ICO 上传可以使用 `file` 和 `dimensions:width=100,height=100` 一起验证。TIFF 从第一个图像目录取尺寸，ICO 从位深最高的条目取尺寸，位深相同时取最后一个。尺寸校验只读取元数据。Laravel 的 `image` 规则排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上传也可以使用这组规则。JP2 从第一个根级码流读取尺寸，裸 JPEG 2000 码流从 SIZ 标记读取尺寸。Laravel 的 `image` 规则也排除这两种格式。

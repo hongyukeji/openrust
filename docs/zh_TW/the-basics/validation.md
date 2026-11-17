@@ -104,6 +104,8 @@ Shift-JIS 檔案驗證也支援 `SJIS-mac`、`SJIS-2004`、`SJIS-Mobile#DOCOMO`�
 
 `encoding:ISO-2022-JP` 和 `encoding:JIS` 驗證日文跳脫序列，並要求輸入結束前切回 ASCII。檔案規則也支援 `ISO-2022-JP-MS`、`ISO-2022-JP-2004`、`ISO-2022-JP-MOBILE#KDDI` 及 `CP50220` 至 `CP50222`，各變體依 PHP mbstring 驗證字表和結束狀態。
 
+HZ、EUC-TW 和 ISO-2022-KR 檔案可用 `encoding:HZ`、`File::default().encoding("EUC-TW")` 或 `encoding:ISO-2022-KR` 驗證。HZ 和 ISO-2022-KR 的跳脫與移位依循 PHP mbstring，EUC-TW 檢查 CNS 11643 第 1、2、14 平面的已分配位置。
+
 TIFF 和 ICO 上傳可以使用 `file` 和 `dimensions:width=100,height=100` 一起驗證。TIFF 從第一個影像目錄取得尺寸，ICO 從位元深度最高的項目取得尺寸，位元深度相同時取最後一個。尺寸驗證只讀取中繼資料。Laravel 的 `image` 規則排除 TIFF 和 ICO。
 
 PSD 和 JPEG 2000 上傳也可以使用這組規則。JP2 從第一個根層級碼流讀取尺寸，裸 JPEG 2000 碼流從 SIZ 標記讀取尺寸。Laravel 的 `image` 規則也排除這兩種格式。

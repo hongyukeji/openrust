@@ -136,3 +136,10 @@
 - 八个标签分别在九种前置序列下穷举所有双字节，累计 4,718,592 个校验结果与 PHP 一致。原 ISO-2022-JP 解码器在该矩阵中有 5,387 处结果差异。
 - 固定 Laravel PHP trait 与实际 multipart HTTP 对照 65,584 个上传值，包括转义选择符穷举、截断、移位、恢复 ASCII、扩展字表和 8,192 个确定性混合序列。MySQL 8.4.13 下 20 项验证回归通过，三语文档规则已通过实际上传。
 - 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-jis.DkSJ1cSM`。其余多字节、状态型编码和整单元对照待完成，核心账本维持 59/66。
+
+## HZ、EUC-TW 与 ISO-2022-KR
+
+- 对照固定 Laravel 的 `validateEncoding` 和 PHP 8.5.12 mbstring。HZ 与 ISO-2022-KR 复用已核定的 EUC-CN、EUC-KR 字节表，保留转义、移位和输入结尾行为。EUC-TW 按 PHP 采用的旧版 CNS 11643 检查第 1、2、14 平面。第 14 平面的位集合按行生成，对每个 `8E AE ROW COL` 查询 PHP `mb_check_encoding`，将结果存入第 `ROW - 0xA1` 行的第 `COL - 0xA1` 位。固定 Goravel 和旧版已核对，旧版未找到对应验证可复用。 [Laravel 编码规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Validation/Concerns/ValidatesAttributes.php#L1020) · [Laravel Encoding 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/validation.md#rule-encoding)
+- 独立八组遍历共 524,288 个 PHP 字节结果通过，覆盖 HZ 与 ISO-2022-KR 的普通和移位状态，以及 EUC-TW 的双字节和三个平面前缀。
+- 实际 multipart HTTP 复验上述矩阵及 12,032 个固定 Laravel 样本，共 536,320 个上传值，覆盖转义、截断、全部 EUC-TW 平面选择字节和确定性混合序列。MySQL 8.4.13 下 21 项验证回归通过，三语文档规则均随 HTTP 验证执行。
+- 根应用 `./artisan inspire`、Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。已回收临时 MySQL、3.1 GiB 本批 Cargo 产物和文档缓存。证据目录 `/private/tmp/openrust-04-05-hz.ppqxtT3w`。当前 PHP 的编码名称中剩四个移动版 UTF-8，整单元对照待完成，核心账本维持 59/66。

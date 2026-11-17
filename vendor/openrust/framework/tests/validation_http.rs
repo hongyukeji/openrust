@@ -385,6 +385,14 @@ impl FormRequest for Upload {
                     File::default().encoding("ISO-2022-JP-MOBILE#KDDI").into(),
                 ],
             ),
+            "encoding-hz" => RuleSet::parse([("attachments.*", "required|file|encoding:HZ")]),
+            "encoding-euc-tw" => RuleSet::new().field(
+                "attachments.*",
+                [Rule::required(), File::default().encoding("EUC-TW").into()],
+            ),
+            "encoding-iso-2022-kr" => {
+                RuleSet::parse([("attachments.*", "required|file|encoding:ISO-2022-KR")])
+            }
             "svg" => RuleSet::parse([("attachments.*", "required|image:allow_svg")]),
             "image" => RuleSet::parse([("attachments.*", "required|image")]),
             "fluent" => RuleSet::parse([
@@ -1600,6 +1608,41 @@ async fn validates_iso_2022_jp_variants_over_real_http() {
         ("encoding-cp50220", b"\x1b$(D\x22/", b"\x1b$(P!!"),
         ("encoding-cp50221", b"\x1b(I!", b"\x1b("),
         ("encoding-cp50222", b"\x1b$B\x97,", b"\x1b$B\x97-"),
+    ] {
+        upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            good,
+            200,
+        )
+        .await;
+        let response = upload_file(
+            address,
+            mode,
+            "data.bin",
+            "application/octet-stream",
+            bad,
+            422,
+        )
+        .await;
+        assert!(response["errors"]["attachments.0"].is_array());
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn validates_hz_euc_tw_and_iso_2022_kr_over_real_http() {
+    let (address, server) = start(std::env::temp_dir()).await;
+    for (mode, good, bad) in [
+        ("encoding-hz", b"~{!!~}".as_slice(), b"~{~{".as_slice()),
+        ("encoding-hz", b"~{!!~", b"~{!!~~"),
+        ("encoding-euc-tw", b"\x8e\xae\xa1\xb9", b"\x8e\xae\xa1\xb8"),
+        ("encoding-euc-tw", b"\x8e\xa2\xf2\xc4", b"\x8e\xa2\xf2\xc5"),
+        ("encoding-euc-tw", b"\x8e\xa1\xa1\xa1", b"\x8e\xa3\xa1\xa1"),
+        ("encoding-iso-2022-kr", b"\x0e!!\x1b$)Ca", b"\x0e!!\x20"),
+        ("encoding-iso-2022-kr", b"\x0e!!", b"\x0e\x22\x66"),
     ] {
         upload_file(
             address,
