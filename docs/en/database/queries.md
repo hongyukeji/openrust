@@ -388,6 +388,25 @@ pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<
 
 `insert` accepts one or more `Record` values. Each record in a batch has the same columns. `insertOrIgnore` returns the driver's affected-row count and uses its native ignore behavior. `insertUsing` takes a column list and a select query. `insertGetId` returns the key from the same execution result.
 
+### Generated IDs and inserted rows {#insert-results}
+
+Use `insertGetIdFor(record, "item_key")` to return a named key column on PostgreSQL. Other drivers keep their native generated ID behavior. PostgreSQL also uses `ON CONFLICT DO NOTHING` for `insertOrIgnore` and `insertOrIgnoreUsing`. SQL Server reports that these ignore operations are unsupported.
+
+On PostgreSQL and SQLite, `insertOrIgnoreReturning` returns only newly inserted rows. Supply the columns to return and optionally the unique columns whose conflict should be ignored. A conflict on another constraint still raises an error.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row, query::Record};
+
+pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResult<Vec<Row>> {
+    let item = Record::from([("code".into(), code.into())]);
+
+    connection
+        .table("items")
+        .insertOrIgnoreReturning(&[item], &["item_key", "code"], Some(&["code"]))
+        .await
+}
+```
+
 ### Upserts
 
 Use `upsert` with a batch, its conflict columns and the columns to update. SQLite uses the supplied conflict columns. MySQL detects conflicts using the table's unique keys.

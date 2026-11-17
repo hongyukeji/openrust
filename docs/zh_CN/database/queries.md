@@ -388,6 +388,25 @@ pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<
 
 `insert` 接收一个或多个 `Record`，批量记录使用相同的列。`insertOrIgnore` 使用驱动原生的忽略行为，并返回影响行数。`insertUsing` 接收目标列和选择查询。`insertGetId` 从同一次执行结果取得主键。
 
+### 生成的主键与插入行 {#insert-results}
+
+在 PostgreSQL 上使用 `insertGetIdFor(record, "item_key")` 返回指定主键列。其他驱动沿用原生生成 ID 的方式。PostgreSQL 的 `insertOrIgnore` 和 `insertOrIgnoreUsing` 使用 `ON CONFLICT DO NOTHING`。SQL Server 对这两种忽略冲突写入返回不支持。
+
+PostgreSQL 和 SQLite 上的 `insertOrIgnoreReturning` 只返回新插入的行。指定返回列，并可指定要忽略冲突的唯一列。其他约束发生冲突时仍返回错误。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row, query::Record};
+
+pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResult<Vec<Row>> {
+    let item = Record::from([("code".into(), code.into())]);
+
+    connection
+        .table("items")
+        .insertOrIgnoreReturning(&[item], &["item_key", "code"], Some(&["code"]))
+        .await
+}
+```
+
 ### Upsert
 
 `upsert` 接收记录、冲突列和需要更新的列。SQLite 使用传入的冲突列。MySQL 通过表上的唯一键判断冲突。

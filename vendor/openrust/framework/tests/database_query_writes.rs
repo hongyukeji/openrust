@@ -4,7 +4,7 @@ use openrust::{
     config::Repository,
     database::{
         Connection, DatabaseError, DatabaseManager, Value,
-        events::QueryBindings,
+        events::{QueryBindings, QueryRole},
         query::{Expression, Record, UpdateValue, UpsertUpdate, ValueOperand},
     },
 };
@@ -31,6 +31,163 @@ fn mysql_url() -> Option<String> {
     let url = std::env::var("OPENRUST_TEST_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     url
+}
+
+#[tokio::test]
+async fn inserted_ids_and_conflict_returning_follow_driver_contracts() {
+    let postgres = std::env::var("OPENRUST_TEST_POSTGRES_INSERT_RESULTS_URL").ok();
+    assert!(
+        postgres.is_some()
+            || std::env::var_os("OPENRUST_REQUIRE_POSTGRES_INSERT_RESULTS").is_none()
+    );
+    let sqlite = connection(json!({"driver":"sqlite","database":":memory:","prefix":"app_"}));
+    let mut databases = vec![(sqlite, "integer primary key autoincrement")];
+    if let Some(url) = postgres {
+        databases.push((
+            connection(json!({"url":url,"prefix":"app_"})),
+            "bigint generated always as identity primary key",
+        ));
+    }
+    for (db, key_type) in databases {
+        db.unprepared(&format!(
+            "create table app_result_items (
+            item_key {key_type}, code varchar(40) unique not null, label varchar(40) unique not null
+        )"
+        ))
+        .await
+        .unwrap();
+        db.unprepared("create table app_result_archive (code varchar(40) primary key)")
+            .await
+            .unwrap();
+        let table = || db.table("result_items");
+        let item =
+            |code: &str, label: &str| record([("code", code.into()), ("label", label.into())]);
+        db.enableQueryLog();
+        assert_eq!(
+            table()
+                .insertGetIdFor(item("a", "one"), "item_key")
+                .await
+                .unwrap(),
+            1.into()
+        );
+        if key_type.starts_with("bigint") {
+            assert!(
+                db.getQueryLog()[0]
+                    .query
+                    .ends_with(r#" returning "item_key""#)
+            );
+        }
+        assert_eq!(table().insertOrIgnore(&[item("a", "q")]).await.unwrap(), 0);
+        assert_eq!(
+            table().insertOrIgnore(&[item("b", "two")]).await.unwrap(),
+            1
+        );
+
+        let archive = db.table("result_archive");
+        let source = archive
+            .subquery("result_items")
+            .select(["code"])
+            .r#where("code", "=", "a");
+        assert_eq!(
+            archive
+                .insertOrIgnoreUsing(&["code"], &source)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.table("result_archive")
+                .insertOrIgnoreUsing(&["code"], &source)
+                .await
+                .unwrap(),
+            0
+        );
+
+        db.forgetRecordModificationState();
+        assert!(
+            table()
+                .insertOrIgnoreReturning(&[item("a", "unused")], &["item_key"], None)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(!db.hasModifiedRecords());
+        db.flushQueryLog();
+        let rows = table()
+            .insertOrIgnoreReturning(
+                &[item("a", "ignored"), item("c", "three")],
+                &["item_key as key", "code"],
+                Some(&["code"]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert!(matches!(rows[0].get("key"), Some(Value::Integer(_))));
+        assert_eq!(rows[0].get("code"), Some(&"c".into()));
+        assert!(db.hasModifiedRecords());
+        assert_eq!(db.getQueryLog()[0].read_write_type, QueryRole::Write);
+        assert!(
+            table()
+                .insertOrIgnoreReturning(&[item("d", "three")], &["item_key"], Some(&["code"]))
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            table().r#where("code", "=", "d").count("*").await.unwrap(),
+            0
+        );
+
+        db.forgetRecordModificationState();
+        let mut transaction = db.beginTransaction().await.unwrap();
+        let rows = transaction
+            .table("result_items")
+            .insertOrIgnoreReturning(&[item("e", "rollback")], &["code"], None)
+            .await
+            .unwrap();
+        assert_eq!(rows[0].get("code"), Some(&"e".into()));
+        assert!(db.hasModifiedRecords());
+        transaction.rollBack(None).await.unwrap();
+        assert_eq!(
+            table().r#where("code", "=", "e").count("*").await.unwrap(),
+            0
+        );
+        assert!(matches!(
+            table()
+                .insertOrIgnoreReturning(&[item("x", "invalid")], &[], None)
+                .await,
+            Err(DatabaseError::InvalidQuery("insert returning columns"))
+        ));
+        db.unprepared("drop table app_result_archive")
+            .await
+            .unwrap();
+        db.unprepared("drop table app_result_items").await.unwrap();
+    }
+    let sql_server = connection(json!({"url":"sqlsrv://sa:fixture@localhost/unused"}));
+    let rows = &[record([("code", "untouched".into())])];
+    let source = sql_server.table("source");
+    assert!(matches!(
+        sql_server.table("dest").insertOrIgnore(rows).await,
+        Err(DatabaseError::UnsupportedOperation("insert or ignore"))
+    ));
+    assert!(matches!(
+        sql_server
+            .table("dest")
+            .insertOrIgnoreUsing(&["code"], &source)
+            .await,
+        Err(DatabaseError::UnsupportedOperation("insert or ignore"))
+    ));
+    if let Some(url) = mysql_url() {
+        let mysql = connection(json!({"url":url}));
+        assert!(matches!(
+            mysql
+                .table("unused")
+                .insertOrIgnoreReturning(rows, &["code"], None)
+                .await,
+            Err(DatabaseError::UnsupportedOperation(
+                "insert or ignore returning"
+            ))
+        ));
+    }
 }
 
 #[tokio::test]

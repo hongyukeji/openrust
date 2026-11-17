@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::database::{DatabaseError, DatabaseResult, Transaction, Value};
+use crate::database::{DatabaseError, DatabaseResult, Row, Transaction, Value};
 
 use super::{Builder, Executor};
 use crate::database::query::{Record, UpdateValue, UpsertUpdate, ValueOperand, grammars::Grammar};
@@ -29,15 +29,51 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn insertGetId(self, values: Record) -> DatabaseResult<Value> {
-        self.insert_get_id_for(values, "id").await
+    pub async fn insertOrIgnoreReturning(
+        mut self,
+        rows: &[Record],
+        returning: &[&str],
+        unique_by: Option<&[&str]>,
+    ) -> DatabaseResult<Vec<Row>> {
+        if rows.is_empty() {
+            return Ok(Vec::new());
+        }
+        if returning.is_empty() || unique_by.is_some_and(<[_]>::is_empty) {
+            return Err(DatabaseError::InvalidQuery("insert returning columns"));
+        }
+        if self.grammar.is_mysql() || self.grammar.is_sql_server() {
+            return Err(DatabaseError::UnsupportedOperation(
+                "insert or ignore returning",
+            ));
+        }
+        let (mut sql, bindings) = self.compile_insert(rows, false)?;
+        sql.push_str(" on conflict");
+        if let Some(columns) = unique_by {
+            sql.push_str(" (");
+            sql.push_str(&self.write_columns(columns.iter().copied())?);
+            sql.push(')');
+        }
+        let projection = returning
+            .iter()
+            .map(|column| self.grammar.projection(column))
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        sql.push_str(" do nothing returning ");
+        sql.push_str(&projection.join(", "));
+        match &mut self.executor {
+            Executor::Connection(connection) => connection.insert_returning(&sql, &bindings).await,
+            Executor::Transaction(transaction) => {
+                transaction.insert_returning(&sql, &bindings).await
+            }
+            Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
+        }
     }
 
-    pub(crate) async fn insert_get_id_for(
-        mut self,
-        values: Record,
-        key: &str,
-    ) -> DatabaseResult<Value> {
+    pub async fn insertGetId(self, values: Record) -> DatabaseResult<Value> {
+        self.insertGetIdFor(values, "id").await
+    }
+
+    /// Uses a named PostgreSQL return column or the driver's native generated ID.
+    pub async fn insertGetIdFor(mut self, values: Record, key: &str) -> DatabaseResult<Value> {
         let (mut sql, bindings) = self.compile_insert(&[values], false)?;
         if self.grammar.is_postgres() {
             sql.push_str(" returning ");
@@ -78,6 +114,9 @@ impl Builder<'_> {
         }
         sql.push(' ');
         sql.push_str(&source.sql);
+        if ignore && self.grammar.is_postgres() {
+            sql.push_str(" on conflict do nothing");
+        }
         self.affect(&sql, &source.bindings).await
     }
 
@@ -610,24 +649,36 @@ impl Builder<'_> {
     ) -> DatabaseResult<(String, Vec<Value>)> {
         let first = &rows[0];
         let sql = self.insert_target(ignore)?;
+        let conflict = if ignore && self.grammar.is_postgres() {
+            " on conflict do nothing"
+        } else {
+            ""
+        };
         if first.is_empty() && rows.len() == 1 {
             let default = if self.grammar.is_mysql() {
                 " () values ()"
             } else {
                 " default values"
             };
-            return Ok((format!("{sql}{default}"), Vec::new()));
+            return Ok((format!("{sql}{default}{conflict}"), Vec::new()));
         }
         let (values, bindings) = value_parameters(rows)?;
         let columns = self.write_columns(first.keys().map(String::as_str))?;
-        Ok((format!("{sql} ({columns}) values {values}"), bindings))
+        Ok((
+            format!("{sql} ({columns}) values {values}{conflict}"),
+            bindings,
+        ))
     }
 
     fn insert_target(&self, ignore: bool) -> DatabaseResult<String> {
-        let verb = match (ignore, self.grammar.is_mysql()) {
-            (false, _) => "insert into",
-            (true, true) => "insert ignore into",
-            (true, false) => "insert or ignore into",
+        let verb = if !ignore || self.grammar.is_postgres() {
+            "insert into"
+        } else if self.grammar.is_mysql() {
+            "insert ignore into"
+        } else if self.grammar.is_sql_server() {
+            return Err(DatabaseError::UnsupportedOperation("insert or ignore"));
+        } else {
+            "insert or ignore into"
         };
         Ok(format!(
             "{verb} {}",

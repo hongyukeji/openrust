@@ -1569,7 +1569,7 @@ impl<M: Model> Builder<'static, M> {
             .expect("one prepared insert row");
         self.scoped()?
             .0
-            .insert_get_id_for(row, M::metadata().primary_key)
+            .insertGetIdFor(row, M::metadata().primary_key)
             .await
     }
 

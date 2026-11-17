@@ -619,6 +619,26 @@ impl Transaction {
         observed_transaction_query!(self, sql, bindings, select, Vec::new(), || (), |_| ())
     }
 
+    pub(super) async fn insert_returning(
+        &mut self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Row>> {
+        observed_transaction_query!(
+            self,
+            sql,
+            bindings,
+            select,
+            Vec::new(),
+            || (),
+            |rows: &Vec<Row>| {
+                if !rows.is_empty() {
+                    self.connection.setRecordModificationState(true);
+                }
+            }
+        )
+    }
+
     /// Returns all rowsets on the transaction's pinned connection.
     pub async fn selectResultSets<'a>(
         &mut self,

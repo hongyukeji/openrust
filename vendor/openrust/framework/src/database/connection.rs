@@ -1467,6 +1467,27 @@ impl Connection {
         )
     }
 
+    pub(super) async fn insert_returning(
+        &self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Row>> {
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            false,
+            |physical, values| physical.select(sql, values),
+            Vec::new(),
+            || (),
+            |rows: &Vec<Row>| {
+                if !rows.is_empty() {
+                    self.setRecordModificationState(true);
+                }
+            }
+        )
+    }
+
     /// Returns the ordered rowsets of a prepared MySQL-family or SQL Server statement.
     pub async fn selectResultSets<'a>(
         &self,

@@ -388,6 +388,25 @@ pub async fn second_per_category(connection: &Connection) -> DatabaseResult<Vec<
 
 `insert` 接受一個或多個 `Record`，批次資料使用相同的欄位。`insertOrIgnore` 使用驅動程式原生的忽略行為，並傳回受影響的資料列數。`insertUsing` 接受目標欄位與選擇查詢。`insertGetId` 從同一次執行結果取得主鍵。
 
+### 產生的主索引鍵與插入資料列 {#insert-results}
+
+在 PostgreSQL 上使用 `insertGetIdFor(record, "item_key")` 傳回指定主索引鍵欄位。其他驅動沿用原生產生 ID 的方式。PostgreSQL 的 `insertOrIgnore` 與 `insertOrIgnoreUsing` 使用 `ON CONFLICT DO NOTHING`。SQL Server 對這兩種忽略衝突寫入傳回不支援。
+
+PostgreSQL 與 SQLite 上的 `insertOrIgnoreReturning` 只傳回新插入的資料列。指定傳回欄位，並可指定要忽略衝突的唯一欄位。其他約束發生衝突時仍會傳回錯誤。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row, query::Record};
+
+pub async fn register_item(connection: &Connection, code: &str) -> DatabaseResult<Vec<Row>> {
+    let item = Record::from([("code".into(), code.into())]);
+
+    connection
+        .table("items")
+        .insertOrIgnoreReturning(&[item], &["item_key", "code"], Some(&["code"]))
+        .await
+}
+```
+
 ### Upsert
 
 `upsert` 接受資料、衝突欄位和要更新的欄位。SQLite 使用傳入的衝突欄位。MySQL 透過資料表上的唯一鍵判斷衝突。

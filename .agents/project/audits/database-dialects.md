@@ -11,3 +11,9 @@
 | SQL Server | 2022 Developer 16.0.4325.4 已在 Apple Silicon 的 Linux amd64 兼容容器中通过在线普通和唯一索引、按名称删除外键、索引和外键目录、真实 Artisan 迁移失败回滚及账本验收。 [SQL Server 在线索引与具名外键](02-05/README.md#sql-server-在线索引与具名外键) · [失败回滚](02-06/README.md#真实-sql-server-迁移失败回滚) · [SQL Server 原生改列与默认约束](02-05/README.md#sql-server-原生改列与默认约束) · [SQL Server 计算列持久化切换](02-05/README.md#sql-server-计算列持久化切换) · [SQL Server 表列与索引重命名](02-05/README.md#sql-server-表列与索引重命名) · [SQL Server 主键约束与改列默认值](02-05/README.md#sql-server-主键约束与改列默认值) · [SQL Server 自动回滚保留原始错误](02-02/README.md#sql-server-自动回滚保留原始错误) · [SQL Server JSON WHERE 谓词](02-04/README.md#sql-server-json-where-谓词) · [SQL Server 原生清空表与 JSON 路径写入边界](02-04/README.md#sql-server-原生清空表与-json-路径写入边界) · [SQL Server 联结与限额写入](02-04/README.md#sql-server-联结与限额写入) · [PostgreSQL 与 SQL Server 关联子查询联结](02-04/README.md#postgresql-与-sql-server-关联子查询联结) · [查询索引提示](02-04/README.md#查询索引提示) | 在原生 Linux x86_64 和发布版本矩阵复验。在线索引按产品版本和版本级别的支持范围验收。固定 Laravel 快照范围包含 MySQL、MariaDB、PostgreSQL、SQLite。 |
 
 [固定 Laravel PostgreSQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/PostgresGrammar.php) · [固定 Laravel SQL Server Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php) · [固定 Laravel 快照范围](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#squashing-migrations)
+
+## 发布验收
+
+- 依固定 Laravel 支持范围复验各数据库最低及支持版本。发布矩阵覆盖真实数据库、SQL 方言及跨平台产物。
+- SQL Server 在原生 Linux x86_64 上验收带 TLS 的连接、Schema、查询和 Artisan 迁移。现有证据来自 Apple Silicon 的 Linux amd64 兼容容器。
+- 通过实际商业嵌入服务复验凭据配置、响应和失败恢复。现有[文本嵌入与向量查询](02-04/README.md#文本嵌入与向量查询)证据来自本地协议夹具及真实数据库。
