@@ -543,6 +543,18 @@ impl Registrar for Router {
         if methods.is_empty() {
             return Err(RoutingError::MissingMethods);
         }
+        let route = self.prepare_route(uri, handler)?;
+        Ok(self.insert_route(methods, route))
+    }
+}
+
+impl Router {
+    #[track_caller]
+    pub(super) fn prepare_route(
+        &self,
+        uri: &str,
+        handler: Arc<dyn Handler>,
+    ) -> Result<Route, RoutingError> {
         let mut uri = self
             .groups
             .iter()
@@ -583,6 +595,10 @@ impl Registrar for Router {
             .iter()
             .flat_map(|group| group.excluded_middleware.iter().cloned())
             .collect();
+        Ok(route)
+    }
+
+    pub(super) fn insert_route(&mut self, methods: &[Method], route: Route) -> &mut Route {
         self.has_domains |= route.domain.is_some();
         let index = self.routes.len();
         for method in methods.iter().collect::<HashSet<_>>() {
@@ -598,6 +614,6 @@ impl Registrar for Router {
             }
         }
         self.routes.push(route);
-        Ok(&mut self.routes[index])
+        &mut self.routes[index]
     }
 }

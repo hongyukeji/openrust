@@ -423,6 +423,41 @@ impl Route {
     }
 
     #[track_caller]
+    pub fn resource<C: Send + Sync + 'static>(
+        name: &str,
+        controller: crate::routing::ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resource(name, controller, false)
+    }
+
+    #[track_caller]
+    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    pub fn apiResource<C: Send + Sync + 'static>(
+        name: &str,
+        controller: crate::routing::ResourceController<C>,
+    ) -> Result<(), RoutingError> {
+        Self::register_resource(name, controller, true)
+    }
+
+    #[track_caller]
+    fn register_resource<C: Send + Sync + 'static>(
+        name: &str,
+        controller: crate::routing::ResourceController<C>,
+        api: bool,
+    ) -> Result<(), RoutingError> {
+        let definition = std::panic::Location::caller();
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .register_resource(name, controller, api, definition)
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
+    #[track_caller]
     fn register_configured<Arguments>(
         methods: &[crate::http::Method],
         uri: &str,

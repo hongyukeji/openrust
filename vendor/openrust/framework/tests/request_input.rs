@@ -5,7 +5,7 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
-    routing::ControllerDispatcher,
+    routing::{ControllerDispatcher, ResourceAction, ResourceController, Router, RoutingError},
     support::{BackedEnum, ProviderResult, ServiceProvider, facades::Route},
 };
 use serde_json::{Value, json};
@@ -13,7 +13,18 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 struct EchoController(&'static str);
 
+macro_rules! resource_methods {
+    ($($method:ident),+) => {$ (
+        fn $method<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
+            Box::pin(async move {
+                Response::json(StatusCode::OK, json!([self.0, stringify!($method), request.route("photo"), request.route("album"), request.route("image")]))
+            })
+        }
+    )+};
+}
+
 impl EchoController {
+    resource_methods!(index, create, store, edit, update, destroy, member);
     fn show<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let all = request.input(None).await?;
@@ -42,6 +53,18 @@ impl EchoController {
             ))
         })
     }
+}
+
+fn photo_resource() -> ResourceController<EchoController> {
+    use ResourceAction::*;
+    ResourceController::new()
+        .action(Index, EchoController::index)
+        .action(Create, EchoController::create)
+        .action(Store, EchoController::store)
+        .action(Show, EchoController::member)
+        .action(Edit, EchoController::edit)
+        .action(Update, EchoController::update)
+        .action(Destroy, EchoController::destroy)
 }
 
 struct Provider(&'static str);
@@ -209,6 +232,22 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
             Route::r#match(&[Method::POST], "/typed-values", typed_values)?;
             Route::r#match(&[Method::POST], "/dated-values", dated_values)?;
             Route::r#match(&[Method::POST], "/intervals", interval_values)?;
+            Route::resource("photos", photo_resource())?;
+            Route::apiResource(
+                "api/albums.photos",
+                photo_resource()
+                    .shallow()
+                    .except(&[ResourceAction::Destroy])
+                    .parameters(&[("photos", "image")])
+                    .names(&[(ResourceAction::Show, "pictures.read")])
+                    .scoped(&[("image", "slug")])
+                    .configure(|action, route| {
+                        if matches!(action, ResourceAction::Show | ResourceAction::Update) {
+                            route.where_number("image")?;
+                        }
+                        Ok(())
+                    }),
+            )?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -595,4 +634,148 @@ async fn real_http_reads_calendar_intervals_and_explicit_units() {
         send(address, "POST", "/intervals", "application/json", body, 400).await;
     }
     server.abort();
+}
+
+#[tokio::test]
+async fn real_http_dispatches_resource_and_api_resource_actions() {
+    let (address, server) = start("resource").await;
+    for (method, path, expected) in [
+        (
+            "GET",
+            "/photos",
+            json!(["resource", "index", null, null, null]),
+        ),
+        (
+            "GET",
+            "/photos/create",
+            json!(["resource", "create", null, null, null]),
+        ),
+        (
+            "POST",
+            "/photos",
+            json!(["resource", "store", null, null, null]),
+        ),
+        (
+            "GET",
+            "/photos/2",
+            json!(["resource", "member", "2", null, null]),
+        ),
+        (
+            "GET",
+            "/photos/2/edit",
+            json!(["resource", "edit", "2", null, null]),
+        ),
+        (
+            "PUT",
+            "/photos/2",
+            json!(["resource", "update", "2", null, null]),
+        ),
+        (
+            "PATCH",
+            "/photos/2",
+            json!(["resource", "update", "2", null, null]),
+        ),
+        (
+            "DELETE",
+            "/photos/2",
+            json!(["resource", "destroy", "2", null, null]),
+        ),
+        (
+            "GET",
+            "/api/albums/7/photos",
+            json!(["resource", "index", null, "7", null]),
+        ),
+        (
+            "POST",
+            "/api/albums/7/photos",
+            json!(["resource", "store", null, "7", null]),
+        ),
+        (
+            "GET",
+            "/api/photos/3",
+            json!(["resource", "member", null, null, "3"]),
+        ),
+        (
+            "PATCH",
+            "/api/photos/3",
+            json!(["resource", "update", null, null, "3"]),
+        ),
+    ] {
+        let (_, body) = send(address, method, path, "", b"", 200).await;
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap(), expected);
+    }
+    for path in [
+        "/api/albums/7/photos/create",
+        "/api/photos/3/edit",
+        "/api/albums/7/photos/3",
+        "/api/photos/create",
+    ] {
+        send(address, "GET", path, "", b"", 404).await;
+    }
+    send(address, "DELETE", "/api/photos/3", "", b"", 405).await;
+    server.abort();
+}
+
+#[test]
+fn resource_registration_preserves_names_binding_fields_and_atomic_failure() {
+    let mut router = Router::new();
+    router.resource("photos", photo_resource()).unwrap();
+    let original = router.getRoutes();
+    assert_eq!(original.len(), 7);
+    assert!(
+        original
+            .iter()
+            .any(|route| route.name.as_deref() == Some("photos.show")
+                && route.action.ends_with("EchoController@show"))
+    );
+    assert!(matches!(
+        router.resource(
+            "photos",
+            ResourceController::new().action(ResourceAction::Index, EchoController::index),
+        ),
+        Err(RoutingError::MissingResourceAction {
+            action: "create",
+            ..
+        })
+    ));
+    assert_eq!(router.getRoutes(), original);
+    assert!(
+        router
+            .resource(
+                "photos",
+                photo_resource().configure(|action, _| {
+                    if action == ResourceAction::Store {
+                        return Err(RoutingError::InvalidAction);
+                    }
+                    Ok(())
+                }),
+            )
+            .is_err()
+    );
+    assert_eq!(router.getRoutes(), original);
+
+    router
+        .apiResource(
+            "albums.photos",
+            photo_resource()
+                .only(&[ResourceAction::Index, ResourceAction::Show])
+                .shallow()
+                .parameters(&[("photos", "image")])
+                .scoped(&[("image", "slug")])
+                .names(&[(ResourceAction::Show, "pictures.read")]),
+        )
+        .unwrap();
+    let routes = router.getRoutes();
+    assert!(
+        routes
+            .iter()
+            .any(|route| route.name.as_deref() == Some("albums.photos.index")
+                && route.uri == "albums/{album}/photos")
+    );
+    assert!(
+        routes
+            .iter()
+            .any(|route| route.name.as_deref() == Some("pictures.read")
+                && route.uri == "photos/{image:slug}")
+    );
 }

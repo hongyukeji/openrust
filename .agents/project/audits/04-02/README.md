@@ -44,3 +44,10 @@
 - PHP 8.5 使用固定 trait 与 Carbon 3.8.4 对照 10 组结果，旧版 240 条黄金用例移入框架测试并通过。真实 HTTP 验证 ISO 和自然语言区间、单位数值前缀、带符号微秒、空值、正文优先级和非法单位。无法解析的区间返回 400，超出解析预算返回 413。剩余复杂 timelib 相对指令保留在兼容边界，未覆盖的表达式报错。
 - 下一批核对资源控制器与剩余响应契约，04-02 保持开放，核心账本维持 56/66。
 - `086b95415` 隔离快照以 Rust 1.94.0 通过 5 项真实 HTTP、14 项 Calendar 测试、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批 Cargo 与文档产物已回收，日志留在 `/private/tmp/openrust-04-02-interval.w2QYPZyV`。
+
+## 常规与 API 资源控制器
+
+- 对照固定 Laravel 的 `ResourceRegistrar` 和控制器文档。旧版 `v0.x` 未找到可移植的资源注册器，本批复用当前 `ControllerDispatcher`、路由分组、参数绑定字段和支持层单数转换。Rust 通过 `ResourceController` 明确提供类型化方法指针，注册前一次校验所有动作和路由配置。 [固定 Laravel 注册器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/ResourceRegistrar.php) · [资源控制器章节](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/controllers.md#resource-controllers)
+- `Route::resource` 与 `Route::apiResource` 接通默认动作、HTTP 方法、名称、嵌套、浅层成员和参数别名。支持 `only`、`except`、`names`、`parameters`、`scoped`，以及按动作复用现有路由配置的闭包。控制器依赖继续从当前应用容器解析。缺少动作或配置失败时，已有路由保持可用。
+- 真实 HTTP 验证 12 个成功请求、API 剪裁、浅层路径、404/405、PUT 与 PATCH 共用更新动作。固定 PHP `ResourceRegistrar` 的方法、URI、名称、动作和绑定字段与实际 Artisan 输出对照。下一批为单例资源和剩余响应契约，核心账本维持 56/66。
+- `59e9f9b46` 隔离快照以 Rust 1.94.0 通过请求输入套件 7 项和路由 HTTP 16 项。实际 `route:list --json --sort=definition` 的 11 条资源路由通过 PHP 对照，`artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412` 差异。隔离产物已回收，日志与验收夹具在 `/private/tmp/openrust-04-02-resource.C1OVfDAt`。

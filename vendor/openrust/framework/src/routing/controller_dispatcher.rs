@@ -6,7 +6,8 @@ use crate::{
     support::facades::current_container,
 };
 
-type Action<C> = for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
+pub(super) type Action<C> =
+    for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
 
 /// Dispatches a typed controller action through the current application's container.
 pub struct ControllerDispatcher<C> {

@@ -45,3 +45,9 @@ fn register() -> Result<(), RoutingError> {
 ```
 
 Include `Box::new(TeamProvider)` in the application providers and use `register` as the web route callback.
+
+## Resource Controllers
+
+Register conventional routes with `Route::resource("photos", controller)` or `Route::apiResource("photos", controller)`. Create the `ResourceController` descriptor with typed method pointers such as `.action(ResourceAction::Index, PhotosController::index)`. Supply each selected action. The resource route names follow `photos.index` and `photos.show`, and the collection and member URLs follow Laravel's conventions. API resources omit the create and edit form routes.
+
+Use `only` and `except` to select actions, `names` to override route names, and `parameters` to override wildcard names. Dot-separated resources such as `albums.photos` register nested paths. `shallow` keeps collection routes nested and exposes member routes under `photos/{photo}`. `scoped` sets route binding fields. Use the descriptor's `configure` method to attach middleware or typed bindings to individual routes.

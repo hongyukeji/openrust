@@ -25,6 +25,10 @@ pub enum RoutingError {
         source: ConfigError,
     },
     MissingMethods,
+    MissingResourceAction {
+        resource: String,
+        action: &'static str,
+    },
     InvalidAction,
     UnknownRouteParameter {
         name: String,
@@ -89,6 +93,9 @@ impl fmt::Display for RoutingError {
             }
             Self::InvalidAction => f.write_str("invalid route action identifier"),
             Self::MissingMethods => f.write_str("a route requires at least one HTTP method"),
+            Self::MissingResourceAction { resource, action } => {
+                write!(f, "resource {resource:?} has no {action} action")
+            }
             Self::UnknownMiddleware { name } => write!(f, "unknown middleware {name:?}"),
             Self::MiddlewareGroupCycle { name } => write!(f, "middleware group cycle at {name:?}"),
         }
