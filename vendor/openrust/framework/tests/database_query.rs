@@ -4,7 +4,10 @@ use futures_util::{StreamExt as _, TryStreamExt as _};
 
 use openrust::{
     config::Repository,
-    database::{Connection, DatabaseError, DatabaseManager, Value, query::Expression},
+    database::{
+        Connection, DatabaseError, DatabaseManager, Value,
+        query::{Column, Expression},
+    },
     support::facades::DB,
 };
 use serde_json::{Value as Json, json};
@@ -405,6 +408,130 @@ async fn query_builder_runs_on_mysql_8_4() {
         return;
     };
     verify_queries(connection(json!({"url":url,"prefix":"app_"}))).await;
+}
+
+#[tokio::test]
+async fn value_ranges_and_explicit_ordering_run_on_mysql_8_4() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"prefix":"app_"}));
+    db.unprepared("DROP TABLE IF EXISTS app_order_ranges")
+        .await
+        .unwrap();
+    db.unprepared(
+        "CREATE TABLE app_order_ranges (id BIGINT PRIMARY KEY, status VARCHAR(20), lower_bound INT, upper_bound INT)",
+    ).await.unwrap();
+    db.unprepared(
+        "INSERT INTO app_order_ranges VALUES
+         (1, 'pending', 1, 10), (2, 'active', 5, 5), (3, 'active', 0, 9),
+         (4, 'other', 3, 7), (5, NULL, 0, 10), (6, 'active', 6, 10), (7, 'inactive', 6, 6)",
+    )
+    .await
+    .unwrap();
+    let table = || db.table("order_ranges");
+    let visible = table()
+        .whereValueBetween(5, ["lower_bound", "upper_bound"])
+        .inOrderOf("status", vec!["active".into(), "pending".into()])
+        .orderBy("id", "asc");
+    assert_eq!(
+        visible.toSql().unwrap(),
+        "select * from `app_order_ranges` where ? between `lower_bound` and `upper_bound` order by case when `status` = ? then 0 when `status` = ? then 1 else 2 end, `id` asc"
+    );
+    assert_eq!(
+        visible.getBindings().unwrap(),
+        [5.into(), "active".into(), "pending".into()]
+    );
+    assert_eq!(
+        visible.pluck("id").await.unwrap(),
+        [2.into(), 3.into(), 1.into(), 4.into(), 5.into()]
+    );
+    assert_eq!(
+        table()
+            .whereValueNotBetween(5, ["lower_bound", "upper_bound"])
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        [6.into(), 7.into()]
+    );
+    assert_eq!(
+        table()
+            .r#where("id", "=", 1)
+            .orWhereValueNotBetween(5, ["lower_bound", "upper_bound"])
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        [1.into(), 6.into(), 7.into()]
+    );
+    assert_eq!(
+        table()
+            .r#where("id", "=", 6)
+            .orWhereValueBetween(5, ["lower_bound", "upper_bound"])
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        [1.into(), 2.into(), 3.into(), 4.into(), 5.into(), 6.into()]
+    );
+
+    let expressed = table()
+        .whereValueBetween(
+            Expression::new("(? + 1)").with_bindings(vec![4.into()]),
+            [
+                Column::from("lower_bound"),
+                Column::from(Expression::new("upper_bound + ?").with_bindings(vec![0.into()])),
+            ],
+        )
+        .inOrderOf(
+            Expression::new("coalesce(status, ?)").with_bindings(vec!["active".into()]),
+            vec!["active".into(), "pending".into()],
+        )
+        .orderBy("id", "asc");
+    assert_eq!(
+        expressed.getBindings().unwrap(),
+        [
+            4.into(),
+            0.into(),
+            "active".into(),
+            "active".into(),
+            "active".into(),
+            "pending".into()
+        ]
+    );
+    assert_eq!(
+        expressed.pluck("id").await.unwrap(),
+        [2.into(), 3.into(), 5.into(), 1.into(), 4.into()]
+    );
+    assert_eq!(
+        table().inOrderOf("status", Vec::new()).toSql().unwrap(),
+        "select * from `app_order_ranges`"
+    );
+    let union = table()
+        .select(["id", "status"])
+        .r#where("id", "=", 1)
+        .unionAll(&table().select(["id", "status"]).r#where("id", "=", 2))
+        .unwrap()
+        .inOrderOf("status", vec!["active".into()]);
+    assert_eq!(
+        union.getBindings().unwrap(),
+        [1.into(), 2.into(), "active".into()]
+    );
+    let rows = union.get().await.unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.get("id").unwrap())
+            .collect::<Vec<_>>(),
+        [&2.into(), &1.into()]
+    );
+    assert!(
+        table()
+            .inOrderOf("status.", vec!["active".into()])
+            .toSql()
+            .is_err()
+    );
 }
 
 async fn verify_json_predicates(db: Connection, mysql: bool) {

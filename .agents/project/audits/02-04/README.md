@@ -49,3 +49,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - Rust 通过当前连接池的 TCP 或 Unix socket 端点配置核对两侧来源，端点配置不一致时返回错误。两侧需要明确数据库。SQLite 的其他连接仍走既有来源限制。
 - Rust 1.94.0，MySQL 8.4.13 验证查阅另一库、绑定顺序、已限定表、别名和前缀、同库独立连接、其他端口拒绝、内层账号不参与执行、事务内 INSERT SELECT 及回滚。MySQL 与 SQLite 共 64 项定向回归、严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
 - 三语共用示例通过实际 Artisan 在同一 MySQL 实例的两个独立库中运行。原生 `main artisan inspire`、三语站点构建、12 项站点浏览器组合和 6 项小节检查通过。
+
+## 值范围与指定顺序
+
+- 对照固定 Laravel 的 `whereValueBetween`、否定及 OR 形式、`inOrderOf` 和 `DatabaseQueryBuilderTest`。复核 `v0.x` 的 `query/between_columns.rs` 和绑定回归，沿用固定两端边界、可信表达式和原有编译路径。固定 Goravel 的事务装配仍复用同一查询执行连接。 [Laravel 查询构造器](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#additional-where-clauses) · [固定 Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseQueryBuilderTest.php)
+- Rust 用现有 `Column` 表达列名和可信表达式，用 `ValueOperand` 表达绑定值或可信表达式。范围包含端点。指定顺序使用上游的 `CASE` 表达式，空列表保留原排序，未匹配值归入末位。重复使用表达式时按 SQL 出现顺序拷贝其绑定，复用现有 UNION 排序及标识符引用。
+- 隔离基线 `11b7692dd`。使用 `python3 -B tests/mysql_acceptance.py -- cargo +1.94.0 test -p openrust-framework --test database_query --locked --offline mysql -- --test-threads=1` 验证真实 MySQL 8.4.13 五项。覆盖前缀、包含端点的范围、否定和 OR、表达式绑定、空列表、NULL 与列表外值、次级排序、UNION 绑定及无效标识符。
+- 三语示例提取后在独立 MySQL 执行。独立 `./artisan inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。临时 MySQL、文档和隔离 Cargo 产物已回收。日志保留于 `/private/tmp/openrust-02-04-order-ranges.OHYXbP3W`。
+- 02-02 的剩余 PostgreSQL 独立直连及池化路由仍随该驱动验收。02-04 继续核对公开分组限额接口及向量等方言能力。

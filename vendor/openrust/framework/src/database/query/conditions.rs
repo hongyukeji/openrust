@@ -1,7 +1,7 @@
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
 use super::{
-    Expression,
+    Column, Expression,
     grammars::{DatePart, Grammar},
 };
 
@@ -48,6 +48,25 @@ impl From<Expression> for JsonOperand {
     }
 }
 
+/// A bound query value or an explicitly trusted SQL expression.
+#[derive(Clone)]
+pub enum ValueOperand {
+    Value(Value),
+    Expression(Expression),
+}
+
+impl<T: Into<Value>> From<T> for ValueOperand {
+    fn from(value: T) -> Self {
+        Self::Value(value.into())
+    }
+}
+
+impl From<Expression> for ValueOperand {
+    fn from(expression: Expression) -> Self {
+        Self::Expression(expression)
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Boolean {
     And,
@@ -66,6 +85,7 @@ enum Predicate {
     FullText(Vec<String>, String, FullTextOptions),
     Date(DatePart, String, String, String),
     BetweenColumns(String, [String; 2], bool),
+    ValueBetween(ValueOperand, [Column; 2], bool),
     JsonContains(String, serde_json::Value, bool),
     JsonOverlaps(String, JsonOperand, bool),
     JsonContainsKey(String, bool),
@@ -110,6 +130,13 @@ impl Conditions {
                 Predicate::BetweenColumns(column, bounds, _) => {
                     qualify(column);
                     bounds.iter_mut().for_each(qualify);
+                }
+                Predicate::ValueBetween(_, bounds, _) => {
+                    for bound in bounds {
+                        if let Column::Identifier(column) = bound {
+                            qualify(column);
+                        }
+                    }
                 }
                 Predicate::FullText(columns, ..) => columns.iter_mut().for_each(qualify),
                 Predicate::Group(conditions, _) => conditions.qualify_columns(table),
@@ -251,6 +278,42 @@ macro_rules! predicate_methods {
 
         pub fn orWhereNotBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
             self.conditions().between_columns(true, column, bounds, true);
+            self
+        }
+
+        pub fn whereValueBetween(
+            mut self,
+            value: impl Into<$crate::database::query::ValueOperand>,
+            bounds: [impl Into<$crate::database::query::Column>; 2],
+        ) -> Self {
+            self.conditions().value_between(false, value.into(), bounds.map(Into::into), false);
+            self
+        }
+
+        pub fn orWhereValueBetween(
+            mut self,
+            value: impl Into<$crate::database::query::ValueOperand>,
+            bounds: [impl Into<$crate::database::query::Column>; 2],
+        ) -> Self {
+            self.conditions().value_between(true, value.into(), bounds.map(Into::into), false);
+            self
+        }
+
+        pub fn whereValueNotBetween(
+            mut self,
+            value: impl Into<$crate::database::query::ValueOperand>,
+            bounds: [impl Into<$crate::database::query::Column>; 2],
+        ) -> Self {
+            self.conditions().value_between(false, value.into(), bounds.map(Into::into), true);
+            self
+        }
+
+        pub fn orWhereValueNotBetween(
+            mut self,
+            value: impl Into<$crate::database::query::ValueOperand>,
+            bounds: [impl Into<$crate::database::query::Column>; 2],
+        ) -> Self {
+            self.conditions().value_between(true, value.into(), bounds.map(Into::into), true);
             self
         }
 
@@ -551,6 +614,16 @@ impl Conditions {
         );
     }
 
+    pub(super) fn value_between(
+        &mut self,
+        or: bool,
+        value: ValueOperand,
+        bounds: [Column; 2],
+        negated: bool,
+    ) {
+        self.push(or, Predicate::ValueBetween(value, bounds, negated));
+    }
+
     pub(super) fn json_contains(
         &mut self,
         or: bool,
@@ -687,6 +760,26 @@ impl Predicate {
                     grammar.column(&bounds[0])?,
                     grammar.column(&bounds[1])?
                 ));
+            }
+            Self::ValueBetween(value, bounds, negated) => {
+                match value {
+                    ValueOperand::Value(value) => {
+                        sql.push('?');
+                        bindings.push(value.clone());
+                    }
+                    ValueOperand::Expression(expression) => {
+                        sql.push_str(&expression.sql);
+                        bindings.extend_from_slice(&expression.bindings);
+                    }
+                }
+                sql.push_str(if *negated {
+                    " not between "
+                } else {
+                    " between "
+                });
+                bounds[0].compile(grammar, sql, bindings, false)?;
+                sql.push_str(" and ");
+                bounds[1].compile(grammar, sql, bindings, false)?;
             }
             Self::Like(column, pattern, case_sensitive, negated) => {
                 let (operator, pattern) = grammar.like(pattern, *case_sensitive);

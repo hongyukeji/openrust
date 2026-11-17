@@ -206,6 +206,25 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 }
 ```
 
+### Value ranges and explicit ordering {#value-ranges-and-ordering}
+
+Use `whereValueBetween(value, [lower, upper])` to test a bound value against two columns in each row. The bounds are inclusive. The negated form is `whereValueNotBetween`, and both forms have an OR variant.
+
+`inOrderOf` puts listed values first in the supplied order. Rows with unlisted values, including nulls, share the last rank. Add a second sort for ties. An empty list leaves the existing sort intact. Use `Expression` for trusted SQL operands with separate bindings.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+
+pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Value>> {
+    connection.table("order_ranges")
+        .whereValueBetween(5, ["lower_bound", "upper_bound"])
+        .inOrderOf("status", vec!["active".into(), "pending".into()])
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
 ## Insert Statements
 
 `insert` accepts one or more `Record` values. Each record in a batch has the same columns. `insertOrIgnore` returns the driver's affected-row count and uses its native ignore behavior. `insertUsing` takes a column list and a select query. `insertGetId` returns the key from the same execution result.

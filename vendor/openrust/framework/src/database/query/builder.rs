@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use futures_util::TryStreamExt as _;
 
 use crate::database::{
@@ -54,9 +56,36 @@ impl From<Expression> for Column {
     }
 }
 
+impl Column {
+    pub(super) fn compile(
+        &self,
+        grammar: &Grammar,
+        sql: &mut String,
+        bindings: &mut Vec<Value>,
+        projection: bool,
+    ) -> DatabaseResult<()> {
+        match self {
+            Self::Identifier(column) => {
+                let name = if projection {
+                    grammar.projection(column)?
+                } else {
+                    grammar.column(column)?
+                };
+                sql.push_str(&name);
+            }
+            Self::Raw(expression) => {
+                sql.push_str(&expression.sql);
+                bindings.extend_from_slice(&expression.bindings);
+            }
+        }
+        Ok(())
+    }
+}
+
 enum Order {
     Column(String, String),
     Raw(Expression),
+    InOrderOf(Column, Vec<Value>),
     FullText(Vec<String>, String, super::FullTextOptions),
 }
 
@@ -230,6 +259,15 @@ impl<'connection> Builder<'connection> {
     ) -> Self {
         self.active_orders()
             .push(Order::FullText(columns, term, options));
+        self
+    }
+
+    /// Orders listed values first, in the supplied order.
+    pub fn inOrderOf(mut self, column: impl Into<Column>, values: Vec<Value>) -> Self {
+        if !values.is_empty() {
+            self.active_orders()
+                .push(Order::InOrderOf(column.into(), values));
+        }
         self
     }
 
@@ -691,20 +729,7 @@ impl<'connection> Builder<'connection> {
             if index != 0 {
                 sql.push_str(", ");
             }
-            match column {
-                Column::Identifier(column) => {
-                    let name = if projection {
-                        self.grammar.projection(column)?
-                    } else {
-                        self.grammar.column(column)?
-                    };
-                    sql.push_str(&name);
-                }
-                Column::Raw(expression) => {
-                    sql.push_str(&expression.sql);
-                    bindings.extend_from_slice(&expression.bindings);
-                }
-            }
+            column.compile(&self.grammar, sql, bindings, projection)?;
         }
         Ok(())
     }
@@ -736,6 +761,16 @@ impl<'connection> Builder<'connection> {
                 Order::Raw(expression) => {
                     sql.push_str(&expression.sql);
                     bindings.extend_from_slice(&expression.bindings);
+                }
+                Order::InOrderOf(column, values) => {
+                    sql.push_str("case");
+                    for (rank, value) in values.iter().enumerate() {
+                        sql.push_str(" when ");
+                        column.compile(&self.grammar, sql, bindings, false)?;
+                        write!(sql, " = ? then {rank}").expect("writing to String");
+                        bindings.push(value.clone());
+                    }
+                    write!(sql, " else {} end", values.len()).expect("writing to String");
                 }
                 Order::FullText(columns, term, options) => {
                     sql.push_str(&self.grammar.postgres_full_text_rank(columns, *options)?);

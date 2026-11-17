@@ -206,6 +206,25 @@ pub async fn departments(connection: &Connection) -> DatabaseResult<Vec<Row>> {
 }
 ```
 
+### 值範圍與指定順序 {#value-ranges-and-ordering}
+
+用 `whereValueBetween(value, [lower, upper])` 將繫結值與每列的兩個欄位邊界比較，範圍包含端點。取反用 `whereValueNotBetween`，兩種形式都有 OR 變體。
+
+`inOrderOf` 讓列出的值依指定順序排在前面。清單外的值和空值同屬最後一級。要固定同級順序時再加一項排序。空清單會保留既有排序。可信 SQL 運算元可用 `Expression` 並個別繫結參數。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+
+pub async fn ordered_matches(connection: &Connection) -> DatabaseResult<Vec<Value>> {
+    connection.table("order_ranges")
+        .whereValueBetween(5, ["lower_bound", "upper_bound"])
+        .inOrderOf("status", vec!["active".into(), "pending".into()])
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
 ## 插入陳述式
 
 `insert` 接受一個或多個 `Record`，批次資料使用相同的欄位。`insertOrIgnore` 使用驅動程式原生的忽略行為，並傳回受影響的資料列數。`insertUsing` 接受目標欄位與選擇查詢。`insertGetId` 從同一次執行結果取得主鍵。
