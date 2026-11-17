@@ -1,9 +1,9 @@
 //! PHP createFromFormat 的顺序扫描与日期输出格式。
 //! 固定上游与版权许可见同目录 SOURCES.md / LICENSE.timelib / LICENSE.carbon。
 
-use super::civil::{days_from_civil, days_in_month, iso_week};
+use super::civil::{Civil, days_from_civil, days_in_month, iso_week};
 use super::zone::{ResolvedTimezone, display_offset};
-use super::{CalendarInstant, Result, calendar_error, limit_error, range_error};
+use super::{CalendarInstant, InputDate, Result, calendar_error, limit_error, range_error};
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 
@@ -14,6 +14,8 @@ pub(super) const HOUR: u16 = 8;
 pub(super) const MINUTE: u16 = 16;
 pub(super) const SECOND: u16 = 32;
 pub(super) const MICRO: u16 = 64;
+
+const ALL: u16 = YEAR | MONTH | DAY | HOUR | MINUTE | SECOND | MICRO;
 
 pub(super) struct Cursor<'a> {
     pub text: &'a str,
@@ -58,6 +60,36 @@ impl<'a> Cursor<'a> {
             .and_then(|value| value.parse().ok())
             .ok_or_else(invalid)
     }
+    pub fn signed(&mut self, maximum: usize) -> Result<i64> {
+        let start = self.position;
+        if matches!(self.peek(), Some('-' | '+')) {
+            self.pop();
+        }
+        let digits = self.position;
+        while self.position - digits < maximum
+            && self
+                .text
+                .as_bytes()
+                .get(self.position)
+                .is_some_and(u8::is_ascii_digit)
+        {
+            self.position += 1;
+        }
+        if self.position == digits {
+            return Err(invalid());
+        }
+        self.text
+            .get(start..self.position)
+            .and_then(|text| text.parse::<i64>().ok())
+            .ok_or_else(range_error)
+    }
+    fn skip_byte(&mut self) -> Result<()> {
+        if self.position >= self.text.len() {
+            return Err(invalid());
+        }
+        self.position += 1;
+        Ok(())
+    }
     pub fn source_word(&mut self) -> &'a str {
         let start = self.position;
         while self.peek().is_some_and(char::is_alphabetic) {
@@ -77,6 +109,261 @@ impl<'a> Cursor<'a> {
     }
 }
 
+// PHP 格式token顺序保持在同一match，避免格式状态在多个解析器间漂移。
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keeps PHP date parsing directives in one table"
+)]
+pub(super) fn parse(
+    text: &str,
+    pattern: &str,
+    now: Civil,
+    default_zone: &ResolvedTimezone,
+) -> Result<InputDate> {
+    if text.contains('\0') {
+        return Err(invalid());
+    }
+    let expanded = expand_c(pattern);
+    let mut cursor = Cursor::new(text);
+    let mut civil = now;
+    let mut zone = default_zone.clone();
+    let mut mask = 0u16;
+    let mut seen_time = false;
+    let mut weekday = None;
+    let mut meridian = None;
+    let mut allow_extra = false;
+    let mut patterns = expanded.chars();
+    while let Some(token) = patterns.next() {
+        match token {
+            '\\' => {
+                let expected = patterns.next().ok_or_else(invalid)?;
+                let actual = cursor.pop().ok_or_else(invalid)?;
+                if actual != expected {
+                    return Err(invalid());
+                }
+            }
+            '!' => {
+                civil = Civil::epoch();
+                mask = ALL;
+            }
+            '|' => reset_unset(&mut civil, mask),
+            '+' => allow_extra = true,
+            ' ' => cursor.whitespace(),
+            '?' => cursor.skip_byte()?,
+            '*' => {
+                cursor.skip_byte()?;
+                while cursor
+                    .text
+                    .as_bytes()
+                    .get(cursor.position)
+                    .is_some_and(|byte| {
+                        !byte.is_ascii_digit()
+                            && !matches!(
+                                *byte,
+                                b' ' | b'\t' | b'.' | b',' | b':' | b';' | b'/' | b'-'
+                            )
+                    })
+                {
+                    cursor.position += 1;
+                }
+            }
+            '#' => {
+                if !cursor.pop().is_some_and(is_separator) {
+                    return Err(invalid());
+                }
+            }
+            'Y' => {
+                civil.year = cursor.digits(1, 4)?;
+                mask |= YEAR;
+            }
+            'x' | 'X' => {
+                civil.year = cursor.signed(19)?;
+                mask |= YEAR;
+            }
+            'y' => {
+                let year = cursor.digits(1, 2)?;
+                civil.year = year + if year < 70 { 2000 } else { 1900 };
+                mask |= YEAR;
+            }
+            'm' | 'n' => {
+                civil.month = cursor.digits(1, 2)?;
+                mask |= MONTH;
+            }
+            'd' | 'j' => {
+                civil.day = cursor.digits(1, 2)?;
+                mask |= DAY;
+            }
+            'M' | 'F' => {
+                civil.month = month_number(cursor.word()).ok_or_else(invalid)?;
+                mask |= MONTH;
+            }
+            'D' | 'l' => {
+                weekday = Some(weekday_number(cursor.word()).ok_or_else(invalid)?);
+            }
+            'S' => {
+                if cursor.position == cursor.text.len() {
+                    return Err(invalid());
+                }
+                if cursor.rest().get(..2).is_some_and(|suffix| {
+                    ["nd", "rd", "st", "th"]
+                        .iter()
+                        .any(|known| suffix.eq_ignore_ascii_case(known))
+                }) {
+                    cursor.position += 2;
+                }
+            }
+            'z' => {
+                if mask & YEAR == 0 {
+                    return Err(invalid());
+                }
+                civil.month = 1;
+                civil.day = cursor
+                    .digits(1, 3)?
+                    .checked_add(1)
+                    .ok_or_else(range_error)?;
+                mask |= MONTH | DAY;
+            }
+            'H' | 'G' | 'h' | 'g' => {
+                start_time(&mut civil, &mut seen_time, mask);
+                civil.hour = cursor.digits(1, 2)?;
+                if matches!(token, 'h' | 'g') && (civil.hour == 0 || civil.hour > 12) {
+                    return Err(invalid());
+                }
+                mask |= HOUR;
+            }
+            'i' => {
+                start_time(&mut civil, &mut seen_time, mask);
+                civil.minute = cursor.digits(1, 2)?;
+                mask |= MINUTE;
+            }
+            's' => {
+                start_time(&mut civil, &mut seen_time, mask);
+                civil.second = cursor.digits(1, 2)?;
+                mask |= SECOND;
+            }
+            'u' | 'v' => {
+                start_time(&mut civil, &mut seen_time, mask);
+                let start = cursor.position;
+                let digits = cursor.digits(1, if token == 'u' { 6 } else { 3 })?;
+                let count = cursor.position - start;
+                civil.microsecond =
+                    digits * 10i64.pow(u32::try_from(6 - count).map_err(|_| invalid())?);
+                mask |= MICRO;
+            }
+            'a' | 'A' => {
+                let word = cursor.word().replace('.', "").to_ascii_lowercase();
+                meridian = Some(match word.as_str() {
+                    "am" => false,
+                    "pm" => true,
+                    _ => return Err(invalid()),
+                });
+            }
+            'U' => {
+                let seconds = cursor.signed(24)?;
+                let micros = u32::try_from(civil.microsecond).map_err(|_| range_error())?;
+                civil = Civil::from_instant(CalendarInstant::new(seconds, micros)?, 0)?;
+                zone = ResolvedTimezone::parse("+00:00")?;
+                mask = ALL;
+            }
+            'e' | 'T' | 'P' | 'p' | 'O' => {
+                let start = cursor.position;
+                while cursor.peek().is_some_and(|value| {
+                    value.is_ascii_alphanumeric() || matches!(value, '_' | '/' | '+' | '-' | ':')
+                }) {
+                    cursor.pop();
+                }
+                let name = cursor
+                    .text
+                    .get(start..cursor.position)
+                    .ok_or_else(invalid)?;
+                zone = ResolvedTimezone::parse(name)?;
+            }
+            other => {
+                let actual = cursor.pop().ok_or_else(invalid)?;
+                if actual != other {
+                    return Err(invalid());
+                }
+            }
+        }
+    }
+    if cursor.position != cursor.text.len() && !allow_extra {
+        return Err(invalid());
+    }
+    if let Some(pm) = meridian {
+        if mask & HOUR == 0 {
+            return Err(invalid());
+        }
+        civil.hour = civil.hour % 12 + if pm { 12 } else { 0 };
+    }
+    if let Some(target) = weekday {
+        civil = civil.normalize()?;
+        civil.day += (target - civil.weekday()?).rem_euclid(7);
+    }
+    Ok(InputDate::new(zone.resolve(civil, None)?, zone))
+}
+
+fn start_time(civil: &mut Civil, seen: &mut bool, mask: u16) {
+    if !*seen {
+        if mask & HOUR == 0 {
+            civil.hour = 0;
+        }
+        if mask & MINUTE == 0 {
+            civil.minute = 0;
+        }
+        if mask & SECOND == 0 {
+            civil.second = 0;
+        }
+        if mask & MICRO == 0 {
+            civil.microsecond = 0;
+        }
+        *seen = true;
+    }
+}
+fn reset_unset(civil: &mut Civil, mask: u16) {
+    let epoch = Civil::epoch();
+    if mask & YEAR == 0 {
+        civil.year = epoch.year;
+    }
+    if mask & MONTH == 0 {
+        civil.month = epoch.month;
+    }
+    if mask & DAY == 0 {
+        civil.day = epoch.day;
+    }
+    if mask & HOUR == 0 {
+        civil.hour = 0;
+    }
+    if mask & MINUTE == 0 {
+        civil.minute = 0;
+    }
+    if mask & SECOND == 0 {
+        civil.second = 0;
+    }
+    if mask & MICRO == 0 {
+        civil.microsecond = 0;
+    }
+}
+fn expand_c(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut escaped = false;
+    for value in pattern.chars() {
+        if escaped {
+            out.push(value);
+            escaped = false;
+        } else if value == '\\' {
+            out.push(value);
+            escaped = true;
+        } else if value == 'c' {
+            out.push_str("Y-m-d\\TH:i:sP");
+        } else {
+            out.push(value);
+        }
+    }
+    out
+}
+fn is_separator(value: char) -> bool {
+    matches!(value, ';' | ':' | '/' | '.' | ',' | '-' | '(' | ')')
+}
 fn invalid() -> super::CalendarError {
     calendar_error("input_date_format_invalid")
 }
@@ -117,11 +404,23 @@ pub(super) fn weekday_number(text: &str) -> Option<i64> {
     reason = "Keeps the PHP date tokens in a single table"
 )]
 pub(crate) fn display(datetime: DateTime<Utc>, timezone: Tz, pattern: &str) -> Result<String> {
+    let instant = CalendarInstant::new(datetime.timestamp(), datetime.timestamp_subsec_micros())?;
+    let zone = ResolvedTimezone::parse(timezone.name())?;
+    display_zoned(instant, &zone, pattern)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keeps the PHP date tokens in a single table"
+)]
+pub(super) fn display_zoned(
+    instant: CalendarInstant,
+    zone: &ResolvedTimezone,
+    pattern: &str,
+) -> Result<String> {
     if pattern.len() > super::MAX_CALENDAR_BYTES {
         return Err(limit_error());
     }
-    let instant = CalendarInstant::new(datetime.timestamp(), datetime.timestamp_subsec_micros())?;
-    let zone = ResolvedTimezone::parse(timezone.name())?;
     let civil = zone.civil(instant)?;
     let weekday = usize::try_from(civil.weekday()?).map_err(|_| range_error())?;
     let offset = zone.offset_seconds(instant)?;
@@ -255,7 +554,7 @@ pub(crate) fn display(datetime: DateTime<Utc>, timezone: Tz, pattern: &str) -> R
                     .into()
                 }
             }
-            'e' => timezone.name().into(),
+            'e' => zone.name().into(),
             'P' => display_offset(offset),
             'O' => display_offset(offset).replace(':', ""),
             'p' => {
@@ -269,12 +568,12 @@ pub(crate) fn display(datetime: DateTime<Utc>, timezone: Tz, pattern: &str) -> R
                 }
             }
             'Z' => offset.to_string(),
-            'U' => datetime.timestamp().to_string(),
+            'U' => instant.epoch_seconds.to_string(),
             'T' => zone.abbreviation(instant)?,
             'I' => u8::from(zone.is_dst(instant)?).to_string(),
             'B' => format!(
                 "{:03}",
-                (i128::from(datetime.timestamp()) + 3600).rem_euclid(86400) * 1000 / 86400
+                (i128::from(instant.epoch_seconds) + 3600).rem_euclid(86400) * 1000 / 86400
             ),
             'c' => format!(
                 "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}{}",

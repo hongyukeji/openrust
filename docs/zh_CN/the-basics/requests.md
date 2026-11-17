@@ -16,6 +16,10 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 实现 `BackedEnum`，并以 `String` 或 `i64` 为 backing 类型。用 `request.r#enum::<Stage>("stage", None).await?` 读取单项，用 `request.enums::<Stage>("list").await?` 读取集合。集合保留原键和重复项，跳过未知 case。单项遇到未知 case 时采用给定默认值。无法转换的 backing 类型返回 HTTP 400。
 
+用 `request.date("when", None, None).await?` 按应用时区解析日期。用 `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?` 指定 PHP 格式和时区。缺失值、null 和空白返回 `None`，无效日期返回 HTTP 400。解析结果保留实际时区和微秒。
+
+用 `request.only(&["user.name", "user.note"]).await?` 选取嵌套输入，并保留显式 null。`request.except` 从输入副本移除指定路径。`arrayOnly` 和 `collectOnly` 分别对应 `array` 和 `collect` 的多键读取。这些方法选择输入值，上传文件用 `request.file` 读取。
+
 ## 文件
 
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。

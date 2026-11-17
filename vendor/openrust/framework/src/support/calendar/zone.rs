@@ -31,6 +31,10 @@ impl Default for ResolvedTimezone {
     }
 }
 impl ResolvedTimezone {
+    pub(super) fn name(&self) -> &str {
+        &self.name
+    }
+
     /// 构造 UTC 时区。
     pub fn utc() -> Self {
         Self {

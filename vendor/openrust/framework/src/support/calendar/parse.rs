@@ -4,7 +4,7 @@
 use super::format::Cursor;
 use super::lexer;
 use super::state::ParseState;
-use super::{CalendarInstant, ResolvedTimezone, Result, calendar_error};
+use super::{CalendarInstant, InputDate, ResolvedTimezone, Result, calendar_error};
 pub(super) fn parse_text(
     text: &str,
     now: CalendarInstant,
@@ -12,6 +12,16 @@ pub(super) fn parse_text(
 ) -> Result<CalendarInstant> {
     let state = scan(text, now, zone)?;
     state.finish()
+}
+
+pub(super) fn parse_date(
+    text: &str,
+    now: CalendarInstant,
+    zone: &ResolvedTimezone,
+) -> Result<InputDate> {
+    let state = scan(text, now, zone)?;
+    let zone = state.timezone().clone();
+    Ok(InputDate::new(state.finish()?, zone))
 }
 
 pub(super) fn add_interval(

@@ -130,6 +130,36 @@ fn typed_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
     })
 }
 
+fn dated_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let date = request.date("when", None, None).await?;
+        let formatted = request
+            .date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo"))
+            .await?;
+        let dates = [date, formatted].map(|date| {
+            date.map(|date| {
+                json!([
+                    date.format("Y-m-d H:i:s.u P").unwrap(),
+                    date.timezone(),
+                    date.microseconds(),
+                    date.timestamp()
+                ])
+            })
+        });
+        let keys = ["user.name", "user.note", "missing", "query"];
+        let selected = request.only(&keys).await?;
+        let array = request.arrayOnly(&keys).await?;
+        let collection: Vec<_> = request.collectOnly(&keys).await?.into_iter().collect();
+        let remainder = request
+            .except(&["when", "formatted", "user.secret"])
+            .await?;
+        Response::json(
+            StatusCode::OK,
+            json!({"dates": dates, "selected": selected, "array": array, "collection": collection, "remainder": remainder}),
+        )
+    })
+}
+
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
     incoming: axum::extract::Request,
@@ -153,6 +183,7 @@ async fn start(label: &'static str) -> (SocketAddr, tokio::task::JoinHandle<()>)
             )?;
             Route::r#match(&[Method::GET, Method::POST], "/scalars", scalar_input)?;
             Route::r#match(&[Method::POST], "/typed-values", typed_values)?;
+            Route::r#match(&[Method::POST], "/dated-values", dated_values)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -418,6 +449,83 @@ async fn real_http_reads_fluent_strings_arrays_and_backed_enums() {
         br#"{"list":["ready",{}]}"#,
     ] {
         send(address, "POST", path, "application/json", invalid, 400).await;
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_dates_and_selects_named_input_paths() {
+    let (address, server) = start("dated-values").await;
+    let (_, body) = send(address, "POST", "/dated-values?query=keep", "application/json", br#"{"when":"2026-01-02T03:04:05.123456+08:00","formatted":"03/01/2026 04:05:06.765432","user":{"name":"Ada","note":null,"secret":"remove"}}"#, 200).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value["dates"][0],
+        json!([
+            "2026-01-02 03:04:05.123456 +08:00",
+            "+08:00",
+            123_456,
+            1_767_294_245_i64
+        ])
+    );
+    assert_eq!(
+        value["dates"][1],
+        json!([
+            "2026-01-03 04:05:06.765432 +09:00",
+            "Asia/Tokyo",
+            765_432,
+            1_767_380_706_i64
+        ])
+    );
+    let selected = json!({"user":{"name":"Ada","note":null},"query":"keep"});
+    assert_eq!(value["selected"], selected);
+    assert_eq!(value["array"], selected);
+    assert_eq!(value["remainder"], selected);
+    assert_eq!(
+        value["collection"],
+        json!([["user",{"name":"Ada","note":null}],["query","keep"]])
+    );
+
+    for (payload, expected) in [
+        (
+            br#"{"when":"2026-01-02 +1 day"}"#.as_slice(),
+            json!([
+                "2026-01-03 00:00:00.000000 +00:00",
+                "UTC",
+                0,
+                1_767_398_400_i64
+            ]),
+        ),
+        (
+            br#"{"when":-0.25}"#,
+            json!(["1969-12-31 23:59:59.750000 +00:00", "+00:00", 750_000, -1]),
+        ),
+        (br#"{"when":"   ","formatted":null}"#, Value::Null),
+    ] {
+        let (_, body) = send(
+            address,
+            "POST",
+            "/dated-values",
+            "application/json",
+            payload,
+            200,
+        )
+        .await;
+        let date: Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(date["dates"], json!([expected, null]));
+    }
+    for invalid in [
+        br#"{"when":"not a date"}"#.as_slice(),
+        br#"{"formatted":"wrong format"}"#,
+    ] {
+        send(
+            address,
+            "POST",
+            "/dated-values",
+            "application/json",
+            invalid,
+            400,
+        )
+        .await;
     }
     server.abort();
 }

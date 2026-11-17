@@ -16,6 +16,10 @@ Use `request.string("label", "fallback", true).await?.trim()` for a fluent strin
 
 Implement `BackedEnum` with a `String` or `i64` backing. Use `request.r#enum::<Stage>("stage", None).await?` for one case, or `request.enums::<Stage>("list").await?` for a collection. The list keeps original keys and duplicate cases while skipping unknown cases. A single unknown case uses the supplied fallback. An invalid backing type returns HTTP 400.
 
+Use `request.date("when", None, None).await?` to parse a date using the application's time zone. Pass a PHP format and an explicit time zone with `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?`. Missing, null, and blank values return `None`. Invalid dates return HTTP 400. The parsed date preserves its resolved time zone and microseconds.
+
+Use `request.only(&["user.name", "user.note"]).await?` to select nested input while retaining explicit null values. `request.except` removes paths from a copy of the input. Use `arrayOnly` and `collectOnly` for the multi-key forms of `array` and `collect`. These methods select input values. Read multipart uploads through `request.file`.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.

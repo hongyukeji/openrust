@@ -30,3 +30,10 @@
 - PHP 8.5 使用固定 Laravel trait 和 Stringable，对照默认值、标量转数组、键和重复项、未知 case 与非法类型。真实 HTTP 另验证正文覆盖同名查询键。Rust 用 `r#enum` 保留方法名称，非法 backing 作为客户端输入错误映射到 HTTP 400。
 - 04-02 后续为日期、时间间隔、指定多键与剩余控制器契约。核心账本维持 56/66。
 - `41f1738dc` 隔离快照用 Rust 1.94.0 通过 3 项真实 HTTP、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批产物已回收，日志保留于 `/private/tmp/openrust-04-02-input-values.ZNyHgVFP`。
+
+## 日期与多键选择
+
+- 对照固定 Laravel 的 `date`、`only`、`except` 以及 `array`、`collect` 的多键分支。日期复用框架内的 timelib 求值与时区数据，从旧版 `6d1a81924` 提取 PHP 格式扫描和 Carbon 数字时间戳转换。Rust 从参数或应用配置取时区，保留输入时区和微秒。空值返回 `None`，无效日期映射到 400。 [固定 Laravel 输入方法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php)
+- 多键接口复用点号路径读取与 `Arr` 写入、删除规则。Rust 的 `arrayOnly`、`collectOnly` 表达 PHP 方法接收键数组的分支，multipart 文件继续经上传对象读取。真实 HTTP 验证嵌套命中、保留显式 null、省略缺失键、查询补入与移除子键。
+- PHP 8.5 `DateTimeImmutable` 对照通过固定偏移、IANA 时区、相对日期、微秒和负时间戳，另验证格式与自由表达式的失败。如果继续核对 Carbon 特有行为，沿用旧版转换用例。04-02 尚待时间间隔与控制器契约，核心账本维持 56/66。
+- `eb1193f99` 隔离快照使用 Rust 1.94.0 通过 4 项真实 HTTP、3 项 Calendar 回归、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、改动文件格式、三语站点和 18 项浏览器检查。全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。本批产物已回收，日志保留于 `/private/tmp/openrust-04-02-date.IKxksx7z`。

@@ -3,7 +3,10 @@ use futures_util::{StreamExt as _, stream};
 use serde_json::{Map, Value};
 
 use crate::http::{Body, HttpError, Method, Request, UploadedFile};
-use crate::support::{BackedEnum, Collection, EnumBacking as _, Stringable, input_scalars};
+use crate::support::{
+    Arr, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar, data_get,
+    facades::Config, input_scalars,
+};
 
 use super::{query, variables::VariableBag};
 
@@ -222,7 +225,7 @@ impl Request {
         let Some(value) = self
             .input(Some(key))
             .await?
-            .filter(|value| !empty_enum_input(value))
+            .filter(|value| !input_is_empty(value))
         else {
             return Ok(default);
         };
@@ -234,7 +237,7 @@ impl Request {
         let Some(value) = self
             .input(Some(key))
             .await?
-            .filter(|value| !empty_enum_input(value))
+            .filter(|value| !input_is_empty(value))
         else {
             return Ok(Collection::new());
         };
@@ -245,6 +248,79 @@ impl Request {
             }
         }
         Ok(cases)
+    }
+
+    /// Parses an absolute or relative date, optionally using a PHP format and explicit time zone.
+    pub async fn date(
+        &mut self,
+        key: &str,
+        format: Option<&str>,
+        timezone: Option<&str>,
+    ) -> Result<Option<InputDate>, HttpError> {
+        let Some(value) = self
+            .input(Some(key))
+            .await?
+            .filter(|value| !input_is_empty(value))
+        else {
+            return Ok(None);
+        };
+        let configured;
+        let timezone = match timezone {
+            Some(timezone) => timezone,
+            None => {
+                configured = Config::get("app.timezone").map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+                match &configured {
+                    None => "UTC",
+                    Some(value) => value.as_str().ok_or_else(|| HttpError::Internal {
+                        source: Box::new(crate::support::DateError::InvalidTimezone),
+                    })?,
+                }
+            }
+        };
+        calendar::parse_input_date(value, format, timezone, chrono::Utc::now())
+            .map(Some)
+            .map_err(|error| match error {
+                calendar::CalendarError::LimitExceeded => HttpError::PayloadTooLarge,
+                _ => HttpError::InvalidRequest,
+            })
+    }
+
+    /// Selects named input paths, omitting missing keys and preserving explicit null.
+    pub async fn only(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
+        let input = self.input(None).await?.unwrap_or_else(empty);
+        let mut selected = Value::Array(Vec::new());
+        for key in keys {
+            if let Some(value) = data_get(&input, Some(key)) {
+                Arr::set(&mut selected, key, value).map_err(|_| HttpError::InvalidRequest)?;
+            }
+        }
+        Ok(selected)
+    }
+
+    /// Removes named paths from a copy of the input bag.
+    pub async fn except(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
+        let input = self.input(None).await?.unwrap_or_else(empty);
+        Arr::except(&input, keys).map_err(|_| HttpError::InvalidRequest)
+    }
+
+    /// Converts only the selected input paths to an array.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's naming for multi-key input methods"
+    )]
+    pub async fn arrayOnly(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
+        self.only(keys).await
+    }
+
+    /// Converts only the selected input paths to a keyed collection.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's naming for multi-key input methods"
+    )]
+    pub async fn collectOnly(&mut self, keys: &[&str]) -> Result<Collection, HttpError> {
+        Ok(input_collection(self.only(keys).await?))
     }
 
     /// Reads the JSON body independently of query parameters.
@@ -467,7 +543,7 @@ fn multipart_error(error: multer::Error) -> InputFailure {
     }
 }
 
-fn empty_enum_input(value: &Value) -> bool {
+fn input_is_empty(value: &Value) -> bool {
     value.is_null()
         || value.as_str().is_some_and(|text| {
             text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\0'])
