@@ -40,4 +40,11 @@
 
 - 独立 MySQL 8.4.13、Redis 8.10.3 与三个实际应用通过全局在线成员、跨进程客户端事件、应用隔离、节点退出和租期清除。Redis 容器使用固定回环发布端口，实测重启后客户端可重新订阅且成员快照无残留。
 
-外部托管 Pusher 仍待使用隔离测试应用验证，当前无可用测试凭据。08-02 维持开放。
+外部托管 Pusher 当时因缺少可用凭据维持待验收。
+
+## 08-02 模拟验收与闭合
+
+- 复查本地验收环境，四项托管配置未齐备。按确认的模拟验收口径，使用隔离的本地 Reverb 监听器充当 Pusher 协议服务，使用测试凭据和真实回环 TCP。固定 Laravel 的 Reverb 与 Pusher 共享传输工厂。Rust 在 Reverb Provider 中为 `pusher` 注册同一签名传输，并通过现有 Pusher 连接配置独立解析凭据和端点。 [固定 Laravel BroadcastManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Broadcasting/BroadcastManager.php#L321) [Pusher HTTP API](https://pusher.com/docs/channels/library_auth_reference/rest-api/)
+- 真实框架 HTTP 验证拒绝无效身份、私有及在线签名、字符串成员 ID。实际 Artisan 命令通过具名驱动向模拟服务发送签名 HTTP 请求。Chrome 中使用 Laravel Echo 2.2.6 和 pusher-js 8.6.0 的 `pusher` 配置验证公开、私有及在线频道的订阅和送达，断线后取得新套接字并重新授权。重连前后各由 Artisan 发布一次，三个频道分别各收一条。原 `reverb` 驱动的同类浏览器验收通过。
+- Rust 1.94.0 锁定离线通过 9 项 Reverb 回归、全工作区严格 Clippy、实际应用二进制构建及内嵌与独立 Artisan 运行回归。三语文档站构建、12 项浏览器检查与三语章节锚点通过。已清理临时客户端、站点和本批测试可执行文件。
+- 08-02 按模拟验收口径闭合。托管 Pusher 的 TLS 和部署配置仍待实机验证。

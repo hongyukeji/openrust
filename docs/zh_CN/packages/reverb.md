@@ -65,3 +65,9 @@ echo.channel("news").listen(".article.updated", event => console.log(event))
 ```
 
 使用 `echo.private("orders.42")` 订阅私有频道，使用 `echo.join("rooms.42")` 加入在线频道。两者都通过应用的 `/broadcasting/auth` 和已注册的频道守卫授权。连接恢复后，Echo 自动重新订阅。
+
+## Pusher Channels {#pusher-channels}
+
+`reverb` Cargo 特性也注册 `pusher` 广播驱动。设置 `BROADCAST_CONNECTION=pusher`、`PUSHER_APP_ID`、`PUSHER_APP_KEY`、`PUSHER_APP_SECRET` 和 `PUSHER_APP_CLUSTER`。默认发布端点为 `https://api-{cluster}.pusher.com:443`。连接兼容 Pusher 的测试端点时，可覆盖 `PUSHER_HOST`、`PUSHER_PORT` 和 `PUSHER_SCHEME`。
+
+使用托管 Pusher Channels 时，将 Echo 的 `broadcaster` 设为 `"pusher"`，并传入公开 Key 与 Cluster。私有和在线频道仍通过应用的 `/broadcasting/auth` 和频道规则授权。

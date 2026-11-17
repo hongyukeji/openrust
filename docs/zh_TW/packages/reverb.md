@@ -65,3 +65,9 @@ echo.channel("news").listen(".article.updated", event => console.log(event))
 ```
 
 使用 `echo.private("orders.42")` 訂閱私人頻道，使用 `echo.join("rooms.42")` 加入在線頻道。兩者都透過應用程式的 `/broadcasting/auth` 和已註冊的頻道守衛授權。連線恢復後，Echo 會自動重新訂閱。
+
+## Pusher Channels {#pusher-channels}
+
+`reverb` Cargo 特性也會註冊 `pusher` 廣播驅動。設定 `BROADCAST_CONNECTION=pusher`、`PUSHER_APP_ID`、`PUSHER_APP_KEY`、`PUSHER_APP_SECRET` 和 `PUSHER_APP_CLUSTER`。預設發布端點為 `https://api-{cluster}.pusher.com:443`。連接相容 Pusher 的測試端點時，可覆寫 `PUSHER_HOST`、`PUSHER_PORT` 和 `PUSHER_SCHEME`。
+
+使用託管 Pusher Channels 時，將 Echo 的 `broadcaster` 設為 `"pusher"`，並傳入公開 Key 和 Cluster。私人與在線頻道仍透過應用程式的 `/broadcasting/auth` 和頻道規則授權。

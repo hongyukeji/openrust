@@ -404,19 +404,72 @@ async fn framework_http(
     kernel.handleTransport(request).await
 }
 
-#[tokio::test]
-async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client() {
-    use axum::handler::Handler as _;
-    use openrust::{
-        broadcasting::{BroadcastChannel, BroadcastManager, PresenceChannel},
-        contracts::{broadcasting::Factory as _, foundation::Application as _, http::Kernel as _},
-        foundation::{Application as Framework, http::Kernel},
-    };
+struct PublishProbe(openrust::console::CommandDefinition);
 
-    let mut configuration = application("test", "test-key");
-    configuration.allowed_origins.push("127.0.0.1".into());
-    let reverb = Running::start(vec![configuration]).await;
-    let mut app = Framework::configure(std::env::temp_dir())
+impl openrust::console::Command for PublishProbe {
+    fn definition(&self) -> &openrust::console::CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a openrust::foundation::Application,
+        input: &'a openrust::console::Input,
+        _: &'a mut openrust::console::Output,
+    ) -> openrust::console::ConsoleFuture<'a, Result<i32, openrust::console::ConsoleError>> {
+        use openrust::{
+            broadcasting::{BroadcastChannel, PresenceChannel, PrivateChannel},
+            console::ConsoleError,
+            support::facades::Broadcast,
+        };
+        Box::pin(async move {
+            let sequence = input.matches().get_one::<u32>("sequence").unwrap();
+            let channels = [
+                BroadcastChannel::from("echo.news"),
+                PrivateChannel {
+                    name: "orders.9".into(),
+                }
+                .into(),
+                PresenceChannel {
+                    name: "room.9".into(),
+                }
+                .into(),
+            ];
+            let connection = Broadcast::connection(None)
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            connection
+                .broadcast(
+                    &channels,
+                    "echo.probe",
+                    &[("sequence".into(), json!(sequence))].into_iter().collect(),
+                    None,
+                )
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            Ok(0)
+        })
+    }
+}
+
+fn register_probe(
+    artisan: &mut openrust::console::Application,
+) -> Result<(), openrust::console::ConsoleError> {
+    use openrust::console::CommandDefinition;
+    let command = clap::Command::new("pusher:probe").arg(
+        clap::Arg::new("sequence")
+            .required(true)
+            .value_parser(clap::value_parser!(u32)),
+    );
+    artisan.add_command(Box::new(PublishProbe(CommandDefinition::new(command))))
+}
+
+async fn framework_application(
+    root: &std::path::Path,
+    port: u16,
+    driver: &str,
+) -> openrust::foundation::Application {
+    use openrust::{contracts::foundation::Application as _, foundation::Application};
+    let mut app = Application::configure(root.to_path_buf())
         .withConfig(|_, _| {
             Ok([(
                 "auth".into(),
@@ -425,6 +478,7 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
             .into())
         })
         .withBroadcasting(room_channel)
+        .withCommands(register_probe)
         .withProviders(vec![
             Box::new(openrust_reverb::ReverbServiceProvider),
             Box::new(RegisterGuard),
@@ -433,14 +487,45 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
         .unwrap();
     app.boot().await.unwrap();
     let config = app.config().unwrap();
-    config.set("broadcasting.default", json!("reverb")).unwrap();
-    config.set("broadcasting.connections.reverb", json!({
-        "driver": "reverb",
-        "key": "test-key",
-        "secret": SECRET,
-        "app_id": "test",
-        "options": {"host": "127.0.0.1", "scheme": "http", "port": reverb.address.port(), "path": PREFIX},
-    })).unwrap();
+    config.set("broadcasting.default", json!(driver)).unwrap();
+    config
+        .set(
+            &format!("broadcasting.connections.{driver}"),
+            json!({
+                "driver": driver,
+                "key": "test-key",
+                "secret": SECRET,
+                "app_id": "test",
+                "options": {"host": "127.0.0.1", "scheme": "http", "port": port, "path": PREFIX},
+            }),
+        )
+        .unwrap();
+    app
+}
+
+#[tokio::test]
+async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client() {
+    verify_framework_broadcast("reverb").await;
+}
+
+#[tokio::test]
+async fn named_pusher_connection_authorizes_and_publishes_through_artisan() {
+    verify_framework_broadcast("pusher").await;
+}
+
+async fn verify_framework_broadcast(driver: &'static str) {
+    use openrust::{
+        broadcasting::{BroadcastChannel, BroadcastManager, PresenceChannel},
+        contracts::{broadcasting::Factory as _, http::Kernel as _},
+        foundation::http::Kernel,
+    };
+
+    let mut configuration = application("test", "test-key");
+    configuration.allowed_origins.push("127.0.0.1".into());
+    let reverb = Running::start(vec![configuration]).await;
+    let root = std::env::temp_dir();
+    let reverb_port = reverb.address.port();
+    let app = framework_application(&root, reverb_port, driver).await;
     let connection = app
         .make::<BroadcastManager>()
         .await
@@ -452,15 +537,32 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
-    let framework = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            framework_http
-                .with_state(std::sync::Arc::new(kernel))
-                .into_make_service(),
+    let test_root = root.clone();
+    let router = axum::Router::new()
+        .route(
+            "/fixture/publish/{sequence}",
+            axum::routing::post(
+                move |axum::extract::Path(sequence): axum::extract::Path<u32>| {
+                    let test_root = test_root.clone();
+                    async move {
+                        let artisan = framework_application(&test_root, reverb_port, driver).await;
+                        match artisan
+                            .handleCommand(&["pusher:probe".into(), sequence.to_string().into()])
+                            .await
+                        {
+                            Ok(0) => axum::http::StatusCode::NO_CONTENT,
+                            _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        }
+                    }
+                },
+            ),
         )
-        .await
-        .unwrap();
+        .fallback(framework_http)
+        .with_state(std::sync::Arc::new(kernel));
+    let framework = tokio::spawn(async move {
+        axum::serve(listener, router.into_make_service())
+            .await
+            .unwrap();
     });
 
     let mut websocket = reverb.socket("test-key", ORIGIN).await;
@@ -520,6 +622,18 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
         .await
         .unwrap();
     assert_eq!(expected(&mut websocket, "message").await, json!({"id":9}));
+    if driver == "pusher" {
+        let response = client
+            .post(format!("http://{address}/fixture/publish/1"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 204);
+        assert_eq!(
+            expected(&mut websocket, "echo.probe").await,
+            json!({"sequence":1})
+        );
+    }
     if std::env::var_os("OPENRUST_REVERB_ECHO_MODULES").is_some() {
         let endpoint = format!("http://{}", reverb.address);
         let auth = format!("http://{address}");
@@ -528,7 +642,7 @@ async fn framework_broadcaster_signs_guard_identity_and_delivers_to_real_client(
         let result = tokio::task::spawn_blocking(move || {
             std::process::Command::new("node")
                 .arg(script)
-                .args([&auth, &endpoint, PREFIX])
+                .args([&auth, &endpoint, PREFIX, driver])
                 .output()
                 .unwrap()
         })

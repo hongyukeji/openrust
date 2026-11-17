@@ -27,12 +27,13 @@ pub struct ReverbServiceProvider;
 impl ServiceProvider for ReverbServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.make::<BroadcastManager>()
-                .await?
-                .extend("reverb", |configuration| {
+            let broadcasts = app.make::<BroadcastManager>().await?;
+            for driver in ["reverb", "pusher"] {
+                broadcasts.extend(driver, |configuration| {
                     let broadcaster = ReverbBroadcaster::new(configuration)?;
                     Ok(Arc::new(broadcaster))
                 })?;
+            }
             self.commands(app, crate::servers::reverb::console::commands::register);
             Ok(())
         })

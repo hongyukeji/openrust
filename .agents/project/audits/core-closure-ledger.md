@@ -120,7 +120,7 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 
 | 范围 | 基线状态 | 待验收或确认 |
 | --- | --- | --- |
-| [08-02 Reverb](08-02/README.md) | WebSocket、跨节点签名发布／客户端事件、Redis 全局在线成员、节点退出清理、Redis 重启恢复及[缓存频道、统计与批量事件](08-02/README.md#缓存频道统计与批量事件)已实测，[Artisan 参数与 Echo](08-02/README.md#artisan-主机名诊断与-echo)已通过 | 外部托管 Pusher 实机验收，需隔离测试应用凭据 |
+| [08-02 Reverb](08-02/README.md) | [按模拟验收口径闭合](08-02/README.md#08-02-模拟验收与闭合)。缓存频道、统计与批量发布、Redis 扩展、Artisan 和 Echo 均已实测。具名 Pusher 驱动通过隔离模拟服务验收 | 托管 Pusher TLS 和部署配置实机验证 |
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存已随 07-07 验收。 |

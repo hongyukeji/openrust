@@ -65,3 +65,9 @@ echo.channel("news").listen(".article.updated", event => console.log(event))
 ```
 
 Use `echo.private("orders.42")` for private channels and `echo.join("rooms.42")` for presence channels. Both use the application’s `/broadcasting/auth` endpoint and registered channel guards. Echo subscribes again when its connection is restored.
+
+## Pusher Channels {#pusher-channels}
+
+The `reverb` Cargo feature also registers the `pusher` broadcast driver. Set `BROADCAST_CONNECTION=pusher`, `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET`, and `PUSHER_APP_CLUSTER`. The default publishing endpoint is `https://api-{cluster}.pusher.com:443`. A Pusher-compatible test endpoint can override `PUSHER_HOST`, `PUSHER_PORT`, and `PUSHER_SCHEME`.
+
+For hosted Pusher Channels, configure Echo with `broadcaster: "pusher"`, the public key, and the cluster. Use the application's `/broadcasting/auth` and channel rules for private and presence subscriptions.

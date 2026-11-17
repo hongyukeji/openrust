@@ -4,7 +4,7 @@ import { createHash, createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-const [http, ws, prefix] = process.argv.slice(2);
+const [http, ws, prefix, driver = "reverb"] = process.argv.slice(2);
 const modules = process.env.OPENRUST_REVERB_ECHO_MODULES;
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.DOCS_PLAYWRIGHT_MODULE || "playwright");
@@ -22,10 +22,11 @@ try {
     await page.goto(http);
     await page.addScriptTag({ path: join(modules, "pusher-js/dist/web/pusher.js") });
     await page.addScriptTag({ path: join(modules, "laravel-echo/dist/echo.iife.js") });
-    await page.evaluate(({ http, ws, prefix }) => {
+    await page.evaluate(({ http, ws, prefix, driver }) => {
         const endpoint = new URL(ws);
         window.echo = new window.Echo.default({
-            broadcaster: "reverb",
+            broadcaster: driver,
+            cluster: "mt1",
             key: "test-key",
             wsHost: endpoint.hostname,
             wsPort: Number(endpoint.port),
@@ -46,13 +47,21 @@ try {
                 .listen(".echo.probe", data => probe.messages.push([index, data.sequence]));
         }
         channels[2].here(members => probe.roster = members);
-    }, { http, ws, prefix });
+    }, { http, ws, prefix, driver });
 
     const waitForSubscriptions = count => page.waitForFunction(
         count => probe.subscriptions.every(value => value === count),
         count,
     );
     const publish = async sequence => {
+        if (driver === "pusher") {
+            const response = await fetch(`${http}/fixture/publish/${sequence}`, {
+                method: "POST",
+                signal: AbortSignal.timeout(3_000),
+            });
+            assert.equal(response.status, 204);
+            return;
+        }
         const path = "/apps/test/events";
         const body = JSON.stringify({
             name: "echo.probe",
@@ -100,7 +109,7 @@ try {
     ]);
     assert.deepEqual(authStatuses, [200, 200, 200, 200]);
     await page.evaluate(() => echo.disconnect());
-    console.log("Chromium Echo public, private and presence subscriptions, signed delivery and automatic reconnect passed");
+    console.log(`Chromium Echo (${driver}) public, private and presence subscriptions, signed delivery and automatic reconnect passed`);
 } finally {
     await browser.close();
 }
