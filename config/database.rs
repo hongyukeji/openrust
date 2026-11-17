@@ -71,6 +71,7 @@ pub(super) fn load(
                 "database": get(env, "DB_DATABASE", "openrust")?,
                 "username": get(env, "DB_USERNAME", "root")?,
                 "password": get(env, "DB_PASSWORD", "")?,
+                "ssl_ca": get(env, "DB_SSL_CA", "")?,
                 "charset": get(env, "DB_CHARSET", "utf8")?,
                 "prefix": get(env, "DB_PREFIX", "")?,
                 "prefix_indexes": true,

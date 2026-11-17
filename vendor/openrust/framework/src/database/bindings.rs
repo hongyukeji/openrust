@@ -51,7 +51,15 @@ pub(super) struct PreparedBindings<'a> {
 }
 
 impl<'a> PreparedBindings<'a> {
-    pub(super) fn postgres(mut self) -> Self {
+    pub(super) fn postgres(self) -> Self {
+        self.numbered("$", true)
+    }
+
+    pub(super) fn sql_server(self) -> Self {
+        self.numbered("@P", false)
+    }
+
+    fn numbered(mut self, prefix: &str, postgres: bool) -> Self {
         if !self.sql.contains('?') || self.values().len() == 0 {
             return self;
         }
@@ -62,7 +70,12 @@ impl<'a> PreparedBindings<'a> {
         let mut index = 0;
         while let Some(&byte) = bytes.get(pos) {
             let tail = &bytes[pos..];
-            if let Some(len) = postgres_dollar_quote(tail).or_else(|| skip_sql(tail, false)) {
+            let quoted = if postgres {
+                postgres_dollar_quote(tail)
+            } else {
+                None
+            };
+            if let Some(len) = quoted.or_else(|| skip_sql(tail, false)) {
                 pos += len;
             } else if byte == b'?' {
                 sql.push_str(&self.sql[start..pos]);
@@ -71,7 +84,7 @@ impl<'a> PreparedBindings<'a> {
                     pos += 2;
                 } else {
                     index += 1;
-                    write!(sql, "${index}").expect("writing to a String");
+                    write!(sql, "{prefix}{index}").expect("writing to a String");
                     pos += 1;
                 }
                 start = pos;
@@ -206,7 +219,7 @@ fn quoted_len(bytes: &[u8], delimiter: u8, backslash_escape: bool) -> usize {
         if backslash_escape && byte == b'\\' && offset < bytes.len() {
             offset += 1;
         } else if byte == delimiter {
-            if delimiter == b']' || bytes.get(offset) != Some(&delimiter) {
+            if bytes.get(offset) != Some(&delimiter) {
                 break;
             }
             offset += 1;

@@ -1553,6 +1553,7 @@ async fn verify_pivot_restoration(
     app: &Application,
     db: &Connection,
     models: &Connection,
+    sql_server: bool,
 ) {
     // The related rows live in the write database for this fixture.
     let writer = app
@@ -1565,8 +1566,22 @@ async fn verify_pivot_restoration(
     for table in ["queued_links", "queued_morph_links"] {
         schema.dropIfExists(table).await.unwrap();
     }
+    let identity = if sql_server {
+        "BIGINT"
+    } else {
+        "BIGINT UNIQUE"
+    };
+    models.statement(&format!("CREATE TABLE queued_links (id {identity}, owner_id BIGINT NOT NULL, item_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (owner_id, item_id))"), &[]).await.unwrap();
+    if sql_server {
+        models
+            .statement(
+                "CREATE UNIQUE INDEX queued_links_id ON queued_links (id) WHERE id IS NOT NULL",
+                &[],
+            )
+            .await
+            .unwrap();
+    }
     for sql in [
-        "CREATE TABLE queued_links (id BIGINT UNIQUE, owner_id BIGINT NOT NULL, item_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (owner_id, item_id))",
         "CREATE TABLE queued_morph_links (owner_id BIGINT NOT NULL, item_id BIGINT NOT NULL, kind VARCHAR(20) NOT NULL, label VARCHAR(80), PRIMARY KEY (owner_id, item_id, kind))",
         "INSERT INTO queued_links VALUES (NULL,1,2,'old'), (NULL,1,4,'missing'), (19,1,5,'keyed'), (NULL,2,2,'neighbor')",
         "INSERT INTO queued_morph_links VALUES (1,2,'owner','morph'), (1,2,'other','neighbor')",
@@ -1675,7 +1690,12 @@ async fn verify_pivot_restoration(
     }
 }
 
-async fn verify_model_restoration(root: &Path, app: &Application, db: &Connection) {
+async fn verify_model_restoration(
+    root: &Path,
+    app: &Application,
+    db: &Connection,
+    sql_server: bool,
+) {
     let models = app
         .container()
         .make::<DatabaseManager>()
@@ -1798,7 +1818,7 @@ async fn verify_model_restoration(root: &Path, app: &Application, db: &Connectio
         .unwrap(),
         1.into()
     );
-    verify_pivot_restoration(root, app, db, &models).await;
+    verify_pivot_restoration(root, app, db, &models, sql_server).await;
     let required = || {
         Payload::new(
             "restore-required",
@@ -1841,19 +1861,19 @@ async fn verify_model_restoration(root: &Path, app: &Application, db: &Connectio
     schema.dropIfExists("queued_models").await.unwrap();
 }
 
-async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
+async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
     let id = format!("{:016x}", fastrand::u64(..));
     let root = TempRoot(std::env::temp_dir().join(format!("openrust-worker-{id}")));
     std::fs::create_dir_all(&root.0).unwrap();
     let default_queue = if redis.is_some() { "redis" } else { "database" };
-    let db_config = mysql.map_or_else(
+    let db_config = database_url.map_or_else(
         || {
             std::fs::File::create(root.0.join("fixture.sqlite")).unwrap();
             json!({"driver":"sqlite", "database":"fixture.sqlite"})
         },
         |url| json!({"url":url}),
     );
-    let model_config = mysql.map_or_else(
+    let model_config = database_url.map_or_else(
         || {
             std::fs::File::create(root.0.join("models.sqlite")).unwrap();
             std::fs::File::create(root.0.join("models-reader.sqlite")).unwrap();
@@ -1920,7 +1940,13 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         .await
         .unwrap();
     if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
-        verify_model_restoration(&root.0, &app, &db).await;
+        verify_model_restoration(
+            &root.0,
+            &app,
+            &db,
+            database_url.is_some_and(|url| url.starts_with("sqlsrv://")),
+        )
+        .await;
     }
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
@@ -2118,7 +2144,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         assert_eq!(rows.last().unwrap()["reason"], "interrupted");
         assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
     }
-    if redis.is_none() && mysql.is_none() {
+    if redis.is_none() && database_url.is_none() {
         let separate = TempRoot(root.0.join("separate-app"));
         std::fs::create_dir_all(&separate.0).unwrap();
         std::fs::write(separate.0.join("queue-fixture.json"), config.to_string()).unwrap();
@@ -2169,10 +2195,10 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     if redis.is_some() {
         verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
     }
-    if mysql.is_none() && redis.is_none() {
+    if database_url.is_none() && redis.is_none() {
         verify_custom_disconnect(&root.0, &*queue, address).await;
     }
-    if mysql.is_some() {
+    if database_url.is_some_and(|url| url.starts_with("mysql://")) {
         verify_mysql_disconnect(&root.0, &db, &*queue, address).await;
     }
     if let Some(port) = redis {
@@ -3867,6 +3893,15 @@ async fn artisan_worker_redis_retries_failures_and_hydrates_context() {
 async fn artisan_worker_mysql_retries_failures_and_hydrates_context() {
     let url = std::env::var("OPENRUST_TEST_WORKER_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_WORKER_MYSQL").is_none());
+    if let Some(url) = url {
+        exercise(None, Some(&url)).await;
+    }
+}
+
+#[tokio::test]
+async fn artisan_worker_sql_server_retries_failures_and_hydrates_context() {
+    let url = std::env::var("OPENRUST_TEST_SQL_SERVER_WORKER_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
     if let Some(url) = url {
         exercise(None, Some(&url)).await;
     }

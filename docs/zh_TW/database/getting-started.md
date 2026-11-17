@@ -12,6 +12,12 @@ MySQL 使用 `DB_CONNECTION=mysql`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATAB
 
 MariaDB 方言支援 JSON 欄位更新與由 JSON 產生欄位。`uuid()` 在 10.7 之前使用 `char(36)`，從 10.7 起使用原生 `uuid`。資料庫佇列從 10.6 起使用 `SKIP LOCKED`。實測版本請參閱[發佈矩陣](../prologue/releases.md)。
 
+### SQL Server {#sql-server}
+
+設定 `DB_CONNECTION=sqlsrv`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。連線 URL 使用 `sqlsrv://`。OpenRust 使用 Rust TDS 用戶端，需要 TLS 並驗證伺服器憑證。使用私有 CA 時，將 `DB_SSL_CA` 指向簽發憑證，並使用伺服器憑證涵蓋的主機名稱或位址。
+
+實測安裝使用 SQL Server 2017 或 2022 上已建立的資料庫。啟動 HTTP 和資料庫佇列 Worker 前執行 `artisan migrate --force`。實測建置請參閱[發佈矩陣](../prologue/releases.md)。
+
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
 MySQL 5.7.44 需要能透過 ECDHE 協商 TLS 1.2 的伺服器建置。Oracle 通用 Linux 封存檔使用 RSA 伺服器憑證及下列 `mysqld` 設定通過驗收。透過 `ssl-ca`、`ssl-cert` 和 `ssl-key` 設定 CA、伺服器憑證及私密金鑰。

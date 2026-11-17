@@ -12,6 +12,7 @@ pub(super) enum Dialect {
     MySql,
     Sqlite,
     Postgres,
+    SqlServer,
 }
 
 #[derive(Clone, Copy)]
@@ -71,6 +72,17 @@ impl Grammar {
         self.mariadb
     }
 
+    pub(crate) fn sql_server(prefix: &str) -> Self {
+        Self {
+            dialect: Dialect::SqlServer,
+            ..Self::postgres(prefix)
+        }
+    }
+
+    pub(crate) fn is_sql_server(&self) -> bool {
+        self.dialect == Dialect::SqlServer
+    }
+
     pub(crate) fn is_postgres(&self) -> bool {
         self.dialect == Dialect::Postgres
     }
@@ -82,6 +94,7 @@ impl Grammar {
         let delimiter = match self.dialect {
             Dialect::MySql => '`',
             Dialect::Sqlite | Dialect::Postgres => '"',
+            Dialect::SqlServer => return Ok(format!("[{}]", name.replace(']', "]]"))),
         };
         Ok(format!(
             "{delimiter}{}{delimiter}",
@@ -171,6 +184,7 @@ impl Grammar {
             Dialect::MySql => "<=>",
             Dialect::Sqlite => "is",
             Dialect::Postgres => "is not distinct from",
+            Dialect::SqlServer => "=",
         }
     }
 
@@ -190,10 +204,13 @@ impl Grammar {
         };
         Ok(match self.dialect {
             Dialect::MySql => format!("{function}({column}) {operator} ?"),
-            Dialect::Postgres if matches!(part, DatePart::Date | DatePart::Time) => {
+            Dialect::Postgres | Dialect::SqlServer
+                if matches!(part, DatePart::Date | DatePart::Time) =>
+            {
                 format!("cast({column} as {function}) {operator} ?")
             }
             Dialect::Postgres => format!("extract({function} from {column}) {operator} ?"),
+            Dialect::SqlServer => format!("datepart({function}, {column}) {operator} ?"),
             Dialect::Sqlite => format!("strftime('{format}', {column}) {operator} cast(? as text)"),
         })
     }
@@ -350,7 +367,9 @@ impl Grammar {
     pub(crate) fn like(&self, pattern: &str, case_sensitive: bool) -> (&'static str, String) {
         match (self.dialect, case_sensitive) {
             (Dialect::Postgres, false) => ("ilike", pattern.to_owned()),
-            (_, false) | (Dialect::Postgres, true) => ("like", pattern.to_owned()),
+            (_, false) | (Dialect::Postgres | Dialect::SqlServer, true) => {
+                ("like", pattern.to_owned())
+            }
             (Dialect::MySql, true) => ("like binary", pattern.to_owned()),
             (Dialect::Sqlite, true) => {
                 let mut glob = String::with_capacity(pattern.len());
@@ -385,7 +404,7 @@ impl Grammar {
             (Dialect::MySql | Dialect::Postgres, true) => " for update",
             (Dialect::Postgres, false) => " for share",
             (Dialect::MySql, false) => " lock in share mode",
-            (Dialect::Sqlite, _) => "",
+            (Dialect::Sqlite | Dialect::SqlServer, _) => "",
         }
     }
 
@@ -393,6 +412,7 @@ impl Grammar {
         match self.dialect {
             Dialect::MySql | Dialect::Postgres => format!("({sql})"),
             Dialect::Sqlite => format!("select * from ({sql})"),
+            Dialect::SqlServer => format!("select * from ({sql}) as [openrust_union]"),
         }
     }
 

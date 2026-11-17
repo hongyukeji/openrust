@@ -42,6 +42,8 @@ impl Builder<'_> {
         if self.grammar.is_postgres() {
             sql.push_str(" returning ");
             sql.push_str(&self.grammar.column(key)?);
+        } else if self.grammar.is_sql_server() {
+            sql.push_str("; select cast(scope_identity() as bigint)");
         }
         match &mut self.executor {
             Executor::Connection(connection) => connection.insert_get_id(&sql, &bindings).await,
@@ -120,7 +122,6 @@ impl Builder<'_> {
         if update.is_some_and(<[UpsertUpdate<'_>]>::is_empty) {
             return self.insert(rows).await.map(u64::from);
         }
-        let (mut sql, mut bindings) = self.compile_insert(rows, false)?;
         let default_update;
         let update = match update {
             Some(update) => update,
@@ -135,6 +136,10 @@ impl Builder<'_> {
         if update.is_empty() {
             return Err(DatabaseError::InvalidQuery("upsert update columns"));
         }
+        if self.grammar.is_sql_server() {
+            return self.sql_server_upsert(rows, unique_by, update).await;
+        }
+        let (mut sql, mut bindings) = self.compile_insert(rows, false)?;
         let mysql = self.grammar.is_mysql();
         let alias = mysql && self.grammar.uses_upsert_alias();
         if mysql {
@@ -175,6 +180,70 @@ impl Builder<'_> {
             assignments.push(format!("{column} = {value}"));
         }
         sql.push_str(&assignments.join(", "));
+        self.affect(&sql, &bindings).await
+    }
+
+    async fn sql_server_upsert(
+        mut self,
+        rows: &[Record],
+        unique_by: &[&str],
+        update: &[UpsertUpdate<'_>],
+    ) -> DatabaseResult<u64> {
+        if !self.joins.is_empty() {
+            return Err(DatabaseError::UnsupportedOperation(
+                "SQL Server joined upsert",
+            ));
+        }
+        let first = &rows[0];
+        let keys = first.keys().map(String::as_str).collect::<Vec<_>>();
+        let columns = self.write_columns(keys.iter().copied())?;
+        let (values, mut bindings) = value_parameters(rows)?;
+        let table = self.grammar.table(self.source.table_name()?)?;
+        let mut match_columns = Vec::with_capacity(unique_by.len());
+        for key in unique_by {
+            if !first.contains_key(*key) {
+                return Err(DatabaseError::InvalidQuery("upsert conflict columns"));
+            }
+            let column = self.grammar.column(key)?;
+            match_columns.push(format!("[target].{column} = [source].{column}"));
+        }
+        let mut assignments = Vec::with_capacity(update.len());
+        for assignment in update {
+            let (column, expression) = match assignment {
+                UpsertUpdate::FromInsert(column) => {
+                    if !first.contains_key(*column) {
+                        return Err(DatabaseError::InvalidQuery("upsert update columns"));
+                    }
+                    (
+                        *column,
+                        format!("[source].{}", self.grammar.column(column)?),
+                    )
+                }
+                UpsertUpdate::Value(column, value) => {
+                    bindings.push(value.clone());
+                    (*column, "?".into())
+                }
+                UpsertUpdate::Expression(column, expression) => {
+                    bindings.extend(expression.bindings.iter().cloned());
+                    (*column, expression.sql.clone())
+                }
+            };
+            assignments.push(format!("{} = {expression}", self.grammar.column(column)?));
+        }
+        let inserted = keys
+            .iter()
+            .map(|column| {
+                self.grammar
+                    .column(column)
+                    .map(|column| format!("[source].{column}"))
+            })
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        let sql = format!(
+            "merge into {table} with (holdlock) as [target] using (values {values}) as [source] ({columns}) on {} when matched then update set {} when not matched then insert ({columns}) values ({});",
+            match_columns.join(" and "),
+            assignments.join(", "),
+            inserted.join(", ")
+        );
         self.affect(&sql, &bindings).await
     }
 
@@ -405,17 +474,9 @@ impl Builder<'_> {
             };
             return Ok((format!("{sql}{default}"), Vec::new()));
         }
-        if first.is_empty() || rows.iter().any(|row| !row.keys().eq(first.keys())) {
-            return Err(DatabaseError::InvalidQuery("insert row columns"));
-        }
+        let (values, bindings) = value_parameters(rows)?;
         let columns = self.write_columns(first.keys().map(String::as_str))?;
-        let placeholders = format!("({})", vec!["?"; first.len()].join(", "));
-        let sql = format!(
-            "{sql} ({columns}) values {}",
-            vec![placeholders.as_str(); rows.len()].join(", ")
-        );
-        let bindings = rows.iter().flat_map(|row| row.values().cloned()).collect();
-        Ok((sql, bindings))
+        Ok((format!("{sql} ({columns}) values {values}"), bindings))
     }
 
     fn insert_target(&self, ignore: bool) -> DatabaseResult<String> {
@@ -450,6 +511,17 @@ impl Builder<'_> {
             Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
         }
     }
+}
+
+fn value_parameters(rows: &[Record]) -> DatabaseResult<(String, Vec<Value>)> {
+    let first = &rows[0];
+    if first.is_empty() || rows.iter().any(|row| !row.keys().eq(first.keys())) {
+        return Err(DatabaseError::InvalidQuery("insert row columns"));
+    }
+    let placeholders = format!("({})", vec!["?"; first.len()].join(", "));
+    let values = vec![placeholders.as_str(); rows.len()].join(", ");
+    let bindings = rows.iter().flat_map(|row| row.values().cloned()).collect();
+    Ok((values, bindings))
 }
 
 struct SqliteTruncate {

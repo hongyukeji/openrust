@@ -56,6 +56,7 @@ pub(super) enum Pool {
     Sqlite(SqlitePool),
     Mysql(Arc<[MySqlPool]>),
     Postgres(PgPool),
+    SqlServer(super::sql_server::Pool),
 }
 
 /// A named database connection sharing its application's pool.
@@ -122,6 +123,7 @@ pub(super) enum PhysicalConnection {
     Sqlite(Lease<Sqlite>),
     Mysql(Lease<MySql>),
     Postgres(Lease<Postgres>),
+    SqlServer(Box<super::sql_server::Lease>),
 }
 
 pub(super) struct QueryLease {
@@ -232,6 +234,7 @@ impl Pool {
         match self {
             Self::Sqlite(pool) => retire(pool),
             Self::Postgres(pool) => retire(pool),
+            Self::SqlServer(pool) => pool.retire(),
             Self::Mysql(pools) => pools.iter().for_each(retire),
         }
     }
@@ -240,6 +243,9 @@ impl Pool {
         match self {
             Self::Sqlite(pool) => Ok(PhysicalConnection::Sqlite(Lease::acquire(pool).await?)),
             Self::Postgres(pool) => Ok(PhysicalConnection::Postgres(Lease::acquire(pool).await?)),
+            Self::SqlServer(pool) => Ok(PhysicalConnection::SqlServer(Box::new(
+                Box::pin(pool.acquire()).await?,
+            ))),
             Self::Mysql(pools) => {
                 let (last, alternatives) = pools
                     .split_last()
@@ -401,7 +407,7 @@ macro_rules! sqlite_persistent {
 }
 
 macro_rules! query {
-    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr, $pg_map:expr) => {{
+    ($self:ident, $sql:ident, $bindings:ident, $method:ident, $operation:literal, $map:expr, $sqlite_map:expr, $mysql_map:expr, $pg_map:expr, $tds:expr) => {{
         let prepared = $self.prepare($sql, $bindings.into())?;
         let $sql = prepared.sql.as_ref();
         let $bindings = prepared.values();
@@ -430,6 +436,7 @@ macro_rules! query {
                     execute_query!(lease, $sql, $bindings, postgres, $method, $operation, true);
                 $map(result, $pg_map)
             }
+            Self::SqlServer(lease) => Box::pin($tds(lease, $sql, $bindings)).await,
         }
     }};
 }
@@ -448,6 +455,8 @@ impl PhysicalConnection {
         let prepared = bindings.prepare(sql, matches!(self, Self::Mysql(_)))?;
         Ok(if matches!(self, Self::Postgres(_)) {
             prepared.postgres()
+        } else if matches!(self, Self::SqlServer(_)) {
+            prepared.sql_server()
         } else {
             prepared
         })
@@ -462,6 +471,7 @@ impl PhysicalConnection {
             Self::Sqlite(lease) => lease.control(operation, command).await,
             Self::Mysql(lease) => lease.control(operation, command).await,
             Self::Postgres(lease) => lease.control(operation, command).await,
+            Self::SqlServer(lease) => Box::pin(lease.control(command)).await,
         }
     }
 
@@ -470,6 +480,7 @@ impl PhysicalConnection {
             Self::Sqlite(lease) => lease.retire = retire,
             Self::Mysql(lease) => lease.retire = retire,
             Self::Postgres(lease) => lease.retire = retire,
+            Self::SqlServer(lease) => lease.retire = retire,
         }
     }
 
@@ -487,6 +498,7 @@ impl PhysicalConnection {
                 <Postgres as Database>::TransactionManager::get_transaction_depth(&lease.connection)
                     > 0
             }
+            Self::SqlServer(lease) => lease.depth > 0,
         }
     }
 
@@ -495,6 +507,7 @@ impl PhysicalConnection {
             Self::Sqlite(lease) => lease.dirty,
             Self::Mysql(lease) => lease.dirty,
             Self::Postgres(lease) => lease.dirty,
+            Self::SqlServer(lease) => lease.dirty,
         }
     }
 
@@ -521,14 +534,17 @@ impl PhysicalConnection {
                 value::mysql,
                 true
             ))),
-            Self::Postgres(lease) => Either::Right(cursor_rows!(
+            Self::Postgres(lease) => Either::Right(Either::Left(cursor_rows!(
                 lease,
                 sql,
                 bindings,
                 postgres,
                 value::postgres,
                 true
-            )),
+            ))),
+            Self::SqlServer(lease) => {
+                Either::Right(Either::Right(Box::pin(lease.cursor(sql, bindings))))
+            }
         }
     }
 
@@ -546,7 +562,8 @@ impl PhysicalConnection {
             |rows: Vec<_>, decode| rows.into_iter().map(decode).collect(),
             value::sqlite,
             value::mysql,
-            value::postgres
+            value::postgres,
+            super::sql_server::Lease::fetch_all
         )
     }
 
@@ -564,7 +581,8 @@ impl PhysicalConnection {
             |row: Option<_>, decode| row.map(decode).transpose(),
             value::sqlite,
             value::mysql,
-            value::postgres
+            value::postgres,
+            super::sql_server::Lease::fetch_optional
         )
     }
 
@@ -573,6 +591,10 @@ impl PhysicalConnection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
+        if let Self::SqlServer(lease) = self {
+            let prepared = bindings.into().prepare(sql, false)?.sql_server();
+            return Box::pin(lease.select(&prepared.sql, prepared.values())).await;
+        }
         let Self::Mysql(lease) = self else {
             return Err(DatabaseError::UnsupportedOperation("selectResultSets"));
         };
@@ -635,7 +657,8 @@ impl PhysicalConnection {
             |result: sqlx::postgres::PgQueryResult| StatementResult {
                 affected: result.rows_affected(),
                 insert_id: Value::Null,
-            }
+            },
+            super::sql_server::Lease::statement
         )
     }
 
@@ -657,6 +680,7 @@ impl PhysicalConnection {
             Self::Sqlite(lease) => execute(lease, sql).await,
             Self::Mysql(lease) => execute(lease, sql).await,
             Self::Postgres(lease) => execute(lease, sql).await,
+            Self::SqlServer(lease) => Box::pin(lease.raw(sql)).await,
         }
     }
 }
@@ -1099,6 +1123,10 @@ impl Connection {
         self.grammar.is_mariadb()
     }
 
+    pub(crate) fn is_sql_server(&self) -> bool {
+        self.grammar.is_sql_server()
+    }
+
     pub(crate) fn queue_table(&self, table: &str) -> DatabaseResult<String> {
         self.grammar.table(table)
     }
@@ -1108,7 +1136,7 @@ impl Connection {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
-        if self.grammar.is_postgres() {
+        if self.grammar.is_postgres() || self.grammar.is_sql_server() {
             return observed_query!(
                 self,
                 sql,
@@ -1343,7 +1371,7 @@ impl Connection {
         )
     }
 
-    /// Returns the ordered rowsets of a single prepared MySQL statement.
+    /// Returns the ordered rowsets of a prepared MySQL-family or SQL Server statement.
     pub async fn selectResultSets<'a>(
         &self,
         sql: &str,

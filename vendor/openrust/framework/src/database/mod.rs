@@ -22,6 +22,7 @@ pub mod query;
 mod query_log;
 pub mod schema;
 pub mod seeder;
+mod sql_server;
 mod transaction;
 mod value;
 
@@ -121,6 +122,10 @@ pub enum DatabaseError {
     Driver {
         operation: &'static str,
         source: sqlx::Error,
+    },
+    SqlServer {
+        operation: &'static str,
+        source: tiberius::error::Error,
     },
 }
 
@@ -236,7 +241,9 @@ impl std::fmt::Display for DatabaseError {
             Self::Unavailable(_) => {
                 formatter.write_str("application database manager is unavailable")
             }
-            Self::Driver { operation, .. } => write!(formatter, "database {operation} failed"),
+            Self::Driver { operation, .. } | Self::SqlServer { operation, .. } => {
+                write!(formatter, "database {operation} failed")
+            }
         }
     }
 }
@@ -249,6 +256,7 @@ impl std::error::Error for DatabaseError {
                 Some(source.as_ref())
             }
             Self::Driver { source, .. } => Some(source),
+            Self::SqlServer { source, .. } => Some(source),
             Self::FakerIo(source) => Some(source),
             Self::AfterCommit { source } | Self::AfterRollback { source } => Some(source.as_ref()),
             Self::ModelEvent(source)

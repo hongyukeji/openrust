@@ -606,6 +606,15 @@ impl Predicate {
     ) -> DatabaseResult<()> {
         match self {
             Self::Value(column, comparison, value) => {
+                if grammar.is_sql_server() && comparison == "<=>" {
+                    if matches!(value, Value::Null) {
+                        return Self::Null(column.clone(), false).compile(grammar, sql, bindings);
+                    }
+                    let column = grammar.column(column)?;
+                    sql.push_str(&format!("({column} is not null and {column} = ?)"));
+                    bindings.push(value.clone());
+                    return Ok(());
+                }
                 let operator = operator(comparison, grammar)?;
                 if matches!(value, Value::Null) && comparison != "<=>" {
                     let negated = match operator.as_str() {
@@ -619,6 +628,12 @@ impl Predicate {
                 bindings.push(value.clone());
             }
             Self::Column(column, comparison, other) => {
+                if grammar.is_sql_server() && comparison == "<=>" {
+                    let column = grammar.column(column)?;
+                    let other = grammar.column(other)?;
+                    sql.push_str(&format!("(({column} is not null and {other} is not null and {column} = {other}) or ({column} is null and {other} is null))"));
+                    return Ok(());
+                }
                 let operator = operator(comparison, grammar)?;
                 sql.push_str(&format!(
                     "{} {operator} {}",
@@ -676,7 +691,15 @@ impl Predicate {
             Self::Like(column, pattern, case_sensitive, negated) => {
                 let (operator, pattern) = grammar.like(pattern, *case_sensitive);
                 let not = if *negated { " not " } else { " " };
-                sql.push_str(&format!("{}{not}{operator} ?", grammar.column(column)?));
+                let collation = if grammar.is_sql_server() && *case_sensitive {
+                    " collate Latin1_General_100_BIN2"
+                } else {
+                    ""
+                };
+                sql.push_str(&format!(
+                    "{}{collation}{not}{operator} ?",
+                    grammar.column(column)?
+                ));
                 bindings.push(pattern.into());
             }
             Self::FullText(columns, value, options) => {

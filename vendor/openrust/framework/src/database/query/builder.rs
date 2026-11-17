@@ -580,6 +580,7 @@ impl<'connection> Builder<'connection> {
         }
         let mut sql = String::from("select ");
         let mut bindings = Vec::new();
+        let sql_server = self.grammar.is_sql_server();
 
         if let Some((function, column)) = aggregate {
             let distinct = if self.distinct && column != "*" {
@@ -594,6 +595,9 @@ impl<'connection> Builder<'connection> {
             if self.distinct {
                 sql.push_str("distinct ");
             }
+            if sql_server && self.limit == Some(0) {
+                sql.push_str("top (0) ");
+            }
             if self.columns.is_empty() {
                 sql.push('*');
             } else {
@@ -607,6 +611,13 @@ impl<'connection> Builder<'connection> {
                 .source
                 .compile(&self.grammar, database, &mut bindings)?,
         );
+        if sql_server && let Some(exclusive) = self.lock {
+            sql.push_str(if exclusive {
+                " with (rowlock, updlock, holdlock)"
+            } else {
+                " with (rowlock, holdlock)"
+            });
+        }
         self.compile_joins(&mut sql, &mut bindings)?;
 
         self.compile_predicates(&mut sql, &mut bindings)?;
@@ -621,11 +632,26 @@ impl<'connection> Builder<'connection> {
                 .compile(&self.grammar, &mut sql, &mut bindings)?;
         }
 
-        if !self.orders.is_empty() && (aggregate.is_none() || !self.groups.is_empty()) {
+        let ordered = !self.orders.is_empty() && (aggregate.is_none() || !self.groups.is_empty());
+        if ordered {
             self.compile_orders(&self.orders, &mut sql, &mut bindings)?;
         }
 
-        Grammar::pagination(&mut sql, self.limit, self.offset);
+        if sql_server {
+            if self.limit != Some(0) && (self.limit.is_some() || self.offset.is_some()) {
+                if !ordered {
+                    sql.push_str(" order by (select 0)");
+                }
+                use std::fmt::Write as _;
+                write!(sql, " offset {} rows", self.offset.unwrap_or(0))
+                    .expect("writing to String");
+                if let Some(limit) = self.limit {
+                    write!(sql, " fetch next {limit} rows only").expect("writing to String");
+                }
+            }
+        } else {
+            Grammar::pagination(&mut sql, self.limit, self.offset);
+        }
         if let Some(exclusive) = self.lock {
             sql.push_str(self.grammar.lock(exclusive));
         }

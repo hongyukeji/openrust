@@ -126,7 +126,7 @@ impl<'connection> Builder<'connection> {
 
     /// Creates a database on the selected connection's server or a new SQLite file.
     pub async fn createDatabase(&mut self, name: &str) -> DatabaseResult<bool> {
-        if self.grammar.mysql() {
+        if self.grammar.mysql() || self.grammar.sql_server() {
             self.execute(vec![self.grammar.create_database(name)?])
                 .await?;
         } else {
@@ -143,7 +143,7 @@ impl<'connection> Builder<'connection> {
 
     /// Drops a database on the selected connection's server or removes a SQLite file.
     pub async fn dropDatabaseIfExists(&mut self, name: &str) -> DatabaseResult<bool> {
-        if self.grammar.mysql() {
+        if self.grammar.mysql() || self.grammar.sql_server() {
             let name = self.grammar.identifier(name)?;
             self.execute(vec![format!("drop database if exists {name}")])
                 .await?;
@@ -249,7 +249,10 @@ impl<'connection> Builder<'connection> {
         {
             return self.mariadb_legacy_alter(&table, blueprint).await;
         }
-        if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
+        if !self.grammar.mysql()
+            && !self.grammar.sql_server()
+            && blueprint.commands.iter().any(sqlite::requires_catalog)
+        {
             if matches!(self.executor, Executor::Pretend(_)) {
                 return Err(DatabaseError::UnsupportedSchema(
                     "SQLite rebuild needs live catalog metadata",

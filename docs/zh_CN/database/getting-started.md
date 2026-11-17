@@ -12,6 +12,12 @@ MySQL 使用 `DB_CONNECTION=mysql`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATAB
 
 MariaDB 方言支持 JSON 列更新和从 JSON 生成列。`uuid()` 在 10.7 之前使用 `char(36)`，从 10.7 起使用原生 `uuid`。数据库队列从 10.6 起使用 `SKIP LOCKED`。实测版本见[发布矩阵](../prologue/releases.md)。
 
+### SQL Server {#sql-server}
+
+设置 `DB_CONNECTION=sqlsrv`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。连接 URL 使用 `sqlsrv://`。OpenRust 使用 Rust TDS 客户端，要求 TLS 并校验服务端证书。使用私有 CA 时，将 `DB_SSL_CA` 指向签发证书，并使用服务端证书覆盖的主机名或地址。
+
+实测安装使用 SQL Server 2017 或 2022 上已创建的数据库。在启动 HTTP 和数据库队列 Worker 前执行 `artisan migrate --force`。实测构建见[发布矩阵](../prologue/releases.md)。
+
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
 MySQL 5.7.44 需要能通过 ECDHE 协商 TLS 1.2 的服务端构建。Oracle 通用 Linux 归档使用 RSA 服务端证书和以下 `mysqld` 配置通过验收。通过 `ssl-ca`、`ssl-cert` 和 `ssl-key` 配置 CA、服务端证书及私钥。

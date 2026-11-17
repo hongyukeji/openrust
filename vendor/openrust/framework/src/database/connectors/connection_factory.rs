@@ -101,6 +101,7 @@ fn resolve(
         Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
         Pool::Sqlite(_) => Grammar::sqlite(prefix),
         Pool::Postgres(_) => Grammar::postgres(prefix),
+        Pool::SqlServer(_) => Grammar::sql_server(prefix),
     };
     match role {
         Some(QueryRole::Read) => {
@@ -195,11 +196,45 @@ fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
         "sqlite" => sqlite(config, root, max, timeout),
         "mysql" | "mariadb" => mysql(config, root, max, timeout),
         "pgsql" => postgres(config, root, max, timeout),
+        "sqlsrv" => sql_server(config, root, max, timeout),
         _ => Err(DatabaseError::UnsupportedDriver),
     }
 }
 
 struct Options(Map<String, Value>);
+
+fn sql_server(
+    options: &Options,
+    root: &Path,
+    max: u32,
+    timeout: Duration,
+) -> DatabaseResult<(String, Pool)> {
+    let port = u16::try_from(options.integer("port", 1433)?)
+        .ok()
+        .filter(|port| *port > 0)
+        .ok_or_else(|| invalid("port"))?;
+    let database = options.string("database", "master")?;
+    let mut config = tiberius::Config::new();
+    config.host(options.string("host", "localhost")?);
+    config.port(port);
+    config.database(database);
+    config.authentication(tiberius::AuthMethod::sql_server(
+        options.string("username", "sa")?,
+        options.string("password", "")?,
+    ));
+    config.encryption(tiberius::EncryptionLevel::Required);
+    let ca = options.string("ssl_ca", "")?;
+    if !ca.is_empty() {
+        config.trust_cert_ca(root.join(ca).to_str().ok_or_else(|| invalid("ssl_ca"))?);
+    }
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+    Ok((
+        database.into(),
+        Pool::SqlServer(super::super::sql_server::Pool::new(config, max, timeout)),
+    ))
+}
 impl Options {
     fn string<'a>(&'a self, key: &'static str, default: &'a str) -> DatabaseResult<&'a str> {
         match self.0.get(key) {

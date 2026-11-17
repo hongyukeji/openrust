@@ -35,6 +35,8 @@ impl DatabaseQueue {
             "unixepoch()"
         } else if self.connection.is_postgres() {
             "floor(extract(epoch from statement_timestamp()))::bigint"
+        } else if self.connection.is_sql_server() {
+            "datediff_big(second, '19700101', sysutcdatetime())"
         } else {
             "unix_timestamp()"
         }
@@ -81,6 +83,8 @@ impl DatabaseQueue {
         let (mut sql, bindings) = self.insert(queue, payload.encode()?, 0, delay)?;
         if self.connection.is_postgres() {
             sql.push_str(" returning id");
+        } else if self.connection.is_sql_server() {
+            sql.push_str("; select cast(scope_identity() as bigint)");
         }
         let id =
             if let Some(transaction) = transaction.filter(|tx| tx.belongs_to(&self.connection)) {
@@ -120,9 +124,15 @@ impl DatabaseQueue {
                 // MySQL evaluates the versioned clause on the server that owns this transaction.
                 "for update /*!80001 skip locked */"
             };
-            let sql = format!(
-                "select id, payload, attempts from {table} where {ready} order by id limit 1 {lock}"
-            );
+            let sql = if self.connection.is_sql_server() {
+                format!(
+                    "select top (1) id, payload, attempts from {table} with (rowlock, updlock, readpast) where {ready} order by id"
+                )
+            } else {
+                format!(
+                    "select id, payload, attempts from {table} where {ready} order by id limit 1 {lock}"
+                )
+            };
             let row = transaction
                 .selectOne(&sql, &bindings)
                 .await

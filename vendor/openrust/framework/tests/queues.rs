@@ -462,6 +462,15 @@ async fn database_queue_over_http_on_postgres() {
 }
 
 #[tokio::test]
+async fn database_queue_over_http_on_sql_server() {
+    let url = std::env::var("OPENRUST_TEST_SQL_SERVER_QUEUE_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_SQL_SERVER").is_none());
+    if let Some(url) = url {
+        verify_database(json!({"url":url})).await;
+    }
+}
+
+#[tokio::test]
 async fn redis_queue_over_http_and_blocking_reservation() {
     let port = std::env::var("OPENRUST_TEST_REDIS_PORT").ok();
     assert!(port.is_some() || std::env::var_os("OPENRUST_REQUIRE_QUEUE_REDIS").is_none());

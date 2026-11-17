@@ -24,6 +24,9 @@ impl Grammar {
             Dialect::Postgres => Err(DatabaseError::UnsupportedOperation(
                 "PostgreSQL JSON predicate",
             )),
+            Dialect::SqlServer => Err(DatabaseError::UnsupportedOperation(
+                "SQL Server JSON predicate",
+            )),
             Dialect::Sqlite => {
                 let value = sqlite_json_scalar(value)?;
                 bindings.extend(path.map(Value::from));
@@ -77,6 +80,9 @@ impl Grammar {
             Dialect::Postgres => Err(DatabaseError::UnsupportedOperation(
                 "PostgreSQL JSON predicate",
             )),
+            Dialect::SqlServer => Err(DatabaseError::UnsupportedOperation(
+                "SQL Server JSON predicate",
+            )),
             Dialect::Sqlite => {
                 let path_parameter = if path.is_some() { ", ?" } else { "" };
                 bindings.extend(path.map(Value::from));
@@ -98,6 +104,11 @@ impl Grammar {
             Dialect::Postgres => {
                 return Err(DatabaseError::UnsupportedOperation(
                     "PostgreSQL JSON length",
+                ));
+            }
+            Dialect::SqlServer => {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "SQL Server JSON length",
                 ));
             }
         };

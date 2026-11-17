@@ -62,3 +62,12 @@ Docker 开发与部署配套、两个 Linux 镜像架构的 Compose 验收及平
 - 两个 ARM64 隔离容器分别运行 MariaDB 10.3.39 和 11.8.9。真实应用均通过具名和 URL 连接、12 项迁移及幂等重跑、Artisan、首页和 `/up`、数据库会话写入和 SIGTERM。测试账号要求 TLS，拒绝明文、错误 CA 和错误主机名。数据库队列的 HTTP 派发与独立 Artisan Worker 作业、重试和失败回归在两版均通过。
 
 严格 Clippy、三语站点构建、12 项通用浏览器检查和 6 项发布矩阵导航检查通过。MariaDB 容器、镜像标签、证书、隔离站点和构建目录已清理。
+
+## SQL Server TDS 与发布验收
+
+- 从 `73ee5d473` 干净检出。`sqlsrv` 连接使用 Tiberius 与 Rustls，支持 `sqlsrv://` 连接 URL、凭据、连接池和 CA 校验。正文中的 `DB_SSL_CA` 配置与 URL 的 `ssl-ca` 均通过实测。固定基线规定 SQL Server 2017 下限，旧版兼容矩阵有相同下限，未找到可复用的 TDS 客户端。 [固定 Laravel SQL Server 连接器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connectors/SqlServerConnector.php)
+- 实测官方 SQL Server 2017 Developer `14.0.3570.2` 与 2022 Developer `16.0.4325.4`。数据库容器在 Apple Silicon 上使用 Linux amd64 兼容运行，应用从宿主经 TCP 连接。隔离服务强制 TLS 1.2，应用查询返回加密状态为 `TRUE`，错误 CA 和错误主机名被拒绝。微软的受支持容器宿主是原生 Linux x86_64，当前版本的原生平台验收仍待目标宿主。 [微软 SQL Server 容器前置条件](https://learn.microsoft.com/en-us/sql/linux/containers/deploy?view=sql-server-2017)
+- Rust 实测具名参数、引号与 Unicode、精确定点数、二进制和多结果集、嵌套事务与保存点、自动标识、分页、`MERGE` 与列目录。数据库 Worker 采用 `ROWLOCK`、`UPDLOCK` 和 `READPAST`。真实应用通过 12 项迁移、幂等重跑、回滚及重装、Artisan、首页、`/up`、数据库会话以及 SIGTERM。另在独立数据库运行 HTTP 队列与 Artisan 作业回归。 [固定 Laravel 查询方言](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Grammars/SqlServerGrammar.php) · [固定 Laravel Schema 方言](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SqlServerGrammar.php)
+- 本轮 SQL Server 安装使用预建数据库。其他 SQL Server 版本、Schema 转储与高级方言操作未纳入本次实测。旧 MySQL 镜像的 ECDHE 边界，以及原生 Linux x86_64、Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 仍在账本中，08-04 保持开放。
+
+工作区严格 Clippy、改动文件格式、三语站点构建、12 项通用浏览器检查和 6 项 SQL Server 支持矩阵导航检查通过。工作区全量格式检查报出干净基线中已有的 `sanctum_authentication.rs` 格式差异。SQL Server 与 MySQL 回归容器已清理，本批新拉取的 SQL Server 镜像标签、隔离源码、构建目录、证书和站点已移除。

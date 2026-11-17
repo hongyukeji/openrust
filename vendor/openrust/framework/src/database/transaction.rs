@@ -57,6 +57,9 @@ pub(super) fn mysql_deadlock(error: &sqlx::Error) -> bool {
 }
 
 fn concurrency_error(error: &DatabaseError) -> bool {
+    if let DatabaseError::SqlServer { source, .. } = error {
+        return source.is_deadlock();
+    }
     let DatabaseError::Driver { source, .. } = error else {
         return false;
     };
@@ -271,7 +274,7 @@ impl Transaction {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
-        if self.connection.grammar.is_postgres() {
+        if self.connection.grammar.is_postgres() || self.connection.grammar.is_sql_server() {
             return observed_transaction_query!(
                 self,
                 sql,

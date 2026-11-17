@@ -66,6 +66,8 @@ impl Builder<'_> {
                 "select schema_name as name, null as path, schema_name = database() as is_default from information_schema.schemata where schema_name not in {MYSQL_SYSTEM_SCHEMAS} order by schema_name"
             );
             &mysql_sql
+        } else if self.grammar.sql_server() {
+            "select name, cast(null as nvarchar(255)) as path, cast(case when name=schema_name() then 1 else 0 end as bit) as is_default from sys.schemas where principal_id < 16384 order by name"
         } else {
             "select name, file as path, name = 'main' as is_default from pragma_database_list order by name"
         };
@@ -86,6 +88,7 @@ impl Builder<'_> {
         match schema {
             Some(schema) => self.getViewsIn(&[schema]).await,
             None if self.grammar.mysql() => self.mysql_views(None).await,
+            None if self.grammar.sql_server() => self.sql_server_views(None).await,
             None if matches!(self.executor, Executor::Connection(_)) => {
                 let mut session = self.session().await?;
                 let result = session.getSchemaBuilder().all_sqlite_views().await;
@@ -104,6 +107,9 @@ impl Builder<'_> {
         }
         if self.grammar.mysql() {
             return self.mysql_views(Some(schemas)).await;
+        }
+        if self.grammar.sql_server() {
+            return self.sql_server_views(Some(schemas)).await;
         }
         if schemas.len() > 1 && matches!(self.executor, Executor::Connection(_)) {
             let mut session = self.session().await?;
@@ -150,6 +156,24 @@ impl Builder<'_> {
         self.sqlite_views(&names).await
     }
 
+    async fn sql_server_views(
+        &mut self,
+        schemas: Option<&[&str]>,
+    ) -> DatabaseResult<Vec<ViewInfo>> {
+        let (filter, bindings) = schemas.map_or_else(
+            || ("1=1".to_owned(), Vec::new()),
+            |schemas| schema_filter("s.name", schemas),
+        );
+        let sql = format!(
+            "select v.name, s.name as schema_name, object_definition(v.object_id) as definition from sys.views v join sys.schemas s on s.schema_id=v.schema_id where v.is_ms_shipped=0 and {filter} order by s.name,v.name"
+        );
+        self.select(&sql, &bindings)
+            .await?
+            .iter()
+            .map(view_info)
+            .collect()
+    }
+
     async fn sqlite_views(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<ViewInfo>> {
         let mut views = Vec::new();
         for schema in schemas {
@@ -186,6 +210,8 @@ impl Builder<'_> {
         let parameters = self.catalog_parameters(&table);
         let sql = if self.grammar.mysql() {
             "select 1 from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? and table_type in ('BASE TABLE', 'SYSTEM VERSIONED') limit 1"
+        } else if self.grammar.sql_server() {
+            "select top (1) 1 from information_schema.tables where table_schema = ? and table_name = ? and table_type = 'BASE TABLE'"
         } else {
             "select 1 from pragma_table_list where schema = ? and name = ? collate nocase and type in ('table', 'virtual') limit 1"
         };
@@ -244,6 +270,17 @@ impl Builder<'_> {
                 ),
                 bindings,
             )
+        } else if self.grammar.sql_server() {
+            let (filter, bindings) = schemas.map_or_else(
+                || ("1=1".to_owned(), Vec::new()),
+                |schemas| schema_filter("s.name", schemas),
+            );
+            (
+                format!(
+                    "select t.name, s.name as schema_name, cast(null as bigint) as size, cast(null as nvarchar(255)) as engine, cast(null as nvarchar(255)) as collation, cast(null as nvarchar(255)) as comment from sys.tables t join sys.schemas s on s.schema_id=t.schema_id where t.is_ms_shipped=0 and {filter} order by s.name,t.name"
+                ),
+                bindings,
+            )
         } else {
             let (filter, bindings) = schemas.map_or_else(
                 || ("1 = 1".to_owned(), Vec::new()),
@@ -290,6 +327,11 @@ impl Builder<'_> {
         let (sql, parameters) = if self.grammar.mysql() {
             (
                 "select column_name as name, data_type as type_name, column_type as full_type, is_nullable = 'YES' as nullable, column_default as default_value, extra like '%auto_increment%' as auto_increment, column_key = 'PRI' as primary_key, column_comment as comment, collation_name as collation, case when extra like '%VIRTUAL GENERATED%' then 'virtual' when extra like '%STORED GENERATED%' then 'stored' end as generation_kind, generation_expression as generation_expression from information_schema.columns where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? order by ordinal_position",
+                parameters,
+            )
+        } else if self.grammar.sql_server() {
+            (
+                "select c.name, ty.name as type_name, ty.name as full_type, c.is_nullable as nullable, d.definition as default_value, c.is_identity as auto_increment, cast(case when exists (select 1 from sys.index_columns ic join sys.indexes i on i.object_id=ic.object_id and i.index_id=ic.index_id where ic.object_id=c.object_id and ic.column_id=c.column_id and i.is_primary_key=1) then 1 else 0 end as bit) as primary_key, cast(null as nvarchar(255)) as comment, c.collation_name as collation, case when computed.is_persisted=1 then 'stored' when c.is_computed=1 then 'virtual' end as generation_kind, computed.definition as generation_expression from sys.columns c join sys.types ty on ty.user_type_id=c.user_type_id join sys.tables t on t.object_id=c.object_id join sys.schemas s on s.schema_id=t.schema_id left join sys.default_constraints d on d.object_id=c.default_object_id left join sys.computed_columns computed on computed.object_id=c.object_id and computed.column_id=c.column_id where s.name=? and t.name=? order by c.column_id",
                 parameters,
             )
         } else {
@@ -346,7 +388,7 @@ impl Builder<'_> {
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
         let generated = columns.iter().any(|column| column.generation.is_some());
-        if !self.grammar.mysql() && !columns.is_empty() {
+        if !self.grammar.mysql() && !self.grammar.sql_server() && !columns.is_empty() {
             let schema = self
                 .grammar
                 .identifier(self.grammar.catalog_schema(&table))?;

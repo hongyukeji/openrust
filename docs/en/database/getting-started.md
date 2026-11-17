@@ -12,6 +12,12 @@ Set `DB_CONNECTION=mariadb` and use the same host, database, credential and TLS 
 
 The MariaDB grammar supports JSON column updates and generated JSON values. `uuid()` uses `char(36)` before MariaDB 10.7 and the native `uuid` type from 10.7. The database queue uses `SKIP LOCKED` from MariaDB 10.6. See the [release matrix](../prologue/releases.md) for tested versions.
 
+### SQL Server {#sql-server}
+
+Set `DB_CONNECTION=sqlsrv` with `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection URL uses `sqlsrv://`. OpenRust uses a Rust TDS client with TLS and server certificate verification. Set `DB_SSL_CA` to the issuer certificate when using a private CA, and use a host name or address covered by the server certificate.
+
+The verified installation uses a pre-created database on SQL Server 2017 or 2022. Run `artisan migrate --force` before starting HTTP and the database queue worker. Check the [release matrix](../prologue/releases.md) for the tested SQL Server builds.
+
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
 MySQL 5.7.44 needs a server build that can negotiate TLS 1.2 with ECDHE. The Oracle generic Linux archive passed with an RSA server certificate and the following `mysqld` settings. Supply the CA, server certificate and private key through `ssl-ca`, `ssl-cert` and `ssl-key`.
