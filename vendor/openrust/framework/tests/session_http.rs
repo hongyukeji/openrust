@@ -517,6 +517,143 @@ async fn null_sessions_discard_changes_and_rotate_tokens_between_requests() {
 }
 
 #[tokio::test]
+async fn redis_sessions_override_the_named_cache_connection_and_prefix() {
+    use openrust::redis::{RedisManager, Value as RedisValue};
+
+    let Ok(port) = std::env::var("OPENRUST_TEST_SESSION_REDIS_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_SESSION_REDIS").is_none());
+        return;
+    };
+    let port: u16 = port.parse().unwrap();
+    let configuration = json!({
+        "app": {"key": "a".repeat(32)},
+        "session": {
+            "driver": "redis", "store": "payloads", "connection": "sessions",
+            "prefix": "session-only:", "lifetime": 2, "encrypt": true,
+            "cookie": "probe_session", "expire_on_close": true
+        },
+        "cache": {
+            "stores": {
+                "payloads": {"driver": "redis", "connection": "cache", "prefix": "ordinary:"}
+            }
+        },
+        "database": {"redis": {
+            "options": {"prefix": "session-http:"},
+            "default": {"port": port, "database": 0},
+            "cache": {"port": port, "database": 1},
+            "sessions": {"port": port, "database": 2}
+        }}
+    });
+    let root = tempfile::tempdir().unwrap();
+    tokio::fs::write(
+        root.path().join("configuration.json"),
+        serde_json::to_vec(&configuration).unwrap(),
+    )
+    .await
+    .unwrap();
+    let start = async || {
+        let app =
+            Application::configure(root.path().to_path_buf())
+                .withConfig(|base, _| {
+                    Ok(serde_json::from_slice(
+                        &std::fs::read(base.join("configuration.json")).unwrap(),
+                    )
+                    .unwrap())
+                })
+                .withRouting(Routing::default().web(register))
+                .create()
+                .unwrap();
+        let mut kernel = Kernel::new(app);
+        kernel.bootstrap().await.unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let kernel = Arc::new(kernel);
+        let service = transport.with_state(kernel.clone()).into_make_service();
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        (address, server, kernel)
+    };
+    let (first, first_server, kernel) = start().await;
+    let response = send(first, "seed", "").await;
+    let (cookie, seeded) = read(&response);
+    let id = seeded["id"].as_str().unwrap();
+    let container = kernel.get_application().container();
+    let redis = container.get::<RedisManager>("redis").unwrap();
+    let sessions = redis.connection(Some("sessions")).unwrap();
+    let ordinary = redis.connection(Some("cache")).unwrap();
+    let session_key = sessions.key(&format!("session-only:{id}"));
+    let ordinary_key = ordinary.key(&format!("ordinary:{id}"));
+    let selected_cache = container
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(Some("payloads"))
+        .unwrap();
+    assert_eq!(selected_cache.get(id).await.unwrap(), None);
+    assert!(selected_cache.forever(id, &"keep".into()).await.unwrap());
+    assert_eq!(
+        ordinary
+            .command("EXISTS", &[ordinary_key.as_bytes()])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
+    assert_eq!(
+        ordinary
+            .command("EXISTS", &[session_key.as_bytes()])
+            .await
+            .unwrap(),
+        RedisValue::Int(0)
+    );
+    let ttl = sessions
+        .command("TTL", &[session_key.as_bytes()])
+        .await
+        .unwrap();
+    assert!(matches!(ttl, RedisValue::Int(115..=120)), "{ttl:?}");
+    first_server.abort();
+
+    let (second, second_server, _) = start().await;
+    let followed = send(second, "read", cookie).await;
+    let (cookie, followed) = read(&followed);
+    assert_eq!(followed["token"], seeded["token"]);
+    assert_eq!(followed["name"], "Ada");
+    assert_eq!(followed["message"], "Saved");
+    let rotated = send(second, "rotate", cookie).await;
+    let (cookie, rotated) = read(&rotated);
+    assert_ne!(rotated["id"], seeded["id"]);
+    assert_eq!(
+        sessions
+            .command("EXISTS", &[session_key.as_bytes()])
+            .await
+            .unwrap(),
+        RedisValue::Int(0)
+    );
+    assert_eq!(selected_cache.get(id).await.unwrap(), Some("keep".into()));
+    let rotated_key = sessions.key(&format!("session-only:{}", rotated["id"].as_str().unwrap()));
+    assert_eq!(
+        sessions
+            .command("PEXPIRE", &[rotated_key.as_bytes(), b"20"])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
+    timeout(Duration::from_secs(2), async {
+        while sessions
+            .command("EXISTS", &[rotated_key.as_bytes()])
+            .await
+            .unwrap()
+            == RedisValue::Int(1)
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let (_, expired) = read(&send(second, "read", cookie).await);
+    assert!(expired["name"].is_null());
+    assert_ne!(expired["token"], rotated["token"]);
+    second_server.abort();
+}
+
+#[tokio::test]
 async fn request_sessions_round_trip_through_mysql() {
     let configured = std::env::var_os("OPENRUST_TEST_SESSION_MYSQL_URL").is_some();
     assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());

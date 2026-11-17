@@ -48,3 +48,11 @@
 - 隔离基线 `eb7fb55b`，macOS arm64、Rust 1.94.0。真实 HTTP 验证文件跨应用读取、闪存、轮换、过期和清理、超限 500、空驱动请求间丢弃状态。实际应用二进制重启后以相同 Cookie 读取同一文件会话，空驱动两次启动均成功并无会话文件。
 - 临时 MySQL 8.4.13 上通过真实数据库会话和会话缓存回归，与纯 HTTP 相关用例同批运行。MySQL 联合 Redis 锁的用例按夹具条件跳过。独立 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、变更文件格式、三语文档构建及 24 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。日志保留于 `/private/tmp/openrust-04-04-drivers.TGDGDo6e`。
 - 04-04 保持开放，后续补接缓存会话驱动、Redis 专用连接和 Cookie 会话驱动。
+
+## 缓存会话驱动与 Redis 隔离
+
+- 对照固定 Laravel 的 `SessionManager::createCacheHandler`、`createRedisDriver`、`CacheBasedSessionHandler` 及其测试。旧版 `v0.x` 的 Redis 会话有独立命名空间和服务端 TTL，本批将共同机制接入现有缓存 Repository 和具名 Redis 管理器。 [Laravel 会话管理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Session/SessionManager.php) · [Laravel 缓存会话测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Session/CacheBasedSessionHandlerTest.php)
+- `SESSION_STORE` 选择缓存存储，Redis 用 `SESSION_CONNECTION` 选择数据连接并以 `default` 回退。可用应用配置 `session.prefix` 覆盖会话缓存前缀。Redis 构建独立 Repository，普通缓存的连接、前缀和注册状态保留。共享缓存会话处理器存储现有 Rust 字节载荷，复用加密、大小限制、失效删除和后端 TTL。APC 名称可映射到应用提供的缓存存储，Rust 未提供 PHP APCu 后端。
+- 隔离基线 `56c82c9e`，macOS arm64、Rust 1.94.0。真实 TCP 在 Redis 8.10.3 和 MySQL 8.4.13 上通过 11 项会话回归，包括 Redis 锁、具名存储、Redis 连接和前缀覆盖、闪存、轮换删除、TTL 及过期。
+- 两个独立应用进程使用同一 Cookie 验证 Redis、Memcached 和 DynamoDB Local 持久化。Redis 还核对默认数据连接和 TTL 续期，独立 Artisan `cache:forget` 清除普通缓存的同名键并保留会话记录。DynamoDB Local 验证存储期限，托管服务实测仍按发布范围跟踪。
+- 独立 Artisan `inspire`、`route:list --json --method=HEAD`、严格 Clippy、变更文件格式、三语站点及 24 项浏览器检查通过。全仓格式仍报告既有的 `sanctum_authentication.rs:1412` 差异。本批临时服务和 2.9 GiB Cargo 产物已回收，日志保留于 `/private/tmp/openrust-04-04-cache-session.Lw8luH0j`。04-04 接续 Cookie 会话驱动。

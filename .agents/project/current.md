@@ -2,10 +2,10 @@
 
 ## 最新交接
 
-- 2026-11-17 15:12（北京时间）04-04 [文件与空会话驱动](audits/04-04/README.md#文件与空会话驱动)通过真实 HTTP、重启、MySQL 回归和 Artisan。核心账本维持 58/66。
-- 下一批接续 04-04 缓存会话驱动，核对 Redis 专用连接和存储隔离。Cookie 会话驱动继续跟踪。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。
+- 2026-11-17 15:20（北京时间）04-04 [缓存会话驱动与 Redis 隔离](audits/04-04/README.md#缓存会话驱动与-redis-隔离)通过真实 Redis、Memcached、DynamoDB Local、MySQL 回归和 Artisan。核心账本维持 58/66。
+- 下一批接续 04-04 Cookie 会话驱动，对照固定 Laravel 并复用旧版请求级 Cookie 后端。02-05 其余方言、PostgreSQL 独立直连、DynamoDB 托管服务及 Windows 实机按各自范围跟踪。
 - 复现两项基线 Artisan 回归，分别是 `tests/startup.rs` 的 Provider 并发生成和 stub 发布数量。见 [04-03 验收记录](audits/04-03/README.md#cors-条件跳过与整单元验收)。
-- 周额度剩余 59%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.51 GB（75.91 GiB）。继续前以实测读数复查。
+- 周额度剩余 58%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。本批隔离编译产物已回收，项目磁盘可用 81.45 GB（75.85 GiB）。继续前以实测读数复查。
 
 历次验收、提交和资源记录见[项目进度](progress.md)。清理步骤见[项目规范的验收清单](conventions.md#验收清单)。
 

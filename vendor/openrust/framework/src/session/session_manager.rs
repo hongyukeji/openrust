@@ -3,6 +3,7 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use serde::Deserialize;
 
 use crate::{
+    cache::CacheManager,
     contracts::{
         container::Container as _,
         encryption::Encrypter,
@@ -15,8 +16,9 @@ use crate::{
 };
 
 use super::{
-    ArraySessionHandler, DatabaseSessionHandler, DatabaseSessionMetadata, EncryptedStore,
-    FileSessionHandler, NullSessionHandler, SessionError, SessionResult, Store, Value,
+    ArraySessionHandler, CacheBasedSessionHandler, DatabaseSessionHandler, DatabaseSessionMetadata,
+    EncryptedStore, FileSessionHandler, NullSessionHandler, SessionError, SessionResult, Store,
+    Value,
 };
 
 #[derive(Deserialize)]
@@ -27,6 +29,8 @@ struct Settings {
     lifetime: u64,
     expire_on_close: bool,
     connection: Option<String>,
+    store: Option<String>,
+    prefix: Option<String>,
     files: Option<PathBuf>,
     table: String,
     http_only: bool,
@@ -47,6 +51,8 @@ impl Default for Settings {
             lifetime: 120,
             expire_on_close: false,
             connection: None,
+            store: None,
+            prefix: None,
             files: None,
             table: "sessions".into(),
             http_only: true,
@@ -66,6 +72,7 @@ pub struct SessionManager {
     settings: Settings,
     database: Arc<DatabaseManager>,
     array: ArraySessionHandler,
+    cache: Option<CacheBasedSessionHandler>,
     base: PathBuf,
     lifetime: Duration,
 }
@@ -74,6 +81,7 @@ impl SessionManager {
     pub(crate) fn new(
         config: Option<Value>,
         database: Arc<DatabaseManager>,
+        cache: &CacheManager,
         base: PathBuf,
     ) -> SessionResult<Self> {
         let settings: Settings = match config {
@@ -91,10 +99,39 @@ impl SessionManager {
             return Err(SessionError::Configuration);
         }
         let lifetime = Duration::from_secs(lifetime);
+        let store_name = |driver| {
+            settings
+                .store
+                .as_deref()
+                .filter(|name| !name.is_empty())
+                .unwrap_or(driver)
+        };
+        let cache = match settings.driver.as_deref() {
+            Some("redis") => Some(CacheBasedSessionHandler::new(
+                Arc::new(
+                    cache
+                        .redis_session_store(
+                            store_name("redis"),
+                            settings.connection.as_deref(),
+                            settings.prefix.as_deref(),
+                        )
+                        .map_err(|_| SessionError::Configuration)?,
+                ),
+                lifetime,
+            )),
+            Some(driver @ ("apc" | "memcached" | "dynamodb")) => {
+                let repository = cache
+                    .store(Some(store_name(driver)))
+                    .map_err(|_| SessionError::Configuration)?;
+                Some(CacheBasedSessionHandler::new(repository, lifetime))
+            }
+            _ => None,
+        };
         Ok(Self {
             settings,
             database,
             array: ArraySessionHandler::new(lifetime),
+            cache,
             base,
             lifetime,
         })
@@ -162,6 +199,9 @@ impl SessionManager {
                 Box::new(FileSessionHandler::new(directory, self.lifetime)?)
             }
             Some("null") => Box::new(NullSessionHandler),
+            Some("redis" | "apc" | "memcached" | "dynamodb") => {
+                Box::new(self.cache.clone().ok_or(SessionError::Configuration)?)
+            }
             Some(_) => return Err(SessionError::Configuration),
         };
         let handler = if self.settings.encrypt {

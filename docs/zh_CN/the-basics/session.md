@@ -6,6 +6,8 @@
 
 用 `SESSION_DRIVER=file` 将会话保存在 `storage/framework/sessions`。可通过应用配置的 `session.files` 指定其他目录。`native` 是 `file` 的别名。用 `SESSION_DRIVER=null` 在当前请求中使用会话，请求结束后丢弃会话状态。
 
+用 `SESSION_DRIVER=redis`、`memcached` 或 `dynamodb` 将会话保存在缓存后端。`SESSION_STORE` 选择具名缓存存储，默认使用驱动名。Redis 的 `SESSION_CONNECTION` 选择连接名，默认为 `default`。应用配置中的 `session.prefix` 可覆盖 Redis 会话使用的缓存前缀。会话使用独立的 Redis 仓库，普通缓存保留自己的连接和前缀。后端在 `SESSION_LIFETIME` 分钟后使载荷过期。
+
 配置会话驱动后，默认 `web` 组会在处理器运行前启动会话。自定义组需要把 `EncryptCookies` 放在 `StartSession` 前面。
 
 ## 使用会话

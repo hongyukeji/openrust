@@ -220,8 +220,12 @@ impl CacheManager {
 
     /// Creates a fresh repository from a named store's configuration.
     pub fn resolve(&self, name: &str) -> CacheResult<Repository> {
+        self.build(self.store_config(name)?)
+    }
+
+    fn store_config(&self, name: &str) -> CacheResult<Value> {
         if name == "null" {
-            return self.build(serde_json::json!({ "driver": "null", "store": "null" }));
+            return Ok(serde_json::json!({ "driver": "null", "store": "null" }));
         }
         let mut config = self
             .inner
@@ -235,6 +239,23 @@ impl CacheManager {
             .as_object_mut()
             .ok_or(CacheError::InvalidConfiguration)?;
         options.entry("store").or_insert_with(|| name.into());
+        Ok(config)
+    }
+
+    pub(crate) fn redis_session_store(
+        &self,
+        name: &str,
+        connection: Option<&str>,
+        prefix: Option<&str>,
+    ) -> CacheResult<Repository> {
+        let mut config = self.store_config(name)?;
+        if config.get("driver").and_then(Value::as_str) != Some("redis") {
+            return Err(CacheError::InvalidConfiguration);
+        }
+        config["connection"] = connection.into();
+        if let Some(prefix) = prefix.filter(|prefix| !prefix.is_empty()) {
+            config["prefix"] = prefix.into();
+        }
         self.build(config)
     }
 

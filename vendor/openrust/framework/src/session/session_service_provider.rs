@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    cache::CacheManager,
     contracts::{
         config::Repository,
         container::{BindingResolutionError, Container as _},
@@ -25,7 +26,8 @@ impl ServiceProvider for SessionServiceProvider {
             container.singletonNamed("session", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
-                SessionManager::new(config.get("session"), database, base.clone())
+                let cache = container.get::<CacheManager>("cache")?;
+                SessionManager::new(config.get("session"), database, &cache, base.clone())
                     .map(Arc::new)
                     .map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "session",

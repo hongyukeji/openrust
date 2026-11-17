@@ -6,6 +6,8 @@ Use `SESSION_DRIVER=database` to persist sessions in the configured database and
 
 Use `SESSION_DRIVER=file` to keep sessions in `storage/framework/sessions`. Set `session.files` in application configuration to use another directory. The `native` driver is an alias for `file`. Use `SESSION_DRIVER=null` to expose session state for the current request and discard it when the request ends.
 
+Use `SESSION_DRIVER=redis`, `memcached`, or `dynamodb` to store sessions in a cache backend. `SESSION_STORE` selects a named cache store and defaults to the driver name. For Redis, `SESSION_CONNECTION` selects a named Redis connection and defaults to `default`. The `session.prefix` configuration can override the Redis cache prefix for sessions. Session settings are applied to a dedicated Redis repository, so the ordinary cache keeps its own connection and prefix. The backend expires payloads after `SESSION_LIFETIME` minutes.
+
 The default `web` group starts the session before the handler when a session driver is configured. For custom groups, place `EncryptCookies` before `StartSession`.
 
 ## Interacting with the Session
