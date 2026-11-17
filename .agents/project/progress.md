@@ -2836,3 +2836,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 07:51（北京时间）03-06 [缓存锁回调](audits/03-06/README.md#缓存锁回调)。固定 Laravel 对照、MySQL 8.4.13 和 Redis 8.10.3 回调与取消、实际 HTTP 和 Artisan、严格 Clippy 和三语站点通过。核对 Atomic Locks 章节，补记锁状态查询、重试间隔与 Cache::funnel 三项缺口。临时夹具和本批产物已回收，项目盘可用 57.61 GB（53.65 GiB），周额度剩余 69%。
 
 - 2026-11-17 08:00（北京时间）03-06 [锁状态与重试间隔](audits/03-06/README.md#锁状态与重试间隔)。固定 Laravel 对照，内存、文件、空仓库及真实 MySQL、Redis、Memcached、DynamoDB Local 的对应测试通过。实际 HTTP 查询及 Artisan 清锁、严格 Clippy 和三语站点通过。临时容器和本批产物已回收，项目盘可用 57.56 GB（53.61 GiB），周额度剩余 69%。03-06 待 Cache::funnel。
+
+- 2026-11-17 08:06（北京时间）02-05 [Blueprint 恢复复验](audits/02-05/README.md#2026-11-17-0806-恢复复验)。核对现有补丁已进入 `47690d179`，在主线 `87e690c10` 的隔离快照复验 26 项 MySQL Schema 回归、`sh tests/table_catalog.sh`、限定库的实际 Artisan 清库与迁移、`artisan inspire`、02-05 范围格式和工作区严格 Clippy。全仓格式差异仍为既有 Sanctum 排版。两轮 MySQL 和本批隔离 Cargo 产物已回收，项目卷可用 57.49 GB（53.55 GiB），周额度剩余 69%。核心账本 50/66，02-05 待其余类型和方言修饰符。

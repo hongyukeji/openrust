@@ -329,3 +329,10 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - `sh tests/table_catalog.sh` 在另一个 MySQL 8.4.13 实例通过写连接表与视图目录、`db:wipe`、`migrate:fresh` 和旁库标记行保留检查。`target/debug/main artisan inspire` 正常退出。
 - 02-05 涉及的 8 个 Rust 文件通过 Rust 1.94.0 的 `rustfmt --check`，`cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings` 通过。`cargo +1.94.0 fmt --all --check` 只报告 `sanctum_authentication.rs:1412` 的既有排版，已核对该文件与 Blueprint 补丁前逐字节一致。
 - 原隔离编译产物已清理。本轮在同一新隔离目录构建，Blueprint、表目录和 Artisan 复用本轮产物。两轮 MySQL 均已回收，清理本轮 3.5 GiB Cargo 产物后，项目卷可用 61.20 GB（57.00 GiB），周额度剩余 71%，第二窗口无读数。证据保存在 `/private/tmp/openrust-02-05-blueprint-recheck.pm7lV6rw`。
+
+#### 2026-11-17 08:06 恢复复验
+
+- 在当前 `master` 的隔离快照 `87e690c10` 复验。保存的 `blueprint-delivery.patch` 与 `47690d179` 中对应五个文件的稳定补丁标识一致。02-05 的八个 Rust 文件和表目录脚本与上次复验快照一致。原隔离产物已清理，本轮在新隔离目录构建一次并复用同一 target 目录。
+- 在隔离快照从 `3d2641c0f` 提取历史 `docker/accept.py`，使用 `--mysql --mysql-schema-admin` 提供临时 MySQL，26 项 Schema 回归通过。`sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 上通过写连接表与视图目录检查，以及实际 Artisan `db:wipe`、`migrate:fresh` 和旁库标记行保留检查。`target/debug/main artisan inspire` 正常退出。
+- 涉及的八个 Rust 文件通过 Rust 1.94.0 格式检查。`cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings` 通过。全仓格式检查只报告 `sanctum_authentication.rs:1412` 的既有排版，该文件与补丁前一致。
+- 已核对两轮临时 MySQL 的容器和卷均已回收，清理本轮 3.7 GiB 隔离 Cargo 产物。项目卷可用 57.49 GB（53.55 GiB），周额度剩余 69%，无第二窗口读数。日志存于 `/private/tmp/openrust-02-05-blueprint-current.vFUL6Ao0`。02-05 的其余类型和方言修饰符继续由账本跟踪。
