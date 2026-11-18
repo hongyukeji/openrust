@@ -84,6 +84,12 @@ schedule
 ./artisan schedule:list --json --next --timezone=UTC
 ```
 
+終端清單顯示相對觸發時間、重複間隔及任務是否持有互斥鎖。使用 `-v` 可查看帶時區偏移的絕對時間及任務描述。Artisan 任務在詳細模式下會顯示目前執行檔路徑及 `artisan`。用 `--no-ansi` 移除終端色彩。JSON 輸出一律為純文字。
+
+```sh
+./artisan schedule:list -v --no-ansi
+```
+
 有子分鐘任務時，`schedule:run` 持續到當前分鐘結束。`./artisan schedule:interrupt` 透過所選快取儲存通知當前分鐘的重複迴圈結束。任務錯誤交由例外報告器處理，後續到期任務繼續執行，排程命令處理完後成功結束。排程基礎設施發生錯誤時，命令以失敗狀態結束。
 
 用 `./artisan schedule:test --name=reports:daily` 在前景立即執行選定任務。在互動式終端中可省略 `--name`，從已登記的任務中選擇。用 `./artisan schedule:clear-cache` 清除已登記任務的重疊鎖，包含共用 Redis 中的鎖。

@@ -209,7 +209,10 @@ fn routes() -> Result<(), ConsoleError> {
             return Ok(());
         }
         if profile == "listing" {
-            schedule.command("listed:general", []).dailyAt("18:00")?;
+            schedule
+                .command("listed:general", ["--force".into()])
+                .name("General maintenance")
+                .dailyAt("18:00")?;
             schedule
                 .command("listed:staging", [])
                 .dailyAt("17:30")?
@@ -680,7 +683,7 @@ async fn artisan_runs_due_tasks_and_reports_failures_without_stopping_the_schedu
         .find_map(|line| line.strip_prefix("queued "))
         .unwrap();
     assert!(!String::from_utf8(second.stdout).unwrap().contains(uuid));
-    let output = run(&root, "basic", MONDAY, &["schedule:list"]).await;
+    let output = run(&root, "basic", MONDAY, &["schedule:list", "-v"]).await;
     let listing = String::from_utf8(output.stdout).unwrap();
     assert!(
         listing.contains("fixture:hello") && listing.contains("+00:00"),
@@ -695,7 +698,8 @@ async fn artisan_lists_environments_and_sorts_by_next_due_in_the_display_timezon
     let stdout = |output: Output| String::from_utf8(output.stdout).unwrap();
     let default = stdout(run(&root, "listing", MONDAY, &["schedule:list"]).await);
     assert!(default.find("listed:general").unwrap() < default.find("listed:staging").unwrap());
-    assert!(default.contains("listed:general  Next: 2026-01-05T09:00:00+00:00"));
+    assert!(default.contains("Next Due: 1 hour from now"));
+    assert!(!default.contains("General maintenance"));
 
     let selected = stdout(
         run(
@@ -720,6 +724,7 @@ async fn artisan_lists_environments_and_sorts_by_next_due_in_the_display_timezon
                 "--environment=staging",
                 "--next",
                 "--timezone=Asia/Kolkata",
+                "-v",
             ],
         )
         .await,
@@ -729,9 +734,22 @@ async fn artisan_lists_environments_and_sorts_by_next_due_in_the_display_timezon
         .filter(|row| row.contains("listed:"))
         .collect();
     assert_eq!(tasks.len(), 3, "{sorted}");
-    assert!(tasks[0].ends_with("listed:staging  Next: 2026-01-05T14:00:00+05:30"));
-    assert!(tasks[1].ends_with("listed:production  Next: 2026-01-05T14:00:00+05:30"));
-    assert!(tasks[2].ends_with("listed:general  Next: 2026-01-05T14:30:00+05:30"));
+    for (row, command, time) in [
+        (tasks[0], "listed:staging", "14:00:00"),
+        (tasks[1], "listed:production", "14:00:00"),
+        (tasks[2], "listed:general", "14:30:00"),
+    ] {
+        assert!(row.contains(command), "{row}");
+        assert!(
+            row.ends_with(&format!("Next Due: 2026-01-05 {time} +05:30")),
+            "{row}"
+        );
+    }
+    assert!(sorted.contains("⇁ General maintenance"));
+    assert!(sorted.contains(&format!(
+        "{} artisan listed:general",
+        std::env::current_exe().unwrap().display()
+    )));
 
     let invalid = artisan(
         &root,
@@ -744,6 +762,56 @@ async fn artisan_lists_environments_and_sorts_by_next_due_in_the_display_timezon
     .unwrap();
     assert!(!invalid.status.success());
     assert!(!stdout(invalid).contains("listed:"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_schedule_list_styles_columns_and_keeps_json_plain() {
+    let root = root(None);
+    let styled = artisan(&root, "listing", MONDAY, &["schedule:list", "--ansi"])
+        .env("COLUMNS", "90")
+        .output()
+        .await
+        .unwrap();
+    assert_success(&styled);
+    let styled = String::from_utf8(styled.stdout).unwrap();
+    assert!(styled.contains("\x1b[33m0  9"));
+    assert!(styled.contains("\x1b[33;1m--force\x1b[39;22m"));
+
+    let plain = artisan(&root, "listing", MONDAY, &["schedule:list", "--no-ansi"])
+        .env("FORCE_COLOR", "1")
+        .env("COLUMNS", "90")
+        .output()
+        .await
+        .unwrap();
+    assert_success(&plain);
+    let plain = String::from_utf8(plain.stdout).unwrap();
+    assert!(!plain.contains('\x1b'));
+    let row = plain
+        .lines()
+        .find(|line| line.contains("listed:general"))
+        .unwrap();
+    assert!(row.contains(".... Next Due: 1 hour from now"), "{row}");
+    assert_eq!(::console::measure_text_width(row), 88);
+
+    let json = run(
+        &root,
+        "listing",
+        MONDAY,
+        &["schedule:list", "--json", "-v", "--ansi"],
+    )
+    .await;
+    let stdout = String::from_utf8(json.stdout).unwrap();
+    assert!(!stdout.contains('\x1b'));
+    let rows = stdout.lines().find(|line| line.starts_with('[')).unwrap();
+    let rows: Vec<Value> = serde_json::from_str(rows).unwrap();
+    assert!(
+        rows[0]["command"]
+            .as_str()
+            .unwrap()
+            .ends_with(" artisan listed:general --force")
+    );
+    assert_eq!(rows[0]["description"], "General maintenance");
     std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -1305,11 +1373,15 @@ async fn artisan_clears_redis_schedule_mutexes_for_registered_tasks() {
             .clone()
     };
     assert_eq!(list_mutex().await, true);
+    let held = run(&root, "overlap", MONDAY, &["schedule:list"]).await;
+    assert!(String::from_utf8_lossy(&held.stdout).contains("Has Mutex › Next Due:"));
     let cleared = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
     assert!(String::from_utf8_lossy(&cleared.stdout).contains("Deleting mutex for [shared]"));
     let empty = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
     assert!(String::from_utf8_lossy(&empty.stdout).contains("No mutex files were found"));
     assert_eq!(list_mutex().await, false);
+    let cleared = run(&root, "overlap", MONDAY, &["schedule:list"]).await;
+    assert!(!String::from_utf8_lossy(&cleared.stdout).contains("Has Mutex ›"));
     std::fs::write(root.join("release"), "").unwrap();
     let winner = timeout(Duration::from_secs(5), winner.wait_with_output())
         .await

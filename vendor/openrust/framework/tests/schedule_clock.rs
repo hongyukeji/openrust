@@ -93,11 +93,11 @@ async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult
     right.assertSuccessful();
     assert!(!right.stdout.contains("clock task ran"));
     let list = second
-        .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+        .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
         .await;
     list.assertSuccessful();
     assert!(
-        list.stdout.contains("1970-01-01T09:30:00+09:00"),
+        list.stdout.contains("1970-01-01 09:30:00 +09:00"),
         "{}",
         list.stdout
     );
@@ -127,11 +127,11 @@ async fn explicit_scheduler_clock_takes_precedence_over_the_fixture_clock() -> T
         .assertSuccessful()
         .expectsOutput("clock task ran");
     let list = app
-        .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+        .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
         .await;
     list.assertSuccessful();
     assert!(
-        list.stdout.contains("1970-01-02T09:30:00+09:00"),
+        list.stdout.contains("1970-01-02 09:30:00 +09:00"),
         "{}",
         list.stdout
     );
@@ -145,22 +145,22 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
         (
             "2024-01-01T00:30:14.125Z",
             "Clock repeat",
-            "2024-01-01T09:30:15+09:00",
+            "2024-01-01 09:30:15 +09:00",
         ),
         (
             "2024-01-01T00:30:55.000Z",
             "Five-second repeat",
-            "2024-01-01T09:31:00+09:00",
+            "2024-01-01 09:31:00 +09:00",
         ),
         (
             "2024-01-01T00:30:59.900Z",
             "Clock repeat",
-            "2024-01-01T09:31:00+09:00",
+            "2024-01-01 09:31:00 +09:00",
         ),
     ] {
         app.travelTo(date(at));
         let listing = app
-            .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+            .artisan(["schedule:list", "--timezone=Asia/Tokyo", "-v"])
             .await;
         listing.assertSuccessful();
         assert!(

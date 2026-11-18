@@ -34,7 +34,9 @@ use crate::{
 
 use super::{
     CacheEventMutex, CacheSchedulingMutex, Event, EventMutex, Schedule, SchedulingMutex,
-    cron_expression_timezone_converter, error, event::Action,
+    cron_expression_timezone_converter, error,
+    event::Action,
+    schedule_list_output::{ListedEvent, display_json, display_text},
 };
 
 const PAUSED: &str = "illuminate:schedule:paused";
@@ -301,58 +303,61 @@ impl ScheduleRunCommand {
         if input.matches().get_flag("next") {
             rows.sort_by_key(|(next, _, _)| *next);
         }
-        let mutex = if json {
-            Some(CacheEventMutex::new(self.store()?))
+        let verbose = input.matches().get_count("verbose") > 0;
+        let executable = if verbose
+            && rows
+                .iter()
+                .any(|(_, _, event)| matches!(event.action, Action::Command(_)))
+        {
+            Some(std::env::current_exe().map_err(error)?)
         } else {
             None
         };
-        let mut json_rows = Vec::new();
+        let mutex = CacheEventMutex::new(self.store()?);
+        let displayed_now = now.with_timezone(&display_zone);
+        let mut listed = Vec::with_capacity(rows.len());
         for (next, cron_next, event) in rows {
             let expressions = cron_expression_timezone_converter::for_event(
                 &event.cron_text,
                 cron_next,
                 display_zone,
             );
-            if let Some(mutex) = &mutex {
-                let has_mutex = mutex.exists(event).await.map_err(error)?;
-                let command = match &event.action {
-                    Action::Command(_) => format!("./artisan {}", event.command_name()),
-                    Action::Exec(_) => event.command_name(),
-                    Action::Callback(_, at) if event.description.is_none() => {
-                        let source = Path::new(at.file());
-                        let source = source.strip_prefix(app.base_path()).unwrap_or(source);
-                        format!("Closure at: {}:{}", source.display(), at.line())
-                    }
-                    _ => event.getSummaryForDisplay(),
-                };
-                let next_due_date = next.format("%Y-%m-%d %H:%M:%S %:z").to_string();
-                let human = relative_due(now.with_timezone(&display_zone), next);
-                for expression in expressions {
-                    json_rows.push(serde_json::json!({
-                        "expression": expression,
-                        "command": command,
-                        "description": event.description,
-                        "next_due_date": next_due_date,
-                        "next_due_date_human": human,
-                        "timezone": display_zone.name(),
-                        "has_mutex": has_mutex,
-                        "repeat_seconds": event.interval.map(|value| value.as_secs()),
-                        "environments": event.environments,
-                        "on_one_server": event.one_server,
-                    }));
+            let (command, arguments_start) = match &event.action {
+                Action::Command(args) => {
+                    let prefix = executable.as_ref().map_or_else(
+                        || "./artisan ".to_owned(),
+                        |path| format!("{} artisan ", path.display()),
+                    );
+                    let arguments_start = (args.len() > 1)
+                        .then(|| prefix.len() + args[0].to_string_lossy().len() + 1);
+                    (prefix + &event.command_name(), arguments_start)
                 }
-            } else {
-                let summary = event.getSummaryForDisplay();
-                let next = next.to_rfc3339();
-                for expression in expressions {
-                    writeln!(output.stdout, "{expression}  {summary}  Next: {next}")
-                        .expect("writing to a String");
+                Action::Exec(_) => (event.command_name(), None),
+                Action::Callback(_, at) if event.description.is_none() => {
+                    let source = Path::new(at.file());
+                    let source = source.strip_prefix(app.base_path()).unwrap_or(source);
+                    (
+                        format!("Closure at: {}:{}", source.display(), at.line()),
+                        None,
+                    )
                 }
-            }
+                _ => (event.getSummaryForDisplay(), None),
+            };
+            listed.push(ListedEvent {
+                event,
+                expressions,
+                command,
+                arguments_start,
+                next_due_date: next.format("%Y-%m-%d %H:%M:%S %:z").to_string(),
+                next_due_date_human: relative_due(displayed_now, next),
+                timezone: display_zone.name(),
+                has_mutex: mutex.exists(event).await.map_err(error)?,
+            });
         }
         if json {
-            writeln!(output.stdout, "{}", serde_json::Value::Array(json_rows))
-                .expect("writing to a String");
+            display_json(&listed, output);
+        } else {
+            display_text(&listed, verbose, output);
         }
         Ok(())
     }

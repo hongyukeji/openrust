@@ -84,6 +84,12 @@ schedule
 ./artisan schedule:list --json --next --timezone=UTC
 ```
 
+终端列表显示相对触发时间、重复间隔及任务是否持有互斥锁。使用 `-v` 查看带时区偏移的绝对时间和任务描述。Artisan 任务在详细模式下会显示当前二进制路径及 `artisan`。用 `--no-ansi` 去掉终端颜色。JSON 输出始终是纯文本。
+
+```sh
+./artisan schedule:list -v --no-ansi
+```
+
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
 
 用 `./artisan schedule:test --name=reports:daily` 在前台立即运行选定任务。在交互式终端中可省略 `--name`，从已登记任务中选择。用 `./artisan schedule:clear-cache` 清理已登记任务的重叠锁，包括共享 Redis 中的锁。

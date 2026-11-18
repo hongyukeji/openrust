@@ -192,4 +192,4 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 
 06-05 的 [调度列表的环境筛选、排序与展示时区](06-05/README.md#调度列表的环境筛选排序与展示时区)通过真实 Artisan 与 Redis 回归。固定 Laravel 的 JSON 列表、显示时区下的 cron 表达式转换和详细终端输出继续跟踪。
 
-06-05 的 [调度列表的 JSON 与 cron 展示时区](06-05/README.md#调度列表的-json-与-cron-展示时区)通过实际 Artisan、固定基线转换矩阵与 Redis 锁状态验收。终端相对时间、详细模式和 ANSI 排版继续跟踪。
+06-05 的 [调度列表的 JSON 与 cron 展示时区](06-05/README.md#调度列表的-json-与-cron-展示时区)通过实际 Artisan、固定基线转换矩阵与 Redis 锁状态验收。[调度列表的终端排版与详细模式](06-05/README.md#调度列表的终端排版与详细模式)通过独立 Artisan、实际伪终端和 Redis 锁状态验收。

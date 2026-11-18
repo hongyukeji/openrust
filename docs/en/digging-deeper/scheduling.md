@@ -84,6 +84,12 @@ Use `--json` to return an array with each expression, command, description, next
 ./artisan schedule:list --json --next --timezone=UTC
 ```
 
+The terminal list shows relative due times, repeat intervals, and whether a task holds a mutex. Use `-v` for the absolute timestamp with its timezone offset and the task description. For Artisan tasks, verbose mode shows the running binary followed by `artisan`. Pass `--no-ansi` to remove terminal colors. JSON output is always plain.
+
+```sh
+./artisan schedule:list -v --no-ansi
+```
+
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
 
 Use `./artisan schedule:test --name=reports:daily` to run a selected task immediately in the foreground. With an interactive terminal, omit `--name` to select from the registered tasks. Use `./artisan schedule:clear-cache` to remove overlap locks for registered tasks, including locks in the shared Redis store.

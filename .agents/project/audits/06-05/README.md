@@ -34,3 +34,9 @@
 - `schedule:list --json` 输出 Laravel 对应字段及空数组。从编译后的登记信息取得回调文件和行号，Artisan 命令名使用 `./artisan`，互斥状态复用实际缓存锁。终端相对时间样式、详细模式和 ANSI 排版继续跟踪。
 - 基于 `6071c403a` 的隔离快照，通过独立 Artisan 二进制比较固定上游的 62 个表达式用例。定向测试覆盖 DST 偏移、日历边界和回退、子分钟间隔与环境元数据。真实 Redis 8.10.3 子进程验证锁持有及清除后的字段变化。PHP 8.5 与 Carbon 3.8.4 对照月底、DST、亚秒及整周的相对时间边界。根应用实跑共同 JSON 示例。 [固定 JSON 契约](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleListCommand.php#L83)
 - 调度回归 21 项通过、1 项子进程夹具忽略。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。临时 Redis、隔离 Cargo 和文档产物已回收，提交前磁盘可用 98.72 GB（91.94 GiB），周额度剩余 35%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-schedule-list-json.eZ4cbngQ`。
+
+## 调度列表的终端排版与详细模式
+
+- 对照固定 Laravel v13.40.0 的普通与详细列表、重复秒数、列宽、持锁标记和命令参数样式。复核旧版 `schedule list`，旧命令直接输出登记项。OpenRust 的终端和 JSON 列表共用同一组调度行及缓存锁状态。默认显示相对时间，`-v` 显示带偏移的绝对时间和描述。详细模式用当前 Rust 二进制及 `artisan` 表示调用入口。复用项目的 `console` 依赖获取终端列宽和计算显示宽度，并沿用 Artisan 的 ANSI 开关。 [固定 Laravel 终端实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleListCommand.php#L120) · [固定上游终端用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Console/Scheduling/ScheduleListCommandTest.php#L500)
+- 基于 `f1dda9e2b` 的隔离快照，独立 Artisan 二进制通过 80 列管道、96 列 macOS 伪终端、自动颜色、相对时间、重复秒数、详细命令描述和纯 JSON 验收。真实 Redis 8.10.3 验证锁持有、清除后终端与 JSON 的标记变化。根应用实跑三语共同示例。
+- 调度回归 22 项通过、1 项子进程夹具忽略。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。临时 Redis、隔离 Cargo 和文档产物已回收。提交前磁盘可用 98.00 GB（91.27 GiB），周额度剩余 35%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-schedule-list-text.rgoaYf4V`。
