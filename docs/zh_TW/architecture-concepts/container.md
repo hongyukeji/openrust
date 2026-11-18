@@ -40,7 +40,7 @@ fn main() -> Result<(), BindingResolutionError> {
 
 使用 `make::<T>()` 按 Rust 類型解析，使用 `get::<T>(key)` 按名稱或顯式鍵解析。引導時，設定儲存庫綁定為 `config`，`dyn openrust::contracts::config::Repository` 是其型別別名。每個應用擁有自己的容器，綁定和實例不是程序全域狀態。
 
-上下文綁定、擴展器、解析回呼及重綁定見下文。延遲 Provider、動態建構覆寫和屬性投影仍待完成，01-02 尚未整體關閉。
+用 `makeWith` 明確傳入建構參數。相依服務由延遲 Provider 或非同步工廠提供時，用 `makeAsync` 等待就緒。見[參數覆寫](#參數覆寫)與 [Service Provider](./providers.md)。
 
 ## 條件綁定與實例狀態
 
@@ -152,7 +152,7 @@ fn main() {
 
 執行順序為全域 before → 指定 before → 建構 → 全域 resolving → 指定 resolving → 全域 after → 指定 after。before 回呼可以登記尚未綁定的服務，每次查找都執行，快取命中也執行。明確提供的實例及共享快取命中略過建構後回呼。每階段先取得全域回呼快照，全域執行完再讀取指定回呼；因此全域回呼中新登記的指定回呼可以參與目前階段，登記到後續階段的回呼也可在本次建構中執行。
 
-`event.key()` 是執行 before 前確定的正規服務身分。`event.value::<T>()` 在建構前傳回 `None`，建構後按已宣告的回傳契約取得同一 `Arc<T>`。建構後的指定回呼按服務鍵或 Rust 宣告的回傳型別匹配。Rust 無法於執行期發現任意 PHP 繼承或介面關係，須明確登記預期的回傳契約；需要設定共享物件時使用內部可變性。動態建構參數覆寫和屬性投影尚未納入本回呼介面。
+`event.key()` 是執行 before 前確定的正規服務身分。before 回呼透過 `event.parameters()` 讀取明確傳入的建構參數。resolving 和 afterResolving 回呼透過 `event.value::<T>()` 讀取建構完成的物件，也可讀取該物件宣告的 trait 檢視。需要在回呼中設定共用物件時，使用內部可變性。 [介面檢視的解析事件](#介面檢視的解析事件)
 
 共享物件先發布再執行建構後回呼，回呼可重入解析同一共享物件；其他執行緒等待回呼結束，不讀取設定到一半的物件。建構後回呼失敗或 panic 時，已發布物件仍保留快取，命中快取不重複執行回呼，但不記錄成功解析歷史。暫態物件失敗時沒有快取，下次重新建構。回呼錯誤沿既有 HTTP/Artisan 錯誤處理傳播。沒有終止條件的同服務回呼遞迴傳回循環依賴錯誤。執行使用者回呼時不持有登錄表鎖。
 
@@ -423,13 +423,13 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `ConstructorParam::scalar::<T>("name")` 選擇宣告的 Rust 型別值；`class::<T>("name")` 選擇 `Arc<T>`，包括 `dyn Trait` 契約。`ResolvedArgs::get` 讀取原始值槽，`service` 回傳原服務 Arc，`value` 暴露型別化載體。槽位按宣告順序排列；空參數名、重複名稱在登記前拒絕。
 
-選參遵循固定基線：同名明確覆寫優先。原始值隨後選擇 `$name` 情境綁定、`withDefault`、啟用 `nullable` 時的空值，否則失敗。類別預設值僅在該類別沒有明確綁定或直接情境綁定時使用；否則透過容器解析類別。沒有預設值的可空類別仍嘗試解析相依服務，不會把無法解析的類別靜默改成 null。可選預設值使用 `nullable().withDefault(|| Ok(ParameterValue::null()))`，透過 `optional` 或 `optionalService` 讀取可空槽。
+同名的明確覆寫優先，其次解析第一個[內容屬性](#內容屬性)。屬性回傳 null 時回退至一般解析。純量接著嘗試 `$name` 情境綁定、`withDefault` 或啟用 `nullable` 後的空值。類別預設值在該類別沒有明確綁定或直接情境綁定時使用，否則由容器解析類別。沒有預設值的可空類別仍會嘗試解析相依服務。可選預設值使用 `nullable().withDefault(|| Ok(ParameterValue::null()))`，透過 `optional` 或 `optionalService` 讀取可空欄位。
 
 相依服務與預設值按宣告順序求值，再對已選參數驗證型別後呼叫建構函式。預設函式只在選中時執行，每次重新求值。參數保持嚴格 Rust 型別，不實作 PHP 弱純量隱式轉換。普通巢狀相依服務使用空覆寫；既有情境、裝飾器、解析回呼與就緒保護繼續有效。
 
-`build::<T>()` / `buildAsync::<T>().await` 直接呼叫編譯建構函式，繞過目標的綁定、快取、裝飾器、解析回呼與歷史；其相依服務仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或對應非同步介面為描述類別設定共用生命週期。`build` 使用目前參數快照，帶參數工廠可直接轉交，不把參數寫入全域註冊表。
+`build::<T>()` / `buildAsync::<T>().await` 直接呼叫編譯建構函式，略過目標綁定、快取、裝飾器、容器解析回呼和解析歷史。參數及類別的屬性回呼照常執行，相依服務使用一般容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或對應非同步介面設定共用生命週期。`build` 使用目前參數快照，帶有參數的工廠可在同一次解析中轉交參數。
 
-方法呼叫、SelfBuilding、情境/類別屬性與自動介面投影仍待交付，登記中繼資料不代表這些能力已可用。
+依需要登記[方法呼叫](#方法呼叫)、[SelfBuilding](#自建構類別)與[介面投影](#編譯介面投影)的編譯配接器。容器使用這些宣告取得 PHP 透過執行期反射讀取的型別資訊。
 
 ## 可變參數注入
 

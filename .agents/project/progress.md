@@ -3524,3 +3524,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 08-04 ARM64 完整镜像包清单复验
 
 从 `c901caf09` 交叉构建 arm64 完整镜像，校验导出后在 Apple Silicon 原生运行。真实 Artisan、HTTP、MySQL／Redis、只读容器和重建通过。 [验收记录](audits/08-04/docker.md#arm64-完整镜像包清单复验)
+
+## 2026-11-18 01-02 三语容器文档同步已交付行为
+
+三语容器正文补齐已交付 API 入口、构造器属性优先级和两类回调区别。三语构建和 18 项浏览器检查通过。 [验收记录](audits/01-02/README.md#三语容器文档同步已交付行为)

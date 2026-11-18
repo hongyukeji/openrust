@@ -30,3 +30,9 @@
 隔离基线 `a1620b87d`。Rust 1.94.0 的 231 项框架容器／事件及 26 项根应用定向回归通过。额外真实进程测试启动 16 个子进程，覆盖容器 Artisan 命令、未知命令和启动参数退出码。框架库及事件测试、根应用延迟生命周期测试通过严格 Clippy，实际 `main artisan inspire` 通过。以并行提交后的 `e5103489c` 基线复验 17 项延迟生命周期回归、16 个 Artisan 子进程和实际 `main artisan inspire`。
 
 三语 Provider 示例分别编译和运行，检验事件派发、服务读取及共享实例。VitePress 构建通过，根路径及 `/docs/` 下通过 12 项浏览器回归和 6 项事件章节锚点检查。 [英文](../../../../docs/en/architecture-concepts/providers.md#loading-providers-on-events) · [简体中文](../../../../docs/zh_CN/architecture-concepts/providers.md#loading-providers-on-events) · [繁體中文](../../../../docs/zh_TW/architecture-concepts/providers.md#loading-providers-on-events)
+
+## 三语容器文档同步已交付行为
+
+- 在 `8b1a37720` 核对英文、简体及繁体容器正文。早期段落仍把延迟 Provider、参数覆盖、方法调用、SelfBuilding、属性和接口视图写成待交付。现已链接可用 API，说明 before 回调读取参数、构造后回调读取声明的 trait 视图，以及直接 `build` 仍执行属性回调。Rust 通过编译描述器表达 PHP 运行时反射，沿用 v0.x 的回调与有序选择器思路。 [固定 Laravel 容器](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/container.md) · [固定容器源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Container/Container.php)
+- 核对 `class_descriptor.rs` 的同步与异步解析分支，记录具名覆盖、首个上下文属性和属性返回 null 后的回退顺序。方法调用的 null 规则仍见该节。参数和属性行为的真实入口证据沿用 [整单元验收](#整单元验收) 与 [上下文属性验收](../01-02s/README.md)。本批只改正文与验收记录，三种语言各 29 个 Rust 示例的文本与基线一致。
+- 三语站点构建通过，根路径及 `/docs/` 下通过 12 项通用浏览器检查和 6 项容器页面及章节跳转检查。临时站点产物已回收。提交前项目盘可用 52.33 GB（48.73 GiB），周额度剩余 19%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-container-docs.UyR3mo9Y`。

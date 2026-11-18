@@ -40,7 +40,7 @@ fn main() -> Result<(), BindingResolutionError> {
 
 使用 `make::<T>()` 按 Rust 类型解析，使用 `get::<T>(key)` 按名称或显式键解析。引导时，配置仓储绑定为 `config`，`dyn openrust::contracts::config::Repository` 是其类型别名。每个应用拥有自己的容器，绑定和实例不是进程全局状态。
 
-上下文绑定、扩展器、解析回调及重绑定见下文。延迟 Provider、动态构造覆盖和属性投影仍待完成，01-02 尚未整体关闭。
+用 `makeWith` 显式传入构造参数。遇到延迟 Provider 或异步工厂提供的依赖时，用 `makeAsync` 等待就绪。见[参数覆盖](#参数覆盖)和 [Service Provider](./providers.md)。
 
 ## 条件绑定与实例状态
 
@@ -152,7 +152,7 @@ fn main() {
 
 执行顺序为全局 before → 指定 before → 构造 → 全局 resolving → 指定 resolving → 全局 after → 指定 after。before 回调可以登记尚未绑定的服务，每次查找都执行，缓存命中也执行。显式实例及共享缓存命中跳过构造后回调。每阶段先取得全局回调快照，全局执行完再读取指定回调；因此全局回调中新登记的指定回调可以参与当前阶段，登记到后续阶段的回调也可在本次构造中执行。
 
-`event.key()` 是执行 before 前确定的规范服务身份。`event.value::<T>()` 在构造前返回 `None`，构造后按已声明的返回契约取得同一 `Arc<T>`。构造后的指定回调按服务键或 Rust 声明的返回类型匹配。Rust 无法运行时发现任意 PHP 继承或接口关系，须显式登记预期的返回契约；需要配置共享对象时使用内部可变性。动态构造参数覆盖和属性投影尚未纳入本回调接口。
+`event.key()` 是执行 before 前确定的规范服务身份。before 回调通过 `event.parameters()` 读取显式构造参数。resolving 和 afterResolving 回调通过 `event.value::<T>()` 读取构造好的对象，也可以读取它声明的 trait 视图。需要在回调中配置共享对象时，使用内部可变性。 [接口视图的解析事件](#接口视图的解析事件)
 
 共享对象先发布再执行构造后回调，回调可重入解析同一共享对象；其他线程等待回调结束，不读取配置到一半的对象。构造后回调失败或 panic 时，已发布对象仍保留缓存，命中缓存不重复执行回调，但不记录成功解析历史。瞬态对象失败时没有缓存，下次重新构造。回调错误沿现有 HTTP/Artisan 错误处理传播。没有终止条件的同服务回调递归返回循环依赖错误。执行用户回调时不持有注册表锁。
 
@@ -423,13 +423,13 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `ConstructorParam::scalar::<T>("name")` 选择声明的 Rust 类型值；`class::<T>("name")` 选择 `Arc<T>`，包括 `dyn Trait` 契约。`ResolvedArgs::get` 读取原始值槽，`service` 返回原服务 Arc，`value` 暴露类型化载体。槽位按声明顺序排列；空参数名、重复名称在登记前拒绝。
 
-选参遵循固定基线：同名显式覆盖优先。原始值随后选择 `$name` 上下文绑定、`withDefault`、启用 `nullable` 时的空值，否则失败。类默认值仅在该类没有显式绑定或直接上下文绑定时使用；否则通过容器解析类。没有默认值的可空类仍尝试解析依赖，不会把无法解析的类静默改成 null。可选默认值使用 `nullable().withDefault(|| Ok(ParameterValue::null()))`，通过 `optional` 或 `optionalService` 读取可空槽。
+同名显式覆盖优先，其次解析第一个[上下文属性](#上下文属性)。属性返回 null 时回退到普通解析。标量随后尝试 `$name` 上下文绑定、`withDefault` 或启用 `nullable` 后的空值。类默认值在该类没有显式绑定或直接上下文绑定时使用，否则由容器解析该类。没有默认值的可空类仍尝试解析依赖。可选默认值使用 `nullable().withDefault(|| Ok(ParameterValue::null()))`，通过 `optional` 或 `optionalService` 读取可空槽。
 
 依赖和默认值按声明顺序求值，再对已选参数校验类型后调用构造函数。默认函数只在选中时运行，每次重新求值。参数保持严格 Rust 类型，不实现 PHP 弱标量隐式转换。普通嵌套依赖使用空覆盖；现有上下文、装饰器、解析回调及就绪保护继续有效。
 
-`build::<T>()` / `buildAsync::<T>().await` 直接调用编译构造函数，绕过目标的绑定、缓存、装饰器、解析回调和历史；其依赖仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或相应异步接口为描述类设置共享生命周期。`build` 使用当前参数快照，带参工厂可直接转交，不把参数写入全局注册表。
+`build::<T>()` / `buildAsync::<T>().await` 直接调用编译构造函数，绕过目标绑定、缓存、装饰器、容器解析回调和解析历史。参数及类的属性回调照常执行，依赖仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或相应异步接口为描述类设置共享生命周期。`build` 使用当前参数快照，带参工厂可在同一次解析中转交参数。
 
-方法调用、SelfBuilding、上下文/类属性和自动接口投影仍待交付，登记元数据不代表这些能力已经可用。
+按需登记[方法调用](#方法调用)、[SelfBuilding](#自构造类)和[接口投影](#编译接口投影)的编译适配器。容器使用这些声明取得 PHP 通过运行时反射读取的类型信息。
 
 ## 变参注入
 
