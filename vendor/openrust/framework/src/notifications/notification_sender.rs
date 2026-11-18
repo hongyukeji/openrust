@@ -86,9 +86,33 @@ impl Delivery {
         }
         match operation.await {
             Ok(response) => {
-                Events::dispatch(self.event("NotificationSent", response, None))
-                    .await
-                    .map_err(delivery)?;
+                let sms = if let Some(ChannelResponse::Sms(submission)) = &response {
+                    if submission.status != super::sms::SmsSubmissionStatus::Logged {
+                        let context = crate::log::LogContext::from_iter([
+                            ("notification_id".into(), serde_json::json!(self.id)),
+                            ("submission".into(), serde_json::json!(submission)),
+                        ]);
+                        let _ = crate::log::Log::info(
+                            "The SMS provider accepted the submission.",
+                            &context,
+                        );
+                    }
+                    true
+                } else {
+                    false
+                };
+                if let Err(error) =
+                    Events::dispatch(self.event("NotificationSent", response, None)).await
+                {
+                    if !sms {
+                        return Err(delivery(error));
+                    }
+                    let context = crate::log::LogContext::from_iter([(
+                        "notification_id".into(),
+                        serde_json::json!(self.id),
+                    )]);
+                    let _ = crate::log::Log::error("The SMS submission listener failed.", &context);
+                }
                 Ok(())
             }
             Err(error) => {
@@ -278,6 +302,7 @@ impl<'a> NotificationSender<'a> {
                             options,
                             notification.inner.queue_job_options(recipient, channel),
                             notification.inner.queue_middleware(recipient, channel),
+                            notification.inner.should_encrypt(recipient, channel),
                             transaction,
                         )
                         .await?;

@@ -53,3 +53,19 @@
 - `Sms::driver("aliyun")` 返回具名发送入口。默认配置可用 `Sms::send_text`、`Sms::send_template` 或 `Sms::default_driver`。业务模板从选定市场和配置读取，队列保留模板名和参数，Worker 从自己的配置解析。既有厂商模板 ID 和通知负载继续可用。
 - 原 `examples/` 的验收程序已迁入 [Worker 测试目录](../../../../tests/support/sms/worker_app.rs)。[验收脚本](../../../../tests/sms_worker.py)通过独立 MySQL 8.4.13 和 Redis 8.10.3 验证同一个阿里云配置的内地模板、国际纯文本、共享凭据和按市场覆盖凭据，以及具名模板入队和 Worker 消费。短信宝、云片两市场及默认日志驱动回归通过。本地 HTTP 校验实际请求，真实厂商投递待验收。
 - Rust 1.94.0 的根配置测试、`sms_providers` 测试、全仓格式和严格 Clippy 通过。三语 VitePress 构建通过。临时容器、编译和站点产物已清理，数据卷清单一致。项目卷可用空间净增 3.59 GB，剩余 82.51 GB。日志保留于 `/private/tmp/openrust-sms-unified.UycW0r1v`。
+
+## 市场路由、提交结果与队列保护
+
+- 自动市场要求收件号码带国家或地区区号。明确限制为内地时仍可传内地本地号码。业务模板可按市场选择厂商模板 ID 或渲染正文，缺少变量时在发起请求前停止。
+- HTTP 请求事件和记录器中的短信请求快照移除查询串、正文及认证头。短信宝实际请求继续按厂商协议发送。通知可选择加密队列载荷及派发条件，Worker 兼容旧有未加密任务。选用加密时，派发端和 Worker 使用同一应用密钥。
+- 短信 Worker 只为明确允许重试的错误继续执行。HTTP 429 及 Vonage 明确限流可按任务策略重试。响应丢失、混合受理结果和永久失败进入失败记录。成功提交记录先写日志，后续通知监听器失败单独记录。
+- 发送便捷方法和通知事件提供类型化提交结果。应用在验证厂商回执或主动查询后，可按供应商与消息 ID 更新送达状态。Vonage 统一发送入口按 GSM 字符表选编码。云片内地文档使用其签名括号。 [Vonage SMS API](https://developer.vonage.com/en/api/sms) · [云片签名与模板](https://global.yunpian.com/official/document/sms/zh_CN/clk9wf)
+- 真实厂商账号、实际运营商送达及应用的回执验签入口待发布环境验证。Worker 在厂商受理后被强制终止且队列还未确认时，队列重投仍可能产生重复发送。跨进程崩溃的去重需要可持久化的发送记录及厂商查询能力。
+- 隔离 MySQL 8.4.13、Redis 8.10.3 和真实 Artisan Worker 验证裸号码拒绝、按市场切换厂商模板和正文、短信宝 HTTP 请求脱敏、加密队列及失败记录。模拟厂商断开响应后确认只有一次提交。模拟已受理后的通知监听器失败，日志先记录受理且 Worker 不重发。HTTP 429 和 Vonage 状态码 1 均可按策略重试。
+- 16 项定向测试通过，涵盖 HTTP 客户端、厂商协议、类型化回执更新、Vonage GSM 字符和旧渠道 Worker。隔离快照的 Rust 1.94.0 格式、全仓严格 Clippy、三语站点构建及 12 项浏览器检查通过。清理编译及文档产物和临时容器后，数据卷清单一致，项目卷可用空间净增 3.99 GB，剩余 101.51 GB。原始日志位于 `/private/tmp/openrust-sms-hardening.XHwTYDlK`。
+
+## 签名回执与受理后 Worker 崩溃的本机模拟
+
+- Twilio Python SDK 9.13.0 在本机 HTTP 模拟接收端校验表单签名。正确签名的匹配回执通过框架接口将状态由 `accepted` 更新为 `delivered`。篡改签名数据返回 403，错误消息 ID 和冲突终态返回 409。重复回执仍返回 204，现有状态一致。验签入口只在隔离夹具中。真实供应商回执和手机收信待实测。 [Twilio 官方验签说明](https://www.twilio.com/docs/usage/security#validating-requests)
+- MySQL 8.4.13 和 Redis 8.10.3 上运行真实 Artisan Worker。在模拟厂商返回受理且应用写出受理日志后，由通知监听器阻塞确认，再发送 SIGKILL。保留窗口到期后，新 Worker 对相同任务再次调用厂商。两个后端各捕获两次提交，确认仍存在受理后、队列确认前的重复发送窗口。
+- 临时容器、构建、SDK 和隔离源码副本已清理，数据卷清单一致。磁盘可用量净增 2.58 GB，剩余 93.33 GB。原始结果、探针和夹具补丁保存在 `/private/tmp/openrust-sms-simulation.o52xPJ3x`。

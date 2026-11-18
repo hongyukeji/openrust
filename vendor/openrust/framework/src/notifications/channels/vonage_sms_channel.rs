@@ -8,7 +8,7 @@ use crate::{
         Notifiable, Notification, NotificationFuture, NotificationResult, NotificationRoute,
         delivery,
         messages::VonageMessage,
-        sms::{SmsDriver, SmsMessage, international_number},
+        sms::{SmsDriver, SmsFailure, SmsFailureKind, SmsMessage, international_number},
     },
     support::facades::{Config, Http},
 };
@@ -97,56 +97,70 @@ impl PreparedSms {
             client_reference: nonempty(self.message.client_reference.as_deref()),
             callback: nonempty(self.message.status_callback.as_deref()),
         };
-        let response = Http::asForm()
+        let result = Http::asForm()
             .map_err(|_| delivery("The Vonage SMS HTTP client is unavailable."))?
+            .redact_payload()
             .withBasicAuth(key, secret)
             .acceptJson()
             .withoutRedirecting()
             .timeout(Duration::from_secs(10))
             .maxResponseBytes(64 * 1024)
             .post(endpoint, &form)
-            .await
-            .map_err(|_| {
-                delivery("The Vonage SMS request failed; submission status may be unknown.")
-            })?;
-        if !response.successful() {
-            return Err(delivery(format!(
-                "The Vonage SMS API returned HTTP {}.",
-                response.status().as_u16()
-            )));
-        }
-        let payload: Value = response
-            .json()
-            .map_err(|_| delivery("The Vonage SMS API returned an invalid response."))?;
+            .await;
+        let response = super::super::sms::providers::checked_response(result)?;
+        let payload: Value = response.json().map_err(|_| {
+            super::super::sms::providers::unknown(
+                "The Vonage SMS API returned an invalid response.",
+            )
+        })?;
         let messages = payload["messages"]
             .as_array()
             .filter(|messages| !messages.is_empty())
             .ok_or_else(|| delivery("The Vonage SMS API returned no message results."))?;
-        for entry in messages {
-            let Some(status) = entry["status"]
-                .as_str()
-                .and_then(|status| status.parse::<u32>().ok())
-            else {
-                return Err(delivery(
-                    "The Vonage SMS API returned an invalid message status.",
-                ));
+        let statuses = messages
+            .iter()
+            .map(|entry| {
+                entry["status"]
+                    .as_str()
+                    .and_then(|status| status.parse::<u32>().ok())
+                    .ok_or_else(|| {
+                        super::super::sms::providers::unknown(
+                            "The Vonage SMS API returned an invalid message status.",
+                        )
+                    })
+            })
+            .collect::<NotificationResult<Vec<_>>>()?;
+        if let Some(status) = statuses.iter().find(|status| **status != 0) {
+            let kind = if statuses.iter().all(|status| *status == 1) {
+                SmsFailureKind::Retryable
+            } else if statuses.contains(&0) {
+                SmsFailureKind::SubmissionUnknown
+            } else {
+                SmsFailureKind::Rejected
             };
-            if status != 0 {
-                return Err(delivery(format!(
-                    "The Vonage SMS API rejected the message (status {status})."
-                )));
-            }
-            if nonempty(entry["message-id"].as_str()).is_none() {
-                return Err(delivery(
-                    "The Vonage SMS API returned no message identifier.",
-                ));
-            }
+            return Err(delivery(SmsFailure::new(
+                kind,
+                Some(&status.to_string()),
+                "The Vonage SMS API rejected one or more message parts.",
+            )));
+        }
+        if messages
+            .iter()
+            .any(|entry| nonempty(entry["message-id"].as_str()).is_none())
+        {
+            return Err(super::super::sms::providers::unknown(
+                "The Vonage SMS API returned no message identifier.",
+            ));
         }
         Ok(payload)
     }
 }
 
 impl Channel for VonageSmsChannel {
+    fn is_sms(&self) -> bool {
+        true
+    }
+
     fn send<'a>(
         &'a self,
         recipient: &'a dyn Notifiable,
@@ -154,10 +168,11 @@ impl Channel for VonageSmsChannel {
     ) -> NotificationFuture<'a, NotificationResult<Option<ChannelResponse>>> {
         Box::pin(async move {
             match PreparedSms::prepare(recipient, notification)? {
-                Some(message) => message
-                    .submit()
-                    .await
-                    .map(|value| Some(ChannelResponse::Custom(value))),
+                Some(message) => message.submit().await.map(|value| {
+                    Some(ChannelResponse::Sms(
+                        super::super::sms::SmsSubmission::from_response("vonage", &value),
+                    ))
+                }),
                 None => Ok(None),
             }
         })
@@ -183,10 +198,11 @@ impl Channel for VonageSmsChannel {
         Box::pin(async move {
             let message: PreparedSms = serde_json::from_value(payload)
                 .map_err(|_| delivery("The queued Vonage SMS is invalid."))?;
-            message
-                .submit()
-                .await
-                .map(|value| Some(ChannelResponse::Custom(value)))
+            message.submit().await.map(|value| {
+                Some(ChannelResponse::Sms(
+                    super::super::sms::SmsSubmission::from_response("vonage", &value),
+                ))
+            })
         })
     }
 }
@@ -217,9 +233,14 @@ impl SmsDriver for VonageDriver {
             if message.approved_template().is_some() {
                 return Err(delivery("The Vonage SMS driver requires text content."));
             }
+            if !message.to().trim().starts_with('+') {
+                return Err(delivery(
+                    "Enter the SMS number with its + country calling code.",
+                ));
+            }
             let content = message.content();
             let mut vonage = VonageMessage::new().content(content);
-            if !content.is_ascii() {
+            if !content.chars().all(is_gsm_character) {
                 vonage = vonage.unicode();
             }
             vonage.client.clone_from(&self.client);
@@ -240,6 +261,12 @@ fn validate_endpoint(endpoint: &str) -> NotificationResult<()> {
         ));
     }
     Ok(())
+}
+
+fn is_gsm_character(character: char) -> bool {
+    const BASIC: &str = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+    const EXTENDED: &str = "\x0c^{}\\[~]|€";
+    BASIC.contains(character) || EXTENDED.contains(character)
 }
 
 fn nonempty(value: Option<&str>) -> Option<&str> {

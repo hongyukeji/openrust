@@ -4346,9 +4346,10 @@ async fn vonage_protocol_and_worker_retries_use_the_notification_route() {
                         )
                             .into_response();
                     }
-                    let rejected = text == "reject"
-                        || (text == "database" && fail_once.swap(false, Ordering::Relaxed));
-                    let response = if rejected {
+                    let response = if text == "database" && fail_once.swap(false, Ordering::Relaxed)
+                    {
+                        json!({"messages":[{"status":"1","error-text":"fixture throttled"}]})
+                    } else if text == "reject" {
                         json!({"messages":[{"status":"29","error-text":"fixture provider detail"}]})
                     } else {
                         json!({"messages":[{"status":"0","message-id":"fixture-id"}]})

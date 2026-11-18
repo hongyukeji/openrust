@@ -5,7 +5,7 @@ use crate::notifications::{NotificationFuture, NotificationResult, delivery};
 
 use super::{
     super::{SmsDriver, SmsMessage, SmsTemplateParameters},
-    endpoint, request, required, response, setting,
+    endpoint, rejected, request, required, response, setting, unknown,
 };
 
 pub(super) struct Twilio {
@@ -75,13 +75,18 @@ impl SmsDriver for Twilio {
                     .await,
             )?;
             let id = payload["sid"].as_str().filter(|value| !value.is_empty());
-            if id.is_none()
-                || matches!(
-                    payload["status"].as_str(),
-                    Some("failed" | "undelivered" | "canceled")
-                )
-            {
-                return Err(delivery("Twilio did not accept the SMS submission."));
+            if matches!(
+                payload["status"].as_str(),
+                Some("failed" | "undelivered" | "canceled")
+            ) {
+                let code = payload["error_code"].as_i64().map(|code| code.to_string());
+                return Err(rejected(
+                    "Twilio did not accept the SMS submission.",
+                    code.as_deref(),
+                ));
+            }
+            if id.is_none() {
+                return Err(unknown("Twilio did not confirm the SMS submission."));
             }
             Ok(payload)
         })

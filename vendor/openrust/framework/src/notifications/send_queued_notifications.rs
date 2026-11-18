@@ -10,7 +10,7 @@ use crate::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult, middleware::JobMiddleware,
     },
-    support::facades::{Facade, Queue},
+    support::facades::{Crypt, Facade, Queue},
 };
 
 use super::{
@@ -24,6 +24,13 @@ pub struct SendQueuedNotifications;
 struct Job<T> {
     delivery: T,
     payload: Value,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum QueuedDelivery {
+    Encrypted { encrypted_delivery: String },
+    Plain(Box<Job<Delivery>>),
 }
 
 impl SendQueuedNotifications {
@@ -53,12 +60,17 @@ impl SendQueuedNotifications {
         Ok(format!("{}.{name}", Self::NAME))
     }
 
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Extends the queued notification dispatch contract"
+    )]
     pub(super) async fn dispatch(
         delivery: &Delivery,
         payload: Value,
         options: DispatchOptions,
         job_options: JobOptions,
         middleware: Option<&str>,
+        encrypt: bool,
         transaction: Option<&mut Transaction>,
     ) -> NotificationResult<()> {
         let name = middleware
@@ -73,10 +85,18 @@ impl SendQueuedNotifications {
                 )));
             }
         }
-        let payload = Payload::new(
-            name.as_deref().unwrap_or(Self::NAME),
-            Job { delivery, payload },
-        )
+        let job = Job { delivery, payload };
+        let payload = if encrypt {
+            let json = serde_json::to_string(&job).map_err(super::delivery)?;
+            let encrypted_delivery = Crypt::encryptString(&json)
+                .map_err(|_| super::delivery("Could not encrypt the queued notification."))?;
+            Payload::new(
+                name.as_deref().unwrap_or(Self::NAME),
+                serde_json::json!({ "encrypted_delivery": encrypted_delivery }),
+            )
+        } else {
+            Payload::new(name.as_deref().unwrap_or(Self::NAME), job)
+        }
         .map_err(NotificationError::Queue)?
         .with_options(job_options);
         Queue::dispatch(payload, options, transaction)
@@ -89,13 +109,28 @@ impl SendQueuedNotifications {
 impl JobHandler for SendQueuedNotifications {
     fn handle<'a>(
         &'a self,
-        _: &'a mut JobContext<'_>,
+        context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let Job::<Delivery> { delivery, payload } =
-                serde_json::from_value(payload.data().clone())
-                    .map_err(|_| QueueError::InvalidPayload)?;
+            let job = match serde_json::from_value(payload.data().clone()) {
+                Ok(QueuedDelivery::Plain(job)) => Ok(*job),
+                Ok(QueuedDelivery::Encrypted { encrypted_delivery }) => {
+                    Crypt::decryptString(&encrypted_delivery)
+                        .map_err(|_| QueueError::InvalidPayload)
+                        .and_then(|json| {
+                            serde_json::from_slice(&json).map_err(|_| QueueError::InvalidPayload)
+                        })
+                }
+                Err(_) => Err(QueueError::InvalidPayload),
+            };
+            let Job { delivery, payload } = match job {
+                Ok(job) => job,
+                Err(error) => {
+                    context.fail_without_retry();
+                    return Err(error);
+                }
+            };
             let result = async {
                 let manager = NotificationFacade::getFacadeRoot().map_err(super::delivery)?;
                 delivery
@@ -106,7 +141,14 @@ impl JobHandler for SendQueuedNotifications {
                             return delivery.skipped().await;
                         }
                         let channel = manager.channel(Some(&delivery.channel))?;
-                        delivery.send(channel.send_queued(payload)).await
+                        let result = delivery.send(channel.send_queued(payload)).await;
+                        if channel.is_sms()
+                            && let Err(error) = &result
+                            && !super::sms::SmsFailure::retryable(error)
+                        {
+                            context.fail_without_retry();
+                        }
+                        result
                     })
                     .await
             }

@@ -47,7 +47,7 @@ def mysql_rows(container, query):
     ])
 
 
-def queued_payloads(backend, queue_name):
+def queued_payloads(backend, queue_name, encrypted=False):
     if backend == "database":
         wire = mysql_rows(
             os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"],
@@ -58,7 +58,7 @@ def queued_payloads(backend, queue_name):
     jobs = [json.loads(row) for row in wire.splitlines()]
     if backend == "redis":
         jobs = [json.loads(job["payload"]) for job in jobs]
-    return wire, [job["data"]["payload"] for job in jobs]
+    return wire, [job["data"] if encrypted else job["data"]["payload"] for job in jobs]
 
 
 def check_backend(binary, backend, env, requests):
@@ -142,6 +142,14 @@ def provider_server(receipts):
             assert fields.pop("p") in {profile + "-worker-secret", "shared-worker-secret"}
             assert fields.pop("u") in {profile + "-user", "shared-user"}
             receipts.put((profile, fields))
+            if fields["c"] == "dropped-after-acceptance":
+                self.close_connection = True
+                return
+            if fields["c"].startswith("rate-limited-") and fields["c"] not in getattr(self.server, "rate_limits_seen", ()):
+                self.server.rate_limits_seen = (*getattr(self.server, "rate_limits_seen", ()), fields["c"])
+                self.send_response(429)
+                self.end_headers()
+                return
             if fields["c"] == "redirect":
                 self.send_response(307)
                 self.send_header("Location", "/should-not-follow")
@@ -286,15 +294,18 @@ def check_aliyun(binary, backend, env, receipts, endpoint):
     }
     run(artisan + ["sms:demo", places[0], "shared-credentials", "--now"], shared)
     assert receipts.get(timeout=5) == international(places[0], "shared-credentials")
-    run(artisan + ["sms:demo", inland, json.dumps(params), "--template", "login_code", "--named-template", "--now"], shared)
+    run(artisan + ["sms:demo", "+86" + inland, json.dumps(params), "--template", "login_code", "--named-template", "--now"], shared)
     assert receipts.get(timeout=5) == template
 
     auto = env | {"SMS_DRIVER": "aliyun", "SMS_TEST_SPLIT_MARKETS": "1"}
     run(artisan + ["sms:demo", places[0], body, "--now"], auto)
     assert receipts.get(timeout=5) == international(places[0], body)
-    run(artisan + ["sms:demo", inland, json.dumps(params), "--template", "login_code", "--named-template", "--profile", "aliyun", "--now"], auto)
+    run(artisan + ["sms:demo", places[0], json.dumps({"code": "A1024"}), "--template", "login_code", "--named-template", "--now"], auto)
+    assert receipts.get(timeout=5) == international(places[0], "Order A1024 is ready.")
+    run(artisan + ["sms:demo", NUMBER.removeprefix("+"), body, "--now"], auto, "+ country calling code")
+    run(artisan + ["sms:demo", "+86" + inland, json.dumps(params), "--template", "login_code", "--named-template", "--profile", "aliyun", "--now"], auto)
     assert receipts.get(timeout=5) == template
-    run(artisan + ["sms:demo", inland, json.dumps(params), "--template", "unknown", "--named-template", "--now"],
+    run(artisan + ["sms:demo", "+86" + inland, json.dumps(params), "--template", "unknown", "--named-template", "--now"],
         auto, "template is not configured")
     assert receipts.empty()
 
@@ -307,11 +318,11 @@ def check_aliyun(binary, backend, env, receipts, endpoint):
         "SMS_ALERTS_GLOBAL_ACCESS_KEY_ID": marker,
         "SMS_ALERTS_GLOBAL_ACCESS_KEY_SECRET": marker,
     }
-    run(artisan + ["sms:demo", inland, json.dumps(params), "--template", "SMS_1"],
+    run(artisan + ["sms:demo", "+86" + inland, json.dumps(params), "--template", "SMS_1"],
         producer | {"SMS_DRIVER": "aliyun"})
     run(artisan + ["sms:demo", places[0], body, "--profile", "aliyun"],
         producer | {"SMS_DRIVER": "aliyun"})
-    run(artisan + ["sms:demo", inland, json.dumps(params), "--template", "login_code", "--named-template"], producer | {"SMS_DRIVER": "aliyun"})
+    run(artisan + ["sms:demo", "+86" + inland, json.dumps(params), "--template", "login_code", "--named-template"], producer | {"SMS_DRIVER": "aliyun"})
     assert receipts.empty()
     wire, deliveries = queued_payloads(backend, queue_name)
     profile_values = (
@@ -320,9 +331,9 @@ def check_aliyun(binary, backend, env, receipts, endpoint):
     )
     assert all(value not in wire for value in profile_values)
     assert deliveries == [
-        {"profile": "aliyun", "message": {"to": inland, "content": "", "template": {"id": "SMS_1", "parameters": params}}},
+        {"profile": "aliyun", "message": {"to": "+86" + inland, "content": "", "template": {"id": "SMS_1", "parameters": params}}},
         {"profile": "aliyun", "message": {"to": places[0], "content": body}},
-        {"profile": "aliyun", "message": {"to": inland, "content": "", "template_name": "login_code", "template": {"id": "login_code", "parameters": params}}},
+        {"profile": "aliyun", "message": {"to": "+86" + inland, "content": "", "template_name": "login_code", "template": {"id": "login_code", "parameters": params}}},
     ], deliveries
     run(artisan + ["queue:work", backend, "--once", "--tries=1"], overseas)
     assert receipts.get(timeout=5) == template
@@ -373,9 +384,9 @@ def check_local_providers(binary, backend, env, receipts, endpoint):
     assert receipts.empty()
 
     for profile, number, message, error in [
-        ("smsbao", mainland, "reject", "code 30"),
-        ("smsbao", mainland, "redirect", "HTTP 307"),
-        ("yunpian", mainland, "reject", "code 2"),
+        ("smsbao", mainland, "reject", "(30)"),
+        ("smsbao", mainland, "redirect", "HTTP (307)"),
+        ("yunpian", mainland, "reject", "(2)"),
         ("yunpian", mainland, "missing sid", "invalid submission result"),
     ]:
         send(profile, "mainland", number, message, "--now", expected_error=error)
@@ -389,7 +400,7 @@ def check_local_providers(binary, backend, env, receipts, endpoint):
             f"{prefix}_API_KEY": "shared-worker-secret",
             f"{prefix}_USERNAME": "shared-user",
         }
-        for phone, label in ((mainland, profile), (international, profile + "-global")):
+        for phone, label in (("+86" + mainland, profile), (international, profile + "-global")):
             run(artisan + ["sms:demo", phone, content, "--profile", profile, "--now"], shared)
             assert receipts.get(timeout=5)[0] == label
 
@@ -424,7 +435,7 @@ def check_local_providers(binary, backend, env, receipts, endpoint):
 def check_named_profiles(binary, backend, env, receipts, endpoint):
     queue_name = f"sms-named-{backend}"
     artisan = [binary, "artisan"]
-    mobile = "13800138000"
+    mobile = "+8613800138000"
     plain = "〖示例签名〗具名账户"
     default_config = env | {
         "QUEUE_CONNECTION": backend, "DB_QUEUE": queue_name, "REDIS_QUEUE": queue_name,
@@ -433,7 +444,7 @@ def check_named_profiles(binary, backend, env, receipts, endpoint):
         "SMS_YUNPIAN_API_KEY": "yunpian-worker-secret",
     }
     run(artisan + ["sms:demo", mobile, plain, "--now"], default_config)
-    assert receipts.get(timeout=5) == ("yunpian", {"mobile": mobile, "text": plain})
+    assert receipts.get(timeout=5) == ("yunpian", {"mobile": mobile[3:], "text": plain})
 
     profiles = default_config | {
         "SMS_DRIVER": "orders_cn",
@@ -441,9 +452,9 @@ def check_named_profiles(binary, backend, env, receipts, endpoint):
         "SMS_ORDERS_CN_API_KEY": "orders-cn-worker-secret",
     }
     run(artisan + ["sms:demo", mobile, plain, "--now"], profiles)
-    assert receipts.get(timeout=5) == ("orders_cn", {"mobile": mobile, "text": plain})
+    assert receipts.get(timeout=5) == ("orders_cn", {"mobile": mobile[3:], "text": plain})
     run(artisan + ["sms:demo", mobile, plain, "--profile", "yunpian", "--now"], profiles)
-    assert receipts.get(timeout=5) == ("yunpian", {"mobile": mobile, "text": plain})
+    assert receipts.get(timeout=5) == ("yunpian", {"mobile": mobile[3:], "text": plain})
 
     producer = profiles | {
         "SMS_YUNPIAN_ENDPOINT": "http://127.0.0.1:1",
@@ -465,7 +476,7 @@ def check_named_profiles(binary, backend, env, receipts, endpoint):
     for profile, default in (("orders_cn", "yunpian"), ("yunpian", "orders_cn")):
         run(artisan + ["queue:work", backend, "--once", "--tries=1"],
             profiles | {"SMS_DRIVER": default})
-        assert receipts.get(timeout=5) == (profile, {"mobile": mobile, "text": plain})
+        assert receipts.get(timeout=5) == (profile, {"mobile": mobile[3:], "text": plain})
     assert receipts.empty()
     print(f"{backend}: named profiles share one driver and keep separate Worker credentials", flush=True)
 
@@ -496,6 +507,45 @@ def check_log_default(binary, backend, env):
     assert all(value not in "\n".join(entries)
                for value in (NUMBER, "private-debug-body", "private-debug-otp", "private-template"))
     print(f"{backend}: default log driver recorded direct and queued SMS without private fields", flush=True)
+
+
+def check_hardened_worker(binary, backend, env, receipts, endpoint):
+    queue = f"sms-hardened-{backend}"
+    env = env | {
+        "QUEUE_CONNECTION": backend, "DB_QUEUE": queue, "REDIS_QUEUE": queue,
+        "QUEUE_FAILED_DRIVER": "database-uuids",
+        "APP_KEY": "base64:" + base64.b64encode(b"x" * 32).decode(),
+        "SMS_DRIVER": "smsbao", "SMS_SMSBAO_ENDPOINT": endpoint,
+        "SMS_SMSBAO_USERNAME": "shared-user", "SMS_SMSBAO_API_KEY": "shared-worker-secret",
+        "SMS_TEST_ENCRYPT": "1", "LOG_CHANNEL": "single", "LOG_LEVEL": "info",
+    }
+    artisan = [binary, "artisan"]
+    number = "+8613800138000"
+    messages = ("delivered-private-content", "dropped-after-acceptance", f"rate-limited-{backend}")
+    run(artisan + ["sms:demo", number, json.dumps({"message": messages[0]}),
+                   "--template", "security_notice", "--named-template"], env)
+    for message in messages[1:]:
+        run(artisan + ["sms:demo", number, message], env)
+    wire, jobs = queued_payloads(backend, queue, encrypted=True)
+    assert len(jobs) == 3 and all(job.get("encrypted_delivery") for job in jobs)
+    assert all(value not in wire for value in (number, *messages, "shared-worker-secret"))
+    worker = env | {"SMS_TEST_LISTENER_FAIL": "1"}
+    log = Path(env["APP_BASE_PATH"]) / "storage/logs/openrust.log"
+    before = log.stat().st_size if log.exists() else 0
+    run(artisan + ["queue:work", backend, "--stop-when-empty", "--tries=3"], worker)
+    with log.open("rb") as stream:
+        stream.seek(before)
+        lines = stream.read().decode().splitlines()
+    events = [line for line in lines if "The SMS " in line and ("accepted the submission" in line or "listener failed" in line)]
+    assert ["accepted the submission" in line for line in events] == [True, False, True, False], events
+    assert all(value not in "\n".join(events) for value in (number, *messages, "shared-worker-secret"))
+    accepted = [receipts.get(timeout=5)[1]["c"] for _ in range(4)]
+    assert accepted == [*messages, messages[-1]], accepted
+    assert receipts.empty()
+    failure = mysql_rows(os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"],
+        f"SELECT payload FROM failed_jobs WHERE queue = '{queue}'")
+    assert "encrypted_delivery" in failure and all(value not in failure for value in (number, *messages))
+    print(f"{backend}: encrypted queue and failed payloads, redacted HTTP event, terminal unknown status, listener failure, and retryable HTTP 429 passed", flush=True)
 
 
 def main():
@@ -530,6 +580,8 @@ def main():
                     check_local_providers(binary, backend, env, aliyun_receipts, aliyun_endpoint)
                     check_named_profiles(binary, backend, env, aliyun_receipts, aliyun_endpoint)
                     check_log_default(binary, backend, env)
+                for backend in ("database", "redis"):
+                    check_hardened_worker(binary, backend, env, aliyun_receipts, aliyun_endpoint)
             finally:
                 aliyun.shutdown()
                 aliyun_thread.join()

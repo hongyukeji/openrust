@@ -52,12 +52,16 @@ struct PreparedSms {
 impl PreparedSms {
     async fn send(self) -> NotificationResult<Option<ChannelResponse>> {
         self.message.validate()?;
-        let response = Sms::driver(&self.profile)?.send(self.message).await?;
-        Ok(Some(ChannelResponse::Custom(response)))
+        let response = Sms::driver(&self.profile)?.submit(self.message).await?;
+        Ok(Some(ChannelResponse::Sms(response)))
     }
 }
 
 impl Channel for SmsChannel {
+    fn is_sms(&self) -> bool {
+        true
+    }
+
     fn send<'a>(
         &'a self,
         recipient: &'a dyn Notifiable,

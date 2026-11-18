@@ -85,6 +85,7 @@ pub struct PendingRequest {
     query: indexmap::IndexMap<String, String>,
     uri_parameters: serde_json::Map<String, serde_json::Value>,
     attributes: serde_json::Map<String, serde_json::Value>,
+    redact_payload: bool,
     connect_timeout: Duration,
     timeout: Duration,
     redirects: usize,
@@ -108,6 +109,7 @@ impl PendingRequest {
             query: indexmap::IndexMap::new(),
             uri_parameters: Default::default(),
             attributes: serde_json::Map::new(),
+            redact_payload: false,
             connect_timeout: CONNECT_TIMEOUT,
             timeout: TIMEOUT,
             redirects: 5,
@@ -186,6 +188,11 @@ impl PendingRequest {
         parameters: serde_json::Map<String, serde_json::Value>,
     ) -> Self {
         self.uri_parameters.extend(parameters);
+        self
+    }
+
+    pub(crate) fn redact_payload(mut self) -> Self {
+        self.redact_payload = true;
         self
     }
 
@@ -411,6 +418,7 @@ impl PendingRequest {
             client: &client,
             before_sending: &self.before_sending,
             attributes: &self.attributes,
+            redact_payload: self.redact_payload,
             digest: self.digest.as_ref(),
             digest_origin: request.url().origin(),
             max_redirects: self.redirects,

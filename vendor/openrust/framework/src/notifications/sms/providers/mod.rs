@@ -18,7 +18,7 @@ use crate::{
     support::facades::Http,
 };
 
-use super::{SmsDriver, SmsManager, SmsMessage};
+use super::{SmsDriver, SmsFailure, SmsFailureKind, SmsManager, SmsMessage};
 
 pub(super) fn register(manager: &SmsManager) {
     manager.extend("log", |_| Ok(Arc::new(log::LogDriver)));
@@ -64,8 +64,8 @@ impl SmsDriver for RoutedDriver {
         message: SmsMessage,
     ) -> crate::notifications::NotificationFuture<'_, NotificationResult<Value>> {
         Box::pin(async move {
-            self.restriction.number(message.to())?;
-            let market = Market::for_number(message.to())?;
+            let digits = self.restriction.number(message.to())?;
+            let market = Market::from_digits(&digits);
             let mut profile = self.profile.clone();
             if let Some(settings) = self.profile["markets"].get(market.key()) {
                 let settings = settings
@@ -81,8 +81,9 @@ impl SmsDriver for RoutedDriver {
     }
 }
 
-pub(super) fn market_key(number: &str) -> NotificationResult<&'static str> {
-    Ok(Market::for_number(number)?.key())
+pub(super) fn market_key(number: &str, profile: &Value) -> NotificationResult<&'static str> {
+    let digits = Market::from_profile(profile)?.number(number)?;
+    Ok(Market::from_digits(&digits).key())
 }
 
 fn setting(profile: &Value, field: &str) -> Option<String> {
@@ -124,19 +125,18 @@ impl Market {
         }
     }
 
-    fn for_number(number: &str) -> NotificationResult<Self> {
-        let normalized = Self::Any.number(number)?;
-        Ok(if normalized.starts_with("86") {
+    fn from_digits(digits: &str) -> Self {
+        if digits.starts_with("86") {
             Self::Mainland
         } else {
             Self::International
-        })
+        }
     }
 
     fn number(&self, number: &str) -> NotificationResult<String> {
         let number = number.trim();
         let digits = super::international_number(number)?;
-        let normalized = if matches!(self, Self::Mainland | Self::Any)
+        let normalized = if matches!(self, Self::Mainland)
             && !number.starts_with('+')
             && digits.len() == 11
             && digits.starts_with('1')
@@ -201,27 +201,53 @@ fn rpc_endpoint(profile: &Value, default: &str) -> NotificationResult<Url> {
 fn request() -> NotificationResult<PendingRequest> {
     Ok(Http::acceptJson()
         .map_err(|_| delivery("The SMS HTTP client is unavailable."))?
+        .redact_payload()
         .withoutRedirecting()
         .timeout(Duration::from_secs(10))
         .maxResponseBytes(64 * 1024))
 }
 
-fn checked_response(result: crate::http::client::Result<Response>) -> NotificationResult<Response> {
-    let response = result
-        .map_err(|_| delivery("The SMS request failed; submission status may be unknown."))?;
+pub(in crate::notifications) fn checked_response(
+    result: crate::http::client::Result<Response>,
+) -> NotificationResult<Response> {
+    let response =
+        result.map_err(|_| unknown("The SMS request failed; submission status may be unknown."))?;
     if !response.successful() {
-        return Err(delivery(format!(
-            "The SMS provider returned HTTP {}.",
-            response.status().as_u16()
+        let status = response.status();
+        let kind = if status.as_u16() == 429 {
+            SmsFailureKind::Retryable
+        } else if status.is_client_error() && status.as_u16() != 408 {
+            SmsFailureKind::Rejected
+        } else {
+            SmsFailureKind::SubmissionUnknown
+        };
+        return Err(delivery(SmsFailure::new(
+            kind,
+            Some(status.as_str()),
+            "The SMS provider returned HTTP",
         )));
     }
     Ok(response)
 }
 
+pub(in crate::notifications) fn unknown(
+    reason: &'static str,
+) -> crate::notifications::NotificationError {
+    delivery(SmsFailure::new(
+        SmsFailureKind::SubmissionUnknown,
+        None,
+        reason,
+    ))
+}
+
+fn rejected(reason: &'static str, code: Option<&str>) -> crate::notifications::NotificationError {
+    delivery(SmsFailure::new(SmsFailureKind::Rejected, code, reason))
+}
+
 fn response(result: crate::http::client::Result<Response>) -> NotificationResult<Value> {
     checked_response(result)?
         .json()
-        .map_err(|_| delivery("The SMS provider returned an invalid JSON response."))
+        .map_err(|_| unknown("The SMS provider returned an invalid JSON response."))
 }
 
 fn signed_headers(

@@ -4,7 +4,7 @@ use url::{Url, form_urlencoded};
 use crate::notifications::{NotificationFuture, NotificationResult, delivery};
 
 use super::super::{SmsDriver, SmsMessage, SmsTemplateParameters};
-use super::{Market, request, required, response, rpc_endpoint};
+use super::{Market, rejected, request, required, response, rpc_endpoint, unknown};
 
 pub(super) struct Yunpian {
     endpoint: Url,
@@ -72,10 +72,11 @@ impl SmsDriver for Yunpian {
             let payload = response(request()?.asForm().post(url.as_str(), &fields).await)?;
             match payload["code"].as_i64() {
                 Some(0) if payload["sid"].as_u64().is_some_and(|id| id > 0) => Ok(payload),
-                Some(code) if code != 0 => Err(delivery(format!(
-                    "Yunpian rejected the submission (code {code})."
-                ))),
-                _ => Err(delivery("Yunpian returned an invalid submission result.")),
+                Some(code) if code != 0 => Err(rejected(
+                    "Yunpian rejected the submission",
+                    Some(&code.to_string()),
+                )),
+                _ => Err(unknown("Yunpian returned an invalid submission result.")),
             }
         })
     }

@@ -386,6 +386,10 @@ impl JobContext<'_> {
         self.release_after = Some(delay);
     }
 
+    pub(crate) fn fail_without_retry(&mut self) {
+        self.fail_immediately = true;
+    }
+
     pub fn transaction(&mut self) -> Option<&mut crate::database::Transaction> {
         self.transaction.as_deref_mut()
     }

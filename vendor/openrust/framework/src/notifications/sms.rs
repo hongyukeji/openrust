@@ -1,6 +1,6 @@
 //! Selectable SMS drivers for direct sends and the SMS notification channel.
 
-mod providers;
+pub(super) mod providers;
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -151,6 +151,166 @@ pub trait SmsDriver: Send + Sync {
     fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>>;
 }
 
+/// The outcome of a provider submission, before carrier confirmation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsSubmissionStatus {
+    Logged,
+    Accepted,
+    Delivered,
+    Undelivered,
+}
+
+/// Information available to callers and notification events without the raw provider response.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SmsSubmission {
+    pub provider: String,
+    pub status: SmsSubmissionStatus,
+    pub message_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    delivery_statuses: BTreeMap<String, SmsDeliveryStatus>,
+}
+
+/// A carrier outcome for one message ID from a verified callback or a provider lookup.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsDeliveryStatus {
+    Delivered,
+    Undelivered,
+}
+
+impl SmsSubmission {
+    /// Applies a verified terminal receipt for a message belonging to this submission.
+    /// Returns false for another provider, an unknown ID, or a conflicting terminal outcome.
+    pub fn record_delivery(
+        &mut self,
+        provider: &str,
+        message_id: &str,
+        status: SmsDeliveryStatus,
+    ) -> bool {
+        if self.provider != provider
+            || self.status == SmsSubmissionStatus::Logged
+            || !self.message_ids.iter().any(|id| id == message_id)
+        {
+            return false;
+        }
+        if let Some(previous) = self.delivery_statuses.get(message_id) {
+            return *previous == status;
+        }
+        if self.status == SmsSubmissionStatus::Delivered && status != SmsDeliveryStatus::Delivered {
+            return false;
+        }
+        self.delivery_statuses.insert(message_id.into(), status);
+        if status == SmsDeliveryStatus::Undelivered {
+            self.status = SmsSubmissionStatus::Undelivered;
+        } else if self
+            .message_ids
+            .iter()
+            .all(|id| self.delivery_statuses.get(id) == Some(&SmsDeliveryStatus::Delivered))
+        {
+            self.status = SmsSubmissionStatus::Delivered;
+        }
+        true
+    }
+
+    pub(super) fn from_response(provider: &str, response: &Value) -> Self {
+        let ids = match provider {
+            "aliyun" => response
+                .get("BizId")
+                .or_else(|| response.get("MessageId"))
+                .into_iter()
+                .collect(),
+            "tencent" => response
+                .pointer("/Response/SendStatusSet/0/SerialNo")
+                .into_iter()
+                .collect(),
+            "twilio" | "yunpian" => response.get("sid").into_iter().collect(),
+            "vonage" => response["messages"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|message| message.get("message-id"))
+                .collect(),
+            _ => Vec::new(),
+        };
+        Self {
+            provider: provider.into(),
+            status: if provider == "log" {
+                SmsSubmissionStatus::Logged
+            } else if provider == "twilio" && response["status"] == "delivered" {
+                SmsSubmissionStatus::Delivered
+            } else {
+                SmsSubmissionStatus::Accepted
+            },
+            message_ids: ids
+                .into_iter()
+                .filter_map(|id| {
+                    id.as_str()
+                        .map(str::to_owned)
+                        .or_else(|| id.as_u64().map(|id| id.to_string()))
+                })
+                .collect(),
+            delivery_statuses: BTreeMap::new(),
+        }
+    }
+}
+
+/// Whether a failed submission may be attempted again.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SmsFailureKind {
+    Rejected,
+    Retryable,
+    SubmissionUnknown,
+}
+
+#[derive(Debug)]
+pub struct SmsFailure {
+    pub kind: SmsFailureKind,
+    pub code: Option<String>,
+    reason: &'static str,
+}
+
+impl std::fmt::Display for SmsFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.reason)?;
+        if let Some(code) = &self.code {
+            write!(f, " ({code})")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for SmsFailure {}
+
+impl SmsFailure {
+    pub fn new(kind: SmsFailureKind, code: Option<&str>, reason: &'static str) -> Self {
+        Self {
+            kind,
+            code: code
+                .filter(|code| {
+                    !code.is_empty()
+                        && code.len() <= 80
+                        && code.bytes().all(|byte| {
+                            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_')
+                        })
+                })
+                .map(str::to_owned),
+            reason,
+        }
+    }
+
+    pub fn from_notification(error: &super::NotificationError) -> Option<&Self> {
+        match error {
+            super::NotificationError::Delivery { source } => source.downcast_ref::<Self>(),
+            _ => None,
+        }
+    }
+
+    pub(super) fn retryable(error: &super::NotificationError) -> bool {
+        Self::from_notification(error).is_some_and(|error| error.kind == SmsFailureKind::Retryable)
+    }
+}
+
 type DriverFactory = dyn Fn(&Value) -> NotificationResult<Arc<dyn SmsDriver>> + Send + Sync;
 
 /// Resolves named profiles from the current application's SMS configuration.
@@ -243,13 +403,27 @@ impl SmsSender {
         if let Some(name) = message.template_name.take()
             && self.profile["driver"] != "log"
         {
-            let market = providers::market_key(message.to())?;
+            let market = providers::market_key(message.to(), &self.profile)?;
             let template_setting = self.profile["markets"][market]["templates"]
                 .get(&name)
                 .or_else(|| self.profile["templates"].get(&name))
                 .ok_or_else(|| {
                     delivery("The SMS template is not configured for this profile and market.")
                 })?;
+            if let Some(text) = template_setting.get("text") {
+                let template = message.template.as_ref().expect("validated template");
+                let SmsTemplateParameters::Named(parameters) = &template.parameters else {
+                    return Err(delivery("The configured SMS text requires named input."));
+                };
+                let text = text
+                    .as_str()
+                    .ok_or_else(|| delivery("The configured SMS text must be a string."))?;
+                let content = render_sms_text(text, parameters)?;
+                return self
+                    .driver
+                    .send(SmsMessage::new(message.to, content)?)
+                    .await;
+            }
             let id = template_setting
                 .as_str()
                 .or_else(|| template_setting["id"].as_str())
@@ -283,12 +457,21 @@ impl SmsSender {
         self.driver.send(message).await
     }
 
+    /// Submits an SMS and normalizes the provider acknowledgement.
+    pub async fn submit(&self, message: SmsMessage) -> NotificationResult<SmsSubmission> {
+        let response = self.send(message).await?;
+        let provider = self.profile["driver"]
+            .as_str()
+            .expect("registered SMS driver");
+        Ok(SmsSubmission::from_response(provider, &response))
+    }
+
     pub async fn send_text(
         &self,
         to: impl Into<String>,
         content: impl Into<String>,
-    ) -> NotificationResult<Value> {
-        self.send(SmsMessage::new(to, content)?).await
+    ) -> NotificationResult<SmsSubmission> {
+        self.submit(SmsMessage::new(to, content)?).await
     }
 
     pub async fn send_template<K: Into<String>, V: Into<String>>(
@@ -296,10 +479,30 @@ impl SmsSender {
         to: impl Into<String>,
         name: impl Into<String>,
         parameters: impl IntoIterator<Item = (K, V)>,
-    ) -> NotificationResult<Value> {
-        self.send(SmsMessage::named_template(to, name, parameters)?)
+    ) -> NotificationResult<SmsSubmission> {
+        self.submit(SmsMessage::named_template(to, name, parameters)?)
             .await
     }
+}
+
+fn render_sms_text(
+    mut text: &str,
+    parameters: &BTreeMap<String, String>,
+) -> NotificationResult<String> {
+    let mut content = String::with_capacity(text.len());
+    while let Some((literal, tail)) = text.split_once('{') {
+        content.push_str(literal);
+        let (name, remainder) = tail
+            .split_once('}')
+            .ok_or_else(|| delivery("The configured SMS text has an unclosed placeholder."))?;
+        let value = parameters
+            .get(name)
+            .ok_or_else(|| delivery("A configured SMS text parameter is missing."))?;
+        content.push_str(value);
+        text = remainder;
+    }
+    content.push_str(text);
+    Ok(content)
 }
 
 /// Resolves SMS drivers for the current application.
@@ -326,7 +529,7 @@ impl Sms {
     pub async fn send_text(
         to: impl Into<String>,
         content: impl Into<String>,
-    ) -> NotificationResult<Value> {
+    ) -> NotificationResult<SmsSubmission> {
         Self::default_driver()?.send_text(to, content).await
     }
 
@@ -334,7 +537,7 @@ impl Sms {
         to: impl Into<String>,
         name: impl Into<String>,
         parameters: impl IntoIterator<Item = (K, V)>,
-    ) -> NotificationResult<Value> {
+    ) -> NotificationResult<SmsSubmission> {
         Self::default_driver()?
             .send_template(to, name, parameters)
             .await

@@ -22,6 +22,7 @@ pub enum ChannelResponse {
     Mail(crate::mail::SentMessage),
     Database(super::DatabaseNotification),
     Custom(serde_json::Value),
+    Sms(super::sms::SmsSubmission),
 }
 
 /// Delivers a notification through one channel.
@@ -31,6 +32,10 @@ pub trait Channel: Send + Sync {
         recipient: &'a dyn Notifiable,
         notification: &'a dyn Notification,
     ) -> NotificationFuture<'a, NotificationResult<Option<ChannelResponse>>>;
+
+    fn is_sms(&self) -> bool {
+        false
+    }
 
     fn queue_payload<'a>(
         &'a self,

@@ -50,6 +50,8 @@ Sms::send_text("+8613800138000", "本機簡訊測試").await?;
 
 使用阿里雲時，設定 `SMS_DRIVER=aliyun`，填寫 `SMS_ALIYUN_ACCESS_KEY_ID` 和 `SMS_ALIYUN_ACCESS_KEY_SECRET`。內地範本需要 `SMS_ALIYUN_SIGN_NAME`，國際文字則依目標市場要求填寫 `SMS_ALIYUN_SENDER_ID`。省略 `SMS_ALIYUN_MARKET` 時，同一設定可向兩個市場傳送，驅動程式會依收件號碼選擇介面和端點。國際及港澳台號碼使用 `+` 和國家或地區區碼。
 
+自動選擇市場時，內地號碼也要加上 `+` 和國家或地區區碼。只有將設定限制為 `mainland` 時，才接受 11 位內地本地手機號碼。
+
 在設定的 `templates` 下將業務範本名稱對應到供應商範本 ID。騰訊雲等依序接收變數的介面，也可以透過 `id` 和 `parameter_order` 將具名變數轉換為廠商要求的順序。各市場獨有的參數放在 `markets.mainland` 或 `markets.international` 下，共用憑證填在設定外層。
 
 下例為現有 `aliyun` 設定的補充欄位。使用自訂端點時才需設定 `SMS_ALIYUN_GLOBAL_ENDPOINT`。如果某個市場使用獨立帳號，可在對應的市場下覆寫兩個憑證欄位。
@@ -66,6 +68,21 @@ Sms::send_text("+8613800138000", "本機簡訊測試").await?;
 ```
 
 驅動程式會在發出請求前檢查訊息類型。阿里雲內地簡訊需要通過審核的簽名和範本，此處接入的國際介面接受純文字。業務已持有供應商範本 ID 時，可用 `SmsMessage::template` 建立訊息並呼叫驅動程式的 `send`。
+
+同一個業務範本名稱可以在一個市場使用廠商範本 ID，在另一個市場使用正文。在 `markets.international` 的 `templates` 中加入同名對應即可覆寫共用設定。`{code}` 之類的預留位置來自呼叫時傳入的具名變數，缺少變數時會在發出請求前回報錯誤。
+
+```rust
+"templates": {
+    "login_code": "SMS_123",
+},
+"markets": {
+    "international": {
+        "templates": {
+            "login_code": {"text": "Your verification code is {code}."},
+        },
+    },
+},
+```
 
 ### 簡訊寶單帳號傳送內地和國際簡訊
 
@@ -96,7 +113,7 @@ SMS_YUNPIAN_API_KEY=your-api-key
 傳送帶有已審核簽名的完整正文，驅動程式會依號碼選擇內地或國際市場。
 
 ```rust
-Sms::send_text("+8613800138000", "【範例商店】您的訂單已出貨。").await?;
+Sms::send_text("+8613800138000", "〖範例商店〗您的訂單已出貨。").await?;
 ```
 
 ### 騰訊雲範本依序傳入變數
@@ -182,6 +199,14 @@ Sms::send_text("+12025550123", "您的訂單已出貨。").await?;
 以 `ChannelManager::extend` 將 `SmsChannel::default()` 註冊為 `sms`，也可以用 `SmsChannel::using("aliyun")` 綁定具名設定。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供應商範本。要使用設定中的業務範本名稱時，實作 `to_sms_message` 並回傳 `SmsMessage::named_template`。收件號碼使用 `sms` 路由鍵下的 `NotificationRoute::Sms`。
 
 佇列儲存選定的設定名稱和訊息。Worker 註冊相同的管道及設定名稱，從自身設定解析範本並讀取憑證。Redis 佇列可用 `./artisan queue:work redis` 啟動 Worker。重新命名前請先處理舊工作，或保留原名稱直到舊工作完成。變更設定後，若使用設定快取，請重新產生並重新啟動常駐 Worker。
+
+傳送驗證碼等敏感內容時，可以覆寫 `Notification::should_encrypt`，為簡訊管道傳回 `true`。派送端和 Worker 須使用相同且有效的應用程式加密金鑰。佇列和失敗工作會儲存密文，供應商憑證仍由 Worker 從自己的設定讀取。
+
+## 提交結果與送達
+
+`send_text`、`send_template` 和 `SmsSender::submit` 回傳 `SmsSubmission`，內含供應商、提交狀態和廠商訊息 ID（如有）。`Logged` 表示已記錄在本機，`Accepted` 表示廠商已受理。業務可以儲存這筆結果，在驗證廠商回執或主動查詢後，用供應商和訊息 ID 呼叫 `record_delivery` 更新送達狀態。底層 `send` 仍回傳廠商原始回應。
+
+明確的 HTTP 429 可以依工作策略重試。網路中斷或回應異常導致受理結果未知時，Worker 會停止自動重試。補發前請先核對廠商記錄。簡訊已提交後，`NotificationSent` 監聽器的錯誤會單獨記錄。
 
 ## 註冊供應商 {#custom-sms-providers}
 

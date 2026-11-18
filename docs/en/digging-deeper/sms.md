@@ -50,6 +50,8 @@ Sms::send_text("+8613800138000", "Local SMS test").await?;
 
 To use Alibaba Cloud, set `SMS_DRIVER=aliyun` and provide `SMS_ALIYUN_ACCESS_KEY_ID` and `SMS_ALIYUN_ACCESS_KEY_SECRET`. Configure `SMS_ALIYUN_SIGN_NAME` for mainland templates and `SMS_ALIYUN_SENDER_ID` if required for international text. Leave `SMS_ALIYUN_MARKET` unset to use both markets from one profile. The driver selects the appropriate API and endpoint from the recipient number. Use `+` and the calling code for international numbers, including Hong Kong, Macao, and Taiwan.
 
+Use a leading `+` and country calling code for automatic market selection, including for mainland numbers. A profile explicitly restricted to `mainland` also accepts an 11-digit mainland mobile number.
+
 Add business template names under `templates` on a profile. A value can be a provider template ID or an object with `id` and `parameter_order` for positional APIs such as Tencent Cloud. Put settings specific to one market under `markets.mainland` or `markets.international`. They override only the listed settings, so shared credentials stay at the profile level.
 
 The example adds these entries to the existing `aliyun` profile. Set `SMS_ALIYUN_GLOBAL_ENDPOINT` only when using a custom endpoint. Override both credential fields inside the market if that account has its own key pair.
@@ -66,6 +68,21 @@ The example adds these entries to the existing `aliyun` profile. Set `SMS_ALIYUN
 ```
 
 The selected driver checks the message type before submitting. Alibaba Cloud mainland SMS needs an approved signature and template, while the international route described here accepts text. Use `SmsMessage::template` with the lower-level `send` method when you already have the provider template ID.
+
+One business template can use a provider template ID in one market and text in another. Add a `templates` entry under `markets.international` to override the common mapping. Placeholders such as `{code}` use the named parameters passed by the application. A missing parameter aborts the send before contacting the provider.
+
+```rust
+"templates": {
+    "login_code": "SMS_123",
+},
+"markets": {
+    "international": {
+        "templates": {
+            "login_code": {"text": "Your verification code is {code}."},
+        },
+    },
+},
+```
 
 ### SmsBao with one account for both markets
 
@@ -96,7 +113,7 @@ SMS_YUNPIAN_API_KEY=your-api-key
 Send the full text with your approved signature. The driver selects the market from the recipient number.
 
 ```rust
-Sms::send_text("+8613800138000", "【Your Brand】Your order has shipped.").await?;
+Sms::send_text("+8613800138000", "〖Your Brand〗Your order has shipped.").await?;
 ```
 
 ### Tencent Cloud with ordered template variables
@@ -182,6 +199,14 @@ Sms::send_text("+12025550123", "Your order has shipped.").await?;
 Register `SmsChannel::default()` as `sms` with `ChannelManager::extend`, or pin a channel to a profile with `SmsChannel::using("aliyun")`. A notification can implement `to_sms` for text or `to_sms_template` for a provider template. Override `to_sms_message` and return `SmsMessage::named_template` to use a configured business template. Set the recipient through `NotificationRoute::Sms` under the `sms` route key.
 
 The queue stores the selected profile name and message. Register the same channel and profile in the Worker, which reads credentials and resolves the template from its own configuration. Run it with `./artisan queue:work redis` when using Redis. A rename requires draining jobs that reference the old name or keeping that name until they finish. Rebuild cached configuration and restart Workers after changing settings.
+
+For messages containing verification codes or other sensitive data, override `Notification::should_encrypt` to return `true` for the SMS channel. The dispatcher and Worker must share a valid application encryption key. Both the queued and failed job payloads then contain ciphertext. The Worker still reads provider credentials from its own configuration.
+
+## Submission and delivery
+
+`send_text`, `send_template`, and `SmsSender::submit` return an `SmsSubmission` with its provider, submission status, and available provider message IDs. `Logged` is a local log entry and `Accepted` means the provider accepted the submission. Store the result and use `record_delivery` with the provider and message ID after verifying an official callback or querying the provider. The lower-level `send` still returns the provider response.
+
+An explicit HTTP 429 may retry within the job policy. When the network or provider response leaves acceptance unknown, the Worker stops automatic retries. Match the submission against provider records before resending. A `NotificationSent` listener error after an accepted SMS is logged independently.
 
 ## Registering providers {#custom-sms-providers}
 

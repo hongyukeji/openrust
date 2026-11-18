@@ -4,7 +4,7 @@ use url::Url;
 use crate::notifications::{NotificationFuture, NotificationResult, delivery};
 
 use super::super::{SmsDriver, SmsMessage};
-use super::{Market, checked_response, request, required, rpc_endpoint};
+use super::{Market, checked_response, rejected, request, required, rpc_endpoint, unknown};
 
 pub(super) struct SmsBao {
     endpoint: Url,
@@ -53,11 +53,12 @@ impl SmsDriver for SmsBao {
             let code = std::str::from_utf8(response.body())
                 .ok()
                 .and_then(|body| body.trim().parse::<u32>().ok())
-                .ok_or_else(|| delivery("SmsBao returned an invalid submission code."))?;
+                .ok_or_else(|| unknown("SmsBao returned an invalid submission code."))?;
             if code != 0 {
-                return Err(delivery(format!(
-                    "SmsBao rejected the submission (code {code})."
-                )));
+                return Err(rejected(
+                    "SmsBao rejected the submission",
+                    Some(&code.to_string()),
+                ));
             }
             Ok(json!({"code":code}))
         })

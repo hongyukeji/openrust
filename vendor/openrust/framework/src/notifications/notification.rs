@@ -137,6 +137,11 @@ pub trait Notification: Send + Sync {
         JobOptions::default()
     }
 
+    /// Encrypts this channel's payload and guard before writing it to the queue.
+    fn should_encrypt(&self, _recipient: &dyn Notifiable, _channel: &str) -> bool {
+        false
+    }
+
     /// Selects queue delivery and options for this recipient and channel.
     fn queue_options(
         &self,

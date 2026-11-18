@@ -12,7 +12,7 @@ use openrust::{
     notifications::{
         Notifiable, Notification, NotificationResult, NotificationRoute,
         channels::{Channel, SmsChannel},
-        sms::{SmsMessage, SmsTemplate},
+        sms::{SmsDeliveryStatus, SmsMessage, SmsSubmissionStatus, SmsTemplate},
     },
     support::facades::{Facade, Notification as Notify, Sms},
 };
@@ -111,7 +111,18 @@ async fn receive(
     body: String,
 ) -> axum::response::Response {
     count.fetch_add(1, Ordering::Relaxed);
-    let payload = if uri.path() == TWILIO_PATH {
+    let payload = if uri.path() == "/vonage" {
+        let fields: std::collections::BTreeMap<_, _> = url::form_urlencoded::parse(body.as_bytes())
+            .into_owned()
+            .collect();
+        assert_eq!(fields["to"], "12025550123");
+        match fields["text"].as_str() {
+            "Price €5" => assert_eq!(fields["type"], "text"),
+            "短信演示" => assert_eq!(fields["type"], "unicode"),
+            text => panic!("unexpected SMS fixture text: {text}"),
+        }
+        json!({"messages":[{"status":"0", "message-id":"vonage-id"}]})
+    } else if uri.path() == TWILIO_PATH {
         assert_eq!(
             headers["authorization"],
             "Basic U0tmaXh0dXJlOnR3aWxpby1zZWNyZXQ="
@@ -170,10 +181,14 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
     let router = Router::new()
         .route("/", axum::routing::post(receive))
         .route(TWILIO_PATH, axum::routing::post(receive))
+        .route("/vonage", axum::routing::post(receive))
         .with_state(requests.clone());
     let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let root = tempfile::tempdir().unwrap();
-    let config = json!({"app":{"env":"testing"}, "sms":{"default":"china","drivers":{
+    let config = json!({"app":{"env":"testing"},
+        "vonage":{"api_key":"fixture-key","api_secret":"fixture-secret","sms_from":"Example","endpoint":format!("{endpoint}/vonage")},
+        "sms":{"default":"china","drivers":{
+        "vonage":{"driver":"vonage"},
         "china":{"driver":"aliyun","market":"mainland","endpoint":endpoint,"access_key_id":"fixture-id",
             "access_key_secret":"aliyun-secret","sign_name":"示例 + 签名"},
         "hk":{"driver":"tencent","market":"international","endpoint":endpoint,"secret_id":"fixture-id",
@@ -267,7 +282,7 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
                     .is_err()
             );
 
-            let configured = tencent
+            let mut configured = tencent
                 .send_template(
                     "+85255550123",
                     "login_code",
@@ -275,10 +290,24 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
                 )
                 .await
                 .unwrap();
-            assert_eq!(
-                configured["Response"]["SendStatusSet"][0]["SerialNo"],
-                "tencent-id"
-            );
+            assert_eq!(configured.status, SmsSubmissionStatus::Accepted);
+            assert_eq!(configured.message_ids, ["tencent-id"]);
+            assert!(!configured.record_delivery(
+                "twilio",
+                "tencent-id",
+                SmsDeliveryStatus::Delivered
+            ));
+            assert!(configured.record_delivery(
+                "tencent",
+                "tencent-id",
+                SmsDeliveryStatus::Delivered
+            ));
+            assert_eq!(configured.status, SmsSubmissionStatus::Delivered);
+            assert!(!configured.record_delivery(
+                "tencent",
+                "tencent-id",
+                SmsDeliveryStatus::Undelivered
+            ));
             assert!(
                 tencent
                     .send_template("+85255550123", "login_code", [("code", "42")])
@@ -307,12 +336,18 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
                     .await
                     .is_err()
             );
+            let vonage = Sms::driver("vonage").unwrap();
+            for text in ["Price €5", "短信演示"] {
+                let sent = vonage.send_text("+12025550123", text).await.unwrap();
+                assert_eq!(sent.message_ids, ["vonage-id"]);
+                assert_eq!(sent.status, SmsSubmissionStatus::Accepted);
+            }
             Ok(())
         }),
         Default::default(),
     )
     .await
     .unwrap();
-    assert_eq!(requests.load(Ordering::Relaxed), 9);
+    assert_eq!(requests.load(Ordering::Relaxed), 11);
     server.abort();
 }

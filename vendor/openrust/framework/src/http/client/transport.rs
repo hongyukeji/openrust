@@ -17,6 +17,7 @@ pub(super) struct Transport<'a> {
     pub client: &'a reqwest::Client,
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
+    pub redact_payload: bool,
     pub digest: Option<&'a DigestCredentials>,
     pub digest_origin: url::Origin,
     pub max_redirects: usize,
@@ -125,6 +126,11 @@ impl Transport<'_> {
     fn snapshot(&self, request: &Request) -> RecordedRequest {
         let mut snapshot = RecordedRequest::from(request);
         snapshot.attributes.clone_from(self.attributes);
+        if self.redact_payload {
+            snapshot.url.set_query(None);
+            snapshot.body = None;
+            snapshot.headers.remove(header::AUTHORIZATION);
+        }
         snapshot
     }
 }

@@ -50,6 +50,8 @@ Sms::send_text("+8613800138000", "本地短信测试").await?;
 
 使用阿里云时，设定 `SMS_DRIVER=aliyun`，填写 `SMS_ALIYUN_ACCESS_KEY_ID` 和 `SMS_ALIYUN_ACCESS_KEY_SECRET`。内地模板需要 `SMS_ALIYUN_SIGN_NAME`，国际文本按目标市场要求填写 `SMS_ALIYUN_SENDER_ID`。省略 `SMS_ALIYUN_MARKET` 时，同一个配置可以向两个市场发送，驱动根据收件号码选择接口和端点。国际及港澳台号码使用 `+` 和国家或地区区号。
 
+自动选择市场时，内地号码也要带 `+` 和国家或地区区号。只有明确将配置限制为 `mainland` 时，才接受 11 位内地本地手机号。
+
 在配置的 `templates` 下将业务模板名映射到供应商模板 ID。腾讯云这类按顺序接收变量的接口，可以用包含 `id` 和 `parameter_order` 的配置，将具名变量转换成厂商要求的顺序。各市场独有的参数写在 `markets.mainland` 或 `markets.international` 下，共用凭据填在配置外层。
 
 下例是现有 `aliyun` 配置的补充字段。仅在使用自定义端点时设置 `SMS_ALIYUN_GLOBAL_ENDPOINT`。如果某个市场使用独立账号，可在相应市场下覆盖两个凭据字段。
@@ -66,6 +68,21 @@ Sms::send_text("+8613800138000", "本地短信测试").await?;
 ```
 
 驱动会在发起请求前校验消息类型。阿里云内地短信需要审核通过的签名和模板，这里接入的国际接口接收纯文本。业务已经持有供应商模板 ID 时，可以通过 `SmsMessage::template` 构造消息并调用驱动的 `send`。
+
+同一个业务模板名可以在一个市场使用厂商模板 ID，在另一个市场使用正文。在 `markets.international` 的 `templates` 中加入同名映射即可覆盖共用设置。`{code}` 这样的占位符取自调用时传入的具名参数，缺少参数时在发送请求前报错。
+
+```rust
+"templates": {
+    "login_code": "SMS_123",
+},
+"markets": {
+    "international": {
+        "templates": {
+            "login_code": {"text": "Your verification code is {code}."},
+        },
+    },
+},
+```
 
 ### 短信宝单账号发送内地和国际短信
 
@@ -96,7 +113,7 @@ SMS_YUNPIAN_API_KEY=your-api-key
 发送带已审核签名的完整正文，驱动按号码选择内地或国际市场。
 
 ```rust
-Sms::send_text("+8613800138000", "【示例商店】您的订单已发货。").await?;
+Sms::send_text("+8613800138000", "〖示例商店〗您的订单已发货。").await?;
 ```
 
 ### 腾讯云模板按顺序传参
@@ -182,6 +199,14 @@ Sms::send_text("+12025550123", "您的订单已发货。").await?;
 用 `ChannelManager::extend` 将 `SmsChannel::default()` 注册为 `sms`，也可以通过 `SmsChannel::using("aliyun")` 绑定具名配置。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供应商模板。想用配置中的业务模板名时，实现 `to_sms_message` 并返回 `SmsMessage::named_template`。接收号码使用 `sms` 路由键下的 `NotificationRoute::Sms`。
 
 队列保存选中的配置名和消息。Worker 使用相同的渠道和配置名，从自身配置解析模板并读取凭据。Redis 队列可用 `./artisan queue:work redis` 启动 Worker。配置改名前先消费旧任务，或保留原名称直到旧任务完成。修改配置后，如已启用配置缓存，需重新生成并重启常驻 Worker。
+
+发送验证码等敏感内容时，可以覆写 `Notification::should_encrypt`，为短信渠道返回 `true`。派发端和 Worker 须使用同一个有效的应用加密密钥。队列和失败任务保存密文，厂商凭据仍由 Worker 从自身配置读取。
+
+## 提交结果和送达
+
+`send_text`、`send_template` 和 `SmsSender::submit` 返回 `SmsSubmission`，包含供应商、提交状态和厂商消息 ID（如有）。`Logged` 表示本地已记录，`Accepted` 表示厂商已受理。业务可以保存该结果，在验证厂商回执或主动查询后，用供应商和消息 ID 调用 `record_delivery` 更新送达状态。底层 `send` 仍返回厂商原始响应。
+
+明确的 HTTP 429 可以按任务策略重试。网络中断或响应异常导致受理结果未知时，Worker 停止自动重试。补发前先与厂商记录核对。短信已提交后，`NotificationSent` 监听器的错误会单独记录。
 
 ## 注册供应商 {#custom-sms-providers}
 

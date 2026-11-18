@@ -10,9 +10,14 @@ use openrust::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
+    contracts::events::{Event as EventPayload, Listener},
     contracts::{container::Container as _, foundation::Application as _},
+    events::{
+        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerResponse,
+    },
     foundation::{Application, run_application},
     http::HttpFuture,
+    http::client::events::RequestSending,
     notifications::{
         ChannelManager, Notifiable, Notification, NotificationError, NotificationFuture,
         NotificationResult, NotificationRoute,
@@ -52,9 +57,14 @@ async fn main() -> ExitCode {
                     "token": env.get_utf8("SMS_BETA_TOKEN")?,
                 });
                 sms["drivers"]["aliyun"]["templates"]["login_code"] = json!("SMS_1");
+                sms["drivers"]["smsbao"]["templates"]["security_notice"] = json!({"text":"{message}"});
+                sms["drivers"]["aliyun"]["markets"]["international"]["templates"]["login_code"] =
+                    json!({"text":"Order {code} is ready."});
                 if let Some(key) = env.get_utf8("SMS_ALERTS_GLOBAL_ACCESS_KEY_ID")? {
                     if env.get_utf8("SMS_TEST_SPLIT_MARKETS")? == Some("1") {
+                        let templates = sms["drivers"]["aliyun"]["markets"]["international"]["templates"].clone();
                         sms["drivers"]["aliyun"]["markets"]["international"] = json!({
+                            "templates": templates,
                             "endpoint": env.get_utf8("SMS_ALERTS_GLOBAL_ENDPOINT")?,
                             "access_key_id": key,
                             "access_key_secret": env.get_utf8("SMS_ALERTS_GLOBAL_ACCESS_KEY_SECRET")?,
@@ -115,12 +125,52 @@ impl ServiceProvider for SmsServiceProvider {
                 Ok(Arc::new(Provider::new(profile, Protocol::Beta)?))
             });
 
+            let events = app.container().make::<Dispatcher>()?;
+            events.register(|registry| {
+                registry.listen(
+                    r"OpenRust\Http\Client\Events\RequestSending",
+                    Arc::new(SmsTestObserver),
+                    Delivery::Sync,
+                )?;
+                if std::env::var_os("SMS_TEST_LISTENER_FAIL").is_some() {
+                    registry.listen(
+                        "NotificationSent",
+                        Arc::new(SmsTestObserver),
+                        Delivery::Sync,
+                    )?;
+                }
+                Ok(())
+            })?;
             let channels = app.container().make::<ChannelManager>()?;
             channels.extend("sms", Arc::new(SmsChannel::default()));
             for profile in PROFILES {
                 channels.extend(profile, Arc::new(SmsChannel::using(profile)));
             }
             Ok(())
+        })
+    }
+}
+
+struct SmsTestObserver;
+
+impl Listener for SmsTestObserver {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(sending) = event.downcast_ref::<RequestSending>() {
+                if matches!(sending.request.url.path(), "/sms" | "/wsms") {
+                    assert!(sending.request.url.query().is_none());
+                    assert!(!sending.request.headers.contains_key("authorization"));
+                    assert!(sending.request.body.is_none());
+                }
+                return Ok(None);
+            }
+            Err(EventError::Listener {
+                source: Box::from("fixture listener failure"),
+            })
         })
     }
 }
@@ -200,6 +250,7 @@ struct DemoNotification {
     text: String,
     template: Option<SmsTemplate>,
     named_template: bool,
+    encrypted: bool,
 }
 
 impl Notification for DemoNotification {
@@ -226,6 +277,10 @@ impl Notification for DemoNotification {
             return SmsMessage::template(to, template.clone()).map(Some);
         }
         SmsMessage::new(to, &self.text).map(Some)
+    }
+
+    fn should_encrypt(&self, _: &dyn Notifiable, _: &str) -> bool {
+        self.encrypted
     }
 
     fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
@@ -352,6 +407,7 @@ impl Command for SendSms {
                         text: text.into(),
                         template,
                         named_template,
+                        encrypted: std::env::var_os("SMS_TEST_ENCRYPT").is_some(),
                     },
                 )
                 .await

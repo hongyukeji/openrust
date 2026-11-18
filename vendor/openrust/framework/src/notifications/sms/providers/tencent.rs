@@ -5,7 +5,8 @@ use crate::notifications::{NotificationFuture, NotificationResult, delivery};
 
 use super::{
     super::{SmsDriver, SmsMessage, SmsTemplateParameters},
-    hex, now, request, required, response, rpc_endpoint, setting, sha256, sign, signed_headers,
+    hex, now, rejected, request, required, response, rpc_endpoint, setting, sha256, sign,
+    signed_headers, unknown,
 };
 
 pub(super) struct Tencent {
@@ -92,12 +93,27 @@ impl SmsDriver for Tencent {
                     .await,
             )?;
             let status = &payload["Response"]["SendStatusSet"];
-            if !payload["Response"]["Error"].is_null()
-                || status.as_array().is_none_or(|entries| entries.len() != 1)
-                || status[0]["Code"].as_str() != Some("Ok")
+            if let Some(code) = payload["Response"]["Error"]["Code"].as_str() {
+                return Err(rejected(
+                    "Tencent Cloud SMS did not accept the submission.",
+                    Some(code),
+                ));
+            }
+            if let Some(code) = status
+                .get(0)
+                .and_then(|entry| entry["Code"].as_str())
+                .filter(|code| *code != "Ok")
+            {
+                return Err(rejected(
+                    "Tencent Cloud SMS did not accept the submission.",
+                    Some(code),
+                ));
+            }
+            if status.as_array().is_none_or(|entries| entries.len() != 1)
+                || status[0]["Code"] != "Ok"
                 || status[0]["SerialNo"].as_str().is_none_or(str::is_empty)
             {
-                return Err(delivery("Tencent Cloud SMS did not accept the submission."));
+                return Err(unknown("Tencent Cloud SMS did not confirm the submission."));
             }
             Ok(payload)
         })

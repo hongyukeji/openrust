@@ -6,7 +6,8 @@ use crate::notifications::{NotificationFuture, NotificationResult, delivery};
 
 use super::{
     super::{SmsDriver, SmsMessage, SmsTemplateParameters},
-    hex, now, request, required, response, rpc_endpoint, setting, sha256, sign, signed_headers,
+    hex, now, rejected, request, required, response, rpc_endpoint, setting, sha256, sign,
+    signed_headers, unknown,
 };
 
 pub(super) struct Aliyun {
@@ -51,10 +52,16 @@ impl SmsDriver for Aliyun {
                     ],
                 )
                 .await?;
-            if payload["Code"].as_str() != Some("OK")
-                || payload["BizId"].as_str().is_none_or(str::is_empty)
-            {
-                return Err(delivery("Alibaba Cloud SMS did not accept the submission."));
+            if payload["Code"].as_str().is_some_and(|code| code != "OK") {
+                return Err(rejected(
+                    "Alibaba Cloud SMS did not accept the submission.",
+                    payload["Code"].as_str(),
+                ));
+            }
+            if payload["Code"] != "OK" || payload["BizId"].as_str().is_none_or(str::is_empty) {
+                return Err(unknown(
+                    "Alibaba Cloud SMS did not accept or confirm the submission.",
+                ));
             }
             Ok(payload)
         })
@@ -119,11 +126,20 @@ impl SmsDriver for AliyunInternational {
                 .client
                 .send("SendMessageToGlobe", "2018-05-01", parameters)
                 .await?;
-            if payload["ResponseCode"].as_str() != Some("OK")
+            if payload["ResponseCode"]
+                .as_str()
+                .is_some_and(|code| code != "OK")
+            {
+                return Err(rejected(
+                    "Alibaba Cloud international SMS did not accept the submission.",
+                    payload["ResponseCode"].as_str(),
+                ));
+            }
+            if payload["ResponseCode"] != "OK"
                 || payload["MessageId"].as_str().is_none_or(str::is_empty)
             {
-                return Err(delivery(
-                    "Alibaba Cloud international SMS did not accept the submission.",
+                return Err(unknown(
+                    "Alibaba Cloud international SMS did not accept or confirm the submission.",
                 ));
             }
             Ok(payload)
