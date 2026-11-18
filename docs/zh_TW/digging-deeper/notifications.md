@@ -157,7 +157,7 @@ let response = mail.toResponse().await?;
 
 執行 `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` 產生通知與 Blade 範本。使用 `markdown` 選定渲染雙正文的範本。`template` 調整 Markdown 範本並保留已明確選擇的視圖，`theme` 可為單封郵件覆寫 Markdown 主題。建構方法依鍵合併視圖資料，較晚提供的值優先。`to_mail` 回傳的自訂郵件也可使用相同的 [Markdown 渲染器與元件](mail.md#writing-markdown-messages)。
 
-## 簡訊通知 {#sms-notifications}
+## 簡訊 {#sms-notifications}
 
 設定 `VONAGE_KEY`、`VONAGE_SECRET` 與 `VONAGE_SMS_FROM`。在通知管道清單加入 `vonage`，並在 `to_vonage` 中回傳 `VonageMessage`。
 
@@ -199,6 +199,10 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 ```
 
 佇列保存號碼、訊息和選用的用戶端名稱。Worker 從應用程式設定讀取憑證，每次任務嘗試只發出一次 HTTP 請求。Vonage API 接收成功與手機送達是兩個獨立狀態。
+
+### 自訂簡訊供應商 {#custom-sms-providers}
+
+如需統一選擇供應商或註冊自訂驅動程式，請參閱[簡訊擴充](sms.md#custom-sms-providers)。
 
 ## Slack 通知 {#slack-notifications}
 

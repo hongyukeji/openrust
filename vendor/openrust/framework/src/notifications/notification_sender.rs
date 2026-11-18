@@ -322,6 +322,9 @@ impl Notification for Prepared<'_> {
     fn to_mail(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
         self.inner.to_mail(recipient)
     }
+    fn to_sms(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<String>> {
+        self.inner.to_sms(recipient)
+    }
     fn to_vonage(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         self.inner.to_vonage(recipient)
     }

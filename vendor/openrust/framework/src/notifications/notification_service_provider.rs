@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::{
     container::ServiceKey,
     contracts::{
+        config::Repository,
         container::Container as _,
         notifications::{Dispatcher, Factory},
     },
@@ -24,6 +25,11 @@ impl ServiceProvider for NotificationServiceProvider {
             let container = app.container_handle();
             container
                 .singletonNamed("notifications", |_| Ok(Arc::new(ChannelManager::default())))?;
+            container.singleton::<super::sms::SmsManager, _>(|container| {
+                Ok(Arc::new(super::sms::SmsManager::new(
+                    container.get::<dyn Repository>("config")?,
+                )))
+            })?;
             container.alias("notifications", ServiceKey::typed::<ChannelManager>())?;
             container
                 .singleton::<dyn Factory, _>(|container| Ok(container.make::<ChannelManager>()?))?;

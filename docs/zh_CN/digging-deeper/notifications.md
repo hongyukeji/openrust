@@ -157,7 +157,7 @@ let response = mail.toResponse().await?;
 
 运行 `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` 生成通知和 Blade 模板。用 `markdown` 选定渲染双正文的模板。`template` 调整 Markdown 模板并尊重已明确选择的视图，`theme` 可为单封邮件覆盖 Markdown 主题。构建方法按键合并视图数据，后提供的值优先。`to_mail` 返回的自定义可邮件对象也可使用同一套 [Markdown 渲染器和组件](mail.md#writing-markdown-messages)。
 
-## 短信通知 {#sms-notifications}
+## 短信 {#sms-notifications}
 
 配置 `VONAGE_KEY`、`VONAGE_SECRET` 和 `VONAGE_SMS_FROM`。在通知渠道列表加入 `vonage`，并在 `to_vonage` 中返回 `VonageMessage`。
 
@@ -199,6 +199,10 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 ```
 
 队列保存号码、消息和可选的客户端名称。Worker 从应用配置读取凭据，每次任务尝试只发起一次 HTTP 请求。Vonage API 接收成功和手机送达是两个独立状态。
+
+### 自定义短信供应商 {#custom-sms-providers}
+
+如需统一选择供应商或注册自定义驱动，请参阅[短信扩展](sms.md#custom-sms-providers)。
 
 ## Slack 通知 {#slack-notifications}
 

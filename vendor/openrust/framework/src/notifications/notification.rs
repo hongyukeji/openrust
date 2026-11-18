@@ -26,6 +26,10 @@ pub trait Notification: Send + Sync {
         Ok(None)
     }
 
+    fn to_sms(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<String>> {
+        Ok(None)
+    }
+
     fn to_vonage(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         Ok(None)
     }

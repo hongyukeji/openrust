@@ -6,7 +6,9 @@ use serde_json::Value;
 use crate::{
     notifications::{
         Notifiable, Notification, NotificationFuture, NotificationResult, NotificationRoute,
-        delivery, messages::VonageMessage,
+        delivery,
+        messages::VonageMessage,
+        sms::{SmsDriver, SmsMessage, international_number},
     },
     support::facades::{Config, Http},
 };
@@ -53,16 +55,8 @@ impl PreparedSms {
         let Some(message) = notification.to_vonage(recipient)? else {
             return Ok(None);
         };
-        let number = number.trim();
-        let to = number.strip_prefix('+').unwrap_or(number);
-        if !(7..=15).contains(&to.len())
-            || to.starts_with('0')
-            || !to.bytes().all(|byte| byte.is_ascii_digit())
-        {
-            return Err(delivery(
-                "The Vonage recipient must be an international phone number.",
-            ));
-        }
+        let to = international_number(&number)
+            .map_err(|_| delivery("The Vonage recipient must be an international phone number."))?;
         if message.content.trim().is_empty() {
             return Err(delivery("The Vonage SMS content cannot be empty."));
         }
@@ -72,7 +66,7 @@ impl PreparedSms {
         }))
     }
 
-    async fn send(self) -> NotificationResult<Option<ChannelResponse>> {
+    async fn submit(self) -> NotificationResult<Value> {
         let settings = Config::get("vonage")
             .map_err(|_| delivery("Vonage configuration is unavailable."))?
             .unwrap_or_default();
@@ -148,7 +142,7 @@ impl PreparedSms {
                 ));
             }
         }
-        Ok(Some(ChannelResponse::Custom(payload)))
+        Ok(payload)
     }
 }
 
@@ -160,7 +154,10 @@ impl Channel for VonageSmsChannel {
     ) -> NotificationFuture<'a, NotificationResult<Option<ChannelResponse>>> {
         Box::pin(async move {
             match PreparedSms::prepare(recipient, notification)? {
-                Some(message) => message.send().await,
+                Some(message) => message
+                    .submit()
+                    .await
+                    .map(|value| Some(ChannelResponse::Custom(value))),
                 None => Ok(None),
             }
         })
@@ -186,7 +183,49 @@ impl Channel for VonageSmsChannel {
         Box::pin(async move {
             let message: PreparedSms = serde_json::from_value(payload)
                 .map_err(|_| delivery("The queued Vonage SMS is invalid."))?;
-            message.send().await
+            message
+                .submit()
+                .await
+                .map(|value| Some(ChannelResponse::Custom(value)))
+        })
+    }
+}
+
+pub(in crate::notifications) struct VonageDriver {
+    client: Option<String>,
+}
+
+impl VonageDriver {
+    pub(in crate::notifications) fn new(config: &Value) -> NotificationResult<Self> {
+        let client = match config.get("client") {
+            None => None,
+            Some(Value::String(name)) if !name.trim().is_empty() => Some(name.clone()),
+            Some(_) => {
+                return Err(delivery(
+                    "The SMS profile contains an invalid Vonage client.",
+                ));
+            }
+        };
+        Ok(Self { client })
+    }
+}
+
+impl SmsDriver for VonageDriver {
+    fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>> {
+        Box::pin(async move {
+            message.validate()?;
+            let content = message.content();
+            let mut vonage = VonageMessage::new().content(content);
+            if !content.is_ascii() {
+                vonage = vonage.unicode();
+            }
+            vonage.client.clone_from(&self.client);
+            PreparedSms {
+                to: international_number(message.to())?.to_owned(),
+                message: vonage,
+            }
+            .submit()
+            .await
         })
     }
 }

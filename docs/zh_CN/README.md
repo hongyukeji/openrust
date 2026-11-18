@@ -61,6 +61,7 @@
 - [本地化](digging-deeper/localization.md)
 - [发送邮件](digging-deeper/mail.md)
 - [消息通知](digging-deeper/notifications.md)
+- [短信](digging-deeper/sms.md)
 - [扩展包开发](digging-deeper/packages.md)
 - [进程管理](digging-deeper/processes.md)
 - [队列](digging-deeper/queues.md)

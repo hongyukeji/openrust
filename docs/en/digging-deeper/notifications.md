@@ -157,7 +157,7 @@ Use `priority` to set the MIME `X-Priority` header. The scale runs from 1 (highe
 
 Use `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` to generate a notification and a Blade template. Use `markdown` to select a template that renders both message bodies. `template` changes the Markdown template while respecting explicit views. `theme` overrides the configured Markdown theme for that message. Builder calls merge view data, with the latest value taking precedence for each key. A custom mailable returned from `to_mail` can use the same [Markdown renderer and components](mail.md#writing-markdown-messages).
 
-## SMS notifications {#sms-notifications}
+## SMS {#sms-notifications}
 
 Configure `VONAGE_KEY`, `VONAGE_SECRET`, and `VONAGE_SMS_FROM`. Add `vonage` to the notification’s channels and return a `VonageMessage` from `to_vonage`.
 
@@ -199,6 +199,10 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 ```
 
 The queue stores the number, message, and optional client name. The Worker reads credentials from its application configuration and makes one HTTP attempt per job attempt. Vonage API acceptance is distinct from delivery to the handset.
+
+### Custom SMS providers {#custom-sms-providers}
+
+For unified provider selection and custom drivers, see the [SMS extension](sms.md#custom-sms-providers).
 
 ## Slack notifications {#slack-notifications}
 

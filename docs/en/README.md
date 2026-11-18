@@ -61,6 +61,7 @@
 - [Localization](digging-deeper/localization.md)
 - [Mail](digging-deeper/mail.md)
 - [Notifications](digging-deeper/notifications.md)
+- [SMS](digging-deeper/sms.md)
 - [Package Development](digging-deeper/packages.md)
 - [Processes](digging-deeper/processes.md)
 - [Queues](digging-deeper/queues.md)

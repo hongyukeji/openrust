@@ -61,6 +61,7 @@
 - [在地化](digging-deeper/localization.md)
 - [傳送郵件](digging-deeper/mail.md)
 - [訊息通知](digging-deeper/notifications.md)
+- [簡訊](digging-deeper/sms.md)
 - [擴充套件開發](digging-deeper/packages.md)
 - [行程管理](digging-deeper/processes.md)
 - [佇列](digging-deeper/queues.md)
