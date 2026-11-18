@@ -267,3 +267,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 03-09 [Redis Cluster 指定标签的异常索引登记清理](03-09/README.md#redis-cluster-指定标签的异常索引登记清理)通过真实 Redis、双进程 HTTP 和独立 Artisan 验收。按标签清理仅移除归属于所选标签的异常索引登记，存储级清理处理其余登记。核心账本维持 66/66。
 
 06-08 [Artisan 完整纯文本帮助](06-08/README.md#artisan-完整纯文本帮助)已用三语实际 Artisan 与注册命令回归验收。核心账本维持 66/66。
+
+08-04 [独立发布的配置缓存与 Artisan 帮助](08-04/README.md#独立发布的配置缓存与-artisan-帮助)使用当前主线独立发布产物验证。三语帮助、配置缓存与搬移、真实 MySQL／Redis Worker 和 HTTP 通过。发布实机项保持待目标环境。

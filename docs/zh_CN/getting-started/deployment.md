@@ -29,6 +29,16 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 使用 MySQL 或 PostgreSQL 时，先在[发布矩阵](../prologue/releases.md)核对服务端版本。OpenRust 的 MySQL 连接要求 TLS。应用默认启动数据库队列 Worker，使用时需先完成队列表迁移。
 
+### 缓存配置 {#cache-configuration}
+
+部署环境配置就绪后，可以在启动服务前生成配置缓存：
+
+```sh
+./main artisan config:cache
+```
+
+在最终发布目录中，使用服务启动时的环境执行命令。配置快照可能包含绝对路径。搬移发布目录或修改配置后，先在新环境中重新生成缓存，再重启服务。需要在启动时从环境读取配置时，执行 `./main artisan config:clear`。见[配置缓存](configuration.md#configuration-caching)。
+
 ## 启动 HTTP 与 Artisan
 
 ```sh

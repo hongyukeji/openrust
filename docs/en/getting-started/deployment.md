@@ -29,6 +29,16 @@ For a fresh SQLite deployment, create the configured database file before runnin
 
 For MySQL or PostgreSQL, confirm the server version against the [release matrix](../prologue/releases.md). OpenRust requires TLS for MySQL connections. The application starts a database queue worker by default. Keep the queue tables migrated when using that worker.
 
+### Cache Configuration {#cache-configuration}
+
+After setting the deployment environment, you can cache configuration before starting the services:
+
+```sh
+./main artisan config:cache
+```
+
+Run the command from the final release directory using the environment the services will run under. The snapshot can contain absolute paths. If the release moves or its settings change, rebuild the cache in the new environment before restarting. Run `./main artisan config:clear` to load configuration from the environment at startup. See [Configuration Caching](configuration.md#configuration-caching).
+
 ## Start HTTP and Artisan
 
 ```sh

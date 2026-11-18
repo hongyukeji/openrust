@@ -138,3 +138,11 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 2026-11-18 在 `0db6bac21` 的隔离源码上，以生产模式启动真实应用。测试代理在回环地址终止 TLS，并将 HTTPS 协议、入口域名和端口转发给仅信任回环代理的后端。客户端分别用 TLS 1.2 和 TLS 1.3 连接，验证测试 CA 和主机名。
 - 真实 Artisan `config:cache` 和 `config:show` 确认缓存中的 `app.url` 为对外 HTTPS 地址且 `app.url_explicit=true`。修改测试环境文件后，应用仍使用缓存中的地址。通过另一个入口域名请求时，普通链接和绝对签名链接均指向 `APP_URL`。
 - 两种 TLS 版本下，入口域名的 `/up` 和通过 `APP_URL` 域名访问的签名链接均返回 HTTP 200。同一签名链接换用入口域名或修改路径时返回 HTTP 403。应用和代理已停止，隔离源码、测试证书、构建产物和测试缓存已清理。实际生产域名与证书继续按发布实机项跟踪。
+
+## 独立发布的配置缓存与 Artisan 帮助
+
+- 对照固定 Laravel 部署的配置缓存与健康路由，以及固定 Goravel 的编译入口。复核 `openrust-v0.x` 的 `.agents/project/scripts/test-artisan-release.sh`，沿用当前主线已有的发布目录、真实 MySQL／Redis 与 Worker 验收流程。 [Laravel 部署](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#optimizing-configuration-loading) · [Goravel 入口](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/main.go)
+- 从 `7fadb3793` 的 Git 归档用 Rust 1.94.0 执行 `cargo build --release --features standalone --bin main --locked --offline`，产物为 macOS ARM64 Mach-O。在无源码、无 Cargo、无 `APP_BASE_PATH` 的发布目录，从其他工作目录启动。用同一二进制验证英、简中、繁中完整纯文本帮助、ANSI 与 JSON 内容。
+- 真实 MySQL 8.4.13 和 Redis 8.10.3 上，独立 Artisan 生成配置缓存后，HTTP 与 `config:show` 都采用快照。清除后读取新的进程环境。搬移带空格的发布目录后重新生成，缓存内的本机磁盘根路径指向新位置，首页和公共存储仍正常。12 项迁移及幂等重跑、受管与独立 Redis Worker、数据库 Session、`/up`、两次 SIGTERM 退出 0 与端口回收均通过。
+- 三语部署页补充配置缓存步骤和搬移后的重建方式。全仓格式通过，同一份框架源码的严格 Clippy 见 [06-08](../06-08/README.md#artisan-完整纯文本帮助)。三语构建和根路径及 `/docs/` 下的 18 项浏览器检查通过。项目仍按已确认的发布模拟口径记录，Windows Docker Desktop、生产 TLS 和托管 SQS 的目标环境待实机。
+- 临时 Redis、MySQL、构建和测试发布目录已回收，Docker 数据卷清单一致。磁盘可用 88.99 GB（82.88 GiB），提交前周额度剩余 27%，第二窗口无读数。日志保留于 `/private/tmp/openrust-release-artisan-main.Ij3lTvEs`。

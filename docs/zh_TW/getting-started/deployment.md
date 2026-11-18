@@ -29,6 +29,16 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 使用 MySQL 或 PostgreSQL 時，先在[發佈矩陣](../prologue/releases.md)核對伺服器版本。OpenRust 的 MySQL 連線需要 TLS。應用程式預設啟動資料庫佇列 Worker，使用時須先完成佇列表遷移。
 
+### 快取設定 {#cache-configuration}
+
+部署環境設定就緒後，可以在啟動服務前產生設定快取：
+
+```sh
+./main artisan config:cache
+```
+
+在最終發行目錄中，使用服務啟動時的環境執行命令。設定快照可能包含絕對路徑。搬移發行目錄或修改設定後，先在新環境中重新產生快取，再重新啟動服務。需要在啟動時從環境讀取設定時，執行 `./main artisan config:clear`。見[設定快取](configuration.md#configuration-caching)。
+
 ## 啟動 HTTP 與 Artisan
 
 ```sh

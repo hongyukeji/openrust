@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 15:03（北京时间）08-04 [独立发布的配置缓存与 Artisan 帮助](audits/08-04/README.md#独立发布的配置缓存与-artisan-帮助)。真实 MySQL 8.4.13、Redis 8.10.3、独立发布的三语 Artisan、HTTP、配置缓存、Worker 和 SIGTERM 通过。三语站点和 18 项浏览器检查通过。磁盘可用 88.99 GB（82.88 GiB），周额度剩余 27%，第二窗口无读数。
 - 2026-11-18 14:50（北京时间）06-08 [Artisan 完整纯文本帮助](audits/06-08/README.md#artisan-完整纯文本帮助)。17 项定向回归、三语实际 Artisan、格式、严格 Clippy、三语站点构建和 18 项浏览器检查通过。磁盘可用 89.04 GB（82.93 GiB），周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:42（北京时间）03-09 [Redis Cluster 指定标签的异常索引登记清理](audits/03-09/README.md#redis-cluster-指定标签的异常索引登记清理)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。磁盘可用 86.85 GB（80.88 GiB），周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:31（北京时间）06-07 [换址与并发邮箱验证](audits/06-07/README.md#verification-after-email-change)。真实 HTTP、SQLite 与 MySQL 8.4.13 验证流程、Mailpit SMTP、令牌仓储回归、Artisan、严格 Clippy 和三语站点 18 项浏览器检查通过。磁盘可用 89.30 GB（83.17 GiB），周额度剩余 28%，第二窗口无读数。核心账本维持 66/66。
