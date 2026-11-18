@@ -22,7 +22,7 @@ The template uses SQLite for application data, sessions, cache and queues. Creat
 
 The HTTP listener defaults to `127.0.0.1:8000`. Visit `http://localhost:8000/` for the welcome page or `/up` for the health check. Stop the service with Ctrl+C.
 
-The application can also start without an environment file. To choose a different port in `.env`, set `APP_PORT=9081`. The template expands `APP_URL="http://localhost:${APP_PORT}"`. An explicit process environment value overrides its file value. For example, `APP_PORT=9081 cargo +1.94.0 run --locked` selects port 9081. See [configuration](configuration.md) for URL overrides and environment selection.
+The application can also start without an environment file. To choose a different port in `.env`, set `APP_PORT=9081`. With the template’s default listener host, `APP_URL` expands to `http://127.0.0.1:9081`. An explicit process environment value overrides its file value. For example, `APP_PORT=9081 cargo +1.94.0 run --locked` selects port 9081. See [configuration](configuration.md) for URL overrides and environment selection.
 
 On Windows, copy the template with `copy .env.example .env` and run `artisan.bat inspire`. Use an MSVC Rust toolchain for the target architecture. For a release without Cargo, use the Windows standalone steps. [Windows standalone deployment](deployment.md#windows-standalone)
 

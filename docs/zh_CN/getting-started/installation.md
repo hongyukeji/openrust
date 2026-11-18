@@ -22,7 +22,7 @@ cargo +1.94.0 run --locked
 
 HTTP 默认监听 `127.0.0.1:8000`。访问 `http://localhost:8000/` 查看欢迎页，访问 `/up` 检查服务状态。使用 Ctrl+C 停止服务。
 
-应用也能在没有环境文件时启动。需要其他端口时，在 `.env` 中设置 `APP_PORT=9081`。模板中的 `APP_URL="http://localhost:${APP_PORT}"` 会展开端口变量。进程环境优先于文件中的同名值，例如 `APP_PORT=9081 cargo +1.94.0 run --locked` 会监听 9081。URL 覆盖和环境文件选择见[配置](configuration.md)。
+应用也能在没有环境文件时启动。需要其他端口时，在 `.env` 中设置 `APP_PORT=9081`。使用模板的默认监听主机时，`APP_URL` 会展开为 `http://127.0.0.1:9081`。进程环境优先于文件中的同名值，例如 `APP_PORT=9081 cargo +1.94.0 run --locked` 会监听 9081。URL 覆盖和环境文件选择见[配置](configuration.md)。
 
 Windows 可用 `copy .env.example .env` 复制模板，再执行 `artisan.bat inspire`。使用目标架构的 MSVC Rust 工具链。独立发布可按 Windows 部署步骤运行。 [Windows 独立部署](deployment.md#windows-standalone)
 
