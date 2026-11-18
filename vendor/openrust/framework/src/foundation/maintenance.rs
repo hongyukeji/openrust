@@ -5,7 +5,7 @@ use std::{
     fmt,
     future::Future,
     io,
-    path::{Path, PathBuf},
+    path::Path,
     pin::Pin,
     sync::{Arc, RwLock},
 };
@@ -70,7 +70,7 @@ impl Error for MaintenanceError {
 }
 
 enum Backend {
-    File(PathBuf),
+    File(Arc<super::Paths>),
     Cache(Arc<Repository>),
     Array(RwLock<Option<MaintenancePayload>>),
 }
@@ -80,7 +80,7 @@ impl MaintenanceMode for Backend {
         Box::pin(async move {
             match self {
                 Self::File(path) => {
-                    let path = path.clone();
+                    let path = path.storagePath("framework/down");
                     let payload =
                         serde_json::to_vec_pretty(payload).map_err(MaintenanceError::Json)?;
                     tokio::task::spawn_blocking(move || {
@@ -120,10 +120,12 @@ impl MaintenanceMode for Backend {
     fn deactivate(&self) -> MaintenanceFuture<'_, ()> {
         Box::pin(async move {
             match self {
-                Self::File(path) => match tokio::fs::remove_file(path).await {
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-                    result => result.map_err(MaintenanceError::Io),
-                },
+                Self::File(path) => {
+                    match tokio::fs::remove_file(path.storagePath("framework/down")).await {
+                        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                        result => result.map_err(MaintenanceError::Io),
+                    }
+                }
                 Self::Cache(cache) => cache
                     .forget(CACHE_KEY)
                     .await
@@ -142,7 +144,7 @@ impl MaintenanceMode for Backend {
     fn active(&self) -> MaintenanceFuture<'_, bool> {
         Box::pin(async move {
             match self {
-                Self::File(path) => tokio::fs::try_exists(path)
+                Self::File(path) => tokio::fs::try_exists(path.storagePath("framework/down"))
                     .await
                     .map_err(MaintenanceError::Io),
                 Self::Cache(cache) => cache.has(CACHE_KEY).await.map_err(MaintenanceError::Cache),
@@ -157,7 +159,7 @@ impl MaintenanceMode for Backend {
     fn data(&self) -> MaintenanceFuture<'_, Option<MaintenancePayload>> {
         Box::pin(async move {
             match self {
-                Self::File(path) => read_file(path).await,
+                Self::File(path) => read_file(&path.storagePath("framework/down")).await,
                 Self::Cache(cache) => match cache
                     .get(CACHE_KEY)
                     .await
@@ -176,10 +178,6 @@ impl MaintenanceMode for Backend {
     }
 }
 
-pub(super) fn file_path(base_path: &Path) -> PathBuf {
-    base_path.join("storage/framework/down")
-}
-
 pub(super) async fn read_file(path: &Path) -> Result<Option<MaintenancePayload>, MaintenanceError> {
     match tokio::fs::read(path).await {
         Ok(bytes) => serde_json::from_slice(&bytes)
@@ -190,13 +188,16 @@ pub(super) async fn read_file(path: &Path) -> Result<Option<MaintenancePayload>,
     }
 }
 
-fn configured_driver(container: &Container, file: &Path) -> Result<Backend, MaintenanceError> {
+fn configured_driver(
+    container: &Container,
+    paths: Arc<super::Paths>,
+) -> Result<Backend, MaintenanceError> {
     let config = container
         .get::<dyn Config>("config")
         .map_err(MaintenanceError::Unavailable)?;
     match config.get("app.maintenance.driver").as_ref() {
-        None | Some(Value::Null) => Ok(Backend::File(file.to_owned())),
-        Some(Value::String(driver)) if driver == "file" => Ok(Backend::File(file.to_owned())),
+        None | Some(Value::Null) => Ok(Backend::File(paths)),
+        Some(Value::String(driver)) if driver == "file" => Ok(Backend::File(paths)),
         Some(Value::String(driver)) if driver == "array" => Ok(Backend::Array(RwLock::default())),
         Some(Value::String(driver)) if driver == "cache" => {
             let store = config.get("app.maintenance.store");
@@ -220,10 +221,10 @@ pub(crate) struct MaintenanceServiceProvider;
 impl ServiceProvider for MaintenanceServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let file = file_path(app.base_path());
             app.container()
                 .singleton::<dyn MaintenanceMode, _>(move |container| {
-                    let driver = configured_driver(container, &file).map_err(|source| {
+                    let paths = container.make::<super::Paths>()?;
+                    let driver = configured_driver(container, paths).map_err(|source| {
                         BindingResolutionError::FactoryFailed {
                             service: "maintenance",
                             source: Box::new(source),

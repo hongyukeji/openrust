@@ -256,3 +256,5 @@ Pail still registers Files and Handler when capture is disabled. During boot it 
 Flags come from the current application's immutable environment snapshot. Process variables take precedence over the selected environment file. With configuration cached, environment files are not loaded, so a file-only `PAIL_TESTS` does not apply. Handler is resolved on the first accepted log or queue lifecycle event. Its construction error propagates then, after the original accepted log has been written.
 
 Pail resolves `Application::storagePath("pail")` through the shared path service. Configure `useStoragePath` or `APP_STORAGE_PATH` before the first capture. See [Application Storage Path](../getting-started/configuration.md#application-storage-path).
+
+Default file log channels and the emergency fallback follow the application storage path. Configure the path before loading configuration or resolving channels. Loaded channel paths retain their configured values; see [Application Storage Path](../getting-started/configuration.md#application-storage-path).

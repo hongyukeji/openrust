@@ -27,8 +27,9 @@ impl ServiceProvider for SessionServiceProvider {
                 let config = container.get::<dyn Repository>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let cache = container.get::<CacheManager>("cache")?;
+                let paths = container.make::<crate::foundation::Paths>()?;
                 SessionManager::new(config.get("session"), database, cache, base.clone())
-                    .map(Arc::new)
+                    .map(|manager| Arc::new(manager.with_paths(paths)))
                     .map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "session",
                         source: Box::new(source),

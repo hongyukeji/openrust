@@ -118,3 +118,23 @@ async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_applicati
     assert_eq!(excluded.get("/other").await.unwrap().status(), 404);
     assert_eq!(normal.get("/up").await.unwrap().status(), 503);
 }
+
+#[tokio::test]
+async fn file_maintenance_follows_storage_changes_even_after_service_resolution() {
+    let root = tempfile::tempdir().unwrap();
+    let first = root.path().join("first");
+    let next = root.path().join("next");
+    let app = file_application(root.path()).await;
+    app.useStoragePath(&first).unwrap();
+    let mode = app.maintenanceMode().unwrap();
+    mode.activate(&Map::new()).await.unwrap();
+    assert!(first.join("framework/down").exists());
+    assert!(!root.path().join("storage/framework/down").exists());
+    app.useStoragePath(&next).unwrap();
+    assert!(!mode.active().await.unwrap());
+    mode.activate(&Map::new()).await.unwrap();
+    assert!(next.join("framework/down").exists());
+    mode.deactivate().await.unwrap();
+    assert!(!next.join("framework/down").exists());
+    assert!(first.join("framework/down").exists());
+}

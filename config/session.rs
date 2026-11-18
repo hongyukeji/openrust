@@ -38,7 +38,7 @@ pub(super) fn load(
         | 配置文件目录、数据库连接与会话表，或指定缓存驱动使用的仓储。
         |
         */
-        "files": path(&base_path.join("storage/framework/sessions"))?,
+        "files": path(&env.storage_path(base_path, "framework/sessions"))?,
         "connection": get(env, "SESSION_CONNECTION", Value::Null)?,
         "table": get(env, "SESSION_TABLE", "sessions")?,
         "store": get(env, "SESSION_STORE", Value::Null)?,

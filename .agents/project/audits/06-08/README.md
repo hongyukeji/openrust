@@ -128,3 +128,8 @@ vendor/openrust/framework/
 ## Pail 统一存储路径
 
 [专项验收](../07-01/storage-path.md)接通 Application／契约的 storagePath、useStoragePath、作用域 storage_path helper 和 Files 所属容器解析。默认、自定义及双应用目录通过真实 HTTP、独立 Artisan、MySQL Worker、隔离回调、严格 Clippy、三语正文与浏览器检查。路径 API 已验收，其他存储消费者迁移继续跟踪，再接打印器和会话命令。
+
+
+## 存储路径消费者收口
+
+[配置与文件消费者验收](../07-01/storage-consumers.md)接通日志、Session、缓存、视图、local/public 磁盘和维护模式；环境快照以弱引用传递所属应用路径上下文，不读取其他应用的 Facade。55 项定向测试函数、严格 Clippy、实际根二进制 HTTP／Artisan、缓存前后路径、维护模式和三语文档验收通过。Pail 路径依赖收口，下一批接打印器与实时命令；认证自动解析和发布矩阵继续跟踪。

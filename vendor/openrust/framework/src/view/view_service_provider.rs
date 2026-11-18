@@ -25,15 +25,21 @@ impl ServiceProvider for ViewServiceProvider {
             let container = app.container();
             container.singletonNamed("view", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
-                configured_factory(&base, config.as_ref())
-                    .map(|mut factory| {
-                        factory.public_path = Some(public.clone());
-                        Arc::new(factory)
-                    })
-                    .map_err(|source| BindingResolutionError::FactoryFailed {
-                        service: "view",
-                        source: Box::new(source),
-                    })
+                configured_factory(
+                    &base,
+                    &container
+                        .make::<crate::foundation::Paths>()?
+                        .storagePath("framework/views"),
+                    config.as_ref(),
+                )
+                .map(|mut factory| {
+                    factory.public_path = Some(public.clone());
+                    Arc::new(factory)
+                })
+                .map_err(|source| BindingResolutionError::FactoryFailed {
+                    service: "view",
+                    source: Box::new(source),
+                })
             })?;
             container.alias("view", crate::container::ServiceKey::typed::<Factory>())?;
             container.singletonNamed::<dyn crate::contracts::view::Factory, _>(
@@ -52,7 +58,11 @@ impl ServiceProvider for ViewServiceProvider {
     }
 }
 
-fn configured_factory(base: &Path, config: &dyn Repository) -> Result<Factory, ConfigError> {
+fn configured_factory(
+    base: &Path,
+    compiled_default: &Path,
+    config: &dyn Repository,
+) -> Result<Factory, ConfigError> {
     let paths = match config.get("view.paths") {
         Some(value) => {
             let invalid = || ConfigError::InvalidType {
@@ -83,7 +93,7 @@ fn configured_factory(base: &Path, config: &dyn Repository) -> Result<Factory, C
                     expected: "a non-empty directory path",
                 })?,
         ),
-        None => base.join("storage/framework/views"),
+        None => compiled_default.to_owned(),
     };
     Ok(Factory::new(FileViewFinder::new(paths), compiled)
         .with_embedded_namespace("pagination", crate::pagination::VIEWS)

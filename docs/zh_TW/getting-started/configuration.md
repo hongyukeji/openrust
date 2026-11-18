@@ -183,4 +183,8 @@ async fn activate_maintenance(
 
 建構時初始化 `path.storage`，後載入的環境檔案可以改變 getter，但不會自動重寫該綁定；`useStoragePath` 則明確重新綁定，沿用 Laravel 的順序。重新綁定錯誤透過 `Result` 傳回，此時路徑狀態已更新。
 
-Pail 在首次解析 Files 時透過共用狀態決定目錄，應在第一次使用前設定路徑。既有日誌、Session、快取、檢視和磁碟設定預設值的遷移由下一批追蹤，本節不宣稱這些消費者已經遷移。
+日誌、檔案 Session、檔案快取資料與鎖、編譯檢視以及預設 local/public 磁碟在載入設定時採用儲存根目錄。`PUBLIC_STORAGE_ROOT` 和 `VIEW_COMPILED_PATH` 仍可個別覆蓋，公開 URL 和掛載順序不變。`storage:link` 指向設定的公開磁碟。啟動前設定絕對路徑的 `APP_STORAGE_PATH`，或在載入設定前呼叫 `useStoragePath`。
+
+編譯型設定載入器使用 `env.storage_path(base_path, subpath)` 作為 Rust 上下文適配。弱引用選取所屬應用的路徑，不依賴全域 Facade，也不延長應用生命週期。獨立環境快照依自身變數及傳入的預設根目錄解析。後續更改應用路徑不會回寫已經載入或快取的設定值。
+
+檔案維護模式每次操作都解析目前路徑，服務已解析後仍有效。啟動前的預先轉譯檢查使用 boot 前可用的路徑：此時應提供程序變數或明確 setter，僅在 dotenv 中設定的值尚不可用。Pail 在首次解析 Files 時決定目錄，應在首次使用前設定。設定、路由、事件和套件快取產物的位置繼續遵守各自的快取路徑契約。

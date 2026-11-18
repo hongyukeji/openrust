@@ -68,6 +68,7 @@ pub enum StackChannel<'a> {
 pub struct LogManager {
     config: Arc<dyn Repository>,
     root: PathBuf,
+    paths: Option<Arc<crate::foundation::Paths>>,
     context_owner: Weak<crate::container::Container>,
     channels: Mutex<ChannelDirectory>,
     drivers: Registry<Factory>,
@@ -91,6 +92,7 @@ impl LogManager {
         Self {
             config,
             root: root.into(),
+            paths: None,
             context_owner: Weak::new(),
             channels: Mutex::default(),
             drivers: Mutex::default(),
@@ -101,6 +103,11 @@ impl LogManager {
             handlers: Mutex::default(),
             listeners: Arc::default(),
         }
+    }
+
+    pub(super) fn with_paths(mut self, paths: Arc<crate::foundation::Paths>) -> Self {
+        self.paths = Some(paths);
+        self
     }
 
     pub(super) fn with_context_owner(mut self, owner: Weak<crate::container::Container>) -> Self {
@@ -317,18 +324,30 @@ impl LogManager {
     log_methods!(self);
 
     fn settings(&self) -> Settings<'_> {
+        let default_file = self.paths.as_ref().map_or_else(
+            || PathBuf::from(DEFAULT_FILE),
+            |paths| paths.storagePath("logs/openrust.log"),
+        );
         let config = self
             .config
             .get("logging.channels")
-            .unwrap_or_else(default_channels);
+            .unwrap_or_else(|| default_channels(default_file.to_str()));
         let path = config["emergency"]["path"]
             .as_str()
             .filter(|path| !path.is_empty())
-            .unwrap_or(DEFAULT_FILE);
+            .map_or_else(
+                || {
+                    self.paths.as_ref().map_or_else(
+                        || self.root.join(DEFAULT_FILE),
+                        |paths| paths.storagePath("logs/openrust.log"),
+                    )
+                },
+                |path| self.root.join(path),
+            );
         let emergency = Arc::new(Emergency {
             listeners: self.listeners.clone(),
             handlers: [Arc::new(Handler::file(
-                self.root.join(path),
+                path,
                 None,
                 false,
                 Level::Debug,
@@ -894,12 +913,12 @@ const fn default_bubble() -> bool {
     true
 }
 
-fn default_channels() -> Value {
+fn default_channels(path: Option<&str>) -> Value {
     serde_json::json!({
         "stack": { "driver": "stack", "channels": ["single"] },
-        "single": { "driver": "single", "path": DEFAULT_FILE, "replace_placeholders": true },
-        "daily": { "driver": "daily", "path": DEFAULT_FILE, "max_files": 14, "replace_placeholders": true },
-        "monthly": { "driver": "monthly", "path": DEFAULT_FILE, "max_files": 3, "replace_placeholders": true },
+        "single": { "driver": "single", "path": path, "replace_placeholders": true },
+        "daily": { "driver": "daily", "path": path, "max_files": 14, "replace_placeholders": true },
+        "monthly": { "driver": "monthly", "path": path, "max_files": 3, "replace_placeholders": true },
         "stderr": { "driver": "stderr", "replace_placeholders": true },
         "syslog": { "driver": "syslog", "replace_placeholders": true },
         "null": { "driver": "null" }

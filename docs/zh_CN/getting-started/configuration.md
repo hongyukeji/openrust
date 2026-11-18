@@ -183,4 +183,8 @@ async fn activate_maintenance(
 
 构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 Laravel 的顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
 
-Pail 在首次解析 Files 时通过共享状态确定目录，应在第一次使用前配置路径。既有日志、Session、缓存、视图和磁盘配置默认值的迁移由下一批跟踪，本节不宣称这些消费者已经迁移。
+日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`PUBLIC_STORAGE_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
+
+编译型配置加载器使用 `env.storage_path(base_path, subpath)` 作为 Rust 上下文适配。弱引用选取所属应用的路径，不依赖全局 Facade，也不延长应用生命周期。独立环境快照按自身变量及传入的默认根目录解析。后续更改应用路径不会回写已经加载或缓存的配置值。
+
+文件维护模式每次操作都解析当前路径，服务已解析后仍有效。启动前的预渲染检查使用 boot 前可用的路径：此时应提供进程变量或显式 setter，仅在 dotenv 中设置的值尚不可用。Pail 在首次解析 Files 时确定目录，应在首次使用前配置。配置、路由、事件和包缓存产物的位置继续遵守各自的缓存路径契约。

@@ -25,7 +25,7 @@ impl Kernel {
     }
 
     pub(in crate::foundation) async fn serve(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let marker = crate::foundation::maintenance::file_path(self.application.base_path());
+        let marker = self.application.storagePath("framework/down");
         if super::prerender::has_template(&marker).await {
             return super::prerender::serve(self, marker).await;
         }

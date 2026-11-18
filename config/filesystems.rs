@@ -23,13 +23,14 @@ pub(super) fn load(
         })
     };
     let default_url = format!("{}/storage", app.url.trim_end_matches('/'));
-    let public_root = env
-        .get_utf8("PUBLIC_STORAGE_ROOT")?
-        .unwrap_or("storage/app/public");
+    let public_root = match env.get_utf8("PUBLIC_STORAGE_ROOT")? {
+        Some(path) => base_path.join(path),
+        None => env.storage_path(base_path, "app/public"),
+    };
     let link = base_path
         .join(app.public_path.unwrap_or("public"))
         .join("storage");
-    let target = base_path.join(public_root);
+    let target = &public_root;
     Ok(json!({
         /*
         |--------------------------------------------------------------------------
@@ -52,14 +53,14 @@ pub(super) fn load(
         "disks": {
             "local": {
                 "driver": "local",
-                "root": path(&base_path.join("storage/app/private"))?,
+                "root": path(&env.storage_path(base_path, "app/private"))?,
                 "serve": true,
                 "throw": false,
                 "report": false,
             },
             "public": {
                 "driver": "local",
-                "root": public_root,
+                "root": path(&public_root)?,
                 "url": env.get_utf8("PUBLIC_STORAGE_URL")?.unwrap_or(&default_url),
                 "visibility": "public",
                 "throw": false,
@@ -89,6 +90,6 @@ pub(super) fn load(
         | artisan storage:link 根据此映射将公共目录下的 storage 指向 public 磁盘根目录。
         |
         */
-        "links": {(path(&link)?): path(&target)?},
+        "links": {(path(&link)?): path(target)?},
     }))
 }

@@ -256,3 +256,5 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 旗标来自当前应用不可变的环境快照，进程变量优先于选中的环境文件。配置缓存生效时不加载环境文件，因此文件中的 `PAIL_TESTS` 不生效。Handler 在第一条被接受的日志或队列生命周期事件到来时才解析；构造失败在该时机传播，原日志驱动已接受的写入仍保留。
 
 Pail 通过共享路径服务解析 `Application::storagePath("pail")`。在首次捕获前设置 `useStoragePath` 或 `APP_STORAGE_PATH`，参见[应用存储路径](../getting-started/configuration.md#application-storage-path)。
+
+默认文件日志渠道和应急回退使用应用存储路径。应在加载配置或解析渠道前配置路径；已加载的渠道路径保留其配置值，参见[应用存储路径](../getting-started/configuration.md#application-storage-path)。

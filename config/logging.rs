@@ -6,7 +6,7 @@ use serde_json::json;
 use super::env::{get, list, optional_integer, path};
 
 pub(super) fn load(base_path: &Path, env: &Environment) -> Result<Value, ConfigError> {
-    let log_path = base_path.join("storage/logs/openrust.log");
+    let log_path = env.storage_path(base_path, "logs/openrust.log");
     let path = path(&log_path)?;
     let level = get(env, "LOG_LEVEL", "debug")?;
     let stack = env.get_utf8("LOG_STACK")?.unwrap_or("single");

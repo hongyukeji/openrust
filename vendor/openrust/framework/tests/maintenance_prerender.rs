@@ -51,13 +51,23 @@ async fn request(address: SocketAddr, method: &str, path: &str, accept: &str) ->
     .unwrap()
 }
 
-async fn verify_startup(fail: bool, health: &'static str, other_health: &'static str) {
+async fn verify_startup(
+    fail: bool,
+    health: &'static str,
+    other_health: &'static str,
+    custom_storage: bool,
+) {
     let directory = tempfile::tempdir().unwrap();
     let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = probe.local_addr().unwrap();
     drop(probe);
     std::fs::write(directory.path().join("port"), address.port().to_string()).unwrap();
-    let marker = directory.path().join("storage/framework/down");
+    let storage = directory.path().join(if custom_storage {
+        "custom-storage"
+    } else {
+        "storage"
+    });
+    let marker = storage.join("framework/down");
     std::fs::create_dir_all(marker.parent().unwrap()).unwrap();
     std::fs::write(
         &marker,
@@ -89,6 +99,9 @@ async fn verify_startup(fail: bool, health: &'static str, other_health: &'static
         .create()
         .unwrap();
 
+    if custom_storage {
+        app.useStoragePath(&storage).unwrap();
+    }
     let service = tokio::task::spawn_local(app.start());
     let html = request(address, "GET", "/offline", "text/html").await;
     assert!(html.starts_with("HTTP/1.1 503 "), "{html}");
@@ -158,8 +171,8 @@ async fn prerender_serves_while_bootstrap_waits_and_hands_off_to_the_kernel() {
     tokio::task::LocalSet::new()
         .run_until(async {
             tokio::join!(
-                verify_startup(false, "/up", "/status/ready"),
-                verify_startup(false, "/status/ready", "/up"),
+                verify_startup(false, "/up", "/status/ready", false),
+                verify_startup(false, "/status/ready", "/up", true),
             );
         })
         .await;
@@ -168,6 +181,6 @@ async fn prerender_serves_while_bootstrap_waits_and_hands_off_to_the_kernel() {
 #[tokio::test]
 async fn prerender_stays_available_after_a_bootstrap_failure_until_up() {
     tokio::task::LocalSet::new()
-        .run_until(verify_startup(true, "/up", "/status/ready"))
+        .run_until(verify_startup(true, "/up", "/status/ready", true))
         .await;
 }

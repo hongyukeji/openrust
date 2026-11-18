@@ -31,6 +31,7 @@ impl ServiceProvider for LogServiceProvider {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
                 Ok(Arc::new(
                     LogManager::new(config, root.clone())
+                        .with_paths(container.make::<crate::foundation::Paths>()?)
                         .with_context_owner(owner.clone())
                         .with_listeners(listeners.clone()),
                 ))

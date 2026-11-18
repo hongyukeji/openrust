@@ -11,7 +11,7 @@ pub(super) fn load(
     app_name: &str,
 ) -> Result<Value, ConfigError> {
     let prefix = format!("{}-cache-", slug(app_name));
-    let directory = base_path.join("storage/framework/cache/data");
+    let directory = env.storage_path(base_path, "framework/cache/data");
     let directory = path(&directory)?;
     Ok(json!({
         /*

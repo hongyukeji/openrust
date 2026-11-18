@@ -804,7 +804,7 @@ impl Application {
         let configuration_failed = |source| BootstrapError::ConfigurationFailed { source };
         let ConfigurationCache {
             path: cache_path,
-            environment,
+            mut environment,
             values: cached,
         } = ConfigurationCache::bootstrap(
             &self.shared.basePath,
@@ -813,6 +813,7 @@ impl Application {
             self.shared.testing_environment.load(Ordering::Relaxed),
         )
         .map_err(configuration_failed)?;
+        environment.paths = Arc::downgrade(&self.shared.paths);
         let environment = Arc::new(environment);
         self.shared.paths.environment(environment.clone());
         let package_cache = self.shared.basePath.join(

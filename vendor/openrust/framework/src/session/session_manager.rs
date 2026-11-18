@@ -82,6 +82,7 @@ pub struct SessionManager {
     cache_handler: OnceLock<CacheBasedSessionHandler>,
     factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
     base: PathBuf,
+    paths: Option<Arc<crate::foundation::Paths>>,
     lifetime: Duration,
 }
 
@@ -123,8 +124,14 @@ impl SessionManager {
             cache_handler: OnceLock::new(),
             factories: RwLock::default(),
             base,
+            paths: None,
             lifetime,
         })
+    }
+
+    pub(super) fn with_paths(mut self, paths: Arc<crate::foundation::Paths>) -> Self {
+        self.paths = Some(paths);
+        self
     }
 
     /// Registers a creator for a fresh handler on each request using the named driver.
@@ -258,7 +265,10 @@ impl SessionManager {
                             return Err(SessionError::Configuration);
                         }
                         Some(path) => self.base.join(path),
-                        None => self.base.join("storage/framework/sessions"),
+                        None => self.paths.as_ref().map_or_else(
+                            || self.base.join("storage/framework/sessions"),
+                            |paths| paths.storagePath("framework/sessions"),
+                        ),
                     };
                     Box::new(FileSessionHandler::new(directory, self.lifetime)?)
                 }

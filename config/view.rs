@@ -6,7 +6,7 @@ use serde_json::json;
 use super::env::{get, path};
 
 pub(super) fn load(base_path: &Path, env: &Environment) -> Result<Value, ConfigError> {
-    let compiled = base_path.join("storage/framework/views");
+    let compiled = env.storage_path(base_path, "framework/views");
     Ok(json!({
         /*
         |--------------------------------------------------------------------------

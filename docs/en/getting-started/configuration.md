@@ -183,4 +183,8 @@ Precedence is a nonempty override other than `0`, then `APP_STORAGE_PATH` from t
 
 The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `useStoragePath` explicitly rebinds it, following Laravel's order. Rebinding errors return `Result` after updating path state.
 
-Pail now resolves its directory through this shared state when Files is first resolved. Configure the path before that first use. Migration of the existing logging, session, cache, view and disk configuration defaults remains a separate follow-up; this section does not claim those consumers have moved.
+Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `PUBLIC_STORAGE_ROOT` and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
+
+The compiled configuration loader uses `env.storage_path(base_path, subpath)` as its Rust context adapter. Its weak reference selects the owning application's paths without using a global Facade or retaining the application. Standalone environment snapshots resolve their own variable against the supplied default base. Later changes to the application path do not rewrite already loaded or cached configuration values.
+
+File maintenance resolves the current path on each operation, including after the service was resolved. The early prerender check uses paths available before boot: provide a process variable or explicit setter for this check; a dotenv-only value is not available yet. Pail fixes its directory on first Files resolution, so configure the path before that use. Configuration, route, event and package cache artifact locations keep their separate cache-path contracts.

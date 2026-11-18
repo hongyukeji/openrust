@@ -256,3 +256,5 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 旗標來自目前應用不可變的環境快照，處理程序變數優先於選定的環境檔案。設定快取生效時不載入環境檔案，因此檔案中的 `PAIL_TESTS` 不生效。Handler 在第一條被接受的日誌或佇列生命週期事件到來時才解析；建構失敗在該時機傳遞，原日誌驅動已接受的寫入仍保留。
 
 Pail 透過共用路徑服務解析 `Application::storagePath("pail")`。在首次擷取前設定 `useStoragePath` 或 `APP_STORAGE_PATH`，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
+
+預設檔案日誌頻道和緊急回退使用應用儲存路徑。應在載入設定或解析頻道前設定路徑；已載入的頻道路徑保留其設定值，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。

@@ -19,6 +19,7 @@ impl LoadEnvironmentVariables {
         testing: bool,
     ) -> Result<Environment, ConfigError> {
         let mut environment = Environment {
+            paths: Default::default(),
             file: base_path.join(".env"),
             values: env::vars_os()
                 .filter_map(|(key, value)| key.into_string().ok().map(|key| (key, value)))
