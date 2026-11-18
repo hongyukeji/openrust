@@ -1,6 +1,8 @@
 use std::{error::Error, fmt};
 
-use super::{HeaderMap, HttpResponseException, Method, Response, StatusCode};
+use crate::contracts::support::Responsable;
+
+use super::{HeaderMap, HttpResponseException, Method, Request, Response, StatusCode};
 
 /// An error rendered by the HTTP kernel into a response.
 #[derive(Debug)]
@@ -47,6 +49,27 @@ pub fn abort(status: StatusCode, message: impl Into<String>, headers: HeaderMap)
         status,
         message: message.into(),
         headers: Box::new(headers),
+    }
+}
+
+/// Creates an HTTP exception carrying a prepared response.
+#[allow(
+    non_snake_case,
+    reason = "Matches the application-facing HTTP API naming"
+)]
+pub fn abortResponse(response: impl Into<Response>) -> HttpError {
+    HttpResponseException::new(response.into()).into()
+}
+
+/// Resolves a request-aware response before exiting through the HTTP error path.
+#[allow(
+    non_snake_case,
+    reason = "Matches the application-facing HTTP API naming"
+)]
+pub async fn abortResponsable(response: impl Responsable, request: &mut Request) -> HttpError {
+    match response.toResponse(request).await {
+        Ok(response) => abortResponse(response),
+        Err(error) => error,
     }
 }
 

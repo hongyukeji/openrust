@@ -60,6 +60,8 @@ Route::get("/reports/{id}", || Report)?;
 
 在回傳 `Result` 的處理常式或中介軟體中，用 `Err(response.throwResponse())` 提前傳送已建立的 `Response` 或 `RedirectResponse`。HTTP 例外處理器會呼叫 `respond` 回呼。為 `HttpResponseException` 註冊的自訂呈現器可覆蓋原回應，也可以用 `takeResponse()` 一次取出原回應。這類例外預設略過回報。
 
+已有框架或原生回應時，可以用 `abortResponse(response)`。需要目前請求的回應物件使用 `Err(abortResponsable(value, request).await)`。若 `toResponse` 失敗，原例外交由處理器呈現。按狀態碼中止時使用 `abort(status, message, headers)`。
+
 用 `withException(error)` 附加診斷資訊，應用程式可透過 `response.exception()` 讀取。附加例外只會記錄回應中繼資料。
 
 ### 附加回應標頭 {#attaching-headers-to-responses}

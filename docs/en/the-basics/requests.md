@@ -70,6 +70,8 @@ With repeated `Accept` header fields, the first field is used, as in the pinned 
 
 ### Native HTTP Requests {#native-http-requests}
 
+The HTTP server passes each owned transport request to `Kernel::handleTransport`, which constructs the framework request with `Request::from(native)`. The kernel applies trusted proxies and method overrides within that request’s lifecycle.
+
 For interoperability with Rust HTTP libraries, convert an owned `http::Request<Body>` using `Request::from(native)` and move it back with `into()`. Ownership conversion moves the current body stream along with its headers, protocol version and extensions. Inside a route, use `request.toHttpRequest().await?` for an independent native request with a buffered body. It uses the same 8 MiB limit as framework input, and the body remains available to the framework request.
 
 The native request uses the transport URI from `originalUri()` and the effective method from `method()`, including any method override. Use `uri()` for the framework URI after trusted-proxy processing and `getRealMethod()` for the original method. `version()` and `extensions()` read the corresponding transport metadata.

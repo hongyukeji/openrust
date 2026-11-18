@@ -238,3 +238,10 @@
 - 对照固定 Laravel `ResponseTrait::withException`、`throwResponse`、`HttpResponseException` 和异常处理器的渲染回调优先级。旧版未找到可复用的同名实现，正式版复用现有异常与 HTTP 内核。Rust 使用 `Err(response.throwResponse())` 退出当前处理器，诊断异常通过响应扩展保存。原响应体所有权只能被取出一次，`takeResponse()` 将所有权交给自定义渲染回调。 [Laravel ResponseTrait](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/ResponseTrait.php#L211) · [Laravel Handler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Exceptions/Handler.php#L728)
 - 隔离基线 `c861a7724` 真实 TCP 核对应用层异常元数据、保留现成响应状态与正文、HEAD、重定向、默认跳过报告、自定义渲染替换或取走原响应，以及 `respond` 最终回调。PHP 8.5 执行固定 Laravel 对照响应附加异常、直接传播、报告排除与两个渲染回调的顺序。
 - 真实 HTTP、固定 Laravel、70 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 91.55 GB（85.27 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-http-response-exception.lLRx0Lg9`。
+
+## 响应型 abort 与请求捕获边界
+
+- 对照固定 Laravel 全局 `abort` 对状态码、现成响应和 `Responsable` 的分支。Rust 用 `abort`、`abortResponse` 和异步 `abortResponsable` 表达不同签名，复用上一批的响应异常。请求感知对象会先基于当前请求解析，解析失败直接传播原错误。旧版未提供同等响应型入口。 [Laravel abort](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/helpers.php#L59)
+- Laravel `Request::capture` 从 PHP 请求全局变量捕获并启用方法覆盖。OpenRust 由 `Kernel::handleTransport` 接收拥有所有权的原生 HTTP 请求，调用现有 `Request::from`，在内核流程中按请求处理代理和方法覆盖。完成三语说明，保留现有框架入口。 [Laravel Request 捕获](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php#L76)
+- 隔离基线 `900661ae0` 真实 TCP 验证原生 409、请求感知 422、原始 404、最终回调及请求方法覆盖；PHP 8.5 用固定 Laravel 执行请求捕获和响应型 abort 对照。现有真实 HTTP 请求转换夹具验证可信代理、原始路径、请求头与请求体。
+- 真实 HTTP、固定 Laravel、71 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 90.55 GB（84.33 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-abort-response.yOXJf6SE`。

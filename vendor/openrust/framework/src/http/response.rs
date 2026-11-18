@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    Body, HeaderMap, HttpError, HttpFuture, HttpResponseException, Method, Request, ResponseParts,
-    StatusCode,
+    Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode,
+    abortResponse,
 };
 
 #[derive(Clone)]
@@ -150,7 +150,7 @@ impl Response {
     /// Returns an error that exits the handler with this response.
     #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
     pub fn throwResponse(self) -> HttpError {
-        HttpResponseException::new(self).into()
+        abortResponse(self)
     }
 
     pub fn new(status: StatusCode, body: Body) -> Self {

@@ -30,7 +30,7 @@ pub use ::http::{
 pub use api_response::{ApiResponse, PageMeta};
 pub use body::Body;
 pub(crate) use download::filename_header;
-pub use error::{HttpError, abort};
+pub use error::{HttpError, abort, abortResponsable, abortResponse};
 pub use http_response_exception::HttpResponseException;
 pub use next::Next;
 pub(crate) use proxy::{ProxyPolicy, ProxyRequest};

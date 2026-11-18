@@ -70,6 +70,8 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 ### 原生 HTTP 請求 {#native-http-requests}
 
+HTTP 伺服器將每個原生請求交給 `Kernel::handleTransport`，由它呼叫 `Request::from(native)` 建立框架請求。受信任代理與方法覆寫都在本次請求的生命週期內處理。
+
 與 Rust HTTP 函式庫互操作時，用 `Request::from(native)` 接收擁有所有權的 `http::Request<Body>`，用 `into()` 轉回原生請求。所有權轉換會移動目前的本文串流、請求標頭、協定版本和擴充資料。在路由中用 `request.toHttpRequest().await?` 建立具有緩衝本文的獨立原生請求。它採用框架輸入的 8 MiB 限額，框架請求仍可讀取本文。
 
 原生請求攜帶 `originalUri()` 傳回的傳輸 URI，以及 `method()` 傳回的生效方法，包含方法覆寫後的結果。用 `uri()` 讀取可信代理處理後的框架 URI，用 `getRealMethod()` 讀取原始方法。`version()` 和 `extensions()` 讀取對應的傳輸中繼資料。

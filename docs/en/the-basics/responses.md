@@ -60,6 +60,8 @@ A closure can return the object directly. A controller or validated FormRequest 
 
 Return `Err(response.throwResponse())` from a fallible handler or middleware to exit with a prepared `Response` or `RedirectResponse`. The HTTP exception handler sends that response through its `respond` callback. A custom renderer for `HttpResponseException` may override it or consume the original response once with `takeResponse()`. Prepared responses are skipped by default when reporting exceptions.
 
+Use `abortResponse(response)` when you already have a framework or native response. For a request-aware object, use `Err(abortResponsable(value, request).await)`. If `toResponse` fails, the original error reaches the exception handler. Use `abort(status, message, headers)` for a status-based error.
+
 Use `withException(error)` to attach diagnostics that application code can inspect through `response.exception()`. Attaching an exception only stores response metadata.
 
 ### Attaching Headers to Responses {#attaching-headers-to-responses}

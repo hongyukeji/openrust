@@ -14,10 +14,11 @@ use std::{
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     config::{ConfigError, Environment, Value},
-    contracts::{http::Kernel as _, routing::Registrar as _},
+    contracts::{http::Kernel as _, routing::Registrar as _, support::Responsable},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{
         Body, HttpError, HttpFuture, HttpResponseException, Method, Request, Response, StatusCode,
+        abortResponsable, abortResponse,
     },
     routing::{Router, RoutingError},
     support::facades::Redirect,
@@ -365,6 +366,90 @@ async fn prepared_responses_keep_their_payload_and_run_exception_hooks() {
     assert_eq!(redirect.header("x-has-exception"), Some("yes"));
     assert!(redirect.body.contains("href=\"/done\""));
     assert_eq!(reports.load(Ordering::Relaxed), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn abort_accepts_native_and_request_aware_responses_over_http() {
+    struct RequestResponse;
+
+    impl Responsable for RequestResponse {
+        async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+            let subject = request.route("subject").unwrap().to_owned();
+            if subject == "missing" {
+                return Err(HttpError::NotFound);
+            }
+            tokio::task::yield_now().await;
+            Response::json(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                json!({"subject": subject, "query": request.query(Some("source"))?}),
+            )
+        }
+    }
+
+    fn context(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move { Err(abortResponsable(RequestResponse, request).await) })
+    }
+
+    let root = Root::new();
+    let app = Application::configure(root.0.clone())
+        .withConfig(production_config)
+        .withRouting(Routing::new(|_| {
+            let mut router = Router::new();
+            router.get("/abort-native", || {
+                let native = http::Response::builder()
+                    .status(409)
+                    .header("content-type", "text/plain")
+                    .header("x-native", "kept")
+                    .body(Body::from("native payload"))
+                    .unwrap();
+                Err::<Response, _>(abortResponse(native))
+            })?;
+            router.get("/abort-context/{subject}", context)?;
+            Ok(router)
+        }))
+        .withExceptions(|exceptions| {
+            exceptions.respond(|response, error, _| {
+                if error.downcast_ref::<HttpResponseException>().is_some() {
+                    response.header("x-prepared".parse().unwrap(), "yes".parse().unwrap())
+                } else {
+                    response
+                }
+            });
+        })
+        .create()
+        .unwrap();
+    let (address, task) = server(app).await;
+    let native = send(address, "GET", "/abort-native", "application/json", 409).await;
+    assert_eq!(native.header("x-native"), Some("kept"));
+    assert_eq!(native.header("x-prepared"), Some("yes"));
+    assert_eq!(native.body, "native payload");
+    let response = send(
+        address,
+        "GET",
+        "/abort-context/Ada?source=query",
+        "text/html",
+        422,
+    )
+    .await;
+    assert_eq!(response.header("x-prepared"), Some("yes"));
+    assert_eq!(
+        serde_json::from_str::<Value>(&response.body).unwrap(),
+        json!({"subject":"Ada","query":"query"})
+    );
+    let missing = send(
+        address,
+        "GET",
+        "/abort-context/missing",
+        "application/json",
+        404,
+    )
+    .await;
+    assert_eq!(missing.header("x-prepared"), None);
+    assert_eq!(
+        serde_json::from_str::<Value>(&missing.body).unwrap(),
+        json!({"message":"Not Found"})
+    );
     task.abort();
 }
 

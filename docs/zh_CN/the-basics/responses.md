@@ -60,6 +60,8 @@ Route::get("/reports/{id}", || Report)?;
 
 在返回 `Result` 的处理器或中间件中，用 `Err(response.throwResponse())` 提前发送已构造的 `Response` 或 `RedirectResponse`。HTTP 异常处理器会调用 `respond` 回调。为 `HttpResponseException` 注册的自定义渲染器可覆盖原响应，也可用 `takeResponse()` 一次性取出原响应。这类异常默认跳过报告。
 
+已持有框架或原生响应时，可以用 `abortResponse(response)`。请求感知对象使用 `Err(abortResponsable(value, request).await)`。若 `toResponse` 失败，原错误交由异常处理器渲染。按状态码中止时使用 `abort(status, message, headers)`。
+
 用 `withException(error)` 附加诊断信息，应用代码可通过 `response.exception()` 读取。附加异常只记录响应元数据。
 
 ### 向响应附加响应头 {#attaching-headers-to-responses}
