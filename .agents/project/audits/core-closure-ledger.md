@@ -345,3 +345,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 07-04 [Windows ARM64 Concurrency 延后执行与管道](07-04/README.md#windows-arm64-concurrency-延后执行与管道)通过原生 Windows 的实际 HTTP 和 Artisan、macOS 回归及三语验收。06-03 Background 的 Windows 管道差异另记。核心账本维持 66/66。
 
 06-03 [Windows ARM64 Background 输入与父输出分离](06-03/lifecycle-failover-drivers.md#windows-arm64-background-输入与父输出分离)通过原生 Windows 真 Artisan、stdin 与双管道回归及 macOS 复验。核心账本维持 66/66。
+
+07-04 [process defer 在终止阶段脱离运行](07-04/README.md#process-defer-在终止阶段脱离运行)通过真实 HTTP、Artisan、Redis 8.10.3 Worker、公开接口进程回归和三语验收。核心账本维持 66/66。

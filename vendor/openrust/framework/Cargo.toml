@@ -114,3 +114,8 @@ rustix = { version = "1.1.6", features = ["fs", "process"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Globalization", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_EventLog", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[[test]]
+name = "concurrency_defer"
+path = "tests/concurrency_defer.rs"
+harness = false

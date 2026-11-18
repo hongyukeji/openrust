@@ -3500,3 +3500,7 @@ Windows ARM64 上真实 HTTP、Artisan 和独立进程验证了任务输入及 C
 ## 2026-11-18 06-03 Windows ARM64 Background 输入与父输出分离
 
 Windows ARM64 原生 Artisan 验证独立 Background 子进程保持运行时，发起进程退出且 stdout／stderr 到 EOF。stdin 中的载荷及公开、隐藏 Context 完整送达。 [验收记录](audits/06-03/lifecycle-failover-drivers.md#windows-arm64-background-输入与父输出分离)
+
+## 2026-11-18 07-04 process defer 在终止阶段脱离运行
+
+公开 process defer 改为在终止阶段启动独立 Artisan 后返回。真实 HTTP、Artisan、Redis 8.10.3 普通／隔离 Worker 和父输出管道验收通过。 [验收记录](audits/07-04/README.md#process-defer-在终止阶段脱离运行)

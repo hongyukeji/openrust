@@ -1,6 +1,6 @@
 use std::{
     io::{Seek as _, Write as _},
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::Duration,
 };
 
@@ -30,8 +30,8 @@ impl ProcessDriver {
     pub(super) fn launch_detached(
         &self,
         task: Task,
-        context: DehydratedContext,
-        environment: &Path,
+        context: &DehydratedContext,
+        environment: Option<&str>,
     ) -> Result<()> {
         let input = serde_json::to_vec(&(task, context)).map_err(Error::Encoding)?;
         if input.len() > protocol::INPUT_LIMIT {
@@ -44,11 +44,7 @@ impl ProcessDriver {
         let mut args = ["artisan", protocol::COMMAND, "--detached"]
             .map(str::to_owned)
             .to_vec();
-        if let Some(environment) = environment
-            .file_name()
-            .and_then(|name| name.to_str())
-            .and_then(|name| name.strip_prefix(".env."))
-        {
+        if let Some(environment) = environment {
             args.push(format!("--env={environment}"));
         }
         #[cfg(windows)]

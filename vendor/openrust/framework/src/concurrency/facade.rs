@@ -1,6 +1,6 @@
 use std::{
     ffi::OsString,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -83,6 +83,10 @@ impl Manager {
     }
 }
 
+fn environment_name(file: &Path) -> Option<&str> {
+    file.file_name()?.to_str()?.strip_prefix(".env.")
+}
+
 /// The selected process or sequential execution driver.
 #[derive(Clone)]
 pub struct Driver {
@@ -132,10 +136,19 @@ impl Driver {
 
     async fn execute_deferred(&self, run: DeferredRun) -> Result<()> {
         let DeferredRun { tasks, context, .. } = run;
+        if let Kind::Process = self.kind {
+            let environment = self.selected_environment();
+            let mut result = Ok(());
+            for task in tasks {
+                let launched = self
+                    .process
+                    .launch_detached(task, &context, environment.as_deref());
+                result = result.and(launched);
+            }
+            return result;
+        }
         let tasks = numbered(tasks);
-        if let Kind::Sync = self.kind
-            && let Some(owner) = self.owner.upgrade()
-        {
+        if let Some(owner) = self.owner.upgrade() {
             return isolated_scope(owner, async move {
                 let repository = Context::repository().map_err(context_error)?;
                 Context::hooks()
@@ -158,16 +171,13 @@ impl Driver {
             .map_err(Error::Unavailable)?;
         let context = self.capture_context()?;
         let process = self.process.clone();
-        Ok(move || process.launch_detached(task, context, &environment))
+        Ok(move || process.launch_detached(task, &context, environment_name(&environment)))
     }
 
     fn selected_environment(&self) -> Option<String> {
         let owner = self.owner.upgrade()?;
         let file = owner.get::<PathBuf>("env.file").ok()?;
-        file.file_name()?
-            .to_str()?
-            .strip_prefix(".env.")
-            .map(str::to_owned)
+        environment_name(&file).map(str::to_owned)
     }
 
     fn capture_context(&self) -> Result<DehydratedContext> {
