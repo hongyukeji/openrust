@@ -34,6 +34,8 @@ pub(super) struct WorkerSignals<'a> {
     options: &'a WorkerOptions,
     #[cfg(unix)]
     interrupt: Signal,
+    #[cfg(windows)]
+    interrupt: tokio::signal::windows::CtrlBreak,
     #[cfg(unix)]
     terminate: Signal,
     #[cfg(unix)]
@@ -56,6 +58,8 @@ impl<'a> WorkerSignals<'a> {
             options,
             #[cfg(unix)]
             interrupt: signal(SignalKind::interrupt())?,
+            #[cfg(windows)]
+            interrupt: tokio::signal::windows::ctrl_break()?,
             #[cfg(unix)]
             terminate: signal(SignalKind::terminate())?,
             #[cfg(unix)]
@@ -79,7 +83,20 @@ impl<'a> WorkerSignals<'a> {
         Ok(event)
     }
 
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    async fn receive(&mut self) -> io::Result<WorkerSignal> {
+        // Use the C runtime signal values exposed in WorkerInterrupted.
+        const SIGBREAK: i32 = 21;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                result?;
+                Ok(WorkerSignal::Interrupt(2))
+            }
+            _ = self.interrupt.recv() => Ok(WorkerSignal::Interrupt(SIGBREAK)),
+        }
+    }
+
+    #[cfg(not(any(unix, windows)))]
     async fn receive(&mut self) -> io::Result<WorkerSignal> {
         tokio::signal::ctrl_c().await?;
         Ok(WorkerSignal::Interrupt(2))
@@ -92,58 +109,71 @@ impl<'a> WorkerSignals<'a> {
         shutdown: &CancellationToken,
         state: &watch::Sender<WorkerSignalState>,
     ) {
-        loop {
-            match self.receive().await {
-                Ok(WorkerSignal::Interrupt(signal)) => {
-                    state.send_replace(WorkerSignalState::Stopping);
-                    let result = manager
-                        .emit_control_event(WorkerInterrupted {
-                            signal,
-                            connection_name: self.connection.into(),
-                            queue: self.queue.clone(),
-                            worker_options: self.options.clone(),
-                        })
-                        .await;
-                    if let Err(error) = result {
-                        worker.report_worker_error(&error).await;
-                    }
-                    state.send_replace(WorkerSignalState::Interrupted(signal));
-                    shutdown.cancel();
-                    return;
+        #[cfg(unix)]
+        while self.handle_signal(worker, manager, shutdown, state).await {}
+        #[cfg(not(unix))]
+        self.handle_signal(worker, manager, shutdown, state).await;
+    }
+
+    async fn handle_signal(
+        &mut self,
+        worker: &Worker,
+        manager: &QueueManager,
+        shutdown: &CancellationToken,
+        state: &watch::Sender<WorkerSignalState>,
+    ) -> bool {
+        match self.receive().await {
+            Ok(WorkerSignal::Interrupt(signal)) => {
+                state.send_replace(WorkerSignalState::Stopping);
+                let result = manager
+                    .emit_control_event(WorkerInterrupted {
+                        signal,
+                        connection_name: self.connection.into(),
+                        queue: self.queue.clone(),
+                        worker_options: self.options.clone(),
+                    })
+                    .await;
+                if let Err(error) = result {
+                    worker.report_worker_error(&error).await;
                 }
-                #[cfg(unix)]
-                Ok(WorkerSignal::Pause) => {
-                    state.send_replace(WorkerSignalState::Paused);
-                    if let Err(error) = manager
-                        .emit_control_event(WorkerPausing {
-                            connection_name: self.connection.into(),
-                            queue: self.queue.clone(),
-                            worker_options: self.options.clone(),
-                        })
-                        .await
-                    {
-                        worker.report_worker_error(&error).await;
-                    }
+                state.send_replace(WorkerSignalState::Interrupted(signal));
+                shutdown.cancel();
+                false
+            }
+            #[cfg(unix)]
+            Ok(WorkerSignal::Pause) => {
+                state.send_replace(WorkerSignalState::Paused);
+                if let Err(error) = manager
+                    .emit_control_event(WorkerPausing {
+                        connection_name: self.connection.into(),
+                        queue: self.queue.clone(),
+                        worker_options: self.options.clone(),
+                    })
+                    .await
+                {
+                    worker.report_worker_error(&error).await;
                 }
-                #[cfg(unix)]
-                Ok(WorkerSignal::Resume) => {
-                    let result = manager
-                        .emit_control_event(WorkerResuming {
-                            connection_name: self.connection.into(),
-                            queue: self.queue.clone(),
-                            worker_options: self.options.clone(),
-                        })
-                        .await;
-                    state.send_replace(WorkerSignalState::Running);
-                    if let Err(error) = result {
-                        worker.report_worker_error(&error).await;
-                    }
+                true
+            }
+            #[cfg(unix)]
+            Ok(WorkerSignal::Resume) => {
+                let result = manager
+                    .emit_control_event(WorkerResuming {
+                        connection_name: self.connection.into(),
+                        queue: self.queue.clone(),
+                        worker_options: self.options.clone(),
+                    })
+                    .await;
+                state.send_replace(WorkerSignalState::Running);
+                if let Err(error) = result {
+                    worker.report_worker_error(&error).await;
                 }
-                Err(error) => {
-                    worker.report_worker_error(&super::backend(error)).await;
-                    shutdown.cancel();
-                    return;
-                }
+                true
+            }
+            Err(error) => {
+                worker.report_worker_error(&super::backend(error)).await;
+                shutdown.cancel();
+                false
             }
         }
     }

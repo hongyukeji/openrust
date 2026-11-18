@@ -3556,3 +3556,7 @@ Ubuntu 实际二进制和 9 条三语 Artisan 示例通过，覆盖 HTTP、SQLit
 ## 2026-11-19 06-08 Artisan dev 标签与流式终端
 
 Ubuntu 真实伪终端与 9 条三语 Artisan 示例通过，覆盖标签、流、搜索、筛选、重启、小终端内联回退、退出后日志回放与终端恢复。13 项定向回归、全目标严格 Clippy、三语站点和 18 项浏览器检查通过。 [验收记录](audits/06-08/README.md#artisan-dev-标签与流式终端)
+
+## 2026-11-19 06-08 Artisan dev Windows 进程树与 Ctrl+C
+
+Windows 11 ARM64 真实控制台验证 Ctrl+C、HTTP／SQLite 队列监听、无控制台强制回收、快速失败关停及独立 Worker Ctrl+Break。Windows 9 项及 Ubuntu 13 项定向回归、Linux 伪终端、格式、Linux 全目标和 Windows 定向严格 Clippy、18 项浏览器检查通过。未改基线同样复现 Windows 队列夹具栈溢出与 Faker 类型推断错误。 [验收记录](audits/06-08/README.md#artisan-dev-windows-进程树与-ctrlc)

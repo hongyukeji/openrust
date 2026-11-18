@@ -212,13 +212,15 @@ pub(crate) fn monitor_signals(
 ) -> std::io::Result<tokio::task::JoinHandle<()>> {
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    #[cfg(windows)]
+    let mut terminate = tokio::signal::windows::ctrl_break()?;
     Ok(tokio::spawn(async move {
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {},
             _ = terminate.recv() => {},
         }
-        #[cfg(not(unix))]
+        #[cfg(not(any(unix, windows)))]
         let _ = tokio::signal::ctrl_c().await;
         shutdown.cancel();
     }))

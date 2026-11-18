@@ -70,6 +70,7 @@ impl Terminal {
     }
 
     pub(super) fn finish(self, mut replay: impl FnMut(Option<usize>, Event, &str)) {
+        #[cfg(unix)]
         drop(self.device);
         for line in self.view.stream {
             replay(line.index, line.event.clone(), &line.time);

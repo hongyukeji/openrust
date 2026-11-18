@@ -280,7 +280,15 @@ pub async fn wait_for_shutdown() -> io::Result<()> {
         result = signal::ctrl_c() => result,
         _ = terminate.recv() => Ok(()),
     };
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    let result = {
+        let mut interrupt = signal::windows::ctrl_break()?;
+        tokio::select! {
+            result = signal::ctrl_c() => result,
+            _ = interrupt.recv() => Ok(()),
+        }
+    };
+    #[cfg(not(any(unix, windows)))]
     let result = signal::ctrl_c().await;
     result
 }

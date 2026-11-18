@@ -1,5 +1,8 @@
 //! Running and testing operating-system processes.
 
+#[cfg(windows)]
+pub(crate) mod windows_job;
+
 mod child;
 
 pub(crate) use child::ChildGroup;

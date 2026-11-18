@@ -188,6 +188,9 @@ impl Command for DevCommand {
                         if status == 0 {
                             status = code;
                         }
+                        if cfg!(windows) && !restart && code != 0 {
+                            terminate.cancel();
+                        }
                     }
                     Some((index, event)) = receive.recv() => {
                         if let Some(view) = terminal.as_mut() {
@@ -388,7 +391,7 @@ async fn run_once(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = ChildGroup::spawn(&mut command)?;
+    let mut child = ChildGroup::spawn_dev(&mut command).await?;
     let started = Instant::now();
     reporter
         .emit(Event::Start {
@@ -428,6 +431,13 @@ fn build_command(
     environment: Option<&str>,
 ) -> io::Result<NativeCommand> {
     if !process.artisan {
+        #[cfg(windows)]
+        {
+            let mut command = windows_child()?;
+            command.arg("shell").arg(&process.definition.command);
+            return Ok(command);
+        }
+        #[cfg(not(windows))]
         return ProcessCommand::from(process.definition.command.as_str())
             .native()
             .map_err(io::Error::other);
@@ -439,12 +449,39 @@ fn build_command(
         .expect("Artisan process");
     let arguments =
         shlex::split(arguments).ok_or_else(|| io::Error::other("invalid Artisan arguments"))?;
+    #[cfg(windows)]
+    let mut command = windows_child()?;
+    #[cfg(not(windows))]
     let mut command = NativeCommand::new(std::env::current_exe()?);
     command.arg("artisan").args(arguments);
     if let Some(environment) = environment {
         command.args([OsString::from("--env"), OsString::from(environment)]);
     }
     Ok(command)
+}
+
+#[cfg(windows)]
+pub(in crate::foundation) const WINDOWS_CHILD: &str = "__openrust_dev_child";
+
+#[cfg(windows)]
+fn windows_child() -> io::Result<NativeCommand> {
+    let mut command = NativeCommand::new(std::env::current_exe()?);
+    command.args(["artisan", WINDOWS_CHILD]);
+    Ok(command)
+}
+
+#[cfg(windows)]
+pub(in crate::foundation) async fn run_shell_child(script: OsString) -> io::Result<i32> {
+    // The shell and its descendants inherit the process group. Keep this broker
+    // alive through Ctrl+Break so the supervisor can observe the actual shell exit.
+    let _interrupt = tokio::signal::windows::ctrl_break()?;
+    let status = ProcessCommand::Shell(script)
+        .native()
+        .map_err(io::Error::other)?
+        .stdin(Stdio::null())
+        .status()
+        .await?;
+    Ok(status.code().unwrap_or(1))
 }
 
 async fn wait(

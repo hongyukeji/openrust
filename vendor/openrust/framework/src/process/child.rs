@@ -21,6 +21,8 @@ pub(crate) fn inherit_queue_process_group() {
 
 pub(crate) struct ChildGroup {
     pub(super) child: Child,
+    #[cfg(windows)]
+    job: Option<super::windows_job::WindowsJob>,
     #[cfg(unix)]
     group: Option<Pid>,
     #[cfg(unix)]
@@ -38,8 +40,23 @@ impl ChildGroup {
         {
             Ok(Self {
                 child: command.spawn()?,
+                #[cfg(windows)]
+                job: None,
             })
         }
+    }
+
+    pub(crate) async fn spawn_dev(command: &mut Command) -> io::Result<Self> {
+        #[cfg(windows)]
+        {
+            let (child, job) = super::windows_job::WindowsJob::spawn_gated(command).await?;
+            Ok(Self {
+                child,
+                job: Some(job),
+            })
+        }
+        #[cfg(not(windows))]
+        Self::spawn(command)
     }
 
     #[cfg(unix)]
@@ -110,7 +127,12 @@ impl ChildGroup {
             self.signal(Signal::Kill)?;
             self.group = None;
         }
-        self.child.wait().await
+        let status = self.child.wait().await?;
+        #[cfg(windows)]
+        if let Some(job) = &self.job {
+            job.reap().await?;
+        }
+        Ok(status)
     }
 
     #[cfg(unix)]
@@ -167,6 +189,24 @@ impl ChildGroup {
 
     #[cfg(not(unix))]
     pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
+        #[cfg(windows)]
+        if let Some(job) = &self.job {
+            match signal {
+                Signal::Kill => return job.terminate(),
+                Signal::Terminate | Signal::Interrupt => {
+                    use windows_sys::Win32::System::Console::{
+                        CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent,
+                    };
+                    if let Some(id) = self.child.id() {
+                        // SAFETY: id identifies the child group this supervisor created.
+                        // Without a shared console, the supervisor falls back to forced job cleanup.
+                        let _ = unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, id) };
+                    }
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
         match signal {
             Signal::Kill | Signal::Terminate => self.child.start_kill(),
             Signal::Interrupt | Signal::Raw(_) => Err(io::Error::new(

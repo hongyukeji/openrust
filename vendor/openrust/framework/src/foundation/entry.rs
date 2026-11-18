@@ -31,6 +31,38 @@ pub async fn run_application(
             return ExitCode::from(2);
         }
     };
+    #[cfg(windows)]
+    if artisan
+        && arguments
+            .peek()
+            .is_some_and(|arg| arg == super::console::dev_command::WINDOWS_CHILD)
+    {
+        arguments.next();
+        if let Err(error) = crate::process::windows_job::wait_for_assignment() {
+            eprintln!("Development child startup failed: {error}");
+            return ExitCode::FAILURE;
+        }
+        match arguments.next() {
+            Some(kind) if kind == "artisan" => {}
+            Some(kind) if kind == "shell" => {
+                if let Some(script) = arguments.next()
+                    && arguments.next().is_none()
+                {
+                    match super::console::dev_command::run_shell_child(script).await {
+                        Ok(code) => std::process::exit(code),
+                        Err(error) => eprintln!("Development shell failed: {error}"),
+                    }
+                } else {
+                    eprintln!("Invalid development shell arguments");
+                }
+                return ExitCode::FAILURE;
+            }
+            _ => {
+                eprintln!("Invalid development child kind");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
     let isolated_job = artisan
         && arguments
             .peek()

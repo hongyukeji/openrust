@@ -4,7 +4,7 @@ mod channel_list_command;
 pub(super) mod config_cache_command;
 mod configuration_command;
 mod console_make_command;
-mod dev_command;
+pub(super) mod dev_command;
 mod dev_list_command;
 mod dev_terminal;
 mod environment_command;
