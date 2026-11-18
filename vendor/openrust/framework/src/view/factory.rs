@@ -373,6 +373,17 @@ impl Factory {
         self.render_view(view, &mut RenderContext::new(Some(self)))
     }
 
+    pub(crate) fn render_with_components(
+        &self,
+        name: &str,
+        data: &ViewData,
+        render: &super::ComponentRenderer<'_>,
+    ) -> ViewResult<String> {
+        let mut context = RenderContext::new(Some(self));
+        context.component_renderer = Some(render);
+        self.render_view(self.make(name.to_owned(), data.clone())?, &mut context)
+    }
+
     /// Renders a trusted inline Blade template using this application's views.
     pub fn renderInline(&self, source: &str, data: &ViewData) -> ViewResult<String> {
         self.compiler()

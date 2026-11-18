@@ -90,3 +90,10 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 从 `9bc0d6a11` 的干净归档验证普通发布保留编辑，`--force` 恢复三个框架资源。应用内声明的相对 `mail.markdown.paths` 从应用根解析并按顺序优先读取，随后尝试标准发布目录和内置资源。邮件正文先通过既有 Markdown HTML 和 URL 处理，再放进独立布局的 `slot`。显式 `text_view` 完整替代生成文本。实测无效 UTF-8 的发布文本布局仍可被显式文本视图绕过。
 - 真实 Artisan 发送两个 Markdown 邮件，经 Mailpit 1.33.1 的实际 HTTP API 验证 HTML 页眉、CSS 颜色、文本布局或显式文本、表格、HTML 转义与危险链接处理。MySQL 8.4.13、Redis 8.10.3 与 Mailpit 的邮件通知套件 14 项通过、2 项专用夹具忽略。发布器回归 10 项通过。根应用实跑三语共同示例，独立二进制在无源码目录从另一个工作目录发布相同的三个文件。
 - Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。临时服务和隔离构建、站点、发布产物已回收。提交前磁盘可用 98.38 GB（91.62 GiB），周额度剩余 35%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-mail-publish.NHa52FfZ`。
+
+## Markdown 邮件的四类 Blade 组件
+
+- 对照固定 Laravel v13.40.0 的 Markdown HTML 和纯文本模板。OpenRust 接通 `x-mail::message`、`x-mail::button`、`x-mail::panel`、`x-mail::table`。消息按应用名称、URL 和 `subcopy` 插槽生成邮件内容。按钮支持可绑定 URL、颜色和对齐方式，纯文本含按钮标签及 URL。面板保留 Markdown 正文，表格在 HTML 中显示，纯文本沿用上游的空模板。布局和主题沿用 Rust 版 HTML／CSS，页脚使用 UTC 年份。v0.x 的 Minijinja 邮件未发现可复用的 Blade 组件，保留编译型装配。 [固定 HTML 模板](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/resources/views/html) · [固定纯文本模板](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/resources/views/text)
+- Markdown 渲染时按输出格式在本次 Blade 渲染上下文解析组件。组件标记只在本次渲染中被替换。普通 Markdown 的 HTML 转义和链接过滤继续生效，按钮 URL 也使用同一链接规则。配置目录及标准发布目录沿用原优先级，`--tag=laravel-mail` 现在发布 11 个文件，既有覆盖以及独立 `text_view` 的优先级继续通过。
+- 基于 `2f55c9802` 的隔离快照，用真实 Artisan、SMTP 和 Mailpit 1.33.1 的 HTTP API 核对默认头尾、命名插槽、绑定链接的转义、危险方案过滤、HTML 表格和纯文本省略、自定义面板、已发布文件保留及强制重置。MySQL 8.4.13、Redis 8.10.3 与 Mailpit 的邮件通知套件 14 项通过、2 项专用夹具忽略。视图和发布回归 15 项通过。实际根应用和无源码独立二进制发布同样的 11 个资源。
+- Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。单独调用的 `header`、`footer`、`subcopy` 等邮件组件、页脚本地化及上游布局样式继续跟踪。临时服务和隔离构建、站点、发布产物已回收。提交前磁盘可用 98.34 GB（91.58 GiB），周额度剩余 34%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-mail-components.zEOOhdVM`。

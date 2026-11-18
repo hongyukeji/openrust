@@ -17,6 +17,7 @@ use super::{
 /// State owned by one render tree. A layout inherits sections from its child.
 pub(super) struct RenderContext<'a> {
     factory: Option<&'a Factory>,
+    pub(super) component_renderer: Option<&'a ComponentRenderer<'a>>,
     depth: usize,
     sections: HashMap<String, String>,
     layout: Option<(Vec<String>, ViewData)>,
@@ -31,6 +32,9 @@ pub(super) struct RenderContext<'a> {
     pub(super) extensions: Arc<BladeExtensions>,
     shared: Rc<RefCell<RenderState>>,
 }
+
+pub(crate) type ComponentRenderer<'a> =
+    dyn Fn(&str, &ViewData, &ViewData) -> Option<ViewResult<String>> + 'a;
 
 #[derive(Clone)]
 pub(super) struct RenderSlot {
@@ -67,6 +71,7 @@ impl<'a> RenderContext<'a> {
     pub(super) fn new(factory: Option<&'a Factory>) -> Self {
         Self {
             factory,
+            component_renderer: None,
             depth: 0,
             sections: HashMap::new(),
             layout: None,
@@ -86,6 +91,7 @@ impl<'a> RenderContext<'a> {
     pub(super) fn fresh_tree(&self) -> Self {
         let mut render = Self::new(self.factory);
         render.request = self.request.clone();
+        render.component_renderer = self.component_renderer;
         render.gate_arguments.clone_from(&self.gate_arguments);
         render.iterations.clone_from(&self.iterations);
         render
@@ -301,6 +307,17 @@ impl<'a> RenderContext<'a> {
         slots: HashMap<String, RenderSlot>,
         resolved: Option<ResolvedComponent>,
     ) -> ViewResult<String> {
+        if resolved.is_none()
+            && let Some(render) = self.component_renderer
+        {
+            let slot_data = slots
+                .iter()
+                .map(|(name, slot)| (name.clone(), ViewValue::String(slot.html.clone())))
+                .collect();
+            if let Some(result) = render(name, &properties, &slot_data) {
+                return result;
+            }
+        }
         let (factory, mut nested) = self.nested()?;
         nested.slots = slots;
         nested.component_attributes = Some(attributes.unwrap_or_else(|| (*properties).clone()));
@@ -342,6 +359,7 @@ impl<'a> RenderContext<'a> {
                 extensions: self.extensions.clone(),
                 shared: self.shared.clone(),
                 factory: Some(factory),
+                component_renderer: self.component_renderer,
                 sections: HashMap::new(),
                 layout: None,
             },

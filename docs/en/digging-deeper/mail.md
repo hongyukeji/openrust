@@ -59,9 +59,33 @@ let content = Content {
 };
 ```
 
+### Write Markdown messages {#writing-markdown-messages}
+
+Wrap a Markdown mail view in `<x-mail::message>`. It uses the application name and URL for the header and includes a footer. Use a named `subcopy` slot for secondary text. Buttons support `url`, `color`, and `align`. Panels render Markdown in their body. The table component renders a Markdown table in HTML and omits it from the generated plain-text alternative.
+
+```blade
+<x-mail::message>
+# Order ready
+
+<x-mail::button :url="$url" color="success">
+Review order
+</x-mail::button>
+
+<x-mail::panel>Keep this receipt for your records.</x-mail::panel>
+
+<x-mail::table>
+| Item | Qty |
+| --- | ---: |
+| Book | 1 |
+</x-mail::table>
+
+<x-slot:subcopy>Contact support if you have questions.</x-slot:subcopy>
+</x-mail::message>
+```
+
 ### Customize the Markdown layout {#customizing-the-components}
 
-Publish the HTML layout, text layout, and default stylesheet into `resources/views/vendor/mail`.
+Publish the HTML and text layouts, component templates, and default stylesheet into `resources/views/vendor/mail`.
 
 ```sh
 ./artisan vendor:publish --tag=laravel-mail

@@ -2,3 +2,10 @@ body { color: #1f2937; font-family: Arial, sans-serif; }
 a { color: #1d4ed8; }
 blockquote { border-left: 4px solid #d1d5db; padding-left: 1em; }
 td, th { border: 1px solid #d1d5db; padding: .4em .6em; }
+.mail-message header, .mail-message footer { text-align: center; padding: 1em; }
+.mail-message footer, .subcopy { color: #4b5563; font-size: .9em; }
+.button { display: inline-block; padding: .65em 1em; color: white; text-decoration: none; }
+.button-primary { background-color: #1d4ed8; }
+.button-success { background-color: #166534; }
+.button-error { background-color: #b91c1c; }
+.panel-content { background-color: #f3f4f6; }

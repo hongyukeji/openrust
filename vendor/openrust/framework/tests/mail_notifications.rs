@@ -90,7 +90,15 @@ impl Mailable for MarkdownReceipt {
         Ok(Content {
             markdown: Some("markdown-receipt".into()),
             text_view: self.plain_view.then(|| "plain-receipt".into()),
-            with: [("name".into(), json!("<Sam>"))].into_iter().collect(),
+            with: [
+                ("name".into(), json!("<Sam>")),
+                (
+                    "portal".into(),
+                    json!("https://example.test/review?step=1&code=2"),
+                ),
+            ]
+            .into_iter()
+            .collect(),
             ..Default::default()
         })
     }
@@ -1055,8 +1063,24 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     let html_layout = theme_path.join("html/layout.blade.html");
     let text_layout = theme_path.join("text/layout.blade.html");
     let default_theme = theme_path.join("html/themes/default.css");
+    let published_panel = theme_path.join("html/panel.blade.html");
     let stock = std::fs::read_to_string(&html_layout).unwrap();
+    for component in ["message", "button", "panel", "table"] {
+        for format in ["html", "text"] {
+            assert!(
+                theme_path
+                    .join(format)
+                    .join(format!("{component}.blade.html"))
+                    .is_file()
+            );
+        }
+    }
     assert!(default_theme.is_file() && text_layout.is_file());
+    std::fs::write(
+        &published_panel,
+        "<aside>Published panel {!! $slot !!}</aside>",
+    )
+    .unwrap();
     let override_html = "<html><body><header>Published layout</header>{!! $slot !!}</body></html>";
     std::fs::write(&html_layout, override_html).unwrap();
     std::fs::write(&text_layout, "Published text\n{!! $slot !!}").unwrap();
@@ -1071,20 +1095,34 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     )
     .unwrap();
     config["mail"]["markdown"] = json!({"theme":"receipt"});
+    config["app"]["name"] = json!("Mail Components");
+    config["app"]["url"] = json!("https://origin.example.test");
     std::fs::write(&path, config.to_string()).unwrap();
     std::fs::write(
         root.0.join("resources/views/markdown-receipt.blade.html"),
-        "# Receipt for {{ $name }}
+        "<x-mail::message>
+# Receipt for {{ $name }}
 
 [Open portal](https://example.test)
 
 [Unsafe](javascript:alert%281%29)
 
+<x-mail::button :url=\"$portal\" color=\"success\" align=\"right\">Review order</x-mail::button>
+
+<x-mail::button url=\"javascript:alert(1)\">Untrusted action</x-mail::button>
+
+<x-mail::panel>**Please read** the receipt.</x-mail::panel>
+
+<x-mail::table>
 | Item | Price |
 | --- | --- |
 | Subscription | $42 |
+</x-mail::table>
 
-<script>alert(1)</script>",
+<script>alert(1)</script>
+
+<x-slot:subcopy>Keep this receipt.</x-slot:subcopy>
+</x-mail::message>",
     )
     .unwrap();
     assert!(
@@ -1126,15 +1164,34 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
         "<table",
         "Subscription",
         "Published layout",
+        "Mail Components",
+        "https://origin.example.test",
+        "button-success",
+        "step=1&amp;code=2",
+        "Published panel",
+        "<strong>Please read</strong>",
+        "Keep this receipt.",
+        "All rights reserved.",
     ] {
         assert!(html.contains(expected), "{html}");
     }
     assert!(!html.contains("<script>") && !html.contains("javascript:"));
+    assert!(!html.contains("openrust-mail-"));
     assert!(text.starts_with("Published text"), "{text}");
     assert!(
         text.contains("Receipt for <Sam>") && text.contains("Open portal (https://example.test)"),
         "{text}"
     );
+    assert!(
+        text.contains("Review order: https://example.test/review?step=1&code=2"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Keep this receipt.") && text.contains("Please read"),
+        "{text}"
+    );
+    assert!(!text.contains("Published panel") && !text.contains("button-success"));
+    assert!(!text.contains("Subscription"));
 
     let custom = root.0.join("custom-mail/html");
     std::fs::create_dir_all(custom.join("themes")).unwrap();
@@ -1200,6 +1257,11 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     )
     .await;
     assert_eq!(std::fs::read_to_string(&html_layout).unwrap(), stock);
+    assert!(
+        !std::fs::read_to_string(&published_panel)
+            .unwrap()
+            .contains("Published panel")
+    );
     assert!(
         !std::fs::read_to_string(&text_layout)
             .unwrap()

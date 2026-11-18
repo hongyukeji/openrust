@@ -42,7 +42,17 @@ impl ServiceProvider for MailServiceProvider {
             app.container_handle()
                 .make::<QueueManager>()?
                 .register(SendQueuedMailable::NAME, Arc::new(SendQueuedMailable))?;
-            self.publishes(app, super::markdown::PUBLISHABLE_VIEWS, "laravel-mail")
+            let components: Vec<_> = super::markdown_components::publishable().collect();
+            let views: Vec<_> = super::markdown::PUBLISHABLE_VIEWS
+                .iter()
+                .copied()
+                .chain(
+                    components
+                        .iter()
+                        .map(|(path, bytes)| (path.as_str(), *bytes)),
+                )
+                .collect();
+            self.publishes(app, &views, "laravel-mail")
         })
     }
 }

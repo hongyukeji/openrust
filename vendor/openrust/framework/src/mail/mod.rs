@@ -9,6 +9,7 @@ mod mailable;
 pub mod mailables;
 mod mailer;
 mod markdown;
+mod markdown_components;
 mod message;
 mod pending_mail;
 mod send_queued_mailable;

@@ -3,15 +3,17 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{Event, Tag, TagEnd};
 
 use crate::{
-    config::Value,
-    support::markdown::safe_url,
+    contracts::config::Repository,
     view::{Factory, ViewData},
 };
 
-use super::{MailResult, composition};
+use super::{
+    MailResult, composition,
+    markdown_components::{Format, Render},
+};
 
 const DEFAULT_CSS: &str = include_str!("resources/views/html/themes/default.css");
 const HTML_LAYOUT: &str = include_str!("resources/views/html/layout.blade.html");
@@ -35,10 +37,13 @@ pub(super) const PUBLISHABLE_VIEWS: &[(&str, &[u8])] = &[
 pub struct Markdown {
     theme: String,
     paths: Vec<PathBuf>,
+    pub(super) app_name: String,
+    pub(super) app_url: String,
 }
 
 impl Markdown {
-    pub(crate) fn from_config(config: &Value, base: &Path) -> Self {
+    pub(crate) fn from_config(settings: &dyn Repository, base: &Path) -> Self {
+        let config = settings.get("mail.markdown").unwrap_or_default();
         let default_path = base.join("resources/views/vendor/mail");
         let mut paths: Vec<_> = config["paths"]
             .as_array()
@@ -52,6 +57,14 @@ impl Markdown {
         Self {
             theme: config["theme"].as_str().unwrap_or("default").to_owned(),
             paths,
+            app_name: settings
+                .get("app.name")
+                .and_then(|name| name.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "OpenRust".to_owned()),
+            app_url: settings
+                .get("app.url")
+                .and_then(|url| url.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "/".to_owned()),
         }
     }
 
@@ -71,73 +84,65 @@ impl Markdown {
         views: &Factory,
         text: Option<String>,
     ) -> MailResult<(String, String)> {
-        let source = views.render(view, data).map_err(composition)?;
+        let html = self.render_format(view, data, views, Format::Html)?;
         let css = self.css(views, data)?;
-        let events: Vec<_> = Parser::new_ext(&source, Options::ENABLE_TABLES)
-            .map(|event| match event {
-                Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
-                Event::Start(Tag::Link {
-                    link_type,
-                    dest_url,
-                    title,
-                    id,
-                }) => Event::Start(Tag::Link {
-                    link_type,
-                    dest_url: safe_url(dest_url),
-                    title,
-                    id,
-                }),
-                Event::Start(Tag::Image {
-                    link_type,
-                    dest_url,
-                    title,
-                    id,
-                }) => Event::Start(Tag::Image {
-                    link_type,
-                    dest_url: safe_url(dest_url),
-                    title,
-                    id,
-                }),
-                event => event,
-            })
-            .collect();
-        let text = match text {
-            Some(text) => text,
-            None => self
-                .render_layout("text", TEXT_LAYOUT, plain_text(&events), views, data)?
-                .trim()
-                .to_owned(),
-        };
-        let mut fragment = String::new();
-        html::push_html(&mut fragment, events.into_iter());
-        let body = self.render_layout("html", HTML_LAYOUT, fragment, views, data)?;
         let html = css_inline::CSSInliner::options()
             .load_remote_stylesheets(false)
             .extra_css(Some(css))
             .build()
-            .inline(&body)
+            .inline(&html)
             .map_err(|_| composition("Could not apply the Markdown mail stylesheet."))?;
+        let text = match text {
+            Some(text) => text,
+            None => self
+                .render_format(view, data, views, Format::Text)?
+                .trim()
+                .to_owned(),
+        };
         Ok((html, text))
     }
 
-    fn render_layout(
+    fn render_format(
         &self,
-        format: &str,
+        view: &str,
+        data: &ViewData,
+        views: &Factory,
+        format: Format,
+    ) -> MailResult<String> {
+        let render = Render::new(self, views, format);
+        let source = views
+            .render_with_components(view, data, &|name, properties, slots| {
+                render.component(name, properties, slots)
+            })
+            .map_err(composition)?;
+        let mut data = data.clone();
+        data.insert("slot".into(), render.markdown(&source, false).into());
+        let default = match format {
+            Format::Html => HTML_LAYOUT,
+            Format::Text => TEXT_LAYOUT,
+        };
+        self.render_template(format, "layout", default, views, &data)
+    }
+
+    pub(super) fn render_template(
+        &self,
+        format: Format,
+        name: &str,
         default: &str,
-        slot: String,
         views: &Factory,
         data: &ViewData,
     ) -> MailResult<String> {
-        let mut data = data.clone();
-        data.insert("slot".into(), slot.into());
         for path in &self.paths {
-            let path = path.join(format).join("layout.blade.html");
-            if let Some(source) = load_optional(&path, "Could not read the Markdown mail layout.")?
+            let path = path
+                .join(format.directory())
+                .join(format!("{name}.blade.html"));
+            if let Some(source) =
+                load_optional(&path, "Could not read the Markdown mail template.")?
             {
-                return views.renderInline(&source, &data).map_err(composition);
+                return views.renderInline(&source, data).map_err(composition);
             }
         }
-        views.renderInline(default, &data).map_err(composition)
+        views.renderInline(default, data).map_err(composition)
     }
 
     fn css(&self, views: &Factory, data: &ViewData) -> MailResult<Cow<'static, str>> {
@@ -184,7 +189,7 @@ fn load_optional(path: &Path, message: &'static str) -> MailResult<Option<String
     }
 }
 
-fn plain_text(events: &[Event<'_>]) -> String {
+pub(super) fn plain_text(events: &[Event<'_>]) -> String {
     let mut text = String::new();
     let mut link = None;
     for event in events {

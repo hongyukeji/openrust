@@ -59,9 +59,33 @@ let content = Content {
 };
 ```
 
+### 撰寫 Markdown 郵件 {#writing-markdown-messages}
+
+以 `<x-mail::message>` 包住 Markdown 郵件視圖。元件使用應用程式名稱和 URL 產生頁首，並加入頁尾。可用名為 `subcopy` 的插槽加入補充說明。按鈕支援 `url`、`color` 和 `align`。面板內文會依 Markdown 轉譯。表格元件在 HTML 中轉譯 Markdown 表格，產生純文字時會省略該表格。
+
+```blade
+<x-mail::message>
+# Order ready
+
+<x-mail::button :url="$url" color="success">
+Review order
+</x-mail::button>
+
+<x-mail::panel>Keep this receipt for your records.</x-mail::panel>
+
+<x-mail::table>
+| Item | Qty |
+| --- | ---: |
+| Book | 1 |
+</x-mail::table>
+
+<x-slot:subcopy>Contact support if you have questions.</x-slot:subcopy>
+</x-mail::message>
+```
+
 ### 自訂 Markdown 版面 {#customizing-the-components}
 
-將 HTML 版面、純文字版面與預設樣式表發布到 `resources/views/vendor/mail`。
+將 HTML、純文字版面、元件範本與預設樣式表發布到 `resources/views/vendor/mail`。
 
 ```sh
 ./artisan vendor:publish --tag=laravel-mail
