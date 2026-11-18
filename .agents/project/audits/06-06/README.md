@@ -247,3 +247,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `58f5e6e41` 上，通过真实 HTTP 和本地 Slack 协议服务验证三种频道来源、Block Kit、确认框、缺失结果、业务拒绝与重定向。MySQL 8.4.13 实测外部工作区令牌入队为密文，独立 Artisan Worker 解密投递并在供应商拒绝后重试成功。Redis 8.10.3 独立 Worker 使用轮换后的默认令牌。Slack 安装、OAuth 授权、实际工作区送达和应用交互回调由获得授权的 Slack 应用验证。
 - `mail_notifications` 25 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、实际 Artisan `config:show services.slack.notifications` 和 `inspire`、三语相同示例、站点构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批核对固定 Slack 包的旧 Webhook 路由以及 Block Kit 的剩余可观察边界。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.95 GB（3.68 GiB），清理后可用 90.28 GB（84.08 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-slack-notifications.6070Nedk`。
+
+## Slack 传入 Webhook 路由与队列投递 {#slack-传入-webhook-路由与队列投递}
+
+- 核对固定 Laravel v13.40.0 的 Slack 文档与 Laravel Slack v3.8.0 路由。HTTP(S) 字符串路由选择 Webhook，`SlackRoute::make` 表达 Bot API 的工作区路由。同一 `to_slack` 和 `SlackMessage` 可直接发送 Block Kit，不需单独定义通知类。旧版 `openrust-v0.x` 无 Slack 对应实现，本批复用现有通知、HTTP 和加密服务。 [固定 Laravel Slack](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#slack-notifications) · [固定路由](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/SlackNotificationRouterChannel.php) · [固定 Webhook 渠道](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Channels/SlackWebhookChannel.php)
+- Webhook 直接 POST JSON，使用 URL 凭据，不使用 Bot OAuth token。Worker 从用 `APP_KEY` 保护的载荷还原 URL。沿用 HTTP 客户端的供应商安全边界，接受 HTTPS 与测试用回环 HTTP，拒绝链接内的用户凭据、查询、片段和重定向，错误信息隐藏完整 URL 和供应商响应正文。Bot API 的旧版队列载荷仍可读取。 [Slack 传入 Webhook 协议](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/)
+- 隔离基线 `f20dc7ce0` 使用真实 HTTP 和本地协议服务验收 Block Kit、无 Bearer header、URL 校验、HTTP 403、307 与错误脱敏。检查 MySQL 8.4.13 和 Redis 8.10.3 的实际队列载荷只有加密 URL。用独立 Artisan Worker 投递两种存储中的任务，MySQL 首次被拒绝后重试成功，失败表为空。此批以本地协议服务验证，真实工作区的送达仍需授权的 Slack 应用。
+- `mail_notifications` 26 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。后续核对 Laravel 旧式 Slack 附件消息类型与剩余 Block Kit 构建器。
+- 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.95 GB（3.68 GiB），清理后可用 90.20 GB（84.00 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-slack-webhook.YQrzg27n`。

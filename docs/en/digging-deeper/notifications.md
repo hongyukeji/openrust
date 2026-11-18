@@ -252,6 +252,21 @@ Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
 
 The Bot API uses `chat.postMessage`. For a local protocol test, configure `services.slack.notifications.endpoint` with a loopback HTTP URL. Confirming delivery in Slack requires an installed app, its bot permissions, and an authorized workspace.
 
+### Incoming webhooks {#slack-incoming-webhooks}
+
+Pass an HTTP(S) webhook URL as the Slack route to deliver the same `SlackMessage`, including Block Kit, through the incoming webhook. Slack derives the destination from the webhook installation. The request uses JSON and the URL itself is the credential.
+
+```rust
+async fn send_to_webhook(webhook_url: &str) -> NotificationResult<()> {
+    Notifications::route("slack", NotificationRoute::Slack(webhook_url.into()))?
+        .notify(&InvoicePaid)
+        .await?;
+    Ok(())
+}
+```
+
+Store the URL in application secrets. Queued webhook URLs are encrypted with `APP_KEY` and decrypted by the Worker. Delivery requires HTTPS, with loopback HTTP available for local tests. Redirects and unsuccessful HTTP statuses fail the delivery.
+
 ## Testing notifications
 
 Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.

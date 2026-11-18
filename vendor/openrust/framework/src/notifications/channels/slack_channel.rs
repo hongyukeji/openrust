@@ -16,7 +16,7 @@ use super::{Channel, ChannelResponse, secure_endpoint};
 const CONFIG: &str = "services.slack.notifications";
 const ENDPOINT: &str = "https://slack.com/api/chat.postMessage";
 
-/// Posts Slack notifications through the Bot API.
+/// Posts Slack notifications through the Bot API or an incoming webhook.
 pub struct SlackChannel;
 
 #[derive(Deserialize, Serialize)]
@@ -24,11 +24,27 @@ struct QueuedSlackMessage {
     payload: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     encrypted_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    encrypted_webhook: Option<String>,
 }
 
 struct PreparedSlack {
     payload: Map<String, Value>,
-    token: Option<String>,
+    destination: Destination,
+}
+
+enum Destination {
+    Bot(Option<String>),
+    Webhook(String),
+}
+
+impl PreparedSlack {
+    async fn send(self) -> NotificationResult<Option<ChannelResponse>> {
+        match self.destination {
+            Destination::Bot(token) => send_message(self.payload, token).await,
+            Destination::Webhook(url) => send_webhook(self.payload, &url).await,
+        }
+    }
 }
 
 fn prepare(
@@ -44,6 +60,13 @@ fn prepare(
         return Ok(None);
     };
     let mut payload = message.toArray()?;
+    if let Some(url) = route.webhook {
+        validate_webhook(&url)?;
+        return Ok(Some(PreparedSlack {
+            payload,
+            destination: Destination::Webhook(url),
+        }));
+    }
     let mut channel = route.channel.or_else(|| {
         payload
             .remove("channel")
@@ -60,8 +83,51 @@ fn prepare(
     payload.insert("channel".into(), channel.into());
     Ok(Some(PreparedSlack {
         payload,
-        token: route.token,
+        destination: Destination::Bot(route.token),
     }))
+}
+
+fn validate_webhook(url: &str) -> NotificationResult<()> {
+    if !secure_endpoint(url).unwrap_or(false) {
+        return Err(delivery(
+            "The Slack webhook must use HTTPS or loopback HTTP without URL credentials, query or fragment.",
+        ));
+    }
+    Ok(())
+}
+
+async fn send_webhook(
+    payload: Map<String, Value>,
+    url: &str,
+) -> NotificationResult<Option<ChannelResponse>> {
+    validate_webhook(url)?;
+    let response = Http::pendingRequest()
+        .map_err(|_| delivery("The Slack webhook HTTP client is unavailable."))?
+        .asJson()
+        .withoutRedirecting()
+        .timeout(Duration::from_secs(10))
+        .maxResponseBytes(1024 * 1024)
+        .post(url, &payload)
+        .await
+        .map_err(|_| {
+            delivery("The Slack webhook request failed; delivery status may be unknown.")
+        })?;
+    if !response.successful() {
+        return Err(delivery(format!(
+            "The Slack webhook returned HTTP {}.",
+            response.status().as_u16()
+        )));
+    }
+    Ok(Some(ChannelResponse::Custom(Value::String(
+        String::from_utf8_lossy(response.body()).into_owned(),
+    ))))
+}
+
+fn decrypt(value: &str, message: &str) -> NotificationResult<String> {
+    Crypt::decryptString(value)
+        .ok()
+        .and_then(|value| String::from_utf8(value).ok())
+        .ok_or_else(|| delivery(message))
 }
 
 async fn send_message(
@@ -117,10 +183,10 @@ impl Channel for SlackChannel {
         notification: &'a dyn Notification,
     ) -> NotificationFuture<'a, NotificationResult<Option<ChannelResponse>>> {
         Box::pin(async move {
-            let Some(PreparedSlack { payload, token }) = prepare(recipient, notification)? else {
+            let Some(prepared) = prepare(recipient, notification)? else {
                 return Ok(None);
             };
-            send_message(payload, token).await
+            prepared.send().await
         })
     }
 
@@ -130,15 +196,31 @@ impl Channel for SlackChannel {
         notification: &'a dyn Notification,
     ) -> NotificationFuture<'a, NotificationResult<Option<Value>>> {
         Box::pin(async move {
-            let Some(PreparedSlack { payload, token }) = prepare(recipient, notification)? else {
+            let Some(PreparedSlack {
+                payload,
+                destination,
+            }) = prepare(recipient, notification)?
+            else {
                 return Ok(None);
             };
-            let encrypted_token = token.map(Crypt::encryptString).transpose().map_err(|_| {
-                delivery("An application key is required to queue a Slack workspace token.")
-            })?;
+            let (encrypted_token, encrypted_webhook) = match destination {
+                Destination::Bot(token) => (
+                    token.map(Crypt::encryptString).transpose().map_err(|_| {
+                        delivery("An application key is required to queue a Slack workspace token.")
+                    })?,
+                    None,
+                ),
+                Destination::Webhook(url) => (
+                    None,
+                    Some(Crypt::encryptString(url).map_err(|_| {
+                        delivery("An application key is required to queue a Slack webhook URL.")
+                    })?),
+                ),
+            };
             serde_json::to_value(QueuedSlackMessage {
                 payload,
                 encrypted_token,
+                encrypted_webhook,
             })
             .map(Some)
             .map_err(delivery)
@@ -152,22 +234,24 @@ impl Channel for SlackChannel {
         Box::pin(async move {
             let queued: QueuedSlackMessage = serde_json::from_value(payload)
                 .map_err(|_| delivery("The queued Slack message is invalid."))?;
-            let token = queued
-                .encrypted_token
-                .as_deref()
-                .map(|token| {
-                    Crypt::decryptString(token)
-                        .map_err(|_| {
-                            delivery("The queued Slack workspace token could not be decrypted.")
-                        })
-                        .and_then(|token| {
-                            String::from_utf8(token).map_err(|_| {
-                                delivery("The queued Slack workspace token is invalid.")
-                            })
-                        })
-                })
-                .transpose()?;
-            send_message(queued.payload, token).await
+            let destination = match (queued.encrypted_token, queued.encrypted_webhook) {
+                (None, Some(url)) => Destination::Webhook(decrypt(
+                    &url,
+                    "The queued Slack webhook URL is invalid or could not be decrypted.",
+                )?),
+                (token, None) => Destination::Bot(
+                    token.as_deref().map(|token| {
+                        decrypt(token, "The queued Slack workspace token is invalid or could not be decrypted.")
+                    }).transpose()?,
+                ),
+                (Some(_), Some(_)) => return Err(delivery("The queued Slack message is invalid.")),
+            };
+            PreparedSlack {
+                payload: queued.payload,
+                destination,
+            }
+            .send()
+            .await
         })
     }
 }

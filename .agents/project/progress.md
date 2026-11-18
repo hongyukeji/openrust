@@ -3296,3 +3296,8 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 03-09 Redis Cluster 指定标签的悬空索引登记回收
 
 指定标签的 `flushStale()` 延续固定 Laravel 的标签修剪范围，清理 Redis Cluster 中无索引且无待回收记录的登记。按本存储同槽分批扫描，Lua 原子校验后回收。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签的悬空索引登记回收)
+
+
+## 2026-11-18 06-06 Slack 传入 Webhook 路由与队列投递
+
+按固定 Laravel Slack 包路由规则接通 URL Webhook 和 Block Kit 投递。用 `APP_KEY` 加密队列 URL，由 Worker 解密发送。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、26 项通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#slack-传入-webhook-路由与队列投递)

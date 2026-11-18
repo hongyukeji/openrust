@@ -252,6 +252,21 @@ Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
 
 Bot API 使用 `chat.postMessage`。本地协议验收可将回环 HTTP URL 配置为 `services.slack.notifications.endpoint`。在 Slack 内确认送达需要安装应用、授予 Bot 权限并使用获授权的工作区。
 
+### 传入 Webhook {#slack-incoming-webhooks}
+
+将 HTTP(S) Webhook URL 作为 Slack 路由，可通过传入 Webhook 投递同一个 `SlackMessage`，包括 Block Kit。Slack 根据 Webhook 的安装配置决定投递目标。请求使用 JSON，URL 本身就是凭据。
+
+```rust
+async fn send_to_webhook(webhook_url: &str) -> NotificationResult<()> {
+    Notifications::route("slack", NotificationRoute::Slack(webhook_url.into()))?
+        .notify(&InvoicePaid)
+        .await?;
+    Ok(())
+}
+```
+
+请在应用的密钥存储中保存 URL。Webhook URL 入队时用 `APP_KEY` 加密，由 Worker 解密。投递要求 HTTPS，本地测试可使用回环 HTTP。重定向和非成功 HTTP 状态会使投递失败。
+
 ## 测试通知
 
 在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。

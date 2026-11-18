@@ -5,7 +5,7 @@ use crate::notifications::{NotificationResult, delivery};
 
 use super::blocks::{ActionsBlock, ContextBlock, SectionBlock, plain_text};
 
-/// Payload for Slack's Bot API.
+/// Payload for Slack's Bot API or an incoming webhook.
 #[derive(Default)]
 pub struct SlackMessage {
     fields: Map<String, Value>,

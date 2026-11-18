@@ -974,6 +974,8 @@ impl Notice for SlackNotice {
             assert_eq!(json["blocks"].as_array().unwrap().len(), 6);
         } else if self.mode == "message" {
             message = message.to("message-channel");
+        } else if self.mode.starts_with("webhook-") {
+            message = message.headerBlock("Webhook notice");
         }
         Ok(Some(message))
     }
@@ -994,7 +996,19 @@ fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
             mode,
             connection: None,
         };
-        let result = if notice.mode == "blocks" {
+        let result = if notice.mode.starts_with("webhook-") {
+            let base = Config::get("fixture.slack_webhook").unwrap().unwrap();
+            let base = base.as_str().unwrap();
+            let webhook = if notice.mode == "webhook-invalid" {
+                format!("{base}/route-secret?invalid=1")
+            } else {
+                format!("{base}/route-secret")
+            };
+            Notification::route("slack", NotificationRoute::Slack(webhook.into()))
+                .unwrap()
+                .notifyNow(&notice, None)
+                .await
+        } else if notice.mode == "blocks" {
             Notification::route("slack", NotificationRoute::Slack("override-channel".into()))
                 .unwrap()
                 .notifyNow(&notice, None)
@@ -3767,6 +3781,168 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     );
     assert_eq!(records[8].0, "Bearer fixture-rotated-token");
     assert_eq!(records[8].1["channel"], "redis-channel");
+}
+
+#[tokio::test]
+async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
+    use axum::response::IntoResponse as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let (Some(mysql), Ok(redis)) = (delivery_mysql(), std::env::var("OPENRUST_TEST_REDIS_PORT"))
+    else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let records = Arc::new(Mutex::new(Vec::new()));
+    let fail_once = Arc::new(AtomicBool::new(true));
+    let endpoint = axum::Router::new().route(
+        "/hook/{secret}",
+        axum::routing::post({
+            let records = Arc::clone(&records);
+            move |axum::extract::Path(secret): axum::extract::Path<String>,
+                  headers: http::HeaderMap,
+                  body: axum::body::Bytes| {
+                let records = Arc::clone(&records);
+                let fail_once = Arc::clone(&fail_once);
+                async move {
+                    assert_eq!(secret, "route-secret");
+                    assert_eq!(headers[http::header::CONTENT_TYPE], "application/json");
+                    assert!(!headers.contains_key(http::header::AUTHORIZATION));
+                    let payload: Json = serde_json::from_slice(&body).unwrap();
+                    assert!(payload.get("channel").is_none());
+                    assert_eq!(payload["blocks"][0]["text"]["text"], "Webhook notice");
+                    let text = payload["text"].as_str().unwrap().to_owned();
+                    records.lock().unwrap().push(text.clone());
+                    if text == "webhook-redirect" {
+                        return axum::response::Redirect::temporary("/hook/unexpected")
+                            .into_response();
+                    }
+                    if text == "webhook-reject"
+                        || (text == "webhook-database" && fail_once.swap(false, Ordering::Relaxed))
+                    {
+                        return (http::StatusCode::FORBIDDEN, "fixture provider detail")
+                            .into_response();
+                    }
+                    "ok".into_response()
+                }
+            }
+        }),
+    );
+    let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}/hook", socket.local_addr().unwrap());
+    let provider = tokio::spawn(async move { axum::serve(socket, endpoint).await });
+    let root = fixture(Some(redis.parse().unwrap()), Some(&mysql), None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["app"]["key"] = json!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    config["fixture"]["slack_webhook"] = json!(base);
+    std::fs::write(&config_path, config.to_string()).unwrap();
+
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "slack").await;
+    for (mode, expected) in [
+        ("blocks", 200),
+        ("invalid", 500),
+        ("reject", 500),
+        ("redirect", 500),
+    ] {
+        let response = reqwest::get(format!("{url}/webhook-{mode}")).await.unwrap();
+        assert_eq!(response.status().as_u16(), expected, "{mode}");
+        let body = response.text().await.unwrap();
+        assert!(!body.contains("route-secret") && !body.contains("fixture provider detail"));
+    }
+    server.abort();
+    assert_eq!(
+        *records.lock().unwrap(),
+        ["webhook-blocks", "webhook-reject", "webhook-redirect"]
+    );
+
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let db = setup(&application).await;
+    application
+        .call(
+            Callback::new(&[], move |_| {
+                let base = base.clone();
+                async move {
+                    for connection in ["database", "redis"] {
+                        let route = NotificationRoute::Slack(format!("{base}/route-secret").into());
+                        Notification::route("slack", route)
+                            .unwrap()
+                            .notify(&SlackNotice {
+                                mode: format!("webhook-{connection}"),
+                                connection: Some(connection),
+                            })
+                            .await
+                            .unwrap();
+                    }
+                    Ok(())
+                }
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let Value::Text(payload) = db.table("jobs").value("payload").await.unwrap() else {
+        panic!("expected a JSON queue payload");
+    };
+    let mut redis = ::redis::Client::open(format!("redis://127.0.0.1:{redis}"))
+        .unwrap()
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
+    let prefix = config["database"]["redis"]["options"]["prefix"]
+        .as_str()
+        .unwrap();
+    let redis_payload: String = ::redis::cmd("LINDEX")
+        .arg(format!("{prefix}queues:slack-test"))
+        .arg(0)
+        .query_async(&mut redis)
+        .await
+        .unwrap();
+    for payload in [payload, redis_payload] {
+        assert!(payload.contains("encrypted_webhook") && !payload.contains("route-secret"));
+    }
+    assert_eq!(records.lock().unwrap().len(), 3);
+
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=slack-test",
+            "--once",
+            "--tries=2",
+        ],
+    )
+    .await;
+    assert_eq!(
+        db.table("jobs").value("attempts").await.unwrap(),
+        Value::Unsigned(1)
+    );
+    for connection in ["database", "redis"] {
+        artisan(
+            &root.0,
+            &[
+                "queue:work",
+                connection,
+                "--queue=slack-test",
+                "--stop-when-empty",
+                "--sleep=0",
+                "--tries=2",
+            ],
+        )
+        .await;
+    }
+    assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    drop_delivery_tables(&db).await;
+    provider.abort();
+    assert_eq!(
+        records.lock().unwrap()[3..],
+        ["webhook-database", "webhook-database", "webhook-redis"]
+    );
 }
 
 #[tokio::test]

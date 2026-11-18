@@ -247,3 +247,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Vonage 短信通知渠道](06-06/README.md#Vonage 短信通知渠道)通过实际 HTTP 的 Vonage 协议、独立 Worker 重试和三语验收。
 
 06-06 的 [Slack Bot API 通知与 Block Kit](06-06/README.md#Slack Bot API 通知与 Block Kit)通过实际 HTTP 的 Slack Bot API 协议、Block Kit、独立 Worker 与三语验收。
+
+06-06 的 [Slack 传入 Webhook 路由与队列投递](06-06/README.md#slack-传入-webhook-路由与队列投递)通过真实 HTTP 协议、MySQL 和 Redis 加密队列载荷、独立 Artisan Worker 与三语验收。
