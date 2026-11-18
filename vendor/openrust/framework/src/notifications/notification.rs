@@ -34,6 +34,14 @@ pub trait Notification: Send + Sync {
         Ok(None)
     }
 
+    /// Provides a legacy attachment message for a Slack webhook route.
+    fn to_legacy_slack(
+        &self,
+        _recipient: &dyn Notifiable,
+    ) -> NotificationResult<Option<super::messages::SlackMessage>> {
+        Ok(None)
+    }
+
     fn to_database(
         &self,
         _recipient: &dyn Notifiable,

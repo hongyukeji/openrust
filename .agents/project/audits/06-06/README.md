@@ -255,3 +255,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 隔离基线 `f20dc7ce0` 使用真实 HTTP 和本地协议服务验收 Block Kit、无 Bearer header、URL 校验、HTTP 403、307 与错误脱敏。检查 MySQL 8.4.13 和 Redis 8.10.3 的实际队列载荷只有加密 URL。用独立 Artisan Worker 投递两种存储中的任务，MySQL 首次被拒绝后重试成功，失败表为空。此批以本地协议服务验证，真实工作区的送达仍需授权的 Slack 应用。
 - `mail_notifications` 26 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。后续核对 Laravel 旧式 Slack 附件消息类型与剩余 Block Kit 构建器。
 - 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.95 GB（3.68 GiB），清理后可用 90.20 GB（84.00 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-slack-webhook.YQrzg27n`。
+
+## Slack 旧式附件 Webhook 投递 {#slack-旧式附件-webhook-投递}
+
+- 固定 Laravel Slack v3.8.0 的 Webhook 渠道可投递现代 `Slack\SlackMessage` 与旧式 `Messages\SlackMessage`。核对旧版 `openrust-v0.x`，无对应实现，本批复用现有 Webhook 传输及加密队列。Rust 保留两个类型的命名空间，用 `to_legacy_slack` 表达旧式消息返回类型。Webhook 优先使用该消息，未提供时使用 `to_slack`。分离的 `fieldWith` 表达 PHP 使用同一方法名接受字段闭包的写法。Rust 接收日期时间或显式相对秒数。 [固定 SlackMessage](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Messages/SlackMessage.php) · [固定 SlackAttachment](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Messages/SlackAttachment.php) · [固定 Webhook 渠道](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Channels/SlackWebhookChannel.php)
+- 支持消息级别颜色、附件颜色覆盖、命名与自定义字段、Markdown、图片、作者、时间戳、页脚和带样式的链接动作。消息与附件的可选外层字段按固定上游过滤，保留嵌套字段的布尔值和动作的默认样式。传输沿用 Rust 的统一 Webhook 配置，Laravel 独有的任意 Guzzle 请求参数和 PHP 日期区间对象未移植。
+- 基于隔离快照 `b2fe0fc52` 使用真实 HTTP 与本地服务比对完整 JSON。验证 Block Kit 路由回退、旧式消息只从 Webhook 投递、HTTP 错误与重定向。MySQL 和 Redis 队列含附件原始字段及加密目标 URL，独立 Artisan Worker 在供应商 403 后重试成功，失败表为空。真实 Slack 工作区显示效果待授权的供应商验收。
+- `mail_notifications` 26 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对余下 Block Kit 构建器及约束。
+- 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.13 GB（83.94 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-legacy.uRRILLkP`。

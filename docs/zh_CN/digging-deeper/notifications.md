@@ -267,6 +267,42 @@ async fn send_to_webhook(webhook_url: &str) -> NotificationResult<()> {
 
 请在应用的密钥存储中保存 URL。Webhook URL 入队时用 `APP_KEY` 加密，由 Worker 解密。投递要求 HTTPS，本地测试可使用回环 HTTP。重定向和非成功 HTTP 状态会使投递失败。
 
+### 旧式 Slack 附件 {#slack-legacy-attachments}
+
+已有 Webhook 集成需要 Slack 旧式附件时，实现 `to_legacy_slack` 并返回 `notifications::messages::SlackMessage`。Webhook 优先使用该消息，未提供时回退到 `to_slack` 返回的 Block Kit 消息。Bot API 使用 `to_slack`。
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult, messages::SlackMessage,
+};
+
+struct InvoicePending;
+
+impl Notification for InvoicePending {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_legacy_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        Ok(Some(
+            SlackMessage::new()
+                .warning()
+                .content("Invoice pending")
+                .attachment(|attachment| {
+                    attachment
+                        .title("Invoice 42", Some("https://example.test/invoices/42"))
+                        .field("Status", "pending")
+                        .fieldWith(|field| {
+                            field.title("Next step").content("Review payment").long();
+                        });
+                }),
+        ))
+    }
+}
+```
+
+附件可以指定自己的颜色，省略时继承消息级别的颜色。使用 `field` 添加短字段，使用 `fieldWith` 配合 `long()` 让字段独占一行。`timestamp` 接收日期时间，`timestampAfter` 在当前时间上增加秒数。旧式附件沿用相同的 Webhook 传输、加密和重试行为。
+
 ## 测试通知
 
 在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。

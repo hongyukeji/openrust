@@ -934,6 +934,9 @@ impl Notice for SlackNotice {
     }
 
     fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        if self.mode == "legacy-bot" {
+            return Ok(None);
+        }
         if self.mode == "invalid" {
             return SlackMessage::new().usingBlockKitTemplate("[]").map(Some);
         }
@@ -978,6 +981,51 @@ impl Notice for SlackNotice {
             message = message.headerBlock("Webhook notice");
         }
         Ok(Some(message))
+    }
+
+    fn to_legacy_slack(
+        &self,
+        _: &dyn Notifiable,
+    ) -> NotificationResult<Option<openrust::notifications::messages::SlackMessage>> {
+        if self.mode != "legacy-bot" && !self.mode.starts_with("webhook-legacy") {
+            return Ok(None);
+        }
+        use openrust::notifications::messages::SlackMessage as LegacyMessage;
+
+        Ok(Some(
+            LegacyMessage::new()
+                .error()
+                .content(&self.mode)
+                .from("Billing", Some(":moneybag:"))
+                .from("Accounting", None)
+                .linkNames()
+                .unfurlLinks(false)
+                .unfurlMedia(true)
+                .attachment(|attachment| {
+                    attachment
+                        .title("Invoice", Some("https://example.test/invoices/42"))
+                        .pretext("Payment status")
+                        .content("*Pending*")
+                        .fallback("Invoice pending")
+                        .field("Status", "old")
+                        .fieldWith(|field| {
+                            field.title("Details").content("Payment pending").long();
+                        })
+                        .field("Status", "pending")
+                        .markdown(&["text"])
+                        .image("https://example.test/invoice.png")
+                        .thumb("https://example.test/thumb.png")
+                        .author("Billing", Some("https://example.test"), None)
+                        .footer("Billing service")
+                        .footerIcon("https://example.test/footer.png")
+                        .action("Review", "https://example.test/invoices/42", None)
+                        .timestamp(chrono::DateTime::from_timestamp(1_710_000_000, 0).unwrap())
+                        .callbackId("invoice_status");
+                })
+                .attachment(|attachment| {
+                    attachment.color("#123456");
+                }),
+        ))
     }
 
     fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
@@ -3784,7 +3832,7 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
 }
 
 #[tokio::test]
-async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
+async fn slack_webhook_routes_send_blocks_and_legacy_attachments_with_encrypted_urls() {
     use axum::response::IntoResponse as _;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -3809,16 +3857,55 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
                     assert_eq!(headers[http::header::CONTENT_TYPE], "application/json");
                     assert!(!headers.contains_key(http::header::AUTHORIZATION));
                     let payload: Json = serde_json::from_slice(&body).unwrap();
-                    assert!(payload.get("channel").is_none());
-                    assert_eq!(payload["blocks"][0]["text"]["text"], "Webhook notice");
                     let text = payload["text"].as_str().unwrap().to_owned();
+                    if text.starts_with("webhook-legacy") {
+                        assert_eq!(
+                            payload,
+                            json!({
+                                "text": text,
+                                "username": "Accounting",
+                                "icon_emoji": ":moneybag:",
+                                "link_names": 1,
+                                "unfurl_media": true,
+                                "attachments": [{
+                                    "title": "Invoice",
+                                    "title_link": "https://example.test/invoices/42",
+                                    "pretext": "Payment status",
+                                    "text": "*Pending*",
+                                    "fallback": "Invoice pending",
+                                    "color": "danger",
+                                    "fields": [
+                                        {"title":"Status","value":"pending","short":true},
+                                        {"title":"Details","value":"Payment pending","short":false}
+                                    ],
+                                    "mrkdwn_in": ["text"],
+                                    "image_url": "https://example.test/invoice.png",
+                                    "thumb_url": "https://example.test/thumb.png",
+                                    "author_name": "Billing",
+                                    "author_link": "https://example.test",
+                                    "footer": "Billing service",
+                                    "footer_icon": "https://example.test/footer.png",
+                                    "actions": [{
+                                        "type": "button", "text": "Review",
+                                        "url": "https://example.test/invoices/42", "style": ""
+                                    }],
+                                    "ts": 1_710_000_000,
+                                    "callback_id": "invoice_status"
+                                }, {"color": "#123456"}]
+                            })
+                        );
+                    } else {
+                        assert!(payload.get("channel").is_none());
+                        assert_eq!(payload["blocks"][0]["text"]["text"], "Webhook notice");
+                    }
                     records.lock().unwrap().push(text.clone());
                     if text == "webhook-redirect" {
                         return axum::response::Redirect::temporary("/hook/unexpected")
                             .into_response();
                     }
                     if text == "webhook-reject"
-                        || (text == "webhook-database" && fail_once.swap(false, Ordering::Relaxed))
+                        || (text == "webhook-legacy-database"
+                            && fail_once.swap(false, Ordering::Relaxed))
                     {
                         return (http::StatusCode::FORBIDDEN, "fixture provider detail")
                             .into_response();
@@ -3842,12 +3929,14 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
     kernel.bootstrap().await.unwrap();
     let (url, server) = serve_fixture_http(kernel, "slack").await;
     for (mode, expected) in [
-        ("blocks", 200),
-        ("invalid", 500),
-        ("reject", 500),
-        ("redirect", 500),
+        ("webhook-blocks", 200),
+        ("webhook-invalid", 500),
+        ("webhook-reject", 500),
+        ("webhook-redirect", 500),
+        ("webhook-legacy", 200),
+        ("legacy-bot", 200),
     ] {
-        let response = reqwest::get(format!("{url}/webhook-{mode}")).await.unwrap();
+        let response = reqwest::get(format!("{url}/{mode}")).await.unwrap();
         assert_eq!(response.status().as_u16(), expected, "{mode}");
         let body = response.text().await.unwrap();
         assert!(!body.contains("route-secret") && !body.contains("fixture provider detail"));
@@ -3855,7 +3944,12 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
     server.abort();
     assert_eq!(
         *records.lock().unwrap(),
-        ["webhook-blocks", "webhook-reject", "webhook-redirect"]
+        [
+            "webhook-blocks",
+            "webhook-reject",
+            "webhook-redirect",
+            "webhook-legacy"
+        ]
     );
 
     let mut application = app(&root.0);
@@ -3871,7 +3965,7 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
                         Notification::route("slack", route)
                             .unwrap()
                             .notify(&SlackNotice {
-                                mode: format!("webhook-{connection}"),
+                                mode: format!("webhook-legacy-{connection}"),
                                 connection: Some(connection),
                             })
                             .await
@@ -3903,8 +3997,9 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
         .unwrap();
     for payload in [payload, redis_payload] {
         assert!(payload.contains("encrypted_webhook") && !payload.contains("route-secret"));
+        assert!(payload.contains("attachments") && payload.contains("invoice_status"));
     }
-    assert_eq!(records.lock().unwrap().len(), 3);
+    assert_eq!(records.lock().unwrap().len(), 4);
 
     artisan(
         &root.0,
@@ -3940,8 +4035,12 @@ async fn slack_webhook_routes_send_blocks_and_encrypt_queued_urls() {
     drop_delivery_tables(&db).await;
     provider.abort();
     assert_eq!(
-        records.lock().unwrap()[3..],
-        ["webhook-database", "webhook-database", "webhook-redis"]
+        records.lock().unwrap()[4..],
+        [
+            "webhook-legacy-database",
+            "webhook-legacy-database",
+            "webhook-legacy-redis"
+        ]
     );
 }
 

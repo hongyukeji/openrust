@@ -267,6 +267,42 @@ async fn send_to_webhook(webhook_url: &str) -> NotificationResult<()> {
 
 Store the URL in application secrets. Queued webhook URLs are encrypted with `APP_KEY` and decrypted by the Worker. Delivery requires HTTPS, with loopback HTTP available for local tests. Redirects and unsuccessful HTTP statuses fail the delivery.
 
+### Legacy Slack attachments {#slack-legacy-attachments}
+
+For an existing webhook integration that expects Slack’s legacy attachments, implement `to_legacy_slack` and return `notifications::messages::SlackMessage`. The webhook uses that message when provided and falls back to the Block Kit message from `to_slack`. The Bot API uses `to_slack`.
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult, messages::SlackMessage,
+};
+
+struct InvoicePending;
+
+impl Notification for InvoicePending {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_legacy_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        Ok(Some(
+            SlackMessage::new()
+                .warning()
+                .content("Invoice pending")
+                .attachment(|attachment| {
+                    attachment
+                        .title("Invoice 42", Some("https://example.test/invoices/42"))
+                        .field("Status", "pending")
+                        .fieldWith(|field| {
+                            field.title("Next step").content("Review payment").long();
+                        });
+                }),
+        ))
+    }
+}
+```
+
+An attachment inherits the message’s level color unless it sets its own color. Use `field` for a short field and `fieldWith` with `long()` to display a field on its own line. `timestamp` accepts a date and time and `timestampAfter` adds seconds to the current time. Legacy attachments use the same webhook transport, encryption and retry behavior.
+
 ## Testing notifications
 
 Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.

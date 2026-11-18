@@ -328,6 +328,12 @@ impl Notification for Prepared<'_> {
     fn to_slack(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
         self.inner.to_slack(recipient)
     }
+    fn to_legacy_slack(
+        &self,
+        recipient: &dyn Notifiable,
+    ) -> NotificationResult<Option<super::messages::SlackMessage>> {
+        self.inner.to_legacy_slack(recipient)
+    }
     fn to_database(
         &self,
         recipient: &dyn Notifiable,

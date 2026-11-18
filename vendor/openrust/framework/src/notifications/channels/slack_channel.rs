@@ -56,17 +56,24 @@ fn prepare(
         None => crate::notifications::slack::SlackRoute::make(None, None),
         Some(_) => return Err(delivery("The Slack notification route is invalid.")),
     };
-    let Some(message) = notification.to_slack(recipient)? else {
-        return Ok(None);
-    };
-    let mut payload = message.toArray()?;
     if let Some(url) = route.webhook {
+        let payload = if let Some(message) = notification.to_legacy_slack(recipient)? {
+            message.toArray()
+        } else if let Some(message) = notification.to_slack(recipient)? {
+            message.toArray()?
+        } else {
+            return Ok(None);
+        };
         validate_webhook(&url)?;
         return Ok(Some(PreparedSlack {
             payload,
             destination: Destination::Webhook(url),
         }));
     }
+    let Some(message) = notification.to_slack(recipient)? else {
+        return Ok(None);
+    };
+    let mut payload = message.toArray()?;
     let mut channel = route.channel.or_else(|| {
         payload
             .remove("channel")
