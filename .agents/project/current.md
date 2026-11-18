@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 20:57（北京时间）06-05 [Windows ARM64 后台调度与 Redis 互斥](audits/06-05/scheduler-output-background.md#windows-arm64-后台调度与-redis-互斥)。Windows ARM64 的真实 Artisan 验证了 Redis 跨进程协调，以及文件和 Redis 缓存上的后台完成与重叠锁释放。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。磁盘可用 70.77 GB（65.91 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。下一批修复 Windows 后台调度继承父输出管道的现象，使用管道 EOF 与子进程退出分别验收。
 - 2026-11-18 20:45（北京时间）06-04 [Windows ARM64 MySQL 与 Redis Worker 崩溃恢复](audits/06-04/queue-crash-exception-count.md#windows-arm64-mysql-与-redis-worker-崩溃恢复)。Windows ARM64 原生 Worker 通过 MySQL 8.4.13／文件缓存及 Redis 8.10.3／Redis 缓存的真实 HTTP 与 Artisan 验收。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。磁盘可用 70.58 GB（65.73 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:36（北京时间）06-04 [Windows ARM64 Worker 强制终止与异常次数](audits/06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)。Windows ARM64 原生 Worker 强制终止与异常计数、macOS 实际 MySQL 和 Redis 回归通过。三语构建及 18 项浏览器检查通过。磁盘可用 72.97 GB（67.96 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:27（北京时间）00-03／03-06／08-04 [Windows ARM64 文件锁与 Artisan 源码入口复验](audits/08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)。Windows ARM64 原生文件锁竞争及恢复、CMD 和 PowerShell Artisan、真实 HTTP 健康检查通过。三语构建及 18 项浏览器检查通过。磁盘可用 74.68 GB（69.55 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。

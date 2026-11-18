@@ -262,11 +262,12 @@ fn routes() -> Result<(), ConsoleError> {
                 .name("filtered task")
                 .skip(|_| true);
             schedule.exec(
-                "/bin/sh",
+                std::env::current_exe().map_err(console_error)?,
                 [
-                    "-c".into(),
-                    "printf '%s\\n' \"$1\"; exit 7".into(),
-                    "sh".into(),
+                    "--ignored".into(),
+                    "--exact".into(),
+                    "--nocapture".into(),
+                    "scheduler_external_fixture".into(),
                     "literal argument".into(),
                 ],
             );
@@ -555,6 +556,15 @@ async fn scheduler_artisan_fixture() {
     }
 }
 
+#[test]
+#[ignore = "Spawned as an external executable by schedule:run"]
+fn scheduler_external_fixture() {
+    let argument = std::env::args().next_back().unwrap();
+    assert_eq!(argument, "literal argument");
+    println!("{argument}");
+    std::process::exit(7);
+}
+
 fn root(port: Option<u16>) -> PathBuf {
     static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
     let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
@@ -676,7 +686,12 @@ async fn artisan_runs_due_tasks_and_reports_failures_without_stopping_the_schedu
     }
     assert!(!stdout.contains("should not run"));
     assert!(stdout.contains("skipped filtered task"));
-    assert!(stderr.contains("status: 7"), "{stderr}");
+    let exit = if cfg!(windows) {
+        "exit code: 7"
+    } else {
+        "exit status: 7"
+    };
+    assert!(stderr.contains(exit), "{stderr}");
     assert!(stderr.contains("scheduled callback error"), "{stderr}");
     let uuid = stdout
         .lines()

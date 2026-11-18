@@ -159,6 +159,8 @@ Call `runInBackground()` on a scheduled command or executable. OpenRust runs the
 
 `ScheduledBackgroundTaskFinished` is dispatched by the child after completion and lock release. It carries the task and exit code, including on failure. Register listeners for `console.scheduled_background_task_finished` during application assembly.
 
+On Windows ARM64, the background child uses the same application executable. File and Redis caches both support releasing the overlap lock after success, a nonzero command exit, or a failed after hook.
+
 ## Events {#events}
 
 Import the scheduling event types from `openrust::console::events`. Register a listener in the application assembly scope. This example assumes a `ScheduleEvents` listener and a `console_error` adapter that converts registration errors to `ConsoleError`.

@@ -159,6 +159,8 @@ schedule
 
 子程序完成任務並釋放鎖後派送 `ScheduledBackgroundTaskFinished`。事件攜帶任務和結束碼，也涵蓋任務失敗。應用程式組裝時為 `console.scheduled_background_task_finished` 註冊監聽器。
 
+在 Windows ARM64 上，背景子程序使用同一個應用程式執行檔。命令成功、以非零代碼結束或後置鉤子失敗後，檔案快取和 Redis 快取均可釋放重疊鎖。
+
 ## 事件 {#events}
 
 從 `openrust::console::events` 匯入排程事件型別，並在應用程式組裝作用域註冊監聽器。範例使用自訂的 `ScheduleEvents` 監聽器，以及將註冊錯誤轉為 `ConsoleError` 的 `console_error`。

@@ -20,3 +20,12 @@
 - `emailOutputTo` 和 `emailWrittenOutputTo` 复用输出钩子并只发送非空输出。 `emailOutputOnFailure` 在命令失败时发送，即使输出为空。通过应用邮件器组装文本邮件。 [固定 Laravel Event](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Event.php)
 - `schedule:clear-cache` 遍历已注册任务并强制释放现存重叠锁。 `schedule:test --name` 选择唯一匹配的命令或回调，前台执行，跳过日历筛选且保留任务重叠检查和钩子。交互终端可按序号选择。 [ScheduleClearCacheCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleClearCacheCommand.php) · [ScheduleTestCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleTestCommand.php)
 - Rust 1.94.0 实际 Artisan 进程验收 15 项通过。邮件使用应用日志邮件器验证成功内容、失败内容与收件人，以及成功时不发失败邮件。真实 Redis 8.10.3 验证跨进程清理、重复执行和后续可重新取得锁。手工运行验证非计划时间执行和未知命令提示。三语站点构建及 12 项浏览器检查通过。
+
+## Windows ARM64 后台调度与 Redis 互斥
+
+- 固定 Laravel 在 Windows 通过后台命令转交退出码，再由 `schedule:finish` 完成任务和派发事件。OpenRust 直接创建同一应用二进制的独立进程，保留前后置钩子、退出码、锁释放和完成事件的顺序。旧版 v0.x（`6d1a81924`）可参考其进程间协调验收，未提供可复用的后台完成钩子。 [CommandBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/CommandBuilder.php#L42) · [ScheduleFinishCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleFinishCommand.php#L37)
+- 从 `012c21d86` 干净归档在 Windows 11 ARM64 用 Rust 1.94.0、MSVC 14.44.35207 锁定离线构建，调度用例和独立应用均核对 PE Machine `0xAA64`。以 `OPENRUST_REQUIRE_REDIS=1` 在真实 Redis 8.10.3 上运行 `cargo test -p openrust-framework --test scheduling` 的原生测试二进制，覆盖 Redis 重叠锁、单节点选举、打断、暂停、维护及清锁。Redis 运行在宿主机隔离容器，经虚拟机私有网络连接。
+- 在归档内的应用路由添加仅用于验收的命令及事件订阅，用 `cargo build --bin main --features standalone` 构建并在带空格的独立目录执行 `main.exe artisan schedule:run`。文件和 Redis 缓存均验证父命令先退出、子进程 PID 与父进程不同、重叠执行被阻止、输出追加。实测子进程退出码 0、7、1 对应成功、命令失败、后置钩子失败。监听器查询同一互斥锁，确认事件派发时锁已释放。随后重复执行均可再次领取锁。独立 `artisan inspire` 也通过。
+- Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。已回收本批容器、来宾夹具和专属产物，虚拟机恢复停止。磁盘可用 70.77 GB（65.91 GiB），提交前周额度剩余 20%，按用户授权继续。夹具与原始日志位于 `/Users/Home/openrust-schedule-arm.JrFz6PWK`。
+- Windows 套件 16 项通过，两个子进程夹具按设计在常规枚举中忽略。外部命令夹具从 `/bin/sh` 改为原生测试二进制，验证带空格的单个参数与退出码 7，macOS 对应用例也通过。
+- 后续待修复 Windows 重定向管道的 EOF。用 .NET 分别等待 PID 退出和 stdout／stderr EOF，在后台任务仍被测试闸门挂起时，父进程已退出，但捕获端读不到 EOF。重叠命令未生成子进程时，捕获端正常收到 EOF。验收脚本基于进程退出状态判断父进程完成，这个管道差异单独跟踪。
