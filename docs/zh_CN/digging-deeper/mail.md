@@ -59,6 +59,16 @@ let content = Content {
 };
 ```
 
+### 自定义 Markdown 布局 {#customizing-the-components}
+
+将 HTML 布局、纯文本布局和默认样式表发布到 `resources/views/vendor/mail`。
+
+```sh
+./artisan vendor:publish --tag=laravel-mail
+```
+
+编辑 `html/layout.blade.html` 和 `text/layout.blade.html` 可添加页眉、页脚或外层内容。保留 `{!! $slot !!}` 作为渲染后正文的位置。修改 `html/themes/default.css` 可更新默认主题。`mail.markdown.paths` 中的相对路径按应用根目录解析，按声明顺序查找，随后使用标准发布目录。只有传入 `--force` 才会覆盖已有文件。
+
 ## 邮件入队
 
 让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。

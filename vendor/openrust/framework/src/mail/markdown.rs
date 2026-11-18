@@ -13,9 +13,23 @@ use crate::{
 
 use super::{MailResult, composition};
 
-const DEFAULT_CSS: &str = "body { color: #1f2937; font-family: Arial, sans-serif; } \
-    a { color: #1d4ed8; } blockquote { border-left: 4px solid #d1d5db; padding-left: 1em; } \
-    td, th { border: 1px solid #d1d5db; padding: .4em .6em; }";
+const DEFAULT_CSS: &str = include_str!("resources/views/html/themes/default.css");
+const HTML_LAYOUT: &str = include_str!("resources/views/html/layout.blade.html");
+const TEXT_LAYOUT: &str = include_str!("resources/views/text/layout.blade.html");
+pub(super) const PUBLISHABLE_VIEWS: &[(&str, &[u8])] = &[
+    (
+        "resources/views/vendor/mail/html/layout.blade.html",
+        HTML_LAYOUT.as_bytes(),
+    ),
+    (
+        "resources/views/vendor/mail/html/themes/default.css",
+        DEFAULT_CSS.as_bytes(),
+    ),
+    (
+        "resources/views/vendor/mail/text/layout.blade.html",
+        TEXT_LAYOUT.as_bytes(),
+    ),
+];
 
 /// Renders a named Blade view as a Markdown email in HTML and plain text.
 pub struct Markdown {
@@ -24,15 +38,20 @@ pub struct Markdown {
 }
 
 impl Markdown {
-    pub(crate) fn from_config(config: &Value) -> Self {
+    pub(crate) fn from_config(config: &Value, base: &Path) -> Self {
+        let default_path = base.join("resources/views/vendor/mail");
+        let mut paths: Vec<_> = config["paths"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|path| path.as_str().map(|path| base.join(path)))
+            .collect();
+        if !paths.contains(&default_path) {
+            paths.push(default_path);
+        }
         Self {
             theme: config["theme"].as_str().unwrap_or("default").to_owned(),
-            paths: config["paths"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|path| path.as_str().map(PathBuf::from))
-                .collect(),
+            paths,
         }
     }
 
@@ -41,6 +60,16 @@ impl Markdown {
         view: &str,
         data: &ViewData,
         views: &Factory,
+    ) -> MailResult<(String, String)> {
+        self.render_with_text(view, data, views, None)
+    }
+
+    pub(super) fn render_with_text(
+        &self,
+        view: &str,
+        data: &ViewData,
+        views: &Factory,
+        text: Option<String>,
     ) -> MailResult<(String, String)> {
         let source = views.render(view, data).map_err(composition)?;
         let css = self.css(views, data)?;
@@ -72,11 +101,16 @@ impl Markdown {
                 event => event,
             })
             .collect();
-        let text = plain_text(&events);
-        let mut body =
-            String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>");
-        html::push_html(&mut body, events.into_iter());
-        body.push_str("</body></html>");
+        let text = match text {
+            Some(text) => text,
+            None => self
+                .render_layout("text", TEXT_LAYOUT, plain_text(&events), views, data)?
+                .trim()
+                .to_owned(),
+        };
+        let mut fragment = String::new();
+        html::push_html(&mut fragment, events.into_iter());
+        let body = self.render_layout("html", HTML_LAYOUT, fragment, views, data)?;
         let html = css_inline::CSSInliner::options()
             .load_remote_stylesheets(false)
             .extra_css(Some(css))
@@ -84,6 +118,26 @@ impl Markdown {
             .inline(&body)
             .map_err(|_| composition("Could not apply the Markdown mail stylesheet."))?;
         Ok((html, text))
+    }
+
+    fn render_layout(
+        &self,
+        format: &str,
+        default: &str,
+        slot: String,
+        views: &Factory,
+        data: &ViewData,
+    ) -> MailResult<String> {
+        let mut data = data.clone();
+        data.insert("slot".into(), slot.into());
+        for path in &self.paths {
+            let path = path.join(format).join("layout.blade.html");
+            if let Some(source) = load_optional(&path, "Could not read the Markdown mail layout.")?
+            {
+                return views.renderInline(&source, &data).map_err(composition);
+            }
+        }
+        views.renderInline(default, &data).map_err(composition)
     }
 
     fn css(&self, views: &Factory, data: &ViewData) -> MailResult<Cow<'static, str>> {
@@ -109,7 +163,9 @@ impl Markdown {
             return Err(composition("Invalid Markdown mail theme name."));
         }
         for path in &self.paths {
-            if let Some(css) = load_css(path, &self.theme)? {
+            let file = path.join("html/themes").join(format!("{}.css", self.theme));
+            if let Some(css) = load_optional(&file, "Could not read the Markdown mail stylesheet.")?
+            {
                 return Ok(Cow::Owned(css));
             }
         }
@@ -120,12 +176,11 @@ impl Markdown {
     }
 }
 
-fn load_css(path: &Path, theme: &str) -> MailResult<Option<String>> {
-    let path = path.join("html/themes").join(format!("{theme}.css"));
+fn load_optional(path: &Path, message: &'static str) -> MailResult<Option<String>> {
     match std::fs::read_to_string(path) {
         Ok(css) => Ok(Some(css)),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(_) => Err(composition("Could not read the Markdown mail stylesheet.")),
+        Err(_) => Err(composition(message)),
     }
 }
 

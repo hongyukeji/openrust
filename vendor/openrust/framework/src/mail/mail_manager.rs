@@ -32,6 +32,7 @@ type TransportCreator = dyn Fn(&serde_json::Value) -> MailResult<Arc<dyn Transpo
 
 /// Resolves application-local mailers by name.
 pub struct MailManager {
+    base: std::path::PathBuf,
     config: Arc<dyn Repository>,
     owner: Weak<Container>,
     mailers: Mutex<HashMap<String, Arc<Mailer>>>,
@@ -40,8 +41,13 @@ pub struct MailManager {
 }
 
 impl MailManager {
-    pub(crate) fn new(config: Arc<dyn Repository>, owner: Weak<Container>) -> Self {
+    pub(crate) fn new(
+        config: Arc<dyn Repository>,
+        owner: Weak<Container>,
+        base: std::path::PathBuf,
+    ) -> Self {
         Self {
+            base,
             config,
             owner,
             mailers: Mutex::default(),
@@ -105,7 +111,10 @@ impl MailManager {
             name: name.into(),
             from,
             views,
-            markdown: Markdown::from_config(&self.config.get("mail.markdown").unwrap_or_default()),
+            markdown: Markdown::from_config(
+                &self.config.get("mail.markdown").unwrap_or_default(),
+                &self.base,
+            ),
             events: container.make::<Dispatcher>().map_err(super::composition)?,
             transport,
             captured,

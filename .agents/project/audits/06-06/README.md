@@ -83,3 +83,10 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 最终批次按提交 `48af9dfe0` 的隔离副本验收。Rust 1.94.0 的 `mail_notifications` 整组 14 项通过，2 项为单独启动的夹具。独立服务为 MySQL 8.4.13、Redis 8.10.3 和 Mailpit 1.33.1。工作区全目标严格 Clippy、本批格式、差异空白检查和三语构建通过。浏览器检查在 `/` 和 `/docs/` 共 12 项通过。全仓格式检查仍只有既有 Sanctum 测试断言换行差异。
 
 按项目交付计划的核心范围闭合 06-06。受信 SMTP 证书、认证及真实邮箱，以及真实供应商账户投递留待有目标环境和凭据时验证。纯 Rust Markdown 使用 Blade 与内置 CommonMark 解析，Laravel 的 PHP CommonMark 扩展、邮件专属组件及 `vendor:publish` 邮件资源发布属于后续适配。
+
+## Markdown 邮件布局和主题发布
+
+- 对照固定 Laravel v13.40.0 的 `MailServiceProvider` 与 Markdown 组件自定义章节。OpenRust 沿用编译型供应商发布，由 `vendor:publish --tag=laravel-mail` 向 `resources/views/vendor/mail` 发布 HTML 布局、纯文本布局和默认主题。旧版 `src/mail/template.rs` 与 `tests/server/mail/templates.rs` 使用 Minijinja 预登记及限长渲染，本批继续沿用现行 Rust Blade、CommonMark 与 CSS 内联。邮件专用的 message、button、panel、table 等 Blade 组件单独跟踪。 [固定 Laravel 发布](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/MailServiceProvider.php#L39) · [固定文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#customizing-the-components)
+- 从 `9bc0d6a11` 的干净归档验证普通发布保留编辑，`--force` 恢复三个框架资源。应用内声明的相对 `mail.markdown.paths` 从应用根解析并按顺序优先读取，随后尝试标准发布目录和内置资源。邮件正文先通过既有 Markdown HTML 和 URL 处理，再放进独立布局的 `slot`。显式 `text_view` 完整替代生成文本。实测无效 UTF-8 的发布文本布局仍可被显式文本视图绕过。
+- 真实 Artisan 发送两个 Markdown 邮件，经 Mailpit 1.33.1 的实际 HTTP API 验证 HTML 页眉、CSS 颜色、文本布局或显式文本、表格、HTML 转义与危险链接处理。MySQL 8.4.13、Redis 8.10.3 与 Mailpit 的邮件通知套件 14 项通过、2 项专用夹具忽略。发布器回归 10 项通过。根应用实跑三语共同示例，独立二进制在无源码目录从另一个工作目录发布相同的三个文件。
+- Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。临时服务和隔离构建、站点、发布产物已回收。提交前磁盘可用 98.38 GB（91.62 GiB），周额度剩余 35%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-mail-publish.NHa52FfZ`。

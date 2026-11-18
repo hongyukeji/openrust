@@ -74,7 +74,9 @@ impl Mailable for Receipt {
     }
 }
 
-struct MarkdownReceipt;
+struct MarkdownReceipt {
+    plain_view: bool,
+}
 
 impl Mailable for MarkdownReceipt {
     fn envelope(&self) -> MailResult<Envelope> {
@@ -87,6 +89,7 @@ impl Mailable for MarkdownReceipt {
     fn content(&self) -> MailResult<Content> {
         Ok(Content {
             markdown: Some("markdown-receipt".into()),
+            text_view: self.plain_view.then(|| "plain-receipt".into()),
             with: [("name".into(), json!("<Sam>"))].into_iter().collect(),
             ..Default::default()
         })
@@ -526,8 +529,11 @@ impl Command for SendFixture {
         Box::pin(async move {
             let name = input.matches().get_one::<String>("mailer").unwrap();
             let named = NamedReceipt(name);
+            let markdown = MarkdownReceipt {
+                plain_view: input.matches().get_flag("plain-view"),
+            };
             let mailable: &dyn Mailable = if input.matches().get_flag("markdown") {
-                &MarkdownReceipt
+                &markdown
             } else {
                 &named
             };
@@ -665,6 +671,11 @@ fn mail_routes() -> Result<(), ConsoleError> {
             .arg(
                 clap::Arg::new("markdown")
                     .long("markdown")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                clap::Arg::new("plain-view")
+                    .long("plain-view")
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))
@@ -1039,13 +1050,27 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     let path = root.0.join("config.json");
     let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     let theme_path = root.0.join("resources/views/vendor/mail");
-    std::fs::create_dir_all(theme_path.join("html/themes")).unwrap();
+    let publish = ["vendor:publish", "--tag=laravel-mail"];
+    artisan(&root.0, &publish).await;
+    let html_layout = theme_path.join("html/layout.blade.html");
+    let text_layout = theme_path.join("text/layout.blade.html");
+    let default_theme = theme_path.join("html/themes/default.css");
+    let stock = std::fs::read_to_string(&html_layout).unwrap();
+    assert!(default_theme.is_file() && text_layout.is_file());
+    let override_html = "<html><body><header>Published layout</header>{!! $slot !!}</body></html>";
+    std::fs::write(&html_layout, override_html).unwrap();
+    std::fs::write(&text_layout, "Published text\n{!! $slot !!}").unwrap();
+    artisan(&root.0, &publish).await;
+    assert_eq!(
+        std::fs::read_to_string(&html_layout).unwrap(),
+        override_html
+    );
     std::fs::write(
         theme_path.join("html/themes/receipt.css"),
         "h1 { color: #126789; }",
     )
     .unwrap();
-    config["mail"]["markdown"] = json!({"theme":"receipt", "paths":[theme_path]});
+    config["mail"]["markdown"] = json!({"theme":"receipt"});
     std::fs::write(&path, config.to_string()).unwrap();
     std::fs::write(
         root.0.join("resources/views/markdown-receipt.blade.html"),
@@ -1094,13 +1119,91 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
         .unwrap();
     let html = receipt["HTML"].as_str().unwrap();
     let text = receipt["Text"].as_str().unwrap();
-    for expected in ["<h1", "#126789", "&lt;Sam&gt;", "<table", "Subscription"] {
+    for expected in [
+        "<h1",
+        "#126789",
+        "&lt;Sam&gt;",
+        "<table",
+        "Subscription",
+        "Published layout",
+    ] {
         assert!(html.contains(expected), "{html}");
     }
     assert!(!html.contains("<script>") && !html.contains("javascript:"));
+    assert!(text.starts_with("Published text"), "{text}");
     assert!(
         text.contains("Receipt for <Sam>") && text.contains("Open portal (https://example.test)"),
         "{text}"
+    );
+
+    let custom = root.0.join("custom-mail/html");
+    std::fs::create_dir_all(custom.join("themes")).unwrap();
+    std::fs::write(
+        custom.join("layout.blade.html"),
+        "<html><body><header>Configured layout</header>{!! $slot !!}</body></html>",
+    )
+    .unwrap();
+    std::fs::write(custom.join("themes/default.css"), "h1 { color: #654321; }").unwrap();
+    config["mail"]["markdown"] = json!({"paths":["custom-mail"]});
+    std::fs::write(&path, config.to_string()).unwrap();
+    std::fs::write(&text_layout, [0xff]).unwrap();
+    std::fs::write(
+        root.0.join("resources/views/plain-receipt.blade.html"),
+        "Explicit plain text",
+    )
+    .unwrap();
+    artisan(
+        &root.0,
+        &["fixture:send-mail", "smtp", "--markdown", "--plain-view"],
+    )
+    .await;
+
+    let next: Json = reqwest::get(format!("{url}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let new_id = next["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|message| message["Subject"] == "Markdown receipt fixture" && message["ID"] != id)
+        .unwrap()["ID"]
+        .as_str()
+        .unwrap();
+    let configured: Json = reqwest::get(format!("{url}/message/{new_id}"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let html = configured["HTML"].as_str().unwrap();
+    assert!(
+        html.contains("Configured layout") && html.contains("#654321"),
+        "{html}"
+    );
+    assert!(
+        configured["Text"]
+            .as_str()
+            .unwrap()
+            .starts_with("Explicit plain text")
+    );
+
+    artisan(
+        &root.0,
+        &["vendor:publish", "--tag=laravel-mail", "--force"],
+    )
+    .await;
+    assert_eq!(std::fs::read_to_string(&html_layout).unwrap(), stock);
+    assert!(
+        !std::fs::read_to_string(&text_layout)
+            .unwrap()
+            .contains("Published text")
     );
 }
 

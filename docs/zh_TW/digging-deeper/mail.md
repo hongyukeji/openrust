@@ -59,6 +59,16 @@ let content = Content {
 };
 ```
 
+### 自訂 Markdown 版面 {#customizing-the-components}
+
+將 HTML 版面、純文字版面與預設樣式表發布到 `resources/views/vendor/mail`。
+
+```sh
+./artisan vendor:publish --tag=laravel-mail
+```
+
+編輯 `html/layout.blade.html` 及 `text/layout.blade.html` 可加入頁首、頁尾或外層內容。保留 `{!! $slot !!}` 作為渲染後內文的位置。修改 `html/themes/default.css` 可更新預設主題。`mail.markdown.paths` 中的相對路徑依應用程式根目錄解析，按宣告順序尋找，再使用標準發布目錄。只有傳入 `--force` 才會覆寫現有檔案。
+
 ## 郵件加入佇列
 
 讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。

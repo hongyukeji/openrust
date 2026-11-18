@@ -59,6 +59,16 @@ let content = Content {
 };
 ```
 
+### Customize the Markdown layout {#customizing-the-components}
+
+Publish the HTML layout, text layout, and default stylesheet into `resources/views/vendor/mail`.
+
+```sh
+./artisan vendor:publish --tag=laravel-mail
+```
+
+Edit `html/layout.blade.html` and `text/layout.blade.html` to add headers, footers, or other wrapping content. Keep `{!! $slot !!}` where the rendered message belongs. Edit `html/themes/default.css` to update the default theme. Roots in `mail.markdown.paths` are resolved relative to the application and are checked in order before the standard published directory. Publishing preserves existing files unless you pass `--force`.
+
 ## Queueing mail
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.

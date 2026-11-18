@@ -96,14 +96,14 @@ impl Message {
         }
         let (html, text) = match content.markdown.as_deref() {
             Some(view) => {
-                let (html, markdown_text) = markdown.render(view, &content.with, views)?;
                 let text = render(
                     content.text,
                     content.text_view.as_deref(),
                     &content.with,
                     views,
                 )?;
-                (Some(html), text.or(Some(markdown_text)))
+                let (html, text) = markdown.render_with_text(view, &content.with, views, text)?;
+                (Some(html), Some(text))
             }
             None => (
                 render(content.html, content.view.as_deref(), &content.with, views)?,

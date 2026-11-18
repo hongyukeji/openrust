@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use crate::{
     container::ServiceKey,
-    contracts::{config::Repository, container::Container as _, mail::Factory},
+    contracts::{
+        config::Repository, container::Container as _, foundation::Application as _, mail::Factory,
+    },
     foundation::Application,
     http::HttpFuture,
     queue::QueueManager,
@@ -19,9 +21,14 @@ impl ServiceProvider for MailServiceProvider {
         Box::pin(async move {
             let container = app.container_handle();
             let owner = Arc::downgrade(&container);
+            let base = app.base_path().to_owned();
             container.singletonNamed("mail.manager", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
-                Ok(Arc::new(MailManager::new(config, owner.clone())))
+                Ok(Arc::new(MailManager::new(
+                    config,
+                    owner.clone(),
+                    base.clone(),
+                )))
             })?;
             container.alias("mail.manager", ServiceKey::typed::<MailManager>())?;
             container
@@ -35,7 +42,7 @@ impl ServiceProvider for MailServiceProvider {
             app.container_handle()
                 .make::<QueueManager>()?
                 .register(SendQueuedMailable::NAME, Arc::new(SendQueuedMailable))?;
-            Ok(())
+            self.publishes(app, super::markdown::PUBLISHABLE_VIEWS, "laravel-mail")
         })
     }
 }
