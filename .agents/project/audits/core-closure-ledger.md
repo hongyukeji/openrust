@@ -285,3 +285,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 07-07／08-04 [独立部署的缓存路径与包清单清理](08-04/README.md#独立部署的缓存路径与包清单清理)通过实际独立二进制、HTTP、Artisan 及三语文档验收。
 
 06-04 [启动前维护页面的请求目标匹配](06-04/maintenance-prerender.md#启动前维护页面的请求目标匹配)通过真实 TCP、Artisan、Redis 和三语文档复验。
+
+04-02 [HTTP 请求内容协商](04-02/README.md#HTTP 请求内容协商)通过固定上游对照、真实 HTTP、Artisan 和三语文档验收。

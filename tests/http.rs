@@ -89,6 +89,12 @@ async fn exceptions_negotiate_json_without_changing_status_or_allow() {
         ("/api", "text/html", false),
         ("/missing", "text/html", false),
         ("/missing", "application/problem+json", true),
+        ("/missing", "application/json;q=0", true),
+        (
+            "/missing",
+            "application/json;q=.5,text/html;q=.5,application/json;q=.5",
+            false,
+        ),
         ("/missing", "application/json;q=0.4, text/html;q=0.9", false),
         (
             "/missing",

@@ -4,7 +4,6 @@ use std::{
     time::Instant,
 };
 
-use ::http::header::ACCEPT;
 use percent_encoding::percent_decode_str;
 
 use crate::{
@@ -15,6 +14,7 @@ use crate::{
 
 use super::{Body, HeaderMap, Method, RequestParts, Uri};
 
+mod content_types;
 pub(crate) mod context;
 mod cookies;
 mod input;
@@ -31,6 +31,7 @@ pub struct Request {
     body: Body,
     pub(crate) received_at: Instant,
     query_cache: OnceLock<serde_json::Value>,
+    acceptable_content_types: OnceLock<Vec<String>>,
     cookie_cache: OnceLock<serde_json::Value>,
     decrypted_cookies: Option<serde_json::Value>,
     pub(crate) cookie_encryption: Option<crate::cookie::CookieEncryption>,
@@ -65,6 +66,7 @@ impl Request {
             body,
             received_at: Instant::now(),
             query_cache: OnceLock::new(),
+            acceptable_content_types: OnceLock::new(),
             cookie_cache: OnceLock::new(),
             decrypted_cookies: None,
             cookie_encryption: None,
@@ -89,6 +91,7 @@ impl Request {
     }
     pub fn parts_mut(&mut self) -> &mut RequestParts {
         self.query_cache.take();
+        self.acceptable_content_types.take();
         self.cookie_cache.take();
         self.payload_input.take();
         &mut self.parts
@@ -293,26 +296,6 @@ impl Request {
         })
     }
 
-    /// Determines whether the request prefers a JSON response.
-    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
-    pub fn expectsJson(&self) -> bool {
-        let headers = self.headers();
-        let preferred = preferred_content_type(headers);
-        let wants_json = preferred.is_some_and(|media| {
-            let media = media.to_ascii_lowercase();
-            media.contains("/json") || media.contains("+json")
-        });
-        let ajax = headers
-            .get("x-requested-with")
-            .is_some_and(|value| value == "XMLHttpRequest");
-        let pjax = headers
-            .get("x-pjax")
-            .is_some_and(|value| !value.is_empty() && value != "0");
-        let accepts_any = preferred.is_some_and(|media| matches!(media, "*" | "*/*"))
-            || !headers.contains_key(ACCEPT);
-        wants_json || (ajax && !pjax && accepts_any)
-    }
-
     /// The named attributes set by server-side application code for this request.
     pub fn attributes(&self) -> &RequestAttributes {
         &self.attributes
@@ -340,51 +323,6 @@ impl Request {
         context::set_model(&self.attributes, &name, &model);
         self.route_models.insert(name, model);
     }
-}
-
-fn preferred_content_type(headers: &HeaderMap) -> Option<&str> {
-    let mut preferred = None;
-    let mut highest_quality = 0.0;
-    for value in headers
-        .get_all(ACCEPT)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-    {
-        for range in split_header(value, ',') {
-            let mut parts = split_header(range, ';').map(str::trim);
-            let Some(media) = parts.next().filter(|media| !media.is_empty()) else {
-                continue;
-            };
-            let quality = parts
-                .filter_map(|part| part.split_once('='))
-                .find(|(name, _)| name.trim().eq_ignore_ascii_case("q"))
-                .map_or(1.0, |(_, value)| {
-                    value.trim().trim_matches('"').parse::<f32>().unwrap_or(0.0)
-                });
-            if quality > highest_quality && quality <= 1.0 {
-                preferred = Some(media);
-                highest_quality = quality;
-            }
-        }
-    }
-    preferred
-}
-
-fn split_header(value: &str, separator: char) -> impl Iterator<Item = &str> {
-    let mut quoted = false;
-    let mut escaped = false;
-    value.split(move |character| {
-        if escaped {
-            escaped = false;
-        } else if character == '\\' && quoted {
-            escaped = true;
-        } else if character == '"' {
-            quoted = !quoted;
-        } else {
-            return character == separator && !quoted;
-        }
-        false
-    })
 }
 
 pub(crate) fn matches_pattern(path: &str, pattern: &str) -> bool {

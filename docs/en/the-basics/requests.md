@@ -24,6 +24,14 @@ Use `request.only(&["user.name", "user.note"]).await?` to select nested input wh
 
 Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.
 
+## Content Negotiation {#content-negotiation}
+
+Use `request.getAcceptableContentTypes()` to read the `Accept` entries in quality order. Use `request.accepts(&["text/html", "application/json"])` to check a set of acceptable types, or `request.prefers(&["html", "json"])` to select the best candidate. `prefers` returns `None` when the header is absent or there is no match. `request.format("html")` uses the first recognized response format and falls back to the supplied value.
+
+`acceptsAnyContentType()`, `acceptsJson()`, `acceptsHtml()` and `acceptsMarkdown()` check acceptance. `wantsJson()` and `wantsMarkdown()` inspect the top-ranked entry. `expectsJson()` also recognizes a non-PJAX XMLHttpRequest with an empty or wildcard `Accept` header. `isJson()` checks the request body's `Content-Type`.
+
+With repeated `Accept` header fields, the first field is used, as in the pinned Laravel request implementation. Send several types as a comma-separated list in one field.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.

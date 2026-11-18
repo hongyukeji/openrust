@@ -112,3 +112,9 @@
 - 对照固定 Laravel `InteractsWithData::date` 和 Carbon 3.8.4。旧版 Calendar 已区分系统与测试时钟，并处理冻结时钟下的缺省字段。沿用其分支及 T-04 应用测试时钟，保留缺省日期、微秒和相对表达式的解析。HTTP 缓存头继续按原系统时钟路径解析。 [固定 Laravel Request::date](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php#L348)
 - 在 `2a6bb6ca3` 的干净归档实测。PHP 8.5.12 以固定 Laravel Trait 直接调用 Carbon 3.8.4，输出 22 组日期及格式结果。通过真实 TCP 请求逐项比对 OpenRust 响应，另验证两个应用隔离、显式时区、纽约夏令时切换、作用域恢复、空值和无效输入。
 - 请求、日期助手和时间控制定向回归共 24 项通过。Rust 1.94.0 全仓格式、工作区全目标严格 Clippy、独立 `./artisan inspire`、三语站点和 18 项浏览器检查通过。回收隔离编译和文档产物后项目盘可用 100.17 GB（93.29 GiB），提交前周额度剩余 36%。复现日志与 PHP 比对夹具保留于 `/private/tmp/openrust-request-date-clock.vXUAxwQO`。
+
+## HTTP 请求内容协商
+
+- 对照固定 Laravel 13.40 的 Content Negotiation 和 Symfony 7.4.0，复用 `openrust-v0.x` 的有引号参数、数值质量权重、重复条目及格式映射实现和用例。Rust 的候选使用借用切片，`prefers` 用 `Option` 表示无匹配。已构建的请求按需缓存排序，修改请求头后缓存失效，控制器和异常渲染复用同一解析结果。 [Laravel 请求](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#content-negotiation) · [固定实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithContentTypes.php)
+- PHP 8.5 容器用固定 Trait 与 Symfony HeaderBag、AcceptHeader 和 Request 核对 8 组结果。隔离主线 `7379f128a` 的真实 TCP 夹具覆盖质量顺序、带引号分隔符、相同值覆盖、结构化后缀、通配符、重复字段、Markdown 和 AJAX／PJAX；异常测试覆盖 `q=0` 与重复条目的 JSON／HTML 选择。重复 Accept 字段沿用基线的首字段语义。
+- 41 项定向回归通过，另用 Redis 8.10.3 复验实际 `down`、`up` 和双进程状态。独立 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语构建及 18 项浏览器检查通过。本批临时容器与编译和站点产物已清理，数据卷清单一致。剩余磁盘 85.03 GB（79.19 GiB），提交前周额度剩余 24%，第二窗口无读数。日志保留于 `/private/tmp/openrust-request-negotiation.WeuqCiLc`。

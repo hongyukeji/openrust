@@ -454,6 +454,7 @@ async fn start_with(
         .withConfig(|base, _| Ok([("probe".into(), json!({"file_root": base}))].into()))
         .withProviders(vec![Box::new(Provider(label))])
         .withRouting(Routing::default().web(|| {
+            Route::get("/negotiation", negotiate)?;
             Route::r#match(
                 &[Method::GET, Method::POST],
                 "/input",
@@ -562,6 +563,159 @@ async fn start_with(
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
     )
+}
+
+fn negotiate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "types": request.getAcceptableContentTypes(),
+                "preferred": request.prefers(&["html", "json", "text/markdown"]),
+                "format": request.format("fallback"),
+                "accepts": [request.acceptsHtml(), request.acceptsJson(), request.acceptsMarkdown()],
+                "wants": [request.wantsJson(), request.wantsMarkdown()],
+                "expects_json": request.expectsJson(),
+                "is_json": request.isJson(),
+            }),
+        )
+    })
+}
+
+#[tokio::test]
+async fn laravel_content_negotiation_uses_quality_order_and_media_types_over_http() {
+    let (address, server) = start("negotiation").await;
+    let client = reqwest::Client::new();
+    let url = format!("http://{address}/negotiation");
+    let cases = [
+        (
+            "text/html;profile=\"one,two;q=0\";q=.4, application/problem+json;q=.9",
+            json!([
+                [
+                    "application/problem+json",
+                    "text/html;profile=\"one,two;q=0\""
+                ],
+                "json",
+                "problem",
+                [true, false, false],
+                [true, false],
+                true
+            ]),
+        ),
+        (
+            "application/json;q=.5,text/html;q=.5,application/json;q=.5",
+            json!([
+                ["text/html", "application/json"],
+                "html",
+                "html",
+                [true, true, false],
+                [false, false],
+                false
+            ]),
+        ),
+        (
+            "text/markdown;charset=UTF-8,application/*;q=.5",
+            json!([
+                ["text/markdown;charset=UTF-8", "application/*"],
+                "text/markdown",
+                "fallback",
+                [false, true, true],
+                [false, true],
+                false
+            ]),
+        ),
+        (
+            "application/json;q=0",
+            json!([
+                ["application/json"],
+                "json",
+                "json",
+                [false, true, false],
+                [true, false],
+                true
+            ]),
+        ),
+        (
+            "application/*",
+            json!([
+                ["application/*"],
+                "json",
+                "fallback",
+                [false, true, false],
+                [false, false],
+                false
+            ]),
+        ),
+        (
+            "*/*",
+            json!([
+                ["*/*"],
+                "html",
+                "fallback",
+                [true, true, true],
+                [false, false],
+                true
+            ]),
+        ),
+    ];
+    for (accept, expected) in cases {
+        let body: Value = client
+            .get(&url)
+            .header("accept", accept)
+            .header("x-requested-with", "XMLHttpRequest")
+            .header("content-type", "application/problem+json")
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert_eq!(
+            json!([
+                body["types"],
+                body["preferred"],
+                body["format"],
+                body["accepts"],
+                body["wants"],
+                body["expects_json"]
+            ]),
+            expected,
+            "{accept}"
+        );
+        assert_eq!(body["is_json"], true);
+    }
+    let response: Value = client
+        .get(&url)
+        .header("accept", "*/*")
+        .header("x-requested-with", "XMLHttpRequest")
+        .header("x-pjax", "1")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(response["expects_json"], false);
+
+    let response: Value = client
+        .get(&url)
+        .header("accept", "text/html")
+        .header("accept", "application/json")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(response["types"], json!(["text/html"]));
+    assert_eq!(response["wants"], json!([false, false]));
+    assert!(Request::matchesType(
+        "application/json",
+        "application/problem+json"
+    ));
+    server.abort();
 }
 
 async fn send(

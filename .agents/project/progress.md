@@ -3380,3 +3380,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-04 启动前维护页面的请求目标匹配
 
 启动前按带查询串的原始目标匹配重定向和绕过 URL。真实 TCP、Artisan、Redis、严格 Clippy 和三语文档通过。 [启动前维护页面的请求目标匹配](audits/06-04/maintenance-prerender.md#启动前维护页面的请求目标匹配)
+
+## 2026-11-18 04-02 HTTP 请求内容协商
+
+请求接受类型、候选选择与 JSON／Markdown 协商接口已接通。固定上游、实际 HTTP／Artisan、严格 Clippy 和三语文档通过。 [HTTP 请求内容协商](audits/04-02/README.md#HTTP 请求内容协商)

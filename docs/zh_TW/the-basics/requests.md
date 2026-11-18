@@ -24,6 +24,14 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 使用 `request.interval("duration", None).await?` 讀取 ISO 8601 區間或 `2 hours 30 minutes` 等表示式。欄位以指定單位提供數值時，使用 `request.interval("seconds", Some("second")).await?`。結果保留日曆分量和微秒，明確傳入的 90 秒仍屬於秒分量。缺少輸入或只有空白時傳回 `None`，區間或單位無效時傳回 HTTP 400。
 
+## 內容協商 {#content-negotiation}
+
+用 `request.getAcceptableContentTypes()` 讀取依品質權重排序的 `Accept` 項目。用 `request.accepts(&["text/html", "application/json"])` 檢查是否接受任一類型，或用 `request.prefers(&["html", "json"])` 選擇最佳候選。缺少該請求標頭或候選皆不相符時，`prefers` 回傳 `None`。`request.format("html")` 回傳首個識別出的回應格式，找不到時回傳傳入的預設值。
+
+`acceptsAnyContentType()`、`acceptsJson()`、`acceptsHtml()` 和 `acceptsMarkdown()` 檢查是否接受對應類型。`wantsJson()` 和 `wantsMarkdown()` 檢查排序第一的項目。`expectsJson()` 也識別 `Accept` 為空或萬用字元的非 PJAX XMLHttpRequest。`isJson()` 讀取請求本文的 `Content-Type`。
+
+重複傳送 `Accept` 請求標頭時，依固定 Laravel 實作使用首個欄位。需要傳送多種類型時，請在同一欄位中以逗號分隔。
+
 ## 檔案
 
 用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。
