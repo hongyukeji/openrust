@@ -43,3 +43,10 @@
 - 基线 `b3f1ce016` 的隔离归档叠加候选。Ubuntu x86_64 与 Rust 1.94.0 通过 26 项 `console`、`deferred_lifecycle`、`artisan_entry` 测试，覆盖 sync 完成、执行错误和 Unix 非 UTF-8 参数拒绝。全仓格式、锁定离线工作区全目标严格 Clippy、实际二进制的 `artisan inspire` 通过。候选源文件 SHA-256 与验收一致。
 - 实际应用二进制加入临时 HTTP 与命令夹具。通过项目 MySQL 验收入口启动 MySQL 8.4.13，并单独启动 Redis 8.10.3。实际 HTTP 入队到默认 MySQL 连接及明确指定的 Redis 连接和 `commands` 队列，独立 `queue:work` 验证其他队列保持为空、带空格和中文的参数、空字符串、重复选项、正常返回 7 的任务确认。未知命令首次释放，第二次执行写入失败清单，后续 `inspire` 在两种后端均消费成功。应用 SIGTERM 退出 0。宿主运行容器编译出的验收二进制时显式设置 `APP_BASE_PATH`。
 - 英、简中、繁中正文和示例同步。三语构建及根路径和 `/docs/` 下 18 项浏览器检查通过。临时镜像、容器、编译及站点产物已回收，Docker 卷清单一致。提交前项目盘可用 52.12 GB（48.54 GiB），周额度剩余 18%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-artisan-queue.jGf6gMPv`。
+
+## Artisan 开发 HTTP 服务
+
+- 对照固定 Laravel `ServeCommand`，复核 v0.x 的 `http/serve.rs`。沿用独立命令只运行 HTTP 的职责，复用现有 HTTP 内核的请求处理和关停。支持 `SERVER_HOST`、`SERVER_PORT`、`--host`、`--port`、`--tries` 和 `--no-reload`。默认监听 `127.0.0.1:8000`，只有隐式端口遇到地址占用时递增尝试。 [固定 Laravel ServeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ServeCommand.php)
+- 默认监控选中的环境文件。采用同一 Rust 二进制运行 HTTP 子进程，等待旧进程退出后在已选端口重新启动。禁用重载或启动时没有环境文件时直接运行 HTTP。普通 Runner 启动与独立 Artisan 分流保持原有职责。Rust 源码改动需重新构建。Windows 新增子进程及 Ctrl+C 路径仍待实机复验。
+- 基线 `71db48089` 的隔离源码使用 Rust 1.94.0 构建。Ubuntu 实际二进制验证 HTTP 首页和 `/up`、独立 Artisan 帮助和 `inspire`、显式端口占用与重试耗尽退出 1、隐式端口回退、命令行覆盖环境值、`--no-reload`、`--quiet`、`--silent`、选定环境文件重载后保留端口，以及 SIGTERM 和两种模式下 Ctrl+C 退出 0。27 项定向回归、全仓格式、锁定离线全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。
+- 本批临时构建和站点产物已回收。项目磁盘可用 52.08 GB（48.50 GiB），提交前周额度剩余 18%，第二窗口无读数，按用户授权继续。验收日志保留于 `/private/tmp/openrust-artisan-serve.k3BIeZYm`。

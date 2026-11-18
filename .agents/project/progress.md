@@ -3540,3 +3540,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 06-08／06-03 Artisan 命令队列
 
 接通 `Artisan::queue`、连接及队列选择。实际 HTTP 与 MySQL／Redis Artisan Worker、重试与后续消费、26 项定向回归、严格 Clippy 及三语站点通过。 [验收记录](audits/06-08/README.md#artisan-命令队列)
+
+## 2026-11-19 00-03／06-08 Artisan 开发 HTTP 服务
+
+实际 HTTP 和 Artisan 使用独立 HTTP 内核入口，核对端口回退、选定环境文件重载、旧进程退出及端口重新绑定。27 项定向回归、全目标严格 Clippy 与三语文档验收通过。Windows 新增子进程路径待实机复验。 [验收记录](audits/06-08/README.md#artisan-开发-http-服务)

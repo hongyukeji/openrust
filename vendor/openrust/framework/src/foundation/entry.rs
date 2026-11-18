@@ -8,6 +8,7 @@ use crate::{
 use super::{
     Application,
     console::config_cache_command::{ExecutableEntry, WRITE_COMMAND, write_fresh},
+    console::serve_command,
 };
 
 /// Selects the process entry point before creating the application.
@@ -55,6 +56,12 @@ pub async fn run_application(
             let result =
                 crate::queue::isolated_job::serve(app, arguments.get(1).map(Path::new)).await;
             (result.map(|()| 0), "Queue job execution process failed")
+        } else if arguments
+            .first()
+            .is_some_and(|argument| argument == serve_command::CHILD_COMMAND)
+        {
+            let result = serve_command::child(app, &arguments[1..]).await;
+            (result.map(|()| 0), "Development HTTP server failed")
         } else if arguments
             .first()
             .is_some_and(|argument| argument == WRITE_COMMAND)

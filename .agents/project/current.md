@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-19 00:17（北京时间）00-03／06-08 [Artisan 开发 HTTP 服务](audits/06-08/README.md#artisan-开发-http-服务)。真实 HTTP 与 Artisan、端口回退、环境文件重载及 Linux Ctrl+C、SIGTERM 通过。27 项回归、严格 Clippy 和 18 项三语浏览器检查通过。Windows 新增关停路径待实机复验。磁盘可用 52.08 GB（48.50 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批核对固定 Laravel 的 `dev:list` 和 `dev` 及其对开发服务入口的依赖。
 - 2026-11-18 23:57（北京时间）06-08／06-03 [Artisan 命令队列](audits/06-08/README.md#artisan-命令队列)。实际 HTTP、MySQL 8.4.13／Redis 8.10.3 Worker、重试及失败记录通过。26 项定向回归、严格 Clippy 和 18 项三语浏览器检查通过。磁盘可用 52.12 GB（48.54 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批对照固定 Laravel 的 `serve`，核对独立 HTTP 开发入口与现有 Runner 的职责。
 - 2026-11-18 23:37（北京时间）06-08 [Artisan 门面程序化调用](audits/06-08/README.md#artisan-门面程序化调用)。双应用真实 TCP、嵌套命令、独立 Artisan、26 项定向回归、全目标严格 Clippy 和 18 项三语浏览器检查通过。磁盘可用 52.20 GB（48.62 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批对照固定 Laravel 的 QueuedCommand，核对 `Artisan::queue` 与现有 Worker 的接线。
 - 2026-11-18 23:16（北京时间）06-08 [三语 Artisan 入口与 Windows 验收对齐](audits/06-08/README.md#三语-artisan-入口与-windows-验收对齐)。三语正文同步 Runner、独立 Artisan 与 Windows 退出码，18 项浏览器检查通过。磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批对照 Laravel 的程序化命令调用，核对现有 Console Kernel 与 Artisan 门面之间的公开入口。

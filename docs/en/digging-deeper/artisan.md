@@ -35,6 +35,17 @@ Run the compiled `main` without arguments to start the [configured application s
 
 In CMD, run `artisan.bat inspire`. In PowerShell, use `.\artisan.bat help inspire --format=json`. The source launcher requires `cargo.exe` on `PATH` and switches to the application directory. Read Artisan's exit code with `%ERRORLEVEL%` in CMD or `$LASTEXITCODE` in PowerShell. For a [standalone Windows release](../getting-started/deployment.md#windows-standalone), use `.\main.exe artisan inspire`.
 
+### Development HTTP Server {#development-http-server}
+
+Use `./artisan serve` to run HTTP on its own. The default address is `127.0.0.1:8000`. Set `SERVER_HOST` and `SERVER_PORT` to change the defaults, or pass `--host` and `--port` for one invocation. With no explicit port, `--tries` limits how many successive ports to try when a port is already occupied. The default is ten additional ports.
+
+```sh
+./artisan serve
+./artisan serve --host=127.0.0.1 --port=8080 --no-reload
+```
+
+The server restarts after changes to the selected environment file and keeps its listening port. Use `--env=local` to select an environment and `--no-reload` to keep the current configuration until you stop the server. Press Ctrl+C to stop. Run the compiled `main` without mode arguments to [start configured services together](../getting-started/deployment.md#run-services-together).
+
 ## Command Help and Output Formats {#command-help-and-output-formats}
 
 `./artisan help migrate` and `./artisan migrate --help` read the same registered definition. They display arguments, options and descriptions without running the command. Exact command names and aliases take precedence. A unique abbreviation can shorten a complete name or its colon-separated segments.

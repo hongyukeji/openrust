@@ -71,19 +71,10 @@ impl Runner for HttpRunner {
     ) -> crate::http::HttpFuture<'_, RuntimeResult<Option<RunningService>>> {
         Box::pin(async move {
             let listener = listen_for(&self.0.application).await?;
-            let termination_tasks = self.0.termination_tasks.clone();
-            let service = handle
-                .with_state(self.0.clone())
-                .into_make_service_with_connect_info::<std::net::SocketAddr>();
+            let kernel = self.0.clone();
             let run: RunningService = Box::pin(async move {
                 println!("OpenRust listening on http://{}", listener.local_addr()?);
-                let result = axum::serve(listener, service)
-                    .with_graceful_shutdown(context.cancelled_owned())
-                    .await;
-                termination_tasks.close();
-                termination_tasks.wait().await;
-                result?;
-                Ok(())
+                kernel.serve_on(listener, context).await
             });
             Ok(Some(run))
         })
@@ -123,6 +114,42 @@ async fn handle(
 }
 
 impl Kernel {
+    async fn serve_on(
+        self: Arc<Self>,
+        listener: TcpListener,
+        shutdown: RunnerContext,
+    ) -> RuntimeResult<()> {
+        let termination_tasks = self.termination_tasks.clone();
+        let service = handle
+            .with_state(self)
+            .into_make_service_with_connect_info::<std::net::SocketAddr>();
+        let result = axum::serve(listener, service)
+            .with_graceful_shutdown(shutdown.cancelled_owned())
+            .await;
+        termination_tasks.close();
+        termination_tasks.wait().await;
+        result?;
+        Ok(())
+    }
+
+    pub(in crate::foundation) async fn serve_development(
+        self,
+        listener: TcpListener,
+        shutdown: impl Future<Output = io::Result<()>>,
+    ) -> RuntimeResult<()> {
+        let cancellation = RunnerContext::new();
+        let server = Arc::new(self).serve_on(listener, cancellation.clone());
+        tokio::pin!(server);
+        tokio::select! {
+            result = &mut server => result,
+            signal = shutdown => {
+                cancellation.cancel();
+                server.await?;
+                Ok(signal?)
+            }
+        }
+    }
+
     /// Dispatches an HTTP transport request and schedules any post-response middleware.
     #[allow(
         non_snake_case,

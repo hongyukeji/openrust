@@ -25,6 +25,7 @@ mod policy_make_command;
 mod provider_make_command;
 mod queued_command;
 mod resource_make_command;
+pub(super) mod serve_command;
 mod source_edit;
 mod storage_link_command;
 mod storage_unlink_command;
@@ -189,6 +190,7 @@ impl Kernel {
                             mail_make_command::register(&mut self.artisan)?;
                             notification_make_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;
+                            serve_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]
                             crate::sanctum::prune_expired::register(&mut self.artisan)?;
