@@ -26,7 +26,7 @@ use crate::{
     database::{Connection, DatabaseError, DatabaseManager, Transaction},
     events::{Dispatcher, EventContext, ListenerResponse},
     redis::RedisManager,
-    support::facades::application_scope,
+    support::facades::{application_scope, scope},
 };
 
 use super::{
@@ -61,6 +61,7 @@ type Connector = dyn Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Contrac
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
     after_commit: bool,
+    capture_context_on_dispatch: bool,
     synchronous: bool,
     default_queue: String,
     batch_backend: BatchBackend,
@@ -90,6 +91,42 @@ struct Settings {
 }
 
 impl QueueManager {
+    pub(super) async fn run_deferred(
+        &self,
+        name: String,
+        queue: String,
+        payload: Payload,
+    ) -> QueueResult<()> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        scope(owner, async {
+            use crate::log::context::Context;
+            let (repository, hooks) = match Context::repository()
+                .and_then(|repository| Ok((repository, Context::hooks()?)))
+            {
+                Ok(context) => context,
+                Err(error) => {
+                    let _ = self.release_lifecycle_lock(&payload).await;
+                    return Err(backend(error));
+                }
+            };
+            repository
+                .scope(
+                    async {
+                        repository.flush();
+                        hooks.hydrate(&payload.context, &repository);
+                        self.run_background(name, queue, payload).await
+                    },
+                    Default::default(),
+                    Default::default(),
+                )
+                .await
+        })
+        .await
+    }
+
     pub(super) async fn run_background(
         &self,
         name: String,
@@ -449,8 +486,10 @@ impl QueueManager {
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<DispatchResult> {
-        self.capture_context(&mut payload)?;
         let configured = self.resolve(options.connection.as_deref())?;
+        if configured.capture_context_on_dispatch {
+            self.capture_context(&mut payload)?;
+        }
         let queue = configured.queue.clone();
         payload.unique_lock = None;
         let unique = if payload.batch_id.is_none() && payload.chained_batch.is_none() {
@@ -541,18 +580,28 @@ impl QueueManager {
     }
 
     fn capture_context(&self, payload: &mut Payload) -> QueueResult<()> {
-        if let Some((owner, active)) = self
+        self.context_snapshot()?(payload);
+        Ok(())
+    }
+
+    pub(super) fn context_snapshot(&self) -> QueueResult<impl FnOnce(&mut Payload) + Send + use<>> {
+        use crate::log::context::Context;
+        let source = if let Some((owner, active)) = self
             .owner
             .upgrade()
             .zip(crate::support::facades::current_container())
             && Arc::ptr_eq(&owner, &active)
-            && let Ok(context) = crate::log::context::Context::repository()
+            && let Ok(context) = Context::repository()
         {
-            payload.context = crate::log::context::Context::hooks()
-                .map_err(backend)?
-                .dehydrate(&context);
-        }
-        Ok(())
+            Some((context, Context::hooks().map_err(backend)?))
+        } else {
+            None
+        };
+        Ok(move |payload: &mut Payload| {
+            if let Some((context, hooks)) = source {
+                payload.context = hooks.dehydrate(&context);
+            }
+        })
     }
 
     pub(crate) fn batch_repository(&self) -> QueueResult<DatabaseBatchRepository> {
@@ -1319,6 +1368,7 @@ impl QueueManager {
                 default_queue: queue.default_queue().into(),
                 queue,
                 after_commit: settings.after_commit,
+                capture_context_on_dispatch: true,
                 synchronous: settings.driver == "sync",
                 batch_backend: BatchBackend::Unsupported,
             });
@@ -1337,6 +1387,10 @@ impl QueueManager {
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
+            capture_context_on_dispatch: !matches!(
+                settings.driver.as_str(),
+                "deferred" | "background"
+            ),
             synchronous: matches!(
                 settings.driver.as_str(),
                 "sync" | "null" | "deferred" | "background"

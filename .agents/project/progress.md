@@ -3508,3 +3508,7 @@ Windows ARM64 原生 Artisan 验证独立 Background 子进程保持运行时，
 ## 2026-11-18 07-04 defer 在执行边界捕获 Context
 
 公开 defer 采用终止回调时的 Context，隔离任务使用执行器交回前的最终 Context。真实 HTTP、Artisan、Redis 普通／隔离 Worker 验收通过。 [验收记录](audits/07-04/README.md#defer-在执行边界捕获-context)
+
+## 2026-11-18 06-03 生命周期连接在终止回调捕获 Context
+
+deferred／background 在终止回调执行时取 Context，持久 Redis 保留派发快照。真实 HTTP、Artisan、MySQL 8.4.13 事务和 Redis 8.10.3 Worker 验收通过。 [验收记录](audits/06-03/lifecycle-failover-drivers.md#生命周期连接在终止回调捕获-context)

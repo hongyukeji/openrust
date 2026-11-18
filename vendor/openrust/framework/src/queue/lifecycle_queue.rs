@@ -65,27 +65,29 @@ impl Contract for LifecycleQueue {
                 Box::pin(async move { manager.release_lifecycle_lock(&payload).await }) as _
             });
             let id = payload.uuid().to_owned();
-            let payload = payload.clone();
+            let mut payload = payload.clone();
             let name = self.name.clone();
+            let snapshot = manager.context_snapshot()?;
             match self.lifecycle {
                 Lifecycle::Null => unreachable!(),
                 Lifecycle::Deferred => {
                     let _ = enqueue_with_skip(
-                        Box::pin(async move { manager.run_background(name, queue, payload).await }),
+                        Box::pin(async move {
+                            snapshot(&mut payload);
+                            manager.run_deferred(name, queue, payload).await
+                        }),
                         skipped,
                     )
                     .map_err(backend)?;
                 }
                 Lifecycle::Background => {
-                    let task =
-                        Task::new(BACKGROUND_TASK, (name, queue, &payload)).map_err(backend)?;
-                    let launch = manager
-                        .background_driver()?
-                        .prepare_detached(task)
-                        .map_err(backend)?;
+                    let driver = manager.background_driver()?;
                     let _ = enqueue_with_skip(
                         Box::pin(async move {
-                            if let Err(error) = launch() {
+                            snapshot(&mut payload);
+                            let launch = Task::new(BACKGROUND_TASK, (name, queue, &payload))
+                                .and_then(|task| driver.launch_detached(task, &payload.context));
+                            if let Err(error) = launch {
                                 manager.release_lifecycle_lock(&payload).await?;
                                 return Err(backend(error));
                             }

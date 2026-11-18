@@ -349,3 +349,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 07-04 [process defer 在终止阶段脱离运行](07-04/README.md#process-defer-在终止阶段脱离运行)通过真实 HTTP、Artisan、Redis 8.10.3 Worker、公开接口进程回归和三语验收。核心账本维持 66/66。
 
 07-04 [defer 在执行边界捕获 Context](07-04/README.md#defer-在执行边界捕获-context)通过真实 HTTP、Artisan、Redis 普通／隔离 Worker 和三语文档验收。核心账本维持 66/66。
+
+06-03 [生命周期连接在终止回调捕获 Context](06-03/lifecycle-failover-drivers.md#生命周期连接在终止回调捕获-context)通过真实 HTTP、Artisan、MySQL 8.4.13、Redis 8.10.3 和三语验收。核心账本维持 66/66。

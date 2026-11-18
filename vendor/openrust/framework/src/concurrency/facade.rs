@@ -164,17 +164,13 @@ impl Driver {
         self.execute(tasks, None, context).await.map(|_| ())
     }
 
-    pub(crate) fn prepare_detached(
-        &self,
-        task: Task,
-    ) -> Result<impl FnOnce() -> Result<()> + use<>> {
+    pub(crate) fn launch_detached(&self, task: Task, context: &DehydratedContext) -> Result<()> {
         let owner = self.owner.upgrade().ok_or(Error::OutsideRequest)?;
         let environment = owner
             .get::<PathBuf>("env.file")
             .map_err(Error::Unavailable)?;
-        let context = self.capture_context()?;
-        let process = self.process.clone();
-        Ok(move || process.launch_detached(task, &context, environment_name(&environment)))
+        self.process
+            .launch_detached(task, context, environment_name(&environment))
     }
 
     fn selected_environment(&self) -> Option<String> {
