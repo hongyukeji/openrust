@@ -190,3 +190,9 @@
 - 原生 Rust 请求从传输头部保留 URI、版本、重复头与扩展。方法为框架生效方法，`getRealMethod()` 保留覆盖前的值。可信代理处理后的框架 URI 仍可单独读取。PHP 8.5 执行固定 Laravel／Symfony 请求对照校验原始与有效元数据。本批对照不依赖 PHP 的可选 PSR-7 桥接包，Rust 用显式原生转换完成互操作。
 - 隔离主线 `95ad931fe` 上验证所有权转换不轮询正文，真实 TCP 验证可信代理、方法覆盖、重复头、类型扩展和快照后输入继续可读。正文转换限额、预渲染维护页和启动交接通过。实际 `main` 验证 `/up`、无效请求路径 400、SIGTERM 和独立 Artisan `inspire`。
 - 61 项定向回归、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译和站点产物后，磁盘可用 103.26 GB（96.17 GiB），提交前周额度剩余 22%，按用户授权继续。日志位于 `/private/tmp/openrust-native-request.sOuPtByr`。
+
+## 原生 HTTP 响应转换
+
+- 对照固定 Laravel 的 `Router::toResponse` 和 PSR-7 响应分支。复用 openrust-v0.x `6d1a81924` 的 Axum 响应适配思路，当前实现用 Rust `From` 保留状态码、重复头、版本、扩展及正文流。闭包、控制器、资源方法与通过 FormRequest 验证后的返回值都接入现有响应流程。普通借用请求处理器沿用原来的执行路径。 [Laravel 响应转换](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866) · [Laravel PSR-7 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#psr-7-requests)
+- 在隔离主线 `0cb2e5bf1` 以真实 TCP 验证同步、异步、借用请求、控制器及 FormRequest 响应，验证原生 202、重复响应头、HEAD、204、304 与 404。Rust 所有权转换保留正文流且不提前轮询。发送阶段统一处理正文和传输头，保留普通响应的 HEAD 内容长度。PHP 8.5 使用固定 Laravel、Symfony PSR HTTP Message Bridge v7.4.0 和 Nyholm PSR-7 1.8.2 跑实际 `Router::toResponse`，核对 202、重复头、HEAD、204、304。
+- 66 项定向回归、实际二进制 `/up`、错误 400、SIGTERM、独立 Artisan `inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译与站点产物后，磁盘可用 101.28 GB（94.33 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-native-response.bqVSogEx`。

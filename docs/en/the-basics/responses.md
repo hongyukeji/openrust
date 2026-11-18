@@ -6,6 +6,20 @@ Use `Response::json` for a JSON payload and an explicit status. Use `header` or 
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
 
+### Native HTTP Responses {#native-http-responses}
+
+Route closures and controller actions can return an `http::Response<Body>`. The router adapts it to the framework response and sends it through the same middleware and HTTP response preparation. This also applies to asynchronous handlers and validated FormRequest actions.
+
+Add `http = "1.0"` to the application dependencies to use the native response type directly.
+
+```rust
+Route::get("/native", || {
+    http::Response::new(openrust::http::Body::from("native"))
+})?;
+```
+
+Use `Response::from(native)` to open a native response in framework code and `into()` to move it back. Conversion preserves status, repeated headers, protocol version, extensions and the current body stream. The HTTP kernel applies HEAD and bodyless status rules when serving the response.
+
 ### Attaching Headers to Responses {#attaching-headers-to-responses}
 
 Use `withoutHeader` with one typed header name or `withoutHeaders` with a collection of names. Both methods return the response for chaining.

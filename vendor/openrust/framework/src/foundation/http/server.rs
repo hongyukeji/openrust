@@ -130,7 +130,7 @@ impl Kernel {
     )]
     pub async fn handleTransport(self: Arc<Self>, incoming: TransportRequest) -> TransportResponse {
         let mut request = Request::from(incoming);
-        let (parts, body) = self.handle(&mut request).await.into_parts();
+        let response = self.handle(&mut request).await;
         if request
             .parts()
             .extensions
@@ -142,8 +142,9 @@ impl Kernel {
                 .get::<crate::concurrency::DeferredCallbacks>()
                 .is_none()
         {
-            return TransportResponse::from_parts(parts, body);
+            return response.into();
         }
+        let (parts, body) = response.into_parts();
         let (request, _) = request.into_parts();
         let body = super::termination::ResponseBody::wrap(body, self, request, parts.clone());
         TransportResponse::from_parts(parts, body)

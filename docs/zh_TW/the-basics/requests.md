@@ -74,6 +74,8 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 原生請求攜帶 `originalUri()` 傳回的傳輸 URI，以及 `method()` 傳回的生效方法，包含方法覆寫後的結果。用 `uri()` 讀取可信代理處理後的框架 URI，用 `getRealMethod()` 讀取原始方法。`version()` 和 `extensions()` 讀取對應的傳輸中繼資料。
 
+傳回原生型別的寫法見[原生 HTTP 回應](./responses.md#native-http-responses)。
+
 ### 檢查輸入是否存在 {#input-presence}
 
 用 `request.has(&["profile.name"]).await?` 檢查鍵是否存在，明確設為 `null` 的鍵也算存在。用 `hasAny` 檢查任一鍵，用 `missing` 檢查是否有鍵缺少。這些檢查也識別上傳檔案。

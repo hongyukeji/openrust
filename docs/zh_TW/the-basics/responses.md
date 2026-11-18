@@ -6,6 +6,20 @@
 
 輸入讀取及 JSON 回應的完整範例見[控制器](./controllers.md)。
 
+### 原生 HTTP 回應 {#native-http-responses}
+
+路由閉包與控制器方法可以傳回 `http::Response<Body>`。路由器會將它轉為框架回應，接著執行相同的中介層與 HTTP 回應準備流程。非同步處理器與完成 FormRequest 驗證的方法同樣適用。
+
+在應用程式相依性中加入 `http = "1.0"` 即可直接使用原生回應型別。
+
+```rust
+Route::get("/native", || {
+    http::Response::new(openrust::http::Body::from("native"))
+})?;
+```
+
+用 `Response::from(native)` 將原生回應接入框架，用 `into()` 轉回原生型別。轉換會保留狀態碼、重複回應標頭、協定版本、擴充資料與目前的本文串流。HTTP 核心會在送出時處理 HEAD 和無本文狀態碼。
+
 ### 附加回應標頭 {#attaching-headers-to-responses}
 
 用 `withoutHeader` 移除一個具型別的回應標頭，用 `withoutHeaders` 批次移除。兩者都回傳回應，可繼續鏈式呼叫。

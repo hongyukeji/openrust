@@ -14,6 +14,24 @@ pub struct Response {
     pub(super) binary_file: Option<super::binary_file_response::BinaryFile>,
 }
 
+impl<B> From<http::Response<B>> for Response
+where
+    B: http_body::Body<Data = Bytes> + Send + 'static,
+    B::Error: Into<axum::BoxError>,
+{
+    fn from(response: http::Response<B>) -> Self {
+        let (parts, body) = response.into_parts();
+        Self::from_parts(parts, Body::new(body))
+    }
+}
+
+impl From<Response> for http::Response<Body> {
+    fn from(response: Response) -> Self {
+        let (parts, body) = response.into_parts();
+        Self::from_parts(parts, body)
+    }
+}
+
 impl Response {
     pub fn new(status: StatusCode, body: Body) -> Self {
         let mut response = ::http::Response::new(body);
@@ -81,7 +99,7 @@ impl Response {
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }
 
-    pub(super) fn allows_body(status: StatusCode) -> bool {
+    pub(crate) fn allows_body(status: StatusCode) -> bool {
         !status.is_informational()
             && !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
     }

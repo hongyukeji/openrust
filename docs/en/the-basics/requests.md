@@ -74,6 +74,8 @@ For interoperability with Rust HTTP libraries, convert an owned `http::Request<B
 
 The native request uses the transport URI from `originalUri()` and the effective method from `method()`, including any method override. Use `uri()` for the framework URI after trusted-proxy processing and `getRealMethod()` for the original method. `version()` and `extensions()` read the corresponding transport metadata.
 
+See [Native HTTP responses](./responses.md#native-http-responses) for returning a native response.
+
 ### Input Presence {#input-presence}
 
 Use `request.has(&["profile.name"]).await?` when a key must exist, including a key explicitly set to `null`. Use `hasAny` to check alternatives and `missing` to test whether any supplied key is absent. These checks also recognize uploaded files.

@@ -7,35 +7,37 @@ use crate::{
     support::facades::current_container,
 };
 
-pub(super) type Action<C> =
-    for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
+pub(super) type Action<C, T = Response> =
+    for<'a> fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<T, HttpError>>;
 
-type Dispatch<C> = dyn for<'a> Fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>
-    + Send
-    + Sync;
+type Dispatch<C, T> =
+    dyn for<'a> Fn(&'a C, &'a mut Request) -> HttpFuture<'a, Result<T, HttpError>> + Send + Sync;
 
 /// Dispatches a typed controller action through the current application's container.
-pub struct ControllerDispatcher<C> {
-    action: Box<Dispatch<C>>,
+pub struct ControllerDispatcher<C, T = Response> {
+    action: Box<Dispatch<C, T>>,
 }
 
-impl<C: 'static> ControllerDispatcher<C> {
-    pub fn new(action: Action<C>) -> Self {
+impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
+    pub fn new(action: Action<C, T>) -> Self {
         Self {
             action: Box::new(action),
         }
     }
 }
 
-pub(super) type FormAction<C, F> = for<'a> fn(
+pub(super) type FormAction<C, F, T = Response> = for<'a> fn(
     &'a C,
     &'a mut Request,
     ValidatedFormRequest<F>,
-) -> HttpFuture<'a, Result<Response, HttpError>>;
+)
+    -> HttpFuture<'a, Result<T, HttpError>>;
 
-impl<C: Sync + 'static> ControllerDispatcher<C> {
+impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
     #[allow(non_snake_case, reason = "Matches Laravel's FormRequest terminology")]
-    pub fn withFormRequest<F: FormRequest + Default + 'static>(action: FormAction<C, F>) -> Self {
+    pub fn withFormRequest<F: FormRequest + Default + 'static>(
+        action: FormAction<C, F, T>,
+    ) -> Self {
         Self {
             action: Box::new(move |controller, request| {
                 Box::pin(async move {
@@ -47,7 +49,9 @@ impl<C: Sync + 'static> ControllerDispatcher<C> {
     }
 }
 
-impl<C: Send + Sync + 'static> Handler for ControllerDispatcher<C> {
+impl<C: Send + Sync + 'static, T: Into<Response> + Send + 'static> Handler
+    for ControllerDispatcher<C, T>
+{
     fn handle<'a>(
         &'a self,
         request: &'a mut Request,
@@ -64,7 +68,7 @@ impl<C: Send + Sync + 'static> Handler for ControllerDispatcher<C> {
                 .map_err(|source| HttpError::Internal {
                     source: Box::new(source),
                 })?;
-            (self.action)(&controller, request).await
+            (self.action)(&controller, request).await.map(Into::into)
         })
     }
 }

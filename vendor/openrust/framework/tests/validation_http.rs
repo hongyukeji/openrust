@@ -517,7 +517,9 @@ impl FormRequest for Injected {
     }
 }
 
-async fn injected(form: ValidatedFormRequest<Injected>) -> Result<Response, HttpError> {
+async fn injected(
+    form: ValidatedFormRequest<Injected>,
+) -> Result<::http::Response<openrust::http::Body>, HttpError> {
     Response::json(
         StatusCode::OK,
         json!({
@@ -526,6 +528,7 @@ async fn injected(form: ValidatedFormRequest<Injected>) -> Result<Response, Http
             "factory":form.form().factory
         }),
     )
+    .map(Into::into)
 }
 
 struct InjectionController(Arc<AtomicUsize>);
@@ -535,7 +538,7 @@ impl InjectionController {
         &'a self,
         request: &'a mut Request,
         form: ValidatedFormRequest<Injected>,
-    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+    ) -> HttpFuture<'a, Result<::http::Response<openrust::http::Body>, HttpError>> {
         Box::pin(async move {
             self.0.fetch_add(1, Ordering::Relaxed);
             Response::json(
@@ -548,6 +551,7 @@ impl InjectionController {
                     "hook":request.parts().extensions.get::<&'static str>(),
                 }),
             )
+            .map(Into::into)
         })
     }
 }

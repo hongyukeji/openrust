@@ -13,11 +13,12 @@ struct FormRequestHandler<H, F> {
     form: PhantomData<fn() -> F>,
 }
 
-impl<H, F, Fut> IntoRouteHandler<(ValidatedFormRequest<F>, Fut)> for H
+impl<H, F, Fut, T> IntoRouteHandler<(ValidatedFormRequest<F>, Fut)> for H
 where
     H: Fn(ValidatedFormRequest<F>) -> Fut + Send + Sync + 'static,
     F: FormRequest + Default + 'static,
-    Fut: Future<Output = Result<Response, HttpError>> + Send,
+    Fut: Future<Output = Result<T, HttpError>> + Send,
+    T: Into<Response> + Send,
 {
     fn into_route_handler(self) -> Arc<dyn Handler> {
         Arc::new(FormRequestHandler {
@@ -27,11 +28,12 @@ where
     }
 }
 
-impl<H, F, Fut> Handler for FormRequestHandler<H, F>
+impl<H, F, Fut, T> Handler for FormRequestHandler<H, F>
 where
     H: Fn(ValidatedFormRequest<F>) -> Fut + Send + Sync,
     F: FormRequest + Default + 'static,
-    Fut: Future<Output = Result<Response, HttpError>> + Send,
+    Fut: Future<Output = Result<T, HttpError>> + Send,
+    T: Into<Response> + Send,
 {
     fn handle<'a>(
         &'a self,
@@ -39,7 +41,7 @@ where
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async {
             let form = ValidatedFormRequest::resolve(request).await?;
-            (self.action)(form).await
+            (self.action)(form).await.map(Into::into)
         })
     }
 }

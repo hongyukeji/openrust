@@ -199,8 +199,7 @@ async fn handle(
     if let Ok(Some(data)) = maintenance::read_file(&state.marker).await
         && let Some(response) = middleware::prerender(&request, &data, &state.except)
     {
-        let (parts, body) = response.into_parts();
-        return TransportResponse::from_parts(parts, body);
+        return response.into();
     }
     let _ = state.kernel.wait_for(Option::is_some).await;
     let kernel = state

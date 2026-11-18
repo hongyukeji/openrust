@@ -74,6 +74,8 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 原生请求携带 `originalUri()` 返回的传输 URI，以及 `method()` 返回的生效方法，包括方法覆盖后的结果。用 `uri()` 读取可信代理处理后的框架 URI，用 `getRealMethod()` 读取原始方法。`version()` 和 `extensions()` 读取对应的传输元数据。
 
+返回原生类型的写法见[原生 HTTP 响应](./responses.md#native-http-responses)。
+
 ### 检查输入是否存在 {#input-presence}
 
 用 `request.has(&["profile.name"]).await?` 检查键是否存在，显式设置为 `null` 的键也算存在。用 `hasAny` 检查任意一个键，用 `missing` 检查是否有键缺失。这些检查也识别上传文件。

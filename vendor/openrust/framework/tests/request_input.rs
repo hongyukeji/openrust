@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{extract::State, handler::Handler as _};
+use http::Response as NativeResponse;
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
     foundation::{
@@ -65,6 +66,30 @@ impl EchoController {
             ))
         })
     }
+
+    fn native<'a>(
+        &'a self,
+        _: &'a mut Request,
+    ) -> HttpFuture<'a, Result<NativeResponse<Body>, HttpError>> {
+        Box::pin(async { Ok(NativeResponse::new(Body::from(self.0))) })
+    }
+}
+
+fn native_output(request: &mut Request) -> HttpFuture<'_, Result<NativeResponse<Body>, HttpError>> {
+    Box::pin(async move {
+        match request.route("status") {
+            Some("missing") => Err(HttpError::NotFound),
+            Some(status) => Ok(NativeResponse::builder()
+                .status(status.parse::<u16>().unwrap())
+                .header("content-type", "text/plain")
+                .header("content-length", "6")
+                .header("x-native", "one")
+                .header("x-native", "two")
+                .body(Body::from("native"))
+                .unwrap()),
+            None => unreachable!("fixture requires a status"),
+        }
+    })
 }
 
 fn photo_resource() -> ResourceController<EchoController> {
@@ -776,6 +801,15 @@ async fn start_with(
                 dynamic_input,
             )?;
             Route::r#match(&[Method::PATCH], "/native-input", native_input)?;
+            Route::get("/native/sync", || NativeResponse::new(Body::from("sync")))?;
+            Route::get("/native/async", || async {
+                Ok::<_, HttpError>(NativeResponse::new(Body::from("async")))
+            })?;
+            Route::get(
+                "/native/controller",
+                ControllerDispatcher::new(EchoController::native),
+            )?;
+            Route::get("/native/{status}", native_output)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1790,6 +1824,75 @@ async fn real_http_native_snapshot_keeps_the_transport_target_and_effective_meth
             "version_matches":true, "trace":"one,two", "original_trace":"one", "extension_matches":true,
             "body":"_method=PATCH&name=+Ada+", "input":"Ada",
         })
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn native_response_round_trip_preserves_parts_and_does_not_poll_the_stream() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let polls = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&polls);
+    let stream = futures_util::stream::once(async move {
+        observed.fetch_add(1, Ordering::Relaxed);
+        Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"native"))
+    });
+    let native = NativeResponse::builder()
+        .status(202)
+        .version(::http::Version::HTTP_2)
+        .extension(17_u32)
+        .header("x-native", "one")
+        .header("x-native", "two")
+        .body(Body::from_stream(stream))
+        .unwrap();
+    let response: NativeResponse<Body> = Response::from(native).into();
+    assert_eq!(polls.load(Ordering::Relaxed), 0);
+    assert_eq!(response.status(), 202);
+    assert_eq!(response.version(), ::http::Version::HTTP_2);
+    assert_eq!(response.extensions().get::<u32>(), Some(&17));
+    assert_eq!(response.headers().get_all("x-native").iter().count(), 2);
+    assert_eq!(
+        axum::body::to_bytes(response.into_body(), 32)
+            .await
+            .unwrap(),
+        "native"
+    );
+    assert_eq!(polls.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn real_http_native_route_responses_run_through_response_preparation() {
+    let (address, server) = start("native-controller").await;
+    for (path, expected) in [
+        ("/native/sync", "sync"),
+        ("/native/async", "async"),
+        ("/native/controller", "native-controller"),
+    ] {
+        let (_, body) = send(address, "GET", path, "", b"", 200).await;
+        assert_eq!(body, expected);
+    }
+    let (headers, body) = send(address, "GET", "/native/202", "", b"", 202).await;
+    assert_eq!(body, "native");
+    assert!(headers.contains("\r\nx-native: one\r\nx-native: two"));
+    let (headers, body) = send(address, "HEAD", "/native/202", "", b"", 202).await;
+    assert!(body.is_empty() && headers.contains("\r\ncontent-length: 6"));
+    for status in [204, 304] {
+        let (headers, body) = send(
+            address,
+            "GET",
+            &format!("/native/{status}"),
+            "",
+            b"",
+            status,
+        )
+        .await;
+        assert!(body.is_empty());
+        assert!(!headers.contains("content-length") && !headers.contains("content-type"));
+    }
+    let (_, body) = send(address, "GET", "/native/missing", "", b"", 404).await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["message"],
+        "Not Found"
     );
     server.abort();
 }

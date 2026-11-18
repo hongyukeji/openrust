@@ -7,6 +7,7 @@ mod error;
 mod form_request_handler;
 pub mod middleware;
 mod model_response;
+mod native_response;
 mod redirector;
 mod resource;
 mod route;

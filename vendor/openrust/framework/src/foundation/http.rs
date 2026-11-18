@@ -271,15 +271,18 @@ impl http::Kernel for Kernel {
                 } else {
                     extensions.remove::<Arc<Factory>>();
                 }
-                if head {
+                if !Response::allows_body(response.status()) {
+                    drop(response.take_body());
+                    for name in [
+                        ::http::header::CONTENT_TYPE,
+                        ::http::header::CONTENT_LENGTH,
+                        ::http::header::TRANSFER_ENCODING,
+                    ] {
+                        response.parts_mut().headers.remove(name);
+                    }
+                } else if head {
                     let body = response.take_body();
-                    if !response.status().is_informational()
-                        && !matches!(
-                            response.status(),
-                            StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED
-                        )
-                        && let Some(length) = body.size_hint().exact()
-                    {
+                    if let Some(length) = body.size_hint().exact() {
                         response
                             .parts_mut()
                             .headers
