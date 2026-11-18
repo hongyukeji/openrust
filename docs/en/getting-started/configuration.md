@@ -148,6 +148,8 @@ To check the site during maintenance, open the URL printed by `--with-secret`. T
 
 For a file-backed deployment, `./artisan down --render=errors::503` serves the prepared HTML while providers are still booting. Put a custom page at `resources/views/errors/503.blade.html`. The listener settings must load successfully. JSON, excluded paths, and valid bypass requests wait for the application kernel. Cache-backed maintenance uses the running kernel. See [workers during maintenance](../digging-deeper/queues.md#workers-during-maintenance) for the queue behavior.
 
+During startup, use the exact bypass URL printed by Artisan. The early handler compares the request target including its query string and trailing slash. After the HTTP kernel starts, maintenance middleware compares the path without its query string or surrounding slashes.
+
 ### Shared maintenance state {#shared-maintenance-state}
 
 The application exposes maintenance state through `maintenanceMode()`. The default `file` driver stores the payload in `storage/framework/down`. Choose `cache` and a shared cache store to make the state visible to workers on multiple hosts. The `array` driver keeps state inside a single application instance for testing.

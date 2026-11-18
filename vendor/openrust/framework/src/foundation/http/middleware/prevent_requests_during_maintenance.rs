@@ -131,24 +131,27 @@ pub(in crate::foundation::http) fn prerender(
     {
         return None;
     }
+    let uri = request.uri();
+    let target = uri
+        .path_and_query()
+        .map_or(uri.path(), ::http::uri::PathAndQuery::as_str);
     if let Some(secret) = data.get("secret").and_then(Value::as_str)
-        && (bool::from(
-            secret
-                .as_bytes()
-                .ct_eq(request.uri().path().trim_start_matches('/').as_bytes()),
-        ) || valid_bypass(request, secret))
+        && (target
+            .strip_prefix('/')
+            .is_some_and(|path| bool::from(secret.as_bytes().ct_eq(path.as_bytes())))
+            || valid_bypass(request, secret))
     {
         return None;
     }
-    if let Some(target) = data.get("redirect").and_then(Value::as_str)
-        && target != request.uri().path()
+    if let Some(redirect) = data.get("redirect").and_then(Value::as_str)
+        && redirect != target
     {
-        if !target.starts_with('/') || target.starts_with("//") || target.contains('\\') {
+        if !redirect.starts_with('/') || redirect.starts_with("//") || redirect.contains('\\') {
             return None;
         }
         return Some(
             Response::empty(StatusCode::FOUND)
-                .header(LOCATION, HeaderValue::from_str(target).ok()?),
+                .header(LOCATION, HeaderValue::from_str(redirect).ok()?),
         );
     }
     let head = request.method() == Method::HEAD;

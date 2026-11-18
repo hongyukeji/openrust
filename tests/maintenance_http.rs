@@ -193,7 +193,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
             .ends_with("/unavailable")
     );
     fs::write(&view, "Changed source").unwrap();
-    let html = get("/unavailable", "text/html", None);
+    let html = get("/unavailable/?from=deploy", "text/html", None);
     assert_eq!(html.status(), 502);
     assert!(
         html.body.contains("Scheduled maintenance, retry 60"),
@@ -213,7 +213,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
             .is_empty()
     );
 
-    let bypass = get("/maintenance-test-bypass", "text/html", None);
+    let bypass = get("/maintenance-test-bypass/?from=deploy", "text/html", None);
     assert_eq!(bypass.status(), 302);
     assert_eq!(
         bypass.header("location").unwrap().trim_end_matches('/'),

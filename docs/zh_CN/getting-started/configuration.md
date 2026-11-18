@@ -148,6 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 使用文件驱动部署时，`./artisan down --render=errors::503` 可在 Provider 启动期间提供预渲染页面。可在 `resources/views/errors/503.blade.html` 自定义页面。监听配置需成功加载。JSON 请求、排除路径和有效绕过请求等待应用内核。缓存驱动由运行中的内核提供维护响应。队列行为见[维护期间的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
 
+启动期间请使用 Artisan 打印的完整绕过 URL。启动前处理器比较原始请求地址，查询串和尾斜杠都会参与匹配。HTTP 内核启动后，维护中间件按路径匹配，忽略查询串及路径两端的斜杠。
+
 ### 共享维护状态 {#shared-maintenance-state}
 
 应用通过 `maintenanceMode()` 提供维护状态。默认 `file` 驱动把数据写入 `storage/framework/down`。选择 `cache` 和共享缓存仓库，可让多台机器上的 Worker 读取同一状态。`array` 驱动将状态保存在当前应用实例内，可用于测试。

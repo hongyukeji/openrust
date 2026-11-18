@@ -148,6 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 使用檔案驅動部署時，`./artisan down --render=errors::503` 可在 Provider 啟動期間提供預先渲染的頁面。可以在 `resources/views/errors/503.blade.html` 自訂頁面。監聽設定需成功載入。JSON 請求、排除路徑及有效繞過請求會等待應用程式核心。快取驅動由執行中的核心提供維護回應。佇列行為請見[維護期間的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
 
+啟動期間請使用 Artisan 印出的完整繞過 URL。啟動前處理器會比對原始請求位址，查詢字串和尾斜線都會參與比對。HTTP 核心啟動後，維護中介層按路徑比對，忽略查詢字串及路徑兩端的斜線。
+
 ### 共用維護狀態 {#shared-maintenance-state}
 
 應用程式透過 `maintenanceMode()` 提供維護狀態。預設 `file` 驅動程式把資料寫入 `storage/framework/down`。選擇 `cache` 和共享快取儲存，可讓多台主機上的 Worker 讀取相同狀態。`array` 驅動程式將狀態儲存在目前應用程式實例內，可用於測試。

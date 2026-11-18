@@ -65,6 +65,7 @@ async fn verify_startup(fail: bool, health: &'static str, other_health: &'static
             "template": "<h1>Early maintenance snapshot</h1>",
             "retry": 60,
             "redirect": "/offline",
+            "secret": "fixture-bypass",
             "status": 503
         })
         .to_string(),
@@ -93,7 +94,17 @@ async fn verify_startup(fail: bool, health: &'static str, other_health: &'static
     assert!(html.starts_with("HTTP/1.1 503 "), "{html}");
     assert!(html.contains("retry-after: 60"));
     assert!(html.contains("Early maintenance snapshot"));
+    for path in [
+        "/offline/",
+        "/offline?from=deploy",
+        "/fixture-bypass?from=deploy",
+    ] {
+        let redirect = request(address, "GET", path, "text/html").await;
+        assert!(redirect.starts_with("HTTP/1.1 302 "), "{redirect}");
+        assert!(redirect.contains("location: /offline"));
+    }
     let head = request(address, "HEAD", "/offline", "text/html").await;
+    assert!(head.starts_with("HTTP/1.1 503 "), "{head}");
     assert!(head.split_once("\r\n\r\n").unwrap().1.is_empty());
     let redirect = request(address, "GET", "/", "text/html").await;
     assert!(redirect.starts_with("HTTP/1.1 302 "), "{redirect}");
@@ -129,6 +140,11 @@ async fn verify_startup(fail: bool, health: &'static str, other_health: &'static
         assert!(json.ends_with(r#"{"status":"up"}"#), "{json}");
         let unrelated = request(address, "GET", other_health, "application/json").await;
         assert!(unrelated.starts_with("HTTP/1.1 503 "), "{unrelated}");
+        for path in ["/offline/", "/offline?from=deploy"] {
+            let html = request(address, "GET", path, "text/html").await;
+            assert!(html.starts_with("HTTP/1.1 503 "), "{html}");
+            assert!(html.contains("Early maintenance snapshot"));
+        }
         std::fs::remove_file(marker).unwrap();
         let restored = request(address, "GET", "/offline", "text/html").await;
         assert!(restored.starts_with("HTTP/1.1 404 "), "{restored}");
