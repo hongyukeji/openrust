@@ -36,8 +36,10 @@ pub use backed_enum::{BackedEnum, EnumBacking};
 pub use benchmark::Benchmark;
 pub use calendar::{InputDate, InputInterval, IntervalError};
 pub use collection::{ArrayKey, Collection, CollectionError, CollectionNumber, CollectionResult};
-pub(crate) use data::segments as data_path_segments;
 pub use data::{DataPathError, data_fill, data_forget, data_get, data_has, data_set};
+pub(crate) use data::{
+    MAX_DEPTH as DATA_MAX_DEPTH, check_depth as data_check_depth, segments as data_path_segments,
+};
 pub use date::{
     Date, DateError, DateInterval, DateTimezone, MonthOverflow, days, hours, microseconds,
     milliseconds, minutes, months, now, seconds, today, weeks, years,

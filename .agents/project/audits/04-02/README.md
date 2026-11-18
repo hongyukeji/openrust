@@ -176,3 +176,10 @@
 - `fluent()`／`fluentOr()` 读取普通输入，复用既有 JSON `Fluent`。PHP 用 foreach 接收属性并对标量发出警告，Rust 对非法属性形态明确返回 HTTP 400。`fluentOnly()` 用 `Fluent<RequestValue>` 表达带上传对象的只读属性快照。已验证路径读取及独立快照。类型化变更接口和动态属性的路由回退仍需核对。
 - 隔离主线 `b3d6ea494` 上用真实 TCP 验证 PATCH 表单、JSON、multipart、查询独立、显式 null、字面点键、合并后正文、错误 400 和上传对象。PHP 8.5 运行固定 Laravel 三组对照。MySQL 8.4.13 复验 Eloquent `AsFluent` 的持久化及类型转换。
 - 60 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点及 18 项浏览器检查通过。Docker 卷清单一致。回收本批独立编译和站点产物后，磁盘可用 83.92 GB（78.15 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-post-fluent.WnAKsjtQ`。
+
+## 请求动态字段和类型化 Fluent 子作用域
+
+- 对照固定 Laravel `Request::__get`、`HttpRequestTest` 和 `Fluent::set`／`scope`。复用 openrust-v0.x `6d1a81924` 的路由参数读取思路和 Fluent 点路径、独立子作用域契约。正式版复用 `all()`、点路径和共享的绑定对象。 [Laravel 动态属性](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php#L801) · [Laravel 请求测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) · [Laravel Fluent](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Fluent.php#L66)
+- Rust 以 `field()` 表达 PHP 动态属性。输入优先并保留显式 null，缺失时优先返回绑定模型，再读原始路由值。用 `RequestField` 区分可读取的请求值与可向下转换的绑定对象。类型化 Fluent 的 `set` 支持通配符及原子失败，`scope` 返回独立集合。标量和上传对象以整数键 0 保留，上传对象的内部表示不转为属性列表。 [Laravel 动态字段文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-input-via-dynamic-properties)
+- 隔离主线 `b00ffd907` 上真实 TCP 验证字面点键、null、文件覆盖路由参数、原始及绑定路由参数、模型缺失返回 404、Fluent 独立副本、通配符变更及超深路径拒绝。PHP 8.5 运行固定 Laravel 两组对照。此批涉及请求与路由契约，定向验证使用内存绑定夹具。
+- 60 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译和站点产物后，磁盘可用 103.63 GB（96.51 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-request-field.sKbTLpvy`。

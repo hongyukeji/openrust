@@ -26,7 +26,9 @@
 
 用 `request.post(None).await?` 讀取本文參數集合，或用 `request.post(Some("name")).await?` 讀取精確的頂層鍵。JSON 請求會讀取解碼後的本文。查詢參數和 multipart 上傳物件各自透過獨立集合讀取。明確的 null 在完整集合中保留，依名稱讀取該值時回傳 `None`。
 
-用 `request.fluent(Some("user")).await?` 將一組一般輸入包裝為獨立的 `Fluent` 屬性集合。傳入 `None` 可包裝全部一般輸入，欄位缺少或為 null 時可用 `fluentOr("user", default)` 提供預設屬性集合。純量無法建構屬性集合，會回傳 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 取得保留上傳物件的唯讀型別化快照。用 `get` 讀取路徑，用 `value` 讀取精確的頂層鍵。
+用 `request.fluent(Some("user")).await?` 將一組一般輸入包裝為獨立的 `Fluent` 屬性集合。傳入 `None` 可包裝全部一般輸入，欄位缺少或為 null 時可用 `fluentOr("user", default)` 提供預設屬性集合。純量無法建構屬性集合，會回傳 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 取得保留上傳物件的獨立型別化快照。用 `get` 讀取路徑，用 `value` 讀取精確的頂層鍵。
+
+用 `scope("user")` 取得獨立的子屬性集合。純量和檔案以索引 `0` 包裝。用 `set("user.name", RequestValue::Value(serde_json::json!("Ada")))?` 修改型別化屬性集合。萬用字元路徑會更新現有成員，原請求的輸入不受影響。
 
 OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預設上限為 8 MiB。輸入無效回傳 400，超量回傳 413。
 
@@ -49,6 +51,10 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 測試中，`TestApp::travelTo` 和凍結時間方法會為相對日期及格式中省略的欄位提供參考時刻。例如，`tomorrow` 從所用時區的凍結日期計算。格式以 `!` 開頭時，省略的欄位會重設。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
 
 使用 `request.interval("duration", None).await?` 讀取 ISO 8601 區間或 `2 hours 30 minutes` 等表示式。欄位以指定單位提供數值時，使用 `request.interval("seconds", Some("second")).await?`。結果保留日曆分量和微秒，明確傳入的 90 秒仍屬於秒分量。缺少輸入或只有空白時傳回 `None`，區間或單位無效時傳回 HTTP 400。
+
+### 透過動態屬性讀取輸入 {#retrieving-input-via-dynamic-properties}
+
+用 `request.field("name").await?` 執行 Laravel 動態請求屬性的查找順序。先讀取合併後的輸入和檔案，明確的 null 也算命中。欄位缺少時檢查目前比對路由的同名繫結模型或原始參數。比對 `RequestField::RouteModel(model)` 後用 `model.downcast::<T>()` 讀取繫結模型。一般欄位、上傳檔案和原始路由參數使用 `RequestField::Value`。
 
 ### 取得部分輸入 {#retrieving-a-portion-of-the-input-data}
 

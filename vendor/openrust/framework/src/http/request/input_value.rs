@@ -4,9 +4,20 @@ use indexmap::IndexMap;
 use serde_json::Value;
 
 use crate::{
+    container::ParameterValue,
     http::{HttpError, Request, UploadedFile, UploadedFileValue},
-    support::{ArrayKey, Collection, Fluent, data_path_segments},
+    support::{
+        ArrayKey, Collection, DATA_MAX_DEPTH, Fluent, FluentError, data_check_depth,
+        data_path_segments,
+    },
 };
+
+/// A dynamic request field or the bound object resolved from its route parameter.
+#[derive(Clone, Debug)]
+pub enum RequestField {
+    Value(RequestValue),
+    RouteModel(ParameterValue),
+}
 
 /// A request field containing a JSON scalar, an ordered array, or a received file.
 #[derive(Clone)]
@@ -101,7 +112,7 @@ impl RequestValue {
         }
     }
 
-    fn set(&mut self, path: &[&str], value: Self) {
+    fn set(&mut self, path: &[&str], value: Self, expand_wildcards: bool) {
         let Some((&key, rest)) = path.split_first() else {
             *self = value;
             return;
@@ -110,10 +121,27 @@ impl RequestValue {
             *self = Self::Array(IndexMap::new());
         }
         if let Self::Array(fields) = self {
-            fields
-                .entry(ArrayKey::from(key))
-                .or_insert(Self::Value(Value::Null))
-                .set(rest, value);
+            if expand_wildcards && key == "*" {
+                for field in fields.values_mut() {
+                    field.set(rest, value.clone(), true);
+                }
+            } else {
+                fields
+                    .entry(ArrayKey::from(key))
+                    .or_insert(Self::Value(Value::Null))
+                    .set(rest, value, expand_wildcards);
+            }
+        }
+    }
+
+    fn check_depth(&self, depth: usize) -> Result<(), FluentError> {
+        match self {
+            Self::Array(_) if depth >= DATA_MAX_DEPTH => Err(FluentError::Depth),
+            Self::Array(fields) => fields
+                .values()
+                .try_for_each(|field| field.check_depth(depth + 1)),
+            Self::Value(value) => Ok(data_check_depth(value, depth)?),
+            Self::File(_) => Ok(()),
         }
     }
 
@@ -181,6 +209,27 @@ impl Fluent<RequestValue> {
         self.all().get(key).is_some()
     }
 
+    /// Updates this Fluent bag using a dot path or wildcard and preserves typed uploads.
+    pub fn set(&mut self, key: &str, value: RequestValue) -> Result<&mut Self, FluentError> {
+        let path = data_path_segments(key)?;
+        value.check_depth(0)?;
+        let mut attributes = self.toArray();
+        attributes.set(&path, value, true);
+        attributes.check_depth(0)?;
+        *self = Self::from_attributes(attributes);
+        Ok(self)
+    }
+
+    /// Returns an independent bag rooted at the selected attribute.
+    pub fn scope(&self, key: &str) -> Self {
+        let value = match self.get(key) {
+            None | Some(RequestValue::Value(Value::Null)) => RequestValue::Array(IndexMap::new()),
+            Some(value @ RequestValue::Array(_)) => value,
+            Some(value) => RequestValue::Array([(ArrayKey::Integer(0), value)].into()),
+        };
+        Self::from_attributes(value)
+    }
+
     pub fn isEmpty(&self) -> bool {
         matches!(self.all(), RequestValue::Array(fields) if fields.is_empty())
     }
@@ -191,6 +240,19 @@ impl Fluent<RequestValue> {
 }
 
 impl Request {
+    /// Reads merged input or files, then falls back to the current route's parameter.
+    pub async fn field(&mut self, key: &str) -> Result<Option<RequestField>, HttpError> {
+        if let Some(value) = self.all().await?.get(key).cloned() {
+            return Ok(Some(RequestField::Value(value)));
+        }
+        if let Some(model) = self.route_models.get(key) {
+            return Ok(Some(RequestField::RouteModel(model.clone())));
+        }
+        Ok(self
+            .route(key)
+            .map(|value| RequestField::Value(RequestValue::Value(Value::String(value.to_owned())))))
+    }
+
     /// Combines normal input and uploaded files, preserving input precedence and key order.
     pub async fn all(&mut self) -> Result<RequestValue, HttpError> {
         let values = self
@@ -219,7 +281,7 @@ impl Request {
                 .get(key)
                 .cloned()
                 .unwrap_or(RequestValue::Value(Value::Null));
-            selected.set(&path, field);
+            selected.set(&path, field, false);
         }
         Ok(selected)
     }
@@ -231,7 +293,7 @@ impl Request {
         for key in keys {
             let path = data_path_segments(key).map_err(|_| HttpError::InvalidRequest)?;
             if let Some(field) = input.read(&path) {
-                selected.set(&path, field);
+                selected.set(&path, field, false);
             }
         }
         Ok(selected)

@@ -26,7 +26,9 @@
 
 用 `request.post(None).await?` 读取正文参数集合，或用 `request.post(Some("name")).await?` 读取精确的顶层键。JSON 请求会读取解码后的正文。查询参数和 multipart 上传对象各自通过独立集合读取。显式 null 在完整集合中保留，按名称读取该值时返回 `None`。
 
-用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluentOr("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 获取保留上传对象的只读类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
+用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluentOr("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 获取保留上传对象的独立类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
+
+用 `scope("user")` 获取独立的子属性集合。标量与文件用索引 `0` 包装。用 `set("user.name", RequestValue::Value(serde_json::json!("Ada")))?` 修改类型化属性集合。通配路径更新已有成员，原请求的输入不受影响。
 
 OpenRust 成功读取正文后保留原始字节，供后续读取。默认上限为 8 MiB。输入无效返回 400，超量返回 413。
 
@@ -49,6 +51,10 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 测试中，`TestApp::travelTo` 和冻结时间方法为相对日期及格式中省略的字段提供参考时刻。例如，`tomorrow` 从所用时区的冻结日期计算。格式以 `!` 开头时，省略的字段会重置。详见[控制测试时间](../testing/mocking.md#interacting-with-time)。
 
 用 `request.interval("duration", None).await?` 读取 ISO 8601 区间或 `2 hours 30 minutes` 等表达式。字段以指定单位提供值时，使用 `request.interval("seconds", Some("second")).await?`。结果保留日历分量和微秒，显式传入的 90 秒仍在秒分量中。缺失或空白输入返回 `None`，无效区间或单位返回 HTTP 400。
+
+### 通过动态属性读取输入 {#retrieving-input-via-dynamic-properties}
+
+用 `request.field("name").await?` 执行 Laravel 动态请求属性的查找顺序。先读取合并后的输入和文件，显式 null 也算命中。字段缺失时检查当前匹配路由的同名绑定模型或原始参数。匹配 `RequestField::RouteModel(model)` 后用 `model.downcast::<T>()` 读取绑定模型。普通字段、上传文件和原始路由参数使用 `RequestField::Value`。
 
 ### 获取部分输入 {#retrieving-a-portion-of-the-input-data}
 

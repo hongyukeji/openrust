@@ -35,7 +35,7 @@ pub(crate) use proxy::{ProxyPolicy, ProxyRequest};
 pub use proxy::{RequestSecurity, TrustedProxyHeaders};
 pub use redirect_response::RedirectResponse;
 pub(crate) use request::context as request_context;
-pub use request::{Request, RequestAttributes, RequestValue};
+pub use request::{Request, RequestAttributes, RequestField, RequestValue};
 pub(crate) use request::{parse_query, parse_uri_query};
 pub use response::Response;
 pub(crate) use response_factory::ResponseServiceProvider;

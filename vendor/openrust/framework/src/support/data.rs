@@ -203,7 +203,7 @@ pub(crate) fn segments(key: &str) -> Result<Vec<&str>, DataPathError> {
     Ok(parts)
 }
 
-pub(super) fn check_depth(value: &Value, depth: usize) -> Result<(), DataPathError> {
+pub(crate) fn check_depth(value: &Value, depth: usize) -> Result<(), DataPathError> {
     if !matches!(value, Value::Array(_) | Value::Object(_)) {
         return Ok(());
     }
@@ -221,7 +221,7 @@ pub(super) fn check_depth(value: &Value, depth: usize) -> Result<(), DataPathErr
     }
 }
 
-const MAX_DEPTH: usize = 127;
+pub(crate) const MAX_DEPTH: usize = 127;
 
 /// The path or resulting nested value exceeds the JSON nesting limit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

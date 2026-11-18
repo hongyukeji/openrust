@@ -3420,3 +3420,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02 请求正文参数与 Fluent
 
 完成正文参数读取、普通输入 Fluent 和保留上传的类型化选择。真实 HTTP、固定 Laravel、MySQL 8.4.13、Artisan、严格 Clippy 与三语站点通过。 [请求正文参数与 Fluent](audits/04-02/README.md#请求正文参数与-fluent)
+
+## 2026-11-18 04-02 请求动态字段和类型化 Fluent 子作用域
+
+动态字段读取支持原始路由参数及绑定模型回退，类型化 Fluent 支持独立作用域及通配符修改。真实 HTTP、固定 Laravel、Artisan、严格 Clippy 和三语站点通过。 [请求动态字段和类型化 Fluent 子作用域](audits/04-02/README.md#请求动态字段和类型化-fluent-子作用域)

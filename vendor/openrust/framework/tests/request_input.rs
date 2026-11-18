@@ -9,8 +9,8 @@ use openrust::{
         http::Kernel,
     },
     http::{
-        Body, HeaderMap, HttpError, HttpFuture, Method, Request, RequestValue, Response,
-        ResponseMacro, StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
+        Body, HeaderMap, HttpError, HttpFuture, Method, Request, RequestField, RequestValue,
+        Response, ResponseMacro, StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
     },
     routing::{
         ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
@@ -186,6 +186,23 @@ fn body_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             .fluentOnly(&["user.name", "document", "missing"])
             .await?;
         let attachment = fields.get("document");
+        let mut scoped = fields.scope("user");
+        scoped
+            .set("local", RequestValue::Value(json!(true)))
+            .unwrap();
+        let mut edited = fields.clone();
+        if let Some(file) = attachment.clone() {
+            edited.set("items.0.upload", file).unwrap();
+            edited
+                .set("items.*.approved", RequestValue::Value(json!(true)))
+                .unwrap();
+            let too_deep = format!("{}end", "path.".repeat(128));
+            assert!(
+                edited
+                    .set(&too_deep, RequestValue::Value(Value::Null))
+                    .is_err()
+            );
+        }
         request.merge(json!({"user.name":"updated"})).await?;
         Response::json(
             StatusCode::OK,
@@ -194,10 +211,29 @@ fn body_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
                 "fluent_user": user, "fallback": fallback, "missing_is_empty": missing.isEmpty(),
                 "fluent_all": all, "fluent_selected": visible_input(fields.all()),
                 "attachment": attachment.as_ref().map(visible_input),
+                "scoped": visible_input(scoped.all()), "edited_items": edited.get("items").as_ref().map(visible_input),
+                "file_scope": visible_input(fields.scope("document").all()),
                 "has_typed_user": fields.has("user.name"), "no_document_in_post": request.post(Some("document")).await?.is_none(),
                 "updated": request.post(Some("user")).await?,
             }),
         )
+    })
+}
+
+fn dynamic_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mut fields = serde_json::Map::new();
+        for key in ["slug", "model", "user.name", "missing"] {
+            let value = match request.field(key).await? {
+                Some(RequestField::Value(value)) => visible_input(&value),
+                Some(RequestField::RouteModel(model)) => {
+                    json!({"bound": model.downcast::<String>().unwrap().as_str()})
+                }
+                None => Value::Null,
+            };
+            fields.insert(key.to_owned(), value);
+        }
+        Response::json(StatusCode::OK, fields)
     })
 }
 
@@ -695,6 +731,16 @@ async fn start_with(
                 &[Method::GET, Method::POST, Method::PATCH],
                 "/body-input",
                 body_input,
+            )?;
+            Route::bind("model", |context| {
+                Box::pin(async move {
+                    Ok((context.value() != "gone").then(|| format!("model:{}", context.value())))
+                })
+            })?;
+            Route::r#match(
+                &[Method::GET, Method::POST],
+                "/dynamic/{slug}/{model}",
+                dynamic_input,
             )?;
             Route::get("/stream", stream)
         }))
@@ -1570,6 +1616,12 @@ async fn real_http_reads_body_and_fluent_values_with_their_own_sources() {
         json!({"user":{"name":"Grace"},"document":{"file":"report.txt"}})
     );
     assert_eq!(value["attachment"], json!({"file":"report.txt"}));
+    assert_eq!(value["scoped"], json!({"name":"Grace","local":true}));
+    assert_eq!(
+        value["edited_items"],
+        json!({"0":{"upload":{"file":"report.txt"},"approved":true}})
+    );
+    assert_eq!(value["file_scope"], json!({"0":{"file":"report.txt"}}));
     assert!(value["fluent_all"].get("document").is_none());
     send(
         address,
@@ -1586,6 +1638,46 @@ async fn real_http_reads_body_and_fluent_values_with_their_own_sources() {
     assert_eq!(value["post"], json!([]));
     assert_eq!(value["fluent_user"]["name"], "query");
     assert!(value["updated"].is_null());
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_dynamic_field_lookup_falls_back_to_raw_and_bound_route_values() {
+    let (address, server) = start("dynamic-fields").await;
+    let (_, body) = send(address, "GET", "/dynamic/route/7", "", b"", 200).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({"slug":"route","model":{"bound":"model:7"},"user.name":null,"missing":null})
+    );
+    let (_, body) = send(
+        address,
+        "POST",
+        "/dynamic/route/7?slug=query",
+        "application/json",
+        br#"{"slug":null,"model":"input","user":{"name":"nested"},"user.name":"literal"}"#,
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({"slug":null,"model":"input","user.name":"literal","missing":null})
+    );
+    let multipart = b"--dynamic\r\nContent-Disposition: form-data; name=\"slug\"; filename=\"upload.txt\"\r\n\r\nbytes\r\n--dynamic--\r\n";
+    let (_, body) = send(
+        address,
+        "POST",
+        "/dynamic/route/7",
+        "multipart/form-data; boundary=dynamic",
+        multipart,
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["slug"], json!({"file":"upload.txt"}));
+    assert_eq!(value["model"], json!({"bound":"model:7"}));
+    send(address, "GET", "/dynamic/route/gone", "", b"", 404).await;
     server.abort();
 }
 

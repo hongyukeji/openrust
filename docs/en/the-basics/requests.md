@@ -26,7 +26,9 @@ Use `request.query(Some("key"))` to read an exact top-level query key. Use `requ
 
 Use `request.post(None).await?` for the body parameter bag or `request.post(Some("name")).await?` for an exact top-level key. On a JSON request this reads the decoded JSON body. Query parameters and multipart file objects use their own bags. An explicit null remains in the full body bag, and a named lookup of that value returns `None`.
 
-Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluentOr("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluentOnly(&["user.name", "document"]).await?` for a read-only typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
+Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluentOr("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluentOnly(&["user.name", "document"]).await?` for an independent typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
+
+Use `scope("user")` for an independent nested bag. Scalar and file scopes use index `0`. Use `set("user.name", RequestValue::Value(serde_json::json!("Ada")))?` to edit a typed bag. Wildcard paths update existing children, and the original request keeps its input.
 
 OpenRust preserves the body bytes for subsequent reads after successful collection. The default limit is 8 MiB. Invalid input returns 400, and oversized input returns 413.
 
@@ -49,6 +51,10 @@ Use `request.date("when", None, None).await?` to parse a date using the applicat
 In a test fixture, `TestApp::travelTo` and the freeze helpers set the reference for relative dates and components omitted by the format. For example, `tomorrow` is resolved from the fixture's frozen date in the requested time zone. A format starting with `!` resets omitted fields. See [Interacting with time](../testing/mocking.md#interacting-with-time).
 
 Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.
+
+### Retrieving Input via Dynamic Properties {#retrieving-input-via-dynamic-properties}
+
+Use `request.field("name").await?` for the lookup Laravel performs on dynamic request properties. It reads merged input and files first, including explicit nulls. If the field is absent, it looks for a bound model or raw parameter with that name on the matched route. Match `RequestField::RouteModel(model)` and use `model.downcast::<T>()` for a bound model. Ordinary fields, uploads and raw route parameters use `RequestField::Value`.
 
 ### Retrieving a Portion of the Input Data {#retrieving-a-portion-of-the-input-data}
 

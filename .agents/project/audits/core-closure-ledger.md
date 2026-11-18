@@ -305,3 +305,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [类型化请求回调与字段筛选](04-02/README.md#类型化请求回调与字段筛选)通过真实 HTTP、固定 Laravel 对照、MySQL 8.4.13 会话验证、Artisan 和三语文档验收。
 
 04-02 [请求正文参数与 Fluent](04-02/README.md#请求正文参数与-fluent)通过真实 HTTP、固定 Laravel、MySQL 8.4.13 Fluent 转换、Artisan 和三语文档验收。
+
+04-02 [请求动态字段和类型化 Fluent 子作用域](04-02/README.md#请求动态字段和类型化-fluent-子作用域)通过真实 HTTP、固定 Laravel、Artisan 和三语文档验收。

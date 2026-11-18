@@ -25,7 +25,7 @@ pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
 mod url;
 mod variables;
 pub use context::RequestAttributes;
-pub use input_value::RequestValue;
+pub use input_value::{RequestField, RequestValue};
 
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
