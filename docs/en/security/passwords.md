@@ -19,6 +19,10 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 The default user sends the link through `ResetPassword`. Pass a callback as the second argument of `sendResetLink` to customize delivery. Convert the returned status with `as_str()` to translate it. The broker uses the configured response time floor for link requests and unsuccessful resets.
 
+<span id="default-password-reset-email"></span>
+
+The default reset email includes a localized action button, a plain-text link, and an expiry notice. The notice uses the default broker selected by `auth.defaults.passwords` and its `auth.passwords.<broker>.expire` value in minutes.
+
 ## Resetting the password
 
 Validate the password and confirmation in the application. Pass the lookup credentials, token, new password and persistence callback to `Password::reset`. The callback hashes and saves the password, rotates the remember token, and may dispatch `PasswordReset`. Return success after the write succeeds.

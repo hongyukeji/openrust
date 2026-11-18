@@ -3321,3 +3321,8 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 Slack 元数据与线程回复
 
 按固定 Laravel Slack 补齐可复用元数据、线程时间戳清除与广播选项三态。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、28 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#slack-元数据与线程回复)
+
+
+## 2026-11-18 06-07 密码重置与邮箱验证的默认邮件
+
+按固定 Laravel 接通默认邮件的标准通知模板、本地化动作与密码重置期限说明。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/06-07/README.md#default-auth-notification-mail)

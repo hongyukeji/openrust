@@ -257,3 +257,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Slack Block Kit 标题、分隔线与图片](06-06/README.md#slack-block-kit-标题分隔线与图片)通过真实 HTTP、MySQL 和 Redis 独立 Artisan Worker 与三语验收。
 
 06-06 的 [Slack 元数据与线程回复](06-06/README.md#slack-元数据与线程回复)通过 HTTP、独立 Artisan Worker 及三语验收。
+
+06-07 的 [密码重置与邮箱验证的默认邮件](06-07/README.md#default-auth-notification-mail)通过实际 HTTP、Mailpit SMTP、令牌仓储和 Artisan 验收。

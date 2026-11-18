@@ -246,7 +246,7 @@ async fn start(
         "database":{"default":"fixture","connections":{"fixture":{"driver":"sqlite","database":"fixture.sqlite"}}},
         "auth":{"defaults":{"guard":"api","passwords":"users"},"guards":{"api":{"driver":"token","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"fixture.user"}},
-                "passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}},
+                "passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":37,"throttle":60}}},
         "mail":{"default":if mailpit.is_some() {"smtp"} else {"array"}, "from":{"address":"auth@example.test"},
                 "mailers":{"array":{"transport":"array"},"smtp":{"transport":"smtp","host":"127.0.0.1","port":mailpit.map_or(1, |(port, _)| port)}}}
     });
@@ -313,7 +313,7 @@ async fn start(
     (root, addr, kernel, process)
 }
 
-async fn mail_url(kernel: &Kernel, mailpit: Option<(u16, u16)>, subject: &str) -> String {
+async fn mail_body(kernel: &Kernel, mailpit: Option<(u16, u16)>, subject: &str) -> String {
     if let Some((_, port)) = mailpit {
         let list = mailpit_json(port, "messages").await;
         let id = list["messages"]
@@ -325,7 +325,8 @@ async fn mail_url(kernel: &Kernel, mailpit: Option<(u16, u16)>, subject: &str) -
             .as_str()
             .unwrap();
         let message = mailpit_json(port, &format!("message/{id}")).await;
-        return extract_url(message["Text"].as_str().unwrap());
+        assert!(!message["HTML"].as_str().unwrap().is_empty());
+        return message["Text"].as_str().unwrap().into();
     }
     let application = kernel.get_application();
     application
@@ -338,9 +339,8 @@ async fn mail_url(kernel: &Kernel, mailpit: Option<(u16, u16)>, subject: &str) -
                     .map(|sent| String::from_utf8(sent.message.formatted()).unwrap())
                     .find(|mime| mime.contains(subject))
                     .unwrap();
-                // The text-only message can use quoted-printable transfer encoding.
-                let mime = mime.replace("=\r\n", "").replace("=3D", "=");
-                Ok(extract_url(&mime))
+                assert!(mime.contains("Content-Type: text/html"));
+                Ok(mime.replace("=\r\n", "").replace("=3D", "="))
             }),
             Default::default(),
         )
@@ -349,11 +349,11 @@ async fn mail_url(kernel: &Kernel, mailpit: Option<(u16, u16)>, subject: &str) -
 }
 
 fn extract_url(text: &str) -> String {
-    text.lines()
-        .find(|line| line.starts_with("http://"))
-        .unwrap()
-        .trim()
-        .into()
+    let url = text
+        .split(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '[' | ']'))
+        .find(|item| item.starts_with("http://") && item.contains('?'))
+        .unwrap();
+    url.replace("&amp;", "&")
 }
 
 async fn mailpit_json(port: u16, path: &str) -> Json {
@@ -425,7 +425,10 @@ async fn exercise(mailpit: Option<(u16, u16)>) {
             .await
             .contains("passwords.throttled")
     );
-    let reset = mail_url(&kernel, mailpit, "Reset Password Notification").await;
+    let reset_mail = mail_body(&kernel, mailpit, "Reset your password").await;
+    assert!(reset_mail.contains("Reset Password"));
+    assert!(reset_mail.contains("This password reset link will expire in 37 minutes."));
+    let reset = extract_url(&reset_mail);
     let reset = target(addr, &reset);
     let (first, second) = tokio::join!(
         request(addr, "POST", reset, None, true),
@@ -452,7 +455,10 @@ async fn exercise(mailpit: Option<(u16, u16)>) {
             .await
             .starts_with("HTTP/1.1 204 ")
     );
-    let signed = mail_url(&kernel, mailpit, "Verify your email address").await;
+    let verification_mail = mail_body(&kernel, mailpit, "Verify your email address").await;
+    assert!(verification_mail.contains("Verify Email Address"));
+    assert!(!verification_mail.contains("password reset link"));
+    let signed = extract_url(&verification_mail);
     let path = target(addr, &signed);
     let hash = path
         .split('?')

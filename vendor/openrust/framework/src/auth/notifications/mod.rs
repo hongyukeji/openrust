@@ -7,9 +7,10 @@ pub use reset_password::ResetPassword;
 pub use verify_email::VerifyEmail;
 pub(crate) use verify_email::email_hash;
 
+use std::collections::BTreeMap;
+
 use crate::{
     auth::{AuthError, AuthIdentifier, AuthResult},
-    mail::mailables::{Content, Envelope},
     notifications::{
         Notifiable, Notification, NotificationResult, NotificationRoute,
         messages::{MailDelivery, MailMessage},
@@ -33,8 +34,10 @@ struct LinkMail<'a> {
     kind: &'static str,
     subject: &'static str,
     introduction: &'static str,
+    action: &'static str,
     closing: &'static str,
     url: &'a str,
+    expires_minutes: Option<u64>,
 }
 
 impl Notification for LinkMail<'_> {
@@ -47,29 +50,26 @@ impl Notification for LinkMail<'_> {
     }
 
     fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
-        let text = |message| {
-            Lang::get(message, &Default::default(), None).map_err(|source| {
+        let translate = |message: &str, replacements: &BTreeMap<String, String>| {
+            Lang::get(message, replacements, None).map_err(|source| {
                 crate::notifications::NotificationError::Delivery {
                     source: Box::new(source),
                 }
             })
         };
-        Ok(Some(MailDelivery::Message(Box::new(MailMessage {
-            envelope: Envelope {
-                subject: text(self.subject)?,
-                ..Envelope::default()
-            },
-            content: Content {
-                text: Some(format!(
-                    "{}\n\n{}\n\n{}",
-                    text(self.introduction)?,
-                    self.url,
-                    text(self.closing)?
-                )),
-                ..Content::default()
-            },
-            ..MailMessage::default()
-        }))))
+        let empty = Default::default();
+        let mut mail = MailMessage::new()
+            .subject(translate(self.subject, &empty)?)
+            .line(translate(self.introduction, &empty)?)
+            .action(translate(self.action, &empty)?, self.url);
+        if let Some(minutes) = self.expires_minutes {
+            mail = mail.line(translate(
+                "This password reset link will expire in :count minutes.",
+                &[("count".into(), minutes.to_string())].into(),
+            )?);
+        }
+        mail = mail.line(translate(self.closing, &empty)?);
+        Ok(Some(MailDelivery::Message(Box::new(mail))))
     }
 }
 

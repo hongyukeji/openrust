@@ -19,6 +19,10 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 預設使用者透過 `ResetPassword` 傳送連結。可在 `sendResetLink` 的第二個參數傳入自訂傳送回呼。透過回傳狀態的 `as_str()` 取得翻譯鍵。代理對請求連結和未成功的重設套用設定的最短回應時間。
 
+<span id="default-password-reset-email"></span>
+
+預設重設郵件包含本地化按鈕、純文字連結及有效期限說明。說明按 `auth.defaults.passwords` 選擇的預設代理讀取 `auth.passwords.<broker>.expire`，單位為分鐘。
+
 ## 重設密碼
 
 應用程式先驗證新密碼和確認欄位，再向 `Password::reset` 傳入查找憑證、權杖、新密碼和持久化回呼。回呼負責雜湊並儲存新密碼、輪替記住我權杖，並可派送 `PasswordReset`。寫入成功後回傳成功。

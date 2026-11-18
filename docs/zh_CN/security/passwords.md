@@ -19,6 +19,10 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 默认用户通过 `ResetPassword` 发送链接。可在 `sendResetLink` 的第二个参数传入自定义发送回调。用返回状态的 `as_str()` 获取翻译键。代理对发链请求和未成功的重置应用配置的最短响应时间。
 
+<span id="default-password-reset-email"></span>
+
+默认重置邮件包含本地化按钮、纯文本链接和有效期说明。说明按 `auth.defaults.passwords` 选中的默认代理读取 `auth.passwords.<broker>.expire`，单位为分钟。
+
 ## 重置密码
 
 应用先验证新密码及确认字段，再向 `Password::reset` 传入查找凭据、令牌、新密码和持久化回调。回调负责哈希并保存新密码、轮换记住我令牌，并可派发 `PasswordReset`。写入成功后返回成功。

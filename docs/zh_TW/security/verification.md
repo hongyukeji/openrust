@@ -23,6 +23,10 @@ pub async fn verify(
 
 驗證請求核對目前登入的使用者和目前的信箱摘要。首次驗證會儲存時間並派送 `Verified`。重複開啟有效連結時，時間與事件次數維持不變。連結有效期取 `auth.verification.expire`，預設 60 分鐘。
 
+<span id="default-email-verification-mail"></span>
+
+預設驗證郵件提供本地化按鈕，純文字版本包含暫時簽署的連結。
+
 ## 重送和保護路由
 
 將重送入口命名為 `verification.send`，使用 `auth` 和 `throttle:6,1`，對尚未驗證的使用者呼叫 `sendEmailVerificationNotification`。

@@ -12,3 +12,10 @@
 - 三语 Rust 示例实际运行于同一 HTTP 验收入口。三语站点构建通过，12 项通用浏览器检查与 6 项密码重置到邮箱验证导航检查通过。
 
 下一单元 06-08 Artisan 帮助、命令文档与本地化。依赖 00-03 与 03-10 已提交。
+
+## 密码重置与邮箱验证的默认邮件 {#default-auth-notification-mail}
+
+- 对照固定 Laravel v13.40.0 的 `ResetPassword` 与 `VerifyEmail`。旧版 `openrust-v0.x` 的认证实现使用用途绑定的一次性验证码，当前主线复用已验收的签名 URL、翻译与 06-06 的 `MailMessage`。默认模板渲染 HTML 按钮和纯文本链接。重置邮件采用固定版主题，并按 `auth.defaults.passwords` 和选中代理的 `expire` 翻译有效期提示。邮箱验证保留独立有效期和签名。 [固定重置邮件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Notifications/ResetPassword.php#L69) · [固定验证邮件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Notifications/VerifyEmail.php#L57)
+- 隔离基线 `08f7d7b8a` 上，数组邮件传输与真实 Mailpit SMTP 的两项 HTTP 链路验证双 MIME 正文、重置邮件显示配置的 37 分钟、验证邮件保留动作。使用邮件中的链接复验并发重放、登录用户不匹配、过期、篡改、事件去重及重发限流。
+- SQLite、MySQL 8.4.13、Redis 三项令牌仓储回归通过。独立 SQLite 数据库执行 `./artisan migrate --force` 和 `./artisan auth:clear-resets users` 成功。Rust 1.94.0 全仓格式、严格 Clippy、三语文档构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对认证邮件的应用内 URL 和邮件构建回调。
+- 本批隔离编译和站点产物已回收，数据卷清单一致。清理前后项目可用空间净增 3.87 GB（3.61 GiB），清理后可用 89.43 GB（83.29 GiB）。提交前周额度剩余 28%，第二窗口无读数。日志保留于 `/private/tmp/openrust-password-notifications.ipg9EhSx`。

@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 14:13（北京时间）06-07 [密码重置与邮箱验证的默认邮件](audits/06-07/README.md#default-auth-notification-mail)。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。磁盘可用 89.43 GB（83.29 GiB），周额度剩余 28%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:05（北京时间）06-06 [Slack 元数据与线程回复](audits/06-06/README.md#slack-元数据与线程回复)。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、28 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。磁盘可用 89.50 GB（83.35 GiB），周额度剩余 29%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 13:58（北京时间）06-06 [Slack Block Kit 标题、分隔线与图片](audits/06-06/README.md#slack-block-kit-标题分隔线与图片)。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、28 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。磁盘可用 90.06 GB（83.88 GiB），周额度剩余 29%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 13:53（北京时间）06-06 [Slack Block Kit 选择器与文本约束](audits/06-06/README.md#slack-block-kit-选择器与文本约束)。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、27 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。磁盘可用 90.10 GB（83.92 GiB），周额度剩余 29%，第二窗口无读数。核心账本维持 66/66。

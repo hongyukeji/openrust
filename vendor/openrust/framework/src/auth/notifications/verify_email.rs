@@ -48,9 +48,11 @@ impl VerifyEmail {
         LinkMail {
             kind: "VerifyEmail",
             subject: "Verify your email address",
-            introduction: "Please click the link below to verify your email address.",
+            introduction: "Please click the button below to verify your email address.",
+            action: "Verify Email Address",
             closing: "If you did not create an account, no further action is required.",
             url: &url,
+            expires_minutes: None,
         }
         .send(user.getEmailForVerification())
         .await

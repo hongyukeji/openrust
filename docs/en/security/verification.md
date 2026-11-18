@@ -23,6 +23,10 @@ pub async fn verify(
 
 The verification request checks the authenticated user and the current email digest. A new verification stores the timestamp and dispatches `Verified`. Reusing a valid link leaves the timestamp and event count unchanged. Verification links expire after `auth.verification.expire` minutes, defaulting to 60.
 
+<span id="default-email-verification-mail"></span>
+
+The default verification email uses a localized action button and includes the temporary signed URL in its plain-text version.
+
 ## Resending and protecting routes
 
 Register `verification.send` for the resend endpoint. Apply `auth` and `throttle:6,1`, then call `sendEmailVerificationNotification` for an unverified user.
