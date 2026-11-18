@@ -22,7 +22,10 @@ use super::{Application, BootstrapError, configuration::Middleware};
 use crate::{
     concurrency::DeferredCallbacks,
     contracts::{container::Container as _, foundation::Application as _, http},
-    http::{HttpFuture, Method, Next, Request, RequestParts, Response, ResponseParts, StatusCode},
+    http::{
+        HttpFuture, Method, Next, Request, RequestParts, Response, ResponseParts, StatusCode,
+        middleware::{ValidatePathEncoding, ValidatePostSize},
+    },
     view::Factory,
 };
 
@@ -150,12 +153,15 @@ impl Kernel {
                         std::mem::take(&mut self.middleware.maintenance_exceptions),
                     )),
                 );
+                self.middleware
+                    .global
+                    .insert(maintenance_index + 1, Arc::new(ValidatePostSize));
                 self.middleware.global.insert(
-                    maintenance_index + 1,
+                    maintenance_index + 2,
                     Arc::new(std::mem::take(&mut self.middleware.trim_strings)),
                 );
                 self.middleware.global.insert(
-                    maintenance_index + 2,
+                    maintenance_index + 3,
                     Arc::new(std::mem::take(&mut self.middleware.empty_strings_to_null)),
                 );
                 self.ready = true;
@@ -181,17 +187,6 @@ impl http::Kernel for Kernel {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
-                if let Err(error) = self.prepare_request_origin(request).await {
-                    return self
-                        .application
-                        .shared
-                        .exceptions
-                        .render_http(request, &error)
-                        .await;
-                }
-                let previous_exceptions = request
-                    .exceptions
-                    .replace(self.application.shared.exceptions.clone());
                 let previous_api_prefix = request.api_prefix.replace(
                     self.application
                         .shared
@@ -200,6 +195,23 @@ impl http::Kernel for Kernel {
                         .expect("ready kernel has an API prefix")
                         .clone(),
                 );
+                let origin = match ValidatePathEncoding::validate(request.parts().uri.path()) {
+                    Ok(()) => self.prepare_request_origin(request).await,
+                    Err(error) => Err(error),
+                };
+                if let Err(error) = origin {
+                    let response = self
+                        .application
+                        .shared
+                        .exceptions
+                        .render_http(request, &error)
+                        .await;
+                    request.api_prefix = previous_api_prefix;
+                    return response;
+                }
+                let previous_exceptions = request
+                    .exceptions
+                    .replace(self.application.shared.exceptions.clone());
                 let previous_views = request.parts_mut().extensions.insert(
                     self.views
                         .as_ref()

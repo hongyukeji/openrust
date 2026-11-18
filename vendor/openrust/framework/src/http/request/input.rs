@@ -432,12 +432,7 @@ impl Request {
             RawBody::Unread => {}
         }
 
-        let declared_size = self
-            .headers()
-            .get(::http::header::CONTENT_LENGTH)
-            .and_then(|header| header.to_str().ok())
-            .and_then(|header| header.parse::<u64>().ok());
-        if declared_size.is_some_and(|size| size > MAX_BODY_BYTES as u64) {
+        if self.declared_body_exceeds_limit() {
             self.raw_input = RawBody::Failed(InputFailure::Limit);
             return Err(HttpError::PayloadTooLarge);
         }
@@ -456,6 +451,14 @@ impl Request {
                 Err(error.into())
             }
         }
+    }
+
+    pub(crate) fn declared_body_exceeds_limit(&self) -> bool {
+        self.headers()
+            .get(::http::header::CONTENT_LENGTH)
+            .and_then(|header| header.to_str().ok())
+            .and_then(|header| header.parse::<u64>().ok())
+            .is_some_and(|size| size > MAX_BODY_BYTES as u64)
     }
 
     async fn payload(&mut self) -> Result<&Payload, HttpError> {

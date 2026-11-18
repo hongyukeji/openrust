@@ -16,6 +16,10 @@
 
 OpenRust 成功读取正文后保留原始字节，供后续读取。默认上限为 8 MiB。输入无效返回 400，超量返回 413。
 
+### 请求边界 {#request-boundaries}
+
+路径经百分号解码后若不是有效 UTF-8，HTTP 内核返回 400。声明的 `Content-Length` 超过 8 MiB 时，框架在读取正文前返回 HTTP 413。框架为输入解析或 `body_bytes()` 收集正文时，实际读取量也以 8 MiB 为上限，包括分块传输的请求。
+
 ### 类型化输入
 
 用 `request.integer("value", 42, true).await?`、`request.float("value", 1.25, true).await?` 或 `request.boolean("value", true, true).await?` 读取。参数依次是输入键、默认值和严格模式，点号路径和输入优先级与 `request.input` 相同。

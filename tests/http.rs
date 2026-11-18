@@ -464,12 +464,6 @@ async fn reports_missing_routes_and_available_methods_through_global_middleware(
             None,
         ),
         (
-            Method::GET,
-            "/api/v1/users/%FF",
-            StatusCode::BAD_REQUEST,
-            None,
-        ),
-        (
             Method::DELETE,
             "/api/v1/users/alice",
             StatusCode::METHOD_NOT_ALLOWED,
@@ -502,6 +496,11 @@ async fn reports_missing_routes_and_available_methods_through_global_middleware(
             ]
         );
     }
+    let (mut malformed, trace) = request(Method::GET, "/api/v1/users/%FF");
+    let response = kernel.handle(&mut malformed).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(trace.lock().unwrap().is_empty());
+
     let (mut request, _) = request(Method::OPTIONS, "/api/v1/explicit");
     let response = kernel.handle(&mut request).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);

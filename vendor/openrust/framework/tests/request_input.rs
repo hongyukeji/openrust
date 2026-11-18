@@ -455,6 +455,7 @@ async fn start_with(
         .withProviders(vec![Box::new(Provider(label))])
         .withRouting(Routing::default().web(|| {
             Route::get("/negotiation", negotiate)?;
+            Route::get("/path-encoding/{value}", path_encoding)?;
             Route::r#match(
                 &[Method::GET, Method::POST],
                 "/normalize-input",
@@ -573,6 +574,85 @@ async fn start_with(
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
     )
+}
+
+fn path_encoding(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move { Response::json(StatusCode::OK, json!(request.decodedPath())) })
+}
+
+#[tokio::test]
+async fn real_http_checks_path_encoding_and_both_body_size_boundaries() {
+    use std::time::Duration;
+
+    let (address, server) = start("transport-validation").await;
+    for (path, expected) in [
+        ("caf%C3%A9", "path-encoding/café"),
+        ("literal%ZZ", "path-encoding/literal%ZZ"),
+        ("%25FF", "path-encoding/%FF"),
+    ] {
+        let (_, body) = send(
+            address,
+            "GET",
+            &format!("/path-encoding/{path}"),
+            "",
+            b"",
+            200,
+        )
+        .await;
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap(), expected);
+    }
+    for path in [
+        "/path-encoding/%FF",
+        "/path-encoding/%C0%AF",
+        "/missing/%ED%A0%80",
+    ] {
+        let (_, body) = send(address, "GET", path, "", b"", 400).await;
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap()["message"],
+            "Malformed URL."
+        );
+    }
+
+    async fn read_response(socket: &mut tokio::net::TcpStream) -> String {
+        let mut response = String::new();
+        tokio::time::timeout(Duration::from_secs(5), socket.read_to_string(&mut response))
+            .await
+            .unwrap()
+            .unwrap();
+        response
+    }
+
+    for (length, expected) in [(8 * 1024 * 1024, 204), (8 * 1024 * 1024 + 1, 413)] {
+        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+        let head = format!(
+            "GET /response-empty HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Length: {length}\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n"
+        );
+        socket.write_all(head.as_bytes()).await.unwrap();
+        let response = read_response(&mut socket).await;
+        assert!(
+            response.starts_with(&format!("HTTP/1.1 {expected} ")),
+            "{response}"
+        );
+        if expected == 413 {
+            assert!(
+                response.contains("The POST data is too large."),
+                "{response}"
+            );
+        }
+    }
+
+    let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+    let head = format!(
+        "POST /normalize-input HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: application/x-www-form-urlencoded\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n800001\r\n"
+    );
+    socket.write_all(head.as_bytes()).await.unwrap();
+    socket
+        .write_all(&vec![b'x'; 8 * 1024 * 1024 + 1])
+        .await
+        .unwrap();
+    let response = read_response(&mut socket).await;
+    assert!(response.starts_with("HTTP/1.1 413 "), "{response}");
+    server.abort();
 }
 
 fn normalized_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

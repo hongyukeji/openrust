@@ -16,6 +16,10 @@ Use `request.query(Some("key"))` to read an exact top-level query key. Use `requ
 
 OpenRust preserves the body bytes for subsequent reads after successful collection. The default limit is 8 MiB. Invalid input returns 400, and oversized input returns 413.
 
+### Request Boundaries {#request-boundaries}
+
+The kernel rejects a path with invalid UTF-8 after percent decoding with HTTP 400. A declared `Content-Length` over 8 MiB returns HTTP 413 before the framework reads the body. When the framework collects a body for input parsing or `body_bytes()`, the actual bytes are also capped at 8 MiB, including chunked requests.
+
 ### Typed Input Values
 
 Use `request.integer("value", 42, true).await?`, `request.float("value", 1.25, true).await?`, or `request.boolean("value", true, true).await?`. The arguments specify the input key, fallback, and strict mode. All three methods use the same dotted keys and input precedence as `request.input`.

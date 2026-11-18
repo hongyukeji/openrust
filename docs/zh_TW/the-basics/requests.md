@@ -16,6 +16,10 @@
 
 OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預設上限為 8 MiB。輸入無效回傳 400，超量回傳 413。
 
+### 請求邊界 {#request-boundaries}
+
+路徑經百分號解碼後若不是有效 UTF-8，HTTP 核心回傳 400。宣告的 `Content-Length` 超過 8 MiB 時，框架在讀取本文前回傳 HTTP 413。框架為輸入解析或 `body_bytes()` 收集本文時，實際讀取量也以 8 MiB 為上限，包括分塊傳輸的請求。
+
 ### 型別化輸入
 
 使用 `request.integer("value", 42, true).await?`、`request.float("value", 1.25, true).await?` 或 `request.boolean("value", true, true).await?` 讀取。參數依序為輸入鍵、預設值與嚴格模式，點號路徑和輸入優先順序與 `request.input` 相同。
