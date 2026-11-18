@@ -18,7 +18,7 @@ pub(super) struct ApiMessage {
     pub text: Option<String>,
     pub html: Option<String>,
     pub attachments: Vec<Attachment>,
-    pub has_inline_attachments: bool,
+    pub inline_attachments: Vec<InlineAttachment>,
     pub headers: Headers,
 }
 
@@ -107,8 +107,7 @@ impl Message {
             (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
             (text, _) => text,
         };
-        let has_inline_attachments = !inline_attachments.is_empty();
-        let body = if !has_inline_attachments {
+        let body = if inline_attachments.is_empty() {
             match (text.clone(), html.clone()) {
                 (Some(text), Some(html)) => {
                     Body::Multipart(MultiPart::alternative_plain_html(text, html))
@@ -171,7 +170,7 @@ impl Message {
                         text,
                         html,
                         attachments,
-                        has_inline_attachments,
+                        inline_attachments,
                     }),
                 )
             })

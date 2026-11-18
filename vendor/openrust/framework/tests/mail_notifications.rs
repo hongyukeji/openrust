@@ -148,7 +148,7 @@ impl Mailable for MarkdownReceipt {
     }
 }
 
-struct NamedReceipt<'a>(&'a str);
+struct NamedReceipt<'a>(&'a str, bool);
 impl Mailable for NamedReceipt<'_> {
     fn mailer(&self) -> Option<&str> {
         Some(self.0)
@@ -157,13 +157,24 @@ impl Mailable for NamedReceipt<'_> {
         Receipt.envelope()
     }
     fn content(&self) -> MailResult<Content> {
-        Receipt.content()
+        let mut content = Receipt.content()?;
+        if self.1 {
+            content.view = None;
+            content.html = Some(format!(
+                "<img src=\"{}\" alt=\"Receipt logo\">",
+                inline_logo().cid()
+            ));
+        }
+        Ok(content)
     }
     fn headers(&self) -> MailResult<Headers> {
         Receipt.headers()
     }
     fn attachments(&self) -> MailResult<Vec<Attachment>> {
         Receipt.attachments()
+    }
+    fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
+        Ok(self.1.then(inline_logo).into_iter().collect())
     }
 }
 
@@ -479,7 +490,7 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
         let send = |recipient: &'static str| async move {
             Mail::to(recipient)
                 .unwrap()
-                .send(&NamedReceipt("fixture"))
+                .send(&NamedReceipt("fixture", false))
                 .await
                 .map_err(|error| HttpError::Internal {
                     source: Box::new(error),
@@ -489,7 +500,7 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
         let blocked = send("blocked@example.test").await?.is_none();
         let forced = Mail::to("blocked@example.test")
             .unwrap()
-            .sendNow(&NamedReceipt("fixture"))
+            .sendNow(&NamedReceipt("fixture", false))
             .await;
         let forced_blocked = matches!(forced, Err(openrust::mail::MailError::Cancelled));
         Response::json(
@@ -580,7 +591,7 @@ impl Command for SendFixture {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let name = input.matches().get_one::<String>("mailer").unwrap();
-            let named = NamedReceipt(name);
+            let named = NamedReceipt(name, input.matches().get_flag("inline-image"));
             let markdown = MarkdownReceipt {
                 plain_view: input.matches().get_flag("plain-view"),
                 options_fixture: input.matches().get_flag("markdown-options"),
@@ -724,6 +735,11 @@ fn mail_routes() -> Result<(), ConsoleError> {
         clap::Command::new("fixture:send-mail")
             .arg(clap::Arg::new("mailer").required(true))
             .arg(
+                clap::Arg::new("inline-image")
+                    .long("inline-image")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
                 clap::Arg::new("markdown")
                     .long("markdown")
                     .action(clap::ArgAction::SetTrue),
@@ -820,24 +836,27 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     application
         .call(
             Callback::new(&[], |_| async {
-                let send = |name: &'static str| async move {
+                let send = |name: &'static str, inline| async move {
                     Mail::to("to@example.test")
                         .unwrap()
                         .bcc("blind@example.test")
-                        .sendNow(&NamedReceipt(name))
+                        .sendNow(&NamedReceipt(name, inline))
                         .await
                 };
-                let ses = send("ses").await.unwrap();
+                let ses = send("ses", false).await.unwrap();
                 assert!(
                     String::from_utf8(ses.message.formatted())
                         .unwrap()
                         .contains("X-SES-Message-ID: ses-id")
                 );
                 for name in ["failover", "failover", "roundrobin", "roundrobin"] {
-                    send(name).await.unwrap();
+                    send(name, false).await.unwrap();
                 }
-                let rejected = send("reject").await.err().unwrap().to_string();
+                let rejected = send("reject", false).await.err().unwrap().to_string();
                 assert!(rejected.contains("401") && !rejected.contains("marker"));
+                for name in ["postmark", "resend"] {
+                    send(name, true).await.unwrap();
+                }
                 assert!(
                     Mail::mailer(Some("cycle"))
                         .err()
@@ -853,7 +872,7 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
         .unwrap();
 
     let requests = requests.lock().unwrap();
-    assert_eq!(requests.len(), 7);
+    assert_eq!(requests.len(), 9);
     let paths: Vec<_> = requests.iter().map(|(path, _, _)| path.as_str()).collect();
     assert_eq!(&paths[..4], ["/", "/reject", "/resend", "/resend"]);
     assert!(matches!(
@@ -893,20 +912,48 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     let postmark: Json = serde_json::from_str(postmark).unwrap();
     assert_eq!(postmark["MessageStream"], "transactional");
     assert_eq!(postmark["Headers"][0]["Name"], "X-Receipt");
+    assert_eq!(&paths[7..], ["/postmark", "/resend"]);
+    let image = inline_logo();
+    let image_base64 = STANDARD.encode(&image.attachment.bytes);
+    let postmark_inline: Json = serde_json::from_str(&requests[7].2).unwrap();
+    assert!(
+        postmark_inline["HtmlBody"]
+            .as_str()
+            .unwrap()
+            .contains(&image.cid())
+    );
+    assert!(postmark_inline["Attachments"][0].get("ContentID").is_none());
+    assert_eq!(postmark_inline["Attachments"][1]["ContentID"], image.cid());
+    assert_eq!(postmark_inline["Attachments"][1]["Content"], image_base64);
+    let resend_inline: Json = serde_json::from_str(&requests[8].2).unwrap();
+    assert!(
+        resend_inline["html"]
+            .as_str()
+            .unwrap()
+            .contains(&image.cid())
+    );
+    assert!(resend_inline["attachments"][0].get("content_id").is_none());
+    assert_eq!(
+        resend_inline["attachments"][1]["content_id"],
+        image.content_id
+    );
+    assert_eq!(resend_inline["attachments"][1]["content"], image_base64);
     server.abort();
 }
 
 #[tokio::test]
 async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
-    use axum::{Router, extract::State, http::HeaderMap, response::IntoResponse, routing::post};
+    use axum::{
+        Router, body::Bytes, extract::State, http::HeaderMap, response::IntoResponse, routing::post,
+    };
     use base64::{Engine as _, engine::general_purpose::STANDARD};
 
-    type Requests = Arc<Mutex<Vec<(String, HeaderMap, String)>>>;
+    type Requests = Arc<Mutex<Vec<(String, HeaderMap, Bytes)>>>;
     async fn record(
         State(requests): State<Requests>,
         uri: http::Uri,
         headers: HeaderMap,
-        body: String,
+        body: Bytes,
     ) -> axum::response::Response {
         let path = uri.path().to_owned();
         requests.lock().unwrap().push((path.clone(), headers, body));
@@ -962,8 +1009,11 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
                 .contains(receipt)
         );
     }
+    for name in ["mailgun-api", "cloudflare"] {
+        artisan(&root.0, &["fixture:send-mail", name, "--inline-image"]).await;
+    }
     let requests = requests.lock().unwrap();
-    assert_eq!(requests.len(), 4);
+    assert_eq!(requests.len(), 6);
     let (path, headers, body) = &requests[0];
     assert_eq!(path, "/v2/email/outbound-emails");
     assert_eq!(headers["x-amz-security-token"], "test-session");
@@ -973,7 +1023,7 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
             .unwrap()
             .contains("Credential=test-key/")
     );
-    let ses: Json = serde_json::from_str(body).unwrap();
+    let ses: Json = serde_json::from_slice(body).unwrap();
     assert_eq!(
         ses["Destination"]["ToAddresses"],
         json!(["to@example.test", "blind@example.test"])
@@ -993,6 +1043,7 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
     .unwrap();
     assert!(mime.contains("OpenRust receipt") && !mime.contains("blind@example.test"));
     let (path, headers, raw) = &requests[1];
+    let raw = std::str::from_utf8(raw).unwrap();
     assert_eq!(path, "/v3/mg.example.test/messages.mime");
     assert_eq!(
         headers["authorization"],
@@ -1010,16 +1061,61 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
     );
     let (path, _, body) = &requests[2];
     assert_eq!(path, "/v3/mg.example.test/messages");
+    let body = std::str::from_utf8(body).unwrap();
     assert!(body.contains("filename=\"receipt.txt\"") && body.contains("name=\"bcc\""));
     let (path, headers, body) = &requests[3];
     assert_eq!(path, "/cloudflare");
     assert_eq!(headers["authorization"], "Bearer test-cloudflare");
-    let cloudflare: Json = serde_json::from_str(body).unwrap();
+    let cloudflare: Json = serde_json::from_slice(body).unwrap();
     assert_eq!(cloudflare["from"]["address"], "sender@example.test");
     assert_eq!(cloudflare["bcc"], json!(["blind@example.test"]));
     assert_eq!(
         cloudflare["attachments"][0]["content"],
         STANDARD.encode(b"file receipt")
+    );
+    let image = inline_logo();
+    let (path, _, mailgun_inline) = &requests[4];
+    assert_eq!(path, "/v3/mg.example.test/messages");
+    for field in [
+        format!("name=\"inline\"; filename=\"{}\"", image.content_id),
+        format!("src=\"{}\"", image.cid()),
+        "name=\"attachment\"; filename=\"receipt.txt\"".into(),
+    ] {
+        assert!(
+            mailgun_inline
+                .windows(field.len())
+                .any(|part| part == field.as_bytes())
+        );
+    }
+    assert!(
+        mailgun_inline
+            .windows(image.attachment.bytes.len())
+            .any(|part| part == image.attachment.bytes.as_slice())
+    );
+    let (path, _, cloudflare_inline) = &requests[5];
+    assert_eq!(path, "/cloudflare");
+    let cloudflare_inline: Json = serde_json::from_slice(cloudflare_inline).unwrap();
+    assert!(
+        cloudflare_inline["html"]
+            .as_str()
+            .unwrap()
+            .contains(&image.cid())
+    );
+    assert_eq!(
+        cloudflare_inline["attachments"][0]["disposition"],
+        "attachment"
+    );
+    assert!(
+        cloudflare_inline["attachments"][0]
+            .get("content_id")
+            .is_none()
+    );
+    assert_eq!(
+        cloudflare_inline["attachments"][1],
+        json!({
+            "filename":"logo.png", "type":"image/png", "disposition":"inline",
+            "content_id":image.content_id, "content":STANDARD.encode(&image.attachment.bytes),
+        })
     );
     server.abort();
 }

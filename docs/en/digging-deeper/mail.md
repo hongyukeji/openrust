@@ -43,7 +43,7 @@ let logo = InlineAttachment::new("logo@example.test", Attachment {
 let image_src = logo.cid();
 ```
 
-Pass `image_src` to Blade as `<img src="{{ $image_src }}">` or use it as the destination of a Markdown image. A worker receives the attachment bytes with the job. SMTP and other raw MIME transports send the image alongside the HTML. For a browser preview, matching image sources become data URLs. Structured mail APIs currently require raw MIME support for inline delivery.
+Pass `image_src` to Blade as `<img src="{{ $image_src }}">` or use it as the destination of a Markdown image. A worker receives the attachment bytes with the job. SMTP and other raw MIME transports send the image alongside the HTML. For a browser preview, matching image sources become data URLs. Postmark, Resend, and Cloudflare preserve the filename and Content-ID through their JSON attachment fields. In Mailgun's form API, the inline part uses the Content-ID as its multipart filename so it matches the HTML. Mailgun's raw MIME mode preserves the original filename.
 
 ## Configuration
 

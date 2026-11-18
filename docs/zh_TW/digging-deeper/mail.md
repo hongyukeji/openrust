@@ -43,7 +43,7 @@ let logo = InlineAttachment::new("logo@example.test", Attachment {
 let image_src = logo.cid();
 ```
 
-將 `image_src` 傳入 Blade 的 `<img src="{{ $image_src }}">`，也可以用它作為 Markdown 圖片的網址。Worker 隨工作收到圖片位元組。SMTP 等原始 MIME 傳輸會將圖片和 HTML 一起傳送，瀏覽器預覽則把相符的圖片網址轉成資料 URL。郵件供應商 API 目前以原始 MIME 模式傳送內嵌圖片。
+將 `image_src` 傳入 Blade 的 `<img src="{{ $image_src }}">`，也可以用它作為 Markdown 圖片的網址。Worker 隨工作收到圖片位元組。SMTP 等原始 MIME 傳輸會將圖片和 HTML 一起傳送，瀏覽器預覽則把相符的圖片網址轉成資料 URL。Postmark、Resend 和 Cloudflare 透過 JSON 附件欄位傳遞原始檔名和 Content-ID。Mailgun 表單 API 以 Content-ID 作為內嵌分段的檔名，使其與 HTML 引用相符。Mailgun 原始 MIME 模式保留原始檔名。
 
 ## 設定
 

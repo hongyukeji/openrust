@@ -4,7 +4,10 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::{Map, Value, json};
 
 use crate::mail::{
-    MailFuture, MailResult, Message, SentMessage, mailables::Address, message::mailbox, transport,
+    MailFuture, MailResult, Message, SentMessage,
+    mailables::{Address, Attachment},
+    message::{ApiMessage, mailbox},
+    transport,
 };
 
 use super::Transport;
@@ -72,12 +75,6 @@ impl ApiTransport {
 
     fn request(&self, message: &Message) -> MailResult<reqwest::RequestBuilder> {
         let data = &message.1;
-        if data.has_inline_attachments && !matches!(self.provider, Provider::Mailgun { raw: true })
-        {
-            return Err(transport(
-                "This mail transport requires raw MIME support to send inline attachments.",
-            ));
-        }
         let envelope = &data.envelope;
         let from_address = envelope
             .from
@@ -107,9 +104,15 @@ impl ApiTransport {
                     "From": from, "To": to.join(", "), "Cc": cc.join(", "), "Bcc": bcc.join(", "),
                     "ReplyTo": reply_to.join(", "), "Subject": envelope.subject,
                     "Headers": headers.iter().map(|(name, value)| json!({"Name": name, "Value": value})).collect::<Vec<_>>(),
-                    "Attachments": data.attachments.iter().map(|attachment| json!({
-                        "Name": attachment.name, "ContentType": attachment.mime, "Content": STANDARD.encode(&attachment.bytes),
-                    })).collect::<Vec<_>>(),
+                    "Attachments": json_attachments(data, |attachment, cid| {
+                        let mut part = json!({
+                            "Name": attachment.name, "ContentType": attachment.mime, "Content": STANDARD.encode(&attachment.bytes),
+                        });
+                        if let Some(cid) = cid {
+                            part["ContentID"] = json!(format!("cid:{cid}"));
+                        }
+                        part
+                    }),
                 });
                 let fields = payload.as_object_mut().expect("object payload");
                 insert_text(fields, "TextBody", data.text.as_deref());
@@ -129,9 +132,15 @@ impl ApiTransport {
                 let mut payload = json!({
                     "from": from, "to": to, "cc": cc, "bcc": bcc, "reply_to": reply_to,
                     "subject": envelope.subject, "headers": headers,
-                    "attachments": data.attachments.iter().map(|attachment| json!({
-                        "filename": attachment.name, "content_type": attachment.mime, "content": STANDARD.encode(&attachment.bytes),
-                    })).collect::<Vec<_>>(),
+                    "attachments": json_attachments(data, |attachment, cid| {
+                        let mut part = json!({
+                            "filename": attachment.name, "content_type": attachment.mime, "content": STANDARD.encode(&attachment.bytes),
+                        });
+                        if let Some(cid) = cid {
+                            part["content_id"] = json!(cid);
+                        }
+                        part
+                    }),
                 });
                 let fields = payload.as_object_mut().expect("object payload");
                 insert_text(fields, "text", data.text.as_deref());
@@ -149,10 +158,16 @@ impl ApiTransport {
                     "bcc": addresses_only(&envelope.bcc),
                     "subject": envelope.subject,
                     "headers": headers,
-                    "attachments": data.attachments.iter().map(|attachment| json!({
-                        "filename": attachment.name, "type": attachment.mime,
-                        "content": STANDARD.encode(&attachment.bytes), "disposition": "attachment",
-                    })).collect::<Vec<_>>(),
+                    "attachments": json_attachments(data, |attachment, cid| {
+                        let mut part = json!({
+                            "filename": attachment.name, "type": attachment.mime,
+                            "content": STANDARD.encode(&attachment.bytes), "disposition": if cid.is_some() { "inline" } else { "attachment" },
+                        });
+                        if let Some(cid) = cid {
+                            part["content_id"] = json!(cid);
+                        }
+                        part
+                    }),
                 });
                 let fields = payload.as_object_mut().expect("object payload");
                 if let Some(reply) = envelope.reply_to.first() {
@@ -202,6 +217,14 @@ impl ApiTransport {
                             .map_err(|_| transport("Invalid Mailgun attachment type."))?;
                         form = form.part("attachment", part);
                     }
+                    for inline in &data.inline_attachments {
+                        // Mailgun derives the CID from the multipart filename.
+                        let part = Part::bytes(inline.attachment.bytes.clone())
+                            .file_name(inline.content_id.clone())
+                            .mime_str(&inline.attachment.mime)
+                            .map_err(|_| transport("Invalid Mailgun inline attachment type."))?;
+                        form = form.part("inline", part);
+                    }
                     form
                 };
                 return Ok(request
@@ -218,6 +241,22 @@ impl ApiTransport {
             });
         Ok(request.json(&payload))
     }
+}
+
+fn json_attachments(
+    data: &ApiMessage,
+    mut serialize: impl FnMut(&Attachment, Option<&str>) -> Value,
+) -> Vec<Value> {
+    data.attachments
+        .iter()
+        .map(|attachment| (attachment, None))
+        .chain(
+            data.inline_attachments
+                .iter()
+                .map(|inline| (&inline.attachment, Some(inline.content_id.as_str()))),
+        )
+        .map(|(attachment, cid)| serialize(attachment, cid))
+        .collect()
 }
 
 impl Transport for ApiTransport {
