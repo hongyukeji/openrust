@@ -789,6 +789,11 @@ impl Notice for DeliveryNotice {
                 "Notification envelope {}",
                 self.0.unwrap_or("http")
             ))
+            .priority(match self.0 {
+                None => -1,
+                Some("redis") => 8,
+                _ => 3,
+            })
             .from(Address {
                 address: "finance@example.test".into(),
                 name: Some("Finance Team".into()),
@@ -848,6 +853,54 @@ fn notification_envelope_from_http(_: &mut Request) -> HttpFuture<'_, Result<Res
             source: Box::new(error),
         })?;
         Response::json(http::StatusCode::OK, json!({"sent":true}))
+    })
+}
+
+fn notification_preview_from_http(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let kind = request.route("kind").map(str::to_owned);
+    Box::pin(async move {
+        let data = || [("customer".into(), json!("Acme"))].into_iter().collect();
+        let message = MailMessage::new()
+            .mailer("missing-mailer")
+            .attach(Attachment::fromPath("missing-attachment"))
+            .withMessage(MessageCustomization::new("missing-customizer", Json::Null));
+        let message = match kind.as_deref() {
+            Some("html") => {
+                let mail = message
+                    .markdown("missing", Default::default())
+                    .view("notice-html", data())
+                    .text(
+                        "notice-text",
+                        [("customer".into(), json!("Beta"))].into_iter().collect(),
+                    )
+                    .template("missing");
+                mail.assertSeeInText("Text Beta").await;
+                mail
+            }
+            Some("text") => {
+                let mail = message
+                    .markdown("missing", Default::default())
+                    .text("notice-text", data());
+                assert_eq!(mail.render().await.unwrap(), "Text Acme");
+                mail
+            }
+            Some("markdown") => {
+                let mail = message
+                    .view("missing", Default::default())
+                    .text("missing", Default::default())
+                    .markdown("notice-markdown", data())
+                    .theme("notice-accent");
+                mail.assertSeeInText("Markdown Acme").await;
+                mail
+            }
+            Some("template") => message.template("notice-template"),
+            _ => message.view("missing", data()),
+        };
+        let response = message.toResponse().await?;
+        assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
+        Ok(response)
     })
 }
 
@@ -1187,6 +1240,10 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             Route::get("/mail-assertions", mail_assertions_from_http)?;
             Route::get("/notification-format", notification_format_from_http)?;
             Route::get("/notification-envelope", notification_envelope_from_http)?;
+            Route::get(
+                "/notification-preview/{kind}",
+                notification_preview_from_http,
+            )?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2385,6 +2442,60 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
 }
 
 #[tokio::test]
+async fn notification_templates_preview_over_http_without_delivering() {
+    let root = fixture(None, None, None);
+    let views = root.0.join("resources/views");
+    for (name, body) in [
+        ("notice-html", "<strong>HTML {{ $customer }}</strong>"),
+        ("notice-text", "Text {{ $customer }}"),
+        ("notice-markdown", "# Markdown {{ $customer }}"),
+        ("notice-template", "# Custom template"),
+    ] {
+        std::fs::write(views.join(format!("{name}.blade.html")), body).unwrap();
+    }
+    let themes = views.join("mail");
+    std::fs::create_dir_all(&themes).unwrap();
+    std::fs::write(
+        themes.join("notice-accent.blade.html"),
+        "h1 { color: #123abc; }",
+    )
+    .unwrap();
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "notification-preview").await;
+    for (kind, media_type, body) in [
+        (
+            "html",
+            "text/html; charset=utf-8",
+            "<strong>HTML Beta</strong>",
+        ),
+        ("text", "text/plain; charset=utf-8", "Text Acme"),
+        ("markdown", "text/html; charset=utf-8", "Markdown Acme"),
+        ("template", "text/html; charset=utf-8", "Custom template"),
+    ] {
+        let response = reqwest::get(format!("{url}/{kind}"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+        assert_eq!(response.headers()[http::header::CONTENT_TYPE], media_type);
+        let rendered = response.text().await.unwrap();
+        assert!(rendered.contains(body), "{rendered}");
+        if kind == "markdown" {
+            assert!(rendered.contains("#123abc"), "{rendered}");
+        }
+    }
+    assert_eq!(
+        reqwest::get(format!("{url}/missing"))
+            .await
+            .unwrap()
+            .status(),
+        http::StatusCode::INTERNAL_SERVER_ERROR
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn formatted_notification_mail_renders_over_http_and_publishes_the_view() {
     let root = fixture(None, None, None);
     std::fs::create_dir_all(root.0.join("lang")).unwrap();
@@ -3474,6 +3585,12 @@ async fn notification_envelope_and_attachment_sources_survive_queue_delivery() {
                 "{raw}"
             );
         }
+        let priority = match row["Subject"].as_str().unwrap() {
+            "Notification envelope http" => "1 (Highest)",
+            "Notification envelope redis" => "5 (Lowest)",
+            _ => "3 (Normal)",
+        };
+        assert!(raw.contains(&format!("X-Priority: {priority}")), "{raw}");
         delivered += 1;
     }
     assert_eq!(delivered, 3);

@@ -12,6 +12,8 @@ use crate::{
 pub(crate) const EMAIL_VIEW: &str = include_str!("../resources/views/email.blade.html");
 pub(crate) const VIEWS: &[(&str, &str)] = &[("email", EMAIL_VIEW)];
 
+const EMAIL_TEMPLATE: &str = "notifications::email";
+
 const SUBCOPY: &str = concat!(
     "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\n",
     "into your web browser:"
@@ -39,6 +41,68 @@ impl MailMessage {
 
     pub fn subject(mut self, subject: impl Into<String>) -> Self {
         self.envelope.subject = subject.into();
+        self
+    }
+
+    /// Selects a named HTML view. Add a plain-text alternative with `text`.
+    pub fn view(mut self, name: impl Into<String>, data: ViewData) -> Self {
+        self.content.markdown = None;
+        self.content.html = None;
+        self.content.text = None;
+        self.content.text_view = None;
+        self.content.view = Some(name.into());
+        self.content.with.extend(data);
+        self
+    }
+
+    /// Selects a named plain-text view, retaining an explicit HTML body or view.
+    pub fn text(mut self, name: impl Into<String>, data: ViewData) -> Self {
+        self.content.markdown = None;
+        self.content.text = None;
+        self.content.text_view = Some(name.into());
+        self.content.with.extend(data);
+        self
+    }
+
+    /// Selects the Markdown view rendered into both message bodies.
+    pub fn markdown(mut self, name: impl Into<String>, data: ViewData) -> Self {
+        self.content.view = None;
+        self.content.html = None;
+        self.content.text = None;
+        self.content.text_view = None;
+        self.content.markdown = Some(name.into());
+        self.content.with.extend(data);
+        self
+    }
+
+    /// Overrides the Markdown template while respecting explicitly selected bodies.
+    pub fn template(mut self, name: impl Into<String>) -> Self {
+        if self.content.view.is_none()
+            && self.content.html.is_none()
+            && self.content.text.is_none()
+            && self.content.text_view.is_none()
+        {
+            self.content.markdown = Some(name.into());
+        }
+        self
+    }
+
+    pub fn theme(mut self, name: impl Into<String>) -> Self {
+        self.content.theme = Some(name.into());
+        self
+    }
+
+    /// Sets the MIME priority on the scale from 1 (highest) to 5 (lowest).
+    pub fn priority(mut self, level: i32) -> Self {
+        const LABELS: [&str; 5] = ["Highest", "High", "Normal", "Low", "Lowest"];
+        let level = level.clamp(1, 5) as usize;
+        self.headers
+            .text
+            .retain(|name, _| !name.eq_ignore_ascii_case("X-Priority"));
+        self.headers.text.insert(
+            "X-Priority".into(),
+            format!("{level} ({})", LABELS[level - 1]),
+        );
         self
     }
 
@@ -208,7 +272,9 @@ impl Mailable for MailMessage {
             && content.text.is_none()
             && content.text_view.is_none()
         {
-            content.markdown = Some("notifications::email".into());
+            content.markdown = Some(EMAIL_TEMPLATE.into());
+        }
+        if content.markdown.as_deref() == Some(EMAIL_TEMPLATE) {
             default_view_data(&mut content.with)?;
         }
         Ok(content)

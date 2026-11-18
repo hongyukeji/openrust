@@ -1,5 +1,4 @@
 use openrust::{
-    mail::mailables::{Content, Envelope},
     notifications::{Notifiable, Notification, NotificationResult, messages::{MailDelivery, MailMessage}},
 };
 
@@ -11,16 +10,10 @@ impl Notification for {{class}} {
     }
 
     fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
-        Ok(Some(MailDelivery::Message(Box::new(MailMessage {
-            envelope: Envelope {
-                subject: {{subject}}.into(),
-                ..Envelope::default()
-            },
-            content: Content {
-                markdown: Some({{view}}.into()),
-                ..Content::default()
-            },
-            ..MailMessage::default()
-        }))))
+        Ok(Some(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject({{subject}})
+                .markdown({{view}}, Default::default()),
+        ))))
     }
 }

@@ -225,7 +225,7 @@ fn artisan_generates_notifications_and_markdown_views() {
         "--test",
     ]);
     let source = root.read("app/notifications/billing/invoice_ready.rs");
-    assert!(source.contains("markdown: Some(\"mail.billing.invoice-ready\""));
+    assert!(source.contains(".markdown(\"mail.billing.invoice-ready\", Default::default())"));
     assert!(
         root.read("resources/views/mail/billing/invoice-ready.blade.html")
             .contains("<x-mail::message>")

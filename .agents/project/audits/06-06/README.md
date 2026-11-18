@@ -223,3 +223,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `3edc1ca42` 上，经实际 HTTP 和 Mailpit SMTP 核对显示名、抄送、密送、回复地址、原始路径及两种磁盘附件、内存附件、标记和回调。删除文件后即时请求返回 500，仍可入队。独立 MySQL Artisan Worker 的首轮尝试保留任务，恢复文件后重试成功，独立 Redis Worker 同样使用恢复后的附件。三封邮件均检查 MIME 和回调追加的正文及附件，失败表为空。
 - `mail_notifications` 22 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式与严格 Clippy、`./artisan inspire`、三语示例和站点构建、双路径 18 项浏览器检查通过。核心账本维持 66/66。后续核对通知邮件的模板构建、预览和优先级。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.67 GB（3.42 GiB），清理后可用 92.52 GB（86.16 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-envelope.bAog7JqB`。
+
+## 通知邮件的模板、预览与优先级
+
+- 对照固定 Laravel v13.40.0 的通知预览与 Markdown 通知，以及 `MailMessage` 的视图选择、主题和优先级。旧版 `6d1a81924` 使用本地化邮件模板目录，未提供对应通知构建器。复用主线的 `Content`、邮件预览和 MIME 头部。 [Laravel 通知](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#previewing-mail-notifications) · [Laravel MailMessage](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Messages/MailMessage.php) · [Symfony MIME 邮件优先级](https://github.com/symfony/mime/blob/v8.0.0/Email.php#L219)
+- Rust 以两个构建调用组合命名 HTML 和纯文本视图，后提供的数据按键覆盖已有值。显式 `markdown` 选择双正文，`template` 仅影响 Markdown，`theme` 复用已有 Markdown 样式表。`Mailable::render` 和 `toResponse` 负责只读预览。`priority(i32)` 将值限制在 1–5 并写入 `X-Priority`，不影响队列处理顺序。
+- 在隔离基线 `a01c48adb` 上，经真实 HTTP 核对 HTML、纯文本、Markdown、显式视图优先、主题、错误状态和无投递预览。真实 Mailpit SMTP 及 MySQL 8.4.13、Redis 8.10.3 的独立 Artisan Worker 分别验证 1、3、5 的 MIME 优先级。用实际 Artisan 生成 Markdown 通知和 Blade 视图，并编译及执行生成源码与三语相同示例。
+- `mail_notifications` 23 项通过、2 项专用夹具忽略，`filesystem_local` 9 项和 `mail_generator` 6 项通过。Rust 1.94.0 全仓格式、严格 Clippy、实际 `./artisan inspire`、生成器 POSIX 交互、三语构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批对照通知渠道的短信、Slack 能力和固定文档中的验收边界。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 4.14 GB（3.86 GiB），清理后可用 92.55 GB（86.20 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-template.mwqMAkZu`。

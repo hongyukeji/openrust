@@ -100,7 +100,7 @@ let delivery = MailDelivery::Message(Box::new(
 ));
 ```
 
-未指定主题时，邮件渠道根据通知类型名生成主题。运行 `./artisan vendor:publish --tag=laravel-notifications`，可编辑 `resources/views/vendor/notifications/email.blade.html` 覆盖默认视图。要为单条消息指定其他模板，设置其 `content.view`、`content.text_view` 或 `content.markdown`。
+未指定主题时，邮件渠道根据通知类型名生成主题。运行 `./artisan vendor:publish --tag=laravel-notifications`，可编辑 `resources/views/vendor/notifications/email.blade.html` 覆盖默认视图。 要为单条消息选择模板，可调用 `view` 设置 HTML 视图，再按需用 `text` 添加纯文本视图。对新消息直接调用 `text` 可只生成纯文本。
 
 ### 发件人和收件人 {#sender-and-recipients}
 
@@ -134,9 +134,28 @@ let message = MailMessage::new()
 
 示例使用注册名为 `invoice.trace` 的应用回调。若附件实现了 `Attachable`，把其 `toMailAttachment()` 的返回值交给 `attach`。
 
+### 预览通知邮件 {#previewing-mail-notifications}
+
+用 `render().await` 获取正文，或在路由里返回 `toResponse().await`。响应会按所选视图返回 HTML 或纯文本。预览只渲染模板，不发送邮件、读取普通附件或执行消息定制回调。
+
+```rust
+use openrust::{mail::Mailable, notifications::messages::MailMessage};
+
+let mail = MailMessage::new()
+    .markdown("mail.invoice.paid", data)
+    .theme("billing")
+    .priority(2);
+
+let response = mail.toResponse().await?;
+```
+
+### 邮件优先级 {#mail-priority}
+
+用 `priority` 设置 MIME 的 `X-Priority`。1 为最高，5 为最低，超出范围时取最近的边界值。此优先级供收件方的邮件客户端使用。
+
 ## Markdown 邮件通知
 
-将 `MailMessage.content.markdown` 设为命名 Blade 视图，或从 `to_mail` 返回 Markdown mailable，即可发送 Markdown 通知。两种方式共用 [Markdown 邮件渲染和主题](mail.md#markdown-邮件)。
+运行 `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` 生成通知和 Blade 模板。用 `markdown` 选定渲染双正文的模板。`template` 调整 Markdown 模板并尊重已明确选择的视图，`theme` 可为单封邮件覆盖 Markdown 主题。构建方法按键合并视图数据，后提供的值优先。`to_mail` 返回的自定义可邮件对象也可使用同一套 [Markdown 渲染器和组件](mail.md#writing-markdown-messages)。
 
 ## 测试通知
 

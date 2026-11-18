@@ -100,7 +100,7 @@ let delivery = MailDelivery::Message(Box::new(
 ));
 ```
 
-The mail channel uses the notification type name as the default subject. Override the default message view by running `./artisan vendor:publish --tag=laravel-notifications` and editing `resources/views/vendor/notifications/email.blade.html`. To supply a different template for one message, set its `content.view`, `content.text_view`, or `content.markdown`.
+The mail channel uses the notification type name as the default subject. Override the default message view by running `./artisan vendor:publish --tag=laravel-notifications` and editing `resources/views/vendor/notifications/email.blade.html`. To select templates for one message, call `view` for HTML and optionally follow it with `text` for the plain-text alternative. Call `text` on a new message for plain text only.
 
 ### Sender and recipients {#sender-and-recipients}
 
@@ -134,9 +134,28 @@ let message = MailMessage::new()
 
 The example uses an application customizer registered as `invoice.trace`. For an `Attachable` object, pass the result of its `toMailAttachment()` method to `attach`.
 
+### Previewing mail notifications {#previewing-mail-notifications}
+
+Use `render().await` for the body or return `toResponse().await` from a route. The response is HTML or plain text according to the selected view. Preview renders the template without sending mail, resolving ordinary attachments, or running message customizers.
+
+```rust
+use openrust::{mail::Mailable, notifications::messages::MailMessage};
+
+let mail = MailMessage::new()
+    .markdown("mail.invoice.paid", data)
+    .theme("billing")
+    .priority(2);
+
+let response = mail.toResponse().await?;
+```
+
+### Mail priority {#mail-priority}
+
+Use `priority` to set the MIME `X-Priority` header. The scale runs from 1 (highest) to 5 (lowest). Values outside that range use the nearest endpoint. Priority describes the message for the recipient’s mail client.
+
 ## Markdown mail notifications
 
-To send a Markdown notification, set `MailMessage.content.markdown` to a named Blade view, or return a Markdown mailable from `to_mail`. Both paths use the same [Markdown mail renderer and theme](mail.md#markdown-mail).
+Use `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` to generate a notification and a Blade template. Use `markdown` to select a template that renders both message bodies. `template` changes the Markdown template while respecting explicit views. `theme` overrides the configured Markdown theme for that message. Builder calls merge view data, with the latest value taking precedence for each key. A custom mailable returned from `to_mail` can use the same [Markdown renderer and components](mail.md#writing-markdown-messages).
 
 ## Testing notifications
 
