@@ -3336,3 +3336,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-07 换址与并发邮箱验证
 
 按固定 Laravel 保留邮箱摘要，使用精确文本匹配防止数据库排序规则使旧快照验证新的邮箱。真实 HTTP、SQLite 与 MySQL 8.4.13 验证流程、Mailpit SMTP、令牌仓储回归、Artisan、严格 Clippy 和三语站点 18 项浏览器检查通过。 [验收](audits/06-07/README.md#verification-after-email-change)
+
+## 2026-11-18 03-09 Redis Cluster 指定标签的异常索引登记清理
+
+指定标签清理分批回收归属于所选标签的异常 Redis Cluster 索引登记，包括含非 UTF-8 字节的登记，保留实际 Redis 值键。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签的异常索引登记清理)

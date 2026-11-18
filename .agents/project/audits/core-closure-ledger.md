@@ -263,3 +263,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-07 的 [认证邮件应用级链接与内容回调](06-07/README.md#auth-notification-mail-hooks)通过真实 HTTP、SMTP、自定义签名链接及应用隔离验收。
 
 06-07 的 [换址与并发邮箱验证](06-07/README.md#verification-after-email-change)通过真实 HTTP、SQLite 与 MySQL 精确邮箱更新及并行事件验收。
+
+03-09 [Redis Cluster 指定标签的异常索引登记清理](03-09/README.md#redis-cluster-指定标签的异常索引登记清理)通过真实 Redis、双进程 HTTP 和独立 Artisan 验收。按标签清理仅移除归属于所选标签的异常索引登记，存储级清理处理其余登记。核心账本维持 66/66。

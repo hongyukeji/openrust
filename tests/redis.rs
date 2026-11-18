@@ -1442,6 +1442,21 @@ async fn redis_cluster_tags_flush_and_prune() {
         other_orphan.as_bytes(),
     ];
     members.extend(selected_orphans.iter().map(String::as_bytes));
+    let malformed_selected = format!("{selected_index_prefix}:malformed");
+    let malformed_other = format!("{prefix}index:{}:malformed", "f".repeat(64));
+    let malformed_unowned = format!("{prefix}index:unknown:malformed");
+    let mut binary_selected = format!("{selected_index_prefix}:").into_bytes();
+    binary_selected.push(0xff);
+    members.extend([
+        malformed_selected.as_bytes(),
+        binary_selected.as_slice(),
+        malformed_other.as_bytes(),
+        malformed_unowned.as_bytes(),
+    ]);
+    connection
+        .command("SET", &[malformed_selected.as_bytes(), b"preserve"])
+        .await
+        .unwrap();
     connection.command("SADD", &members).await.unwrap();
     assert!(interrupted.flushStale().await.unwrap());
     assert!(registered(&retired_index).await);
@@ -1451,9 +1466,23 @@ async fn redis_cluster_tags_flush_and_prune() {
             "orphan still registered: {orphan}"
         );
     }
+    assert!(!registered(&malformed_selected).await);
+    assert_eq!(
+        connection
+            .command("SISMEMBER", &[registry.as_bytes(), &binary_selected])
+            .await
+            .unwrap(),
+        RedisValue::Int(0)
+    );
+    assert!(exists(&malformed_selected).await);
     assert!(registered(&other_orphan).await);
+    assert!(registered(&malformed_other).await);
+    assert!(registered(&malformed_unowned).await);
     plain.get_store().flush_stale_tags().await.unwrap();
     assert!(!registered(&other_orphan).await);
+    assert!(!registered(&malformed_other).await);
+    assert!(!registered(&malformed_unowned).await);
+    assert!(exists(&malformed_selected).await);
     assert!(!exists(&other_pending).await);
     assert_eq!(
         connection

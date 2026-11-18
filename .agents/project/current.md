@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 14:42（北京时间）03-09 [Redis Cluster 指定标签的异常索引登记清理](audits/03-09/README.md#redis-cluster-指定标签的异常索引登记清理)。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。磁盘可用 86.85 GB（80.88 GiB），周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:31（北京时间）06-07 [换址与并发邮箱验证](audits/06-07/README.md#verification-after-email-change)。真实 HTTP、SQLite 与 MySQL 8.4.13 验证流程、Mailpit SMTP、令牌仓储回归、Artisan、严格 Clippy 和三语站点 18 项浏览器检查通过。磁盘可用 89.30 GB（83.17 GiB），周额度剩余 28%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:22（北京时间）06-07 [认证邮件应用级链接与内容回调](audits/06-07/README.md#auth-notification-mail-hooks)。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。磁盘可用 89.39 GB（83.25 GiB），周额度剩余 28%，第二窗口无读数。核心账本维持 66/66。
 - 2026-11-18 14:13（北京时间）06-07 [密码重置与邮箱验证的默认邮件](audits/06-07/README.md#default-auth-notification-mail)。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。磁盘可用 89.43 GB（83.29 GiB），周额度剩余 28%，第二窗口无读数。核心账本维持 66/66。

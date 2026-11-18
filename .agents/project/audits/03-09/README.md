@@ -214,3 +214,9 @@
 - 在隔离基线 `9beeb64b0` 先复现指定标签清理后仍有悬空登记。修复后用 Redis 8.10.3 测试 320 条无索引登记、有效登记和其他标签隔离。两个真实 HTTP 进程验证索引丢失且无待回收记录时，只移除所选标签的登记，重复调用成功。独立 Artisan `cache:prune-stale-tags redis` 回收其他标签的悬空登记，保留仍然存活的索引和原有缓存值。复验槽迁移失败及重试、错型错误和显式与默认存储选择。
 - `sh tests/redis_cluster.sh` 五项、真实单机 Redis 标签回归一项、`./artisan inspire`、Rust 1.94.0 全仓格式、全工作区全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。浏览器覆盖根路径和 `/docs/`。本批验收使用 Redis 8.10.3。核心账本保持 66/66。
 - 本批临时 Redis、隔离编译产物和站点生成物已回收，数据卷清单一致。清理前后项目卷可用空间净增 6.29 GB，清理后可用 90.27 GB（84.07 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-03-09-orphan-index.R8QvV5qd`。
+
+## Redis Cluster 指定标签的异常索引登记清理
+
+- 固定 Laravel v13.40.0 的 `RedisTagSet::flushStaleEntries()` 只修剪指定标签的过期引用。对照该方法和 RedisStore 集成测试，复核旧版 `b62ae7c72` 的 `redis_tags.rs` 及 `tag_identity.rs`，沿用分批清理与标签代际隔离。OpenRust 用同槽集合登记索引。指定标签清理按原始字节识别所选标签的摘要，分批从集合移除格式异常的登记，保留其指向的 Redis 键。无法识别归属的登记仍由存储级命令清理。 [固定 Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L84) · [上游 RedisStore 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
+- 在隔离基线 `6e5e9cfd7` 用 Redis 8.10.3 复现异常登记残留。修复后 `sh tests/redis_cluster.sh` 五项及单机 `redis_tags_physically_flush_values_and_prune_stale_indexes` 回归通过。两个真实 HTTP 进程验证文本与非 UTF-8 异常登记的清理范围和重复执行。独立 Artisan `cache:prune-stale-tags redis` 清除其他标签及归属不明的残留登记，Redis 原生命令确认存活索引、缓存值和被异常登记引用的实际键均保留。槽迁移失败与重试、存储选择及 `./artisan inspire` 复验通过。
+- Rust 1.94.0 全仓格式、全工作区全目标严格 Clippy、三语站点构建及两种部署路径下 12 项通用与 6 项缓存文档浏览器检查通过。临时 Redis、本批 Cargo 目标及文档生成物已回收，数据卷清单一致。清理期间项目卷可用空间变化 +4.27 GB（+3.98 GiB），清理后可用 86.85 GB（80.88 GiB）。提交前周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-03-09-malformed-registration.6gBQsijW`。

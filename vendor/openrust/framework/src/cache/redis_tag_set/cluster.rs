@@ -202,7 +202,7 @@ impl RedisTagSet {
         registry: &str,
         index_prefix: &str,
     ) -> CacheResult<()> {
-        let tags: std::collections::HashSet<_> = self.tags.iter().map(String::as_str).collect();
+        let tags: std::collections::HashSet<_> = self.tags.iter().map(String::as_bytes).collect();
         let mut cursor = 0;
         loop {
             let (next, members): (u64, Vec<Vec<u8>>) = self
@@ -214,11 +214,24 @@ impl RedisTagSet {
                         .arg(BATCH_SIZE),
                 )
                 .await?;
-            let indexes: Vec<_> = members
-                .iter()
-                .filter_map(|member| cluster_index(member, index_prefix))
-                .filter_map(|(index, tag, _)| tags.contains(tag).then_some(index))
-                .collect();
+            let mut indexes = Vec::new();
+            let mut invalid = Vec::new();
+            for member in &members {
+                let Some(suffix) = member.strip_prefix(index_prefix.as_bytes()) else {
+                    continue;
+                };
+                let Some((tag, generation)) = suffix.split_at_checked(64) else {
+                    continue;
+                };
+                if !generation.starts_with(b":") || !tags.contains(tag) {
+                    continue;
+                }
+                if let Some((index, _, _)) = cluster_index(member, index_prefix) {
+                    indexes.push(index);
+                } else {
+                    invalid.push(member.as_slice());
+                }
+            }
             for batch in indexes.chunks(BATCH_SIZE) {
                 self.query::<()>(
                     cluster_script(PRUNE_REGISTRY, 1 + batch.len())
@@ -226,6 +239,10 @@ impl RedisTagSet {
                         .arg(batch),
                 )
                 .await?;
+            }
+            for batch in invalid.chunks(BATCH_SIZE) {
+                self.query::<u64>(::redis::cmd("SREM").arg(registry).arg(batch))
+                    .await?;
             }
             if next == 0 {
                 return Ok(());
