@@ -29,6 +29,8 @@
 
 03-09 [Redis Cluster 指定标签的空代际回收](03-09/README.md#redis-cluster-指定标签的空代际回收)。真实 Redis Cluster、HTTP 和 Artisan 已核对指定范围的空代际回收、活跃引用保留和可重试性。
 
+03-09 [Redis Cluster 指定标签的悬空索引登记回收](03-09/README.md#redis-cluster-指定标签的悬空索引登记回收)通过真实 Redis、HTTP 与 Artisan 验收。指定标签只回收自身无索引的登记，存储级清理回收其余悬空登记。
+
 00-03 的 [Provider 注册与 stub 发布整合回归](00-03/README.md#provider-注册与-stub-发布的整合回归)已通过实际 Artisan、HTTP 和启动工作区回归。
 
 ## 01-02 容器与延迟 Provider

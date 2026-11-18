@@ -12,6 +12,7 @@ const ITEM: &str = concat!(
 const RETIRE: &str = include_str!("../scripts/redis_cluster_tag_retire.lua");
 const CLEANUP: &str = include_str!("../scripts/redis_cluster_tag_cleanup.lua");
 const PRUNE_RETIREMENTS: &str = include_str!("../scripts/redis_cluster_tag_prune_retirements.lua");
+const PRUNE_REGISTRY: &str = include_str!("../scripts/redis_cluster_tag_prune_registry.lua");
 const GENERATION_ATTEMPTS: usize = 16;
 
 impl RedisTagSet {
@@ -192,7 +193,45 @@ impl RedisTagSet {
             self.cleanup_pending_generations(&registry, &tag_index_prefix, &pending, false)
                 .await?;
         }
-        Ok(())
+        self.prune_selected_registrations(&registry, &index_prefix)
+            .await
+    }
+
+    async fn prune_selected_registrations(
+        &self,
+        registry: &str,
+        index_prefix: &str,
+    ) -> CacheResult<()> {
+        let tags: std::collections::HashSet<_> = self.tags.iter().map(String::as_str).collect();
+        let mut cursor = 0;
+        loop {
+            let (next, members): (u64, Vec<Vec<u8>>) = self
+                .query(
+                    ::redis::cmd("SSCAN")
+                        .arg(registry)
+                        .arg(cursor)
+                        .arg("COUNT")
+                        .arg(BATCH_SIZE),
+                )
+                .await?;
+            let indexes: Vec<_> = members
+                .iter()
+                .filter_map(|member| cluster_index(member, index_prefix))
+                .filter_map(|(index, tag, _)| tags.contains(tag).then_some(index))
+                .collect();
+            for batch in indexes.chunks(BATCH_SIZE) {
+                self.query::<()>(
+                    cluster_script(PRUNE_REGISTRY, 1 + batch.len())
+                        .arg(registry)
+                        .arg(batch),
+                )
+                .await?;
+            }
+            if next == 0 {
+                return Ok(());
+            }
+            cursor = next;
+        }
     }
 
     async fn recover_cluster_indexes(&self, registry: &str, index_prefix: &str) -> CacheResult<()> {

@@ -1430,7 +1430,30 @@ async fn redis_cluster_tags_flush_and_prune() {
             .unwrap(),
         RedisValue::Int(1)
     );
+    let (selected_index_prefix, _) = retired_index.rsplit_once(':').unwrap();
+    let selected_orphans: Vec<_> = retirements
+        .iter()
+        .map(|id| format!("{selected_index_prefix}:{id}"))
+        .collect();
+    let other_orphan = format!("{prefix}index:{}:{}", "f".repeat(64), retirements[1]);
+    let mut members = vec![
+        registry.as_bytes(),
+        retired_index.as_bytes(),
+        other_orphan.as_bytes(),
+    ];
+    members.extend(selected_orphans.iter().map(String::as_bytes));
+    connection.command("SADD", &members).await.unwrap();
+    assert!(interrupted.flushStale().await.unwrap());
+    assert!(registered(&retired_index).await);
+    for orphan in selected_orphans {
+        assert!(
+            !registered(&orphan).await,
+            "orphan still registered: {orphan}"
+        );
+    }
+    assert!(registered(&other_orphan).await);
     plain.get_store().flush_stale_tags().await.unwrap();
+    assert!(!registered(&other_orphan).await);
     assert!(!exists(&other_pending).await);
     assert_eq!(
         connection
