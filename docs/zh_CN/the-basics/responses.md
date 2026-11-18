@@ -183,6 +183,10 @@ fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse
 
 用 `Response::view` 渲染已准备好的视图，并指定状态码和响应头。可以传入 `view("name")`，也可以用 `View::first` 门面选择第一个可用模板。渲染保留当前请求的上下文。
 
+### JSON 响应 {#json-responses}
+
+用 `Response::json(StatusCode::CREATED, data)?` 指定状态码，并序列化实现了 `serde::Serialize` 的值。响应设置 `Content-Type: application/json`。用 `header` 或 `withHeaders` 附加响应头。路由直接返回 JSON 值时使用 HTTP 200。
+
 ### JSONP 响应 {#jsonp-responses}
 
 用 `Response::jsonp(status, Some(callback), data)` 将 JSON 数据传给 JavaScript 回调。回调名支持点分名称和方括号字面量键。无效回调名返回 HTTP 400。传入 `None` 返回普通 JSON 响应。

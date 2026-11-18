@@ -60,6 +60,10 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 用 `request.only(&["user.name", "document"]).await?` 從一般輸入和上傳檔案中選取欄位。缺少的路徑會略過，明確的 null 和型別化檔案會保留。`request.except(&["document"]).await?` 移除欄位並保留其餘數字鍵。用 `arrayOnly` 或 `collectOnly` 將選取欄位讀為型別化陣列或集合。
 
+## 用戶端 IP 位址 {#request-ip-address}
+
+用 `request.ip()` 讀取第一個解析出的用戶端位址，用 `request.ips()` 讀取位址鏈。直接連線時使用傳輸層提供的對端位址。設定受信任代理後，位址鏈會略過受信任節點，從最近的未受信任位址開始。若所有節點都受信任，則回傳鏈中的第一個受信任位址。見[受信任代理設定](#configuring-trusted-proxies)。
+
 ## 內容協商 {#content-negotiation}
 
 用 `request.getAcceptableContentTypes()` 讀取依品質權重排序的 `Accept` 項目。用 `request.accepts(&["text/html", "application/json"])` 檢查是否接受任一類型，或用 `request.prefers(&["html", "json"])` 選擇最佳候選。缺少該請求標頭或候選皆不相符時，`prefers` 回傳 `None`。`request.format("html")` 回傳首個識別出的回應格式，找不到時回傳傳入的預設值。
@@ -151,7 +155,7 @@ use openrust::http::TrustedProxyHeaders;
 
 預設遮罩 `TrustedProxyHeaders::DEFAULT` 對應 X-Forwarded 欄位。RFC 7239 使用 `FORWARDED`，AWS 負載平衡欄位使用 `AWS_ELB`。同時啟用的兩組標頭發生衝突時回傳 HTTP 400。
 
-`Request::ip` 回傳鏈中離應用程式最近的非可信任用戶端位址，`Request::ips` 回傳解析出的位址。`Request::secure` 反映有效協定。URL 產生使用轉送後的來源與前綴，路由比對使用實際收到的路徑。
+`Request::secure` 反映生效的協定。URL 產生使用轉送來源及前綴，路由比對使用傳入路徑。
 
 應用程式裝配未指定代理策略時，HTTP 啟動會從設定儲存庫讀取 `trustedproxy.proxies`，支援以逗號分隔的字串或陣列。選用的 `trustedproxy.headers` 支援數值遮罩或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 預設名稱。明確的 `trustProxies` 優先，包含空位址清單。
 

@@ -183,6 +183,10 @@ Pass `None` to `withInput` to read form or JSON fields and query parameters from
 
 Use `Response::view` to render a prepared view with a status and headers. Pass a view from `view("name")` or select the first available template with the `View::first` facade. Rendering preserves the current request context.
 
+### JSON Responses {#json-responses}
+
+Use `Response::json(StatusCode::CREATED, data)?` to select a status and serialize a value implementing `serde::Serialize`. It sets `Content-Type: application/json`. Use `header` or `withHeaders` to attach response headers. Returning a JSON value directly from the route uses HTTP 200.
+
 ### JSONP Responses {#jsonp-responses}
 
 Use `Response::jsonp(status, Some(callback), data)` to send a JavaScript callback with JSON data. A callback may use dotted names and literal bracket keys. Invalid callback names produce HTTP 400. Passing `None` returns an ordinary JSON response.

@@ -60,6 +60,10 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 用 `request.only(&["user.name", "document"]).await?` 从普通输入和上传文件中选取字段。缺失路径会被省略，显式 null 和类型化文件会保留。`request.except(&["document"]).await?` 移除字段并保留剩余数字键。用 `arrayOnly` 或 `collectOnly` 将选中字段读为类型化数组或集合。
 
+## 客户端 IP 地址 {#request-ip-address}
+
+用 `request.ip()` 读取第一个解析出的客户端地址，用 `request.ips()` 读取地址链。直连时使用传输层提供的对端地址。配置可信代理后，地址链会过滤可信节点，从最近的非可信地址开始。若所有节点均可信，则返回链中的第一个可信地址。见[可信代理配置](#configuring-trusted-proxies)。
+
 ## 内容协商 {#content-negotiation}
 
 用 `request.getAcceptableContentTypes()` 读取按质量权重排序的 `Accept` 条目。用 `request.accepts(&["text/html", "application/json"])` 检查是否接受任一类型，或用 `request.prefers(&["html", "json"])` 选择最佳候选。缺少该请求头或候选均不匹配时，`prefers` 返回 `None`。`request.format("html")` 返回首个识别出的响应格式，找不到时返回传入的默认值。
@@ -151,7 +155,7 @@ use openrust::http::TrustedProxyHeaders;
 
 默认掩码 `TrustedProxyHeaders::DEFAULT` 对应 X-Forwarded 字段。RFC 7239 使用 `FORWARDED`，AWS 负载均衡字段使用 `AWS_ELB`。同时启用的两组头部出现冲突时返回 HTTP 400。
 
-`Request::ip` 返回链中离应用最近的非可信客户端地址，`Request::ips` 返回解析出的地址。`Request::secure` 反映有效协议。URL 生成使用转发后的来源与前缀，路由匹配使用实际收到的路径。
+`Request::secure` 反映生效的协议。URL 生成使用转发来源和前缀，路由匹配使用入站路径。
 
 应用装配未指定代理策略时，HTTP 启动从配置仓库读取 `trustedproxy.proxies`，支持逗号分隔字符串或数组。可选的 `trustedproxy.headers` 支持数值掩码或 `HEADER_X_FORWARDED_AWS_ELB` 等 Laravel 预设名。显式 `trustProxies` 优先，包括空地址列表。
 

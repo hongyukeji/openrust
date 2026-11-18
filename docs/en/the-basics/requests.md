@@ -60,6 +60,10 @@ Use `request.field("name").await?` for the lookup Laravel performs on dynamic re
 
 Use `request.only(&["user.name", "document"]).await?` to select fields from input and uploads. It omits missing paths and preserves explicit null and typed files. `request.except(&["document"]).await?` removes fields without renumbering numeric keys. Use `arrayOnly` or `collectOnly` to return the selected data as a typed array or collection.
 
+## Client IP addresses {#request-ip-address}
+
+Use `request.ip()` for the first resolved client address and `request.ips()` for the address chain. A direct connection uses the transport peer, when available. With trusted proxies, the chain omits trusted hops and starts with the nearest untrusted address. If every hop is trusted, it contains the first trusted address instead. See [trusted proxy configuration](#configuring-trusted-proxies).
+
 ## Content Negotiation {#content-negotiation}
 
 Use `request.getAcceptableContentTypes()` to read the `Accept` entries in quality order. Use `request.accepts(&["text/html", "application/json"])` to check a set of acceptable types, or `request.prefers(&["html", "json"])` to select the best candidate. `prefers` returns `None` when the header is absent or there is no match. `request.format("html")` uses the first recognized response format and falls back to the supplied value.
@@ -151,7 +155,7 @@ use openrust::http::TrustedProxyHeaders;
 
 The default mask is `TrustedProxyHeaders::DEFAULT` for X-Forwarded fields. Use `FORWARDED` for RFC 7239 or `AWS_ELB` for the AWS load balancer fields. A conflict between two enabled header families returns HTTP 400.
 
-`Request::ip` returns the nearest untrusted client address from the chain. `Request::ips` returns the resolved addresses, and `Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.
+`Request::secure` reflects the effective protocol. URL generation uses the forwarded origin and prefix while route matching uses the incoming path.
 
 When application assembly does not supply a proxy policy, HTTP startup reads `trustedproxy.proxies` from the configuration repository. Use a comma-separated string or an array. The optional `trustedproxy.headers` accepts a numeric mask or a Laravel preset name such as `HEADER_X_FORWARDED_AWS_ELB`. An explicit `trustProxies` policy takes precedence, including an empty address list.
 
