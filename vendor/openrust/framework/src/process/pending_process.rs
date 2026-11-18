@@ -20,7 +20,7 @@ impl Command {
         Self::Arguments(arguments.into_iter().map(Into::into).collect())
     }
 
-    fn native(&self) -> Result<tokio::process::Command> {
+    pub(crate) fn native(&self) -> Result<tokio::process::Command> {
         match self {
             Self::Shell(script) if !script.is_empty() => {
                 #[cfg(unix)]

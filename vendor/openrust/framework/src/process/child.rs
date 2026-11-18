@@ -68,14 +68,28 @@ impl ChildGroup {
         })
     }
 
-    pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {
+    pub(crate) fn output_pipes(
+        &mut self,
+    ) -> (tokio::process::ChildStdout, tokio::process::ChildStderr) {
+        (
+            self.child.stdout.take().expect("configured stdout pipe"),
+            self.child.stderr.take().expect("configured stderr pipe"),
+        )
+    }
+
+    pub(crate) fn id(&self) -> Option<u32> {
+        self.child.id()
+    }
+
+    /// Observe the leader without reaping it while the process group is still owned.
+    pub(crate) async fn wait_until_exited(&mut self) -> io::Result<()> {
         #[cfg(unix)]
         if let Some(group) = self.group {
             use rustix::process::{WaitId, WaitIdOptions, waitid};
             let flags = WaitIdOptions::EXITED | WaitIdOptions::NOHANG | WaitIdOptions::NOWAIT;
             loop {
                 match waitid(WaitId::Pid(group), flags) {
-                    Ok(Some(_)) => break,
+                    Ok(Some(_)) => return Ok(()),
                     Ok(None) => {}
                     Err(rustix::io::Errno::INTR) => continue,
                     Err(error) => return Err(error.into()),
@@ -84,6 +98,14 @@ impl ChildGroup {
                     return Err(io::Error::other("child exit notifications closed"));
                 }
             }
+        }
+        self.child.wait().await.map(|_| ())
+    }
+
+    pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {
+        #[cfg(unix)]
+        if self.group.is_some() {
+            self.wait_until_exited().await?;
             // Reap the leader only after signalling its group so the PID cannot be reused.
             self.signal(Signal::Kill)?;
             self.group = None;

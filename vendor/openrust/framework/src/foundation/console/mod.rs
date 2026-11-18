@@ -4,6 +4,7 @@ mod channel_list_command;
 pub(super) mod config_cache_command;
 mod configuration_command;
 mod console_make_command;
+mod dev_command;
 mod dev_list_command;
 mod environment_command;
 mod environment_encryption_command;
@@ -192,6 +193,7 @@ impl Kernel {
                             notification_make_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;
                             serve_command::register(&mut self.artisan)?;
+                            dev_command::register(&mut self.artisan)?;
                             dev_list_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]

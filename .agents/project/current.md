@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-19 01:03（北京时间）06-08 [Artisan dev 并发执行与关停](audits/06-08/README.md#artisan-dev-并发执行与关停)。Ubuntu 实际二进制和 9 条三语 Artisan 示例通过，覆盖 HTTP、SQLite 队列监听、成功与失败退出、五次重试和 Ctrl+C 后端口释放。26 项定向回归、格式、全目标严格 Clippy、三语站点及 18 项浏览器检查通过。磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 17%，按用户授权继续。核心账本维持 66/66。下一批对照固定 Laravel DevCommand 与 Multiplex 的交互模式，补 `--tabs`、`--stream` 和终端控制。
 - 2026-11-19 00:38（北京时间）06-08 [Artisan 开发进程注册与列表](audits/06-08/README.md#artisan-开发进程注册与列表)。Ubuntu 真实 Artisan 验证默认项、两应用注册隔离、优先级、筛选及 JSON，伪终端验证颜色和退出码。11 项定向回归、全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 17%，按用户授权继续。核心账本维持 66/66。下一批接 `dev` 的进程并发执行、重启和关停，复用当前注册表与独立 `serve`。
 - 2026-11-19 00:17（北京时间）00-03／06-08 [Artisan 开发 HTTP 服务](audits/06-08/README.md#artisan-开发-http-服务)。真实 HTTP 与 Artisan、端口回退、环境文件重载及 Linux Ctrl+C、SIGTERM 通过。27 项回归、严格 Clippy 和 18 项三语浏览器检查通过。Windows 新增关停路径待实机复验。磁盘可用 52.08 GB（48.50 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批核对固定 Laravel 的 `dev:list` 和 `dev` 及其对开发服务入口的依赖。
 - 2026-11-18 23:57（北京时间）06-08／06-03 [Artisan 命令队列](audits/06-08/README.md#artisan-命令队列)。实际 HTTP、MySQL 8.4.13／Redis 8.10.3 Worker、重试及失败记录通过。26 项定向回归、严格 Clippy 和 18 项三语浏览器检查通过。磁盘可用 52.12 GB（48.54 GiB），提交前周额度剩余 18%，按用户授权继续。核心账本维持 66/66。下一批对照固定 Laravel 的 `serve`，核对独立 HTTP 开发入口与现有 Runner 的职责。

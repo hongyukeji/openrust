@@ -369,3 +369,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 00-03／06-08 [Artisan 开发 HTTP 服务](06-08/README.md#artisan-开发-http-服务)通过真实 HTTP、独立 Artisan、地址占用回退、环境文件重载及 Linux 关停验收。Windows 新增关停路径待实机复验。核心账本维持 66/66。
 
 06-08 [Artisan 开发进程注册与列表](06-08/README.md#artisan-开发进程注册与列表)通过真实 Artisan、两应用注册隔离、筛选与终端格式及三语文档验收。下一批为 `dev` 并发执行。核心账本维持 66/66。
+
+06-08 [Artisan dev 并发执行与关停](06-08/README.md#artisan-dev-并发执行与关停)通过真实 HTTP、SQLite 队列监听、重试、退出码及 Unix 信号验收。交互终端、Windows 进程树回收与实机验收与 Pail 分别跟踪。核心账本维持 66/66。

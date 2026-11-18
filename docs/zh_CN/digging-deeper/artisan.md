@@ -46,7 +46,24 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 选中的环境文件发生变化时，服务会在原监听端口重启。用 `--env=local` 选择环境，用 `--no-reload` 保持当前配置直到停止。按 Ctrl+C 停止服务。不带模式参数运行编译后的 `main` 可[一起启动已配置的服务](../getting-started/deployment.md#一起运行服务)。
 
-## 查看开发进程 {#the-dev-command}
+## 开发进程 {#the-dev-command}
+
+在应用目录下并发运行已登记的开发进程。默认的开发服务器和队列监听器直接复用 Artisan 的当前二进制。Vite 等 Node 进程按需使用 Node。
+
+```sh
+./artisan dev
+./artisan dev --inline --timestamps --no-restart
+./artisan dev --json
+```
+
+输出按进程加上标签，保留各自的 stdout 和 stderr。`--timestamps` 给内联输出加 UTC 时间。`--json` 每行输出一条带版本号的事件，包括进程启动、输出、退出、重试和最后的 `done`。
+
+运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disableAutoRestart()` 关闭。用 `DevCommands::withTimestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
+
+在 Unix 上，Ctrl+C 和终止信号会请求关停，最多等子进程退出六秒。当前提供内联及 JSON 输出，交互标签、流式导航与 Pail 日志跟踪分别推进。
+
+### 查看开发进程
+
 
 用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。Pail 日志跟踪待单独实现。
 

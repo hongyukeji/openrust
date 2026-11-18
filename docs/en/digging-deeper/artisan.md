@@ -46,7 +46,24 @@ Use `./artisan serve` to run HTTP on its own. The default address is `127.0.0.1:
 
 The server restarts after changes to the selected environment file and keeps its listening port. Use `--env=local` to select an environment and `--no-reload` to keep the current configuration until you stop the server. Press Ctrl+C to stop. Run the compiled `main` without mode arguments to [start configured services together](../getting-started/deployment.md#run-services-together).
 
-## Listing Development Processes {#the-dev-command}
+## Development Processes {#the-dev-command}
+
+Run the registered development processes together from the application directory. The default development server and queue listener use the same compiled executable as Artisan. Node is used only by Node-based entries such as Vite.
+
+```sh
+./artisan dev
+./artisan dev --inline --timestamps --no-restart
+./artisan dev --json
+```
+
+Output lines are labelled by process and retain stdout or stderr. `--timestamps` adds UTC times to inline output. `--json` emits one versioned event per line, including process starts, output, exits, retry attempts and a final `done` event.
+
+A process that fails after running for at least one second is retried up to five times with a one-second delay. A process that exits successfully is finished. A process that fails within a second is reported immediately. Disable retries for a run with `--no-restart`, or for the application with `DevCommands::disableAutoRestart()`. Use `DevCommands::withTimestamps()` to enable timestamps by default. The first permanent failure determines the exit code while other processes can keep running.
+
+On Unix, Ctrl+C and termination signals request shutdown and allow up to six seconds for child processes to exit. This command currently uses inline and JSON output. Interactive tabs, stream navigation and Pail log tailing are separate work.
+
+### Listing Development Processes
+
 
 Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. Pail log tailing requires a separate implementation.
 

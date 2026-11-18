@@ -2,8 +2,9 @@
 
 mod child;
 
+pub(crate) use child::ChildGroup;
 #[cfg(unix)]
-pub(crate) use child::{ChildGroup, inherit_queue_process_group};
+pub(crate) use child::inherit_queue_process_group;
 mod facade;
 mod factory;
 mod fake_description;

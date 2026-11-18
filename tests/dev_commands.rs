@@ -159,3 +159,200 @@ fn executable_lists_defaults_without_starting_services() {
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(output.stdout, b"[]\n");
 }
+
+#[cfg(unix)]
+#[test]
+fn executable_dev_runs_http_and_restarts_a_delayed_failure() {
+    use std::{
+        io::{Read as _, Write as _},
+        net::{TcpListener, TcpStream},
+        os::unix::fs::PermissionsExt as _,
+        process::Stdio,
+        thread::{self, sleep},
+        time::{Duration, Instant},
+    };
+
+    let fixture = Fixture::new("supervisor");
+    fs::write(fixture.0.join(".env"), "APP_NAME=DevSupervisor\n").unwrap();
+    let tools = fixture.0.join("bin");
+    fs::create_dir(&tools).unwrap();
+    fs::write(fixture.0.join("package.json"), "{}").unwrap();
+    let npm = tools.join("npm");
+    fs::write(
+        &npm,
+        r#"#!/bin/sh
+if [ ! -f attempted ]; then
+    touch attempted
+    sleep 1.1
+    exit 9
+fi
+printf '\033[31masset-ready\033[0m\n'
+printf 'asset-error-stream\n' >&2
+trap 'sleep 0.2; printf "asset-stopped\n"; exit 0' TERM
+touch ready
+while :; do sleep 1; done
+"#,
+    )
+    .unwrap();
+    fs::set_permissions(npm, fs::Permissions::from_mode(0o755)).unwrap();
+    let path = std::env::join_paths(
+        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+    let port = TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    let run = || {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "dev", "--json"])
+            .current_dir(&fixture.0)
+            .env("APP_BASE_PATH", &fixture.0)
+            .env("QUEUE_CONNECTION", "nonexistent")
+            .env("SERVER_PORT", port.to_string())
+            .env("PATH", &path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+
+    struct RunningChild(std::process::Child);
+    impl Drop for RunningChild {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    let mut child = RunningChild(run());
+    let stdout = child.0.stdout.take().unwrap();
+    let reader = thread::spawn(move || std::io::read_to_string(stdout).unwrap());
+    let deadline = Instant::now() + Duration::from_secs(25);
+    let mut served = false;
+    while !(served && fixture.0.join("ready").exists()) && Instant::now() < deadline {
+        if let Ok(mut request) = TcpStream::connect(("127.0.0.1", port)) {
+            request
+                .set_read_timeout(Some(Duration::from_millis(500)))
+                .unwrap();
+            write!(
+                request,
+                "GET /up HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
+            let mut response = String::new();
+            served |= request.read_to_string(&mut response).is_ok()
+                && response.starts_with("HTTP/1.1 200");
+        }
+        sleep(Duration::from_millis(30));
+    }
+    assert!(served, "HTTP development server did not respond");
+    assert!(
+        fixture.0.join("ready").exists(),
+        "Vite process did not restart"
+    );
+    let pid = child.0.id().to_string();
+    assert!(
+        Command::new("kill")
+            .args(["-TERM", &pid])
+            .status()
+            .unwrap()
+            .success()
+    );
+    let deadline = Instant::now() + Duration::from_secs(12);
+    let status = loop {
+        if let Some(status) = child.0.try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "dev did not terminate after SIGTERM"
+        );
+        sleep(Duration::from_millis(25));
+    };
+    assert_eq!(status.code(), Some(1));
+    assert!(TcpStream::connect(("127.0.0.1", port)).is_err());
+    let stream = reader.join().unwrap();
+    let events: Vec<Value> = stream
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert!(events.iter().all(|event| event["v"] == 1));
+    assert_eq!(events.last().unwrap()["type"], "done");
+    assert_eq!(events.last().unwrap()["code"], 1);
+    let vite: Vec<_> = events
+        .iter()
+        .filter(|event| event["label"] == "vite")
+        .collect();
+    assert_eq!(
+        vite.iter().filter(|event| event["type"] == "start").count(),
+        2
+    );
+    assert!(
+        vite.iter()
+            .any(|event| event["type"] == "restarting" && event["attempt"] == 1)
+    );
+    assert!(
+        vite.iter()
+            .any(|event| event["stream"] == "stdout" && event["text"] == "asset-ready")
+    );
+    assert!(
+        vite.iter()
+            .any(|event| event["stream"] == "stderr" && event["text"] == "asset-error-stream")
+    );
+    assert!(vite.iter().any(|event| event["text"] == "asset-stopped"));
+    assert!(
+        events
+            .iter()
+            .any(|event| event["label"] == "queue" && event["reason"] == "crashed-immediately")
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn dev_uses_registry_restart_and_output_settings() {
+    struct InlineProvider;
+
+    impl ServiceProvider for InlineProvider {
+        fn boot<'a>(&'a mut self, _: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                DevCommands::withoutDefaultCommands()?;
+                DevCommands::disableAutoRestart()?;
+                DevCommands::withTimestamps()?;
+                DevCommands::register(
+                    "sleep 1.1; echo test-stdout; echo test-stderr >&2; exit 23",
+                    Some("example"),
+                )?;
+                Ok(())
+            })
+        }
+    }
+
+    let fixture = Fixture::new("settings");
+    let app = Application::configure(fixture.0.clone())
+        .withProviders(vec![Box::new(InlineProvider)])
+        .create()
+        .unwrap();
+    let (status, out) = app
+        .call(
+            openrust::container::Callback::new(&[], |_| async {
+                let mut output = Output::default();
+                let status = Artisan::call("dev", &["--inline".into()], &mut output)
+                    .await
+                    .unwrap();
+                Ok((status, output))
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(status, 23);
+    assert_eq!(out.stdout.lines().count(), 1);
+    assert!(out.stdout.contains(" [example] test-stdout\n"));
+    assert!(out.stderr.contains(" [example] test-stderr\n"));
+    assert!(
+        out.stderr
+            .contains(" [example] Process exited with code 23 (restart-disabled)\n")
+    );
+}

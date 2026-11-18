@@ -46,7 +46,24 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 選定的環境檔案變更時，服務會在原監聽連接埠重新啟動。用 `--env=local` 選擇環境，用 `--no-reload` 保持目前設定直到停止。按 Ctrl+C 停止服務。執行編譯後的 `main` 時省略模式引數，即可[一起啟動已設定的服務](../getting-started/deployment.md#一起執行服務)。
 
-## 查看開發程序 {#the-dev-command}
+## 開發程序 {#the-dev-command}
+
+在應用程式目錄同時執行已登記的開發程序。預設的開發伺服器和佇列監聽器直接使用 Artisan 目前的執行檔。Vite 等 Node 程序依需要使用 Node。
+
+```sh
+./artisan dev
+./artisan dev --inline --timestamps --no-restart
+./artisan dev --json
+```
+
+輸出依程序加上標籤，保留各自的 stdout 和 stderr。`--timestamps` 為內嵌輸出加上 UTC 時間。`--json` 每行輸出一筆有版本號的事件，包括程序啟動、輸出、結束、重試和最後的 `done`。
+
+執行滿一秒後失敗的程序會每隔一秒重試，最多五次。成功結束的程序不再執行，一秒內失敗則立即回報。用 `--no-restart` 關閉這次重試，或在應用程式用 `DevCommands::disableAutoRestart()` 關閉。用 `DevCommands::withTimestamps()` 預設開啟時間戳記。第一個永久失敗決定最後的結束代碼，其他程序可以繼續執行。
+
+在 Unix 上，Ctrl+C 和終止訊號會請求關閉服務，最多等待子程序結束六秒。目前提供內嵌及 JSON 輸出，互動分頁、串流導覽與 Pail 日誌追蹤分別推進。
+
+### 查看開發程序
+
 
 用 `dev:list` 查看目前應用程式登記的開發程序。預設列出 [HTTP 開發伺服器](#development-http-server)和佇列監聽器。應用程式含有 `package.json` 時，也會依鎖定檔選擇 Bun、pnpm、Yarn 或 npm 並列出 Vite。查詢不會啟動程序。Pail 日誌追蹤待另外實作。
 

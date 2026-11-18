@@ -3548,3 +3548,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-19 06-08 Artisan 开发进程注册与列表
 
 Ubuntu 真实 Artisan 验证默认项、两应用注册隔离、优先级、筛选及 JSON，伪终端验证颜色和退出码。11 项定向回归、全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。 [验收记录](audits/06-08/README.md#artisan-开发进程注册与列表)
+
+## 2026-11-19 06-08 Artisan dev 并发执行与关停
+
+Ubuntu 实际二进制和 9 条三语 Artisan 示例通过，覆盖 HTTP、SQLite 队列监听、成功与失败退出、五次重试和 Ctrl+C 后端口释放。26 项定向回归、格式、全目标严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收记录](audits/06-08/README.md#artisan-dev-并发执行与关停)

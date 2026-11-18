@@ -23,6 +23,7 @@ const COLORS: [&str; 6] = [
 pub struct DevCommand {
     name: String,
     command: String,
+    artisan: bool,
     source: String,
     priority: u8,
     color: Arc<Mutex<Option<String>>>,
@@ -81,6 +82,11 @@ pub struct DevProcess {
     pub priority: u8,
 }
 
+pub(super) struct RegisteredProcess {
+    pub(super) definition: DevProcess,
+    pub(super) artisan: bool,
+}
+
 pub(super) struct Registry {
     base_path: PathBuf,
     defaults: OnceLock<IndexMap<String, DevCommand>>,
@@ -95,6 +101,8 @@ struct Filters {
     order: Vec<String>,
     without_vendor: bool,
     without_default: bool,
+    timestamps: bool,
+    disable_restart: bool,
 }
 
 impl Registry {
@@ -110,25 +118,27 @@ impl Registry {
     fn defaults(&self) -> &IndexMap<String, DevCommand> {
         self.defaults.get_or_init(|| {
             let mut defaults = IndexMap::new();
-            let mut add = |name: &str, command: String| {
+            let mut add = |name: &str, command: String, artisan| {
                 defaults.insert(
                     name.to_owned(),
                     DevCommand {
                         name: name.to_owned(),
                         command,
+                        artisan,
                         source: "OpenRust Foundation".to_owned(),
                         priority: DevCommand::PRIORITY_DEFAULT,
                         color: Arc::default(),
                     },
                 );
             };
-            add("server", "./artisan serve".to_owned());
+            add("server", "./artisan serve".to_owned(), true);
             add(
                 "queue",
                 "./artisan queue:listen --tries=1 --timeout=0".to_owned(),
+                true,
             );
             if self.base_path.join("package.json").is_file() {
-                add("vite", format!("{} dev", self.node_prefix(false)));
+                add("vite", format!("{} dev", self.node_prefix(false)), false);
             }
             defaults
         })
@@ -148,7 +158,13 @@ impl Registry {
         if exec { execute } else { run }
     }
 
-    fn register(&self, command: String, name: &str, caller: &Location<'_>) -> DevCommand {
+    fn register(
+        &self,
+        command: String,
+        name: &str,
+        artisan: bool,
+        caller: &Location<'_>,
+    ) -> DevCommand {
         let caller_file = Path::new(caller.file());
         let relative = caller_file
             .strip_prefix(&self.base_path)
@@ -158,6 +174,7 @@ impl Registry {
             .any(|component| matches!(component.as_os_str().to_str(), Some("vendor" | "registry")));
         let entry = DevCommand {
             command,
+            artisan,
             name: name.to_owned(),
             source: format!("{}:{}", relative.display(), caller.line()),
             priority: if vendor {
@@ -180,7 +197,7 @@ impl Registry {
         entry
     }
 
-    pub(in crate::foundation) fn commands(&self) -> Vec<DevProcess> {
+    fn commands(&self) -> Vec<RegisteredProcess> {
         let defaults = self.defaults();
         let mut entries = defaults.clone();
         entries.extend(
@@ -214,25 +231,32 @@ impl Registry {
 
         let mut resolved: Vec<_> = entries
             .into_values()
-            .map(|entry| DevProcess {
-                command: entry.command,
-                name: entry.name,
-                color: entry
-                    .color
-                    .lock()
-                    .expect("dev command color lock poisoned")
-                    .clone()
-                    .unwrap_or_default(),
-                source: entry.source,
-                priority: entry.priority,
+            .map(|entry| RegisteredProcess {
+                artisan: entry.artisan,
+                definition: DevProcess {
+                    command: entry.command,
+                    name: entry.name,
+                    color: entry
+                        .color
+                        .lock()
+                        .expect("dev command color lock poisoned")
+                        .clone()
+                        .unwrap_or_default(),
+                    source: entry.source,
+                    priority: entry.priority,
+                },
             })
             .collect();
         let mut recycled = COLORS.iter().cycle();
         for index in 0..resolved.len() {
-            if resolved[index].color.is_empty() {
-                resolved[index].color = COLORS
+            if resolved[index].definition.color.is_empty() {
+                resolved[index].definition.color = COLORS
                     .iter()
-                    .find(|color| !resolved.iter().any(|entry| entry.color == **color))
+                    .find(|color| {
+                        !resolved
+                            .iter()
+                            .any(|entry| entry.definition.color == **color)
+                    })
                     .unwrap_or_else(|| recycled.next().expect("non-empty color palette"))
                     .to_string();
             }
@@ -252,6 +276,7 @@ impl DevCommands {
         Ok(active_registry()?.register(
             command.to_owned(),
             name.unwrap_or_else(|| name_from(command)),
+            false,
             Location::caller(),
         ))
     }
@@ -261,6 +286,7 @@ impl DevCommands {
         Ok(active_registry()?.register(
             format!("./artisan {command}"),
             name.unwrap_or_else(|| name_from(command)),
+            true,
             Location::caller(),
         ))
     }
@@ -285,11 +311,19 @@ impl DevCommands {
         Ok(registry.register(
             format!("{} {command}", registry.node_prefix(exec)),
             name.unwrap_or_else(|| name_from(command)),
+            false,
             Location::caller(),
         ))
     }
 
     pub fn commands() -> Result<Vec<DevProcess>, ConsoleError> {
+        Ok(Self::registered()?
+            .into_iter()
+            .map(|process| process.definition)
+            .collect())
+    }
+
+    pub(super) fn registered() -> Result<Vec<RegisteredProcess>, ConsoleError> {
         Ok(active_registry()?.commands())
     }
 
@@ -315,6 +349,30 @@ impl DevCommands {
 
     pub fn withoutDefaultCommands() -> Result<(), ConsoleError> {
         Self::filter(|filters| filters.without_default = true)
+    }
+
+    pub fn withTimestamps() -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.timestamps = true)
+    }
+
+    pub fn disableAutoRestart() -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.disable_restart = true)
+    }
+
+    pub fn shouldIncludeTimestamps() -> Result<bool, ConsoleError> {
+        Ok(active_registry()?
+            .filters
+            .lock()
+            .expect("dev command filters lock poisoned")
+            .timestamps)
+    }
+
+    pub fn shouldAutoRestart() -> Result<bool, ConsoleError> {
+        Ok(!active_registry()?
+            .filters
+            .lock()
+            .expect("dev command filters lock poisoned")
+            .disable_restart)
     }
 
     fn filter(configure: impl FnOnce(&mut Filters)) -> Result<(), ConsoleError> {

@@ -57,3 +57,10 @@
 - 注册表存放在应用容器中，支持同名覆盖、默认／包／应用优先级、来源和颜色、顺序和包含／排除规则。Rust 用调用者的源码路径识别包和行号，按应用根目录检测 Node 锁文件。默认列出 `serve` 和 `queue:listen`，应用有 Node 清单文件时加入 Vite。后续接通 `dev` 的并发执行、重启与终端交互。Pail 独立跟踪。
 - 基线 `2ab1cb7a4` 的隔离快照使用 Rust 1.94.0。锁定离线 `cargo test --test console --test artisan_entry --test dev_commands` 共 11 项通过，覆盖真实 HTTP 入口回归、两应用并发注册并查询、包优先级、颜色、Vite 包管理器、过滤与退出码。实际二进制在 Ubuntu 通过交互式 ANSI／纯文本及无匹配退出 1，三语共 9 条 `./artisan` 指令通过。格式、全目标严格 Clippy、三语站点和 18 项浏览器检查通过。
 - 已回收本批编译和站点产物。项目磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 17%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-dev-commands.YyKYNyK0`。
+
+## Artisan dev 并发执行与关停
+
+- 对照固定 Laravel `DevCommand` 和 Artisan 章节，结合 Multiplex 的事件和重启契约。复核旧版 `v0.x` `6d1a81924` 的 Artisan 及启动源码，没有可直接提取的 `dev` 监督器。参考固定 Goravel 的应用启动与命令分工，开发进程继续使用独立 Artisan 入口。 [固定 Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/DevCommand.php) · [固定 Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#the-dev-command) · [Multiplex 事件和重启语义](https://github.com/laravel/multiplex#json-output) · [固定 Goravel Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application.go)
+- `dev` 并发运行 `dev:list` 所用注册表，同一二进制运行 `serve`、`queue:listen` 及通过 `DevCommands::artisan` 登记的 Artisan 命令。保留自定义 Shell、Node、选定环境和应用根目录。内联保留 stdout／stderr，机器输出使用版本 1 的 JSON 行。失败重试最多五次，一秒内失败立即告知。Unix 复用子进程组，并为 HTTP 和队列监听器的关停链保留最多六秒，关停时等待读取子进程退出钩子输出，到时强制结束进程组并关闭输出读取。UTC 时间戳及 Rust 原生监督器取代 PHP 外部 Multiplex 的启动方式。交互标签、流式导航、Windows 进程树回收与原生验收及 Pail 仍待推进。
+- 基线 `237c8d812` 隔离构建使用 Rust 1.94.0。锁定离线 `cargo test --test dev_commands --test artisan_entry --test console` 共 13 项通过，框架 `processes` 另有 13 项通过，覆盖真实 HTTP、测试 Vite 子进程延迟失败重试、快速失败、SIGTERM、Provider 禁用重试及输出。三语共 9 条真实 `./artisan dev` 示例通过，使用 SQLite 数据库迁移后的 `queue:listen`、真实 `GET /up`、受控资产脚本、Ctrl+C、进程退出及端口释放。独立二进制另验证初次启动加五次重试、永久失败退出码 19，以及忽略 SIGTERM 的进程在宽限结束后被强制回收。格式、锁定离线全工作区全目标严格 Clippy 和 18 项浏览器检查通过。
+- 已回收本批编译和站点产物。项目磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 17%，第二窗口无读数，按用户授权继续。验收日志保留于 `/private/tmp/openrust-dev-run.NTjtHHe1`。
