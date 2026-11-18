@@ -44,9 +44,11 @@ Use `request.date("when", None, None).await?` to parse a date using the applicat
 
 In a test fixture, `TestApp::travelTo` and the freeze helpers set the reference for relative dates and components omitted by the format. For example, `tomorrow` is resolved from the fixture's frozen date in the requested time zone. A format starting with `!` resets omitted fields. See [Interacting with time](../testing/mocking.md#interacting-with-time).
 
-Use `request.only(&["user.name", "user.note"]).await?` to select nested input while retaining explicit null values. `request.except` removes paths from a copy of the input. Use `arrayOnly` and `collectOnly` for the multi-key forms of `array` and `collect`. These methods select input values. Read multipart uploads through `request.file`.
-
 Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.
+
+### Retrieving a Portion of the Input Data {#retrieving-a-portion-of-the-input-data}
+
+Use `request.only(&["user.name", "document"]).await?` to select fields from input and uploads. It omits missing paths and preserves explicit null and typed files. `request.except(&["document"]).await?` removes fields without renumbering numeric keys. Use `arrayOnly` or `collectOnly` to return the selected data as a typed array or collection.
 
 ## Content Negotiation {#content-negotiation}
 
@@ -62,7 +64,7 @@ Use `request.has(&["profile.name"]).await?` when a key must exist, including a k
 
 Use `filled`, `isNotFilled` and `anyFilled` to check input values. Missing values, `null` and blank strings are empty. Booleans, zero and empty arrays count as filled. A file-only field is checked with `hasFile`.
 
-Use `whenHas`, `whenFilled` or `whenMissing` to run an async callback when the condition holds. The method returns `Some(result)` when the callback runs and `None` otherwise. The callback can use the mutable request to access file fields. `unwrap_or_else` can provide a fallback.
+Use `whenHas`, `whenFilled` or `whenMissing` to run an async callback when the condition holds. `whenHas` and `whenFilled` pass the combined field as `Option<RequestValue>`. Match `RequestValue::File(file)` to work with an upload. The method returns `Some(result)` when the callback runs. Use `unwrap_or_else` to supply a fallback.
 
 ### Merging Additional Input {#merging-additional-input}
 

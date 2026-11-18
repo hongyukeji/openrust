@@ -19,14 +19,14 @@ impl Request {
     /// Flashes only the selected input paths.
     pub async fn flashOnly(&mut self, keys: &[&str]) -> Result<(), HttpError> {
         self.session()?;
-        let input = self.only(keys).await?;
+        let input = self.only_input(keys).await?;
         Ok(self.session_mut()?.flashInput(input)?)
     }
 
     /// Flashes the current input except for the supplied paths.
     pub async fn flashExcept(&mut self, keys: &[&str]) -> Result<(), HttpError> {
         self.session()?;
-        let input = self.except(keys).await?;
+        let input = self.except_input(keys).await?;
         Ok(self.session_mut()?.flashInput(input)?)
     }
 

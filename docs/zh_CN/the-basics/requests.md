@@ -44,9 +44,11 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 测试中，`TestApp::travelTo` 和冻结时间方法为相对日期及格式中省略的字段提供参考时刻。例如，`tomorrow` 从所用时区的冻结日期计算。格式以 `!` 开头时，省略的字段会重置。详见[控制测试时间](../testing/mocking.md#interacting-with-time)。
 
-用 `request.only(&["user.name", "user.note"]).await?` 选取嵌套输入，并保留显式 null。`request.except` 从输入副本移除指定路径。`arrayOnly` 和 `collectOnly` 分别对应 `array` 和 `collect` 的多键读取。这些方法选择输入值，上传文件用 `request.file` 读取。
-
 用 `request.interval("duration", None).await?` 读取 ISO 8601 区间或 `2 hours 30 minutes` 等表达式。字段以指定单位提供值时，使用 `request.interval("seconds", Some("second")).await?`。结果保留日历分量和微秒，显式传入的 90 秒仍在秒分量中。缺失或空白输入返回 `None`，无效区间或单位返回 HTTP 400。
+
+### 获取部分输入 {#retrieving-a-portion-of-the-input-data}
+
+用 `request.only(&["user.name", "document"]).await?` 从普通输入和上传文件中选取字段。缺失路径会被省略，显式 null 和类型化文件会保留。`request.except(&["document"]).await?` 移除字段并保留剩余数字键。用 `arrayOnly` 或 `collectOnly` 将选中字段读为类型化数组或集合。
 
 ## 内容协商 {#content-negotiation}
 
@@ -62,7 +64,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 用 `filled`、`isNotFilled` 和 `anyFilled` 检查输入值。缺失值、`null` 和空白字符串算空。布尔值、零和空数组算已填写。只有上传文件的字段可用 `hasFile` 检查。
 
-用 `whenHas`、`whenFilled` 或 `whenMissing` 在条件成立时运行异步回调。执行回调时返回 `Some(result)`，否则返回 `None`。回调可通过可变请求访问文件字段，也可以用 `unwrap_or_else` 提供默认结果。
+用 `whenHas`、`whenFilled` 或 `whenMissing` 在条件成立时运行异步回调。`whenHas` 和 `whenFilled` 将合并后的字段作为 `Option<RequestValue>` 传给回调。匹配 `RequestValue::File(file)` 即可操作上传文件。回调执行时返回 `Some(result)`，可用 `unwrap_or_else` 提供默认结果。
 
 ### 合并额外输入 {#merging-additional-input}
 

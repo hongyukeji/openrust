@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::{
     http::{HttpError, Request, UploadedFile, UploadedFileValue},
-    support::{ArrayKey, data_path_segments},
+    support::{ArrayKey, Collection, data_path_segments},
 };
 
 /// A request field containing a JSON scalar, an ordered array, or a received file.
@@ -41,6 +41,63 @@ impl RequestValue {
         match self {
             Self::Array(fields) => fields.get(&ArrayKey::from(key)),
             _ => None,
+        }
+    }
+
+    pub(super) fn data(&self, key: &str) -> Option<Self> {
+        self.read(&data_path_segments(key).ok()?)
+    }
+
+    fn read(&self, path: &[&str]) -> Option<Self> {
+        let Some((&key, rest)) = path.split_first() else {
+            return Some(self.clone());
+        };
+        let Self::Array(fields) = self else {
+            return None;
+        };
+        match key {
+            "*" => {
+                let mut selected = IndexMap::new();
+                let mut next = 0_i64;
+                if rest.contains(&"*") {
+                    for field in fields.values() {
+                        if let Some(Self::Array(items)) = field.read(rest) {
+                            for (key, value) in items {
+                                let key = match key {
+                                    ArrayKey::Integer(_) => {
+                                        let key = ArrayKey::Integer(next);
+                                        next += 1;
+                                        key
+                                    }
+                                    key => key,
+                                };
+                                selected.insert(key, value);
+                            }
+                        }
+                    }
+                } else {
+                    selected.extend((0_i64..).zip(fields.values()).map(|(index, child)| {
+                        let value = child.read(rest).unwrap_or(Self::Value(Value::Null));
+                        (ArrayKey::Integer(index), value)
+                    }));
+                }
+                Some(Self::Array(selected))
+            }
+            "{first}" => fields.first()?.1.read(rest),
+            "{last}" => fields.last()?.1.read(rest),
+            "\\*" | "\\{first}" | "\\{last}" => self.direct(&key[1..])?.read(rest),
+            _ => self.direct(key)?.read(rest),
+        }
+    }
+
+    fn forget(&mut self, path: &[&str]) {
+        if let (Self::Array(fields), Some((&key, rest))) = (self, path.split_first()) {
+            let key = ArrayKey::from(key);
+            if rest.is_empty() {
+                fields.shift_remove(&key);
+            } else if let Some(field) = fields.get_mut(&key) {
+                field.forget(rest);
+            }
         }
     }
 
@@ -137,5 +194,55 @@ impl Request {
             selected.set(&path, field);
         }
         Ok(selected)
+    }
+
+    /// Selects input and files by dotted path, omitting missing fields.
+    pub async fn only(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
+        let input = self.all().await?;
+        let mut selected = RequestValue::Array(IndexMap::new());
+        for key in keys {
+            let path = data_path_segments(key).map_err(|_| HttpError::InvalidRequest)?;
+            if let Some(field) = input.read(&path) {
+                selected.set(&path, field);
+            }
+        }
+        Ok(selected)
+    }
+
+    /// Removes exact keys or dotted paths from the combined input and files.
+    pub async fn except(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
+        let mut input = self.all().await?;
+        for key in keys {
+            let exact = [*key];
+            if input.direct(key).is_some() {
+                input.forget(&exact);
+            } else {
+                let path = data_path_segments(key).map_err(|_| HttpError::InvalidRequest)?;
+                input.forget(&path);
+            }
+        }
+        Ok(input)
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Typed form of Laravel's array with field selection"
+    )]
+    pub async fn arrayOnly(&mut self, keys: &[&str]) -> Result<RequestValue, HttpError> {
+        self.only(keys).await
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Typed form of Laravel's collect with field selection"
+    )]
+    pub async fn collectOnly(
+        &mut self,
+        keys: &[&str],
+    ) -> Result<Collection<RequestValue>, HttpError> {
+        let RequestValue::Array(fields) = self.only(keys).await? else {
+            unreachable!("only builds a keyed array");
+        };
+        Ok(Collection::fromEntries(fields))
     }
 }

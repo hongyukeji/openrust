@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use crate::{
-    http::{HttpError, Request},
-    support::{Arr, Collection},
+    http::{HttpError, Request, RequestValue},
+    support::Arr,
 };
 
 use super::{InputSource, as_fields, empty, input_is_empty, lookup};
@@ -11,8 +11,8 @@ use super::{InputSource, as_fields, empty, input_is_empty, lookup};
 impl Request {
     /// Tests whether all keys exist, including explicit nulls and uploaded files.
     pub async fn has(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
-        let data = self.presence_input().await?;
-        Ok(keys.iter().all(|key| Arr::has(&data, key)))
+        let data = self.all().await?;
+        Ok(keys.iter().all(|key| data.get(key).is_some()))
     }
 
     pub async fn exists(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
@@ -20,8 +20,8 @@ impl Request {
     }
 
     pub async fn hasAny(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
-        let data = self.presence_input().await?;
-        Ok(keys.iter().any(|key| Arr::has(&data, key)))
+        let data = self.all().await?;
+        Ok(keys.iter().any(|key| data.get(key).is_some()))
     }
 
     pub async fn missing(&mut self, keys: &[&str]) -> Result<bool, HttpError> {
@@ -45,28 +45,30 @@ impl Request {
         Ok(keys.iter().any(|key| !blank(&data, key)))
     }
 
-    /// Calls the callback for a present key. Uploads are available through the request.
+    /// Calls the callback for a present key with its combined input or file value.
     pub async fn whenHas<T>(
         &mut self,
         key: &str,
-        callback: impl AsyncFnOnce(&mut Self, Option<Value>) -> T,
+        callback: impl AsyncFnOnce(&mut Self, Option<RequestValue>) -> T,
     ) -> Result<Option<T>, HttpError> {
-        if !self.has(&[key]).await? {
+        let data = self.all().await?;
+        if data.get(key).is_none() {
             return Ok(None);
         }
-        let value = self.input(Some(key)).await?;
+        let value = data.data(key);
         Ok(Some(callback(self, value).await))
     }
 
     pub async fn whenFilled<T>(
         &mut self,
         key: &str,
-        callback: impl AsyncFnOnce(&mut Self, Option<Value>) -> T,
+        callback: impl AsyncFnOnce(&mut Self, Option<RequestValue>) -> T,
     ) -> Result<Option<T>, HttpError> {
         let value = self.input(Some(key)).await?;
         if value.as_ref().is_none_or(input_is_empty) {
             return Ok(None);
         }
+        let value = self.all().await?.data(key);
         Ok(Some(callback(self, value).await))
     }
 
@@ -112,7 +114,7 @@ impl Request {
             return Err(HttpError::InvalidRequest);
         }
         let original = if missing_only {
-            Some(self.presence_input().await?)
+            Some(self.all().await?)
         } else {
             None
         };
@@ -120,7 +122,7 @@ impl Request {
         let fields = self.source_values(source).await?.clone();
         let changes = as_fields(input)
             .into_iter()
-            .filter(|(key, _)| original.as_ref().is_none_or(|data| !Arr::has(data, key)));
+            .filter(|(key, _)| original.as_ref().is_none_or(|data| data.get(key).is_none()));
         let candidate = Arr::with_paths(fields, changes).map_err(|_| HttpError::InvalidRequest)?;
         self.install_input(source, candidate);
         Ok(self)
@@ -132,21 +134,6 @@ impl Request {
             InputSource::Query => self.query_input = Some(input),
             InputSource::Form => self.form_input = Some(input),
         }
-    }
-
-    async fn presence_input(&mut self) -> Result<Value, HttpError> {
-        let input = self.input(None).await?.unwrap_or_else(empty);
-        let payload = self.payload().await?;
-        if payload.files.is_empty() {
-            return Ok(input);
-        }
-        let input = Collection::fromValue(input);
-        let files = Collection::fromValue(payload.file_indices.clone());
-        Ok(input
-            .clone()
-            .replaceRecursive(files)?
-            .replaceRecursive(input)?
-            .toArray()?)
     }
 }
 

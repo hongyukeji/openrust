@@ -162,3 +162,10 @@
 - Rust 用 `RequestValue` 表示标量、带 `ArrayKey` 的有序组和 `UploadedFile`。用 `allOnly()` 表达 Laravel 的 `all($keys)` 分支，缺失路径保留 null。现有 JSON 输入访问以及上传文件集合保持各自接口，输入回调和筛选接口的类型化对照继续跟踪。
 - 隔离主线 `9fc5748cd` 的真实 TCP 验证 multipart 与查询回退、顶层及嵌套重名、null、上传对象、键顺序及重复、JSON 字面点键、整数键和错误 400。PHP 8.5 运行固定 Laravel 的 multipart／JSON 两组对照。
 - 57 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批独立编译及站点产物后，磁盘可用 84.02 GB（78.25 GiB），提交前周额度剩余 23%，按用户授权继续。验收日志位于 `/private/tmp/openrust-all-input.AtQLs0Vi`。
+
+## 类型化请求回调与字段筛选
+
+- 对照固定 Laravel 的 `InteractsWithData`、`data_get`、`Arr::forget`，复用 openrust-v0.x `6d1a81924` 的类型化选择、路径排除、上传判断与回调用例。正式版存在性和 `mergeIfMissing` 共用 `all()`，消除重复合并。 `only` 支持点路径与通配符，`except` 优先移除字面键且保留剩余数字键。 [Laravel 请求数据接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php) · [字段筛选](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-a-portion-of-the-input-data) · [输入存在性](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#input-presence)
+- `only`、`except`、`arrayOnly` 和 `collectOnly` 保留 `RequestValue`，`whenHas` 和 `whenFilled` 的参数为 `Option<RequestValue>`。Rust 用 `Option` 表达是否执行回调和由调用方提供的默认结果。 `filled` 只看普通输入，`whenFilled` 执行后读取合并值。会话闪存继续使用普通 JSON 输入，上传对象留在当前请求。
+- 隔离主线 `a54250862` 的真实 TCP 验证文件专属字段、混合分组回调、通配符、空值、移除字面点键和稀疏数字键。PHP 8.5 执行固定 Laravel 作对照。Array 和 MySQL 8.4.13 复验旧输入闪存及数据库会话。
+- 59 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点及 18 项浏览器检查通过。Docker 卷清单一致。回收本批独立编译和站点产物后，磁盘可用 83.98 GB（78.21 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-request-presence.teIyNf2f`。

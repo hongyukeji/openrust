@@ -331,7 +331,7 @@ impl Request {
     }
 
     /// Selects named input paths, omitting missing keys and preserving explicit null.
-    pub async fn only(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
+    pub(super) async fn only_input(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
         let input = self.input(None).await?.unwrap_or_else(empty);
         let mut selected = Value::Array(Vec::new());
         for key in keys {
@@ -343,27 +343,9 @@ impl Request {
     }
 
     /// Removes named paths from a copy of the input bag.
-    pub async fn except(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
+    pub(super) async fn except_input(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
         let input = self.input(None).await?.unwrap_or_else(empty);
         Arr::except(&input, keys).map_err(|_| HttpError::InvalidRequest)
-    }
-
-    /// Converts only the selected input paths to an array.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's naming for multi-key input methods"
-    )]
-    pub async fn arrayOnly(&mut self, keys: &[&str]) -> Result<Value, HttpError> {
-        self.only(keys).await
-    }
-
-    /// Converts only the selected input paths to a keyed collection.
-    #[allow(
-        non_snake_case,
-        reason = "Matches Laravel's naming for multi-key input methods"
-    )]
-    pub async fn collectOnly(&mut self, keys: &[&str]) -> Result<Collection, HttpError> {
-        Ok(input_collection(self.only(keys).await?))
     }
 
     /// Reads the JSON body independently of query parameters.

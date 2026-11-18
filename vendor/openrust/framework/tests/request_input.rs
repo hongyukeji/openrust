@@ -130,12 +130,34 @@ fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
         let selected = request
             .allOnly(&["same", "items.1.photo", "nested.name", "missing"])
             .await?;
+        let required = request
+            .only(&["items.*.photo", "document", "null_input", "missing"])
+            .await?;
+        let remainder = request
+            .except(&["items.0", "document", "nested.name"])
+            .await?;
+        let when_has = request
+            .whenHas("document", async |_, value| {
+                value.as_ref().map(visible_input)
+            })
+            .await?
+            .flatten();
+        let when_filled = request
+            .whenFilled("items.1", async |_, value| {
+                value.as_ref().map(visible_input)
+            })
+            .await?
+            .flatten();
         Response::json(
             StatusCode::OK,
             json!({
                 "all": visible_input(&all),
                 "keys": request.keys().await?,
                 "selected": visible_input(&selected),
+                "only": visible_input(&required),
+                "except": visible_input(&remainder),
+                "when_has": when_has,
+                "when_filled": when_filled,
                 "same_upload": request.file("same").await?.map(|file| file.getClientOriginalName().to_owned()),
                 "same_input": request.input(Some("same")).await?,
                 "file_only": request.input(Some("document")).await?,
@@ -453,12 +475,18 @@ fn dated_values(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             })
         });
         let keys = ["user.name", "user.note", "missing", "query"];
-        let selected = request.only(&keys).await?;
-        let array = request.arrayOnly(&keys).await?;
-        let collection: Vec<_> = request.collectOnly(&keys).await?.into_iter().collect();
+        let selected = visible_input(&request.only(&keys).await?);
+        let array = visible_input(&request.arrayOnly(&keys).await?);
+        let collection: Vec<_> = request
+            .collectOnly(&keys)
+            .await?
+            .into_iter()
+            .map(|(key, value)| (key, visible_input(&value)))
+            .collect();
         let remainder = request
             .except(&["when", "formatted", "user.secret"])
             .await?;
+        let remainder = visible_input(&remainder);
         Response::json(
             StatusCode::OK,
             json!({"dates": dates, "selected": selected, "array": array, "collection": collection, "remainder": remainder}),
@@ -850,17 +878,19 @@ fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         let any_present = request.hasAny(&["absent", "fallback"]).await?;
         let exists = request.exists(&["fallback"]).await?;
         let upload = request
-            .whenHas("document", async |request, _| {
-                request.file("document").await
+            .whenHas("document", async |_, value| match value {
+                Some(RequestValue::File(file)) => Some(file),
+                _ => None,
             })
             .await?
-            .transpose()?
             .flatten();
         let file_is_filled = request.filled(&["document"]).await?;
         let not_filled = request.isNotFilled(&["blank", "absent"]).await?;
         let falsy_is_filled = request.filled(&["zero", "flag", "empty"]).await?;
         let any_filled = request.anyFilled(&["absent", "fallback"]).await?;
-        let callback = request.whenFilled("flag", async |_, value| value).await?;
+        let callback = request
+            .whenFilled("flag", async |_, value| value.as_ref().map(visible_input))
+            .await?;
         let absent = request.whenMissing("absent", async |_| "missing").await?;
         request
             .mergeIfMissing(json!({"nullable":"changed","fallback":"changed","document":"changed","added":" padded "}))
@@ -1375,6 +1405,10 @@ async fn real_http_merges_all_input_and_files_with_input_precedence() {
             },
             "keys": ["same", "items", "null_input", "query", "same", "items", "null_input", "document"],
             "selected": {"same": "text", "items": {"1": {"photo": {"file": "photo.txt"}}}, "nested": {"name": null}, "missing": null},
+        "only": {"items": {"*": {"photo": {"0": null, "1": {"file": "photo.txt"}}}}, "document": {"file": "report.txt"}, "null_input": null},
+        "except": {"same": "text", "items": {"1": {"name": "two", "photo": {"file": "photo.txt"}}}, "null_input": null, "query": "kept"},
+        "when_has": {"file": "report.txt"},
+        "when_filled": {"name": "two", "photo": {"file": "photo.txt"}},
             "same_upload": "collision.txt", "same_input": "text", "file_only": null,
         })
     );
@@ -1408,6 +1442,8 @@ async fn real_http_merges_all_input_and_files_with_input_precedence() {
     );
     assert_eq!(response["selected"]["nested"]["name"], "exact");
     assert_eq!(response["all"]["nested"]["name"], "inner");
+    assert_eq!(response["except"]["nested"]["name"], "inner");
+    assert!(response["except"].get("nested.name").is_none());
     send(
         address,
         "POST",

@@ -44,9 +44,11 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 測試中，`TestApp::travelTo` 和凍結時間方法會為相對日期及格式中省略的欄位提供參考時刻。例如，`tomorrow` 從所用時區的凍結日期計算。格式以 `!` 開頭時，省略的欄位會重設。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
 
-使用 `request.only(&["user.name", "user.note"]).await?` 選取巢狀輸入，並保留明確提供的 null。`request.except` 從輸入副本移除指定路徑。`arrayOnly` 和 `collectOnly` 分別對應 `array` 和 `collect` 的多鍵讀取。這些方法選取輸入值，上傳檔案由 `request.file` 讀取。
-
 使用 `request.interval("duration", None).await?` 讀取 ISO 8601 區間或 `2 hours 30 minutes` 等表示式。欄位以指定單位提供數值時，使用 `request.interval("seconds", Some("second")).await?`。結果保留日曆分量和微秒，明確傳入的 90 秒仍屬於秒分量。缺少輸入或只有空白時傳回 `None`，區間或單位無效時傳回 HTTP 400。
+
+### 取得部分輸入 {#retrieving-a-portion-of-the-input-data}
+
+用 `request.only(&["user.name", "document"]).await?` 從一般輸入和上傳檔案中選取欄位。缺少的路徑會略過，明確的 null 和型別化檔案會保留。`request.except(&["document"]).await?` 移除欄位並保留其餘數字鍵。用 `arrayOnly` 或 `collectOnly` 將選取欄位讀為型別化陣列或集合。
 
 ## 內容協商 {#content-negotiation}
 
@@ -62,7 +64,7 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 用 `filled`、`isNotFilled` 和 `anyFilled` 檢查輸入值。缺少的值、`null` 和空白字串視為空。布林值、零和空陣列視為已填寫。只有上傳檔案的欄位可用 `hasFile` 檢查。
 
-用 `whenHas`、`whenFilled` 或 `whenMissing` 在條件成立時執行非同步回呼。執行回呼時回傳 `Some(result)`，否則回傳 `None`。回呼可透過可變請求存取檔案欄位，也可以用 `unwrap_or_else` 提供預設結果。
+用 `whenHas`、`whenFilled` 或 `whenMissing` 在條件成立時執行非同步回呼。`whenHas` 和 `whenFilled` 將合併後的欄位作為 `Option<RequestValue>` 傳給回呼。比對 `RequestValue::File(file)` 即可操作上傳檔案。回呼執行時回傳 `Some(result)`，可用 `unwrap_or_else` 提供預設結果。
 
 ### 合併額外輸入 {#merging-additional-input}
 
