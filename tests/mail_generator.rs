@@ -189,3 +189,94 @@ fn artisan_validates_source_and_view_paths_before_writing() {
         assert!(!outside.0.join("report.rs").exists());
     }
 }
+
+#[test]
+fn artisan_generates_notifications_and_markdown_views() {
+    let root = AppRoot::new();
+    root.run(&["make:notification", "InvoicePaid"]);
+    let source = root.read("app/notifications/invoice_paid.rs");
+    assert!(source.contains("impl Notification for InvoicePaid"));
+    assert!(source.contains("text: Some(\"Invoice Paid\""));
+    assert!(!root.0.join("resources/views").exists());
+
+    root.run(&[
+        "make:notification",
+        "Billing/InvoiceReady",
+        "--markdown",
+        "--test",
+    ]);
+    let source = root.read("app/notifications/billing/invoice_ready.rs");
+    assert!(source.contains("markdown: Some(\"mail.billing.invoice-ready\""));
+    assert!(
+        root.read("resources/views/mail/billing/invoice-ready.blade.html")
+            .contains("<x-mail::message>")
+    );
+    assert!(
+        root.0
+            .join("tests/feature/notifications/billing/invoice_ready_test.rs")
+            .is_file()
+    );
+
+    root.run(&["stub:publish"]);
+    assert!(
+        root.read("stubs/notification.rs.stub")
+            .contains("{{class}}")
+    );
+    let stub = "stubs/markdown-notification.rs.stub";
+    fs::write(
+        root.0.join(stub),
+        format!("// override\n{}", root.read(stub)),
+    )
+    .unwrap();
+    root.run(&[
+        "make:notification",
+        "App\\Notifications\\Alert",
+        "-m",
+        "mail.alerts.important",
+    ]);
+    assert!(
+        root.read("app/notifications/alert.rs")
+            .starts_with("// override\n")
+    );
+    assert!(
+        root.read("app/notifications/alert.rs")
+            .contains("mail.alerts.important")
+    );
+}
+
+#[test]
+fn artisan_notification_regenerates_the_selected_view_after_source_generation() {
+    let root = AppRoot::new();
+    let path = "resources/views/mail/invoice.blade.html";
+    fs::create_dir_all(root.0.join("resources/views/mail")).unwrap();
+    fs::write(root.0.join(path), "Previous view").unwrap();
+    let args = [
+        "make:notification",
+        "InvoiceNotice",
+        "--markdown=mail.invoice",
+    ];
+    root.run(&args);
+    let generated = root.read(path);
+    assert!(generated.contains("<x-mail::message>"));
+
+    fs::write(root.0.join(path), "Edited view").unwrap();
+    let result = root.artisan(&args);
+    assert!(result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("Notification already exists"));
+    assert_eq!(root.read(path), "Edited view");
+
+    root.run(&[
+        "make:notification",
+        "InvoiceNotice",
+        "--markdown=mail.invoice",
+        "--force",
+    ]);
+    assert_eq!(root.read(path), generated);
+    assert!(
+        !root
+            .artisan(&["make:notification", "Invalid", "--markdown=mail..outside"])
+            .status
+            .success()
+    );
+    assert!(!root.0.join("app/notifications/invalid.rs").exists());
+}

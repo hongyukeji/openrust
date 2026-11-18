@@ -109,6 +109,8 @@ pub(crate) enum Stub {
     Mail,
     MarkdownMail,
     ViewMail,
+    Notification,
+    MarkdownNotification,
     Observer,
     PlainObserver,
     Policy,
@@ -123,7 +125,7 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 35] = [
+    pub(crate) const ALL: [Self; 37] = [
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,
@@ -148,6 +150,8 @@ impl Stub {
         Self::Mail,
         Self::MarkdownMail,
         Self::ViewMail,
+        Self::Notification,
+        Self::MarkdownNotification,
         Self::Observer,
         Self::PlainObserver,
         Self::Policy,
@@ -175,6 +179,14 @@ impl Stub {
             Self::ViewMail => (
                 "view-mail.rs.stub",
                 include_str!("../foundation/console/stubs/view-mail.rs.stub"),
+            ),
+            Self::Notification => (
+                "notification.rs.stub",
+                include_str!("../foundation/console/stubs/notification.rs.stub"),
+            ),
+            Self::MarkdownNotification => (
+                "markdown-notification.rs.stub",
+                include_str!("../foundation/console/stubs/markdown-notification.rs.stub"),
             ),
             Self::Class => (
                 "class.rs.stub",

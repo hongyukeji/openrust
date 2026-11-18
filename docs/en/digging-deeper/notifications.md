@@ -1,5 +1,16 @@
 # Notifications
 
+## Generating notifications {#generating-notifications}
+
+The command writes a Rust notification under `app/notifications`, using snake_case filenames and module directories. By default the generated type uses the mail channel with plain text.
+
+```sh
+./artisan make:notification InvoicePaid
+./artisan make:notification Billing/PaymentReceived --markdown=mail.billing.paid --test
+```
+
+The Markdown option also writes a Blade template. With no view name, the command uses `mail.` followed by the kebab-case name components. The command replaces an existing Markdown template at that path when the notification source is generated or regenerated. Use `--force` to regenerate an existing Rust type, and `--test` for a matching feature test. Declare the new module in its parent `mod.rs` before rebuilding. Override source templates under `stubs/`.
+
 ## Sending notifications
 
 Implement `Notification::via` to select channels and implement the corresponding content methods. Each recipient implements `Notifiable` to provide channel routes and optionally a preferred locale.

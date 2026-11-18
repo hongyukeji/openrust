@@ -16,7 +16,9 @@ mod key_generate_command;
 mod lang_publish_command;
 mod mail_make_command;
 mod maintenance_command;
+mod message_make_command;
 mod model_make_command;
+mod notification_make_command;
 mod observer_make_command;
 mod package_manifest_command;
 mod policy_make_command;
@@ -120,6 +122,7 @@ impl Kernel {
                             key_generate_command::register(&mut self.artisan)?;
                             lang_publish_command::register(&mut self.artisan)?;
                             mail_make_command::register(&mut self.artisan)?;
+                            notification_make_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]

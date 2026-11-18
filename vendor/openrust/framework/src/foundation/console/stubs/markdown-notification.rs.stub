@@ -1,0 +1,26 @@
+use openrust::{
+    mail::mailables::{Content, Envelope},
+    notifications::{Notifiable, Notification, NotificationResult, messages::{MailDelivery, MailMessage}},
+};
+
+pub struct {{class}};
+
+impl Notification for {{class}} {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into()])
+    }
+
+    fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        Ok(Some(MailDelivery::Message(Box::new(MailMessage {
+            envelope: Envelope {
+                subject: {{subject}}.into(),
+                ..Envelope::default()
+            },
+            content: Content {
+                markdown: Some({{view}}.into()),
+                ..Content::default()
+            },
+            ..MailMessage::default()
+        }))))
+    }
+}

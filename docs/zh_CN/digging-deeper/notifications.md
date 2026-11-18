@@ -1,5 +1,16 @@
 # 通知
 
+## 生成通知 {#generating-notifications}
+
+命令在 `app/notifications` 下生成 Rust 通知，文件和模块目录使用 snake_case。默认类型通过邮件渠道发送纯文本。
+
+```sh
+./artisan make:notification InvoicePaid
+./artisan make:notification Billing/PaymentReceived --markdown=mail.billing.paid --test
+```
+
+Markdown 选项同时生成 Blade 模板。省略视图名称时，用 `mail.` 加上以连字符分词的各名称段。该命令在生成或重新生成通知源码时会替换同路径的 Markdown 模板。用 `--force` 重新生成已有 Rust 类型，用 `--test` 生成配套功能测试。重新构建前，在上级 `mod.rs` 中声明新模块。应用可在 `stubs/` 覆盖源码模板。
+
 ## 发送通知
 
 实现 `Notification::via` 选择渠道，再实现对应的内容方法。收件人实现 `Notifiable`，提供各渠道路由和可选的语言偏好。
