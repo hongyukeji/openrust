@@ -20,6 +20,15 @@ impl Facade for Mail {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mail facade")]
 impl Mail {
+    pub(crate) async fn render_for_assertions(
+        mailable: &dyn Mailable,
+    ) -> MailResult<(String, String)> {
+        Self::getFacadeRoot()
+            .map_err(super::composition)?
+            .render_for_assertions(mailable)
+            .await
+    }
+
     /// Renders a mailable's body using the current application.
     pub async fn render(mailable: &dyn Mailable) -> MailResult<String> {
         match Self::getFacadeRoot()

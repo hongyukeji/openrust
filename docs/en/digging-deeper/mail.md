@@ -298,6 +298,20 @@ Register a Rust transport factory with `MailManager::extend` in an application p
 
 ## Testing mail
 
+### Testing mailable content {#testing-mailable-content}
+
+Inspect the declared subject and addresses on the mailable. An optional display name makes the address assertion exact. In the test application’s scope, HTML and text assertions render in the mailable’s locale, without sending mail. Pass `true` to escape an HTML expectation or `false` to match markup. Ordered assertions match distinct occurrences and recognize HTML entities.
+
+```rust
+receipt
+    .assertHasSubject("Receipt for Sam")
+    .assertTo("sam@example.test", None)
+    .assertSeeInHtml("A & <Sam>", true)
+    .await
+    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .await;
+```
+
 Call attachment assertions on a mailable to check its declared sources without reading files or contacting storage. Use `assertHasAttachmentFromStorageDisk` to check a specific disk and `assertHasNoAttachments` to check that no regular attachments were declared.
 
 ```rust
@@ -305,6 +319,8 @@ receipt
     .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
     .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
 ```
+
+### Testing mailable sending {#testing-mailable-sending}
 
 Install `Mail::fake()` within the test application to inspect mail without contacting a transport or pushing a queue job. Assertions distinguish immediate mail from queued mail. Use `Mailable::kind()` to select records, and use a matching assertion to inspect the envelope or queue options.
 

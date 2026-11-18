@@ -185,21 +185,11 @@ impl MessageDraft {
     pub(super) fn render(
         envelope: Envelope,
         headers: Headers,
-        mut content: Content,
+        content: Content,
         views: &Factory,
         markdown: &Markdown,
     ) -> MailResult<Self> {
-        let explicit_text = render(
-            content.text.take(),
-            content.text_view.as_deref(),
-            &content.with,
-            views,
-        )?;
-        let html = render_html(&mut content, views, markdown)?;
-        let text = match (explicit_text, content.markdown.as_deref()) {
-            (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
-            (text, _) => text,
-        };
+        let (html, text) = render_bodies(content, views, markdown)?;
         Ok(Self {
             envelope,
             headers,
@@ -210,6 +200,25 @@ impl MessageDraft {
             inline_attachments: Vec::new(),
         })
     }
+}
+
+pub(super) fn render_bodies(
+    mut content: Content,
+    views: &Factory,
+    markdown: &Markdown,
+) -> MailResult<(Option<String>, Option<String>)> {
+    let explicit_text = render(
+        content.text.take(),
+        content.text_view.as_deref(),
+        &content.with,
+        views,
+    )?;
+    let html = render_html(&mut content, views, markdown)?;
+    let text = match (explicit_text, content.markdown.as_deref()) {
+        (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
+        (text, _) => text,
+    };
+    Ok((html, text))
 }
 
 fn tracking_headers(envelope: &Envelope) -> MailResult<String> {

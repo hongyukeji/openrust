@@ -21,7 +21,7 @@ use super::{
     MailError, MailFake, MailResult, Mailable, Mailer, Markdown, MessageDraft, PendingMail,
     mail_fake::FakeState,
     mailables::Address,
-    message::Preview,
+    message::{Preview, render_bodies},
     message_customization::MessageCustomizers,
     transport::{
         ApiProvider, ApiTransport, ArrayTransport, CompositeTransport, LogTransport,
@@ -46,6 +46,35 @@ pub struct MailManager {
 
 impl MailManager {
     pub(super) async fn preview(&self, mailable: &dyn Mailable) -> MailResult<Preview> {
+        self.render_mailable(mailable, |views, markdown| {
+            Preview::render(mailable.content()?, views, markdown, mailable)
+        })
+        .await
+    }
+
+    pub(super) async fn render_for_assertions(
+        &self,
+        mailable: &dyn Mailable,
+    ) -> MailResult<(String, String)> {
+        self.render_mailable(mailable, |views, markdown| {
+            let (html, text) = render_bodies(mailable.content()?, views, markdown)?;
+            let text = text.unwrap_or_default();
+            let html = match html {
+                Some(html) => {
+                    super::inline_attachment::preview(html, &mailable.inline_attachments()?)?
+                }
+                None => text.clone(),
+            };
+            Ok((html, text))
+        })
+        .await
+    }
+
+    async fn render_mailable<T>(
+        &self,
+        mailable: &dyn Mailable,
+        render: impl FnOnce(&view::Factory, &Markdown) -> MailResult<T> + Send,
+    ) -> MailResult<T> {
         let container = self
             .owner
             .upgrade()
@@ -54,7 +83,7 @@ impl MailManager {
             .make::<view::Factory>()
             .map_err(super::composition)?;
         let markdown = Markdown::from_config(self.config.as_ref(), &self.base)?;
-        let render = || Preview::render(mailable.content()?, &views, &markdown, mailable);
+        let render = || render(&views, &markdown);
         match mailable.locale() {
             Some(locale) => Lang::withLocale(locale, async { render() })
                 .await

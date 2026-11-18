@@ -3,6 +3,8 @@ use crate::mail::{
     mailables::{Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment},
 };
 
+use super::assertions::{Rendered, Rule, address_assertions, assert_body};
+
 /// Describes an application email for a selected mailer.
 pub trait Mailable: Send + Sync {
     fn kind(&self) -> &str {
@@ -11,6 +13,108 @@ pub trait Mailable: Send + Sync {
 
     fn envelope(&self) -> MailResult<Envelope>;
     fn content(&self) -> MailResult<Content>;
+
+    address_assertions!(hasFrom, assertFrom, from);
+    address_assertions!(hasTo, assertTo, to);
+    address_assertions!(hasCc, assertHasCc, cc);
+    address_assertions!(hasBcc, assertHasBcc, bcc);
+    address_assertions!(hasReplyTo, assertHasReplyTo, reply_to);
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[track_caller]
+    fn assertHasTo(&self, address: &str, name: Option<&str>) -> &Self
+    where
+        Self: Sized,
+    {
+        self.assertTo(address, name)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    fn hasSubject(&self, subject: &str) -> MailResult<bool> {
+        Ok(self.envelope()?.subject == subject)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[track_caller]
+    fn assertHasSubject(&self, subject: &str) -> &Self
+    where
+        Self: Sized,
+    {
+        assert!(
+            self.hasSubject(subject)
+                .expect("could not inspect mailable subject"),
+            "Did not find the expected mail subject [{subject}]."
+        );
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    fn assertSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(
+            self,
+            Rendered::Html { escape },
+            Rule::Contains(value),
+        ))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    fn assertDontSeeInHtml<'a>(&'a self, value: &'a str, escape: bool) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(
+            self,
+            Rendered::Html { escape },
+            Rule::DoesNotContain(value),
+        ))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's HTML assertions")]
+    fn assertSeeInOrderInHtml<'a>(
+        &'a self,
+        values: &'a [&'a str],
+        escape: bool,
+    ) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(
+            self,
+            Rendered::Html { escape },
+            Rule::InOrder(values),
+        ))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    fn assertSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(self, Rendered::Text, Rule::Contains(value)))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    fn assertDontSeeInText<'a>(&'a self, value: &'a str) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(
+            self,
+            Rendered::Text,
+            Rule::DoesNotContain(value),
+        ))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's plain-text assertions")]
+    fn assertSeeInOrderInText<'a>(&'a self, values: &'a [&'a str]) -> MailFuture<'a, &'a Self>
+    where
+        Self: Sized,
+    {
+        Box::pin(assert_body(self, Rendered::Text, Rule::InOrder(values)))
+    }
 
     #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
     fn hasTag(&self, tag: &str) -> MailResult<bool> {

@@ -298,6 +298,20 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 测试邮件
 
+### 测试邮件内容 {#testing-mailable-content}
+
+直接在邮件类型上核对声明的主题和地址，可传入显示名称一并匹配。在测试应用作用域内，HTML 和纯文本断言使用邮件的语言渲染正文，无需发送邮件。HTML 断言传入 `true` 会转义预期内容，传入 `false` 可匹配标记。顺序断言依次匹配不重叠的内容，并识别 HTML 实体。
+
+```rust
+receipt
+    .assertHasSubject("Receipt for Sam")
+    .assertTo("sam@example.test", None)
+    .assertSeeInHtml("A & <Sam>", true)
+    .await
+    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .await;
+```
+
 可在邮件类型上断言附件声明，无需读取文件或请求存储服务。用 `assertHasAttachmentFromStorageDisk` 核对指定磁盘，用 `assertHasNoAttachments` 核对没有声明普通附件。
 
 ```rust
@@ -305,6 +319,8 @@ receipt
     .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
     .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
 ```
+
+### 测试邮件发送 {#testing-mailable-sending}
 
 在测试应用中调用 `Mail::fake()`，可以检查邮件并跳过传输和入队。断言区分即时发送和排队发送。用 `Mailable::kind()` 选择邮件记录，用匹配断言检查信封或队列选项。
 

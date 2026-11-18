@@ -1,5 +1,6 @@
 //! Mail selection, composition, and queued delivery contracts.
 
+mod assertions;
 mod attachable;
 mod factory;
 mod mail_queue;

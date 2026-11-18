@@ -676,6 +676,107 @@ fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, Htt
     })
 }
 
+struct AssertionMail(Content);
+
+impl Mailable for AssertionMail {
+    fn envelope(&self) -> MailResult<Envelope> {
+        use openrust::mail::mailables::Address;
+        Ok(Envelope {
+            subject: "Receipt for Sam".into(),
+            from: Some(Address {
+                address: "sales@example.test".into(),
+                name: Some("Sales".into()),
+            }),
+            to: vec!["sam@example.test".into()],
+            cc: vec!["copy@example.test".into()],
+            bcc: vec!["audit@example.test".into()],
+            reply_to: vec!["support@example.test".into()],
+            using: vec![MessageCustomization::new(
+                "unregistered.fixture",
+                Json::Null,
+            )],
+            ..Default::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        let mut content = self.0.clone();
+        content
+            .with
+            .insert("locale".into(), json!(Lang::getLocale().unwrap()));
+        Ok(content)
+    }
+
+    fn locale(&self) -> Option<&str> {
+        Some("fr")
+    }
+
+    fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+        panic!("message assertions must not read attachment sources")
+    }
+}
+
+fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use futures_util::FutureExt as _;
+        use std::panic::AssertUnwindSafe;
+
+        let mail = AssertionMail(Content {
+            view: Some("assertion-html".into()),
+            text_view: Some("assertion-text".into()),
+            with: [("name".into(), json!("A & <Sam>"))].into_iter().collect(),
+            ..Default::default()
+        });
+        mail.assertFrom("sales@example.test", Some("Sales"))
+            .assertTo("sam@example.test", None)
+            .assertHasTo("sam@example.test", None)
+            .assertHasCc("copy@example.test", None)
+            .assertHasBcc("audit@example.test", None)
+            .assertHasReplyTo("support@example.test", None)
+            .assertHasSubject("Receipt for Sam")
+            .assertSeeInHtml("A & <Sam>", true)
+            .await
+            .assertSeeInHtml("<span>", false)
+            .await
+            .assertDontSeeInHtml("private-note", false)
+            .await
+            .assertSeeInOrderInHtml(&["fr", "A & <Sam>", "café", "final"], true)
+            .await
+            .assertSeeInText("Plain fr")
+            .await
+            .assertDontSeeInText("<span>")
+            .await
+            .assertSeeInOrderInText(&["Plain", "fr", "receipt"])
+            .await;
+        assert!(!mail.hasFrom("sales@example.test", Some("Support")).unwrap());
+        assert!(!mail.hasTo("other@example.test", None).unwrap());
+        assert!(!mail.hasSubject("Different subject").unwrap());
+        for assertion in [
+            mail.assertSeeInHtml("A & <Sam>", false),
+            mail.assertDontSeeInText("Plain fr"),
+            mail.assertSeeInOrderInHtml(&["final", "fr"], false),
+            mail.assertSeeInOrderInText(&["receipt", "receipt"]),
+        ] {
+            assert!(AssertUnwindSafe(assertion).catch_unwind().await.is_err());
+        }
+        AssertionMail(Content {
+            text: Some("Only text".into()),
+            ..Default::default()
+        })
+        .assertSeeInHtml("Only text", false)
+        .await;
+        AssertionMail(Content {
+            markdown: Some("assertion-markdown".into()),
+            ..Default::default()
+        })
+        .assertSeeInText("Markdown proof")
+        .await;
+        assert_eq!(Lang::getLocale().unwrap(), "en");
+        assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
+        Response::json(http::StatusCode::OK, json!({"asserted":true}))
+    })
+}
+
 type EventRecord = (String, String, String);
 
 struct ListenerProbe {
@@ -939,6 +1040,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
                 "/attachment-upload",
                 uploaded_mail_from_http,
             )?;
+            Route::get("/mail-assertions", mail_assertions_from_http)?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2134,6 +2236,31 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
     }
     assert_eq!((overrides, defaults), (3, 2));
     drop_delivery_tables(&db).await;
+}
+
+#[tokio::test]
+async fn mailable_content_assertions_render_without_delivering_mail() {
+    let root = fixture(None, None, None);
+    let views = root.0.join("resources/views");
+    for (name, body) in [
+        (
+            "assertion-html",
+            "<span>{{ $locale }}</span> {{ $name }} caf&eacute; final",
+        ),
+        ("assertion-text", "Plain {{ $locale }} receipt"),
+        ("assertion-markdown", "# Markdown proof"),
+    ] {
+        std::fs::write(views.join(format!("{name}.blade.html")), body).unwrap();
+    }
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "mail-assertions").await;
+    let response = reqwest::get(url).await.unwrap().error_for_status().unwrap();
+    assert_eq!(
+        response.json::<Json>().await.unwrap(),
+        json!({"asserted":true})
+    );
+    server.abort();
 }
 
 #[tokio::test]

@@ -3268,3 +3268,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 03-09 Redis Cluster 指定标签的空代际回收
 
 Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机制。复用 Redis 同槽 Lua 批处理，回收所选标签已无引用的旧代际和无效代际标识。同步集群标签实现、`tests/redis.rs` 和三语 Cache Tags 正文。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签的空代际回收)
+
+## 2026-11-18 06-06 邮件正文与地址断言
+
+依固定 Laravel 的 Testing Mailable Content 补齐主题、地址以及 HTML／纯文本正文断言。范围包含 Mailable 契约、邮件渲染、集成回归及三语 Mail 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、20 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件正文与地址断言)

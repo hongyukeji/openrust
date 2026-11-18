@@ -199,3 +199,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `7cb928e9b` 上，通过真实 HTTP 与 SMTP、Postmark 本地协议夹具、真实 MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker 核对执行顺序、头部、正文和追加附件。数据库 Worker 先因回调失败，再因 URL 附件服务失败而重排，恢复后投递成功。回调失败时未下载附件。双应用隔离及预览回归通过。初版在 Debug Worker 复现栈溢出，将附件解析 future 移到堆后用原栈大小复验成功。Postmark 本轮未使用真实账户。
 - `mail_notifications` 19 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语示例执行及旧信封 JSON 往返、三语站点与 18 项浏览器检查通过。核心账本维持 66/66。下一批核对邮件内容的测试断言。
 - 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.86 GB（3.59 GiB），清理后可用 97.01 GB（90.35 GiB）。提交前周额度剩余 31%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-customize.tqga7539`。
+
+## 邮件正文与地址断言
+
+- 对照固定 Laravel v13.40.0 的 Testing Mailable Content、`Mailable` 和 `SeeInOrder`。主题及各地址断言同步读取声明的 `Envelope`，可精确匹配显示名。HTML 与纯文本正文分别支持包含、缺失及顺序匹配。Rust 异步渲染正文，HTML 断言显式接收转义开关。顺序匹配识别数字和命名实体，使用已在锁文件中的 `web_atoms` HTML5 实体表。复核旧版 `6d1a81924`，邮件模块未提供对应断言。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#testing-mailable-content) · [Laravel Mailable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Mailable.php) · [Laravel SeeInOrder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Testing/Constraints/SeeInOrder.php)
+- 复用当前应用渲染器、语言上下文、Markdown 双正文和内嵌资源预览。只有纯文本的邮件也可经 HTML 断言读取其正文。断言不会读取普通附件、执行消息定制回调、传输或排队。
+- 基于隔离基线 `f7f207b59`，真实 HTTP 核对地址、显示名、主题、HTML 逃逸、原始标记、实体解码、非重叠顺序、语言切换及恢复、Markdown 纯文本和纯文本回退。包含逆序、重复匹配数量不足及预期内容缺失的失败路径，数组传输保持空。旧发送路径在 Mailpit SMTP 和 MySQL／Redis 独立 Artisan Worker 上通过复验。
+- `mail_notifications` 20 项通过、2 项外部专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、`./artisan inspire`、三语相同示例、VitePress 构建以及根路径和 `/docs/` 的 12 项通用及 6 项正文浏览器检查通过。核心账本维持 66/66。下一批对照 Notifications 的邮件正文和操作按钮构建接口。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.86 GB（3.59 GiB），清理后可用 87.36 GB（81.36 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-assertions.1UheRv6N`。

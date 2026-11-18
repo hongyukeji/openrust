@@ -298,6 +298,20 @@ Route::get("/mail-preview/order", preview_order)?;
 
 ## 測試郵件
 
+### 測試郵件內容 {#testing-mailable-content}
+
+直接在郵件類型上檢查宣告的主旨及地址，可一併傳入顯示名稱以精確比對。在測試應用程式的作用域內，HTML 和純文字斷言會使用郵件的語系渲染正文，無須傳送郵件。HTML 斷言傳入 `true` 會跳脫預期內容，傳入 `false` 可比對標記。順序斷言會依序比對不重疊的內容，並辨識 HTML 實體。
+
+```rust
+receipt
+    .assertHasSubject("Receipt for Sam")
+    .assertTo("sam@example.test", None)
+    .assertSeeInHtml("A & <Sam>", true)
+    .await
+    .assertSeeInOrderInText(&["Plain", "receipt"])
+    .await;
+```
+
 可在郵件類型上斷言附件宣告，無須讀取檔案或請求儲存服務。用 `assertHasAttachmentFromStorageDisk` 檢查指定磁碟，用 `assertHasNoAttachments` 檢查是否沒有宣告一般附件。
 
 ```rust
@@ -305,6 +319,8 @@ receipt
     .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
     .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
 ```
+
+### 測試郵件傳送 {#testing-mailable-sending}
 
 在測試應用程式中呼叫 `Mail::fake()`，即可檢查郵件並跳過傳輸和加入佇列。斷言區分即時傳送與排隊傳送。用 `Mailable::kind()` 選擇郵件記錄，用比對斷言檢查信封或佇列選項。
 

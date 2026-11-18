@@ -105,6 +105,7 @@ chrono-tz = "=0.10.4"
 croner = "=4.0.3"
 ulid = { version = "=1.2.1", default-features = false, features = ["std"] }
 uuid = { version = "=1.29.2", default-features = false, features = ["std", "v7"] }
+web_atoms = "=0.2.6"
 zeroize = "1.9.0"
 
 [target.'cfg(unix)'.dependencies]
