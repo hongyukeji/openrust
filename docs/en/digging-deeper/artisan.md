@@ -25,7 +25,7 @@ In `routes/console.rs`, import `openrust::support::facades::Artisan`. `Artisan::
 `Application::handleCommand` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads the planned catalog and registers application commands before dispatch.
 
 
-## Source and Release Entrypoints
+## Source and Release Entrypoints {#source-and-release-entrypoints}
 
 The source `artisan` script changes to the application directory and forwards its arguments unchanged to Cargo. Spaces, empty arguments and non-ASCII text are preserved. The script returns the command's exit status.
 
@@ -33,7 +33,9 @@ A standalone build uses `./main artisan list`, `./main artisan help inspire` or 
 
 The compiled entry accepts no mode argument for HTTP, or `artisan` for console commands. Any other first argument prints the outer usage and exits with status 2, before creating the application. Artisan dispatch errors exit with status 1. This outer selection is a Rust single-binary adaptation; Laravel has separate HTTP and `artisan` entry files. The Console Kernel's handle/terminate sequence remains the responsibility of `Application::handleCommand`.
 
-The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented. `artisan.bat` has not yet been accepted on a Windows machine.
+The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented.
+
+In CMD, run `artisan.bat inspire`. In PowerShell, use `.\artisan.bat help inspire --format=json`. The launcher changes to the application directory and returns Artisan’s exit code. For a compiled Windows release, use `.\main.exe artisan inspire`.
 
 ## Command Help and Output Formats {#command-help-and-output-formats}
 

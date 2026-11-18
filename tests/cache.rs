@@ -232,6 +232,105 @@ async fn file_cache_is_shared_by_applications_and_artisan_processes() {
     assert!(lock.release().await.unwrap());
 }
 
+#[tokio::test]
+#[ignore = "child process for the cross-process file lock test"]
+async fn file_lock_process_fixture() {
+    let root = PathBuf::from(std::env::var_os("OPENRUST_FILE_LOCK_FIXTURE").unwrap());
+    let owner = std::env::var("OPENRUST_FILE_LOCK_OWNER").unwrap();
+    let mut app = Application::configure(root)
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let store = app
+        .container()
+        .get::<CacheManager>("cache")
+        .unwrap()
+        .store(Some("file"))
+        .unwrap();
+    let result = if std::env::var_os("OPENRUST_FILE_LOCK_RELEASE").is_some() {
+        store
+            .restore_lock("cross-process", &owner)
+            .unwrap()
+            .release()
+            .await
+            .unwrap()
+    } else {
+        store
+            .lock("cross-process", Some(Duration::from_secs(30)), Some(&owner))
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+    };
+    println!("file-lock-result={result}");
+}
+
+#[tokio::test]
+async fn file_lock_contends_and_restores_across_processes() {
+    let root = Sandbox::new("cross-process-lock", "CACHE_STORE=file\n");
+    let fixture = |owner: &str, release: bool| {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "file_lock_process_fixture",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("OPENRUST_FILE_LOCK_FIXTURE", &root.0)
+            .env("OPENRUST_FILE_LOCK_OWNER", owner)
+            .env_remove("OPENRUST_FILE_LOCK_RELEASE")
+            .kill_on_drop(true);
+        if release {
+            command.env("OPENRUST_FILE_LOCK_RELEASE", "1");
+        }
+        command
+    };
+    let result = |output: std::io::Result<Output>| {
+        let output = output.unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let (_, value) = stdout
+            .lines()
+            .find_map(|line| line.split_once("file-lock-result="))
+            .unwrap();
+        value.parse::<bool>().unwrap()
+    };
+    let mut first = fixture("first", false);
+    let mut second = fixture("second", false);
+    let (left, right) = tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::join!(first.output(), second.output())
+    })
+    .await
+    .unwrap();
+    let left = result(left);
+    assert_ne!(left, result(right));
+
+    let (winner, loser) = if left {
+        ("first", "second")
+    } else {
+        ("second", "first")
+    };
+    let run = |owner, release| {
+        let mut command = fixture(owner, release);
+        async move {
+            result(
+                tokio::time::timeout(Duration::from_secs(15), command.output())
+                    .await
+                    .unwrap(),
+            )
+        }
+    };
+    assert!(!run(loser, true).await);
+    assert!(run(winner, true).await);
+    assert!(run(loser, false).await);
+    root.success(&["cache:clear", "file", "--locks"]);
+    assert!(run(winner, false).await);
+    assert!(!run(loser, true).await);
+    assert!(run(winner, true).await);
+}
+
 async fn verify_database(root: &Sandbox) {
     root.success(&["migrate"]);
     let first = root.cache(None).await;

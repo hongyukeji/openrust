@@ -247,6 +247,10 @@ On Redis Cluster, a tagged cache namespace uses one hash slot derived from the c
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.
 
+### File locks across processes {#managing-locks-across-processes}
+
+The file store coordinates processes that use the same cache directory on the host’s local filesystem. On Windows, pass the token from the acquiring process to `Cache::restoreLock` in the releasing process. Keep the lock directory and cache prefix the same in both applications.
+
 ### Lock status and retry interval {#lock-status}
 
 `isLocked().await?` checks whether the backend holds the lock. `isOwnedBy(token).await?` compares an owner token, while `isOwnedByCurrentProcess().await?` compares the token of this handle. `isOwnedBy(None).await?` checks for no owner. Status checks do not acquire or renew a lock. The `null` store always reports unlocked and uses the handle token for ownership checks.

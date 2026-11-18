@@ -247,6 +247,10 @@ Redis Cluster 插槽遷移期間，清理批次涉及缺少的鍵，或同一批
 
 用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。
 
+### 跨處理程序檔案鎖 {#managing-locks-across-processes}
+
+同一主機上的檔案快取會透過本機檔案系統上的同一快取目錄協調多個處理程序。在 Windows 上，可把取得鎖的處理程序權杖傳給釋放端的 `Cache::restoreLock`。兩個應用程式應使用相同的鎖目錄與快取前綴。
+
 ### 鎖定狀態與重試間隔 {#lock-status}
 
 `isLocked().await?` 查詢後端是否持有鎖。`isOwnedBy(token).await?` 比對指定權杖，`isOwnedByCurrentProcess().await?` 比對目前控制代碼的權杖。`isOwnedBy(None).await?` 檢查是否沒有擁有者。狀態查詢不會取得鎖或續期。`null` 儲存庫始終回報未鎖定，擁有者查詢使用目前控制代碼的權杖。

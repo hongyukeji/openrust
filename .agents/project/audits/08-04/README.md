@@ -174,3 +174,10 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 同源快照构建 `--release --features standalone --bin main --locked --offline`，产物为 macOS ARM64 Mach-O。从无源码目录运行真实 HTTP、Artisan、MySQL 迁移及幂等重跑、会话和 Redis 受管及独立 Worker。发布目录搬移后复验读取原数据与进程退出。
 - 104 个映射页面的三语落点和交付计划锚点全部存在，三语构建及 18 项浏览器检查通过。生态 31 条仍按交付计划保留范围待确认。Windows Docker Desktop、生产 TLS、托管 SQS 标准／FIFO 和托管 Pusher 等验收仍引用各自目标环境检查。继续保留 08-04 用户此前确认的模拟正式环境验收结论。
 - 独占服务和编译产物已回收，Docker 卷清单一致，磁盘可用 85.67 GB（79.79 GiB）。提交前周额度剩余 21%，按用户授权继续。日志位于 `/private/tmp/openrust-http-release-recheck.yd73YSMP`。
+
+## Windows ARM64 文件锁与 Artisan 源码入口复验
+
+- Parallels Windows 11 ARM64（Build 26200）用 Rust 1.94.0、原生 ARM64 MSVC 14.44.35207。从 `baac80470` 干净归档取实际脚本与框架，叠加本批可移植测试。先按 Cargo.lock 补齐来宾尚未缓存的依赖，再锁定离线构建。
+- Windows 上 32 项缓存目标测试通过，1 项子进程夹具默认忽略并由父测试实际调用。未启动 Windows MySQL／Redis 等外部驱动。本地 NTFS 验证跨进程文件锁及独立 Artisan 清理。macOS ARM64 对应 3 项文件缓存与 1 项 Unix 启动器定向测试通过。
+- CMD 和 PowerShell 从应用目录之外通过实际 `artisan.bat` 执行成功和失败命令，原生二进制实际 HTTP `GET /up` 返回 200。格式检查、主机严格 Clippy、三语构建和 18 项浏览器检查通过。Windows Docker Desktop 后端仍按既有发布实机要求跟踪。
+- 清理本批来宾构建与应用夹具，恢复虚拟机初始停止状态。主机本批缓存已回收，磁盘可用 74.68 GB（69.55 GiB），提交前周额度剩余 20%，按用户授权继续。日志位于 `/Users/Home/openrust-windows-entry.PjLCM8cZ`。

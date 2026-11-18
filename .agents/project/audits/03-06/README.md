@@ -19,7 +19,7 @@
 
 ## 后续边界
 
-Redis Cluster 由 [03-09](../03-09/README.md) 跟踪。Windows 文件锁实机及托管 DynamoDB、IAM 部署留待发布验收。配置、使用、标签、锁及扩展驱动的证据见各节和整单元验收。
+Redis Cluster 由 [03-09](../03-09/README.md) 跟踪。Windows 文件锁已补验，见[跨进程文件锁](#windows-arm64-跨进程文件锁)。托管 DynamoDB 和 IAM 部署留待发布验收。配置、使用、标签、锁及扩展驱动的证据见各节和整单元验收。
 
 ## 缓存故障切换
 
@@ -199,3 +199,8 @@ Redis Cluster 由 [03-09](../03-09/README.md) 跟踪。Windows 文件锁实机�
 - 以[交付计划](../../plan.md#unit-03-06)的配置、缓存使用和原子锁范围验收。array、file 和独立 MySQL 的过期、原子写、锁所有权与多实例竞争都已有实测，本轮在当前主线对缓存、驱动、事件和 memo 回归复验。
 - 固定 Cache 章节中回填、后台刷新、默认值、助手、批量操作、标签、锁回调与并发限制、故障切换、自定义驱动和事件均有对应接口、三语文档及行为证据。Rust 以 `Value`、类型化闭包及显式异步读写表达 PHP 动态类型和数组访问。自定义驱动与类型化扩展替代 PHP 的运行时宏转发。
 - Redis Cluster、Windows 文件锁和托管 DynamoDB／IAM 依各自范围继续验收。缓存主线按 03-06 关闭，应用基础服务 7/9，核心账本 51/66。
+
+## Windows ARM64 跨进程文件锁
+
+- 对照固定 Laravel 跨进程原子锁及旧版文件缓存。复用现有文件锁和所有者令牌，无框架运行时代码改动。新增同一个测试程序的独立子进程夹具。 [Laravel 跨进程锁](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#managing-locks-across-processes)
+- 基于 `baac80470` 的 Windows 11 ARM64 原生 MSVC 与 macOS ARM64 分别验证两个进程竞争、胜者令牌恢复、错误令牌拒绝、独立 Artisan `cache:clear file --locks` 和清锁后重新取得。Windows 用来宾本地 NTFS。 [发布复验](../08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)

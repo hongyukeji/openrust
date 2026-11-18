@@ -3472,3 +3472,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02／08-04 HTTP 章节与 2702d577b 发布快照复验
 
 补齐三语 HTTP 文档接口。整仓 171 个测试目标，1397 项标准测试通过、11 项忽略；实际独立发布通过。 [HTTP 章节与 2702d577b 发布快照复验](audits/08-04/README.md#http-章节与-2702d577b-发布快照复验)
+
+## 2026-11-18 00-03／03-06／08-04 Windows ARM64 文件锁与 Artisan 源码入口复验
+
+Windows ARM64 原生文件锁竞争及恢复、CMD 和 PowerShell Artisan、真实 HTTP 健康检查通过。新增可移植跨进程文件锁回归，同步 Artisan、Cache 三语文档。 [Windows ARM64 文件锁与 Artisan 源码入口复验](audits/08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)

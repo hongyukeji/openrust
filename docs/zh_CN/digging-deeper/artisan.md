@@ -25,7 +25,7 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 `Application::handleCommand` 调用 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引导后加载待实现命令清单，再注册应用命令并分派。
 
 
-## 源码与发布入口
+## 源码与发布入口 {#source-and-release-entrypoints}
 
 源码 `artisan` 脚本先进入应用目录，再将参数原样交给 Cargo，保留空格、空参数和非 ASCII 文本。脚本返回命令的退出码。
 
@@ -34,6 +34,8 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 编译入口不带模式参数时启动 HTTP，使用 `artisan` 时执行控制台命令。其他首参数会在创建应用前显示外层用法并返回退出码 2。Artisan 分派错误返回 1。外层分流是 Rust 单二进制的语言适配；Laravel 使用独立的 HTTP 和 `artisan` 入口文件。Console Kernel 的 handle/terminate 顺序仍由 `Application::handleCommand` 负责。
 
 命令清单同时包含待实现条目。名称和帮助用于保留预定契约，不代表对应模块已经完成。`artisan.bat` 尚未通过 Windows 实机验收。
+
+在 CMD 中运行 `artisan.bat inspire`。在 PowerShell 中使用 `.\artisan.bat help inspire --format=json`。启动器会切换到应用目录，并返回 Artisan 的退出码。Windows 独立发布版使用 `.\main.exe artisan inspire`。
 
 ## 命令帮助和输出格式 {#command-help-and-output-formats}
 

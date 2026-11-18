@@ -247,6 +247,10 @@ Redis Cluster 槽迁移期间，清理批次涉及缺失的键，或同一批次
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。
 
+### 跨进程文件锁 {#managing-locks-across-processes}
+
+同一主机上，文件缓存通过本地文件系统上的同一缓存目录协调多个进程。在 Windows 上，可把获取进程的令牌传给释放进程的 `Cache::restoreLock`。两个应用应使用相同的锁目录和缓存前缀。
+
 ### 锁状态与重试间隔 {#lock-status}
 
 `isLocked().await?` 查询后端是否持有锁。`isOwnedBy(token).await?` 比对指定令牌，`isOwnedByCurrentProcess().await?` 比对当前句柄的令牌。`isOwnedBy(None).await?` 检查是否没有所有者。状态查询不会获取锁或续期。`null` 存储始终报告未锁定，所有者查询使用当前句柄的令牌。

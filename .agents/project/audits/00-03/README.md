@@ -62,3 +62,7 @@ python3 /tmp/openrust-00-03-evidence/.agents/project/audits/00-03/verify_runtime
 - 启动集成测试 26 项通过。两个实际进程并发生成同名 Provider 时仅一个成功，注册顺序、重试补注册及自定义 stub 均通过。并发发布的文件名和内容与独立发布的 32 个模板比对，保留用户文件的检查通过。强制重发后所有文件与独立发布字节一致。
 - 在隔离源码中以 `./artisan make:provider Reports/ReportServiceProvider` 生成 Provider，重新编译成功。临时在生成的 `boot` 钩子输出标记，独立 `./artisan inspire` 和运行中的 HTTP 服务均执行了该钩子，`GET /up` 返回 200，服务收到 SIGINT 后退出 0。
 - Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建、12 项通用及 6 项 Provider 文档浏览器检查通过。整仓测试剩余的事件替身回滚断言单独跟踪。临时编译和站点产物已回收，项目卷可用空间净增 7.90 GB（7.35 GiB），清理后为 100.52 GB（93.61 GiB），提交前周额度剩余 37%。日志在 `/private/tmp/openrust-artisan-generators.z0sp1W8I`。
+
+## Windows ARM64 源码启动器复验
+
+从质检快照 `baac80470` 的干净归档，用此前 Sanctum 的 CMD 和 PowerShell 验收方式复查。含空格的应用目录之外启动 `artisan.bat`，CMD 的 `inspire`、PowerShell 的 `help inspire --format=json` 退出 0。未知命令和无效格式返回 1。已有可执行文件继续支持独立的 `main.exe artisan` 入口。 [原安装验收](../sanctum-03/README.md) · [发布复验](../08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验) · [固定 Laravel Artisan](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#introduction)
