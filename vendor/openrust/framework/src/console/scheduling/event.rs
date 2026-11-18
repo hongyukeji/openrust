@@ -48,7 +48,7 @@ pub(super) enum HookKind {
 }
 
 pub(super) enum Action {
-    Callback(Box<Callback>),
+    Callback(Box<Callback>, &'static std::panic::Location<'static>),
     Command(Vec<OsString>),
     Exec(Vec<OsString>),
     Job(Box<Payload>, DispatchOptions),
@@ -66,7 +66,7 @@ pub struct Event {
     pub(super) description: Option<String>,
     even_in_maintenance_mode: bool,
     even_when_paused: bool,
-    environments: Vec<String>,
+    pub(super) environments: Vec<String>,
     filters: Vec<Box<Condition>>,
     attributes: Map<String, Value>,
     before_hooks: Vec<Arc<Callback>>,
@@ -601,7 +601,7 @@ impl Event {
         self.description
             .clone()
             .unwrap_or_else(|| match &self.action {
-                Action::Callback(_) => "Closure".into(),
+                Action::Callback(..) => "Closure".into(),
                 Action::Command(args) | Action::Exec(args) => args
                     .iter()
                     .map(|arg| arg.to_string_lossy())
@@ -619,7 +619,7 @@ impl Event {
         };
         field(self.cron_text.as_bytes());
         match &self.action {
-            Action::Callback(_) => field(b"callback"),
+            Action::Callback(..) => field(b"callback"),
             Action::Command(_) => field(b"command"),
             Action::Exec(_) => field(b"exec"),
             Action::Job(payload, options) => {

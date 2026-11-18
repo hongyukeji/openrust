@@ -1294,10 +1294,22 @@ async fn artisan_clears_redis_schedule_mutexes_for_registered_tasks() {
     let root = root(Some(port.parse().unwrap()));
     let winner = RunningScheduler::start(artisan(&root, "overlap", MONDAY, &["schedule:run"]));
     wait_for_receipts(&root, 1).await;
+    let list_mutex = async || {
+        let output = run(&root, "overlap", MONDAY, &["schedule:list", "--json"]).await;
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        let rows = stdout.lines().find(|line| line.starts_with('[')).unwrap();
+        let rows: Vec<Value> = serde_json::from_str(rows).unwrap();
+        rows.into_iter()
+            .find(|row| row["command"] == "shared")
+            .unwrap()["has_mutex"]
+            .clone()
+    };
+    assert_eq!(list_mutex().await, true);
     let cleared = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
     assert!(String::from_utf8_lossy(&cleared.stdout).contains("Deleting mutex for [shared]"));
     let empty = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
     assert!(String::from_utf8_lossy(&empty.stdout).contains("No mutex files were found"));
+    assert_eq!(list_mutex().await, false);
     std::fs::write(root.join("release"), "").unwrap();
     let winner = timeout(Duration::from_secs(5), winner.wait_with_output())
         .await

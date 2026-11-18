@@ -72,10 +72,16 @@ All runners must use the same shared cache store and namespace for cross-server 
 
 Call `./artisan schedule:run` each minute from your process scheduler, or use `./artisan schedule:work` to keep a scheduler process running. The worker finishes the current task on SIGTERM or Ctrl+C. Use `./artisan schedule:list` to see expressions and upcoming run times. `schedule:run --whisper` hides the message when no task runs.
 
-To filter the list, pass `--environment` once per environment. A task appears if it can run in any requested environment, and tasks without an environment restriction always appear. Use `--next` to sort by the next run. By default, times use `app.timezone`. Set `--timezone` to an IANA timezone to change the displayed timestamps. The cron expression and the time at which the task runs still use the task's schedule.
+To filter the list, pass `--environment` once per environment. A task appears if it can run in any requested environment, and tasks without an environment restriction always appear. Use `--next` to sort by the next run. By default, times use `app.timezone`. Set `--timezone` to an IANA timezone to change the displayed timestamps. The list converts each cron expression using the timezone offset at the next cron occurrence. An expression can produce several rows when times cross a day boundary. When a conversion cannot preserve the calendar rules, the list keeps the original expression. The task itself still runs on its configured schedule.
 
 ```sh
 ./artisan schedule:list --environment=staging --environment=production --next --timezone=Asia/Kolkata
+```
+
+Use `--json` to return an array with each expression, command, description, next due date, timezone, mutex state, repeat interval, environments, and single-server flag. An empty schedule returns `[]`.
+
+```sh
+./artisan schedule:list --json --next --timezone=UTC
 ```
 
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.

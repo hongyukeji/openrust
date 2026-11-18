@@ -3,6 +3,7 @@
 mod cache_event_mutex;
 mod cache_scheduling_mutex;
 mod callback_event;
+mod cron_expression_timezone_converter;
 mod event;
 mod event_mutex;
 mod pending_event_attributes;

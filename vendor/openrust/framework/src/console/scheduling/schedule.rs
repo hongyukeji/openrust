@@ -61,6 +61,7 @@ impl Default for Schedule {
 
 #[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
 impl Schedule {
+    #[track_caller]
     pub fn call(
         &mut self,
         callback: impl for<'a> Fn(
@@ -71,7 +72,10 @@ impl Schedule {
         + Sync
         + 'static,
     ) -> &mut CallbackEvent {
-        self.callback(Action::Callback(Box::new(callback)))
+        self.callback(Action::Callback(
+            Box::new(callback),
+            std::panic::Location::caller(),
+        ))
     }
 
     pub fn command(
@@ -426,7 +430,7 @@ impl Schedule {
             register()?;
             let schedule = REGISTRATION.with(|current| current.take());
             for event in schedule.events() {
-                if matches!(event.action, Action::Callback(_) | Action::Job(..))
+                if matches!(event.action, Action::Callback(..) | Action::Job(..))
                     && (event.one_server || event.overlap.is_some())
                     && event.description.as_deref().is_none_or(|name| name.trim().is_empty())
                 {

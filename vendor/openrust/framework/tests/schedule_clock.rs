@@ -10,6 +10,7 @@ use openrust::{
     support::{Date, DateTimezone, facades::Schedule},
     testing::TestApp,
 };
+use serde_json::{Value, json};
 
 type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -179,5 +180,135 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
         result.stdout.lines().filter(|line| *line == "tick").count(),
         1
     );
+    Ok(())
+}
+
+const CONVERSIONS: &[(&str, &str, &[&str])] = &[
+    ("* * * * *", "Asia/Kathmandu", &["* * * * *"]),
+    ("0 */2 * * *", "Asia/Tokyo", &["0 1-23/2 * * *"]),
+    (
+        "15,45 8 * * *",
+        "Asia/Kolkata",
+        &["45 2 * * *", "15 3 * * *"],
+    ),
+    ("0 8 * * 1-5", "Asia/Tokyo", &["0 23 * * 0-4"]),
+    ("0 1 1 1 *", "Asia/Tokyo", &["0 16 31 12 *"]),
+    ("0 1 1 3 *", "Asia/Tokyo", &["0 1 1 3 *"]),
+    (
+        "0 0 1 1-12/3 *",
+        "Asia/Tokyo",
+        &["0 15 31 3,12 *", "0 15 30 6,9 *"],
+    ),
+    ("0 8 * * MON-FRI", "Asia/Tokyo", &["0 8 * * MON-FRI"]),
+    ("0 1 1 3 1", "Asia/Tokyo", &["0 1 1 3 1"]),
+    ("0 8 L * *", "Asia/Tokyo", &["0 8 L * *"]),
+    ("0 1 29 2 *", "Asia/Tokyo", &["0 1 29 2 *"]),
+    (
+        "0 1 * 1 *",
+        "Asia/Tokyo",
+        &["0 16 31 12 *", "0 16 1-30 1 *"],
+    ),
+    ("0 0 30 10 *", "Europe/London", &["0 0 30 10 *"]),
+    ("0 0 30 6 *", "Europe/London", &["0 23 29 6 *"]),
+];
+
+fn list_json(_: &mut Artisan) -> Result<(), ConsoleError> {
+    Schedule::configure(|schedule| {
+        for (index, (cron, timezone, _)) in CONVERSIONS.iter().enumerate() {
+            let event = schedule
+                .command(format!("fixture:{index}"), [])
+                .cron(cron)?
+                .timezone(timezone.parse().unwrap())
+                .environments(&["production"]);
+            if index == 0 {
+                event.onOneServer();
+            }
+        }
+        schedule
+            .call(|_, _| Box::pin(async { Ok(()) }))
+            .everyFiveSeconds();
+        Ok(())
+    })
+}
+
+fn relative_list(_: &mut Artisan) -> Result<(), ConsoleError> {
+    Schedule::configure(|schedule| {
+        for (name, cron) in [
+            ("fixture:february", "0 0 28 2 *"),
+            ("fixture:march", "0 0 1 3 *"),
+        ] {
+            schedule
+                .command(name, [])
+                .cron(cron)?
+                .timezone(chrono_tz::UTC);
+        }
+        Ok(())
+    })
+}
+
+#[tokio::test]
+async fn schedule_list_json_shifts_cron_and_keeps_laravel_metadata() -> TestResult {
+    let mut app = TestApp::create(|builder| configure(builder).withCommands(list_json))?;
+    app.travelTo(date("2023-10-29T00:00:00Z"));
+    let reply = app
+        .artisan([
+            "schedule:list",
+            "--json",
+            "--next",
+            "--environment=production",
+        ])
+        .await;
+    reply.assertSuccessful();
+    let entries: Vec<Value> = serde_json::from_str(&reply.stdout)?;
+    let callback = &entries[0];
+    let location = callback["command"].as_str().unwrap();
+    assert!(location.starts_with("Closure at: ") && location.contains("schedule_clock.rs:"));
+    assert_eq!(callback["next_due_date"], "2023-10-29 00:00:05 +00:00");
+    assert_eq!(callback["next_due_date_human"], "5 seconds from now");
+    assert_eq!(callback["repeat_seconds"], 5);
+    assert_eq!(callback["on_one_server"], false);
+    assert_eq!(callback["description"], Value::Null);
+    assert_eq!(callback["environments"], json!([]));
+    assert_eq!(callback["has_mutex"], false);
+    for (index, (_, _, expressions)) in CONVERSIONS.iter().enumerate() {
+        let command = format!("./artisan fixture:{index}");
+        let matched: Vec<_> = entries
+            .iter()
+            .filter(|row| row["command"] == command)
+            .collect();
+        assert_eq!(matched.len(), expressions.len(), "{command}");
+        for (row, expression) in matched.into_iter().zip(*expressions) {
+            assert_eq!(row["expression"], *expression, "{command}");
+            assert_eq!(row["timezone"], "UTC");
+            assert_eq!(row["environments"], json!(["production"]));
+            assert_eq!(row["repeat_seconds"], Value::Null);
+            assert_eq!(row["on_one_server"], index == 0);
+        }
+    }
+    let filtered = app
+        .artisan(["schedule:list", "--json", "--environment=local"])
+        .await;
+    filtered.assertSuccessful();
+    let entries: Vec<Value> = serde_json::from_str(&filtered.stdout)?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["command"], callback["command"]);
+
+    let empty = TestApp::create(configure)?
+        .artisan(["schedule:list", "--json"])
+        .await;
+    empty.assertSuccessful();
+    assert_eq!(empty.stdout, "[]\n");
+    Ok(())
+}
+
+#[tokio::test]
+async fn schedule_list_json_uses_complete_calendar_units_for_relative_dates() -> TestResult {
+    let mut app = TestApp::create(|builder| configure(builder).withCommands(relative_list))?;
+    app.travelTo(date("2023-01-31T00:00:00Z"));
+    let reply = app.artisan(["schedule:list", "--json"]).await;
+    reply.assertSuccessful();
+    let entries: Vec<Value> = serde_json::from_str(&reply.stdout)?;
+    assert_eq!(entries[0]["next_due_date_human"], "4 weeks from now");
+    assert_eq!(entries[1]["next_due_date_human"], "1 month from now");
     Ok(())
 }

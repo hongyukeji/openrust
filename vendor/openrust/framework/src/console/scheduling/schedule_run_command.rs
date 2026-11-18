@@ -2,13 +2,13 @@ use std::{
     error::Error,
     fmt::Write as _,
     io::{self, IsTerminal, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Stdio,
     sync::Arc,
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, TimeDelta, Timelike, Utc};
+use chrono::{DateTime, Datelike, TimeDelta, Timelike, Utc};
 use chrono_tz::Tz;
 use clap::{Arg, ArgAction};
 use tokio::time::{Instant, sleep_until};
@@ -33,8 +33,8 @@ use crate::{
 };
 
 use super::{
-    CacheEventMutex, CacheSchedulingMutex, Event, EventMutex, Schedule, SchedulingMutex, error,
-    event::Action,
+    CacheEventMutex, CacheSchedulingMutex, Event, EventMutex, Schedule, SchedulingMutex,
+    cron_expression_timezone_converter, error, event::Action,
 };
 
 const PAUSED: &str = "illuminate:schedule:paused";
@@ -126,6 +126,12 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
                         .long("next")
                         .action(ArgAction::SetTrue)
                         .help("Sort the listed tasks by their next due date"),
+                )
+                .arg(
+                    Arg::new("json")
+                        .long("json")
+                        .action(ArgAction::SetTrue)
+                        .help("Output the scheduled tasks as JSON"),
                 );
         }
         if matches!(operation, Operation::Background) {
@@ -173,7 +179,7 @@ impl Command for ScheduleRunCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             match self.operation {
-                Operation::List => self.list(app, input, output)?,
+                Operation::List => self.list(app, input, output).await?,
                 Operation::ClearCache => self.clear_cache(output).await?,
                 Operation::Test => self.test_task(app, input, output).await?,
                 Operation::Interrupt => self.interrupt(output).await?,
@@ -234,14 +240,15 @@ impl ScheduleRunCommand {
         Cache::store(self.schedule.store.as_deref()).map_err(error)
     }
 
-    fn list(
+    async fn list(
         &self,
         app: &Application,
         input: &Input,
         output: &mut Output,
     ) -> Result<(), ConsoleError> {
+        let json = input.matches().get_flag("json");
         let environments = input.matches().get_many::<String>("environment");
-        let mut events = self
+        let events: Vec<_> = self
             .schedule
             .events()
             .filter(|event| {
@@ -249,9 +256,13 @@ impl ScheduleRunCommand {
                     .clone()
                     .is_none_or(|mut names| names.any(|name| event.runs_in_environment(name)))
             })
-            .peekable();
-        if events.peek().is_none() {
-            output.info("No scheduled tasks have been defined.");
+            .collect();
+        if events.is_empty() {
+            if json {
+                output.stdout.push_str("[]\n");
+            } else {
+                output.info("No scheduled tasks have been defined.");
+            }
             return Ok(());
         }
 
@@ -268,6 +279,10 @@ impl ScheduleRunCommand {
         let mut rows = Vec::new();
         for event in events {
             let local = now.with_timezone(&event.zone.unwrap_or(default_zone));
+            let cron_next = event
+                .expression
+                .find_next_occurrence(&local, false)
+                .map_err(error)?;
             let next = if let Some(interval) = event.interval
                 && event.due(now, default_zone)?
             {
@@ -279,25 +294,65 @@ impl ScheduleRunCommand {
                     .and_then(|time| time.checked_add_signed(TimeDelta::seconds(offset as i64)))
                     .ok_or_else(|| error(crate::support::DateError::OutOfRange))?
             } else {
-                event
-                    .expression
-                    .find_next_occurrence(&local, false)
-                    .map_err(error)?
+                cron_next
             };
-            rows.push((next.with_timezone(&display_zone), event));
+            rows.push((next.with_timezone(&display_zone), cron_next, event));
         }
         if input.matches().get_flag("next") {
-            rows.sort_by_key(|(next, _)| *next);
+            rows.sort_by_key(|(next, _, _)| *next);
         }
-        for (next, event) in rows {
-            writeln!(
-                output.stdout,
-                "{}  {}  Next: {}",
-                event.cron_text,
-                event.getSummaryForDisplay(),
-                next.to_rfc3339()
-            )
-            .expect("writing to a String");
+        let mutex = if json {
+            Some(CacheEventMutex::new(self.store()?))
+        } else {
+            None
+        };
+        let mut json_rows = Vec::new();
+        for (next, cron_next, event) in rows {
+            let expressions = cron_expression_timezone_converter::for_event(
+                &event.cron_text,
+                cron_next,
+                display_zone,
+            );
+            if let Some(mutex) = &mutex {
+                let has_mutex = mutex.exists(event).await.map_err(error)?;
+                let command = match &event.action {
+                    Action::Command(_) => format!("./artisan {}", event.command_name()),
+                    Action::Exec(_) => event.command_name(),
+                    Action::Callback(_, at) if event.description.is_none() => {
+                        let source = Path::new(at.file());
+                        let source = source.strip_prefix(app.base_path()).unwrap_or(source);
+                        format!("Closure at: {}:{}", source.display(), at.line())
+                    }
+                    _ => event.getSummaryForDisplay(),
+                };
+                let next_due_date = next.format("%Y-%m-%d %H:%M:%S %:z").to_string();
+                let human = relative_due(now.with_timezone(&display_zone), next);
+                for expression in expressions {
+                    json_rows.push(serde_json::json!({
+                        "expression": expression,
+                        "command": command,
+                        "description": event.description,
+                        "next_due_date": next_due_date,
+                        "next_due_date_human": human,
+                        "timezone": display_zone.name(),
+                        "has_mutex": has_mutex,
+                        "repeat_seconds": event.interval.map(|value| value.as_secs()),
+                        "environments": event.environments,
+                        "on_one_server": event.one_server,
+                    }));
+                }
+            } else {
+                let summary = event.getSummaryForDisplay();
+                let next = next.to_rfc3339();
+                for expression in expressions {
+                    writeln!(output.stdout, "{expression}  {summary}  Next: {next}")
+                        .expect("writing to a String");
+                }
+            }
+        }
+        if json {
+            writeln!(output.stdout, "{}", serde_json::Value::Array(json_rows))
+                .expect("writing to a String");
         }
         Ok(())
     }
@@ -667,7 +722,7 @@ impl ScheduleRunCommand {
         event: &Event,
     ) -> Result<TaskOutcome, ConsoleError> {
         let (outcome, captured) = self.invoke(app, output, event).await?;
-        if outcome.is_ok() || matches!(event.action, Action::Callback(_) | Action::Job(..)) {
+        if outcome.is_ok() || matches!(event.action, Action::Callback(..) | Action::Job(..)) {
             event
                 .call_after_hooks(
                     app,
@@ -701,7 +756,7 @@ impl ScheduleRunCommand {
         let capture = event.captures_output();
         let mut captured = Vec::new();
         let outcome = match &event.action {
-            Action::Callback(callback) => {
+            Action::Callback(callback, _) => {
                 callback(app, output).await.map(|()| TaskOutcome::Succeeded)
             }
             Action::Command(arguments) => {
@@ -958,6 +1013,38 @@ fn timezone(app: &Application) -> Result<Tz, ConsoleError> {
         .filter(|value| !value.is_null())
         .or_else(|| config.get("app.timezone").filter(|value| !value.is_null()));
     parse_timezone(zone)
+}
+
+fn relative_due(now: DateTime<Tz>, next: DateTime<Tz>) -> String {
+    let month_number = |date: DateTime<Tz>| i64::from(date.year()) * 12 + i64::from(date.month0());
+    let mut months = month_number(next) - month_number(now);
+    if months > 0 && (next.day(), next.time()) < (now.day(), now.time()) {
+        months -= 1;
+    }
+
+    let days = next
+        .date_naive()
+        .signed_duration_since(now.date_naive())
+        .num_days()
+        - i64::from(next.time() < now.time());
+    let seconds = next.signed_duration_since(now).num_seconds();
+    let (count, unit) = if months >= 12 {
+        (months / 12, "year")
+    } else if months > 0 {
+        (months, "month")
+    } else if days >= 7 {
+        (days / 7, "week")
+    } else if days > 0 {
+        (days, "day")
+    } else if seconds >= 3_600 {
+        (seconds / 3_600, "hour")
+    } else if seconds >= 60 {
+        (seconds / 60, "minute")
+    } else {
+        (seconds.max(0), "second")
+    };
+    let plural = if count == 1 { "" } else { "s" };
+    format!("{count} {unit}{plural} from now")
 }
 
 fn parse_timezone(zone: Option<serde_json::Value>) -> Result<Tz, ConsoleError> {
