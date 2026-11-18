@@ -27,3 +27,11 @@ HTTP `defer` 在响应体交给传输层后进入现有终止队列。状态码�
 前置 07-03 已闭合。默认驱动、顺序与命名结果、任务失败、单任务超时、取消和子进程回收，及 HTTP、Artisan、队列三类延后执行边界均通过验收。07-04 核心单元闭合。当前实机验收在 macOS 完成，其他平台的原生运行按发布矩阵跟踪。
 
 下一单元 07-05 Images，依赖 03-01 和 04-02。
+
+## Windows ARM64 Concurrency 延后执行与管道
+
+- 固定 Laravel 的 process `defer` 从生命周期回调启动后台命令，Laravel BackgroundQueue 也经此派发。OpenRust 的公开 `Concurrency::defer` 在终止阶段监管子进程、读取签名结果并报告异常，HTTP 响应可先交付，独立 Artisan 则延至子进程结束后退出。只有队列的 `background` 连接使用脱离路径。此差异沿用本单元既有实现。核对旧版 v0.x（`6d1a81924`），未发现可复用的 Concurrency defer。 [固定 Laravel ProcessDriver](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Concurrency/ProcessDriver.php#L98) · [BackgroundQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/BackgroundQueue.php)
+- 从 `9ab6b416c` 的干净归档，在 Windows 11 ARM64 用 Rust 1.94.0 和 MSVC 14.44.35207 锁定离线构建。原生 PE Machine 为 `0xAA64`，`cargo test -p openrust-framework --test concurrency` 的 5 项用例通过，子进程夹具按设计忽略。macOS 同套件 5 项通过。
+- 独立 `main.exe` 和应用目录均含空格，应用目录含非 ASCII 字符。通过实际 Artisan 验证子进程收到 stdin 中的任务参数、登记时的公开和隐藏 Context、所选 `--env` 环境及应用工作目录。子进程等待期间父进程仍运行，放行后 stdout 和 stderr 均到 EOF，父进程保持原退出码 0／7。退出 7 仅执行 `always()`，普通回调被跳过。实际 HTTP 返回 204 后放行子进程，验证响应无需等待子任务完成。独立 `artisan inspire` 通过。
+- 同一夹具复现脱离式队列的 Windows 输出管道差异，单独留在 [06-03 验收记录](../06-03/lifecycle-failover-drivers.md#windows-arm64-background-输出管道诊断)。
+- Rust 1.94.0 格式、macOS 锁定离线全目标严格 Clippy、三语构建及 18 项 Chrome 检查通过。回收来宾夹具和本批专属产物，虚拟机恢复停止。磁盘可用 67.69 GB（63.05 GiB），提交前周额度剩余 20%，按用户授权继续。夹具与日志位于 `/Users/Home/openrust-concurrency-arm.WYpUrEqM`。

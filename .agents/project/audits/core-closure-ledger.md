@@ -341,3 +341,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-05 [Windows ARM64 后台调度与 Redis 互斥](06-05/scheduler-output-background.md#windows-arm64-后台调度与-redis-互斥)通过原生 Windows 的真实 Artisan、Redis 以及后台进程的三种退出路径。核心账本维持 66/66。
 
 06-05 [Windows 后台调度关闭父输出管道](06-05/scheduler-output-background.md#windows-后台调度关闭父输出管道)通过 Windows ARM64 原生 EOF 回归、真实 Artisan、Redis、文件缓存和 macOS 复验。核心账本维持 66/66。
+
+07-04 [Windows ARM64 Concurrency 延后执行与管道](07-04/README.md#windows-arm64-concurrency-延后执行与管道)通过原生 Windows 的实际 HTTP 和 Artisan、macOS 回归及三语验收。06-03 Background 的 Windows 管道差异另记。核心账本维持 66/66。

@@ -23,3 +23,7 @@ macOS ARM64 和 Rust 1.94.0，MySQL 8.4.13 与 Redis 8.10.3 驱动专项通过�
 固定 Laravel 的 DeferredQueue、BackgroundQueue 复用同步执行路径。本批保留应用缓存中的所有者锁，借用旧版队列的重复派发和终态释放契约。Deferred 回调成功或报错后结算，Background 将锁随 JSON 交给独立进程。失败响应跳过任务和子进程启动失败会释放锁。若进程异常退出且无法执行清理，由租期回收。 [Laravel DeferredQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/DeferredQueue.php) · [Laravel BackgroundQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/BackgroundQueue.php)
 
 macOS ARM64、Rust 1.94.0，实际 HTTP、独立 Artisan、MySQL 8.4.13、Redis 8.10.3 专项通过。覆盖重复请求返回 409、失败响应跳过后释放、正常完成后释放、在生命周期外登记失败后可重新取得锁。真实 Worker 复验 Deferred 与 MySQL 到 Redis 的故障转移。三语文档构建、12 项浏览器检查、专项严格 Clippy 与格式检查通过。
+
+## Windows ARM64 Background 输出管道诊断
+
+在 `9ab6b416c` 的 Windows 11 ARM64 原生 `main.exe` 上，从真实 Artisan 向 `background` 连接派发。子进程正确收到 stdin 载荷和公开、隐藏 Context，父进程以 0 退出。子进程等待闸门时，调用方仍无法从父 stdout 和 stderr 捕获到 EOF，放行并等子进程退出后管道才关闭。保留此项待修复，下一批验证只继承任务输入和自身所需句柄。 [原生验收环境与记录](../07-04/README.md#windows-arm64-concurrency-延后执行与管道)

@@ -3492,3 +3492,7 @@ Windows ARM64 的真实 Artisan 验证了 Redis 跨进程协调，以及文件�
 ## 2026-11-18 06-05 Windows 后台调度关闭父输出管道
 
 Windows ARM64 原生 `schedule:run` 在后台子进程仍运行时，父输出管道均已关闭。文件缓存与 Redis 的成功、命令失败、后置钩子失败路径，以及 macOS 回归和三语文档通过。 [验收记录](audits/06-05/scheduler-output-background.md#windows-后台调度关闭父输出管道)
+
+## 2026-11-18 07-04 Windows ARM64 Concurrency 延后执行与管道
+
+Windows ARM64 上真实 HTTP、Artisan 和独立进程验证了任务输入及 Context、延后执行边界与原退出码。06-03 Background 独立诊断复现输出有待关闭的问题。 [07-04 验收](audits/07-04/README.md#windows-arm64-concurrency-延后执行与管道) · [06-03 诊断](audits/06-03/lifecycle-failover-drivers.md#windows-arm64-background-输出管道诊断)

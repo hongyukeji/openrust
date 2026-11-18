@@ -51,3 +51,5 @@ Call `Concurrency::defer(tasks)?` to register tasks whose results you do not nee
 Call `always()` on the returned handle to include error responses, unsuccessful commands and failed job attempts that reach their completion boundary. A job process killed before returning its outcome loses tasks registered in that process. Once a hard-timeout job returns its outcome, the parent worker runs the deferred tasks outside the job's time limit.
 
 Deferred tasks carry the public and hidden Context captured at registration. The application reports task failures through its exception handler, continues with later deferred callbacks, and reaps managed child processes.
+
+On Windows ARM64, managed process tasks receive their input and Context through stdin. HTTP can deliver the response while a task is still running. An Artisan command keeps supervising the deferred process until it exits, then the command exits with its original status and closes its captured output streams.
