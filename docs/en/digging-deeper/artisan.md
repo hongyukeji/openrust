@@ -46,7 +46,7 @@ The command catalog contains planned entries in addition to implemented commands
 ./artisan help migrate --format=md
 ```
 
-`list` and `help` accept `txt`, `json`, `xml` and `md`. Use `--raw` for a flat text list or compact text help. `list --short` retains names, aliases and implementation status and omits command details. Structured output keeps command and option identifiers stable across locales. Successful help and list commands exit with status 0. Invalid arguments, ambiguous commands and unknown commands exit with status 1.
+`list` and `help` accept `txt`, `json`, `xml` and `md`. Use `list --raw` for a flat text list. `help --raw` prints the full help as plain text, even when ANSI output is enabled. `list --short` retains names, aliases and implementation status and omits command details. Structured output keeps command and option identifiers stable across locales. Successful help and list commands exit with status 0. Invalid arguments, ambiguous commands and unknown commands exit with status 1.
 
 `--quiet` suppresses normal output. `--silent` also suppresses console errors. The global `--no-interaction`, `--ansi`, `--no-ansi`, `--version` and verbosity flags are available in command definitions.
 

@@ -348,7 +348,12 @@ impl Application {
                 if let Some(name) = command {
                     target = target.bin_name(format!("artisan {name}"));
                 }
-                output.stdout.push_str(&descriptor::help(&target, true));
+                let flags = || arguments.iter().take_while(|argument| *argument != "--");
+                let decorated = flags().any(|argument| argument == "--ansi")
+                    || (output.decorated && !flags().any(|argument| argument == "--no-ansi"));
+                output
+                    .stdout
+                    .push_str(&descriptor::help(&target, decorated));
                 return 0;
             }
             Err(version) => {

@@ -4,13 +4,13 @@ use clap::{Arg, ArgAction, Command};
 use quick_xml::escape::escape;
 use serde_json::{Map, Value, json};
 
-use super::localization::{description, headings, text};
+use super::localization::{description, styled_headings, text};
 
 pub(super) fn usage(command: &Command) -> String {
     command.clone().render_usage().to_string()
 }
 
-pub(super) fn help(command: &Command, long: bool) -> String {
+pub(super) fn help(command: &Command, decorated: bool) -> String {
     let title = description(command);
     let name = command.get_name();
     let mut order: Vec<_> = command
@@ -30,12 +30,17 @@ pub(super) fn help(command: &Command, long: bool) -> String {
             argument.help(help)
         }
     });
-    let rendered = if long {
-        command.render_long_help()
+    let rendered = command.render_long_help();
+    let styles = command.get_styles();
+    if decorated {
+        styled_headings(
+            &rendered.ansi().to_string(),
+            &styles.get_usage().render().to_string(),
+            &styles.get_header().render().to_string(),
+        )
     } else {
-        command.render_help()
-    };
-    headings(&rendered.to_string())
+        styled_headings(&rendered.to_string(), "", "")
+    }
 }
 
 pub(super) fn json_command(command: &Command, name: &str, implemented: bool, short: bool) -> Value {
@@ -48,7 +53,7 @@ pub(super) fn json_command(command: &Command, name: &str, implemented: bool, sho
     });
     if !short {
         result["usage"] = json!(usage(command));
-        result["help"] = json!(help(command, true));
+        result["help"] = json!(help(command, false));
         let (mut arguments, mut options) = (Map::new(), Map::new());
         for argument in command
             .get_arguments()
@@ -194,7 +199,7 @@ pub(super) fn write_markdown(output: &mut String, command: &Command) {
         output,
         "\n## {}\n\n```text\n{}\n```",
         text("usage_title", "Usage", "用法", "用法"),
-        help(command, true).trim_end(),
+        help(command, false).trim_end(),
     )
     .unwrap();
 }

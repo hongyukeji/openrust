@@ -3340,3 +3340,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 03-09 Redis Cluster 指定标签的异常索引登记清理
 
 指定标签清理分批回收归属于所选标签的异常 Redis Cluster 索引登记，包括含非 UTF-8 字节的登记，保留实际 Redis 值键。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签的异常索引登记清理)
+
+## 2026-11-18 06-08 Artisan 完整纯文本帮助
+
+按固定 Symfony Console 文本描述器保留完整帮助内容。普通帮助遵循终端样式选择，`help --raw` 强制纯文本。17 项定向回归、三语实际 Artisan、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/06-08/README.md#artisan-完整纯文本帮助)

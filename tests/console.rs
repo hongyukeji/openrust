@@ -40,6 +40,45 @@ impl Command for Greet {
 }
 
 #[tokio::test]
+async fn raw_help_includes_the_registered_commands_long_help() {
+    let app = Application::configure(std::env::current_dir().unwrap())
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app, Artisan::new());
+    kernel
+        .register_command(Box::new(Greet(CommandDefinition::new(
+            clap::Command::new("greet")
+                .visible_alias("say-hi")
+                .about("Greet someone")
+                .long_about("Greet someone and describe the full workflow.")
+                .arg(
+                    Arg::new("name")
+                        .required(true)
+                        .help("Name")
+                        .long_help("Name as it should appear in the greeting."),
+                ),
+        ))))
+        .unwrap();
+    let mut direct = Output::default();
+    assert_eq!(
+        kernel
+            .handle(&["say-hi", "--help"].map(OsString::from), &mut direct)
+            .await,
+        0
+    );
+    let mut raw = Output::default();
+    assert_eq!(
+        kernel
+            .handle(&["help", "say-hi", "--raw"].map(OsString::from), &mut raw,)
+            .await,
+        0
+    );
+    assert_eq!(direct.stdout, raw.stdout);
+    assert!(raw.stdout.contains("describe the full workflow"));
+    assert!(raw.stdout.contains("as it should appear in the greeting"));
+}
+
+#[tokio::test]
 async fn artisan_reports_dispatch_errors_and_keeps_console_rendering() {
     use openrust::foundation::configuration::ReportDecision;
     use std::sync::Arc;

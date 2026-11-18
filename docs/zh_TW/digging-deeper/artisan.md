@@ -46,7 +46,7 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 ./artisan help migrate --format=md
 ```
 
-`list` 和 `help` 支援 `txt`、`json`、`xml` 和 `md`。`--raw` 輸出平鋪清單或精簡文字說明。`list --short` 保留名稱、別名和實作狀態，省略命令詳細資料。各語言的結構化輸出使用相同的命令和選項識別碼。說明和清單成功時結束碼為 0。引數錯誤、歧義和未知命令的結束碼為 1。
+`list` 和 `help` 支援 `txt`、`json`、`xml` 和 `md`。`list --raw` 輸出平鋪清單。`help --raw` 輸出完整的純文字說明，啟用 ANSI 時也會移除樣式。`list --short` 保留名稱、別名和實作狀態，省略命令詳細資料。各語言的結構化輸出使用相同的命令和選項識別碼。說明和清單成功時結束碼為 0。引數錯誤、歧義和未知命令的結束碼為 1。
 
 `--quiet` 隱藏一般輸出。`--silent` 同時隱藏主控台錯誤。命令定義也可使用全域 `--no-interaction`、`--ansi`、`--no-ansi`、`--version` 和詳細程度選項。
 

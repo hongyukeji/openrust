@@ -40,6 +40,10 @@ pub(super) fn description(command: &clap::Command) -> String {
 }
 
 pub(super) fn headings(rendered: &str) -> String {
+    styled_headings(rendered, "", "")
+}
+
+pub(super) fn styled_headings(rendered: &str, usage_style: &str, header_style: &str) -> String {
     rendered
         .split_inclusive('\n')
         .map(|line| {
@@ -49,8 +53,19 @@ pub(super) fn headings(rendered: &str) -> String {
                 ("arguments", "Arguments:", "参数：", "引數："),
                 ("commands", "Commands:", "命令：", "命令："),
             ] {
-                if let Some(tail) = line.strip_prefix(english) {
-                    return format!("{}{tail}", text(key, english, simplified, traditional));
+                let style = if key == "usage" {
+                    usage_style
+                } else {
+                    header_style
+                };
+                if let Some(tail) = line
+                    .strip_prefix(style)
+                    .and_then(|line| line.strip_prefix(english))
+                {
+                    return format!(
+                        "{style}{}{tail}",
+                        text(key, english, simplified, traditional)
+                    );
                 }
             }
             line.into()

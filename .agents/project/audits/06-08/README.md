@@ -11,3 +11,10 @@
 - 从三语文档抽取七条公共命令实际执行，解析 JSON 和 XML 并检查 Markdown。三语站点构建、12 项通用浏览器检查及 6 项 Artisan 到本地化小节导航通过。
 
 下一单元 07-01 Helpers 与 Strings，前置 02-08 已提交。
+
+## Artisan 完整纯文本帮助
+
+- Symfony Console v7.4.0 的 `HelpCommand` 将 `--raw` 作为文本描述器的样式选项。详细帮助、参数及选项仍走原命令描述。复核旧版 `tests/unit/console/command_help.rs`，复用两种入口读取注册定义的回归思路。OpenRust 统一渲染 Clap 长帮助，保留应用注册的长简介和参数详细说明。普通文本帮助尊重 ANSI 选择并翻译标题，`--raw` 强制纯文本。JSON、XML、Markdown 延续既有字段与布局，保持纯文本内容。 [固定 Symfony HelpCommand](https://github.com/symfony/console/blob/v7.4.0/Command/HelpCommand.php#L57) · [固定文本描述器](https://github.com/symfony/console/blob/v7.4.0/Descriptor/TextDescriptor.php#L111)
+- 隔离快照 `b6cb04500` 的 17 项 `console`、`feature`、`artisan_entry` 回归通过。实际 `./artisan` 验证中英文三语标题、两种帮助入口、ANSI 与纯文本内容等价、结构化输出和未知命令退出 1。注册命令回归带必填参数和别名，验证帮助退出 0 且保留详细说明。
+- Rust 1.94.0 全仓格式及全目标严格 Clippy、三语站点构建与根路径和 `/docs/` 的 18 项浏览器检查通过。已回收本批隔离编译和站点产物。项目卷可用 89.04 GB（82.93 GiB），提交前周额度剩余 27%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-artisan-raw-help.tyEkCgMR`。
+- 提交前本地 Git 合并了独立短信文档。核对隔离快照与新基线 `49b40cf74` 的差异仅涉及文档，随后在新基线复跑三语构建和 18 项浏览器检查，全部通过。

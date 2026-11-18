@@ -70,6 +70,31 @@ fn artisan_supports_both_command_help_forms() {
 }
 
 #[test]
+fn artisan_raw_help_keeps_full_localized_text_without_ansi() {
+    for (locale, usage, options) in [
+        ("en", "Usage:", "Options:"),
+        ("zh_CN", "用法：", "选项："),
+        ("zh_TW", "用法：", "選項："),
+    ] {
+        let plain = artisan_in(&["help", "list", "--no-ansi"], locale, None);
+        let raw = artisan_in(&["help", "list", "--raw", "--ansi"], locale, None);
+        let decorated = artisan_in(&["help", "list", "--ansi"], locale, None);
+        let direct = artisan_in(&["list", "--help", "--ansi"], locale, None);
+        for output in [&plain, &raw, &decorated, &direct] {
+            assert!(output.status.success());
+            assert!(output.stderr.is_empty());
+        }
+        assert_eq!(raw.stdout, plain.stdout);
+        assert_eq!(decorated.stdout, direct.stdout);
+        assert!(!raw.stdout.contains(&0x1b));
+        assert!(decorated.stdout.contains(&0x1b));
+        let decorated = String::from_utf8(decorated.stdout).unwrap();
+        assert!(decorated.contains(usage) && decorated.contains(options));
+        assert!(decorated.contains("--format"));
+    }
+}
+
+#[test]
 fn artisan_inspire_prints_an_attributed_quote() {
     let output = artisan(&["inspire"]);
     assert!(output.status.success());
