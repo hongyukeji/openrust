@@ -265,6 +265,7 @@ impl AuthManager {
         };
         AuthContext::set_shared(request, &identity.guard, Some(identity.user), false);
         AuthContext::mutable(request).selected = Some(identity.guard.clone());
+        AuthContext::publish(request);
         RequestTokens::insert(
             request,
             &identity.guard,
@@ -473,6 +474,7 @@ impl Factory for AuthManager {
     fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()> {
         self.guard_config(request, Some(name))?;
         AuthContext::mutable(request).selected = Some(name.to_owned());
+        AuthContext::publish(request);
         Ok(())
     }
 }

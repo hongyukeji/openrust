@@ -40,7 +40,17 @@ mod identity;
 mod providers;
 pub use facade::Auth;
 
+pub(crate) fn logged_user(
+    attributes: &crate::http::RequestAttributes,
+    default: &str,
+) -> Option<std::sync::Arc<dyn crate::contracts::auth::Authenticatable>> {
+    session_guard::AuthContext::logged_user(attributes, default)
+}
+
 pub(crate) fn reset_request(request: &mut crate::http::Request) {
+    request
+        .attributes()
+        .remove(std::any::type_name::<session_guard::AuthContext>());
     #[cfg(feature = "sanctum")]
     request
         .parts_mut()

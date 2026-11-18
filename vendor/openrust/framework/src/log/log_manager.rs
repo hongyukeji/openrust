@@ -109,6 +109,11 @@ impl LogManager {
     }
 
     /// Registers a named driver. Existing cached channels retain their current driver.
+    pub(super) fn with_listeners(mut self, listeners: Arc<super::events::Listeners>) -> Self {
+        self.listeners = listeners;
+        self
+    }
+
     pub fn extend(
         &self,
         driver: impl Into<String>,

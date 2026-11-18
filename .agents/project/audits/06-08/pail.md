@@ -16,4 +16,4 @@ PHP 序列化异常转换为现有 Rust 结构化异常快照。Pail 的跨进�
 
 ## 状态
 
-[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。Pail 捕获、命令和开发进程注册待后续依次实现与验收。
+[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。下一批先补该认证入口，再实现 Pail 命令和开发进程注册。

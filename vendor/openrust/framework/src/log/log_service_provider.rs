@@ -18,6 +18,8 @@ impl ServiceProvider for LogServiceProvider {
             let root = application.base_path().to_path_buf();
             let owner = Arc::downgrade(&application.container_handle());
             let container = application.container();
+            let listeners = Arc::new(super::events::Listeners::default());
+            container.instance(listeners.clone())?;
             container.instance(Arc::new(super::context::Hooks::default()))?;
             container.scopedIf::<Repository, _>(|container| {
                 if !container.has_active_scope() {
@@ -28,7 +30,9 @@ impl ServiceProvider for LogServiceProvider {
             container.singletonNamed("log", move |container| {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
                 Ok(Arc::new(
-                    LogManager::new(config, root.clone()).with_context_owner(owner.clone()),
+                    LogManager::new(config, root.clone())
+                        .with_context_owner(owner.clone())
+                        .with_listeners(listeners.clone()),
                 ))
             })?;
             container.alias("log", crate::container::ServiceKey::typed::<LogManager>())?;

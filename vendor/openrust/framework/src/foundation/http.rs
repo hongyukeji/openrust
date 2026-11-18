@@ -227,6 +227,17 @@ impl http::Kernel for Kernel {
                 request.matched_route = false;
                 let attributes = request.attributes().clone();
                 let deferred = DeferredCallbacks::default();
+                let log_origin = crate::log::context::Origin::enabled(self.application.container())
+                    .then(|| {
+                        let default_guard = self
+                            .application
+                            .config()
+                            .ok()
+                            .and_then(|config| config.get("auth.defaults.guard"))
+                            .and_then(|value| value.as_str().map(str::to_owned))
+                            .unwrap_or_else(|| "web".into());
+                        crate::log::context::Origin::http(request, default_guard)
+                    });
                 let request_lifecycle = Box::pin(crate::http::request_context::scope(
                     self.application.container_handle(),
                     request.uri().clone(),
@@ -243,6 +254,11 @@ impl http::Kernel for Kernel {
                         ),
                     ),
                 ));
+                let request_lifecycle = crate::log::context::Origin::scope(
+                    self.application.container_handle(),
+                    log_origin,
+                    request_lifecycle,
+                );
                 let mut response = deferred.scope(request_lifecycle).await;
                 response.prepare_binary_file(request.method(), request.headers());
                 request.exceptions = previous_exceptions;

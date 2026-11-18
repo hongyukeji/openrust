@@ -111,3 +111,7 @@ vendor/openrust/framework/
 ## Pail 日志监听前置
 
 已核定 [Pail 专项对照与顺序](pail.md)，并完成 [同步日志监听](../01-04/log-listeners.md)。跨渠道通知、原载荷、回调顺序和错误、重入及双应用隔离通过真实 HTTP 与独立 Artisan 验收。Pail 跨进程捕获、命令和开发进程注册继续依次推进。
+
+## Pail 会话捕获
+
+[专项验收](pail-capture.md)完成独立可选包、现有包发现、活跃会话 JSON 行、跨进程锁、过期与删除、HTTP／命令／队列来源和公开 Context。真实双应用 HTTP、独立 Artisan、并发命令及同步任务、MySQL 8.4.13 Worker、失败回调、后续消费和隔离 deferred 回调通过。日志／认证／根 Console 定向回归、严格 Clippy、三语站点与 12 项浏览器检查通过。Rust 同步日志只读取已解析认证身份，自动解析差异继续跟踪；`pail` 命令和 dev 注册尚未实现。

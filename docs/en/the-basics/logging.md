@@ -220,3 +220,13 @@ fn register_log_listener() -> Result<(), LogError> {
     })
 }
 ```
+
+## Pail Session Capture
+
+Build with `cargo build --features pail` to discover the optional `openrust-pail` provider. It copies accepted messages from any log driver into active `storage/pail/*.pail` sessions. No session file means no capture file is written. The `pail` command and its filters are still pending.
+
+The package exposes `File`, `Files`, `Handler` and `PailServiceProvider`. `File::create()` starts a session without truncating an existing file; `destroy()` removes it. Captures use locked JSON lines across processes, preserve severity and structured exceptions, and expire a session after more than one hour without writes. A removed session is not recreated by logging. File errors propagate through the original logging result.
+
+Records include HTTP method/path, command name or queue/job metadata under `context.__pail.origin`. Public Context values override message context; hidden values are excluded. Rust uses application-bound asynchronous scopes to isolate overlapping requests, nested commands and concurrent jobs in one process. Without log listeners, origin collection is skipped.
+
+HTTP identity reflects the current guard's already-resolved user, including a later guard switch. Before asynchronous authentication resolves it is null. PHP Pail can resolve authentication synchronously while logging; this remaining difference is tracked separately. This capture section does not claim complete Pail command or authentication parity.

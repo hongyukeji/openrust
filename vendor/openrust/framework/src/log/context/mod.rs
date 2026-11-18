@@ -1,6 +1,8 @@
 //! Context associated with the current request or job.
 
 mod facade;
+mod origin;
+pub use origin::{Http, Origin};
 mod repository;
 
 pub use facade::Context;

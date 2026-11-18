@@ -22,6 +22,8 @@ pub(crate) const COMMAND: &str = "__queue-execute-reservation";
 
 #[derive(Serialize, Deserialize)]
 struct Request {
+    #[serde(default)]
+    command: Option<String>,
     payload: Payload,
     connection: String,
     queue: String,
@@ -60,6 +62,13 @@ pub(crate) async fn serve(
         attempts: request.attempts,
         ..Default::default()
     };
+    let origin = crate::log::context::Origin::enabled(&container).then(|| {
+        crate::log::context::Origin::Queue {
+            command: request.command.clone(),
+            queue: context.queue.clone(),
+            job: request.payload.name().into(),
+        }
+    });
     let execution = isolated_scope(container.clone(), async {
         use crate::log::context::Context;
         let repository = Context::repository().map_err(backend)?;
@@ -82,13 +91,22 @@ pub(crate) async fn serve(
         result
     });
     let deferred = DeferredCallbacks::for_isolated_job();
-    let result = deferred.scope(execution).await;
-    let transfers = isolated_scope(container, async {
-        deferred
-            .invoke(&app, result.is_ok() && !context.fail_immediately)
-            .await;
-        deferred.take_transfers()
-    })
+    let result = crate::log::context::Origin::scope(
+        container.clone(),
+        origin.clone(),
+        Box::pin(deferred.scope(Box::pin(execution))),
+    )
+    .await;
+    let transfers = crate::log::context::Origin::scope(
+        container.clone(),
+        origin,
+        Box::pin(isolated_scope(container, async {
+            deferred
+                .invoke(&app, result.is_ok() && !context.fail_immediately)
+                .await;
+            deferred.take_transfers()
+        })),
+    )
     .await;
     let missing_model = match &result {
         Err(super::QueueError::MissingModel(table)) => Some(table.clone()),
@@ -143,6 +161,11 @@ pub(super) async fn execute(
         .and_then(|name| name.strip_prefix(".env."))
         .map(str::to_owned);
     let request = Request {
+        command: match crate::log::context::Origin::current() {
+            Some(crate::log::context::Origin::Console { command })
+            | Some(crate::log::context::Origin::Queue { command, .. }) => command,
+            _ => None,
+        },
         payload: job.payload().clone(),
         connection: job.get_connection_name().into(),
         queue: job.get_queue().into(),

@@ -8,6 +8,7 @@ use std::{
 
 use clap::{Arg, ArgAction, ArgMatches, Command as Syntax, error::ErrorKind};
 
+use crate::contracts::foundation::Application as _;
 use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
 use super::{
@@ -565,47 +566,73 @@ impl Application {
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
-        let command: &dyn Command = match entry {
-            Entry::List(_) => return Ok(list_command::run(self, syntax, Some(matches), output)),
-            Entry::Help(_) => return help_command::run(self, syntax, matches, output),
-            Entry::Tasks(operation, _) => {
-                return task_command::run(self, application, syntax, *operation, matches, output)
-                    .await;
+        let origin = crate::log::context::Origin::enabled(application.container()).then(|| {
+            match crate::log::context::Origin::current() {
+                Some(origin @ crate::log::context::Origin::Http(_)) => origin,
+                _ => crate::log::context::Origin::Console {
+                    command: Some(entry.definition().name().to_owned()),
+                },
             }
-            Entry::Planned(definition) => {
-                return Err(ConsoleError::new(format!(
-                    "Command '{}' is not implemented yet.",
-                    definition.name(),
-                )));
-            }
-            Entry::Closure(command) => command,
-            Entry::Command(command) => command.as_ref(),
-        };
-        let input = Input {
-            syntax: command.definition().syntax.clone(),
-            matches: matches.clone(),
-            shutdown,
-        };
-        let definition = command.definition();
-        let Some(code) = definition
-            .isolated
-            .then(|| matches.get_one::<i32>("isolated").copied())
-            .flatten()
-        else {
-            return command.handle(application, &input, output).await;
-        };
+        });
+        crate::log::context::Origin::scope(
+            application.container_handle(),
+            origin,
+            Box::pin(async move {
+                let command: &dyn Command = match entry {
+                    Entry::List(_) => {
+                        return Ok(list_command::run(self, syntax, Some(matches), output));
+                    }
+                    Entry::Help(_) => return help_command::run(self, syntax, matches, output),
+                    Entry::Tasks(operation, _) => {
+                        return task_command::run(
+                            self,
+                            application,
+                            syntax,
+                            *operation,
+                            matches,
+                            output,
+                        )
+                        .await;
+                    }
+                    Entry::Planned(definition) => {
+                        return Err(ConsoleError::new(format!(
+                            "Command '{}' is not implemented yet.",
+                            definition.name(),
+                        )));
+                    }
+                    Entry::Closure(command) => command,
+                    Entry::Command(command) => command.as_ref(),
+                };
+                let input = Input {
+                    syntax: command.definition().syntax.clone(),
+                    matches: matches.clone(),
+                    shutdown,
+                };
+                let definition = command.definition();
+                let Some(code) = definition
+                    .isolated
+                    .then(|| matches.get_one::<i32>("isolated").copied())
+                    .flatten()
+                else {
+                    return command.handle(application, &input, output).await;
+                };
 
-        let name = definition.name();
-        let key = format!("framework/command-{name}");
-        let lock_error = |error| ConsoleError::new(format!("Command isolation lock: {error}"));
-        let mut lock = Cache::lock(&key, Some(Duration::from_secs(3600))).map_err(lock_error)?;
-        if !lock.get().await.map_err(lock_error)? {
-            output.comment(&format!("The [{name}] command is already running."));
-            return Ok(code);
-        }
-        let result = command.handle(application, &input, output).await;
-        let released = lock.release().await.map_err(lock_error);
-        result.and_then(|status| released.map(|_| status))
+                let name = definition.name();
+                let key = format!("framework/command-{name}");
+                let lock_error =
+                    |error| ConsoleError::new(format!("Command isolation lock: {error}"));
+                let mut lock =
+                    Cache::lock(&key, Some(Duration::from_secs(3600))).map_err(lock_error)?;
+                if !lock.get().await.map_err(lock_error)? {
+                    output.comment(&format!("The [{name}] command is already running."));
+                    return Ok(code);
+                }
+                let result = command.handle(application, &input, output).await;
+                let released = lock.release().await.map_err(lock_error);
+                result.and_then(|status| released.map(|_| status))
+            }),
+        )
+        .await
     }
 }
 

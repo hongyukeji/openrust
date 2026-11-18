@@ -6,6 +6,7 @@ use std::{
 use crate::{
     container::Container,
     contracts::{container::Container as _, queue::JobHandler},
+    log::context::Origin,
     support::facades::application_scope,
 };
 
@@ -115,9 +116,14 @@ impl Queue {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        application_scope(owner, async {
-            handler.failed(context, payload, error).await
-        })
+        let origin = Origin::job(&context.queue, payload.name());
+        Origin::scope(
+            owner.clone(),
+            origin,
+            Box::pin(application_scope(owner, async {
+                handler.failed(context, payload, error).await
+            })),
+        )
         .await
     }
 
@@ -135,30 +141,35 @@ impl Queue {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        application_scope(owner.clone(), async {
-            let middleware = handler.middleware();
-            let running = context
-                .running_handler
-                .filter(|_| handler.interruptible().is_some());
-            if let Some(running) = running {
-                *running
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(handler.clone());
-            }
-            let result = super::middleware::JobNext::new(handler.as_ref(), &middleware, &owner)
-                .run(context, payload)
-                .await;
-            if let Some(running) = running {
-                *running
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-            }
-            result?;
-            if context.release_after.is_none() {
-                context.finish_chain_edit(payload)?;
-            }
-            Ok(())
-        })
+        let origin = Origin::job(&context.queue, payload.name());
+        Origin::scope(
+            owner.clone(),
+            origin,
+            Box::pin(application_scope(owner.clone(), async {
+                let middleware = handler.middleware();
+                let running = context
+                    .running_handler
+                    .filter(|_| handler.interruptible().is_some());
+                if let Some(running) = running {
+                    *running
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(handler.clone());
+                }
+                let result = super::middleware::JobNext::new(handler.as_ref(), &middleware, &owner)
+                    .run(context, payload)
+                    .await;
+                if let Some(running) = running {
+                    *running
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                }
+                result?;
+                if context.release_after.is_none() {
+                    context.finish_chain_edit(payload)?;
+                }
+                Ok(())
+            })),
+        )
         .await
     }
 }

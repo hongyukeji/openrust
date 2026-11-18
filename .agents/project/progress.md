@@ -3574,3 +3574,7 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 ## 2026-11-19 01-04／06-08 同步日志监听
 
 按固定 Laravel Logger 接通 `Log::listen`、`LogManager::listen` 和 `Logger::listen`，先写入再通知，保留原载荷、阈值和应用隔离。Rust 同步闭包返回 `LogResult<()>`，通用异步事件采用显式分发。Ubuntu 的 22 项回归、真实 HTTP、两个独立 Artisan 入口、严格 Clippy、格式和三语站点及浏览器检查通过。文件树和命令见 [验收记录](audits/01-04/log-listeners.md)。已核定 Pail v1.2.5 专项 Spec，下一批接会话捕获、来源及文件生命周期，再接命令。
+
+### 2026-11-19 06-08 Pail 会话捕获
+
+按固定 Pail v1.2.5 实现 `openrust-pail` 可选包、Provider 发现、File／Files／Handler、JSON 行会话与跨进程文件锁、过期和删除。框架补来源执行作用域、已解析认证快照、队列与隔离子进程接线。真实双应用 HTTP、独立 Artisan、并发命令与同步任务、MySQL 8.4.13 Worker 的失败记录、后续消费和隔离 deferred 来源通过。最终 22 项日志／Context、1 项精确 MySQL 认证、7 项根 Console、Pail 文件父测试与子进程入口、全目标严格 Clippy、格式、三语站点和 12 项浏览器检查通过。根二进制自动发现、HTTP、Artisan 及 SIGINT 通过，临时路由已恢复。文件树、具体命令及 Rust 适配见 [验收记录](audits/06-08/pail-capture.md)。同步日志不能自动等待认证解析的差异尚待闭合，随后再接 Pail 命令与 dev 注册。核心账本维持 66/66。

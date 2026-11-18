@@ -61,6 +61,35 @@ impl AuthContext {
         Self::get(request)?.guards.get(name)
     }
 
+    pub(super) fn publish(request: &Request) {
+        if !crate::support::facades::current_container()
+            .is_some_and(|owner| crate::log::context::Origin::enabled(&owner))
+        {
+            return;
+        }
+        if let Some(context) = Self::get(request) {
+            request.attributes().insert(
+                std::any::type_name::<Self>(),
+                crate::container::ParameterValue::new(context.clone()),
+            );
+        }
+    }
+
+    pub(super) fn logged_user(
+        attributes: &crate::http::RequestAttributes,
+        default: &str,
+    ) -> Option<Arc<dyn Authenticatable>> {
+        let context = attributes
+            .get(std::any::type_name::<Self>())?
+            .downcast::<Self>()
+            .ok()?;
+        context
+            .guards
+            .get(context.selected.as_deref().unwrap_or(default))?
+            .user
+            .clone()
+    }
+
     pub(super) fn set(
         request: &mut Request,
         name: &str,
@@ -84,6 +113,7 @@ impl AuthContext {
                 via_remember: remembered,
             },
         );
+        Self::publish(request);
     }
 }
 

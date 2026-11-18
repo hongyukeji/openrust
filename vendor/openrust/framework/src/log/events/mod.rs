@@ -14,6 +14,14 @@ type Listener = dyn Fn(&MessageLogged) -> LogResult<()> + Send + Sync;
 pub(super) struct Listeners(RwLock<Vec<Arc<Listener>>>);
 
 impl Listeners {
+    pub fn has_listeners(&self) -> bool {
+        !self
+            .0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .is_empty()
+    }
+
     pub fn listen(
         &self,
         listener: impl Fn(&MessageLogged) -> LogResult<()> + Send + Sync + 'static,

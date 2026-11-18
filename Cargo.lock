@@ -3358,6 +3358,7 @@ dependencies = [
  "clap",
  "openrust-framework",
  "openrust-package-discovery",
+ "openrust-pail",
  "openrust-reverb",
  "serde",
  "serde_json",
@@ -3469,6 +3470,19 @@ name = "openrust-package-discovery"
 version = "0.0.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "openrust-pail"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "clap",
+ "fastrand",
+ "openrust-framework",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

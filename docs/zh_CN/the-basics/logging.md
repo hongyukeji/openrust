@@ -220,3 +220,13 @@ fn register_log_listener() -> Result<(), LogError> {
     })
 }
 ```
+
+## Pail 会话捕获
+
+使用 `cargo build --features pail` 启用可选的 `openrust-pail` 包，现有包发现会装配 Provider。它将任意日志驱动接受的消息复制到当前应用的 `storage/pail/*.pail` 活跃会话。没有会话文件时不写捕获文件。`pail` 命令及筛选接口尚待实现。
+
+包公开 `File`、`Files`、`Handler` 和 `PailServiceProvider`。`File::create()` 创建会话，保留已有文件内容；`destroy()` 删除会话。跨进程文件锁保护 JSON 行写入，保留级别和结构化异常。超过一小时未写入的会话会被清除。日志不会重建已删除的会话，文件错误沿原日志结果传播。
+
+`context.__pail.origin` 包含 HTTP 方法与路径、命令名或队列与任务来源。公开 Context 覆盖消息 context，隐藏数据不进入捕获。Rust 以绑定应用的异步作用域隔离同进程并发请求、嵌套命令及并发任务；没有日志监听器时跳过来源收集。
+
+HTTP 身份读取当前 guard 已解析的用户，后续切换 guard 也会更新。异步认证尚未解析时身份为 null。PHP Pail 可以在同步日志调用中解析认证，这项差异单独跟踪；本节不代表 Pail 命令和认证行为已经全部对齐。

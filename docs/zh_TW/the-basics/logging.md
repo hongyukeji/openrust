@@ -220,3 +220,13 @@ fn register_log_listener() -> Result<(), LogError> {
     })
 }
 ```
+
+## Pail 工作階段擷取
+
+使用 `cargo build --features pail` 啟用選用的 `openrust-pail` 套件，現有套件探索會裝配 Provider。它將任意日誌驅動接受的訊息複製到目前應用的 `storage/pail/*.pail` 活躍工作階段。沒有工作階段檔案時不寫擷取檔案。`pail` 命令及篩選介面仍待實作。
+
+套件公開 `File`、`Files`、`Handler` 和 `PailServiceProvider`。`File::create()` 建立工作階段，保留既有檔案內容；`destroy()` 刪除工作階段。跨處理程序檔案鎖保護 JSON 行寫入，保留等級和結構化例外。超過一小時未寫入的工作階段會被清除。日誌不會重建已刪除的工作階段，檔案錯誤沿原日誌結果傳遞。
+
+`context.__pail.origin` 包含 HTTP 方法與路徑、命令名稱或佇列與任務來源。公開 Context 覆蓋訊息 context，隱藏資料不進入擷取。Rust 以綁定應用的非同步作用域隔離同處理程序並行請求、巢狀命令與並行任務；沒有日誌監聽器時略過來源收集。
+
+HTTP 身分讀取目前 guard 已解析的使用者，後續切換 guard 也會更新。非同步驗證尚未解析時身分為 null。PHP Pail 可以在同步日誌呼叫中解析驗證，這項差異另行追蹤；本節不代表 Pail 命令和驗證行為已經全部對齊。
