@@ -263,3 +263,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 基于隔离快照 `b2fe0fc52` 使用真实 HTTP 与本地服务比对完整 JSON。验证 Block Kit 路由回退、旧式消息只从 Webhook 投递、HTTP 错误与重定向。MySQL 和 Redis 队列含附件原始字段及加密目标 URL，独立 Artisan Worker 在供应商 403 后重试成功，失败表为空。真实 Slack 工作区显示效果待授权的供应商验收。
 - `mail_notifications` 26 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对余下 Block Kit 构建器及约束。
 - 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.13 GB（83.94 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-legacy.uRRILLkP`。
+
+## Slack Block Kit 选择器与文本约束 {#slack-block-kit-选择器与文本约束}
+
+- 对照固定 Slack v3.8.0 的 `StaticSelectElement`、`UsersSelectElement`、`ButtonElement` 和文本单测。旧版 `openrust-v0.x` 无对应 Slack 实现，复用主线动作区块、段落附属组件、通知序列化和独立 Worker。两种选择器支持显式 ID、占位文字、初始选项／用户及保留 `false` 的焦点配置。静态选项按原始键覆写并保序，供应商收到过滤后的规范小写值。 [固定选择器](https://github.com/laravel/slack-notification-channel/tree/v3.8.0/src/Slack/BlockKit/Elements/Selects) · [固定选择器测试](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/tests/Slack/Unit/Elements/Selects/StaticSelectElementTest.php)
+- `tryActionsBlock` 传播未知初始选项。Rust 的选择器入口把文本参数用于占位文字，固定 PHP 构建器需要显式调用 `placeholder`。默认选择器 ID 使用带上游前缀的 UUID。按钮生成的 ID 对齐 Laravel 的连字符 slug，显式 ID 保持原值。类型化文本按固定字节上限截断并保留 UTF-8 字符边界。空文本和过长的动作标识及按钮参数在生成载荷时返回错误。纯文本只发送 `emoji`，Markdown 只发送 `verbatim`。 [固定按钮测试](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/tests/Slack/Unit/Elements/ButtonElementTest.php) · [固定文本对象](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Slack/BlockKit/Composites/TextObject.php)
+- 基于隔离快照 `05305abd1`，真实 HTTP 验证两个选择器的 JSON、按钮与确认框及未知初始选项在发送前失败。MySQL 和 Redis 的独立 Artisan Worker 验证选择器随队列载荷投递，MySQL 在供应商拒绝后重试。文档示例另外通过本地 Webhook 协议服务。实际 Slack 回调和展示由授权工作区验收。
+- `mail_notifications` 27 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对标题、分隔线和图片区块的回调配置及约束。
+- 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.10 GB（83.92 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-block-kit.SFgo5GfV`。

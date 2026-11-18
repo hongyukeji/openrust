@@ -56,6 +56,15 @@ impl SlackMessage {
         self.block(block.into_json())
     }
 
+    pub fn tryActionsBlock(
+        self,
+        build: impl FnOnce(&mut ActionsBlock) -> NotificationResult<()>,
+    ) -> NotificationResult<Self> {
+        let mut block = ActionsBlock::default();
+        build(&mut block)?;
+        Ok(self.block(block.into_json()))
+    }
+
     pub fn emoji(mut self, emoji: impl Into<String>) -> Self {
         self.fields.remove("icon_url");
         self.field("icon_emoji", emoji.into())
@@ -156,22 +165,82 @@ impl SlackMessage {
 
 fn validate_block(block: &Value) -> NotificationResult<()> {
     match block["type"].as_str() {
-        Some("context") => check_items(&block["elements"], 1, 10)?,
-        Some("actions") => check_items(&block["elements"], 1, 25)?,
+        Some("header") => check_text(&block["text"])?,
+        Some("context") => {
+            check_items(&block["elements"], 1, 10)?;
+            for element in block["elements"].as_array().into_iter().flatten() {
+                if matches!(element["type"].as_str(), Some("plain_text" | "mrkdwn")) {
+                    check_text(element)?;
+                }
+            }
+        }
+        Some("actions") => {
+            check_items(&block["elements"], 1, 25)?;
+            for element in block["elements"].as_array().into_iter().flatten() {
+                validate_action(element)?;
+            }
+        }
         Some("section") => {
             let min = usize::from(block["text"].is_null());
             check_items(&block["fields"], min, 10)?;
+            if !block["text"].is_null() {
+                check_text(&block["text"])?;
+            }
+            for field in block["fields"].as_array().into_iter().flatten() {
+                check_text(field)?;
+            }
+            validate_action(&block["accessory"])?;
         }
         Some(kind) if !kind.trim().is_empty() => {}
         _ => return Err(delivery("Each Slack block requires a type.")),
     }
-    if block["block_id"]
+    check_length(block, "block_id", 255)
+}
+
+fn validate_action(element: &Value) -> NotificationResult<()> {
+    match element["type"].as_str() {
+        Some("button") => {
+            check_text(&element["text"])?;
+            check_length(element, "url", 3000)?;
+            check_length(element, "value", 2000)?;
+            check_length(element, "accessibility_label", 75)?;
+            if let Some(dialog) = element.get("confirm") {
+                for key in ["title", "text", "confirm", "deny"] {
+                    check_text(&dialog[key])?;
+                }
+            }
+        }
+        Some("static_select" | "users_select") => {
+            if let Some(placeholder) = element.get("placeholder") {
+                check_text(placeholder)?;
+            }
+            for option in element["options"].as_array().into_iter().flatten() {
+                check_text(&option["text"])?;
+            }
+            if let Some(option) = element.get("initial_option") {
+                check_text(&option["text"])?;
+            }
+        }
+        _ => return Ok(()),
+    }
+    check_length(element, "action_id", 255)
+}
+
+fn check_text(object: &Value) -> NotificationResult<()> {
+    if object["text"].as_str().is_none_or(str::is_empty) {
+        return Err(delivery("A Slack Block Kit text object requires text."));
+    }
+    Ok(())
+}
+
+fn check_length(object: &Value, field: &str, limit: usize) -> NotificationResult<()> {
+    if object[field]
         .as_str()
-        .is_some_and(|id| id.chars().count() > 255)
+        .is_some_and(|value| value.len() > limit)
     {
-        return Err(delivery(
-            "A Slack block ID may contain at most 255 characters.",
-        ));
+        return Err(delivery(format!(
+            "The Slack {field} field may contain at most {limit} bytes."
+        )));
     }
     Ok(())
 }

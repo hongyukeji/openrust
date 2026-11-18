@@ -1,27 +1,69 @@
-use serde::Serialize;
+use serde::{Serialize, ser::SerializeMap};
 use serde_json::{Value, json};
 
 use crate::support::Str;
 
+use super::selects::{StaticSelectElement, UsersSelectElement};
+
 pub(super) fn plain_text(text: impl Into<String>) -> Value {
-    json!({"type":"plain_text","text":text.into()})
+    json!(PlainText::new(text, 150))
+}
+
+fn truncate(mut text: String, limit: usize) -> String {
+    if text.len() > limit {
+        let mut end = limit - 3;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+        text.push_str("...");
+    }
+    text
 }
 
 #[derive(Serialize)]
-pub struct TextObject {
+pub struct PlainText {
     #[serde(rename = "type")]
     kind: &'static str,
     text: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    verbatim: Option<bool>,
+    emoji: Option<bool>,
+}
+
+impl PlainText {
+    pub(super) fn new(text: impl Into<String>, limit: usize) -> Self {
+        Self {
+            kind: "plain_text",
+            text: truncate(text.into(), limit),
+            emoji: None,
+        }
+    }
+
+    pub fn emoji(&mut self) -> &mut Self {
+        self.emoji = Some(true);
+        self
+    }
+}
+
+#[derive(Clone)]
+pub struct TextObject {
+    kind: &'static str,
+    text: String,
+    verbatim: bool,
+    emoji: bool,
 }
 
 impl TextObject {
     fn new(text: impl Into<String>) -> Self {
+        Self::with_limit(text, 3000)
+    }
+
+    pub(super) fn with_limit(text: impl Into<String>, limit: usize) -> Self {
         Self {
             kind: "plain_text",
-            text: text.into(),
-            verbatim: None,
+            text: truncate(text.into(), limit),
+            verbatim: false,
+            emoji: false,
         }
     }
 
@@ -31,8 +73,27 @@ impl TextObject {
     }
 
     pub fn verbatim(&mut self) -> &mut Self {
-        self.verbatim = Some(true);
+        self.verbatim = true;
         self
+    }
+
+    pub fn emoji(&mut self) -> &mut Self {
+        self.emoji = true;
+        self
+    }
+}
+
+impl Serialize for TextObject {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("type", self.kind)?;
+        map.serialize_entry("text", &self.text)?;
+        match self.kind {
+            "plain_text" if self.emoji => map.serialize_entry("emoji", &true)?,
+            "mrkdwn" if self.verbatim => map.serialize_entry("verbatim", &true)?,
+            _ => {}
+        }
+        map.end()
     }
 }
 
@@ -82,23 +143,46 @@ impl ContextBlock {
 pub struct SectionBlock {
     text: Option<TextObject>,
     fields: Vec<TextObject>,
-    accessory: Option<Value>,
+    accessory: Option<Action>,
     id: Option<String>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's Slack block API")]
 impl SectionBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.text.insert(TextObject::new(text))
     }
 
     pub fn field(&mut self, text: impl Into<String>) -> &mut TextObject {
-        self.fields.push(TextObject::new(text));
+        self.fields.push(TextObject::with_limit(text, 2000));
         self.fields.last_mut().expect("inserted a field")
     }
 
     pub fn accessory(&mut self, accessory: Value) -> &mut Self {
-        self.accessory = Some(accessory);
+        self.accessory = Some(Action::Custom(accessory));
         self
+    }
+
+    pub fn staticSelect(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
+        let Action::StaticSelect(menu) =
+            self.accessory
+                .insert(Action::StaticSelect(Box::new(StaticSelectElement::new(
+                    placeholder,
+                ))))
+        else {
+            unreachable!("inserted a static menu")
+        };
+        menu
+    }
+
+    pub fn usersSelect(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
+        let Action::UsersSelect(menu) = self
+            .accessory
+            .insert(Action::UsersSelect(UsersSelectElement::new(placeholder)))
+        else {
+            unreachable!("inserted a users menu")
+        };
+        menu
     }
 
     pub fn id(&mut self, id: impl Into<String>) -> &mut Self {
@@ -115,7 +199,7 @@ impl SectionBlock {
             block["fields"] = json!(self.fields);
         }
         if let Some(accessory) = self.accessory {
-            block["accessory"] = accessory;
+            block["accessory"] = json!(accessory);
         }
         with_id(block, self.id)
     }
@@ -124,7 +208,9 @@ impl SectionBlock {
 #[derive(Serialize)]
 #[serde(untagged)]
 enum Action {
-    Button(ButtonElement),
+    Button(Box<ButtonElement>),
+    StaticSelect(Box<StaticSelectElement>),
+    UsersSelect(UsersSelectElement),
     Custom(Value),
 }
 
@@ -135,16 +221,40 @@ pub struct ActionsBlock {
     id: Option<String>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's Slack action API")]
 impl ActionsBlock {
     pub fn button(&mut self, text: impl Into<String>) -> &mut ButtonElement {
         let text = text.into();
-        let id = format!("button_{}", Str::slug(&text).replace('-', "_"));
+        let id = format!(
+            "button_{}",
+            Str::slug(&text[..text.floor_char_boundary(248)])
+        );
         self.elements
-            .push(Action::Button(ButtonElement::new(text, id)));
+            .push(Action::Button(Box::new(ButtonElement::new(text, id))));
         let Some(Action::Button(element)) = self.elements.last_mut() else {
             unreachable!("inserted a button")
         };
         element
+    }
+
+    pub fn staticSelect(&mut self, placeholder: impl Into<String>) -> &mut StaticSelectElement {
+        self.elements
+            .push(Action::StaticSelect(Box::new(StaticSelectElement::new(
+                placeholder,
+            ))));
+        let Some(Action::StaticSelect(menu)) = self.elements.last_mut() else {
+            unreachable!("inserted a static menu")
+        };
+        menu
+    }
+
+    pub fn usersSelect(&mut self, placeholder: impl Into<String>) -> &mut UsersSelectElement {
+        self.elements
+            .push(Action::UsersSelect(UsersSelectElement::new(placeholder)));
+        let Some(Action::UsersSelect(menu)) = self.elements.last_mut() else {
+            unreachable!("inserted a users menu")
+        };
+        menu
     }
 
     pub fn element(&mut self, element: Value) -> &mut Self {
@@ -166,10 +276,12 @@ impl ActionsBlock {
 pub struct ButtonElement {
     #[serde(rename = "type")]
     kind: &'static str,
-    text: Value,
+    text: PlainText,
     action_id: String,
     #[serde(flatten)]
     options: serde_json::Map<String, Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confirm: Option<ConfirmObject>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Slack button API")]
@@ -177,10 +289,16 @@ impl ButtonElement {
     fn new(text: String, action_id: String) -> Self {
         Self {
             kind: "button",
-            text: plain_text(text),
+            text: PlainText::new(text, 75),
             action_id,
             options: Default::default(),
+            confirm: None,
         }
+    }
+
+    pub fn emoji(&mut self) -> &mut Self {
+        self.text.emoji();
+        self
     }
 
     pub fn id(&mut self, id: impl Into<String>) -> &mut Self {
@@ -219,38 +337,54 @@ impl ButtonElement {
         text: impl Into<String>,
         build: impl FnOnce(&mut ConfirmObject),
     ) -> &mut Self {
-        let mut dialog = ConfirmObject(json!({
-            "title":plain_text("Are you sure?"),"text":plain_text(text),
-            "confirm":plain_text("Yes"),"deny":plain_text("No"),
-        }));
+        let mut dialog = ConfirmObject {
+            title: PlainText::new("Are you sure?", 100),
+            text: TextObject::with_limit(text, 300),
+            confirm: PlainText::new("Yes", 30),
+            deny: PlainText::new("No", 30),
+            style: None,
+        };
         build(&mut dialog);
-        self.options.insert("confirm".into(), dialog.0);
+        self.confirm = Some(dialog);
         self
     }
 }
 
 /// Slack's confirmation dialog for an interactive element.
-pub struct ConfirmObject(Value);
+#[derive(Serialize)]
+pub struct ConfirmObject {
+    title: PlainText,
+    text: TextObject,
+    confirm: PlainText,
+    deny: PlainText,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    style: Option<&'static str>,
+}
 
 impl ConfirmObject {
     pub fn title(&mut self, title: impl Into<String>) -> &mut Self {
-        self.0["title"] = plain_text(title);
+        self.title = PlainText::new(title, 100);
         self
     }
 
     pub fn confirm(&mut self, label: impl Into<String>) -> &mut Self {
-        self.0["confirm"] = plain_text(label);
+        self.confirm = PlainText::new(label, 30);
         self
     }
 
     pub fn deny(&mut self, label: impl Into<String>) -> &mut Self {
-        self.0["deny"] = plain_text(label);
+        self.deny = PlainText::new(label, 30);
         self
     }
 
     pub fn danger(&mut self) -> &mut Self {
-        self.0["style"] = "danger".into();
+        self.style = Some("danger");
         self
+    }
+
+    pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
+        self.text = TextObject::with_limit(text, 300);
+        &mut self.text
     }
 }
 

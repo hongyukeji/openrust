@@ -251,3 +251,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Slack 传入 Webhook 路由与队列投递](06-06/README.md#slack-传入-webhook-路由与队列投递)通过真实 HTTP 协议、MySQL 和 Redis 加密队列载荷、独立 Artisan Worker 与三语验收。
 
 06-06 的 [Slack 旧式附件 Webhook 投递](06-06/README.md#slack-旧式附件-webhook-投递)通过真实 HTTP 附件 JSON、独立 Artisan Worker、MySQL 和 Redis 加密队列验收。
+
+06-06 的 [Slack Block Kit 选择器与文本约束](06-06/README.md#slack-block-kit-选择器与文本约束)通过真实 HTTP、MySQL 和 Redis 独立 Artisan Worker 与三语验收。

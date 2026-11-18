@@ -252,6 +252,38 @@ Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
 
 Bot API 使用 `chat.postMessage`。本地协议验收可将回环 HTTP URL 配置为 `services.slack.notifications.endpoint`。在 Slack 内确认送达需要安装应用、授予 Bot 权限并使用获授权的工作区。
 
+### Block Kit 选择器 {#slack-block-kit-selects}
+
+用 `staticSelect` 添加应用定义选项的下拉菜单，用 `usersSelect` 选择 Slack 工作区用户。第一个参数设置占位文字。对接应用回调时请设置明确的动作 ID。两种选择器都能放在动作区块，也能作为段落区块的附属组件。
+
+```rust
+use openrust::notifications::{NotificationResult, slack::SlackMessage};
+
+fn review_message() -> NotificationResult<SlackMessage> {
+    Ok(SlackMessage::new()
+        .text("Invoice review")
+        .tryActionsBlock(|actions| {
+            actions
+                .staticSelect("Choose a status")
+                .id("invoice-status")
+                .addOption("Needs review", "needs-review")
+                .addOption("Paid", "paid")
+                .initialOption("needs-review")?
+                .focus(false);
+            Ok(())
+        })?
+        .sectionBlock(|section| {
+            section.text("Assign invoice");
+            section
+                .usersSelect("Select a teammate")
+                .id("invoice-owner")
+                .initialUser("U012345");
+        }))
+}
+```
+
+重复的静态选项键会覆盖已有选项，位置保持原样。`initialOption` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `toArray` 检查类型化消息。
+
 ### 传入 Webhook {#slack-incoming-webhooks}
 
 将 HTTP(S) Webhook URL 作为 Slack 路由，可通过传入 Webhook 投递同一个 `SlackMessage`，包括 Block Kit。Slack 根据 Webhook 的安装配置决定投递目标。请求使用 JSON，URL 本身就是凭据。

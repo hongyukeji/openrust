@@ -1,11 +1,13 @@
 //! Slack notification messages, routes and Block Kit builders.
 
 mod blocks;
+mod selects;
 mod slack_message;
 
 pub use blocks::{
-    ActionsBlock, ButtonElement, ConfirmObject, ContextBlock, SectionBlock, TextObject,
+    ActionsBlock, ButtonElement, ConfirmObject, ContextBlock, PlainText, SectionBlock, TextObject,
 };
+pub use selects::{StaticSelectElement, UsersSelectElement};
 pub use slack_message::SlackMessage;
 
 /// A Slack workspace destination or incoming webhook.

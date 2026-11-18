@@ -940,6 +940,16 @@ impl Notice for SlackNotice {
         if self.mode == "invalid" {
             return SlackMessage::new().usingBlockKitTemplate("[]").map(Some);
         }
+        if self.mode == "invalid-menu" {
+            return SlackMessage::new()
+                .tryActionsBlock(|block| {
+                    block
+                        .staticSelect("Choose an option")
+                        .initialOption("missing")?;
+                    Ok(())
+                })
+                .map(Some);
+        }
         let mut message = SlackMessage::new().text(&self.mode);
         if self.mode == "blocks" {
             message = message
@@ -979,6 +989,24 @@ impl Notice for SlackNotice {
             message = message.to("message-channel");
         } else if self.mode.starts_with("webhook-") {
             message = message.headerBlock("Webhook notice");
+        }
+        if matches!(self.mode.as_str(), "blocks" | "database" | "redis") {
+            message = message
+                .tryActionsBlock(|block| {
+                    block
+                        .staticSelect("Choose a status")
+                        .id("invoice-status")
+                        .addOption("Old", "Needs Review")
+                        .addOption("Paid", "Paid")
+                        .addOption("Review", "Needs Review")
+                        .initialOption("Needs Review")?
+                        .focus(false);
+                    Ok(())
+                })?
+                .sectionBlock(|block| {
+                    block.text("Assign invoice");
+                    block.usersSelect("Select a teammate").initialUser("U123");
+                });
         }
         Ok(Some(message))
     }
@@ -3722,6 +3750,7 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
         ("message", http::StatusCode::OK),
         ("blocks", http::StatusCode::OK),
         ("invalid", http::StatusCode::INTERNAL_SERVER_ERROR),
+        ("invalid-menu", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("reject", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("malformed", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("redirect", http::StatusCode::INTERNAL_SERVER_ERROR),
@@ -3815,7 +3844,7 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     assert_eq!(block_message["blocks"][0]["type"], "header");
     assert_eq!(block_message["blocks"][2]["fields"][0]["type"], "mrkdwn");
     let button = &block_message["blocks"][4]["elements"][0];
-    assert_eq!(button["action_id"], "button_acknowledge_invoice");
+    assert_eq!(button["action_id"], "button_acknowledge-invoice");
     assert_eq!(button["style"], "primary");
     assert_eq!(button["confirm"]["confirm"]["text"], "Continue");
     assert_eq!(block_message["thread_ts"], "1710000000.001");
@@ -3829,6 +3858,100 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     );
     assert_eq!(records[8].0, "Bearer fixture-rotated-token");
     assert_eq!(records[8].1["channel"], "redis-channel");
+    for message in [&records[2].1, &records[6].1, &records[7].1, &records[8].1] {
+        let blocks = message["blocks"].as_array().unwrap();
+        let menu = &blocks[blocks.len() - 2]["elements"][0];
+        assert_eq!(
+            menu,
+            &json!({
+                "type":"static_select", "action_id":"invoice-status", "focus_on_load":false,
+                "placeholder":{"type":"plain_text","text":"Choose a status"},
+                "options":[
+                    {"text":{"type":"plain_text","text":"Review"},"value":"needsreview"},
+                    {"text":{"type":"plain_text","text":"Paid"},"value":"paid"}
+                ],
+                "initial_option":{"text":{"type":"plain_text","text":"Review"},"value":"needsreview"}
+            })
+        );
+        let users = &blocks.last().unwrap()["accessory"];
+        assert!(
+            users["action_id"]
+                .as_str()
+                .unwrap()
+                .starts_with("users_select_")
+        );
+        assert_eq!(users["initial_user"], "U123");
+        assert_eq!(users["placeholder"]["text"], "Select a teammate");
+    }
+}
+
+#[test]
+fn slack_block_kit_matches_text_and_identifier_boundaries() {
+    let payload = SlackMessage::new()
+        .headerBlock("界".repeat(51))
+        .sectionBlock(|block| {
+            block.text("plain").verbatim().emoji();
+            block.field("a".repeat(2001)).emoji().markdown().verbatim();
+        })
+        .actionsBlock(|block| {
+            block
+                .button("a".repeat(250))
+                .emoji()
+                .confirm("prompt", |dialog| {
+                    dialog.title("T".repeat(101)).confirm("Y".repeat(31));
+                    dialog.text("**Confirm**").markdown().verbatim();
+                });
+        })
+        .toArray()
+        .unwrap();
+    let blocks = &payload["blocks"];
+    assert_eq!(blocks[0]["text"]["text"], format!("{}...", "界".repeat(49)));
+    assert_eq!(
+        blocks[1]["text"],
+        json!({"type":"plain_text","text":"plain","emoji":true})
+    );
+    assert_eq!(
+        blocks[1]["fields"][0],
+        json!({
+            "type":"mrkdwn","text":format!("{}...", "a".repeat(1997)),"verbatim":true
+        })
+    );
+    let button = &blocks[2]["elements"][0];
+    assert_eq!(button["text"]["text"], format!("{}...", "a".repeat(72)));
+    assert_eq!(button["text"]["emoji"], true);
+    assert_eq!(button["action_id"].as_str().unwrap().len(), 255);
+    assert_eq!(
+        button["confirm"]["title"]["text"],
+        format!("{}...", "T".repeat(97))
+    );
+    assert_eq!(
+        button["confirm"]["confirm"]["text"],
+        format!("{}...", "Y".repeat(27))
+    );
+    assert_eq!(
+        button["confirm"]["text"],
+        json!({
+            "type":"mrkdwn","text":"**Confirm**","verbatim":true
+        })
+    );
+
+    for invalid in [
+        SlackMessage::new().headerBlock(""),
+        SlackMessage::new().actionsBlock(|block| {
+            block.button("Click").url("a".repeat(3001));
+        }),
+        SlackMessage::new().actionsBlock(|block| {
+            block.button("Click").accessibilityLabel("a".repeat(76));
+        }),
+        SlackMessage::new().actionsBlock(|block| {
+            block.usersSelect("Choose").id("界".repeat(86));
+        }),
+        SlackMessage::new().actionsBlock(|block| {
+            block.staticSelect("");
+        }),
+    ] {
+        assert!(invalid.toArray().is_err());
+    }
 }
 
 #[tokio::test]

@@ -252,6 +252,38 @@ Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
 
 The Bot API uses `chat.postMessage`. For a local protocol test, configure `services.slack.notifications.endpoint` with a loopback HTTP URL. Confirming delivery in Slack requires an installed app, its bot permissions, and an authorized workspace.
 
+### Block Kit select menus {#slack-block-kit-selects}
+
+Use `staticSelect` to add a menu with application-defined options and `usersSelect` for Slack workspace users. The first argument sets the placeholder. Use explicit action IDs for application callbacks. Both menus can be added to an actions block or used as the accessory of a section.
+
+```rust
+use openrust::notifications::{NotificationResult, slack::SlackMessage};
+
+fn review_message() -> NotificationResult<SlackMessage> {
+    Ok(SlackMessage::new()
+        .text("Invoice review")
+        .tryActionsBlock(|actions| {
+            actions
+                .staticSelect("Choose a status")
+                .id("invoice-status")
+                .addOption("Needs review", "needs-review")
+                .addOption("Paid", "paid")
+                .initialOption("needs-review")?
+                .focus(false);
+            Ok(())
+        })?
+        .sectionBlock(|section| {
+            section.text("Assign invoice");
+            section
+                .usersSelect("Select a teammate")
+                .id("invoice-owner")
+                .initialUser("U012345");
+        }))
+}
+```
+
+A repeated static option key replaces the previous one without changing its position. `initialOption` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `toArray` to check a typed message before delivery.
+
 ### Incoming webhooks {#slack-incoming-webhooks}
 
 Pass an HTTP(S) webhook URL as the Slack route to deliver the same `SlackMessage`, including Block Kit, through the incoming webhook. Slack derives the destination from the webhook installation. The request uses JSON and the URL itself is the credential.
