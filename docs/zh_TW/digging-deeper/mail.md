@@ -30,6 +30,21 @@ pub async fn send_order() -> MailResult<()> {
 
 `Content` 支援文字、HTML 和帶資料的命名視圖。可用 `view` 和 `text_view` 產生兩種 MIME 內文。附件提供位元組、檔名和 MIME 類型，自訂郵件標頭透過 `headers` 提供。密件副本地址保留在投遞信封中，郵件標頭會移除 Bcc。
 
+### 內嵌附件 {#inline-attachments}
+
+從 `Mailable::inline_attachments` 回傳 `InlineAttachment`，用 `cid()` 取得圖片網址。視圖和附件使用相同的 Content-ID。
+
+```rust
+let logo = InlineAttachment::new("logo@example.test", Attachment {
+    name: "logo.png".into(),
+    mime: "image/png".into(),
+    bytes: logo_bytes,
+});
+let image_src = logo.cid();
+```
+
+將 `image_src` 傳入 Blade 的 `<img src="{{ $image_src }}">`，也可以用它作為 Markdown 圖片的網址。Worker 隨工作收到圖片位元組。SMTP 等原始 MIME 傳輸會將圖片和 HTML 一起傳送，瀏覽器預覽則把相符的圖片網址轉成資料 URL。郵件供應商 API 目前以原始 MIME 模式傳送內嵌圖片。
+
 ## 設定
 
 `config/mail.rs` 定義預設郵件器、命名郵件器和寄件人。骨架預設使用 `log` 驅動，在 debug 層級寫入 MIME 郵件。`array` 驅動可透過 `Mailer::sent` 檢查目前應用程式的郵件。

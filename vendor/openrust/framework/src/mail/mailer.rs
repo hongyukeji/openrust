@@ -142,6 +142,7 @@ impl Mailer {
             envelope,
             mailable.content()?,
             mailable.attachments()?,
+            mailable.inline_attachments()?,
             mailable.headers()?,
             &self.views,
             &self.markdown,

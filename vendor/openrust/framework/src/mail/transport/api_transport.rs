@@ -72,6 +72,12 @@ impl ApiTransport {
 
     fn request(&self, message: &Message) -> MailResult<reqwest::RequestBuilder> {
         let data = &message.1;
+        if data.has_inline_attachments && !matches!(self.provider, Provider::Mailgun { raw: true })
+        {
+            return Err(transport(
+                "This mail transport requires raw MIME support to send inline attachments.",
+            ));
+        }
         let envelope = &data.envelope;
         let from_address = envelope
             .from

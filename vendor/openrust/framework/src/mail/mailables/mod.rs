@@ -52,6 +52,26 @@ pub struct Attachment {
     pub bytes: Vec<u8>,
 }
 
+/// An attachment addressed by a Content-ID in the HTML body.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct InlineAttachment {
+    pub content_id: String,
+    pub attachment: Attachment,
+}
+
+impl InlineAttachment {
+    pub fn new(content_id: impl Into<String>, attachment: Attachment) -> Self {
+        Self {
+            content_id: content_id.into(),
+            attachment,
+        }
+    }
+
+    pub fn cid(&self) -> String {
+        format!("cid:{}", self.content_id)
+    }
+}
+
 /// The message identifier, references, and custom headers of a mailable.
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Headers {

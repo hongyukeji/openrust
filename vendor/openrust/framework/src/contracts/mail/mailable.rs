@@ -1,6 +1,6 @@
 use crate::mail::{
     Mail, MailFuture, MailResult,
-    mailables::{Attachment, Content, Envelope, Headers},
+    mailables::{Attachment, Content, Envelope, Headers, InlineAttachment},
 };
 
 /// Describes an application email for a selected mailer.
@@ -12,6 +12,9 @@ pub trait Mailable: Send + Sync {
     fn envelope(&self) -> MailResult<Envelope>;
     fn content(&self) -> MailResult<Content>;
     fn attachments(&self) -> MailResult<Vec<Attachment>> {
+        Ok(Vec::new())
+    }
+    fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
         Ok(Vec::new())
     }
     fn headers(&self) -> MailResult<Headers> {

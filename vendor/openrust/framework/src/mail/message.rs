@@ -5,8 +5,8 @@ use lettre::message::{Mailbox, MultiPart, SinglePart, header};
 use crate::view::Factory;
 
 use super::{
-    MailResult, Markdown, composition,
-    mailables::{Address, Attachment, Content, Envelope, Headers},
+    MailResult, Markdown, composition, inline_attachment,
+    mailables::{Address, Attachment, Content, Envelope, Headers, InlineAttachment},
 };
 
 /// A composed email ready for transport.
@@ -18,6 +18,7 @@ pub(super) struct ApiMessage {
     pub text: Option<String>,
     pub html: Option<String>,
     pub attachments: Vec<Attachment>,
+    pub has_inline_attachments: bool,
     pub headers: Headers,
 }
 
@@ -43,6 +44,7 @@ impl Message {
         envelope: Envelope,
         mut content: Content,
         attachments: Vec<Attachment>,
+        inline_attachments: Vec<InlineAttachment>,
         headers: Headers,
         views: &Factory,
         markdown: &Markdown,
@@ -105,13 +107,39 @@ impl Message {
             (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
             (text, _) => text,
         };
-        let body = match (text.clone(), html.clone()) {
-            (Some(text), Some(html)) => {
-                Body::Multipart(MultiPart::alternative_plain_html(text, html))
+        let has_inline_attachments = !inline_attachments.is_empty();
+        let body = if !has_inline_attachments {
+            match (text.clone(), html.clone()) {
+                (Some(text), Some(html)) => {
+                    Body::Multipart(MultiPart::alternative_plain_html(text, html))
+                }
+                (Some(text), None) => Body::Single(SinglePart::plain(text)),
+                (None, Some(html)) => Body::Single(SinglePart::html(html)),
+                (None, None) => return Err(composition("The mailable has no content.")),
             }
-            (Some(text), None) => Body::Single(SinglePart::plain(text)),
-            (None, Some(html)) => Body::Single(SinglePart::html(html)),
-            (None, None) => return Err(composition("The mailable has no content.")),
+        } else {
+            let html = html
+                .clone()
+                .ok_or_else(|| composition("Inline attachments require an HTML body."))?;
+            let mut related = MultiPart::related().singlepart(SinglePart::html(html));
+            for (inline, mime) in inline_attachments
+                .iter()
+                .zip(inline_attachment::types(&inline_attachments)?)
+            {
+                related = related.singlepart(
+                    lettre::message::Attachment::new_inline_with_name(
+                        inline.content_id.clone(),
+                        header_text(inline.attachment.name.clone())?,
+                    )
+                    .body(inline.attachment.bytes.clone(), mime),
+                );
+            }
+            Body::Multipart(match &text {
+                Some(text) => MultiPart::alternative()
+                    .singlepart(SinglePart::plain(text.clone()))
+                    .multipart(related),
+                None => related,
+            })
         };
         let message = if attachments.is_empty() {
             match body {
@@ -143,6 +171,7 @@ impl Message {
                         text,
                         html,
                         attachments,
+                        has_inline_attachments,
                     }),
                 )
             })
@@ -165,9 +194,11 @@ impl Preview {
         mut content: Content,
         views: &Factory,
         markdown: &Markdown,
+        mailable: &dyn super::Mailable,
     ) -> MailResult<Self> {
         if let Some(html) = render_html(&mut content, views, markdown)? {
-            return Ok(Self::Html(html));
+            return inline_attachment::preview(html, &mailable.inline_attachments()?)
+                .map(Self::Html);
         }
         render(
             content.text,

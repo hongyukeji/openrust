@@ -2,6 +2,7 @@
 
 pub mod events;
 mod facade;
+mod inline_attachment;
 mod mail_fake;
 mod mail_manager;
 mod mail_service_provider;

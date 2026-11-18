@@ -371,12 +371,19 @@ impl<'a> Render<'a> {
                     dest_url,
                     title,
                     id,
-                }) => Event::Start(Tag::Image {
-                    link_type,
-                    dest_url: safe_url(self.restore(dest_url, false)),
-                    title: self.restore(title, false),
-                    id,
-                }),
+                }) => {
+                    let dest_url = self.restore(dest_url, false);
+                    Event::Start(Tag::Image {
+                        link_type,
+                        dest_url: if super::inline_attachment::cid(&dest_url).is_some() {
+                            dest_url
+                        } else {
+                            safe_url(dest_url)
+                        },
+                        title: self.restore(title, false),
+                        id,
+                    })
+                }
                 event => event,
             })
         });

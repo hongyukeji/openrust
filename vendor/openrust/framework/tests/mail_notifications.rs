@@ -29,7 +29,7 @@ use openrust::{
     mail::{
         MailFuture, MailResult, Mailable, Message, SentMessage,
         events::{MessageSending, MessageSent},
-        mailables::{Attachment, Content, Envelope, Headers},
+        mailables::{Attachment, Content, Envelope, Headers, InlineAttachment},
         transport::Transport,
     },
     notifications::{
@@ -82,9 +82,35 @@ struct MarkdownReceipt {
     plain_view: bool,
     options_fixture: bool,
     theme: Option<String>,
+    inline: bool,
+}
+
+fn inline_logo() -> InlineAttachment {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    InlineAttachment::new("logo@images.example.test", Attachment {
+        name: "logo.png".into(),
+        mime: "image/png".into(),
+        bytes: STANDARD.decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWioAAAAASUVORK5CYII=").unwrap(),
+    })
 }
 
 impl Mailable for MarkdownReceipt {
+    fn attachments(&self) -> MailResult<Vec<Attachment>> {
+        if self.inline {
+            Receipt.attachments()
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
+        Ok(if self.inline {
+            vec![inline_logo()]
+        } else {
+            vec![]
+        })
+    }
+
     fn envelope(&self) -> MailResult<Envelope> {
         Ok(Envelope {
             subject: if self.options_fixture {
@@ -113,6 +139,7 @@ impl Mailable for MarkdownReceipt {
                     "portal".into(),
                     json!("https://example.test/review?step=1&code=2"),
                 ),
+                ("logo".into(), json!("cid:logo@images.example.test")),
             ]
             .into_iter()
             .collect(),
@@ -558,6 +585,7 @@ impl Command for SendFixture {
                 plain_view: input.matches().get_flag("plain-view"),
                 options_fixture: input.matches().get_flag("markdown-options"),
                 theme: None,
+                inline: false,
             };
             let mailable: &dyn Mailable = if input.matches().get_flag("markdown") {
                 &markdown
@@ -1599,7 +1627,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
     }
     std::fs::write(
         root.0.join("resources/views/markdown-receipt.blade.html"),
-        "# Mailable theme contract",
+        "# Mailable theme contract\n\n![Receipt logo]({{ $logo }})",
     )
     .unwrap();
     std::fs::write(
@@ -1621,6 +1649,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
                         plain_view: true,
                         options_fixture: true,
                         theme: theme.map(str::to_owned),
+                        inline: true,
                     })
                     .await
                     .unwrap();
@@ -1631,6 +1660,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
                     plain_view: true,
                     options_fixture: true,
                     theme: Some("missing".into()),
+                    inline: true,
                 })
                 .await
                 .err()
@@ -1648,6 +1678,7 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
                             plain_view: true,
                             options_fixture: true,
                             theme: Some("receipt".into()),
+                            inline: true,
                         },
                         DispatchOptions {
                             connection: Some(connection.into()),
@@ -1712,6 +1743,26 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
         if !html.contains("Mailable theme contract") {
             continue;
         }
+        let raw = reqwest::get(format!("{api}/message/{id}/raw"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        for marker in [
+            "multipart/mixed",
+            "multipart/alternative",
+            "multipart/related",
+            "Content-ID: <logo@images.example.test>",
+            "Content-Disposition: inline",
+            "image/png",
+            "cid:logo@images.example.test",
+            "receipt.txt",
+        ] {
+            assert!(raw.contains(marker), "{marker}: {raw}");
+        }
         assert_eq!(
             message["Text"].as_str().unwrap().trim(),
             "Unstyled receipt text"
@@ -1731,6 +1782,11 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
     struct PreviewMail(Content);
 
     impl Mailable for PreviewMail {
+        fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
+            assert!(self.0.view.is_some() || self.0.markdown.is_some() || self.0.html.is_some());
+            Ok(vec![inline_logo()])
+        }
+
         fn envelope(&self) -> MailResult<Envelope> {
             panic!("Preview must not prepare an envelope");
         }
@@ -1770,6 +1826,20 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
         })
     }
 
+    fn html_cid_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            PreviewMail(Content {
+                html: Some(concat!(
+                    "<!-- <img src='cid:logo@images.example.test'> -->",
+                    "<textarea><img src='cid:logo@images.example.test'></textarea>",
+                    "<img alt=logo data-src='cid:logo@images.example.test' SRC=CID:logo@images.example.test>",
+                    "<img alt=missing src='cid:missing@images.example.test'>",
+                ).into()),
+                ..Default::default()
+            }).toResponse().await
+        })
+    }
+
     fn missing_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
             PreviewMail(Content {
@@ -1797,7 +1867,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
     std::fs::write(themes.join("preview.css"), "h1 { color: #217a4b; }").unwrap();
     std::fs::write(
         root.0.join("resources/views/preview.blade.html"),
-        "<x-mail::message>\n# Preview {{ $name }}\n</x-mail::message>",
+        "<x-mail::message>\n# Preview {{ $name }}\n\n![Preview logo](cid:logo@images.example.test)\n</x-mail::message>",
     )
     .unwrap();
     let mut kernel = Kernel::new(
@@ -1805,6 +1875,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
             .withRouting(Routing::default().web(|| {
                 Route::get("/preview", html_preview)?;
                 Route::get("/preview-text", text_preview)?;
+                Route::get("/preview-cid", html_cid_preview)?;
                 Route::get("/preview-missing", missing_preview)
             }))
             .create()
@@ -1841,6 +1912,7 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
         "#217a4b",
         "&lt;Client&gt;",
         "Tous droits réservés.",
+        "src=\"data:image/png;base64,iVBORw0KGgo",
     ] {
         assert!(html.contains(expected), "{html}");
     }
@@ -1854,6 +1926,18 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
         "text/plain; charset=utf-8"
     );
     assert_eq!(text.text().await.unwrap(), "<Client>");
+    let cid_preview = reqwest::get(format!("{url}-cid"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_eq!(cid_preview.matches("data:image/png;base64,").count(), 1);
+    assert!(cid_preview.contains("SRC=\"data:image/png;base64,"));
+    assert!(cid_preview.contains("data-src='cid:logo@images.example.test'"));
+    assert!(cid_preview.contains("src='cid:missing@images.example.test'"));
     let missing = reqwest::get(format!("{url}-missing")).await.unwrap();
     assert_eq!(missing.status(), 500);
     server.abort();

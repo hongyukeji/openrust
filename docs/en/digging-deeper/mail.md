@@ -30,6 +30,21 @@ pub async fn send_order() -> MailResult<()> {
 
 `Content` accepts text, HTML, or named views with data. Set `view` and `text_view` for the two MIME alternatives. Use `attachments` for bytes with a filename and MIME type, and `headers` for custom headers. The mailer removes Bcc from the MIME headers and retains those recipients in the transport envelope.
 
+### Inline attachments {#inline-attachments}
+
+Return an `InlineAttachment` from `Mailable::inline_attachments` and use its `cid()` value for the image source. The same Content-ID must be used in the attachment and the view.
+
+```rust
+let logo = InlineAttachment::new("logo@example.test", Attachment {
+    name: "logo.png".into(),
+    mime: "image/png".into(),
+    bytes: logo_bytes,
+});
+let image_src = logo.cid();
+```
+
+Pass `image_src` to Blade as `<img src="{{ $image_src }}">` or use it as the destination of a Markdown image. A worker receives the attachment bytes with the job. SMTP and other raw MIME transports send the image alongside the HTML. For a browser preview, matching image sources become data URLs. Structured mail APIs currently require raw MIME support for inline delivery.
+
 ## Configuration
 
 `config/mail.rs` defines the default mailer, named mailers and sender. The skeleton defaults to the `log` transport, which writes the MIME message at debug level. Use `array` to inspect messages in the current application with `Mailer::sent`.

@@ -52,7 +52,7 @@ impl MailManager {
             .make::<view::Factory>()
             .map_err(super::composition)?;
         let markdown = Markdown::from_config(self.config.as_ref(), &self.base)?;
-        let render = || Preview::render(mailable.content()?, &views, &markdown);
+        let render = || Preview::render(mailable.content()?, &views, &markdown, mailable);
         match mailable.locale() {
             Some(locale) => Lang::withLocale(locale, async { render() })
                 .await
