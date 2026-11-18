@@ -87,9 +87,13 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 
 用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。密文无效或名称绑定不符时，读取到的值为 null。
 
-## 旧输入
+## 旧输入 {#old-input}
 
-用 `request.old(Some("profile.name"))` 读取嵌套旧输入，用 `request.old(None)` 读取整个旧输入集合。闪存值在下一次请求可用，显式 null 会保留。
+在使用会话中间件的路由中，用 `request.flash().await?` 保存当前输入供下一次请求读取。用 `request.flashOnly(&["profile.name", "page"]).await?` 选取字段，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除字段。字段选择支持点路径。上传文件保存在文件数据中。
+
+用 `request.old(Some("profile.name"))` 读取旧输入的一个字段，或用 `request.old(None)` 获取整袋数据。先匹配字面键，再解析点路径。显式空值保留为 `Some(Value::Null)`，缺失时可用 `Option` 方法提供默认值。
+
+用 `request.flush()?` 将旧输入替换为空。会话内的其他值仍可读取。旧输入在下一次请求结束后过期。
 
 ## 配置可信代理 {#configuring-trusted-proxies}
 

@@ -17,6 +17,7 @@ use super::{Body, HeaderMap, Method, RequestParts, Uri};
 mod content_types;
 pub(crate) mod context;
 mod cookies;
+mod flash_data;
 mod input;
 mod query;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
@@ -245,11 +246,6 @@ impl Request {
     pub(crate) fn take_session(&mut self) -> Option<crate::session::Store> {
         context::set_session_cache(self, None);
         self.session.take()
-    }
-
-    /// Retrieves flashed input from the current session.
-    pub fn old(&self, key: Option<&str>) -> Option<&serde_json::Value> {
-        self.session.as_ref()?.getOldInput(key)
     }
 
     pub(crate) fn is_secure(&self) -> bool {

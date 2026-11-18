@@ -29,6 +29,9 @@ use tokio::{
 fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let action = request.route("action").unwrap_or("read").to_owned();
+        if let Some(action) = action.strip_prefix("request-") {
+            return request_flash_route(request, action).await;
+        }
         if action == "old" {
             return Response::json(
                 StatusCode::OK,
@@ -73,6 +76,31 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             }),
         )
     })
+}
+
+async fn request_flash_route(request: &mut Request, action: &str) -> Result<Response, HttpError> {
+    match action {
+        "flash" => request.flash().await?,
+        "only" => {
+            request
+                .flashOnly(&["profile.description", "page", "missing"])
+                .await?
+        }
+        "except" => request.flashExcept(&["profile.secret", "password"]).await?,
+        "flush" => request.flush()?,
+        _ => {}
+    }
+    let session = request.session()?;
+    Response::json(
+        StatusCode::OK,
+        json!({
+            "all": request.old(None),
+            "literal": request.old(Some("profile.name")),
+            "name": session.get("profile.name"),
+            "token": session.token(),
+            "has_any": session.hasOldInput(None),
+        }),
+    )
 }
 
 fn session_data_route(request: &mut Request, action: &str) -> Result<Response, HttpError> {
@@ -211,7 +239,11 @@ async fn session_cache_route(request: &mut Request, action: &str) -> Result<Resp
 }
 
 fn register() -> Result<(), RoutingError> {
-    Route::get("/session/{action}", route)
+    Route::r#match(
+        &[openrust::http::Method::GET, openrust::http::Method::POST],
+        "/session/{action}",
+        route,
+    )
 }
 
 fn register_blocked() -> Result<(), RoutingError> {
@@ -845,6 +877,7 @@ async fn request_sessions_round_trip_through_mysql() {
     assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());
     if configured {
         verify("database").await;
+        verify_request_flashing("database").await;
     }
 }
 
@@ -1226,4 +1259,97 @@ async fn old_input_can_be_read_once_through_the_http_request() {
         json!({"name":null,"explicit_null":false,"all":null,"has_name":false,"has_null":false,"has_any":false})
     );
     server.abort();
+}
+
+#[tokio::test]
+async fn request_flash_helpers_follow_the_session_lifecycle() {
+    verify_request_flashing("array").await;
+}
+
+async fn verify_request_flashing(driver: &'static str) {
+    let (address, server, database) = start(driver, true).await;
+    let seeded = send(address, "seed", "").await;
+    let (cookie, initial) = read(&seeded);
+    let client = reqwest::Client::new();
+    let flash = client
+        .post(format!("http://{address}/session/request-flash?page=2"))
+        .header("cookie", cookie)
+        .json(&json!({
+            "profile":{"name":"nested","description":null},
+            "profile.name":"literal",
+            "title":"  Trimmed  ",
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let flash: Value = flash.json().await.unwrap();
+    let expected = json!({
+        "profile":{"name":"nested","description":null},
+        "profile.name":"literal",
+        "title":"Trimmed",
+        "page":"2",
+    });
+    assert_eq!(flash["all"], expected);
+    let next = send(address, "request-old", cookie).await;
+    let (_, next) = read(&next);
+    assert_eq!(next["all"], expected);
+    assert_eq!(next["literal"], "literal");
+    assert!(read(&send(address, "request-old", "").await).1["all"].is_null());
+    assert!(read(&send(address, "request-old", cookie).await).1["all"].is_null());
+
+    let only = client
+        .post(format!("http://{address}/session/request-only?page=3"))
+        .header("cookie", cookie)
+        .json(&json!({"profile":{"description":null,"secret":"excluded"},"extra":true}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let only: Value = only.json().await.unwrap();
+    assert_eq!(
+        only["all"],
+        json!({"profile":{"description":null},"page":"3"})
+    );
+
+    let except = client
+        .post(format!("http://{address}/session/request-except?page=4"))
+        .header("cookie", cookie)
+        .multipart(
+            reqwest::multipart::Form::new()
+                .text("profile[name]", "Ada")
+                .text("profile[secret]", "excluded")
+                .text("password", "excluded")
+                .part(
+                    "document",
+                    reqwest::multipart::Part::text("file data").file_name("fixture.txt"),
+                ),
+        )
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let except: Value = except.json().await.unwrap();
+    assert_eq!(except["all"], json!({"profile":{"name":"Ada"},"page":"4"}));
+    let flushed = send(address, "request-flush", cookie).await;
+    let (_, flushed) = read(&flushed);
+    assert_eq!(flushed["all"], json!([]));
+    assert_eq!(flushed["has_any"], false);
+    assert_eq!(flushed["name"], "Ada");
+    assert_eq!(flushed["token"], initial["token"]);
+    let (_, continued) = read(&send(address, "request-old", cookie).await);
+    assert_eq!(continued["all"], json!([]));
+    let (_, expired) = read(&send(address, "request-old", cookie).await);
+    assert!(expired["all"].is_null());
+    assert_eq!(expired["token"], initial["token"]);
+    server.abort();
+    if let Some(database) = database {
+        database
+            .statement("DROP TABLE sessions", &[])
+            .await
+            .unwrap();
+    }
 }

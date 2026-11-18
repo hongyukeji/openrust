@@ -3400,3 +3400,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 04-02／04-03 路径编码和请求正文边界
 
 路径 UTF-8 校验与声明长度门禁已接通，真实 TCP、固定 Laravel、Artisan、Redis、严格 Clippy 和三语验收通过。 [路径编码和请求正文边界](audits/04-02/README.md#路径编码和请求正文边界)
+
+## 2026-11-18 04-02／04-04 请求旧输入与会话闪存
+
+Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、MySQL／Redis、固定 Laravel 对照、严格 Clippy 及三语验收。 [请求旧输入与会话闪存](audits/04-02/README.md#请求旧输入与会话闪存)

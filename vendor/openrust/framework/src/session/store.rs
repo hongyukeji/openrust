@@ -82,9 +82,10 @@ impl Store {
     /// Retrieves all old input or one nested field.
     #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
     pub fn getOldInput(&self, key: Option<&str>) -> Option<&Value> {
+        let input = self.get("_old_input")?;
         match key {
-            Some(key) => self.get(&format!("_old_input.{key}")),
-            None => self.get("_old_input"),
+            Some(key) => crate::support::Arr::get(input, key),
+            None => Some(input),
         }
     }
 

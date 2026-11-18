@@ -87,9 +87,13 @@ JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。�
 
 用 `request.cookie(Some("theme"))?` 讀取指定 Cookie，用 `request.cookie(None)?` 讀取整個 Cookie 集合。啟用 `EncryptCookies` 後，受保護的 Cookie 會在進入處理器前解密並驗證。密文無效或名稱綁定不符時，讀取到的值為 null。
 
-## 舊輸入
+## 舊輸入 {#old-input}
 
-用 `request.old(Some("profile.name"))` 讀取巢狀舊輸入，用 `request.old(None)` 讀取整個舊輸入集合。快閃值在下一次請求可用，明確的 null 會保留。
+在使用工作階段中介層的路由中，用 `request.flash().await?` 儲存目前輸入，供下一次請求讀取。用 `request.flashOnly(&["profile.name", "page"]).await?` 選取欄位，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除欄位。欄位選擇支援點路徑。上傳檔案保存在檔案資料中。
+
+用 `request.old(Some("profile.name"))` 讀取舊輸入的一個欄位，或用 `request.old(None)` 取得整份資料。先比對字面鍵，再解析點路徑。明確空值保留為 `Some(Value::Null)`，缺少時可用 `Option` 方法提供預設值。
+
+用 `request.flush()?` 將舊輸入替換為空。工作階段內的其他值仍可讀取。舊輸入在下一次請求結束後過期。
 
 ## 設定可信任代理 {#configuring-trusted-proxies}
 

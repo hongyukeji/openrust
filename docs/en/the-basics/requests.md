@@ -87,9 +87,13 @@ See the [controller example](./controllers.md) for input handling and a JSON res
 
 Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. In a stack containing `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A cookie with invalid ciphertext or a mismatched name binding has a null value.
 
-## Old Input
+## Old Input {#old-input}
 
-Call `request.old(Some("profile.name"))` to retrieve a nested flashed field or `request.old(None)` to retrieve the input bag. The value is available on the next request. An explicit null is preserved.
+In a route with session middleware, use `request.flash().await?` to store the current input for the next request. Use `request.flashOnly(&["profile.name", "page"]).await?` to select specific fields or `request.flashExcept(&["password", "password_confirmation"]).await?` to exclude fields. Selection supports dotted paths. Uploaded files remain in the file bag.
+
+Read the result with `request.old(Some("profile.name"))` or retrieve the bag with `request.old(None)`. An exact key takes precedence over a dotted path. Explicit null remains available as `Some(Value::Null)`. Use `Option` methods to supply a fallback when the value is missing.
+
+Use `request.flush()?` to replace the old input with an empty bag. The other session values remain available. Old input expires after the following request.
 
 ## Configuring Trusted Proxies {#configuring-trusted-proxies}
 
