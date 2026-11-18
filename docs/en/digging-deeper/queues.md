@@ -433,6 +433,8 @@ QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --
 
 ##### Hard deadlines for blocking jobs {#hard-job-timeouts}
 
+The Rust worker keeps large attempt, chain, and batch futures on the heap before entering their execution scopes. This bounds the polling state carried through the Worker stack, including Windows Debug builds. Job callbacks and failure settlement keep their existing order.
+
 Set `JobOptions::hard_timeout` for a job that can block an executor thread. Artisan isolates the job in a Unix process group or a Windows Job Object. The worker retains the reservation and applies the effective job timeout to the executor, including its startup. At the deadline it terminates the process tree and waits for the executor before dispatching `JobTimedOut` and settling failure or retry.
 
 External programs started through `Process` inherit the isolation boundary. A Unix program can escape by creating a new session or process group. Windows assigns the executor to its Job Object before the job starts and waits for all member processes to exit. Hard execution requires a built-in persistent queue reservation. The behavior was verified on Windows 11 with SQLite and on macOS and arm64 Linux with SQLite, MySQL, and Redis.

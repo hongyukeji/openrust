@@ -433,6 +433,8 @@ QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --
 
 ##### 阻塞工作的強制逾時 {#hard-job-timeouts}
 
+Rust Worker 在進入執行作用域前，將較大的工作嘗試、鏈與批次 Future 固定在堆積上，減少 Worker 堆疊上的輪詢狀態，適用於 Windows Debug 建置。工作回呼與失敗結算仍依既有順序執行。
+
 對於可能阻塞執行緒的工作，設定 `JobOptions::hard_timeout`。Artisan 在 Unix 程序群組或 Windows Job Object 中隔離工作。Worker 保留預約，並將實際工作逾時套用到執行程序，計時包含啟動。到期後，Worker 終止程序樹並等待執行程序退出，再派發 `JobTimedOut` 並結算失敗或重試。
 
 透過 `Process` 啟動的外部程式會繼承隔離邊界。Unix 程式可以建立新工作階段或程序群組脫離此邊界。Windows 在工作啟動前將執行程序加入 Job Object，並等待其中所有程序退出。強制逾時需要內建持久佇列的預約。已在 Windows 11 上使用 SQLite 驗證，並在 macOS 與 arm64 Linux 上使用 SQLite、MySQL 和 Redis 驗證。

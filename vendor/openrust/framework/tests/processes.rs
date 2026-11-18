@@ -1,5 +1,4 @@
 use openrust::process::{Command, Error, Factory};
-use std::time::Duration;
 
 #[tokio::test]
 async fn fake_configuration_and_results_are_isolated() {
@@ -213,7 +212,7 @@ mod unix {
     use std::{
         path::PathBuf,
         sync::{Arc, Mutex},
-        time::SystemTime,
+        time::{Duration, SystemTime},
     };
 
     struct TestDirectory(PathBuf);

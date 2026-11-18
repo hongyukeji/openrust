@@ -58,3 +58,13 @@
 - 每组验证强制超时回收 CPU 死循环、同步阻塞及外部进程树，无晚到副作用。验证超时退出码 124、租约后重试、按任务 UUID 写入失败记录，以及关闭超时退出后继续消费。每组还验证非隔离失败回调及其异常报告，同一 Worker 成功消费后续任务并以 0 退出。
 
 [English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#hard-job-timeouts)
+
+## Windows ARM64 Debug 作用域与堆上状态
+
+- 从本地基线 `6796629d9` 及核定补丁生成独立源码快照。沿用本页固定 Laravel Worker 的失败、回调与超时顺序。再次核对 `v0.x` `6d1a81924`，其 Worker 没有此进程验收夹具或当前任务作用域实现，本批复用主线已有 Worker 和失败记录。
+- 原队列夹具在首次应用引导前栈溢出。将外部进程模式、Artisan 模式和父验收模式拆分，父模式的场景 Future 由堆持有。随后定位原生 Worker 在普通任务终态失败路径的栈溢出。将尝试、任务执行及失败回调的 Future 在进入 task-local 作用域前固定到堆上，并将链和批次结算的大型 Future 从普通任务状态中移出。使用同一线程和原作用域依次 await，保留原失败写入、预约删除、唯一锁释放及回调顺序。
+- Parallels Windows 11 ARM64、Rust 1.94.0／MSVC 的未优化构建，PE Machine `0xaa64`，栈预留实测 `1048576` 字节。核对夹具、Worker、Faker、Process 和文件系统测试的 SHA-256 与当前候选一致。未调整链接栈、运行时线程栈或 Worker 超时设置。
+- 实际运行 `OPENRUST_TEST_FAIL_EXCEPTION_ONLY=1 cargo +1.94.0 test --locked --offline --test queue_hard_timeout`，再清除筛选运行完整同名测试。真实 `queue:work` 验证非隔离及隔离异常失败、失败回调、数据库失败记录、缺失模型和后续重试成功。完整验收覆盖 CPU、同步阻塞及外部进程的强制超时和回收、后续消费、HTTP Runner、内存门槛、统一／独立 Worker 和 Windows 信号退出。两个验收入口均退出 0。
+- 本批针对已复现 Windows 回归使用夹具内置 SQLite。MySQL、Redis、x64 MSVC 的发布前矩阵继续按目标环境跟踪。本批同步三语队列正文，说明 Rust 的堆上 Future 边界。
+
+- 最终候选在 Ubuntu 原生 amd64 的 Rust 1.94.0 镜像通过完整 `queue_hard_timeout`，同时通过 Faker 2 项、本地文件系统 9 项、Process 13 项及全工作区全目标严格 Clippy。Windows 原生 ARM64 全工作区全目标严格 Clippy 和另 10 项定向测试通过。两端候选文件哈希与工作区一致，格式、三语站点构建及浏览器检查通过。

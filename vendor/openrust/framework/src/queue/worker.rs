@@ -577,28 +577,28 @@ impl Worker {
         attempt: &mut AttemptStatus,
         signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
+        // Keep chain and batch state out of the ordinary job's Debug stack frame.
         if job.payload().chain_delivery.is_some() {
-            return self.forward_chain(job).await;
+            return Box::pin(self.forward_chain(job)).await;
         }
         let batch = BatchCompletion::resolve(&self.app, job)?;
         if let Some(batch) = &batch
             && let Some(recorded) = batch.recorded().await?
         {
-            return self.complete_recorded(job, recorded).await;
+            return Box::pin(self.complete_recorded(job, recorded)).await;
         }
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id
         {
             if let Some(batch) = &batch {
-                batch
-                    .record(
-                        &self.app,
-                        job.payload(),
-                        Some(&failed.exception),
-                        None,
-                        false,
-                    )
-                    .await?;
+                Box::pin(batch.record(
+                    &self.app,
+                    job.payload(),
+                    Some(&failed.exception),
+                    None,
+                    false,
+                ))
+                .await?;
             }
             job.delete().await?;
             self.release_unique_lock(job.payload()).await;
@@ -609,15 +609,17 @@ impl Worker {
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
         let deferred = crate::concurrency::DeferredCallbacks::default();
-        let result = Box::pin(deferred.scope(self.attempt(
-            job,
-            options,
-            &manager,
-            batch.as_ref(),
-            attempt,
-            signals,
-        )))
-        .await;
+        // Pin the attempt before task-local scopes wrap its polling state.
+        let result = deferred
+            .scope(Box::pin(self.attempt(
+                job,
+                options,
+                &manager,
+                batch.as_ref(),
+                attempt,
+                signals,
+            )))
+            .await;
         self.finish_attempt_marker(&mut attempt.marker).await;
         if attempt.stop_on_timeout && attempt.timed_out {
             return result;
@@ -755,7 +757,7 @@ impl Worker {
                     }
                 } else {
                     // Keep the scoped execution future out of the worker's attempt frame.
-                    Box::pin(isolated_scope(self.app.clone(), async {
+                    isolated_scope(self.app.clone(), Box::pin(async {
                     use crate::log::context::Context;
                     let context_repository = Context::repository().map_err(super::backend)?;
                     Context::hooks()
@@ -974,7 +976,7 @@ impl Worker {
                     .await?
                 && let Some(recorded) = batch.recorded().await?
             {
-                return self.complete_recorded(job, recorded).await;
+                return Box::pin(self.complete_recorded(job, recorded)).await;
             }
             if discard {
                 job.delete().await?;
@@ -1114,21 +1116,20 @@ impl Worker {
         let failed = FailedJob::new(job, error);
         self.failed.log(&failed).await?;
         if let Some(batch) = batch
-            && !batch
-                .record(
-                    &self.app,
-                    job.payload(),
-                    Some(&failed.exception),
-                    None,
-                    false,
-                )
-                .await?
+            && !Box::pin(batch.record(
+                &self.app,
+                job.payload(),
+                Some(&failed.exception),
+                None,
+                false,
+            ))
+            .await?
             && let Some(recorded) = batch.recorded().await?
         {
             if recorded.succeeded {
                 self.failed.forget_retry(&failed).await?;
             }
-            return self.complete_recorded(job, recorded).await;
+            return Box::pin(self.complete_recorded(job, recorded)).await;
         }
         job.fail(Some(error)).await?;
         let payload = job.payload();
@@ -1145,16 +1146,19 @@ impl Worker {
             attempts: job.attempts(),
             ..JobContext::default()
         };
-        let callback = Box::pin(isolated_scope(self.app.clone(), async {
-            use crate::log::context::Context;
-            let repository = Context::repository().map_err(super::backend)?;
-            Context::hooks()
-                .map_err(super::backend)?
-                .hydrate(&payload.context, &repository);
-            manager
-                .run_failed_handler(&mut context, payload, error)
-                .await
-        }));
+        let callback = isolated_scope(
+            self.app.clone(),
+            Box::pin(async {
+                use crate::log::context::Context;
+                let repository = Context::repository().map_err(super::backend)?;
+                Context::hooks()
+                    .map_err(super::backend)?
+                    .hydrate(&payload.context, &repository);
+                manager
+                    .run_failed_handler(&mut context, payload, error)
+                    .await
+            }),
+        );
         if let Err(callback_error) = callback.await {
             self.report_worker_error(&callback_error).await;
         }

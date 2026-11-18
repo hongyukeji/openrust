@@ -3314,8 +3314,7 @@ mod acceptance {
         println!("queue hard timeout process acceptance passed on {backend}");
     }
 
-    #[tokio::main(flavor = "current_thread")]
-    pub async fn run() -> ExitCode {
+    pub fn run() -> ExitCode {
         #[cfg(windows)]
         if std::env::args().nth(1).as_deref() == Some("runtime-ctrl-c") {
             return send_console_ctrl_c();
@@ -3334,11 +3333,21 @@ mod acceptance {
                 .nth(1)
                 .is_some_and(|argument| argument == "artisan")
         {
-            return run_application(|| {
-                application(PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap()))
-            })
-            .await;
+            return run_artisan();
         }
+        run_acceptance()
+    }
+
+    #[tokio::main(flavor = "current_thread")]
+    async fn run_artisan() -> ExitCode {
+        Box::pin(run_application(|| {
+            application(PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap()))
+        }))
+        .await
+    }
+
+    #[tokio::main(flavor = "current_thread")]
+    async fn run_acceptance() -> ExitCode {
         #[cfg(windows)]
         {
             assert!(process_exists(&std::process::id().to_string()));
@@ -3354,12 +3363,14 @@ mod acceptance {
                     .contains("Queue job execution process failed:")
             );
         }
-        exercise("sqlite").await;
+        // This fixture drives several large async scenarios. Keep their poll state
+        // off the test entry point's stack so child modes use the ordinary OS stack.
+        Box::pin(exercise("sqlite")).await;
         if std::env::var_os("OPENRUST_TEST_WORKER_MYSQL_URL").is_some() {
-            exercise("mysql").await;
+            Box::pin(exercise("mysql")).await;
         }
         if std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_some() {
-            exercise("redis").await;
+            Box::pin(exercise("redis")).await;
         }
         ExitCode::SUCCESS
     }

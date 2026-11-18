@@ -433,6 +433,8 @@ QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --
 
 ##### 阻塞任务的强制超时 {#hard-job-timeouts}
 
+Rust Worker 在进入执行作用域前，将较大的任务尝试、链和批次 Future 固定在堆上，减小 Worker 栈上的轮询状态，适用于 Windows Debug 构建。任务回调和失败结算仍按既有顺序执行。
+
 对于可能阻塞执行线程的任务，设置 `JobOptions::hard_timeout`。Artisan 在 Unix 进程组或 Windows Job Object 中隔离任务。Worker 保留预约，并将实际任务超时应用于执行进程，计时包含启动。到期后，Worker 终止进程树并等待执行进程退出，再派发 `JobTimedOut` 并结算失败或重试。
 
 通过 `Process` 启动的外部程序继承隔离边界。Unix 程序可以通过创建新会话或进程组脱离此边界。Windows 在任务启动前将执行进程加入 Job Object，并等待其中的所有进程退出。强制超时需要内置持久队列的预约。已在 Windows 11 上使用 SQLite 验证，并在 macOS 和 arm64 Linux 上使用 SQLite、MySQL 和 Redis 验证。

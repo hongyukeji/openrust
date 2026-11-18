@@ -1,8 +1,10 @@
 use std::{io, path::PathBuf, sync::Arc, task::Poll};
 
+#[cfg(unix)]
+use openrust::filesystem::WriteOptions;
 use openrust::{
     config::Repository,
-    filesystem::{FilesystemError, FilesystemManager, LocalDiskConfig, Visibility, WriteOptions},
+    filesystem::{FilesystemError, FilesystemManager, LocalDiskConfig, Visibility},
 };
 use serde_json::json;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _, ReadBuf};

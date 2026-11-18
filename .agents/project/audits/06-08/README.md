@@ -78,3 +78,32 @@
 - 基线 `2c4cdec9e`，Parallels Windows 11 Build 26200，Rust 1.94.0 和 ARM64 MSVC，二进制 PE Machine `0xaa64`。真实 `python -B tests/artisan_dev_windows.py` 使用独立 SQLite 迁移和队列监听、真实 `GET /up`、资产脚本及拥有独立控制台的孙进程，验证 Ctrl+C 退出 0、正常 HTTP 停止、后代进程退出和端口释放，以及 `--no-restart` 的失败退出 9 并结束其他命令。另实测无控制台强制回收及独立 `queue:work` Ctrl+Break 产生 `interrupted`、退出 0。
 - Windows 锁定离线 `dev_commands`、`console` 9 项通过。Windows 工作区库和二进制及 `dev_commands`、`console`、`queue_hard_timeout` 的严格 Clippy 通过。完整 `queue_hard_timeout` SQLite 进程夹具在当前改动和同工具链的未改基线均触发 `STATUS_STACK_OVERFLOW`，缩小到既有失败回调模式仍复现。Windows 全目标 Clippy 报 `faker_color.rs:13` 的 `parse` 类型推断错误，未改基线的 Faker 夹具也复现。两项完整回归仍待收口，x64 未覆盖。Ubuntu 13 项、真实伪终端及全目标严格 Clippy 通过。格式、三语站点构建及 18 项浏览器检查通过。
 - Windows 验收目录和临时产物、Ubuntu 编译缓存、站点产物已回收，Windows 虚拟机恢复关机。项目磁盘可用 56.88 GB（52.98 GiB），提交前周额度剩余 17%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-dev-windows.b2hPXJEI`。
+
+## Windows 回归门禁收口
+
+06-04 的 [Windows ARM64 Debug 作用域与堆上状态](../06-04/worker-hard-timeout.md#windows-arm64-debug-作用域与堆上状态)已通过原生真实 Worker 的定向及完整 SQLite 进程验收。Faker RGB 的显式通道类型先独立提交于 `6796629d9`。全目标门禁随后暴露的 Process `Duration` 和本地文件系统 `WriteOptions` 只被 Unix 测试使用，导入随测试限定到 Unix。Pail 日志跟踪继续独立推进。
+
+- 原生 Windows ARM64 执行 `cargo +1.94.0 clippy --locked --offline --workspace --all-targets -- -D warnings` 退出 0，随后 `cargo +1.94.0 test --locked --offline -p openrust-framework --test processes --test faker_color --test filesystem_local` 的 10 项测试通过。Ubuntu 同范围 24 项、完整 Worker 进程验收及全目标严格 Clippy 通过。
+- 本批文件范围如下，Faker 修复已先独立提交。
+
+```text
+.agents/project/
+├── audits/
+│   ├── 06-04/worker-hard-timeout.md
+│   ├── 06-08/README.md
+│   └── core-closure-ledger.md
+├── current.md
+└── progress.md
+docs/
+├── en/digging-deeper/queues.md
+├── zh_CN/digging-deeper/queues.md
+└── zh_TW/digging-deeper/queues.md
+tests/queue_hard_timeout.rs
+vendor/openrust/framework/
+├── src/queue/worker.rs
+└── tests/
+    ├── filesystem_local.rs
+    └── processes.rs
+```
+
+- Windows 与 Ubuntu 当批快照及编译缓存、站点产物已回收，数据卷清单一致，Windows 虚拟机恢复关机。提交前磁盘可用 56.59 GB（52.71 GiB），周额度剩余 16%，第二窗口无读数，沿用用户忽略本轮额度停线的授权。原始验收日志保留于 `/private/tmp/openrust-win-baseline.em1FHFXM`。

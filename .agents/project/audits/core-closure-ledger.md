@@ -375,3 +375,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08 [Artisan dev 标签与流式终端](06-08/README.md#artisan-dev-标签与流式终端)通过 Ubuntu 实际伪终端、交互操作、日志回放及恢复验收。Windows 进程树与 Pail 继续跟踪。核心账本维持 66/66。
 
 06-08 [Artisan dev Windows 进程树与 Ctrl+C](06-08/README.md#artisan-dev-windows-进程树与-ctrlc)通过 Windows ARM64 真实 Artisan、控制台信号及作业回收。Windows 队列夹具默认栈、Faker 编译门禁及 Pail 分别跟踪。核心账本维持 66/66。
+
+06-04／06-08 [Windows ARM64 Debug 作用域与堆上状态](06-04/worker-hard-timeout.md#windows-arm64-debug-作用域与堆上状态)通过默认 1 MiB 栈下的真实 Worker、强制超时、失败回调与记录、后续消费、HTTP 和关停验收。Windows 与 Ubuntu 全目标严格 Clippy 及三语文档检查通过。Faker 编译门禁已提交于 `6796629d9`，Process 与文件系统测试导入同批限定平台。核心账本维持 66/66，Pail 单列后续。
