@@ -13,7 +13,10 @@ use openrust::{
     foundation::{Application, BootstrapError, configuration::Routing, console::Kernel, http},
     http::{Body, Request, StatusCode},
     routing::RoutingError,
-    support::facades::{Artisan as ArtisanFacade, Route},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{Artisan as ArtisanFacade, Route},
+    },
     view::view,
 };
 
@@ -36,6 +39,73 @@ impl Command for Greet {
             output.stdout.push_str(&format!("Hello {name}\n"));
             Ok(7)
         })
+    }
+}
+
+static RELOAD_STEPS: AtomicUsize = AtomicUsize::new(0);
+
+struct ReloadStep(CommandDefinition, usize, i32);
+
+impl Command for ReloadStep {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        _: &'a Input,
+        _: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            RELOAD_STEPS.fetch_or(self.1, Ordering::Relaxed);
+            Ok(self.2)
+        })
+    }
+}
+
+struct ReloadProbeServiceProvider;
+
+impl ServiceProvider for ReloadProbeServiceProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> ConsoleFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            self.reloads(app, "probe:replaced", None);
+            self.reloads(app, "probe:fail", Some("reload-probe"));
+            self.reloads(app, "probe:next", Some("next"));
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn reload_uses_application_provider_tasks_and_continues_after_nonzero_status() {
+    for (with_provider, except, expected) in [
+        (true, "queue, schedule:interrupt", 3),
+        (true, "queue, schedule, reload-probe, probe:next, next", 0),
+        (false, "queue, schedule", 0),
+    ] {
+        RELOAD_STEPS.store(0, Ordering::Relaxed);
+        let mut builder =
+            Application::configure(std::env::current_dir().unwrap()).withCommands(|artisan| {
+                for (name, step, status) in [("probe:fail", 1, 7), ("probe:next", 2, 0)] {
+                    artisan.add_command(Box::new(ReloadStep(
+                        CommandDefinition::new(clap::Command::new(name)),
+                        step,
+                        status,
+                    )))?;
+                }
+                Ok(())
+            });
+        if with_provider {
+            builder = builder.withProviders(vec![Box::new(ReloadProbeServiceProvider)]);
+        }
+        let app = builder.create().unwrap();
+        let status = app
+            .handleCommand(&["reload", "-e", except].map(OsString::from))
+            .await
+            .unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(RELOAD_STEPS.load(Ordering::Relaxed), expected);
     }
 }
 

@@ -877,7 +877,9 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
     let root = root(Some(port));
     let winner = RunningScheduler::start(artisan(&root, "repeat", MONDAY + 54, &["schedule:run"]));
     wait_for_receipts(&root, 2).await;
-    run(&root, "repeat", MONDAY + 54, &["schedule:interrupt"]).await;
+    let reload = run(&root, "repeat", MONDAY + 54, &["reload", "--except=queue"]).await;
+    let output = String::from_utf8(reload.stdout).unwrap();
+    assert!(output.contains("schedule ... DONE") && !output.contains("queue ..."));
     assert_success(
         &timeout(Duration::from_secs(3), winner.wait_with_output())
             .await

@@ -110,6 +110,19 @@ pub trait ServiceProvider: Any + Send + Sync {
         app.register_package_commands(register);
     }
 
+    /// Register an Artisan command to run during a service reload.
+    fn reloads(&self, app: &Application, command: &str, key: Option<&str>) {
+        let provider = self.name().rsplit("::").next().unwrap_or(self.name());
+        let key = key.map(str::to_owned).unwrap_or_else(|| {
+            super::Str::kebab(
+                provider
+                    .split_once("ServiceProvider")
+                    .map_or(provider, |(name, _)| name),
+            )
+        });
+        app.register_reload_command(if key.is_empty() { provider.into() } else { key }, command);
+    }
+
     /// Register package views, preceded by application overrides under each view root.
     fn loadViewsFrom<'a>(
         &'a self,

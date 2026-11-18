@@ -35,6 +35,7 @@ impl ServiceProvider for ReverbServiceProvider {
                 })?;
             }
             self.commands(app, crate::servers::reverb::console::commands::register);
+            self.reloads(app, "reverb:restart", Some("reverb"));
             Ok(())
         })
     }

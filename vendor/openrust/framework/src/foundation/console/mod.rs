@@ -98,6 +98,7 @@ impl Kernel {
                     .get_or_insert_with(|| {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
+                            self.artisan.register_reload()?;
                             environment_command::register(&mut self.artisan)?;
                             config_cache_command::register(&mut self.artisan)?;
                             configuration_command::register(&mut self.artisan)?;

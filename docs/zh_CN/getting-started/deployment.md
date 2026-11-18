@@ -61,6 +61,19 @@ curl -i http://127.0.0.1:8088/up
 
 源码的 `artisan` 脚本运行 Cargo。独立发布无需 Cargo，使用 `./main artisan …` 运行命令。参阅 [Artisan](../digging-deeper/artisan.md)和[应用配置](configuration.md)。
 
+### 重新加载服务 {#reloading-services}
+
+部署新版本后，可以请求独立管理的服务优雅重载：
+
+```sh
+./main artisan reload
+./main artisan reload --except=queue,reverb:restart
+```
+
+`reload` 调用 `queue:restart` 和 `schedule:interrupt`。Reverb 服务提供者为独立 Reverb 服务接入 `reverb:restart`。服务提供者也可通过 `reloads` 注册其他任务。用 `--except`（`-e`）传入逗号分隔的任务名称或 Artisan 命令名。
+
+在与 Worker 相同的共享缓存配置下执行。独立 Worker 和 Reverb 退出后由进程管理器重新启动。统一启动模式下，重启整个 `main` 进程以加载新二进制并重新启动内嵌服务。
+
 ### 验证发布产物 {#verify-the-release}
 
 应用监听后，在发布目录执行以下检查。HTTP 请求使用部署配置的监听端口。

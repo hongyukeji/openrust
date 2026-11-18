@@ -95,8 +95,11 @@ async def verify(base):
                     "channel": "probe-debug", "name": "debug-event", "data": '"probe-opaque-value"',
                 }, server_prefix="/socket") == {}
                 assert (await frame(ws, "debug-event"))[1] == "probe-opaque-value"
-                result = command(env, "reverb:restart")
-                assert result.returncode == 0, result.stderr
+                skipped = command(env, "reload", "--except=queue,schedule,reverb:restart")
+                assert skipped.returncode == 0 and "reverb ... " not in skipped.stdout, skipped
+                assert server.poll() is None
+                result = command(env, "reload", "--except=queue,schedule")
+                assert result.returncode == 0 and "reverb ... DONE" in result.stdout, result
                 await asyncio.wait_for(ws.wait_closed(), 5)
             assert server.wait(timeout=5) == 0, server.communicate()
         finally:

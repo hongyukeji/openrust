@@ -12,13 +12,14 @@ use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
 use super::{
     ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, descriptor,
-    help_command, list_command, localization,
+    help_command, list_command, localization, reload_command,
 };
 
 #[derive(Clone)]
 enum Entry {
     List(CommandDefinition),
     Help(CommandDefinition),
+    Reload(CommandDefinition),
     Planned(CommandDefinition),
     Closure(ClosureCommand),
     Command(Arc<dyn Command>),
@@ -27,9 +28,10 @@ enum Entry {
 impl Entry {
     fn definition(&self) -> &CommandDefinition {
         match self {
-            Self::List(definition) | Self::Help(definition) | Self::Planned(definition) => {
-                definition
-            }
+            Self::List(definition)
+            | Self::Help(definition)
+            | Self::Reload(definition)
+            | Self::Planned(definition) => definition,
             Self::Closure(command) => command.definition(),
             Self::Command(command) => command.definition(),
         }
@@ -66,6 +68,13 @@ impl Application {
 
     pub fn add_command(&mut self, command: Box<dyn Command>) -> Result<(), ConsoleError> {
         self.add(Entry::Command(Arc::from(command))).map(|_| ())
+    }
+
+    pub(crate) fn register_reload(&mut self) -> Result<(), ConsoleError> {
+        self.add(Entry::Reload(CommandDefinition::new(
+            reload_command::command(),
+        )))
+        .map(|_| ())
     }
 
     /// Registers a closure as an Artisan command.
@@ -436,6 +445,20 @@ impl Application {
             .await
     }
 
+    pub(super) async fn call_reload_target(
+        &self,
+        application: &FoundationApplication,
+        name: &str,
+    ) -> Result<i32, ConsoleError> {
+        let canonical = self.resolve(name)?;
+        let entry = &self.commands[canonical];
+        if matches!(entry, Entry::Reload(_)) {
+            return Err(ConsoleError::new("Reload cannot call itself."));
+        }
+        let input = entry.definition().parse(&[])?;
+        Box::pin(self.call(application, canonical, &input, &mut Output::default())).await
+    }
+
     async fn dispatch(
         &self,
         entry: &Entry,
@@ -448,6 +471,9 @@ impl Application {
         let command: &dyn Command = match entry {
             Entry::List(_) => return Ok(list_command::run(self, syntax, Some(matches), output)),
             Entry::Help(_) => return help_command::run(self, syntax, matches, output),
+            Entry::Reload(_) => {
+                return reload_command::run(self, application, matches, output).await;
+            }
             Entry::Planned(definition) => {
                 return Err(ConsoleError::new(format!(
                     "Command '{}' is not implemented yet.",

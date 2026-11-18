@@ -3352,3 +3352,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-08 Artisan 文本列表的全局选项
 
 普通文本及命令组列表从 Clap 根定义渲染本地化全局选项。18 项回归、三语实际 Artisan、格式、严格 Clippy、三语站点与 18 项浏览器检查通过。 [验收](audits/06-08/README.md#artisan-文本列表的全局选项)
+
+## 2026-11-18 08-04 Artisan 服务重载
+
+接通 `reload`、`--except` 和应用级 Provider 重载任务。真实 MySQL／Redis、独立 Worker、调度、Reverb、定向回归、严格 Clippy 和三语站点通过。 [验收](audits/08-04/README.md#artisan-服务重载)

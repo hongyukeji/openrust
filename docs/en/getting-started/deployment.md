@@ -61,6 +61,19 @@ Set `APP_URL` to the application's public URL. Without it, the configured `APP_P
 
 The source `artisan` script runs Cargo. A standalone deployment does not require Cargo and runs commands with `./main artisan …`. See [Artisan](../digging-deeper/artisan.md) and [application configuration](configuration.md).
 
+### Reload Services {#reloading-services}
+
+After deploying a new version, request a graceful reload of independently managed services:
+
+```sh
+./main artisan reload
+./main artisan reload --except=queue,reverb:restart
+```
+
+`reload` runs `queue:restart` and `schedule:interrupt`. The Reverb provider adds `reverb:restart` for standalone Reverb servers. Providers can register other tasks with `reloads`. Use `--except` (`-e`) with comma-separated task labels or Artisan command names.
+
+Run the command with the same shared cache configuration as the workers. A process manager should restart standalone workers and Reverb after they exit. Restart the unified `main` process to replace its compiled code and restart its embedded services.
+
 ### Verify the Release {#verify-the-release}
 
 Run these checks from the release directory while the application is listening. Use the HTTP port configured for the deployment.

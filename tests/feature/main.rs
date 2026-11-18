@@ -114,6 +114,24 @@ fn artisan_supports_both_command_help_forms() {
 }
 
 #[test]
+fn artisan_reload_excludes_tasks_by_label_and_command() {
+    let help = artisan(&["help", "reload"]);
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("--except"));
+
+    let result = artisan(&[
+        "reload",
+        "--except",
+        " queue, schedule:interrupt, reverb, queue, ",
+    ]);
+    assert!(result.status.success());
+    assert!(result.stderr.is_empty());
+    let output = String::from_utf8_lossy(&result.stdout);
+    assert!(output.contains("Reloading services."));
+    assert!(!output.contains("DONE"));
+}
+
+#[test]
 fn artisan_raw_help_keeps_full_localized_text_without_ansi() {
     for (locale, usage, options) in [
         ("en", "Usage:", "Options:"),

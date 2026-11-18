@@ -146,3 +146,9 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 真实 MySQL 8.4.13 和 Redis 8.10.3 上，独立 Artisan 生成配置缓存后，HTTP 与 `config:show` 都采用快照。清除后读取新的进程环境。搬移带空格的发布目录后重新生成，缓存内的本机磁盘根路径指向新位置，首页和公共存储仍正常。12 项迁移及幂等重跑、受管与独立 Redis Worker、数据库 Session、`/up`、两次 SIGTERM 退出 0 与端口回收均通过。
 - 三语部署页补充配置缓存步骤和搬移后的重建方式。全仓格式通过，同一份框架源码的严格 Clippy 见 [06-08](../06-08/README.md#artisan-完整纯文本帮助)。三语构建和根路径及 `/docs/` 下的 18 项浏览器检查通过。项目仍按已确认的发布模拟口径记录，Windows Docker Desktop、生产 TLS 和托管 SQS 的目标环境待实机。
 - 临时 Redis、MySQL、构建和测试发布目录已回收，Docker 数据卷清单一致。磁盘可用 88.99 GB（82.88 GiB），提交前周额度剩余 27%，第二窗口无读数。日志保留于 `/private/tmp/openrust-release-artisan-main.Ij3lTvEs`。
+
+## Artisan 服务重载
+
+- 对照固定 Laravel v13.40.0 的 `ReloadCommand` 与 `ServiceProvider::reloads()`。旧版 `openrust-v0.x` 未提供统一重载的对应实现。OpenRust 复用已有 `queue:restart`、`schedule:interrupt` 和独立 `reverb:restart` 命令。Provider 的任务表按应用存放，使用当前 Artisan 注册表安静调用命令。保留固定 Laravel 的任务顺序、按名称或命令排除、任务返回非零时标记失败并继续，以及整体退出 0 的语义。 [固定 Laravel ReloadCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ReloadCommand.php) · [固定 Laravel ServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/ServiceProvider.php#L480)
+- 隔离快照 `c7177e8f6` 的 Rust 1.94.0 启用 `reverb` 功能构建。独立 Artisan 在真实 MySQL 8.4.13 和 Redis 8.10.3 中完成迁移及一项邮件作业。按标签和按命令排除后 Worker 继续运行，执行完整重载后优雅退出 0，Redis 显示三个重载目标的信号。独立调度进程在真实 Redis 收到重载的中断信号后停止重复任务。Reverb 通过实际 HTTP 和 WebSocket 复验，独立实例被排除时保持运行，收到重载后关闭连接并退出 0。
+- 20 项 `console`、`feature`、`artisan_entry`、Redis 调度跨进程回归、全仓格式和启用 Reverb 的工作区全目标严格 Clippy 通过。三语部署文档补充命令、共享缓存和统一主进程边界。在根路径及 `/docs/` 下的三语站点构建与 18 项浏览器检查通过。临时容器、编译及文档产物已回收。磁盘可用 88.95 GB（82.84 GiB），提交前周额度剩余 26%，第二窗口无读数。日志保留于 `/private/tmp/openrust-artisan-reload.3gsZBpZR`。

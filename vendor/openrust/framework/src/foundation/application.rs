@@ -69,6 +69,7 @@ pub(super) struct ApplicationState {
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
     pub(super) package_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
+    reload_commands: Mutex<Vec<(String, String)>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     middleware: OnceLock<Middleware>,
     pub(super) commands: CommandRegistrar,
@@ -211,6 +212,27 @@ impl Application {
             .lock()
             .expect("package command list lock poisoned")
             .push(register);
+    }
+
+    pub(crate) fn register_reload_command(&self, key: String, command: &str) {
+        let mut commands = self
+            .shared
+            .reload_commands
+            .lock()
+            .expect("reload commands lock");
+        if let Some((_, registered)) = commands.iter_mut().find(|(name, _)| *name == key) {
+            command.clone_into(registered);
+        } else {
+            commands.push((key, command.to_owned()));
+        }
+    }
+
+    pub(crate) fn reload_commands(&self) -> Vec<(String, String)> {
+        self.shared
+            .reload_commands
+            .lock()
+            .expect("reload commands lock")
+            .clone()
     }
 
     pub(crate) fn route_info(
@@ -384,6 +406,10 @@ impl Application {
             package_manifest: OnceLock::new(),
             package_cache_path: OnceLock::new(),
             package_commands: Mutex::default(),
+            reload_commands: Mutex::new(vec![
+                ("queue".into(), "queue:restart".into()),
+                ("schedule".into(), "schedule:interrupt".into()),
+            ]),
             middleware_configurators: Mutex::new(middleware_configurators),
             middleware: OnceLock::new(),
             commands,
