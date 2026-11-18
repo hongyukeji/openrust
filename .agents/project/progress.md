@@ -3544,3 +3544,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-19 00-03／06-08 Artisan 开发 HTTP 服务
 
 实际 HTTP 和 Artisan 使用独立 HTTP 内核入口，核对端口回退、选定环境文件重载、旧进程退出及端口重新绑定。27 项定向回归、全目标严格 Clippy 与三语文档验收通过。Windows 新增子进程路径待实机复验。 [验收记录](audits/06-08/README.md#artisan-开发-http-服务)
+
+## 2026-11-19 06-08 Artisan 开发进程注册与列表
+
+Ubuntu 真实 Artisan 验证默认项、两应用注册隔离、优先级、筛选及 JSON，伪终端验证颜色和退出码。11 项定向回归、全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。 [验收记录](audits/06-08/README.md#artisan-开发进程注册与列表)

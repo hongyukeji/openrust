@@ -6,6 +6,7 @@ pub mod bootstrap;
 mod bootstrap_error;
 pub mod configuration;
 pub mod console;
+mod dev_commands;
 mod entry;
 mod environment_detector;
 pub mod events;
@@ -22,6 +23,7 @@ pub mod support;
 
 pub use application::Application;
 pub use bootstrap_error::BootstrapError;
+pub use dev_commands::{DevCommand, DevCommands, DevProcess};
 pub use entry::run_application;
 pub use inspiring::Inspiring;
 pub use package_manifest::{DiscoveredPackage, PackageManifest};

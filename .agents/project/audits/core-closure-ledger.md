@@ -367,3 +367,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08／06-03 [Artisan 命令队列](06-08/README.md#artisan-命令队列)通过真实 HTTP、MySQL 8.4.13／Redis 8.10.3 独立 Worker、重试、失败记录及后续消费。核心账本维持 66/66。
 
 00-03／06-08 [Artisan 开发 HTTP 服务](06-08/README.md#artisan-开发-http-服务)通过真实 HTTP、独立 Artisan、地址占用回退、环境文件重载及 Linux 关停验收。Windows 新增关停路径待实机复验。核心账本维持 66/66。
+
+06-08 [Artisan 开发进程注册与列表](06-08/README.md#artisan-开发进程注册与列表)通过真实 Artisan、两应用注册隔离、筛选与终端格式及三语文档验收。下一批为 `dev` 并发执行。核心账本维持 66/66。

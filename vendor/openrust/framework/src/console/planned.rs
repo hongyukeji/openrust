@@ -45,7 +45,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("db:table", "Inspect the columns and indexes of a table"),
     ("db:wipe", "Drop database tables, views, and types"),
     ("dev", "Start the configured development processes"),
-    ("dev:list", "Show registered development processes"),
     ("docs", "Open the documentation for a topic"),
     ("event:cache", "Cache event and listener registrations"),
     ("event:clear", "Remove the cached event registrations"),

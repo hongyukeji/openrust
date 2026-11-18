@@ -479,6 +479,12 @@ impl Application {
         let deferred =
             super::provider_repository::ProviderRepository::new(Arc::downgrade(&shared), deferred);
         super::console::bind_application(&shared);
+        shared
+            .container
+            .instance(Arc::new(super::dev_commands::Registry::new(
+                shared.basePath.clone(),
+            )))
+            .expect("development command registry is initially unbound");
         if !deferred.is_empty() {
             shared.container.install_deferred(deferred.clone());
         }

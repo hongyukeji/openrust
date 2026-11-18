@@ -72,6 +72,10 @@ impl Output {
         }
     }
 
+    pub(crate) fn is_decorated(&self) -> bool {
+        self.decorated
+    }
+
     pub(crate) fn streams_to_terminal(&self) -> bool {
         self.terminal
     }

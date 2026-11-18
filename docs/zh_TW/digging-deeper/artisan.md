@@ -46,6 +46,26 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 選定的環境檔案變更時，服務會在原監聽連接埠重新啟動。用 `--env=local` 選擇環境，用 `--no-reload` 保持目前設定直到停止。按 Ctrl+C 停止服務。執行編譯後的 `main` 時省略模式引數，即可[一起啟動已設定的服務](../getting-started/deployment.md#一起執行服務)。
 
+## 查看開發程序 {#the-dev-command}
+
+用 `dev:list` 查看目前應用程式登記的開發程序。預設列出 [HTTP 開發伺服器](#development-http-server)和佇列監聽器。應用程式含有 `package.json` 時，也會依鎖定檔選擇 Bun、pnpm、Yarn 或 npm 並列出 Vite。查詢不會啟動程序。Pail 日誌追蹤待另外實作。
+
+```sh
+./artisan dev:list
+./artisan dev:list --json
+./artisan dev:list --no-interaction --filter=queue
+```
+
+非互動環境也會輸出 JSON。`--filter` 依名稱或命令的子字串篩選，`--except-vendor` 和 `--only-vendor` 篩選套件登記的程序。篩選沒有結果時結束碼為 1。
+
+在應用程式服務提供者的 `boot` 方法中，透過 `openrust::foundation::DevCommands` 登記程序。同名程序會覆蓋預設項目，應用程式登記優先於套件登記。
+
+```rust
+DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+```
+
+Shell 命令用 `register` 登記，套件管理器命令用 `node` 或 `nodeExec`。名稱傳 `None` 時使用命令的第一個單字。用 `only`、`except`、`order`、`withoutVendorCommands` 和 `withoutDefaultCommands` 調整應用程式清單。框架依 Rust 呼叫者的原始碼路徑辨識套件登記。
+
 ## 命令說明和輸出格式 {#command-help-and-output-formats}
 
 `./artisan help migrate` 與 `./artisan migrate --help` 從同一命令定義讀取引數、選項和說明。檢視說明時不會執行目標命令。精確的命令名稱和別名優先，可依完整名稱或冒號分隔的各段使用唯一縮寫。

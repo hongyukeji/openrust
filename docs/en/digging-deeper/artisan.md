@@ -46,6 +46,26 @@ Use `./artisan serve` to run HTTP on its own. The default address is `127.0.0.1:
 
 The server restarts after changes to the selected environment file and keeps its listening port. Use `--env=local` to select an environment and `--no-reload` to keep the current configuration until you stop the server. Press Ctrl+C to stop. Run the compiled `main` without mode arguments to [start configured services together](../getting-started/deployment.md#run-services-together).
 
+## Listing Development Processes {#the-dev-command}
+
+Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. Pail log tailing requires a separate implementation.
+
+```sh
+./artisan dev:list
+./artisan dev:list --json
+./artisan dev:list --no-interaction --filter=queue
+```
+
+JSON output is also used in non-interactive sessions. `--filter` matches a substring of the name or command. `--except-vendor` and `--only-vendor` filter package entries. A filter with no matches exits with status 1.
+
+In the `boot` method of your application service provider, use `openrust::foundation::DevCommands` to register processes. A registration with the same name overrides the default, and application registrations take precedence over package registrations.
+
+```rust
+DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+```
+
+Use `register` for shell commands and `node` or `nodeExec` for package-manager commands. Pass `None` to use the first word of the command as its name. `only`, `except`, `order`, `withoutVendorCommands`, and `withoutDefaultCommands` customize the application registry. Package registrations are recognized by their Rust caller's source path.
+
 ## Command Help and Output Formats {#command-help-and-output-formats}
 
 `./artisan help migrate` and `./artisan migrate --help` read the same registered definition. They display arguments, options and descriptions without running the command. Exact command names and aliases take precedence. A unique abbreviation can shorten a complete name or its colon-separated segments.

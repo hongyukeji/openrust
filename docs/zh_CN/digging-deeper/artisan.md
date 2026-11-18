@@ -46,6 +46,26 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 选中的环境文件发生变化时，服务会在原监听端口重启。用 `--env=local` 选择环境，用 `--no-reload` 保持当前配置直到停止。按 Ctrl+C 停止服务。不带模式参数运行编译后的 `main` 可[一起启动已配置的服务](../getting-started/deployment.md#一起运行服务)。
 
+## 查看开发进程 {#the-dev-command}
+
+用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。Pail 日志跟踪待单独实现。
+
+```sh
+./artisan dev:list
+./artisan dev:list --json
+./artisan dev:list --no-interaction --filter=queue
+```
+
+非交互环境也会输出 JSON。`--filter` 按名称或命令的子串筛选，`--except-vendor` 和 `--only-vendor` 筛选包登记的进程。筛选无结果时退出码为 1。
+
+在应用服务提供者的 `boot` 方法中，通过 `openrust::foundation::DevCommands` 登记进程。同名进程会覆盖默认项，应用登记优先于包登记。
+
+```rust
+DevCommands::artisan("serve --port=9000", Some("server"))?.green();
+```
+
+Shell 命令用 `register` 登记，包管理器命令用 `node` 或 `nodeExec`。名称传 `None` 时使用命令首词。用 `only`、`except`、`order`、`withoutVendorCommands` 和 `withoutDefaultCommands` 调整应用清单。框架依据 Rust 调用者的源码路径识别包登记。
+
 ## 命令帮助和输出格式 {#command-help-and-output-formats}
 
 `./artisan help migrate` 与 `./artisan migrate --help` 从同一命令定义读取参数、选项和说明。查看帮助时不会执行目标命令。精确的命令名称和别名优先，可按完整名称或冒号分隔的各段使用唯一缩写。

@@ -50,3 +50,10 @@
 - 默认监控选中的环境文件。采用同一 Rust 二进制运行 HTTP 子进程，等待旧进程退出后在已选端口重新启动。禁用重载或启动时没有环境文件时直接运行 HTTP。普通 Runner 启动与独立 Artisan 分流保持原有职责。Rust 源码改动需重新构建。Windows 新增子进程及 Ctrl+C 路径仍待实机复验。
 - 基线 `71db48089` 的隔离源码使用 Rust 1.94.0 构建。Ubuntu 实际二进制验证 HTTP 首页和 `/up`、独立 Artisan 帮助和 `inspire`、显式端口占用与重试耗尽退出 1、隐式端口回退、命令行覆盖环境值、`--no-reload`、`--quiet`、`--silent`、选定环境文件重载后保留端口，以及 SIGTERM 和两种模式下 Ctrl+C 退出 0。27 项定向回归、全仓格式、锁定离线全目标严格 Clippy、三语站点构建及 18 项浏览器检查通过。
 - 本批临时构建和站点产物已回收。项目磁盘可用 52.08 GB（48.50 GiB），提交前周额度剩余 18%，第二窗口无读数，按用户授权继续。验收日志保留于 `/private/tmp/openrust-artisan-serve.k3BIeZYm`。
+
+## Artisan 开发进程注册与列表
+
+- 对照固定 Laravel 的注册入口、列表命令及源码回归。复核 `v0.x`（`6d1a81924`）的 Artisan 入口，旧版没有开发进程登记或列表可直接移植。沿用 Goravel 将应用装配和命令执行分开的职责。 [Laravel DevCommands](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/DevCommands.php) · [Laravel DevListCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/DevListCommand.php) · [Laravel 回归测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/FoundationDevCommandsTest.php) · [固定 Artisan 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#the-dev-command) · [固定 Goravel Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application.go)
+- 注册表存放在应用容器中，支持同名覆盖、默认／包／应用优先级、来源和颜色、顺序和包含／排除规则。Rust 用调用者的源码路径识别包和行号，按应用根目录检测 Node 锁文件。默认列出 `serve` 和 `queue:listen`，应用有 Node 清单文件时加入 Vite。后续接通 `dev` 的并发执行、重启与终端交互。Pail 独立跟踪。
+- 基线 `2ab1cb7a4` 的隔离快照使用 Rust 1.94.0。锁定离线 `cargo test --test console --test artisan_entry --test dev_commands` 共 11 项通过，覆盖真实 HTTP 入口回归、两应用并发注册并查询、包优先级、颜色、Vite 包管理器、过滤与退出码。实际二进制在 Ubuntu 通过交互式 ANSI／纯文本及无匹配退出 1，三语共 9 条 `./artisan` 指令通过。格式、全目标严格 Clippy、三语站点和 18 项浏览器检查通过。
+- 已回收本批编译和站点产物。项目磁盘可用 52.34 GB（48.75 GiB），提交前周额度剩余 17%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-dev-commands.YyKYNyK0`。
