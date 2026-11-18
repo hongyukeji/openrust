@@ -14,7 +14,24 @@ pub(super) fn load(
     let directory = base_path.join("storage/framework/cache/data");
     let directory = path(&directory)?;
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 默认缓存仓储
+        |--------------------------------------------------------------------------
+        |
+        | CACHE_STORE 决定未指定仓储时使用哪个缓存后端。
+        |
+        */
         "default": get(env, "CACHE_STORE", "database")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 缓存仓储与原子锁
+        |--------------------------------------------------------------------------
+        |
+        | 数据库和 Redis 可分别配置保存缓存数据与原子锁的连接。
+        |
+        */
         "stores": {
             "array": {"driver": "array", "serialize": false},
             "session": {"driver": "session", "key": get(env, "SESSION_CACHE_KEY", "_cache")?},
@@ -58,6 +75,15 @@ pub(super) fn load(
             },
             "failover": {"driver": "failover", "stores": ["database", "array"]},
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 缓存键前缀
+        |--------------------------------------------------------------------------
+        |
+        | 共享缓存后端时可用 CACHE_PREFIX 区分应用，默认根据 APP_NAME 生成。
+        |
+        */
         "prefix": get(env, "CACHE_PREFIX", prefix)?,
     }))
 }

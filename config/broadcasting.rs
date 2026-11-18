@@ -12,7 +12,24 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         .unwrap_or(&pusher_host);
     let scheme = get(env, "PUSHER_SCHEME", "https")?;
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 默认广播连接
+        |--------------------------------------------------------------------------
+        |
+        | BROADCAST_CONNECTION 选择发布连接。null 丢弃广播消息，log 将消息写入日志。
+        |
+        */
         "default": get(env, "BROADCAST_CONNECTION", "null")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 广播连接
+        |--------------------------------------------------------------------------
+        |
+        | 设置广播驱动、凭据和发布地址。Reverb 服务端的监听配置见 reverb.rs。
+        |
+        */
         "connections": {
             "reverb": {
                 "driver": "reverb",

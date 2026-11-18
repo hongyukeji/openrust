@@ -4,6 +4,14 @@ use serde_json::json;
 use super::env::get;
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
+    /*
+    |--------------------------------------------------------------------------
+    | 第三方服务凭据
+    |--------------------------------------------------------------------------
+    |
+    | 通过环境变量配置邮件供应商和 Slack 通知所需的凭据。
+    |
+    */
     Ok(json!({
         "postmark": {"token": get(env, "POSTMARK_TOKEN", Value::Null)?},
         "cloudflare": {

@@ -5,9 +5,26 @@ use super::env::{get, optional_integer};
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 启用 Reverb 与运行方式
+        |--------------------------------------------------------------------------
+        |
+        | REVERB_ENABLED 控制是否启用，REVERB_MODE 选择运行模式。
+        |
+        */
         "enabled": get(env, "REVERB_ENABLED", false)?,
         "mode": get(env, "REVERB_MODE", "embedded")?,
         "default": get(env, "REVERB_SERVER", "reverb")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | WebSocket 服务端
+        |--------------------------------------------------------------------------
+        |
+        | REVERB_SERVER_HOST 和 REVERB_SERVER_PORT 设置监听地址。多实例可通过 Redis 同步广播。
+        |
+        */
         "servers": {
             "reverb": {
                 "host": get(env, "REVERB_SERVER_HOST", "0.0.0.0")?,
@@ -33,6 +50,16 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
                 "telescope_ingest_interval": get(env, "REVERB_TELESCOPE_INGEST_INTERVAL", 15)?,
             },
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 应用凭据与连接限制
+        |--------------------------------------------------------------------------
+        |
+        | 配置应用凭据、允许的来源和消息大小。
+        | 对外发布地址使用 REVERB_HOST、REVERB_PORT 和 REVERB_SCHEME。
+        |
+        */
         "apps": {
             "provider": "config",
             "apps": [{

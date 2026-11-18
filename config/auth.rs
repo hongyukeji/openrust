@@ -5,16 +5,42 @@ use super::env::get;
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 默认认证配置
+        |--------------------------------------------------------------------------
+        |
+        | AUTH_GUARD 选择默认守卫，AUTH_PASSWORD_BROKER 选择密码重置服务。
+        |
+        */
         "defaults": {
             "guard": get(env, "AUTH_GUARD", "web")?,
             "passwords": get(env, "AUTH_PASSWORD_BROKER", "users")?,
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 守卫与用户提供器
+        |--------------------------------------------------------------------------
+        |
+        | web 守卫通过会话认证，使用 users 提供器加载用户。AUTH_MODEL 指定用户模型。
+        |
+        */
         "guards": {
             "web": {"driver": "session", "provider": "users"},
         },
         "providers": {
             "users": {"driver": "eloquent", "model": get(env, "AUTH_MODEL", "app::models::User")?},
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 密码重置
+        |--------------------------------------------------------------------------
+        |
+        | expire 以分钟设置令牌有效期，throttle 以秒设置重复申请间隔。
+        |
+        */
         "passwords": {
             "users": {
                 "provider": "users",
@@ -23,6 +49,15 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
                 "throttle": 60,
             },
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 密码确认有效期
+        |--------------------------------------------------------------------------
+        |
+        | AUTH_PASSWORD_TIMEOUT 以秒计，过期后敏感操作需重新确认密码。
+        |
+        */
         "password_timeout": get(env, "AUTH_PASSWORD_TIMEOUT", 10800)?,
     }))
 }

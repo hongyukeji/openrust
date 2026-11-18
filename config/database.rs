@@ -15,6 +15,15 @@ pub(super) fn load(
     let mask_bindings = get(env, "DB_MASK_BINDINGS", false)?;
     let mysql = mysql_connection(env, "mysql", &url, &mask_bindings)?;
     let mariadb = mysql_connection(env, "mariadb", &url, &mask_bindings)?;
+
+    /*
+    |--------------------------------------------------------------------------
+    | PostgreSQL 直连端点
+    |--------------------------------------------------------------------------
+    |
+    | DB_DIRECT_* 用于配置直接访问数据库的参数，例如供迁移命令绕开事务池。
+    |
+    */
     let direct = [
         ("host", get(env, "DB_DIRECT_HOST", Value::Null)?),
         ("port", json!(optional_integer(env, "DB_DIRECT_PORT")?)),
@@ -28,7 +37,25 @@ pub(super) fn load(
     .collect::<serde_json::Map<_, _>>();
 
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 默认数据库连接
+        |--------------------------------------------------------------------------
+        |
+        | DB_CONNECTION 选择下方连接。DB_URL 可提供连接地址，DB_PREFIX 设置表名前缀。
+        |
+        */
         "default": get(env, "DB_CONNECTION", "sqlite")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 数据库连接
+        |--------------------------------------------------------------------------
+        |
+        | SQLite 使用数据库文件，其余连接按驱动配置地址和账号。
+        | DB_MASK_BINDINGS 可在数据库异常中隐藏绑定值。
+        |
+        */
         "connections": {
             "sqlite": {
                 "driver": "sqlite",
@@ -78,7 +105,25 @@ pub(super) fn load(
                 "mask_bindings_in_exception_messages": mask_bindings,
             },
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 迁移账本
+        |--------------------------------------------------------------------------
+        |
+        | 记录已执行的迁移，并配置发布迁移文件时是否更新时间戳。
+        |
+        */
         "migrations": {"table": "migrations", "update_date_on_publish": true},
+
+        /*
+        |--------------------------------------------------------------------------
+        | Redis 连接
+        |--------------------------------------------------------------------------
+        |
+        | 默认连接使用 REDIS_DB。未设置 REDIS_CACHE_DB 时，缓存连接沿用 REDIS_DB。
+        |
+        */
         "redis": {
             "client": get(env, "REDIS_CLIENT", "redis")?,
             "options": {
@@ -92,6 +137,12 @@ pub(super) fn load(
     }))
 }
 
+/*
+ * 组装 MySQL 和 MariaDB 共用的连接配置。
+ *
+ * MYSQL_ATTR_SSL_CA 为非空路径时，将它作为 ssl_ca 传给驱动。
+ * 未设置、填空字符串或显式设为空值时，省略 ssl_ca，由驱动使用默认配置。
+ */
 fn mysql_connection(
     env: &Environment,
     driver: &str,

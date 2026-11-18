@@ -25,6 +25,12 @@ mod services;
 mod session;
 mod view;
 
+/*
+ * 按依赖顺序装配应用配置。
+ *
+ * 先加载应用配置，为缓存、数据库和会话提供应用名称，为文件存储和邮件提供 URL。
+ * 数据库配置加载后，再用默认数据库连接装配队列配置。
+ */
 pub(crate) fn load(
     base_path: &Path,
     env: &Environment,

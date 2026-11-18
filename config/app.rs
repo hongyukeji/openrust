@@ -26,28 +26,102 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         .parse::<u16>()
         .map_or_else(|_| json!(port), |port| json!(port));
     let config = json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 应用名称与版本
+        |--------------------------------------------------------------------------
+        |
+        | APP_NAME 用于显示应用名称，APP_VERSION 可覆盖 Cargo 包版本。
+        |
+        */
         "name": name,
         "version": get(env, "APP_VERSION", env!("CARGO_PKG_VERSION"))?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 运行环境与调试
+        |--------------------------------------------------------------------------
+        |
+        | APP_ENV 用于区分部署环境。APP_DEBUG 控制错误响应的详细程度，生产环境应关闭。
+        |
+        */
         "env": get(env, "APP_ENV", "production")?,
         "debug": get(env, "APP_DEBUG", false)?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 监听地址与公开 URL
+        |--------------------------------------------------------------------------
+        |
+        | APP_HOST 和 APP_PORT 控制监听地址。部署在域名或反向代理后时，用 APP_URL 指定对外地址。
+        | FRONTEND_URL 和 ASSET_URL 分别配置前端地址和资源地址。
+        |
+        */
         "host": host,
         "port": port,
         "url": url,
         "url_explicit": url_explicit,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 时区与语言
+        |--------------------------------------------------------------------------
+        |
+        | APP_TIMEZONE 设置应用时区。APP_LOCALE 和 APP_FALLBACK_LOCALE 设置首选和回退语言。
+        | APP_FAKER_LOCALE 用于测试和填充数据。
+        |
+        */
         "timezone": get(env, "APP_TIMEZONE", "UTC")?,
         "locale": locale(env, "APP_LOCALE", "en")?,
         "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": locale(env, "APP_FAKER_LOCALE", "en_US")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 应用加密
+        |--------------------------------------------------------------------------
+        |
+        | APP_CIPHER 和 APP_KEY 用于应用加密。首次部署可用 artisan key:generate 生成密钥。
+        | 轮换密钥时将仍需解密旧数据的密钥以逗号分隔填入 APP_PREVIOUS_KEYS。
+        |
+        */
         "cipher": get(env, "APP_CIPHER", "AES-256-CBC")?,
         "key": get(env, "APP_KEY", Value::Null)?,
         "previous_keys": list(env.get_utf8("APP_PREVIOUS_KEYS")?.unwrap_or_default()),
+
+        /*
+        |--------------------------------------------------------------------------
+        | 维护模式
+        |--------------------------------------------------------------------------
+        |
+        | APP_MAINTENANCE_DRIVER 选择状态存储方式。使用缓存驱动时，APP_MAINTENANCE_STORE 指定缓存仓储。
+        |
+        */
         "maintenance": {
             "driver": get(env, "APP_MAINTENANCE_DRIVER", "file")?,
             "store": get(env, "APP_MAINTENANCE_STORE", "database")?,
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 后台运行器
+        |--------------------------------------------------------------------------
+        |
+        | APP_DISABLED_RUNNERS 接受逗号分隔的运行器名称，用于关闭随应用启动的对应进程内任务。
+        |
+        */
         "disabled_runners": list(env.get_utf8("APP_DISABLED_RUNNERS")?.unwrap_or_default()),
+
+        /*
+        |--------------------------------------------------------------------------
+        | 公共目录
+        |--------------------------------------------------------------------------
+        |
+        | APP_PUBLIC_PATH 指定静态文件目录，APP_PUBLIC_URL_PREFIX 指定访问前缀。
+        |
+        */
         "public_path": public_path,
         "public_url_prefix": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
     });
@@ -59,6 +133,13 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
     })
 }
 
+/*
+ * 解析应用的公开 URL，并记录它是否来自显式配置。
+ *
+ * 设置 APP_URL 时直接采用该值。未设置时，从监听地址和端口推导 HTTP URL。
+ * 通配和回环地址统一使用 localhost，其余 IPv6 地址用方括号包围。
+ * 这个标记供 URL 生成器判断是优先使用配置地址，还是从当前请求取地址。
+ */
 fn resolve_url(
     env: &Environment,
     host: Option<&str>,

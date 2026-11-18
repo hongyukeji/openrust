@@ -2,6 +2,13 @@ use std::path::Path;
 
 use openrust::config::{ConfigError, Environment, Value};
 
+/*
+ * 读取环境变量，并按默认值的类型解析。
+ *
+ * 变量未设置时直接返回默认值。默认值为布尔值或数字时，分别解析为布尔值或非负整数，
+ * 格式无效时返回配置错误。默认值为 Null 时，null 或 (null) 才会解析为空值，
+ * 两种写法均不区分大小写。其他取值按字符串保留，包括空字符串。
+ */
 pub(super) fn get(
     env: &Environment,
     key: &str,

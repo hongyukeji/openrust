@@ -16,7 +16,25 @@ pub(super) fn load(
     let app_url = app_url.parse::<Uri>().ok();
     let domain = json!(app_url.as_ref().and_then(Uri::host));
     Ok(json!({
+        /*
+        |--------------------------------------------------------------------------
+        | 默认邮件传输
+        |--------------------------------------------------------------------------
+        |
+        | MAIL_MAILER 选择传输。log 只记录邮件，实际投递需配置可用的投递传输。
+        |
+        */
         "default": get(env, "MAIL_MAILER", "log")?,
+
+        /*
+        |--------------------------------------------------------------------------
+        | 邮件传输配置
+        |--------------------------------------------------------------------------
+        |
+        | SMTP 地址和凭据使用 MAIL_*，第三方邮件 API 的凭据见 services.rs。
+        | failover 依次尝试传输，roundrobin 在多个传输之间轮流选择。
+        |
+        */
         "mailers": {
             "smtp": {
                 "transport": "smtp",
@@ -44,10 +62,28 @@ pub(super) fn load(
             "failover": {"transport": "failover", "mailers": ["smtp", "log"], "retry_after": 60},
             "roundrobin": {"transport": "roundrobin", "mailers": ["ses", "postmark"], "retry_after": 60},
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | 默认发件人
+        |--------------------------------------------------------------------------
+        |
+        | 通过 MAIL_FROM_ADDRESS 和 MAIL_FROM_NAME 设置。SMTP 登录账号由 MAIL_USERNAME 单独配置。
+        |
+        */
         "from": {
             "address": get(env, "MAIL_FROM_ADDRESS", "hello@example.com")?,
             "name": get(env, "MAIL_FROM_NAME", "Example")?,
         },
+
+        /*
+        |--------------------------------------------------------------------------
+        | Markdown 邮件模板
+        |--------------------------------------------------------------------------
+        |
+        | MAIL_MARKDOWN_THEME 选择主题，paths 指定自定义邮件组件的查找目录。
+        |
+        */
         "markdown": {
             "theme": get(env, "MAIL_MARKDOWN_THEME", "default")?,
             "paths": [path(&base_path.join("resources/views/vendor/mail"))?],
