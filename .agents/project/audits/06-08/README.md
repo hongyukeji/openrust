@@ -123,3 +123,8 @@ vendor/openrust/framework/
 ## Pail Provider 环境门禁与延迟解析
 
 [专项验收](pail-provider.md)接通 testing／Vapor 跳过、PAIL_TESTS 例外、应用 Environment 快照、Application 及其契约的 runningUnitTests，并按固定上游延迟解析 Files／Handler。22 组真实 HTTP／Artisan 矩阵、并发双应用、进程覆盖、--env、配置缓存、零解析与错误传播、延迟构造失败、MySQL 8.4.13 Worker、根二进制自动发现与启停通过。22 项日志／Context、24 项根回归、Pail 回归、全目标严格 Clippy、三语配置／日志正文与浏览器检查通过。原入口和环境模板未修改。统一存储路径 API、认证自动解析、命令模式边界、打印器和会话命令继续跟踪。
+
+
+## Pail 统一存储路径
+
+[专项验收](../07-01/storage-path.md)接通 Application／契约的 storagePath、useStoragePath、作用域 storage_path helper 和 Files 所属容器解析。默认、自定义及双应用目录通过真实 HTTP、独立 Artisan、MySQL Worker、隔离回调、严格 Clippy、三语正文与浏览器检查。路径 API 已验收，其他存储消费者迁移继续跟踪，再接打印器和会话命令。

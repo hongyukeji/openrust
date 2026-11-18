@@ -3586,3 +3586,10 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 ### 2026-11-19 00-02／06-08 Pail Provider 环境门禁与延迟解析
 
 对照固定 Laravel Application／Env 和 Pail v1.2.5，复用旧版精确 testing 判定与消费端默认 false 回归意图。接通 Application／契约 runningUnitTests、容器环境快照、testing／Vapor 门禁与 PAIL_TESTS 例外、Files／Handler 延迟解析。Rust 以 Result 传播解析错误、以每应用快照承接环境读取、以 Weak 避免监听器持有应用强环。22 组 HTTP／独立 Artisan、并发应用、缓存、--env、进程覆盖、构造错误与正常日志保留、真实 MySQL 8.4.13 Worker、根发现和 SIGINT 通过。22 项日志／Context、24 项根回归、Pail 测试、完整严格 Clippy、格式、三语正文及 12 项浏览器检查通过。文件范围、实际命令和剩余契约见 [验收记录](audits/06-08/pail-provider.md)。下一批先补统一存储路径 API，再接打印器、实时命令与 dev 注册；认证解析和运行模式边界仍需闭合。核心账本维持 66/66。
+
+
+## 2026-11-19 Application 存储路径与 Pail 目录
+
+00-02／07-01／06-08 [Application 存储路径与 Pail 目录](audits/07-01/storage-path.md)接通 storagePath、useStoragePath、storage_path 和应用隔离共享状态。真实 HTTP／独立 Artisan、默认与自定义目录的 MySQL 8.4.13 Worker、失败回调与记录、后续消费、根实际二进制与 SIGINT、24 项根回归、两轮全目标严格 Clippy、格式、三语正文及 12 项浏览器检查通过。源码 SHA 一致；当批远程快照／缓存、临时 MySQL 镜像和站点产物已回收，数据卷一致。提交前磁盘可用 55.34 GB（51.54 GiB），周额度剩余 15%，第二窗口无读数，按用户授权忽略本轮额度停线，磁盘规则生效。核心账本维持 66/66。下一批先迁移既有存储消费者，再接 Pail 打印器和会话命令；认证自动解析、命令模式及 Windows 发布验收仍未闭合。
+
+本批提交号以本节和上述专项验收记录所属 Git 提交为准；未改入口、环境模板或其他模块，保留所有既有未跟踪 WIP。

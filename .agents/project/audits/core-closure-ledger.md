@@ -385,3 +385,6 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08 [Pail 消息对象与筛选](06-08/pail-options.md)通过固定 PHP 语料、真实 HTTP→Artisan 筛选、6 项消息／筛选与文件回归、严格 Clippy 和三语文档检查。[认证边界](06-08/pail-auth-boundary.md)仍未闭合；Provider 环境门禁、打印器、会话命令与 dev 注册继续推进。核心账本维持 66/66。
 
 00-02／06-08 [Pail Provider 环境门禁与延迟解析](06-08/pail-provider.md)通过实际 HTTP／Artisan、配置缓存与环境覆盖、MySQL Worker、根发现与启停、严格 Clippy 和三语文档检查。runningUnitTests 在未绑定时无解析，已绑定时精确匹配并传播解析错误。核心账本维持 66/66；额外发现 07-01 路径 Helpers 的 storagePath／useStoragePath 入口尚缺，已列为下一依赖，Pail 整体未闭合。
+
+
+00-02／07-01／06-08 [Application 存储路径与 Pail 目录](07-01/storage-path.md)通过真实 HTTP、独立 Artisan、MySQL 8.4.13 Worker、失败回调与记录、隔离来源、严格 Clippy 和三语文档检查。路径 API 与 Pail 依赖闭合，其他存储消费者迁移、认证自动解析、打印器和命令继续跟踪。核心账本维持 66/66。

@@ -4,6 +4,17 @@ use serde_json::Value;
 
 use super::{Sleep, SleepFake};
 
+/// Resolves the current application's storage directory without creating it.
+pub fn storage_path(
+    path: &str,
+) -> Result<std::path::PathBuf, crate::contracts::container::BindingResolutionError> {
+    use crate::contracts::container::{BindingResolutionError, Container as _};
+    super::facades::current_container()
+        .ok_or(BindingResolutionError::FacadeNotSet)?
+        .make::<crate::foundation::Paths>()
+        .map(|paths| paths.storagePath(path))
+}
+
 /// Tests Laravel's blank-value rules for JSON values.
 pub fn blank(value: &Value) -> bool {
     match value {

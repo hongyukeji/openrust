@@ -33,9 +33,13 @@ pub struct PailServiceProvider;
 impl ServiceProvider for PailServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let directory = app.base_path().join("storage/pail");
-            app.container()
-                .singleton::<Files, _>(move |_| Ok(Arc::new(Files::new(directory.clone()))))?;
+            app.container().singleton::<Files, _>(|container| {
+                Ok(Arc::new(Files::new(
+                    container
+                        .make::<openrust::foundation::Paths>()?
+                        .storagePath("pail"),
+                )))
+            })?;
             let container = openrust::container::Container::getInstance();
             let owner = Arc::downgrade(&container);
             app.container().singleton::<Handler, _>(move |container| {

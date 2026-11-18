@@ -65,7 +65,7 @@ fn config(_: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, Config
     Ok(BTreeMap::from([
         (
             "app".into(),
-            json!({"env":env.get_utf8("APP_ENV")?.unwrap_or("production"),"host":"127.0.0.1","port":0}),
+            json!({"env":env.get_utf8("APP_ENV")?.unwrap_or("production"),"host":"127.0.0.1","port":0,"observed_storage":openrust::support::storage_path("").unwrap()}),
         ),
         (
             "logging".into(),
@@ -79,7 +79,15 @@ fn routes() -> Result<(), RoutingError> {
 fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Log::info("provider HTTP probe", &LogContext::new()).unwrap();
-        Ok(Response::new(StatusCode::OK, Body::from("ok")))
+        Ok(Response::new(
+            StatusCode::OK,
+            Body::from(
+                openrust::support::storage_path("")
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+        ))
     })
 }
 struct Emit(CommandDefinition);
@@ -97,7 +105,7 @@ impl Command for Emit {
             Log::info("provider Artisan probe", &LogContext::new()).unwrap();
             let snapshot = app.container().make::<Environment>().unwrap();
             let file = app.container().get::<PathBuf>("env.file").unwrap();
-            let state = json!({"testing":app.runningUnitTests().unwrap(),"file":file.to_string_lossy(),"pail":snapshot.get("PAIL_TESTS")});
+            let state = json!({"testing":app.runningUnitTests().unwrap(),"file":file.to_string_lossy(),"pail":snapshot.get("PAIL_TESTS"),"storage":app.storagePath("").to_string_lossy(),"helper":openrust::support::storage_path("").unwrap().to_string_lossy(),"binding":app.container().get::<PathBuf>("path.storage").unwrap().to_string_lossy()});
             std::fs::write(app.base_path().join("state.json"), state.to_string()).unwrap();
             output.comment("provider command passed");
             Ok(0)
@@ -110,19 +118,26 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
     )))))
 }
 fn application(root: PathBuf) -> Result<Application, SetupError> {
-    Ok(Application::configure(root)
+    let override_path = std::fs::read_to_string(root.join("storage-override")).ok();
+    let app = Application::configure(root)
         .withConfig(config)
         .withProviders(vec![Box::new(PailServiceProvider)])
         .withCommands(commands)
         .withRouting(Routing::default().web(routes))
-        .create()?)
+        .create()?;
+    if let Some(path) = override_path {
+        app.useStoragePath(path)?;
+    }
+    Ok(app)
 }
+
 fn create() -> Result<Application, SetupError> {
     application(std::env::var_os("APP_BASE_PATH").unwrap().into())
 }
 fn clean(command: &mut tokio::process::Command) {
     for key in [
         "APP_ENV",
+        "APP_STORAGE_PATH",
         "PAIL_TESTS",
         "VAPOR_SSM_PATH",
         "APP_CONFIG_CACHE",
@@ -258,6 +273,178 @@ async fn http(root: &Root, enabled: bool, environment: &str) {
         assert_eq!(captured[0]["context"]["__pail"]["origin"]["type"], "http");
     }
 }
+async fn storage_http(root: &Root, directory: &Path, late: bool) {
+    File::new(directory.join("pail/session.pail"))
+        .create()
+        .unwrap();
+    let mut app = application(root.0.clone()).unwrap();
+    app.boot().await.unwrap();
+    if late {
+        app.useStoragePath(directory).unwrap();
+        std::fs::write(
+            root.0.join("storage-override"),
+            directory.to_string_lossy().as_bytes(),
+        )
+        .unwrap();
+    }
+    assert_eq!(app.storagePath(""), directory);
+    if !late {
+        assert_eq!(
+            app.config().unwrap().get("app.observed_storage").unwrap(),
+            json!(directory)
+        );
+    }
+    assert_eq!(
+        openrust::contracts::foundation::Application::storagePath(&app, "pail"),
+        directory.join("pail")
+    );
+    let mut kernel = Kernel::new(app);
+    let listener = kernel.listen().await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let kernel = Arc::new(kernel);
+    let router = axum::Router::new()
+        .fallback(move |request: axum::extract::Request| kernel.clone().handleTransport(request));
+    let server = tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    });
+    let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+    socket
+        .write_all(b"GET /probe HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await
+        .unwrap();
+    let mut response = Vec::new();
+    socket.read_to_end(&mut response).await.unwrap();
+    let response = String::from_utf8(response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 200"));
+    assert!(response.contains(directory.to_str().unwrap()));
+    server.abort();
+    let _ = server.await;
+    artisan(root, &["provider:emit"], &[]).await;
+    let rows = std::fs::read_to_string(directory.join("pail/session.pail")).unwrap();
+    assert_eq!(rows.lines().count(), 2);
+    assert!(root.records().is_empty());
+    let state: Value =
+        serde_json::from_slice(&std::fs::read(root.0.join("state.json")).unwrap()).unwrap();
+    assert_eq!(state["storage"], directory.to_str().unwrap());
+    assert_eq!(state["helper"], state["storage"]);
+}
+async fn storage_paths() {
+    let root = Root::new("local", None, None);
+    let app = application(root.0.clone()).unwrap();
+    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    let separator = std::path::MAIN_SEPARATOR;
+    let base = format!("relative{separator}{separator}root{separator}");
+    app.useStoragePath(base.clone()).unwrap();
+    assert_eq!(
+        app.storagePath(&format!("{separator}child")).as_os_str(),
+        std::ffi::OsStr::new(&format!("{base}{separator}child"))
+    );
+    assert_eq!(
+        app.storagePath(&format!("..{separator}child")).as_os_str(),
+        std::ffi::OsStr::new(&format!("{base}{separator}..{separator}child"))
+    );
+    assert_eq!(
+        app.storagePath("0").as_os_str(),
+        std::ffi::OsStr::new(&format!("{base}{separator}0"))
+    );
+    app.useStoragePath("").unwrap();
+    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    assert!(
+        app.container()
+            .get::<PathBuf>("path.storage")
+            .unwrap()
+            .as_os_str()
+            .is_empty()
+    );
+    app.useStoragePath("0").unwrap();
+    assert_eq!(app.storagePath(""), root.0.join("storage"));
+    app.container()
+        .rebinding::<PathBuf, _>("path.storage", |_, _| {
+            Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
+        })
+        .unwrap();
+    assert!(matches!(
+        app.useStoragePath("after-error"),
+        Err(openrust::contracts::container::BindingResolutionError::ScopeClosed)
+    ));
+    assert_eq!(app.storagePath(""), PathBuf::from("after-error"));
+    let first = Root::new("local", None, None);
+    let a = first.0.join("自定义-a");
+    std::fs::write(
+        first.0.join(".env"),
+        format!(
+            "APP_ENV=local\nAPP_STORAGE_PATH={}\n",
+            serde_json::to_string(&a.to_string_lossy()).unwrap()
+        ),
+    )
+    .unwrap();
+    let second = Root::new("local", None, None);
+    let b = second.0.join("custom-b");
+    tokio::join!(
+        storage_http(&first, &a, false),
+        storage_http(&second, &b, true)
+    );
+    let mut app_a = application(first.0.clone()).unwrap();
+    app_a.boot().await.unwrap();
+    let mut app_b = application(second.0.clone()).unwrap();
+    app_b.boot().await.unwrap();
+    let files_a = app_a.container().make::<Files>().unwrap().all().unwrap();
+    let files_b = app_b.container().make::<Files>().unwrap().all().unwrap();
+    assert_eq!(files_a[0].path(), a.join("pail/session.pail"));
+    assert_eq!(files_b[0].path(), b.join("pail/session.pail"));
+    for value in ["", "0"] {
+        let native = Root::new("testing", None, None);
+        std::fs::write(
+            native.0.join(".env"),
+            format!(
+                "APP_ENV=testing\nAPP_STORAGE_PATH={}\n",
+                serde_json::to_string(value).unwrap()
+            ),
+        )
+        .unwrap();
+        let mut app = application(native.0.clone()).unwrap();
+        app.boot().await.unwrap();
+        assert_eq!(app.storagePath("").as_os_str(), std::ffi::OsStr::new(value));
+        assert_eq!(
+            app.storagePath("pail").as_os_str(),
+            std::ffi::OsStr::new(&format!("{value}{}pail", std::path::MAIN_SEPARATOR))
+        );
+    }
+    let process = first.0.join("process");
+    File::new(process.join("pail/session.pail"))
+        .create()
+        .unwrap();
+    artisan(
+        &first,
+        &["provider:emit"],
+        &[("APP_STORAGE_PATH", process.to_str().unwrap())],
+    )
+    .await;
+    assert_eq!(
+        std::fs::read_to_string(process.join("pail/session.pail"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+    std::fs::write(first.0.join("storage-override"), a.to_str().unwrap()).unwrap();
+    artisan(
+        &first,
+        &["provider:emit"],
+        &[("APP_STORAGE_PATH", process.to_str().unwrap())],
+    )
+    .await;
+    assert_eq!(
+        std::fs::read_to_string(a.join("pail/session.pail"))
+            .unwrap()
+            .lines()
+            .count(),
+        3
+    );
+    println!(
+        "Application storage paths, native joining, overrides and Pail HTTP/Artisan isolation passed"
+    );
+}
 async fn verify() {
     let cases = [
         ("local", None, None, true),
@@ -283,6 +470,7 @@ async fn verify() {
         ("local", Some("false"), Some("/vapor/path"), false),
         ("testing", Some("true"), Some("/vapor/path"), true),
     ];
+    storage_paths().await;
     let mut roots = Vec::new();
     for (environment, pail, vapor, enabled) in cases {
         let root = Root::new(environment, pail, vapor);

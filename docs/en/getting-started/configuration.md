@@ -174,3 +174,13 @@ Read the state with `isDownForMaintenance().await` and clear it with `app.mainte
 `Application::runningUnitTests()` and the application contract return `Result<bool, BindingResolutionError>`. The result is true only when the bound `env` is exactly `testing`, regardless of whether a test harness is running. Before the environment is bound it returns `Ok(false)` without resolving a service. Resolution errors propagate. Changing `config("app.env")` later does not replace the detected environment binding.
 
 After boot, use `app.make::<openrust::config::Environment>().await?` to read the immutable environment snapshot for that application. Existing `get` and `get_utf8` methods return raw strings; package-specific flag parsing remains the package's responsibility. The snapshot follows process precedence, environment-file selection and configuration-cache rules. It neither reloads files nor mutates process-global variables.
+
+## Application Storage Path {#application-storage-path}
+
+`app.storagePath("")` returns the storage root; pass a string such as `"pail"` for a subpath. `app.useStoragePath(path)?` overrides it and rebinds `path.storage`. The getter is also in the application contract. `openrust::support::storage_path(path)?` reads the current application scope. The readonly `foundation::Paths` service shares the same state with compiled packages, without retaining Application through its container.
+
+Precedence is a nonempty override other than `0`, then `APP_STORAGE_PATH` from the application environment snapshot, then the application's `storage` directory. This unbranded variable maps Laravel's `LARAVEL_STORAGE_PATH`. An explicitly present empty environment value is retained. Setter values stay relative when supplied as relative paths. Joining appends the native separator and strips leading native separators from the subpath; it preserves duplicate separators and `..`. There is no default Rust argument, so pass `""` for the root.
+
+The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `useStoragePath` explicitly rebinds it, following Laravel's order. Rebinding errors return `Result` after updating path state.
+
+Pail now resolves its directory through this shared state when Files is first resolved. Configure the path before that first use. Migration of the existing logging, session, cache, view and disk configuration defaults remains a separate follow-up; this section does not claim those consumers have moved.

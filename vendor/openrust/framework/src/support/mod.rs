@@ -48,7 +48,7 @@ pub(crate) use date::{TestClock, frozen_utc_now, utc_now_for};
 pub use deferred_provider::DeferredProvider;
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};
-pub use helpers::{Retry, blank, filled};
+pub use helpers::{Retry, blank, filled, storage_path};
 pub use html_string::HtmlString;
 pub(crate) use html_string::escape_html;
 pub use lazy_collection::{

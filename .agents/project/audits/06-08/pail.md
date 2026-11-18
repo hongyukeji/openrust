@@ -25,5 +25,5 @@ PHP 序列化异常转换为现有 Rust 结构化异常快照。Pail 的跨进�
 ## 剩余契约
 
 - [认证自动解析](pail-auth-boundary.md)仍缺同步日志与异步请求之间的合法等待契约，不能以提前认证或响应后回填替代。
-- 当前默认目录为 base_path()/storage/pail，可通过替换 Files 绑定自定义。框架尚无 Laravel storagePath／useStoragePath API，统一存储路径契约待补，对应 07-01 路径 Helpers 和应用路径机制。先补该依赖，再将 Pail 目录接入统一入口。
+- [统一存储路径与 Pail 目录](../07-01/storage-path.md)已通过真实 HTTP、Artisan 与 MySQL Worker 验收。Application storagePath／useStoragePath、storage_path helper 和所属容器的 Files 工厂已接通。其他日志、Session、缓存、视图、磁盘及维护模式等消费者尚需迁移；先收口该依赖，再推进打印器和命令。
 - CliPrinter、实时 pail 命令、超时／信号清理、dev 注册与 Windows 发布矩阵仍待依次完成。

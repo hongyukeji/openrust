@@ -49,7 +49,10 @@ impl Root {
         Self(root)
     }
     fn records(&self, name: &str) -> Vec<serde_json::Value> {
-        std::fs::read_to_string(self.0.join(format!("storage/pail/{name}.pail")))
+        let directory = std::fs::read_to_string(self.0.join("storage-override"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| self.0.join("storage"));
+        std::fs::read_to_string(directory.join(format!("pail/{name}.pail")))
             .unwrap()
             .lines()
             .map(|line| serde_json::from_str(line).unwrap())
@@ -332,13 +335,19 @@ fn async_commands(artisan: &mut openrust::console::Application) -> Result<(), Co
 }
 
 fn application(root: PathBuf) -> Result<Application, SetupError> {
-    Ok(Application::configure(root)
+    let storage = std::fs::read_to_string(root.join("storage-override")).ok();
+    let app = Application::configure(root)
         .withConfig(config)
         .withCommands(async_commands)
         .withProviders(vec![Box::new(PailServiceProvider), Box::new(Probe)])
         .withRouting(Routing::default().web(routes).commands(commands))
-        .create()?)
+        .create()?;
+    if let Some(storage) = storage {
+        app.useStoragePath(storage)?;
+    }
+    Ok(app)
 }
+
 async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let mut kernel = Kernel::new(application(root.0.clone()).unwrap());
     let listener = kernel.listen().await.unwrap();
@@ -501,6 +510,25 @@ async fn run_acceptance() {
     let _ = right_server.await;
     if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_some() {
         worker_acceptance(&right).await;
+        let custom = Root::new();
+        let directory = custom.0.join("custom-worker-storage");
+        std::fs::write(
+            custom.0.join("storage-override"),
+            directory.to_string_lossy().as_bytes(),
+        )
+        .unwrap();
+        for name in ["one", "two"] {
+            File::new(directory.join(format!("pail/{name}.pail")))
+                .create()
+                .unwrap();
+        }
+        worker_acceptance(&custom).await;
+        assert!(
+            std::fs::read_to_string(custom.0.join("storage/pail/one.pail"))
+                .unwrap()
+                .is_empty()
+        );
+        println!("Pail MySQL Worker and isolated callbacks honor custom application storage path");
     } else {
         assert!(
             std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),

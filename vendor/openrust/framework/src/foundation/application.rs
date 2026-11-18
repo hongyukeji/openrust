@@ -51,6 +51,7 @@ pub struct Application {
 pub(super) struct ApplicationState {
     basePath: PathBuf,
     publicPath: RwLock<Option<PathBuf>>,
+    paths: Arc<super::Paths>,
     load_config: ConfigLoader,
     testing_environment: AtomicBool,
     pub(super) container: Arc<Container>,
@@ -181,6 +182,24 @@ impl Application {
             .write()
             .expect("application path lock poisoned") = Some(self.shared.basePath.join(path));
         self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's storage path API")]
+    pub fn storagePath(&self, path: &str) -> PathBuf {
+        self.shared.paths.storagePath(path)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's storage path API")]
+    pub fn useStoragePath(
+        &self,
+        path: impl Into<PathBuf>,
+    ) -> Result<&Self, crate::contracts::container::BindingResolutionError> {
+        let path = path.into();
+        self.shared.paths.use_storage_path(path.clone());
+        self.shared
+            .container
+            .instanceNamed("path.storage", Arc::new(path))?;
+        Ok(self)
     }
 
     /// Returns the detected name with `None`, or matches any supplied pattern.
@@ -410,6 +429,13 @@ impl Application {
         exceptions: Option<Exceptions>,
     ) -> Self {
         let container = Arc::new(Container::default());
+        let paths = Arc::new(super::Paths::new(basePath.clone()));
+        container
+            .instance(paths.clone())
+            .expect("application paths are initially unbound");
+        container
+            .instanceNamed("path.storage", Arc::new(paths.storagePath("")))
+            .expect("the initial storage path is unbound");
         container
             .alias("config", ServiceKey::typed::<dyn config::Repository>())
             .expect("typed and named configuration keys are distinct");
@@ -459,6 +485,7 @@ impl Application {
         let shared = Arc::new(ApplicationState {
             basePath,
             publicPath: RwLock::new(None),
+            paths,
             load_config,
             testing_environment: AtomicBool::new(false),
             container,
@@ -786,6 +813,8 @@ impl Application {
             self.shared.testing_environment.load(Ordering::Relaxed),
         )
         .map_err(configuration_failed)?;
+        let environment = Arc::new(environment);
+        self.shared.paths.environment(environment.clone());
         let package_cache = self.shared.basePath.join(
             environment
                 .values
@@ -853,7 +882,7 @@ impl Application {
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         self.shared
             .container
-            .instance(Arc::new(environment))
+            .instance(environment)
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let name = match selected {
             Some(name) => Arc::from(name),
@@ -1071,5 +1100,9 @@ impl foundation::Application for Application {
     }
     fn is_booted(&self) -> bool {
         self.shared.state.load(Ordering::Acquire) == BOOTED
+    }
+    #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
+    fn storagePath(&self, path: &str) -> PathBuf {
+        self.shared.paths.storagePath(path)
     }
 }

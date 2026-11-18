@@ -174,3 +174,13 @@ async fn activate_maintenance(
 `Application::runningUnitTests()` 和应用契约返回 `Result<bool, BindingResolutionError>`。仅当容器中的 `env` 精确为 `testing` 时结果为 true，与是否正在运行测试程序无关。环境未绑定时返回 `Ok(false)`，不触发服务解析；解析错误沿 `Result` 传播。后续修改 `config("app.env")` 不会替换已检测的环境绑定。
 
 启动后，通过 `app.make::<openrust::config::Environment>().await?` 读取当前应用不可变的环境快照。既有 `get`、`get_utf8` 返回原始字符串，具体旗标仍由对应包解析。快照遵守进程变量优先、环境文件选择及配置缓存规则，不重新加载文件，也不修改进程全局变量。
+
+## 应用存储路径 {#application-storage-path}
+
+`app.storagePath("")` 返回存储根目录，传入 `"pail"` 等字符串可获取子路径。`app.useStoragePath(path)?` 覆盖它并重绑 `path.storage`，应用契约也提供 getter。`openrust::support::storage_path(path)?` 读取当前应用作用域。只读的 `foundation::Paths` 服务让编译型包共享同一状态，避免通过容器强持有 Application。
+
+优先级是非空且非 `0` 的显式覆盖、应用环境快照中的 `APP_STORAGE_PATH`、应用根目录下的 `storage`。该无品牌变量对应 Laravel 的 `LARAVEL_STORAGE_PATH`；环境中显式存在的空值仍会保留。Setter 传入相对路径时保持相对。拼接追加本机分隔符并去掉子路径开头的本机分隔符，保留重复分隔符和 `..`。Rust 没有默认参数，读取根目录时显式传 `""`。
+
+构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 Laravel 的顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
+
+Pail 在首次解析 Files 时通过共享状态确定目录，应在第一次使用前配置路径。既有日志、Session、缓存、视图和磁盘配置默认值的迁移由下一批跟踪，本节不宣称这些消费者已经迁移。

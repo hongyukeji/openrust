@@ -14,6 +14,11 @@ pub trait Application: Send + Sync {
     fn container(&self) -> &Self::Container;
     fn is_booted(&self) -> bool;
 
+    #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
+    fn storagePath(&self, path: &str) -> std::path::PathBuf {
+        crate::foundation::paths::join(&self.base_path().join("storage"), path)
+    }
+
     /// Checks whether the currently bound environment is exactly `testing`.
     #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
     fn runningUnitTests(&self) -> Result<bool, BindingResolutionError> {
