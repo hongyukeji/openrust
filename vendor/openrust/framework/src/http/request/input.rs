@@ -4,8 +4,8 @@ use serde_json::{Map, Value};
 
 use crate::http::{Body, HttpError, Method, Request, UploadedFile, UploadedFileValue};
 use crate::support::{
-    Arr, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar, data_get,
-    facades::Config, frozen_utc_now, input_scalars,
+    Arr, ArrayKey, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar,
+    data_get, facades::Config, frozen_utc_now, input_scalars,
 };
 
 use super::{query, variables::VariableBag};
@@ -153,6 +153,15 @@ impl Request {
         } else {
             Ok(lookup(&query, &segments))
         }
+    }
+
+    /// Returns top-level input keys followed by file keys, including collisions.
+    pub async fn keys(&mut self) -> Result<Vec<ArrayKey>, HttpError> {
+        let input = self.input(None).await?.unwrap_or_else(empty);
+        let payload = self.payload().await?;
+        Ok(field_keys(&input)
+            .chain(field_keys(&payload.file_indices))
+            .collect())
     }
 
     /// Reads a signed 64-bit input, using `default` for missing or invalid strict values.
@@ -744,6 +753,21 @@ fn as_fields(value: Value) -> Map<String, Value> {
             .collect(),
         _ => Map::new(),
     }
+}
+
+fn field_keys(value: &Value) -> impl Iterator<Item = ArrayKey> {
+    value
+        .as_array()
+        .into_iter()
+        .flat_map(|items| (0_i64..).zip(items).map(|(index, _)| index))
+        .map(ArrayKey::Integer)
+        .chain(
+            value
+                .as_object()
+                .into_iter()
+                .flat_map(Map::keys)
+                .map(|key| ArrayKey::from(key.as_str())),
+        )
 }
 
 // Like Laravel's filterFiles, discard empty uploads and groups without reindexing.

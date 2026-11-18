@@ -12,6 +12,16 @@
 
 ## 取得輸入
 
+### 取得全部輸入 {#retrieving-all-input-data}
+
+用 `request.all().await?` 一起讀取一般輸入和上傳檔案。`RequestValue` 表示 JSON 純量、帶整數或字串鍵的有序集合，以及型別化的 `UploadedFile`。
+
+一般輸入與上傳檔案同名時，優先使用一般輸入，明確的 null 也優先。巢狀集合保留兩邊各自獨有的欄位。上傳檔案仍可從檔案集合讀取。
+
+用 `request.allOnly(&["items.1.photo", "name"]).await?` 依路徑選取欄位，缺少的欄位保留為 null。用 `request.keys().await?` 依序列出一般輸入鍵和檔案鍵。兩邊都提供的鍵會出現兩次。
+
+### 取得單一輸入值 {#retrieving-an-input-value}
+
 用 `request.query(Some("key"))` 讀取精確的頂層查詢鍵。用 `request.input(Some("team.name")).await` 讀取巢狀輸入，傳入 `None` 可讀取整組輸入。JSON 和表單的頂層欄位優先於查詢參數。只讀取 JSON 本文時使用 `request.json`。
 
 OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預設上限為 8 MiB。輸入無效回傳 400，超量回傳 413。

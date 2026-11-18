@@ -9,8 +9,8 @@ use openrust::{
         http::Kernel,
     },
     http::{
-        Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, ResponseMacro,
-        StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
+        Body, HeaderMap, HttpError, HttpFuture, Method, Request, RequestValue, Response,
+        ResponseMacro, StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
     },
     routing::{
         ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
@@ -106,6 +106,39 @@ fn uploads(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 "has_nested": request.hasFile("photos").await?,
                 "has_direct": request.hasFile("photos.0").await?,
                 "has_wildcard": request.hasFile("photos.*.image").await?,
+            }),
+        )
+    })
+}
+
+fn visible_input(input: &RequestValue) -> Value {
+    match input {
+        RequestValue::Value(value) => value.clone(),
+        RequestValue::File(file) => json!({"file": file.getClientOriginalName()}),
+        RequestValue::Array(fields) => Value::Object(
+            fields
+                .iter()
+                .map(|(key, value)| (key.to_string(), visible_input(value)))
+                .collect(),
+        ),
+    }
+}
+
+fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let all = request.all().await?;
+        let selected = request
+            .allOnly(&["same", "items.1.photo", "nested.name", "missing"])
+            .await?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "all": visible_input(&all),
+                "keys": request.keys().await?,
+                "selected": visible_input(&selected),
+                "same_upload": request.file("same").await?.map(|file| file.getClientOriginalName().to_owned()),
+                "same_input": request.input(Some("same")).await?,
+                "file_only": request.input(Some("document")).await?,
             }),
         )
     })
@@ -594,6 +627,7 @@ async fn start_with(
                 Ok(())
             })?;
             Route::r#match(&[Method::POST], "/uploads", uploads)?;
+            Route::r#match(&[Method::GET, Method::POST], "/all-input", all_input)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1304,6 +1338,85 @@ async fn real_http_reads_grouped_uploads_without_reindexing_empty_slots() {
             "has_list": true, "has_nested": false, "has_direct": true, "has_wildcard": true,
         }),
     );
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_merges_all_input_and_files_with_input_precedence() {
+    let (address, server) = start("all-input").await;
+    let body = concat!(
+        "--fields\r\nContent-Disposition: form-data; name=\"same\"\r\n\r\ntext\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"items[0][name]\"\r\n\r\none\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"items[1][name]\"\r\n\r\ntwo\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"null_input\"\r\n\r\n\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"same\"; filename=\"collision.txt\"\r\n\r\none\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"items[1][photo]\"; filename=\"photo.txt\"\r\n\r\ntwo\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"items[1][name]\"; filename=\"shadowed.txt\"\r\n\r\nthree\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"null_input[child]\"; filename=\"null.txt\"\r\n\r\nfour\r\n",
+        "--fields\r\nContent-Disposition: form-data; name=\"document\"; filename=\"report.txt\"\r\n\r\nfive\r\n",
+        "--fields--\r\n",
+    );
+    let (_, response) = send(
+        address,
+        "POST",
+        "/all-input?same=query&query=kept",
+        "multipart/form-data; boundary=fields",
+        body.as_bytes(),
+        200,
+    )
+    .await;
+    let response: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(
+        response,
+        json!({
+            "all": {
+                "same": "text", "items": {"0": {"name": "one"}, "1": {"name": "two", "photo": {"file": "photo.txt"}}},
+                "null_input": null, "query": "kept", "document": {"file": "report.txt"},
+            },
+            "keys": ["same", "items", "null_input", "query", "same", "items", "null_input", "document"],
+            "selected": {"same": "text", "items": {"1": {"photo": {"file": "photo.txt"}}}, "nested": {"name": null}, "missing": null},
+            "same_upload": "collision.txt", "same_input": "text", "file_only": null,
+        })
+    );
+    assert_eq!(
+        response["all"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["same", "items", "null_input", "query", "document"],
+    );
+    assert_eq!(
+        response["all"]["items"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["0", "1"],
+    );
+
+    let (_, response) = send(
+        address, "POST", "/all-input?2=query", "application/json",
+        br#"{"same":"json","0":"zero","01":"leading","nested":{"name":"inner"},"nested.name":"exact"}"#, 200,
+    ).await;
+    let response: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(
+        response["keys"],
+        json!(["same", 0, "01", "nested", "nested.name", 2])
+    );
+    assert_eq!(response["selected"]["nested"]["name"], "exact");
+    assert_eq!(response["all"]["nested"]["name"], "inner");
+    send(
+        address,
+        "POST",
+        "/all-input",
+        "multipart/form-data",
+        b"bad",
+        400,
+    )
+    .await;
     server.abort();
 }
 

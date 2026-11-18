@@ -195,7 +195,7 @@ pub(super) fn forget(target: &mut Value, parts: &[&str], expand_wildcards: bool)
     }
 }
 
-pub(super) fn segments(key: &str) -> Result<Vec<&str>, DataPathError> {
+pub(crate) fn segments(key: &str) -> Result<Vec<&str>, DataPathError> {
     let parts: Vec<_> = key.split('.').take(MAX_DEPTH + 1).collect();
     if parts.len() > MAX_DEPTH {
         return Err(DataPathError);

@@ -155,3 +155,10 @@
 - Rust 保留现有的单文件 `file()`，用 `fileValue()` 返回类型化的文件或有序分组，用 `allFiles()` 读取整个集合。通配符缺少的成员用 `UploadedFileValue::Null` 表达。Cookie 的命名读取用 `Option` 表达缺失及解密失败，整袋保留 null 值。三语正文同步 Cookies 和 Retrieving Uploaded Files，调整相关小节顺序。 [Laravel Cookies](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#cookies) · [Laravel Retrieving Uploaded Files](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-uploaded-files)
 - 隔离主线 `397891930` 上用真实 TCP HTTP 验证 Cookie 缺失、空字符串、解密失败与默认值，验证 multipart 分组、空槽、索引、零字节、通配符与直接成员检查。PHP 8.5 运行固定 Laravel 对照两组契约。MySQL 8.4.13 复验 HTTP 数据库验证及会话认证。
 - 106 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。Docker 卷清单一致。回收后磁盘可用 84.25 GB（78.46 GiB），提交前周额度剩余 23%，按用户授权继续。验收日志保留于 `/private/tmp/openrust-request-files.l7NcmxqC`。
+
+## 请求全部输入与文件合并
+
+- 对照固定 Laravel 的 `InteractsWithInput::all`、`keys` 和 `HttpRequestTest`。复用 openrust-v0.x `6d1a81924` 的 `combine`／`merge_files` 合并规则，沿用正式版的上传对象、PHP 键类型、点路径限制和解析缓存。普通输入（含显式 null）优先，双方都是组时保留文件侧新增分支，稳定保留输入键顺序。 [Laravel 请求实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithInput.php#L66) · [Laravel 请求测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) · [Laravel Retrieving All Input Data](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-all-input-data)
+- Rust 用 `RequestValue` 表示标量、带 `ArrayKey` 的有序组和 `UploadedFile`。用 `allOnly()` 表达 Laravel 的 `all($keys)` 分支，缺失路径保留 null。现有 JSON 输入访问以及上传文件集合保持各自接口，输入回调和筛选接口的类型化对照继续跟踪。
+- 隔离主线 `9fc5748cd` 的真实 TCP 验证 multipart 与查询回退、顶层及嵌套重名、null、上传对象、键顺序及重复、JSON 字面点键、整数键和错误 400。PHP 8.5 运行固定 Laravel 的 multipart／JSON 两组对照。
+- 57 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批独立编译及站点产物后，磁盘可用 84.02 GB（78.25 GiB），提交前周额度剩余 23%，按用户授权继续。验收日志位于 `/private/tmp/openrust-all-input.AtQLs0Vi`。

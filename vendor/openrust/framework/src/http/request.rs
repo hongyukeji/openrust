@@ -19,11 +19,13 @@ pub(crate) mod context;
 mod cookies;
 mod flash_data;
 mod input;
+mod input_value;
 mod query;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
 mod url;
 mod variables;
 pub use context::RequestAttributes;
+pub use input_value::RequestValue;
 
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {

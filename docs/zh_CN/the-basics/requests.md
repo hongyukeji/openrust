@@ -12,6 +12,16 @@
 
 ## 获取输入
 
+### 获取全部输入 {#retrieving-all-input-data}
+
+用 `request.all().await?` 一起读取普通输入和上传文件。`RequestValue` 表示 JSON 标量、带整数或字符串键的有序集合，以及类型化的 `UploadedFile`。
+
+普通输入与上传文件同名时，优先使用普通输入，显式 null 同样优先。嵌套集合保留两边各自独有的字段。上传文件仍可从文件集合读取。
+
+用 `request.allOnly(&["items.1.photo", "name"]).await?` 按路径选取字段，缺失字段保留为 null。用 `request.keys().await?` 依次列出普通输入键和文件键。两边都提供的键会出现两次。
+
+### 获取单个输入值 {#retrieving-an-input-value}
+
 用 `request.query(Some("key"))` 读取精确的顶层查询键。用 `request.input(Some("team.name")).await` 读取嵌套输入，传入 `None` 可读取整组输入。JSON 和表单的顶层字段优先于查询参数。只读取 JSON 正文时使用 `request.json`。
 
 OpenRust 成功读取正文后保留原始字节，供后续读取。默认上限为 8 MiB。输入无效返回 400，超量返回 413。

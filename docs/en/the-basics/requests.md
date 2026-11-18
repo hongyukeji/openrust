@@ -12,6 +12,16 @@ Use `request.header("X-Trace")?` to read the first text value or `None` if the h
 
 ## Retrieving Input
 
+### Retrieving All Input Data {#retrieving-all-input-data}
+
+Use `request.all().await?` to retrieve ordinary input and uploaded files together. `RequestValue` holds JSON scalars, ordered groups with integer or string keys, and typed `UploadedFile` objects.
+
+When a regular input value and an upload share a key, the input value wins, including explicit null. Nested groups retain fields supplied on either side. The upload is still available through the file bag.
+
+Use `request.allOnly(&["items.1.photo", "name"]).await?` to select paths and retain missing fields as null. Use `request.keys().await?` to list input keys followed by file keys. A name supplied by both sources appears twice.
+
+### Retrieving an Input Value {#retrieving-an-input-value}
+
 Use `request.query(Some("key"))` to read an exact top-level query key. Use `request.input(Some("team.name")).await` for nested input. Pass `None` to retrieve the input bag. JSON and form fields take precedence over query values at the top level. Use `request.json` to read the JSON body alone.
 
 OpenRust preserves the body bytes for subsequent reads after successful collection. The default limit is 8 MiB. Invalid input returns 400, and oversized input returns 413.
