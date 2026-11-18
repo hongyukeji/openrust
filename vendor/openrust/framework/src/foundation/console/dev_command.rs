@@ -6,13 +6,13 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use clap::{Arg, ArgAction};
+use clap::{Arg, ArgAction, value_parser};
 use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use serde::Serialize;
 use tokio::{
     io::{AsyncBufReadExt as _, AsyncRead, AsyncReadExt as _, BufReader},
     process::Command as NativeCommand,
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot, watch},
     time::{sleep, timeout},
 };
 use tokio_util::sync::CancellationToken;
@@ -23,9 +23,13 @@ use crate::{
         Output,
     },
     contracts::foundation::Application as _,
-    foundation::{Application, DevCommands, DevProcess, dev_commands::RegisteredProcess},
+    foundation::{
+        Application, DevCommandMode, DevCommands, DevProcess, dev_commands::RegisteredProcess,
+    },
     process::{ChildGroup, Command as ProcessCommand, Signal},
 };
+
+use super::dev_terminal::{Action, Terminal};
 
 const RESTART_DELAY: Duration = Duration::from_secs(1);
 const MAX_RESTARTS: u8 = 5;
@@ -35,6 +39,8 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(6);
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let mut syntax = clap::Command::new("dev").about("Run the dev processes");
     for (name, help) in [
+        ("stream", "Show interleaved output in the terminal"),
+        ("tabs", "Show one tab for each process"),
         ("inline", "Print labelled process output inline"),
         ("timestamps", "Display timestamps on each output line"),
         ("no-restart", "Disable auto-restart on crash"),
@@ -44,10 +50,16 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             .long(name)
             .help(help)
             .action(ArgAction::SetTrue);
-        if name == "inline" {
-            option = option.short('i');
-        }
+        option = match name {
+            "stream" => option.short('s'),
+            "tabs" => option.short('t'),
+            "inline" => option.short('i'),
+            _ => option,
+        };
         syntax = syntax.arg(option);
+    }
+    for name in ["buffer-size", "stream-buffer-size"] {
+        syntax = syntax.arg(Arg::new(name).long(name).value_parser(value_parser!(usize)));
     }
     artisan.add_command(Box::new(DevCommand(CommandDefinition::new(syntax))))
 }
@@ -75,29 +87,77 @@ impl Command for DevCommand {
             let args = input.matches();
             let selected = args.get_many::<String>("env").and_then(Iterator::last);
             let restart = !args.get_flag("no-restart") && DevCommands::shouldAutoRestart()?;
+            let mode = if args.get_flag("json") || args.get_flag("silent") || args.get_flag("quiet")
+            {
+                DevCommandMode::Inline
+            } else if args.get_flag("tabs") {
+                DevCommandMode::Tabs
+            } else if args.get_flag("stream") {
+                DevCommandMode::Stream
+            } else if args.get_flag("inline") {
+                DevCommandMode::Inline
+            } else {
+                DevCommands::mode()?
+            };
+            let timestamps = args.get_flag("timestamps") || DevCommands::shouldIncludeTimestamps()?;
+            let mut terminal = if output.streams_to_terminal() && mode != DevCommandMode::Inline {
+                let limit = args
+                    .get_one::<usize>("buffer-size")
+                    .copied()
+                    .or(DevCommands::getBufferSize()?)
+                    .unwrap_or(2000);
+                let stream_limit = args
+                    .get_one::<usize>("stream-buffer-size")
+                    .copied()
+                    .or(DevCommands::getStreamBufferSize()?)
+                    .unwrap_or(10000);
+                Terminal::open(
+                    mode,
+                    &processes,
+                    limit,
+                    stream_limit,
+                    timestamps,
+                    output.is_decorated(),
+                )
+            } else {
+                None
+            };
+            let interactive = terminal.is_some();
             let terminate = CancellationToken::new();
             let (send, mut receive) = mpsc::channel(64);
             let mut runs = FuturesUnordered::new();
+            let mut restart_controls = Vec::new();
             for (index, process) in processes.iter().enumerate() {
-                runs.push(supervise(
+                let changes = interactive.then(|| {
+                    let (control, changes) = watch::channel(0u64);
+                    restart_controls.push(control);
+                    changes
+                });
+                let invocation = Invocation {
                     process,
-                    app.base_path(),
-                    selected.map(String::as_str),
+                    root: app.base_path(),
+                    environment: selected.map(String::as_str),
                     restart,
+                };
+                runs.push(manage(
+                    invocation,
                     &terminate,
                     Reporter { index, send: &send },
+                    changes,
                 ));
             }
 
             let mut report = OutputMode {
                 json: args.get_flag("json"),
-                timestamps: args.get_flag("timestamps") || DevCommands::shouldIncludeTimestamps()?,
+                timestamps,
                 silent: args.get_flag("silent"),
                 quiet: args.get_flag("quiet"),
                 output,
             };
             let stopping = shutdown(input, report.output.streams_to_terminal());
             tokio::pin!(stopping);
+            let mut refresh = tokio::time::interval(Duration::from_millis(50));
+            refresh.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut status = 0;
             while !runs.is_empty() {
                 tokio::select! {
@@ -105,7 +165,23 @@ impl Command for DevCommand {
                         terminate.cancel();
                         if let Err(error) = result {
                             status = 1;
-                            report.emit(None, Event::Error { message: error.to_string() });
+                            if let Some(view) = terminal.as_mut() {
+                                view.message(error.to_string());
+                            } else {
+                                report.emit(None, Event::Error { message: error.to_string() });
+                            }
+                        }
+                    }
+                    action = Terminal::action(&mut terminal), if interactive && !terminate.is_cancelled() => {
+                        match action {
+                            Action::Quit => terminate.cancel(),
+                            Action::Restart(index) => restart_controls[index].send_modify(|generation| *generation = generation.wrapping_add(1)),
+                            Action::Continue => {},
+                        }
+                    }
+                    _ = refresh.tick(), if interactive => {
+                        if terminal.as_mut().is_some_and(|view| view.draw().is_err()) {
+                            terminate.cancel();
                         }
                     }
                     Some(code) = runs.next() => {
@@ -114,12 +190,29 @@ impl Command for DevCommand {
                         }
                     }
                     Some((index, event)) = receive.recv() => {
-                        report.emit(Some(&processes[index].definition), event);
+                        if let Some(view) = terminal.as_mut() {
+                            view.record(index, event);
+                        } else {
+                            report.emit(Some(&processes[index].definition), event);
+                        }
                     }
                 }
             }
             while let Ok((index, event)) = receive.try_recv() {
-                report.emit(Some(&processes[index].definition), event);
+                if let Some(view) = terminal.as_mut() {
+                    view.record(index, event);
+                } else {
+                    report.emit(Some(&processes[index].definition), event);
+                }
+            }
+            if let Some(view) = terminal {
+                view.finish(|index, event, time| {
+                    report.emit_at(
+                        index.map(|index| &processes[index].definition),
+                        event,
+                        Some(time),
+                    );
+                });
             }
             report.emit(None, Event::Done { code: status });
             Ok(status)
@@ -170,11 +263,54 @@ impl Reporter<'_> {
     }
 }
 
-async fn supervise(
-    process: &RegisteredProcess,
-    root: &Path,
-    environment: Option<&str>,
+#[derive(Clone, Copy)]
+struct Invocation<'a> {
+    process: &'a RegisteredProcess,
+    root: &'a Path,
+    environment: Option<&'a str>,
     restart: bool,
+}
+
+async fn manage(
+    call: Invocation<'_>,
+    terminate: &CancellationToken,
+    reporter: Reporter<'_>,
+    changes: Option<watch::Receiver<u64>>,
+) -> i32 {
+    let Some(mut changes) = changes else {
+        return supervise(call, terminate, reporter).await;
+    };
+    while !terminate.is_cancelled() {
+        let stop = CancellationToken::new();
+        let cycle = supervise(call, &stop, reporter);
+        tokio::pin!(cycle);
+        let retry = tokio::select! {
+            () = terminate.cancelled() => {
+                stop.cancel();
+                cycle.await;
+                false
+            }
+            changed = changes.changed() => {
+                stop.cancel();
+                cycle.await;
+                changed.is_ok()
+            }
+            _ = &mut cycle => {
+                tokio::select! {
+                    () = terminate.cancelled() => false,
+                    changed = changes.changed() => changed.is_ok(),
+                }
+            }
+        };
+        if !retry {
+            break;
+        }
+    }
+    0
+}
+
+async fn supervise(
+    call: Invocation<'_>,
     terminate: &CancellationToken,
     reporter: Reporter<'_>,
 ) -> i32 {
@@ -182,7 +318,15 @@ async fn supervise(
         if terminate.is_cancelled() {
             return 0;
         }
-        let (code, uptime) = match run_once(process, root, environment, terminate, reporter).await {
+        let (code, uptime) = match run_once(
+            call.process,
+            call.root,
+            call.environment,
+            terminate,
+            reporter,
+        )
+        .await
+        {
             Ok(result) => result,
             Err(_) if terminate.is_cancelled() => return 0,
             Err(error) => {
@@ -203,7 +347,7 @@ async fn supervise(
         if code == 0 || terminate.is_cancelled() {
             return 0;
         }
-        let reason = if !restart {
+        let reason = if !call.restart {
             Some("restart-disabled")
         } else if uptime < RESTART_DELAY {
             Some("crashed-immediately")
@@ -387,9 +531,9 @@ fn exit_details(status: ExitStatus) -> (i32, Option<&'static str>) {
     (status.code().unwrap_or(1), None)
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
-enum Event {
+pub(super) enum Event {
     Start {
         command: String,
         pid: Option<u32>,
@@ -437,7 +581,11 @@ struct OutputMode<'a> {
 }
 
 impl OutputMode<'_> {
-    fn emit(&mut self, process: Option<&DevProcess>, mut event: Event) {
+    fn emit(&mut self, process: Option<&DevProcess>, event: Event) {
+        self.emit_at(process, event, None);
+    }
+
+    fn emit_at(&mut self, process: Option<&DevProcess>, mut event: Event, time: Option<&str>) {
         if self.silent {
             return;
         }
@@ -470,12 +618,16 @@ impl OutputMode<'_> {
             }
             _ => return,
         };
-        let time = if self.timestamps {
-            chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
-                .format("%H:%M:%S ")
-                .to_string()
-        } else {
-            String::new()
+        let generated;
+        let time = match time {
+            Some(saved) => saved,
+            None if self.timestamps => {
+                generated = chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
+                    .format("%H:%M:%S ")
+                    .to_string();
+                &generated
+            }
+            None => "",
         };
         let label = if let Some(process) = process {
             let label = format!("[{}] ", process.name);

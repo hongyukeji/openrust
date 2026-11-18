@@ -6,6 +6,7 @@ mod configuration_command;
 mod console_make_command;
 mod dev_command;
 mod dev_list_command;
+mod dev_terminal;
 mod environment_command;
 mod environment_encryption_command;
 mod event_cache_command;

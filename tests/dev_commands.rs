@@ -206,7 +206,7 @@ while :; do sleep 1; done
         .port();
     let run = || {
         Command::new(env!("CARGO_BIN_EXE_main"))
-            .args(["artisan", "dev", "--json"])
+            .args(["artisan", "dev", "--json", "--tabs"])
             .current_dir(&fixture.0)
             .env("APP_BASE_PATH", &fixture.0)
             .env("QUEUE_CONNECTION", "nonexistent")

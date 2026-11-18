@@ -52,6 +52,8 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 ```sh
 ./artisan dev
+./artisan dev --tabs
+./artisan dev --stream
 ./artisan dev --inline --timestamps --no-restart
 ./artisan dev --json
 ```
@@ -60,10 +62,15 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 
 运行满一秒后失败的进程每隔一秒重试，最多五次。成功退出的进程结束，一秒内失败则立即报告。用 `--no-restart` 关闭本次重试，或在应用里用 `DevCommands::disableAutoRestart()` 关闭。用 `DevCommands::withTimestamps()` 默认开启时间戳。第一个永久失败决定最终退出码，其他进程可继续运行。
 
-在 Unix 上，Ctrl+C 和终止信号会请求关停，最多等子进程退出六秒。当前提供内联及 JSON 输出，交互标签、流式导航与 Pail 日志跟踪分别推进。
+Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进入合并视图。重定向输出、尺寸不足的终端、Windows、`--inline` 和 `--json` 走内联输出路径。交互会话正常退出时返回 0，内联和 JSON 模式则报告第一个永久失败的退出码。
+
+按 `1`–`9` 选择标签，也可用 Tab 聚焦侧栏后用方向键选择。按 `s` 切到流式视图、`t` 返回标签、`f` 筛选流、`r` 重启当前标签的进程、`c` 清空当前视图。用 `/` 搜索，再按 `n` 或 `N` 切换匹配。用方向键或 Page Up、Page Down 滚动日志。
+
+`--buffer-size` 和 `--stream-buffer-size` 控制每个标签和流式视图保留的行数，分别默认 2,000 和 10,000 行。应用可用 `DevCommands::bufferSize()`、`streamBufferSize()` 配置，并用 `tabs()`、`stream()` 或 `inline()` 设置默认模式。
+
+按 `q` 或 Ctrl+C 退出。Unix 终止信号也会请求关停，最多等子进程退出六秒。Artisan 恢复终端，并把保留的流式日志打印到对应的输出流。Pail 日志跟踪另行推进。
 
 ### 查看开发进程
-
 
 用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。Pail 日志跟踪待单独实现。
 

@@ -52,6 +52,8 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 ```sh
 ./artisan dev
+./artisan dev --tabs
+./artisan dev --stream
 ./artisan dev --inline --timestamps --no-restart
 ./artisan dev --json
 ```
@@ -60,10 +62,15 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 執行滿一秒後失敗的程序會每隔一秒重試，最多五次。成功結束的程序不再執行，一秒內失敗則立即回報。用 `--no-restart` 關閉這次重試，或在應用程式用 `DevCommands::disableAutoRestart()` 關閉。用 `DevCommands::withTimestamps()` 預設開啟時間戳記。第一個永久失敗決定最後的結束代碼，其他程序可以繼續執行。
 
-在 Unix 上，Ctrl+C 和終止訊號會請求關閉服務，最多等待子程序結束六秒。目前提供內嵌及 JSON 輸出，互動分頁、串流導覽與 Pail 日誌追蹤分別推進。
+Unix 上的可用終端機預設開啟分頁檢視，也可用 `--stream` 直接開啟合併檢視。重新導向輸出、尺寸不足的終端機、Windows、`--inline` 和 `--json` 會走內嵌輸出路徑。互動工作階段正常離開時回傳 0，內嵌和 JSON 模式則回報第一個永久失敗的結束代碼。
+
+按 `1`–`9` 選擇分頁，也可用 Tab 聚焦側欄後按方向鍵選擇。按 `s` 切至串流、`t` 回到分頁、`f` 篩選串流、`r` 重新啟動目前分頁的程序、`c` 清除目前檢視。用 `/` 搜尋，再按 `n` 或 `N` 切換符合的項目。用方向鍵或 Page Up、Page Down 捲動日誌。
+
+`--buffer-size` 和 `--stream-buffer-size` 控制各分頁與串流保留的行數，預設分別是 2,000 和 10,000 行。應用程式可用 `DevCommands::bufferSize()`、`streamBufferSize()` 設定，並用 `tabs()`、`stream()` 或 `inline()` 選擇預設模式。
+
+按 `q` 或 Ctrl+C 離開。Unix 終止訊號也會要求關閉服務，最多等待子程序結束六秒。Artisan 恢復終端機，並將保留的串流日誌印到對應的輸出串流。Pail 日誌追蹤另行處理。
 
 ### 查看開發程序
-
 
 用 `dev:list` 查看目前應用程式登記的開發程序。預設列出 [HTTP 開發伺服器](#development-http-server)和佇列監聽器。應用程式含有 `package.json` 時，也會依鎖定檔選擇 Bun、pnpm、Yarn 或 npm 並列出 Vite。查詢不會啟動程序。Pail 日誌追蹤待另外實作。
 

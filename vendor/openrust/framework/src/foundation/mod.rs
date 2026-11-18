@@ -23,7 +23,7 @@ pub mod support;
 
 pub use application::Application;
 pub use bootstrap_error::BootstrapError;
-pub use dev_commands::{DevCommand, DevCommands, DevProcess};
+pub use dev_commands::{DevCommand, DevCommandMode, DevCommands, DevProcess};
 pub use entry::run_application;
 pub use inspiring::Inspiring;
 pub use package_manifest::{DiscoveredPackage, PackageManifest};

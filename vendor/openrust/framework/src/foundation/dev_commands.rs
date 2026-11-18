@@ -82,6 +82,15 @@ pub struct DevProcess {
     pub priority: u8,
 }
 
+/// The development process display selected by the application.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DevCommandMode {
+    #[default]
+    Tabs,
+    Stream,
+    Inline,
+}
+
 pub(super) struct RegisteredProcess {
     pub(super) definition: DevProcess,
     pub(super) artisan: bool,
@@ -103,6 +112,9 @@ struct Filters {
     without_default: bool,
     timestamps: bool,
     disable_restart: bool,
+    mode: DevCommandMode,
+    buffer_size: Option<usize>,
+    stream_buffer_size: Option<usize>,
 }
 
 impl Registry {
@@ -373,6 +385,47 @@ impl DevCommands {
             .lock()
             .expect("dev command filters lock poisoned")
             .disable_restart)
+    }
+
+    pub fn inline() -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.mode = DevCommandMode::Inline)
+    }
+
+    pub fn stream() -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.mode = DevCommandMode::Stream)
+    }
+
+    pub fn tabs() -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.mode = DevCommandMode::Tabs)
+    }
+
+    pub fn mode() -> Result<DevCommandMode, ConsoleError> {
+        Self::setting(|filters| filters.mode)
+    }
+
+    pub fn bufferSize(lines: usize) -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.buffer_size = Some(lines))
+    }
+
+    pub fn streamBufferSize(lines: usize) -> Result<(), ConsoleError> {
+        Self::filter(|filters| filters.stream_buffer_size = Some(lines))
+    }
+
+    pub fn getBufferSize() -> Result<Option<usize>, ConsoleError> {
+        Self::setting(|filters| filters.buffer_size)
+    }
+
+    pub fn getStreamBufferSize() -> Result<Option<usize>, ConsoleError> {
+        Self::setting(|filters| filters.stream_buffer_size)
+    }
+
+    fn setting<T>(read: impl FnOnce(&Filters) -> T) -> Result<T, ConsoleError> {
+        Ok(read(
+            &active_registry()?
+                .filters
+                .lock()
+                .expect("dev command filters lock poisoned"),
+        ))
     }
 
     fn filter(configure: impl FnOnce(&mut Filters)) -> Result<(), ConsoleError> {
