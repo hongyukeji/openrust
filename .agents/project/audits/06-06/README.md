@@ -175,3 +175,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `3fc92e01c` 上，以真实 multipart POST 发送 PNG，核对服务端 MIME 优先及文件名去除目录。另一个 POST 将无法辨识的二进制上传入队，由 Redis Artisan Worker 投递，验证客户端声明 MIME 及原始字节。MySQL 与 Redis Worker 同时复验云磁盘配置、入队后文件读取和 MySQL Worker 失败恢复。使用实际 AWS SDK 请求本地 S3 协议夹具，未连接托管 S3。
 - `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语断言示例执行、站点构建及两个部署路径的 12 项通用和 6 项附件说明浏览器检查通过。核心账本维持 66/66。URL 来源和 `Attachable` 契约后续对照。
 - 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.67 GB（3.42 GiB），清理后可用 96.39 GB（89.77 GiB）。提交前周额度剩余 32%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-upload-cloud.SjilBxNX`。
+
+## URL 附件与可附加对象
+
+- 对照固定 Laravel v13.40.0 的 `Attachment::fromUrl()`、`Attachable::toMailAttachment()` 和 Attachments／Attachable Objects 两节。URL 限于绝对 HTTP 和 HTTPS。Rust 通过应用范围的 HTTP 客户端在发送阶段下载，沿用请求超时和重定向机制。默认文件名来自原 URL 路径，下载响应可指定 MIME，名称和类型可覆盖。旧版 `6d1a81924` 邮件模块没有对应的 URL 或可附加对象实现，复用当前附件组合与 HTTP 客户端。 [Laravel Attachment](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Attachment.php#L63) · [Laravel Attachable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Mail/Attachable.php) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#attachable-objects)
+- Laravel 在动态附件数组中调用对象转换方法。Rust 用 `Attachable::toMailAttachment()` 显式返回已定型、可序列化的 `AttachmentSource`，领域对象留在应用侧。入队及附件断言保留来源，直到实际投递才发起请求。
+- 在等价基线 `761e641b8` 上，用真实 HTTP 端点验证相对重定向、带查询参数的 URL、文件名解码、响应 MIME 和原始字节。独立 MySQL 和 Redis Worker 从任务载荷重新下载，失败响应不会产生邮件。MySQL Worker 遇到 HTTP 503 后保留尝试记录，远端恢复后重试成功。Mailpit HTTP 核对即时与队列投递。HTTPS URL 通过构造验证，HTTPS 下载本轮未单独实测。
+- `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 格式及全工作区严格 Clippy、三语示例执行、站点构建及两种部署路径的 12 项通用和 6 项邮件文档浏览器检查通过。核心账本维持 66/66。后续对照邮件 Envelope 的 Tags and Metadata。
+- 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.67 GB（3.42 GiB），清理后可用 99.16 GB（92.35 GiB）。提交前周额度剩余 32%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-url-attachable.YghUeRKQ`。

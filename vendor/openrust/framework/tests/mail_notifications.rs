@@ -17,6 +17,7 @@ use openrust::{
         events::{Event as PayloadEvent, Listener},
         foundation::Application as _,
         http::Kernel as _,
+        mail::Attachable,
     },
     database::{DB, DatabaseManager, Value},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
@@ -83,6 +84,18 @@ struct AttachmentReceipt {
     subject: &'static str,
 }
 
+struct RemoteReport(String);
+
+impl Attachable for RemoteReport {
+    #[allow(
+        non_snake_case,
+        reason = "Implements the Laravel-compatible attachment contract"
+    )]
+    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+        Attachment::fromUrl(&self.0)
+    }
+}
+
 impl Mailable for AttachmentReceipt {
     fn envelope(&self) -> MailResult<Envelope> {
         Ok(Envelope {
@@ -108,6 +121,7 @@ impl Mailable for AttachmentReceipt {
                 .withMime("application/x-openrust"),
             Attachment::fromCloudStorage("nested/object.bin")?,
             Attachment::fromData(vec![0, 255, 1], "generated.bin"),
+            RemoteReport(Config::string("fixture.attachment_url").unwrap()).toMailAttachment()?,
         ])
     }
 }
@@ -2776,6 +2790,17 @@ async fn artisan_worker_uses_real_smtp_mysql_and_redis() {
 #[tokio::test]
 async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    for invalid in [
+        "file:///private/report",
+        "ftp://example.test/a",
+        "/files/report",
+        "http:example.test/report",
+        "https:///report",
+    ] {
+        assert!(Attachment::fromUrl(invalid).is_err());
+    }
 
     let (Some(mysql), Ok(redis), Ok(smtp), Ok(mailpit)) = (
         delivery_mysql(),
@@ -2793,20 +2818,51 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
     );
     let object_store = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let endpoint = format!("http://{}", object_store.local_addr().unwrap());
-    let objects = axum::Router::new().route(
-        "/attachments/tenant/nested/object.bin",
-        axum::routing::get(|| async {
-            (
-                [(http::header::CONTENT_TYPE, "application/x-object-fixture")],
-                vec![0_u8, 91, 255],
-            )
-        }),
-    );
+    let available = Arc::new(AtomicBool::new(true));
+    let downloads = Arc::new(AtomicUsize::new(0));
+    let objects = axum::Router::new()
+        .route(
+            "/attachments/tenant/nested/object.bin",
+            axum::routing::get(|| async {
+                (
+                    [(http::header::CONTENT_TYPE, "application/x-object-fixture")],
+                    vec![0_u8, 91, 255],
+                )
+            }),
+        )
+        .route(
+            "/reports/{name}",
+            axum::routing::get(|| async { axum::response::Redirect::temporary("/download") }),
+        )
+        .route(
+            "/download",
+            axum::routing::get({
+                let available = Arc::clone(&available);
+                let downloads = Arc::clone(&downloads);
+                move || {
+                    let available = Arc::clone(&available);
+                    let downloads = Arc::clone(&downloads);
+                    async move {
+                        if !available.load(Ordering::Relaxed) {
+                            return Err(http::StatusCode::SERVICE_UNAVAILABLE);
+                        }
+                        downloads.fetch_add(1, Ordering::Relaxed);
+                        Ok((
+                            [(http::header::CONTENT_TYPE, "application/x-report-fixture")],
+                            vec![0_u8, 92, 255],
+                        ))
+                    }
+                }
+            }),
+        );
     let object_server = tokio::spawn(async move { axum::serve(object_store, objects).await });
     let path = root.0.join("source.txt");
     let config_path = root.0.join("config.json");
     let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
     config["fixture"]["attachment_file"] = json!(path);
+    config["fixture"]["attachment_url"] = json!(format!(
+        "{endpoint}/reports/invoice%2042.bin?signature=fixture"
+    ));
     config["filesystems"] = json!({
         "default":"local",
         "cloud":"objects",
@@ -2875,6 +2931,12 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         .unwrap()
         .error_for_status()
         .unwrap();
+    assert_eq!(downloads.load(Ordering::Relaxed), 1);
+    available.store(false, Ordering::Relaxed);
+    assert_eq!(
+        reqwest::get(&url).await.unwrap().status(),
+        http::StatusCode::INTERNAL_SERVER_ERROR
+    );
     std::fs::remove_file(&disk_path).unwrap();
     assert_eq!(
         reqwest::get(&url).await.unwrap().status(),
@@ -2892,6 +2954,11 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                     };
                     receipt
                         .assertHasAttachment(&Attachment::fromPath(&path))
+                        .assertHasAttachment(
+                            &RemoteReport(Config::string("fixture.attachment_url").unwrap())
+                                .toMailAttachment()
+                                .unwrap(),
+                        )
                         .assertHasAttachedData(b"file receipt", "receipt.txt", Some("text/plain"))
                         .assertHasAttachedData(&[0, 255, 1], "generated.bin", None)
                         .assertHasAttachmentFromStorage(
@@ -2945,6 +3012,9 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         )
         .await
         .unwrap();
+    assert_eq!(downloads.load(Ordering::Relaxed), 1);
+    std::fs::write(&path, [0, 25, 255]).unwrap();
+    std::fs::write(&disk_path, [0, 26, 255]).unwrap();
     artisan(
         &root.0,
         &[
@@ -2961,8 +3031,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         Value::Unsigned(1)
     );
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
-    std::fs::write(&path, [0, 25, 255]).unwrap();
-    std::fs::write(&disk_path, [0, 26, 255]).unwrap();
+    available.store(true, Ordering::Relaxed);
     for connection in ["database", "redis"] {
         artisan(
             &root.0,
@@ -2978,6 +3047,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         .await;
     }
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    assert_eq!(downloads.load(Ordering::Relaxed), 3);
     let api = format!("http://127.0.0.1:{mailpit}/api/v1");
     let listing: Json = reqwest::get(format!("{api}/messages"))
         .await
@@ -3042,6 +3112,8 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             "application/x-openrust",
             "application/x-object-fixture",
             "application/octet-stream",
+            "invoice 42.bin",
+            "application/x-report-fixture",
         ] {
             assert!(raw.contains(marker), "missing {marker}: {raw}");
         }
@@ -3050,6 +3122,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             [0, disk, 255],
             [0, 17, 255],
             [0, 91, 255],
+            [0, 92, 255],
             [0, 255, 1],
         ] {
             assert!(raw.contains(&STANDARD.encode(bytes)), "{raw}");

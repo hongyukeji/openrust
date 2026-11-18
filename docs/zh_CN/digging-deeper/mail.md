@@ -70,6 +70,8 @@ fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
 
 用 `Attachment::fromUploadedFile(&file)` 附加 HTTP 请求中的上传文件。默认使用客户端提供的文件名和检测到的 MIME 类型，无法识别时采用客户端声明的类型。上传字节随队列邮件保存。用 `Attachment::fromCloudStorage(path)?` 选择 `filesystems.cloud` 配置的磁盘，默认是 `s3`。
 
+用 `Attachment::fromUrl(url)?` 附加绝对 HTTP 或 HTTPS URL。邮件器在发送时下载附件，队列邮件由 Worker 下载。URL 路径提供默认文件名，响应可提供 MIME 类型。用 `r#as` 重命名，用 `withMime` 覆盖类型。
+
 ### 内嵌附件 {#inline-attachments}
 
 从 `Mailable::inline_attachments` 返回 `InlineAttachment`，用 `cid()` 取得图片地址。视图和附件使用相同的 Content-ID。
@@ -84,6 +86,26 @@ let image_src = logo.cid();
 ```
 
 将 `image_src` 传入 Blade 的 `<img src="{{ $image_src }}">`，也可用它作为 Markdown 图片的地址。Worker 随任务收到图片字节。SMTP 等原始 MIME 传输会将图片与 HTML 一起发送，浏览器预览把匹配的图片地址转换成数据 URL。Postmark、Resend 和 Cloudflare 通过 JSON 附件字段传递原文件名和 Content-ID。Mailgun 表单 API 用 Content-ID 作为内嵌分段的文件名，使其与 HTML 引用匹配。Mailgun 原始 MIME 模式保留原文件名。
+
+### 可附加对象 {#attachable-objects}
+
+领域对象负责选择附件时，实现 `Attachable`。在邮件类型返回附件来源时，用 `toMailAttachment()` 转换对象。
+
+```rust
+use openrust::{
+    contracts::mail::Attachable,
+    mail::{MailResult, mailables::{Attachment, AttachmentSource}},
+};
+
+struct Report(String);
+
+impl Attachable for Report {
+    #[allow(non_snake_case)]
+    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+        Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
+    }
+}
+```
 
 ## 配置
 

@@ -70,6 +70,8 @@ File and disk sources default to the file name. S3 uses the object’s content t
 
 Use `Attachment::fromUploadedFile(&file)` with an uploaded file returned by the HTTP request. It uses the client’s basename and the detected MIME type, falling back to the declared MIME type when detection is unavailable. Uploaded bytes travel with queued mail. Use `Attachment::fromCloudStorage(path)?` to select the disk configured by `filesystems.cloud`. It defaults to `s3`.
 
+Use `Attachment::fromUrl(url)?` for an absolute HTTP or HTTPS URL. The mailer downloads the attachment when sending, including in a queue worker. The URL path supplies the default filename and the response can supply the MIME type. To rename a download or override its type, use `r#as` and `withMime`.
+
 ### Inline attachments {#inline-attachments}
 
 Return an `InlineAttachment` from `Mailable::inline_attachments` and use its `cid()` value for the image source. The same Content-ID must be used in the attachment and the view.
@@ -84,6 +86,26 @@ let image_src = logo.cid();
 ```
 
 Pass `image_src` to Blade as `<img src="{{ $image_src }}">` or use it as the destination of a Markdown image. A worker receives the attachment bytes with the job. SMTP and other raw MIME transports send the image alongside the HTML. For a browser preview, matching image sources become data URLs. Postmark, Resend, and Cloudflare preserve the filename and Content-ID through their JSON attachment fields. In Mailgun's form API, the inline part uses the Content-ID as its multipart filename so it matches the HTML. Mailgun's raw MIME mode preserves the original filename.
+
+### Attachable objects {#attachable-objects}
+
+Implement `Attachable` when a domain object is responsible for choosing its attachment. Convert the object with `toMailAttachment()` when returning the mailable’s attachment sources.
+
+```rust
+use openrust::{
+    contracts::mail::Attachable,
+    mail::{MailResult, mailables::{Attachment, AttachmentSource}},
+};
+
+struct Report(String);
+
+impl Attachable for Report {
+    #[allow(non_snake_case)]
+    fn toMailAttachment(&self) -> MailResult<AttachmentSource> {
+        Ok(Attachment::fromUrl(&self.0)?.r#as("report.pdf"))
+    }
+}
+```
 
 ## Configuration
 

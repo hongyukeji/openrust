@@ -1,12 +1,14 @@
 use std::path::{Path, PathBuf};
 
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt as _;
+use url::Url;
 
 use crate::{
     http::UploadedFile,
     mail::{MailResult, composition},
-    support::facades::Storage,
+    support::facades::{Http, Storage},
 };
 
 use super::Attachment;
@@ -24,6 +26,7 @@ enum Source {
     Path(PathBuf),
     Disk { disk: Option<String>, path: String },
     Data(Vec<u8>),
+    Url(String),
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's attachment constructors")]
@@ -34,6 +37,14 @@ impl Attachment {
             name: None,
             mime: None,
         }
+    }
+
+    pub fn fromUrl(url: &str) -> MailResult<AttachmentSource> {
+        Ok(AttachmentSource {
+            source: Source::Url(parse_url(url)?.into()),
+            name: None,
+            mime: None,
+        })
     }
 
     pub fn fromData(data: impl Into<Vec<u8>>, name: impl Into<String>) -> AttachmentSource {
@@ -140,6 +151,28 @@ impl AttachmentSource {
                 (Some(PathBuf::from(path)), bytes, content_type)
             }
             Source::Data(bytes) => (None, bytes, None),
+            Source::Url(url) => {
+                let url = parse_url(&url)?;
+                let response = Http::get(url.as_str()).await.map_err(composition)?;
+                if !response.successful() {
+                    return Err(composition(format!(
+                        "Mail attachment URL returned HTTP {}.",
+                        response.status().as_u16()
+                    )));
+                }
+                let filename = url
+                    .path_segments()
+                    .and_then(|mut parts| parts.next_back())
+                    .filter(|part| !part.is_empty())
+                    .map(|part| {
+                        PathBuf::from(percent_decode_str(part).decode_utf8_lossy().into_owned())
+                    });
+                let content_type = response
+                    .header("content-type")
+                    .and_then(|header| header.to_str().ok())
+                    .map(str::to_owned);
+                (filename, response.body().to_vec(), content_type)
+            }
         };
         let name = self
             .name
@@ -166,4 +199,18 @@ impl AttachmentSource {
         });
         Ok(Attachment { name, mime, bytes })
     }
+}
+
+fn parse_url(value: &str) -> MailResult<Url> {
+    let invalid_url = || composition("Mail attachment URLs must use the http or https scheme.");
+    let (scheme, authority) = value.split_once("://").ok_or_else(invalid_url)?;
+    if !(scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
+        || authority.starts_with(['/', '\\'])
+    {
+        return Err(invalid_url());
+    }
+    Url::parse(value)
+        .ok()
+        .filter(Url::has_host)
+        .ok_or_else(invalid_url)
 }

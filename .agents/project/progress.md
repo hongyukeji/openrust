@@ -3252,3 +3252,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 06-06 上传文件、默认云磁盘及邮件附件断言
 
 继续对照 Laravel 的 Attachments 和 Testing，接入上传文件与默认云磁盘来源及普通附件断言。范围含 `Mailable`、`AttachmentSource`、`FilesystemManager`、`Storage` 门面、邮件与本地磁盘回归及三语正文。真实 multipart HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知回归、9 项本地磁盘回归、全仓格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#上传文件默认云磁盘及邮件附件断言)
+
+## 2026-11-18 06-06 URL 附件与可附加对象
+
+按 Laravel 的 Attachments 和 Attachable Objects 补齐 URL 来源及领域对象转换契约。范围含 `contracts/mail`、`mail/mailables`、邮件投递回归和三语正文。真实 HTTP、SMTP、MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知回归、9 项磁盘回归、全仓格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#url-附件与可附加对象)
