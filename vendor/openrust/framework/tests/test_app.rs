@@ -743,8 +743,13 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
             .withPackages(PackageManifest::new(ENTRIES))
             .withRouting(Routing::default())
     })?;
-    let cache = app.root().join("bootstrap/cache/packages.json");
+    let cache = app
+        .root()
+        .canonicalize()?
+        .join("bootstrap/cache/packages.json");
+    assert!(app.app().getCachedPackagesPath().is_none());
     app.get("/discovered").await?.assertOk();
+    assert_eq!(app.app().getCachedPackagesPath(), Some(cache.as_path()));
     assert!(!cache.exists());
     app.artisan(["package:discover"]).await.assertSuccessful();
     let original = fs::read(&cache)?;

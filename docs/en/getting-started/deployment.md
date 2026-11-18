@@ -101,7 +101,9 @@ Run the command from the final release directory using the environment the servi
 
 `optimize` caches configuration, event discovery, the route matching index and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
 
-See [Route Caching](../the-basics/routing.md#route-caching) for the matching index and its cache path.
+If you override the route, event or package cache path, export `APP_ROUTES_CACHE`, `APP_EVENTS_CACHE` or `APP_PACKAGES_CACHE` in the service environment and in the shell that runs Artisan. Once configuration is cached, startup can skip reading `.env`. Use the same paths when generating, reading and clearing these files. The compiled view directory comes from the configuration snapshot.
+
+See [Route Caching](../the-basics/routing.md#route-caching), [Event Discovery](../digging-deeper/events.md#event-discovery-in-production) and [Package Discovery](../digging-deeper/packages.md).
 
 ## Run Services Together
 

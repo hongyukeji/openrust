@@ -23,6 +23,8 @@ OpenRust 應用程式在 `build.rs` 呼叫 `openrust_package_discovery::generate
 
 HTTP 和 Artisan 啟動時直接使用已連結的清單。要檢查目前建置包含哪些套件，執行 `./artisan package:discover` 列出套件名稱，並將清單匯出至 `bootstrap/cache/packages.json`。用 `APP_PACKAGES_CACHE` 指定其他匯出路徑。執行 `./artisan clear-compiled` 可清除匯出檔案。相依套件、特性或排除規則變更後需重新編譯應用程式。
 
+應用程式解析環境後，`getCachedPackagesPath()` 回傳匯出路徑。延遲服務提供者的目錄隨執行檔連結。
+
 ## 資源
 
 在 Provider 的 `boot` 中向應用程式註冊資源。

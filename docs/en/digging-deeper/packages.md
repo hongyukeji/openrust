@@ -23,6 +23,8 @@ Add `dont-discover = ["example-package"]` under the application’s `[package.me
 
 HTTP and Artisan startup use the linked catalog directly. To inspect the packages linked into a build, run `./artisan package:discover` to list their names and export the catalog to `bootstrap/cache/packages.json`. Set `APP_PACKAGES_CACHE` to choose a different export path. Run `./artisan clear-compiled` to remove the exported file. Rebuild the executable after changing dependencies, features, or exclusions.
 
+After the application resolves its environment, `getCachedPackagesPath()` returns the export path. The directory of deferred service providers is linked into the executable.
+
 ## Resources
 
 In the provider's `boot` hook, register resources with the application.

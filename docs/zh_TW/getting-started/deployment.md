@@ -101,7 +101,9 @@ curl --fail http://127.0.0.1:8088/up
 
 `optimize` 快取設定、事件探索結果、路由比對索引和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
 
-路由比對索引及其快取路徑見[路由快取](../the-basics/routing.md#route-caching)。
+覆寫路由、事件或套件清單快取路徑時，在服務與執行 Artisan 的 Shell 環境中設定對應的 `APP_ROUTES_CACHE`、`APP_EVENTS_CACHE` 或 `APP_PACKAGES_CACHE`。設定快取命中後，啟動可能略過讀取 `.env`。產生、讀取與清除這些檔案時應使用同一組路徑。視圖編譯目錄取自設定快照。
+
+參閱[路由快取](../the-basics/routing.md#route-caching)、[事件探索](../digging-deeper/events.md#event-discovery-in-production)與[套件探索](../digging-deeper/packages.md)。
 
 ## 一起執行服務
 

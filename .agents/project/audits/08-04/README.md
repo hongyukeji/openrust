@@ -160,3 +160,9 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 21 项 `console`、`feature`、`artisan_entry`、Rust 1.94.0 全仓格式、启用 Reverb 的工作区全目标严格 Clippy 通过。三语站点及根路径与 `/docs/` 下 18 项浏览器检查通过。临时 Redis、编译及站点产物已回收。磁盘可用 88.93 GB（82.82 GiB），提交前周额度剩余 26%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-artisan-optimize.LOtOxdzV`。
 
 部署优化的持久化路由缓存已接通，`optimize` 和 `optimize:clear` 分别生成与删除索引。 [路由缓存验收](../04-01/README.md#持久化路由匹配索引)
+
+## 独立部署的缓存路径与包清单清理
+
+- 对照固定 Laravel v13.40.0 的 `getCachedPackagesPath()`、`clear-compiled` 和 `optimize:clear`。复核 openrust-v0.x 的服务与包清单清理夹具，沿用缓存间相互独立的验收思路。OpenRust 的延迟 Provider 元数据已随二进制链接，`clear-compiled` 清除按需导出的包清单。 [Laravel Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php) · [Laravel ClearCompiledCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ClearCompiledCommand.php)
+- 在隔离主线 `80e98bc87` 以 Rust 1.94.0 构建启用 `standalone` 的 macOS ARM64 Debug 二进制。把二进制移到带空格且无源码的目录，从另一个工作目录运行。实测冷启动 `inspire`、独立导出包清单、`optimize`、`config:show`、`route:list`、`event:list` 和两次 `optimize:clear --except=cache`。分别覆盖绝对和相对路径、设置快照中的视图编译目录、清理同目录时保留无关文件。使用 Array 存储。配置缓存生效时实际首页、`/up` 和公共静态文件返回 200，SIGTERM 退出 0。清除后 Artisan 读取更新的 dotenv 值。
+- 38 项定向回归、全仓格式、启用 `standalone` 的工作区全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。回收本批生成文件，磁盘可用 86.64 GB（80.69 GiB）。提交前周额度剩余 24%，第二窗口无读数，按用户授权继续。记录保留于 `/private/tmp/openrust-release-cache-paths.0eh1TIO3`。

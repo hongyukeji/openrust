@@ -67,7 +67,7 @@ pub(super) struct ApplicationState {
     pub(crate) publishable: Mutex<Vec<crate::support::PublishableResource>>,
     pub(crate) keep_published_migration_dates: AtomicBool,
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
-    pub(super) package_cache_path: OnceLock<PathBuf>,
+    package_cache_path: OnceLock<PathBuf>,
     route_cache: OnceLock<(PathBuf, bool)>,
     event_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
@@ -307,6 +307,12 @@ impl Application {
     #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
     pub fn getCachedEventsPath(&self) -> Option<&Path> {
         self.shared.event_cache_path.get().map(PathBuf::as_path)
+    }
+
+    /// Returns the package manifest export path after the application's environment is resolved.
+    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    pub fn getCachedPackagesPath(&self) -> Option<&Path> {
+        self.shared.package_cache_path.get().map(PathBuf::as_path)
     }
 
     pub(crate) fn compile_route_cache(&self) -> io::Result<RouteCache> {

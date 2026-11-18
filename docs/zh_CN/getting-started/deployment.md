@@ -101,7 +101,9 @@ curl --fail http://127.0.0.1:8088/up
 
 `optimize` 缓存配置、事件发现结果、路由匹配索引和编译视图。`optimize:clear` 清除这些产物、包清单和默认应用缓存。用 `--except`（`-e`）传入逗号分隔的任务名或 Artisan 命令名。示例会保留默认应用缓存。服务提供者可通过 `optimizes` 添加任务。
 
-路由匹配索引及其缓存路径见[路由缓存](../the-basics/routing.md#route-caching)。
+覆盖路由、事件或包清单缓存路径时，在服务和运行 Artisan 的 Shell 环境中设置对应的 `APP_ROUTES_CACHE`、`APP_EVENTS_CACHE` 或 `APP_PACKAGES_CACHE`。配置缓存命中后，启动可能跳过读取 `.env`。生成、读取和清理这些文件时应使用同一组路径。视图编译目录取自配置快照。
+
+参见[路由缓存](../the-basics/routing.md#route-caching)、[事件发现](../digging-deeper/events.md#event-discovery-in-production)和[包发现](../digging-deeper/packages.md)。
 
 ## 一起运行服务
 

@@ -23,6 +23,8 @@ OpenRust 应用在 `build.rs` 调用 `openrust_package_discovery::generate()`，
 
 HTTP 和 Artisan 启动时直接使用已链接的清单。要检查当前构建包含哪些包，运行 `./artisan package:discover` 列出包名，并将清单导出到 `bootstrap/cache/packages.json`。用 `APP_PACKAGES_CACHE` 指定其他导出路径。运行 `./artisan clear-compiled` 可清除导出文件。依赖、特性或排除规则变化后需重新编译应用。
 
+应用解析环境后，`getCachedPackagesPath()` 返回导出路径。延迟服务提供者的目录随二进制链接。
+
 ## 资源
 
 在 Provider 的 `boot` 中向应用注册资源。
