@@ -6,8 +6,8 @@ include!(concat!(env!("OUT_DIR"), "/openrust_packages.rs"));
 
 use crate::{app::console::commands, config, database, routes};
 
-#[allow(non_snake_case, reason = "Preserves application assembly names")]
-pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + Sync>> {
+pub(crate) fn create_application() -> Result<Application, Box<dyn Error + Send + Sync>> {
+    #[allow(non_snake_case, reason = "Preserves Laravel's basePath spelling")]
     let basePath = Application::inferBasePath(
         (!cfg!(feature = "standalone")).then_some(env!("CARGO_MANIFEST_DIR")),
     )?;

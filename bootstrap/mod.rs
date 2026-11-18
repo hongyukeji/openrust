@@ -3,4 +3,4 @@
 mod app;
 mod providers;
 
-pub(crate) use app::createApplication;
+pub(crate) use app::create_application;

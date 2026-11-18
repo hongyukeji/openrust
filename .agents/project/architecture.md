@@ -2,7 +2,7 @@
 
 | 位置 | 职责 |
 |---|---|
-| [main.rs](../../main.rs) | 建立 Tokio 运行时，将应用工厂交给 `runApplication`。 |
+| [main.rs](../../main.rs) | 建立 Tokio 运行时，将应用工厂交给 `run_application`。 |
 | [bootstrap/app.rs](../../bootstrap/app.rs) | 确定应用根目录，声明配置、Provider、Artisan 命令、路由、中间件及异常策略。 |
 | [bootstrap/providers.rs](../../bootstrap/providers.rs) | 登记应用的服务提供者。 |
 | [框架入口](../../vendor/openrust/framework/src/foundation/entry.rs) | 解析参数，选定 HTTP 或 Artisan，再创建应用并返回进程退出码。 |

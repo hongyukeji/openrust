@@ -22,7 +22,7 @@ pub mod support;
 
 pub use application::Application;
 pub use bootstrap_error::BootstrapError;
-pub use entry::runApplication;
+pub use entry::run_application;
 pub use inspiring::Inspiring;
 pub use package_manifest::{DiscoveredPackage, PackageManifest};
 pub use runner::{Runner, RunnerContext, RunningService, RuntimeResult, wait_for_shutdown};

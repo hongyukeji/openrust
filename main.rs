@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use openrust::foundation::runApplication;
+use openrust::foundation::run_application;
 
 mod app;
 mod bootstrap;
@@ -10,5 +10,5 @@ mod routes;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
-    runApplication(bootstrap::createApplication).await
+    run_application(bootstrap::create_application).await
 }

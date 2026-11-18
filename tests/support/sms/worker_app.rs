@@ -11,7 +11,7 @@ use openrust::{
         Output,
     },
     contracts::{container::Container as _, foundation::Application as _},
-    foundation::{Application, runApplication},
+    foundation::{Application, run_application},
     http::HttpFuture,
     notifications::{
         ChannelManager, Notifiable, Notification, NotificationError, NotificationFuture,
@@ -35,7 +35,7 @@ async fn main() -> ExitCode {
     {
         return ExitCode::SUCCESS;
     }
-    runApplication(|| {
+    run_application(|| {
         let root = Application::inferBasePath(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root)
             .withConfig(|path, env| {

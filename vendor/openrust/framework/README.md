@@ -15,7 +15,7 @@ Web 服务默认监听 `127.0.0.1:8000`，可用 `/up` 检查服务存活。发�
 
 | 职责 | Rust 路径 | 正文 |
 |---|---|---|
-| 应用装配 | `openrust::foundation::{Application, runApplication}` | [请求生命周期](../../../docs/zh_CN/architecture-concepts/lifecycle.md) |
+| 应用装配 | `openrust::foundation::{Application, run_application}` | [请求生命周期](../../../docs/zh_CN/architecture-concepts/lifecycle.md) |
 | 容器 | `openrust::container::Container` | [服务容器](../../../docs/zh_CN/architecture-concepts/container.md) |
 | Provider | `openrust::support::ServiceProvider` | [服务提供者](../../../docs/zh_CN/architecture-concepts/providers.md) |
 | 公开契约 | `openrust::contracts` | [契约](../../../docs/zh_CN/digging-deeper/contracts.md) |

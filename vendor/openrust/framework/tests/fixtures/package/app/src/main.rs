@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, env, error::Error, path::Path, process::ExitCod
 use openrust::{
     config::{ConfigError, Environment, Value},
     contracts::foundation::Application as _,
-    foundation::{Application, runApplication},
+    foundation::{Application, run_application},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::RoutingError,
     support::{ServiceProvider, facades::Route},
@@ -89,5 +89,5 @@ fn application() -> Result<Application, Box<dyn Error + Send + Sync>> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
-    runApplication(application).await
+    run_application(application).await
 }

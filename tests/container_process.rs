@@ -627,7 +627,7 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     if std::env::var_os("TEST_CONTAINER_CHILD").is_some() {
-        return openrust::foundation::runApplication(create).await;
+        return openrust::foundation::run_application(create).await;
     }
     let executable = std::env::current_exe().unwrap();
     for (args, expected) in [

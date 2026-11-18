@@ -11,8 +11,7 @@ use super::{
 };
 
 /// Selects the process entry point before creating the application.
-#[allow(non_snake_case, reason = "Matches the public application entry naming")]
-pub async fn runApplication(
+pub async fn run_application(
     create: impl FnOnce() -> Result<Application, Box<dyn Error + Send + Sync>>,
 ) -> ExitCode {
     let mut arguments = env::args_os().peekable();

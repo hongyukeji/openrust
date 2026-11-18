@@ -1,6 +1,6 @@
 # 請求生命週期
 
-Tokio 入口將 `bootstrap::createApplication` 交給 `openrust::foundation::runApplication`。框架先選擇執行入口，再建立應用程式。沒有參數時呼叫 `Application::start()` 執行 HTTP，第一個參數為 `artisan` 時呼叫 [`Application::handleCommand`](../digging-deeper/artisan.md)。
+Tokio 入口將 `bootstrap::create_application` 交給 `openrust::foundation::run_application`。框架先選擇執行入口，再建立應用程式。沒有參數時呼叫 `Application::start()` 執行 HTTP，第一個參數為 `artisan` 時呼叫 [`Application::handleCommand`](../digging-deeper/artisan.md)。
 
 應用程式入口將選定的根目錄命名為 `basePath`，傳給 `Application::configure(basePath)`，對應 Laravel 的 `configure(basePath: ...)`。接著 `create()` 驗證根目錄並建立服務容器，由選定的 Kernel 引導應用程式。引導時載入環境和設定，執行所有一般 Provider 的 `register`，再執行各 Provider 的 `boot`，接著註冊共用路由。程序的環境變數優先於環境檔案。
 

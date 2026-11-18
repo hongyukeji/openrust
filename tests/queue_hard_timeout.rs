@@ -27,7 +27,7 @@ mod acceptance {
             Application,
             configuration::{ReportDecision, Routing},
             http::Kernel,
-            runApplication,
+            run_application,
         },
         http::{HttpError, HttpFuture, Request, Response},
         log::context::Context,
@@ -3334,7 +3334,7 @@ mod acceptance {
                 .nth(1)
                 .is_some_and(|argument| argument == "artisan")
         {
-            return runApplication(|| {
+            return run_application(|| {
                 application(PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap()))
             })
             .await;
