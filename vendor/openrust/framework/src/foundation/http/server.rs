@@ -129,8 +129,7 @@ impl Kernel {
         reason = "Matches the framework HTTP entry point naming"
     )]
     pub async fn handleTransport(self: Arc<Self>, incoming: TransportRequest) -> TransportResponse {
-        let (parts, body) = incoming.into_parts();
-        let mut request = Request::from_parts(parts, body);
+        let mut request = Request::from(incoming);
         let (parts, body) = self.handle(&mut request).await.into_parts();
         if request
             .parts()

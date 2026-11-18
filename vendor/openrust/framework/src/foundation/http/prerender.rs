@@ -195,8 +195,7 @@ async fn handle(
     if let Some(kernel) = kernel {
         return kernel.handleTransport(incoming).await;
     }
-    let (parts, body) = incoming.into_parts();
-    let request = Request::from_parts(parts, body);
+    let request = Request::from(incoming);
     if let Ok(Some(data)) = maintenance::read_file(&state.marker).await
         && let Some(response) = middleware::prerender(&request, &data, &state.except)
     {
@@ -211,10 +210,7 @@ async fn handle(
         .and_then(|state| state.as_ref().ok())
         .cloned();
     if let Some(kernel) = kernel {
-        let (parts, body) = request.into_parts();
-        return kernel
-            .handleTransport(TransportRequest::from_parts(parts, body))
-            .await;
+        return kernel.handleTransport(request.into()).await;
     }
     TransportResponse::builder()
         .status(StatusCode::INTERNAL_SERVER_ERROR)

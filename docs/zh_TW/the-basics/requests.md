@@ -68,6 +68,12 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 重複傳送 `Accept` 請求標頭時，依固定 Laravel 實作使用首個欄位。需要傳送多種類型時，請在同一欄位中以逗號分隔。
 
+### 原生 HTTP 請求 {#native-http-requests}
+
+與 Rust HTTP 函式庫互操作時，用 `Request::from(native)` 接收擁有所有權的 `http::Request<Body>`，用 `into()` 轉回原生請求。所有權轉換會移動目前的本文串流、請求標頭、協定版本和擴充資料。在路由中用 `request.toHttpRequest().await?` 建立具有緩衝本文的獨立原生請求。它採用框架輸入的 8 MiB 限額，框架請求仍可讀取本文。
+
+原生請求攜帶 `originalUri()` 傳回的傳輸 URI，以及 `method()` 傳回的生效方法，包含方法覆寫後的結果。用 `uri()` 讀取可信代理處理後的框架 URI，用 `getRealMethod()` 讀取原始方法。`version()` 和 `extensions()` 讀取對應的傳輸中繼資料。
+
 ### 檢查輸入是否存在 {#input-presence}
 
 用 `request.has(&["profile.name"]).await?` 檢查鍵是否存在，明確設為 `null` 的鍵也算存在。用 `hasAny` 檢查任一鍵，用 `missing` 檢查是否有鍵缺少。這些檢查也識別上傳檔案。

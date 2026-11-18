@@ -183,3 +183,10 @@
 - Rust 以 `field()` 表达 PHP 动态属性。输入优先并保留显式 null，缺失时优先返回绑定模型，再读原始路由值。用 `RequestField` 区分可读取的请求值与可向下转换的绑定对象。类型化 Fluent 的 `set` 支持通配符及原子失败，`scope` 返回独立集合。标量和上传对象以整数键 0 保留，上传对象的内部表示不转为属性列表。 [Laravel 动态字段文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-input-via-dynamic-properties)
 - 隔离主线 `b00ffd907` 上真实 TCP 验证字面点键、null、文件覆盖路由参数、原始及绑定路由参数、模型缺失返回 404、Fluent 独立副本、通配符变更及超深路径拒绝。PHP 8.5 运行固定 Laravel 两组对照。此批涉及请求与路由契约，定向验证使用内存绑定夹具。
 - 60 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译和站点产物后，磁盘可用 103.63 GB（96.51 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-request-field.sKbTLpvy`。
+
+## 原生 HTTP 请求转换
+
+- 对照固定 Laravel 的 PSR-7 请求入口及 `RoutingServiceProvider`，参考 openrust-v0.x `6d1a81924` 的 Axum 原生请求分解和扩展读取。Rust 用标准 `From` 移动原生请求及流式正文，HTTP 内核和维护页启动交接复用该转换。路由处理器用 `toHttpRequest()` 得到带大小限制的原生快照。 [Laravel PSR-7 Requests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#psr-7-requests) · [Laravel RoutingServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RoutingServiceProvider.php#L123)
+- 原生 Rust 请求从传输头部保留 URI、版本、重复头与扩展。方法为框架生效方法，`getRealMethod()` 保留覆盖前的值。可信代理处理后的框架 URI 仍可单独读取。PHP 8.5 执行固定 Laravel／Symfony 请求对照校验原始与有效元数据。本批对照不依赖 PHP 的可选 PSR-7 桥接包，Rust 用显式原生转换完成互操作。
+- 隔离主线 `95ad931fe` 上验证所有权转换不轮询正文，真实 TCP 验证可信代理、方法覆盖、重复头、类型扩展和快照后输入继续可读。正文转换限额、预渲染维护页和启动交接通过。实际 `main` 验证 `/up`、无效请求路径 400、SIGTERM 和独立 Artisan `inspire`。
+- 61 项定向回归、全仓格式、工作区全目标严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译和站点产物后，磁盘可用 103.26 GB（96.17 GiB），提交前周额度剩余 22%，按用户授权继续。日志位于 `/private/tmp/openrust-native-request.sOuPtByr`。

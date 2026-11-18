@@ -307,3 +307,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [请求正文参数与 Fluent](04-02/README.md#请求正文参数与-fluent)通过真实 HTTP、固定 Laravel、MySQL 8.4.13 Fluent 转换、Artisan 和三语文档验收。
 
 04-02 [请求动态字段和类型化 Fluent 子作用域](04-02/README.md#请求动态字段和类型化-fluent-子作用域)通过真实 HTTP、固定 Laravel、Artisan 和三语文档验收。
+
+04-02 [原生 HTTP 请求转换](04-02/README.md#原生-http-请求转换)通过真实 TCP 和应用二进制、固定 Laravel 元数据对照、Artisan 及三语文档验收。

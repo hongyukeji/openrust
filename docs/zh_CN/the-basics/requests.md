@@ -68,6 +68,12 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 重复发送 `Accept` 请求头时，按固定 Laravel 实现使用首个字段。需要发送多种类型时，请在一个字段中用逗号分隔。
 
+### 原生 HTTP 请求 {#native-http-requests}
+
+与 Rust HTTP 库互操作时，用 `Request::from(native)` 接收拥有所有权的 `http::Request<Body>`，用 `into()` 转回原生请求。所有权转换会移动当前正文流、请求头、协议版本和扩展。在路由中用 `request.toHttpRequest().await?` 创建带缓冲正文的独立原生请求。它使用框架输入的 8 MiB 限额，框架请求仍可读取正文。
+
+原生请求携带 `originalUri()` 返回的传输 URI，以及 `method()` 返回的生效方法，包括方法覆盖后的结果。用 `uri()` 读取可信代理处理后的框架 URI，用 `getRealMethod()` 读取原始方法。`version()` 和 `extensions()` 读取对应的传输元数据。
+
 ### 检查输入是否存在 {#input-presence}
 
 用 `request.has(&["profile.name"]).await?` 检查键是否存在，显式设置为 `null` 的键也算存在。用 `hasAny` 检查任意一个键，用 `missing` 检查是否有键缺失。这些检查也识别上传文件。

@@ -20,6 +20,7 @@ mod cookies;
 mod flash_data;
 mod input;
 mod input_value;
+mod native;
 mod query;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
 mod url;

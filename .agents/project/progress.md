@@ -3424,3 +3424,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02 请求动态字段和类型化 Fluent 子作用域
 
 动态字段读取支持原始路由参数及绑定模型回退，类型化 Fluent 支持独立作用域及通配符修改。真实 HTTP、固定 Laravel、Artisan、严格 Clippy 和三语站点通过。 [请求动态字段和类型化 Fluent 子作用域](audits/04-02/README.md#请求动态字段和类型化-fluent-子作用域)
+
+## 2026-11-18 04-02 原生 HTTP 请求转换
+
+原生请求所有权转换与路由快照通过真实 HTTP、维护页交接、应用二进制和 Artisan 验收。固定 Laravel 对照、严格 Clippy 和三语站点通过。 [原生 HTTP 请求转换](audits/04-02/README.md#原生-http-请求转换)

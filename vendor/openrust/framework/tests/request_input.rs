@@ -237,6 +237,39 @@ fn dynamic_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     })
 }
 
+fn native_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use axum::extract::ConnectInfo;
+
+        let mut native = request.toHttpRequest().await?;
+        let trace: Vec<_> = native
+            .headers()
+            .get_all("x-trace")
+            .iter()
+            .map(|value| value.to_str().unwrap())
+            .collect();
+        let trace = trace.join(",");
+        native.headers_mut().remove("x-trace");
+        let peer = native
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .unwrap()
+            .0;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "native_uri": native.uri().to_string(), "original_uri": request.originalUri().to_string(),
+                "effective_host": request.host()?, "native_method": native.method().as_str(),
+                "transport_method": request.getRealMethod().as_str(),
+                "version_matches": native.version() == request.version(),
+                "trace": trace, "original_trace": request.header("x-trace")?,
+                "extension_matches": request.extensions().get::<ConnectInfo<SocketAddr>>().is_some_and(|info| info.0 == peer),
+                "body": std::str::from_utf8(native.body()).unwrap(), "input": request.input(Some("name")).await?,
+            }),
+        )
+    })
+}
+
 struct Provider(&'static str);
 
 impl ServiceProvider for Provider {
@@ -742,6 +775,7 @@ async fn start_with(
                 "/dynamic/{slug}/{model}",
                 dynamic_input,
             )?;
+            Route::r#match(&[Method::PATCH], "/native-input", native_input)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -750,7 +784,9 @@ async fn start_with(
     kernel.bootstrap().await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
-    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let service = transport
+        .with_state(Arc::new(kernel))
+        .into_make_service_with_connect_info::<SocketAddr>();
     (
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
@@ -1678,6 +1714,83 @@ async fn real_http_dynamic_field_lookup_falls_back_to_raw_and_bound_route_values
     assert_eq!(value["slug"], json!({"file":"upload.txt"}));
     assert_eq!(value["model"], json!({"bound":"model:7"}));
     send(address, "GET", "/dynamic/route/gone", "", b"", 404).await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn native_request_conversion_preserves_a_lazy_body_and_transport_parts() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let polls = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&polls);
+    let body = Body::from_stream(futures_util::stream::once(async move {
+        observed.fetch_add(1, Ordering::Relaxed);
+        Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"body"))
+    }));
+    let mut native = ::http::Request::builder()
+        .version(::http::Version::HTTP_2)
+        .method("POST")
+        .uri("/raw%2Ftarget?key=%2B")
+        .extension(42_u32)
+        .body(body)
+        .unwrap();
+    native
+        .headers_mut()
+        .append("x-trace", ::http::HeaderValue::from_static("first"));
+    native
+        .headers_mut()
+        .append("x-trace", ::http::HeaderValue::from_static("second"));
+    let framework = Request::from(native);
+    assert_eq!(framework.version(), ::http::Version::HTTP_2);
+    assert_eq!(framework.originalUri(), "/raw%2Ftarget?key=%2B");
+    assert_eq!(framework.extensions().get::<u32>(), Some(&42));
+    let native: ::http::Request<Body> = framework.into();
+    assert_eq!(polls.load(Ordering::Relaxed), 0);
+    assert_eq!(native.method(), "POST");
+    assert_eq!(native.headers().get_all("x-trace").iter().count(), 2);
+    assert_eq!(
+        axum::body::to_bytes(native.into_body(), 32).await.unwrap(),
+        "body"
+    );
+    assert_eq!(polls.load(Ordering::Relaxed), 1);
+
+    let native = ::http::Request::builder()
+        .header("content-length", "8388609")
+        .body(Body::empty())
+        .unwrap();
+    assert!(matches!(
+        Request::from(native).toHttpRequest().await,
+        Err(HttpError::PayloadTooLarge)
+    ));
+}
+
+#[tokio::test]
+async fn real_http_native_snapshot_keeps_the_transport_target_and_effective_method() {
+    use openrust::http::TrustedProxyHeaders;
+
+    let (address, server) = start_with("native", std::env::temp_dir(), |builder| {
+        builder.withMiddleware(|middleware| {
+            middleware
+                .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                .unwrap();
+        })
+    })
+    .await;
+    let (_, body) = send_with_headers(
+        address, "POST", "/native-input?token=%2B", "application/x-www-form-urlencoded",
+        b"_method=PATCH&name=+Ada+", 200,
+        "X-Trace: one\r\nX-Trace: two\r\nX-Forwarded-Host: public.example.test\r\nX-Forwarded-Proto: https\r\n",
+    ).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value,
+        json!({
+            "native_uri":"/native-input?token=%2B", "original_uri":"/native-input?token=%2B",
+            "effective_host":"public.example.test", "native_method":"PATCH", "transport_method":"POST",
+            "version_matches":true, "trace":"one,two", "original_trace":"one", "extension_matches":true,
+            "body":"_method=PATCH&name=+Ada+", "input":"Ada",
+        })
+    );
     server.abort();
 }
 
