@@ -23,7 +23,7 @@ mod view_service_provider;
 pub use component::{Component, ComponentOutput};
 pub use factory::Factory;
 pub use file_view_finder::FileViewFinder;
-pub(crate) use rendering::ComponentRenderer;
+pub(crate) use rendering::{ComponentRenderer, EscapedEcho};
 pub use view_finder::ViewFinder;
 pub use view_service_provider::ViewServiceProvider;
 

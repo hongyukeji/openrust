@@ -378,9 +378,11 @@ impl Factory {
         name: &str,
         data: &ViewData,
         render: &super::ComponentRenderer<'_>,
+        escaped_echo: Option<&super::EscapedEcho<'_>>,
     ) -> ViewResult<String> {
         let mut context = RenderContext::new(Some(self));
         context.component_renderer = Some(render);
+        context.escaped_echo = escaped_echo;
         self.render_view(self.make(name.to_owned(), data.clone())?, &mut context)
     }
 

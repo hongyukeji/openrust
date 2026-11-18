@@ -115,6 +115,12 @@ Edit the `header.blade.html`, `footer.blade.html`, and `subcopy.blade.html` temp
 
 The published default layout uses `$mail_content` for the assembled content and includes a responsive 570 px message table. With an explicit layout, a custom template can place the body with `$slot` and position `$header`, `$subcopy`, and `$footer` separately.
 
+### Markdown extensions and secured encoding {#markdown-extensions-and-encoding}
+
+CommonMark and tables are always available. Set `mail.markdown.extensions` in `config/mail.rs` to a list of supported names. The default list is empty. OpenRust supports `strikethrough`, `task_lists`, `footnotes`, and `smart_punctuation`. An unsupported name causes the mailer to return a configuration error.
+
+Set `mail.markdown.secured_encoding` to `true` to render strings passed through `{{ $value }}` as literal text in the Markdown body. For example, a value containing `[View](https://example.com)` is displayed literally. An authored link can still use a dynamic destination such as `[View]({{ $url }})`. HTML escaping and URL filtering still apply. The default is `false`. The setting applies per application to generated Markdown mail, including the generated text alternative.
+
 ## Queueing mail
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.

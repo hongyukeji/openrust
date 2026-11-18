@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pulldown_cmark::{Event, Tag, TagEnd};
+use pulldown_cmark::{Event, Options, Tag, TagEnd};
 
 use crate::{
     contracts::config::Repository,
@@ -37,6 +37,8 @@ pub(super) const PUBLISHABLE_VIEWS: &[(&str, &[u8])] = &[
 pub struct Markdown {
     theme: String,
     paths: Vec<PathBuf>,
+    pub(super) options: Options,
+    pub(super) secured_encoding: bool,
     pub(super) app_name: String,
     pub(super) app_url: String,
     pub(super) locale: String,
@@ -44,7 +46,7 @@ pub struct Markdown {
 }
 
 impl Markdown {
-    pub(crate) fn from_config(settings: &dyn Repository, base: &Path) -> Self {
+    pub(crate) fn from_config(settings: &dyn Repository, base: &Path) -> MailResult<Self> {
         let config = settings.get("mail.markdown").unwrap_or_default();
         let default_path = base.join("resources/views/vendor/mail");
         let mut paths: Vec<_> = config["paths"]
@@ -56,9 +58,31 @@ impl Markdown {
         if !paths.contains(&default_path) {
             paths.push(default_path);
         }
-        Self {
+        let mut options = Options::ENABLE_TABLES;
+        if let Some(extensions) = config.get("extensions") {
+            let extensions = extensions.as_array().ok_or_else(|| {
+                composition("mail.markdown.extensions must be an array of supported names.")
+            })?;
+            for extension in extensions {
+                options |= match extension.as_str() {
+                    Some("strikethrough") => Options::ENABLE_STRIKETHROUGH,
+                    Some("task_lists") => Options::ENABLE_TASKLISTS,
+                    Some("footnotes") => Options::ENABLE_FOOTNOTES,
+                    Some("smart_punctuation") => Options::ENABLE_SMART_PUNCTUATION,
+                    _ => return Err(composition("Unsupported mail.markdown.extensions entry.")),
+                };
+            }
+        }
+        let secured_encoding = config.get("secured_encoding").map_or(Ok(false), |value| {
+            value
+                .as_bool()
+                .ok_or_else(|| composition("mail.markdown.secured_encoding must be a boolean."))
+        })?;
+        Ok(Self {
             theme: config["theme"].as_str().unwrap_or("default").to_owned(),
             paths,
+            options,
+            secured_encoding,
             app_name: settings
                 .get("app.name")
                 .and_then(|name| name.as_str().map(str::to_owned))
@@ -75,7 +99,7 @@ impl Markdown {
                 .get("app.timezone")
                 .and_then(|zone| zone.as_str()?.parse().ok())
                 .unwrap_or(chrono_tz::UTC),
-        }
+        })
     }
 
     pub fn render(
@@ -121,10 +145,15 @@ impl Markdown {
         format: Format,
     ) -> MailResult<String> {
         let render = Render::new(self, views, format);
+        let escaped_echo = |value: &str, output: &mut String| render.echo(value, output);
         let source = views
-            .render_with_components(view, data, &|name, properties, slots| {
-                render.component(name, properties, slots)
-            })
+            .render_with_components(
+                view,
+                data,
+                &|name, properties, slots| render.component(name, properties, slots),
+                self.secured_encoding
+                    .then_some(&escaped_echo as &crate::view::EscapedEcho<'_>),
+            )
             .map_err(composition)?;
         render.finish(&source, data)
     }
@@ -216,6 +245,17 @@ pub(super) fn plain_text(events: &[Event<'_>]) -> String {
             Event::SoftBreak => text.push(' '),
             Event::HardBreak | Event::End(TagEnd::Item | TagEnd::TableRow) => text.push('\n'),
             Event::Start(Tag::Item) => text.push_str("- "),
+            Event::TaskListMarker(done) => text.push_str(if *done { "[x] " } else { "[ ] " }),
+            Event::FootnoteReference(label) => {
+                text.push_str("[^");
+                text.push_str(label);
+                text.push(']');
+            }
+            Event::Start(Tag::FootnoteDefinition(label)) => {
+                text.push_str("[^");
+                text.push_str(label);
+                text.push_str("]: ");
+            }
             Event::Start(Tag::Link { dest_url, .. }) => link = Some(dest_url),
             Event::End(TagEnd::Link) => {
                 if let Some(url) = link.take().filter(|url| !url.is_empty()) {

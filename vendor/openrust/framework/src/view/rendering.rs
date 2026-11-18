@@ -18,6 +18,7 @@ use super::{
 pub(super) struct RenderContext<'a> {
     factory: Option<&'a Factory>,
     pub(super) component_renderer: Option<&'a ComponentRenderer<'a>>,
+    pub(super) escaped_echo: Option<&'a EscapedEcho<'a>>,
     depth: usize,
     sections: HashMap<String, String>,
     layout: Option<(Vec<String>, ViewData)>,
@@ -35,6 +36,7 @@ pub(super) struct RenderContext<'a> {
 
 pub(crate) type ComponentRenderer<'a> =
     dyn Fn(&str, &ViewData, &ViewData) -> Option<ViewResult<String>> + 'a;
+pub(crate) type EscapedEcho<'a> = dyn Fn(&str, &mut String) + 'a;
 
 #[derive(Clone)]
 pub(super) struct RenderSlot {
@@ -72,6 +74,7 @@ impl<'a> RenderContext<'a> {
         Self {
             factory,
             component_renderer: None,
+            escaped_echo: None,
             depth: 0,
             sections: HashMap::new(),
             layout: None,
@@ -92,6 +95,7 @@ impl<'a> RenderContext<'a> {
         let mut render = Self::new(self.factory);
         render.request = self.request.clone();
         render.component_renderer = self.component_renderer;
+        render.escaped_echo = self.escaped_echo;
         render.gate_arguments.clone_from(&self.gate_arguments);
         render.iterations.clone_from(&self.iterations);
         render
@@ -360,6 +364,7 @@ impl<'a> RenderContext<'a> {
                 shared: self.shared.clone(),
                 factory: Some(factory),
                 component_renderer: self.component_renderer,
+                escaped_echo: self.escaped_echo,
                 sections: HashMap::new(),
                 layout: None,
             },

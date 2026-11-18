@@ -80,12 +80,18 @@ impl Mailable for Receipt {
 
 struct MarkdownReceipt {
     plain_view: bool,
+    options_fixture: bool,
 }
 
 impl Mailable for MarkdownReceipt {
     fn envelope(&self) -> MailResult<Envelope> {
         Ok(Envelope {
-            subject: "Markdown receipt fixture".into(),
+            subject: if self.options_fixture {
+                "Markdown options fixture"
+            } else {
+                "Markdown receipt fixture"
+            }
+            .into(),
             ..Default::default()
         })
     }
@@ -96,6 +102,11 @@ impl Mailable for MarkdownReceipt {
             text_view: self.plain_view.then(|| "plain-receipt".into()),
             with: [
                 ("name".into(), json!("<Sam>")),
+                (
+                    "markdown_text".into(),
+                    json!("[Literal](https://example.test/local) *marks*"),
+                ),
+                ("blocked_url".into(), json!("javascript:alert(1)")),
                 (
                     "portal".into(),
                     json!("https://example.test/review?step=1&code=2"),
@@ -543,6 +554,7 @@ impl Command for SendFixture {
             let named = NamedReceipt(name);
             let markdown = MarkdownReceipt {
                 plain_view: input.matches().get_flag("plain-view"),
+                options_fixture: input.matches().get_flag("markdown-options"),
             };
             let mailable: &dyn Mailable = if input.matches().get_flag("markdown") {
                 &markdown
@@ -683,6 +695,11 @@ fn mail_routes() -> Result<(), ConsoleError> {
             .arg(
                 clap::Arg::new("markdown")
                     .long("markdown")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                clap::Arg::new("markdown-options")
+                    .long("markdown-options")
                     .action(clap::ArgAction::SetTrue),
             )
             .arg(
@@ -1411,6 +1428,138 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
         result
             .stderr
             .contains("The mail layout must wrap the entire view."),
+        "{result:?}"
+    );
+}
+
+#[tokio::test]
+async fn artisan_mail_markdown_extensions_and_secured_echo_are_application_local() {
+    let ports = std::env::var("OPENRUST_TEST_SMTP_PORT")
+        .ok()
+        .zip(std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT").ok());
+    let Some((smtp, http)) = ports else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let smtp = smtp.parse().unwrap();
+    for secured in [true, false] {
+        let root = fixture(None, None, Some(smtp));
+        let path = root.0.join("config.json");
+        let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        if secured {
+            config["mail"]["markdown"] = json!({
+                "secured_encoding":true,
+                "extensions":["strikethrough","task_lists","footnotes","smart_punctuation"]
+            });
+        }
+        std::fs::write(&path, config.to_string()).unwrap();
+        let label = if secured {
+            "Secured echo"
+        } else {
+            "Default echo"
+        };
+        let view = root.0.join("resources/views/markdown-receipt.blade.html");
+        std::fs::write(
+            &view,
+            format!(
+                r#"<x-mail::layout>
+<x-slot:head><meta name="markdown-secured" content="{{{{ $name }}}}"></x-slot:head>
+
+# {label}
+
+{{{{ $markdown_text }}}}
+
+`{{{{ $markdown_text }}}}`
+
+"Quoted" ~~obsolete~~ [Open]({{{{ $portal }}}}) [Blocked]({{{{ $blocked_url }}}})[^terms]
+
+- [x] Completed
+
+[^terms]: Terms apply.
+</x-mail::layout>"#
+            ),
+        )
+        .unwrap();
+        let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root.0)).unwrap();
+        fixture
+            .artisan([
+                "fixture:send-mail",
+                "smtp",
+                "--markdown",
+                "--markdown-options",
+            ])
+            .await
+            .assertSuccessful();
+    }
+    let client = reqwest::Client::new();
+    let api = format!("http://127.0.0.1:{http}/api/v1");
+    let listing: Json = client
+        .get(format!("{api}/messages"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let mut verified = 0;
+    for row in listing["messages"].as_array().unwrap() {
+        if row["Subject"] != "Markdown options fixture" {
+            continue;
+        }
+        let id = row["ID"].as_str().unwrap();
+        let receipt: Json = client
+            .get(format!("{api}/message/{id}"))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let html = receipt["HTML"].as_str().unwrap();
+        let text = receipt["Text"].as_str().unwrap();
+        if html.contains("Secured echo") {
+            assert_eq!(
+                html.matches("[Literal](https://example.test/local) *marks*")
+                    .count(),
+                2
+            );
+            assert!(!html.contains("href=\"https://example.test/local"));
+            assert!(html.contains("<del") && html.contains("obsolete"));
+            assert!(html.contains("checkbox") && html.contains("footnote-reference"));
+            assert!(html.contains("“Quoted”") && html.contains("step=1&amp;code=2"));
+            assert!(html.contains("content=\"<Sam>\"") && !html.contains("orecho"));
+            assert!(text.contains("[Literal](https://example.test/local) *marks*"));
+            assert!(text.contains("[x] Completed") && text.contains("[^terms]: Terms apply."));
+        } else if html.contains("Default echo") {
+            assert!(html.contains("href=\"https://example.test/local"));
+            assert!(html.contains("~~obsolete~~") && !html.contains("checkbox"));
+            assert!(html.contains("[^terms]") && !html.contains("footnote-reference"));
+        } else {
+            continue;
+        }
+        assert!(!html.contains("javascript:"));
+        verified += 1;
+    }
+    assert_eq!(verified, 2);
+
+    let root = fixture(None, None, None);
+    let path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    config["mail"]["markdown"] = json!({"extensions":["unknown"]});
+    std::fs::write(&path, config.to_string()).unwrap();
+    let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root.0)).unwrap();
+    let result = fixture
+        .artisan(["fixture:send-mail", "array", "--markdown"])
+        .await;
+    result.assertExitCode(1);
+    assert!(
+        result
+            .stderr
+            .contains("Unsupported mail.markdown.extensions"),
         "{result:?}"
     );
 }

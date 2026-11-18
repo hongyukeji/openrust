@@ -1,7 +1,8 @@
+use std::fmt::Write as _;
 use std::{cell::RefCell, collections::HashMap};
 
 use chrono::Datelike;
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
+use pulldown_cmark::{CodeBlockKind, CowStr, Event, Parser, Tag, TagEnd, html};
 
 use crate::{
     support::{Date, escape_html, facades::Lang, markdown::safe_url},
@@ -87,17 +88,22 @@ pub(super) struct Render<'a> {
     nonce: uuid::Uuid,
     fragments: RefCell<HashMap<String, String>>,
     document: RefCell<Option<String>>,
+    echo_prefix: String,
+    echoes: RefCell<Vec<String>>,
 }
 
 impl<'a> Render<'a> {
     pub(super) fn new(markdown: &'a Markdown, views: &'a Factory, format: Format) -> Self {
+        let nonce = uuid::Uuid::now_v7();
         Self {
             markdown,
             views,
             format,
-            nonce: uuid::Uuid::now_v7(),
+            nonce,
             fragments: RefCell::default(),
             document: RefCell::default(),
+            echo_prefix: format!("orecho{}z", nonce.simple()),
+            echoes: RefCell::default(),
         }
     }
 
@@ -151,9 +157,9 @@ impl<'a> Render<'a> {
         data.insert("rendered_subcopy".into(), data["subcopy"].clone());
         if self.format == Format::Html {
             // Blade has already evaluated the head slot with its normal echo escaping.
-            let head = slot(slots, "head");
-            data.insert("head".into(), head.into());
-            data.insert("mail_head".into(), head.into());
+            let head = self.restore(slot(slots, "head").into(), true);
+            data.insert("head".into(), head.as_ref().into());
+            data.insert("mail_head".into(), head.as_ref().into());
         }
         let content = self
             .views
@@ -278,9 +284,47 @@ impl<'a> Render<'a> {
         }
     }
 
+    pub(super) fn echo(&self, value: &str, output: &mut String) {
+        if !value.is_empty() {
+            let mut echoes = self.echoes.borrow_mut();
+            write!(output, "{}{}z", self.echo_prefix, echoes.len()).unwrap();
+            echoes.push(value.to_owned());
+        }
+    }
+
+    // CommonMark parses a placeholder as ordinary text. Replacing only in its
+    // output events keeps values from introducing syntax or bypassing URL checks.
+    fn restore<'source>(&self, value: CowStr<'source>, escape: bool) -> CowStr<'source> {
+        if !value.contains(&self.echo_prefix) {
+            return value;
+        }
+        let echoes = self.echoes.borrow();
+        let mut result = String::with_capacity(value.len());
+        let mut fields = value.split(&self.echo_prefix);
+        result.push_str(fields.next().unwrap_or_default());
+        for field in fields {
+            let echo = field.split_once('z').and_then(|(index, rest)| {
+                let index: usize = index.parse().ok()?;
+                Some((echoes.get(index)?, rest))
+            });
+            if let Some((text, rest)) = echo {
+                if escape {
+                    escape_html(&mut result, text);
+                } else {
+                    result.push_str(text);
+                }
+                result.push_str(rest);
+            } else {
+                result.push_str(&self.echo_prefix);
+                result.push_str(field);
+            }
+        }
+        result.into()
+    }
+
     pub(super) fn markdown(&self, source: &str, inline: bool) -> String {
         let fragments = self.fragments.borrow();
-        let events = Parser::new_ext(source, Options::ENABLE_TABLES).filter_map(|event| {
+        let events = Parser::new_ext(source, self.markdown.options).filter_map(|event| {
             if inline
                 && matches!(
                     event,
@@ -297,9 +341,20 @@ impl<'a> Render<'a> {
                             Format::Html => Event::Html(fragment.as_str().into()),
                             Format::Text => Event::Text(format!("{}\n\n", fragment.trim()).into()),
                         },
-                        None => Event::Text(value),
+                        None => Event::Text(self.restore(value, false)),
                     }
                 }
+                Event::Text(value) => Event::Text(self.restore(value, false)),
+                Event::Code(value) => Event::Code(self.restore(value, false)),
+                Event::FootnoteReference(value) => {
+                    Event::FootnoteReference(self.restore(value, false))
+                }
+                Event::Start(Tag::FootnoteDefinition(value)) => {
+                    Event::Start(Tag::FootnoteDefinition(self.restore(value, false)))
+                }
+                Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) => Event::Start(
+                    Tag::CodeBlock(CodeBlockKind::Fenced(self.restore(info, false))),
+                ),
                 Event::Start(Tag::Link {
                     link_type,
                     dest_url,
@@ -307,8 +362,8 @@ impl<'a> Render<'a> {
                     id,
                 }) => Event::Start(Tag::Link {
                     link_type,
-                    dest_url: safe_url(dest_url),
-                    title,
+                    dest_url: safe_url(self.restore(dest_url, false)),
+                    title: self.restore(title, false),
                     id,
                 }),
                 Event::Start(Tag::Image {
@@ -318,8 +373,8 @@ impl<'a> Render<'a> {
                     id,
                 }) => Event::Start(Tag::Image {
                     link_type,
-                    dest_url: safe_url(dest_url),
-                    title,
+                    dest_url: safe_url(self.restore(dest_url, false)),
+                    title: self.restore(title, false),
                     id,
                 }),
                 event => event,

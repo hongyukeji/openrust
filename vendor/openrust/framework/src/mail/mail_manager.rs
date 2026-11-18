@@ -111,7 +111,7 @@ impl MailManager {
             name: name.into(),
             from,
             views,
-            markdown: Markdown::from_config(self.config.as_ref(), &self.base),
+            markdown: Markdown::from_config(self.config.as_ref(), &self.base)?,
             events: container.make::<Dispatcher>().map_err(super::composition)?,
             transport,
             captured,

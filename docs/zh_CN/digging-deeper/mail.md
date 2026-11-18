@@ -109,6 +109,12 @@ Review order
 
 发布后的默认布局用 `$mail_content` 放置组装好的内容，邮件表格默认宽 570 px 并适应窄屏。使用显式布局时，自定义模板可用 `$slot` 放置正文，再单独安排 `$header`、`$subcopy` 和 `$footer`。
 
+### Markdown 扩展与安全编码 {#markdown-extensions-and-encoding}
+
+CommonMark 和表格始终可用。在 `config/mail.rs` 的 `mail.markdown.extensions` 中填写需要启用的扩展名，默认为空。支持 `strikethrough`、`task_lists`、`footnotes` 和 `smart_punctuation`。未知扩展名会导致邮件器返回配置错误。
+
+将 `mail.markdown.secured_encoding` 设为 `true` 后，Markdown 正文中通过 `{{ $value }}` 插入的字符串按字面显示。比如值为 `[View](https://example.com)` 时，邮件会原样显示该文本。模板可以写 `[View]({{ $url }})` 来动态指定链接目的地。HTML 转义和 URL 过滤仍然生效。该选项默认关闭，按应用生效，涵盖自动生成的纯文本邮件。
+
 ```sh
 ./artisan vendor:publish --tag=laravel-mail
 ```

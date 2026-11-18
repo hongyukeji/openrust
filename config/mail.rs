@@ -52,6 +52,7 @@ pub(super) fn load(
             "theme": get(env, "MAIL_MARKDOWN_THEME", "default")?,
             "paths": [path(&base_path.join("resources/views/vendor/mail"))?],
             "extensions": [],
+            "secured_encoding": false,
         },
     }))
 }

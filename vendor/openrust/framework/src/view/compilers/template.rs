@@ -1421,6 +1421,11 @@ fn render_nodes<'a>(
                     value
                 };
                 if *escape
+                    && let ViewValue::String(text) = value
+                    && let Some(render) = context.escaped_echo
+                {
+                    render(text, output);
+                } else if *escape
                     && context.extensions.preserve_html_entities
                     && let ViewValue::String(text) = value
                 {

@@ -109,6 +109,12 @@ Review order
 
 發布後的預設版面用 `$mail_content` 放置組合好的內容，郵件表格寬 570 px 並適應窄螢幕。使用顯式版面時，自訂範本可用 `$slot` 放置正文，再分別安排 `$header`、`$subcopy` 和 `$footer`。
 
+### Markdown 擴充與安全編碼 {#markdown-extensions-and-encoding}
+
+CommonMark 和表格一直可用。在 `config/mail.rs` 的 `mail.markdown.extensions` 填寫要啟用的擴充名稱，預設為空。支援 `strikethrough`、`task_lists`、`footnotes` 和 `smart_punctuation`。未知的擴充名稱會讓郵件器回傳設定錯誤。
+
+將 `mail.markdown.secured_encoding` 設為 `true` 後，Markdown 正文中透過 `{{ $value }}` 插入的字串會以原文顯示。例如值為 `[View](https://example.com)` 時，郵件會原樣顯示該文字。範本可用 `[View]({{ $url }})` 動態指定連結目的地。HTML 跳脫和 URL 過濾仍然生效。此選項預設關閉，依應用程式生效，涵蓋自動產生的純文字郵件。
+
 ```sh
 ./artisan vendor:publish --tag=laravel-mail
 ```
