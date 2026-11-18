@@ -13,6 +13,19 @@
 
 范围待确认的生态入口继续放在[逐页对照表](plans/laravel-docs-delivery-map.md)。每页先确认移植、Rust 对应方案或文档说明，再为选中的实现登记独立验收单元。Browser Tests 每批可用实际浏览器验证，Dusk 包的范围单独确认。
 
+## 旧版复用参考
+
+以下核对结果仅作参考，来源为同级 `openrust-v0.x` 工作树的 `6d1a81924`。排程和验收以当前交付单元、固定 Laravel 基线及[旧版实现复用规范](conventions.md#旧版实现复用)为准。
+
+| 范围 | 可参考的旧版实现与用例 |
+| --- | --- |
+| [T-03 测试数据库](#unit-t-03) | 优先核对 `vendor/openrust/framework/src/testing/database/` 的 `ownership.rs`、`marker.rs`、`lease.rs`、`owned_pool.rs` 和归属回归。可按当前连接层提取归属标记、独占租约、关闭连接池后清理及忙库保护。并行隔离和失败清理走当前夹具重验，`RefreshDatabase` 的事务生命周期按固定 Laravel 契约核对。 |
+| [04-05 验证](#unit-04-05) 与 [04-07 限流](#unit-04-07) | 主线已有通配路径、空值边界、上传 MIME、固定窗口及 Redis 并发场景的复用记录。剩余的 FormRequest 注入、数据库规则边界和认证模型属性限流可按当前接口继续。见[验证验收](audits/04-05/README.md)和[限流验收](audits/04-07/README.md)。 |
+| [02 数据库](#02-数据库与通用集合) | 旧版 Schema、SQLite 表重建和迁移锁可提供失败用例。抽查未找到可直接补齐 PostgreSQL 独立直连、向量查询或其他驱动 Schema 快照的完整实现。 |
+| Passport 与 Fortify 扩展 | 旧版 `vendor/openrust/passport/` 的授权码、PKCE、令牌轮换、事务仓储和资源令牌验证，以及 `vendor/openrust/framework/src/auth/fortify/` 的登录和认证挑战，可在对应扩展开工时逐项核对。OIDC 与双应用 SSO 仍按各自范围验收。 |
+
+采用这些线索时，可在该单元的验收记录中补上旧版提交、对应路径、实际提取范围和当前验证结果，方便下一轮接续。
+
 ## 00 最小启动基线
 
 | 单元                                                       | 前置                 | Laravel 章节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | OpenRust 三语正文路径                                                                                                                                                                                                                                                                                                                    | 验收条件                                                                                                |
