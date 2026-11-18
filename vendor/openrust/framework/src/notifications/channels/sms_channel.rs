@@ -33,14 +33,8 @@ impl SmsChannel {
         else {
             return Ok(None);
         };
-        let message = match notification.to_sms_template(recipient)? {
-            Some(template) => SmsMessage::template(to, template)?,
-            None => {
-                let Some(content) = notification.to_sms(recipient)? else {
-                    return Ok(None);
-                };
-                SmsMessage::new(to, content)?
-            }
+        let Some(message) = notification.to_sms_message(recipient, to)? else {
+            return Ok(None);
         };
         let profile = Sms::getFacadeRoot()
             .map_err(delivery)?
@@ -58,7 +52,7 @@ struct PreparedSms {
 impl PreparedSms {
     async fn send(self) -> NotificationResult<Option<ChannelResponse>> {
         self.message.validate()?;
-        let response = Sms::driver(Some(&self.profile))?.send(self.message).await?;
+        let response = Sms::driver(&self.profile)?.send(self.message).await?;
         Ok(Some(ChannelResponse::Custom(response)))
     }
 }

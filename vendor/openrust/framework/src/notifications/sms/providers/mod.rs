@@ -1,6 +1,9 @@
 mod aliyun;
+mod log;
+mod smsbao;
 mod tencent;
 mod twilio;
+mod yunpian;
 
 use std::{fmt::Write as _, sync::Arc, time::Duration};
 
@@ -15,21 +18,71 @@ use crate::{
     support::facades::Http,
 };
 
-use super::SmsManager;
+use super::{SmsDriver, SmsManager, SmsMessage};
 
 pub(super) fn register(manager: &SmsManager) {
-    manager.extend("aliyun", |profile| {
-        Ok(Arc::new(aliyun::Aliyun::new(profile)?))
+    manager.extend("log", |_| Ok(Arc::new(log::LogDriver)));
+    register_routed(manager, "aliyun", |profile, market| match market {
+        Market::Mainland => Ok(Box::new(aliyun::Aliyun::new(profile)?)),
+        _ => Ok(Box::new(aliyun::AliyunInternational::new(profile)?)),
     });
-    manager.extend("aliyun_international", |profile| {
-        Ok(Arc::new(aliyun::AliyunInternational::new(profile)?))
+    register_routed(manager, "smsbao", |profile, market| {
+        Ok(Box::new(smsbao::SmsBao::new(profile, market)?))
     });
-    manager.extend("tencent", |profile| {
-        Ok(Arc::new(tencent::Tencent::new(profile)?))
+    register_routed(manager, "yunpian", |profile, market| {
+        Ok(Box::new(yunpian::Yunpian::new(profile, market)?))
     });
-    manager.extend("twilio", |profile| {
-        Ok(Arc::new(twilio::Twilio::new(profile)?))
+    register_routed(manager, "tencent", |profile, market| {
+        Ok(Box::new(tencent::Tencent::new(profile, market)?))
     });
+    register_routed(manager, "twilio", |profile, market| {
+        Ok(Box::new(twilio::Twilio::new(profile, market)?))
+    });
+}
+
+type MarketFactory = fn(&Value, Market) -> NotificationResult<Box<dyn SmsDriver>>;
+
+fn register_routed(manager: &SmsManager, name: &'static str, factory: MarketFactory) {
+    manager.extend(name, move |profile| {
+        Ok(Arc::new(RoutedDriver {
+            restriction: Market::from_profile(profile)?,
+            profile: profile.clone(),
+            factory,
+        }))
+    });
+}
+
+struct RoutedDriver {
+    restriction: Market,
+    profile: Value,
+    factory: MarketFactory,
+}
+
+impl SmsDriver for RoutedDriver {
+    fn send(
+        &self,
+        message: SmsMessage,
+    ) -> crate::notifications::NotificationFuture<'_, NotificationResult<Value>> {
+        Box::pin(async move {
+            self.restriction.number(message.to())?;
+            let market = Market::for_number(message.to())?;
+            let mut profile = self.profile.clone();
+            if let Some(settings) = self.profile["markets"].get(market.key()) {
+                let settings = settings
+                    .as_object()
+                    .ok_or_else(|| delivery("The SMS market settings must be an object."))?;
+                profile
+                    .as_object_mut()
+                    .expect("configured profile object")
+                    .extend(settings.clone());
+            }
+            (self.factory)(&profile, market)?.send(message).await
+        })
+    }
+}
+
+pub(super) fn market_key(number: &str) -> NotificationResult<&'static str> {
+    Ok(Market::for_number(number)?.key())
 }
 
 fn setting(profile: &Value, field: &str) -> Option<String> {
@@ -54,18 +107,36 @@ impl Market {
     fn from_profile(profile: &Value) -> NotificationResult<Self> {
         match profile.get("market").filter(|value| !value.is_null()) {
             None => Ok(Self::Any),
+            Some(value) if value.as_str() == Some("auto") => Ok(Self::Any),
             Some(value) if value.as_str() == Some("mainland") => Ok(Self::Mainland),
             Some(value) if value.as_str() == Some("international") => Ok(Self::International),
             Some(_) => Err(delivery(
-                "The SMS market must be mainland or international.",
+                "The SMS market must be auto, mainland, or international.",
             )),
         }
+    }
+
+    fn key(&self) -> &'static str {
+        match self {
+            Self::Mainland => "mainland",
+            Self::International => "international",
+            Self::Any => "auto",
+        }
+    }
+
+    fn for_number(number: &str) -> NotificationResult<Self> {
+        let normalized = Self::Any.number(number)?;
+        Ok(if normalized.starts_with("86") {
+            Self::Mainland
+        } else {
+            Self::International
+        })
     }
 
     fn number(&self, number: &str) -> NotificationResult<String> {
         let number = number.trim();
         let digits = super::international_number(number)?;
-        let normalized = if matches!(self, Self::Mainland)
+        let normalized = if matches!(self, Self::Mainland | Self::Any)
             && !number.starts_with('+')
             && digits.len() == 11
             && digits.starts_with('1')
@@ -93,6 +164,14 @@ impl Market {
             )),
             _ => Ok(normalized),
         }
+    }
+    fn provider_number(&self, number: &str) -> NotificationResult<String> {
+        let digits = self.number(number)?;
+        Ok(if matches!(self, Self::Mainland) {
+            digits[2..].into()
+        } else {
+            format!("+{digits}")
+        })
     }
 }
 
@@ -127,7 +206,7 @@ fn request() -> NotificationResult<PendingRequest> {
         .maxResponseBytes(64 * 1024))
 }
 
-fn response(result: crate::http::client::Result<Response>) -> NotificationResult<Value> {
+fn checked_response(result: crate::http::client::Result<Response>) -> NotificationResult<Response> {
     let response = result
         .map_err(|_| delivery("The SMS request failed; submission status may be unknown."))?;
     if !response.successful() {
@@ -136,7 +215,11 @@ fn response(result: crate::http::client::Result<Response>) -> NotificationResult
             response.status().as_u16()
         )));
     }
-    response
+    Ok(response)
+}
+
+fn response(result: crate::http::client::Result<Response>) -> NotificationResult<Value> {
+    checked_response(result)?
         .json()
         .map_err(|_| delivery("The SMS provider returned an invalid JSON response."))
 }

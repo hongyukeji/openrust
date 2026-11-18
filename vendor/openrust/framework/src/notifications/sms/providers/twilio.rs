@@ -18,7 +18,7 @@ pub(super) struct Twilio {
 }
 
 impl Twilio {
-    pub(super) fn new(profile: &Value) -> NotificationResult<Self> {
+    pub(super) fn new(profile: &Value, market: super::Market) -> NotificationResult<Self> {
         let account = required(profile, "account_sid")?;
         let mut endpoint = endpoint(profile, "https://api.twilio.com")?;
         endpoint
@@ -32,7 +32,7 @@ impl Twilio {
             return Err(delivery("Twilio requires from or messaging_service_sid."));
         }
         Ok(Self {
-            market: super::Market::from_profile(profile)?,
+            market,
             endpoint,
             api_key_sid: required(profile, "api_key_sid")?,
             api_key_secret: required(profile, "api_key_secret")?,

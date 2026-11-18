@@ -1,6 +1,6 @@
-#[path = "../../config/mod.rs"]
+#[path = "../../../config/mod.rs"]
 mod config;
-#[path = "../../database/migrations/mod.rs"]
+#[path = "../../../database/migrations/mod.rs"]
 mod migrations;
 
 use std::{error::Error, process::ExitCode, sync::Arc};
@@ -29,13 +29,18 @@ use serde_json::{Value, json};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
+    if std::env::args_os()
+        .nth(1)
+        .is_none_or(|mode| mode != "artisan")
+    {
+        return ExitCode::SUCCESS;
+    }
     runApplication(|| {
         let root = Application::inferBasePath(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root)
             .withConfig(|path, env| {
                 let mut config = config::load(path, env)?;
                 let sms = config.get_mut("sms").expect("SMS configuration");
-                sms["default"] = json!(env.get_utf8("SMS_DRIVER")?.unwrap_or("primary"));
                 sms["drivers"]["primary"] = json!({
                     "driver": "demo-alpha",
                     "endpoint": env.get_utf8("SMS_ALPHA_URL")?,
@@ -46,6 +51,34 @@ async fn main() -> ExitCode {
                     "endpoint": env.get_utf8("SMS_BETA_URL")?,
                     "token": env.get_utf8("SMS_BETA_TOKEN")?,
                 });
+                sms["drivers"]["aliyun"]["templates"]["login_code"] = json!("SMS_1");
+                if let Some(key) = env.get_utf8("SMS_ALERTS_GLOBAL_ACCESS_KEY_ID")? {
+                    if env.get_utf8("SMS_TEST_SPLIT_MARKETS")? == Some("1") {
+                        sms["drivers"]["aliyun"]["markets"]["international"] = json!({
+                            "endpoint": env.get_utf8("SMS_ALERTS_GLOBAL_ENDPOINT")?,
+                            "access_key_id": key,
+                            "access_key_secret": env.get_utf8("SMS_ALERTS_GLOBAL_ACCESS_KEY_SECRET")?,
+                            "sender_id": env.get_utf8("SMS_ALERTS_GLOBAL_SENDER_ID")?,
+                            "message_type": env.get_utf8("SMS_ALERTS_GLOBAL_MESSAGE_TYPE")?,
+                        });
+                    }
+                    sms["drivers"]["alerts_global"] = json!({
+                        "driver": "aliyun",
+                        "market": "international",
+                        "endpoint": env.get_utf8("SMS_ALERTS_GLOBAL_ENDPOINT")?,
+                        "access_key_id": key,
+                        "access_key_secret": env.get_utf8("SMS_ALERTS_GLOBAL_ACCESS_KEY_SECRET")?,
+                        "sender_id": env.get_utf8("SMS_ALERTS_GLOBAL_SENDER_ID")?,
+                        "message_type": env.get_utf8("SMS_ALERTS_GLOBAL_MESSAGE_TYPE")?,
+                    });
+                }
+                if let Some(key) = env.get_utf8("SMS_ORDERS_CN_API_KEY")? {
+                    sms["drivers"]["orders_cn"] = json!({
+                        "driver": "yunpian",
+                        "api_key": key,
+                        "endpoint": env.get_utf8("SMS_ORDERS_CN_ENDPOINT")?,
+                    });
+                }
                 Ok(config)
             })
             .withProviders(vec![Box::new(SmsServiceProvider)])
@@ -57,7 +90,17 @@ async fn main() -> ExitCode {
     .await
 }
 
-const PROFILES: [&str; 4] = ["primary", "backup", "aliyun", "aliyun_international"];
+const PROFILES: [&str; 9] = [
+    "log",
+    "primary",
+    "backup",
+    "aliyun",
+    "alerts_global",
+    "smsbao",
+    "yunpian",
+    "orders_cn",
+    "vonage",
+];
 
 struct SmsServiceProvider;
 
@@ -156,6 +199,7 @@ struct DemoNotification {
     channel: String,
     text: String,
     template: Option<SmsTemplate>,
+    named_template: bool,
 }
 
 impl Notification for DemoNotification {
@@ -163,12 +207,25 @@ impl Notification for DemoNotification {
         Ok(vec![self.channel.clone()])
     }
 
-    fn to_sms(&self, _: &dyn Notifiable) -> NotificationResult<Option<String>> {
-        Ok(Some(self.text.clone()))
-    }
-
-    fn to_sms_template(&self, _: &dyn Notifiable) -> NotificationResult<Option<SmsTemplate>> {
-        Ok(self.template.clone())
+    fn to_sms_message(
+        &self,
+        _: &dyn Notifiable,
+        to: String,
+    ) -> NotificationResult<Option<SmsMessage>> {
+        if let Some(template) = &self.template {
+            if self.named_template {
+                let openrust::notifications::sms::SmsTemplateParameters::Named(parameters) =
+                    &template.parameters
+                else {
+                    return Err(delivery_error(
+                        "A configured template requires named parameters.",
+                    ));
+                };
+                return SmsMessage::named_template(to, &template.id, parameters.clone()).map(Some);
+            }
+            return SmsMessage::template(to, template.clone()).map(Some);
+        }
+        SmsMessage::new(to, &self.text).map(Some)
     }
 
     fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
@@ -191,6 +248,12 @@ fn register_commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             clap::Arg::new("template")
                 .long("template")
                 .help("Provider-approved template ID"),
+        )
+        .arg(
+            clap::Arg::new("named-template")
+                .long("named-template")
+                .requires("template")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             clap::Arg::new("profile")
@@ -245,15 +308,39 @@ impl Command for SendSms {
                         })
                 })
                 .transpose()?;
+            let named_template = input.matches().get_flag("named-template");
             if input.matches().get_flag("now") {
-                let driver = Sms::driver(profile).map_err(console_error)?;
-                let message = match template {
-                    Some(template) => SmsMessage::template(to, template),
-                    None => SmsMessage::new(to, text),
+                let driver = match profile {
+                    Some(name) => Sms::driver(name),
+                    None => Sms::default_driver(),
                 }
                 .map_err(console_error)?;
-                driver.send(message).await.map_err(console_error)?;
-                output.comment("Demo SMS sent.");
+                if let Some(template) = template {
+                    if named_template {
+                        let openrust::notifications::sms::SmsTemplateParameters::Named(parameters) =
+                            template.parameters
+                        else {
+                            return Err(ConsoleError::new(
+                                "A configured template requires named parameters.",
+                            ));
+                        };
+                        match profile {
+                            Some(_) => driver.send_template(to, template.id, parameters).await,
+                            None => Sms::send_template(to, template.id, parameters).await,
+                        }
+                        .map_err(console_error)?;
+                    } else {
+                        driver
+                            .send(SmsMessage::template(to, template).map_err(console_error)?)
+                            .await
+                            .map_err(console_error)?;
+                    }
+                } else if profile.is_some() {
+                    driver.send_text(to, text).await.map_err(console_error)?;
+                } else {
+                    Sms::send_text(to, text).await.map_err(console_error)?;
+                }
+                output.comment("Demo SMS processed.");
             } else {
                 let channel = profile.unwrap_or("sms");
                 let recipient = Notify::route("sms", NotificationRoute::Sms(to.into()))
@@ -264,6 +351,7 @@ impl Command for SendSms {
                         channel: channel.into(),
                         text: text.into(),
                         template,
+                        named_template,
                     },
                 )
                 .await

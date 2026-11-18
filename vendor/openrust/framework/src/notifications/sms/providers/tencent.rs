@@ -19,9 +19,9 @@ pub(super) struct Tencent {
 }
 
 impl Tencent {
-    pub(super) fn new(profile: &Value) -> NotificationResult<Self> {
+    pub(super) fn new(profile: &Value, market: super::Market) -> NotificationResult<Self> {
         Ok(Self {
-            market: super::Market::from_profile(profile)?,
+            market,
             endpoint: rpc_endpoint(profile, "https://sms.tencentcloudapi.com")?,
             secret_id: required(profile, "secret_id")?,
             secret_key: required(profile, "secret_key")?,

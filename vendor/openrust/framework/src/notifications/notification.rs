@@ -37,6 +37,22 @@ pub trait Notification: Send + Sync {
         Ok(None)
     }
 
+    /// Builds the SMS delivered by the configured channel, including named templates.
+    fn to_sms_message(
+        &self,
+        recipient: &dyn Notifiable,
+        to: String,
+    ) -> NotificationResult<Option<super::sms::SmsMessage>> {
+        use super::sms::SmsMessage;
+
+        if let Some(template) = self.to_sms_template(recipient)? {
+            return SmsMessage::template(to, template).map(Some);
+        }
+        self.to_sms(recipient)?
+            .map(|text| SmsMessage::new(to, text))
+            .transpose()
+    }
+
     fn to_vonage(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         Ok(None)
     }

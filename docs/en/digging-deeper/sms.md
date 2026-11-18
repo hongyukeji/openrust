@@ -8,92 +8,57 @@ Set `SMS_DRIVER` in the application's environment to select the default profile.
 
 | Profile | Supported content | Environment variables |
 | --- | --- | --- |
-| `vonage` (default) | Text | `VONAGE_KEY`, `VONAGE_SECRET`, `VONAGE_SMS_FROM` |
+| `log` (default) | Text and templates. Writes an info entry with the last four digits of the number and the message type. | None |
+| `vonage` | Text | `VONAGE_KEY`, `VONAGE_SECRET`, `VONAGE_SMS_FROM` |
 | `twilio` | Text and approved templates with named variables | `SMS_TWILIO_ACCOUNT_SID`, `SMS_TWILIO_API_KEY_SID`, `SMS_TWILIO_API_KEY_SECRET`, and `SMS_TWILIO_FROM` or `SMS_TWILIO_MESSAGING_SERVICE_SID` |
-| `aliyun` | Chinese mainland approved templates with named variables | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`, `SMS_ALIYUN_SIGN_NAME` |
-| `aliyun_international` | International and Hong Kong, Macao, and Taiwan text via SendMessageToGlobe | `SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_ID`, `SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_SECRET`. Optional `SMS_ALIYUN_INTERNATIONAL_SENDER_ID` and `SMS_ALIYUN_INTERNATIONAL_MESSAGE_TYPE` (`OTP`, `NOTIFY`, `MKT`) |
+| `aliyun` | Mainland China approved templates and international text via SendMessageToGlobe | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`. Use `SMS_ALIYUN_SIGN_NAME` for mainland templates or optional `SMS_ALIYUN_SENDER_ID` and `SMS_ALIYUN_MESSAGE_TYPE` (`OTP`, `NOTIFY`, `MKT`) for international text. |
 | `tencent` | Approved templates with ordered variables | `SMS_TENCENT_SECRET_ID`, `SMS_TENCENT_SECRET_KEY`, `SMS_TENCENT_SDK_APP_ID`, `SMS_TENCENT_SIGN_NAME` if required, and `SMS_TENCENT_REGION` (default `ap-guangzhou`) |
+| `smsbao` | Mainland and international text | `SMS_SMSBAO_USERNAME`, `SMS_SMSBAO_API_KEY` |
+| `yunpian` | Mainland text or named templates, and international text | `SMS_YUNPIAN_API_KEY` |
 
-Use the `+country code` form for international numbers, including Hong Kong, Macao, and Taiwan. The `aliyun` profile accepts Chinese mainland numbers for templates, and can add `+86` to an 11-digit local mobile number. Choose `aliyun_international` for free text outside the Chinese mainland. It uses its own credentials and defaults to the Alibaba Cloud Singapore endpoint. Tencent and Twilio profiles can set their respective `SMS_*_MARKET` variable to `mainland` or `international`. Select a sender and an approved template for the destination and profile. Provider acceptance and handset delivery are separate states.
+## Sending SMS
 
-## Text and templates
-
-Use `SmsMessage::new` for text and `SmsMessage::template` for a provider-approved template. Return text from `to_sms` or a template from `to_sms_template` in a notification. The driver rejects unsupported message types and incorrect variable formats before submitting.
+Use the default profile for routine sends. Select a profile by name when the application needs a particular provider or account.
 
 ```rust
-use openrust::{
-    notifications::sms::{SmsMessage, SmsTemplate},
-    support::facades::Sms,
-};
+use openrust::support::facades::Sms;
 
-let template = SmsTemplate::named("SMS_123", [("code".into(), "123456".into())].into());
-Sms::driver(Some("aliyun"))?
-    .send(SmsMessage::template("+8613800138000", template)?)
-    .await?;
+Sms::send_text("+85255550123", "Your order has shipped.").await?;
 
-let template = SmsTemplate::positional("1234", vec!["123456".into(), "5".into()]);
-Sms::driver(Some("tencent"))?
-    .send(SmsMessage::template("+85255550123", template)?)
-    .await?;
-
-Sms::driver(Some("aliyun_international"))?
-    .send(SmsMessage::new("+85255550123", "Your order is ready.")?)
-    .await?;
-
-Sms::driver(Some("twilio"))?
-    .send(SmsMessage::new("+12025550123", "Your order is ready.")?)
+Sms::driver("aliyun")?
+    .send_template("+8613800138000", "login_code", [("code", "123456")])
     .await?;
 ```
 
-## Registering providers {#custom-sms-providers}
-
-Resolve the default profile with `Sms::driver(None)` or select one explicitly with `Sms::driver(Some("backup"))`. For a direct send, call `driver.send(SmsMessage::new(number, text)?).await?`. In an application service provider’s `register` hook, resolve `SmsManager` and call `extend` for each driver. The factory receives the selected profile’s configuration and returns a driver that implements `SmsDriver`. Profile names under `sms.drivers` can differ from the registered driver names.
-
-Register `SmsChannel::default()` as `sms` with `ChannelManager::extend`, and use `SmsChannel::using("backup")` for a channel pinned to the backup profile. Select the registered channel in `Notification::via`, return the text from `to_sms`, and route the recipient with `NotificationRoute::Sms` under the `sms` route key. Register the same provider and channels in the dispatching application and the Worker. The existing `vonage` channel remains available.
+The default `log` driver records message type and the last four digits in application logs. Set `SMS_DRIVER` to a provider or named profile for live delivery.
 
 ## Configuration
 
-The following example configuration selects `primary`. Keep tokens in environment variables and load them into the profiles at runtime.
+To use Alibaba Cloud, set `SMS_DRIVER=aliyun` and provide `SMS_ALIYUN_ACCESS_KEY_ID` and `SMS_ALIYUN_ACCESS_KEY_SECRET`. Configure `SMS_ALIYUN_SIGN_NAME` for mainland templates and `SMS_ALIYUN_SENDER_ID` if required for international text. Leave `SMS_ALIYUN_MARKET` unset to use both markets from one profile. The driver selects the appropriate API and endpoint from the recipient number. Use `+` and the calling code for international numbers, including Hong Kong, Macao, and Taiwan.
 
-```json
-{
-  "sms": {
-    "default": "primary",
-    "drivers": {
-      "primary": {"driver": "demo-alpha", "endpoint": "http://127.0.0.1:8767/alpha"},
-      "backup": {"driver": "demo-beta", "endpoint": "http://127.0.0.1:8767/beta"}
-    }
-  }
-}
+Add business template names under `templates` on a profile. A value can be a provider template ID or an object with `id` and `parameter_order` for positional APIs such as Tencent Cloud. Put settings specific to one market under `markets.mainland` or `markets.international`. They override only the listed settings, so shared credentials stay at the profile level.
+
+The example adds these entries to the existing `aliyun` profile. Set `SMS_ALIYUN_GLOBAL_ENDPOINT` only when using a custom endpoint. Override both credential fields inside the market if that account has its own key pair.
+
+```rust
+"templates": {
+    "login_code": "SMS_123",
+},
+"markets": {
+    "international": {
+        "endpoint": get(env, "SMS_ALIYUN_GLOBAL_ENDPOINT", Value::Null)?,
+    },
+},
 ```
 
-## Running the example
+The selected driver checks the message type before submitting. Alibaba Cloud mainland SMS needs an approved signature and template, while the international route described here accepts text. Use `SmsMessage::template` with the lower-level `send` method when you already have the provider template ID.
 
-Run the complete example from the repository root. Start the mock endpoints in one terminal.
+## Notifications and Workers
 
-```sh
-python3 -B examples/sms/mock.py
-```
+Register `SmsChannel::default()` as `sms` with `ChannelManager::extend`, or pin a channel to a profile with `SmsChannel::using("aliyun")`. A notification can implement `to_sms` for text or `to_sms_template` for a provider template. Override `to_sms_message` and return `SmsMessage::named_template` to use a configured business template. Set the recipient through `NotificationRoute::Sms` under the `sms` route key.
 
-In another terminal, start an isolated Redis instance and run the example application’s Artisan commands.
+The queue stores the selected profile name and message. Register the same channel and profile in the Worker, which reads credentials and resolves the template from its own configuration. Run it with `./artisan queue:work redis` when using Redis. A rename requires draining jobs that reference the old name or keeping that name until they finish. Rebuild cached configuration and restart Workers after changing settings.
 
-```sh
-cargo build --locked --example sms
-docker run -d --rm --name openrust-sms-demo -p 127.0.0.1:16379:6379 \
-  --tmpfs /data redis:8 redis-server --save '' --appendonly no
+## Registering providers {#custom-sms-providers}
 
-export APP_BASE_PATH="$(mktemp -d)"
-export APP_ENV=local CACHE_STORE=array QUEUE_CONNECTION=redis QUEUE_FAILED_DRIVER=null
-export REDIS_HOST=127.0.0.1 REDIS_PORT=16379 REDIS_QUEUE=sms-demo
-export SMS_ALPHA_URL=http://127.0.0.1:8767/alpha SMS_ALPHA_TOKEN=demo-alpha-token
-export SMS_BETA_URL=http://127.0.0.1:8767/beta SMS_BETA_TOKEN=demo-beta-token
-
-SMS_DRIVER=primary target/debug/examples/sms artisan sms:demo +12025550123 "First"
-SMS_DRIVER=backup target/debug/examples/sms artisan sms:demo +12025550123 "Second"
-SMS_DRIVER=backup target/debug/examples/sms artisan sms:demo +12025550123 "Third" --profile primary
-SMS_DRIVER=backup target/debug/examples/sms artisan queue:work redis --stop-when-empty --tries=1
-```
-
-The mock prints `/alpha`, `/beta`, and `/alpha`, respectively. Add `--now` to `sms:demo` to try the direct facade call. The queue stores the profile name, number, and text. The Worker reads the endpoint and credentials from its own configuration. Changing `sms.default` after dispatch leaves existing jobs on their selected profile, so keep that profile configured until those jobs finish.
-
-Stop the mock with Ctrl+C and run `docker stop openrust-sms-demo`. The mock receives local HTTP requests without sending real SMS.
+In a service provider’s `register` hook, resolve `SmsManager` and call `extend` to register a driver factory. The factory receives the selected profile and returns a type that implements `SmsDriver`. Multiple named profiles can use the same driver. The built-in `vonage` notification channel continues to use the original `VONAGE_*` variables.

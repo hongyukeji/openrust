@@ -8,92 +8,57 @@
 
 | 設定 | 支援的內容 | 環境變數 |
 | --- | --- | --- |
-| `vonage`（預設） | 純文字 | `VONAGE_KEY`、`VONAGE_SECRET`、`VONAGE_SMS_FROM` |
+| `log`（預設） | 純文字和範本。應用程式日誌記錄號碼末四碼和訊息類型。 | 無 |
+| `vonage` | 純文字 | `VONAGE_KEY`、`VONAGE_SECRET`、`VONAGE_SMS_FROM` |
 | `twilio` | 純文字與廠商審核範本，範本使用具名變數 | `SMS_TWILIO_ACCOUNT_SID`、`SMS_TWILIO_API_KEY_SID`、`SMS_TWILIO_API_KEY_SECRET`，以及 `SMS_TWILIO_FROM` 或 `SMS_TWILIO_MESSAGING_SERVICE_SID` |
-| `aliyun` | 中國內地審核範本，使用具名變數 | `SMS_ALIYUN_ACCESS_KEY_ID`、`SMS_ALIYUN_ACCESS_KEY_SECRET`、`SMS_ALIYUN_SIGN_NAME` |
-| `aliyun_international` | 國際及港澳台自由文字，使用 SendMessageToGlobe | `SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_ID`、`SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_SECRET`。可選 `SMS_ALIYUN_INTERNATIONAL_SENDER_ID` 和 `SMS_ALIYUN_INTERNATIONAL_MESSAGE_TYPE`（`OTP`、`NOTIFY`、`MKT`） |
+| `aliyun` | 中國內地審核範本，以及透過 SendMessageToGlobe 傳送國際純文字 | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`. 內地範本用 `SMS_ALIYUN_SIGN_NAME`。國際文字可設定 `SMS_ALIYUN_SENDER_ID` 和 `SMS_ALIYUN_MESSAGE_TYPE`（`OTP`、`NOTIFY`、`MKT`）。 |
 | `tencent` | 廠商審核範本，使用依序排列的變數 | `SMS_TENCENT_SECRET_ID`、`SMS_TENCENT_SECRET_KEY`、`SMS_TENCENT_SDK_APP_ID`、視需要設定 `SMS_TENCENT_SIGN_NAME`，以及 `SMS_TENCENT_REGION`（預設 `ap-guangzhou`） |
+| `smsbao` | 內地和國際文字 | `SMS_SMSBAO_USERNAME`, `SMS_SMSBAO_API_KEY` |
+| `yunpian` | 內地文字或具名範本，以及國際文字 | `SMS_YUNPIAN_API_KEY` |
 
-國際及港澳台號碼請使用帶 `+` 和國家或地區區碼的格式。`aliyun` 設定用於中國內地審核範本，接受 11 位內地手機號碼並補上 `+86`。`aliyun_international` 設定用於國際及港澳台自由文字，使用獨立憑證，預設連線至阿里雲新加坡端點。騰訊雲和 Twilio 可用各自的 `SMS_*_MARKET` 環境變數選擇 `mainland` 或 `international`。請為目標市場及設定選擇正確的寄件者和審核範本。供應商受理與手機實際收件是兩個狀態。
+## 傳送簡訊
 
-## 純文字與範本
-
-用 `SmsMessage::new` 建立純文字，用 `SmsMessage::template` 傳入廠商審核範本。通知可以由 `to_sms` 傳回純文字，或由 `to_sms_template` 傳回範本。遇到不支援的訊息類型或變數格式時，驅動程式會在提交前回報錯誤。
+日常傳送使用預設設定。需要指定供應商或帳號時，可以直接傳入設定名稱。
 
 ```rust
-use openrust::{
-    notifications::sms::{SmsMessage, SmsTemplate},
-    support::facades::Sms,
-};
+use openrust::support::facades::Sms;
 
-let template = SmsTemplate::named("SMS_123", [("code".into(), "123456".into())].into());
-Sms::driver(Some("aliyun"))?
-    .send(SmsMessage::template("+8613800138000", template)?)
-    .await?;
+Sms::send_text("+85255550123", "Your order has shipped.").await?;
 
-let template = SmsTemplate::positional("1234", vec!["123456".into(), "5".into()]);
-Sms::driver(Some("tencent"))?
-    .send(SmsMessage::template("+85255550123", template)?)
-    .await?;
-
-Sms::driver(Some("aliyun_international"))?
-    .send(SmsMessage::new("+85255550123", "Your order is ready.")?)
-    .await?;
-
-Sms::driver(Some("twilio"))?
-    .send(SmsMessage::new("+12025550123", "Your order is ready.")?)
+Sms::driver("aliyun")?
+    .send_template("+8613800138000", "login_code", [("code", "123456")])
     .await?;
 ```
 
-## 註冊供應商 {#custom-sms-providers}
-
-透過 `Sms::driver(None)` 選擇預設設定，或用 `Sms::driver(Some("backup"))` 明確指定。直接傳送時呼叫 `driver.send(SmsMessage::new(number, text)?).await?`。在應用程式服務提供者的 `register` 中解析 `SmsManager`，以 `extend` 註冊每個驅動程式。工廠接收選定的設定，並傳回實作 `SmsDriver` 的驅動程式。`sms.drivers` 下的設定名稱可以與註冊的驅動程式名稱不同。
-
-用 `ChannelManager::extend` 將 `SmsChannel::default()` 註冊為 `sms`，用 `SmsChannel::using("backup")` 註冊固定使用備用設定的管道。在 `Notification::via` 中選擇已註冊的管道，由 `to_sms` 傳回簡訊正文，並在 `sms` 路由鍵下以 `NotificationRoute::Sms` 指定號碼。派送程序和 Worker 使用相同的服務提供者和管道註冊。現有 `vonage` 管道仍可使用。
+預設的 `log` 驅動程式記錄訊息類型和號碼末四碼。需要實際傳送時，將 `SMS_DRIVER` 設為對應的供應商或具名設定。
 
 ## 設定
 
-以下設定預設選擇 `primary`。權杖透過環境變數傳入，應用程式執行時會將其載入對應設定。
+使用阿里雲時，設定 `SMS_DRIVER=aliyun`，填寫 `SMS_ALIYUN_ACCESS_KEY_ID` 和 `SMS_ALIYUN_ACCESS_KEY_SECRET`。內地範本需要 `SMS_ALIYUN_SIGN_NAME`，國際文字則依目標市場要求填寫 `SMS_ALIYUN_SENDER_ID`。省略 `SMS_ALIYUN_MARKET` 時，同一設定可向兩個市場傳送，驅動程式會依收件號碼選擇介面和端點。國際及港澳台號碼使用 `+` 和國家或地區區碼。
 
-```json
-{
-  "sms": {
-    "default": "primary",
-    "drivers": {
-      "primary": {"driver": "demo-alpha", "endpoint": "http://127.0.0.1:8767/alpha"},
-      "backup": {"driver": "demo-beta", "endpoint": "http://127.0.0.1:8767/beta"}
-    }
-  }
-}
+在設定的 `templates` 下將業務範本名稱對應到供應商範本 ID。騰訊雲等依序接收變數的介面，也可以透過 `id` 和 `parameter_order` 將具名變數轉換為廠商要求的順序。各市場獨有的參數放在 `markets.mainland` 或 `markets.international` 下，共用憑證填在設定外層。
+
+下例為現有 `aliyun` 設定的補充欄位。使用自訂端點時才需設定 `SMS_ALIYUN_GLOBAL_ENDPOINT`。如果某個市場使用獨立帳號，可在對應的市場下覆寫兩個憑證欄位。
+
+```rust
+"templates": {
+    "login_code": "SMS_123",
+},
+"markets": {
+    "international": {
+        "endpoint": get(env, "SMS_ALIYUN_GLOBAL_ENDPOINT", Value::Null)?,
+    },
+},
 ```
 
-## 執行範例
+驅動程式會在發出請求前檢查訊息類型。阿里雲內地簡訊需要通過審核的簽名和範本，此處接入的國際介面接受純文字。業務已持有供應商範本 ID 時，可用 `SmsMessage::template` 建立訊息並呼叫驅動程式的 `send`。
 
-從儲存庫根目錄執行完整範例。先在一個終端機啟動模擬端點。
+## 通知和 Worker
 
-```sh
-python3 -B examples/sms/mock.py
-```
+以 `ChannelManager::extend` 將 `SmsChannel::default()` 註冊為 `sms`，也可以用 `SmsChannel::using("aliyun")` 綁定具名設定。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供應商範本。要使用設定中的業務範本名稱時，實作 `to_sms_message` 並回傳 `SmsMessage::named_template`。收件號碼使用 `sms` 路由鍵下的 `NotificationRoute::Sms`。
 
-再在另一個終端機啟動獨立 Redis，並執行範例應用程式的 Artisan 命令。
+佇列儲存選定的設定名稱和訊息。Worker 註冊相同的管道及設定名稱，從自身設定解析範本並讀取憑證。Redis 佇列可用 `./artisan queue:work redis` 啟動 Worker。重新命名前請先處理舊工作，或保留原名稱直到舊工作完成。變更設定後，若使用設定快取，請重新產生並重新啟動常駐 Worker。
 
-```sh
-cargo build --locked --example sms
-docker run -d --rm --name openrust-sms-demo -p 127.0.0.1:16379:6379 \
-  --tmpfs /data redis:8 redis-server --save '' --appendonly no
+## 註冊供應商 {#custom-sms-providers}
 
-export APP_BASE_PATH="$(mktemp -d)"
-export APP_ENV=local CACHE_STORE=array QUEUE_CONNECTION=redis QUEUE_FAILED_DRIVER=null
-export REDIS_HOST=127.0.0.1 REDIS_PORT=16379 REDIS_QUEUE=sms-demo
-export SMS_ALPHA_URL=http://127.0.0.1:8767/alpha SMS_ALPHA_TOKEN=demo-alpha-token
-export SMS_BETA_URL=http://127.0.0.1:8767/beta SMS_BETA_TOKEN=demo-beta-token
-
-SMS_DRIVER=primary target/debug/examples/sms artisan sms:demo +12025550123 "First"
-SMS_DRIVER=backup target/debug/examples/sms artisan sms:demo +12025550123 "Second"
-SMS_DRIVER=backup target/debug/examples/sms artisan sms:demo +12025550123 "Third" --profile primary
-SMS_DRIVER=backup target/debug/examples/sms artisan queue:work redis --stop-when-empty --tries=1
-```
-
-模擬端點會依序印出 `/alpha`、`/beta` 和 `/alpha`。為 `sms:demo` 加上 `--now` 可試用 Facade 的直接傳送。佇列儲存設定名稱、號碼和正文。Worker 從自己的設定讀取端點及憑證。派送後修改 `sms.default`，已入列任務仍使用派送時選定的設定，請保留該設定直到任務完成。
-
-用 Ctrl+C 停止模擬服務，再執行 `docker stop openrust-sms-demo`。模擬端點只接收本機 HTTP 請求，不會傳送真實簡訊。
+在應用程式服務提供者的 `register` 中解析 `SmsManager`，呼叫 `extend` 註冊工廠。工廠接收選定的設定，回傳實作 `SmsDriver` 的驅動程式。多個具名設定可以共用同一個驅動程式。內建的 `vonage` 通知管道繼續使用原有的 `VONAGE_*` 環境變數。

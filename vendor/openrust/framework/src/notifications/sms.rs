@@ -21,6 +21,8 @@ pub struct SmsMessage {
     content: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     template: Option<SmsTemplate>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    template_name: Option<String>,
 }
 
 /// A provider-approved template and the values used to fill it.
@@ -59,6 +61,7 @@ impl SmsMessage {
             to: to.into(),
             content: content.into(),
             template: None,
+            template_name: None,
         };
         message.validate()?;
         Ok(message)
@@ -69,8 +72,30 @@ impl SmsMessage {
             to: to.into(),
             content: String::new(),
             template: Some(template),
+            template_name: None,
         };
         message.validate()?;
+        Ok(message)
+    }
+
+    /// Builds a message using a business template configured on the selected profile.
+    pub fn named_template<K: Into<String>, V: Into<String>>(
+        to: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl IntoIterator<Item = (K, V)>,
+    ) -> NotificationResult<Self> {
+        let name = name.into();
+        let mut message = Self::template(
+            to,
+            SmsTemplate::named(
+                &name,
+                parameters
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
+            ),
+        )?;
+        message.template_name = Some(name);
         Ok(message)
     }
 
@@ -89,6 +114,11 @@ impl SmsMessage {
 
     pub(super) fn validate(&self) -> NotificationResult<()> {
         international_number(&self.to)?;
+        if let Some(name) = &self.template_name
+            && (name.trim().is_empty() || self.template.is_none())
+        {
+            return Err(delivery("The configured SMS template name is invalid."));
+        }
         match &self.template {
             Some(template) if !template.id.trim().is_empty() && self.content.is_empty() => Ok(()),
             Some(_) => Err(delivery(
@@ -156,7 +186,7 @@ impl SmsManager {
             return Ok(name.to_owned());
         }
         match self.config.get("sms.default") {
-            None => Ok("vonage".into()),
+            None => Ok("log".into()),
             Some(Value::String(name)) if !name.trim().is_empty() => Ok(name),
             _ => Err(delivery("The default SMS profile is invalid.")),
         }
@@ -166,8 +196,8 @@ impl SmsManager {
         let profiles = self.config.get("sms.drivers");
         let profile = match profiles.as_ref().and_then(|profiles| profiles.get(name)) {
             Some(profile) => profile.clone(),
-            None if profiles.is_none() && name == "vonage" => {
-                serde_json::json!({"driver":"vonage"})
+            None if profiles.is_none() && matches!(name, "log" | "vonage") => {
+                serde_json::json!({"driver": name})
             }
             None => return Err(delivery("The SMS profile is not configured.")),
         };
@@ -190,10 +220,85 @@ impl SmsManager {
         Ok(name)
     }
 
-    /// Uses `sms.default` when no profile name is supplied.
-    pub fn driver(&self, name: Option<&str>) -> NotificationResult<Arc<dyn SmsDriver>> {
-        let (profile, factory) = self.configured_driver(&self.profile_name(name)?)?;
-        factory(&profile)
+    pub fn driver(&self, name: &str) -> NotificationResult<SmsSender> {
+        let (profile, factory) = self.configured_driver(name)?;
+        let driver = factory(&profile)?;
+        Ok(SmsSender { profile, driver })
+    }
+
+    pub fn default_driver(&self) -> NotificationResult<SmsSender> {
+        self.driver(&self.profile_name(None)?)
+    }
+}
+
+/// Sends text or templates using one configured SMS profile.
+pub struct SmsSender {
+    profile: Value,
+    driver: Arc<dyn SmsDriver>,
+}
+
+impl SmsSender {
+    pub async fn send(&self, mut message: SmsMessage) -> NotificationResult<Value> {
+        message.validate()?;
+        if let Some(name) = message.template_name.take()
+            && self.profile["driver"] != "log"
+        {
+            let market = providers::market_key(message.to())?;
+            let template_setting = self.profile["markets"][market]["templates"]
+                .get(&name)
+                .or_else(|| self.profile["templates"].get(&name))
+                .ok_or_else(|| {
+                    delivery("The SMS template is not configured for this profile and market.")
+                })?;
+            let id = template_setting
+                .as_str()
+                .or_else(|| template_setting["id"].as_str())
+                .filter(|id| !id.trim().is_empty())
+                .ok_or_else(|| delivery("The configured SMS template requires an ID."))?;
+            let template = message.template.as_mut().expect("validated template");
+            template.id = id.to_owned();
+            if let Some(order) = template_setting.get("parameter_order") {
+                let SmsTemplateParameters::Named(parameters) = &template.parameters else {
+                    return Err(delivery(
+                        "The configured SMS template requires named input.",
+                    ));
+                };
+                let order = order
+                    .as_array()
+                    .ok_or_else(|| delivery("The SMS template parameter order must be a list."))?;
+                let ordered = order
+                    .iter()
+                    .map(|key| {
+                        key.as_str()
+                            .and_then(|key| parameters.get(key))
+                            .cloned()
+                            .ok_or_else(|| {
+                                delivery("A configured SMS template parameter is missing.")
+                            })
+                    })
+                    .collect::<NotificationResult<Vec<_>>>()?;
+                template.parameters = SmsTemplateParameters::Positional(ordered);
+            }
+        }
+        self.driver.send(message).await
+    }
+
+    pub async fn send_text(
+        &self,
+        to: impl Into<String>,
+        content: impl Into<String>,
+    ) -> NotificationResult<Value> {
+        self.send(SmsMessage::new(to, content)?).await
+    }
+
+    pub async fn send_template<K: Into<String>, V: Into<String>>(
+        &self,
+        to: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl IntoIterator<Item = (K, V)>,
+    ) -> NotificationResult<Value> {
+        self.send(SmsMessage::named_template(to, name, parameters)?)
+            .await
     }
 }
 
@@ -210,7 +315,28 @@ impl Facade for Sms {
 }
 
 impl Sms {
-    pub fn driver(name: Option<&str>) -> NotificationResult<Arc<dyn SmsDriver>> {
+    pub fn driver(name: &str) -> NotificationResult<SmsSender> {
         Self::getFacadeRoot().map_err(delivery)?.driver(name)
+    }
+
+    pub fn default_driver() -> NotificationResult<SmsSender> {
+        Self::getFacadeRoot().map_err(delivery)?.default_driver()
+    }
+
+    pub async fn send_text(
+        to: impl Into<String>,
+        content: impl Into<String>,
+    ) -> NotificationResult<Value> {
+        Self::default_driver()?.send_text(to, content).await
+    }
+
+    pub async fn send_template<K: Into<String>, V: Into<String>>(
+        to: impl Into<String>,
+        name: impl Into<String>,
+        parameters: impl IntoIterator<Item = (K, V)>,
+    ) -> NotificationResult<Value> {
+        Self::default_driver()?
+            .send_template(to, name, parameters)
+            .await
     }
 }

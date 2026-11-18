@@ -177,7 +177,9 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
         "china":{"driver":"aliyun","market":"mainland","endpoint":endpoint,"access_key_id":"fixture-id",
             "access_key_secret":"aliyun-secret","sign_name":"示例 + 签名"},
         "hk":{"driver":"tencent","market":"international","endpoint":endpoint,"secret_id":"fixture-id",
-            "secret_key":"tencent-secret","sdk_app_id":"fixture-app","region":"ap-guangzhou","sign_name":"测试签名"},
+            "secret_key":"tencent-secret","sdk_app_id":"fixture-app","region":"ap-guangzhou","sign_name":"测试签名",
+            "templates":{"login_code":"unused-default"},
+            "markets":{"international":{"templates":{"login_code":{"id":"1234","parameter_order":["code","minutes"]}}}}},
         "global":{"driver":"twilio","market":"international","endpoint":endpoint,"account_sid":"ACfixture",
             "api_key_sid":"SKfixture","api_key_secret":"twilio-secret","messaging_service_sid":"MGfixture"}
     }}});
@@ -211,7 +213,7 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
             assert!(!queued.to_string().contains("aliyun-secret"));
             channel.send_queued(queued).await.unwrap();
 
-            let alibaba = Sms::driver(None).unwrap();
+            let alibaba = Sms::default_driver().unwrap();
             let template =
                 || SmsTemplate::named("SMS_1", [("code".into(), "A + 中文".into())].into());
             let local = SmsMessage::template("+8613800138000", template()).unwrap();
@@ -236,7 +238,7 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
                 .unwrap_err();
             assert!(!error.to_string().contains("fixture private response"));
 
-            let tencent = Sms::driver(Some("hk")).unwrap();
+            let tencent = Sms::driver("hk").unwrap();
             let positional = |id| SmsTemplate::positional(id, vec!["42".into(), "5".into()]);
             let result = tencent
                 .send(SmsMessage::template("+85255550123", positional("1234")).unwrap())
@@ -265,7 +267,26 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
                     .is_err()
             );
 
-            let twilio = Sms::driver(Some("global")).unwrap();
+            let configured = tencent
+                .send_template(
+                    "+85255550123",
+                    "login_code",
+                    [("minutes", "5"), ("code", "42")],
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                configured["Response"]["SendStatusSet"][0]["SerialNo"],
+                "tencent-id"
+            );
+            assert!(
+                tencent
+                    .send_template("+85255550123", "login_code", [("code", "42")])
+                    .await
+                    .is_err()
+            );
+
+            let twilio = Sms::driver("global").unwrap();
             let text = SmsMessage::new("+12025550123", "Hello 世界").unwrap();
             assert_eq!(
                 serde_json::to_value(&text).unwrap(),
@@ -292,6 +313,6 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
     )
     .await
     .unwrap();
-    assert_eq!(requests.load(Ordering::Relaxed), 8);
+    assert_eq!(requests.load(Ordering::Relaxed), 9);
     server.abort();
 }

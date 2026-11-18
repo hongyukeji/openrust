@@ -1,6 +1,5 @@
-"""Local Alpha and Beta SMS endpoints for the Artisan example."""
+"""Local Alpha and Beta SMS endpoints for Artisan Worker acceptance."""
 
-import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -45,19 +44,3 @@ def make_server(port, receive):
             pass
 
     return ThreadingHTTPServer(("127.0.0.1", port), Handler)
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8767)
-    args = parser.parse_args()
-
-    def show(path, body, _authorization):
-        print(path, json.dumps(body, ensure_ascii=False), flush=True)
-
-    with make_server(args.port, show) as server:
-        print(f"Demo endpoints listening on http://127.0.0.1:{server.server_port}", flush=True)
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            pass

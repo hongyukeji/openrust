@@ -10,37 +10,48 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         | 默认短信配置
         |--------------------------------------------------------------------------
         |
-        | SMS_DRIVER 选择具名配置，默认沿用 Vonage。
+        | SMS_DRIVER 选择默认配置，默认使用 log 记录调试信息。正式发送时填写选中配置的凭据。
         | 派发时确定配置名，Worker 从自身环境读取凭据。
         |
         */
-        "default": get(env, "SMS_DRIVER", "vonage")?,
+        "default": get(env, "SMS_DRIVER", "log")?,
 
         /*
         |--------------------------------------------------------------------------
         | 供应商和发送市场
         |--------------------------------------------------------------------------
         |
-        | 阿里云内地模板和国际／港澳台文本使用独立配置。腾讯云和 Twilio 默认接受带区号的号码；
-        | 可将相应的 SMS_*_MARKET 设为 mainland 或 international。
+        | 外层键是配置名，driver 是注册的供应商驱动。同一驱动可对应多个具名配置。
+        | 多账号或跨市场时，在此处添加配置并为其使用独立的环境变量。
+        | 默认根据号码选择内地或国际接口，market 可限制发送市场。
+        | 不同市场需要独立凭据、端点或发送身份时，在同一配置的 markets 下覆盖。
         |
         */
         "drivers": {
+            "log": {"driver": "log"},
             "vonage": {"driver": "vonage"},
             "aliyun": {
                 "driver": "aliyun",
+                "market": get(env, "SMS_ALIYUN_MARKET", "auto")?,
                 "endpoint": get(env, "SMS_ALIYUN_ENDPOINT", Value::Null)?,
                 "access_key_id": get(env, "SMS_ALIYUN_ACCESS_KEY_ID", Value::Null)?,
                 "access_key_secret": get(env, "SMS_ALIYUN_ACCESS_KEY_SECRET", Value::Null)?,
                 "sign_name": get(env, "SMS_ALIYUN_SIGN_NAME", Value::Null)?,
+                "sender_id": get(env, "SMS_ALIYUN_SENDER_ID", Value::Null)?,
+                "message_type": get(env, "SMS_ALIYUN_MESSAGE_TYPE", Value::Null)?,
             },
-            "aliyun_international": {
-                "driver": "aliyun_international",
-                "endpoint": get(env, "SMS_ALIYUN_INTERNATIONAL_ENDPOINT", Value::Null)?,
-                "access_key_id": get(env, "SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_ID", Value::Null)?,
-                "access_key_secret": get(env, "SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_SECRET", Value::Null)?,
-                "sender_id": get(env, "SMS_ALIYUN_INTERNATIONAL_SENDER_ID", Value::Null)?,
-                "message_type": get(env, "SMS_ALIYUN_INTERNATIONAL_MESSAGE_TYPE", Value::Null)?,
+            "smsbao": {
+                "driver": "smsbao",
+                "market": get(env, "SMS_SMSBAO_MARKET", "auto")?,
+                "endpoint": get(env, "SMS_SMSBAO_ENDPOINT", Value::Null)?,
+                "username": get(env, "SMS_SMSBAO_USERNAME", Value::Null)?,
+                "api_key": get(env, "SMS_SMSBAO_API_KEY", Value::Null)?,
+            },
+            "yunpian": {
+                "driver": "yunpian",
+                "market": get(env, "SMS_YUNPIAN_MARKET", "auto")?,
+                "endpoint": get(env, "SMS_YUNPIAN_ENDPOINT", Value::Null)?,
+                "api_key": get(env, "SMS_YUNPIAN_API_KEY", Value::Null)?,
             },
             "tencent": {
                 "driver": "tencent",

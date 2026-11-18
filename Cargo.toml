@@ -55,3 +55,8 @@ harness = false
 name = "queue_hard_timeout"
 path = "tests/queue_hard_timeout.rs"
 harness = false
+
+[[test]]
+name = "sms_worker_app"
+path = "tests/support/sms/worker_app.rs"
+harness = false
