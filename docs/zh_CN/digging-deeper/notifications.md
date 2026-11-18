@@ -157,6 +157,49 @@ let response = mail.toResponse().await?;
 
 运行 `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` 生成通知和 Blade 模板。用 `markdown` 选定渲染双正文的模板。`template` 调整 Markdown 模板并尊重已明确选择的视图，`theme` 可为单封邮件覆盖 Markdown 主题。构建方法按键合并视图数据，后提供的值优先。`to_mail` 返回的自定义可邮件对象也可使用同一套 [Markdown 渲染器和组件](mail.md#writing-markdown-messages)。
 
+## 短信通知 {#sms-notifications}
+
+配置 `VONAGE_KEY`、`VONAGE_SECRET` 和 `VONAGE_SMS_FROM`。在通知渠道列表加入 `vonage`，并在 `to_vonage` 中返回 `VonageMessage`。
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult,
+    messages::VonageMessage,
+};
+
+struct InvoicePaid;
+
+impl Notification for InvoicePaid {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["vonage".into()])
+    }
+
+    fn to_vonage(&self, _: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
+        Ok(Some(VonageMessage::new()
+            .content("Payment received — thank you!")
+            .unicode()
+            .clientReference("invoice-42")))
+    }
+}
+```
+
+用 `from` 覆盖发件人，`unicode` 发送 Unicode 正文，`clientReference` 设置业务跟踪标识，`statusCallback` 将送达回执 URL 传给 Vonage。`usingClient("partner")` 选取 `vonage.clients.partner` 中配置的凭据。可选的 `endpoint` 覆盖供应商 URL，支持 HTTPS 或回环 HTTP。
+
+模型收件人通过 `route_notification_for` 返回 `NotificationRoute::Vonage`。按需通知可在指定渠道时传入号码。
+
+```rust
+use openrust::{
+    notifications::NotificationRoute,
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into()))?
+    .notify(&InvoicePaid)
+    .await?;
+```
+
+队列保存号码、消息和可选的客户端名称。Worker 从应用配置读取凭据，每次任务尝试只发起一次 HTTP 请求。Vonage API 接收成功和手机送达是两个独立状态。
+
 ## 测试通知
 
 在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。

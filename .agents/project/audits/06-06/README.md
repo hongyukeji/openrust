@@ -231,3 +231,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `a01c48adb` 上，经真实 HTTP 核对 HTML、纯文本、Markdown、显式视图优先、主题、错误状态和无投递预览。真实 Mailpit SMTP 及 MySQL 8.4.13、Redis 8.10.3 的独立 Artisan Worker 分别验证 1、3、5 的 MIME 优先级。用实际 Artisan 生成 Markdown 通知和 Blade 视图，并编译及执行生成源码与三语相同示例。
 - `mail_notifications` 23 项通过、2 项专用夹具忽略，`filesystem_local` 9 项和 `mail_generator` 6 项通过。Rust 1.94.0 全仓格式、严格 Clippy、实际 `./artisan inspire`、生成器 POSIX 交互、三语构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批对照通知渠道的短信、Slack 能力和固定文档中的验收边界。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 4.14 GB（3.86 GiB），清理后可用 92.55 GB（86.20 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-template.mwqMAkZu`。
+
+## Vonage 短信通知渠道
+
+- 对照固定 Laravel v13.40.0 的 SMS Notifications 及 Laravel Vonage v3.3.4。复用旧版 `6d1a81924` 的国际号码校验和供应商错误脱敏思路。旧版实际短信驱动为 Twilio，本批按 Vonage SMS 表单和 Basic Auth 实现。 [固定 Laravel SMS](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#sms-notifications) · [Vonage 渠道 v3.3.4](https://github.com/laravel/vonage-notification-channel/blob/v3.3.4/src/Channels/VonageSmsChannel.php) · [Vonage SMS API](https://developer.vonage.com/en/api/sms)
+- `NotificationRoute::Vonage` 是新增的类型化路由。`to_vonage` 与现有 Rust 通知契约命名一致。消息支持 Unicode、发件人、业务标识、回执 URL。Rust 的 `usingClient` 使用应用配置名称表达可序列化的客户端选择，队列仅保存输入和客户端名称。Worker 从自身配置读取密钥，每次尝试使用一次 HTTP 请求并拒绝重定向。
+- 在隔离基线 `48677efdb` 上，通过真实 HTTP 及本地 Vonage 协议服务验证默认／指定客户端凭据、表单、普通／Unicode、缺失／无效路由、非成功业务状态、无结果响应和重定向。真实 MySQL 8.4.13 与 Redis 8.10.3 的独立 Artisan Worker 使用入队后轮换的凭据。MySQL 首次尝试保留任务，重试成功，失败表为空。Mailpit 运行既有邮件回归。运营商送达及真实 Vonage 账户验证待授权测试号码和账户。
+- `mail_notifications` 24 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、实际 Artisan `config:show vonage` 和 `inspire`、三语相同示例、站点构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批核对 Slack Bot API 与 Block Kit，使用现有 HTTP 和队列验收入口。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.32 GB（84.12 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-vonage-notifications.Kf3i1hLI`。

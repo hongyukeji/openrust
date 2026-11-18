@@ -157,6 +157,49 @@ Use `priority` to set the MIME `X-Priority` header. The scale runs from 1 (highe
 
 Use `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` to generate a notification and a Blade template. Use `markdown` to select a template that renders both message bodies. `template` changes the Markdown template while respecting explicit views. `theme` overrides the configured Markdown theme for that message. Builder calls merge view data, with the latest value taking precedence for each key. A custom mailable returned from `to_mail` can use the same [Markdown renderer and components](mail.md#writing-markdown-messages).
 
+## SMS notifications {#sms-notifications}
+
+Configure `VONAGE_KEY`, `VONAGE_SECRET`, and `VONAGE_SMS_FROM`. Add `vonage` to the notification’s channels and return a `VonageMessage` from `to_vonage`.
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult,
+    messages::VonageMessage,
+};
+
+struct InvoicePaid;
+
+impl Notification for InvoicePaid {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["vonage".into()])
+    }
+
+    fn to_vonage(&self, _: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
+        Ok(Some(VonageMessage::new()
+            .content("Payment received — thank you!")
+            .unicode()
+            .clientReference("invoice-42")))
+    }
+}
+```
+
+Use `from` to override the sender, `unicode` for Unicode text, `clientReference` for your own tracking ID, and `statusCallback` to pass a delivery receipt URL to Vonage. `usingClient("partner")` selects credentials configured under `vonage.clients.partner`. An optional `endpoint` overrides the provider URL and accepts HTTPS or loopback HTTP.
+
+For a model recipient, return `NotificationRoute::Vonage` from `route_notification_for`. For an on-demand recipient, pass the number when routing the notification.
+
+```rust
+use openrust::{
+    notifications::NotificationRoute,
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into()))?
+    .notify(&InvoicePaid)
+    .await?;
+```
+
+The queue stores the number, message, and optional client name. The Worker reads credentials from its application configuration and makes one HTTP attempt per job attempt. Vonage API acceptance is distinct from delivery to the handset.
+
 ## Testing notifications
 
 Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.

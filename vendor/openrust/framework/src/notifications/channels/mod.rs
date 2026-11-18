@@ -3,12 +3,14 @@
 mod broadcast_channel;
 mod database_channel;
 mod mail_channel;
+mod vonage_sms_channel;
 
 use super::{Notifiable, Notification, NotificationFuture, NotificationResult};
 
 pub use broadcast_channel::{BroadcastChannel, BroadcastNotificationCreated};
 pub use database_channel::DatabaseChannel;
 pub use mail_channel::MailChannel;
+pub use vonage_sms_channel::VonageSmsChannel;
 
 /// The result of a channel delivery, available to notification events.
 pub enum ChannelResponse {

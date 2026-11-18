@@ -54,6 +54,7 @@ pub enum NotificationRoute {
     Mail(Vec<crate::mail::mailables::Address>),
     Database(DatabaseRoute),
     Broadcast(Vec<crate::broadcasting::BroadcastChannel>),
+    Vonage(String),
     Custom(serde_json::Value),
 }
 

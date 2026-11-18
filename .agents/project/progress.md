@@ -3284,3 +3284,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 通知邮件的模板、预览与优先级
 
 依固定 Laravel 接通通知邮件的模板构建和 MIME 优先级，复验只读 HTTP 预览。范围含 MailMessage、Markdown 通知生成器模板、真实集成回归与三语 Notifications 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、23 项邮件通知、9 项磁盘和 6 项生成器回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#通知邮件的模板、预览与优先级)
+
+## 2026-11-18 06-06 Vonage 短信通知渠道
+
+依固定 Laravel 接通 Vonage 渠道、消息和应用配置，验证真实 HTTP 协议、独立 Worker 与凭据轮换，闭合三语 SMS Notifications。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、24 项通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#Vonage 短信通知渠道)

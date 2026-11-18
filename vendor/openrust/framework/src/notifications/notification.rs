@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     Notifiable, NotificationResult,
-    messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
+    messages::{BroadcastMessage, DatabaseMessage, MailDelivery, VonageMessage},
 };
 
 /// The registered worker decision and its serializable context.
@@ -22,6 +22,10 @@ pub trait Notification: Send + Sync {
     fn via(&self, recipient: &dyn Notifiable) -> NotificationResult<Vec<String>>;
 
     fn to_mail(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        Ok(None)
+    }
+
+    fn to_vonage(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         Ok(None)
     }
 

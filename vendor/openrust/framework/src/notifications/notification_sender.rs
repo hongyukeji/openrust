@@ -14,7 +14,7 @@ use super::{
     NotificationRoute, NotificationTarget, RecordedNotification, SendQueuedNotifications,
     channels::ChannelResponse,
     delivery,
-    messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
+    messages::{BroadcastMessage, DatabaseMessage, MailDelivery, VonageMessage},
     new_id,
 };
 
@@ -320,6 +320,9 @@ impl Notification for Prepared<'_> {
     }
     fn to_mail(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
         self.inner.to_mail(recipient)
+    }
+    fn to_vonage(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
+        self.inner.to_vonage(recipient)
     }
     fn to_database(
         &self,

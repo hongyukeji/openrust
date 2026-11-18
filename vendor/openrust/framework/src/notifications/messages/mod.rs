@@ -1,8 +1,10 @@
 //! Data handed to built-in notification channels.
 
 mod mail_message;
+mod vonage_message;
 
 pub use mail_message::MailMessage;
+pub use vonage_message::VonageMessage;
 
 use crate::mail::Mailable;
 use chrono::{DateTime, Utc};

@@ -21,6 +21,7 @@ mod reverb;
 mod services;
 mod session;
 mod view;
+mod vonage;
 
 /*
  * 按依赖顺序装配应用配置。
@@ -59,6 +60,7 @@ pub(crate) fn load(
             session::load(base_path, env, app.name)?,
         ),
         ("view".to_owned(), view::load(base_path, env)?),
+        ("vonage".to_owned(), vonage::load(env)?),
         ("app".to_owned(), app.config),
     ]))
 }

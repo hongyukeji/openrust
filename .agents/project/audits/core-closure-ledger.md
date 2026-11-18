@@ -241,3 +241,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [通知邮件的地址、附件与消息定制](06-06/README.md#通知邮件的地址、附件与消息定制)通过真实 HTTP、SMTP、MySQL 和 Redis 独立 Worker 的信封、附件与消息定制验收。
 
 06-06 的 [通知邮件的模板、预览与优先级](06-06/README.md#通知邮件的模板、预览与优先级)通过真实 HTTP 预览、SMTP 和独立 Worker 的 MIME 优先级、Artisan 生成与三语验收。
+
+06-06 的 [Vonage 短信通知渠道](06-06/README.md#Vonage 短信通知渠道)通过实际 HTTP 的 Vonage 协议、独立 Worker 重试和三语验收。
