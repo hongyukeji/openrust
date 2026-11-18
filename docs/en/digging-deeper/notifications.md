@@ -102,6 +102,38 @@ let delivery = MailDelivery::Message(Box::new(
 
 The mail channel uses the notification type name as the default subject. Override the default message view by running `./artisan vendor:publish --tag=laravel-notifications` and editing `resources/views/vendor/notifications/email.blade.html`. To supply a different template for one message, set its `content.view`, `content.text_view`, or `content.markdown`.
 
+### Sender and recipients {#sender-and-recipients}
+
+Use `from` to override the configured sender and `replyTo`, `cc`, or `bcc` to append addresses. Pass an email string or an `Address` with a display name. The mail channel gets recipients from `Notifiable::route_notification_for`. Use `NotificationRoute::Mail` for models and on-demand delivery. A custom mailable returned as `MailDelivery::Mailable` supplies its own recipients.
+
+### Attachments and message customization {#attachments-and-message-customization}
+
+Use `attach` or `attachMany` with [attachment sources](mail.md#attachments), or call `attachData`, `attachFromStorage`, and `attachFromStorageDisk`. The worker resolves file and disk attachments at delivery. Use `tag` and `metadata` for delivery labels. Register a customizer through `MailManager::registerMessageCustomizer` in the sender and worker applications, then pass its name and JSON data to `withMessage`.
+
+```rust
+use openrust::{
+    mail::{MessageCustomization, mailables::Address},
+    notifications::messages::MailMessage,
+};
+
+let message = MailMessage::new()
+    .from(Address {
+        address: "finance@example.test".into(),
+        name: Some("Finance".into()),
+    })
+    .replyTo("support@example.test")
+    .tag("invoice")
+    .metadata("invoice-id", "42")
+    .line("Your invoice is ready.")
+    .attachData(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
+    .withMessage(MessageCustomization::new(
+        "invoice.trace",
+        serde_json::json!({"id": 42}),
+    ));
+```
+
+The example uses an application customizer registered as `invoice.trace`. For an `Attachable` object, pass the result of its `toMailAttachment()` method to `attach`.
+
 ## Markdown mail notifications
 
 To send a Markdown notification, set `MailMessage.content.markdown` to a named Blade view, or return a Markdown mailable from `to_mail`. Both paths use the same [Markdown mail renderer and theme](mail.md#markdown-mail).

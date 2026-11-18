@@ -2,8 +2,8 @@ use serde_json::Value;
 
 use crate::{
     mail::{
-        MailError, MailResult, Mailable,
-        mailables::{Attachment, Content, Envelope, Headers},
+        MailError, MailResult, Mailable, MessageCustomization,
+        mailables::{Address, Attachment, AttachmentSource, Content, Envelope, Headers},
     },
     support::facades::{Config, Lang},
     view::ViewData,
@@ -23,6 +23,7 @@ pub struct MailMessage {
     pub envelope: Envelope,
     pub content: Content,
     pub attachments: Vec<Attachment>,
+    pub attachment_sources: Vec<AttachmentSource>,
     pub headers: Headers,
     pub mailer: Option<String>,
 }
@@ -38,6 +39,81 @@ impl MailMessage {
 
     pub fn subject(mut self, subject: impl Into<String>) -> Self {
         self.envelope.subject = subject.into();
+        self
+    }
+
+    pub fn from(mut self, address: impl Into<Address>) -> Self {
+        self.envelope.from = Some(address.into());
+        self
+    }
+
+    pub fn replyTo(mut self, address: impl Into<Address>) -> Self {
+        self.envelope.reply_to.push(address.into());
+        self
+    }
+
+    pub fn cc(mut self, address: impl Into<Address>) -> Self {
+        self.envelope.cc.push(address.into());
+        self
+    }
+
+    pub fn bcc(mut self, address: impl Into<Address>) -> Self {
+        self.envelope.bcc.push(address.into());
+        self
+    }
+
+    /// Adds an attachment whose source is resolved during delivery.
+    pub fn attach(mut self, source: AttachmentSource) -> Self {
+        self.attachment_sources.push(source);
+        self
+    }
+
+    pub fn attachMany(mut self, sources: impl IntoIterator<Item = AttachmentSource>) -> Self {
+        self.attachment_sources.extend(sources);
+        self
+    }
+
+    pub fn attachData(
+        self,
+        data: impl Into<Vec<u8>>,
+        name: impl Into<String>,
+        mime: Option<&str>,
+    ) -> Self {
+        self.attach(Attachment::fromData(data, name).with_metadata(None, mime))
+    }
+
+    pub fn attachFromStorage(
+        self,
+        path: impl Into<String>,
+        name: Option<&str>,
+        mime: Option<&str>,
+    ) -> Self {
+        self.attach(Attachment::fromStorage(path).with_metadata(name, mime))
+    }
+
+    pub fn attachFromStorageDisk(
+        self,
+        disk: impl Into<String>,
+        path: impl Into<String>,
+        name: Option<&str>,
+        mime: Option<&str>,
+    ) -> Self {
+        self.attach(Attachment::fromStorageDisk(disk, path).with_metadata(name, mime))
+    }
+
+    pub fn tag(mut self, value: impl Into<String>) -> Self {
+        self.envelope.tags.push(value.into());
+        self
+    }
+
+    pub fn metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.envelope.metadata.insert(key.into(), value.into());
+        self
+    }
+
+    /// Runs a registered message customizer at delivery, including in a queue worker.
+    pub fn withMessage(mut self, customization: MessageCustomization) -> Self {
+        self.envelope.using.push(customization);
         self
     }
 
@@ -140,6 +216,10 @@ impl Mailable for MailMessage {
 
     fn attachments(&self) -> MailResult<Vec<Attachment>> {
         Ok(self.attachments.clone())
+    }
+
+    fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+        Ok(self.attachment_sources.clone())
     }
 
     fn headers(&self) -> MailResult<Headers> {

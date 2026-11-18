@@ -102,6 +102,38 @@ let delivery = MailDelivery::Message(Box::new(
 
 未指定主题时，邮件渠道根据通知类型名生成主题。运行 `./artisan vendor:publish --tag=laravel-notifications`，可编辑 `resources/views/vendor/notifications/email.blade.html` 覆盖默认视图。要为单条消息指定其他模板，设置其 `content.view`、`content.text_view` 或 `content.markdown`。
 
+### 发件人和收件人 {#sender-and-recipients}
+
+用 `from` 覆盖配置中的发件人，用 `replyTo`、`cc` 或 `bcc` 追加地址。可传邮箱字符串或带显示名的 `Address`。邮件渠道通过 `Notifiable::route_notification_for` 获取收件人，模型通知和按需通知都使用 `NotificationRoute::Mail`。通过 `MailDelivery::Mailable` 返回的自定义邮件自行声明收件人。
+
+### 附件与消息定制 {#attachments-and-message-customization}
+
+用 `attach` 或 `attachMany` 添加[附件来源](mail.md#attachments)，也可调用 `attachData`、`attachFromStorage` 或 `attachFromStorageDisk`。队列 Worker 投递时解析文件与磁盘附件。用 `tag` 和 `metadata` 添加投递标记。在发送端和 Worker 应用中通过 `MailManager::registerMessageCustomizer` 注册回调，再用 `withMessage` 传入注册名和 JSON 数据。
+
+```rust
+use openrust::{
+    mail::{MessageCustomization, mailables::Address},
+    notifications::messages::MailMessage,
+};
+
+let message = MailMessage::new()
+    .from(Address {
+        address: "finance@example.test".into(),
+        name: Some("Finance".into()),
+    })
+    .replyTo("support@example.test")
+    .tag("invoice")
+    .metadata("invoice-id", "42")
+    .line("Your invoice is ready.")
+    .attachData(b"total,42".as_slice(), "summary.csv", Some("text/csv"))
+    .withMessage(MessageCustomization::new(
+        "invoice.trace",
+        serde_json::json!({"id": 42}),
+    ));
+```
+
+示例使用注册名为 `invoice.trace` 的应用回调。若附件实现了 `Attachable`，把其 `toMailAttachment()` 的返回值交给 `attach`。
+
 ## Markdown 邮件通知
 
 将 `MailMessage.content.markdown` 设为命名 Blade 视图，或从 `to_mail` 返回 Markdown mailable，即可发送 Markdown 通知。两种方式共用 [Markdown 邮件渲染和主题](mail.md#markdown-邮件)。

@@ -30,7 +30,9 @@ use openrust::{
     mail::{
         MailFuture, MailResult, Mailable, Message, MessageCustomization, SentMessage,
         events::{MessageSending, MessageSent},
-        mailables::{Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment},
+        mailables::{
+            Address, Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment,
+        },
         transport::Transport,
     },
     notifications::{
@@ -773,6 +775,82 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
     })
 }
 
+struct DeliveryNotice(Option<&'static str>);
+
+impl Notice for DeliveryNotice {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into()])
+    }
+
+    fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        let message = MailMessage::new()
+            .mailer("smtp")
+            .subject(format!(
+                "Notification envelope {}",
+                self.0.unwrap_or("http")
+            ))
+            .from(Address {
+                address: "finance@example.test".into(),
+                name: Some("Finance Team".into()),
+            })
+            .replyTo("support@example.test")
+            .cc("team@example.test")
+            .bcc("audit@example.test")
+            .line("Notice body")
+            .attachMany([
+                Attachment::fromPath(Config::string("fixture.notice_path").unwrap())
+                    .r#as("notice.txt")
+                    .withMime("text/plain"),
+            ])
+            .attachData(b"memory bytes".as_slice(), "memory.txt", Some("text/plain"))
+            .attachFromStorage("report.txt", Some("default-report.txt"), Some("text/plain"))
+            .attachFromStorageDisk(
+                "archive",
+                "report.txt",
+                Some("archive-report.txt"),
+                Some("text/plain"),
+            )
+            .tag("payment")
+            .metadata("case", "notification")
+            .withMessage(MessageCustomization::new(
+                "fixture.marker",
+                json!({"value":"notification-marked"}),
+            ))
+            .withMessage(MessageCustomization::new("fixture.append", Json::Null));
+        message
+            .assertHasBcc("audit@example.test", None)
+            .assertHasAttachedData(b"memory bytes", "memory.txt", Some("text/plain"));
+        Ok(Some(MailDelivery::Message(Box::new(message))))
+    }
+
+    fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
+        self.0.map(|connection| DispatchOptions {
+            connection: Some(connection.into()),
+            queue: Some("notification-envelope".into()),
+            ..Default::default()
+        })
+    }
+}
+
+fn notification_envelope_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Notification::route(
+            "mail",
+            NotificationRoute::Mail(vec![Address {
+                address: "reader@example.test".into(),
+                name: Some("Notice Reader".into()),
+            }]),
+        )
+        .unwrap()
+        .notifyNow(&DeliveryNotice(None), None)
+        .await
+        .map_err(|error| HttpError::Internal {
+            source: Box::new(error),
+        })?;
+        Response::json(http::StatusCode::OK, json!({"sent":true}))
+    })
+}
+
 struct InvoicePaid<T>(std::marker::PhantomData<T>);
 
 impl<T: Send + Sync> Notice for InvoicePaid<T> {
@@ -1108,6 +1186,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             )?;
             Route::get("/mail-assertions", mail_assertions_from_http)?;
             Route::get("/notification-format", notification_format_from_http)?;
+            Route::get("/notification-envelope", notification_envelope_from_http)?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2339,6 +2418,7 @@ async fn formatted_notification_mail_renders_over_http_and_publishes_the_view() 
     assert!(!html.contains("hidden"));
     let localized = values["localized"].as_str().unwrap();
     assert!(localized.contains("Oups !") && localized.contains("Cordialement,"));
+    assert!(!localized.contains("&lt;br&gt;"));
     assert!(
         values["success"]
             .as_str()
@@ -3233,6 +3313,171 @@ async fn artisan_worker_uses_real_smtp_mysql_and_redis() {
     if let (Some(redis), Some(mysql), Some(smtp)) = (redis, mysql, smtp) {
         queued(Some(redis), Some(&mysql), Some(smtp)).await;
     }
+}
+
+#[tokio::test]
+async fn notification_envelope_and_attachment_sources_survive_queue_delivery() {
+    let (Some(mysql), Ok(redis), Ok(smtp), Ok(mailpit)) = (
+        delivery_mysql(),
+        std::env::var("OPENRUST_TEST_REDIS_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT"),
+    ) else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(
+        Some(redis.parse().unwrap()),
+        Some(&mysql),
+        Some(smtp.parse().unwrap()),
+    );
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    let source = root.0.join("notice.txt");
+    let marker = root.0.join("customizer-ready");
+    std::fs::write(&marker, b"ok").unwrap();
+    std::fs::write(&source, b"notice file").unwrap();
+    config["mail"]["default"] = json!("array");
+    config["fixture"] = json!({"notice_path":source,"mail_customizer_marker":marker});
+    config["filesystems"] = json!({"default":"reports","disks":{
+        "reports":{"driver":"local","root":root.0.join("reports")},
+        "archive":{"driver":"local","root":root.0.join("archive")}
+    }});
+    std::fs::write(&config_path, config.to_string()).unwrap();
+    for folder in ["reports", "archive"] {
+        let disk = root.0.join(folder);
+        std::fs::create_dir(&disk).unwrap();
+        std::fs::write(disk.join("report.txt"), folder).unwrap();
+    }
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "notification-envelope").await;
+    assert_eq!(
+        reqwest::get(&url).await.unwrap().status(),
+        http::StatusCode::OK
+    );
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let db = setup(&application).await;
+    std::fs::remove_file(&source).unwrap();
+    assert_eq!(
+        reqwest::get(&url).await.unwrap().status(),
+        http::StatusCode::INTERNAL_SERVER_ERROR
+    );
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                for connection in ["database", "redis"] {
+                    Notification::route(
+                        "mail",
+                        NotificationRoute::Mail(vec![Address {
+                            address: "reader@example.test".into(),
+                            name: Some("Notice Reader".into()),
+                        }]),
+                    )
+                    .unwrap()
+                    .notify(&DeliveryNotice(Some(connection)))
+                    .await
+                    .unwrap();
+                }
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    server.abort();
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=notification-envelope",
+            "--once",
+            "--tries=2",
+        ],
+    )
+    .await;
+    assert_eq!(
+        db.table("jobs").value("attempts").await.unwrap(),
+        Value::Unsigned(1)
+    );
+    std::fs::write(&source, b"late notice file").unwrap();
+    for connection in ["database", "redis"] {
+        artisan(
+            &root.0,
+            &[
+                "queue:work",
+                connection,
+                "--queue=notification-envelope",
+                "--stop-when-empty",
+                "--sleep=0",
+                "--tries=2",
+            ],
+        )
+        .await;
+    }
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    let api = format!("http://127.0.0.1:{mailpit}/api/v1");
+    let listing: Json = reqwest::get(format!("{api}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let mut delivered = 0;
+    for row in listing["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|row| {
+            row["Subject"]
+                .as_str()
+                .is_some_and(|subject| subject.starts_with("Notification envelope "))
+        })
+    {
+        let id = row["ID"].as_str().unwrap();
+        let raw = reqwest::get(format!("{api}/message/{id}/raw"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        for fragment in [
+            "From: \"Finance Team\" <finance@example.test>",
+            "To: \"Notice Reader\" <reader@example.test>",
+            "Cc: team@example.test",
+            "Bcc: audit@example.test",
+            "Reply-To: support@example.test",
+            "X-Tag: payment",
+            "X-Metadata-case: notification",
+            "X-Custom-Marker: notification-marked",
+            "notice.txt",
+            "memory.txt",
+            "default-report.txt",
+            "archive-report.txt",
+            "customized.txt",
+            "customized body",
+            "Regards,\r\nOpenRust",
+        ] {
+            assert!(raw.contains(fragment), "{fragment}: {raw}");
+        }
+        if row["Subject"] != "Notification envelope http" {
+            use base64::{Engine as _, engine::general_purpose::STANDARD};
+            assert!(
+                raw.contains(&STANDARD.encode(b"late notice file"))
+                    || raw.contains("late notice file"),
+                "{raw}"
+            );
+        }
+        delivered += 1;
+    }
+    assert_eq!(delivered, 3);
+    drop_delivery_tables(&db).await;
 }
 
 #[tokio::test]

@@ -3276,3 +3276,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 通知邮件的默认格式与操作按钮
 
 依固定 Laravel 的 Formatting Mail Messages 接通通知邮件的正文构建、HTML／纯文本渲染及默认模板发布覆盖。范围含邮件通知消息、渠道、内置视图、集成回归和三语 Notifications 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、21 项邮件通知、9 项磁盘和 5 项视图回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#通知邮件的默认格式与操作按钮)
+
+## 2026-11-18 06-06 通知邮件的地址、附件与消息定制
+
+依固定 Laravel 接通通知邮件的地址、附件来源、标记及定制回调。范围含 MailMessage、内置模板的双正文换行修正、真实队列集成回归与三语 Notifications 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、22 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#通知邮件的地址、附件与消息定制)

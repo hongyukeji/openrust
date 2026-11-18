@@ -215,3 +215,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `4309e6711` 上通过真实 HTTP 验证换行合并、条件正文、按钮前后顺序、错误和成功颜色、缺省主题、HTML 转义、翻译和可复制链接。实际 Artisan 发布默认模板后，应用视图覆盖生效。真实 Mailpit SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker 复验通知发送及队列正文，核对收件的 HTML 和纯文本。
 - `mail_notifications` 21 项通过、2 项专用夹具忽略，`filesystem_local` 9 项和 `view_finder` 5 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语相同示例、VitePress 构建以及根路径和 `/docs/` 下 18 项浏览器检查通过。核心账本维持 66/66。后续核对通知邮件的发件人、收件人、附件和消息定制契约。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 4.06 GB（3.78 GiB），清理后可用 92.57 GB（86.21 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-message.BQ0hNTWV`。
+
+## 通知邮件的地址、附件与消息定制
+
+- 对照固定 Laravel v13.40.0 通知邮件发件人、收件人、附件、标记和消息回调。旧版 `6d1a81924` 的 `EmailDelivery` 只保存发件人、收件人、主题及正文，沿用主线的可序列化 `PreparedMail`、`Envelope`、附件来源和应用级定制机制。普通通知依 `route_notification_for` 获取收件人，自定义 mailable 可自带信封。 [Laravel 通知](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#customizing-the-sender) · [MailMessage](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Messages/MailMessage.php) · [MailChannel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Channels/MailChannel.php)
+- Rust 用 `Address` 表示可带显示名的邮箱。收件信息可重复追加。附件通过类型化 `AttachmentSource` 声明，旧的已物化附件字段仍可使用。完整结构体字面量需补充 `attachment_sources`，使用构建器或 `..Default::default()` 的调用无需额外字段。用 `withMessage` 声明应用注册的回调名和 JSON 数据，投递端按声明顺序修改邮件草稿。双正文默认结束语使用 Markdown 硬换行，避免纯文本和 HTML 转义输出出现字面量 `<br>`。
+- 在隔离基线 `3edc1ca42` 上，经实际 HTTP 和 Mailpit SMTP 核对显示名、抄送、密送、回复地址、原始路径及两种磁盘附件、内存附件、标记和回调。删除文件后即时请求返回 500，仍可入队。独立 MySQL Artisan Worker 的首轮尝试保留任务，恢复文件后重试成功，独立 Redis Worker 同样使用恢复后的附件。三封邮件均检查 MIME 和回调追加的正文及附件，失败表为空。
+- `mail_notifications` 22 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式与严格 Clippy、`./artisan inspire`、三语示例和站点构建、双路径 18 项浏览器检查通过。核心账本维持 66/66。后续核对通知邮件的模板构建、预览和优先级。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.67 GB（3.42 GiB），清理后可用 92.52 GB（86.16 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-envelope.bAog7JqB`。
