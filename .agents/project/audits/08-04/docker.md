@@ -42,3 +42,10 @@ BuildKit 直连镜像分发和 crates.io 时遇到网络失败，隔离 builder 
 - 隔离 MySQL 8.4.13 与 Redis 8 的回环端口通过握手。真实 Artisan 生成密钥、执行 13 项迁移和幂等重跑。两套 Compose 应用共享服务，首页、`/up`、只读 public 文件和迁移状态通过。受管 Redis Worker 与独立 `queue:work redis --once` 各完成实际邮件任务，失败表为空。实际 SIGTERM 退出 0，重建应用保留存储和迁移账本。本地 HTTPS 反向代理使用受信任的测试证书返回 200。
 - 复验当前提交的三语部署站点、根路径和 `/docs/` 共 18 项浏览器检查。相同源码的全仓格式和严格 Clippy 见 [包清单权限修复](README.md#docker-非特权运行的包清单路径)。本次实测架构为原生 amd64。Windows Docker Desktop、生产 TLS 和托管 SQS 仍见 [环境与权限](README.md#剩余实机环境复查)。
 - 本批独立容器、镜像、构建器、构建缓存及站点产物已回收，远端卷清单一致，隔离数据库文件保存在远端私有目录。远端可用 110.70 GB（103.09 GiB），项目盘可用 52.42 GB（48.82 GiB），提交前周额度剩余 19%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-linux-package-cache.GJmKruxl`。
+
+## ARM64 完整镜像包清单复验
+
+- 用 `c901caf09` 的干净归档和原始 Dockerfile 在 Ubuntu x86_64 交叉构建 `linux/arm64` 完整发布镜像，Rust 1.94.0 锁定 release 构建通过。构建交叉编译应用，BuildKit 模拟 ARM64 运行镜像的系统包安装。导出镜像通过 SSH 传回并校验 SHA-256，在 Apple Silicon 的 Docker Desktop 原生运行。镜像平台为 `linux/arm64`、应用容器内 `uname -m` 为 `aarch64`，UID/GID 为 10001。 [Docker 多平台构建](https://docs.docker.com/build/building/multi-platform/) · [Laravel 部署目录权限](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#directory-permissions)
+- 用只读应用根文件系统及共享 storage 实测 Artisan。旧路径因只读失败，默认路径和自定义路径分别可以生成清单，自定义清理保留默认清单。应用容器重建后默认清单仍在，两次独立 `clear-compiled` 成功并保留相邻存储文件，`inspire` 正常。
+- 隔离 MySQL 8.4.13、Redis 8.10.3 及宿主机回环端口通过。真实 Artisan 生成密钥、执行 13 项迁移且重跑无待执行项。两套 Compose 应用共享服务，首页、`/up`、只读 public 文件和迁移状态通过。受管 Redis Worker 和独立 `queue:work redis --once` 各消费一项任务，失败表为空。SIGTERM 退出 0，重建应用保留存储和迁移账本。本地 HTTPS 代理使用受信任的测试证书返回 200。
+- 框架源码、Docker 配置和三语站点与 [amd64 复验](#原生-linux-完整镜像包清单复验) 相同，三语构建与 18 项浏览器结果沿用该次证据。发布镜像和本次容器已回收，远端专用构建器及缓存已清理。两端 Docker 卷清单一致，宿主既有容器保留，隔离数据库文件保存在私有目录。项目盘可用 52.33 GB（48.74 GiB），提交前周额度剩余 19%，第二窗口无读数，按用户授权继续。验收日志位于 `/private/tmp/openrust-arm64-package-cache.Hy1tobKR`。

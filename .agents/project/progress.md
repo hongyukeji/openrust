@@ -3520,3 +3520,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 08-04 原生 Linux 完整镜像包清单复验
 
 从 `12fe39579` 构建原生 amd64 发布镜像。真实 Artisan、HTTP、只读 rootfs、MySQL 迁移、Redis Worker、进程关停和三语站点通过。 [验收记录](audits/08-04/docker.md#原生-linux-完整镜像包清单复验)
+
+## 2026-11-18 08-04 ARM64 完整镜像包清单复验
+
+从 `c901caf09` 交叉构建 arm64 完整镜像，校验导出后在 Apple Silicon 原生运行。真实 Artisan、HTTP、MySQL／Redis、只读容器和重建通过。 [验收记录](audits/08-04/docker.md#arm64-完整镜像包清单复验)

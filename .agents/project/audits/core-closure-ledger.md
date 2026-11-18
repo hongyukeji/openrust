@@ -355,3 +355,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 08-04 [Docker 非特权运行的包清单路径](08-04/README.md#docker-非特权运行的包清单路径)通过真实 Artisan、HTTP 和 Linux UID 10001 挂载权限验收。核心账本维持 66/66。
 
 08-04 [原生 Linux 完整镜像包清单复验](08-04/docker.md#原生-linux-完整镜像包清单复验)通过原生 Ubuntu x86_64 完整镜像、只读容器的真实 Artisan、HTTP、MySQL 8.4.13 和 Redis Worker。实机发布环境检查维持原范围，核心账本维持 66/66。
+
+08-04 [ARM64 完整镜像包清单复验](08-04/docker.md#arm64-完整镜像包清单复验)通过完整 arm64 镜像的交叉构建及原生运行，真实 Artisan、HTTP、MySQL 8.4.13 和 Redis 8.10.3 Worker 通过。核心账本维持 66/66。
