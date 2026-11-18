@@ -80,6 +80,28 @@ Notifications::route(
 
 Include `broadcast` in `via`. Return a `BroadcastMessage` from `to_broadcast`, or return an object from `to_array`. Set the message's `connection` and `queue` to choose where the broadcast event runs. By default, the event adds the notification ID and type. A model with a database route receives these events on the private channel named for its model type and key. Override `receives_broadcast_notifications_on` to customize the private channel names, or use `NotificationRoute::Broadcast` to specify channels for an on-demand recipient.
 
+## Mail notifications {#mail-notifications}
+
+### Formatting mail messages {#formatting-mail-messages}
+
+Return a `MailMessage` from `to_mail` to send a responsive HTML notification with a plain-text counterpart. Lines added before `action` appear above the button; subsequent lines appear below it. Use `lineIf` or `linesIf` for conditional text. The `error` and `success` levels select the button color. The notification’s locale supplies the default greeting, closing, and copyable link instructions. The closing uses `app.name`.
+
+```rust
+use openrust::notifications::messages::{MailDelivery, MailMessage};
+
+let delivery = MailDelivery::Message(Box::new(
+    MailMessage::new()
+        .subject("Invoice paid")
+        .greeting("Hello!")
+        .line("Your invoice has been paid.")
+        .lineIf(total > 0, format!("Amount paid: {total}"))
+        .action("View invoice", invoice_url)
+        .line("Thank you for your payment."),
+));
+```
+
+The mail channel uses the notification type name as the default subject. Override the default message view by running `./artisan vendor:publish --tag=laravel-notifications` and editing `resources/views/vendor/notifications/email.blade.html`. To supply a different template for one message, set its `content.view`, `content.text_view`, or `content.markdown`.
+
 ## Markdown mail notifications
 
 To send a Markdown notification, set `MailMessage.content.markdown` to a named Blade view, or return a Markdown mailable from `to_mail`. Both paths use the same [Markdown mail renderer and theme](mail.md#markdown-mail).

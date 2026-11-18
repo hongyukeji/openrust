@@ -3272,3 +3272,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 邮件正文与地址断言
 
 依固定 Laravel 的 Testing Mailable Content 补齐主题、地址以及 HTML／纯文本正文断言。范围包含 Mailable 契约、邮件渲染、集成回归及三语 Mail 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、20 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件正文与地址断言)
+
+## 2026-11-18 06-06 通知邮件的默认格式与操作按钮
+
+依固定 Laravel 的 Formatting Mail Messages 接通通知邮件的正文构建、HTML／纯文本渲染及默认模板发布覆盖。范围含邮件通知消息、渠道、内置视图、集成回归和三语 Notifications 正文。真实 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、21 项邮件通知、9 项磁盘和 5 项视图回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#通知邮件的默认格式与操作按钮)

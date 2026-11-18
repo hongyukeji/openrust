@@ -80,6 +80,28 @@ Notifications::route(
 
 在 `via` 中加入 `broadcast`。由 `to_broadcast` 返回 `BroadcastMessage`，或由 `to_array` 返回对象。用消息的 `connection` 和 `queue` 选择广播事件的队列连接和队列名。事件默认附加通知 ID 和类型。有数据库路由的模型默认在由模型类型和键组成的私有频道上接收事件。可以覆盖 `receives_broadcast_notifications_on` 自定义私有频道名，或用 `NotificationRoute::Broadcast` 为按需收件人指定频道。
 
+## 邮件通知 {#mail-notifications}
+
+### 格式化邮件消息 {#formatting-mail-messages}
+
+在 `to_mail` 中返回 `MailMessage`，可发送响应式 HTML 通知和对应的纯文本正文。在 `action` 之前加入的正文行出现在按钮上方，之后加入的行则在按钮下方。用 `lineIf` 或 `linesIf` 按条件加入正文。`error` 和 `success` 决定按钮颜色。默认问候语、结束语和复制链接说明按通知语言生成，结束语使用 `app.name`。
+
+```rust
+use openrust::notifications::messages::{MailDelivery, MailMessage};
+
+let delivery = MailDelivery::Message(Box::new(
+    MailMessage::new()
+        .subject("Invoice paid")
+        .greeting("Hello!")
+        .line("Your invoice has been paid.")
+        .lineIf(total > 0, format!("Amount paid: {total}"))
+        .action("View invoice", invoice_url)
+        .line("Thank you for your payment."),
+));
+```
+
+未指定主题时，邮件渠道根据通知类型名生成主题。运行 `./artisan vendor:publish --tag=laravel-notifications`，可编辑 `resources/views/vendor/notifications/email.blade.html` 覆盖默认视图。要为单条消息指定其他模板，设置其 `content.view`、`content.text_view` 或 `content.markdown`。
+
 ## Markdown 邮件通知
 
 将 `MailMessage.content.markdown` 设为命名 Blade 视图，或从 `to_mail` 返回 Markdown mailable，即可发送 Markdown 通知。两种方式共用 [Markdown 邮件渲染和主题](mail.md#markdown-邮件)。

@@ -44,7 +44,14 @@ impl ServiceProvider for NotificationServiceProvider {
                 SendQueuedNotifications::NAME,
                 Arc::new(SendQueuedNotifications),
             )?;
-            Ok(())
+            self.publishes(
+                app,
+                &[(
+                    "resources/views/vendor/notifications/email.blade.html",
+                    super::messages::EMAIL_VIEW.as_bytes(),
+                )],
+                "laravel-notifications",
+            )
         })
     }
 }

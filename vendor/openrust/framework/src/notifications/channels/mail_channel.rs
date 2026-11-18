@@ -6,6 +6,7 @@ use crate::{
         Notifiable, Notification, NotificationError, NotificationFuture, NotificationResult,
         NotificationRoute, delivery, messages::MailDelivery,
     },
+    support::Str,
 };
 
 use super::{Channel, ChannelResponse};
@@ -22,7 +23,7 @@ impl MailChannel {
             return Ok(None);
         };
         let (mailable, recipients): (Box<dyn crate::mail::Mailable>, _) = match message {
-            MailDelivery::Message(message) => {
+            MailDelivery::Message(mut message) => {
                 let Some(NotificationRoute::Mail(addresses)) =
                     recipient.route_notification_for("mail", notification)?
                 else {
@@ -30,6 +31,12 @@ impl MailChannel {
                 };
                 if addresses.is_empty() {
                     return Ok(None);
+                }
+                if matches!(message.envelope.subject.as_str(), "" | "0") {
+                    let kind = notification.kind();
+                    let base = kind.split_once('<').map_or(kind, |(base, _)| base);
+                    let name = base.rsplit("::").next().unwrap_or(base);
+                    message.envelope.subject = Str::title(&Str::snake(name, " "));
                 }
                 (message, Recipients::to(addresses))
             }

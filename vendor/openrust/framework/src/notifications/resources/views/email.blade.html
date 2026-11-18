@@ -1,0 +1,34 @@
+<x-mail::message>
+# {{ $greeting }}
+
+@foreach ($introLines as $line)
+{{ $line }}
+
+@endforeach
+
+@if ($hasAction)
+<x-mail::button :url="$actionUrl" :color="$color">
+{{ $actionText }}
+</x-mail::button>
+@endif
+
+@foreach ($outroLines as $line)
+{{ $line }}
+
+@endforeach
+
+@if ($regards)
+{{ $regards }}<br>
+{{ $appName }}
+@else
+{{ $salutation }}
+@endif
+
+<x-slot:subcopy>
+@if ($hasAction)
+{{ $subcopy }}
+
+[{{ $displayableActionUrl }}](<{{ $actionUrl }}>)
+@endif
+</x-slot:subcopy>
+</x-mail::message>

@@ -338,17 +338,13 @@ impl Notice for Payment {
     }
 
     fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
-        Ok(Some(MailDelivery::Message(Box::new(MailMessage {
-            envelope: Envelope {
-                subject: format!("OpenRust payment ({})", Lang::getLocale().unwrap()),
-                ..Default::default()
-            },
-            content: Content {
-                text: Some("Payment received".into()),
-                ..Default::default()
-            },
-            ..Default::default()
-        }))))
+        Ok(Some(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject(format!("OpenRust payment ({})", Lang::getLocale().unwrap()))
+                .line("Payment received")
+                .action("View payment", "https://example.test/payments/1")
+                .line("Thank you for your payment"),
+        ))))
     }
 
     fn to_array(&self, _: &dyn Notifiable) -> NotificationResult<Option<DatabaseMessage>> {
@@ -777,6 +773,76 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
     })
 }
 
+struct InvoicePaid<T>(std::marker::PhantomData<T>);
+
+impl<T: Send + Sync> Notice for InvoicePaid<T> {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into()])
+    }
+
+    fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        Ok(Some(MailDelivery::Message(Box::new(
+            MailMessage::new().line("Invoice received"),
+        ))))
+    }
+}
+
+fn notification_format_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mail = MailMessage::new()
+            .error()
+            .greeting("Hello <Sam>")
+            .line(" First line \r\n continued ")
+            .lineIf(false, "hidden")
+            .linesIf(true, ["Second line", "Third line"])
+            .action(
+                "View invoice",
+                "https://example.test/invoice?src=mail&ref=1",
+            )
+            .lines(["After action", "Final line"])
+            .salutation("Sincerely, Finance");
+        let html = Mail::render(&mail).await.unwrap();
+        mail.assertSeeInOrderInText(&[
+            "Hello <Sam>",
+            "First line continued",
+            "Second line",
+            "Third line",
+            "View invoice",
+            "After action",
+            "Final line",
+            "Sincerely, Finance",
+            "https://example.test/invoice?src=mail&ref=1",
+        ])
+        .await;
+        Notification::route(
+            "mail",
+            NotificationRoute::Mail(vec!["reader@example.test".into()]),
+        )
+        .unwrap()
+        .notifyNow(&InvoicePaid(std::marker::PhantomData::<Envelope>), None)
+        .await
+        .unwrap();
+        let sent = Mail::mailer(None).unwrap().sent().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].message.envelope().subject, "Invoice Paid");
+        let error_html = Lang::withLocale("fr", Mail::render(&MailMessage::new().error()))
+            .await
+            .unwrap()
+            .unwrap();
+        let success_html = Mail::render(
+            &MailMessage::new()
+                .success()
+                .action("Details", "https://example.test/details"),
+        )
+        .await
+        .unwrap();
+        Response::json(
+            http::StatusCode::OK,
+            json!({ "html": html, "localized": error_html, "success": success_html }),
+        )
+    })
+}
+
 type EventRecord = (String, String, String);
 
 struct ListenerProbe {
@@ -1041,6 +1107,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
                 uploaded_mail_from_http,
             )?;
             Route::get("/mail-assertions", mail_assertions_from_http)?;
+            Route::get("/notification-format", notification_format_from_http)?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2239,6 +2306,74 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
 }
 
 #[tokio::test]
+async fn formatted_notification_mail_renders_over_http_and_publishes_the_view() {
+    let root = fixture(None, None, None);
+    std::fs::create_dir_all(root.0.join("lang")).unwrap();
+    std::fs::write(
+        root.0.join("lang/fr.json"),
+        r#"{"Whoops!":"Oups !","Regards,":"Cordialement,"}"#,
+    )
+    .unwrap();
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "notification-format").await;
+    let values: Json = reqwest::get(url)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let html = values["html"].as_str().unwrap();
+    for marker in [
+        "Hello &lt;Sam&gt;",
+        "First line continued",
+        "button-error",
+        "https://example.test/invoice?src=mail&amp;ref=1",
+        "If you're having trouble",
+        "Sincerely, Finance",
+    ] {
+        assert!(html.contains(marker), "{marker}: {html}");
+    }
+    assert!(!html.contains("hidden"));
+    let localized = values["localized"].as_str().unwrap();
+    assert!(localized.contains("Oups !") && localized.contains("Cordialement,"));
+    assert!(
+        values["success"]
+            .as_str()
+            .unwrap()
+            .contains("button-success")
+    );
+    server.abort();
+
+    let published = root
+        .0
+        .join("resources/views/vendor/notifications/email.blade.html");
+    assert!(!published.exists());
+    artisan(&root.0, &["vendor:publish", "--tag=laravel-notifications"]).await;
+    assert!(
+        std::fs::read_to_string(&published)
+            .unwrap()
+            .contains("$introLines")
+    );
+    std::fs::write(&published, "# Overridden notification email").unwrap();
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                let html = Mail::render(&MailMessage::new()).await.unwrap();
+                assert!(html.contains("Overridden notification email"));
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn mailable_content_assertions_render_without_delivering_mail() {
     let root = fixture(None, None, None);
     let views = root.0.join("resources/views");
@@ -2771,6 +2906,47 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
             .unwrap(),
         Value::Text("01-user".into())
     );
+    if smtp.is_some()
+        && let Ok(port) = std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT")
+    {
+        let api = format!("http://127.0.0.1:{port}/api/v1");
+        let listing: Json = reqwest::get(format!("{api}/messages"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let payment = listing["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["Subject"] == "OpenRust payment (fr)")
+            .expect("queued notification delivered to Mailpit");
+        let id = payment["ID"].as_str().unwrap();
+        let message: Json = reqwest::get(format!("{api}/message/{id}"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        assert!(message["HTML"].as_str().unwrap().contains("button-primary"));
+        assert!(
+            message["HTML"]
+                .as_str()
+                .unwrap()
+                .contains("Thank you for your payment")
+        );
+        assert!(
+            message["Text"]
+                .as_str()
+                .unwrap()
+                .contains("https://example.test/payments/1")
+        );
+    }
     if mysql.is_some() {
         drop_delivery_tables(&db).await;
     }

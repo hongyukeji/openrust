@@ -207,3 +207,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 基于隔离基线 `f7f207b59`，真实 HTTP 核对地址、显示名、主题、HTML 逃逸、原始标记、实体解码、非重叠顺序、语言切换及恢复、Markdown 纯文本和纯文本回退。包含逆序、重复匹配数量不足及预期内容缺失的失败路径，数组传输保持空。旧发送路径在 Mailpit SMTP 和 MySQL／Redis 独立 Artisan Worker 上通过复验。
 - `mail_notifications` 20 项通过、2 项外部专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、`./artisan inspire`、三语相同示例、VitePress 构建以及根路径和 `/docs/` 的 12 项通用及 6 项正文浏览器检查通过。核心账本维持 66/66。下一批对照 Notifications 的邮件正文和操作按钮构建接口。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.86 GB（3.59 GiB），清理后可用 87.36 GB（81.36 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-assertions.1UheRv6N`。
+
+## 通知邮件的默认格式与操作按钮
+
+- 对照固定 Laravel v13.40.0 的 Formatting Mail Messages、`SimpleMessage`、`MailChannel` 和默认邮件视图。接通 `MailMessage` 的主题、问候语、结束语、条件正文、操作按钮、消息级别及 mailer 选择。正文按调用顺序分到按钮前后，邮件渠道在缺省时由通知类型标识生成主题，Rust 通过 `Notification::kind()` 获取标识。旧版 `6d1a81924` 未提供同契约构建器。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#formatting-mail-messages) · [SimpleMessage](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Messages/SimpleMessage.php) · [MailChannel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Channels/MailChannel.php)
+- Rust 正文行使用字符串，复用 `Content.with` 传递构建参数，`MailMessage` 的字段与显式 HTML、文本或视图调用兼容。内置 `notifications::email` 通过同一 Markdown 管线生成 HTML 和纯文本，命名插槽直接位于 Blade 组件下。默认问候语、结束语和链接说明使用通知语言。默认模板可通过现有 `vendor:publish --tag=laravel-notifications` 发布并覆盖。
+- 在隔离基线 `4309e6711` 上通过真实 HTTP 验证换行合并、条件正文、按钮前后顺序、错误和成功颜色、缺省主题、HTML 转义、翻译和可复制链接。实际 Artisan 发布默认模板后，应用视图覆盖生效。真实 Mailpit SMTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker 复验通知发送及队列正文，核对收件的 HTML 和纯文本。
+- `mail_notifications` 21 项通过、2 项专用夹具忽略，`filesystem_local` 9 项和 `view_finder` 5 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语相同示例、VitePress 构建以及根路径和 `/docs/` 下 18 项浏览器检查通过。核心账本维持 66/66。后续核对通知邮件的发件人、收件人、附件和消息定制契约。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 4.06 GB（3.78 GiB），清理后可用 92.57 GB（86.21 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-notification-message.BQ0hNTWV`。
