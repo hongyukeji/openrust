@@ -3481,6 +3481,7 @@ dependencies = [
  "clap",
  "fastrand",
  "openrust-framework",
+ "serde",
  "serde_json",
  "tokio",
 ]

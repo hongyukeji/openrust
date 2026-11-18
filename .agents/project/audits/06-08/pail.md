@@ -16,4 +16,8 @@ PHP 序列化异常转换为现有 Rust 结构化异常快照。Pail 的跨进�
 
 ## 状态
 
-[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。下一批先补该认证入口，再实现 Pail 命令和开发进程注册。
+[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。[认证入口复核](pail-auth-boundary.md)确认现有同步日志无法安全驱动独占借用请求的异步 Guard，该项保留未闭合。独立推进 Pail 命令依赖：[消息对象与筛选](pail-options.md)后，依次接 CliPrinter、会话命令、超时／信号清理及 dev 注册。
+
+## Provider 剩余差异
+
+固定 PailServiceProvider 在非 Pail 自身测试中跳过普通应用测试环境与 PHP Vapor 的 `VAPOR_SSM_PATH` 环境。当前包尚未接入该门禁；框架尚无同名 `runningUnitTests`／`runningInConsole` 查询。需要按当前应用环境和编译型入口核定适配并验收，不能仅以捕获测试通过视为 Provider 全部对齐。下一批先补环境门禁，再推进 CliPrinter、实际会话命令、超时／信号清理与 dev 注册。[固定 Provider](https://github.com/laravel/pail/blob/fdb73f5eacf03db576c710d5a00101ba185f2254/src/PailServiceProvider.php)

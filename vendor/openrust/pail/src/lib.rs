@@ -3,10 +3,13 @@
 mod file;
 mod files;
 mod handler;
+mod options;
+pub mod value_objects;
 
 pub use file::File;
 pub use files::Files;
 pub use handler::Handler;
+pub use options::Options;
 
 use openrust::{
     contracts::{container::Container as _, events::Dispatcher as _, foundation::Application as _},

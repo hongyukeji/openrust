@@ -20,7 +20,7 @@ use openrust::{
         facades::{Artisan, Auth, Bus, Context, Log, Queue, Route},
     },
 };
-use openrust_pail::{File, PailServiceProvider};
+use openrust_pail::{File, Options, PailServiceProvider, value_objects::MessageLogged};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
@@ -277,7 +277,46 @@ impl Command for ConcurrentCommand {
         })
     }
 }
+struct Inspect(CommandDefinition);
+impl Command for Inspect {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let options = Options::fromCommand(input)?;
+            let contents =
+                std::fs::read_to_string(app.base_path().join("storage/pail/one.pail")).unwrap();
+            let selected: Vec<_> = contents
+                .lines()
+                .map(|line| MessageLogged::fromJson(line).unwrap())
+                .filter(|message| options.accepts(message))
+                .map(|message| message.to_string())
+                .collect();
+            let result = json!({"timeout":options.timeout(),"selected":selected});
+            std::fs::write(app.base_path().join("inspection.json"), result.to_string()).unwrap();
+            output
+                .stdout
+                .push_str(&format!("{} selected\n", selected.len()));
+            Ok(0)
+        })
+    }
+}
 fn async_commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleError> {
+    let mut inspect = clap::Command::new("capture:inspect");
+    for name in ["auth", "user", "level", "filter", "message", "timeout"] {
+        let mut arg = clap::Arg::new(name).long(name).num_args(1);
+        if name == "timeout" {
+            arg = arg.default_value("3600");
+        }
+        inspect = inspect.arg(arg);
+    }
+    artisan.add_command(Box::new(Inspect(CommandDefinition::new(inspect))))?;
     for name in [
         "capture:parallel",
         "capture:left",
@@ -388,6 +427,29 @@ async fn run_acceptance() {
         );
         assert_eq!(root.records("two").len(), records.len());
     }
+    for (root, id) in [(&left, "left"), (&right, "right")] {
+        artisan(
+            root,
+            &[
+                "capture:inspect",
+                &format!("--auth={id}"),
+                "--level=iNfO",
+                "--message=after IDENTITY",
+                "--filter=get",
+                "--timeout=1e2",
+            ],
+        )
+        .await;
+        let result: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(root.0.join("inspection.json")).unwrap())
+                .unwrap();
+        assert_eq!(result["timeout"], 100);
+        assert_eq!(result["selected"].as_array().unwrap().len(), 1);
+        let message = MessageLogged::fromJson(result["selected"][0].as_str().unwrap()).unwrap();
+        assert_eq!(message.authId().as_deref(), Some(id));
+        assert_eq!(message.message(), "after identity");
+    }
+    println!("Pail actual HTTP capture and independent Artisan option filtering passed");
     artisan(&left, &["capture:log"]).await;
     let records = left.records("one");
     assert_eq!(records.len(), 10);

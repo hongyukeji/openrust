@@ -230,3 +230,21 @@ The package exposes `File`, `Files`, `Handler` and `PailServiceProvider`. `File:
 Records include HTTP method/path, command name or queue/job metadata under `context.__pail.origin`. Public Context values override message context; hidden values are excluded. Rust uses application-bound asynchronous scopes to isolate overlapping requests, nested commands and concurrent jobs in one process. Without log listeners, origin collection is skipped.
 
 HTTP identity reflects the current guard's already-resolved user, including a later guard switch. Before asynchronous authentication resolves it is null. PHP Pail can resolve authentication synchronously while logging; this remaining difference is tracked separately. This capture section does not claim complete Pail command or authentication parity.
+
+### Reading and Filtering Captures
+
+`openrust_pail::value_objects::MessageLogged::fromJson` reads a capture line. It exposes its message, level, date/time, exception class/file, trace and typed HTTP, console or queue origin. Parsing, date conversion and origin decoding return `Result` where they can fail. `context()` excludes the reserved `__pail`, `exception` and `userId` fields.
+
+`Options::accepts` combines all supplied filters. Level comparison and substring searches fold ASCII case. The message filter searches only message text; the general filter searches the four-field JSON representation, including origin and context. That representation follows PHP's Unicode escaping, object order and float notation, so a general Unicode search may need its `\u` spelling. Authentication IDs compare as exact strings; `12` and `012` differ. `fromCommand(&Input)` preserves `auth` precedence over `user`, including an explicitly empty value, and PHP's timeout conversion. It reads the Rust command's separate input object.
+
+```rust
+use openrust_pail::{Options, value_objects::MessageLogged};
+
+fn select(line: &str) -> Result<bool, serde_json::Error> {
+    let message = MessageLogged::fromJson(line)?;
+    let options = Options::new(3600, None, Some("ERROR".into()), None, Some("payment".into()));
+    Ok(options.accepts(&message))
+}
+```
+
+These are the accepted parsing and filtering APIs. The live `pail` command, terminal printer and dev registration remain pending. Authentication auto-resolution retains the limitation described above.

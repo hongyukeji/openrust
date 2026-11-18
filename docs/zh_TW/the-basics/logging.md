@@ -230,3 +230,21 @@ fn register_log_listener() -> Result<(), LogError> {
 `context.__pail.origin` 包含 HTTP 方法與路徑、命令名稱或佇列與任務來源。公開 Context 覆蓋訊息 context，隱藏資料不進入擷取。Rust 以綁定應用的非同步作用域隔離同處理程序並行請求、巢狀命令與並行任務；沒有日誌監聽器時略過來源收集。
 
 HTTP 身分讀取目前 guard 已解析的使用者，後續切換 guard 也會更新。非同步驗證尚未解析時身分為 null。PHP Pail 可以在同步日誌呼叫中解析驗證，這項差異另行追蹤；本節不代表 Pail 命令和驗證行為已經全部對齊。
+
+### 讀取與篩選擷取記錄
+
+`openrust_pail::value_objects::MessageLogged::fromJson` 讀取一行擷取資料，可取得訊息、等級、日期／時間、例外類別與檔案、trace，以及具型別的 HTTP、命令或佇列來源。解析、日期轉換與來源解碼的失敗透過 `Result` 傳回。`context()` 排除保留欄位 `__pail`、`exception` 和 `userId`。
+
+`Options::accepts` 要求所有已設定條件同時符合。等級比較與子字串搜尋使用 ASCII 大小寫折疊。message 條件只搜尋訊息文字；通用 filter 搜尋包含來源與 context 的四欄位 JSON 表示。該表示遵循 PHP 的 Unicode 跳脫、物件順序及浮點格式，因此通用 Unicode 搜尋可能需要使用 `\u` 表示。驗證 ID 按字串精確比較，`12` 與 `012` 不同。`fromCommand(&Input)` 保留 auth 優先於 user 的規則，包括明確空值，以及 PHP 的 timeout 轉換；Rust 的命令輸入物件與命令實作分開傳入。
+
+```rust
+use openrust_pail::{Options, value_objects::MessageLogged};
+
+fn select(line: &str) -> Result<bool, serde_json::Error> {
+    let message = MessageLogged::fromJson(line)?;
+    let options = Options::new(3600, None, Some("ERROR".into()), None, Some("payment".into()));
+    Ok(options.accepts(&message))
+}
+```
+
+以上解析與篩選介面已驗收。即時 `pail` 命令、終端列印與 dev 註冊仍待接入，驗證自動解析保留上文所述限制。

@@ -381,3 +381,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 01-04／06-08 [同步日志监听](01-04/log-listeners.md)通过真实 HTTP、独立 Artisan、22 项日志／Context 回归、严格 Clippy 和三语文档检查。Pail 固定对照与交付顺序已登记，后续接通捕获和命令。核心账本维持 66/66。
 
 06-08 [Pail 会话捕获](06-08/pail-capture.md)通过真实双应用 HTTP、独立 Artisan、MySQL Worker、并发来源隔离、跨进程文件与根二进制包发现验收。三语正文同步。已解析认证身份可捕获，PHP 自动解析差异、Pail 命令及平台发布矩阵继续跟踪。核心账本维持 66/66，不将该扩展范围计作整体 Pail 已闭合。
+
+06-08 [Pail 消息对象与筛选](06-08/pail-options.md)通过固定 PHP 语料、真实 HTTP→Artisan 筛选、6 项消息／筛选与文件回归、严格 Clippy 和三语文档检查。[认证边界](06-08/pail-auth-boundary.md)仍未闭合；Provider 环境门禁、打印器、会话命令与 dev 注册继续推进。核心账本维持 66/66。

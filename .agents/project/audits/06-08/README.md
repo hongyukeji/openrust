@@ -115,3 +115,7 @@ vendor/openrust/framework/
 ## Pail 会话捕获
 
 [专项验收](pail-capture.md)完成独立可选包、现有包发现、活跃会话 JSON 行、跨进程锁、过期与删除、HTTP／命令／队列来源和公开 Context。真实双应用 HTTP、独立 Artisan、并发命令及同步任务、MySQL 8.4.13 Worker、失败回调、后续消费和隔离 deferred 回调通过。日志／认证／根 Console 定向回归、严格 Clippy、三语站点与 12 项浏览器检查通过。Rust 同步日志只读取已解析认证身份，自动解析差异继续跟踪；`pail` 命令和 dev 注册尚未实现。
+
+## Pail 消息对象与筛选
+
+[专项验收](pail-options.md)完成 Options、MessageLogged 和三类来源对象。固定 PHP 8.4.27 执行未改上游源码，210 组筛选、21 组 timeout、3 条 JSON 序列化结果与 Rust 对照通过。6 项定向测试、文件回归、真实双应用 HTTP→独立 Artisan 筛选、全目标严格 Clippy、三语正文与浏览器检查通过。本批未执行 MySQL Worker，不沿用旧结果冒充本批验收。[认证解析边界](pail-auth-boundary.md)、Provider 环境门禁、CliPrinter、实际会话命令和 dev 注册继续跟踪。
