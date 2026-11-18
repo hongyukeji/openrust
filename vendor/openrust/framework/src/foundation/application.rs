@@ -68,7 +68,7 @@ pub(super) struct ApplicationState {
     pub(crate) keep_published_migration_dates: AtomicBool,
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
     pub(super) package_cache_path: OnceLock<PathBuf>,
-    route_cache_path: OnceLock<PathBuf>,
+    route_cache: OnceLock<(PathBuf, bool)>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     console_tasks: Mutex<Vec<(TaskCommand, String, String)>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
@@ -284,12 +284,22 @@ impl Application {
         }
     }
 
-    pub(crate) fn route_cache_path(&self) -> io::Result<&Path> {
+    /// Returns the route cache path after the application resolves its environment.
+    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    pub fn getCachedRoutesPath(&self) -> Option<&Path> {
         self.shared
-            .route_cache_path
+            .route_cache
             .get()
-            .map(PathBuf::as_path)
-            .ok_or_else(|| io::Error::other("Route cache path is unavailable"))
+            .map(|(path, _)| path.as_path())
+    }
+
+    /// Reports whether this application loaded a valid route matching index during boot.
+    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    pub fn routesAreCached(&self) -> bool {
+        self.shared
+            .route_cache
+            .get()
+            .is_some_and(|(_, loaded)| *loaded)
     }
 
     pub(crate) fn compile_route_cache(&self) -> io::Result<RouteCache> {
@@ -442,7 +452,7 @@ impl Application {
             keep_published_migration_dates: AtomicBool::new(false),
             package_manifest: OnceLock::new(),
             package_cache_path: OnceLock::new(),
-            route_cache_path: OnceLock::new(),
+            route_cache: OnceLock::new(),
             package_commands: Mutex::default(),
             console_tasks: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
@@ -766,7 +776,6 @@ impl Application {
                     Path::new,
                 ),
         );
-        let _ = self.shared.route_cache_path.set(route_cache_path);
         self.shared
             .container
             .instanceNamed("config.cache.path", Arc::new(cache_path))
@@ -933,12 +942,11 @@ impl Application {
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         crate::filesystem::register_signed_routes(&mut routes, config.as_ref())
             .map_err(routing_failed)?;
-        routes.load_cache(
-            self.shared
-                .route_cache_path
-                .get()
-                .expect("route cache path resolved"),
-        );
+        let loaded = routes.load_cache(&route_cache_path);
+        self.shared
+            .route_cache
+            .set((route_cache_path, loaded))
+            .expect("application route cache loaded once");
         self.shared
             .container
             .instanceNamed(

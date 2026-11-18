@@ -277,3 +277,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 08-04 [Artisan 部署优化与缓存清理](08-04/README.md#artisan-部署优化与缓存清理)通过真实 Artisan、HTTP 和 Redis 验收。持久化路由缓存由路由单元继续跟踪。
 
 04-01 [持久化路由匹配索引](04-01/README.md#持久化路由匹配索引)和 08-04 部署命令联动通过实际 HTTP、Artisan、MySQL、Redis 和三语文档验收。
+
+04-01／T-01 [路由缓存路径与测试夹具隔离](04-01/README.md#路由缓存路径与测试夹具隔离)通过真实 HTTP、Artisan、子进程隔离和三语文档验收。

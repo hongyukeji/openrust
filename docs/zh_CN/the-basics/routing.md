@@ -69,7 +69,9 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 
 缓存按 HTTP 方法和路径首段保存候选项。Rust 仍在启动时注册处理器、模型绑定和中间件。匹配索引保留原注册顺序。索引缺失、不可读或与当前路由结构不匹配时，使用常规匹配。路由改变后重新运行 `route:cache`，用 `route:clear` 移除索引。
 
-默认路径为 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定绝对路径或相对应用根目录的路径。
+默认路径为 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定绝对路径或相对应用根目录的路径。使用配置缓存时，将此项设为服务的进程环境变量，因为启动时可能跳过 `.env`。
+
+启动后，`getCachedRoutesPath()` 返回解析后的路径，`routesAreCached()` 表示本次启动是否加载了有效索引。
 
 ## 路由参数
 

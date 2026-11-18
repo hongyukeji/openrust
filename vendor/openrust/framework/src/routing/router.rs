@@ -117,9 +117,10 @@ impl Router {
             .then(|| super::route_cache::RouteCache::compile(&self.by_method, &self.routes))
     }
 
-    pub(crate) fn load_cache(&mut self, path: &std::path::Path) {
+    pub(crate) fn load_cache(&mut self, path: &std::path::Path) -> bool {
         self.route_cache =
             super::route_cache::RouteCache::load(path, &self.by_method, &self.routes);
+        self.route_cache.is_some()
     }
 
     pub(crate) fn url_routes(&self) -> super::url_generator::UrlRoutes {

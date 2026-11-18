@@ -69,7 +69,9 @@ Use `route:cache` to store a matching index for the deployed application.
 
 The cache stores candidates by HTTP method and first path segment. Rust still registers handlers, model bindings and middleware at startup. The index preserves registration order. Missing, unreadable or incompatible indexes fall back to the normal matcher. Run `route:cache` again after changing routes, and use `route:clear` to remove the index.
 
-The default path is `storage/framework/cache/routes.json`. Set `APP_ROUTES_CACHE` to an absolute path or a path relative to the application root.
+The default path is `storage/framework/cache/routes.json`. Set `APP_ROUTES_CACHE` to an absolute path or a path relative to the application root. Export it in the service environment when using cached configuration, because that startup can skip loading `.env`.
+
+After boot, `getCachedRoutesPath()` returns the resolved path and `routesAreCached()` tells you whether this application loaded a valid index.
 
 ## Route Parameters
 

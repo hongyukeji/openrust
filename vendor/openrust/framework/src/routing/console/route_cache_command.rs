@@ -24,7 +24,9 @@ impl Command for RouteCacheCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let path = app.route_cache_path().map_err(error)?;
+            let path = app
+                .getCachedRoutesPath()
+                .ok_or_else(|| ConsoleError::new("Route cache path is unavailable"))?;
             if self.clear {
                 RouteCache::clear(path).map_err(error)?;
                 output.info("Route cache cleared successfully.");

@@ -3364,3 +3364,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 04-01／08-04 持久化路由匹配索引
 
 接通 `route:cache`／`route:clear` 及优化命令。HTTP 使用通过校验的索引，兼容动态候选及已有匹配顺序。真实 HTTP、Artisan、MySQL、Redis、格式、严格 Clippy 和三语站点通过。 [验收](audits/04-01/README.md#持久化路由匹配索引)
+
+## 2026-11-18 04-01／T-01 路由缓存路径与测试夹具隔离
+
+接通路由缓存路径及加载状态查询，隔离 `TestApp` 继承的部署路径。真实 HTTP、Artisan、子进程夹具、严格 Clippy 和三语站点验收通过。 [验收](audits/04-01/README.md#路由缓存路径与测试夹具隔离)

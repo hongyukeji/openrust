@@ -93,7 +93,7 @@ async fn send(
 #[tokio::test]
 async fn route_groups_match_domains_constraints_and_http_methods() {
     let root = tempfile::tempdir().unwrap();
-    check_routes(root.path()).await;
+    check_routes(root.path(), false).await;
 }
 
 #[tokio::test]
@@ -114,23 +114,35 @@ async fn cached_and_invalid_indexes_preserve_http_routing() {
             let mut payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             assert!(payload["methods"]["GET"]["literal"]["admin"].is_array());
             assert!(payload["methods"]["GET"]["dynamic"].is_array());
-            check_routes(root.path()).await;
+            check_routes(root.path(), true).await;
             payload["methods"]["GET"]["literal"]["admin"] = serde_json::json!([usize::MAX]);
             std::fs::write(&cache, serde_json::to_vec(&payload).unwrap()).unwrap();
-            check_routes(root.path()).await;
+            check_routes(root.path(), false).await;
         } else {
             assert!(!cache.exists());
         }
     }
 }
 
-async fn check_routes(root: &Path) {
+async fn check_routes(root: &Path, cached: bool) {
     let app = Application::configure(root.to_owned())
         .withRouting(Routing::default().web(register))
         .create()
         .unwrap();
+    assert_eq!(app.getCachedRoutesPath(), None);
+    assert!(!app.routesAreCached());
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
+    assert_eq!(kernel.get_application().routesAreCached(), cached);
+    assert_eq!(
+        kernel.get_application().getCachedRoutesPath(),
+        Some(
+            root.canonicalize()
+                .unwrap()
+                .join("storage/framework/cache/routes.json")
+                .as_path()
+        )
+    );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let service = transport.with_state(Arc::new(kernel)).into_make_service();

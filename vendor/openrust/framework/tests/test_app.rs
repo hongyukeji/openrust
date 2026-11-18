@@ -6,6 +6,49 @@ use openrust::{
 };
 use serde_json::json;
 
+#[test]
+fn test_app_does_not_change_an_inherited_route_cache() {
+    let root = tempfile::tempdir().unwrap();
+    let deployed_cache = root.path().join("deployed-routes.json");
+    fs::write(&deployed_cache, b"unchanged deployment cache").unwrap();
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--ignored", "--exact", "test_app_route_cache_fixture"])
+        .env("APP_ROUTES_CACHE", &deployed_cache)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read(deployed_cache).unwrap(),
+        b"unchanged deployment cache"
+    );
+}
+
+#[tokio::test]
+#[ignore = "Run with a separate deployment environment by the parent test"]
+async fn test_app_route_cache_fixture() -> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust::{foundation::configuration::Routing, support::facades::Route, view::view};
+
+    let mut fixture = TestApp::create(|builder| {
+        builder.withRouting(Routing::default().web(|| Route::get("/probe", || view("welcome"))))
+    })?;
+    fs::write(
+        fixture.root().join(".env.testing"),
+        "APP_ROUTES_CACHE=private/fixture.json\n",
+    )?;
+    let cache = fixture.root().canonicalize()?.join("private/fixture.json");
+    fixture.artisan(["route:cache"]).await.assertSuccessful();
+    assert_eq!(fixture.app().getCachedRoutesPath(), Some(cache.as_path()));
+    assert!(cache.is_file());
+    fixture.artisan(["route:clear"]).await.assertSuccessful();
+    assert!(!cache.exists());
+    Ok(())
+}
+
 #[tokio::test]
 async fn boots_independent_apps_with_isolated_configuration_and_files()
 -> Result<(), Box<dyn Error + Send + Sync>> {

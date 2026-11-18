@@ -30,6 +30,7 @@ impl LoadEnvironmentVariables {
                 .insert("APP_ENV".into(), "testing".into());
             environment.values.remove("APP_CONFIG_CACHE");
             environment.values.remove("APP_PACKAGES_CACHE");
+            environment.values.remove("APP_ROUTES_CACHE");
         }
         let process_env = environment
             .get_utf8("APP_ENV")?

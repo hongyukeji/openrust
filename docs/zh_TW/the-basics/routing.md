@@ -69,7 +69,9 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 
 快取依 HTTP 方法和路徑首段儲存候選項目。Rust 仍在啟動時註冊處理器、模型繫結和中介層。比對索引保留原註冊順序。索引遺失、無法讀取或與目前路由結構不符時，使用一般比對。路由變更後重新執行 `route:cache`，用 `route:clear` 移除索引。
 
-預設路徑為 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。
+預設路徑為 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。使用設定快取時，將這個值設為服務的程序環境變數，因為啟動時可能略過 `.env`。
+
+啟動後，`getCachedRoutesPath()` 回傳解析後的路徑，`routesAreCached()` 表示這次啟動是否載入了有效索引。
 
 ## 路由參數
 

@@ -36,7 +36,7 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 
 `boot` 執行應用程式引導，無須繫結連接埠。預設設定使用 `testing` 環境，自訂設定載入器提供自己的設定。測試夾具離開作用域時清理其暫存目錄。測試輔助工具不修改程序環境和工作目錄。
 
-在首次 `boot`、HTTP 請求或 Artisan 命令前，把 `.env.testing` 寫入 `test.root()`。設定載入器可以從環境參數讀取目前夾具內的值，收到的 `APP_ENV` 為 `testing`。夾具忽略從程序繼承的 `APP_CONFIG_CACHE` 和 `APP_PACKAGES_CACHE` 路徑。
+在首次 `boot`、HTTP 請求或 Artisan 命令前，把 `.env.testing` 寫入 `test.root()`。設定載入器可以從環境參數讀取目前夾具內的值，收到的 `APP_ENV` 為 `testing`。夾具忽略從程序繼承的 `APP_CONFIG_CACHE`、`APP_PACKAGES_CACHE` 和 `APP_ROUTES_CACHE` 路徑。要為夾具指定自訂路由快取時，在它的 `.env.testing` 中設定 `APP_ROUTES_CACHE`。
 
 ## 建立測試 {#creating-tests}
 
