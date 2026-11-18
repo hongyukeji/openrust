@@ -2,7 +2,7 @@ use axum::body::Bytes;
 use futures_util::{StreamExt as _, stream};
 use serde_json::{Map, Value};
 
-use crate::http::{Body, HttpError, Method, Request, UploadedFile};
+use crate::http::{Body, HttpError, Method, Request, UploadedFile, UploadedFileValue};
 use crate::support::{
     Arr, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar, data_get,
     facades::Config, frozen_utc_now, input_scalars,
@@ -385,18 +385,27 @@ impl Request {
     /// Returns a multipart upload by field name or dotted array index.
     pub async fn file(&mut self, key: &str) -> Result<Option<UploadedFile>, HttpError> {
         let payload = self.payload().await?;
-        let mut value = &payload.file_indices;
-        for segment in key.split('.') {
-            let Some(field) = child(value, segment) else {
-                return Ok(None);
-            };
-            value = field;
-        }
-        Ok(value
-            .as_str()
-            .and_then(|index| index.parse::<usize>().ok())
-            .and_then(|index| payload.files.get(index))
+        Ok(data_get(&payload.file_indices, Some(key))
+            .as_ref()
+            .and_then(|value| payload.upload(value))
             .cloned())
+    }
+
+    /// Returns all uploads with their original field keys and groups.
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub async fn allFiles(&mut self) -> Result<UploadedFileValue, HttpError> {
+        let payload = self.payload().await?;
+        Ok(payload.upload_value(&payload.file_indices))
+    }
+
+    /// Resolves a file or group by dotted path, including wildcard selections.
+    #[allow(
+        non_snake_case,
+        reason = "Typed counterpart to Laravel's grouped file lookup"
+    )]
+    pub async fn fileValue(&mut self, key: &str) -> Result<Option<UploadedFileValue>, HttpError> {
+        let payload = self.payload().await?;
+        Ok(data_get(&payload.file_indices, Some(key)).map(|value| payload.upload_value(&value)))
     }
 
     /// Creates a lazy image from the multipart field, if present.
@@ -414,14 +423,15 @@ impl Request {
     #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
     pub async fn hasFile(&mut self, key: &str) -> Result<bool, HttpError> {
         let payload = self.payload().await?;
-        let mut value = &payload.file_indices;
-        for segment in key.split('.') {
-            let Some(field) = child(value, segment) else {
-                return Ok(false);
-            };
-            value = field;
-        }
-        Ok(contains_file(value))
+        let Some(value) = data_get(&payload.file_indices, Some(key)) else {
+            return Ok(false);
+        };
+        let is_file = |value| payload.upload(value).is_some();
+        Ok(match &value {
+            Value::Array(fields) => fields.iter().any(is_file),
+            Value::Object(fields) => fields.values().any(is_file),
+            _ => is_file(&value),
+        })
     }
 
     /// Returns a bounded copy-on-write view of the original body bytes.
@@ -597,6 +607,7 @@ async fn parse_multipart(bytes: Bytes, boundary: &str) -> Result<Payload, InputF
     let mut fields = VariableBag::default();
     let mut file_indices = VariableBag::default();
     let mut files = Vec::new();
+    let mut has_empty_upload = false;
     let mut count = 0;
     while let Some(field) = multipart.next_field().await.map_err(multipart_error)? {
         count += 1;
@@ -608,7 +619,10 @@ async fn parse_multipart(bytes: Bytes, boundary: &str) -> Result<Payload, InputF
         let media = field.content_type().map(ToString::to_string);
         let bytes = field.bytes().await.map_err(multipart_error)?;
         if let Some(filename) = filename {
-            if !filename.is_empty() {
+            if filename.is_empty() {
+                has_empty_upload = true;
+                file_indices.insert(&name, String::new())?;
+            } else {
                 file_indices.insert(&name, files.len().to_string())?;
                 files.push(UploadedFile::new(filename, media, bytes));
             }
@@ -620,9 +634,15 @@ async fn parse_multipart(bytes: Bytes, boundary: &str) -> Result<Payload, InputF
             fields.insert(&name, value)?;
         }
     }
+    let file_indices = file_indices.into_value();
+    let file_indices = if has_empty_upload {
+        filter_file_indices(file_indices).unwrap_or_else(empty)
+    } else {
+        file_indices
+    };
     Ok(Payload {
         fields: fields.into_value(),
-        file_indices: file_indices.into_value(),
+        file_indices,
         files,
     })
 }
@@ -726,11 +746,70 @@ fn as_fields(value: Value) -> Map<String, Value> {
     }
 }
 
-fn contains_file(value: &Value) -> bool {
+// Like Laravel's filterFiles, discard empty uploads and groups without reindexing.
+fn filter_file_indices(value: Value) -> Option<Value> {
     match value {
-        Value::String(_) => true,
-        Value::Array(fields) => fields.iter().any(contains_file),
-        Value::Object(fields) => fields.values().any(contains_file),
-        _ => false,
+        Value::String(index) => (!index.is_empty()).then_some(Value::String(index)),
+        Value::Array(fields) => {
+            let fields: Vec<_> = fields
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, field)| Some((index, filter_file_indices(field)?)))
+                .collect();
+            if fields.is_empty() {
+                None
+            } else if fields
+                .iter()
+                .enumerate()
+                .all(|(offset, (index, _))| offset == *index)
+            {
+                Some(Value::Array(
+                    fields.into_iter().map(|(_, field)| field).collect(),
+                ))
+            } else {
+                Some(Value::Object(
+                    fields
+                        .into_iter()
+                        .map(|(index, field)| (index.to_string(), field))
+                        .collect(),
+                ))
+            }
+        }
+        Value::Object(fields) => {
+            let fields: Map<_, _> = fields
+                .into_iter()
+                .filter_map(|(key, field)| Some((key, filter_file_indices(field)?)))
+                .collect();
+            (!fields.is_empty()).then_some(Value::Object(fields))
+        }
+        _ => None,
+    }
+}
+
+impl Payload {
+    fn upload(&self, value: &Value) -> Option<&UploadedFile> {
+        self.files.get(value.as_str()?.parse::<usize>().ok()?)
+    }
+
+    fn upload_value(&self, value: &Value) -> UploadedFileValue {
+        match value {
+            Value::Array(fields) => UploadedFileValue::Files(
+                fields
+                    .iter()
+                    .enumerate()
+                    .map(|(index, field)| (index.to_string(), self.upload_value(field)))
+                    .collect(),
+            ),
+            Value::Object(fields) => UploadedFileValue::Files(
+                fields
+                    .iter()
+                    .map(|(key, field)| (key.clone(), self.upload_value(field)))
+                    .collect(),
+            ),
+            leaf => self
+                .upload(leaf)
+                .cloned()
+                .map_or(UploadedFileValue::Null, UploadedFileValue::File),
+        }
     }
 }

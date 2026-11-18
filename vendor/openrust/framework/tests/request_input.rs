@@ -10,7 +10,7 @@ use openrust::{
     },
     http::{
         Body, HeaderMap, HttpError, HttpFuture, Method, Request, Response, ResponseMacro,
-        StatusCode, StreamedEvent, StreamedJson,
+        StatusCode, StreamedEvent, StreamedJson, UploadedFileValue,
     },
     routing::{
         ControllerDispatcher, ResourceAction, ResourceController, RouteGroup, Router, RoutingError,
@@ -77,6 +77,38 @@ fn photo_resource() -> ResourceController<EchoController> {
         .action(Edit, EchoController::edit)
         .action(Update, EchoController::update)
         .action(Destroy, EchoController::destroy)
+}
+
+fn upload_names(value: UploadedFileValue) -> Value {
+    match value {
+        UploadedFileValue::File(file) => json!(file.getClientOriginalName()),
+        UploadedFileValue::Files(files) => Value::Object(
+            files
+                .into_iter()
+                .map(|(key, file)| (key, upload_names(file)))
+                .collect(),
+        ),
+        UploadedFileValue::Null => Value::Null,
+    }
+}
+
+fn uploads(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "files": upload_names(request.allFiles().await?),
+                "matched": request.fileValue("photos.*.image").await?.map(upload_names),
+                "empty": request.fileValue("empty").await?.is_none(),
+                "skipped": request.fileValue("list.0").await?.is_none(),
+                "single": request.file("list.1").await?.map(|file| file.get().to_vec()),
+                "has_list": request.hasFile("list").await?,
+                "has_nested": request.hasFile("photos").await?,
+                "has_direct": request.hasFile("photos.0").await?,
+                "has_wildcard": request.hasFile("photos.*.image").await?,
+            }),
+        )
+    })
 }
 
 struct Provider(&'static str);
@@ -561,6 +593,7 @@ async fn start_with(
                 route.middleware_name("cache.headers:public;etag");
                 Ok(())
             })?;
+            Route::r#match(&[Method::POST], "/uploads", uploads)?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1235,6 +1268,43 @@ async fn real_http_dispatches_controllers_and_reads_json_form_uploads_and_stream
     assert_eq!(body, "5\r\nfirst\r\n6\r\nsecond\r\n0\r\n\r\n");
     one.abort();
     two.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_grouped_uploads_without_reindexing_empty_slots() {
+    let (address, server) = start("uploads").await;
+    let body = concat!(
+        "--files\r\nContent-Disposition: form-data; name=\"empty\"; filename=\"\"\r\n\r\n\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"list[]\"; filename=\"\"\r\n\r\n\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"list[]\"; filename=\"zero.txt\"\r\n\r\n\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[0][image]\"; filename=\"first.txt\"\r\n\r\none\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[1][image]\"; filename=\"second.txt\"\r\n\r\ntwo\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"photos[2][other]\"; filename=\"other.txt\"\r\n\r\nthree\r\n",
+        "--files\r\nContent-Disposition: form-data; name=\"named[missing]\"; filename=\"\"\r\n\r\n\r\n",
+        "--files--\r\n",
+    );
+    let (_, response) = send(
+        address,
+        "POST",
+        "/uploads",
+        "multipart/form-data; boundary=files",
+        body.as_bytes(),
+        200,
+    )
+    .await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&response).unwrap(),
+        json!({
+            "files": {
+                "list": {"1": "zero.txt"},
+                "photos": {"0": {"image": "first.txt"}, "1": {"image": "second.txt"}, "2": {"other": "other.txt"}},
+            },
+            "matched": {"0": "first.txt", "1": "second.txt", "2": null},
+            "empty": true, "skipped": true, "single": [],
+            "has_list": true, "has_nested": false, "has_direct": true, "has_wildcard": true,
+        }),
+    );
+    server.abort();
 }
 
 #[tokio::test]

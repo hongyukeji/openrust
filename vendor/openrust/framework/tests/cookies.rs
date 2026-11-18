@@ -52,6 +52,21 @@ fn read(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move { Response::json(StatusCode::OK, request.cookie(None)?) })
 }
 
+fn presence(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "empty": request.hasCookie("plain")?,
+                "missing": request.hasCookie("missing")?,
+                "invalid": request.hasCookie("queued")?,
+                "invalid_uses_default": request.cookie(Some("queued"))?.unwrap_or(json!("fallback")),
+                "bag": request.cookie(None)?,
+            }),
+        )
+    })
+}
+
 fn expire(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Cookie::expire("queued", None, None)?;
@@ -62,6 +77,7 @@ fn expire(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 fn register() -> Result<(), RoutingError> {
     Route::get("/set/{value}", set)?;
     Route::get("/read", read)?;
+    Route::get("/presence", presence)?;
     Route::get("/expire", expire)
 }
 
@@ -194,6 +210,20 @@ async fn cookies_round_trip_and_reject_tampering_across_real_http_requests() {
     for server in [first_server, rotated_server, unrelated_server] {
         server.abort();
     }
+}
+
+#[tokio::test]
+async fn request_cookie_presence_uses_the_decrypted_bag() {
+    let (address, server) = start(b'a', None).await;
+    let response = send(address, "/presence", "plain=; queued=invalid").await;
+    assert_eq!(
+        json_body(&response),
+        json!({
+            "empty": true, "missing": false, "invalid": false,
+            "invalid_uses_default": "fallback", "bag": {"plain": "", "queued": null},
+        }),
+    );
+    server.abort();
 }
 
 #[test]

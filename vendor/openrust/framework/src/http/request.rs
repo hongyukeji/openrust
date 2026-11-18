@@ -181,6 +181,19 @@ impl Request {
 
     /// Reads the cookie bag or an exact top-level cookie name.
     pub fn cookie(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
+        Ok(self.cookie_value(key)?.cloned())
+    }
+
+    /// An empty cookie is present. Missing values and failed decryptions are absent.
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn hasCookie(&self, key: &str) -> Result<bool, super::HttpError> {
+        Ok(self.cookie_value(Some(key))?.is_some())
+    }
+
+    fn cookie_value(
+        &self,
+        key: Option<&str>,
+    ) -> Result<Option<&serde_json::Value>, super::HttpError> {
         let cookies = match self
             .decrypted_cookies
             .as_ref()
@@ -202,7 +215,7 @@ impl Request {
                 .and_then(|index| cookies.get(index)),
             _ => None,
         }
-        .cloned())
+        .filter(|value| key.is_none() || !value.is_null()))
     }
 
     pub(crate) fn replace_cookies(

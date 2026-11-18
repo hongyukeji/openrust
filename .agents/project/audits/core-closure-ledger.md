@@ -297,3 +297,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02／04-03 [路径编码和请求正文边界](04-02/README.md#路径编码和请求正文边界)通过固定 Laravel 对照、真实 HTTP、Artisan、Redis 维护复验和三语文档验收。
 
 04-02／04-04 [请求旧输入与会话闪存](04-02/README.md#请求旧输入与会话闪存)通过真实 Array／MySQL 会话、Redis 阻塞、固定 Laravel 对照、Artisan 和三语文档验收。
+
+04-02 [请求 Cookie 与上传文件读取](04-02/README.md#请求-cookie-与上传文件读取)通过实际 HTTP、固定 Laravel 对照、MySQL 8.4.13 验证与认证回归、Artisan 和三语文档验收。

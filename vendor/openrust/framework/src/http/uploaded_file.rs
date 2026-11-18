@@ -4,8 +4,17 @@ use std::{
 };
 
 use axum::body::Bytes;
+use indexmap::IndexMap;
 
 use crate::filesystem::{FilesystemError, FilesystemResult, Storage, Visibility, WriteOptions};
+
+/// A file field, a keyed group of uploads, or a missing member in a wildcard result.
+#[derive(Clone, Debug)]
+pub enum UploadedFileValue {
+    File(UploadedFile),
+    Files(IndexMap<String, Self>),
+    Null,
+}
 
 /// A received upload with untrusted client metadata and bounded file content.
 #[derive(Clone)]

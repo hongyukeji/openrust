@@ -3404,3 +3404,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 04-02／04-04 请求旧输入与会话闪存
 
 Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、MySQL／Redis、固定 Laravel 对照、严格 Clippy 及三语验收。 [请求旧输入与会话闪存](audits/04-02/README.md#请求旧输入与会话闪存)
+
+## 2026-11-18 04-02 请求 Cookie 与上传文件读取
+
+`hasCookie`、`allFiles`、分组和通配符读取、空上传索引、直接成员判断均已验收。实际 HTTP、PHP 固定 Laravel、MySQL 8.4.13、Artisan、严格 Clippy 与三语站点通过。 [请求 Cookie 与上传文件读取](audits/04-02/README.md#请求-cookie-与上传文件读取)

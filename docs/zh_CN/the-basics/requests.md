@@ -60,7 +60,21 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。其他请求更新表单输入，并继续使用查询回退。这些方法保留原始 URI、原始正文和上传文件。
 
-### 输入修剪与规范化 {#input-trimming-and-normalization}
+## 旧输入 {#old-input}
+
+在使用会话中间件的路由中，用 `request.flash().await?` 保存当前输入供下一次请求读取。用 `request.flashOnly(&["profile.name", "page"]).await?` 选取字段，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除字段。字段选择支持点路径。上传文件保存在文件数据中。
+
+用 `request.old(Some("profile.name"))` 读取旧输入的一个字段，或用 `request.old(None)` 获取整袋数据。先匹配字面键，再解析点路径。显式空值保留为 `Some(Value::Null)`，缺失时可用 `Option` 方法提供默认值。
+
+用 `request.flush()?` 将旧输入替换为空。会话内的其他值仍可读取。旧输入在下一次请求结束后过期。
+
+## Cookie {#cookies}
+
+用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。`request.hasCookie("theme")?` 检查 Cookie 是否存在，空字符串也算存在。
+
+启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。校验失败时，整个集合仍保留该键，其值为 null。按名称读取会返回 `None`，调用方可用 `Option` 提供默认值。
+
+## 输入修剪与规范化 {#input-trimming-and-normalization}
 
 全局中间件先修剪查询、JSON 和表单中的字符串，再把空字符串转为 `null`。顶层 `current_password`、`password` 和 `password_confirmation` 跳过修剪，其中的空字符串仍会转为 `null`。原始 URI、正文和上传文件仍可读取。
 
@@ -77,23 +91,17 @@ JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。�
 
 字段模式使用点路径和 `*` 通配符。例外仅对配置它的应用生效。
 
-## 文件
+## 文件 {#files}
 
-用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。
+### 读取上传文件 {#retrieving-uploaded-files}
+
+用 `request.file("attachments.0").await?` 读取单个 multipart 上传文件。`UploadedFile` 提供文件字节，以及客户端给出的文件名和媒体类型。保存前应校验文件内容。
+
+用 `request.fileValue("photos.*.image").await?` 读取一组文件或通配符匹配结果，用 `request.allFiles().await?` 读取整个文件集合。两者用 `UploadedFileValue` 表示文件和带键集合。没有文件名的上传字段会被移除，有文件名的零字节文件仍可读取，保留其余文件的数字索引。
+
+`request.hasFile("attachments").await?` 检查单个文件或集合的直接成员。要检查更深层的文件，请指定嵌套字段或用通配符选取。
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
-
-## Cookie
-
-用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。密文无效或名称绑定不符时，读取到的值为 null。
-
-## 旧输入 {#old-input}
-
-在使用会话中间件的路由中，用 `request.flash().await?` 保存当前输入供下一次请求读取。用 `request.flashOnly(&["profile.name", "page"]).await?` 选取字段，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除字段。字段选择支持点路径。上传文件保存在文件数据中。
-
-用 `request.old(Some("profile.name"))` 读取旧输入的一个字段，或用 `request.old(None)` 获取整袋数据。先匹配字面键，再解析点路径。显式空值保留为 `Some(Value::Null)`，缺失时可用 `Option` 方法提供默认值。
-
-用 `request.flush()?` 将旧输入替换为空。会话内的其他值仍可读取。旧输入在下一次请求结束后过期。
 
 ## 配置可信代理 {#configuring-trusted-proxies}
 

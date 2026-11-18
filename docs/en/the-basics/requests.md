@@ -60,7 +60,21 @@ Use `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` to set va
 
 A JSON request updates its JSON input. A non-JSON GET or HEAD updates the query bag. Other requests update their form input and still fall back to query values. These methods preserve the original URI, raw body and uploads.
 
-### Input Trimming and Normalization {#input-trimming-and-normalization}
+## Old Input {#old-input}
+
+In a route with session middleware, use `request.flash().await?` to store the current input for the next request. Use `request.flashOnly(&["profile.name", "page"]).await?` to select specific fields or `request.flashExcept(&["password", "password_confirmation"]).await?` to exclude fields. Selection supports dotted paths. Uploaded files remain in the file bag.
+
+Read the result with `request.old(Some("profile.name"))` or retrieve the bag with `request.old(None)`. An exact key takes precedence over a dotted path. Explicit null remains available as `Some(Value::Null)`. Use `Option` methods to supply a fallback when the value is missing.
+
+Use `request.flush()?` to replace the old input with an empty bag. The other session values remain available. Old input expires after the following request.
+
+## Cookies {#cookies}
+
+Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. `request.hasCookie("theme")?` checks presence, including an empty string.
+
+With `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A failed validation leaves a null entry in the bag. A lookup by that name returns `None`, so callers can supply a default with `Option`.
+
+## Input Trimming and Normalization {#input-trimming-and-normalization}
 
 The global middleware trims string values in query, JSON and form inputs, then converts empty strings to `null`. The top-level fields `current_password`, `password` and `password_confirmation` are exempt from trimming. Empty strings in these fields still become `null`. The original URI, body bytes and uploaded files remain available.
 
@@ -77,23 +91,17 @@ Configure field patterns or skip either middleware for selected requests in `boo
 
 Field patterns use dotted paths and `*` wildcards. Each application's exceptions apply to its own requests.
 
-## Files
+## Files {#files}
 
-Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.
+### Retrieving Uploaded Files {#retrieving-uploaded-files}
+
+Use `request.file("attachments.0").await?` to retrieve one multipart upload. The returned `UploadedFile` provides bytes, the client filename and the client media type. Validate the content before storing it.
+
+Use `request.fileValue("photos.*.image").await?` for a group or wildcard selection and `request.allFiles().await?` for the whole file bag. Both use `UploadedFileValue` to represent files and keyed groups. Fields submitted without a filename are omitted, while a named zero-byte file remains available. Surviving numeric keys keep their original positions.
+
+`request.hasFile("attachments").await?` checks a file or the immediate members of a group. To check deeper uploads, select the nested field or use a wildcard path.
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
-
-## Cookies
-
-Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. In a stack containing `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A cookie with invalid ciphertext or a mismatched name binding has a null value.
-
-## Old Input {#old-input}
-
-In a route with session middleware, use `request.flash().await?` to store the current input for the next request. Use `request.flashOnly(&["profile.name", "page"]).await?` to select specific fields or `request.flashExcept(&["password", "password_confirmation"]).await?` to exclude fields. Selection supports dotted paths. Uploaded files remain in the file bag.
-
-Read the result with `request.old(Some("profile.name"))` or retrieve the bag with `request.old(None)`. An exact key takes precedence over a dotted path. Explicit null remains available as `Some(Value::Null)`. Use `Option` methods to supply a fallback when the value is missing.
-
-Use `request.flush()?` to replace the old input with an empty bag. The other session values remain available. Old input expires after the following request.
 
 ## Configuring Trusted Proxies {#configuring-trusted-proxies}
 

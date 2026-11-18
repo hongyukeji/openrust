@@ -42,8 +42,8 @@ pub(crate) use response_factory::ResponseServiceProvider;
 pub use response_factory::{ResponseFactory, ResponseMacro};
 pub use streamed_response::{StreamedEvent, StreamedJson};
 pub(crate) use trusted_hosts::TrustedHosts;
-pub use uploaded_file::UploadedFile;
 pub(crate) use uploaded_file::random_name as random_upload_name;
+pub use uploaded_file::{UploadedFile, UploadedFileValue};
 
 /// A request lifecycle step that can be awaited by a multithreaded runtime.
 pub type HttpFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

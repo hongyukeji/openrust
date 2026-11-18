@@ -60,7 +60,21 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。其他請求更新表單輸入，並繼續使用查詢後備值。這些方法保留原始 URI、原始本文和上傳檔案。
 
-### 輸入修剪與正規化 {#input-trimming-and-normalization}
+## 舊輸入 {#old-input}
+
+在使用工作階段中介層的路由中，用 `request.flash().await?` 儲存目前輸入，供下一次請求讀取。用 `request.flashOnly(&["profile.name", "page"]).await?` 選取欄位，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除欄位。欄位選擇支援點路徑。上傳檔案保存在檔案資料中。
+
+用 `request.old(Some("profile.name"))` 讀取舊輸入的一個欄位，或用 `request.old(None)` 取得整份資料。先比對字面鍵，再解析點路徑。明確空值保留為 `Some(Value::Null)`，缺少時可用 `Option` 方法提供預設值。
+
+用 `request.flush()?` 將舊輸入替換為空。工作階段內的其他值仍可讀取。舊輸入在下一次請求結束後過期。
+
+## Cookie {#cookies}
+
+用 `request.cookie(Some("theme"))?` 讀取指定 Cookie，用 `request.cookie(None)?` 讀取整個 Cookie 集合。`request.hasCookie("theme")?` 檢查 Cookie 是否存在，空字串也算存在。
+
+啟用 `EncryptCookies` 後，受保護的 Cookie 會在進入處理器前解密並驗證。驗證失敗時，整個集合仍保留該鍵，其值為 null。依名稱讀取會傳回 `None`，呼叫端可用 `Option` 提供預設值。
+
+## 輸入修剪與正規化 {#input-trimming-and-normalization}
 
 全域中介層先修剪查詢、JSON 與表單中的字串，再把空字串轉為 `null`。頂層 `current_password`、`password` 與 `password_confirmation` 略過修剪，其中的空字串仍會轉為 `null`。原始 URI、本文及上傳檔案仍可讀取。
 
@@ -77,23 +91,17 @@ JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。�
 
 欄位模式使用點路徑和 `*` 萬用字元。例外只對設定它的應用程式生效。
 
-## 檔案
+## 檔案 {#files}
 
-用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。
+### 讀取上傳檔案 {#retrieving-uploaded-files}
+
+用 `request.file("attachments.0").await?` 讀取單一 multipart 上傳檔案。`UploadedFile` 提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應驗證檔案內容。
+
+用 `request.fileValue("photos.*.image").await?` 讀取一組檔案或萬用字元比對結果，用 `request.allFiles().await?` 讀取整個檔案集合。兩者用 `UploadedFileValue` 表示檔案及帶鍵集合。沒有檔名的上傳欄位會被移除，有檔名的零位元組檔案仍可讀取，其餘檔案保留原有的數字索引。
+
+`request.hasFile("attachments").await?` 檢查單一檔案或集合的直接成員。若要檢查更深層的檔案，請指定巢狀欄位或使用萬用字元選取。
 
 輸入讀取及 JSON 回應的完整範例見[控制器](./controllers.md)。
-
-## Cookie
-
-用 `request.cookie(Some("theme"))?` 讀取指定 Cookie，用 `request.cookie(None)?` 讀取整個 Cookie 集合。啟用 `EncryptCookies` 後，受保護的 Cookie 會在進入處理器前解密並驗證。密文無效或名稱綁定不符時，讀取到的值為 null。
-
-## 舊輸入 {#old-input}
-
-在使用工作階段中介層的路由中，用 `request.flash().await?` 儲存目前輸入，供下一次請求讀取。用 `request.flashOnly(&["profile.name", "page"]).await?` 選取欄位，或用 `request.flashExcept(&["password", "password_confirmation"]).await?` 排除欄位。欄位選擇支援點路徑。上傳檔案保存在檔案資料中。
-
-用 `request.old(Some("profile.name"))` 讀取舊輸入的一個欄位，或用 `request.old(None)` 取得整份資料。先比對字面鍵，再解析點路徑。明確空值保留為 `Some(Value::Null)`，缺少時可用 `Option` 方法提供預設值。
-
-用 `request.flush()?` 將舊輸入替換為空。工作階段內的其他值仍可讀取。舊輸入在下一次請求結束後過期。
 
 ## 設定可信任代理 {#configuring-trusted-proxies}
 
