@@ -749,6 +749,7 @@ async fn event_cache_survives_process_restart_and_clears_per_application() {
             .env("EVENT_CACHE_TEST_ENV", environment)
             .env("EVENT_CACHE_TEST_COMMAND", command)
             .env("EVENT_CACHE_TEST_EXIT", exit)
+            .env_remove("APP_EVENTS_CACHE")
             .output()
             .unwrap();
         assert!(
@@ -767,13 +768,15 @@ async fn event_cache_survives_process_restart_and_clears_per_application() {
     let cached = std::fs::read(&cache_path).unwrap();
     assert!(run(root.path(), "testing", list, "0").contains("ProductionListener"));
     assert!(run(other.path(), "testing", list, "0").contains("[]"));
-    let app = Application::configure(root.path().to_owned())
-        .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
-        .withEvents(discovery_manifest())
-        .withRouting(Routing::new(routing))
-        .create()
-        .unwrap();
-    let (address, server) = start(app).await;
+    let application = || {
+        Application::configure(root.path().to_owned())
+            .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
+            .withEvents(discovery_manifest())
+            .withRouting(Routing::new(routing))
+            .create()
+            .unwrap()
+    };
+    let (address, server) = start(application()).await;
     assert_eq!(
         request(address, "/isolated").await,
         json!(["production:isolated"])
@@ -806,4 +809,63 @@ async fn event_cache_survives_process_restart_and_clears_per_application() {
     assert!(run(root.path(), "production", list, "0").contains("ProductionListener"));
     run(root.path(), "testing", "event:clear", "0");
     run(root.path(), "testing", "event:clear", "0");
+
+    std::fs::write(
+        root.path().join(".env"),
+        "APP_EVENTS_CACHE=private/discovery.json\n",
+    )
+    .unwrap();
+    let custom = root.path().join("private/discovery.json");
+    run(root.path(), "production", "event:cache", "0");
+    assert!(custom.is_file() && !cache_path.exists());
+    assert!(run(root.path(), "testing", list, "0").contains("ProductionListener"));
+    let (address, server) = start(application()).await;
+    assert_eq!(
+        request(address, "/isolated").await,
+        json!(["production:isolated"])
+    );
+    server.abort();
+    run(root.path(), "testing", "event:clear", "0");
+    assert!(!custom.exists());
+    assert!(run(root.path(), "testing", list, "0").contains("[]"));
+}
+
+#[test]
+fn test_app_preserves_inherited_event_cache_file() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = root.path().join("deployment.json");
+    std::fs::write(&cache, b"unchanged deployment cache").unwrap();
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "test_app_event_cache_fixture", "--ignored"])
+        .env("APP_EVENTS_CACHE", &cache)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(std::fs::read(cache).unwrap(), b"unchanged deployment cache");
+}
+
+#[tokio::test]
+#[ignore = "Spawned with a separate deployment environment"]
+async fn test_app_event_cache_fixture() {
+    let mut fixture = TestApp::create(|builder| builder).unwrap();
+    std::fs::write(
+        fixture.root().join(".env.testing"),
+        "APP_EVENTS_CACHE=private/fixture.json\n",
+    )
+    .unwrap();
+    let path = fixture
+        .root()
+        .canonicalize()
+        .unwrap()
+        .join("private/fixture.json");
+    fixture.artisan(["event:cache"]).await.assertSuccessful();
+    assert_eq!(fixture.app().getCachedEventsPath(), Some(path.as_path()));
+    assert!(path.is_file());
+    fixture.artisan(["event:clear"]).await.assertSuccessful();
+    assert!(!path.exists());
 }

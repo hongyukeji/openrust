@@ -36,7 +36,7 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 
 `boot` 执行应用引导，无需绑定端口。默认配置使用 `testing` 环境，自定义配置加载器提供自己的设置。夹具离开作用域时清理其临时目录。测试辅助工具不修改进程环境和工作目录。
 
-在首次 `boot`、HTTP 请求或 Artisan 命令前，把 `.env.testing` 写入 `test.root()`。配置加载器可以从环境参数中读取当前夹具的值，收到的 `APP_ENV` 为 `testing`。夹具忽略从进程继承的 `APP_CONFIG_CACHE`、`APP_PACKAGES_CACHE` 和 `APP_ROUTES_CACHE` 路径。需要为夹具指定自定义路由缓存时，在它的 `.env.testing` 中设置 `APP_ROUTES_CACHE`。
+在首次 `boot`、HTTP 请求或 Artisan 命令前，把 `.env.testing` 写入 `test.root()`。配置加载器可以从环境参数中读取当前夹具的值，收到的 `APP_ENV` 为 `testing`。夹具忽略从进程继承的 `APP_CONFIG_CACHE`、`APP_PACKAGES_CACHE`、`APP_ROUTES_CACHE` 和 `APP_EVENTS_CACHE` 路径。需要为夹具指定自定义路由缓存时，在它的 `.env.testing` 中设置 `APP_ROUTES_CACHE`。
 
 ## 创建测试 {#creating-tests}
 

@@ -36,7 +36,7 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 
 `boot` runs the application bootstrap without binding a port. The default configuration uses the `testing` environment. A custom configuration loader supplies its own settings. Each fixture removes its temporary directory when dropped. The helper leaves the process environment and working directory alone.
 
-Write `.env.testing` under `test.root()` before the first `boot`, HTTP request or Artisan command. A configuration loader can read the fixture’s values from its environment argument. The fixture gives the loader `APP_ENV=testing` and ignores inherited `APP_CONFIG_CACHE`, `APP_PACKAGES_CACHE` and `APP_ROUTES_CACHE` paths. To use a custom route cache in a fixture, set `APP_ROUTES_CACHE` in its `.env.testing`.
+Write `.env.testing` under `test.root()` before the first `boot`, HTTP request or Artisan command. A configuration loader can read the fixture’s values from its environment argument. The fixture gives the loader `APP_ENV=testing` and ignores inherited `APP_CONFIG_CACHE`, `APP_PACKAGES_CACHE`, `APP_ROUTES_CACHE` and `APP_EVENTS_CACHE` paths. To use a custom route cache in a fixture, set `APP_ROUTES_CACHE` in its `.env.testing`.
 
 ## Creating tests {#creating-tests}
 

@@ -86,7 +86,7 @@ fn discover_events() -> DiscoverEvents {
 
 ### 生产环境的事件发现 {#event-discovery-in-production}
 
-在部署环境执行 `./artisan event:cache`，缓存编译清单中的发现结果。新进程读取这些结果，并运行对应的编译注册函数。手动监听器和无条件注册照常运行。缓存位于 `storage/framework/cache/events.json`。部署新构建或修改发现配置后重新生成。执行 `./artisan event:clear` 后，下次启动重新计算发现条件。缓存损坏或监听器清单不匹配时也会重新发现。
+在部署环境执行 `./artisan event:cache`，缓存编译清单中的发现结果。新进程读取这些结果，并运行对应的编译注册函数。手动监听器和无条件注册照常运行。默认路径为 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定绝对路径或相对应用根目录的路径。使用配置缓存时，将此项设为服务的进程环境变量。启动后可用 `getCachedEventsPath()` 查询解析后的路径。部署新构建或修改发现配置后重新生成。执行 `./artisan event:clear` 后，下次启动重新计算发现条件。缓存损坏或监听器清单不匹配时也会重新发现。
 
 模型生命周期处理程序可在服务提供者启动时注册为 [Eloquent 观察者](../eloquent/getting-started.md#observers)。
 

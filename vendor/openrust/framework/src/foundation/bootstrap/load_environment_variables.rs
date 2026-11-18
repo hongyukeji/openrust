@@ -31,6 +31,7 @@ impl LoadEnvironmentVariables {
             environment.values.remove("APP_CONFIG_CACHE");
             environment.values.remove("APP_PACKAGES_CACHE");
             environment.values.remove("APP_ROUTES_CACHE");
+            environment.values.remove("APP_EVENTS_CACHE");
         }
         let process_env = environment
             .get_utf8("APP_ENV")?

@@ -69,6 +69,7 @@ pub(super) struct ApplicationState {
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
     pub(super) package_cache_path: OnceLock<PathBuf>,
     route_cache: OnceLock<(PathBuf, bool)>,
+    event_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     console_tasks: Mutex<Vec<(TaskCommand, String, String)>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
@@ -302,6 +303,12 @@ impl Application {
             .is_some_and(|(_, loaded)| *loaded)
     }
 
+    /// Returns the event cache path after the application's environment is resolved.
+    #[allow(non_snake_case, reason = "Matches Laravel's Application API")]
+    pub fn getCachedEventsPath(&self) -> Option<&Path> {
+        self.shared.event_cache_path.get().map(PathBuf::as_path)
+    }
+
     pub(crate) fn compile_route_cache(&self) -> io::Result<RouteCache> {
         self.shared
             .routes
@@ -453,6 +460,7 @@ impl Application {
             package_manifest: OnceLock::new(),
             package_cache_path: OnceLock::new(),
             route_cache: OnceLock::new(),
+            event_cache_path: OnceLock::new(),
             package_commands: Mutex::default(),
             console_tasks: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
@@ -772,6 +780,17 @@ impl Application {
                     Path::new,
                 ),
         );
+        let event_cache_path = self.shared.basePath.join(
+            environment
+                .values
+                .get("APP_EVENTS_CACHE")
+                .filter(|path| !path.is_empty())
+                .map_or_else(
+                    || Path::new("storage/framework/cache/events.json"),
+                    Path::new,
+                ),
+        );
+        let _ = self.shared.event_cache_path.set(event_cache_path);
         self.shared
             .container
             .instanceNamed("config.cache.path", Arc::new(cache_path))

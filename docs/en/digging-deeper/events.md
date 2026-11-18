@@ -86,7 +86,7 @@ fn discover_events() -> DiscoverEvents {
 
 ### Event discovery in production {#event-discovery-in-production}
 
-Run `./artisan event:cache` in the deployment environment to cache the compiled manifest’s discovery decisions. A new process uses those decisions and runs the selected compiled registrars. Manual listeners and unconditional registrations run as usual. The cache lives at `storage/framework/cache/events.json`. Refresh it after deploying a new build or changing discovery configuration. Run `./artisan event:clear` to resume live discovery on the next boot. A malformed cache or a mismatched listener list falls back to live discovery.
+Run `./artisan event:cache` in the deployment environment to cache the compiled manifest’s discovery decisions. A new process uses those decisions and runs the selected compiled registrars. Manual listeners and unconditional registrations run as usual. The default path is `storage/framework/cache/events.json`. Set `APP_EVENTS_CACHE` to an absolute path or a path relative to the application root. Export it in the service environment when using cached configuration. After boot, `getCachedEventsPath()` returns the resolved path. Refresh it after deploying a new build or changing discovery configuration. Run `./artisan event:clear` to resume live discovery on the next boot. A malformed cache or a mismatched listener list falls back to live discovery.
 
 For model lifecycle handlers, register an [Eloquent observer](../eloquent/getting-started.md#observers) during provider boot.
 

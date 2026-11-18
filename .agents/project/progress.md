@@ -3368,3 +3368,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 04-01／T-01 路由缓存路径与测试夹具隔离
 
 接通路由缓存路径及加载状态查询，隔离 `TestApp` 继承的部署路径。真实 HTTP、Artisan、子进程夹具、严格 Clippy 和三语站点验收通过。 [验收](audits/04-01/README.md#路由缓存路径与测试夹具隔离)
+
+## 2026-11-18 06-02／T-01 事件缓存路径与测试隔离
+
+事件缓存的生成、加载和清理共用 `APP_EVENTS_CACHE`，测试应用隔离部署路径。真实 HTTP、Artisan、定向回归、严格 Clippy 和三语站点通过。 [验收](audits/06-02/README.md#事件缓存路径与测试隔离)

@@ -53,3 +53,9 @@
 - SQLite 与独立 MySQL 8.4.13 的真实 HTTP 验收覆盖编译清单与 Facade 注册、异步工厂解析应用依赖、两应用隔离、缺少绑定后重试、传播停止、提交执行与回滚取消。延后监听器在派发时解析实例。Artisan 列表读取注册信息，无需构造监听器。
 - 06-02 核心验收范围已闭合。队列监听器的 Worker 运行及扩展行为继续归 06-04。
 - Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。独立 MySQL 专项 7 项通过。根应用实际执行 `artisan event:list --json` 成功。三语站点构建和 18 项浏览器检查通过。
+
+## 事件缓存路径与测试隔离
+
+- 固定 Laravel v13.40.0 的 `getCachedEventsPath()` 从 `APP_EVENTS_CACHE` 解析事件缓存位置。复核旧版 `openrust-v0.x` 未提供相应路径覆盖。OpenRust 沿用当前 JSON 清单与原子发布，生成、读取和清理共用启动解析的路径。默认仍为 `storage/framework/cache/events.json`。`TestApp` 忽略继承的路径，并允许本地 `.env.testing` 覆盖。 [Laravel 路径接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php#L1285) · [Laravel 事件缓存命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/EventCacheCommand.php#L28)
+- 在隔离主线 `64f26125c` 实际运行 `event:cache`、`event:clear` 和配置缓存命令。验证 dotenv 相对路径、配置缓存命中后的进程绝对路径覆盖、默认路径和各自清理。独立 Artisan 和真实 HTTP 服务均读取自定义缓存并执行相应监听器。夹具子进程生成与清理自己的事件缓存，模拟部署文件逐字节保留。
+- Rust 1.94.0 全仓格式、27 项定向回归及其子进程夹具、工作区全目标严格 Clippy、三语站点和根路径及 `/docs/` 下的 18 项浏览器检查通过。本批构建产物已回收。磁盘可用 86.06 GB（80.15 GiB），提交前周额度剩余 25%，第二窗口无读数。按用户授权继续开发。日志保留于 `/private/tmp/openrust-event-cache-path.NsIcJupP`。

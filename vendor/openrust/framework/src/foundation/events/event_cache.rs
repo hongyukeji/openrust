@@ -1,11 +1,11 @@
 use std::{
     io::{self, Write as _},
-    path::PathBuf,
+    path::Path,
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::{contracts::foundation::Application as _, foundation::Application};
+use crate::foundation::Application;
 
 const VERSION: u32 = 1;
 
@@ -37,7 +37,7 @@ impl EventCache {
     }
 
     pub(super) fn load(app: &Application) -> io::Result<Option<Self>> {
-        match std::fs::read(path(app)) {
+        match std::fs::read(path(app)?) {
             Ok(contents) => Ok(serde_json::from_slice(&contents).ok()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
@@ -45,8 +45,10 @@ impl EventCache {
     }
 
     pub(super) fn save(&self, app: &Application) -> io::Result<()> {
-        let path = path(app);
-        let directory = path.parent().expect("event cache path has a parent");
+        let path = path(app)?;
+        let directory = path
+            .parent()
+            .ok_or_else(|| io::Error::other("Invalid event cache path"))?;
         std::fs::create_dir_all(directory)?;
         let mut file = tempfile::NamedTempFile::new_in(directory)?;
         serde_json::to_writer(&mut file, self)?;
@@ -57,13 +59,14 @@ impl EventCache {
 }
 
 pub(in crate::foundation) fn clear(app: &Application) -> io::Result<()> {
-    match std::fs::remove_file(path(app)) {
+    match std::fs::remove_file(path(app)?) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),
     }
 }
 
-fn path(app: &Application) -> PathBuf {
-    app.base_path().join("storage/framework/cache/events.json")
+fn path(app: &Application) -> io::Result<&Path> {
+    app.getCachedEventsPath()
+        .ok_or_else(|| io::Error::other("Event cache path is unavailable"))
 }
