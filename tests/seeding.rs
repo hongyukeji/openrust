@@ -1894,6 +1894,8 @@ impl Root {
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
             .args(["--exact", "seeder_command_fixture", "--nocapture"])
+            // The polymorphic fixture runs many factory combinations in one Debug future.
+            .env("RUST_MIN_STACK", "8388608")
             .env("SEED_FIXTURE_ROOT", &self.0)
             .env("SEED_FIXTURE_ENV", environment)
             .env("SEED_FIXTURE_ARGS", serde_json::to_string(args).unwrap());

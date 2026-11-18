@@ -3079,7 +3079,7 @@ fn uuid_suffix() -> String {
 
 #[tokio::test]
 async fn dispatches_and_tracks_batches_on_sqlite() {
-    exercise(None).await;
+    Box::pin(exercise(None)).await;
 }
 
 #[tokio::test]
@@ -3088,5 +3088,5 @@ async fn dispatches_and_tracks_batches_on_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    exercise(Some(&url)).await;
+    Box::pin(exercise(Some(&url))).await;
 }

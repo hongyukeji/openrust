@@ -51,6 +51,18 @@ Set `APP_URL` to the application's public URL. Without it, the configured `APP_P
 
 The source `artisan` script runs Cargo. A standalone deployment does not require Cargo and runs commands with `./main artisan …`. See [Artisan](../digging-deeper/artisan.md) and [application configuration](configuration.md).
 
+### Verify the Release {#verify-the-release}
+
+Run these checks from the release directory while the application is listening. Use the HTTP port configured for the deployment.
+
+```sh
+curl --fail http://127.0.0.1:8088/up
+./main artisan migrate:status
+./main artisan schedule:list --json
+```
+
+The migration status identifies pending migrations. The schedule list returns a JSON array of registered tasks, including an empty array when there are none.
+
 ## Run Services Together
 
 Run `./main` to start HTTP, the Worker for the default asynchronous queue, and the scheduler when tasks are registered. Connections using the `sync` driver skip the Worker. Other listeners such as gRPC follow their own configuration. Prepare the queue's backend before starting the application. For a database queue, run the migrations above.

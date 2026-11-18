@@ -51,6 +51,18 @@ curl -i http://127.0.0.1:8088/up
 
 源码的 `artisan` 脚本运行 Cargo。独立发布无需 Cargo，使用 `./main artisan …` 运行命令。参阅 [Artisan](../digging-deeper/artisan.md)和[应用配置](configuration.md)。
 
+### 验证发布产物 {#verify-the-release}
+
+应用监听后，在发布目录执行以下检查。HTTP 请求使用部署配置的监听端口。
+
+```sh
+curl --fail http://127.0.0.1:8088/up
+./main artisan migrate:status
+./main artisan schedule:list --json
+```
+
+迁移状态会列出待执行的迁移。调度列表以 JSON 数组返回已注册的任务，未注册任务时返回空数组。
+
 ## 一起运行服务
 
 直接运行 `./main` 启动 HTTP、默认异步队列的 Worker，以及已注册任务的调度器。`sync` 连接会跳过 Worker。gRPC 等监听器遵循各自的配置。启动前先准备队列后端。使用数据库队列时，先执行上面的迁移命令。

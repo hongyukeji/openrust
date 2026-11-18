@@ -1,8 +1,18 @@
-use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    hash::{DefaultHasher, Hash, Hasher},
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    contracts::{http::Kernel as _, session::Session},
+    contracts::{
+        container::Container as _, foundation::Application as _, http::Kernel as _,
+        session::Session,
+    },
+    database::{Connection, DatabaseManager},
     foundation::{
         Application,
         configuration::Routing,
@@ -96,16 +106,38 @@ async fn transport(
     kernel.handleTransport(request).await
 }
 
-async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
+struct TestServer {
+    http: tokio::task::JoinHandle<()>,
+    mysql_session: Option<(Connection, String)>,
+}
+
+impl TestServer {
+    async fn close(self) {
+        self.http.abort();
+        let _ = self.http.await;
+        if let Some((db, table)) = self.mysql_session {
+            db.getSchemaBuilder().drop(&table).await.unwrap();
+        }
+    }
+}
+
+fn session_table(root: &Path) -> String {
+    let mut hash = DefaultHasher::new();
+    root.hash(&mut hash);
+    format!("validation_sessions_{:016x}", hash.finish())
+}
+
+async fn start(root: PathBuf) -> (SocketAddr, TestServer) {
+    let using_mysql = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").is_ok();
     let app = Application::configure(root)
-        .withConfig(|_, _| {
-            let url = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").ok();
-            let driver = if url.is_some() { "database" } else { "array" };
+        .withConfig(|base, _| {
+            let mysql = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").ok();
+            let driver = if mysql.is_some() { "database" } else { "array" };
             let mut config = std::collections::BTreeMap::from([
                 ("app".into(), json!({"key":"a".repeat(32)})),
-                ("session".into(), json!({"driver":driver,"cookie":"form_session","lottery":[0,100]})),
+                ("session".into(), json!({"driver":driver,"table":session_table(base),"cookie":"form_session","lottery":[0,100]})),
             ]);
-            if let Some(url) = url {
+            if let Some(url) = &mysql {
                 config.insert("database".into(), json!({
                     "default":"session_test","connections":{"session_test":{"url":url,"use_upsert_alias":true}}
                 }));
@@ -131,6 +163,30 @@ async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
+    let mysql_session = if using_mysql {
+        let app = kernel.get_application();
+        let table = session_table(app.base_path());
+        let db = app
+            .container()
+            .make::<DatabaseManager>()
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        db.getSchemaBuilder()
+            .create(&table, |table| {
+                table.string("id", 255).primary();
+                table.bigInteger("user_id").nullable();
+                table.string("ip_address", 45).nullable();
+                table.text("user_agent").nullable();
+                table.longText("payload");
+                table.integer("last_activity");
+            })
+            .await
+            .unwrap();
+        Some((db, table))
+    } else {
+        None
+    };
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let server = tokio::spawn(async move {
@@ -141,7 +197,13 @@ async fn start(root: PathBuf) -> (SocketAddr, tokio::task::JoinHandle<()>) {
         .await
         .unwrap();
     });
-    (address, server)
+    (
+        address,
+        TestServer {
+            http: server,
+            mysql_session,
+        },
+    )
 }
 
 async fn send(address: SocketAddr, method: &str, path: &str, headers: &str, body: &str) -> String {
@@ -159,7 +221,7 @@ fn session_cookie(response: &str) -> String {
     let header = response
         .lines()
         .find_map(|line| line.strip_prefix("set-cookie: form_session="))
-        .unwrap();
+        .unwrap_or_else(|| panic!("Missing session cookie in {response}"));
     format!(
         "Cookie: form_session={}\r\n",
         header.split(';').next().unwrap()
@@ -187,7 +249,8 @@ const JSON: &str = "Content-Type: application/json\r\nSec-Fetch-Site: same-origi
 
 #[tokio::test]
 async fn browser_validation_redirects_and_flashes_filtered_input_and_named_errors() {
-    let (address, server) = start(std::env::temp_dir()).await;
+    let root = tempfile::tempdir().unwrap();
+    let (address, server) = start(root.path().to_path_buf()).await;
     let form = send(address, "GET", "/edit?step=1", "", "").await;
     let session = session_cookie(&form);
     let headers = session.clone() + JSON + "Referer: https://outside.example/steal\r\n";
@@ -227,7 +290,7 @@ async fn browser_validation_redirects_and_flashes_filtered_input_and_named_error
     let headers = session_cookie(&form) + JSON;
     let without_referer = send(address, "POST", "/submit", &headers, "{}").await;
     redirect(&without_referer, "/edit?step=2");
-    server.abort();
+    server.close().await;
 }
 
 #[tokio::test]
@@ -283,6 +346,6 @@ async fn redirect_targets_custom_renderers_json_and_blade_keep_their_own_contrac
     assert!(custom.contains("\r\nx-handled: yes\r\n"));
     let clean = send(address, "GET", "/edit", &cookie, "").await;
     assert!(body(&clean, 200)["errors"].is_null());
-    server.abort();
+    server.close().await;
     std::fs::remove_dir_all(root).unwrap();
 }

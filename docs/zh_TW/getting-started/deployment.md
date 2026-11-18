@@ -51,6 +51,18 @@ curl -i http://127.0.0.1:8088/up
 
 原始碼的 `artisan` 腳本執行 Cargo。獨立發布無需 Cargo，使用 `./main artisan …` 執行命令。參閱 [Artisan](../digging-deeper/artisan.md)和[應用設定](configuration.md)。
 
+### 驗證發布產物 {#verify-the-release}
+
+應用程式開始監聽後，在發布目錄執行以下檢查。HTTP 請求使用部署設定的監聽連接埠。
+
+```sh
+curl --fail http://127.0.0.1:8088/up
+./main artisan migrate:status
+./main artisan schedule:list --json
+```
+
+遷移狀態會列出待執行的遷移。排程清單以 JSON 陣列傳回已註冊的任務，沒有註冊任務時傳回空陣列。
+
 ## 一起執行服務
 
 直接執行 `./main` 會啟動 HTTP、預設非同步佇列的 Worker，以及已註冊工作的排程器。`sync` 連線會略過 Worker。gRPC 等監聽器遵循各自的設定。啟動前先準備佇列後端。使用資料庫佇列時，請先執行上面的遷移指令。

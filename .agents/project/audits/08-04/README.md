@@ -125,3 +125,10 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 两版的 `mysql_family_reports_changed_rows_by_default` 定向测试均通过，覆盖原生 SQL、默认的实际修改行数、连接级匹配行覆盖、upsert 和事务回滚。真实 HTTP 及独立 Artisan 通过 Query Builder 验证原值、实际更新和重复行。会话分别协商 TLS 1.2 和 TLS 1.3。在同端点的控制检查中，证书链验证成功，开启服务器名验证后拒绝不匹配的名称。
 - 应用二进制在两版分别通过 `migrate --force` 的 12 项迁移和幂等重跑、`migrate:status --pending=17` 以及 `inspire`。格式检查通过。相同代码的严格 Clippy 已随 02-04 通过。三语站点、12 项通用浏览器检查及两种部署路径下的 6 项发布到 Query Builder 文档链路通过。
 - 本批核实旧版 MySQL 与 MariaDB 的握手和受影响写入行为。临时数据库、证书、专用构建器、临时镜像及隔离产物已回收，日志保留于 `/private/tmp/openrust-08-04-found-rows-minimum.hg0TaIjL`。回收编译和文档产物时项目卷净增 4.86 GB（4.53 GiB），剩余 96.67 GB（90.03 GiB）。周额度剩余 38%，第二窗口无读数。
+
+## 当前主线整仓回归与独立发布复验
+
+- 以 `da0b98aaa` 的干净归档为发布基线，对照固定 Laravel 的健康路由、部署目录和服务生命周期，以及固定 Goravel 的编译型入口。核对 `openrust-v0.x` 的 `.agents/project/scripts/test-artisan-release.sh`、`tools/cli/src/release.rs`，复用正式版现有单二进制发布及 Worker 实际请求夹具。 [固定 Laravel 部署](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md) · [固定 Goravel 入口](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/main.go)
+- 在隔离 MySQL 8.4.13 和两个 Redis 8.10.3 实例上执行 Rust 1.94.0 `cargo test --workspace --all-targets --locked --offline --no-fail-fast -- --test-threads=1`。首次共三个测试目标失败。批次测试的大 Future 移到堆上并以默认测试栈复验。大型多态 Seeder 夹具只提高合成测试子进程的栈额度，恢复后同库的后续用例不再遇到残留表冲突。表单验证 fixture 为每个 HTTP 应用创建专用 MySQL Session 表，结束后清理，另复验 Array 存储。最终合并原整仓中未修改目标与三个修正目标的独立重跑证据，共 168 个目标，1340 项标准测试通过、9 项忽略，两个自定义测试程序通过。Rust 1.94.0 全仓格式与严格 Clippy 通过。
+- 从同一快照锁定离线构建 `--release --features standalone --bin main`，确认 Mach-O ARM64。在无源码目录用独立二进制运行实际 `key:generate`、12 项迁移与幂等重跑、`migrate:status`、`inspire` 和 `schedule:list --json`。真实首页、`/up`、公共目录与存储磁盘、MySQL 会话，受管及独立 Redis 邮件 Worker 都通过。移到带空格的不同路径后，迁移账本与存储文件保持可用，两次 SIGTERM 均退出 0。
+- 发布说明同步三语健康检查示例。三语站点及 18 项浏览器检查通过。104 个本地映射路径在三种语言均存在，计划锚点齐全。现有 31 条生态条目保持交付计划的待确认状态，08-04 继续沿用已确认的模拟验收边界。临时容器、发布目录及隔离构建、文档产物已回收。提交前磁盘可用 98.52 GB（91.75 GiB），周额度剩余 35%。日志保留于 `/private/tmp/openrust-current-release-check.5q9G5KN4`。
