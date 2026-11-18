@@ -162,6 +162,8 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 `null` 連線捨棄工作。`deferred` 在 HTTP 請求或 Artisan 指令成功後，在同一程序執行。`background` 在同一終止階段啟動獨立 Artisan 程序。這些連線沒有持久預約，派送延遲不影響執行。發起程序啟動子程序後即可返回。發起程序結束後，背景工作仍可完成。Deferred 和 Background 支援唯一工作，需要使用中的 HTTP 或 Artisan 生命週期。生命週期略過工作或啟動失敗時釋放鎖。背景子程序在處理結束後釋放鎖。設定有限的 `for_seconds` 可在程序異常結束時回收鎖。成功的 Worker 嘗試也會執行本次登錄的生命週期工作。部署時維持生產端和 Worker 的處理常式名稱與 JSON 欄位相容。PHP 序列化物件和閉包使用獨立的線格式。
 
+在 Windows 上，背景工作透過 stdin 接收酬載。發起程序結束後，擷取端可從 stdout 和 stderr 讀到 EOF，背景工作仍能繼續執行。
+
 依優先順序設定 `failover.connections`。發佈失敗時嘗試下一個連線，連線開始失敗時派送 `QueueFailedOver`。Failover 連線從首選連線讀取和預約。為持久備援連線單獨啟動 Worker。儲存寫入成功但確認失敗時可能重複執行，工作處理常式須維持冪等。
 
 ### Beanstalkd {#beanstalkd}

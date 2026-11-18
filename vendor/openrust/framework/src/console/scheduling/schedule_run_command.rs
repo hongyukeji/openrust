@@ -989,7 +989,9 @@ impl ScheduleRunCommand {
 }
 
 #[cfg(windows)]
-use super::windows_background::spawn as spawn_background;
+fn spawn_background(executable: &Path, base_path: &Path, args: &[String]) -> io::Result<()> {
+    crate::process::windows_background::spawn(executable, base_path, args, None)
+}
 
 #[cfg(not(windows))]
 fn spawn_background(executable: &Path, base_path: &Path, args: &[String]) -> io::Result<()> {

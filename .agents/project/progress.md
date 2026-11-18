@@ -3496,3 +3496,7 @@ Windows ARM64 原生 `schedule:run` 在后台子进程仍运行时，父输出�
 ## 2026-11-18 07-04 Windows ARM64 Concurrency 延后执行与管道
 
 Windows ARM64 上真实 HTTP、Artisan 和独立进程验证了任务输入及 Context、延后执行边界与原退出码。06-03 Background 独立诊断复现输出有待关闭的问题。 [07-04 验收](audits/07-04/README.md#windows-arm64-concurrency-延后执行与管道) · [06-03 诊断](audits/06-03/lifecycle-failover-drivers.md#windows-arm64-background-输出管道诊断)
+
+## 2026-11-18 06-03 Windows ARM64 Background 输入与父输出分离
+
+Windows ARM64 原生 Artisan 验证独立 Background 子进程保持运行时，发起进程退出且 stdout／stderr 到 EOF。stdin 中的载荷及公开、隐藏 Context 完整送达。 [验收记录](audits/06-03/lifecycle-failover-drivers.md#windows-arm64-background-输入与父输出分离)

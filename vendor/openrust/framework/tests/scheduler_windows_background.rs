@@ -1,16 +1,31 @@
 #![cfg(windows)]
 
-use std::{path::PathBuf, process::Stdio, time::Duration};
+use std::{
+    io::{Read as _, Seek as _, Write as _},
+    path::PathBuf,
+    process::Stdio,
+    time::Duration,
+};
 
 use tokio::{process::Command, time::timeout};
 
-#[path = "../src/console/scheduling/windows_background.rs"]
+#[path = "../src/process/windows_background.rs"]
 mod windows_background;
 
 const ARGUMENT: &str = "space \"quote\" \\末尾\\";
+const INPUT: &str = "stdin payload 私有";
 
 #[tokio::test]
 async fn parent_output_closes_while_the_background_process_continues() {
+    assert_parent_output_closes(false).await;
+}
+
+#[tokio::test]
+async fn inheriting_task_input_does_not_keep_parent_output_open() {
+    assert_parent_output_closes(true).await;
+}
+
+async fn assert_parent_output_closes(with_input: bool) {
     let root = tempfile::Builder::new()
         .prefix("openrust schedule 空间 ")
         .tempdir()
@@ -22,6 +37,10 @@ async fn parent_output_closes_while_the_background_process_continues() {
             .env("OPENRUST_TEST_SCHEDULE_BACKGROUND_ROOT", root.path())
             .env("app_base_path", "superseded")
             .env("OPENRUST_TEST_SCHEDULE_BACKGROUND_SENTINEL", "继承")
+            .env(
+                "OPENRUST_TEST_BACKGROUND_STDIN",
+                if with_input { "1" } else { "0" },
+            )
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
@@ -65,7 +84,13 @@ fn parent_fixture() {
         ARGUMENT,
     ]
     .map(str::to_owned);
-    windows_background::spawn(&std::env::current_exe().unwrap(), &root, &args).unwrap();
+    let input = has_input().then(|| {
+        let mut file = tempfile::tempfile().unwrap();
+        file.write_all(INPUT.repeat(8192).as_bytes()).unwrap();
+        file.rewind().unwrap();
+        file
+    });
+    windows_background::spawn(&std::env::current_exe().unwrap(), &root, &args, input).unwrap();
     println!("parent stdout");
     eprintln!("parent stderr");
 }
@@ -89,6 +114,11 @@ fn child_fixture() {
         "继承"
     );
     assert_eq!(std::env::args().next_back().unwrap(), ARGUMENT);
+    if has_input() {
+        let mut received = String::new();
+        std::io::stdin().read_to_string(&mut received).unwrap();
+        assert_eq!(received, INPUT.repeat(8192));
+    }
     std::fs::write(root.join("started"), []).unwrap();
     let start = std::time::Instant::now();
     while !root.join("release").exists() {
@@ -98,4 +128,8 @@ fn child_fixture() {
         std::thread::sleep(Duration::from_millis(10));
     }
     std::fs::write(root.join("completed"), []).unwrap();
+}
+
+fn has_input() -> bool {
+    std::env::var("OPENRUST_TEST_BACKGROUND_STDIN").unwrap() == "1"
 }

@@ -162,6 +162,8 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 `null` 连接丢弃任务。`deferred` 在 HTTP 请求或 Artisan 命令成功后，在同一进程执行。`background` 在同一终止阶段启动独立 Artisan 进程。这些连接无持久预约，派发延时不影响执行。发起进程启动子进程后即可返回。发起进程退出后，后台任务仍可完成。Deferred 和 Background 支持唯一任务，要求活动的 HTTP 或 Artisan 生命周期。生命周期跳过任务或启动失败时释放锁。后台子进程在处理结束后释放锁。设置有限的 `for_seconds` 可在进程异常退出时回收锁。成功的 Worker 尝试也会执行本次登记的生命周期任务。发布时保持生产端和 Worker 的处理器名称与 JSON 字段兼容。PHP 序列化对象和闭包使用独立的线格式。
 
+在 Windows 上，后台任务通过 stdin 接收载荷。发起进程退出后，捕获端可从 stdout 和 stderr 读到 EOF，后台任务仍可继续运行。
+
 按优先顺序配置 `failover.connections`。发布失败时尝试下一个连接，连接开始失败时派发 `QueueFailedOver`。Failover 连接从首选连接读取和预约。为持久后备连接单独启动 Worker。存储写入成功但确认失败时可能重复执行，任务处理器需保持幂等。
 
 ### Beanstalkd {#beanstalkd}

@@ -11,6 +11,8 @@ mod invoked_process;
 mod pending_process;
 mod pool;
 mod process_result;
+#[cfg(windows)]
+pub(crate) mod windows_background;
 
 pub use facade::Process;
 pub(crate) use facade::ProcessServiceProvider;

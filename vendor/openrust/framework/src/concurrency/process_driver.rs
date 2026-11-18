@@ -1,7 +1,6 @@
 use std::{
     io::{Seek as _, Write as _},
     path::{Path, PathBuf},
-    process::Stdio,
     time::Duration,
 };
 
@@ -41,38 +40,52 @@ impl ProcessDriver {
         let mut stdin = tempfile::tempfile().map_err(Error::Io)?;
         stdin.write_all(&input).map_err(Error::Io)?;
         stdin.rewind().map_err(Error::Io)?;
-        let mut command = tokio::process::Command::new(std::env::current_exe().map_err(Error::Io)?);
-        command
-            .args(["artisan", protocol::COMMAND, "--detached"])
-            .env("APP_BASE_PATH", &self.base_path)
-            .current_dir(&self.base_path)
-            .stdin(stdin)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+        let executable = std::env::current_exe().map_err(Error::Io)?;
+        let mut args = ["artisan", protocol::COMMAND, "--detached"]
+            .map(str::to_owned)
+            .to_vec();
         if let Some(environment) = environment
             .file_name()
             .and_then(|name| name.to_str())
             .and_then(|name| name.strip_prefix(".env."))
         {
-            command.arg(format!("--env={environment}"));
-        }
-        #[cfg(unix)]
-        {
-            // setsid is async-signal-safe and detaches the child before the executable starts.
-            unsafe {
-                command.pre_exec(|| rustix::process::setsid().map(|_| ()).map_err(Into::into));
-            }
+            args.push(format!("--env={environment}"));
         }
         #[cfg(windows)]
-        command.creation_flags(
-            windows_sys::Win32::System::Threading::DETACHED_PROCESS
-                | windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP,
-        );
-        let mut child = command.spawn().map_err(Error::Io)?;
-        tokio::spawn(async move {
-            let _ = child.wait().await;
-        });
-        Ok(())
+        {
+            crate::process::windows_background::spawn(
+                &executable,
+                &self.base_path,
+                &args,
+                Some(stdin),
+            )
+            .map_err(Error::Io)
+        }
+        #[cfg(not(windows))]
+        {
+            use std::process::Stdio;
+
+            let mut command = tokio::process::Command::new(executable);
+            command
+                .args(args)
+                .env("APP_BASE_PATH", &self.base_path)
+                .current_dir(&self.base_path)
+                .stdin(stdin)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null());
+            #[cfg(unix)]
+            {
+                // setsid is async-signal-safe and detaches the child before the executable starts.
+                unsafe {
+                    command.pre_exec(|| rustix::process::setsid().map(|_| ()).map_err(Into::into));
+                }
+            }
+            let mut child = command.spawn().map_err(Error::Io)?;
+            tokio::spawn(async move {
+                let _ = child.wait().await;
+            });
+            Ok(())
+        }
     }
 
     pub fn new(

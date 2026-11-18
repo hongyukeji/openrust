@@ -12,8 +12,6 @@ mod schedule_list_output;
 mod schedule_run_command;
 mod scheduling_mutex;
 mod task_output;
-#[cfg(windows)]
-mod windows_background;
 
 pub use cache_event_mutex::CacheEventMutex;
 pub use cache_scheduling_mutex::CacheSchedulingMutex;

@@ -26,4 +26,11 @@ macOS ARM64、Rust 1.94.0，实际 HTTP、独立 Artisan、MySQL 8.4.13、Redis 
 
 ## Windows ARM64 Background 输出管道诊断
 
-在 `9ab6b416c` 的 Windows 11 ARM64 原生 `main.exe` 上，从真实 Artisan 向 `background` 连接派发。子进程正确收到 stdin 载荷和公开、隐藏 Context，父进程以 0 退出。子进程等待闸门时，调用方仍无法从父 stdout 和 stderr 捕获到 EOF，放行并等子进程退出后管道才关闭。保留此项待修复，下一批验证只继承任务输入和自身所需句柄。 [原生验收环境与记录](../07-04/README.md#windows-arm64-concurrency-延后执行与管道)
+在 `9ab6b416c` 的 Windows 11 ARM64 原生 `main.exe` 上，从真实 Artisan 向 `background` 连接派发。子进程正确收到 stdin 载荷和公开、隐藏 Context，父进程以 0 退出。子进程等待闸门时，调用方仍无法从父 stdout 和 stderr 捕获到 EOF，放行并等子进程退出后管道才关闭。修复及复验见下文。 [原生验收环境与记录](../07-04/README.md#windows-arm64-concurrency-延后执行与管道)
+
+## Windows ARM64 Background 输入与父输出分离
+
+- 对照固定 Laravel 的 BackgroundQueue 通过进程并发驱动在生命周期结束时调度同步队列。保留现有 JSON stdin、Context 与独立 Artisan 契约。v0.x（`6d1a81924`）未发现 Windows 句柄选择的旧实现。 [BackgroundQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/BackgroundQueue.php#L17)
+- 复用调度的脱离进程创建，将其移入 Process 模块。带输入时，Windows 使用 `STARTUPINFOEXW` 的句柄清单，只传递任务输入文件和承接子进程 stdout／stderr 的 `NUL`。没有输入时仍禁止继承句柄。两个返回的进程句柄以及临时输入和属性列表均按所有权释放。 [Windows 句柄清单](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)
+- 从 `b28aa86bd` 干净归档加核定改动，在 Windows 11 ARM64 以 Rust 1.94.0、MSVC 14.44.35207 构建，PE Machine 为 `0xAA64`。用真实 `main.exe artisan probe:background --env=probe` 派发，发起进程退出 0，stdout 和 stderr 均到 EOF 后，独立子进程仍在等待闸门。放行后任务完成并退出 0。核对 stdin 载荷、公开和隐藏 Context、显式环境文件、工作目录及含空格和 Unicode 的路径。实际 `Concurrency::defer`、`always()`、HTTP 204 和 `artisan inspire` 通过。
+- Windows 原生 `concurrency` 5 项、Windows 启动回归 2 项通过。带 stdin 的用例校验超过 128 KiB 的负载。macOS 调度和并发套件共 22 项通过，实际 Background 同样验证两管道 EOF 与载荷送达。Rust 1.94.0 格式、macOS 锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。来宾夹具及专属产物已回收，虚拟机恢复停止。磁盘可用 55.87 GB（52.03 GiB），提交前周额度剩余 20%，按用户授权继续。日志和验收夹具位于 `/Users/Home/openrust-background-eof.qI6CrW6R`。
