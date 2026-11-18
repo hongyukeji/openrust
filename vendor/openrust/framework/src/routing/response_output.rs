@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     contracts::{routing::Handler, support::Responsable},
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, RedirectResponse, Request, Response},
     support::{Collection, Fluent, Stringable},
 };
 
@@ -38,6 +38,7 @@ impl<T: Serialize + Send> DirectOutput for Vec<T> {}
 impl<T: Serialize + Send, const N: usize> DirectOutput for [T; N] {}
 impl<T: Serialize + Send> DirectOutput for Collection<T> {}
 impl DirectOutput for Fluent {}
+impl DirectOutput for RedirectResponse {}
 
 trait Output {
     fn respond(

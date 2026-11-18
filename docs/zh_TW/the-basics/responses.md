@@ -136,21 +136,22 @@ fn register() -> Result<(), RoutingError> {
 
 ### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
 
-在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式傳回時，將重新導向轉換為 HTTP 回應。
+在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式可以直接傳回 `RedirectResponse`。狀態碼、回應標頭及工作階段更新沿用一般的 HTTP 回應流程。
 
 ```rust
 use openrust::{
-    http::{HttpError, Request, Response},
+    http::{HttpError, HttpFuture, RedirectResponse, Request},
     support::facades::Redirect,
 };
 use serde_json::json;
 
-async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
-    let redirect = Redirect::to("/profile", Default::default())?
-        .with(request, "status", json!("saved"))?
-        .onlyInput(request, &["name"])
-        .await?;
-    Ok(redirect.into())
+fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
+    Box::pin(async move {
+        Redirect::to("/profile", Default::default())?
+            .with(request, "status", json!("saved"))?
+            .onlyInput(request, &["name"])
+            .await
+    })
 }
 ```
 

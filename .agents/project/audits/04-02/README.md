@@ -208,3 +208,9 @@
 - 对照固定 Laravel `Responsable::toResponse` 和 `Router::toResponse`。核对 openrust-v0.x `6d1a81924` 的 Axum `IntoResponse` 适配。正式版复用现有 `ResponseOutput` 与路由处理器，增加请求上下文和可等待的返回契约。传统借用请求的 `Result<Response, HttpError>` 保留原处理路径，借用请求并直接返回自定义对象时可在 `toResponse` 中读取输入与返回错误。 [Laravel Responsable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Support/Responsable.php) · [Laravel 路由响应准备](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866)
 - 在隔离主线 `738f62d9c` 以真实 TCP 验证同步闭包、异步闭包、借用请求、控制器与 FormRequest，覆盖路由参数、正文、缓存中间件、HEAD 和异常 404。固定 Laravel 的 PHP 8.5 对照覆盖上下文、HEAD 和返回对象抛出的异常。复验 JSON Resource 应用作用域隔离。
 - 64 项定向回归、实际二进制 `/up`、无效路径 400、SIGTERM、Artisan `inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收编译与站点产物后磁盘可用 100.37 GB（93.48 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-responsable.fkFVCtk2`。
+
+## 处理器直接返回重定向响应
+
+- 对照固定 Laravel 的 `Router::toResponse` 与 `RedirectResponse`，核对旧版 `6d1a81924` 的 Axum 重定向转换。正式版沿用已有 `RedirectResponse → Response`，在接收当前请求且可能失败的处理器上直接接受 `Result<RedirectResponse, HttpError>`。保留命名路由解析和显式传入当前请求的会话操作。 [Laravel Redirects](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#redirects) · [Laravel Router](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L934)
+- 隔离基线 `b1c7649a5` 的真实 TCP 验证命名路由重定向及 URL 编码、加密会话闪存、选择与排除输入、错误袋和下一次请求后的过期。PHP 8.5 运行固定 Laravel 对照，核对 303、Location、自定义响应头、闪存和旧输入。三语示例内容一致并通过实际路由注册测试。
+- 真实 HTTP、固定 Laravel、67 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。应用二进制健康请求、路径校验和 SIGTERM 正常退出。清理独占编译和站点缓存后磁盘可用 96.78 GB（90.13 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-direct-redirect.kH2M7GVm`。

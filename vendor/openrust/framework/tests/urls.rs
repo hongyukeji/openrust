@@ -8,7 +8,7 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{foundation::Application as _, http::Kernel as _, routing::UrlGenerator as _},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, RedirectResponse, Request, Response, StatusCode},
     routing::{
         RedirectOptions, RouteGroup, RouteParameter, Router, RoutingError, SignatureMode, UrlError,
         UrlGenerator, UrlValue,
@@ -52,14 +52,13 @@ fn links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
-fn redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+fn redirect(_: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
     Box::pin(async {
         Ok(Redirect::route(
             "ordinary",
             &[RouteParameter::named("slug", "a b")],
             RedirectOptions::default(),
-        )?
-        .into())
+        )?)
     })
 }
 
@@ -737,7 +736,7 @@ fn previous_session(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 
-fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
     Box::pin(async {
         let mut errors = openrust::support::MessageBag::default();
         errors.add("name", "Name is required.");
@@ -759,7 +758,7 @@ fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
             }
             _ => redirect.withInput(request, None).await?,
         };
-        Ok(redirect.into())
+        Ok(redirect)
     })
 }
 

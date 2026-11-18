@@ -136,21 +136,22 @@ fn register() -> Result<(), RoutingError> {
 
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
-在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器返回时，将重定向转换为 HTTP 响应。
+在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器可直接返回 `RedirectResponse`。状态码、响应头和会话更新沿用正常的 HTTP 响应流程。
 
 ```rust
 use openrust::{
-    http::{HttpError, Request, Response},
+    http::{HttpError, HttpFuture, RedirectResponse, Request},
     support::facades::Redirect,
 };
 use serde_json::json;
 
-async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
-    let redirect = Redirect::to("/profile", Default::default())?
-        .with(request, "status", json!("saved"))?
-        .onlyInput(request, &["name"])
-        .await?;
-    Ok(redirect.into())
+fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
+    Box::pin(async move {
+        Redirect::to("/profile", Default::default())?
+            .with(request, "status", json!("saved"))?
+            .onlyInput(request, &["name"])
+            .await
+    })
 }
 ```
 

@@ -3444,3 +3444,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02／05-07 JSON Resource 与 Responsable 响应生命周期
 
 完成资源和分页集合的请求感知响应，保留应用隔离、查询参数及响应钩子。真实 HTTP、固定 Laravel、MySQL 8.4.13、64 项定向回归、Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 [JSON Resource 与 Responsable 响应生命周期](audits/05-07/README.md#json-resource-与-responsable-响应生命周期)
+
+## 2026-11-18 04-02 处理器直接返回重定向响应
+
+原生重定向对象直接接入请求处理器，保留重定向头和会话闪存。真实 HTTP、固定 Laravel、67 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。 [处理器直接返回重定向响应](audits/04-02/README.md#处理器直接返回重定向响应)

@@ -136,21 +136,22 @@ For a route-level redirect, `Router::redirect` and `Router::permanentRedirect` c
 
 ### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
 
-In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Convert the redirect to an HTTP response when returning it from the handler.
+In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Return the `RedirectResponse` directly from the handler. Its status, headers and session updates flow through the usual HTTP response handling.
 
 ```rust
 use openrust::{
-    http::{HttpError, Request, Response},
+    http::{HttpError, HttpFuture, RedirectResponse, Request},
     support::facades::Redirect,
 };
 use serde_json::json;
 
-async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
-    let redirect = Redirect::to("/profile", Default::default())?
-        .with(request, "status", json!("saved"))?
-        .onlyInput(request, &["name"])
-        .await?;
-    Ok(redirect.into())
+fn save_profile(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
+    Box::pin(async move {
+        Redirect::to("/profile", Default::default())?
+            .with(request, "status", json!("saved"))?
+            .onlyInput(request, &["name"])
+            .await
+    })
 }
 ```
 
