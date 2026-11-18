@@ -2,7 +2,7 @@
 
 use crate::support::facades::Lang;
 
-pub(super) fn text(key: &str, english: &str, simplified: &str, traditional: &str) -> String {
+pub(crate) fn text(key: &str, english: &str, simplified: &str, traditional: &str) -> String {
     let key = format!("console.{key}");
     if let Ok(translated) = Lang::get(&key, &Default::default(), None)
         && translated != key

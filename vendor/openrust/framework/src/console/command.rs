@@ -4,11 +4,15 @@ use crate::foundation::Application;
 
 use super::{ConsoleError, ConsoleFuture, Input, Output};
 
+pub(super) type Prompt =
+    dyn Fn(&clap::ArgMatches) -> Result<Vec<OsString>, ConsoleError> + Send + Sync;
+
 /// Describes a command's name, aliases, arguments, options, and help.
 #[derive(Clone)]
 pub struct CommandDefinition {
     pub(super) syntax: Arc<clap::Command>,
     pub(super) isolated: bool,
+    pub(super) missing_argument: Option<(&'static str, Arc<Prompt>)>,
 }
 
 impl CommandDefinition {
@@ -16,7 +20,20 @@ impl CommandDefinition {
         Self {
             syntax: Arc::new(syntax),
             isolated: false,
+            missing_argument: None,
         }
+    }
+
+    pub(crate) fn with_missing_argument_prompt(
+        mut self,
+        argument: &'static str,
+        prompt: impl Fn(&clap::ArgMatches) -> Result<Vec<OsString>, ConsoleError>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        self.missing_argument = Some((argument, Arc::new(prompt)));
+        self
     }
 
     /// Enables the optional `--isolated` switch for this command.

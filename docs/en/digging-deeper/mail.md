@@ -9,6 +9,8 @@ Use Artisan to generate a Rust mailable. Use `--view` to generate a Blade templa
 ./artisan make:mail Billing/InvoiceReady --view=mail.billing.invoice --test
 ```
 
+In a terminal, run `./artisan make:mail` without a name to enter the type name and choose a Markdown view, an empty Blade view, or no view. If you pass options, Artisan only asks for the name. With `--no-interaction` or piped input, provide the name explicitly.
+
 The command writes the type under `app/mail` using snake_case files and module directories. Declare the generated module in its parent `mod.rs` before building. The default template name starts with `mail.`, followed by the kebab-case name components. Use `--force` to replace the generated Rust source while keeping any existing view. Application overrides for the source stubs live under `stubs/`.
 
 ## Sending mail

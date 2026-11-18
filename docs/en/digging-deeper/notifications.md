@@ -9,6 +9,8 @@ The command writes a Rust notification under `app/notifications`, using snake_ca
 ./artisan make:notification Billing/PaymentReceived --markdown=mail.billing.paid --test
 ```
 
+In a terminal, run `./artisan make:notification` without a name to enter the type name and choose whether to create a Markdown view. If you accept, you can keep the suggested name or enter another. If you pass options, Artisan only asks for the type name. With `--no-interaction` or piped input, provide the name explicitly.
+
 The Markdown option also writes a Blade template. With no view name, the command uses `mail.` followed by the kebab-case name components. The command replaces an existing Markdown template at that path when the notification source is generated or regenerated. Use `--force` to regenerate an existing Rust type, and `--test` for a matching feature test. Declare the new module in its parent `mod.rs` before rebuilding. Override source templates under `stubs/`.
 
 ## Sending notifications

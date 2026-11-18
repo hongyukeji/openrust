@@ -27,6 +27,7 @@ use regex::Regex;
 pub use application::Application;
 pub use command::{ClosureCommand, Command, CommandDefinition};
 pub use generator_command::GeneratorCommand;
+pub(crate) use localization::text as localized_text;
 
 /// A future for a console command or lifecycle hook.
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

@@ -47,6 +47,25 @@ impl Drop for AppRoot {
 }
 
 #[test]
+fn message_generators_require_names_without_interactive_input() {
+    let root = AppRoot::new();
+    for command in ["make:mail", "make:notification"] {
+        for arguments in [
+            vec![command],
+            vec!["-n", command],
+            vec![command, "--no-interaction"],
+        ] {
+            let result = root.artisan(&arguments);
+            assert_eq!(result.status.code(), Some(1), "{arguments:?}: {result:?}");
+            assert!(String::from_utf8_lossy(&result.stderr).contains("<name>"));
+            assert!(result.stdout.is_empty());
+        }
+    }
+    assert!(!root.0.join("app").exists());
+    assert!(!root.0.join("resources").exists());
+}
+
+#[test]
 fn artisan_generates_mailables_and_named_templates() {
     let root = AppRoot::new();
     let help = root.artisan(&["make:mail", "--help"]);

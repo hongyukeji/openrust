@@ -9,6 +9,8 @@
 ./artisan make:mail Billing/InvoiceReady --view=mail.billing.invoice --test
 ```
 
+在終端機執行不帶名稱的 `./artisan make:mail`，可輸入類型名稱並選擇 Markdown 視圖、空白 Blade 視圖或不建立視圖。傳入選項時，Artisan 只詢問名稱。使用 `--no-interaction` 或管線輸入時，需明確提供名稱。
+
 產生的類型位於 `app/mail`，檔案和模組目錄使用 snake_case。建置前需在上層 `mod.rs` 宣告產生的模組。預設視圖名稱以 `mail.` 開頭，後接連字號格式的各名稱段落。`--force` 可覆寫 Rust 原始碼，既有視圖會保留。應用程式可在 `stubs/` 覆寫原始碼範本。
 
 ## 傳送郵件

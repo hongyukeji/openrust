@@ -1,6 +1,12 @@
-use std::{collections::BTreeMap, ffi::OsString, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    ffi::OsString,
+    io::{self, IsTerminal as _},
+    sync::Arc,
+    time::Duration,
+};
 
-use clap::{Arg, ArgAction, Command as Syntax};
+use clap::{Arg, ArgAction, ArgMatches, Command as Syntax, error::ErrorKind};
 
 use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
@@ -303,9 +309,30 @@ impl Application {
                 }
             }
         }
-        let mut matches = match syntax
-            .try_get_matches_from_mut(std::iter::once(OsString::from("artisan")).chain(normalized))
+        let parse = |syntax: &mut Syntax, arguments: &[OsString]| {
+            syntax.try_get_matches_from_mut(
+                std::iter::once(OsString::from("artisan")).chain(arguments.iter().cloned()),
+            )
+        };
+        let mut result = parse(&mut syntax, &normalized);
+        if matches!(&result, Err(error) if error.kind() == ErrorKind::MissingRequiredArgument)
+            && output.streams_to_terminal()
+            && io::stdin().is_terminal()
+            && let (Some(name), Some(position)) = (command, position)
         {
+            match self.prompt_for_missing_argument(name, &normalized) {
+                Ok(Some(arguments)) => {
+                    normalized.splice(position + 1..position + 1, arguments);
+                    result = parse(&mut syntax, &normalized);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    application.render_console_exception(output, &error).await;
+                    return 1;
+                }
+            }
+        }
+        let mut matches = match result {
             Ok(matches) => matches,
             Err(error) if error.use_stderr() => {
                 output
@@ -350,6 +377,35 @@ impl Application {
                 1
             }
         }
+    }
+
+    fn prompt_for_missing_argument(
+        &self,
+        command: &str,
+        arguments: &[OsString],
+    ) -> Result<Option<Vec<OsString>>, ConsoleError> {
+        let Some((argument, prompt)) = &self.commands[command].definition().missing_argument else {
+            return Ok(None);
+        };
+        let relaxed = self.syntax().mut_subcommand(command, |syntax| {
+            syntax.mut_arg(*argument, |arg| arg.required(false))
+        });
+        let Ok(matches) = relaxed.try_get_matches_from(
+            std::iter::once(OsString::from("artisan")).chain(arguments.iter().cloned()),
+        ) else {
+            return Ok(None);
+        };
+        let input: &ArgMatches = matches
+            .subcommand_matches(command)
+            .expect("resolved command");
+        if input.contains_id(argument)
+            || ["no-interaction", "quiet", "silent"]
+                .into_iter()
+                .any(|flag| matches.get_flag(flag))
+        {
+            return Ok(None);
+        }
+        prompt(input).map(Some)
     }
 
     pub(crate) async fn call(

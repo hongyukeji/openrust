@@ -1,16 +1,19 @@
 use std::{
     borrow::Cow,
-    fs, io,
+    ffi::OsString,
+    fs,
+    io::{self, Write as _},
     path::{Path, PathBuf},
 };
 
-use clap::{Arg, ArgAction, Command as Syntax};
+use clap::{Arg, ArgAction, ArgMatches, Command as Syntax, parser::ValueSource};
 
 use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture,
         GeneratorCommand, Input, Output,
         generator_command::{Stub, snake_case, source_name_parts, write_generated},
+        localized_text,
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -86,10 +89,115 @@ pub(super) fn register(artisan: &mut Artisan, kind: Kind) -> Result<(), ConsoleE
         );
     }
     artisan.add_command(Box::new(MessageMakeCommand {
-        definition: CommandDefinition::new(syntax),
+        definition: CommandDefinition::new(syntax)
+            .with_missing_argument_prompt("name", move |input| {
+                prompt_for_name_and_view(kind, input)
+            }),
         kind,
         label,
     }))
+}
+
+fn prompt_for_name_and_view(kind: Kind, input: &ArgMatches) -> Result<Vec<OsString>, ConsoleError> {
+    let question = match kind {
+        Kind::Mailable => localized_text(
+            "make.mail.name",
+            "What is the name of the mailable?",
+            "邮件类叫什么？",
+            "郵件類別叫什麼？",
+        ),
+        Kind::Notification => localized_text(
+            "make.notification.name",
+            "What is the name of the notification?",
+            "通知类叫什么？",
+            "通知類別叫什麼？",
+        ),
+    };
+    let name = loop {
+        let name = read_prompt(&question)?;
+        match message_parts(&name, kind) {
+            Ok(_) => break name,
+            Err(error) => eprintln!("{error}"),
+        }
+    };
+    let option = if input
+        .ids()
+        .any(|id| input.value_source(id.as_str()) == Some(ValueSource::CommandLine))
+    {
+        None
+    } else {
+        match kind {
+            Kind::Mailable => prompt_mailable_view()?,
+            Kind::Notification => prompt_notification_view(&name)?,
+        }
+    };
+    Ok(std::iter::once(name.into())
+        .chain(option.map(OsString::from))
+        .collect())
+}
+
+fn prompt_mailable_view() -> Result<Option<String>, ConsoleError> {
+    let question = localized_text(
+        "make.mail.view",
+        "Would you like to create a view?\n  1. Markdown View\n  2. Empty View\n  3. No View\nChoose [1]",
+        "要创建视图吗？\n  1. Markdown 视图\n  2. 空白视图\n  3. 不创建视图\n请选择 [1]",
+        "要建立視圖嗎？\n  1. Markdown 視圖\n  2. 空白視圖\n  3. 不建立視圖\n請選擇 [1]",
+    );
+    loop {
+        match read_prompt(&question)?.as_str() {
+            "" | "1" => return Ok(Some("--markdown=".into())),
+            "2" => return Ok(Some("--view=".into())),
+            "3" => return Ok(None),
+            _ => {}
+        }
+    }
+}
+
+fn prompt_notification_view(name: &str) -> Result<Option<String>, ConsoleError> {
+    let question = localized_text(
+        "make.notification.markdown",
+        "Would you like to create a markdown view? [Y/n]",
+        "要创建 Markdown 视图吗？ [Y/n]",
+        "要建立 Markdown 視圖嗎？ [Y/n]",
+    );
+    loop {
+        match read_prompt(&question)?.to_ascii_lowercase().as_str() {
+            "" | "y" | "yes" => break,
+            "n" | "no" => return Ok(None),
+            _ => {}
+        }
+    }
+
+    let kind = Kind::Notification;
+    let parts = message_parts(name, kind)?;
+    let default = default_view_name(&parts, kind);
+    let question = localized_text(
+        "make.notification.view",
+        "What should the markdown view be named?",
+        "Markdown 视图叫什么？",
+        "Markdown 視圖叫什麼？",
+    );
+    let view = read_prompt(&format!("{question} [{default}]"))?;
+    Ok(Some(format!("--markdown={view}")))
+}
+
+fn read_prompt(question: &str) -> Result<String, ConsoleError> {
+    let error = |error: io::Error| ConsoleError::new(error.to_string());
+    {
+        let mut output = io::stderr().lock();
+        write!(output, "{question} ").map_err(error)?;
+        output.flush().map_err(error)?;
+    }
+    let mut answer = String::new();
+    if io::stdin().read_line(&mut answer).map_err(error)? == 0 {
+        return Err(ConsoleError::new(localized_text(
+            "make.message.cancelled",
+            "Command cancelled.",
+            "命令已取消。",
+            "命令已取消。",
+        )));
+    }
+    Ok(answer.trim().to_owned())
 }
 
 struct MessageMakeCommand {
@@ -255,14 +363,7 @@ impl<'a> Target<'a> {
             .or(markdown)
             .map(|name| {
                 if name.is_empty() {
-                    let mail = parts.strip_prefix(&[kind.namespace()]).unwrap_or(&parts);
-                    format!(
-                        "mail.{}",
-                        mail.iter()
-                            .map(|name| Str::kebab(name))
-                            .collect::<Vec<_>>()
-                            .join(".")
-                    )
+                    default_view_name(&parts, kind)
                 } else {
                     name.clone()
                 }
@@ -277,6 +378,17 @@ impl<'a> Target<'a> {
     fn source_path(&self) -> PathBuf {
         source_path(&self.parts)
     }
+}
+
+fn default_view_name(parts: &[&str], kind: Kind) -> String {
+    let mail = parts.strip_prefix(&[kind.namespace()]).unwrap_or(parts);
+    format!(
+        "mail.{}",
+        mail.iter()
+            .map(|name| Str::kebab(name))
+            .collect::<Vec<_>>()
+            .join(".")
+    )
 }
 
 fn message_parts(name: &str, kind: Kind) -> Result<Vec<&str>, ConsoleError> {

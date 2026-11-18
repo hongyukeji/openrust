@@ -3240,3 +3240,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 03-09 Redis Cluster 指定标签跨代际清理
 
 固定 Laravel 按指定标签的索引清理过期引用。OpenRust 在集群按标签发现现存代际索引，补齐当前代际键和索引登记丢失时的清理，并让扫描跟随槽重定向。范围包含 `redis_tag_set.rs`、集群标签实现、Redis 连接接线、`tests/redis.rs` 和三语 Cache Tags 正文。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签跨代际清理)
+
+## 2026-11-18 06-06 Artisan 邮件与通知生成器的缺参交互
+
+按固定 Laravel 的缺参交互补齐 `make:mail` 与 `make:notification`。Artisan 只在真实终端补问名称和所需选项，并按原有命令定义校验。范围包含命令定义、Artisan 解析和本地化、两个生成器的共用实现、终端及非终端回归和六篇生成器说明。实际 Artisan、22 项终端场景、9 项 Rust 回归、全仓格式、严格 Clippy、三语站点及 24 项浏览器检查通过。 [验收](audits/06-06/README.md#artisan-邮件与通知生成器的缺参交互)

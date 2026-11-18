@@ -9,6 +9,8 @@
 ./artisan make:notification Billing/PaymentReceived --markdown=mail.billing.paid --test
 ```
 
+在终端运行不带名称的 `./artisan make:notification`，可输入类型名称并选择是否创建 Markdown 视图。确认创建后，可接受建议的视图名称或另行输入。传入选项时，Artisan 只询问类型名称。使用 `--no-interaction` 或管道输入时，需显式提供名称。
+
 Markdown 选项同时生成 Blade 模板。省略视图名称时，用 `mail.` 加上以连字符分词的各名称段。该命令在生成或重新生成通知源码时会替换同路径的 Markdown 模板。用 `--force` 重新生成已有 Rust 类型，用 `--test` 生成配套功能测试。重新构建前，在上级 `mod.rs` 中声明新模块。应用可在 `stubs/` 覆盖源码模板。
 
 ## 发送通知
