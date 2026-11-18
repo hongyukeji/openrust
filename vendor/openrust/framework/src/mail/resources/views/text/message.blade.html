@@ -1,9 +1,6 @@
-{!! $app_name !!}
+{!! $header !!}
 
 {!! $slot !!}
 
-@if($subcopy)
-{!! $subcopy !!}
-
-@endif
-© {{ $year }} {!! $app_name !!}. All rights reserved.
+{!! $rendered_subcopy !!}
+{!! $footer !!}

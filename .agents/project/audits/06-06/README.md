@@ -97,3 +97,9 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - Markdown 渲染时按输出格式在本次 Blade 渲染上下文解析组件。组件标记只在本次渲染中被替换。普通 Markdown 的 HTML 转义和链接过滤继续生效，按钮 URL 也使用同一链接规则。配置目录及标准发布目录沿用原优先级，`--tag=laravel-mail` 现在发布 11 个文件，既有覆盖以及独立 `text_view` 的优先级继续通过。
 - 基于 `2f55c9802` 的隔离快照，用真实 Artisan、SMTP 和 Mailpit 1.33.1 的 HTTP API 核对默认头尾、命名插槽、绑定链接的转义、危险方案过滤、HTML 表格和纯文本省略、自定义面板、已发布文件保留及强制重置。MySQL 8.4.13、Redis 8.10.3 与 Mailpit 的邮件通知套件 14 项通过、2 项专用夹具忽略。视图和发布回归 15 项通过。实际根应用和无源码独立二进制发布同样的 11 个资源。
 - Rust 1.94.0 全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。单独调用的 `header`、`footer`、`subcopy` 等邮件组件、页脚本地化及上游布局样式继续跟踪。临时服务和隔离构建、站点、发布产物已回收。提交前磁盘可用 98.34 GB（91.58 GiB），周额度剩余 34%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-mail-components.zEOOhdVM`。
+
+## Markdown 邮件页眉、页脚与补充说明
+
+- 对照固定 Laravel v13.40.0 的 Markdown 消息与两种输出模板，接通独立的 `x-mail::header`、`x-mail::footer`、`x-mail::subcopy`。内置 `message` 和独立调用共用发布模板。默认页脚用应用时区计算年份，读取邮件语言的 JSON 翻译，缺失时回退到英语原句。旧版 Minijinja 邮件模板和回归未发现对应的 Blade 组件。OpenRust 保留编译型发布、CommonMark 的 HTML 转义与 URL 过滤、现有布局样式及应用标题。 [固定 Laravel 消息模板](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/resources/views/html/message.blade.php) · [固定文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#customizing-the-components)
+- 基于 `66e175a90` 的干净归档叠加本批验收。真实 Artisan 通过 SMTP 向 Mailpit 1.33.1 投递，HTTP API 校验 HTML 和纯文本中的独立组件、命名插槽、页首链接、共享模板覆盖、法语和英语回退。在 UTC 已进入 2030 年而应用时区仍为 2029 年的冻结时刻，两个 MIME 版本均显示 2029 年。源码和无源码独立二进制发布相同的 17 个文件，覆盖发布与独立 `text_view` 回归通过。
+- 按项目 `python3 -B tests/mysql_acceptance.py` 临时实例入口复验 MySQL 8.4.13。与 Redis 8.10.3 和 Mailpit 一起运行的邮件通知套件 14 项通过、2 项专用夹具忽略。视图及发布回归 15 项通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点与 18 项浏览器检查通过。Laravel 默认表格布局、主题样式及独立 `x-mail::layout` 继续跟踪。临时服务和隔离构建产物已回收。提交前磁盘可用 98.20 GB（91.46 GiB），周额度剩余 34%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-mail-slots.ZWXREHY1`。

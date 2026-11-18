@@ -20,7 +20,11 @@ use openrust::{
     },
     database::{DB, DatabaseManager, Value},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
-    foundation::{Application, configuration::Routing, http::Kernel},
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+        http::Kernel,
+    },
     http::{HttpError, HttpFuture, Request, Response},
     mail::{
         MailFuture, MailResult, Mailable, Message, SentMessage,
@@ -37,7 +41,7 @@ use openrust::{
     },
     queue::{DispatchOptions, JobOptions, Payload, QueueManager, middleware::Skip},
     support::{
-        ProviderResult, ServiceProvider,
+        Date, ProviderResult, ServiceProvider,
         facades::{Artisan, Config, Event, Facade, Lang, Mail, Notification, Route},
     },
 };
@@ -689,7 +693,7 @@ fn mail_routes() -> Result<(), ConsoleError> {
     ))))
 }
 
-fn app(root: &Path) -> Application {
+fn app_builder(root: &Path) -> ApplicationBuilder {
     Application::configure(root.into())
         .withConfig(|base, _| {
             let config: serde_json::Map<String, Json> =
@@ -705,8 +709,10 @@ fn app(root: &Path) -> Application {
             Box::new(FixtureGuardProvider),
             Box::new(FixtureMailProvider),
         ])
-        .create()
-        .unwrap()
+}
+
+fn app(root: &Path) -> Application {
+    app_builder(root).create().unwrap()
 }
 
 #[tokio::test]
@@ -1064,8 +1070,11 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     let text_layout = theme_path.join("text/layout.blade.html");
     let default_theme = theme_path.join("html/themes/default.css");
     let published_panel = theme_path.join("html/panel.blade.html");
+    let published_footer = theme_path.join("html/footer.blade.html");
     let stock = std::fs::read_to_string(&html_layout).unwrap();
-    for component in ["message", "button", "panel", "table"] {
+    for component in [
+        "message", "button", "panel", "table", "header", "footer", "subcopy",
+    ] {
         for format in ["html", "text"] {
             assert!(
                 theme_path
@@ -1079,6 +1088,11 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     std::fs::write(
         &published_panel,
         "<aside>Published panel {!! $slot !!}</aside>",
+    )
+    .unwrap();
+    std::fs::write(
+        &published_footer,
+        "<footer data-custom=\"yes\">{!! $slot !!}</footer>",
     )
     .unwrap();
     let override_html = "<html><body><header>Published layout</header>{!! $slot !!}</body></html>";
@@ -1097,6 +1111,14 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     config["mail"]["markdown"] = json!({"theme":"receipt"});
     config["app"]["name"] = json!("Mail Components");
     config["app"]["url"] = json!("https://origin.example.test");
+    config["app"]["timezone"] = json!("America/Los_Angeles");
+    config["app"]["locale"] = json!("fr");
+    std::fs::create_dir_all(root.0.join("lang")).unwrap();
+    std::fs::write(
+        root.0.join("lang/fr.json"),
+        json!({"All rights reserved.": "Tous droits réservés."}).to_string(),
+    )
+    .unwrap();
     std::fs::write(&path, config.to_string()).unwrap();
     std::fs::write(
         root.0.join("resources/views/markdown-receipt.blade.html"),
@@ -1112,6 +1134,12 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
 <x-mail::button url=\"javascript:alert(1)\">Untrusted action</x-mail::button>
 
 <x-mail::panel>**Please read** the receipt.</x-mail::panel>
+
+<x-mail::header url=\"https://help.example.test\">Support team</x-mail::header>
+
+<x-mail::footer>**Regional** office</x-mail::footer>
+
+<x-mail::subcopy>**Standalone** note</x-mail::subcopy>
 
 <x-mail::table>
 | Item | Price |
@@ -1171,12 +1199,16 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
         "Published panel",
         "<strong>Please read</strong>",
         "Keep this receipt.",
-        "All rights reserved.",
+        "© 2029 Mail Components. Tous droits réservés.",
+        "https://help.example.test",
+        "<strong>Regional</strong> office",
+        "<strong>Standalone</strong> note",
     ] {
         assert!(html.contains(expected), "{html}");
     }
     assert!(!html.contains("<script>") && !html.contains("javascript:"));
     assert!(!html.contains("openrust-mail-"));
+    assert_eq!(html.matches("data-custom=\"yes\"").count(), 2);
     assert!(text.starts_with("Published text"), "{text}");
     assert!(
         text.contains("Receipt for <Sam>") && text.contains("Open portal (https://example.test)"),
@@ -1192,6 +1224,15 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     );
     assert!(!text.contains("Published panel") && !text.contains("button-success"));
     assert!(!text.contains("Subscription"));
+    for expected in [
+        "Mail Components: https://origin.example.test",
+        "Support team: https://help.example.test",
+        "Regional office",
+        "Standalone note",
+        "© 2029 Mail Components. Tous droits réservés.",
+    ] {
+        assert!(text.contains(expected), "{text}");
+    }
 
     let custom = root.0.join("custom-mail/html");
     std::fs::create_dir_all(custom.join("themes")).unwrap();
@@ -1202,6 +1243,7 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     .unwrap();
     std::fs::write(custom.join("themes/default.css"), "h1 { color: #654321; }").unwrap();
     config["mail"]["markdown"] = json!({"paths":["custom-mail"]});
+    config["app"]["locale"] = json!("en");
     std::fs::write(&path, config.to_string()).unwrap();
     std::fs::write(&text_layout, [0xff]).unwrap();
     std::fs::write(
@@ -1242,6 +1284,10 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
     let html = configured["HTML"].as_str().unwrap();
     assert!(
         html.contains("Configured layout") && html.contains("#654321"),
+        "{html}"
+    );
+    assert!(
+        html.contains("© 2029 Mail Components. All rights reserved."),
         "{html}"
     );
     assert!(
@@ -1316,8 +1362,20 @@ async fn artisan_mail_fixture() {
     let root = PathBuf::from(std::env::var_os("OPENRUST_MAIL_TEST_ROOT").unwrap());
     let args: Vec<String> =
         serde_json::from_str(&std::env::var("OPENRUST_MAIL_TEST_ARGS").unwrap()).unwrap();
+    let markdown = args.iter().any(|arg| arg == "--markdown");
     let args: Vec<OsString> = args.into_iter().map(OsString::from).collect();
-    assert_eq!(app(&root).handleCommand(&args).await.unwrap(), 0);
+    if markdown {
+        let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root)).unwrap();
+        fixture.travelTo(Date::fromUtc(
+            "2030-01-01T01:00:00Z".parse().unwrap(),
+            chrono_tz::UTC,
+        ));
+        let result = fixture.artisan(args).await;
+        result.assertSuccessful();
+        print!("{}", result.stdout);
+    } else {
+        assert_eq!(app(&root).handleCommand(&args).await.unwrap(), 0);
+    }
 }
 
 async fn artisan(root: &Path, args: &[&str]) -> String {

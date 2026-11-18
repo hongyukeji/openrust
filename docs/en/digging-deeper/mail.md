@@ -63,6 +63,8 @@ let content = Content {
 
 Wrap a Markdown mail view in `<x-mail::message>`. It uses the application name and URL for the header and includes a footer. Use a named `subcopy` slot for secondary text. Buttons support `url`, `color`, and `align`. Panels render Markdown in their body. The table component renders a Markdown table in HTML and omits it from the generated plain-text alternative.
 
+Use `<x-mail::header url="https://example.com">`, `<x-mail::footer>`, and `<x-mail::subcopy>` for standalone sections. The default message footer uses the application time zone for the year and resolves `All rights reserved.` in the message locale. To translate it, add that key to the locale's JSON translation file.
+
 ```blade
 <x-mail::message>
 # Order ready
@@ -92,6 +94,8 @@ Publish the HTML and text layouts, component templates, and default stylesheet i
 ```
 
 Edit `html/layout.blade.html` and `text/layout.blade.html` to add headers, footers, or other wrapping content. Keep `{!! $slot !!}` where the rendered message belongs. Edit `html/themes/default.css` to update the default theme. Roots in `mail.markdown.paths` are resolved relative to the application and are checked in order before the standard published directory. Publishing preserves existing files unless you pass `--force`.
+
+Edit the `header.blade.html`, `footer.blade.html`, and `subcopy.blade.html` templates under `html/` or `text/` to customize those sections. The built-in `message` template uses these same templates.
 
 ## Queueing mail
 

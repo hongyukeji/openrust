@@ -39,6 +39,7 @@ pub struct Markdown {
     paths: Vec<PathBuf>,
     pub(super) app_name: String,
     pub(super) app_url: String,
+    pub(super) timezone: chrono_tz::Tz,
 }
 
 impl Markdown {
@@ -65,6 +66,10 @@ impl Markdown {
                 .get("app.url")
                 .and_then(|url| url.as_str().map(str::to_owned))
                 .unwrap_or_else(|| "/".to_owned()),
+            timezone: settings
+                .get("app.timezone")
+                .and_then(|zone| zone.as_str()?.parse().ok())
+                .unwrap_or(chrono_tz::UTC),
         }
     }
 

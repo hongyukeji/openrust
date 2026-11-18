@@ -1,10 +1,11 @@
-use std::{cell::RefCell, collections::HashMap, time::SystemTime};
+use std::{cell::RefCell, collections::HashMap};
 
-use chrono::{DateTime, Datelike, Utc};
+use chrono::Datelike;
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd, html};
 
 use crate::{
-    support::markdown::safe_url,
+    support::{Date, escape_html, facades::Lang, markdown::safe_url},
+    translation::TranslationError,
     view::{Factory, ViewData, ViewError, ViewResult},
 };
 
@@ -13,7 +14,7 @@ use super::{
     markdown::{Markdown, plain_text},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Format {
     Html,
     Text,
@@ -44,12 +45,21 @@ macro_rules! component {
     };
 }
 
+const HEADER: Component = component!("header");
+const FOOTER: Component = component!("footer");
+const SUBCOPY: Component = component!("subcopy");
+
 const COMPONENTS: &[Component] = &[
     component!("message"),
     component!("button"),
     component!("panel"),
     component!("table"),
+    HEADER,
+    FOOTER,
+    SUBCOPY,
 ];
+
+const COPYRIGHT: &str = "All rights reserved.";
 
 pub(super) fn publishable() -> impl Iterator<Item = (String, &'static [u8])> {
     COMPONENTS.iter().flat_map(|component| {
@@ -115,52 +125,93 @@ impl<'a> Render<'a> {
         let mut data = properties.clone();
         data.insert(
             "slot".into(),
-            self.markdown(slot, component.name == "button").into(),
+            self.markdown(slot, matches!(component.name, "button" | "header"))
+                .into(),
         );
         match component.name {
-            "button" => {
+            "button" | "header" => {
                 let url = properties
                     .get("url")
                     .and_then(|url| url.as_str())
-                    .ok_or_else(|| composition("The mail button requires a URL."))?;
+                    .ok_or_else(|| {
+                        composition(format!("The mail {} requires a URL.", component.name))
+                    })?;
                 data.insert("url".into(), safe_url(url.into()).to_string().into());
-                for (key, default) in [("color", "primary"), ("align", "center")] {
-                    data.entry(key).or_insert_with(|| default.into());
+                if component.name == "button" {
+                    for (key, default) in [("color", "primary"), ("align", "center")] {
+                        data.entry(key).or_insert_with(|| default.into());
+                    }
                 }
             }
-            "message" => {
-                let year = DateTime::<Utc>::from(SystemTime::now()).year();
-                let subcopy = slots
-                    .get("subcopy")
-                    .and_then(|slot| slot.as_str())
-                    .unwrap_or_default();
-                data.insert("subcopy".into(), self.markdown(subcopy, false).into());
-                data.insert("app_name".into(), self.markdown.app_name.as_str().into());
-                data.insert(
-                    "app_url".into(),
-                    safe_url(self.markdown.app_url.as_str().into())
-                        .to_string()
-                        .into(),
-                );
-                data.insert("year".into(), year.into());
-            }
+            "message" => self.message_slots(&mut data, slots)?,
             _ => {}
         }
-        let default = match self.format {
-            Format::Html => component.html,
-            Format::Text => component.text,
-        };
-        let rendered = self.markdown.render_template(
-            self.format,
-            component.name,
-            default,
-            self.views,
-            &data,
-        )?;
+        let rendered = self.template(component, &data)?;
         let mut fragments = self.fragments.borrow_mut();
         let marker = format!("<!--openrust-mail-{}-{}-->", self.nonce, fragments.len());
         fragments.insert(marker.clone(), rendered);
         Ok(format!("\n\n{marker}\n\n"))
+    }
+
+    fn message_slots(&self, data: &mut ViewData, slots: &ViewData) -> MailResult<()> {
+        let app_name = self.markdown.app_name.as_str();
+        let app_url = safe_url(self.markdown.app_url.as_str().into()).to_string();
+        let year = Date::now(Some(self.markdown.timezone))
+            .map_err(|error| composition(error.to_string()))?
+            .asDateTime()
+            .year();
+        let copyright = match Lang::getWith(COPYRIGHT, &[], None) {
+            Ok(line) => line,
+            Err(TranslationError::Unavailable(_)) => COPYRIGHT.into(),
+            Err(error) => return Err(composition(error)),
+        };
+        let footer = format!("© {year} {app_name}. {copyright}");
+        let mut header_data = self.literal_slot(app_name);
+        header_data.insert("url".into(), app_url.as_str().into());
+        let header = self.template(&HEADER, &header_data)?;
+        let footer = self.template(&FOOTER, &self.literal_slot(&footer))?;
+        let subcopy = slots
+            .get("subcopy")
+            .and_then(|slot| slot.as_str())
+            .map(|slot| self.markdown(slot, false))
+            .unwrap_or_default();
+        let rendered_subcopy = if subcopy.is_empty() {
+            String::new()
+        } else {
+            self.template(
+                &SUBCOPY,
+                &std::iter::once(("slot".into(), subcopy.as_str().into())).collect(),
+            )?
+        };
+        data.extend([
+            ("app_name".into(), app_name.into()),
+            ("app_url".into(), app_url.into()),
+            ("year".into(), year.into()),
+            ("header".into(), header.into()),
+            ("footer".into(), footer.into()),
+            ("subcopy".into(), subcopy.into()),
+            ("rendered_subcopy".into(), rendered_subcopy.into()),
+        ]);
+        Ok(())
+    }
+
+    fn literal_slot(&self, content: &str) -> ViewData {
+        let mut slot = String::new();
+        if self.format == Format::Html {
+            escape_html(&mut slot, content);
+        } else {
+            slot.push_str(content);
+        }
+        std::iter::once(("slot".into(), slot.into())).collect()
+    }
+
+    fn template(&self, component: &Component, data: &ViewData) -> MailResult<String> {
+        let default = match self.format {
+            Format::Html => component.html,
+            Format::Text => component.text,
+        };
+        self.markdown
+            .render_template(self.format, component.name, default, self.views, data)
     }
 
     pub(super) fn markdown(&self, source: &str, inline: bool) -> String {

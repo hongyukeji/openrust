@@ -1,8 +1,6 @@
 <div class="mail-message">
-    <header><a href="{{ $app_url }}">{{ $app_name }}</a></header>
+    {!! $header !!}
     <div class="mail-content">{!! $slot !!}</div>
-    @if($subcopy)
-        <div class="subcopy">{!! $subcopy !!}</div>
-    @endif
-    <footer>© {{ $year }} {{ $app_name }}. All rights reserved.</footer>
+    {!! $rendered_subcopy !!}
+    {!! $footer !!}
 </div>

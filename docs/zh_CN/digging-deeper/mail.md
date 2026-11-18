@@ -63,6 +63,8 @@ let content = Content {
 
 用 `<x-mail::message>` 包裹 Markdown 邮件视图。组件使用应用名称和 URL 生成页眉，同时添加页脚。用名为 `subcopy` 的插槽添加补充说明。按钮支持 `url`、`color` 和 `align`。面板正文按 Markdown 渲染。表格组件在 HTML 中渲染 Markdown 表格，生成纯文本时省略该表格。
 
+可用 `<x-mail::header url="https://example.com">`、`<x-mail::footer>` 和 `<x-mail::subcopy>` 分别添加独立的页眉、页脚和补充说明。默认页脚按应用时区显示年份，并按邮件语言查找 `All rights reserved.`。可在对应语言的 JSON 翻译文件中添加这个键。
+
 ```blade
 <x-mail::message>
 # Order ready
@@ -86,6 +88,8 @@ Review order
 ### 自定义 Markdown 布局 {#customizing-the-components}
 
 将 HTML、纯文本布局、组件模板和默认样式表发布到 `resources/views/vendor/mail`。
+
+修改 `html/` 或 `text/` 下的 `header.blade.html`、`footer.blade.html` 和 `subcopy.blade.html` 即可定制这些区块。内置 `message` 模板也使用这三份模板。
 
 ```sh
 ./artisan vendor:publish --tag=laravel-mail

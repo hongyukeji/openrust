@@ -199,3 +199,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Markdown 邮件布局和主题发布](06-06/README.md#markdown-邮件布局和主题发布)通过源码与独立二进制发布、现有文件保留和覆盖、SMTP 投递及 Mailpit 的真实 HTTP 验收。
 
 06-06 的 [Markdown 邮件的四类 Blade 组件](06-06/README.md#markdown-邮件的四类-blade-组件)通过真实邮件投递、Mailpit HTTP、Blade 隔离和独立二进制的 11 个资源发布。
+
+06-06 的 [Markdown 邮件页眉、页脚与补充说明](06-06/README.md#markdown-邮件页眉页脚与补充说明)通过真实 SMTP 和 Mailpit HTTP、页脚语言与应用时区、模板覆盖以及独立二进制发布 17 个资源的验收。
