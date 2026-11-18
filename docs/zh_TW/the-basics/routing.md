@@ -58,6 +58,19 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list --domain=example.test --action=PostController --json
 ```
 
+## 路由快取 {#route-caching}
+
+使用 `route:cache` 為部署後的應用程式產生比對索引。
+
+```sh
+./artisan route:cache
+./artisan route:clear
+```
+
+快取依 HTTP 方法和路徑首段儲存候選項目。Rust 仍在啟動時註冊處理器、模型繫結和中介層。比對索引保留原註冊順序。索引遺失、無法讀取或與目前路由結構不符時，使用一般比對。路由變更後重新執行 `route:cache`，用 `route:clear` 移除索引。
+
+預設路徑為 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。
+
 ## 路由參數
 
 必要參數寫成 `{id}`，尾端的選用參數寫成 `{id?}`，預設值使用 `defaults` 設定。參數未符合限制時，繼續比對其他路由，均未比對成功則回傳 404。

@@ -109,8 +109,6 @@ const LARAVEL: &[(&str, &str)] = &[
         "Request a graceful restart of queue workers",
     ),
     ("queue:resume", "Resume processing on a paused queue"),
-    ("route:cache", "Compile the route table into a cache"),
-    ("route:clear", "Remove the cached route table"),
     ("route:list", "Show registered routes"),
     ("schedule:clear-cache", "Remove cached scheduler locks"),
     ("schedule:test", "Run a selected scheduled task"),

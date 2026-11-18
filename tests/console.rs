@@ -89,14 +89,19 @@ async fn artisan_uses_application_provider_tasks_and_continues_after_nonzero_sta
             0,
         ),
         (false, "reload", "queue, schedule", 0),
-        (true, "optimize", "config, event:cache, views", 1),
+        (true, "optimize", "config, event:cache, routes, views", 1),
         (
             true,
             "optimize:clear",
-            "config, cache, compiled, events, view:clear",
+            "config, cache, compiled, events, routes, view:clear",
             2,
         ),
-        (true, "optimize", "config, events, views, reload-probe", 0),
+        (
+            true,
+            "optimize",
+            "config, events, routes, views, reload-probe",
+            0,
+        ),
     ] {
         RELOAD_STEPS.store(0, Ordering::Relaxed);
         let mut builder =

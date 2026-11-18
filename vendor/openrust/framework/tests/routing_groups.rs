@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{ffi::OsString, net::SocketAddr, path::Path, sync::Arc};
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
@@ -15,6 +15,14 @@ fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     let id = request.route("id").unwrap_or("unset");
     let response = Response::new(StatusCode::OK, Body::from(format!("{tenant}:{id}")));
     Box::pin(async move { Ok(response) })
+}
+
+fn dynamic(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::new(StatusCode::OK, Body::from("dynamic"))) })
+}
+
+fn literal(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::new(StatusCode::OK, Body::from("literal"))) })
 }
 
 fn register() -> Result<(), RoutingError> {
@@ -44,7 +52,10 @@ fn register() -> Result<(), RoutingError> {
             Ok(())
         },
     )?;
-    Route::get("/outside/{id}", report)
+    Route::get("/outside/{id}", report)?;
+    Route::get("/{first}/overlap", dynamic)?;
+    Route::get("/literal/overlap", literal)?;
+    Ok(())
 }
 
 async fn transport(
@@ -81,7 +92,40 @@ async fn send(
 
 #[tokio::test]
 async fn route_groups_match_domains_constraints_and_http_methods() {
-    let app = Application::configure(std::env::temp_dir())
+    let root = tempfile::tempdir().unwrap();
+    check_routes(root.path()).await;
+}
+
+#[tokio::test]
+async fn cached_and_invalid_indexes_preserve_http_routing() {
+    let root = tempfile::tempdir().unwrap();
+    let cache = root.path().join("storage/framework/cache/routes.json");
+    for command in ["route:cache", "route:clear", "route:clear"] {
+        let app = Application::configure(root.path().to_owned())
+            .withRouting(Routing::default().web(register))
+            .create()
+            .unwrap();
+        assert_eq!(
+            app.handleCommand(&[OsString::from(command)]).await.unwrap(),
+            0
+        );
+        if command == "route:cache" {
+            let bytes = std::fs::read(&cache).unwrap();
+            let mut payload: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            assert!(payload["methods"]["GET"]["literal"]["admin"].is_array());
+            assert!(payload["methods"]["GET"]["dynamic"].is_array());
+            check_routes(root.path()).await;
+            payload["methods"]["GET"]["literal"]["admin"] = serde_json::json!([usize::MAX]);
+            std::fs::write(&cache, serde_json::to_vec(&payload).unwrap()).unwrap();
+            check_routes(root.path()).await;
+        } else {
+            assert!(!cache.exists());
+        }
+    }
+}
+
+async fn check_routes(root: &Path) {
+    let app = Application::configure(root.to_owned())
         .withRouting(Routing::default().web(register))
         .create()
         .unwrap();
@@ -121,6 +165,12 @@ async fn route_groups_match_domains_constraints_and_http_methods() {
             .await
             .1,
         "public:letters"
+    );
+    assert_eq!(
+        send(address, "GET", "example.test", "/literal/overlap", 200)
+            .await
+            .1,
+        "dynamic"
     );
     server.abort();
 }

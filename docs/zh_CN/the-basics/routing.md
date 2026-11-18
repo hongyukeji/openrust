@@ -58,6 +58,19 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ./artisan route:list --domain=example.test --action=PostController --json
 ```
 
+## 路由缓存 {#route-caching}
+
+使用 `route:cache` 为部署后的应用生成匹配索引。
+
+```sh
+./artisan route:cache
+./artisan route:clear
+```
+
+缓存按 HTTP 方法和路径首段保存候选项。Rust 仍在启动时注册处理器、模型绑定和中间件。匹配索引保留原注册顺序。索引缺失、不可读或与当前路由结构不匹配时，使用常规匹配。路由改变后重新运行 `route:cache`，用 `route:clear` 移除索引。
+
+默认路径为 `storage/framework/cache/routes.json`。用 `APP_ROUTES_CACHE` 指定绝对路径或相对应用根目录的路径。
+
 ## 路由参数
 
 必填参数写成 `{id}`，末尾的可选参数写成 `{id?}`，默认值用 `defaults` 设置。参数不符合约束时，继续匹配其他路由，均未匹配则返回 404。

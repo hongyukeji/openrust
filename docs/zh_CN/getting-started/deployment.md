@@ -46,9 +46,9 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ./main artisan optimize:clear --except=cache
 ```
 
-`optimize` 缓存配置、事件发现结果和编译视图。`optimize:clear` 清除这些产物、包清单和默认应用缓存。用 `--except`（`-e`）传入逗号分隔的任务名或 Artisan 命令名。示例会保留默认应用缓存。服务提供者可通过 `optimizes` 添加任务。
+`optimize` 缓存配置、事件发现结果、路由匹配索引和编译视图。`optimize:clear` 清除这些产物、包清单和默认应用缓存。用 `--except`（`-e`）传入逗号分隔的任务名或 Artisan 命令名。示例会保留默认应用缓存。服务提供者可通过 `optimizes` 添加任务。
 
-路由由已编译的 Rust 注册函数在应用启动时装配。独立的持久化路由缓存仍待实现。
+路由匹配索引及其缓存路径见[路由缓存](../the-basics/routing.md#route-caching)。
 
 ## 启动 HTTP 与 Artisan
 

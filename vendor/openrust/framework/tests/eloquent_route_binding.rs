@@ -345,11 +345,22 @@ async fn request(address: SocketAddr, path: &str, status: u16) -> String {
 }
 
 async fn verify(config: Value) {
-    let mut app = Application::configure(std::env::temp_dir())
-        .withConfig(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
-        .withRouting(Routing::default().api(api).web(web))
-        .create()
-        .unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let application = || {
+        Application::configure(root.path().to_owned())
+            .withConfig(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
+            .withRouting(Routing::default().api(api).web(web))
+            .create()
+            .unwrap()
+    };
+    assert_eq!(
+        application()
+            .handleCommand(&["route:cache".into()])
+            .await
+            .unwrap(),
+        0
+    );
+    let mut app = application();
     app.boot().await.unwrap();
     let repository = app.container().get::<dyn Repository>("config").unwrap();
     repository

@@ -37,6 +37,7 @@ impl TaskCommand {
             Self::Optimize => &[
                 ("config", "config:cache"),
                 ("events", "event:cache"),
+                ("routes", "route:cache"),
                 ("views", "view:cache"),
             ],
             Self::OptimizeClear => &[
@@ -44,6 +45,7 @@ impl TaskCommand {
                 ("cache", "cache:clear"),
                 ("compiled", "clear-compiled"),
                 ("events", "event:clear"),
+                ("routes", "route:clear"),
                 ("views", "view:clear"),
             ],
         }

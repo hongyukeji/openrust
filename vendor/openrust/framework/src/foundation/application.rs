@@ -31,7 +31,7 @@ use crate::{
         foundation,
     },
     grpc,
-    routing::Router,
+    routing::{Router, route_cache::RouteCache},
     support::ServiceProvider,
 };
 
@@ -68,6 +68,7 @@ pub(super) struct ApplicationState {
     pub(crate) keep_published_migration_dates: AtomicBool,
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
     pub(super) package_cache_path: OnceLock<PathBuf>,
+    route_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     console_tasks: Mutex<Vec<(TaskCommand, String, String)>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
@@ -283,6 +284,24 @@ impl Application {
         }
     }
 
+    pub(crate) fn route_cache_path(&self) -> io::Result<&Path> {
+        self.shared
+            .route_cache_path
+            .get()
+            .map(PathBuf::as_path)
+            .ok_or_else(|| io::Error::other("Route cache path is unavailable"))
+    }
+
+    pub(crate) fn compile_route_cache(&self) -> io::Result<RouteCache> {
+        self.shared
+            .routes
+            .lock()
+            .expect("application routes lock poisoned")
+            .as_ref()
+            .and_then(Router::compile_cache)
+            .ok_or_else(|| io::Error::other("Your application doesn't have any routes."))
+    }
+
     pub(crate) fn configuration_repository(
         &self,
     ) -> Result<Arc<dyn config::Repository>, crate::contracts::container::BindingResolutionError>
@@ -423,6 +442,7 @@ impl Application {
             keep_published_migration_dates: AtomicBool::new(false),
             package_manifest: OnceLock::new(),
             package_cache_path: OnceLock::new(),
+            route_cache_path: OnceLock::new(),
             package_commands: Mutex::default(),
             console_tasks: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
@@ -736,6 +756,17 @@ impl Application {
             .packageManifest()
             .ensure_cache(&self.shared.basePath, &package_cache);
         let _ = self.shared.package_cache_path.set(package_cache);
+        let route_cache_path = self.shared.basePath.join(
+            environment
+                .values
+                .get("APP_ROUTES_CACHE")
+                .filter(|path| !path.is_empty())
+                .map_or_else(
+                    || Path::new("storage/framework/cache/routes.json"),
+                    Path::new,
+                ),
+        );
+        let _ = self.shared.route_cache_path.set(route_cache_path);
         self.shared
             .container
             .instanceNamed("config.cache.path", Arc::new(cache_path))
@@ -902,6 +933,12 @@ impl Application {
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         crate::filesystem::register_signed_routes(&mut routes, config.as_ref())
             .map_err(routing_failed)?;
+        routes.load_cache(
+            self.shared
+                .route_cache_path
+                .get()
+                .expect("route cache path resolved"),
+        );
         self.shared
             .container
             .instanceNamed(

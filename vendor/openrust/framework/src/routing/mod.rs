@@ -10,6 +10,7 @@ mod model_response;
 mod redirector;
 mod resource;
 mod route;
+pub(crate) mod route_cache;
 mod route_group;
 mod route_pattern;
 mod route_url_generator;

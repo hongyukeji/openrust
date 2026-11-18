@@ -275,3 +275,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 08-04 [Artisan 服务重载](08-04/README.md#artisan-服务重载)已补齐，真实 Redis／MySQL、独立 Worker、调度和 Reverb 的 Artisan 重载通过。统一启动的内嵌服务继续由主进程的生命周期管理。
 
 08-04 [Artisan 部署优化与缓存清理](08-04/README.md#artisan-部署优化与缓存清理)通过真实 Artisan、HTTP 和 Redis 验收。持久化路由缓存由路由单元继续跟踪。
+
+04-01 [持久化路由匹配索引](04-01/README.md#持久化路由匹配索引)和 08-04 部署命令联动通过实际 HTTP、Artisan、MySQL、Redis 和三语文档验收。

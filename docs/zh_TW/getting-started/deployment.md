@@ -46,9 +46,9 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ./main artisan optimize:clear --except=cache
 ```
 
-`optimize` 快取設定、事件探索結果和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
+`optimize` 快取設定、事件探索結果、路由比對索引和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
 
-路由由已編譯的 Rust 註冊函式在應用程式啟動時組裝。獨立的持久化路由快取仍待實作。
+路由比對索引及其快取路徑見[路由快取](../the-basics/routing.md#route-caching)。
 
 ## 啟動 HTTP 與 Artisan
 

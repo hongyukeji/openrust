@@ -58,6 +58,19 @@ The route list preserves binding fields such as `{post:slug}`, optional markers 
 ./artisan route:list --domain=example.test --action=PostController --json
 ```
 
+## Route Caching {#route-caching}
+
+Use `route:cache` to store a matching index for the deployed application.
+
+```sh
+./artisan route:cache
+./artisan route:clear
+```
+
+The cache stores candidates by HTTP method and first path segment. Rust still registers handlers, model bindings and middleware at startup. The index preserves registration order. Missing, unreadable or incompatible indexes fall back to the normal matcher. Run `route:cache` again after changing routes, and use `route:clear` to remove the index.
+
+The default path is `storage/framework/cache/routes.json`. Set `APP_ROUTES_CACHE` to an absolute path or a path relative to the application root.
+
 ## Route Parameters
 
 Use `{id}` for a required parameter or `{id?}` for a trailing optional parameter. Set defaults with `defaults`. A parameter that fails a route constraint falls through to other routes or returns 404.

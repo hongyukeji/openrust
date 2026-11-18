@@ -134,10 +134,13 @@ fn artisan_reload_excludes_tasks_by_label_and_command() {
 #[test]
 fn artisan_optimization_commands_allow_excluding_tasks() {
     for (command, skip) in [
-        ("optimize", "config, event:cache, views, config:cache"),
+        (
+            "optimize",
+            "config, event:cache, routes, views, config:cache",
+        ),
         (
             "optimize:clear",
-            "config, cache:clear, compiled, events, views",
+            "config, cache:clear, compiled, events, route:clear, views",
         ),
     ] {
         let help = artisan(&["help", command]);
@@ -222,14 +225,12 @@ fn artisan_reserves_reference_commands_without_running_them() {
     let list = artisan(&["list", "--raw"]);
     assert!(list.status.success());
     let list = String::from_utf8(list.stdout).unwrap();
-    for name in ["route:cache", "build"] {
-        let entries: Vec<_> = list
-            .lines()
-            .filter(|line| line.split_whitespace().next() == Some(name))
-            .collect();
-        assert_eq!(entries.len(), 1, "{name}");
-        assert!(entries[0].ends_with("[Planned]"));
-    }
+    let entries: Vec<_> = list
+        .lines()
+        .filter(|line| line.split_whitespace().next() == Some("build"))
+        .collect();
+    assert_eq!(entries.len(), 1);
+    assert!(entries[0].ends_with("[Planned]"));
 
     let help = artisan(&["help", "build"]);
     assert!(help.status.success());

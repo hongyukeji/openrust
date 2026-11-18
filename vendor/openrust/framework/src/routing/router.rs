@@ -90,6 +90,7 @@ pub struct Router {
     bindings: HashMap<String, Resolver>,
     static_mounts: Vec<StaticMount>,
     has_domains: bool,
+    route_cache: Option<super::route_cache::RouteCache>,
 }
 
 /// Metadata for the methods that still dispatch to a registered route.
@@ -109,6 +110,16 @@ pub struct RouteInfo {
 impl Router {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub(crate) fn compile_cache(&self) -> Option<super::route_cache::RouteCache> {
+        (!self.by_method.is_empty())
+            .then(|| super::route_cache::RouteCache::compile(&self.by_method, &self.routes))
+    }
+
+    pub(crate) fn load_cache(&mut self, path: &std::path::Path) {
+        self.route_cache =
+            super::route_cache::RouteCache::load(path, &self.by_method, &self.routes);
     }
 
     pub(crate) fn url_routes(&self) -> super::url_generator::UrlRoutes {
@@ -410,11 +421,17 @@ impl Router {
     }
 
     fn matched(&self, method: &Method, host: &str, path: &str) -> Option<&Route> {
-        self.by_method
-            .get(method)?
-            .iter()
-            .map(|&index| &self.routes[index])
-            .find(|route| route.matches(host, path))
+        let routes = self.by_method.get(method)?;
+        let matches = |&index: &usize| self.routes[index].matches(host, path);
+        let index = if let Some(cache) = &self.route_cache {
+            cache
+                .candidates(method, path)
+                .map(|position| routes[position])
+                .find(matches)
+        } else {
+            routes.iter().copied().find(matches)
+        }?;
+        Some(&self.routes[index])
     }
 
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
@@ -599,6 +616,7 @@ impl Router {
     }
 
     pub(super) fn insert_route(&mut self, methods: &[Method], route: Route) -> &mut Route {
+        self.route_cache = None;
         self.has_domains |= route.domain.is_some();
         let index = self.routes.len();
         for method in methods.iter().collect::<HashSet<_>>() {

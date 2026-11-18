@@ -59,3 +59,9 @@
 - Symfony v7.4.0 与 PHP 8.5 对照通过命名引用、相对引用、尾部可选参数和域名捕获。实际 HTTP 对照通过同一组成功与 404，并覆盖全局模式和分组前缀。回归确认无效语法即时拒绝，无法解析的引用在完整路由编译时失败。
 - 依交付计划核对 GET、HEAD、OPTIONS、404、405、必填与可选参数、分组作用域、文本与 JSON `route:list`，以及绑定字段、动作、域名和中间件诊断。结合前批具名 URL、模式编译及本批跨变量引用实测，04-01 核心单元闭合，账本更新为 56/66。不同 PCRE2 版本及 Windows 实机留到发布矩阵复验。
 - `faa57a979` 隔离快照以 Rust 1.94.0 和捆绑 PCRE2 运行，16 项 HTTP、4 项 URL、实际 `route:list -vv --json --middleware=SubstituteBindings` 和 `artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查通过。改动文件格式通过，全仓格式仅报告既有的 `sanctum_authentication.rs:1412` 差异。已清理本批独占产物，证据目录 `/private/tmp/openrust-04-01-cross-ref.nSix2LRX`。
+
+## 持久化路由匹配索引
+
+- 对照固定 Laravel v13.40.0 的 `RouteCacheCommand` 和 `RouteClearCommand`。旧版 `openrust-v0.x` 未实现持久化路由匹配缓存。OpenRust 的 `route:cache` 将当前编译注册得到的路由索引原子写入 JSON，按 HTTP 方法和路径首段划分候选，动态首段单独保存。匹配时按方法内的原注册顺序合并候选，并继续使用现有域名、约束及绑定逻辑。处理器及中间件由编译后的 Rust 代码在启动时注册。 [固定 Laravel RouteCacheCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/RouteCacheCommand.php) · [固定 Laravel RouteClearCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/RouteClearCommand.php)
+- 缓存读取时验证版本、方法集合、索引顺序、位置及分桶覆盖。文件缺失、不可读、损坏或与当前布局不符时回到常规匹配。真实 HTTP 对照无缓存、有效缓存和索引位置越界的缓存，覆盖域名、数字约束、可选参数、HEAD、OPTIONS、405、404 和动态／字面路由重叠。真实 MySQL 8.4.13 用启用缓存的 HTTP 应用通过 Eloquent 绑定回归。
+- 在隔离快照 `b8681c8db` 用真实应用二进制与 Redis 8.10.3 验证 `APP_ROUTES_CACHE` 覆盖、`route:cache`、`route:list`、幂等 `route:clear`、`optimize` 和 `optimize:clear`。首页及 `/up` 通过。20 项应用 Console／Artisan、3 项路由回归及 1 项真实 MySQL 回归通过。Rust 1.94.0 全仓格式、工作区全目标严格 Clippy、三语站点及 18 项浏览器检查通过。临时服务和构建产物已回收。磁盘可用 85.12 GB（79.27 GiB），提交前周额度剩余 26%，第二窗口无读数。日志保留于 `/private/tmp/openrust-route-cache.fz4DW2yH`。

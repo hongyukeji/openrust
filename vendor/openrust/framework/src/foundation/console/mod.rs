@@ -139,6 +139,9 @@ impl Kernel {
                             crate::routing::console::route_list_command::register(
                                 &mut self.artisan,
                             )?;
+                            crate::routing::console::route_cache_command::register(
+                                &mut self.artisan,
+                            )?;
                             storage_link_command::register(&mut self.artisan)?;
                             storage_unlink_command::register(&mut self.artisan)?;
                             crate::database::console::factories::register(&mut self.artisan)?;

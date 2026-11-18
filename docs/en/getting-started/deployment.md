@@ -46,9 +46,9 @@ Run the command from the final release directory using the environment the servi
 ./main artisan optimize:clear --except=cache
 ```
 
-`optimize` caches configuration, event discovery and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
+`optimize` caches configuration, event discovery, the route matching index and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
 
-Routes use compiled Rust registrars and are assembled when the application boots. A separate persistent route cache is still pending.
+See [Route Caching](../the-basics/routing.md#route-caching) for the matching index and its cache path.
 
 ## Start HTTP and Artisan
 
