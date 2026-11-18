@@ -208,6 +208,14 @@ For messages containing verification codes or other sensitive data, override `No
 
 An explicit HTTP 429 may retry within the job policy. When the network or provider response leaves acceptance unknown, the Worker stops automatic retries. Match the submission against provider records before resending. A `NotificationSent` listener error after an accepted SMS is logged independently.
 
+### Recovery after a Worker crash
+
+Run `./artisan migrate --force` before starting production Workers. Queued SMS uses the `sms_deliveries` table on the application’s default SQL connection, including when Redis holds the queue. All Workers must use the same database for these records.
+
+The Worker claims the queue job UUID before it calls the provider and stores the submission result before firing `NotificationSent`. A replacement Worker acknowledges an already accepted job without sending the SMS again. If the prior attempt is still marked `submitting` or has an unknown outcome, the job is marked failed for review. Check with the provider before creating a replacement job.
+
+Keep the delivery rows while their jobs can still be redelivered or retried. Before upgrading, stop old Workers and reconcile any jobs interrupted during a send. The table records attempts made after the upgrade.
+
 ## Registering providers {#custom-sms-providers}
 
 In a service provider’s `register` hook, resolve `SmsManager` and call `extend` to register a driver factory. The factory receives the selected profile and returns a type that implements `SmsDriver`. Multiple named profiles can use the same driver. The built-in `vonage` notification channel continues to use the original `VONAGE_*` variables.

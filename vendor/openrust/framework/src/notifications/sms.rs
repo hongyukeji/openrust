@@ -305,10 +305,6 @@ impl SmsFailure {
             _ => None,
         }
     }
-
-    pub(super) fn retryable(error: &super::NotificationError) -> bool {
-        Self::from_notification(error).is_some_and(|error| error.kind == SmsFailureKind::Retryable)
-    }
 }
 
 type DriverFactory = dyn Fn(&Value) -> NotificationResult<Arc<dyn SmsDriver>> + Send + Sync;

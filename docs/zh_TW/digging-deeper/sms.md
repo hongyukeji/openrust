@@ -208,6 +208,14 @@ Sms::send_text("+12025550123", "您的訂單已出貨。").await?;
 
 明確的 HTTP 429 可以依工作策略重試。網路中斷或回應異常導致受理結果未知時，Worker 會停止自動重試。補發前請先核對廠商記錄。簡訊已提交後，`NotificationSent` 監聽器的錯誤會單獨記錄。
 
+### Worker 當機後復原
+
+啟動正式環境的 Worker 前執行 `./artisan migrate --force`。排入佇列的簡訊使用應用程式預設 SQL 連線的 `sms_deliveries` 資料表，即使佇列本身使用 Redis。所有 Worker 須連線至同一個記錄資料庫。
+
+Worker 在呼叫廠商前依佇列工作的 UUID 登記，並在觸發 `NotificationSent` 之前儲存提交結果。接手的 Worker 遇到已受理的工作會直接確認佇列。如果上一次仍為 `submitting` 或結果未知，工作會列入失敗記錄以供核對。先查詢廠商記錄，再決定是否建立新工作補送。
+
+佇列仍可能重新投遞或重試時，保留對應的傳送記錄。升級前先停止舊 Worker，核對傳送途中被中斷的歷史工作。資料表記錄升級後執行的傳送嘗試。
+
 ## 註冊供應商 {#custom-sms-providers}
 
 在應用程式服務提供者的 `register` 中解析 `SmsManager`，呼叫 `extend` 註冊工廠。工廠接收選定的設定，回傳實作 `SmsDriver` 的驅動程式。多個具名設定可以共用同一個驅動程式。內建的 `vonage` 通知管道繼續使用原有的 `VONAGE_*` 環境變數。

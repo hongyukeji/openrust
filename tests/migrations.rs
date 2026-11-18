@@ -350,6 +350,7 @@ async fn verify(mysql: Option<&str>) {
     let mut schema = db.getSchemaBuilder();
     for name in [
         "personal_access_tokens",
+        "sms_deliveries",
         "job_chain_deliveries",
         "job_batches_continuations",
         "job_batches_additions",
@@ -368,6 +369,11 @@ async fn verify(mysql: Option<&str>) {
         schema.dropIfExists(name).await.unwrap();
     }
     let run = |args: &[&str]| root.run("local", mysql, args);
+    let rollback_sms = || {
+        assert!(
+            success(run(&["migrate:rollback", "--step=1"])).contains("create_sms_deliveries_table")
+        );
+    };
 
     assert_eq!(run(&["migrate:status"]).status.code(), Some(1));
     let cancelled = root.run("production", mysql, &["migrate", "--no-interaction"]);
@@ -458,7 +464,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        12 + u64::from(sanctum_migration().is_some())
+        13 + u64::from(sanctum_migration().is_some())
     );
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
@@ -468,6 +474,9 @@ async fn verify(mysql: Option<&str>) {
         schema.hasTable("personal_access_tokens").await.unwrap(),
         sanctum_migration().is_some()
     );
+    assert!(schema.hasTable("sms_deliveries").await.unwrap());
+    rollback_sms();
+    assert!(!schema.hasTable("sms_deliveries").await.unwrap());
     if let Some(path) = sanctum_migration() {
         #[cfg(feature = "sanctum")]
         verify_sanctum(&root, mysql, &db, path).await;
@@ -488,6 +497,8 @@ async fn verify(mysql: Option<&str>) {
         .unwrap();
     let receipt_upgrade = success(run(&["migrate"]));
     assert!(receipt_upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
+    assert!(receipt_upgrade.contains("create_sms_deliveries_table"));
+    rollback_sms();
     assert_eq!(
         db.table("job_chain_deliveries")
             .r#where("id", "=", "legacy-chain")
@@ -542,6 +553,8 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgraded.contains("add_chain_successor_to_job_batches_jobs"));
     assert!(upgraded.contains("create_job_chain_deliveries_table"));
     assert!(upgraded.contains("add_acknowledged_at_to_job_chain_deliveries"));
+    assert!(upgraded.contains("create_sms_deliveries_table"));
+    rollback_sms();
     assert_eq!(
         db.table("job_batches_outbox")
             .r#where("batch_id", "=", pending.id.as_str())
@@ -580,6 +593,8 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgrade.contains("add_chain_successor_to_job_batches_jobs"));
     assert!(upgrade.contains("create_job_chain_deliveries_table"));
     assert!(upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
+    assert!(upgrade.contains("create_sms_deliveries_table"));
+    rollback_sms();
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
     if sanctum_migration().is_some() {
@@ -792,7 +807,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("job_batches").await.unwrap());
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        12 + u64::from(sanctum_migration().is_some())
+        13 + u64::from(sanctum_migration().is_some())
     );
     success(run(&["db:wipe", "--drop-views"]));
     assert!(

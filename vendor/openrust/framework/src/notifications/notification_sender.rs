@@ -73,6 +73,14 @@ impl Delivery {
         &self,
         operation: impl Future<Output = NotificationResult<Option<ChannelResponse>>>,
     ) -> NotificationResult<()> {
+        if self.can_send().await? {
+            self.complete(operation.await).await
+        } else {
+            self.skipped().await
+        }
+    }
+
+    pub(super) async fn can_send(&self) -> NotificationResult<bool> {
         let before = Events::until(self.event("NotificationSending", None, None))
             .await
             .map_err(delivery)?;
@@ -81,10 +89,14 @@ impl Delivery {
             Some(ListenerResponse::Value(value)) => value.downcast_ref::<bool>() == Some(&false),
             None => false,
         };
-        if denied {
-            return self.skipped().await;
-        }
-        match operation.await {
+        Ok(!denied)
+    }
+
+    pub(super) async fn complete(
+        &self,
+        result: NotificationResult<Option<ChannelResponse>>,
+    ) -> NotificationResult<()> {
+        match result {
             Ok(response) => {
                 let sms = if let Some(ChannelResponse::Sms(submission)) = &response {
                     if submission.status != super::sms::SmsSubmissionStatus::Logged {

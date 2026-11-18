@@ -3161,7 +3161,7 @@ fn user() -> User {
 }
 
 async fn drop_delivery_tables(db: &openrust::database::Connection) {
-    for table in ["notifications", "jobs", "failed_jobs"] {
+    for table in ["notifications", "jobs", "failed_jobs", "sms_deliveries"] {
         db.getSchemaBuilder().dropIfExists(table).await.unwrap();
     }
 }
@@ -4406,6 +4406,17 @@ async fn vonage_protocol_and_worker_retries_use_the_notification_route() {
     let mut application = app(&root.0);
     application.boot().await.unwrap();
     let db = setup(&application).await;
+    db.getSchemaBuilder()
+        .create("sms_deliveries", |table| {
+            table.string("id", 36).primary();
+            table.string("status", 16);
+            table.text("submission").nullable();
+            table.bigInteger("created_at");
+            table.bigInteger("updated_at");
+        })
+        .await
+        .unwrap();
+
     application
         .call(
             Callback::new(&[], |_| async {

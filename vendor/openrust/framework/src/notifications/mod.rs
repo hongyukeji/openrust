@@ -15,6 +15,7 @@ mod notification_service_provider;
 mod send_queued_notifications;
 pub mod slack;
 pub mod sms;
+mod sms_delivery;
 
 use std::{error::Error, future::Future, pin::Pin};
 

@@ -208,6 +208,14 @@ Sms::send_text("+12025550123", "您的订单已发货。").await?;
 
 明确的 HTTP 429 可以按任务策略重试。网络中断或响应异常导致受理结果未知时，Worker 停止自动重试。补发前先与厂商记录核对。短信已提交后，`NotificationSent` 监听器的错误会单独记录。
 
+### Worker 崩溃后恢复
+
+在启动生产 Worker 前运行 `./artisan migrate --force`。排队短信使用应用默认 SQL 连接上的 `sms_deliveries` 表，即使队列本身使用 Redis。所有 Worker 须连接同一个记录库。
+
+Worker 在调用厂商前按队列任务 UUID 登记，并在触发 `NotificationSent` 之前保存提交结果。接手的 Worker 遇到已受理的任务会直接确认队列。如果上一次仍是 `submitting` 或结果未知，任务会进入失败记录供核对。先查厂商记录，再决定是否创建新任务补发。
+
+队列仍可能重投或重试时，保留对应发送记录。升级前先停旧 Worker，核对发送中途被中断的历史任务。记录表覆盖升级后执行的发送尝试。
+
 ## 注册供应商 {#custom-sms-providers}
 
 在应用服务提供者的 `register` 中解析 `SmsManager`，调用 `extend` 注册工厂。工厂接收选中的配置，返回实现 `SmsDriver` 的驱动。多个具名配置可以复用同一驱动。内置的 `vonage` 通知渠道继续使用原有的 `VONAGE_*` 环境变量。

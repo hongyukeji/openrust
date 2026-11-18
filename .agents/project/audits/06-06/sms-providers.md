@@ -69,3 +69,9 @@
 - Twilio Python SDK 9.13.0 在本机 HTTP 模拟接收端校验表单签名。正确签名的匹配回执通过框架接口将状态由 `accepted` 更新为 `delivered`。篡改签名数据返回 403，错误消息 ID 和冲突终态返回 409。重复回执仍返回 204，现有状态一致。验签入口只在隔离夹具中。真实供应商回执和手机收信待实测。 [Twilio 官方验签说明](https://www.twilio.com/docs/usage/security#validating-requests)
 - MySQL 8.4.13 和 Redis 8.10.3 上运行真实 Artisan Worker。在模拟厂商返回受理且应用写出受理日志后，由通知监听器阻塞确认，再发送 SIGKILL。保留窗口到期后，新 Worker 对相同任务再次调用厂商。两个后端各捕获两次提交，确认仍存在受理后、队列确认前的重复发送窗口。
 - 临时容器、构建、SDK 和隔离源码副本已清理，数据卷清单一致。磁盘可用量净增 2.58 GB，剩余 93.33 GB。原始结果、探针和夹具补丁保存在 `/private/tmp/openrust-sms-simulation.o52xPJ3x`。
+
+## Worker 崩溃恢复与持久化发送记录
+
+- 新增 `sms_deliveries` 迁移。短信 Worker 使用默认 SQL 连接按队列任务 UUID 原子登记，发送结果在 `NotificationSent` 之前持久化。已有受理记录直接确认队列。未能确认结果的记录保留供核对，同一任务停止自动补发。已确认可重试的限流通过条件更新重新领取。记录不包含完整号码、正文或供应商密钥。
+- MySQL 8.4.13 和 Redis 8.10.3 使用独立真实 Artisan Worker 和本地短信宝协议端点。分别在厂商响应未保存时、结果已持久化且队列尚未确认时发送 SIGKILL。两个后端在两种时点均只提交一次。前者进入失败记录，手动 `queue:retry` 同一 UUID 也不会再次提交。后者由替换 Worker 正常确认，无失败任务。
+- MySQL 与 SQLite 迁移、回滚和重建通过，Vonage 旧渠道和明确限流重试通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 12 项浏览器检查通过。本批编译、站点产物和临时容器已清理，数据卷清单一致。项目卷可用空间净增 3.67 GB，剩余 78.04 GB。日志位于 `/private/tmp/openrust-sms-ledger.QgeQ3XWN`。

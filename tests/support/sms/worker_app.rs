@@ -132,7 +132,9 @@ impl ServiceProvider for SmsServiceProvider {
                     Arc::new(SmsTestObserver),
                     Delivery::Sync,
                 )?;
-                if std::env::var_os("SMS_TEST_LISTENER_FAIL").is_some() {
+                if std::env::var_os("SMS_TEST_LISTENER_FAIL").is_some()
+                    || std::env::var_os("SMS_TEST_CRASH_READY").is_some()
+                {
                     registry.listen(
                         "NotificationSent",
                         Arc::new(SmsTestObserver),
@@ -167,6 +169,11 @@ impl Listener for SmsTestObserver {
                     assert!(sending.request.body.is_none());
                 }
                 return Ok(None);
+            }
+            if let Some(path) = std::env::var_os("SMS_TEST_CRASH_READY") {
+                std::fs::write(path, b"accepted before queue acknowledgement")
+                    .expect("write worker checkpoint");
+                std::future::pending::<()>().await;
             }
             Err(EventError::Listener {
                 source: Box::from("fixture listener failure"),

@@ -14,7 +14,10 @@ use crate::{
 };
 
 use super::{
-    NotificationError, NotificationFacade, NotificationResult, notification_sender::Delivery,
+    NotificationError, NotificationFacade, NotificationResult,
+    channels::Channel,
+    notification_sender::Delivery,
+    sms_delivery::{SmsDelivery, Status},
 };
 
 /// The worker handler for one queued notification channel delivery.
@@ -113,6 +116,7 @@ impl JobHandler for SendQueuedNotifications {
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
+            let job_id = payload.uuid();
             let job = match serde_json::from_value(payload.data().clone()) {
                 Ok(QueuedDelivery::Plain(job)) => Ok(*job),
                 Ok(QueuedDelivery::Encrypted { encrypted_delivery }) => {
@@ -141,14 +145,18 @@ impl JobHandler for SendQueuedNotifications {
                             return delivery.skipped().await;
                         }
                         let channel = manager.channel(Some(&delivery.channel))?;
-                        let result = delivery.send(channel.send_queued(payload)).await;
-                        if channel.is_sms()
-                            && let Err(error) = &result
-                            && !super::sms::SmsFailure::retryable(error)
-                        {
-                            context.fail_without_retry();
+                        if channel.is_sms() {
+                            Box::pin(send_sms(
+                                context,
+                                job_id,
+                                &delivery,
+                                channel.as_ref(),
+                                payload,
+                            ))
+                            .await
+                        } else {
+                            delivery.send(channel.send_queued(payload)).await
                         }
-                        result
                     })
                     .await
             }
@@ -158,6 +166,50 @@ impl JobHandler for SendQueuedNotifications {
             })
         })
     }
+}
+
+async fn send_sms(
+    context: &mut JobContext<'_>,
+    job_id: &str,
+    delivery: &Delivery,
+    channel: &dyn Channel,
+    payload: Value,
+) -> NotificationResult<()> {
+    let entry = SmsDelivery::new(job_id)?;
+    let status = entry.status().await?;
+    match status {
+        Some(Status::Accepted) => return Ok(()),
+        Some(Status::Submitting | Status::Unknown | Status::Rejected) => {
+            return stop_sms(context, status);
+        }
+        None | Some(Status::Retryable) => {}
+    }
+
+    if !delivery.can_send().await? {
+        return delivery.skipped().await;
+    }
+    if !entry.claim(status).await? {
+        return stop_sms(context, entry.status().await?);
+    }
+    let result = channel.send_queued(payload).await;
+    let status = entry.finish(&result).await?;
+    if matches!(status, Status::Rejected | Status::Unknown) {
+        context.fail_without_retry();
+    }
+    delivery.complete(result).await
+}
+
+fn stop_sms(context: &mut JobContext<'_>, status: Option<Status>) -> NotificationResult<()> {
+    if status == Some(Status::Accepted) {
+        return Ok(());
+    }
+    context.fail_without_retry();
+    let message = if status == Some(Status::Rejected) {
+        "This SMS job was already rejected by the provider."
+    } else {
+        "This SMS job has a previous attempt whose submission must be reconciled."
+    };
+    Err(super::delivery(message))
 }
 
 struct MiddlewareDelivery(Vec<Arc<dyn JobMiddleware>>);

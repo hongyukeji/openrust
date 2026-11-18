@@ -12,7 +12,8 @@ import runpy
 import subprocess
 import sys
 import tempfile
-from threading import Thread
+from threading import Event, Thread
+import time
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -142,6 +143,8 @@ def provider_server(receipts):
             assert fields.pop("p") in {profile + "-worker-secret", "shared-worker-secret"}
             assert fields.pop("u") in {profile + "-user", "shared-user"}
             receipts.put((profile, fields))
+            if fields["c"].startswith("crash-before-receipt-"):
+                self.server.release_crash_response.wait(timeout=15)
             if fields["c"] == "dropped-after-acceptance":
                 self.close_connection = True
                 return
@@ -157,7 +160,11 @@ def provider_server(receipts):
                 return
             self.send_response(200)
             self.end_headers()
-            self.wfile.write(b"30" if fields["c"] == "reject" else b"0\n")
+            try:
+                self.wfile.write(b"30" if fields["c"] == "reject" else b"0\n")
+            except (BrokenPipeError, ConnectionResetError):
+                if not fields["c"].startswith("crash-before-receipt-"):
+                    raise
 
         def do_POST(self):
             url = urlsplit(self.path)
@@ -228,7 +235,9 @@ def provider_server(receipts):
         def log_message(self, *_args):
             pass
 
-    return ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.release_crash_response = Event()
+    return server
 
 
 def check_aliyun(binary, backend, env, receipts, endpoint):
@@ -548,6 +557,70 @@ def check_hardened_worker(binary, backend, env, receipts, endpoint):
     print(f"{backend}: encrypted queue and failed payloads, redacted HTTP event, terminal unknown status, listener failure, and retryable HTTP 429 passed", flush=True)
 
 
+def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
+    db = os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"]
+    artisan = [binary, "artisan"]
+    for checkpoint, expected_status in (("after-receipt", "accepted"), ("before-receipt", "submitting")):
+        queue = f"sms-crash-{checkpoint}-{backend}"
+        content = f"crash-{checkpoint}-{backend}"
+        marker = Path(env["APP_BASE_PATH"]) / queue
+        provider.release_crash_response.clear()
+        options = env | {
+            "QUEUE_CONNECTION": backend, "DB_QUEUE": queue, "REDIS_QUEUE": queue,
+            "DB_QUEUE_RETRY_AFTER": "2", "REDIS_QUEUE_RETRY_AFTER": "2",
+            "QUEUE_FAILED_DRIVER": "database-uuids",
+            "SMS_DRIVER": "smsbao", "SMS_SMSBAO_ENDPOINT": endpoint,
+            "SMS_SMSBAO_USERNAME": "shared-user", "SMS_SMSBAO_API_KEY": "shared-worker-secret",
+        }
+        run(artisan + ["sms:demo", "+8613800138000", content], options)
+        wire, _ = queued_payloads(backend, queue)
+        envelope = json.loads(wire.splitlines()[0])
+        job_id = (json.loads(envelope["payload"]) if backend == "redis" else envelope)["uuid"]
+        assert not mysql_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'")
+        worker = artisan + ["queue:work", backend, "--once", "--timeout=0", "--tries=3"]
+        crashing = options | {"SMS_TEST_CRASH_READY": str(marker)} if checkpoint == "after-receipt" else options
+        with tempfile.TemporaryFile(mode="w+t") as output:
+            process = subprocess.Popen(worker, env=crashing, cwd=ROOT, stdout=output, stderr=output)
+            try:
+                assert receipts.get(timeout=12)[1]["c"] == content
+                if checkpoint == "after-receipt":
+                    deadline = time.monotonic() + 12
+                    while not marker.exists():
+                        assert process.poll() is None and time.monotonic() < deadline
+                        time.sleep(0.02)
+                saved = mysql_rows(db, f"SELECT status, submission FROM sms_deliveries WHERE id = '{job_id}'")
+                assert saved.split("\t", 1)[0] == expected_status, saved
+                assert "shared-worker-secret" not in saved and content not in saved and "13800138000" not in saved
+                if checkpoint == "after-receipt":
+                    assert json.loads(saved.split("\t", 1)[1])["provider"] == "smsbao"
+                process.kill()
+                assert process.wait(timeout=5) == -9
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                provider.release_crash_response.set()
+        time.sleep(3)
+        run(worker, options)
+        assert receipts.empty(), "The replacement worker submitted the SMS again"
+        failed = mysql_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip()
+        assert failed == ("1" if checkpoint == "before-receipt" else "0"), failed
+        if checkpoint == "before-receipt":
+            failed_id = mysql_rows(db, f"SELECT uuid FROM failed_jobs WHERE queue = '{queue}'").strip()
+            assert failed_id == job_id
+            run(artisan + ["queue:retry", failed_id], options)
+            run(worker, options)
+            assert receipts.empty(), "Retrying an unresolved job submitted the SMS again"
+            assert mysql_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip() == "1"
+        assert mysql_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'").strip() == expected_status
+        if backend == "database":
+            assert mysql_rows(db, f"SELECT COUNT(*) FROM jobs WHERE queue = '{queue}'").strip() == "0"
+        else:
+            assert not run(["docker", "exec", os.environ["SMS_DEMO_REDIS_CONTAINER"],
+                            "redis-cli", "--raw", "--scan", "--pattern", f"*queues:{queue}*"]).strip()
+    print(f"{backend}: SIGKILL before and after saving acceptance, replacement Worker made zero duplicate provider calls", flush=True)
+
+
 def main():
     binary = str(Path(sys.argv[1]).resolve())
     requests = Queue()
@@ -582,6 +655,7 @@ def main():
                     check_log_default(binary, backend, env)
                 for backend in ("database", "redis"):
                     check_hardened_worker(binary, backend, env, aliyun_receipts, aliyun_endpoint)
+                    check_crash_recovery(binary, backend, env, aliyun_receipts, aliyun, aliyun_endpoint)
             finally:
                 aliyun.shutdown()
                 aliyun_thread.join()
