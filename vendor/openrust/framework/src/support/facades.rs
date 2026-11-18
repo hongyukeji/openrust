@@ -44,6 +44,7 @@ pub use url::URL;
 
 use std::{
     cell::RefCell,
+    ffi::OsString,
     path::{Path, PathBuf},
     sync::{Arc, Weak},
 };
@@ -565,10 +566,25 @@ fn static_config_error(key: &str, expected: &'static str) -> RoutingError {
     }
 }
 
-/// Registers commands on the console bound by the current application.
+/// Registers and executes Artisan commands for the current application.
 pub struct Artisan;
 
 impl Artisan {
+    /// Runs a registered command in-process. Each argument is a separate CLI token.
+    pub async fn call(
+        command: &str,
+        arguments: &[OsString],
+        output: &mut Output,
+    ) -> Result<i32, ConsoleError> {
+        foundation::console::call_in_application(command, arguments, output).await
+    }
+
+    /// Runs a registered command and discards its console output.
+    #[allow(non_snake_case, reason = "Matches Laravel's command API")]
+    pub async fn callSilently(command: &str, arguments: &[OsString]) -> Result<i32, ConsoleError> {
+        Self::call(command, arguments, &mut Output::default()).await
+    }
+
     pub fn command(
         name: &'static str,
         callback: impl Fn(&mut Output) + Send + Sync + 'static,

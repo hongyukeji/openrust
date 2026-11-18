@@ -52,6 +52,28 @@ In CMD, run `artisan.bat inspire`. In PowerShell, use `.\artisan.bat help inspir
 
 See [Artisan translations](./localization.md#artisan-translations) for language selection and overrides.
 
+## Programmatically Executing Commands {#programmatically-executing-commands}
+
+Call a registered command from an HTTP handler or from another Artisan command with `Artisan::call(name, arguments, &mut output).await`. The call runs within the current application and returns the command's exit code. Unknown commands and invalid arguments return `ConsoleError`. Use a separate `Output` for each invocation to capture stdout and stderr.
+
+```rust
+use std::ffi::OsString;
+
+use openrust::{
+    console::{ConsoleError, Output},
+    support::facades::Artisan,
+};
+
+async fn inspire_help() -> Result<(i32, String), ConsoleError> {
+    let mut output = Output::default();
+    let arguments = ["inspire", "--format=json"].map(OsString::from);
+    let status = Artisan::call("help", &arguments, &mut output).await?;
+    Ok((status, output.stdout))
+}
+```
+
+Pass a separate `OsString` for each positional argument or option. Values that contain spaces stay in one token. Include a switch for a true Boolean flag, and repeat options that take multiple values. Use `Artisan::callSilently(name, arguments).await` to discard both streams and keep the exit code.
+
 ## Optional Route Installers {#optional-route-installers}
 
 Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.

@@ -20,6 +20,9 @@ use openrust::{
     view::view,
 };
 
+#[path = "../routes/console.rs"]
+mod application_console;
+
 struct Greet(CommandDefinition);
 
 impl Command for Greet {
@@ -40,6 +43,82 @@ impl Command for Greet {
             Ok(7)
         })
     }
+}
+
+struct NestedArtisan(CommandDefinition);
+
+impl Command for NestedArtisan {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let arguments = ["two words 中文"].map(OsString::from);
+            assert!(ArtisanFacade::call("say-hi", &[], output).await.is_err());
+            assert!(
+                ArtisanFacade::call("unknown-command", &[], output)
+                    .await
+                    .is_err()
+            );
+            assert_eq!(ArtisanFacade::callSilently("say-hi", &arguments).await?, 7);
+            let mut help = Output::default();
+            assert_eq!(
+                ArtisanFacade::call("say-hi", &["--help".into()], &mut help).await?,
+                0
+            );
+            assert!(help.stdout.contains("<name>"));
+            assert_eq!(
+                ArtisanFacade::call("say-hi", &["--quiet".into(), "--help".into()], output).await?,
+                0
+            );
+            let mut output_json = Output::default();
+            let help_arguments = ["inspire", "--format=json"].map(OsString::from);
+            assert_eq!(
+                ArtisanFacade::call("help", &help_arguments, &mut output_json).await?,
+                0
+            );
+            let metadata: serde_json::Value = serde_json::from_str(&output_json.stdout).unwrap();
+            assert_eq!(metadata["name"], "inspire");
+            assert_eq!(metadata["implemented"], true);
+            ArtisanFacade::call("say-hi", &arguments, output).await
+        })
+    }
+}
+
+#[tokio::test]
+async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
+    assert!(
+        ArtisanFacade::callSilently("list", &[])
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("No active Artisan application")
+    );
+    let app = Application::configure(std::env::current_dir().unwrap())
+        .withCommands(|commands| {
+            commands.add_command(Box::new(Greet(CommandDefinition::new(
+                clap::Command::new("greet")
+                    .visible_alias("say-hi")
+                    .arg(Arg::new("name").required(true)),
+            ))))?;
+            commands.add_command(Box::new(NestedArtisan(CommandDefinition::new(
+                clap::Command::new("nested"),
+            ))))
+        })
+        .withRouting(Routing::default().commands(application_console::register))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app, Artisan::new());
+    let mut output = Output::default();
+    assert_eq!(kernel.handle(&["nested".into()], &mut output).await, 7);
+    assert_eq!(output.stdout, "Hello two words 中文\n");
+    assert!(output.stderr.is_empty());
 }
 
 static RELOAD_STEPS: AtomicUsize = AtomicUsize::new(0);

@@ -313,6 +313,53 @@ async fn send(address: std::net::SocketAddr, path: &str, status: u16) -> String 
         let mut result=String::new();stream.read_to_string(&mut result).unwrap();assert!(result.starts_with(&format!("HTTP/1.1 {status}")),"{result}");result.split_once("\r\n\r\n").unwrap().1.to_owned()
     }).await.unwrap()
 }
+
+#[tokio::test]
+async fn artisan_facade_runs_commands_in_the_matching_http_application() {
+    use openrust::support::facades::Artisan;
+
+    fn web() -> Result<(), RoutingError> {
+        Route::get("/run-command", || async {
+            let mut output = Output::default();
+            let status = Artisan::call("app:probe", &[], &mut output).await.unwrap();
+            assert_eq!(status, 0);
+            assert!(output.stderr.is_empty());
+            output.stdout
+        })?;
+        Ok(())
+    }
+
+    fn first() -> Result<(), ConsoleError> {
+        Artisan::command("app:probe", |output| {
+            output.stdout.push_str("first");
+        })?;
+        Ok(())
+    }
+
+    fn second() -> Result<(), ConsoleError> {
+        Artisan::command("app:probe", |output| {
+            output.stdout.push_str("second");
+        })?;
+        Ok(())
+    }
+
+    let root = Root::new();
+    let build = |commands| {
+        Application::configure(root.0.clone())
+            .withConfig(config)
+            .withRouting(Routing::default().web(web).commands(commands))
+            .create()
+            .unwrap()
+    };
+    let (a, first_server) = server(build(first)).await;
+    let (b, second_server) = server(build(second)).await;
+    let (first, second) = tokio::join!(send(a, "/run-command", 200), send(b, "/run-command", 200));
+    assert_eq!(first, "first");
+    assert_eq!(second, "second");
+    first_server.abort();
+    second_server.abort();
+}
+
 #[tokio::test]
 async fn actual_http_loads_on_demand_keeps_apps_isolated_and_sanitizes_boot_failures() {
     let root = Root::new();

@@ -52,6 +52,28 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 語言選擇與覆寫見 [Artisan 翻譯](./localization.md#artisan-translations)。
 
+## 在程式中執行命令 {#programmatically-executing-commands}
+
+在 HTTP 處理器或另一個 Artisan 命令中，用 `Artisan::call(name, arguments, &mut output).await` 執行已登記的命令。命令在目前應用程式內執行並回傳結束代碼。未知命令和無效引數回傳 `ConsoleError`。每次呼叫用獨立的 `Output` 收集標準輸出與標準錯誤。
+
+```rust
+use std::ffi::OsString;
+
+use openrust::{
+    console::{ConsoleError, Output},
+    support::facades::Artisan,
+};
+
+async fn inspire_help() -> Result<(i32, String), ConsoleError> {
+    let mut output = Output::default();
+    let arguments = ["inspire", "--format=json"].map(OsString::from);
+    let status = Artisan::call("help", &arguments, &mut output).await?;
+    Ok((status, output.stdout))
+}
+```
+
+每個位置引數或選項各傳一個 `OsString`。含空格的值放在同一個引數中。布林開關為真時傳入開關選項，多值選項可重複傳入。用 `Artisan::callSilently(name, arguments).await` 捨棄兩個輸出串流並保留結束代碼。
+
 ## 按需安裝路由 {#optional-route-installers}
 
 在原始碼目錄執行下列命令，產生路由檔案並更新模組宣告與啟動設定，然後重新建置。既有路由檔案會保留。

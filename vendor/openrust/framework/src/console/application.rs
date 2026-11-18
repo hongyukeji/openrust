@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     io::{self, IsTerminal as _},
     sync::Arc,
     time::Duration,
@@ -451,6 +451,75 @@ impl Application {
         }
         self.dispatch(entry, application, input.matches(), &syntax, output, None)
             .await
+    }
+
+    pub(crate) async fn call_arguments(
+        &self,
+        application: &FoundationApplication,
+        command: &str,
+        arguments: &[OsString],
+        output: &mut Output,
+    ) -> Result<i32, ConsoleError> {
+        let name = self.resolve(command)?;
+        let mut syntax = self.syntax();
+        let parsed = syntax.try_get_matches_from_mut(
+            ["artisan", name]
+                .into_iter()
+                .map(OsStr::new)
+                .chain(arguments.iter().map(OsString::as_os_str)),
+        );
+        let flags = || arguments.iter().take_while(|argument| *argument != "--");
+        let suppress_stdout = || {
+            flags().any(|argument| matches!(argument.to_str(), Some("--silent" | "--quiet" | "-q")))
+        };
+        let mut parsed = match parsed {
+            Ok(matches) => matches,
+            Err(help) if help.kind() == ErrorKind::DisplayHelp => {
+                if !suppress_stdout() {
+                    let target = syntax.find_subcommand(name).expect("resolved command");
+                    let decorated = flags().any(|argument| argument == "--ansi")
+                        || (output.decorated && !flags().any(|argument| argument == "--no-ansi"));
+                    output.stdout.push_str(&descriptor::help(
+                        &target.clone().bin_name(format!("artisan {name}")),
+                        decorated,
+                    ));
+                }
+                return Ok(0);
+            }
+            Err(version) if version.kind() == ErrorKind::DisplayVersion => {
+                if !suppress_stdout() {
+                    output.stdout.push_str(&version.to_string());
+                }
+                return Ok(0);
+            }
+            Err(error) => return Err(ConsoleError::new(localization::argument_error(&error))),
+        };
+        let (stdout, stderr, decorated) =
+            (output.stdout.len(), output.stderr.len(), output.decorated);
+        let (_, matches) = parsed.remove_subcommand().expect("resolved command");
+        if matches.get_flag("ansi") {
+            output.decorated = true;
+        } else if matches.get_flag("no-ansi") {
+            output.decorated = false;
+        }
+        let result = self
+            .dispatch(
+                &self.commands[name],
+                application,
+                &matches,
+                &syntax,
+                output,
+                None,
+            )
+            .await;
+        if matches.get_flag("quiet") || matches.get_flag("silent") {
+            output.stdout.truncate(stdout);
+        }
+        if matches.get_flag("silent") {
+            output.stderr.truncate(stderr);
+        }
+        output.decorated = decorated;
+        result
     }
 
     pub(super) async fn call_task(

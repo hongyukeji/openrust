@@ -3532,3 +3532,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 06-08 三语 Artisan 入口与 Windows 验收对齐
 
 核对当前启动源码与原 Windows 验收快照，三语正文记录 Runner、独立 Artisan 和退出码。三语构建及 18 项浏览器检查通过。 [验收记录](audits/06-08/README.md#三语-artisan-入口与-windows-验收对齐)
+
+## 2026-11-18 06-08 Artisan 门面程序化调用
+
+接通当前应用作用域内的 `Artisan::call` 和 `callSilently`。真实 TCP、嵌套 Artisan、独立应用退出码、26 项定向测试、严格 Clippy 和三语站点通过。 [验收记录](audits/06-08/README.md#artisan-门面程序化调用)

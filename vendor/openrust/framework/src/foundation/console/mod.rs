@@ -35,22 +35,83 @@ mod vendor_publish_command;
 mod view_component_make_command;
 pub use vendor_publish_command::VendorPublishCommand;
 
-use std::{ffi::OsString, io::Write as _, sync::Arc};
+use std::{
+    ffi::OsString,
+    future::Future,
+    io::Write as _,
+    sync::{Arc, Weak},
+};
 
 use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output, scheduling,
     },
-    contracts::console,
+    contracts::{console, container::Container as _},
     support::facades,
 };
 
 use super::{
-    Application, BootstrapError, Runner, RunnerContext, RuntimeResult, environment_detector,
-    runner::ServiceExit,
+    Application, BootstrapError, Runner, RunnerContext, RuntimeResult,
+    application::ApplicationState, environment_detector, runner::ServiceExit,
 };
 use tokio::sync::OnceCell;
+
+struct ConsoleApplication(Weak<ApplicationState>);
+
+pub(super) fn bind_application(application: &Arc<ApplicationState>) {
+    application
+        .container
+        .instance(Arc::new(ConsoleApplication(Arc::downgrade(application))))
+        .expect("Artisan application is initially unbound");
+}
+
+pub(crate) async fn call_in_application(
+    command: &str,
+    arguments: &[OsString],
+    output: &mut Output,
+) -> Result<i32, ConsoleError> {
+    let shared = facades::current_container()
+        .and_then(|container| container.make::<ConsoleApplication>().ok())
+        .and_then(|application| application.0.upgrade())
+        .ok_or_else(|| ConsoleError::new("No active Artisan application."))?;
+    let mut kernel = Kernel::for_artisan(Application { shared });
+    facades::scope(kernel.application.container_handle(), async {
+        kernel
+            .bootstrap_with_environment(None)
+            .await
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
+        let application = &kernel.application;
+        within_console_lifecycle(
+            application,
+            kernel
+                .artisan
+                .call_arguments(application, command, arguments, output),
+        )
+        .await
+    })
+    .await
+}
+
+async fn within_console_lifecycle(
+    application: &Application,
+    invocation: impl Future<Output = Result<i32, ConsoleError>>,
+) -> Result<i32, ConsoleError> {
+    use crate::concurrency::DeferredCallbacks;
+
+    if DeferredCallbacks::is_active() || crate::http::request_context::with_uri(|_| ()).is_some() {
+        return invocation.await;
+    }
+    let deferred = DeferredCallbacks::default();
+    let result = deferred.scope(invocation).await;
+    deferred
+        .invoke(
+            application,
+            result.as_ref().is_ok_and(|&status| status == 0),
+        )
+        .await;
+    result
+}
 
 /// Boots the application and runs Artisan commands.
 pub struct Kernel {
@@ -362,23 +423,11 @@ impl console::Kernel for Kernel {
                         &mut self.captured
                     }
                 };
-                if crate::http::request_context::with_uri(|_| ()).is_some() {
-                    return self
-                        .artisan
-                        .call(&self.application, command, input, output)
-                        .await;
-                }
-                let deferred = crate::concurrency::DeferredCallbacks::default();
-                let result = deferred
-                    .scope(self.artisan.call(&self.application, command, input, output))
-                    .await;
-                deferred
-                    .invoke(
-                        &self.application,
-                        result.as_ref().is_ok_and(|&status| status == 0),
-                    )
-                    .await;
-                result
+                within_console_lifecycle(
+                    &self.application,
+                    self.artisan.call(&self.application, command, input, output),
+                )
+                .await
             },
         ))
     }

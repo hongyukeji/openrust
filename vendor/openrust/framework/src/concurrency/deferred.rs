@@ -54,6 +54,10 @@ impl DeferredCallback {
 }
 
 impl DeferredCallbacks {
+    pub(crate) fn is_active() -> bool {
+        CURRENT.try_with(|_| ()).is_ok()
+    }
+
     pub(crate) fn for_isolated_job() -> Self {
         Self {
             transfer: true,

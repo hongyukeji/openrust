@@ -478,6 +478,7 @@ impl Application {
         });
         let deferred =
             super::provider_repository::ProviderRepository::new(Arc::downgrade(&shared), deferred);
+        super::console::bind_application(&shared);
         if !deferred.is_empty() {
             shared.container.install_deferred(deferred.clone());
         }
