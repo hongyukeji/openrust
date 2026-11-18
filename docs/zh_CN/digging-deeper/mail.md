@@ -109,6 +109,22 @@ Review order
 
 发布后的默认布局用 `$mail_content` 放置组装好的内容，邮件表格默认宽 570 px 并适应窄屏。使用显式布局时，自定义模板可用 `$slot` 放置正文，再单独安排 `$header`、`$subcopy` 和 `$footer`。
 
+#### 自定义单封邮件的 CSS {#customizing-the-css}
+
+将 `receipt.css` 放到 `resources/views/vendor/mail/html/themes/`，并在邮件的 `Content` 中设定 `theme: Some("receipt".into())`。
+
+```rust
+use openrust::mail::mailables::Content;
+
+let content = Content {
+    markdown: Some("mail.receipt".into()),
+    theme: Some("receipt".into()),
+    ..Content::default()
+};
+```
+
+主题应用于该 Markdown 邮件的 HTML 版本，队列投递也会采用同一设置。未指定主题或提供空字符串时，邮件器采用应用的 Markdown 主题。Worker 从应用的视图和主题目录读取样式表。
+
 ### Markdown 扩展与安全编码 {#markdown-extensions-and-encoding}
 
 CommonMark 和表格始终可用。在 `config/mail.rs` 的 `mail.markdown.extensions` 中填写需要启用的扩展名，默认为空。支持 `strikethrough`、`task_lists`、`footnotes` 和 `smart_punctuation`。未知扩展名会导致邮件器返回配置错误。

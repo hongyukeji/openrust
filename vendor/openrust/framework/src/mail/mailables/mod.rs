@@ -38,6 +38,9 @@ pub struct Content {
     pub view: Option<String>,
     #[serde(default)]
     pub markdown: Option<String>,
+    /// A theme override for this Markdown message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
     pub with: crate::view::ViewData,
 }
 

@@ -3224,3 +3224,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 09:57（北京时间）06-06 [Markdown 邮件显式布局与响应式主题](audits/06-06/README.md#markdown-邮件显式布局与响应式主题)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、14 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 98.09 GB（91.36 GiB），周额度剩余 34%。
 
 - 2026-11-18 10:06（北京时间）06-06 [Markdown 邮件扩展与安全编码](audits/06-06/README.md#markdown-邮件扩展与安全编码)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、15 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 98.04 GB（91.30 GiB），周额度剩余 34%。
+
+- 2026-11-18 10:14（北京时间）06-06 [单封 Markdown 邮件主题](audits/06-06/README.md#单封-markdown-邮件主题)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、16 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 97.90 GB（91.18 GiB），周额度剩余 34%。

@@ -102,7 +102,13 @@ impl Message {
                     &content.with,
                     views,
                 )?;
-                let (html, text) = markdown.render_with_text(view, &content.with, views, text)?;
+                let (html, text) = markdown.render_with_text(
+                    view,
+                    &content.with,
+                    views,
+                    text,
+                    content.theme.as_deref(),
+                )?;
                 (Some(html), Some(text))
             }
             None => (

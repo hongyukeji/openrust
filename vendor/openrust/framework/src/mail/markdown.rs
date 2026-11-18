@@ -108,7 +108,7 @@ impl Markdown {
         data: &ViewData,
         views: &Factory,
     ) -> MailResult<(String, String)> {
-        self.render_with_text(view, data, views, None)
+        self.render_with_text(view, data, views, None, None)
     }
 
     pub(super) fn render_with_text(
@@ -117,9 +117,11 @@ impl Markdown {
         data: &ViewData,
         views: &Factory,
         text: Option<String>,
+        theme: Option<&str>,
     ) -> MailResult<(String, String)> {
         let html = self.render_format(view, data, views, Format::Html)?;
-        let css = self.css(views, data)?;
+        let theme = theme.filter(|name| !name.is_empty()).unwrap_or(&self.theme);
+        let css = self.css(theme, views, data)?;
         let html = css_inline::CSSInliner::options()
             .load_remote_stylesheets(false)
             .keep_at_rules(true)
@@ -192,36 +194,35 @@ impl Markdown {
         views.renderInline(default, data).map_err(composition)
     }
 
-    fn css(&self, views: &Factory, data: &ViewData) -> MailResult<Cow<'static, str>> {
-        let view = format!("mail.{}", self.theme);
+    fn css(&self, theme: &str, views: &Factory, data: &ViewData) -> MailResult<Cow<'static, str>> {
+        let view = format!("mail.{theme}");
         if views.exists(&view) {
             return views
                 .render(&view, data)
                 .map(Cow::Owned)
                 .map_err(composition);
         }
-        if self.theme.contains("::") {
+        if theme.contains("::") {
             return views
-                .render(&self.theme, data)
+                .render(theme, data)
                 .map(Cow::Owned)
                 .map_err(composition);
         }
-        if self.theme.is_empty()
-            || !self
-                .theme
+        if theme.is_empty()
+            || !theme
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
         {
             return Err(composition("Invalid Markdown mail theme name."));
         }
         for path in &self.paths {
-            let file = path.join("html/themes").join(format!("{}.css", self.theme));
+            let file = path.join("html/themes").join(format!("{theme}.css"));
             if let Some(css) = load_optional(&file, "Could not read the Markdown mail stylesheet.")?
             {
                 return Ok(Cow::Owned(css));
             }
         }
-        if self.theme == "default" {
+        if theme == "default" {
             return Ok(Cow::Borrowed(DEFAULT_CSS));
         }
         Err(composition("Markdown mail theme was not found."))

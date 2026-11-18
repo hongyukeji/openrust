@@ -109,6 +109,22 @@ Review order
 
 發布後的預設版面用 `$mail_content` 放置組合好的內容，郵件表格寬 570 px 並適應窄螢幕。使用顯式版面時，自訂範本可用 `$slot` 放置正文，再分別安排 `$header`、`$subcopy` 和 `$footer`。
 
+#### 自訂單封郵件的 CSS {#customizing-the-css}
+
+將 `receipt.css` 放到 `resources/views/vendor/mail/html/themes/`，並在郵件的 `Content` 設定 `theme: Some("receipt".into())`。
+
+```rust
+use openrust::mail::mailables::Content;
+
+let content = Content {
+    markdown: Some("mail.receipt".into()),
+    theme: Some("receipt".into()),
+    ..Content::default()
+};
+```
+
+主題套用於該 Markdown 郵件的 HTML 版本，佇列投遞也會採用相同設定。未指定主題或提供空字串時，郵件器採用應用程式的 Markdown 主題。Worker 從應用程式的視圖和主題目錄讀取樣式表。
+
 ### Markdown 擴充與安全編碼 {#markdown-extensions-and-encoding}
 
 CommonMark 和表格一直可用。在 `config/mail.rs` 的 `mail.markdown.extensions` 填寫要啟用的擴充名稱，預設為空。支援 `strikethrough`、`task_lists`、`footnotes` 和 `smart_punctuation`。未知的擴充名稱會讓郵件器回傳設定錯誤。

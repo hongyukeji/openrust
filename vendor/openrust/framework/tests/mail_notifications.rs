@@ -81,6 +81,7 @@ impl Mailable for Receipt {
 struct MarkdownReceipt {
     plain_view: bool,
     options_fixture: bool,
+    theme: Option<String>,
 }
 
 impl Mailable for MarkdownReceipt {
@@ -99,6 +100,7 @@ impl Mailable for MarkdownReceipt {
     fn content(&self) -> MailResult<Content> {
         Ok(Content {
             markdown: Some("markdown-receipt".into()),
+            theme: self.theme.clone(),
             text_view: self.plain_view.then(|| "plain-receipt".into()),
             with: [
                 ("name".into(), json!("<Sam>")),
@@ -555,6 +557,7 @@ impl Command for SendFixture {
             let markdown = MarkdownReceipt {
                 plain_view: input.matches().get_flag("plain-view"),
                 options_fixture: input.matches().get_flag("markdown-options"),
+                theme: None,
             };
             let mailable: &dyn Mailable = if input.matches().get_flag("markdown") {
                 &markdown
@@ -1562,6 +1565,165 @@ async fn artisan_mail_markdown_extensions_and_secured_echo_are_application_local
             .contains("Unsupported mail.markdown.extensions"),
         "{result:?}"
     );
+}
+
+#[tokio::test]
+async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
+    let services = (
+        std::env::var("OPENRUST_TEST_DELIVERY_MYSQL_URL"),
+        std::env::var("OPENRUST_TEST_REDIS_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT"),
+    );
+    let (Ok(mysql), Ok(redis), Ok(smtp), Ok(http)) = services else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(
+        Some(redis.parse().unwrap()),
+        Some(&mysql),
+        Some(smtp.parse().unwrap()),
+    );
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["mail"]["markdown"] = json!({"theme":"application"});
+    std::fs::write(&config_path, config.to_string()).unwrap();
+    let theme_directory = root.0.join("resources/views/vendor/mail/html/themes");
+    std::fs::create_dir_all(&theme_directory).unwrap();
+    for (name, color) in [("application", "#179abc"), ("receipt", "#8934ab")] {
+        std::fs::write(
+            theme_directory.join(format!("{name}.css")),
+            format!("h1 {{color: {color}}}"),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        root.0.join("resources/views/markdown-receipt.blade.html"),
+        "# Mailable theme contract",
+    )
+    .unwrap();
+    std::fs::write(
+        root.0.join("resources/views/plain-receipt.blade.html"),
+        "Unstyled receipt text",
+    )
+    .unwrap();
+    let mut app = app(&root.0);
+    app.boot().await.unwrap();
+    let db = setup(&app).await;
+    let queue = app.container().make::<QueueManager>().unwrap();
+    let connections = ["database", "redis"];
+    app.call(
+        Callback::new(&[], move |_| async move {
+            for theme in [Some("receipt"), None, Some("")] {
+                Mail::to("theme@example.test")
+                    .unwrap()
+                    .sendNow(&MarkdownReceipt {
+                        plain_view: true,
+                        options_fixture: true,
+                        theme: theme.map(str::to_owned),
+                    })
+                    .await
+                    .unwrap();
+            }
+            let missing = Mail::to("theme@example.test")
+                .unwrap()
+                .sendNow(&MarkdownReceipt {
+                    plain_view: true,
+                    options_fixture: true,
+                    theme: Some("missing".into()),
+                })
+                .await
+                .err()
+                .unwrap();
+            assert!(
+                missing
+                    .to_string()
+                    .contains("Markdown mail theme was not found")
+            );
+            for connection in connections {
+                let dispatch = Mail::to("theme@example.test")
+                    .unwrap()
+                    .queue(
+                        &MarkdownReceipt {
+                            plain_view: true,
+                            options_fixture: true,
+                            theme: Some("receipt".into()),
+                        },
+                        DispatchOptions {
+                            connection: Some(connection.into()),
+                            queue: Some("mail-theme".into()),
+                            ..Default::default()
+                        },
+                        None,
+                    )
+                    .await
+                    .unwrap();
+                assert!(dispatch.is_some());
+            }
+            Ok(())
+        }),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    for connection in connections {
+        let connection_queue = queue.connection(Some(connection)).unwrap();
+        assert_eq!(connection_queue.size(Some("mail-theme")).await.unwrap(), 1);
+        artisan(
+            &root.0,
+            &[
+                "queue:work",
+                connection,
+                "--queue=mail-theme",
+                "--stop-when-empty",
+                "--sleep=0",
+            ],
+        )
+        .await;
+        assert_eq!(connection_queue.size(Some("mail-theme")).await.unwrap(), 0);
+    }
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+
+    let api = format!("http://127.0.0.1:{http}/api/v1");
+    let listing: Json = reqwest::get(format!("{api}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let mut overrides = 0;
+    let mut defaults = 0;
+    for row in listing["messages"].as_array().unwrap() {
+        if row["Subject"] != "Markdown options fixture" {
+            continue;
+        }
+        let id = row["ID"].as_str().unwrap();
+        let message: Json = reqwest::get(format!("{api}/message/{id}"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        let html = message["HTML"].as_str().unwrap();
+        if !html.contains("Mailable theme contract") {
+            continue;
+        }
+        assert_eq!(
+            message["Text"].as_str().unwrap().trim(),
+            "Unstyled receipt text"
+        );
+        match (html.contains("#8934ab"), html.contains("#179abc")) {
+            (true, false) => overrides += 1,
+            (false, true) => defaults += 1,
+            _ => panic!("Expected exactly one theme: {html}"),
+        }
+    }
+    assert_eq!((overrides, defaults), (3, 2));
+    drop_delivery_tables(&db).await;
 }
 
 #[tokio::test]

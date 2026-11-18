@@ -115,6 +115,22 @@ Edit the `header.blade.html`, `footer.blade.html`, and `subcopy.blade.html` temp
 
 The published default layout uses `$mail_content` for the assembled content and includes a responsive 570 px message table. With an explicit layout, a custom template can place the body with `$slot` and position `$header`, `$subcopy`, and `$footer` separately.
 
+#### Customize the CSS for one mailable {#customizing-the-css}
+
+Place `receipt.css` in `resources/views/vendor/mail/html/themes/` and return a `Content` with `theme: Some("receipt".into())` from the mailable.
+
+```rust
+use openrust::mail::mailables::Content;
+
+let content = Content {
+    markdown: Some("mail.receipt".into()),
+    theme: Some("receipt".into()),
+    ..Content::default()
+};
+```
+
+The theme applies to the HTML version of this Markdown message, including when a worker delivers it. If the override is absent or empty, the mailer uses the application's Markdown theme. The worker resolves the stylesheet from the application's views and theme directories.
+
 ### Markdown extensions and secured encoding {#markdown-extensions-and-encoding}
 
 CommonMark and tables are always available. Set `mail.markdown.extensions` in `config/mail.rs` to a list of supported names. The default list is empty. OpenRust supports `strikethrough`, `task_lists`, `footnotes`, and `smart_punctuation`. An unsupported name causes the mailer to return a configuration error.
