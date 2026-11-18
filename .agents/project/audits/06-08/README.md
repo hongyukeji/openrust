@@ -18,3 +18,9 @@
 - 隔离快照 `b6cb04500` 的 17 项 `console`、`feature`、`artisan_entry` 回归通过。实际 `./artisan` 验证中英文三语标题、两种帮助入口、ANSI 与纯文本内容等价、结构化输出和未知命令退出 1。注册命令回归带必填参数和别名，验证帮助退出 0 且保留详细说明。
 - Rust 1.94.0 全仓格式及全目标严格 Clippy、三语站点构建与根路径和 `/docs/` 的 18 项浏览器检查通过。已回收本批隔离编译和站点产物。项目卷可用 89.04 GB（82.93 GiB），提交前周额度剩余 27%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-artisan-raw-help.tyEkCgMR`。
 - 提交前本地 Git 合并了独立短信文档。核对隔离快照与新基线 `49b40cf74` 的差异仅涉及文档，随后在新基线复跑三语构建和 18 项浏览器检查，全部通过。
+
+## Artisan 文本列表的全局选项
+
+- 固定 Symfony Console v7.4.0 在普通命令列表及指定命令组的列表中，先显示应用全局选项，再显示命令目录。复核旧版 `console/command.rs` 的 `ListCommand`，复用从实际注册命令生成目录的思路。OpenRust 的文本列表从 Clap 根命令渲染全局选项，复用帮助描述与翻译键，避免另外维护一份选项清单。ANSI 输出遵循终端选择，平铺 `--raw` 仍只输出命令。 [Laravel Artisan](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#introduction) · [固定 Symfony 文本描述器](https://github.com/symfony/console/blob/v7.4.0/Descriptor/TextDescriptor.php#L142)
+- 隔离快照 `43530b1ec` 的 18 项 `console`、`feature`、`artisan_entry` 通过。实际 `./artisan` 用英、简中、繁中验证默认入口、普通列表、命令组、全局选项、ANSI 和纯文本等价、`--raw` 及未知命令组退出 1。另解析 JSON、XML 和 Markdown，验证结构化命令目录继续可用。
+- Rust 1.94.0 全仓格式及工作区全目标严格 Clippy 通过。英、简中、繁中 Artisan 文档已同步，站点构建与根路径及 `/docs/` 下的 18 项浏览器检查通过。临时编译与站点产物已回收。磁盘可用 89.01 GB（82.90 GiB），提交前周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-artisan-list-options.PkJJh0aT`。

@@ -11,6 +11,14 @@ pub(super) fn usage(command: &Command) -> String {
 }
 
 pub(super) fn help(command: &Command, decorated: bool) -> String {
+    render_help(command, decorated, false)
+}
+
+pub(super) fn global_options(console: &Command, decorated: bool) -> String {
+    render_help(console, decorated, true)
+}
+
+fn render_help(command: &Command, decorated: bool, options_only: bool) -> String {
     let title = description(command);
     let name = command.get_name();
     let mut order: Vec<_> = command
@@ -30,7 +38,12 @@ pub(super) fn help(command: &Command, decorated: bool) -> String {
             argument.help(help)
         }
     });
-    let rendered = command.render_long_help();
+    let rendered = if options_only {
+        command = command.help_template("{options}");
+        command.render_help()
+    } else {
+        command.render_long_help()
+    };
     let styles = command.get_styles();
     if decorated {
         styled_headings(
@@ -105,6 +118,13 @@ fn argument_description(command: &str, argument: &Arg) -> String {
     let (simplified, traditional) = match key {
         "help" => ("显示帮助", "顯示說明"),
         "version" => ("显示版本", "顯示版本"),
+        "ansi" if argument.is_global_set() => ("启用 ANSI 样式", "啟用 ANSI 樣式"),
+        "no-ansi" if argument.is_global_set() => ("禁用 ANSI 样式", "停用 ANSI 樣式"),
+        "env" if argument.is_global_set() => ("指定运行环境", "指定執行環境"),
+        "no-interaction" if argument.is_global_set() => ("禁用交互提示", "停用互動提示"),
+        "quiet" if argument.is_global_set() => ("隐藏普通输出", "隱藏一般輸出"),
+        "silent" if argument.is_global_set() => ("隐藏输出和错误", "隱藏輸出和錯誤"),
+        "verbose" if argument.is_global_set() => ("增加输出详细程度", "增加輸出詳細程度"),
         "format" if matches!(command, "help" | "list") => ("选择输出格式", "選擇輸出格式"),
         "command_name" if command == "help" => ("要查看的命令", "要查看的命令"),
         "namespace" if command == "list" => ("只显示指定命令组", "只顯示指定命令群組"),

@@ -3348,3 +3348,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 08-04 独立发布的配置缓存与 Artisan 帮助
 
 从干净源码构建发布产物，验证三语完整帮助、配置缓存与搬移后重建。真实 MySQL 8.4.13、Redis 8.10.3、HTTP 和 Artisan、三语站点及 18 项浏览器检查通过。 [验收](audits/08-04/README.md#独立发布的配置缓存与-artisan-帮助)
+
+## 2026-11-18 06-08 Artisan 文本列表的全局选项
+
+普通文本及命令组列表从 Clap 根定义渲染本地化全局选项。18 项回归、三语实际 Artisan、格式、严格 Clippy、三语站点与 18 项浏览器检查通过。 [验收](audits/06-08/README.md#artisan-文本列表的全局选项)

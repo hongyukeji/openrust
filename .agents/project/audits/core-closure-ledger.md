@@ -269,3 +269,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08 [Artisan 完整纯文本帮助](06-08/README.md#artisan-完整纯文本帮助)已用三语实际 Artisan 与注册命令回归验收。核心账本维持 66/66。
 
 08-04 [独立发布的配置缓存与 Artisan 帮助](08-04/README.md#独立发布的配置缓存与-artisan-帮助)使用当前主线独立发布产物验证。三语帮助、配置缓存与搬移、真实 MySQL／Redis Worker 和 HTTP 通过。发布实机项保持待目标环境。
+
+06-08 [Artisan 文本列表的全局选项](06-08/README.md#artisan-文本列表的全局选项)通过三语实际 Artisan、定向回归和三语站点验收。

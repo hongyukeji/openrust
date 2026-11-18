@@ -148,29 +148,31 @@ pub(super) fn run(
         }
         _ => {
             if !raw {
-                if let Some(name) = filter {
-                    let title = text(
+                let usage = text("usage", "Usage:", "用法：", "用法：");
+                let options = text("options", "Options:", "选项：", "選項：");
+                let global = descriptor::global_options(console, output.decorated);
+                let title = if let Some(name) = filter {
+                    text(
                         "namespace_commands",
                         "Available commands for the ':name' namespace:",
                         "「:name」命令组的可用命令：",
                         "「:name」命令群組的可用命令：",
                     )
-                    .replace(":name", name);
-                    writeln!(output.stdout, "{title}").expect("writing to String");
+                    .replace(":name", name)
                 } else {
-                    let usage = text("usage", "Usage:", "用法：", "用法：");
-                    let available = text(
+                    text(
                         "available_commands_heading",
                         "Available commands:",
                         "可用命令：",
                         "可用命令：",
-                    );
-                    writeln!(
-                        output.stdout,
-                        "{usage}\n  command [options] [arguments]\n\n{available}"
                     )
-                    .expect("writing to String");
-                }
+                };
+                writeln!(
+                    output.stdout,
+                    "{usage}\n  command [options] [arguments]\n\n{options}\n{}\n\n{title}",
+                    global.trim_end(),
+                )
+                .expect("writing to String");
             }
             let width = groups
                 .values()

@@ -52,6 +52,50 @@ fn artisan_lists_registered_commands_without_starting_http() {
 }
 
 #[test]
+fn artisan_text_lists_show_localized_global_options() {
+    for (locale, heading, description) in [
+        (
+            "en",
+            "Options:",
+            "The environment the command should run under",
+        ),
+        ("zh_CN", "选项：", "指定运行环境"),
+        ("zh_TW", "選項：", "指定執行環境"),
+    ] {
+        for args in [
+            vec!["list", "--no-ansi"],
+            vec!["list", "cache", "--no-ansi"],
+        ] {
+            let output = artisan_in(&args, locale, None);
+            assert!(output.status.success());
+            let listing = String::from_utf8(output.stdout).unwrap();
+            let (_, options) = listing.split_once(heading).unwrap();
+            let (options, _) = options.split_once("\n\n").unwrap();
+            for option in [
+                "--env",
+                "--no-interaction",
+                "--ansi",
+                "--silent",
+                "--help",
+                "--version",
+            ] {
+                assert!(
+                    options.contains(option),
+                    "{option} is missing from {options}"
+                );
+            }
+            assert!(options.contains(description));
+            assert!(!options.contains("--format"));
+        }
+        let raw = artisan_in(&["list", "cache", "--raw", "--ansi"], locale, None);
+        assert!(raw.status.success());
+        assert!(!raw.stdout.contains(&0x1b));
+        let raw = String::from_utf8(raw.stdout).unwrap();
+        assert!(!raw.contains(heading) && !raw.contains("--env"));
+    }
+}
+
+#[test]
 fn artisan_supports_both_command_help_forms() {
     for arguments in [["help", "list"], ["list", "--help"]] {
         let help = artisan(&arguments);
