@@ -196,3 +196,9 @@
 - 对照固定 Laravel 的 `Router::toResponse` 和 PSR-7 响应分支。复用 openrust-v0.x `6d1a81924` 的 Axum 响应适配思路，当前实现用 Rust `From` 保留状态码、重复头、版本、扩展及正文流。闭包、控制器、资源方法与通过 FormRequest 验证后的返回值都接入现有响应流程。普通借用请求处理器沿用原来的执行路径。 [Laravel 响应转换](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866) · [Laravel PSR-7 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#psr-7-requests)
 - 在隔离主线 `0cb2e5bf1` 以真实 TCP 验证同步、异步、借用请求、控制器及 FormRequest 响应，验证原生 202、重复响应头、HEAD、204、304 与 404。Rust 所有权转换保留正文流且不提前轮询。发送阶段统一处理正文和传输头，保留普通响应的 HEAD 内容长度。PHP 8.5 使用固定 Laravel、Symfony PSR HTTP Message Bridge v7.4.0 和 Nyholm PSR-7 1.8.2 跑实际 `Router::toResponse`，核对 202、重复头、HEAD、204、304。
 - 66 项定向回归、实际二进制 `/up`、错误 400、SIGTERM、独立 Artisan `inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收本批编译与站点产物后，磁盘可用 101.28 GB（94.33 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-native-response.bqVSogEx`。
+
+## 路由字符串与结构化响应
+
+- 对照固定 Laravel 的 `Router::toResponse` 和 Strings and Arrays。参考 openrust-v0.x `6d1a81924` 的 Axum 返回值适配，使用当前框架的响应工厂与通用返回值适配器。直接字符串和 `Stringable` 使用 HTML 200，数组、向量、JSON 值、集合和 JSON Fluent 使用 JSON 200。Rust 明确区分文本与序列化类型，继续支持通过 `Into<Response>` 转换的既有控制器返回值。 [Laravel 响应规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866) · [Laravel Strings and Arrays](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#strings-and-arrays)
+- 复用 PHP 默认字符串转义规则，保留稀疏键、斜杠和 Unicode 输出，数字沿用 Rust 序列化器的表示。直接返回 JSON 的序列化错误沿用应用异常渲染。真实 TCP 验证同步与异步闭包、借用请求、控制器、HEAD 以及错误 500。PHP 8.5 运行固定 Laravel 两组对照，核对状态、内容类型和正文。
+- 隔离主线 `eae4fcd88` 验证 71 项定向测试、实际二进制 `/up` 与无效路径 400、SIGTERM、Artisan `inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查。回收本批编译和站点产物后，磁盘可用 97.79 GB（91.07 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-route-values.QfOUDIZQ`。

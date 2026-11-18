@@ -6,6 +6,17 @@
 
 輸入讀取及 JSON 回應的完整範例見[控制器](./controllers.md)。
 
+### 字串和陣列 {#strings-and-arrays}
+
+路由或控制器可以直接傳回字串。OpenRust 以 HTTP 200 和 `text/html; charset=utf-8` 傳送原字串作為 HTML 本文。需要轉譯和逸出範本資料時傳回檢視。
+
+```rust
+Route::get("/greeting", || "<p>Hello</p>")?;
+Route::get("/numbers", || [1, 2, 3])?;
+```
+
+陣列、向量、`serde_json::Value`、JSON 對應、支援層集合，以及以 JSON 為基礎的 `Fluent` 屬性集合會轉為 HTTP 200 JSON。有序集合保留鍵，稀疏的數字鍵會輸出為 JSON 物件。需要明確指定狀態碼時使用 `Response::json`。
+
 ### 原生 HTTP 回應 {#native-http-responses}
 
 路由閉包與控制器方法可以傳回 `http::Response<Body>`。路由器會將它轉為框架回應，接著執行相同的中介層與 HTTP 回應準備流程。非同步處理器與完成 FormRequest 驗證的方法同樣適用。

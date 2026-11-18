@@ -11,7 +11,7 @@ pub(super) struct JsonFormatter {
 }
 
 impl JsonFormatter {
-    pub(super) const JSONP: Self = Self {
+    pub(super) const DEFAULT: Self = Self {
         ascii_only: true,
         hex_html: false,
     };

@@ -6,6 +6,17 @@ Use `Response::json` for a JSON payload and an explicit status. Use `header` or 
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
 
+### Strings and Arrays {#strings-and-arrays}
+
+A route or controller can return a string directly. OpenRust sends it as HTTP 200 with `text/html; charset=utf-8` and uses the string as the HTML body. Return a view to render and escape template data.
+
+```rust
+Route::get("/greeting", || "<p>Hello</p>")?;
+Route::get("/numbers", || [1, 2, 3])?;
+```
+
+Arrays, vectors, `serde_json::Value`, JSON maps, support collections and JSON-backed `Fluent` bags become HTTP 200 JSON. Ordered collections preserve their keys, so sparse numeric keys produce a JSON object. Use `Response::json` when you need to choose the status explicitly.
+
 ### Native HTTP Responses {#native-http-responses}
 
 Route closures and controller actions can return an `http::Response<Body>`. The router adapts it to the framework response and sends it through the same middleware and HTTP response preparation. This also applies to asynchronous handlers and validated FormRequest actions.

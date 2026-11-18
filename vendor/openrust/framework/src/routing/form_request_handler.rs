@@ -3,7 +3,7 @@ use std::{future::Future, marker::PhantomData, sync::Arc};
 use crate::{
     contracts::routing::Handler,
     foundation::http::{FormRequest, ValidatedFormRequest},
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, Request, Response, ResponseOutput},
 };
 
 use super::IntoRouteHandler;
@@ -18,7 +18,7 @@ where
     H: Fn(ValidatedFormRequest<F>) -> Fut + Send + Sync + 'static,
     F: FormRequest + Default + 'static,
     Fut: Future<Output = Result<T, HttpError>> + Send,
-    T: Into<Response> + Send,
+    T: ResponseOutput + Send,
 {
     fn into_route_handler(self) -> Arc<dyn Handler> {
         Arc::new(FormRequestHandler {
@@ -33,7 +33,7 @@ where
     H: Fn(ValidatedFormRequest<F>) -> Fut + Send + Sync,
     F: FormRequest + Default + 'static,
     Fut: Future<Output = Result<T, HttpError>> + Send,
-    T: Into<Response> + Send,
+    T: ResponseOutput + Send,
 {
     fn handle<'a>(
         &'a self,
@@ -41,7 +41,7 @@ where
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async {
             let form = ValidatedFormRequest::resolve(request).await?;
-            (self.action)(form).await.map(Into::into)
+            (self.action)(form).await?.into_response()
         })
     }
 }

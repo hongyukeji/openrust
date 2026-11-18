@@ -4,6 +4,9 @@ use http::{
     header::{CONTENT_LENGTH, CONTENT_TYPE},
 };
 use serde::Serialize;
+use serde_json::{Map, Value};
+
+use crate::support::{Collection, Fluent, Stringable};
 
 use super::{Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode};
 
@@ -12,6 +15,90 @@ pub struct Response {
     parts: ResponseParts,
     pub(super) body: Body,
     pub(super) binary_file: Option<super::binary_file_response::BinaryFile>,
+}
+
+/// Converts a handler's successful return value into an HTTP response.
+pub trait ResponseOutput {
+    fn into_response(self) -> Result<Response, HttpError>;
+}
+
+impl<T: Into<Response>> ResponseOutput for T {
+    fn into_response(self) -> Result<Response, HttpError> {
+        Ok(self.into())
+    }
+}
+
+fn html(body: Body) -> Response {
+    Response::new(StatusCode::OK, body).header(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    )
+}
+
+impl From<&'static str> for Response {
+    fn from(text: &'static str) -> Self {
+        html(Body::from(text))
+    }
+}
+
+impl From<String> for Response {
+    fn from(text: String) -> Self {
+        html(Body::from(text))
+    }
+}
+
+impl From<Stringable> for Response {
+    fn from(text: Stringable) -> Self {
+        Self::from(text.to_string())
+    }
+}
+
+fn structured_json(data: impl Serialize) -> Result<Response, HttpError> {
+    Response::json_with(StatusCode::OK, || {
+        let mut bytes = Vec::new();
+        super::json_formatter::JsonFormatter::DEFAULT
+            .write(&mut bytes, &data)
+            .map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+        Ok(bytes)
+    })
+}
+
+impl ResponseOutput for Value {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self)
+    }
+}
+
+impl ResponseOutput for Map<String, Value> {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self)
+    }
+}
+
+impl<T: Serialize> ResponseOutput for Vec<T> {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self)
+    }
+}
+
+impl<T: Serialize, const N: usize> ResponseOutput for [T; N] {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self.as_slice())
+    }
+}
+
+impl<T: Serialize> ResponseOutput for Collection<T> {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self)
+    }
+}
+
+impl ResponseOutput for Fluent {
+    fn into_response(self) -> Result<Response, HttpError> {
+        structured_json(self)
+    }
 }
 
 impl<B> From<http::Response<B>> for Response

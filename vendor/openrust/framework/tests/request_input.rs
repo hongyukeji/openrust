@@ -73,6 +73,22 @@ impl EchoController {
     ) -> HttpFuture<'a, Result<NativeResponse<Body>, HttpError>> {
         Box::pin(async { Ok(NativeResponse::new(Body::from(self.0))) })
     }
+
+    fn direct_json<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Value, HttpError>> {
+        Box::pin(async { Ok(json!({"controller": self.0})) })
+    }
+}
+
+fn direct_text(request: &mut Request) -> HttpFuture<'_, Result<String, HttpError>> {
+    Box::pin(async move { Ok(format!("<p>{}</p>", request.route("name").unwrap())) })
+}
+
+struct Unserializable;
+
+impl serde::Serialize for Unserializable {
+    fn serialize<S: serde::Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
+        Err(serde::ser::Error::custom("unserializable route output"))
+    }
 }
 
 fn native_output(request: &mut Request) -> HttpFuture<'_, Result<NativeResponse<Body>, HttpError>> {
@@ -810,6 +826,25 @@ async fn start_with(
                 ControllerDispatcher::new(EchoController::native),
             )?;
             Route::get("/native/{status}", native_output)?;
+            Route::get("/direct/text", || "<p>你好</p>")?;
+            Route::get("/direct/text/{name}", direct_text)?;
+            Route::get("/direct/stringable", || {
+                openrust::support::Stringable::from("<b>text</b>")
+            })?;
+            Route::get("/direct/array", || [1, 2, 3])?;
+            Route::get("/direct/vector", || async { vec!["hello", "世界"] })?;
+            Route::get("/direct/json", || json!({"value": "中/😀<&"}))?;
+            Route::get("/direct/sparse", || {
+                openrust::support::Collection::fromEntries([(2_i64, 9)])
+            })?;
+            Route::get("/direct/fluent", || {
+                openrust::support::Fluent::make(json!({"name":"Ada"})).unwrap()
+            })?;
+            Route::get(
+                "/direct/controller",
+                ControllerDispatcher::new(EchoController::direct_json),
+            )?;
+            Route::get("/direct/error", || [Unserializable])?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1893,6 +1928,40 @@ async fn real_http_native_route_responses_run_through_response_preparation() {
     assert_eq!(
         serde_json::from_str::<Value>(&body).unwrap()["message"],
         "Not Found"
+    );
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_renders_direct_html_and_structured_return_values() {
+    let (address, server) = start("structured").await;
+    for (path, expected) in [
+        ("/direct/text", "<p>你好</p>"),
+        ("/direct/text/Ada", "<p>Ada</p>"),
+        ("/direct/stringable", "<b>text</b>"),
+    ] {
+        let (headers, body) = send(address, "GET", path, "", b"", 200).await;
+        assert_eq!(body, expected);
+        assert!(headers.contains("\r\ncontent-type: text/html; charset=utf-8"));
+    }
+    for (path, expected) in [
+        ("/direct/array", "[1,2,3]"),
+        ("/direct/vector", r#"["hello","\u4e16\u754c"]"#),
+        ("/direct/json", r#"{"value":"\u4e2d\/\ud83d\ude00<&"}"#),
+        ("/direct/sparse", r#"{"2":9}"#),
+        ("/direct/fluent", r#"{"name":"Ada"}"#),
+        ("/direct/controller", r#"{"controller":"structured"}"#),
+    ] {
+        let (headers, body) = send(address, "GET", path, "", b"", 200).await;
+        assert_eq!(body, expected);
+        assert!(headers.contains("\r\ncontent-type: application/json"));
+    }
+    let (headers, body) = send(address, "HEAD", "/direct/array", "", b"", 200).await;
+    assert!(body.is_empty() && headers.contains("\r\ncontent-length: 7"));
+    let (_, body) = send(address, "GET", "/direct/error", "", b"", 500).await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["message"],
+        "Server Error"
     );
     server.abort();
 }

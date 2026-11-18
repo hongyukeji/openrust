@@ -6,6 +6,17 @@
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
 
+### 字符串和数组 {#strings-and-arrays}
+
+路由或控制器可以直接返回字符串。OpenRust 以 HTTP 200 和 `text/html; charset=utf-8` 发送原字符串作为 HTML 正文。需要渲染和转义模板数据时返回视图。
+
+```rust
+Route::get("/greeting", || "<p>Hello</p>")?;
+Route::get("/numbers", || [1, 2, 3])?;
+```
+
+数组、向量、`serde_json::Value`、JSON 映射、支持层集合以及基于 JSON 的 `Fluent` 属性集合会转换为 HTTP 200 JSON。有序集合保留键，稀疏数字键会输出为 JSON 对象。需要显式指定状态码时用 `Response::json`。
+
 ### 原生 HTTP 响应 {#native-http-responses}
 
 路由闭包和控制器方法可以返回 `http::Response<Body>`。路由器将其转换为框架响应，继续经过相同的中间件和 HTTP 响应准备流程。异步处理器和完成 FormRequest 验证的方法同样适用。

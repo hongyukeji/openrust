@@ -3,7 +3,7 @@ use std::io;
 use crate::{
     contracts::{container::Container as _, routing::Handler},
     foundation::http::{FormRequest, ValidatedFormRequest},
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, Request, Response, ResponseOutput},
     support::facades::current_container,
 };
 
@@ -49,7 +49,7 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
     }
 }
 
-impl<C: Send + Sync + 'static, T: Into<Response> + Send + 'static> Handler
+impl<C: Send + Sync + 'static, T: ResponseOutput + Send + 'static> Handler
     for ControllerDispatcher<C, T>
 {
     fn handle<'a>(
@@ -68,7 +68,7 @@ impl<C: Send + Sync + 'static, T: Into<Response> + Send + 'static> Handler
                 .map_err(|source| HttpError::Internal {
                     source: Box::new(source),
                 })?;
-            (self.action)(&controller, request).await.map(Into::into)
+            (self.action)(&controller, request).await?.into_response()
         })
     }
 }

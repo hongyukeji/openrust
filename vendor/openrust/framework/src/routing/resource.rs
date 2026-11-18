@@ -137,7 +137,7 @@ impl<C> ResourceController<C> {
     pub fn action(
         mut self,
         action: ResourceAction,
-        handler: Action<C, impl Into<crate::http::Response> + Send + 'static>,
+        handler: Action<C, impl crate::http::ResponseOutput + Send + 'static>,
     ) -> Self
     where
         C: Send + Sync + 'static,
@@ -151,7 +151,7 @@ impl<C> ResourceController<C> {
     pub fn actionWithFormRequest<F: FormRequest + Default + 'static>(
         mut self,
         action: ResourceAction,
-        handler: FormAction<C, F, impl Into<crate::http::Response> + Send + 'static>,
+        handler: FormAction<C, F, impl crate::http::ResponseOutput + Send + 'static>,
     ) -> Self
     where
         C: Send + Sync + 'static,

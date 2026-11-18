@@ -311,3 +311,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [原生 HTTP 请求转换](04-02/README.md#原生-http-请求转换)通过真实 TCP 和应用二进制、固定 Laravel 元数据对照、Artisan 及三语文档验收。
 
 04-02 [原生 HTTP 响应转换](04-02/README.md#原生-http-响应转换)通过真实 TCP、Laravel PSR-7 桥接对照、实际二进制、Artisan 与三语文档验收。
+
+04-02 [路由字符串与结构化响应](04-02/README.md#路由字符串与结构化响应)通过真实 HTTP、固定 Laravel 对照、实际二进制、Artisan 和三语文档验收。
