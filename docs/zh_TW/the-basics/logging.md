@@ -201,3 +201,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## 上下文資訊
 
 [Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `logWithContext` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。
+
+## 監聽日誌訊息
+
+在服務提供者的 `boot` 方法中註冊 `Log::listen`。管道接受並寫入記錄後，同步執行監聽閉包，閉包回傳 `LogResult<()>`。`LogManager::listen` 和 `Logger::listen` 共用目前應用程式的監聽器，涵蓋具名管道、日誌堆疊、臨時管道及重新命名的 Logger。
+
+`MessageLogged` 包含原始訊息、層級及 context。佔位符插值與管道處理器套用於寫出的記錄。`logException` 也提供正規化的 `context["exception"]`。低於所有處理器門檻的記錄跳過通知。緊急回退記錄及診斷也會通知監聽器。
+
+閉包依註冊順序執行。回呼錯誤在日誌寫入後傳回呼叫者，並停止後續回呼。閉包可以再次寫入日誌或註冊監聽器，新增註冊於下一次通知生效。同步日誌監聽在呼叫者的應用程式作用域內執行，通用非同步事件分發採用顯式呼叫。
+
+```rust
+use openrust::{log::LogError, support::facades::Log};
+
+fn register_log_listener() -> Result<(), LogError> {
+    Log::listen(|event| {
+        eprintln!("{}", event.message);
+        Ok(())
+    })
+}
+```

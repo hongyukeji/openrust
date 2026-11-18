@@ -377,3 +377,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08 [Artisan dev Windows 进程树与 Ctrl+C](06-08/README.md#artisan-dev-windows-进程树与-ctrlc)通过 Windows ARM64 真实 Artisan、控制台信号及作业回收。Windows 队列夹具默认栈、Faker 编译门禁及 Pail 分别跟踪。核心账本维持 66/66。
 
 06-04／06-08 [Windows ARM64 Debug 作用域与堆上状态](06-04/worker-hard-timeout.md#windows-arm64-debug-作用域与堆上状态)通过默认 1 MiB 栈下的真实 Worker、强制超时、失败回调与记录、后续消费、HTTP 和关停验收。Windows 与 Ubuntu 全目标严格 Clippy 及三语文档检查通过。Faker 编译门禁已提交于 `6796629d9`，Process 与文件系统测试导入同批限定平台。核心账本维持 66/66，Pail 单列后续。
+
+01-04／06-08 [同步日志监听](01-04/log-listeners.md)通过真实 HTTP、独立 Artisan、22 项日志／Context 回归、严格 Clippy 和三语文档检查。Pail 固定对照与交付顺序已登记，后续接通捕获和命令。核心账本维持 66/66。

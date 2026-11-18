@@ -26,6 +26,7 @@ pub type Processor = dyn Fn(&mut LogRecord<'_>) -> LogResult<()> + Send + Sync;
 
 pub(super) struct Emergency {
     pub handlers: Handlers,
+    pub listeners: Arc<super::events::Listeners>,
 }
 
 impl Emergency {
@@ -37,7 +38,8 @@ impl Emergency {
             context,
             &LogContext::new(),
             false,
-        ))
+        ))?;
+        self.listeners.fire(level, message, context, None)
     }
 
     fn write_record(&self, record: &LogRecord<'_>) -> LogResult<()> {
@@ -60,6 +62,7 @@ pub struct Logger {
     pub(super) processors: Vec<Arc<Processor>>,
     pub(super) emergency: Arc<Emergency>,
     pub(super) context_owner: Weak<Container>,
+    pub(super) listeners: Arc<super::events::Listeners>,
 }
 
 impl Logger {
@@ -78,6 +81,7 @@ impl Logger {
             processors: self.processors.clone(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
+            listeners: self.listeners.clone(),
         }
     }
 
@@ -109,6 +113,14 @@ impl Logger {
 
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         self.write(level, message, context, &self.extra(), None)
+    }
+
+    /// Observes accepted records synchronously after their channel writes complete.
+    pub fn listen(
+        &self,
+        listener: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
+    ) {
+        self.listeners.listen(listener);
     }
 
     /// Logs an error and its source chain as structured exception data.
@@ -172,9 +184,10 @@ impl Logger {
             ))
         };
         let Some(handlers) = &self.handlers else {
-            return fallback();
+            fallback()?;
+            return self.listeners.fire(level, message, context, exception);
         };
-        if !self.processors.is_empty() && !sink::accepts(handlers, level) {
+        if !sink::accepts(handlers, level) {
             return Ok(());
         }
         let mut record = LogRecord::new(
@@ -200,7 +213,7 @@ impl Logger {
             )?;
             fallback()?;
         }
-        Ok(())
+        self.listeners.fire(level, message, context, exception)
     }
 
     log_methods!(self);

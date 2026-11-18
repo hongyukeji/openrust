@@ -201,3 +201,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ## Contextual Information
 
 The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.
+
+## Listening for Log Messages
+
+Register `Log::listen` in a service provider's `boot` method. Its callback runs synchronously after an accepted record is written, and returns `LogResult<()>`. `LogManager::listen` and `Logger::listen` use the same application-wide listeners across named channels, stacks, on-demand channels, and renamed loggers.
+
+The `MessageLogged` payload contains the original message, level, and context. Placeholder interpolation and channel processors apply to the written record. `logException` also supplies the normalized `context["exception"]`. Records below every handler's threshold skip notification. Emergency fallback records and its diagnostics notify listeners too.
+
+Callbacks run in registration order. A callback error propagates after the write and stops later callbacks. A callback may log or register another listener. Registrations made during a notification take effect on the next notification. The synchronous log listener API executes inside the calling application scope. General asynchronous event dispatch remains an explicit operation.
+
+```rust
+use openrust::{log::LogError, support::facades::Log};
+
+fn register_log_listener() -> Result<(), LogError> {
+    Log::listen(|event| {
+        eprintln!("{}", event.message);
+        Ok(())
+    })
+}
+```

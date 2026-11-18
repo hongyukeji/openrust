@@ -3570,3 +3570,7 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 - 06-04／06-08 按固定 Laravel Worker 和 Artisan 契约收口 [Windows ARM64 Debug 作用域与堆上状态](audits/06-04/worker-hard-timeout.md#windows-arm64-debug-作用域与堆上状态)。框架将大型 Future 在进入作用域前堆固定，隔离链及批次结算的状态。夹具先分发进程模式再构造场景，保留真实 Artisan Worker。
 - Windows 11 ARM64／Rust 1.94.0 未优化构建实测默认 1 MiB 栈，定向失败模式与完整 SQLite Worker 进程验收通过。验证失败回调、失败记录、超时回收、后续消费、内存门槛及统一运行时的 HTTP 与关停。Windows 另 10 项、Ubuntu 24 项和完整同名进程验收通过，两端全工作区全目标严格 Clippy 通过。
 - Faker 类型推断先提交于 `6796629d9`。Process 与本地文件系统的 Unix 专用测试导入按平台限定。格式、三语队列正文、站点构建及浏览器检查通过。文件清单见 [Windows 回归门禁收口](audits/06-08/README.md#windows-回归门禁收口)。MySQL／Redis 和 x64 发布矩阵继续跟踪。下一批对照固定 Laravel 文档的 Pail 日志跟踪及应用骨架依赖，先核定专项 Spec 与旧版可复用实现。
+
+## 2026-11-19 01-04／06-08 同步日志监听
+
+按固定 Laravel Logger 接通 `Log::listen`、`LogManager::listen` 和 `Logger::listen`，先写入再通知，保留原载荷、阈值和应用隔离。Rust 同步闭包返回 `LogResult<()>`，通用异步事件采用显式分发。Ubuntu 的 22 项回归、真实 HTTP、两个独立 Artisan 入口、严格 Clippy、格式和三语站点及浏览器检查通过。文件树和命令见 [验收记录](audits/01-04/log-listeners.md)。已核定 Pail v1.2.5 专项 Spec，下一批接会话捕获、来源及文件生命周期，再接命令。

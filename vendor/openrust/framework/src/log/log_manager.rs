@@ -76,6 +76,7 @@ pub struct LogManager {
     processors: Registry<ComponentFactory<Processor>>,
     taps: Registry<Tap>,
     handlers: Registry<ComponentFactory<RecordHandler>>,
+    listeners: Arc<super::events::Listeners>,
 }
 
 #[derive(Default)]
@@ -98,6 +99,7 @@ impl LogManager {
             processors: Mutex::default(),
             taps: Mutex::default(),
             handlers: Mutex::default(),
+            listeners: Arc::default(),
         }
     }
 
@@ -256,6 +258,7 @@ impl LogManager {
                 processors,
                 emergency: resolution.settings.emergency.clone(),
                 context_owner: resolution.settings.context_owner.clone(),
+                listeners: self.listeners.clone(),
             }))
         })
     }
@@ -286,6 +289,15 @@ impl LogManager {
         self.channel(None)?.log(level, message, context)
     }
 
+    /// Registers an application-wide observer using Laravel's synchronous log boundary.
+    pub fn listen(
+        &self,
+        listener: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
+    ) -> LogResult<()> {
+        self.channel(None)?.listen(listener);
+        Ok(())
+    }
+
     pub fn logException<E: std::error::Error + Send + Sync + 'static>(
         &self,
         level: Level,
@@ -309,6 +321,7 @@ impl LogManager {
             .filter(|path| !path.is_empty())
             .unwrap_or(DEFAULT_FILE);
         let emergency = Arc::new(Emergency {
+            listeners: self.listeners.clone(),
             handlers: [Arc::new(Handler::file(
                 self.root.join(path),
                 None,
@@ -328,6 +341,7 @@ impl LogManager {
                 .and_then(|value| value.as_str().map(str::to_owned))
                 .unwrap_or_else(|| "production".to_owned()),
             emergency,
+            listeners: &self.listeners,
         }
     }
 }
@@ -367,6 +381,7 @@ struct Settings<'a> {
     root: &'a std::path::Path,
     environment: String,
     emergency: Arc<Emergency>,
+    listeners: &'a Arc<super::events::Listeners>,
 }
 
 impl Settings<'_> {
@@ -378,6 +393,7 @@ impl Settings<'_> {
             processors: Vec::new(),
             emergency: self.emergency.clone(),
             context_owner: self.context_owner.clone(),
+            listeners: self.listeners.clone(),
         })
     }
 }
@@ -469,6 +485,7 @@ impl Resolution<'_, '_> {
             processors,
             emergency: self.settings.emergency.clone(),
             context_owner: self.settings.context_owner.clone(),
+            listeners: self.settings.listeners.clone(),
         };
         if let Some(key) = options.formatter.as_deref().filter(|key| *key != "default") {
             let formatter = match find(&self.manager.formatters, key) {

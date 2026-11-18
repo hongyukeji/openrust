@@ -16,6 +16,14 @@ impl Facade for Log {
 }
 
 impl Log {
+    pub fn listen(
+        listener: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
+    ) -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .listen(listener)
+    }
+
     pub fn build(config: &serde_json::Value) -> LogResult<Arc<Logger>> {
         Self::getFacadeRoot()
             .map_err(LogError::Unavailable)?

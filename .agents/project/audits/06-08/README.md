@@ -107,3 +107,7 @@ vendor/openrust/framework/
 ```
 
 - Windows 与 Ubuntu 当批快照及编译缓存、站点产物已回收，数据卷清单一致，Windows 虚拟机恢复关机。提交前磁盘可用 56.59 GB（52.71 GiB），周额度剩余 16%，第二窗口无读数，沿用用户忽略本轮额度停线的授权。原始验收日志保留于 `/private/tmp/openrust-win-baseline.em1FHFXM`。
+
+## Pail 日志监听前置
+
+已核定 [Pail 专项对照与顺序](pail.md)，并完成 [同步日志监听](../01-04/log-listeners.md)。跨渠道通知、原载荷、回调顺序和错误、重入及双应用隔离通过真实 HTTP 与独立 Artisan 验收。Pail 跨进程捕获、命令和开发进程注册继续依次推进。
