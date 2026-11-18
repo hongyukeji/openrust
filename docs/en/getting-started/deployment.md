@@ -29,28 +29,9 @@ For a fresh SQLite deployment, create the configured database file before runnin
 
 For MySQL or PostgreSQL, confirm the server version against the [release matrix](../prologue/releases.md). OpenRust requires TLS for MySQL connections. The application starts a database queue worker by default. Keep the queue tables migrated when using that worker.
 
-### Cache Configuration {#cache-configuration}
-
-After setting the deployment environment, you can cache configuration before starting the services:
-
-```sh
-./main artisan config:cache
-```
-
-Run the command from the final release directory using the environment the services will run under. The snapshot can contain absolute paths. If the release moves or its settings change, rebuild the cache in the new environment before restarting. Run `./main artisan config:clear` to load configuration from the environment at startup. See [Configuration Caching](configuration.md#configuration-caching).
-
-### Cache Deployment Resources {#cache-deployment-resources}
-
-```sh
-./main artisan optimize
-./main artisan optimize:clear --except=cache
-```
-
-`optimize` caches configuration, event discovery, the route matching index and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
-
-See [Route Caching](../the-basics/routing.md#route-caching) for the matching index and its cache path.
-
 ## Start HTTP and Artisan
+
+Start the application with the following command after preparing the environment and running any required migrations. HTTP and Artisan can run without pre-generated caches.
 
 ```sh
 cd release
@@ -96,6 +77,31 @@ curl --fail http://127.0.0.1:8088/up
 ```
 
 The migration status identifies pending migrations. The schedule list returns a JSON array of registered tasks, including an empty array when there are none.
+
+## Optional Deployment Optimizations
+
+Use these commands if you want to pre-generate deployment caches.
+
+### Cache Configuration {#cache-configuration}
+
+After setting the deployment environment, you can cache configuration before starting the services:
+
+```sh
+./main artisan config:cache
+```
+
+Run the command from the final release directory using the environment the services will run under. The snapshot can contain absolute paths. If the release moves or its settings change, rebuild the cache in the new environment before restarting. Run `./main artisan config:clear` to load configuration from the environment at startup. See [Configuration Caching](configuration.md#configuration-caching).
+
+### Cache Deployment Resources {#cache-deployment-resources}
+
+```sh
+./main artisan optimize
+./main artisan optimize:clear --except=cache
+```
+
+`optimize` caches configuration, event discovery, the route matching index and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
+
+See [Route Caching](../the-basics/routing.md#route-caching) for the matching index and its cache path.
 
 ## Run Services Together
 

@@ -29,28 +29,9 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 使用 MySQL 或 PostgreSQL 時，先在[發佈矩陣](../prologue/releases.md)核對伺服器版本。OpenRust 的 MySQL 連線需要 TLS。應用程式預設啟動資料庫佇列 Worker，使用時須先完成佇列表遷移。
 
-### 快取設定 {#cache-configuration}
-
-部署環境設定就緒後，可以在啟動服務前產生設定快取：
-
-```sh
-./main artisan config:cache
-```
-
-在最終發行目錄中，使用服務啟動時的環境執行命令。設定快照可能包含絕對路徑。搬移發行目錄或修改設定後，先在新環境中重新產生快取，再重新啟動服務。需要在啟動時從環境讀取設定時，執行 `./main artisan config:clear`。見[設定快取](configuration.md#configuration-caching)。
-
-### 快取部署資源 {#cache-deployment-resources}
-
-```sh
-./main artisan optimize
-./main artisan optimize:clear --except=cache
-```
-
-`optimize` 快取設定、事件探索結果、路由比對索引和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
-
-路由比對索引及其快取路徑見[路由快取](../the-basics/routing.md#route-caching)。
-
 ## 啟動 HTTP 與 Artisan
+
+準備好執行環境並完成必要的遷移後，直接啟動應用程式。HTTP 和 Artisan 都可以在沒有預先產生的快取時執行。
 
 ```sh
 cd release
@@ -96,6 +77,31 @@ curl --fail http://127.0.0.1:8088/up
 ```
 
 遷移狀態會列出待執行的遷移。排程清單以 JSON 陣列傳回已註冊的任務，沒有註冊任務時傳回空陣列。
+
+## 選用的部署最佳化
+
+需要預先產生部署快取時，可以使用以下指令。
+
+### 快取設定 {#cache-configuration}
+
+部署環境設定就緒後，可以在啟動服務前產生設定快取：
+
+```sh
+./main artisan config:cache
+```
+
+在最終發行目錄中，使用服務啟動時的環境執行命令。設定快照可能包含絕對路徑。搬移發行目錄或修改設定後，先在新環境中重新產生快取，再重新啟動服務。需要在啟動時從環境讀取設定時，執行 `./main artisan config:clear`。見[設定快取](configuration.md#configuration-caching)。
+
+### 快取部署資源 {#cache-deployment-resources}
+
+```sh
+./main artisan optimize
+./main artisan optimize:clear --except=cache
+```
+
+`optimize` 快取設定、事件探索結果、路由比對索引和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
+
+路由比對索引及其快取路徑見[路由快取](../the-basics/routing.md#route-caching)。
 
 ## 一起執行服務
 
