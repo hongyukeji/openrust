@@ -109,6 +109,14 @@ impl FilesystemManager {
         }
     }
 
+    pub fn getDefaultCloudDriver(&self) -> FilesystemResult<String> {
+        match self.config.get("filesystems.cloud") {
+            None | Some(serde_json::Value::Null) => Ok("s3".into()),
+            Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
+            _ => Err(FilesystemError::InvalidConfiguration),
+        }
+    }
+
     pub fn build(&self, config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
         self.build_local(config, LocalPermissions::default(), None)
     }

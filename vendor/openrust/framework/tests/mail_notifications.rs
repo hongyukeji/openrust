@@ -106,10 +106,57 @@ impl Mailable for AttachmentReceipt {
             Attachment::fromStorageDisk("archive", "data.bin")
                 .r#as("archive-record.bin")
                 .withMime("application/x-openrust"),
-            Attachment::fromStorageDisk("objects", "nested/object.bin"),
+            Attachment::fromCloudStorage("nested/object.bin")?,
             Attachment::fromData(vec![0, 255, 1], "generated.bin"),
         ])
     }
+}
+
+struct UploadedReceipt(AttachmentSource);
+
+impl Mailable for UploadedReceipt {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            subject: "Uploaded attachment HTTP".into(),
+            ..Default::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Receipt.content()
+    }
+
+    fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+        Ok(vec![self.0.clone()])
+    }
+}
+
+fn uploaded_mail_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let queued = request.uri().query() == Some("queued=1");
+        let file = request.file("upload").await?.expect("fixture upload");
+        let receipt = UploadedReceipt(Attachment::fromUploadedFile(&file));
+        let mail = Mail::to("to@example.test").unwrap();
+        let result = if queued {
+            mail.queue(
+                &receipt,
+                DispatchOptions {
+                    connection: Some("redis".into()),
+                    queue: Some("attachment-sources".into()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .map(|_| ())
+        } else {
+            mail.sendNow(&receipt).await.map(|_| ())
+        };
+        result.map_err(|error| HttpError::Internal {
+            source: Box::new(error),
+        })?;
+        Response::json(http::StatusCode::OK, json!({"accepted":true}))
+    })
 }
 
 fn attachment_mail_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -819,6 +866,11 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             Route::get("/notify", notify_from_http)?;
             Route::get("/guarded-notify", guarded_from_http)?;
             Route::get("/attachment-mail", attachment_mail_from_http)?;
+            Route::r#match(
+                &[http::Method::POST],
+                "/attachment-upload",
+                uploaded_mail_from_http,
+            )?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2757,6 +2809,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
     config["fixture"]["attachment_file"] = json!(path);
     config["filesystems"] = json!({
         "default":"local",
+        "cloud":"objects",
         "disks": {
             "local":{"driver":"local","root":"local","throw":false},
             "archive":{"driver":"local","root":"archive","throw":true},
@@ -2781,6 +2834,42 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
     let mut kernel = Kernel::new(app(&root.0));
     kernel.bootstrap().await.unwrap();
     let (url, server) = serve_fixture_http(kernel, "attachment-mail").await;
+    let upload_url = url.replace("/attachment-mail", "/attachment-upload");
+    let png = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR";
+    let binary = [0, 31, 255];
+    let client = reqwest::Client::new();
+    for (name, mime, bytes, url) in [
+        (
+            "folder/upload.png",
+            "text/plain",
+            png.as_slice(),
+            upload_url.clone(),
+        ),
+        (
+            "unknown.bin",
+            "application/x-client-fixture",
+            binary.as_slice(),
+            format!("{upload_url}?queued=1"),
+        ),
+    ] {
+        let mut body = format!(
+            "--fixture\r\nContent-Disposition: form-data; name=\"upload\"; filename=\"{name}\"\r\nContent-Type: {mime}\r\n\r\n"
+        ).into_bytes();
+        body.extend_from_slice(bytes);
+        body.extend_from_slice(b"\r\n--fixture--\r\n");
+        client
+            .post(url)
+            .header(
+                http::header::CONTENT_TYPE,
+                "multipart/form-data; boundary=fixture",
+            )
+            .body(body)
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+    }
     reqwest::get(&url)
         .await
         .unwrap()
@@ -2797,14 +2886,47 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             Callback::new(&[], |_| {
                 let path = path.clone();
                 async move {
+                    let receipt = AttachmentReceipt {
+                        path: path.clone(),
+                        subject: "Source attachments worker",
+                    };
+                    receipt
+                        .assertHasAttachment(&Attachment::fromPath(&path))
+                        .assertHasAttachedData(b"file receipt", "receipt.txt", Some("text/plain"))
+                        .assertHasAttachedData(&[0, 255, 1], "generated.bin", None)
+                        .assertHasAttachmentFromStorage(
+                            "exports/default.csv",
+                            Some("default.csv"),
+                            None,
+                        )
+                        .assertHasAttachmentFromStorageDisk(
+                            "objects",
+                            "nested/object.bin",
+                            None,
+                            None,
+                        )
+                        .assertHasAttachmentFromStorageDisk(
+                            "archive",
+                            "data.bin",
+                            Some("archive-record.bin"),
+                            Some("application/x-openrust"),
+                        );
+                    assert!(
+                        !receipt
+                            .hasAttachment(&Attachment::fromStorage("nested/object.bin"))
+                            .unwrap()
+                    );
+                    assert!(
+                        !receipt
+                            .hasAttachment(&Attachment::fromStorageDisk("archive", "data.bin"))
+                            .unwrap()
+                    );
+                    AddressedReceipt.assertHasNoAttachments();
                     for connection in ["database", "redis"] {
                         Mail::to("to@example.test")
                             .unwrap()
                             .queue(
-                                &AttachmentReceipt {
-                                    path: path.clone(),
-                                    subject: "Source attachments worker",
-                                },
+                                &receipt,
                                 DispatchOptions {
                                     connection: Some(connection.into()),
                                     queue: Some("attachment-sources".into()),
@@ -2866,18 +2988,15 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         .await
         .unwrap();
     let mut delivered = (0, 0);
+    let mut uploaded = Vec::new();
     for row in listing["messages"].as_array().unwrap() {
-        let (file, disk) = match row["Subject"].as_str() {
-            Some("Source attachments HTTP") => {
-                delivered.0 += 1;
-                (15, 16)
-            }
-            Some("Source attachments worker") => {
-                delivered.1 += 1;
-                (25, 26)
-            }
+        let subject = row["Subject"].as_str().unwrap();
+        match subject {
+            "Source attachments HTTP"
+            | "Source attachments worker"
+            | "Uploaded attachment HTTP" => {}
             _ => continue,
-        };
+        }
         let id = row["ID"].as_str().unwrap();
         let raw = reqwest::get(format!("{api}/message/{id}/raw"))
             .await
@@ -2887,6 +3006,32 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             .text()
             .await
             .unwrap();
+        if subject == "Uploaded attachment HTTP" {
+            if raw.contains("upload.png") {
+                assert!(
+                    raw.contains("image/png") && raw.contains(&STANDARD.encode(png)),
+                    "{raw}"
+                );
+                assert!(!raw.contains("folder/upload.png"));
+                uploaded.push("png");
+            } else {
+                assert!(
+                    raw.contains("unknown.bin")
+                        && raw.contains("application/x-client-fixture")
+                        && raw.contains(&STANDARD.encode(binary)),
+                    "{raw}"
+                );
+                uploaded.push("fallback");
+            }
+            continue;
+        }
+        let (file, disk) = if subject == "Source attachments HTTP" {
+            delivered.0 += 1;
+            (15, 16)
+        } else {
+            delivered.1 += 1;
+            (25, 26)
+        };
         for marker in [
             "source.txt",
             "default.csv",
@@ -2911,6 +3056,8 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         }
     }
     assert_eq!(delivered, (1, 2));
+    uploaded.sort_unstable();
+    assert_eq!(uploaded, ["fallback", "png"]);
     server.abort();
     object_server.abort();
     drop_delivery_tables(&db).await;

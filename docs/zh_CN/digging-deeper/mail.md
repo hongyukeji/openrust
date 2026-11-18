@@ -68,6 +68,8 @@ fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
 
 文件和磁盘附件默认使用文件名。S3 优先使用对象的内容类型。本地文件先检测类型，再按扩展名回退。生成字节的默认类型是 `application/octet-stream`。发送时才读取文件或磁盘，队列中的邮件由 Worker 读取，因此路径或磁盘必须对 Worker 可用。生成的字节随队列载荷保存。
 
+用 `Attachment::fromUploadedFile(&file)` 附加 HTTP 请求中的上传文件。默认使用客户端提供的文件名和检测到的 MIME 类型，无法识别时采用客户端声明的类型。上传字节随队列邮件保存。用 `Attachment::fromCloudStorage(path)?` 选择 `filesystems.cloud` 配置的磁盘，默认是 `s3`。
+
 ### 内嵌附件 {#inline-attachments}
 
 从 `Mailable::inline_attachments` 返回 `InlineAttachment`，用 `cid()` 取得图片地址。视图和附件使用相同的 Content-ID。
@@ -229,6 +231,14 @@ Route::get("/mail-preview/order", preview_order)?;
 在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 返回 `None`，`sendNow` 返回 `MailError::Cancelled`。
 
 ## 测试邮件
+
+可在邮件类型上断言附件声明，无需读取文件或请求存储服务。用 `assertHasAttachmentFromStorageDisk` 核对指定磁盘，用 `assertHasNoAttachments` 核对没有声明普通附件。
+
+```rust
+receipt
+    .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
+    .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
+```
 
 在测试应用中调用 `Mail::fake()`，可以检查邮件并跳过传输和入队。断言区分即时发送和排队发送。用 `Mailable::kind()` 选择邮件记录，用匹配断言检查信封或队列选项。
 

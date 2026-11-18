@@ -68,6 +68,8 @@ fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
 
 檔案及磁碟附件預設使用檔名。S3 優先採用物件的內容類型。本機檔案會先偵測類型，再依副檔名回退。產生的位元組預設為 `application/octet-stream`。傳送時才讀取檔案或磁碟，佇列中的郵件由 Worker 讀取，因此路徑或磁碟必須可由 Worker 存取。產生的位元組會隨佇列承載資料保存。
 
+用 `Attachment::fromUploadedFile(&file)` 附加 HTTP 請求中的上傳檔案。預設使用用戶端提供的檔名和偵測到的 MIME 類型，無法辨識時採用用戶端宣告的類型。上傳位元組會隨佇列郵件保存。用 `Attachment::fromCloudStorage(path)?` 選取 `filesystems.cloud` 設定的磁碟，預設為 `s3`。
+
 ### 內嵌附件 {#inline-attachments}
 
 從 `Mailable::inline_attachments` 回傳 `InlineAttachment`，用 `cid()` 取得圖片網址。視圖和附件使用相同的 Content-ID。
@@ -229,6 +231,14 @@ Route::get("/mail-preview/order", preview_order)?;
 在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 回傳 `None`，`sendNow` 回傳 `MailError::Cancelled`。
 
 ## 測試郵件
+
+可在郵件類型上斷言附件宣告，無須讀取檔案或請求儲存服務。用 `assertHasAttachmentFromStorageDisk` 檢查指定磁碟，用 `assertHasNoAttachments` 檢查是否沒有宣告一般附件。
+
+```rust
+receipt
+    .assertHasAttachmentFromStorage("reports/monthly.csv", None, None)
+    .assertHasAttachedData(b"total,42", "summary.csv", Some("text/csv"));
+```
 
 在測試應用程式中呼叫 `Mail::fake()`，即可檢查郵件並跳過傳輸和加入佇列。斷言區分即時傳送與排隊傳送。用 `Mailable::kind()` 選擇郵件記錄，用比對斷言檢查信封或佇列選項。
 

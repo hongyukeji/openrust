@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::AsyncReadExt as _;
 
 use crate::{
+    http::UploadedFile,
     mail::{MailResult, composition},
     support::facades::Storage,
 };
@@ -18,7 +19,7 @@ pub struct AttachmentSource {
     mime: Option<String>,
 }
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Eq, PartialEq, Serialize)]
 enum Source {
     Path(PathBuf),
     Disk { disk: Option<String>, path: String },
@@ -50,9 +51,49 @@ impl Attachment {
     pub fn fromStorageDisk(disk: impl Into<String>, path: impl Into<String>) -> AttachmentSource {
         AttachmentSource::disk(Some(disk.into()), path.into())
     }
+
+    pub fn fromCloudStorage(path: impl Into<String>) -> MailResult<AttachmentSource> {
+        let disk = Storage::getDefaultCloudDriver().map_err(composition)?;
+        Ok(Self::fromStorageDisk(disk, path))
+    }
+
+    pub fn fromUploadedFile(file: &UploadedFile) -> AttachmentSource {
+        let mime = file
+            .detected_type()
+            .map(|(_, mime)| mime)
+            .or_else(|| file.getClientMimeType());
+        Self::fromData(file.get().to_vec(), file.getClientOriginalName()).with_metadata(None, mime)
+    }
 }
 
 impl AttachmentSource {
+    pub(crate) fn matches(&self, other: &Self) -> bool {
+        if self.source != other.source || self.mime != other.mime {
+            return false;
+        }
+        let default_name = match &self.source {
+            Source::Disk { path, .. } => Path::new(path).file_name().and_then(|name| name.to_str()),
+            _ => None,
+        };
+        self.name.as_deref().or(default_name) == other.name.as_deref().or(default_name)
+    }
+
+    pub(crate) fn with_metadata(mut self, name: Option<&str>, mime: Option<&str>) -> Self {
+        if let Some(name) = name {
+            self.name = Some(name.into());
+        }
+        if let Some(mime) = mime {
+            self.mime = Some(mime.into());
+        }
+        self
+    }
+
+    pub(crate) fn matches_materialized(&self, attachment: &Attachment) -> bool {
+        matches!(&self.source, Source::Data(bytes) if *bytes == attachment.bytes)
+            && self.name.as_deref() == Some(attachment.name.as_str())
+            && self.mime.as_deref().unwrap_or("application/octet-stream") == attachment.mime
+    }
+
     fn disk(disk: Option<String>, path: String) -> Self {
         Self {
             source: Source::Disk { disk, path },

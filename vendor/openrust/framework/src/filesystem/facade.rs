@@ -23,6 +23,13 @@ impl Facade for Storage {
 }
 
 impl Storage {
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub fn getDefaultCloudDriver() -> FilesystemResult<String> {
+        Self::getFacadeRoot()
+            .map_err(FilesystemError::Unavailable)?
+            .getDefaultCloudDriver()
+    }
+
     pub fn disk(name: Option<&str>) -> FilesystemResult<Arc<FilesystemAdapter>> {
         Self::getFacadeRoot()
             .map_err(FilesystemError::Unavailable)?

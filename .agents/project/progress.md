@@ -3248,3 +3248,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 06-06 邮件附件的路径、磁盘与字节来源
 
 按固定 Laravel 的 Attachments 章节补齐本地路径、默认和指定磁盘、原始字节及名称和 MIME 覆盖。由现有 Mailer 组合附件，延迟到 Worker 读取路径，保留历史载荷和现有原始附件接口。范围含 Mailable、附件来源、Mail 组合及任务、磁盘读取接线、邮件集成回归和三语正文。实际 HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知回归、9 项本地磁盘回归、全仓格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件附件的路径磁盘与字节来源)
+
+## 2026-11-18 06-06 上传文件、默认云磁盘及邮件附件断言
+
+继续对照 Laravel 的 Attachments 和 Testing，接入上传文件与默认云磁盘来源及普通附件断言。范围含 `Mailable`、`AttachmentSource`、`FilesystemManager`、`Storage` 门面、邮件与本地磁盘回归及三语正文。真实 multipart HTTP、SMTP、MySQL 8.4.13 与 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知回归、9 项本地磁盘回归、全仓格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#上传文件默认云磁盘及邮件附件断言)

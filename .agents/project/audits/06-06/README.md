@@ -167,3 +167,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `df828c915` 上，用真实 HTTP、SMTP 和 Mailpit HTTP 核对文件名、MIME、二进制内容和原有附件。磁盘文件缺失返回 HTTP 500，未投递部分邮件。MySQL 与 Redis 的独立 Artisan Worker 验证入队时无需访问文件，数据库 Worker 首次读取失败后恢复文件并重试成功。通过实际 AWS SDK 向本地 S3 协议夹具读取对象并验证服务端 MIME。未连接托管 S3。
 - `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。`./artisan inspire`、Rust 1.94.0 格式及全工作区严格 Clippy、三语附件示例编译和运行、站点构建以及两种部署路径的 12 项通用和 6 项附件说明浏览器检查通过。核心账本维持 66/66。URL、上传文件、默认云磁盘与附件断言接口后续逐项对照。
 - 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.65 GB（3.40 GiB），剩余 102.28 GB（95.26 GiB）。提交前周额度剩余 33%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-attachments.rFf3tElu`。
+
+## 上传文件、默认云磁盘及邮件附件断言
+
+- 按固定 Laravel v13.40.0 实现 `Attachment::fromUploadedFile()`、`fromCloudStorage()` 和邮件附件断言。上传使用客户端 basename，优先使用检测到的 MIME，随后回退到客户端声明的 MIME。Rust 使用已缓冲的上传字节构建可序列化来源，跨请求和 Artisan 进程投递。云附件在构造时选择 `filesystems.cloud`，缺省为 `s3`，Worker 发送时访问该磁盘。复核旧版 `6d1a81924` 的上传模型及邮件模块，未发现同契约的附件构造或断言，沿用当前公开的 `UploadedFile` 和存储机制。 [Laravel Attachment](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Attachment.php#L85) · [Laravel FilesystemManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemManager.php#L440)
+- `Mailable` 支持路径／来源检查、原始字节、默认磁盘、指定磁盘和无普通附件断言。通过来源、名称和 MIME 比较检查声明，默认磁盘附件的显式 basename 与默认名称等价，兼容旧的物化附件。测试时可在文件尚未写入的情况下断言文件和磁盘来源。 [Laravel Mailable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Mailable.php#L1446) · [Laravel Mail 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#testing)
+- 在隔离基线 `3fc92e01c` 上，以真实 multipart POST 发送 PNG，核对服务端 MIME 优先及文件名去除目录。另一个 POST 将无法辨识的二进制上传入队，由 Redis Artisan Worker 投递，验证客户端声明 MIME 及原始字节。MySQL 与 Redis Worker 同时复验云磁盘配置、入队后文件读取和 MySQL Worker 失败恢复。使用实际 AWS SDK 请求本地 S3 协议夹具，未连接托管 S3。
+- `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语断言示例执行、站点构建及两个部署路径的 12 项通用和 6 项附件说明浏览器检查通过。核心账本维持 66/66。URL 来源和 `Attachable` 契约后续对照。
+- 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.67 GB（3.42 GiB），清理后可用 96.39 GB（89.77 GiB）。提交前周额度剩余 32%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-upload-cloud.SjilBxNX`。

@@ -43,6 +43,7 @@ async fn named_and_on_demand_disks_isolate_files_and_honor_error_policy() {
     let root = Sandbox::new();
     let other = Sandbox::new();
     let manager = root.manager(false);
+    assert_eq!(manager.getDefaultCloudDriver().unwrap(), "s3");
     let private = manager.disk(None).unwrap();
     let public = manager.disk(Some("public")).unwrap();
     assert!(Arc::ptr_eq(&private, &manager.disk(Some("local")).unwrap()));
