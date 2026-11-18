@@ -42,6 +42,20 @@ Use `request.getAcceptableContentTypes()` to read the `Accept` entries in qualit
 
 With repeated `Accept` header fields, the first field is used, as in the pinned Laravel request implementation. Send several types as a comma-separated list in one field.
 
+### Input Presence {#input-presence}
+
+Use `request.has(&["profile.name"]).await?` when a key must exist, including a key explicitly set to `null`. Use `hasAny` to check alternatives and `missing` to test whether any supplied key is absent. These checks also recognize uploaded files.
+
+Use `filled`, `isNotFilled` and `anyFilled` to check input values. Missing values, `null` and blank strings are empty. Booleans, zero and empty arrays count as filled. A file-only field is checked with `hasFile`.
+
+Use `whenHas`, `whenFilled` or `whenMissing` to run an async callback when the condition holds. The method returns `Some(result)` when the callback runs and `None` otherwise. The callback can use the mutable request to access file fields. `unwrap_or_else` can provide a fallback.
+
+### Merging Additional Input {#merging-additional-input}
+
+Use `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` to set values by dotted path. `mergeIfMissing` preserves keys already present in the request, including explicit `null`, query fallbacks and uploads. Use `replace` with an object or array to replace the active input source.
+
+A JSON request updates its JSON input. A non-JSON GET or HEAD updates the query bag. Other requests update their form input and still fall back to query values. These methods preserve the original URI, raw body and uploads.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.

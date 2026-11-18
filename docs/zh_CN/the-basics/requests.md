@@ -42,6 +42,20 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 重复发送 `Accept` 请求头时，按固定 Laravel 实现使用首个字段。需要发送多种类型时，请在一个字段中用逗号分隔。
 
+### 检查输入是否存在 {#input-presence}
+
+用 `request.has(&["profile.name"]).await?` 检查键是否存在，显式设置为 `null` 的键也算存在。用 `hasAny` 检查任意一个键，用 `missing` 检查是否有键缺失。这些检查也识别上传文件。
+
+用 `filled`、`isNotFilled` 和 `anyFilled` 检查输入值。缺失值、`null` 和空白字符串算空。布尔值、零和空数组算已填写。只有上传文件的字段可用 `hasFile` 检查。
+
+用 `whenHas`、`whenFilled` 或 `whenMissing` 在条件成立时运行异步回调。执行回调时返回 `Some(result)`，否则返回 `None`。回调可通过可变请求访问文件字段，也可以用 `unwrap_or_else` 提供默认结果。
+
+### 合并额外输入 {#merging-additional-input}
+
+用 `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` 按点路径设置输入。`mergeIfMissing` 保留请求已有的键，包括显式 `null`、查询回退值和上传文件。用 `replace` 传入对象或数组可替换当前输入来源。
+
+JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。其他请求更新表单输入，并继续使用查询回退。这些方法保留原始 URI、原始正文和上传文件。
+
 ## 文件
 
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。

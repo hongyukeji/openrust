@@ -10,6 +10,8 @@ use crate::support::{
 
 use super::{query, variables::VariableBag};
 
+mod mutation;
+
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_TEXT_FIELD_BYTES: usize = 1024 * 1024;
 const MAX_FIELDS: usize = 1024;
@@ -50,6 +52,13 @@ pub(super) struct Payload {
     fields: Value,
     file_indices: Value,
     files: Vec<UploadedFile>,
+}
+
+#[derive(Clone, Copy)]
+enum InputSource {
+    Json,
+    Query,
+    Form,
 }
 
 impl Payload {
@@ -122,8 +131,16 @@ impl Request {
     /// Reads the input source and adds query keys that the source does not supply.
     /// A dotted key can select nested objects or arrays.
     pub async fn input(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
+        let source = self.input_source()?;
+        if matches!(source, InputSource::Query) {
+            let query = self.query_values()?;
+            return Ok(match key {
+                Some(key) => lookup(query, &key.split('.').collect::<Vec<_>>()),
+                None => Some(query.clone()),
+            });
+        }
         let query = self.query(None)?.unwrap_or_else(empty);
-        let fields = &self.payload().await?.fields;
+        let fields = self.source_values(source).await?;
         let Some(key) = key else {
             return Ok(Some(union(fields.clone(), query)));
         };
@@ -342,16 +359,20 @@ impl Request {
 
     /// Reads the JSON body independently of query parameters.
     pub async fn json(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
+        let value = self.json_values().await?;
+        Ok(match key {
+            Some(key) => lookup(value, &key.split('.').collect::<Vec<_>>()),
+            None => Some(value.clone()),
+        })
+    }
+
+    async fn json_values(&mut self) -> Result<&Value, HttpError> {
         if self.json_input.is_none() {
             let bytes = self.body_bytes().await?;
             self.json_input = Some(parse_json(&bytes));
         }
         let value = self.json_input.as_ref().expect("JSON input initialized");
-        let value = value.as_ref().map_err(|error| HttpError::from(*error))?;
-        Ok(match key {
-            Some(key) => lookup(value, &key.split('.').collect::<Vec<_>>()),
-            None => Some(value.clone()),
-        })
+        value.as_ref().map_err(|error| HttpError::from(*error))
     }
 
     pub(crate) async fn validation_uploads(
@@ -449,28 +470,47 @@ impl Request {
             .map_err(|error| (*error).into())
     }
 
-    async fn parse_payload(&mut self) -> Result<Payload, InputFailure> {
-        let content_type = self
-            .headers()
-            .get(::http::header::CONTENT_TYPE)
-            .map(|header| header.to_str().map(str::to_owned))
-            .transpose()
-            .map_err(|_| InputFailure::Invalid)?
-            .unwrap_or_default();
-        let media = content_type
+    fn input_source(&self) -> Result<InputSource, HttpError> {
+        let media = self.media_type()?;
+        Ok(if is_json_media(&media) {
+            InputSource::Json
+        } else if matches!(*self.getRealMethod(), Method::GET | Method::HEAD) {
+            InputSource::Query
+        } else {
+            InputSource::Form
+        })
+    }
+
+    async fn source_values(&mut self, source: InputSource) -> Result<&Value, HttpError> {
+        match source {
+            InputSource::Json => self.json_values().await,
+            InputSource::Query => self.query_values(),
+            InputSource::Form => {
+                if self.form_input.is_none() {
+                    return Ok(&self.payload().await?.fields);
+                }
+                Ok(self.form_input.as_ref().expect("form input installed"))
+            }
+        }
+    }
+
+    fn media_type(&self) -> Result<String, HttpError> {
+        let content_type = self.header("content-type")?.unwrap_or_default();
+        Ok(content_type
             .split(';')
             .next()
             .unwrap_or_default()
             .trim()
-            .to_ascii_lowercase();
-        if media.ends_with("/json") || media.ends_with("+json") {
-            return self
-                .json(None)
-                .await
-                .map(|value| Payload::fields(value.unwrap_or_else(empty)))
-                .map_err(Into::into);
+            .to_ascii_lowercase())
+    }
+
+    async fn parse_payload(&mut self) -> Result<Payload, InputFailure> {
+        let media = self.media_type()?;
+        if is_json_media(&media) {
+            self.json_values().await?;
+            return Ok(Payload::fields(empty()));
         }
-        if matches!(*self.method(), Method::GET | Method::HEAD) {
+        if matches!(*self.getRealMethod(), Method::GET | Method::HEAD) {
             return Ok(Payload::fields(empty()));
         }
         match media.as_str() {
@@ -482,12 +522,18 @@ impl Request {
             }
             "multipart/form-data" => {
                 let bytes = self.body_bytes().await?;
-                let boundary = multer::parse_boundary(&content_type).map_err(multipart_error)?;
+                let boundary =
+                    multer::parse_boundary(self.header("content-type")?.unwrap_or_default())
+                        .map_err(multipart_error)?;
                 parse_multipart(bytes, &boundary).await
             }
             _ => Ok(Payload::fields(empty())),
         }
     }
+}
+
+fn is_json_media(media: &str) -> bool {
+    media.ends_with("/json") || media.ends_with("+json")
 }
 
 async fn collect(body: Body) -> Result<Bytes, InputFailure> {

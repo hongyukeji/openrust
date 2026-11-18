@@ -42,6 +42,20 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 重複傳送 `Accept` 請求標頭時，依固定 Laravel 實作使用首個欄位。需要傳送多種類型時，請在同一欄位中以逗號分隔。
 
+### 檢查輸入是否存在 {#input-presence}
+
+用 `request.has(&["profile.name"]).await?` 檢查鍵是否存在，明確設為 `null` 的鍵也算存在。用 `hasAny` 檢查任一鍵，用 `missing` 檢查是否有鍵缺少。這些檢查也識別上傳檔案。
+
+用 `filled`、`isNotFilled` 和 `anyFilled` 檢查輸入值。缺少的值、`null` 和空白字串視為空。布林值、零和空陣列視為已填寫。只有上傳檔案的欄位可用 `hasFile` 檢查。
+
+用 `whenHas`、`whenFilled` 或 `whenMissing` 在條件成立時執行非同步回呼。執行回呼時回傳 `Some(result)`，否則回傳 `None`。回呼可透過可變請求存取檔案欄位，也可以用 `unwrap_or_else` 提供預設結果。
+
+### 合併額外輸入 {#merging-additional-input}
+
+用 `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` 按點路徑設定輸入。`mergeIfMissing` 保留請求已有的鍵，包括明確的 `null`、查詢後備值和上傳檔案。用 `replace` 傳入物件或陣列可取代目前的輸入來源。
+
+JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。其他請求更新表單輸入，並繼續使用查詢後備值。這些方法保留原始 URI、原始本文和上傳檔案。
+
 ## 檔案
 
 用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。

@@ -134,6 +134,20 @@ impl Arr {
         data::set(value, key, item, true, false)
     }
 
+    pub(crate) fn with_paths(
+        mut value: Value,
+        items: impl IntoIterator<Item = (String, Value)>,
+    ) -> Result<Value, DataPathError> {
+        data::check_depth(&value, 0)?;
+        for (key, item) in items {
+            let path = data::segments(&key)?;
+            data::check_depth(&item, 0)?;
+            data::write(&mut value, &path, &item, true, false);
+        }
+        data::check_depth(&value, 0)?;
+        Ok(value)
+    }
+
     /// Adds a value at a missing or null path.
     pub fn add(value: &mut Value, key: &str, item: Value) -> Result<(), DataPathError> {
         if Self::get(value, key).is_none_or(Value::is_null) {

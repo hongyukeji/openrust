@@ -32,6 +32,7 @@ pub struct Request {
     body: Body,
     pub(crate) received_at: Instant,
     query_cache: OnceLock<serde_json::Value>,
+    query_input: Option<serde_json::Value>,
     acceptable_content_types: OnceLock<Vec<String>>,
     cookie_cache: OnceLock<serde_json::Value>,
     decrypted_cookies: Option<serde_json::Value>,
@@ -39,6 +40,7 @@ pub struct Request {
     session: Option<crate::session::Store>,
     raw_input: input::RawBody,
     payload_input: Option<Result<input::Payload, input::InputFailure>>,
+    form_input: Option<serde_json::Value>,
     json_input: Option<Result<serde_json::Value, input::InputFailure>>,
     attributes: RequestAttributes,
     route_parameters: context::RouteParameters,
@@ -67,6 +69,7 @@ impl Request {
             body,
             received_at: Instant::now(),
             query_cache: OnceLock::new(),
+            query_input: None,
             acceptable_content_types: OnceLock::new(),
             cookie_cache: OnceLock::new(),
             decrypted_cookies: None,
@@ -74,6 +77,7 @@ impl Request {
             session: None,
             raw_input: input::RawBody::Unread,
             payload_input: None,
+            form_input: None,
             json_input: None,
             attributes: RequestAttributes::default(),
             route_parameters: Arc::default(),
@@ -118,13 +122,7 @@ impl Request {
     }
     /// Returns the query bag or an exact top-level key, independently of the body.
     pub fn query(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
-        let values = match self.query_cache.get() {
-            Some(values) => values,
-            None => {
-                let parsed = query::parse(self.uri().query().unwrap_or_default())?;
-                self.query_cache.get_or_init(|| parsed)
-            }
-        };
+        let values = self.query_values()?;
         let value = match (key, values) {
             (None, values) => Some(values),
             (Some(key), serde_json::Value::Object(fields)) => fields.get(key),
@@ -136,6 +134,14 @@ impl Request {
             _ => None,
         };
         Ok(value.cloned())
+    }
+
+    fn query_values(&self) -> Result<&serde_json::Value, super::HttpError> {
+        if let Some(values) = self.query_input.as_ref().or_else(|| self.query_cache.get()) {
+            return Ok(values);
+        }
+        let parsed = query::parse(self.uri().query().unwrap_or_default())?;
+        Ok(self.query_cache.get_or_init(|| parsed))
     }
 
     pub fn headers(&self) -> &HeaderMap {

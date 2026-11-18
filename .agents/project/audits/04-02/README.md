@@ -124,3 +124,9 @@
 - 对照固定 Laravel 的 Request 路径、主机、方法和请求头，以及 Symfony 7.4.0 的查询规范化。复用 `openrust-v0.x` 的 Bearer 提取、查询键排序和 Symfony 黄金用例，地址使用当前可信代理状态。OpenRust 的请求头和 URL 方法用 `Result` 表达无效输入，单头缺失用 `Option` 表达。现有 URI 和签名继续使用原始请求目标。 [Laravel 请求](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#request-path-host-and-method) · [Laravel Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php#L117) · [Symfony Request](https://github.com/symfony/http-foundation/blob/v7.4.0/Request.php#L665)
 - 在 `feed55226` 隔离源码上真实 TCP 验证编码路径、具名路由、首个请求头值、Bearer 令牌、IPv6 和默认端口、可信代理前缀、查询规范化与增删。PHP 8.5 复验规范化和增删输出。旧版 Symfony 黄金夹具复验 195 个 HTTP URI，其中两项无效 UTF-8 按 Rust 以 400 拒绝。另三项包含 URI 解析器拒绝的原始空白或 NUL。
 - 29 项定向回归、真实 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语站点构建、18 项浏览器检查通过。回收专用编译与站点产物后磁盘可用 84.45 GB（78.65 GiB）。提交前周额度剩余 24%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-request-identity.ijSr5kcY`。
+
+## 输入存在性与可变输入
+
+- 对照固定 Laravel 的 Input Presence 和 Merging Additional Input，复用 openrust-v0.x 对输入来源、空白字符串、原始正文、查询回退和文件存在性的实现思路与用例。复用正式版查询、JSON、表单与 multipart 解析器及点路径写入。候选输入整体成功后发布。按实际 HTTP 方法选择查询或表单，JSON 优先。Rust 异步条件回调接收当前请求与输入值，文件通过请求读取。使用 `Option<T>` 表达执行与结果，合法的 `false` 或零保留。 [Laravel Input Presence](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#input-presence) · [Laravel Merging Additional Input](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#merging-additional-input)
+- 隔离源码 `f41dcf365` 实际 HTTP 验证 JSON、GET 查询、POST 方法覆盖和 multipart 下的合并与替换，覆盖显式 null、空字符串、false、零、空数组、上传检测和保留、查询回退、非法路径整批回滚、原始正文与 URI。原始固定 Laravel 与 Symfony 7.4.0 在 PHP 8.5 中通过四组行为对照。
+- 47 项定向回归、真实 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。回收本批编译与站点产物后磁盘可用 81.49 GB（75.89 GiB）。提交前周额度剩余 24%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-request-mutation.q7n3m5vE`。

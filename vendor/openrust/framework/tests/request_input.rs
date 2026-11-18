@@ -456,6 +456,11 @@ async fn start_with(
         .withRouting(Routing::default().web(|| {
             Route::get("/negotiation", negotiate)?;
             Route::r#match(
+                &[Method::GET, Method::HEAD, Method::POST, Method::PATCH],
+                "/input-mutation",
+                mutate_input,
+            )?;
+            Route::r#match(
                 &[Method::GET, Method::POST],
                 "/input",
                 ControllerDispatcher::new(EchoController::show),
@@ -563,6 +568,174 @@ async fn start_with(
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
     )
+}
+
+fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let body = request.body_bytes().await?;
+        let original = request.input(None).await?;
+        let present = request.has(&["nullable", "fallback"]).await?;
+        let any_present = request.hasAny(&["absent", "fallback"]).await?;
+        let exists = request.exists(&["fallback"]).await?;
+        let upload = request
+            .whenHas("document", async |request, _| {
+                request.file("document").await
+            })
+            .await?
+            .transpose()?
+            .flatten();
+        let file_is_filled = request.filled(&["document"]).await?;
+        let not_filled = request.isNotFilled(&["blank", "absent"]).await?;
+        let falsy_is_filled = request.filled(&["zero", "flag", "empty"]).await?;
+        let any_filled = request.anyFilled(&["absent", "fallback"]).await?;
+        let callback = request.whenFilled("flag", async |_, value| value).await?;
+        let absent = request.whenMissing("absent", async |_| "missing").await?;
+        request
+            .mergeIfMissing(json!({"nullable":"changed","fallback":"changed","document":"changed","added":" padded "}))
+            .await?;
+        let invalid = format!("{}.end", "too.".repeat(128));
+        assert!(matches!(
+            request
+                .merge(json!({"should_rollback":true,(invalid):true}))
+                .await,
+            Err(HttpError::InvalidRequest)
+        ));
+        assert!(request.missing(&["should_rollback"]).await?);
+        request.merge(json!({"profile.age": 42})).await?;
+        let merged = request.input(None).await?;
+        let merged_json = if request.isJson() {
+            request.json(None).await?
+        } else {
+            None
+        };
+        request
+            .parts_mut()
+            .headers
+            .insert("x-checked", ::http::HeaderValue::from_static("yes"));
+        assert_eq!(request.input(None).await?, merged);
+        request.replace(json!({"only":true})).await?;
+        let replaced_json = if request.isJson() {
+            request.json(None).await?
+        } else {
+            None
+        };
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "original": original,
+                "present": present,
+                "any_present": any_present,
+                "exists": exists,
+                "not_filled": not_filled,
+                "falsy_is_filled": falsy_is_filled,
+                "any_filled": any_filled,
+                "callback": callback,
+                "absent": absent,
+                "upload": upload.map(|file| file.getClientOriginalName().to_string()),
+                "file_is_filled": file_is_filled,
+                "merged": merged,
+                "merged_json": merged_json,
+                "replaced": request.input(None).await?,
+                "replaced_json": replaced_json,
+                "query": request.query(None)?,
+                "original_uri_query": request.uri().query(),
+                "raw_preserved": request.body_bytes().await? == body,
+                "upload_preserved": request.hasFile("document").await?,
+                "method": request.method().as_str(),
+                "real_method": request.getRealMethod().as_str(),
+            }),
+        )
+    })
+}
+
+#[tokio::test]
+async fn real_http_mutates_the_selected_input_source_without_rewriting_transport_data() {
+    let (address, server) = start("input-mutation").await;
+    let path = "/input-mutation?fallback=query&nullable=query";
+    let (_, body) = send(
+        address,
+        "POST",
+        path,
+        "application/json",
+        br#"{"nullable":null,"blank":" ","zero":0,"flag":false,"empty":[],"profile":{"name":"Ada"}}"#,
+        200,
+    )
+    .await;
+    let data: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(data["present"], true);
+    assert_eq!(data["any_present"], true);
+    assert_eq!(data["exists"], true);
+    assert_eq!(data["not_filled"], true);
+    assert_eq!(data["falsy_is_filled"], true);
+    assert_eq!(data["any_filled"], true);
+    assert_eq!(data["callback"], false);
+    assert_eq!(data["absent"], "missing");
+    assert_eq!(data["merged"]["nullable"], Value::Null);
+    assert_eq!(data["merged"]["fallback"], "query");
+    assert_eq!(data["merged"]["profile"], json!({"name":"Ada","age":42}));
+    assert_eq!(data["merged"]["added"], " padded ");
+    assert_eq!(data["merged_json"]["profile"], data["merged"]["profile"]);
+    assert!(data["merged_json"].get("fallback").is_none());
+    assert_eq!(data["replaced_json"], json!({"only":true}));
+    assert_eq!(
+        data["replaced"],
+        json!({"only":true,"fallback":"query","nullable":"query"})
+    );
+    assert_eq!(data["raw_preserved"], true);
+
+    let (_, body) = send(
+        address,
+        "GET",
+        path,
+        "application/x-www-form-urlencoded",
+        b"name=body",
+        200,
+    )
+    .await;
+    let data: Value = serde_json::from_str(&body).unwrap();
+    assert!(data["original"].get("name").is_none());
+    assert_eq!(data["replaced"], json!({"only":true}));
+    assert_eq!(data["query"], data["replaced"]);
+    assert_eq!(data["original_uri_query"], "fallback=query&nullable=query");
+    assert_eq!(data["raw_preserved"], true);
+
+    let (_, body) = send(
+        address,
+        "POST",
+        path,
+        "application/x-www-form-urlencoded",
+        b"_method=PATCH&profile[name]=Ada",
+        200,
+    )
+    .await;
+    let data: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(data["method"], "PATCH");
+    assert_eq!(data["real_method"], "POST");
+    assert_eq!(data["merged"]["profile"], json!({"name":"Ada","age":42}));
+    assert_eq!(
+        data["replaced"],
+        json!({"only":true,"fallback":"query","nullable":"query"})
+    );
+
+    let multipart = b"--fixture\r\nContent-Disposition: form-data; name=\"document\"; filename=\"report.txt\"\r\n\r\nhello\r\n--fixture--\r\n";
+    let (_, body) = send(
+        address,
+        "POST",
+        path,
+        "multipart/form-data; boundary=fixture",
+        multipart,
+        200,
+    )
+    .await;
+    let data: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(data["upload"], "report.txt");
+    assert_eq!(data["file_is_filled"], false);
+    assert!(data["merged"].get("document").is_none());
+    assert_eq!(data["upload_preserved"], true);
+    assert_eq!(data["raw_preserved"], true);
+
+    send(address, "POST", path, "application/json", b"{ invalid", 400).await;
+    server.abort();
 }
 
 fn negotiate(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
