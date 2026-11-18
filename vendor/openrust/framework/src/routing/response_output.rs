@@ -9,8 +9,8 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::{
-    contracts::routing::Handler,
-    http::{HttpError, HttpFuture, Request, Response, ResponseOutput},
+    contracts::{routing::Handler, support::Responsable},
+    http::{HttpError, HttpFuture, Request, Response},
     support::{Collection, Fluent, Stringable},
 };
 
@@ -19,7 +19,8 @@ use super::IntoRouteHandler;
 #[doc(hidden)]
 pub struct AdaptedResponse;
 
-trait DirectOutput: ResponseOutput {}
+// Keeps fallible borrowed handlers returning Response on their original path.
+trait DirectOutput: Responsable {}
 
 impl<B> DirectOutput for NativeResponse<B>
 where
@@ -33,24 +34,27 @@ impl DirectOutput for String {}
 impl DirectOutput for Stringable {}
 impl DirectOutput for Value {}
 impl DirectOutput for Map<String, Value> {}
-impl<T: Serialize> DirectOutput for Vec<T> {}
-impl<T: Serialize, const N: usize> DirectOutput for [T; N] {}
-impl<T: Serialize> DirectOutput for Collection<T> {}
+impl<T: Serialize + Send> DirectOutput for Vec<T> {}
+impl<T: Serialize + Send, const N: usize> DirectOutput for [T; N] {}
+impl<T: Serialize + Send> DirectOutput for Collection<T> {}
 impl DirectOutput for Fluent {}
 
 trait Output {
-    fn convert(self) -> Result<Response, HttpError>;
+    fn respond(
+        self,
+        request: &mut Request,
+    ) -> impl Future<Output = Result<Response, HttpError>> + Send;
 }
 
-impl<T: DirectOutput> Output for T {
-    fn convert(self) -> Result<Response, HttpError> {
-        self.into_response()
+impl<T: Responsable> Output for T {
+    async fn respond(self, request: &mut Request) -> Result<Response, HttpError> {
+        self.toResponse(request).await
     }
 }
 
-impl<T: DirectOutput> Output for Result<T, HttpError> {
-    fn convert(self) -> Result<Response, HttpError> {
-        self.and_then(Output::convert)
+impl<T: Responsable> Output for Result<T, HttpError> {
+    async fn respond(self, request: &mut Request) -> Result<Response, HttpError> {
+        self?.toResponse(request).await
     }
 }
 
@@ -62,8 +66,11 @@ where
     Fut: Future<Output = T> + Send,
     T: Output,
 {
-    fn handle<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async { (self.0)().await.convert() })
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async { (self.0)().await.respond(request).await })
     }
 }
 
@@ -100,14 +107,24 @@ where
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async { (self.0)(request).await.convert() })
+        Box::pin(async { (self.0)(request).await.respond(request).await })
     }
 }
 
 impl<F, T> IntoRouteHandler<(Request, AdaptedResponse, T)> for F
 where
     F: for<'a> Fn(&'a mut Request) -> HttpFuture<'a, T> + Send + Sync + 'static,
-    T: Output,
+    T: Responsable,
+{
+    fn into_route_handler(self) -> Arc<dyn Handler> {
+        Arc::new(BorrowedOutputHandler(self))
+    }
+}
+
+impl<F, T> IntoRouteHandler<(Request, AdaptedResponse, Result<T, HttpError>)> for F
+where
+    F: for<'a> Fn(&'a mut Request) -> HttpFuture<'a, Result<T, HttpError>> + Send + Sync + 'static,
+    T: DirectOutput,
 {
     fn into_route_handler(self) -> Arc<dyn Handler> {
         Arc::new(BorrowedOutputHandler(self))

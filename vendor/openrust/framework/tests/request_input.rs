@@ -77,6 +77,33 @@ impl EchoController {
     fn direct_json<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Value, HttpError>> {
         Box::pin(async { Ok(json!({"controller": self.0})) })
     }
+
+    fn contextual<'a>(
+        &'a self,
+        _: &'a mut Request,
+    ) -> HttpFuture<'a, Result<ContextResponse, HttpError>> {
+        Box::pin(async { Ok(ContextResponse(self.0)) })
+    }
+}
+
+struct ContextResponse(&'static str);
+
+#[allow(non_snake_case, reason = "Implements the Laravel Responsable contract")]
+impl openrust::contracts::support::Responsable for ContextResponse {
+    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        let slug = request.route("slug").unwrap_or_default().to_owned();
+        if slug == "denied" {
+            return Err(HttpError::NotFound);
+        }
+        Response::json(
+            StatusCode::OK,
+            json!({"label": self.0, "slug": slug, "input": request.input(Some("name")).await?}),
+        )
+    }
+}
+
+fn contextual_output(_: &mut Request) -> HttpFuture<'_, ContextResponse> {
+    Box::pin(async { ContextResponse("borrowed") })
 }
 
 fn direct_text(request: &mut Request) -> HttpFuture<'_, Result<String, HttpError>> {
@@ -845,6 +872,26 @@ async fn start_with(
                 ControllerDispatcher::new(EchoController::direct_json),
             )?;
             Route::get("/direct/error", || [Unserializable])?;
+            Route::getWith(
+                "/responsable/{slug}",
+                || ContextResponse("sync"),
+                |route| {
+                    route.middleware_name("cache.headers:private;max_age=60");
+                    Ok(())
+                },
+            )?;
+            Route::r#match(&[Method::POST], "/responsable/async/{slug}", || async {
+                Ok::<_, HttpError>(ContextResponse("async"))
+            })?;
+            Route::r#match(
+                &[Method::POST],
+                "/responsable/borrowed/{slug}",
+                contextual_output,
+            )?;
+            Route::get(
+                "/responsable/controller/{slug}",
+                ControllerDispatcher::new(EchoController::contextual),
+            )?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1963,6 +2010,72 @@ async fn real_http_renders_direct_html_and_structured_return_values() {
         serde_json::from_str::<Value>(&body).unwrap()["message"],
         "Server Error"
     );
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_responsable_sees_the_current_request_and_uses_the_response_pipeline() {
+    let (address, server) = start("controller").await;
+    let (headers, body) = send(
+        address,
+        "GET",
+        "/responsable/first?name=query",
+        "",
+        b"",
+        200,
+    )
+    .await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap(),
+        json!({"label":"sync","slug":"first","input":"query"})
+    );
+    assert!(headers.contains("max-age=60") && headers.contains("private"));
+    for (path, label) in [
+        ("/responsable/async/second", "async"),
+        ("/responsable/borrowed/second", "borrowed"),
+    ] {
+        let (_, body) = send(
+            address,
+            "POST",
+            path,
+            "application/json",
+            br#"{"name":"body"}"#,
+            200,
+        )
+        .await;
+        assert_eq!(
+            serde_json::from_str::<Value>(&body).unwrap(),
+            json!({"label":label,"slug":"second","input":"body"})
+        );
+    }
+    let (_, body) = send(
+        address,
+        "GET",
+        "/responsable/controller/third",
+        "",
+        b"",
+        200,
+    )
+    .await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap(),
+        json!({"label":"controller","slug":"third","input":null})
+    );
+    let (_, body) = send(address, "GET", "/responsable/denied", "", b"", 404).await;
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["message"],
+        "Not Found"
+    );
+    let (_, body) = send(
+        address,
+        "HEAD",
+        "/responsable/first?name=query",
+        "",
+        b"",
+        200,
+    )
+    .await;
+    assert!(body.is_empty());
     server.abort();
 }
 

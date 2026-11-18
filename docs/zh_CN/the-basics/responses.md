@@ -31,6 +31,31 @@ Route::get("/native", || {
 
 用 `Response::from(native)` 将原生响应接入框架，用 `into()` 转回原生类型。转换保留状态码、重复响应头、协议版本、扩展和当前正文流。HTTP 内核在发送时处理 HEAD 和无正文状态码。
 
+### 依赖请求的响应 {#responsable}
+
+返回对象需要当前请求来生成响应时，实现 `openrust::contracts::support::Responsable`。路由器在动作执行后调用 `toResponse`，此时可读取路由参数和输入。结果继续经过常规中间件和 HTTP 响应准备流程。
+
+```rust
+use openrust::{
+    contracts::support::Responsable,
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Route,
+};
+
+struct Report;
+
+#[allow(non_snake_case)]
+impl Responsable for Report {
+    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        Response::json(StatusCode::OK, request.route("id"))
+    }
+}
+
+Route::get("/reports/{id}", || Report)?;
+```
+
+闭包可直接返回对象，控制器或经过 FormRequest 验证的动作可用 `Result` 返回对象。从 `toResponse` 返回 `HttpError` 会沿用应用异常渲染。
+
 ### 向响应附加响应头 {#attaching-headers-to-responses}
 
 用 `withoutHeader` 删除一个类型化响应头，用 `withoutHeaders` 批量删除。两者都返回响应，可以继续链式调用。

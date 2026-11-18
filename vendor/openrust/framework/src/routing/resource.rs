@@ -1,7 +1,10 @@
 use std::{any::type_name, collections::HashMap, panic::Location, sync::Arc};
 
 use crate::{
-    contracts::routing::Handler, foundation::http::FormRequest, http::Method, support::Str,
+    contracts::{routing::Handler, support::Responsable},
+    foundation::http::FormRequest,
+    http::Method,
+    support::Str,
 };
 
 use super::{
@@ -137,7 +140,7 @@ impl<C> ResourceController<C> {
     pub fn action(
         mut self,
         action: ResourceAction,
-        handler: Action<C, impl crate::http::ResponseOutput + Send + 'static>,
+        handler: Action<C, impl Responsable + 'static>,
     ) -> Self
     where
         C: Send + Sync + 'static,
@@ -151,7 +154,7 @@ impl<C> ResourceController<C> {
     pub fn actionWithFormRequest<F: FormRequest + Default + 'static>(
         mut self,
         action: ResourceAction,
-        handler: FormAction<C, F, impl crate::http::ResponseOutput + Send + 'static>,
+        handler: FormAction<C, F, impl Responsable + 'static>,
     ) -> Self
     where
         C: Send + Sync + 'static,

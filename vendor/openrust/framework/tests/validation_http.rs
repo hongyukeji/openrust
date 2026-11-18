@@ -517,18 +517,21 @@ impl FormRequest for Injected {
     }
 }
 
-async fn injected(
-    form: ValidatedFormRequest<Injected>,
-) -> Result<::http::Response<openrust::http::Body>, HttpError> {
-    Response::json(
-        StatusCode::OK,
-        json!({
-            "name":form.validated().get("name"),
-            "stage":form.form().stage,
-            "factory":form.form().factory
-        }),
-    )
-    .map(Into::into)
+struct InjectedResponse(Value);
+
+#[allow(non_snake_case, reason = "Implements the Laravel Responsable contract")]
+impl openrust::contracts::support::Responsable for InjectedResponse {
+    async fn toResponse(self, _: &mut Request) -> Result<Response, HttpError> {
+        Response::json(StatusCode::OK, self.0)
+    }
+}
+
+async fn injected(form: ValidatedFormRequest<Injected>) -> Result<InjectedResponse, HttpError> {
+    Ok(InjectedResponse(json!({
+        "name":form.validated().get("name"),
+        "stage":form.form().stage,
+        "factory":form.form().factory
+    })))
 }
 
 struct InjectionController(Arc<AtomicUsize>);

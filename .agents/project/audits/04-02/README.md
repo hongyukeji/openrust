@@ -202,3 +202,9 @@
 - 对照固定 Laravel 的 `Router::toResponse` 和 Strings and Arrays。参考 openrust-v0.x `6d1a81924` 的 Axum 返回值适配，使用当前框架的响应工厂与通用返回值适配器。直接字符串和 `Stringable` 使用 HTML 200，数组、向量、JSON 值、集合和 JSON Fluent 使用 JSON 200。Rust 明确区分文本与序列化类型，继续支持通过 `Into<Response>` 转换的既有控制器返回值。 [Laravel 响应规则](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866) · [Laravel Strings and Arrays](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#strings-and-arrays)
 - 复用 PHP 默认字符串转义规则，保留稀疏键、斜杠和 Unicode 输出，数字沿用 Rust 序列化器的表示。直接返回 JSON 的序列化错误沿用应用异常渲染。真实 TCP 验证同步与异步闭包、借用请求、控制器、HEAD 以及错误 500。PHP 8.5 运行固定 Laravel 两组对照，核对状态、内容类型和正文。
 - 隔离主线 `eae4fcd88` 验证 71 项定向测试、实际二进制 `/up` 与无效路径 400、SIGTERM、Artisan `inspire`、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查。回收本批编译和站点产物后，磁盘可用 97.79 GB（91.07 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-route-values.QfOUDIZQ`。
+
+## Responsable 请求上下文响应
+
+- 对照固定 Laravel `Responsable::toResponse` 和 `Router::toResponse`。核对 openrust-v0.x `6d1a81924` 的 Axum `IntoResponse` 适配。正式版复用现有 `ResponseOutput` 与路由处理器，增加请求上下文和可等待的返回契约。传统借用请求的 `Result<Response, HttpError>` 保留原处理路径，借用请求并直接返回自定义对象时可在 `toResponse` 中读取输入与返回错误。 [Laravel Responsable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Support/Responsable.php) · [Laravel 路由响应准备](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L866)
+- 在隔离主线 `738f62d9c` 以真实 TCP 验证同步闭包、异步闭包、借用请求、控制器与 FormRequest，覆盖路由参数、正文、缓存中间件、HEAD 和异常 404。固定 Laravel 的 PHP 8.5 对照覆盖上下文、HEAD 和返回对象抛出的异常。复验 JSON Resource 应用作用域隔离。
+- 64 项定向回归、实际二进制 `/up`、无效路径 400、SIGTERM、Artisan `inspire`、全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。回收编译与站点产物后磁盘可用 100.37 GB（93.48 GiB），提交前周额度剩余 22%，按授权继续。验收日志位于 `/private/tmp/openrust-responsable.fkFVCtk2`。

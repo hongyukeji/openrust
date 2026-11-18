@@ -31,6 +31,31 @@ Route::get("/native", || {
 
 Use `Response::from(native)` to open a native response in framework code and `into()` to move it back. Conversion preserves status, repeated headers, protocol version, extensions and the current body stream. The HTTP kernel applies HEAD and bodyless status rules when serving the response.
 
+### Request-aware Responses {#responsable}
+
+Implement `openrust::contracts::support::Responsable` when a returned object needs the current request to build its response. The router calls `toResponse` after the action runs, so it can read route parameters and input. Its result goes through the regular middleware and HTTP response preparation.
+
+```rust
+use openrust::{
+    contracts::support::Responsable,
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Route,
+};
+
+struct Report;
+
+#[allow(non_snake_case)]
+impl Responsable for Report {
+    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        Response::json(StatusCode::OK, request.route("id"))
+    }
+}
+
+Route::get("/reports/{id}", || Report)?;
+```
+
+A closure can return the object directly. A controller or validated FormRequest action can return it inside its `Result`. Return an `HttpError` from `toResponse` to use the application exception renderer.
+
 ### Attaching Headers to Responses {#attaching-headers-to-responses}
 
 Use `withoutHeader` with one typed header name or `withoutHeaders` with a collection of names. Both methods return the response for chaining.

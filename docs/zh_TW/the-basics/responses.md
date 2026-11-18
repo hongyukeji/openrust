@@ -31,6 +31,31 @@ Route::get("/native", || {
 
 用 `Response::from(native)` 將原生回應接入框架，用 `into()` 轉回原生型別。轉換會保留狀態碼、重複回應標頭、協定版本、擴充資料與目前的本文串流。HTTP 核心會在送出時處理 HEAD 和無本文狀態碼。
 
+### 依賴請求的回應 {#responsable}
+
+傳回物件需要目前請求來產生回應時，實作 `openrust::contracts::support::Responsable`。路由器會在動作執行後呼叫 `toResponse`，此時可讀取路由參數和輸入。結果接著經過一般中介層及 HTTP 回應準備流程。
+
+```rust
+use openrust::{
+    contracts::support::Responsable,
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Route,
+};
+
+struct Report;
+
+#[allow(non_snake_case)]
+impl Responsable for Report {
+    async fn toResponse(self, request: &mut Request) -> Result<Response, HttpError> {
+        Response::json(StatusCode::OK, request.route("id"))
+    }
+}
+
+Route::get("/reports/{id}", || Report)?;
+```
+
+閉包可以直接傳回物件，控制器或經過 FormRequest 驗證的動作可用 `Result` 傳回物件。從 `toResponse` 傳回 `HttpError` 會沿用應用程式的例外轉譯。
+
 ### 附加回應標頭 {#attaching-headers-to-responses}
 
 用 `withoutHeader` 移除一個具型別的回應標頭，用 `withoutHeaders` 批次移除。兩者都回傳回應，可繼續鏈式呼叫。
