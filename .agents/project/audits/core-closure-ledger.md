@@ -333,3 +333,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02／08-04 [HTTP 章节与 2702d577b 发布快照复验](08-04/README.md#http-章节与-2702d577b-发布快照复验)通过整仓、实际独立发布及三语站点复验。核心账本维持 66/66。
 
 00-03／03-06／08-04 [Windows ARM64 文件锁与 Artisan 源码入口复验](08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)通过来宾原生 ARM64 MSVC、实机 Artisan 与 HTTP。托管 DynamoDB 和 Windows Docker Desktop 仍按各自边界跟踪。
+
+06-04 [Windows ARM64 Worker 强制终止与异常次数](06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)通过 Windows ARM64 SQLite／文件缓存强制终止、真实 HTTP、Artisan 和 macOS MySQL／Redis 复验。核心账本维持 66/66。

@@ -2183,7 +2183,7 @@ async fn exercise(redis: Option<u16>, database_url: Option<&str>) {
     verify_job_overlap(&root.0, &db, &*queue, address).await;
     verify_max_exceptions(&root.0, &db, &*queue, address).await;
     verify_stop_retry_policy(&root.0, &db, &*queue, address).await;
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     verify_crash_exception_count(
         &root.0,
         &db,
@@ -3187,14 +3187,24 @@ async fn verify_job_rate_limits(
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 async fn verify_crash_exception_count(
     root: &Path,
     db: &openrust::database::Connection,
     queue: &dyn openrust::contracts::queue::Queue,
     address: SocketAddr,
 ) {
-    use std::os::unix::process::ExitStatusExt;
+    async fn terminate(worker: &mut tokio::process::Child) {
+        worker.kill().await.unwrap();
+        let status = worker.wait().await.unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            assert_eq!(status.signal(), Some(9));
+        }
+        #[cfg(windows)]
+        assert_eq!(status.code(), Some(1));
+    }
 
     let args = [
         "queue:work",
@@ -3230,8 +3240,7 @@ async fn verify_crash_exception_count(
     request(address, "crash_twice").await;
     for attempts in 1..=2 {
         let mut worker = start("crash_twice", attempts, "0").await;
-        worker.kill().await.unwrap();
-        assert_eq!(worker.wait().await.unwrap().signal(), Some(9));
+        terminate(&mut worker).await;
         sleep(Duration::from_secs(3)).await;
     }
     let out = run(root, &args).await;
@@ -3254,8 +3263,7 @@ async fn verify_crash_exception_count(
             .unwrap()
             .success()
     );
-    second.kill().await.unwrap();
-    assert_eq!(second.wait().await.unwrap().signal(), Some(9));
+    terminate(&mut second).await;
     sleep(Duration::from_secs(3)).await;
     let out = run(root, &args).await;
     assert_eq!(
@@ -3267,8 +3275,7 @@ async fn verify_crash_exception_count(
 
     request(address, "crash_disabled").await;
     let mut worker = start("crash_disabled", 1, "0").await;
-    worker.kill().await.unwrap();
-    assert_eq!(worker.wait().await.unwrap().signal(), Some(9));
+    terminate(&mut worker).await;
     sleep(Duration::from_secs(3)).await;
     let out = run(root, &args).await;
     assert_eq!(

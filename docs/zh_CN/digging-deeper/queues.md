@@ -391,6 +391,8 @@ let options = JobOptions {
 
 正常成功、普通异常、主动释放及已处理的超时都会清除本次标记。标记一天后过期。独立 Worker 需要使用同一缓存存储和命名空间。
 
+在 Windows 上，强制终止 Worker 会留下本次尝试的标记。预约到期后，下一 Worker 会按同一个任务 UUID 计入这次未完成的尝试。SQLite 队列使用文件缓存时，各 Worker 必须共享数据库和缓存目录。
+
 #### 按异常停止重试 {#stopping-retries-by-exception}
 
 队列任务遇到特定错误需要直接失败时，在应用的 `withExceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。

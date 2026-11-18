@@ -391,6 +391,8 @@ let options = JobOptions {
 
 正常成功、一般例外、主動釋放及已處理的逾時都會清除本次標記。標記一天後到期。獨立 Worker 需要使用相同的快取儲存與命名空間。
 
+在 Windows 上，強制終止 Worker 會留下本次嘗試的標記。預約到期後，下一個 Worker 會依同一個任務 UUID 計入這次未完成的嘗試。SQLite 佇列使用檔案快取時，各 Worker 必須共用資料庫及快取目錄。
+
 #### 依例外停止重試 {#stopping-retries-by-exception}
 
 佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `withExceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。

@@ -3476,3 +3476,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 00-03／03-06／08-04 Windows ARM64 文件锁与 Artisan 源码入口复验
 
 Windows ARM64 原生文件锁竞争及恢复、CMD 和 PowerShell Artisan、真实 HTTP 健康检查通过。新增可移植跨进程文件锁回归，同步 Artisan、Cache 三语文档。 [Windows ARM64 文件锁与 Artisan 源码入口复验](audits/08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)
+
+## 2026-11-18 06-04 Windows ARM64 Worker 强制终止与异常次数
+
+Windows ARM64 原生 Worker 强制终止与异常计数、macOS 实际 MySQL 和 Redis 回归通过。同步队列三语文档，保留未实测的 Windows 数据库组合。 [Windows ARM64 Worker 强制终止与异常次数](audits/06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)
