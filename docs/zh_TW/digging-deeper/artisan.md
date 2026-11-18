@@ -22,7 +22,7 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 `routes/console.rs` 匯入 `openrust::support::facades::Artisan`，透過 `Artisan::command("inspire", …)` 向 `register()` 執行期間繫結的主控台註冊閉包，透過 `purpose()` 設定說明和命令清單中的描述。閉包接收命令輸出物件，正常傳回時結束代碼為 0。
 
-`Application::handleCommand` 呼叫 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引導後載入待實作命令清單，再註冊應用程式命令並分派。
+`Application::handleCommand` 呼叫 Console Kernel 的 `handle` 和 `terminate`。Kernel 完成引導後載入延遲 Provider，再登記命令清單、框架內建命令和應用程式命令，最後分派。
 
 
 ## 原始碼與發布入口 {#source-and-release-entrypoints}
@@ -31,11 +31,9 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 獨立建置使用 `./main artisan list`、`./main artisan help inspire` 或 `./main artisan inspire`，無需 Cargo。設定相對於可執行檔解析，從其他工作目錄啟動也可執行。參閱[部署](../getting-started/deployment.md)。
 
-編譯入口不帶模式參數時啟動 HTTP，使用 `artisan` 時執行主控台命令。其他首參數會在建立應用前顯示外層用法並回傳結束碼 2。Artisan 分派錯誤回傳 1。外層分流是 Rust 單二進位檔的語言適配；Laravel 使用獨立的 HTTP 和 `artisan` 入口檔案。Console Kernel 的 handle/terminate 順序仍由 `Application::handleCommand` 負責。
+直接執行編譯後的 `main` 會依設定[啟動應用程式服務](../getting-started/deployment.md#一起執行服務)。用 `main artisan` 單獨執行主控台命令，這些服務不會啟動。無法辨識的首個引數會在建立應用程式前顯示程式用法並回傳結束代碼 2。Artisan 分派錯誤回傳 1。
 
-命令清單同時包含待實作條目。名稱和說明用於保留預定契約，不代表對應模組已經完成。`artisan.bat` 尚未通過 Windows 實機驗收。
-
-在 CMD 中執行 `artisan.bat inspire`。在 PowerShell 中使用 `.\artisan.bat help inspire --format=json`。啟動器會切換到應用程式目錄，並回傳 Artisan 的結束代碼。Windows 獨立發佈版使用 `.\main.exe artisan inspire`。
+在 CMD 中執行 `artisan.bat inspire`。在 PowerShell 中使用 `.\artisan.bat help inspire --format=json`。原始碼啟動器需要在 `PATH` 中找到 `cargo.exe`，執行前會切換到應用程式目錄。在 CMD 中用 `%ERRORLEVEL%` 讀取結束代碼，在 PowerShell 中用 `$LASTEXITCODE`。[Windows 獨立部署](../getting-started/deployment.md#windows-standalone)使用 `.\main.exe artisan inspire`。
 
 ## 命令說明和輸出格式 {#command-help-and-output-formats}
 

@@ -359,3 +359,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 08-04 [ARM64 完整镜像包清单复验](08-04/docker.md#arm64-完整镜像包清单复验)通过完整 arm64 镜像的交叉构建及原生运行，真实 Artisan、HTTP、MySQL 8.4.13 和 Redis 8.10.3 Worker 通过。核心账本维持 66/66。
 
 01-02 [三语容器文档同步已交付行为](01-02/README.md#三语容器文档同步已交付行为)已修正解析、回调和构造器章节的早期待办描述，三语页面和导航通过。核心账本维持 66/66。
+
+06-08 [三语 Artisan 入口与 Windows 验收对齐](06-08/README.md#三语-artisan-入口与-windows-验收对齐)已同步 Runner 与独立 Artisan 的入口职责，并对齐 Windows ARM64 源码启动器验收。核心账本维持 66/66。

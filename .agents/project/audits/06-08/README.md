@@ -24,3 +24,9 @@
 - 固定 Symfony Console v7.4.0 在普通命令列表及指定命令组的列表中，先显示应用全局选项，再显示命令目录。复核旧版 `console/command.rs` 的 `ListCommand`，复用从实际注册命令生成目录的思路。OpenRust 的文本列表从 Clap 根命令渲染全局选项，复用帮助描述与翻译键，避免另外维护一份选项清单。ANSI 输出遵循终端选择，平铺 `--raw` 仍只输出命令。 [Laravel Artisan](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#introduction) · [固定 Symfony 文本描述器](https://github.com/symfony/console/blob/v7.4.0/Descriptor/TextDescriptor.php#L142)
 - 隔离快照 `43530b1ec` 的 18 项 `console`、`feature`、`artisan_entry` 通过。实际 `./artisan` 用英、简中、繁中验证默认入口、普通列表、命令组、全局选项、ANSI 和纯文本等价、`--raw` 及未知命令组退出 1。另解析 JSON、XML 和 Markdown，验证结构化命令目录继续可用。
 - Rust 1.94.0 全仓格式及工作区全目标严格 Clippy 通过。英、简中、繁中 Artisan 文档已同步，站点构建与根路径及 `/docs/` 下的 18 项浏览器检查通过。临时编译与站点产物已回收。磁盘可用 89.01 GB（82.90 GiB），提交前周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-artisan-list-options.PkJJh0aT`。
+
+## 三语 Artisan 入口与 Windows 验收对齐
+
+- 对照固定 Laravel 的独立 Artisan 命令入口及 Goravel 的 Runner 篇章，复核 v0.x 由源码脚本转交 CLI 的做法。当前编译入口在无参数时调用 `Application::start` 运行符合配置的 Runner。显式 `artisan` 模式进入独立的控制台内核，启动服务与控制台分派分别由各自入口负责。同步三语说明并链接部署章节。帮助保留 `Planned` 条目的可识别状态，内核引导后加载延迟 Provider、命令清单、内置及应用命令。 [固定 Laravel Artisan](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#introduction) · [固定 Goravel Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application.go)
+- 核对主线 `7d6de4678` 与 Windows ARM64 实测快照 `baac80470` 的 `artisan`、`artisan.bat`、`main.rs` 和框架分流源码，内容相同。沿用 CMD `inspire`、PowerShell JSON 帮助成功退出 0、未知命令和无效格式退出 1，以及真实 `/up` 的 Windows 证据。补充 CMD 和 PowerShell 的退出码读取方式及独立发布入口。 [Windows 源码启动器复验](../00-03/README.md#windows-arm64-源码启动器复验)
+- 本批只修改正文及记录。三语站点构建通过，根路径和 `/docs/` 下 12 项通用浏览器检查及 6 项入口、退出码提示和部署跳转检查通过。临时站点产物已回收。提交前项目盘可用 52.34 GB（48.75 GiB），周额度剩余 18%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-artisan-entry-docs.cxPFMLkq`。

@@ -22,7 +22,7 @@ Register command types through `withCommands`, using `app/console/commands/mod.r
 
 In `routes/console.rs`, import `openrust::support::facades::Artisan`. `Artisan::command("inspire", …)` registers the closure with the console bound while `register()` runs and `purpose()` sets the description shown by Artisan help and list. The closure receives the command’s output and returns normally with exit status 0.
 
-`Application::handleCommand` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads the planned catalog and registers application commands before dispatch.
+`Application::handleCommand` calls the Console Kernel’s `handle` and `terminate` methods. After boot, the kernel loads deferred providers and registers the command catalog, built-in commands and application commands before dispatch.
 
 
 ## Source and Release Entrypoints {#source-and-release-entrypoints}
@@ -31,11 +31,9 @@ The source `artisan` script changes to the application directory and forwards it
 
 A standalone build uses `./main artisan list`, `./main artisan help inspire` or `./main artisan inspire` without Cargo. It finds configuration relative to the executable and works from a different working directory. See [deployment](../getting-started/deployment.md).
 
-The compiled entry accepts no mode argument for HTTP, or `artisan` for console commands. Any other first argument prints the outer usage and exits with status 2, before creating the application. Artisan dispatch errors exit with status 1. This outer selection is a Rust single-binary adaptation; Laravel has separate HTTP and `artisan` entry files. The Console Kernel's handle/terminate sequence remains the responsibility of `Application::handleCommand`.
+Run the compiled `main` without arguments to start the [configured application services](../getting-started/deployment.md#run-services-together). Use `main artisan` to dispatch a console command without starting those services. An unrecognized first argument prints the outer usage and exits with status 2 before creating the application. Artisan dispatch errors exit with status 1.
 
-The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented.
-
-In CMD, run `artisan.bat inspire`. In PowerShell, use `.\artisan.bat help inspire --format=json`. The launcher changes to the application directory and returns Artisan’s exit code. For a compiled Windows release, use `.\main.exe artisan inspire`.
+In CMD, run `artisan.bat inspire`. In PowerShell, use `.\artisan.bat help inspire --format=json`. The source launcher requires `cargo.exe` on `PATH` and switches to the application directory. Read Artisan's exit code with `%ERRORLEVEL%` in CMD or `$LASTEXITCODE` in PowerShell. For a [standalone Windows release](../getting-started/deployment.md#windows-standalone), use `.\main.exe artisan inspire`.
 
 ## Command Help and Output Formats {#command-help-and-output-formats}
 
