@@ -291,3 +291,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [请求头路径与当前URL](04-02/README.md#请求头路径与当前url)通过固定 Symfony 对照、真实 HTTP、Artisan 和三语文档验收。
 
 04-02 [输入存在性与可变输入](04-02/README.md#输入存在性与可变输入)通过固定 Laravel 对照、真实 HTTP、Artisan 及三语文档验收。
+
+04-02／04-03 [输入修剪与空字符串规范化](04-02/README.md#输入修剪与空字符串规范化)通过固定 Laravel 对照、真实 HTTP、Artisan 及三语文档验收。

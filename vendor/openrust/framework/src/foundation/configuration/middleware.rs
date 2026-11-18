@@ -4,7 +4,7 @@ use crate::{
     config::{ConfigError, Value},
     contracts::{config::Repository, http::Middleware as HttpMiddleware},
     cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
-    foundation::http::middleware::PreventRequestForgery,
+    foundation::http::middleware::{ConvertEmptyStringsToNull, PreventRequestForgery, TrimStrings},
     http::{Request, middleware::CorsSkipCallback},
     routing::{
         MiddlewareEntry,
@@ -24,6 +24,8 @@ pub struct Middleware {
     pub(crate) trusted_proxies: Option<crate::http::ProxyPolicy>,
     pub(crate) trusted_hosts: Option<crate::http::TrustedHosts>,
     pub(crate) cors_skip_callbacks: Vec<CorsSkipCallback>,
+    pub(crate) trim_strings: TrimStrings,
+    pub(crate) empty_strings_to_null: ConvertEmptyStringsToNull,
     default_web: bool,
     #[cfg(feature = "sanctum")]
     stateful_api: bool,
@@ -41,6 +43,8 @@ impl Default for Middleware {
             trusted_proxies: None,
             trusted_hosts: None,
             cors_skip_callbacks: Vec::new(),
+            trim_strings: TrimStrings::default(),
+            empty_strings_to_null: ConvertEmptyStringsToNull::default(),
             default_web: true,
             #[cfg(feature = "sanctum")]
             stateful_api: false,
@@ -103,6 +107,36 @@ impl Middleware {
         callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
         self.cors_skip_callbacks.push(Arc::new(callback));
+        self
+    }
+
+    /// Adds field patterns excluded from the default trimming middleware.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn trimStrings(
+        &mut self,
+        except: impl IntoIterator<Item = impl Into<String>>,
+    ) -> &mut Self {
+        self.trim_strings.except(except);
+        self
+    }
+
+    /// Skips trimming for requests which match this callback.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn skipTrimStringsWhen(
+        &mut self,
+        callback: impl Fn(&Request) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.trim_strings.skipWhen(callback);
+        self
+    }
+
+    /// Skips empty-string conversion for requests which match this callback.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn convertEmptyStringsToNull(
+        &mut self,
+        except: impl Fn(&Request) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.empty_strings_to_null.skipWhen(except);
         self
     }
 

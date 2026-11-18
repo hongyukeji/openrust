@@ -494,6 +494,26 @@ impl Request {
         }
     }
 
+    pub(crate) async fn transform_input(
+        &mut self,
+        mut transform: impl FnMut(&mut Value) -> Result<(), HttpError>,
+    ) -> Result<(), HttpError> {
+        let source = self.input_source()?;
+        let mut query = self.query_values()?.clone();
+        transform(&mut query)?;
+        if !matches!(source, InputSource::Query) {
+            let mut body = self.source_values(source).await?.clone();
+            transform(&mut body)?;
+            match source {
+                InputSource::Json => self.json_input = Some(Ok(body)),
+                InputSource::Form => self.form_input = Some(body),
+                InputSource::Query => unreachable!("body input source"),
+            }
+        }
+        self.query_input = Some(query);
+        Ok(())
+    }
+
     fn media_type(&self) -> Result<String, HttpError> {
         let content_type = self.header("content-type")?.unwrap_or_default();
         Ok(content_type

@@ -456,6 +456,11 @@ async fn start_with(
         .withRouting(Routing::default().web(|| {
             Route::get("/negotiation", negotiate)?;
             Route::r#match(
+                &[Method::GET, Method::POST],
+                "/normalize-input",
+                normalized_input,
+            )?;
+            Route::r#match(
                 &[Method::GET, Method::HEAD, Method::POST, Method::PATCH],
                 "/input-mutation",
                 mutate_input,
@@ -568,6 +573,126 @@ async fn start_with(
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
     )
+}
+
+fn normalized_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = request.input(None).await?;
+        let body = request.body_bytes().await?;
+        let upload = request.file("document").await?;
+        let text = std::str::from_utf8(&body).map_err(|_| HttpError::InvalidRequest)?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "input": input,
+                "query": request.query(None)?,
+                "raw_query": request.uri().query(),
+                "raw_body": text,
+                "upload_text": upload.map(|file| String::from_utf8_lossy(file.get().as_ref()).into_owned()),
+            }),
+        )
+    })
+}
+
+#[tokio::test]
+async fn real_http_normalizes_input_bags_and_keeps_application_exceptions_separate() {
+    let root = tempfile::tempdir().unwrap();
+    let ((custom, one), (default, two)) = tokio::join!(
+        start_with("custom", root.path().to_owned(), |builder| {
+            builder.withMiddleware(|middleware| {
+                middleware
+                    .trimStrings(["rows.*.sealed"])
+                    .skipTrimStringsWhen(|request| request.hasHeader("x-no-trim"))
+                    .convertEmptyStringsToNull(|request| {
+                        request.query(Some("keep")).ok().flatten() == Some(json!("yes"))
+                    });
+            })
+        }),
+        start("normalization-default"),
+    );
+    let raw = r#"{"name":"\u00a0 Ada \u200b","blank":"  ","password":" secret ","password_confirmation":"","rows":[{"sealed":" keep ","password":" nested "}],"zero":0,"flag":false}"#;
+    let uri = "/normalize-input?from=%20query%20&empty=";
+    let (_, body) = send(custom, "POST", uri, "application/json", raw.as_bytes(), 200).await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value["input"],
+        json!({
+            "name":"Ada", "blank":null, "password":" secret ", "password_confirmation":null,
+            "rows":[{"sealed":" keep ","password":"nested"}], "zero":0, "flag":false,
+            "from":"query", "empty":null,
+        })
+    );
+    assert_eq!(value["raw_body"], raw);
+    assert_eq!(value["raw_query"], "from=%20query%20&empty=");
+    assert_eq!(value["query"], json!({"from":"query","empty":null}));
+
+    let (_, body) = send(
+        default,
+        "POST",
+        uri,
+        "application/json",
+        raw.as_bytes(),
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["input"]["rows"][0]["sealed"], "keep");
+
+    let (_, body) = send(
+        custom,
+        "GET",
+        "/normalize-input?keep=%20yes%20&blank=%20%20",
+        "text/plain",
+        b"",
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["input"], json!({"keep":"yes", "blank":""}));
+
+    let (_, body) = send_with_headers(
+        custom,
+        "POST",
+        "/normalize-input",
+        "application/x-www-form-urlencoded",
+        b"name=+keep+&spaces=++&empty=",
+        200,
+        "X-No-Trim: yes\r\n",
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        value["input"],
+        json!({"name":" keep ", "spaces":"  ", "empty":null})
+    );
+
+    let multipart = b"--fixture\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\n  Ada  \r\n--fixture\r\nContent-Disposition: form-data; name=\"document\"; filename=\"sample.txt\"\r\n\r\n  file  \r\n--fixture--\r\n";
+    let (_, body) = send(
+        custom,
+        "POST",
+        "/normalize-input",
+        "multipart/form-data; boundary=fixture",
+        multipart,
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["input"]["name"], "Ada");
+    assert_eq!(value["upload_text"], "  file  ");
+    assert_eq!(value["raw_body"], std::str::from_utf8(multipart).unwrap());
+
+    let expanded = json!({("k".repeat(10_000)): vec![""; 2_100]}).to_string();
+    send(
+        custom,
+        "POST",
+        "/normalize-input",
+        "application/json",
+        expanded.as_bytes(),
+        413,
+    )
+    .await;
+    one.abort();
+    two.abort();
 }
 
 fn mutate_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -1123,7 +1248,7 @@ async fn real_http_reads_fluent_strings_arrays_and_backed_enums() {
     let value: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(
         value,
-        json!({"text":"published", "loose":"  published  ", "items":{"z":9,"0":1,"a":2}, "collected":[["z",9],[0,1],["a",2]], "stage":"Ready", "toggle":"On", "cases":[[0,"Ready"],[2,"Draft"],[3,"Ready"]]})
+        json!({"text":"published", "loose":"published", "items":{"z":9,"0":1,"a":2}, "collected":[["z",9],[0,1],["a",2]], "stage":"Ready", "toggle":"On", "cases":[[0,"Ready"],[2,"Draft"],[3,"Ready"]]})
     );
 
     let (_, body) = send(address, "POST", path, "application/json", br#"{"label":null,"items":false,"stage":"none","toggle":false,"list":{"first":"draft","skip":"unknown","again":"draft"}}"#, 200).await;
@@ -1729,7 +1854,7 @@ async fn real_http_serves_jsonp_markdown_empty_and_view_responses() {
     for path in [
         "/response.jsonp?callback=alert%281%29",
         "/response.jsonp?callback=class",
-        "/response.jsonp?callback=valid%0a",
+        "/response.jsonp?callback=va%0alid",
         "/response.jsonp?callback%5B%5D=valid",
     ] {
         send(address, "GET", path, "", b"", 400).await;

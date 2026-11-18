@@ -130,3 +130,9 @@
 - 对照固定 Laravel 的 Input Presence 和 Merging Additional Input，复用 openrust-v0.x 对输入来源、空白字符串、原始正文、查询回退和文件存在性的实现思路与用例。复用正式版查询、JSON、表单与 multipart 解析器及点路径写入。候选输入整体成功后发布。按实际 HTTP 方法选择查询或表单，JSON 优先。Rust 异步条件回调接收当前请求与输入值，文件通过请求读取。使用 `Option<T>` 表达执行与结果，合法的 `false` 或零保留。 [Laravel Input Presence](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#input-presence) · [Laravel Merging Additional Input](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#merging-additional-input)
 - 隔离源码 `f41dcf365` 实际 HTTP 验证 JSON、GET 查询、POST 方法覆盖和 multipart 下的合并与替换，覆盖显式 null、空字符串、false、零、空数组、上传检测和保留、查询回退、非法路径整批回滚、原始正文与 URI。原始固定 Laravel 与 Symfony 7.4.0 在 PHP 8.5 中通过四组行为对照。
 - 47 项定向回归、真实 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。回收本批编译与站点产物后磁盘可用 81.49 GB（75.89 GiB）。提交前周额度剩余 24%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-request-mutation.q7n3m5vE`。
+
+## 输入修剪与空字符串规范化
+
+- 对照固定 Laravel 13.40 的 `TrimStrings`、`ConvertEmptyStringsToNull`、`TransformsRequest` 及默认中间件顺序。复用 openrust-v0.x 的 Unicode 修剪、点路径通配和顶层密码例外规则。两层在 CORS 和维护模式之后运行，逐请求累计检查键长。Rust 分别注册字段模式和请求回调，例外保存在应用实例中。只更新解析数据，原始 URI、正文、上传文件保持可读。 [Laravel Requests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#input-trimming-and-normalization) · [Laravel 配置](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/Middleware.php#L510)
+- 隔离主线 `668f80912` 真实 TCP 验证查询、JSON、表单、multipart、Unicode 空白、默认密码字段、字段模式和两个独立跳过回调。两个应用并行验证例外隔离，累计键长超限返回 413。PHP 8.5 直接执行固定 Laravel 三组对照，覆盖独立跳过和转换回调读取已修剪的查询值。应用二进制实测 `/up`、畸形 JSON 400 和 SIGTERM，独立 Artisan `inspire` 通过。
+- 106 项定向测试报告通过。依环境启用的 MySQL、Redis 和 Mailpit 专项分支本批未运行。全仓格式、全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。回收专用编译及站点产物后磁盘可用 84.22 GB（78.44 GiB）。提交前周额度剩余 23%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-input-normalization.3cJWlch4`。

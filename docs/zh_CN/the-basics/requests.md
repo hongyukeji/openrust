@@ -56,6 +56,23 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 
 JSON 请求更新 JSON 输入。非 JSON 的 GET 或 HEAD 更新查询数据。其他请求更新表单输入，并继续使用查询回退。这些方法保留原始 URI、原始正文和上传文件。
 
+### 输入修剪与规范化 {#input-trimming-and-normalization}
+
+全局中间件先修剪查询、JSON 和表单中的字符串，再把空字符串转为 `null`。顶层 `current_password`、`password` 和 `password_confirmation` 跳过修剪，其中的空字符串仍会转为 `null`。原始 URI、正文和上传文件仍可读取。
+
+在 `bootstrap/app.rs` 配置字段模式，或为特定请求跳过某一层中间件：
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trimStrings(["rows.*.secret"])
+        .skipTrimStringsWhen(|request| request.is("hooks/*"))
+        .convertEmptyStringsToNull(|request| request.is("hooks/*"));
+})
+```
+
+字段模式使用点路径和 `*` 通配符。例外仅对配置它的应用生效。
+
 ## 文件
 
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。

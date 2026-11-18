@@ -56,6 +56,23 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 JSON 請求更新 JSON 輸入。非 JSON 的 GET 或 HEAD 更新查詢資料。其他請求更新表單輸入，並繼續使用查詢後備值。這些方法保留原始 URI、原始本文和上傳檔案。
 
+### 輸入修剪與正規化 {#input-trimming-and-normalization}
+
+全域中介層先修剪查詢、JSON 與表單中的字串，再把空字串轉為 `null`。頂層 `current_password`、`password` 與 `password_confirmation` 略過修剪，其中的空字串仍會轉為 `null`。原始 URI、本文及上傳檔案仍可讀取。
+
+在 `bootstrap/app.rs` 設定欄位模式，或為特定請求略過某一層中介層：
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trimStrings(["rows.*.secret"])
+        .skipTrimStringsWhen(|request| request.is("hooks/*"))
+        .convertEmptyStringsToNull(|request| request.is("hooks/*"));
+})
+```
+
+欄位模式使用點路徑和 `*` 萬用字元。例外只對設定它的應用程式生效。
+
 ## 檔案
 
 用 `request.file("attachments.0").await` 讀取 multipart 上傳檔案，用 `request.hasFile("attachments").await` 檢查欄位是否包含檔案。上傳物件提供檔案位元組，以及用戶端提供的檔名和媒體類型。儲存前應檢查檔案內容。

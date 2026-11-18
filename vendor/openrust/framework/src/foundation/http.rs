@@ -150,6 +150,14 @@ impl Kernel {
                         std::mem::take(&mut self.middleware.maintenance_exceptions),
                     )),
                 );
+                self.middleware.global.insert(
+                    maintenance_index + 1,
+                    Arc::new(std::mem::take(&mut self.middleware.trim_strings)),
+                );
+                self.middleware.global.insert(
+                    maintenance_index + 2,
+                    Arc::new(std::mem::take(&mut self.middleware.empty_strings_to_null)),
+                );
                 self.ready = true;
             }
             Ok(())

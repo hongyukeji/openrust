@@ -56,6 +56,23 @@ Use `request.merge(serde_json::json!({"profile.name": "Ada"})).await?` to set va
 
 A JSON request updates its JSON input. A non-JSON GET or HEAD updates the query bag. Other requests update their form input and still fall back to query values. These methods preserve the original URI, raw body and uploads.
 
+### Input Trimming and Normalization {#input-trimming-and-normalization}
+
+The global middleware trims string values in query, JSON and form inputs, then converts empty strings to `null`. The top-level fields `current_password`, `password` and `password_confirmation` are exempt from trimming. Empty strings in these fields still become `null`. The original URI, body bytes and uploaded files remain available.
+
+Configure field patterns or skip either middleware for selected requests in `bootstrap/app.rs`:
+
+```rust
+.withMiddleware(|middleware| {
+    middleware
+        .trimStrings(["rows.*.secret"])
+        .skipTrimStringsWhen(|request| request.is("hooks/*"))
+        .convertEmptyStringsToNull(|request| request.is("hooks/*"));
+})
+```
+
+Field patterns use dotted paths and `*` wildcards. Each application's exceptions apply to its own requests.
+
 ## Files
 
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.
