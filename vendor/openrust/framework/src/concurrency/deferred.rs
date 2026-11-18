@@ -34,7 +34,7 @@ enum Action {
         future: DeferredFuture,
         skipped: Option<DeferredFuture>,
     },
-    Transfer(DeferredRun),
+    Transfer(Box<dyn FnOnce() -> DeferredRun + Send>),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -62,21 +62,22 @@ impl DeferredCallbacks {
     }
 
     pub(crate) fn take_transfers(&self) -> Vec<TransferredRun> {
-        std::mem::take(
+        let pending = std::mem::take(
             &mut *self
                 .callbacks
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
-        )
-        .into_iter()
-        .filter_map(|callback| match callback.action {
-            Action::Transfer(run) => Some(TransferredRun {
-                run,
-                always: callback.always.load(Ordering::Acquire),
-            }),
-            Action::Local { .. } => None,
-        })
-        .collect()
+        );
+        pending
+            .into_iter()
+            .filter_map(|callback| match callback.action {
+                Action::Transfer(snapshot) => Some(TransferredRun {
+                    run: snapshot(),
+                    always: callback.always.load(Ordering::Acquire),
+                }),
+                Action::Local { .. } => None,
+            })
+            .collect()
     }
 
     pub(crate) async fn scope<F: Future>(&self, future: F) -> F::Output {
@@ -184,15 +185,15 @@ where
 }
 
 pub(super) fn enqueue_run(
-    run: DeferredRun,
-    execute: impl FnOnce(DeferredRun) -> HttpFuture<'static, Result<()>>,
+    snapshot: impl FnOnce() -> DeferredRun + Send + 'static,
+    execute: impl FnOnce(DeferredRun) -> HttpFuture<'static, Result<()>> + Send + 'static,
 ) -> Result<DeferredCallback> {
     register(None, |transfer| {
         if transfer {
-            Action::Transfer(run)
+            Action::Transfer(Box::new(snapshot))
         } else {
             Action::Local {
-                future: boxed(execute(run)),
+                future: boxed(Box::pin(async move { execute(snapshot()).await })),
                 skipped: None,
             }
         }

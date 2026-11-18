@@ -39,7 +39,14 @@ HTTP `defer` 在响应体交给传输层后进入现有终止队列。状态码�
 ## process defer 在终止阶段脱离运行
 
 - 固定 Laravel 的 process `defer` 在生命周期回调中逐项启动后台进程，sync 则在回调中按顺序执行。旧版 v0.x（`6d1a81924`）无可复用实现。OpenRust 复用 06-03 Background 的独立 Artisan 和 stdin 启动。进程启动失败由发起应用报告，任务失败在各子进程报告。同批一项无法启动时仍尝试其余任务。需要等待或收取结果时仍使用 `run`。 [固定 Laravel ProcessDriver](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Concurrency/ProcessDriver.php#L98) · [SyncDriver](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Concurrency/SyncDriver.php#L25) · [Laravel Concurrency 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Concurrency/ConcurrencyTest.php#L185)
-- 继续在登记时捕获公开和隐藏 Context，供硬超时隔离进程在交回登记时一并传递。固定 Laravel 的 process 回调在启动时提取 Context。Rust 适配仍保留这一快照时点差异，启用 `always()` 不会改变隔离进程被强制终止前无法交回登记的边界。
+- 继续在登记时捕获公开和隐藏 Context，供硬超时隔离进程在交回登记时一并传递。固定 Laravel 的 process 回调在启动时提取 Context。当时 Rust 适配沿用登记时快照，捕获时点已在下一节调整。启用 `always()` 不会改变隔离进程被强制终止前无法交回登记的边界。
 - macOS ARM64 从 `5ff2222f3` 干净归档及核定改动锁定离线构建。真实 Artisan 成功／非零退出仍返回 0／7，父 stdout 和 stderr 均先到 EOF。子进程仍可接收输入和登记 Context，显式 `--env` 和 Unicode 工作目录复验通过。真实 HTTP 返回 204 后放行子进程。新增独立 Artisan 回归校验任务仍活跃时父进程退出、普通回调被跳过、`always()` 继续执行、超限载荷由父进程报告、任务错误由子进程报告，且其他任务继续启动。
 - 真实 Redis 8.10.3 使用 `queue:work redis --once --timeout=1 --tries=1`。普通任务及隔离成功任务分别在原 Worker 与隔离执行器登记任务。隔离失败时 `always()` 的任务仍由父 Worker 在 `JobAttempted` 后启动。强制终止隔离执行器时观察到失败输出、执行器退出以及无延后任务启动。独立 Background 派发及 `artisan inspire` 通过。
 - `concurrency` 和 `processes` 定向测试 18 项、独立 `concurrency_defer` 回归、Rust 1.94.0 格式和锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。Windows 的脱离 stdin 和 EOF 复用 [06-03 已实测实现](../06-03/lifecycle-failover-drivers.md#windows-arm64-background-输入与父输出分离)，本次公开入口实测在 macOS。已回收独立 Redis、文档产物和本批专属 3.3 GiB 编译产物。磁盘可用 53.75 GB（50.06 GiB），提交前周额度剩余 19%，按用户授权继续。夹具和日志位于 `/Users/Home/openrust-defer-parity.hNekf6SD`。
+
+## defer 在执行边界捕获 Context
+
+- 固定 Laravel 的 process `defer` 在终止回调启动每项工作前调用 `Context::dehydrate()`。Rust 注册时只保留原作用域 Context 和应用钩子的引用，选中终止回调后再提取快照，避免从父 Worker 新开的作用域读到空 Context。Sync 延后执行同样可读到登记后的变更。同批任务共享一次快照。v0.x（`6d1a81924`）已有分离公开和隐藏字段的作用域仓储，当前实现沿用其契约，旧版无延后进程交接实现。 [固定 Laravel ProcessDriver](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Concurrency/ProcessDriver.php#L101)
+- 硬超时 Worker 的隔离执行器在交回已登记的回调时提取最终 Context，在应用作用域内执行脱水钩子。回调及其快照经过现有 JSON 结果交给父 Worker，父 Worker 按 `JobAttempted` 的结果筛选并启动。强制终止时来不及取快照或交回登记。
+- macOS ARM64 从 `3970ff0a1` 干净归档及核定改动锁定离线构建。真实 HTTP 204、独立 Artisan 退出码 0／7 和真实 Redis 8.10.3 Worker 均覆盖登记后覆盖公开及隐藏字段、删掉旧字段、脱水钩子投影、作用域配置读取和父进程 EOF。Sync 请求回归及独立 Artisan 夹具验证注册时不运行脱水钩子、回调采用最新字段。独立 Background 队列和 `artisan inspire` 回归通过。
+- 实际 `queue:work redis --once --timeout=1 --tries=1` 验证普通任务、隔离成功、隔离失败的 `always()` 和强制超时。普通任务由原 Worker 提取快照，隔离任务由执行器提取，父 Worker 在 `JobAttempted` 后启动子进程。杀死隔离执行器后无快照、无子进程。独立 `concurrency_defer` 和 5 项并发回归、Rust 1.94.0 格式和锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。本批实际入口在 macOS。已回收独立 Redis、文档和本批专属编译产物。磁盘可用 52.46 GB（48.86 GiB），提交前周额度剩余 19%，按用户授权继续。夹具和日志位于 `/Users/Home/openrust-defer-context.OX03dC5Z`。

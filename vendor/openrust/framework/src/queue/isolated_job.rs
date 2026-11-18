@@ -83,10 +83,12 @@ pub(crate) async fn serve(
     });
     let deferred = DeferredCallbacks::for_isolated_job();
     let result = deferred.scope(execution).await;
-    isolated_scope(
-        container,
-        deferred.invoke(&app, result.is_ok() && !context.fail_immediately),
-    )
+    let transfers = isolated_scope(container, async {
+        deferred
+            .invoke(&app, result.is_ok() && !context.fail_immediately)
+            .await;
+        deferred.take_transfers()
+    })
     .await;
     let missing_model = match &result {
         Err(super::QueueError::MissingModel(table)) => Some(table.clone()),
@@ -108,7 +110,7 @@ pub(crate) async fn serve(
         fail_immediately: context.fail_immediately,
         stop_retries: context.stop_retries,
         chain_update: context.chain_update,
-        deferred: deferred.take_transfers(),
+        deferred: transfers,
     };
     tokio::fs::write(
         directory.join("response.json"),

@@ -18,7 +18,7 @@ use openrust::{
     http::HttpFuture,
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Artisan, Concurrency},
+        facades::{Artisan, Concurrency, Context},
     },
 };
 
@@ -28,11 +28,30 @@ impl ServiceProvider for ProbeProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let root = app.base_path().to_owned();
+            let hook_root = root.clone();
+            Context::dehydrating(move |copy| {
+                assert_eq!(copy.get("stage"), Some(serde_json::json!("finished")));
+                copy.add("dehydrated", serde_json::json!(true));
+                std::fs::write(hook_root.join("dehydrating"), []).unwrap();
+            })?;
             app.container()
                 .make::<Registry>()?
                 .register("probe", move |label: String| {
                     let root = root.clone();
                     async move {
+                        assert_eq!(
+                            Context::get("stage").unwrap(),
+                            Some(serde_json::json!("finished"))
+                        );
+                        assert_eq!(
+                            Context::getHidden("stage").unwrap(),
+                            Some(serde_json::json!("private finished"))
+                        );
+                        assert_eq!(Context::get("old").unwrap(), None);
+                        assert_eq!(
+                            Context::get("dehydrated").unwrap(),
+                            Some(serde_json::json!(true))
+                        );
                         if label == "failure" {
                             return Err(std::io::Error::other("deferred probe failed"));
                         }
@@ -61,6 +80,9 @@ impl Command for ProbeCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let root = app.base_path();
+            Context::add("stage", serde_json::json!("registered")).unwrap();
+            Context::addHidden("stage", serde_json::json!("private registered")).unwrap();
+            Context::add("old", serde_json::json!(true)).unwrap();
             if self.1 == 0 {
                 let _ = Concurrency::defer([
                     Task::new("probe", "x".repeat(8 * 1024 * 1024)).unwrap(),
@@ -76,6 +98,10 @@ impl Command for ProbeCommand {
                     .always();
                 assert!(!root.join("always.started").exists());
             }
+            assert!(!root.join("dehydrating").exists());
+            Context::add("stage", serde_json::json!("finished")).unwrap();
+            Context::addHidden("stage", serde_json::json!("private finished")).unwrap();
+            Context::forget("old").unwrap();
             output.comment("command completed");
             eprintln!("command stderr");
             Ok(self.1)
@@ -161,6 +187,7 @@ async fn main() -> ExitCode {
         assert!(!path("done").exists());
         std::fs::write(path("release"), []).unwrap();
         wait_for(&path("done")).await.unwrap();
+        std::fs::remove_file(root.path().join("dehydrating")).unwrap();
         if code == 0 {
             let launch = root.path().join("launch.report");
             wait_for(&launch).await.unwrap();

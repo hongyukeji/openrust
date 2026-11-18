@@ -124,14 +124,17 @@ impl Driver {
 
     pub fn defer(&self, tasks: impl IntoIterator<Item = Task>) -> Result<DeferredCallback> {
         let driver = self.clone();
-        let run = DeferredRun {
-            kind: self.kind,
-            tasks: tasks.into_iter().collect(),
-            context: self.capture_context()?,
-        };
-        deferred::enqueue_run(run, move |run| {
-            Box::pin(async move { driver.execute_deferred(run).await })
-        })
+        let kind = self.kind;
+        let tasks = tasks.into_iter().collect();
+        let snapshot = self.context_snapshot()?;
+        deferred::enqueue_run(
+            move || DeferredRun {
+                kind,
+                tasks,
+                context: snapshot(),
+            },
+            move |run| Box::pin(async move { driver.execute_deferred(run).await }),
+        )
     }
 
     async fn execute_deferred(&self, run: DeferredRun) -> Result<()> {
@@ -181,14 +184,24 @@ impl Driver {
     }
 
     fn capture_context(&self) -> Result<DehydratedContext> {
-        if let Some((owner, active)) = self.owner.upgrade().zip(current_container())
+        Ok(self.context_snapshot()?())
+    }
+
+    fn context_snapshot(&self) -> Result<impl FnOnce() -> DehydratedContext + Send + use<>> {
+        let source = if let Some((owner, active)) = self.owner.upgrade().zip(current_container())
             && Arc::ptr_eq(&owner, &active)
         {
-            let context = Context::repository().map_err(context_error)?;
-            Ok(Context::hooks().map_err(context_error)?.dehydrate(&context))
+            Some((
+                Context::repository().map_err(context_error)?,
+                Context::hooks().map_err(context_error)?,
+            ))
         } else {
-            Ok(DehydratedContext::default())
-        }
+            None
+        };
+        Ok(move || match source {
+            Some((context, hooks)) => hooks.dehydrate(&context),
+            None => DehydratedContext::default(),
+        })
     }
 
     async fn execute(

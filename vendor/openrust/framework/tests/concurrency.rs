@@ -289,18 +289,19 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
 
     fn enqueue(_request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            openrust::log::context::Context::add("test", json!("request")).unwrap();
+            openrust::log::context::Context::add("test", json!("registered")).unwrap();
             let driver = Concurrency::driver(Some("sync")).unwrap();
             let _deferred = driver
                 .defer([Task::new("fixture:deferred", "ok").unwrap()])
                 .unwrap();
+            openrust::log::context::Context::add("test", json!("request")).unwrap();
             Response::json(StatusCode::OK, json!({"sent": true}))
         })
     }
 
     fn enqueue_failed(_request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            openrust::log::context::Context::add("test", json!("request")).unwrap();
+            openrust::log::context::Context::add("test", json!("registered")).unwrap();
             let driver = Concurrency::driver(Some("sync")).unwrap();
             let _skipped = driver
                 .defer([Task::new("fixture:deferred", "skipped").unwrap()])
@@ -309,6 +310,7 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
                 .defer([Task::new("fixture:deferred", "always").unwrap()])
                 .unwrap()
                 .always();
+            openrust::log::context::Context::add("test", json!("request")).unwrap();
             Ok(Response::empty(StatusCode::BAD_REQUEST))
         })
     }

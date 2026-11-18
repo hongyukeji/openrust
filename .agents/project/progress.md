@@ -3504,3 +3504,7 @@ Windows ARM64 原生 Artisan 验证独立 Background 子进程保持运行时，
 ## 2026-11-18 07-04 process defer 在终止阶段脱离运行
 
 公开 process defer 改为在终止阶段启动独立 Artisan 后返回。真实 HTTP、Artisan、Redis 8.10.3 普通／隔离 Worker 和父输出管道验收通过。 [验收记录](audits/07-04/README.md#process-defer-在终止阶段脱离运行)
+
+## 2026-11-18 07-04 defer 在执行边界捕获 Context
+
+公开 defer 采用终止回调时的 Context，隔离任务使用执行器交回前的最终 Context。真实 HTTP、Artisan、Redis 普通／隔离 Worker 验收通过。 [验收记录](audits/07-04/README.md#defer-在执行边界捕获-context)

@@ -52,4 +52,6 @@ Call `always()` on the returned handle to include error responses, unsuccessful 
 
 The `process` driver starts one independent Artisan child per task at the lifecycle boundary. The initiating process can exit once the children are launched, even while tasks are running. Child input is sent through stdin. The parent reports launch failures, and each child reports its own task failure through the application's exception handler. If you need results or want to wait for completion, call `run`.
 
-The `sync` driver runs the tasks in submission order in the current process before that lifecycle finishes. Both drivers preserve the public and hidden Context captured when the tasks are registered.
+The `sync` driver runs the tasks in submission order in the current process before that lifecycle finishes.
+
+Tasks receive the public and hidden Context visible when their deferred callback runs. An isolated job captures its final Context when handing its callbacks to the parent worker, which starts them after `JobAttempted`. Changes made after registration and before either boundary are included.

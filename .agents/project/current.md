@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 21:47（北京时间）07-04 [defer 在执行边界捕获 Context](audits/07-04/README.md#defer-在执行边界捕获-context)。公开 defer 采用终止回调时的 Context，隔离任务使用执行器交回前的最终 Context。真实 HTTP、Artisan、Redis 普通／隔离 Worker 验收通过。磁盘可用 52.46 GB（48.86 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。下一批复核 06-03 生命周期队列的 Context 来源与固定 Laravel 的 Background／DeferredQueue。
 - 2026-11-18 21:39（北京时间）07-04 [process defer 在终止阶段脱离运行](audits/07-04/README.md#process-defer-在终止阶段脱离运行)。公开 process defer 改为在终止阶段启动独立 Artisan 后返回。真实 HTTP、Artisan、Redis 8.10.3 普通／隔离 Worker 和父输出管道验收通过。磁盘可用 53.75 GB（50.06 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。后续复核 Context 登记快照与固定 Laravel 启动时提取的差异，先核对隔离 Worker 的交接契约。
 - 2026-11-18 21:28（北京时间）06-03 [Windows ARM64 Background 输入与父输出分离](audits/06-03/lifecycle-failover-drivers.md#windows-arm64-background-输入与父输出分离)。Windows ARM64 原生 Artisan 验证独立 Background 子进程保持运行时，发起进程退出且 stdout／stderr 到 EOF。stdin 中的载荷及公开、隐藏 Context 完整送达。磁盘可用 55.87 GB（52.03 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。后续核对 07-04 公开 process defer 的托管执行与固定 Laravel 脱离执行差异。
 - 2026-11-18 21:17（北京时间）07-04 [Windows ARM64 Concurrency 延后执行与管道](audits/07-04/README.md#windows-arm64-concurrency-延后执行与管道)。Windows ARM64 上真实 HTTP、Artisan 和独立进程验证了任务输入及 Context、延后执行边界与原退出码。06-03 Background 独立诊断复现输出有待关闭的问题。磁盘可用 67.69 GB（63.05 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。下一批修复 06-03 Background 的 Windows 句柄继承，实测 stdin 交接和父进程管道 EOF。
