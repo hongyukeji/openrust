@@ -41,7 +41,7 @@ impl Message {
 
     pub(super) fn compose(
         envelope: Envelope,
-        content: Content,
+        mut content: Content,
         attachments: Vec<Attachment>,
         headers: Headers,
         views: &Factory,
@@ -94,32 +94,16 @@ impl Message {
                 .map_err(|_| composition("Invalid mail header name."))?;
             builder = builder.raw_header(header::HeaderValue::new(name, header_text(value)?));
         }
-        let (html, text) = match content.markdown.as_deref() {
-            Some(view) => {
-                let text = render(
-                    content.text,
-                    content.text_view.as_deref(),
-                    &content.with,
-                    views,
-                )?;
-                let (html, text) = markdown.render_with_text(
-                    view,
-                    &content.with,
-                    views,
-                    text,
-                    content.theme.as_deref(),
-                )?;
-                (Some(html), Some(text))
-            }
-            None => (
-                render(content.html, content.view.as_deref(), &content.with, views)?,
-                render(
-                    content.text,
-                    content.text_view.as_deref(),
-                    &content.with,
-                    views,
-                )?,
-            ),
+        let explicit_text = render(
+            content.text.take(),
+            content.text_view.as_deref(),
+            &content.with,
+            views,
+        )?;
+        let html = render_html(&mut content, views, markdown)?;
+        let text = match (explicit_text, content.markdown.as_deref()) {
+            (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
+            (text, _) => text,
         };
         let body = match (text.clone(), html.clone()) {
             (Some(text), Some(html)) => {
@@ -169,6 +153,49 @@ impl Message {
 enum Body {
     Single(SinglePart),
     Multipart(MultiPart),
+}
+
+pub(super) enum Preview {
+    Html(String),
+    Text(String),
+}
+
+impl Preview {
+    pub(super) fn render(
+        mut content: Content,
+        views: &Factory,
+        markdown: &Markdown,
+    ) -> MailResult<Self> {
+        if let Some(html) = render_html(&mut content, views, markdown)? {
+            return Ok(Self::Html(html));
+        }
+        render(
+            content.text,
+            content.text_view.as_deref(),
+            &content.with,
+            views,
+        )?
+        .map(Self::Text)
+        .ok_or_else(|| composition("The mailable has no content."))
+    }
+}
+
+fn render_html(
+    content: &mut Content,
+    views: &Factory,
+    markdown: &Markdown,
+) -> MailResult<Option<String>> {
+    match content.markdown.as_deref() {
+        Some(view) => markdown
+            .render_html(view, &content.with, views, content.theme.as_deref())
+            .map(Some),
+        None => render(
+            content.html.take(),
+            content.view.as_deref(),
+            &content.with,
+            views,
+        ),
+    }
 }
 
 fn render(

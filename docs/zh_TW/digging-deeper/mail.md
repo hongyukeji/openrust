@@ -141,6 +141,28 @@ CommonMark 和表格一直可用。在 `config/mail.rs` 的 `mail.markdown.exten
 
 讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。
 
+## 呈現郵件 {#rendering-mailables}
+
+呼叫 `mailable.render().await?` 可直接取得內文，免於傳送或加入佇列。呈現時採用該封郵件的語系和 Markdown 主題，優先回傳 HTML，純文字郵件回傳文字內文。
+
+### 在瀏覽器預覽郵件 {#previewing-mailables-in-the-browser}
+
+在應用程式路由中呼叫 `toResponse()`，即可用相應的媒體類型顯示 HTML 或純文字內文。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    mail::Mailable,
+    support::facades::Route,
+};
+
+fn preview_order(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { OrderShipped.toResponse().await })
+}
+
+Route::get("/mail-preview/order", preview_order)?;
+```
+
 ## 擴充郵件傳輸和投遞事件
 
 在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 回傳 `None`，`sendNow` 回傳 `MailError::Cancelled`。

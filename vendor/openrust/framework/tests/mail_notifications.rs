@@ -1727,6 +1727,139 @@ async fn markdown_mailable_selects_theme_for_immediate_and_queued_delivery() {
 }
 
 #[tokio::test]
+async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
+    struct PreviewMail(Content);
+
+    impl Mailable for PreviewMail {
+        fn envelope(&self) -> MailResult<Envelope> {
+            panic!("Preview must not prepare an envelope");
+        }
+
+        fn content(&self) -> MailResult<Content> {
+            assert_eq!(Lang::getLocale().unwrap(), "fr");
+            Ok(self.0.clone())
+        }
+
+        fn locale(&self) -> Option<&str> {
+            Some("fr")
+        }
+    }
+
+    fn markdown() -> PreviewMail {
+        PreviewMail(Content {
+            markdown: Some("preview".into()),
+            text_view: Some("unavailable-text-view".into()),
+            theme: Some("preview".into()),
+            with: [("name".into(), json!("<Client>"))].into_iter().collect(),
+            ..Default::default()
+        })
+    }
+
+    fn html_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async { markdown().toResponse().await })
+    }
+
+    fn text_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            PreviewMail(Content {
+                text: Some("<Client>".into()),
+                ..Default::default()
+            })
+            .toResponse()
+            .await
+        })
+    }
+
+    fn missing_preview(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            PreviewMail(Content {
+                view: Some("unavailable-view".into()),
+                ..Default::default()
+            })
+            .toResponse()
+            .await
+        })
+    }
+
+    let root = fixture(None, None, None);
+    let path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    config["mail"]["default"] = json!("no-preview-transport");
+    std::fs::write(path, config.to_string()).unwrap();
+    std::fs::create_dir(root.0.join("lang")).unwrap();
+    std::fs::write(
+        root.0.join("lang/fr.json"),
+        r#"{"All rights reserved.":"Tous droits réservés."}"#,
+    )
+    .unwrap();
+    let themes = root.0.join("resources/views/vendor/mail/html/themes");
+    std::fs::create_dir_all(&themes).unwrap();
+    std::fs::write(themes.join("preview.css"), "h1 { color: #217a4b; }").unwrap();
+    std::fs::write(
+        root.0.join("resources/views/preview.blade.html"),
+        "<x-mail::message>\n# Preview {{ $name }}\n</x-mail::message>",
+    )
+    .unwrap();
+    let mut kernel = Kernel::new(
+        app_builder(&root.0)
+            .withRouting(Routing::default().web(|| {
+                Route::get("/preview", html_preview)?;
+                Route::get("/preview-text", text_preview)?;
+                Route::get("/preview-missing", missing_preview)
+            }))
+            .create()
+            .unwrap(),
+    );
+    kernel.bootstrap().await.unwrap();
+    kernel
+        .get_application()
+        .call(
+            Callback::new(&[], |_| async {
+                let html = markdown().render().await.unwrap();
+                assert!(html.contains("Tous droits réservés."));
+                assert_eq!(Lang::getLocale().unwrap(), "en");
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+
+    let (url, server) = serve_fixture_http(kernel, "preview").await;
+    let html = reqwest::get(&url)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    assert_eq!(
+        html.headers()[http::header::CONTENT_TYPE],
+        "text/html; charset=utf-8"
+    );
+    let html = html.text().await.unwrap();
+    for expected in [
+        "lang=\"fr\"",
+        "#217a4b",
+        "&lt;Client&gt;",
+        "Tous droits réservés.",
+    ] {
+        assert!(html.contains(expected), "{html}");
+    }
+    let text = reqwest::get(format!("{url}-text"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    assert_eq!(
+        text.headers()[http::header::CONTENT_TYPE],
+        "text/plain; charset=utf-8"
+    );
+    assert_eq!(text.text().await.unwrap(), "<Client>");
+    let missing = reqwest::get(format!("{url}-missing")).await.unwrap();
+    assert_eq!(missing.status(), 500);
+    server.abort();
+}
+
+#[tokio::test]
 #[ignore = "Requires a dedicated SMTP server configured for this test"]
 async fn smtp_delivery_fixture() {
     let url = std::env::var("OPENRUST_SMTP_FIXTURE_URL").expect("SMTP fixture URL");

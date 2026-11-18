@@ -13,13 +13,15 @@ use crate::{
     },
     events::Dispatcher,
     log::LogManager,
+    support::facades::Lang,
     view,
 };
 
 use super::{
-    MailError, MailFake, MailResult, Mailer, Markdown, PendingMail,
+    MailError, MailFake, MailResult, Mailable, Mailer, Markdown, PendingMail,
     mail_fake::FakeState,
     mailables::Address,
+    message::Preview,
     transport::{
         ApiProvider, ApiTransport, ArrayTransport, CompositeTransport, LogTransport,
         SendmailTransport, SesTransport, SmtpTransport, Transport,
@@ -41,6 +43,24 @@ pub struct MailManager {
 }
 
 impl MailManager {
+    pub(super) async fn preview(&self, mailable: &dyn Mailable) -> MailResult<Preview> {
+        let container = self
+            .owner
+            .upgrade()
+            .ok_or_else(|| super::composition("Mail application is unavailable."))?;
+        let views = container
+            .make::<view::Factory>()
+            .map_err(super::composition)?;
+        let markdown = Markdown::from_config(self.config.as_ref(), &self.base)?;
+        let render = || Preview::render(mailable.content()?, &views, &markdown);
+        match mailable.locale() {
+            Some(locale) => Lang::withLocale(locale, async { render() })
+                .await
+                .map_err(super::composition)?,
+            None => render(),
+        }
+    }
+
     pub(crate) fn new(
         config: Arc<dyn Repository>,
         owner: Weak<Container>,

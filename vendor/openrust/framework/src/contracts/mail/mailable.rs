@@ -1,5 +1,5 @@
 use crate::mail::{
-    MailResult,
+    Mail, MailFuture, MailResult,
     mailables::{Attachment, Content, Envelope, Headers},
 };
 
@@ -22,6 +22,25 @@ pub trait Mailable: Send + Sync {
     }
     fn mailer(&self) -> Option<&str> {
         None
+    }
+
+    /// Renders the message body in the current application without sending it.
+    fn render(&self) -> MailFuture<'_, MailResult<String>>
+    where
+        Self: Sized,
+    {
+        Box::pin(Mail::render(self))
+    }
+
+    /// Renders an HTTP response for a preview route.
+    #[allow(non_snake_case, reason = "Matches Laravel's response API")]
+    fn toResponse(
+        &self,
+    ) -> crate::http::HttpFuture<'_, Result<crate::http::Response, crate::http::HttpError>>
+    where
+        Self: Sized,
+    {
+        Box::pin(Mail::preview(self))
     }
 
     /// Returns the queue options when sending this mailable should enqueue it.

@@ -141,6 +141,28 @@ CommonMark 和表格始终可用。在 `config/mail.rs` 的 `mail.markdown.exten
 
 让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。
 
+## 渲染邮件 {#rendering-mailables}
+
+调用 `mailable.render().await?` 可直接取得正文，不发送或入队。渲染采用该邮件的语言和 Markdown 主题，优先返回 HTML，纯文本邮件返回文本正文。
+
+### 在浏览器预览邮件 {#previewing-mailables-in-the-browser}
+
+在应用路由中调用 `toResponse()`，即可用对应的媒体类型显示 HTML 或纯文本正文。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    mail::Mailable,
+    support::facades::Route,
+};
+
+fn preview_order(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { OrderShipped.toResponse().await })
+}
+
+Route::get("/mail-preview/order", preview_order)?;
+```
+
 ## 扩展邮件传输和投递事件
 
 在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 返回 `None`，`sendNow` 返回 `MailError::Cancelled`。

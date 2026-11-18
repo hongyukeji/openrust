@@ -108,35 +108,41 @@ impl Markdown {
         data: &ViewData,
         views: &Factory,
     ) -> MailResult<(String, String)> {
-        self.render_with_text(view, data, views, None, None)
+        Ok((
+            self.render_html(view, data, views, None)?,
+            self.render_text(view, data, views)?,
+        ))
     }
 
-    pub(super) fn render_with_text(
+    pub(super) fn render_html(
         &self,
         view: &str,
         data: &ViewData,
         views: &Factory,
-        text: Option<String>,
         theme: Option<&str>,
-    ) -> MailResult<(String, String)> {
+    ) -> MailResult<String> {
         let html = self.render_format(view, data, views, Format::Html)?;
         let theme = theme.filter(|name| !name.is_empty()).unwrap_or(&self.theme);
         let css = self.css(theme, views, data)?;
-        let html = css_inline::CSSInliner::options()
+        css_inline::CSSInliner::options()
             .load_remote_stylesheets(false)
             .keep_at_rules(true)
             .extra_css(Some(css))
             .build()
             .inline(&html)
-            .map_err(|_| composition("Could not apply the Markdown mail stylesheet."))?;
-        let text = match text {
-            Some(text) => text,
-            None => self
-                .render_format(view, data, views, Format::Text)?
-                .trim()
-                .to_owned(),
-        };
-        Ok((html, text))
+            .map_err(|_| composition("Could not apply the Markdown mail stylesheet."))
+    }
+
+    pub(super) fn render_text(
+        &self,
+        view: &str,
+        data: &ViewData,
+        views: &Factory,
+    ) -> MailResult<String> {
+        Ok(self
+            .render_format(view, data, views, Format::Text)?
+            .trim()
+            .to_owned())
     }
 
     fn render_format(

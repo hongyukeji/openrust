@@ -4,7 +4,7 @@ use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
     MailFake, MailManager, MailResult, Mailable, Mailer, PendingMail, SentMessage,
-    mailables::Address,
+    mailables::Address, message::Preview,
 };
 
 /// Resolves the mail manager for the current application.
@@ -20,6 +20,41 @@ impl Facade for Mail {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mail facade")]
 impl Mail {
+    /// Renders a mailable's body using the current application.
+    pub async fn render(mailable: &dyn Mailable) -> MailResult<String> {
+        match Self::getFacadeRoot()
+            .map_err(super::composition)?
+            .preview(mailable)
+            .await?
+        {
+            Preview::Html(body) | Preview::Text(body) => Ok(body),
+        }
+    }
+
+    pub(crate) async fn preview(
+        mailable: &dyn Mailable,
+    ) -> Result<crate::http::Response, crate::http::HttpError> {
+        use crate::http::{Body, Response, StatusCode};
+        use ::http::HeaderValue;
+        let error = |source| crate::http::HttpError::Internal {
+            source: Box::new(source),
+        };
+        let preview = Self::getFacadeRoot()
+            .map_err(super::composition)
+            .map_err(error)?
+            .preview(mailable)
+            .await
+            .map_err(error)?;
+        let (body, media_type) = match preview {
+            Preview::Html(body) => (body, "text/html; charset=utf-8"),
+            Preview::Text(body) => (body, "text/plain; charset=utf-8"),
+        };
+        Ok(Response::new(StatusCode::OK, Body::from(body)).header(
+            ::http::header::CONTENT_TYPE,
+            HeaderValue::from_static(media_type),
+        ))
+    }
+
     pub fn fake() -> MailResult<Arc<MailFake>> {
         Ok(Self::getFacadeRoot().map_err(super::transport)?.fake())
     }

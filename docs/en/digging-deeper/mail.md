@@ -141,6 +141,28 @@ Set `mail.markdown.secured_encoding` to `true` to render strings passed through 
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.
 
+## Rendering mailables {#rendering-mailables}
+
+Call `mailable.render().await?` to get the rendered body without sending or queuing mail. Rendering uses the mailable's locale and Markdown theme. It returns HTML when available and falls back to plain text.
+
+### Previewing mailables in the browser {#previewing-mailables-in-the-browser}
+
+Use `toResponse()` in an application route to preview the mailable. It returns HTML or plain text with the corresponding media type.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response},
+    mail::Mailable,
+    support::facades::Route,
+};
+
+fn preview_order(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { OrderShipped.toResponse().await })
+}
+
+Route::get("/mail-preview/order", preview_order)?;
+```
+
 ## Mail transport extensions and events
 
 Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` returns `None` for a cancelled send, and `sendNow` returns `MailError::Cancelled`.
