@@ -132,6 +132,9 @@ impl RedisTagSet {
     }
 
     pub(super) async fn prune_selected(&self) -> CacheResult<()> {
+        if self.connection.is_cluster() {
+            return self.cluster_prune_selected().await;
+        }
         let value_prefix = format!("{}value:", self.prefix);
         for tag in &self.tags {
             let metadata = format!("{}generation:{tag}", self.prefix);
@@ -145,13 +148,7 @@ impl RedisTagSet {
                 return Err(CacheError::InvalidValue);
             }
             let index = format!("{}index:{tag}:{id}", self.prefix);
-            if self.connection.is_cluster() {
-                let pending = format!("{}pending:{tag}", self.prefix);
-                self.prune_cluster_index(&self.registry(), &index, &pending, &id)
-                    .await?;
-            } else {
-                self.prune_index(&index, &value_prefix).await?;
-            }
+            self.prune_index(&index, &value_prefix).await?;
         }
         Ok(())
     }

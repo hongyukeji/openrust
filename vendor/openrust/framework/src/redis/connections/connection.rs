@@ -4,8 +4,6 @@ use ::redis::{
     AsyncConnectionConfig, Client, ConnectionInfo, FromRedisValue,
     aio::{ConnectionManager, ConnectionManagerConfig},
     cluster::{ClusterClient, ClusterConfig},
-    cluster_routing::{Route, RoutingInfo, SingleNodeRoutingInfo, SlotAddr},
-    from_redis_value,
 };
 use tokio::sync::OnceCell;
 
@@ -76,7 +74,7 @@ impl Connection {
         self.query_command(command, true).await
     }
 
-    /// SCAN has no key argument, so explicitly route it to the primary for the pattern's slot.
+    /// Give SCAN a routing key so Redis redirects it if the slot has moved.
     pub(crate) async fn scan_slot_keys(
         &self,
         key: &str,
@@ -84,25 +82,19 @@ impl Connection {
         cursor: u64,
         count: usize,
     ) -> RedisResult<(u64, Vec<Vec<u8>>)> {
-        let Transport::Cluster(mut transport) = self.transport().await? else {
+        if !self.is_cluster() {
             return Err(RedisError::UnsupportedClusterOperation("slot-scoped SCAN"));
-        };
-        let mut command = ::redis::cmd("SCAN");
-        command
-            .arg(cursor)
-            .arg("MATCH")
-            .arg(pattern)
-            .arg("COUNT")
-            .arg(count);
-        let route = Route::with_key(key, SlotAddr::Master);
-        let result = transport
-            .route_command(
-                command,
-                RoutingInfo::SingleNode(SingleNodeRoutingInfo::SpecificNode(route)),
-            )
-            .await
-            .map_err(backend)?;
-        from_redis_value(result).map_err(backend)
+        }
+        self.query_slot(
+            ::redis::cmd("EVAL")
+                .arg("return redis.call('SCAN', ARGV[1], 'MATCH', ARGV[2], 'COUNT', ARGV[3])")
+                .arg(1)
+                .arg(key)
+                .arg(cursor)
+                .arg(pattern)
+                .arg(count),
+        )
+        .await
     }
 
     async fn query_command<T: FromRedisValue>(

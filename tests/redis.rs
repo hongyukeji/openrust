@@ -1180,6 +1180,36 @@ async fn redis_cluster_tags_flush_and_prune() {
     assert_eq!(count(&peer_index).await, RedisValue::Int(0));
     assert_eq!(scored.get("value").await.unwrap(), Some(11.into()));
 
+    let orphan = plain.tags(&["orphan", "orphan-peer"]).unwrap();
+    let selection = peer.tags(&["orphan"]).unwrap();
+    assert!(orphan.forever("old", &12.into()).await.unwrap());
+    let old_key = orphan.taggedItemKey("old").await.unwrap();
+    let old_index = index("orphan").await;
+    let peer_index = index("orphan-peer").await;
+    let generation = orphan.getTags().tagKey("orphan");
+    connection
+        .command("DEL", &[generation.as_bytes()])
+        .await
+        .unwrap();
+    assert!(orphan.forever("new", &13.into()).await.unwrap());
+    let current_index = index("orphan").await;
+    assert_ne!(current_index, old_index);
+    let registry = format!("{}indexes", old_index.rsplit_once("index:").unwrap().0);
+    connection
+        .command("SREM", &[registry.as_bytes(), old_index.as_bytes()])
+        .await
+        .unwrap();
+    connection
+        .command("ZADD", &[old_index.as_bytes(), b"0", old_key.as_bytes()])
+        .await
+        .unwrap();
+    assert!(selection.flushStale().await.unwrap());
+    assert_eq!(count(&old_index).await, RedisValue::Int(0));
+    assert_eq!(count(&current_index).await, RedisValue::Int(1));
+    assert_eq!(count(&peer_index).await, RedisValue::Int(2));
+    assert!(exists(&old_key).await);
+    assert_eq!(orphan.get("new").await.unwrap(), Some(13.into()));
+
     let paged = plain.tags(&["paged"]).unwrap();
     let mut deleted = Vec::new();
     for number in 0..320 {

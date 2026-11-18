@@ -3236,3 +3236,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 10:51（北京时间）06-06 [Artisan 生成 Markdown 邮件与 Blade 视图](audits/06-06/README.md#Artisan 生成 Markdown 邮件与 Blade 视图)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、17 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 104.31 GB（97.15 GiB），周额度剩余 33%。
 
 - 2026-11-18 10:59（北京时间）06-06 [Artisan 生成通知与 Markdown 邮件模板](audits/06-06/README.md#Artisan 生成通知与 Markdown 邮件模板)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、17 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 104.27 GB（97.11 GiB），周额度剩余 33%。
+
+## 2026-11-18 03-09 Redis Cluster 指定标签跨代际清理
+
+固定 Laravel 按指定标签的索引清理过期引用。OpenRust 在集群按标签发现现存代际索引，补齐当前代际键和索引登记丢失时的清理，并让扫描跟随槽重定向。范围包含 `redis_tag_set.rs`、集群标签实现、Redis 连接接线、`tests/redis.rs` 和三语 Cache Tags 正文。真实 Redis 8.10.3 集群五项、单机一项、双进程 HTTP、独立 Artisan、全仓格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/03-09/README.md#redis-cluster-指定标签跨代际清理)

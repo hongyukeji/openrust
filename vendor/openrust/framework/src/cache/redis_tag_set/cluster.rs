@@ -164,6 +164,34 @@ impl RedisTagSet {
         }
     }
 
+    pub(super) async fn cluster_prune_selected(&self) -> CacheResult<()> {
+        let registry = self.registry();
+        let index_prefix = format!("{}index:", self.prefix);
+        for tag in &self.tags {
+            let pattern = self.key_pattern(&format!("index:{tag}:*"));
+            let pending = format!("{}pending:{tag}", self.prefix);
+            let mut cursor = 0;
+            loop {
+                let (next, keys) = self
+                    .connection
+                    .scan_slot_keys(&registry, &pattern, cursor, BATCH_SIZE)
+                    .await
+                    .map_err(backend)?;
+                for key in &keys {
+                    if let Some((index, _, id)) = cluster_index(key, &index_prefix) {
+                        self.prune_cluster_index(&registry, index, &pending, id)
+                            .await?;
+                    }
+                }
+                if next == 0 {
+                    break;
+                }
+                cursor = next;
+            }
+        }
+        Ok(())
+    }
+
     async fn recover_cluster_indexes(&self, registry: &str, index_prefix: &str) -> CacheResult<()> {
         let pattern = self.key_pattern("index:*");
         let mut cursor = 0;
@@ -293,7 +321,7 @@ impl RedisTagSet {
         }
     }
 
-    pub(super) async fn prune_cluster_index(
+    async fn prune_cluster_index(
         &self,
         registry: &str,
         index: &str,
