@@ -306,18 +306,30 @@ impl UrlGenerator {
         }
     }
 
+    fn request_root(&self) -> Option<UrlResult<::url::Url>> {
+        let uri = self.uri.as_ref()?;
+        Some(valid_http_url(&format!(
+            "{}://{}{}",
+            uri.scheme_str()?,
+            uri.authority()?,
+            self.base_url
+        )))
+    }
+
+    fn configured_root(&self) -> UrlResult<::url::Url> {
+        valid_http_url(
+            &self
+                .string_config("app.url")
+                .ok_or(UrlError::InvalidOrigin)?,
+        )
+    }
+
     fn root(&self, secure: Option<bool>) -> UrlResult<::url::Url> {
-        let mut root = match self
-            .uri
-            .as_ref()
-            .and_then(|uri| Some(format!("{}://{}", uri.scheme_str()?, uri.authority()?)))
-        {
-            Some(origin) => valid_http_url(&format!("{origin}{}", self.base_url))?,
-            None => valid_http_url(
-                &self
-                    .string_config("app.url")
-                    .ok_or(UrlError::InvalidOrigin)?,
-            )?,
+        let mut root = if self.config.get("app.url_explicit") == Some(Value::Bool(true)) {
+            self.configured_root()?
+        } else {
+            self.request_root()
+                .unwrap_or_else(|| self.configured_root())?
         };
         if let Some(secure) = secure {
             root.set_scheme(if secure { "https" } else { "http" })
@@ -364,7 +376,10 @@ impl UrlGenerator {
             return Ok(false);
         };
         let mut target = if mode == SignatureMode::Absolute {
-            let root = self.with_uri(Some(request_uri(request))).root(None)?;
+            let urls = self.with_uri(Some(request_uri(request)));
+            let root = urls
+                .request_root()
+                .unwrap_or_else(|| urls.configured_root())?;
             let path = request.uri().path().trim_end_matches('/');
             format!(
                 "{}{base}{path}",

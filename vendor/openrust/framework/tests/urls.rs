@@ -544,6 +544,22 @@ async fn signs_and_redirects_over_real_http() {
     assert!(response.contains("location: /new\r\n"));
     let response = exchange(address, "/optional-old/a%3F%23", &host, 302).await;
     assert!(response.contains("location: /new/a%3F%23\r\n"));
+
+    config
+        .set("app.url", json!("http://canonical.test"))
+        .unwrap();
+    config.set("app.url_explicit", json!(true)).unwrap();
+    let response = exchange(address, "/links", &host, 200).await;
+    let links: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(links["named"], "http://canonical.test/page/default");
+    let signed = links["absolute"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("http://canonical.test")
+        .unwrap();
+    exchange(address, signed, "canonical.test", 200).await;
+    exchange(address, signed, &host, 403).await;
     server.abort();
 }
 

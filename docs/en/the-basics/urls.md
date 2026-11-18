@@ -24,7 +24,7 @@ Use `URL::signedRoute` for a persistent link or `URL::temporarySignedRoute` with
 
 ## Request and asset URLs
 
-Inside HTTP handlers the generator uses the request scheme and authority. CLI code in the application scope uses `APP_URL`. `URL::asset` honors `ASSET_URL`. Use `URL::to`, `URL::current` or `URL::query` for ordinary URLs.
+HTTP link generation uses an explicit `APP_URL` first, then the current request scheme and authority, then the listener-derived `app.url`. Artisan uses `app.url` directly. See [configuration](../getting-started/configuration.md) for the listener fallback. `URL::asset` honors `ASSET_URL`. Use `URL::to`, `URL::current` or `URL::query` for ordinary URLs.
 
 `URL::current()` returns the current URL without the query. `URL::full()` includes the original request path and query string. `URL::previous(request, fallback)` resolves a same-origin Referer, the previous session URL or the fallback. `URL::previousPath(request, fallback)` returns only the path, with the application's base path and trailing slash removed. On a web route, `request.session()?.previousRoute()` returns the last recorded route name. `previousUri()` on the same session returns a parsed `openrust::support::Uri` when a previous URL exists.
 

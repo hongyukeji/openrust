@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use openrust::{
     config::{ConfigError, Environment, Value},
     translation::canonical_locale,
@@ -15,12 +17,11 @@ pub(super) struct Loaded<'a> {
 
 pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
     let name = env.get_utf8("APP_NAME")?.unwrap_or("OpenRust");
-    let host = env.get_utf8("APP_HOST")?.unwrap_or("127.0.0.1");
+    let env_host = env.get_utf8("APP_HOST")?;
+    let host = env_host.unwrap_or("127.0.0.1");
     let port = env.get_utf8("APP_PORT")?.unwrap_or("8000");
     let public_path = env.get_utf8("APP_PUBLIC_PATH")?;
-    let url = env
-        .get_utf8("APP_URL")?
-        .map_or_else(|| format!("http://localhost:{port}"), str::to_owned);
+    let (url, url_explicit) = resolve_url(env, env_host, port)?;
     let port = port
         .parse::<u16>()
         .map_or_else(|_| json!(port), |port| json!(port));
@@ -32,6 +33,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "host": host,
         "port": port,
         "url": url,
+        "url_explicit": url_explicit,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
         "timezone": get(env, "APP_TIMEZONE", "UTC")?,
@@ -57,9 +59,31 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
     })
 }
 
+fn resolve_url(
+    env: &Environment,
+    host: Option<&str>,
+    port: &str,
+) -> Result<(String, bool), ConfigError> {
+    if let Some(url) = env.get_utf8("APP_URL")? {
+        return Ok((url.to_owned(), true));
+    }
+
+    let host = host.filter(|host| !host.is_empty()).unwrap_or("localhost");
+    let address = host
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .unwrap_or(host);
+    let url = match address.parse::<IpAddr>() {
+        Ok(ip) if ip.is_unspecified() || ip.is_loopback() => format!("http://localhost:{port}"),
+        Ok(IpAddr::V6(_)) => format!("http://[{address}]:{port}"),
+        _ => format!("http://{host}:{port}"),
+    };
+    Ok((url, false))
+}
+
 fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigError> {
     canonical_locale(env.get_utf8(key)?.unwrap_or(default)).map_err(|_| ConfigError::InvalidType {
         key: key.into(),
-        expected: "a language identifier such as en, en_GB or zh_TW",
+        expected: "a language identifier such as en, zh_CN or zh_TW",
     })
 }

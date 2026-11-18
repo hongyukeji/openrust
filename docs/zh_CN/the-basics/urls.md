@@ -24,7 +24,7 @@ fn article_link(article: &impl Model) -> UrlResult<String> {
 
 ## 请求 URL 与资源 URL
 
-HTTP 请求内使用当前请求的协议和主机。应用作用域内的命令行使用 `APP_URL`。`URL::asset` 支持 `ASSET_URL`。普通 URL 可使用 `URL::to`、`URL::current` 和 `URL::query`。
+HTTP 请求内生成链接时，依次使用显式 `APP_URL`、当前请求的协议和主机、从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。监听地址的回退规则见[配置](../getting-started/configuration.md)。`URL::asset` 支持 `ASSET_URL`。普通 URL 可使用 `URL::to`、`URL::current` 和 `URL::query`。
 
 `URL::current()` 返回去掉查询串的当前 URL。`URL::full()` 包含原始请求路径和查询串。`URL::previous(request, fallback)` 依次使用同源 Referer、上一会话 URL 和回退地址。`URL::previousPath(request, fallback)` 只返回路径，并移除应用基路径和末尾的斜杠。在 Web 路由中，`request.session()?.previousRoute()` 返回上一次记录的路由名。`previousUri()` 在存在上一 URL 时返回解析后的 `openrust::support::Uri`。
 

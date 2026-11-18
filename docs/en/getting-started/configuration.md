@@ -1,6 +1,10 @@
 # Configuration
 
-Copy `.env.example` to `.env` in the application root to customize local settings. `APP_HOST` and `APP_PORT` configure the HTTP listener and default to `127.0.0.1:8000`. When `APP_URL` is unset, it defaults to `http://localhost` with the configured `APP_PORT`. The template follows Laravel’s local development defaults. The application loads the sections in `config/` into one repository. Use `application.config()?.get("app.url")` to read the effective value. Application, authentication, database and Redis, cache, session, logging, mail, queue, filesystems, broadcasting, CORS, concurrency, hashing, images, services, Reverb, gRPC, and view settings each have a dedicated section. Loading settings performs no external connections.
+Copy `.env.example` to `.env` in the application root to customize local settings. `APP_HOST` and `APP_PORT` configure the HTTP listener and default to `127.0.0.1:8000`. The template follows Laravel’s local development defaults. The application loads the sections in `config/` into one repository. Use `application.config()?.get("app.url")` to read the effective value. Application, authentication, database and Redis, cache, session, logging, mail, queue, filesystems, broadcasting, CORS, concurrency, hashing, images, services, Reverb, gRPC, and view settings each have a dedicated section. Loading settings performs no external connections.
+
+An explicit `APP_URL` takes precedence for `app.url`. When it is unset, a specific `APP_HOST` and `APP_PORT` produce a URL such as `http://example.test:8080` or `http://[2001:db8::1]:8080`. An unset host, a loopback address such as `127.0.0.1` or `::1`, or a wildcard listener such as `0.0.0.0` or `::` uses `http://localhost:{port}`. To use this derivation, omit the `APP_URL` line copied from the environment template.
+
+HTTP URL generation, including `URL::forRequest(request)`, uses the explicit `APP_URL` first. With no explicit URL, it uses the current request origin, then the listener-derived `app.url` if the request has no origin. Artisan uses `app.url` directly.
 
 Set `APP_VERSION` to override the application version stored in `app.version`. When `APP_VERSION` is unset, the version defaults to the Cargo package version captured at compile time by `env!("CARGO_PKG_VERSION")`. The welcome page displays `app.version`.
 
@@ -117,7 +121,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 | `APP_PUBLIC_PATH` | Application public directory, exposed by `Application::publicPath()` | `public` |
 | `APP_PUBLIC_URL_PREFIX` | URL prefix for the application public directory | `/` |
 | `PUBLIC_STORAGE_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
-| `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `APP_URL` with `/storage` appended |
+| `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
 
 Relative paths use the application root. An application can override `APP_PUBLIC_PATH` by calling `usePublicPath()` before boot. The default Web routes apply the public disk settings through `Route::staticDisk("public")`. The mount uses the full path of the disk URL. The default is `/storage`. A same-origin URL ending in `/storage/tmp/` or the absolute URL path `/storage/tmp/` mounts at `/storage/tmp`. A cross-origin URL fails route registration. Restart the application after changing mount settings.
 

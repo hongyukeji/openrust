@@ -2128,6 +2128,120 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
 }
 
 #[test]
+fn artisan_resolves_app_url_from_the_listener_configuration() {
+    let root = TestRoot::new("app-url");
+    let environment = root.0.join(".env");
+    for (settings, expected) in [
+        ("", "http://localhost:9081"),
+        ("APP_HOST=example.test\n", "http://example.test:9081"),
+        ("APP_HOST=192.0.2.10\n", "http://192.0.2.10:9081"),
+        ("APP_HOST=2001:db8::1\n", "http://[2001:db8::1]:9081"),
+        ("APP_HOST=[2001:db8::1]\n", "http://[2001:db8::1]:9081"),
+        ("APP_HOST=127.0.0.1\n", "http://localhost:9081"),
+        ("APP_HOST=::1\n", "http://localhost:9081"),
+        ("APP_HOST=0.0.0.0\n", "http://localhost:9081"),
+        ("APP_HOST=0:0:0:0:0:0:0:0\n", "http://localhost:9081"),
+        ("APP_HOST=[::]\n", "http://localhost:9081"),
+        (
+            "APP_HOST=127.0.0.1\nAPP_URL=https://public.example.test/base\n",
+            "https://public.example.test/base",
+        ),
+    ] {
+        fs::write(&environment, format!("APP_PORT=9081\n{settings}")).unwrap();
+        let result = Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "config:show", "app.url"])
+            .env("APP_BASE_PATH", &root.0)
+            .env_remove("APP_ENV")
+            .env_remove("APP_HOST")
+            .env_remove("APP_PORT")
+            .env_remove("APP_URL")
+            .env_remove("APP_CONFIG_CACHE")
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{settings:?}: {result:?}");
+        assert_eq!(
+            String::from_utf8_lossy(&result.stdout).trim(),
+            format!("app.url  {expected}"),
+            "{settings:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn request_urls_use_the_explicit_url_then_request_origin_then_localhost() {
+    use openrust::{contracts::routing::UrlGenerator as _, support::facades::URL};
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    fn probe(
+        request: &mut Request,
+    ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+        Box::pin(async move {
+            let url = URL::forRequest(request)
+                .unwrap()
+                .to("/landing", &[], None)
+                .unwrap();
+            Ok(Response::new(StatusCode::OK, Body::from(url)))
+        })
+    }
+
+    for (explicit_url, expected_for_host, expected_without_host) in [
+        (
+            "",
+            "http://visitor.example.test:8081/landing",
+            "http://localhost:0/landing",
+        ),
+        (
+            "APP_URL=https://public.example.test/base\n",
+            "https://public.example.test/base/landing",
+            "https://public.example.test/base/landing",
+        ),
+    ] {
+        let root = TestRoot::new("request-app-url");
+        fs::write(
+            root.0.join(".env"),
+            format!("APP_HOST=127.0.0.1\nAPP_PORT=0\n{explicit_url}"),
+        )
+        .unwrap();
+        let app = Application::configure(root.0.clone())
+            .withConfig(config::load)
+            .withRouting(Routing::new(|_| {
+                let mut router = openrust::routing::Router::new();
+                router.get("/probe", probe)?;
+                Ok(router)
+            }))
+            .create()
+            .unwrap();
+        let mut kernel = Kernel::new(app);
+        let listener = kernel.listen().await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let kernel = Arc::new(kernel);
+        let listener_task = tokio::spawn(async move {
+            let routes = axum::Router::new().fallback(move |request: axum::extract::Request| {
+                kernel.clone().handleTransport(request)
+            });
+            axum::serve(listener, routes).await.unwrap();
+        });
+        for (request, expected) in [
+            (
+                "GET /probe HTTP/1.1\r\nHost: visitor.example.test:8081\r\nConnection: close\r\n\r\n",
+                expected_for_host,
+            ),
+            ("GET /probe HTTP/1.0\r\n\r\n", expected_without_host),
+        ] {
+            let mut connection = tokio::net::TcpStream::connect(address).await.unwrap();
+            connection.write_all(request.as_bytes()).await.unwrap();
+            let mut response = String::new();
+            connection.read_to_string(&mut response).await.unwrap();
+            let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+            assert!(headers.contains(" 200 OK"), "{response}");
+            assert_eq!(body, expected);
+        }
+        listener_task.abort();
+        assert!(listener_task.await.unwrap_err().is_cancelled());
+    }
+}
+
+#[test]
 fn environment_file_selection_and_redaction() {
     let root = TestRoot::new("environment");
     fs::write(root.0.join(".env"), "OPENRUST_TEST_PROBE=default\n").unwrap();

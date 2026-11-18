@@ -1,6 +1,10 @@
 # 配置
 
-在应用根目录将 `.env.example` 复制为 `.env`，即可自定义本地配置。`APP_HOST` 和 `APP_PORT` 配置 HTTP 监听地址，默认为 `127.0.0.1:8000`。未设置 `APP_URL` 时，默认 URL 使用 `http://localhost` 和已配置的 `APP_PORT`。模板沿用 Laravel 的本地开发默认值。应用将 `config/` 下的配置分区加载到同一个仓库，可以通过 `application.config()?.get("app.url")` 读取最终生效的值。应用、认证、数据库与 Redis、缓存、会话、日志、邮件、队列、文件系统、广播、CORS、并发、哈希、图像、第三方服务、Reverb、gRPC 和视图各有独立配置。加载配置时不连接外部服务。
+在应用根目录将 `.env.example` 复制为 `.env`，即可自定义本地配置。`APP_HOST` 和 `APP_PORT` 配置 HTTP 监听地址，默认为 `127.0.0.1:8000`。模板沿用 Laravel 的本地开发默认值。应用将 `config/` 下的配置分区加载到同一个仓库，可以通过 `application.config()?.get("app.url")` 读取最终生效的值。应用、认证、数据库与 Redis、缓存、会话、日志、邮件、队列、文件系统、广播、CORS、并发、哈希、图像、第三方服务、Reverb、gRPC 和视图各有独立配置。加载配置时不连接外部服务。
+
+`app.url` 优先使用显式设置的 `APP_URL`。未设置时，使用具体的 `APP_HOST` 和 `APP_PORT` 生成 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未设置主机，或使用 `127.0.0.1`、`::1` 等回环地址或 `0.0.0.0`、`::` 等通配监听地址时，使用 `http://localhost:{port}`。要使用自动推导，可省略从环境模板复制的 `APP_URL` 一行。
+
+HTTP 请求内生成 URL 时，包括使用 `URL::forRequest(request)`，优先使用显式设置的 `APP_URL`，其次是当前请求的来源。请求没有来源时，使用从监听配置推导的 `app.url`。Artisan 直接使用 `app.url`。
 
 设置 `APP_VERSION` 可覆盖 `app.version` 中的应用版本。未设置时，默认取编译时由 `env!("CARGO_PKG_VERSION")` 读取的 Cargo 包版本。欢迎页显示 `app.version`。
 
@@ -117,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `APP_PUBLIC_PATH` | `Application::publicPath()` 返回的应用公共目录 | `public` |
 | `APP_PUBLIC_URL_PREFIX` | 应用公共目录的 URL 前缀 | `/` |
 | `PUBLIC_STORAGE_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
-| `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `APP_URL` 加 `/storage` |
+| `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
 相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `APP_PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
 
