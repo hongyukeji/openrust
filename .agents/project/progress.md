@@ -3326,3 +3326,8 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-07 密码重置与邮箱验证的默认邮件
 
 按固定 Laravel 接通默认邮件的标准通知模板、本地化动作与密码重置期限说明。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语站点及 18 项浏览器检查通过。 [验收](audits/06-07/README.md#default-auth-notification-mail)
+
+
+## 2026-11-18 06-07 认证邮件应用级链接与内容回调
+
+按固定 Laravel 接通应用级重置与验证链接、邮件内容回调，实测优先级、签名链接与应用隔离。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-07/README.md#auth-notification-mail-hooks)

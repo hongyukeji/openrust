@@ -27,6 +27,27 @@ pub async fn verify(
 
 默认验证邮件提供本地化按钮，纯文本版本包含临时签名链接。
 
+### 自定义验证邮件 {#custom-verification-email}
+
+在服务提供器的启动方法中，用 `VerifyEmail::toMailUsing` 替换邮件内容。回调接收用户和已生成的链接。可通过 `VerifyEmail::createUrlUsing` 在渲染邮件前提供其他链接。目标路由使用签名中间件时，应生成相应的签名 URL。
+
+```rust
+use openrust::{
+    auth::{AuthResult, notifications::VerifyEmail},
+    notifications::messages::{MailDelivery, MailMessage},
+};
+
+fn customize_verification_mail() -> AuthResult<()> {
+    VerifyEmail::toMailUsing(|_, url| {
+        Ok(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject("Confirm your email")
+                .action("Verify email", url),
+        )))
+    })
+}
+```
+
 ## 重发和保护路由
 
 将重发入口命名为 `verification.send`，使用 `auth` 和 `throttle:6,1`，对尚未验证的用户调用 `sendEmailVerificationNotification`。

@@ -23,6 +23,28 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 默认重置邮件包含本地化按钮、纯文本链接和有效期说明。说明按 `auth.defaults.passwords` 选中的默认代理读取 `auth.passwords.<broker>.expire`，单位为分钟。
 
+### 自定义重置邮件 {#custom-reset-email}
+
+在服务提供器的启动方法中，通过 `ResetPassword::createUrlUsing` 自定义链接，或通过 `ResetPassword::toMailUsing` 替换邮件内容。两个回调均接收用户和重置令牌。自定义邮件回调负责构建链接。默认用户通过 `sendTo` 发送，将用户传给回调。
+
+```rust
+use openrust::{
+    auth::{AuthResult, notifications::ResetPassword},
+    notifications::messages::{MailDelivery, MailMessage},
+};
+
+fn customize_reset_mail() -> AuthResult<()> {
+    ResetPassword::toMailUsing(|user, token| {
+        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+        Ok(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject("Reset your account password")
+                .action("Change password", url),
+        )))
+    })
+}
+```
+
 ## 重置密码
 
 应用先验证新密码及确认字段，再向 `Password::reset` 传入查找凭据、令牌、新密码和持久化回调。回调负责哈希并保存新密码、轮换记住我令牌，并可派发 `PasswordReset`。写入成功后返回成功。

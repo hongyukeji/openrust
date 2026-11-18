@@ -27,6 +27,27 @@ The verification request checks the authenticated user and the current email dig
 
 The default verification email uses a localized action button and includes the temporary signed URL in its plain-text version.
 
+### Custom verification emails {#custom-verification-email}
+
+In your service provider’s boot method, register `VerifyEmail::toMailUsing` to replace the email. The callback receives the user and the generated link. Use `VerifyEmail::createUrlUsing` to supply a different link before rendering the email. If the destination route uses signed middleware, generate an appropriately signed URL.
+
+```rust
+use openrust::{
+    auth::{AuthResult, notifications::VerifyEmail},
+    notifications::messages::{MailDelivery, MailMessage},
+};
+
+fn customize_verification_mail() -> AuthResult<()> {
+    VerifyEmail::toMailUsing(|_, url| {
+        Ok(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject("Confirm your email")
+                .action("Verify email", url),
+        )))
+    })
+}
+```
+
 ## Resending and protecting routes
 
 Register `verification.send` for the resend endpoint. Apply `auth` and `throttle:6,1`, then call `sendEmailVerificationNotification` for an unverified user.

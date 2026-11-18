@@ -1,5 +1,6 @@
 //! Notifications issued by authentication flows.
 
+mod callbacks;
 mod reset_password;
 mod verify_email;
 
@@ -12,7 +13,7 @@ use std::collections::BTreeMap;
 use crate::{
     auth::{AuthError, AuthIdentifier, AuthResult},
     notifications::{
-        Notifiable, Notification, NotificationResult, NotificationRoute,
+        Notifiable, Notification, NotificationError, NotificationResult, NotificationRoute,
         messages::{MailDelivery, MailMessage},
     },
     support::facades::{Lang, Notification as Notifications},
@@ -31,7 +32,6 @@ impl Notifiable for EmailRecipient<'_> {
 }
 
 struct LinkMail<'a> {
-    kind: &'static str,
     subject: &'static str,
     introduction: &'static str,
     action: &'static str,
@@ -40,22 +40,10 @@ struct LinkMail<'a> {
     expires_minutes: Option<u64>,
 }
 
-impl Notification for LinkMail<'_> {
-    fn kind(&self) -> &str {
-        self.kind
-    }
-
-    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
-        Ok(vec!["mail".into()])
-    }
-
-    fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+impl LinkMail<'_> {
+    fn render(&self) -> AuthResult<MailDelivery> {
         let translate = |message: &str, replacements: &BTreeMap<String, String>| {
-            Lang::get(message, replacements, None).map_err(|source| {
-                crate::notifications::NotificationError::Delivery {
-                    source: Box::new(source),
-                }
-            })
+            Lang::get(message, replacements, None).map_err(AuthError::backend)
         };
         let empty = Default::default();
         let mut mail = MailMessage::new()
@@ -69,16 +57,41 @@ impl Notification for LinkMail<'_> {
             )?);
         }
         mail = mail.line(translate(self.closing, &empty)?);
-        Ok(Some(MailDelivery::Message(Box::new(mail))))
+        Ok(MailDelivery::Message(Box::new(mail)))
     }
 }
 
-impl LinkMail<'_> {
-    async fn send(&self, email: &str) -> AuthResult<()> {
-        Notifications::send(&[&EmailRecipient(email)], self)
-            .await
-            .map_err(AuthError::backend)
+struct AuthMail<F> {
+    kind: &'static str,
+    render: F,
+}
+
+impl<F: Fn() -> AuthResult<MailDelivery> + Send + Sync> Notification for AuthMail<F> {
+    fn kind(&self) -> &str {
+        self.kind
     }
+
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into()])
+    }
+
+    fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        (self.render)()
+            .map(Some)
+            .map_err(|source| NotificationError::Delivery {
+                source: Box::new(source),
+            })
+    }
+}
+
+async fn send_mail(
+    kind: &'static str,
+    email: &str,
+    render: impl Fn() -> AuthResult<MailDelivery> + Send + Sync,
+) -> AuthResult<()> {
+    Notifications::send(&[&EmailRecipient(email)], &AuthMail { kind, render })
+        .await
+        .map_err(AuthError::backend)
 }
 
 pub(crate) fn route_id(id: &AuthIdentifier) -> String {
@@ -88,3 +101,4 @@ pub(crate) fn route_id(id: &AuthIdentifier) -> String {
         AuthIdentifier::String(id) => id.clone(),
     }
 }
+pub(crate) use callbacks::MailCallbacks;

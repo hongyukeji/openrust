@@ -23,6 +23,28 @@ The default user sends the link through `ResetPassword`. Pass a callback as the 
 
 The default reset email includes a localized action button, a plain-text link, and an expiry notice. The notice uses the default broker selected by `auth.defaults.passwords` and its `auth.passwords.<broker>.expire` value in minutes.
 
+### Custom reset emails {#custom-reset-email}
+
+In your service provider’s boot method, register `ResetPassword::createUrlUsing` to customize the link or `ResetPassword::toMailUsing` to replace the email. Both receive the user and reset token. A custom email callback builds its own link. The default user sends through `sendTo`, which supplies the user to the callbacks.
+
+```rust
+use openrust::{
+    auth::{AuthResult, notifications::ResetPassword},
+    notifications::messages::{MailDelivery, MailMessage},
+};
+
+fn customize_reset_mail() -> AuthResult<()> {
+    ResetPassword::toMailUsing(|user, token| {
+        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+        Ok(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject("Reset your account password")
+                .action("Change password", url),
+        )))
+    })
+}
+```
+
 ## Resetting the password
 
 Validate the password and confirmation in the application. Pass the lookup credentials, token, new password and persistence callback to `Password::reset`. The callback hashes and saves the password, rotates the remember token, and may dispatch `PasswordReset`. Return success after the write succeeds.

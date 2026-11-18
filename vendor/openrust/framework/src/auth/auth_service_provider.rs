@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     contracts::{
@@ -41,6 +41,9 @@ impl ServiceProvider for AuthServiceProvider {
                 "auth.password",
                 crate::container::ServiceKey::typed::<PasswordBrokerManager>(),
             )?;
+            container.singleton::<RwLock<super::notifications::MailCallbacks>, _>(|_| {
+                Ok(Arc::default())
+            })?;
             let owner = Arc::downgrade(&app.container_handle());
             container.singletonNamed("gate", move |_| {
                 Ok(Arc::new(super::access::GateRegistry::for_application(

@@ -14,6 +14,7 @@ use openrust::{
     auth::{
         AuthError, AuthManager, Credentials,
         events::{PasswordReset, Registered},
+        notifications::{ResetPassword, VerifyEmail},
         passwords::PasswordResetStatus,
     },
     contracts::{
@@ -26,6 +27,11 @@ use openrust::{
         Application, auth::EmailVerificationRequest, configuration::Routing, http::Kernel,
     },
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    mail::{
+        MailResult, Mailable,
+        mailables::{Content, Envelope},
+    },
+    notifications::messages::{MailDelivery, MailMessage},
     routing::{RouteParameter, Router, RoutingError, SignatureMode},
     support::{
         ProviderResult, ServiceProvider,
@@ -42,7 +48,14 @@ use tokio::{
 mod user;
 use user::User;
 
-struct Provider;
+#[derive(Clone, Copy)]
+enum MailCustomization {
+    Default,
+    Urls,
+    Messages,
+}
+
+struct Provider(MailCustomization);
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
@@ -52,6 +65,91 @@ impl ServiceProvider for Provider {
             Ok(())
         })
     }
+
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move { configure_auth_mail(self.0) })
+    }
+}
+
+struct VerificationMail {
+    email: String,
+    url: String,
+}
+
+impl Mailable for VerificationMail {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            subject: "Custom verification mail".into(),
+            to: vec![self.email.as_str().into()],
+            ..Default::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Ok(Content {
+            text: Some(format!("Verify the account\n\n{}", self.url)),
+            html: Some(format!("<p>Verify the account</p><p>{}</p>", self.url)),
+            ..Default::default()
+        })
+    }
+}
+
+fn configure_auth_mail(customization: MailCustomization) -> ProviderResult {
+    match customization {
+        MailCustomization::Default => {}
+        MailCustomization::Urls => {
+            ResetPassword::createUrlUsing(|user, token| {
+                assert_eq!(user.getEmailForPasswordReset(), "first@example.test");
+                URL::route(
+                    "password.reset",
+                    &[
+                        RouteParameter::named("token", token),
+                        RouteParameter::named("email", user.getEmailForPasswordReset()),
+                        RouteParameter::named("source", "custom"),
+                    ],
+                    true,
+                )
+                .map_err(backend)
+            })?;
+        }
+        MailCustomization::Messages => {
+            ResetPassword::createUrlUsing(|_, _| {
+                Err(AuthError::Configuration("unexpected reset URL hook"))
+            })?;
+            ResetPassword::toMailUsing(|user, token| {
+                assert_eq!(user.getEmailForPasswordReset(), "first@example.test");
+                let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+                Ok(MailDelivery::Message(Box::new(
+                    MailMessage::new()
+                        .subject("Custom reset mail")
+                        .action("Go to reset", url),
+                )))
+            })?;
+            VerifyEmail::createUrlUsing(|user| {
+                assert_eq!(user.getEmailForVerification(), "first@example.test");
+                URL::temporarySignedRoute(
+                    "verification.verify",
+                    std::time::SystemTime::now() + Duration::from_secs(120),
+                    &[
+                        RouteParameter::named("id", "1"),
+                        RouteParameter::named("hash", "cba463d2361edd11709c80a7e059e831da9efe8d"),
+                        RouteParameter::named("source", "custom"),
+                    ],
+                    SignatureMode::Absolute,
+                )
+                .map_err(backend)
+            })?;
+            VerifyEmail::toMailUsing(|user, url| {
+                assert_eq!(user.getEmailForVerification(), "first@example.test");
+                assert!(url.contains("source=custom"));
+                Ok(MailDelivery::Mailable(Box::new(VerificationMail {
+                    email: user.getEmailForVerification().into(),
+                    url: url.into(),
+                })))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 fn empty(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -229,6 +327,7 @@ fn fixture_config(
 
 async fn start(
     mailpit: Option<(u16, u16)>,
+    customization: MailCustomization,
 ) -> (Root, SocketAddr, Arc<Kernel>, tokio::task::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -253,7 +352,7 @@ async fn start(
     std::fs::write(root.0.join("fixture.json"), config.to_string()).unwrap();
     let mut app = Application::configure(root.0.clone())
         .withConfig(fixture_config)
-        .withProviders(vec![Box::new(Provider)])
+        .withProviders(vec![Box::new(Provider(customization))])
         .withRouting(Routing::new(routes))
         .create()
         .unwrap();
@@ -392,7 +491,7 @@ impl Listener for VerifyEvents {
 }
 
 async fn exercise(mailpit: Option<(u16, u16)>) {
-    let (_root, addr, kernel, server) = start(mailpit).await;
+    let (_root, addr, kernel, server) = start(mailpit, MailCustomization::Default).await;
     let application = kernel.get_application();
     let events = Arc::new(AtomicUsize::new(0));
     application
@@ -551,9 +650,66 @@ async fn exercise(mailpit: Option<(u16, u16)>) {
     server.abort();
 }
 
+async fn exercise_custom_mail(mailpit: Option<(u16, u16)>) {
+    let (_url_root, url_addr, url_kernel, url_server) =
+        start(mailpit, MailCustomization::Urls).await;
+    let (_mail_root, mail_addr, mail_kernel, mail_server) =
+        start(mailpit, MailCustomization::Messages).await;
+    let (_default_root, default_addr, default_kernel, default_server) =
+        start(None, MailCustomization::Default).await;
+    let forgot = "/forgot-password?email=first%40example.test";
+    for addr in [url_addr, mail_addr, default_addr] {
+        assert!(
+            request(addr, "POST", forgot, None, true)
+                .await
+                .contains("passwords.sent")
+        );
+    }
+
+    let reset = extract_url(&mail_body(&url_kernel, mailpit, "Reset your password").await);
+    let reset = target(url_addr, &reset);
+    assert!(reset.contains("source=custom"));
+    assert!(
+        request(url_addr, "POST", reset, None, true)
+            .await
+            .contains("passwords.reset")
+    );
+    let reset = extract_url(&mail_body(&mail_kernel, mailpit, "Custom reset mail").await);
+    let reset = target(mail_addr, &reset);
+    assert!(
+        request(mail_addr, "POST", reset, None, true)
+            .await
+            .contains("passwords.reset")
+    );
+    let reset = extract_url(&mail_body(&default_kernel, None, "Reset your password").await);
+    assert!(!target(default_addr, &reset).contains("source="));
+
+    for addr in [mail_addr, default_addr] {
+        assert!(
+            request(addr, "POST", "/register-notification", Some("first"), true)
+                .await
+                .starts_with("HTTP/1.1 204 ")
+        );
+    }
+    let verified = extract_url(&mail_body(&mail_kernel, mailpit, "Custom verification mail").await);
+    let verified = target(mail_addr, &verified);
+    assert!(verified.contains("source=custom"));
+    assert!(
+        request(mail_addr, "GET", verified, Some("first"), true)
+            .await
+            .starts_with("HTTP/1.1 204 ")
+    );
+    let default = extract_url(&mail_body(&default_kernel, None, "Verify your email address").await);
+    assert!(!target(default_addr, &default).contains("source="));
+    for server in [url_server, mail_server, default_server] {
+        server.abort();
+    }
+}
+
 #[tokio::test]
 async fn password_reset_and_email_verification_over_real_http() {
     exercise(None).await;
+    exercise_custom_mail(None).await;
 }
 
 #[tokio::test]
@@ -562,7 +718,9 @@ async fn http_authentication_links_from_real_smtp() {
         .ok()
         .zip(std::env::var("OPENRUST_TEST_MAILPIT_HTTP_PORT").ok());
     if let Some((smtp, http)) = ports {
-        exercise(Some((smtp.parse().unwrap(), http.parse().unwrap()))).await;
+        let mailpit = Some((smtp.parse().unwrap(), http.parse().unwrap()));
+        exercise(mailpit).await;
+        exercise_custom_mail(mailpit).await;
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MAILPIT").is_none());
     }

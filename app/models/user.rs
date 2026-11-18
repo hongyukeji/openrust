@@ -87,11 +87,7 @@ impl CanResetPassword for User {
         &'a self,
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<()>> {
-        Box::pin(async move {
-            ResetPassword::new(token)
-                .send(self.getEmailForPasswordReset())
-                .await
-        })
+        Box::pin(async move { ResetPassword::new(token).sendTo(self).await })
     }
 }
 

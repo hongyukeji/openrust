@@ -23,6 +23,28 @@ pub async fn request_reset(email: &str) -> AuthResult<PasswordResetStatus> {
 
 預設重設郵件包含本地化按鈕、純文字連結及有效期限說明。說明按 `auth.defaults.passwords` 選擇的預設代理讀取 `auth.passwords.<broker>.expire`，單位為分鐘。
 
+### 自訂重設郵件 {#custom-reset-email}
+
+在服務提供者的啟動方法中，透過 `ResetPassword::createUrlUsing` 自訂連結，或透過 `ResetPassword::toMailUsing` 替換郵件內容。兩個回呼均接收使用者與重設權杖。自訂郵件回呼負責建立連結。預設使用者透過 `sendTo` 傳送，將使用者傳給回呼。
+
+```rust
+use openrust::{
+    auth::{AuthResult, notifications::ResetPassword},
+    notifications::messages::{MailDelivery, MailMessage},
+};
+
+fn customize_reset_mail() -> AuthResult<()> {
+    ResetPassword::toMailUsing(|user, token| {
+        let url = ResetPassword::new(token).url(user.getEmailForPasswordReset())?;
+        Ok(MailDelivery::Message(Box::new(
+            MailMessage::new()
+                .subject("Reset your account password")
+                .action("Change password", url),
+        )))
+    })
+}
+```
+
 ## 重設密碼
 
 應用程式先驗證新密碼和確認欄位，再向 `Password::reset` 傳入查找憑證、權杖、新密碼和持久化回呼。回呼負責雜湊並儲存新密碼、輪替記住我權杖，並可派送 `PasswordReset`。寫入成功後回傳成功。

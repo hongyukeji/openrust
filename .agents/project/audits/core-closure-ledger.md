@@ -259,3 +259,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Slack 元数据与线程回复](06-06/README.md#slack-元数据与线程回复)通过 HTTP、独立 Artisan Worker 及三语验收。
 
 06-07 的 [密码重置与邮箱验证的默认邮件](06-07/README.md#default-auth-notification-mail)通过实际 HTTP、Mailpit SMTP、令牌仓储和 Artisan 验收。
+
+06-07 的 [认证邮件应用级链接与内容回调](06-07/README.md#auth-notification-mail-hooks)通过真实 HTTP、SMTP、自定义签名链接及应用隔离验收。

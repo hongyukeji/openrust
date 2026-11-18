@@ -1,5 +1,6 @@
 use std::{
     fmt::Write as _,
+    sync::Arc,
     time::{Duration, SystemTime},
 };
 
@@ -8,17 +9,59 @@ use aws_lc_rs::digest;
 use crate::{
     auth::{AuthError, AuthResult},
     contracts::{auth::MustVerifyEmail, config::Repository, container::Container as _},
+    notifications::messages::MailDelivery,
     routing::{RouteParameter, SignatureMode},
     support::facades::{URL, current_container},
 };
 
-use super::{LinkMail, route_id};
+use super::{LinkMail, MailCallbacks, route_id, send_mail};
 
 /// Sends a temporary signed link to the user's current email address.
 pub struct VerifyEmail;
 
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's verification notification API"
+)]
 impl VerifyEmail {
+    /// Configure verification link creation for this application.
+    pub fn createUrlUsing(
+        callback: impl Fn(&dyn MustVerifyEmail) -> AuthResult<String> + Send + Sync + 'static,
+    ) -> AuthResult<()> {
+        MailCallbacks::get()?
+            .write()
+            .expect("auth mail callbacks lock")
+            .verify_url = Some(Arc::new(callback));
+        Ok(())
+    }
+
+    /// Replace the verification notification email, receiving the user and its link.
+    pub fn toMailUsing(
+        callback: impl Fn(&dyn MustVerifyEmail, &str) -> AuthResult<MailDelivery>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AuthResult<()> {
+        MailCallbacks::get()?
+            .write()
+            .expect("auth mail callbacks lock")
+            .verify_mail = Some(Arc::new(callback));
+        Ok(())
+    }
+
     pub fn url(user: &dyn MustVerifyEmail) -> AuthResult<String> {
+        let callback = MailCallbacks::get()?
+            .read()
+            .expect("auth mail callbacks lock")
+            .verify_url
+            .clone();
+        match callback {
+            Some(create_url) => create_url(user),
+            None => Self::default_url(user),
+        }
+    }
+
+    fn default_url(user: &dyn MustVerifyEmail) -> AuthResult<String> {
         let container = current_container().ok_or(AuthError::Configuration("application scope"))?;
         let config = container
             .get::<dyn Repository>("config")
@@ -44,17 +87,26 @@ impl VerifyEmail {
     }
 
     pub async fn send(user: &dyn MustVerifyEmail) -> AuthResult<()> {
-        let url = Self::url(user)?;
-        LinkMail {
-            kind: "VerifyEmail",
-            subject: "Verify your email address",
-            introduction: "Please click the button below to verify your email address.",
-            action: "Verify Email Address",
-            closing: "If you did not create an account, no further action is required.",
-            url: &url,
-            expires_minutes: None,
-        }
-        .send(user.getEmailForVerification())
+        send_mail("VerifyEmail", user.getEmailForVerification(), || {
+            let url = Self::url(user)?;
+            let mail = MailCallbacks::get()?
+                .read()
+                .expect("auth mail callbacks lock")
+                .verify_mail
+                .clone();
+            if let Some(mail) = mail {
+                return mail(user, &url);
+            }
+            LinkMail {
+                subject: "Verify your email address",
+                introduction: "Please click the button below to verify your email address.",
+                action: "Verify Email Address",
+                closing: "If you did not create an account, no further action is required.",
+                url: &url,
+                expires_minutes: None,
+            }
+            .render()
+        })
         .await
     }
 }

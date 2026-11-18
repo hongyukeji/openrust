@@ -19,3 +19,11 @@
 - 隔离基线 `08f7d7b8a` 上，数组邮件传输与真实 Mailpit SMTP 的两项 HTTP 链路验证双 MIME 正文、重置邮件显示配置的 37 分钟、验证邮件保留动作。使用邮件中的链接复验并发重放、登录用户不匹配、过期、篡改、事件去重及重发限流。
 - SQLite、MySQL 8.4.13、Redis 三项令牌仓储回归通过。独立 SQLite 数据库执行 `./artisan migrate --force` 和 `./artisan auth:clear-resets users` 成功。Rust 1.94.0 全仓格式、严格 Clippy、三语文档构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对认证邮件的应用内 URL 和邮件构建回调。
 - 本批隔离编译和站点产物已回收，数据卷清单一致。清理前后项目可用空间净增 3.87 GB（3.61 GiB），清理后可用 89.43 GB（83.29 GiB）。提交前周额度剩余 28%，第二窗口无读数。日志保留于 `/private/tmp/openrust-password-notifications.ipg9EhSx`。
+
+## 认证邮件应用级链接与内容回调 {#auth-notification-mail-hooks}
+
+- 对照固定 Laravel v13.40.0 的 `ResetPassword` 和 `VerifyEmail`。旧版验证码路径没有这两组回调，复用主线认证能力 trait、服务容器和通知邮件类型。Rust 的 `createUrlUsing` 与 `toMailUsing` 在应用容器内注册，由通知邮件通道求值。邮件回调可返回 `MailMessage` 或完整 `Mailable`。 [Laravel 重置通知](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Notifications/ResetPassword.php#L55) · [Laravel 验证通知](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Auth/Notifications/VerifyEmail.php#L42)
+- 重置通知沿用上游的邮件回调优先级，回调接收用户和令牌。默认用户通过 `sendTo` 传入完整认证能力。Rust 的 `send(email)` 保留直接使用默认邮件的入口。邮箱验证通知先解析链接，再将用户与链接传给邮件回调。自定义链接沿用应用路由和签名策略。
+- 隔离基线 `44607ac0d` 上启动三个独立应用，用真实 HTTP 和 Mailpit SMTP 验证 URL 覆写、邮件回调优先级、邮件消息与完整 Mailable、按签名处理的自定义验证链接和应用间隔离。重置和验证均从实际收到的链接回到应用请求。保留原默认流程上的重放、过期、篡改、事件去重和重发限流验收。
+- SQLite、MySQL 8.4.13、Redis 8.10.3 三项令牌仓储回归、独立 `./artisan migrate --force` 与 `./artisan auth:clear-resets users`、Rust 1.94.0 格式、严格 Clippy、三语示例注册和站点构建、两种部署路径的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对更换邮箱后旧验证链接和并发验证的边界。
+- 本批隔离编译和站点产物已回收，数据卷清单一致。清理前后项目可用空间净增 4.14 GB（3.86 GiB），清理后可用 89.39 GB（83.25 GiB）。提交前周额度剩余 28%，第二窗口无读数。日志保留于 `/private/tmp/openrust-auth-mail-hooks.Yxuhhkt2`。
