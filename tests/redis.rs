@@ -1410,7 +1410,28 @@ async fn redis_cluster_tags_flush_and_prune() {
         .command("DEL", &[registry.as_bytes()])
         .await
         .unwrap();
+    let other_pending = pending.replace(tag, &"f".repeat(64));
+    connection
+        .command(
+            "SADD",
+            &[other_pending.as_bytes(), retirements[0].as_bytes()],
+        )
+        .await
+        .unwrap();
+    assert!(interrupted.flushStale().await.unwrap());
+    assert!(interrupted.flushStale().await.unwrap());
+    assert!(exists(&other_pending).await);
+    assert!(exists(&retired_value).await);
+    assert_eq!(count(&retired_index).await, RedisValue::Int(1));
+    assert_eq!(
+        connection
+            .command("SCARD", &[pending.as_bytes()])
+            .await
+            .unwrap(),
+        RedisValue::Int(1)
+    );
     plain.get_store().flush_stale_tags().await.unwrap();
+    assert!(!exists(&other_pending).await);
     assert_eq!(
         connection
             .command(

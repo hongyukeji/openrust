@@ -200,3 +200,10 @@
 - 真实三主节点和两个 HTTP 进程验证自然过期、指定标签修剪、槽拆分时 HTTP 500、Artisan 退出 1、迁移后首次 HTTP 清理及重复执行。真实 `cache:prune-stale-tags redis` 和省略存储参数的命令均通过，保留普通缓存、其他标签和值键；复验索引错型报错和修复后重试。Redis 原生命令核对索引和物理键。根应用 `./artisan inspire` 通过。
 - `sh tests/redis_cluster.sh` 五项、真实单机 Redis 标签一项、Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建及两个部署路径下的 12 项通用和 6 项缓存说明浏览器检查通过。此批使用 Redis 8.10.3，未另跑旧 Redis 版本。核心账本维持 66/66。
 - 临时 Redis 与本批隔离编译和文档产物已回收，清理前后项目卷可用空间净增 4.25 GB（3.96 GiB），清理后可用 104.69 GB（97.50 GiB）。提交前周额度剩余 33%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-03-09-scoped.6lN6aK0j`。
+
+## Redis Cluster 指定标签的空代际回收
+
+- 固定 Laravel v13.40.0 的 `RedisTagSet::flushStaleEntries()` 按所选标签清理有序集合中的过期引用。OpenRust 沿用旧版 `v0.x` 的分批代际处理。在 Redis Cluster 上，`flushStale()` 清理所选标签的现存索引后，复用存储级清理的同槽批处理，移除该标签的空代际及无效代际标识。旧代际仍有有效引用时保留，后续 `flush()` 可继续处理。 [固定 Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L84) · [固定 Laravel RedisTaggedCache](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTaggedCache.php)
+- 基于 `9f374da0b` 的隔离快照，用真实 Redis 回归先复现仅保留一项的预期与实际 323 项的差异。修复后回归覆盖 320 个无索引代际、无效文本与二进制标识、有引用的旧代际、重复清理及其他标签隔离。独立 HTTP 进程写入和读取缓存，按标签的 HTTP 清理只回收自身记录。独立 Artisan `cache:prune-stale-tags redis` 再回收其他标签的空记录。两轮 HTTP 与 Artisan 复验保留值键和其他标签正常读取，槽迁移继续通过。所选标签无索引时，错型待回收集合仍使 HTTP 返回 500，修复后重试成功。
+- `sh tests/redis_cluster.sh`、真实单机缓存测试、`./artisan inspire`、Rust 1.94.0 `fmt --all --check`、全工作区全目标严格 Clippy、三语构建及根路径和 `/docs/` 下 12 项通用与 6 项缓存正文浏览器检查通过。本批使用 Redis 8.10.3，其他 Redis 版本不在本次验收范围。macOS 默认工具链链接 `inspire` 时报告调试产物 compact unwind 容量警告，命令退出 0。核心账本维持 66/66。
+- 已回收本批临时 Redis 与隔离编译和文档产物，清理期间项目卷可用空间净增 20.91 GB（19.47 GiB），清理后可用 86.64 GB（80.69 GiB）。提交前周额度剩余 30%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-03-09-selected-retire.dYkXDi2e`。

@@ -27,6 +27,8 @@
 
 03-09 [补齐指定标签跨代际的集群过期清理](03-09/README.md#redis-cluster-指定标签跨代际清理)。真实 Redis Cluster、HTTP 和 Artisan 已核对代际及登记丢失、同槽扫描重定向和重试。
 
+03-09 [Redis Cluster 指定标签的空代际回收](03-09/README.md#redis-cluster-指定标签的空代际回收)。真实 Redis Cluster、HTTP 和 Artisan 已核对指定范围的空代际回收、活跃引用保留和可重试性。
+
 00-03 的 [Provider 注册与 stub 发布整合回归](00-03/README.md#provider-注册与-stub-发布的整合回归)已通过实际 Artisan、HTTP 和启动工作区回归。
 
 ## 01-02 容器与延迟 Provider

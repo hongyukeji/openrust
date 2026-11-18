@@ -188,6 +188,9 @@ impl RedisTagSet {
                 }
                 cursor = next;
             }
+            let tag_index_prefix = format!("{index_prefix}{tag}:");
+            self.cleanup_pending_generations(&registry, &tag_index_prefix, &pending, false)
+                .await?;
         }
         Ok(())
     }
