@@ -393,6 +393,8 @@ let options = JobOptions {
 
 在 Windows 上，強制終止 Worker 會留下本次嘗試的標記。預約到期後，下一個 Worker 會依同一個任務 UUID 計入這次未完成的嘗試。SQLite 佇列使用檔案快取時，各 Worker 必須共用資料庫及快取目錄。
 
+Windows ARM64 已補驗 MySQL 佇列搭配檔案快取、Redis 佇列搭配 Redis 快取的崩潰復原。
+
 #### 依例外停止重試 {#stopping-retries-by-exception}
 
 佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `withExceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。

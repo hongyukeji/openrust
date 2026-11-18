@@ -393,6 +393,8 @@ let options = JobOptions {
 
 在 Windows 上，强制终止 Worker 会留下本次尝试的标记。预约到期后，下一 Worker 会按同一个任务 UUID 计入这次未完成的尝试。SQLite 队列使用文件缓存时，各 Worker 必须共享数据库和缓存目录。
 
+Windows ARM64 已补验 MySQL 队列搭配文件缓存、Redis 队列搭配 Redis 缓存的崩溃恢复。
+
 #### 按异常停止重试 {#stopping-retries-by-exception}
 
 队列任务遇到特定错误需要直接失败时，在应用的 `withExceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。

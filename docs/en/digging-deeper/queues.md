@@ -393,6 +393,8 @@ Successful execution, an ordinary exception, a voluntary release, and a handled 
 
 On Windows, a force-terminated Worker leaves the marker for the next Worker. After the reservation expires, that Worker counts the unfinished attempt under the same job UUID. For a SQLite queue with the file cache, keep the database and cache directory shared by the Worker processes.
 
+On Windows ARM64, crash recovery has also been verified with a MySQL queue and file cache, and with a Redis queue and Redis cache.
+
 #### Stopping retries by exception {#stopping-retries-by-exception}
 
 Register a rule in the application's `withExceptions` callback when a queued job should fail immediately for a specific error. `dontRetry` matches the error type or one of its sources. `dontRetryWhen` evaluates a predicate against the exception.

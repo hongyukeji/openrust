@@ -23,3 +23,9 @@
 - 从 `0872d77c9` 干净归档及本批测试改动出发，在 Windows 11 ARM64 Build 26200 上用 Rust 1.94.0、MSVC 14.44.35207 锁定离线运行 `cargo test -p openrust-framework --test queue_worker artisan_worker_database_retries_failures_and_hydrates_context -- --exact`。原生 PE Machine 为 `0xAA64`。SQLite 持久队列与来宾本地文件缓存通过真实 HTTP 派发和独立 Artisan。两次强制终止触发预算耗尽，随后在调用处理器前记失败。关闭计数时可重试，主动释放和已处理超时不增加崩溃数，旧 Worker 也无法清除新标记。
 - macOS 上同一测试目标用 SQLite、MySQL 8.4.13 和 Redis 8.10.3 复验；Windows 的 MySQL／Redis 崩溃计数不在本批实际矩阵内。Windows Worker 硬超时的数据库矩阵另见[硬超时记录](worker-hard-timeout.md#mysql-与-redis-驱动补验)。
 - 本批同时验证 Artisan、格式、macOS 严格 Clippy、三语构建和 18 项浏览器检查。隔离容器、来宾夹具和构建产物已回收，虚拟机恢复停止。磁盘可用 72.97 GB（67.96 GiB），提交前周额度剩余 20%，按用户授权继续。原始日志位于 `/Users/Home/openrust-worker-crash.8cQfEDFt`。
+
+## Windows ARM64 MySQL 与 Redis Worker 崩溃恢复
+
+- 从干净提交 `3c139ed24` 构建，Windows 11 ARM64 使用 Rust 1.94.0、MSVC 14.44.35207，PE Machine 为 `0xAA64`。用同一测试二进制分别运行 `artisan_worker_mysql_retries_failures_and_hydrates_context` 和 `artisan_worker_redis_retries_failures_and_hydrates_context`，强制要求两个后端并使用真实 HTTP 和独立 Artisan 进程。MySQL 8.4.13 和 Redis 8.10.3 经宿主机的独立验收容器提供，连接仅经虚拟机私有网络。MySQL 场景使用来宾本地文件缓存，Redis 场景使用同一 Redis 服务的缓存。
+- 两种组合均验证两次强制终止后由第三次预约在调用处理器前落失败记录、关闭崩溃计数时继续重试、主动释放及已处理超时不计入崩溃，以及旧 Worker 无法清掉新 Worker 的标记。生产代码沿用 `3c139ed24`。
+- Rust 1.94.0 格式、macOS 锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。已回收本批容器、来宾夹具及专属编译和文档产物，虚拟机恢复停止。磁盘可用 70.58 GB（65.73 GiB），提交前周额度剩余 20%，按用户授权继续。原始验收日志位于 `/Users/Home/openrust-crash-backends.ez4Pum3a`。

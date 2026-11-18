@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 20:45（北京时间）06-04 [Windows ARM64 MySQL 与 Redis Worker 崩溃恢复](audits/06-04/queue-crash-exception-count.md#windows-arm64-mysql-与-redis-worker-崩溃恢复)。Windows ARM64 原生 Worker 通过 MySQL 8.4.13／文件缓存及 Redis 8.10.3／Redis 缓存的真实 HTTP 与 Artisan 验收。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。磁盘可用 70.58 GB（65.73 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:36（北京时间）06-04 [Windows ARM64 Worker 强制终止与异常次数](audits/06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)。Windows ARM64 原生 Worker 强制终止与异常计数、macOS 实际 MySQL 和 Redis 回归通过。三语构建及 18 项浏览器检查通过。磁盘可用 72.97 GB（67.96 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:27（北京时间）00-03／03-06／08-04 [Windows ARM64 文件锁与 Artisan 源码入口复验](audits/08-04/README.md#windows-arm64-文件锁与-artisan-源码入口复验)。Windows ARM64 原生文件锁竞争及恢复、CMD 和 PowerShell Artisan、真实 HTTP 健康检查通过。三语构建及 18 项浏览器检查通过。磁盘可用 74.68 GB（69.55 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:11（北京时间）04-02／08-04 [HTTP 章节与 2702d577b 发布快照复验](audits/08-04/README.md#http-章节与-2702d577b-发布快照复验)。整仓 171 个测试目标，1397 项标准测试通过、11 项忽略；实际独立发布通过。磁盘可用 85.67 GB（79.79 GiB），提交前周额度剩余 21%，按用户授权继续。下一步沿独立验收清单推进仍可在本地验证的条目。核心账本维持 66/66。

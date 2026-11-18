@@ -3480,3 +3480,7 @@ Windows ARM64 原生文件锁竞争及恢复、CMD 和 PowerShell Artisan、真�
 ## 2026-11-18 06-04 Windows ARM64 Worker 强制终止与异常次数
 
 Windows ARM64 原生 Worker 强制终止与异常计数、macOS 实际 MySQL 和 Redis 回归通过。同步队列三语文档，保留未实测的 Windows 数据库组合。 [Windows ARM64 Worker 强制终止与异常次数](audits/06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)
+
+## 2026-11-18 06-04 Windows ARM64 MySQL 与 Redis Worker 崩溃恢复
+
+Windows ARM64 原生 Worker 通过 MySQL 8.4.13／文件缓存及 Redis 8.10.3／Redis 缓存的真实 HTTP 与 Artisan 验收。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。 [验收记录](audits/06-04/queue-crash-exception-count.md#windows-arm64-mysql-与-redis-worker-崩溃恢复)
