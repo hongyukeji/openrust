@@ -10,7 +10,7 @@ fn faker_color_formats_preserve_php_ranges_and_delimiters() {
     let rgb = |value: &str| {
         let values: Vec<u8> = value
             .split(',')
-            .map(|channel| channel.parse().unwrap())
+            .map(|channel| channel.parse::<u8>().unwrap())
             .collect();
         assert_eq!(values.len(), 3);
         assert!(values.iter().any(|&channel| channel != 0));

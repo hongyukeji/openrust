@@ -1980,3 +1980,8 @@ Rust 1.94.0 格式与全工作区全目标严格 Clippy、生成器回归和 `./
 隔离副本在 MySQL 8.4.13 上运行实际 Artisan。用 `make:factory ProbeFactory --model=User` 和 `make:factory Fleet/NestedProbeFactory --model=User` 生成根目录和子目录工厂，重建时未编辑模块声明。实际 `db:seed --class=FactoryModuleProbe` 通过两条模块路径调用新工厂，确认返回 `Factory<User>` 并构造模型。无参数 `db:seed` 通过既有 `User::factory()` 写入已验证的默认示例用户。移除探针工厂并重建后，生成模块声明同步更新。
 
 Rust 1.94.0 严格 Clippy、改动文件格式、VitePress 构建和 12 项浏览器检查通过。未调用的临时工厂脚手架产生常规的未使用警告。全仓格式检查仍检出既有 Sanctum 测试格式差异。
+
+## Windows ARM64 颜色夹具类型推断
+
+- 锁定 Rust 1.94.0 与 MSVC 的 Windows ARM64 构建中，颜色夹具的 `Vec<u8>` 有多个可用的 `FromIterator` 实现。RGB 通道显式解析为 `u8`，沿用 FakerPHP 的颜色取值范围和分隔符断言。
+- 未改基线 `99600a872` 的前序快照已复现同类编译错误。Windows 原生 `cargo +1.94.0 test --locked --offline -p openrust-framework --test faker_color` 通过颜色格式和多语言唯一性 2 项测试。此改动限于夹具，既有三语指南适用。 [固定 FakerPHP Color](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Color.php)

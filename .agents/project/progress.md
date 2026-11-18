@@ -3560,3 +3560,7 @@ Ubuntu 真实伪终端与 9 条三语 Artisan 示例通过，覆盖标签、流�
 ## 2026-11-19 06-08 Artisan dev Windows 进程树与 Ctrl+C
 
 Windows 11 ARM64 真实控制台验证 Ctrl+C、HTTP／SQLite 队列监听、无控制台强制回收、快速失败关停及独立 Worker Ctrl+Break。Windows 9 项及 Ubuntu 13 项定向回归、Linux 伪终端、格式、Linux 全目标和 Windows 定向严格 Clippy、18 项浏览器检查通过。未改基线同样复现 Windows 队列夹具栈溢出与 Faker 类型推断错误。 [验收记录](audits/06-08/README.md#artisan-dev-windows-进程树与-ctrlc)
+
+## 2026-11-19 05-04 Windows Faker 颜色夹具
+
+RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验收记录](audits/05-04/README.md#windows-arm64-颜色夹具类型推断)
