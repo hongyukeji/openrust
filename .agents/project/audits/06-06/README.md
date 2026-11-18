@@ -271,3 +271,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 基于隔离快照 `05305abd1`，真实 HTTP 验证两个选择器的 JSON、按钮与确认框及未知初始选项在发送前失败。MySQL 和 Redis 的独立 Artisan Worker 验证选择器随队列载荷投递，MySQL 在供应商拒绝后重试。文档示例另外通过本地 Webhook 协议服务。实际 Slack 回调和展示由授权工作区验收。
 - `mail_notifications` 27 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对标题、分隔线和图片区块的回调配置及约束。
 - 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.10 GB（83.92 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-block-kit.SFgo5GfV`。
+
+## Slack Block Kit 标题、分隔线与图片 {#slack-block-kit-标题分隔线与图片}
+
+- 对照固定 Laravel Slack v3.8.0 的 `HeaderBlock`、`DividerBlock`、`ImageBlock`、`ImageElement` 与其单测。旧版 `openrust-v0.x` 无对应 Slack 实现，本批复用主线文本对象、区块验证、Bot API、Webhook 和 Worker。Rust 以 `headerBlockWith`、`dividerBlockWith`、`imageBlockWith` 和 `ContextBlock::imageWith` 暴露配置闭包，保留原有简写。 [固定区块构建器](https://github.com/laravel/slack-notification-channel/tree/v3.8.0/src/Slack/BlockKit/Blocks) · [固定图片区块测试](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/tests/Slack/Unit/Blocks/ImageBlockTest.php)
+- 标题与图片标题支持纯文本的 emoji 标志。区块 ID 保留显式有效值，忽略上游会滤除的空值和字符串 `"0"`。独立图像按 3,000 字节校验 URL、按 2,000 字节校验替代文字，标题按 2,000 字节截断并保留 UTF-8 边界。构造时缺少的替代文字可在闭包补齐，序列化仍缺失时返回错误。Rust 在 `toArray` 或投递时集中校验，不使用 PHP 构造器抛错或可选位置参数。
+- 基于隔离快照 `81f2cce35`，本地 Slack 协议服务验证标题、分隔线、上下文图片和独立图片的 JSON。缺少替代文字的 HTTP 通知在投递前失败。MySQL 8.4.13 和 Redis 8.10.3 独立 Artisan Worker 实测独立图像载荷和既有失败重试，三语示例通过本地 Webhook 投递。真实 Slack 的工作区渲染和 OAuth 留待授权账号验收。
+- `mail_notifications` 28 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批对照 Slack 消息级元数据、线程选项的可观察边界。
+- 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.06 GB（83.88 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-visual-blocks.UuQPwXZr`。

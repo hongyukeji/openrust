@@ -3311,3 +3311,8 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 Slack Block Kit 选择器与文本约束
 
 按固定 Laravel Slack 补齐静态及用户选择器、按钮默认 ID 与类型化文本约束。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、27 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#slack-block-kit-选择器与文本约束)
+
+
+## 2026-11-18 06-06 Slack Block Kit 标题、分隔线与图片
+
+按固定 Laravel Slack 补齐标题、分隔线、独立与上下文图片的配置闭包、标识和图片校验。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、28 项通知和 9 项文件系统回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#slack-block-kit-标题分隔线与图片)

@@ -5,7 +5,8 @@ mod selects;
 mod slack_message;
 
 pub use blocks::{
-    ActionsBlock, ButtonElement, ConfirmObject, ContextBlock, PlainText, SectionBlock, TextObject,
+    ActionsBlock, ButtonElement, ConfirmObject, ContextBlock, DividerBlock, HeaderBlock,
+    ImageBlock, ImageElement, PlainText, SectionBlock, TextObject,
 };
 pub use selects::{StaticSelectElement, UsersSelectElement};
 pub use slack_message::SlackMessage;

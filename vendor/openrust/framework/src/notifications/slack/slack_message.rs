@@ -3,7 +3,9 @@ use serde_json::{Map, Value, json};
 
 use crate::notifications::{NotificationResult, delivery};
 
-use super::blocks::{ActionsBlock, ContextBlock, SectionBlock, plain_text};
+use super::blocks::{
+    ActionsBlock, ContextBlock, DividerBlock, HeaderBlock, ImageBlock, SectionBlock,
+};
 
 /// Payload for Slack's Bot API or an incoming webhook.
 #[derive(Default)]
@@ -27,15 +29,43 @@ impl SlackMessage {
     }
 
     pub fn headerBlock(self, text: impl Into<String>) -> Self {
-        self.block(json!({"type":"header","text":plain_text(text)}))
+        self.headerBlockWith(text, |_| {})
+    }
+
+    pub fn headerBlockWith(
+        self,
+        text: impl Into<String>,
+        build: impl FnOnce(&mut HeaderBlock),
+    ) -> Self {
+        let mut block = HeaderBlock::new(text);
+        build(&mut block);
+        self.block(block.into_json())
     }
 
     pub fn dividerBlock(self) -> Self {
-        self.block(json!({"type":"divider"}))
+        self.dividerBlockWith(|_| {})
+    }
+
+    pub fn dividerBlockWith(self, build: impl FnOnce(&mut DividerBlock)) -> Self {
+        let mut block = DividerBlock::default();
+        build(&mut block);
+        self.block(block.into_json())
     }
 
     pub fn imageBlock(self, url: impl Into<String>, alt_text: impl Into<String>) -> Self {
-        self.block(json!({"type":"image","image_url":url.into(),"alt_text":alt_text.into()}))
+        self.imageBlockWith(url, |block| {
+            block.alt(alt_text);
+        })
+    }
+
+    pub fn imageBlockWith(
+        self,
+        url: impl Into<String>,
+        build: impl FnOnce(&mut ImageBlock),
+    ) -> Self {
+        let mut block = ImageBlock::new(url);
+        build(&mut block);
+        self.block(block.into_json())
     }
 
     pub fn contextBlock(self, build: impl FnOnce(&mut ContextBlock)) -> Self {
@@ -165,12 +195,22 @@ impl SlackMessage {
 
 fn validate_block(block: &Value) -> NotificationResult<()> {
     match block["type"].as_str() {
-        Some("header") => check_text(&block["text"])?,
+        Some("header") => check_plain_text(&block["text"])?,
+        Some("image") => {
+            check_alt(block)?;
+            check_length(block, "image_url", 3000)?;
+            check_length(block, "alt_text", 2000)?;
+            if let Some(title) = block.get("title") {
+                check_plain_text(title)?;
+            }
+        }
         Some("context") => {
             check_items(&block["elements"], 1, 10)?;
             for element in block["elements"].as_array().into_iter().flatten() {
-                if matches!(element["type"].as_str(), Some("plain_text" | "mrkdwn")) {
-                    check_text(element)?;
+                match element["type"].as_str() {
+                    Some("plain_text" | "mrkdwn") => check_text(element)?,
+                    Some("image") => check_alt(element)?,
+                    _ => {}
                 }
             }
         }
@@ -229,6 +269,24 @@ fn validate_action(element: &Value) -> NotificationResult<()> {
 fn check_text(object: &Value) -> NotificationResult<()> {
     if object["text"].as_str().is_none_or(str::is_empty) {
         return Err(delivery("A Slack Block Kit text object requires text."));
+    }
+    Ok(())
+}
+
+fn check_plain_text(object: &Value) -> NotificationResult<()> {
+    if object["type"].as_str() != Some("plain_text") {
+        return Err(delivery(
+            "The Slack Block Kit text object must use plain text.",
+        ));
+    }
+    check_text(object)
+}
+
+fn check_alt(image: &Value) -> NotificationResult<()> {
+    if !image["alt_text"].is_string() {
+        return Err(delivery(
+            "A Slack Block Kit image requires alternative text.",
+        ));
     }
     Ok(())
 }

@@ -284,6 +284,31 @@ fn review_message() -> NotificationResult<SlackMessage> {
 
 重复的静态选项键会覆盖已有选项，位置保持原样。`initialOption` 按原始键查找，遇到未知键会返回错误。发送给 Slack 的选项值会转为规范小写形式。`focus(false)` 会发送明确的 false 值。投递前可用 `toArray` 检查类型化消息。
 
+### 标题、分隔线与图片 {#slack-block-kit-visual-blocks}
+
+用 `headerBlockWith`、`dividerBlockWith` 和 `imageBlockWith` 配置区块标识、图片替代文字和标题。上下文区块中的图片可通过 `ContextBlock::imageWith` 设置替代文字。
+
+```rust
+use openrust::notifications::slack::SlackMessage;
+
+fn report_message() -> SlackMessage {
+    SlackMessage::new()
+        .text("Monthly invoice report")
+        .headerBlockWith("Invoice report", |header| {
+            header.id("invoice-report").text().emoji();
+        })
+        .dividerBlockWith(|divider| {
+            divider.id("invoice-divider");
+        })
+        .imageBlockWith("https://example.test/invoices.png", |image| {
+            image.id("invoice-chart").alt("Invoice counts by month");
+            image.title("Monthly invoices");
+        })
+}
+```
+
+区块标识最多 255 字节。独立图片 URL 最多 3,000 字节，替代文字最多 2,000 字节。标题按字节上限截断并保留 UTF-8 字符边界。缺少替代文字字段会在投递前报错。
+
 ### 传入 Webhook {#slack-incoming-webhooks}
 
 将 HTTP(S) Webhook URL 作为 Slack 路由，可通过传入 Webhook 投递同一个 `SlackMessage`，包括 Block Kit。Slack 根据 Webhook 的安装配置决定投递目标。请求使用 JSON，URL 本身就是凭据。

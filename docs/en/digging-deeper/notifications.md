@@ -284,6 +284,31 @@ fn review_message() -> NotificationResult<SlackMessage> {
 
 A repeated static option key replaces the previous one without changing its position. `initialOption` looks up the original key and returns an error for an unknown key. Slack receives the normalized lowercase value. `focus(false)` sends an explicit false flag. Use `toArray` to check a typed message before delivery.
 
+### Headers, dividers, and images {#slack-block-kit-visual-blocks}
+
+Use `headerBlockWith`, `dividerBlockWith`, and `imageBlockWith` to configure block identifiers and the image’s alternative text and title. Use `ContextBlock::imageWith` to set alternative text for an image inside a context block.
+
+```rust
+use openrust::notifications::slack::SlackMessage;
+
+fn report_message() -> SlackMessage {
+    SlackMessage::new()
+        .text("Monthly invoice report")
+        .headerBlockWith("Invoice report", |header| {
+            header.id("invoice-report").text().emoji();
+        })
+        .dividerBlockWith(|divider| {
+            divider.id("invoice-divider");
+        })
+        .imageBlockWith("https://example.test/invoices.png", |image| {
+            image.id("invoice-chart").alt("Invoice counts by month");
+            image.title("Monthly invoices");
+        })
+}
+```
+
+Block identifiers may use up to 255 bytes. Standalone image URLs may use up to 3,000 bytes, and alternative text up to 2,000 bytes. The title is truncated at its byte limit without splitting UTF-8. A missing alternative text field fails before delivery.
+
 ### Incoming webhooks {#slack-incoming-webhooks}
 
 Pass an HTTP(S) webhook URL as the Slack route to deliver the same `SlackMessage`, including Block Kit, through the incoming webhook. Slack derives the destination from the webhook installation. The request uses JSON and the URL itself is the credential.

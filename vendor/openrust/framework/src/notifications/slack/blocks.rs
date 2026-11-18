@@ -5,10 +5,6 @@ use crate::support::Str;
 
 use super::selects::{StaticSelectElement, UsersSelectElement};
 
-pub(super) fn plain_text(text: impl Into<String>) -> Value {
-    json!(PlainText::new(text, 150))
-}
-
 fn truncate(mut text: String, limit: usize) -> String {
     if text.len() > limit {
         let mut end = limit - 3;
@@ -97,11 +93,120 @@ impl Serialize for TextObject {
     }
 }
 
+/// A plain-text section heading.
+pub struct HeaderBlock {
+    text: PlainText,
+    id: Option<String>,
+}
+
+impl HeaderBlock {
+    pub(super) fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: PlainText::new(text, 150),
+            id: None,
+        }
+    }
+
+    pub fn id(&mut self, id: impl Into<String>) -> &mut Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    pub fn text(&mut self) -> &mut PlainText {
+        &mut self.text
+    }
+
+    pub(super) fn into_json(self) -> Value {
+        with_id(json!({"type":"header","text":self.text}), self.id)
+    }
+}
+
+/// A horizontal divider with an optional identifier.
+#[derive(Default)]
+pub struct DividerBlock {
+    id: Option<String>,
+}
+
+impl DividerBlock {
+    pub fn id(&mut self, id: impl Into<String>) -> &mut Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    pub(super) fn into_json(self) -> Value {
+        with_id(json!({"type":"divider"}), self.id)
+    }
+}
+
+/// A standalone image with alternative text and an optional title.
+pub struct ImageBlock {
+    image: ImageElement,
+    title: Option<PlainText>,
+    id: Option<String>,
+}
+
+impl ImageBlock {
+    pub(super) fn new(url: impl Into<String>) -> Self {
+        Self {
+            image: ImageElement::new(url),
+            title: None,
+            id: None,
+        }
+    }
+
+    pub fn id(&mut self, id: impl Into<String>) -> &mut Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    pub fn alt(&mut self, text: impl Into<String>) -> &mut Self {
+        self.image.alt(text);
+        self
+    }
+
+    pub fn title(&mut self, text: impl Into<String>) -> &mut PlainText {
+        self.title.insert(PlainText::new(text, 2000))
+    }
+
+    pub(super) fn into_json(self) -> Value {
+        let mut block = json!(self.image);
+        if let Some(title) = self.title {
+            block["title"] = json!(title);
+        }
+        with_id(block, self.id)
+    }
+}
+
+/// An image displayed in a context block.
+#[derive(Serialize)]
+pub struct ImageElement {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    image_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alt_text: Option<String>,
+}
+
+impl ImageElement {
+    fn new(url: impl Into<String>) -> Self {
+        Self {
+            kind: "image",
+            image_url: url.into(),
+            alt_text: None,
+        }
+    }
+
+    pub fn alt(&mut self, text: impl Into<String>) -> &mut Self {
+        self.alt_text = Some(text.into());
+        self
+    }
+}
+
 #[derive(Serialize)]
 #[serde(untagged)]
 enum ContextElement {
     Text(TextObject),
-    Image(Value),
+    Image(ImageElement),
 }
 
 /// Text or images grouped in a Slack context block.
@@ -111,6 +216,7 @@ pub struct ContextBlock {
     id: Option<String>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's Slack block API")]
 impl ContextBlock {
     pub fn text(&mut self, text: impl Into<String>) -> &mut TextObject {
         self.elements
@@ -122,9 +228,19 @@ impl ContextBlock {
     }
 
     pub fn image(&mut self, url: impl Into<String>, alt: impl Into<String>) -> &mut Self {
-        self.elements.push(ContextElement::Image(
-            json!({"type":"image","image_url":url.into(),"alt_text":alt.into()}),
-        ));
+        self.imageWith(url, |image| {
+            image.alt(alt);
+        })
+    }
+
+    pub fn imageWith(
+        &mut self,
+        url: impl Into<String>,
+        build: impl FnOnce(&mut ImageElement),
+    ) -> &mut Self {
+        let mut image = ImageElement::new(url);
+        build(&mut image);
+        self.elements.push(ContextElement::Image(image));
         self
     }
 
@@ -389,7 +505,7 @@ impl ConfirmObject {
 }
 
 fn with_id(mut block: Value, id: Option<String>) -> Value {
-    if let Some(id) = id {
+    if let Some(id) = id.filter(|id| !id.is_empty() && id != "0") {
         block["block_id"] = id.into();
     }
     block

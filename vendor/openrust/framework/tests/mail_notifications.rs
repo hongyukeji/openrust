@@ -940,6 +940,11 @@ impl Notice for SlackNotice {
         if self.mode == "invalid" {
             return SlackMessage::new().usingBlockKitTemplate("[]").map(Some);
         }
+        if self.mode == "invalid-image" {
+            return Ok(Some(
+                SlackMessage::new().imageBlockWith("https://example.test/chart.png", |_| {}),
+            ));
+        }
         if self.mode == "invalid-menu" {
             return SlackMessage::new()
                 .tryActionsBlock(|block| {
@@ -954,15 +959,22 @@ impl Notice for SlackNotice {
         if self.mode == "blocks" {
             message = message
                 .to("ignored-message-channel")
-                .headerBlock("Invoice Paid")
+                .headerBlockWith("Invoice Paid", |header| {
+                    header.id("invoice-heading").text().emoji();
+                })
                 .contextBlock(|block| {
                     block.text("Customer 42");
+                    block.imageWith("https://example.test/avatar.png", |image| {
+                        image.alt("Customer avatar");
+                    });
                 })
                 .sectionBlock(|block| {
                     block.text("Payment received");
                     block.field("*Amount:* 42").markdown();
                 })
-                .dividerBlock()
+                .dividerBlockWith(|divider| {
+                    divider.id("invoice-divider");
+                })
                 .actionsBlock(|block| {
                     block.button("Acknowledge Invoice").primary().confirm(
                         "Confirm payment?",
@@ -992,6 +1004,10 @@ impl Notice for SlackNotice {
         }
         if matches!(self.mode.as_str(), "blocks" | "database" | "redis") {
             message = message
+                .imageBlockWith("https://example.test/chart.png", |image| {
+                    image.id("invoice-chart").alt("Invoice chart");
+                    image.title("February invoices").emoji();
+                })
                 .tryActionsBlock(|block| {
                     block
                         .staticSelect("Choose a status")
@@ -3751,6 +3767,7 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
         ("blocks", http::StatusCode::OK),
         ("invalid", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("invalid-menu", http::StatusCode::INTERNAL_SERVER_ERROR),
+        ("invalid-image", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("reject", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("malformed", http::StatusCode::INTERNAL_SERVER_ERROR),
         ("redirect", http::StatusCode::INTERNAL_SERVER_ERROR),
@@ -3841,8 +3858,19 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     assert_eq!(records[1].1["channel"], "message-channel");
     let block_message = &records[2].1;
     assert_eq!(block_message["channel"], "override-channel");
-    assert_eq!(block_message["blocks"][0]["type"], "header");
+    assert_eq!(
+        block_message["blocks"][0],
+        json!({"type":"header","block_id":"invoice-heading","text":{"type":"plain_text","text":"Invoice Paid","emoji":true}})
+    );
+    assert_eq!(
+        block_message["blocks"][1]["elements"][1],
+        json!({"type":"image","image_url":"https://example.test/avatar.png","alt_text":"Customer avatar"})
+    );
     assert_eq!(block_message["blocks"][2]["fields"][0]["type"], "mrkdwn");
+    assert_eq!(
+        block_message["blocks"][3],
+        json!({"type":"divider","block_id":"invoice-divider"})
+    );
     let button = &block_message["blocks"][4]["elements"][0];
     assert_eq!(button["action_id"], "button_acknowledge-invoice");
     assert_eq!(button["style"], "primary");
@@ -3860,6 +3888,13 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     assert_eq!(records[8].1["channel"], "redis-channel");
     for message in [&records[2].1, &records[6].1, &records[7].1, &records[8].1] {
         let blocks = message["blocks"].as_array().unwrap();
+        assert_eq!(
+            blocks[blocks.len() - 3],
+            json!({
+                "type":"image","block_id":"invoice-chart","image_url":"https://example.test/chart.png",
+                "alt_text":"Invoice chart","title":{"type":"plain_text","text":"February invoices","emoji":true}
+            })
+        );
         let menu = &blocks[blocks.len() - 2]["elements"][0];
         assert_eq!(
             menu,
@@ -3882,6 +3917,49 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
         );
         assert_eq!(users["initial_user"], "U123");
         assert_eq!(users["placeholder"]["text"], "Select a teammate");
+    }
+}
+
+#[test]
+fn slack_visual_blocks_validate_identifiers_alt_text_and_image_bounds() {
+    let blocks = SlackMessage::new()
+        .dividerBlockWith(|divider| {
+            divider.id("0");
+        })
+        .imageBlockWith("u".repeat(3000), |image| {
+            image.id("i".repeat(255)).alt("a".repeat(2000));
+            image.title("界".repeat(667));
+        })
+        .toArray()
+        .unwrap();
+    assert_eq!(blocks["blocks"][0], json!({"type":"divider"}));
+    assert_eq!(
+        blocks["blocks"][1]["title"]["text"],
+        format!("{}...", "界".repeat(665))
+    );
+    assert_eq!(
+        blocks["blocks"][1]["alt_text"].as_str().unwrap().len(),
+        2000
+    );
+
+    for invalid in [
+        SlackMessage::new().headerBlockWith("Header", |block| {
+            block.id("界".repeat(86));
+        }),
+        SlackMessage::new().dividerBlockWith(|block| {
+            block.id("a".repeat(256));
+        }),
+        SlackMessage::new().imageBlock("u".repeat(3001), "Alt"),
+        SlackMessage::new().imageBlock("url", "a".repeat(2001)),
+        SlackMessage::new().imageBlockWith("url", |_| {}),
+        SlackMessage::new().imageBlockWith("url", |image| {
+            image.alt("Alt").title("");
+        }),
+        SlackMessage::new().contextBlock(|block| {
+            block.imageWith("url", |_| {});
+        }),
+    ] {
+        assert!(invalid.toArray().is_err());
     }
 }
 
