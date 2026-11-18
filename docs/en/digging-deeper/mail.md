@@ -85,6 +85,22 @@ Review order
 </x-mail::message>
 ```
 
+Wrap the entire view in `<x-mail::layout>` to choose its sections yourself. The named slots are `head`, `header`, `subcopy`, and `footer`. The `head` slot accepts HTML for the document head and is omitted from plain text.
+
+```blade
+<x-mail::layout>
+<x-slot:header>
+<x-mail::header :url="$url">Orders</x-mail::header>
+</x-slot:header>
+
+# Order ready
+
+<x-slot:footer>
+<x-mail::footer>Thank you for your order.</x-mail::footer>
+</x-slot:footer>
+</x-mail::layout>
+```
+
 ### Customize the Markdown layout {#customizing-the-components}
 
 Publish the HTML and text layouts, component templates, and default stylesheet into `resources/views/vendor/mail`.
@@ -96,6 +112,8 @@ Publish the HTML and text layouts, component templates, and default stylesheet i
 Edit `html/layout.blade.html` and `text/layout.blade.html` to add headers, footers, or other wrapping content. Keep `{!! $slot !!}` where the rendered message belongs. Edit `html/themes/default.css` to update the default theme. Roots in `mail.markdown.paths` are resolved relative to the application and are checked in order before the standard published directory. Publishing preserves existing files unless you pass `--force`.
 
 Edit the `header.blade.html`, `footer.blade.html`, and `subcopy.blade.html` templates under `html/` or `text/` to customize those sections. The built-in `message` template uses these same templates.
+
+The published default layout uses `$mail_content` for the assembled content and includes a responsive 570 px message table. With an explicit layout, a custom template can place the body with `$slot` and position `$header`, `$subcopy`, and `$footer` separately.
 
 ## Queueing mail
 

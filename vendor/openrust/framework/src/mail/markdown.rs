@@ -39,6 +39,7 @@ pub struct Markdown {
     paths: Vec<PathBuf>,
     pub(super) app_name: String,
     pub(super) app_url: String,
+    pub(super) locale: String,
     pub(super) timezone: chrono_tz::Tz,
 }
 
@@ -66,6 +67,10 @@ impl Markdown {
                 .get("app.url")
                 .and_then(|url| url.as_str().map(str::to_owned))
                 .unwrap_or_else(|| "/".to_owned()),
+            locale: settings
+                .get("app.locale")
+                .and_then(|locale| locale.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "en".to_owned()),
             timezone: settings
                 .get("app.timezone")
                 .and_then(|zone| zone.as_str()?.parse().ok())
@@ -93,6 +98,7 @@ impl Markdown {
         let css = self.css(views, data)?;
         let html = css_inline::CSSInliner::options()
             .load_remote_stylesheets(false)
+            .keep_at_rules(true)
             .extra_css(Some(css))
             .build()
             .inline(&html)
@@ -120,13 +126,20 @@ impl Markdown {
                 render.component(name, properties, slots)
             })
             .map_err(composition)?;
-        let mut data = data.clone();
-        data.insert("slot".into(), render.markdown(&source, false).into());
+        render.finish(&source, data)
+    }
+
+    pub(super) fn render_layout(
+        &self,
+        format: Format,
+        views: &Factory,
+        data: &ViewData,
+    ) -> MailResult<String> {
         let default = match format {
             Format::Html => HTML_LAYOUT,
             Format::Text => TEXT_LAYOUT,
         };
-        self.render_template(format, "layout", default, views, &data)
+        self.render_template(format, "layout", default, views, data)
     }
 
     pub(super) fn render_template(

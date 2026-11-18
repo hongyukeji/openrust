@@ -1,6 +1,16 @@
-<div class="mail-message">
-    {!! $header !!}
-    <div class="mail-content">{!! $slot !!}</div>
-    {!! $rendered_subcopy !!}
-    {!! $footer !!}
-</div>
+<table role="presentation" class="content" width="100%" cellspacing="0" cellpadding="0">
+    @if($header)
+        <tr><td align="center">{!! $header !!}</td></tr>
+    @endif
+    <tr><td class="body" align="center">
+        <table role="presentation" class="inner-body" width="570" cellspacing="0" cellpadding="0">
+            <tr><td class="content-cell">
+                {!! $slot !!}
+                {!! $rendered_subcopy !!}
+            </td></tr>
+        </table>
+    </td></tr>
+    @if($footer)
+        <tr><td align="center">{!! $footer !!}</td></tr>
+    @endif
+</table>

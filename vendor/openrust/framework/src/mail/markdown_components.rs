@@ -48,9 +48,10 @@ macro_rules! component {
 const HEADER: Component = component!("header");
 const FOOTER: Component = component!("footer");
 const SUBCOPY: Component = component!("subcopy");
+const MESSAGE: Component = component!("message");
 
 const COMPONENTS: &[Component] = &[
-    component!("message"),
+    MESSAGE,
     component!("button"),
     component!("panel"),
     component!("table"),
@@ -85,6 +86,7 @@ pub(super) struct Render<'a> {
     format: Format,
     nonce: uuid::Uuid,
     fragments: RefCell<HashMap<String, String>>,
+    document: RefCell<Option<String>>,
 }
 
 impl<'a> Render<'a> {
@@ -95,6 +97,7 @@ impl<'a> Render<'a> {
             format,
             nonce: uuid::Uuid::now_v7(),
             fragments: RefCell::default(),
+            document: RefCell::default(),
         }
     }
 
@@ -105,11 +108,67 @@ impl<'a> Render<'a> {
         slots: &ViewData,
     ) -> Option<ViewResult<String>> {
         let name = name.strip_prefix("mail::")?;
+        if name == "layout" {
+            return Some(
+                self.explicit_layout(properties, slots)
+                    .map_err(|error| ViewError::RenderFailed(Box::new(error))),
+            );
+        }
         let component = COMPONENTS.iter().find(|component| component.name == name)?;
         Some(
             self.render_component(component, properties, slots)
                 .map_err(|error| ViewError::RenderFailed(Box::new(error))),
         )
+    }
+
+    pub(super) fn finish(&self, source: &str, data: &ViewData) -> MailResult<String> {
+        if let Some(document) = self.document.borrow_mut().take() {
+            if source.trim() != self.document_marker() {
+                return Err(composition("The mail layout must wrap the entire view."));
+            }
+            return Ok(document);
+        }
+        let mut data = data.clone();
+        let slot = self.markdown(source, false);
+        data.insert("slot".into(), slot.as_str().into());
+        data.insert("mail_content".into(), slot.into());
+        data.remove("mail_head");
+        self.layout(data)
+    }
+
+    fn document_marker(&self) -> String {
+        format!("<!--openrust-mail-{}-layout-->", self.nonce)
+    }
+
+    fn explicit_layout(&self, properties: &ViewData, slots: &ViewData) -> MailResult<String> {
+        if self.document.borrow().is_some() {
+            return Err(composition("A Markdown mail view accepts one layout."));
+        }
+        let mut data = properties.clone();
+        for name in ["header", "slot", "subcopy", "footer"] {
+            data.insert(name.into(), self.markdown(slot(slots, name), false).into());
+        }
+        data.insert("rendered_subcopy".into(), data["subcopy"].clone());
+        if self.format == Format::Html {
+            // Blade has already evaluated the head slot with its normal echo escaping.
+            let head = slot(slots, "head");
+            data.insert("head".into(), head.into());
+            data.insert("mail_head".into(), head.into());
+        }
+        let content = self
+            .views
+            .renderInline(Self::builtin(&MESSAGE, self.format), &data)
+            .map_err(composition)?;
+        data.insert("mail_content".into(), content.into());
+        self.document.replace(Some(self.layout(data)?));
+        Ok(format!("\n\n{}\n\n", self.document_marker()))
+    }
+
+    fn layout(&self, mut data: ViewData) -> MailResult<String> {
+        let locale = Lang::getLocale().unwrap_or_else(|_| self.markdown.locale.clone());
+        data.insert("mail_locale".into(), locale.replace('_', "-").into());
+        data.insert("mail_title".into(), self.markdown.app_name.as_str().into());
+        self.markdown.render_layout(self.format, self.views, &data)
     }
 
     fn render_component(
@@ -118,10 +177,7 @@ impl<'a> Render<'a> {
         properties: &ViewData,
         slots: &ViewData,
     ) -> MailResult<String> {
-        let slot = slots
-            .get("slot")
-            .and_then(|slot| slot.as_str())
-            .unwrap_or_default();
+        let slot = slot(slots, "slot");
         let mut data = properties.clone();
         data.insert(
             "slot".into(),
@@ -206,12 +262,20 @@ impl<'a> Render<'a> {
     }
 
     fn template(&self, component: &Component, data: &ViewData) -> MailResult<String> {
-        let default = match self.format {
+        self.markdown.render_template(
+            self.format,
+            component.name,
+            Self::builtin(component, self.format),
+            self.views,
+            data,
+        )
+    }
+
+    fn builtin(component: &Component, format: Format) -> &'static str {
+        match format {
             Format::Html => component.html,
             Format::Text => component.text,
-        };
-        self.markdown
-            .render_template(self.format, component.name, default, self.views, data)
+        }
     }
 
     pub(super) fn markdown(&self, source: &str, inline: bool) -> String {
@@ -270,4 +334,11 @@ impl<'a> Render<'a> {
             Format::Text => plain_text(&events.collect::<Vec<_>>()),
         }
     }
+}
+
+fn slot<'a>(slots: &'a ViewData, name: &str) -> &'a str {
+    slots
+        .get(name)
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
 }

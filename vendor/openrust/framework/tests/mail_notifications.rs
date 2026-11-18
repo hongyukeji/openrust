@@ -1313,6 +1313,106 @@ async fn artisan_sends_themed_markdown_mail_through_smtp() {
             .unwrap()
             .contains("Published text")
     );
+    config["mail"]["markdown"] = json!({"theme":"default"});
+    config["app"]["locale"] = json!("fr");
+    std::fs::write(&path, config.to_string()).unwrap();
+    let markdown_view = root.0.join("resources/views/markdown-receipt.blade.html");
+    std::fs::write(
+        &markdown_view,
+        r#"<x-mail::layout>
+<x-slot:head><meta name="mail-layout-fixture" content="{{ $name }}"></x-slot:head>
+<x-slot:header><x-mail::header :url="$portal">Account header</x-mail::header></x-slot:header>
+
+# Layout receipt
+
+<x-mail::button :url="$portal" color="green">View receipt</x-mail::button>
+
+<x-slot:subcopy><x-mail::subcopy>Delivery terms.</x-mail::subcopy></x-slot:subcopy>
+<x-slot:footer><x-mail::footer>Account footer</x-mail::footer></x-slot:footer>
+</x-mail::layout>"#,
+    )
+    .unwrap();
+    artisan(&root.0, &["fixture:send-mail", "smtp", "--markdown"]).await;
+    let index: Json = reqwest::get(format!("{url}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let layout_id = index["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|message| {
+            message["Subject"] == "Markdown receipt fixture"
+                && message["ID"] != id
+                && message["ID"] != new_id
+        })
+        .unwrap()["ID"]
+        .as_str()
+        .unwrap();
+    let layout: Json = reqwest::get(format!("{url}/message/{layout_id}"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let html = layout["HTML"].as_str().unwrap();
+    for expected in [
+        "<html lang=\"fr\"",
+        "<title>Mail Components</title>",
+        "mail-layout-fixture",
+        "content=\"<Sam>\"",
+        "max-width: 600px",
+        "max-width: 500px",
+        "class=\"inner-body\"",
+        "width=\"570\"",
+        "#16a34a",
+        "box-sizing: border-box",
+        "Account header",
+        "Layout receipt",
+        "Delivery terms.",
+        "Account footer",
+    ] {
+        assert!(html.contains(expected), "missing {expected}: {html}");
+    }
+    assert_eq!(html.matches("<html").count(), 1, "{html}");
+    assert!(!html.contains("openrust-mail-"));
+    let text = layout["Text"].as_str().unwrap();
+    let sections = [
+        "Account header",
+        "Layout receipt",
+        "Delivery terms.",
+        "Account footer",
+    ];
+    assert!(
+        sections
+            .windows(2)
+            .all(|pair| { text.find(pair[0]).unwrap() < text.find(pair[1]).unwrap() }),
+        "{text}"
+    );
+    assert!(!text.contains("mail-layout-fixture"));
+
+    std::fs::write(
+        &markdown_view,
+        "Outside\n\n<x-mail::layout>Inside</x-mail::layout>",
+    )
+    .unwrap();
+    let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root.0)).unwrap();
+    let result = fixture
+        .artisan(["fixture:send-mail", "smtp", "--markdown"])
+        .await;
+    result.assertExitCode(1);
+    assert!(
+        result
+            .stderr
+            .contains("The mail layout must wrap the entire view."),
+        "{result:?}"
+    );
 }
 
 #[tokio::test]

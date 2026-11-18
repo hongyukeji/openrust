@@ -85,11 +85,29 @@ Review order
 </x-mail::message>
 ```
 
+用 `<x-mail::layout>` 包住整個視圖，即可自行組合郵件區塊。命名插槽為 `head`、`header`、`subcopy` 和 `footer`。`head` 接收寫入 HTML 文件頭部的內容，純文字郵件會省略這個插槽。
+
+```blade
+<x-mail::layout>
+<x-slot:header>
+<x-mail::header :url="$url">訂單</x-mail::header>
+</x-slot:header>
+
+# 訂單已就緒
+
+<x-slot:footer>
+<x-mail::footer>感謝您的訂購。</x-mail::footer>
+</x-slot:footer>
+</x-mail::layout>
+```
+
 ### 自訂 Markdown 版面 {#customizing-the-components}
 
 將 HTML、純文字版面、元件範本與預設樣式表發布到 `resources/views/vendor/mail`。
 
 編輯 `html/` 或 `text/` 下的 `header.blade.html`、`footer.blade.html` 和 `subcopy.blade.html` 即可自訂這些區塊。內建 `message` 範本也使用這三份範本。
+
+發布後的預設版面用 `$mail_content` 放置組合好的內容，郵件表格寬 570 px 並適應窄螢幕。使用顯式版面時，自訂範本可用 `$slot` 放置正文，再分別安排 `$header`、`$subcopy` 和 `$footer`。
 
 ```sh
 ./artisan vendor:publish --tag=laravel-mail

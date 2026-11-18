@@ -85,11 +85,29 @@ Review order
 </x-mail::message>
 ```
 
+用 `<x-mail::layout>` 包裹整个视图，即可自行组合邮件区块。命名插槽为 `head`、`header`、`subcopy` 和 `footer`。`head` 接收写入 HTML 文档头部的内容，纯文本邮件会省略该插槽。
+
+```blade
+<x-mail::layout>
+<x-slot:header>
+<x-mail::header :url="$url">订单</x-mail::header>
+</x-slot:header>
+
+# 订单已就绪
+
+<x-slot:footer>
+<x-mail::footer>感谢您的订购。</x-mail::footer>
+</x-slot:footer>
+</x-mail::layout>
+```
+
 ### 自定义 Markdown 布局 {#customizing-the-components}
 
 将 HTML、纯文本布局、组件模板和默认样式表发布到 `resources/views/vendor/mail`。
 
 修改 `html/` 或 `text/` 下的 `header.blade.html`、`footer.blade.html` 和 `subcopy.blade.html` 即可定制这些区块。内置 `message` 模板也使用这三份模板。
+
+发布后的默认布局用 `$mail_content` 放置组装好的内容，邮件表格默认宽 570 px 并适应窄屏。使用显式布局时，自定义模板可用 `$slot` 放置正文，再单独安排 `$header`、`$subcopy` 和 `$footer`。
 
 ```sh
 ./artisan vendor:publish --tag=laravel-mail
