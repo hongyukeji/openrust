@@ -29,7 +29,7 @@ use openrust::{
     mail::{
         MailFuture, MailResult, Mailable, Message, SentMessage,
         events::{MessageSending, MessageSent},
-        mailables::{Attachment, Content, Envelope, Headers, InlineAttachment},
+        mailables::{Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment},
         transport::Transport,
     },
     notifications::{
@@ -76,6 +76,57 @@ impl Mailable for Receipt {
             bytes: b"file receipt".to_vec(),
         }])
     }
+}
+
+struct AttachmentReceipt {
+    path: PathBuf,
+    subject: &'static str,
+}
+
+impl Mailable for AttachmentReceipt {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            subject: self.subject.into(),
+            ..Default::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Receipt.content()
+    }
+
+    fn attachments(&self) -> MailResult<Vec<Attachment>> {
+        Receipt.attachments()
+    }
+
+    fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+        Ok(vec![
+            Attachment::fromPath(&self.path),
+            Attachment::fromStorage("exports/default.csv"),
+            Attachment::fromStorageDisk("archive", "data.bin")
+                .r#as("archive-record.bin")
+                .withMime("application/x-openrust"),
+            Attachment::fromStorageDisk("objects", "nested/object.bin"),
+            Attachment::fromData(vec![0, 255, 1], "generated.bin"),
+        ])
+    }
+}
+
+fn attachment_mail_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let file = Config::string("fixture.attachment_file").unwrap();
+        Mail::to("to@example.test")
+            .unwrap()
+            .sendNow(&AttachmentReceipt {
+                path: file.into(),
+                subject: "Source attachments HTTP",
+            })
+            .await
+            .map_err(|error| HttpError::Internal {
+                source: Box::new(error),
+            })?;
+        Response::json(http::StatusCode::OK, json!({"accepted":true}))
+    })
 }
 
 struct MarkdownReceipt {
@@ -767,6 +818,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
         .withRouting(Routing::default().commands(mail_routes).web(|| {
             Route::get("/notify", notify_from_http)?;
             Route::get("/guarded-notify", guarded_from_http)?;
+            Route::get("/attachment-mail", attachment_mail_from_http)?;
             Route::get("/mail-events", mail_events_from_http)
         }))
         .withProviders(vec![
@@ -2667,6 +2719,201 @@ async fn artisan_worker_uses_real_smtp_mysql_and_redis() {
     if let (Some(redis), Some(mysql), Some(smtp)) = (redis, mysql, smtp) {
         queued(Some(redis), Some(&mysql), Some(smtp)).await;
     }
+}
+
+#[tokio::test]
+async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    let (Some(mysql), Ok(redis), Ok(smtp), Ok(mailpit)) = (
+        delivery_mysql(),
+        std::env::var("OPENRUST_TEST_REDIS_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_PORT"),
+        std::env::var("OPENRUST_TEST_SMTP_HTTP_PORT"),
+    ) else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(
+        Some(redis.parse().unwrap()),
+        Some(&mysql),
+        Some(smtp.parse().unwrap()),
+    );
+    let object_store = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", object_store.local_addr().unwrap());
+    let objects = axum::Router::new().route(
+        "/attachments/tenant/nested/object.bin",
+        axum::routing::get(|| async {
+            (
+                [(http::header::CONTENT_TYPE, "application/x-object-fixture")],
+                vec![0_u8, 91, 255],
+            )
+        }),
+    );
+    let object_server = tokio::spawn(async move { axum::serve(object_store, objects).await });
+    let path = root.0.join("source.txt");
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["fixture"]["attachment_file"] = json!(path);
+    config["filesystems"] = json!({
+        "default":"local",
+        "disks": {
+            "local":{"driver":"local","root":"local","throw":false},
+            "archive":{"driver":"local","root":"archive","throw":true},
+            "objects":{"driver":"s3","bucket":"attachments","region":"us-east-1",
+                "key":"fixture-key","secret":"fixture-secret","endpoint":endpoint,
+                "use_path_style_endpoint":true,"root":"tenant","throw":true}
+        }
+    });
+    std::fs::write(config_path, config.to_string()).unwrap();
+    let disk_path = root.0.join("local/exports/default.csv");
+    let archive_path = root.0.join("archive/data.bin");
+    for file in [&disk_path, &archive_path] {
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    }
+    std::fs::write(&path, [0, 15, 255]).unwrap();
+    std::fs::write(&disk_path, [0, 16, 255]).unwrap();
+    std::fs::write(&archive_path, [0, 17, 255]).unwrap();
+
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let db = setup(&application).await;
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "attachment-mail").await;
+    reqwest::get(&url)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    std::fs::remove_file(&disk_path).unwrap();
+    assert_eq!(
+        reqwest::get(&url).await.unwrap().status(),
+        http::StatusCode::INTERNAL_SERVER_ERROR
+    );
+    std::fs::remove_file(&path).unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| {
+                let path = path.clone();
+                async move {
+                    for connection in ["database", "redis"] {
+                        Mail::to("to@example.test")
+                            .unwrap()
+                            .queue(
+                                &AttachmentReceipt {
+                                    path: path.clone(),
+                                    subject: "Source attachments worker",
+                                },
+                                DispatchOptions {
+                                    connection: Some(connection.into()),
+                                    queue: Some("attachment-sources".into()),
+                                    ..Default::default()
+                                },
+                                None,
+                            )
+                            .await
+                            .unwrap()
+                            .expect("enqueued without reading files");
+                    }
+                    Ok(())
+                }
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=attachment-sources",
+            "--once",
+            "--tries=2",
+        ],
+    )
+    .await;
+    assert_eq!(
+        db.table("jobs").value("attempts").await.unwrap(),
+        Value::Unsigned(1)
+    );
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    std::fs::write(&path, [0, 25, 255]).unwrap();
+    std::fs::write(&disk_path, [0, 26, 255]).unwrap();
+    for connection in ["database", "redis"] {
+        artisan(
+            &root.0,
+            &[
+                "queue:work",
+                connection,
+                "--queue=attachment-sources",
+                "--stop-when-empty",
+                "--sleep=0",
+                "--tries=2",
+            ],
+        )
+        .await;
+    }
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    let api = format!("http://127.0.0.1:{mailpit}/api/v1");
+    let listing: Json = reqwest::get(format!("{api}/messages"))
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let mut delivered = (0, 0);
+    for row in listing["messages"].as_array().unwrap() {
+        let (file, disk) = match row["Subject"].as_str() {
+            Some("Source attachments HTTP") => {
+                delivered.0 += 1;
+                (15, 16)
+            }
+            Some("Source attachments worker") => {
+                delivered.1 += 1;
+                (25, 26)
+            }
+            _ => continue,
+        };
+        let id = row["ID"].as_str().unwrap();
+        let raw = reqwest::get(format!("{api}/message/{id}/raw"))
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        for marker in [
+            "source.txt",
+            "default.csv",
+            "archive-record.bin",
+            "object.bin",
+            "generated.bin",
+            "receipt.txt",
+            "application/x-openrust",
+            "application/x-object-fixture",
+            "application/octet-stream",
+        ] {
+            assert!(raw.contains(marker), "missing {marker}: {raw}");
+        }
+        for bytes in [
+            [0, file, 255],
+            [0, disk, 255],
+            [0, 17, 255],
+            [0, 91, 255],
+            [0, 255, 1],
+        ] {
+            assert!(raw.contains(&STANDARD.encode(bytes)), "{raw}");
+        }
+    }
+    assert_eq!(delivered, (1, 2));
+    server.abort();
+    object_server.abort();
+    drop_delivery_tables(&db).await;
 }
 
 #[tokio::test]

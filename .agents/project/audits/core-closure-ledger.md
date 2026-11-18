@@ -221,3 +221,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [Artisan 生成通知与 Markdown 邮件模板](06-06/README.md#Artisan 生成通知与 Markdown 邮件模板)通过真实 SMTP 和 Mailpit HTTP、实际 Artisan 生成普通和 Markdown 通知、配套测试以及编译后真实邮件投递的验收。
 
 06-06 的 [Artisan 邮件与通知生成器的缺参交互](06-06/README.md#artisan-邮件与通知生成器的缺参交互)已通过真实终端、无交互路径和三语文档验收。
+
+06-06 的 [邮件附件的路径、磁盘与字节来源](06-06/README.md#邮件附件的路径磁盘与字节来源)通过真实 HTTP、SMTP、独立 MySQL 和 Redis Worker、S3 协议和三语文档验收。

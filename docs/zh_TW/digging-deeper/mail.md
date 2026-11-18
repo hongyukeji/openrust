@@ -43,6 +43,31 @@ pub async fn send_order() -> MailResult<()> {
 
 `Content` 支援文字、HTML 和帶資料的命名視圖。可用 `view` 和 `text_view` 產生兩種 MIME 內文。附件提供位元組、檔名和 MIME 類型，自訂郵件標頭透過 `headers` 提供。密件副本地址保留在投遞信封中，郵件標頭會移除 Bcc。
 
+### 附件 {#attachments}
+
+從 `Mailable::attachment_sources` 回傳附件來源。用 `Attachment::fromPath` 讀取本機檔案，`fromStorage` 讀取預設磁碟，`fromStorageDisk` 讀取指定磁碟，`fromData` 接收產生的位元組。使用 `r#as` 設定顯示名稱，並用 `withMime` 覆寫 MIME 類型。
+
+```rust
+use openrust::mail::{
+    MailResult,
+    mailables::{Attachment, AttachmentSource},
+};
+
+fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+    Ok(vec![
+        Attachment::fromPath(&self.local_report),
+        Attachment::fromStorage("reports/monthly.csv"),
+        Attachment::fromStorageDisk("s3", "reports/annual.pdf")
+            .r#as("annual-report.pdf")
+            .withMime("application/pdf"),
+        Attachment::fromData(self.generated_report.clone(), "summary.csv")
+            .withMime("text/csv"),
+    ])
+}
+```
+
+檔案及磁碟附件預設使用檔名。S3 優先採用物件的內容類型。本機檔案會先偵測類型，再依副檔名回退。產生的位元組預設為 `application/octet-stream`。傳送時才讀取檔案或磁碟，佇列中的郵件由 Worker 讀取，因此路徑或磁碟必須可由 Worker 存取。產生的位元組會隨佇列承載資料保存。
+
 ### 內嵌附件 {#inline-attachments}
 
 從 `Mailable::inline_attachments` 回傳 `InlineAttachment`，用 `cid()` 取得圖片網址。視圖和附件使用相同的 Content-ID。

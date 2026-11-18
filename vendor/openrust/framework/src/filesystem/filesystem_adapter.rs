@@ -397,13 +397,26 @@ impl FilesystemAdapter {
     }
 
     pub async fn readStream(&self, path: &str) -> FilesystemResult<Option<FilesystemReader>> {
+        Ok(self
+            .read_with_content_type(path)
+            .await?
+            .map(|(reader, _)| reader))
+    }
+
+    pub(crate) async fn read_with_content_type(
+        &self,
+        path: &str,
+    ) -> FilesystemResult<Option<(FilesystemReader, Option<String>)>> {
         validate_path(path)?;
         let result = match &self.driver {
             Driver::Local(disk) => disk
                 .read(path.into())
                 .await
-                .map(|reader| Box::new(reader) as FilesystemReader),
-            Driver::S3(disk) => disk.read(path).await,
+                .map(|reader| (Box::new(reader) as FilesystemReader, None)),
+            Driver::S3(disk) => disk
+                .open(path)
+                .await
+                .map(|file| (file.reader, file.content_type)),
         };
         self.or_default(result.map(Some))
     }

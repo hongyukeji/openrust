@@ -27,7 +27,7 @@ use tokio::{
 use url::Url;
 
 use super::{
-    FilesystemError, FilesystemReader, FilesystemResult, TemporaryDownloadUrl, TemporaryUploadUrl,
+    FilesystemError, FilesystemResult, TemporaryDownloadUrl, TemporaryUploadUrl,
     TemporaryUploadUrlOptions, TemporaryUrlOptions, Visibility, download::OpenedFile,
 };
 
@@ -200,10 +200,6 @@ impl AwsS3V3Adapter {
         }
         paths.sort_unstable();
         Ok(paths)
-    }
-
-    pub(super) async fn read(&self, path: &str) -> FilesystemResult<FilesystemReader> {
-        Ok(self.open(path).await?.reader)
     }
 
     pub(super) async fn open(&self, path: &str) -> FilesystemResult<OpenedFile> {

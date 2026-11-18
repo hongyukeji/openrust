@@ -11,7 +11,7 @@ use crate::{
 
 use super::{
     Mail, MailError, MailResult, Mailable, SentMessage,
-    mailables::{Attachment, Content, Envelope, Headers, InlineAttachment},
+    mailables::{Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment},
     pending_mail::Recipients,
 };
 
@@ -24,6 +24,8 @@ pub(crate) struct PreparedMail {
     pub(super) envelope: Envelope,
     content: Content,
     attachments: Vec<Attachment>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    attachment_sources: Vec<AttachmentSource>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     inline_attachments: Vec<InlineAttachment>,
     headers: Headers,
@@ -45,6 +47,7 @@ impl PreparedMail {
                 envelope,
                 content: mailable.content()?,
                 attachments: mailable.attachments()?,
+                attachment_sources: mailable.attachment_sources()?,
                 inline_attachments: mailable.inline_attachments()?,
                 headers: mailable.headers()?,
                 locale: locale.map(str::to_owned).or_else(|| Lang::getLocale().ok()),
@@ -74,6 +77,9 @@ impl Mailable for PreparedMail {
     }
     fn attachments(&self) -> MailResult<Vec<Attachment>> {
         Ok(self.attachments.clone())
+    }
+    fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+        Ok(self.attachment_sources.clone())
     }
     fn inline_attachments(&self) -> MailResult<Vec<InlineAttachment>> {
         Ok(self.inline_attachments.clone())

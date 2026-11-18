@@ -84,10 +84,10 @@ impl Mailer {
     ) -> MailResult<Option<SentMessage>> {
         let locale = recipients.locale.as_deref().or_else(|| mailable.locale());
         let message = match locale {
-            Some(locale) => Lang::withLocale(locale, async { self.compose(mailable, &recipients) })
+            Some(locale) => Lang::withLocale(locale, self.compose(mailable, &recipients))
                 .await
                 .map_err(super::composition)??,
-            None => self.compose(mailable, &recipients)?,
+            None => self.compose(mailable, &recipients).await?,
         };
         let fake = self.fake.read().expect("mail fake lock poisoned").clone();
         if let Some(fake) = fake {
@@ -132,16 +132,25 @@ impl Mailer {
         Ok(Some(sent))
     }
 
-    fn compose(&self, mailable: &dyn Mailable, recipients: &Recipients) -> MailResult<Message> {
+    async fn compose(
+        &self,
+        mailable: &dyn Mailable,
+        recipients: &Recipients,
+    ) -> MailResult<Message> {
         let mut envelope = mailable.envelope()?;
         recipients.fill(&mut envelope);
         if envelope.from.is_none() {
             envelope.from.clone_from(&self.from);
         }
+        let content = mailable.content()?;
+        let mut attachments = mailable.attachments()?;
+        for source in mailable.attachment_sources()? {
+            attachments.push(source.resolve().await?);
+        }
         Message::compose(
             envelope,
-            mailable.content()?,
-            mailable.attachments()?,
+            content,
+            attachments,
             mailable.inline_attachments()?,
             mailable.headers()?,
             &self.views,
