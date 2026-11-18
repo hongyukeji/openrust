@@ -889,44 +889,29 @@ impl ScheduleRunCommand {
         }
         event.call_before_hooks(app, output).await?;
         let environment_file = app.container().get::<PathBuf>("env.file").map_err(error)?;
-        let mut command = tokio::process::Command::new(std::env::current_exe().map_err(error)?);
-        command
-            .args([
-                "artisan",
-                "schedule:finish",
-                &index.to_string(),
-                &event.mutex_key(),
-            ])
-            .env("APP_BASE_PATH", app.base_path())
-            .current_dir(app.base_path())
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null());
+        let executable = std::env::current_exe().map_err(error)?;
+        let mut args = vec![
+            "artisan".into(),
+            "schedule:finish".into(),
+            index.to_string(),
+            event.mutex_key(),
+        ];
         if let Some(environment) = environment_file
             .file_name()
             .and_then(|name| name.to_str())
             .and_then(|name| name.strip_prefix(".env."))
         {
-            command.arg(format!("--env={environment}"));
+            args.push(format!("--env={environment}"));
         }
-        #[cfg(unix)]
-        command.process_group(0);
-        #[cfg(windows)]
-        command.creation_flags(0x0000_0200); // CREATE_NEW_PROCESS_GROUP
         let owner = match overlap {
             Some(overlap) => overlap.take_owner(event).await,
             None => None,
         };
         if let Some(owner) = &owner {
-            command.args(["--owner", owner]);
+            args.extend(["--owner".into(), owner.clone()]);
         }
-        match command.spawn() {
-            Ok(mut child) => {
-                tokio::spawn(async move {
-                    let _ = child.wait().await;
-                });
-                Ok(TaskOutcome::Succeeded)
-            }
+        match spawn_background(&executable, app.base_path(), &args) {
+            Ok(()) => Ok(TaskOutcome::Succeeded),
             Err(source) => {
                 if let (Some(overlap), Some(owner)) = (overlap, owner) {
                     overlap.release_owner(event, &owner).await.map_err(error)?;
@@ -1001,6 +986,28 @@ impl ScheduleRunCommand {
         }
         Ok(code)
     }
+}
+
+#[cfg(windows)]
+use super::windows_background::spawn as spawn_background;
+
+#[cfg(not(windows))]
+fn spawn_background(executable: &Path, base_path: &Path, args: &[String]) -> io::Result<()> {
+    let mut command = tokio::process::Command::new(executable);
+    command
+        .args(args)
+        .env("APP_BASE_PATH", base_path)
+        .current_dir(base_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()?;
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+    });
+    Ok(())
 }
 
 fn exit_outcome(code: i32, message: impl std::fmt::Display) -> TaskOutcome {

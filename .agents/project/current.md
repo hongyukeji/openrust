@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 21:08（北京时间）06-05 [Windows 后台调度关闭父输出管道](audits/06-05/scheduler-output-background.md#windows-后台调度关闭父输出管道)。Windows ARM64 原生 `schedule:run` 在后台子进程仍运行时，父输出管道均已关闭。文件缓存与 Redis 的成功、命令失败、后置钩子失败路径，以及 macOS 回归和三语文档通过。磁盘可用 68.65 GB（63.94 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。下一批复核 07-04 `Concurrency::defer` 的 Windows 子进程输入及管道关闭。
 - 2026-11-18 20:57（北京时间）06-05 [Windows ARM64 后台调度与 Redis 互斥](audits/06-05/scheduler-output-background.md#windows-arm64-后台调度与-redis-互斥)。Windows ARM64 的真实 Artisan 验证了 Redis 跨进程协调，以及文件和 Redis 缓存上的后台完成与重叠锁释放。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。磁盘可用 70.77 GB（65.91 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。下一批修复 Windows 后台调度继承父输出管道的现象，使用管道 EOF 与子进程退出分别验收。
 - 2026-11-18 20:45（北京时间）06-04 [Windows ARM64 MySQL 与 Redis Worker 崩溃恢复](audits/06-04/queue-crash-exception-count.md#windows-arm64-mysql-与-redis-worker-崩溃恢复)。Windows ARM64 原生 Worker 通过 MySQL 8.4.13／文件缓存及 Redis 8.10.3／Redis 缓存的真实 HTTP 与 Artisan 验收。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。磁盘可用 70.58 GB（65.73 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。
 - 2026-11-18 20:36（北京时间）06-04 [Windows ARM64 Worker 强制终止与异常次数](audits/06-04/queue-crash-exception-count.md#windows-arm64-worker-强制终止与异常次数)。Windows ARM64 原生 Worker 强制终止与异常计数、macOS 实际 MySQL 和 Redis 回归通过。三语构建及 18 项浏览器检查通过。磁盘可用 72.97 GB（67.96 GiB），提交前周额度剩余 20%，按用户授权继续。核心账本维持 66/66。

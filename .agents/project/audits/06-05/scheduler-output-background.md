@@ -28,4 +28,12 @@
 - 在归档内的应用路由添加仅用于验收的命令及事件订阅，用 `cargo build --bin main --features standalone` 构建并在带空格的独立目录执行 `main.exe artisan schedule:run`。文件和 Redis 缓存均验证父命令先退出、子进程 PID 与父进程不同、重叠执行被阻止、输出追加。实测子进程退出码 0、7、1 对应成功、命令失败、后置钩子失败。监听器查询同一互斥锁，确认事件派发时锁已释放。随后重复执行均可再次领取锁。独立 `artisan inspire` 也通过。
 - Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。已回收本批容器、来宾夹具和专属产物，虚拟机恢复停止。磁盘可用 70.77 GB（65.91 GiB），提交前周额度剩余 20%，按用户授权继续。夹具与原始日志位于 `/Users/Home/openrust-schedule-arm.JrFz6PWK`。
 - Windows 套件 16 项通过，两个子进程夹具按设计在常规枚举中忽略。外部命令夹具从 `/bin/sh` 改为原生测试二进制，验证带空格的单个参数与退出码 7，macOS 对应用例也通过。
-- 后续待修复 Windows 重定向管道的 EOF。用 .NET 分别等待 PID 退出和 stdout／stderr EOF，在后台任务仍被测试闸门挂起时，父进程已退出，但捕获端读不到 EOF。重叠命令未生成子进程时，捕获端正常收到 EOF。验收脚本基于进程退出状态判断父进程完成，这个管道差异单独跟踪。
+- 该次验证发现 Windows 重定向管道的 EOF 差异。用 .NET 分别等待 PID 退出和 stdout／stderr EOF，在后台任务仍被测试闸门挂起时，父进程已退出，但捕获端读不到 EOF。重叠命令未生成子进程时，捕获端正常收到 EOF。验收脚本基于进程退出状态判断父进程完成，这个管道差异单独跟踪。
+
+## Windows 后台调度关闭父输出管道
+
+- 在基线 `aeede8cc7` 上复用上一批进程退出与管道 EOF 独立观察的夹具。固定 Laravel 在 Windows 通过后台命令完成退出码转交与 `schedule:finish`，OpenRust 保留同一应用二进制、钩子和原持有者令牌。旧版 v0.x 的进程间协调测试可参考，未找到脱离句柄继承的实现。 [固定 Laravel CommandBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/CommandBuilder.php#L42)
+- Windows 使用既有 `windows-sys` 的 `CreateProcessW` 创建脱离控制台的后台进程，禁止继承父句柄。按 Windows 的参数规则编码命令行，传递 Unicode 环境、配置目录及 `--env`，并关闭启动返回的两个句柄。进程创建失败继续由父进程释放锁。 [CreateProcessW](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw)
+- Windows 11 ARM64，Rust 1.94.0、MSVC 14.44.35207，原生 PE Machine `0xAA64`。新增的 `scheduler_windows_background` 定向回归通过，覆盖父 stdout 与 stderr EOF、子进程继续运行、包含空格和引号的参数、末尾反斜杠、Unicode 路径和继承环境以及 `APP_BASE_PATH` 的不区分大小写覆盖。原有调度套件 16 项通过，2 个子进程夹具按设计忽略。
+- 从带空格的可执行文件路径运行 `main.exe artisan schedule:run --env=pipe-test`，应用目录包含空格和非 ASCII 字符。文件缓存及私有网络 Redis 8.10.3 均验证父进程退出、捕获端读取两条管道 EOF 后，后台进程仍等待放行。验证子进程退出码 0、7、1，输出追加、同一锁阻止重入、完成事件派发前释放锁、后续可再次领取，以及选定环境文件和工作目录。独立 `artisan inspire` 通过。
+- macOS 调度套件 17 项通过，2 个夹具按设计忽略。独立 `schedule:run` 实测进程退出、管道 EOF、任务继续、重叠锁与完成事件通过。Rust 1.94.0 格式、macOS 锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。已回收本批专属构建、容器和来宾夹具，Windows 虚拟机恢复停止。磁盘可用 68.65 GB（63.94 GiB），提交前周额度剩余 20%，按用户授权继续。原始日志和独立应用夹具位于 `/Users/Home/openrust-schedule-eof.9CtfV7UI`。

@@ -3488,3 +3488,7 @@ Windows ARM64 原生 Worker 通过 MySQL 8.4.13／文件缓存及 Redis 8.10.3�
 ## 2026-11-18 06-05 Windows ARM64 后台调度与 Redis 互斥
 
 Windows ARM64 的真实 Artisan 验证了 Redis 跨进程协调，以及文件和 Redis 缓存上的后台完成与重叠锁释放。Rust 1.94.0 格式、锁定离线全目标严格 Clippy、三语构建和 18 项 Chrome 检查通过。 [验收记录](audits/06-05/scheduler-output-background.md#windows-arm64-后台调度与-redis-互斥)
+
+## 2026-11-18 06-05 Windows 后台调度关闭父输出管道
+
+Windows ARM64 原生 `schedule:run` 在后台子进程仍运行时，父输出管道均已关闭。文件缓存与 Redis 的成功、命令失败、后置钩子失败路径，以及 macOS 回归和三语文档通过。 [验收记录](audits/06-05/scheduler-output-background.md#windows-后台调度关闭父输出管道)

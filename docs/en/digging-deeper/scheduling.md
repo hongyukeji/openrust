@@ -159,7 +159,7 @@ Call `runInBackground()` on a scheduled command or executable. OpenRust runs the
 
 `ScheduledBackgroundTaskFinished` is dispatched by the child after completion and lock release. It carries the task and exit code, including on failure. Register listeners for `console.scheduled_background_task_finished` during application assembly.
 
-On Windows ARM64, the background child uses the same application executable. File and Redis caches both support releasing the overlap lock after success, a nonzero command exit, or a failed after hook.
+On Windows ARM64, the background child uses the same application executable. File and Redis caches both support releasing the overlap lock after success, a nonzero command exit, or a failed after hook. When the parent exits, callers capturing its stdout and stderr can read EOF while the background task is still running.
 
 ## Events {#events}
 

@@ -159,7 +159,7 @@ schedule
 
 子进程完成任务并释放锁后派发 `ScheduledBackgroundTaskFinished`。事件携带任务和退出码，也覆盖任务失败。应用装配时为 `console.scheduled_background_task_finished` 注册监听器。
 
-在 Windows ARM64 上，后台子进程使用同一个应用可执行文件。命令成功、非零退出或后置钩子失败后，文件缓存和 Redis 缓存均可释放重叠锁。
+在 Windows ARM64 上，后台子进程使用同一个应用可执行文件。命令成功、非零退出或后置钩子失败后，文件缓存和 Redis 缓存均可释放重叠锁。父进程退出后，调用方即可从其 stdout 和 stderr 读到 EOF，后台任务可以继续执行。
 
 ## 事件 {#events}
 
