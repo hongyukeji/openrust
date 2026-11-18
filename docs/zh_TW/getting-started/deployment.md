@@ -181,4 +181,6 @@ docker compose --env-file docker/.env -f docker/docker-compose.yml up -d --wait 
 
 開啟 `http://localhost:8000/up`，連接埠可透過 `APP_PUBLISHED_PORT` 修改。主機連接埠預設繫結回送位址，便於搭配反向代理。MySQL、Redis 與應用程式儲存預設掛載到 `docker/data/` 下的相對目錄。若須唯讀掛載靜態資源，在 Compose 命令加入 `-f docker/docker-compose.public.yml`。預設來源為儲存庫的 `public/`，由主機目錄提供完整的公開檔案。
 
+映像預設設定 `APP_PACKAGES_CACHE=storage/framework/cache/packages.json`，套件清單保存在掛載的 `storage` 中。一次性容器執行 `package:discover` 或 `clear-compiled` 時也使用這個路徑。自訂路徑時，選擇掛載目錄內可寫入的位置。
+
 多台主機部署使用同一個映像，省略 `local` profile。設定 `OPENRUST_IMAGE`、共用的 `DB_HOST` 與 `REDIS_HOST`，各執行個體使用一致的應用程式金鑰、快取／佇列設定及憑證。拉取或載入映像後以 `up -d --no-build --wait app` 啟動。每次發行集中執行一次遷移，由負載平衡器處理 TLS，上傳檔案使用 S3 等共用儲存。若排程器只需在一台執行個體執行，其他執行個體設定 `APP_DISABLED_RUNNERS=schedule`。建置時以 `OPENRUST_FEATURES` 選擇 `reverb`、`sanctum` 等選用功能。

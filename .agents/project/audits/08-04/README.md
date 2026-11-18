@@ -181,3 +181,10 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - Windows 上 32 项缓存目标测试通过，1 项子进程夹具默认忽略并由父测试实际调用。未启动 Windows MySQL／Redis 等外部驱动。本地 NTFS 验证跨进程文件锁及独立 Artisan 清理。macOS ARM64 对应 3 项文件缓存与 1 项 Unix 启动器定向测试通过。
 - CMD 和 PowerShell 从应用目录之外通过实际 `artisan.bat` 执行成功和失败命令，原生二进制实际 HTTP `GET /up` 返回 200。格式检查、主机严格 Clippy、三语构建和 18 项浏览器检查通过。Windows Docker Desktop 后端仍按既有发布实机要求跟踪。
 - 清理本批来宾构建与应用夹具，恢复虚拟机初始停止状态。主机本批缓存已回收，磁盘可用 74.68 GB（69.55 GiB），提交前周额度剩余 20%，按用户授权继续。日志位于 `/Users/Home/openrust-windows-entry.PjLCM8cZ`。
+
+## Docker 非特权运行的包清单路径
+
+- 对照固定 Laravel 的部署目录权限和包清单路径。旧版部署镜像把 `bootstrap/cache` 交给非特权用户。当前 Compose 已持久化 `/app/storage`，镜像通过 `APP_PACKAGES_CACHE` 将包清单放到挂载目录，支持一次性容器共享。保留应用路径和显式环境变量覆盖。 [Laravel 部署](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#directory-permissions)
+- 在 `3155d59dc` 隔离快照构建 macOS ARM64 独立二进制，用只读发布根目录复现 `package:discover` 原路径权限失败。用新镜像的环境变量实测包清单生成、`optimize`、`config:cache`、`optimize:clear --except=cache`、重复 `clear-compiled`、自定义路径及相邻文件保留。使用配置缓存时实际首页和 `/up` 返回 200，SIGTERM 退出 0，`inspire` 正常。
+- Compose 配置解析确认存储挂载。Linux 容器夹具采用生产 Dockerfile 的相同环境变量和 UID 10001，以只读根文件系统及共享存储实际验证原目录拒写、首容器写入和次容器读取及清理。本批完整 OpenRust Linux 镜像构建留待复验。Windows Docker Desktop、生产 TLS 和托管 SQS 仍按 [目标环境清单](#剩余实机环境复查) 跟踪。
+- Rust 1.94.0 全仓格式、启用 `standalone` 的工作区全目标严格 Clippy、三语站点构建和 18 项浏览器检查通过。临时镜像、编译及站点产物已回收，Docker 卷清单一致。提交前磁盘可用 52.43 GB（48.83 GiB），周额度剩余 19%，第二窗口无读数，按用户授权继续。验收日志保留于 `/Users/Home/openrust-docker-package-cache.ybE1t3Zw`。

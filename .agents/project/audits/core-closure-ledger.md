@@ -351,3 +351,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 07-04 [defer 在执行边界捕获 Context](07-04/README.md#defer-在执行边界捕获-context)通过真实 HTTP、Artisan、Redis 普通／隔离 Worker 和三语文档验收。核心账本维持 66/66。
 
 06-03 [生命周期连接在终止回调捕获 Context](06-03/lifecycle-failover-drivers.md#生命周期连接在终止回调捕获-context)通过真实 HTTP、Artisan、MySQL 8.4.13、Redis 8.10.3 和三语验收。核心账本维持 66/66。
+
+08-04 [Docker 非特权运行的包清单路径](08-04/README.md#docker-非特权运行的包清单路径)通过真实 Artisan、HTTP 和 Linux UID 10001 挂载权限验收。核心账本维持 66/66。
