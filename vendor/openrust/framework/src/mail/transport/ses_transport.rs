@@ -8,7 +8,7 @@ use aws_sdk_ses::{
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
-use crate::mail::{MailFuture, MailResult, Message, SentMessage, transport};
+use crate::mail::{MailFuture, MailResult, Message, SentMessage, mailables::Envelope, transport};
 
 use super::Transport;
 
@@ -100,20 +100,9 @@ impl SesTransport {
         };
 
         let options = &self.settings.options;
-        let tags = options
-            .email_tags
-            .as_ref()
-            .map(|tags| {
-                tags.iter()
-                    .map(|tag| {
-                        MessageTag::builder()
-                            .name(&tag.name)
-                            .value(&tag.value)
-                            .build()
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()
+        let tags = message_tags(options.email_tags.as_deref(), message.envelope())
+            .map(|(name, value)| MessageTag::builder().name(name).value(value).build())
+            .collect::<Result<Vec<_>, _>>()
             .map_err(|_| transport("Invalid SES message tags."))?;
         let header = |name: &str| {
             message
@@ -186,7 +175,7 @@ impl SesTransport {
                     .or_else(|| options.tenant_name.clone()),
             )
             .set_list_management_options(list)
-            .set_email_tags(tags)
+            .set_email_tags((!tags.is_empty()).then_some(tags))
             .send()
             .await
             .map_err(|_| transport("SES v2 request failed."))?;
@@ -201,20 +190,9 @@ impl Transport for SesTransport {
                 return self.send_v2(message).await;
             }
             let options = &self.settings.options;
-            let tags = options
-                .tags
-                .as_ref()
-                .map(|tags| {
-                    tags.iter()
-                        .map(|tag| {
-                            MessageTag::builder()
-                                .name(&tag.name)
-                                .value(&tag.value)
-                                .build()
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                })
-                .transpose()
+            let tags = message_tags(options.tags.as_deref(), message.envelope())
+                .map(|(name, value)| MessageTag::builder().name(name).value(value).build())
+                .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| transport("Invalid SES message tags."))?;
             let raw = RawMessage::builder()
                 .data(Blob::new(message.formatted()))
@@ -232,13 +210,29 @@ impl Transport for SesTransport {
                 .set_from_arn(options.from_arn.clone())
                 .set_source_arn(options.source_arn.clone())
                 .set_return_path_arn(options.return_path_arn.clone())
-                .set_tags(tags)
+                .set_tags((!tags.is_empty()).then_some(tags))
                 .send()
                 .await
                 .map_err(|_| transport("SES request failed."))?;
             receipt(message, response.message_id())
         })
     }
+}
+
+fn message_tags<'a>(
+    configured: Option<&'a [Tag]>,
+    envelope: &'a Envelope,
+) -> impl Iterator<Item = (&'a str, &'a str)> {
+    configured
+        .unwrap_or_default()
+        .iter()
+        .map(|tag| (tag.name.as_str(), tag.value.as_str()))
+        .chain(
+            envelope
+                .metadata
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str())),
+        )
 }
 
 fn receipt(message: &Message, id: &str) -> MailResult<SentMessage> {

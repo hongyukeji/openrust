@@ -11,6 +11,48 @@ pub trait Mailable: Send + Sync {
 
     fn envelope(&self) -> MailResult<Envelope>;
     fn content(&self) -> MailResult<Content>;
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    fn hasTag(&self, tag: &str) -> MailResult<bool> {
+        Ok(self.envelope()?.tags.iter().any(|value| value == tag))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable inspection API")]
+    fn hasMetadata(&self, name: &str, value: &str) -> MailResult<bool> {
+        Ok(self
+            .envelope()?
+            .metadata
+            .get(name)
+            .is_some_and(|metadata| metadata == value))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[track_caller]
+    fn assertHasTag(&self, tag: &str) -> &Self
+    where
+        Self: Sized,
+    {
+        assert!(
+            self.hasTag(tag).expect("could not inspect mailable tags"),
+            "Did not find the expected mail tag [{tag}]."
+        );
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's mailable assertions")]
+    #[track_caller]
+    fn assertHasMetadata(&self, name: &str, value: &str) -> &Self
+    where
+        Self: Sized,
+    {
+        assert!(
+            self.hasMetadata(name, value)
+                .expect("could not inspect mailable metadata"),
+            "Did not find the expected mail metadata [{name}]."
+        );
+        self
+    }
+
     fn attachments(&self) -> MailResult<Vec<Attachment>> {
         Ok(Vec::new())
     }

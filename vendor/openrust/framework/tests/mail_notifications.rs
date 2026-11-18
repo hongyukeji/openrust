@@ -53,6 +53,8 @@ impl Mailable for Receipt {
     fn envelope(&self) -> MailResult<Envelope> {
         Ok(Envelope {
             subject: "OpenRust receipt".into(),
+            tags: vec!["receipt".into()],
+            metadata: [("order-id".into(), "R123".into())].into(),
             ..Default::default()
         })
     }
@@ -100,7 +102,8 @@ impl Mailable for AttachmentReceipt {
     fn envelope(&self) -> MailResult<Envelope> {
         Ok(Envelope {
             subject: self.subject.into(),
-            ..Default::default()
+            tags: vec!["receipt".into(), "shipment".into()],
+            ..Receipt.envelope()?
         })
     }
 
@@ -266,7 +269,11 @@ impl Mailable for NamedReceipt<'_> {
         Some(self.0)
     }
     fn envelope(&self) -> MailResult<Envelope> {
-        Receipt.envelope()
+        let mut envelope = Receipt.envelope()?;
+        if self.1 && self.0 != "postmark" {
+            envelope.tags.push("shipment".into());
+        }
+        Ok(envelope)
     }
     fn content(&self) -> MailResult<Content> {
         let mut content = Receipt.content()?;
@@ -954,6 +961,55 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     application
         .call(
             Callback::new(&[], |_| async {
+                Receipt
+                    .assertHasTag("receipt")
+                    .assertHasMetadata("order-id", "R123");
+                assert!(!Receipt.hasMetadata("order-id", "other").unwrap());
+                let mut envelope = Receipt.envelope().unwrap();
+                envelope.to = vec!["to@example.test".into()];
+                envelope.tags.push("shipment".into());
+                struct TrackingFixture(Envelope);
+                impl Mailable for TrackingFixture {
+                    fn content(&self) -> MailResult<Content> {
+                        Receipt.content()
+                    }
+                    fn envelope(&self) -> MailResult<Envelope> {
+                        Ok(self.0.clone())
+                    }
+                }
+                let postmark = Mail::mailer(Some("postmark")).unwrap();
+                assert!(
+                    postmark
+                        .sendNow(&TrackingFixture(envelope.clone()))
+                        .await
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("single tag")
+                );
+                let mut invalid = envelope.clone();
+                invalid
+                    .metadata
+                    .insert("key\r\nInjected".into(), "value".into());
+                assert!(
+                    postmark
+                        .sendNow(&TrackingFixture(invalid))
+                        .await
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("tracking header name")
+                );
+                envelope.tags = vec!["receipt\nInjected: value".into()];
+                assert!(
+                    postmark
+                        .sendNow(&TrackingFixture(envelope))
+                        .await
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("control characters")
+                );
                 let send = |name: &'static str, inline| async move {
                     Mail::to("to@example.test")
                         .unwrap()
@@ -1011,6 +1067,9 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
         .collect();
     assert_eq!(fields["Action"], "SendRawEmail");
     assert_eq!(fields["ConfigurationSetName"], "fixture");
+    assert_eq!(fields["Tags.member.1.Name"], "kind");
+    assert_eq!(fields["Tags.member.2.Name"], "order-id");
+    assert_eq!(fields["Tags.member.2.Value"], "R123");
     assert!(fields.values().any(|value| value == "blind@example.test"));
     let mime = String::from_utf8(STANDARD.decode(&fields["RawMessage.Data"]).unwrap()).unwrap();
     assert!(mime.contains("OpenRust receipt") && !mime.contains("blind@example.test"));
@@ -1018,6 +1077,8 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     assert_eq!(headers["authorization"], "Bearer test-resend");
     let resend: Json = serde_json::from_str(resend).unwrap();
     assert_eq!(resend["bcc"], json!(["blind@example.test"]));
+    assert_eq!(resend["tags"], json!([{"name":"X-Tag","value":"receipt"}]));
+    assert_eq!(resend["headers"]["X-Metadata-order-id"], "R123");
     assert_eq!(
         resend["attachments"][0]["content"],
         STANDARD.encode(b"file receipt")
@@ -1029,6 +1090,8 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     assert_eq!(headers["x-postmark-server-token"], "test-postmark");
     let postmark: Json = serde_json::from_str(postmark).unwrap();
     assert_eq!(postmark["MessageStream"], "transactional");
+    assert_eq!(postmark["Tag"], "receipt");
+    assert_eq!(postmark["Metadata"], json!({"order-id":"R123"}));
     assert_eq!(postmark["Headers"][0]["Name"], "X-Receipt");
     assert_eq!(&paths[7..], ["/postmark", "/resend"]);
     let image = inline_logo();
@@ -1044,6 +1107,12 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     assert_eq!(postmark_inline["Attachments"][1]["ContentID"], image.cid());
     assert_eq!(postmark_inline["Attachments"][1]["Content"], image_base64);
     let resend_inline: Json = serde_json::from_str(&requests[8].2).unwrap();
+    assert_eq!(
+        resend_inline["tags"],
+        json!([
+            {"name":"X-Tag","value":"receipt"}, {"name":"X-Tag","value":"shipment"}
+        ])
+    );
     assert!(
         resend_inline["html"]
             .as_str()
@@ -1152,6 +1221,10 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
         "fixture-list"
     );
     assert_eq!(ses["EmailTags"][0]["Name"], "kind");
+    assert_eq!(
+        ses["EmailTags"][1],
+        json!({"Name":"order-id","Value":"R123"})
+    );
     assert_eq!(ses["TenantName"], "fixture-tenant");
     let mime = String::from_utf8(
         STANDARD
@@ -1163,6 +1236,7 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
     let (path, headers, raw) = &requests[1];
     let raw = std::str::from_utf8(raw).unwrap();
     assert_eq!(path, "/v3/mg.example.test/messages.mime");
+    assert!(raw.contains("X-Tag: receipt\r\n") && raw.contains("X-Metadata-order-id: R123\r\n"));
     assert_eq!(
         headers["authorization"],
         format!("Basic {}", STANDARD.encode("api:test-mailgun"))
@@ -1181,12 +1255,16 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
     assert_eq!(path, "/v3/mg.example.test/messages");
     let body = std::str::from_utf8(body).unwrap();
     assert!(body.contains("filename=\"receipt.txt\"") && body.contains("name=\"bcc\""));
+    assert!(body.contains("name=\"o:tag\"\r\n\r\nreceipt\r\n"));
+    assert!(body.contains("name=\"v:order-id\"\r\n\r\nR123\r\n"));
     let (path, headers, body) = &requests[3];
     assert_eq!(path, "/cloudflare");
     assert_eq!(headers["authorization"], "Bearer test-cloudflare");
     let cloudflare: Json = serde_json::from_slice(body).unwrap();
     assert_eq!(cloudflare["from"]["address"], "sender@example.test");
     assert_eq!(cloudflare["bcc"], json!(["blind@example.test"]));
+    assert_eq!(cloudflare["headers"]["X-Tag"], "receipt");
+    assert_eq!(cloudflare["headers"]["X-Metadata-order-id"], "R123");
     assert_eq!(
         cloudflare["attachments"][0]["content"],
         STANDARD.encode(b"file receipt")
@@ -1213,6 +1291,7 @@ async fn artisan_delivers_through_ses_v2_mailgun_and_cloudflare() {
     let (path, _, cloudflare_inline) = &requests[5];
     assert_eq!(path, "/cloudflare");
     let cloudflare_inline: Json = serde_json::from_slice(cloudflare_inline).unwrap();
+    assert_eq!(cloudflare_inline["headers"]["X-Tag"], "shipment");
     assert!(
         cloudflare_inline["html"]
             .as_str()
@@ -3102,6 +3181,12 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             delivered.1 += 1;
             (25, 26)
         };
+        assert!(
+            raw.contains("X-Tag: receipt\r\n")
+                && raw.contains("X-Tag: shipment\r\n")
+                && raw.contains("X-Metadata-order-id: R123\r\n"),
+            "{raw}"
+        );
         for marker in [
             "source.txt",
             "default.csv",

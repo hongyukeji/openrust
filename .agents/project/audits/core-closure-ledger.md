@@ -227,3 +227,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [上传文件、默认云磁盘及邮件附件断言](06-06/README.md#上传文件默认云磁盘及邮件附件断言)通过 multipart HTTP、SMTP、独立 Worker、云磁盘和三语断言示例的验收。
 
 06-06 的 [URL 附件与可附加对象](06-06/README.md#url-附件与可附加对象)通过 HTTP 下载、SMTP、独立 Worker 重试和三语文档验收。
+
+06-06 的 [邮件标签和元数据](06-06/README.md#邮件标签和元数据)通过 MIME、独立 Worker、各供应商请求字段和三语文档验收。

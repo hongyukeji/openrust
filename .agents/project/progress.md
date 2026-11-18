@@ -3256,3 +3256,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 06-06 URL 附件与可附加对象
 
 按 Laravel 的 Attachments 和 Attachable Objects 补齐 URL 来源及领域对象转换契约。范围含 `contracts/mail`、`mail/mailables`、邮件投递回归和三语正文。真实 HTTP、SMTP、MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知回归、9 项磁盘回归、全仓格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#url-附件与可附加对象)
+
+## 2026-11-18 06-06 邮件标签和元数据
+
+依固定 Laravel Tags and Metadata 接通信封、队列、邮件断言、原始 MIME 和供应商 API。范围含 `Mailable`、`Envelope`、消息组合、SMTP、供应商传输、邮件集成回归与三语文档。实际 HTTP、SMTP、MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例和 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件标签和元数据)

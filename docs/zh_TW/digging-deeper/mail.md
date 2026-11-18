@@ -107,6 +107,23 @@ impl Attachable for Report {
 }
 ```
 
+### 標籤和中繼資料 {#tags-and-metadata}
+
+設定 `Envelope::tags` 和 `Envelope::metadata` 以分組及追蹤郵件。兩個欄位都會隨佇列郵件保存。
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        tags: vec!["shipment".into()],
+        metadata: [("order-id".into(), "R123".into())].into(),
+        ..Envelope::default()
+    })
+}
+```
+
+測試中可用 `assertHasTag` 和 `assertHasMetadata` 檢查宣告。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 標頭。Mailgun 的結構化 API 將標籤對應至 `o:tag`，中繼資料對應至 `v:*`。Postmark 接受一個標籤和一組中繼資料。SES 和 SES v2 將信封中繼資料附加至設定的供應商標籤。Resend 將標籤以名稱與值傳送，中繼資料保留在郵件標頭。Cloudflare 在郵件標頭保存中繼資料和最後一個標籤。
+
 ## 設定
 
 `config/mail.rs` 定義預設郵件器、命名郵件器和寄件人。骨架預設使用 `log` 驅動，在 debug 層級寫入 MIME 郵件。`array` 驅動可透過 `Mailer::sent` 檢查目前應用程式的郵件。

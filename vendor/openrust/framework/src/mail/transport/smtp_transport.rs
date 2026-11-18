@@ -98,12 +98,15 @@ impl SmtpTransport {
 impl Transport for SmtpTransport {
     fn send<'a>(&'a self, message: &'a Message) -> MailFuture<'a, MailResult<SentMessage>> {
         Box::pin(async move {
-            self.0.send(message.0.clone()).await.map_err(|source| {
-                source.status().map_or_else(
-                    || transport("SMTP connection or protocol failed."),
-                    |status| transport(format!("SMTP server rejected the message ({status}).")),
-                )
-            })?;
+            self.0
+                .send_raw(message.0.envelope(), &message.formatted())
+                .await
+                .map_err(|source| {
+                    source.status().map_or_else(
+                        || transport("SMTP connection or protocol failed."),
+                        |status| transport(format!("SMTP server rejected the message ({status}).")),
+                    )
+                })?;
             Ok(SentMessage {
                 message: message.clone(),
             })

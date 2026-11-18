@@ -107,6 +107,23 @@ impl Attachable for Report {
 }
 ```
 
+### 标签和元数据 {#tags-and-metadata}
+
+设置 `Envelope::tags` 和 `Envelope::metadata` 来分组和追踪邮件。两个字段都会随队列邮件保存。
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        tags: vec!["shipment".into()],
+        metadata: [("order-id".into(), "R123".into())].into(),
+        ..Envelope::default()
+    })
+}
+```
+
+测试中可用 `assertHasTag` 和 `assertHasMetadata` 核对声明。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 头。Mailgun 的结构化 API 把标签映射为 `o:tag`，元数据映射为 `v:*`。Postmark 接受一个标签和一组元数据。SES 和 SES v2 将信封元数据追加到配置的供应商标签。Resend 将标签作为名称与值发送，元数据保留在邮件头中。Cloudflare 在邮件头中保存元数据和最后一个标签。
+
 ## 配置
 
 `config/mail.rs` 定义默认邮件器、命名邮件器和发件人。骨架默认使用 `log` 驱动，在 debug 级别写入 MIME 邮件。`array` 驱动可通过 `Mailer::sent` 检查当前应用的邮件。

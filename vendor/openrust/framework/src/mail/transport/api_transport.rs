@@ -100,9 +100,13 @@ impl ApiTransport {
             .header("Accept", "application/json");
         let (mut payload, request) = match &self.provider {
             Provider::Postmark { stream } => {
+                if envelope.tags.len() > 1 {
+                    return Err(transport("Postmark only allows a single tag per email."));
+                }
                 let mut payload = json!({
                     "From": from, "To": to.join(", "), "Cc": cc.join(", "), "Bcc": bcc.join(", "),
                     "ReplyTo": reply_to.join(", "), "Subject": envelope.subject,
+                    "Metadata": envelope.metadata,
                     "Headers": headers.iter().map(|(name, value)| json!({"Name": name, "Value": value})).collect::<Vec<_>>(),
                     "Attachments": json_attachments(data, |attachment, cid| {
                         let mut part = json!({
@@ -115,6 +119,7 @@ impl ApiTransport {
                     }),
                 });
                 let fields = payload.as_object_mut().expect("object payload");
+                insert_text(fields, "Tag", envelope.tags.first().map(String::as_str));
                 insert_text(fields, "TextBody", data.text.as_deref());
                 insert_text(fields, "HtmlBody", data.html.as_deref());
                 insert_text(fields, "MessageStream", stream.as_deref());
@@ -129,9 +134,11 @@ impl ApiTransport {
                 )
             }
             Provider::Resend => {
+                insert_metadata_headers(&mut headers, &envelope.metadata);
                 let mut payload = json!({
                     "from": from, "to": to, "cc": cc, "bcc": bcc, "reply_to": reply_to,
                     "subject": envelope.subject, "headers": headers,
+                    "tags": envelope.tags.iter().map(|tag| json!({"name":"X-Tag", "value":tag})).collect::<Vec<_>>(),
                     "attachments": json_attachments(data, |attachment, cid| {
                         let mut part = json!({
                             "filename": attachment.name, "content_type": attachment.mime, "content": STANDARD.encode(&attachment.bytes),
@@ -151,6 +158,10 @@ impl ApiTransport {
                 )
             }
             Provider::Cloudflare => {
+                insert_metadata_headers(&mut headers, &envelope.metadata);
+                if let Some(tag) = envelope.tags.last() {
+                    headers.insert("X-Tag".into(), tag.clone());
+                }
                 let mut payload = json!({
                     "from": cloudflare_address(from_address),
                     "to": addresses_only(&envelope.to),
@@ -210,6 +221,12 @@ impl ApiTransport {
                     for (name, value) in headers {
                         form = form.text(format!("h:{name}"), value);
                     }
+                    for tag in &envelope.tags {
+                        form = form.text("o:tag", tag.clone());
+                    }
+                    for (key, value) in &envelope.metadata {
+                        form = form.text(format!("v:{key}"), value.clone());
+                    }
                     for attachment in &data.attachments {
                         let part = Part::bytes(attachment.bytes.clone())
                             .file_name(attachment.name.clone())
@@ -240,6 +257,15 @@ impl ApiTransport {
                     && !value.as_object().is_some_and(Map::is_empty)
             });
         Ok(request.json(&payload))
+    }
+}
+
+fn insert_metadata_headers(
+    headers: &mut std::collections::BTreeMap<String, String>,
+    metadata: &std::collections::BTreeMap<String, String>,
+) {
+    for (key, value) in metadata {
+        headers.insert(format!("X-Metadata-{key}"), value.clone());
     }
 }
 

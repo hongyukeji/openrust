@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 
 use lettre::message::{Mailbox, MultiPart, SinglePart, header};
 
@@ -20,11 +20,19 @@ pub(super) struct ApiMessage {
     pub attachments: Vec<Attachment>,
     pub inline_attachments: Vec<InlineAttachment>,
     pub headers: Headers,
+    tracking_headers: String,
 }
 
 impl Message {
     pub fn formatted(&self) -> Vec<u8> {
-        self.0.formatted()
+        let mime = self.0.formatted();
+        if self.1.tracking_headers.is_empty() {
+            return mime;
+        }
+        let mut formatted = Vec::with_capacity(self.1.tracking_headers.len() + mime.len());
+        formatted.extend_from_slice(self.1.tracking_headers.as_bytes());
+        formatted.extend_from_slice(&mime);
+        formatted
     }
 
     pub fn envelope(&self) -> &Envelope {
@@ -51,6 +59,7 @@ impl Message {
     ) -> MailResult<Self> {
         let api_envelope = envelope.clone();
         let api_headers = headers.clone();
+        let tracking_headers = tracking_headers(&envelope)?;
         let mut builder = lettre::Message::builder().subject(header_text(envelope.subject)?);
         let from = envelope
             .from
@@ -167,6 +176,7 @@ impl Message {
                     Arc::new(ApiMessage {
                         envelope: api_envelope,
                         headers: api_headers,
+                        tracking_headers,
                         text,
                         html,
                         attachments,
@@ -176,6 +186,28 @@ impl Message {
             })
             .map_err(|_| composition("A valid sender and at least one recipient are required."))
     }
+}
+
+fn tracking_headers(envelope: &Envelope) -> MailResult<String> {
+    let tags = envelope.tags.iter().map(|tag| ("X-Tag".into(), tag));
+    let metadata = envelope
+        .metadata
+        .iter()
+        .map(|(key, value)| (format!("X-Metadata-{key}"), value));
+    let mut formatted = String::new();
+    let mut headers = header::Headers::new();
+    for (name, value) in tags.chain(metadata) {
+        if !name.bytes().all(|byte| byte.is_ascii_graphic()) {
+            return Err(composition("Invalid mail tracking header name."));
+        }
+        let name = header::HeaderName::new_from_ascii(name)
+            .map_err(|_| composition("Invalid mail tracking header name."))?;
+        // Lettre stores only one value per name, but MIME allows repeated tags.
+        headers.clear();
+        headers.insert_raw(header::HeaderValue::new(name, header_text(value.clone())?));
+        write!(formatted, "{headers}").expect("writing to a string cannot fail");
+    }
+    Ok(formatted)
 }
 
 enum Body {

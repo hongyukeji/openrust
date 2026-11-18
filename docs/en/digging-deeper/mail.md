@@ -107,6 +107,23 @@ impl Attachable for Report {
 }
 ```
 
+### Tags and metadata {#tags-and-metadata}
+
+Set `Envelope::tags` and `Envelope::metadata` to group and track a message. Both fields travel with a queued mailable.
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        tags: vec!["shipment".into()],
+        metadata: [("order-id".into(), "R123".into())].into(),
+        ..Envelope::default()
+    })
+}
+```
+
+Match these declarations in tests with `assertHasTag` and `assertHasMetadata`. SMTP and raw MIME carry `X-Tag` and `X-Metadata-*` headers. Mailgun’s structured API maps tags to `o:tag` and metadata to `v:*`. Postmark accepts one tag and a metadata map. SES and SES v2 append envelope metadata to the configured provider tags. Resend sends tags as name-value pairs and carries metadata in headers. Cloudflare carries metadata and the last tag in its header map.
+
 ## Configuration
 
 `config/mail.rs` defines the default mailer, named mailers and sender. The skeleton defaults to the `log` transport, which writes the MIME message at debug level. Use `array` to inspect messages in the current application with `Mailer::sent`.

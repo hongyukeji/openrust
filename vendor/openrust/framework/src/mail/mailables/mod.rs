@@ -30,6 +30,10 @@ pub struct Envelope {
     pub bcc: Vec<Address>,
     pub reply_to: Vec<Address>,
     pub subject: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub metadata: std::collections::BTreeMap<String, String>,
 }
 
 /// The text, HTML, or named views for a mailable.
