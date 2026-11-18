@@ -133,3 +133,8 @@ vendor/openrust/framework/
 ## 存储路径消费者收口
 
 [配置与文件消费者验收](../07-01/storage-consumers.md)接通日志、Session、缓存、视图、local/public 磁盘和维护模式；环境快照以弱引用传递所属应用路径上下文，不读取其他应用的 Facade。55 项定向测试函数、严格 Clippy、实际根二进制 HTTP／Artisan、缓存前后路径、维护模式和三语文档验收通过。Pail 路径依赖收口，下一批接打印器与实时命令；认证自动解析和发布矩阵继续跟踪。
+
+
+## Pail CLI 打印器
+
+[专项验收](pail-printer.md)接通 Printer／CliPrinter、Output 详细级别与原始流式写入。432 组固定 PHP 对照、真实 HTTP→独立 Artisan、PTY 颜色／详细级别／静默、关闭管道退出 1、23 项根回归、严格 Clippy、三语正文和浏览器检查通过。Rust 保留实际来源和 u64 精度，相关适配已说明。实时命令、会话生命周期、认证自动解析与发布矩阵继续跟踪。

@@ -56,6 +56,8 @@ pub struct Output {
     pub stdout: String,
     pub stderr: String,
     decorated: bool,
+    verbosity: u8,
+    suppressed: bool,
     terminal: bool,
 }
 
@@ -69,6 +71,41 @@ impl Output {
             decorated: !disabled && (forced || terminal),
             terminal: true,
             ..Self::default()
+        }
+    }
+
+    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
+    pub fn isDecorated(&self) -> bool {
+        self.decorated
+    }
+
+    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
+    pub fn isVerbose(&self) -> bool {
+        !self.suppressed && self.verbosity >= 1
+    }
+
+    #[allow(non_snake_case, reason = "Matches Symfony's console output metadata")]
+    pub fn isVeryVerbose(&self) -> bool {
+        !self.suppressed && self.verbosity >= 2
+    }
+
+    /// Writes already-rendered text without interpreting formatter tags.
+    #[allow(
+        non_snake_case,
+        reason = "Names the Rust raw-output adapter explicitly"
+    )]
+    pub fn writeRaw(&mut self, message: &str) -> io::Result<()> {
+        use std::io::Write as _;
+        if self.suppressed {
+            return Ok(());
+        }
+        if self.terminal {
+            let mut stdout = io::stdout().lock();
+            stdout.write_all(message.as_bytes())?;
+            stdout.flush()
+        } else {
+            self.stdout.push_str(message);
+            Ok(())
         }
     }
 

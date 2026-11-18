@@ -1,5 +1,8 @@
 //! Pail session capture for OpenRust application logs.
 
+pub mod contracts;
+pub mod printers;
+
 mod file;
 mod files;
 mod handler;

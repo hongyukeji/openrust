@@ -20,7 +20,10 @@ use openrust::{
         facades::{Artisan, Auth, Bus, Context, Log, Queue, Route},
     },
 };
-use openrust_pail::{File, Options, PailServiceProvider, value_objects::MessageLogged};
+use openrust_pail::{
+    File, Options, PailServiceProvider, contracts::Printer, printers::CliPrinter,
+    value_objects::MessageLogged,
+};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
@@ -304,15 +307,26 @@ impl Command for Inspect {
                 .collect();
             let result = json!({"timeout":options.timeout(),"selected":selected});
             std::fs::write(app.base_path().join("inspection.json"), result.to_string()).unwrap();
-            output
-                .stdout
-                .push_str(&format!("{} selected\n", selected.len()));
+            if input.matches().get_flag("print") {
+                let mut printer = CliPrinter::new(output, app.base_path());
+                for record in &selected {
+                    printer.print(&MessageLogged::fromJson(record).unwrap())?;
+                }
+            } else {
+                output
+                    .stdout
+                    .push_str(&format!("{} selected\n", selected.len()));
+            }
             Ok(0)
         })
     }
 }
 fn async_commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleError> {
-    let mut inspect = clap::Command::new("capture:inspect");
+    let mut inspect = clap::Command::new("capture:inspect").arg(
+        clap::Arg::new("print")
+            .long("print")
+            .action(clap::ArgAction::SetTrue),
+    );
     for name in ["auth", "user", "level", "filter", "message", "timeout"] {
         let mut arg = clap::Arg::new(name).long(name).num_args(1);
         if name == "timeout" {
@@ -459,6 +473,48 @@ async fn run_acceptance() {
         assert_eq!(message.authId().as_deref(), Some(id));
         assert_eq!(message.message(), "after identity");
     }
+    for (root, id) in [(&left, "left"), (&right, "right")] {
+        for flags in [
+            vec![],
+            vec!["-v"],
+            vec!["-vv"],
+            vec!["--ansi"],
+            vec!["--quiet"],
+            vec!["--silent"],
+        ] {
+            let result = tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "artisan",
+                    "capture:inspect",
+                    "--print",
+                    &format!("--auth={id}"),
+                    "--message=after identity",
+                ])
+                .args(&flags)
+                .env("APP_BASE_PATH", &root.0)
+                .env("COLUMNS", "50")
+                .output()
+                .await
+                .unwrap();
+            assert!(result.status.success(), "{result:?}");
+            let text = String::from_utf8(result.stdout).unwrap();
+            if flags
+                .iter()
+                .any(|flag| matches!(*flag, "--quiet" | "--silent"))
+            {
+                assert!(text.is_empty());
+            } else {
+                assert!(text.contains("after identity"));
+                assert!(text.contains(&format!("GET: /capture/{id}")));
+                assert!(text.contains(&format!("Auth ID: {id} ({id}@example.test)")));
+                assert_eq!(text.contains("\x1b["), flags.contains(&"--ansi"));
+                assert!(text.lines().next().unwrap().contains("INFO"));
+            }
+        }
+    }
+    println!(
+        "Pail real HTTP to independent Artisan printer: both applications, verbosity, ANSI and quiet/silent passed"
+    );
     println!("Pail actual HTTP capture and independent Artisan option filtering passed");
     artisan(&left, &["capture:log"]).await;
     let records = left.records("one");

@@ -258,3 +258,13 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 Pail 透過共用路徑服務解析 `Application::storagePath("pail")`。在首次擷取前設定 `useStoragePath` 或 `APP_STORAGE_PATH`，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
 
 預設檔案日誌頻道和緊急回退使用應用儲存路徑。應在載入設定或解析頻道前設定路徑；已載入的頻道路徑保留其設定值，參見[應用儲存路徑](../getting-started/configuration.md#application-storage-path)。
+
+## Pail CLI 列印器 {#pail-cli-printer}
+
+可選 Pail 套件提供 `openrust_pail::contracts::Printer` 和 `printers::CliPrinter`。在 Artisan 命令中建構 `CliPrinter::new(output, basePath)`，呼叫 `print(&messageLogged)?`。列印器讀取目前輸出的詳細程度與色彩狀態。一般模式顯示時間並縮略類型、檔案和訊息；`-v` 顯示完整日期與本文，`-vv` 或 `-vvv` 再顯示擷取的堆疊框架。
+
+底部顯示 HTTP 方法／路徑和驗證資訊，或佇列／工作／命令，以及公開 Context。數字鍵與 null、PHP 風格值匯出、HTML 文字和多行訊息依固定 Pail 規則處理。邊框寬度上限為 150 個終端欄；原始訊息和長底部資訊可能像上游一樣溢出。Rust 的 `::` 類型命名空間及 Windows 本機路徑分隔符適配到縮略和相對來源顯示。
+
+Rust JSON 無符號整數保留原始精度；超過 PHP 有號整數範圍的值，其顯示可能與 PHP 的浮點近似不同。Rust 直接產生終端訊息框，透過 `Output::writeRaw` 寫入已轉譯文字。真實 Artisan 輸出立即寫出，擷取輸出保留在緩衝區。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，寫入錯誤沿呼叫鏈傳遞；格式錯誤在寫入該訊息框前傳回。輸出詳細程度隨呼叫作用域儲存和還原。`PAIL_TESTS` 用於擷取測試，顯示的日期、檔案和堆疊保留實際紀錄值，不採用 PHP 測試夾具中的替換值。
+
+本節閉合列印器 API；即時 `artisan pail` 命令、工作階段生命週期和 dev 註冊仍分別推進。

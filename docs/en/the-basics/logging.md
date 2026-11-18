@@ -258,3 +258,13 @@ Flags come from the current application's immutable environment snapshot. Proces
 Pail resolves `Application::storagePath("pail")` through the shared path service. Configure `useStoragePath` or `APP_STORAGE_PATH` before the first capture. See [Application Storage Path](../getting-started/configuration.md#application-storage-path).
 
 Default file log channels and the emergency fallback follow the application storage path. Configure the path before loading configuration or resolving channels. Loaded channel paths retain their configured values; see [Application Storage Path](../getting-started/configuration.md#application-storage-path).
+
+## Pail CLI Printer {#pail-cli-printer}
+
+The optional Pail package exposes `openrust_pail::contracts::Printer` and `printers::CliPrinter`. In an Artisan command, construct `CliPrinter::new(output, basePath)` and call `print(&messageLogged)?`. It reads the current output's verbose and decoration flags. Normal output shows the time and abbreviated class/file/message; `-v` shows the date and full text, and `-vv` or `-vvv` adds captured trace frames.
+
+HTTP method/path and authentication, queue/job/command, and public context appear in the footer. Numeric/null context entries, PHP-style value exports, literal HTML text and multiline messages follow the pinned Pail rendering rules. The frame is limited to 150 terminal columns; source messages and long footers can overflow as in upstream. Rust `::` class namespaces and native Windows path separators are adapted for abbreviation and relative source display.
+
+Rust JSON unsigned integers retain their original precision; values beyond PHP’s signed integer range can therefore display differently from PHP’s floating-point approximation. Rust renders the frame directly and uses `Output::writeRaw` for already-rendered text. Real Artisan output streams immediately; captured output stays buffered. `--ansi`, `--no-ansi`, `--quiet` and `--silent` apply, and write failures propagate. Formatting errors return before the frame is written. Output verbosity is scoped to the invocation and restored after nested calls. `PAIL_TESTS` controls capture testing; displayed dates, files and trace frames retain their recorded values rather than PHP's test fixture replacements.
+
+This completes the printer API. The realtime `artisan pail` command, session lifecycle and dev registration remain separate work.

@@ -566,6 +566,24 @@ impl Application {
         output: &mut Output,
         shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
+        let (verbosity, suppressed) = (output.verbosity, output.suppressed);
+        output.verbosity = verbosity.max(
+            matches
+                .try_get_one::<u8>("verbose")
+                .ok()
+                .flatten()
+                .copied()
+                .unwrap_or(0),
+        );
+        output.suppressed = suppressed
+            || ["quiet", "silent"].into_iter().any(|name| {
+                matches
+                    .try_get_one::<bool>(name)
+                    .ok()
+                    .flatten()
+                    .copied()
+                    .unwrap_or(false)
+            });
         let origin = crate::log::context::Origin::enabled(application.container()).then(|| {
             match crate::log::context::Origin::current() {
                 Some(origin @ crate::log::context::Origin::Http(_)) => origin,
@@ -574,10 +592,10 @@ impl Application {
                 },
             }
         });
-        crate::log::context::Origin::scope(
+        let result = crate::log::context::Origin::scope(
             application.container_handle(),
             origin,
-            Box::pin(async move {
+            Box::pin(async {
                 let command: &dyn Command = match entry {
                     Entry::List(_) => {
                         return Ok(list_command::run(self, syntax, Some(matches), output));
@@ -632,7 +650,10 @@ impl Application {
                 result.and_then(|status| released.map(|_| status))
             }),
         )
-        .await
+        .await;
+        output.verbosity = verbosity;
+        output.suppressed = suppressed;
+        result
     }
 }
 
