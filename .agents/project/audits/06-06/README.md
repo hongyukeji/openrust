@@ -279,3 +279,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 基于隔离快照 `81f2cce35`，本地 Slack 协议服务验证标题、分隔线、上下文图片和独立图片的 JSON。缺少替代文字的 HTTP 通知在投递前失败。MySQL 8.4.13 和 Redis 8.10.3 独立 Artisan Worker 实测独立图像载荷和既有失败重试，三语示例通过本地 Webhook 投递。真实 Slack 的工作区渲染和 OAuth 留待授权账号验收。
 - `mail_notifications` 28 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。核心账本维持 66/66。下一批对照 Slack 消息级元数据、线程选项的可观察边界。
 - 本批隔离编译与文档产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.06 GB（83.88 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-visual-blocks.UuQPwXZr`。
+
+## Slack 元数据与线程回复 {#slack-元数据与线程回复}
+
+- 对照固定 Laravel Slack v3.8.0 的 `EventMetadata` 和消息功能测试。旧版 `openrust-v0.x` 无对应 Slack 实现，本批复用现有通知序列化、独立 Worker 与预览机制。原有 `metadata` 构建入口保留，新增可复用的 `EventMetadata::make` 和 `withMetadata`。按 Slack JSON 对象契约，Rust 对空映射发送空对象；固定 PHP 的空数组直接序列化为数组。 [固定 EventMetadata](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Slack/EventMetadata.php) · [固定功能测试](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/tests/Slack/Feature/SlackMessageTest.php) · [Slack 消息元数据](https://docs.slack.dev/messaging/message-metadata/)
+- `threadTimestamp` 保留原始字符串，`clearThreadTimestamp` 独立省略父时间戳；`broadcastReply` 接受显式布尔值或 `None`。两字段按固定上游独立序列化，Slack 根据父时间戳处理实际会话广播。 [Slack chat.postMessage](https://docs.slack.dev/reference/methods/chat.postMessage/#threads_and_replies)
+- 在隔离基线 `6738fc882`，以真实 HTTP 和本地 Slack 协议服务核对 Bot API 和 Webhook 的 JSON，覆盖嵌套值、空对象及预览字段。MySQL 8.4.13 独立 Worker 验证显式开启广播并在供应商拒绝后重试；Redis 8.10.3 Worker 验证清除后的字段省略。授权工作区仍需验证 Slack 端元数据分发、交互回调、会话显示和 OAuth。
+- `mail_notifications` 28 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式、严格 Clippy、`./artisan inspire`、三语同源示例编译执行、站点构建和双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批按交付计划核对 06-07 的密码重置和邮箱验证差异。
+- 已回收本批隔离编译与文档产物，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 89.50 GB（83.35 GiB）。提交前周额度剩余 29%，第二窗口无读数。日志保留于 `/private/tmp/openrust-slack-metadata.Y6wVddye`。

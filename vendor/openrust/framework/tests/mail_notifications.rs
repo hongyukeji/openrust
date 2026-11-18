@@ -41,7 +41,7 @@ use openrust::{
         NotificationQueueGuard, NotificationResult, NotificationRoute, NotificationTarget,
         SendQueuedNotifications,
         messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage, VonageMessage},
-        slack::{SlackMessage, SlackRoute},
+        slack::{EventMetadata, SlackMessage, SlackRoute},
     },
     queue::{DispatchOptions, JobOptions, Payload, QueueManager, middleware::Skip},
     support::{
@@ -984,6 +984,7 @@ impl Notice for SlackNotice {
                     );
                 })
                 .usingBlockKitTemplate(r#"{"blocks":[{"type":"divider"}]}"#)?
+                .withMetadata(invoice_slack_metadata())
                 .threadTimestamp("1710000000.001")
                 .broadcastReply(false)
                 .unfurlLinks(false);
@@ -997,10 +998,32 @@ impl Notice for SlackNotice {
             .unwrap();
             assert!(json.get("channel").is_none() && json.get("text").is_none());
             assert_eq!(json["blocks"].as_array().unwrap().len(), 6);
+            assert_eq!(
+                json["metadata"],
+                Json::Object(invoice_slack_metadata().toArray())
+            );
+            assert_eq!(json["thread_ts"], "1710000000.001");
+            assert_eq!(json["reply_broadcast"], false);
         } else if self.mode == "message" {
             message = message.to("message-channel");
         } else if self.mode.starts_with("webhook-") {
-            message = message.headerBlock("Webhook notice");
+            message = message
+                .headerBlock("Webhook notice")
+                .metadata("webhook_notice", Default::default())
+                .threadTimestamp("1710000000.000007");
+        }
+        if self.mode == "database" {
+            message = message
+                .withMetadata(invoice_slack_metadata())
+                .threadTimestamp("1710000000.000007")
+                .broadcastReply(true);
+        } else if self.mode == "redis" {
+            message = message
+                .withMetadata(invoice_slack_metadata())
+                .threadTimestamp("1710000000.000008")
+                .broadcastReply(true)
+                .clearThreadTimestamp()
+                .broadcastReply(None);
         }
         if matches!(self.mode.as_str(), "blocks" | "database" | "redis") {
             message = message
@@ -1079,6 +1102,18 @@ impl Notice for SlackNotice {
             ..Default::default()
         })
     }
+}
+
+fn invoice_slack_metadata() -> EventMetadata {
+    EventMetadata::make(
+        "invoice_created",
+        [(
+            "invoice".into(),
+            json!({"id": 42, "paid": false, "tags": ["new"]}),
+        )]
+        .into_iter()
+        .collect(),
+    )
 }
 
 fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -3877,6 +3912,10 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     assert_eq!(button["confirm"]["confirm"]["text"], "Continue");
     assert_eq!(block_message["thread_ts"], "1710000000.001");
     assert_eq!(block_message["reply_broadcast"], false);
+    assert_eq!(
+        block_message["metadata"],
+        json!({"event_type":"invoice_created","event_payload":{"invoice":{"id":42,"paid":false,"tags":["new"]}}})
+    );
     assert_eq!(block_message["unfurl_links"], false);
     assert!(
         records[6..8]
@@ -3886,6 +3925,15 @@ async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_p
     );
     assert_eq!(records[8].0, "Bearer fixture-rotated-token");
     assert_eq!(records[8].1["channel"], "redis-channel");
+    for (_, message) in &records[6..8] {
+        assert_eq!(message["thread_ts"], "1710000000.000007");
+        assert_eq!(message["reply_broadcast"], true);
+        assert_eq!(message["metadata"], block_message["metadata"]);
+    }
+    let redis_message = &records[8].1;
+    assert!(redis_message.get("thread_ts").is_none());
+    assert!(redis_message.get("reply_broadcast").is_none());
+    assert_eq!(redis_message["metadata"], block_message["metadata"]);
     for message in [&records[2].1, &records[6].1, &records[7].1, &records[8].1] {
         let blocks = message["blocks"].as_array().unwrap();
         assert_eq!(
@@ -4098,6 +4146,12 @@ async fn slack_webhook_routes_send_blocks_and_legacy_attachments_with_encrypted_
                     } else {
                         assert!(payload.get("channel").is_none());
                         assert_eq!(payload["blocks"][0]["text"]["text"], "Webhook notice");
+                        assert_eq!(
+                            payload["metadata"],
+                            json!({"event_type":"webhook_notice","event_payload":{}})
+                        );
+                        assert_eq!(payload["thread_ts"], "1710000000.000007");
+                        assert!(payload.get("reply_broadcast").is_none());
                     }
                     records.lock().unwrap().push(text.clone());
                     if text == "webhook-redirect" {

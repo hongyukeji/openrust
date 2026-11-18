@@ -309,6 +309,30 @@ fn report_message() -> SlackMessage {
 
 區塊識別碼最多 255 位元組。獨立圖片 URL 最多 3,000 位元組，替代文字最多 2,000 位元組。標題按位元組上限截斷並保留 UTF-8 字元邊界。缺少替代文字欄位會在投遞前回傳錯誤。
 
+### 中繼資料與討論串回覆 {#slack-metadata-and-replies}
+
+可用 `metadata` 新增結構化中繼資料，也可將可重用的 `EventMetadata` 傳給 `withMetadata`。Slack 收到 JSON 格式的 `event_type` 和 `event_payload`，空承載也以物件傳送。請勿在 Slack 訊息中繼資料內儲存密鑰。
+
+```rust
+use openrust::notifications::slack::{EventMetadata, SlackMessage};
+use serde_json::json;
+
+fn invoice_reply(parent_timestamp: &str) -> SlackMessage {
+    let event = EventMetadata::make(
+        "invoice_paid",
+        [("invoice_id".into(), json!(42))].into_iter().collect(),
+    );
+
+    SlackMessage::new()
+        .text("Invoice 42 paid")
+        .withMetadata(event)
+        .threadTimestamp(parent_timestamp)
+        .broadcastReply(false)
+}
+```
+
+用 `threadTimestamp` 傳入父訊息的時間戳記字串。透過 Bot API 傳送時，`broadcastReply(true)` 也會將回覆分享到對話，`broadcastReply(false)` 則只保留在討論串。可分別使用 `clearThreadTimestamp()` 或 `broadcastReply(None)` 省略對應欄位。Slack 負責驗證事件結構並套用討論串行為。
+
 ### 傳入 Webhook {#slack-incoming-webhooks}
 
 將 HTTP(S) Webhook URL 作為 Slack 路由，可透過傳入 Webhook 投遞同一個 `SlackMessage`，包括 Block Kit。Slack 根據 Webhook 的安裝組態決定投遞目標。請求使用 JSON，URL 本身就是憑證。

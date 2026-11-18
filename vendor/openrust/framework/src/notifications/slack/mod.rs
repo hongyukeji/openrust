@@ -1,6 +1,7 @@
 //! Slack notification messages, routes and Block Kit builders.
 
 mod blocks;
+mod event_metadata;
 mod selects;
 mod slack_message;
 
@@ -8,6 +9,7 @@ pub use blocks::{
     ActionsBlock, ButtonElement, ConfirmObject, ContextBlock, DividerBlock, HeaderBlock,
     ImageBlock, ImageElement, PlainText, SectionBlock, TextObject,
 };
+pub use event_metadata::EventMetadata;
 pub use selects::{StaticSelectElement, UsersSelectElement};
 pub use slack_message::SlackMessage;
 

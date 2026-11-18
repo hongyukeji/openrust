@@ -1,8 +1,9 @@
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value};
 
 use crate::notifications::{NotificationResult, delivery};
 
+use super::EventMetadata;
 use super::blocks::{
     ActionsBlock, ContextBlock, DividerBlock, HeaderBlock, ImageBlock, SectionBlock,
 };
@@ -110,10 +111,11 @@ impl SlackMessage {
     }
 
     pub fn metadata(self, event_type: impl Into<String>, payload: Map<String, Value>) -> Self {
-        self.field(
-            "metadata",
-            json!({"event_type":event_type.into(),"event_payload":payload}),
-        )
+        self.withMetadata(EventMetadata::make(event_type, payload))
+    }
+
+    pub fn withMetadata(self, metadata: EventMetadata) -> Self {
+        self.field("metadata", metadata.into_array())
     }
 
     pub fn disableMarkdownParsing(self) -> Self {
@@ -132,8 +134,20 @@ impl SlackMessage {
         self.field("thread_ts", timestamp.into())
     }
 
-    pub fn broadcastReply(self, enable: bool) -> Self {
-        self.field("reply_broadcast", enable)
+    /// Remove the parent message timestamp from this message.
+    pub fn clearThreadTimestamp(mut self) -> Self {
+        self.fields.remove("thread_ts");
+        self
+    }
+
+    /// Set the broadcast flag, or pass `None` to omit it from the Slack request.
+    pub fn broadcastReply(mut self, enable: impl Into<Option<bool>>) -> Self {
+        if let Some(enable) = enable.into() {
+            self.fields.insert("reply_broadcast".into(), enable.into());
+        } else {
+            self.fields.remove("reply_broadcast");
+        }
+        self
     }
 
     /// Appends blocks from a Slack Block Kit Builder JSON document.

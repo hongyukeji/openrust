@@ -309,6 +309,30 @@ fn report_message() -> SlackMessage {
 
 Block identifiers may use up to 255 bytes. Standalone image URLs may use up to 3,000 bytes, and alternative text up to 2,000 bytes. The title is truncated at its byte limit without splitting UTF-8. A missing alternative text field fails before delivery.
 
+### Metadata and thread replies {#slack-metadata-and-replies}
+
+Attach structured metadata with `metadata` or pass a reusable `EventMetadata` to `withMetadata`. Slack receives `event_type` and `event_payload` as JSON, with the payload represented as an object even when empty. Keep secrets out of Slack message metadata.
+
+```rust
+use openrust::notifications::slack::{EventMetadata, SlackMessage};
+use serde_json::json;
+
+fn invoice_reply(parent_timestamp: &str) -> SlackMessage {
+    let event = EventMetadata::make(
+        "invoice_paid",
+        [("invoice_id".into(), json!(42))].into_iter().collect(),
+    );
+
+    SlackMessage::new()
+        .text("Invoice 42 paid")
+        .withMetadata(event)
+        .threadTimestamp(parent_timestamp)
+        .broadcastReply(false)
+}
+```
+
+Pass the parent message’s timestamp as a string to `threadTimestamp`. With the Bot API, `broadcastReply(true)` also shares the reply to the conversation, while `broadcastReply(false)` keeps it in the thread. Use `clearThreadTimestamp()` or `broadcastReply(None)` to omit either field independently. Slack validates the event schema and applies the thread behavior.
+
 ### Incoming webhooks {#slack-incoming-webhooks}
 
 Pass an HTTP(S) webhook URL as the Slack route to deliver the same `SlackMessage`, including Block Kit, through the incoming webhook. Slack derives the destination from the webhook installation. The request uses JSON and the URL itself is the credential.
