@@ -2,6 +2,7 @@
 
 ## 最新交接
 
+- 2026-11-18 22:34（北京时间）08-04 [原生 Linux 完整镜像包清单复验](audits/08-04/docker.md#原生-linux-完整镜像包清单复验)。原生 amd64 完整镜像通过真实 HTTP、Artisan、13 项 MySQL 迁移、受管和独立 Redis Worker 及关停重建验收。磁盘可用 52.42 GB（48.82 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。Windows Docker Desktop、生产 TLS 和托管 SQS 继续按目标环境跟踪。
 - 2026-11-18 22:12（北京时间）08-04 [Docker 非特权运行的包清单路径](audits/08-04/README.md#docker-非特权运行的包清单路径)。真实 Artisan、HTTP、Linux UID 10001 及三语验收通过。磁盘可用 52.43 GB（48.83 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。后续复验完整 Linux 镜像，实机发布项继续按目标环境跟踪。
 - 2026-11-18 22:02（北京时间）06-03 [生命周期连接在终止回调捕获 Context](audits/06-03/lifecycle-failover-drivers.md#生命周期连接在终止回调捕获-context)。deferred／background 在终止回调执行时取 Context，持久 Redis 保留派发快照。真实 HTTP、Artisan、MySQL 8.4.13 事务和 Redis 8.10.3 Worker 验收通过。磁盘可用 52.59 GB（48.98 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。下一批复核 08-04 发布验收中仍有本地前置条件可执行的条目。
 - 2026-11-18 21:47（北京时间）07-04 [defer 在执行边界捕获 Context](audits/07-04/README.md#defer-在执行边界捕获-context)。公开 defer 采用终止回调时的 Context，隔离任务使用执行器交回前的最终 Context。真实 HTTP、Artisan、Redis 普通／隔离 Worker 验收通过。磁盘可用 52.46 GB（48.86 GiB），提交前周额度剩余 19%，按用户授权继续。核心账本维持 66/66。下一批复核 06-03 生命周期队列的 Context 来源与固定 Laravel 的 Background／DeferredQueue。

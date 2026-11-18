@@ -3516,3 +3516,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 08-04 Docker 非特权运行的包清单路径
 
 镜像包清单使用持久化存储。真实 Artisan、HTTP、Linux 非特权容器、严格 Clippy 和三语文档通过。 [验收记录](audits/08-04/README.md#docker-非特权运行的包清单路径)
+
+## 2026-11-18 08-04 原生 Linux 完整镜像包清单复验
+
+从 `12fe39579` 构建原生 amd64 发布镜像。真实 Artisan、HTTP、只读 rootfs、MySQL 迁移、Redis Worker、进程关停和三语站点通过。 [验收记录](audits/08-04/docker.md#原生-linux-完整镜像包清单复验)

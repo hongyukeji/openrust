@@ -34,3 +34,11 @@ BuildKit 直连镜像分发和 crates.io 时遇到网络失败，隔离 builder 
 - 默认 Runner 和独立 Artisan `queue:work redis --once` 分别处理隔离的 Redis 邮件任务。独立 Worker 返回当前任务的成功事件，两条队列均消费完成且失败账本为空。
 - 两个 Compose 应用实例共用 MySQL 与 Redis，两个实例的首页及健康路由均通过。SIGTERM 退出码为 0。重建应用后存储仍可读，重建 MySQL／Redis 后迁移账本仍有 12 条记录。通过本地测试证书访问 HTTPS 代理的 `/up`。
 - 本批 Compose 容器、专用 Buildx 构建器和缓存、应用镜像、临时源码与站点已清理。复查 Docker 卷清单无变化，MySQL 和 Redis 绑定数据保留在远端私有目录。远端可用空间清理后为 103.31 GiB，比构建器清理前增加 7.05 GiB。三语站点构建、12 项通用导航和 6 项发布矩阵浏览器检查通过。
+
+## 原生 Linux 完整镜像包清单复验
+
+- 在原生 Ubuntu 24.04.3 x86_64 用 `12fe39579` 的干净归档和仓库 Dockerfile 构建 `linux/amd64` 完整发布镜像。Rust 1.94.0 锁定 release 构建通过。核对镜像 UID/GID 为 10001，运行镜像无 Cargo 和应用环境文件。沿用旧版非特权容器及固定 Goravel 的单一编译入口。 [Laravel 部署目录权限](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md#directory-permissions)
+- 用仓库 Compose 及只读根文件系统覆盖启动完整镜像，按部署文档将挂载的 storage 目录交给 UID/GID 10001。实际 Artisan 强制旧路径时因文件系统只读失败。镜像默认路径可生成 JSON、自定义路径可以单独生成和清理、应用容器重建后默认清单仍可读。后续两次独立 `clear-compiled` 成功并保留相邻存储文件，`inspire` 正常。
+- 隔离 MySQL 8.4.13 与 Redis 8 的回环端口通过握手。真实 Artisan 生成密钥、执行 13 项迁移和幂等重跑。两套 Compose 应用共享服务，首页、`/up`、只读 public 文件和迁移状态通过。受管 Redis Worker 与独立 `queue:work redis --once` 各完成实际邮件任务，失败表为空。实际 SIGTERM 退出 0，重建应用保留存储和迁移账本。本地 HTTPS 反向代理使用受信任的测试证书返回 200。
+- 复验当前提交的三语部署站点、根路径和 `/docs/` 共 18 项浏览器检查。相同源码的全仓格式和严格 Clippy 见 [包清单权限修复](README.md#docker-非特权运行的包清单路径)。本次实测架构为原生 amd64。Windows Docker Desktop、生产 TLS 和托管 SQS 仍见 [环境与权限](README.md#剩余实机环境复查)。
+- 本批独立容器、镜像、构建器、构建缓存及站点产物已回收，远端卷清单一致，隔离数据库文件保存在远端私有目录。远端可用 110.70 GB（103.09 GiB），项目盘可用 52.42 GB（48.82 GiB），提交前周额度剩余 19%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-linux-package-cache.GJmKruxl`。
