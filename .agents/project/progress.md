@@ -3232,3 +3232,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-18 10:33（北京时间）06-06 [邮件 MIME 内嵌图片](audits/06-06/README.md#邮件 MIME 内嵌图片)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、17 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 104.17 GB（97.01 GiB），周额度剩余 33%。
 
 - 2026-11-18 10:40（北京时间）06-06 [供应商 API 的内嵌图片字段](audits/06-06/README.md#供应商 API 的内嵌图片字段)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、17 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 104.33 GB（97.17 GiB），周额度剩余 33%。
+
+- 2026-11-18 10:51（北京时间）06-06 [Artisan 生成 Markdown 邮件与 Blade 视图](audits/06-06/README.md#Artisan 生成 Markdown 邮件与 Blade 视图)。真实 Artisan、Mailpit HTTP、MySQL 8.4.13、Redis 8.10.3、17 项邮件和 15 项视图及发布回归、17 个资源发布、格式、严格 Clippy、三语站点和 18 项浏览器检查通过。磁盘可用 104.31 GB（97.15 GiB），周额度剩余 33%。

@@ -1,5 +1,16 @@
 # Mail
 
+## Generating mailables {#generating-mailables}
+
+Use Artisan to generate a Rust mailable. Use `--view` to generate a Blade template as well, and `--test` for a matching feature test.
+
+```sh
+./artisan make:mail OrderShipped
+./artisan make:mail Billing/InvoiceReady --view=mail.billing.invoice --test
+```
+
+The command writes the type under `app/mail` using snake_case files and module directories. Declare the generated module in its parent `mod.rs` before building. The default template name starts with `mail.`, followed by the kebab-case name components. Use `--force` to replace the generated Rust source while keeping any existing view. Application overrides for the source stubs live under `stubs/`.
+
 ## Sending mail
 
 Implement `Mailable` with an envelope and content. `Mail::to` adds recipients before sending. Select a named mailer with `Mail::mailer(Some("smtp"))` or override `Mailable::mailer`.
@@ -72,6 +83,14 @@ let content = Content {
     with: [("name".into(), serde_json::json!("Sam"))].into_iter().collect(),
     ..Content::default()
 };
+```
+
+### Generating Markdown mailables {#generating-markdown-mailables}
+
+Use `--markdown` to generate a Blade template using the mail components. To use the generated type, declare its module and rebuild. When both view options are supplied, the Markdown template is selected.
+
+```sh
+./artisan make:mail Orders/ShipmentNotice --markdown=mail.orders.shipment
 ```
 
 ### Write Markdown messages {#writing-markdown-messages}

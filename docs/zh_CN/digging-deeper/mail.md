@@ -1,5 +1,16 @@
 # 邮件
 
+## 生成邮件类型 {#generating-mailables}
+
+用 Artisan 生成 Rust 邮件类型。用 `--view` 同时生成 Blade 模板，用 `--test` 生成配套功能测试。
+
+```sh
+./artisan make:mail OrderShipped
+./artisan make:mail Billing/InvoiceReady --view=mail.billing.invoice --test
+```
+
+生成的类型位于 `app/mail`，文件和模块目录使用 snake_case。构建前需在上级 `mod.rs` 声明生成的模块。默认视图名以 `mail.` 开头，后接连字符格式的名称各段。`--force` 可覆盖 Rust 源码，已有视图会保留。应用可在 `stubs/` 覆盖源码模板。
+
 ## 发送邮件
 
 实现 `Mailable`，提供信封和内容。通过 `Mail::to` 添加收件人。可用 `Mail::mailer(Some("smtp"))` 选择命名邮件器，或覆盖 `Mailable::mailer`。
@@ -72,6 +83,14 @@ let content = Content {
     with: [("name".into(), serde_json::json!("Sam"))].into_iter().collect(),
     ..Content::default()
 };
+```
+
+### 生成 Markdown 邮件 {#generating-markdown-mailables}
+
+用 `--markdown` 生成使用邮件组件的 Blade 模板。声明模块并重新构建后即可使用新类型。两个视图选项同时出现时选择 Markdown 模板。
+
+```sh
+./artisan make:mail Orders/ShipmentNotice --markdown=mail.orders.shipment
 ```
 
 ### 编写 Markdown 邮件 {#writing-markdown-messages}

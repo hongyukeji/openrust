@@ -1,0 +1,19 @@
+use openrust::mail::{MailResult, Mailable, mailables::{Content, Envelope}};
+
+pub struct {{class}};
+
+impl Mailable for {{class}} {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            subject: {{subject}}.into(),
+            ..Envelope::default()
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Ok(Content {
+            text: Some({{subject}}.into()),
+            ..Content::default()
+        })
+    }
+}

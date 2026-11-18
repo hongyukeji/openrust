@@ -106,6 +106,9 @@ pub(crate) enum Stub {
     MigrationCreate,
     MigrationUpdate,
     Model,
+    Mail,
+    MarkdownMail,
+    ViewMail,
     Observer,
     PlainObserver,
     Policy,
@@ -120,7 +123,7 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 32] = [
+    pub(crate) const ALL: [Self; 35] = [
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,
@@ -142,6 +145,9 @@ impl Stub {
         Self::MigrationCreate,
         Self::MigrationUpdate,
         Self::Model,
+        Self::Mail,
+        Self::MarkdownMail,
+        Self::ViewMail,
         Self::Observer,
         Self::PlainObserver,
         Self::Policy,
@@ -158,6 +164,18 @@ impl Stub {
     pub(crate) fn file(self) -> (&'static str, &'static str) {
         const MIGRATION: &str = include_str!("../database/migrations/stubs/migration.rs.stub");
         match self {
+            Self::Mail => (
+                "mail.rs.stub",
+                include_str!("../foundation/console/stubs/mail.rs.stub"),
+            ),
+            Self::MarkdownMail => (
+                "markdown-mail.rs.stub",
+                include_str!("../foundation/console/stubs/markdown-mail.rs.stub"),
+            ),
+            Self::ViewMail => (
+                "view-mail.rs.stub",
+                include_str!("../foundation/console/stubs/view-mail.rs.stub"),
+            ),
             Self::Class => (
                 "class.rs.stub",
                 include_str!("../foundation/console/stubs/class.rs.stub"),

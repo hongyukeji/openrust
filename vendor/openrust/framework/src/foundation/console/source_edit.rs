@@ -9,6 +9,10 @@ use crate::console::ConsoleError;
 pub(super) fn lock_manifest(root: &Path) -> Result<File, ConsoleError> {
     let manifest_path = root.join("Cargo.toml");
     File::open(&manifest_path).map_err(|error| file_error(&manifest_path, error))?;
+    lock_source(root)
+}
+
+pub(super) fn lock_source(root: &Path) -> Result<File, ConsoleError> {
     // A separate inode keeps the lock valid when an installer replaces Cargo.toml.
     let directory = root.join("tmp");
     fs::create_dir_all(&directory).map_err(|error| file_error(&directory, error))?;

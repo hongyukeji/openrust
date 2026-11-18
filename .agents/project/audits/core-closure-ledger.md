@@ -213,3 +213,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-06 的 [邮件 MIME 内嵌图片](06-06/README.md#邮件 MIME 内嵌图片)通过真实 SMTP 和 Mailpit HTTP、SMTP 原始 MIME、数据库与 Redis Worker 的 CID 保持，以及独立 HTTP 预览的验收。
 
 06-06 的 [供应商 API 的内嵌图片字段](06-06/README.md#供应商 API 的内嵌图片字段)通过真实 SMTP 和 Mailpit HTTP、Postmark、Resend、Cloudflare 与 Mailgun 表单的 CID 协议回归及 SMTP 内嵌图片复验的验收。
+
+06-06 的 [Artisan 生成 Markdown 邮件与 Blade 视图](06-06/README.md#Artisan 生成 Markdown 邮件与 Blade 视图)通过真实 SMTP 和 Mailpit HTTP、实际 Artisan 生成三种邮件、配套测试以及编译后预览的验收。

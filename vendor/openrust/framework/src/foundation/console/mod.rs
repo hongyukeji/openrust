@@ -14,6 +14,7 @@ mod install_routes_command;
 mod job_make_command;
 mod key_generate_command;
 mod lang_publish_command;
+mod mail_make_command;
 mod maintenance_command;
 mod model_make_command;
 mod observer_make_command;
@@ -118,6 +119,7 @@ impl Kernel {
                             resource_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
                             lang_publish_command::register(&mut self.artisan)?;
+                            mail_make_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]
