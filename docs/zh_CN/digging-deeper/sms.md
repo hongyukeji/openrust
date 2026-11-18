@@ -34,6 +34,20 @@ Sms::driver("aliyun")?
 
 ## 配置
 
+### 开发环境使用 log
+
+省略 `SMS_DRIVER` 或设为 `log`。下面的调用只记录消息类型和号码末四位，无需联系短信供应商。
+
+```dotenv
+SMS_DRIVER=log
+```
+
+```rust
+Sms::send_text("+8613800138000", "本地短信测试").await?;
+```
+
+### 阿里云同时发送内地和国际短信
+
 使用阿里云时，设定 `SMS_DRIVER=aliyun`，填写 `SMS_ALIYUN_ACCESS_KEY_ID` 和 `SMS_ALIYUN_ACCESS_KEY_SECRET`。内地模板需要 `SMS_ALIYUN_SIGN_NAME`，国际文本按目标市场要求填写 `SMS_ALIYUN_SENDER_ID`。省略 `SMS_ALIYUN_MARKET` 时，同一个配置可以向两个市场发送，驱动根据收件号码选择接口和端点。国际及港澳台号码使用 `+` 和国家或地区区号。
 
 在配置的 `templates` 下将业务模板名映射到供应商模板 ID。腾讯云这类按顺序接收变量的接口，可以用包含 `id` 和 `parameter_order` 的配置，将具名变量转换成厂商要求的顺序。各市场独有的参数写在 `markets.mainland` 或 `markets.international` 下，共用凭据填在配置外层。
@@ -52,6 +66,116 @@ Sms::driver("aliyun")?
 ```
 
 驱动会在发起请求前校验消息类型。阿里云内地短信需要审核通过的签名和模板，这里接入的国际接口接收纯文本。业务已经持有供应商模板 ID 时，可以通过 `SmsMessage::template` 构造消息并调用驱动的 `send`。
+
+### 短信宝单账号发送内地和国际短信
+
+在 `.env` 填写用户名和 API Key。省略 `SMS_SMSBAO_MARKET`，驱动会根据收件号码选择内地或国际接口。
+
+```dotenv
+SMS_DRIVER=smsbao
+SMS_SMSBAO_USERNAME=your-username
+SMS_SMSBAO_API_KEY=your-api-key
+```
+
+传入带审核签名的完整正文。发送到中国内地以外的号码时，带上 `+` 和国家或地区区号。
+
+```rust
+Sms::send_text("+8613800138000", "【示例商店】您的订单已发货。").await?;
+Sms::send_text("+85255550123", "【示例商店】您的订单已发货。").await?;
+```
+
+### 云片单账号
+
+在 `.env` 里设置默认配置和 API Key。
+
+```dotenv
+SMS_DRIVER=yunpian
+SMS_YUNPIAN_API_KEY=your-api-key
+```
+
+发送带已审核签名的完整正文，驱动按号码选择内地或国际市场。
+
+```rust
+Sms::send_text("+8613800138000", "【示例商店】您的订单已发货。").await?;
+```
+
+### 腾讯云模板按顺序传参
+
+在 `.env` 里配置腾讯云凭据、应用 ID 和已审核签名。
+
+```dotenv
+SMS_DRIVER=tencent
+SMS_TENCENT_SECRET_ID=your-secret-id
+SMS_TENCENT_SECRET_KEY=your-secret-key
+SMS_TENCENT_SDK_APP_ID=your-app-id
+SMS_TENCENT_SIGN_NAME="Your Brand"
+```
+
+把下面的字段加到 `config/sms.rs` 的 `drivers.tencent`，将 `id` 换成审核通过的模板 ID。
+
+```rust
+"templates": {
+    "login_code": {
+        "id": "123456",
+        "parameter_order": ["code", "minutes"],
+    },
+},
+```
+
+业务代码传入具名参数即可。即使调用时先写 `minutes`，OpenRust 也会按配置先发送 `code`。
+
+```rust
+Sms::send_template(
+    "+8613800138000",
+    "login_code",
+    [("minutes", "5"), ("code", "246810")],
+)
+.await?;
+```
+
+### Twilio 同时发送文本和模板
+
+在 `.env` 里填写账号 SID、API Key 和发送号码。使用 Messaging Service 时，可用 `SMS_TWILIO_MESSAGING_SERVICE_SID` 指定服务。
+
+```dotenv
+SMS_DRIVER=twilio
+SMS_TWILIO_ACCOUNT_SID=ACyour_account_sid
+SMS_TWILIO_API_KEY_SID=SKyour_api_key_sid
+SMS_TWILIO_API_KEY_SECRET=your-api-key-secret
+SMS_TWILIO_FROM=+12025550100
+```
+
+把下面的字段加到 `config/sms.rs` 的 `drivers.twilio`，将示例 ID 换成你的 Twilio Content SID。
+
+```rust
+"templates": {
+    "order_shipped": "HXyour_content_sid",
+},
+```
+
+两次调用都使用同一个 Twilio 配置。模板变量的键按实际模板填写。
+
+```rust
+let sms = Sms::driver("twilio")?;
+sms.send_text("+12025550123", "您的订单已发货。").await?;
+sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
+    .await?;
+```
+
+### Vonage 发送纯文本
+
+设置 `SMS_DRIVER=vonage`，填入原有的 Vonage 凭据和发送者标识。
+
+```dotenv
+SMS_DRIVER=vonage
+VONAGE_KEY=your-key
+VONAGE_SECRET=your-secret
+VONAGE_SMS_FROM=YourBrand
+```
+
+```rust
+Sms::send_text("+12025550123", "您的订单已发货。").await?;
+```
 
 ## 通知和 Worker
 

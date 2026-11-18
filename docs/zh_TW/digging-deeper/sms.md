@@ -34,6 +34,20 @@ Sms::driver("aliyun")?
 
 ## 設定
 
+### 開發環境使用 log
+
+省略 `SMS_DRIVER` 或設為 `log`。以下呼叫只記錄訊息類型和號碼末四碼，無需聯絡簡訊供應商。
+
+```dotenv
+SMS_DRIVER=log
+```
+
+```rust
+Sms::send_text("+8613800138000", "本機簡訊測試").await?;
+```
+
+### 阿里雲同時傳送內地和國際簡訊
+
 使用阿里雲時，設定 `SMS_DRIVER=aliyun`，填寫 `SMS_ALIYUN_ACCESS_KEY_ID` 和 `SMS_ALIYUN_ACCESS_KEY_SECRET`。內地範本需要 `SMS_ALIYUN_SIGN_NAME`，國際文字則依目標市場要求填寫 `SMS_ALIYUN_SENDER_ID`。省略 `SMS_ALIYUN_MARKET` 時，同一設定可向兩個市場傳送，驅動程式會依收件號碼選擇介面和端點。國際及港澳台號碼使用 `+` 和國家或地區區碼。
 
 在設定的 `templates` 下將業務範本名稱對應到供應商範本 ID。騰訊雲等依序接收變數的介面，也可以透過 `id` 和 `parameter_order` 將具名變數轉換為廠商要求的順序。各市場獨有的參數放在 `markets.mainland` 或 `markets.international` 下，共用憑證填在設定外層。
@@ -52,6 +66,116 @@ Sms::driver("aliyun")?
 ```
 
 驅動程式會在發出請求前檢查訊息類型。阿里雲內地簡訊需要通過審核的簽名和範本，此處接入的國際介面接受純文字。業務已持有供應商範本 ID 時，可用 `SmsMessage::template` 建立訊息並呼叫驅動程式的 `send`。
+
+### 簡訊寶單帳號傳送內地和國際簡訊
+
+在 `.env` 填寫使用者名稱和 API Key。省略 `SMS_SMSBAO_MARKET`，驅動程式會依收件號碼選擇內地或國際介面。
+
+```dotenv
+SMS_DRIVER=smsbao
+SMS_SMSBAO_USERNAME=your-username
+SMS_SMSBAO_API_KEY=your-api-key
+```
+
+傳入帶有已審核簽名的完整正文。傳送到中國內地以外的號碼時，帶上 `+` 和國家或地區區碼。
+
+```rust
+Sms::send_text("+8613800138000", "【範例商店】您的訂單已出貨。").await?;
+Sms::send_text("+85255550123", "【範例商店】您的訂單已出貨。").await?;
+```
+
+### 雲片單帳號
+
+在 `.env` 中設定預設配置和 API Key。
+
+```dotenv
+SMS_DRIVER=yunpian
+SMS_YUNPIAN_API_KEY=your-api-key
+```
+
+傳送帶有已審核簽名的完整正文，驅動程式會依號碼選擇內地或國際市場。
+
+```rust
+Sms::send_text("+8613800138000", "【範例商店】您的訂單已出貨。").await?;
+```
+
+### 騰訊雲範本依序傳入變數
+
+在 `.env` 中設定騰訊雲憑證、應用程式 ID 和已審核簽名。
+
+```dotenv
+SMS_DRIVER=tencent
+SMS_TENCENT_SECRET_ID=your-secret-id
+SMS_TENCENT_SECRET_KEY=your-secret-key
+SMS_TENCENT_SDK_APP_ID=your-app-id
+SMS_TENCENT_SIGN_NAME="Your Brand"
+```
+
+將以下欄位加入 `config/sms.rs` 的 `drivers.tencent`，並將 `id` 換成通過審核的範本 ID。
+
+```rust
+"templates": {
+    "login_code": {
+        "id": "123456",
+        "parameter_order": ["code", "minutes"],
+    },
+},
+```
+
+業務程式碼傳入具名變數即可。即使呼叫時先寫 `minutes`，OpenRust 也會依設定先傳送 `code`。
+
+```rust
+Sms::send_template(
+    "+8613800138000",
+    "login_code",
+    [("minutes", "5"), ("code", "246810")],
+)
+.await?;
+```
+
+### Twilio 同時傳送純文字和範本
+
+在 `.env` 中填入帳號 SID、API Key 和寄件號碼。使用 Messaging Service 時，可用 `SMS_TWILIO_MESSAGING_SERVICE_SID` 指定服務。
+
+```dotenv
+SMS_DRIVER=twilio
+SMS_TWILIO_ACCOUNT_SID=ACyour_account_sid
+SMS_TWILIO_API_KEY_SID=SKyour_api_key_sid
+SMS_TWILIO_API_KEY_SECRET=your-api-key-secret
+SMS_TWILIO_FROM=+12025550100
+```
+
+將以下欄位加入 `config/sms.rs` 的 `drivers.twilio`，並將範例 ID 換成你的 Twilio Content SID。
+
+```rust
+"templates": {
+    "order_shipped": "HXyour_content_sid",
+},
+```
+
+兩次呼叫都使用同一個 Twilio 設定。範本變數的鍵依實際範本填寫。
+
+```rust
+let sms = Sms::driver("twilio")?;
+sms.send_text("+12025550123", "您的訂單已出貨。").await?;
+sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
+    .await?;
+```
+
+### Vonage 傳送純文字
+
+設定 `SMS_DRIVER=vonage`，填入原有的 Vonage 憑證和寄件者識別資訊。
+
+```dotenv
+SMS_DRIVER=vonage
+VONAGE_KEY=your-key
+VONAGE_SECRET=your-secret
+VONAGE_SMS_FROM=YourBrand
+```
+
+```rust
+Sms::send_text("+12025550123", "您的訂單已出貨。").await?;
+```
 
 ## 通知和 Worker
 
