@@ -18,6 +18,8 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 
 使用 `request.date("when", None, None).await?` 依應用程式時區解析日期。以 `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?` 指定 PHP 格式和時區。缺少值、null 和空白時傳回 `None`，日期無效時傳回 HTTP 400。解析結果保留實際時區和微秒。
 
+測試中，`TestApp::travelTo` 和凍結時間方法會為相對日期及格式中省略的欄位提供參考時刻。例如，`tomorrow` 從所用時區的凍結日期計算。格式以 `!` 開頭時，省略的欄位會重設。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
+
 使用 `request.only(&["user.name", "user.note"]).await?` 選取巢狀輸入，並保留明確提供的 null。`request.except` 從輸入副本移除指定路徑。`arrayOnly` 和 `collectOnly` 分別對應 `array` 和 `collect` 的多鍵讀取。這些方法選取輸入值，上傳檔案由 `request.file` 讀取。
 
 使用 `request.interval("duration", None).await?` 讀取 ISO 8601 區間或 `2 hours 30 minutes` 等表示式。欄位以指定單位提供數值時，使用 `request.interval("seconds", Some("second")).await?`。結果保留日曆分量和微秒，明確傳入的 90 秒仍屬於秒分量。缺少輸入或只有空白時傳回 `None`，區間或單位無效時傳回 HTTP 400。

@@ -8,6 +8,7 @@ use super::lexer::{ProductionTag, Token};
 use super::{CalendarInstant, ResolvedTimezone, calendar_error, limit_error, range_error};
 
 const MAX_OPERATIONS: usize = 1024;
+const DATE_FIELDS: u16 = format::YEAR | format::MONTH | format::DAY;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum RelativeUnit {
@@ -58,6 +59,7 @@ pub(super) struct ParseState {
     civil: Civil,
     timezone: ResolvedTimezone,
     reference: Option<super::CalendarInstant>,
+    frozen: bool,
     base_timezone: ResolvedTimezone,
     date_mask: u16,
     have_date: bool,
@@ -75,6 +77,7 @@ impl ParseState {
             base_timezone: timezone.clone(),
             timezone,
             reference: None,
+            frozen: false,
             date_mask: 0,
             have_date: false,
             have_time: 0,
@@ -84,8 +87,9 @@ impl ParseState {
             relative: Relative::default(),
         }
     }
-    pub fn reference(&mut self, instant: CalendarInstant) {
+    pub fn reference(&mut self, instant: CalendarInstant, frozen: bool) {
         self.reference = Some(instant);
+        self.frozen = frozen;
     }
     pub fn absolute(&mut self, token: &Token) -> Result<()> {
         self.operation()?;
@@ -101,7 +105,7 @@ impl ParseState {
             self.have_time += 1;
             return Ok(());
         }
-        let date_mask = token.mask & (format::YEAR | format::MONTH | format::DAY);
+        let date_mask = token.mask & DATE_FIELDS;
         if date_mask != 0 {
             if token.tag != ProductionTag::Year {
                 if self.have_date {
@@ -124,11 +128,19 @@ impl ParseState {
             self.relative.days = days;
         }
         if token.mask & format::HOUR != 0 {
+            let micros = if self.frozen
+                && self.date_mask != DATE_FIELDS
+                && token.tag == ProductionTag::GnuTime
+            {
+                self.civil.microsecond
+            } else {
+                token.civil.microsecond
+            };
             self.set_time(
                 token.civil.hour,
                 token.civil.minute,
                 token.civil.second,
-                token.civil.microsecond,
+                micros,
             )?;
         }
         Ok(())
@@ -338,7 +350,11 @@ impl ParseState {
         Ok(())
     }
     pub fn timezone(&self) -> &ResolvedTimezone {
-        &self.timezone
+        if self.frozen && self.date_mask != DATE_FIELDS {
+            &self.base_timezone
+        } else {
+            &self.timezone
+        }
     }
 
     pub fn finish_interval(mut self, start: CalendarInstant) -> Result<CalendarInstant> {
@@ -355,6 +371,10 @@ impl ParseState {
     }
 
     pub fn finish(mut self) -> Result<CalendarInstant> {
+        let use_frozen_zone = self.frozen && self.date_mask != DATE_FIELDS;
+        if use_frozen_zone {
+            self.timezone = self.base_timezone.clone();
+        }
         if let Some(reference) = self.reference {
             let current = self.base_timezone.civil(reference)?;
             if self.date_mask & format::YEAR == 0 {
@@ -370,17 +390,18 @@ impl ParseState {
                 self.civil.hour = current.hour;
                 self.civil.minute = current.minute;
                 self.civil.second = current.second;
-                self.civil.microsecond = if self.date_mask != 0 {
+                self.civil.microsecond = if self.date_mask != 0 && !self.frozen {
                     0
                 } else {
                     current.microsecond
                 };
             }
         }
-        if self.have_date && !self.time_touched {
+        let inherit_time = self.frozen && self.date_mask & format::YEAR == 0;
+        if self.have_date && !self.time_touched && !inherit_time {
             self.civil = self.civil.midnight();
         }
-        let prefer_dst = (self.zone_count != 0).then_some(true);
+        let prefer_dst = (self.zone_count != 0 && !use_frozen_zone).then_some(true);
         self.apply_relative(prefer_dst)
     }
 

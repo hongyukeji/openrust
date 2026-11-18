@@ -5,7 +5,7 @@ use serde_json::{Map, Value};
 use crate::http::{Body, HttpError, Method, Request, UploadedFile};
 use crate::support::{
     Arr, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar, data_get,
-    facades::Config, input_scalars,
+    facades::Config, frozen_utc_now, input_scalars,
 };
 
 use super::{query, variables::VariableBag};
@@ -279,7 +279,11 @@ impl Request {
                 }
             }
         };
-        calendar::parse_input_date(value, format, timezone, chrono::Utc::now())
+        let reference = frozen_utc_now().map_or_else(
+            || calendar::DateReference::Wall(chrono::Utc::now()),
+            calendar::DateReference::Frozen,
+        );
+        calendar::parse_input_date(value, format, timezone, reference)
             .map(Some)
             .map_err(|error| match error {
                 calendar::CalendarError::LimitExceeded => HttpError::PayloadTooLarge,

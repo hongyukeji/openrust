@@ -6,7 +6,7 @@ use chrono_tz::{GapInfo, Tz, TzOffset};
 use super::facades::Config;
 
 mod clock;
-pub(crate) use clock::{TestClock, utc_now_for};
+pub(crate) use clock::{TestClock, frozen_utc_now, utc_now_for};
 
 /// An IANA timezone used by OpenRust date helpers.
 pub use chrono_tz::Tz as DateTimezone;

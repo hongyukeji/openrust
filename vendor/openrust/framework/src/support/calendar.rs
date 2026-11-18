@@ -83,11 +83,16 @@ impl InputDate {
     }
 }
 
+pub(crate) enum DateReference {
+    Wall(DateTime<Utc>),
+    Frozen(DateTime<Utc>),
+}
+
 pub(crate) fn parse_input_date(
     value: Value,
     pattern: Option<&str>,
     timezone: &str,
-    reference: DateTime<Utc>,
+    reference: DateReference,
 ) -> Result<InputDate> {
     let size = value
         .as_str()
@@ -97,6 +102,10 @@ pub(crate) fn parse_input_date(
     if size > MAX_CALENDAR_BYTES {
         return Err(limit_error());
     }
+    let (reference, frozen) = match reference {
+        DateReference::Wall(reference) => (reference, false),
+        DateReference::Frozen(reference) => (reference, true),
+    };
     let now = CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
     let zone = ResolvedTimezone::parse(timezone)?;
     if let Some(pattern) = pattern {
@@ -105,7 +114,9 @@ pub(crate) fn parse_input_date(
         }
         let text = super::input_scalars::string(value);
         let mut civil = zone.civil(now)?;
-        civil.microsecond = 0;
+        if !frozen {
+            civil.microsecond = 0;
+        }
         return format::parse(&text, pattern, civil, &zone);
     }
     let utc = || ResolvedTimezone::parse("+00:00");
@@ -138,7 +149,7 @@ pub(crate) fn parse_input_date(
             {
                 return Ok(parsed);
             }
-            parse::parse_date(&text, now, &zone)
+            parse::parse_date(&text, now, &zone, frozen)
         }
         _ => Err(CalendarError::InvalidExpression),
     }

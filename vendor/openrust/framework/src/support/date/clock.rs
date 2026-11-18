@@ -73,6 +73,14 @@ pub(super) fn utc_now() -> DateTime<Utc> {
 }
 
 pub(crate) fn utc_now_for(container: Option<&Container>) -> DateTime<Utc> {
+    frozen_now_for(container).unwrap_or_else(Utc::now)
+}
+
+pub(crate) fn frozen_utc_now() -> Option<DateTime<Utc>> {
+    frozen_now_for(current_container().as_deref())
+}
+
+fn frozen_now_for(container: Option<&Container>) -> Option<DateTime<Utc>> {
     container
         .and_then(|container| {
             container
@@ -80,5 +88,4 @@ pub(crate) fn utc_now_for(container: Option<&Container>) -> DateTime<Utc> {
                 .ok()
         })
         .and_then(|clock| clock.now())
-        .unwrap_or_else(Utc::now)
 }

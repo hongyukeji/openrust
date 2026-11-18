@@ -106,3 +106,9 @@
 - 真实 HTTP 验证转义后的字节、原应用报告一次以及无结束标记；Chromium 用 `Fetch` 在放行第二项前读到第一项，并用 `EventSource` 解析命名 JSON 事件与正常结束标记。浏览器消费验收使用标准 Web API。React、Vue 和 Svelte 的 Laravel 客户端套件保留在应用依赖范围。
 - 核对交付计划，JSON、表单、multipart、响应头、流式响应、控制器分派、正文错误与状态码均有真实入口证据。上传保存归 04-09，Windows 实机归 08-04。Rust 保留已有请求正文上限和类型化接口。
 - 隔离基线 `64cc3fd4e` 使用 Rust 1.94.0 通过请求与响应 16 项、文件系统 9 项、应用 HTTP 16 项、实际 `route:list --json --method=HEAD` 与 `artisan inspire`、严格 Clippy、三语站点和 18 项文档浏览器检查。全仓格式仅报告既有 `sanctum_authentication.rs:1412`。隔离产物已回收，证据目录 `/private/tmp/openrust-04-02-stream-parity.4762ezYh`。
+
+## 请求日期读取应用测试时钟
+
+- 对照固定 Laravel `InteractsWithData::date` 和 Carbon 3.8.4。旧版 Calendar 已区分系统与测试时钟，并处理冻结时钟下的缺省字段。沿用其分支及 T-04 应用测试时钟，保留缺省日期、微秒和相对表达式的解析。HTTP 缓存头继续按原系统时钟路径解析。 [固定 Laravel Request::date](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Traits/InteractsWithData.php#L348)
+- 在 `2a6bb6ca3` 的干净归档实测。PHP 8.5.12 以固定 Laravel Trait 直接调用 Carbon 3.8.4，输出 22 组日期及格式结果。通过真实 TCP 请求逐项比对 OpenRust 响应，另验证两个应用隔离、显式时区、纽约夏令时切换、作用域恢复、空值和无效输入。
+- 请求、日期助手和时间控制定向回归共 24 项通过。Rust 1.94.0 全仓格式、工作区全目标严格 Clippy、独立 `./artisan inspire`、三语站点和 18 项浏览器检查通过。回收隔离编译和文档产物后项目盘可用 100.17 GB（93.29 GiB），提交前周额度剩余 36%。复现日志与 PHP 比对夹具保留于 `/private/tmp/openrust-request-date-clock.vXUAxwQO`。

@@ -18,6 +18,8 @@ Implement `BackedEnum` with a `String` or `i64` backing. Use `request.r#enum::<S
 
 Use `request.date("when", None, None).await?` to parse a date using the application's time zone. Pass a PHP format and an explicit time zone with `request.date("formatted", Some("!d/m/Y H:i:s.u"), Some("Asia/Tokyo")).await?`. Missing, null, and blank values return `None`. Invalid dates return HTTP 400. The parsed date preserves its resolved time zone and microseconds.
 
+In a test fixture, `TestApp::travelTo` and the freeze helpers set the reference for relative dates and components omitted by the format. For example, `tomorrow` is resolved from the fixture's frozen date in the requested time zone. A format starting with `!` resets omitted fields. See [Interacting with time](../testing/mocking.md#interacting-with-time).
+
 Use `request.only(&["user.name", "user.note"]).await?` to select nested input while retaining explicit null values. `request.except` removes paths from a copy of the input. Use `arrayOnly` and `collectOnly` for the multi-key forms of `array` and `collect`. These methods select input values. Read multipart uploads through `request.file`.
 
 Use `request.interval("duration", None).await?` for ISO 8601 intervals or expressions such as `2 hours 30 minutes`. Use `request.interval("seconds", Some("second")).await?` when a field supplies a value in a named unit. The result preserves calendar components and microseconds. An explicit value of 90 seconds stays in the seconds field. Blank or missing input returns `None`. Invalid interval syntax or units return HTTP 400.

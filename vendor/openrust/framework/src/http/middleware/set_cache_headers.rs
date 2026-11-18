@@ -238,12 +238,17 @@ fn last_modified(input: &str) -> Result<HeaderValue, HttpError> {
     } else {
         input.to_owned()
     };
-    let date = calendar::parse_input_date(input.into(), None, timezone, chrono::Utc::now())
-        .map_err(|error| {
-            internal(std::io::Error::other(format!(
-                "invalid cache last_modified: {error:?}"
-            )))
-        })?;
+    let date = calendar::parse_input_date(
+        input.into(),
+        None,
+        timezone,
+        calendar::DateReference::Wall(chrono::Utc::now()),
+    )
+    .map_err(|error| {
+        internal(std::io::Error::other(format!(
+            "invalid cache last_modified: {error:?}"
+        )))
+    })?;
     let date = chrono::DateTime::from_timestamp(date.timestamp(), 0)
         .filter(|date| (1..=9999).contains(&date.year()))
         .ok_or_else(|| internal(std::io::Error::other("cache last_modified is out of range")))?;
