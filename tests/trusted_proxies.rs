@@ -36,6 +36,35 @@ fn proxy_info(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
     })
 }
 
+fn request_identity(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let full = request.fullUrl()?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "path": request.path(),
+                "decoded": request.decodedPath(),
+                "segments": request.segments(),
+                "segment": request.segment(2),
+                "get": request.isMethod("get"),
+                "named": request.routeIs(&["missing", "identity.*"]),
+                "host": request.host()?,
+                "http_host": request.httpHost()?,
+                "origin": request.schemeAndHttpHost()?,
+                "root": request.root()?,
+                "url": request.url()?,
+                "full": full,
+                "matches": request.fullUrlIs(&["https://edge.test:8443/portal/*"])?,
+                "with": request.fullUrlWithQuery(&json!({"z":"changed","extra":"new value"}))?,
+                "without": request.fullUrlWithoutQuery(&["z", "items.0"])?,
+                "header": request.header("X-Probe")?,
+                "has": request.hasHeader("x-probe"),
+                "bearer": request.bearerToken()?,
+            }),
+        )
+    })
+}
+
 async fn entry(
     State(kernel): State<Arc<Kernel>>,
     mut request: axum::extract::Request,
@@ -63,6 +92,10 @@ async fn start_with(
         .withRouting(Routing::new(|_| {
             let mut router = Router::new();
             router.get("/probe", proxy_info)?;
+            router.get("/", request_identity)?;
+            router
+                .get("/identity/{name}", request_identity)?
+                .name("identity.show");
             Ok(router)
         }))
         .create()
@@ -80,6 +113,50 @@ async fn start_with(
             axum::serve(listener, service).await.unwrap();
         }),
     )
+}
+
+#[tokio::test]
+async fn request_identity_reads_named_paths_headers_and_trusted_origins() {
+    let (address, server) = start(&["127.0.0.0/8"], TrustedProxyHeaders::DEFAULT).await;
+    let data = request(
+        address,
+        "/identity/caf%C3%A9?z=old&items[]=one&items[]=two&b=hello+world&a.b=keep",
+        concat!(
+            "X-Forwarded-Proto: https\r\nX-Forwarded-Host: EDGE.TEST\r\n",
+            "X-Forwarded-Port: 8443\r\nX-Forwarded-Prefix: /portal/\r\n",
+            "X-Probe: first\r\nX-Probe: second\r\n",
+            "Authorization: Bearer ignored, bEaReR fixture-token, next\r\n",
+        ),
+        200,
+    )
+    .await;
+    assert_eq!(
+        data,
+        json!({
+            "path": "identity/caf%C3%A9", "decoded": "identity/café",
+            "segments": ["identity", "café"], "segment": "café",
+            "get": true, "named": true,
+            "host": "edge.test", "http_host": "edge.test:8443",
+            "origin": "https://edge.test:8443", "root": "https://edge.test:8443/portal",
+            "url": "https://edge.test:8443/portal/identity/caf%C3%A9",
+            "full": "https://edge.test:8443/portal/identity/caf%C3%A9?a.b=keep&b=hello%20world&items%5B0%5D=one&items%5B1%5D=two&z=old",
+            "matches": true,
+            "with": "https://edge.test:8443/portal/identity/caf%C3%A9?z=changed&items%5B0%5D=one&items%5B1%5D=two&b=hello%20world&a_b=keep&extra=new%20value",
+            "without": "https://edge.test:8443/portal/identity/caf%C3%A9?items%5B1%5D=two&b=hello%20world&a_b=keep",
+            "header": "first", "has": true, "bearer": "fixture-token",
+        })
+    );
+    let root = request_with_host(address, "/?z=remove&a=keep", "[2001:db8::1]:80", "", 200).await;
+    assert_eq!(root["path"], "/");
+    assert_eq!(root["segments"], json!([]));
+    assert!(root["segment"].is_null());
+    assert_eq!(root["named"], false);
+    assert_eq!(root["has"], false);
+    assert!(root["bearer"].is_null());
+    assert_eq!(root["http_host"], "[2001:db8::1]");
+    assert_eq!(root["full"], "http://[2001:db8::1]/?a=keep&z=remove");
+    assert_eq!(root["without"], "http://[2001:db8::1]/?a=keep");
+    server.abort();
 }
 
 async fn request(address: SocketAddr, uri: &str, fields: &str, status: u16) -> Value {

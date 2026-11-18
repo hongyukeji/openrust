@@ -3384,3 +3384,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 04-02 HTTP 请求内容协商
 
 请求接受类型、候选选择与 JSON／Markdown 协商接口已接通。固定上游、实际 HTTP／Artisan、严格 Clippy 和三语文档通过。 [HTTP 请求内容协商](audits/04-02/README.md#HTTP 请求内容协商)
+
+## 2026-11-18 04-02 请求头路径与当前URL
+
+请求头、路径、路由名与当前 URL 入口已接通。实际 HTTP、Artisan、严格 Clippy 和三语文档通过。 [请求头路径与当前URL](audits/04-02/README.md#请求头路径与当前url)

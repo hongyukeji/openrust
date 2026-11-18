@@ -1,5 +1,15 @@
 # HTTP 请求
 
+## 请求头 {#request-headers}
+
+用 `request.header("X-Trace")?` 读取首个文本值，请求头缺失时返回 `None`。内核会将无效名称或非 UTF-8 值产生的错误渲染为 HTTP 400。用 `hasHeader` 检查是否存在，`headers()` 读取完整的请求头映射，`bearerToken()?` 从 Authorization 中提取 Bearer 令牌。
+
+## 请求路径、主机和 URL {#request-path-host-and-method}
+
+`path()` 移除路径两端的斜杠，`decodedPath()` 再进行百分号解码。用 `segments()` 或从 1 开始的 `segment(index)` 读取路径段。`is(pattern)` 匹配解码后的路径，`routeIs(&["reports.*"])` 匹配当前路由名称，`isMethod("GET")` 检查生效的 HTTP 方法。
+
+`host()?`、`httpHost()?` 和 `schemeAndHttpHost()?` 使用生效的连接信息和可信代理设置。HTTP 主机包含非默认端口。`root()?` 还包含可信代理基础路径。`url()?` 返回去掉查询串的当前 URL。`fullUrl()?` 和 `fullUrlIs(patterns)?` 使用规范化查询串。用 `fullUrlWithQuery(&serde_json::json!({"page": 2}))?` 或 `fullUrlWithoutQuery(&["page"])?` 根据请求查询数据生成地址。这些方法返回新的 URL 字符串。签名验证使用原始请求目标。
+
 ## 获取输入
 
 用 `request.query(Some("key"))` 读取精确的顶层查询键。用 `request.input(Some("team.name")).await` 读取嵌套输入，传入 `None` 可读取整组输入。JSON 和表单的顶层字段优先于查询参数。只读取 JSON 正文时使用 `request.json`。

@@ -1,5 +1,15 @@
 # HTTP 請求
 
+## 請求標頭 {#request-headers}
+
+用 `request.header("X-Trace")?` 讀取首個文字值，請求標頭缺少時回傳 `None`。核心會將無效名稱或非 UTF-8 值產生的錯誤轉為 HTTP 400。用 `hasHeader` 檢查是否存在，`headers()` 讀取完整的請求標頭對應，`bearerToken()?` 從 Authorization 中擷取 Bearer 權杖。
+
+## 請求路徑、主機和 URL {#request-path-host-and-method}
+
+`path()` 移除路徑兩端的斜線，`decodedPath()` 再進行百分號解碼。用 `segments()` 或從 1 開始的 `segment(index)` 讀取路徑區段。`is(pattern)` 比對解碼後的路徑，`routeIs(&["reports.*"])` 比對目前的路由名稱，`isMethod("GET")` 檢查生效的 HTTP 方法。
+
+`host()?`、`httpHost()?` 和 `schemeAndHttpHost()?` 使用生效的連線資訊和可信代理設定。HTTP 主機包含非預設連接埠。`root()?` 也包含可信代理基底路徑。`url()?` 回傳去掉查詢字串的目前 URL。`fullUrl()?` 和 `fullUrlIs(patterns)?` 使用正規化查詢字串。用 `fullUrlWithQuery(&serde_json::json!({"page": 2}))?` 或 `fullUrlWithoutQuery(&["page"])?` 依請求查詢資料產生位址。這些方法回傳新的 URL 字串。簽名驗證使用原始請求目標。
+
 ## 取得輸入
 
 用 `request.query(Some("key"))` 讀取精確的頂層查詢鍵。用 `request.input(Some("team.name")).await` 讀取巢狀輸入，傳入 `None` 可讀取整組輸入。JSON 和表單的頂層欄位優先於查詢參數。只讀取 JSON 本文時使用 `request.json`。

@@ -1,5 +1,15 @@
 # HTTP Requests
 
+## Request Headers {#request-headers}
+
+Use `request.header("X-Trace")?` to read the first text value or `None` if the header is absent. Invalid names or non-UTF-8 values return HTTP 400 when the error is rendered by the kernel. Use `hasHeader` for presence, `headers()` for the complete header map and `bearerToken()?` to extract a bearer token from Authorization.
+
+## Request Path, Host and URL {#request-path-host-and-method}
+
+`path()` strips surrounding slashes. `decodedPath()` also percent-decodes the path. Use `segments()` or the one-based `segment(index)` to read its components. `is(pattern)` checks the decoded path, `routeIs(&["reports.*"])` checks the matched route name, and `isMethod("GET")` checks the effective HTTP method.
+
+`host()?`, `httpHost()?` and `schemeAndHttpHost()?` use the effective connection and trusted proxy settings. The HTTP host includes a non-default port. `root()?` also includes the trusted proxy base path. `url()?` returns the current URL without a query string. `fullUrl()?` and `fullUrlIs(patterns)?` use a normalized query string. Use `fullUrlWithQuery(&serde_json::json!({"page": 2}))?` or `fullUrlWithoutQuery(&["page"])?` to build a URL from the request query data. These helpers return a new URL string. Signature verification uses the original request target.
+
 ## Retrieving Input
 
 Use `request.query(Some("key"))` to read an exact top-level query key. Use `request.input(Some("team.name")).await` for nested input. Pass `None` to retrieve the input bag. JSON and form fields take precedence over query values at the top level. Use `request.json` to read the JSON body alone.

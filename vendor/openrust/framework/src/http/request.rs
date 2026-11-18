@@ -20,6 +20,7 @@ mod cookies;
 mod input;
 mod query;
 pub(crate) use query::{parse as parse_query, parse_uri as parse_uri_query};
+mod url;
 mod variables;
 pub use context::RequestAttributes;
 
@@ -141,6 +142,36 @@ impl Request {
         &self.parts.headers
     }
 
+    /// Returns the first text value for a header.
+    pub fn header(&self, name: &str) -> Result<Option<&str>, super::HttpError> {
+        let name = ::http::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| super::HttpError::InvalidRequest)?;
+        self.headers()
+            .get(name)
+            .map(|value| {
+                std::str::from_utf8(value.as_bytes()).map_err(|_| super::HttpError::InvalidRequest)
+            })
+            .transpose()
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn hasHeader(&self, name: &str) -> bool {
+        self.headers().contains_key(name)
+    }
+
+    /// Extracts the token after the last ASCII case-insensitive Bearer marker.
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn bearerToken(&self) -> Result<Option<&str>, super::HttpError> {
+        Ok(self.header("authorization")?.and_then(|header| {
+            let position = header
+                .as_bytes()
+                .windows(7)
+                .rposition(|window| window.eq_ignore_ascii_case(b"Bearer "))?;
+            let token = &header[position + 7..];
+            Some(token.split_once(',').map_or(token, |(token, _)| token))
+        }))
+    }
+
     /// Reads the cookie bag or an exact top-level cookie name.
     pub fn cookie(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
         let cookies = match self
@@ -244,11 +275,49 @@ impl Request {
         &self.proxy.prefix
     }
 
-    /// Returns the decoded URL path without surrounding slashes, or `/` for the root.
+    /// Returns the raw URL path without surrounding slashes, or `/` for the root.
+    pub fn path(&self) -> &str {
+        let path = self.uri().path().trim_matches('/');
+        if path.is_empty() { "/" } else { path }
+    }
+
+    /// Percent-decodes the request path.
     #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
     pub fn decodedPath(&self) -> Cow<'_, str> {
-        let path = self.uri().path().trim_matches('/');
-        percent_decode_str(if path.is_empty() { "/" } else { path }).decode_utf8_lossy()
+        percent_decode_str(self.path()).decode_utf8_lossy()
+    }
+
+    /// Returns the nonempty segments of the decoded path.
+    pub fn segments(&self) -> Vec<String> {
+        self.decodedPath()
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Returns the decoded segment at a one-based index.
+    pub fn segment(&self, index: usize) -> Option<String> {
+        self.decodedPath()
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .nth(index.checked_sub(1)?)
+            .map(str::to_owned)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn isMethod(&self, method: &str) -> bool {
+        self.method().as_str().eq_ignore_ascii_case(method)
+    }
+
+    /// Matches the resolved route name against any supplied wildcard pattern.
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn routeIs(&self, patterns: &[&str]) -> bool {
+        self.route_name.as_deref().is_some_and(|name| {
+            patterns
+                .iter()
+                .any(|pattern| matches_pattern(name, pattern))
+        })
     }
 
     /// Matches the decoded request path against a pattern where `*` spans any characters.

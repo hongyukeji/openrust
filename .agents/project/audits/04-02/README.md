@@ -118,3 +118,9 @@
 - 对照固定 Laravel 13.40 的 Content Negotiation 和 Symfony 7.4.0，复用 `openrust-v0.x` 的有引号参数、数值质量权重、重复条目及格式映射实现和用例。Rust 的候选使用借用切片，`prefers` 用 `Option` 表示无匹配。已构建的请求按需缓存排序，修改请求头后缓存失效，控制器和异常渲染复用同一解析结果。 [Laravel 请求](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#content-negotiation) · [固定实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithContentTypes.php)
 - PHP 8.5 容器用固定 Trait 与 Symfony HeaderBag、AcceptHeader 和 Request 核对 8 组结果。隔离主线 `7379f128a` 的真实 TCP 夹具覆盖质量顺序、带引号分隔符、相同值覆盖、结构化后缀、通配符、重复字段、Markdown 和 AJAX／PJAX；异常测试覆盖 `q=0` 与重复条目的 JSON／HTML 选择。重复 Accept 字段沿用基线的首字段语义。
 - 41 项定向回归通过，另用 Redis 8.10.3 复验实际 `down`、`up` 和双进程状态。独立 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语构建及 18 项浏览器检查通过。本批临时容器与编译和站点产物已清理，数据卷清单一致。剩余磁盘 85.03 GB（79.19 GiB），提交前周额度剩余 24%，第二窗口无读数。日志保留于 `/private/tmp/openrust-request-negotiation.WeuqCiLc`。
+
+## 请求头路径与当前URL
+
+- 对照固定 Laravel 的 Request 路径、主机、方法和请求头，以及 Symfony 7.4.0 的查询规范化。复用 `openrust-v0.x` 的 Bearer 提取、查询键排序和 Symfony 黄金用例，地址使用当前可信代理状态。OpenRust 的请求头和 URL 方法用 `Result` 表达无效输入，单头缺失用 `Option` 表达。现有 URI 和签名继续使用原始请求目标。 [Laravel 请求](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#request-path-host-and-method) · [Laravel Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Request.php#L117) · [Symfony Request](https://github.com/symfony/http-foundation/blob/v7.4.0/Request.php#L665)
+- 在 `feed55226` 隔离源码上真实 TCP 验证编码路径、具名路由、首个请求头值、Bearer 令牌、IPv6 和默认端口、可信代理前缀、查询规范化与增删。PHP 8.5 复验规范化和增删输出。旧版 Symfony 黄金夹具复验 195 个 HTTP URI，其中两项无效 UTF-8 按 Rust 以 400 拒绝。另三项包含 URI 解析器拒绝的原始空白或 NUL。
+- 29 项定向回归、真实 Artisan `inspire`、全仓格式、全目标严格 Clippy、三语站点构建、18 项浏览器检查通过。回收专用编译与站点产物后磁盘可用 84.45 GB（78.65 GiB）。提交前周额度剩余 24%，第二窗口无读数，按用户授权继续。日志保留于 `/private/tmp/openrust-request-identity.ijSr5kcY`。
