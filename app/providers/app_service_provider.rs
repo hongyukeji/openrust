@@ -16,9 +16,6 @@ impl ServiceProvider for AppServiceProvider {
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let auth = app.container().make::<AuthManager>()?;
-            #[cfg(feature = "sanctum")]
-            auth.registerSanctumModel::<crate::app::models::User>("app::models::User");
-            #[cfg(not(feature = "sanctum"))]
             auth.registerModel::<crate::app::models::User>("app::models::User");
             Ok(())
         })

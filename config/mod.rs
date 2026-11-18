@@ -2,7 +2,6 @@ use std::{collections::BTreeMap, path::Path};
 
 use openrust::config::{ConfigError, Environment, Value};
 
-mod api;
 pub(crate) mod app;
 mod auth;
 mod broadcasting;
@@ -19,8 +18,6 @@ mod logging;
 mod mail;
 mod queue;
 mod reverb;
-#[cfg(feature = "sanctum")]
-mod sanctum;
 mod services;
 mod session;
 mod view;
@@ -39,7 +36,6 @@ pub(crate) fn load(
     let database = database::load(base_path, env, app.name)?;
     let queue = queue::load(env, &database["default"])?;
     Ok(BTreeMap::from([
-        ("api".to_owned(), api::load(env)?),
         ("auth".to_owned(), auth::load(env)?),
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),
@@ -58,8 +54,6 @@ pub(crate) fn load(
         ("queue".to_owned(), queue),
         ("reverb".to_owned(), reverb::load(env)?),
         ("services".to_owned(), services::load(env)?),
-        #[cfg(feature = "sanctum")]
-        ("sanctum".to_owned(), sanctum::load(env)?),
         (
             "session".to_owned(),
             session::load(base_path, env, app.name)?,

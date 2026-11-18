@@ -4,7 +4,7 @@
 
 執行 `./artisan install:api`，建立並註冊 `routes/api.rs`，同時把 Sanctum 加入應用程式的 Cargo 預設功能。互動終端會詢問是否執行待處理的遷移，確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。 安裝器無法修改自訂啟動檔時，會保留產生的路由並提示手動註冊。產生的路由會回傳已註冊驗證模型的可見屬性。選用的遷移失敗時，安裝器會顯示錯誤並保留鷹架。自動化需要遷移結束代碼時，請單獨執行 `./artisan migrate`。
 
-新應用程式透過 `install:api` 發佈權杖資料表遷移。手動啟用 Cargo 的 `sanctum` 功能時，可用 `vendor:publish --tag=sanctum-migrations` 發佈遷移，或用 `vendor:publish --tag=sanctum-config` 發佈套件設定。
+預設應用程式骨架不預置 Sanctum 專屬設定或使用者模型註冊。啟用 Cargo 功能後，由套件提供預設設定。新應用程式執行 `install:api` 會發佈權杖資料表遷移，並接入發佈的設定和預設使用者模型。使用自訂使用者模型或 Provider 時，請實作 `HasApiTokens` 並透過 `AuthManager::registerSanctumModel` 註冊支援權杖的模型。手動啟用功能時，可用 `vendor:publish --tag=sanctum-migrations` 發佈遷移，用 `vendor:publish --tag=sanctum-config` 發佈可編輯設定。手動發佈後，在 `config/mod.rs` 宣告模組並將載入結果註冊到 `sanctum` 設定群組。
 
 在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。遷移發佈到 `database/migrations/` 後，重新建置即可將其納入編譯清單。
 

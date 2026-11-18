@@ -22,6 +22,7 @@ pub(crate) use ensure_frontend_requests_are_stateful::StatefulFrontend;
 pub use guard::Guard;
 pub use has_api_tokens::{HasApiTokens, TokenRelation};
 pub use settings::Sanctum;
+pub(crate) use settings::with_default_configuration;
 pub use token_model::{DefaultPersonalAccessToken, PersonalAccessTokenModel};
 
 pub mod contracts {

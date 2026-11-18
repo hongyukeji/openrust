@@ -1,8 +1,9 @@
 use std::{fs, path::Path};
 
+use openrust::contracts::config::Repository as _;
 use openrust::{
     config::{ConfigError, Value},
-    foundation::bootstrap::LoadEnvironmentVariables,
+    foundation::bootstrap::{LoadConfiguration, LoadEnvironmentVariables},
 };
 use serde_json::json;
 
@@ -24,9 +25,12 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let defaults = config::load(&root, &environment).unwrap();
     assert_eq!(
-        defaults.keys().map(String::as_str).collect::<Vec<_>>(),
+        defaults
+            .keys()
+            .map(String::as_str)
+            .filter(|key| !matches!(*key, "api" | "sanctum"))
+            .collect::<Vec<_>>(),
         [
-            "api",
             "app",
             "auth",
             "broadcasting",
@@ -42,14 +46,11 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "mail",
             "queue",
             "reverb",
-            #[cfg(feature = "sanctum")]
-            "sanctum",
             "services",
             "session",
             "view",
         ]
     );
-    assert_eq!(defaults["api"]["prefix"], "api");
     assert_eq!(defaults["auth"]["defaults"]["guard"], "web");
     assert_eq!(
         defaults["cache"]["stores"]["file"]["path"],
@@ -109,11 +110,29 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         );
     }
     assert_eq!(configured["app"]["debug"], true);
+    let package_defaults =
+        LoadConfiguration::bootstrap(&root, &environment, |_, _| Ok(Default::default())).unwrap();
     #[cfg(feature = "sanctum")]
-    assert_eq!(
-        configured["sanctum"]["stateful"],
-        "localhost:3000,spa.example:8443"
-    );
+    {
+        assert_eq!(
+            package_defaults.get("sanctum.stateful"),
+            Some(json!("localhost:3000,spa.example:8443"))
+        );
+        let package_override = LoadConfiguration::bootstrap(&root, &environment, |_, _| {
+            Ok([("sanctum".into(), json!({"token_prefix": "app_"}))].into())
+        })
+        .unwrap();
+        assert_eq!(
+            package_override.get("sanctum.token_prefix"),
+            Some(json!("app_"))
+        );
+        assert_eq!(
+            package_override.get("sanctum.stateful"),
+            package_defaults.get("sanctum.stateful")
+        );
+    }
+    #[cfg(not(feature = "sanctum"))]
+    assert_eq!(package_defaults.get("sanctum"), None);
     assert_eq!(
         configured["app"]["disabled_runners"],
         json!(["queue", "schedul?", "app:*"])

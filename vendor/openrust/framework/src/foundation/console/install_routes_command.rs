@@ -288,7 +288,8 @@ fn install(
     let modules = read(&routes_module)?;
     let startup = read(&bootstrap)?;
     let manifest_path = root.join("Cargo.toml");
-    let manifest_update = if spec.command == "install:api" {
+    let api = spec.command == "install:api";
+    let manifest_update = if api {
         let manifest = read(&manifest_path)?;
         enable_sanctum(&manifest)?.map(|updated| (manifest, updated))
     } else {
@@ -344,7 +345,7 @@ fn install(
         }
     };
 
-    let publication = if spec.command == "install:api" {
+    let publication = if api {
         publish_package_if_migration_missing(
             root,
             crate::sanctum_service_provider::publishable_resources(),
@@ -354,7 +355,11 @@ fn install(
     } else {
         None
     };
-    let existing = !create_routes(&routes, spec.stub)?;
+    if api {
+        install_api_configuration(root, &mut warnings)?;
+        wire_sanctum(root, &mut warnings)?;
+    }
+    let existing = !create_source(&routes, spec.stub)?;
     if existing && force {
         let previous = read(&routes)?;
         let stub = std::str::from_utf8(spec.stub).expect("API stub is UTF-8");
@@ -374,6 +379,130 @@ fn install(
         warnings,
         publication,
     })
+}
+
+fn install_api_configuration(
+    root: &Path,
+    warnings: &mut Vec<ConsoleError>,
+) -> Result<(), ConsoleError> {
+    const MODULE: &str = "mod api;";
+    const SECTION: &str = r#"("api".to_owned(), api::load(env)?),"#;
+    let directory = root.join("config");
+    let path = directory.join("api.rs");
+    fs::create_dir_all(&directory).map_err(|error| file_error(&directory, error))?;
+    create_source(&path, include_bytes!("stubs/api-config.stub"))?;
+
+    let loader = directory.join("mod.rs");
+    if !loader.is_file() {
+        warnings.push(ConsoleError::new(format!(
+            "Cannot find {}. Declare `{MODULE}` and add `{SECTION}` to your configuration loader manually.",
+            loader.display()
+        )));
+        return Ok(());
+    }
+    let source = read(&loader)?;
+    let updated = insert_config_hook(&source, &loader, MODULE, |line| {
+        line.trim() == "pub(crate) mod app;"
+    })
+    .and_then(|updated| {
+        insert_config_hook(&updated, &loader, SECTION, |line| {
+            line.trim_start().starts_with(r#"("auth".to_owned(),"#)
+        })
+    });
+    match updated {
+        Ok(updated) => replace(&loader, &source, &updated),
+        Err(warning) => {
+            warnings.push(warning);
+            Ok(())
+        }
+    }
+}
+
+fn insert_config_hook(
+    source: &str,
+    path: &Path,
+    statement: &str,
+    anchor: impl Fn(&str) -> bool,
+) -> Result<String, ConsoleError> {
+    if source.lines().any(|line| line.trim() == statement) {
+        Ok(source.to_owned())
+    } else {
+        insert_before(source, path, statement, anchor)
+    }
+}
+
+fn wire_sanctum(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), ConsoleError> {
+    const IMPL: &str = "impl openrust::sanctum::HasApiTokens for User {}";
+    const USER: &str = r#"auth.registerModel::<crate::app::models::User>("app::models::User");"#;
+    const REGISTER: &str =
+        r#"auth.registerSanctumModel::<crate::app::models::User>("app::models::User");"#;
+    const CONFIG: &str = r#"("sanctum".to_owned(), sanctum::load(env)?),"#;
+
+    let model = root.join("app/models/user.rs");
+    let provider = root.join("app/providers/app_service_provider.rs");
+    if model.is_file() && provider.is_file() {
+        let model_source = read(&model)?;
+        let provider_source = read(&provider)?;
+        let add_impl = source_hook(&model_source, &model, IMPL, |line| {
+            line.trim() == "impl Authenticatable for User {"
+        });
+        let add_registration = source_hook(&provider_source, &provider, REGISTER, |line| {
+            line.trim() == USER
+        });
+        match (add_impl, add_registration) {
+            (Ok(model_update), Ok(provider_update)) => {
+                replace(&model, &model_source, &model_update)?;
+                replace(&provider, &provider_source, &provider_update)?;
+            }
+            (model_update, provider_update) => {
+                warnings.extend(model_update.err());
+                warnings.extend(provider_update.err());
+                warnings.push(manual_token_model());
+            }
+        }
+    } else {
+        warnings.push(manual_token_model());
+    }
+
+    let config = root.join("config/mod.rs");
+    if root.join("config/sanctum.rs").is_file() && config.is_file() {
+        let source = read(&config)?;
+        let updated = source_hook(&source, &config, "mod sanctum;", |line| {
+            line.trim() == "mod services;"
+        })
+        .and_then(|updated| {
+            source_hook(&updated, &config, CONFIG, |line| {
+                line.trim_start().starts_with(r#"("services".to_owned(),"#)
+            })
+        });
+        match updated {
+            Ok(updated) => replace(&config, &source, &updated)?,
+            Err(warning) => warnings.push(warning),
+        }
+    }
+    Ok(())
+}
+
+fn source_hook(
+    source: &str,
+    path: &Path,
+    statement: &str,
+    anchor: impl Fn(&str) -> bool,
+) -> Result<String, ConsoleError> {
+    if source.lines().any(|line| line.trim() == statement) {
+        return Ok(source.to_owned());
+    }
+    let mut updated = insert_before(source, path, statement, anchor)?;
+    updated = insert_before(&updated, path, r#"#[cfg(feature = "sanctum")]"#, |line| {
+        line.trim() == statement
+    })?;
+    Ok(updated)
+}
+
+fn manual_token_model() -> ConsoleError {
+    ConsoleError::new(
+        "For a custom user model, implement openrust::sanctum::HasApiTokens and register it manually with AuthManager::registerSanctumModel.",
+    )
 }
 
 fn registration_update(
@@ -428,7 +557,7 @@ fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
     }))
 }
 
-fn create_routes(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {
+fn create_source(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {
     match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(mut file) => {
             if let Err(error) = file.write_all(stub) {

@@ -14,6 +14,9 @@ impl LoadConfiguration {
         env: &Environment,
         load: ConfigLoader,
     ) -> Result<Repository, ConfigError> {
-        Ok(Repository::new(load(base_path, env)?))
+        let values = load(base_path, env)?;
+        #[cfg(feature = "sanctum")]
+        let values = crate::sanctum::with_default_configuration(values, env)?;
+        Ok(Repository::new(values))
     }
 }

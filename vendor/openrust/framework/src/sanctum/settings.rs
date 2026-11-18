@@ -49,6 +49,41 @@ pub(super) fn application_host(config: &dyn Repository) -> Option<String> {
 }
 pub(super) const CURRENT_REQUEST_HOST: &str = "__SANCTUM_CURRENT_REQUEST_HOST__";
 
+pub(crate) fn with_default_configuration(
+    mut values: std::collections::BTreeMap<String, serde_json::Value>,
+    env: &crate::config::Environment,
+) -> Result<std::collections::BTreeMap<String, serde_json::Value>, crate::config::ConfigError> {
+    use crate::config::ConfigError;
+    use serde_json::{Value, json};
+
+    let config = values.entry("sanctum".into()).or_insert_with(|| json!({}));
+    let Some(config) = config.as_object_mut() else {
+        return Ok(values);
+    };
+    if !config.contains_key("expiration") {
+        let expiration = env
+            .get_utf8("SANCTUM_EXPIRATION")?
+            .filter(|value| !matches!(value.to_ascii_lowercase().as_str(), "null" | "(null)"))
+            .map(|value| value.parse::<u64>())
+            .transpose()
+            .map_err(|_| ConfigError::InvalidType {
+                key: "SANCTUM_EXPIRATION".into(),
+                expected: "a non-negative integer",
+            })?;
+        config.insert("expiration".into(), json!(expiration));
+    }
+    if !config.contains_key("token_prefix") {
+        let prefix = env.get_utf8("SANCTUM_TOKEN_PREFIX")?.unwrap_or_default();
+        config.insert("token_prefix".into(), Value::from(prefix));
+    }
+    if !config.contains_key("stateful")
+        && let Some(domains) = env.get_utf8("SANCTUM_STATEFUL_DOMAINS")?
+    {
+        config.insert("stateful".into(), Value::from(domains));
+    }
+    Ok(values)
+}
+
 /// Sanctum extensions owned by one application.
 #[derive(Default)]
 pub struct Sanctum {

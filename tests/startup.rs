@@ -46,6 +46,23 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     let bootstrap = root.0.join("bootstrap/app.rs");
     fs::write(&modules, "pub(crate) mod console;\npub(crate) mod web;\n").unwrap();
     fs::write(&bootstrap, "custom bootstrap\n").unwrap();
+    let model = root.0.join("app/models/user.rs");
+    let provider = root.0.join("app/providers/app_service_provider.rs");
+    let config_module = root.0.join("config/mod.rs");
+    for (path, source) in [
+        (&model, "impl Authenticatable for User {\n}\n"),
+        (
+            &provider,
+            "            auth.registerModel::<crate::app::models::User>(\"app::models::User\");\n",
+        ),
+        (
+            &config_module,
+            "pub(crate) mod app;\nmod services;\n        (\"auth\".to_owned(), auth::load(env)?),\n        (\"services\".to_owned(), services::load(env)?),\n",
+        ),
+    ] {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, source).unwrap();
+    }
     let run = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_main"))
             .arg("artisan")
@@ -54,10 +71,17 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             .output()
             .unwrap()
     };
+    let api_config = root.0.join("config/api.rs");
+    assert!(!api_config.exists());
     let result = run(&["install:api", "--without-migration-prompt"]);
     assert!(result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
     assert!(root.0.join("routes/api.rs").exists());
+    let generated_config = fs::read_to_string(&api_config).unwrap();
+    assert!(generated_config.contains("API_PREFIX"));
+    let custom_config =
+        format!("{generated_config}\n// Keep the application's API configuration.\n");
+    fs::write(&api_config, &custom_config).unwrap();
     assert_eq!(
         fs::read_to_string(&bootstrap).unwrap(),
         "custom bootstrap\n"
@@ -141,6 +165,19 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(!String::from_utf8_lossy(&forced.stdout).contains("pending database migrations"));
     assert_eq!(fs::read_dir(&migrations).unwrap().count(), 1);
     assert_eq!(fs::read_to_string(&migration).unwrap(), custom);
+    for (path, statement) in [
+        (model, "impl openrust::sanctum::HasApiTokens for User"),
+        (provider, "auth.registerSanctumModel"),
+        (config_module.clone(), "sanctum::load"),
+    ] {
+        let source = fs::read_to_string(path).unwrap();
+        assert_eq!(source.matches(statement).count(), 1);
+        assert!(source.contains("#[cfg(feature = \"sanctum\")]"));
+    }
+    let loader = fs::read_to_string(config_module).unwrap();
+    assert_eq!(loader.matches("mod api;").count(), 1);
+    assert_eq!(loader.matches("api::load(env)?").count(), 1);
+    assert_eq!(fs::read_to_string(api_config).unwrap(), custom_config);
     assert_eq!(
         fs::read_to_string(manifest).unwrap(),
         original.replace("[\"other\"]", "[\"other\", \"sanctum\"]")
@@ -179,8 +216,18 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
     }
 
-    fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+    mod installed_api {
+        include!("../vendor/openrust/framework/src/foundation/console/stubs/api-config.stub");
+    }
+
+    fn api_config(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
         let mut configuration = web_config(root, env)?;
+        configuration.insert("api".into(), installed_api::load(env)?);
+        Ok(configuration)
+    }
+
+    fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut configuration = api_config(root, env)?;
         configuration.get_mut("cors").unwrap()["paths"] = json!({
             "0": "custom/*",
             "localhost": ["host-only/*"],
@@ -241,7 +288,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             .withConfig(if matches!(cors, Cors::ByHost) {
                 custom_cors
             } else {
-                web_config
+                api_config
             })
             .withMiddleware(|middleware| {
                 middleware.group("api", [MiddlewareEntry::Instance(Arc::new(ApiMarker))]);

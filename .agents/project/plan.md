@@ -133,7 +133,7 @@
 | <a id="unit-sanctum-02"></a>Sanctum-02 令牌和 SPA 认证 | [Sanctum-01](#unit-sanctum-01)、[05-08](#unit-05-08) 认证基础、[04-04](#unit-04-04) Session 基础 | 接通令牌签发、哈希、能力、过期、撤销及 `auth:sanctum`。显式 `statefulApi` 接入 Session、Cookie、CSRF。通过实际 HTTP 验收有效凭据、拒绝路径、来源匹配及 SPA 与 Bearer 路径。                            |
 | <a id="unit-sanctum-03"></a>Sanctum-03 API 安装命令    | [Sanctum-02](#unit-sanctum-02)、[00-02](#unit-00-02) API 路由                                    | 接通 `install:api` 和受保护的 `/user`，验收首次安装、重复运行、已有路由、`--force`、`--without-migration-prompt` 和迁移交互。用真实 HTTP 核对默认 `/api/user` 和 `API_PREFIX=api/admin` 的成功及 401。 |
 
-保留 `config/api.rs` 与 `API_PREFIX`。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后再接 `--passport`。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
+`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后再接 `--passport`。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
 
 ## T 测试文档随批交付
 
