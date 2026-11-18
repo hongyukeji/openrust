@@ -13,6 +13,17 @@ pub trait Application: Send + Sync {
     fn config(&self) -> Result<Arc<dyn Repository>, BindingResolutionError>;
     fn container(&self) -> &Self::Container;
     fn is_booted(&self) -> bool;
+
+    /// Checks whether the currently bound environment is exactly `testing`.
+    #[allow(non_snake_case, reason = "Matches Laravel's application contract")]
+    fn runningUnitTests(&self) -> Result<bool, BindingResolutionError> {
+        if !self.container().has("env") {
+            return Ok(false);
+        }
+        self.container()
+            .get::<str>("env")
+            .map(|environment| environment.as_ref() == "testing")
+    }
 }
 
 /// Stores an application's maintenance status and response data.

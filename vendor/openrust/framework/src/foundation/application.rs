@@ -191,6 +191,17 @@ impl Application {
         environment_detector::query(&self.shared.container, patterns)
     }
 
+    /// Checks the bound environment name, independently of the test harness.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel Application::runningUnitTests"
+    )]
+    pub fn runningUnitTests(
+        &self,
+    ) -> Result<bool, crate::contracts::container::BindingResolutionError> {
+        foundation::Application::runningUnitTests(self)
+    }
+
     pub(crate) fn register_package_routes(&self, register: PackageRoutes) -> std::io::Result<()> {
         self.shared
             .package_routes
@@ -838,7 +849,11 @@ impl Application {
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         self.shared
             .container
-            .instanceNamed("env.file", Arc::new(environment.file))
+            .instanceNamed("env.file", Arc::new(environment.file.clone()))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared
+            .container
+            .instance(Arc::new(environment))
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let name = match selected {
             Some(name) => Arc::from(name),

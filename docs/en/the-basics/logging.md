@@ -248,3 +248,9 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 ```
 
 These are the accepted parsing and filtering APIs. The live `pail` command, terminal printer and dev registration remain pending. Authentication auto-resolution retains the limitation described above.
+
+### Provider Availability
+
+Pail still registers Files and Handler when capture is disabled. During boot it skips listeners if the bound application environment is exactly `testing`, or `VAPOR_SSM_PATH` is a nonempty string other than `0`. `PAIL_TESTS=true` enables Pail's own acceptance tests and overrides both checks. This flag follows Laravel Env normalization, including false, empty, null and quoted values; the Vapor marker uses raw PHP string truthiness.
+
+Flags come from the current application's immutable environment snapshot. Process variables take precedence over the selected environment file. With configuration cached, environment files are not loaded, so a file-only `PAIL_TESTS` does not apply. Handler is resolved on the first accepted log or queue lifecycle event. Its construction error propagates then, after the original accepted log has been written.

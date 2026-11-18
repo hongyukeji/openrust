@@ -8,10 +8,10 @@ use openrust::{
     container::Container,
     contracts::{
         auth::Authenticatable,
-        container::Container as _,
+        container::{BindingResolutionError, Container as _},
         events::{Event, Listener},
     },
-    events::{EventContext, EventFuture, EventResult, ListenerResponse},
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     log::{
         Level, LogError, LogResult,
         context::{Origin, Repository},
@@ -95,7 +95,7 @@ fn write_error(error: io::Error) -> LogError {
     LogError::WriteFailed(Box::new(error))
 }
 
-pub(crate) struct QueueLifecycle;
+pub(crate) struct QueueLifecycle(pub Weak<Container>);
 
 impl Listener for QueueLifecycle {
     fn handle<'a>(
@@ -104,6 +104,11 @@ impl Listener for QueueLifecycle {
         _: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
+            let owner = self
+                .0
+                .upgrade()
+                .ok_or(EventError::Unavailable(BindingResolutionError::ScopeClosed))?;
+            let _handler = owner.make::<Handler>().map_err(EventError::Unavailable)?;
             let current = Origin::current();
             let command = match current {
                 Some(Origin::Console { command }) | Some(Origin::Queue { command, .. }) => command,

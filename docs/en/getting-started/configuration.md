@@ -168,3 +168,9 @@ async fn activate_maintenance(
 ```
 
 Read the state with `isDownForMaintenance().await` and clear it with `app.maintenanceMode()?.deactivate().await?`. Queue workers read this state before reserving jobs.
+
+## Testing Environment and Bootstrap Snapshot {#testing-environment}
+
+`Application::runningUnitTests()` and the application contract return `Result<bool, BindingResolutionError>`. The result is true only when the bound `env` is exactly `testing`, regardless of whether a test harness is running. Before the environment is bound it returns `Ok(false)` without resolving a service. Resolution errors propagate. Changing `config("app.env")` later does not replace the detected environment binding.
+
+After boot, use `app.make::<openrust::config::Environment>().await?` to read the immutable environment snapshot for that application. Existing `get` and `get_utf8` methods return raw strings; package-specific flag parsing remains the package's responsibility. The snapshot follows process precedence, environment-file selection and configuration-cache rules. It neither reloads files nor mutates process-global variables.

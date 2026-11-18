@@ -40,6 +40,7 @@ impl Root {
         let root =
             std::env::temp_dir().join(format!("openrust-pail-capture-{:032x}", fastrand::u128(..)));
         std::fs::create_dir(&root).unwrap();
+        std::fs::write(root.join(".env"), "PAIL_TESTS=true\n").unwrap();
         for name in ["one", "two"] {
             File::new(root.join(format!("storage/pail/{name}.pail")))
                 .create()

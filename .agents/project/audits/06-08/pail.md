@@ -18,6 +18,12 @@ PHP 序列化异常转换为现有 Rust 结构化异常快照。Pail 的跨进�
 
 [日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。[认证入口复核](pail-auth-boundary.md)确认现有同步日志无法安全驱动独占借用请求的异步 Guard，该项保留未闭合。独立推进 Pail 命令依赖：[消息对象与筛选](pail-options.md)后，依次接 CliPrinter、会话命令、超时／信号清理及 dev 注册。
 
-## Provider 剩余差异
+## Provider 环境门禁
 
-固定 PailServiceProvider 在非 Pail 自身测试中跳过普通应用测试环境与 PHP Vapor 的 `VAPOR_SSM_PATH` 环境。当前包尚未接入该门禁；框架尚无同名 `runningUnitTests`／`runningInConsole` 查询。需要按当前应用环境和编译型入口核定适配并验收，不能仅以捕获测试通过视为 Provider 全部对齐。下一批先补环境门禁，再推进 CliPrinter、实际会话命令、超时／信号清理与 dev 注册。[固定 Provider](https://github.com/laravel/pail/blob/fdb73f5eacf03db576c710d5a00101ba185f2254/src/PailServiceProvider.php)
+[环境门禁与延迟解析](pail-provider.md)已接通：Application 与其契约的 runningUnitTests、应用环境快照、PAIL_TESTS 例外、testing／Vapor 跳过条件，以及首次日志／队列事件解析 Handler。真实 HTTP／Artisan 矩阵、缓存、并发隔离、MySQL Worker、根自动发现、严格 Clippy 和三语正文通过。命令注册部分尚未实现；该批仍需核对统一进程下的 HTTP、独立 Artisan 与程序化调用边界，不能直接复制 PHP 的全局 SAPI 状态。
+
+## 剩余契约
+
+- [认证自动解析](pail-auth-boundary.md)仍缺同步日志与异步请求之间的合法等待契约，不能以提前认证或响应后回填替代。
+- 当前默认目录为 base_path()/storage/pail，可通过替换 Files 绑定自定义。框架尚无 Laravel storagePath／useStoragePath API，统一存储路径契约待补，对应 07-01 路径 Helpers 和应用路径机制。先补该依赖，再将 Pail 目录接入统一入口。
+- CliPrinter、实时 pail 命令、超时／信号清理、dev 注册与 Windows 发布矩阵仍待依次完成。

@@ -168,3 +168,9 @@ async fn activate_maintenance(
 ```
 
 用 `isDownForMaintenance().await` 讀取狀態，用 `app.maintenanceMode()?.deactivate().await?` 清除。佇列 Worker 在保留工作前讀取此狀態。
+
+## 測試環境與啟動快照 {#testing-environment}
+
+`Application::runningUnitTests()` 和應用契約傳回 `Result<bool, BindingResolutionError>`。僅當容器中的 `env` 精確為 `testing` 時結果為 true，與是否正在執行測試程式無關。環境未綁定時傳回 `Ok(false)`，不觸發服務解析；解析錯誤沿 `Result` 傳遞。後續修改 `config("app.env")` 不會替換已偵測的環境綁定。
+
+啟動後，透過 `app.make::<openrust::config::Environment>().await?` 讀取目前應用不可變的環境快照。既有 `get`、`get_utf8` 傳回原始字串，具體旗標仍由對應套件解析。快照遵守處理程序變數優先、環境檔案選擇與設定快取規則，不重新載入檔案，也不修改處理程序全域變數。

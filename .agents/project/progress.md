@@ -3582,3 +3582,7 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 ### 2026-11-19 06-08 Pail 消息对象与筛选
 
 按固定 Pail v1.2.5 接通 Options、MessageLogged、Console／Http／Queue 值对象，保持公开名称和字段。PHP 8.4.27 执行固定原始类，210 组筛选、21 组 timeout 与 3 条序列化结果逐项对照通过，生成脚本重跑与固定语料字节一致。Rust 的 6 项定向测试、文件与四进程回归、实际 HTTP 捕获→独立 Artisan 筛选、全目标严格 Clippy、格式、三语站点及 12 项浏览器检查通过。未改数据库／Worker，本批数据库用例明确跳过。认证自动解析的同步／异步契约边界已独立记录，未用提前认证或延后回填改变时序。Provider 测试环境门禁仍缺，下一批先补门禁，再接打印器、会话命令、信号／超时清理与 dev 注册。文件树及实际命令见 [验收记录](audits/06-08/pail-options.md)。核心账本维持 66/66。
+
+### 2026-11-19 00-02／06-08 Pail Provider 环境门禁与延迟解析
+
+对照固定 Laravel Application／Env 和 Pail v1.2.5，复用旧版精确 testing 判定与消费端默认 false 回归意图。接通 Application／契约 runningUnitTests、容器环境快照、testing／Vapor 门禁与 PAIL_TESTS 例外、Files／Handler 延迟解析。Rust 以 Result 传播解析错误、以每应用快照承接环境读取、以 Weak 避免监听器持有应用强环。22 组 HTTP／独立 Artisan、并发应用、缓存、--env、进程覆盖、构造错误与正常日志保留、真实 MySQL 8.4.13 Worker、根发现和 SIGINT 通过。22 项日志／Context、24 项根回归、Pail 测试、完整严格 Clippy、格式、三语正文及 12 项浏览器检查通过。文件范围、实际命令和剩余契约见 [验收记录](audits/06-08/pail-provider.md)。下一批先补统一存储路径 API，再接打印器、实时命令与 dev 注册；认证解析和运行模式边界仍需闭合。核心账本维持 66/66。

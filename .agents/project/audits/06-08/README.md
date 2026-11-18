@@ -119,3 +119,7 @@ vendor/openrust/framework/
 ## Pail 消息对象与筛选
 
 [专项验收](pail-options.md)完成 Options、MessageLogged 和三类来源对象。固定 PHP 8.4.27 执行未改上游源码，210 组筛选、21 组 timeout、3 条 JSON 序列化结果与 Rust 对照通过。6 项定向测试、文件回归、真实双应用 HTTP→独立 Artisan 筛选、全目标严格 Clippy、三语正文与浏览器检查通过。本批未执行 MySQL Worker，不沿用旧结果冒充本批验收。[认证解析边界](pail-auth-boundary.md)、Provider 环境门禁、CliPrinter、实际会话命令和 dev 注册继续跟踪。
+
+## Pail Provider 环境门禁与延迟解析
+
+[专项验收](pail-provider.md)接通 testing／Vapor 跳过、PAIL_TESTS 例外、应用 Environment 快照、Application 及其契约的 runningUnitTests，并按固定上游延迟解析 Files／Handler。22 组真实 HTTP／Artisan 矩阵、并发双应用、进程覆盖、--env、配置缓存、零解析与错误传播、延迟构造失败、MySQL 8.4.13 Worker、根二进制自动发现与启停通过。22 项日志／Context、24 项根回归、Pail 回归、全目标严格 Clippy、三语配置／日志正文与浏览器检查通过。原入口和环境模板未修改。统一存储路径 API、认证自动解析、命令模式边界、打印器和会话命令继续跟踪。
