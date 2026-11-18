@@ -363,3 +363,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-08 [三语 Artisan 入口与 Windows 验收对齐](06-08/README.md#三语-artisan-入口与-windows-验收对齐)已同步 Runner 与独立 Artisan 的入口职责，并对齐 Windows ARM64 源码启动器验收。核心账本维持 66/66。
 
 06-08 [Artisan 门面程序化调用](06-08/README.md#artisan-门面程序化调用)通过双应用真实 HTTP、嵌套命令、独立 Artisan 与三语文档验收。核心账本维持 66/66。
+
+06-08／06-03 [Artisan 命令队列](06-08/README.md#artisan-命令队列)通过真实 HTTP、MySQL 8.4.13／Redis 8.10.3 独立 Worker、重试、失败记录及后续消费。核心账本维持 66/66。

@@ -3536,3 +3536,7 @@ deferred／background 在终止回调执行时取 Context，持久 Redis 保留�
 ## 2026-11-18 06-08 Artisan 门面程序化调用
 
 接通当前应用作用域内的 `Artisan::call` 和 `callSilently`。真实 TCP、嵌套 Artisan、独立应用退出码、26 项定向测试、严格 Clippy 和三语站点通过。 [验收记录](audits/06-08/README.md#artisan-门面程序化调用)
+
+## 2026-11-18 06-08／06-03 Artisan 命令队列
+
+接通 `Artisan::queue`、连接及队列选择。实际 HTTP 与 MySQL／Redis Artisan Worker、重试与后续消费、26 项定向回归、严格 Clippy 及三语站点通过。 [验收记录](audits/06-08/README.md#artisan-命令队列)

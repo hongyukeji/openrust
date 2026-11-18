@@ -74,6 +74,27 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 
 每个位置参数或选项单独传一个 `OsString`。含空格的值放在同一个参数中。布尔开关为真时传入开关选项，多值选项可重复传入。用 `Artisan::callSilently(name, arguments).await` 丢弃两个输出流并保留退出码。
 
+### 将 Artisan 命令加入队列 {#queueing-artisan-commands}
+
+用 `Artisan::queue` 准备命令。调用 `dispatch().await` 提交任务并取得派发结果。用 `onConnection` 和 `onQueue` 指定目标，也可以使用默认连接及其默认队列。
+
+```rust
+use openrust::{
+    queue::{DispatchResult, QueueResult},
+    support::facades::Artisan,
+};
+
+async fn queue_inspire() -> QueueResult<DispatchResult> {
+    Artisan::queue("inspire", &[])
+        .onConnection("redis")
+        .onQueue("commands")
+        .dispatch()
+        .await
+}
+```
+
+用 `./artisan queue:work redis --queue=commands` 启动对应的 Worker。载荷以 JSON 保存命令名和 UTF-8 参数。Worker 在自身应用中解析命令，丢弃控制台输出，并确认正常返回的任务，即使命令退出码非零。需要走队列重试和失败记录时，在命令中返回 `ConsoleError`。
+
 ## 按需安装路由 {#optional-route-installers}
 
 在源码目录运行以下命令，生成路由文件并更新模块声明和启动配置，然后重新构建。已有路由文件会保留。

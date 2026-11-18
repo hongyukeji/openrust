@@ -51,7 +51,7 @@ impl Command for FailedCommand {
                             .map(|job| {
                                 serde_json::json!({
                                     "id": job.id, "connection": job.connection, "queue": job.queue,
-                                    "name": job.payload.name(), "failed_at": job.failed_at,
+                                    "name": job.payload.display_name(), "failed_at": job.failed_at,
                                 })
                             })
                             .collect();
@@ -67,7 +67,7 @@ impl Command for FailedCommand {
                                 job.id,
                                 job.connection,
                                 job.queue,
-                                job.payload.name()
+                                job.payload.display_name()
                             ));
                         }
                     }

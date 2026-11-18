@@ -74,6 +74,27 @@ async fn inspire_help() -> Result<(i32, String), ConsoleError> {
 
 Pass a separate `OsString` for each positional argument or option. Values that contain spaces stay in one token. Include a switch for a true Boolean flag, and repeat options that take multiple values. Use `Artisan::callSilently(name, arguments).await` to discard both streams and keep the exit code.
 
+### Queueing Artisan Commands {#queueing-artisan-commands}
+
+Prepare a command with `Artisan::queue`. Call `dispatch().await` to send it to the queue and obtain the dispatch result. Specify a destination with `onConnection` and `onQueue`, or use the default connection and its queue.
+
+```rust
+use openrust::{
+    queue::{DispatchResult, QueueResult},
+    support::facades::Artisan,
+};
+
+async fn queue_inspire() -> QueueResult<DispatchResult> {
+    Artisan::queue("inspire", &[])
+        .onConnection("redis")
+        .onQueue("commands")
+        .dispatch()
+        .await
+}
+```
+
+Start a Worker for the selected destination with `./artisan queue:work redis --queue=commands`. The payload stores the command name and UTF-8 argument tokens as JSON. The Worker resolves the command in its own application, discards its console output and acknowledges a returned exit code, including a nonzero code. Return a `ConsoleError` from the command to use normal queue retries and failure recording.
+
 ## Optional Route Installers {#optional-route-installers}
 
 Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.

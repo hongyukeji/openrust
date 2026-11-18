@@ -585,6 +585,14 @@ impl Artisan {
         Self::call(command, arguments, &mut Output::default()).await
     }
 
+    /// Prepares a registered Artisan command for dispatch through the application's queue.
+    pub fn queue(
+        command: &str,
+        arguments: &[OsString],
+    ) -> foundation::console::PendingQueuedCommand {
+        foundation::console::PendingQueuedCommand::new(command, arguments)
+    }
+
     pub fn command(
         name: &'static str,
         callback: impl Fn(&mut Output) + Send + Sync + 'static,

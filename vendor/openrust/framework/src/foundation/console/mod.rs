@@ -23,6 +23,7 @@ mod observer_make_command;
 mod package_manifest_command;
 mod policy_make_command;
 mod provider_make_command;
+mod queued_command;
 mod resource_make_command;
 mod source_edit;
 mod storage_link_command;
@@ -33,6 +34,8 @@ mod test_make_command;
 mod type_make_command;
 mod vendor_publish_command;
 mod view_component_make_command;
+pub use queued_command::PendingQueuedCommand;
+pub(crate) use queued_command::QueuedCommand;
 pub use vendor_publish_command::VendorPublishCommand;
 
 use std::{

@@ -18,6 +18,11 @@ pub struct QueueServiceProvider;
 impl ServiceProvider for QueueServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> QueueFuture<'a, ProviderResult> {
         Box::pin(async move {
+            use crate::foundation::console::QueuedCommand;
+
+            app.container_handle()
+                .make::<QueueManager>()?
+                .register(QueuedCommand::NAME, Arc::new(QueuedCommand))?;
             let registry = app
                 .container_handle()
                 .make::<crate::concurrency::Registry>()?;

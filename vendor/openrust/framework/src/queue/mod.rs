@@ -186,6 +186,8 @@ pub struct Payload {
     version: u32,
     uuid: String,
     name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
     data: serde_json::Value,
     options: JobOptions,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -233,6 +235,7 @@ impl Payload {
             version: 1,
             uuid: new_id()?,
             name,
+            display_name: None,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
             delete_when_missing_models: false,
@@ -290,6 +293,13 @@ impl Payload {
     }
     pub fn name(&self) -> &str {
         &self.name
+    }
+    pub(crate) fn with_display_name(mut self, name: String) -> Self {
+        self.display_name = Some(name);
+        self
+    }
+    pub(crate) fn display_name(&self) -> &str {
+        self.display_name.as_deref().unwrap_or(&self.name)
     }
     pub fn data(&self) -> &serde_json::Value {
         &self.data

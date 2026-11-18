@@ -97,7 +97,7 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
     let mut entry = json!({
         "level": if matches!(status, "starting" | "success") {"info"} else {"warning"},
         "id": job.get_job_id(), "uuid": job.uuid(), "connection": job.get_connection_name(),
-        "queue": job.get_queue(), "job": job.payload().name(), "status": status,
+        "queue": job.get_queue(), "job": job.payload().display_name(), "status": status,
         "attempts": job.attempts(), "timestamp": timestamp,
     });
     if let Some(outcome) = outcome {
@@ -128,7 +128,7 @@ fn summary(event: WorkerStatus<'_>) -> String {
         WorkerStatus::Resumed(event) => format!("Queue {} RESUMED", event.queue),
         WorkerStatus::Stopped(event) => format!("Worker STOPPED {}", event.reason.description()),
         WorkerStatus::Job(job, outcome) => match outcome {
-            None => format!("{} RUNNING", job.payload().name()),
+            None => format!("{} RUNNING", job.payload().display_name()),
             Some(outcome) => {
                 let status = match outcome.result {
                     WorkResult::Failed => "FAIL",
@@ -138,7 +138,7 @@ fn summary(event: WorkerStatus<'_>) -> String {
                 };
                 format!(
                     "{} {}ms {status}",
-                    job.payload().name(),
+                    job.payload().display_name(),
                     outcome.elapsed.as_millis()
                 )
             }

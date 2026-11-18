@@ -91,6 +91,53 @@ impl Command for NestedArtisan {
     }
 }
 
+struct QueuedArtisan(CommandDefinition);
+
+impl Command for QueuedArtisan {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        _: &'a Input,
+        _: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            use openrust::queue::{DispatchResult, QueueError};
+
+            let arguments = ["a value 中文"].map(OsString::from);
+            assert_eq!(
+                ArtisanFacade::queue("say-hi", &arguments)
+                    .onConnection("sync")
+                    .onQueue("commands")
+                    .dispatch()
+                    .await
+                    .unwrap(),
+                DispatchResult::Completed
+            );
+            assert!(matches!(
+                ArtisanFacade::queue("missing:command", &[])
+                    .onConnection("sync")
+                    .dispatch()
+                    .await,
+                Err(QueueError::Execution { .. })
+            ));
+            #[cfg(unix)]
+            {
+                use std::os::unix::ffi::OsStringExt as _;
+                let invalid = [OsString::from_vec(vec![0xff])];
+                assert!(matches!(
+                    ArtisanFacade::queue("say-hi", &invalid).dispatch().await,
+                    Err(QueueError::InvalidPayload)
+                ));
+            }
+            Ok(0)
+        })
+    }
+}
+
 #[tokio::test]
 async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
     assert!(
@@ -109,6 +156,9 @@ async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
             ))))?;
             commands.add_command(Box::new(NestedArtisan(CommandDefinition::new(
                 clap::Command::new("nested"),
+            ))))?;
+            commands.add_command(Box::new(QueuedArtisan(CommandDefinition::new(
+                clap::Command::new("queued-probe"),
             ))))
         })
         .withRouting(Routing::default().commands(application_console::register))
@@ -119,6 +169,13 @@ async fn artisan_facade_preserves_arguments_errors_exit_status_and_output() {
     assert_eq!(kernel.handle(&["nested".into()], &mut output).await, 7);
     assert_eq!(output.stdout, "Hello two words 中文\n");
     assert!(output.stderr.is_empty());
+
+    let mut queued = Output::default();
+    assert_eq!(
+        kernel.handle(&["queued-probe".into()], &mut queued).await,
+        0
+    );
+    assert!(queued.stdout.is_empty() && queued.stderr.is_empty());
 }
 
 static RELOAD_STEPS: AtomicUsize = AtomicUsize::new(0);
