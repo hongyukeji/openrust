@@ -3260,3 +3260,7 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 ## 2026-11-18 06-06 邮件标签和元数据
 
 依固定 Laravel Tags and Metadata 接通信封、队列、邮件断言、原始 MIME 和供应商 API。范围含 `Mailable`、`Envelope`、消息组合、SMTP、供应商传输、邮件集成回归与三语文档。实际 HTTP、SMTP、MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker、18 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例和 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件标签和元数据)
+
+## 2026-11-18 06-06 邮件消息定制回调
+
+依固定 Laravel 的 Customizing the Symfony Message 接通 `Envelope::using`、应用本地回调注册和跨进程队列投递。范围含 MailManager、邮件草稿及组装、信封、集成回归和三语正文。真实 HTTP、SMTP、独立 MySQL 和 Redis Artisan Worker、19 项邮件通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#邮件消息定制回调)

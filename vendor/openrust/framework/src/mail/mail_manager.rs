@@ -18,10 +18,11 @@ use crate::{
 };
 
 use super::{
-    MailError, MailFake, MailResult, Mailable, Mailer, Markdown, PendingMail,
+    MailError, MailFake, MailResult, Mailable, Mailer, Markdown, MessageDraft, PendingMail,
     mail_fake::FakeState,
     mailables::Address,
     message::Preview,
+    message_customization::MessageCustomizers,
     transport::{
         ApiProvider, ApiTransport, ArrayTransport, CompositeTransport, LogTransport,
         SendmailTransport, SesTransport, SmtpTransport, Transport,
@@ -40,6 +41,7 @@ pub struct MailManager {
     mailers: Mutex<HashMap<String, Arc<Mailer>>>,
     fake: FakeState,
     creators: Mutex<HashMap<String, Arc<TransportCreator>>>,
+    customizers: Arc<MessageCustomizers>,
 }
 
 impl MailManager {
@@ -73,6 +75,7 @@ impl MailManager {
             mailers: Mutex::default(),
             fake: FakeState::default(),
             creators: Mutex::default(),
+            customizers: Arc::default(),
         }
     }
 
@@ -136,6 +139,7 @@ impl MailManager {
             transport,
             captured,
             fake: self.fake.clone(),
+            customizers: self.customizers.clone(),
         });
         if faking {
             return Ok(mailer);
@@ -147,6 +151,22 @@ impl MailManager {
             .entry(name.into())
             .or_insert(mailer)
             .clone())
+    }
+
+    /// Registers a named message callback in this application's mail manager.
+    #[allow(
+        non_snake_case,
+        reason = "Matches the Laravel-compatible mail API naming"
+    )]
+    pub fn registerMessageCustomizer(
+        &self,
+        name: impl Into<String>,
+        callback: impl Fn(&mut MessageDraft, &serde_json::Value) -> MailResult<()>
+        + Send
+        + Sync
+        + 'static,
+    ) -> MailResult<()> {
+        self.customizers.register(name.into(), Arc::new(callback))
     }
 
     fn resolve_transport(

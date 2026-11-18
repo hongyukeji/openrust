@@ -28,7 +28,7 @@ use openrust::{
     },
     http::{HttpError, HttpFuture, Request, Response},
     mail::{
-        MailFuture, MailResult, Mailable, Message, SentMessage,
+        MailFuture, MailResult, Mailable, Message, MessageCustomization, SentMessage,
         events::{MessageSending, MessageSent},
         mailables::{Attachment, AttachmentSource, Content, Envelope, Headers, InlineAttachment},
         transport::Transport,
@@ -103,6 +103,10 @@ impl Mailable for AttachmentReceipt {
         Ok(Envelope {
             subject: self.subject.into(),
             tags: vec!["receipt".into(), "shipment".into()],
+            using: vec![
+                MessageCustomization::new("fixture.marker", json!({"value":"tracking-123"})),
+                MessageCustomization::new("fixture.append", Json::Null),
+            ],
             ..Receipt.envelope()?
         })
     }
@@ -270,8 +274,15 @@ impl Mailable for NamedReceipt<'_> {
     }
     fn envelope(&self) -> MailResult<Envelope> {
         let mut envelope = Receipt.envelope()?;
-        if self.1 && self.0 != "postmark" {
-            envelope.tags.push("shipment".into());
+        if self.1 {
+            if self.0 == "postmark" {
+                envelope.using.extend([
+                    MessageCustomization::new("fixture.marker", json!({"value":"api-456"})),
+                    MessageCustomization::new("fixture.append", Json::Null),
+                ]);
+            } else {
+                envelope.tags.push("shipment".into());
+            }
         }
         Ok(envelope)
     }
@@ -584,6 +595,42 @@ impl ServiceProvider for FixtureMailProvider {
         Box::pin(async move {
             let container = app.container();
             let configuration = container.make::<dyn Repository>()?;
+            if let Some(path) = configuration.get("fixture.mail_customizer_marker") {
+                use openrust::mail::{MailError, MailManager};
+                let fail = |message: &'static str| MailError::Composition {
+                    source: message.into(),
+                };
+                let marker = PathBuf::from(path.as_str().unwrap());
+                let manager = container.make::<MailManager>()?;
+                manager.registerMessageCustomizer("fixture.marker", move |draft, data| {
+                    if !marker.is_file() {
+                        return Err(fail("Mail customizer marker is missing."));
+                    }
+                    let value = data["value"]
+                        .as_str()
+                        .ok_or_else(|| fail("Marker value is required."))?;
+                    draft
+                        .headers
+                        .text
+                        .insert("X-Custom-Marker".into(), value.into());
+                    Ok(())
+                })?;
+                manager.registerMessageCustomizer("fixture.append", move |draft, _| {
+                    if !draft.headers.text.contains_key("X-Custom-Marker") {
+                        return Err(fail("Mail customizers ran out of order."));
+                    }
+                    let text = draft
+                        .text
+                        .as_mut()
+                        .ok_or_else(|| fail("Rendered text is required."))?;
+                    text.push_str(" - customized body");
+                    draft.attachment_sources.push(
+                        Attachment::fromData(b"customizer bytes".as_slice(), "customized.txt")
+                            .withMime("text/plain"),
+                    );
+                    Ok(())
+                })?;
+            }
             let Some(log) = configuration.get("fixture.mail_events_path") else {
                 return Ok(());
             };
@@ -946,6 +993,9 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
     config["services"] = json!({"postmark":{"token":"test-postmark"},"resend":{"key":"test-resend"},
         "ses":{"region":"us-east-1","key":"test-key","secret":"test-secret","token":"test-session"}});
+    let marker = root.0.join("customization-enabled");
+    std::fs::write(&marker, b"enabled").unwrap();
+    config["fixture"]["mail_customizer_marker"] = json!(marker);
     config["mail"]["mailers"] = json!({
         "postmark":{"transport":"postmark","endpoint":format!("{base}/postmark"),"message_stream_id":"transactional"},
         "resend":{"transport":"resend","endpoint":format!("{base}/resend")},
@@ -1098,14 +1148,30 @@ async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
     let image_base64 = STANDARD.encode(&image.attachment.bytes);
     let postmark_inline: Json = serde_json::from_str(&requests[7].2).unwrap();
     assert!(
+        postmark_inline["Headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|header| header["Name"] == "X-Custom-Marker" && header["Value"] == "api-456")
+    );
+    assert_eq!(
+        postmark_inline["TextBody"],
+        "plain receipt - customized body"
+    );
+    assert!(
         postmark_inline["HtmlBody"]
             .as_str()
             .unwrap()
             .contains(&image.cid())
     );
-    assert!(postmark_inline["Attachments"][0].get("ContentID").is_none());
-    assert_eq!(postmark_inline["Attachments"][1]["ContentID"], image.cid());
-    assert_eq!(postmark_inline["Attachments"][1]["Content"], image_base64);
+    assert_eq!(postmark_inline["Attachments"][0]["Name"], "customized.txt");
+    assert_eq!(
+        postmark_inline["Attachments"][0]["Content"],
+        STANDARD.encode(b"customizer bytes")
+    );
+    assert!(postmark_inline["Attachments"][1].get("ContentID").is_none());
+    assert_eq!(postmark_inline["Attachments"][2]["ContentID"], image.cid());
+    assert_eq!(postmark_inline["Attachments"][2]["Content"], image_base64);
     let resend_inline: Json = serde_json::from_str(&requests[8].2).unwrap();
     assert_eq!(
         resend_inline["tags"],
@@ -2936,9 +3002,12 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         );
     let object_server = tokio::spawn(async move { axum::serve(object_store, objects).await });
     let path = root.0.join("source.txt");
+    let marker = root.0.join("customization-enabled");
+    std::fs::write(&marker, b"enabled").unwrap();
     let config_path = root.0.join("config.json");
     let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
     config["fixture"]["attachment_file"] = json!(path);
+    config["fixture"]["mail_customizer_marker"] = json!(marker);
     config["fixture"]["attachment_url"] = json!(format!(
         "{endpoint}/reports/invoice%2042.bin?signature=fixture"
     ));
@@ -3011,6 +3080,13 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         .error_for_status()
         .unwrap();
     assert_eq!(downloads.load(Ordering::Relaxed), 1);
+    std::fs::remove_file(&marker).unwrap();
+    assert_eq!(
+        reqwest::get(&url).await.unwrap().status(),
+        http::StatusCode::INTERNAL_SERVER_ERROR
+    );
+    assert_eq!(downloads.load(Ordering::Relaxed), 1);
+    std::fs::write(&marker, b"enabled").unwrap();
     available.store(false, Ordering::Relaxed);
     assert_eq!(
         reqwest::get(&url).await.unwrap().status(),
@@ -3022,6 +3098,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
         http::StatusCode::INTERNAL_SERVER_ERROR
     );
     std::fs::remove_file(&path).unwrap();
+    std::fs::remove_file(&marker).unwrap();
     application
         .call(
             Callback::new(&[], |_| {
@@ -3101,13 +3178,30 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
             "database",
             "--queue=attachment-sources",
             "--once",
-            "--tries=2",
+            "--tries=3",
         ],
     )
     .await;
     assert_eq!(
         db.table("jobs").value("attempts").await.unwrap(),
         Value::Unsigned(1)
+    );
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    std::fs::write(&marker, b"enabled").unwrap();
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=attachment-sources",
+            "--once",
+            "--tries=3",
+        ],
+    )
+    .await;
+    assert_eq!(
+        db.table("jobs").value("attempts").await.unwrap(),
+        Value::Unsigned(2)
     );
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
     available.store(true, Ordering::Relaxed);
@@ -3120,7 +3214,7 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                 "--queue=attachment-sources",
                 "--stop-when-empty",
                 "--sleep=0",
-                "--tries=2",
+                "--tries=3",
             ],
         )
         .await;
@@ -3187,6 +3281,12 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
                 && raw.contains("X-Metadata-order-id: R123\r\n"),
             "{raw}"
         );
+        assert!(
+            raw.contains("X-Custom-Marker: tracking-123")
+                && raw.contains("customized body")
+                && raw.contains("customized.txt"),
+            "{raw}"
+        );
         for marker in [
             "source.txt",
             "default.csv",
@@ -3219,6 +3319,50 @@ async fn attachment_sources_resolve_over_http_and_in_artisan_workers() {
     server.abort();
     object_server.abort();
     drop_delivery_tables(&db).await;
+}
+
+#[tokio::test]
+async fn mail_customizers_are_application_local_and_preview_is_read_only() {
+    let other = fixture(None, None, None);
+    let mut first = app(&other.0);
+    first.boot().await.unwrap();
+    let manager = first
+        .container()
+        .make::<openrust::mail::MailManager>()
+        .unwrap();
+    manager
+        .registerMessageCustomizer("fixture.marker", |_, _| Ok(()))
+        .unwrap();
+    assert!(
+        manager
+            .registerMessageCustomizer("fixture.marker", |_, _| Ok(()))
+            .is_err()
+    );
+    let root = fixture(None, None, None);
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                let receipt = AttachmentReceipt {
+                    path: PathBuf::new(),
+                    subject: "Custom mail",
+                };
+                assert!(receipt.render().await.unwrap().contains("Receipt for"));
+                let result = Mail::to("to@example.test").unwrap().sendNow(&receipt).await;
+                assert!(
+                    result
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("fixture.marker] is not registered")
+                );
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

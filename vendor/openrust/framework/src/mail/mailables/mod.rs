@@ -34,6 +34,8 @@ pub struct Envelope {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub metadata: std::collections::BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub using: Vec<crate::mail::MessageCustomization>,
 }
 
 /// The text, HTML, or named views for a mailable.

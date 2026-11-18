@@ -5,7 +5,7 @@ use lettre::message::{Mailbox, MultiPart, SinglePart, header};
 use crate::view::Factory;
 
 use super::{
-    MailResult, Markdown, composition, inline_attachment,
+    MailResult, Markdown, MessageDraft, composition, inline_attachment,
     mailables::{Address, Attachment, Content, Envelope, Headers, InlineAttachment},
 };
 
@@ -48,15 +48,16 @@ impl Message {
             .collect()
     }
 
-    pub(super) fn compose(
-        envelope: Envelope,
-        mut content: Content,
-        attachments: Vec<Attachment>,
-        inline_attachments: Vec<InlineAttachment>,
-        headers: Headers,
-        views: &Factory,
-        markdown: &Markdown,
-    ) -> MailResult<Self> {
+    pub(super) fn compose(draft: MessageDraft) -> MailResult<Self> {
+        let MessageDraft {
+            envelope,
+            headers,
+            text,
+            html,
+            attachments,
+            inline_attachments,
+            ..
+        } = draft;
         let api_envelope = envelope.clone();
         let api_headers = headers.clone();
         let tracking_headers = tracking_headers(&envelope)?;
@@ -101,21 +102,13 @@ impl Message {
             {
                 return Err(composition("A reserved mail header cannot be overridden."));
             }
+            if !name.bytes().all(|byte| byte.is_ascii_graphic()) {
+                return Err(composition("Invalid mail header name."));
+            }
             let name = header::HeaderName::new_from_ascii(name)
                 .map_err(|_| composition("Invalid mail header name."))?;
             builder = builder.raw_header(header::HeaderValue::new(name, header_text(value)?));
         }
-        let explicit_text = render(
-            content.text.take(),
-            content.text_view.as_deref(),
-            &content.with,
-            views,
-        )?;
-        let html = render_html(&mut content, views, markdown)?;
-        let text = match (explicit_text, content.markdown.as_deref()) {
-            (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
-            (text, _) => text,
-        };
         let body = if inline_attachments.is_empty() {
             match (text.clone(), html.clone()) {
                 (Some(text), Some(html)) => {
@@ -185,6 +178,37 @@ impl Message {
                 )
             })
             .map_err(|_| composition("A valid sender and at least one recipient are required."))
+    }
+}
+
+impl MessageDraft {
+    pub(super) fn render(
+        envelope: Envelope,
+        headers: Headers,
+        mut content: Content,
+        views: &Factory,
+        markdown: &Markdown,
+    ) -> MailResult<Self> {
+        let explicit_text = render(
+            content.text.take(),
+            content.text_view.as_deref(),
+            &content.with,
+            views,
+        )?;
+        let html = render_html(&mut content, views, markdown)?;
+        let text = match (explicit_text, content.markdown.as_deref()) {
+            (None, Some(view)) => Some(markdown.render_text(view, &content.with, views)?),
+            (text, _) => text,
+        };
+        Ok(Self {
+            envelope,
+            headers,
+            text,
+            html,
+            attachments: Vec::new(),
+            attachment_sources: Vec::new(),
+            inline_attachments: Vec::new(),
+        })
     }
 }
 

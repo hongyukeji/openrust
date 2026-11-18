@@ -124,6 +124,33 @@ fn envelope(&self) -> MailResult<Envelope> {
 
 測試中可用 `assertHasTag` 和 `assertHasMetadata` 檢查宣告。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 標頭。Mailgun 的結構化 API 將標籤對應至 `o:tag`，中繼資料對應至 `v:*`。Postmark 接受一個標籤和一組中繼資料。SES 和 SES v2 將信封中繼資料附加至設定的供應商標籤。Resend 將標籤以名稱與值傳送，中繼資料保留在郵件標頭。Cloudflare 在郵件標頭保存中繼資料和最後一個標籤。
 
+### 自訂郵件訊息 {#customizing-the-message}
+
+在服務提供者啟動時向應用程式的 `MailManager` 註冊郵件自訂回呼，並在 `Envelope::using` 依執行順序列出。回呼會收到 `MessageDraft`，其中包含信封、郵件標頭及已轉譯的文字和 HTML。回呼會在讀取宣告的附件及觸發投遞事件之前執行，也可以在草稿中加入附件。
+
+```rust
+manager.registerMessageCustomizer("shipment.tracking", |draft, data| {
+    if let Some(code) = data["code"].as_str() {
+        draft.headers.text.insert("X-Tracking-Code".into(), code.into());
+    }
+    Ok(())
+})?;
+```
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        using: vec![
+            MessageCustomization::new("shipment.tracking", serde_json::json!({"code":"R123"})),
+        ],
+        ..Envelope::default()
+    })
+}
+```
+
+佇列郵件會保存回呼名稱和 JSON 資料。Worker 應用程式註冊同名回呼，並在每次投遞嘗試時執行。找不到回呼或回呼回傳錯誤時，本次嘗試停止。郵件預覽使用原始內容。
+
 ## 設定
 
 `config/mail.rs` 定義預設郵件器、命名郵件器和寄件人。骨架預設使用 `log` 驅動，在 debug 層級寫入 MIME 郵件。`array` 驅動可透過 `Mailer::sent` 檢查目前應用程式的郵件。

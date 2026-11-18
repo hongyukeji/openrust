@@ -124,6 +124,33 @@ fn envelope(&self) -> MailResult<Envelope> {
 
 测试中可用 `assertHasTag` 和 `assertHasMetadata` 核对声明。SMTP 和原始 MIME 使用 `X-Tag` 和 `X-Metadata-*` 头。Mailgun 的结构化 API 把标签映射为 `o:tag`，元数据映射为 `v:*`。Postmark 接受一个标签和一组元数据。SES 和 SES v2 将信封元数据追加到配置的供应商标签。Resend 将标签作为名称与值发送，元数据保留在邮件头中。Cloudflare 在邮件头中保存元数据和最后一个标签。
 
+### 定制邮件消息 {#customizing-the-message}
+
+在服务提供者启动时向应用的 `MailManager` 注册邮件定制回调，并在 `Envelope::using` 按执行顺序列出。回调收到 `MessageDraft`，其中包含信封、邮件头及已渲染的文本和 HTML。回调在读取声明的附件和触发投递事件之前执行，也可以向草稿添加附件。
+
+```rust
+manager.registerMessageCustomizer("shipment.tracking", |draft, data| {
+    if let Some(code) = data["code"].as_str() {
+        draft.headers.text.insert("X-Tracking-Code".into(), code.into());
+    }
+    Ok(())
+})?;
+```
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        using: vec![
+            MessageCustomization::new("shipment.tracking", serde_json::json!({"code":"R123"})),
+        ],
+        ..Envelope::default()
+    })
+}
+```
+
+队列邮件保存回调名称和 JSON 数据。Worker 应用注册同名回调，并在每次投递尝试时执行。回调缺失或返回错误时，本次尝试停止。邮件预览使用原始内容。
+
 ## 配置
 
 `config/mail.rs` 定义默认邮件器、命名邮件器和发件人。骨架默认使用 `log` 驱动，在 debug 级别写入 MIME 邮件。`array` 驱动可通过 `Mailer::sent` 检查当前应用的邮件。

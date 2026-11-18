@@ -12,6 +12,7 @@ mod mailer;
 mod markdown;
 mod markdown_components;
 mod message;
+mod message_customization;
 mod pending_mail;
 mod send_queued_mailable;
 pub mod transport;
@@ -26,6 +27,7 @@ pub use mailable::Mailable;
 pub use mailer::Mailer;
 pub use markdown::Markdown;
 pub use message::{Message, SentMessage};
+pub use message_customization::{MessageCustomization, MessageDraft};
 pub use pending_mail::PendingMail;
 pub use send_queued_mailable::SendQueuedMailable;
 

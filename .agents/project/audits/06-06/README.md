@@ -191,3 +191,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `12faa39f4` 上，用真实 HTTP 和 SMTP 核对两个标签、元数据以及邮件正文。MySQL 与 Redis 的独立 Artisan Worker 序列化并投递同样的标记。供应商采用本地 HTTP 协议夹具，核对 Mailgun 原始 MIME／结构化请求、Postmark、Resend、Cloudflare、SES v1 和 v2。覆盖多标签被拒和头部非法控制字符，未向第三方账户投递。
 - `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 全仓格式与严格 Clippy、三语示例执行及旧信封 JSON 往返、站点构建和 18 项浏览器检查通过。核心账本维持 66/66。下一批核对邮件消息定制回调。
 - 临时服务和本批隔离编译及文档产物已回收，项目卷可用空间净增 3.67 GB（3.42 GiB），剩余 98.98 GB（92.18 GiB）。提交前周额度剩余 32%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-metadata.NqZjw7B4`。
+
+## 邮件消息定制回调
+
+- 对照固定 Laravel v13.40.0 的 `Envelope::using` 和 `Mailable::runCallbacks()`。OpenRust 在已渲染正文上按声明顺序执行应用注册的回调，随后读取和组装声明的附件，再进入投递事件。回调可调整信封、邮件头和正文，也可添加附件。MIME 和供应商 API 由同一份草稿组装。复核旧版 `6d1a81924` 邮件模块，未发现同契约回调，复用当前 MailManager、组装和队列流程。 [Laravel Mailable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Mailable.php#L211) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#customizing-the-symfony-message)
+- Rust 以注册名和 JSON 数据表达可跨进程保存的回调声明。应用在服务提供者启动时注册，Worker 在每个投递尝试中执行。旧信封缺省为空。预览保留原始正文。重复注册、跨应用未注册、回调失败和非法邮件头通过原有错误路径处理。
+- 在隔离基线 `7cb928e9b` 上，通过真实 HTTP 与 SMTP、Postmark 本地协议夹具、真实 MySQL 8.4.13 和 Redis 8.10.3 的独立 Artisan Worker 核对执行顺序、头部、正文和追加附件。数据库 Worker 先因回调失败，再因 URL 附件服务失败而重排，恢复后投递成功。回调失败时未下载附件。双应用隔离及预览回归通过。初版在 Debug Worker 复现栈溢出，将附件解析 future 移到堆后用原栈大小复验成功。Postmark 本轮未使用真实账户。
+- `mail_notifications` 19 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。实际 `./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语示例执行及旧信封 JSON 往返、三语站点与 18 项浏览器检查通过。核心账本维持 66/66。下一批核对邮件内容的测试断言。
+- 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.86 GB（3.59 GiB），清理后可用 97.01 GB（90.35 GiB）。提交前周额度剩余 31%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-customize.tqga7539`。

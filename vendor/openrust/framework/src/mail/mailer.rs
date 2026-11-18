@@ -13,8 +13,10 @@ use crate::{
 };
 
 use super::{
-    MailError, MailFuture, MailResult, Mailable, Message, SendQueuedMailable, SentMessage,
+    MailError, MailFuture, MailResult, Mailable, Message, MessageDraft, SendQueuedMailable,
+    SentMessage,
     mailables::Address,
+    message_customization::MessageCustomizers,
     pending_mail::Recipients,
     transport::{ArrayTransport, Transport},
 };
@@ -29,6 +31,7 @@ pub struct Mailer {
     pub(super) transport: Arc<dyn Transport>,
     pub(super) captured: Option<Arc<ArrayTransport>>,
     pub(super) fake: super::mail_fake::FakeState,
+    pub(super) customizers: Arc<MessageCustomizers>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mailer API")]
@@ -142,20 +145,26 @@ impl Mailer {
         if envelope.from.is_none() {
             envelope.from.clone_from(&self.from);
         }
-        let content = mailable.content()?;
-        let mut attachments = mailable.attachments()?;
-        for source in mailable.attachment_sources()? {
-            attachments.push(source.resolve().await?);
-        }
-        Message::compose(
+        let mut draft = MessageDraft::render(
             envelope,
-            content,
-            attachments,
-            mailable.inline_attachments()?,
             mailable.headers()?,
+            mailable.content()?,
             &self.views,
             &self.markdown,
-        )
+        )?;
+        self.customizers.apply(&mut draft)?;
+        // Storage and URL resolution can hold large transport futures.
+        for source in std::mem::take(&mut draft.attachment_sources) {
+            draft.attachments.push(Box::pin(source.resolve()).await?);
+        }
+        draft.attachments.extend(mailable.attachments()?);
+        for source in mailable.attachment_sources()? {
+            draft.attachments.push(Box::pin(source.resolve()).await?);
+        }
+        draft
+            .inline_attachments
+            .extend(mailable.inline_attachments()?);
+        Message::compose(draft)
     }
 
     pub(super) async fn enqueue(

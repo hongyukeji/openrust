@@ -124,6 +124,33 @@ fn envelope(&self) -> MailResult<Envelope> {
 
 Match these declarations in tests with `assertHasTag` and `assertHasMetadata`. SMTP and raw MIME carry `X-Tag` and `X-Metadata-*` headers. Mailgun’s structured API maps tags to `o:tag` and metadata to `v:*`. Postmark accepts one tag and a metadata map. SES and SES v2 append envelope metadata to the configured provider tags. Resend sends tags as name-value pairs and carries metadata in headers. Cloudflare carries metadata and the last tag in its header map.
 
+### Customizing the message {#customizing-the-message}
+
+Register message customizers on the application’s `MailManager` when its service provider boots. List them in `Envelope::using` in the order they should run. A customizer receives the envelope, headers, and rendered text and HTML in a `MessageDraft` before declared attachments are loaded and delivery events are dispatched. A customizer can also add attachments to the draft.
+
+```rust
+manager.registerMessageCustomizer("shipment.tracking", |draft, data| {
+    if let Some(code) = data["code"].as_str() {
+        draft.headers.text.insert("X-Tracking-Code".into(), code.into());
+    }
+    Ok(())
+})?;
+```
+
+```rust
+fn envelope(&self) -> MailResult<Envelope> {
+    Ok(Envelope {
+        subject: "Order shipped".into(),
+        using: vec![
+            MessageCustomization::new("shipment.tracking", serde_json::json!({"code":"R123"})),
+        ],
+        ..Envelope::default()
+    })
+}
+```
+
+Queued mail stores the customizer name and JSON data. The worker application registers the same name and runs the customizer on each delivery attempt. A missing customizer or an error stops that attempt. Rendering a mailable for preview uses its original content.
+
 ## Configuration
 
 `config/mail.rs` defines the default mailer, named mailers and sender. The skeleton defaults to the `log` transport, which writes the MIME message at debug level. Use `array` to inspect messages in the current application with `Mailer::sent`.
