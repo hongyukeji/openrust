@@ -170,7 +170,7 @@ impl RedisTagSet {
         loop {
             let (next, keys) = self
                 .connection
-                .scan_slot_keys(registry, &pattern, "zset", cursor, BATCH_SIZE)
+                .scan_slot_keys(registry, &pattern, cursor, BATCH_SIZE)
                 .await
                 .map_err(backend)?;
             let indexes: Vec<_> = keys
@@ -195,7 +195,7 @@ impl RedisTagSet {
         loop {
             let (next, keys) = self
                 .connection
-                .scan_slot_keys(registry, &pattern, "set", cursor, BATCH_SIZE)
+                .scan_slot_keys(registry, &pattern, cursor, BATCH_SIZE)
                 .await
                 .map_err(backend)?;
             for key in &keys {

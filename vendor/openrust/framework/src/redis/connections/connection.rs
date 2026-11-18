@@ -81,7 +81,6 @@ impl Connection {
         &self,
         key: &str,
         pattern: &str,
-        key_type: &str,
         cursor: u64,
         count: usize,
     ) -> RedisResult<(u64, Vec<Vec<u8>>)> {
@@ -94,9 +93,7 @@ impl Connection {
             .arg("MATCH")
             .arg(pattern)
             .arg("COUNT")
-            .arg(count)
-            .arg("TYPE")
-            .arg(key_type);
+            .arg(count);
         let route = Route::with_key(key, SlotAddr::Master);
         let result = transport
             .route_command(

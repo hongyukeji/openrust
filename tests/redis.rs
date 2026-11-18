@@ -1215,6 +1215,23 @@ async fn redis_cluster_tags_flush_and_prune() {
     let recent_index = index("recent").await;
     assert!(registered(&recent_index).await);
     assert!(!registered(&expired_index).await);
+    // A correctly named index still belongs to this store after losing the registry.
+    let index_backup = format!("{paged_index}:backup");
+    connection
+        .command("RENAME", &[paged_index.as_bytes(), index_backup.as_bytes()])
+        .await
+        .unwrap();
+    connection
+        .command("SET", &[paged_index.as_bytes(), b"wrong type"])
+        .await
+        .unwrap();
+    assert!(plain.get_store().flush_stale_tags().await.is_err());
+    assert!(exists(&paged_index).await);
+    assert!(exists(&index_backup).await);
+    connection
+        .command("RENAME", &[index_backup.as_bytes(), paged_index.as_bytes()])
+        .await
+        .unwrap();
     plain.get_store().flush_stale_tags().await.unwrap();
     assert_eq!(count(&paged_index).await, RedisValue::Int(160));
     assert!(registered(&paged_index).await);
@@ -1426,6 +1443,8 @@ async fn redis_cluster_tags_flush_and_prune() {
         .command("SET", &[pending.as_bytes(), b"wrong type"])
         .await
         .unwrap();
+    assert!(plain.get_store().flush_stale_tags().await.is_err());
+    assert!(exists(&pending).await);
     assert!(interrupted.flush().await.is_err());
     assert_eq!(
         interrupted.getTags().tagId("interrupted").await.unwrap(),

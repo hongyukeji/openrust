@@ -186,3 +186,9 @@
 - Redis 8.10.3 三主节点和两个实际 HTTP 进程验证指定标签与整库清理、过期索引删除但保留其仍有效的值、槽迁移中失败和迁移后重试、登记恢复与旧代际回收。独立 Artisan 指定 `array` 退出 0，指定不存在的存储退出 1，两者都保留默认 Redis 的索引。单机 Redis 回归新增显式 `array` 的断言，随后显式 `redis` 确实清理过期引用。
 - `sh tests/redis_cluster.sh` 五项、真实单机标签回归、根应用 `./artisan inspire`、Rust 1.94.0 全仓格式及严格 Clippy、三语站点构建、12 项通用和 6 项标签文档浏览器检查通过。核心账本仍为 66/66。另一次从同一基线运行的整仓测试在 Provider 并发生成、stub 数量和事件假冒的回滚断言出现三项失败，交接继续跟踪。日志保留于 `/private/tmp/openrust-integration-current.Bs3P2TXn`。
 - 已回收临时 Redis、隔离 Cargo 和文档产物。项目卷可用空间净增 33.67 GB（31.35 GiB），清理后可用 100.57 GB（93.66 GiB）。提交前周额度剩余 38%，第二窗口无读数。
+
+## 索引登记丢失后的 Redis 键类型错误
+
+- 固定 Laravel v13.40.0 的 `RedisStore::currentTags()` 按存储键名扫描，`RedisTagSet::flushStaleEntries()` 直接执行有序集合命令，Artisan 在清理成功后才打印成功信息。对照上游键前缀扫描测试和 `openrust-v0.x` 的 `redis_tags.rs`、`tag_identity.rs`。OpenRust 继续按标签槽、存储前缀及代际键格式限定范围，去掉 Redis SCAN 的类型筛选，让错型索引与待回收键的操作错误返回给调用方。 [固定 Laravel RedisStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisStore.php#L329) · [固定 Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L84) · [固定上游测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Cache/CacheRedisStoreTest.php#L196)
+- 基于 `7d5a98fc0` 的隔离快照，Redis 8.10.3 三主节点、两个真实 HTTP 进程及独立 Artisan 验证索引登记丢失且键类型异常时 HTTP 返回 500、`cache:prune-stale-tags redis` 退出 1。恢复索引后指定标签清理成功，仍可读取原值。异常类型的待回收键也使默认存储命令退出 1，修复后退出 0。Redis 原生命令验证异常键、备份索引和无关键在对应失败步骤保留。
+- `sh tests/redis_cluster.sh` 五项、真实单机标签回归、`./artisan inspire`、Rust 1.94.0 全仓格式和严格 Clippy、三语站点构建、12 项通用和 6 项标签说明浏览器检查通过。已回收临时 Redis、隔离 Cargo 和文档产物。提交前磁盘可用 99.82 GB（92.96 GiB），周额度剩余 36%，第二窗口无读数。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-03-09-index-types.3IoCa2Nv`。

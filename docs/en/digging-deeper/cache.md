@@ -233,6 +233,8 @@ With a built-in non-Redis store such as `array`, the command succeeds without pr
 
 On Redis Cluster, store-wide pruning also discovers tag indexes on the primary that owns the store's tag slot. If Redis evicts the index registry, pruning rediscovers surviving indexes, removes stale references, and keeps live values. If a pending generation’s index and registry entry are both missing, pruning removes the pending record. Pruning also discards malformed pending generation identifiers. The command checks up to 128 pending generations at a time in a same-slot Redis operation. It keeps any pending generation that still has indexed values so a later tag flush can finish.
 
+A tag index with an unexpected Redis key type causes pruning to fail even if its registry entry is missing. Store-wide pruning also fails if a retirement record has an unexpected key type. The command exits with status 1. Restore the expected key type and run the cleanup again.
+
 During Redis Cluster slot migration, Redis may return `TRYAGAIN` when a cleanup batch references missing keys or its keys are split between nodes. When it does, `flushStale()` returns an error and `cache:prune-stale-tags` exits with status 1. After slot migration completes, run the same cleanup again. Batches that already completed stay applied, and retrying skips references that were already removed.
 
 If a Redis Cluster tag flush is interrupted, run `./artisan cache:clear redis --tags=artists` again to finish removing the retired values. A retry processes retired generations in batches and discards malformed generation identifiers. If a Redis key has an unexpected type, the command exits with status 1. Restore the expected key type before retrying.
