@@ -6,6 +6,7 @@ use serde_json::{Map, Value};
 
 use crate::{
     contracts::session::Session as _,
+    cookie::Cookie,
     routing::{UrlError, UrlResult, valid_http_url},
     support::{Arr, MessageBag, Uri, data_forget},
 };
@@ -31,6 +32,45 @@ impl RedirectResponse {
                 )
                 .header(LOCATION, location),
         ))
+    }
+
+    /// Attaches a cookie while keeping the redirect available for further changes.
+    pub fn cookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
+        self.withCookie(cookie, request)
+    }
+
+    pub fn withCookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
+        self.0.withCookie(cookie, request).map(Self)
+    }
+
+    pub fn withCookies<'a>(
+        self,
+        cookies: impl IntoIterator<Item = &'a Cookie>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        self.0.withCookies(cookies, request).map(Self)
+    }
+
+    pub fn withoutCookie(
+        self,
+        name: &str,
+        path: Option<&str>,
+        domain: Option<&str>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        self.0.withoutCookie(name, path, domain, request).map(Self)
+    }
+
+    pub fn withoutCookies<'a>(
+        self,
+        names: impl IntoIterator<Item = &'a str>,
+        path: Option<&str>,
+        domain: Option<&str>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        self.0
+            .withoutCookies(names, path, domain, request)
+            .map(Self)
     }
 
     /// Replaces the target's fragment, keeping its path and query.

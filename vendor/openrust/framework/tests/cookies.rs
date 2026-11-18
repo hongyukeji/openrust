@@ -9,9 +9,9 @@ use openrust::{
     },
     encryption::{Cipher, Encrypter},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    routing::{MiddlewareEntry, RoutingError},
-    support::facades::{Cookie, Route},
+    http::{HttpError, HttpFuture, RedirectResponse, Request, Response, StatusCode},
+    routing::{MiddlewareEntry, RedirectOptions, RoutingError},
+    support::facades::{Cookie, Redirect, Route},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -74,11 +74,52 @@ fn expire(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn redirect_cookies(request: &mut Request) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
+    Box::pin(async move {
+        let defaults = CookieOptions::default();
+        let older = Cookie::make("theme", "old", 0, &defaults)?;
+        let theme = Cookie::make("theme", "light", 0, &defaults)?;
+        let scoped = Cookie::make(
+            "theme",
+            "dark",
+            0,
+            &CookieOptions {
+                path: Some("/private".to_owned()),
+                domain: Some("sub.example.test".to_owned()),
+                ..defaults
+            },
+        )?;
+        let contrast = Cookie::make("contrast", "high", 0, &CookieOptions::default())?;
+        Cookie::queue(Cookie::make(
+            "extra",
+            "queued",
+            0,
+            &CookieOptions::default(),
+        )?)?;
+        let redirect = Redirect::away(
+            "/read",
+            RedirectOptions {
+                status: StatusCode::SEE_OTHER,
+                ..Default::default()
+            },
+        )?
+        .cookie(&older, request)?
+        .withCookies([&theme, &scoped, &contrast], request)?;
+        if request.route("operation") == Some("expire") {
+            return redirect
+                .withoutCookie("theme", Some("/private"), Some("sub.example.test"), request)?
+                .withoutCookies(["contrast", "legacy"], None, None, request);
+        }
+        Ok(redirect.withFragment("details")?)
+    })
+}
+
 fn register() -> Result<(), RoutingError> {
     Route::get("/set/{value}", set)?;
     Route::get("/read", read)?;
     Route::get("/presence", presence)?;
-    Route::get("/expire", expire)
+    Route::get("/expire", expire)?;
+    Route::get("/redirect-cookies/{operation}", redirect_cookies)
 }
 
 async fn transport(
@@ -210,6 +251,50 @@ async fn cookies_round_trip_and_reject_tampering_across_real_http_requests() {
     for server in [first_server, rotated_server, unrelated_server] {
         server.abort();
     }
+}
+
+#[tokio::test]
+async fn redirect_cookies_keep_distinct_scopes_and_expire_over_http() {
+    let (address, server) = start(b'a', None).await;
+    let response = send(address, "/redirect-cookies/set", "").await;
+    assert!(response.starts_with("HTTP/1.1 303 "));
+    assert!(response.contains("location: /read#details\r\n"));
+    assert_eq!(response.matches("set-cookie: theme=").count(), 2);
+    assert_eq!(response.matches("set-cookie: ").count(), 4);
+    let theme = cookie_header(&response, "theme");
+    assert!(!theme.contains("theme=light"));
+    let request_cookies = [
+        theme,
+        cookie_header(&response, "contrast"),
+        cookie_header(&response, "extra"),
+    ];
+    let wire = request_cookies
+        .iter()
+        .map(|header| pair(header))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert_eq!(
+        json_body(&send(address, "/read", &wire).await),
+        json!({"theme":"light","contrast":"high","extra":"queued"})
+    );
+
+    let response = send(address, "/redirect-cookies/expire", "").await;
+    assert!(response.starts_with("HTTP/1.1 303 "));
+    assert!(response.contains("location: /read\r\n"));
+    assert_eq!(response.matches("set-cookie: theme=").count(), 2);
+    let scoped = response
+        .lines()
+        .find(|line| line.starts_with("set-cookie: theme=") && line.contains("path=/private"))
+        .unwrap();
+    assert!(scoped.contains("domain=sub.example.test") && scoped.contains("Max-Age=0"));
+    for name in ["contrast", "legacy"] {
+        let header = cookie_header(&response, name);
+        assert!(header.contains("Max-Age=0"));
+        assert!(header.contains("; path=/; domain=example.test"));
+    }
+    assert!(!cookie_header(&response, "theme").contains("Max-Age=0"));
+    assert!(!cookie_header(&response, "extra").contains("Max-Age=0"));
+    server.abort();
 }
 
 #[tokio::test]

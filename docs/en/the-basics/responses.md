@@ -93,6 +93,10 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+### Setting and expiring response cookies {#expiring-cookies-early}
+
+Both `Response` and `RedirectResponse` support `withCookie(&cookie, request)` and `withCookies([&first, &second], request)`. A cookie replaces an earlier one with the same name, path and domain. Chain `withoutCookie("theme", None, None, request)` or `withoutCookies(["theme", "contrast"], None, None, request)` to expire cookies. Pass the original path and domain when they differ from the configured defaults.
+
 ## JSON business responses
 
 Use `ApiResponse` in a route when clients need a shared business response format. The envelope contains `success`, `code` and `message`. It includes `data`, pagination `meta` or field `errors` when supplied. `success(data)` defaults to HTTP 200. Pass a status to `failure` or set it with `with_status`.

@@ -323,3 +323,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [重定向 URL 片段](04-02/README.md#重定向-url-片段)通过真实 HTTP、固定 Laravel、Artisan 和三语文档验收。核心账本维持 66/66。
 
 04-02 [重定向同源限制](04-02/README.md#重定向同源限制)通过真实 HTTP、固定 Laravel、Artisan 和三语文档验收。核心账本维持 66/66。
+
+04-02 [响应 Cookie 链式设置与删除](04-02/README.md#响应-cookie-链式设置与删除)通过真实 HTTP、固定 Laravel、Artisan 和三语文档验收。核心账本维持 66/66。

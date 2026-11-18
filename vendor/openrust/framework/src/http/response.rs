@@ -6,7 +6,10 @@ use http::{
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use crate::support::{Collection, Fluent, Stringable};
+use crate::{
+    cookie::Cookie,
+    support::{Collection, Fluent, Stringable, facades},
+};
 
 use super::{Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode};
 
@@ -236,22 +239,63 @@ impl Response {
     }
 
     /// Attaches a cookie using the given request's HTTPS setting.
-    pub fn cookie(
-        mut self,
-        cookie: &crate::cookie::Cookie,
-        request: &super::Request,
-    ) -> Result<Self, HttpError> {
+    pub fn cookie(self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
+        self.withCookie(cookie, request)
+    }
+
+    /// Attaches one cookie to the response.
+    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    pub fn withCookie(mut self, cookie: &Cookie, request: &Request) -> Result<Self, HttpError> {
         self.setCookie(cookie, request.is_secure())?;
+        Ok(self)
+    }
+
+    /// Attaches cookies in order, replacing cookies with the same name, path and domain.
+    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    pub fn withCookies<'a>(
+        mut self,
+        cookies: impl IntoIterator<Item = &'a Cookie>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        for cookie in cookies {
+            self.setCookie(cookie, request.is_secure())?;
+        }
+        Ok(self)
+    }
+
+    /// Expires one cookie using the application's Cookie factory.
+    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    pub fn withoutCookie(
+        self,
+        name: &str,
+        path: Option<&str>,
+        domain: Option<&str>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        self.withoutCookies([name], path, domain, request)
+    }
+
+    /// Expires cookies using the given path and domain or the application defaults.
+    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    pub fn withoutCookies<'a>(
+        mut self,
+        names: impl IntoIterator<Item = &'a str>,
+        path: Option<&str>,
+        domain: Option<&str>,
+        request: &Request,
+    ) -> Result<Self, HttpError> {
+        for name in names {
+            self.setCookie(
+                &facades::Cookie::forget(name, path, domain)?,
+                request.is_secure(),
+            )?;
+        }
         Ok(self)
     }
 
     /// Sets a cookie, replacing an existing cookie with the same name, path and domain.
     #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
-    pub fn setCookie(
-        &mut self,
-        cookie: &crate::cookie::Cookie,
-        secure_default: bool,
-    ) -> Result<(), HttpError> {
+    pub fn setCookie(&mut self, cookie: &Cookie, secure_default: bool) -> Result<(), HttpError> {
         use ::http::header::SET_COOKIE;
 
         let header = cookie.to_header(secure_default)?;

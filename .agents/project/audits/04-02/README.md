@@ -226,3 +226,9 @@
 - 对照固定 Laravel `RedirectResponse::enforceSameOrigin` 与 League URI 组件解析。旧版未提供同源重定向方法。正式版复用框架 `Uri`、当前请求的有效来源和既有重定向目标校验。主机始终匹配，协议与端口独立校验，默认端口归一化。Rust 显式借用当前请求并传入两个校验参数，无效来源或回退目标通过 `Result` 传播。 [Laravel RedirectResponse](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/RedirectResponse.php#L175)
 - 隔离基线 `d75c9bf7a` 真实 TCP 核对主机、协议、端口、相对地址、IPv6、可信代理和无效回退。替换目标保留 303、自定义响应头并同步正文。PHP 8.5 使用固定 Laravel、League URI 7.5.1、URI Interfaces 7.5.0 和 PSR HTTP Message 2.0 对照 12 个来源组合与无效回退。上游依赖在 PHP 8.5 发出 null 数组下标弃用提示，对照断言通过。
 - 真实 HTTP、固定 Laravel、69 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 93.80 GB（87.36 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-redirect-origin.yfv5w6MZ`。
+
+## 响应 Cookie 链式设置与删除
+
+- 对照固定 Laravel `ResponseTrait` 的 `cookie`、`withCookie`、`withCookies`、`withoutCookie` 和 `withoutCookies`。复用旧版 Cookie 响应扩展的工厂删除标记思路。普通和重定向响应共享既有 `setCookie` 和工厂，Rust 显式传入当前请求与已构造的 Cookie，扩展保留中间件加密元数据。 [Laravel ResponseTrait](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/ResponseTrait.php#L115) · [Laravel Cookie 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#expiring-cookies-early)
+- 隔离基线 `0a3ec822a` 真实 TCP 验证 303、Location、个别及批量操作、同名异作用域、同作用域覆盖、过期标记、队列与直接附加并存、加密 Cookie 后续请求解密。PHP 8.5 执行固定 Laravel 的普通与重定向响应夹具，CookieJar 仅在夹具中替换时间读取，核对状态、Location、同作用域身份和过期结果。
+- 真实 HTTP、固定 Laravel、71 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 92.76 GB（86.39 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-redirect-cookies.74cotCkw`。

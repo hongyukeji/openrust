@@ -93,6 +93,10 @@ fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+### 設定與刪除回應 Cookie {#expiring-cookies-early}
+
+一般回應與重新導向回應皆支援 `withCookie(&cookie, request)` 與 `withCookies([&first, &second], request)`。名稱、路徑及網域相同時，新的 Cookie 會覆蓋先前的 Cookie。用 `withoutCookie("theme", None, None, request)` 或 `withoutCookies(["theme", "contrast"], None, None, request)` 傳送過期 Cookie。原 Cookie 的路徑或網域與應用程式預設值不同時，請明確傳入原值。
+
 ## JSON 業務回應
 
 需要統一業務回應格式的路由可以使用 `ApiResponse`。回應包含 `success`、`code` 和 `message`，按需附帶 `data`、分頁 `meta` 或欄位 `errors`。`success(data)` 預設回傳 HTTP 200。使用 `failure` 時傳入狀態碼，也可以透過 `with_status` 設定。
