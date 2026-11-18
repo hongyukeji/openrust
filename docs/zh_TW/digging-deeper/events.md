@@ -86,7 +86,9 @@ fn discover_events() -> DiscoverEvents {
 
 ### 正式環境的事件探索 {#event-discovery-in-production}
 
-在部署環境執行 `./artisan event:cache`，快取編譯清單中的探索結果。新程序讀取這些結果，並執行對應的編譯註冊函式。手動監聽器與無條件註冊照常執行。預設路徑為 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。使用設定快取時，將此項設為服務的程序環境變數。啟動後可用 `getCachedEventsPath()` 查詢解析後的路徑。部署新版或修改探索設定後重新產生。執行 `./artisan event:clear` 後，下次啟動重新計算探索條件。快取損毀或監聽器清單不符時也會重新探索。
+事件快取是選用的部署最佳化。應用程式啟動時，如果快取與編譯清單相符，就會重用有條件監聽器的啟用結果。快取遺失、損毀或不相符時，啟動會重新計算條件，且不寫入檔案。手動監聽器與無條件註冊照常執行。
+
+在部署環境執行 `./artisan event:cache`，將探索結果寫入 `storage/framework/cache/events.json`。用 `APP_EVENTS_CACHE` 指定絕對路徑或相對於應用程式根目錄的路徑。使用設定快取時，將此項設為服務的程序環境變數。啟動後可用 `getCachedEventsPath()` 查詢解析後的路徑。部署新版或修改探索條件後，重新產生快取。執行 `./artisan event:clear` 刪除檔案，下次啟動時重新判斷條件。
 
 模型生命週期處理程式可在服務提供者啟動時註冊為 [Eloquent 觀察者](../eloquent/getting-started.md#observers)。
 

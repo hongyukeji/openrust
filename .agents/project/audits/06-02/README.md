@@ -20,6 +20,12 @@
 - 验收覆盖根应用二进制的三个事件命令。带编译清单的应用在独立进程执行 Artisan，另用真实 HTTP 验证监听器派发。覆盖缓存命中、清除后重新发现、重复清除、损坏和清单变化时回退、两个应用隔离、并发刷新和失败后保留旧文件。刷新以同目录原子替换发布。部署新构建或更改发现配置后应重新生成。
 - Rust 1.94.0 格式、锁定离线工作区测试、事件专项、全目标严格 Clippy 均通过。VitePress 构建、12 项通用与 6 项事件页浏览器检查通过。
 
+### 可选事件缓存与路径覆盖
+
+- macOS arm64、Rust 1.94.0，隔离副本通过 `cargo build --offline --locked -p openrust-framework --example event_cache_probe` 构建临时探针。探针使用标准 `runApplication` 入口，编译注册一个仅在生产环境启用的同步监听器。使用独立进程运行 HTTP 和实际 Artisan 的 `event:list --json`、`event:cache`、`event:clear`。
+- 默认路径 `storage/framework/cache/events.json`、`.env` 中相对应用根目录的路径、进程环境变量中的绝对路径均通过。生产与本地环境在文件缺失时实时判断且不写文件。生产环境生成的缓存可在本地环境命中。连续清理两次后，HTTP 和 Artisan 恢复按当前环境判断且不重新创建文件。启用配置快照时，进程环境中的绝对路径也通过 HTTP 读取和 Artisan 清理。
+- `cargo test --offline --locked -p openrust-framework --test events event_cache` 的两个父测试及其独立进程夹具通过。格式检查、工作区全目标严格 Clippy、三语 VitePress 构建、12 项常规与 6 项事件和测试文档浏览器检查通过。
+
 ## Eloquent Observer
 
 - 对照固定 Laravel 的 `Model::observe` 和生命周期方法注册。Rust 使用 `Observer<M>` 与编译期 `EVENTS` 清单，通过应用服务提供者注册。沿用 05-01 类型化监听器及 v0.x 的生命周期派发基础。固定 Goravel 的编译型 Provider 作为装配参考。 [Laravel HasEvents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasEvents.php) · [Laravel Observer 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#observers) · [Goravel ORM Provider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/service_provider.go)
