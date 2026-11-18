@@ -72,6 +72,12 @@ schedule
 
 在系统调度器中每分钟调用 `./artisan schedule:run`，也可以用 `./artisan schedule:work` 常驻运行。常驻进程收到 SIGTERM 或 Ctrl+C 后会完成当前任务。用 `./artisan schedule:list` 查看表达式和下一次执行时间。`schedule:run --whisper` 隐藏没有任务运行时的提示。
 
+要筛选列表，可为每个环境传一次 `--environment`。能在任意指定环境运行的任务都会显示，未限制环境的任务也会显示。用 `--next` 按下次运行时间排序。时间默认按 `app.timezone` 显示，可用 `--timezone` 指定 IANA 时区。列表仍显示任务原来的 cron 表达式，任务的实际触发时间也由原调度配置决定。
+
+```sh
+./artisan schedule:list --environment=staging --environment=production --next --timezone=Asia/Kolkata
+```
+
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
 
 用 `./artisan schedule:test --name=reports:daily` 在前台立即运行选定任务。在交互式终端中可省略 `--name`，从已登记任务中选择。用 `./artisan schedule:clear-cache` 清理已登记任务的重叠锁，包括共享 Redis 中的锁。

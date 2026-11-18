@@ -21,3 +21,9 @@
 - 以 `a0d879c5f` 的干净归档验证两个并行应用的 `schedule:run` 彼此隔离，`schedule:list` 用应用时区显示下一次运行，临时冻结结束后恢复外层时间。覆盖 Unix 纪元之前、显式时钟优先，以及距分钟末 100 毫秒时的子分钟任务停止。
 - `schedule:list` 在生效的重复分钟内显示下一次秒级触发。PHP 8.5.12 与 Carbon 3.8.4 直接运行固定 Laravel 的秒级舍入表达式，验证小数秒、整秒和跨分钟三个结果，与实际 Artisan 列表一致。 [固定 Laravel ScheduleListCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleListCommand.php#L264)
 - Redis 8.10.3 与真实子进程复验互斥、选举、中断、清锁及关停。调度与三语示例定向共 21 项通过，1 项子进程夹具忽略。根应用的独立 `./artisan schedule:list`、`schedule:run --whisper` 和 `inspire` 通过。全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。隔离 Redis、编译和站点产物已回收，项目盘可用 100.02 GB（93.15 GiB），提交前周额度剩余 36%。日志保留于 `/private/tmp/openrust-schedule-clock.dBi58tl9`。
+
+## 调度列表的环境筛选、排序与展示时区
+
+- 固定 Laravel v13.40.0 的 `schedule:list` 支持重复指定 `--environment`，按任一环境匹配并保留未限制环境的任务。`--next` 按下次触发时间稳定排序，`--timezone` 指定显示时间的时区，默认读取 `app.timezone`。核对 `openrust-v0.x` 的 `schedule.rs`，旧 `schedule list` 仅显示登记项，继续沿用旧版以 UTC 时点计算的调度机制。本批在现有 Rust 调度列表接入三个选项，解析 IANA 时区，继续显示原 cron 表达式及 RFC 3339 时间。`--json`、cron 表达式的时区转换和详细终端输出仍待后续对齐。 [固定 Laravel ScheduleListCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleListCommand.php#L23) · [固定上游测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Console/Scheduling/ScheduleListCommandTest.php#L160)
+- 以 `312befbc4` 的干净归档，通过独立 Artisan 进程验证默认登记顺序、单一及多个环境、无限制任务、同一触发时刻的排序稳定性、东京和 UTC 调度到 Kolkata 展示、无效时区失败。PHP 8.5 的日期转换给出相同的三个时刻。根应用实际执行三语共同示例。
+- 锁定依赖的调度回归 19 项通过、1 项子进程夹具忽略。真实 Redis 8.10.3 跨进程互斥、选举和中断通过。Rust 1.94.0 全仓格式、严格 Clippy、三语站点构建及 18 项浏览器检查通过。临时 Redis、隔离 Cargo 和文档产物已回收，提交前磁盘可用 99.84 GB（92.98 GiB），周额度剩余 36%。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-schedule-list-options.lAgivy32`。

@@ -208,6 +208,20 @@ fn routes() -> Result<(), ConsoleError> {
                 );
             return Ok(());
         }
+        if profile == "listing" {
+            schedule.command("listed:general", []).dailyAt("18:00")?;
+            schedule
+                .command("listed:staging", [])
+                .dailyAt("17:30")?
+                .environments(&["staging"]);
+            schedule
+                .command("listed:production", [])
+                .dailyAt("08:30")?
+                .timezone(chrono_tz::UTC)
+                .environments(&["production"]);
+            return Ok(());
+        }
+
         if profile == "basic" {
             schedule.command("fixture:hello", []).dailyAt("17:00")?;
             schedule
@@ -669,9 +683,67 @@ async fn artisan_runs_due_tasks_and_reports_failures_without_stopping_the_schedu
     let output = run(&root, "basic", MONDAY, &["schedule:list"]).await;
     let listing = String::from_utf8(output.stdout).unwrap();
     assert!(
-        listing.contains("fixture:hello") && listing.contains("+09:00"),
+        listing.contains("fixture:hello") && listing.contains("+00:00"),
         "{listing}"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_lists_environments_and_sorts_by_next_due_in_the_display_timezone() {
+    let root = root(None);
+    let stdout = |output: Output| String::from_utf8(output.stdout).unwrap();
+    let default = stdout(run(&root, "listing", MONDAY, &["schedule:list"]).await);
+    assert!(default.find("listed:general").unwrap() < default.find("listed:staging").unwrap());
+    assert!(default.contains("listed:general  Next: 2026-01-05T09:00:00+00:00"));
+
+    let selected = stdout(
+        run(
+            &root,
+            "listing",
+            MONDAY,
+            &["schedule:list", "--environment=production", "--next"],
+        )
+        .await,
+    );
+    assert!(!selected.contains("listed:staging"));
+    assert!(selected.find("listed:production").unwrap() < selected.find("listed:general").unwrap());
+
+    let sorted = stdout(
+        run(
+            &root,
+            "listing",
+            MONDAY,
+            &[
+                "schedule:list",
+                "--environment=production",
+                "--environment=staging",
+                "--next",
+                "--timezone=Asia/Kolkata",
+            ],
+        )
+        .await,
+    );
+    let tasks: Vec<_> = sorted
+        .lines()
+        .filter(|row| row.contains("listed:"))
+        .collect();
+    assert_eq!(tasks.len(), 3, "{sorted}");
+    assert!(tasks[0].ends_with("listed:staging  Next: 2026-01-05T14:00:00+05:30"));
+    assert!(tasks[1].ends_with("listed:production  Next: 2026-01-05T14:00:00+05:30"));
+    assert!(tasks[2].ends_with("listed:general  Next: 2026-01-05T14:30:00+05:30"));
+
+    let invalid = artisan(
+        &root,
+        "listing",
+        MONDAY,
+        &["schedule:list", "--timezone=not-a-zone"],
+    )
+    .output()
+    .await
+    .unwrap();
+    assert!(!invalid.status.success());
+    assert!(!stdout(invalid).contains("listed:"));
     std::fs::remove_dir_all(root).unwrap();
 }
 

@@ -72,6 +72,12 @@ All runners must use the same shared cache store and namespace for cross-server 
 
 Call `./artisan schedule:run` each minute from your process scheduler, or use `./artisan schedule:work` to keep a scheduler process running. The worker finishes the current task on SIGTERM or Ctrl+C. Use `./artisan schedule:list` to see expressions and upcoming run times. `schedule:run --whisper` hides the message when no task runs.
 
+To filter the list, pass `--environment` once per environment. A task appears if it can run in any requested environment, and tasks without an environment restriction always appear. Use `--next` to sort by the next run. By default, times use `app.timezone`. Set `--timezone` to an IANA timezone to change the displayed timestamps. The cron expression and the time at which the task runs still use the task's schedule.
+
+```sh
+./artisan schedule:list --environment=staging --environment=production --next --timezone=Asia/Kolkata
+```
+
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
 
 Use `./artisan schedule:test --name=reports:daily` to run a selected task immediately in the foreground. With an interactive terminal, omit `--name` to select from the registered tasks. Use `./artisan schedule:clear-cache` to remove overlap locks for registered tasks, including locks in the shared Redis store.

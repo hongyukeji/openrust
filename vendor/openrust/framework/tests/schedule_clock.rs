@@ -91,7 +91,9 @@ async fn schedule_commands_read_each_fixtures_clock_and_timezone() -> TestResult
     left.assertSuccessful().expectsOutput("clock task ran");
     right.assertSuccessful();
     assert!(!right.stdout.contains("clock task ran"));
-    let list = second.artisan(["schedule:list"]).await;
+    let list = second
+        .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+        .await;
     list.assertSuccessful();
     assert!(
         list.stdout.contains("1970-01-01T09:30:00+09:00"),
@@ -123,7 +125,9 @@ async fn explicit_scheduler_clock_takes_precedence_over_the_fixture_clock() -> T
         .await
         .assertSuccessful()
         .expectsOutput("clock task ran");
-    let list = app.artisan(["schedule:list"]).await;
+    let list = app
+        .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+        .await;
     list.assertSuccessful();
     assert!(
         list.stdout.contains("1970-01-02T09:30:00+09:00"),
@@ -154,7 +158,9 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
         ),
     ] {
         app.travelTo(date(at));
-        let listing = app.artisan(["schedule:list"]).await;
+        let listing = app
+            .artisan(["schedule:list", "--timezone=Asia/Tokyo"])
+            .await;
         listing.assertSuccessful();
         assert!(
             listing

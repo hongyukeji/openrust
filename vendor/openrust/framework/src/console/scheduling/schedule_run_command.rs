@@ -74,7 +74,7 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
             "schedule:run",
             "Run the scheduled tasks that are due",
         ),
-        (Operation::List, "schedule:list", "Show scheduled tasks"),
+        (Operation::List, "schedule:list", "List all scheduled tasks"),
         (
             Operation::Interrupt,
             "schedule:interrupt",
@@ -107,6 +107,26 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
                     .action(ArgAction::SetTrue)
                     .help("Suppress the message when no tasks run"),
             );
+        }
+        if matches!(operation, Operation::List) {
+            syntax = syntax
+                .arg(
+                    Arg::new("environment")
+                        .long("environment")
+                        .action(ArgAction::Append)
+                        .help("Display tasks scheduled for these environments"),
+                )
+                .arg(
+                    Arg::new("timezone")
+                        .long("timezone")
+                        .help("The timezone that times should be displayed in"),
+                )
+                .arg(
+                    Arg::new("next")
+                        .long("next")
+                        .action(ArgAction::SetTrue)
+                        .help("Sort the listed tasks by their next due date"),
+                );
         }
         if matches!(operation, Operation::Background) {
             syntax = syntax
@@ -153,7 +173,7 @@ impl Command for ScheduleRunCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             match self.operation {
-                Operation::List => self.list(app, output)?,
+                Operation::List => self.list(app, input, output)?,
                 Operation::ClearCache => self.clear_cache(output).await?,
                 Operation::Test => self.test_task(app, input, output).await?,
                 Operation::Interrupt => self.interrupt(output).await?,
@@ -214,10 +234,39 @@ impl ScheduleRunCommand {
         Cache::store(self.schedule.store.as_deref()).map_err(error)
     }
 
-    fn list(&self, app: &Application, output: &mut Output) -> Result<(), ConsoleError> {
+    fn list(
+        &self,
+        app: &Application,
+        input: &Input,
+        output: &mut Output,
+    ) -> Result<(), ConsoleError> {
+        let environments = input.matches().get_many::<String>("environment");
+        let mut events = self
+            .schedule
+            .events()
+            .filter(|event| {
+                environments
+                    .clone()
+                    .is_none_or(|mut names| names.any(|name| event.runs_in_environment(name)))
+            })
+            .peekable();
+        if events.peek().is_none() {
+            output.info("No scheduled tasks have been defined.");
+            return Ok(());
+        }
+
+        let display_zone = match input.matches().get_one::<String>("timezone") {
+            Some(name) => name.parse::<Tz>().map_err(error)?,
+            None => parse_timezone(
+                app.configuration_repository()
+                    .map_err(error)?
+                    .get("app.timezone"),
+            )?,
+        };
         let default_zone = timezone(app)?;
         let now = DateTime::<Utc>::from(self.schedule.current_time()?);
-        for event in self.schedule.events() {
+        let mut rows = Vec::new();
+        for event in events {
             let local = now.with_timezone(&event.zone.unwrap_or(default_zone));
             let next = if let Some(interval) = event.interval
                 && event.due(now, default_zone)?
@@ -235,6 +284,12 @@ impl ScheduleRunCommand {
                     .find_next_occurrence(&local, false)
                     .map_err(error)?
             };
+            rows.push((next.with_timezone(&display_zone), event));
+        }
+        if input.matches().get_flag("next") {
+            rows.sort_by_key(|(next, _)| *next);
+        }
+        for (next, event) in rows {
             writeln!(
                 output.stdout,
                 "{}  {}  Next: {}",
@@ -243,9 +298,6 @@ impl ScheduleRunCommand {
                 next.to_rfc3339()
             )
             .expect("writing to a String");
-        }
-        if self.schedule.events().next().is_none() {
-            output.info("No scheduled tasks have been defined.");
         }
         Ok(())
     }
@@ -905,7 +957,11 @@ fn timezone(app: &Application) -> Result<Tz, ConsoleError> {
         .get("app.schedule_timezone")
         .filter(|value| !value.is_null())
         .or_else(|| config.get("app.timezone").filter(|value| !value.is_null()));
-    match zone.as_ref() {
+    parse_timezone(zone)
+}
+
+fn parse_timezone(zone: Option<serde_json::Value>) -> Result<Tz, ConsoleError> {
+    match zone.as_ref().filter(|value| !value.is_null()) {
         None => Ok(chrono_tz::UTC),
         Some(zone) => zone
             .as_str()
