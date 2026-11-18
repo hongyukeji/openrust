@@ -49,6 +49,8 @@ Use `config:cache` to write the configuration from a fresh application boot, inc
 ./artisan config:clear
 ```
 
+When `APP_URL` is set and the configuration is cached, ordinary links and absolute signed links use that URL.
+
 The refresh removes the selected old snapshot before booting the fresh application. If that boot fails, the cache remains absent.
 
 The default location is `storage/framework/config.json`. Set `APP_CONFIG_CACHE` to an absolute path or a path relative to the application root to select a different file. Export the override in the process environment to make that path available before loading `.env`. Use a separate cache path for each deployment environment.

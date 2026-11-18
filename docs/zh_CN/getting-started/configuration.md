@@ -49,6 +49,8 @@ pub fn application_name() -> String {
 ./artisan config:clear
 ```
 
+设置 `APP_URL` 并生成配置缓存后，普通链接和绝对签名链接都使用该地址。
+
 刷新时先移除所选的旧快照，再引导新应用。若新应用引导失败，缓存保持为空。
 
 默认路径为 `storage/framework/config.json`。可用 `APP_CONFIG_CACHE` 指定绝对路径或相对于应用根目录的文件路径。将它设置在进程环境中，可以在读取 `.env` 前选定路径。不同部署环境请使用各自的缓存文件。

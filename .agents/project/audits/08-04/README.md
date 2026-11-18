@@ -132,3 +132,9 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 在隔离 MySQL 8.4.13 和两个 Redis 8.10.3 实例上执行 Rust 1.94.0 `cargo test --workspace --all-targets --locked --offline --no-fail-fast -- --test-threads=1`。首次共三个测试目标失败。批次测试的大 Future 移到堆上并以默认测试栈复验。大型多态 Seeder 夹具只提高合成测试子进程的栈额度，恢复后同库的后续用例不再遇到残留表冲突。表单验证 fixture 为每个 HTTP 应用创建专用 MySQL Session 表，结束后清理，另复验 Array 存储。最终合并原整仓中未修改目标与三个修正目标的独立重跑证据，共 168 个目标，1340 项标准测试通过、9 项忽略，两个自定义测试程序通过。Rust 1.94.0 全仓格式与严格 Clippy 通过。
 - 从同一快照锁定离线构建 `--release --features standalone --bin main`，确认 Mach-O ARM64。在无源码目录用独立二进制运行实际 `key:generate`、12 项迁移与幂等重跑、`migrate:status`、`inspire` 和 `schedule:list --json`。真实首页、`/up`、公共目录与存储磁盘、MySQL 会话，受管及独立 Redis 邮件 Worker 都通过。移到带空格的不同路径后，迁移账本与存储文件保持可用，两次 SIGTERM 均退出 0。
 - 发布说明同步三语健康检查示例。三语站点及 18 项浏览器检查通过。104 个本地映射路径在三种语言均存在，计划锚点齐全。现有 31 条生态条目保持交付计划的待确认状态，08-04 继续沿用已确认的模拟验收边界。临时容器、发布目录及隔离构建、文档产物已回收。提交前磁盘可用 98.52 GB（91.75 GiB），周额度剩余 35%。日志保留于 `/private/tmp/openrust-current-release-check.5q9G5KN4`。
+
+## HTTPS 反向代理下的配置缓存与签名链接
+
+- 2026-11-18 在 `0db6bac21` 的隔离源码上，以生产模式启动真实应用。测试代理在回环地址终止 TLS，并将 HTTPS 协议、入口域名和端口转发给仅信任回环代理的后端。客户端分别用 TLS 1.2 和 TLS 1.3 连接，验证测试 CA 和主机名。
+- 真实 Artisan `config:cache` 和 `config:show` 确认缓存中的 `app.url` 为对外 HTTPS 地址且 `app.url_explicit=true`。修改测试环境文件后，应用仍使用缓存中的地址。通过另一个入口域名请求时，普通链接和绝对签名链接均指向 `APP_URL`。
+- 两种 TLS 版本下，入口域名的 `/up` 和通过 `APP_URL` 域名访问的签名链接均返回 HTTP 200。同一签名链接换用入口域名或修改路径时返回 HTTP 403。应用和代理已停止，隔离源码、测试证书、构建产物和测试缓存已清理。实际生产域名与证书继续按发布实机项跟踪。

@@ -49,6 +49,8 @@ pub fn application_name() -> String {
 ./artisan config:clear
 ```
 
+設定 `APP_URL` 並產生設定快取後，一般連結和絕對簽章連結都會使用該位址。
+
 更新時先移除所選的舊快照，再引導新應用程式。若引導失敗，快取仍為空。
 
 預設路徑為 `storage/framework/config.json`。可用 `APP_CONFIG_CACHE` 指定絕對路徑或相對於應用程式根目錄的檔案路徑。將它設定在程序環境中，可在讀取 `.env` 前選定路徑。不同部署環境請使用各自的快取檔案。
