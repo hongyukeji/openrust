@@ -20,6 +20,7 @@ mod queue;
 mod reverb;
 mod services;
 mod session;
+mod sms;
 mod view;
 mod vonage;
 
@@ -59,6 +60,7 @@ pub(crate) fn load(
             "session".to_owned(),
             session::load(base_path, env, app.name)?,
         ),
+        ("sms".to_owned(), sms::load(env)?),
         ("view".to_owned(), view::load(base_path, env)?),
         ("vonage".to_owned(), vonage::load(env)?),
         ("app".to_owned(), app.config),

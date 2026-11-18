@@ -56,7 +56,7 @@ pub trait Channel: Send + Sync {
     }
 }
 
-fn secure_endpoint(endpoint: &str) -> Result<bool, url::ParseError> {
+pub(super) fn secure_endpoint(endpoint: &str) -> Result<bool, url::ParseError> {
     let url = url::Url::parse(endpoint)?;
     let loopback = match url.host() {
         Some(url::Host::Ipv4(ip)) => ip.is_loopback(),

@@ -2,6 +2,49 @@
 
 The unified SMS API is an OpenRust extension based on Laravel’s [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
 
+## Built-in providers
+
+Set `SMS_DRIVER` in the application's environment to select the default profile. Supply that profile's credentials to the application and its Workers. The built-ins use the same `Sms::driver` entry point as custom providers.
+
+| Profile | Supported content | Environment variables |
+| --- | --- | --- |
+| `vonage` (default) | Text | `VONAGE_KEY`, `VONAGE_SECRET`, `VONAGE_SMS_FROM` |
+| `twilio` | Text and approved templates with named variables | `SMS_TWILIO_ACCOUNT_SID`, `SMS_TWILIO_API_KEY_SID`, `SMS_TWILIO_API_KEY_SECRET`, and `SMS_TWILIO_FROM` or `SMS_TWILIO_MESSAGING_SERVICE_SID` |
+| `aliyun` | Chinese mainland approved templates with named variables | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`, `SMS_ALIYUN_SIGN_NAME` |
+| `aliyun_international` | International and Hong Kong, Macao, and Taiwan text via SendMessageToGlobe | `SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_ID`, `SMS_ALIYUN_INTERNATIONAL_ACCESS_KEY_SECRET`. Optional `SMS_ALIYUN_INTERNATIONAL_SENDER_ID` and `SMS_ALIYUN_INTERNATIONAL_MESSAGE_TYPE` (`OTP`, `NOTIFY`, `MKT`) |
+| `tencent` | Approved templates with ordered variables | `SMS_TENCENT_SECRET_ID`, `SMS_TENCENT_SECRET_KEY`, `SMS_TENCENT_SDK_APP_ID`, `SMS_TENCENT_SIGN_NAME` if required, and `SMS_TENCENT_REGION` (default `ap-guangzhou`) |
+
+Use the `+country code` form for international numbers, including Hong Kong, Macao, and Taiwan. The `aliyun` profile accepts Chinese mainland numbers for templates, and can add `+86` to an 11-digit local mobile number. Choose `aliyun_international` for free text outside the Chinese mainland. It uses its own credentials and defaults to the Alibaba Cloud Singapore endpoint. Tencent and Twilio profiles can set their respective `SMS_*_MARKET` variable to `mainland` or `international`. Select a sender and an approved template for the destination and profile. Provider acceptance and handset delivery are separate states.
+
+## Text and templates
+
+Use `SmsMessage::new` for text and `SmsMessage::template` for a provider-approved template. Return text from `to_sms` or a template from `to_sms_template` in a notification. The driver rejects unsupported message types and incorrect variable formats before submitting.
+
+```rust
+use openrust::{
+    notifications::sms::{SmsMessage, SmsTemplate},
+    support::facades::Sms,
+};
+
+let template = SmsTemplate::named("SMS_123", [("code".into(), "123456".into())].into());
+Sms::driver(Some("aliyun"))?
+    .send(SmsMessage::template("+8613800138000", template)?)
+    .await?;
+
+let template = SmsTemplate::positional("1234", vec!["123456".into(), "5".into()]);
+Sms::driver(Some("tencent"))?
+    .send(SmsMessage::template("+85255550123", template)?)
+    .await?;
+
+Sms::driver(Some("aliyun_international"))?
+    .send(SmsMessage::new("+85255550123", "Your order is ready.")?)
+    .await?;
+
+Sms::driver(Some("twilio"))?
+    .send(SmsMessage::new("+12025550123", "Your order is ready.")?)
+    .await?;
+```
+
 ## Registering providers {#custom-sms-providers}
 
 Resolve the default profile with `Sms::driver(None)` or select one explicitly with `Sms::driver(Some("backup"))`. For a direct send, call `driver.send(SmsMessage::new(number, text)?).await?`. In an application service provider’s `register` hook, resolve `SmsManager` and call `extend` for each driver. The factory receives the selected profile’s configuration and returns a driver that implements `SmsDriver`. Profile names under `sms.drivers` can differ from the registered driver names.

@@ -214,6 +214,9 @@ impl SmsDriver for VonageDriver {
     fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>> {
         Box::pin(async move {
             message.validate()?;
+            if message.approved_template().is_some() {
+                return Err(delivery("The Vonage SMS driver requires text content."));
+            }
             let content = message.content();
             let mut vonage = VonageMessage::new().content(content);
             if !content.is_ascii() {

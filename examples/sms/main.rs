@@ -17,7 +17,7 @@ use openrust::{
         ChannelManager, Notifiable, Notification, NotificationError, NotificationFuture,
         NotificationResult, NotificationRoute,
         channels::SmsChannel,
-        sms::{SmsDriver, SmsManager, SmsMessage},
+        sms::{SmsDriver, SmsManager, SmsMessage, SmsTemplate},
     },
     queue::DispatchOptions,
     support::{
@@ -34,24 +34,18 @@ async fn main() -> ExitCode {
         Application::configure(root)
             .withConfig(|path, env| {
                 let mut config = config::load(path, env)?;
-                config.insert(
-                    "sms".into(),
-                    json!({
-                        "default": env.get_utf8("SMS_DRIVER")?.unwrap_or("primary"),
-                        "drivers": {
-                            "primary": {
-                                "driver": "demo-alpha",
-                                "endpoint": env.get_utf8("SMS_ALPHA_URL")?,
-                                "token": env.get_utf8("SMS_ALPHA_TOKEN")?,
-                            },
-                            "backup": {
-                                "driver": "demo-beta",
-                                "endpoint": env.get_utf8("SMS_BETA_URL")?,
-                                "token": env.get_utf8("SMS_BETA_TOKEN")?,
-                            },
-                        }
-                    }),
-                );
+                let sms = config.get_mut("sms").expect("SMS configuration");
+                sms["default"] = json!(env.get_utf8("SMS_DRIVER")?.unwrap_or("primary"));
+                sms["drivers"]["primary"] = json!({
+                    "driver": "demo-alpha",
+                    "endpoint": env.get_utf8("SMS_ALPHA_URL")?,
+                    "token": env.get_utf8("SMS_ALPHA_TOKEN")?,
+                });
+                sms["drivers"]["backup"] = json!({
+                    "driver": "demo-beta",
+                    "endpoint": env.get_utf8("SMS_BETA_URL")?,
+                    "token": env.get_utf8("SMS_BETA_TOKEN")?,
+                });
                 Ok(config)
             })
             .withProviders(vec![Box::new(SmsServiceProvider)])
@@ -62,6 +56,8 @@ async fn main() -> ExitCode {
     })
     .await
 }
+
+const PROFILES: [&str; 4] = ["primary", "backup", "aliyun", "aliyun_international"];
 
 struct SmsServiceProvider;
 
@@ -78,8 +74,9 @@ impl ServiceProvider for SmsServiceProvider {
 
             let channels = app.container().make::<ChannelManager>()?;
             channels.extend("sms", Arc::new(SmsChannel::default()));
-            channels.extend("primary", Arc::new(SmsChannel::using("primary")));
-            channels.extend("backup", Arc::new(SmsChannel::using("backup")));
+            for profile in PROFILES {
+                channels.extend(profile, Arc::new(SmsChannel::using(profile)));
+            }
             Ok(())
         })
     }
@@ -158,6 +155,7 @@ fn delivery_error(message: &'static str) -> NotificationError {
 struct DemoNotification {
     channel: String,
     text: String,
+    template: Option<SmsTemplate>,
 }
 
 impl Notification for DemoNotification {
@@ -167,6 +165,10 @@ impl Notification for DemoNotification {
 
     fn to_sms(&self, _: &dyn Notifiable) -> NotificationResult<Option<String>> {
         Ok(Some(self.text.clone()))
+    }
+
+    fn to_sms_template(&self, _: &dyn Notifiable) -> NotificationResult<Option<SmsTemplate>> {
+        Ok(self.template.clone())
     }
 
     fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
@@ -180,11 +182,20 @@ fn register_commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let syntax = clap::Command::new("sms:demo")
         .about("Send a demo SMS through a provider")
         .arg(clap::Arg::new("to").required(true))
-        .arg(clap::Arg::new("text").required(true))
+        .arg(
+            clap::Arg::new("text")
+                .required(true)
+                .help("Text body or JSON template parameters"),
+        )
+        .arg(
+            clap::Arg::new("template")
+                .long("template")
+                .help("Provider-approved template ID"),
+        )
         .arg(
             clap::Arg::new("profile")
                 .long("profile")
-                .value_parser(["primary", "backup"]),
+                .value_parser(PROFILES),
         )
         .arg(
             clap::Arg::new("now")
@@ -218,9 +229,29 @@ impl Command for SendSms {
                 .matches()
                 .get_one::<String>("profile")
                 .map(String::as_str);
+            let template = input
+                .matches()
+                .get_one::<String>("template")
+                .map(|id| {
+                    serde_json::from_str(text)
+                        .map(|parameters| SmsTemplate {
+                            id: id.clone(),
+                            parameters,
+                        })
+                        .map_err(|_| {
+                            ConsoleError::new(
+                                "Template parameters must be a JSON object or array of strings.",
+                            )
+                        })
+                })
+                .transpose()?;
             if input.matches().get_flag("now") {
                 let driver = Sms::driver(profile).map_err(console_error)?;
-                let message = SmsMessage::new(to, text).map_err(console_error)?;
+                let message = match template {
+                    Some(template) => SmsMessage::template(to, template),
+                    None => SmsMessage::new(to, text),
+                }
+                .map_err(console_error)?;
                 driver.send(message).await.map_err(console_error)?;
                 output.comment("Demo SMS sent.");
             } else {
@@ -232,6 +263,7 @@ impl Command for SendSms {
                     &DemoNotification {
                         channel: channel.into(),
                         text: text.into(),
+                        template,
                     },
                 )
                 .await

@@ -1,7 +1,9 @@
 //! Selectable SMS drivers for direct sends and the SMS notification channel.
 
+mod providers;
+
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     sync::{Arc, RwLock},
 };
 
@@ -17,6 +19,38 @@ use super::{NotificationFuture, NotificationResult, channels::VonageDriver, deli
 pub struct SmsMessage {
     to: String,
     content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    template: Option<SmsTemplate>,
+}
+
+/// A provider-approved template and the values used to fill it.
+#[derive(Clone, Deserialize, Serialize)]
+pub struct SmsTemplate {
+    pub id: String,
+    pub parameters: SmsTemplateParameters,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum SmsTemplateParameters {
+    Named(BTreeMap<String, String>),
+    Positional(Vec<String>),
+}
+
+impl SmsTemplate {
+    pub fn named(id: impl Into<String>, parameters: BTreeMap<String, String>) -> Self {
+        Self {
+            id: id.into(),
+            parameters: SmsTemplateParameters::Named(parameters),
+        }
+    }
+
+    pub fn positional(id: impl Into<String>, parameters: Vec<String>) -> Self {
+        Self {
+            id: id.into(),
+            parameters: SmsTemplateParameters::Positional(parameters),
+        }
+    }
 }
 
 impl SmsMessage {
@@ -24,6 +58,17 @@ impl SmsMessage {
         let message = Self {
             to: to.into(),
             content: content.into(),
+            template: None,
+        };
+        message.validate()?;
+        Ok(message)
+    }
+
+    pub fn template(to: impl Into<String>, template: SmsTemplate) -> NotificationResult<Self> {
+        let message = Self {
+            to: to.into(),
+            content: String::new(),
+            template: Some(template),
         };
         message.validate()?;
         Ok(message)
@@ -33,16 +78,27 @@ impl SmsMessage {
         &self.to
     }
 
+    /// Returns the text body, which is empty for a template message.
     pub fn content(&self) -> &str {
         &self.content
     }
 
+    pub fn approved_template(&self) -> Option<&SmsTemplate> {
+        self.template.as_ref()
+    }
+
     pub(super) fn validate(&self) -> NotificationResult<()> {
         international_number(&self.to)?;
-        if self.content.trim().is_empty() {
-            return Err(delivery("The SMS content cannot be empty."));
+        match &self.template {
+            Some(template) if !template.id.trim().is_empty() && self.content.is_empty() => Ok(()),
+            Some(_) => Err(delivery(
+                "The SMS template requires an ID and cannot include a text body.",
+            )),
+            None if self.content.trim().is_empty() => {
+                Err(delivery("The SMS content cannot be empty."))
+            }
+            None => Ok(()),
         }
-        Ok(())
     }
 }
 
@@ -80,6 +136,7 @@ impl SmsManager {
             factories: RwLock::default(),
         };
         manager.extend("vonage", |config| Ok(Arc::new(VonageDriver::new(config)?)));
+        providers::register(&manager);
         manager
     }
 

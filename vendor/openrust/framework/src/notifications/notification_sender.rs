@@ -325,6 +325,12 @@ impl Notification for Prepared<'_> {
     fn to_sms(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<String>> {
         self.inner.to_sms(recipient)
     }
+    fn to_sms_template(
+        &self,
+        recipient: &dyn Notifiable,
+    ) -> NotificationResult<Option<super::sms::SmsTemplate>> {
+        self.inner.to_sms_template(recipient)
+    }
     fn to_vonage(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         self.inner.to_vonage(recipient)
     }

@@ -33,10 +33,15 @@ impl SmsChannel {
         else {
             return Ok(None);
         };
-        let Some(content) = notification.to_sms(recipient)? else {
-            return Ok(None);
+        let message = match notification.to_sms_template(recipient)? {
+            Some(template) => SmsMessage::template(to, template)?,
+            None => {
+                let Some(content) = notification.to_sms(recipient)? else {
+                    return Ok(None);
+                };
+                SmsMessage::new(to, content)?
+            }
         };
-        let message = SmsMessage::new(to, content)?;
         let profile = Sms::getFacadeRoot()
             .map_err(delivery)?
             .select_profile(self.profile.as_deref())?;
