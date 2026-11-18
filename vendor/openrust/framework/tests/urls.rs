@@ -137,6 +137,26 @@ fn redirect_variant(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
             "secure" => Redirect::secure("/article/42", options)?,
             "away" => Redirect::away("https://example.test/next?x=one&y=two", options)?,
             "relative" => Redirect::away("relative?x=one", options)?,
+            "fragment-add" => Redirect::away("relative?x=%23", options)?.withFragment("new")?,
+            "fragment-replace" => {
+                Redirect::away("https://example.test/next?x=one&y=%23#old", options)?
+                    .withFragment("ignored#new&more#inner")?
+            }
+            "fragment-remove" => Redirect::away("/next?x=%23#old", options)?.withoutFragment()?,
+            "fragment-empty" => Redirect::away("/next#old", options)?.withFragment("")?,
+            "fragment-unchanged" => Redirect::away("/next?x=%23", options)?.withoutFragment()?,
+            "fragment-unicode" => Redirect::away("/next", options)?.withFragment("#章节")?,
+            "fragment-invalid" => {
+                assert!(matches!(
+                    Redirect::away("/next", options)?.withFragment("bad\r\nX: value"),
+                    Err(UrlError::InvalidRedirect)
+                ));
+                assert!(matches!(
+                    Redirect::away("#old", RedirectOptions::default())?.withoutFragment(),
+                    Err(UrlError::InvalidRedirect)
+                ));
+                return Ok(Response::noContent());
+            }
             "temporary" => Redirect::temporarySignedRoute(
                 "article",
                 SystemTime::now() + Duration::from_secs(60),
@@ -539,6 +559,30 @@ async fn signs_and_redirects_over_real_http() {
         exchange(address, location.strip_prefix(&origin).unwrap(), &host, 200).await;
     }
     exchange(address, "/redirect-variant/invalid", &host, 204).await;
+    for (variant, target, escaped) in [
+        ("fragment-add", "relative?x=%23#new", "relative?x=%23#new"),
+        (
+            "fragment-replace",
+            "https://example.test/next?x=one&y=%23#new&more#inner",
+            "https://example.test/next?x=one&amp;y=%23#new&amp;more#inner",
+        ),
+        ("fragment-remove", "/next?x=%23", "/next?x=%23"),
+        ("fragment-empty", "/next#", "/next#"),
+        ("fragment-unchanged", "/next?x=%23", "/next?x=%23"),
+        ("fragment-unicode", "/next#章节", "/next#章节"),
+    ] {
+        let response = exchange(address, &format!("/redirect-variant/{variant}"), &host, 307).await;
+        assert!(
+            response.contains(&format!("location: {target}\r\n")),
+            "{response}"
+        );
+        assert!(response.contains("x-redirect-proof: kept\r\n"));
+        assert!(
+            response.contains(&format!("href=\"{escaped}\"")),
+            "{response}"
+        );
+    }
+    exchange(address, "/redirect-variant/fragment-invalid", &host, 204).await;
     let response = exchange(address, "/optional-old", &host, 302).await;
     assert!(response.contains("location: /new\r\n"));
     let response = exchange(address, "/optional-old/a%3F%23", &host, 302).await;

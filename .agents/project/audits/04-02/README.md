@@ -214,3 +214,9 @@
 - 对照固定 Laravel 的 `Router::toResponse` 与 `RedirectResponse`，核对旧版 `6d1a81924` 的 Axum 重定向转换。正式版沿用已有 `RedirectResponse → Response`，在接收当前请求且可能失败的处理器上直接接受 `Result<RedirectResponse, HttpError>`。保留命名路由解析和显式传入当前请求的会话操作。 [Laravel Redirects](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#redirects) · [Laravel Router](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Router.php#L934)
 - 隔离基线 `b1c7649a5` 的真实 TCP 验证命名路由重定向及 URL 编码、加密会话闪存、选择与排除输入、错误袋和下一次请求后的过期。PHP 8.5 运行固定 Laravel 对照，核对 303、Location、自定义响应头、闪存和旧输入。三语示例内容一致并通过实际路由注册测试。
 - 真实 HTTP、固定 Laravel、67 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。应用二进制健康请求、路径校验和 SIGTERM 正常退出。清理独占编译和站点缓存后磁盘可用 96.78 GB（90.13 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-direct-redirect.kH2M7GVm`。
+
+## 重定向 URL 片段
+
+- 对照固定 Laravel `RedirectResponse::withFragment`／`withoutFragment` 与 Symfony 目标更新。旧版 `6d1a81924` 提供重定向 HTML 和处置头的既有思路。正式版在当前响应对象复用目标校验与 HTML 渲染，修改 `Location` 和正文，保留状态与自定义响应头。 [Laravel RedirectResponse](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/RedirectResponse.php#L156)
+- 隔离基线 `2175bcd32` 真实 TCP 覆盖添加、替换、移除、空片段、无片段、Unicode、查询中编码的井号、无效目标和 307。PHP 8.5 执行固定 Laravel，核对 Location、状态、响应头、HTML 和空目标失败。Rust 用 `UrlResult` 延续 HTTP 响应头和重定向目标校验。
+- 真实 HTTP、固定 Laravel、68 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 95.44 GB（88.89 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-redirect-fragments.tNz5JNte`。

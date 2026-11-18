@@ -37,7 +37,7 @@ pub use url_generator::{
     UrlResult, UrlValue,
 };
 
-pub(crate) use url_generator::{encode_query_value, url_uri};
+pub(crate) use url_generator::{encode_query_value, url_uri, valid_http_url};
 
 pub(crate) use redirector::redirect_response;
 pub use redirector::{RedirectOptions, Redirector};

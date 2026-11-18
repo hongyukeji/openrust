@@ -693,7 +693,7 @@ pub(crate) fn url_uri(uri: &Uri, host: Option<&::http::HeaderValue>) -> Uri {
     .unwrap_or_else(|| uri.clone())
 }
 
-pub(super) fn valid_http_url(value: &str) -> UrlResult<::url::Url> {
+pub(crate) fn valid_http_url(value: &str) -> UrlResult<::url::Url> {
     if value.contains('\\') || value.bytes().any(|byte| byte.is_ascii_control()) {
         return Err(UrlError::InvalidOrigin);
     }

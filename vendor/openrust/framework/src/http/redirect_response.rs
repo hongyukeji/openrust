@@ -1,20 +1,75 @@
+use ::http::{
+    HeaderValue,
+    header::{CONTENT_TYPE, LOCATION},
+};
 use serde_json::{Map, Value};
 
 use crate::{
     contracts::session::Session as _,
-    routing::{UrlError, UrlResult},
+    routing::{UrlError, UrlResult, valid_http_url},
     support::{Arr, MessageBag, data_forget},
 };
 
-use super::{HttpError, Request, Response};
+use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
 
 /// An HTTP redirect with fluent session flashing.
 pub struct RedirectResponse(Response);
 
 #[allow(non_snake_case, reason = "Matches Laravel's RedirectResponse")]
 impl RedirectResponse {
-    pub(crate) fn new(response: Response) -> Self {
-        Self(response)
+    pub(crate) fn new(target: &str, status: StatusCode, headers: HeaderMap) -> UrlResult<Self> {
+        if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {
+            return Err(UrlError::InvalidRedirect);
+        }
+        let location = redirect_location(target)?;
+        Ok(Self(
+            Response::new(status, redirect_body(target))
+                .withHeaders(headers)
+                .header(
+                    CONTENT_TYPE,
+                    HeaderValue::from_static("text/html; charset=utf-8"),
+                )
+                .header(LOCATION, location),
+        ))
+    }
+
+    /// Replaces the target's fragment, keeping its path and query.
+    pub fn withFragment(self, fragment: &str) -> UrlResult<Self> {
+        let current = self.target()?;
+        let base = current.split_once('#').map_or(current, |(base, _)| base);
+        if base.is_empty() {
+            return Err(UrlError::InvalidRedirect);
+        }
+        let fragment = fragment
+            .split_once('#')
+            .map_or(fragment, |(_, fragment)| fragment);
+        let target = format!("{base}#{fragment}");
+        self.with_target(&target)
+    }
+
+    /// Removes the target's fragment, including the separator.
+    pub fn withoutFragment(self) -> UrlResult<Self> {
+        let target = self.target()?;
+        let Some((base, _)) = target.split_once('#') else {
+            return Ok(self);
+        };
+        let base = base.to_owned();
+        self.with_target(&base)
+    }
+
+    fn target(&self) -> UrlResult<&str> {
+        self.0
+            .headers()
+            .get(LOCATION)
+            .and_then(|location| str::from_utf8(location.as_bytes()).ok())
+            .ok_or(UrlError::InvalidRedirect)
+    }
+
+    fn with_target(mut self, target: &str) -> UrlResult<Self> {
+        let location = redirect_location(target)?;
+        self.0.parts_mut().headers.insert(LOCATION, location);
+        self.0.body = redirect_body(target);
+        Ok(self)
     }
 
     /// Flashes a value to the next request's session.
@@ -95,6 +150,34 @@ impl From<RedirectResponse> for Response {
     fn from(redirect: RedirectResponse) -> Self {
         redirect.0
     }
+}
+
+fn redirect_location(target: &str) -> UrlResult<HeaderValue> {
+    if target.is_empty()
+        || target.contains('\\')
+        || target.bytes().any(|byte| byte.is_ascii_control())
+        || target.starts_with("//")
+        || (target
+            .split(['/', '?', '#'])
+            .next()
+            .is_some_and(|segment| segment.contains(':'))
+            && valid_http_url(target).is_err())
+    {
+        return Err(UrlError::InvalidRedirect);
+    }
+    HeaderValue::from_str(target).map_err(|_| UrlError::InvalidRedirect)
+}
+
+fn redirect_body(target: &str) -> Body {
+    let escaped = target
+        .replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('\'', "&#39;");
+    Body::from(format!(
+        r#"<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={escaped}"><title>Redirecting</title></head><body><a href="{escaped}">Redirecting</a></body></html>"#
+    ))
 }
 
 async fn request_input(request: &mut Request) -> Result<Value, HttpError> {

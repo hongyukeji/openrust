@@ -134,6 +134,10 @@ fn register() -> Result<(), RoutingError> {
 
 路由级重定向可使用 `Router::redirect` 或 `Router::permanentRedirect`，把来源参数代入目标路径。目标中的可选段（如 `/articles/{slug?}`）没有对应值时会省略。`destination` 和 `status` 是保留的来源参数名。
 
+### 重定向 URL 片段 {#redirect-url-fragments}
+
+用 `withFragment("details")` 替换当前片段，或用 `withoutFragment()` 移除片段。两者都保留 URL 路径和查询参数，并同步更新 `Location` 响应头与 HTML 跳转链接。方法返回 `Result`，以便处理无效的重定向目标。
+
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
 在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器可直接返回 `RedirectResponse`。状态码、响应头和会话更新沿用正常的 HTTP 响应流程。

@@ -134,6 +134,10 @@ Use `Redirect::refresh` to redirect to the current path without its query, and `
 
 For a route-level redirect, `Router::redirect` and `Router::permanentRedirect` can substitute source parameters in the destination. A missing optional destination segment such as `/articles/{slug?}` is omitted. The source parameter names `destination` and `status` are reserved.
 
+### Redirect URL fragments {#redirect-url-fragments}
+
+Call `withFragment("details")` to replace the current fragment, or `withoutFragment()` to remove it. Both keep the URL path and query, and update the `Location` header and the HTML fallback together. Each returns a `Result` so an invalid redirect target can be handled.
+
 ### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
 
 In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Return the `RedirectResponse` directly from the handler. Its status, headers and session updates flow through the usual HTTP response handling.

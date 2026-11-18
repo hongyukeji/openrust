@@ -134,6 +134,10 @@ fn register() -> Result<(), RoutingError> {
 
 路由層級的重新導向可使用 `Router::redirect` 或 `Router::permanentRedirect`，將來源參數代入目的地路徑。目的地的選用區段（例如 `/articles/{slug?}`）若無對應值就會省略。`destination` 和 `status` 是保留的來源參數名稱。
 
+### 重新導向 URL 片段 {#redirect-url-fragments}
+
+呼叫 `withFragment("details")` 取代目前的片段，或用 `withoutFragment()` 移除片段。兩者皆保留 URL 路徑與查詢參數，並同步更新 `Location` 回應標頭與 HTML 跳轉連結。方法回傳 `Result`，以便處理無效的重新導向目標。
+
 ### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
 
 在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式可以直接傳回 `RedirectResponse`。狀態碼、回應標頭及工作階段更新沿用一般的 HTTP 回應流程。

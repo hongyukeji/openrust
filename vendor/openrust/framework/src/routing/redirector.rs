@@ -1,18 +1,11 @@
 use std::time::SystemTime;
 
-use ::http::{
-    HeaderValue,
-    header::{CONTENT_TYPE, LOCATION},
-};
-
 use crate::{
     contracts::{routing::UrlGenerator as _, session::Session as _},
-    http::{Body, HeaderMap, RedirectResponse, Request, Response, StatusCode},
+    http::{HeaderMap, RedirectResponse, Request, Response, StatusCode},
 };
 
-use super::{
-    RouteParameter, SignatureMode, UrlError, UrlGenerator, UrlResult, url_generator::valid_http_url,
-};
+use super::{RouteParameter, SignatureMode, UrlError, UrlGenerator, UrlResult};
 
 /// Creates HTTP redirects through the application's URL generator.
 pub struct Redirector {
@@ -164,38 +157,7 @@ pub(crate) fn redirect_response(
     target: &str,
     options: RedirectOptions,
 ) -> UrlResult<RedirectResponse> {
-    if target.is_empty()
-        || target.contains('\\')
-        || target.bytes().any(|byte| byte.is_ascii_control())
-        || target.starts_with("//")
-        || (target
-            .split(['/', '?', '#'])
-            .next()
-            .is_some_and(|segment| segment.contains(':'))
-            && valid_http_url(target).is_err())
-        || !matches!(options.status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308)
-    {
-        return Err(UrlError::InvalidRedirect);
-    }
-    let header = HeaderValue::from_str(target).map_err(|_| UrlError::InvalidRedirect)?;
-    let escaped = target
-        .replace('&', "&amp;")
-        .replace('"', "&quot;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('\'', "&#39;");
-    let body = format!(
-        r#"<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={escaped}"><title>Redirecting</title></head><body><a href="{escaped}">Redirecting</a></body></html>"#
-    );
-    Ok(RedirectResponse::new(
-        Response::new(options.status, Body::from(body))
-            .withHeaders(options.headers)
-            .header(
-                CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            )
-            .header(LOCATION, header),
-    ))
+    RedirectResponse::new(target, options.status, options.headers)
 }
 
 pub(super) struct RedirectRoute {
