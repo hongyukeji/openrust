@@ -43,6 +43,31 @@ pub async fn send_order() -> MailResult<()> {
 
 `Content` 支持文本、HTML 和带数据的命名视图。可用 `view` 和 `text_view` 生成两种 MIME 正文。附件提供字节、文件名和 MIME 类型，自定义邮件头通过 `headers` 提供。密送地址保留在投递信封中，邮件头会移除 Bcc。
 
+### 附件 {#attachments}
+
+从 `Mailable::attachment_sources` 返回附件来源。用 `Attachment::fromPath` 读取本地文件，`fromStorage` 读取默认磁盘，`fromStorageDisk` 读取指定磁盘，`fromData` 接收生成的字节。用 `r#as` 设置显示名称，用 `withMime` 覆盖 MIME 类型。
+
+```rust
+use openrust::mail::{
+    MailResult,
+    mailables::{Attachment, AttachmentSource},
+};
+
+fn attachment_sources(&self) -> MailResult<Vec<AttachmentSource>> {
+    Ok(vec![
+        Attachment::fromPath(&self.local_report),
+        Attachment::fromStorage("reports/monthly.csv"),
+        Attachment::fromStorageDisk("s3", "reports/annual.pdf")
+            .r#as("annual-report.pdf")
+            .withMime("application/pdf"),
+        Attachment::fromData(self.generated_report.clone(), "summary.csv")
+            .withMime("text/csv"),
+    ])
+}
+```
+
+文件和磁盘附件默认使用文件名。S3 优先使用对象的内容类型。本地文件先检测类型，再按扩展名回退。生成字节的默认类型是 `application/octet-stream`。发送时才读取文件或磁盘，队列中的邮件由 Worker 读取，因此路径或磁盘必须对 Worker 可用。生成的字节随队列载荷保存。
+
 ### 内嵌附件 {#inline-attachments}
 
 从 `Mailable::inline_attachments` 返回 `InlineAttachment`，用 `cid()` 取得图片地址。视图和附件使用相同的 Content-ID。

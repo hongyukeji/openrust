@@ -2,6 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
+mod attachment;
+pub use attachment::AttachmentSource;
+
 /// A mailbox and its optional display name.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Address {

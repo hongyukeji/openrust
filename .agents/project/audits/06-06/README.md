@@ -159,3 +159,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 基于 `1f0d9e810` 隔离快照，`python3 -B tests/message_generator_terminal.py <main>` 验证三种邮件视图、通知默认和自定义视图名、拒绝生成视图、显式选项、语言、参数异常、帮助和 EOF。真实 `./artisan inspire` 及 `mail_generator`、`resource_generator`、`artisan_entry` 三个回归目标通过。交互验收使用 macOS 的伪终端，Windows 终端未复验。
 - Rust 1.94.0 全仓格式、全工作区严格 Clippy、三语站点及两个部署路径的 12 项通用和 12 项正文浏览器检查通过。邮件投递路径沿用既有验收。核心账本维持 66/66。 [邮件文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#generating-markdown-mailables) · [通知文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#generating-notifications)
 - 本批隔离编译和文档产物已回收，项目卷可用空间净增 3.48 GB（3.24 GiB），剩余 104.65 GB（97.46 GiB）。提交前周额度剩余 33%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-message-interactive.xyS2DSVQ`。
+
+## 邮件附件的路径、磁盘与字节来源
+
+- 对照固定 Laravel v13.40.0 的 `Attachment::fromPath`、`fromStorage`、`fromStorageDisk`、`fromData`、`as` 和 `withMime`。Rust 用可序列化的 `AttachmentSource` 描述待解析附件，通过 `Mailable::attachment_sources()` 提供，并兼容现有已物化的 `attachments()` 与旧载荷。Rust 用 `r#as` 表达保留字，`fromData` 接收已生成的字节并随任务保存。复核 `openrust-v0.x` `6d1a81924` 邮件模块，旧版只有附件 MIME 组合覆盖，沿用当前的组合及队列机制。 [Laravel Attachment](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Attachment.php) · [Laravel Attachments 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mail.md#attachments)
+- 文件和存储在组合阶段读取，队列 Worker 可读取入队后生成的文件。S3 复用一次 GET 返回的内容与 MIME 元数据，本地文件从内容和路径推断类型。显式命名和 MIME 覆盖应用在同一个传输组合流程中。生成字节无覆盖时使用 `application/octet-stream`。
+- 在隔离基线 `df828c915` 上，用真实 HTTP、SMTP 和 Mailpit HTTP 核对文件名、MIME、二进制内容和原有附件。磁盘文件缺失返回 HTTP 500，未投递部分邮件。MySQL 与 Redis 的独立 Artisan Worker 验证入队时无需访问文件，数据库 Worker 首次读取失败后恢复文件并重试成功。通过实际 AWS SDK 向本地 S3 协议夹具读取对象并验证服务端 MIME。未连接托管 S3。
+- `mail_notifications` 18 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。`./artisan inspire`、Rust 1.94.0 格式及全工作区严格 Clippy、三语附件示例编译和运行、站点构建以及两种部署路径的 12 项通用和 6 项附件说明浏览器检查通过。核心账本维持 66/66。URL、上传文件、默认云磁盘与附件断言接口后续逐项对照。
+- 临时服务及本批隔离编译和文档产物已回收。项目卷可用空间净增 3.65 GB（3.40 GiB），剩余 102.28 GB（95.26 GiB）。提交前周额度剩余 33%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-mail-attachments.rFf3tElu`。
