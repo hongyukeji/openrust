@@ -38,6 +38,12 @@
 3. **功能验收后同步正文。** 按 Laravel 对应章节介绍默认行为、配置和用法。Rust 示例与 Artisan 命令须实际验证。因 Rust 语言或运行时产生的差异须说明原因，并以测试验证等价行为。尚未验收的功能只保留空白占位。
 4. **三语一起校验。** 同步更新三个语言版本的正文和导航，统一术语、标题层级与章节顺序。检查章节路径和内部链接，运行文档构建及现有浏览器验收。站点命令见[文档 README](../../docs/README.md)。
 
+## 配置文件注释
+
+`config/` 下的配置按用途分组，在每组上方使用 Laravel 风格的简体中文块注释。用 `/* … */` 包围区块，标题上下加横线，标题和正文各行以 `|` 起首，参考 [应用配置](../../config/app.rs)。
+
+说明配置组的用途和对应环境变量，按需写明默认值、未设置时的回退行为或覆盖顺序。调整配置时同步更新对应注释。
+
 ## 验收清单
 
 - **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
@@ -83,6 +89,10 @@ cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships 
 可先执行 `cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships -- --list` 核对完整测试名。用 `-p`、`--test` 和 `--exact` 定位到指定测试，并确认输出实际执行且通过了预期用例。日常验收避开无筛选的 `cargo test --workspace --locked`，该命令会运行工作区的 SQLite 等数据库测试。
 
 `--exact` 只筛选测试函数。执行前核对函数及其辅助夹具实际使用的驱动。`relationship_keys_and_query_counts_on_mysql` 的连接隔离夹具也使用独立的 MySQL 连接。遇到其他在单个函数内混跑多数据库的用例，先拆出独立的 MySQL 用例，或让夹具随本用例选择驱动，再精确执行。仍混用多数据库的用例统一留到发布前验收。
+
+## Git 提交标题
+
+所有代理统一使用 Conventional Commits 格式。类型和适用的作用域使用英文，冒号和空格后的变更说明使用简洁中文。带作用域的标题格式为 `<type>(<scope>): <中文说明>`。
 
 ## 持续开发交接
 
