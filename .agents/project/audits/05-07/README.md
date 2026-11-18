@@ -80,3 +80,10 @@
 - 固定 Laravel 的关系闭包可返回已筛选的资源集合。Rust 增加 `JsonApiRelationships::toCollection`，和向量关系共用标识、稀疏字段和复合文档投影。嵌套 include 只遍历集合选中的项，关联输出是标识数组。SQLite／MySQL 8.4.13 的实际 HTTP 验证公开项及其子项进入 included，私有项及其子项被排除，空集合返回 `data: []`，解析错误在请求该关联时传播，未请求时不执行解析器。 [固定 Laravel 集合关联用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiResourceTest.php)
 - 按 05-07 计划复核单资源、集合和键、普通／简易／游标分页、条件属性和关系、空结果与响应钩子，固定 JSON:API 章节的类型与标识、字段、关联、深度、链接、元数据及生成器已有分项验收。本批额外在合入数据库启动调整的 `643f4f03e` 基线上复跑 17 项资源、分页、模型、授权回归和 2 项 Artisan 生成器测试。格式、全目标严格 Clippy、真实 `./artisan inspire`、三语集合示例执行、VitePress 构建和 15 项浏览器检查通过。Sanctum 既有格式差异只在隔离副本处理。 [固定 API Resources 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md)
 - Rust 使用 trait、编译期默认资源映射和应用容器，生成后显式声明模块。对象数据源采用 JSON Map，关联自动加载采用已登记路径，错误的点分 include 字符串继续返回 400。05-03 与 05-06 前置已闭合，05-07 记为闭合。
+
+## JSON Resource 与 Responsable 响应生命周期
+
+- 对照固定 Laravel 的 `Router::toResponse`、`JsonResource`、`ResourceCollection` 和分页响应。旧版 `openrust-v0.x` 的 Axum 响应适配已在前序单元复用，旧版未提供可复用的 Laravel 式 JSON Resource 适配。 [Laravel JsonResource](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/Json/JsonResource.php) · [Laravel ResourceCollection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Resources/Json/ResourceCollection.php) · [Laravel API Resources](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-resources.md#concept-overview)
+- 直接返回的资源与控制器共用请求感知的响应生命周期。类型化控制器通过 `intoResponsable()` 将资源交给拥有所有权的适配器，避免与通用响应类型的 Rust blanket 实现重叠。适配器保留异步准备、包装、状态、元数据、响应钩子和分页。借用的响应构建器用于已经准备好的 `Sync` 资源，保留单次包装和附加元数据。
+- 基于 `1f885ae9b` 的隔离副本，真实 TCP 验证直接路由和控制器异步准备、双应用包装隔离、借用构建器元数据、普通集合和分页查询保留。PHP 8.5 执行固定 Laravel 对照资源投影、元数据、响应头与分页链接。MySQL 8.4.13 复验模型和分页，Docker 卷清单一致。
+- 真实 HTTP、固定 Laravel、MySQL 8.4.13、64 项定向回归、Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。实际应用二进制的健康请求、路径校验和 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 98.31 GB（91.56 GiB），提交前周额度剩余 21%，本轮按用户授权继续。验收日志位于 `/private/tmp/openrust-resource-responder.yfdHHQNX`。

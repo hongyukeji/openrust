@@ -315,3 +315,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 04-02 [路由字符串与结构化响应](04-02/README.md#路由字符串与结构化响应)通过真实 HTTP、固定 Laravel 对照、实际二进制、Artisan 和三语文档验收。
 
 04-02 [Responsable 请求上下文响应](04-02/README.md#responsable-请求上下文响应)通过实际 HTTP、固定 Laravel 对照、Artisan 和三语文档验收。
+
+04-02／05-07 [JSON Resource 与 Responsable 响应生命周期](05-07/README.md#json-resource-与-responsable-响应生命周期)通过固定 Laravel、真实 HTTP、MySQL、Artisan 和三语验收。核心账本维持 66/66。

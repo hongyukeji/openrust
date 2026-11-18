@@ -5,7 +5,10 @@ use crate::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
 };
 
-use super::{JsonOptions, ResourceCollection, ResourceItems, ResourceResponse, ResourceResult};
+use super::{
+    JsonOptions, ResourceCollection, ResourceItems, ResourceResponder, ResourceResponse,
+    ResourceResult,
+};
 
 /// Transforms an application resource for the current request.
 #[allow(non_snake_case, reason = "Matches Laravel's JsonResource API")]
@@ -128,6 +131,14 @@ pub trait JsonResource {
 
     fn response(&self) -> ResourceResponse<'_, Self> {
         ResourceResponse::new(self)
+    }
+
+    /// Moves the resource into the request-aware response lifecycle.
+    fn intoResponsable(self) -> ResourceResponder<Self>
+    where
+        Self: Sized + Send,
+    {
+        ResourceResponder::new(self)
     }
 
     fn toResponse(&self, request: &Request) -> ResourceResult<Response> {

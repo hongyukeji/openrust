@@ -42,6 +42,12 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### Returning Resources from Controllers {#responsable-resources}
+
+Routes can return a `JsonResource` directly. When a typed controller returns a `Responsable`, call `resource.intoResponsable()` and use `ResourceResponder<YourResource>` as the controller’s response type. For example, return `Ok(StatusResource.intoResponsable())` from the controller. The adapter uses the current request for resource preparation and transformation, and applies wrapping, metadata, and `withResponse` as usual.
+
+Call the same method on a `ResourceCollection`, including one backed by a paginator. Choose `preserveQuery()` or `withQuery(...)` before converting to preserve selected query parameters in pagination links. A response builder from `resource.response()` also implements `Responsable` when it borrows a `Sync` resource. It renders an already prepared resource and keeps per-response options such as `additional` and `withoutWrapping`.
+
 ### JSON Response Options {#json-response-options}
 
 Set `defaultJsonOptions` on a resource to choose the wire format for single responses, collections, and empty pages. Override `jsonOptions` for an instance-specific format. A non-empty collection uses its first resource’s options. Serde keeps fractional zeroes such as `3.0` by default. `JsonOptions` can indent output or escape slashes and Unicode characters while leaving decoded values unchanged.

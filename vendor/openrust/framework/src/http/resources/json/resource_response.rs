@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde_json::{Map, Value};
 
 use crate::{
-    contracts::container::Container as _,
+    contracts::{container::Container as _, support::Responsable},
     http::{HttpError, Request, Response, StatusCode},
     support::facades::current_container,
 };
@@ -104,6 +104,12 @@ impl<'a, R: JsonResource + ?Sized> ResourceResponse<'a, R> {
             .as_ref()
             .map_or(wrapper, |settings| settings.0.as_deref());
         build(self.resource, request, wrapper, self.additional)
+    }
+}
+
+impl<R: JsonResource + Sync + ?Sized> Responsable for ResourceResponse<'_, R> {
+    async fn toResponse(self, request: &mut Request) -> ResourceResult<Response> {
+        ResourceResponse::toResponse(self, request)
     }
 }
 

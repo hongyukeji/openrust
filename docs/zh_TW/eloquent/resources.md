@@ -42,6 +42,12 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### 從控制器回傳資源 {#responsable-resources}
+
+路由可以直接回傳 `JsonResource`。當型別化控制器回傳 `Responsable` 時，呼叫 `resource.intoResponsable()`，並將控制器的回應型別宣告為 `ResourceResponder<YourResource>`。例如，控制器可以回傳 `Ok(StatusResource.intoResponsable())`。轉接器使用目前的請求準備及轉換資源，再套用包裝、中繼資料與 `withResponse`。
+
+`ResourceCollection` 及其分頁形式也能呼叫此方法。轉換前可呼叫 `preserveQuery()` 或 `withQuery(...)`，控制分頁連結保留的查詢參數。若資源實作 `Sync`，`resource.response()` 回傳的建構器也實作 `Responsable`。它呈現已經準備好的資源，並保留 `additional`、`withoutWrapping` 等本次回應的選項。
+
 ### JSON 回應選項 {#json-response-options}
 
 在資源上實作 `defaultJsonOptions`，即可為單一資源、集合和空分頁宣告編碼格式。依執行個體調整時覆寫 `jsonOptions`。非空集合採用第一個資源的選項。Serde 預設把 `3.0` 這類數字保留為帶小數的寫法。`JsonOptions` 可設定縮排、斜線和 Unicode 跳脫，解碼後的值保持一致。

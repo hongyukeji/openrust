@@ -42,6 +42,12 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### 从控制器返回资源 {#responsable-resources}
+
+路由可直接返回 `JsonResource`。当类型化控制器返回 `Responsable` 时，调用 `resource.intoResponsable()`，并把控制器的响应类型声明为 `ResourceResponder<YourResource>`。例如，控制器可以返回 `Ok(StatusResource.intoResponsable())`。适配器使用当前请求准备和转换资源，随后应用包装、元数据和 `withResponse`。
+
+`ResourceCollection` 及其分页形式也可调用此方法。转换前可调用 `preserveQuery()` 或 `withQuery(...)`，控制分页链接保留的查询参数。若资源实现了 `Sync`，`resource.response()` 返回的构建器也实现 `Responsable`。它渲染已经准备好的资源，并保留 `additional`、`withoutWrapping` 等本次响应的选项。
+
 ### JSON 响应选项 {#json-response-options}
 
 在资源上实现 `defaultJsonOptions`，即可为单资源、集合和空分页声明编码格式。按实例调整时覆盖 `jsonOptions`。非空集合采用首个资源的选项。Serde 默认把 `3.0` 这类数字保留为带小数的写法。`JsonOptions` 可设置缩进、斜杠和 Unicode 转义，解码后的值保持一致。

@@ -1,7 +1,7 @@
 use std::{future::Future, sync::Arc};
 
 use crate::{
-    contracts::routing::Handler,
+    contracts::{routing::Handler, support::Responsable},
     http::{HttpFuture, Request, Response},
     routing::IntoRouteHandler,
 };
@@ -19,14 +19,14 @@ trait ResourceOutput: Send {
 }
 
 impl<T: JsonResource + Send> ResourceOutput for T {
-    async fn respond(mut self, request: &mut Request) -> ResourceResult<Response> {
-        self.toResponseAsync(request).await
+    async fn respond(self, request: &mut Request) -> ResourceResult<Response> {
+        self.intoResponsable().toResponse(request).await
     }
 }
 
 impl<T: JsonResource + Send> ResourceOutput for ResourceResult<T> {
     async fn respond(self, request: &mut Request) -> ResourceResult<Response> {
-        self?.toResponseAsync(request).await
+        self?.intoResponsable().toResponse(request).await
     }
 }
 

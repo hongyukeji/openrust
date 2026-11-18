@@ -3440,3 +3440,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02 Responsable 请求上下文响应
 
 请求感知响应对象接入路由和控制器，实际 HTTP、固定 Laravel、Artisan、严格 Clippy 与三语站点通过。 [Responsable 请求上下文响应](audits/04-02/README.md#responsable-请求上下文响应)
+
+## 2026-11-18 04-02／05-07 JSON Resource 与 Responsable 响应生命周期
+
+完成资源和分页集合的请求感知响应，保留应用隔离、查询参数及响应钩子。真实 HTTP、固定 Laravel、MySQL 8.4.13、64 项定向回归、Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 [JSON Resource 与 Responsable 响应生命周期](audits/05-07/README.md#json-resource-与-responsable-响应生命周期)

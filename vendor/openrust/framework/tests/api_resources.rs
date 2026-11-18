@@ -5,7 +5,7 @@ use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     contracts::{
         config::Repository, container::Container as _, foundation::Application as _,
-        http::Kernel as _,
+        http::Kernel as _, support::Responsable,
     },
     database::{
         Connection, DatabaseError, DatabaseManager, Value,
@@ -22,14 +22,14 @@ use openrust::{
         resources::{
             json::{
                 Conditional, JsonOptions, JsonResource, ModelResource, ResourceCollection,
-                ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
-                UseResource,
+                ResourceItems, ResourceResponder, ResourceResult, ResourceWrapping,
+                TransformsToResourceCollection, UseResource,
             },
             json_api::{JsonApi, JsonApiAttributes, JsonApiRelationships, JsonApiResource},
         },
     },
     pagination::{LengthAwarePaginator, PaginatorOptions},
-    routing::RoutingError,
+    routing::{ControllerDispatcher, RoutingError},
     support::{ArrayKey, Collection, facades::Route},
 };
 use serde_json::{Map, Value as Json, json};
@@ -1557,11 +1557,57 @@ fn explicitly_wrapped(request: &mut Request) -> HttpFuture<'_, ResourceResult<Re
 
 fn wrapping_metadata(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
     Box::pin(async move {
-        Plain(json!({"data":{"id":1}}))
+        let resource = Plain(json!({"data":{"id":1}}));
+        let response = resource
             .response()
-            .additional(Map::from_iter([("meta".into(), json!({"total":1}))]))
-            .toResponse(request)
+            .additional(Map::from_iter([("meta".into(), json!({"total":1}))]));
+        Responsable::toResponse(response, request).await
     })
+}
+
+#[derive(Default)]
+struct PreparedResource(Option<Json>);
+
+#[allow(non_snake_case, reason = "Implements the Laravel JsonResource API")]
+impl JsonResource for PreparedResource {
+    fn prepareResponse(&mut self, request: &Request) -> Option<HttpFuture<'_, ResourceResult<()>>> {
+        let name = request.query(Some("name"));
+        Some(Box::pin(async move {
+            tokio::task::yield_now().await;
+            self.0 = name?;
+            Ok(())
+        }))
+    }
+
+    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+        Ok(json!({"name": self.0}))
+    }
+
+    fn with(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
+        Ok(Map::from_iter([(
+            "meta".into(),
+            json!({"prepared": self.0.is_some()}),
+        )]))
+    }
+
+    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+        response
+            .parts_mut()
+            .headers
+            .insert("x-resource", "prepared".parse().unwrap());
+        Ok(())
+    }
+}
+
+struct ResourceController;
+
+impl ResourceController {
+    fn show<'a>(
+        &'a self,
+        _: &'a mut Request,
+    ) -> HttpFuture<'a, ResourceResult<ResourceResponder<PreparedResource>>> {
+        Box::pin(async { Ok(PreparedResource::default().intoResponsable()) })
+    }
 }
 
 fn wrapping_routes() -> Result<(), RoutingError> {
@@ -1593,6 +1639,14 @@ fn wrapping_routes() -> Result<(), RoutingError> {
     Route::get("/explicit", explicitly_wrapped)?;
     Route::get("/unwrapped", unwrapped)?;
     Route::get("/metadata", wrapping_metadata)?;
+    Route::get("/prepared", PreparedResource::default)?;
+    Route::get(
+        "/prepared/controller",
+        ControllerDispatcher::new(ResourceController::show),
+    )?;
+    Route::get("/collection", || {
+        ResourceCollection::new(vec![Plain(json!({"id":1}))]).intoResponsable()
+    })?;
     Route::get("/named", || {
         IndexedAccounts(ResourceCollection::new(Vec::new()))
     })?;
@@ -1606,6 +1660,8 @@ fn wrapping_routes() -> Result<(), RoutingError> {
         )
         .unwrap();
         ResourceCollection::new(page)
+            .preserveQuery()
+            .intoResponsable()
     })?;
     Ok(())
 }
@@ -1621,6 +1677,9 @@ async fn wrapping_server(
     app.boot().await.unwrap();
     app.container().instance(Arc::new(wrapping)).unwrap();
     app.container().instance(Arc::new(json_api)).unwrap();
+    app.container()
+        .instance(Arc::new(ResourceController))
+        .unwrap();
 
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
@@ -1718,11 +1777,29 @@ async fn resource_wrapping_is_scoped_to_each_http_application() {
         json!({"data":{"data":{"id":1}},"meta":{"total":1}})
     );
     for (address, key) in [(left, "data"), (right, "items")] {
-        let page = request(address, "GET", "/api/page", "", 200).await.1;
+        for path in [
+            "/api/prepared?name=Ada",
+            "/api/prepared/controller?name=Ada",
+        ] {
+            let (headers, body) = request(address, "GET", path, "", 200).await;
+            assert!(headers.contains("x-resource: prepared"));
+            assert_eq!(body[key], json!({"name":"Ada"}));
+            assert_eq!(body["meta"], json!({"prepared":true}));
+        }
+        let page = request(address, "GET", "/api/page?filter=active", "", 200)
+            .await
+            .1;
         assert_eq!(page[key], json!([{"id":1}]));
         assert_eq!(page["meta"]["total"], 2);
-        assert!(page["links"]["next"].is_string());
+        assert!(
+            page["links"]["next"]
+                .as_str()
+                .unwrap()
+                .contains("filter=active")
+        );
     }
+    let collection = request(right, "GET", "/api/collection", "", 200).await.1;
+    assert_eq!(collection["items"], json!([{"id":1}]));
     left_task.abort();
     right_task.abort();
 }
