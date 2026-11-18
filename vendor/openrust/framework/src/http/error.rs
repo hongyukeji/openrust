@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use super::{HeaderMap, Method, Response, StatusCode};
+use super::{HeaderMap, HttpResponseException, Method, Response, StatusCode};
 
 /// An error rendered by the HTTP kernel into a response.
 #[derive(Debug)]
@@ -34,6 +34,7 @@ pub enum HttpError {
         message: String,
         headers: Box<HeaderMap>,
     },
+    Response(Box<HttpResponseException>),
     DumpAndDie(String),
     Internal {
         source: Box<dyn Error + Send + Sync>,
@@ -66,11 +67,17 @@ impl HttpError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
             Self::Aborted { status, .. } => *status,
+            Self::Response(error) => error.status(),
             Self::DumpAndDie(_) | Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     pub(crate) fn bare_response(&self) -> Response {
+        if let Self::Response(error) = self
+            && let Some(response) = error.takeResponse()
+        {
+            return response;
+        }
         if let Self::DumpAndDie(output) = self {
             return Response::new(self.status(), super::Body::from(output.clone())).header(
                 ::http::header::CONTENT_TYPE,
@@ -101,12 +108,19 @@ impl Error for HttpError {
         match self {
             Self::Internal { source } => Some(source.as_ref()),
             Self::Validation(source) => Some(source.as_ref()),
+            Self::Response(source) => Some(source.as_ref()),
             #[cfg(feature = "sanctum")]
             Self::MissingAbility(source) => Some(source),
             #[cfg(feature = "sanctum")]
             Self::MissingScope(source) => Some(source),
             _ => None,
         }
+    }
+}
+
+impl From<HttpResponseException> for HttpError {
+    fn from(exception: HttpResponseException) -> Self {
+        Self::Response(Box::new(exception))
     }
 }
 

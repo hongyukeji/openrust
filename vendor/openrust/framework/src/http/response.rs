@@ -1,3 +1,5 @@
+use std::{error::Error, sync::Arc};
+
 use axum::body::Bytes;
 use http::{
     HeaderName, HeaderValue,
@@ -11,7 +13,13 @@ use crate::{
     support::{Collection, Fluent, Stringable, facades},
 };
 
-use super::{Body, HeaderMap, HttpError, HttpFuture, Method, Request, ResponseParts, StatusCode};
+use super::{
+    Body, HeaderMap, HttpError, HttpFuture, HttpResponseException, Method, Request, ResponseParts,
+    StatusCode,
+};
+
+#[derive(Clone)]
+struct ResponseException(Arc<dyn Error + Send + Sync>);
 
 /// An outgoing HTTP response with owned metadata and body.
 pub struct Response {
@@ -123,6 +131,28 @@ impl From<Response> for http::Response<Body> {
 }
 
 impl Response {
+    /// Attaches an exception for application code that inspects this response.
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn withException(mut self, error: impl Error + Send + Sync + 'static) -> Self {
+        self.parts
+            .extensions
+            .insert(ResponseException(Arc::new(error)));
+        self
+    }
+
+    pub fn exception(&self) -> Option<&(dyn Error + Send + Sync + 'static)> {
+        self.parts
+            .extensions
+            .get::<ResponseException>()
+            .map(|error| error.0.as_ref())
+    }
+
+    /// Returns an error that exits the handler with this response.
+    #[allow(non_snake_case, reason = "Matches Laravel's Response API")]
+    pub fn throwResponse(self) -> HttpError {
+        HttpResponseException::new(self).into()
+    }
+
     pub fn new(status: StatusCode, body: Body) -> Self {
         let mut response = ::http::Response::new(body);
         *response.status_mut() = status;

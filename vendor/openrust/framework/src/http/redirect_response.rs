@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use ::http::{
     HeaderValue,
     header::{CONTENT_TYPE, LOCATION},
@@ -32,6 +34,19 @@ impl RedirectResponse {
                 )
                 .header(LOCATION, location),
         ))
+    }
+
+    /// Attaches an exception to the response.
+    pub fn withException(self, error: impl Error + Send + Sync + 'static) -> Self {
+        Self(self.0.withException(error))
+    }
+
+    pub fn exception(&self) -> Option<&(dyn Error + Send + Sync + 'static)> {
+        self.0.exception()
+    }
+
+    pub fn throwResponse(self) -> HttpError {
+        self.0.throwResponse()
     }
 
     /// Attaches a cookie while keeping the redirect available for further changes.

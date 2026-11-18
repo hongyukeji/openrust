@@ -18,7 +18,7 @@ use crate::{
     contracts::container::Container as _,
     contracts::debug::{Exception, ExceptionHandler, SharedException},
     foundation::configuration::{Exceptions, ReportThrottle},
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, HttpResponseException, Request, Response},
     log::{Level, LogError, LogResult},
 };
 
@@ -49,6 +49,11 @@ impl Handler {
             config.and_then(|config| config.render_using(&exception, request))
         {
             custom
+        } else if let Some(response) = exception
+            .downcast_ref::<HttpResponseException>()
+            .and_then(HttpResponseException::takeResponse)
+        {
+            response
         } else {
             let json = self.renders_json(request, Some(error));
             let redirect = match error {
@@ -123,9 +128,10 @@ impl Handler {
     }
 
     fn allowed(&self, exception: &Exception<'_>) -> bool {
-        let default = exception
-            .downcast_ref::<HttpError>()
-            .is_none_or(|error| matches!(error, HttpError::Internal { .. }));
+        let default = exception.downcast_ref::<HttpResponseException>().is_none()
+            && exception
+                .downcast_ref::<HttpError>()
+                .is_none_or(|error| matches!(error, HttpError::Internal { .. }));
         self.configuration
             .as_ref()
             .map_or(default, |configuration| {
@@ -270,6 +276,11 @@ impl ExceptionHandler for Handler {
             .configuration
             .as_ref()
             .and_then(|config| config.render_using(exception, request))
+            .or_else(|| {
+                exception
+                    .downcast_ref::<HttpResponseException>()
+                    .and_then(HttpResponseException::takeResponse)
+            })
             .unwrap_or_else(|| {
                 let json = self.renders_json(request, exception.downcast_ref::<HttpError>());
                 self.render_default(request, exception, json)

@@ -56,6 +56,12 @@ Route::get("/reports/{id}", || Report)?;
 
 閉包可以直接傳回物件，控制器或經過 FormRequest 驗證的動作可用 `Result` 傳回物件。從 `toResponse` 傳回 `HttpError` 會沿用應用程式的例外轉譯。
 
+### 提前傳回已建立的回應 {#prepared-response-exceptions}
+
+在回傳 `Result` 的處理常式或中介軟體中，用 `Err(response.throwResponse())` 提前傳送已建立的 `Response` 或 `RedirectResponse`。HTTP 例外處理器會呼叫 `respond` 回呼。為 `HttpResponseException` 註冊的自訂呈現器可覆蓋原回應，也可以用 `takeResponse()` 一次取出原回應。這類例外預設略過回報。
+
+用 `withException(error)` 附加診斷資訊，應用程式可透過 `response.exception()` 讀取。附加例外只會記錄回應中繼資料。
+
 ### 附加回應標頭 {#attaching-headers-to-responses}
 
 用 `withoutHeader` 移除一個具型別的回應標頭，用 `withoutHeaders` 批次移除。兩者都回傳回應，可繼續鏈式呼叫。

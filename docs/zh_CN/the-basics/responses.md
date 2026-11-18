@@ -56,6 +56,12 @@ Route::get("/reports/{id}", || Report)?;
 
 闭包可直接返回对象，控制器或经过 FormRequest 验证的动作可用 `Result` 返回对象。从 `toResponse` 返回 `HttpError` 会沿用应用异常渲染。
 
+### 提前返回已构造的响应 {#prepared-response-exceptions}
+
+在返回 `Result` 的处理器或中间件中，用 `Err(response.throwResponse())` 提前发送已构造的 `Response` 或 `RedirectResponse`。HTTP 异常处理器会调用 `respond` 回调。为 `HttpResponseException` 注册的自定义渲染器可覆盖原响应，也可用 `takeResponse()` 一次性取出原响应。这类异常默认跳过报告。
+
+用 `withException(error)` 附加诊断信息，应用代码可通过 `response.exception()` 读取。附加异常只记录响应元数据。
+
 ### 向响应附加响应头 {#attaching-headers-to-responses}
 
 用 `withoutHeader` 删除一个类型化响应头，用 `withoutHeaders` 批量删除。两者都返回响应，可以继续链式调用。

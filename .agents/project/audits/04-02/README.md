@@ -232,3 +232,9 @@
 - 对照固定 Laravel `ResponseTrait` 的 `cookie`、`withCookie`、`withCookies`、`withoutCookie` 和 `withoutCookies`。复用旧版 Cookie 响应扩展的工厂删除标记思路。普通和重定向响应共享既有 `setCookie` 和工厂，Rust 显式传入当前请求与已构造的 Cookie，扩展保留中间件加密元数据。 [Laravel ResponseTrait](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/ResponseTrait.php#L115) · [Laravel Cookie 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#expiring-cookies-early)
 - 隔离基线 `0a3ec822a` 真实 TCP 验证 303、Location、个别及批量操作、同名异作用域、同作用域覆盖、过期标记、队列与直接附加并存、加密 Cookie 后续请求解密。PHP 8.5 执行固定 Laravel 的普通与重定向响应夹具，CookieJar 仅在夹具中替换时间读取，核对状态、Location、同作用域身份和过期结果。
 - 真实 HTTP、固定 Laravel、71 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 92.76 GB（86.39 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-redirect-cookies.74cotCkw`。
+
+## 响应异常附加与提前返回
+
+- 对照固定 Laravel `ResponseTrait::withException`、`throwResponse`、`HttpResponseException` 和异常处理器的渲染回调优先级。旧版未找到可复用的同名实现，正式版复用现有异常与 HTTP 内核。Rust 使用 `Err(response.throwResponse())` 退出当前处理器，诊断异常通过响应扩展保存。原响应体所有权只能被取出一次，`takeResponse()` 将所有权交给自定义渲染回调。 [Laravel ResponseTrait](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/ResponseTrait.php#L211) · [Laravel Handler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Exceptions/Handler.php#L728)
+- 隔离基线 `c861a7724` 真实 TCP 核对应用层异常元数据、保留现成响应状态与正文、HEAD、重定向、默认跳过报告、自定义渲染替换或取走原响应，以及 `respond` 最终回调。PHP 8.5 执行固定 Laravel 对照响应附加异常、直接传播、报告排除与两个渲染回调的顺序。
+- 真实 HTTP、固定 Laravel、70 项定向回归、Artisan、严格 Clippy、三语构建和 18 项浏览器检查通过。实际二进制健康请求、路径校验与 SIGTERM 退出通过。清理本批独占编译和站点缓存后磁盘可用 91.55 GB（85.27 GiB），提交前周额度剩余 21%，按用户授权继续。验收日志位于 `/private/tmp/openrust-http-response-exception.lLRx0Lg9`。

@@ -56,6 +56,12 @@ Route::get("/reports/{id}", || Report)?;
 
 A closure can return the object directly. A controller or validated FormRequest action can return it inside its `Result`. Return an `HttpError` from `toResponse` to use the application exception renderer.
 
+### Returning a prepared response early {#prepared-response-exceptions}
+
+Return `Err(response.throwResponse())` from a fallible handler or middleware to exit with a prepared `Response` or `RedirectResponse`. The HTTP exception handler sends that response through its `respond` callback. A custom renderer for `HttpResponseException` may override it or consume the original response once with `takeResponse()`. Prepared responses are skipped by default when reporting exceptions.
+
+Use `withException(error)` to attach diagnostics that application code can inspect through `response.exception()`. Attaching an exception only stores response metadata.
+
 ### Attaching Headers to Responses {#attaching-headers-to-responses}
 
 Use `withoutHeader` with one typed header name or `withoutHeaders` with a collection of names. Both methods return the response for chaining.

@@ -4,7 +4,10 @@ use std::{
     io::{Read as _, Write as _},
     net::SocketAddr,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -13,8 +16,11 @@ use openrust::{
     config::{ConfigError, Environment, Value},
     contracts::{http::Kernel as _, routing::Registrar as _},
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{Body, HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{
+        Body, HttpError, HttpFuture, HttpResponseException, Method, Request, Response, StatusCode,
+    },
     routing::{Router, RoutingError},
+    support::facades::Redirect,
 };
 use serde_json::json;
 
@@ -59,12 +65,37 @@ fn fail(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn ready_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let response = Response::new(StatusCode::IM_A_TEAPOT, Body::from("prepared response"))
+            .header(
+                "content-type".parse().unwrap(),
+                "text/plain".parse().unwrap(),
+            )
+            .header("x-prepared".parse().unwrap(), "kept".parse().unwrap())
+            .withException(PrivateSource);
+        Err(response.throwResponse())
+    })
+}
+
+fn ready_redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Err(Redirect::away("/done", Default::default())?
+            .withException(PrivateSource)
+            .throwResponse())
+    })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     for path in ["/fail", "/custom", "/no-content"] {
         router.get(path, fail)?;
     }
     router.add_route(&[Method::POST], "/post-only", Arc::new(fail))?;
+    router.get("/ready", ready_response)?;
+    router.get("/ready-override", ready_response)?;
+    router.get("/ready-taken", ready_response)?;
+    router.get("/ready-redirect", ready_redirect)?;
     Ok(router)
 }
 
@@ -266,6 +297,75 @@ async fn custom_renderers_precede_fallback_and_debug_sources_are_escaped() {
     assert_eq!(empty.header("x-final"), Some("yes"));
     task.abort();
     assert!(task.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn prepared_responses_keep_their_payload_and_run_exception_hooks() {
+    let root = Root::new();
+    let reports = Arc::new(AtomicUsize::new(0));
+    let observed = reports.clone();
+    let app = Application::configure(root.0.clone())
+        .withConfig(production_config)
+        .withRouting(Routing::new(routes))
+        .withExceptions(move |exceptions| {
+            exceptions
+                .report::<HttpResponseException>(move |_| {
+                    observed.fetch_add(1, Ordering::Relaxed);
+                    openrust::foundation::configuration::ReportDecision::Stop
+                })
+                .render::<HttpResponseException>(|error, request| match request.uri().path() {
+                    "/ready-override" => {
+                        assert_eq!(error.status(), StatusCode::IM_A_TEAPOT);
+                        Some(Response::new(StatusCode::CONFLICT, Body::from("override")))
+                    }
+                    "/ready-taken" => {
+                        let response = error.takeResponse().unwrap();
+                        assert!(error.takeResponse().is_none());
+                        Some(response.header("x-taken".parse().unwrap(), "yes".parse().unwrap()))
+                    }
+                    _ => None,
+                })
+                .respond(|mut response, error, _| {
+                    assert!(error.downcast_ref::<HttpResponseException>().is_some());
+                    if response
+                        .exception()
+                        .and_then(|e| e.downcast_ref::<PrivateSource>())
+                        .is_some()
+                    {
+                        response
+                            .parts_mut()
+                            .headers
+                            .insert("x-has-exception", "yes".parse().unwrap());
+                    }
+                    response.header("x-final".parse().unwrap(), "yes".parse().unwrap())
+                });
+        })
+        .create()
+        .unwrap();
+    let (address, task) = server(app).await;
+    let response = send(address, "GET", "/ready", "application/json", 418).await;
+    assert_eq!(response.body, "prepared response");
+    assert_eq!(response.header("content-type"), Some("text/plain"));
+    assert_eq!(response.header("x-prepared"), Some("kept"));
+    assert_eq!(response.header("x-has-exception"), Some("yes"));
+    assert_eq!(response.header("x-final"), Some("yes"));
+    let head = send(address, "HEAD", "/ready", "text/html", 418).await;
+    assert!(head.body.is_empty());
+    assert_eq!(head.header("content-length"), Some("17"));
+    let override_response = send(address, "GET", "/ready-override", "text/html", 409).await;
+    assert_eq!(override_response.body, "override");
+    assert_eq!(override_response.header("x-final"), Some("yes"));
+    assert_eq!(override_response.header("x-has-exception"), None);
+    let taken = send(address, "GET", "/ready-taken", "application/json", 418).await;
+    assert_eq!(taken.body, "prepared response");
+    assert_eq!(taken.header("x-taken"), Some("yes"));
+    assert_eq!(taken.header("x-final"), Some("yes"));
+    let redirect = send(address, "GET", "/ready-redirect", "application/json", 302).await;
+    assert_eq!(redirect.header("location"), Some("/done"));
+    assert_eq!(redirect.header("x-has-exception"), Some("yes"));
+    assert!(redirect.body.contains("href=\"/done\""));
+    assert_eq!(reports.load(Ordering::Relaxed), 0);
+    task.abort();
 }
 
 #[tokio::test]
