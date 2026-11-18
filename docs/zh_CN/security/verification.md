@@ -23,6 +23,10 @@ pub async fn verify(
 
 验证请求核对当前登录用户和当前邮箱摘要。首次验证会保存时间并派发 `Verified`。重复打开有效链接时，时间与事件次数保持不变。链接有效期取 `auth.verification.expire`，默认 60 分钟。
 
+<span id="verification-after-email-change"></span>
+
+验证链接只适用于当前邮箱的准确写法，包括大小写。应用更换邮箱时，应在同一次数据库更新中清除 `email_verified_at`，并发送新链接。保存验证状态时，应以当前邮箱和未设置的验证时间作为更新条件。用 `whereExactText` 匹配邮箱可避免排序规则影响。并发请求中只有写入时间戳的一次会派送 `Verified`。
+
 <span id="default-email-verification-mail"></span>
 
 默认验证邮件提供本地化按钮，纯文本版本包含临时签名链接。

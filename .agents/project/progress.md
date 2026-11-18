@@ -3331,3 +3331,8 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-07 认证邮件应用级链接与内容回调
 
 按固定 Laravel 接通应用级重置与验证链接、邮件内容回调，实测优先级、签名链接与应用隔离。真实 HTTP、Mailpit SMTP、SQLite／MySQL 8.4.13／Redis 令牌回归、Artisan、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-07/README.md#auth-notification-mail-hooks)
+
+
+## 2026-11-18 06-07 换址与并发邮箱验证
+
+按固定 Laravel 保留邮箱摘要，使用精确文本匹配防止数据库排序规则使旧快照验证新的邮箱。真实 HTTP、SQLite 与 MySQL 8.4.13 验证流程、Mailpit SMTP、令牌仓储回归、Artisan、严格 Clippy 和三语站点 18 项浏览器检查通过。 [验收](audits/06-07/README.md#verification-after-email-change)

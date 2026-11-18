@@ -27,3 +27,10 @@
 - 隔离基线 `44607ac0d` 上启动三个独立应用，用真实 HTTP 和 Mailpit SMTP 验证 URL 覆写、邮件回调优先级、邮件消息与完整 Mailable、按签名处理的自定义验证链接和应用间隔离。重置和验证均从实际收到的链接回到应用请求。保留原默认流程上的重放、过期、篡改、事件去重和重发限流验收。
 - SQLite、MySQL 8.4.13、Redis 8.10.3 三项令牌仓储回归、独立 `./artisan migrate --force` 与 `./artisan auth:clear-resets users`、Rust 1.94.0 格式、严格 Clippy、三语示例注册和站点构建、两种部署路径的 18 项浏览器检查通过。核心账本维持 66/66。下一批核对更换邮箱后旧验证链接和并发验证的边界。
 - 本批隔离编译和站点产物已回收，数据卷清单一致。清理前后项目可用空间净增 4.14 GB（3.86 GiB），清理后可用 89.39 GB（83.25 GiB）。提交前周额度剩余 28%，第二窗口无读数。日志保留于 `/private/tmp/openrust-auth-mail-hooks.Yxuhhkt2`。
+
+## 换址与并发邮箱验证 {#verification-after-email-change}
+
+- 固定 Laravel 根据当前用户 ID 与当前邮箱摘要授权。旧版 `openrust-v0.x` 的验证码流程也使用仅在未验证时更新的数据库条件。本批保留主线的签名摘要和原子状态更新，新增 `whereExactText` 匹配当前邮箱。数据库排序规则将两个地址视为相同也不会把旧地址的验证结果写给新地址。应用换址时在同一次更新中清除验证时间。 [固定 Laravel 请求类](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Auth/EmailVerificationRequest.php#L15)
+- 隔离基线 `2f9d5dec4` 的 MySQL 8.4.13 回归复现旧模型快照误标记了只有大小写差异的新邮箱。修复后，SQLite 与 MySQL 的旧快照更新均影响零行，旧签名链接返回 403。通过真实 HTTP 请求获取新链接，同时提交两次，新链接均返回 204，`Verified` 只触发一次。重复验证、邮箱不匹配、篡改与过期链接仍覆盖在本批 HTTP 回归内。
+- 四项 HTTP 回归含 Mailpit SMTP，三项 SQLite／MySQL 8.4.13／Redis 8.10.3 令牌测试及 SQL 编译与参数绑定回归通过。MariaDB、PostgreSQL 与 SQL Server 仅核对 SQL 生成和绑定。本批执行 `./artisan migrate --force`、`./artisan auth:clear-resets users`、Rust 1.94.0 格式及严格 Clippy、三语站点构建及双路径 18 项浏览器检查。核心账本维持 66/66。下一批对照 06-08 Artisan 帮助和命令本地化契约。
+- 本批隔离编译和站点产物已回收，数据卷清单一致。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 89.30 GB（83.17 GiB）。提交前周额度剩余 28%，第二窗口无读数。日志保留于 `/private/tmp/openrust-email-verify-race.dQmRRrPi`。

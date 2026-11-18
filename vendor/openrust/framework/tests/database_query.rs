@@ -23,6 +23,35 @@ fn connection(config: Json) -> Connection {
 }
 
 #[tokio::test]
+async fn exact_text_compiles_with_bound_values_for_each_database_family() {
+    let text = "A'_%@example.test ";
+    for (driver, expression, binds) in [
+        ("sqlite", "collate binary = ?", 1),
+        ("mysql", "using utf8mb4) as binary) = cast", 1),
+        ("mariadb", "using utf8mb4) as binary) = cast", 1),
+        ("pgsql", "collate \"C\" = ?", 1),
+        ("sqlsrv", "collate Latin1_General_100_BIN2", 2),
+    ] {
+        let database = if driver == "sqlite" {
+            ":memory:"
+        } else {
+            "fixture"
+        };
+        let query = connection(json!({"driver":driver,"database":database}))
+            .table("users")
+            .r#where("id", "=", 7)
+            .whereExactText("email", text);
+        let sql = query.toSql().unwrap();
+        assert!(sql.contains(expression), "{driver}: {sql}");
+        assert!(!sql.contains(text));
+        let expected = std::iter::once(Value::Integer(7))
+            .chain(std::iter::repeat_n(Value::from(text), binds))
+            .collect::<Vec<_>>();
+        assert_eq!(query.getBindings().unwrap(), expected);
+    }
+}
+
+#[tokio::test]
 async fn postgres_transaction_pool_binds_without_named_statements() {
     let Ok(pooled) = std::env::var("OPENRUST_TEST_PGBOUNCER_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_PGBOUNCER").is_none());

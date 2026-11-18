@@ -3,7 +3,7 @@ mod json_predicates;
 use std::{fmt::Write as _, sync::Arc};
 
 use crate::database::{
-    DatabaseError, DatabaseResult,
+    DatabaseError, DatabaseResult, Value,
     query::{FullTextOptions, PostgresFullTextMode, QueryLock},
 };
 
@@ -462,6 +462,34 @@ impl Grammar {
     ) -> DatabaseResult<String> {
         let (vectors, query) = self.postgres_full_text(columns, options, true)?;
         Ok(format!("ts_rank({vectors}, {query}) desc"))
+    }
+
+    pub(in crate::database::query) fn exact_text(
+        &self,
+        column: &str,
+        value: &str,
+        sql: &mut String,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<()> {
+        let column = self.column(column)?;
+        let predicate = match self.dialect {
+            Dialect::MySql => {
+                format!(
+                    "cast(convert({column} using utf8mb4) as binary) = cast(convert(? using utf8mb4) as binary)"
+                )
+            }
+            Dialect::Sqlite => format!("{column} collate binary = ?"),
+            Dialect::Postgres => format!("{column} collate \"C\" = ?"),
+            Dialect::SqlServer => {
+                bindings.push(value.into());
+                format!(
+                    "(convert(nvarchar(max), {column}) collate Latin1_General_100_BIN2 = convert(nvarchar(max), ?) and datalength(convert(nvarchar(max), {column})) = datalength(convert(nvarchar(max), ?)))"
+                )
+            }
+        };
+        sql.push_str(&predicate);
+        bindings.push(value.into());
+        Ok(())
     }
 
     pub(crate) fn like(&self, pattern: &str, case_sensitive: bool) -> (&'static str, String) {

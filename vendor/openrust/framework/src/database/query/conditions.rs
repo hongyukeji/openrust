@@ -77,6 +77,7 @@ enum Boolean {
 #[derive(Clone)]
 enum Predicate {
     Value(String, String, Value),
+    ExactText(String, String),
     Column(String, String, String),
     Null(String, bool),
     In(String, Vec<Value>, bool),
@@ -116,6 +117,7 @@ impl Conditions {
         for (_, predicate) in &mut self.0 {
             match predicate {
                 Predicate::Value(column, ..)
+                | Predicate::ExactText(column, ..)
                 | Predicate::Null(column, ..)
                 | Predicate::In(column, ..)
                 | Predicate::Between(column, ..)
@@ -354,6 +356,12 @@ macro_rules! predicate_methods {
             self.orWhere(column, "<=>", value)
         }
 
+        /// Compare text literally, including case, regardless of the column collation.
+        pub fn whereExactText(mut self, column: &str, text: &str) -> Self {
+            self.conditions().exact_text(column, text);
+            self
+        }
+
         pub fn whereLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(false, column, pattern, case_sensitive, false);
@@ -566,6 +574,10 @@ impl Conditions {
         );
     }
 
+    pub(super) fn exact_text(&mut self, column: &str, text: &str) {
+        self.push(false, Predicate::ExactText(column.into(), text.into()));
+    }
+
     fn push(&mut self, or: bool, predicate: Predicate) {
         let boolean = if or { Boolean::Or } else { Boolean::And };
         self.0.push((boolean, predicate));
@@ -744,6 +756,9 @@ impl Predicate {
                 }
                 sql.push_str(&format!("{} {operator} ?", grammar.column(column)?));
                 bindings.push(value.clone());
+            }
+            Self::ExactText(column, value) => {
+                grammar.exact_text(column, value, sql, bindings)?;
             }
             Self::Column(column, comparison, other) => {
                 if grammar.is_sql_server() && comparison == "<=>" {

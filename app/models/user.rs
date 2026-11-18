@@ -136,7 +136,7 @@ impl User {
                 "=",
                 Value::from(self.get_auth_identifier()),
             )
-            .r#where("email", "=", self.getEmailForVerification());
+            .whereExactText("email", self.getEmailForVerification());
         let query = if verified {
             query.whereNull("email_verified_at")
         } else {

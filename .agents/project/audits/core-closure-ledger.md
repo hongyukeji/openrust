@@ -261,3 +261,5 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 06-07 的 [密码重置与邮箱验证的默认邮件](06-07/README.md#default-auth-notification-mail)通过实际 HTTP、Mailpit SMTP、令牌仓储和 Artisan 验收。
 
 06-07 的 [认证邮件应用级链接与内容回调](06-07/README.md#auth-notification-mail-hooks)通过真实 HTTP、SMTP、自定义签名链接及应用隔离验收。
+
+06-07 的 [换址与并发邮箱验证](06-07/README.md#verification-after-email-change)通过真实 HTTP、SQLite 与 MySQL 精确邮箱更新及并行事件验收。

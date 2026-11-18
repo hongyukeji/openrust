@@ -7,6 +7,7 @@ use super::Authenticatable;
 /// User capability for applications that require email verification.
 pub trait MustVerifyEmail: Authenticatable {
     fn hasVerifiedEmail(&self) -> bool;
+    /// Returns true only when this exact email changes from unverified to verified.
     fn markEmailAsVerified(&mut self) -> AuthFuture<'_, AuthResult<bool>>;
     fn markEmailAsUnverified(&mut self) -> AuthFuture<'_, AuthResult<bool>>;
     fn sendEmailVerificationNotification(&self) -> AuthFuture<'_, AuthResult<()>>;

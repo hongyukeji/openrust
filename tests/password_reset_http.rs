@@ -18,7 +18,9 @@ use openrust::{
         passwords::PasswordResetStatus,
     },
     contracts::{
-        auth::Authenticatable, container::Container as _, foundation::Application as _,
+        auth::{Authenticatable, MustVerifyEmail},
+        container::Container as _,
+        foundation::Application as _,
         http::Kernel as _,
     },
     database::{DatabaseManager, Value, eloquent::Model},
@@ -329,6 +331,19 @@ async fn start(
     mailpit: Option<(u16, u16)>,
     customization: MailCustomization,
 ) -> (Root, SocketAddr, Arc<Kernel>, tokio::task::JoinHandle<()>) {
+    start_with_database(
+        mailpit,
+        customization,
+        json!({"driver":"sqlite","database":"fixture.sqlite"}),
+    )
+    .await
+}
+
+async fn start_with_database(
+    mailpit: Option<(u16, u16)>,
+    customization: MailCustomization,
+    database_config: Json,
+) -> (Root, SocketAddr, Arc<Kernel>, tokio::task::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let root = Root(std::env::temp_dir().join(format!(
@@ -342,7 +357,7 @@ async fn start(
         "app":{"key":"base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","url":format!("http://{addr}")},
         "cache":{"default":"array","stores":{"array":{"driver":"array"}}},
         "hashing":{"driver":"bcrypt","bcrypt":{"rounds":4}},
-        "database":{"default":"fixture","connections":{"fixture":{"driver":"sqlite","database":"fixture.sqlite"}}},
+        "database":{"default":"fixture","connections":{"fixture":database_config}},
         "auth":{"defaults":{"guard":"api","passwords":"users"},"guards":{"api":{"driver":"token","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"fixture.user"}},
                 "passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":37,"throttle":60}}},
@@ -703,6 +718,96 @@ async fn exercise_custom_mail(mailpit: Option<(u16, u16)>) {
     assert!(!target(default_addr, &default).contains("source="));
     for server in [url_server, mail_server, default_server] {
         server.abort();
+    }
+}
+
+async fn exercise_email_change(database: Json) {
+    let (_root, addr, kernel, server) =
+        start_with_database(None, MailCustomization::Default, database).await;
+    let application = kernel.get_application();
+    let events = Arc::new(AtomicUsize::new(0));
+    application
+        .container()
+        .make::<Dispatcher>()
+        .unwrap()
+        .listen(
+            "Verified",
+            Arc::new(VerifyEvents(events.clone())),
+            Delivery::Sync,
+        )
+        .unwrap();
+    let send = "/email/verification-notification";
+    let before = request(addr, "POST", send, Some("first"), true).await;
+    assert!(before.starts_with("HTTP/1.1 204 "), "{before}");
+    let old = extract_url(&mail_body(&kernel, None, "Verify your email address").await);
+
+    // Keep the model a verification request could have loaded before the address was edited.
+    application
+        .call(
+            openrust::container::Callback::new(&[], |_| async {
+                use openrust::support::facades::DB;
+
+                let mut stale = User::find(Value::Integer(1)).await.unwrap().unwrap();
+                let table = || {
+                    DB::connection(None)
+                        .unwrap()
+                        .table("users")
+                        .r#where("id", "=", 1)
+                };
+                table()
+                    .update(
+                        [
+                            ("email".into(), "FIRST@example.test".into()),
+                            ("email_verified_at".into(), Value::Null),
+                        ]
+                        .into(),
+                    )
+                    .await
+                    .unwrap();
+                assert!(!stale.markEmailAsVerified().await.unwrap());
+                assert_eq!(
+                    table().value("email_verified_at").await.unwrap(),
+                    Value::Null
+                );
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+
+    let stale = request(addr, "GET", target(addr, &old), Some("first"), true).await;
+    assert!(stale.starts_with("HTTP/1.1 403 "), "{stale}");
+    assert_eq!(events.load(Ordering::SeqCst), 0);
+    let sent = request(addr, "POST", send, Some("first"), true).await;
+    assert!(sent.starts_with("HTTP/1.1 204 "), "{sent}");
+    let current = extract_url(&mail_body(&kernel, None, "Verify your email address").await);
+    assert_ne!(old, current);
+    let path = target(addr, &current);
+    let (first, second) = tokio::join!(
+        request(addr, "GET", path, Some("first"), true),
+        request(addr, "GET", path, Some("first"), true),
+    );
+    for response in [first, second] {
+        assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+    }
+    assert_eq!(events.load(Ordering::SeqCst), 1);
+    let verified = request(addr, "GET", "/protected", Some("first"), true).await;
+    assert!(verified.starts_with("HTTP/1.1 204 "), "{verified}");
+    server.abort();
+}
+
+#[tokio::test]
+async fn sqlite_verification_requires_current_email_and_emits_once() {
+    exercise_email_change(json!({"driver":"sqlite","database":"fixture.sqlite"})).await;
+}
+
+#[tokio::test]
+async fn mysql_verification_requires_current_email_and_emits_once() {
+    if let Ok(url) = std::env::var("OPENRUST_TEST_VERIFY_MYSQL_URL") {
+        exercise_email_change(json!({"url":url})).await;
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_VERIFY_MYSQL").is_none());
     }
 }
 
