@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     config::{ConfigError, Repository, Value, cache::ConfigurationCache},
-    console::{Application as Artisan, ConsoleError, Output},
+    console::{Application as Artisan, ConsoleError, Output, task_command::TaskCommand},
     container::{Container, EnvironmentQuery, EnvironmentResult, ServiceKey},
     contracts::{
         config,
@@ -69,7 +69,7 @@ pub(super) struct ApplicationState {
     pub(super) package_manifest: OnceLock<super::PackageManifest>,
     pub(super) package_cache_path: OnceLock<PathBuf>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
-    reload_commands: Mutex<Vec<(String, String)>>,
+    console_tasks: Mutex<Vec<(TaskCommand, String, String)>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     middleware: OnceLock<Middleware>,
     pub(super) commands: CommandRegistrar,
@@ -214,25 +214,43 @@ impl Application {
             .push(register);
     }
 
-    pub(crate) fn register_reload_command(&self, key: String, command: &str) {
+    pub(crate) fn register_console_task(&self, group: TaskCommand, key: String, command: &str) {
         let mut commands = self
             .shared
-            .reload_commands
+            .console_tasks
             .lock()
-            .expect("reload commands lock");
-        if let Some((_, registered)) = commands.iter_mut().find(|(name, _)| *name == key) {
+            .expect("console task commands lock");
+        if let Some((_, _, registered)) = commands
+            .iter_mut()
+            .find(|(kind, name, _)| *kind == group && *name == key)
+        {
             command.clone_into(registered);
         } else {
-            commands.push((key, command.to_owned()));
+            commands.push((group, key, command.to_owned()));
         }
     }
 
-    pub(crate) fn reload_commands(&self) -> Vec<(String, String)> {
-        self.shared
-            .reload_commands
+    pub(crate) fn console_tasks(&self, group: TaskCommand) -> Vec<(String, String)> {
+        let mut tasks: Vec<_> = group
+            .defaults()
+            .iter()
+            .map(|&(key, command)| (key.to_owned(), command.to_owned()))
+            .collect();
+        let commands = self
+            .shared
+            .console_tasks
             .lock()
-            .expect("reload commands lock")
-            .clone()
+            .expect("console task commands lock");
+        for (kind, key, command) in commands.iter() {
+            if *kind == group {
+                if let Some((_, target)) = tasks.iter_mut().find(|(name, _)| name == key) {
+                    target.clone_from(command);
+                } else {
+                    tasks.push((key.clone(), command.clone()));
+                }
+            }
+        }
+        tasks
     }
 
     pub(crate) fn route_info(
@@ -406,10 +424,7 @@ impl Application {
             package_manifest: OnceLock::new(),
             package_cache_path: OnceLock::new(),
             package_commands: Mutex::default(),
-            reload_commands: Mutex::new(vec![
-                ("queue".into(), "queue:restart".into()),
-                ("schedule".into(), "schedule:interrupt".into()),
-            ]),
+            console_tasks: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
             middleware: OnceLock::new(),
             commands,

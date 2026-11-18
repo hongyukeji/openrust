@@ -12,14 +12,15 @@ use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
 use super::{
     ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, descriptor,
-    help_command, list_command, localization, reload_command,
+    help_command, list_command, localization,
+    task_command::{self, TaskCommand},
 };
 
 #[derive(Clone)]
 enum Entry {
     List(CommandDefinition),
     Help(CommandDefinition),
-    Reload(CommandDefinition),
+    Tasks(TaskCommand, CommandDefinition),
     Planned(CommandDefinition),
     Closure(ClosureCommand),
     Command(Arc<dyn Command>),
@@ -30,7 +31,7 @@ impl Entry {
         match self {
             Self::List(definition)
             | Self::Help(definition)
-            | Self::Reload(definition)
+            | Self::Tasks(_, definition)
             | Self::Planned(definition) => definition,
             Self::Closure(command) => command.definition(),
             Self::Command(command) => command.definition(),
@@ -70,11 +71,18 @@ impl Application {
         self.add(Entry::Command(Arc::from(command))).map(|_| ())
     }
 
-    pub(crate) fn register_reload(&mut self) -> Result<(), ConsoleError> {
-        self.add(Entry::Reload(CommandDefinition::new(
-            reload_command::command(),
-        )))
-        .map(|_| ())
+    pub(crate) fn register_task_commands(&mut self) -> Result<(), ConsoleError> {
+        for operation in [
+            TaskCommand::Reload,
+            TaskCommand::Optimize,
+            TaskCommand::OptimizeClear,
+        ] {
+            self.add(Entry::Tasks(
+                operation,
+                CommandDefinition::new(operation.command()),
+            ))?;
+        }
+        Ok(())
     }
 
     /// Registers a closure as an Artisan command.
@@ -445,18 +453,38 @@ impl Application {
             .await
     }
 
-    pub(super) async fn call_reload_target(
+    pub(super) async fn call_task(
         &self,
         application: &FoundationApplication,
+        syntax: &Syntax,
         name: &str,
+        environment: Option<&String>,
     ) -> Result<i32, ConsoleError> {
         let canonical = self.resolve(name)?;
         let entry = &self.commands[canonical];
-        if matches!(entry, Entry::Reload(_)) {
-            return Err(ConsoleError::new("Reload cannot call itself."));
+        if matches!(entry, Entry::Tasks(..)) {
+            return Err(ConsoleError::new(
+                "An Artisan task cannot call another task command.",
+            ));
         }
-        let input = entry.definition().parse(&[])?;
-        Box::pin(self.call(application, canonical, &input, &mut Output::default())).await
+        let mut arguments = vec!["artisan", canonical];
+        if let Some(environment) = environment {
+            arguments.extend(["--env", environment]);
+        }
+        let mut parsed = syntax
+            .clone()
+            .try_get_matches_from(arguments)
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
+        let (_, matches) = parsed.remove_subcommand().expect("resolved command");
+        Box::pin(self.dispatch(
+            entry,
+            application,
+            &matches,
+            syntax,
+            &mut Output::default(),
+            None,
+        ))
+        .await
     }
 
     async fn dispatch(
@@ -471,8 +499,9 @@ impl Application {
         let command: &dyn Command = match entry {
             Entry::List(_) => return Ok(list_command::run(self, syntax, Some(matches), output)),
             Entry::Help(_) => return help_command::run(self, syntax, matches, output),
-            Entry::Reload(_) => {
-                return reload_command::run(self, application, matches, output).await;
+            Entry::Tasks(operation, _) => {
+                return task_command::run(self, application, syntax, *operation, matches, output)
+                    .await;
             }
             Entry::Planned(definition) => {
                 return Err(ConsoleError::new(format!(

@@ -39,6 +39,17 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 在最終發行目錄中，使用服務啟動時的環境執行命令。設定快照可能包含絕對路徑。搬移發行目錄或修改設定後，先在新環境中重新產生快取，再重新啟動服務。需要在啟動時從環境讀取設定時，執行 `./main artisan config:clear`。見[設定快取](configuration.md#configuration-caching)。
 
+### 快取部署資源 {#cache-deployment-resources}
+
+```sh
+./main artisan optimize
+./main artisan optimize:clear --except=cache
+```
+
+`optimize` 快取設定、事件探索結果和編譯檢視。`optimize:clear` 清除這些產物、套件清單和預設應用程式快取。用 `--except`（`-e`）傳入以逗號區隔的任務名稱或 Artisan 命令名稱。範例會保留預設應用程式快取。服務提供者可透過 `optimizes` 新增任務。
+
+路由由已編譯的 Rust 註冊函式在應用程式啟動時組裝。獨立的持久化路由快取仍待實作。
+
 ## 啟動 HTTP 與 Artisan
 
 ```sh

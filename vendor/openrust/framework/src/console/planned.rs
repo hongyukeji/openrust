@@ -99,8 +99,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("migrate:status", "Show applied and pending migrations"),
     ("model:prune", "Remove model records eligible for pruning"),
     ("model:show", "Inspect a model and its attributes"),
-    ("optimize", "Cache application resources for deployment"),
-    ("optimize:clear", "Clear cached application resources"),
     (
         "package:discover",
         "Rebuild the discovered package manifest",

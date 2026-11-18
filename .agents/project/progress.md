@@ -3356,3 +3356,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 08-04 Artisan 服务重载
 
 接通 `reload`、`--except` 和应用级 Provider 重载任务。真实 MySQL／Redis、独立 Worker、调度、Reverb、定向回归、严格 Clippy 和三语站点通过。 [验收](audits/08-04/README.md#artisan-服务重载)
+
+## 2026-11-18 08-04 Artisan 部署优化与缓存清理
+
+接通配置、事件、视图缓存与清理命令、默认缓存清理和扩展任务。真实 Artisan／HTTP／Redis、定向回归、严格 Clippy 和三语站点验收通过。持久化路由缓存继续跟踪。 [验收](audits/08-04/README.md#artisan-部署优化与缓存清理)

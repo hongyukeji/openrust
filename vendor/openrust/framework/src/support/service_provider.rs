@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     config::{ConfigError, Value},
-    console::ConsoleError,
+    console::{ConsoleError, task_command::TaskCommand},
     database::migrations::{MigrationEntry, Migrator},
     foundation::{Application, Runner},
     http::HttpFuture,
@@ -112,15 +112,25 @@ pub trait ServiceProvider: Any + Send + Sync {
 
     /// Register an Artisan command to run during a service reload.
     fn reloads(&self, app: &Application, command: &str, key: Option<&str>) {
-        let provider = self.name().rsplit("::").next().unwrap_or(self.name());
-        let key = key.map(str::to_owned).unwrap_or_else(|| {
-            super::Str::kebab(
-                provider
-                    .split_once("ServiceProvider")
-                    .map_or(provider, |(name, _)| name),
-            )
-        });
-        app.register_reload_command(if key.is_empty() { provider.into() } else { key }, command);
+        app.register_console_task(TaskCommand::Reload, provider_key(self.name(), key), command);
+    }
+
+    /// Register package commands for deployment optimization and cache clearing.
+    fn optimizes(
+        &self,
+        app: &Application,
+        optimize: Option<&str>,
+        clear: Option<&str>,
+        key: Option<&str>,
+    ) {
+        for (group, command) in [
+            (TaskCommand::Optimize, optimize),
+            (TaskCommand::OptimizeClear, clear),
+        ] {
+            if let Some(command) = command {
+                app.register_console_task(group, provider_key(self.name(), key), command);
+            }
+        }
     }
 
     /// Register package views, preceded by application overrides under each view root.
@@ -243,6 +253,18 @@ pub trait ServiceProvider: Any + Send + Sync {
             Ok(())
         })
     }
+}
+
+fn provider_key(name: &str, key: Option<&str>) -> String {
+    let provider = name.rsplit("::").next().unwrap_or(name);
+    let key = key.map(str::to_owned).unwrap_or_else(|| {
+        super::Str::kebab(
+            provider
+                .split_once("ServiceProvider")
+                .map_or(provider, |(name, _)| name),
+        )
+    });
+    if key.is_empty() { provider.into() } else { key }
 }
 
 fn merge_config(

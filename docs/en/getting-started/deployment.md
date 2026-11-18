@@ -39,6 +39,17 @@ After setting the deployment environment, you can cache configuration before sta
 
 Run the command from the final release directory using the environment the services will run under. The snapshot can contain absolute paths. If the release moves or its settings change, rebuild the cache in the new environment before restarting. Run `./main artisan config:clear` to load configuration from the environment at startup. See [Configuration Caching](configuration.md#configuration-caching).
 
+### Cache Deployment Resources {#cache-deployment-resources}
+
+```sh
+./main artisan optimize
+./main artisan optimize:clear --except=cache
+```
+
+`optimize` caches configuration, event discovery and compiled views. `optimize:clear` clears those artifacts, the package manifest and the default application cache. Use `--except` (`-e`) with comma-separated task names or Artisan command names. The example keeps the default application cache intact. Service providers can add tasks with `optimizes`.
+
+Routes use compiled Rust registrars and are assembled when the application boots. A separate persistent route cache is still pending.
+
 ## Start HTTP and Artisan
 
 ```sh

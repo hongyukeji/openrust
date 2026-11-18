@@ -132,6 +132,26 @@ fn artisan_reload_excludes_tasks_by_label_and_command() {
 }
 
 #[test]
+fn artisan_optimization_commands_allow_excluding_tasks() {
+    for (command, skip) in [
+        ("optimize", "config, event:cache, views, config:cache"),
+        (
+            "optimize:clear",
+            "config, cache:clear, compiled, events, views",
+        ),
+    ] {
+        let help = artisan(&["help", command]);
+        assert!(help.status.success());
+        assert!(String::from_utf8_lossy(&help.stdout).contains("--except"));
+
+        let result = artisan(&[command, "-e", skip]);
+        assert!(result.status.success());
+        assert!(result.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&result.stdout).contains("DONE"));
+    }
+}
+
+#[test]
 fn artisan_raw_help_keeps_full_localized_text_without_ansi() {
     for (locale, usage, options) in [
         ("en", "Usage:", "Options:"),

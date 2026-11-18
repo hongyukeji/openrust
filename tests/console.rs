@@ -72,17 +72,31 @@ impl ServiceProvider for ReloadProbeServiceProvider {
             self.reloads(app, "probe:replaced", None);
             self.reloads(app, "probe:fail", Some("reload-probe"));
             self.reloads(app, "probe:next", Some("next"));
+            self.optimizes(app, Some("probe:fail"), Some("probe:next"), None);
             Ok(())
         })
     }
 }
 
 #[tokio::test]
-async fn reload_uses_application_provider_tasks_and_continues_after_nonzero_status() {
-    for (with_provider, except, expected) in [
-        (true, "queue, schedule:interrupt", 3),
-        (true, "queue, schedule, reload-probe, probe:next, next", 0),
-        (false, "queue, schedule", 0),
+async fn artisan_uses_application_provider_tasks_and_continues_after_nonzero_status() {
+    for (with_provider, command, except, expected) in [
+        (true, "reload", "queue, schedule:interrupt", 3),
+        (
+            true,
+            "reload",
+            "queue, schedule, reload-probe, probe:next, next",
+            0,
+        ),
+        (false, "reload", "queue, schedule", 0),
+        (true, "optimize", "config, event:cache, views", 1),
+        (
+            true,
+            "optimize:clear",
+            "config, cache, compiled, events, view:clear",
+            2,
+        ),
+        (true, "optimize", "config, events, views, reload-probe", 0),
     ] {
         RELOAD_STEPS.store(0, Ordering::Relaxed);
         let mut builder =
@@ -101,7 +115,7 @@ async fn reload_uses_application_provider_tasks_and_continues_after_nonzero_stat
         }
         let app = builder.create().unwrap();
         let status = app
-            .handleCommand(&["reload", "-e", except].map(OsString::from))
+            .handleCommand(&[command, "-e", except].map(OsString::from))
             .await
             .unwrap();
         assert_eq!(status, 0);

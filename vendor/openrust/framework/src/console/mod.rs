@@ -9,8 +9,8 @@ mod help_command;
 mod list_command;
 mod localization;
 mod planned;
-mod reload_command;
 pub mod scheduling;
+pub(crate) mod task_command;
 
 use std::{
     env,
