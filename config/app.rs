@@ -26,6 +26,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         .map_or_else(|_| json!(port), |port| json!(port));
     let config = json!({
         "name": name,
+        "version": get(env, "APP_VERSION", env!("CARGO_PKG_VERSION"))?,
         "env": get(env, "APP_ENV", "production")?,
         "debug": get(env, "APP_DEBUG", false)?,
         "host": host,
