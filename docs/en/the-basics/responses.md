@@ -138,6 +138,10 @@ For a route-level redirect, `Router::redirect` and `Router::permanentRedirect` c
 
 Call `withFragment("details")` to replace the current fragment, or `withoutFragment()` to remove it. Both keep the URL path and query, and update the `Location` header and the HTML fallback together. Each returns a `Result` so an invalid redirect target can be handled.
 
+### Same-origin redirects {#same-origin-redirects}
+
+Call `redirect.enforceSameOrigin(request, "/fallback", true, true)` to compare the target with the current request. The host must match. The two flags also require the scheme and port to match, respectively. The comparison uses the effective request origin, including trusted proxy settings, and treats an explicit default port like an omitted one. A relative target has no host, so it selects the fallback. Supply a trusted fallback such as a fixed application path.
+
 ### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
 
 In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Return the `RedirectResponse` directly from the handler. Its status, headers and session updates flow through the usual HTTP response handling.

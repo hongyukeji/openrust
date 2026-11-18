@@ -195,6 +195,79 @@ fn redirect_variant(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 
+fn redirect_same_origin(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<RedirectResponse, HttpError>> {
+    Box::pin(async move {
+        let target = request.query(Some("target"))?.unwrap();
+        let mode = request.route("mode").unwrap();
+        let mut options = RedirectOptions {
+            status: StatusCode::SEE_OTHER,
+            ..Default::default()
+        };
+        options
+            .headers
+            .insert("x-redirect-proof", "kept".parse().unwrap());
+        let fallback = if mode == "invalid-fallback" {
+            ""
+        } else {
+            "/fallback?from=origin&retry=1"
+        };
+        Redirect::away(target.as_str().unwrap(), options)?.enforceSameOrigin(
+            request,
+            fallback,
+            mode != "skip-scheme",
+            mode != "skip-port",
+        )
+    })
+}
+
+#[tokio::test]
+async fn redirect_origin_uses_the_effective_trusted_proxy_origin() {
+    use openrust::{http::TrustedProxyHeaders, support::facades::Route};
+
+    let app = Application::configure(std::env::temp_dir())
+        .withMiddleware(|middleware| {
+            middleware
+                .trustProxies(&["127.0.0.1"], TrustedProxyHeaders::DEFAULT)
+                .unwrap();
+        })
+        .withRouting(
+            Routing::default().web(|| Route::get("/redirect-origin/{mode}", redirect_same_origin)),
+        )
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport
+                .with_state(Arc::new(kernel))
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .unwrap();
+    });
+    let response = exchange_with(
+        address,
+        "GET",
+        "/redirect-origin/strict?target=https%3A%2F%2Fmalicious.invalid%3A8443%2Fnext",
+        "internal.test",
+        "",
+        "X-Forwarded-Proto: https\r\nX-Forwarded-Port: 8443\r\n",
+        303,
+    )
+    .await;
+    assert!(
+        response.contains("location: https://malicious.invalid:8443/next\r\n"),
+        "{response}"
+    );
+    server.abort();
+}
+
 fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router
         .get("/article/{article}", article)?
@@ -241,6 +314,7 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router.get("/bound/{article:slug}", article)?.name("bound");
     router.get("/request-links/{locale?}", request_links)?;
     router.get("/redirect-variant/{variant}", redirect_variant)?;
+    router.get("/redirect-origin/{mode}", redirect_same_origin)?;
     router.redirect("/optional-old/{id?}", "/new/{id?}", StatusCode::FOUND)?;
     assert!(
         router
@@ -583,6 +657,73 @@ async fn signs_and_redirects_over_real_http() {
         );
     }
     exchange(address, "/redirect-variant/fragment-invalid", &host, 204).await;
+    for (mode, request_host, target, keep) in [
+        (
+            "strict",
+            "site.test",
+            "http://SITE.TEST:80/next?x=1&y=2#section",
+            true,
+        ),
+        (
+            "strict",
+            "site.test:8080",
+            "http://site.test:8080/next",
+            true,
+        ),
+        ("strict", "site.test:8080", "http://site.test/next", false),
+        ("strict", "site.test", "http://site.test:8080/next", false),
+        ("strict", "site.test", "https://site.test/next", false),
+        ("strict", "site.test", "/next", false),
+        ("skip-scheme", "site.test", "https://site.test/next", true),
+        (
+            "skip-scheme",
+            "site.test",
+            "https://site.test:8080/next",
+            false,
+        ),
+        ("skip-port", "site.test", "http://site.test:8080/next", true),
+        (
+            "skip-port",
+            "site.test",
+            "https://site.test:8080/next",
+            false,
+        ),
+        (
+            "skip-port",
+            "site.test",
+            "http://malicious.invalid/next",
+            false,
+        ),
+        ("strict", "[::1]:8080", "http://[::1]:8080/next", true),
+    ] {
+        let query = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("target", target)
+            .finish();
+        let path = format!("/redirect-origin/{mode}?{query}");
+        let response = exchange(address, &path, request_host, 303).await;
+        let expected = if keep {
+            target
+        } else {
+            "/fallback?from=origin&retry=1"
+        };
+        assert!(
+            response.contains(&format!("location: {expected}\r\n")),
+            "{path} {response}"
+        );
+        assert!(response.contains("x-redirect-proof: kept\r\n"));
+        let escaped = expected.replace('&', "&amp;");
+        assert!(
+            response.contains(&format!("href=\"{escaped}\"")),
+            "{response}"
+        );
+    }
+    exchange(
+        address,
+        "/redirect-origin/invalid-fallback?target=https%3A%2F%2Foutside.test%2Fnext",
+        "site.test",
+        500,
+    )
+    .await;
     let response = exchange(address, "/optional-old", &host, 302).await;
     assert!(response.contains("location: /new\r\n"));
     let response = exchange(address, "/optional-old/a%3F%23", &host, 302).await;

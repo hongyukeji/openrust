@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use crate::{
     contracts::session::Session as _,
     routing::{UrlError, UrlResult, valid_http_url},
-    support::{Arr, MessageBag, data_forget},
+    support::{Arr, MessageBag, Uri, data_forget},
 };
 
 use super::{Body, HeaderMap, HttpError, Request, Response, StatusCode};
@@ -55,6 +55,26 @@ impl RedirectResponse {
         };
         let base = base.to_owned();
         self.with_target(&base)
+    }
+
+    /// Keeps the target when its origin matches the request, or uses the supplied fallback.
+    pub fn enforceSameOrigin(
+        self,
+        request: &Request,
+        fallback: &str,
+        validate_scheme: bool,
+        validate_port: bool,
+    ) -> Result<Self, HttpError> {
+        let target = Uri::of(self.target()?).map_err(|_| UrlError::InvalidRedirect)?;
+        let current =
+            Uri::of(&request.schemeAndHttpHost()?).map_err(|_| HttpError::InvalidRequest)?;
+        if target.host() == current.host()
+            && (!validate_scheme || target.scheme() == current.scheme())
+            && (!validate_port || target.port() == current.port())
+        {
+            return Ok(self);
+        }
+        Ok(self.with_target(fallback)?)
     }
 
     fn target(&self) -> UrlResult<&str> {

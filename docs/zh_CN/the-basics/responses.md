@@ -138,6 +138,10 @@ fn register() -> Result<(), RoutingError> {
 
 用 `withFragment("details")` 替换当前片段，或用 `withoutFragment()` 移除片段。两者都保留 URL 路径和查询参数，并同步更新 `Location` 响应头与 HTML 跳转链接。方法返回 `Result`，以便处理无效的重定向目标。
 
+### 同源重定向 {#same-origin-redirects}
+
+调用 `redirect.enforceSameOrigin(request, "/fallback", true, true)`，将目标与当前请求比对。主机必须一致，两个布尔参数分别控制是否校验协议和端口。比较采用请求生效的实际来源，包含可信代理配置，并将显式默认端口和省略端口视为相同。相对目标没有主机，因此会使用回退地址。请传入受信任的回退地址，例如固定的应用路径。
+
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
 在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器可直接返回 `RedirectResponse`。状态码、响应头和会话更新沿用正常的 HTTP 响应流程。

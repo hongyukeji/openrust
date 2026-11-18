@@ -138,6 +138,10 @@ fn register() -> Result<(), RoutingError> {
 
 呼叫 `withFragment("details")` 取代目前的片段，或用 `withoutFragment()` 移除片段。兩者皆保留 URL 路徑與查詢參數，並同步更新 `Location` 回應標頭與 HTML 跳轉連結。方法回傳 `Result`，以便處理無效的重新導向目標。
 
+### 同源重新導向 {#same-origin-redirects}
+
+呼叫 `redirect.enforceSameOrigin(request, "/fallback", true, true)`，將目標與目前的請求比對。主機必須相同，兩個布林參數分別控制是否驗證協定與連接埠。比對採用請求生效的實際來源，包含受信任的代理設定，並將明確指定的預設連接埠與省略連接埠視為相同。相對目標沒有主機，因此會使用備用網址。請傳入受信任的備用網址，例如固定的應用程式路徑。
+
 ### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
 
 在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式可以直接傳回 `RedirectResponse`。狀態碼、回應標頭及工作階段更新沿用一般的 HTTP 回應流程。
