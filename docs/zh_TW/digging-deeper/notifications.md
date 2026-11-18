@@ -200,6 +200,58 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 
 佇列保存號碼、訊息和選用的用戶端名稱。Worker 從應用程式設定讀取憑證，每次任務嘗試只發出一次 HTTP 請求。Vonage API 接收成功與手機送達是兩個獨立狀態。
 
+## Slack 通知 {#slack-notifications}
+
+用 `SLACK_BOT_USER_OAUTH_TOKEN` 設定 Slack 應用程式的 Bot 權杖，用 `SLACK_BOT_USER_DEFAULT_CHANNEL` 設定預設頻道。選擇 `slack` 通知管道並實作 `to_slack`，即可透過 Bot API 傳送。
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult, slack::SlackMessage,
+};
+
+struct InvoicePaid;
+
+impl Notification for InvoicePaid {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        Ok(Some(SlackMessage::new()
+            .text("Invoice paid")
+            .headerBlock("Invoice paid")
+            .sectionBlock(|block| {
+                block.field("*Amount:* 42").markdown();
+            })
+            .actionsBlock(|block| {
+                block.button("Acknowledge payment").primary().confirm(
+                    "Record this acknowledgement?",
+                    |dialog| {
+                        dialog.confirm("Continue").deny("Cancel");
+                    },
+                );
+            })))
+    }
+}
+```
+
+用 `usingBlockKitTemplate` 追加 Slack JSON 建構器匯出的區塊，用 `toBlockKitBuilderUrl` 檢視酬載。按鈕與確認對話框描述 Slack 中顯示的互動。應用程式須註冊 Slack 互動 URL 並處理回呼。
+
+明確指定的 `NotificationRoute::Slack` 頻道優先於訊息的 `to` 頻道。兩者都未指定時，使用設定中的預設頻道。外部工作區可用 `SlackRoute::make` 傳入頻道和 Bot 權杖。外部工作區權杖加入佇列時透過 `APP_KEY` 加密，預設工作區權杖在投遞時從設定讀取。
+
+```rust
+use openrust::{
+    notifications::NotificationRoute,
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
+    .notify(&InvoicePaid)
+    .await?;
+```
+
+Bot API 使用 `chat.postMessage`。本機協定驗收可將回送 HTTP URL 設為 `services.slack.notifications.endpoint`。在 Slack 內確認送達需要安裝應用程式、授予 Bot 權限並使用已授權的工作區。
+
 ## 測試通知
 
 在測試應用程式中呼叫 `Notifications::fake()` 記錄通知分派，管道和佇列不會執行。用 `assertSentToOnce` 斷言模型收件人，用 `assertSentOnDemandOnce` 斷言隨選收件人。比對斷言可檢查管道、語言、路由以及 `Notification::fake_data` 提供的資料。

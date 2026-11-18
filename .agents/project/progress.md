@@ -3288,3 +3288,7 @@ Redis Cluster 的 `flushStale()` 延续固定 Laravel 的所选标签修剪机�
 ## 2026-11-18 06-06 Vonage 短信通知渠道
 
 依固定 Laravel 接通 Vonage 渠道、消息和应用配置，验证真实 HTTP 协议、独立 Worker 与凭据轮换，闭合三语 SMS Notifications。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、24 项通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#Vonage 短信通知渠道)
+
+## 2026-11-18 06-06 Slack Bot API 通知与 Block Kit
+
+依固定 Laravel 接通 Slack Bot API、Block Kit 和外部工作区路由，验收协议、队列加密与重试，更新三语 Slack Notifications。真实 HTTP、MySQL 8.4.13 与 Redis 8.10.3 独立 Artisan Worker、25 项通知和 9 项磁盘回归、格式、严格 Clippy、三语示例及 18 项浏览器检查通过。 [验收](audits/06-06/README.md#Slack Bot API 通知与 Block Kit)

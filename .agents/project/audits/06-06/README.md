@@ -239,3 +239,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 在隔离基线 `48677efdb` 上，通过真实 HTTP 及本地 Vonage 协议服务验证默认／指定客户端凭据、表单、普通／Unicode、缺失／无效路由、非成功业务状态、无结果响应和重定向。真实 MySQL 8.4.13 与 Redis 8.10.3 的独立 Artisan Worker 使用入队后轮换的凭据。MySQL 首次尝试保留任务，重试成功，失败表为空。Mailpit 运行既有邮件回归。运营商送达及真实 Vonage 账户验证待授权测试号码和账户。
 - `mail_notifications` 24 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、实际 Artisan `config:show vonage` 和 `inspire`、三语相同示例、站点构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批核对 Slack Bot API 与 Block Kit，使用现有 HTTP 和队列验收入口。
 - 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.94 GB（3.67 GiB），清理后可用 90.32 GB（84.12 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-vonage-notifications.Kf3i1hLI`。
+
+## Slack Bot API 通知与 Block Kit
+
+- 对照固定 Laravel v13.40.0 的 Slack Notifications 及 Laravel Slack v3.8.0。旧版 `6d1a81924` 的框架无 Slack 通知，复用主线的 HTTP 客户端、通知路由、独立 Worker 和加密服务。`to_slack` 与其他 Rust 通知契约一致。 [固定 Laravel Slack](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/notifications.md#slack-notifications) · [SlackChannel v3.8.0](https://github.com/laravel/slack-notification-channel/blob/v3.8.0/src/Slack/SlackChannel.php) · [Slack Bot API](https://docs.slack.dev/reference/methods/chat.postMessage/)
+- 实现 Bearer JSON `chat.postMessage`、显式路由／消息／配置默认频道的优先级、Bot 标识和线程选项，以及原始 Block Kit、消息和字段构建、按钮与确认框。JSON 导入追加区块，Rust 用 `toArray` 和 `toBlockKitBuilderUrl` 返回可检查值。应用可通过原始区块或组件 JSON 处理高级选择器参数。外部工作区调用由 `SlackRoute::make` 传入令牌，队列以 `APP_KEY` 加密该值。默认令牌在 Worker 投递时从配置读取。
+- 在隔离基线 `58f5e6e41` 上，通过真实 HTTP 和本地 Slack 协议服务验证三种频道来源、Block Kit、确认框、缺失结果、业务拒绝与重定向。MySQL 8.4.13 实测外部工作区令牌入队为密文，独立 Artisan Worker 解密投递并在供应商拒绝后重试成功。Redis 8.10.3 独立 Worker 使用轮换后的默认令牌。Slack 安装、OAuth 授权、实际工作区送达和应用交互回调由获得授权的 Slack 应用验证。
+- `mail_notifications` 25 项通过、2 项专用夹具忽略，`filesystem_local` 9 项通过。Rust 1.94.0 全仓格式及严格 Clippy、实际 Artisan `config:show services.slack.notifications` 和 `inspire`、三语相同示例、站点构建及双路径 18 项浏览器检查通过。核心账本维持 66/66。下一批核对固定 Slack 包的旧 Webhook 路由以及 Block Kit 的剩余可观察边界。
+- 本批隔离编译与文档产物已回收。清理前后项目卷可用空间净增 3.95 GB（3.68 GiB），清理后可用 90.28 GB（84.08 GiB）。提交前周额度剩余 29%，第二窗口无读数。验收日志保留于 `/private/tmp/openrust-slack-notifications.6070Nedk`。

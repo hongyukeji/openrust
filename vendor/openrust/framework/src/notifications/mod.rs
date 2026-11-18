@@ -13,6 +13,7 @@ mod notification_fake;
 mod notification_sender;
 mod notification_service_provider;
 mod send_queued_notifications;
+pub mod slack;
 
 use std::{error::Error, future::Future, pin::Pin};
 
@@ -55,6 +56,7 @@ pub enum NotificationRoute {
     Database(DatabaseRoute),
     Broadcast(Vec<crate::broadcasting::BroadcastChannel>),
     Vonage(String),
+    Slack(slack::SlackRoute),
     Custom(serde_json::Value),
 }
 

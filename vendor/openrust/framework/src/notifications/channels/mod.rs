@@ -3,6 +3,7 @@
 mod broadcast_channel;
 mod database_channel;
 mod mail_channel;
+mod slack_channel;
 mod vonage_sms_channel;
 
 use super::{Notifiable, Notification, NotificationFuture, NotificationResult};
@@ -10,6 +11,7 @@ use super::{Notifiable, Notification, NotificationFuture, NotificationResult};
 pub use broadcast_channel::{BroadcastChannel, BroadcastNotificationCreated};
 pub use database_channel::DatabaseChannel;
 pub use mail_channel::MailChannel;
+pub use slack_channel::SlackChannel;
 pub use vonage_sms_channel::VonageSmsChannel;
 
 /// The result of a channel delivery, available to notification events.
@@ -49,4 +51,22 @@ pub trait Channel: Send + Sync {
             ))
         })
     }
+}
+
+fn secure_endpoint(endpoint: &str) -> Result<bool, url::ParseError> {
+    let url = url::Url::parse(endpoint)?;
+    let loopback = match url.host() {
+        Some(url::Host::Ipv4(ip)) => ip.is_loopback(),
+        Some(url::Host::Ipv6(ip)) => ip.is_loopback(),
+        Some(url::Host::Domain(name)) => name == "localhost",
+        None => false,
+    };
+    Ok(
+        (url.scheme() == "https" || (url.scheme() == "http" && loopback))
+            && url.host().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none(),
+    )
 }

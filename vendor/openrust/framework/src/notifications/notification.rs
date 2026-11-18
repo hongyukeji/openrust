@@ -8,6 +8,7 @@ use crate::{
 use super::{
     Notifiable, NotificationResult,
     messages::{BroadcastMessage, DatabaseMessage, MailDelivery, VonageMessage},
+    slack::SlackMessage,
 };
 
 /// The registered worker decision and its serializable context.
@@ -26,6 +27,10 @@ pub trait Notification: Send + Sync {
     }
 
     fn to_vonage(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
+        Ok(None)
+    }
+
+    fn to_slack(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
         Ok(None)
     }
 

@@ -200,6 +200,58 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 
 队列保存号码、消息和可选的客户端名称。Worker 从应用配置读取凭据，每次任务尝试只发起一次 HTTP 请求。Vonage API 接收成功和手机送达是两个独立状态。
 
+## Slack 通知 {#slack-notifications}
+
+用 `SLACK_BOT_USER_OAUTH_TOKEN` 配置 Slack 应用的 Bot 令牌，用 `SLACK_BOT_USER_DEFAULT_CHANNEL` 配置默认频道。选择 `slack` 通知渠道并实现 `to_slack`，即可通过 Bot API 发送。
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult, slack::SlackMessage,
+};
+
+struct InvoicePaid;
+
+impl Notification for InvoicePaid {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        Ok(Some(SlackMessage::new()
+            .text("Invoice paid")
+            .headerBlock("Invoice paid")
+            .sectionBlock(|block| {
+                block.field("*Amount:* 42").markdown();
+            })
+            .actionsBlock(|block| {
+                block.button("Acknowledge payment").primary().confirm(
+                    "Record this acknowledgement?",
+                    |dialog| {
+                        dialog.confirm("Continue").deny("Cancel");
+                    },
+                );
+            })))
+    }
+}
+```
+
+用 `usingBlockKitTemplate` 追加 Slack JSON 构建器导出的区块，用 `toBlockKitBuilderUrl` 查看载荷。按钮和确认对话框描述 Slack 中显示的交互。应用需要注册 Slack 交互 URL 并处理回调。
+
+显式 `NotificationRoute::Slack` 的频道优先于消息的 `to` 频道。二者都未指定时使用配置中的默认频道。外部工作区可用 `SlackRoute::make` 传入频道和 Bot 令牌。外部工作区令牌入队时通过 `APP_KEY` 加密，默认工作区令牌在投递时从配置读取。
+
+```rust
+use openrust::{
+    notifications::NotificationRoute,
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
+    .notify(&InvoicePaid)
+    .await?;
+```
+
+Bot API 使用 `chat.postMessage`。本地协议验收可将回环 HTTP URL 配置为 `services.slack.notifications.endpoint`。在 Slack 内确认送达需要安装应用、授予 Bot 权限并使用获授权的工作区。
+
 ## 测试通知
 
 在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。

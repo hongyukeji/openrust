@@ -200,6 +200,58 @@ Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into())
 
 The queue stores the number, message, and optional client name. The Worker reads credentials from its application configuration and makes one HTTP attempt per job attempt. Vonage API acceptance is distinct from delivery to the handset.
 
+## Slack notifications {#slack-notifications}
+
+Configure the Slack app’s bot token with `SLACK_BOT_USER_OAUTH_TOKEN` and a fallback channel with `SLACK_BOT_USER_DEFAULT_CHANNEL`. Select the `slack` channel and implement `to_slack` to send through the Bot API.
+
+```rust
+use openrust::notifications::{
+    Notifiable, Notification, NotificationResult, slack::SlackMessage,
+};
+
+struct InvoicePaid;
+
+impl Notification for InvoicePaid {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        Ok(Some(SlackMessage::new()
+            .text("Invoice paid")
+            .headerBlock("Invoice paid")
+            .sectionBlock(|block| {
+                block.field("*Amount:* 42").markdown();
+            })
+            .actionsBlock(|block| {
+                block.button("Acknowledge payment").primary().confirm(
+                    "Record this acknowledgement?",
+                    |dialog| {
+                        dialog.confirm("Continue").deny("Cancel");
+                    },
+                );
+            })))
+    }
+}
+```
+
+Use `usingBlockKitTemplate` to append blocks from Slack’s JSON builder and `toBlockKitBuilderUrl` to inspect a payload. Interactive buttons and confirmation dialogs describe what Slack displays. Register a Slack interactivity URL and handle the incoming actions in your application.
+
+An explicit `NotificationRoute::Slack` channel overrides the message’s `to` channel. The configured default applies when both are absent. For an external workspace, pass the channel and its bot token with `SlackRoute::make`. Queued external workspace tokens are encrypted with `APP_KEY`. Default workspace tokens are read from configuration at delivery.
+
+```rust
+use openrust::{
+    notifications::NotificationRoute,
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
+    .notify(&InvoicePaid)
+    .await?;
+```
+
+The Bot API uses `chat.postMessage`. For a local protocol test, configure `services.slack.notifications.endpoint` with a loopback HTTP URL. Confirming delivery in Slack requires an installed app, its bot permissions, and an authorized workspace.
+
 ## Testing notifications
 
 Install `Notifications::fake()` in the test application to record dispatches without invoking channels or pushing queue jobs. Use `assertSentToOnce` for a model target and `assertSentOnDemandOnce` for an on-demand target. Matching assertions receive a record with the selected channels, locale, routes and any data supplied through `Notification::fake_data`.

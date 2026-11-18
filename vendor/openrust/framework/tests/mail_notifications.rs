@@ -41,6 +41,7 @@ use openrust::{
         NotificationQueueGuard, NotificationResult, NotificationRoute, NotificationTarget,
         SendQueuedNotifications,
         messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage, VonageMessage},
+        slack::{SlackMessage, SlackRoute},
     },
     queue::{DispatchOptions, JobOptions, Payload, QueueManager, middleware::Skip},
     support::{
@@ -922,6 +923,97 @@ fn vonage_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 
+struct SlackNotice {
+    mode: String,
+    connection: Option<&'static str>,
+}
+
+impl Notice for SlackNotice {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["slack".into()])
+    }
+
+    fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        if self.mode == "invalid" {
+            return SlackMessage::new().usingBlockKitTemplate("[]").map(Some);
+        }
+        let mut message = SlackMessage::new().text(&self.mode);
+        if self.mode == "blocks" {
+            message = message
+                .to("ignored-message-channel")
+                .headerBlock("Invoice Paid")
+                .contextBlock(|block| {
+                    block.text("Customer 42");
+                })
+                .sectionBlock(|block| {
+                    block.text("Payment received");
+                    block.field("*Amount:* 42").markdown();
+                })
+                .dividerBlock()
+                .actionsBlock(|block| {
+                    block.button("Acknowledge Invoice").primary().confirm(
+                        "Confirm payment?",
+                        |dialog| {
+                            dialog.confirm("Continue").deny("Cancel");
+                        },
+                    );
+                })
+                .usingBlockKitTemplate(r#"{"blocks":[{"type":"divider"}]}"#)?
+                .threadTimestamp("1710000000.001")
+                .broadcastReply(false)
+                .unfurlLinks(false);
+            let preview = message.toBlockKitBuilderUrl()?;
+            let (_, fragment) = preview.split_once('#').unwrap();
+            let json: Json = serde_json::from_str(
+                &percent_encoding::percent_decode_str(fragment)
+                    .decode_utf8()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert!(json.get("channel").is_none() && json.get("text").is_none());
+            assert_eq!(json["blocks"].as_array().unwrap().len(), 6);
+        } else if self.mode == "message" {
+            message = message.to("message-channel");
+        }
+        Ok(Some(message))
+    }
+
+    fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
+        self.connection.map(|connection| DispatchOptions {
+            connection: Some(connection.into()),
+            queue: Some("slack-test".into()),
+            ..Default::default()
+        })
+    }
+}
+
+fn slack_from_http(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let mode = request.route("mode").unwrap().to_owned();
+    Box::pin(async move {
+        let notice = SlackNotice {
+            mode,
+            connection: None,
+        };
+        let result = if notice.mode == "blocks" {
+            Notification::route("slack", NotificationRoute::Slack("override-channel".into()))
+                .unwrap()
+                .notifyNow(&notice, None)
+                .await
+        } else {
+            Notification::sendNow(
+                &[&openrust::notifications::AnonymousNotifiable::default()],
+                &notice,
+                None,
+            )
+            .await
+        };
+        result.map_err(|error| HttpError::Internal {
+            source: Box::new(error),
+        })?;
+        Response::json(http::StatusCode::OK, json!({"processed":true}))
+    })
+}
+
 fn notification_preview_from_http(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -1307,6 +1399,7 @@ fn app_builder(root: &Path) -> ApplicationBuilder {
             Route::get("/notification-format", notification_format_from_http)?;
             Route::get("/notification-envelope", notification_envelope_from_http)?;
             Route::get("/vonage/{mode}", vonage_from_http)?;
+            Route::get("/slack/{mode}", slack_from_http)?;
             Route::get(
                 "/notification-preview/{kind}",
                 notification_preview_from_http,
@@ -3491,6 +3584,189 @@ async fn artisan_worker_uses_real_smtp_mysql_and_redis() {
     if let (Some(redis), Some(mysql), Some(smtp)) = (redis, mysql, smtp) {
         queued(Some(redis), Some(&mysql), Some(smtp)).await;
     }
+}
+
+#[tokio::test]
+async fn slack_bot_api_delivers_blocks_and_keeps_workspace_tokens_out_of_queue_plaintext() {
+    use axum::response::IntoResponse as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let (Some(mysql), Ok(redis)) = (delivery_mysql(), std::env::var("OPENRUST_TEST_REDIS_PORT"))
+    else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let records = Arc::new(Mutex::new(Vec::new()));
+    let fail_once = Arc::new(AtomicBool::new(true));
+    let endpoint = axum::Router::new().route(
+        "/api/{method}",
+        axum::routing::post({
+            let records = Arc::clone(&records);
+            move |axum::extract::Path(method): axum::extract::Path<String>,
+                  headers: http::HeaderMap,
+                  body: axum::body::Bytes| {
+                let records = Arc::clone(&records);
+                let fail_once = Arc::clone(&fail_once);
+                async move {
+                    assert_eq!(method, "chat.postMessage");
+                    assert_eq!(headers[http::header::CONTENT_TYPE], "application/json");
+                    let auth = headers[http::header::AUTHORIZATION]
+                        .to_str()
+                        .unwrap()
+                        .to_owned();
+                    let payload: Json = serde_json::from_slice(&body).unwrap();
+                    let text = payload["text"].as_str().unwrap().to_owned();
+                    records.lock().unwrap().push((auth, payload));
+                    if text == "redirect" {
+                        return axum::response::Redirect::temporary("/api/unexpected")
+                            .into_response();
+                    }
+                    let body = if text == "reject"
+                        || (text == "database" && fail_once.swap(false, Ordering::Relaxed))
+                    {
+                        json!({"ok":false,"error":"fixture provider detail"})
+                    } else if text == "malformed" {
+                        json!({"unexpected":true})
+                    } else {
+                        json!({"ok":true,"channel":"C123","ts":"1710000000.001"})
+                    };
+                    (
+                        [(http::header::CONTENT_TYPE, "application/json")],
+                        body.to_string(),
+                    )
+                        .into_response()
+                }
+            }
+        }),
+    );
+    let socket = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = socket.local_addr().unwrap();
+    let provider = tokio::spawn(async move { axum::serve(socket, endpoint).await });
+    let root = fixture(Some(redis.parse().unwrap()), Some(&mysql), None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["app"]["key"] = json!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    config["services"] = json!({"slack":{"notifications":{
+        "bot_user_oauth_token":"fixture-default-token",
+        "channel":"configured-channel",
+        "endpoint":format!("http://{address}/api/chat.postMessage")
+    }}});
+    std::fs::write(&config_path, config.to_string()).unwrap();
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "slack").await;
+    for (mode, status) in [
+        ("default", http::StatusCode::OK),
+        ("message", http::StatusCode::OK),
+        ("blocks", http::StatusCode::OK),
+        ("invalid", http::StatusCode::INTERNAL_SERVER_ERROR),
+        ("reject", http::StatusCode::INTERNAL_SERVER_ERROR),
+        ("malformed", http::StatusCode::INTERNAL_SERVER_ERROR),
+        ("redirect", http::StatusCode::INTERNAL_SERVER_ERROR),
+    ] {
+        let response = reqwest::get(format!("{url}/{mode}")).await.unwrap();
+        assert_eq!(response.status(), status, "{mode}");
+        assert!(
+            !response
+                .text()
+                .await
+                .unwrap()
+                .contains("fixture provider detail")
+        );
+    }
+    server.abort();
+    assert_eq!(records.lock().unwrap().len(), 6);
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    let db = setup(&application).await;
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                for (connection, token) in [
+                    ("database", Some("workspace-token".into())),
+                    ("redis", None),
+                ] {
+                    let route = SlackRoute::make(Some(format!("{connection}-channel")), token);
+                    Notification::route("slack", NotificationRoute::Slack(route))
+                        .unwrap()
+                        .notify(&SlackNotice {
+                            mode: connection.into(),
+                            connection: Some(connection),
+                        })
+                        .await
+                        .unwrap();
+                }
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let Value::Text(payload) = db.table("jobs").value("payload").await.unwrap() else {
+        panic!("expected a JSON queue payload");
+    };
+    assert!(payload.contains("encrypted_token") && !payload.contains("workspace-token"));
+    assert_eq!(records.lock().unwrap().len(), 6);
+    config["services"]["slack"]["notifications"]["bot_user_oauth_token"] =
+        json!("fixture-rotated-token");
+    std::fs::write(&config_path, config.to_string()).unwrap();
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=slack-test",
+            "--once",
+            "--tries=2",
+        ],
+    )
+    .await;
+    assert_eq!(
+        db.table("jobs").value("attempts").await.unwrap(),
+        Value::Unsigned(1)
+    );
+    assert_eq!(records.lock().unwrap().len(), 7);
+    for connection in ["database", "redis"] {
+        artisan(
+            &root.0,
+            &[
+                "queue:work",
+                connection,
+                "--queue=slack-test",
+                "--stop-when-empty",
+                "--sleep=0",
+                "--tries=2",
+            ],
+        )
+        .await;
+    }
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    drop_delivery_tables(&db).await;
+    provider.abort();
+    let records = records.lock().unwrap();
+    assert_eq!(records.len(), 9);
+    assert_eq!(records[0].0, "Bearer fixture-default-token");
+    assert_eq!(records[0].1["channel"], "configured-channel");
+    assert_eq!(records[1].1["channel"], "message-channel");
+    let block_message = &records[2].1;
+    assert_eq!(block_message["channel"], "override-channel");
+    assert_eq!(block_message["blocks"][0]["type"], "header");
+    assert_eq!(block_message["blocks"][2]["fields"][0]["type"], "mrkdwn");
+    let button = &block_message["blocks"][4]["elements"][0];
+    assert_eq!(button["action_id"], "button_acknowledge_invoice");
+    assert_eq!(button["style"], "primary");
+    assert_eq!(button["confirm"]["confirm"]["text"], "Continue");
+    assert_eq!(block_message["thread_ts"], "1710000000.001");
+    assert_eq!(block_message["reply_broadcast"], false);
+    assert_eq!(block_message["unfurl_links"], false);
+    assert!(
+        records[6..8]
+            .iter()
+            .all(|(token, message)| token == "Bearer workspace-token"
+                && message["channel"] == "database-channel")
+    );
+    assert_eq!(records[8].0, "Bearer fixture-rotated-token");
+    assert_eq!(records[8].1["channel"], "redis-channel");
 }
 
 #[tokio::test]

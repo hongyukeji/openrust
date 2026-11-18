@@ -16,6 +16,7 @@ use super::{
     delivery,
     messages::{BroadcastMessage, DatabaseMessage, MailDelivery, VonageMessage},
     new_id,
+    slack::SlackMessage,
 };
 
 /// The lifecycle event of a delivery to one channel.
@@ -323,6 +324,9 @@ impl Notification for Prepared<'_> {
     }
     fn to_vonage(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
         self.inner.to_vonage(recipient)
+    }
+    fn to_slack(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
+        self.inner.to_slack(recipient)
     }
     fn to_database(
         &self,

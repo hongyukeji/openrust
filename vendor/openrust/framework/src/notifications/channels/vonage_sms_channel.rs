@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use url::{Host, Url};
 
 use crate::{
     notifications::{
@@ -12,7 +11,7 @@ use crate::{
     support::facades::{Config, Http},
 };
 
-use super::{Channel, ChannelResponse};
+use super::{Channel, ChannelResponse, secure_endpoint};
 
 const ENDPOINT: &str = "https://rest.nexmo.com/sms/json";
 
@@ -193,19 +192,7 @@ impl Channel for VonageSmsChannel {
 }
 
 fn validate_endpoint(endpoint: &str) -> NotificationResult<()> {
-    let url = Url::parse(endpoint).map_err(|_| delivery("The Vonage SMS endpoint is invalid."))?;
-    let loopback = match url.host() {
-        Some(Host::Ipv4(ip)) => ip.is_loopback(),
-        Some(Host::Ipv6(ip)) => ip.is_loopback(),
-        Some(Host::Domain(name)) => name == "localhost",
-        None => false,
-    };
-    if !(url.scheme() == "https" || (url.scheme() == "http" && loopback))
-        || !url.username().is_empty()
-        || url.password().is_some()
-        || url.query().is_some()
-        || url.fragment().is_some()
-    {
+    if !secure_endpoint(endpoint).map_err(|_| delivery("The Vonage SMS endpoint is invalid."))? {
         return Err(delivery(
             "The Vonage SMS endpoint must use HTTPS or loopback HTTP.",
         ));

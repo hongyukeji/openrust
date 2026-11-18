@@ -11,7 +11,9 @@ use crate::{
 use super::{
     Notifiable, Notification, NotificationError, NotificationFake, NotificationFuture,
     NotificationQueueGuard, NotificationResult, NotificationSender,
-    channels::{BroadcastChannel, Channel, DatabaseChannel, MailChannel, VonageSmsChannel},
+    channels::{
+        BroadcastChannel, Channel, DatabaseChannel, MailChannel, SlackChannel, VonageSmsChannel,
+    },
 };
 
 type GuardHandler = dyn for<'a> Fn(&'a serde_json::Value) -> NotificationFuture<'a, NotificationResult<bool>>
@@ -45,6 +47,7 @@ impl Default for ChannelManager {
                         "vonage".into(),
                         Arc::new(VonageSmsChannel) as Arc<dyn Channel>,
                     ),
+                    ("slack".into(), Arc::new(SlackChannel) as Arc<dyn Channel>),
                 ]
                 .into(),
             ),
