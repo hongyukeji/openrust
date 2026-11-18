@@ -21,7 +21,7 @@ OpenRust applications run `openrust_package_discovery::generate()` from `build.r
 
 Add `dont-discover = ["example-package"]` under the application’s `[package.metadata.openrust.discovery]` with `version = 1`. Use `["*"]` to opt out of all discovery. A package can also declare package names to exclude. A manually registered provider still runs when its package is excluded.
 
-Run `./artisan package:discover` to rebuild `bootstrap/cache/packages.json` from the linked catalog. Run `./artisan clear-compiled` to remove it. The next startup recreates a missing or stale manifest when a package is linked. Rebuild the executable after changing dependencies, features, or exclusions. Set `APP_PACKAGES_CACHE` to choose a different manifest path.
+HTTP and Artisan startup use the linked catalog directly. To inspect the packages linked into a build, run `./artisan package:discover` to list their names and export the catalog to `bootstrap/cache/packages.json`. Set `APP_PACKAGES_CACHE` to choose a different export path. Run `./artisan clear-compiled` to remove the exported file. Rebuild the executable after changing dependencies, features, or exclusions.
 
 ## Resources
 

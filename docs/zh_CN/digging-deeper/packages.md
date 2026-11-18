@@ -21,7 +21,7 @@ OpenRust 应用在 `build.rs` 调用 `openrust_package_discovery::generate()`，
 
 在应用的 `[package.metadata.openrust.discovery]` 下设置 `version = 1` 和 `dont-discover = ["example-package"]`。`["*"]` 禁用全部自动发现。包也可声明需要排除的包名。排除清单中的包仍可显式注册 Provider。
 
-运行 `./artisan package:discover` 可从已链接的清单重建 `bootstrap/cache/packages.json`，运行 `./artisan clear-compiled` 可清除该文件。链接了包时，下次启动会重建缺失或过期的清单。依赖、特性或排除规则变化后需重新编译应用。 用 `APP_PACKAGES_CACHE` 可指定其他清单路径。
+HTTP 和 Artisan 启动时直接使用已链接的清单。要检查当前构建包含哪些包，运行 `./artisan package:discover` 列出包名，并将清单导出到 `bootstrap/cache/packages.json`。用 `APP_PACKAGES_CACHE` 指定其他导出路径。运行 `./artisan clear-compiled` 可清除导出文件。依赖、特性或排除规则变化后需重新编译应用。
 
 ## 资源
 

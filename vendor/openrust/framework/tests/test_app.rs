@@ -745,6 +745,8 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
     })?;
     let cache = app.root().join("bootstrap/cache/packages.json");
     app.get("/discovered").await?.assertOk();
+    assert!(!cache.exists());
+    app.artisan(["package:discover"]).await.assertSuccessful();
     let original = fs::read(&cache)?;
     assert_eq!(
         serde_json::from_slice::<serde_json::Value>(&original)?[0]["name"],
@@ -759,6 +761,8 @@ async fn package_manifest_rebuilds_clears_and_uses_linked_providers()
     assert!(!cache.exists());
     assert!(cache.with_file_name("unrelated.json").is_file());
     app.artisan(["clear-compiled"]).await.assertSuccessful();
+    app.get("/discovered").await?.assertOk();
+    assert!(!cache.exists());
 
     let mut excluded = TestApp::create(|builder| builder.withRouting(Routing::default()))?;
     excluded

@@ -78,19 +78,6 @@ impl PackageManifest {
         Ok(bytes)
     }
 
-    pub(super) fn ensure_cache(self, root: &Path, path: &Path) -> io::Result<()> {
-        validate_parent(root, path)?;
-        let exists = regular_file_exists(path)?;
-        if !exists && self.0.is_empty() {
-            return Ok(());
-        }
-        let contents = self.contents()?;
-        if !exists || fs::read(path)? != contents {
-            write_generated(path, &contents, true)?;
-        }
-        Ok(())
-    }
-
     pub(super) fn rebuild(self, root: &Path, path: &Path) -> io::Result<()> {
         validate_parent(root, path)?;
         regular_file_exists(path)?;

@@ -1,3 +1,6 @@
 [workspace]
 members = ["app", "package"]
 resolver = "3"
+
+[patch.crates-io]
+sqlx-mysql = { path = "../../../../../sqlx-mysql" }

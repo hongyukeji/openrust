@@ -21,7 +21,7 @@ OpenRust 應用程式在 `build.rs` 呼叫 `openrust_package_discovery::generate
 
 在應用程式的 `[package.metadata.openrust.discovery]` 下設定 `version = 1` 和 `dont-discover = ["example-package"]`。`["*"]` 停用所有自動探索。套件也可宣告要排除的套件名稱。排除清單中的套件仍可明確註冊 Provider。
 
-執行 `./artisan package:discover` 可從已連結的清單重建 `bootstrap/cache/packages.json`，執行 `./artisan clear-compiled` 可清除該檔案。連結套件後，下次啟動會重建遺失或過期的清單。相依套件、特性或排除規則變更後需重新編譯應用程式。 用 `APP_PACKAGES_CACHE` 可指定其他清單路徑。
+HTTP 和 Artisan 啟動時直接使用已連結的清單。要檢查目前建置包含哪些套件，執行 `./artisan package:discover` 列出套件名稱，並將清單匯出至 `bootstrap/cache/packages.json`。用 `APP_PACKAGES_CACHE` 指定其他匯出路徑。執行 `./artisan clear-compiled` 可清除匯出檔案。相依套件、特性或排除規則變更後需重新編譯應用程式。
 
 ## 資源
 

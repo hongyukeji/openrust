@@ -108,34 +108,42 @@ def main():
         installed = dict(env, PROBE_RESOURCES=str(assets), PATH="")
         cache = root / "bootstrap/cache/packages.json"
         check_http(binary, root, installed, True)
+        assert not cache.exists()
         assert "Verify the installed package" in artisan(binary, root, installed, "help", "package:probe")
         assert "App title" in artisan(binary, root, installed, "package:probe")
         check_sqlite(binary, root, installed)
+        assert not cache.exists()
+        discover = artisan(binary, root, installed, "package:discover")
+        assert "Discovering packages" in discover and "package-probe" in discover
         expected = json.loads(cache.read_text())
         assert [p["name"] for p in expected] == ["package-probe"]
         assert expected[0]["library"] == "probe_extension"
         assert expected[0]["aliases"] == [["OpenRustProbe", "ProbeProvider"]]
-        discover = artisan(binary, root, installed, "package:discover")
-        assert "Discovering packages" in discover and "package-probe" in discover
         cache.write_text("broken cache")
         check_http(binary, root, installed, True)
+        assert "App title" in artisan(binary, root, installed, "package:probe")
+        assert cache.read_text() == "broken cache"
+        assert "rebuilt" in artisan(binary, root, installed, "package:discover")
         assert json.loads(cache.read_text()) == expected
         assert "cleared" in artisan(binary, root, installed, "clear-compiled")
         assert not cache.exists()
         check_http(binary, root, installed, True)
-        assert json.loads(cache.read_text()) == expected
+        assert "cleared" in artisan(binary, root, installed, "clear-compiled")
+        assert not cache.exists()
         custom = dict(installed, APP_PACKAGES_CACHE="runtime/packages.json")
         custom_cache = root / "runtime/packages.json"
         assert "rebuilt" in artisan(binary, root, custom, "package:discover")
         assert json.loads(custom_cache.read_text()) == expected
         assert "cleared" in artisan(binary, root, custom, "clear-compiled")
-        assert not custom_cache.exists() and cache.is_file()
+        assert not custom_cache.exists()
         check_http(binary, root, custom, True)
-        assert json.loads(custom_cache.read_text()) == expected
+        assert not custom_cache.exists() and not cache.exists()
         for excluded_binary in excluded:
             cache.write_text(json.dumps(expected))
             check_http(excluded_binary, root, installed, False)
             assert "package:probe" not in artisan(excluded_binary, root, installed, "list")
+            assert json.loads(cache.read_text()) == expected
+            assert "rebuilt" in artisan(excluded_binary, root, installed, "package:discover")
             assert json.loads(cache.read_text()) == []
         if mysql_url:
             mysql = dict(installed, PROBE_MYSQL_URL=mysql_url)

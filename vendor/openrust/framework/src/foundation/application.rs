@@ -761,10 +761,6 @@ impl Application {
                 .filter(|path| !path.is_empty())
                 .map_or_else(|| Path::new("bootstrap/cache/packages.json"), Path::new),
         );
-        // The linked catalog also works in deployments with read-only resources.
-        let _ = self
-            .packageManifest()
-            .ensure_cache(&self.shared.basePath, &package_cache);
         let _ = self.shared.package_cache_path.set(package_cache);
         let route_cache_path = self.shared.basePath.join(
             environment
