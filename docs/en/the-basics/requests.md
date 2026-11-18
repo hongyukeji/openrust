@@ -24,6 +24,10 @@ Use `request.allOnly(&["items.1.photo", "name"]).await?` to select paths and ret
 
 Use `request.query(Some("key"))` to read an exact top-level query key. Use `request.input(Some("team.name")).await` for nested input. Pass `None` to retrieve the input bag. JSON and form fields take precedence over query values at the top level. Use `request.json` to read the JSON body alone.
 
+Use `request.post(None).await?` for the body parameter bag or `request.post(Some("name")).await?` for an exact top-level key. On a JSON request this reads the decoded JSON body. Query parameters and multipart file objects use their own bags. An explicit null remains in the full body bag, and a named lookup of that value returns `None`.
+
+Use `request.fluent(Some("user")).await?` to wrap a group of ordinary input as an independent `Fluent` bag. Pass `None` for all ordinary input, or use `fluentOr("user", default)` for a default attribute bag if the field is missing or null. A scalar cannot initialize the bag and returns HTTP 400. Use `fluentOnly(&["user.name", "document"]).await?` for a read-only typed snapshot that retains uploads. Use `get` for paths and `value` for exact top-level keys.
+
 OpenRust preserves the body bytes for subsequent reads after successful collection. The default limit is 8 MiB. Invalid input returns 400, and oversized input returns 413.
 
 ### Request Boundaries {#request-boundaries}

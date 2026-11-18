@@ -169,3 +169,10 @@
 - `only`、`except`、`arrayOnly` 和 `collectOnly` 保留 `RequestValue`，`whenHas` 和 `whenFilled` 的参数为 `Option<RequestValue>`。Rust 用 `Option` 表达是否执行回调和由调用方提供的默认结果。 `filled` 只看普通输入，`whenFilled` 执行后读取合并值。会话闪存继续使用普通 JSON 输入，上传对象留在当前请求。
 - 隔离主线 `a54250862` 的真实 TCP 验证文件专属字段、混合分组回调、通配符、空值、移除字面点键和稀疏数字键。PHP 8.5 执行固定 Laravel 作对照。Array 和 MySQL 8.4.13 复验旧输入闪存及数据库会话。
 - 59 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点及 18 项浏览器检查通过。Docker 卷清单一致。回收本批独立编译和站点产物后，磁盘可用 83.98 GB（78.21 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-request-presence.teIyNf2f`。
+
+## 请求正文参数与 Fluent
+
+- 对照固定 Laravel 的 `InteractsWithInput::post`／`fluent`、`Request::createFromBase` 和 `HttpRequestTest`。复用 openrust-v0.x `6d1a81924` 的顶层正文键读取和 Fluent 缺失／null 回退，当前实现按 Laravel 捕获流程将解码后的 JSON 正文纳入 `post()`，继续复用已缓存的表单、JSON 和标准化输入。 [Laravel 请求读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Concerns/InteractsWithInput.php#L112) · [Laravel 请求测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Http/HttpRequestTest.php) · [Laravel 读取输入值](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/requests.md#retrieving-an-input-value)
+- `fluent()`／`fluentOr()` 读取普通输入，复用既有 JSON `Fluent`。PHP 用 foreach 接收属性并对标量发出警告，Rust 对非法属性形态明确返回 HTTP 400。`fluentOnly()` 用 `Fluent<RequestValue>` 表达带上传对象的只读属性快照。已验证路径读取及独立快照。类型化变更接口和动态属性的路由回退仍需核对。
+- 隔离主线 `b3d6ea494` 上用真实 TCP 验证 PATCH 表单、JSON、multipart、查询独立、显式 null、字面点键、合并后正文、错误 400 和上传对象。PHP 8.5 运行固定 Laravel 三组对照。MySQL 8.4.13 复验 Eloquent `AsFluent` 的持久化及类型转换。
+- 60 项定向回归、实际 Artisan `inspire`、全仓格式、工作区全目标严格 Clippy、三语站点及 18 项浏览器检查通过。Docker 卷清单一致。回收本批独立编译和站点产物后，磁盘可用 83.92 GB（78.15 GiB），提交前周额度剩余 23%，按用户授权继续。日志位于 `/private/tmp/openrust-post-fluent.WnAKsjtQ`。

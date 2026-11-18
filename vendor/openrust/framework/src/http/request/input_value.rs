@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::{
     http::{HttpError, Request, UploadedFile, UploadedFileValue},
-    support::{ArrayKey, Collection, data_path_segments},
+    support::{ArrayKey, Collection, Fluent, data_path_segments},
 };
 
 /// A request field containing a JSON scalar, an ordered array, or a received file.
@@ -162,6 +162,34 @@ impl RequestValue {
     }
 }
 
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's Fluent attribute accessors"
+)]
+impl Fluent<RequestValue> {
+    /// Reads a nested attribute, with the same selectors as request input.
+    pub fn get(&self, key: &str) -> Option<RequestValue> {
+        self.all().data(key)
+    }
+
+    /// Reads a top-level attribute by its exact key.
+    pub fn value(&self, key: &str) -> Option<&RequestValue> {
+        self.all().direct(key)
+    }
+
+    pub fn has(&self, key: &str) -> bool {
+        self.all().get(key).is_some()
+    }
+
+    pub fn isEmpty(&self) -> bool {
+        matches!(self.all(), RequestValue::Array(fields) if fields.is_empty())
+    }
+
+    pub fn isNotEmpty(&self) -> bool {
+        !self.isEmpty()
+    }
+}
+
 impl Request {
     /// Combines normal input and uploaded files, preserving input precedence and key order.
     pub async fn all(&mut self) -> Result<RequestValue, HttpError> {
@@ -244,5 +272,14 @@ impl Request {
             unreachable!("only builds a keyed array");
         };
         Ok(Collection::fromEntries(fields))
+    }
+
+    /// Wraps selected input and uploads in an independent typed Fluent bag.
+    #[allow(
+        non_snake_case,
+        reason = "Typed form of Laravel's fluent with field selection"
+    )]
+    pub async fn fluentOnly(&mut self, keys: &[&str]) -> Result<Fluent<RequestValue>, HttpError> {
+        Ok(Fluent::from_attributes(self.only(keys).await?))
     }
 }

@@ -4,8 +4,8 @@ use serde_json::{Map, Value};
 
 use crate::http::{Body, HttpError, Method, Request, UploadedFile, UploadedFileValue};
 use crate::support::{
-    Arr, ArrayKey, BackedEnum, Collection, EnumBacking as _, InputDate, Stringable, calendar,
-    data_get, facades::Config, frozen_utc_now, input_scalars,
+    Arr, ArrayKey, BackedEnum, Collection, EnumBacking as _, Fluent, InputDate, Stringable,
+    calendar, data_get, facades::Config, frozen_utc_now, input_scalars,
 };
 
 use super::{query, variables::VariableBag};
@@ -152,6 +152,50 @@ impl Request {
             Ok(lookup(fields, &segments))
         } else {
             Ok(lookup(&query, &segments))
+        }
+    }
+
+    /// Reads the body parameter bag or an exact top-level key without query fallback.
+    pub async fn post(&mut self, key: Option<&str>) -> Result<Option<Value>, HttpError> {
+        let source = match self.input_source()? {
+            InputSource::Json => InputSource::Json,
+            _ => InputSource::Form,
+        };
+        let body = self.source_values(source).await?;
+        Ok(match key {
+            None => Some(body),
+            Some(key) => child(body, key).filter(|value| !value.is_null()),
+        }
+        .cloned())
+    }
+
+    /// Wraps ordinary input or one nested group in an independent Fluent bag.
+    pub async fn fluent(&mut self, key: Option<&str>) -> Result<Fluent, HttpError> {
+        self.fluent_value(key, None).await
+    }
+
+    /// Uses default attributes for an absent or null input value.
+    #[allow(
+        non_snake_case,
+        reason = "Expresses the default argument of Laravel's fluent"
+    )]
+    pub async fn fluentOr(&mut self, key: &str, default: Value) -> Result<Fluent, HttpError> {
+        self.fluent_value(Some(key), Some(default)).await
+    }
+
+    async fn fluent_value(
+        &mut self,
+        key: Option<&str>,
+        default: Option<Value>,
+    ) -> Result<Fluent, HttpError> {
+        match self
+            .input(key)
+            .await?
+            .filter(|value| !value.is_null())
+            .or(default)
+        {
+            Some(value) => Fluent::make(value).map_err(|_| HttpError::InvalidRequest),
+            None => Ok(Fluent::default()),
         }
     }
 

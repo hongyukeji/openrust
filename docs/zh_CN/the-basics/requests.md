@@ -24,6 +24,10 @@
 
 用 `request.query(Some("key"))` 读取精确的顶层查询键。用 `request.input(Some("team.name")).await` 读取嵌套输入，传入 `None` 可读取整组输入。JSON 和表单的顶层字段优先于查询参数。只读取 JSON 正文时使用 `request.json`。
 
+用 `request.post(None).await?` 读取正文参数集合，或用 `request.post(Some("name")).await?` 读取精确的顶层键。JSON 请求会读取解码后的正文。查询参数和 multipart 上传对象各自通过独立集合读取。显式 null 在完整集合中保留，按名称读取该值时返回 `None`。
+
+用 `request.fluent(Some("user")).await?` 将一组普通输入包装为独立的 `Fluent` 属性集合。传入 `None` 可包装全部普通输入，字段缺失或为 null 时可用 `fluentOr("user", default)` 提供默认属性集合。标量无法构造属性集合，返回 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 获取保留上传对象的只读类型化快照。用 `get` 读取路径，用 `value` 读取精确的顶层键。
+
 OpenRust 成功读取正文后保留原始字节，供后续读取。默认上限为 8 MiB。输入无效返回 400，超量返回 413。
 
 ### 请求边界 {#request-boundaries}

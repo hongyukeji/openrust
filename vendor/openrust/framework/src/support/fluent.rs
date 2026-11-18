@@ -8,7 +8,7 @@ use super::data;
 /// Ordered attributes with Laravel-style dot-path access.
 #[derive(Clone, PartialEq, Serialize)]
 #[serde(transparent)]
-pub struct Fluent(Value);
+pub struct Fluent<T = Value>(T);
 
 impl Default for Fluent {
     fn default() -> Self {
@@ -16,9 +16,27 @@ impl Default for Fluent {
     }
 }
 
-impl fmt::Debug for Fluent {
+impl<T> fmt::Debug for Fluent<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.debug_struct("Fluent").finish_non_exhaustive()
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Fluent API")]
+impl<T> Fluent<T> {
+    pub(crate) fn from_attributes(attributes: T) -> Self {
+        Self(attributes)
+    }
+
+    pub fn all(&self) -> &T {
+        &self.0
+    }
+
+    pub fn toArray(&self) -> T
+    where
+        T: Clone,
+    {
+        self.0.clone()
     }
 }
 
@@ -66,14 +84,6 @@ impl Fluent {
             Some(value @ (Value::Array(_) | Value::Object(_))) => Self(value),
             Some(value) => Self(Value::Array(vec![value])),
         }
-    }
-
-    pub fn all(&self) -> &Value {
-        &self.0
-    }
-
-    pub fn toArray(&self) -> Value {
-        self.0.clone()
     }
 
     pub fn toJson(&self) -> serde_json::Result<String> {

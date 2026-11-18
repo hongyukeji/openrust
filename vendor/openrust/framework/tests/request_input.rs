@@ -166,6 +166,41 @@ fn all_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     })
 }
 
+fn body_input(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        if request.query(Some("scalar"))?.is_some() {
+            request.fluent(Some("user.name")).await?;
+        }
+        let post = request.post(None).await?;
+        let exact = request.post(Some("user.name")).await?;
+        let nullable = request.post(Some("nullable")).await?;
+        let post_query = request.post(Some("query")).await?;
+        let mut user = request.fluent(Some("user")).await?;
+        user.set("local", json!(true)).unwrap();
+        let fallback = request
+            .fluentOr("nullable", json!({"fallback": true}))
+            .await?;
+        let missing = request.fluent(Some("missing")).await?;
+        let all = request.fluent(None).await?;
+        let fields = request
+            .fluentOnly(&["user.name", "document", "missing"])
+            .await?;
+        let attachment = fields.get("document");
+        request.merge(json!({"user.name":"updated"})).await?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "post": post, "exact": exact, "post_null_is_absent": nullable.is_none(), "post_query": post_query,
+                "fluent_user": user, "fallback": fallback, "missing_is_empty": missing.isEmpty(),
+                "fluent_all": all, "fluent_selected": visible_input(fields.all()),
+                "attachment": attachment.as_ref().map(visible_input),
+                "has_typed_user": fields.has("user.name"), "no_document_in_post": request.post(Some("document")).await?.is_none(),
+                "updated": request.post(Some("user")).await?,
+            }),
+        )
+    })
+}
+
 struct Provider(&'static str);
 
 impl ServiceProvider for Provider {
@@ -656,6 +691,11 @@ async fn start_with(
             })?;
             Route::r#match(&[Method::POST], "/uploads", uploads)?;
             Route::r#match(&[Method::GET, Method::POST], "/all-input", all_input)?;
+            Route::r#match(
+                &[Method::GET, Method::POST, Method::PATCH],
+                "/body-input",
+                body_input,
+            )?;
             Route::get("/stream", stream)
         }))
         .create()
@@ -1453,6 +1493,99 @@ async fn real_http_merges_all_input_and_files_with_input_precedence() {
         400,
     )
     .await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn real_http_reads_body_and_fluent_values_with_their_own_sources() {
+    let (address, server) = start("body-input").await;
+    let (_, response) = send(
+        address,
+        "PATCH",
+        "/body-input?query=keep",
+        "application/x-www-form-urlencoded",
+        b"user[name]=+Ada+&nullable=",
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(
+        value["post"],
+        json!({"user":{"name":"Ada"},"nullable":null})
+    );
+    assert_eq!(value["post_null_is_absent"], true);
+    assert!(value["post_query"].is_null());
+    assert!(value["exact"].is_null());
+    assert_eq!(value["fluent_user"], json!({"name":"Ada","local":true}));
+    assert_eq!(value["fallback"], json!({"fallback":true}));
+    assert_eq!(value["missing_is_empty"], true);
+    assert_eq!(value["fluent_all"]["query"], "keep");
+    assert_eq!(value["fluent_selected"], json!({"user":{"name":"Ada"}}));
+    assert_eq!(value["updated"], json!({"name":"updated"}));
+
+    let (_, response) = send(
+        address,
+        "POST",
+        "/body-input?query=keep",
+        "application/json",
+        br#"{"user":{"name":"nested"},"user.name":"literal","nullable":null}"#,
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["exact"], "literal");
+    assert_eq!(value["fluent_user"]["name"], "nested");
+    assert!(value["post_query"].is_null());
+    assert_eq!(value["updated"], json!({"name":"updated"}));
+    send(
+        address,
+        "POST",
+        "/body-input?scalar=1",
+        "application/json",
+        br#"{"user":{"name":"scalar"}}"#,
+        400,
+    )
+    .await;
+
+    let body = concat!(
+        "--body\r\nContent-Disposition: form-data; name=\"user[name]\"\r\n\r\nGrace\r\n",
+        "--body\r\nContent-Disposition: form-data; name=\"document\"; filename=\"report.txt\"\r\n\r\nfile\r\n",
+        "--body--\r\n",
+    );
+    let (_, response) = send(
+        address,
+        "POST",
+        "/body-input",
+        "multipart/form-data; boundary=body",
+        body.as_bytes(),
+        200,
+    )
+    .await;
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["post"], json!({"user":{"name":"Grace"}}));
+    assert_eq!(value["no_document_in_post"], true);
+    assert_eq!(value["has_typed_user"], true);
+    assert_eq!(
+        value["fluent_selected"],
+        json!({"user":{"name":"Grace"},"document":{"file":"report.txt"}})
+    );
+    assert_eq!(value["attachment"], json!({"file":"report.txt"}));
+    assert!(value["fluent_all"].get("document").is_none());
+    send(
+        address,
+        "POST",
+        "/body-input",
+        "application/json",
+        b"{broken",
+        400,
+    )
+    .await;
+
+    let (_, response) = send(address, "GET", "/body-input?user[name]=query", "", b"", 200).await;
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["post"], json!([]));
+    assert_eq!(value["fluent_user"]["name"], "query");
+    assert!(value["updated"].is_null());
     server.abort();
 }
 

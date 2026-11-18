@@ -24,6 +24,10 @@
 
 用 `request.query(Some("key"))` 讀取精確的頂層查詢鍵。用 `request.input(Some("team.name")).await` 讀取巢狀輸入，傳入 `None` 可讀取整組輸入。JSON 和表單的頂層欄位優先於查詢參數。只讀取 JSON 本文時使用 `request.json`。
 
+用 `request.post(None).await?` 讀取本文參數集合，或用 `request.post(Some("name")).await?` 讀取精確的頂層鍵。JSON 請求會讀取解碼後的本文。查詢參數和 multipart 上傳物件各自透過獨立集合讀取。明確的 null 在完整集合中保留，依名稱讀取該值時回傳 `None`。
+
+用 `request.fluent(Some("user")).await?` 將一組一般輸入包裝為獨立的 `Fluent` 屬性集合。傳入 `None` 可包裝全部一般輸入，欄位缺少或為 null 時可用 `fluentOr("user", default)` 提供預設屬性集合。純量無法建構屬性集合，會回傳 HTTP 400。用 `fluentOnly(&["user.name", "document"]).await?` 取得保留上傳物件的唯讀型別化快照。用 `get` 讀取路徑，用 `value` 讀取精確的頂層鍵。
+
 OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預設上限為 8 MiB。輸入無效回傳 400，超量回傳 413。
 
 ### 請求邊界 {#request-boundaries}

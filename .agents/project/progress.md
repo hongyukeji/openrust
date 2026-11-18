@@ -3416,3 +3416,7 @@ Request 的闪存、筛选、清空和精确旧键读取已完成实际 HTTP、M
 ## 2026-11-18 04-02 类型化请求回调与字段筛选
 
 存在性、回调和字段筛选共用类型化合并输入。真实 HTTP、MySQL 8.4.13、固定 Laravel 对照、Artisan、严格 Clippy 与三语站点通过。 [类型化请求回调与字段筛选](audits/04-02/README.md#类型化请求回调与字段筛选)
+
+## 2026-11-18 04-02 请求正文参数与 Fluent
+
+完成正文参数读取、普通输入 Fluent 和保留上传的类型化选择。真实 HTTP、固定 Laravel、MySQL 8.4.13、Artisan、严格 Clippy 与三语站点通过。 [请求正文参数与 Fluent](audits/04-02/README.md#请求正文参数与-fluent)
