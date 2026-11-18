@@ -76,6 +76,34 @@ schedule
 
 用 `./artisan schedule:test --name=reports:daily` 在前景立即執行選定任務。在互動式終端中可省略 `--name`，從已登記的任務中選擇。用 `./artisan schedule:clear-cache` 清除已登記任務的重疊鎖，包含共用 Redis 中的鎖。
 
+### 測試排程工作 {#testing-scheduled-tasks}
+
+排程器使用 `TestApp` 時鐘判斷工作是否到期，並計算 `schedule:list` 顯示的下次執行時間。明確設定的 `Schedule::useClock` 優先。分鐘內重複工作生效時，`schedule:list` 會顯示下一次秒級觸發時間。分鐘內重複工作仍依實際經過的時間計時。詳見[控制測試時間](../testing/mocking.md#interacting-with-time)。
+
+```rust
+use openrust::{support::facades::Schedule, testing::TestApp};
+
+#[tokio::test]
+async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| {
+        builder.withCommands(|_| Schedule::configure(|schedule| {
+            schedule.doNotAllowPausing();
+            schedule.call(|_, output| Box::pin(async move {
+                output.stdout.push_str("scheduled task ran\n");
+                Ok(())
+            })).everyMinute();
+            Ok(())
+        }))
+    })?;
+
+    app.freezeSecond().await?;
+    app.artisan(["schedule:run"]).await
+        .assertSuccessful()
+        .expectsOutput("scheduled task ran");
+    Ok(())
+}
+```
+
 ## 任務輸出 {#task-output}
 
 用 `sendOutputTo` 覆寫檔案，用 `appendOutputTo` 附加。兩者都擷取排程 Artisan 命令與系統執行檔的標準輸出和標準錯誤，包含非零結束時的輸出。相對路徑以應用程式根目錄為基準。

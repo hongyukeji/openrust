@@ -8,7 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, TimeDelta, Timelike, Utc};
 use chrono_tz::Tz;
 use clap::{Arg, ArgAction};
 use tokio::time::{Instant, sleep_until};
@@ -216,13 +216,25 @@ impl ScheduleRunCommand {
 
     fn list(&self, app: &Application, output: &mut Output) -> Result<(), ConsoleError> {
         let default_zone = timezone(app)?;
-        let now = DateTime::<Utc>::from((self.schedule.clock)());
+        let now = DateTime::<Utc>::from(self.schedule.current_time()?);
         for event in self.schedule.events() {
             let local = now.with_timezone(&event.zone.unwrap_or(default_zone));
-            let next = event
-                .expression
-                .find_next_occurrence(&local, false)
-                .map_err(error)?;
+            let next = if let Some(interval) = event.interval
+                && event.due(now, default_zone)?
+            {
+                // Repeats advance to the next interval boundary after the current second.
+                let seconds = interval.as_secs();
+                let offset = seconds - u64::from(local.second()) % seconds;
+                local
+                    .with_nanosecond(0)
+                    .and_then(|time| time.checked_add_signed(TimeDelta::seconds(offset as i64)))
+                    .ok_or_else(|| error(crate::support::DateError::OutOfRange))?
+            } else {
+                event
+                    .expression
+                    .find_next_occurrence(&local, false)
+                    .map_err(error)?
+            };
             writeln!(
                 output.stdout,
                 "{}  {}  Next: {}",
@@ -335,7 +347,7 @@ impl ScheduleRunCommand {
     }
 
     async fn interrupt(&self, output: &mut Output) -> Result<(), ConsoleError> {
-        let now = (self.schedule.clock)();
+        let now = self.schedule.current_time()?;
         self.store()?
             .put(
                 &interrupt_key(now),
@@ -355,9 +367,10 @@ impl ScheduleRunCommand {
         shutdown: &CancellationToken,
     ) -> Result<(), ConsoleError> {
         loop {
+            let time = self.schedule.current_time()?;
             tokio::select! {
                 _ = shutdown.cancelled() => return Ok(()),
-                _ = tokio::time::sleep(remaining_in_minute((self.schedule.clock)())) => {},
+                _ = tokio::time::sleep(remaining_in_minute(time)) => {},
             }
             self.run(app, output, false, shutdown).await?;
             io::stdout()
@@ -377,7 +390,7 @@ impl ScheduleRunCommand {
         shutdown: &CancellationToken,
     ) -> Result<(), ConsoleError> {
         let start = Instant::now();
-        let time = (self.schedule.clock)();
+        let time = self.schedule.current_time()?;
         let deadline = start + remaining_in_minute(time);
         let default_zone = timezone(app)?;
         let EnvironmentResult::String(environment) = app.environment(None).map_err(error)? else {

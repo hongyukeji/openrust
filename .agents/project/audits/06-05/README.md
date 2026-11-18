@@ -14,3 +14,10 @@
 - 三语文档构建通过。通用浏览器检查 12 项，调度页面在两个部署路径共 6 项。三语共同 Rust 示例已编译，并通过实际 `schedule:list` 验证表达式和时区。
 
 本单元已交付 `schedule:run/list/work/interrupt`，并完成暂停和恢复、输出邮件、清锁及手工测试。后续计划为 06-06 Mail 与 Notifications。 [暂停和恢复验收](scheduler-pause.md) · [输出与调度命令验收](scheduler-output-background.md)
+
+## 调度读取应用测试时钟
+
+- 固定 Laravel 用 `Date::now` 确定调度起点和事件到期时间。旧版 `schedule.rs` 的 UTC 与任务时区换算继续沿用。接入现有 T-04 应用时钟，未冻结时使用系统时间，显式 `Schedule::useClock` 优先。分钟内重复任务继续通过单调时钟度量实际经过时长。 [固定 Laravel ScheduleRunCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleRunCommand.php#L84) · [固定 Laravel Event](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Event.php#L266)
+- 以 `a0d879c5f` 的干净归档验证两个并行应用的 `schedule:run` 彼此隔离，`schedule:list` 用应用时区显示下一次运行，临时冻结结束后恢复外层时间。覆盖 Unix 纪元之前、显式时钟优先，以及距分钟末 100 毫秒时的子分钟任务停止。
+- `schedule:list` 在生效的重复分钟内显示下一次秒级触发。PHP 8.5.12 与 Carbon 3.8.4 直接运行固定 Laravel 的秒级舍入表达式，验证小数秒、整秒和跨分钟三个结果，与实际 Artisan 列表一致。 [固定 Laravel ScheduleListCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleListCommand.php#L264)
+- Redis 8.10.3 与真实子进程复验互斥、选举、中断、清锁及关停。调度与三语示例定向共 21 项通过，1 项子进程夹具忽略。根应用的独立 `./artisan schedule:list`、`schedule:run --whisper` 和 `inspire` 通过。全仓格式、严格 Clippy、三语站点和 18 项浏览器检查通过。隔离 Redis、编译和站点产物已回收，项目盘可用 100.02 GB（93.15 GiB），提交前周额度剩余 36%。日志保留于 `/private/tmp/openrust-schedule-clock.dBi58tl9`。

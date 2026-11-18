@@ -76,6 +76,34 @@ Sub-minute tasks keep `schedule:run` active through the end of the current minut
 
 Use `./artisan schedule:test --name=reports:daily` to run a selected task immediately in the foreground. With an interactive terminal, omit `--name` to select from the registered tasks. Use `./artisan schedule:clear-cache` to remove overlap locks for registered tasks, including locks in the shared Redis store.
 
+### Testing scheduled tasks {#testing-scheduled-tasks}
+
+The scheduler uses the `TestApp` clock to decide when tasks are due and to compute the next times shown by `schedule:list`. An explicit `Schedule::useClock` takes precedence. In an active repeat minute, `schedule:list` shows the next seconds boundary. Sub-minute timers still measure elapsed time. See [Testing time](../testing/mocking.md#interacting-with-time).
+
+```rust
+use openrust::{support::facades::Schedule, testing::TestApp};
+
+#[tokio::test]
+async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| {
+        builder.withCommands(|_| Schedule::configure(|schedule| {
+            schedule.doNotAllowPausing();
+            schedule.call(|_, output| Box::pin(async move {
+                output.stdout.push_str("scheduled task ran\n");
+                Ok(())
+            })).everyMinute();
+            Ok(())
+        }))
+    })?;
+
+    app.freezeSecond().await?;
+    app.artisan(["schedule:run"]).await
+        .assertSuccessful()
+        .expectsOutput("scheduled task ran");
+    Ok(())
+}
+```
+
 ## Task output {#task-output}
 
 Use `sendOutputTo` to replace a file or `appendOutputTo` to append to it. Both capture stdout and stderr from scheduled Artisan commands and executables, including commands that exit unsuccessfully. Relative paths are resolved from the application root.

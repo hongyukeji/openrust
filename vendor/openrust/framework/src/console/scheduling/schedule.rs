@@ -1,9 +1,15 @@
-use std::{cell::RefCell, ffi::OsString, sync::Arc, time::SystemTime};
+use std::{
+    cell::RefCell,
+    ffi::OsString,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     console::{ConsoleError, ConsoleFuture, Output},
     foundation::Application,
     queue::{DispatchOptions, Payload},
+    support::{DateError, frozen_utc_now},
 };
 
 use super::{
@@ -33,7 +39,7 @@ pub struct Schedule {
     groups: Vec<PendingEventAttributes>,
     pub(super) store: Option<String>,
     pub(super) pausable: bool,
-    pub(super) clock: Box<dyn Fn() -> SystemTime + Send + Sync>,
+    clock: Option<Box<dyn Fn() -> SystemTime + Send + Sync>>,
 }
 
 tokio::task_local! {
@@ -48,7 +54,7 @@ impl Default for Schedule {
             groups: Vec::new(),
             store: None,
             pausable: true,
-            clock: Box::new(SystemTime::now),
+            clock: None,
         }
     }
 }
@@ -114,7 +120,24 @@ impl Schedule {
     }
 
     pub fn useClock(&mut self, clock: impl Fn() -> SystemTime + Send + Sync + 'static) {
-        self.clock = Box::new(clock);
+        self.clock = Some(Box::new(clock));
+    }
+
+    pub(super) fn current_time(&self) -> Result<SystemTime, ConsoleError> {
+        if let Some(clock) = &self.clock {
+            return Ok(clock());
+        }
+        let Some(frozen) = frozen_utc_now() else {
+            return Ok(SystemTime::now());
+        };
+        let elapsed = frozen.signed_duration_since(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH);
+        let offset = elapsed.abs().to_std().map_err(super::error)?;
+        let time = if elapsed < chrono::TimeDelta::zero() {
+            UNIX_EPOCH.checked_sub(offset)
+        } else {
+            UNIX_EPOCH.checked_add(offset)
+        };
+        time.ok_or_else(|| super::error(DateError::OutOfRange))
     }
 
     /// Applies the pending scheduling attributes to tasks registered in this group.

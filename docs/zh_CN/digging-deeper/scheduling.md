@@ -76,6 +76,34 @@ schedule
 
 用 `./artisan schedule:test --name=reports:daily` 在前台立即运行选定任务。在交互式终端中可省略 `--name`，从已登记任务中选择。用 `./artisan schedule:clear-cache` 清理已登记任务的重叠锁，包括共享 Redis 中的锁。
 
+### 测试调度任务 {#testing-scheduled-tasks}
+
+调度器使用 `TestApp` 时钟判断任务是否到期，并计算 `schedule:list` 显示的下次运行时间。显式设置的 `Schedule::useClock` 优先。分钟内重复任务正在生效时，`schedule:list` 显示下一次秒级触发时间。分钟内重复任务仍按实际经过时间计时。详见[控制测试时间](../testing/mocking.md#interacting-with-time)。
+
+```rust
+use openrust::{support::facades::Schedule, testing::TestApp};
+
+#[tokio::test]
+async fn runs_a_task_with_a_frozen_clock() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| {
+        builder.withCommands(|_| Schedule::configure(|schedule| {
+            schedule.doNotAllowPausing();
+            schedule.call(|_, output| Box::pin(async move {
+                output.stdout.push_str("scheduled task ran\n");
+                Ok(())
+            })).everyMinute();
+            Ok(())
+        }))
+    })?;
+
+    app.freezeSecond().await?;
+    app.artisan(["schedule:run"]).await
+        .assertSuccessful()
+        .expectsOutput("scheduled task ran");
+    Ok(())
+}
+```
+
 ## 任务输出 {#task-output}
 
 用 `sendOutputTo` 覆盖文件，用 `appendOutputTo` 追加。两者均捕获调度 Artisan 命令与系统可执行程序的标准输出和标准错误，包括非零退出时的输出。相对路径以应用根目录为基准。
