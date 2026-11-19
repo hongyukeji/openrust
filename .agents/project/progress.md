@@ -3685,3 +3685,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## 2026-11-20 Passport-02 PHP 契约与 HTTP 管理闭合
 
 2026-11-20 Passport-02 [PHP 契约与 HTTP 管理验收](audits/passport-02/contracts.md)完成：secret 标量转换／赋值失败顺序、Scope JSON 字节与选项、真实认证管理流程及跨用户／双应用拒绝已闭合。固定 PHP 8.5.12 生成 2699 条对照记录，重复生成一致且源码 SHA 负样本拒绝；48 个 Rust 测试函数、MySQL 8.4.13、根 HTTP／Artisan／关停、最低 Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、三语构建及 12＋6 浏览器检查通过，最终 14 项定向复验通过。13 份输入与隔离 ecc607f2b 快照 SHA 一致，保留协作者 Pail 等改动。Passport-02 计划范围已验收，V06 仍部分验收；下一单元 Passport-03 按授权码／PKCE 前置推进，启用 Fortify 动作时先接 API-F01。未实现后续 OAuth2／Guard／设备／PAT／安装整合，不将本批称为完整发布。专属 source／target 已直接清理，df 实际增加 5.563 GB，清理后 Available 68.979 GB；移除本批新拉取且无引用的固定 PHP 镜像，源码覆盖包／证据、共享缓存和全部数据卷保留。本批核范围本地提交，不推送。
+
+## 2026-11-20 V05 Pail Windows 原生终端
+
+[专项验收](audits/06-08/pail-windows.md)完成原生 ARM64 和 Windows ARM64 下 x64 仿真进程的实际命令／ConPTY／HTTP／MySQL 8.4.13 dev 验收。文件锁夹具、Windows 管道关闭、进程树和会话清理均已复验；Windows 严格全目标 Clippy、格式、三语构建和 12＋6 浏览器通过。9 份候选与 11 份来宾输入 SHA 一致，源基线 376d10884；同期 Passport WIP 不纳入本批。直接清理专属 targets／browser／dist／中转，VM 恢复 suspended，最终 68.702 GB；只核定本批 17 文件本地提交，不推送。V10 仍缺真实 Windows Docker 后端；硬件与最终主线矩阵继续按发布门禁验收。

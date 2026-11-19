@@ -1,0 +1,48 @@
+{
+  "baseline": "376d10884fe1fb1ed3180af342431c0949268e9d",
+  "candidate": {
+    "tests/pail_windows_terminal.ps1": "c061d857f5bc2d5541c7b63e428f72b38d8d43304857e0df1b8f6698ca974d66",
+    "tests/pail_auth_http.py": "da014c5525dc93bcc22cf48854bb8a9a2d372baa84454ccb5b6694c0c63eb6e3",
+    "tests/artisan_pail_dev.py": "108edc1f816f3c0b003ac6ee4165588398c570dae94448f6412acd85d6180537",
+    "tests/artisan_dev_windows.py": "e9edd1841a41e13f9a09f841a69320c55ffc435b73ea38c3d9200725ce8677db",
+    "vendor/openrust/pail/tests/command.rs": "becee2c4b988af160b30903a44dd676ad24c1e2af474b16556f578caf0806507",
+    "docs/tests/check_view_contracts.mjs": "fa355f213f613f014e7c6d5484b21e37db736c32c85b2a27dfafb3e3bfaed8d7",
+    "docs/en/the-basics/logging.md": "f7af7b56bcfb4fba8586f9fb0d06715ff7cf95c94454f2802d001f6b7e49784f",
+    "docs/zh_CN/the-basics/logging.md": "2eae8904d1471ab74883c633df5c642d67ab8f512198fbc5bd5a99931261edad",
+    "docs/zh_TW/the-basics/logging.md": "ae150ad08de706dcdb503d26a10771bc939e5386cd356ac15371f576b3fe02a7"
+  },
+  "windows_inputs": {
+    "Cargo.toml": "9387b013f5ca4ed5e943f2a6cb5261a1494e01035ea60b3e1f35f3dee23cbef6",
+    "Cargo.lock": "7067c373253134cf8e12d39b4ca7fb026217eb9200b199f579396646de797a9c",
+    "vendor/openrust/pail/src/process_factory.rs": "5896532c2976ff5fb0e12a81719bf7b702941035021a119f9cc2c463fe4164bb",
+    "vendor/openrust/pail/src/file.rs": "4a081ad1475d93ecac85f64eaca0de2e42d1907ad39b763d75eb852765d0af27",
+    "vendor/openrust/pail/src/console/commands/pail_command.rs": "11f79963558344276f9391ad4267847d963cca1ed62abde0423739282cf676d3",
+    "vendor/openrust/framework/src/foundation/runner.rs": "580e6e4a2d0f9d6394859fcc19ea4eec823355e8421297789132b8837d084380",
+    "tests/pail_windows_terminal.ps1": "c061d857f5bc2d5541c7b63e428f72b38d8d43304857e0df1b8f6698ca974d66",
+    "tests/pail_auth_http.py": "da014c5525dc93bcc22cf48854bb8a9a2d372baa84454ccb5b6694c0c63eb6e3",
+    "tests/artisan_pail_dev.py": "108edc1f816f3c0b003ac6ee4165588398c570dae94448f6412acd85d6180537",
+    "tests/artisan_dev_windows.py": "e9edd1841a41e13f9a09f841a69320c55ffc435b73ea38c3d9200725ce8677db",
+    "vendor/openrust/pail/tests/command.rs": "becee2c4b988af160b30903a44dd676ad24c1e2af474b16556f578caf0806507"
+  },
+  "all_windows_inputs_match": true,
+  "targets": {
+    "target\\debug\\main.exe": "aa64",
+    "target-x64\\x86_64-pc-windows-msvc\\debug\\main.exe": "8664"
+  },
+  "environment": "Windows 11 ARM64 26200.9974; Rust 1.94.0; x64 process via Windows emulation",
+  "resources": {
+    "host_before_cleanup_available_kib": 65021164,
+    "host_after_cleanup_available_kib": 67091532,
+    "host_delta_kib": 2070368,
+    "vm_final_state": "suspended",
+    "guest": {
+      "before": 179953569792,
+      "after": 186750169088,
+      "delta": 6796599296,
+      "logical": 7494363263,
+      "activeProcesses": 0,
+      "sourcePreserved": true,
+      "sharedCachesPreserved": true
+    }
+  }
+}

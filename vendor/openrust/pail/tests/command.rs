@@ -130,6 +130,24 @@ fn record(message: &str) -> String {
         json!({"message":message,"context":{"__pail":{"origin":{"type":"console","command":"fixture"}}},"level_name":"INFO","datetime":"2026-11-19T12:00:00+00:00"})
     )
 }
+fn write_locked(path: &Path, bytes: &[u8], truncate: bool) {
+    use std::io::{Seek, SeekFrom, Write};
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .append(!cfg!(windows))
+        .create(true)
+        .open(path)
+        .unwrap();
+    // Windows enforces the reader's shared lock. Test producers use the same
+    // exclusive-write contract as the real Pail handler, including partial lines.
+    file.lock().unwrap();
+    if truncate {
+        file.set_len(0).unwrap();
+    }
+    file.seek(SeekFrom::End(0)).unwrap();
+    file.write_all(bytes).unwrap();
+    file.unlock().unwrap();
+}
 async fn direct_follow() {
     let root = Root::new();
     let path = root.0.join("follow.pail");
@@ -144,28 +162,22 @@ async fn direct_follow() {
     let writer_path = path.clone();
     let cancelled = token.clone();
     let writer = tokio::spawn(async move {
-        use std::io::Write;
         tokio::time::sleep(Duration::from_millis(180)).await;
         let line = record("split-中文");
         let split = line.find('中').unwrap() + 1;
-        let mut file = std::fs::OpenOptions::new()
-            .append(true)
-            .open(&writer_path)
-            .unwrap();
-        file.write_all(&line.as_bytes()[..split]).unwrap();
+        write_locked(&writer_path, &line.as_bytes()[..split], false);
         tokio::time::sleep(Duration::from_millis(100)).await;
-        file.write_all(&line.as_bytes()[split..]).unwrap();
+        write_locked(&writer_path, &line.as_bytes()[split..], false);
         tokio::time::sleep(Duration::from_millis(150)).await;
-        file.write_all(b"unfinished").unwrap();
-        drop(file);
+        write_locked(&writer_path, b"unfinished", false);
         tokio::time::sleep(Duration::from_millis(100)).await;
-        std::fs::write(&writer_path, "").unwrap();
+        write_locked(&writer_path, b"", true);
         tokio::time::sleep(Duration::from_millis(100)).await;
-        std::fs::write(&writer_path, record("after-truncate")).unwrap();
+        write_locked(&writer_path, record("after-truncate").as_bytes(), false);
         tokio::time::sleep(Duration::from_millis(150)).await;
         std::fs::rename(&writer_path, writer_path.with_extension("old")).unwrap();
         tokio::time::sleep(Duration::from_millis(100)).await;
-        std::fs::write(&writer_path, record("after-rotate")).unwrap();
+        write_locked(&writer_path, record("after-rotate").as_bytes(), false);
         tokio::time::sleep(Duration::from_millis(150)).await;
         cancelled.cancel();
     });
@@ -353,11 +365,11 @@ async fn suite() {
         .spawn()
         .unwrap();
     wait_sessions(&root, 1).await;
-    std::fs::write(&root.sessions()[0], "not json\n").unwrap();
+    write_locked(&root.sessions()[0], b"not json\n", true);
     let result = child.wait_with_output().unwrap();
     assert_eq!(result.status.code(), Some(1));
     wait_sessions(&root, 0).await;
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         let mut child = root
             .cli()

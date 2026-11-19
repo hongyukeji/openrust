@@ -295,7 +295,7 @@ cargo build --locked --features pail
 
 `pail` 跟随应用日志事件，不依赖日志渠道的存储后端。每次调用在当前应用存储路径的 `pail/` 目录创建独立会话，并发调用分别接收日志。`--filter`、`--message`、`--level`、`--auth` 和 `--user` 使用上文的筛选规则，`--auth` 优先于别名 `--user`。执行超时默认 3600 秒，零表示关闭超时；超时打印“Maximum execution time exceeded.”后成功退出。Ctrl+C 或 SIGTERM 停止跟随并删除本次会话。无效记录或输出错误令命令失败，同样清理会话；`--quiet` 和 `--silent` 抑制输出。
 
-Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 使用框架原生取消路径，Pail Windows 实机验收仍列入发布矩阵。
+Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 上先运行 `cargo build --features pail`，再用 `.\target\debug\main.exe artisan pail --timeout=0`。原生控制台 Ctrl+C 和正常超时均会停止命令并删除本次捕获会话。
 
 Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 testing／Vapor 门禁。Rust 没有 PHP 全局 SAPI 标志：仅启动 HTTP 不执行命令注册回调，独立和程序化 Artisan 使用同一回调。取消捕获调用会清理会话并恢复调用方输出状态。本实现不增加心跳：与上游一样，即使 `--timeout=0`，超过一小时没有写入的会话也可能被下一次日志生产清理。清理保留 `.gitignore`。加载 Provider 后也会向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)添加默认 `logs` 进程。
 
@@ -303,6 +303,6 @@ Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 test
 
 以 `--features pail` 构建时，包发现加载 Provider，`./target/debug/main artisan dev:list --json` 会列出执行 `pail --timeout=0` 的 `logs`。用 `./target/debug/main artisan dev --inline` 启动，监督器复用同一二进制，不调用 Cargo，也不要求 PHP／PCNTL。未编译 Pail，或应用未加载其 Provider 时，没有默认 `logs` 条目。查询列表不会创建捕获会话。
 
-注册按 Provider 身份判断，独立于捕获门禁。在 testing 或 Vapor 环境中，已加载的 Provider 仍提供默认 `logs`，但 `pail` 命令被门禁禁用，除非设置 PAIL_TESTS 例外。此类应用可用 `DevCommands::except(&["logs"])?` 排除它。原生实现可在 Windows 注册该进程，Pail Windows 实机验收仍列入发布矩阵。
+注册按 Provider 身份判断，独立于捕获门禁。在 testing 或 Vapor 环境中，已加载的 Provider 仍提供默认 `logs`，但 `pail` 命令被门禁禁用，除非设置 PAIL_TESTS 例外。此类应用可用 `DevCommands::except(&["logs"])?` 排除它。Windows 监督器向默认 `logs` 进程发送控制台关停信号，并通过 Windows 作业回收进程树。正常 Ctrl+C 关停会删除本次 Pail 会话。
 
 每次解析进程列表都会检查 Provider 的加载状态，因此在 Pail 注册之前查询列表，不会导致后续永久漏掉 `logs`。

@@ -152,3 +152,7 @@ vendor/openrust/framework/
 ## V04 请求认证时序（2026-11-20）
 
 [专项验收](pail-auth-timing.md)完成显式 await 的请求日志入口、同步身份快照及内置 HTTP 异常报告接线。47 项定向函数、Pail 命令／Provider／打印 harness、实际 MySQL 8.4.13 Worker、根二进制 HTTP→Pail／Artisan、严格 Clippy、三语构建和 12＋6 浏览器检查通过。认证自动解析按明确 Rust 接口适配，V05 Windows 原生终端继续独立验收。
+
+## V05 Windows 原生终端（2026-11-20）
+
+[专项验收](pail-windows.md)分别通过 Windows 11 ARM64 原生与 x64 仿真二进制的文件跟随、ConPTY、键盘 Ctrl+C、管道关闭、根 HTTP／Artisan、MySQL 8.4.13 默认 dev 进程树与会话清理。最低 Rust 严格全目标 Clippy、格式和三语 12＋6 浏览器通过。V05 按该目标范围闭合；Windows Docker Desktop 与原生 x64 硬件／最终主线矩阵仍按发布门禁验收。

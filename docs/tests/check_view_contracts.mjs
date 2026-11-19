@@ -41,6 +41,8 @@ try {
                     const logging = await page.locator("main").innerText();
                     assert.ok(logging.includes("Log::logWithRequest(request"));
                     assert.ok(logging.includes("listenForRequest"));
+                    assert.ok(logging.includes(".\\target\\debug\\main.exe artisan pail --timeout=0"));
+                    assert.ok(logging.includes("Ctrl+C"));
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

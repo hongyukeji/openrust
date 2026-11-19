@@ -45,6 +45,46 @@ def descendants_exited(pids):
             kernel.CloseHandle(handle)
 
 
+def descendants(pid):
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class Entry(ctypes.Structure):
+        _fields_ = [
+            ("size", wintypes.DWORD), ("usage", wintypes.DWORD),
+            ("pid", wintypes.DWORD), ("heap", ctypes.c_size_t),
+            ("module", wintypes.DWORD), ("threads", wintypes.DWORD),
+            ("parent", wintypes.DWORD), ("priority", wintypes.LONG),
+            ("flags", wintypes.DWORD), ("exe", wintypes.WCHAR * 260),
+        ]
+
+    kernel.CreateToolhelp32Snapshot.argtypes = (wintypes.DWORD, wintypes.DWORD)
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    kernel.Process32FirstW.argtypes = (wintypes.HANDLE, ctypes.POINTER(Entry))
+    kernel.Process32NextW.argtypes = (wintypes.HANDLE, ctypes.POINTER(Entry))
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    snapshot = kernel.CreateToolhelp32Snapshot(2, 0)
+    if snapshot == wintypes.HANDLE(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    parents = {}
+    try:
+        entry = Entry()
+        entry.size = ctypes.sizeof(Entry)
+        more = kernel.Process32FirstW(snapshot, ctypes.byref(entry))
+        while more:
+            parents.setdefault(entry.parent, []).append(entry.pid)
+            more = kernel.Process32NextW(snapshot, ctypes.byref(entry))
+        assert ctypes.get_last_error() == 18, ctypes.WinError(ctypes.get_last_error())
+    finally:
+        kernel.CloseHandle(snapshot)
+    result, pending = [], list(parents.get(pid, []))
+    while pending:
+        child = pending.pop()
+        if child not in result and child != pid:
+            result.append(child)
+            pending.extend(parents.get(child, []))
+    return result
+
+
 def events_in(file):
     lines = file.read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.endswith("}")]

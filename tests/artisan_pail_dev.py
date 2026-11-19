@@ -16,7 +16,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from artisan_dev_terminal import Terminal, available_port
+if sys.platform == "win32":
+    from artisan_dev_windows import descendants as windows_descendants, descendants_exited
+else:
+    from artisan_dev_terminal import Terminal
+
+
+def available_port():
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
 
 
 def wait(check, description, timeout=20):
@@ -44,7 +53,7 @@ def sessions(root):
 
 def captured_http_error(root):
     for path in sessions(root):
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
@@ -56,6 +65,8 @@ def captured_http_error(root):
 
 
 def descendants(pid):
+    if sys.platform == "win32":
+        return windows_descendants(pid)
     path = Path(f"/proc/{pid}/task/{pid}/children")
     try:
         children = [int(value) for value in path.read_text().split()]
@@ -74,7 +85,10 @@ def alive(pid):
 
 def assert_stopped(root, port, pids):
     assert not sessions(root), "Pail left an owned session"
-    assert all(not alive(pid) for pid in pids), "dev descendants survived shutdown"
+    if sys.platform == "win32":
+        descendants_exited(pids)
+    else:
+        assert all(not alive(pid) for pid in pids), "dev descendants survived shutdown"
     with socket.socket() as probe:
         assert probe.connect_ex(("127.0.0.1", port)) != 0, "HTTP port stayed bound"
 
@@ -84,7 +98,8 @@ def json_mode(binary, root, env):
     env = dict(env, SERVER_PORT=str(port), APP_PORT=str(port))
     process = subprocess.Popen([binary, "artisan", "dev", "--json"], env=env,
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                               start_new_session=True)
+                               start_new_session=sys.platform != "win32",
+                               creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0)
     events = []
     errors = bytearray()
 
@@ -112,7 +127,14 @@ def json_mode(binary, root, env):
         assert not descendants(started["logs"]["pid"]), "Pail unexpectedly spawned tail or Cargo"
         pids = descendants(process.pid)
         assert len(pids) >= 4, pids  # server supervisor + HTTP, worker, Pail
-        process.send_signal(signal.SIGTERM)
+        if sys.platform == "win32":
+            subprocess.run(
+                [sys.executable, "-B", str(Path(__file__).with_name("artisan_dev_windows.py")),
+                 "interrupt", str(process.pid)], check=True, timeout=15,
+                creationflags=subprocess.DETACHED_PROCESS,
+            )
+        else:
+            process.send_signal(signal.SIGTERM)
         assert process.wait(timeout=12) == 0, bytes(errors)
         reader.join(timeout=5)
         error_reader.join(timeout=5)
@@ -120,16 +142,21 @@ def json_mode(binary, root, env):
         assert events[-1]["type"] == "done" and events[-1]["code"] == 0
         assert not any(e["type"] in {"failed", "error"} for e in events), events
         assert_stopped(root, port, pids)
-        print("MySQL 8.4 dev JSON: default server/queue/logs, real HTTP report, no tail child, SIGTERM cleanup PASS", flush=True)
+        print("MySQL 8.4 dev JSON: default server/queue/logs, real HTTP report, no tail child, signal cleanup PASS", flush=True)
     finally:
         if process.poll() is None:
-            for pid in reversed(descendants(process.pid)):
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-            process.kill()
-            process.wait()
+            if sys.platform == "win32":
+                subprocess.run(["taskkill.exe", "/PID", str(process.pid), "/T", "/F"],
+                               check=False, capture_output=True, timeout=15)
+            else:
+                for pid in reversed(descendants(process.pid)):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
         reader.join(timeout=5)
         error_reader.join(timeout=5)
 
@@ -155,11 +182,12 @@ def terminal_mode(binary, root, env, mode):
 
 
 def main():
-    if sys.platform != "linux":
-        raise SystemExit("This process-tree acceptance requires Linux; Windows remains in the release matrix")
+    if sys.platform not in {"linux", "win32"}:
+        raise SystemExit("This process-tree acceptance requires Linux or Windows")
     parsed = urllib.parse.urlsplit(os.environ["OPENRUST_TEST_MYSQL_URL"])
     assert parsed.scheme == "mysql" and os.environ.get("OPENRUST_REQUIRE_MYSQL") == "1"
-    binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else "target/debug/main").resolve())
+    default_binary = "target/debug/main.exe" if sys.platform == "win32" else "target/debug/main"
+    binary = str(Path(sys.argv[1] if len(sys.argv) > 1 else default_binary).resolve())
     with tempfile.TemporaryDirectory(prefix="pail-dev-mysql-") as directory:
         root = Path(directory)
         for path in ["public", "resources/views", "storage/app/public"]:
@@ -179,8 +207,9 @@ def main():
         subprocess.run([binary, "artisan", "migrate", "--force"], env=env,
                        check=True, capture_output=True, timeout=30)
         json_mode(binary, root, env)
-        terminal_mode(binary, root, env, "--tabs")
-        terminal_mode(binary, root, env, "--stream")
+        if sys.platform == "linux":
+            terminal_mode(binary, root, env, "--tabs")
+            terminal_mode(binary, root, env, "--stream")
         result = subprocess.run([binary, "artisan", "inspire"], env=env,
                                 check=True, capture_output=True, timeout=15)
         assert result.stdout.strip()
