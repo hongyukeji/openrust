@@ -18,6 +18,7 @@ pub(super) struct Transport<'a> {
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
     pub redact_payload: bool,
+    pub redact_response: bool,
     pub digest: Option<&'a DigestCredentials>,
     pub digest_origin: url::Origin,
     pub max_redirects: usize,
@@ -84,7 +85,7 @@ impl Transport<'_> {
                     result
                         .as_ref()
                         .ok()
-                        .map(|(response, _, _)| response.clone()),
+                        .map(|(response, _, _)| self.observed_response(response)),
                 );
             }
             let (response, next, authenticated) = match result {
@@ -115,11 +116,19 @@ impl Transport<'_> {
                 self.factory
                     .emit(ResponseReceived {
                         request,
-                        response: response.clone(),
+                        response: self.observed_response(&response),
                     })
                     .await?;
             }
             return Ok(response);
+        }
+    }
+
+    fn observed_response(&self, response: &Response) -> Response {
+        if self.redact_response {
+            Response::new(response.status(), http::HeaderMap::new(), Vec::new())
+        } else {
+            response.clone()
         }
     }
 

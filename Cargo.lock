@@ -3418,6 +3418,7 @@ dependencies = [
  "openrust-pail",
  "openrust-passport",
  "openrust-reverb",
+ "openrust-socialite",
  "serde",
  "serde_json",
  "tokio",
@@ -3610,6 +3611,23 @@ dependencies = [
  "tokio-tungstenite",
  "tokio-util",
  "url",
+]
+
+[[package]]
+name = "openrust-socialite"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "axum",
+ "base64 0.22.1",
+ "http 1.5.0",
+ "openrust-framework",
+ "serde_json",
+ "subtle",
+ "thiserror",
+ "tokio",
+ "url",
+ "zeroize",
 ]
 
 [[package]]

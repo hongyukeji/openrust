@@ -1,0 +1,10 @@
+{
+  "src/Contracts/User.php": "30a6c0719c2a2623d6b8b1c74b77c9f8080a09fac2409961d8927ffa3e268768",
+  "src/AbstractUser.php": "36c66afff21126d6b29a92919c942ba901ea5ebafcbf862ab888be973297eee2",
+  "src/Two/User.php": "f3d05bf8ceb09e19c3757f3f167df78490503853c11ac02283f3013c409aec93",
+  "src/Contracts/Provider.php": "2f212d98dd12cc6cf624786fdd7474bac278de3e89e5a518f1fcb6b1f62cbe44",
+  "src/Two/ProviderInterface.php": "5b9b990585248b34f545456cd2f9e3218d274b7052c5493dc436d17635e8e267",
+  "src/Two/AbstractProvider.php": "a3f186fd96d1a92bdeb0da17379c547808b534bd4f9eda16adda064401d755d5",
+  "src/Two/GithubProvider.php": "c97f72d1ef8a8294ba60e53735cd3f00441057dfea71608b081f019f1cdc3399",
+  "src/Two/Token.php": "4ae3e408183daeb323d66a64f6abbd4a8551b0a9f0c44798297fd32c018e6431"
+}

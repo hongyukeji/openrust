@@ -1,0 +1,13 @@
+{
+  "removed": [
+    "source",
+    "target",
+    "root-main"
+  ],
+  "logical_bytes": 5959842432,
+  "df_before_kib": 84908364,
+  "df_after_kib": 90534052,
+  "df_delta_bytes": 5760704512,
+  "volumes_before": [],
+  "volumes_after": []
+}

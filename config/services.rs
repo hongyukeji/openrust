@@ -9,10 +9,15 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     | 第三方服务凭据
     |--------------------------------------------------------------------------
     |
-    | 通过环境变量配置邮件供应商和 Slack 通知所需的凭据。
+    | 通过环境变量配置邮件供应商、Slack 通知与 GitHub 登录所需的凭据。
     |
     */
     Ok(json!({
+        "github": {
+            "client_id": get(env, "GITHUB_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "GITHUB_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "GITHUB_REDIRECT_URI", Value::Null)?,
+        },
         "postmark": {"token": get(env, "POSTMARK_TOKEN", Value::Null)?},
         "cloudflare": {
             "account_id": get(env, "CLOUDFLARE_ACCOUNT_ID", Value::Null)?,

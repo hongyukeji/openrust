@@ -1,0 +1,337 @@
+use super::{Token, User};
+use crate::{Error, Result};
+use openrust::{
+    contracts::session::Session as _,
+    http::{Request, client::Factory},
+};
+use serde_json::{Map, Value};
+use std::{future::Future, pin::Pin, sync::Arc};
+use subtle::ConstantTimeEq as _;
+use zeroize::Zeroizing;
+pub type ProviderFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
+#[derive(Clone)]
+pub struct ProviderConfig {
+    pub client_id: String,
+    pub client_secret: Zeroizing<String>,
+    pub redirect: String,
+    pub scopes: Vec<String>,
+}
+impl ProviderConfig {
+    pub fn from_config(value: &Value) -> Result<Self> {
+        fn string(value: &Value, key: &'static str) -> Result<String> {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .ok_or(Error::Configuration(key))
+        }
+        let scopes = match value.get("scopes") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::Array(values)) => values
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .map(str::to_owned)
+                        .ok_or(Error::Configuration("scopes"))
+                })
+                .collect::<Result<_>>()?,
+            _ => return Err(Error::Configuration("scopes")),
+        };
+        Ok(Self {
+            client_id: string(value, "client_id")?,
+            client_secret: Zeroizing::new(string(value, "client_secret")?),
+            redirect: string(value, "redirect")?,
+            scopes,
+        })
+    }
+}
+/// Driver protocol customization, shared across request-owned provider instances.
+pub trait ProviderDefinition: Send + Sync {
+    fn getAuthUrl(&self) -> &str;
+    fn getTokenUrl(&self) -> &str;
+    fn scopes(&self) -> &[&str] {
+        &[]
+    }
+    fn scopeSeparator(&self) -> &str {
+        ","
+    }
+    fn getUserByToken<'a>(
+        &'a self,
+        http: &'a Factory,
+        token: &'a str,
+        scopes: &'a [String],
+    ) -> ProviderFuture<'a, Value>;
+    fn mapUserToObject(&self, user: Value) -> Result<User>;
+}
+pub struct AbstractProvider<'a> {
+    request: &'a mut Request,
+    config: ProviderConfig,
+    http: Arc<Factory>,
+    definition: Arc<dyn ProviderDefinition>,
+    parameters: Map<String, Value>,
+    scopes: Vec<String>,
+    stateless: bool,
+    usesPKCE: bool,
+    user: Option<User>,
+}
+impl<'a> AbstractProvider<'a> {
+    pub fn new(
+        request: &'a mut Request,
+        config: ProviderConfig,
+        http: Arc<Factory>,
+        definition: Arc<dyn ProviderDefinition>,
+    ) -> Self {
+        let scopes = definition
+            .scopes()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let mut provider = Self {
+            request,
+            config,
+            http,
+            definition,
+            parameters: Map::new(),
+            scopes,
+            stateless: false,
+            usesPKCE: false,
+            user: None,
+        };
+        provider.scopes(provider.config.scopes.clone());
+        provider
+    }
+    pub fn scopes(&mut self, scopes: impl IntoIterator<Item = String>) -> &mut Self {
+        for scope in scopes {
+            if !self.scopes.contains(&scope) {
+                self.scopes.push(scope);
+            }
+        }
+        self
+    }
+    pub fn setScopes(&mut self, scopes: Vec<String>) -> &mut Self {
+        self.scopes.clear();
+        self.scopes(scopes)
+    }
+    pub fn getScopes(&self) -> &[String] {
+        &self.scopes
+    }
+    pub fn with(&mut self, parameters: Map<String, Value>) -> &mut Self {
+        self.parameters = parameters;
+        self
+    }
+    pub fn stateless(&mut self) -> &mut Self {
+        self.stateless = true;
+        self
+    }
+    pub fn isStateless(&self) -> bool {
+        self.stateless
+    }
+    pub fn enablePKCE(&mut self) -> &mut Self {
+        self.usesPKCE = true;
+        self
+    }
+    pub fn redirectUrl(&mut self, url: impl Into<String>) -> &mut Self {
+        self.config.redirect = url.into();
+        self
+    }
+    pub fn redirect(&mut self) -> Result<openrust::http::RedirectResponse> {
+        let target = self.authorizationUrl()?;
+        Ok(openrust::support::facades::Redirect::away(
+            &target,
+            Default::default(),
+        )?)
+    }
+    pub fn authorizationUrl(&mut self) -> Result<String> {
+        let mut fields = Map::from_iter([
+            ("client_id".into(), self.config.client_id.clone().into()),
+            ("redirect_uri".into(), self.config.redirect.clone().into()),
+            (
+                "scope".into(),
+                self.scopes.join(self.definition.scopeSeparator()).into(),
+            ),
+            ("response_type".into(), "code".into()),
+        ]);
+        if !self.stateless {
+            let state = random(40)?;
+            self.request
+                .session_mut()?
+                .put("state", state.clone().into())?;
+            fields.insert("state".into(), state.into());
+        }
+        if self.usesPKCE {
+            let verifier = random(96)?;
+            self.request
+                .session_mut()?
+                .put("code_verifier", verifier.clone().into())?;
+            use base64::Engine as _;
+            let digest = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, verifier.as_bytes());
+            fields.insert(
+                "code_challenge".into(),
+                base64::engine::general_purpose::URL_SAFE_NO_PAD
+                    .encode(digest.as_ref())
+                    .into(),
+            );
+            fields.insert("code_challenge_method".into(), "S256".into());
+        }
+        fields.extend(self.parameters.clone());
+        let mut url = url::Url::parse(self.definition.getAuthUrl())
+            .map_err(|_| Error::Configuration("authorization URL"))?;
+        {
+            let mut pairs = url.query_pairs_mut();
+            for (key, value) in fields {
+                pairs.append_pair(&key, &scalar(&value)?);
+            }
+        }
+        Ok(url.into())
+    }
+    pub async fn user(&mut self) -> Result<User> {
+        if let Some(user) = &self.user {
+            return Ok(user.clone());
+        }
+        if !self.stateless {
+            let state = self.request.session_mut()?.pull("state");
+            let incoming = self.request.input(Some("state")).await?;
+            let valid = match (
+                state.as_ref().and_then(Value::as_str),
+                incoming.as_ref().and_then(Value::as_str),
+            ) {
+                (Some(a), Some(b)) => {
+                    !a.is_empty() && a != "0" && bool::from(a.as_bytes().ct_eq(b.as_bytes()))
+                }
+                _ => false,
+            };
+            if !valid {
+                return Err(Error::InvalidState);
+            }
+        }
+        let code = self
+            .request
+            .input(Some("code"))
+            .await?
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .ok_or(Error::MissingCode)?;
+        let response = self.getAccessTokenResponse(&code).await?;
+        let credentials = self.credentials(&response)?;
+        let raw = self
+            .definition
+            .getUserByToken(&self.http, &credentials.token, &self.scopes)
+            .await?;
+        let mut user = self.definition.mapUserToObject(raw)?;
+        user.credentials = Some(credentials);
+        self.user = Some(user.clone());
+        Ok(user)
+    }
+    pub async fn userFromToken(&mut self, token: &str) -> Result<User> {
+        let raw = self
+            .definition
+            .getUserByToken(&self.http, token, &self.scopes)
+            .await?;
+        let mut user = self.definition.mapUserToObject(raw)?;
+        user.credentials = Some(Token {
+            token: Zeroizing::new(token.into()),
+            refreshToken: None,
+            expiresIn: None,
+            approvedScopes: vec![],
+        });
+        Ok(user)
+    }
+    pub async fn getAccessTokenResponse(&mut self, code: &str) -> Result<Value> {
+        let mut fields = Map::from_iter([
+            ("grant_type".into(), "authorization_code".into()),
+            ("client_id".into(), self.config.client_id.clone().into()),
+            (
+                "client_secret".into(),
+                self.config.client_secret.as_str().into(),
+            ),
+            ("code".into(), code.into()),
+            ("redirect_uri".into(), self.config.redirect.clone().into()),
+        ]);
+        if self.usesPKCE {
+            fields.insert(
+                "code_verifier".into(),
+                self.request
+                    .session_mut()?
+                    .pull("code_verifier")
+                    .unwrap_or(Value::Null),
+            );
+        }
+        fields.extend(self.parameters.clone());
+        self.post(&Value::Object(fields)).await
+    }
+    pub async fn refreshToken(&mut self, refreshToken: &str) -> Result<Token> {
+        let fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id,"client_secret":self.config.client_secret.as_str()});
+        let response = self.post(&fields).await?;
+        self.credentials(&response)
+    }
+    async fn post(&mut self, fields: &Value) -> Result<Value> {
+        json(
+            self.http
+                .pendingRequest()
+                .acceptJson()
+                .asForm()
+                .redactPayload()
+                .withoutRedirecting()
+                .post(self.definition.getTokenUrl(), fields)
+                .await?,
+        )
+    }
+    fn credentials(&self, response: &Value) -> Result<Token> {
+        Ok(Token {
+            token: Zeroizing::new(
+                response
+                    .get("access_token")
+                    .and_then(Value::as_str)
+                    .ok_or(Error::InvalidResponse)?
+                    .into(),
+            ),
+            refreshToken: response
+                .get("refresh_token")
+                .and_then(Value::as_str)
+                .map(|s| Zeroizing::new(s.into())),
+            expiresIn: response.get("expires_in").and_then(Value::as_u64),
+            approvedScopes: response
+                .get("scope")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .split(self.definition.scopeSeparator())
+                .map(str::to_owned)
+                .collect(),
+        })
+    }
+}
+fn scalar(value: &Value) -> Result<String> {
+    match value {
+        Value::String(v) => Ok(v.clone()),
+        Value::Bool(v) => Ok(if *v { "1" } else { "0" }.into()),
+        Value::Number(v) => Ok(v.to_string()),
+        Value::Null => Ok(String::new()),
+        _ => Err(Error::Configuration("OAuth parameter")),
+    }
+}
+fn random(length: usize) -> Result<String> {
+    let mut out = String::with_capacity(length);
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    while out.len() < length {
+        let mut bytes = [0u8; 64];
+        aws_lc_rs::rand::fill(&mut bytes).map_err(|_| Error::Random)?;
+        for b in bytes {
+            if b < 248 {
+                out.push(ALPHABET[(b % 62) as usize] as char);
+                if out.len() == length {
+                    break;
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+pub(super) fn json(response: openrust::http::client::Response) -> Result<Value> {
+    if !response.successful() {
+        return Err(Error::ProviderStatus(response.status().as_u16()));
+    }
+    let value: Value = response.json()?;
+    if !value.is_object() && !value.is_array() {
+        return Err(Error::InvalidResponse);
+    }
+    Ok(value)
+}

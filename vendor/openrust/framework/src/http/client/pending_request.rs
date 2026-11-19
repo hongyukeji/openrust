@@ -86,6 +86,7 @@ pub struct PendingRequest {
     uri_parameters: serde_json::Map<String, serde_json::Value>,
     attributes: serde_json::Map<String, serde_json::Value>,
     redact_payload: bool,
+    redact_response: bool,
     connect_timeout: Duration,
     timeout: Duration,
     redirects: usize,
@@ -110,6 +111,7 @@ impl PendingRequest {
             uri_parameters: Default::default(),
             attributes: serde_json::Map::new(),
             redact_payload: false,
+            redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
             timeout: TIMEOUT,
             redirects: 5,
@@ -189,6 +191,12 @@ impl PendingRequest {
     ) -> Self {
         self.uri_parameters.extend(parameters);
         self
+    }
+
+    /// Omits request and response bodies from HTTP event observations.
+    pub fn redactPayload(mut self) -> Self {
+        self.redact_response = true;
+        self.redact_payload()
     }
 
     pub(crate) fn redact_payload(mut self) -> Self {
@@ -419,6 +427,7 @@ impl PendingRequest {
             before_sending: &self.before_sending,
             attributes: &self.attributes,
             redact_payload: self.redact_payload,
+            redact_response: self.redact_response,
             digest: self.digest.as_ref(),
             digest_origin: request.url().origin(),
             max_redirects: self.redirects,

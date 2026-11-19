@@ -1,0 +1,135 @@
+{
+    "default": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "user:email",
+        "response_type": "code",
+        "state": "fixed-state"
+    },
+    "merged": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "user:email,read",
+        "response_type": "code",
+        "state": "fixed-state"
+    },
+    "set": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "profile,email",
+        "response_type": "code",
+        "state": "fixed-state"
+    },
+    "stateless": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "profile,email",
+        "response_type": "code"
+    },
+    "parameters": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "override",
+        "response_type": "code",
+        "prompt": "select account",
+        "login_hint": "中文 & +"
+    },
+    "state": [
+        {
+            "first": true,
+            "replay": true
+        },
+        {
+            "first": false,
+            "replay": true
+        },
+        {
+            "first": true,
+            "replay": true
+        },
+        {
+            "first": true,
+            "replay": true
+        },
+        {
+            "first": true,
+            "replay": true
+        },
+        {
+            "first": true,
+            "replay": true
+        },
+        {
+            "first": true,
+            "replay": true
+        }
+    ],
+    "stateless_state": false,
+    "user": {
+        "id": 42,
+        "nickname": "alice",
+        "name": "Alice",
+        "email": "alice@test",
+        "avatar": "https://images.test/alice",
+        "raw": {
+            "id": 42,
+            "node_id": "node-42",
+            "login": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar_url": "https://images.test/alice"
+        },
+        "attributes": {
+            "id": 42,
+            "nodeId": "node-42",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/alice"
+        }
+    },
+    "calls": [
+        [
+            "https://api.github.com/user",
+            {
+                "headers": {
+                    "Accept": "application/vnd.github.v3+json",
+                    "Authorization": "token access"
+                }
+            }
+        ],
+        [
+            "https://api.github.com/user/emails",
+            {
+                "headers": {
+                    "Accept": "application/vnd.github.v3+json",
+                    "Authorization": "token access"
+                }
+            }
+        ]
+    ],
+    "email_failure": null,
+    "refresh": {
+        "token": "access",
+        "refreshToken": "refresh",
+        "expiresIn": 3600,
+        "approvedScopes": [
+            "read",
+            "user:email"
+        ]
+    },
+    "refresh_call": [
+        "https://github.com/login/oauth/access_token",
+        {
+            "headers": {
+                "Accept": "application/json"
+            },
+            "form_params": {
+                "grant_type": "refresh_token",
+                "refresh_token": "refresh-input",
+                "client_id": "client",
+                "client_secret": "secret"
+            }
+        }
+    ]
+}

@@ -3744,3 +3744,8 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 2026-11-20 Passport-09 [定制与共存整合](audits/passport-09/README.md)实现及本机验收完成：五类实际Eloquent模型、授权码／设备注册、观察者／事务／清理、自定义路由与UserProvider、多应用隔离，以及生成应用Passport／Sanctum双Guard／独立撤销两前缀通过。Rust1.94、MySQL8.4.13，共131个不同函数及3项显式Chromium；严格三feature workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭与三语26章节、12＋6浏览器通过。17份输入与隔离221cc174e一致，保留同期Fortify／验证器等改动；固定源码SHA及成功生成应用包保留，专属产物归属清理。Passport-01–09本机计划范围闭合，Windows08重建与发布整合仍待，V06维持部分验收；继续API-S01及其后前置单元。本地提交，不推送。
 
 - 2026-11-20 API-F01 默认 email 前置依赖：9381组固定原PHP／Rust一致，3新增函数及验证／Fortify回归、严格Clippy／格式、根HTTP／Pail／Artisan通过；专属产物清理与9输入SHA见[审核](audits/api-f01/email-rule.md)。密码重置HTTP在途，继续开发；核范围本地提交，不推送。
+
+
+## API-S01 共享OAuth2与GitHub首批
+
+2026-11-20 API-S01 [共享OAuth2与GitHub首批](audits/api-s01/github.md)实现验收完成：新增可选socialite包、应用内manager／facade／contracts、真实Session state／PKCE、token／profile／已验证邮箱／refresh、scope及参数、自定义driver与敏感HTTP观察记录隔离。固定Socialite5.33.0源码与PHP8.5.12对照，7项Socialite＋14项HTTP Client＋1项纯配置共22函数；Rust1.94 strict workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。隔离2383fdbd，Cargo.lock只合入本包，保留同期验证器／Fortify；专属产物清理见记录。API-S01仍未整体闭合，继续GitLab／Bitbucket等官方驱动及OAuth1／OIDC／本地身份映射；真实供应商仍缺测试应用凭据及回调账户。本地提交，不推送。
