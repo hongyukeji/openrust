@@ -1,5 +1,7 @@
 # 配置
 
+应用名称和版本默认使用应用 `Cargo.toml` 中的 `name` 和 `version`，在编译时嵌入。可在 `.env` 中通过 `APP_NAME` 和 `APP_VERSION` 分别覆盖。骨架的 `.env.example` 显式设置了 `APP_NAME=OpenRust`，该值优先于包名。
+
 在应用根目录将 `.env.example` 复制为 `.env`，即可自定义本地配置。`APP_HOST` 和 `APP_PORT` 配置 HTTP 监听地址，默认为 `127.0.0.1:8000`。模板沿用 Laravel 的本地开发默认值。应用将 `config/` 下的配置分区加载到同一个仓库，可以通过 `application.config()?.get("app.url")` 读取最终生效的值。应用、认证、数据库与 Redis、缓存、会话、日志、邮件、队列、文件系统、广播、CORS、并发、哈希、图像、第三方服务、Reverb、gRPC 和视图各有独立配置。加载配置时不连接外部服务。
 
 `app.url` 优先使用显式设置的 `APP_URL`。未设置时，使用具体的 `APP_HOST` 和 `APP_PORT` 生成 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未设置主机，或使用 `127.0.0.1`、`::1` 等回环地址或 `0.0.0.0`、`::` 等通配监听地址时，使用 `http://localhost:{port}`。环境模板设置了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用模板默认值时展开为 `http://127.0.0.1:8000`。

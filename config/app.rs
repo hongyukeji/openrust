@@ -16,7 +16,7 @@ pub(super) struct Loaded<'a> {
 }
 
 pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
-    let name = env.get_utf8("APP_NAME")?.unwrap_or("OpenRust");
+    let name = env.get_utf8("APP_NAME")?.unwrap_or(env!("CARGO_PKG_NAME"));
     let env_host = env.get_utf8("APP_HOST")?;
     let host = env_host.unwrap_or("127.0.0.1");
     let port = env.get_utf8("APP_PORT")?.unwrap_or("8000");
@@ -37,7 +37,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         | 应用名称与版本
         |--------------------------------------------------------------------------
         |
-        | APP_NAME 用于显示应用名称，APP_VERSION 可覆盖 Cargo 包版本。
+        | 应用名称和版本默认取 Cargo 包信息，APP_NAME 和 APP_VERSION 可分别覆盖。
         |
         */
         "name": name,

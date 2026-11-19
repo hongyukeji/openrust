@@ -1,5 +1,7 @@
 # 設定
 
+應用程式名稱和版本預設使用應用程式 `Cargo.toml` 中的 `name` 和 `version`，在編譯時嵌入。可在 `.env` 中透過 `APP_NAME` 和 `APP_VERSION` 分別覆寫。骨架的 `.env.example` 明確設定了 `APP_NAME=OpenRust`，此值優先於套件名稱。
+
 在應用程式根目錄將 `.env.example` 複製為 `.env`，即可自訂本機設定。`APP_HOST` 和 `APP_PORT` 設定 HTTP 監聽位址，預設為 `127.0.0.1:8000`。範本沿用 Laravel 的本機開發預設值。應用程式將 `config/` 下的各區段載入同一個儲存庫，可以透過 `application.config()?.get("app.url")` 讀取最終生效的值。應用程式、驗證、資料庫與 Redis、快取、工作階段、日誌、郵件、佇列、檔案系統、廣播、CORS、並行、雜湊、影像、第三方服務、Reverb、gRPC 和檢視各有獨立設定。載入設定時不連線至外部服務。
 
 `app.url` 優先使用明確設定的 `APP_URL`。未設定時，使用具體的 `APP_HOST` 和 `APP_PORT` 產生 URL，例如 `http://example.test:8080` 或 `http://[2001:db8::1]:8080`。未設定主機，或使用 `127.0.0.1`、`::1` 等回送位址或 `0.0.0.0`、`::` 等萬用監聽位址時，使用 `http://localhost:{port}`。環境範本設定了 `APP_URL="http://${APP_HOST}:${APP_PORT}"`，使用範本預設值時會展開為 `http://127.0.0.1:8000`。

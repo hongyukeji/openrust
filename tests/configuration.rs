@@ -24,6 +24,8 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let defaults = config::load(&root, &environment).unwrap();
+    assert_eq!(defaults["app"]["name"], env!("CARGO_PKG_NAME"));
+    assert_eq!(defaults["app"]["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
         defaults
             .keys()
@@ -134,6 +136,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         configured["app"]["url"]
     );
     assert!(configured["app"].get("public_url_prefix").is_none());
+    assert_eq!(configured["app"]["name"], "ExampleStore");
     assert_eq!(configured["app"]["debug"], true);
     let package_defaults =
         LoadConfiguration::bootstrap(&root, &environment, |_, _| Ok(Default::default())).unwrap();

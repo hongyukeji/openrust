@@ -73,3 +73,9 @@ Rust 用静态模块和配置加载函数表达 PHP 的文件载入，保留 `wi
 固定 Laravel 提交 `1449bf2410` 的 `Config` 通过 `config` 容器名称委托到配置仓储。旧版 `v0.x` 使用 `ConfigRepository::get` 读取点分键。当前 `openrust::support::facades::Config::get` 沿用规范绑定和配置仓储，在应用作用域内解析，返回 `Result<Option<Value>, BindingResolutionError>`。读取可见同一应用内的规范绑定替换。
 
 以本地提交 `946232c61` 的隔离副本验收。两项定向测试覆盖 HTTP 路由、并发应用隔离、规范仓储重绑定、缺失键、显式空值和引导前访问。全目标严格 Clippy、本批格式检查、三语文档构建及两个部署路径的十二项浏览器检查通过。全仓格式检查仅报告既有 Sanctum 断言换行差异。
+
+## 应用名称默认取 Cargo 包名（2026-11-19）
+
+应用 `config/app.rs` 的 `APP_NAME` 缺省值改为 `env!("CARGO_PKG_NAME")`，与版本的 `env!("CARGO_PKG_VERSION")` 使用相同的编译期包信息。运行时 `.env` 显式配置继续优先，骨架示例的 `APP_NAME=OpenRust` 仍覆盖包名。现有配置回归补充名称和版本的默认值、名称显式覆盖断言。
+
+Rust 1.94.0 配置测试、应用二进制及配置测试的严格 Clippy、全仓格式和差异空白检查通过。三语配置文档同步，站点构建及两种部署路径的 12 项浏览器检查通过。本批浏览器依赖已清理，共享构建缓存保留。
