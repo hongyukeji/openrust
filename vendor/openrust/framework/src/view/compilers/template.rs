@@ -309,6 +309,10 @@ enum Stop<'a> {
 }
 
 struct Parser<'a> {
+    source: &'a str,
+    arguments_available: bool,
+    raw_ends: Vec<usize>,
+    comment_spans: Vec<(usize, usize)>,
     remaining: &'a str,
     identity: &'a str,
     extensions: &'a BladeExtensions,
@@ -319,6 +323,10 @@ struct Parser<'a> {
 impl<'a> Parser<'a> {
     fn new(source: &'a str, identity: &'a str, extensions: &'a BladeExtensions) -> Self {
         Self {
+            source,
+            arguments_available: false,
+            raw_ends: Vec::new(),
+            comment_spans: Vec::new(),
             remaining: source,
             identity,
             extensions,
@@ -382,7 +390,13 @@ impl<'a> Parser<'a> {
                     if end == "}}" { "{{" } else { "{!!" }
                 )
                 .unwrap();
-            } else if self.remaining.starts_with("@@") {
+            } else if self.statement_start()
+                && self
+                    .remaining
+                    .strip_prefix("@@")
+                    .and_then(|s| s.as_bytes().first())
+                    .is_some_and(|b| statement_word(*b))
+            {
                 text.push('@');
                 self.remaining = &self.remaining[2..];
             } else if self.remaining.starts_with("{{--") {
@@ -396,8 +410,14 @@ impl<'a> Parser<'a> {
                     self.delimited(3, "!!}")?
                 };
                 nodes.push(parse_echo(expression, escaped)?);
-            } else if self.directive("verbatim") {
+            } else if self.remaining.starts_with("@verbatim")
+                && self.source.as_bytes()[..self.source.len() - self.remaining.len()]
+                    .last()
+                    .is_none_or(|b| *b != b'@')
+            {
+                self.remaining = &self.remaining[9..];
                 text.push_str(self.delimited(0, "@endverbatim")?);
+                self.raw_ends.push(self.source.len() - self.remaining.len());
             } else if let Some(stop) = self.stop() {
                 push_text(&mut nodes, &mut text);
                 return Ok((nodes, Some(stop)));
@@ -620,7 +640,7 @@ impl<'a> Parser<'a> {
         } else if self.directive("js") {
             Node::JavaScript(expression_value(self.arguments()?)?)
         } else if self.directive("fonts") {
-            let arguments = if self.remaining.trim_start().starts_with('(') {
+            let arguments = if self.arguments_available {
                 self.arguments()?
             } else {
                 ""
@@ -670,7 +690,7 @@ impl<'a> Parser<'a> {
         } else if self.directive("prepend") {
             self.capture_stack(depth, true)?
         } else if self.directive("once") {
-            let id = if self.remaining.trim_start().starts_with('(') {
+            let id = if self.arguments_available {
                 Some(expression_value(self.arguments()?)?)
             } else {
                 None
@@ -708,7 +728,7 @@ impl<'a> Parser<'a> {
             .into_iter()
             .find(|name| self.directive(name))
         {
-            let values = if self.remaining.trim_start().starts_with('(') {
+            let values = if self.arguments_available {
                 expression_value(self.arguments()?)?
             } else {
                 Expression::Value(ViewValue::Null)
@@ -739,11 +759,34 @@ impl<'a> Parser<'a> {
         Ok(Some(node))
     }
 
+    fn statement_start(&self) -> bool {
+        let mut prefix = &self.source[..self.source.len() - self.remaining.len()];
+        // Comments disappear before Laravel scans statements, so they cannot split a word.
+        for (start, end) in self.comment_spans.iter().rev() {
+            if *end != prefix.len() {
+                break;
+            }
+            prefix = &self.source[..*start];
+        }
+        self.raw_ends.contains(&prefix.len())
+            || prefix.as_bytes().last().is_none_or(|b| !statement_word(*b))
+    }
+
     fn custom_tag(&self) -> Option<(&'a str, &'a str)> {
+        if !self.statement_start() {
+            return None;
+        }
         let rest = self.remaining.strip_prefix('@')?;
-        let end = rest
-            .find(|character: char| !(character.is_alphanumeric() || character == '_'))
-            .unwrap_or(rest.len());
+        let mut end = rest.bytes().take_while(|b| statement_word(*b)).count();
+        if end == 0 {
+            return None;
+        }
+        if let Some(namespace) = rest[end..].strip_prefix("::") {
+            let length = namespace.bytes().take_while(|b| statement_word(*b)).count();
+            if length > 0 {
+                end += 2 + length;
+            }
+        }
         Some(rest.split_at(end))
     }
 
@@ -760,13 +803,19 @@ impl<'a> Parser<'a> {
                 .map(|name| (name, true))
         };
         if let Some((name, negated)) = condition {
-            self.remaining = rest;
+            self.consume_statement(rest);
+            if !self.arguments_available {
+                self.consume_close_newline();
+            }
             return self.custom_condition(depth, name, negated).map(Some);
         }
         if !self.extensions.directives.contains_key(name) {
             return Ok(None);
         }
-        self.remaining = rest;
+        self.consume_statement(rest);
+        if !self.arguments_available {
+            self.consume_close_newline();
+        }
         Ok(Some(Node::CustomDirective(
             name.to_owned(),
             self.custom_arguments()?,
@@ -774,7 +823,7 @@ impl<'a> Parser<'a> {
     }
 
     fn custom_arguments(&mut self) -> ViewResult<Vec<Expression>> {
-        if self.remaining.trim_start().starts_with('(') {
+        if self.arguments_available {
             expression_arguments(self.arguments()?)
         } else {
             Ok(Vec::new())
@@ -815,7 +864,7 @@ impl<'a> Parser<'a> {
     fn auth_block(&mut self, depth: usize, mut guest: bool, end: Stop<'a>) -> ViewResult<Node> {
         let mut branches = Vec::new();
         let alternative = loop {
-            let guard = if self.remaining.trim_start().starts_with('(') {
+            let guard = if self.arguments_available {
                 let guard = self.arguments()?.trim();
                 (!guard.is_empty())
                     .then(|| expression_value(guard))
@@ -1089,7 +1138,7 @@ impl<'a> Parser<'a> {
     }
 
     fn jump(&mut self, kind: JumpKind) -> ViewResult<Node> {
-        let (levels, condition) = if self.remaining.trim_start().starts_with('(') {
+        let (levels, condition) = if self.arguments_available {
             let expression = self.arguments()?.trim();
             match expression.parse::<i64>() {
                 Ok(levels) => (usize::try_from(levels.max(1)).unwrap_or(usize::MAX), None),
@@ -1136,10 +1185,15 @@ impl<'a> Parser<'a> {
     }
 
     fn stop(&mut self) -> Option<Stop<'a>> {
-        if let Some(rest) = self.remaining.strip_prefix("@empty")
-            && !rest.trim_start().starts_with('(')
+        if let Some(stop) = self.custom_stop() {
+            return Some(stop);
+        }
+        if let Some((name, rest)) = self.custom_tag()
+            && name.eq_ignore_ascii_case("empty")
+            && !rest.trim_start_matches([' ', '\t']).starts_with('(')
             && self.directive("empty")
         {
+            self.consume_close_newline();
             return Some(Stop::Empty);
         }
         let standard = [
@@ -1199,7 +1253,14 @@ impl<'a> Parser<'a> {
         if standard.is_some() {
             return standard;
         }
+        None
+    }
+
+    fn custom_stop(&mut self) -> Option<Stop<'a>> {
         let (name, rest) = self.custom_tag()?;
+        if self.extensions.directives.contains_key(name) {
+            return None;
+        }
         let (base, is_else) = if let Some(base) = name.strip_prefix("else") {
             (base, true)
         } else {
@@ -1208,7 +1269,13 @@ impl<'a> Parser<'a> {
         if !self.extensions.conditions.contains_key(base) {
             return None;
         }
-        self.remaining = rest;
+        self.consume_statement(rest);
+        if !is_else && self.arguments_available {
+            let _ = self.arguments();
+        }
+        if !self.arguments_available {
+            self.consume_close_newline();
+        }
         Some(if is_else {
             Stop::ElseCondition(base)
         } else {
@@ -1217,24 +1284,97 @@ impl<'a> Parser<'a> {
     }
 
     fn directive(&mut self, name: &str) -> bool {
-        let Some(rest) = self
-            .remaining
-            .strip_prefix('@')
-            .and_then(|rest| rest.strip_prefix(name))
-        else {
+        let Some((token, rest)) = self.custom_tag() else {
             return false;
         };
-        if rest.starts_with(|character: char| character.is_alphanumeric() || character == '_') {
+        if !token.eq_ignore_ascii_case(name)
+            || self.extensions.directives.contains_key(token)
+            || self.extensions.conditions.contains_key(token)
+        {
             return false;
         }
-        self.remaining = rest;
+        self.consume_statement(rest);
+        let no_arguments = matches!(
+            name.to_ascii_lowercase().as_str(),
+            "else"
+                | "endif"
+                | "endunless"
+                | "endforeach"
+                | "endforelse"
+                | "endfor"
+                | "endwhile"
+                | "endswitch"
+                | "default"
+                | "endisset"
+                | "endempty"
+                | "endsection"
+                | "stop"
+                | "append"
+                | "overwrite"
+                | "show"
+                | "endpush"
+                | "endprepend"
+                | "endonce"
+                | "endpushonce"
+                | "endprependonce"
+                | "endpushif"
+                | "enderror"
+                | "endfragment"
+                | "endenv"
+                | "endproduction"
+                | "endsession"
+                | "endcontext"
+                | "endauth"
+                | "endguest"
+                | "endcan"
+                | "endcannot"
+                | "endcanany"
+                | "production"
+                | "csrf"
+        );
+        if no_arguments {
+            if self.arguments_available {
+                // PHP ignores arguments supplied to these compiler methods.
+                let _ = self.arguments();
+            } else {
+                self.consume_close_newline();
+            }
+        } else if !self.arguments_available
+            && matches!(
+                name,
+                "auth" | "guest" | "once" | "break" | "continue" | "class" | "style"
+            )
+        {
+            self.consume_close_newline();
+        }
         true
     }
 
+    fn consume_statement(&mut self, rest: &'a str) {
+        self.arguments_available = rest.trim_start_matches([' ', '\t']).starts_with('(');
+        self.remaining = rest;
+    }
+
+    fn consume_close_newline(&mut self) {
+        if let Some(rest) = self
+            .remaining
+            .strip_prefix("\r\n")
+            .or_else(|| self.remaining.strip_prefix('\n'))
+            .or_else(|| self.remaining.strip_prefix('\r'))
+        {
+            self.remaining = rest;
+        }
+    }
+
     fn arguments(&mut self) -> ViewResult<&'a str> {
+        if !self.arguments_available {
+            return Err(invalid(
+                "Blade directive requires parentheses on the same line.",
+            ));
+        }
         let rest = self
             .remaining
-            .trim_start()
+            .trim_start_matches([' ', '\t'])
             .strip_prefix('(')
             .ok_or_else(|| invalid("Blade directive requires parentheses."))?;
         let mut quote = Quote::default();
@@ -1247,6 +1387,7 @@ impl<'a> Parser<'a> {
                 '(' => nested += 1,
                 ')' if nested == 0 => {
                     self.remaining = &rest[index + 1..];
+                    self.consume_close_newline();
                     return Ok(&rest[..index]);
                 }
                 ')' => nested -= 1,
@@ -1257,10 +1398,15 @@ impl<'a> Parser<'a> {
     }
 
     fn delimited(&mut self, prefix: usize, delimiter: &str) -> ViewResult<&'a str> {
+        let start = self.source.len() - self.remaining.len();
         let (value, rest) = self.remaining[prefix..]
             .split_once(delimiter)
             .ok_or_else(|| invalid("Unclosed Blade expression."))?;
         self.remaining = rest;
+        if prefix == 4 && delimiter == "--}}" {
+            self.comment_spans
+                .push((start, self.source.len() - rest.len()));
+        }
         Ok(value)
     }
 }
@@ -2104,4 +2250,9 @@ fn hidden_field(output: &mut String, name: &str, value: &str) {
 
 fn invalid(message: &'static str) -> ViewError {
     ViewError::CompileFailed(std::io::Error::new(std::io::ErrorKind::InvalidData, message).into())
+}
+
+// PHP's non-Unicode PCRE statement grammar uses ASCII word bytes.
+fn statement_word(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
 }

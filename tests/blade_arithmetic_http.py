@@ -42,7 +42,18 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   assert 'Implicit conversion from float 5.5 to int loses precision' in content
   assert 'Power of base 0 and negative exponent is deprecated' in content
   print('actual main: deprecations logged and rendering continued',flush=True)
-  for invalid in ['{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','{{ [INF][0] }}']:
+  for source,expected in [
+   ('<s>A</s>@if(true)\n<b>B</b>@endif\nC','<s>A</s><b>B</b>C'),
+   ('中@if(true)<b>B</b>@endif','中<b>B</b>'),
+   ('<b>p</b>{{-- {{-- nested --}}@if(true)<i>A</i>@endif','<b>p</b><i>A</i>'),
+   ('@IF(true)<b>B</b>@ENDIF','<b>B</b>'),
+   ('@@ @@unknown @if::custom(true)','@@ @unknown @if::custom(true)'),
+   ('\0 \t\r\n<p>trimmed</p>','<p>trimmed</p>'),
+   ('\f<p>kept</p>','\f<p>kept</p>'),
+  ]:
+   template(source);status,_,body=request();assert status==200 and body==expected,(source,status,body,expected)
+  print('actual main: Blade boundaries, case, escapes, close-tag newlines and PHP leading trim passed',flush=True)
+  for invalid in ['a{{-- {{-- nested --}}@if(true)<b>A</b>@endif', '@if(true)word@endif', '<b>prefix</b>@if\n(true)<b>x</b>@endif', '{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','{{ [INF][0] }}']:
    template(invalid)
    status,headers,body=request(headers={'Accept':'application/json'})
    assert status==500 and 'application/json' in headers['Content-Type']

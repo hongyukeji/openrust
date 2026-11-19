@@ -24,7 +24,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 30;
+const COMPILER_VERSION: u32 = 31;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
@@ -211,7 +211,7 @@ impl BladeCompiler {
         let extensions = self.extensions.read().unwrap().clone();
         let template = self.load(path, source, &extensions)?;
         context.extensions = extensions;
-        template.render(data, context)
+        template.render(data, context).map(trim_php_output)
     }
 
     pub fn render(&self, path: &Path, source: &str, data: &ViewData) -> ViewResult<String> {
@@ -229,7 +229,7 @@ impl BladeCompiler {
         let extensions = self.extensions.read().unwrap().clone();
         let template = Template::compile(source, &identity, &extensions)?;
         context.extensions = extensions;
-        template.render(data, context)
+        template.render(data, context).map(trim_php_output)
     }
 
     pub fn clear(&self) -> ViewResult<()> {
@@ -365,4 +365,14 @@ fn compile_error(error: impl std::error::Error + Send + Sync + 'static) -> ViewE
 
 fn invalid_registration(message: &'static str) -> ViewError {
     compile_error(io::Error::new(io::ErrorKind::InvalidInput, message))
+}
+
+// PhpEngine::evaluatePath uses PHP's byte-based ltrim, not Unicode whitespace.
+fn trim_php_output(mut output: String) -> String {
+    let prefix = output.len()
+        - output
+            .trim_start_matches([' ', '\t', '\n', '\r', '\u{b}', '\0'])
+            .len();
+    output.drain(..prefix);
+    output
 }

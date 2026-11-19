@@ -63,6 +63,20 @@ Use `@if`, `@elseif`, `@else`, `@endif`, `@unless`, and `@endunless` with view v
 
 Use `@includeIf('partials.notice')` to skip an absent view. Use `@includeWhen($showNotice, 'partials.notice')` or `@includeUnless($hideNotice, 'partials.notice')` to render conditionally. These directives inherit the current view data, including loop variables. A selected view must exist for `@includeWhen` and `@includeUnless`.
 
+### Directive Boundaries and Whitespace {#directive-whitespace}
+
+Built-in directive names follow Laravel's case-insensitive compiler methods; registered custom names remain case-sensitive. Separate a directive from a preceding ASCII letter, digit or underscore. For example, `word@if(...)` is text, while `<b>word</b>@if(...)` starts a condition. HTML comments and punctuation can provide a boundary; Blade comments cannot separate a preceding ASCII word from a directive. Non-ASCII text does not count as an ASCII word byte.
+
+```html
+@if (true)
+    <b>Visible</b>
+@endif
+```
+
+Put a directive's opening parenthesis on the same line, allowing spaces or tabs between its name and `(`. Unknown directives, including unknown `name::member` names, stay as text. `@@if` emits `@if`; bare `@@` stays unchanged. Use `@verbatim` for a larger literal block.
+
+Blade reproduces PHP closing-tag behavior: a generated operation consumes one immediately following LF, CRLF or CR. A space or tab before that newline preserves it. Escaped and raw echo expressions preserve their following newline. Each compiled view removes leading PHP whitespace bytes (space, tab, LF, CR, vertical tab and NUL); form feed and non-breaking space remain. Plain `.html` views preserve their original content. Older compiled artifacts are invalidated automatically.
+
 ### Authentication Directives {#authentication-directives}
 
 Use `@auth` and `@guest` in HTTP views to check the configured guard. Pass a guard name to select a different one. `@elseauth` and `@elseguest` add branches to the same block.
@@ -444,6 +458,8 @@ Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashb
 ```
 
 `fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. Each name triggers a render of the same view in order, including duplicate names. The composer runs each time. A missing name returns the full output of that render. An empty name list performs no renders. `allFragments()` collects fragments from one render.
+
+Named fragment buffers retain their own leading whitespace. A missing name falls back to the full view after PHP leading-whitespace removal. `allFragments()` corresponds to Laravel's public `fragments()` call without a names argument; PHP's internal `allFragments` method is protected.
 
 ## Service Injection {#service-injection}
 

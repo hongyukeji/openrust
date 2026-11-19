@@ -63,6 +63,20 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 以 `@includeIf('partials.notice')` 略過不存在的檢視。以 `@includeWhen($showNotice, 'partials.notice')` 或 `@includeUnless($hideNotice, 'partials.notice')` 依條件轉譯。子檢視繼承目前的檢視資料，包括迴圈變數。條件成立並選中檢視時，`@includeWhen` 和 `@includeUnless` 要求該檢視存在。
 
+### 指令邊界與空白 {#directive-whitespace}
+
+內建指令名稱依 Laravel 編譯方法忽略大小寫，註冊的自訂名稱仍區分大小寫。指令前應與 ASCII 字母、數字或底線隔開。例如 `word@if(...)` 是文字，`<b>word</b>@if(...)` 才開始條件。HTML 註解與標點可提供邊界；Blade 註解不能隔開前面的 ASCII 單字與指令。非 ASCII 文字不屬於 ASCII 單字位元組。
+
+```html
+@if (true)
+    <b>Visible</b>
+@endif
+```
+
+指令的左括號應與名稱同行，中間允許空格或定位字元。未知指令及未知的 `name::member` 名稱原樣保留。`@@if` 輸出 `@if`，單獨的 `@@` 保持不變。大段原樣內容使用 `@verbatim`。
+
+Blade 重現 PHP 關閉標籤的行為：產生的操作會吃掉緊隨其後的一個 LF、CRLF 或 CR；換行前有空格或定位字元時則保留。跳脫及原樣輸出運算式會保留其後換行。每個編譯視圖移除開頭的 PHP 空白位元組（空格、定位字元、LF、CR、垂直定位字元和 NUL），換頁符號與不換行空格保留。普通 `.html` 視圖保留原始內容。舊編譯產物會自動失效。
+
 ### 驗證指令 {#authentication-directives}
 
 在 HTTP 視圖中用 `@auth` 和 `@guest` 檢查已設定的守衛。傳入名稱可以指定守衛。`@elseauth` 和 `@elseguest` 在同一區塊中增加分支。
@@ -444,6 +458,8 @@ POST 請求優先使用 `X-HTTP-Method-Override` 標頭，其次使用表單欄�
 ```
 
 `fragments(["summary", "details"])` 依參數順序回傳指定片段。`allFragments()` 回傳全部已擷取片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在條件為假時傳送完整範本。每個名稱都會依序重新呈現同一個視圖，重複名稱也會觸發呈現。組合器在每次呈現時執行。名稱不存在時傳回該次呈現的完整輸出。空名稱清單不會觸發呈現。`allFragments()` 從一次呈現中收集所有片段。
+
+命名片段緩衝區保留自身的開頭空白；名稱缺失時退回經過 PHP 開頭空白清理的完整視圖。`allFragments()` 對應 Laravel 不傳名稱參數的公開 `fragments()` 呼叫，PHP 內部的 `allFragments` 方法受到保護。
 
 ## 服務注入 {#service-injection}
 

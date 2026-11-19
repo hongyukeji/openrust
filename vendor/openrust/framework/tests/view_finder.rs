@@ -108,7 +108,7 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     fs::write(&plain, "plain fallback").unwrap();
     fs::write(
         &blade,
-        r#"{{ $user->name }}|{!! $trusted !!}|@{{ client }}|{{-- ignored --}}@if ($none)bad@elseif ($yes)yes@else bad@endif|@foreach ($items as $item){{ $item }}@endforeach|@forelse ($missing  as  $item){{ $item }}@empty none@endforelse|@isset ($yes)ready@endisset|@empty ($missing)empty@endempty"#,
+        r#"{{ $user->name }}|{!! $trusted !!}|@{{ client }}|{{-- ignored --}}@if ($none)bad{{ '' }}@elseif ($yes)yes{{ '' }}@else bad{{ '' }}@endif|@foreach ($items as $item){{ $item }}@endforeach|@forelse ($missing  as  $item){{ $item }}@empty none{{ '' }}@endforelse|@isset ($yes)ready{{ '' }}@endisset|@empty ($missing)empty{{ '' }}@endempty"#,
     )
     .unwrap();
     let factory = Factory::new(FileViewFinder::new([directory]), cache);
@@ -173,7 +173,7 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
         factory.renderInline("@formatName($x + 1)", &data),
         Err(ViewError::RenderFailed(_))
     ));
-    fs::write(&blade, "@unless ($none)updated@endunless").unwrap();
+    fs::write(&blade, "@unless ($none)updated{{ '' }}@endunless").unwrap();
     assert!(compiler.isExpired(&blade).unwrap());
     assert_eq!(factory.render("welcome", &data).unwrap(), "updated");
     fs::write(&artifact, "incomplete data").unwrap();
@@ -972,10 +972,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@foreach ($groups as $key => $items)",
                 "{{ $key }}={{ $loop->index }}/{{ $loop->iteration }}/",
                 "{{ $loop->remaining }}/{{ $loop->count }}",
-                "@if ($loop->first)F@endif@if ($loop->last)L@endif",
-                "@if ($loop->odd)O@endif@if ($loop->even)E@endif:",
+                "@if ($loop->first)F{{ '' }}@endif{{ '' }}@if ($loop->last)L{{ '' }}@endif",
+                "{{ '' }}@if ($loop->odd)O{{ '' }}@endif{{ '' }}@if ($loop->even)E{{ '' }}@endif:",
                 "@include('loop_items')({{ $loop->depth }});",
-                "@endforeach@isset($loop)leaked@endisset",
+                "@endforeach{{ '' }}@isset($loop)leaked{{ '' }}@endisset",
             ),
         ),
         (
@@ -1002,7 +1002,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         (
             "components/accordion/accordion",
-            "<details>{{ $header }}|{{ $title }}|{{ $slot }}@isset($component)leaked@endisset</details>",
+            "<details>{{ $header }}|{{ $title }}|{{ $slot }}@isset($component)leaked{{ '' }}@endisset</details>",
         ),
         ("components/ranked", "root"),
         ("components/ranked/index", "index"),
@@ -1021,7 +1021,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             concat!(
                 "@props(['displayName' => 'Notice', 'variant',])",
                 r#"<aside {{ $attributes->merge(['class' => 'panel', 'role' => 'status', 'style' => 'padding: 0;']) }}>"#,
-                "{{ $displayName }}|@isset($id)leaked@endisset{{ $slot }}</aside>",
+                "{{ $displayName }}|@isset($id)leaked{{ '' }}@endisset{{ $slot }}</aside>",
             ),
         ),
         ("components/plain", "<span {{ $attributes }}></span>"),
@@ -1032,28 +1032,28 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             concat!(
                 "@extends('stack_layout')@push('scripts', 'A')@prepend('scripts', 'a')",
                 "@include('stack_partial')@include('stack_partial')",
-                "@push('scripts', 'C')@once('shared')duplicate@endonce",
+                "@push('scripts', 'C')@once('shared')duplicate{{ '' }}@endonce",
             ),
         ),
         (
             "stack_partial",
             concat!(
-                "@push('scripts')B@endpush",
-                "@pushOnce('scripts')D@endPushOnce",
-                "@prependOnce('scripts', 'shared')b@endPrependOnce",
-                "@once[once]@endonce",
+                "@push('scripts')B{{ '' }}@endpush",
+                "{{ '' }}@pushOnce('scripts')D{{ '' }}@endPushOnce",
+                "{{ '' }}@prependOnce('scripts', 'shared')b{{ '' }}@endPrependOnce",
+                "{{ '' }}@once[once]@endonce",
             ),
         ),
         (
             "stack_layout",
-            "<main>@hasStack('scripts'){{ $app }}:@endif@stack('scripts', '<empty>')</main>",
+            "<main>@hasStack('scripts'){{ $app }}:@endif{{ '' }}@stack('scripts', '<empty>')</main>",
         ),
-        ("broken_stack", "@push('scripts')oops@endprepend"),
+        ("broken_stack", "@push('scripts')oops{{ '' }}@endprepend"),
         (
             "fragment_page",
             concat!(
                 "<main>@fragment('left')<b>{{ $app }}</b>@endfragment",
-                "@include('fragment_partial')</main>",
+                "{{ '' }}@include('fragment_partial')</main>",
             ),
         ),
         (
@@ -1064,7 +1064,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "fragment_composed",
             concat!(
                 "@fragment('left')@once L{{ $pass }}:{{ $sharedFragmentPass }}@endonce @endfragment",
-                "@fragment('right')R{{ $pass }}:{{ $sharedFragmentPass }}@endfragment",
+                "{{ '' }}@fragment('right')R{{ $pass }}:{{ $sharedFragmentPass }}@endfragment",
             ),
         ),
         (
@@ -1073,7 +1073,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@foreach ($known as $key => $item)",
                 "[{{ $key }}:{{ $item }}:{{ $loop->count }}:{{ $loop->remaining }}:",
                 "@bool($loop->first):@bool($loop->last)]@endforeach",
-                "@foreach ($lazy as $key => $item)",
+                "{{ '' }}@foreach ($lazy as $key => $item)",
                 "@foreach ($known as $nested)",
                 "{{ $key }}:{{ $item }}:{{ $loop->depth }}:{{ $loop->parent->iteration }}:",
                 "@bool($loop->parent->first):",
@@ -1081,7 +1081,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "{{ $loop->parent->remaining ?? 'null' }}:",
                 "{{ $loop->parent->last ?? 'null' }}",
                 "@break(2) @endforeach @endforeach",
-                "@forelse ($empty as $item)bad@empty|empty@endforelse",
+                "{{ '' }}@forelse ($empty as $item)bad{{ '' }}@empty|empty{{ '' }}@endforelse",
             ),
         ),
         (
@@ -1103,7 +1103,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 r#"<input @checked($ready && $count === 2) @disabled(!$ready) "#,
                 r#"@class(['field', 'active<&' => $ready]) "#,
                 r#"@style(['color: red' => $ready, 'display: none' => !$ready])>"#,
-                "@if (false || $ready && ($count !== '2'))ok@endif",
+                "@if (false || $ready && ($count !== '2'))ok{{ '' }}@endif",
                 "{{ $missing ?? $absent ?? '<fallback>' }}",
             ),
         ),
@@ -1140,7 +1140,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("components/css-forward", "<code {{ $attributes }}></code>"),
-        ("invalid_expression", "@if ($x ===)broken@endif"),
+        ("invalid_expression", "@if ($x ===)broken{{ '' }}@endif"),
         ("custom_directive", "<b>@formatName($text)</b>@htmlBadge"),
         ("broken_directive", "@formatName($text + 1)"),
         (
@@ -1168,15 +1168,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "section_defaults",
             concat!(
                 "@section('present', '0')@section('blank', ' ')@section('real', 'content')",
-                "@hasSection('missing', $defaultText)A@endif",
-                "@sectionMissing('absent', ' 0 ')B@endif",
-                "@sectionMissing('present', 'fallback')C@endif",
-                "@sectionMissing('blank', 'fallback')D@endif",
-                "@hasSection('real', '')E@endif",
-                r#"@hasSection('absent', "\u00a0")F@endif"#,
-                "@sectionMissing('absent', false)G@endif",
-                "@hasSection('absent', true)H@endif",
-                "@yield('unknown', $defaultText)",
+                "@hasSection('missing', $defaultText)A{{ '' }}@endif",
+                "{{ '' }}@sectionMissing('absent', ' 0 ')B{{ '' }}@endif",
+                "{{ '' }}@sectionMissing('present', 'fallback')C{{ '' }}@endif",
+                "{{ '' }}@sectionMissing('blank', 'fallback')D{{ '' }}@endif",
+                "{{ '' }}@hasSection('real', '')E{{ '' }}@endif",
+                r#"{{ '' }}@hasSection('absent', "\u00a0")F{{ '' }}@endif"#,
+                "{{ '' }}@sectionMissing('absent', false)G{{ '' }}@endif",
+                "{{ '' }}@hasSection('absent', true)H{{ '' }}@endif",
+                "{{ '' }}@yield('unknown', $defaultText)",
             ),
         ),
         (
@@ -1213,8 +1213,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@for ($i = 3; $i >= 1; $i -= 2){{ $i }}@endfor|",
                 "@foreach ([1, 2] as $item){{ $item }}",
                 "@while(true)@continue(2)@endwhile unreachable",
-                "@endforeach|@while(true)once@break @endwhile|",
-                "@forelse ([] as $item)bad@empty empty@endforelse",
+                "{{ '' }}@endforeach|@while(true)once{{ '' }}@break @endwhile|",
+                "@forelse ([] as $item)bad{{ '' }}@empty empty{{ '' }}@endforelse",
             ),
         ),
         (
@@ -1257,11 +1257,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "components/inspect",
             concat!(
                 r#"<div {{ $attributes->filter('client')->merge(['data-controller' => $attributes->prepends('base'), 'data-empty' => $attributes->prepends('fallback')]) }}>"#,
-                "@if($attributes->has(['data-id', 'data-controller']))all@endif",
-                "@if($attributes->hasAny(['href','data-id']))any@endif",
+                "@if($attributes->has(['data-id', 'data-controller']))all{{ '' }}@endif",
+                "{{ '' }}@if($attributes->hasAny(['href','data-id']))any{{ '' }}@endif",
                 "|{{ $attributes->whereStartsWith('data-id')->first() }}|{{ $attributes->get('missing', 'default') }}",
-                "@if($slot->isEmpty())|empty@endif@if($title->isNotEmpty())|comment@endif",
-                "@if($title->hasActualContent())|unexpected@elseif($footer->hasActualContent())|markup@endif",
+                "@if($slot->isEmpty())|empty{{ '' }}@endif{{ '' }}@if($title->isNotEmpty())|comment{{ '' }}@endif",
+                "{{ '' }}@if($title->hasActualContent())|unexpected{{ '' }}@elseif($footer->hasActualContent())|markup{{ '' }}@endif",
                 "</div>",
             ),
         ),
@@ -1283,8 +1283,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         (
             "custom_condition",
             concat!(
-                "@appIs('A')A@elseappIs('B')B@else other@endappIs",
-                "@unlessappIs('X')!@appIs('A')1@else 2@endappIs@endappIs",
+                "@appIs('A')A{{ '' }}@elseappIs('B')B{{ '' }}@else other{{ '' }}@endappIs",
+                "{{ '' }}@unlessappIs('X')!@appIs('A')1{{ '' }}@else 2{{ '' }}@endappIs{{ '' }}@endappIs",
             ),
         ),
         ("bad_condition", "@appIs('A')missing end"),
@@ -1292,9 +1292,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "switch_cases",
             concat!(
                 "@extends('switch_layout')@section('banner', 'Ready')",
-                "@switch('2')@default wrong@break @case(2)two@case(3)three@break @endswitch|",
+                "@switch('2')@default wrong{{ '' }}@break @case(2)two{{ '' }}@case(3)three{{ '' }}@break @endswitch|",
                 "@for($i = 0; $i < 2; $i++)",
-                "@switch($i)@case(0)@continue(2)@default good@endswitch{{ $i }}@endfor|",
+                "@switch($i)@case(0)@continue(2)@default good{{ '' }}@endswitch{{ $i }}@endfor|",
                 "@bool(true)@bool(false)|",
             ),
         ),
@@ -1302,10 +1302,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "switch_layout",
             concat!(
                 "@hasSection('banner')@yield('banner')@endif",
-                "@sectionMissing('sidebar')/no sidebar@endif",
+                "{{ '' }}@sectionMissing('sidebar')/no sidebar{{ '' }}@endif",
             ),
         ),
-        ("bad_switch", "@switch(0)@default x@default y@endswitch"),
+        (
+            "bad_switch",
+            "@switch(0)@default x{{ '' }}@default y{{ '' }}@endswitch",
+        ),
         (
             "anonymous_mounts",
             r#"<x-external::banner/>|<x-dynamic-component :component="$dynamic"/>|<x-standalone/>"#,
@@ -1315,44 +1318,47 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         (
             "blade_auth",
             concat!(
-                "@auth default@elseauth('alternate') named@elseguest guest@endauth",
-                "@guest('alternate')|no-alt@endguest",
-                "@if(false)@auth('unknown')unreachable@endauth@endif",
-                "@context('blade.guard')|{{ $value }}@endcontext",
+                "@auth default{{ '' }}@elseauth('alternate') named{{ '' }}@elseguest guest{{ '' }}@endauth",
+                "{{ '' }}@guest('alternate')|no-alt{{ '' }}@endguest",
+                "{{ '' }}@if(false)@auth('unknown')unreachable{{ '' }}@endauth{{ '' }}@endif",
+                "{{ '' }}@context('blade.guard')|{{ $value }}@endcontext",
             ),
         ),
-        ("blade_auth_failed", "@auth('unknown')unreachable@endauth"),
+        (
+            "blade_auth_failed",
+            "@auth('unknown')unreachable{{ '' }}@endauth",
+        ),
         (
             "blade_gate",
             concat!(
-                "@can('view-price', [$subject, $label])policy@elsecanany(['absent','preview'])preview@endcan|",
-                "@cannot(['preview','hidden'])denied@endcannot|",
-                "@canany($abilities)any@elsecan('error')unexpected@endcanany|",
-                "@can('hidden')unexpected@elsecan('preview')elsecan@elsecannot('hidden')unexpected@endcan|",
-                "@canany([])unexpected@elsecannot('hidden')elsecannot@endcanany|",
-                "@can('create-price', $target)create@else guest@endcan|",
-                "@can('preview')@cannot('hidden')nested@endcannot@endcan|",
+                "@can('view-price', [$subject, $label])policy{{ '' }}@elsecanany(['absent','preview'])preview{{ '' }}@endcan|",
+                "@cannot(['preview','hidden'])denied{{ '' }}@endcannot|",
+                "@canany($abilities)any{{ '' }}@elsecan('error')unexpected{{ '' }}@endcanany|",
+                "@can('hidden')unexpected{{ '' }}@elsecan('preview')elsecan{{ '' }}@elsecannot('hidden')unexpected{{ '' }}@endcan|",
+                "@canany([])unexpected{{ '' }}@elsecannot('hidden')elsecannot{{ '' }}@endcanany|",
+                "@can('create-price', $target)create{{ '' }}@else guest{{ '' }}@endcan|",
+                "@can('preview')@cannot('hidden')nested{{ '' }}@endcannot{{ '' }}@endcan|",
                 "@include('gate_partial'):@includeIsolated('gate_partial', ['subject' => null])",
             ),
         ),
         (
             "gate_partial",
-            "@can('typed-present', $subject)typed@else clear@endcan",
+            "@can('typed-present', $subject)typed{{ '' }}@else clear{{ '' }}@endcan",
         ),
-        ("bad_gate", "@can('preview')mismatched@endcannot"),
+        ("bad_gate", "@can('preview')mismatched{{ '' }}@endcannot"),
         (
             "gate_error",
-            "@cannot('error')unexpected@else unexpected@endcannot",
+            "@cannot('error')unexpected{{ '' }}@else unexpected{{ '' }}@endcannot",
         ),
         (
             "layout_fallback",
             concat!(
                 "@extendsFirst(['absent', 'layout_variants'], ['site' => 'override'])",
-                "@section('banner')first@stop",
-                "@section('banner')second@append",
-                "@section('footer')old@endsection",
-                "@section('footer')new@overwrite",
-                "@pushIf(false, 'scripts')wrong@elsePushIf('2' == 2 && 10 != '11', 'scripts')chosen@endPushIf",
+                "@section('banner')first{{ '' }}@stop",
+                "{{ '' }}@section('banner')second{{ '' }}@append",
+                "{{ '' }}@section('footer')old{{ '' }}@endsection",
+                "{{ '' }}@section('footer')new{{ '' }}@overwrite",
+                "{{ '' }}@pushIf(false, 'scripts')wrong{{ '' }}@elsePushIf('2' == 2 && 10 != '11', 'scripts')chosen{{ '' }}@endPushIf",
             ),
         ),
         (
@@ -1486,7 +1492,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     let (a, b) = tokio::join!(send(first, "/loops", 200), send(second, "/loops", 200));
     assert_eq!(
         a,
-        "&lt;first&gt;=0/1/1/2FO:0=&lt;&amp;[1:2]1=two[1:2](1);second=1/2/0/2LE: empty[2](1);"
+        "&lt;first&gt;=0/1/1/2FO:0=&lt;&amp;[1:2]1=two[1:2](1);second=1/2/0/2LE:empty[2](1);"
     );
     assert_eq!(a, b);
     let (a, b) = tokio::join!(send(first, "/dynamic", 200), send(second, "/dynamic", 200));
@@ -1544,7 +1550,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(send(first, "/all-fragments", 200).await, "<b>A</b><i>A</i>");
     assert_eq!(
         send(first, "/fragment-composed", 200).await,
-        "R1:1 L2:2 R2:2 L3:3  L4:4 "
+        "R1:1L2:2 R2:2 L3:3  L4:4 "
     );
     assert_eq!(
         send(first, "/all-fragments-composed", 200).await,
@@ -1681,25 +1687,25 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert!(send(first, "/anonymous-missing", 500).await.contains("500"));
     assert_eq!(
         send(first, "/blade-auth/signed", 200).await,
-        " default|no-alt|view-default"
+        "default|no-alt|view-default"
     );
     assert_eq!(
         send(first, "/blade-auth/named", 200).await,
-        " named|view-alternate"
+        "named|view-alternate"
     );
-    assert_eq!(send(second, "/blade-auth/off", 200).await, " guest|no-alt");
+    assert_eq!(send(second, "/blade-auth/off", 200).await, "guest|no-alt");
     assert!(send(first, "/blade-auth-failed", 500).await.contains("500"));
     let (a, b, visitor) = tokio::join!(
         send(first, "/blade-gate/signed", 200),
         send(second, "/blade-gate/signed", 200),
         send(first, "/blade-gate/off", 200),
     );
-    let authenticated_tail = "|denied|any|elsecan|elsecannot|create|nested|typed: clear";
+    let authenticated_tail = "|denied|any|elsecan|elsecannot|create|nested|typed:clear";
     assert_eq!(a, format!("policy{authenticated_tail}"));
     assert_eq!(b, format!("preview{authenticated_tail}"));
     assert_eq!(
         visitor,
-        "preview|denied|any|elsecan|elsecannot| guest|nested|typed: clear"
+        "preview|denied|any|elsecan|elsecannot| guest|nested|typed:clear"
     );
     assert!(send(first, "/bad-gate", 500).await.contains("500"));
     assert!(send(first, "/gate-error", 500).await.contains("500"));

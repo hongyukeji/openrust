@@ -1,0 +1,931 @@
+{
+    "php": "8.4.14",
+    "illuminate": {
+        "illuminate/bus": "v13.40.0",
+        "illuminate/collections": "v13.40.0",
+        "illuminate/conditionable": "v13.40.0",
+        "illuminate/container": "v13.40.0",
+        "illuminate/contracts": "v13.40.0",
+        "illuminate/events": "v13.40.0",
+        "illuminate/filesystem": "v13.40.0",
+        "illuminate/macroable": "v13.40.0",
+        "illuminate/pipeline": "v13.40.0",
+        "illuminate/reflection": "v13.40.0",
+        "illuminate/support": "v13.40.0",
+        "illuminate/view": "v13.40.0"
+    },
+    "views": {
+        "part": "{{ $value }}",
+        "components.num": "@props(['value' => 0]){{ $value }}",
+        "components.bad-prop": "@props(['value' => 1 / 0]){{ $value }}",
+        "components.bad-aware": "@aware(['value' => 1 / 0]){{ $value }}"
+    },
+    "overrides": {
+        "directive": {
+            "template": "@if(true)",
+            "output": "<override>"
+        },
+        "condition": {
+            "template": "@if(true)<b>A</b>@else<b>B</b>@endif",
+            "output": "<b>B</b>"
+        }
+    },
+    "fragments": {
+        "source": "@fragment('left')@once L{{ $pass }}:{{ $sharedFragmentPass }}@endonce @endfragment{{ '' }}@fragment('right')R{{ $pass }}:{{ $sharedFragmentPass }}@endfragment",
+        "cases": {
+            "named": {
+                "output": "R1:1L2:2 R2:2 L3:3  L4:4 ",
+                "pass": 4
+            },
+            "all": {
+                "output": " L1:1 R1:1",
+                "pass": 1
+            },
+            "empty": {
+                "output": "",
+                "pass": 0
+            },
+            "missing": {
+                "output": "L1:1 R1:1",
+                "pass": 1
+            },
+            "left": {
+                "output": " L1:1 ",
+                "pass": 1
+            }
+        }
+    },
+    "cases": [
+        {
+            "template": "@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "<b>yes</b>"
+        },
+        {
+            "template": "x@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_1.blade.php)"
+        },
+        {
+            "template": "0@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_2.blade.php)"
+        },
+        {
+            "template": "_@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_3.blade.php)"
+        },
+        {
+            "template": "$@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "$<b>yes</b>"
+        },
+        {
+            "template": "-@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "-<b>yes</b>"
+        },
+        {
+            "template": ".@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": ".<b>yes</b>"
+        },
+        {
+            "template": ">@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "><b>yes</b>"
+        },
+        {
+            "template": "中@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "中<b>yes</b>"
+        },
+        {
+            "template": "é@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "é<b>yes</b>"
+        },
+        {
+            "template": " @if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": " <b>yes</b>"
+        },
+        {
+            "template": "\n@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "<b>yes</b>"
+        },
+        {
+            "template": "a{{-- c --}}@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_12.blade.php)"
+        },
+        {
+            "template": "{{-- c --}}@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "output": "<b>yes</b>"
+        },
+        {
+            "template": "a{{--a--}}{{--b--}}@if(true)<b>yes</b>@endif",
+            "data": {},
+            "group": "prefix",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_14.blade.php)"
+        },
+        {
+            "template": "@if(true)x@endif",
+            "data": {},
+            "group": "ending",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected end of file, expecting \"elseif\" or \"else\" or \"endif\" (View: <oracle>/views/case_15.blade.php)"
+        },
+        {
+            "template": "@if(true)0@endif",
+            "data": {},
+            "group": "ending",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected end of file, expecting \"elseif\" or \"else\" or \"endif\" (View: <oracle>/views/case_16.blade.php)"
+        },
+        {
+            "template": "@if(true)_@endif",
+            "data": {},
+            "group": "ending",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected end of file, expecting \"elseif\" or \"else\" or \"endif\" (View: <oracle>/views/case_17.blade.php)"
+        },
+        {
+            "template": "@if(true)中@endif",
+            "data": {},
+            "group": "ending",
+            "output": "中"
+        },
+        {
+            "template": "@if(true)é@endif",
+            "data": {},
+            "group": "ending",
+            "output": "é"
+        },
+        {
+            "template": "@if(true)!@endif",
+            "data": {},
+            "group": "ending",
+            "output": "!"
+        },
+        {
+            "template": "@if(true)>@endif",
+            "data": {},
+            "group": "ending",
+            "output": ">"
+        },
+        {
+            "template": "@if(true) @endif",
+            "data": {},
+            "group": "ending",
+            "output": ""
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s><b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true) <b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s> <b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else <b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s> <b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif <e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b> <e>end</e>"
+        },
+        {
+            "template": " <p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag <e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag> <e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\") <e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A <e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active <b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s> <b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\t<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s>\t<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\t<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s>\t<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\t<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b>\t<e>end</e>"
+        },
+        {
+            "template": "\t<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\t<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag>\t<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\t<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A\t<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\t<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s>\t<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\n<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\n<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s><b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\n<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "\n<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\n<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\n<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\n<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\r\n<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\r\n<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s><b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\r\n<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "\r\n<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\r\n<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\r\n<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\r\n<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\n\n<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s>\n<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\n\n<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s>\n<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\n\n<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b>\n<e>end</e>"
+        },
+        {
+            "template": "\n\n<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\n\n<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag>\n<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\n\n<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A\n<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\n\n<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s>\n<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true) \n<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s> \n<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else \n<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s> \n<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif \n<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b> \n<e>end</e>"
+        },
+        {
+            "template": " \n<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag \n<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag> \n<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\") \n<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A \n<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active \n<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s> \n<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\r<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\r<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s><b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\r<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "\r<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\r<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\r<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\r<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s><b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\u000b<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s>\u000b<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\u000b<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s>\u000b<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\u000b<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b>\u000b<e>end</e>"
+        },
+        {
+            "template": "\u000b<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\u000b<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag>\u000b<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\u000b<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A\u000b<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\u000b<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s>\u000b<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\f<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s>\f<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\f<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s>\f<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\f<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b>\f<e>end</e>"
+        },
+        {
+            "template": "\f<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "\f<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\f<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag>\f<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\f<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A\f<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\f<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s>\f<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true) <b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s> <b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else <b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s> <b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif <e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b> <e>end</e>"
+        },
+        {
+            "template": " <p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": " <p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag <e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag> <e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\") <e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A <e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active <b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s> <b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)\u0000<b>A</b>@endif<e>end</e>",
+            "data": {},
+            "group": "opening-space",
+            "output": "<s>start</s>\u0000<b>A</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(false)<b>A</b>@else\u0000<b>B</b>@endif<e>end</e>",
+            "data": {},
+            "group": "else-space",
+            "output": "<s>start</s>\u0000<b>B</b><e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@if(true)<b>A</b>@endif\u0000<e>end</e>",
+            "data": {},
+            "group": "closing-space",
+            "output": "<s>start</s><b>A</b>\u0000<e>end</e>"
+        },
+        {
+            "template": "\u0000<p>plain</p>",
+            "data": {},
+            "group": "leading",
+            "output": "<p>plain</p>"
+        },
+        {
+            "template": "<s>start</s>@tag\u0000<e>end</e>",
+            "data": {},
+            "group": "custom-space",
+            "output": "<s>start</s><tag>\u0000<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@emit(\"A\")\u0000<e>end</e>",
+            "data": {},
+            "group": "custom-arguments",
+            "output": "<s>start</s>A\u0000<e>end</e>"
+        },
+        {
+            "template": "<s>start</s>@active\u0000<b>A</b>@endactive<e>end</e>",
+            "data": {},
+            "group": "condition-space",
+            "output": "<s>start</s>\u0000<b>A</b><e>end</e>"
+        },
+        {
+            "template": "@unknown(x)",
+            "data": {},
+            "group": "lexical",
+            "output": "@unknown(x)"
+        },
+        {
+            "template": "@@unknown(x)",
+            "data": {},
+            "group": "lexical",
+            "output": "@unknown(x)"
+        },
+        {
+            "template": "@@@unknown(x)",
+            "data": {},
+            "group": "lexical",
+            "output": "@@unknown(x)"
+        },
+        {
+            "template": "@@@@unknown",
+            "data": {},
+            "group": "lexical",
+            "output": "@@@unknown"
+        },
+        {
+            "template": "@@",
+            "data": {},
+            "group": "lexical",
+            "output": "@@"
+        },
+        {
+            "template": "@@@",
+            "data": {},
+            "group": "lexical",
+            "output": "@@@"
+        },
+        {
+            "template": "@if::custom(true)",
+            "data": {},
+            "group": "lexical",
+            "output": "@if::custom(true)"
+        },
+        {
+            "template": "@unknown::x",
+            "data": {},
+            "group": "lexical",
+            "output": "@unknown::x"
+        },
+        {
+            "template": "@@if(true)",
+            "data": {},
+            "group": "lexical",
+            "output": "@if(true)"
+        },
+        {
+            "template": "@IF(true)<b>yes</b>@ENDIF",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>yes</b>"
+        },
+        {
+            "template": "@If(true)<b>yes</b>@EnDiF",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>yes</b>"
+        },
+        {
+            "template": "@Tag",
+            "data": {},
+            "group": "lexical",
+            "output": "@Tag"
+        },
+        {
+            "template": "email@@unknown ",
+            "data": {},
+            "group": "lexical",
+            "output": "email@@unknown "
+        },
+        {
+            "template": "email@@if(true)<b>A</b>@endif",
+            "data": {},
+            "group": "lexical",
+            "output": "email@<b>A</b>"
+        },
+        {
+            "template": "@if\n(true)<b>x</b>@endif",
+            "data": {},
+            "group": "lexical",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \":\", expecting \"(\" (View: <oracle>/views/case_121.blade.php)"
+        },
+        {
+            "template": "@if\t(true)<b>x</b>@endif",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>x</b>"
+        },
+        {
+            "template": "@if(true)<b>X</b>@endif(1/0)",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>X</b>"
+        },
+        {
+            "template": "@if(true)<b>X</b>@endif()\n\nend",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>X</b>\nend"
+        },
+        {
+            "template": "@verbatim @if(true)word@endif @endverbatim",
+            "data": {},
+            "group": "lexical",
+            "output": "@if(true)word@endif "
+        },
+        {
+            "template": "word@verbatim@if(true)word@endif@endverbatim",
+            "data": {},
+            "group": "lexical",
+            "output": "word@if(true)word@endif"
+        },
+        {
+            "template": "@@verbatim text @@endverbatim",
+            "data": {},
+            "group": "lexical",
+            "output": "@verbatim text @endverbatim"
+        },
+        {
+            "template": "@verbatimX@endverbatim@if(true)<b>Y</b>@endif",
+            "data": {},
+            "group": "lexical",
+            "output": "X<b>Y</b>"
+        },
+        {
+            "template": "@verbatimX@endverbatim{{--c--}}@if(true)<b>Y</b>@endif",
+            "data": {},
+            "group": "lexical",
+            "output": "X<b>Y</b>"
+        },
+        {
+            "template": "@active(true)<b>A</b>@elseactive(false)<b>B</b>@else<b>C</b>@endactive",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "@active(false)<b>A</b>@elseactive(true)<b>B</b>@else<b>C</b>@endactive",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>B</b>"
+        },
+        {
+            "template": "@active(false)<b>A</b>@else<b>C</b>@endactive",
+            "data": {},
+            "group": "lexical",
+            "output": "<b>C</b>"
+        },
+        {
+            "template": "<s>A</s>@active\n(true)<b>X</b>@endactive",
+            "data": {},
+            "group": "edge",
+            "output": "<s>A</s>(true)<b>X</b>"
+        },
+        {
+            "template": "<s>A</s>@tag\n(1/0)",
+            "data": {},
+            "group": "edge",
+            "output": "<s>A</s><tag>(1/0)"
+        },
+        {
+            "template": "<s>A</s>@if \t\n(true)<b>X</b>@endif",
+            "data": {},
+            "group": "edge",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \":\", expecting \"(\" (View: <oracle>/views/case_135.blade.php)"
+        },
+        {
+            "template": "<s>A</s>{{ 'B' }}\nC",
+            "data": {},
+            "group": "edge",
+            "output": "<s>A</s>B\nC"
+        },
+        {
+            "template": "<s>A</s>{!! 'B' !!}\nC",
+            "data": {},
+            "group": "edge",
+            "output": "<s>A</s>B\nC"
+        },
+        {
+            "template": "word@if(true)text@endif",
+            "data": {},
+            "group": "edge",
+            "output": "word@if(true)text@endif"
+        },
+        {
+            "template": "a{{-- {{-- nested --}}@if(true)<b>A</b>@endif",
+            "data": {},
+            "group": "comment-span",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_139.blade.php)"
+        },
+        {
+            "template": "<b>p</b>{{-- {{-- nested --}}@if(true)<i>A</i>@endif",
+            "data": {},
+            "group": "comment-span",
+            "output": "<b>p</b><i>A</i>"
+        },
+        {
+            "template": "a{{-- first --}}{{-- {{-- nested --}}@if(true)<b>A</b>@endif",
+            "data": {},
+            "group": "comment-span",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_141.blade.php)"
+        },
+        {
+            "template": "{{ 1/0 }}",
+            "data": {},
+            "group": "errors",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Division by zero (View: <oracle>/views/case_142.blade.php)"
+        }
+    ]
+}
