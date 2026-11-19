@@ -18,7 +18,7 @@ use super::{
     syslog,
 };
 
-const DEFAULT_FILE: &str = "storage/logs/openrust.log";
+const DEFAULT_FILE: &str = "storage/logs/app.log";
 const MAX_STACK_DEPTH: usize = 32;
 type Factory = dyn Fn(&LogManager, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync;
 type Registry<T> = Mutex<HashMap<String, Arc<T>>>;
@@ -326,7 +326,7 @@ impl LogManager {
     fn settings(&self) -> Settings<'_> {
         let default_file = self.paths.as_ref().map_or_else(
             || PathBuf::from(DEFAULT_FILE),
-            |paths| paths.storagePath("logs/openrust.log"),
+            |paths| paths.storagePath("logs/app.log"),
         );
         let config = self
             .config
@@ -339,7 +339,7 @@ impl LogManager {
                 || {
                     self.paths.as_ref().map_or_else(
                         || self.root.join(DEFAULT_FILE),
-                        |paths| paths.storagePath("logs/openrust.log"),
+                        |paths| paths.storagePath("logs/app.log"),
                     )
                 },
                 |path| self.root.join(path),

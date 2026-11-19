@@ -41,7 +41,7 @@ impl Root {
     }
 
     fn log(&self) -> String {
-        fs::read_to_string(self.0.join("storage/logs/openrust.log")).unwrap()
+        fs::read_to_string(self.0.join("storage/logs/app.log")).unwrap()
     }
 }
 impl Drop for Root {
@@ -228,7 +228,7 @@ async fn ignored_shared_error_can_report_later_and_deduplication_is_application_
     second.boot().await.unwrap();
     let error = SharedException::new(Failure("shared explicit report"));
     app.report(&error).await.unwrap();
-    assert!(!root.0.join("storage/logs/openrust.log").exists());
+    assert!(!root.0.join("storage/logs/app.log").exists());
     ignore.store(false, Ordering::Relaxed);
     app.report(&error).await.unwrap();
     app.report(&error.clone()).await.unwrap();
@@ -333,7 +333,7 @@ async fn artisan_failure_logs_and_keeps_exit_code_and_stderr() {
         .unwrap();
     assert_eq!(output.status.code(), Some(1));
     assert_eq!(output.stderr, b"artisanal failure\n");
-    assert!(!limited.0.join("storage/logs/openrust.log").exists());
+    assert!(!limited.0.join("storage/logs/app.log").exists());
 }
 
 #[tokio::test]

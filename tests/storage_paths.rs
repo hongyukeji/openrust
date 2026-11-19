@@ -14,11 +14,11 @@ mod config;
 fn assert_paths(values: &BTreeMap<String, Value>, storage: &Path) {
     assert_eq!(
         values["logging"]["channels"]["single"]["path"],
-        json!(storage.join("logs/openrust.log"))
+        json!(storage.join("logs/app.log"))
     );
     assert_eq!(
         values["logging"]["channels"]["emergency"]["path"],
-        json!(storage.join("logs/openrust.log"))
+        json!(storage.join("logs/app.log"))
     );
     assert_eq!(
         values["session"]["files"],
@@ -137,7 +137,7 @@ async fn provider_fallbacks_use_the_application_paths_and_keep_explicit_log_path
         .info("explicit base path", &LogContext::new())
         .unwrap();
     assert!(
-        std::fs::read_to_string(storage.join("logs/openrust.log"))
+        std::fs::read_to_string(storage.join("logs/app.log"))
             .unwrap()
             .contains("fallback storage log")
     );

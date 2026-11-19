@@ -4,7 +4,7 @@ The Slack channel’s default username is the configured application name follow
 
 ## Configuration
 
-Configure the default channel with `LOG_CHANNEL`, the ordered members of the default stack with `LOG_STACK`, and the minimum severity with `LOG_LEVEL`. The default `stack` contains `single`, which appends to `storage/logs/openrust.log`. Relative paths are resolved from the application root. A channel's optional `name` changes the label on each record. The application environment is the default label.
+Configure the default channel with `LOG_CHANNEL`, the ordered members of the default stack with `LOG_STACK`, and the minimum severity with `LOG_LEVEL`. The default `stack` contains `single`, which appends to `storage/logs/app.log`. Relative paths are resolved from the application root. A channel's optional `name` changes the label on each record. The application environment is the default label.
 
 The implemented drivers are `single` for files, `stderr` for standard error, `null` to discard records, and `stack` to combine channels. A file is opened when a record meets the severity threshold. The `single` driver accepts `locking`, `bubble`, and an integer `permission` such as Rust's `0o600`. Permission applies on Unix. Records use UTC timestamps.
 

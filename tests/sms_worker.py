@@ -498,7 +498,7 @@ def check_log_default(binary, backend, env):
     }
     env.pop("SMS_DRIVER", None)
     artisan = [binary, "artisan"]
-    log = Path(env["APP_BASE_PATH"]) / "storage/logs/openrust.log"
+    log = Path(env["APP_BASE_PATH"]) / "storage/logs/app.log"
     before = log.stat().st_size if log.exists() else 0
     run(artisan + ["sms:demo", NUMBER, "private-debug-body", "--now"], env)
     run(artisan + ["sms:demo", NUMBER, '{"otp":"private-debug-otp"}',
@@ -539,7 +539,7 @@ def check_hardened_worker(binary, backend, env, receipts, endpoint):
     assert len(jobs) == 3 and all(job.get("encrypted_delivery") for job in jobs)
     assert all(value not in wire for value in (number, *messages, "shared-worker-secret"))
     worker = env | {"SMS_TEST_LISTENER_FAIL": "1"}
-    log = Path(env["APP_BASE_PATH"]) / "storage/logs/openrust.log"
+    log = Path(env["APP_BASE_PATH"]) / "storage/logs/app.log"
     before = log.stat().st_size if log.exists() else 0
     run(artisan + ["queue:work", backend, "--stop-when-empty", "--tries=3"], worker)
     with log.open("rb") as stream:

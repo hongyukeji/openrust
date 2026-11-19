@@ -10,7 +10,7 @@ pub(super) fn load(
     env: &Environment,
     app_name: &str,
 ) -> Result<Value, ConfigError> {
-    let log_path = env.storage_path(base_path, "logs/openrust.log");
+    let log_path = env.storage_path(base_path, "logs/app.log");
     let path = path(&log_path)?;
     let level = get(env, "LOG_LEVEL", "debug")?;
     let stack = env.get_utf8("LOG_STACK")?.unwrap_or("single");

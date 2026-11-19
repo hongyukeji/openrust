@@ -151,7 +151,7 @@ fn capture_write_errors_propagate_after_the_original_log_record() {
         Err(LogError::WriteFailed(_))
     ));
     assert!(
-        fs::read_to_string(root.0.join("storage/logs/openrust.log"))
+        fs::read_to_string(root.0.join("storage/logs/app.log"))
             .unwrap()
             .contains("written before capture failure")
     );

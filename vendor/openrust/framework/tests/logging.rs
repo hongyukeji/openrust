@@ -612,7 +612,7 @@ fn resolves_cached_stacks_with_severity_bubbling_and_fresh_driver_settings() {
     manager
         .info("test null default", &LogContext::new())
         .unwrap();
-    assert!(!root.0.join("storage/logs/openrust.log").exists());
+    assert!(!root.0.join("storage/logs/app.log").exists());
 }
 
 #[test]
@@ -705,7 +705,7 @@ fn config(root: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
                 "default":"stack",
                 "channels":{
                     "stack":{"driver":"stack","channels":["single","json"]},
-                    "single":{"driver":"single","path":"storage/logs/openrust.log","replace_placeholders":true},
+                    "single":{"driver":"single","path":"storage/logs/app.log","replace_placeholders":true},
                     "stderr":{"driver":"stderr"},
                     "syslog":syslog,
                     "json":{"driver":"single","path":"json.log","formatter":"json"},
@@ -908,8 +908,8 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
     let (b, second_task) = server(&second).await;
     tokio::join!(send(a, 101), send(a, 102), send(b, 201));
     send(a, 103).await;
-    let first_log = first.read("storage/logs/openrust.log");
-    let second_log = second.read("storage/logs/openrust.log");
+    let first_log = first.read("storage/logs/app.log");
+    let second_log = second.read("storage/logs/app.log");
     #[cfg(windows)]
     {
         let records = windows_events(event_source(&first.0));
@@ -1040,7 +1040,7 @@ fn console_routes() -> Result<(), ConsoleError> {
             .unwrap()
             .set(
                 "logging.channels.emergency.path",
-                json!("storage/logs/openrust.log/emergency"),
+                json!("storage/logs/app.log/emergency"),
             )
             .unwrap();
         Log::channel(Some("absent"))
@@ -1107,7 +1107,7 @@ async fn artisan_logs_to_file_and_stderr() {
     assert!(!stderr.contains("private-artisan-token"));
     assert!(
         !root
-            .read("storage/logs/openrust.log")
+            .read("storage/logs/app.log")
             .contains("private-artisan-token")
     );
     let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
@@ -1122,7 +1122,7 @@ async fn artisan_logs_to_file_and_stderr() {
     assert!(stderr.contains("openrust.EMERGENCY: Unable to create configured logger"));
     assert!(stderr.contains("openrust.WARNING: emergency stderr probe"));
     assert!(
-        root.read("storage/logs/openrust.log")
+        root.read("storage/logs/app.log")
             .contains("test.WARNING: artisan wrote a file")
     );
 }

@@ -22,3 +22,11 @@ macOS arm64，Rust 1.94.0。隔离副本基于 `21a65e98` 和已验收的 01-02y
 应用日志配置加载时复用已经解析的应用名称，将 Slack 的默认 `username` 设置为 `{app_name} Log`。显式 `LOG_SLACK_USERNAME` 优先，例如 `APP_NAME=ExampleStore` 默认生成 `ExampleStore Log`，设置 `LOG_SLACK_USERNAME=Operations` 后使用 `Operations`。
 
 Rust 1.94.0 配置回归验证 Cargo 包名回退、应用名称覆盖和 Slack 名称独立覆盖。配置测试、应用二进制和配置测试的严格 Clippy、全仓格式及差异空白检查通过。三语日志文档同步，站点构建及两种部署路径共 12 项浏览器检查通过。
+
+## 默认日志文件统一为 app.log（2026-11-19）
+
+应用日志配置和框架默认／紧急回退路径统一使用 `storage/logs/app.log`，仍通过应用 storage 路径解析。对应异常报告、Pail 捕获和 SMS Worker 验收脚本的预期路径同步修改。旧版 `v0.x` 的 `src/logging/manager.rs` 使用固定 `storage/logs/openrust.log`，本批按用户要求调整文件名称，复用现有路径装配与落盘逻辑。
+
+Rust 1.94.0 配置与存储路径测试 5 项、日志测试 14 项、异常报告测试 7 项以及 Pail 文件测试 4 项通过，覆盖真实 HTTP、Artisan、异常及紧急回退落盘、并发写入和捕获失败。上述受影响目标的严格 Clippy、全仓格式和差异空白检查通过。SMS Worker 脚本通过 Python AST 语法检查，本批未重跑 SMS 全链路。三语日志文档同步，站点构建及两种部署路径的 12 项浏览器检查通过。
+
+本批浏览器依赖已清理，共享 Cargo 和文档站产物保留。`tests/storage_paths.rs` 只暂存日志文件名替换，其余 Windows 与引号 WIP 保留。
