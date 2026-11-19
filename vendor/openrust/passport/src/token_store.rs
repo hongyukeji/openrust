@@ -65,6 +65,19 @@ impl TokenModels {
     ) -> DatabaseResult<()> {
         let tokens = (self.token.read().expect("token model lock").factory)();
         let refreshes = (self.refresh.read().expect("refresh model lock").factory)();
+        let created = crate::events::AccessTokenCreated {
+            tokenId: event_id(&access, "id")?,
+            userId: access
+                .get("user_id")
+                .filter(|v| !matches!(v, Value::Null))
+                .map(|v| {
+                    openrust::auth::AuthIdentifier::try_from(v)
+                        .map(|v| v.to_string())
+                        .map_err(|_| openrust::database::DatabaseError::InvalidScalar)
+                })
+                .transpose()?,
+            clientId: event_id(&access, "client_id")?,
+        };
         tokens
             .persist(
                 parent,
@@ -74,7 +87,14 @@ impl TokenModels {
                 self.config.as_ref(),
             )
             .await?;
+        openrust::support::facades::Event::dispatchInTransaction(created, transaction)
+            .await
+            .map_err(event_error)?;
         if let Some(refresh) = refresh {
+            let created = crate::events::RefreshTokenCreated {
+                refreshTokenId: event_id(&refresh, "id")?,
+                accessTokenId: event_id(&refresh, "access_token_id")?,
+            };
             refreshes
                 .persist(
                     parent,
@@ -84,6 +104,9 @@ impl TokenModels {
                     self.config.as_ref(),
                 )
                 .await?;
+            openrust::support::facades::Event::dispatchInTransaction(created, transaction)
+                .await
+                .map_err(event_error)?;
         }
         Ok(())
     }
@@ -366,7 +389,7 @@ impl<M: TokenModel> TokenStore for Typed<M> {
     fn revoke_id<'a>(
         &'a self,
         parent: &'a Connection,
-        transaction: Option<&'a mut openrust::database::Transaction>,
+        mut transaction: Option<&'a mut openrust::database::Transaction>,
         database: &'a DatabaseManager,
         config: &'a dyn Repository,
         id: &'a str,
@@ -376,7 +399,7 @@ impl<M: TokenModel> TokenStore for Typed<M> {
             let Some(mut model) = M::queryOn(&connection).find(id).await? else {
                 return Ok(false);
             };
-            if let Some(transaction) = transaction {
+            let changed = if let Some(transaction) = transaction.as_deref_mut() {
                 model.refreshForUpdate(transaction).await?;
                 model
                     .forceFillAsync([("revoked".into(), true.into())].into())
@@ -386,15 +409,24 @@ impl<M: TokenModel> TokenStore for Typed<M> {
                         "Passport revocation cancelled",
                     ));
                 }
-                Ok(true)
+                true
             } else {
                 let mut query = M::queryOn(&connection);
                 query.whereKey(id);
-                Ok(query
+                query
                     .update([("revoked".into(), true.into())].into())
                     .await?
-                    > 0)
+                    > 0
+            };
+            if changed && let Some(transaction) = transaction {
+                openrust::support::facades::Event::dispatchInTransaction(
+                    crate::events::AccessTokenRevoked { tokenId: id.into() },
+                    transaction,
+                )
+                .await
+                .map_err(event_error)?;
             }
+            Ok(changed)
         })
     }
     fn purge<'a>(
@@ -689,4 +721,21 @@ struct PurgeRetention {
     revoked: bool,
     cutoff: Option<String>,
     now: String,
+}
+
+fn event_id(
+    attributes: &openrust::database::eloquent::Attributes,
+    key: &str,
+) -> DatabaseResult<String> {
+    attributes
+        .get(key)
+        .ok_or(openrust::database::DatabaseError::InvalidScalar)
+        .and_then(|value| {
+            openrust::auth::AuthIdentifier::try_from(value)
+                .map(|v| v.to_string())
+                .map_err(|_| openrust::database::DatabaseError::InvalidScalar)
+        })
+}
+fn event_error(error: openrust::events::EventError) -> openrust::database::DatabaseError {
+    openrust::database::DatabaseError::ModelEvent(Box::new(error))
 }

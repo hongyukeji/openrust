@@ -13,6 +13,27 @@ struct RequestTokens(BTreeMap<String, AccessToken>);
 /// Bearer-token user resolution. State is isolated by request and guard name.
 pub struct TokenGuard;
 impl TokenGuard {
+    #[allow(non_snake_case)]
+    pub fn currentToken(request: &Request) -> Option<&AccessToken> {
+        let guard = openrust::auth::Auth::guardName(request, None).ok()?;
+        Self::token(request, &guard)
+    }
+
+    pub(crate) fn store(request: &mut Request, guard: &str, token: AccessToken) {
+        if request.parts().extensions.get::<RequestTokens>().is_none() {
+            request
+                .parts_mut()
+                .extensions
+                .insert(RequestTokens::default());
+        }
+        request
+            .parts_mut()
+            .extensions
+            .get_mut::<RequestTokens>()
+            .expect("inserted tokens")
+            .0
+            .insert(guard.into(), token);
+    }
     pub fn token<'a>(request: &'a Request, guard: &str) -> Option<&'a AccessToken> {
         request
             .parts()
@@ -36,7 +57,42 @@ impl TokenGuard {
                 .map_err(|e| AuthError::Http(Box::new(e)))?
                 .is_none()
             {
-                return Ok(None);
+                let container = openrust::container::Container::getInstance();
+                let passport = container.make::<crate::Passport>().map_err(backend)?;
+                if !request
+                    .hasCookie(&passport.cookie(None))
+                    .map_err(|e| AuthError::Http(Box::new(e)))?
+                {
+                    return Ok(None);
+                }
+                let encrypter = container
+                    .make::<openrust::encryption::Encrypter>()
+                    .map_err(backend)?;
+                let user_id = match crate::api_token_cookie_factory::authenticate(
+                    request, &passport, &encrypter,
+                ) {
+                    Ok(Some(id)) => id,
+                    _ => return Ok(None),
+                };
+                let provider = config
+                    .get("provider")
+                    .and_then(Value::as_str)
+                    .ok_or(AuthError::Configuration("Passport provider"))?;
+                let user = container
+                    .make::<AuthManager>()
+                    .map_err(backend)?
+                    .createUserProvider(provider)?
+                    .retrieve_by_id(&user_id)
+                    .await
+                    .unwrap_or(None);
+                if user.is_some() {
+                    Self::store(
+                        request,
+                        guard,
+                        crate::api_token_cookie_factory::transient(user_id),
+                    );
+                }
+                return Ok(user);
             }
             let server = ResourceServer::getFacadeRoot().map_err(backend)?;
             let token = match server.validateAuthenticatedRequest(request).await {
@@ -86,24 +142,7 @@ impl TokenGuard {
                 .await
                 .unwrap_or(None);
             if user.is_some() {
-                request
-                    .parts_mut()
-                    .extensions
-                    .get_mut::<RequestTokens>()
-                    .map(|tokens| tokens.0.remove(guard));
-                if request.parts().extensions.get::<RequestTokens>().is_none() {
-                    request
-                        .parts_mut()
-                        .extensions
-                        .insert(RequestTokens::default());
-                }
-                request
-                    .parts_mut()
-                    .extensions
-                    .get_mut::<RequestTokens>()
-                    .expect("inserted tokens")
-                    .0
-                    .insert(guard.into(), token);
+                Self::store(request, guard, token);
             }
             Ok(user)
         })

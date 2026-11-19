@@ -1,6 +1,8 @@
 //! Browser consent and token endpoints. Application views keep responsibility for UI.
 pub mod controllers;
 pub mod device_controllers;
+pub mod middleware;
+pub mod transient_token_controller;
 pub type DeviceUserCodeView =
     for<'a> fn(&'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
 
@@ -84,6 +86,13 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
                 .middleware_name("throttle");
         }
         router.group(RouteGroup::new().middleware_name("web"), |router| {
+            router
+                .r#match(
+                    &[openrust::http::Method::POST],
+                    "/token/refresh",
+                    transient_token_controller::TransientTokenController::refresh,
+                )?
+                .name("token.refresh");
             if device_enabled {
                 router
                     .get(

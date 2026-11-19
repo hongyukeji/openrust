@@ -15,6 +15,8 @@ pub struct AccessToken {
     pub oauth_client_id: String,
     pub oauth_user_id: Option<String>,
     pub oauth_scopes: Option<Vec<String>>,
+    #[serde(skip)]
+    pub(crate) transient: bool,
 }
 impl std::fmt::Debug for AccessToken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,6 +25,9 @@ impl std::fmt::Debug for AccessToken {
 }
 impl AccessToken {
     pub fn can(&self, scope: &str) -> openrust::database::DatabaseResult<bool> {
+        if self.transient {
+            return Ok(true);
+        }
         let Some(scopes) = &self.oauth_scopes else {
             return Ok(false);
         };
@@ -36,9 +41,12 @@ impl AccessToken {
         self.can(scope).map(|v| !v)
     }
     pub fn transient(&self) -> bool {
-        false
+        self.transient
     }
     pub async fn revoke(&self) -> openrust::database::DatabaseResult<bool> {
+        if self.transient {
+            return Ok(false);
+        }
         let passport = openrust::container::Container::getInstance()
             .make::<Passport>()
             .map_err(openrust::database::DatabaseError::Unavailable)?;
@@ -68,6 +76,13 @@ impl ResourceServer {
         &self,
         request: &mut Request,
     ) -> Result<AccessToken, OAuthError> {
+        if let Some(token) = request
+            .parts()
+            .extensions
+            .get::<crate::testing::TestingToken>()
+        {
+            return Ok(token.0.clone());
+        }
         let authorization = request.headers().get("authorization").map(|h| h.as_bytes());
         let token = bearer(authorization)?;
         let now = Date::now(None)
@@ -186,6 +201,7 @@ impl ResourceServer {
             oauth_client_id: client.into(),
             oauth_user_id: user,
             oauth_scopes: scopes,
+            transient: false,
         })
     }
 }

@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. The remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. Client credentials, personal tokens, scopes, SPA cookies, events and request-local testing helpers are also available. Optional Password/Implicit grants remain under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -233,4 +233,50 @@ Run `artisan passport:purge`. It removes revoked items and items expired for mor
 
 Set the guard in `config/auth.rs` to `{"driver":"passport","provider":"users"}` and apply `auth:api` to protected routes. The provider must resolve the application's compiled user model. RS256 signature, optional JWT time claims and the selected access-token revocation store are checked on every request. Inactive clients, provider mismatch and missing users are unauthenticated. Provider lookup exceptions are treated as unauthenticated; failures of the authoritative token store fail the request.
 
-The real user remains available through `Auth::user(request).await?`. Rust attaches the lightweight access token to the request under its guard name instead of replacing the compiled user object. Read it with `openrust_passport::guards::TokenGuard::token(request, "api")`; `can`, `cant` and `transient` expose scope checks. `ResourceServer::validateAuthenticatedRequest` also inserts typed `AccessToken` request attributes. Guard resolution is cached within each request and isolated by guard name and application. Cookie authentication and scope middleware belong to subsequent units.
+The real user remains available through `Auth::user(request).await?`. Rust attaches the lightweight access token to the request under its guard name instead of replacing the compiled user object. Read it with `openrust_passport::guards::TokenGuard::token(request, "api")`; `can`, `cant` and `transient` expose scope checks. `ResourceServer::validateAuthenticatedRequest` also inserts typed `AccessToken` request attributes. Guard resolution is cached within each request and isolated by guard name and application. Cookie authentication and scope middleware are described below.
+
+## Client credentials grant {#client-credentials-grant}
+
+Create a confidential machine client with `artisan passport:client --client`. Send `grant_type=client_credentials`, `client_id`, `client_secret` and optional space-delimited `scope` to `POST /oauth/token`. HTTP Basic credentials are also accepted. The response has `access_token`, `token_type` and `expires_in`, with `Cache-Control: no-store`; it has no refresh token. Public clients are rejected. The JWT subject is the client ID and the database user ID is null.
+
+Protect machine routes with `EnsureClientIsResourceOwner::shared(["read"])`. This verifies the token and required scopes without requiring a user provider. User guards still require a real user. `passport.clientCredentialsTokensExpireIn(Some(GrantLifetime::Seconds(300)))` sets the machine lifetime; until configured it follows `tokensExpireIn`.
+
+## Personal access tokens {#personal-access-tokens}
+
+Create a personal client with `artisan passport:client --personal --provider=users`. Within the application context, call `PersonalAccessTokenFactory::make(user_id, "Automation", &["read".into()], "users").await?`. The dedicated personal grant is unavailable at the public token endpoint. Client selection follows the provider; a client with no provider is a fallback only for the configured API provider.
+
+A compiled user model may implement `HasApiTokens`, explicitly returning its configured provider from `getProviderName`, then call `user.createToken("Automation", &["read".into()]).await?`. Rust requires this declaration instead of inferring a PHP model class name. Tokens preserve their user, name and scopes and have no refresh token. `personalAccessTokensExpireIn` defaults to one calendar year independently of other grants.
+
+`PersonalAccessTokenResult` exposes `accessTokenId`, `accessToken`, `tokenType` and `expiresIn` through serialization, `toArray` and `toJson`. `getToken().await?` loads and caches the actual default `Token` as `Option<PersonalToken<Token>>`; this is an `Arc<tokio::sync::Mutex<Token>>`, so repeated access shares the same model. For a compiled custom token model use `getTokenFor::<CustomToken>()`. Lock the model to revoke it with the `TokenModel` trait. Debug output redacts the bearer token.
+
+## Token scopes {#token-scopes}
+
+Register scope descriptions with `tokensCan(BTreeMap::from([("read".into(), "Read data".into())]))`. `setDefaultScope(vec!["read".into()])` sets defaults for requests that omit `scope`. Explicit unknown scopes are rejected; client scope restrictions are applied before signing. Machine tokens may retain `*`. `defaultScopes(None)` reads defaults and `defaultScopes(Some(scopes))` updates them. The protocol normalizes the resulting space-delimited string.
+
+`scopeIds`, `hasScope`, `validScopes` and `scopesFor` query the configured scopes. `validScopes` filters and deduplicates in input order; `scopesFor` retains duplicates and filters unknown IDs. `hasScope("*")` is true, while `validScopes` includes `*` only if explicitly configured.
+
+```rust
+use openrust_passport::http::middleware::{CheckToken, CheckTokenForAnyScope};
+route.middleware(CheckToken::shared(["read", "write"]));
+route.middleware(CheckTokenForAnyScope::shared(["read", "write"]));
+```
+
+These compiled middleware values replace PHP middleware strings. `CheckToken` requires all scopes; `CheckTokenForAnyScope` requires at least one. An empty all list passes and an empty any list fails. Missing authentication returns 401 and insufficient scope returns 403, `Invalid scope(s) provided.`. `exceptions::MissingScopeException` exposes the native error type. `TokenGuard::currentToken(request)` reads the selected guard's token. Transient first-party tokens authorize all scopes.
+
+## SPA authentication {#spa-authentication}
+
+Add `CreateFreshApiToken::using(Some("web"))` as shared middleware inside the web stack, after Session and cookie middleware. Authenticated GET responses receive the encrypted HttpOnly `openrust_token` cookie, unless the response already sets it. The signed internal JWT carries the actual user identifier, CSRF token and expiry. Its lifetime and cookie attributes follow Session configuration. `passport.cookie(Some("custom_name"))` changes its name.
+
+Use a Passport API guard for API resources. The API stack normally excludes the web `EncryptCookies` middleware: Passport decrypts its own cookie. If an application already decrypts the cookie before the guard, explicitly call `withoutCookieEncryption`. `withCookieEncryption`, `withCookieSerialization`, `withoutCookieSerialization`, `encryptTokensUsing` and `tokenEncryptionKey` configure the matching producer/consumer format and key. Settings belong to the application instance; applications using the same key and format may read each other's cookies.
+
+Send the Session CSRF value in `X-CSRF-TOKEN`, or the encrypted XSRF cookie in `X-XSRF-TOKEN`, even for cookie-authenticated API GET requests. Invalid signatures, expiry, CSRF or missing users are unauthenticated. An explicit Bearer header takes precedence and cannot fall back to the cookie. `ignoreCsrfToken(true)` is an explicit bypass and defaults to false.
+
+`POST /oauth/token/refresh` uses the web Session and CSRF middleware and returns 200 `Refreshed.` with a fresh cookie. Cookie authentication creates a request-local transient token without a database access-token row. Install `CreateFreshApiToken` on the web logout route too: it observes the authenticated-to-guest transition and expires the API cookie. This native adaptation replaces PHP's global-request logout listener; routes without this middleware do not automatically clear that cookie.
+
+## Events {#events}
+
+Listen to the typed `events::AccessTokenCreated`, `RefreshTokenCreated` and `AccessTokenRevoked` through the framework dispatcher. Payloads contain token/client/user identifiers, never the bearer or client secret. Access-token creation is dispatched after saving the access model, followed by refresh-token creation after its save. A synchronous listener failure rolls back issuance; `Delivery::AfterCommit` observes committed records. Refresh rotation emits revocation in its transaction. Direct access-token `revoke` updates storage without emitting that rotation event.
+
+## Testing {#testing}
+
+Within the application context, call `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` for a user or `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` for a machine. These helpers select the guard and attach a scope-aware token to that explicit request. They create no signed token or database record and affect no subsequent request. `actingAsClient` requires a request without a cached user; use a fresh request when switching from user authentication. Real protocol tests must still obtain and submit signed tokens.

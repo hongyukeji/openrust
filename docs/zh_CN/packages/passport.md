@@ -2,7 +2,7 @@
 
 ## 安装 {#installation}
 
-已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
+已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，机器令牌、个人令牌、scope、SPA Cookie、事件和请求内测试辅助已提供，可选 Password／Implicit 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
 
 当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
 
@@ -233,4 +233,50 @@ let current = passport.tokensExpireIn(None);
 
 在 `config/auth.rs` 将守卫配置为 `{"driver":"passport","provider":"users"}`，为受保护路由添加 `auth:api`。Provider 须解析应用编译后的用户模型。每个请求验证 RS256 签名、可选 JWT 时间声明和选定访问存储的撤销状态。客户端失效、provider 不匹配或用户不存在时视为未认证；用户查询异常也视为未认证，权威令牌存储故障则令请求失败。
 
-通过 `Auth::user(request).await?` 读取真实用户。Rust 将轻量访问令牌按守卫名附到请求，保留原编译用户对象；通过 `openrust_passport::guards::TokenGuard::token(request, "api")` 读取，使用 `can`、`cant`、`transient` 检查 scope。`ResourceServer::validateAuthenticatedRequest` 还插入类型化 `AccessToken` 请求属性。守卫解析仅在本请求内缓存，按守卫及应用隔离。Cookie 认证和 scope 中间件在后续单元交付。
+通过 `Auth::user(request).await?` 读取真实用户。Rust 将轻量访问令牌按守卫名附到请求，保留原编译用户对象；通过 `openrust_passport::guards::TokenGuard::token(request, "api")` 读取，使用 `can`、`cant`、`transient` 检查 scope。`ResourceServer::validateAuthenticatedRequest` 还插入类型化 `AccessToken` 请求属性。守卫解析仅在本请求内缓存，按守卫及应用隔离。Cookie 认证和 scope 中间件见下文。
+
+## 客户端凭据授权 {#client-credentials-grant}
+
+通过 `artisan passport:client --client` 创建机密机器客户端，向 `POST /oauth/token` 发送 `grant_type=client_credentials`、`client_id`、`client_secret` 和可选的空格分隔 `scope`；也支持 HTTP Basic 凭据。响应包含 `access_token`、`token_type`、`expires_in` 和 `Cache-Control: no-store`，没有刷新令牌。公开客户端被拒绝。JWT subject 为客户端 ID，数据库 user ID 为空。
+
+机器资源使用 `EnsureClientIsResourceOwner::shared(["read"])` 验证令牌和 scope，不要求用户 provider；用户守卫仍要求真实用户。通过 `passport.clientCredentialsTokensExpireIn(Some(GrantLifetime::Seconds(300)))` 设置机器期限，未单独配置时沿用 `tokensExpireIn`。
+
+## 个人访问令牌 {#personal-access-tokens}
+
+使用 `artisan passport:client --personal --provider=users` 创建个人客户端。在应用上下文调用 `PersonalAccessTokenFactory::make(user_id, "Automation", &["read".into()], "users").await?`。个人授权走专用服务器，公网令牌端点不接受它。按 provider 选择客户端；无 provider 的客户端仅能作为已配置 API provider 的回退。
+
+编译用户模型可以实现 `HasApiTokens`，在 `getProviderName` 明确返回其配置 provider，再调用 `user.createToken("Automation", &["read".into()]).await?`。Rust 要求显式声明，不推断 PHP 模型类名。令牌保存用户、名称和 scope，无刷新令牌。`personalAccessTokensExpireIn` 默认独立为一个日历年。
+
+`PersonalAccessTokenResult` 的序列化、`toArray`、`toJson` 提供 `accessTokenId`、`accessToken`、`tokenType`、`expiresIn`。`getToken().await?` 加载并缓存真实默认 `Token`，返回 `Option<PersonalToken<Token>>`，即 `Arc<tokio::sync::Mutex<Token>>`；重复读取共享同一模型。编译自定义模型使用 `getTokenFor::<CustomToken>()`。锁定模型后通过 `TokenModel` 撤销。Debug 输出隐藏 Bearer。
+
+## 令牌作用域 {#token-scopes}
+
+使用 `tokensCan(BTreeMap::from([("read".into(), "读取数据".into())]))` 注册 scope 描述；`setDefaultScope(vec!["read".into()])` 设置省略 `scope` 时的默认值。显式未知 scope 被拒绝，签名前应用客户端 scope 限制；机器令牌可以保留 `*`。`defaultScopes(None)` 读取，`defaultScopes(Some(scopes))` 更新，协议层规范化空格分隔字符串。
+
+`scopeIds`、`hasScope`、`validScopes` 和 `scopesFor` 查询配置。`validScopes` 按输入顺序过滤并去重，`scopesFor` 保留重复并过滤未知 ID。`hasScope("*")` 为真，但 `validScopes` 仅在显式配置时保留 `*`。
+
+```rust
+use openrust_passport::http::middleware::{CheckToken, CheckTokenForAnyScope};
+route.middleware(CheckToken::shared(["read", "write"]));
+route.middleware(CheckTokenForAnyScope::shared(["read", "write"]));
+```
+
+原生中间件值替代 PHP 中间件字符串。`CheckToken` 要求全部 scope，`CheckTokenForAnyScope` 要求至少一个；空的全部列表通过，空的任一列表拒绝。未认证返回 401，scope 不足返回 403、`Invalid scope(s) provided.`。原生错误类型位于 `exceptions::MissingScopeException`。`TokenGuard::currentToken(request)` 读取选定守卫的令牌，第一方瞬态令牌允许全部 scope。
+
+## SPA 认证 {#spa-authentication}
+
+将共享的 `CreateFreshApiToken::using(Some("web"))` 放入 web 栈，位于 Session 和 Cookie 中间件之后。已认证 GET 响应追加加密 HttpOnly `openrust_token` Cookie，已有同名响应 Cookie 时保留原值。内部签名 JWT 包含真实用户标识、CSRF 和期限，期限及 Cookie 属性沿用 Session 配置。`passport.cookie(Some("custom_name"))` 修改名称。
+
+API 资源使用 Passport 守卫。API 栈通常不含 web `EncryptCookies`，由 Passport 自行解密；如果应用已经提前解密，应显式调用 `withoutCookieEncryption`。`withCookieEncryption`、`withCookieSerialization`、`withoutCookieSerialization`、`encryptTokensUsing` 和 `tokenEncryptionKey` 配置生产与消费一致的格式和密钥。设置归属应用实例；相同密钥和格式的应用可能互读 Cookie。
+
+通过 `X-CSRF-TOKEN` 发送 Session CSRF，或用 `X-XSRF-TOKEN` 发送加密 XSRF Cookie，即使 Cookie API 请求为 GET 也要求匹配。错误签名、过期、CSRF 或用户不存在均未认证。显式 Bearer 优先，失败时不回退 Cookie。`ignoreCsrfToken(true)` 为显式绕过，默认关闭。
+
+`POST /oauth/token/refresh` 经过 web Session 和 CSRF，返回 200 `Refreshed.` 并刷新 Cookie。Cookie 认证生成请求内瞬态令牌，不保存数据库访问令牌。web 登出路由也须安装 `CreateFreshApiToken`，通过前后身份变化清除此 Cookie；这是替代 PHP 全局请求登出监听器的原生适配，未安装的路由不会自动清除。
+
+## 事件 {#events}
+
+通过框架分发器监听类型化 `events::AccessTokenCreated`、`RefreshTokenCreated` 和 `AccessTokenRevoked`。载荷含令牌、客户端和用户 ID，不含 Bearer 或客户端秘密。先保存访问模型并分发创建事件，再保存刷新模型并分发。同步监听器失败回滚签发；`Delivery::AfterCommit` 读取已提交记录。刷新轮换在事务内分发撤销事件，直接调用访问令牌 `revoke` 仅修改存储，不分发该轮换事件。
+
+## 测试 {#testing}
+
+在应用上下文用 `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` 设置用户，或用 `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` 设置机器。这些辅助方法选定守卫并将带 scope 的令牌附到显式请求，不签发、不落库，也不影响后续请求。`actingAsClient` 要求请求没有缓存用户，从用户身份切换时创建新请求。真实协议测试仍须获取并提交签名令牌。

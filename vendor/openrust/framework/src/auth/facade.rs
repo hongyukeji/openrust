@@ -25,6 +25,11 @@ impl Auth {
         Self::getFacadeRoot().map_err(AuthError::backend)
     }
 
+    /// Resolves a request's selected guard name, including shouldUse overrides.
+    pub fn guardName(request: &Request, name: Option<&str>) -> AuthResult<String> {
+        Self::manager()?.guard_name(request, name)
+    }
+
     pub fn guard<'a>(
         request: &'a mut Request,
         name: Option<&str>,

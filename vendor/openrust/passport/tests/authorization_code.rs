@@ -133,6 +133,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Json>, ConfigErr
     ]))
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
+    default_grants::routes()?;
     Route::get("/session", session)?;
     Route::r#match(
         &[Method::POST],
@@ -2054,3 +2055,6 @@ async fn mysql_refresh_can_narrow_two_granted_scopes_without_expanding_again() {
 
 #[path = "device_authorization/mod.rs"]
 mod device_authorization;
+
+#[path = "default_grants/mod.rs"]
+mod default_grants;

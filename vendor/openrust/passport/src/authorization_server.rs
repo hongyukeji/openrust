@@ -26,6 +26,8 @@ use zeroize::Zeroizing;
 
 #[path = "device_authorization.rs"]
 mod device;
+#[path = "standalone_grants.rs"]
+mod standalone;
 pub use device::DeviceCodeResponse;
 
 /// Validated browser request. Its fields cannot be replaced by a consent POST.
@@ -326,6 +328,8 @@ impl AuthorizationServer {
     ) -> Result<TokenResponse, OAuthError> {
         let grant = if parameters.raw_string_matches("grant_type", "authorization_code") {
             "authorization_code"
+        } else if parameters.raw_string_matches("grant_type", "client_credentials") {
+            "client_credentials"
         } else if parameters.raw_string_matches("grant_type", "refresh_token") {
             "refresh_token"
         } else if parameters.raw_string_matches("grant_type", device::GRANT)
@@ -372,6 +376,14 @@ impl AuthorizationServer {
             {
                 return Err(OAuthError::invalid_client(authorization));
             }
+        }
+        if grant == "client_credentials" {
+            if !client.confidential().await {
+                return Err(OAuthError::invalid_client(authorization));
+            }
+            return self
+                .exchange_client_credentials(parameters, client, connection, transaction)
+                .await;
         }
         if grant == device::GRANT {
             return self

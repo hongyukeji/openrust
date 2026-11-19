@@ -1,8 +1,18 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
+mod api_token_cookie_factory;
 mod auth_code;
+pub mod contracts;
 mod device_code;
+mod testing;
+pub use api_token_cookie_factory::ApiTokenCookieFactory;
+pub use contracts::TransientToken;
+pub mod events;
+mod personal_access_token_factory;
 pub use device_code::DeviceCode;
+pub use personal_access_token_factory::{
+    HasApiTokens, PersonalAccessTokenFactory, PersonalAccessTokenResult, PersonalToken,
+};
 mod lifetime;
 pub use lifetime::GrantLifetime;
 mod authorization_server;
@@ -48,7 +58,10 @@ pub use client::{Client, ClientModel};
 pub use client_record::ClientRecord;
 pub use client_repository::{ClientOwner, ClientRepository, ClientRepositoryError};
 pub use keys::{CryptKey, KeyError, PrivateKey, PublicKey};
-pub use passport::Passport;
+pub use passport::{Passport, TokenEncryptionKey};
+pub mod exceptions {
+    pub use crate::http::middleware::MissingScopeException;
+}
 pub use php_array::PhpArray;
 pub use refresh_token::{RefreshToken, RefreshTokenModel};
 pub use scope::Scope;
