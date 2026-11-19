@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport's configuration, key lifecycle and five publishable OAuth migrations are available. OAuth endpoints, clients and token guards are delivered in the following Passport units; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport's configuration, key lifecycle and five publishable OAuth migrations are available. OAuth endpoints and token guards are delivered in the following Passport units; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -62,3 +62,40 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 The directory must exist and be writable for generation. This uses an application-owned `Passport` instance instead of PHP's process-global mutable settings. `keyPath` and `loadKeysFrom` retain their names. Keys load independently and lazily; configuration alone does not assert that the public and private keys form a pair. On Unix, file modes outside 0400, 0440, 0600, 0640 and 0660 fail validation. An application can explicitly disable that check with `passport.validateKeyPermissions.store(false, std::sync::atomic::Ordering::Relaxed)`; other applications keep their own setting. Inline keys and Windows skip this Unix mode check.
 
 The default and standard-size key generation uses the existing native AWS-LC implementation. Other supported lengths use a separate generator. RustCrypto is used for generation and PEM parsing, not online RSA decryption or signing. No PHP or OpenSSL command-line installation is required.
+
+## Managing clients {#managing-clients}
+
+The first client repository batch supports lookup, creation, update, secret rotation and owner filtering using real Eloquent models. The `passport:client` command, revoking clients and their tokens, model relationships and complete scope configuration are still pending; this does not enable OAuth endpoints or token authentication.
+
+Resolve `ClientRepository` inside the request or Artisan lifecycle. The container gives each lifecycle a new repository. Repeated `find` calls with the same argument share the actual model, including cached misses; database errors propagate and can be retried. `findActive` also checks the current model's `revoked` attribute. Do not retain this scoped service in an application singleton. For an explicitly managed operation, `Passport::clientRepository()` creates a separately owned cache.
+
+The following helper is called inside that lifecycle after publishing and running the client migration:
+
+```rust
+use openrust::foundation::Application;
+use openrust_passport::{ClientOwner, ClientRecord, ClientRepository};
+
+pub async fn create_client(
+    app: &Application,
+    owner: Option<&ClientOwner>,
+) -> Result<ClientRecord, Box<dyn std::error::Error + Send + Sync>> {
+    let clients = app.make::<ClientRepository>().await?;
+    Ok(clients
+        .createAuthorizationCodeGrantClient(
+            "My application",
+            &["https://example.com/callback".to_owned()],
+            true,
+            owner,
+            false,
+        )
+        .await?)
+}
+```
+
+The arguments retain Laravel's order. Rust makes default arguments explicit: `true` creates a confidential client, `owner` is optional, and the final `false` disables the additional device grant. A `ClientOwner` is made with `ClientOwner::forUser(&user)` from a compiled `Model + Authenticatable`; it uses the model's primary key and morph class, rather than its possibly different authentication identifier. Public clients pass `false` for confidentiality.
+
+`createPersonalAccessGrantClient`, `createPasswordGrantClient`, `createClientCredentialsGrantClient`, `createImplicitGrantClient` and `createDeviceAuthorizationGrantClient` select their corresponding grants. Password, implicit and device protocol endpoints are not enabled by creating a row. `update` changes the name and redirects; `regenerateSecret` creates a new secret. Both save through Eloquent and return its boolean result. `findForUser` and `forUser` exclude revoked clients; the latter sorts by name. `personalAccessClient(provider)` selects the latest matching active personal client, including a null provider only when it matches `auth.guards.api.provider`, and returns an error when none exists.
+
+Confidential secrets use the application's existing asynchronous Eloquent hash service. The creating or rotating `Client` temporarily retains its setter input in `plainSecret`; fresh database reads do not. Default JSON output hides `secret` and does not append the plaintext. Copy a newly generated plaintext only when delivering it to its owner, and never log it. An `Arc<tokio::sync::Mutex<M>>` returned by `record.model::<M>()` refers to the actual selected model; `sameInstance` checks shared object identity, not whether two model rows have the same key.
+
+Call `passport.useClientModel::<CustomClient>()` during application setup before resolving repositories. The compiled type implements `ClientModel` and Eloquent `Model`; its unique-ID validation, global scopes, events and casts remain in effect. Malformed UUID/ULID keys return no result before connection resolution. Repository queries use an explicit model connection first, then `passport.connection`, then the database default. Created and loaded models retain their connection for subsequent saves. Unbound `Client::query()`/`save()` connection fallback, the complete Client model surface, `plain_secret` appending, PHP JSON encoding options and exact float-to-string coercion are not part of this accepted batch. Use the repository or an explicitly bound `Client::queryOn(&connection)` for the documented operations.

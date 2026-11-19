@@ -28,6 +28,7 @@ mod stringable;
 mod strings;
 mod timebox;
 mod uri;
+mod value_comparison;
 mod view_error_bag;
 
 pub use crate::cache::cache;
@@ -67,4 +68,6 @@ pub use strings::{
 };
 pub use timebox::Timebox;
 pub use uri::{InvalidUri, Uri, UriQueryString};
+#[doc(hidden)]
+pub use value_comparison::{php_loose_string_equal, php_loose_string_value_equal};
 pub use view_error_bag::ViewErrorBag;

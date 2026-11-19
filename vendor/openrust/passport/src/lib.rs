@@ -1,14 +1,24 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
+mod client;
+mod client_record;
+mod client_repository;
 #[path = "../config/passport.rs"]
 mod configuration;
 pub mod console;
 mod keys;
 pub mod migrations;
 mod passport;
+mod php_array;
+mod scope;
 
+pub use client::{Client, ClientModel};
+pub use client_record::ClientRecord;
+pub use client_repository::{ClientOwner, ClientRepository, ClientRepositoryError};
 pub use keys::{CryptKey, KeyError, PrivateKey, PublicKey};
 pub use passport::Passport;
+pub use php_array::PhpArray;
+pub use scope::Scope;
 
 use openrust::{
     config::Environment,
@@ -30,7 +40,12 @@ impl ServiceProvider for PassportServiceProvider {
                 Ok(Arc::new(Passport::new(
                     container.get("config")?,
                     container.make::<openrust::foundation::Paths>()?,
+                    container.make::<openrust::database::DatabaseManager>()?,
                 )))
+            })?;
+            app.container().scoped::<ClientRepository, _>(|container| {
+                let passport = container.make::<Passport>()?;
+                Ok(Arc::new(passport.clientRepository()))
             })?;
             app.container().singleton::<PrivateKey, _>(|container| {
                 let passport = container.make::<Passport>()?;

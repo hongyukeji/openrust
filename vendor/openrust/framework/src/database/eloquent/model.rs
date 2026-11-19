@@ -896,6 +896,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         })
     }
 
+    /// The configured creation timestamp column, or None when disabled.
+    fn getCreatedAtColumn(&self) -> Option<&str> {
+        Self::metadata().created_at
+    }
+
     fn getTable(&self) -> &'static str {
         self.state()
             .pivot_identity

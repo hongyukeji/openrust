@@ -1,4 +1,19 @@
-use crate::{CryptKey, KeyError};
+use crate::client_repository::{ClientStore, EloquentClientStore};
+use crate::{Client, ClientModel, ClientRepository, CryptKey, KeyError};
+use openrust::database::DatabaseManager;
+
+type ClientStoreFactory = fn(Arc<DatabaseManager>, Arc<dyn Repository>) -> Arc<dyn ClientStore>;
+#[derive(Clone, Copy)]
+struct ClientModelRegistration {
+    name: &'static str,
+    factory: ClientStoreFactory,
+}
+fn client_store<M: ClientModel>(
+    database: Arc<DatabaseManager>,
+    config: Arc<dyn Repository>,
+) -> Arc<dyn ClientStore> {
+    Arc::new(EloquentClientStore::<M>::new(database, config))
+}
 use openrust::{contracts::config::Repository, foundation::Paths};
 use std::io::Read as _;
 use std::{
@@ -15,16 +30,52 @@ pub struct Passport {
     config: Arc<dyn Repository>,
     paths: Arc<Paths>,
     key_path: RwLock<Option<PathBuf>>,
+    database: Arc<DatabaseManager>,
+    client_model: RwLock<ClientModelRegistration>,
 }
 #[allow(non_snake_case)]
 impl Passport {
-    pub(crate) fn new(config: Arc<dyn Repository>, paths: Arc<Paths>) -> Self {
+    pub(crate) fn new(
+        config: Arc<dyn Repository>,
+        paths: Arc<Paths>,
+        database: Arc<DatabaseManager>,
+    ) -> Self {
         Self {
             validateKeyPermissions: AtomicBool::new(true),
             config,
             paths,
+            database,
+            client_model: RwLock::new(ClientModelRegistration {
+                name: "openrust_passport::Client",
+                factory: client_store::<Client>,
+            }),
             key_path: RwLock::new(None),
         }
+    }
+    /// Selects a compiled client type before resolving the lifecycle's repository.
+    pub fn useClientModel<M: ClientModel>(&self) {
+        *self
+            .client_model
+            .write()
+            .expect("Passport client model lock poisoned") = ClientModelRegistration {
+            name: std::any::type_name::<M>(),
+            factory: client_store::<M>,
+        };
+    }
+    pub fn clientModel(&self) -> &'static str {
+        self.client_model
+            .read()
+            .expect("Passport client model lock poisoned")
+            .name
+    }
+    /// Creates an explicitly owned repository; DI scopes one instance per lifecycle.
+    pub fn clientRepository(&self) -> ClientRepository {
+        let factory = self
+            .client_model
+            .read()
+            .expect("Passport client model lock poisoned")
+            .factory;
+        ClientRepository::new(factory(self.database.clone(), self.config.clone()))
     }
     /// Sets a directory before lazy key services are first resolved.
     pub fn loadKeysFrom(&self, path: impl AsRef<Path>) {
