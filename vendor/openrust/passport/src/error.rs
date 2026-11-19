@@ -45,6 +45,9 @@ pub struct OAuthError {
 }
 
 impl OAuthError {
+    pub(crate) fn is_server_error(&self) -> bool {
+        self.status.is_server_error()
+    }
     pub(crate) fn login_required() -> Self {
         Self::new(
             StatusCode::BAD_REQUEST,

@@ -1,0 +1,22 @@
+{
+  "vendor/openrust/framework/src/auth/auth_manager.rs": "fa270c59fb4e57c586fa4def6456a9fe435a2351c1edd89ece5410fbb0ff2df2",
+  "vendor/openrust/passport/src/authorization_server.rs": "7607fc8c43940bfba88410de6fb0d2ec0d9676044e9e514604d38fdb1325c1cc",
+  "vendor/openrust/passport/src/token_store.rs": "411eb6860476d779720f0ba73730488a14c29b8fd5cafd5c7a03b9909e152b22",
+  "vendor/openrust/passport/src/error.rs": "1edffb82e48bcaad55a16e0d270dcaf8a895256d858980a90fcb7517734f4959",
+  "vendor/openrust/passport/src/lib.rs": "388b95021c2c529daf772dccd1e2edbb8a572c8fbbcd3a04101d72a3a3320ec6",
+  "vendor/openrust/passport/src/passport.rs": "85029d44cf174b528c0952d30d05ab513d0be20c9c019b0788f0182866cd23bf",
+  "vendor/openrust/passport/src/resource_server.rs": "ac70c07c157917aee2f9e5de1bb301f2e092d22f6dc313510b54c3c67c22d92a",
+  "vendor/openrust/passport/src/lifetime.rs": "86bd470e75c09f2725977b272e3c03575e0c6e00d4c5be75e7f7f4fd223dc8f8",
+  "vendor/openrust/passport/src/guards/mod.rs": "15c38588a6b646ab01d5cddcb59a45370e07dad0365fdb5c1b8315376ff78070",
+  "vendor/openrust/passport/src/guards/token_guard.rs": "3960518c6a0f53b4918bee6941789343d58ed1d4021d51e29e71e32e9c08b2ed",
+  "vendor/openrust/passport/src/console/commands/purge_command.rs": "b33f56ca41d019de0b8d6087a4352a29b5abb1eb78c3422c0655495c46a0437d",
+  "vendor/openrust/passport/src/console/commands/mod.rs": "c1383e2e014e1f7962da3617f9ac74c8d741db3f465e46600353f47c50198523",
+  "vendor/openrust/passport/tests/authorization_code.rs": "c07ed440354098e2e4cc1b7849b26dc48798b7475d6290c521d210c5c1319bc2",
+  "vendor/openrust/passport/tests/lifetime.rs": "9b947ff55cf6382f4da14962403e6248950a3440204f115356fb0fac1ad963ec",
+  "vendor/openrust/framework/src/auth/providers.rs": "fd265593ec0afa59500197440a39ac2f46b1ddbd4ec01c6ed6e9f181a133e561",
+  "vendor/openrust/framework/tests/auth_configured_extensions.rs": "62db0f8a262077ec2a83ff3599f2fa8262512701f8564f77a324cef7e915300e",
+  "docs/en/packages/passport.md": "3f3dd77891270a07a5534c4de1677bde2ee624621953cde800d975804cab89ab",
+  "docs/zh_CN/packages/passport.md": "fbad7494082564782676743d6f68aa4e2604542ed19a0701e2b85e8ce068c34e",
+  "docs/zh_TW/packages/passport.md": "c1bf79af3fe755792186a203961a1716d0061078bd00703e032d16545af42243",
+  "docs/tests/check_passport_authcode.mjs": "f976c3fc42b9dff4a864cb09c74318d854c469f09daa79509130170ff1ebeca5"
+}

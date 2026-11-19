@@ -41,6 +41,8 @@ pub struct Passport {
     pub(crate) token_models: Arc<crate::token_store::TokenModels>,
     scopes: RwLock<std::collections::BTreeMap<String, String>>,
     default_scopes: RwLock<Vec<String>>,
+    access_lifetime: RwLock<crate::GrantLifetime>,
+    refresh_lifetime: RwLock<crate::GrantLifetime>,
 }
 #[allow(non_snake_case)]
 impl Passport {
@@ -55,6 +57,8 @@ impl Passport {
                 config.clone(),
             )),
             scopes: RwLock::new(Default::default()),
+            access_lifetime: RwLock::new(crate::GrantLifetime::CalendarYears(1)),
+            refresh_lifetime: RwLock::new(crate::GrantLifetime::CalendarYears(1)),
             default_scopes: RwLock::new(Vec::new()),
             validateKeyPermissions: AtomicBool::new(true),
             withInheritedScopes: AtomicBool::new(false),
@@ -71,6 +75,30 @@ impl Passport {
             }),
             key_path: RwLock::new(None),
         }
+    }
+    /// Explicit Option retains PHP's combined getter/setter contract.
+    pub fn tokensExpireIn(&self, lifetime: Option<crate::GrantLifetime>) -> crate::GrantLifetime {
+        let mut value = self
+            .access_lifetime
+            .write()
+            .expect("Passport lifetime lock");
+        if let Some(lifetime) = lifetime {
+            *value = lifetime;
+        }
+        *value
+    }
+    pub fn refreshTokensExpireIn(
+        &self,
+        lifetime: Option<crate::GrantLifetime>,
+    ) -> crate::GrantLifetime {
+        let mut value = self
+            .refresh_lifetime
+            .write()
+            .expect("Passport lifetime lock");
+        if let Some(lifetime) = lifetime {
+            *value = lifetime;
+        }
+        *value
     }
     pub fn ignoreRoutes(&self) {
         self.registersRoutes
@@ -106,10 +134,12 @@ impl Passport {
             .clone()
     }
     pub(crate) fn has_scope(&self, id: &str) -> bool {
-        self.scopes
-            .read()
-            .expect("Passport scopes lock")
-            .contains_key(id)
+        id == "*"
+            || self
+                .scopes
+                .read()
+                .expect("Passport scopes lock")
+                .contains_key(id)
     }
     /// Selects a compiled client type before resolving the lifecycle's repository.
     pub fn useClientModel<M: ClientModel>(&self) {

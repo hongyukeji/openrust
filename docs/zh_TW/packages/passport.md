@@ -2,7 +2,7 @@
 
 ## 安裝 {#installation}
 
-已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖 Guard、重新整理兌換及其他 grant 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
+已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖守衛、重新整理輪換、期限自訂與清理已提供，其他 grant 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
 
 目前應用程式預留了可選的 `passport` Cargo feature。將它加入 Cargo 預設 features，讓 `./artisan` 與一般建置持續啟用套件，並保留原有其他預設項目：
 
@@ -34,7 +34,7 @@ cargo build
 
 ## 設定 {#configuration}
 
-套件預設提供 `guard = "web"`、空的中介軟體清單，以及可為空的金鑰和連線設定；應用程式設定覆寫套件預設值。`PASSPORT_PRIVATE_KEY`、`PASSPORT_PUBLIC_KEY` 支援內嵌 RSA PEM、字面 `\n` 換行、本機絕對路徑或 `file://` 路徑（Unix 包含 `file://localhost/`）。相對路徑依固定 PHP 本機檔案包裝器行為拒絕，不會自動繫結至應用程式根目錄。未設定時延遲讀取儲存目錄中的檔案。支援 RSA PKCS#1／PKCS#8 私密金鑰與 RSA／SubjectPublicKeyInfo 公開金鑰，不宣稱涵蓋 League CryptKey 的通用 EC 金鑰 API。Debug 與載入錯誤不包含原始金鑰內容。
+套件預設提供 `guard = "web"`、空的中介軟體清單，以及可為空的金鑰和連線設定；應用程式設定覆寫套件預設值。`PASSPORT_PRIVATE_KEY`、`PASSPORT_PUBLIC_KEY` 支援內嵌 RSA PEM、字面 `\n` 換行、本機絕對路徑或 `file://` 路徑（Unix 包含 `file://localhost/`）。相對路徑依固定 PHP 本機檔案包裝器行為拒絕，不會自動繫結至應用程式根目錄。未設定時延遲讀取儲存目錄中的檔案。支援 RSA PKCS#1／PKCS#8 私密金鑰與 RSA／SubjectPublicKeyInfo 公開金鑰，不宣稱涵蓋 League CryptKey 的通用 EC 金鑰 API。Debug 與載入錯誤不包含原始金鑰內容。 線上 RS256 使用 AWS-LC，支援 2048–8192 位 RSA 金鑰。
 
 需要應用程式編譯設定覆寫時先發布：
 
@@ -169,7 +169,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
 
 批准時向 POST `/oauth/authorize` 提交 `auth_token` 和 Session CSRF `_token`；拒絕使用 DELETE。瀏覽器必須保留 Session Cookie。伺服器一次性取出已儲存的請求與隨機權杖，並核對目前驗證主體；表單中的用戶端、回呼和 scope 不能替換它們。批准前重新核對目前用戶端和註冊位址；拒絕會向已驗證位址回傳 `error=access_denied` 與原始 `state`。
 
-用戶端必須產生不可預測的新 `state`，回呼時先核對它，再接受授權碼或錯誤。機密用戶端兌換時使用 HTTP Basic，或在本文提交 `client_id`、`client_secret`；本文憑證優先，查詢字串不提供兌換參數。成功回應包含 `token_type`、`expires_in`、`access_token`，允許重新整理的用戶端也取得 `refresh_token`，並帶 `Cache-Control: no-store`、`Pragma: no-cache`。存取權杖使用 RS256。授權碼十分鐘後到期，消費與權杖儲存屬於同一交易，並行兌換只有一個成功。目前存取／重新整理期限為十二個日曆月；重新整理兌換和期限自訂在下一生命週期單元交付。
+用戶端必須產生不可預測的新 `state`，回呼時先核對它，再接受授權碼或錯誤。機密用戶端兌換時使用 HTTP Basic，或在本文提交 `client_id`、`client_secret`；本文憑證優先，查詢字串不提供兌換參數。成功回應包含 `token_type`、`expires_in`、`access_token`，允許重新整理的用戶端也取得 `refresh_token`，並帶 `Cache-Control: no-store`、`Pragma: no-cache`。存取權杖使用 RS256。授權碼十分鐘後到期，消費與權杖儲存屬於同一交易，並行兌換只有一個成功。存取／重新整理期限分別預設為一個日曆年，可按下文自訂。
 
 `prompt=none` 在需要互動時回傳帶 `login_required` 或 `consent_required` 的重新導向。已有未撤銷、未到期授權可略過已授予權限的同意頁；`prompt=consent` 重新請求同意，`prompt=login` 請求重新登入。無效用戶端和未註冊回呼在本機失敗，不回傳不可信 Location。OAuth 錯誤保留協定欄位與狀態碼。
 
@@ -192,4 +192,33 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 這些是固定範例值，實際授權必須每次重新產生。缺失／錯誤 verifier、竄改回呼、到期與重播均拒絕簽發。授權階段允許已註冊 HTTP loopback 回呼改變連接埠；兌換階段綁定原來提供的精確字串。
 
-Rust 在 Session 儲存已驗證的原生請求，透過編譯回呼提供檢視，不使用 PHP 物件序列化。授權碼與重新整理權杖使用應用現有認證加密並綁定應用上下文，內部密文格式不與 PHP 互通。用戶端／授權碼鎖與單個資料庫交易保證消費及存取／重新整理儲存原子完成。自訂權杖模型沿用實際連線、Eloquent cast 與事件；儲存被取消或資料庫失敗都會回滾簽發。本單元尚不提供資源 Guard、重新整理兌換、裝置授權、其他 grant 與統一 API 安裝器。
+Rust 在 Session 儲存已驗證的原生請求，透過編譯回呼提供檢視，不使用 PHP 物件序列化。授權碼與重新整理權杖使用應用現有認證加密並綁定應用上下文，內部密文格式不與 PHP 互通。用戶端／授權碼鎖與單個資料庫交易保證消費及存取／重新整理儲存原子完成。自訂權杖模型沿用實際連線、Eloquent cast 與事件；儲存被取消或資料庫失敗都會回滾簽發。裝置授權、其他 grant 與統一 API 安裝器在後續單元交付。
+
+## 重新整理權杖 {#refreshing-tokens}
+
+向 `/oauth/token` POST `grant_type=refresh_token`、`refresh_token` 和用戶端憑證。公開用戶端提交 `client_id`；機密用戶端還須驗證 secret。省略 `scope` 保留原 scope，也可請求其子集；按 OAuth 參數規則，空參數使用原 scope。新增 scope 會被拒絕。
+
+成功重新整理會撤銷舊存取／重新整理權杖並回傳新的一對。輪換和儲存處於同一資料庫交易；並行請求只有一個成功，儲存失敗或被事件取消時保留舊憑證。存取權杖過期或被單獨撤銷後，重新整理權杖仍可兌換；單獨撤銷重新整理權杖不會撤銷對應存取權杖。
+
+存取／重新整理期限分別預設為一個日曆年。在簽發前設定本應用的 `Passport` 實例；`None` 讀取期限，`Some` 更新期限。`GrantLifetime::Interval(DateInterval)` 透過框架 Date 支援有符號日曆分量，保留應用時區、夏令時間和 PHP 月份溢位規則。
+
+```rust
+use openrust_passport::GrantLifetime;
+passport.tokensExpireIn(Some(GrantLifetime::Seconds(3600)));
+passport.refreshTokensExpireIn(Some(GrantLifetime::CalendarYears(1)));
+let current = passport.tokensExpireIn(None);
+```
+
+## 撤銷權杖 {#revoking-tokens}
+
+對 Eloquent 實例呼叫 `TokenModel::revoke` 或 `RefreshTokenModel::revoke`。對目前認證請求，克隆 `TokenGuard::token(request, "api")` 後呼叫 `token.revoke().await?`，更新選定的存取權杖儲存。儲存庫撤銷用戶端仍按前述 refresh → access → client 順序執行。
+
+## 清理權杖 {#purging-tokens}
+
+執行 `artisan passport:purge`，刪除已撤銷和過期超過 168 小時的記錄。`--revoked` 或 `--expired` 僅選擇一個條件，同時傳入時按 OR 合併；`--hours=24` 修改過期保留期限。若存取權杖仍關聯未撤銷且期限為空或晚於目前時間的重新整理權杖，則保留該存取記錄。授權碼和重新整理權杖同時清理；裝置授權啟用時也清理裝置碼。自訂存取／重新整理模型的實際表、連線及查詢範圍參與執行。
+
+## 保護路由 {#protecting-routes}
+
+在 `config/auth.rs` 將守衛設定為 `{"driver":"passport","provider":"users"}`，為受保護路由加入 `auth:api`。Provider 須解析應用編譯後的使用者模型。每個請求驗證 RS256 簽章、可選 JWT 時間宣告和選定存取儲存的撤銷狀態。用戶端失效、provider 不相符或使用者不存在時視為未認證；使用者查詢例外也視為未認證，權威權杖儲存故障則令請求失敗。
+
+透過 `Auth::user(request).await?` 讀取真實使用者。Rust 將輕量存取權杖按守衛名附加至請求，保留原編譯使用者物件；透過 `openrust_passport::guards::TokenGuard::token(request, "api")` 讀取，使用 `can`、`cant`、`transient` 檢查 scope。`ResourceServer::validateAuthenticatedRequest` 還插入型別化 `AccessToken` 請求屬性。守衛解析僅在本請求內快取，按守衛及應用隔離。Cookie 認證和 scope 中介軟體在後續單元交付。

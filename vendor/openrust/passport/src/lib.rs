@@ -1,6 +1,8 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
 mod auth_code;
+mod lifetime;
+pub use lifetime::GrantLifetime;
 mod authorization_server;
 pub use authorization_server::{AuthorizationRequest, AuthorizationServer, TokenResponse};
 mod authorization_response;
@@ -23,7 +25,10 @@ mod client_repository;
 mod configuration;
 pub mod console;
 pub mod database;
+pub mod guards;
 pub mod http;
+mod resource_server;
+pub use resource_server::{AccessToken, ResourceServer};
 mod keys;
 pub mod migrations;
 mod passport;
@@ -98,6 +103,12 @@ impl ServiceProvider for PassportServiceProvider {
                 })?;
                 Ok(Arc::new(PrivateKey(key)))
             })?;
+            app.container().scoped::<ResourceServer, _>(|container| {
+                Ok(Arc::new(ResourceServer::new(
+                    container.make::<Passport>()?,
+                    container.make::<PublicKey>()?,
+                )))
+            })?;
             app.container().singleton::<PublicKey, _>(|container| {
                 let passport = container.make::<Passport>()?;
                 let key = passport.make_crypt_key("public").map_err(|error| {
@@ -124,6 +135,9 @@ impl ServiceProvider for PassportServiceProvider {
                 "passport-config",
             )?;
             self.commands(app, console::commands::register);
+            app.make::<openrust::auth::AuthManager>()
+                .await?
+                .extend("passport", guards::TokenGuard::resolve);
             self.loadRoutesFrom(app, http::routes)?;
             Ok(())
         })

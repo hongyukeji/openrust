@@ -113,11 +113,21 @@ pub(super) async fn rehash(
 
 /// MySQL compares textual parameters against numeric columns with coercion. Recheck
 /// a retrieved identity before authenticating, including the full value of string keys.
+// A wire identifier may be decimal text while the selected model hydrates an integer.
+// Compare canonical forms so SQL numeric coercion cannot turn "077" or "77junk" into 77.
 pub(super) fn same_identity(requested: &AuthIdentifier, actual: &AuthIdentifier) -> bool {
     match (requested, actual) {
         (AuthIdentifier::Integer(left), AuthIdentifier::UnsignedInteger(right))
         | (AuthIdentifier::UnsignedInteger(right), AuthIdentifier::Integer(left)) => {
             u64::try_from(*left).ok() == Some(*right)
+        }
+        (AuthIdentifier::String(text), AuthIdentifier::Integer(number))
+        | (AuthIdentifier::Integer(number), AuthIdentifier::String(text)) => {
+            text == &number.to_string()
+        }
+        (AuthIdentifier::String(text), AuthIdentifier::UnsignedInteger(number))
+        | (AuthIdentifier::UnsignedInteger(number), AuthIdentifier::String(text)) => {
+            text == &number.to_string()
         }
         _ => requested == actual,
     }

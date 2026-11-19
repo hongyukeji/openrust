@@ -212,10 +212,16 @@ impl AuthorizationServer {
             )
             .await
             .map_err(internal)?;
-        if request.scopes.is_empty() {
+        let known = self.passport.scopes();
+        let requested = request
+            .scopes
+            .iter()
+            .filter(|id| known.iter().any(|scope| scope.id == **id))
+            .collect::<Vec<_>>();
+        if requested.is_empty() {
             return Ok(!tokens.is_empty());
         }
-        Ok(request.scopes.iter().all(|scope| {
+        Ok(requested.iter().all(|scope| {
             tokens
                 .iter()
                 .any(|token| token.contains_strict_string(scope))
@@ -314,9 +320,13 @@ impl AuthorizationServer {
         parameters: &OAuthParameters,
         authorization: Option<&[u8]>,
     ) -> Result<TokenResponse, OAuthError> {
-        if !parameters.raw_string_matches("grant_type", "authorization_code") {
+        let grant = if parameters.raw_string_matches("grant_type", "authorization_code") {
+            "authorization_code"
+        } else if parameters.raw_string_matches("grant_type", "refresh_token") {
+            "refresh_token"
+        } else {
             return Err(OAuthError::unsupported_grant_type());
-        }
+        };
         let (basic_id, basic_secret) = basic_credentials(authorization);
         let id = parameters
             .parameter(
@@ -326,14 +336,20 @@ impl AuthorizationServer {
                     .and_then(|id| std::str::from_utf8(id).ok()),
             )?
             .ok_or_else(|| OAuthError::invalid_request("client_id", None))?;
-        let client = self.client(&id, authorization).await?;
+        let client = self
+            .clients
+            .findActive(id.as_str())
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| OAuthError::invalid_client(authorization))?;
         let connection = client.connection().await.map_err(internal)?;
         let mut transaction = connection.beginTransaction().await.map_err(internal)?;
         client
             .refresh_for_update(&mut transaction)
             .await
             .map_err(internal)?;
-        self.check_client(&client, authorization).await?;
+        self.check_client_for_grant(&client, authorization, grant)
+            .await?;
         if client.confidential().await {
             let secret = parameters
                 .secret_parameter("client_secret", basic_secret.as_deref().map(Vec::as_slice))?
@@ -348,6 +364,11 @@ impl AuthorizationServer {
             {
                 return Err(OAuthError::invalid_client(authorization));
             }
+        }
+        if grant == "refresh_token" {
+            return self
+                .exchange_refresh(parameters, client, connection, transaction)
+                .await;
         }
         let encoded = parameters
             .parameter("code", None)?
@@ -416,28 +437,148 @@ impl AuthorizationServer {
                 "Authorization code has been revoked",
             ));
         }
+        let scopes = self.finalize_scopes(&client, payload.scopes).await?;
+        let response = self
+            .issue_tokens(
+                &connection,
+                &mut transaction,
+                &client,
+                TokenIssue {
+                    id: &id,
+                    user: payload.user_id.clone(),
+                    scopes,
+                    now,
+                },
+            )
+            .await?;
+        code.forceFill(Attributes::from([("revoked".into(), true.into())]))
+            .map_err(internal)?;
+        if !code
+            .saveInTransaction(&mut transaction)
+            .await
+            .map_err(internal)?
+        {
+            return Err(OAuthError::server_error(
+                "Authorization code consumption cancelled",
+            ));
+        }
+        transaction.commit().await.map_err(internal)?;
+        Ok(response)
+    }
+    async fn exchange_refresh(
+        &self,
+        parameters: &OAuthParameters,
+        client: ClientRecord,
+        connection: openrust::database::Connection,
+        mut transaction: openrust::database::Transaction,
+    ) -> Result<TokenResponse, OAuthError> {
+        let encoded = parameters
+            .parameter("refresh_token", None)?
+            .ok_or_else(|| OAuthError::invalid_request("refresh_token", None))?;
+        let plaintext = Zeroizing::new(self.encryption.decryptString(&encoded).map_err(|_| {
+            OAuthError::invalid_refresh_token(Some("Cannot decrypt the refresh token"))
+        })?);
+        let payload: RefreshPayload = serde_json::from_slice(&plaintext).map_err(|_| {
+            OAuthError::invalid_refresh_token(Some("Cannot decrypt the refresh token"))
+        })?;
+        let id = AuthIdentifier::try_from(
+            &client
+                .getKey()
+                .await
+                .ok_or_else(|| OAuthError::invalid_client(None))?,
+        )
+        .map_err(internal)?
+        .to_string();
+        let now = now()?;
+        if payload.context != format!("{}:refresh", self.domain) || payload.client_id != id {
+            return Err(OAuthError::invalid_refresh_token(Some(
+                "Token is not linked to client",
+            )));
+        }
+        if now > payload.expire_time {
+            return Err(OAuthError::invalid_refresh_token(Some("Token has expired")));
+        }
+        let scopes = match parameters.parameter("scope", None)? {
+            Some(scope) => scope
+                .split(' ')
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect::<Vec<_>>(),
+            None => payload.scopes.clone(),
+        };
+        for scope in &scopes {
+            if !payload.scopes.contains(scope) || !self.passport.has_scope(scope) {
+                return Err(OAuthError::invalid_scope_for(scope));
+            }
+        }
+        if !self
+            .passport
+            .token_models
+            .consume_refresh(
+                &connection,
+                &mut transaction,
+                &payload.refresh_token_id,
+                &payload.access_token_id,
+            )
+            .await
+            .map_err(internal)?
+        {
+            return Err(OAuthError::invalid_refresh_token(Some(
+                "Token has been revoked",
+            )));
+        }
+        let scopes = self.finalize_scopes(&client, scopes).await?;
+        let response = self
+            .issue_tokens(
+                &connection,
+                &mut transaction,
+                &client,
+                TokenIssue {
+                    id: &id,
+                    user: payload.user_id,
+                    scopes,
+                    now,
+                },
+            )
+            .await?;
+        transaction.commit().await.map_err(internal)?;
+        Ok(response)
+    }
+    async fn finalize_scopes(
+        &self,
+        client: &ClientRecord,
+        requested: Vec<String>,
+    ) -> Result<Vec<String>, OAuthError> {
         let mut scopes = Vec::new();
-        for scope in payload.scopes {
+        for scope in requested {
             if !self.passport.has_scope(&scope) {
                 return Err(OAuthError::invalid_scope_for(&scope));
             }
-            if client.hasScope(&scope).await.map_err(internal)? && !scopes.contains(&scope) {
+            if scope != "*"
+                && client.hasScope(&scope).await.map_err(internal)?
+                && !scopes.contains(&scope)
+            {
                 scopes.push(scope);
             }
         }
-        let expires = chrono::DateTime::from_timestamp(now, 0)
-            .and_then(|d| d.checked_add_months(chrono::Months::new(12)))
-            .ok_or_else(|| OAuthError::server_error("Token expiry out of range"))?
-            .timestamp();
-        let access_id = identifier()?;
-        let access_token = self.sign(
-            &id,
-            &payload.user_id.to_string(),
-            &access_id,
-            &scopes,
+        Ok(scopes)
+    }
+    async fn issue_tokens(
+        &self,
+        connection: &openrust::database::Connection,
+        transaction: &mut openrust::database::Transaction,
+        client: &ClientRecord,
+        issue: TokenIssue<'_>,
+    ) -> Result<TokenResponse, OAuthError> {
+        let TokenIssue {
+            id,
+            user,
+            scopes,
             now,
-            expires,
-        )?;
+        } = issue;
+        let expires = self.passport.tokensExpireIn(None).for_application(now)?;
+        let access_id = identifier()?;
+        let access_token = self.sign(id, &user.to_string(), &access_id, &scopes, now, expires)?;
         let refresh = if client
             .hasGrantType("refresh_token")
             .await
@@ -447,10 +588,13 @@ impl AuthorizationServer {
                 context: format!("{}:refresh", self.domain),
                 refresh_token_id: identifier()?,
                 access_token_id: access_id.clone(),
-                client_id: id,
-                user_id: payload.user_id.clone(),
+                client_id: id.to_owned(),
+                user_id: user.clone(),
                 scopes: scopes.clone(),
-                expire_time: expires,
+                expire_time: self
+                    .passport
+                    .refreshTokensExpireIn(None)
+                    .for_application(now)?,
             })
         } else {
             None
@@ -473,17 +617,17 @@ impl AuthorizationServer {
         self.passport
             .token_models
             .persist(
-                &connection,
-                &mut transaction,
+                connection,
+                transaction,
                 Attributes::from([
                     ("id".into(), access_id.into()),
-                    ("user_id".into(), payload.user_id.into()),
+                    ("user_id".into(), user.into()),
                     (
                         "client_id".into(),
                         client
                             .getKey()
                             .await
-                            .ok_or_else(|| OAuthError::invalid_client(authorization))?,
+                            .ok_or_else(|| OAuthError::invalid_client(None))?,
                     ),
                     ("scopes".into(), Value::Json(serde_json::json!(scopes))),
                     ("revoked".into(), false.into()),
@@ -493,18 +637,6 @@ impl AuthorizationServer {
             )
             .await
             .map_err(internal)?;
-        code.forceFill(Attributes::from([("revoked".into(), true.into())]))
-            .map_err(internal)?;
-        if !code
-            .saveInTransaction(&mut transaction)
-            .await
-            .map_err(internal)?
-        {
-            return Err(OAuthError::server_error(
-                "Authorization code consumption cancelled",
-            ));
-        }
-        transaction.commit().await.map_err(internal)?;
         Ok(TokenResponse {
             token_type: "Bearer",
             expires_in: expires - now,
@@ -512,6 +644,7 @@ impl AuthorizationServer {
             refresh_token,
         })
     }
+
     async fn client(&self, id: &str, header: Option<&[u8]>) -> Result<ClientRecord, OAuthError> {
         let client = self
             .clients
@@ -527,6 +660,15 @@ impl AuthorizationServer {
         client: &ClientRecord,
         header: Option<&[u8]>,
     ) -> Result<(), OAuthError> {
+        self.check_client_for_grant(client, header, "authorization_code")
+            .await
+    }
+    async fn check_client_for_grant(
+        &self,
+        client: &ClientRecord,
+        header: Option<&[u8]>,
+        grant: &str,
+    ) -> Result<(), OAuthError> {
         if client
             .getAttributeValue("revoked")
             .await
@@ -535,11 +677,7 @@ impl AuthorizationServer {
         {
             return Err(OAuthError::invalid_client(header));
         }
-        if !client
-            .hasGrantType("authorization_code")
-            .await
-            .map_err(internal)?
-        {
+        if !client.hasGrantType(grant).await.map_err(internal)? {
             return Err(OAuthError::unauthorized_client(None));
         }
         Ok(())
@@ -557,11 +695,14 @@ impl AuthorizationServer {
         issued: i64,
         expires: i64,
     ) -> Result<String, OAuthError> {
+        use openrust::contracts::container::Container as _;
         use rsa::{
             pkcs1::DecodeRsaPrivateKey,
             pkcs8::{DecodePrivateKey, EncodePrivateKey},
         };
-        let key = self.passport.make_crypt_key("private").map_err(internal)?;
+        let key = openrust::container::Container::getInstance()
+            .make::<crate::PrivateKey>()
+            .map_err(internal)?;
         let key = rsa::RsaPrivateKey::from_pkcs8_pem(key.getKeyContents())
             .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_pem(key.getKeyContents()))
             .map_err(internal)?;
@@ -595,11 +736,14 @@ fn now() -> Result<i64, OAuthError> {
     Ok(Date::now(None).map_err(internal)?.asDateTime().timestamp())
 }
 fn sql_date(value: i64) -> Result<String, OAuthError> {
+    let current = Date::now(None).map_err(internal)?;
     Ok(chrono::DateTime::from_timestamp(value, 0)
         .ok_or_else(|| OAuthError::server_error("Invalid OAuth expiry"))?
+        .with_timezone(&current.asDateTime().timezone())
         .format("%Y-%m-%d %H:%M:%S")
         .to_string())
 }
+
 fn identifier() -> Result<String, OAuthError> {
     use rand::RngCore as _;
     let mut bytes = [0; 40];
@@ -664,4 +808,11 @@ fn decode_basic_payload(payload: &[u8]) -> Result<Vec<u8>, base64::DecodeError> 
     } else {
         UNPADDED.decode(filtered)
     }
+}
+
+struct TokenIssue<'a> {
+    id: &'a str,
+    user: AuthIdentifier,
+    scopes: Vec<String>,
+    now: i64,
 }

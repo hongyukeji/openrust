@@ -24,6 +24,9 @@ use super::{
 
 type ProviderFactory =
     dyn Fn(&Container, &Value) -> AuthResult<Arc<dyn UserProvider>> + Send + Sync;
+type ConfiguredResolver =
+    dyn for<'a> Fn(&'a mut Request, &'a str, &'a Value) -> AuthFutureConfigured<'a> + Send + Sync;
+type AuthFutureConfigured<'a> = super::AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>>;
 type ModelSerializer = fn(&dyn Authenticatable) -> AuthResult<serde_json::Map<String, Value>>;
 
 #[derive(Default)]
@@ -32,6 +35,7 @@ struct Extensions {
     models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
     model_serializers: HashMap<std::any::TypeId, ModelSerializer>,
     requests: HashMap<String, Arc<Resolver>>,
+    configured_requests: HashMap<String, Arc<ConfiguredResolver>>,
     #[cfg(feature = "sanctum")]
     sanctum_models: std::collections::HashSet<std::any::TypeId>,
 }
@@ -188,6 +192,22 @@ impl AuthManager {
         factory(&container, &Value::Null)?.retrieve_by_id(id).await
     }
 
+    /// Registers a compiled guard resolver with Laravel's guard name and configuration.
+    /// The ordinary RequestGuard owns its request-local identity and resolution cache.
+    pub fn extend(
+        &self,
+        driver: impl Into<String>,
+        resolve: impl for<'a> Fn(&'a mut Request, &'a str, &'a Value) -> AuthFutureConfigured<'a>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.extensions
+            .write()
+            .expect("auth extensions lock")
+            .configured_requests
+            .insert(driver.into(), Arc::new(resolve));
+    }
     pub fn viaRequest(
         &self,
         driver: impl Into<String>,
@@ -458,6 +478,27 @@ impl Factory for AuthManager {
                 )))
             }
             driver => {
+                let configured = self
+                    .extensions
+                    .read()
+                    .expect("auth extensions lock")
+                    .configured_requests
+                    .get(driver)
+                    .cloned();
+                if let Some(configured) = configured {
+                    let selected = name.clone();
+                    let resolve: Arc<Resolver> = Arc::new(move |request| {
+                        let selected = selected.clone();
+                        let config = config.clone();
+                        let configured = configured.clone();
+                        Box::pin(async move {
+                            configured(request, &selected, &config)
+                                .await
+                                .map(|user| user.map(Arc::from))
+                        })
+                    });
+                    return Ok(Box::new(RequestGuard::new(name, request, resolve)));
+                }
                 let resolve = self
                     .extensions
                     .read()

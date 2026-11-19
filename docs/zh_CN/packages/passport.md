@@ -2,7 +2,7 @@
 
 ## 安装 {#installation}
 
-已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新兑换及其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
+已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制和清理已提供，其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
 
 当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
 
@@ -34,7 +34,7 @@ cargo build
 
 ## 配置 {#configuration}
 
-包默认提供 `guard = "web"`、空中间件列表，以及可为空的密钥和连接配置；应用配置覆盖包默认值。`PASSPORT_PRIVATE_KEY`、`PASSPORT_PUBLIC_KEY` 支持内联 RSA PEM、字面 `\n` 换行、本地绝对路径或 `file://` 路径（Unix 包括 `file://localhost/`）。相对路径按固定 PHP 本地文件包装器行为拒绝，不会自动绑定到应用根目录。未配置时延迟读取存储目录中的文件。支持 RSA PKCS#1／PKCS#8 私钥及 RSA／SubjectPublicKeyInfo 公钥，不宣称覆盖 League CryptKey 的通用 EC 密钥 API。Debug 和加载错误不包含原始密钥内容。
+包默认提供 `guard = "web"`、空中间件列表，以及可为空的密钥和连接配置；应用配置覆盖包默认值。`PASSPORT_PRIVATE_KEY`、`PASSPORT_PUBLIC_KEY` 支持内联 RSA PEM、字面 `\n` 换行、本地绝对路径或 `file://` 路径（Unix 包括 `file://localhost/`）。相对路径按固定 PHP 本地文件包装器行为拒绝，不会自动绑定到应用根目录。未配置时延迟读取存储目录中的文件。支持 RSA PKCS#1／PKCS#8 私钥及 RSA／SubjectPublicKeyInfo 公钥，不宣称覆盖 League CryptKey 的通用 EC 密钥 API。Debug 和加载错误不包含原始密钥内容。 在线 RS256 使用 AWS-LC，支持 2048–8192 位 RSA 密钥。
 
 需要应用编译配置覆盖时先发布：
 
@@ -169,7 +169,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
 
 批准时向 POST `/oauth/authorize` 提交 `auth_token` 和 Session CSRF `_token`；拒绝使用 DELETE。浏览器必须保留 Session Cookie。服务端一次性取出已保存的请求和随机令牌，并核对当前认证主体；表单中的客户端、回调和 scope 不能替换它们。批准前重新核对当前客户端和注册地址；拒绝会向已验证地址返回 `error=access_denied` 和原始 `state`。
 
-客户端必须生成不可预测的新 `state`，回调时先核对它，再接受授权码或错误。机密客户端兑换时使用 HTTP Basic，或在正文提交 `client_id`、`client_secret`；正文凭据优先，查询串不提供兑换参数。成功响应包含 `token_type`、`expires_in`、`access_token`，允许刷新的客户端还获得 `refresh_token`，并带 `Cache-Control: no-store`、`Pragma: no-cache`。访问令牌使用 RS256。授权码十分钟后过期，消费与令牌保存属于同一事务，并发兑换只有一个成功。当前访问／刷新期限为十二个日历月；刷新兑换和期限定制在下一生命周期单元交付。
+客户端必须生成不可预测的新 `state`，回调时先核对它，再接受授权码或错误。机密客户端兑换时使用 HTTP Basic，或在正文提交 `client_id`、`client_secret`；正文凭据优先，查询串不提供兑换参数。成功响应包含 `token_type`、`expires_in`、`access_token`，允许刷新的客户端还获得 `refresh_token`，并带 `Cache-Control: no-store`、`Pragma: no-cache`。访问令牌使用 RS256。授权码十分钟后过期，消费与令牌保存属于同一事务，并发兑换只有一个成功。访问／刷新期限分别默认为一个日历年，可按下文定制。
 
 `prompt=none` 在需要交互时返回带 `login_required` 或 `consent_required` 的重定向。已有未撤销、未过期授权可跳过已授予权限的同意页；`prompt=consent` 重新请求同意，`prompt=login` 请求重新登录。无效客户端和未注册回调在本地失败，不返回不可信 Location。OAuth 错误保留协议字段和状态码。
 
@@ -192,4 +192,33 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 这些是固定示例值，实际授权必须每次重新生成。缺失／错误 verifier、篡改回调、过期和重放均拒绝签发。授权阶段允许已注册 HTTP loopback 回调改变端口；兑换阶段绑定原来提供的精确字符串。
 
-Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图，不使用 PHP 对象序列化。授权码和刷新令牌使用应用现有认证加密并绑定应用上下文，内部密文格式不与 PHP 互通。客户端／授权码锁和单个数据库事务保证消费及访问／刷新保存原子完成。自定义令牌模型沿用实际连接、Eloquent cast 和事件；保存被取消或数据库失败都会回滚签发。本单元尚不提供资源 Guard、刷新兑换、设备授权、其他 grant 和统一 API 安装器。
+Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图，不使用 PHP 对象序列化。授权码和刷新令牌使用应用现有认证加密并绑定应用上下文，内部密文格式不与 PHP 互通。客户端／授权码锁和单个数据库事务保证消费及访问／刷新保存原子完成。自定义令牌模型沿用实际连接、Eloquent cast 和事件；保存被取消或数据库失败都会回滚签发。设备授权、其他 grant 和统一 API 安装器在后续单元交付。
+
+## 刷新令牌 {#refreshing-tokens}
+
+向 `/oauth/token` POST `grant_type=refresh_token`、`refresh_token` 和客户端凭据。公开客户端提交 `client_id`；机密客户端还须验证 secret。省略 `scope` 保留原 scope，也可请求其子集；按 OAuth 参数规则，空参数使用原 scope。新增 scope 会被拒绝。
+
+成功刷新会撤销旧访问／刷新令牌并返回新的一对。轮换和保存处于同一数据库事务；并发请求只有一个成功，保存失败或被事件取消时保留旧凭据。访问令牌过期或被单独撤销后，刷新令牌仍可兑换；单独撤销刷新令牌不会撤销对应访问令牌。
+
+访问／刷新期限分别默认为一个日历年。在签发前配置本应用的 `Passport` 实例；`None` 读取期限，`Some` 更新期限。`GrantLifetime::Interval(DateInterval)` 通过框架 Date 支持有符号日历分量，保留应用时区、夏令时和 PHP 月份溢出规则。
+
+```rust
+use openrust_passport::GrantLifetime;
+passport.tokensExpireIn(Some(GrantLifetime::Seconds(3600)));
+passport.refreshTokensExpireIn(Some(GrantLifetime::CalendarYears(1)));
+let current = passport.tokensExpireIn(None);
+```
+
+## 撤销令牌 {#revoking-tokens}
+
+对 Eloquent 实例调用 `TokenModel::revoke` 或 `RefreshTokenModel::revoke`。对当前认证请求，克隆 `TokenGuard::token(request, "api")` 后调用 `token.revoke().await?`，更新选定的访问令牌存储。仓储撤销客户端仍按前述 refresh → access → client 顺序执行。
+
+## 清理令牌 {#purging-tokens}
+
+运行 `artisan passport:purge`，删除已撤销和过期超过 168 小时的记录。`--revoked` 或 `--expired` 仅选择一个条件，同时传入时按 OR 合并；`--hours=24` 修改过期保留期限。若访问令牌仍关联未撤销且期限为空或晚于当前时间的刷新令牌，则保留该访问记录。授权码和刷新令牌同时清理；设备授权启用时也清理设备码。自定义访问／刷新模型的实际表、连接及查询作用域参与执行。
+
+## 保护路由 {#protecting-routes}
+
+在 `config/auth.rs` 将守卫配置为 `{"driver":"passport","provider":"users"}`，为受保护路由添加 `auth:api`。Provider 须解析应用编译后的用户模型。每个请求验证 RS256 签名、可选 JWT 时间声明和选定访问存储的撤销状态。客户端失效、provider 不匹配或用户不存在时视为未认证；用户查询异常也视为未认证，权威令牌存储故障则令请求失败。
+
+通过 `Auth::user(request).await?` 读取真实用户。Rust 将轻量访问令牌按守卫名附到请求，保留原编译用户对象；通过 `openrust_passport::guards::TokenGuard::token(request, "api")` 读取，使用 `can`、`cant`、`transient` 检查 scope。`ResourceServer::validateAuthenticatedRequest` 还插入类型化 `AccessToken` 请求属性。守卫解析仅在本请求内缓存，按守卫及应用隔离。Cookie 认证和 scope 中间件在后续单元交付。

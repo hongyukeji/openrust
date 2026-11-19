@@ -1,0 +1,12 @@
+{
+  "removed": [
+    "source",
+    "target"
+  ],
+  "df_available_before_bytes": 60877008896,
+  "df_available_after_bytes": 66871730176,
+  "df_available_delta_bytes": 5994721280,
+  "data_volumes_preserved": [],
+  "php_image_pulled": false,
+  "timestamp": "2026-11-20 03:56:39 +0800"
+}

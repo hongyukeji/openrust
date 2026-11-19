@@ -106,6 +106,105 @@ impl TokenModels {
             )
             .await
     }
+    fn parent(&self) -> DatabaseResult<Connection> {
+        let name = crate::client::configured_connection(self.config.get("passport.connection"))?;
+        self.database.connection(name.as_deref())
+    }
+    pub(crate) async fn is_access_revoked(&self, id: &str) -> DatabaseResult<bool> {
+        let store = (self.token.read().expect("token model lock").factory)();
+        store
+            .is_revoked(&self.parent()?, &self.database, self.config.as_ref(), id)
+            .await
+    }
+    pub(crate) async fn revoke_access(&self, id: &str) -> DatabaseResult<bool> {
+        let store = (self.token.read().expect("token model lock").factory)();
+        store
+            .revoke_id(
+                &self.parent()?,
+                None,
+                &self.database,
+                self.config.as_ref(),
+                id,
+            )
+            .await
+    }
+    pub(crate) async fn consume_refresh(
+        &self,
+        parent: &Connection,
+        transaction: &mut openrust::database::Transaction,
+        refresh_id: &str,
+        access_id: &str,
+    ) -> DatabaseResult<bool> {
+        let refresh = (self.refresh.read().expect("refresh model lock").factory)();
+        let tokens = (self.token.read().expect("token model lock").factory)();
+        if !refresh
+            .consume(
+                parent,
+                transaction,
+                &self.database,
+                self.config.as_ref(),
+                refresh_id,
+                access_id,
+            )
+            .await?
+        {
+            return Ok(false);
+        }
+        tokens
+            .revoke_id(
+                parent,
+                Some(transaction),
+                &self.database,
+                self.config.as_ref(),
+                access_id,
+            )
+            .await?;
+        Ok(true)
+    }
+    pub(crate) async fn purge(
+        &self,
+        revoked: bool,
+        cutoff: Option<String>,
+        now: String,
+        device: bool,
+    ) -> DatabaseResult<()> {
+        let parent = self.parent()?;
+        let tokens = (self.token.read().expect("token model lock").factory)();
+        let refresh = (self.refresh.read().expect("refresh model lock").factory)();
+        tokens
+            .purge(
+                &parent,
+                &self.database,
+                self.config.as_ref(),
+                refresh.clone(),
+                PurgeRetention {
+                    revoked,
+                    cutoff: cutoff.clone(),
+                    now,
+                },
+            )
+            .await?;
+        constrained::<crate::AuthCode>(&parent, revoked, cutoff.clone())
+            .delete()
+            .await?;
+        refresh
+            .purge(
+                &parent,
+                &self.database,
+                self.config.as_ref(),
+                revoked,
+                cutoff.clone(),
+            )
+            .await?;
+        if device {
+            constrained::<crate::console::commands::purge_command::DevicePurge>(
+                &parent, revoked, cutoff,
+            )
+            .delete()
+            .await?;
+        }
+        Ok(())
+    }
     pub async fn revoke(&self, client: &ClientRecord) -> DatabaseResult<()> {
         let Some(id) = client.getKey().await else {
             return Ok(());
@@ -144,6 +243,33 @@ fn connection<M: Model>(
     }
 }
 trait TokenStore: Send + Sync {
+    fn is_revoked<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
+    fn revoke_id<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: Option<&'a mut openrust::database::Transaction>,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Type-erased model dispatch carries its connection context and purge predicate"
+    )]
+    fn purge<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        refresh: Arc<dyn RefreshStore>,
+        retention: PurgeRetention,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn persist<'a>(
         &'a self,
         parent: &'a Connection,
@@ -173,6 +299,30 @@ trait TokenStore: Send + Sync {
 }
 type LoadedRefreshes = Vec<(Value, Box<dyn RevocableRefresh>)>;
 trait RefreshStore: Send + Sync {
+    fn consume<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+        access: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
+
+    fn active_relation(
+        &self,
+        connection: &Connection,
+        parent_table: &str,
+        now: String,
+    ) -> DatabaseResult<openrust::database::query::Builder<'static>>;
+    fn purge<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        revoked: bool,
+        cutoff: Option<String>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn persist<'a>(
         &'a self,
         parent: &'a Connection,
@@ -201,6 +351,81 @@ fn refresh_store<M: RefreshTokenModel>() -> Arc<dyn RefreshStore> {
     Arc::new(Typed::<M>(PhantomData))
 }
 impl<M: TokenModel> TokenStore for Typed<M> {
+    fn is_revoked<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let mut query = M::queryOn(&connection);
+            query.whereKey(id).r#where("revoked", "=", false);
+            Ok(query.first().await?.is_none())
+        })
+    }
+    fn revoke_id<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: Option<&'a mut openrust::database::Transaction>,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let Some(mut model) = M::queryOn(&connection).find(id).await? else {
+                return Ok(false);
+            };
+            if let Some(transaction) = transaction {
+                model.refreshForUpdate(transaction).await?;
+                model
+                    .forceFillAsync([("revoked".into(), true.into())].into())
+                    .await?;
+                if !model.saveInTransaction(transaction).await? {
+                    return Err(openrust::database::DatabaseError::InvalidQuery(
+                        "Passport revocation cancelled",
+                    ));
+                }
+                Ok(true)
+            } else {
+                let mut query = M::queryOn(&connection);
+                query.whereKey(id);
+                Ok(query
+                    .update([("revoked".into(), true.into())].into())
+                    .await?
+                    > 0)
+            }
+        })
+    }
+    fn purge<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        refresh: Arc<dyn RefreshStore>,
+        retention: PurgeRetention,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let PurgeRetention {
+                revoked,
+                cutoff,
+                now,
+            } = retention;
+            let relation = ActiveRefresh::<M> {
+                refresh,
+                now,
+                marker: PhantomData,
+            };
+            constrained::<M>(&connection, revoked, cutoff)
+                .whereDoesntHave(&relation)?
+                .delete()
+                .await?;
+            Ok(())
+        })
+    }
     fn persist<'a>(
         &'a self,
         parent: &'a Connection,
@@ -297,6 +522,73 @@ impl<M: TokenModel> TokenStore for Typed<M> {
     }
 }
 impl<M: RefreshTokenModel> RefreshStore for Typed<M> {
+    fn consume<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        id: &'a str,
+        access: &'a str,
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let Some(mut model) = M::queryOn(&connection).find(id).await? else {
+                return Ok(false);
+            };
+            model.refreshForUpdate(transaction).await?;
+            if model.getAttributeValue("revoked")? != Some(Value::Bool(false))
+                || model.getAttributeValue("access_token_id")? != Some(access.into())
+            {
+                return Ok(false);
+            }
+            model
+                .forceFillAsync([("revoked".into(), true.into())].into())
+                .await?;
+            if !model.saveInTransaction(transaction).await? {
+                return Err(openrust::database::DatabaseError::InvalidQuery(
+                    "Passport refresh consumption cancelled",
+                ));
+            }
+            Ok(true)
+        })
+    }
+    fn active_relation(
+        &self,
+        connection: &Connection,
+        parent_table: &str,
+        now: String,
+    ) -> DatabaseResult<openrust::database::query::Builder<'static>> {
+        use openrust::database::eloquent::relations::ExistenceRelation as _;
+        let relation = openrust::database::eloquent::relations::HasOne::<crate::Token, M>::new(
+            "id",
+            "access_token_id",
+        )
+        .constrain(move |mut query| {
+            query.r#where("revoked", "=", false).whereNested(|q| {
+                q.whereNull("expires_at")
+                    .orWhere("expires_at", ">", now.clone())
+            });
+            query
+        });
+        relation.getRelationExistenceQuery(connection, parent_table)
+    }
+    fn purge<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        revoked: bool,
+        cutoff: Option<String>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            constrained::<M>(&connection, revoked, cutoff)
+                .delete()
+                .await?;
+            Ok(())
+        })
+    }
     fn persist<'a>(
         &'a self,
         parent: &'a Connection,
@@ -349,4 +641,54 @@ impl<M: RefreshTokenModel> RevocableRefresh for LoadedRefresh<M> {
     fn revoke(&mut self) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(self.0.revoke())
     }
+}
+
+fn constrained<M: Model>(
+    connection: &Connection,
+    revoked: bool,
+    cutoff: Option<String>,
+) -> openrust::database::eloquent::Builder<'static, M> {
+    let mut query = M::queryOn(connection);
+    query.whereNested(|mut predicate| {
+        if revoked {
+            predicate = predicate.orWhere("revoked", "=", true);
+        }
+        if let Some(cutoff) = cutoff {
+            predicate = predicate.orWhere("expires_at", "<", cutoff);
+        }
+        predicate
+    });
+    query
+}
+struct ActiveRefresh<M> {
+    refresh: Arc<dyn RefreshStore>,
+    now: String,
+    marker: PhantomData<M>,
+}
+impl<M: Model> openrust::database::eloquent::relations::Relation for ActiveRefresh<M> {
+    type Parent = M;
+    type Output = ();
+    fn matchResults<'a>(&'a self, _: &'a [&'a M]) -> DatabaseFuture<'a, DatabaseResult<Vec<()>>> {
+        Box::pin(async {
+            Err(openrust::database::DatabaseError::InvalidQuery(
+                "purge relation supports existence queries only",
+            ))
+        })
+    }
+}
+impl<M: Model> openrust::database::eloquent::relations::ExistenceRelation for ActiveRefresh<M> {
+    fn getRelationExistenceQuery(
+        &self,
+        connection: &Connection,
+        parent_table: &str,
+    ) -> DatabaseResult<openrust::database::query::Builder<'static>> {
+        self.refresh
+            .active_relation(connection, parent_table, self.now.clone())
+    }
+}
+
+struct PurgeRetention {
+    revoked: bool,
+    cutoff: Option<String>,
+    now: String,
 }

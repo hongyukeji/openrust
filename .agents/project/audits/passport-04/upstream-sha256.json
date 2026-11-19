@@ -1,0 +1,13 @@
+{
+  "passport__src__Guards__TokenGuard.php": "5bd88e70f38e0f78e00edca9202b8f82fbf3ca61ffb67726eda5901c76a67ce7",
+  "oauth2-server__src__AuthorizationValidators__BearerTokenValidator.php": "06efa41f223d43219a6c8f70d5d9199b99753e978229d781f6875e0fe7dc9fcb",
+  "passport__src__TokenRepository.php": "ddf4b71a123bc30a035574ba005436e11c35f100d760caf72a879be3e8e611ae",
+  "passport__src__Passport.php": "10e8efa4ba67b760ea949f17b9aad208e04c9894788430eeb7eae2728b7ac190",
+  "passport__src__AccessToken.php": "ad850c691d36cb7c130fab6bddb69ae7153ff67a0d7242b6b5239e4ca55daa57",
+  "oauth2-server__src__ResourceServer.php": "25f4735645d751c39652c04b174fb463bb2e6253c521e29132eb9db65d327cc0",
+  "passport__src__Bridge__RefreshTokenRepository.php": "99756d5cfc41fbaa717f55476346a7eb020e975805c7cac27db152679a3ec984",
+  "passport__src__Bridge__ScopeRepository.php": "8154ebde32a75efbb66c9a309fe8a2a521379ba44f3273e9d0c25b49bfcf01d2",
+  "passport__src__Console__PurgeCommand.php": "4b4977fe19b9869f21882536e8608614b1e3cb15bb3377254162e3e7436e916a",
+  "oauth2-server__src__Grant__RefreshTokenGrant.php": "718a5259c3d1e5dbdc930d4ee17889d5ccaa7aadf7dcdcfa567eedfc09d12a35",
+  "passport__src__PassportServiceProvider.php": "b5085ac5a6044cd0ec6deee52653fb399c88cfef0091a4c0dc01a16971572d77"
+}

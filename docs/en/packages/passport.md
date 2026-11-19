@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token exchange and the remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration and token purging are available. The remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -34,7 +34,7 @@ All five migrations, including `oauth_device_codes`, are published with migratio
 
 ## Configuration {#configuration}
 
-The package supplies `guard = "web"`, an empty middleware list, and nullable key and connection settings. Application configuration overrides package defaults. `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY` accept inline RSA PEM, literal `\n` line breaks, absolute local paths or `file://` paths (including `file://localhost/` on Unix). Relative paths are rejected, following the fixed PHP local-file wrapper behavior; they are not silently anchored to the application root. With no key configured, the storage files are loaded lazily. This supports RSA PKCS#1 / PKCS#8 private keys and RSA / SubjectPublicKeyInfo public keys; it does not claim the full generic EC-key API of League's CryptKey. No raw key contents are included in debug output or loader errors.
+The package supplies `guard = "web"`, an empty middleware list, and nullable key and connection settings. Application configuration overrides package defaults. `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY` accept inline RSA PEM, literal `\n` line breaks, absolute local paths or `file://` paths (including `file://localhost/` on Unix). Relative paths are rejected, following the fixed PHP local-file wrapper behavior; they are not silently anchored to the application root. With no key configured, the storage files are loaded lazily. This supports RSA PKCS#1 / PKCS#8 private keys and RSA / SubjectPublicKeyInfo public keys; it does not claim the full generic EC-key API of League's CryptKey. No raw key contents are included in debug output or loader errors. Online RS256 uses AWS-LC with 2048–8192-bit RSA keys.
 
 Publish the configuration when you need compiled application overrides:
 
@@ -169,7 +169,7 @@ pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
 
 Submit `auth_token` and the session CSRF `_token` to POST `/oauth/authorize` to approve, or DELETE to deny. The browser must retain its session cookie. The server consumes the saved request and nonce once and checks the current authenticated subject; submitted client, redirect and scope fields cannot replace them. Approval rechecks the current client and registered callback. Denial redirects to the validated callback with `error=access_denied` and the original `state`.
 
-Clients must generate a fresh unpredictable `state` and check it on the callback before accepting a code or error. Confidential clients authenticate the token exchange with HTTP Basic credentials or body `client_id` and `client_secret`. Body credentials take precedence. Parameters come from the request body, not the query. Successful responses contain `token_type`, `expires_in`, `access_token` and, for clients allowing refresh, `refresh_token`, with `Cache-Control: no-store` and `Pragma: no-cache`. Access tokens use RS256. Authorization codes expire after ten minutes and are consumed atomically with token persistence; competing exchanges have one winner. Current access and refresh expirations are twelve calendar months; refresh-token redemption and expiry customization belong to the next lifecycle unit.
+Clients must generate a fresh unpredictable `state` and check it on the callback before accepting a code or error. Confidential clients authenticate the token exchange with HTTP Basic credentials or body `client_id` and `client_secret`. Body credentials take precedence. Parameters come from the request body, not the query. Successful responses contain `token_type`, `expires_in`, `access_token` and, for clients allowing refresh, `refresh_token`, with `Cache-Control: no-store` and `Pragma: no-cache`. Access tokens use RS256. Authorization codes expire after ten minutes and are consumed atomically with token persistence; competing exchanges have one winner. Access and refresh lifetimes default independently to one calendar year and can be configured as described below.
 
 `prompt=none` redirects with `login_required` or `consent_required` when interaction is needed. Existing unrevoked, unexpired grants can skip consent for already granted scopes. `prompt=consent` requests consent again; `prompt=login` requests fresh session authentication. Invalid clients and unregistered redirects fail locally without an untrusted Location header. OAuth errors retain their protocol fields and status codes.
 
@@ -192,4 +192,33 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 These are fixed example values; generate new values for each real authorization. Missing or incorrect verifiers, altered callbacks, expired codes and replayed codes fail without issuing tokens. The authorization step permits different ports for registered HTTP loopback callbacks; the token exchange binds the exact redirect string originally supplied.
 
-Rust stores a validated native request in Session and invokes a compiled view callback instead of PHP object serialization. Codes and refresh tokens use the existing application's authenticated encryption plus application context; their internal envelope is not PHP ciphertext compatible. Client/code locks and a single database transaction keep code consumption, access-token and refresh-token saves atomic. Custom token models participate through Eloquent casts, events and their actual connection; save cancellation or database failure rolls back issuance. This unit does not yet provide resource Guard, refresh redemption, device authorization, other grants or the combined API installer.
+Rust stores a validated native request in Session and invokes a compiled view callback instead of PHP object serialization. Codes and refresh tokens use the existing application's authenticated encryption plus application context; their internal envelope is not PHP ciphertext compatible. Client/code locks and a single database transaction keep code consumption, access-token and refresh-token saves atomic. Custom token models participate through Eloquent casts, events and their actual connection; save cancellation or database failure rolls back issuance. Device authorization, the remaining grants and the combined API installer belong to subsequent units.
+
+## Refreshing tokens {#refreshing-tokens}
+
+POST `/oauth/token` with `grant_type=refresh_token`, `refresh_token` and the client's credentials. Public clients send `client_id`; confidential clients also authenticate with their secret. Omit `scope` to keep the original scopes, or request a subset. An empty parameter uses the original scopes under the normal OAuth parameter rules. Additional scopes are rejected.
+
+A successful refresh revokes the old access and refresh tokens and returns a new pair. Rotation and persistence share a database transaction: concurrent requests have one winner, and a failed or cancelled save preserves the old pair. Refresh tokens remain usable after their access token expires or is individually revoked. Revoking a refresh token prevents redemption without revoking its access token.
+
+Access and refresh lifetimes default independently to one calendar year. Configure them on the application's `Passport` instance before issuing tokens. `None` reads the current lifetime; `Some` updates it. `GrantLifetime::Interval(DateInterval)` supports signed calendar components through the framework Date implementation, preserving the application's timezone, daylight saving transitions and PHP month overflow.
+
+```rust
+use openrust_passport::GrantLifetime;
+passport.tokensExpireIn(Some(GrantLifetime::Seconds(3600)));
+passport.refreshTokensExpireIn(Some(GrantLifetime::CalendarYears(1)));
+let current = passport.tokensExpireIn(None);
+```
+
+## Revoking tokens {#revoking-tokens}
+
+Use `TokenModel::revoke` or `RefreshTokenModel::revoke` for an Eloquent instance. For the authenticated request, clone `TokenGuard::token(request, "api")` and call `token.revoke().await?`. This updates the selected access-token store. Repository client revocation still follows the refresh → access → client lifecycle described above.
+
+## Purging tokens {#purging-tokens}
+
+Run `artisan passport:purge`. It removes revoked items and items expired for more than 168 hours. `--revoked` or `--expired` selects one criterion; both flags combine them with OR. `--hours=24` changes the expired-item retention period. Access-token rows with an unrevoked refresh token whose expiry is null or in the future are retained. Auth codes and refresh tokens are also purged; device codes are included when the device grant is enabled. Custom token and refresh model tables, connections and query scopes participate.
+
+## Protecting routes {#protecting-routes}
+
+Set the guard in `config/auth.rs` to `{"driver":"passport","provider":"users"}` and apply `auth:api` to protected routes. The provider must resolve the application's compiled user model. RS256 signature, optional JWT time claims and the selected access-token revocation store are checked on every request. Inactive clients, provider mismatch and missing users are unauthenticated. Provider lookup exceptions are treated as unauthenticated; failures of the authoritative token store fail the request.
+
+The real user remains available through `Auth::user(request).await?`. Rust attaches the lightweight access token to the request under its guard name instead of replacing the compiled user object. Read it with `openrust_passport::guards::TokenGuard::token(request, "api")`; `can`, `cant` and `transient` expose scope checks. `ResourceServer::validateAuthenticatedRequest` also inserts typed `AccessToken` request attributes. Guard resolution is cached within each request and isolated by guard name and application. Cookie authentication and scope middleware belong to subsequent units.
