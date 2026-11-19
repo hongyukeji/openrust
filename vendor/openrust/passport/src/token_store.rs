@@ -106,7 +106,7 @@ impl TokenModels {
             )
             .await
     }
-    fn parent(&self) -> DatabaseResult<Connection> {
+    pub(crate) fn parent(&self) -> DatabaseResult<Connection> {
         let name = crate::client::configured_connection(self.config.get("passport.connection"))?;
         self.database.connection(name.as_deref())
     }
@@ -197,11 +197,9 @@ impl TokenModels {
             )
             .await?;
         if device {
-            constrained::<crate::console::commands::purge_command::DevicePurge>(
-                &parent, revoked, cutoff,
-            )
-            .delete()
-            .await?;
+            constrained::<crate::DeviceCode>(&parent, revoked, cutoff)
+                .delete()
+                .await?;
         }
         Ok(())
     }

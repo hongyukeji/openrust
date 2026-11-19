@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const {chromium,request}=require(process.env.DOCS_PLAYWRIGHT_MODULE);
+const [base,client]=process.argv.slice(2);
+const device=await request.newContext({baseURL:base});
+const browser=await chromium.launch({executablePath:process.env.DOCS_BROWSER_PATH});
+try {
+ const issued=await device.post('/oauth/device/code',{form:{client_id:client,scope:'read'}});
+ assert.equal(issued.status(),200);const codes=await issued.json();
+ const poll=()=>device.post('/oauth/token',{form:{grant_type:'urn:ietf:params:oauth:grant-type:device_code',client_id:client,device_code:codes.device_code}});
+ assert.equal((await (await poll()).json()).error,'authorization_pending');
+ const page=await browser.newPage();
+ await page.goto(base+'/session');
+ const session=JSON.parse(await page.locator('body').innerText());
+ const status=await page.evaluate(async csrf=>(await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({email:'alice@test',password:'password',_token:csrf})})).status,session.csrf);
+ assert.equal(status,200);
+ await page.goto(codes.verification_uri);
+ await page.locator('[name=user_code]').fill(codes.user_code.slice(0,4)+'-'+codes.user_code.slice(4));
+ await page.getByRole('button',{name:'Authorize',exact:true}).click();
+ await page.getByRole('heading',{name:'Device consent'}).waitFor();
+ await page.goto(codes.verification_uri_complete);
+ await page.getByRole('heading',{name:'Device consent'}).waitFor();
+ await page.getByRole('button',{name:'Approve',exact:true}).click();
+ await page.locator('#status').waitFor();
+ assert.equal(await page.locator('#status').innerText(),'authorization-approved');
+ const granted=await poll();assert.equal(granted.status(),200);const tokens=await granted.json();
+ const resource=await device.get('/resource',{headers:{Authorization:'Bearer '+tokens.access_token}});assert.equal(resource.status(),200);assert.equal((await resource.json()).user,77);
+ assert.equal((await poll()).status(),400);
+ console.log('Device HTTP issuance / Chromium form consent / resource / replay PASS');
+} finally {await browser.close();await device.dispose();}

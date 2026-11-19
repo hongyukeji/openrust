@@ -13,9 +13,9 @@ try {
     const page=await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}${base}${lang}/packages/passport.html`);
     const article=await page.locator('.vp-doc').innerText();
-    for(const term of ['passport:client','--redirect_uri','tokensFor','clientUuids','1000','useRefreshTokenModel','ScopeJsonOptions','authorizationView','code_verifier','S256','no-store','prompt=none','refresh_token','passport:purge','TokenGuard::token','GrantLifetime','auth:api']) assert(article.includes(term),`${lang}: missing ${term}`);
-    assert.equal(await page.locator('.vp-doc h2').count(),14);
-    console.log(base,lang,'Passport authorization code/PKCE documentation PASS');
+    for(const term of ['passport:client','--redirect_uri','tokensFor','clientUuids','1000','useRefreshTokenModel','ScopeJsonOptions','authorizationView','code_verifier','S256','no-store','prompt=none','refresh_token','passport:purge','TokenGuard::token','GrantLifetime','auth:api','deviceUserCodeView','deviceAuthorizationView','authorization_pending','slow_down','expired_token','verification_uri_complete','urn:ietf:params:oauth:grant-type:device_code']) assert(article.includes(term),`${lang}: missing ${term}`);
+    assert.equal(await page.locator('.vp-doc h2').count(),15);
+    console.log(base,lang,'Passport authorization code/PKCE/device documentation PASS');
     await page.close();
    }
   } finally {await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}

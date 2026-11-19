@@ -1,0 +1,20 @@
+{
+  "vendor/openrust/passport/src/device_code.rs": "c097cf2057de23ad3d09129200ec918f330cf73dd469525d76c79d4177277f1a",
+  "vendor/openrust/passport/src/lib.rs": "de3b02d825d4d3ca71ba829db7b93208be87d3c5b04ff8294da6e4268848e0de",
+  "vendor/openrust/passport/src/token_store.rs": "cddeb2fe06b492147fa46ceffa8d5bcdd46c05d2016e76d20eb492b5476c7732",
+  "vendor/openrust/passport/src/console/commands/purge_command.rs": "68eee51f0864844e42f043c809691915d8328483c2a615a325ed85c85a614cda",
+  "vendor/openrust/passport/src/authorization_server.rs": "dceb88df133c1abe2e2c6465c0c174aaa3eb248d149c66366ceb8ea104299bd8",
+  "vendor/openrust/passport/src/device_authorization.rs": "c5335f4ce4781fb03d09bf093af7cc768d90db9fd8974ea976fff60a97d88c92",
+  "vendor/openrust/passport/src/error.rs": "7b24d6079ccb02e52bf02d3e77b8a61c6d19be2c52524888a3dc4529b0b3c771",
+  "vendor/openrust/passport/src/http/mod.rs": "13b161f20f96db0547d60e2dd004e2100e3e263bcdcfa8659bf00f8f9a4b6cb6",
+  "vendor/openrust/passport/src/passport.rs": "1ec921bdaab08e7720c5f11491a57edcb394a236bb13a3e20b6419ee8820e5e7",
+  "vendor/openrust/passport/src/http/controllers.rs": "e7237a5f917d783fa7cefccd1ef530ef3acce9f51b9ccad7928efe908bc00eb9",
+  "vendor/openrust/passport/src/http/device_controllers.rs": "60cc76fb32a7a3eb912bef98e9b3a889235745c0c2c792d7b91c017d55aeac07",
+  "vendor/openrust/passport/tests/authorization_code.rs": "b244bd9e40ac5e757b912c00c9a9699d93057fd1951a31d20669efb78c227923",
+  "vendor/openrust/passport/tests/device_authorization/mod.rs": "6f6a9c0c24461a1ed6ae0a0d859bb533135d5f7312da0654ee0a7c3057956716",
+  "vendor/openrust/passport/tests/device_authorization/browser.mjs": "6c278f360e2fca02723be4b3e84b4b7d88141b912d5148ef43d3ac7e5188e265",
+  "docs/en/packages/passport.md": "329b13fd8ee8ba0fd03184ee0c6a8b47395676034e75e05ccf643134b855d82c",
+  "docs/zh_CN/packages/passport.md": "0ccebd42e07685d5dbe0a13c1066b406299a08941b0288f9e34191f7f5b5e8ed",
+  "docs/zh_TW/packages/passport.md": "ea2dab99d0caf0dd250631b5a06e0c3c27c1afcf8a34b7a65c36e194e08e0aa4",
+  "docs/tests/check_passport_authcode.mjs": "b9da657098009c1a0811aa53c1806168d80b4f8c8530e5b1860209a0b8d38ece"
+}

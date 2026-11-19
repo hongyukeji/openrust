@@ -1,5 +1,8 @@
 //! Browser consent and token endpoints. Application views keep responsibility for UI.
 pub mod controllers;
+pub mod device_controllers;
+pub type DeviceUserCodeView =
+    for<'a> fn(&'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
 
 use crate::{AuthorizationRequest, ClientRecord, Scope};
 use openrust::{
@@ -58,6 +61,9 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
             );
         }
     }
+    let device_enabled = passport
+        .deviceCodeGrantEnabled
+        .load(std::sync::atomic::Ordering::Relaxed);
     Route::group(group, |router| {
         router
             .r#match(
@@ -67,7 +73,48 @@ pub(crate) fn routes() -> Result<(), openrust::routing::RoutingError> {
             )?
             .name("token")
             .middleware_name("throttle");
+        if device_enabled {
+            router
+                .r#match(
+                    &[openrust::http::Method::POST],
+                    "/device/code",
+                    device_controllers::DeviceCodeController::issue,
+                )?
+                .name("device.code")
+                .middleware_name("throttle");
+        }
         router.group(RouteGroup::new().middleware_name("web"), |router| {
+            if device_enabled {
+                router
+                    .get(
+                        "/device",
+                        device_controllers::DeviceUserCodeController::show,
+                    )?
+                    .name("device");
+                router
+                    .get(
+                        "/device/authorize",
+                        device_controllers::DeviceAuthorizationController::authorize,
+                    )?
+                    .name("device.authorizations.authorize")
+                    .block(10, 10);
+                router
+                    .r#match(
+                        &[openrust::http::Method::POST],
+                        "/device/authorize",
+                        device_controllers::ApproveDeviceAuthorizationController::approve,
+                    )?
+                    .name("device.authorizations.approve")
+                    .block(10, 10);
+                router
+                    .r#match(
+                        &[openrust::http::Method::DELETE],
+                        "/device/authorize",
+                        device_controllers::DenyDeviceAuthorizationController::deny,
+                    )?
+                    .name("device.authorizations.deny")
+                    .block(10, 10);
+            }
             router
                 .get(
                     "/authorize",

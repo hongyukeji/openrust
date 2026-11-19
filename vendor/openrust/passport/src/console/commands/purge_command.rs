@@ -2,7 +2,6 @@ use crate::Passport;
 use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
-    database::eloquent::{Model, ModelMetadata, ModelState},
     foundation::Application,
     support::Date,
 };
@@ -149,23 +148,4 @@ fn human_interval(
         }
     }
     Ok("1 second".into())
-}
-// Only the published table's purge lifecycle is needed before the device grant unit.
-pub(crate) struct DevicePurge(ModelState);
-impl Model for DevicePurge {
-    fn metadata() -> &'static ModelMetadata {
-        static META: ModelMetadata = ModelMetadata::new("oauth_device_codes")
-            .incrementing(false)
-            .timestamps(None, None);
-        &META
-    }
-    fn from_state(state: ModelState) -> Self {
-        Self(state)
-    }
-    fn state(&self) -> &ModelState {
-        &self.0
-    }
-    fn state_mut(&mut self) -> &mut ModelState {
-        &mut self.0
-    }
 }

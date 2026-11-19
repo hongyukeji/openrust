@@ -1,0 +1,20 @@
+{
+  "passport__routes__web.php": "e3e7c2fb8853eb2760ebab5606942a59349bfc8c18fc738478c08777861aa8db",
+  "passport__src__Passport.php": "10e8efa4ba67b760ea949f17b9aad208e04c9894788430eeb7eae2728b7ac190",
+  "passport__src__PassportServiceProvider.php": "b5085ac5a6044cd0ec6deee52653fb399c88cfef0091a4c0dc01a16971572d77",
+  "passport__src__DeviceCode.php": "de56dcc46b72fcf1b474abbb336e84be90a0024d51755fe3cb8b66867f162030",
+  "passport__src__Bridge__DeviceCode.php": "95fd41334e2a9c0ab48e177d5e4a93b819a6ea19e13bb52a5b752aa84890d3cc",
+  "passport__src__Bridge__DeviceCodeRepository.php": "ad90b23953965e1112f8f8ee07d9413453099ef4439ca21a23887df039ad2202",
+  "passport__src__Http__Controllers__DeviceAuthorizationController.php": "f002dc5c1e17a669e8fb10e0f39d7d97a043c5851047d04dcadc2b86ccfebddf",
+  "passport__src__Http__Controllers__DeviceCodeController.php": "3d96c2964b7a2bfe243ff417be74fce58cb09f39024309f58de67f785428bad4",
+  "passport__src__Http__Controllers__DeviceUserCodeController.php": "bae96dcc004beffe79619e8eb2861aa767b3f52913160376bc2ff1aac2a41151",
+  "passport__src__Http__Controllers__ApproveDeviceAuthorizationController.php": "c3b482ba6915602723596e9d6bf56a6e340eb6fc1829f98ec76337eb2e84ada0",
+  "passport__src__Http__Controllers__DenyDeviceAuthorizationController.php": "f1479a7c17f01c26c43ed00ddc0ce000aa5468b092e4950872c2d2f1da91d207",
+  "passport__src__Http__Controllers__RetrievesDeviceCodeFromSession.php": "65e0b0bed678893fbeafe081072894f5ca8a4612976635a191e74353ce21b5e9",
+  "passport__src__Http__Responses__ApprovedDeviceAuthorizationResponse.php": "5d43a9f22b5d293722bf1d9e13c094235c4d86ec64cb7988907393c76a66034e",
+  "passport__src__Http__Responses__DeniedDeviceAuthorizationResponse.php": "80bdab78a5d8364299b5bc8f03f48d6623b4e0f89c6d5d17854c242377e486cd",
+  "passport__tests__Feature__DeviceAuthorizationGrantTest.php": "7145dc5c8e454c8246000ddbd55b01c219359166893a07f00b2799440a7909be",
+  "oauth2-server__src__Grant__DeviceCodeGrant.php": "1cba632775c7316496fb8e5e254ef28713531318f8be8504f4134448b1ea257e",
+  "oauth2-server__src__ResponseTypes__DeviceCodeResponse.php": "f0d142d6496d46b3cd687827b6f78b5159f59347b6552d2ae5bf15253b023ef9",
+  "oauth2-server__tests__Grant__DeviceCodeGrantTest.php": "3bbce9acff908982cf2227c338f0218ea390e8b04f8a49ef559b2315874f56ab"
+}

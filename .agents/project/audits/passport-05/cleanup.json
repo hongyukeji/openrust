@@ -1,0 +1,17 @@
+{
+  "removed": [
+    "/private/tmp/openrust-passport-device-20261120/source",
+    "/private/tmp/openrust-passport-device-20261120/target"
+  ],
+  "available_before_bytes": 56298045440,
+  "available_after_bytes": 62342918144,
+  "df_delta_bytes": 6044872704,
+  "database_volumes_retained": [],
+  "retained": [
+    "accepted-overlay.tgz",
+    "accepted-source-sha256.json",
+    "logs and scripts",
+    "shared caches",
+    "all database volumes"
+  ]
+}

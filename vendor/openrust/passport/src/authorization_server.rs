@@ -24,6 +24,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use zeroize::Zeroizing;
 
+#[path = "device_authorization.rs"]
+mod device;
+pub use device::DeviceCodeResponse;
+
 /// Validated browser request. Its fields cannot be replaced by a consent POST.
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -324,6 +328,10 @@ impl AuthorizationServer {
             "authorization_code"
         } else if parameters.raw_string_matches("grant_type", "refresh_token") {
             "refresh_token"
+        } else if parameters.raw_string_matches("grant_type", device::GRANT)
+            && self.device_grant_enabled()
+        {
+            device::GRANT
         } else {
             return Err(OAuthError::unsupported_grant_type());
         };
@@ -364,6 +372,11 @@ impl AuthorizationServer {
             {
                 return Err(OAuthError::invalid_client(authorization));
             }
+        }
+        if grant == device::GRANT {
+            return self
+                .exchange_device(parameters, client, connection, transaction)
+                .await;
         }
         if grant == "refresh_token" {
             return self
@@ -437,7 +450,9 @@ impl AuthorizationServer {
                 "Authorization code has been revoked",
             ));
         }
-        let scopes = self.finalize_scopes(&client, payload.scopes).await?;
+        let scopes = self
+            .finalize_scopes(&client, payload.scopes, "authorization_code")
+            .await?;
         let response = self
             .issue_tokens(
                 &connection,
@@ -527,7 +542,9 @@ impl AuthorizationServer {
                 "Token has been revoked",
             )));
         }
-        let scopes = self.finalize_scopes(&client, scopes).await?;
+        let scopes = self
+            .finalize_scopes(&client, scopes, "refresh_token")
+            .await?;
         let response = self
             .issue_tokens(
                 &connection,
@@ -548,13 +565,14 @@ impl AuthorizationServer {
         &self,
         client: &ClientRecord,
         requested: Vec<String>,
+        grant: &str,
     ) -> Result<Vec<String>, OAuthError> {
         let mut scopes = Vec::new();
         for scope in requested {
             if !self.passport.has_scope(&scope) {
                 return Err(OAuthError::invalid_scope_for(&scope));
             }
-            if scope != "*"
+            if (scope != "*" || !matches!(grant, "authorization_code" | "refresh_token"))
                 && client.hasScope(&scope).await.map_err(internal)?
                 && !scopes.contains(&scope)
             {

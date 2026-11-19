@@ -1,9 +1,12 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
 mod auth_code;
+mod device_code;
+pub use device_code::DeviceCode;
 mod lifetime;
 pub use lifetime::GrantLifetime;
 mod authorization_server;
+pub use authorization_server::DeviceCodeResponse;
 pub use authorization_server::{AuthorizationRequest, AuthorizationServer, TokenResponse};
 mod authorization_response;
 mod error;

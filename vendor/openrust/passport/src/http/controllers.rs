@@ -201,23 +201,23 @@ impl AccessTokenController {
         })
     }
 }
-fn select_guard(request: &mut Request) -> Result<(), HttpError> {
+pub(super) fn select_guard(request: &mut Request) -> Result<(), HttpError> {
     if let Some(Value::String(guard)) = Config::get("passport.guard").map_err(internal)? {
         Auth::shouldUse(request, &guard)?;
     }
     Ok(())
 }
-fn passport() -> Result<Arc<Passport>, HttpError> {
+pub(super) fn passport() -> Result<Arc<Passport>, HttpError> {
     openrust::container::Container::getInstance()
         .make::<Passport>()
         .map_err(internal)
 }
-fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+pub(super) fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
     HttpError::Internal {
         source: Box::new(error),
     }
 }
-fn nonce() -> Result<String, HttpError> {
+pub(super) fn nonce() -> Result<String, HttpError> {
     use rand::RngCore as _;
     let mut bytes = [0; 20];
     rand::rngs::OsRng

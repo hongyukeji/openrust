@@ -33,6 +33,8 @@ pub struct Passport {
     pub clientUuids: AtomicBool,
     pub registersRoutes: AtomicBool,
     authorization_view: RwLock<Option<crate::http::AuthorizationView>>,
+    device_authorization_view: RwLock<Option<crate::http::AuthorizationView>>,
+    device_user_code_view: RwLock<Option<crate::http::DeviceUserCodeView>>,
     config: Arc<dyn Repository>,
     paths: Arc<Paths>,
     key_path: RwLock<Option<PathBuf>>,
@@ -66,6 +68,8 @@ impl Passport {
             clientUuids: AtomicBool::new(true),
             registersRoutes: AtomicBool::new(true),
             authorization_view: RwLock::new(None),
+            device_authorization_view: RwLock::new(None),
+            device_user_code_view: RwLock::new(None),
             config,
             paths,
             database,
@@ -99,6 +103,30 @@ impl Passport {
             *value = lifetime;
         }
         *value
+    }
+    pub fn deviceAuthorizationView(&self, view: crate::http::AuthorizationView) {
+        *self
+            .device_authorization_view
+            .write()
+            .expect("Passport device view lock") = Some(view);
+    }
+    pub fn deviceUserCodeView(&self, view: crate::http::DeviceUserCodeView) {
+        *self
+            .device_user_code_view
+            .write()
+            .expect("Passport device view lock") = Some(view);
+    }
+    pub(crate) fn device_authorization_view(&self) -> Option<crate::http::AuthorizationView> {
+        *self
+            .device_authorization_view
+            .read()
+            .expect("Passport device view lock")
+    }
+    pub(crate) fn device_user_code_view(&self) -> Option<crate::http::DeviceUserCodeView> {
+        *self
+            .device_user_code_view
+            .read()
+            .expect("Passport device view lock")
     }
     pub fn ignoreRoutes(&self) {
         self.registersRoutes

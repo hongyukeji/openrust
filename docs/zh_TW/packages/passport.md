@@ -2,7 +2,7 @@
 
 ## 安裝 {#installation}
 
-已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖守衛、重新整理輪換、期限自訂與清理已提供，其他 grant 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
+已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖守衛、重新整理輪換、期限自訂、清理與裝置授權已提供，其他 grant 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
 
 目前應用程式預留了可選的 `passport` Cargo feature。將它加入 Cargo 預設 features，讓 `./artisan` 與一般建置持續啟用套件，並保留原有其他預設項目：
 
@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理用戶端 {#managing-clients}
 
-用戶端儲存庫支援查詢、建立、更新、秘密輪替、擁有權篩選和撤銷，操作真實 Eloquent 模型。`passport:client` 可建立六類用戶端。授權碼端點已提供；資源權杖驗證仍待完成。
+用戶端儲存庫支援查詢、建立、更新、秘密輪替、擁有權篩選和撤銷，操作真實 Eloquent 模型。`passport:client` 可建立六類用戶端。授權碼、裝置端點及資源權杖驗證已提供。
 
 在請求或 Artisan 生命週期內解析 `ClientRepository`，容器為每個生命週期提供新儲存庫。同一參數的重複 `find` 共用實際模型，並快取未命中；資料庫錯誤向上傳遞，允許重試。`findActive` 還檢查目前模型的 `revoked` 屬性。不要把此作用域服務保存在應用單例中。顯式管理的操作可透過 `Passport::clientRepository()` 建立獨立擁有快取的儲存庫。
 
@@ -94,7 +94,7 @@ pub async fn create_client(
 
 參數順序保留 Laravel 原意。Rust 顯式傳遞預設參數：`true` 建立機密用戶端，`owner` 可空，最後的 `false` 不額外啟用裝置授權。使用 `ClientOwner::forUser(&user)` 從編譯註冊的 `Model + Authenticatable` 建立擁有者，取模型主鍵與多型類型，不取可能不同的驗證識別。公開用戶端將機密參數設為 `false`。
 
-`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 選擇對應授權類型。建立記錄不等於啟用 Password、Implicit 或裝置協定端點。`update` 修改名稱和重新導向位址，`regenerateSecret` 產生新秘密；兩者經 Eloquent 儲存並回傳其布林結果。`findForUser` 和 `forUser` 排除已撤銷用戶端，後者按名稱排序。`personalAccessClient(provider)` 選擇對應使用者提供者的最新有效個人用戶端，僅當提供者等於 `auth.guards.api.provider` 時也接受空提供者，找不到時回傳錯誤。
+`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 選擇對應授權類型。建立記錄不會啟用可選的 Password 或 Implicit 協定；裝置端點遵循應用裝置開關。`update` 修改名稱和重新導向位址，`regenerateSecret` 產生新秘密；兩者經 Eloquent 儲存並回傳其布林結果。`findForUser` 和 `forUser` 排除已撤銷用戶端，後者按名稱排序。`personalAccessClient(provider)` 選擇對應使用者提供者的最新有效個人用戶端，僅當提供者等於 `auth.guards.api.provider` 時也接受空提供者，找不到時回傳錯誤。
 
 機密用戶端重用應用既有的 Eloquent 非同步雜湊服務。建立或輪替的 `Client` 在 `plainSecret` 暫時保留 setter 輸入，重新讀庫不會還原明文。預設 JSON 隱藏 `secret`，不附加明文。只在交付擁有者時複製新產生的秘密，不要記錄日誌。`record.model::<M>()` 回傳的 `Arc<tokio::sync::Mutex<M>>` 指向實際選定模型；`sameInstance` 檢查共用物件身分，不代表兩行模型的主鍵相等。
 
@@ -110,7 +110,7 @@ pub async fn create_client(
 
 `make().await?` 回傳未儲存模型，`create().await?` 持久化模型。賦值執行模型的非同步修改器和轉換：新 Client 保留 `plainSecret`，重新讀取資料庫只包含雜湊。`state` 新增應用程式屬性；`intoFactory()` 回傳現有 Eloquent 工廠 Builder，以使用數量、關係與回呼。
 
-Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。目前僅提供授權碼協定。
+Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。目前提供授權碼、重新整理與裝置協定。
 
 ## 用戶端命令與撤銷
 
@@ -192,7 +192,19 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 這些是固定範例值，實際授權必須每次重新產生。缺失／錯誤 verifier、竄改回呼、到期與重播均拒絕簽發。授權階段允許已註冊 HTTP loopback 回呼改變連接埠；兌換階段綁定原來提供的精確字串。
 
-Rust 在 Session 儲存已驗證的原生請求，透過編譯回呼提供檢視，不使用 PHP 物件序列化。授權碼與重新整理權杖使用應用現有認證加密並綁定應用上下文，內部密文格式不與 PHP 互通。用戶端／授權碼鎖與單個資料庫交易保證消費及存取／重新整理儲存原子完成。自訂權杖模型沿用實際連線、Eloquent cast 與事件；儲存被取消或資料庫失敗都會回滾簽發。裝置授權、其他 grant 與統一 API 安裝器在後續單元交付。
+Rust 在 Session 儲存已驗證的原生請求，透過編譯回呼提供檢視，不使用 PHP 物件序列化。授權碼與重新整理權杖使用應用現有認證加密並綁定應用上下文，內部密文格式不與 PHP 互通。用戶端／授權碼鎖與單個資料庫交易保證消費及存取／重新整理儲存原子完成。自訂權杖模型沿用實際連線、Eloquent cast 與事件；儲存被取消或資料庫失敗都會回滾簽發。其他 grant 與統一 API 安裝器在後續單元交付。
+
+## 裝置授權 {#device-authorization-grant}
+
+用 `./artisan passport:client --device --public` 建立公開裝置用戶端，機密裝置用戶端省略 `--public`。裝置授權預設開啟。若要關閉端點，在 Passport 裝配路由之前的 Provider boot 階段設定 `passport.deviceCodeGrantEnabled.store(false, std::sync::atomic::Ordering::Relaxed)`；應用啟動後修改開關不會移除已註冊路由。
+
+向 POST `/oauth/device/code` 提交 `client_id` 和可選的空格分隔 `scope`。回應包含 `device_code`、`user_code`、`verification_uri`、`verification_uri_complete`、`expires_in`（600 秒）和 `interval`（5 秒）。建立步驟只識別用戶端，不驗證秘密。裝置保存 `device_code`，向使用者顯示驗證 URI 和使用者碼，或在瀏覽器開啟完整 URI。回應帶 `no-store` 和 `no-cache`。
+
+在應用裝配時設定 `passport.deviceUserCodeView(code_view)` 與 `passport.deviceAuthorizationView(consent)`。`code_view` 簽名為 `fn(&mut Request) -> HttpFuture<'_, Result<Response, HttpError>>`，同意回呼沿用上文 `authorizationView` 的 `AuthorizationViewParameters` 簽名。應用負責渲染 HTML，並跳脫用戶端與 scope 顯示值。GET `/oauth/device` 顯示輸入頁，GET 表單將 `user_code` 提交回該位址。輸入碼僅移除連字號，保留大小寫。`verification_uri_complete` 跳過輸入，重新導向 GET `/oauth/device/authorize`；該端點要求設定的 Session 使用者登入並顯示同意頁。
+
+同意表單攜帶保存的 `auth_token` 與 Session CSRF `_token`，提交到 POST `/oauth/device/authorize` 批准，或 DELETE 拒絕。瀏覽器保留 Session Cookie。伺服器將請求綁定至實際登入使用者，僅消費一次 nonce，已決定的裝置碼不能被競爭瀏覽器重新綁定。完成後重新導向 `/oauth/device`，Session `status` 為 `authorization-approved` 或 `authorization-denied`。錯誤使用者碼返回輸入頁，帶舊 `user_code` 輸入及驗證錯誤；缺少檢視回呼會明確失敗。
+
+裝置向 POST `/oauth/token` 輪詢，提交 `grant_type=urn:ietf:params:oauth:grant-type:device_code`、`device_code`、`client_id`。機密用戶端還須透過 Basic 或本文秘密認證。至少等待回應指定的間隔：HTTP 400 `authorization_pending` 表示等待使用者，HTTP 400 `slow_down` 要求降低輪詢頻率，兩者都會保存最近輪詢時間。拒絕回傳 HTTP 401 `access_denied`，過期回傳 HTTP 400 `expired_token`。成功兌換在一個交易內保存存取／重新整理權杖並撤銷裝置碼，重放失敗。資源守衛、scope 與期限沿用普通存取／重新整理流程。`passport.path` 同樣作用於所有裝置端點。`DeviceCode` 是真實 Eloquent 模型，含 scope、布林與日期轉換，並回退至 Passport 連線。
 
 ## 重新整理權杖 {#refreshing-tokens}
 

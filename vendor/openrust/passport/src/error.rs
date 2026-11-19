@@ -45,6 +45,30 @@ pub struct OAuthError {
 }
 
 impl OAuthError {
+    pub(crate) fn expired_token() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "expired_token",
+            "The `device_code` has expired and the device authorization session has concluded.",
+            Some("device_code"),
+        )
+    }
+    pub(crate) fn authorization_pending() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "authorization_pending",
+            "The authorization request is still pending as the end user hasn't yet completed the user interaction steps. The client SHOULD repeat the Access Token Request to the token endpoint",
+            Some(""),
+        )
+    }
+    pub(crate) fn slow_down() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "slow_down",
+            "The authorization request is still pending and polling should continue, but the interval MUST be increased by 5 seconds for this and all subsequent requests.",
+            Some(""),
+        )
+    }
     pub(crate) fn is_server_error(&self) -> bool {
         self.status.is_server_error()
     }

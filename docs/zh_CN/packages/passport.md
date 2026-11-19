@@ -2,7 +2,7 @@
 
 ## 安装 {#installation}
 
-已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制和清理已提供，其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
+已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
 
 当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
 
@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理客户端 {#managing-clients}
 
-客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。授权码端点已提供；资源令牌认证仍待完成。
+客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。授权码、设备端点及资源令牌认证已提供。
 
 在请求或 Artisan 生命周期内解析 `ClientRepository`，容器为每个生命周期提供新仓储。同一参数的重复 `find` 共享实际模型，并缓存未命中；数据库错误传播，允许再次尝试。`findActive` 还检查当前模型的 `revoked` 属性。不要把此作用域服务保存在应用单例中。显式管理的操作可以通过 `Passport::clientRepository()` 创建独立拥有缓存的仓储。
 
@@ -94,7 +94,7 @@ pub async fn create_client(
 
 参数顺序保留 Laravel 原意。Rust 显式传递默认参数：`true` 创建机密客户端，`owner` 可空，最后的 `false` 不额外启用设备授权。使用 `ClientOwner::forUser(&user)` 从编译注册的 `Model + Authenticatable` 创建所有者，取模型主键和多态类型，不取可能不同的认证标识。公开客户端将机密参数设为 `false`。
 
-`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 选择对应授权类型。创建记录不等于启用 Password、Implicit 或设备协议端点。`update` 修改名称和重定向地址，`regenerateSecret` 生成新秘密；两者经 Eloquent 保存并返回其布尔结果。`findForUser` 和 `forUser` 排除已撤销客户端，后者按名称排序。`personalAccessClient(provider)` 选择对应用户提供者的最新有效个人客户端，仅当提供者等于 `auth.guards.api.provider` 时也接受空提供者，找不到时返回错误。
+`createPersonalAccessGrantClient`、`createPasswordGrantClient`、`createClientCredentialsGrantClient`、`createImplicitGrantClient` 和 `createDeviceAuthorizationGrantClient` 选择对应授权类型。创建记录不会启用可选的 Password 或 Implicit 协议；设备端点遵循应用设备开关。`update` 修改名称和重定向地址，`regenerateSecret` 生成新秘密；两者经 Eloquent 保存并返回其布尔结果。`findForUser` 和 `forUser` 排除已撤销客户端，后者按名称排序。`personalAccessClient(provider)` 选择对应用户提供者的最新有效个人客户端，仅当提供者等于 `auth.guards.api.provider` 时也接受空提供者，找不到时返回错误。
 
 机密客户端复用应用已有的 Eloquent 异步哈希服务。创建或轮换的 `Client` 在 `plainSecret` 临时保留 setter 输入，重新读库不会恢复明文。默认 JSON 隐藏 `secret`，不追加明文。只在向所有者交付时复制新生成的秘密，不要记录日志。`record.model::<M>()` 返回的 `Arc<tokio::sync::Mutex<M>>` 指向实际选定模型；`sameInstance` 检查共享对象身份，不代表两行模型的主键相等。
 
@@ -110,7 +110,7 @@ pub async fn create_client(
 
 `make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plainSecret`，重新读库只包含哈希。`state` 添加应用属性；`intoFactory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
 
-Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。当前仅提供授权码协议。
+Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。当前提供授权码、刷新与设备协议。
 
 ## 客户端命令与撤销
 
@@ -192,7 +192,19 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 这些是固定示例值，实际授权必须每次重新生成。缺失／错误 verifier、篡改回调、过期和重放均拒绝签发。授权阶段允许已注册 HTTP loopback 回调改变端口；兑换阶段绑定原来提供的精确字符串。
 
-Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图，不使用 PHP 对象序列化。授权码和刷新令牌使用应用现有认证加密并绑定应用上下文，内部密文格式不与 PHP 互通。客户端／授权码锁和单个数据库事务保证消费及访问／刷新保存原子完成。自定义令牌模型沿用实际连接、Eloquent cast 和事件；保存被取消或数据库失败都会回滚签发。设备授权、其他 grant 和统一 API 安装器在后续单元交付。
+Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图，不使用 PHP 对象序列化。授权码和刷新令牌使用应用现有认证加密并绑定应用上下文，内部密文格式不与 PHP 互通。客户端／授权码锁和单个数据库事务保证消费及访问／刷新保存原子完成。自定义令牌模型沿用实际连接、Eloquent cast 和事件；保存被取消或数据库失败都会回滚签发。其他 grant 和统一 API 安装器在后续单元交付。
+
+## 设备授权 {#device-authorization-grant}
+
+用 `./artisan passport:client --device --public` 创建公开设备客户端，机密设备客户端省略 `--public`。设备授权默认开启。若要关闭端点，在 Passport 装配路由之前的 Provider boot 阶段设置 `passport.deviceCodeGrantEnabled.store(false, std::sync::atomic::Ordering::Relaxed)`；应用启动后修改开关不会移除已注册路由。
+
+向 POST `/oauth/device/code` 提交 `client_id` 和可选的空格分隔 `scope`。响应包含 `device_code`、`user_code`、`verification_uri`、`verification_uri_complete`、`expires_in`（600 秒）和 `interval`（5 秒）。创建步骤只识别客户端，不验证秘密。设备保存 `device_code`，向用户显示验证 URI 和用户码，或在浏览器打开完整 URI。响应带 `no-store` 和 `no-cache`。
+
+在应用装配时配置 `passport.deviceUserCodeView(code_view)` 与 `passport.deviceAuthorizationView(consent)`。`code_view` 的签名为 `fn(&mut Request) -> HttpFuture<'_, Result<Response, HttpError>>`，同意回调复用上文 `authorizationView` 的 `AuthorizationViewParameters` 签名。应用负责渲染 HTML，并转义客户端及 scope 显示值。GET `/oauth/device` 展示输入页，GET 表单将 `user_code` 提交回该地址。输入码仅移除连字符，保留大小写。`verification_uri_complete` 跳过输入，重定向到 GET `/oauth/device/authorize`，该端点要求配置的 Session 用户登录并展示同意页。
+
+同意表单携带保存的 `auth_token` 与 Session CSRF `_token`，提交至 POST `/oauth/device/authorize` 批准，或 DELETE 拒绝。浏览器保留 Session Cookie。服务器将请求绑定到实际登录用户，仅消费一次 nonce，已决定的设备码不能被竞争浏览器重新绑定。完成后重定向到 `/oauth/device`，Session `status` 为 `authorization-approved` 或 `authorization-denied`。错误用户码返回输入页，带旧 `user_code` 输入及验证错误；缺少视图回调会明确失败。
+
+设备向 POST `/oauth/token` 轮询，提交 `grant_type=urn:ietf:params:oauth:grant-type:device_code`、`device_code`、`client_id`。机密客户端还须通过 Basic 或正文秘密认证。至少等待响应指定的间隔：HTTP 400 `authorization_pending` 表示等待用户，HTTP 400 `slow_down` 要求降低轮询频率，两者都会保存最近轮询时间。拒绝返回 HTTP 401 `access_denied`，过期返回 HTTP 400 `expired_token`。成功兑换在一个事务内保存访问／刷新令牌并撤销设备码，重放失败。资源守卫、scope 与期限沿用普通访问／刷新流程。`passport.path` 同样作用于全部设备端点。`DeviceCode` 是真实 Eloquent 模型，含 scope、布尔及日期转换，并回退到 Passport 连接。
 
 ## 刷新令牌 {#refreshing-tokens}
 

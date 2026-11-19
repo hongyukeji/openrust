@@ -134,6 +134,11 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Json>, ConfigErr
 }
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/session", session)?;
+    Route::r#match(
+        &[Method::POST],
+        "/custom-token",
+        openrust_passport::http::controllers::AccessTokenController::issueToken,
+    )?;
     Route::group(
         openrust::routing::RouteGroup::new().middleware_name("auth:api"),
         |router| {
@@ -208,6 +213,12 @@ struct Fixture {
 }
 impl Fixture {
     async fn new() -> Self {
+        Self::with_device(true, None).await
+    }
+    async fn with_device(enabled: bool, prefix: Option<&str>) -> Self {
+        Self::with_device_routes(enabled, prefix, true).await
+    }
+    async fn with_device_routes(enabled: bool, prefix: Option<&str>, register: bool) -> Self {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
         let root = std::env::temp_dir().join(format!(
             "passport-grant-{}-{}",
@@ -241,7 +252,14 @@ impl Fixture {
         }
         let mut app = Application::configure(root.clone())
             .withConfig(config)
-            .withProviders(vec![Box::new(PassportServiceProvider)])
+            .withProviders(vec![
+                Box::new(device_authorization::Options {
+                    enabled,
+                    register,
+                    prefix: prefix.map(str::to_owned),
+                }),
+                Box::new(PassportServiceProvider),
+            ])
             .withMigrations(MIGRATIONS)
             .withRouting(Routing::default().web(routes))
             .create()
@@ -249,6 +267,18 @@ impl Fixture {
         app.boot().await.unwrap();
         let passport = app.make::<Passport>().await.unwrap();
         passport.authorizationView(view);
+        passport.deviceAuthorizationView(view);
+        passport.deviceUserCodeView(device_authorization::code_view);
+        passport
+            .deviceCodeGrantEnabled
+            .store(enabled, Ordering::Relaxed);
+        if let Some(prefix) = prefix {
+            app.container()
+                .get::<dyn openrust::contracts::config::Repository>("config")
+                .unwrap()
+                .set("passport.path", json!(prefix))
+                .unwrap();
+        }
         passport.tokensCan(BTreeMap::from([
             ("read".into(), "Read data".into()),
             ("write".into(), "Write data".into()),
@@ -2021,3 +2051,6 @@ async fn mysql_refresh_can_narrow_two_granted_scopes_without_expanding_again() {
     );
     f.cleanup().await;
 }
+
+#[path = "device_authorization/mod.rs"]
+mod device_authorization;

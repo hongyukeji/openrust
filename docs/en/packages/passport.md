@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration and token purging are available. The remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. The remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -65,7 +65,7 @@ The default and standard-size key generation uses the existing native AWS-LC imp
 
 ## Managing clients {#managing-clients}
 
-The client repository supports lookup, creation, update, secret rotation, owner filtering and revocation using real Eloquent models. `passport:client` creates the six supported client grant types. Authorization-code endpoints are available; resource token authentication remains pending.
+The client repository supports lookup, creation, update, secret rotation, owner filtering and revocation using real Eloquent models. `passport:client` creates the six supported client grant types. Authorization-code and device endpoints and resource token authentication are available.
 
 Resolve `ClientRepository` inside the request or Artisan lifecycle. The container gives each lifecycle a new repository. Repeated `find` calls with the same argument share the actual model, including cached misses; database errors propagate and can be retried. `findActive` also checks the current model's `revoked` attribute. Do not retain this scoped service in an application singleton. For an explicitly managed operation, `Passport::clientRepository()` creates a separately owned cache.
 
@@ -94,7 +94,7 @@ pub async fn create_client(
 
 The arguments retain Laravel's order. Rust makes default arguments explicit: `true` creates a confidential client, `owner` is optional, and the final `false` disables the additional device grant. A `ClientOwner` is made with `ClientOwner::forUser(&user)` from a compiled `Model + Authenticatable`; it uses the model's primary key and morph class, rather than its possibly different authentication identifier. Public clients pass `false` for confidentiality.
 
-`createPersonalAccessGrantClient`, `createPasswordGrantClient`, `createClientCredentialsGrantClient`, `createImplicitGrantClient` and `createDeviceAuthorizationGrantClient` select their corresponding grants. Password, implicit and device protocol endpoints are not enabled by creating a row. `update` changes the name and redirects; `regenerateSecret` creates a new secret. Both save through Eloquent and return its boolean result. `findForUser` and `forUser` exclude revoked clients; the latter sorts by name. `personalAccessClient(provider)` selects the latest matching active personal client, including a null provider only when it matches `auth.guards.api.provider`, and returns an error when none exists.
+`createPersonalAccessGrantClient`, `createPasswordGrantClient`, `createClientCredentialsGrantClient`, `createImplicitGrantClient` and `createDeviceAuthorizationGrantClient` select their corresponding grants. Creating a row does not enable the optional password or implicit protocols; device routes follow the application device switch. `update` changes the name and redirects; `regenerateSecret` creates a new secret. Both save through Eloquent and return its boolean result. `findForUser` and `forUser` exclude revoked clients; the latter sorts by name. `personalAccessClient(provider)` selects the latest matching active personal client, including a null provider only when it matches `auth.guards.api.provider`, and returns an error when none exists.
 
 Confidential secrets use the application's existing asynchronous Eloquent hash service. The creating or rotating `Client` temporarily retains its setter input in `plainSecret`; fresh database reads do not. Default JSON output hides `secret` and does not append the plaintext. Copy a newly generated plaintext only when delivering it to its owner, and never log it. An `Arc<tokio::sync::Mutex<M>>` returned by `record.model::<M>()` refers to the actual selected model; `sameInstance` checks shared object identity, not whether two model rows have the same key.
 
@@ -110,7 +110,7 @@ Call `passport.useClientModel::<CustomClient>()` during application setup before
 
 Call `make().await?` for an unsaved model or `create().await?` to persist it. Assignment uses the model’s asynchronous mutators and casts: the new Client retains `plainSecret`, while a database reload contains only its hash. `state` adds application attributes; `intoFactory()` exposes the existing Eloquent builder for counts, relationships and callbacks.
 
-Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Only the authorization-code protocol is currently available.
+Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Authorization code, refresh and device protocols are available.
 
 ## Client commands and revocation
 
@@ -192,7 +192,19 @@ grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fcli
 
 These are fixed example values; generate new values for each real authorization. Missing or incorrect verifiers, altered callbacks, expired codes and replayed codes fail without issuing tokens. The authorization step permits different ports for registered HTTP loopback callbacks; the token exchange binds the exact redirect string originally supplied.
 
-Rust stores a validated native request in Session and invokes a compiled view callback instead of PHP object serialization. Codes and refresh tokens use the existing application's authenticated encryption plus application context; their internal envelope is not PHP ciphertext compatible. Client/code locks and a single database transaction keep code consumption, access-token and refresh-token saves atomic. Custom token models participate through Eloquent casts, events and their actual connection; save cancellation or database failure rolls back issuance. Device authorization, the remaining grants and the combined API installer belong to subsequent units.
+Rust stores a validated native request in Session and invokes a compiled view callback instead of PHP object serialization. Codes and refresh tokens use the existing application's authenticated encryption plus application context; their internal envelope is not PHP ciphertext compatible. Client/code locks and a single database transaction keep code consumption, access-token and refresh-token saves atomic. Custom token models participate through Eloquent casts, events and their actual connection; save cancellation or database failure rolls back issuance. The remaining grants and the combined API installer belong to subsequent units.
+
+## Device authorization grant {#device-authorization-grant}
+
+Create a device client with `./artisan passport:client --device --public`. Confidential device clients omit `--public`. Device authorization is enabled by default. To disable its routes, set `passport.deviceCodeGrantEnabled.store(false, std::sync::atomic::Ordering::Relaxed)` during provider boot before Passport assembles routes. Changing the setting after application boot does not remove registered routes.
+
+POST `/oauth/device/code` with `client_id` and optional space-separated `scope`. The response contains `device_code`, `user_code`, `verification_uri`, `verification_uri_complete`, `expires_in` (600 seconds) and `interval` (5 seconds). This creation step identifies the client without validating a secret. Keep `device_code` on the device; show the user the verification URI and user code, or open the complete URI on a browser. The response uses `no-store` and `no-cache`.
+
+Configure both `passport.deviceUserCodeView(code_view)` and `passport.deviceAuthorizationView(consent)` during application setup. `code_view` has the signature `fn(&mut Request) -> HttpFuture<'_, Result<Response, HttpError>>`; the consent callback uses the same `AuthorizationViewParameters` signature as `authorizationView` above. The application renders its own HTML, including escaped client and scope values. GET `/oauth/device` renders the code entry view; its GET form sends `user_code` back to that URL. Hyphens are removed from entered codes; case is preserved. `verification_uri_complete` skips code entry and redirects to GET `/oauth/device/authorize`, which requires the configured session user and renders consent.
+
+The consent form sends the saved `auth_token` and session CSRF `_token` to POST `/oauth/device/authorize` to approve, or DELETE to deny. The browser keeps its session cookie. The server binds the saved request to that authenticated user, consumes its nonce once, and prevents competing browsers from changing an already decided device code. It redirects to `/oauth/device` with session `status` equal to `authorization-approved` or `authorization-denied`. Invalid codes return there with old `user_code` input and validation errors. Missing view callbacks fail explicitly.
+
+The device polls POST `/oauth/token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code`, `device_code` and `client_id`. Confidential clients also authenticate with their secret, using Basic or body credentials. Wait at least the advertised interval: HTTP 400 `authorization_pending` means consent is still pending; HTTP 400 `slow_down` requires slowing polling. Both persist the latest poll time. Denial returns HTTP 401 `access_denied`; expiry returns HTTP 400 `expired_token`. A successful exchange atomically persists access/refresh tokens and revokes the device code; replay fails. Access-token scope and lifetime handling uses the ordinary resource guard and refresh flow. `passport.path` applies to all device routes. `DeviceCode` is a real Eloquent model with scope, boolean and datetime casts and the Passport connection fallback.
 
 ## Refreshing tokens {#refreshing-tokens}
 
