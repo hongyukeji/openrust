@@ -6,7 +6,12 @@ rust-version = "1.94"
 license = "MIT"
 publish = false
 
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
 [dependencies]
+clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "../framework" }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
 md-5 = { version = "=0.11.0", default-features = false }
@@ -18,5 +23,6 @@ thiserror = "2"
 qrcode = { version = "=0.14.1", default-features = false }
 
 [dev-dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-util", "time"] }

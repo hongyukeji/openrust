@@ -2,11 +2,11 @@
 
 ## 当前范围
 
-**双因素 Provider／Features 基础及 [Session 登录与密码确认](session-authentication.md)及 [双因素账户动作](two-factor-model.md)、[正式管理与登录挑战](two-factor-http.md)已实现并通过定向验收；API-F01 整单元尚未闭合。**
+**API-F01 无界面认证已完成本机实现与验收。** [安装与整簇验收](install.md)串联登录／退出、注册、邮件验证、资料／密码更新、密码重置／确认、双因素与恢复码、认证流水线、动作／响应定制和安装。三语正文及生成应用真实 HTTP／MySQL／SMTP 验收通过。
 
-本批提供独立 `openrust-fortify` crate、对象安全双因素 Provider 契约、Google2FA 引擎、缓存防重放和 Features 查询。根应用增加可选 `fortify` Cargo feature；首批尚未启用自动发现或 HTTP 路由；后续 Session 批次以显式 Provider 注册基础路由，安装器仍保持未就绪拒绝。`two_factor_http` 是实际内核／TCP 上的 Provider 验收夹具，不是已交付登录挑战控制器。
+Passkeys 属于独立 API-F02；Fortify 1.43.0 默认启用该项，当前必须按正文移除 Passkeys 才能使用 API-F01，不宣称完整默认资源已交付。跨平台及最终主线整合继续。
 
-登录／登出、密码确认、基础流水线及响应替换见 Session 批次记录。注册、密码重置、邮件验证、资料／密码更新和安装继续开发；双因素正式管理／挑战 HTTP、动态模型装配、QR SVG 和账户动作已通过独立验收。Passkeys 为独立 API-F02；Fortify 1.43.0 上游默认包含该项，未实现前不能将默认完整安装称为已通过。三语 Fortify 正文继续保留占位，完整行为验收后一起填充。
+以下记录为最初双因素基础批次的历史证据；各后续批次以对应独立审计为准。
 
 ## 固定参考
 

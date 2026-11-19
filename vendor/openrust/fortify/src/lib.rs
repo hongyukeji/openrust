@@ -38,3 +38,13 @@ mod qr;
 mod email_verification_model;
 
 mod password_reset_model;
+
+pub mod console;
+mod resources;
+pub use resources::FortifyResourcesServiceProvider;
+
+pub fn openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>> {
+    vec![Box::new(FortifyResourcesServiceProvider)]
+}
+
+pub mod migrations;

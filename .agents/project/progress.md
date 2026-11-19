@@ -3777,3 +3777,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-S01 Twitter OAuth1
 
 2026-11-20 API-S01 [Twitter OAuth1与统一协议入口](audits/api-s01/oauth1.md)实现验收完成：异步临时凭据／真实Session／HMAC-SHA1、两条映射及凭据缓存、严格协议选择；14组固定PHP签名及10种回调对照，全包34＋纯配置1函数、Rust1.94严格Clippy／fmt、MySQL8.4.13下根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。源码SHA、依赖、接口适配与清理留证，全部卷保留，本地提交不推送；继续本地归属／HTTP登录整合，完整RP与SSO仍待。
+
+## API-F01 安装与整簇验收
+
+2026-11-20 [安装与整簇验收](audits/api-f01/install.md)完成：原生安装／默认动作／请求值验证转换／2FA迁移回滚、验证器33／Fortify54、严格检查与根入口，生成应用真实HTTP／MySQL8.4.13／3封SMTP／Session轮换／2FA／恢复码／密码重置／限流、生成应用关闭功能构建及三语12＋6浏览器全部通过。固定源码、33输入SHA、失败修正和专属产物清理留证；全部卷保留，本地提交不推送。Passkeys另属API-F02，继续按依赖开发。

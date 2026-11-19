@@ -6,13 +6,13 @@ use std::{
 
 use crate::console::ConsoleError;
 
-pub(super) fn lock_manifest(root: &Path) -> Result<File, ConsoleError> {
+pub fn lock_manifest(root: &Path) -> Result<File, ConsoleError> {
     let manifest_path = root.join("Cargo.toml");
     File::open(&manifest_path).map_err(|error| file_error(&manifest_path, error))?;
     lock_source(root)
 }
 
-pub(super) fn lock_source(root: &Path) -> Result<File, ConsoleError> {
+pub fn lock_source(root: &Path) -> Result<File, ConsoleError> {
     // A separate inode keeps the lock valid when an installer replaces Cargo.toml.
     let directory = root.join("tmp");
     fs::create_dir_all(&directory).map_err(|error| file_error(&directory, error))?;
@@ -33,7 +33,7 @@ pub(super) fn lock_source(root: &Path) -> Result<File, ConsoleError> {
     Ok(lock)
 }
 
-pub(super) fn insert_before(
+pub fn insert_before(
     source: &str,
     path: &Path,
     statement: &str,
@@ -68,7 +68,7 @@ fn manual_registration(path: &Path, statement: &str) -> ConsoleError {
     ))
 }
 
-pub(super) fn replace(path: &Path, previous: &str, updated: &str) -> Result<(), ConsoleError> {
+pub fn replace(path: &Path, previous: &str, updated: &str) -> Result<(), ConsoleError> {
     let current = read(path)?;
     if current == updated {
         return Ok(());
@@ -98,10 +98,10 @@ pub(super) fn replace(path: &Path, previous: &str, updated: &str) -> Result<(), 
     Ok(())
 }
 
-pub(super) fn read(path: &Path) -> Result<String, ConsoleError> {
+pub fn read(path: &Path) -> Result<String, ConsoleError> {
     fs::read_to_string(path).map_err(|error| file_error(path, error))
 }
 
-pub(super) fn file_error(path: &Path, error: io::Error) -> ConsoleError {
+pub fn file_error(path: &Path, error: io::Error) -> ConsoleError {
     ConsoleError::new(format!("{}: {error}", path.display()))
 }

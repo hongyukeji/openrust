@@ -46,6 +46,19 @@ impl Data {
         Ok(data)
     }
 
+    /// Converts application action input while retaining uploaded files and array keys.
+    #[allow(non_snake_case, reason = "Typed adapter for request values")]
+    pub fn fromRequestValue(input: &crate::http::RequestValue) -> ValidationResult<Self> {
+        let mut uploads = BTreeMap::new();
+        let (input, upload_shape) = request_values(input, "", 0, &mut uploads)?;
+        check(&input)?;
+        Ok(Self {
+            input,
+            uploads,
+            upload_shape,
+        })
+    }
+
     /// Replaces the scalar input while retaining uploaded files for validation.
     pub fn replace(&mut self, mut input: Value) -> ValidationResult<()> {
         check(&input)?;
@@ -178,5 +191,62 @@ fn merge_uploads(input: &mut Value, shape: &Value) {
         }
         Value::Bool(true) => *input = Value::Null,
         _ => {}
+    }
+}
+
+fn request_values(
+    value: &crate::http::RequestValue,
+    prefix: &str,
+    depth: usize,
+    uploads: &mut BTreeMap<String, UploadedFile>,
+) -> ValidationResult<(Value, Value)> {
+    use crate::{http::RequestValue, support::ArrayKey};
+    if depth > crate::support::DATA_MAX_DEPTH {
+        return Err(ValidationError::LimitsExceeded);
+    }
+    match value {
+        RequestValue::Value(value) => Ok((value.clone(), Value::Null)),
+        RequestValue::File(file) => {
+            uploads.insert(prefix.to_owned(), file.clone());
+            Ok((Value::Null, Value::Bool(true)))
+        }
+        RequestValue::Array(fields) => {
+            let sequence = fields.keys().enumerate().all(
+                |(index, key)| matches!(key, ArrayKey::Integer(value) if *value == index as i64),
+            );
+            let values = fields
+                .iter()
+                .map(|(key, child)| {
+                    let key = match key {
+                        ArrayKey::Integer(value) => value.to_string(),
+                        ArrayKey::String(value) => value.clone(),
+                    };
+                    let (input, shape) =
+                        request_values(child, &path::join(prefix, &key)?, depth + 1, uploads)?;
+                    Ok((key, input, shape))
+                })
+                .collect::<ValidationResult<Vec<_>>>()?;
+            if sequence {
+                Ok((
+                    Value::Array(values.iter().map(|(_, input, _)| input.clone()).collect()),
+                    Value::Array(values.into_iter().map(|(_, _, shape)| shape).collect()),
+                ))
+            } else {
+                Ok((
+                    Value::Object(
+                        values
+                            .iter()
+                            .map(|(key, input, _)| (key.clone(), input.clone()))
+                            .collect(),
+                    ),
+                    Value::Object(
+                        values
+                            .into_iter()
+                            .map(|(key, _, shape)| (key, shape))
+                            .collect(),
+                    ),
+                ))
+            }
+        }
     }
 }

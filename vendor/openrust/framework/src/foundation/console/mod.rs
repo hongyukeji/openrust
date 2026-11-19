@@ -30,7 +30,8 @@ mod provider_make_command;
 mod queued_command;
 mod resource_make_command;
 pub(super) mod serve_command;
-mod source_edit;
+#[doc(hidden)]
+pub mod source_edit;
 mod storage_link_command;
 mod storage_unlink_command;
 mod stub_publish_command;

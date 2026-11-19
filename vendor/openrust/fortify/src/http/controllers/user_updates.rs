@@ -69,7 +69,9 @@ impl PasswordController {
                 None => Resolver::<dyn contracts::UpdatesUserPasswords>::getFacadeRoot()
                     .map_err(internal)?,
             };
-            let user = updater.update(user.as_ref(), &input).await?;
+            let user = updater
+                .updateFromRequest(request, user.as_ref(), &input)
+                .await?;
             Auth::sessionGuard(request, fortify.guard().as_deref())?.set_user(user);
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let name = fortify

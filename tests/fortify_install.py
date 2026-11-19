@@ -1,0 +1,269 @@
+"""Real fortify:install -> rebuild -> MySQL / HTTP / loopback SMTP acceptance.
+
+Run only against an isolated archive snapshot via tests/mysql_acceptance.py.
+"""
+import base64
+import email
+from email import policy
+import hashlib
+import hmac
+import html
+import http.cookiejar
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import signal
+import socket
+import socketserver
+import struct
+import subprocess
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+
+STATE_ROUTE = r'''
+fn fortify_acceptance_state(request: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::contracts::session::Session as _;
+        let user = openrust::auth::Auth::user(request).await?;
+        let email = user.as_ref().map(|u|u.getAuthAttribute("email")).transpose()?.flatten();
+        let email = match email { Some(openrust::database::Value::Text(email)) => Some(email), _ => None };
+        let verified = user.as_ref().and_then(|u|u.as_email_verification()).is_some_and(|u|u.hasVerifiedEmail());
+        let session = request.session()?;
+        openrust::http::Response::json(openrust::http::StatusCode::OK, serde_json::json!({
+            "user":user.map(|u|u.get_auth_identifier()),"email":email,"verified":verified,
+            "csrf":session.token(),"session":session.getId()
+        }))
+    })
+}
+'''
+
+
+class Smtp(socketserver.StreamRequestHandler):
+    def handle(self):
+        def reply(value):
+            self.wfile.write(value + b"\r\n")
+            self.wfile.flush()
+        reply(b"220 loopback ESMTP")
+        while line := self.rfile.readline():
+            command = line.split(b" ", 1)[0].strip().upper()
+            if command in (b"EHLO", b"HELO"):
+                reply(b"250-loopback")
+                reply(b"250 8BITMIME")
+            elif command in (b"MAIL", b"RCPT", b"RSET", b"NOOP"):
+                reply(b"250 OK")
+            elif command == b"DATA":
+                reply(b"354 End data with <CR><LF>.<CR><LF>")
+                message = bytearray()
+                while (data := self.rfile.readline()) != b".\r\n":
+                    if not data:
+                        return
+                    message.extend(data[1:] if data.startswith(b"..") else data)
+                self.server.messages.append(bytes(message))
+                reply(b"250 queued")
+            elif command == b"QUIT":
+                reply(b"221 Bye")
+                return
+            else:
+                reply(b"500 Unsupported command")
+
+
+class MailServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+class Client:
+    def __init__(self, origin):
+        self.origin = origin
+        self.jar = http.cookiejar.CookieJar()
+        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar))
+        self.csrf = None
+
+    def request(self, method, path, data=None, expected=200, csrf=True):
+        headers = {"Accept": "application/json"}
+        if csrf and self.csrf:
+            headers["X-CSRF-TOKEN"] = self.csrf
+        payload = None
+        if data is not None:
+            payload = json.dumps(data).encode()
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(self.origin + path, payload, headers, method=method)
+        try:
+            response = self.opener.open(request, timeout=10)
+        except urllib.error.HTTPError as error:
+            response = error
+        raw = response.read()
+        assert response.code == expected, (method, path.split("?")[0], response.code, raw.decode(errors="replace"))
+        return json.loads(raw) if raw else None
+
+    def state(self):
+        state = self.request("GET", "/fortify-acceptance-state")
+        self.csrf = state["csrf"]
+        return state
+
+
+def links(message):
+    parsed = email.message_from_bytes(message, policy=policy.default)
+    text = "\n".join(part.get_content() for part in parsed.walk() if part.get_content_type() in ("text/plain", "text/html"))
+    return [html.unescape(link).rstrip(".)") for link in re.findall(r'https?://[^\s<>"\']+', text)]
+
+
+def run():
+    source = Path(__file__).resolve().parents[1]
+    assert source.parent.name.startswith("openrust-fortify-install-"), "Use a dedicated archive snapshot"
+    target = Path(os.environ["CARGO_TARGET_DIR"])
+    binary = target / "debug/main"
+    generated = source.parent / "generated"
+    assert not generated.exists(), "Keep prior generated evidence; select a fresh batch"
+    shutil.copytree(source, generated, ignore=shutil.ignore_patterns(".git", ".agents", "docs", "node_modules", "target", "tmp", "storage"))
+    smtp = MailServer(("127.0.0.1", 0), Smtp)
+    smtp.messages = []
+    threading.Thread(target=smtp.serve_forever, daemon=True).start()
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    origin = f"http://127.0.0.1:{port}"
+    env = dict(os.environ, APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
+               APP_KEY="base64:" + base64.b64encode(b"a" * 32).decode(), APP_URL=origin,
+               APP_DISABLED_RUNNERS="queue,schedule,reverb,grpc", APP_PORT=str(port), SERVER_PORT=str(port),
+               SESSION_DRIVER="array", CACHE_STORE="array", DB_CONNECTION="mysql",
+               DB_URL=os.environ["OPENRUST_TEST_MYSQL_URL"], DB_PREFIX="fortify_generated_", BCRYPT_ROUNDS="4",
+               MAIL_MAILER="smtp", MAIL_HOST="127.0.0.1", MAIL_PORT=str(smtp.server_address[1]), MAIL_SCHEME="smtp",
+               MAIL_FROM_ADDRESS="noreply@example.test", NO_COLOR="1")
+    for key in ["APP_CONFIG_CACHE", "APP_PACKAGES_CACHE", "APP_ROUTES_CACHE", "APP_EVENTS_CACHE", "APP_VIEW_CACHE", "APP_STORAGE_PATH", "MAIL_URL", "MAIL_USERNAME", "MAIL_PASSWORD"]:
+        env.pop(key, None)
+
+    def cli(*args, success=True):
+        result = subprocess.run([str(binary), "artisan", *args], cwd=generated, env=env, capture_output=True, timeout=30)
+        if success:
+            assert result.returncode == 0, result.stderr.decode(errors="replace")
+        else:
+            assert result.returncode != 0
+        return result.stdout.decode(errors="replace")
+
+    def build(*args):
+        available = int(subprocess.check_output(["df", "-kP", str(source)], text=True).splitlines()[-1].split()[3])
+        assert available > 48828125, f"Disk stop: {available} KiB"
+        subprocess.run(["cargo", "+1.94.0", *args], cwd=generated, env=env, check=True)
+
+    server = None
+    try:
+        assert "Install all of the Fortify resources" in cli("fortify:install", "--help")
+        cli("fortify:install", "--force", success=False)
+        assert "Fortify scaffolding installed successfully." in cli("fortify:install")
+        paths = sorted(generated.glob("database/migrations/*add_two_factor_columns*"))
+        assert len(paths) == 1
+        before = paths[0].read_bytes()
+        customized = generated / "app/actions/fortify/create_new_user.rs"
+        customized.write_text(customized.read_text() + "\n// application customization preserved\n")
+        cli("fortify:install")
+        assert "application customization preserved" in customized.read_text()
+        assert paths[0].read_bytes() == before
+        config = generated / "config/fortify.rs"
+        configured = config.read_text().replace('"views":true', '"views":false').replace('"two-factor-authentication","passkeys"]', '"two-factor-authentication","email-verification"]')
+        assert configured != config.read_text()
+        config.write_text(configured)
+        routes = generated / "routes/web.rs"
+        routes.write_text(routes.read_text().replace('    Route::get("/",', '    Route::get("/fortify-acceptance-state", fortify_acceptance_state)?;\n    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;\n    Route::get("/",') + STATE_ROUTE)
+        # Name the frontend reset route through the existing route builder API.
+        routes.write_text(routes.read_text().replace('    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;', '    Route::group(openrust::routing::RouteGroup::new(), |router| { router.get("/reset-password/{token}", fortify_acceptance_state)?.name("password.reset"); Ok(()) })?;'))
+        build("fmt", "--all")
+        cli("fortify:install")  # Re-check registration after rustfmt.
+        build("build", "--offline", "--locked", "--features", "fortify", "--bin", "main")
+        cli("migrate", "--force", "--no-interaction")
+        cli("fortify:install")  # Compiled discovery plus explicit runtime provider must not duplicate commands.
+        with (source.parent / "generated-http.log").open("w") as output:
+            server = subprocess.Popen([str(binary)], cwd=generated, env=env, stdout=output, stderr=subprocess.STDOUT)
+            client = Client(origin)
+            end = time.monotonic() + 20
+            while True:
+                try:
+                    before = client.state()
+                    break
+                except urllib.error.URLError:
+                    assert server.poll() is None, (source.parent / "generated-http.log").read_text()
+                    assert time.monotonic() < end
+                    time.sleep(.05)
+            client.request("POST", "/register", {}, expected=419, csrf=False)
+            client.request("POST", "/register", {}, expected=422)
+            account = {"name": "Alice", "email": "Alice@Example.test", "password": "first-secret", "password_confirmation": "first-secret"}
+            client.request("POST", "/register", dict(account, password_confirmation="bad"), expected=422)
+            client.request("POST", "/register", account, expected=201)
+            after = client.state()
+            assert after["user"] is not None and after["session"] != before["session"] and after["csrf"] != before["csrf"]
+            assert after["email"] == "alice@example.test" and not after["verified"]
+            assert len(smtp.messages) == 1
+            verify = next(link for link in links(smtp.messages[-1]) if "/email/verify/" in link)
+            client.request("GET", verify.removeprefix(origin), expected=204)
+            assert client.state()["verified"]
+            client.request("PUT", "/user/profile-information", {"name": "Alice", "email": "invalid"}, expected=422)
+            client.request("PUT", "/user/profile-information", {"name": "Alice New", "email": "new@example.test"})
+            assert not client.state()["verified"] and len(smtp.messages) == 2
+            updated = {"password": "second-secret", "password_confirmation": "second-secret", "current_password": "wrong"}
+            result = client.request("PUT", "/user/password", updated, expected=422)
+            assert result["errors"]["current_password"] == ["The provided password does not match your current password."]
+            client.request("PUT", "/user/password", dict(updated, current_password="first-secret"))
+            client.request("POST", "/user/confirm-password", {"password": "second-secret"}, expected=201)
+            assert client.request("GET", "/user/confirmed-password-status")["confirmed"]
+            client.request("POST", "/user/two-factor-authentication")
+            secret = client.request("GET", "/user/two-factor-secret-key")["secretKey"]
+            codes = client.request("GET", "/user/two-factor-recovery-codes")
+            assert len(codes) == 8
+            counter = int(time.time()) // 30
+            digest = hmac.new(base64.b32decode(secret + "=" * (-len(secret) % 8)), struct.pack(">Q", counter), hashlib.sha1).digest()
+            offset = digest[-1] & 15
+            code = str((int.from_bytes(digest[offset:offset + 4], "big") & 0x7fffffff) % 1000000).zfill(6)
+            client.request("POST", "/user/confirmed-two-factor-authentication", {"code": code})
+            client.request("POST", "/logout", {}, expected=204)
+            client.state()
+            challenge = client.request("POST", "/login", {"email": "new@example.test", "password": "second-secret"})
+            assert challenge == {"two_factor": True}
+            client.state()
+            client.request("POST", "/two-factor-challenge", {"recovery_code": codes[0]}, expected=204)
+            assert client.state()["user"] is not None
+            client.request("POST", "/user/confirm-password", {"password": "second-secret"}, expected=201)
+            client.request("DELETE", "/user/two-factor-authentication", {})
+            client.request("POST", "/logout", {}, expected=204)
+            client.state()
+            client.request("POST", "/forgot-password", {"email": "new@example.test"})
+            assert len(smtp.messages) == 3
+            reset = next(link for link in links(smtp.messages[-1]) if "/reset-password/" in link)
+            token = urllib.parse.urlsplit(reset).path.rsplit("/", 1)[1]
+            change = {"email": "new@example.test", "token": token, "password": "third-secret", "password_confirmation": "third-secret"}
+            client.request("POST", "/reset-password", dict(change, password_confirmation="wrong"), expected=422)
+            client.request("POST", "/reset-password", change)
+            client.request("POST", "/reset-password", change, expected=422)
+            assert client.state()["user"] is None
+            client.request("POST", "/login", {"email": "new@example.test", "password": "second-secret"}, expected=422)
+            client.request("POST", "/login", {"email": "new@example.test", "password": "third-secret"})
+            assert client.state()["email"] == "new@example.test"
+            other = Client(origin)
+            other.state()
+            for _ in range(5):
+                other.request("POST", "/login", {"email": "blocked@example.test", "password": "wrong"}, expected=422)
+            other.request("POST", "/login", {"email": "blocked@example.test", "password": "wrong"}, expected=429)
+            other.request("POST", "/login", {"email": "independent@example.test", "password": "wrong"}, expected=422)
+            server.send_signal(signal.SIGINT)
+            assert server.wait(timeout=10) == 0
+            server = None
+        cli("migrate:rollback", "--step=1", "--force", "--no-interaction")
+        cli("migrate", "--force", "--no-interaction")
+        build("clippy", "--offline", "--locked", "--bin", "main", "--features", "fortify", "--", "-D", "warnings")
+        build("build", "--offline", "--locked", "--bin", "main")  # Installed modules remain feature optional.
+        print("Fortify install/retry/customization/rebuild/migration; native HTTP/CSRF/session/SMTP/profile/password/2FA/recovery/reset/limits/shutdown; strict generated Clippy and feature-off build PASS", flush=True)
+    finally:
+        if server is not None:
+            server.kill()
+            server.wait(timeout=10)
+        smtp.shutdown()
+        smtp.server_close()
+
+
+if __name__ == "__main__":
+    run()

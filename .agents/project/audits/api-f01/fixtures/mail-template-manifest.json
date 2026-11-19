@@ -1,0 +1,10 @@
+{
+  "version": "13.40.0",
+  "commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "files": {
+    "src/Illuminate/Notifications/Messages/SimpleMessage.php": "b1278e3c22d2b8fedc58bfbf4e0401eb5507b50e0c4480b879c659b559200a94",
+    "src/Illuminate/Notifications/Messages/MailMessage.php": "415c684f19184657671398d5d8165dc82a55a6ee3944fb4972be18f6e9fd248c",
+    "src/Illuminate/Notifications/resources/views/email.blade.php": "b30d1b02bec212fa9720d7b05fd41149a143524b356cf27b99c343af4bed281d",
+    "src/Illuminate/Mail/resources/views/html/layout.blade.php": "76ffeedbb7e7698c9b46c5e803f0f33e1102879a823822cf1e040499e955d202"
+  }
+}

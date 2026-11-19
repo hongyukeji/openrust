@@ -182,6 +182,11 @@ impl ServiceProvider for FortifyServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if !app
+                .providerIsLoaded(std::any::type_name::<crate::FortifyResourcesServiceProvider>())
+            {
+                crate::resources::register(app)?;
+            }
             let fortify = app.make::<Fortify>().await?;
             if !fortify.registersRoutes() {
                 return Ok(());

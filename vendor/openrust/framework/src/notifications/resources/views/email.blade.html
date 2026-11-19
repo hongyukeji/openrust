@@ -6,7 +6,7 @@
 
 @endforeach
 
-@if ($hasAction)
+@if ($hasAction ?? false)
 <x-mail::button :url="$actionUrl" :color="$color">
 {{ $actionText }}
 </x-mail::button>
@@ -17,7 +17,7 @@
 
 @endforeach
 
-@if ($regards)
+@if ($regards ?? false)
 {{ $regards }}\
 {{ $appName }}
 @else
@@ -25,7 +25,7 @@
 @endif
 
 <x-slot:subcopy>
-@if ($hasAction)
+@if ($hasAction ?? false)
 {{ $subcopy }}
 
 [{{ $displayableActionUrl }}](<{{ $actionUrl }}>)

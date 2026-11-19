@@ -87,6 +87,19 @@ pub trait UpdatesUserPasswords: Send + Sync {
         user: &'a dyn openrust::contracts::auth::Authenticatable,
         input: &'a openrust::http::RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
+    /// Allows application validation to resolve the real request's named guard.
+    #[allow(
+        non_snake_case,
+        reason = "Request-aware adapter for application actions"
+    )]
+    fn updateFromRequest<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>> {
+        self.update(user, input)
+    }
 }
 
 /// Application action validates and persists a password on the broker's actual user.

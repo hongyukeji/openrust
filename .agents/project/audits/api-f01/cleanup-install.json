@@ -1,0 +1,10 @@
+{
+  "deleted": "/private/tmp/openrust-fortify-install-20261120/target",
+  "owned_inactive_rebuildable": true,
+  "target_kib": 8066172,
+  "before_available_kib": 78013096,
+  "after_available_kib": 85824068,
+  "released_available_kib": 7810972,
+  "docker_volumes_preserved": true,
+  "source_and_logs_preserved": true
+}
