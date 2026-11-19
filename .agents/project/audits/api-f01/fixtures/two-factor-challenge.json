@@ -1,0 +1,251 @@
+[
+    {
+        "exists": true,
+        "input": {},
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "code": "0"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "code": "bad"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "code": "287082"
+        },
+        "status": 204,
+        "field": null,
+        "challenge": null,
+        "remember": null,
+        "events": [
+            "ValidTwoFactorAuthenticationCodeProvided",
+            "Login"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": "bad"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": "0"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": "recovery-0",
+            "code": "bad"
+        },
+        "status": 204,
+        "field": null,
+        "challenge": null,
+        "remember": null,
+        "events": [
+            "RecoveryCodeReplaced",
+            "ValidTwoFactorAuthenticationCodeProvided",
+            "Login"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": "bad",
+            "code": "287082"
+        },
+        "status": 204,
+        "field": null,
+        "challenge": null,
+        "remember": null,
+        "events": [
+            "ValidTwoFactorAuthenticationCodeProvided",
+            "Login"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": "",
+            "code": "287082"
+        },
+        "status": 204,
+        "field": null,
+        "challenge": null,
+        "remember": null,
+        "events": [
+            "ValidTwoFactorAuthenticationCodeProvided",
+            "Login"
+        ]
+    },
+    {
+        "exists": true,
+        "input": {
+            "recovery_code": " ",
+            "code": "bad"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": [
+            "TwoFactorAuthenticationFailed"
+        ]
+    },
+    {
+        "exists": false,
+        "input": {},
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "code": "0"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "code": "bad"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "code": "287082"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": "bad"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": "0"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": "recovery-0",
+            "code": "bad"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": "bad",
+            "code": "287082"
+        },
+        "status": 422,
+        "field": "recovery_code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": "",
+            "code": "287082"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    },
+    {
+        "exists": false,
+        "input": {
+            "recovery_code": " ",
+            "code": "bad"
+        },
+        "status": 422,
+        "field": "code",
+        "challenge": "001",
+        "remember": true,
+        "events": []
+    }
+]

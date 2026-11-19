@@ -55,6 +55,44 @@ impl ServiceProvider for FortifyServiceProvider {
                     ))
                 },
             )?;
+            container.bind::<dyn contracts::RedirectsIfTwoFactorAuthenticatable, _>(
+                |container| {
+                    Ok(Arc::new(
+                        crate::actions::RedirectIfTwoFactorAuthenticatable::new(
+                            container.make::<Fortify>()?,
+                            container.make::<LoginRateLimiter>()?,
+                        ),
+                    ))
+                },
+            )?;
+            container.bind::<crate::actions::EnableTwoFactorAuthentication, _>(|container| {
+                Ok(Arc::new(
+                    crate::actions::EnableTwoFactorAuthentication::new(
+                        container.make::<dyn contracts::TwoFactorAuthenticationProvider>()?,
+                        container.make::<Fortify>()?,
+                    ),
+                ))
+            })?;
+            container.bind::<crate::actions::ConfirmTwoFactorAuthentication, _>(|container| {
+                Ok(Arc::new(
+                    crate::actions::ConfirmTwoFactorAuthentication::new(
+                        container.make::<dyn contracts::TwoFactorAuthenticationProvider>()?,
+                        container.make::<Fortify>()?,
+                    ),
+                ))
+            })?;
+            container.bind::<crate::actions::DisableTwoFactorAuthentication, _>(|container| {
+                Ok(Arc::new(
+                    crate::actions::DisableTwoFactorAuthentication::new(
+                        container.make::<Fortify>()?,
+                    ),
+                ))
+            })?;
+            container.bind::<crate::actions::GenerateNewRecoveryCodes, _>(|container| {
+                Ok(Arc::new(crate::actions::GenerateNewRecoveryCodes::new(
+                    container.make::<Fortify>()?,
+                )))
+            })?;
             container.singleton::<AuthenticatedSessionController, _>(|_| {
                 Ok(Arc::new(AuthenticatedSessionController))
             })?;
@@ -70,6 +108,30 @@ impl ServiceProvider for FortifyServiceProvider {
                         .singleton::<dyn contracts::$name, _>(|_| Ok(Arc::new(responses::$name)))?;
                 };
             }
+            container.singleton::<TwoFactorAuthenticatedSessionController, _>(|_| {
+                Ok(Arc::new(TwoFactorAuthenticatedSessionController))
+            })?;
+            container.singleton::<TwoFactorAuthenticationController, _>(|_| {
+                Ok(Arc::new(TwoFactorAuthenticationController))
+            })?;
+            container.singleton::<ConfirmedTwoFactorAuthenticationController, _>(|_| {
+                Ok(Arc::new(ConfirmedTwoFactorAuthenticationController))
+            })?;
+            container.singleton::<TwoFactorQrCodeController, _>(|_| {
+                Ok(Arc::new(TwoFactorQrCodeController))
+            })?;
+            container.singleton::<TwoFactorSecretKeyController, _>(|_| {
+                Ok(Arc::new(TwoFactorSecretKeyController))
+            })?;
+            container
+                .singleton::<RecoveryCodeController, _>(|_| Ok(Arc::new(RecoveryCodeController)))?;
+            response!(TwoFactorLoginResponse);
+            response!(FailedTwoFactorLoginResponse);
+            response!(TwoFactorEnabledResponse);
+            response!(TwoFactorConfirmedResponse);
+            response!(TwoFactorDisabledResponse);
+            response!(RecoveryCodesGeneratedResponse);
+            response!(TwoFactorChallengeViewResponse);
             response!(LoginResponse);
             response!(LogoutResponse);
             response!(PasswordConfirmedResponse);
@@ -93,7 +155,6 @@ impl ServiceProvider for FortifyServiceProvider {
                 Features::emailVerification(),
                 Features::updateProfileInformation(),
                 Features::updatePasswords(),
-                Features::twoFactorAuthentication(),
                 Features::passkeys(),
             ] {
                 if features.enabled(feature)? {

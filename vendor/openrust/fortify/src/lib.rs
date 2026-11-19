@@ -30,3 +30,7 @@ pub use recovery_code::{RecoveryCode, RecoveryCodeGenerator};
 pub mod events;
 mod two_factor_authenticatable;
 pub use two_factor_authenticatable::TwoFactorAuthenticatable;
+
+mod two_factor_model;
+
+mod qr;

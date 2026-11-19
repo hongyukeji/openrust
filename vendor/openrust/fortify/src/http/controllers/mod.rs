@@ -21,3 +21,10 @@ pub(crate) async fn respond<T: contracts::Response + ?Sized + 'static>(
         .toResponse(request)
         .await
 }
+mod two_factor_authenticated_session_controller;
+pub use two_factor_authenticated_session_controller::TwoFactorAuthenticatedSessionController;
+mod two_factor_management;
+pub use two_factor_management::{
+    ConfirmedTwoFactorAuthenticationController, RecoveryCodeController,
+    TwoFactorAuthenticationController, TwoFactorQrCodeController, TwoFactorSecretKeyController,
+};

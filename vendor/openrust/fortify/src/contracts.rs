@@ -27,5 +27,20 @@ responses!(
     FailedPasswordConfirmationResponse,
     LockoutResponse,
     LoginViewResponse,
-    ConfirmPasswordViewResponse
+    ConfirmPasswordViewResponse,
+    TwoFactorLoginResponse,
+    FailedTwoFactorLoginResponse,
+    TwoFactorEnabledResponse,
+    TwoFactorConfirmedResponse,
+    TwoFactorDisabledResponse,
+    RecoveryCodesGeneratedResponse,
+    TwoFactorChallengeViewResponse
 );
+
+/// Replaceable challenge stage used by Fortify's default login pipeline.
+pub trait RedirectsIfTwoFactorAuthenticatable: Send + Sync {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut openrust::http::Request,
+    ) -> HttpFuture<'a, Result<Option<openrust::http::Response>, openrust::http::HttpError>>;
+}

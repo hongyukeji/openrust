@@ -38,6 +38,10 @@ impl<M: Model + Authenticatable> EloquentUserProvider<M> {
 }
 
 impl<M: Model + Authenticatable> UserProvider for EloquentUserProvider<M> {
+    fn getModel(&self) -> Option<std::any::TypeId> {
+        Some(std::any::TypeId::of::<M>())
+    }
+
     fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,

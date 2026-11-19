@@ -1,0 +1,19 @@
+{
+  "target": "/private/tmp/openrust-fortify-challenge-20261120/target",
+  "target_kib": 6055180,
+  "available_before_kib": 58085948,
+  "available_after_kib": 63891000,
+  "observed_released_bytes": 5944373248,
+  "remaining_gb": 65.424384,
+  "remaining_gib": 60.93120574951172,
+  "volumes_before": [],
+  "volumes_after": [],
+  "active_target_processes": [],
+  "retained": [
+    "source",
+    "evidence",
+    "shared cache",
+    "images",
+    "all database volumes"
+  ]
+}

@@ -67,6 +67,13 @@ pub trait TwoFactorAuthenticatable: Authenticatable + Model {
             .await
         }
     }
+    fn twoFactorQrCodeSvg(
+        &self,
+        fortify: &Fortify,
+        provider: &dyn crate::contracts::TwoFactorAuthenticationProvider,
+    ) -> FortifyResult<String> {
+        crate::qr::two_factor_qr_code_svg(&self.twoFactorQrCodeUrl(fortify, provider)?)
+    }
     fn twoFactorQrCodeUrl(
         &self,
         fortify: &Fortify,

@@ -1,6 +1,10 @@
 /// Errors preserve the upstream distinction between malformed secrets and invalid codes.
 #[derive(Debug, thiserror::Error)]
 pub enum FortifyError {
+    #[error("The current authentication provider or account has no registered two-factor model.")]
+    UnregisteredTwoFactorModel,
+    #[error("The two-factor URI cannot be encoded as a QR code.")]
+    QrEncoding,
     #[error("The two-factor secret contains invalid Base32 characters.")]
     InvalidCharacters,
     #[error("The two-factor secret is not compatible with Google Authenticator.")]

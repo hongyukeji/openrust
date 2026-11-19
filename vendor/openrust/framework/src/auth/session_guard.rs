@@ -209,6 +209,10 @@ impl<'a> SessionGuard<'a> {
         .await
     }
 
+    pub fn getProvider(&self) -> Arc<dyn UserProvider> {
+        self.provider.clone()
+    }
+
     pub fn getName(&self) -> &str {
         &self.session_key
     }

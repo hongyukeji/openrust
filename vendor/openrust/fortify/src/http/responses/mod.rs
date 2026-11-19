@@ -197,3 +197,115 @@ impl contracts::Response for ConfirmPasswordViewResponse {
         Box::pin(configured_view(request, false))
     }
 }
+
+pub struct TwoFactorLoginResponse;
+impl contracts::TwoFactorLoginResponse for TwoFactorLoginResponse {}
+impl contracts::Response for TwoFactorLoginResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.wantsJson() {
+                return Ok(Response::noContent());
+            }
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            Ok(Redirect::intended(
+                request,
+                &fortify.redirects("login", None),
+                Default::default(),
+            )?
+            .into())
+        })
+    }
+}
+pub struct FailedTwoFactorLoginResponse;
+impl contracts::FailedTwoFactorLoginResponse for FailedTwoFactorLoginResponse {}
+impl contracts::Response for FailedTwoFactorLoginResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let (field, message) = if request.filled(&["recovery_code"]).await? {
+                (
+                    "recovery_code",
+                    "The provided two factor recovery code was invalid.",
+                )
+            } else {
+                (
+                    "code",
+                    "The provided two factor authentication code was invalid.",
+                )
+            };
+            let error = invalid(
+                field,
+                Lang::get(message, &Default::default(), None).map_err(internal)?,
+            );
+            if request.wantsJson() {
+                return Err(HttpError::Validation(Box::new(error)));
+            }
+            Ok(
+                Redirect::route("two-factor.login", &[], Default::default())?
+                    .withErrors(request, error.errors(), "default")?
+                    .into(),
+            )
+        })
+    }
+}
+macro_rules! management_response {
+    ($name:ident,$status:expr) => {
+        pub struct $name;
+        impl contracts::$name for $name {}
+        impl contracts::Response for $name {
+            fn toResponse<'a>(
+                &'a self,
+                request: &'a mut Request,
+            ) -> HttpFuture<'a, Result<Response, HttpError>> {
+                Box::pin(async move {
+                    if request.wantsJson() {
+                        return Response::json(StatusCode::OK, "");
+                    }
+                    Ok(Redirect::back(request, None, Default::default())?
+                        .with(request, "status", $status.into())?
+                        .into())
+                })
+            }
+        }
+    };
+}
+management_response!(
+    TwoFactorEnabledResponse,
+    Fortify::TWO_FACTOR_AUTHENTICATION_ENABLED
+);
+management_response!(
+    TwoFactorConfirmedResponse,
+    Fortify::TWO_FACTOR_AUTHENTICATION_CONFIRMED
+);
+management_response!(
+    TwoFactorDisabledResponse,
+    Fortify::TWO_FACTOR_AUTHENTICATION_DISABLED
+);
+management_response!(
+    RecoveryCodesGeneratedResponse,
+    Fortify::RECOVERY_CODES_GENERATED
+);
+pub(crate) struct TwoFactorChallengeViewResponse;
+impl contracts::TwoFactorChallengeViewResponse for TwoFactorChallengeViewResponse {}
+impl contracts::TwoFactorChallengeViewResponse for SimpleViewResponse {}
+impl contracts::Response for TwoFactorChallengeViewResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let view = fortify.two_factor_view().ok_or_else(|| {
+                internal(std::io::Error::other(
+                    "Fortify two-factor challenge view has not been configured",
+                ))
+            })?;
+            contracts::Response::toResponse(view.as_ref(), request).await
+        })
+    }
+}

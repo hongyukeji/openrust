@@ -212,3 +212,6 @@ pub use two_factor::{
     ConfirmTwoFactorAuthentication, DisableTwoFactorAuthentication, EnableTwoFactorAuthentication,
     GenerateNewRecoveryCodes,
 };
+
+mod redirect_if_two_factor_authenticatable;
+pub use redirect_if_two_factor_authenticatable::RedirectIfTwoFactorAuthenticatable;

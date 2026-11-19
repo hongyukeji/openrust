@@ -19,3 +19,14 @@ impl FormRequest for LoginRequest {
         ])
     }
 }
+
+#[derive(Default)]
+pub struct TwoFactorLoginRequest;
+impl FormRequest for TwoFactorLoginRequest {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        RuleSet::parse([
+            ("code", "nullable|string"),
+            ("recovery_code", "nullable|string"),
+        ])
+    }
+}

@@ -15,6 +15,8 @@ zeroize = "1.9.0"
 subtle = "2.6"
 thiserror = "2"
 
+qrcode = { version = "=0.14.1", default-features = false }
+
 [dev-dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-util", "time"] }

@@ -154,6 +154,16 @@ fn run_stage<'a>(
                     return Ok(response);
                 }
             }
+            "RedirectIfTwoFactorAuthenticatable" => {
+                if let Some(response) =
+                    Resolver::<dyn contracts::RedirectsIfTwoFactorAuthenticatable>::getFacadeRoot()
+                        .map_err(internal)?
+                        .handle(request)
+                        .await?
+                {
+                    return Ok(response);
+                }
+            }
             "CanonicalizeUsername" => CanonicalizeUsername::new(fortify).handle(request).await?,
             "AttemptToAuthenticate" => {
                 AttemptToAuthenticate::new(fortify, limiter)
@@ -167,7 +177,7 @@ fn run_stage<'a>(
             }
             _ => {
                 return Err(internal(std::io::Error::other(
-                    "Fortify two-factor challenge integration is not implemented",
+                    "Unknown Fortify login pipeline stage",
                 )));
             }
         }

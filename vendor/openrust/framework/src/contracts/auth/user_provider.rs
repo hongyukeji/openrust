@@ -4,6 +4,12 @@ use super::Authenticatable;
 
 /// Loads users, verifies credentials, and persists credential changes.
 pub trait UserProvider: Send + Sync {
+    /// Compiled model identity corresponding to an Eloquent provider's getModel.
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent provider API")]
+    fn getModel(&self) -> Option<std::any::TypeId> {
+        None
+    }
+
     fn retrieve_by_id<'a>(
         &'a self,
         id: &'a AuthIdentifier,

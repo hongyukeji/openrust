@@ -30,6 +30,13 @@ pub struct Fortify {
     confirm_password_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     encrypter: RwLock<Option<Arc<dyn openrust::contracts::encryption::Encrypter>>>,
     recovery_code_generator: RwLock<Option<Arc<crate::recovery_code::RecoveryCodeGenerator>>>,
+    pub(crate) two_factor_models: RwLock<
+        std::collections::HashMap<
+            std::any::TypeId,
+            Arc<dyn crate::two_factor_model::RegisteredModel>,
+        >,
+    >,
+    two_factor_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     registers_routes: AtomicBool,
 }
 #[allow(
@@ -37,6 +44,11 @@ pub struct Fortify {
     reason = "Matches Fortify's application configuration API"
 )]
 impl Fortify {
+    pub const RECOVERY_CODES_GENERATED: &str = "recovery-codes-generated";
+    pub const TWO_FACTOR_AUTHENTICATION_CONFIRMED: &str = "two-factor-authentication-confirmed";
+    pub const TWO_FACTOR_AUTHENTICATION_DISABLED: &str = "two-factor-authentication-disabled";
+    pub const TWO_FACTOR_AUTHENTICATION_ENABLED: &str = "two-factor-authentication-enabled";
+
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self {
             config,
@@ -47,8 +59,37 @@ impl Fortify {
             confirm_password_view: RwLock::new(None),
             encrypter: RwLock::new(None),
             recovery_code_generator: RwLock::new(None),
+            two_factor_models: RwLock::new(Default::default()),
+            two_factor_view: RwLock::new(None),
             registers_routes: AtomicBool::new(true),
         }
+    }
+    /// Registers a compiled model implementing Fortify's explicit account trait.
+    pub fn registerTwoFactorAuthenticatable<T>(&self)
+    where
+        T: crate::TwoFactorAuthenticatable + Clone,
+    {
+        self.two_factor_models
+            .write()
+            .expect("Fortify model registry lock")
+            .insert(
+                std::any::TypeId::of::<T>(),
+                Arc::new(crate::two_factor_model::ModelAdapter::<T>::new()),
+            );
+    }
+    pub fn twoFactorChallengeView(
+        &self,
+        view: impl Into<crate::http::responses::SimpleViewResponse>,
+    ) {
+        *self.two_factor_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
+    }
+    pub(crate) fn two_factor_view(
+        &self,
+    ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+        self.two_factor_view
+            .read()
+            .expect("Fortify views lock")
+            .clone()
     }
     pub fn username(&self) -> String {
         self.string("fortify.username", "email")

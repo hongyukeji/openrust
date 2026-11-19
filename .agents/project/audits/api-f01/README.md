@@ -2,11 +2,11 @@
 
 ## 当前范围
 
-**双因素 Provider／Features 基础及 [Session 登录与密码确认](session-authentication.md)及 [双因素账户动作](two-factor-model.md)已实现并通过定向验收；API-F01 整单元尚未闭合。**
+**双因素 Provider／Features 基础及 [Session 登录与密码确认](session-authentication.md)及 [双因素账户动作](two-factor-model.md)、[正式管理与登录挑战](two-factor-http.md)已实现并通过定向验收；API-F01 整单元尚未闭合。**
 
 本批提供独立 `openrust-fortify` crate、对象安全双因素 Provider 契约、Google2FA 引擎、缓存防重放和 Features 查询。根应用增加可选 `fortify` Cargo feature；首批尚未启用自动发现或 HTTP 路由；后续 Session 批次以显式 Provider 注册基础路由，安装器仍保持未就绪拒绝。`two_factor_http` 是实际内核／TCP 上的 Provider 验收夹具，不是已交付登录挑战控制器。
 
-登录／登出、密码确认、基础流水线及响应替换见 Session 批次记录。注册、密码重置、邮件验证、双因素正式管理／挑战 HTTP、动态模型装配、QR SVG 及完整动作继续开发；泛型账户动作／恢复码已通过独立验收。Passkeys 为独立 API-F02；Fortify 1.43.0 上游默认包含该项，未实现前不能将默认完整安装称为已通过。三语 Fortify 正文继续保留占位，完整行为验收后一起填充。
+登录／登出、密码确认、基础流水线及响应替换见 Session 批次记录。注册、密码重置、邮件验证、资料／密码更新和安装继续开发；双因素正式管理／挑战 HTTP、动态模型装配、QR SVG 和账户动作已通过独立验收。Passkeys 为独立 API-F02；Fortify 1.43.0 上游默认包含该项，未实现前不能将默认完整安装称为已通过。三语 Fortify 正文继续保留占位，完整行为验收后一起填充。
 
 ## 固定参考
 
