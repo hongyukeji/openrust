@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-F01 [默认密码策略与确认规则](audits/api-f01/password-rule.md)前置验收闭合：Password默认／长度／Unicode强度／required／sometimes与confirmed，完整固定Illuminate验证器771组逐消息一致，真实TCP／FormRequest、验证器30／Fortify49函数、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan全过。9份输入SHA及专属产物清理留证，源码／日志／卷保留；本地提交不推送。继续current_password及安装，未称完整Password fluent API或API-F01整簇完成。
+
 - 2026-11-20 API-S01 [X／Twitter OAuth2](audits/api-s01/x.md)本机验收完成：默认PKCE／RFC3986、Basic交换与刷新、确认邮箱、manager别名及环境选择；全包18＋纯配置1函数、固定PHP重复与源码负样本、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。默认OAuth1仍明确未交付，Facebook／Google／OAuth1／本地归属及完整RP继续；专属产物清理保留全部卷，本地提交不推送。
 
 - 2026-11-20 API-S01 [六个新增OAuth2驱动](audits/api-s01/drivers.md)本机验收完成：GitLab／Bitbucket／LinkedIn与OpenId／Slack与OpenId、manager及六组环境配置；13项Socialite＋1项纯配置、固定PHP映射／字段重复及源码负样本、Rust1.94 strict Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器全过。OpenId驱动仅Bearer UserInfo，完整RP和MySQL归属仍待；Facebook／Google／X／OAuth1继续。专属产物已按归属清理，全部卷保留；本地提交，不推送。

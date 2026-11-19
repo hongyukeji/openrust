@@ -3759,3 +3759,5 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-S01 X／Twitter OAuth2
 
 2026-11-20 API-S01 [X／Twitter OAuth2](audits/api-s01/x.md)本机验收完成：默认PKCE／RFC3986、Basic交换与刷新、确认邮箱、manager别名及环境选择；全包18＋纯配置1函数、固定PHP重复与源码负样本、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。默认OAuth1仍明确未交付，Facebook／Google／OAuth1／本地归属及完整RP继续；专属产物清理保留全部卷，本地提交不推送。
+
+- 2026-11-20 API-F01 默认密码策略与confirmed前置：完整固定PHP验证器771组逐消息一致，新增3函数、验证器30／Fortify49回归、Rust1.94严格Clippy／格式与根HTTP／Pail／Artisan通过；9输入SHA及专属产物清理见[审核](audits/api-f01/password-rule.md)。继续current_password和安装；核范围本地提交，不推送。

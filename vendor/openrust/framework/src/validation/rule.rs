@@ -4,7 +4,7 @@ use crate::contracts::validation::ValidationRule;
 
 use super::{
     ValidationError, ValidationResult, Value,
-    rules::{Dimensions, EncodingRule, Exists, File, Unique},
+    rules::{Dimensions, EncodingRule, Exists, File, Password, Unique},
 };
 
 /// A fluent validation rule or application-defined rule.
@@ -23,6 +23,8 @@ pub(super) enum Kind {
     Boolean,
     Base64,
     Email,
+    Confirmed(Option<String>),
+    Password(Password),
     Array,
     Min(usize),
     Max(usize),
@@ -67,6 +69,9 @@ impl Rule {
     pub fn email() -> Self {
         Self(Kind::Email)
     }
+    pub fn confirmed() -> Self {
+        Self(Kind::Confirmed(None))
+    }
     pub fn array() -> Self {
         Self(Kind::Array)
     }
@@ -102,10 +107,14 @@ impl Rule {
             "boolean" => Self::boolean(),
             "base64" => Self::base64(),
             "email" | "email:rfc" => Self::email(),
+            "confirmed" => Self::confirmed(),
             "array" => Self::array(),
             "file" => File::default().into(),
             "image" => File::image(false).into(),
             _ => match rule.split_once(':') {
+                Some(("confirmed", arguments)) => Self(Kind::Confirmed(Some(
+                    super::rule_parameters::csv(arguments)[0].to_string(),
+                ))),
                 Some(("min", bound)) => Self::min(bound.parse().map_err(|_| invalid())?),
                 Some(("max", bound)) => Self::max(bound.parse().map_err(|_| invalid())?),
                 Some(("dimensions", arguments)) => Dimensions::parse(arguments)?.into(),
@@ -146,7 +155,9 @@ impl Rule {
 pub(super) fn is_empty(value: &Value) -> bool {
     match value {
         Value::Null => true,
-        Value::String(value) => value.trim().is_empty(),
+        Value::String(value) => value
+            .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
+            .is_empty(),
         Value::Array(value) => value.is_empty(),
         Value::Object(value) => value.is_empty(),
         _ => false,

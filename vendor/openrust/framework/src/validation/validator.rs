@@ -97,7 +97,7 @@ impl Validator {
                             .evaluate(
                                 rule,
                                 value,
-                                &attribute,
+                                (pattern, &attribute),
                                 attribute_for_query,
                                 nullable,
                                 numeric,
@@ -131,11 +131,15 @@ impl Validator {
         &self,
         rule: &Kind,
         value: Option<&Value>,
-        attribute: &str,
+        attribute: (&str, &str),
         attribute_for_query: &str,
         nullable: bool,
         numeric: bool,
     ) -> ValidationResult<Vec<RuleFailure>> {
+        let (pattern, attribute) = attribute;
+        if let Kind::Password(password) = rule {
+            return Ok(password.failures(value, nullable));
+        }
         let file = self.data.file(attribute);
         if let Some(file) = file {
             let bounds = match rule {
@@ -156,7 +160,13 @@ impl Validator {
             (Kind::Present, None) => Some("present"),
             (_, None) => None,
             (_, Some(Value::Null)) if nullable && file.is_none() => None,
-            (_, Some(Value::String(value))) if value.trim().is_empty() => None,
+            (_, Some(Value::String(value)))
+                if value
+                    .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
+                    .is_empty() =>
+            {
+                None
+            }
             (Kind::String, Some(value)) if !value.is_string() => Some("string"),
             (Kind::Integer, Some(value)) if integer(value).is_none() => Some("integer"),
             (Kind::Boolean, Some(value))
@@ -170,6 +180,19 @@ impl Validator {
                 if !value.as_str().is_some_and(super::rules::Email::passes) =>
             {
                 Some("email")
+            }
+            (Kind::Confirmed(other), Some(value)) => {
+                let other = other
+                    .clone()
+                    .unwrap_or_else(|| format!("{attribute}_confirmation"));
+                let other = dependent_path(pattern, attribute, &other)?;
+                let other = self
+                    .data
+                    .attributes(&other)?
+                    .into_iter()
+                    .next()
+                    .and_then(|(_, value)| value);
+                (!strict_same(value, other.unwrap_or(&Value::Null))).then_some("confirmed")
             }
             (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
             (Kind::Dimensions(rule), Some(_)) => (!rule.passes(file)?).then_some("dimensions"),
@@ -280,7 +303,13 @@ impl Validator {
             .entry("attribute".into())
             .or_insert(display);
         let rule_key = failure.message.strip_prefix("validation.");
-        let rule = rule_key.and_then(|key| key.split('.').next());
+        let rule = rule_key.and_then(|key| {
+            if key.starts_with("password.") {
+                Some(key)
+            } else {
+                key.split('.').next()
+            }
+        });
         if let Some(rule) = rule
             && let Some(message) = self
                 .messages
@@ -419,6 +448,13 @@ fn canonical_base64(value: &str) -> bool {
 
 fn fallback(rule: &str) -> &str {
     match rule {
+        "confirmed" => "The :attribute field confirmation does not match.",
+        "password.mixed" => {
+            "The :attribute field must contain at least one uppercase and one lowercase letter."
+        }
+        "password.letters" => "The :attribute field must contain at least one letter.",
+        "password.numbers" => "The :attribute field must contain at least one number.",
+        "password.symbols" => "The :attribute field must contain at least one symbol.",
         "required" => "The :attribute field is required.",
         "present" => "The :attribute field must be present.",
         "string" => "The :attribute field must be a string.",
@@ -452,4 +488,59 @@ fn fallback(rule: &str) -> &str {
         "max.numeric" => "The :attribute field must not be greater than :max.",
         _ => rule,
     }
+}
+
+// PHP array identity includes key order and the types of every nested value.
+fn strict_same(left: &Value, right: &Value) -> bool {
+    fn entries(value: &Value) -> Option<Vec<(String, &Value)>> {
+        match value {
+            Value::Object(values) => Some(
+                values
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value))
+                    .collect(),
+            ),
+            Value::Array(values) => Some(
+                values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| (index.to_string(), value))
+                    .collect(),
+            ),
+            _ => None,
+        }
+    }
+    match (entries(left), entries(right)) {
+        (Some(left), Some(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|((a, x), (b, y))| a == &b && strict_same(x, y))
+        }
+        _ => left == right,
+    }
+}
+
+fn dependent_path(pattern: &str, attribute: &str, other: &str) -> ValidationResult<String> {
+    let actual = path::parse(attribute)?;
+    let keys: Vec<_> = path::parse(pattern)?
+        .into_iter()
+        .zip(actual)
+        .filter_map(|(pattern, actual)| matches!(pattern, path::Segment::Any).then_some(actual))
+        .collect();
+    let mut keys = keys.into_iter();
+    let mut result = String::new();
+    for segment in path::parse(other)? {
+        let segment = if matches!(segment, path::Segment::Any) {
+            keys.next().unwrap_or(segment)
+        } else {
+            segment
+        };
+        match segment {
+            path::Segment::Key(key) => result = path::join(&result, &key)?,
+            path::Segment::Any => return Err(ValidationError::InvalidPath),
+        }
+    }
+    Ok(result)
 }
