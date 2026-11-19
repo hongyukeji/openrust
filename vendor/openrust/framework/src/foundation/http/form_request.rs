@@ -28,7 +28,13 @@ pub trait FormRequest: Send + Sync {
             self.authorize(request, &data)
                 .await
                 .map_err(HttpError::from)?;
-            let mut validator = crate::support::facades::Validator::make(data, self.rules()?)?;
+            let rules = self.validationRules(request)?;
+            let rules = if request.isPrecognitive() {
+                request.filterPrecognitiveRules(rules)?
+            } else {
+                rules
+            };
+            let mut validator = crate::support::facades::Validator::make(data, rules)?;
             let validated = validator.validate().await.map_err(|mut error| {
                 if let ValidationError::Invalid(exception) = &mut error {
                     exception.errorBag(self.errorBag());
@@ -38,6 +44,9 @@ pub trait FormRequest: Send + Sync {
                 }
                 error
             })?;
+            if request.isPrecognitive() {
+                (crate::foundation::Precognition::afterValidationHook(request))(&validator)?;
+            }
             self.passedValidation(request, &validated)?;
             Ok(validated)
         })
@@ -64,6 +73,10 @@ pub trait FormRequest: Send + Sync {
     }
 
     fn rules(&self) -> ValidationResult<RuleSet>;
+
+    fn validationRules(&self, _request: &Request) -> ValidationResult<RuleSet> {
+        self.rules()
+    }
 
     fn passedValidation(
         &mut self,

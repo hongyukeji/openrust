@@ -1,0 +1,199 @@
+{
+    "php": "8.5.12",
+    "source_sha256": "2101e3beeaedb2395ab44547778ccd036de559eaa5a2c1e80095d48cfa5cf64f",
+    "attributes": [
+        "name",
+        "confirmation",
+        "users.0.email",
+        "users.1.email",
+        "users.0.score",
+        "profile.name",
+        "user_name",
+        "é",
+        "中文",
+        "star*",
+        "empty.",
+        "line\n",
+        "a\/b",
+        "a+b",
+        "a[b]"
+    ],
+    "cases": [
+        {
+            "header": "",
+            "selected": []
+        },
+        {
+            "header": "Kg==",
+            "selected": [
+                "name",
+                "confirmation",
+                "user_name",
+                "é",
+                "中文",
+                "star*",
+                "line\n",
+                "a\/b",
+                "a+b",
+                "a[b]"
+            ]
+        },
+        {
+            "header": "Kio=",
+            "selected": [
+                "name",
+                "confirmation",
+                "user_name",
+                "é",
+                "中文",
+                "star*",
+                "line\n",
+                "a\/b",
+                "a+b",
+                "a[b]"
+            ]
+        },
+        {
+            "header": "bmFtZQ==",
+            "selected": [
+                "name"
+            ]
+        },
+        {
+            "header": "bmFtZSxjb25maXJtYXRpb24=",
+            "selected": [
+                "name",
+                "confirmation"
+            ]
+        },
+        {
+            "header": "IG5hbWU=",
+            "selected": []
+        },
+        {
+            "header": "bmFtZSA=",
+            "selected": []
+        },
+        {
+            "header": "bmFtZSws",
+            "selected": [
+                "name"
+            ]
+        },
+        {
+            "header": "dXNlcnMuKi5lbWFpbA==",
+            "selected": [
+                "users.0.email",
+                "users.1.email"
+            ]
+        },
+        {
+            "header": "dXNlcnMuKg==",
+            "selected": []
+        },
+        {
+            "header": "dXNlcnMuMC4q",
+            "selected": [
+                "users.0.email",
+                "users.0.score"
+            ]
+        },
+        {
+            "header": "Ki4wLmVtYWls",
+            "selected": [
+                "users.0.email"
+            ]
+        },
+        {
+            "header": "Ki4qLio=",
+            "selected": [
+                "users.0.email",
+                "users.1.email",
+                "users.0.score"
+            ]
+        },
+        {
+            "header": "Ki4q",
+            "selected": [
+                "profile.name"
+            ]
+        },
+        {
+            "header": "cHJvZmlsZS5uYW1l",
+            "selected": [
+                "profile.name"
+            ]
+        },
+        {
+            "header": "cHJvZmlsZSo=",
+            "selected": []
+        },
+        {
+            "header": "w6k=",
+            "selected": [
+                "é"
+            ]
+        },
+        {
+            "header": "5Lit5paH",
+            "selected": [
+                "中文"
+            ]
+        },
+        {
+            "header": "c3Rhcio=",
+            "selected": [
+                "star*"
+            ]
+        },
+        {
+            "header": "ZW1wdHkuKg==",
+            "selected": []
+        },
+        {
+            "header": "bGluZQ==",
+            "selected": [
+                "line\n"
+            ]
+        },
+        {
+            "header": "YS9i",
+            "selected": [
+                "a\/b"
+            ]
+        },
+        {
+            "header": "YSti",
+            "selected": [
+                "a+b"
+            ]
+        },
+        {
+            "header": "YVtiXQ==",
+            "selected": [
+                "a[b]"
+            ]
+        },
+        {
+            "header": "\/w==",
+            "selected": []
+        },
+        {
+            "header": "AA==",
+            "selected": []
+        },
+        {
+            "header": "bmFtZSxuYW1l",
+            "selected": [
+                "name"
+            ]
+        },
+        {
+            "header": "dXNlcnMuKi5lbWFpbCwgbmFtZQ==",
+            "selected": [
+                "users.0.email",
+                "users.1.email"
+            ]
+        }
+    ]
+}

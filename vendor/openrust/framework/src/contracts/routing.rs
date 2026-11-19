@@ -14,6 +14,15 @@ pub trait Handler: Send + Sync {
         &'a self,
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>>;
+
+    /// Route dispatch hook; parameter-aware adapters resolve dependencies first.
+    #[doc(hidden)]
+    fn handle_precognitive<'a>(
+        &'a self,
+        _request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async { Ok(crate::foundation::Precognition::success()) })
+    }
 }
 
 impl<F> Handler for F

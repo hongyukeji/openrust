@@ -58,6 +58,11 @@ impl Default for Middleware {
         );
         middleware.group("api", [MiddlewareEntry::Instance(bindings)]);
         middleware.registry.priority.extend([
+            TypeId::of::<crate::foundation::http::middleware::HandlePrecognitiveRequests>(),
+            TypeId::of::<EncryptCookies>(),
+            TypeId::of::<AddQueuedCookiesToResponse>(),
+            TypeId::of::<StartSession>(),
+            TypeId::of::<ShareErrorsFromSession>(),
             TypeId::of::<crate::auth::middleware::Authenticate>(),
             TypeId::of::<crate::auth::middleware::AuthenticateWithBasicAuth>(),
             TypeId::of::<crate::auth::middleware::AuthenticateSession>(),
@@ -67,6 +72,10 @@ impl Default for Middleware {
         middleware.alias(
             "auth",
             Arc::new(crate::auth::middleware::Authenticate::default()),
+        );
+        middleware.alias(
+            "precognitive",
+            Arc::new(crate::foundation::http::middleware::HandlePrecognitiveRequests),
         );
         middleware.alias(
             "auth.basic",

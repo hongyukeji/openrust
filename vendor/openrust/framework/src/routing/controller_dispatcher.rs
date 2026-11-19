@@ -16,12 +16,14 @@ type Dispatch<C, T> =
 /// Dispatches a typed controller action through the current application's container.
 pub struct ControllerDispatcher<C, T = Response> {
     action: Box<Dispatch<C, T>>,
+    form_request: bool,
 }
 
 impl<C: 'static, T: 'static> ControllerDispatcher<C, T> {
     pub fn new(action: Action<C, T>) -> Self {
         Self {
             action: Box::new(action),
+            form_request: false,
         }
     }
 }
@@ -42,9 +44,11 @@ impl<C: Sync + 'static, T: Send + 'static> ControllerDispatcher<C, T> {
             action: Box::new(move |controller, request| {
                 Box::pin(async move {
                     let form = ValidatedFormRequest::resolve(request).await?;
+                    crate::foundation::Precognition::abort(request)?;
                     action(controller, request, form).await
                 })
             }),
+            form_request: true,
         }
     }
 }
@@ -66,10 +70,20 @@ impl<C: Send + Sync + 'static, T: Responsable + 'static> Handler for ControllerD
                 .map_err(|source| HttpError::Internal {
                     source: Box::new(source),
                 })?;
+            if !self.form_request {
+                crate::foundation::Precognition::abort(request)?;
+            }
             (self.action)(&controller, request)
                 .await?
                 .toResponse(request)
                 .await
         })
+    }
+
+    fn handle_precognitive<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        self.handle(request)
     }
 }

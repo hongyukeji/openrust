@@ -41,7 +41,15 @@ where
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async {
             let form = ValidatedFormRequest::resolve(request).await?;
+            crate::foundation::Precognition::abort(request)?;
             (self.action)(form).await?.toResponse(request).await
         })
+    }
+
+    fn handle_precognitive<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        self.handle(request)
     }
 }

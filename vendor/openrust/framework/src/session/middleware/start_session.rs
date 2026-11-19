@@ -64,7 +64,8 @@ async fn handle_session(
     request.setLaravelSession(session);
     let mut response = next.run(request).await;
     // Login and logout can change the identity. The guard still needs the active store.
-    if let Some(database_user) = database_user
+    if !request.isPrecognitive()
+        && let Some(database_user) = database_user
         && let Some(user) = Auth::manager()?.database_session_user(request).await?
     {
         let _ = database_user.set(user);
@@ -85,10 +86,7 @@ async fn handle_session(
                     .and_then(|value| value.to_str().ok())
                     .is_some_and(|value| value.contains("prefetch"))
             })
-        && request
-            .headers()
-            .get("precognition")
-            .is_none_or(|value| value != "true")
+        && !request.isPrecognitive()
         && let Some(path) = request.uri().path_and_query()
         && path.as_str().starts_with('/')
         && !path.as_str().starts_with("//")
@@ -102,6 +100,8 @@ async fn handle_session(
     let stateful_frontend = false;
     let cookie = manager.cookie(&session, stateful_frontend)?;
     response.setCookie(&cookie, request.is_secure())?;
-    session.save().await?;
+    if !request.isPrecognitive() {
+        session.save().await?;
+    }
     Ok(response)
 }

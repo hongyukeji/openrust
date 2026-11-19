@@ -27,6 +27,21 @@ const VERBS: [&str; 8] = [
     "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY",
 ];
 
+struct RouteDispatcher<'a>(&'a dyn Handler);
+
+impl Handler for RouteDispatcher<'_> {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        if request.isPrecognitive() {
+            self.0.handle_precognitive(request)
+        } else {
+            self.0.handle(request)
+        }
+    }
+}
+
 /// Converts a route callback into a handler for the HTTP pipeline.
 pub trait IntoRouteHandler<Arguments> {
     fn into_route_handler(self) -> Arc<dyn Handler>;
@@ -510,9 +525,8 @@ impl Router {
                     .filter(|middleware| middleware.terminable().is_some())
                     .cloned(),
             );
-            return Ok(Next::new(middleware, route.handler.as_ref())
-                .run(request)
-                .await);
+            let dispatcher = RouteDispatcher(route.handler.as_ref());
+            return Ok(Next::new(middleware, &dispatcher).run(request).await);
         }
 
         let allowed: Vec<_> = VERBS

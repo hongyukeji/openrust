@@ -1,0 +1,15 @@
+{
+  "removed": [
+    "/private/tmp/openrust-precognition-20261120/target",
+    "/private/tmp/openrust-precognition-20261120/browser",
+    "/private/tmp/openrust-precognition-20261120/source/docs/.vitepress/dist"
+  ],
+  "before_available_kib": 61067396,
+  "after_available_kib": 66543420,
+  "df_delta_bytes": 5607448576,
+  "after_gb": 68.14046208,
+  "after_gib": 63.460750579833984,
+  "all_volumes_unchanged": true,
+  "shared_php_image_preserved": true,
+  "source_evidence_and_shared_caches_preserved": true
+}

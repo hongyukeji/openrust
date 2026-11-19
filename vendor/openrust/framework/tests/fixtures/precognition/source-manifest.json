@@ -1,0 +1,93 @@
+{
+  "framework": "laravel/framework",
+  "framework_ref": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "framework_version": "13.40.0",
+  "sources": [
+    {
+      "path": "src/Illuminate/Foundation/Http/Middleware/HandlePrecognitiveRequests.php",
+      "sha256": "a3d26ae0cc41f3e17a91cbf7eb801e53c517ce1227f00f9bdbfd727cfa702f28",
+      "bytes": 3397
+    },
+    {
+      "path": "src/Illuminate/Foundation/Precognition.php",
+      "sha256": "68705331d03218efed3fd3a07d92e0c4c7025ebc86b282f55288e0cb78deea2f",
+      "bytes": 574
+    },
+    {
+      "path": "src/Illuminate/Http/Concerns/CanBePrecognitive.php",
+      "sha256": "2101e3beeaedb2395ab44547778ccd036de559eaa5a2c1e80095d48cfa5cf64f",
+      "bytes": 1680
+    },
+    {
+      "path": "src/Illuminate/Validation/ValidatesWhenResolvedTrait.php",
+      "sha256": "b316bc93ae2979a859a378068b4b613d4908ff1ef8c24696ba36168c4ac28723",
+      "bytes": 2207
+    },
+    {
+      "path": "src/Illuminate/Foundation/Http/FormRequest.php",
+      "sha256": "053e502a92a5e599ef1769aa5f79887a0cdc75be8e9c4180b755899bc10377c8",
+      "bytes": 13800
+    },
+    {
+      "path": "src/Illuminate/Session/Middleware/StartSession.php",
+      "sha256": "c259cd8954a107a080e4787caec3babc7c6fc710a9ba3e0310533c2662199ac7",
+      "bytes": 9306
+    },
+    {
+      "path": "src/Illuminate/Session/Store.php",
+      "sha256": "61cf31f4f63716bb1331d9d46c8b92750f47532f69aa9176b08130baabceebb8",
+      "bytes": 19252
+    },
+    {
+      "path": "tests/Integration/Routing/PrecognitionTest.php",
+      "sha256": "403b46cf8513a381be1444864852c2b176862af05b655a090051a1c85d41e4a8",
+      "bytes": 55984
+    },
+    {
+      "path": "src/Illuminate/Foundation/Routing/PrecognitionCallableDispatcher.php",
+      "sha256": "74ba10c3466678828d3ab0a0261907f7d3353a12844898fe83467765d549cdf4",
+      "bytes": 551
+    },
+    {
+      "path": "src/Illuminate/Foundation/Routing/PrecognitionControllerDispatcher.php",
+      "sha256": "b3db5f4f054defe0e18a102a6499ab0442a4c890db1acac62ef97d81581e38c7",
+      "bytes": 1258
+    },
+    {
+      "path": "src/Illuminate/Foundation/helpers.php",
+      "sha256": "84a94be4f68fd0f749a87f05a7cb1b78ddc07c7d2121b56c6f05ff6ef80d34c6",
+      "bytes": 29821
+    },
+    {
+      "path": "src/Illuminate/Routing/CallableDispatcher.php",
+      "sha256": "3d70abb9f35ab93f4a68e01ac74be82bd8a107dc57e224b076fa7514007c608c",
+      "bytes": 1350
+    },
+    {
+      "path": "framework/src/Illuminate/Foundation/Configuration/Middleware.php",
+      "repository": "laravel/framework",
+      "ref": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+      "sha256": "ae114afd0f14c4990872486c3239b2a0e712d2cd9a97d2370892caee054b6dee",
+      "bytes": 24540
+    },
+    {
+      "path": "docs/precognition.md",
+      "repository": "laravel/docs",
+      "ref": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+      "sha256": "d1b7daa700f631bd8104c866fe22bff48ade0e99dacee7cbdbf6002d5fb7be9d",
+      "bytes": 24274
+    }
+  ],
+  "oracle": {
+    "php_image": "php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9",
+    "php_version": "8.5.12",
+    "source": "src/Illuminate/Http/Concerns/CanBePrecognitive.php",
+    "scope": "actual unmodified protected selector method; does not claim full PHP HTTP parity"
+  },
+  "frontend": {
+    "package": "laravel-precognition",
+    "version": "2.0.0",
+    "git_head": "3c7e8892fbd4ab673427d0d0379f761b7484a906",
+    "integrity": "sha512-dmA4HGc9m+TsVNsJs9/XQBI8u6j7coilN+qKkBuhuXQzH3HypwS/c5dFQ4UqUGjBbcxIM7zdk91kM/SRZwIvWQ=="
+  }
+}

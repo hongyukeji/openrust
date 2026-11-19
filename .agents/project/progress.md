@@ -3692,3 +3692,11 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 
 
 2026-11-20 Passport-03 [授权码与 PKCE](audits/passport-03/README.md)实现及验收完成：实际浏览器授权／同意／拒绝、Session／CSRF、公开及机密客户端兑换、PKCE、state、回调绑定、一次性授权码与 RS256 令牌已闭合。70 个定向测试、MySQL 8.4.13、1369 条固定 PHP／League URI 对照及重复／源码负样本、根 HTTP／Artisan／关停、Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、三语构建和 12＋6 浏览器通过。33 份输入与隔离 ef430b465 副本 SHA 一致，保留同期协作者改动。专属 source／target 已直接清理，df 增量 6.345 GB，清理后 Available 63.966 GB；本批固定 PHP 镜像已无引用并移除，源码覆盖包／日志、共享缓存及全部数据库容器／卷保留。按授权核范围本地提交，不推送。V06 保持部分验收，继续 Passport-04 令牌生命周期与资源 Guard；刷新兑换／设备／PAT／其他 grant／安装共存尚未交付，不称完整发布。
+
+## 2026-11-20 API-P01 Precognition
+
+[专项记录](audits/api-p01/README.md)：本单元骨架、实现及实际验收完成。新增原生 Request 确认、中间件与别名、类型化分发／FormRequest 成功钩子、展开字段筛选与动态规则；确认的请求不保存 Session、不更新上一页。控制器动作被抑制，中间件和依赖仍按顺序执行。
+
+固定 PHP 420 次判断、405 次 HTTP 可表示 Rust 对照及源码 SHA 正负校验通过。23 项 Rust 测试、真实 MySQL 8.4.13、Chromium／官方 helper 2.0.0（204／422／普通提交／文件省略与上传）、Session／CSRF／闪存、并发双应用和根 HTTP／Pail／Artisan／关停均通过。补 View／APIResponse 回调断言后 8 项专项再过；Rust 1.94 严格全工作区全目标 features pail,passport Clippy、格式、三语构建与 24 项浏览器检查通过。27 份输入与独立 6bcace6ee 快照 SHA 对齐，保留同期 Passport-03 和历史 WIP，不把本批计为 V17 最终整合。
+
+直接清理专属 target／browser／docs dist，df 增加 5.607 GB，剩余 68.140 GB（63.461 GiB）；临时容器已回收，全部数据卷、共享镜像／依赖缓存、源码和证据保留。核定 33 文件本地提交，不推送。V09 仅关闭 Precognition 子项，继续 Fortify／Socialite／OIDC 和其余发布门禁。

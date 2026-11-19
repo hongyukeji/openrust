@@ -60,7 +60,7 @@ impl Validator {
         let mut errors = MessageBag::default();
         let mut budget = path::Budget::default();
         let mut fields = Vec::new();
-        for (pattern, rules) in &self.rules.0 {
+        for (index, (pattern, rules)) in self.rules.fields.iter().enumerate() {
             let nullable = contains(rules, |rule| matches!(rule, Kind::Nullable));
             let sometimes = contains(rules, |rule| matches!(rule, Kind::Sometimes));
             let bail = contains(rules, |rule| matches!(rule, Kind::Bail));
@@ -74,6 +74,9 @@ impl Validator {
                     .iter()
                     .any(|part| matches!(part, path::Segment::Any));
             for (attribute, value) in path::expand(self.data.as_value(), &segments, &mut budget)? {
+                if !self.rules.accepts(index, &unescape(&attribute)) {
+                    continue;
+                }
                 if !sometimes || value.is_some() {
                     let attribute_for_query = if wildcard {
                         attribute
