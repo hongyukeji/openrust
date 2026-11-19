@@ -1846,7 +1846,7 @@ async fn public_mount_serves_files_after_application_routes() {
             .web(|| {
                 Route::staticDisk("public")?;
                 Route::get("/", || view("welcome"))?;
-                Route::staticPublic()?;
+                Route::staticDisk("web")?;
                 Route::get("/protected.txt", not_found)?;
                 Route::get("/storage/protected.txt", not_found)?;
                 Route::r#static("/assets", "./public/css")
@@ -2121,11 +2121,20 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         ),
     )
     .unwrap();
-    let mut kernel = Kernel::new(application(Route::staticPublic));
+    let mut kernel = Kernel::new(application(|| Route::staticDisk("web")));
     kernel.bootstrap().await.unwrap();
     check(&kernel, "/assets/probe.txt", Some("application assets")).await;
     check(&kernel, "/storage/tmp/probe.txt", None).await;
     check(&kernel, "/storage/probe.txt", None).await;
+    let configuration = kernel.get_application().config().unwrap();
+    assert_eq!(
+        configuration.get("filesystems.disks.web.root"),
+        Some(json!(root.0.canonicalize().unwrap().join("assets")))
+    );
+    assert_eq!(
+        configuration.get("filesystems.disks.web.url"),
+        Some(json!("/assets"))
+    );
 
     let mut kernel = Kernel::new(application(web::register));
     kernel.bootstrap().await.unwrap();
@@ -2161,6 +2170,16 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     check(&kernel, "/local-media/probe.txt", Some("public disk")).await;
     check(&kernel, "/storage/probe.txt", None).await;
 
+    let configuration = kernel.get_application().config().unwrap();
+    assert_eq!(
+        configuration.get("filesystems.disks.web.root"),
+        Some(json!(root.0.canonicalize().unwrap().join("override")))
+    );
+    assert_eq!(
+        kernel.get_application().publicPath(),
+        root.0.canonicalize().unwrap().join("override")
+    );
+
     fs::write(&environment, "APP_PORT=9081\nPUBLIC_STORAGE_ROOT=uploads\n").unwrap();
     let mut kernel = Kernel::new(application(web::register));
     kernel.bootstrap().await.unwrap();
@@ -2172,6 +2191,37 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         Some(json!("http://localhost:9081/storage"))
     );
     check(&kernel, "/storage/probe.txt", Some("public disk")).await;
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink("../uploads", root.0.join("public/storage")).unwrap();
+        check(&kernel, "/storage/probe.txt", Some("public disk")).await;
+    }
+
+    fn custom_web_config(
+        base: &std::path::Path,
+        env: &openrust::config::Environment,
+    ) -> Result<
+        std::collections::BTreeMap<String, openrust::config::Value>,
+        openrust::config::ConfigError,
+    > {
+        let mut configuration = web_config(base, env)?;
+        configuration.get_mut("filesystems").unwrap()["disks"]["web"]["root"] =
+            json!(base.join("assets"));
+        Ok(configuration)
+    }
+    let configured = Application::configure(root.0.clone())
+        .withConfig(custom_web_config)
+        .withRouting(Routing::default().web(web::register))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(configured);
+    kernel.bootstrap().await.unwrap();
+    assert_eq!(
+        kernel.get_application().publicPath(),
+        root.0.canonicalize().unwrap().join("assets")
+    );
+    check(&kernel, "/probe.txt", Some("application assets")).await;
 }
 
 #[test]

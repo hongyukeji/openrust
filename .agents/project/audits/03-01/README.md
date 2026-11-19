@@ -58,3 +58,21 @@ macOS arm64、Rust 1.94.0。隔离副本位于 `/private/tmp/openrust-03-01.qtGw
 三语共用示例、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍报告既有 Sanctum 排版差异。Windows 实机和其他平台留待发布前统一复核，S3 的目录与元数据留待专项接入。03-01 核心闭合。
 
 PHP 容器及本批 3.7 GiB Cargo 产物和站点缓存已清理，卷可用 60.89 GB（56.71 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-permissions.gdnALXsy`。
+
+## 网站静态目录统一为 web 磁盘（2026-11-19）
+
+- 按用户确认的命名，在应用 `config/filesystems.rs` 增加 `web` 本地公开磁盘，默认根目录为 `public`、URL 为 `/`。根目录和前缀分别沿用 `APP_PUBLIC_PATH`、`APP_PUBLIC_URL_PREFIX`。移除 `app.public_url_prefix` 和 `Route::staticPublic`，默认 Web 路由依次调用 `staticDisk("web")`、`staticDisk("public")`。
+- 应用启动以 `filesystems.disks.web.root` 设置 `publicPath()`，没有该磁盘时沿用 `app.public_path`。启动前 `usePublicPath` 覆盖同步到 `web.root`。Web 磁盘复用现有公开磁盘权限及链接检查。静态挂载顺序和应用路由优先级延续原有机制。
+- 实现前只读核对本地 `openrust-v0.x`，其中没有 `staticPublic`、`staticDisk` 或 `public_url_prefix` 对应入口。本批复用当前公开磁盘实现。这是用户指定的 OpenRust 网站文件挂载扩展，Laravel 本地磁盘 `serve` 的签名下载与上传机制继续使用原实现。
+- Rust 1.94.0 实际执行 `cargo test --locked --offline --test startup public_mount`（3 项）、`--test configuration application_configuration_loads_all_sections_and_typed_overrides -- --exact`（1 项）、`--test rebinding_lifecycle`（4 项）和 `--test storage`（1 项），均通过。覆盖 GET／HEAD／条件请求、配置目录和 URL、自定义磁盘根目录、启动前路径覆盖、同源 URL 验证、符号链接回退、两应用的真实 HTTP 和配置重绑定，以及 Artisan 创建／重建／移除存储链接。
+- 三语文档构建及 `/`、`/docs/` 共 12 项浏览器检查通过，工作区格式检查通过。共享工作树含其他批次 WIP，改动保留在工作区，未暂存或提交。
+- 全工作区全目标严格 Clippy 被共享工作树的并行 ViewData／ViewValue 迁移阻断，报错涉及 `mail_notifications`、`pagination` 和 `view_native_values` 测试。该结果不计作本批全仓通过。
+- 本批使用共享 Cargo 缓存与文档站构建目录，保留这些仍在使用的共享产物。本批临时格式日志清理后，卷可用空间约 47 GiB，未删除数据库或卷。
+- 最终定向严格 Clippy 通过，执行范围为框架库，以及应用 main、startup、configuration、rebinding_lifecycle、storage。随后全工作区格式检查通过，差异空白检查通过。
+
+### 提交前复验
+
+- 本次提交前，以已提交主线 `7720f142e` 的独立源码快照叠加本批文件，Cargo 产物使用快照专属目录。9 项相关测试、工作区全目标严格 Clippy 和全仓格式检查均通过，排除了共享工作树并行视图 WIP 对验收的影响。
+- 将 `APP_PUBLIC_PATH` 的默认值集中在 `config/app.rs`，明确为 `public`，文件系统配置直接复用。复核发现显式空值会在目录拼接后落到应用根目录，现于配置加载时拒绝空字符串及全空白值，并在配置回归中验证。
+- 最终三语配置、文件存储及路由文档已补齐默认值、覆盖方式、挂载顺序、公开权限与符号链接回退。三语站点重建和两种部署路径的 12 项浏览器检查通过。
+- 当次授权为检查、修复并本地提交本批变更。

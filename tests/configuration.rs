@@ -115,6 +115,18 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "app_"
         );
     }
+    assert_eq!(
+        defaults["filesystems"]["disks"]["web"]["root"],
+        json!(root.join("public"))
+    );
+    assert_eq!(
+        configured["filesystems"]["disks"]["web"]["root"],
+        json!(root.join("site"))
+    );
+    assert_eq!(defaults["app"]["public_path"], "public");
+    assert_eq!(configured["app"]["public_path"], "site");
+    assert_eq!(defaults["filesystems"]["disks"]["web"]["url"], "/");
+    assert!(configured["app"].get("public_url_prefix").is_none());
     assert_eq!(configured["app"]["debug"], true);
     let package_defaults =
         LoadConfiguration::bootstrap(&root, &environment, |_, _| Ok(Default::default())).unwrap();
@@ -199,6 +211,15 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         configured["broadcasting"]["connections"]["reverb"]["options"],
         configured["reverb"]["apps"]["apps"][0]["options"]
     );
+
+    for value in ["", "   "] {
+        fs::write(root.join(".env"), format!("APP_PUBLIC_PATH=\"{value}\"\n")).unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        assert!(matches!(
+            config::load(&root, &environment),
+            Err(ConfigError::InvalidType { key, .. }) if key == "APP_PUBLIC_PATH"
+        ));
+    }
 
     fs::write(root.join(".env"), "SESSION_LIFETIME=invalid\n").unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();

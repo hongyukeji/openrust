@@ -120,12 +120,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 环境变量 | 用途 | 默认值 |
 |---|---|---|
-| `APP_PUBLIC_PATH` | `Application::publicPath()` 返回的应用公共目录 | `public` |
-| `APP_PUBLIC_URL_PREFIX` | 应用公共目录的 URL 前缀 | `/` |
+| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `/` |
 | `PUBLIC_STORAGE_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
-相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `APP_PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
+未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引导前调用 `usePublicPath()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
 
 ## 维护模式 {#maintenance-mode}
 

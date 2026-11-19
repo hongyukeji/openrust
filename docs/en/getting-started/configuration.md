@@ -120,12 +120,12 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 
 | Environment setting | Purpose | Default |
 |---|---|---|
-| `APP_PUBLIC_PATH` | Application public directory, exposed by `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | URL prefix for the application public directory | `/` |
+| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `/` |
 | `PUBLIC_STORAGE_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
 
-Relative paths use the application root. An application can override `APP_PUBLIC_PATH` by calling `usePublicPath()` before boot. The default Web routes apply the public disk settings through `Route::staticDisk("public")`. The mount uses the full path of the disk URL. The default is `/storage`. A same-origin URL ending in `/storage/tmp/` or the absolute URL path `/storage/tmp/` mounts at `/storage/tmp`. A cross-origin URL fails route registration. Restart the application after changing mount settings.
+When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `usePublicPath()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
 
 ## Maintenance mode {#maintenance-mode}
 

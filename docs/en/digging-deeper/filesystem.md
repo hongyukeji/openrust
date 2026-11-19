@@ -24,13 +24,13 @@ Create or remove the links configured in `filesystems.links` with Artisan. The d
 The default `routes/web.rs` contains these mounts, in this order:
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`staticPublic` reads the website directory from `app.public_path`, which defaults to `public`. `APP_PUBLIC_PATH` can override it. `staticDisk` reads the local disk root and derives the entire mount path from the disk's `url`. There is no separate `url_prefix` configuration. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. An absolute URL must have the same origin as `app.url`; a different scheme, host or effective port is rejected during HTTP bootstrap. This file server mounts local disks.
+The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `/`. Set `APP_PUBLIC_PATH` and `APP_PUBLIC_URL_PREFIX` to override those defaults in `config/filesystems.rs`. The application uses `web.root` for `publicPath()`; calling `usePublicPath()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
 
-The OpenRust HTTP server can also serve the public disk directly. Its disk mount requires a public file and searchable directories on Unix. Symlinks, temporary write files and files with multiple hard links are excluded.
+Both disk mounts require public files and traversable directories on Unix, and reject symbolic links, temporary files and files with multiple hard links. If `public/storage` is a symbolic link, the `web` disk skips it and the `public` disk serves files directly from its configured root.
 
 Application routes take precedence over static files. Static mounts are searched in declaration order and fall through when a file is missing. With the default order, `public/storage/photo.jpg` wins over `storage/app/public/photo.jpg` at `/storage/photo.jpg`. The server supports GET and HEAD, MIME types, `Last-Modified` and `If-Modified-Since`. It does not list directories, and rejects traversal and symlinks escaping the mount root. Missing files use the application's normal 404 policy.
 

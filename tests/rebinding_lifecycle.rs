@@ -61,7 +61,7 @@ fn repository(name: &str) -> Arc<dyn RepositoryContract> {
         ("view".into(), json!({"paths":["themes/provider"]})),
         (
             "filesystems".into(),
-            json!({"disks":{"public":{"driver":"local","root":"storage/app/public","visibility":"public","url":"http://localhost/storage/tmp/"}}}),
+            json!({"disks":{"web":{"driver":"local","root":"public","visibility":"public","url":"/"},"public":{"driver":"local","root":"storage/app/public","visibility":"public","url":"http://localhost/storage/tmp/"}}}),
         ),
     ])))
 }
@@ -73,7 +73,7 @@ fn seed(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigErro
         ),
         (
             "filesystems".into(),
-            json!({"disks":{"public":{"driver":"local","root":"wrong","url":"http://localhost/wrong"}}}),
+            json!({"disks":{"web":{"driver":"local","root":"public","visibility":"public","url":"/"},"public":{"driver":"local","root":"wrong","url":"http://localhost/wrong"}}}),
         ),
     ]))
 }
@@ -114,7 +114,7 @@ impl ServiceProvider for Provider {
 }
 fn web() -> Result<(), RoutingError> {
     Route::get("/", || view("welcome"))?;
-    Route::staticPublic()?;
+    Route::staticDisk("web")?;
     Route::staticDisk("public")
 }
 struct ConfigCommand(CommandDefinition);

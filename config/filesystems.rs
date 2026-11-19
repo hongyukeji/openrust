@@ -27,9 +27,8 @@ pub(super) fn load(
         Some(path) => base_path.join(path),
         None => env.storage_path(base_path, "app/public"),
     };
-    let link = base_path
-        .join(app.public_path.unwrap_or("public"))
-        .join("storage");
+    let public_path = base_path.join(app.public_path);
+    let link = public_path.join("storage");
     let target = &public_root;
     Ok(json!({
         /*
@@ -47,10 +46,19 @@ pub(super) fn load(
         | 本地与远程磁盘
         |--------------------------------------------------------------------------
         |
-        | local 用于私有文件，public 用于公开文件，s3 用于 S3 兼容对象存储。
+        | web 用于网站静态文件，local 用于私有文件，public 用于公开存储文件。
+        | s3 用于 S3 兼容对象存储。
         |
         */
         "disks": {
+            "web": {
+                "driver": "local",
+                "root": path(&public_path)?,
+                "url": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
+                "visibility": "public",
+                "throw": false,
+                "report": false,
+            },
             "local": {
                 "driver": "local",
                 "root": path(&env.storage_path(base_path, "app/private"))?,

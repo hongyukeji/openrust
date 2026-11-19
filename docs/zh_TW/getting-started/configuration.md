@@ -120,12 +120,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 環境變數 | 用途 | 預設值 |
 |---|---|---|
-| `APP_PUBLIC_PATH` | `Application::publicPath()` 傳回的應用程式公開目錄 | `public` |
-| `APP_PUBLIC_URL_PREFIX` | 應用程式公開目錄的 URL 前綴 | `/` |
+| `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `/` |
 | `PUBLIC_STORAGE_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
-相對目錄以應用程式根目錄為基準。應用程式可在啟動前呼叫 `usePublicPath()` 覆寫 `APP_PUBLIC_PATH`。預設 Web 路由透過 `Route::staticDisk("public")` 套用公開磁碟設定。掛載前綴取磁碟 URL 的完整路徑，預設為 `/storage`。以 `/storage/tmp/` 結尾的同源 URL 或絕對 URL 路徑 `/storage/tmp/` 都會掛載到 `/storage/tmp`。跨來源 URL 會使路由註冊失敗。修改掛載設定後重新啟動應用程式。
+未設定 `APP_PUBLIC_PATH` 時，`config/app.rs` 明確將 `app.public_path` 設為 `public`，`web` 磁碟沿用該值作為預設根目錄。網站檔案設定在 `filesystems.disks.web`，公開上傳檔案設定在 `filesystems.disks.public`。預設路由依序呼叫 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引導前呼叫 `usePublicPath()` 會覆寫網站目錄並同步 `web.root`。相對目錄以應用程式根目錄為基準。掛載前綴取磁碟 URL 的完整路徑，例如 `/storage/tmp/` 掛載到 `/storage/tmp`。絕對 URL 必須與 `app.url` 同源。修改掛載設定後重新啟動應用程式。 明確設定為空字串或全空白的 `APP_PUBLIC_PATH` 會導致設定載入失敗。
 
 ## 維護模式 {#maintenance-mode}
 

@@ -24,13 +24,13 @@ Artisan 可以创建或移除 `filesystems.links` 配置的链接。默认链接
 默认 `routes/web.rs` 按以下顺序挂载：
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`staticPublic` 读取网站目录 `app.public_path`，默认为 `public`，可用 `APP_PUBLIC_PATH` 覆盖。`staticDisk` 读取本地磁盘根目录，从磁盘的 `url` 提取完整挂载路径，没有单独的 `url_prefix` 配置。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源；协议、主机或有效端口不同会在 HTTP 引导时被拒绝。本地文件服务只挂载本地磁盘。
+`web` 磁盘描述网站目录，根目录默认是 `public`，URL 默认是 `/`。在 `config/filesystems.rs` 中通过 `APP_PUBLIC_PATH` 和 `APP_PUBLIC_URL_PREFIX` 覆盖默认值。应用使用 `web.root` 作为 `publicPath()`；启动前调用 `usePublicPath()` 会覆盖目录并同步 `web.root`。两个挂载统一使用 `staticDisk`，读取本地磁盘根目录，并从 `url` 提取完整挂载路径。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源，协议、主机或有效端口不同会导致 HTTP 引导失败。
 
-OpenRust HTTP 服务也可以直接提供公共磁盘文件。在 Unix 上，磁盘挂载只返回公开文件，并要求各级目录允许遍历。符号链接、写入临时文件及具有多个硬链接的文件会被拒绝。
+两个磁盘挂载在 Unix 上都要求文件公开且各级目录可遍历，并拒绝符号链接、写入临时文件及具有多个硬链接的文件。如果 `public/storage` 是符号链接，`web` 磁盘会跳过它，由 `public` 磁盘直接从其配置的根目录提供文件。
 
 应用路由优先于静态文件。静态挂载按声明顺序查找，文件不存在时继续查找后续挂载。默认顺序下，同为 `/storage/photo.jpg` 时，`public/storage/photo.jpg` 优先于 `storage/app/public/photo.jpg`。服务支持 GET、HEAD、MIME 类型、`Last-Modified` 和 `If-Modified-Since`。不列出目录，拒绝路径穿越及逃逸挂载根目录的符号链接。缺失文件使用应用的正常 404 策略。
 

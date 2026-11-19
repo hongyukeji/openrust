@@ -19,11 +19,11 @@ Matching uses the UTF-8 percent-decoded path and ignores the query string. Inval
 The application skeleton mounts the website directory first and the public storage disk second. See [public file configuration](../getting-started/configuration.md#public-files) for the directories and URL prefixes.
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-Relative directories are resolved from the application root. For example, `public/css/app.css` is available at `/css/app.css`. To disable the public storage mount, remove its `Route::staticDisk("public")?` call from `routes/web.rs`. The website directory mounts at `/` and the public disk defaults to `/storage`. Static mounts are checked in declaration order. If both directories contain a file for the same URL, the first match wins. With the skeleton’s order, `public/storage/avatar.png` takes precedence over `storage/app/public/avatar.png` for `/storage/avatar.png`. The disk requires no `public/storage` symbolic link. Application routes take precedence. Only unmatched GET and HEAD requests can serve a file. Missing files and directory requests return 404, and links cannot escape the mounted directory.
+The `web` and `public` disks are configured in `config/filesystems.rs`. Their default roots are `public` and `storage/app/public`, and their default URL prefixes are `/` and `/storage`. Application routes take precedence. Disk mounts are checked in declaration order, with the first existing public file winning. Both mounts reject symbolic links, so a `public/storage` link is skipped and the `public` disk can serve the file directly. Only unmatched GET and HEAD requests serve files. Missing files and directory requests return 404.
 
 Static file responses include `Last-Modified` when the file has a usable modification time. Send that value in `If-Modified-Since` with GET or HEAD to revalidate the file. If it has not changed, the response is `304 Not Modified` with an empty body.
 

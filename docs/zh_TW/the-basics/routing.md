@@ -19,11 +19,11 @@
 應用程式骨架先掛載網站公開目錄，再掛載公開儲存磁碟。目錄及 URL 前綴請見[公開檔案設定](../getting-started/configuration.md#public-files)。
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-相對目錄從應用程式根目錄解析。例如，`public/css/app.css` 對應 `/css/app.css`。如需關閉公開磁碟掛載，移除 `routes/web.rs` 中的 `Route::staticDisk("public")?` 呼叫。網站目錄預設掛載到 `/`，公開磁碟預設掛載到 `/storage`。兩個掛載都能回應同一個 URL 時，框架依宣告順序傳回第一個符合的檔案。依骨架的順序，請求 `/storage/avatar.png` 時，`public/storage/avatar.png` 優先於 `storage/app/public/avatar.png`。公開磁碟無需建立 `public/storage` 符號連結。應用程式路由優先，只有未比對到任何應用程式路由的 GET 和 HEAD 請求才會查找檔案。檔案不存在或請求指向目錄時傳回 404，符號連結無法存取掛載目錄外的檔案。
+`web` 和 `public` 磁碟設定在 `config/filesystems.rs`，預設根目錄分別是 `public` 和 `storage/app/public`，URL 前綴分別是 `/` 和 `/storage`。應用程式路由優先。磁碟掛載依宣告順序查找，第一個存在的公開檔案生效。兩個掛載都拒絕符號連結，因此會跳過 `public/storage` 連結，由 `public` 磁碟直接提供檔案。只有未符合應用程式路由的 GET 和 HEAD 請求會讀取檔案，缺失檔案和目錄請求回傳 404。
 
 靜態檔案有可用的修改時間時，回應會帶上 `Last-Modified`。GET 或 HEAD 請求可將該值放入 `If-Modified-Since` 重新驗證檔案。檔案未修改時傳回 `304 Not Modified`，回應本文為空。
 

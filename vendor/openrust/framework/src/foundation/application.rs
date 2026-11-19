@@ -930,18 +930,41 @@ impl Application {
             .expect("application path lock poisoned")
             .is_none()
         {
-            match config::Repository::get(config.as_ref(), "app.public_path") {
+            let (key, directory) =
+                match config::Repository::get(config.as_ref(), "filesystems.disks.web.root") {
+                    Some(value) => ("filesystems.disks.web.root", Some(value)),
+                    None => (
+                        "app.public_path",
+                        config::Repository::get(config.as_ref(), "app.public_path"),
+                    ),
+                };
+            match directory {
                 None | Some(Value::Null) => {}
                 Some(Value::String(path)) if !path.trim().is_empty() => {
                     self.usePublicPath(path);
                 }
                 _ => {
                     return Err(configuration_failed(ConfigError::InvalidType {
-                        key: "app.public_path".into(),
+                        key: key.into(),
                         expected: "a non-empty directory path",
                     }));
                 }
             }
+        }
+        if config::Repository::has(config.as_ref(), "filesystems.disks.web") {
+            let path = self.publicPath();
+            let path = path.to_str().ok_or_else(|| {
+                configuration_failed(ConfigError::InvalidType {
+                    key: "filesystems.disks.web.root".into(),
+                    expected: "a UTF-8 directory path",
+                })
+            })?;
+            config::Repository::set(
+                config.as_ref(),
+                "filesystems.disks.web.root",
+                Value::String(path.into()),
+            )
+            .map_err(configuration_failed)?;
         }
 
         if let Some(ready) = configuration_ready {

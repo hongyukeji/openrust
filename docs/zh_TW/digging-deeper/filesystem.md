@@ -24,13 +24,13 @@ Artisan 可以建立或移除 `filesystems.links` 設定的連結。預設連結
 預設 `routes/web.rs` 按以下順序掛載：
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`staticPublic` 讀取網站目錄 `app.public_path`，預設為 `public`，可用 `APP_PUBLIC_PATH` 覆蓋。`staticDisk` 讀取本機磁碟根目錄，從磁碟的 `url` 提取完整掛載路徑，沒有單獨的 `url_prefix` 設定。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源；協定、主機或有效連接埠不同會在 HTTP 引導時被拒絕。本機檔案服務只掛載本機磁碟。
+`web` 磁碟描述網站目錄，根目錄預設是 `public`，URL 預設是 `/`。在 `config/filesystems.rs` 中透過 `APP_PUBLIC_PATH` 和 `APP_PUBLIC_URL_PREFIX` 覆寫預設值。應用程式使用 `web.root` 作為 `publicPath()`；啟動前呼叫 `usePublicPath()` 會覆寫目錄並同步 `web.root`。兩個掛載統一使用 `staticDisk`，讀取本機磁碟根目錄，並從 `url` 取得完整掛載路徑。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 公開在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源，協定、主機或有效連接埠不同會導致 HTTP 引導失敗。
 
-OpenRust HTTP 服務也可以直接提供公共磁碟檔案。在 Unix 上，磁碟掛載只傳回公開檔案，並要求各級目錄允許遍歷。符號連結、寫入暫存檔及具有多個硬連結的檔案會被拒絕。
+兩個磁碟掛載在 Unix 上都要求檔案公開且各級目錄可遍歷，並拒絕符號連結、寫入暫存檔及具有多個硬連結的檔案。如果 `public/storage` 是符號連結，`web` 磁碟會跳過它，由 `public` 磁碟直接從其設定的根目錄提供檔案。
 
 應用路由優先於靜態檔案。靜態掛載按宣告順序尋找，檔案不存在時繼續尋找後續掛載。預設順序下，同為 `/storage/photo.jpg` 時，`public/storage/photo.jpg` 優先於 `storage/app/public/photo.jpg`。服務支援 GET、HEAD、MIME 類型、`Last-Modified` 和 `If-Modified-Since`。不列出目錄，拒絕路徑穿越及逃逸掛載根目錄的符號連結。缺失檔案使用應用的正常 404 策略。
 

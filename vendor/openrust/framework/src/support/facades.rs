@@ -45,7 +45,7 @@ pub use url::URL;
 use std::{
     cell::RefCell,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Weak},
 };
 
@@ -247,7 +247,6 @@ tokio::task_local! {
 struct RouteRegistration {
     router: RefCell<Router>,
     config: Arc<dyn Repository>,
-    public_path: PathBuf,
 }
 
 /// Registers routes on the router bound by the current application.
@@ -302,20 +301,6 @@ impl Route {
                     .router
                     .borrow_mut()
                     .mount_static(prefix, directory.as_ref())
-            })
-            .map_err(|_| RoutingError::NoRegistrationScope)?
-    }
-
-    /// Mounts the application public directory at its configured URL prefix.
-    #[allow(non_snake_case, reason = "Matches Laravel-style public API naming")]
-    pub fn staticPublic() -> Result<(), RoutingError> {
-        ROUTER
-            .try_with(|scope| {
-                let prefix = config_string(scope.config.as_ref(), "app.public_url_prefix")?;
-                scope
-                    .router
-                    .borrow_mut()
-                    .mount_static(prefix.as_deref().unwrap_or("/"), &scope.public_path)
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
@@ -508,7 +493,6 @@ impl Route {
             config: application
                 .configuration_repository()
                 .map_err(|source| RoutingError::ContainerFailed { source })?,
-            public_path: application.publicPath(),
         };
         ROUTER.sync_scope(scope, || {
             let result = register();

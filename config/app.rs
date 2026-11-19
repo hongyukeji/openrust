@@ -11,7 +11,7 @@ use super::env::{get, list};
 pub(super) struct Loaded<'a> {
     pub(super) config: Value,
     pub(super) name: &'a str,
-    pub(super) public_path: Option<&'a str>,
+    pub(super) public_path: &'a str,
     pub(super) url: String,
 }
 
@@ -20,7 +20,13 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
     let env_host = env.get_utf8("APP_HOST")?;
     let host = env_host.unwrap_or("127.0.0.1");
     let port = env.get_utf8("APP_PORT")?.unwrap_or("8000");
-    let public_path = env.get_utf8("APP_PUBLIC_PATH")?;
+    let public_path = env.get_utf8("APP_PUBLIC_PATH")?.unwrap_or("public");
+    if public_path.trim().is_empty() {
+        return Err(ConfigError::InvalidType {
+            key: "APP_PUBLIC_PATH".into(),
+            expected: "a non-empty directory path",
+        });
+    }
     let (url, url_explicit) = resolve_url(env, env_host, port)?;
     let port = port
         .parse::<u16>()
@@ -119,11 +125,10 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         | 公共目录
         |--------------------------------------------------------------------------
         |
-        | APP_PUBLIC_PATH 指定静态文件目录，APP_PUBLIC_URL_PREFIX 指定访问前缀。
+        | APP_PUBLIC_PATH 指定应用公共目录，网站磁盘及访问前缀在 filesystems 配置。
         |
         */
         "public_path": public_path,
-        "public_url_prefix": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
     });
     Ok(Loaded {
         config,

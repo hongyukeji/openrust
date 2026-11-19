@@ -19,11 +19,11 @@
 应用骨架先挂载网站公共目录，再挂载公共存储磁盘。目录和 URL 前缀见[公共文件配置](../getting-started/configuration.md#public-files)。
 
 ```rust
-Route::staticPublic()?;
+Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-相对目录从应用根目录解析。例如，`public/css/app.css` 对应 `/css/app.css`。如需关闭公共磁盘挂载，移除 `routes/web.rs` 中的 `Route::staticDisk("public")?` 调用。网站目录默认挂到 `/`，公共磁盘默认挂到 `/storage`。两个挂载都能响应同一个 URL 时，框架按声明顺序返回第一个命中的文件。按骨架的顺序，请求 `/storage/avatar.png` 时，`public/storage/avatar.png` 优先于 `storage/app/public/avatar.png`。公共磁盘无需创建 `public/storage` 符号链接。应用路由优先，只有未匹配任何应用路由的 GET 和 HEAD 请求才会查找文件。文件不存在或请求指向目录时返回 404，符号链接无法访问挂载目录外的文件。
+`web` 和 `public` 磁盘配置在 `config/filesystems.rs`，默认根目录分别是 `public` 和 `storage/app/public`，URL 前缀分别是 `/` 和 `/storage`。应用路由优先。磁盘挂载按声明顺序查找，第一个存在的公开文件生效。两个挂载都拒绝符号链接，因此会跳过 `public/storage` 链接，由 `public` 磁盘直接提供文件。只有未匹配应用路由的 GET 和 HEAD 请求会读取文件，缺失文件和目录请求返回 404。
 
 静态文件有可用的修改时间时，响应会携带 `Last-Modified`。GET 或 HEAD 请求可以把该值放入 `If-Modified-Since` 重新验证文件。文件未修改时返回 `304 Not Modified`，响应体为空。
 
