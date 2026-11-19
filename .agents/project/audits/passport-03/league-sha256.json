@@ -1,0 +1,7 @@
+{
+  "src/Grant/AuthCodeGrant.php": "6084cd843ee7d7f52f989b315d120f3166fa59e32049d999baaca78f43413664",
+  "src/Grant/AbstractGrant.php": "8206d50b83d9623d2ab50205299ddbffa23b2146587763a8a8fad7300a99fc69",
+  "src/RedirectUriValidators/RedirectUriValidator.php": "cae4549c53c0388b3bb084d632e1f41380fda164f5a5c65b8f63cf8c6cefbcc4",
+  "src/Exception/OAuthServerException.php": "6430e6840486dd2a52c495db8215ee46322a52d1bdba3c789b8c6cb1a1bc444a",
+  "src/RedirectUriValidators/RedirectUriValidatorInterface.php": "c77d60fe081d125e6a0fd63c8b3fb8412021308f126e34362bd0fe6c9bef6276"
+}

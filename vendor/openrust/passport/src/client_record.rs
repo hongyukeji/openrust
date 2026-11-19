@@ -30,6 +30,12 @@ impl ClientRecord {
     pub(crate) async fn connection(&self) -> DatabaseResult<Connection> {
         self.0.connection().await
     }
+    pub(crate) async fn refresh_for_update(
+        &self,
+        transaction: &mut openrust::database::Transaction,
+    ) -> DatabaseResult<()> {
+        self.0.refresh_for_update(transaction).await
+    }
     pub(crate) async fn columns(&self) -> DatabaseResult<Vec<String>> {
         self.0.columns().await
     }
@@ -54,6 +60,13 @@ impl ClientRecord {
     pub async fn firstParty(&self) -> DatabaseResult<bool> {
         self.0.first_party().await
     }
+    pub async fn skipsAuthorization(
+        &self,
+        user: &dyn openrust::contracts::auth::Authenticatable,
+        scopes: &[crate::Scope],
+    ) -> DatabaseResult<bool> {
+        self.0.skips_authorization(user, scopes).await
+    }
     pub async fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
         self.0.has_grant_type(grantType).await
     }
@@ -66,6 +79,15 @@ impl ClientRecord {
 }
 trait LoadedClient: Send + Sync {
     fn connection(&self) -> DatabaseFuture<'_, DatabaseResult<Connection>>;
+    fn refresh_for_update<'a>(
+        &'a self,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
+    fn skips_authorization<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        scopes: &'a [crate::Scope],
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
     fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>>;
     fn columns(&self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>>;
     fn assign_and_save(&self, attributes: Attributes) -> DatabaseFuture<'_, DatabaseResult<bool>>;
@@ -87,6 +109,26 @@ struct Loaded<M> {
 impl<M: ClientModel> LoadedClient for Loaded<M> {
     fn connection(&self) -> DatabaseFuture<'_, DatabaseResult<Connection>> {
         Box::pin(async move { self.model.lock().await.getConnection() })
+    }
+    fn refresh_for_update<'a>(
+        &'a self,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            self.model
+                .lock()
+                .await
+                .refreshForUpdate(transaction)
+                .await
+                .map(|_| ())
+        })
+    }
+    fn skips_authorization<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        scopes: &'a [crate::Scope],
+    ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
+        Box::pin(async move { Ok(self.model.lock().await.skipsAuthorization(user, scopes)) })
     }
     fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
         Box::pin(async move { self.model.lock().await.hasScope(scope) })

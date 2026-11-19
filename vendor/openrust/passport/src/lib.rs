@@ -1,6 +1,21 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
 mod auth_code;
+mod authorization_server;
+pub use authorization_server::{AuthorizationRequest, AuthorizationServer, TokenResponse};
+mod authorization_response;
+mod error;
+mod parameters;
+mod pkce;
+mod redirect_uri;
+pub use authorization_response::{AuthorizationFailure, AuthorizationRedirect};
+pub use error::OAuthError;
+pub use parameters::OAuthParameters;
+pub use pkce::{CodeChallenge, CodeChallengeMethod, PkceError, verify_optional_challenge};
+pub use redirect_uri::{
+    RedirectUriError, ValidatedRedirectUri, matches_registered_redirect_uri,
+    validate_token_redirect_uri,
+};
 mod client;
 mod client_record;
 mod client_repository;
@@ -8,6 +23,7 @@ mod client_repository;
 mod configuration;
 pub mod console;
 pub mod database;
+pub mod http;
 mod keys;
 pub mod migrations;
 mod passport;
@@ -57,6 +73,21 @@ impl ServiceProvider for PassportServiceProvider {
                 let passport = container.make::<Passport>()?;
                 Ok(Arc::new(passport.clientRepository()))
             })?;
+            app.container()
+                .scoped::<AuthorizationServer, _>(|container| {
+                    use sha2::{Digest as _, Sha256};
+                    let paths = container.make::<openrust::foundation::Paths>()?;
+                    let domain = format!(
+                        "{:x}",
+                        Sha256::digest(paths.storagePath("").to_string_lossy().as_bytes())
+                    );
+                    Ok(Arc::new(AuthorizationServer::new(
+                        container.make::<Passport>()?,
+                        container.make::<ClientRepository>()?,
+                        container.make::<openrust::encryption::Encrypter>()?,
+                        domain,
+                    )))
+                })?;
             app.container().singleton::<PrivateKey, _>(|container| {
                 let passport = container.make::<Passport>()?;
                 let key = passport.make_crypt_key("private").map_err(|error| {
@@ -93,6 +124,7 @@ impl ServiceProvider for PassportServiceProvider {
                 "passport-config",
             )?;
             self.commands(app, console::commands::register);
+            self.loadRoutesFrom(app, http::routes)?;
             Ok(())
         })
     }

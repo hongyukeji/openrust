@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 Passport-03 [授权码与 PKCE](audits/passport-03/README.md)实现及验收完成：实际浏览器授权／同意／拒绝、Session／CSRF、公开及机密客户端兑换、PKCE、state、回调绑定、一次性授权码与 RS256 令牌已闭合。70 个定向测试、MySQL 8.4.13、1369 条固定 PHP／League URI 对照及重复／源码负样本、根 HTTP／Artisan／关停、Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、三语构建和 12＋6 浏览器通过。33 份输入与隔离 ef430b465 副本 SHA 一致，保留同期协作者改动。专属 source／target 已直接清理，df 增量 6.345 GB，清理后 Available 63.966 GB；本批固定 PHP 镜像已无引用并移除，源码覆盖包／日志、共享缓存及全部数据库容器／卷保留。按授权核范围本地提交，不推送。V06 保持部分验收，继续 Passport-04 令牌生命周期与资源 Guard；刷新兑换／设备／PAT／其他 grant／安装共存尚未交付，不称完整发布。
+
 - 2026-11-20 V05 [Pail Windows 原生终端](audits/06-08/pail-windows.md)按原生 ARM64 与 x64 仿真进程分别闭合：两份 PE、最低 Rust 1.94、文件跟随／轮换／截断／UTF-8、取消与输出状态、管道关闭、五种 ConPTY 与键盘 Ctrl+C、根 HTTP→Pail／恢复／Artisan、两轮 MySQL 8.4.13 默认 dev／进程树／会话／端口清理均通过。Windows workspace／all-targets features pail,passport 严格 Clippy、格式、三语构建和 12＋6 浏览器通过。9 份候选、11 份来宾源码／基线 SHA 一致；隔离基线 376d10884，不覆盖同期 Passport 提交及新 OAuth WIP。专属 Windows targets、本机 browser／dist／重复中转已直接清理，源代码／证据／共享缓存和全部卷保留；VM 恢复 suspended，最终 Available 68.702 GB（63.983 GiB）。核定 17 文件本地提交，不推送。V10 已复查仍缺 Desktop／WSL 虚拟化；V06–09 及其余发布门禁继续，不把 x64 仿真称为原生 x64 硬件验收。
 
 - 2026-11-20 Passport-02 [PHP 契约与 HTTP 管理验收](audits/passport-02/contracts.md)完成：secret 标量转换／赋值失败顺序、Scope JSON 字节与选项、真实认证管理流程及跨用户／双应用拒绝已闭合。固定 PHP 8.5.12 生成 2699 条对照记录，重复生成一致且源码 SHA 负样本拒绝；48 个 Rust 测试函数、MySQL 8.4.13、根 HTTP／Artisan／关停、最低 Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、三语构建及 12＋6 浏览器检查通过，最终 14 项定向复验通过。13 份输入与隔离 ecc607f2b 快照 SHA 一致，保留协作者 Pail 等改动。Passport-02 计划范围已验收，V06 仍部分验收；下一单元 Passport-03 按授权码／PKCE 前置推进，启用 Fortify 动作时先接 API-F01。未实现后续 OAuth2／Guard／设备／PAT／安装整合，不将本批称为完整发布。专属 source／target 已直接清理，df 实际增加 5.563 GB，清理后 Available 68.979 GB；移除本批新拉取且无引用的固定 PHP 镜像，源码覆盖包／证据、共享缓存和全部数据卷保留。本批核范围本地提交，不推送。

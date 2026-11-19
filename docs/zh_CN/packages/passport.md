@@ -2,7 +2,7 @@
 
 ## 安装 {#installation}
 
-已提供 Passport 的配置、密钥生命周期和五张 OAuth 表迁移发布。OAuth 端点和令牌守卫按后续 Passport 单元交付，当前还没有 `install:api --passport`。既有 Sanctum 安装保持独立。
+已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新兑换及其他 grant 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
 
 当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
 
@@ -11,7 +11,7 @@
 default = ["passport"]
 ```
 
-包发现会注册 `openrust_passport::PassportServiceProvider`。没有包发现的应用可用 `withProviders` 显式注册。启用 Provider 不会创建表、生成密钥或开放占位 OAuth 路由。
+包发现会注册 `openrust_passport::PassportServiceProvider`。没有包发现的应用可用 `withProviders` 显式注册。启用 Provider 会注册已实现的 OAuth 路由。使用前须发布执行迁移、设置应用密钥和同意视图，并生成 RSA 密钥。
 
 ## 部署 Passport {#deploying-passport}
 
@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理客户端 {#managing-clients}
 
-客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。OAuth 端点和令牌认证仍待完成。
+客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。授权码端点已提供；资源令牌认证仍待完成。
 
 在请求或 Artisan 生命周期内解析 `ClientRepository`，容器为每个生命周期提供新仓储。同一参数的重复 `find` 共享实际模型，并缓存未命中；数据库错误传播，允许再次尝试。`findActive` 还检查当前模型的 `revoked` 属性。不要把此作用域服务保存在应用单例中。显式管理的操作可以通过 `Passport::clientRepository()` 创建独立拥有缓存的仓储。
 
@@ -110,7 +110,7 @@ pub async fn create_client(
 
 `make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plainSecret`，重新读库只包含哈希。`state` 添加应用属性；`intoFactory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
 
-Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。协议端点仍待完成。
+Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。当前仅提供授权码协议。
 
 ## 客户端命令与撤销
 
@@ -141,3 +141,55 @@ let json = scope.toJsonWithOptions(
     ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
 )?;
 ```
+
+## 授权码授权 {#authorization-code-grant}
+
+Provider 注册 GET、POST、DELETE `/oauth/authorize`，使用 `web` 中间件和 Session 锁；POST `/oauth/token` 使用限流。`passport.path` 修改默认 `oauth` 前缀，`passport.middleware` 为这些路由添加中间件。在包启动前调用 `passport.ignoreRoutes()` 可自行注册路由。浏览器认证使用 `passport.guard`，默认为 `web`；配置应用自身的登录路由和 SessionGuard 用户提供者，并先发布执行迁移、设置 `APP_KEY`、生成 RSA 密钥。
+
+在应用装配时解析 `Passport`，调用 `passport.tokensCan(BTreeMap::from([("read".to_owned(), "Read data".to_owned())]))` 注册 scope，按需调用 `passport.setDefaultScope(vec!["read".to_owned()])`，并设置 `passport.authorizationView(consent)`。这些设置属于当前应用。下面的回调为应用界面返回同意数据；界面负责显示客户端、权限和批准／拒绝控件：
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+use openrust::contracts::session::Session as _;
+use openrust_passport::http::AuthorizationViewParameters;
+
+pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
+    -> HttpFuture<'_, Result<Response, HttpError>>
+{
+    Box::pin(async move {
+        Response::json(StatusCode::OK, serde_json::json!({
+            "auth_token": params.auth_token,
+            "csrf": request.session()?.token(),
+            "user": params.user.get_auth_identifier(),
+            "scopes": params.scopes,
+        }))
+    })
+}
+```
+
+批准时向 POST `/oauth/authorize` 提交 `auth_token` 和 Session CSRF `_token`；拒绝使用 DELETE。浏览器必须保留 Session Cookie。服务端一次性取出已保存的请求和随机令牌，并核对当前认证主体；表单中的客户端、回调和 scope 不能替换它们。批准前重新核对当前客户端和注册地址；拒绝会向已验证地址返回 `error=access_denied` 和原始 `state`。
+
+客户端必须生成不可预测的新 `state`，回调时先核对它，再接受授权码或错误。机密客户端兑换时使用 HTTP Basic，或在正文提交 `client_id`、`client_secret`；正文凭据优先，查询串不提供兑换参数。成功响应包含 `token_type`、`expires_in`、`access_token`，允许刷新的客户端还获得 `refresh_token`，并带 `Cache-Control: no-store`、`Pragma: no-cache`。访问令牌使用 RS256。授权码十分钟后过期，消费与令牌保存属于同一事务，并发兑换只有一个成功。当前访问／刷新期限为十二个日历月；刷新兑换和期限定制在下一生命周期单元交付。
+
+`prompt=none` 在需要交互时返回带 `login_required` 或 `consent_required` 的重定向。已有未撤销、未过期授权可跳过已授予权限的同意页；`prompt=consent` 重新请求同意，`prompt=login` 请求重新登录。无效客户端和未注册回调在本地失败，不返回不可信 Location。OAuth 错误保留协议字段和状态码。
+
+## 使用 PKCE 的授权码授权 {#code-grant-pkce}
+
+用 `passport:client --public` 创建公开客户端，必须提交 challenge；机密客户端也可使用 PKCE。每次生成由字母、数字和 `-._~` 组成的 43–128 字符 verifier，计算 SHA-256 后作无填充 base64url 编码，使用 `S256`：
+
+```text
+GET /oauth/authorize?response_type=code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&scope=read&state=RANDOM_STATE&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256
+```
+
+批准后，用原 verifier 和授权时提供的完全相同的回调地址兑换：
+
+```text
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&code=AUTHORIZATION_CODE&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+这些是固定示例值，实际授权必须每次重新生成。缺失／错误 verifier、篡改回调、过期和重放均拒绝签发。授权阶段允许已注册 HTTP loopback 回调改变端口；兑换阶段绑定原来提供的精确字符串。
+
+Rust 在 Session 保存已验证的原生请求，通过编译回调提供视图，不使用 PHP 对象序列化。授权码和刷新令牌使用应用现有认证加密并绑定应用上下文，内部密文格式不与 PHP 互通。客户端／授权码锁和单个数据库事务保证消费及访问／刷新保存原子完成。自定义令牌模型沿用实际连接、Eloquent cast 和事件；保存被取消或数据库失败都会回滚签发。本单元尚不提供资源 Guard、刷新兑换、设备授权、其他 grant 和统一 API 安装器。

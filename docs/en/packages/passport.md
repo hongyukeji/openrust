@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport's configuration, key lifecycle and five publishable OAuth migrations are available. OAuth endpoints and token guards are delivered in the following Passport units; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token exchange and the remaining grants are under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -11,7 +11,7 @@ The current application has an optional `passport` Cargo feature. Add it to Carg
 default = ["passport"]
 ```
 
-Package discovery registers `openrust_passport::PassportServiceProvider`. Applications without discovery can register this provider with `withProviders`. Enabling the provider does not create tables, generate keys, or expose placeholder OAuth routes.
+Package discovery registers `openrust_passport::PassportServiceProvider`. Applications without discovery can register this provider with `withProviders`. Enabling the provider registers the implemented OAuth routes. Publish and migrate the schema, configure an application key and consent view, and generate keys before using them.
 
 ## Deploying Passport {#deploying-passport}
 
@@ -65,7 +65,7 @@ The default and standard-size key generation uses the existing native AWS-LC imp
 
 ## Managing clients {#managing-clients}
 
-The client repository supports lookup, creation, update, secret rotation, owner filtering and revocation using real Eloquent models. `passport:client` creates the six supported client grant types. OAuth endpoints and token authentication are still pending.
+The client repository supports lookup, creation, update, secret rotation, owner filtering and revocation using real Eloquent models. `passport:client` creates the six supported client grant types. Authorization-code endpoints are available; resource token authentication remains pending.
 
 Resolve `ClientRepository` inside the request or Artisan lifecycle. The container gives each lifecycle a new repository. Repeated `find` calls with the same argument share the actual model, including cached misses; database errors propagate and can be retried. `findActive` also checks the current model's `revoked` attribute. Do not retain this scoped service in an application singleton. For an explicitly managed operation, `Passport::clientRepository()` creates a separately owned cache.
 
@@ -110,7 +110,7 @@ Call `passport.useClientModel::<CustomClient>()` during application setup before
 
 Call `make().await?` for an unsaved model or `create().await?` to persist it. Assignment uses the model’s asynchronous mutators and casts: the new Client retains `plainSecret`, while a database reload contains only its hash. `state` adds application attributes; `intoFactory()` exposes the existing Eloquent builder for counts, relationships and callbacks.
 
-Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Protocol endpoints are still pending.
+Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Only the authorization-code protocol is currently available.
 
 ## Client commands and revocation
 
@@ -141,3 +141,55 @@ let json = scope.toJsonWithOptions(
     ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
 )?;
 ```
+
+## Authorization code grant {#authorization-code-grant}
+
+The provider registers GET, POST and DELETE `/oauth/authorize` with the `web` middleware and session locking, plus throttled POST `/oauth/token`. Set `passport.path` to change the `oauth` prefix and `passport.middleware` to add middleware to all these routes. Call `passport.ignoreRoutes()` before the package boots to register your own routes. Browser authentication uses `passport.guard` (default `web`); configure the application's normal login route and SessionGuard user provider. Publish and run the migrations, set `APP_KEY`, and generate the RSA keys first.
+
+During application setup, resolve `Passport` and call `passport.tokensCan(BTreeMap::from([("read".to_owned(), "Read data".to_owned())]))`, `passport.setDefaultScope(vec!["read".to_owned()])` if needed, and `passport.authorizationView(consent)`. These settings belong to the application. The callback below returns consent data for an application UI; render the client, scopes and approve/deny controls in that UI:
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+use openrust::contracts::session::Session as _;
+use openrust_passport::http::AuthorizationViewParameters;
+
+pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
+    -> HttpFuture<'_, Result<Response, HttpError>>
+{
+    Box::pin(async move {
+        Response::json(StatusCode::OK, serde_json::json!({
+            "auth_token": params.auth_token,
+            "csrf": request.session()?.token(),
+            "user": params.user.get_auth_identifier(),
+            "scopes": params.scopes,
+        }))
+    })
+}
+```
+
+Submit `auth_token` and the session CSRF `_token` to POST `/oauth/authorize` to approve, or DELETE to deny. The browser must retain its session cookie. The server consumes the saved request and nonce once and checks the current authenticated subject; submitted client, redirect and scope fields cannot replace them. Approval rechecks the current client and registered callback. Denial redirects to the validated callback with `error=access_denied` and the original `state`.
+
+Clients must generate a fresh unpredictable `state` and check it on the callback before accepting a code or error. Confidential clients authenticate the token exchange with HTTP Basic credentials or body `client_id` and `client_secret`. Body credentials take precedence. Parameters come from the request body, not the query. Successful responses contain `token_type`, `expires_in`, `access_token` and, for clients allowing refresh, `refresh_token`, with `Cache-Control: no-store` and `Pragma: no-cache`. Access tokens use RS256. Authorization codes expire after ten minutes and are consumed atomically with token persistence; competing exchanges have one winner. Current access and refresh expirations are twelve calendar months; refresh-token redemption and expiry customization belong to the next lifecycle unit.
+
+`prompt=none` redirects with `login_required` or `consent_required` when interaction is needed. Existing unrevoked, unexpired grants can skip consent for already granted scopes. `prompt=consent` requests consent again; `prompt=login` requests fresh session authentication. Invalid clients and unregistered redirects fail locally without an untrusted Location header. OAuth errors retain their protocol fields and status codes.
+
+## Authorization code grant with PKCE {#code-grant-pkce}
+
+Create a public client with `passport:client --public`. It must send a challenge; confidential clients can also use PKCE. Generate a fresh 43–128 character verifier from letters, digits and `-._~`, then compute its SHA-256 and base64url encoding without padding. Use `S256`:
+
+```text
+GET /oauth/authorize?response_type=code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&scope=read&state=RANDOM_STATE&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256
+```
+
+After approval, exchange the returned code with the original verifier and exactly the same supplied redirect URI:
+
+```text
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&code=AUTHORIZATION_CODE&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+These are fixed example values; generate new values for each real authorization. Missing or incorrect verifiers, altered callbacks, expired codes and replayed codes fail without issuing tokens. The authorization step permits different ports for registered HTTP loopback callbacks; the token exchange binds the exact redirect string originally supplied.
+
+Rust stores a validated native request in Session and invokes a compiled view callback instead of PHP object serialization. Codes and refresh tokens use the existing application's authenticated encryption plus application context; their internal envelope is not PHP ciphertext compatible. Client/code locks and a single database transaction keep code consumption, access-token and refresh-token saves atomic. Custom token models participate through Eloquent casts, events and their actual connection; save cancellation or database failure rolls back issuance. This unit does not yet provide resource Guard, refresh redemption, device authorization, other grants or the combined API installer.

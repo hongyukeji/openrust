@@ -31,12 +31,16 @@ pub struct Passport {
     pub withInheritedScopes: AtomicBool,
     pub deviceCodeGrantEnabled: AtomicBool,
     pub clientUuids: AtomicBool,
+    pub registersRoutes: AtomicBool,
+    authorization_view: RwLock<Option<crate::http::AuthorizationView>>,
     config: Arc<dyn Repository>,
     paths: Arc<Paths>,
     key_path: RwLock<Option<PathBuf>>,
     database: Arc<DatabaseManager>,
     client_model: RwLock<ClientModelRegistration>,
-    token_models: Arc<crate::token_store::TokenModels>,
+    pub(crate) token_models: Arc<crate::token_store::TokenModels>,
+    scopes: RwLock<std::collections::BTreeMap<String, String>>,
+    default_scopes: RwLock<Vec<String>>,
 }
 #[allow(non_snake_case)]
 impl Passport {
@@ -50,10 +54,14 @@ impl Passport {
                 database.clone(),
                 config.clone(),
             )),
+            scopes: RwLock::new(Default::default()),
+            default_scopes: RwLock::new(Vec::new()),
             validateKeyPermissions: AtomicBool::new(true),
             withInheritedScopes: AtomicBool::new(false),
             deviceCodeGrantEnabled: AtomicBool::new(true),
             clientUuids: AtomicBool::new(true),
+            registersRoutes: AtomicBool::new(true),
+            authorization_view: RwLock::new(None),
             config,
             paths,
             database,
@@ -63,6 +71,45 @@ impl Passport {
             }),
             key_path: RwLock::new(None),
         }
+    }
+    pub fn ignoreRoutes(&self) {
+        self.registersRoutes
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn authorizationView(&self, view: crate::http::AuthorizationView) {
+        *self.authorization_view.write().expect("Passport view lock") = Some(view);
+    }
+    pub(crate) fn authorization_view(&self) -> Option<crate::http::AuthorizationView> {
+        *self.authorization_view.read().expect("Passport view lock")
+    }
+    pub fn tokensCan(&self, scopes: std::collections::BTreeMap<String, String>) {
+        *self.scopes.write().expect("Passport scopes lock") = scopes;
+    }
+    pub fn setDefaultScope(&self, scopes: Vec<String>) {
+        *self.default_scopes.write().expect("Passport scopes lock") = scopes;
+    }
+    pub fn scopes(&self) -> Vec<crate::Scope> {
+        self.scopes
+            .read()
+            .expect("Passport scopes lock")
+            .iter()
+            .map(|(id, description)| crate::Scope {
+                id: id.clone(),
+                description: description.clone(),
+            })
+            .collect()
+    }
+    pub(crate) fn default_scopes(&self) -> Vec<String> {
+        self.default_scopes
+            .read()
+            .expect("Passport scopes lock")
+            .clone()
+    }
+    pub(crate) fn has_scope(&self, id: &str) -> bool {
+        self.scopes
+            .read()
+            .expect("Passport scopes lock")
+            .contains_key(id)
     }
     /// Selects a compiled client type before resolving the lifecycle's repository.
     pub fn useClientModel<M: ClientModel>(&self) {

@@ -11,6 +11,8 @@ version = 1
 providers = true
 
 [dependencies]
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "json"] }
+
 openrust = { package = "openrust-framework", path = "../framework" }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
 rsa = "0.9.10"
@@ -23,7 +25,13 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.54.1", features = ["rt", "sync"] }
 zeroize = "1.8"
 
+pcre2 = "0.2"
+sha2 = "0.10"
+subtle = "2.6"
+thiserror = "2"
+url = "2.5"
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+
 [dev-dependencies]
-axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "net"] }
 reqwest = { version = "0.13.5", default-features = false }

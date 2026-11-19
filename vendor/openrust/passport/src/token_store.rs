@@ -56,6 +56,56 @@ impl TokenModels {
     pub fn refresh_name(&self) -> &'static str {
         self.refresh.read().expect("refresh model lock").name
     }
+    pub(crate) async fn persist(
+        &self,
+        parent: &Connection,
+        transaction: &mut openrust::database::Transaction,
+        access: openrust::database::eloquent::Attributes,
+        refresh: Option<openrust::database::eloquent::Attributes>,
+    ) -> DatabaseResult<()> {
+        let tokens = (self.token.read().expect("token model lock").factory)();
+        let refreshes = (self.refresh.read().expect("refresh model lock").factory)();
+        tokens
+            .persist(
+                parent,
+                transaction,
+                access,
+                &self.database,
+                self.config.as_ref(),
+            )
+            .await?;
+        if let Some(refresh) = refresh {
+            refreshes
+                .persist(
+                    parent,
+                    transaction,
+                    refresh,
+                    &self.database,
+                    self.config.as_ref(),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+    pub(crate) async fn active_scopes(
+        &self,
+        parent: &Connection,
+        client: Value,
+        user: Value,
+        after: String,
+    ) -> DatabaseResult<Vec<crate::PhpArray>> {
+        let tokens = (self.token.read().expect("token model lock").factory)();
+        tokens
+            .active_scopes(
+                parent,
+                &self.database,
+                self.config.as_ref(),
+                client,
+                user,
+                after,
+            )
+            .await
+    }
     pub async fn revoke(&self, client: &ClientRecord) -> DatabaseResult<()> {
         let Some(id) = client.getKey().await else {
             return Ok(());
@@ -94,6 +144,24 @@ fn connection<M: Model>(
     }
 }
 trait TokenStore: Send + Sync {
+    fn persist<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        attributes: openrust::database::eloquent::Attributes,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
+
+    fn active_scopes<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        client: Value,
+        user: Value,
+        after: String,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<crate::PhpArray>>>;
     fn revoke<'a>(
         &'a self,
         parent: &'a Connection,
@@ -105,6 +173,15 @@ trait TokenStore: Send + Sync {
 }
 type LoadedRefreshes = Vec<(Value, Box<dyn RevocableRefresh>)>;
 trait RefreshStore: Send + Sync {
+    fn persist<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        attributes: openrust::database::eloquent::Attributes,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
+
     fn load<'a>(
         &'a self,
         parent: &'a Connection,
@@ -124,6 +201,58 @@ fn refresh_store<M: RefreshTokenModel>() -> Arc<dyn RefreshStore> {
     Arc::new(Typed::<M>(PhantomData))
 }
 impl<M: TokenModel> TokenStore for Typed<M> {
+    fn persist<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        attributes: openrust::database::eloquent::Attributes,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let mut model = M::newInstanceOn(&connection, Default::default())?;
+            model.forceFillAsync(attributes).await?;
+            if !model.saveInTransaction(transaction).await? {
+                return Err(openrust::database::DatabaseError::InvalidQuery(
+                    "Passport token save cancelled",
+                ));
+            }
+            Ok(())
+        })
+    }
+
+    fn active_scopes<'a>(
+        &'a self,
+        parent: &'a Connection,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+        client: Value,
+        user: Value,
+        after: String,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<crate::PhpArray>>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let mut query = M::queryOn(&connection);
+            query.r#where("client_id", "=", client);
+            query.r#where("user_id", "=", user);
+            query.r#where("revoked", "=", false);
+            query.r#where("expires_at", ">", after);
+            let mut scopes = Vec::new();
+            for token in query.get().await? {
+                scopes.push(match token.getAttributeValue("scopes")? {
+                    Some(Value::Json(value)) => crate::PhpArray::try_from(value)?,
+                    None | Some(Value::Null) => crate::PhpArray::default(),
+                    _ => {
+                        return Err(openrust::database::DatabaseError::InvalidQuery(
+                            "Invalid Passport token scopes",
+                        ));
+                    }
+                });
+            }
+            Ok(scopes)
+        })
+    }
     fn revoke<'a>(
         &'a self,
         parent: &'a Connection,
@@ -168,6 +297,27 @@ impl<M: TokenModel> TokenStore for Typed<M> {
     }
 }
 impl<M: RefreshTokenModel> RefreshStore for Typed<M> {
+    fn persist<'a>(
+        &'a self,
+        parent: &'a Connection,
+        transaction: &'a mut openrust::database::Transaction,
+        attributes: openrust::database::eloquent::Attributes,
+        database: &'a DatabaseManager,
+        config: &'a dyn Repository,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let connection = connection::<M>(parent, database, config)?;
+            let mut model = M::newInstanceOn(&connection, Default::default())?;
+            model.forceFillAsync(attributes).await?;
+            if !model.saveInTransaction(transaction).await? {
+                return Err(openrust::database::DatabaseError::InvalidQuery(
+                    "Passport token save cancelled",
+                ));
+            }
+            Ok(())
+        })
+    }
+
     fn load<'a>(
         &'a self,
         parent: &'a Connection,

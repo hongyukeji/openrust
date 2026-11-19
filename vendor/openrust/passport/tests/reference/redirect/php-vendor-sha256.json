@@ -1,0 +1,17 @@
+{
+  "league/uri": {
+    "version": "7.5.1",
+    "reference": "81fb5145d2644324614cc532b28efd0215bda430",
+    "sha256": "59154cf3f7c0a203366c12b3acc69968b7282564a3b62b38ce94edcbfdc45f2b"
+  },
+  "league/uri-interfaces": {
+    "version": "7.5.0",
+    "reference": "08cfc6c4f3d811584fb09c37e2849e6a7f9b0742",
+    "sha256": "4fe47a77c6bec97b7f57cde9eb76b01f8e879f988a487c89a1d6ed415d7ed0a1"
+  },
+  "psr/http-message": {
+    "version": "2.0",
+    "reference": "402d35bcb92c70c026d1a6a9883f06b2ead23d71",
+    "sha256": "d561d2c36e2e3c0ee8b54e0e9652b3bfa13cd763e5e6f93400969001f3a7968d"
+  }
+}

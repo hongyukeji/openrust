@@ -3689,3 +3689,6 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## 2026-11-20 V05 Pail Windows 原生终端
 
 [专项验收](audits/06-08/pail-windows.md)完成原生 ARM64 和 Windows ARM64 下 x64 仿真进程的实际命令／ConPTY／HTTP／MySQL 8.4.13 dev 验收。文件锁夹具、Windows 管道关闭、进程树和会话清理均已复验；Windows 严格全目标 Clippy、格式、三语构建和 12＋6 浏览器通过。9 份候选与 11 份来宾输入 SHA 一致，源基线 376d10884；同期 Passport WIP 不纳入本批。直接清理专属 targets／browser／dist／中转，VM 恢复 suspended，最终 68.702 GB；只核定本批 17 文件本地提交，不推送。V10 仍缺真实 Windows Docker 后端；硬件与最终主线矩阵继续按发布门禁验收。
+
+
+2026-11-20 Passport-03 [授权码与 PKCE](audits/passport-03/README.md)实现及验收完成：实际浏览器授权／同意／拒绝、Session／CSRF、公开及机密客户端兑换、PKCE、state、回调绑定、一次性授权码与 RS256 令牌已闭合。70 个定向测试、MySQL 8.4.13、1369 条固定 PHP／League URI 对照及重复／源码负样本、根 HTTP／Artisan／关停、Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、三语构建和 12＋6 浏览器通过。33 份输入与隔离 ef430b465 副本 SHA 一致，保留同期协作者改动。专属 source／target 已直接清理，df 增量 6.345 GB，清理后 Available 63.966 GB；本批固定 PHP 镜像已无引用并移除，源码覆盖包／日志、共享缓存及全部数据库容器／卷保留。按授权核范围本地提交，不推送。V06 保持部分验收，继续 Passport-04 令牌生命周期与资源 Guard；刷新兑换／设备／PAT／其他 grant／安装共存尚未交付，不称完整发布。

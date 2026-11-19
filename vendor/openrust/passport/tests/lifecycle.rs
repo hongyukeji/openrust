@@ -51,12 +51,16 @@ impl Drop for Root {
 fn configuration(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     Ok(BTreeMap::from([
         (
+            "cache".into(),
+            json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+        ),
+        (
             "app".into(),
-            json!({"env":"testing","host":"127.0.0.1","port":0}),
+            json!({"env":"testing","host":"127.0.0.1","port":0,"key":"k".repeat(32)}),
         ),
         (
             "passport".into(),
-            json!({"guard":"staff","middleware":["custom"]}),
+            json!({"guard":"staff","middleware":["custom"],"path":"nested/oauth"}),
         ),
     ]))
 }
@@ -326,11 +330,30 @@ fn probe(
         ))
     })
 }
+struct CustomMiddleware;
+impl openrust::contracts::http::Middleware for CustomMiddleware {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut openrust::http::Request,
+        next: openrust::http::Next<'a>,
+    ) -> openrust::http::HttpFuture<'a, Result<openrust::http::Response, openrust::http::HttpError>>
+    {
+        Box::pin(async move {
+            Ok(next.run(request).await.header(
+                axum::http::HeaderName::from_static("x-passport-custom"),
+                axum::http::HeaderValue::from_static("ran"),
+            ))
+        })
+    }
+}
 async fn serve(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root.0.clone())
         .withConfig(configuration)
         .withProviders(vec![Box::new(PassportServiceProvider)])
         .withRouting(openrust::foundation::configuration::Routing::new(routes))
+        .withMiddleware(|middleware| {
+            middleware.alias("custom", std::sync::Arc::new(CustomMiddleware));
+        })
         .withExceptions(|exceptions| {
             exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
         })
@@ -392,14 +415,16 @@ async fn real_http_key_resolution_errors_recovery_and_two_applications_are_isola
             .contains("text/html")
     );
     for address in [first.0, second.0] {
+        let response = client
+            .post(format!("http://{address}/nested/oauth/token"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 400, "{}", response.text().await.unwrap());
+        assert_eq!(response.headers()["x-passport-custom"], "ran");
         assert_eq!(
-            client
-                .post(format!("http://{address}/oauth/token"))
-                .send()
-                .await
-                .unwrap()
-                .status(),
-            404
+            response.json::<serde_json::Value>().await.unwrap()["error"],
+            "unsupported_grant_type"
         );
     }
     let mut other = b.console();

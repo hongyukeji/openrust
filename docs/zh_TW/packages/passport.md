@@ -2,7 +2,7 @@
 
 ## 安裝 {#installation}
 
-已提供 Passport 的設定、金鑰生命週期與五張 OAuth 表的遷移發布。OAuth 端點與權杖 Guard 按後續 Passport 單元交付，目前尚無 `install:api --passport`。既有 Sanctum 安裝維持獨立。
+已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖 Guard、重新整理兌換及其他 grant 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
 
 目前應用程式預留了可選的 `passport` Cargo feature。將它加入 Cargo 預設 features，讓 `./artisan` 與一般建置持續啟用套件，並保留原有其他預設項目：
 
@@ -11,7 +11,7 @@
 default = ["passport"]
 ```
 
-套件探索會註冊 `openrust_passport::PassportServiceProvider`。沒有套件探索的應用程式可用 `withProviders` 明確註冊。啟用 Provider 不會建立資料表、產生金鑰或開放占位 OAuth 路由。
+套件探索會註冊 `openrust_passport::PassportServiceProvider`。沒有套件探索的應用程式可用 `withProviders` 明確註冊。啟用 Provider 會註冊已實作的 OAuth 路由。使用前須發布執行遷移、設定應用金鑰與同意檢視，並產生 RSA 金鑰。
 
 ## 部署 Passport {#deploying-passport}
 
@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理用戶端 {#managing-clients}
 
-用戶端儲存庫支援查詢、建立、更新、秘密輪替、擁有權篩選和撤銷，操作真實 Eloquent 模型。`passport:client` 可建立六類用戶端。OAuth 端點和權杖驗證仍待完成。
+用戶端儲存庫支援查詢、建立、更新、秘密輪替、擁有權篩選和撤銷，操作真實 Eloquent 模型。`passport:client` 可建立六類用戶端。授權碼端點已提供；資源權杖驗證仍待完成。
 
 在請求或 Artisan 生命週期內解析 `ClientRepository`，容器為每個生命週期提供新儲存庫。同一參數的重複 `find` 共用實際模型，並快取未命中；資料庫錯誤向上傳遞，允許重試。`findActive` 還檢查目前模型的 `revoked` 屬性。不要把此作用域服務保存在應用單例中。顯式管理的操作可透過 `Passport::clientRepository()` 建立獨立擁有快取的儲存庫。
 
@@ -110,7 +110,7 @@ pub async fn create_client(
 
 `make().await?` 回傳未儲存模型，`create().await?` 持久化模型。賦值執行模型的非同步修改器和轉換：新 Client 保留 `plainSecret`，重新讀取資料庫只包含雜湊。`state` 新增應用程式屬性；`intoFactory()` 回傳現有 Eloquent 工廠 Builder，以使用數量、關係與回呼。
 
-Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。協定端點與其餘 Client 關係仍待完成。
+Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。目前僅提供授權碼協定。
 
 ## 用戶端命令與撤銷
 
@@ -141,3 +141,55 @@ let json = scope.toJsonWithOptions(
     ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
 )?;
 ```
+
+## 授權碼授權 {#authorization-code-grant}
+
+Provider 註冊 GET、POST、DELETE `/oauth/authorize`，使用 `web` 中介層及 Session 鎖；POST `/oauth/token` 使用限流。`passport.path` 修改預設 `oauth` 前綴，`passport.middleware` 為這些路由新增中介層。在套件啟動前呼叫 `passport.ignoreRoutes()` 可自行註冊路由。瀏覽器驗證使用 `passport.guard`，預設為 `web`；設定應用本身的登入路由與 SessionGuard 使用者提供者，並先發布執行遷移、設定 `APP_KEY`、產生 RSA 金鑰。
+
+在應用裝配時解析 `Passport`，呼叫 `passport.tokensCan(BTreeMap::from([("read".to_owned(), "Read data".to_owned())]))` 註冊 scope，依需要呼叫 `passport.setDefaultScope(vec!["read".to_owned()])`，並設定 `passport.authorizationView(consent)`。這些設定屬於目前應用。以下回呼為應用介面回傳同意資料；介面負責顯示用戶端、權限與批准／拒絕控制項：
+
+```rust
+use openrust::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+use openrust::contracts::session::Session as _;
+use openrust_passport::http::AuthorizationViewParameters;
+
+pub fn consent(request: &mut Request, params: AuthorizationViewParameters)
+    -> HttpFuture<'_, Result<Response, HttpError>>
+{
+    Box::pin(async move {
+        Response::json(StatusCode::OK, serde_json::json!({
+            "auth_token": params.auth_token,
+            "csrf": request.session()?.token(),
+            "user": params.user.get_auth_identifier(),
+            "scopes": params.scopes,
+        }))
+    })
+}
+```
+
+批准時向 POST `/oauth/authorize` 提交 `auth_token` 和 Session CSRF `_token`；拒絕使用 DELETE。瀏覽器必須保留 Session Cookie。伺服器一次性取出已儲存的請求與隨機權杖，並核對目前驗證主體；表單中的用戶端、回呼和 scope 不能替換它們。批准前重新核對目前用戶端和註冊位址；拒絕會向已驗證位址回傳 `error=access_denied` 與原始 `state`。
+
+用戶端必須產生不可預測的新 `state`，回呼時先核對它，再接受授權碼或錯誤。機密用戶端兌換時使用 HTTP Basic，或在本文提交 `client_id`、`client_secret`；本文憑證優先，查詢字串不提供兌換參數。成功回應包含 `token_type`、`expires_in`、`access_token`，允許重新整理的用戶端也取得 `refresh_token`，並帶 `Cache-Control: no-store`、`Pragma: no-cache`。存取權杖使用 RS256。授權碼十分鐘後到期，消費與權杖儲存屬於同一交易，並行兌換只有一個成功。目前存取／重新整理期限為十二個日曆月；重新整理兌換和期限自訂在下一生命週期單元交付。
+
+`prompt=none` 在需要互動時回傳帶 `login_required` 或 `consent_required` 的重新導向。已有未撤銷、未到期授權可略過已授予權限的同意頁；`prompt=consent` 重新請求同意，`prompt=login` 請求重新登入。無效用戶端和未註冊回呼在本機失敗，不回傳不可信 Location。OAuth 錯誤保留協定欄位與狀態碼。
+
+## 使用 PKCE 的授權碼授權 {#code-grant-pkce}
+
+用 `passport:client --public` 建立公開用戶端，必須提交 challenge；機密用戶端也可使用 PKCE。每次產生由字母、數字與 `-._~` 組成的 43–128 字元 verifier，計算 SHA-256 後作無填補 base64url 編碼，使用 `S256`：
+
+```text
+GET /oauth/authorize?response_type=code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&scope=read&state=RANDOM_STATE&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256
+```
+
+批准後，用原 verifier 和授權時提供的完全相同的回呼位址兌換：
+
+```text
+POST /oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id=CLIENT_ID&redirect_uri=https%3A%2F%2Fclient.test%2Fcb&code=AUTHORIZATION_CODE&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+```
+
+這些是固定範例值，實際授權必須每次重新產生。缺失／錯誤 verifier、竄改回呼、到期與重播均拒絕簽發。授權階段允許已註冊 HTTP loopback 回呼改變連接埠；兌換階段綁定原來提供的精確字串。
+
+Rust 在 Session 儲存已驗證的原生請求，透過編譯回呼提供檢視，不使用 PHP 物件序列化。授權碼與重新整理權杖使用應用現有認證加密並綁定應用上下文，內部密文格式不與 PHP 互通。用戶端／授權碼鎖與單個資料庫交易保證消費及存取／重新整理儲存原子完成。自訂權杖模型沿用實際連線、Eloquent cast 與事件；儲存被取消或資料庫失敗都會回滾簽發。本單元尚不提供資源 Guard、重新整理兌換、裝置授權、其他 grant 與統一 API 安裝器。

@@ -1,0 +1,14 @@
+{
+  "composer.json": "a6fd8c4cca6e2deedf335e4d8c85357524db30a636582dea42fe6fdad632e705",
+  "routes/web.php": "e3e7c2fb8853eb2760ebab5606942a59349bfc8c18fc738478c08777861aa8db",
+  "src/Http/Controllers/AuthorizationController.php": "c85ffe0b50ec98b9653b0fd0c7c03578a725f24e086e44dab36ad6b8bd3d3408",
+  "src/Http/Controllers/ApproveAuthorizationController.php": "11d81734eff1de1e972afbe29ee8d903dd73312632d710a49b472cd0d3173382",
+  "src/Http/Controllers/DenyAuthorizationController.php": "ee9719309c6dacf1089b9d14f542d9c73dfe5255ef331524431b96b6006f3dd7",
+  "src/Http/Controllers/AccessTokenController.php": "0dcded8453ccd1ed3a2898ac885d275c8db338613f5f3c45146373a4e7fcf759",
+  "src/Bridge/AuthCodeRepository.php": "2a85a3c1a3f0798fd2976cab435f8bdda9104f01cd037483bbb4bd87e93750b7",
+  "src/Bridge/AccessTokenRepository.php": "a3e6cf95dc6c7caa38a636d192f82aabc99fadb94155678c8a80f2029c5b2eac",
+  "src/PassportServiceProvider.php": "b5085ac5a6044cd0ec6deee52653fb399c88cfef0091a4c0dc01a16971572d77",
+  "src/Passport.php": "10e8efa4ba67b760ea949f17b9aad208e04c9894788430eeb7eae2728b7ac190",
+  "src/Http/Responses/SimpleViewResponse.php": "22946ae6a5ed6c7e495d19d7a9f3b7637ca42cd14ca4a33d42938099142b21a0",
+  "src/Http/Controllers/RetrievesAuthRequestFromSession.php": "ed5d0a162a1c51caa29eb9c2fd8aa0357dcda83e17860a106492d2ebba8565bd"
+}
