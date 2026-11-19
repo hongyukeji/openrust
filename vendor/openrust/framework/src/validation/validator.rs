@@ -166,6 +166,11 @@ impl Validator {
             {
                 Some("boolean")
             }
+            (Kind::Email, Some(value))
+                if !value.as_str().is_some_and(super::rules::Email::passes) =>
+            {
+                Some("email")
+            }
             (Kind::Array, Some(value)) if !value.is_array() && !value.is_object() => Some("array"),
             (Kind::Dimensions(rule), Some(_)) => (!rule.passes(file)?).then_some("dimensions"),
             (Kind::Base64, Some(value)) if !value.as_str().is_some_and(canonical_base64) => {

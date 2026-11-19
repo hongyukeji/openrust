@@ -1,0 +1,10 @@
+{
+  "deleted": "/private/tmp/openrust-email-validation-20261120/target",
+  "owned_inactive_rebuildable": true,
+  "target_kib": 6103628,
+  "before_available_kib": 70916280,
+  "after_available_kib": 76768564,
+  "released_available_kib": 5852284,
+  "docker_volumes_preserved": true,
+  "source_and_logs_preserved": true
+}

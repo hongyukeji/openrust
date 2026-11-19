@@ -1,0 +1,15 @@
+{
+  "baseline": "2383fdbda8df68151f142c738deca31f5ae20735",
+  "snapshot": "/private/tmp/openrust-email-validation-20261120/source",
+  "files": {
+    "Cargo.lock": "f36a5ecc0fbaa5faf6f75da085c79d5038f325eefa43fe303e2f344b0cf8ab1c",
+    "vendor/openrust/framework/Cargo.toml": "07fd30088ae66ccd342d1a7b0229fd516ff1fd38c48a87759fde52ca5637f23f",
+    "vendor/openrust/framework/src/validation/rule.rs": "fbcd591265ce0021e2a918800bcf626a4f1d3427ddd37354ea19046d3e97351d",
+    "vendor/openrust/framework/src/validation/rules/email.rs": "fcfce6d0000db364ee69f3b034ae629d6da2174daa3b41ceafe7b85e71231296",
+    "vendor/openrust/framework/src/validation/rules/email/rfc.rs": "429eff4e999cb9817cb34f42266c531f8d1f45dc01e642262c6774c6931c2e4f",
+    "vendor/openrust/framework/src/validation/validator.rs": "2b5795b529f9aeceba376afc4d89098204311eb3a910df2d0d6a429443247f5d",
+    "vendor/openrust/framework/tests/validation_email.rs": "0ae8b923a571ff44b8e7d571435df50ba2386d2b9d8cfae6a086c22fccc9bd04",
+    ".agents/project/audits/api-f01/fixtures/email_rule.json": "22a0bcfedc8823dd50c01f42a1ed7079bdec2e4a67ee0ffa9018aa9e6e538482",
+    "vendor/openrust/framework/src/validation/rules/email/LICENSE.egulias": "2e56ccade3e89c00da1b1bb33f24faaed6704605e339b44f52b8c31ef9f04b82"
+  }
+}

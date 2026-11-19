@@ -22,6 +22,7 @@ pub(super) enum Kind {
     Integer,
     Boolean,
     Base64,
+    Email,
     Array,
     Min(usize),
     Max(usize),
@@ -63,6 +64,9 @@ impl Rule {
     pub fn base64() -> Self {
         Self(Kind::Base64)
     }
+    pub fn email() -> Self {
+        Self(Kind::Email)
+    }
     pub fn array() -> Self {
         Self(Kind::Array)
     }
@@ -97,6 +101,7 @@ impl Rule {
             "integer" => Self::integer(),
             "boolean" => Self::boolean(),
             "base64" => Self::base64(),
+            "email" | "email:rfc" => Self::email(),
             "array" => Self::array(),
             "file" => File::default().into(),
             "image" => File::image(false).into(),

@@ -3742,3 +3742,5 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## Passport-09 定制与共存整合
 
 2026-11-20 Passport-09 [定制与共存整合](audits/passport-09/README.md)实现及本机验收完成：五类实际Eloquent模型、授权码／设备注册、观察者／事务／清理、自定义路由与UserProvider、多应用隔离，以及生成应用Passport／Sanctum双Guard／独立撤销两前缀通过。Rust1.94、MySQL8.4.13，共131个不同函数及3项显式Chromium；严格三feature workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭与三语26章节、12＋6浏览器通过。17份输入与隔离221cc174e一致，保留同期Fortify／验证器等改动；固定源码SHA及成功生成应用包保留，专属产物归属清理。Passport-01–09本机计划范围闭合，Windows08重建与发布整合仍待，V06维持部分验收；继续API-S01及其后前置单元。本地提交，不推送。
+
+- 2026-11-20 API-F01 默认 email 前置依赖：9381组固定原PHP／Rust一致，3新增函数及验证／Fortify回归、严格Clippy／格式、根HTTP／Pail／Artisan通过；专属产物清理与9输入SHA见[审核](audits/api-f01/email-rule.md)。密码重置HTTP在途，继续开发；核范围本地提交，不推送。
