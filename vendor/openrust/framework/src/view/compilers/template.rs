@@ -20,6 +20,7 @@ mod html;
 mod includes;
 mod javascript;
 mod loops;
+mod preparation;
 
 use attributes::{
     AttributeChain, ComponentQuery, Props, apply_aware, apply_props, array_entries, attribute_name,
@@ -187,7 +188,8 @@ impl Template {
         identity: &str,
         extensions: &BladeExtensions,
     ) -> ViewResult<Self> {
-        let mut parser = Parser::new(source, identity, extensions);
+        let prepared = preparation::PreparedSource::new(source);
+        let mut parser = Parser::new(&prepared.text, identity, extensions, &prepared.raw);
         let mut declarations = Vec::new();
         let mut whitespace = String::new();
         loop {
@@ -195,9 +197,9 @@ impl Template {
             let trimmed = original.trim_start();
             parser.remaining = trimmed;
             if parser.directive("props") {
-                declarations.push(Declaration::Props(parse_props(parser.arguments()?)?));
+                declarations.push(Declaration::Props(parse_props(&parser.arguments()?)?));
             } else if parser.directive("aware") {
-                declarations.push(Declaration::Aware(parse_props(parser.arguments()?)?));
+                declarations.push(Declaration::Aware(parse_props(&parser.arguments()?)?));
             } else if parser.directive("inject") {
                 let (variable, service) = parser.named_argument()?;
                 let Expression::Value(ViewValue::String(variable)) = variable else {
@@ -212,8 +214,6 @@ impl Template {
                         invalid("Blade @inject requires a registered service name.")
                     })?,
                 ));
-            } else if trimmed.starts_with("{{--") {
-                parser.delimited(4, "--}}")?;
             } else {
                 parser.remaining = original;
                 break;
@@ -311,8 +311,7 @@ enum Stop<'a> {
 struct Parser<'a> {
     source: &'a str,
     arguments_available: bool,
-    raw_ends: Vec<usize>,
-    comment_spans: Vec<(usize, usize)>,
+    raw: &'a [String],
     remaining: &'a str,
     identity: &'a str,
     extensions: &'a BladeExtensions,
@@ -321,12 +320,16 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(source: &'a str, identity: &'a str, extensions: &'a BladeExtensions) -> Self {
+    fn new(
+        source: &'a str,
+        identity: &'a str,
+        extensions: &'a BladeExtensions,
+        raw: &'a [String],
+    ) -> Self {
         Self {
             source,
             arguments_available: false,
-            raw_ends: Vec::new(),
-            comment_spans: Vec::new(),
+            raw,
             remaining: source,
             identity,
             extensions,
@@ -375,7 +378,9 @@ impl<'a> Parser<'a> {
             } else if self.remaining.starts_with("<x-") {
                 push_text(&mut nodes, &mut text);
                 nodes.push(self.component(depth)?);
-            } else if self.remaining.starts_with("@{{") || self.remaining.starts_with("@{!!") {
+            } else if (self.remaining.starts_with("@{{") && self.remaining[3..].contains("}}"))
+                || (self.remaining.starts_with("@{!!") && self.remaining[4..].contains("!!}"))
+            {
                 self.remaining = &self.remaining[1..];
                 let end = if self.remaining.starts_with("{{") {
                     "}}"
@@ -399,9 +404,9 @@ impl<'a> Parser<'a> {
             {
                 text.push('@');
                 self.remaining = &self.remaining[2..];
-            } else if self.remaining.starts_with("{{--") {
-                self.delimited(4, "--}}")?;
-            } else if self.remaining.starts_with("{{") || self.remaining.starts_with("{!!") {
+            } else if (self.remaining.starts_with("{{") && self.remaining[2..].contains("}}"))
+                || (self.remaining.starts_with("{!!") && self.remaining[3..].contains("!!}"))
+            {
                 push_text(&mut nodes, &mut text);
                 let escaped = self.remaining.starts_with("{{");
                 let expression = if escaped {
@@ -409,15 +414,14 @@ impl<'a> Parser<'a> {
                 } else {
                     self.delimited(3, "!!}")?
                 };
-                nodes.push(parse_echo(expression, escaped)?);
-            } else if self.remaining.starts_with("@verbatim")
-                && self.source.as_bytes()[..self.source.len() - self.remaining.len()]
-                    .last()
-                    .is_none_or(|b| *b != b'@')
+                nodes.push(parse_echo(&expression, escaped)?);
+            } else if let Some(rest) = self.remaining.strip_prefix("@__raw_block_")
+                && let Some((index, tail)) = rest.split_once("__@")
+                && let Ok(index) = index.parse::<usize>()
+                && let Some(raw) = self.raw.get(index)
             {
-                self.remaining = &self.remaining[9..];
-                text.push_str(self.delimited(0, "@endverbatim")?);
-                self.raw_ends.push(self.source.len() - self.remaining.len());
+                text.push_str(raw);
+                self.remaining = tail;
             } else if let Some(stop) = self.stop() {
                 push_text(&mut nodes, &mut text);
                 return Ok((nodes, Some(stop)));
@@ -527,13 +531,13 @@ impl<'a> Parser<'a> {
                 .into_iter()
                 .find(|name| self.directive(name))
             {
-                let expression = expression_value(self.arguments()?)?;
+                let expression = expression_value(&self.arguments()?)?;
                 attributes.push(TagAttribute::Css(expression, style == "style"));
                 continue;
             }
             if self.remaining.starts_with("{{") {
                 let source = self.delimited(2, "}}")?;
-                attributes.push(TagAttribute::Forward(parse_forwarded_bag(source)?));
+                attributes.push(TagAttribute::Forward(parse_forwarded_bag(&source)?));
                 continue;
             }
             let end = self
@@ -574,9 +578,9 @@ impl<'a> Parser<'a> {
                 };
                 let content = self.delimited(1, delimiter)?;
                 if bound {
-                    expression_value(content)?
+                    expression_value(&content)?
                 } else {
-                    Expression::Value(content.into())
+                    Expression::Value(content.into_owned().into())
                 }
             } else if bound {
                 return Err(invalid("A bound Blade attribute requires a value."));
@@ -597,25 +601,25 @@ impl<'a> Parser<'a> {
         } else if self.directive("parent") {
             Node::Parent
         } else if self.directive("extends") {
-            Node::Extends(Include::parse(self.arguments()?)?)
+            Node::Extends(Include::parse(&self.arguments()?)?)
         } else if self.directive("extendsFirst") {
-            Node::ExtendsFirst(IncludeFirst::parse(self.arguments()?)?)
+            Node::ExtendsFirst(IncludeFirst::parse(&self.arguments()?)?)
         } else if self.directive("include") {
-            Node::Include(Include::parse(self.arguments()?)?, false)
+            Node::Include(Include::parse(&self.arguments()?)?, false)
         } else if self.directive("includeIf") {
-            Node::Include(Include::parse(self.arguments()?)?, true)
+            Node::Include(Include::parse(&self.arguments()?)?, true)
         } else if self.directive("includeWhen") {
             self.conditional_include(true)?
         } else if self.directive("includeUnless") {
             self.conditional_include(false)?
         } else if self.directive("includeFirst") {
-            Node::IncludeFirst(IncludeFirst::parse(self.arguments()?)?)
+            Node::IncludeFirst(IncludeFirst::parse(&self.arguments()?)?)
         } else if self.directive("includeIsolated") {
-            Node::IncludeIsolated(Include::parse(self.arguments()?)?)
+            Node::IncludeIsolated(Include::parse(&self.arguments()?)?)
         } else if self.directive("each") {
-            Node::RenderEach(RenderEach::parse(self.arguments()?)?)
+            Node::RenderEach(RenderEach::parse(&self.arguments()?)?)
         } else if self.directive("for") {
-            let mut counted = CountedLoop::parse(self.arguments()?)?;
+            let mut counted = CountedLoop::parse(&self.arguments()?)?;
             let (body, stop) = self.around_loop(depth)?;
             if stop != Some(Stop::EndFor) {
                 return Err(invalid("Expected @endfor."));
@@ -623,7 +627,7 @@ impl<'a> Parser<'a> {
             counted.body = body;
             Node::For(counted)
         } else if self.directive("while") {
-            let condition = expression_value(self.arguments()?)?;
+            let condition = expression_value(&self.arguments()?)?;
             let (body, stop) = self.around_loop(depth)?;
             if stop != Some(Stop::EndWhile) {
                 return Err(invalid("Expected @endwhile."));
@@ -636,16 +640,16 @@ impl<'a> Parser<'a> {
         } else if self.directive("switch") {
             self.switch_block(depth)?
         } else if self.directive("bool") {
-            Node::BooleanText(expression_value(self.arguments()?)?)
+            Node::BooleanText(expression_value(&self.arguments()?)?)
         } else if self.directive("js") {
-            Node::JavaScript(expression_value(self.arguments()?)?)
+            Node::JavaScript(expression_value(&self.arguments()?)?)
         } else if self.directive("fonts") {
             let arguments = if self.arguments_available {
                 self.arguments()?
             } else {
-                ""
+                Cow::Borrowed("")
             };
-            fonts::parse(arguments)?
+            fonts::parse(&arguments)?
         } else if self.directive("production") {
             self.environment_block(
                 depth,
@@ -653,7 +657,8 @@ impl<'a> Parser<'a> {
                 Stop::EndProduction,
             )?
         } else if self.directive("env") {
-            let arguments = self.arguments()?.trim();
+            let raw_arguments = self.arguments()?;
+            let arguments = raw_arguments.trim();
             let patterns = if arguments.starts_with('[') && arguments.ends_with(']') {
                 array_entries(arguments)?
                     .into_iter()
@@ -691,7 +696,7 @@ impl<'a> Parser<'a> {
             self.capture_stack(depth, true)?
         } else if self.directive("once") {
             let id = if self.arguments_available {
-                Some(expression_value(self.arguments()?)?)
+                Some(expression_value(&self.arguments()?)?)
             } else {
                 None
             };
@@ -704,7 +709,7 @@ impl<'a> Parser<'a> {
         } else if self.directive("csrf") {
             Node::Csrf
         } else if self.directive("method") {
-            Node::Method(expression_value(self.arguments()?)?)
+            Node::Method(expression_value(&self.arguments()?)?)
         } else if self.directive("error") {
             let (field, bag) = self.named_argument()?;
             let (body, stop) = self.block(depth + 1)?;
@@ -713,7 +718,7 @@ impl<'a> Parser<'a> {
             }
             Node::Error(field, bag, body)
         } else if self.directive("fragment") {
-            let name = expression_value(self.arguments()?)?;
+            let name = expression_value(&self.arguments()?)?;
             let (body, stop) = self.block(depth + 1)?;
             if stop != Some(Stop::EndFragment) {
                 return Err(invalid("Expected @endfragment."));
@@ -723,13 +728,13 @@ impl<'a> Parser<'a> {
             .into_iter()
             .find(|name| self.directive(name))
         {
-            Node::BooleanAttribute(name.to_owned(), expression_value(self.arguments()?)?)
+            Node::BooleanAttribute(name.to_owned(), expression_value(&self.arguments()?)?)
         } else if let Some(style) = ["class", "style"]
             .into_iter()
             .find(|name| self.directive(name))
         {
             let values = if self.arguments_available {
-                expression_value(self.arguments()?)?
+                expression_value(&self.arguments()?)?
             } else {
                 Expression::Value(ViewValue::Null)
             };
@@ -760,16 +765,9 @@ impl<'a> Parser<'a> {
     }
 
     fn statement_start(&self) -> bool {
-        let mut prefix = &self.source[..self.source.len() - self.remaining.len()];
-        // Comments disappear before Laravel scans statements, so they cannot split a word.
-        for (start, end) in self.comment_spans.iter().rev() {
-            if *end != prefix.len() {
-                break;
-            }
-            prefix = &self.source[..*start];
-        }
-        self.raw_ends.contains(&prefix.len())
-            || prefix.as_bytes().last().is_none_or(|b| !statement_word(*b))
+        self.source.as_bytes()[..self.source.len() - self.remaining.len()]
+            .last()
+            .is_none_or(|b| !statement_word(*b))
     }
 
     fn custom_tag(&self) -> Option<(&'a str, &'a str)> {
@@ -824,7 +822,7 @@ impl<'a> Parser<'a> {
 
     fn custom_arguments(&mut self) -> ViewResult<Vec<Expression>> {
         if self.arguments_available {
-            expression_arguments(self.arguments()?)
+            expression_arguments(&self.arguments()?)
         } else {
             Ok(Vec::new())
         }
@@ -853,7 +851,7 @@ impl<'a> Parser<'a> {
         kind: RequestValueKind,
         end: Stop<'a>,
     ) -> ViewResult<Node> {
-        let name = expression_value(self.arguments()?)?;
+        let name = expression_value(&self.arguments()?)?;
         let (body, stop) = self.block(depth + 1)?;
         if stop != Some(end) {
             return Err(invalid("Unclosed Blade session or context directive."));
@@ -865,7 +863,8 @@ impl<'a> Parser<'a> {
         let mut branches = Vec::new();
         let alternative = loop {
             let guard = if self.arguments_available {
-                let guard = self.arguments()?.trim();
+                let raw_arguments = self.arguments()?;
+                let guard = raw_arguments.trim();
                 (!guard.is_empty())
                     .then(|| expression_value(guard))
                     .transpose()?
@@ -899,7 +898,7 @@ impl<'a> Parser<'a> {
         let end = Stop::EndAuthorization(mode);
         let mut branches = Vec::new();
         let alternative = loop {
-            let mut branch = AuthorizationBranch::parse(mode, self.arguments()?)?;
+            let mut branch = AuthorizationBranch::parse(mode, &self.arguments()?)?;
             let (body, stop) = self.block(depth + 1)?;
             branch.body = body;
             branches.push(branch);
@@ -1022,7 +1021,7 @@ impl<'a> Parser<'a> {
 
     fn conditional_include(&mut self, when: bool) -> ViewResult<Node> {
         let args = self.arguments()?;
-        let separator = argument_separator(args)
+        let separator = argument_separator(&args)
             .ok_or_else(|| invalid("Conditional Blade include requires a view name."))?;
         let condition = expression_value(&args[..separator])?;
         let include = Include::parse(&args[separator + 1..])?;
@@ -1031,12 +1030,12 @@ impl<'a> Parser<'a> {
 
     fn named_argument(&mut self) -> ViewResult<(Expression, Option<Expression>)> {
         let arguments = self.arguments()?;
-        if let Some(index) = argument_separator(arguments) {
+        if let Some(index) = argument_separator(&arguments) {
             let name = expression_value(&arguments[..index])?;
             let value = expression_value(&arguments[index + 1..])?;
             Ok((name, Some(value)))
         } else {
-            Ok((expression_value(arguments)?, None))
+            Ok((expression_value(&arguments)?, None))
         }
     }
 
@@ -1051,10 +1050,10 @@ impl<'a> Parser<'a> {
             ConditionalValue::Section(name, default)
         } else {
             let arguments = self.arguments()?;
-            if let Some(query) = parse_component_query(arguments)? {
+            if let Some(query) = parse_component_query(&arguments)? {
                 ConditionalValue::Component(query)
             } else {
-                ConditionalValue::Expression(expression_value(arguments)?)
+                ConditionalValue::Expression(expression_value(&arguments)?)
             }
         };
         let (yes, stop) = self.block(depth + 1)?;
@@ -1094,7 +1093,8 @@ impl<'a> Parser<'a> {
     }
 
     fn loop_body(&mut self, depth: usize, foreach: bool) -> ViewResult<Node> {
-        let arguments = self.arguments()?.trim();
+        let raw_arguments = self.arguments()?;
+        let arguments = raw_arguments.trim();
         let separator = arguments
             .rmatch_indices("as")
             .find(|(index, _)| {
@@ -1139,7 +1139,8 @@ impl<'a> Parser<'a> {
 
     fn jump(&mut self, kind: JumpKind) -> ViewResult<Node> {
         let (levels, condition) = if self.arguments_available {
-            let expression = self.arguments()?.trim();
+            let raw_arguments = self.arguments()?;
+            let expression = raw_arguments.trim();
             match expression.parse::<i64>() {
                 Ok(levels) => (usize::try_from(levels.max(1)).unwrap_or(usize::MAX), None),
                 Err(_) => (1, Some(expression_value(expression)?)),
@@ -1154,7 +1155,7 @@ impl<'a> Parser<'a> {
     }
 
     fn switch_block(&mut self, depth: usize) -> ViewResult<Node> {
-        let value = expression_value(self.arguments()?)?;
+        let value = expression_value(&self.arguments()?)?;
         let (prefix, mut stop) = self.block(depth + 1)?;
         if prefix
             .iter()
@@ -1166,7 +1167,7 @@ impl<'a> Parser<'a> {
         let mut cases = Vec::new();
         loop {
             let case_value = match stop {
-                Some(Stop::Case) => Some(expression_value(self.arguments()?)?),
+                Some(Stop::Case) => Some(expression_value(&self.arguments()?)?),
                 Some(Stop::Default) if !seen_default => {
                     seen_default = true;
                     None
@@ -1366,7 +1367,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn arguments(&mut self) -> ViewResult<&'a str> {
+    fn arguments(&mut self) -> ViewResult<Cow<'a, str>> {
         if !self.arguments_available {
             return Err(invalid(
                 "Blade directive requires parentheses on the same line.",
@@ -1388,7 +1389,7 @@ impl<'a> Parser<'a> {
                 ')' if nested == 0 => {
                     self.remaining = &rest[index + 1..];
                     self.consume_close_newline();
-                    return Ok(&rest[..index]);
+                    return Ok(self.restore_raw(&rest[..index]));
                 }
                 ')' => nested -= 1,
                 _ => {}
@@ -1397,17 +1398,16 @@ impl<'a> Parser<'a> {
         Err(invalid("Unclosed Blade expression."))
     }
 
-    fn delimited(&mut self, prefix: usize, delimiter: &str) -> ViewResult<&'a str> {
-        let start = self.source.len() - self.remaining.len();
+    fn delimited(&mut self, prefix: usize, delimiter: &str) -> ViewResult<Cow<'a, str>> {
         let (value, rest) = self.remaining[prefix..]
             .split_once(delimiter)
             .ok_or_else(|| invalid("Unclosed Blade expression."))?;
         self.remaining = rest;
-        if prefix == 4 && delimiter == "--}}" {
-            self.comment_spans
-                .push((start, self.source.len() - rest.len()));
-        }
-        Ok(value)
+        Ok(self.restore_raw(value))
+    }
+
+    fn restore_raw(&self, value: &'a str) -> Cow<'a, str> {
+        preparation::restore_raw(value, self.raw)
     }
 }
 

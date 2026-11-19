@@ -77,6 +77,19 @@ Put a directive's opening parenthesis on the same line, allowing spaces or tabs 
 
 Blade reproduces PHP closing-tag behavior: a generated operation consumes one immediately following LF, CRLF or CR. A space or tab before that newline preserves it. Escaped and raw echo expressions preserve their following newline. Each compiled view removes leading PHP whitespace bytes (space, tab, LF, CR, vertical tab and NUL); form feed and non-breaking space remain. Plain `.html` views preserve their original content. Older compiled artifacts are invalidated automatically.
 
+### Comments and Verbatim Compilation {#source-preparation}
+
+Blade protects complete `@verbatim` blocks before removing <code v-pre>{{-- ... --}}</code> comments from the entire source. Comments disappear even inside quoted expressions, directive names and arguments, or component attributes. They can join tokens; they do not act as whitespace.
+
+```html
+@i{{-- note --}}f (true)
+    {{ 'a{{-- note --}}b' }}
+    {{ 1 {{-- note --}} + 2 }}
+@endif
+```
+
+The echoes produce `ab` and `3`. Inside an original verbatim block, comments, echoes and component tags remain literal. Removing a comment cannot create a newly protected verbatim block. Leading whitespace after `@verbatim` still follows the closing-tag newline rules above. Incomplete comments, echoes and verbatim markers stay as text when no complete delimiter pair exists. Verbatim content inside quoted expressions is restored before evaluating and escaping the expression. Compiled artifacts are regenerated automatically; no PHP runtime is required.
+
 ### Authentication Directives {#authentication-directives}
 
 Use `@auth` and `@guest` in HTTP views to check the configured guard. Pass a guard name to select a different one. `@elseauth` and `@elseguest` add branches to the same block.

@@ -99,7 +99,7 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
     let root = Root::new();
     let factory = root.factory();
     let path = root.0.join("resources/views/cache.blade.html");
-    fs::write(&path, "@IF(true)\n<b>cache</b>@ENDIF\n").unwrap();
+    fs::write(&path, "@i{{-- cache --}}f(true)\n<b>cache</b>@ENDIF\n").unwrap();
     assert_eq!(
         factory.render("cache", &ViewData::new()).unwrap(),
         "<b>cache</b>"
@@ -110,8 +110,8 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 31);
-    contents["compiler_version"] = json!(30);
+    assert_eq!(contents["compiler_version"], 32);
+    contents["compiler_version"] = json!(31);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(

@@ -921,11 +921,342 @@
             "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_141.blade.php)"
         },
         {
+            "template": "@if{{-- c --}}(true)<b>A</b>@endif",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "@i{{-- c --}}f(true)<b>A</b>@endif",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "@if(true)<b>A</b>@end{{-- c --}}if",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "{{ 1 {{-- c --}} + 2 }}",
+            "data": {},
+            "group": "preprocessing",
+            "output": "3"
+        },
+        {
+            "template": "{!! 1 {{-- c --}} + 2 !!}",
+            "data": {},
+            "group": "preprocessing",
+            "output": "3"
+        },
+        {
+            "template": "{{ 'a{{-- c --}}b' }}",
+            "data": {},
+            "group": "preprocessing",
+            "output": "ab"
+        },
+        {
+            "template": "{{ '{{-- missing --}}' }}",
+            "data": {},
+            "group": "preprocessing",
+            "output": ""
+        },
+        {
+            "template": "@if('x{{-- c --}}y' == 'xy')<b>A</b>@endif",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "a{{-- c --}}@if(true)<b>A</b>@endif",
+            "data": {},
+            "group": "preprocessing",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "syntax error, unexpected token \"endif\", expecting end of file (View: <oracle>/views/case_150.blade.php)"
+        },
+        {
+            "template": "@verbatim{{ 1/0 }}{{-- keep --}}<x-missing />@endverbatim",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{{ 1/0 }}{{-- keep --}}<x-missing />"
+        },
+        {
+            "template": "@verbatim@if(false)<b>A</b>@endif@endverbatim",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@if(false)<b>A</b>@endif"
+        },
+        {
+            "template": "word@verbatim{{ 1/0 }}@endverbatim@if(true)<b>A</b>@endif",
+            "data": {},
+            "group": "preprocessing",
+            "output": "word{{ 1/0 }}<b>A</b>"
+        },
+        {
+            "template": "{{-- @verbatim {{-- keep --}} @endverbatim --}}<b>A</b>",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "@ver{{-- c --}}batim<b>A</b>@endverbatim",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@verbatim<b>A</b>@endverbatim"
+        },
+        {
+            "template": "@verbatim{{-- keep --}}@endverbatim{{-- gone --}}<b>A</b>",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{{-- keep --}}<b>A</b>"
+        },
+        {
+            "template": "@@verbatim{{-- gone --}}@@endverbatim",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@verbatim@@endverbatim"
+        },
+        {
+            "template": "@verbatim incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@verbatim incomplete"
+        },
+        {
+            "template": "{{-- incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{{-- incomplete"
+        },
+        {
+            "template": "{{ incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{{ incomplete"
+        },
+        {
+            "template": "{!! incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{!! incomplete"
+        },
+        {
+            "template": "@{{ incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@{{ incomplete"
+        },
+        {
+            "template": "@{!! incomplete",
+            "data": {},
+            "group": "preprocessing",
+            "output": "@{!! incomplete"
+        },
+        {
+            "template": "<x-num :value=\"1 {{-- c --}} + 2\" />",
+            "data": {},
+            "group": "preprocessing",
+            "output": "3"
+        },
+        {
+            "template": "@include{{-- c --}}('part', ['value' => 7])",
+            "data": {},
+            "group": "preprocessing",
+            "output": "7"
+        },
+        {
+            "template": "@tag{{-- c --}}",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<tag>"
+        },
+        {
+            "template": "@active{{-- c --}}(true)<b>A</b>@endactive",
+            "data": {},
+            "group": "preprocessing",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "{{ '{{--x--}}{{--y--}}' }}",
+            "data": {},
+            "group": "preprocessing",
+            "output": ""
+        },
+        {
+            "template": "@verbatimA@endverbatim@verbatimB@endverbatim",
+            "data": {},
+            "group": "preprocessing",
+            "output": "AB"
+        },
+        {
+            "template": "@verbatim{{-- @endverbatim --}}<b>A</b>",
+            "data": {},
+            "group": "preprocessing",
+            "output": "{{--  --}}<b>A</b>"
+        },
+        {
+            "template": "{{ 1 + {{-- nested {{-- --}} 2 }}",
+            "data": {},
+            "group": "preprocessing",
+            "output": "3"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim {{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s> {{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim {{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s> {{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\t{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\t{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\t{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\t{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\n{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\n{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\n{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\r\n{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\r\n{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\r\n{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\r{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\r{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\r{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\u000b{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\u000b{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\u000b{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\u000b{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim\f{{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\f{{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim\f{{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s>\f{{ x }}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@if(true)@verbatim {{ 1/0 }}{{-- keep --}}@endverbatim<b>B</b>@endif",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s> {{ 1/0 }}{{-- keep --}}<b>B</b>"
+        },
+        {
+            "template": "<s>A</s>@verbatim {{ x }}@endverbatim<b>B</b>",
+            "data": {},
+            "group": "raw-leading",
+            "output": "<s>A</s> {{ x }}<b>B</b>"
+        },
+        {
+            "template": "{{ '@verbatim<b>A</b>@endverbatim' }}",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "&lt;b&gt;A&lt;/b&gt;"
+        },
+        {
+            "template": "{!! '@verbatim<b>A</b>@endverbatim' !!}",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "@if('@verbatimA@endverbatim' == 'A')<b>A</b>@endif",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "<b>A</b>"
+        },
+        {
+            "template": "<x-num :value=\"'@verbatim7@endverbatim'\" />",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "7"
+        },
+        {
+            "template": "<x-num value=\"@verbatim7@endverbatim\" />",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "7"
+        },
+        {
+            "template": "@{{ '@verbatimA@endverbatim' }}",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "{{ 'A' }}"
+        },
+        {
+            "template": "@include('part', ['value' => '@verbatimA@endverbatim'])",
+            "data": {},
+            "group": "raw-expressions",
+            "output": "A"
+        },
+        {
             "template": "{{ 1/0 }}",
             "data": {},
             "group": "errors",
             "error": "Illuminate\\View\\ViewException",
-            "message": "Division by zero (View: <oracle>/views/case_142.blade.php)"
+            "message": "Division by zero (View: <oracle>/views/case_197.blade.php)"
         }
     ]
 }

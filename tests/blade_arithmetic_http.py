@@ -45,6 +45,12 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   for source,expected in [
    ('<s>A</s>@if(true)\n<b>B</b>@endif\nC','<s>A</s><b>B</b>C'),
    ('中@if(true)<b>B</b>@endif','中<b>B</b>'),
+   ('@i{{-- c --}}f(true)<b>A</b>@end{{-- c --}}if','<b>A</b>'),
+   ("{{ 'a{{-- c --}}b' }}|{{ 1 {{-- c --}} + 2 }}",'ab|3'),
+   ('@verbatim{{ 1/0 }}{{-- keep --}}<x-missing />@endverbatim','{{ 1/0 }}{{-- keep --}}<x-missing />'),
+   ('@ver{{-- c --}}batim<b>A</b>@endverbatim','@verbatim<b>A</b>@endverbatim'),
+   ("{{ '@verbatim<b>A</b>@endverbatim' }}",'&lt;b&gt;A&lt;/b&gt;'),
+   ('{{-- incomplete','{{-- incomplete'),
    ('<b>p</b>{{-- {{-- nested --}}@if(true)<i>A</i>@endif','<b>p</b><i>A</i>'),
    ('@IF(true)<b>B</b>@ENDIF','<b>B</b>'),
    ('@@ @@unknown @if::custom(true)','@@ @unknown @if::custom(true)'),
