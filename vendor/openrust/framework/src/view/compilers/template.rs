@@ -591,7 +591,11 @@ impl<'a> Parser<'a> {
     }
 
     fn view_directive(&mut self, depth: usize) -> ViewResult<Option<Node>> {
-        let node = if self.directive("props") {
+        let node = if self.directive("php") || self.directive("endphp") || self.directive("use") {
+            return Err(invalid(
+                "PHP statements and imports must be implemented in application Rust code.",
+            ));
+        } else if self.directive("props") {
             return Err(invalid("Place @props at the start of the Blade template."));
         } else if self.directive("aware") {
             return Err(invalid("Place @aware at the start of the Blade template."));

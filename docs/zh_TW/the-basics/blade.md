@@ -209,7 +209,13 @@ fn article_page(article: Article) -> View {
 <p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
 ```
 
-正規整數文字、布林值、null 和範圍內的浮點鍵依 PHP 規則轉換。從零開始且連續的清單保留為 JSON 陣列，其他陣列以帶字串鍵的有序視圖物件表示。無效鍵及溢位的隱含索引會使渲染失敗。參照、展開和物件多載存取由應用程式 Rust 程式碼準備。
+正規整數文字、布林值、null 和範圍內的浮點鍵依 PHP 規則轉換。從零開始且連續的清單保留為 JSON 陣列，其他陣列以帶字串鍵的有序視圖物件表示。無效鍵及溢位的隱含索引會使渲染失敗。參照和物件多載存取由應用程式 Rust 程式碼準備。
+
+在陣列表達式中用 `...$items` 展開原生清單或有序視圖物件。整數鍵從目前最大整數鍵之後重新連續編號；字串鍵覆寫既有值但保留原位置。展開複製值，不改變來源。展開純量會使渲染失敗。PHP Traversable 的對應資料須先在 Rust 中物化為原生視圖陣列或物件。
+
+```html
+{{ [...['color' => 'blue'], ...['color' => 'red']]['color'] }}
+```
 
 ### 迴圈變數 {#the-loop-variable}
 
@@ -569,6 +575,20 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 ```
 
 ## PHP 與 Rust 範本 {#php-and-rust-templates}
+
+### 表達式執行期與編譯 {#expression-runtime}
+
+PHP 模板可以呼叫任意 PHP 函式和物件。OpenRust 編譯 Rust 指令樹，採用以下明確的對應方式。
+
+| PHP 形式 | Rust 對應方式 |
+| --- | --- |
+| 函式、靜態方法或可呼叫表達式 | 在處理器、`Factory::creator` 或 `Factory::composer` 中計算值。需要在渲染時輸出時註冊 `BladeCompiler::directive`；述詞使用 `r#if` 和 `check`。表達式中的 `strtoupper($name)` 等呼叫會被拒絕。 |
+| 參照和依參照迭代 | 先在 Rust 中完成修改和依賴別名的操作，再傳入 `ViewData`。ViewValue 陣列擁有其值，不建立 PHP 參照別名。 |
+| 陣列展開與 Traversable | 原生陣列或有序物件使用 `...`。迭代器先在 Rust 中物化；`withIterator` 提供 foreach 迭代，不作為陣列展開來源。 |
+| ArrayAccess、魔術屬性和任意物件方法 | 將欄位投影為 ViewValue 陣列或物件，使用 `Factory::registerViewService` 配合 `@inject`，或透過 `Component::data` 暴露元件計算值。型別化文字輸出使用 `stringable` 和 `View::withStringable`。 |
+| PHP 陳述式和匯入 | 使用 Rust 程式碼和模組匯入。未註冊替代回呼的 `@php`、`@endphp` 和 `@use` 編譯失敗。需要字面量輸出時，用 `@@` 跳脫或放進 `@verbatim`。 |
+
+`view:cache` 解析所有分支並發布指令樹，不執行視圖建立器、組合器、指令回呼和元件工廠。因此，不支援的語法即使位於未選取的分支也會編譯失敗。有效陣列表達式的輸入在渲染時求值：只有執行到該分支，純量展開來源才會失敗。渲染失敗不改變快取樹和後續資料。註冊屬於應用程式的編譯器，替換回呼後快取模板使用目前的回呼。預編譯前須註冊指令和條件名稱。
 
 PHP 函式呼叫或 `@php` 程式區塊需要的值，可以在 Rust 處理器、視圖建立器或組合器中準備，再傳入視圖。PHP 類別元件及其動態類別探索對應 `Factory::component` 明確註冊的 Rust `Component` 工廠。匿名元件由視圖尋找器解析。
 

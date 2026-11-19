@@ -40,3 +40,7 @@
 - 各批实际执行 Artisan，覆盖 `view:cache`、`view:clear` 和组件生成。三语 VitePress 构建通过，根路径与 `/docs/` 的 12 项浏览器组合通过。三语构建产物包含 7 个复核的 Blade 锚点。验证环境为 macOS ARM64 和 Rust 1.94.0。
 - 本轮实施提交依次为 `2e9508194`、`82c28402c`、`d0b7970a2`、`5b6bfceb5`、`e1fd0f5da`、`ad3b8af42`、`faa31259f`、`b935a011f`、`d19127b48`、`b37cc1f50`、`c7af443c0`、`94065ba23`、`11d119dcc`、`c9fc7760b`、`5ad60f073`、`c23c1d3e2`、`1d05bc688`、`c5938fc4f`、`a073612cd`、`993e407ea`。
 - 隔离目录的 `cargo clean --target-dir` 回收 13.5 GiB，临时验收副本移入废纸篓。项目卷可用 77,787,892 KiB（79.65 GB／74.18 GiB）。
+
+## V03 表达式边界复核（2026-11-20）
+
+[专项验收](../03-07/expression-contracts.md)补齐原生数组展开及 include 数据，缓存版本 34；明确函数、引用、Traversable、对象重载和编译阶段的 Rust 接口及拒绝边界。96 组固定 PHP、27 项定向测试、根应用 HTTP／Artisan、严格 Clippy、三语构建与 12＋6 浏览器检查通过。这里的闭合不包含任意 PHP 解释器，也不替代其他发布门禁。

@@ -26,9 +26,12 @@ pub(super) enum Expression {
 }
 
 #[derive(Serialize, Deserialize)]
-pub(super) struct ArrayEntry {
-    key: Option<Expression>,
-    item: Expression,
+pub(super) enum ArrayEntry {
+    Item {
+        key: Option<Expression>,
+        item: Expression,
+    },
+    Unpack(Expression),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -203,12 +206,15 @@ fn parse_array(entries: Vec<&str>, depth: usize) -> ViewResult<Expression> {
     entries
         .into_iter()
         .map(|entry| {
+            if let Some(source) = entry.strip_prefix("...") {
+                return Ok(ArrayEntry::Unpack(parse_expression(source, depth + 1)?));
+            }
             let (first, second) = array_entry(entry);
             let (key, item) = match second {
                 Some(item) => (Some(parse_expression(first, depth + 1)?), item),
                 None => (None, first),
             };
-            Ok(ArrayEntry {
+            Ok(ArrayEntry::Item {
                 key,
                 item: parse_expression(item, depth + 1)?,
             })
@@ -270,19 +276,49 @@ fn evaluate_array(
     let mut output = ViewData::new();
     let mut highest = None::<i64>;
     for entry in entries {
-        let key = match &entry.key {
-            Some(key) => array_key(value(key, data, bindings)?.as_ref())
-                .ok_or_else(|| super::render_error("Illegal Blade array key type."))?,
-            None => highest
-                .map_or(Some(0), |index| index.checked_add(1))
-                .ok_or_else(|| super::render_error("Blade array index overflow."))?
-                .to_string(),
-        };
-        if let Some(index) = integer_key(&key) {
-            highest = Some(highest.map_or(index, |highest| highest.max(index)));
+        match entry {
+            ArrayEntry::Unpack(expression) => {
+                let source = value(expression, data, bindings)?;
+                match source.as_ref() {
+                    ViewValue::Array(values) => {
+                        for item in values {
+                            let key = next_array_index(highest)?;
+                            highest = integer_key(&key);
+                            output.insert(key, item.clone());
+                        }
+                    }
+                    ViewValue::Object(values) => {
+                        for (key, item) in values {
+                            let key = if integer_key(key).is_some() {
+                                let key = next_array_index(highest)?;
+                                highest = integer_key(&key);
+                                key
+                            } else {
+                                key.clone()
+                            };
+                            output.insert(key, item.clone());
+                        }
+                    }
+                    _ => {
+                        return Err(render_error(
+                            "Only arrays can be unpacked in Blade array expressions.",
+                        ));
+                    }
+                }
+            }
+            ArrayEntry::Item { key, item } => {
+                let key = match key {
+                    Some(key) => array_key(value(key, data, bindings)?.as_ref())
+                        .ok_or_else(|| render_error("Illegal Blade array key type."))?,
+                    None => next_array_index(highest)?,
+                };
+                if let Some(index) = integer_key(&key) {
+                    highest = Some(highest.map_or(index, |highest| highest.max(index)));
+                }
+                let item = value(item, data, bindings)?.into_owned();
+                output.insert(key, item);
+            }
         }
-        let item = value(&entry.item, data, bindings)?.into_owned();
-        output.insert(key, item);
     }
     if output
         .keys()
@@ -295,6 +331,13 @@ fn evaluate_array(
     } else {
         Ok(ViewValue::Object(output))
     }
+}
+
+fn next_array_index(highest: Option<i64>) -> ViewResult<String> {
+    highest
+        .map_or(Some(0), |index| index.checked_add(1))
+        .map(|index| index.to_string())
+        .ok_or_else(|| render_error("Blade array index overflow."))
 }
 
 fn element<'a>(array: &'a ViewValue, key: &str) -> Option<&'a ViewValue> {

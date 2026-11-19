@@ -1,0 +1,25 @@
+{
+  "snapshot_baseline": "2079b5333b5eb07feae2f3f2dad7b3d9d33b981c",
+  "php": "8.4.14",
+  "illuminate": "v13.40.0",
+  "oracle_cases": 96,
+  "oracle_success": 56,
+  "oracle_errors": 40,
+  "oracle_repeated_identically": true,
+  "sources": {
+    "vendor/openrust/framework/src/view/compilers/blade_compiler.rs": "cb65ffe8a9389472e8c436dee2c9cf8e35edc4f6fdaa61d618041f06c5f2e21a",
+    "vendor/openrust/framework/src/view/compilers/template.rs": "fb0acdc573f2ea90b8ccb8a9342539c553e5e78974cc3e75e536eb9d88e5409c",
+    "vendor/openrust/framework/src/view/compilers/template/expressions.rs": "9c268c8e6ab296ef5dd1c3dd216e3b7d2b2610541a664a152586b8deef138102",
+    "vendor/openrust/framework/tests/blade_expression_contracts.rs": "67cca678bc9fb96fec946662d46214a5671ebadbe8789e4def8e875177000a41",
+    "vendor/openrust/framework/tests/blade_arithmetic.rs": "8610351592199334b9c1f1c2c4714bdf94118b36a5bd17d64d0fee6c33247b15",
+    "vendor/openrust/framework/tests/blade_statements.rs": "96f61e5dd5a3af6df516fa118a62b541414dda2b63a102ff19f6da1a05d0b65b",
+    "vendor/openrust/framework/tests/fixtures/blade_unpacking.json": "fb3ee5571b6ddd7fc28b42018a012a1beda04ff08bfff8cd5714239e0295a23a",
+    "vendor/openrust/framework/tests/reference/blade_unpacking.php": "1af00d6cf9e9e2a5ec283fff309313a8f441c2db34a56a3f2db7bff977181f99",
+    "tests/blade_arithmetic_http.py": "05b3cd3472bf9709983aa3a4f9049d98cfb2b9ea02c54bb62c4b5427b576194c",
+    "docs/en/the-basics/blade.md": "8d3eb8b5001646540c6d4545846257d965322e129890817edbd7df1c80ed7adc",
+    "docs/zh_CN/the-basics/blade.md": "5b71d61ec49d6da1595270814cb748753f5c341bf8e0340caf4e99c29d56daf2",
+    "docs/zh_TW/the-basics/blade.md": "8f88353e596b532f98ed7f40c783c1d55662b55063f7a83b19640031413855c5",
+    "vendor/openrust/framework/src/view/compilers/template/includes.rs": "febe52c5e4c1ae202434d8c36e6cc532f88c1478bda8e2f264963db5584831e0",
+    "docs/tests/check_view_contracts.mjs": "caa2727bb4669c8e41552ffbd21bfef73598c60871bbab9a359c33d6f7a3af48"
+  }
+}

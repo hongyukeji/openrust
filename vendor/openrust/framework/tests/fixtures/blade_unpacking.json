@@ -1,0 +1,828 @@
+{
+    "php": "8.4.14",
+    "illuminate": {
+        "illuminate/bus": "v13.40.0",
+        "illuminate/collections": "v13.40.0",
+        "illuminate/conditionable": "v13.40.0",
+        "illuminate/container": "v13.40.0",
+        "illuminate/contracts": "v13.40.0",
+        "illuminate/events": "v13.40.0",
+        "illuminate/filesystem": "v13.40.0",
+        "illuminate/macroable": "v13.40.0",
+        "illuminate/pipeline": "v13.40.0",
+        "illuminate/reflection": "v13.40.0",
+        "illuminate/support": "v13.40.0",
+        "illuminate/view": "v13.40.0"
+    },
+    "views": {
+        "part": "{{ $title }}",
+        "components.spread": "@props(['items'])@foreach($items as $key => $value){{ $key }}:{{ $value }};@endforeach"
+    },
+    "cases": [
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": ""
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:99;1:100;"
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:99;"
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:2;"
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": ""
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "@js([...$items])",
+            "output": "[]"
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "output": ""
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "output": "absent"
+        },
+        {
+            "data": {
+                "items": []
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "output": "absent"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:99;1:10;2:20;3:100;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:99;-4:10;-3:20;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:2;0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:10;1:20;2:10;3:20;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "@js([...$items])",
+            "output": "JSON.parse('[10,20]')"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "output": "0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "output": "10"
+        },
+        {
+            "data": {
+                "items": [
+                    10,
+                    20
+                ]
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "output": "20"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:99;1:10;2:20;3:100;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:99;-4:10;-3:20;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:2;0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:10;1:20;2:10;3:20;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "@js([...$items])",
+            "output": "JSON.parse('[10,20]')"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "output": "0:10;1:20;"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "output": "10"
+        },
+        {
+            "data": {
+                "items": {
+                    "-7": 10,
+                    "9": 20
+                }
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "output": "20"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:10;08:20;0:30;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:99;name:10;08:20;1:30;2:100;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:99;name:10;08:20;-4:30;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:2;08:20;0:30;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:10;08:20;0:30;1:30;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "@js([...$items])",
+            "output": "JSON.parse('{\\u0022name\\u0022:10,\\u002208\\u0022:20,\\u00220\\u0022:30}')"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "output": "name:10;08:20;0:30;"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "output": "30"
+        },
+        {
+            "data": {
+                "items": {
+                    "name": 10,
+                    "08": 20,
+                    "1": 30
+                }
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "output": "absent"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "title:&lt;A&gt;;name:0;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:99;title:&lt;A&gt;;name:0;1:100;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:99;title:&lt;A&gt;;name:0;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "name:2;title:&lt;A&gt;;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "title:&lt;A&gt;;name:0;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "@js([...$items])",
+            "output": "JSON.parse('{\\u0022title\\u0022:\\u0022\\\\u003CA\\\\u003E\\u0022,\\u0022name\\u0022:0}')"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "output": "title:&lt;A&gt;;name:0;"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "output": "absent"
+        },
+        {
+            "data": {
+                "items": {
+                    "title": "<A>",
+                    "name": 0
+                }
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "output": "absent"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_45.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_46.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_47.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_48.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_49.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "@js([...$items])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_50.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_51.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_52.blade.php)"
+        },
+        {
+            "data": {
+                "items": null
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_53.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_54.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_55.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_56.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_57.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_58.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "@js([...$items])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_59.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_60.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_61.blade.php)"
+        },
+        {
+            "data": {
+                "items": 7
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, int given (View: <oracle>/views/case_62.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_63.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_64.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_65.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_66.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_67.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "@js([...$items])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_68.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_69.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_70.blade.php)"
+        },
+        {
+            "data": {
+                "items": "text"
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_71.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@foreach([...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_72.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@foreach([99,...$items,100] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_73.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@foreach([-5=>99,...$items] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_74.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@foreach([\"name\"=>1,...$items,\"name\"=>2] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_75.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@foreach(array(...$items,...$items) as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_76.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "@js([...$items])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_77.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "<x-spread :items=\"[...$items]\" />",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_78.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "{{ [...$items][0] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_79.blade.php)"
+        },
+        {
+            "data": {
+                "items": false
+            },
+            "template": "{{ [\"nested\"=>[...$items]][\"nested\"][1] ?? \"absent\" }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, false given (View: <oracle>/views/case_80.blade.php)"
+        },
+        {
+            "data": {},
+            "template": "@foreach([...[],10,...[8=>20,-5=>30],40] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:10;1:20;2:30;3:40;"
+        },
+        {
+            "data": {},
+            "template": "@foreach([\"a\"=>1,...[\"a\"=>2,\"b\"=>3],\"a\"=>4] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "a:4;b:3;"
+        },
+        {
+            "data": {},
+            "template": "@foreach([...[-5=>1],...[-8=>2],...[]] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "0:1;1:2;"
+        },
+        {
+            "data": {},
+            "template": "@foreach([-5=>1,...[100=>2],3] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "-5:1;-4:2;-3:3;"
+        },
+        {
+            "data": {},
+            "template": "@foreach([\"08\"=>1,...[\"8\"=>2,\"-0\"=>3,\"+1\"=>4]] as $key => $value){{ $key }}:{{ $value }};@endforeach",
+            "output": "08:1;0:2;-0:3;+1:4;"
+        },
+        {
+            "data": {},
+            "template": "{{ [...[INF,NAN,-0.0]][0] }}|{{ [...[INF,NAN,-0.0]][1] }}|{{ [...[INF,NAN,-0.0]][2] }}",
+            "output": "INF|NAN|-0"
+        },
+        {
+            "data": {},
+            "template": "@js([...[[\"a\"=>1]],[...[[2,3]]]])",
+            "output": "JSON.parse('[{\\u0022a\\u0022:1},[[2,3]]]')"
+        },
+        {
+            "data": {},
+            "template": "@include(\"part\",[...[\"title\"=>\"<A>\"]])",
+            "output": "&lt;A&gt;"
+        },
+        {
+            "data": {},
+            "template": "<b @class([...[\"active\"=>true,\"hidden\"=>false],\"wide\"])>x</b>",
+            "output": "<b class=\"active wide\">x</b>"
+        },
+        {
+            "data": {},
+            "template": "{{ true || [...$invalid] }}|{{ false && [...$invalid] }}|{{ 7 ?? [...$invalid] }}",
+            "output": "1||7"
+        },
+        {
+            "data": {},
+            "template": "{{ [9223372036854775807=>1,...[]][9223372036854775807] }}",
+            "output": "1"
+        },
+        {
+            "data": {},
+            "template": "{{ [9223372036854775807=>1,...[2]][0] }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Cannot add element to the array as the next element is already occupied (View: <oracle>/views/case_92.blade.php)"
+        },
+        {
+            "data": {
+                "invalid": null
+            },
+            "template": "{{ [...$invalid] }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, null given (View: <oracle>/views/case_93.blade.php)"
+        },
+        {
+            "data": {
+                "invalid": true
+            },
+            "template": "{{ [...$invalid] }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, true given (View: <oracle>/views/case_94.blade.php)"
+        },
+        {
+            "data": {
+                "invalid": "abc"
+            },
+            "template": "{{ [...$invalid] }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Only arrays and Traversables can be unpacked, string given (View: <oracle>/views/case_95.blade.php)"
+        }
+    ]
+}

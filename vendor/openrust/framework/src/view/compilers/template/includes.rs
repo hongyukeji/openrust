@@ -270,7 +270,11 @@ fn parse_arguments(source: &str) -> ViewResult<(&str, Option<Arguments>)> {
         return Ok((source, None));
     };
     let arguments = source[index + 1..].trim();
-    let data = if arguments.starts_with('[') {
+    let data = if arguments.starts_with('[')
+        && !array_entries(arguments)?
+            .iter()
+            .any(|entry| entry.trim_start().starts_with("..."))
+    {
         Arguments::Map(
             array_entries(arguments)?
                 .into_iter()
@@ -311,6 +315,10 @@ fn include_data(
         }
         Some(Arguments::Value(arguments)) => {
             let evaluated = value(arguments, data, bindings)?;
+            // PHP extract() does not introduce variables for numeric array keys.
+            if matches!(evaluated.as_ref(), ViewValue::Array(_)) {
+                return Ok(local);
+            }
             let explicit = evaluated
                 .as_object()
                 .ok_or_else(|| render_error("Blade view data requires an object."))?;

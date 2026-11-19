@@ -209,7 +209,13 @@ fn article_page(article: Article) -> View {
 <p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
 ```
 
-规范整数文本、布尔值、null 和浮点键按 PHP 规则转换。连续且从零开始的列表保留为 JSON 数组，其他数组表示为带字符串键的有序视图对象。无效键和溢出的隐式索引使渲染失败。引用、展开和对象重载访问由应用 Rust 代码准备。
+规范整数文本、布尔值、null 和浮点键按 PHP 规则转换。连续且从零开始的列表保留为 JSON 数组，其他数组表示为带字符串键的有序视图对象。无效键和溢出的隐式索引使渲染失败。引用和对象重载访问由应用 Rust 代码准备。
+
+在数组表达式中用 `...$items` 展开原生列表或有序视图对象。整数键从当前最大整数键之后重新连续编号；字符串键覆盖已有值但保留原位置。展开复制值，不改变来源。展开标量会使渲染失败。PHP Traversable 的对应数据须先在 Rust 中物化为原生视图数组或对象。
+
+```html
+{{ [...['color' => 'blue'], ...['color' => 'red']]['color'] }}
+```
 
 ### 循环变量 {#the-loop-variable}
 
@@ -569,6 +575,20 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 ```
 
 ## PHP 与 Rust 模板 {#php-and-rust-templates}
+
+### 表达式运行时与编译 {#expression-runtime}
+
+PHP 模板可以调用任意 PHP 函数和对象。OpenRust 编译 Rust 指令树，采用以下明确的对应方式。
+
+| PHP 形式 | Rust 对应方式 |
+| --- | --- |
+| 函数、静态方法或可调用表达式 | 在处理器、`Factory::creator` 或 `Factory::composer` 中计算值。需要在渲染时输出时注册 `BladeCompiler::directive`；谓词使用 `r#if` 和 `check`。表达式中的 `strtoupper($name)` 等调用会被拒绝。 |
+| 引用和按引用迭代 | 先在 Rust 中完成修改和依赖别名的操作，再传入 `ViewData`。ViewValue 数组拥有其值，不建立 PHP 引用别名。 |
+| 数组展开与 Traversable | 原生数组或有序对象使用 `...`。迭代器先在 Rust 中物化；`withIterator` 提供 foreach 迭代，不作为数组展开来源。 |
+| ArrayAccess、魔术属性和任意对象方法 | 将字段投影为 ViewValue 数组或对象，使用 `Factory::registerViewService` 配合 `@inject`，或通过 `Component::data` 暴露组件计算值。类型化文本输出使用 `stringable` 和 `View::withStringable`。 |
+| PHP 语句和导入 | 使用 Rust 代码和模块导入。未注册替代回调的 `@php`、`@endphp` 和 `@use` 编译失败。需要字面量输出时，用 `@@` 转义或放进 `@verbatim`。 |
+
+`view:cache` 解析所有分支并发布指令树，不执行视图创建器、组合器、指令回调和组件工厂。因此，不支持的语法即使位于未选中的分支也会编译失败。有效数组表达式的输入在渲染时求值：只有执行到该分支，标量展开来源才会失败。渲染失败不改变缓存树和后续数据。注册属于应用的编译器，替换回调后缓存模板使用当前回调。预编译前须注册指令和条件名称。
 
 PHP 函数调用或 `@php` 代码块需要的值，可以在 Rust 处理器、视图创建器或组合器中准备，再传给视图。PHP 类组件及其动态类发现对应 `Factory::component` 显式注册的 Rust `Component` 工厂。匿名组件从视图查找器解析。
 

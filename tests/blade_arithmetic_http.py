@@ -46,6 +46,8 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   assert 'Power of base 0 and negative exponent is deprecated' in content
   print('actual main: deprecations logged and rendering continued',flush=True)
   for source,expected in [
+   ('{{ [...[INF,NAN,-0.0]][0] }}|{{ [...[INF,NAN,-0.0]][1] }}|{{ [...[INF,NAN,-0.0]][2] }}','INF|NAN|-0'),
+   ("@include('native-part',[...['value'=>INF]])",'INF'),
    ('{{ [INF][0] }}|{{ [NAN][0] }}|{{ [-0.0][0] }}','INF|NAN|-0'),
    ("@include('native-part',['value'=>INF])",'INF'),
    ('<x-native-num :value="NAN" />','NAN'),
@@ -65,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   ]:
    template(source);status,_,body=request();assert status==200 and body==expected,(source,status,body,expected)
   print('actual main: Blade boundaries, case, escapes, close-tag newlines and PHP leading trim passed',flush=True)
-  for invalid in ['a{{-- {{-- nested --}}@if(true)<b>A</b>@endif', '@if(true)word@endif', '<b>prefix</b>@if\n(true)<b>x</b>@endif', '{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','@js([INF])', '{{ Js::from([NAN]) }}']:
+  for invalid in ['a{{-- {{-- nested --}}@if(true)<b>A</b>@endif', '@if(true)word@endif', '<b>prefix</b>@if\n(true)<b>x</b>@endif', '{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','@js([INF])', '{{ Js::from([NAN]) }}', '{{ [...null] }}', '@php $x = 1; @endphp', "@use('App\\Model')"]:
    template(invalid)
    status,headers,body=request(headers={'Accept':'application/json'})
    assert status==500 and 'application/json' in headers['Content-Type']

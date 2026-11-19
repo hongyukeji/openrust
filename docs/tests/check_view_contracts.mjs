@@ -29,6 +29,10 @@ try {
                     assert.equal((await page.goto(url.replace("views.html", "blade.html"))).status(), 200);
                     const blade = await page.locator("main").innerText();
                     assert.ok(blade.includes("-INF") && blade.includes("NAN"));
+                    assert.equal(await page.locator("#expression-runtime").count(), 1);
+                    assert.ok(blade.includes("..."));
+                    assert.ok(blade.includes("Traversable"));
+                    assert.ok(blade.includes("@endphp"));
                     await page.locator('main a[href$="views.html#native-view-values"]').first().click();
                     await page.waitForURL(url + "#native-view-values");
                     await page.locator("#native-view-values").waitFor();

@@ -209,7 +209,13 @@ Use `[value, key => value]` or `array(...)` to construct an array. Keys and valu
 <p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
 ```
 
-Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices use native view arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow fail rendering. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
+Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices use native view arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow fail rendering. Prepare PHP-specific references and overloaded object access in application Rust code.
+
+Use `...$items` inside an array expression to expand a native list or ordered view object. Integer keys are assigned new consecutive indices after the current largest integer key; string keys replace earlier values without changing their position. Expansion copies values and leaves its source unchanged. Scalars fail rendering. Materialize PHP Traversable equivalents as native view arrays or objects in Rust before expanding them.
+
+```html
+{{ [...['color' => 'blue'], ...['color' => 'red']]['color'] }}
+```
 
 ### The Loop Variable {#the-loop-variable}
 
@@ -569,6 +575,20 @@ fn configure_conditions(compiler: &BladeCompiler, current_zone: String) -> ViewR
 ```
 
 ## PHP and Rust Templates {#php-and-rust-templates}
+
+### Expression Runtime and Compilation {#expression-runtime}
+
+PHP templates can call arbitrary PHP functions and objects. OpenRust compiles a Rust instruction tree with the following explicit mappings.
+
+| PHP form | Rust equivalent |
+| --- | --- |
+| Function, static method or callable expression | Compute its value in a handler, `Factory::creator` or `Factory::composer`. For output at rendering time, register `BladeCompiler::directive`; for a predicate use `r#if` and `check`. Calls such as `strtoupper($name)` are rejected inside expressions. |
+| References and by-reference iteration | Perform mutation and alias-sensitive work in Rust, then supply `ViewData`. ViewValue arrays contain owned values and do not create PHP aliases. |
+| Array unpacking and Traversable | Use `...` with native arrays or ordered objects. Materialize an iterator in Rust; `withIterator` supplies foreach iteration and is not an array-unpacking source. |
+| ArrayAccess, magic properties and arbitrary object methods | Project fields to ViewValue arrays or objects, use `Factory::registerViewService` with `@inject`, or expose computed component values through `Component::data`. Typed text output uses `stringable` and `View::withStringable`. |
+| PHP statements and imports | Use Rust code and module imports. Unregistered `@php`, `@endphp` and `@use` fail compilation. Escape them with `@@` or place them in `@verbatim` when literal output is intended. |
+
+`view:cache` parses every branch and publishes the instruction tree without running view creators, composers, directive callbacks or component factories. Unsupported syntax therefore fails compilation even in an unselected branch. Valid array expressions evaluate their inputs when rendered: a scalar unpacking source fails only if that branch runs. A failed render does not change the cached tree or subsequent data. Registrations belong to the application compiler; replacing a callback keeps cached templates using the current callback. Register directive and condition names before precompilation.
 
 Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.
 
