@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 Passport-08 [API安装与生成应用](audits/passport-08/README.md)实现及本机验收完成：install:api --passport／passport:install、真实重建、默认模型／Guard／路由、配置／密钥／五迁移、失败传播与重试已提供。Rust1.94、MySQL8.4.13，123个不同函数、干净生成应用默认／多级前缀PAT／机器边界／撤销及真实PTY通过；strict workspace／all-targets Clippy／fmt、根HTTP／原始Artisan、三语23章节与12＋6浏览器通过。9份输入与隔离141ed4aef一致，保留同期Fortify等改动；无新PHPoracle，Windows嵌套重建分支未实机验证。专属产物清理见记录，源码包／日志／共享缓存和全部卷保留。核范围本地提交，不推送；V06继续Passport-09。
+
 - 2026-11-20 API-F01 [双因素正式 HTTP](audits/api-f01/two-factor-http.md)已实现并验收：显式 Eloquent 模型注册／原生 provider 类型、正式管理路由、密码管线挑战、OTP／恢复码登录、容器契约替换及本地 QR SVG；模型主键与认证标识分离。新增 6 个真实 TCP／MySQL 8.4.13 函数，固定原 PHP 请求／控制器 20 组时序对照、整包 35 个不同 Fortify 函数及原生 12 项回归通过；损坏密文／保存失败／账户删除、CSRF／限流／remember 与 Session 消费均覆盖。Quick Look SVG 栅格化→Apple Vision 解码完整 URI 一致；严格 workspace／all-targets features pail,passport,fortify Clippy／格式及根 HTTP／Pail／Artisan 全过。55 份输入 SHA 与 526723cac 独立快照一致，保留同期 Passport 后续提交；PHP 重复一致及源码负样本拒绝。专属 target 清理，df 增加 5.944 GB，Available 65.424 GB（60.931 GiB），源码证据／共享缓存／镜像和全部数据卷保留；核范围本地提交，不推送。API-F01 尚未完整交付，继续注册、账户更新、重置／邮件验证和安装，三语正文仍保留占位。
 
 - 2026-11-20 Passport-07 [显式可选授权与默认门禁](audits/passport-07/README.md)实现及验收闭合：Password／Implicit默认关闭、应用内显式开关、真实UserProvider与编译模型钩子、Password访问／刷新及Implicit浏览器同意／fragment／事务已提供；同时按固定ScopeRepository修正设备*过滤。116个不同Passport函数＋8个Guard／Session回归共124个函数、MySQL8.4.13和3项显式Chromium通过；Rust1.94严格workspace／all-targets features pail,passport Clippy、格式、根HTTP／原始Artisan／关停、三语23章节构建及12＋6浏览器通过。16份输入SHA与隔离291dc7d3一致，保留Fortify等WIP；无新增PHP运行时oracle。专属产物归属清理见记录，源码包／共享缓存／全部卷保留。核范围本地提交，不推送。V06仍部分验收，继续Passport-08／09。

@@ -1,0 +1,11 @@
+{
+  "vendor/openrust/framework/src/foundation/console/install_routes_command.rs": "b6efb523c1cc1ea7f949cc2ad4db56b37dc642d367222956e0dd08968dbad18d",
+  "vendor/openrust/framework/src/foundation/console/mod.rs": "5ed0c55c2be442beb418dc3f61679449d5ec9801ca541417c9f202d6b89a287c",
+  "vendor/openrust/passport/src/console/commands/mod.rs": "15556a27070a2b81717aa0a4c229ec13bd938938b830c3c44090bb64e604392f",
+  "vendor/openrust/passport/src/console/commands/install_command.rs": "bb1327f346bb57ae78f6a8e996b2e612627e076cdcb7d0253215ef68f1441296",
+  "tests/passport_install.rs": "08521cf49b0f8ec35f1afc3dad4e199e431e015dc7ac763a1402d8bee35bccfa",
+  "docs/en/packages/passport.md": "4f098c4695c0e3e84590ebfd56feb31064a22b757c97fbd5113df0dc7991bda3",
+  "docs/zh_CN/packages/passport.md": "ef0ef77343ac70016b340ac0ea36beb0ed8e4c8a579bfd64000cb34b84a153ff",
+  "docs/zh_TW/packages/passport.md": "a1b218754a0c600162eb236f73a4c79bd689b3783627bce2c17916c9e1d91552",
+  "docs/tests/check_passport_authcode.mjs": "caeae28b70127ab0374465007547360919b4d08f85496c3fbbd554546ce039bf"
+}

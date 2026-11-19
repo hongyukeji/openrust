@@ -2,16 +2,19 @@
 
 ## Installation {#installation}
 
-Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. Client credentials, personal tokens, scopes, SPA cookies, events and request-local testing helpers are also available. Password and Implicit are available only after explicit opt-in; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+For a default application, run:
 
-The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
-
-```toml
-[features]
-default = ["passport"]
+```sh
+./artisan install:api --passport --without-migration-prompt --no-interaction
+./artisan passport:install --no-interaction
 ```
 
-Package discovery registers `openrust_passport::PassportServiceProvider`. Applications without discovery can register this provider with `withProviders`. Enabling the provider registers the implemented OAuth routes. Publish and migrate the schema, configure an application key and consent view, and generate keys before using them.
+The API installer enables the bundled `passport` Cargo feature, preserves other default features, adds the default User's `HasApiTokens` implementation and the `api` Passport guard, and creates/registers `routes/api.rs`. It rebuilds the application, invokes `passport:install`, then rebuilds the published configuration and migrations. Cargo feature selection and compilation replace Composer installation; there is no `--composer` option. Set `APP_KEY` and the database connection before running migrations. The default user endpoint uses `auth:api` and respects `API_PREFIX`, including nested prefixes.
+
+`passport:install` preserves an existing complete key pair, publishes configuration and five migrations, and registers the configuration loader. In a terminal it asks to migrate and create a personal client (both default yes). `--no-interaction` runs both steps; each successful rerun can create another personal client. `--without-migration-prompt` publishes only and reports migrations pending, so run the second command when ready. This explicit skip option is a native addition to the package installer. Without a terminal or `--no-interaction`, it reports pending work without prompting. Production migration confirmation still applies; use an explicit `artisan migrate --force` deployment step and create the personal client separately with `artisan passport:client --personal --no-interaction`.
+
+Existing routes, configuration and migration files are preserved. API `--force` replaces only the API routes stub and keeps keys. Package `passport:install --force --length=2048` explicitly regenerates keys. An incomplete key pair fails with recovery instructions. Build, publication, configuration, migration and client creation failures return a nonzero status; fix the reported problem and retry. Custom model/guard/configuration source without recognized insertion points requires manual integration and is reported as incomplete. For an application with its own setup, the manual steps below remain available.
+
 
 ## Deploying Passport {#deploying-passport}
 

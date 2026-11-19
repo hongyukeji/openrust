@@ -1,10 +1,13 @@
 mod client_command;
+mod install_command;
+pub use install_command::InstallCommand;
 pub(crate) mod purge_command;
 pub use purge_command::PurgeCommand;
 mod keys_command;
 pub use client_command::ClientCommand;
 pub use keys_command::KeysCommand;
 pub(crate) fn register() -> Result<(), openrust::console::ConsoleError> {
+    openrust::support::facades::Artisan::add(Box::new(InstallCommand::default()))?;
     openrust::support::facades::Artisan::add(Box::new(KeysCommand::default()))?;
     openrust::support::facades::Artisan::add(Box::new(ClientCommand::default()))?;
     openrust::support::facades::Artisan::add(Box::new(PurgeCommand::default()))

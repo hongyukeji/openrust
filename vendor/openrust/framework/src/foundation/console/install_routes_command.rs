@@ -79,6 +79,12 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         if spec.command == "install:api" {
             syntax = syntax
                 .arg(
+                    clap::Arg::new("passport")
+                        .long("passport")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Install Passport instead of Sanctum"),
+                )
+                .arg(
                     clap::Arg::new("force")
                         .long("force")
                         .action(clap::ArgAction::SetTrue)
@@ -120,15 +126,17 @@ impl Command for InstallRoutesCommand {
             let spec = self.spec;
             let api = spec.command == "install:api";
             let force = api && input.matches().get_flag("force");
+            let passport = api && input.matches().get_flag("passport");
             let timestamp = if api {
                 migration_publication_timestamp(app)?
             } else {
                 None
             };
-            let result =
-                tokio::task::spawn_blocking(move || install(&root, spec, force, timestamp))
-                    .await
-                    .map_err(|error| ConsoleError::new(error.to_string()))??;
+            let result = tokio::task::spawn_blocking(move || {
+                install(&root, spec, force, timestamp, passport)
+            })
+            .await
+            .map_err(|error| ConsoleError::new(error.to_string()))??;
             if let Some(event) = result.publication {
                 Event::dispatch(event)
                     .await
@@ -137,8 +145,35 @@ impl Command for InstallRoutesCommand {
             if api && result.existing_routes && !force {
                 output.stderr.push_str("API routes file already exists.\n");
             }
+            let manual = !result.warnings.is_empty();
             for warning in result.warnings {
                 output.stderr.push_str(&format!("Warning: {warning}\n"));
+            }
+            if passport {
+                if manual {
+                    output.error("Passport source integration is incomplete. Resolve the warnings before rebuilding and running passport:install.");
+                    return Ok(1);
+                }
+                let root = app.base_path().to_owned();
+                let skip = input.matches().get_flag("without-migration-prompt");
+                let noninteractive = input.matches().get_flag("no-interaction");
+                let environment = input
+                    .matches()
+                    .get_many::<String>("env")
+                    .and_then(|mut v| v.next_back())
+                    .cloned();
+                tokio::task::spawn_blocking(move || {
+                    install_passport_after_rebuild(
+                        &root,
+                        environment.as_deref(),
+                        skip,
+                        noninteractive,
+                    )
+                })
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))??;
+                output.info("Passport API scaffolding is installed. Rebuilds completed; review the migration status reported above.");
+                return Ok(0);
             }
             output.info(&format!(
                 "routes/{}.rs is installed. {}\n",
@@ -176,9 +211,14 @@ fn migrate_after_rebuild(root: &Path, environment: Option<&str>) -> Result<(), C
     if let Some(environment) = environment {
         command.args(["--env", environment]);
     }
-    command
+    let status = command
         .status()
         .map_err(|error| ConsoleError::new(format!("Could not run pending migrations: {error}")))?;
+    if !status.success() {
+        return Err(ConsoleError::new(format!(
+            "Pending migrations failed: {status}"
+        )));
+    }
     Ok(())
 }
 
@@ -196,7 +236,16 @@ pub(super) fn build_application(root: &Path) -> Result<std::path::PathBuf, Conso
         .stderr(std::process::Stdio::inherit());
     // Windows locks the installer executable until this command returns.
     #[cfg(windows)]
-    let target = root.join("target/artisan-rebuild");
+    let target = {
+        let primary = root.join("target/artisan-rebuild");
+        let current =
+            std::env::current_exe().map_err(|error| ConsoleError::new(error.to_string()))?;
+        if current.starts_with(&primary) {
+            root.join("target/artisan-rebuild-next")
+        } else {
+            primary
+        }
+    };
     #[cfg(windows)]
     command.arg("--target-dir").arg(&target);
     let built = command.output().map_err(|error| {
@@ -280,9 +329,10 @@ fn install(
     spec: &InstallSpec,
     force: bool,
     timestamp: Option<chrono::NaiveDateTime>,
+    passport: bool,
 ) -> Result<InstallResult, ConsoleError> {
     let _manifest = lock_manifest(root)?;
-    install_unlocked(root, spec, force, timestamp)
+    install_unlocked(root, spec, force, timestamp, passport)
 }
 
 fn install_unlocked(
@@ -290,6 +340,7 @@ fn install_unlocked(
     spec: &InstallSpec,
     force: bool,
     timestamp: Option<chrono::NaiveDateTime>,
+    passport: bool,
 ) -> Result<InstallResult, ConsoleError> {
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
@@ -300,7 +351,12 @@ fn install_unlocked(
     let api = spec.command == "install:api";
     let manifest_update = if api {
         let manifest = read(&manifest_path)?;
-        enable_sanctum(&manifest)?.map(|updated| (manifest, updated))
+        let updated = if passport {
+            enable_feature(&manifest, "passport")?
+        } else {
+            enable_sanctum(&manifest)?
+        };
+        updated.map(|updated| (manifest, updated))
     } else {
         None
     };
@@ -354,7 +410,7 @@ fn install_unlocked(
         }
     };
 
-    let publication = if api {
+    let publication = if api && !passport {
         publish_package_if_migration_missing(
             root,
             crate::sanctum_service_provider::publishable_resources(),
@@ -366,12 +422,30 @@ fn install_unlocked(
     };
     if api {
         install_api_configuration(root, &mut warnings)?;
-        wire_sanctum(root, &mut warnings)?;
+        if passport {
+            wire_passport(root, &mut warnings)?;
+        } else {
+            wire_sanctum(root, &mut warnings)?;
+        }
     }
-    let existing = !create_source(&routes, spec.stub)?;
+    let passport_stub = if passport {
+        Some(
+            std::str::from_utf8(spec.stub)
+                .expect("API stub UTF-8")
+                .replace("feature = \"sanctum\"", "feature = \"passport\"")
+                .replace("auth:sanctum", "auth:api"),
+        )
+    } else {
+        None
+    };
+    let stub = passport_stub
+        .as_deref()
+        .map(str::as_bytes)
+        .unwrap_or(spec.stub);
+    let existing = !create_source(&routes, stub)?;
     if existing && force {
         let previous = read(&routes)?;
-        let stub = std::str::from_utf8(spec.stub).expect("API stub is UTF-8");
+        let stub = std::str::from_utf8(stub).expect("API stub is UTF-8");
         replace(&routes, &previous, stub)?;
     }
     if let Some(updated) = modules_update {
@@ -412,6 +486,7 @@ pub(super) fn initialize_routes(
             spec,
             force && spec.command == "install:api",
             timestamp,
+            false,
         )?;
         if let Some(event) = result.publication {
             publications.push(event);
@@ -633,4 +708,128 @@ fn create_source(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {
         Err(error) => return Err(file_error(path, error)),
     }
     Ok(true)
+}
+
+fn install_passport_after_rebuild(
+    root: &Path,
+    environment: Option<&str>,
+    skip: bool,
+    noninteractive: bool,
+) -> Result<(), ConsoleError> {
+    let executable = build_application(root)?;
+    let mut command = std::process::Command::new(executable);
+    command
+        .current_dir(root)
+        .env("APP_BASE_PATH", root)
+        .args(["artisan", "passport:install"]);
+    if skip {
+        command.arg("--without-migration-prompt");
+    }
+    if noninteractive {
+        command.arg("--no-interaction");
+    }
+    if let Some(environment) = environment {
+        command.args(["--env", environment]);
+    }
+    let status = command
+        .status()
+        .map_err(|e| ConsoleError::new(format!("Could not run passport:install: {e}")))?;
+    if !status.success() {
+        return Err(ConsoleError::new(format!(
+            "Passport installation is incomplete ({status}). Existing sources and keys were preserved; fix the reported error and rerun passport:install."
+        )));
+    }
+    build_application(root)?;
+    Ok(())
+}
+
+/// Source and rebuild operations shared with the optional Passport package.
+pub struct ApiInstallCommand;
+#[allow(non_snake_case)]
+impl ApiInstallCommand {
+    pub fn configurePassport(root: &Path) -> Result<(), ConsoleError> {
+        let _lock = lock_manifest(root)?;
+        let path = root.join("config/mod.rs");
+        let source = read(&path)?;
+        let updated = insert_config_hook(&source, &path, "mod passport;", |line| {
+            line.trim() == "mod services;"
+        })?;
+        let updated = insert_config_hook(
+            &updated,
+            &path,
+            r#"("passport".to_owned(), passport::load(env)?),"#,
+            |line| line.trim_start().starts_with(r#"("services".to_owned(),"#),
+        )?;
+        replace(&path, &source, &updated)
+    }
+    pub fn runPendingMigrations(
+        root: &Path,
+        environment: Option<&str>,
+        noninteractive: bool,
+    ) -> Result<(), ConsoleError> {
+        let executable = build_application(root)?;
+        let mut command = std::process::Command::new(executable);
+        command
+            .current_dir(root)
+            .env("APP_BASE_PATH", root)
+            .args(["artisan", "migrate"]);
+        if noninteractive {
+            command.arg("--no-interaction");
+        }
+        if let Some(environment) = environment {
+            command.args(["--env", environment]);
+        }
+        let status = command
+            .status()
+            .map_err(|e| ConsoleError::new(format!("Could not run pending migrations: {e}")))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(ConsoleError::new(format!(
+                "Pending migrations failed: {status}"
+            )))
+        }
+    }
+}
+
+fn wire_passport(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), ConsoleError> {
+    let model = root.join("app/models/user.rs");
+    let source = read(&model)?;
+    const IMPL: &str = "impl openrust_passport::HasApiTokens for User {";
+    if !source.contains(IMPL.trim_end_matches('{').trim()) {
+        match insert_before(
+            &source,
+            &model,
+            "#[cfg(feature = \"passport\")]\nimpl openrust_passport::HasApiTokens for User {\n    fn getProviderName(&self) -> &str { \"users\" }\n}\n",
+            |line| line.trim() == "impl Authenticatable for User {",
+        ) {
+            Ok(updated) => replace(&model, &source, &updated)?,
+            Err(error) => warnings.push(error),
+        }
+    }
+    let path = root.join("config/auth.rs");
+    let source = read(&path)?;
+    if let Some(api) = source
+        .lines()
+        .find(|line| line.trim_start().starts_with("\"api\":"))
+    {
+        if !api.contains("\"driver\": \"passport\"") {
+            warnings.push(ConsoleError::new("Existing API guard was preserved. Configure its Passport driver and provider manually."));
+        }
+    } else {
+        let updated = insert_before(
+            &source,
+            &path,
+            r#""api": {"driver": "passport", "provider": "users"},"#,
+            |line| {
+                line.trim_start()
+                    .starts_with(r#""web": {"driver": "session""#)
+            },
+        );
+        match updated {
+            Ok(updated) => replace(&path, &source, &updated)?,
+            Err(error) => warnings.push(error),
+        }
+    }
+    Ok(())
 }

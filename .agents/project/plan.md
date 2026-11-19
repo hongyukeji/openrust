@@ -146,7 +146,7 @@
 | <a id="unit-sanctum-02"></a>Sanctum-02 令牌和 SPA 认证 | [Sanctum-01](#unit-sanctum-01)、[05-08](#unit-05-08) 认证基础、[04-04](#unit-04-04) Session 基础 | 接通令牌签发、哈希、能力、过期、撤销及 `auth:sanctum`。显式 `statefulApi` 接入 Session、Cookie、CSRF。通过实际 HTTP 验收有效凭据、拒绝路径、来源匹配及 SPA 与 Bearer 路径。                            |
 | <a id="unit-sanctum-03"></a>Sanctum-03 API 安装命令    | [Sanctum-02](#unit-sanctum-02)、[00-02](#unit-00-02) API 路由                                    | 接通 `install:api` 和受保护的 `/user`，验收首次安装、重复运行、已有路由、`--force`、`--without-migration-prompt` 和迁移交互。用真实 HTTP 核对默认 `/api/user` 和 `API_PREFIX=api/admin` 的成功及 401。 |
 
-`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后按下方 Passport-08 接通 `--passport`，现有安装命令未提供该选项，不得将此视为已实现。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
+`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport-08 已接通 `--passport` 并完成[本机实际验收](audits/passport-08/README.md)，Windows嵌套重建仍待实机验证。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
 
 ## 应用交互式初始化
 
@@ -266,6 +266,6 @@ Passport 是 OAuth2 授权服务器，不自动提供 OIDC ID Token／Discovery�
 
 ### 推进顺序和发布约束
 
-当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，Passport-02 客户端与仓储已完成[分批实际验收](audits/passport-02/contracts.md)。Passport-03 授权码／PKCE 已完成[实际验收](audits/passport-03/README.md)。Passport-04 令牌生命周期／资源 Guard 已完成[实际验收](audits/passport-04/README.md)。Passport-05 设备授权已完成[实际验收](audits/passport-05/README.md)。Passport-06 Scope 与其他默认路径已完成[实际验收](audits/passport-06/README.md)。Passport-07 显式可选授权与默认门禁已完成[实际验收](audits/passport-07/README.md)。下一代码单元 Passport-08 API安装与生成应用，随后推进 Passport-09；启用 Fortify 动作时先接 API-F01。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
+当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，Passport-02 客户端与仓储已完成[分批实际验收](audits/passport-02/contracts.md)。Passport-03 授权码／PKCE 已完成[实际验收](audits/passport-03/README.md)。Passport-04 令牌生命周期／资源 Guard 已完成[实际验收](audits/passport-04/README.md)。Passport-05 设备授权已完成[实际验收](audits/passport-05/README.md)。Passport-06 Scope 与其他默认路径已完成[实际验收](audits/passport-06/README.md)。Passport-07 显式可选授权与默认门禁已完成[实际验收](audits/passport-07/README.md)。Passport-08 API安装与生成应用已完成[本机实际验收](audits/passport-08/README.md)。下一代码单元 Passport-09 定制与共存整合；启用 Fortify 动作时先接 API-F01。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
 
 每批保持 MySQL 8.4 日常规则，新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。

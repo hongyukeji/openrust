@@ -39,6 +39,7 @@ mod test_make_command;
 mod type_make_command;
 mod vendor_publish_command;
 mod view_component_make_command;
+pub use install_routes_command::ApiInstallCommand;
 pub use queued_command::PendingQueuedCommand;
 pub(crate) use queued_command::QueuedCommand;
 pub use vendor_publish_command::VendorPublishCommand;

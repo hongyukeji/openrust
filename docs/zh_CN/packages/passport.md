@@ -2,16 +2,19 @@
 
 ## 安装 {#installation}
 
-已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，机器令牌、个人令牌、scope、SPA Cookie、事件和请求内测试辅助已提供，Password／Implicit 须显式启用；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
+默认应用可执行：
 
-当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
-
-```toml
-[features]
-default = ["passport"]
+```sh
+./artisan install:api --passport --without-migration-prompt --no-interaction
+./artisan passport:install --no-interaction
 ```
 
-包发现会注册 `openrust_passport::PassportServiceProvider`。没有包发现的应用可用 `withProviders` 显式注册。启用 Provider 会注册已实现的 OAuth 路由。使用前须发布执行迁移、设置应用密钥和同意视图，并生成 RSA 密钥。
+API 安装器启用随项目提供的 `passport` Cargo feature，保留其他默认 feature，为默认 User 添加 `HasApiTokens`、配置 `api` Passport guard，并生成及注册 `routes/api.rs`。它重建应用，调用 `passport:install`，再重建已发布的配置和迁移。Cargo feature 与编译承担 Composer 安装的职责，不提供 `--composer`。执行迁移前设置 `APP_KEY` 和数据库连接。默认用户端点使用 `auth:api`，遵守 `API_PREFIX`，支持多级前缀。
+
+`passport:install` 保留已有完整密钥对，发布配置和五个迁移并挂载配置加载器。真实终端中询问运行迁移和创建个人客户端，两项默认 yes；`--no-interaction` 执行两项，每次成功重跑可能再次创建个人客户端。`--without-migration-prompt` 只发布并明确报告迁移待执行，就绪后执行第二条命令；此显式跳过选项是包安装器的原生扩展。没有终端也未传 `--no-interaction` 时报告待执行工作，不等待输入。生产迁移仍需要明确确认，可先执行部署步骤 `artisan migrate --force`，再单独执行 `artisan passport:client --personal --no-interaction` 创建个人客户端。
+
+已有路由、配置及迁移文件会保留。API 的 `--force` 只重写 API 路由 stub，保留密钥；包命令 `passport:install --force --length=2048` 才明确重新生成密钥。密钥对不完整时失败并提示恢复方式。构建、发布、配置、迁移或客户端创建失败均返回非零状态，修正报错后可重试。自定义模型、guard、配置源码缺少可识别插入点时需要手动接线，命令明确报告未完成。已有独立装配的应用也可使用下列手动步骤。
+
 
 ## 部署 Passport {#deploying-passport}
 

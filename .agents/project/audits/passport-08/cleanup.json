@@ -1,0 +1,19 @@
+{
+  "removed": [
+    "/private/tmp/openrust-passport-install-20261120/source",
+    "/private/tmp/openrust-passport-install-20261120/target",
+    "/private/tmp/openrust-passport-install-20261120/generated",
+    "/private/tmp/openrust-passport-install-20261120/generated-target"
+  ],
+  "available_before_KiB": 52590692,
+  "available_after_KiB": 61561096,
+  "actual_df_increase_bytes": 9185693696,
+  "volumes_before": [],
+  "volumes_after": [],
+  "retained": [
+    "accepted-overlay.tgz",
+    "accepted-generated-final.tgz",
+    "scripts, failed and accepted logs, fixed upstream sources, SHA",
+    "shared caches and all database volumes"
+  ]
+}
