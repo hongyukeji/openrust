@@ -4,6 +4,8 @@
 
 每个编号单元权重相同。已实现并通过适用验收、单元内没有已知核心缺口，才记为闭合。Rust 等价做法需记录语言约束及可观察行为证据。部分验收只记录已通过范围。阶段内的核心单元全部闭合后才记为阶段完成。
 
+**2026-11-19 第一代范围已扩大：Passport／OAuth2 与相关 API 扩展列为必须交付，当前尚未达到 v0.1.0 用户验收／发布条件。** 具体缺口和证据见下方 [v0.1.0 验收门禁](#v010-acceptance)；66/66 仅指下述历史核心范围，不代表全部公开契约、API 扩展或目标环境已经通过。
+
 当前核心单元 **66/66（100%）**，原路线图九个阶段全部有范围验收记录，核心范围闭合 **9/9**。核心分母含 00–07 的 61 项、框架广播 08-01 和测试能力 T 的 4 项。
 
 | 阶段 | 闭合数 | 已闭合单元 | 未闭合单元及主要缺口 |
@@ -69,7 +71,7 @@ SQLite 和 MySQL 8.4 已验证模型持久化、读取和软删除事件，以�
 
 ## 06-01 URL、重定向和签名
 
-已接入链式闪存与命名错误包，并通过默认 Web 中间件、加密会话和实际表单验收。已接入控制器动作 URL 和重定向，实测覆盖、域名优先与应用隔离。具名和位置模型参数已按自定义绑定列生成 URL，并用 SQLite／MySQL 实测。本地临时链接回调和常用 S3 签名选项已验收。S3 独立签名基地址和指定对象版本已通过 RustFS 实测。高级 S3 SDK 请求构建器已用 RustFS 验收 Range 下载与条件上传。模型访问器与类型转换已通过 SQLite／MySQL 8.4 HTTP 验收。可信代理归于 04-03，S3 独立 ACL 服务复验仍单独跟踪。 [URL 验收](06-01/README.md#重定向闪存)
+已接入链式闪存与命名错误包，并通过默认 Web 中间件、加密会话和实际表单验收。已接入控制器动作 URL 和重定向，实测覆盖、域名优先与应用隔离。具名和位置模型参数已按自定义绑定列生成 URL，并用 SQLite／MySQL 实测。本地临时链接回调和常用 S3 签名选项已验收。S3 独立签名基地址和指定对象版本已通过 RustFS 实测。高级 S3 SDK 请求构建器已用 RustFS 验收 Range 下载与条件上传。模型访问器与类型转换已通过 SQLite／MySQL 8.4 HTTP 验收。可信代理归于 04-03。S3 独立 ACL 已由 [03-03](03-03/README.md) 的 SeaweedFS／BucketOwnerEnforced 场景验收，不再重复列待办；托管 AWS／STS 等目标仍按发布矩阵跟踪。 [URL 验收](06-01/README.md#重定向闪存)
 
 实际 HTTP 和 Artisan 已验收请求级默认值、路径保留字符编码、完整 URL、上一会话 URL 与路由名、重定向入口及边界。三语文档示例通过编译并实际访问，06-01 核心闭合。 [整单元验收](06-01/README.md#06-01-整单元验收)
 
@@ -136,7 +138,8 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | [08-03 gRPC](08-03/README.md) | [已闭合](08-03/README.md#08-03-整单元验收)。监听、命名客户端、mTLS 凭据及双端拦截器通过真实 Tonic、HTTP 和 Artisan 验收 | — |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存已随 07-07 验收。 |
-| [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
+| [第一代 API 扩展](../plan.md#first-generation-api) | Passport／OAuth2、Fortify、Socialite、Precognition、OIDC RP／双应用 SSO 已纳入第一代，15 个单元待正式实现／验收。 | 固定版本、依赖、接口和验收见计划；OIDC 与 Passport 分开。 |
+| [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Scout、Horizon、Dusk 等按各自范围独立核对。 | 未因本次 API 授权自动全部纳入第一代。 |
 | [08-04 发布](08-04/README.md) | [按模拟正式环境验收闭合](08-04/README.md#08-04-模拟正式环境验收与闭合)。干净检出安装、[原生 Ubuntu x86_64 发布复验](08-04/docker.md#原生-ubuntu-x86_64-发布复验)（`07307c6e1`）、Linux amd64 兼容环境镜像、Windows ARM64 独立部署、SQLite 3.51.3／MySQL 5.7.44 Oracle 通用归档和 Oracle Linux 7 ECDHE 派生镜像、8.0.46／8.4.13／MariaDB 10.3.39 和 11.8.9／PostgreSQL 10–18 实测版本／SQL Server 2017 和 2022 TDS，以及[本地 TLS 证书链与轮换、SQS 标准／FIFO SigV4 模拟补测](08-04/README.md#模拟验收补测)通过 | Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的发布实机验证，见[环境与权限复查](08-04/README.md#剩余实机环境复查) |
 
 08-04 [主线独立发布包复验](08-04/README.md#主线独立发布包与交付对照复验)已验证 `2d1f83dfd` 的离线锁定归档、MySQL 和 Redis、HTTP、Artisan、搬移与关停。三语映射的 104 个本地路径完整，范围待确认的生态条目继续在交付计划中跟踪。
@@ -415,3 +418,36 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### 2026-11-19 Blade 全源预处理增量
 
 03-07 [Blade 全源注释与原样块预处理](03-07/blade-preparation.md)完成原样块保护→全源注释消除→组件／指令／回显解析，补齐字符串／指令名称参数／组件属性中的注释与原样内容恢复，缓存版本 32。198 组固定 PHP 对照（184 成功／14 错误）、962 组算术回归、39 项测试、实际根 HTTP／Artisan、严格 Clippy、格式、三语站点和 12＋6 项浏览器检查全部通过。8 份改动源码 SHA 一致，32 份启动／配置／路由／Cargo 基线不变。专属远程产物约 5.45 GB、本地 77.12 MB 与新临时 Composer 镜像已直接清理，保留全部数据卷及共享依赖；项目 Available 80,680,420 KiB（82.62 GB）。核定 15 文件本地提交，不推送。JSON 非有限数跨 ViewData、其他 PHP 语法边界、Pail 身份与 Windows 矩阵仍跟踪，不将核心 66/66 当作全框架完成。下一步按最新授权将 API 扩展与 v0.1.0 发布前缺口纳入现有计划和账本，正式发布须等用户验收及明确授权。
+
+
+<a id="v010-acceptance"></a>
+## v0.1.0 用户验收与发布门禁
+
+2026-11-19 按最新真人指令核定的已知缺口及发布前待复核范围。此表沿用现有 plan／progress／单元审计，不另建平行账本。状态区分“已验收范围”“待实现／核对”“待目标环境”；环境和凭据缺失不是实机通过，也不等于立即阻断其他独立开发。候选清单不是已证明没有遗漏，后续发现按同一表追加。
+
+| 编号 | 当前状态／证据入口 | 关闭条件与剩余工作 |
+| --- | --- | --- |
+| V01 Blade 全源预处理 | **本批闭合**：[03-07](03-07/blade-preparation.md)，提交 `976b0f908`，198 组固定 PHP／HTTP、39 项测试、根 HTTP／Artisan、严格 Clippy 和三语验收通过。 | 原样块保护与式内／名称参数间注释已补；无新增影响不重复本批验收。不能扩展为整个 PHP 编译器闭合。 |
+| V02 非有限数 ViewData 边界 | **待实现**：[算术边界](07-01/blade-arithmetic.md)、`view::ViewData` 当前仍 JSON。标量算术、INF／NAN／负零直接输出已过。 | 核定可保留类型的值容器，补数组、子视图、组件、扩展参数及序列化失败／默认回退；固定 PHP 对照、真实 HTTP、并存应用／缓存测试与三语说明。 |
+| V03 其他 Blade 表达式契约 | **待逐项核定**：[03-07](03-07/README.md)、[03-08](03-08/blade-parity.md)。已支持表达式不是任意 PHP。 | 按固定原文枚举函数调用、引用、展开、对象重载和编译阶段；可支持的用原生注册／类型机制实现并验收，语言约束写出具体接口与替代，不笼统承诺解释器、不把未覆盖算完成。 |
+| V04 Pail 自动身份与时序 | **待实现／验收**：[Pail](06-08/pail.md)、[命令](06-08/pail-command.md)、[dev](06-08/pail-dev.md)。命令与日志输出已过。 | 同步日志和异步 Guard 的身份快照／解析职责，登录、登出、guard 切换、异常／取消、跨请求及多应用；真实 HTTP→日志→Artisan，不阻塞或递归认证。 |
+| V05 Pail Windows 原生终端 | **待目标验收**：[Pail 命令](06-08/pail-command.md) 的 Linux PTY 不算 Windows 证据。 | 现有 Windows 虚拟机复查工具链；原生终端／文件跟随／轮换／截断／UTF-8、超时、Ctrl+C／管道关闭、进程树／会话／输出状态清理，ARM64 与承诺的 x64 目标分开。 |
+| V06 Passport OAuth2 服务端 | **待实现**：[Passport-01 至 07](../plan.md#first-generation-api)，固定 13.10.0 SHA 已核对；主线无 Passport 包，旧版仅可复用候选。 | 客户端、密钥／五表、授权码＋PKCE、设备授权、访问／刷新、撤销／过期／清理、scopes、Guard 和协议错误；Password／Implicit 保持默认关闭，旧代码须适配并真实 MySQL 8.4／HTTP／Artisan 验收。 |
+| V07 install:api --passport | **待实现**：[Passport-08](../plan.md#unit-passport-08)。当前 install_routes_command 未定义 passport 选项，已验收的默认 Sanctum 安装不覆盖它。 | 包装配、配置／密钥／迁移／路由、选项和提示；干净生成应用，首次／重复／强制／失败与多级前缀；API 仍按需生成。 |
+| V08 认证扩展整合 | **待新增影响路径验收**：[Passport-09](../plan.md#unit-passport-09)；既有 [Sanctum-03](sanctum-03/README.md) 验收保留。 | Sanctum／Passport 共存、模型与 UserProvider／连接定制、令牌归属、API/Web、跨应用和真实第三方 HTTP 客户端。未受影响的既有 Sanctum 路径不无故重跑。 |
+| V09 相关 API 扩展 | **纳入第一代，待实现／验收**：[API-F01／02、S01、P01、O01／02](../plan.md#unit-api-f01)。包源码版本待各单元开工固定；旧版 Fortify／Precognition／OIDC RP 可提取。 | 无界面认证、2FA／Passkeys、第三方 Socialite、Precognition 和 OIDC RP／双应用 SSO；每项有独立协议、依赖和实际失败路径。Passport 不等于 OIDC；完整 OP 不是现有交付，不对外宣称。第三方账号／回调域名不足时先完成协议服务，列精确缺失条件。 |
+| V10 Windows Docker Desktop | **目标前置待复查**：[08-04 实机条件](08-04/README.md#剩余实机环境复查)。旧来宾检查未具备 Desktop／WSL 虚拟化，本次未冒充重新实机通过。 | 可登录 Windows 主机、真实 Linux 容器后端、Docker／Compose／Buildx、隔离挂载权限；构建、路径／权限、迁移、HTTP／Artisan／Worker、退出和数据保留。已有原生 Windows 和 macOS Docker 结果不能替代。 |
+| V11 生产 TLS 部署 | **待真实目标**：[08-04](08-04/README.md#剩余实机环境复查)。本地 CA／TLS 1.2／1.3 和可信代理已过。 | 授权测试域名／HTTPS URL、受信任证书链、反代目标和对应实例只读 Artisan；核对证书、转发／签名、HTTP 与运行发布版本。未经授权不部署生产。 |
+| V12 托管 AWS SQS | **待真实目标**：[SQS 模拟补测与权限](08-04/README.md#剩余实机环境复查)。标准／FIFO SigV4 协议模拟已过。 | 两条隔离队列 URL、区域、可用 IAM／临时会话凭据、所需 SQS／KMS 权限和 MySQL 账本；实际发送／消费／可见性／重试／失败与 FIFO 顺序／去重。此前凭据缺失记录需在目标提供时再核实。 |
+| V13 托管 Pusher TLS | **待真实目标**：[08-02](08-02/README.md)。受控 Pusher、Reverb 和 Redis 扩展已过。 | 授权 Pusher 应用／集群／TLS 配置，真实发布／订阅、认证／重连、错误与部署，不能以协议模拟替代托管验证。 |
+| V14 真实邮件／短信及通知供应商 | **待目标投递**：[06-06](06-06/README.md)。SMTP／Mailpit、队列、供应商协议、Slack 载荷均有验收。 | 对承诺驱动逐个列测试账号、API key／发件域名／SMTP 证书、受控收件箱／号码／Slack 工作区和权限；实际回执、最终收信、TLS、失败重试与退订等适用行为。无账号先补自动化，不能称已送达供应商最终用户。 |
+| V15 其他数据库／云驱动目标 | **继续对照既有记录复查**：[08-04](08-04/README.md)、[S3](03-03/README.md)。SQLite、MySQL 5.7／8.0／8.4、MariaDB、PostgreSQL 10–18、SQL Server 2017／2022、原生 Linux／Windows 的已过范围保留。 | 独立 ACL 的 SeaweedFS／BucketOwnerEnforced **已过**，本次纠正旧账本残留待办；不重复列缺口。AWS 公网／真实角色与 STS、S3 厂商及大对象边界仍需对应目标。Oracle MySQL 发行版不代表 Oracle Database 驱动已支持；商业端点／额外驱动先核对实际承诺范围。 |
+| V16 三语正文与 API 文档 | **待发布范围全量核对**：[逐页映射](../plans/laravel-docs-delivery-map.md)。本批扫描每语 106 个 Markdown，其中 31 个纯空文件；含 index／生态占位，数量不等于 31 个功能缺失。 | Passport／Fortify／Socialite／Precognition 四个 API 包页三语均为空，须随实现闭合；其他空页按导航／已实现功能逐项确定正文、Rust 映射或不支持范围，不能空页冒充正式功能。安装／升级／部署和 API 参考与发布快照一致，构建、链接、示例与浏览器全过。 |
+| V17 最终干净快照整合 | **待全部实现闭合后执行**：[08-04 发布回归](08-04/README.md#当前主线整仓回归与独立发布复验)。历史发布快照不覆盖后续 API 新增。 | 锁定干净提交的根应用＋生成应用安装／打包／迁移、HTTP／Artisan／Worker／调度、支持 OS 与数据库目标矩阵、必要整体失败／恢复回归；每个实际环境注明版本和证据，清理不删数据。 |
+| V18 Git／依赖／版本和最终批准 | **待发布审计及用户验收**：当前 `976b0f908` 仅本地，未推送。原始历史补丁、core/、translation-database/ 继续保留并分离。 | 审核 WIP 归属、依赖／许可证／敏感信息、CHANGELOG 与版本元数据变更计划；按单元给提交号和验收证据，交用户逐项验收。用户确认无问题并明确授权后才改发布版本／打 tag／创建 Release／推送／生产部署。 |
+
+### 当前复核结论与下一步
+
+这次只关闭 V01，并纠正 V15 的已过 ACL 残留；没有把旧记录里的模拟环境算作真实供应商，也没有因历史 66/66 把 V02–18 勾为通过。API 扩展按计划分为 9 个 Passport 单元与 6 个相关 API 单元，当前均未正式实现验收；Sanctum-01 至 03 保持已验收范围。下一代码单元为 Passport-01；ViewData、Pail 和发布目标条件继续在本表独立跟踪。
+
+本次计划增量只核对固定源码、旧版和既有日志、页面空占位与链接，不声称已经完成全契约或全云厂商审计，也未重新扫描／暴露凭据。每批结束核对本地提交、实际验证及资源清理；目标缺失仍能推进无关单元，直到已授权范围完整收尾，再交用户验收。

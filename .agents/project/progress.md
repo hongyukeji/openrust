@@ -3636,3 +3636,19 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 ## 2026-11-19 03-07 Blade 全源预处理
 
 03-07 [Blade 全源注释与原样块预处理](audits/03-07/blade-preparation.md)完成原样块保护→全源注释消除→组件／指令／回显解析，补齐字符串／指令名称参数／组件属性中的注释与原样内容恢复，缓存版本 32。198 组固定 PHP 对照（184 成功／14 错误）、962 组算术回归、39 项测试、实际根 HTTP／Artisan、严格 Clippy、格式、三语站点和 12＋6 项浏览器检查全部通过。8 份改动源码 SHA 一致，32 份启动／配置／路由／Cargo 基线不变。专属远程产物约 5.45 GB、本地 77.12 MB 与新临时 Composer 镜像已直接清理，保留全部数据卷及共享依赖；项目 Available 80,680,420 KiB（82.62 GB）。核定 15 文件本地提交，不推送。JSON 非有限数跨 ViewData、其他 PHP 语法边界、Pail 身份与 Windows 矩阵仍跟踪，不将核心 66/66 当作全框架完成。下一步按最新授权将 API 扩展与 v0.1.0 发布前缺口纳入现有计划和账本，正式发布须等用户验收及明确授权。
+
+
+## 2026-11-19 第一代 API 与 v0.1.0 范围复核
+
+第一代 API 与 v0.1.0 范围复核：已完成 Blade 预处理 `976b0f908`（15 文件，未推送）。核对固定 Passport 13.10.0 SHA `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7` 的 Illuminate 13 兼容性、五表、设备授权默认 true、Password／Implicit 默认 false，并检查旧版 Passport／Fortify／Precognition／OIDC RP 候选；主线尚无 Passport，install:api 尚无 --passport，不冒充已完成。现有计划新增 9 个 Passport 和 6 个 API 相关单元，三语页面映射同步；既有闭合账本新增 V01–V18 验收门禁与精确证据／目标条件，不另建重复台账。扫描每语 106 页、31 个空 Markdown（含首页／生态占位，不等于 31 功能缺口），四个相关 API 包页均须随实现闭合。纠正 S3 独立 ACL 已通过的旧待办，保留已过数据库／平台记录。下一代码单元 Passport-01；ViewData、Pail、目标实机和最终干净快照仍待，不以历史核心 66/66 代替发布结论。只读计划核对与内部文档链接／差异检查后独立本地提交，不重跑无影响实现。用户验收并明确发布授权前不改发布版本、不打 tag、不创建 Release、不推送、不部署生产。
+
+本次仅内部计划／账本 5 文件，链接、15 个唯一单元锚点、18 项门禁及三语页清单核对通过；未改产品代码，不重复构建无影响路径。已直接清理本批上游参考副本 686,181 逻辑字节，df 可用增量 1,290,240 字节，项目可用 82.54 GB；保留来源 SHA、验证脚本、清单和提交映射于 /private/tmp/openrust-api-scope-20261119，未触及共享缓存、数据库或数据卷。
+
+```text
+.agents/project/
+├── plan.md
+├── plans/laravel-docs-delivery-map.md
+├── audits/core-closure-ledger.md
+├── current.md
+└── progress.md
+```

@@ -11,7 +11,7 @@
 
 同一页面可分多批补齐。每批只关闭已验收的段落。该页所有关联单元均验收，且 PHP 专属或未纳入范围的内容已有明确映射或范围说明后，才关闭整页。表中锚点是该批的主要对照入口。验收前核对同一页面其余章节，遇到额外契约就分出单元或记录范围决定。
 
-范围待确认的生态入口继续放在[逐页对照表](plans/laravel-docs-delivery-map.md)。每页先确认移植、Rust 对应方案或文档说明，再为选中的实现登记独立验收单元。Browser Tests 每批可用实际浏览器验证，Dusk 包的范围单独确认。
+第一代必须交付 API 交互及下列 API 相关扩展，不能因其属于扩展包而整体后置；其余范围待确认的生态入口继续放在[逐页对照表](plans/laravel-docs-delivery-map.md)。每页先确认移植、Rust 对应方案或文档说明，再为选中的实现登记独立验收单元。Browser Tests 每批可用实际浏览器验证，Dusk 包的范围单独确认。
 
 ## 旧版复用参考
 
@@ -146,7 +146,7 @@
 | <a id="unit-sanctum-02"></a>Sanctum-02 令牌和 SPA 认证 | [Sanctum-01](#unit-sanctum-01)、[05-08](#unit-05-08) 认证基础、[04-04](#unit-04-04) Session 基础 | 接通令牌签发、哈希、能力、过期、撤销及 `auth:sanctum`。显式 `statefulApi` 接入 Session、Cookie、CSRF。通过实际 HTTP 验收有效凭据、拒绝路径、来源匹配及 SPA 与 Bearer 路径。                            |
 | <a id="unit-sanctum-03"></a>Sanctum-03 API 安装命令    | [Sanctum-02](#unit-sanctum-02)、[00-02](#unit-00-02) API 路由                                    | 接通 `install:api` 和受保护的 `/user`，验收首次安装、重复运行、已有路由、`--force`、`--without-migration-prompt` 和迁移交互。用真实 HTTP 核对默认 `/api/user` 和 `API_PREFIX=api/admin` 的成功及 401。 |
 
-`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后再接 `--passport`。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
+`install:api` 按需生成并注册 `config/api.rs`，保留既有配置及 `API_PREFIX` 覆盖方式。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后按下方 Passport-08 接通 `--passport`，现有安装命令未提供该选项，不得将此视为已实现。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
 
 ## T 测试文档随批交付
 
@@ -156,3 +156,56 @@
 | <a id="unit-t-02"></a>T-02 HTTP 与 Artisan 测试指南 | [00-02](#unit-00-02)、[00-03](#unit-00-03) | [http-tests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/http-tests.md)、[console-tests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/console-tests.md) | [testing/http-tests.md](../../docs/en/testing/http-tests.md)、[testing/console-tests.md](../../docs/en/testing/console-tests.md) | 运行示例，覆盖真实请求、响应正文与头、命令 stdout/stderr 及退出码。                      |
 | <a id="unit-t-03"></a>T-03 数据库测试指南           | [02-06](#unit-02-06)、[02-07](#unit-02-07) | [database-testing](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md)                                                                                                      | [testing/database-testing.md](../../docs/en/testing/database-testing.md)                                                         | 用独立 SQLite 测试库运行迁移、填充与断言，重复执行验证数据隔离。                         |
 | <a id="unit-t-04"></a>T-04 替身与事件假对象         | [01-01](#unit-01-01)、[06-02](#unit-06-02) | [mocking](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mocking.md)、[events#testing](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/events.md#testing)     | [testing/mocking.md](../../docs/en/testing/mocking.md)、[digging-deeper/events.md](../../docs/en/digging-deeper/events.md)       | 实际验证替换容器绑定、事件断言和两个应用之间的替身隔离；各服务的专用替身随对应批次验证。 |
+
+
+<a id="first-generation-api"></a>
+## 第一代 API 扩展交付
+
+2026-11-19 真人明确将 API 交互相关扩展纳入第一代。这里登记实际必须实现的单元，不改变既有核心 66 单元口径；实现状态及 v0.1.0 验收入口统一见[既有闭合账本](audits/core-closure-ledger.md#v010-acceptance)。不能用 66/66 或旧版代码存在替代正式实现、真实入口验收与三语正文。
+
+### 固定参考与可复用范围
+
+Passport 固定 [v13.10.0](https://github.com/laravel/passport/tree/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7)，SHA `f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7`。已核对该提交 composer.json 的 Illuminate `^13.0` 约束，覆盖当前框架 13.40.0；文档仍以既有固定 13.x 快照的 [passport.md](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/passport.md) 为准。协议参考 League oauth2-server 9.4.1（旧版既有基线），不称它是新安装 Composer 自动解析的锁定结果。
+
+已只读核对同级旧版 `6d1a81924` 的 `vendor/openrust/passport/`：可提取客户端读取、PKCE、scope、授权码／刷新、RSA 签名、事务记录、资源验证及测试；其 README 明确端点自动注册、客户端保存、完整 Guard 和端到端授权未闭合。必须适配当前 Provider、容器、SQLx 数据库和 Request 契约，不能整体复制旧版 SeaORM／Figment 接线后称完成。旧版只有四类 OAuth 迁移，固定 Passport 还包含 `oauth_device_codes`，必须补齐。
+
+固定 [PassportServiceProvider](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/src/PassportServiceProvider.php)、[Passport](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/src/Passport.php) 和 [路由](https://github.com/laravel/passport/blob/f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7/routes/web.php) 显示：授权码、刷新、客户端凭据为默认服务器授权；设备授权开关默认 true，且要求设备路由存在；个人令牌使用专用服务器绑定。Password 和 Implicit 默认 false，只有显式启用才接入。不能因补功能擅自改变这些默认开关。
+
+Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在各自单元实现前核准并登记 SHA，不能把浮动版本当固定结果；对应正文采用既有固定 Laravel 文档。Precognition 的服务端参考属于当前固定 framework，旧版 `src/http/precognition.rs` 和 `tests/http/fixtures/laravel-precognition/` 可提取协议与副作用回归。Fortify 可提取旧版 `src/auth/fortify/` 与 `tests/unit/auth/fortify_*` 的动作、挑战、身份与管理测试；旧版 `src/auth/oidc.rs` 提供 RP 协议线索，存储／网络／Guard 必须在主线重验。当前主线 Session 读取 precognition 标记不等于完整服务端已交付。
+
+### Passport／OAuth2
+
+以下单元全部是第一代计划范围，当前尚未实现／验收；每行分别闭合源码、真实入口、测试、三语正文与记录后才本地提交。建议独立包沿用 `vendor/openrust/passport/`，对外名称先按固定公开契约核定。
+
+| 单元 | 前置依赖 | 固定章节与正式交付边界 | 必要实际验收 |
+| --- | --- | --- | --- |
+| <a id="unit-passport-01"></a>Passport-01 装配、密钥与迁移 | 02-06、03-04、05-08、07-07 | installation／deploying-passport／configuration；Provider、配置、RSA 密钥加载／生成／覆写、五张 OAuth 表、连接和迁移注册；不提前开放占位端点 | MySQL 8.4 实际 migrate／rollback／重建及双应用连接隔离；真实 Artisan 密钥权限、已存在及失败路径，敏感值不进输出 |
+| <a id="unit-passport-02"></a>Passport-02 客户端与仓储 | Passport-01 | managing-clients；Client、ClientRepository、公开／机密客户端、UUID、重定向 URI、哈希秘密、CRUD／撤销、passport:client 选项 | 实际 Artisan 创建各客户端；HTTP 管理和真实 MySQL 保存／重读／撤销；错误 UUID、错误秘密、跨用户和双应用拒绝 |
+| <a id="unit-passport-03"></a>Passport-03 授权码与 PKCE | Passport-02、04-04、05-08；启用 Fortify 动作时接 API-F01 | authorization-code-grant／code-grant-pkce；授权／同意／拒绝、state、重定向校验、公开客户端 PKCE、一次性授权码；保持 Session／CSRF 与认证职责 | 两个真实 HTTP 客户端完成授权→换令牌；MySQL 并发兑换只成功一次；拒绝、篡改重定向、缺失／错误 verifier、重放、过期、失效客户端 |
+| <a id="unit-passport-04"></a>Passport-04 令牌生命周期与资源 Guard | Passport-03 | requesting-tokens／refreshing-tokens／revoking-tokens／purging-tokens／protecting-routes；访问／刷新令牌期限、轮换、撤销、清理、签名和 TokenGuard | 实际 HTTP token／受保护资源、MySQL 刷新竞争和旧凭据拒绝；撤销／过期、用户失效、连接故障、错误格式；Artisan purge 保留仍关联有效刷新令牌的记录 |
+| <a id="unit-passport-05"></a>Passport-05 设备授权 | Passport-04 | device-authorization-grant；补默认开关及路由、device_code／user_code、设备批准／拒绝、轮询与时间限制 | 真实 HTTP 设备和浏览器两方流程、MySQL 单次消费、pending／slow_down／拒绝／过期；显式关闭后不注册端点 |
+| <a id="unit-passport-06"></a>Passport-06 Scope 与其他默认路径 | Passport-04 | client-credentials-grant／personal-access-tokens／token-scopes／spa-authentication／events／testing；专用 PAT、机器令牌、默认／显式 scopes、资源中间件、SPA Cookie 与事件 | 实际 Artisan 客户端和 HTTP 签发／使用／撤销；身份／scope 不足、PAT 归属、机器令牌与用户令牌隔离；Session／CSRF 及双应用错误响应 |
+| <a id="unit-passport-07"></a>Passport-07 显式可选授权与默认门禁 | Passport-04 | password-grant／implicit-grant；实现固定版显式开关与定制 UserProvider 的等价契约，默认禁止；不新增无授权默认启用 | HTTP 默认拒绝、显式启用／关闭、限制 scope／provider、错误密码和重复状态；不把可选旧授权方式作为推荐示例 |
+| <a id="unit-passport-08"></a>Passport-08 API 安装与生成应用 | Passport-01 至 07、Sanctum-03 | 固定框架 ApiInstallCommand 的 install:api --passport；包接线、配置、密钥、迁移、API 路由、全部适用选项与重建提示 | 实际 Artisan 首装／重复／force／无交互／迁移失败，干净生成应用编译和真实 HTTP；默认及多级 API_PREFIX；保留 API 路由按需生成契约 |
+| <a id="unit-passport-09"></a>Passport-09 定制与共存整合 | Passport-08、Sanctum-02／03 | overriding-default-models／overriding-routes／testing；自定义模型、UserProvider、连接、路由前缀、Sanctum／Passport 共存与第三方客户端调用 | MySQL 8.4、独立第三方 HTTP 客户端和 Artisan；Guard／token／用户归属不串用、多应用隔离；只复验新增影响的既有 Sanctum／安装路径 |
+
+各单元保持 HTTP OAuth 字段、错误码、响应头和端点公开契约，以固定上游测试和真实协议调用为准。Rust 编译注册、密钥／密文内部格式或原生对象与 PHP 序列化差异逐项说明，不用 JSON 统一响应包装破坏 OAuth 协议响应。
+
+### 相关 API 扩展
+
+| 单元 | 前置依赖 | 第一代交付与文档 | 验收与边界 |
+| --- | --- | --- | --- |
+| <a id="unit-api-f01"></a>API-F01 Fortify 无界面认证 | 04-04、04-05、04-07、05-08、06-07 | 固定 [Fortify 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/fortify.md)：按功能开关接注册、登录／登出、密码重置／确认、邮件验证、2FA／恢复码、认证流水线、动作和响应定制 | 复用已过的认证基础；真实 HTTP／MySQL、限流、JSON／Web、Session 轮换、挑战重放、邮件协议和关闭视图；源码包版本先固定 |
+| <a id="unit-api-f02"></a>API-F02 Fortify Passkeys | API-F01、固定 Passkey 依赖 | 同一固定文档的 passkeys 全生命周期；挑战、注册／列表／删除、认证与密码确认接口、JS 客户端对接 | 浏览器 WebAuthn／受控认证器、真实 HTTP／MySQL；challenge 单次消费、origin／RP ID、用户绑定、过期与并发；未验收前不得宣称已支持 |
+| <a id="unit-api-s01"></a>API-S01 Socialite | HTTP Client、Session、认证基础 | 固定 [Socialite 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) 的驱动、redirect／user、scope、可选参数、stateless、token／refresh 和用户映射；逐个核对官方 Facebook／X／LinkedIn／Google／GitHub／GitLab／Bitbucket／Slack 驱动，区分 OAuth／OIDC | 先固定包版本，逐驱动受控 HTTP 协议验收；state／错误回调／撤销／provider 定制／隔离；真实供应商授权需对应测试应用、凭据和回调域名，模拟不冒充实机 |
+| <a id="unit-api-p01"></a>API-P01 Precognition | 04-02、04-04、04-05、Controller DI | 固定 [Precognition 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/precognition.md) 和框架 HandlePrecognitiveRequests；请求头、规则筛选、文件校验、成功／错误、Session 副作用抑制与前端 helper 兼容 | 真实 HTTP 验证 204／422、Vary 等固定响应、中间件／依赖执行、控制器与持久副作用不发生；JS helper／浏览器实际调用，普通请求不受影响 |
+| <a id="unit-api-o01"></a>API-O01 OIDC RP 接入 | HTTP Client、加密／签名、Session、认证基础 | 独立 [OIDC Core 1.0 errata 2](https://openid.net/specs/openid-connect-core-1_0.html)／[Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)，复用旧版 RP；授权码＋PKCE、Discovery／JWKS、ID Token、issuer／audience／nonce、UserInfo、密钥轮换和身份映射 | 真实受控 OIDC Provider 与 HTTP RP、MySQL 归属和并发状态；错误签名／issuer／aud／nonce／过期／重放、网络失败及多应用隔离；第三方账号缺失时明确精确前置 |
+| <a id="unit-api-o02"></a>API-O02 双应用 SSO 与退出边界 | API-O01、API-F01 | 两个 RP 应用对接同一 OIDC 身份提供方，核对登录／重新认证／本地退出与受支持的联邦退出；按实际固定协议说明范围 | 双应用、真实 HTTP／浏览器与隔离存储；绑定错误、跨租户、并发和退出后凭据边界；不会因为共享 OAuth2 token 就称为 SSO |
+
+Passport 是 OAuth2 授权服务器，不自动提供 OIDC ID Token／Discovery／UserInfo；Socialite 是第三方身份接入，也不是完整 OP。第一代 API-O01／02 交付 RP 与双应用联调；完整自建 OIDC OP 需要独立协议范围，不能借 Passport 结果声称已经支持或默认开放端点。未经实施验收的相关正文继续明确保持未交付，不用占位页冒充正式文档。
+
+### 推进顺序和发布约束
+
+当前 Blade 预处理已在 `976b0f908` 通过并本地提交。下一代码单元进入依赖已满足的 Passport-01，接 Passport-02；API-F01 可复用现有认证基础，先完成授权页面所需动作，再推进 Passport-03／04／05／06／07／08／09。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
+
+每批保持 MySQL 8.4 日常规则，新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。

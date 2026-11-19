@@ -141,24 +141,24 @@
 | [Cashier (Paddle)](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cashier-paddle.md) | [packages/cashier-paddle.md](../../../docs/en/packages/cashier-paddle.md) | 需确认 |
 | [Dusk](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/dusk.md) | [packages/dusk.md](../../../docs/en/packages/dusk.md) | 需确认 |
 | [Envoy](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/envoy.md) | [packages/envoy.md](../../../docs/en/packages/envoy.md) | 需确认 |
-| [Fortify](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/fortify.md) | [packages/fortify.md](../../../docs/en/packages/fortify.md) | 需确认 |
+| [Fortify](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/fortify.md) | [packages/fortify.md](../../../docs/en/packages/fortify.md) | [API-F01／02，第一代](../plan.md#unit-api-f01) |
 | [Folio](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/folio.md) | [packages/folio.md](../../../docs/en/packages/folio.md) | 需确认 |
 | [Head](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/head.md) | [packages/head.md](../../../docs/en/packages/head.md) | 需确认 |
 | [Homestead](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/homestead.md) | [packages/homestead.md](../../../docs/en/packages/homestead.md) | 需确认 |
 | [Horizon](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/horizon.md) | [packages/horizon.md](../../../docs/en/packages/horizon.md) | 需确认 |
 | [Mix](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mix.md) | [packages/mix.md](../../../docs/en/packages/mix.md) | 需确认 |
 | [Octane](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/octane.md) | [packages/octane.md](../../../docs/en/packages/octane.md) | 需确认 |
-| [Passport](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/passport.md) | [packages/passport.md](../../../docs/en/packages/passport.md) | 需确认 |
+| [Passport](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/passport.md) | [packages/passport.md](../../../docs/en/packages/passport.md) | [Passport-01 至 09，第一代](../plan.md#first-generation-api) |
 | [Pennant](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pennant.md) | [packages/pennant.md](../../../docs/en/packages/pennant.md) | 需确认 |
 | [Pint](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pint.md) | [packages/pint.md](../../../docs/en/packages/pint.md) | 需确认 |
-| [Precognition](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/precognition.md) | [packages/precognition.md](../../../docs/en/packages/precognition.md) | 需确认 |
+| [Precognition](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/precognition.md) | [packages/precognition.md](../../../docs/en/packages/precognition.md) | [API-P01，第一代](../plan.md#unit-api-p01) |
 | [Prompts](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/prompts.md) | [packages/prompts.md](../../../docs/en/packages/prompts.md) | 需确认 |
 | [Pulse](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pulse.md) | [packages/pulse.md](../../../docs/en/packages/pulse.md) | 需确认 |
 | [Reverb](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/reverb.md) | [packages/reverb.md](../../../docs/en/packages/reverb.md) | [08-02](../plan.md#unit-08-02) |
 | [Sail](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sail.md) | [packages/sail.md](../../../docs/en/packages/sail.md) | 需确认 |
 | [Sanctum](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sanctum.md) | [packages/sanctum.md](../../../docs/en/packages/sanctum.md) | [Sanctum-01 至 03](../plan.md#sanctum-与-api-安装) |
 | [Scout](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/scout.md) | [packages/scout.md](../../../docs/en/packages/scout.md) | 需确认 |
-| [Socialite](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) | [packages/socialite.md](../../../docs/en/packages/socialite.md) | 需确认 |
+| [Socialite](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) | [packages/socialite.md](../../../docs/en/packages/socialite.md) | [API-S01，第一代](../plan.md#unit-api-s01) |
 | [Telescope](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/telescope.md) | [packages/telescope.md](../../../docs/en/packages/telescope.md) | 需确认 |
 | [Valet](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/valet.md) | [packages/valet.md](../../../docs/en/packages/valet.md) | 需确认 |
 
@@ -166,3 +166,5 @@
 
 - [Laravel API Documentation](https://api.laravel.com/docs/13.x) 是上游 PHP API 参考。OpenRust API 随对应模块维护。
 - [gRPC](../../../docs/en/digging-deeper/grpc.md) 是 OpenRust 扩展，参考固定 Goravel 配置与装配，对应 [08-03](../plan.md#unit-08-03)。
+
+API 相关扩展自 2026-11-19 起纳入第一代。OIDC RP 与双应用 SSO 分别见 [API-O01／02](../plan.md#unit-api-o01)，协议与 Passport／Socialite 分开验收。包页面为空不表示实现完成；正式发布前必须闭合第一代正文与 API 参考。其余生态条目按各自实际用途核定，不因本次授权自动全部纳入。
