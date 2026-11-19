@@ -275,13 +275,9 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         ("  My Shop--V2!  ", "my_shop_v2".to_owned()),
         ("123 Store", "store".to_owned()),
         ("123abc", "abc".to_owned()),
-        ("1234", "app".to_owned()),
         ("_12_34_Store", "store".to_owned()),
         ("_My___App_", "my_app".to_owned()),
         ("Café Store", "cafe_store".to_owned()),
-        ("中文", "app".to_owned()),
-        ("", "app".to_owned()),
-        ("!!!", "app".to_owned()),
         (long_name.as_str(), long_name[..63].to_ascii_lowercase()),
         (
             format!("{} -- tail", "A".repeat(62)).as_str(),
@@ -321,6 +317,46 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "Existing-App.DB"
         );
     }
+
+    for app_name in ["1234", "中文", "", "!!!", "_12_34_"] {
+        fs::write(
+            root.join(".env"),
+            format!("APP_NAME=\"{app_name}\"\nDB_CONNECTION=mysql\n"),
+        )
+        .unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let error = config::load(&root, &environment).unwrap_err();
+        assert!(matches!(&error, ConfigError::InvalidType { key, .. } if key == "DB_DATABASE"));
+        assert!(
+            error.to_string().contains("APP_NAME") && error.to_string().contains("set explicitly")
+        );
+
+        fs::write(
+            root.join(".env"),
+            format!("APP_NAME=\"{app_name}\"\nDB_DATABASE=Existing-App.DB\n"),
+        )
+        .unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let values = config::load(&root, &environment).unwrap();
+        for connection in ["sqlite", "mysql", "mariadb", "pgsql", "sqlsrv"] {
+            assert_eq!(
+                values["database"]["connections"][connection]["database"],
+                "Existing-App.DB"
+            );
+        }
+    }
+    fs::write(
+        root.join(".env"),
+        "APP_NAME=!!!\nDB_URL=mysql://localhost/existing_app\n",
+    )
+    .unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let values = config::load(&root, &environment).unwrap();
+    assert_eq!(
+        values["database"]["connections"]["mysql"]["url"],
+        "mysql://localhost/existing_app"
+    );
+    assert!(values["database"]["connections"]["mysql"]["database"].is_null());
 
     for value in ["", "   "] {
         fs::write(root.join(".env"), format!("APP_PUBLIC_PATH=\"{value}\"\n")).unwrap();

@@ -2,7 +2,7 @@
 
 ## 配置
 
-未设置 `DB_DATABASE` 时，MySQL、MariaDB、PostgreSQL 和 SQL Server 从应用名称派生默认库名。配置中的 `database_name` 方法复用 ASCII 转写，将字母转为小写，并将连续空格或特殊字符合并为下划线。去掉开头的数字及下划线，例如 `123 Store` 转为 `store`；空结果回退为 `app`。结果最多保留 63 个 ASCII 字节，并移除尾部下划线。例如，`ExampleStore` 转为 `examplestore`，`My Shop-V2` 转为 `my_shop_v2`。显式 `DB_DATABASE` 原样使用。SQLite 继续使用文件路径默认值。连接前创建对应数据库，已有数据库可用 `DB_DATABASE` 明确指定。
+未设置 `DB_DATABASE` 时，MySQL、MariaDB、PostgreSQL 和 SQL Server 从应用名称派生默认库名。配置中的 `database_name` 方法复用 ASCII 转写，将字母转为小写，并将连续空格或特殊字符合并为下划线。去掉开头的数字及下划线，例如 `123 Store` 转为 `store`；结果为空时返回配置错误，提示显式设置 `DB_DATABASE`。显式 `DB_DATABASE` 或非空 `DB_URL` 优先于默认库名派生。结果最多保留 63 个 ASCII 字节，并移除尾部下划线。例如，`ExampleStore` 转为 `examplestore`，`My Shop-V2` 转为 `my_shop_v2`。显式 `DB_DATABASE` 原样使用。SQLite 继续使用文件路径默认值。连接前创建对应数据库，已有数据库可用 `DB_DATABASE` 明确指定。
 
 应用从 `config/database.rs` 读取数据库配置，默认连接为 `sqlite`。请先创建 `database/database.sqlite`，也可设定 `DB_DATABASE=:memory:` 使用临时数据库。相对 SQLite 路径以应用根目录为基准。内存库使用单个物理连接，默认使用私有缓存，可在 URL 中显式启用共享缓存。
 

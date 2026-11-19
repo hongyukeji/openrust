@@ -2,7 +2,7 @@
 
 ## 設定
 
-未設定 `DB_DATABASE` 時，MySQL、MariaDB、PostgreSQL 和 SQL Server 從應用程式名稱產生預設資料庫名稱。設定中的 `database_name` 方法沿用 ASCII 轉寫，將字母轉為小寫，並將連續空白或特殊字元合併為底線。移除開頭的數字及底線，例如 `123 Store` 轉為 `store`；空結果回退為 `app`。結果最多保留 63 個 ASCII 位元組，並移除尾部底線。例如，`ExampleStore` 轉為 `examplestore`，`My Shop-V2` 轉為 `my_shop_v2`。明確設定的 `DB_DATABASE` 原樣使用。SQLite 繼續使用檔案路徑預設值。連線前建立對應資料庫，既有資料庫可用 `DB_DATABASE` 明確指定。
+未設定 `DB_DATABASE` 時，MySQL、MariaDB、PostgreSQL 和 SQL Server 從應用程式名稱產生預設資料庫名稱。設定中的 `database_name` 方法沿用 ASCII 轉寫，將字母轉為小寫，並將連續空白或特殊字元合併為底線。移除開頭的數字及底線，例如 `123 Store` 轉為 `store`；結果為空時回傳設定錯誤，提示明確設定 `DB_DATABASE`。明確設定的 `DB_DATABASE` 或非空 `DB_URL` 優先於預設資料庫名稱的產生。結果最多保留 63 個 ASCII 位元組，並移除尾部底線。例如，`ExampleStore` 轉為 `examplestore`，`My Shop-V2` 轉為 `my_shop_v2`。明確設定的 `DB_DATABASE` 原樣使用。SQLite 繼續使用檔案路徑預設值。連線前建立對應資料庫，既有資料庫可用 `DB_DATABASE` 明確指定。
 
 應用程式從 `config/database.rs` 讀取資料庫設定，預設連線為 `sqlite`。請先建立 `database/database.sqlite`，也可設定 `DB_DATABASE=:memory:` 使用臨時資料庫。SQLite 相對路徑以應用程式根目錄為基準。記憶體資料庫使用單一實體連線，預設使用私有快取，可在 URL 中明確啟用共用快取。
 

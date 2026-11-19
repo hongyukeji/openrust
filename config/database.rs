@@ -14,7 +14,14 @@ pub(super) fn load(
     let sqlite = base_path.join("database/database.sqlite");
     let url = get(env, "DB_URL", Value::Null)?;
     let mask_bindings = get(env, "DB_MASK_BINDINGS", false)?;
-    let database = get(env, "DB_DATABASE", database_name(app_name))?;
+    let database = match env.get_utf8("DB_DATABASE")? {
+        Some(database) => json!(database),
+        None => match database_name(app_name) {
+            Ok(database) => json!(database),
+            Err(_) if url.as_str().is_some_and(|url| !url.is_empty()) => Value::Null,
+            Err(error) => return Err(error),
+        },
+    };
     let mysql = mysql_connection(env, "mysql", &url, &mask_bindings, &database)?;
     let mariadb = mysql_connection(env, "mariadb", &url, &mask_bindings, &database)?;
 
@@ -142,9 +149,9 @@ pub(super) fn load(
 /*
  * 为服务端数据库派生默认库名。显式 DB_DATABASE 不经过转换。
  * 复用 Str 的 ASCII 转写，将分隔符折叠为下划线，保留小写字母和数字。
- * 去掉开头的数字及下划线，空结果使用 app，最多保留 63 字节以兼容 PostgreSQL 默认上限。
+ * 去掉开头的数字及下划线，空结果返回配置错误，最多保留 63 字节以兼容 PostgreSQL 默认上限。
  */
-fn database_name(app_name: &str) -> String {
+fn database_name(app_name: &str) -> Result<String, ConfigError> {
     let ascii = Str::ascii(app_name, "en");
     let name = ascii
         .split(|character: char| !character.is_ascii_alphanumeric())
@@ -156,9 +163,12 @@ fn database_name(app_name: &str) -> String {
         name.trim_start_matches(|character: char| character.is_ascii_digit() || character == '_');
     let name = name[..name.len().min(63)].trim_end_matches('_');
     if name.is_empty() {
-        return "app".into();
+        return Err(ConfigError::InvalidType {
+            key: "DB_DATABASE".into(),
+            expected: "set explicitly because APP_NAME cannot produce a non-empty database name",
+        });
     }
-    name.to_owned()
+    Ok(name.to_owned())
 }
 
 /*
