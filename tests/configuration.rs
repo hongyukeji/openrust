@@ -125,7 +125,14 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     );
     assert_eq!(defaults["app"]["public_path"], "public");
     assert_eq!(configured["app"]["public_path"], "site");
-    assert_eq!(defaults["filesystems"]["disks"]["web"]["url"], "/");
+    assert_eq!(
+        defaults["filesystems"]["disks"]["web"]["url"],
+        defaults["app"]["url"]
+    );
+    assert_eq!(
+        configured["filesystems"]["disks"]["web"]["url"],
+        configured["app"]["url"]
+    );
     assert!(configured["app"].get("public_url_prefix").is_none());
     assert_eq!(configured["app"]["debug"], true);
     let package_defaults =

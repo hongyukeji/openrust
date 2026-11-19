@@ -54,7 +54,7 @@ pub(super) fn load(
             "web": {
                 "driver": "local",
                 "root": path(&public_path)?,
-                "url": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
+                "url": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or(&app.url),
                 "visibility": "public",
                 "throw": false,
                 "report": false,

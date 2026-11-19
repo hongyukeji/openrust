@@ -121,7 +121,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 環境變數 | 用途 | 預設值 |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `/` |
+| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `app.url` |
 | `PUBLIC_STORAGE_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 

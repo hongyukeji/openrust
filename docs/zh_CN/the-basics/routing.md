@@ -23,7 +23,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`web` 和 `public` 磁盘配置在 `config/filesystems.rs`，默认根目录分别是 `public` 和 `storage/app/public`，URL 前缀分别是 `/` 和 `/storage`。应用路由优先。磁盘挂载按声明顺序查找，第一个存在的公开文件生效。两个挂载都拒绝符号链接，因此会跳过 `public/storage` 链接，由 `public` 磁盘直接提供文件。只有未匹配应用路由的 GET 和 HEAD 请求会读取文件，缺失文件和目录请求返回 404。
+`web` 和 `public` 磁盘配置在 `config/filesystems.rs`，默认根目录分别是 `public` 和 `storage/app/public`，默认 URL 分别是 `app.url` 和 `app.url` 加 `/storage`。挂载路径从 URL 提取，包含应用 URL 自带的路径前缀。应用路由优先。磁盘挂载按声明顺序查找，第一个存在的公开文件生效。两个挂载都拒绝符号链接，因此会跳过 `public/storage` 链接，由 `public` 磁盘直接提供文件。只有未匹配应用路由的 GET 和 HEAD 请求会读取文件，缺失文件和目录请求返回 404。
 
 静态文件有可用的修改时间时，响应会携带 `Last-Modified`。GET 或 HEAD 请求可以把该值放入 `If-Modified-Since` 重新验证文件。文件未修改时返回 `304 Not Modified`，响应体为空。
 

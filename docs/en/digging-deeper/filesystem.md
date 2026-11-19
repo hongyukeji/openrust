@@ -28,7 +28,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `/`. Set `APP_PUBLIC_PATH` and `APP_PUBLIC_URL_PREFIX` to override those defaults in `config/filesystems.rs`. The application uses `web.root` for `publicPath()`; calling `usePublicPath()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
+The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `app.url`. Set `APP_PUBLIC_PATH` and `APP_PUBLIC_URL_PREFIX` to override those defaults in `config/filesystems.rs`. The application uses `web.root` for `publicPath()`; calling `usePublicPath()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
 
 Both disk mounts require public files and traversable directories on Unix, and reject symbolic links, temporary files and files with multiple hard links. If `public/storage` is a symbolic link, the `web` disk skips it and the `public` disk serves files directly from its configured root.
 

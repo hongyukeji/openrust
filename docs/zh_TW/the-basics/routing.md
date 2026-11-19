@@ -23,7 +23,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`web` 和 `public` 磁碟設定在 `config/filesystems.rs`，預設根目錄分別是 `public` 和 `storage/app/public`，URL 前綴分別是 `/` 和 `/storage`。應用程式路由優先。磁碟掛載依宣告順序查找，第一個存在的公開檔案生效。兩個掛載都拒絕符號連結，因此會跳過 `public/storage` 連結，由 `public` 磁碟直接提供檔案。只有未符合應用程式路由的 GET 和 HEAD 請求會讀取檔案，缺失檔案和目錄請求回傳 404。
+`web` 和 `public` 磁碟設定在 `config/filesystems.rs`，預設根目錄分別是 `public` 和 `storage/app/public`，預設 URL 分別是 `app.url` 和 `app.url` 加 `/storage`。掛載路徑從 URL 取得，包含應用程式 URL 自帶的路徑前綴。應用程式路由優先。磁碟掛載依宣告順序查找，第一個存在的公開檔案生效。兩個掛載都拒絕符號連結，因此會跳過 `public/storage` 連結，由 `public` 磁碟直接提供檔案。只有未符合應用程式路由的 GET 和 HEAD 請求會讀取檔案，缺失檔案和目錄請求回傳 404。
 
 靜態檔案有可用的修改時間時，回應會帶上 `Last-Modified`。GET 或 HEAD 請求可將該值放入 `If-Modified-Since` 重新驗證檔案。檔案未修改時傳回 `304 Not Modified`，回應本文為空。
 

@@ -23,7 +23,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-The `web` and `public` disks are configured in `config/filesystems.rs`. Their default roots are `public` and `storage/app/public`, and their default URL prefixes are `/` and `/storage`. Application routes take precedence. Disk mounts are checked in declaration order, with the first existing public file winning. Both mounts reject symbolic links, so a `public/storage` link is skipped and the `public` disk can serve the file directly. Only unmatched GET and HEAD requests serve files. Missing files and directory requests return 404.
+The `web` and `public` disks are configured in `config/filesystems.rs`. Their default roots are `public` and `storage/app/public`, and their default URLs are `app.url` and `app.url` with `/storage` appended. Mount paths come from those URLs, including any application URL path prefix. Application routes take precedence. Disk mounts are checked in declaration order, with the first existing public file winning. Both mounts reject symbolic links, so a `public/storage` link is skipped and the `public` disk can serve the file directly. Only unmatched GET and HEAD requests serve files. Missing files and directory requests return 404.
 
 Static file responses include `Last-Modified` when the file has a usable modification time. Send that value in `If-Modified-Since` with GET or HEAD to revalidate the file. If it has not changed, the response is `304 Not Modified` with an empty body.
 

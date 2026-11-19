@@ -2191,6 +2191,10 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         Some(json!("http://localhost:9081/storage"))
     );
     check(&kernel, "/storage/probe.txt", Some("public disk")).await;
+    assert_eq!(
+        config.get("filesystems.disks.web.url"),
+        Some(json!("http://localhost:9081"))
+    );
 
     #[cfg(unix)]
     {
@@ -2222,6 +2226,43 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         root.0.canonicalize().unwrap().join("assets")
     );
     check(&kernel, "/probe.txt", Some("application assets")).await;
+
+    fs::write(
+        &environment,
+        "APP_URL=https://example.test/site/\nPUBLIC_STORAGE_ROOT=uploads\n",
+    )
+    .unwrap();
+    let mut kernel = Kernel::new(application(web::register));
+    kernel.bootstrap().await.unwrap();
+    let configuration = kernel.get_application().config().unwrap();
+    assert_eq!(
+        configuration.get("filesystems.disks.web.url"),
+        configuration.get("app.url")
+    );
+    assert_eq!(
+        configuration.get("filesystems.disks.public.url"),
+        Some(json!("https://example.test/site/storage"))
+    );
+    let disks = kernel
+        .get_application()
+        .container()
+        .make::<openrust::filesystem::FilesystemManager>()
+        .unwrap();
+    assert_eq!(
+        disks.disk(Some("web")).unwrap().url("probe.txt").unwrap(),
+        "https://example.test/site/probe.txt"
+    );
+    assert_eq!(
+        disks
+            .disk(Some("public"))
+            .unwrap()
+            .url("probe.txt")
+            .unwrap(),
+        "https://example.test/site/storage/probe.txt"
+    );
+    check(&kernel, "/site/probe.txt", Some("old default")).await;
+    check(&kernel, "/site/storage/probe.txt", Some("public disk")).await;
+    check(&kernel, "/probe.txt", None).await;
 }
 
 #[test]

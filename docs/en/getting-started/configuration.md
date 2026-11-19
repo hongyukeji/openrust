@@ -121,7 +121,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 | Environment setting | Purpose | Default |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `/` |
+| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `app.url` |
 | `PUBLIC_STORAGE_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
 

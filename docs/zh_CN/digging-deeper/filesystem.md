@@ -28,7 +28,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-`web` 磁盘描述网站目录，根目录默认是 `public`，URL 默认是 `/`。在 `config/filesystems.rs` 中通过 `APP_PUBLIC_PATH` 和 `APP_PUBLIC_URL_PREFIX` 覆盖默认值。应用使用 `web.root` 作为 `publicPath()`；启动前调用 `usePublicPath()` 会覆盖目录并同步 `web.root`。两个挂载统一使用 `staticDisk`，读取本地磁盘根目录，并从 `url` 提取完整挂载路径。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源，协议、主机或有效端口不同会导致 HTTP 引导失败。
+`web` 磁盘描述网站目录，根目录默认是 `public`，URL 默认是 `app.url`。在 `config/filesystems.rs` 中通过 `APP_PUBLIC_PATH` 和 `APP_PUBLIC_URL_PREFIX` 覆盖默认值。应用使用 `web.root` 作为 `publicPath()`；启动前调用 `usePublicPath()` 会覆盖目录并同步 `web.root`。两个挂载统一使用 `staticDisk`，读取本地磁盘根目录，并从 `url` 提取完整挂载路径。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 将 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。绝对 URL 必须与 `app.url` 同源，协议、主机或有效端口不同会导致 HTTP 引导失败。
 
 两个磁盘挂载在 Unix 上都要求文件公开且各级目录可遍历，并拒绝符号链接、写入临时文件及具有多个硬链接的文件。如果 `public/storage` 是符号链接，`web` 磁盘会跳过它，由 `public` 磁盘直接从其配置的根目录提供文件。
 
