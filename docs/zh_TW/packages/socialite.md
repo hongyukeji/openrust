@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2、Google 及 Facebook。API-S01 整體仍在開發；Twitter OAuth1 同樣可用，完整 OIDC／本機身分整合繼續開發。
+Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2、Google 及 Facebook。Twitter OAuth1 與下方本機帳戶登入範例同樣可用。完整 OIDC RP 與 SSO 由 API-O01／02 獨立交付。
 
 ## 安裝 {#installation}
 
@@ -106,6 +106,85 @@ X／Twitter OAuth2 在重新導向和回呼預設啟用 PKCE，因此即使 `sta
 Google 按固定驅動將長度大於 100 位元組且恰有兩個句點的 token 識別為 JWT。它讀取固定 Google JWKS 端點，透過採用 AWS-LC 的 `jsonwebtoken` 11.1.0 校驗金鑰演算法和簽章，要求 issuer 嚴格等於 `https://accounts.google.com`，audience 為與 client ID 相同的單一字串。存在的 `exp`／`nbf` 與 `iat` 回退按固定 PHP NumericDate 行為驗證。JWT 驗證失敗不會退回 Bearer UserInfo。此 Socialite 路徑按上游接受缺少 `exp`、數字日期字串與 null 日期，不執行 Discovery、不要求 nonce，也不是完整 OIDC RP；API-O01 有獨立協定範圍。Google raw 資料還補入 `id`、`verified_email`、`link`，並映射 `avatar_original`。
 
 Facebook Limited Login 從未驗證的 token header 偵測非 null 的 `kid`，隨後要求所選 Facebook JWKS 金鑰的 RS256 簽章、嚴格的 `https://www.facebook.com` issuer、單一 client audience 與匹配 nonce。在 `userFromToken(token).await?` 或回呼 `user()` 前呼叫 `provider.withNonce(expected)`；未明確指定時，從 `with` 參數的純量 `nonce` 讀取期待值。明確的 `withNonce` 優先，nonce 必須來自應用保存的授權嘗試。`withNonce` 只設定期待值，不自動產生、儲存或加入授權 nonce。簽章／宣告／nonce 失敗不會退回 Graph。請求選項與 `lastToken()` 留在目前 provider，保留的 token 使用 zeroize 清理。此行為對應固定 Socialite Limited Login（日期可選），不替代 API-O01 的完整 RP 協定。
+
+### 登入已綁定的本機帳戶
+
+以穩定的 `(provider, provider_user_id)` 尋找既有本機帳戶。namespace 來自可信應用設定，識別供應商／issuer；不同安裝或租戶使用不同 namespace。遠端 ID 作為不透明識別碼保留，`007`、`7`、`ABC` 和 `abc` 可以代表不同帳戶。已驗證信箱本身不授權綁定帳戶。此範例拒絕未知綁定，應用程式透過獨立的認證與驗證流程處理註冊或綁定。
+
+建立二進位唯一鍵與外鍵表。`user_id` 型別須與本機 `users.id` 相同，以下採用預設無號 BIGINT 主鍵：
+
+```sql
+CREATE TABLE social_identities (
+    provider VARBINARY(128) NOT NULL,
+    provider_user_id VARBINARY(255) NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    UNIQUE (provider, provider_user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+將以下動作放入應用動作目錄，在回呼 `user().await?` 成功後呼叫 `login_bound_user(request, "github", &user).await?`。回傳 false 時回應 403，否則跳轉至固定本機帳戶頁。向 `AuthManager` 註冊既有使用者模型，並為 `auth.guards.web` 設定其 Eloquent provider。動作使用原生 Session Guard，登入時輪換 Session 識別碼並替換 CSRF token。綁定查詢不建立帳戶、不更新信箱、不儲存遠端 access token。
+
+```rust
+use openrust::{
+    auth::{Auth, AuthIdentifier},
+    contracts::{auth::StatefulGuard as _, session::Session as _},
+    database::DB,
+    http::{HttpError, Request},
+};
+use openrust_socialite::two::User;
+
+fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(error),
+    }
+}
+
+/// Application recipe: existing bindings only; namespace comes from trusted application configuration.
+pub async fn login_bound_user(
+    request: &mut Request,
+    namespace: &str,
+    remote: &User,
+) -> Result<bool, HttpError> {
+    let subject = match remote.getId() {
+        serde_json::Value::String(id) if !id.is_empty() => id.clone(),
+        serde_json::Value::Number(id) if id.is_i64() || id.is_u64() => id.to_string(),
+        _ => return Ok(false),
+    };
+    if subject.len() > 255 {
+        return Ok(false);
+    }
+    let Some(binding) = DB::table("social_identities")
+        .map_err(internal)?
+        .whereExactText("provider", namespace)
+        .whereExactText("provider_user_id", &subject)
+        .first()
+        .await
+        .map_err(internal)?
+    else {
+        return Ok(false);
+    };
+    let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
+        .map_err(internal)?;
+    {
+        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        if guard
+            .loginUsingId(&id, false)
+            .await
+            .map_err(internal)?
+            .is_none()
+        {
+            return Ok(false);
+        }
+    }
+    request.session_mut()?.regenerateToken()?;
+    Ok(true)
+}
+```
+
+接入多個供應商時，在跳轉時儲存所選 namespace，回呼前消費並核對；為各供應商註冊固定路由，讓應用程式控制回呼 namespace。保留正常 state 校驗，不接受回呼傳入本機使用者 ID。本機登出使用受 CSRF 保護的 POST 路由，執行 `Auth::sessionGuard(request, Some("web"))?.logoutAndInvalidate().await?`，結束目前應用 Session；供應商 token 撤銷與聯邦登出遵循各自協定。
+
+MySQL 8.4 驗收應用使用上述動作、真實 Eloquent 使用者、資料庫 Session、HTTP token／profile 端點和兩個隔離 schema。涵蓋同信箱不合併、供應商／subject 大小寫及數值區別、並行登入、唯一綁定、固定 Session 拒絕、恢復、CSRF／登出輪換、跨應用 Cookie、缺少／刪除帳戶、錯誤／重播 state、遠端撤銷及資料庫失敗。此為受控供應商應用整合驗收，真實供應商帳戶授權仍需要憑證與登記回呼。
 
 ## 測試 {#testing}
 

@@ -481,3 +481,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 OAuth1补充
 
 [Twitter OAuth1与统一协议入口](api-s01/oauth1.md)完成本机验收：固定League／Socialite PHP、34＋1函数、根入口和三语浏览器通过。官方驱动已逐批验收，API-S01本地归属与HTTP登录整合继续；完整OIDC RP及SSO仍按独立单元开发，不提升其状态。
+
+### API-S01 本地归属与HTTP登录闭合
+
+[本地归属与HTTP登录示例](api-s01/local-login.md)完成本机验收：35＋1函数、真实MySQL8.4／Eloquent／Session、双schema／根入口与三语浏览器通过。API-S01受控供应商本机计划范围闭合；真实第三方授权保留对应外部前置。API-O01／02独立开发，完整OIDC RP与SSO仍未交付，V06／V09／V17整体状态不提升。

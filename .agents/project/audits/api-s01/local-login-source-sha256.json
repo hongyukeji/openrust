@@ -1,0 +1,11 @@
+{
+  "baseline": "5c366c96539cdde1815ae8370bc9f3cda3587610",
+  "sha256": {
+    "vendor/openrust/socialite/tests/local_login.rs": "091efb40d8f7a8fba8f73d588ea844d8ce9364bd6a7603a279ada393e2a1b791",
+    "vendor/openrust/socialite/tests/support/local_login.rs": "64cafeb8a3a9a136a0c9bb993e2a5f882b49429d319f8635e25bac25b6409f8b",
+    "docs/tests/check_socialite.mjs": "47f5af336d3ddac735e932d9da371ecd5c50c1e3c5cd6060dda9a15cb113a9d3",
+    "docs/en/packages/socialite.md": "72483206089294de7f66f1ff6a720a8e9fa2d2d2a13ccc83acbc659dee20659f",
+    "docs/zh_CN/packages/socialite.md": "7d0f638849e445ecf8e6d30bff9797274c640a46d518ea7ad5d6f46805f13e08",
+    "docs/zh_TW/packages/socialite.md": "731f5e6add2c50b7d48df322d7ac490b4dba077485e3407436ae03db5f6570d4"
+  }
+}

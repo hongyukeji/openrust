@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) Slack (identity and OpenID), X/Twitter OAuth2, Google and Facebook against fixed Socialite 5.33.0. API-S01 remains in development; Twitter OAuth1 is also available; full OIDC/local identity integration remains pending.
+Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) Slack (identity and OpenID), X/Twitter OAuth2, Google and Facebook against fixed Socialite 5.33.0. Twitter OAuth1 and a local-account login recipe are also available. Full OIDC RP and SSO belong to API-O01/02.
 
 ## Installation {#installation}
 
@@ -106,6 +106,85 @@ Legacy LinkedIn adds `first_name`, `last_name` and `avatar_original`, using the 
 Google treats a token longer than 100 bytes with exactly two dots as a JWT, matching the pinned provider. It fetches the configured Google JWKS endpoint, verifies the key algorithm and signature through `jsonwebtoken` 11.1.0 with AWS-LC, and requires the exact scalar issuer `https://accounts.google.com` and audience equal to the client ID. It checks present `exp`/`nbf` and the `iat` fallback, preserving the pinned PHP NumericDate behavior. Invalid JWTs never fall back to Bearer UserInfo. This Socialite path accepts an absent `exp`, numeric date strings and null dates as upstream does; it does not perform Discovery, require a nonce or implement full OIDC RP validation. API-O01 has a separate protocol scope. Google raw data also adds `id`, `verified_email`, `link` and mapped `avatar_original`.
 
 Facebook Limited Login detects a non-null `kid` in the untrusted token header, then requires RS256 with the selected Facebook JWKS key, exact `https://www.facebook.com` issuer, scalar client audience and a matching nonce. Use `provider.withNonce(expected)` before `userFromToken(token).await?` or the callback’s `user()`; otherwise the scalar `with` parameter `nonce` supplies the expected value. Explicit `withNonce` takes precedence. The nonce must come from the application’s stored authorization attempt. `withNonce` only sets the expectation; it does not generate, store or add an authorization nonce automatically. Failed signature/claims/nonce verification never falls back to Graph. Request options and `lastToken()` stay in the current provider; the retained token is zeroized. This matches the pinned Socialite Limited Login path, including its optional dates, and does not replace the full API-O01 RP protocol.
+
+### Logging in a bound local account
+
+Use the stable pair `(provider, provider_user_id)` to resolve an existing local account. The namespace is a trusted application setting identifying the provider/issuer; use different namespaces for different installations or tenants. Keep the remote ID opaque: `007`, `7`, `ABC` and `abc` can identify different accounts. A verified email alone does not authorize account linking. This recipe rejects an unknown binding; applications handle registration or binding through a separate authenticated and verified workflow.
+
+Create a table with a binary unique pair and a foreign key. The `user_id` type must match your local `users.id`; this example uses the default unsigned BIGINT key:
+
+```sql
+CREATE TABLE social_identities (
+    provider VARBINARY(128) NOT NULL,
+    provider_user_id VARBINARY(255) NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    UNIQUE (provider, provider_user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+Place this action in your application's action directory and call `login_bound_user(request, "github", &user).await?` after the callback's `user().await?`. Return 403 when it returns false, otherwise redirect to a fixed local account page. Register your existing user model with `AuthManager` and configure `auth.guards.web` with its Eloquent provider. The action uses the native Session Guard, rotates the session identifier during login and replaces the CSRF token. The binding lookup does not create accounts, update emails or save remote access tokens.
+
+```rust
+use openrust::{
+    auth::{Auth, AuthIdentifier},
+    contracts::{auth::StatefulGuard as _, session::Session as _},
+    database::DB,
+    http::{HttpError, Request},
+};
+use openrust_socialite::two::User;
+
+fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(error),
+    }
+}
+
+/// Application recipe: existing bindings only; namespace comes from trusted application configuration.
+pub async fn login_bound_user(
+    request: &mut Request,
+    namespace: &str,
+    remote: &User,
+) -> Result<bool, HttpError> {
+    let subject = match remote.getId() {
+        serde_json::Value::String(id) if !id.is_empty() => id.clone(),
+        serde_json::Value::Number(id) if id.is_i64() || id.is_u64() => id.to_string(),
+        _ => return Ok(false),
+    };
+    if subject.len() > 255 {
+        return Ok(false);
+    }
+    let Some(binding) = DB::table("social_identities")
+        .map_err(internal)?
+        .whereExactText("provider", namespace)
+        .whereExactText("provider_user_id", &subject)
+        .first()
+        .await
+        .map_err(internal)?
+    else {
+        return Ok(false);
+    };
+    let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
+        .map_err(internal)?;
+    {
+        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        if guard
+            .loginUsingId(&id, false)
+            .await
+            .map_err(internal)?
+            .is_none()
+        {
+            return Ok(false);
+        }
+    }
+    request.session_mut()?.regenerateToken()?;
+    Ok(true)
+}
+```
+
+For multiple providers, store the selected namespace at redirect and consume/check it before calling the callback provider. Register fixed routes for each provider and keep the callback namespace under application control. Preserve the normal state check; never accept a callback-supplied local user ID. Handle local logout through a CSRF-protected POST route using `Auth::sessionGuard(request, Some("web"))?.logoutAndInvalidate().await?`. Local logout ends this application's Session; provider token revocation and federated logout have separate provider contracts.
+
+The MySQL 8.4 acceptance application executes this action with real Eloquent users, database Sessions, HTTP token/profile endpoints and two isolated schemas. It verifies email collisions without account merging, provider/subject case and numeric distinctions, concurrent login, unique binding enforcement, session fixation rejection, Session restoration, CSRF/logout rotation, cross-app cookies, missing/deleted users, invalid/replayed state, revoked tokens and database failure. This is a controlled-provider application integration test; real provider credentials and callbacks are still required for account authorization.
 
 ## Testing {#testing}
 
