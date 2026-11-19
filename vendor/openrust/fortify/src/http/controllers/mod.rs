@@ -38,3 +38,5 @@ pub use email_verification::{
     EmailVerificationNotificationController, EmailVerificationPromptController,
     VerifyEmailController,
 };
+mod password_reset;
+pub use password_reset::{NewPasswordController, PasswordResetLinkController};

@@ -88,3 +88,28 @@ pub trait UpdatesUserPasswords: Send + Sync {
         input: &'a openrust::http::RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
 }
+
+/// Application action validates and persists a password on the broker's actual user.
+pub trait ResetsUserPasswords: Send + Sync {
+    fn reset<'a>(
+        &'a self,
+        user: &'a mut dyn openrust::contracts::auth::CanResetPassword,
+        input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<(), openrust::http::HttpError>>;
+}
+
+/// Rust passes the broker outcome explicitly instead of container constructor parameters.
+#[allow(non_snake_case, reason = "Matches Fortify response naming")]
+pub trait PasswordResponse: Send + Sync {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut openrust::http::Request,
+        status: openrust::auth::passwords::PasswordResetStatus,
+    ) -> HttpFuture<'a, Result<openrust::http::Response, openrust::http::HttpError>>;
+}
+pub trait PasswordResetResponse: PasswordResponse {}
+pub trait FailedPasswordResetResponse: PasswordResponse {}
+pub trait SuccessfulPasswordResetLinkRequestResponse: PasswordResponse {}
+pub trait FailedPasswordResetLinkRequestResponse: PasswordResponse {}
+pub trait RequestPasswordResetLinkViewResponse: Response {}
+pub trait ResetPasswordViewResponse: Response {}

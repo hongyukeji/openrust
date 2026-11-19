@@ -38,6 +38,7 @@ use openrust::database::eloquent::{Model, ModelMetadata, ModelState};
 use openrust::http::RequestValue;
 use openrust::validation::{Data, RuleSet, ValidationException};
 use openrust_fortify::contracts;
+static RESET_NOTIFICATIONS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
 static SERIAL: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static MARK_EMAIL_RETURNS_FALSE: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
@@ -108,8 +109,11 @@ impl CanResetPassword for AccountUser {
     fn getEmailForPasswordReset(&self) -> &str {
         field(self, "email").unwrap()
     }
-    fn sendPasswordResetNotification<'a>(&'a self, _: &'a str) -> AuthFuture<'a, AuthResult<()>> {
-        Box::pin(async { Ok(()) })
+    fn sendPasswordResetNotification<'a>(&'a self, token: &'a str) -> AuthFuture<'a, AuthResult<()>> {
+        Box::pin(async move {
+            RESET_NOTIFICATIONS.lock().unwrap().push((self.getEmailForPasswordReset().to_owned(), token.to_owned()));
+            Ok(())
+        })
     }
 }
 impl MustVerifyEmail for AccountUser {
@@ -452,6 +456,8 @@ impl Listener for Observe {
                 assert!((updated.user.as_ref() as &dyn std::any::Any).is::<AccountUser>());
             }
             if [
+                "PasswordReset",
+                "PasswordResetLinkSent",
                 "Verified",
                 "Registered",
                 "Login",
@@ -472,9 +478,11 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         ("session".into(),json!({"driver":"database","table":"fortify_account_sessions","cookie":"fortify_session","lottery":[0,100]})),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
-        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"AccountUser"}},"passwords":{"users":{"driver":"database","provider":"users","table":"fortify_default_resets","expire":60},"accounts":{"driver":"database","provider":"users","table":"fortify_named_resets","expire":60}}})),
+        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"AccountUser"}},"passwords":{"users":{"driver":"database","provider":"users","table":"fortify_default_resets","expire":60,"throttle":60},"accounts":{"driver":"database","provider":"users","table":"fortify_named_resets","expire":60,"throttle":60}}})),
     ].into())).withProviders(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).withRouting(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
+    let passwords: BTreeMap<String, openrust::translation::Line> = serde_json::from_str(include_str!("../../../framework/src/translation/stubs/passwords.json")).unwrap();
+    app.make::<openrust::translation::Translator>().await.unwrap().addLines(passwords.into_iter().map(|(key, value)| (format!("passwords.{key}"), value)), "en", None).unwrap();
     let database = app
         .make::<openrust::database::DatabaseManager>()
         .await
@@ -505,15 +513,18 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         .registerModel::<AccountUser>("AccountUser");
     let fortify = app.make::<Fortify>().await.unwrap();
     fortify.registerEmailVerification::<AccountUser>();
+    fortify.registerPasswordReset::<AccountUser>();
     let hasher = app.make::<dyn Hasher>().await.unwrap();
     let actions = Arc::new(Actions {
         hasher: hasher.clone(),
     });
     if callbacks {
+        fortify.resetUserPasswordsUsing(actions.clone());
         fortify.createUsersUsing(actions.clone());
         fortify.updateUserProfileInformationUsing(actions.clone());
         fortify.updateUserPasswordsUsing(actions.clone());
     } else {
+        app.container().instance::<dyn contracts::ResetsUserPasswords>(actions.clone()).unwrap();
         app.container()
             .instance::<dyn contracts::CreatesNewUsers>(actions.clone())
             .unwrap();
@@ -589,7 +600,7 @@ impl Client {
    let cookies=self.cookies.iter().map(|(k,v)|format!("{k}={v}")).collect::<Vec<_>>().join("; ");
    let accept=if self.html {"text/html"} else {"application/json"};let fetch=if self.fetch {"Sec-Fetch-Site: same-origin\r\n"}else{""};
    let wire=format!("{method} {path} HTTP/1.1\r\nHost: {}\r\nAccept: {accept}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\nCookie: {cookies}\r\n{fetch}\r\n{body}",self.address,body.len());
-   socket.write_all(wire.as_bytes()).await.unwrap();let mut response=String::new();socket.read_to_string(&mut response).await.unwrap();assert!(response.starts_with(&format!("HTTP/1.1 {status} ")),"{method} {path}: {response}");
+   socket.write_all(wire.as_bytes()).await.unwrap();let mut response=String::new();socket.read_to_string(&mut response).await.unwrap();assert!(status==0 || response.starts_with(&format!("HTTP/1.1 {status} ")),"{method} {path}: {response}");
    let (headers,body)=response.split_once("\r\n\r\n").unwrap();
    for line in headers.lines() {if let Some(cookie)=line.strip_prefix("set-cookie: ") {let (name,value)=cookie.split(';').next().unwrap().split_once('=').unwrap();self.cookies.insert(name.into(),value.into());}}
    Wire{headers:headers.into(),body:serde_json::from_str(body).unwrap_or(Json::String(body.into()))}
@@ -646,4 +657,18 @@ fn verification_link(request: &mut Request) -> HttpFuture<'_, Result<Response, H
             .map_err(internal)?;
         Response::json(StatusCode::OK, json!({"url":url}))
     })
+}
+
+impl contracts::ResetsUserPasswords for Actions {
+    fn reset<'a>(&'a self, user: &'a mut dyn CanResetPassword, values: &'a RequestValue) -> HttpFuture<'a, Result<(), HttpError>> {
+        Box::pin(async move {
+            Validator::make(validation_data(values)?, RuleSet::parse([("password", "required|string|min:8")])?)?.validate().await?;
+            policy(values, "default", false, true)?;
+            let hash = self.hasher.make(input(values, "password").as_str().unwrap().as_bytes(), &HashOptions::new()).await.map_err(internal)?;
+            let user = (user as &mut dyn std::any::Any).downcast_mut::<AccountUser>().unwrap();
+            user.setAttribute("password", hash);
+            user.save().await.map_err(internal)?;
+            Ok(())
+        })
+    }
 }

@@ -426,3 +426,9 @@ impl contracts::Response for EmailVerificationNotificationSentResponse {
         })
     }
 }
+mod password_reset;
+pub use password_reset::{
+    FailedPasswordResetLinkRequestResponse, FailedPasswordResetResponse, PasswordResetResponse,
+    SuccessfulPasswordResetLinkRequestResponse,
+};
+pub(crate) use password_reset::{RequestPasswordResetLinkViewResponse, ResetPasswordViewResponse};

@@ -215,3 +215,31 @@ pub use two_factor::{
 
 mod redirect_if_two_factor_authenticatable;
 pub use redirect_if_two_factor_authenticatable::RedirectIfTwoFactorAuthenticatable;
+
+/// Persists remember-token rotation and emits PasswordReset after the application action.
+pub struct CompletePasswordReset {
+    fortify: Arc<Fortify>,
+}
+impl CompletePasswordReset {
+    pub fn new(fortify: Arc<Fortify>) -> Self {
+        Self { fortify }
+    }
+    pub async fn handle(
+        &self,
+        user: &mut dyn openrust::contracts::auth::CanResetPassword,
+    ) -> Result<(), HttpError> {
+        let model = self
+            .fortify
+            .password_reset_models
+            .read()
+            .expect("Fortify model registry lock")
+            .get(&(user as &dyn std::any::Any).type_id())
+            .cloned()
+            .ok_or_else(|| {
+                internal(std::io::Error::other(
+                    "Password reset model has not been registered",
+                ))
+            })?;
+        model.complete(user).await
+    }
+}

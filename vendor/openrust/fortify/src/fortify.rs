@@ -49,6 +49,16 @@ pub struct Fortify {
         >,
     >,
     verify_email_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
+    pub(crate) password_resetter: RwLock<Option<Arc<dyn crate::contracts::ResetsUserPasswords>>>,
+    pub(crate) password_reset_models: RwLock<
+        std::collections::HashMap<
+            std::any::TypeId,
+            Arc<dyn crate::password_reset_model::RegisteredModel>,
+        >,
+    >,
+    request_password_reset_link_view:
+        RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
+    reset_password_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     registers_routes: AtomicBool,
 }
 #[allow(
@@ -82,6 +92,10 @@ impl Fortify {
             register_view: RwLock::new(None),
             email_verification_models: RwLock::new(Default::default()),
             verify_email_view: RwLock::new(None),
+            password_resetter: RwLock::new(None),
+            password_reset_models: RwLock::new(Default::default()),
+            request_password_reset_link_view: RwLock::new(None),
+            reset_password_view: RwLock::new(None),
             registers_routes: AtomicBool::new(true),
         }
     }
@@ -156,6 +170,55 @@ impl Fortify {
         &self,
     ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.verify_email_view
+            .read()
+            .expect("Fortify views lock")
+            .clone()
+    }
+    pub fn resetUserPasswordsUsing(&self, action: Arc<dyn crate::contracts::ResetsUserPasswords>) {
+        *self
+            .password_resetter
+            .write()
+            .expect("Fortify actions lock") = Some(action);
+    }
+    pub fn registerPasswordReset<T>(&self)
+    where
+        T: openrust::database::eloquent::Model + openrust::contracts::auth::CanResetPassword,
+    {
+        self.password_reset_models
+            .write()
+            .expect("Fortify model registry lock")
+            .insert(
+                std::any::TypeId::of::<T>(),
+                Arc::new(crate::password_reset_model::ModelAdapter::<T>::new()),
+            );
+    }
+    pub fn requestPasswordResetLinkView(
+        &self,
+        view: impl Into<crate::http::responses::SimpleViewResponse>,
+    ) {
+        *self
+            .request_password_reset_link_view
+            .write()
+            .expect("Fortify views lock") = Some(Arc::new(view.into()));
+    }
+    pub fn resetPasswordView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+        *self
+            .reset_password_view
+            .write()
+            .expect("Fortify views lock") = Some(Arc::new(view.into()));
+    }
+    pub(crate) fn request_password_reset_link_view(
+        &self,
+    ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+        self.request_password_reset_link_view
+            .read()
+            .expect("Fortify views lock")
+            .clone()
+    }
+    pub(crate) fn reset_password_view(
+        &self,
+    ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+        self.reset_password_view
             .read()
             .expect("Fortify views lock")
             .clone()

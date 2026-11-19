@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-F01 [密码重置 HTTP](audits/api-f01/password-reset.md)验收闭合：正式路由／named broker／应用动作／remember 轮换／失败重试／可替换响应及并发消费，19组固定PHP对照、Fortify49及原生16函数、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan全过。专属target清理，源码／日志及全部卷保留；本地核范围提交，不推送。继续安装及三语整体验收，API-F01尚未全簇闭合。
+
 - 2026-11-20 API-S01 [共享OAuth2与GitHub首批](audits/api-s01/github.md)实现验收完成：新增可选socialite包、应用内manager／facade／contracts、真实Session state／PKCE、token／profile／已验证邮箱／refresh、scope及参数、自定义driver与敏感HTTP观察记录隔离。固定Socialite5.33.0源码与PHP8.5.12对照，7项Socialite＋14项HTTP Client＋1项纯配置共22函数；Rust1.94 strict workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。隔离2383fdbd，Cargo.lock只合入本包，保留同期验证器／Fortify；专属产物清理见记录。API-S01仍未整体闭合，继续GitLab／Bitbucket等官方驱动及OAuth1／OIDC／本地身份映射；真实供应商仍缺测试应用凭据及回调账户。本地提交，不推送。
 
 - 2026-11-20 API-F01 [默认 email 规则依赖](audits/api-f01/email-rule.md)验收闭合：固定 Laravel／Egulias 原 PHP 9381 组对照、实际 TCP／FormRequest、验证27／Fortify43函数、MySQL8.4.13、Rust1.94严格 Clippy／格式与根 HTTP／Pail／Artisan 全过。专属 target 闲置清理，源码／日志及全部卷保留；本地核范围提交，不推送。密码重置 HTTP 在途，继续安装和三语整体验收，不称 API-F01 全簇完成。

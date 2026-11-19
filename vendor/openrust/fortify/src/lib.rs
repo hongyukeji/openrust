@@ -36,3 +36,5 @@ mod two_factor_model;
 mod qr;
 
 mod email_verification_model;
+
+mod password_reset_model;

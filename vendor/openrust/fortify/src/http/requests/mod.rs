@@ -82,3 +82,15 @@ impl FormRequest for VerifyEmailRequest {
         Ok(RuleSet::default())
     }
 }
+
+#[derive(Default)]
+pub struct SendPasswordResetLinkRequest;
+impl FormRequest for SendPasswordResetLinkRequest {
+    fn rules(&self) -> ValidationResult<RuleSet> {
+        let fortify =
+            Resolver::<Fortify>::getFacadeRoot().map_err(|source| ValidationError::Execution {
+                source: Box::new(source),
+            })?;
+        RuleSet::parse([(fortify.email().as_str(), "required|email")])
+    }
+}

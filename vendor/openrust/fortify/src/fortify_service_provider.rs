@@ -140,6 +140,22 @@ impl ServiceProvider for FortifyServiceProvider {
             })?;
             container
                 .singleton::<VerifyEmailController, _>(|_| Ok(Arc::new(VerifyEmailController)))?;
+            container.singleton::<PasswordResetLinkController, _>(|_| {
+                Ok(Arc::new(PasswordResetLinkController))
+            })?;
+            container
+                .singleton::<NewPasswordController, _>(|_| Ok(Arc::new(NewPasswordController)))?;
+            container.bind::<crate::actions::CompletePasswordReset, _>(|container| {
+                Ok(Arc::new(crate::actions::CompletePasswordReset::new(
+                    container.make::<Fortify>()?,
+                )))
+            })?;
+            response!(RequestPasswordResetLinkViewResponse);
+            response!(ResetPasswordViewResponse);
+            response!(PasswordResetResponse);
+            response!(FailedPasswordResetResponse);
+            response!(SuccessfulPasswordResetLinkRequestResponse);
+            response!(FailedPasswordResetLinkRequestResponse);
             response!(VerifyEmailViewResponse);
             response!(VerifyEmailResponse);
             response!(EmailVerificationNotificationSentResponse);
@@ -171,13 +187,12 @@ impl ServiceProvider for FortifyServiceProvider {
                 return Ok(());
             }
             let features = Features::new(fortify.config.clone());
-            for feature in [Features::resetPasswords(), Features::passkeys()] {
-                if features.enabled(feature)? {
-                    return Err(std::io::Error::other(format!(
-                        "Fortify feature {feature} HTTP integration is not implemented"
-                    ))
-                    .into());
-                }
+            if features.enabled(Features::passkeys())? {
+                return Err(std::io::Error::other(format!(
+                    "Fortify feature {} HTTP integration is not implemented",
+                    Features::passkeys()
+                ))
+                .into());
             }
             self.loadRoutesFrom(app, crate::http::routes::register)?;
             Ok(())

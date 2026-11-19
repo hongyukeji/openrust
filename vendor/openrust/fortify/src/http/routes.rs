@@ -2,7 +2,7 @@ use crate::{
     Fortify,
     http::{
         controllers::*,
-        requests::{LoginRequest, TwoFactorLoginRequest},
+        requests::{LoginRequest, SendPasswordResetLinkRequest, TwoFactorLoginRequest},
     },
     resolver::Resolver,
 };
@@ -113,6 +113,47 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .middleware_name(auth.clone())
             .name("password.confirm.store");
         let features = crate::Features::new(fortify.config.clone());
+        if features
+            .enabled(crate::Features::resetPasswords())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            if views {
+                router
+                    .r#match(
+                        &[Method::GET],
+                        &path("password.request", "/forgot-password"),
+                        ControllerDispatcher::new(PasswordResetLinkController::create),
+                    )?
+                    .middleware_name(guest.clone())
+                    .name("password.request");
+                router
+                    .r#match(
+                        &[Method::GET],
+                        &path("password.reset", "/reset-password/{token}"),
+                        ControllerDispatcher::new(NewPasswordController::create),
+                    )?
+                    .middleware_name(guest.clone())
+                    .name("password.reset");
+            }
+            router
+                .r#match(
+                    &[Method::POST],
+                    &path("password.email", "/forgot-password"),
+                    ControllerDispatcher::withFormRequest::<SendPasswordResetLinkRequest>(
+                        PasswordResetLinkController::store,
+                    ),
+                )?
+                .middleware_name(guest.clone())
+                .name("password.email");
+            router
+                .r#match(
+                    &[Method::POST],
+                    &path("password.update", "/reset-password"),
+                    ControllerDispatcher::new(NewPasswordController::store),
+                )?
+                .middleware_name(guest.clone())
+                .name("password.update");
+        }
         if features
             .enabled(crate::Features::emailVerification())
             .map_err(|_| RoutingError::InvalidAction)?

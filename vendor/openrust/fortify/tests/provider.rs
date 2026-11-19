@@ -61,7 +61,7 @@ async fn unfinished_default_features_refuse_partial_route_registration() {
     }
     let error = messages.join(": ");
     assert!(
-        error.contains("Fortify feature reset-passwords HTTP integration is not implemented"),
+        error.contains("Fortify feature passkeys HTTP integration is not implemented"),
         "{error}"
     );
 }
