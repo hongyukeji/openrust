@@ -1,0 +1,10 @@
+{
+  "deleted": "/private/tmp/openrust-async-limiter-20261120/target",
+  "owned_inactive_rebuildable": true,
+  "target_kib": 7124676,
+  "before_available_kib": 85192864,
+  "after_available_kib": 92065964,
+  "released_available_kib": 6873100,
+  "docker_volumes_preserved": true,
+  "source_and_logs_preserved": true
+}

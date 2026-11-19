@@ -5,6 +5,7 @@ use ::http::{HeaderName, HeaderValue, header::RETRY_AFTER};
 use crate::{
     cache::{
         CacheError, CacheResult, Repository,
+        rate_limiter::NamedLimiter,
         rate_limiting::{
             Limit, LimiterResponse,
             counters::{self, Admission, Bucket, Quota},
@@ -65,11 +66,18 @@ pub(super) async fn handle(
     let named = if name.is_empty() || name.contains(',') {
         None
     } else {
-        RateLimiter::limiter(name).map_err(internal)?
+        RateLimiter::getFacadeRoot()
+            .map_err(CacheError::Unavailable)
+            .map_err(internal)?
+            .named_limiter(name)
     };
     let named_policy = named.is_some();
     let (namespace, limits) = if let Some(callback) = named {
-        let limits = match callback(request) {
+        let policy = match callback {
+            NamedLimiter::Sync(callback) => callback(request),
+            NamedLimiter::Async(callback) => callback(request).await?,
+        };
+        let limits = match policy {
             LimiterResponse::Limit(limit) => vec![limit],
             LimiterResponse::Limits(limits) => limits,
             LimiterResponse::Response(response) => return Ok(response),

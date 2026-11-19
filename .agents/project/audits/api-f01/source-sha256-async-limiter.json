@@ -1,0 +1,12 @@
+{
+  "baseline": "f5548cac4540354626db00a8bf43cb3dca274bc5",
+  "snapshot": "/private/tmp/openrust-async-limiter-20261120/source",
+  "files": {
+    "vendor/openrust/framework/src/cache/mod.rs": "76b589f92b6ead58d72ba63e383adb0459ba028b992e620db3f0902b836e2428",
+    "vendor/openrust/framework/src/cache/rate_limiter.rs": "c8147b63d7d5905773edfe28578e4cdc287b1c9a363dd89b18654814dd959bf4",
+    "vendor/openrust/framework/src/cache/rate_limiting/mod.rs": "014f4d6b689b49a46815e86ff7e23bd56acf54bc9e0eb1258b96e68259129631",
+    "vendor/openrust/framework/src/routing/middleware/throttle_requests.rs": "c0073a15cd80ebecdb47476c19c62c01246997c614532e2ca580c27fb71ac039",
+    "vendor/openrust/framework/src/support/facades.rs": "16e5c00059a16f1a336955da2270ddcf5441d0be4ae54108af14c67d6fec462a",
+    "vendor/openrust/framework/tests/throttling.rs": "c67c01422ba94270260217205780b22b2adf0321d684749d0e1fd187349b3d90"
+  }
+}

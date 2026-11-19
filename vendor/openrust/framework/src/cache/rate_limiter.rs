@@ -3,20 +3,26 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::http::Request;
+use crate::http::{HttpError, HttpFuture, Request};
 
 use super::{
     CacheError, CacheManager, CacheResult, Repository,
     rate_limiting::{
-        JobLimiter, JobLimiterResponse, Limit, Limiter, LimiterResponse,
+        AsyncLimiter, JobLimiter, JobLimiterResponse, Limit, Limiter, LimiterResponse,
         counters::{self, Admission, Quota},
     },
 };
 
+#[derive(Clone)]
+pub(crate) enum NamedLimiter {
+    Sync(Arc<Limiter>),
+    Async(Arc<AsyncLimiter>),
+}
+
 /// Registers application-specific rate limit policies.
 #[derive(Default)]
 pub struct RateLimiter {
-    limiters: RwLock<HashMap<String, Arc<Limiter>>>,
+    limiters: RwLock<HashMap<String, NamedLimiter>>,
     job_limiters: RwLock<HashMap<String, Arc<JobLimiter>>>,
     cache: Option<(Arc<CacheManager>, Option<String>)>,
 }
@@ -151,7 +157,37 @@ impl RateLimiter {
         self.limiters
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(name.into(), Arc::new(limiter));
+            .insert(name.into(), NamedLimiter::Sync(Arc::new(limiter)));
+        self
+    }
+
+    /// Registers a request policy that can await body parsing and propagate HTTP errors.
+    #[allow(
+        non_snake_case,
+        reason = "Async adapter for Laravel's limiter registration"
+    )]
+    pub fn forAsync(
+        &self,
+        name: impl Into<String>,
+        callback: impl for<'a> Fn(&'a mut Request) -> HttpFuture<'a, Result<LimiterResponse, HttpError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &Self {
+        let limiter: Arc<AsyncLimiter> = Arc::new(move |request| {
+            let future = callback(request);
+            Box::pin(async move {
+                let mut result = future.await?;
+                if let LimiterResponse::Limits(limits) = &mut result {
+                    normalize_limits(limits);
+                }
+                Ok(result)
+            })
+        });
+        self.limiters
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(name.into(), NamedLimiter::Async(limiter));
         self
     }
 
@@ -187,7 +223,24 @@ impl RateLimiter {
             .cloned()
     }
 
+    /// Returns the synchronous policy, or None for an absent or asynchronous registration.
     pub fn limiter(&self, name: &str) -> Option<Arc<Limiter>> {
+        match self.named_limiter(name)? {
+            NamedLimiter::Sync(callback) => Some(callback),
+            NamedLimiter::Async(_) => None,
+        }
+    }
+
+    /// Returns the asynchronous policy, or None for an absent or synchronous registration.
+    #[allow(non_snake_case, reason = "Async adapter for Laravel's limiter lookup")]
+    pub fn asyncLimiter(&self, name: &str) -> Option<Arc<AsyncLimiter>> {
+        match self.named_limiter(name)? {
+            NamedLimiter::Async(callback) => Some(callback),
+            NamedLimiter::Sync(_) => None,
+        }
+    }
+
+    pub(crate) fn named_limiter(&self, name: &str) -> Option<NamedLimiter> {
         self.limiters
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)

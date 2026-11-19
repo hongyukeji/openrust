@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-F01 [异步命名限流安装前置](audits/api-f01/async-limiter.md)验收闭合：请求体解析／同名原子替换／应用隔离及原有响应语义，真实HTTP和Redis双进程、验证器32／Fortify49、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan通过。6份输入SHA、专属target清理留证，全部卷保留，本地提交不推送。继续安装和默认动作。
+
 - 2026-11-20 API-S01 [Facebook Graph与Limited Login](audits/api-s01/facebook.md)本机验收完成：HMAC proof／版本与字段／expires语义、RS256／严格issuer及aud／期待nonce；21组原PHP JWT及全包29＋纯配置1函数、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。请求选项隔离，JWT失败不fallback；OAuth1／MySQL归属及完整RP继续。专属产物清理保留全部卷，本地提交不推送。
 
 - 2026-11-20 API-F01 [current_password安装前置](audits/api-f01/current-password.md)验收闭合：真实命名Guard／Hash／FormRequest与显式用户解析器，468组固定PHP原验证器／AuthManager／Bcrypt对照、并发隔离，验证器32／Fortify49函数、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan全过。输入SHA与专属target清理留证，源码／日志／全部卷保留，本地提交不推送。继续fortify:install、默认应用动作和三语整簇验收。

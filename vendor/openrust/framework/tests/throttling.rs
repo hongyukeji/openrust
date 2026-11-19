@@ -9,7 +9,7 @@ use std::{
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     auth::{AuthIdentifier, AuthManager, AuthResult},
-    cache::rate_limiting::{Attempt, Limit},
+    cache::rate_limiting::{Attempt, Limit, LimiterResponse},
     contracts::{
         auth::Authenticatable, container::Container as _, foundation::Application as _,
         http::Kernel as _,
@@ -35,6 +35,33 @@ struct Limits;
 impl ServiceProvider for Limits {
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
+            RateLimiter::forAsync("body", |request| {
+                Box::pin(async move {
+                    let key = request
+                        .input(Some("username"))
+                        .await?
+                        .and_then(|v| v.as_str().map(str::to_owned))
+                        .unwrap_or_default();
+                    Ok(match key.as_str() {
+                        "unlimited" => Limit::none().into(),
+                        "response" => Response::new(StatusCode::ACCEPTED, "policy".into()).into(),
+                        "error" => return Err(HttpError::InvalidRequest),
+                        "multi" => {
+                            vec![Limit::perMinute(2).by("same"), Limit::perHour(3).by("same")]
+                                .into()
+                        }
+                        "after" => Limit::perMinute(1)
+                            .by(key)
+                            .after(|response| response.status() == StatusCode::NO_CONTENT)
+                            .response(|_, headers| {
+                                Response::new(StatusCode::TOO_MANY_REQUESTS, "async denial".into())
+                                    .withHeaders(headers)
+                            })
+                            .into(),
+                        _ => Limit::perMinute(1).by(key).into(),
+                    })
+                })
+            })?;
             RateLimiter::r#for("9", |_| Limit::perMinute(1))?;
             RateLimiter::r#for("short", |_| Limit::perSecond(2))?;
             RateLimiter::r#for("shared", |_| Limit::perMinute(5))?;
@@ -124,6 +151,16 @@ fn empty(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
 }
 
+fn echo_body(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = request.input(Some("username")).await?;
+        if input.as_ref().and_then(|v| v.as_str()) == Some("after") {
+            return Ok(Response::empty(StatusCode::NO_CONTENT));
+        }
+        Response::json(StatusCode::OK, json!({"username":input}))
+    })
+}
+
 fn downstream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let status = if request.route("result") == Some("failure") {
@@ -197,6 +234,9 @@ fn routes() -> Result<(), RoutingError> {
             .get("/multi-probe", empty)?
             .middleware_name("throttle:multi");
         router.get("/manual", manual)?;
+        router
+            .r#match(&[openrust::http::Method::POST], "/body", echo_body)?
+            .middleware_name("throttle:body");
         for (path, throttle) in [
             ("/defaults", "throttle"),
             ("/budget", "throttle:1|2,1,budget"),
@@ -556,4 +596,106 @@ async fn redis_cluster_admits_all_named_quotas_atomically() {
     assert_eq!(status(&send(first, "/after/success").await), 429);
     exercise_concurrent(first, second, "/multi-shared").await;
     exercise_numeric(first, second).await;
+}
+
+async fn post_body(address: SocketAddr, body: &str) -> String {
+    timeout(Duration::from_secs(5), async {
+        let mut stream = TcpStream::connect(address).await.unwrap();
+        stream.write_all(format!("POST /body HTTP/1.1\r\nHost: example.test\r\nContent-Type: application/json\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+        let mut wire = String::new();
+        stream.read_to_string(&mut wire).await.unwrap();
+        wire
+    }).await.unwrap()
+}
+
+#[tokio::test]
+async fn asynchronous_named_policies_parse_body_preserve_errors_and_isolate_applications() {
+    let (first, a) = start(false).await;
+    let (second, b) = start(false).await;
+    for name in ["alice", "bob"] {
+        let body = json!({"username":name}).to_string();
+        let accepted = post_body(first, &body).await;
+        assert_eq!(status(&accepted), 200, "{accepted}");
+        assert!(accepted.ends_with(&body));
+        assert_eq!(status(&post_body(first, &body).await), 429);
+        assert_eq!(status(&post_body(second, &body).await), 200);
+    }
+    for _ in 0..3 {
+        let response = post_body(first, r#"{"username":"unlimited"}"#).await;
+        assert_eq!(status(&response), 200);
+        assert!(!response.contains("x-ratelimit-limit"));
+        let response = post_body(first, r#"{"username":"response"}"#).await;
+        assert_eq!(status(&response), 202);
+        assert!(response.ends_with("policy"));
+    }
+    assert_eq!(
+        status(&post_body(first, r#"{"username":"error"}"#).await),
+        400
+    );
+    assert_eq!(status(&post_body(first, "{").await), 400);
+    for remaining in [1, 0] {
+        let response = post_body(first, r#"{"username":"multi"}"#).await;
+        assert_eq!(status(&response), 200, "{response}");
+        assert!(response.contains(&format!("x-ratelimit-remaining: {remaining}")));
+    }
+    assert_eq!(
+        status(&post_body(first, r#"{"username":"multi"}"#).await),
+        429
+    );
+    assert_eq!(
+        status(&post_body(first, r#"{"username":"after"}"#).await),
+        204
+    );
+    let denial = post_body(first, r#"{"username":"after"}"#).await;
+    assert_eq!(status(&denial), 429);
+    assert!(denial.ends_with("async denial"));
+    a.abort();
+    b.abort();
+}
+
+#[tokio::test]
+async fn synchronous_and_asynchronous_policies_replace_each_other_atomically() {
+    let limiter = openrust::cache::RateLimiter::default();
+    limiter.r#for("replace", |_| Limit::perMinute(1));
+    let original = limiter.limiter("replace").unwrap();
+    assert!(limiter.asyncLimiter("replace").is_none());
+    limiter.forAsync("replace", |_| Box::pin(async { Ok(Limit::none().into()) }));
+    let asynchronous = limiter.asyncLimiter("replace").unwrap();
+    assert!(limiter.limiter("replace").is_none());
+    let (parts, body) = axum::http::Request::new(openrust::http::Body::empty()).into_parts();
+    let mut request = Request::from_parts(parts, body);
+    let LimiterResponse::Limit(limit) = original(&request) else {
+        panic!("original policy changed")
+    };
+    assert_eq!(limit.maxAttempts, 1);
+    limiter.r#for("replace", |_| Limit::perMinute(2));
+    assert!(limiter.limiter("replace").is_some());
+    assert!(limiter.asyncLimiter("replace").is_none());
+    assert!(matches!(
+        asynchronous(&mut request).await.unwrap(),
+        LimiterResponse::Unlimited(_)
+    ));
+    let LimiterResponse::Limit(limit) = limiter.limiter("replace").unwrap()(&request) else {
+        panic!("replacement missing")
+    };
+    assert_eq!(limit.maxAttempts, 2);
+}
+
+#[tokio::test]
+async fn asynchronous_named_policies_share_redis_buckets_across_http_processes() {
+    if std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS").is_none());
+        return;
+    }
+    let prefix = format!("openrust-async-throttle-{:016x}:", fastrand::u64(..));
+    let (first, _first) = fixture(&prefix, None);
+    let (second, _second) = fixture(&prefix, None);
+    for name in ["alice", "bob"] {
+        let body = json!({"username":name}).to_string();
+        let response = post_body(first, &body).await;
+        assert_eq!(status(&response), 200, "{response}");
+        let denied = post_body(second, &body).await;
+        assert_eq!(status(&denied), 429, "{denied}");
+        assert!(denied.contains("x-ratelimit-remaining: 0"));
+    }
 }

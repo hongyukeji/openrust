@@ -3771,3 +3771,5 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-S01 Facebook Graph与Limited Login
 
 2026-11-20 API-S01 [Facebook Graph与Limited Login](audits/api-s01/facebook.md)本机验收完成：HMAC proof／版本与字段／expires语义、RS256／严格issuer及aud／期待nonce；21组原PHP JWT及全包29＋纯配置1函数、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。请求选项隔离，JWT失败不fallback；OAuth1／MySQL归属及完整RP继续。专属产物清理保留全部卷，本地提交不推送。
+
+- 2026-11-20 API-F01 [异步命名限流安装前置](audits/api-f01/async-limiter.md)：forAsync／asyncLimiter 与共享命名表、真实TCP／Redis双进程、验证器32／Fortify49、严格检查及根烟测通过，专属产物清理，继续安装。

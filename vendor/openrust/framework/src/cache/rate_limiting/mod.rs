@@ -4,7 +4,7 @@ pub(crate) mod counters;
 mod limit;
 mod unlimited;
 
-use crate::http::{HeaderMap, Request, Response};
+use crate::http::{HeaderMap, HttpError, HttpFuture, Request, Response};
 
 pub use limit::Limit;
 pub use unlimited::Unlimited;
@@ -35,6 +35,11 @@ impl From<Unlimited> for JobLimiterResponse {
 
 /// Resolves a named limiter against the current request.
 pub type Limiter = dyn Fn(&Request) -> LimiterResponse + Send + Sync;
+
+/// Resolves a named limiter while borrowing the current request for asynchronous input.
+pub type AsyncLimiter = dyn for<'a> Fn(&'a mut Request) -> HttpFuture<'a, Result<LimiterResponse, HttpError>>
+    + Send
+    + Sync;
 
 /// Determines whether a completed response consumes an attempt.
 pub type AfterCallback = dyn Fn(&Response) -> bool + Send + Sync;

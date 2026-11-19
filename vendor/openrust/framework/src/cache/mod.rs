@@ -26,7 +26,7 @@ mod memcached_store;
 mod memoized_store;
 mod no_lock;
 mod null_store;
-mod rate_limiter;
+pub(crate) mod rate_limiter;
 pub mod rate_limiting;
 mod redis_lock;
 mod redis_store;

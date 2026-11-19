@@ -86,6 +86,36 @@ impl RateLimiter {
 
     #[allow(
         non_snake_case,
+        reason = "Async adapter for Laravel's limiter registration"
+    )]
+    pub fn forAsync(
+        name: impl Into<String>,
+        callback: impl for<'a> Fn(
+            &'a mut crate::http::Request,
+        ) -> crate::http::HttpFuture<
+            'a,
+            Result<crate::cache::rate_limiting::LimiterResponse, crate::http::HttpError>,
+        > + Send
+        + Sync
+        + 'static,
+    ) -> crate::cache::CacheResult<()> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .forAsync(name, callback);
+        Ok(())
+    }
+
+    #[allow(non_snake_case, reason = "Async adapter for Laravel's limiter lookup")]
+    pub fn asyncLimiter(
+        name: &str,
+    ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::AsyncLimiter>>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .asyncLimiter(name))
+    }
+
+    #[allow(
+        non_snake_case,
         reason = "Uses Laravel's naming for typed job limiter registration"
     )]
     pub fn forJob<R>(
