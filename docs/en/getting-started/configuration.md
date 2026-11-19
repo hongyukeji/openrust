@@ -121,9 +121,9 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 | Environment setting | Purpose | Default |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `app.url` |
-| `PUBLIC_STORAGE_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
-| `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
+| `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
+| `FILESYSTEM_PUBLIC_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
+| `FILESYSTEM_PUBLIC_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
 
 When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `usePublicPath()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
 
@@ -183,7 +183,7 @@ Precedence is a nonempty override other than `0`, then `APP_STORAGE_PATH` from t
 
 The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `useStoragePath` explicitly rebinds it, following Laravel's order. Rebinding errors return `Result` after updating path state.
 
-Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `PUBLIC_STORAGE_ROOT` and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
+Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `FILESYSTEM_PUBLIC_ROOT` and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
 
 The compiled configuration loader uses `env.storage_path(base_path, subpath)` as its Rust context adapter. Its weak reference selects the owning application's paths without using a global Facade or retaining the application. Standalone environment snapshots resolve their own variable against the supplied default base. Later changes to the application path do not rewrite already loaded or cached configuration values.
 

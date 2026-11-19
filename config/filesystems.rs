@@ -23,7 +23,7 @@ pub(super) fn load(
         })
     };
     let default_url = format!("{}/storage", app.url.trim_end_matches('/'));
-    let public_root = match env.get_utf8("PUBLIC_STORAGE_ROOT")? {
+    let public_root = match env.get_utf8("FILESYSTEM_PUBLIC_ROOT")? {
         Some(path) => base_path.join(path),
         None => env.storage_path(base_path, "app/public"),
     };
@@ -54,7 +54,7 @@ pub(super) fn load(
             "web": {
                 "driver": "local",
                 "root": path(&public_path)?,
-                "url": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or(&app.url),
+                "url": env.get_utf8("FILESYSTEM_WEB_URL")?.unwrap_or(&app.url),
                 "visibility": "public",
                 "throw": false,
                 "report": false,
@@ -69,7 +69,7 @@ pub(super) fn load(
             "public": {
                 "driver": "local",
                 "root": path(&public_root)?,
-                "url": env.get_utf8("PUBLIC_STORAGE_URL")?.unwrap_or(&default_url),
+                "url": env.get_utf8("FILESYSTEM_PUBLIC_URL")?.unwrap_or(&default_url),
                 "visibility": "public",
                 "throw": false,
                 "report": false,

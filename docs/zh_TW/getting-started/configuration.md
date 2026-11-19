@@ -121,9 +121,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 環境變數 | 用途 | 預設值 |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `app.url` |
-| `PUBLIC_STORAGE_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
-| `PUBLIC_STORAGE_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
+| `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
+| `FILESYSTEM_PUBLIC_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
+| `FILESYSTEM_PUBLIC_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
 未設定 `APP_PUBLIC_PATH` 時，`config/app.rs` 明確將 `app.public_path` 設為 `public`，`web` 磁碟沿用該值作為預設根目錄。網站檔案設定在 `filesystems.disks.web`，公開上傳檔案設定在 `filesystems.disks.public`。預設路由依序呼叫 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引導前呼叫 `usePublicPath()` 會覆寫網站目錄並同步 `web.root`。相對目錄以應用程式根目錄為基準。掛載前綴取磁碟 URL 的完整路徑，例如 `/storage/tmp/` 掛載到 `/storage/tmp`。絕對 URL 必須與 `app.url` 同源。修改掛載設定後重新啟動應用程式。 明確設定為空字串或全空白的 `APP_PUBLIC_PATH` 會導致設定載入失敗。
 
@@ -183,7 +183,7 @@ async fn activate_maintenance(
 
 建構時初始化 `path.storage`，後載入的環境檔案可以改變 getter，但不會自動重寫該綁定；`useStoragePath` 則明確重新綁定，沿用 Laravel 的順序。重新綁定錯誤透過 `Result` 傳回，此時路徑狀態已更新。
 
-日誌、檔案 Session、檔案快取資料與鎖、編譯檢視以及預設 local/public 磁碟在載入設定時採用儲存根目錄。`PUBLIC_STORAGE_ROOT` 和 `VIEW_COMPILED_PATH` 仍可個別覆蓋，公開 URL 和掛載順序不變。`storage:link` 指向設定的公開磁碟。啟動前設定絕對路徑的 `APP_STORAGE_PATH`，或在載入設定前呼叫 `useStoragePath`。
+日誌、檔案 Session、檔案快取資料與鎖、編譯檢視以及預設 local/public 磁碟在載入設定時採用儲存根目錄。`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可個別覆蓋，公開 URL 和掛載順序不變。`storage:link` 指向設定的公開磁碟。啟動前設定絕對路徑的 `APP_STORAGE_PATH`，或在載入設定前呼叫 `useStoragePath`。
 
 編譯型設定載入器使用 `env.storage_path(base_path, subpath)` 作為 Rust 上下文適配。弱引用選取所屬應用的路徑，不依賴全域 Facade，也不延長應用生命週期。獨立環境快照依自身變數及傳入的預設根目錄解析。後續更改應用路徑不會回寫已經載入或快取的設定值。
 

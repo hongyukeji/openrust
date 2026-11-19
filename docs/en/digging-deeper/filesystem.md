@@ -10,7 +10,7 @@ The default `local` disk stores files under `storage/app/private`. Use paths rel
 
 ### The Public Disk
 
-The `public` disk is configured in `config/filesystems.rs`. Its default local root is `storage/app/public`, and its URL is the application URL followed by `/storage`. Set `PUBLIC_STORAGE_ROOT` to change the directory or `PUBLIC_STORAGE_URL` to change the public URL. Relative filesystem paths are resolved from the application root.
+The `public` disk is configured in `config/filesystems.rs`. Its default local root is `storage/app/public`, and its URL is the application URL followed by `/storage`. Set `FILESYSTEM_PUBLIC_ROOT` to change the directory or `FILESYSTEM_PUBLIC_URL` to change the public URL. Relative filesystem paths are resolved from the application root.
 
 Create or remove the links configured in `filesystems.links` with Artisan. The default link is `public/storage`, pointing to the public disk directory. Use `--force` to recreate an existing symbolic link. Existing ordinary files and directories are preserved.
 
@@ -28,7 +28,7 @@ Route::staticDisk("web")?;
 Route::staticDisk("public")?;
 ```
 
-The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `app.url`. Set `APP_PUBLIC_PATH` and `APP_PUBLIC_URL_PREFIX` to override those defaults in `config/filesystems.rs`. The application uses `web.root` for `publicPath()`; calling `usePublicPath()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
+The `web` disk describes the website directory, with its root defaulting to `public` and its URL to `app.url`. Set `APP_PUBLIC_PATH` and `FILESYSTEM_WEB_URL` to override those defaults in `config/filesystems.rs`. The application uses `web.root` for `publicPath()`; calling `usePublicPath()` before boot overrides the directory and updates `web.root`. Both mounts use `staticDisk`, which reads the local disk root and derives the complete mount path from its `url`. For example, `FILESYSTEM_PUBLIC_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. Absolute URLs must have the same origin as `app.url`. A different scheme, host or effective port fails HTTP bootstrap.
 
 Both disk mounts require public files and traversable directories on Unix, and reject symbolic links, temporary files and files with multiple hard links. If `public/storage` is a symbolic link, the `web` disk skips it and the `public` disk serves files directly from its configured root.
 

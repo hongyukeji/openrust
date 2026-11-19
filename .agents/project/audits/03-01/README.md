@@ -82,3 +82,10 @@ PHP 容器及本批 3.7 GiB Cargo 产物和站点缓存已清理，卷可用 60.
 - 按用户要求统一网站和公开存储磁盘的配置，`web.url` 未设置覆盖值时使用 `app.url`，`public.url` 使用 `app.url` 加 `/storage`。两者仍支持显式配置相对 URL 或同源绝对 URL，静态挂载使用其路径部分。
 - Rust 1.94.0 配置测试和三项 `public_mount` 回归通过。补充 `APP_URL=https://example.test/site/` 场景，验证网站和公开存储的完整文件 URL，以及 `/site`、`/site/storage` 的 HTTP 文件响应。保留显式 `APP_PUBLIC_URL_PREFIX` 覆盖的用例。
 - 本批应用二进制和受影响测试的严格 Clippy、全仓格式及差异空白检查通过。英文、简体和繁体的配置、文件存储和路由文档同步，站点构建及两种部署路径共 12 项浏览器检查通过。本批使用的浏览器依赖目录已清理，共享 Cargo 和站点目录保留。
+
+### 统一文件系统环境变量命名（2026-11-19）
+
+- 按用户要求将 `APP_PUBLIC_URL_PREFIX` 改为 `FILESYSTEM_WEB_URL`，`PUBLIC_STORAGE_ROOT` 改为 `FILESYSTEM_PUBLIC_ROOT`，`PUBLIC_STORAGE_URL` 改为 `FILESYSTEM_PUBLIC_URL`。配置直接读取新名称，旧名称不再作为覆盖入口。网站根目录继续使用 `APP_PUBLIC_PATH`，缺省为 `public`。
+- 同步应用配置、测试、三语配置和文件存储文档，在 `.env.example` 增加注释示例。新 URL 变量接受完整 URL，也支持本地挂载已有的相对路径规则。
+- Rust 1.94.0 的配置、实际 Artisan 存储命令、存储路径与 HTTP 静态挂载共 9 项测试通过。配置用例验证三个新变量同时覆盖两个磁盘，HTTP 用例覆盖相对 URL、同源绝对 URL、跨源拒绝和默认 URL。定向严格 Clippy、全仓格式及差异空白检查通过。三语站点构建和两种部署路径共 12 项浏览器检查通过。
+- `tests/storage_paths.rs` 含其他批次的 Windows 与引号改动，本批仅提交环境变量名称替换，其余工作区改动保留。

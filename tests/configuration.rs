@@ -100,7 +100,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     fs::write(
         root.join(".env"),
-        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nAWS_TEMPORARY_URL=https://downloads.example.test\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\nSANCTUM_STATEFUL_DOMAINS=localhost:3000,spa.example:8443\nSMS_DRIVER=tencent\nSMS_TENCENT_MARKET=international\nSMS_TENCENT_REGION=ap-hongkong\nSMS_ALIYUN_MARKET=international\nSMS_ALIYUN_ACCESS_KEY_ID=global-id\n",
+        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nFILESYSTEM_PUBLIC_ROOT=uploads\nAWS_TEMPORARY_URL=https://downloads.example.test\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\nSANCTUM_STATEFUL_DOMAINS=localhost:3000,spa.example:8443\nSMS_DRIVER=tencent\nSMS_TENCENT_MARKET=international\nSMS_TENCENT_REGION=ap-hongkong\nSMS_ALIYUN_MARKET=international\nSMS_ALIYUN_ACCESS_KEY_ID=global-id\n",
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
@@ -217,6 +217,24 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(
         configured["broadcasting"]["connections"]["reverb"]["options"],
         configured["reverb"]["apps"]["apps"][0]["options"]
+    );
+
+    fs::write(root.join(".env"),
+        "APP_URL=https://example.test\nFILESYSTEM_WEB_URL=https://example.test/assets\nFILESYSTEM_PUBLIC_ROOT=uploads\nFILESYSTEM_PUBLIC_URL=https://example.test/media\n"
+    ).unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let overridden = config::load(&root, &environment).unwrap();
+    assert_eq!(
+        overridden["filesystems"]["disks"]["web"]["url"],
+        "https://example.test/assets"
+    );
+    assert_eq!(
+        overridden["filesystems"]["disks"]["public"]["url"],
+        "https://example.test/media"
+    );
+    assert_eq!(
+        overridden["filesystems"]["disks"]["public"]["root"],
+        json!(root.join("uploads"))
     );
 
     for value in ["", "   "] {

@@ -96,7 +96,7 @@ async fn standalone_configuration_uses_its_snapshot_and_preserves_specific_overr
     std::fs::write(
         app.root().join(".env"),
         format!(
-            "APP_STORAGE_PATH={}\nPUBLIC_STORAGE_ROOT=uploads\nVIEW_COMPILED_PATH=compiled\n",
+            "APP_STORAGE_PATH={}\nFILESYSTEM_PUBLIC_ROOT=uploads\nVIEW_COMPILED_PATH=compiled\n",
             custom.display()
         ),
     )

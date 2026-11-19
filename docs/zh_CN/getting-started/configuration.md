@@ -121,9 +121,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 环境变量 | 用途 | 默认值 |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
-| `APP_PUBLIC_URL_PREFIX` | `filesystems.disks.web.url` | `app.url` |
-| `PUBLIC_STORAGE_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
-| `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
+| `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
+| `FILESYSTEM_PUBLIC_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
+| `FILESYSTEM_PUBLIC_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
 未设置 `APP_PUBLIC_PATH` 时，`config/app.rs` 明确将 `app.public_path` 设为 `public`，`web` 磁盘复用该值作为默认根目录。网站文件配置在 `filesystems.disks.web`，公开上传文件配置在 `filesystems.disks.public`。默认路由按顺序调用 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引导前调用 `usePublicPath()` 会覆盖网站目录并同步 `web.root`。相对目录以应用根目录为基准。挂载前缀取磁盘 URL 的完整路径，例如 `/storage/tmp/` 挂到 `/storage/tmp`。绝对 URL 必须与 `app.url` 同源。修改挂载配置后重启应用。 显式设置为空字符串或全空白的 `APP_PUBLIC_PATH` 会导致配置加载失败。
 
@@ -183,7 +183,7 @@ async fn activate_maintenance(
 
 构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 Laravel 的顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
 
-日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`PUBLIC_STORAGE_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
+日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
 
 编译型配置加载器使用 `env.storage_path(base_path, subpath)` 作为 Rust 上下文适配。弱引用选取所属应用的路径，不依赖全局 Facade，也不延长应用生命周期。独立环境快照按自身变量及传入的默认根目录解析。后续更改应用路径不会回写已经加载或缓存的配置值。
 

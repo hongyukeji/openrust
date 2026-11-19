@@ -2089,7 +2089,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         fs::write(directory.join("probe.txt"), contents).unwrap();
     }
     let environment = root.0.join(".env");
-    let settings = "APP_URL=http://localhost:8000\nAPP_PUBLIC_PATH=assets\nAPP_PUBLIC_URL_PREFIX=/assets\nPUBLIC_STORAGE_ROOT=uploads\n";
+    let settings = "APP_URL=http://localhost:8000\nAPP_PUBLIC_PATH=assets\nFILESYSTEM_WEB_URL=/assets\nFILESYSTEM_PUBLIC_ROOT=uploads\n";
     let application = |register: fn() -> Result<(), openrust::routing::RoutingError>| {
         Application::configure(root.0.clone())
             .withConfig(web_config)
@@ -2116,7 +2116,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     fs::write(
         &environment,
         format!(
-            "{}PUBLIC_STORAGE_URL=https://LOCALHOST:443/storage/tmp/\n",
+            "{}FILESYSTEM_PUBLIC_URL=https://LOCALHOST:443/storage/tmp/\n",
             settings.replace("http://localhost:8000", "https://localhost")
         ),
     )
@@ -2144,7 +2144,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     check(&kernel, "/probe.txt", None).await;
     check(&kernel, "/storage/probe.txt", None).await;
 
-    let cdn = format!("{settings}PUBLIC_STORAGE_URL=https://cdn.example/media\n");
+    let cdn = format!("{settings}FILESYSTEM_PUBLIC_URL=https://cdn.example/media\n");
     fs::write(&environment, &cdn).unwrap();
     let mut kernel = Kernel::new(application(web::register));
     assert!(matches!(
@@ -2154,7 +2154,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
 
     fs::write(
         &environment,
-        format!("{settings}PUBLIC_STORAGE_URL=/local-media\n"),
+        format!("{settings}FILESYSTEM_PUBLIC_URL=/local-media\n"),
     )
     .unwrap();
     let mut app = application(web::register);
@@ -2180,7 +2180,11 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         root.0.canonicalize().unwrap().join("override")
     );
 
-    fs::write(&environment, "APP_PORT=9081\nPUBLIC_STORAGE_ROOT=uploads\n").unwrap();
+    fs::write(
+        &environment,
+        "APP_PORT=9081\nFILESYSTEM_PUBLIC_ROOT=uploads\n",
+    )
+    .unwrap();
     let mut kernel = Kernel::new(application(web::register));
     kernel.bootstrap().await.unwrap();
     let config = kernel.get_application().config().unwrap();
@@ -2229,7 +2233,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
 
     fs::write(
         &environment,
-        "APP_URL=https://example.test/site/\nPUBLIC_STORAGE_ROOT=uploads\n",
+        "APP_URL=https://example.test/site/\nFILESYSTEM_PUBLIC_ROOT=uploads\n",
     )
     .unwrap();
     let mut kernel = Kernel::new(application(web::register));
