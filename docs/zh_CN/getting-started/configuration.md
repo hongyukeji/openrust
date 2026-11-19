@@ -124,6 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
+| `FILESYSTEM_LOCAL_ROOT` | 私有本地磁盘的 `filesystems.disks.local.root` | `storage/app/private` |
 | `FILESYSTEM_PUBLIC_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
 | `FILESYSTEM_PUBLIC_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
 
@@ -185,7 +186,7 @@ async fn activate_maintenance(
 
 构造时初始化 `path.storage`，后加载的环境文件可以改变 getter，但不会自动重写该绑定；`useStoragePath` 则显式重绑，沿用 Laravel 的顺序。重绑错误通过 `Result` 返回，此时路径状态已经更新。
 
-日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
+日志、文件 Session、文件缓存数据与锁、编译视图以及默认 local/public 磁盘在加载配置时采用存储根目录。`FILESYSTEM_LOCAL_ROOT`、`FILESYSTEM_PUBLIC_ROOT` 和 `VIEW_COMPILED_PATH` 仍可单独覆盖，公共 URL 和挂载顺序不变。`storage:link` 指向配置的公共磁盘。启动前设置绝对路径的 `APP_STORAGE_PATH`，或在加载配置前调用 `useStoragePath`。
 
 编译型配置加载器使用 `env.storage_path(base_path, subpath)` 作为 Rust 上下文适配。弱引用选取所属应用的路径，不依赖全局 Facade，也不延长应用生命周期。独立环境快照按自身变量及传入的默认根目录解析。后续更改应用路径不会回写已经加载或缓存的配置值。
 

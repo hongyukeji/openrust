@@ -124,6 +124,7 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
+| `FILESYSTEM_LOCAL_ROOT` | `filesystems.disks.local.root` for the private local disk | `storage/app/private` |
 | `FILESYSTEM_PUBLIC_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
 | `FILESYSTEM_PUBLIC_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
 
@@ -185,7 +186,7 @@ Precedence is a nonempty override other than `0`, then `APP_STORAGE_PATH` from t
 
 The constructor initializes `path.storage`; a later environment-file value changes the getter without automatically rewriting that binding. Calling `useStoragePath` explicitly rebinds it, following Laravel's order. Rebinding errors return `Result` after updating path state.
 
-Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `FILESYSTEM_PUBLIC_ROOT` and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
+Logging, file sessions, file cache data and locks, compiled views, and default local/public disks use the storage root when configuration loads. `FILESYSTEM_LOCAL_ROOT`, `FILESYSTEM_PUBLIC_ROOT`, and `VIEW_COMPILED_PATH` retain their own overrides; the public URL and mount order are unchanged. `storage:link` targets the configured public disk. Set an absolute `APP_STORAGE_PATH` before startup, or call `useStoragePath` before configuration loads.
 
 The compiled configuration loader uses `env.storage_path(base_path, subpath)` as its Rust context adapter. Its weak reference selects the owning application's paths without using a global Facade or retaining the application. Standalone environment snapshots resolve their own variable against the supplied default base. Later changes to the application path do not rewrite already loaded or cached configuration values.
 

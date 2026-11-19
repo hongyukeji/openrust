@@ -78,6 +78,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     );
     assert_eq!(defaults["filesystems"]["default"], "local");
     assert_eq!(
+        defaults["filesystems"]["disks"]["local"]["root"],
+        json!(root.join("storage/app/private"))
+    );
+    assert_eq!(
         defaults["view"]["paths"],
         json!([root.join("resources/views")])
     );
@@ -101,6 +105,26 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         assert_eq!(
             configured["database"]["redis"]["cache"]["database"],
             cache_db
+        );
+    }
+
+    let storage_root = root.join("custom-storage");
+    let private_root = root.join("absolute-private");
+    for (override_root, expected_root) in [
+        (None, storage_root.join("app/private")),
+        (Some("private-files".to_owned()), root.join("private-files")),
+        (Some(private_root.display().to_string()), private_root),
+    ] {
+        let mut contents = format!("APP_STORAGE_PATH='{}'\n", storage_root.display());
+        if let Some(value) = override_root {
+            contents.push_str(&format!("FILESYSTEM_LOCAL_ROOT='{value}'\n"));
+        }
+        fs::write(root.join(".env"), contents).unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let configured = config::load(&root, &environment).unwrap();
+        assert_eq!(
+            configured["filesystems"]["disks"]["local"]["root"],
+            json!(expected_root)
         );
     }
 
@@ -241,7 +265,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     );
 
     fs::write(root.join(".env"),
-        "APP_URL=https://example.test\nFILESYSTEM_WEB_URL=https://example.test/assets\nFILESYSTEM_PUBLIC_ROOT=uploads\nFILESYSTEM_PUBLIC_URL=https://example.test/media\n"
+        "APP_URL=https://example.test\nFILESYSTEM_LOCAL_ROOT=private-files\nFILESYSTEM_WEB_URL=https://example.test/assets\nFILESYSTEM_PUBLIC_ROOT=uploads\nFILESYSTEM_PUBLIC_URL=https://example.test/media\n"
     ).unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let overridden = config::load(&root, &environment).unwrap();
@@ -256,6 +280,11 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(
         overridden["filesystems"]["disks"]["public"]["root"],
         json!(root.join("uploads"))
+    );
+
+    assert_eq!(
+        overridden["filesystems"]["disks"]["local"]["root"],
+        json!(root.join("private-files"))
     );
 
     fs::write(

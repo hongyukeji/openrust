@@ -23,6 +23,10 @@ pub(super) fn load(
         })
     };
     let default_url = format!("{}/storage", app.url.trim_end_matches('/'));
+    let local_root = match env.get_utf8("FILESYSTEM_LOCAL_ROOT")? {
+        Some(path) => base_path.join(path),
+        None => env.storage_path(base_path, "app/private"),
+    };
     let public_root = match env.get_utf8("FILESYSTEM_PUBLIC_ROOT")? {
         Some(path) => base_path.join(path),
         None => env.storage_path(base_path, "app/public"),
@@ -47,6 +51,8 @@ pub(super) fn load(
         |--------------------------------------------------------------------------
         |
         | web 用于网站静态文件，local 用于私有文件，public 用于公开存储文件。
+        | FILESYSTEM_LOCAL_ROOT 和 FILESYSTEM_PUBLIC_ROOT 可覆盖对应根目录。
+        | 相对路径从应用根目录解析；未设置时使用存储目录下的默认路径。
         | s3 用于 S3 兼容对象存储。
         |
         */
@@ -61,7 +67,7 @@ pub(super) fn load(
             },
             "local": {
                 "driver": "local",
-                "root": path(&env.storage_path(base_path, "app/private"))?,
+                "root": path(&local_root)?,
                 "serve": true,
                 "throw": false,
                 "report": false,

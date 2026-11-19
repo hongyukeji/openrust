@@ -6,7 +6,7 @@ Configure the default disk with `FILESYSTEM_DISK` and named disks in `config/fil
 
 ### The Local Driver
 
-The default `local` disk stores files under `storage/app/private`. Use paths relative to the disk root. Absolute paths, traversal components and reserved temporary names are rejected. On Unix the local driver opens files relative to directory handles, rejects symbolic links during traversal and refuses to read files with multiple hard links.
+The default `local` disk stores files under `storage/app/private`. Set `FILESYSTEM_LOCAL_ROOT` to override this directory; relative paths are resolved from the application root, and absolute paths are used directly. When unset, the default follows the storage root configured by `APP_STORAGE_PATH`. Use paths relative to the disk root. Absolute paths, traversal components and reserved temporary names are rejected. On Unix the local driver opens files relative to directory handles, rejects symbolic links during traversal and refuses to read files with multiple hard links.
 
 ### The Public Disk
 

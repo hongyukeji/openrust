@@ -89,3 +89,10 @@ PHP 容器及本批 3.7 GiB Cargo 产物和站点缓存已清理，卷可用 60.
 - 同步应用配置、测试、三语配置和文件存储文档，在 `.env.example` 增加注释示例。新 URL 变量接受完整 URL，也支持本地挂载已有的相对路径规则。
 - Rust 1.94.0 的配置、实际 Artisan 存储命令、存储路径与 HTTP 静态挂载共 9 项测试通过。配置用例验证三个新变量同时覆盖两个磁盘，HTTP 用例覆盖相对 URL、同源绝对 URL、跨源拒绝和默认 URL。定向严格 Clippy、全仓格式及差异空白检查通过。三语站点构建和两种部署路径共 12 项浏览器检查通过。
 - `tests/storage_paths.rs` 含其他批次的 Windows 与引号改动，本批仅提交环境变量名称替换，其余工作区改动保留。
+
+### 私有磁盘根目录环境变量（2026-11-19）
+
+- 按用户要求增加 `FILESYSTEM_LOCAL_ROOT`，对应 `filesystems.disks.local.root`，沿用 `FILESYSTEM_PUBLIC_ROOT` 的解析规则：相对路径基于应用根目录，绝对路径直接使用。未设置时继续使用存储根目录下的 `app/private`，跟随 `APP_STORAGE_PATH`。同步配置注释、环境变量示例及三语配置和文件存储文档。
+- 只读核对旧版 `openrust-v0.x/vendor/openrust/framework/src/filesystem.rs` 的本地驱动根目录处理；本批沿用当前配置层和公共磁盘环境变量机制，不修改驱动或 HTTP／Artisan 契约。
+- Rust 1.94.0 执行 `cargo test --locked --offline --test configuration --test storage_paths`，5 项通过，覆盖默认值、相对与绝对覆盖，以及存储根目录覆盖优先级。应用 main 和上述测试的定向严格 Clippy、全仓格式及差异空白检查通过。未执行全工作区 Clippy、数据库或独立 HTTP／Artisan 验收。
+- 三语站点构建及 `/`、`/docs/` 的 12 项浏览器检查通过。清理本批浏览器依赖临时目录（文件合计约 18.2 MiB），当前卷可用约 44.37 GiB；保留共享构建目录及其他协作者改动。
