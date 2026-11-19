@@ -463,7 +463,7 @@ async fn mysql_device_default_routes_can_be_disabled_and_use_named_prefix() {
     f.cleanup().await;
 }
 #[tokio::test]
-async fn mysql_device_star_scopes_are_retained_until_a_refresh_grant() {
+async fn mysql_device_star_scopes_are_removed_by_fixed_scope_repository() {
     if !required() {
         return;
     }
@@ -481,14 +481,14 @@ async fn mysql_device_star_scopes_are_retained_until_a_refresh_grant() {
     .await;
     assert_eq!(
         jwt_claims(token["access_token"].as_str().unwrap())["scopes"],
-        json!(["*"])
+        json!([])
     );
     let resource = json_body(
         f.resource_token("/resource", token["access_token"].as_str().unwrap())
             .await,
     )
     .await;
-    assert_eq!(resource["write"], true);
+    assert_eq!(resource["write"], false);
     let refresh=f.wire(reqwest::Method::POST,"/oauth/token","",Some(json!({"grant_type":"refresh_token","client_id":client.id,"refresh_token":token["refresh_token"]}))).await;
     assert_eq!(refresh.status(), 200);
     let refresh = json_body(refresh).await;

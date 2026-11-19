@@ -2,7 +2,7 @@
 
 ## 安装 {#installation}
 
-已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，机器令牌、个人令牌、scope、SPA Cookie、事件和请求内测试辅助已提供，可选 Password／Implicit 仍在开发；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
+已提供客户端、浏览器授权及同意、授权码／PKCE 和授权码兑换端点。资源令牌守卫、刷新轮换、期限定制、清理和设备授权已提供，机器令牌、个人令牌、scope、SPA Cookie、事件和请求内测试辅助已提供，Password／Implicit 须显式启用；当前还没有 `install:api --passport`，既有 Sanctum 安装保持独立。
 
 当前应用预留了可选的 `passport` Cargo feature。将它加入 Cargo 默认 features，让 `./artisan` 和普通构建持续启用该包，并保留原有其他默认项：
 
@@ -280,3 +280,21 @@ API 资源使用 Passport 守卫。API 栈通常不含 web `EncryptCookies`，�
 ## 测试 {#testing}
 
 在应用上下文用 `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` 设置用户，或用 `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` 设置机器。这些辅助方法选定守卫并将带 scope 的令牌附到显式请求，不签发、不落库，也不影响后续请求。`actingAsClient` 要求请求没有缓存用户，从用户身份切换时创建新请求。真实协议测试仍须获取并提交签名令牌。
+
+## 密码授权 {#password-grant}
+
+Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协议。明确需要 Password 的集成，在解析授权服务器前调用应用实例的 `passport.enablePasswordGrant()`；`passwordGrantEnabled` 属于应用实例，设为 false 后拒绝后续请求。浏览器常规流程仍使用授权码及 PKCE。
+
+通过 `artisan passport:client --password --provider=users` 创建客户端（`--public` 创建公开客户端）。向 `POST /oauth/token` 发送 `grant_type=password`、`client_id`、`username`、`password` 和可选 `scope`；机密客户端还提供 `client_secret` 或 HTTP Basic。成功返回签名访问令牌，客户端支持时也签发刷新令牌，沿用普通访问／刷新期限。错误用户凭据返回 400 `invalid_grant`、`The user credentials were incorrect.`；缺字段、错误客户端和未知 scope 保留 OAuth 错误响应。
+
+`bridge::UserRepository::getUserEntityByUserCredentials` 选择客户端 provider，空值回退到 `auth.guards.api.provider`。默认编译 Eloquent provider 查询 `email` 并验证真实密码哈希。框架自定义 `UserProvider` 通过 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等价职责，不启动 Session、不重新哈希密码。
+
+组合模型钩子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 注册。原生 `bridge::PasswordGrantResolver` 是接收借用用户名、密码和 `ClientRecord` 的编译函数，返回 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它优先处理该 provider，须执行应用真实查询及验证。显式注册替代 PHP 运行时方法发现。异常返回脱敏 500，不冒充密码错误。
+
+## 隐式授权 {#implicit-grant}
+
+仅在集成明确要求时调用 `passport.enableImplicitGrant()`，再通过 `artisan passport:client --implicit --redirect_uri=https://client.example/callback` 创建公开客户端。向 `GET /oauth/authorize` 发送 `response_type=token`、`client_id` 及可选 `redirect_uri`、`scope`、`state`、`prompt`，沿用 web Session、CSRF、授权视图、用户绑定和一次性同意 nonce。此可选旧流程不替代上文 PKCE 示例。
+
+批准后 302 回到已校验的回调，fragment 包含 `access_token`、`token_type`、`expires_in` 和已提供的 `state`，不创建授权码或刷新令牌。未知 scope、需要登录／同意及拒绝也使用 fragment，错误客户端或不可信回调在本地失败，保留既有回调查询。Implicit 和设备授权的 scope 最终处理移除 `*`；Password、PAT 和客户端凭据保留它，客户端 scope 限制仍参与。
+
+`implicitGrantEnabled` 属于应用实例，设为 false 也拒绝尚未完成的 Implicit 同意请求。原生实现提交前复查有效客户端及注册地址，模型／监听器失败回滚事务。同意 POST 不能修改已保存的客户端、用户、scope 或响应类型。令牌端点始终不接受 `grant_type=implicit`。

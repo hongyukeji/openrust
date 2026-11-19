@@ -1,0 +1,18 @@
+{
+  "vendor/openrust/passport/src/passport.rs": "023ade04b96853ec0c5eb79c00810d400e9324e7e0b99849e4a37b09b24fb9dc",
+  "vendor/openrust/passport/src/bridge/mod.rs": "ae205c8160d03ae4a4e5685491d335b7c0acf2c7b2257f511f4ecffb809b51ca",
+  "vendor/openrust/passport/src/bridge/user_repository.rs": "a91a509905ac2309717f9f46e7fd1edeb4265f326fd0f152fde7d2544b4d1b27",
+  "vendor/openrust/passport/src/lib.rs": "cc9dac28661ed6f0b055d735d50ba37cc3441dc7587d485e17fec9d2894f8bb0",
+  "vendor/openrust/passport/src/error.rs": "c0f100c35224eca60105e43caad9a66625e27e0b4e1f38784c955394422660b1",
+  "vendor/openrust/passport/src/authorization_server.rs": "fce826f68236cf43969cf6a5820c987b34ad7ac6b3cca239e76c970d561e3670",
+  "vendor/openrust/passport/src/optional_grants.rs": "93862683cc68444b183551e613d7098fef8df8b3beab7418f2e61343ec6d5793",
+  "vendor/openrust/passport/src/authorization_response.rs": "54e7fb4d84501345272540499d96be126e8e084a6d7691239cf765e6ab66c3fa",
+  "vendor/openrust/passport/tests/device_authorization/mod.rs": "961413758bd01d28389cc6c52683d1cc84e0391953be3d443bc8c77f71990a56",
+  "vendor/openrust/passport/tests/authorization_code.rs": "621f7ae364122fce747431af898bab64312364c52f1bd40fa3af1af9fd26ec6a",
+  "vendor/openrust/passport/tests/optional_grants/mod.rs": "6b8228f8b18ac31f7b928a1a3531aa165f600c68ea93baf4950e81f0d27dbbf4",
+  "vendor/openrust/passport/tests/optional_grants/browser.mjs": "a0ba25fe9ea23cbf22cdbdf8212a2c32b0427ce72d831c9530a4f7519e4fd74e",
+  "docs/en/packages/passport.md": "a888f1392d10087ce270a6c496a713fff8ab6497fef980f75e2685d84fbcf2eb",
+  "docs/zh_CN/packages/passport.md": "1c9422e3c683e629847e116f57b362cbf2d938c03000af7b6e657a01d53b3000",
+  "docs/zh_TW/packages/passport.md": "b1e1ac4c7e4faf69bea1934d18b67252dc3804843dbd5a6a01a129e2e0b2d746",
+  "docs/tests/check_passport_authcode.mjs": "dafd206f3b842d4aef62033b9b2a2f39df040c4d51727b248f5cbcdd5350f936"
+}

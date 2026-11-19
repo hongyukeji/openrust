@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 mod api_token_cookie_factory;
 mod auth_code;
+pub mod bridge;
 pub mod contracts;
 mod device_code;
 mod testing;

@@ -3716,3 +3716,6 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 
 
 2026-11-20 Passport-06 [Scope 与其他默认路径](audits/passport-06/README.md)实现及验收闭合：机器凭据、专用PAT、公开scope接口与资源中间件、SPA Cookie／CSRF／刷新与安装中间件的登出清理、类型化事务事件及请求内测试辅助已提供。105个不同Passport函数及8个Guard／Session回归共113个函数、真实MySQL8.4.13及2项显式Chromium通过；最低Rust1.94 workspace／all-targets features pail,passport严格Clippy、格式、根HTTP／原始Artisan／关停、三语21章节构建与12＋6浏览器检查通过。24份输入SHA与隔离e6d3ac04b副本一致，保留同期Fortify等提交和WIP；本批无新增PHP运行时oracle。源码包、日志、共享缓存及全部数据库卷保留，专属source／target归属清理见记录。核范围本地提交，不推送。V06仍部分验收，继续Passport-07／08／09。
+
+
+2026-11-20 Passport-07 [显式可选授权与默认门禁](audits/passport-07/README.md)实现及验收闭合：Password／Implicit默认关闭、应用内显式开关、真实UserProvider与编译模型钩子、Password访问／刷新及Implicit浏览器同意／fragment／事务已提供；同时按固定ScopeRepository修正设备*过滤。116个不同Passport函数＋8个Guard／Session回归共124个函数、MySQL8.4.13和3项显式Chromium通过；Rust1.94严格workspace／all-targets features pail,passport Clippy、格式、根HTTP／原始Artisan／关停、三语23章节构建及12＋6浏览器通过。16份输入SHA与隔离291dc7d3一致，保留Fortify等WIP；无新增PHP运行时oracle。专属产物归属清理见记录，源码包／共享缓存／全部卷保留。核范围本地提交，不推送。V06仍部分验收，继续Passport-08／09。

@@ -2,7 +2,7 @@
 
 ## 安裝 {#installation}
 
-已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖守衛、重新整理輪換、期限自訂、清理與裝置授權已提供，機器權杖、個人權杖、scope、SPA Cookie、事件及請求內測試輔助已提供，可選 Password／Implicit 仍在開發；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
+已提供用戶端、瀏覽器授權及同意、授權碼／PKCE 與授權碼兌換端點。資源權杖守衛、重新整理輪換、期限自訂、清理與裝置授權已提供，機器權杖、個人權杖、scope、SPA Cookie、事件及請求內測試輔助已提供，Password／Implicit 須明確啟用；目前尚無 `install:api --passport`，既有 Sanctum 安裝維持獨立。
 
 目前應用程式預留了可選的 `passport` Cargo feature。將它加入 Cargo 預設 features，讓 `./artisan` 與一般建置持續啟用套件，並保留原有其他預設項目：
 
@@ -280,3 +280,21 @@ API 資源使用 Passport 守衛。API 堆疊通常不含 web `EncryptCookies`�
 ## 測試 {#testing}
 
 在應用程式上下文用 `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` 設定使用者，或用 `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` 設定機器。這些輔助方法選定守衛並將帶 scope 的權杖附到明確請求，不簽發、不寫入資料庫，也不影響後續請求。`actingAsClient` 要求請求沒有快取使用者，從使用者身分切換時建立新請求。真實協定測試仍須取得並提交簽名權杖。
+
+## 密碼授權 {#password-grant}
+
+Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協定。明確需要 Password 的整合，在解析授權伺服器前呼叫應用程式實例的 `passport.enablePasswordGrant()`；`passwordGrantEnabled` 屬於應用程式實例，設為 false 後拒絕後續請求。瀏覽器常規流程仍使用授權碼及 PKCE。
+
+透過 `artisan passport:client --password --provider=users` 建立用戶端（`--public` 建立公開用戶端）。向 `POST /oauth/token` 傳送 `grant_type=password`、`client_id`、`username`、`password` 與可選 `scope`；機密用戶端還提供 `client_secret` 或 HTTP Basic。成功回傳簽名存取權杖，用戶端支援時也簽發重新整理權杖，沿用普通存取／重新整理期限。錯誤使用者憑證回傳 400 `invalid_grant`、`The user credentials were incorrect.`；缺少欄位、錯誤用戶端和未知 scope 保留 OAuth 錯誤回應。
+
+`bridge::UserRepository::getUserEntityByUserCredentials` 選擇用戶端 provider，空值回退到 `auth.guards.api.provider`。預設編譯 Eloquent provider 查詢 `email` 並驗證真實密碼雜湊。框架自訂 `UserProvider` 透過 `retrieve_by_credentials`、`validate_credentials` 提供模型 `findForPassport` 和 `validateForPassportPasswordGrant` 的原生等價職責，不啟動 Session、不重新雜湊密碼。
+
+組合模型鉤子 `findAndValidateForPassport` 使用 `passport.findAndValidateForPassportUsing("users", resolver)` 註冊。原生 `bridge::PasswordGrantResolver` 是接收借用使用者名稱、密碼及 `ClientRecord` 的編譯函數，回傳 `AuthFuture<AuthResult<Option<AuthIdentifier>>>`；它優先處理該 provider，須執行應用程式真實查詢及驗證。明確註冊取代 PHP 執行階段方法探索。例外回傳隱藏敏感資料的 500，不冒充密碼錯誤。
+
+## 隱式授權 {#implicit-grant}
+
+僅在整合明確要求時呼叫 `passport.enableImplicitGrant()`，再透過 `artisan passport:client --implicit --redirect_uri=https://client.example/callback` 建立公開用戶端。向 `GET /oauth/authorize` 傳送 `response_type=token`、`client_id` 及可選 `redirect_uri`、`scope`、`state`、`prompt`，沿用 web Session、CSRF、授權檢視、使用者綁定和一次性同意 nonce。此可選舊流程不取代上文 PKCE 範例。
+
+批准後 302 回到已校驗的回呼，fragment 包含 `access_token`、`token_type`、`expires_in` 與已提供的 `state`，不建立授權碼或重新整理權杖。未知 scope、需要登入／同意及拒絕也使用 fragment，錯誤用戶端或不可信回呼在本機失敗，保留既有回呼查詢。Implicit 與裝置授權的 scope 最終處理移除 `*`；Password、PAT 與用戶端憑證保留它，用戶端 scope 限制仍參與。
+
+`implicitGrantEnabled` 屬於應用程式實例，設為 false 也拒絕尚未完成的 Implicit 同意請求。原生實作提交前複查有效用戶端及註冊位址，模型／監聽器失敗回滾交易。同意 POST 不能修改已保存的用戶端、使用者、scope 或回應類型。權杖端點始終不接受 `grant_type=implicit`。

@@ -1,0 +1,17 @@
+{
+  "free_before": 57398743040,
+  "free_after": 63434657792,
+  "released_df": 6035914752,
+  "volumes_before": [],
+  "volumes_after": [],
+  "removed": [
+    "source",
+    "target"
+  ],
+  "retained": [
+    "accepted-overlay.tgz",
+    "all logs and scripts",
+    "shared caches",
+    "all database volumes"
+  ]
+}

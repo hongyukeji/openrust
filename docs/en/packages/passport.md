@@ -2,7 +2,7 @@
 
 ## Installation {#installation}
 
-Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. Client credentials, personal tokens, scopes, SPA cookies, events and request-local testing helpers are also available. Optional Password/Implicit grants remain under development; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
+Passport provides clients, browser authorization and consent, authorization codes with PKCE, and the authorization-code token endpoint. Resource token guards, refresh-token rotation, expiry configuration, token purging and device authorization are available. Client credentials, personal tokens, scopes, SPA cookies, events and request-local testing helpers are also available. Password and Implicit are available only after explicit opt-in; `install:api --passport` is not available yet. Existing Sanctum installation remains independent.
 
 The current application has an optional `passport` Cargo feature. Add it to Cargo's default features to keep it enabled for `./artisan` and normal builds, preserving any existing defaults:
 
@@ -280,3 +280,21 @@ Listen to the typed `events::AccessTokenCreated`, `RefreshTokenCreated` and `Acc
 ## Testing {#testing}
 
 Within the application context, call `passport.actingAs(&mut request, Box::new(user), &["read".into()], "api", None).await?` for a user or `passport.actingAsClient(&mut request, &client, &["read".into()], "api").await?` for a machine. These helpers select the guard and attach a scope-aware token to that explicit request. They create no signed token or database record and affect no subsequent request. `actingAsClient` requires a request without a cached user; use a fresh request when switching from user authentication. Real protocol tests must still obtain and submit signed tokens.
+
+## Password grant {#password-grant}
+
+Password and Implicit grants are disabled by default. Creating their client records does not enable the protocols. For an integration that explicitly requires Password, call `passport.enablePasswordGrant()` on the application instance before resolving its authorization server. `passwordGrantEnabled` remains application-local; setting it to false rejects subsequent Password requests. Authorization code with PKCE remains the normal browser flow.
+
+Create a client with `artisan passport:client --password --provider=users` (`--public` creates a public client). Send `grant_type=password`, `client_id`, `username`, `password` and optional `scope` to `POST /oauth/token`; confidential clients also provide `client_secret` or HTTP Basic credentials. Success returns a signed access token and, when the client supports it, a refresh token. Ordinary access/refresh lifetimes apply. Incorrect user credentials return 400 `invalid_grant`, `The user credentials were incorrect.`; missing fields, invalid clients and unknown scopes retain OAuth error responses.
+
+`bridge::UserRepository::getUserEntityByUserCredentials` selects the client's provider, falling back to `auth.guards.api.provider` for a null/empty provider. The default compiled Eloquent provider queries `email` and verifies the real password hash. A custom framework `UserProvider` supplies the native equivalents of model `findForPassport` and `validateForPassportPasswordGrant` through `retrieve_by_credentials` and `validate_credentials`. This path neither starts a Session nor rehashes passwords.
+
+For a combined model-level `findAndValidateForPassport` hook, register `passport.findAndValidateForPassportUsing("users", resolver)`. The native `bridge::PasswordGrantResolver` is a compiled function taking borrowed username, password and `ClientRecord`, returning `AuthFuture<AuthResult<Option<AuthIdentifier>>>`. It takes precedence for that provider; it must perform the application's actual lookup and validation. This explicit registration replaces PHP runtime method discovery. Exceptions fail with a redacted 500 response; they do not become invalid passwords.
+
+## Implicit grant {#implicit-grant}
+
+Enable only an explicitly required integration with `passport.enableImplicitGrant()`, then create its public client with `artisan passport:client --implicit --redirect_uri=https://client.example/callback`. Send `response_type=token`, `client_id`, optional `redirect_uri`, `scope`, `state` and `prompt` to `GET /oauth/authorize`. The existing web Session, CSRF, authorization view, user binding and single-use consent nonce apply. This optional legacy flow is not a replacement for the PKCE example above.
+
+Approval returns a 302 redirect to the validated callback with `access_token`, `token_type`, `expires_in` and supplied `state` in its fragment. No auth code or refresh token is created. Unknown-scope, login-required, consent-required and denial redirects also use the fragment; invalid clients or untrusted callbacks fail locally. Existing callback query parameters are preserved. Scope finalization removes `*` for Implicit and device authorization; Password, PAT and client credentials retain it. Client scope restrictions still apply.
+
+`implicitGrantEnabled` is application-local. Setting it false also rejects completion of a pending Implicit consent request. The native implementation rechecks the active client and registered redirect before committing a token, and its transaction rolls back on model/listener failure. A consent POST cannot change the stored client, user, scopes or response type. `grant_type=implicit` is never accepted by the token endpoint.

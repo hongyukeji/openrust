@@ -26,6 +26,8 @@ use zeroize::Zeroizing;
 
 #[path = "device_authorization.rs"]
 mod device;
+#[path = "optional_grants.rs"]
+mod optional;
 #[path = "standalone_grants.rs"]
 mod standalone;
 pub use device::DeviceCodeResponse;
@@ -41,6 +43,8 @@ pub struct AuthorizationRequest {
     scopes: Vec<String>,
     challenge: Option<String>,
     challenge_method: Option<String>,
+    #[serde(default)]
+    implicit: bool,
 }
 impl std::fmt::Debug for AuthorizationRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -49,6 +53,13 @@ impl std::fmt::Debug for AuthorizationRequest {
 }
 #[allow(non_snake_case)]
 impl AuthorizationRequest {
+    pub fn grantTypeId(&self) -> &str {
+        if self.implicit {
+            "implicit"
+        } else {
+            "authorization_code"
+        }
+    }
     pub fn clientIdentifier(&self) -> &str {
         &self.client_id
     }
@@ -66,10 +77,11 @@ impl AuthorizationRequest {
         &self,
         error: &OAuthError,
     ) -> Result<AuthorizationRedirect, OAuthError> {
-        Ok(AuthorizationRedirect::invalid_scope(
+        Ok(AuthorizationRedirect::protocol_error(
             &self.redirect()?,
             self.state.as_deref(),
             error,
+            self.implicit,
         ))
     }
 }
@@ -143,13 +155,30 @@ impl AuthorizationServer {
         &self,
         parameters: &OAuthParameters,
     ) -> Result<AuthorizationRequest, AuthorizationFailure> {
-        if !parameters.raw_string_matches("response_type", "code") {
+        let implicit = parameters.raw_string_matches("response_type", "token")
+            && self
+                .passport
+                .implicitGrantEnabled
+                .load(std::sync::atomic::Ordering::Relaxed);
+        if !implicit && !parameters.raw_string_matches("response_type", "code") {
             return Err(OAuthError::unsupported_grant_type().into());
         }
         let id = parameters
             .parameter("client_id", None)?
             .ok_or_else(|| OAuthError::invalid_request("client_id", None))?;
-        let client = self.client(&id, None).await?;
+        let client = if implicit {
+            let client = self
+                .clients
+                .findActive(id.as_str())
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| OAuthError::invalid_client(None))?;
+            self.check_client_for_grant(&client, None, "implicit")
+                .await?;
+            client
+        } else {
+            self.client(&id, None).await?
+        };
         let redirect = ValidatedRedirectUri::from_client_array(
             parameters.parameter("redirect_uri", None)?.as_deref(),
             &client.redirectUris().await.map_err(internal)?,
@@ -167,22 +196,27 @@ impl AuthorizationServer {
         for scope in &scopes {
             if !self.passport.has_scope(scope) {
                 return Err(AuthorizationFailure::Redirect(
-                    AuthorizationRedirect::invalid_scope(
+                    AuthorizationRedirect::protocol_error(
                         &redirect,
                         state.as_deref(),
                         &OAuthError::invalid_scope_for(scope),
+                        implicit,
                     ),
                 ));
             }
         }
-        let challenge = CodeChallenge::from_request(
-            parameters.parameter("code_challenge", None)?.as_deref(),
-            parameters
-                .parameter("code_challenge_method", None)?
-                .as_deref(),
-            !client.confidential().await,
-        )
-        .map_err(OAuthError::from)?;
+        let challenge = if implicit {
+            None
+        } else {
+            CodeChallenge::from_request(
+                parameters.parameter("code_challenge", None)?.as_deref(),
+                parameters
+                    .parameter("code_challenge_method", None)?
+                    .as_deref(),
+                !client.confidential().await,
+            )
+            .map_err(OAuthError::from)?
+        };
         let (challenge, method) = match challenge.as_ref().map(CodeChallenge::stored_parts) {
             Some((value, method)) => (Some(value.to_owned()), Some(method.to_owned())),
             None => (None, None),
@@ -195,6 +229,7 @@ impl AuthorizationServer {
             scopes,
             challenge,
             challenge_method: method,
+            implicit,
         })
     }
     pub(crate) async fn hasGrantedScopes(
@@ -202,7 +237,14 @@ impl AuthorizationServer {
         request: &AuthorizationRequest,
         user: &AuthIdentifier,
     ) -> Result<bool, OAuthError> {
-        let client = self.client(&request.client_id, None).await?;
+        let client = self
+            .clients
+            .findActive(request.client_id.as_str())
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| OAuthError::invalid_client(None))?;
+        self.check_client_for_grant(&client, None, request.grantTypeId())
+            .await?;
         let connection = client.connection().await.map_err(internal)?;
         let tokens = self
             .passport
@@ -240,6 +282,9 @@ impl AuthorizationServer {
         user: AuthIdentifier,
         approved: bool,
     ) -> Result<AuthorizationRedirect, OAuthError> {
+        if request.implicit {
+            return self.complete_implicit(request, user, approved).await;
+        }
         let redirect = request.redirect()?;
         if !approved {
             return Ok(AuthorizationRedirect::denied(
@@ -328,6 +373,13 @@ impl AuthorizationServer {
     ) -> Result<TokenResponse, OAuthError> {
         let grant = if parameters.raw_string_matches("grant_type", "authorization_code") {
             "authorization_code"
+        } else if parameters.raw_string_matches("grant_type", "password")
+            && self
+                .passport
+                .passwordGrantEnabled
+                .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            "password"
         } else if parameters.raw_string_matches("grant_type", "client_credentials") {
             "client_credentials"
         } else if parameters.raw_string_matches("grant_type", "refresh_token") {
@@ -376,6 +428,11 @@ impl AuthorizationServer {
             {
                 return Err(OAuthError::invalid_client(authorization));
             }
+        }
+        if grant == "password" {
+            return self
+                .exchange_password(parameters, client, connection, transaction)
+                .await;
         }
         if grant == "client_credentials" {
             if !client.confidential().await {
@@ -584,7 +641,8 @@ impl AuthorizationServer {
             if !self.passport.has_scope(&scope) {
                 return Err(OAuthError::invalid_scope_for(&scope));
             }
-            if (scope != "*" || !matches!(grant, "authorization_code" | "refresh_token"))
+            if (scope != "*"
+                || matches!(grant, "password" | "personal_access" | "client_credentials"))
                 && client.hasScope(&scope).await.map_err(internal)?
                 && !scopes.contains(&scope)
             {

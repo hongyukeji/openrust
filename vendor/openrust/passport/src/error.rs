@@ -45,6 +45,15 @@ pub struct OAuthError {
 }
 
 impl OAuthError {
+    #[allow(non_snake_case, reason = "Matches the fixed League exception API")]
+    pub fn invalidCredentials() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_grant",
+            "The user credentials were incorrect.",
+            None,
+        )
+    }
     pub(crate) fn expired_token() -> Self {
         Self::new(
             StatusCode::BAD_REQUEST,

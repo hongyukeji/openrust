@@ -32,6 +32,10 @@ pub struct Passport {
     /// Whether a parent scope grants a colon-delimited descendant scope.
     pub withInheritedScopes: AtomicBool,
     pub deviceCodeGrantEnabled: AtomicBool,
+    pub passwordGrantEnabled: AtomicBool,
+    pub implicitGrantEnabled: AtomicBool,
+    password_resolvers:
+        RwLock<std::collections::HashMap<String, crate::bridge::PasswordGrantResolver>>,
     pub clientUuids: AtomicBool,
     pub registersRoutes: AtomicBool,
     pub ignoreCsrfToken: AtomicBool,
@@ -76,6 +80,9 @@ impl Passport {
             validateKeyPermissions: AtomicBool::new(true),
             withInheritedScopes: AtomicBool::new(false),
             deviceCodeGrantEnabled: AtomicBool::new(true),
+            passwordGrantEnabled: AtomicBool::new(false),
+            implicitGrantEnabled: AtomicBool::new(false),
+            password_resolvers: RwLock::new(Default::default()),
             clientUuids: AtomicBool::new(true),
             registersRoutes: AtomicBool::new(true),
             ignoreCsrfToken: AtomicBool::new(false),
@@ -211,6 +218,35 @@ impl Passport {
                 .map(|f| f(encrypter))
                 .unwrap_or_else(|| encrypter.getKey().to_vec()),
         )
+    }
+    pub fn enablePasswordGrant(&self) {
+        self.passwordGrantEnabled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn enableImplicitGrant(&self) {
+        self.implicitGrantEnabled
+            .store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    /// Native adapter for PHP's model-level findAndValidateForPassport hook.
+    pub fn findAndValidateForPassportUsing(
+        &self,
+        provider: &str,
+        resolver: crate::bridge::PasswordGrantResolver,
+    ) {
+        self.password_resolvers
+            .write()
+            .expect("Passport password resolver lock")
+            .insert(provider.into(), resolver);
+    }
+    pub(crate) fn password_resolver(
+        &self,
+        provider: &str,
+    ) -> Option<crate::bridge::PasswordGrantResolver> {
+        self.password_resolvers
+            .read()
+            .expect("Passport password resolver lock")
+            .get(provider)
+            .copied()
     }
     pub fn ignoreRoutes(&self) {
         self.registersRoutes

@@ -1,0 +1,27 @@
+{
+  "sources": {
+    "passport__src__Passport.php": "10e8efa4ba67b760ea949f17b9aad208e04c9894788430eeb7eae2728b7ac190",
+    "passport__src__PassportServiceProvider.php": "b5085ac5a6044cd0ec6deee52653fb399c88cfef0091a4c0dc01a16971572d77",
+    "passport__src__Bridge__UserRepository.php": "fed2d9b34358aa44f78d56cafdd8c54499971f7cc44b7376099281fb9328dc2c",
+    "passport__src__Bridge__ScopeRepository.php": "8154ebde32a75efbb66c9a309fe8a2a521379ba44f3273e9d0c25b49bfcf01d2",
+    "passport__src__Bridge__ClientRepository.php": "73717cebc1969e239854f8527543eb0a26d33c4b84b71a670d939975925118a6",
+    "passport__src__Contracts__OAuthenticatable.php": "ee8ae7f468d3b225c4dda8ba509f4d2c8b9fbe1d961e802ee384e0d422fb1bf4",
+    "passport__src__HasApiTokens.php": "d224db2fb7dff357a3592defbfde028a26a841efd6b80b6505c2a1bef45d598e",
+    "passport__src__Http__Controllers__AuthorizationController.php": "c85ffe0b50ec98b9653b0fd0c7c03578a725f24e086e44dab36ad6b8bd3d3408",
+    "passport__src__Http__Controllers__ApproveAuthorizationController.php": "11d81734eff1de1e972afbe29ee8d903dd73312632d710a49b472cd0d3173382",
+    "passport__src__Http__Controllers__DenyAuthorizationController.php": "ee9719309c6dacf1089b9d14f542d9c73dfe5255ef331524431b96b6006f3dd7",
+    "passport__src__Http__Controllers__RetrievesAuthRequestFromSession.php": "ed5d0a162a1c51caa29eb9c2fd8aa0357dcda83e17860a106492d2ebba8565bd",
+    "passport__tests__Feature__AccessTokenControllerTest.php": "754ef3e34c4e00201427bfb28e238bad97a8f34d17b3dfca45ef542565ec4b46",
+    "league__src__Grant__PasswordGrant.php": "40abb58660c2b8512f22157fb02b0fd64aa5b5a881bd6f86ecc010224bcc1f9b",
+    "league__src__Grant__ImplicitGrant.php": "c03ae565b87dc84fb092fed69c1d5688ee73e972dc0db46acb97d6308ce208a2",
+    "league__src__Grant__AbstractGrant.php": "8206d50b83d9623d2ab50205299ddbffa23b2146587763a8a8fad7300a99fc69",
+    "league__src__ResponseTypes__RedirectResponse.php": "8211779cfb4c606963811432655e11b88ac6d08df5f638d673a167d662afcf61",
+    "league__src__Exception__OAuthServerException.php": "6430e6840486dd2a52c495db8215ee46322a52d1bdba3c789b8c6cb1a1bc444a",
+    "league__tests__Grant__PasswordGrantTest.php": "0dae0e9ebcecd8340291014c103f37f919dbc1f70bd60341c757e04d4f16be5f",
+    "league__tests__Grant__ImplicitGrantTest.php": "2eaa019161021f68fcb9b223b7b485555e364e50365d18716db54b6fe037d683",
+    "passport__src__Http__Controllers__HandlesOAuthErrors.php": "0ee1ca584a2fba490d380f18f8fb973a80e95b423560f1b5f5768ad5ebd19629",
+    "league__src__Grant__AbstractAuthorizeGrant.php": "243d44207d7e02cbaaf17579cda2b708d83e3a2aa674713e319808fd9ce4ff3e",
+    "league__src__AuthorizationServer.php": "fb5afcf4eb90d4c7e12d08214deafda47b5377f2896f13df6c2f270b936b3732"
+  },
+  "unavailable": {}
+}

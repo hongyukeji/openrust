@@ -2058,3 +2058,6 @@ mod device_authorization;
 
 #[path = "default_grants/mod.rs"]
 mod default_grants;
+
+#[path = "optional_grants/mod.rs"]
+mod optional_grants;

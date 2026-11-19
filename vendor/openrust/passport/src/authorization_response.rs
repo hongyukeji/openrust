@@ -13,6 +13,50 @@ pub struct AuthorizationRedirect {
 }
 
 impl AuthorizationRedirect {
+    pub(crate) fn implicit(
+        target: &ValidatedRedirectUri,
+        token: &str,
+        expires: i64,
+        state: Option<&str>,
+    ) -> Self {
+        let expires = expires.to_string();
+        let mut parameters = vec![
+            ("access_token", token),
+            ("token_type", "Bearer"),
+            ("expires_in", &expires),
+        ];
+        if let Some(state) = state {
+            parameters.push(("state", state));
+        }
+        Self {
+            target: append_with_delimiter(target.as_str(), &parameters, '#'),
+        }
+    }
+    pub(crate) fn denied_fragment(target: &ValidatedRedirectUri, state: Option<&str>) -> Self {
+        Self::protocol_error(
+            target,
+            state,
+            &OAuthError::access_denied(Some("The user denied the request")),
+            true,
+        )
+    }
+    pub(crate) fn protocol_error(
+        target: &ValidatedRedirectUri,
+        state: Option<&str>,
+        error: &OAuthError,
+        fragment: bool,
+    ) -> Self {
+        if !fragment {
+            return Self::invalid_scope(target, state, error);
+        }
+        let state = state.map(|v| ("state", v));
+        let target = append_with_delimiter(target.as_str(), state.as_slice(), '#');
+        let parameters: Vec<_> = error.payload_pairs().collect();
+        Self {
+            target: append_with_delimiter(&target, &parameters, '#'),
+        }
+    }
+
     pub(crate) fn approved(target: &ValidatedRedirectUri, code: &str, state: Option<&str>) -> Self {
         let mut parameters = vec![("code", code)];
         if let Some(state) = state {
@@ -106,6 +150,9 @@ impl IntoResponse for AuthorizationFailure {
 
 // 固定AbstractAuthorizeGrant直接按?是否存在追加，不重写已注册地址的字节。
 fn append_parameters(target: &str, parameters: &[(&str, &str)]) -> String {
+    append_with_delimiter(target, parameters, '?')
+}
+fn append_with_delimiter(target: &str, parameters: &[(&str, &str)], delimiter: char) -> String {
     let encoded = url::form_urlencoded::Serializer::new(String::new())
         .extend_pairs(parameters.iter().copied())
         .finish()
@@ -113,6 +160,10 @@ fn append_parameters(target: &str, parameters: &[(&str, &str)]) -> String {
         .replace('*', "%2A");
     format!(
         "{target}{}{encoded}",
-        if target.contains('?') { '&' } else { '?' }
+        if target.contains(delimiter) {
+            '&'
+        } else {
+            delimiter
+        }
     )
 }
