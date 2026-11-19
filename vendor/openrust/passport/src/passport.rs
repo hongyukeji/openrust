@@ -27,6 +27,8 @@ use zeroize::Zeroizing;
 pub struct Passport {
     /// Mirrors Passport::$validateKeyPermissions without process-global state.
     pub validateKeyPermissions: AtomicBool,
+    /// Whether a parent scope grants a colon-delimited descendant scope.
+    pub withInheritedScopes: AtomicBool,
     config: Arc<dyn Repository>,
     paths: Arc<Paths>,
     key_path: RwLock<Option<PathBuf>>,
@@ -42,6 +44,7 @@ impl Passport {
     ) -> Self {
         Self {
             validateKeyPermissions: AtomicBool::new(true),
+            withInheritedScopes: AtomicBool::new(false),
             config,
             paths,
             database,

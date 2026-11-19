@@ -1,0 +1,2503 @@
+{
+    "passport": "f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7",
+    "php": "8.5.12",
+    "trait_sha256": "11e212c5191f7ba80127c8f7abbbc9f38485776d1869083f67d4daddd14ff8c5",
+    "cases": [
+        {
+            "scope": "orders",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                ""
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "*"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                0
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                true
+            ],
+            "inherited": false,
+            "allowed": true
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                false
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                null
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "账"
+            ],
+            "inherited": false,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:read:edit",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "orders:",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":orders",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":orders",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": ":",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": ":",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "a::b",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "*",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "0",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "00",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "orders"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "orders:read"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                ""
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "a:"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "*"
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                0
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                true
+            ],
+            "inherited": true,
+            "allowed": true
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                false
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                null
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": {
+                "named": "orders"
+            },
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                [
+                    "orders"
+                ]
+            ],
+            "inherited": true,
+            "allowed": false
+        },
+        {
+            "scope": "账:读",
+            "scopes": [
+                "账"
+            ],
+            "inherited": true,
+            "allowed": true
+        }
+    ]
+}

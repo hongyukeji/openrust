@@ -1,0 +1,17 @@
+{
+  "baseline": "7720f142e5a236cd2a50e332bad8b58bf481410c",
+  "sha256": {
+    "vendor/openrust/framework/src/database/eloquent/model.rs": "ad9903c4313069122317f1460b9dc9dd028b0209c124ecdb5bff0f6b8fa9aae5",
+    "vendor/openrust/framework/src/database/eloquent/serialization.rs": "bce1beb1471a3eed26227007183474c943c2e7bc31aa8824bdf5bfee99da055e",
+    "vendor/openrust/passport/src/client.rs": "9b6eb50b60f0ff0c3ce28d6112e842a70c508d8f94ce8858b9244c97cd32e8dc",
+    "vendor/openrust/passport/src/client_record.rs": "2fb08411c9f5d5a5dc48fe7bc07e99b804e40fbbc964069119deee78c7b25e5e",
+    "vendor/openrust/passport/src/passport.rs": "484900985414652a0ec5b22365d572f4da01f5cf086c8e8c0efa48a96061fe23",
+    "vendor/openrust/passport/tests/client.rs": "8c27c61b6889e629c9540a578d0a511de3c9dd93f767e3df86dce1a6aa2e0188",
+    "vendor/openrust/passport/tests/client_lookup.rs": "a123b3404fb3d595dfb673d8aeea830fbc80da90c1c1b1008aafa43384803916",
+    "vendor/openrust/passport/tests/reference/inherited_scopes.php": "d9e74c1288856defaaefcff4583ac0e85f3701b997b34b0fa6dd2154f9027b1d",
+    "vendor/openrust/passport/tests/fixtures/inherited_scopes.json": "3f5efd22e491da68a44dcc974180efa54c5c046eb5bfbef8e05197a74f9214cf",
+    "docs/en/packages/passport.md": "88d18f5931064866e5b9b4d82ca109a2a591e86cb4fc7a5b91e4edd2e8ba3759",
+    "docs/zh_CN/packages/passport.md": "33629bb9d188b94950d7480cc273ae8f91461c9a6cbd9b3e0e664fadccaa7ef1",
+    "docs/zh_TW/packages/passport.md": "3b744e05db989c872b9cf182f8c131e2f3d51808a0f31221e9842163b247cd5c"
+  }
+}

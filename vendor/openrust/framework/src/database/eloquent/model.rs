@@ -213,6 +213,18 @@ pub trait Model: Sized + Send + Sync + 'static {
         serialization::attributes(self)
     }
 
+    /// Evaluates an appended accessor against this instance's current state.
+    fn mutateAttributeForArray(
+        &self,
+        column: &str,
+        value: Option<&Value>,
+    ) -> DatabaseResult<Value> {
+        let getter = Self::attribute(column)
+            .and_then(|attribute| attribute.get)
+            .ok_or(DatabaseError::InvalidQuery("appended model accessor"))?;
+        getter(value, self.state().getAttributes())
+    }
+
     fn relationsToArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         let state = self.state();
         let include = |name: &str| state.serialization().includes(Self::metadata(), name);

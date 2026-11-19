@@ -84,10 +84,10 @@ pub(super) fn attributes<M: Model>(model: &M) -> DatabaseResult<Map<String, Json
     for name in names(options.appends.as_deref(), metadata.appends)
         .filter(|name| options.includes(metadata, name))
     {
-        let getter = M::attribute(name)
-            .and_then(|attribute| attribute.get)
-            .ok_or(DatabaseError::InvalidQuery("appended model accessor"))?;
-        output.insert(name.into(), json_value(getter(None, &state.attributes)?)?);
+        output.insert(
+            name.into(),
+            json_value(model.mutateAttributeForArray(name, None)?)?,
+        );
     }
     Ok(output)
 }

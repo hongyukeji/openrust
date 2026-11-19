@@ -1,7 +1,7 @@
 //! Passport's default Eloquent client and overridable model behavior.
-use crate::{PhpArray, Scope};
+use crate::{Passport, PhpArray, Scope};
 use openrust::{
-    contracts::auth::Authenticatable,
+    contracts::{auth::Authenticatable, container::Container as _},
     database::{
         DatabaseError, DatabaseResult, Value,
         eloquent::{Attributes, Model, ModelMetadata, ModelState, UniqueId, casts::AttributeCast},
@@ -30,6 +30,29 @@ pub trait ClientModel: Model {
     }
     fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
         Ok(self.grantTypes()?.contains_loose(grantType))
+    }
+    fn hasScope(&self, scope: &str) -> DatabaseResult<bool> {
+        if matches!(
+            self.state().getAttribute("scopes"),
+            None | Some(Value::Null)
+        ) {
+            return Ok(true);
+        }
+        let scopes = array(self.getAttributeValue("scopes")?)?;
+        let passport = openrust::container::Container::getInstance()
+            .make::<Passport>()
+            .map_err(DatabaseError::Unavailable)?;
+        if !passport
+            .withInheritedScopes
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return Ok(scopes.contains_loose(scope));
+        }
+        Ok(scope
+            .match_indices(':')
+            .map(|(index, _)| &scope[..index])
+            .chain(std::iter::once(scope))
+            .any(|candidate| scopes.contains_loose(candidate)))
     }
     fn redirectUris(&self) -> DatabaseResult<PhpArray> {
         array(self.getAttributeValue("redirect_uris")?)
@@ -124,6 +147,16 @@ impl Model for Client {
         let configured = openrust::support::facades::Config::get("passport.connection")
             .map_err(DatabaseError::Unavailable)?;
         configured_connection(configured).map(|name| name.map(std::borrow::Cow::Owned))
+    }
+    fn mutateAttributeForArray(
+        &self,
+        column: &str,
+        value: Option<&Value>,
+    ) -> DatabaseResult<Value> {
+        if matches!(column, "plain_secret" | "plainSecret") {
+            return Ok(self.getAttributeValue(column)?.unwrap_or(Value::Null));
+        }
+        self.attributes.mutateAttributeForArray(column, value)
     }
     fn getAttributeValue(&self, column: &str) -> DatabaseResult<Option<Value>> {
         match column {

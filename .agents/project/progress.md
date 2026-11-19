@@ -3672,3 +3672,8 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 ## 2026-11-19 Passport-02 模型连接回退
 
 Passport-02 [模型连接回退](audits/passport-02/connection-fallback.md)已验收。Client 直接 query／save 读取当前应用 passport.connection，已绑定模型保留真实 Connection，事务校验动态连接；保留原 getConnectionName 借用签名，新增拥有型名称解析。隔离 c2bfdd73f 加 8 份本批源码／测试／三语正文，6 原生＋10 生命周期＋9 MySQL＋1 核心持久化测试通过，含真实 TCP HTTP、错误配置与错误事务；真实 Artisan／根 HTTP、最低 Rust 1.94 格式和全工作区全目标 features pail,passport 严格 Clippy、三语站点及 18 项浏览器检查通过。首次事务样本缺两非空字段的 500 已修夹具并保留失败日志。未改 Cargo，其他 init／ViewData／Session 等 WIP 保留。Passport-02／V06 仍部分验收，后续关系／工厂、撤销链、命令与固定 PHP oracle，不推进 Passport-03。
+
+
+## 2026-11-19 Passport-02 scope 与显式追加
+
+Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.md)已验收。hasScope 复用真实模型 cast／PHP 非严格比较桥，withInheritedScopes 按应用保存；plain_secret 显式追加走实例访问器并保留 hidden／visible 与水合 null。固定 Passport 13.10.0 的真实 trait 在 PHP 8.5.12 生成 312 例，源码 SHA 正负校验通过，Rust 双应用 TCP 逐项对照一致。9 原生、10 lifecycle、10 MySQL 夹具目标测试全过（29 个函数，其中 2 个 lookup 用例不执行 SQL），实际 Artisan Kernel、最低 Rust 1.94 格式／全工作区全目标 features pail,passport 严格 Clippy、三语构建和 18 浏览器检查通过。本批隔离 7720f142e 加 12 份输入，不叠加总控在途 ViewData／Cargo 与 init 等差异；未重编根 CLI 二进制。已清专属 source／target／browser 约 3.329 GB 和 PHP 镜像，保留证据、源码与全部数据卷。Passport-02／V06 仍部分验收，继续关系／工厂、UUID、生命周期撤销、命令和剩余 PHP oracle；不推进 Passport-03。

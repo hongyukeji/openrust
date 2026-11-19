@@ -54,11 +54,15 @@ impl ClientRecord {
     pub async fn hasGrantType(&self, grantType: &str) -> DatabaseResult<bool> {
         self.0.has_grant_type(grantType).await
     }
+    pub async fn hasScope(&self, scope: &str) -> DatabaseResult<bool> {
+        self.0.has_scope(scope).await
+    }
     pub async fn redirectUris(&self) -> DatabaseResult<PhpArray> {
         self.0.redirect_uris().await
     }
 }
 trait LoadedClient: Send + Sync {
+    fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>>;
     fn columns(&self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>>;
     fn assign_and_save(&self, attributes: Attributes) -> DatabaseFuture<'_, DatabaseResult<bool>>;
     fn as_any(&self) -> &dyn Any;
@@ -77,6 +81,9 @@ struct Loaded<M> {
     connection: Connection,
 }
 impl<M: ClientModel> LoadedClient for Loaded<M> {
+    fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
+        Box::pin(async move { self.model.lock().await.hasScope(scope) })
+    }
     fn columns(&self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>> {
         Box::pin(async move {
             let table = self.model.lock().await.getTable();

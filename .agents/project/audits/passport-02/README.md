@@ -97,3 +97,7 @@ docs/{en,zh_CN,zh_TW}/packages/passport.md
 ## 模型连接回退接续
 
 2026-11-19 [模型连接回退](connection-fallback.md)已通过直接模型、事务、真实 HTTP／MySQL、Artisan 与三语验收。上方历史未闭合清单第 1 项中的未绑定连接回退已处理，关系／工厂等其余部分继续推进。Passport-02 整单元仍未闭合。
+
+## 客户端 scope 与显式追加接续
+
+2026-11-19 [scope 与显式明文追加](scopes-and-appends.md)通过固定 PHP 312 例、29 个 Rust 测试函数、真实 HTTP／MySQL、Artisan Kernel 与三语验收。历史清单中的 scope 继承和 plain_secret 显式追加已处理，完整 Client／Passport-02 仍未闭合。

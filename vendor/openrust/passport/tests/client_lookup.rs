@@ -363,6 +363,7 @@ fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routin
     let mut routes = openrust::routing::Router::new();
     routes.get("/lookup/{id}", lookup)?;
     routes.get("/model-connections", model_connections)?;
+    routes.get("/scope-oracle", scope_oracle)?;
     Ok(routes)
 }
 fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -386,7 +387,7 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .unwrap();
         Response::json(
             StatusCode::OK,
-            json!({"client":a.toArray().await.map_err(|e|internal(Box::new(e)))?,"same":a.sameInstance(&b)}),
+            json!({"client":a.toArray().await.map_err(|e|internal(Box::new(e)))?,"same":a.sameInstance(&b),"scope_allowed":a.hasScope("orders:read").await.map_err(|e|internal(Box::new(e)))?}),
         )
     })
 }
@@ -437,6 +438,7 @@ async fn mysql_http_lookup_keeps_two_apps_and_successive_requests_isolated() {
             let body: Json = serde_json::from_str(&response.text().await.unwrap()).unwrap();
             assert_eq!(body["client"]["name"], name);
             assert_eq!(body["same"], true);
+            assert_eq!(body["scope_allowed"], true);
             assert!(body["client"].get("secret").is_none());
         }
     }
@@ -1145,4 +1147,78 @@ async fn mysql_direct_client_models_resolve_configuration_and_preserve_bound_tra
         serde_json::from_str::<Json>(&body).unwrap()["transaction_mismatch_rejected"],
         true
     );
+}
+
+fn scope_oracle(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let passport = openrust::container::Container::getInstance()
+            .make::<Passport>()
+            .unwrap();
+        let inherited = passport.withInheritedScopes.load(Ordering::Relaxed);
+        let fixture: Json =
+            serde_json::from_str(include_str!("fixtures/inherited_scopes.json")).unwrap();
+        let mut results = Vec::new();
+        for case in fixture["cases"].as_array().unwrap() {
+            if case["inherited"] != inherited {
+                continue;
+            }
+            let mut state = ModelState::default();
+            state.setAttribute("scopes", Value::Json(case["scopes"].clone()));
+            let client = Client::from_state(state);
+            results.push(client.hasScope(case["scope"].as_str().unwrap()).unwrap());
+        }
+        let mut invalid = Client::default();
+        invalid.state_mut().setAttribute("scopes", "null");
+        assert!(invalid.hasScope("orders").is_err());
+        invalid.state_mut().setAttribute("scopes", "12");
+        assert!(invalid.hasScope("orders").is_err());
+        Response::json(StatusCode::OK, json!(results))
+    })
+}
+
+#[tokio::test]
+async fn inherited_scope_php_oracle_runs_over_http_and_remains_application_local() {
+    let first_root = Root::new();
+    let second_root = Root::new();
+    let first = first_root.application().await;
+    let second = second_root.application().await;
+    let first_passport = first.make::<Passport>().await.unwrap();
+    let second_passport = second.make::<Passport>().await.unwrap();
+    assert!(!first_passport.withInheritedScopes.load(Ordering::Relaxed));
+    second_passport
+        .withInheritedScopes
+        .store(true, Ordering::Relaxed);
+    let a = serve(first).await;
+    let b = serve(second).await;
+    let fixture: Json =
+        serde_json::from_str(include_str!("fixtures/inherited_scopes.json")).unwrap();
+    assert_eq!(
+        fixture["passport"],
+        "f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7"
+    );
+    for _ in 0..2 {
+        let (one, two) = tokio::join!(
+            reqwest::get(format!("http://{}/scope-oracle", a.0)),
+            reqwest::get(format!("http://{}/scope-oracle", b.0))
+        );
+        for (response, inherited) in [(one.unwrap(), false), (two.unwrap(), true)] {
+            assert_eq!(response.status(), 200);
+            let values: Vec<bool> = serde_json::from_str(&response.text().await.unwrap()).unwrap();
+            let expected = fixture["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|case| case["inherited"] == inherited)
+                .map(|case| case["allowed"].as_bool().unwrap())
+                .collect::<Vec<_>>();
+            assert!(!expected.is_empty());
+            assert_eq!(values, expected);
+        }
+    }
+    for task in [a.1, b.1] {
+        task.abort();
+        let _ = task.await;
+    }
+    assert!(!first_passport.withInheritedScopes.load(Ordering::Relaxed));
+    assert!(second_passport.withInheritedScopes.load(Ordering::Relaxed));
 }

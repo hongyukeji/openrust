@@ -274,3 +274,86 @@ fn scope_exposes_the_fixed_id_and_description_payload() {
         scope.toArray()
     );
 }
+
+#[test]
+fn plain_secret_appending_reads_the_instance_and_respects_visibility() {
+    let mut client = hydrated([("secret", "stored hash".into())]);
+    client.plainSecret = Some(zeroize::Zeroizing::new("instance-only secret".to_owned()));
+    assert!(client.toArray().unwrap().get("plain_secret").is_none());
+    client.append(&["plain_secret"]);
+    let projected = client.toArray().unwrap();
+    assert_eq!(projected["plain_secret"], "instance-only secret");
+    assert!(!projected.contains_key("secret"));
+    assert!(client.state().getAttribute("plain_secret").is_none());
+    client.makeHidden(&["plain_secret"]);
+    assert!(!client.toArray().unwrap().contains_key("plain_secret"));
+    client.makeVisible(&["plain_secret"]);
+    assert_eq!(
+        client.toArray().unwrap()["plain_secret"],
+        "instance-only secret"
+    );
+    client.setVisible(&["secret"]);
+    assert!(!client.toArray().unwrap().contains_key("plain_secret"));
+    let mut hydrated_again = hydrated([("secret", "stored hash".into())]);
+    hydrated_again.append(&["plain_secret"]);
+    assert_eq!(
+        hydrated_again.toArray().unwrap()["plain_secret"],
+        serde_json::Value::Null
+    );
+}
+
+#[test]
+fn missing_and_null_scope_restrictions_allow_scopes_without_loading_application_state() {
+    for client in [Client::default(), hydrated([("scopes", Value::Null)])] {
+        for scope in ["", "*", "orders:read", "账:读"] {
+            assert!(client.hasScope(scope).unwrap());
+        }
+    }
+}
+
+#[test]
+fn existing_eloquent_append_accessors_keep_raw_state_visibility_and_errors() {
+    use openrust::database::{
+        DatabaseResult,
+        eloquent::{ModelMetadata, casts::Attribute},
+    };
+    struct DefaultAccessor(ModelState);
+    impl Model for DefaultAccessor {
+        fn metadata() -> &'static ModelMetadata {
+            static META: ModelMetadata = ModelMetadata::new("projection")
+                .hidden(&["label"])
+                .appends(&["summary"]);
+            &META
+        }
+        fn from_state(state: ModelState) -> Self {
+            Self(state)
+        }
+        fn state(&self) -> &ModelState {
+            &self.0
+        }
+        fn state_mut(&mut self) -> &mut ModelState {
+            &mut self.0
+        }
+        fn attribute(name: &str) -> Option<Attribute> {
+            (name == "summary").then_some(Attribute::get(|_, raw| -> DatabaseResult<Value> {
+                Ok(raw.get("label").cloned().unwrap_or(Value::Null))
+            }))
+        }
+    }
+    let mut state = ModelState::default();
+    state.setAttribute("label", "current value");
+    let mut model = DefaultAccessor::from_state(state);
+    assert_eq!(
+        model.toArray().unwrap(),
+        serde_json::json!({"summary":"current value"})
+            .as_object()
+            .unwrap()
+            .clone()
+    );
+    model.state_mut().setAttribute("label", "changed value");
+    assert_eq!(model.toArray().unwrap()["summary"], "changed value");
+    model.makeHidden(&["summary"]);
+    assert!(model.toArray().unwrap().is_empty());
+    model.append(&["missing"]);
+    assert!(model.toArray().is_err());
+}
