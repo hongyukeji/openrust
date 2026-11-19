@@ -13,6 +13,11 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |
     */
     Ok(json!({
+        "facebook": {
+            "client_id": get(env, "FACEBOOK_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "FACEBOOK_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "FACEBOOK_REDIRECT_URI", Value::Null)?,
+        },
         "google": {
             "client_id": get(env, "GOOGLE_CLIENT_ID", Value::Null)?,
             "client_secret": get(env, "GOOGLE_CLIENT_SECRET", Value::Null)?,

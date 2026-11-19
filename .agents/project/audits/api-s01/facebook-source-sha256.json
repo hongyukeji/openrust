@@ -1,0 +1,21 @@
+{
+  "baseline": "0c7b8460e2d109b128d48e3affbec6e33389c5a6",
+  "sha256": {
+    "config/services.rs": "2a241d1cf11abcb23290f1e1d6c38458f6c8e69852302b3bfc2ea6fe5245be73",
+    "docs/en/packages/socialite.md": "1ee7119f721d4d2882cc32e99637a053b4464e7d286234f1712ed8c993849469",
+    "docs/tests/check_socialite.mjs": "19539b759a0c25507dc218878c975bf3202e4e1a71d04e213ecf90a28cd1e759",
+    "docs/zh_CN/packages/socialite.md": "ef6c3c33552346223c87bd5ef2242ae544968b3a62380a6046a045df06ae4c0f",
+    "docs/zh_TW/packages/socialite.md": "05606fd08c29f5f0bdc502f430d6f51794b03fa81ecefcf275d8618060eb2835",
+    "tests/configuration.rs": "e871eff520b694029365b2455676d7f28f608c730123e68e076b2fbcb4d8c28e",
+    "vendor/openrust/socialite/src/manager.rs": "3d97b4376b5b1aa7a98e476d4e1fda3dd6a58f424956013ada38fa64a9fa9ddf",
+    "vendor/openrust/socialite/src/two/abstract_provider.rs": "34e09fdbc2c98df7e196d86de6a507e8dd0b541f740ea8f0d36fe2b788c390f4",
+    "vendor/openrust/socialite/src/two/facebook_provider.rs": "6deb713f7eb2f49b066ae365db411a6cabf5e9a6b20559eb757e33e2dee57daa",
+    "vendor/openrust/socialite/src/two/google_provider.rs": "ee4b0f4661558f23316e8ab8bda8094c68a3e9b26cd2bbda770da99f09f194ca",
+    "vendor/openrust/socialite/src/two/identity_token.rs": "627864af34840082a69ebddb5bbb4f87bf20df4b0d5dfff83a488eb030dac42f",
+    "vendor/openrust/socialite/src/two/mod.rs": "5b31566bd5d39d262b8695712a6839cd07907941649d368400a62641e3672403",
+    "vendor/openrust/socialite/tests/facebook.rs": "ac6a0b95506a6e03cfbed109506d0cb78412acc16797921e9148266489120477",
+    "vendor/openrust/socialite/tests/fixtures/facebook.json": "a10131e483e5542177afd2645d772d8085cf21d6e60c1dfd17aee018edd73832",
+    "vendor/openrust/socialite/tests/reference/facebook-source-sha256.json": "9f6e9afc7ad611521a5609232577b8f8acb2362450c347397072c895fdb707e3",
+    "vendor/openrust/socialite/tests/reference/facebook.php": "11bbbe2204fa2514b97097cc6044ee8356ce936f333d7780b739826fbefd0d7c"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "phpseclib/phpseclib": {
+    "version": "4.0.3",
+    "source": {
+      "url": "https://github.com/phpseclib/phpseclib.git",
+      "type": "git",
+      "reference": "6077cecfed9e371993d3aa339b0afeb23f7bf636"
+    },
+    "require": {
+      "php": ">=8.1",
+      "paragonie/constant_time_encoding": "^2|^3",
+      "symfony/polyfill-php82": "^1.26"
+    },
+    "license": [
+      "MIT"
+    ]
+  },
+  "paragonie/constant_time_encoding": {
+    "version": "v3.1.5",
+    "source": {
+      "url": "https://github.com/paragonie/constant_time_encoding.git",
+      "type": "git",
+      "reference": "ceed38ba49d98b85808edfc4f04750ff61eb9739"
+    },
+    "require": {
+      "php": "^8"
+    },
+    "license": [
+      "MIT"
+    ]
+  },
+  "symfony/polyfill-php82": {
+    "version": "v1.43.0",
+    "source": {
+      "url": "https://github.com/symfony/polyfill-php82.git",
+      "type": "git",
+      "reference": "843bbe8b2a7934307b749751eede0f111f5d1cfc"
+    },
+    "require": {
+      "php": ">=7.2"
+    },
+    "license": [
+      "MIT"
+    ]
+  },
+  "firebase/php-jwt": {
+    "version": "7.2.2",
+    "reference": "99efeb17d6def8c0295777f2d45b07ff4fdb4e40",
+    "license": [
+      "BSD-3-Clause"
+    ]
+  }
+}

@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-S01 [Facebook Graph与Limited Login](audits/api-s01/facebook.md)本机验收完成：HMAC proof／版本与字段／expires语义、RS256／严格issuer及aud／期待nonce；21组原PHP JWT及全包29＋纯配置1函数、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。请求选项隔离，JWT失败不fallback；OAuth1／MySQL归属及完整RP继续。专属产物清理保留全部卷，本地提交不推送。
+
 - 2026-11-20 API-F01 [current_password安装前置](audits/api-f01/current-password.md)验收闭合：真实命名Guard／Hash／FormRequest与显式用户解析器，468组固定PHP原验证器／AuthManager／Bcrypt对照、并发隔离，验证器32／Fortify49函数、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan全过。输入SHA与专属target清理留证，源码／日志／全部卷保留，本地提交不推送。继续fortify:install、默认应用动作和三语整簇验收。
 
 - 2026-11-20 API-S01 [Google OAuth2与JWT](audits/api-s01/google.md)本机验收完成：UserInfo／refresh保留／JWKS验签与严格issuer及单一audience，25组真实PHP签名JWT对照；全包23＋纯配置1函数、Rust1.94 strict Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。Socialite兼容可选exp与日期规则，完整RP及MySQL归属仍待，继续Facebook／OAuth1；专属产物清理保留全部卷，本地提交不推送。

@@ -1,7 +1,9 @@
 mod abstract_provider;
 mod github_provider;
 mod user;
-pub use abstract_provider::{AbstractProvider, ProviderConfig, ProviderDefinition, ProviderFuture};
+pub use abstract_provider::{
+    AbstractProvider, ProviderConfig, ProviderDefinition, ProviderFuture, ProviderOptions,
+};
 pub use github_provider::GithubProvider;
 pub use user::{Token, User};
 
@@ -28,3 +30,6 @@ pub use x_provider::XProvider;
 mod google_provider;
 mod identity_token;
 pub use google_provider::GoogleProvider;
+
+mod facebook_provider;
+pub use facebook_provider::FacebookProvider;

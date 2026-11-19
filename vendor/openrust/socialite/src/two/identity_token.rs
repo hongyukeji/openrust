@@ -9,13 +9,24 @@ use std::{
 };
 /// Use the JWT library for parsing and signatures; preserve the pinned PHP
 /// NumericDate rules, optional dates, strict scalar audience and iat fallback.
+pub(super) struct Requirements<'a> {
+    pub issuer: &'a str,
+    pub audience: &'a str,
+    pub algorithm: Option<Algorithm>,
+    pub firstKey: bool,
+}
 pub(super) async fn verify(
     http: &Factory,
     url: &str,
     token: &str,
-    issuer: &str,
-    audience: &str,
+    requirements: Requirements<'_>,
 ) -> Result<Value> {
+    let Requirements {
+        issuer,
+        audience,
+        algorithm,
+        firstKey,
+    } = requirements;
     let invalid = || Error::InvalidIdentityToken;
     let response = json(
         http.pendingRequest()
@@ -35,19 +46,27 @@ pub(super) async fn verify(
     ) {
         return Err(invalid());
     }
+    if algorithm.is_some_and(|algorithm| algorithm != header.alg) {
+        return Err(invalid());
+    }
     let kid = header
         .kid
         .as_deref()
-        .filter(|v| !v.is_empty())
+        .filter(|v| firstKey || !v.is_empty())
         .ok_or_else(invalid)?;
-    let raw = keys
-        .iter()
-        .rev()
-        .find(|key| key.get("kid").and_then(Value::as_str) == Some(kid))
-        .ok_or_else(invalid)?;
+    let matching = |key: &&Value| key.get("kid").and_then(Value::as_str) == Some(kid);
+    let raw = if firstKey {
+        keys.iter().find(matching)
+    } else {
+        keys.iter().rev().find(matching)
+    }
+    .ok_or_else(invalid)?;
     let key: Jwk = serde_json::from_value(raw.clone()).map_err(|_| invalid())?;
-    let alg = key.common.key_algorithm.ok_or_else(invalid)?;
-    if Algorithm::from_str(&alg.to_string()).map_err(|_| invalid())? != header.alg {
+    let alg = algorithm
+        .map(|v| format!("{v:?}"))
+        .or_else(|| key.common.key_algorithm.map(|v| v.to_string()))
+        .ok_or_else(invalid)?;
+    if Algorithm::from_str(&alg).map_err(|_| invalid())? != header.alg {
         return Err(invalid());
     }
     let key = DecodingKey::from_jwk(&key).map_err(|_| invalid())?;

@@ -1,0 +1,15 @@
+{
+  "available_before_kib": 79435392,
+  "available_after_kib": 85792756,
+  "released_kib": 6357364,
+  "volumes_before": [],
+  "volumes_after": [],
+  "preserved": [
+    "accepted-overlay.tgz",
+    "logs",
+    "upstream symlink and original sources",
+    "shared caches",
+    "PHP and MySQL images",
+    "all database volumes"
+  ]
+}

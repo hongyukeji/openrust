@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2 及 Google。API-S01 整體仍在開發；Facebook、OAuth1 以及完整 OIDC／本機身分整合待後續交付。
+Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2、Google 及 Facebook。API-S01 整體仍在開發；OAuth1 以及完整 OIDC／本機身分整合待後續交付。
 
 ## 安裝 {#installation}
 
@@ -31,6 +31,8 @@ cargo run --features socialite -- artisan serve
 `x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 保留上游 OAuth1 選擇，該路徑尚未交付，明確失敗。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
 
 `google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `prettyPrint=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
+
+`facebook` 使用 `FACEBOOK_CLIENT_ID`、`FACEBOOK_CLIENT_SECRET`、`FACEBOOK_REDIRECT_URI`，預設 scope 為 `email`，固定 Graph 版本為 `v23.0`。`provider.usingGraphVersion("v99.0")` 修改目前請求的授權／token／profile 路徑。`fields(vec!["id".into(), "name".into()])` 替換 Graph 欄位；`asPopup()`、`reRequest()` 覆寫相應可選授權參數。Graph 請求傳送 `access_token`、fields，並在 client secret 非空且不等於 `"0"` 時傳送 HMAC-SHA256 `appsecret_proof`。授權碼交換不指定 Accept，回傳保留 `expires`，僅在 `expires_in` 缺失或為 null 時補入，不覆蓋已有值。
 
 ## 認證 {#authentication}
 
@@ -99,6 +101,8 @@ X／Twitter OAuth2 在重新導向和回呼預設啟用 PKCE，因此即使 `sta
 
 Google 按固定驅動將長度大於 100 位元組且恰有兩個句點的 token 識別為 JWT。它讀取固定 Google JWKS 端點，透過採用 AWS-LC 的 `jsonwebtoken` 11.1.0 校驗金鑰演算法和簽章，要求 issuer 嚴格等於 `https://accounts.google.com`，audience 為與 client ID 相同的單一字串。存在的 `exp`／`nbf` 與 `iat` 回退按固定 PHP NumericDate 行為驗證。JWT 驗證失敗不會退回 Bearer UserInfo。此 Socialite 路徑按上游接受缺少 `exp`、數字日期字串與 null 日期，不執行 Discovery、不要求 nonce，也不是完整 OIDC RP；API-O01 有獨立協定範圍。Google raw 資料還補入 `id`、`verified_email`、`link`，並映射 `avatar_original`。
 
+Facebook Limited Login 從未驗證的 token header 偵測非 null 的 `kid`，隨後要求所選 Facebook JWKS 金鑰的 RS256 簽章、嚴格的 `https://www.facebook.com` issuer、單一 client audience 與匹配 nonce。在 `userFromToken(token).await?` 或回呼 `user()` 前呼叫 `provider.withNonce(expected)`；未明確指定時，從 `with` 參數的純量 `nonce` 讀取期待值。明確的 `withNonce` 優先，nonce 必須來自應用保存的授權嘗試。`withNonce` 只設定期待值，不自動產生、儲存或加入授權 nonce。簽章／宣告／nonce 失敗不會退回 Graph。請求選項與 `lastToken()` 留在目前 provider，保留的 token 使用 zeroize 清理。此行為對應固定 Socialite Limited Login（日期可選），不替代 API-O01 的完整 RP 協定。
+
 ## 測試 {#testing}
 
 透過 `GithubProvider::withEndpoints` 配合應用內 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供應商，替換授權／token／profile／email URL 並保留驅動行為。`ProviderDefinition` 支援編譯型協定客製，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公開契約。驗收執行真實 HTTP、兩個獨立 Session 應用、PKCE、state 消費、scope／參數映射、已驗證信箱、更新和失敗路徑，固定 PHP 原始碼 SHA 保護對照夾具。
@@ -111,3 +115,5 @@ Socialite 使用共用客戶端顯式 `redactPayload()`：觀察者與錄製保�
 X／Twitter 測試使用真實 HTTP 與加密 Session Cookie，涵蓋預設 PKCE、跨應用拒絕、state 重放、RFC3986 參數、Basic 交換／更新、錯誤回應及遠端撤銷。映射、欄位和 HTTP 選項以固定 PHP 方法提供對照。真實 X／Twitter 授權仍需供應商應用憑證、登記回呼和帳戶。
 
 `GoogleProvider::withEndpoints(endpoints, jwks)` 用於受控 UserInfo 與 JWKS 服務。真實 HTTP 測試使用原 PHP Socialite／Firebase JWT 方法對照 25 組簽章 JWT，包括錯誤簽章、issuer／audience、缺失或錯誤宣告、未來／過期時間、演算法混淆、金鑰輪換和跨 client 隔離。PEM 測試金鑰僅屬於這些夾具。真實 Google 帳戶授權仍需測試應用及回呼。
+
+`FacebookProvider::withEndpoints(endpoints, jwks)` 為受控測試替換三個 Graph／授權端點與 JWKS；包含 `/v23.0/` 的路徑隨 `usingGraphVersion` 變化。21 組原 PHP Limited Login 對照涵蓋 nonce 優先級、issuer／audience、簽章／過期、缺失金鑰及輪換；實際 Graph HTTP 驗證 HMAC proof、欄位、過期轉換、請求隔離及去識別觀察。真實 Facebook 授權仍需應用、憑證、登記回呼及帳戶。

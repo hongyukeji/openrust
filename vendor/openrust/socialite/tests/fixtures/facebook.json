@@ -1,0 +1,627 @@
+{
+    "default": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "email",
+        "response_type": "code",
+        "state": "fixed-state"
+    },
+    "parameters": {
+        "client_id": "client",
+        "redirect_uri": "https://rp.test/callback",
+        "scope": "email",
+        "response_type": "code",
+        "display": "popup",
+        "auth_type": "rerequest"
+    },
+    "authorize": "https://www.facebook.com/v99.0/dialog/oauth?client_id=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&scope=email&response_type=code&display=popup&auth_type=rerequest",
+    "expires": [
+        {
+            "access_token": "access",
+            "expires": 3600,
+            "expires_in": 3600
+        },
+        {
+            "access_token": "access",
+            "expires": 3600,
+            "expires_in": 7200
+        },
+        {
+            "access_token": "access",
+            "expires": 3600,
+            "expires_in": 3600
+        }
+    ],
+    "user": {
+        "id": "user-42",
+        "nickname": null,
+        "name": "Alice",
+        "email": "alice@test",
+        "avatar": "https://images.test/alice",
+        "raw": {
+            "id": "user-42",
+            "name": "Alice",
+            "email": "alice@test",
+            "link": "https://facebook.test/alice",
+            "picture": {
+                "data": {
+                    "url": "https://images.test/alice"
+                }
+            }
+        },
+        "attributes": {
+            "id": "user-42",
+            "nickname": null,
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/alice",
+            "avatar_original": "https://images.test/alice",
+            "profileUrl": "https://facebook.test/alice"
+        }
+    },
+    "last_token": "access",
+    "http": [
+        [
+            "https://graph.facebook.com/v99.0/oauth/access_token",
+            {
+                "form_params": {
+                    "grant_type": "authorization_code",
+                    "client_id": "client",
+                    "client_secret": "secret",
+                    "code": "fixed-code",
+                    "redirect_uri": "https://rp.test/callback",
+                    "display": "page",
+                    "auth_type": "other"
+                }
+            }
+        ],
+        [
+            "https://graph.facebook.com/v99.0/oauth/access_token",
+            {
+                "form_params": {
+                    "grant_type": "authorization_code",
+                    "client_id": "client",
+                    "client_secret": "secret",
+                    "code": "fixed-code",
+                    "redirect_uri": "https://rp.test/callback",
+                    "display": "page",
+                    "auth_type": "other"
+                }
+            }
+        ],
+        [
+            "https://graph.facebook.com/v99.0/oauth/access_token",
+            {
+                "form_params": {
+                    "grant_type": "authorization_code",
+                    "client_id": "client",
+                    "client_secret": "secret",
+                    "code": "fixed-code",
+                    "redirect_uri": "https://rp.test/callback",
+                    "display": "page",
+                    "auth_type": "other"
+                }
+            }
+        ],
+        [
+            "https://graph.facebook.com/v99.0/me",
+            {
+                "headers": {
+                    "Accept": "application/json"
+                },
+                "query": {
+                    "access_token": "access",
+                    "fields": "id,name,email",
+                    "appsecret_proof": "f789f13e161fc2bfae511164ea0bcbb742cbd3339c88e8c34865b3e5e2e51e08"
+                }
+            }
+        ]
+    ],
+    "proof": {
+        "empty": {
+            "access_token": "access",
+            "fields": "name,email,gender,verified,link,picture.width(1920)"
+        },
+        "0": {
+            "access_token": "access",
+            "fields": "name,email,gender,verified,link,picture.width(1920)"
+        },
+        "secret": {
+            "access_token": "access",
+            "fields": "name,email,gender,verified,link,picture.width(1920)",
+            "appsecret_proof": "f789f13e161fc2bfae511164ea0bcbb742cbd3339c88e8c34865b3e5e2e51e08"
+        }
+    },
+    "jwt": {
+        "valid": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "missing-nonce": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6bnVsbCwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.H-QKyUGvtLdRbze9pkq6wIKKkgZ6YvliFKwDUbaluqdZup41cBiBkz3Bp0-6DuhZ7y9AoT-yvl11_x85vWsfLp9wZgVX6lUQDhGX6BPbD6Oq45CkeB8q20ROjXBNRbRmgzUEtUtOnX_x5z5wbiMaTzmSQ8x6gAR7DYDWUtU_FjqlGefrlbEMrE6AGQyq_TbgYtzyyZ7BwoSy33dpegimkisYAku5iRMRbc0D9UiOo3J-KXSbjhUyF0gXGuP-v-bArcmWLuoRFSo8sWhW4P6mAhT1BWl4EgIZlHsCjHRUKUVbiwe8gkxPu8-L-XNtdXGCUMeQxfRlKlzRBKv4JlGcPA",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "issuer": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly9iYWQudGVzdCIsImF1ZCI6ImNsaWVudCIsImV4cCI6NDAwMDAwMDAwMCwibm9uY2UiOiJmaXhlZC1ub25jZSIsImdpdmVuX25hbWUiOiJBbGljZSIsImZhbWlseV9uYW1lIjoiRXhhbXBsZSIsIm5hbWUiOiJBbGljZSJ9.RDnjV_zmMeIcTBUm5pw76X7VzNMoWDe0ZEe1yoetb4DVaALbQD25hV4gOY5bIGfp1ZKO1_hS-MuwAjq3olaeWRo_nScegBbNd1AgVqIOG5vJe05_6DY0awZdaxI7853mTTQYNgJ1BC_9zXeazNnenkr-AbbuJgRdcI9c_Y4r0ZDggKAZmIKAudZU5S3qHnKTCZWIgW8uk7CcrP-4Z5v9QORzThK0EW7jWNGIVUGgbq9Fn_SgLt2W4sHvycbOGnsoGHTBtPnYytKj1JK1_nXeSjhraZLFl6j7W4kAtmZ3FWpIjXy3iwKZvWaENwFM1-QRptb4aPCSspRnMbWNlgevig",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "audience": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoib3RoZXIiLCJleHAiOjQwMDAwMDAwMDAsIm5vbmNlIjoiZml4ZWQtbm9uY2UiLCJnaXZlbl9uYW1lIjoiQWxpY2UiLCJmYW1pbHlfbmFtZSI6IkV4YW1wbGUiLCJuYW1lIjoiQWxpY2UifQ.dMzXEctylAKL2kPm8e7KoucATSR5yftfOP2FLoErYkVD_lD1ePgwX79wzsqmb1PsZrFXRn4Qp_5VrN8z4Gb0GkpMI4diJrgfHrsPSUw8TwgSMyL7fl9OISTrzZGPbIXEa9bx42Jq4fc3JJFGTtskaI5jnuciAyQBe7PhXEtAzJPuIn6Zsauar8Zpjlm0uCWS4S0rbiI20zwESY6KzIm8MHAJgUf6JywbBLMQJhCL3Wmo5CMoTgKjnN-qJZ-dK4BuB9BcqE9DLC-b6zu2YzSlu44N-VjPmralrpD8zwDsedHtZTL4wnWLg9ykSnlDMGAOiMgcy1EWwAdz0kyjwCAoHw",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "audience-array": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjpbImNsaWVudCJdLCJleHAiOjQwMDAwMDAwMDAsIm5vbmNlIjoiZml4ZWQtbm9uY2UiLCJnaXZlbl9uYW1lIjoiQWxpY2UiLCJmYW1pbHlfbmFtZSI6IkV4YW1wbGUiLCJuYW1lIjoiQWxpY2UifQ.YteQw4c7vF-Cjqh94oerjYu_wSS_zi52HM52DDkbyZmIxxtlODuNBEqOLsTcK3a1iKpMd7Eh2TgKciQ2phuXGdpcT8E8C33R06qWkygDYROyMlFDe8FgWqPAyIhLi47_ymd_uDJde2BLPwng1-rsqj2dte9g001yPRVNuLAZizCrhFbKqDEzCyWh4Lr1aHUn-7uFau8CS2SjKS6ZI2o2mrZ3jxQeu5M-8x88rq7MoKnNs8C7DTUoFcwcLjH9GiT-jM2ihvkdE1UOOw-taHLDc7XMt8v2s94_VHmkn81V3JX36qpUedtBBKrSnVPrt4mp6HGe3lJOxzNNtp4gKx_X7A",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "expired": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjoxLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.iXc8he_bRfotOSMfXFfLoBZXRMEoamOHHOr2KT6wvV9MYwkXyPLRk3O9lUn1hD3foB5-NHXtdqgxbo9ga0uiqqcW_qf2V8fFUKaxi45-djqtfYHWExXckfrU44nb7kFKlsIjKDvjK1KOdnztEnqMD_jdqeIPO_Ykjo_E0wmI52sr8BANl6JtNtD6I81hBlec4mMRZ14yFCGkNRLn5NybDkCYcNFMjNQ0pvESbcX6v5LqoBXuoFkVwWvs_byw2KiPf2n953Gnp_HhAq9YV6IGg2K90WRyVk7hlP-h0PM4kYN5ktp2717f-91wSJHHIXy-Bye9r5IBPRt5_15DRP-XhA",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "future-nbf": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIiwibmJmIjo0MDAwMDAwMDAwfQ.P7fPOjYPQjramoLuBZ_xM_nSKBsjRhARzj2UV1M4zZEFZ6iuA34iA28cz7a4s_IoQt3FY2lPuLgfdZrpKqX_mBcxAV4HETXoUZN_6mhUmSI2DfI4LBQEdc546QGmeZTSRsUsqTEMIsbmXH2OSXdRmbVSxeTkKxi6LaZ47AH0INEaru7Oo1ZTeBcfvjVcFVN1eaB3N0x_MVS5kbiPdWHg2F7iCGyJpsxP6Xl3Z3_38HAJ1tysGBCmpr9SbNKJUr3-p8Q27hMjGREa1JpnQgnTBLxQWO8N1JyVfBWr5rJnM01SjvUGrz6iGtm418Lbs5w4NPAd8Sz1G_3hz1OYTjlVPA",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "future-iat": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIiwiaWF0Ijo0MDAwMDAwMDAwfQ.qP98zupcRoV5pUh_NvaFqwJ6BOsaYJHPPN3VfjeuNd7iY2cbQ5TUwD3iSkEqVASpEs8N33HBINVEDpSZ6n2kmOtoZSVTPMPWDIqNRXCfd2Qd7gUyWobC-lOEZQdMgibs6iMzQZVYhfAjgvt6ez4AH83VRqWDtzh6Yl0YFIcRcprsIyxx1FUkSPw6-ivzLx3xaYptNqQJR4xA7lWfLOrSv9cTAw3BpIW6xjb3BGg-uN6XDWM-6rB52h5FprTImNZxa4XWGIFrhDQoqQ41Uxp9QeSDcRreSn6FtwCuaS0DEPYCdJX2144giKP_Li1jWUtc__SI3RWXIKbhPN3witNGxQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "no-exp": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjpudWxsLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.gPpoUgrUi8hHM5319VDkdu8xUuY5_tIiEaAMeUl3KvGEBUAVYSLXxST6BkVQjRPAKGrFFTkbh-4iku-v0fkLwpv1trwnbnYdXkvZ0_snPKT6g5qtDiR50OK0f9h163omqOSCeBKmkDnFN_iC18FbL4lStIE_gjrjHMEDHg03MKlme6pRqpicM8gu-g5yn8y2RD90KxdaZnhoUHjBGOdKOMFU1uyyju52TQYs0LCv-uirbfbw9Fne1TeQKY9G3aBqm9vrfNPK4ymZjnoeyEnMBPmv89ToK72lXD9GBj5UvwBS4_52ACXkjVz40B4T2wQ6z3bBe1V1NBTWJyzE6vWDig",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": null,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "expected-nonce-missing": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": null,
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "expected-nonce-wrong": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "wrong",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "parameter-nonce": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": null,
+            "parameters": {
+                "nonce": "fixed-nonce"
+            },
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "explicit-nonce-precedence": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "wrong",
+            "parameters": {
+                "nonce": "fixed-nonce"
+            },
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "rotation": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.HGmk6d65uJF5DuP4ke0tXIQDTy4nQjXaJSPBBIxrqEtz_F5XsJQyNlyu5_eUViQdC4wkpZ84gyydvomup9I4mI4iuKxD6z-1_M6rC9F7wJ4ieGuPgXlfqfct327VdTesYEHBL9yVkORvvjYkKuaR3SDQqKLrBtPz8mvgyAfnp8ZOYJjVodph0-5UnLABwNaf0h0bIKMOplE--57GC3fXTKSGz8Q-PZRlkWHbRMibCuO_M0W7ygoHBX6XrP9t8PAVMHWNQZNePHSm0pe8hwvQ20IeXP4NgjT-d3QLVkMPxtpaaQsjHLO1S_n8wBrAw6PPJX9vl---mqfQxcXTmNW_cg",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rO8qQ_Jy5WHh9j5dFMSfXt3dkUhsB2ekidV93j7ma05biR5Rt41jZR6ASpk4ZY7B6NSUWVA1bp3R5n1Fvf8nrFpJvUs0YwmfbVGo2qVASeQSzE1DVo-6YKIHxicQAVkNEgOCQIMJiG5JslLOA53ZwJMeC35qarUJ3jPfGlJoRMq78-DdMvjimp4ElTUoN-ryuqW83dGRh0JKqQtLUZwCy7DuxQm-sBTuOl1EqpdGGwsAHX-BAu4iVnOVBinjxpCTsv1ujv3C0v-Y1IBLVVmuvjPGfQleomFr3uxuPg-CZ1BRldOBQv9HLSX926gfQwOycAykZvb6nOtwy60IEJkEyQ",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "unknown-kid": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6Im1pc3NpbmcifQ.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.XLJsKwxco2iPx7FL78H4oDx3ufLzQkFJ8Ldy_rVHMXmosHPcdlXIISxoLKon8Pim4TEwYMcpFNfulGlGBooxINOLmqLOJRDTB9S3nS9jg_vFBxbYqn2dKanoKGiJmv64g-aMvAvkHsVJPY2Qmye2ijH8_mtyodiqIhyaMQACLUMw5z9qFNh-Y76MyUrZgYJ5zCw2XigTEvsA8aI2pwamTOn9S3L0DrUHVRjoaeZN-9IGQi0v089q-B4Mbq7qS3lqLFZ4T2iJY0Rcg0CNus5HnUto7i-Xh3LpfZxnLUOWjlaCvg-KyjbXPqF8e6QW-Y7xuYhGZQLscoMADrqjH3ajYw",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "signature": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EKymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "jwks-alg-ignored": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS512",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "jwks-alg-absent": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.EaymYWG_NTf5YAog7OGn-P5Vjb3ILGwRLcXmbnwY1KTbRAvMuCMfk0puJLh0dS2Ey31YsMrb6UUda8yVV8Ql9S8DC8SLccuE0UmhmUYtiJ_e9oaeHcRXLqHNmIBRqT-WMGLdPZJ-UaVH6v0tuhoUb6OkTYHJeRmqFd0VxnEl9Yh3DsjpS0ATh2NPpl_91pol9EUVDkjVljjJbvuw6ffnDsNqwmY92W47mB77TFI9TmafeoYbRz8kRkrXQEeJ7G2WRIooGm5jMYMk2lHjxMABAfW2S73ROexw46xoW81fdbGzdOclPRoCnZ-aRVMFmCsE2JV_D_sQJJ26kUSHWtV-rQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "empty-kid": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ImZpeGVkLW5vbmNlIiwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.byMmReSckb2hE_Nk25IXKll1fW6TFpR3H9T1sTYeNDuLfRNpzyzE_2MWkAlo0AHnc061paznP8TiQZ3gmJm0sxppTfFFbiMy56vlZpydlgqWSapTOHbeihj6WeoiD7ZOVQRNiAaS3tLD98OV5yh4G9rERb8H2Pgyt3r4iwwTbS1XzbeXJUhLyEE3wYqVgeUcfzW1DuOCFBpuO8nNlqt7yKc4R_hgwrNH6ur9dm5bdQ2Ttxswc5LbAD_-KVTxuQga41WoOLieoUFw7hPWbG6PZcfqDbMhrwm93fFpqS7_92qEAFgC0IHusVsMkaOiMrvP7JXxtUxOYgmh_4icWDoxoQ",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": "fixed-nonce",
+            "parameters": [],
+            "accepted": true,
+            "raw": {
+                "sub": "user-42",
+                "iss": "https://www.facebook.com",
+                "aud": "client",
+                "exp": 4000000000,
+                "nonce": "fixed-nonce",
+                "given_name": "Alice",
+                "family_name": "Example",
+                "name": "Alice",
+                "id": "user-42",
+                "first_name": "Alice",
+                "last_name": "Example"
+            },
+            "graph_fallback": false
+        },
+        "numeric-nonce": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6MSwiZ2l2ZW5fbmFtZSI6IkFsaWNlIiwiZmFtaWx5X25hbWUiOiJFeGFtcGxlIiwibmFtZSI6IkFsaWNlIn0.Spp-OibR7gwx2Aq9ONP9oFBR0gsbxcRDWttk-YzjjJouSM9WIGnXUpwIi7Ag3ufQbD_znvhS5zfhZW2yWlheG28n9UDJjlzVfSX0U7PCiJW5NH47M6337PULEIOlLwdfTWTXLgSJcCULLyH5BavbYmGXHMg_QyFqjmOjyUaZjwXBpyzjK_4CkrCHvItxsBKTugORXVDsTEivOffrJJZSDSy9atItK5qkOse0xQoekpj8dI4rQkyUwtVF306ad95xU5s8Xj_qO4STj9WxLVGzpjh79HtlMkvbrNx6T792QAt9qQi7c0-Voghl1xNpneWKLTYyL6rrM3yu0Ok7vU7Yvg",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": null,
+            "parameters": {
+                "nonce": 1
+            },
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        },
+        "boolean-nonce": {
+            "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6InRlc3Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwiaXNzIjoiaHR0cHM6Ly93d3cuZmFjZWJvb2suY29tIiwiYXVkIjoiY2xpZW50IiwiZXhwIjo0MDAwMDAwMDAwLCJub25jZSI6ZmFsc2UsImdpdmVuX25hbWUiOiJBbGljZSIsImZhbWlseV9uYW1lIjoiRXhhbXBsZSIsIm5hbWUiOiJBbGljZSJ9.DjxCqr1_w_dDMUPhcRjzUccKth3rzjP3X0Ki-L7um_oX8rcOtiiu5HYx2rZi0YLiD2eiljCEhgbkN5bV-rT7SKvQJgeBKdomTwwW_CNPtIrzHQVgDtduZ1pZWGAeNXkG7Kyxc_0ntZxE1xfTW-LedaLIyAfPH3YoNM05phS-L7434IwB3qPHUoM3io0KJ-TgwugXNFAaD6iaVyNKdPTLzFMwPXa0TS82RqeF7ZQjGblTTfGLcIhDCY7nRPkFFQzcO8HlvPArJsNyEQfTEvASOkESaGqAtzmIvi9EDSokUg-iYp4yb1NFFoxaoPunO4mWl8lAd3i3HvqJVuQLdGi5bA",
+            "keys": {
+                "keys": [
+                    {
+                        "kty": "RSA",
+                        "kid": "test-key",
+                        "alg": "RS256",
+                        "n": "rCBLndnu-Sqidhsb8Lng3wq8GWauoi-OfKS4slwSLonw5DAtlVt3CNGRUn0R3WnE2Tm2zJOwvklzCKRfy6s07L9bUqm0Z_Do5qaYLDdqtIzlPt1-taLfSOe2f9_Lv0ALpcAYQ-x9c89G-HSLEEfgM2FYV7oLGuLTgBw1wAyFTdhcdt38l1P_ryG8ImFDMSvSUpyTU7AUa6gigL87ZJpU_wImZD2seX-LisbQSCA2-gWPlZeXeINQWGPWf_IXKl-mUaE-QOPfo3WstSFCYDpApRJqb0qW0o3MnBwGSS66m1QOZe6tZSTrnHPA-R_P7sD_AJ2bi7UWHRTtfFibtfcPjw",
+                        "e": "AQAB"
+                    }
+                ]
+            },
+            "expected_nonce": null,
+            "parameters": {
+                "nonce": false
+            },
+            "accepted": false,
+            "raw": null,
+            "graph_fallback": false
+        }
+    }
+}

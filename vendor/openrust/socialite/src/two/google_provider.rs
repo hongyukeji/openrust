@@ -81,8 +81,12 @@ impl ProviderDefinition for GoogleProvider {
                     http,
                     &self.jwks,
                     token,
-                    "https://accounts.google.com",
-                    &config.client_id,
+                    identity_token::Requirements {
+                        issuer: "https://accounts.google.com",
+                        audience: &config.client_id,
+                        algorithm: None,
+                        firstKey: false,
+                    },
                 )
                 .await
             } else {

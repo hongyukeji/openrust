@@ -473,3 +473,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 Google补充
 
 [Google OAuth2与JWT](api-s01/google.md)已本机验收，25组PHP JWT及全包23＋1函数、根入口与三语浏览器通过。Socialite可选exp不等于完整OIDC，Facebook／OAuth1／完整RP与本地归属仍待，不提升SSO状态。
+
+### API-S01 Facebook补充
+
+[Facebook Graph与Limited Login](api-s01/facebook.md)已本机验收，21组原PHP JWT及全包29＋1函数、根入口与三语浏览器通过。官方OAuth2路径已逐批验收，OAuth1／完整RP与本地归属仍待，不提升SSO状态。

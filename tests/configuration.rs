@@ -96,6 +96,13 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         configured["services"]["google"],
         json!({"client_id":"google-client","client_secret":"google-secret","redirect":"/google/callback"})
     );
+    fs::write(root.join(".env"),"FACEBOOK_CLIENT_ID=facebook-client\nFACEBOOK_CLIENT_SECRET=facebook-secret\nFACEBOOK_REDIRECT_URI=/facebook/callback\n").unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let configured = config::load(&root, &environment).unwrap();
+    assert_eq!(
+        configured["services"]["facebook"],
+        json!({"client_id":"facebook-client","client_secret":"facebook-secret","redirect":"/facebook/callback"})
+    );
     for oauth in [1, 2] {
         fs::write(
             root.join(".env"),
