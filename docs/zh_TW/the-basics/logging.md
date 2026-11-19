@@ -1,5 +1,7 @@
 # 日誌
 
+Slack 管道的預設顯示名稱為應用程式名稱加 ` Log`，例如 `ExampleStore Log`。可在 `.env` 中設定 `LOG_SLACK_USERNAME` 覆寫。
+
 ## 設定
 
 透過 `LOG_CHANNEL` 選擇預設管道，`LOG_STACK` 設定預設堆疊的成員順序，`LOG_LEVEL` 設定最低層級。預設 `stack` 包含 `single`，將記錄附加至 `storage/logs/openrust.log`。相對路徑以應用程式根目錄為基準。管道可用 `name` 自訂記錄標籤，預設標籤取自應用程式環境。

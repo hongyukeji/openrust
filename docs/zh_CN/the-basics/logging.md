@@ -1,5 +1,7 @@
 # 日志
 
+Slack 渠道的默认显示名称为应用名称加 ` Log`，例如 `ExampleStore Log`。可以在 `.env` 中设置 `LOG_SLACK_USERNAME` 覆盖。
+
 ## 配置
 
 通过 `LOG_CHANNEL` 选择默认渠道，`LOG_STACK` 设置默认栈的成员顺序，`LOG_LEVEL` 设置最低级别。默认 `stack` 包含 `single`，向 `storage/logs/openrust.log` 追加记录。相对路径以应用根目录为基准。渠道可用 `name` 自定义记录标签，默认标签取应用环境。

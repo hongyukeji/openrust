@@ -27,6 +27,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(defaults["app"]["name"], env!("CARGO_PKG_NAME"));
     assert_eq!(defaults["app"]["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(
+        defaults["logging"]["channels"]["slack"]["username"],
+        format!("{} Log", env!("CARGO_PKG_NAME"))
+    );
+    assert_eq!(
         defaults
             .keys()
             .map(String::as_str)
@@ -137,6 +141,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     );
     assert!(configured["app"].get("public_url_prefix").is_none());
     assert_eq!(configured["app"]["name"], "ExampleStore");
+    assert_eq!(
+        configured["logging"]["channels"]["slack"]["username"],
+        "ExampleStore Log"
+    );
     assert_eq!(configured["app"]["debug"], true);
     let package_defaults =
         LoadConfiguration::bootstrap(&root, &environment, |_, _| Ok(Default::default())).unwrap();
@@ -238,6 +246,18 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(
         overridden["filesystems"]["disks"]["public"]["root"],
         json!(root.join("uploads"))
+    );
+
+    fs::write(
+        root.join(".env"),
+        "APP_NAME=ExampleStore\nLOG_SLACK_USERNAME=Operations\n",
+    )
+    .unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let logging_override = config::load(&root, &environment).unwrap();
+    assert_eq!(
+        logging_override["logging"]["channels"]["slack"]["username"],
+        "Operations"
     );
 
     for value in ["", "   "] {

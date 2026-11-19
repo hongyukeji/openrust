@@ -5,7 +5,11 @@ use serde_json::json;
 
 use super::env::{get, list, optional_integer, path};
 
-pub(super) fn load(base_path: &Path, env: &Environment) -> Result<Value, ConfigError> {
+pub(super) fn load(
+    base_path: &Path,
+    env: &Environment,
+    app_name: &str,
+) -> Result<Value, ConfigError> {
     let log_path = env.storage_path(base_path, "logs/openrust.log");
     let path = path(&log_path)?;
     let level = get(env, "LOG_LEVEL", "debug")?;
@@ -57,7 +61,7 @@ pub(super) fn load(base_path: &Path, env: &Environment) -> Result<Value, ConfigE
             "slack": {
                 "driver": "slack",
                 "url": get(env, "LOG_SLACK_WEBHOOK_URL", Value::Null)?,
-                "username": get(env, "LOG_SLACK_USERNAME", "OpenRust Log")?,
+                "username": get(env, "LOG_SLACK_USERNAME", format!("{app_name} Log"))?,
                 "emoji": get(env, "LOG_SLACK_EMOJI", ":boom:")?,
                 "level": get(env, "LOG_LEVEL", "critical")?,
                 "replace_placeholders": true,

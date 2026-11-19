@@ -51,7 +51,10 @@ pub(crate) fn load(
         ("grpc".to_owned(), grpc::load(env)?),
         ("hashing".to_owned(), hashing::load(env)?),
         ("images".to_owned(), images::load(env)?),
-        ("logging".to_owned(), logging::load(base_path, env)?),
+        (
+            "logging".to_owned(),
+            logging::load(base_path, env, app.name)?,
+        ),
         ("mail".to_owned(), mail::load(base_path, env, &app.url)?),
         ("queue".to_owned(), queue),
         ("reverb".to_owned(), reverb::load(env)?),

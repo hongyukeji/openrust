@@ -1,5 +1,7 @@
 # Logging
 
+The Slack channel’s default username is the configured application name followed by ` Log`, such as `ExampleStore Log`. Set `LOG_SLACK_USERNAME` in `.env` to override it.
+
 ## Configuration
 
 Configure the default channel with `LOG_CHANNEL`, the ordered members of the default stack with `LOG_STACK`, and the minimum severity with `LOG_LEVEL`. The default `stack` contains `single`, which appends to `storage/logs/openrust.log`. Relative paths are resolved from the application root. A channel's optional `name` changes the label on each record. The application environment is the default label.

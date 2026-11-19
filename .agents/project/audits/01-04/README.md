@@ -16,3 +16,9 @@ macOS arm64，Rust 1.94.0。隔离副本基于 `21a65e98` 和已验收的 01-02y
 - 三语各两段示例编译执行并检查落盘。VitePress 构建通过，根路径与子路径的 12 个浏览器组合验证导航和轮转正文。
 
 下一批 01-05 接请求及任务 Context，依赖已验收的日志记录路径和容器生命周期。公开与隐藏上下文、作用域退出清理以及与日志合并需要实际并发入口验收。
+
+## Slack 默认显示名称随应用名称（2026-11-19）
+
+应用日志配置加载时复用已经解析的应用名称，将 Slack 的默认 `username` 设置为 `{app_name} Log`。显式 `LOG_SLACK_USERNAME` 优先，例如 `APP_NAME=ExampleStore` 默认生成 `ExampleStore Log`，设置 `LOG_SLACK_USERNAME=Operations` 后使用 `Operations`。
+
+Rust 1.94.0 配置回归验证 Cargo 包名回退、应用名称覆盖和 Slack 名称独立覆盖。配置测试、应用二进制和配置测试的严格 Clippy、全仓格式及差异空白检查通过。三语日志文档同步，站点构建及两种部署路径共 12 项浏览器检查通过。
