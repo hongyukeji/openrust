@@ -105,3 +105,7 @@ docs/{en,zh_CN,zh_TW}/packages/passport.md
 ## 客户端命令与撤销接续
 
 2026-11-20 [客户端命令、关系与撤销](client-management.md)通过 44 个测试函数、实际 MySQL／PTY／HTTP／Artisan 与三语验收。历史待办中的 UUID 开关、编译关系、令牌撤销及 passport:client 已处理；剩余固定 PHP oracle 继续单独核验。
+
+## 2026-11-20 单元验收结论
+
+[PHP 契约与 HTTP 管理验收](contracts.md)补齐上方历史未闭合清单：Scope JSON、secret setter 失败顺序／浮点转换、固定 PHP 对照与实际认证管理流程。结合连接、scope／追加、工厂、命令／关系／UUID／撤销链各批证据，Passport-02 的计划范围已完成验收；V06 保持部分验收，后续 Passport-03 至 09 按计划推进。历史首批清单保留为当时停点。完整 PHP ORM／警告通道、Windows 和发布安全矩阵不在本批结论内。

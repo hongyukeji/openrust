@@ -162,6 +162,19 @@ async fn cleanup(manager: &DatabaseManager) {
 fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routing::RoutingError> {
     let mut router = openrust::routing::Router::new();
     router.get("/exercise", exercise)?;
+    router.r#match(&[openrust::http::Method::POST], "/manage", manage)?;
+    router.get("/manage/{client}", manage)?;
+    router.r#match(&[openrust::http::Method::PATCH], "/manage/{client}", manage)?;
+    router.r#match(
+        &[openrust::http::Method::DELETE],
+        "/manage/{client}",
+        manage,
+    )?;
+    router.r#match(
+        &[openrust::http::Method::POST],
+        "/manage/{client}/secret",
+        manage,
+    )?;
     Ok(router)
 }
 fn exercise(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -858,13 +871,16 @@ impl openrust::contracts::auth::Authenticatable for ManagementUser {
         "subject"
     }
     fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
-        openrust::auth::AuthIdentifier::Integer(991)
+        self.getAttribute("subject").unwrap().try_into().unwrap()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
     }
     fn get_auth_password(&self) -> Option<&str> {
-        None
+        match self.getAttribute("password") {
+            Some(Value::Text(password)) => Some(password),
+            _ => None,
+        }
     }
     fn get_remember_token(&self) -> Option<&str> {
         None
@@ -1172,4 +1188,332 @@ async fn mysql_revocation_crosses_chunk_boundary_without_skipping_tokens() {
     })
     .await;
     cleanup(&manager).await;
+}
+
+// Application-defined fixture routes exercise the public repository; these are not package routes.
+fn manage(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::support::facades::Auth;
+        let internal = |source| HttpError::Internal {
+            source: Box::new(source),
+        };
+        Auth::onceBasic(request, "email", &[]).await?;
+        let user = Auth::user(request).await?.unwrap();
+        let user = (user.as_ref() as &dyn std::any::Any)
+            .downcast_ref::<ManagementUser>()
+            .unwrap();
+        let owner = openrust_passport::ClientOwner::forUser(user).map_err(internal)?;
+        let repo = openrust::container::Container::getInstance()
+            .make::<ClientRepository>()
+            .unwrap();
+        let Some(id) = request.route("client") else {
+            let client = repo
+                .createAuthorizationCodeGrantClient(
+                    "HTTP client",
+                    &["https://http.test/cb".into()],
+                    true,
+                    Some(&owner),
+                    false,
+                )
+                .await
+                .map_err(internal)?;
+            return Response::json(
+                StatusCode::CREATED,
+                json!({"client":client.toArray().await.map_err(internal)?,"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
+            );
+        };
+        let Some(client) = repo.findForUser(id, &owner).await.map_err(internal)? else {
+            return Response::json(StatusCode::NOT_FOUND, json!({"missing":true}));
+        };
+        match *request.method() {
+            openrust::http::Method::PATCH => {
+                assert!(
+                    repo.update(&client, "HTTP renamed", &["https://http.test/new".into()])
+                        .await
+                        .map_err(internal)?
+                );
+            }
+            openrust::http::Method::DELETE => {
+                repo.delete(&client).await.map_err(internal)?;
+            }
+            openrust::http::Method::POST => {
+                assert!(repo.regenerateSecret(&client).await.map_err(internal)?);
+                return Response::json(
+                    StatusCode::OK,
+                    json!({"secret":client.getAttributeValue("plain_secret").await.map_err(internal)?.and_then(|v| if let Value::Text(s)=v {Some(s)} else {None})}),
+                );
+            }
+            _ => {}
+        }
+        Response::json(
+            StatusCode::OK,
+            json!({"client":client.toArray().await.map_err(internal)?}),
+        )
+    })
+}
+async fn managed_app() -> (Root, Application, Arc<DatabaseManager>) {
+    use openrust::contracts::hashing::Hasher;
+    let root = Root::new();
+    let app = root.app().await;
+    migrate(&app).await;
+    app.config()
+        .unwrap()
+        .set("auth.defaults.guard", json!("web"))
+        .unwrap();
+    app.config()
+        .unwrap()
+        .set(
+            "auth.guards.web",
+            json!({"driver":"session","provider":"users"}),
+        )
+        .unwrap();
+    app.config()
+        .unwrap()
+        .set(
+            "auth.providers.users",
+            json!({"driver":"eloquent","model":"ManagementUser"}),
+        )
+        .unwrap();
+    app.config()
+        .unwrap()
+        .set("session.driver", json!("array"))
+        .unwrap();
+    let manager = app.make::<DatabaseManager>().await.unwrap();
+    let main = manager.connection(Some("main")).unwrap();
+    main.getSchemaBuilder()
+        .create("management_users", |table| {
+            table.id();
+            table.bigInteger("subject");
+            table.string("email", None);
+            table.string("password", None);
+        })
+        .await
+        .unwrap();
+    let hasher = app.make::<dyn Hasher>().await.unwrap();
+    let password = hasher
+        .make(b"good password", &openrust::hashing::HashOptions::new())
+        .await
+        .unwrap();
+    for (email, subject) in [("one@test", 991_i64), ("two@test", 992_i64)] {
+        let mut user = ManagementUser::newInstanceOn(
+            &main,
+            Attributes::from([
+                ("subject".into(), subject.into()),
+                ("email".into(), email.into()),
+                ("password".into(), password.clone().into()),
+            ]),
+        )
+        .unwrap();
+        user.save().await.unwrap();
+    }
+    app.make::<openrust::auth::AuthManager>()
+        .await
+        .unwrap()
+        .registerModel::<ManagementUser>("ManagementUser");
+    (root, app, manager)
+}
+#[tokio::test]
+async fn mysql_http_management_authenticates_owners_rejects_other_users_and_apps_and_reloads_revocation()
+ {
+    if !required() {
+        return;
+    }
+    use openrust::contracts::hashing::Hasher;
+    let (_root, app, manager) = managed_app().await;
+    let (_other_root, other, other_manager) = managed_app().await;
+    let hasher = app.make::<dyn Hasher>().await.unwrap();
+    let (address, server) = serve(app).await;
+    let (other_address, other_server) = serve(other).await;
+    let http = reqwest::Client::new();
+    let create = http
+        .post(format!("http://{address}/manage"))
+        .basic_auth("one@test", Some("good password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(create.status(), 201, "{}", create.text().await.unwrap());
+    let body: Json = serde_json::from_str(&create.text().await.unwrap()).unwrap();
+    assert!(body["client"].get("secret").is_none());
+    let id = body["client"]["id"].as_str().unwrap();
+    let secret = body["secret"].as_str().unwrap();
+    let db = manager.connection(Some("oauth")).unwrap();
+    let model = Client::queryOn(&db).find(id).await.unwrap().unwrap();
+    let Some(Value::Text(hash)) = model.getAttribute("secret") else {
+        panic!("missing hash")
+    };
+    assert!(
+        hasher
+            .check(
+                secret.as_bytes(),
+                hash,
+                &openrust::hashing::HashOptions::new()
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !hasher
+            .check(
+                b"wrong secret",
+                hash,
+                &openrust::hashing::HashOptions::new()
+            )
+            .await
+            .unwrap()
+    );
+    for host in [address, other_address] {
+        for method in [
+            reqwest::Method::GET,
+            reqwest::Method::PATCH,
+            reqwest::Method::DELETE,
+        ] {
+            let result = http
+                .request(method, format!("http://{host}/manage/{id}"))
+                .basic_auth("two@test", Some("good password"))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(result.status(), 404, "{}", result.text().await.unwrap());
+        }
+    }
+    for method in [
+        reqwest::Method::GET,
+        reqwest::Method::PATCH,
+        reqwest::Method::DELETE,
+    ] {
+        let response = http
+            .request(method, format!("http://{other_address}/manage/{id}"))
+            .basic_auth("one@test", Some("good password"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 404);
+    }
+    for (host, user) in [(address, "two@test"), (other_address, "one@test")] {
+        let response = http
+            .post(format!("http://{host}/manage/{id}/secret"))
+            .basic_auth(user, Some("good password"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 404);
+    }
+    assert_eq!(
+        http.post(format!("http://{address}/manage"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    assert_eq!(
+        http.get(format!("http://{address}/manage/not-a-uuid"))
+            .basic_auth("one@test", Some("good password"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let bad = http
+        .patch(format!("http://{address}/manage/{id}"))
+        .basic_auth("one@test", Some("wrong password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad.status(), 401);
+    let updated = http
+        .patch(format!("http://{address}/manage/{id}"))
+        .basic_auth("one@test", Some("good password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(updated.status(), 200, "{}", updated.text().await.unwrap());
+    let updated = Client::queryOn(&db).find(id).await.unwrap().unwrap();
+    assert_eq!(
+        updated.getAttribute("name"),
+        Some(&Value::Text("HTTP renamed".into()))
+    );
+    assert_eq!(
+        updated.redirectUris().unwrap().as_value(),
+        &json!(["https://http.test/new"])
+    );
+    let rotated = http
+        .post(format!("http://{address}/manage/{id}/secret"))
+        .basic_auth("one@test", Some("good password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(rotated.status(), 200, "{}", rotated.text().await.unwrap());
+    let rotated: Json = serde_json::from_str(&rotated.text().await.unwrap()).unwrap();
+    let model = Client::queryOn(&db).find(id).await.unwrap().unwrap();
+    let Some(Value::Text(hash)) = model.getAttribute("secret") else {
+        panic!("missing hash")
+    };
+    assert!(
+        hasher
+            .check(
+                rotated["secret"].as_str().unwrap().as_bytes(),
+                hash,
+                &openrust::hashing::HashOptions::new()
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !hasher
+            .check(
+                secret.as_bytes(),
+                hash,
+                &openrust::hashing::HashOptions::new()
+            )
+            .await
+            .unwrap()
+    );
+    let mut token = Token::newInstanceOn(
+        &db,
+        Attributes::from([
+            ("id".into(), "http-t".into()),
+            ("client_id".into(), id.into()),
+            ("revoked".into(), false.into()),
+        ]),
+    )
+    .unwrap();
+    token.save().await.unwrap();
+    let deleted = http
+        .delete(format!("http://{address}/manage/{id}"))
+        .basic_auth("one@test", Some("good password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(deleted.status(), 200, "{}", deleted.text().await.unwrap());
+    assert_eq!(
+        Token::queryOn(&db)
+            .find("http-t")
+            .await
+            .unwrap()
+            .unwrap()
+            .getAttributeValue("revoked")
+            .unwrap(),
+        Some(true.into())
+    );
+    let missing = http
+        .get(format!("http://{address}/manage/{id}"))
+        .basic_auth("one@test", Some("good password"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), 404);
+    server.abort();
+    other_server.abort();
+    for manager in [manager, other_manager] {
+        manager
+            .connection(Some("main"))
+            .unwrap()
+            .getSchemaBuilder()
+            .dropIfExists("management_users")
+            .await
+            .unwrap();
+        cleanup(&manager).await;
+    }
 }

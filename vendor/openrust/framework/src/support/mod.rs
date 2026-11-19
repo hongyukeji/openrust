@@ -69,5 +69,7 @@ pub use strings::{
 pub use timebox::Timebox;
 pub use uri::{InvalidUri, Uri, UriQueryString};
 #[doc(hidden)]
-pub use value_comparison::{php_loose_string_equal, php_loose_string_value_equal};
+pub use value_comparison::{
+    php_float_string, php_loose_string_equal, php_loose_string_value_equal, php_numeric_json_string,
+};
 pub use view_error_bag::ViewErrorBag;

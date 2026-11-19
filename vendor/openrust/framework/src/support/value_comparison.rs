@@ -135,3 +135,65 @@ fn numeric_string_overflow(text: &str, number: InputNumber) -> i8 {
         0
     }
 }
+
+/// PHP default precision=14 scalar conversion, shared with compiled extensions.
+#[doc(hidden)]
+#[must_use]
+pub fn php_float_string(value: f64) -> String {
+    super::input_scalars::double_string(value)
+}
+
+/// JSON_NUMERIC_CHECK for a UTF-8 string, using the existing PHP numeric parser.
+#[doc(hidden)]
+#[must_use]
+pub fn php_numeric_json_string(value: &str, preserve_zero_fraction: bool) -> Option<String> {
+    match InputNumber::numeric_string(value)? {
+        InputNumber::Integer(integer) => Some(integer.to_string()),
+        InputNumber::Float(float) if float.is_finite() => {
+            Some(json_float_string(float, preserve_zero_fraction))
+        }
+        InputNumber::Float(_) => None,
+    }
+}
+
+fn json_float_string(value: f64, preserve_zero_fraction: bool) -> String {
+    let sign = if value.is_sign_negative() { "-" } else { "" };
+    if value == 0.0 {
+        return format!("{sign}0{}", if preserve_zero_fraction { ".0" } else { "" });
+    }
+    // serde supplies shortest round-trip digits; Zend's JSON layout uses its own thresholds.
+    let shortest = serde_json::to_string(&value.abs()).expect("finite float");
+    let (coefficient, power) = shortest.split_once(['e', 'E']).unwrap_or((&shortest, "0"));
+    let power = power.parse::<i32>().unwrap_or(0);
+    let decimal = coefficient.find('.').unwrap_or(coefficient.len());
+    let raw = coefficient.replace('.', "");
+    let leading = raw.len() - raw.trim_start_matches('0').len();
+    let digits = raw.trim_start_matches('0').trim_end_matches('0');
+    let exponent =
+        power + i32::try_from(decimal).unwrap_or(0) - 1 - i32::try_from(leading).unwrap_or(0);
+    if !(-4..17).contains(&exponent) {
+        return format!(
+            "{sign}{}.{}e{exponent:+}",
+            &digits[..1],
+            if digits.len() > 1 { &digits[1..] } else { "0" }
+        );
+    }
+    let point = exponent + 1;
+    let mut output = if point <= 0 {
+        format!(
+            "{sign}0.{}{digits}",
+            "0".repeat(usize::try_from(-point).unwrap_or(0))
+        )
+    } else {
+        let point = usize::try_from(point).unwrap_or(0);
+        if point >= digits.len() {
+            format!("{sign}{digits}{}", "0".repeat(point - digits.len()))
+        } else {
+            format!("{sign}{}.{}", &digits[..point], &digits[point..])
+        }
+    };
+    if preserve_zero_fraction && !output.contains('.') {
+        output.push_str(".0");
+    }
+    output
+}

@@ -1,0 +1,23 @@
+{
+  "baseline": "ecc607f2b9464be18a4cbed113cf95f4fb620de6",
+  "files": {
+    "vendor/openrust/framework/src/support/mod.rs": "bfc44e244b1e967c1c787a9a2f4a3db3f29da05a0cd8132f2dfb341b40f92906",
+    "vendor/openrust/framework/src/support/value_comparison.rs": "ea114ba5b09fbc978a97c8201bdd985c80ea3423967676f74d8d0ff525216490",
+    "vendor/openrust/passport/src/client.rs": "6262885f6015d8aedbbe108da7688e7e9143da7721d81327a2159fc1ccd3a993",
+    "vendor/openrust/passport/src/scope.rs": "aa78e9e51fe63adc78fae776f82280f0dddf07daeebcd4587f09413424a6684f",
+    "vendor/openrust/passport/src/scope_json.rs": "85ff45ced416aa7aa390714ae2ab9958cf8562e0ea5dc82dc85ce33b52090c16",
+    "vendor/openrust/passport/src/lib.rs": "2028317a07f84525e32daa619d45c1080aaea1cd54065a85b1379d81e2fcf8ca",
+    "vendor/openrust/passport/tests/client_contracts.rs": "28a612e4c53460549fb433dcd1e2c0c39fc61034ffd860a940d6c90e37f135bd",
+    "vendor/openrust/passport/tests/reference/client_contracts.php": "281185387705f8613237f619cae85e649f0aebdde4aec583d6a4baa71c27c8a0",
+    "vendor/openrust/passport/tests/fixtures/client_contracts.json": "45d5233caa186d77be9ec36ebf1a3c0b143390c97cb19b2177985386a8721af6",
+    "vendor/openrust/passport/tests/client_management.rs": "9808793c088133a9b482e5ce1bcb411ca109cb548939868936d0d6380f28fef5",
+    "docs/en/packages/passport.md": "96644cb2b597ff7527cf18ddfbdf436f901827102999544bb0991950b1638af2",
+    "docs/zh_CN/packages/passport.md": "62de26a9ebeeee92a27461fb0ecdaba9b0e8476cd05d69c323d4ea5bb10908cd",
+    "docs/zh_TW/packages/passport.md": "e67414f15c9270a1975608fcfe91e5cc4ad15b5df7dee0cf2429b5175c4b9b5f"
+  },
+  "upstream": {
+    "Scope.php": "af7aa63a93285af271d71a88fc2871ee7a78f5d18ea0615eb7ef74c89d4dfd10",
+    "ResolvesInheritedScopes.php": "11e212c5191f7ba80127c8f7abbbc9f38485776d1869083f67d4daddd14ff8c5",
+    "Client.php": "503aad2b892dfb60d897ef52ed52f73d97e303182888f92ebd2c893725e7721d"
+  }
+}

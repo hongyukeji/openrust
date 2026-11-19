@@ -195,17 +195,25 @@ impl Model for Client {
         }
     }
     fn fill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
-        let plain = incoming_secret(&attributes)?;
-        let result = self.attributes.fill(attributes).map(|_| ());
-        self.remember_secret(plain, &result);
-        result?;
+        for (name, value) in attributes {
+            if name == "secret" {
+                self.setAttributeValue(&name, value)?;
+            } else {
+                self.attributes.fill(Attributes::from([(name, value)]))?;
+            }
+        }
         Ok(self)
     }
     async fn fillAsync(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
-        let plain = incoming_secret(&attributes)?;
-        let result = self.attributes.fillAsync(attributes).await.map(|_| ());
-        self.remember_secret(plain, &result);
-        result?;
+        for (name, value) in attributes {
+            if name == "secret" {
+                self.setAttributeValueAsync(&name, value).await?;
+            } else {
+                self.attributes
+                    .fillAsync(Attributes::from([(name, value)]))
+                    .await?;
+            }
+        }
         Ok(self)
     }
     fn setAttributeValue(
@@ -214,14 +222,12 @@ impl Model for Client {
         value: impl Into<Value>,
     ) -> DatabaseResult<&mut Self> {
         let value = value.into();
-        let plain = if column == "secret" {
-            Some(secret_input(&value)?)
+        let value = if column == "secret" {
+            self.assign_secret(&value)?
         } else {
-            None
+            value
         };
-        let result = self.attributes.setAttributeValue(column, value).map(|_| ());
-        self.remember_secret(plain, &result);
-        result?;
+        self.attributes.setAttributeValue(column, value)?;
         Ok(self)
     }
     fn setAttributeValueAsync<'a>(
@@ -231,18 +237,14 @@ impl Model for Client {
     ) -> impl Future<Output = DatabaseResult<&'a mut Self>> + Send + 'a {
         let value = value.into();
         async move {
-            let plain = if column == "secret" {
-                Some(secret_input(&value)?)
+            let value = if column == "secret" {
+                self.assign_secret(&value)?
             } else {
-                None
+                value
             };
-            let result = self
-                .attributes
+            self.attributes
                 .setAttributeValueAsync(column, value)
-                .await
-                .map(|_| ());
-            self.remember_secret(plain, &result);
-            result?;
+                .await?;
             Ok(self)
         }
     }
@@ -265,23 +267,14 @@ impl Client {
     pub fn factory() -> DatabaseResult<crate::database::factories::ClientFactory> {
         crate::database::factories::ClientFactory::new()
     }
-    fn remember_secret(
-        &mut self,
-        plain: Option<Option<Zeroizing<String>>>,
-        result: &DatabaseResult<()>,
-    ) {
-        if let Some(plain) = plain
-            && (result.is_ok()
-                || matches!(
-                    result,
-                    Err(DatabaseError::AttributeHashing(_))
-                        | Err(DatabaseError::InvalidQuery(
-                            "hashed attribute requires async assignment"
-                        ))
-                ))
-        {
-            self.plainSecret = plain;
-        }
+    fn assign_secret(&mut self, input: &Value) -> DatabaseResult<Value> {
+        let plain = secret_input(input)?;
+        let value = plain
+            .as_ref()
+            .map_or(Value::Null, |plain| Value::Text(plain.to_string()));
+        // The real PHP setter updates plainSecret before entering the hash boundary.
+        self.plainSecret = plain;
+        Ok(value)
     }
     fn redirect_value(&self) -> DatabaseResult<Value> {
         let raw = self.state().getAttribute("redirect_uris");
@@ -342,9 +335,6 @@ fn array(value: Option<Value>) -> DatabaseResult<PhpArray> {
         _ => Err(invalid()),
     }
 }
-fn incoming_secret(attributes: &Attributes) -> DatabaseResult<Option<Option<Zeroizing<String>>>> {
-    attributes.get("secret").map(secret_input).transpose()
-}
 fn secret_input(value: &Value) -> DatabaseResult<Option<Zeroizing<String>>> {
     let text = match value {
         Value::Null => return Ok(None),
@@ -352,7 +342,7 @@ fn secret_input(value: &Value) -> DatabaseResult<Option<Zeroizing<String>>> {
         Value::Bool(value) => if *value { "1" } else { "" }.to_owned(),
         Value::Integer(value) => value.to_string(),
         Value::Unsigned(value) => value.to_string(),
-        Value::Real(value) if value.is_finite() => value.to_string(),
+        Value::Real(value) => openrust::support::php_float_string(*value),
         _ => return Err(invalid()),
     };
     Ok(Some(Zeroizing::new(text)))

@@ -266,6 +266,6 @@ Passport 是 OAuth2 授权服务器，不自动提供 OIDC ID Token／Discovery�
 
 ### 推进顺序和发布约束
 
-当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，下一代码单元 Passport-02；API-F01 可复用现有认证基础，先完成授权页面所需动作，再推进 Passport-03／04／05／06／07／08／09。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
+当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，Passport-02 客户端与仓储已完成[分批实际验收](audits/passport-02/contracts.md)。下一代码单元 Passport-03，按 Passport-02、04-04、05-08 前置推进；启用 Fortify 动作时先接 API-F01。随后推进 Passport-04／05／06／07／08／09。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
 
 每批保持 MySQL 8.4 日常规则，新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。

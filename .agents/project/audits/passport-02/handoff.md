@@ -43,3 +43,9 @@ V06、Passport-02 整单元保持部分验收；Passport-03 仍须等待其前�
 ## 2026-11-20 命令与撤销接续
 
 [客户端命令、关系与撤销](client-management.md)已通过限定范围验收，44 个测试函数与实际 PTY／HTTP／Artisan／三语检查见正文。UUID 实例策略、编译模型关系、自定义 Token／Refresh 注册、1000 分批撤销及 passport:client 已处理。Scope JSON、setter 失败顺序、浮点转换和其余 PHP oracle 仍待；Passport-02 保持部分验收。
+
+## 2026-11-20 PHP 契约与管理闭合
+
+[PHP 契约与 HTTP 管理验收](contracts.md)完成，Passport-02 计划范围已验收。48 个测试函数、2699 条固定 PHP 对照记录、实际 MySQL／认证 HTTP 管理／根入口及三语验收见正文；最终 14 项复验通过。上方历史未完成列表由后续各批逐项闭合。下一单元 Passport-03 授权码与 PKCE，依赖 Passport-02、04-04、05-08；启用 Fortify 动作时接 API-F01。V06 仍为部分验收，不声称完整 OAuth2 已交付。
+
+本批证据保留于 `/private/tmp/openrust-passport-oracle-20261120/`，含 accepted-overlay.tgz、源码 SHA、固定上游、PHP 生成结果／重复与负样本、验收脚本及日志、cleanup.json。专属 source／target 已删除，不能复用原缓存；实际释放 5.563 GB，剩余约 68.979 GB，全部数据卷保留。只核定本批文件本地提交，不推送；同期 Pail／终端测试及历史 WIP 保留。

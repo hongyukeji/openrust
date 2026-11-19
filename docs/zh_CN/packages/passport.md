@@ -102,7 +102,7 @@ pub async fn create_client(
 
 `ClientModel::hasScope` 和 `ClientRecord::hasScope` 在未设置 `scopes` 或其原始值为 null 时允许所有 scope；已设置时按数组内容检查，成员判断沿用 PHP 非严格比较。默认不开启父 scope 继承。若在当前应用上调用 `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允许 `orders:read` 等后代。`*` 在这里是普通 scope 名称。开关保存在各应用自己的实例中，调用须位于所属应用的请求或 Artisan 生命周期。
 
-在应用装配时、解析仓储前调用 `passport.useClientModel::<CustomClient>()`。编译期类型实现 `ClientModel` 和 Eloquent `Model`，保留唯一标识校验、全局作用域、事件及转换。格式错误的 UUID／ULID 在解析连接前直接未命中。仓储查询和未绑定实例的 `Client::query()`／`save()` 优先使用模型显式连接，然后是 `passport.connection`，最后是数据库默认连接。创建和读出的模型保留实际连接；随后更改配置也不会把该模型的保存转到其他连接。`Client::queryOn(&connection)` 显式选择连接。事务写入检查模型的有效连接，拒绝不同连接的事务。Rust 的 `resolveConnectionName()` 返回可拥有的名称，以读取应用配置；`getConnection()` 返回实际连接。完整 Client 模型接口、PHP JSON 编码选项及浮点转字符串的精确规则仍待验收。
+在应用装配时、解析仓储前调用 `passport.useClientModel::<CustomClient>()`。编译期类型实现 `ClientModel` 和 Eloquent `Model`，保留唯一标识校验、全局作用域、事件及转换。格式错误的 UUID／ULID 在解析连接前直接未命中。仓储查询和未绑定实例的 `Client::query()`／`save()` 优先使用模型显式连接，然后是 `passport.connection`，最后是数据库默认连接。创建和读出的模型保留实际连接；随后更改配置也不会把该模型的保存转到其他连接。`Client::queryOn(&connection)` 显式选择连接。事务写入检查模型的有效连接，拒绝不同连接的事务。Rust 的 `resolveConnectionName()` 返回可拥有的名称，以读取应用配置；`getConnection()` 返回实际连接。秘密赋值使用 PHP 标量字符串转换。哈希失败保留原有哈希，并在 `plainSecret` 中保留本次 setter 输入。批量赋值沿用 Rust 既有的属性键顺序；后续 setter 失败时保留之前成功的赋值。
 
 ## 客户端工厂
 
@@ -129,3 +129,15 @@ Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFact
 Rust 在编译时绑定关系返回类型。默认辅助方法返回默认具体模型；自定义模型使用 `tokensFor::<T>`、`clientFor::<C>`、`refreshTokenFor::<R>`、`accessTokenFor::<T>`。`passport.useTokenModel::<T>()` 和 `useRefreshTokenModel::<R>()` 选择仓储撤销时使用的实际模型，保留其连接和事件；共享注册也作用于已解析的仓储。用户 provider 由调用方选择编译模型，替代 PHP 的运行时类名。
 
 `clientUuids` 默认 true。已有数字自增客户端表时，在构造模型前调用 `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)`。每个实例保留构造时选定的策略。开关不会修改已有表结构；发布的客户端迁移仍创建 UUID 主键。
+
+## Scope JSON
+
+`Scope::toJson()` 保留 `id`、`description` 字段顺序，以及 PHP 默认的 Unicode 和斜杠转义。`toJsonWithOptions(ScopeJsonOptions)` 支持 `JSON_HEX_TAG`、`JSON_HEX_AMP`、`JSON_HEX_APOS`、`JSON_HEX_QUOT`、`JSON_NUMERIC_CHECK`、`JSON_UNESCAPED_SLASHES`、`JSON_PRETTY_PRINT`、`JSON_UNESCAPED_UNICODE`、`JSON_PRESERVE_ZERO_FRACTION`、`JSON_UNESCAPED_LINE_TERMINATORS`。用 `|` 组合常量，`fromBits` 可传入 PHP 选项位。Rust 字符串始终是有效 UTF-8，因此非法 UTF-8 相关标志不会改变结果。
+
+```rust
+use openrust_passport::{Scope, ScopeJsonOptions};
+let scope = Scope::new("orders/read", "读取订单");
+let json = scope.toJsonWithOptions(
+    ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
+)?;
+```

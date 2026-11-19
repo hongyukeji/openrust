@@ -16,6 +16,12 @@ impl Scope {
         serde_json::json!({"id":self.id,"description":self.description})
     }
     pub fn toJson(&self) -> serde_json::Result<String> {
-        serde_json::to_string(self)
+        self.toJsonWithOptions(crate::ScopeJsonOptions::default())
+    }
+    pub fn toJsonWithOptions(
+        &self,
+        options: crate::ScopeJsonOptions,
+    ) -> serde_json::Result<String> {
+        Ok(options.encode(self))
     }
 }

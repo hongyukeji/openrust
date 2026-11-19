@@ -102,7 +102,7 @@ Use `client.append(&["plain_secret"])` to explicitly append the current instance
 
 `ClientModel::hasScope` and `ClientRecord::hasScope` allow all scopes when the raw `scopes` attribute is absent or null. Otherwise, they check the configured array using PHP non-strict comparison. Parent-scope inheritance is disabled by default. Calling `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)` on the current application’s instance lets `orders` grant descendants such as `orders:read`. Here, `*` is an ordinary scope name. The switch belongs to each application instance. Call these methods within that application’s request or Artisan lifecycle.
 
-Call `passport.useClientModel::<CustomClient>()` during application setup before resolving repositories. The compiled type implements `ClientModel` and Eloquent `Model`; its unique-ID validation, global scopes, events and casts remain in effect. Malformed UUID/ULID keys return no result before connection resolution. Repository queries and unbound `Client::query()`/`save()` use an explicit model connection first, then `passport.connection`, then the database default. Created and loaded models retain their actual connection, so later configuration changes do not redirect their saves. `Client::queryOn(&connection)` selects a connection explicitly. Transaction writes check the effective model connection and reject a transaction from another connection. Rust exposes `resolveConnectionName()` with an optionally owned name for application configuration and `getConnection()` for the actual connection. The complete Client model surface, PHP JSON encoding options and exact float-to-string coercion still await acceptance.
+Call `passport.useClientModel::<CustomClient>()` during application setup before resolving repositories. The compiled type implements `ClientModel` and Eloquent `Model`; its unique-ID validation, global scopes, events and casts remain in effect. Malformed UUID/ULID keys return no result before connection resolution. Repository queries and unbound `Client::query()`/`save()` use an explicit model connection first, then `passport.connection`, then the database default. Created and loaded models retain their actual connection, so later configuration changes do not redirect their saves. `Client::queryOn(&connection)` selects a connection explicitly. Transaction writes check the effective model connection and reject a transaction from another connection. Rust exposes `resolveConnectionName()` with an optionally owned name for application configuration and `getConnection()` for the actual connection. Secret assignment uses PHP scalar string coercion. Failed hashing preserves the stored hash and retains the current setter input in `plainSecret`. Mass assignment follows Rust’s existing attribute key order and preserves earlier successful assignments if a later setter fails.
 
 ## Client factories
 
@@ -129,3 +129,15 @@ With `--no-interaction`, the name defaults to `app.name`, the callback to the ap
 Rust binds relation result types at compile time. Default helpers return the default concrete models; use `tokensFor::<T>`, `clientFor::<C>`, `refreshTokenFor::<R>` or `accessTokenFor::<T>` for custom models. `passport.useTokenModel::<T>()` and `useRefreshTokenModel::<R>()` select the actual models used by repository revocation, including their connections and events. These shared registrations also apply to already resolved repositories. The caller chooses the compiled user provider model instead of PHP's runtime class string.
 
 `clientUuids` defaults to true. Set `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)` before constructing clients when using an existing numeric auto increment client table. Each instance retains the strategy selected at construction. This does not change an existing schema; the published client migration creates UUID keys.
+
+## Scope JSON
+
+`Scope::toJson()` retains the `id`, `description` field order and PHP’s default Unicode and slash escaping. Use `toJsonWithOptions(ScopeJsonOptions)` for `JSON_HEX_TAG`, `JSON_HEX_AMP`, `JSON_HEX_APOS`, `JSON_HEX_QUOT`, `JSON_NUMERIC_CHECK`, `JSON_UNESCAPED_SLASHES`, `JSON_PRETTY_PRINT`, `JSON_UNESCAPED_UNICODE`, `JSON_PRESERVE_ZERO_FRACTION` and `JSON_UNESCAPED_LINE_TERMINATORS`. Combine constants with `|`; `fromBits` accepts PHP option bits. Flags for invalid UTF-8 have no effect on Rust’s valid UTF-8 strings.
+
+```rust
+use openrust_passport::{Scope, ScopeJsonOptions};
+let scope = Scope::new("orders/read", "Read orders");
+let json = scope.toJsonWithOptions(
+    ScopeJsonOptions::JSON_UNESCAPED_UNICODE | ScopeJsonOptions::JSON_UNESCAPED_SLASHES,
+)?;
+```
