@@ -117,6 +117,14 @@ impl Model for Client {
     fn state_mut(&mut self) -> &mut ModelState {
         self.attributes.state_mut()
     }
+    fn resolveConnectionName(&self) -> DatabaseResult<Option<std::borrow::Cow<'_, str>>> {
+        if let Some(name) = self.getConnectionName() {
+            return Ok(Some(std::borrow::Cow::Borrowed(name)));
+        }
+        let configured = openrust::support::facades::Config::get("passport.connection")
+            .map_err(DatabaseError::Unavailable)?;
+        configured_connection(configured).map(|name| name.map(std::borrow::Cow::Owned))
+    }
     fn getAttributeValue(&self, column: &str) -> DatabaseResult<Option<Value>> {
         match column {
             "plain_secret" | "plainSecret" => Ok(Some(
@@ -181,6 +189,18 @@ impl Model for Client {
             Ok(self)
         }
     }
+}
+pub(crate) fn configured_connection(
+    value: Option<serde_json::Value>,
+) -> DatabaseResult<Option<String>> {
+    let name = match value {
+        None | Some(serde_json::Value::Null) => None,
+        Some(serde_json::Value::String(name)) => Some(name),
+        Some(serde_json::Value::Bool(value)) => Some(if value { "1" } else { "" }.into()),
+        Some(serde_json::Value::Number(value)) => Some(value.to_string()),
+        _ => return Err(DatabaseError::InvalidConfiguration("passport.connection")),
+    };
+    Ok(name.filter(|name| !name.is_empty() && name != "0"))
 }
 #[allow(non_snake_case)]
 impl Client {

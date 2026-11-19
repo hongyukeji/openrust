@@ -98,4 +98,4 @@ pub async fn create_client(
 
 機密用戶端重用應用既有的 Eloquent 非同步雜湊服務。建立或輪替的 `Client` 在 `plainSecret` 暫時保留 setter 輸入，重新讀庫不會還原明文。預設 JSON 隱藏 `secret`，不附加明文。只在交付擁有者時複製新產生的秘密，不要記錄日誌。`record.model::<M>()` 回傳的 `Arc<tokio::sync::Mutex<M>>` 指向實際選定模型；`sameInstance` 檢查共用物件身分，不代表兩行模型的主鍵相等。
 
-在應用裝配時、解析儲存庫前呼叫 `passport.useClientModel::<CustomClient>()`。編譯期類型實作 `ClientModel` 和 Eloquent `Model`，保留唯一識別校驗、全域作用域、事件與轉換。格式錯誤的 UUID／ULID 在解析連線前直接未命中。儲存庫查詢優先使用模型顯式連線，接著是 `passport.connection`，最後是資料庫預設連線。建立和讀出的模型保留連線，供後續儲存使用。未綁定實例的 `Client::query()`／`save()` 連線回退、完整 Client 模型介面、`plain_secret` 附加、PHP JSON 編碼選項與浮點轉字串的精確規則不屬於本批驗收範圍；本文操作使用儲存庫或顯式綁定的 `Client::queryOn(&connection)`。
+在應用裝配時、解析儲存庫前呼叫 `passport.useClientModel::<CustomClient>()`。編譯期類型實作 `ClientModel` 和 Eloquent `Model`，保留唯一識別校驗、全域作用域、事件與轉換。格式錯誤的 UUID／ULID 在解析連線前直接未命中。儲存庫查詢與未綁定實例的 `Client::query()`／`save()` 優先使用模型顯式連線，接著是 `passport.connection`，最後是資料庫預設連線。建立和讀出的模型保留實際連線；隨後更改設定也不會把該模型的儲存轉到其他連線。`Client::queryOn(&connection)` 顯式選擇連線。交易寫入檢查模型的有效連線，拒絕不同連線的交易。Rust 的 `resolveConnectionName()` 回傳可擁有的名稱，以讀取應用設定；`getConnection()` 回傳實際連線。完整 Client 模型介面、`plain_secret` 附加、PHP JSON 編碼選項與浮點轉字串的精確規則仍待驗收。

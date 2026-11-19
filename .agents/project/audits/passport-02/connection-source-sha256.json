@@ -1,0 +1,13 @@
+{
+  "baseline": "c2bfdd73f01060b774c52b72333eb834e581dae3",
+  "sha256": {
+    "vendor/openrust/framework/src/database/eloquent/model.rs": "7655de3ba1986409cacfb53ffdd493a14dec518325853379dff4257dfd2924ba",
+    "vendor/openrust/framework/src/database/eloquent/persistence.rs": "1bb130ec2a13438785cd037b1fd1e67e7d4f30fb8ceee5cdc9c04979cb93f14d",
+    "vendor/openrust/passport/src/client.rs": "d3a50f29716f70347e067bc7246972e174bce56233a0b293d9aea91baefaf54c",
+    "vendor/openrust/passport/src/client_repository.rs": "fdcb92e348e20790eb86ddef456a5dff9dc25f3b95b28415e1432c878815b5c2",
+    "vendor/openrust/passport/tests/client_lookup.rs": "49c5af28a9301728c7f877c9b17f67b727c1c4bf8ff8ee1c22c251d9513b40eb",
+    "docs/en/packages/passport.md": "6e5dd94dd1dbebcc98318f91e24ffcd5e70c41c1082c9d13a51f01b35319fec6",
+    "docs/zh_CN/packages/passport.md": "0c91c40c5f0c6a13f574b215c0af701f4b405a48af72f0c42a9372e437a8b93f",
+    "docs/zh_TW/packages/passport.md": "d064abeba8579f9eea781f4f28463534969ee2473af3ecb3e9f94980d0553cc6"
+  }
+}

@@ -93,3 +93,7 @@ docs/{en,zh_CN,zh_TW}/packages/passport.md
 确认所有自有验收进程退出后，直接删除本批 source／target／浏览器依赖，逻辑 5,202,987,593 字节，df 实际可用增加 5,010,182,144 字节，清理后可用 80,071,938,048 字节。共享 root target、Cargo registry、docs/node_modules、现有 Chromium 和所有 WIP 保留；共享根文档 dist 已由其他工作移除，本批没有再次删除或归为自身释放。保留原始日志、18 文件 overlay 和脚本供追溯。
 
 远程标准夹具全部退出，无验收容器遗留。核对批前仅有共享 Rust 镜像、临时 MySQL 镜像精确 SHA 且无容器引用后回收；共享 Rust 镜像及数据卷清单不变，删除本批专属远程包装目录。未用 prune 或删除数据卷。远程 sudo 的主机名解析提示保留在日志，命令与资源核对成功，没有改动远程系统配置。
+
+## 模型连接回退接续
+
+2026-11-19 [模型连接回退](connection-fallback.md)已通过直接模型、事务、真实 HTTP／MySQL、Artisan 与三语验收。上方历史未闭合清单第 1 项中的未绑定连接回退已处理，关系／工厂等其余部分继续推进。Passport-02 整单元仍未闭合。

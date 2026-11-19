@@ -1,4 +1,4 @@
-use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Transaction, Value};
+use crate::database::{Connection, DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{
     Builder, Model, ModelState, NamedRelations,
@@ -11,10 +11,7 @@ use super::{
 };
 
 fn connection<M: Model>(model: &M) -> DatabaseResult<Connection> {
-    match &model.state().connection {
-        Some(connection) => Ok(connection.clone()),
-        None => DB::connection(M::metadata().connection),
-    }
+    model.getConnection()
 }
 
 fn transaction_connection<M: Model>(
@@ -27,8 +24,9 @@ fn transaction_connection<M: Model>(
     let connection = transaction.query_connection();
     let mismatch = match &model.state().connection {
         Some(source) => !transaction.belongs_to(source),
-        None => M::metadata()
-            .connection
+        None => model
+            .resolveConnectionName()?
+            .as_deref()
             .is_some_and(|name| name != connection.getName()),
     };
     if mismatch {

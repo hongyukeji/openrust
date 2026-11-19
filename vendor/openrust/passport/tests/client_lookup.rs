@@ -362,6 +362,7 @@ async fn mysql_custom_models_keep_unique_id_validation_scopes_and_explicit_conne
 fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routing::RoutingError> {
     let mut routes = openrust::routing::Router::new();
     routes.get("/lookup/{id}", lookup)?;
+    routes.get("/model-connections", model_connections)?;
     Ok(routes)
 }
 fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -1006,4 +1007,142 @@ async fn mysql_legacy_client_columns_keep_owners_redirects_and_secret_mutators()
         })
         .await;
     cleanup(&app).await;
+}
+
+fn model_connections(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let result = verify_model_connections().await.map_err(|source| {
+            eprintln!("direct client connection probe failed: {source}");
+            HttpError::Internal {
+                source: Box::new(source),
+            }
+        })?;
+        Response::json(StatusCode::OK, result)
+    })
+}
+
+async fn verify_model_connections() -> DatabaseResult<Json> {
+    use openrust::support::facades::Config;
+    let configured = Client::default().getConnection()?;
+    assert_eq!(configured.getName(), "oauth");
+    assert_eq!(
+        CustomClient::from_state(Default::default())
+            .getConnection()?
+            .getName(),
+        "main"
+    );
+    let mut client = Client::default();
+    client.forceFill(Attributes::from([
+        ("name".into(), "direct model".into()),
+        ("redirect_uris".into(), Value::Json(json!([]))),
+        (
+            "grant_types".into(),
+            Value::Json(json!(["authorization_code"])),
+        ),
+        ("revoked".into(), false.into()),
+    ]))?;
+    assert!(client.save().await?);
+    let key = client.getKey().unwrap().clone();
+    let mut loaded = Client::find(key.clone()).await?.unwrap();
+    assert_eq!(
+        loaded.getAttributeValue("name")?,
+        Some("direct model".into())
+    );
+
+    let manager = openrust::container::Container::getInstance()
+        .make::<DatabaseManager>()
+        .map_err(openrust::database::DatabaseError::Unavailable)?;
+    let main = manager.connection(Some("main"))?;
+    let mut wrong = main.beginTransaction().await?;
+    let mut unbound = Client::default();
+    assert!(matches!(
+        unbound.saveInTransaction(&mut wrong).await,
+        Err(openrust::database::DatabaseError::InvalidQuery(
+            "model transaction connection"
+        ))
+    ));
+    wrong.rollBack(None).await?;
+    let mut correct = configured.beginTransaction().await?;
+    unbound.forceFill(Attributes::from([
+        ("name".into(), "rolled back".into()),
+        ("redirect_uris".into(), Value::Json(json!([]))),
+        (
+            "grant_types".into(),
+            Value::Json(json!(["authorization_code"])),
+        ),
+        ("revoked".into(), false.into()),
+    ]))?;
+    assert!(unbound.saveInTransaction(&mut correct).await?);
+    correct.rollBack(None).await?;
+
+    Config::set("passport.connection", json!("main")).unwrap();
+    loaded.setAttributeValue("name", "retained original connection")?;
+    assert!(loaded.save().await?);
+    assert_eq!(loaded.getConnection()?.getName(), "oauth");
+    assert_eq!(Client::default().getConnection()?.getName(), "main");
+    assert_eq!(
+        Client::queryOn(&configured)
+            .find(key.clone())
+            .await?
+            .unwrap()
+            .getAttributeValue("name")?,
+        Some("retained original connection".into())
+    );
+    Config::set("passport.connection", Json::Null).unwrap();
+    assert_eq!(Client::default().getConnection()?.getName(), "main");
+    Config::set("passport.connection", json!(["invalid"])).unwrap();
+    assert!(matches!(
+        Client::default().getConnection(),
+        Err(openrust::database::DatabaseError::InvalidConfiguration(
+            "passport.connection"
+        ))
+    ));
+    assert!(Client::query().is_err());
+    assert_eq!(loaded.getConnection()?.getName(), "oauth");
+    Config::set("passport.connection", json!("oauth")).unwrap();
+    assert!(loaded.delete().await?);
+    assert!(Client::find(key).await?.is_none());
+    Ok(
+        json!({"configured":"oauth", "explicit":"main", "bound":"oauth",
+        "transaction_mismatch_rejected":true, "default":"main"}),
+    )
+}
+
+#[tokio::test]
+async fn mysql_direct_client_models_resolve_configuration_and_preserve_bound_transactions_over_http()
+ {
+    if !mysql_required() {
+        return;
+    }
+    let root = Root::new();
+    let app = root.application().await;
+    migrate(&app).await;
+    let manager = app.make::<DatabaseManager>().await.unwrap();
+    let (address, task) = serve(app).await;
+    let response = reqwest::get(format!("http://{address}/model-connections"))
+        .await
+        .unwrap();
+    let status = response.status();
+    let body = response.text().await.unwrap();
+    task.abort();
+    let _ = task.await;
+    manager
+        .connection(Some("oauth"))
+        .unwrap()
+        .getSchemaBuilder()
+        .dropIfExists("oauth_clients")
+        .await
+        .unwrap();
+    manager
+        .connection(Some("main"))
+        .unwrap()
+        .getSchemaBuilder()
+        .dropIfExists("history")
+        .await
+        .unwrap();
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        serde_json::from_str::<Json>(&body).unwrap()["transaction_mismatch_rejected"],
+        true
+    );
 }

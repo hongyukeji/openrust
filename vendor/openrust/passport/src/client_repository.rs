@@ -297,13 +297,7 @@ impl<M: ClientModel> EloquentClientStore<M> {
         let name = if let Some(name) = prototype.getConnectionName() {
             Some(name.to_owned())
         } else {
-            match self.config.get("passport.connection") {
-                None | Some(serde_json::Value::Null) => None,
-                Some(serde_json::Value::String(name)) => Some(name),
-                Some(serde_json::Value::Bool(value)) => Some(if value { "1" } else { "" }.into()),
-                Some(serde_json::Value::Number(value)) => Some(value.to_string()),
-                _ => return Err(DatabaseError::InvalidConfiguration("passport.connection")),
-            }
+            crate::client::configured_connection(self.config.get("passport.connection"))?
         };
         let connection = self.database.connection(
             name.as_deref()

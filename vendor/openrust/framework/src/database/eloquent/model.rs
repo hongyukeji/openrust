@@ -290,7 +290,9 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn query() -> DatabaseResult<Builder<'static, Self>> {
-        Ok(Self::queryOn(&DB::connection(Self::metadata().connection)?))
+        Ok(Self::queryOn(
+            &Self::from_state(ModelState::default()).getConnection()?,
+        ))
     }
 
     fn queryOn(connection: &Connection) -> Builder<'static, Self> {
@@ -913,6 +915,19 @@ pub trait Model: Sized + Send + Sync + 'static {
             .as_ref()
             .map(Connection::getName)
             .or(Self::metadata().connection)
+    }
+
+    /// Resolves a dynamic connection name without borrowing application configuration.
+    fn resolveConnectionName(&self) -> DatabaseResult<Option<Cow<'_, str>>> {
+        Ok(self.getConnectionName().map(Cow::Borrowed))
+    }
+
+    /// Retains the actual connection of a loaded or explicitly bound model.
+    fn getConnection(&self) -> DatabaseResult<Connection> {
+        match &self.state().connection {
+            Some(connection) => Ok(connection.clone()),
+            None => DB::connection(self.resolveConnectionName()?.as_deref()),
+        }
     }
 
     /// Returns the primary key used by queue payloads.
