@@ -1,7 +1,7 @@
 use crate::{
     Error, Result,
     two::{
-        AbstractProvider, BitbucketProvider, GithubProvider, GitlabProvider,
+        AbstractProvider, BitbucketProvider, GithubProvider, GitlabProvider, GoogleProvider,
         LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig, ProviderDefinition,
         SlackOpenIdProvider, SlackProvider, TwitterProvider, XProvider,
     },
@@ -70,6 +70,9 @@ impl SocialiteManager {
                     Some(Arc::new(TwitterProvider::default()) as Arc<dyn ProviderDefinition>)
                 }
                 "x" => Some(Arc::new(XProvider::default()) as Arc<dyn ProviderDefinition>),
+                "google" => {
+                    Some(Arc::new(GoogleProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
                 "github" => {
                     Some(Arc::new(GithubProvider::default()) as Arc<dyn ProviderDefinition>)
                 }

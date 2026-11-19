@@ -89,6 +89,13 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(defaults["app"]["disabled_runners"], json!([]));
     assert_eq!(defaults["grpc"]["clients"], json!({}));
 
+    fs::write(root.join(".env"),"GOOGLE_CLIENT_ID=google-client\nGOOGLE_CLIENT_SECRET=google-secret\nGOOGLE_REDIRECT_URI=/google/callback\n").unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let configured = config::load(&root, &environment).unwrap();
+    assert_eq!(
+        configured["services"]["google"],
+        json!({"client_id":"google-client","client_secret":"google-secret","redirect":"/google/callback"})
+    );
     for oauth in [1, 2] {
         fs::write(
             root.join(".env"),

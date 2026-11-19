@@ -8,6 +8,8 @@ pub enum Error {
     InvalidState,
     #[error("The OAuth callback does not contain a code.")]
     MissingCode,
+    #[error("The provider identity token is invalid.")]
+    InvalidIdentityToken,
     #[error("The OAuth provider returned an invalid response.")]
     InvalidResponse,
     #[error("The OAuth provider returned HTTP {0}.")]

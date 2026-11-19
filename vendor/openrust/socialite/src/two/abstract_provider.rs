@@ -87,6 +87,18 @@ pub trait ProviderDefinition: Send + Sync {
         token: &'a str,
         scopes: &'a [String],
     ) -> ProviderFuture<'a, Value>;
+    fn getUserByTokenWithConfig<'a>(
+        &'a self,
+        http: &'a Factory,
+        token: &'a str,
+        scopes: &'a [String],
+        _config: &'a ProviderConfig,
+    ) -> ProviderFuture<'a, Value> {
+        self.getUserByToken(http, token, scopes)
+    }
+    fn normalizeRefreshTokenResponse(&self, response: Value, _refreshToken: &str) -> Result<Value> {
+        Ok(response)
+    }
     fn mapUserToObject(&self, user: Value) -> Result<User>;
 }
 pub struct AbstractProvider<'a> {
@@ -261,7 +273,7 @@ impl<'a> AbstractProvider<'a> {
         let credentials = self.credentials(&response)?;
         let raw = self
             .definition
-            .getUserByToken(&self.http, &credentials.token, &self.scopes)
+            .getUserByTokenWithConfig(&self.http, &credentials.token, &self.scopes, &self.config)
             .await?;
         let mut user = self.definition.mapUserToObject(raw)?;
         user.credentials = Some(credentials);
@@ -271,7 +283,7 @@ impl<'a> AbstractProvider<'a> {
     pub async fn userFromToken(&mut self, token: &str) -> Result<User> {
         let raw = self
             .definition
-            .getUserByToken(&self.http, token, &self.scopes)
+            .getUserByTokenWithConfig(&self.http, token, &self.scopes, &self.config)
             .await?;
         let mut user = self.definition.mapUserToObject(raw)?;
         user.credentials = Some(Token {
@@ -329,6 +341,9 @@ impl<'a> AbstractProvider<'a> {
             fields["client_secret"] = self.config.client_secret.as_str().into();
         }
         let response = self.post(&fields, self.definition.tokenBasicAuth()).await?;
+        let response = self
+            .definition
+            .normalizeRefreshTokenResponse(response, refreshToken)?;
         self.credentials(&response)
     }
     async fn post(&mut self, fields: &Value, basic: bool) -> Result<Value> {

@@ -1,0 +1,25 @@
+{
+  "baseline": "e6638ea476b876543662de7a9a56b74f66aea541",
+  "sha256": {
+    "Cargo.lock": "3fdf3678225746c9acef27244400d4130b833b75cd5fd917d5b5e1c5bff5af9f",
+    "config/services.rs": "5d102d1d8e44e7ab1264ccf57e5d82fcc76023151f08068660c0badd4e724c92",
+    "docs/en/packages/socialite.md": "2e7760f71a02377246af6fc93a07d1b964ccc804cc98676d6172453b0ef1e62b",
+    "docs/tests/check_socialite.mjs": "3657eebc496f894f39a2ad03bc73c9b4a58a8dc14d7124e0d8815fc16c7eba59",
+    "docs/zh_CN/packages/socialite.md": "69dffab9665f4c79a8d528c0e7c055f0ab896c171c423bade3a181ac6075452b",
+    "docs/zh_TW/packages/socialite.md": "9afdf8075ecabab602a1c7bf11eaa167b984950ebef2b58dec09446f1612efbc",
+    "tests/configuration.rs": "f38e396077d3e59134f6e824ac8b07155af3ef071067ca509dfa90d3f05cbed3",
+    "vendor/openrust/socialite/Cargo.toml": "31c3dfa36f48291fab70f6714b7a2e223666fe5a678f9439cfe08327d58c139c",
+    "vendor/openrust/socialite/src/error.rs": "6f2e87d1afa633f7e17adb12a3ada781a5b3fb305e9c2ce25954ed678ba31a0d",
+    "vendor/openrust/socialite/src/manager.rs": "c06861a4a95f618aef28f7b7cf7a64cb18286e06dadec02f513a50f1c242184e",
+    "vendor/openrust/socialite/src/two/abstract_provider.rs": "ed56837152af626ca98f1c8d5e5b300f4376252c38e5988fcaf4bc68270e24d1",
+    "vendor/openrust/socialite/src/two/google_provider.rs": "fca6aa789f8800165f97cf8578832824ff126ee972d3fe55693a40989d2861b3",
+    "vendor/openrust/socialite/src/two/identity_token.rs": "3edf3679d3e59fd74020c47a2e640f9432ab875e00b032ef55c239c54c32b586",
+    "vendor/openrust/socialite/src/two/mod.rs": "5af7803ac522fec507d041e04cf4073c9566f2e7a55a045b8f0ab18b86435f36",
+    "vendor/openrust/socialite/tests/fixtures/google-private.pem": "455c0f8282023d789485fe37e0b7f844cac3f59a9a8d68df8d6a5da8b33aa5dc",
+    "vendor/openrust/socialite/tests/fixtures/google-second-private.pem": "4c503ca45cd36c8f2b8910d704f5713221d2bc1737fad093659f319a04eaad3f",
+    "vendor/openrust/socialite/tests/fixtures/google.json": "ce0eced4916ed7db368f55ebaf6d9b200bfaf27c331a91593852a73aefc2d155",
+    "vendor/openrust/socialite/tests/google.rs": "0833650d127b0efb486f3aff769f69159a53af79a9ca70f350ba1bf4836c0887",
+    "vendor/openrust/socialite/tests/reference/google-source-sha256.json": "de2ce869a67d937abd828b22a849b257b427f0a0885c3de19c9c50db7561b4bc",
+    "vendor/openrust/socialite/tests/reference/google.php": "8eb1e2c7bc99b404f28338f88094da267f48e4d88991cb42c0163c15c713bd32"
+  }
+}

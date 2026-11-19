@@ -13,6 +13,11 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |
     */
     Ok(json!({
+        "google": {
+            "client_id": get(env, "GOOGLE_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "GOOGLE_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "GOOGLE_REDIRECT_URI", Value::Null)?,
+        },
         "twitter": {
             "client_id": get(env, "TWITTER_CLIENT_ID", Value::Null)?,
             "client_secret": get(env, "TWITTER_CLIENT_SECRET", Value::Null)?,

@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 将第三方登录接入应用的 HTTP Client 与 Session。已验收范围现包括固定 Socialite 5.33.0 对应的 GitHub、GitLab、Bitbucket、LinkedIn（旧式／OpenID）、Slack（identity／OpenID）及 X／Twitter OAuth2。API-S01 整体仍在开发；Facebook、Google、OAuth1 以及完整 OIDC／本地身份整合待后续交付。
+Socialite 将第三方登录接入应用的 HTTP Client 与 Session。已验收范围现包括固定 Socialite 5.33.0 对应的 GitHub、GitLab、Bitbucket、LinkedIn（旧式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2 及 Google。API-S01 整体仍在开发；Facebook、OAuth1 以及完整 OIDC／本地身份整合待后续交付。
 
 ## 安装 {#installation}
 
@@ -29,6 +29,8 @@ cargo run --features socialite -- artisan serve
 `services.gitlab.host`／`GITLAB_HOST` 默认 `https://gitlab.com`。`GitlabProvider::setHost` 保留自托管路径前缀并去掉末尾斜杠。固定上游资料路径为 `/api/v3/user`，本批保留此契约。Slack 登录配置与现有 `slack.notifications` 共处同一 services 对象；真实供应商仍需分别注册回调并获得权限。
 
 `x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用对应的 `TWITTER_` 变量，并设置 `TWITTER_OAUTH=2` 选择 OAuth2；默认值 1 保留上游 OAuth1 选择，该路径尚未交付，明确失败。显式 `twitter-oauth-2` 驱动先读取 `services.twitter`，仅在对象缺失或为 null 时回退 `services.twitter-oauth-2`。`x` 同样从 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的配置会失败，不静默改用另一组凭据。
+
+`google` 读取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，默认 scope 为 `openid profile email`。普通 access token 以 Bearer 调用 Google UserInfo，发送 `prettyPrint=false`。刷新响应仅在缺少 refresh token 字段时保留传入值；明确的 null 或轮换值按响应保留。
 
 ## 认证 {#authentication}
 
@@ -95,6 +97,8 @@ X／Twitter OAuth2 在跳转和回调默认启用 PKCE，因此即使 `stateless
 
 旧式 LinkedIn 增加 `first_name`、`last_name`、`avatar_original`，按首选 locale 和上游严格的 100／800 像素选择图片。LinkedIn OpenID 增加 given／family name、`email_verified` 和原始图片；Slack 两种驱动暴露 `organization_id`。`linkedin-openid`、`slack-openid` 按固定包使用 access token 访问固定 UserInfo 接口，不验证 ID Token、不执行 Discovery，也不是完整 OIDC RP；这些属于 API-O01。
 
+Google 按固定驱动将长度大于 100 字节且恰有两个句点的 token 识别为 JWT。它读取固定 Google JWKS 端点，通过采用 AWS-LC 的 `jsonwebtoken` 11.1.0 校验密钥算法和签名，要求 issuer 严格等于 `https://accounts.google.com`，audience 为与 client ID 相同的单一字符串。存在的 `exp`／`nbf` 与 `iat` 回退按固定 PHP NumericDate 行为验证。JWT 验证失败不会退回 Bearer UserInfo。此 Socialite 路径按上游接受缺少 `exp`、数字日期字符串与 null 日期，不执行 Discovery、不要求 nonce，也不是完整 OIDC RP；API-O01 有独立协议范围。Google raw 数据还补入 `id`、`verified_email`、`link`，并映射 `avatar_original`。
+
 ## 测试 {#testing}
 
 通过 `GithubProvider::withEndpoints` 配合应用内 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供应商，替换授权／token／profile／email URL 并保留驱动行为。`ProviderDefinition` 支持编译型协议定制，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公开契约。验收执行真实 HTTP、两个独立 Session 应用、PKCE、state 消费、scope／参数映射、已验证邮箱、刷新和失败路径，固定 PHP 源码 SHA 保护对照夹具。
@@ -105,3 +109,5 @@ Socialite 使用共享客户端显式 `redactPayload()`：观察者与录制保�
 `ProviderEndpoints::new(authorize, token, user).email(email)` 可传给新增驱动的 `withEndpoints` 构造器，显式替换端点。各驱动均用真实受控 HTTP 验收 token 表单、认证头、资料查询参数、可选邮箱、Slack user／bot 凭据、refresh 与失效／撤销凭据拒绝。六个驱动的映射、scope 及 Slack 专属字段与真实固定 PHP 方法对照。受控结果不冒称已登录真实 GitLab、Bitbucket、LinkedIn 或 Slack 账户。
 
 X／Twitter 测试使用真实 HTTP 与加密 Session Cookie，覆盖默认 PKCE、跨应用拒绝、state 重放、RFC3986 参数、Basic 交换／刷新、错误响应及远程撤销。映射、字段和 HTTP 选项以固定 PHP 方法提供对照。真实 X／Twitter 授权仍需供应商应用凭据、登记回调和账户。
+
+`GoogleProvider::withEndpoints(endpoints, jwks)` 用于受控 UserInfo 与 JWKS 服务。真实 HTTP 测试使用原 PHP Socialite／Firebase JWT 方法对照 25 组签名 JWT，包括错误签名、issuer／audience、缺失或错误声明、未来／过期时间、算法混淆、密钥轮换和跨 client 隔离。PEM 测试密钥仅属于这些夹具。真实 Google 账户授权仍需测试应用和回调。

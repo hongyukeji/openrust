@@ -1,0 +1,25 @@
+{
+  "socialite": {
+    "version": "5.33.0",
+    "reference": "8032bb1fa9d74aae54438f216e4d45db90d27ea9"
+  },
+  "php-jwt": {
+    "version": "7.2.2",
+    "reference": "99efeb17d6def8c0295777f2d45b07ff4fdb4e40",
+    "license": "BSD-3-Clause"
+  },
+  "jsonwebtoken": {
+    "version": "11.1.0",
+    "license": "MIT",
+    "rust-version": "1.88.0",
+    "features": [
+      "aws_lc_rs"
+    ],
+    "default-features": false
+  },
+  "new_locked_packages": [
+    "jsonwebtoken 11.1.0",
+    "untrusted 0.7.1",
+    "zeroize_derive 1.5.0"
+  ]
+}

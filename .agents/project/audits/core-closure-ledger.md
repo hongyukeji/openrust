@@ -469,3 +469,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 X／Twitter补充
 
 [X／Twitter OAuth2](api-s01/x.md)已本机验收，全包18＋1函数与固定PHP、根入口及三语浏览器通过。Facebook／Google／OAuth1／完整OIDC与本地归属仍待，不提升SSO状态。
+
+### API-S01 Google补充
+
+[Google OAuth2与JWT](api-s01/google.md)已本机验收，25组PHP JWT及全包23＋1函数、根入口与三语浏览器通过。Socialite可选exp不等于完整OIDC，Facebook／OAuth1／完整RP与本地归属仍待，不提升SSO状态。

@@ -24,3 +24,7 @@ mod twitter_provider;
 mod x_provider;
 pub use twitter_provider::TwitterProvider;
 pub use x_provider::XProvider;
+
+mod google_provider;
+mod identity_token;
+pub use google_provider::GoogleProvider;

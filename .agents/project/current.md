@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-S01 [Google OAuth2与JWT](audits/api-s01/google.md)本机验收完成：UserInfo／refresh保留／JWKS验签与严格issuer及单一audience，25组真实PHP签名JWT对照；全包23＋纯配置1函数、Rust1.94 strict Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。Socialite兼容可选exp与日期规则，完整RP及MySQL归属仍待，继续Facebook／OAuth1；专属产物清理保留全部卷，本地提交不推送。
+
 - 2026-11-20 API-F01 [默认密码策略与确认规则](audits/api-f01/password-rule.md)前置验收闭合：Password默认／长度／Unicode强度／required／sometimes与confirmed，完整固定Illuminate验证器771组逐消息一致，真实TCP／FormRequest、验证器30／Fortify49函数、MySQL8.4.13、Rust1.94严格Clippy／格式、根HTTP／Pail／Artisan全过。9份输入SHA及专属产物清理留证，源码／日志／卷保留；本地提交不推送。继续current_password及安装，未称完整Password fluent API或API-F01整簇完成。
 
 - 2026-11-20 API-S01 [X／Twitter OAuth2](audits/api-s01/x.md)本机验收完成：默认PKCE／RFC3986、Basic交换与刷新、确认邮箱、manager别名及环境选择；全包18＋纯配置1函数、固定PHP重复与源码负样本、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。默认OAuth1仍明确未交付，Facebook／Google／OAuth1／本地归属及完整RP继续；专属产物清理保留全部卷，本地提交不推送。

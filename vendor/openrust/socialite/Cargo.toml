@@ -21,6 +21,8 @@ aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc",
 base64 = "0.22"
 subtle = "2.6"
 
+jsonwebtoken = { version = "=11.1.0", default-features = false, features = ["aws_lc_rs"] }
+
 [dev-dependencies]
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "json"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "net"] }
