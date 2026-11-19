@@ -142,24 +142,23 @@ pub(super) fn load(
 /*
  * 为服务端数据库派生默认库名。显式 DB_DATABASE 不经过转换。
  * 复用 Str 的 ASCII 转写，将分隔符折叠为下划线，保留小写字母和数字。
- * 数字开头时加 app_，空结果使用 app，最多保留 63 字节以兼容 PostgreSQL 默认上限。
+ * 去掉开头的数字及下划线，空结果使用 app，最多保留 63 字节以兼容 PostgreSQL 默认上限。
  */
 fn database_name(app_name: &str) -> String {
     let ascii = Str::ascii(app_name, "en");
-    let mut name = ascii
+    let name = ascii
         .split(|character: char| !character.is_ascii_alphanumeric())
         .filter(|part| !part.is_empty())
         .map(str::to_ascii_lowercase)
         .collect::<Vec<_>>()
         .join("_");
+    let name =
+        name.trim_start_matches(|character: char| character.is_ascii_digit() || character == '_');
+    let name = name[..name.len().min(63)].trim_end_matches('_');
     if name.is_empty() {
         return "app".into();
     }
-    if name.starts_with(|character: char| character.is_ascii_digit()) {
-        name.insert_str(0, "app_");
-    }
-    name.truncate(63);
-    name.trim_end_matches('_').to_owned()
+    name.to_owned()
 }
 
 /*

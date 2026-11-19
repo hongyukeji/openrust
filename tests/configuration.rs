@@ -273,7 +273,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     let long_name = format!("{}tail", "LongApp".repeat(12));
     for (app_name, expected) in [
         ("  My Shop--V2!  ", "my_shop_v2".to_owned()),
-        ("123 Store", "app_123_store".to_owned()),
+        ("123 Store", "store".to_owned()),
+        ("123abc", "abc".to_owned()),
+        ("1234", "app".to_owned()),
+        ("_12_34_Store", "store".to_owned()),
         ("_My___App_", "my_app".to_owned()),
         ("Café Store", "cafe_store".to_owned()),
         ("中文", "app".to_owned()),
