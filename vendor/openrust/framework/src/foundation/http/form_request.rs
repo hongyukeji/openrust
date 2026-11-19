@@ -1,6 +1,6 @@
 use crate::{
     auth::access::AuthorizationError,
-    contracts::{container::Container as _, validation::Validator as _},
+    contracts::container::Container as _,
     http::{HttpError, HttpFuture, Request},
     support::facades::current_container,
     validation::{
@@ -35,15 +35,18 @@ pub trait FormRequest: Send + Sync {
                 rules
             };
             let mut validator = crate::support::facades::Validator::make(data, rules)?;
-            let validated = validator.validate().await.map_err(|mut error| {
-                if let ValidationError::Invalid(exception) = &mut error {
-                    exception.errorBag(self.errorBag());
-                    if let Some(path) = self.redirectTo() {
-                        exception.redirectTo(path);
+            let validated = validator
+                .validateRequest(request)
+                .await
+                .map_err(|mut error| {
+                    if let ValidationError::Invalid(exception) = &mut error {
+                        exception.errorBag(self.errorBag());
+                        if let Some(path) = self.redirectTo() {
+                            exception.redirectTo(path);
+                        }
                     }
-                }
-                error
-            })?;
+                    error
+                })?;
             if request.isPrecognitive() {
                 (crate::foundation::Precognition::afterValidationHook(request))(&validator)?;
             }

@@ -1,5 +1,6 @@
 //! Validation rules, results, and error reporting.
 
+mod current_password;
 mod data;
 mod database_presence_verifier;
 pub(crate) mod facade;

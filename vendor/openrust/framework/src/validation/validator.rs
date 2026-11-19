@@ -17,6 +17,7 @@ pub struct Validator {
     rules: RuleSet,
     translator: Option<Arc<Translator>>,
     presence: Option<DatabasePresenceVerifier>,
+    user_resolver: Option<Arc<super::current_password::UserResolver>>,
     messages: BTreeMap<String, String>,
     attributes: BTreeMap<String, String>,
     errors: MessageBag,
@@ -37,6 +38,7 @@ impl Validator {
             rules,
             translator,
             presence,
+            user_resolver: None,
             messages,
             attributes,
             errors: MessageBag::default(),
@@ -54,7 +56,39 @@ impl Validator {
         })
     }
 
-    async fn run(&mut self) -> ValidationResult<()> {
+    /// Supplies identities explicitly when validation runs outside an HTTP request.
+    /// The resolver receives the rule's guard argument; None means the application's default.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's authentication resolver naming"
+    )]
+    pub fn setUserResolver(
+        &mut self,
+        resolver: impl Fn(
+            Option<&str>,
+        )
+            -> ValidationResult<Option<Arc<dyn crate::contracts::auth::Authenticatable>>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.user_resolver = Some(Arc::new(resolver));
+    }
+
+    /// Validates using this request's real named authentication guards.
+    #[allow(non_snake_case, reason = "Matches Laravel's request validation naming")]
+    pub async fn validateRequest(
+        &mut self,
+        request: &mut crate::http::Request,
+    ) -> ValidationResult<ValidatedInput> {
+        self.run(Some(request)).await?;
+        self.validated()
+    }
+
+    async fn run(
+        &mut self,
+        mut request: Option<&mut crate::http::Request>,
+    ) -> ValidationResult<()> {
         self.result = None;
         self.errors = MessageBag::default();
         let mut errors = MessageBag::default();
@@ -93,8 +127,17 @@ impl Validator {
                         if failed && matches!(rule, Kind::Exists(_) | Kind::Unique(_)) {
                             continue;
                         }
-                        let failures = self
-                            .evaluate(
+                        let failures = if let Kind::CurrentPassword(guard) = rule {
+                            super::current_password::failures(
+                                value,
+                                guard.as_deref(),
+                                nullable,
+                                request.as_deref_mut(),
+                                self.user_resolver.as_deref(),
+                            )
+                            .await?
+                        } else {
+                            self.evaluate(
                                 rule,
                                 value,
                                 (pattern, &attribute),
@@ -102,7 +145,8 @@ impl Validator {
                                 nullable,
                                 numeric,
                             )
-                            .await?;
+                            .await?
+                        };
                         failed |= !failures.is_empty();
                         let stop = !failures.is_empty()
                             && (bail || matches!(rule, Kind::Required | Kind::Present));
@@ -346,14 +390,14 @@ impl Validator {
 impl Contract for Validator {
     fn validate(&mut self) -> ValidationFuture<'_, ValidationResult<ValidatedInput>> {
         Box::pin(async move {
-            self.run().await?;
+            self.run(None).await?;
             self.validated()
         })
     }
 
     fn fails(&mut self) -> ValidationFuture<'_, ValidationResult<bool>> {
         Box::pin(async move {
-            self.run().await?;
+            self.run(None).await?;
             Ok(!self.errors.is_empty())
         })
     }
@@ -448,6 +492,7 @@ fn canonical_base64(value: &str) -> bool {
 
 fn fallback(rule: &str) -> &str {
     match rule {
+        "current_password" => "The password is incorrect.",
         "confirmed" => "The :attribute field confirmation does not match.",
         "password.mixed" => {
             "The :attribute field must contain at least one uppercase and one lowercase letter."

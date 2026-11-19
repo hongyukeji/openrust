@@ -24,6 +24,7 @@ pub(super) enum Kind {
     Base64,
     Email,
     Confirmed(Option<String>),
+    CurrentPassword(Option<String>),
     Password(Password),
     Array,
     Min(usize),
@@ -69,6 +70,10 @@ impl Rule {
     pub fn email() -> Self {
         Self(Kind::Email)
     }
+    #[allow(non_snake_case, reason = "Matches Laravel rule naming")]
+    pub fn currentPassword(guard: Option<&str>) -> Self {
+        Self(Kind::CurrentPassword(guard.map(str::to_owned)))
+    }
     pub fn confirmed() -> Self {
         Self(Kind::Confirmed(None))
     }
@@ -108,10 +113,14 @@ impl Rule {
             "base64" => Self::base64(),
             "email" | "email:rfc" => Self::email(),
             "confirmed" => Self::confirmed(),
+            "current_password" => Self::currentPassword(None),
             "array" => Self::array(),
             "file" => File::default().into(),
             "image" => File::image(false).into(),
             _ => match rule.split_once(':') {
+                Some(("current_password", arguments)) => {
+                    Self::currentPassword(Some(super::rule_parameters::csv(arguments)[0].as_ref()))
+                }
                 Some(("confirmed", arguments)) => Self(Kind::Confirmed(Some(
                     super::rule_parameters::csv(arguments)[0].to_string(),
                 ))),

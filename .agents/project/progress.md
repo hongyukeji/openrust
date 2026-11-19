@@ -3765,3 +3765,5 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-S01 Google OAuth2与JWT
 
 2026-11-20 API-S01 [Google OAuth2与JWT](audits/api-s01/google.md)本机验收完成：UserInfo／refresh保留／JWKS验签与严格issuer及单一audience，25组真实PHP签名JWT对照；全包23＋纯配置1函数、Rust1.94 strict Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。Socialite兼容可选exp与日期规则，完整RP及MySQL归属仍待，继续Facebook／OAuth1；专属产物清理保留全部卷，本地提交不推送。
+
+- 2026-11-20 API-F01 current_password前置：468组固定PHP与真实TCP／命名Guard／Hash一致、显式解析器及并发隔离，验证器32／Fortify49函数、严格Clippy／格式、根HTTP／Pail／Artisan通过；输入SHA和专属产物清理见[审核](audits/api-f01/current-password.md)。继续安装及默认动作；核范围本地提交，不推送。
