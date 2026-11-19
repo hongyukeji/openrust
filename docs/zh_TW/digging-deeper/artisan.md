@@ -74,7 +74,7 @@ Unix 上的可用終端機預設開啟分頁檢視，也可用 `--stream` 直接
 
 ### 查看開發程序
 
-用 `dev:list` 查看目前應用程式登記的開發程序。預設列出 [HTTP 開發伺服器](#development-http-server)和佇列監聽器。應用程式含有 `package.json` 時，也會依鎖定檔選擇 Bun、pnpm、Yarn 或 npm 並列出 Vite。查詢不會啟動程序。Pail 程序的自動註冊另行收尾。
+用 `dev:list` 查看目前應用程式登記的開發程序。預設列出 [HTTP 開發伺服器](#development-http-server)和佇列監聽器。應用程式含有 `package.json` 時，也會依鎖定檔選擇 Bun、pnpm、Yarn 或 npm 並列出 Vite。查詢不會啟動程序。載入可選 Pail Provider 後，會在 Vite 之前加入 `logs`，執行 `pail --timeout=0`。它屬於框架預設程序，排除 vendor 不會移除它，`withoutDefaultCommands()` 會移除它。套件或應用程式可以用同名 `logs` 項目覆寫。
 
 ```sh
 ./artisan dev:list

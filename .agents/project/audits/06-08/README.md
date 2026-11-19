@@ -143,3 +143,8 @@ vendor/openrust/framework/
 ## Pail 实时命令
 
 [专项验收](pail-command.md)接通实时命令、原生跟随、会话清理和 Provider 的所属应用 ConsoleKernel 注册。真实 HTTP／独立 Artisan、双应用隔离、超时／信号、异常与取消、根 PTY／键盘 Ctrl+C、无跟随子进程、23 项根回归、完整严格 Clippy 和三语文档检查通过。自动 dev 默认注册单独收尾，认证自动解析和 Windows 矩阵仍未闭合。
+
+
+## Pail 默认开发进程
+
+[专项验收](pail-dev.md)接通成功注册身份查询与默认 logs 进程，保持默认优先级、覆盖和过滤。启用 Pail 的 50 项、默认构建单项、MySQL 8.4.13 实际 HTTP／Artisan／JSON／PTY、两种构建的通用终端交互、完整严格 Clippy、三语正文和浏览器验收通过。命令与默认开发进程收口，认证自动解析与 Windows 发布矩阵仍单列跟踪。

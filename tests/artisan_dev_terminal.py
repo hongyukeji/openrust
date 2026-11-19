@@ -2,6 +2,7 @@
 """Exercise Artisan's Unix terminal modes with a compiled executable or source launcher."""
 
 import fcntl
+import json
 import os
 from pathlib import Path
 import pty
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import termios
 import time
+import urllib.parse
 import urllib.request
 
 ENTER_SCREEN = b"\x1b[?1049h"
@@ -95,14 +97,14 @@ def available_port():
         return server.getsockname()[1]
 
 
-def inspect_tabs(terminal, root, port):
+def inspect_tabs(terminal, root, port, vite_index):
     terminal.expect(
         lambda: b"Tabs" in terminal.frame() and b"vite [exited]" in terminal.frame(),
         "tabbed mode did not report Vite exit",
     )
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/up", timeout=3) as response:
         assert response.status == 200
-    terminal.send(b"3")
+    terminal.send(str(vite_index).encode())
     terminal.expect(
         lambda: b"needle-2" in terminal.frame() and b"early-1" not in terminal.frame(),
         "tab log limit or selection failed",
@@ -125,13 +127,13 @@ def inspect_tabs(terminal, root, port):
     )
     terminal.send(b"c")
     terminal.expect(lambda: b"needle-3" not in terminal.frame(), "clear did not empty the selected tab")
-    terminal.send(b"sf3")
+    terminal.send(f"sf{vite_index}".encode())
     terminal.expect(
-        lambda: b"Stream" in terminal.frame() and b"3:-vite" in terminal.frame()
+        lambda: b"Stream" in terminal.frame() and f"{vite_index}:-vite".encode() in terminal.frame()
         and b"needle-3" not in terminal.frame(),
         "stream filter did not hide Vite output",
     )
-    terminal.send(b"\r3f3\rt")
+    terminal.send(f"\r{vite_index}f{vite_index}\rt".encode())
     terminal.expect(lambda: b"Tabs" in terminal.frame(), "tab mode did not return")
     terminal.send(b"q")
 
@@ -150,22 +152,34 @@ def run(command, start_mode, rows=16):
         )
         npm.chmod(0o755)
         (root / "package.json").write_text("{}")
-        db = root / "jobs.sqlite"
-        db.touch()
         port = available_port()
         env = dict(
             os.environ, APP_BASE_PATH=str(root), APP_ENV="local", SERVER_PORT=str(port),
-            QUEUE_CONNECTION="database", DB_CONNECTION="sqlite", DB_DATABASE=str(db),
+            QUEUE_CONNECTION="database",
             TERM="xterm-256color", PATH=str(tools) + os.pathsep + os.environ["PATH"],
         )
+        if url := os.environ.get("OPENRUST_TEST_MYSQL_URL"):
+            parsed = urllib.parse.urlsplit(url)
+            assert parsed.scheme == "mysql" and os.environ.get("OPENRUST_REQUIRE_MYSQL") == "1"
+            env.update(DB_CONNECTION="mysql", DB_HOST=parsed.hostname, DB_PORT=str(parsed.port),
+                       DB_USERNAME=urllib.parse.unquote(parsed.username),
+                       DB_PASSWORD=urllib.parse.unquote(parsed.password), DB_DATABASE=parsed.path.lstrip("/"))
+        else:
+            db = root / "jobs.sqlite"
+            db.touch()
+            env.update(DB_CONNECTION="sqlite", DB_DATABASE=str(db))
         env.pop("NO_COLOR", None)
         subprocess.run(command + ["migrate", "--force"], env=env, check=True, capture_output=True, timeout=30)
+        listed = subprocess.run(command + ["dev:list", "--json"], env=env, check=True,
+                                capture_output=True, timeout=30)
+        processes = json.loads(listed.stdout)
+        vite_index = next(index + 1 for index, entry in enumerate(processes) if entry["name"] == "vite")
         with Terminal(command + ["dev"] + start_mode, env, rows) as terminal:
             if rows < 8:
                 terminal.expect(lambda: b"needle-2" in terminal.output, "small TTY did not fall back to inline")
                 terminal.send(b"\x03")
             elif "--buffer-size=2" in start_mode:
-                inspect_tabs(terminal, root, port)
+                inspect_tabs(terminal, root, port, vite_index)
             elif not start_mode or start_mode == ["--tabs"]:
                 terminal.expect(lambda: b"Tabs" in terminal.frame(), "default tabs did not open")
                 terminal.expect(lambda: b"vite [exited]" in terminal.frame(), "default tabs lost process state")

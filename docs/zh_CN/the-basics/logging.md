@@ -267,7 +267,7 @@ Pail 通过共享路径服务解析 `Application::storagePath("pail")`。在首�
 
 Rust JSON 无符号整数保留原始精度；超过 PHP 有符号整数范围的值，其显示可能与 PHP 的浮点近似不同。Rust 直接生成消息框，通过 `Output::writeRaw` 写入已渲染文本。真实 Artisan 输出立即写出，捕获输出保留在缓冲区。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，写入错误沿调用链传播；格式错误在写入消息框前返回。输出详细级别随调用作用域保存和恢复。`PAIL_TESTS` 用于捕获测试，显示的日期、文件和堆栈保留实际记录值，不采用 PHP 测试夹具中的替换值。
 
-[实时 Pail 命令](#tailing-log-messages-using-pail)使用此打印器，自动 dev 进程注册另行收尾。
+[实时 Pail 命令](#tailing-log-messages-using-pail)使用此打印器，加载 Provider 后也会向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)添加默认 `logs` 进程。
 
 ## 使用 Pail 跟踪日志 {#tailing-log-messages-using-pail}
 
@@ -283,4 +283,12 @@ cargo build --locked --features pail
 
 Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 使用框架原生取消路径，Pail Windows 实机验收仍列入发布矩阵。
 
-Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 testing／Vapor 门禁。Rust 没有 PHP 全局 SAPI 标志：仅启动 HTTP 不执行命令注册回调，独立和程序化 Artisan 使用同一回调。取消捕获调用会清理会话并恢复调用方输出状态。本实现不增加心跳：与上游一样，即使 `--timeout=0`，超过一小时没有写入的会话也可能被下一次日志生产清理。清理保留 `.gitignore`。自动 dev 进程注册另行收尾。
+Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 testing／Vapor 门禁。Rust 没有 PHP 全局 SAPI 标志：仅启动 HTTP 不执行命令注册回调，独立和程序化 Artisan 使用同一回调。取消捕获调用会清理会话并恢复调用方输出状态。本实现不增加心跳：与上游一样，即使 `--timeout=0`，超过一小时没有写入的会话也可能被下一次日志生产清理。清理保留 `.gitignore`。加载 Provider 后也会向 [Artisan dev](../digging-deeper/artisan.md#the-dev-command)添加默认 `logs` 进程。
+
+### 开发进程注册
+
+以 `--features pail` 构建时，包发现加载 Provider，`./target/debug/main artisan dev:list --json` 会列出执行 `pail --timeout=0` 的 `logs`。用 `./target/debug/main artisan dev --inline` 启动，监督器复用同一二进制，不调用 Cargo，也不要求 PHP／PCNTL。未编译 Pail，或应用未加载其 Provider 时，没有默认 `logs` 条目。查询列表不会创建捕获会话。
+
+注册按 Provider 身份判断，独立于捕获门禁。在 testing 或 Vapor 环境中，已加载的 Provider 仍提供默认 `logs`，但 `pail` 命令被门禁禁用，除非设置 PAIL_TESTS 例外。此类应用可用 `DevCommands::except(&["logs"])?` 排除它。原生实现可在 Windows 注册该进程，Pail Windows 实机验收仍列入发布矩阵。
+
+每次解析进程列表都会检查 Provider 的加载状态，因此在 Pail 注册之前查询列表，不会导致后续永久漏掉 `logs`。

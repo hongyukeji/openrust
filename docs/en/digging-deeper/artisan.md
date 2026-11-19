@@ -74,7 +74,7 @@ Press Ctrl+C in the Windows console to request shutdown. Each development comman
 
 ### Listing Development Processes
 
-Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. Automatic Pail process registration remains separate work.
+Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. When the optional Pail provider is loaded, `logs` follows with `pail --timeout=0`, before Vite. This is a framework default, so it survives vendor-only exclusion and is removed by `withoutDefaultCommands()`. A package or application entry named `logs` can override it.
 
 ```sh
 ./artisan dev:list

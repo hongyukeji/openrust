@@ -33,6 +33,12 @@ pub trait ServiceProvider: Any + Send + Sync {
     }
 
     #[doc(hidden)]
+    #[allow(non_snake_case, reason = "Rust provider class-name adapter")]
+    fn providerClass(&self) -> &'static str {
+        type_name::<Self>()
+    }
+
+    #[doc(hidden)]
     #[allow(non_snake_case, reason = "Rust provider type identity adapter")]
     fn providerType(&self) -> TypeId {
         self.type_id()

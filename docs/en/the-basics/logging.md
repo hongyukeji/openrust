@@ -267,7 +267,7 @@ HTTP method/path and authentication, queue/job/command, and public context appea
 
 Rust JSON unsigned integers retain their original precision; values beyond PHP’s signed integer range can therefore display differently from PHP’s floating-point approximation. Rust renders the frame directly and uses `Output::writeRaw` for already-rendered text. Real Artisan output streams immediately; captured output stays buffered. `--ansi`, `--no-ansi`, `--quiet` and `--silent` apply, and write failures propagate. Formatting errors return before the frame is written. Output verbosity is scoped to the invocation and restored after nested calls. `PAIL_TESTS` controls capture testing; displayed dates, files and trace frames retain their recorded values rather than PHP's test fixture replacements.
 
-The live [Pail command](#tailing-log-messages-using-pail) uses this printer. Automatic dev-process registration remains separate work.
+The live [Pail command](#tailing-log-messages-using-pail) uses this printer. The loaded provider also adds the default `logs` process to [Artisan dev](../digging-deeper/artisan.md#the-dev-command).
 
 ## Tailing Log Messages Using Pail {#tailing-log-messages-using-pail}
 
@@ -284,3 +284,11 @@ cargo build --locked --features pail
 Rust follows the file natively, including partial UTF-8 lines, truncation and replacement by name, without PHP, PCNTL or a `tail` subprocess. Initial existing content follows the last-ten-lines rule. An incomplete line is discarded at a detected truncation or replacement boundary to avoid combining different file generations. A completed JSON record is filtered and printed immediately. Windows uses the framework's native cancellation path; Windows Pail runtime acceptance remains in the release matrix.
 
 The provider registers commands through the current application's ConsoleKernel, under the same testing/Vapor gates as capture. There is no PHP global SAPI flag: HTTP-only boot does not execute the registrar, while standalone and programmatic Artisan share it. Cancelling a captured command removes its session and restores the caller's output metadata. This does not add a heartbeat: as upstream, a session older than one hour without writes may be removed by the next producer even with `--timeout=0`. The `.gitignore` remains after cleanup.
+
+### Development Process Registration
+
+With `--features pail`, package discovery loads the provider and `./target/debug/main artisan dev:list --json` includes `logs` with `pail --timeout=0`. Start it with `./target/debug/main artisan dev --inline`. The supervisor uses the same executable; it does not invoke Cargo or require PHP/PCNTL. A build without Pail, or an application that does not load its provider, has no default `logs` entry. Listing processes never creates a capture session.
+
+Registration tests the provider identity, independently of capture gates. In `testing` or Vapor environments the loaded provider still yields a default `logs` entry, even though its `pail` command is disabled unless `PAIL_TESTS` overrides the gate. Use `DevCommands::except(&["logs"])?` to exclude it in such an application. The native implementation can register the process on Windows; Windows Pail runtime acceptance remains in the release matrix.
+
+The loaded-provider check is repeated when resolving the registry, so an early query before Pail registers does not permanently hide `logs`.

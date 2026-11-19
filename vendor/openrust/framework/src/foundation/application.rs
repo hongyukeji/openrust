@@ -56,6 +56,7 @@ pub(super) struct ApplicationState {
     testing_environment: AtomicBool,
     pub(super) container: Arc<Container>,
     providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
+    loadedProviders: Mutex<HashSet<&'static str>>,
     registered_runners: Mutex<Vec<Arc<dyn Runner>>>,
     custom_runners: Mutex<Option<RunnerRegistrar>>,
     deferred: OnceLock<Arc<super::provider_repository::ProviderRepository>>,
@@ -86,6 +87,26 @@ const FAILED: u8 = 1;
 const BOOTED: u8 = 2;
 
 impl Application {
+    /// Checks a compiled provider class name after successful registration.
+    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    pub fn providerIsLoaded(&self, provider: &str) -> bool {
+        self.shared
+            .loadedProviders
+            .lock()
+            .expect("loaded provider registry poisoned")
+            .contains(provider)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's registration lifecycle")]
+    pub(super) fn markAsRegistered(&self, provider: &dyn ServiceProvider) {
+        let class = provider.providerClass();
+        self.shared
+            .loadedProviders
+            .lock()
+            .expect("loaded provider registry poisoned")
+            .insert(class);
+    }
+
     #[allow(non_snake_case, reason = "Uses Laravel's basePath argument name")]
     pub fn configure(basePath: PathBuf) -> ApplicationBuilder {
         ApplicationBuilder::new(basePath)
@@ -490,6 +511,7 @@ impl Application {
             testing_environment: AtomicBool::new(false),
             container,
             providers: Mutex::new(providers),
+            loadedProviders: Mutex::default(),
             registered_runners: Mutex::default(),
             custom_runners: Mutex::default(),
             deferred: OnceLock::new(),
@@ -521,6 +543,7 @@ impl Application {
             .container
             .instance(Arc::new(super::dev_commands::Registry::new(
                 shared.basePath.clone(),
+                Arc::downgrade(&shared),
             )))
             .expect("development command registry is initially unbound");
         if !deferred.is_empty() {
@@ -947,6 +970,7 @@ impl Application {
                     source,
                 }
             })?;
+            self.markAsRegistered(provider.as_ref());
             boot_positions.push(deferred.registered_count());
         }
         self.shared.booting_started.store(true, Ordering::Release);

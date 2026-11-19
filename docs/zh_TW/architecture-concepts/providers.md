@@ -96,3 +96,7 @@ boot 前由服務鍵首次觸發的 Provider 同時進入 booting 回呼與已�
 應用程式建立時，從編譯進執行檔的中繼資料建立 Provider 目錄。
 
 需要讓具體型別無需服務工廠即可自動注入時，在 `register` 登記編譯建構中繼資料；它不會把型別標為已綁定，也不會實例化。參閱[自動建構式注入](container.md#自動建構式注入)。
+
+## 檢查已載入的 Provider
+
+使用 `app.providerIsLoaded(std::any::type_name::<MyProvider>())` 查詢 Provider 的編譯型別身分。register 成功後、boot 之前回傳 true；註冊失敗或取消不作標記。後續 boot 失敗仍保留成功註冊狀態，與 Laravel 一致。僅宣告延遲 Provider 不會載入它，自訂診斷用的 name() 不改變型別身分。每個應用程式獨立保存已載入集合。Rust 的 type_name 對應 PHP 的 MyProvider::class 表達式。

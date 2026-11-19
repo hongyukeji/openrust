@@ -96,3 +96,7 @@ Declare event names in `DeferrableProvider::when()`. The application installs th
 The application builds its provider directory from compiled metadata when it is created.
 
 Register compiled constructor metadata in `register` when a concrete type should support automatic injection without a service factory. This does not mark the type bound or instantiate it. See [automatic constructor injection](container.md#automatic-constructor-injection).
+
+## Checking Loaded Providers
+
+Call `app.providerIsLoaded(std::any::type_name::<MyProvider>())` to check a provider's compiled class identity. The result becomes true after `register` succeeds, before `boot`; a failed or cancelled registration is not marked. A later boot failure retains the successful registration, as in Laravel. Merely declaring a deferred provider does not load it. A custom diagnostic `name()` does not change its class identity. Each application owns its own loaded-provider set. Rust's `type_name` replaces PHP's `MyProvider::class` expression.

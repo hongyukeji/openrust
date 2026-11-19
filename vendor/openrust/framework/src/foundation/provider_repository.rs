@@ -340,6 +340,12 @@ impl ProviderRepository {
                             .register(&app)
                             .await
                             .map_err(|source| slot.failure(source, REGISTRATION_FAILED))?;
+                        app.markAsRegistered(
+                            provider
+                                .as_ref()
+                                .expect("deferred provider constructed")
+                                .as_ref(),
+                        );
                         slot.early.store(
                             trigger.is_some() && !app.booting_started(),
                             Ordering::Release,

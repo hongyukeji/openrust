@@ -74,7 +74,7 @@ Unix 上的可用终端默认进入标签视图，也可用 `--stream` 直接进
 
 ### 查看开发进程
 
-用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。Pail 进程的自动注册另行收尾。
+用 `dev:list` 查看当前应用登记的开发进程。默认列出 [HTTP 开发服务](#development-http-server)和队列监听器。应用含有 `package.json` 时，也会按锁文件选择 Bun、pnpm、Yarn 或 npm 并列出 Vite。查询不会启动进程。加载可选 Pail Provider 后，会在 Vite 之前添加 `logs`，执行 `pail --timeout=0`。它属于框架默认进程，排除 vendor 不会移除它，`withoutDefaultCommands()` 会移除它。包或应用可以用同名 `logs` 条目覆盖。
 
 ```sh
 ./artisan dev:list

@@ -142,13 +142,18 @@ fn executable_lists_defaults_without_starting_services() {
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stderr.is_empty());
     let list: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(list.len(), 3);
+    assert_eq!(list.len(), if cfg!(feature = "pail") { 4 } else { 3 });
     assert_eq!(list[0]["command"], "./artisan serve");
     assert_eq!(
         list[1]["command"],
         "./artisan queue:listen --tries=1 --timeout=0"
     );
-    assert_eq!(list[2]["command"], "yarn run dev");
+    if cfg!(feature = "pail") {
+        assert_eq!(list[2]["name"], "logs");
+        assert_eq!(list[2]["command"], "./artisan pail --timeout=0");
+        assert_eq!(list[2]["priority"], 0);
+    }
+    assert_eq!(list.last().unwrap()["command"], "yarn run dev");
     let output = run(&["--json", "--filter=queue"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(

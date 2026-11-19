@@ -397,3 +397,6 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 
 
 06-08 [Pail 实时命令](06-08/pail-command.md)通过真实 HTTP／独立 Artisan、文件跟随与并发隔离、超时／信号及取消清理、根二进制 PTY／键盘 Ctrl+C、23 项根回归、严格 Clippy 与三语文档验收。Pail 命令实现闭合，dev 默认注册、认证自动解析和 Windows 发布矩阵继续跟踪；核心账本保持既有 66/66。
+
+
+06-08 [Pail 默认开发进程](06-08/pail-dev.md)通过已加载 Provider 身份与生命周期、默认项优先级及隔离、MySQL 8.4.13 实际 HTTP／Artisan／TTY、两种构建的通用 PTY、50 项及默认构建单项、严格 Clippy 和三语文档检查。Pail 命令与默认 dev 进程已验收；认证自动解析、Windows 发布矩阵及已记录的 Blade 算术继续跟踪。核心账本保持既有 66/66，不外推为整个框架完成。

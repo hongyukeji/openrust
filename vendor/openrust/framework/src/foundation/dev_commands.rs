@@ -3,10 +3,12 @@
 use std::{
     panic::Location,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, Weak},
 };
 
 use indexmap::IndexMap;
+
+use super::{Application, application::ApplicationState};
 use serde::Serialize;
 
 use crate::{
@@ -98,6 +100,7 @@ pub(super) struct RegisteredProcess {
 
 pub(super) struct Registry {
     base_path: PathBuf,
+    application: Weak<ApplicationState>,
     defaults: OnceLock<IndexMap<String, DevCommand>>,
     entries: Mutex<IndexMap<String, DevCommand>>,
     filters: Mutex<Filters>,
@@ -118,9 +121,10 @@ struct Filters {
 }
 
 impl Registry {
-    pub(super) fn new(base_path: PathBuf) -> Self {
+    pub(super) fn new(base_path: PathBuf, application: Weak<ApplicationState>) -> Self {
         Self {
             base_path,
+            application,
             defaults: OnceLock::new(),
             entries: Mutex::default(),
             filters: Mutex::default(),
@@ -212,6 +216,24 @@ impl Registry {
     fn commands(&self) -> Vec<RegisteredProcess> {
         let defaults = self.defaults();
         let mut entries = defaults.clone();
+        // A package can register after a provider's early registry query. Do not
+        // freeze its loaded status into the filesystem/default-command snapshot.
+        if self.application.upgrade().is_some_and(|shared| {
+            Application { shared }.providerIsLoaded("openrust_pail::PailServiceProvider")
+        }) {
+            entries.shift_insert(
+                2,
+                "logs".to_owned(),
+                DevCommand {
+                    name: "logs".to_owned(),
+                    command: "./artisan pail --timeout=0".to_owned(),
+                    artisan: true,
+                    source: "OpenRust Foundation".to_owned(),
+                    priority: DevCommand::PRIORITY_DEFAULT,
+                    color: Arc::default(),
+                },
+            );
+        }
         entries.extend(
             self.entries
                 .lock()
