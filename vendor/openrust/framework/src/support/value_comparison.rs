@@ -216,3 +216,10 @@ pub fn php_integer_less_than_value(left: i64, right: &Value) -> bool {
         },
     }
 }
+
+/// 固定 PHP 的 (int) JSON 输入转换，供编译型扩展复用。
+#[doc(hidden)]
+#[must_use]
+pub fn php_integer_cast(value: &Value) -> i64 {
+    super::input_scalars::integer(value)
+}

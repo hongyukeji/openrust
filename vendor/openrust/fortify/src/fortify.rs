@@ -28,6 +28,8 @@ pub struct Fortify {
     pipeline: RwLock<Option<Arc<LoginPipelineCallback>>>,
     login_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     confirm_password_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
+    encrypter: RwLock<Option<Arc<dyn openrust::contracts::encryption::Encrypter>>>,
+    recovery_code_generator: RwLock<Option<Arc<crate::recovery_code::RecoveryCodeGenerator>>>,
     registers_routes: AtomicBool,
 }
 #[allow(
@@ -43,6 +45,8 @@ impl Fortify {
             pipeline: RwLock::new(None),
             login_view: RwLock::new(None),
             confirm_password_view: RwLock::new(None),
+            encrypter: RwLock::new(None),
+            recovery_code_generator: RwLock::new(None),
             registers_routes: AtomicBool::new(true),
         }
     }
@@ -100,6 +104,49 @@ impl Fortify {
                 .expect("Fortify views lock")
                 .clone()
         }
+    }
+    pub fn confirmsTwoFactorAuthentication(&self) -> Result<bool, openrust::config::ConfigError> {
+        crate::Features::new(self.config.clone())
+            .optionEnabled(crate::Features::twoFactorAuthentication(), "confirm")
+    }
+    pub fn encryptUsing(
+        &self,
+        encrypter: Option<Arc<dyn openrust::contracts::encryption::Encrypter>>,
+    ) {
+        *self.encrypter.write().expect("Fortify encrypter lock") = encrypter;
+    }
+    pub fn currentEncrypter(
+        &self,
+    ) -> crate::FortifyResult<Arc<dyn openrust::contracts::encryption::Encrypter>> {
+        if let Some(encrypter) = self
+            .encrypter
+            .read()
+            .expect("Fortify encrypter lock")
+            .clone()
+        {
+            return Ok(encrypter);
+        }
+        use openrust::support::facades::Facade as _;
+        Ok(crate::resolver::Resolver::<
+            dyn openrust::contracts::encryption::Encrypter,
+        >::getFacadeRoot()?)
+    }
+    pub fn generateRecoveryCodesUsing(
+        &self,
+        callback: Option<Arc<crate::recovery_code::RecoveryCodeGenerator>>,
+    ) {
+        *self
+            .recovery_code_generator
+            .write()
+            .expect("Fortify recovery codes lock") = callback;
+    }
+    pub(crate) fn recovery_code_generator(
+        &self,
+    ) -> Option<Arc<crate::recovery_code::RecoveryCodeGenerator>> {
+        self.recovery_code_generator
+            .read()
+            .expect("Fortify recovery codes lock")
+            .clone()
     }
     pub fn ignoreRoutes(&self) {
         self.registers_routes.store(false, Ordering::Relaxed);

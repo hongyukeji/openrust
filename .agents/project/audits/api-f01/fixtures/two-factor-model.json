@@ -1,0 +1,349 @@
+[
+    {
+        "step": [
+            "status"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": null,
+            "secret": null,
+            "codes": null,
+            "enabled": false,
+            "confirmed": false,
+            "generated": [],
+            "events": []
+        }
+    },
+    {
+        "step": [
+            "enable"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-0\",\"code-1\",\"code-2\",\"code-3\",\"code-4\",\"code-5\",\"code-6\",\"code-7\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-0",
+                "code-1",
+                "code-2",
+                "code-3",
+                "code-4",
+                "code-5",
+                "code-6",
+                "code-7"
+            ],
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled"
+            ]
+        }
+    },
+    {
+        "step": [
+            "enable"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-0\",\"code-1\",\"code-2\",\"code-3\",\"code-4\",\"code-5\",\"code-6\",\"code-7\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-0",
+                "code-1",
+                "code-2",
+                "code-3",
+                "code-4",
+                "code-5",
+                "code-6",
+                "code-7"
+            ],
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled"
+            ]
+        }
+    },
+    {
+        "step": [
+            "confirm",
+            "000000"
+        ],
+        "status": 422,
+        "response": {
+            "errors": {
+                "code": [
+                    "The provided two factor authentication code was invalid."
+                ]
+            }
+        }
+    },
+    {
+        "step": [
+            "confirm",
+            "0"
+        ],
+        "status": 422,
+        "response": {
+            "errors": {
+                "code": [
+                    "The provided two factor authentication code was invalid."
+                ]
+            }
+        }
+    },
+    {
+        "step": [
+            "confirm",
+            "287082"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-0\",\"code-1\",\"code-2\",\"code-3\",\"code-4\",\"code-5\",\"code-6\",\"code-7\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-0",
+                "code-1",
+                "code-2",
+                "code-3",
+                "code-4",
+                "code-5",
+                "code-6",
+                "code-7"
+            ],
+            "enabled": true,
+            "confirmed": true,
+            "generated": [
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed"
+            ]
+        }
+    },
+    {
+        "step": [
+            "replace",
+            "code-0"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-8\",\"code-1\",\"code-2\",\"code-3\",\"code-4\",\"code-5\",\"code-6\",\"code-7\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-8",
+                "code-1",
+                "code-2",
+                "code-3",
+                "code-4",
+                "code-5",
+                "code-6",
+                "code-7"
+            ],
+            "enabled": true,
+            "confirmed": true,
+            "generated": [
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced"
+            ]
+        }
+    },
+    {
+        "step": [
+            "generate"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-9\",\"code-10\",\"code-11\",\"code-12\",\"code-13\",\"code-14\",\"code-15\",\"code-16\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-9",
+                "code-10",
+                "code-11",
+                "code-12",
+                "code-13",
+                "code-14",
+                "code-15",
+                "code-16"
+            ],
+            "enabled": true,
+            "confirmed": true,
+            "generated": [
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated"
+            ]
+        }
+    },
+    {
+        "step": [
+            "enable",
+            true
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"code-17\",\"code-18\",\"code-19\",\"code-20\",\"code-21\",\"code-22\",\"code-23\",\"code-24\"]",
+            "secret": "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ",
+            "codes": [
+                "code-17",
+                "code-18",
+                "code-19",
+                "code-20",
+                "code-21",
+                "code-22",
+                "code-23",
+                "code-24"
+            ],
+            "enabled": true,
+            "confirmed": true,
+            "generated": [
+                16,
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated",
+                "TwoFactorAuthenticationEnabled"
+            ]
+        }
+    },
+    {
+        "step": [
+            "disable"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": null,
+            "secret": null,
+            "codes": null,
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16,
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated",
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationDisabled"
+            ]
+        }
+    },
+    {
+        "step": [
+            "disable"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": null,
+            "secret": null,
+            "codes": null,
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16,
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated",
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationDisabled"
+            ]
+        }
+    },
+    {
+        "step": [
+            "unicode-generate"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\"]",
+            "secret": null,
+            "codes": [
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x"
+            ],
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16,
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated",
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationDisabled",
+                "RecoveryCodesGenerated"
+            ]
+        }
+    },
+    {
+        "step": [
+            "unicode-replace",
+            "\u00e9/\ud83d\ude00\\x"
+        ],
+        "status": 200,
+        "response": {
+            "codes_json": "[\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\",\"\\u00e9\\/\\ud83d\\ude00\\\\x\"]",
+            "secret": null,
+            "codes": [
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x",
+                "\u00e9/\ud83d\ude00\\x"
+            ],
+            "enabled": false,
+            "confirmed": false,
+            "generated": [
+                16,
+                16
+            ],
+            "events": [
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationConfirmed",
+                "RecoveryCodeReplaced",
+                "RecoveryCodesGenerated",
+                "TwoFactorAuthenticationEnabled",
+                "TwoFactorAuthenticationDisabled",
+                "RecoveryCodesGenerated",
+                "RecoveryCodeReplaced"
+            ]
+        }
+    }
+]

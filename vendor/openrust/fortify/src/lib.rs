@@ -23,3 +23,10 @@ pub use fortify::{
 };
 pub use fortify_service_provider::FortifyServiceProvider;
 pub use login_rate_limiter::LoginRateLimiter;
+
+mod recovery_code;
+pub use recovery_code::{RecoveryCode, RecoveryCodeGenerator};
+
+pub mod events;
+mod two_factor_authenticatable;
+pub use two_factor_authenticatable::TwoFactorAuthenticatable;

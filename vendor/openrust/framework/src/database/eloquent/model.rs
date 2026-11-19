@@ -852,6 +852,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.getAttribute(Self::metadata().primary_key)
     }
 
+    /// The storage format declared by this model's metadata.
+    fn getDateFormat(&self) -> &'static str {
+        Self::metadata().date_format
+    }
+
     fn getKeyName(&self) -> &'static str {
         Self::metadata().primary_key
     }

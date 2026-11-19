@@ -1,0 +1,12 @@
+{
+  "owned_target": "/private/tmp/openrust-fortify-model-20261120/target",
+  "logical_bytes": 5899165732,
+  "available_before_bytes": 57308213248,
+  "available_after_bytes": 62364545024,
+  "df_released_bytes": 5056331776,
+  "available_GB": 62.364545024,
+  "available_GiB": 58.08150863647461,
+  "volumes_before": [],
+  "volumes_after": [],
+  "preserved": "source, logs, evidence, database volumes, shared caches and PHP image"
+}

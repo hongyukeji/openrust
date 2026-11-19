@@ -206,3 +206,9 @@ impl ConfirmPassword {
             .await
     }
 }
+
+mod two_factor;
+pub use two_factor::{
+    ConfirmTwoFactorAuthentication, DisableTwoFactorAuthentication, EnableTwoFactorAuthentication,
+    GenerateNewRecoveryCodes,
+};

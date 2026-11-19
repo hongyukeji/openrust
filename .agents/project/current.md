@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-F01 [双因素账户动作](audits/api-f01/two-factor-model.md)已实现并验收：显式模型 trait、启用／确认／禁用／恢复码生成及替换、应用级加密／生成器覆盖、PHP JSON 转义与原生模型事件；新增 Model.getDateFormat 和 PHP int 转换桥。13 步固定原动作／模型 PHP 对照与实际 TCP／MySQL 8.4.13、应用隔离／加密失败顺序共 3 个新函数通过，整包 29 个函数、12 项原生回归、严格 Clippy／格式和根 HTTP／Pail／Artisan 均通过。42 份输入与 b725bf3ee 独立副本 SHA 一致，对照可重复，源码负样本被拒绝。专属 target 直接清理，df 增加 5.056 GB，剩余 62.365 GB（58.082 GiB）；保留源码证据、共享缓存及全部数据卷，不推送。尚未接通正式双因素 HTTP、动态模型装配、QR SVG 与登录挑战，测试路由不冒充产品接口；API-F01 继续开发，三语产品正文仍占位。
+
 - 2026-11-20 API-F01 [Session 登录与密码确认](audits/api-f01/session-authentication.md)已实现并验收：显式 Fortify Provider、原生 Session Guard／FormRequest／Pipeline、五次失败锁定与命名限流、回调／响应替换、Blade 视图、登出与密码确认；补齐 guest:web、可选 ValidationException JSON 状态与扩展事件借用参数。279 组固定原控制器 PHP 对照、26 个 Fortify 函数（14 个实际 HTTP，含 MySQL 8.4.13 Database／Eloquent Session 与 remember Cookie 恢复／撤销）、12 项原生回归、严格 workspace／all-targets features pail,passport,fortify Clippy／格式及根 HTTP／Pail／Artisan／关停均通过。40 份输入 SHA 与 aab3e52c1 独立副本一致，未叠加 Passport-04／05；三语产品页未改。专属 target 直接清理，df 增加 5.484 GB，剩余 66.612 GB（62.037 GiB）；保留全部数据卷／共享缓存／源码证据。核范围本地提交，不推送。API-F01 尚未完整交付，默认启用的未实现功能启动时明确拒绝；继续双因素账户动作与登录挑战、注册／重置／邮件验证及安装和三语正文，不中途停工。
 
 - 2026-11-20 Passport-05 [设备授权](audits/passport-05/README.md)实现及验收闭合：默认设备路由、真实 DeviceCode、设备／用户码、浏览器批准拒绝、Session／CSRF／nonce、轮询限速及事务单次兑换已提供。94 个不同 Passport 函数及 8 个守卫／Session 回归共 102 个函数通过，含 29 项真实 HTTP／MySQL 8.4.13 和显式 Chromium 表单流程；覆盖唯一冲突重试、批准／兑换竞争、回滚、表故障、隔离、关闭／前缀及命名路由门禁。最低 Rust 1.94 严格 workspace／all-targets features pail,passport Clippy、格式、根 HTTP／原始 Artisan／关停、三语构建及12＋6浏览器通过。18份输入SHA与隔离7e70e978a副本一致，保留Fortify等协作者WIP；此批无新增PHP运行时oracle。专属source／target直接清理，df增量6.045 GB，Available 62.343 GB；源码覆盖包／证据、共享缓存和全部数据库卷保留。核范围本地提交，不推送。V06仍部分验收，继续Passport-06，随后07–09。
