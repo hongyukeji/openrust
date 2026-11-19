@@ -1,0 +1,32 @@
+{
+  "target": "/private/tmp/openrust-fortify-email-20261120/target",
+  "target_kib": 6297204,
+  "disk_stop_kib": 48683792,
+  "available_before_kib": 51364920,
+  "available_after_kib": 57200628,
+  "observed_released_bytes": 5975764992,
+  "remaining_gb": 58.573443072,
+  "remaining_gib": 54.5507698059082,
+  "volumes_before": [],
+  "volumes_after": [],
+  "active_target_processes": [],
+  "retained": [
+    "source",
+    "evidence",
+    "shared cache",
+    "images",
+    "all database volumes"
+  ],
+  "pending": [
+    "reset-passwords",
+    "installation",
+    "trilingual documentation"
+  ],
+  "resumed_smoke": "PASS",
+  "final_binary_cleanup": {
+    "kib": 210944,
+    "available_before_kib": 56873556,
+    "available_after_kib": 57084492,
+    "released_bytes": 215998464
+  }
+}

@@ -32,3 +32,9 @@ mod registered_user_controller;
 pub use registered_user_controller::RegisteredUserController;
 mod user_updates;
 pub use user_updates::{PasswordController, ProfileInformationController};
+
+mod email_verification;
+pub use email_verification::{
+    EmailVerificationNotificationController, EmailVerificationPromptController,
+    VerifyEmailController,
+};

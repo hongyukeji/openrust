@@ -355,3 +355,74 @@ impl contracts::Response for RegisterViewResponse {
         })
     }
 }
+
+impl contracts::VerifyEmailViewResponse for SimpleViewResponse {}
+pub(crate) struct VerifyEmailViewResponse;
+impl contracts::VerifyEmailViewResponse for VerifyEmailViewResponse {}
+impl contracts::Response for VerifyEmailViewResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            fortify
+                .verify_email_view()
+                .ok_or_else(|| {
+                    internal(std::io::Error::other(
+                        "Fortify email verification view has not been configured",
+                    ))
+                })?
+                .toResponse(request)
+                .await
+        })
+    }
+}
+pub struct VerifyEmailResponse;
+impl contracts::VerifyEmailResponse for VerifyEmailResponse {}
+impl contracts::Response for VerifyEmailResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.wantsJson() {
+                return Ok(Response::noContent());
+            }
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            Ok(Redirect::intended(
+                request,
+                &format!(
+                    "{}?verified=1",
+                    fortify.redirects("email-verification", None)
+                ),
+                Default::default(),
+            )?
+            .into())
+        })
+    }
+}
+pub struct EmailVerificationNotificationSentResponse;
+impl contracts::EmailVerificationNotificationSentResponse
+    for EmailVerificationNotificationSentResponse
+{
+}
+impl contracts::Response for EmailVerificationNotificationSentResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.wantsJson() {
+                return Response::json(StatusCode::ACCEPTED, "");
+            }
+            Ok(Redirect::back(request, None, Default::default())?
+                .with(
+                    request,
+                    "status",
+                    serde_json::json!(Fortify::VERIFICATION_LINK_SENT),
+                )?
+                .into())
+        })
+    }
+}

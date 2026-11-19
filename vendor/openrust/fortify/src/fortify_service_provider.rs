@@ -132,6 +132,17 @@ impl ServiceProvider for FortifyServiceProvider {
                 Ok(Arc::new(ProfileInformationController))
             })?;
             container.singleton::<PasswordController, _>(|_| Ok(Arc::new(PasswordController)))?;
+            container.singleton::<EmailVerificationPromptController, _>(|_| {
+                Ok(Arc::new(EmailVerificationPromptController))
+            })?;
+            container.singleton::<EmailVerificationNotificationController, _>(|_| {
+                Ok(Arc::new(EmailVerificationNotificationController))
+            })?;
+            container
+                .singleton::<VerifyEmailController, _>(|_| Ok(Arc::new(VerifyEmailController)))?;
+            response!(VerifyEmailViewResponse);
+            response!(VerifyEmailResponse);
+            response!(EmailVerificationNotificationSentResponse);
             response!(RegisterResponse);
             response!(RegisterViewResponse);
             response!(ProfileInformationUpdatedResponse);
@@ -160,11 +171,7 @@ impl ServiceProvider for FortifyServiceProvider {
                 return Ok(());
             }
             let features = Features::new(fortify.config.clone());
-            for feature in [
-                Features::resetPasswords(),
-                Features::emailVerification(),
-                Features::passkeys(),
-            ] {
+            for feature in [Features::resetPasswords(), Features::passkeys()] {
                 if features.enabled(feature)? {
                     return Err(std::io::Error::other(format!(
                         "Fortify feature {feature} HTTP integration is not implemented"

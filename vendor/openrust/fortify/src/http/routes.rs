@@ -114,6 +114,43 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .name("password.confirm.store");
         let features = crate::Features::new(fortify.config.clone());
         if features
+            .enabled(crate::Features::emailVerification())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            if views {
+                router
+                    .r#match(
+                        &[Method::GET],
+                        &path("verification.notice", "/email/verify"),
+                        ControllerDispatcher::new(EmailVerificationPromptController::show),
+                    )?
+                    .middleware_name(auth.clone())
+                    .name("verification.notice");
+            }
+            let limiter = fortify.string("fortify.limiters.verification", "6,1");
+            router
+                .r#match(
+                    &[Method::GET],
+                    &path("verification.verify", "/email/verify/{id}/{hash}"),
+                    ControllerDispatcher::withFormRequest::<
+                        crate::http::requests::VerifyEmailRequest,
+                    >(VerifyEmailController::verify),
+                )?
+                .middleware_name(auth.clone())
+                .middleware_name("signed")
+                .middleware_name(format!("throttle:{limiter}"))
+                .name("verification.verify");
+            router
+                .r#match(
+                    &[Method::POST],
+                    &path("verification.send", "/email/verification-notification"),
+                    ControllerDispatcher::new(EmailVerificationNotificationController::store),
+                )?
+                .middleware_name(auth.clone())
+                .middleware_name(format!("throttle:{limiter}"))
+                .name("verification.send");
+        }
+        if features
             .enabled(crate::Features::registration())
             .map_err(|_| RoutingError::InvalidAction)?
         {

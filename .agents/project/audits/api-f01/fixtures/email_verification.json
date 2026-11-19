@@ -1,0 +1,284 @@
+{
+    "authorization": [
+        {
+            "id": "001",
+            "hash": "028929b377abda12412513fefa6fd8b593a47fef",
+            "authorized": true
+        },
+        {
+            "id": "1",
+            "hash": "028929b377abda12412513fefa6fd8b593a47fef",
+            "authorized": false
+        },
+        {
+            "id": "001",
+            "hash": "e5df9a567d5222889c766ff557749f87d2d5cbbc",
+            "authorized": false
+        },
+        {
+            "id": "001",
+            "hash": "028929B377ABDA12412513FEFA6FD8B593A47FEF",
+            "authorized": false
+        },
+        {
+            "id": "",
+            "hash": "028929b377abda12412513fefa6fd8b593a47fef",
+            "authorized": false
+        }
+    ],
+    "cases": [
+        {
+            "json": true,
+            "verified": false,
+            "action": "prompt",
+            "save": true,
+            "intended": null,
+            "status": 200,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": false,
+            "action": "send",
+            "save": true,
+            "intended": null,
+            "status": 202,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 1
+        },
+        {
+            "json": true,
+            "verified": false,
+            "action": "verify",
+            "save": true,
+            "intended": null,
+            "status": 204,
+            "location": null,
+            "flash": null,
+            "after_verified": true,
+            "events": [
+                "Verified"
+            ],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": true,
+            "action": "prompt",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/home",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": true,
+            "action": "send",
+            "save": true,
+            "intended": null,
+            "status": 204,
+            "location": null,
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": true,
+            "action": "verify",
+            "save": true,
+            "intended": null,
+            "status": 204,
+            "location": null,
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": false,
+            "action": "prompt",
+            "save": true,
+            "intended": null,
+            "status": 200,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": false,
+            "action": "send",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/email/verify",
+            "flash": {
+                "status": "verification-link-sent"
+            },
+            "after_verified": false,
+            "events": [],
+            "notifications": 1
+        },
+        {
+            "json": false,
+            "verified": false,
+            "action": "verify",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/home?verified=1",
+            "flash": null,
+            "after_verified": true,
+            "events": [
+                "Verified"
+            ],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "prompt",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/home",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "send",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/home",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "verify",
+            "save": true,
+            "intended": null,
+            "status": 302,
+            "location": "/home?verified=1",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": false,
+            "action": "verify",
+            "save": false,
+            "intended": null,
+            "status": 204,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": true,
+            "verified": false,
+            "action": "verify",
+            "save": "throw",
+            "intended": null,
+            "status": 500,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": false,
+            "action": "verify",
+            "save": false,
+            "intended": null,
+            "status": 302,
+            "location": "/home?verified=1",
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": false,
+            "action": "verify",
+            "save": "throw",
+            "intended": null,
+            "status": 500,
+            "location": null,
+            "flash": null,
+            "after_verified": false,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "prompt",
+            "save": true,
+            "intended": "/account/settings",
+            "status": 302,
+            "location": "/account/settings",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "send",
+            "save": true,
+            "intended": "/account/settings",
+            "status": 302,
+            "location": "/account/settings",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        },
+        {
+            "json": false,
+            "verified": true,
+            "action": "verify",
+            "save": true,
+            "intended": "/account/settings",
+            "status": 302,
+            "location": "/account/settings",
+            "flash": null,
+            "after_verified": true,
+            "events": [],
+            "notifications": 0
+        }
+    ]
+}

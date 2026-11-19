@@ -34,3 +34,5 @@ pub use two_factor_authenticatable::TwoFactorAuthenticatable;
 mod two_factor_model;
 
 mod qr;
+
+mod email_verification_model;

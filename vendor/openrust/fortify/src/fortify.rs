@@ -42,6 +42,13 @@ pub struct Fortify {
         RwLock<Option<Arc<dyn crate::contracts::UpdatesUserProfileInformation>>>,
     pub(crate) password_updater: RwLock<Option<Arc<dyn crate::contracts::UpdatesUserPasswords>>>,
     register_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
+    pub(crate) email_verification_models: RwLock<
+        std::collections::HashMap<
+            std::any::TypeId,
+            Arc<dyn crate::email_verification_model::RegisteredModel>,
+        >,
+    >,
+    verify_email_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     registers_routes: AtomicBool,
 }
 #[allow(
@@ -49,6 +56,7 @@ pub struct Fortify {
     reason = "Matches Fortify's application configuration API"
 )]
 impl Fortify {
+    pub const VERIFICATION_LINK_SENT: &str = "verification-link-sent";
     pub const PROFILE_INFORMATION_UPDATED: &str = "profile-information-updated";
     pub const PASSWORD_UPDATED: &str = "password-updated";
     pub const RECOVERY_CODES_GENERATED: &str = "recovery-codes-generated";
@@ -72,6 +80,8 @@ impl Fortify {
             profile_updater: RwLock::new(None),
             password_updater: RwLock::new(None),
             register_view: RwLock::new(None),
+            email_verification_models: RwLock::new(Default::default()),
+            verify_email_view: RwLock::new(None),
             registers_routes: AtomicBool::new(true),
         }
     }
@@ -122,6 +132,30 @@ impl Fortify {
     }
     pub(crate) fn register_view(&self) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.register_view
+            .read()
+            .expect("Fortify views lock")
+            .clone()
+    }
+    /// Registers the model whose primary key is authorized by signed verification links.
+    pub fn registerEmailVerification<T>(&self)
+    where
+        T: openrust::database::eloquent::Model + openrust::contracts::auth::MustVerifyEmail + Clone,
+    {
+        self.email_verification_models
+            .write()
+            .expect("Fortify model registry lock")
+            .insert(
+                std::any::TypeId::of::<T>(),
+                Arc::new(crate::email_verification_model::ModelAdapter::<T>::new()),
+            );
+    }
+    pub fn verifyEmailView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+        *self.verify_email_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
+    }
+    pub(crate) fn verify_email_view(
+        &self,
+    ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+        self.verify_email_view
             .read()
             .expect("Fortify views lock")
             .clone()
