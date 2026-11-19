@@ -33,4 +33,16 @@ pub trait Logger: Send + Sync {
             None => self.log(level, message, context),
         }
     }
+    /// Request-aware adapter; custom synchronous loggers retain their existing contract.
+    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    fn logWithExceptionForRequest<'a>(
+        &'a self,
+        _request: &'a mut crate::http::Request,
+        level: Level,
+        message: &'a str,
+        context: &'a LogContext,
+        exception: &'a serde_json::Value,
+    ) -> crate::http::HttpFuture<'a, LogResult<()>> {
+        Box::pin(async move { self.logWithException(level, message, context, None, exception) })
+    }
 }

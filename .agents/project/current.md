@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 V04 [Pail 请求认证时序](audits/06-08/pail-auth-timing.md)按 Rust 显式 await 适配闭合：Log／LogManager／Logger 新增 logWithRequest，内置 HTTP 异常报告接入；普通同步日志保留身份快照。47 项定向函数及 Pail harness、真实 SessionGuard 登录／登出、guard 切换、认证内日志不递归、取消后重试、双应用隔离、MySQL 8.4.13 Worker、根 HTTP→Pail／Artisan、严格 Clippy、格式、三语构建和 12＋6 浏览器通过。15 份源码与独立快照 SHA 一致；同期 Passport 独立提交保留。本批核范围本地提交，不推送。V05 Windows 原生终端及其余发布门禁继续跟踪，不能将同步 Log::info 描述为自动等待 guard。
+
 - 2026-11-20 Passport-02 [客户端命令、关系与撤销](audits/passport-02/client-management.md)已验收：真实 Token／RefreshToken／AuthCode、编译模型关系、应用内 UUID 实例策略、自定义令牌注册及 refresh→token→client 撤销链、passport:client 六分支和交互。44 个 Rust 测试函数、MySQL 8.4.13、1001 令牌分批、实际 PTY／取消／数据库、根 HTTP／Artisan／关停、最低 Rust 1.94 全目标 features pail,passport 严格 Clippy、三语构建及 12＋6 浏览器检查通过。24 份输入 SHA 与隔离 2079b5333 副本一致，不叠加协作者 Blade／Pail／Log 工作。专属产物清理后 Available 63.947 GB（59.555 GiB），实际 df 增量 5.370 GB；保留源码覆盖包／日志、共享依赖和全部数据卷。核定本地提交，不推送。Scope JSON 字节规则、secret setter 失败顺序、浮点转换与其余 PHP oracle 仍待，Passport-02／V06 保持部分验收，不进入 Passport-03。
 
 - 2026-11-20 V03 [Blade 表达式契约](audits/03-07/expression-contracts.md)闭合：原生数组展开、include 接线、编译缓存 34，未注册 PHP 语句／导入显式拒绝；函数、引用、Traversable、对象重载和编译阶段给出明确 Rust 映射。96 组 PHP 8.4.14／Illuminate 13.40.0 连续两次一致，27 项定向测试、双应用 HTTP／恢复、根 HTTP／Artisan、Rust 1.94 严格全目标 Clippy、格式、三语构建和 12＋6 浏览器检查通过。14 份源码与独立验收快照 SHA 一致；只提交本批，不推送，保留同期 Passport／Eloquent 等在途改动。V04／05 Pail 与其余发布门禁仍待处理。

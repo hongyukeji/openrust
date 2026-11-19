@@ -231,7 +231,19 @@ fn register_log_listener() -> Result<(), LogError> {
 
 `context.__pail.origin` 包含 HTTP 方法與路徑、命令名稱或佇列與任務來源。公開 Context 覆蓋訊息 context，隱藏資料不進入擷取。Rust 以綁定應用的非同步作用域隔離同處理程序並行請求、巢狀命令與並行任務；沒有日誌監聽器時略過來源收集。
 
-HTTP 身分讀取目前 guard 已解析的使用者，後續切換 guard 也會更新。非同步驗證尚未解析時身分為 null。PHP Pail 可以在同步日誌呼叫中解析驗證，這項差異另行追蹤；本節不代表 Pail 命令和驗證行為已經全部對齊。
+### 日誌呼叫時的請求驗證 {#request-log-authentication}
+
+同步 `Log::info` 等既有方法擷取目前 guard 已解析的身分，未解析使用者為 null。在非同步 HTTP 處理器中，需要本次日誌解析驗證時，使用請求日誌入口：
+
+```rust
+Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
+```
+
+`LogManager` 和已解析的 `Logger` 通道也提供同名方法。通道先寫日誌，再按註冊順序通知監聽器。存在活躍 Pail 工作階段時，Pail 等待目前選取的 guard，在本次呼叫返回前擷取 ID 和信箱。已快取使用者直接重用；登入、登出和 guard 切換影響後續日誌。沒有活躍工作階段、層級未被通道接受或被抑制的棄用警告不會觸發驗證。內建 HTTP 例外報告也使用請求日誌入口。
+
+顯式 await 對應 PHP 在同步日誌監聽器中解析 guard 的能力。容器回呼等同步程式碼繼續使用身分快照。`LogManager::listenForRequest` 註冊同步監聽器及其非同步請求版本，普通 `listen` 回呼仍同步執行。執行回呼時不持有監聽器註冊表鎖。guard 解析期間產生的日誌讀取已有快照，不再遞迴解析驗證。
+
+驗證或監聽器錯誤在普通通道完成寫入後沿日誌結果返回。取消 future 因而可能留下已有通道記錄而沒有 Pail 擷取。取消會釋放請求借用與解析作用域，後續呼叫可以重試。請求和應用程式分別儲存驗證狀態；HTTP 中程式化呼叫 Artisan 保留該 HTTP 來源，獨立 Artisan 使用命令來源。
 
 ### 讀取與篩選擷取記錄
 
@@ -249,7 +261,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 }
 ```
 
-以上解析與篩選介面也用於[即時 Pail 命令](#tailing-log-messages-using-pail)。驗證自動解析保留上文所述限制。
+以上解析與篩選介面也用於[即時 Pail 命令](#tailing-log-messages-using-pail)。請求驗證遵循上文的顯式 await 與快照規則。
 
 ### Provider 啟用條件
 

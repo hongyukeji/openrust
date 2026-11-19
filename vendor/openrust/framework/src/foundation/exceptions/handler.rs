@@ -43,7 +43,9 @@ impl Handler {
             return error.bare_response();
         }
         let exception = Exception::Http(error);
-        let _ = self.report(&exception).await;
+        if self.shouldReport(&exception).await && !self.duplicate(&exception, true) {
+            let _ = self.write_report(&exception, Some(request)).await;
+        }
         let config = self.configuration.as_ref();
         let response = if let Some(custom) =
             config.and_then(|config| config.render_using(&exception, request))
@@ -179,7 +181,11 @@ impl Handler {
         )
     }
 
-    fn write_report(&self, exception: &Exception<'_>) -> LogResult<()> {
+    async fn write_report(
+        &self,
+        exception: &Exception<'_>,
+        request: Option<&mut Request>,
+    ) -> LogResult<()> {
         if self
             .configuration
             .as_ref()
@@ -201,6 +207,17 @@ impl Handler {
                 context.insert("status".into(), error.status().as_u16().into());
             }
             let snapshot = self.buildLogException(exception, None, true);
+            if let Some(request) = request {
+                return logger
+                    .logWithExceptionForRequest(
+                        request,
+                        level,
+                        &exception.error().to_string(),
+                        &context,
+                        &snapshot,
+                    )
+                    .await;
+            }
             return logger.logWithException(
                 level,
                 &exception.error().to_string(),
@@ -267,7 +284,7 @@ impl ExceptionHandler for Handler {
             if !self.shouldReport(exception).await || self.duplicate(exception, true) {
                 return Ok(());
             }
-            self.write_report(exception)
+            self.write_report(exception, None).await
         })
     }
 

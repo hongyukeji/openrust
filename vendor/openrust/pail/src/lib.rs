@@ -69,15 +69,31 @@ impl ServiceProvider for PailServiceProvider {
             let container = openrust::container::Container::getInstance();
             let owner = Arc::downgrade(&container);
             let logging_owner = owner.clone();
-            app.make::<LogManager>().await?.listen(move |event| {
-                let container = logging_owner
-                    .upgrade()
-                    .ok_or(LogError::Unavailable(BindingResolutionError::ScopeClosed))?;
-                container
-                    .make::<Handler>()
-                    .map_err(LogError::Unavailable)?
-                    .log(event)
-            })?;
+            let request_owner = owner.clone();
+            app.make::<LogManager>().await?.listenForRequest(
+                move |event| {
+                    let container = logging_owner
+                        .upgrade()
+                        .ok_or(LogError::Unavailable(BindingResolutionError::ScopeClosed))?;
+                    container
+                        .make::<Handler>()
+                        .map_err(LogError::Unavailable)?
+                        .log(event)
+                },
+                Arc::new(move |event, request| {
+                    let owner = request_owner.clone();
+                    Box::pin(async move {
+                        let container = owner
+                            .upgrade()
+                            .ok_or(LogError::Unavailable(BindingResolutionError::ScopeClosed))?;
+                        container
+                            .make::<Handler>()
+                            .map_err(LogError::Unavailable)?
+                            .logWithRequest(event, request)
+                            .await
+                    })
+                }),
+            )?;
             let events = app.make::<Dispatcher>().await?;
             let observer = Arc::new(handler::QueueLifecycle(owner));
             for name in [

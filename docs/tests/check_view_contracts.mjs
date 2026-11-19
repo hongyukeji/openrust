@@ -36,6 +36,11 @@ try {
                     await page.locator('main a[href$="views.html#native-view-values"]').first().click();
                     await page.waitForURL(url + "#native-view-values");
                     await page.locator("#native-view-values").waitFor();
+                    assert.equal((await page.goto(url.replace("views.html", "logging.html"))).status(), 200);
+                    assert.equal(await page.locator("#request-log-authentication").count(), 1);
+                    const logging = await page.locator("main").innerText();
+                    assert.ok(logging.includes("Log::logWithRequest(request"));
+                    assert.ok(logging.includes("listenForRequest"));
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

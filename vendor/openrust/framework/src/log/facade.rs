@@ -58,6 +58,20 @@ impl Log {
             .log(level, message, context)
     }
 
+    /// Writes a log at the current request boundary and awaits asynchronous observers.
+    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    pub async fn logWithRequest(
+        request: &mut crate::http::Request,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        Self::getFacadeRoot()
+            .map_err(LogError::Unavailable)?
+            .logWithRequest(request, level, message, context)
+            .await
+    }
+
     #[allow(
         non_snake_case,
         reason = "Rust adapter for an exception in Laravel log context"

@@ -301,6 +301,30 @@ impl LogManager {
         self.channel(None)?.log(level, message, context)
     }
 
+    /// Writes through the default channel and awaits request-aware observers.
+    pub async fn logWithRequest(
+        &self,
+        request: &mut crate::http::Request,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        self.channel(None)?
+            .logWithRequest(request, level, message, context)
+            .await
+    }
+
+    /// Registers a synchronous snapshot observer and its asynchronous request counterpart.
+    pub fn listenForRequest(
+        &self,
+        synchronous: impl Fn(&super::events::MessageLogged) -> LogResult<()> + Send + Sync + 'static,
+        request: Arc<super::events::RequestListener>,
+    ) -> LogResult<()> {
+        self.channel(None)?;
+        self.listeners.listen_for_request(synchronous, request);
+        Ok(())
+    }
+
     /// Registers an application-wide observer using Laravel's synchronous log boundary.
     pub fn listen(
         &self,
@@ -374,6 +398,22 @@ impl crate::contracts::log::Logger for LogManager {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
     }
+    #[allow(non_snake_case)]
+    fn logWithExceptionForRequest<'a>(
+        &'a self,
+        request: &'a mut crate::http::Request,
+        level: Level,
+        message: &'a str,
+        context: &'a LogContext,
+        exception: &'a Value,
+    ) -> crate::http::HttpFuture<'a, LogResult<()>> {
+        Box::pin(async move {
+            self.channel(None)?
+                .logWithExceptionForRequest(request, level, message, context, exception)
+                .await
+        })
+    }
+
     #[allow(non_snake_case)]
     fn logWithException(
         &self,

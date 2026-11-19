@@ -407,3 +407,127 @@ async fn http_and_artisan_observers_remain_in_their_application() {
     let _ = left_server.await;
     let _ = right_server.await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn request_observers_await_after_writes_and_preserve_filtering_order_and_snapshots() {
+    let root = Root::new();
+    let manager = root.manager();
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let sync_seen = seen.clone();
+    manager
+        .listen(move |_| {
+            sync_seen.lock().unwrap().push("sync");
+            Ok(())
+        })
+        .unwrap();
+    let fallback = seen.clone();
+    let awaited = seen.clone();
+    let owner = Arc::downgrade(&manager);
+    let written = root.0.join("observed.log");
+    manager
+        .listenForRequest(
+            move |_| {
+                fallback.lock().unwrap().push("snapshot");
+                Ok(())
+            },
+            Arc::new(move |event, request| {
+                let seen = awaited.clone();
+                let path = written.clone();
+                let owner = owner.clone();
+                Box::pin(async move {
+                    assert!(fs::read_to_string(path).unwrap().contains(&event.message));
+                    assert_eq!(request.path(), "observed");
+                    tokio::task::yield_now().await;
+                    seen.lock().unwrap().push("awaited");
+                    let newly_seen = seen.clone();
+                    owner.upgrade().unwrap().listen(move |_| {
+                        newly_seen.lock().unwrap().push("new");
+                        Ok(())
+                    })?;
+                    Ok(())
+                })
+            }),
+        )
+        .unwrap();
+    let (parts, ()) = axum::http::Request::builder()
+        .uri("/observed")
+        .body(())
+        .unwrap()
+        .into_parts();
+    let mut request = Request::from_parts(parts, Body::empty());
+    manager
+        .channel(Some("other"))
+        .unwrap()
+        .logWithRequest(&mut request, Level::Info, "filtered", &LogContext::new())
+        .await
+        .unwrap();
+    assert!(seen.lock().unwrap().is_empty());
+    manager
+        .logWithRequest(
+            &mut request,
+            Level::Info,
+            "written first",
+            &LogContext::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(*seen.lock().unwrap(), ["sync", "awaited"]);
+    manager.info("synchronous", &LogContext::new()).unwrap();
+    assert_eq!(
+        *seen.lock().unwrap(),
+        ["sync", "awaited", "sync", "snapshot", "new"]
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn request_observer_errors_and_cancellation_keep_written_logs_and_allow_recovery() {
+    let root = Root::new();
+    let manager = root.manager();
+    let after = Arc::new(AtomicBool::new(false));
+    manager
+        .listenForRequest(
+            |_| Ok(()),
+            Arc::new(|event, _| {
+                Box::pin(async move {
+                    match event.message.as_str() {
+                        "failure" => Err(LogError::FactoryFailed),
+                        "cancel" => std::future::pending().await,
+                        _ => Ok(()),
+                    }
+                })
+            }),
+        )
+        .unwrap();
+    let flag = after.clone();
+    manager
+        .listen(move |_| {
+            flag.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .unwrap();
+    let (parts, ()) = axum::http::Request::new(()).into_parts();
+    let mut request = Request::from_parts(parts, Body::empty());
+    assert!(matches!(
+        manager
+            .logWithRequest(&mut request, Level::Info, "failure", &LogContext::new())
+            .await,
+        Err(LogError::FactoryFailed)
+    ));
+    assert!(!after.load(Ordering::SeqCst));
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(10),
+            manager.logWithRequest(&mut request, Level::Info, "cancel", &LogContext::new())
+        )
+        .await
+        .is_err()
+    );
+    assert!(!after.load(Ordering::SeqCst));
+    let contents = fs::read_to_string(root.0.join("observed.log")).unwrap();
+    assert!(contents.contains("failure") && contents.contains("cancel"));
+    manager
+        .logWithRequest(&mut request, Level::Info, "recovered", &LogContext::new())
+        .await
+        .unwrap();
+    assert!(after.load(Ordering::SeqCst));
+}

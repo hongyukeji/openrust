@@ -115,6 +115,19 @@ impl Logger {
         self.write(level, message, context, &self.extra(), None)
     }
 
+    /// Writes a record, then awaits observers that require the current request.
+    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    pub async fn logWithRequest(
+        &self,
+        request: &mut crate::http::Request,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+    ) -> LogResult<()> {
+        self.write_for_request(request, level, message, context, None)
+            .await
+    }
+
     /// Observes accepted records synchronously after their channel writes complete.
     pub fn listen(
         &self,
@@ -216,12 +229,84 @@ impl Logger {
         self.listeners.fire(level, message, context, exception)
     }
 
+    async fn write_for_request(
+        &self,
+        request: &mut crate::http::Request,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        exception: Option<&Value>,
+    ) -> LogResult<()> {
+        let extra = self.extra();
+        let fallback = || {
+            self.emergency.write_record(&LogRecord::new(
+                "openrust", level, message, context, &extra, false,
+            ))
+        };
+        let Some(handlers) = &self.handlers else {
+            fallback()?;
+            return self
+                .listeners
+                .fire_for_request(request, level, message, context, exception)
+                .await;
+        };
+        if !sink::accepts(handlers, level) {
+            return Ok(());
+        }
+        let mut record = LogRecord::new(
+            &self.name,
+            level,
+            message,
+            context,
+            &extra,
+            self.replace_placeholders,
+        );
+        record.exception = exception.map(Cow::Borrowed);
+        if self
+            .processors
+            .iter()
+            .try_for_each(|process| process(&mut record))
+            .is_err()
+            || sink::write(handlers, &record).is_err()
+        {
+            let message = "Unable to write configured logger. Using emergency logger.";
+            let empty = LogContext::new();
+            self.emergency.write_record(&LogRecord::new(
+                "openrust",
+                Level::Emergency,
+                message,
+                &empty,
+                &empty,
+                false,
+            ))?;
+            self.emergency
+                .listeners
+                .fire_for_request(request, Level::Emergency, message, &empty, None)
+                .await?;
+            fallback()?;
+        }
+        self.listeners
+            .fire_for_request(request, level, message, context, exception)
+            .await
+    }
+
     log_methods!(self);
 }
 
 impl crate::contracts::log::Logger for Logger {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
+    }
+    #[allow(non_snake_case)]
+    fn logWithExceptionForRequest<'a>(
+        &'a self,
+        request: &'a mut crate::http::Request,
+        level: Level,
+        message: &'a str,
+        context: &'a LogContext,
+        exception: &'a Value,
+    ) -> crate::http::HttpFuture<'a, LogResult<()>> {
+        Box::pin(self.write_for_request(request, level, message, context, Some(exception)))
     }
     #[allow(non_snake_case)]
     fn logWithContext(

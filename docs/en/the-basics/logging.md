@@ -231,7 +231,19 @@ The package exposes `File`, `Files`, `Handler` and `PailServiceProvider`. `File:
 
 Records include HTTP method/path, command name or queue/job metadata under `context.__pail.origin`. Public Context values override message context; hidden values are excluded. Rust uses application-bound asynchronous scopes to isolate overlapping requests, nested commands and concurrent jobs in one process. Without log listeners, origin collection is skipped.
 
-HTTP identity reflects the current guard's already-resolved user, including a later guard switch. Before asynchronous authentication resolves it is null. PHP Pail can resolve authentication synchronously while logging; this remaining difference is tracked separately. This capture section does not claim complete Pail command or authentication parity.
+### Request Authentication at Log Time {#request-log-authentication}
+
+Synchronous `Log::info` and other existing methods capture the current guard's already-resolved identity; unresolved users are null. In an asynchronous HTTP handler, use the request-aware entry point when the log should resolve authentication at that call:
+
+```rust
+Log::logWithRequest(request, openrust::log::Level::Info, "Order placed", &LogContext::new()).await?;
+```
+
+The same method is available on `LogManager` and resolved `Logger` channels. The channel writes first; accepted records then notify observers in registration order. With an active Pail session, Pail awaits the selected guard and captures its ID and email before this call returns. Cached users are reused; login, logout and guard selection affect subsequent logs. No active session, a rejected log level or a suppressed deprecation does not trigger authentication. The built-in HTTP exception reporter uses the request-aware path as well.
+
+This explicit await replaces PHP's ability to resolve a guard inside a synchronous log listener. Container callbacks and other synchronous code keep snapshot semantics. `LogManager::listenForRequest` registers a synchronous observer and its awaited request counterpart; ordinary `listen` callbacks still run synchronously. No listener registry lock is held while callbacks run. Logs produced during guard resolution capture the existing snapshot and do not start recursive authentication.
+
+Authentication or observer errors return through the log result after the ordinary channel write. Cancelling the future may therefore leave a written channel record without a Pail capture. Cancellation releases the request borrow and resolution scope; a later call can retry. Requests and applications keep separate authentication state; programmatic Artisan calls within HTTP retain that HTTP origin, while standalone Artisan uses console origin.
 
 ### Reading and Filtering Captures
 
@@ -249,7 +261,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 }
 ```
 
-These parsing and filtering APIs also drive the live [Pail command](#tailing-log-messages-using-pail). Authentication auto-resolution retains the limitation described above.
+These parsing and filtering APIs also drive the live [Pail command](#tailing-log-messages-using-pail). Request authentication follows the explicit await and snapshot rules above.
 
 ### Provider Availability
 

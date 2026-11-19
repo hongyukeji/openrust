@@ -148,3 +148,7 @@ vendor/openrust/framework/
 ## Pail 默认开发进程
 
 [专项验收](pail-dev.md)接通成功注册身份查询与默认 logs 进程，保持默认优先级、覆盖和过滤。启用 Pail 的 50 项、默认构建单项、MySQL 8.4.13 实际 HTTP／Artisan／JSON／PTY、两种构建的通用终端交互、完整严格 Clippy、三语正文和浏览器验收通过。命令与默认开发进程收口，认证自动解析与 Windows 发布矩阵仍单列跟踪。
+
+## V04 请求认证时序（2026-11-20）
+
+[专项验收](pail-auth-timing.md)完成显式 await 的请求日志入口、同步身份快照及内置 HTTP 异常报告接线。47 项定向函数、Pail 命令／Provider／打印 harness、实际 MySQL 8.4.13 Worker、根二进制 HTTP→Pail／Artisan、严格 Clippy、三语构建和 12＋6 浏览器检查通过。认证自动解析按明确 Rust 接口适配，V05 Windows 原生终端继续独立验收。

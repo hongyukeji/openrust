@@ -21,6 +21,8 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
+tokio::task_local! { static RESOLVING_AUTH: (); }
+
 /// Copies accepted logs to this application's active Pail sessions.
 pub struct Handler {
     files: Arc<Files>,
@@ -32,16 +34,40 @@ impl Handler {
         Self { files, owner }
     }
 
+    /// Resolves authentication only at an explicitly awaited request log boundary.
+    #[allow(non_snake_case, reason = "OpenRust asynchronous request log adapter")]
+    pub async fn logWithRequest(
+        &self,
+        event: &MessageLogged,
+        request: &mut openrust::http::Request,
+    ) -> LogResult<()> {
+        let active = self
+            .owner
+            .upgrade()
+            .is_some_and(|owner| Arc::ptr_eq(&owner, &Container::getInstance()));
+        if active
+            && matches!(Origin::current(), Some(Origin::Http(_)))
+            && RESOLVING_AUTH.try_with(|()| ()).is_err()
+            && !self.files.all().map_err(write_error)?.is_empty()
+            && !suppressed(event)
+        {
+            RESOLVING_AUTH
+                .scope((), async {
+                    openrust::support::facades::Auth::user(request)
+                        .await
+                        .map_err(|error| LogError::WriteFailed(Box::new(error)))
+                })
+                .await?;
+        }
+        self.log(event)
+    }
+
     pub fn log(&self, event: &MessageLogged) -> LogResult<()> {
         let files = self.files.all().map_err(write_error)?;
         if files.is_empty() {
             return Ok(());
         }
-        if event.level == Level::Warning
-            && ["deprecated", "Deprecated", "[\\ReturnTypeWillChange]"]
-                .iter()
-                .any(|needle| event.message.contains(needle))
-        {
+        if suppressed(event) {
             return Ok(());
         }
         let owner = self
@@ -82,6 +108,13 @@ impl Handler {
         }
         Ok(())
     }
+}
+
+fn suppressed(event: &MessageLogged) -> bool {
+    event.level == Level::Warning
+        && ["deprecated", "Deprecated", "[\\ReturnTypeWillChange]"]
+            .iter()
+            .any(|needle| event.message.contains(needle))
 }
 
 fn email(user: &dyn Authenticatable) -> Option<String> {

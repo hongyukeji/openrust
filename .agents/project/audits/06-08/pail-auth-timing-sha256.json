@@ -1,0 +1,28 @@
+{
+  "snapshot_baseline": "53e584d44635bdea8212fa7f46ec59eb15f3c639",
+  "head_at_acceptance": "ecc607f2b9464be18a4cbed113cf95f4fb620de6",
+  "rust": "1.94.0",
+  "mysql": "8.4.13",
+  "framework_tests": 36,
+  "auth_timing_tests": 1,
+  "pail_files_options_tests": 10,
+  "php_printer_vectors": 432,
+  "provider_http_artisan_cases": 22,
+  "sources": {
+    "vendor/openrust/framework/src/log/events/mod.rs": "a0449f3d1f9b1f00bdae92a82d07b23fe6ec69e049d41be471116b2591d14a70",
+    "vendor/openrust/framework/src/log/logger.rs": "10e844ab1be26a2ae5e1589a7148d806427ec55fe98c0d584e4266e6dfc41ce2",
+    "vendor/openrust/framework/src/contracts/log/mod.rs": "bd8658629a546af831b71c56636b28dcfe5d79c76f8040465f42f92affeb9026",
+    "vendor/openrust/framework/src/log/log_manager.rs": "d3da25e71f1f0316fac3fe1305f4599ef6a72f1bb80ad0abbcd9e620b69f20fd",
+    "vendor/openrust/framework/src/log/facade.rs": "0393eb5976e3251ce70de3b0f229c73acfb0a9c5931868fcd150c044521a2558",
+    "vendor/openrust/framework/src/foundation/exceptions/handler.rs": "c2c0b3e4adb23dc0dbd7242a3193347a863c48f740ed691e0cb390eef477b34b",
+    "vendor/openrust/pail/src/handler.rs": "96184f68ef51e532090aa5a2d4cf3eb1570212de26833d9d4aa31ed83985a7fd",
+    "vendor/openrust/pail/src/lib.rs": "7b28218fc449b1ac35e96ea9c2fa2f58a198140b8d246cd477ad6c47a71ef401",
+    "vendor/openrust/pail/tests/auth_timing.rs": "20535d9f708f914c00e3df056f6a51c9068dfa19b23b58c947af6752873e87d3",
+    "vendor/openrust/framework/tests/log_listeners.rs": "011c30b4b442db41173e86b8e1880012f108da874ab456f7bbaec350365a3e3a",
+    "docs/en/the-basics/logging.md": "dc6ff821d26a53e7eacdec4f561f84babf3ac1189eac1efe09c4fd38bff74ef4",
+    "docs/zh_CN/the-basics/logging.md": "35e2e9f3119844f788151a8118a80434462b5aaed9f9729b79cbb8bc2a664ac5",
+    "docs/zh_TW/the-basics/logging.md": "a01e859a1d7e0b52cb3f55deec3f579b4133ca707db22677aa37df3dfca81cd6",
+    "docs/tests/check_view_contracts.mjs": "3110c148408bed057e71c41184f0632a619e337f71ddb445c4197870dce4a25a",
+    "tests/pail_auth_http.py": "bfa91551ef6e2ce0b9a6afefd78b72003af7427713829dc286c165680a481973"
+  }
+}
