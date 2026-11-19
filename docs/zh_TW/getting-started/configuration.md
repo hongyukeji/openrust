@@ -123,10 +123,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | 環境變數 | 用途 | 預設值 |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `FILESYSTEM_WEB_ROOT` | 網站磁碟根目錄，優先於 `APP_PUBLIC_PATH` | `app.public_path` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
 | `FILESYSTEM_LOCAL_ROOT` | 私有本機磁碟的 `filesystems.disks.local.root` | `storage/app/private` |
 | `FILESYSTEM_PUBLIC_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
 | `FILESYSTEM_PUBLIC_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `app.url` 加 `/storage` |
+
+`FILESYSTEM_WEB_ROOT` 優先指定網站磁碟根目錄；未設定時使用 `APP_PUBLIC_PATH`（預設 `public`）。相對路徑基於應用根目錄，絕對路徑直接使用。空字串或全空白值會導致設定載入失敗。
 
 未設定 `APP_PUBLIC_PATH` 時，`config/app.rs` 明確將 `app.public_path` 設為 `public`，`web` 磁碟沿用該值作為預設根目錄。網站檔案設定在 `filesystems.disks.web`，公開上傳檔案設定在 `filesystems.disks.public`。預設路由依序呼叫 `Route::staticDisk("web")` 和 `Route::staticDisk("public")`。引導前呼叫 `usePublicPath()` 會覆寫網站目錄並同步 `web.root`。相對目錄以應用程式根目錄為基準。掛載前綴取磁碟 URL 的完整路徑，例如 `/storage/tmp/` 掛載到 `/storage/tmp`。絕對 URL 必須與 `app.url` 同源。修改掛載設定後重新啟動應用程式。 明確設定為空字串或全空白的 `APP_PUBLIC_PATH` 會導致設定載入失敗。
 

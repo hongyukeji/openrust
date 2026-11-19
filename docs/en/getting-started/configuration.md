@@ -123,10 +123,13 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 | Environment setting | Purpose | Default |
 |---|---|---|
 | `APP_PUBLIC_PATH` | `filesystems.disks.web.root` / `Application::publicPath()` | `public` |
+| `FILESYSTEM_WEB_ROOT` | Website disk root; overrides `APP_PUBLIC_PATH` | `app.public_path` |
 | `FILESYSTEM_WEB_URL` | `filesystems.disks.web.url` | `app.url` |
 | `FILESYSTEM_LOCAL_ROOT` | `filesystems.disks.local.root` for the private local disk | `storage/app/private` |
 | `FILESYSTEM_PUBLIC_ROOT` | `filesystems.disks.public.root` for the public local disk | `storage/app/public` |
 | `FILESYSTEM_PUBLIC_URL` | `filesystems.disks.public.url` | `app.url` with `/storage` appended |
+
+`FILESYSTEM_WEB_ROOT` overrides the website disk root; when unset, it uses `APP_PUBLIC_PATH` (default `public`). Relative paths are resolved from the application root; absolute paths are used directly. Empty or whitespace-only values fail configuration loading.
 
 When `APP_PUBLIC_PATH` is omitted, `config/app.rs` explicitly sets `app.public_path` to `public`. The `web` disk reuses that value as its default root. Configure website files under `filesystems.disks.web` and uploaded public files under `filesystems.disks.public`. The default routes mount them in that order using `Route::staticDisk("web")` and `Route::staticDisk("public")`. Calling `usePublicPath()` before boot overrides the website directory and updates `web.root`. Relative paths use the application root. A disk mount uses the full path of its URL, so `/storage/tmp/` mounts at `/storage/tmp`. Absolute URLs must have the same origin as `app.url`. Restart the application after changing mount settings. An explicitly empty or whitespace-only `APP_PUBLIC_PATH` fails configuration loading.
 

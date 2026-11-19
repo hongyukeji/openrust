@@ -108,6 +108,43 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         );
     }
 
+    let absolute_web_root = root.join("absolute-web");
+    for (web_root, expected_root) in [
+        (None, root.join("site")),
+        (Some("website".to_owned()), root.join("website")),
+        (
+            Some(absolute_web_root.display().to_string()),
+            absolute_web_root,
+        ),
+    ] {
+        let mut contents = "APP_PUBLIC_PATH=site\n".to_owned();
+        if let Some(value) = web_root {
+            contents.push_str(&format!("FILESYSTEM_WEB_ROOT='{value}'\n"));
+        }
+        fs::write(root.join(".env"), contents).unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let configured = config::load(&root, &environment).unwrap();
+        assert_eq!(
+            configured["filesystems"]["disks"]["web"]["root"],
+            json!(expected_root)
+        );
+        assert_eq!(
+            configured["filesystems"]["links"][expected_root.join("storage").to_str().unwrap()],
+            json!(root.join("storage/app/public"))
+        )
+    }
+    for invalid_root in ["", "   "] {
+        fs::write(
+            root.join(".env"),
+            format!("FILESYSTEM_WEB_ROOT='{invalid_root}'\n"),
+        )
+        .unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        assert!(
+            matches!(config::load(&root, &environment), Err(ConfigError::InvalidType { key, .. }) if key == "FILESYSTEM_WEB_ROOT")
+        );
+    }
+
     let storage_root = root.join("custom-storage");
     let private_root = root.join("absolute-private");
     for (override_root, expected_root) in [

@@ -2144,6 +2144,39 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     check(&kernel, "/probe.txt", None).await;
     check(&kernel, "/storage/probe.txt", None).await;
 
+    for web_root in [
+        "override".to_owned(),
+        root.0
+            .canonicalize()
+            .unwrap()
+            .join("override")
+            .display()
+            .to_string(),
+    ] {
+        fs::write(
+            &environment,
+            format!("{settings}FILESYSTEM_WEB_ROOT='{web_root}'\n"),
+        )
+        .unwrap();
+        let mut kernel = Kernel::new(application(web::register));
+        kernel.bootstrap().await.unwrap();
+        check(
+            &kernel,
+            "/assets/probe.txt",
+            Some("explicit application path"),
+        )
+        .await;
+        assert_eq!(
+            kernel.get_application().publicPath(),
+            root.0.canonicalize().unwrap().join("override")
+        );
+        let configuration = kernel.get_application().config().unwrap();
+        assert_eq!(
+            configuration.get("filesystems.disks.web.root"),
+            Some(json!(root.0.canonicalize().unwrap().join("override")))
+        );
+    }
+
     let cdn = format!("{settings}FILESYSTEM_PUBLIC_URL=https://cdn.example/media\n");
     fs::write(&environment, &cdn).unwrap();
     let mut kernel = Kernel::new(application(web::register));
@@ -2154,7 +2187,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
 
     fs::write(
         &environment,
-        format!("{settings}FILESYSTEM_PUBLIC_URL=/local-media\n"),
+        format!("{settings}FILESYSTEM_WEB_ROOT=assets\nFILESYSTEM_PUBLIC_URL=/local-media\n"),
     )
     .unwrap();
     let mut app = application(web::register);

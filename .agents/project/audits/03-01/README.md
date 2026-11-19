@@ -96,3 +96,11 @@ PHP 容器及本批 3.7 GiB Cargo 产物和站点缓存已清理，卷可用 60.
 - 只读核对旧版 `openrust-v0.x/vendor/openrust/framework/src/filesystem.rs` 的本地驱动根目录处理；本批沿用当前配置层和公共磁盘环境变量机制，不修改驱动或 HTTP／Artisan 契约。
 - Rust 1.94.0 执行 `cargo test --locked --offline --test configuration --test storage_paths`，5 项通过，覆盖默认值、相对与绝对覆盖，以及存储根目录覆盖优先级。应用 main 和上述测试的定向严格 Clippy、全仓格式及差异空白检查通过。未执行全工作区 Clippy、数据库或独立 HTTP／Artisan 验收。
 - 三语站点构建及 `/`、`/docs/` 的 12 项浏览器检查通过。清理本批浏览器依赖临时目录（文件合计约 18.2 MiB），当前卷可用约 44.37 GiB；保留共享构建目录及其他协作者改动。
+
+### 网站磁盘根目录环境变量（2026-11-19）
+
+- 按用户要求增加 `FILESYSTEM_WEB_ROOT`，优先于 `APP_PUBLIC_PATH`，未配置时默认仍为 `app.public_path`（缺省 `public`）。相对路径基于应用根目录，绝对路径直接使用；空字符串及全空白值在加载配置时拒绝。网站磁盘、应用 `publicPath()` 与默认 `storage:link` 链接位置采用同一目录，启动前 `usePublicPath()` 仍优先覆盖网站磁盘。
+- 沿用前批核对的旧版本地驱动路径处理和当前 `web` 磁盘装配机制，仅在应用配置层增加用户指定的环境变量；同步示例及三语配置、文件存储正文。
+- Rust 1.94.0：配置和存储路径 5 项、`startup public_mount` 3 项、实际 Artisan 存储命令 1 项，共 9 项通过。覆盖默认回退、相对／绝对覆盖、空值拒绝、链接配置、HTTP 文件内容、`publicPath()` 和显式路径覆盖优先级。首次 HTTP 测试暴露 macOS `/var` 与 `/private/var` 路径别名的预期差异，绝对路径夹具改为明确的规范路径后复验通过。
+- 应用 main 与上述测试的定向严格 Clippy、全仓格式和差异空白检查通过；未运行全工作区 Clippy 或数据库测试。三语站点构建及两种部署路径的 12 项浏览器检查通过。
+- 已清理本批浏览器依赖临时目录（文件合计约 18.2 MiB），当前卷可用约 44.36 GiB；保留共享产物及其他协作者改动。

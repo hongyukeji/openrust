@@ -26,7 +26,8 @@ fn artisan_storage_commands_create_repair_and_remove_only_configured_links() {
             .arg("artisan")
             .args(arguments)
             .env("APP_BASE_PATH", &sandbox.0)
-            .env("APP_PUBLIC_PATH", "website")
+            .env("APP_PUBLIC_PATH", "unused-public")
+            .env("FILESYSTEM_WEB_ROOT", "website")
             .env("FILESYSTEM_PUBLIC_ROOT", "files")
             .output()
             .unwrap();
