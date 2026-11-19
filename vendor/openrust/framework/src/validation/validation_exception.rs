@@ -9,6 +9,7 @@ pub struct ValidationException {
     message: String,
     error_bag: Option<String>,
     redirect_target: Option<String>,
+    status: crate::http::StatusCode,
 }
 
 impl ValidationException {
@@ -46,6 +47,7 @@ impl ValidationException {
             message,
             error_bag: None,
             redirect_target: None,
+            status: crate::http::StatusCode::UNPROCESSABLE_ENTITY,
         }
     }
 
@@ -67,6 +69,17 @@ impl ValidationException {
 
     pub(crate) fn redirect_target(&self) -> Option<&str> {
         self.redirect_target.as_deref()
+    }
+
+    /// Selects the status used by the JSON validation response.
+    pub fn status(&mut self, status: crate::http::StatusCode) -> &mut Self {
+        self.status = status;
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches the validation response API")]
+    pub fn statusCode(&self) -> crate::http::StatusCode {
+        self.status
     }
 
     pub fn errors(&self) -> &MessageBag {

@@ -1,0 +1,115 @@
+use crate::{
+    Fortify,
+    http::{controllers::*, requests::LoginRequest},
+    resolver::Resolver,
+};
+use openrust::{
+    http::Method,
+    routing::{ControllerDispatcher, RouteGroup, RoutingError},
+    support::facades::{Facade as _, Route},
+};
+
+pub(crate) fn register() -> Result<(), RoutingError> {
+    let fortify = Resolver::<Fortify>::getFacadeRoot()
+        .map_err(|source| RoutingError::ContainerFailed { source })?;
+    let mut group = RouteGroup::new().prefix(fortify.string("fortify.prefix", ""));
+    if let Some(domain) = fortify
+        .config
+        .get("fortify.domain")
+        .and_then(|v| v.as_str().map(str::to_owned))
+    {
+        group = group.domain(domain);
+    }
+    let middleware = fortify
+        .config
+        .get("fortify.middleware")
+        .unwrap_or_else(|| serde_json::json!(["web"]));
+    let middleware = middleware.as_array().ok_or(RoutingError::InvalidAction)?;
+    for value in middleware {
+        group = group.middleware_name(value.as_str().ok_or(RoutingError::InvalidAction)?);
+    }
+    let guard = fortify.guard().unwrap_or_default();
+    let guest = if guard.is_empty() {
+        "guest".into()
+    } else {
+        format!("guest:{guard}")
+    };
+    let auth = if guard.is_empty() {
+        fortify.string("fortify.auth_middleware", "auth")
+    } else {
+        format!(
+            "{}:{guard}",
+            fortify.string("fortify.auth_middleware", "auth")
+        )
+    };
+    let views = fortify.truthy("fortify.views");
+    let path = |name: &str, default: &str| {
+        fortify
+            .config
+            .get(&format!("fortify.paths.{name}"))
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| default.to_owned())
+    };
+    Route::group(group, |router| {
+        if views {
+            router
+                .r#match(
+                    &[Method::GET],
+                    &path("login", "/login"),
+                    ControllerDispatcher::new(AuthenticatedSessionController::create),
+                )?
+                .middleware_name(guest.clone())
+                .name("login");
+        }
+        let route = router.r#match(
+            &[Method::POST],
+            &path("login", "/login"),
+            ControllerDispatcher::withFormRequest::<LoginRequest>(
+                AuthenticatedSessionController::store,
+            ),
+        )?;
+        route.middleware_name(guest).name("login.store");
+        if fortify.truthy("fortify.limiters.login") {
+            route.middleware_name(format!(
+                "throttle:{}",
+                fortify.string("fortify.limiters.login", "")
+            ));
+        }
+        router
+            .r#match(
+                &[Method::POST],
+                &path("logout", "/logout"),
+                ControllerDispatcher::new(AuthenticatedSessionController::destroy),
+            )?
+            .middleware_name(auth.clone())
+            .name("logout");
+        if views {
+            router
+                .r#match(
+                    &[Method::GET],
+                    &path("password.confirm", "/user/confirm-password"),
+                    ControllerDispatcher::new(ConfirmablePasswordController::show),
+                )?
+                .middleware_name(auth.clone())
+                .name("password.confirm");
+        }
+        router
+            .r#match(
+                &[Method::GET],
+                &path("password.confirmation", "/user/confirmed-password-status"),
+                ControllerDispatcher::new(ConfirmedPasswordStatusController::show),
+            )?
+            .middleware_name(auth.clone())
+            .name("password.confirmation");
+        router
+            .r#match(
+                &[Method::POST],
+                &path("password.confirm", "/user/confirm-password"),
+                ControllerDispatcher::new(ConfirmablePasswordController::store),
+            )?
+            .middleware_name(auth)
+            .name("password.confirm.store");
+        Ok(())
+    })?;
+    Ok(())
+}

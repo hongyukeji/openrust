@@ -114,7 +114,9 @@ impl<'tx> EventContext<'tx> {
         }
     }
 
-    pub(crate) fn with_arguments(
+    /// Borrows synchronous event arguments for compiled framework extensions.
+    #[doc(hidden)]
+    pub fn with_arguments(
         event: &'tx dyn crate::contracts::events::Event,
         values: &'tx [&'tx (dyn Any + Send + Sync)],
     ) -> Self {
@@ -124,7 +126,9 @@ impl<'tx> EventContext<'tx> {
         }
     }
 
-    pub(crate) fn arguments_for(
+    /// Returns arguments only for the exact event object that owns this dispatch.
+    #[doc(hidden)]
+    pub fn arguments_for(
         &self,
         event: &dyn crate::contracts::events::Event,
     ) -> Option<&'tx [&'tx (dyn Any + Send + Sync)]> {

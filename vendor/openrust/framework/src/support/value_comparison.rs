@@ -197,3 +197,22 @@ fn json_float_string(value: f64, preserve_zero_fraction: bool) -> String {
     }
     output
 }
+
+/// 固定 PHP 的 int < JSON value，用于扩展中未经验证的请求比较。
+/// JSON 对象按关联数组处理；不承载 PHP 对象或资源。
+#[doc(hidden)]
+#[must_use]
+pub fn php_integer_less_than_value(left: i64, right: &Value) -> bool {
+    match right {
+        Value::Null => false,
+        Value::Bool(right) => left == 0 && *right,
+        Value::Array(_) | Value::Object(_) => true,
+        _ => match InputNumber::from_value(right) {
+            Some(InputNumber::Integer(right)) => left < right,
+            Some(right) => InputNumber::Integer(left).as_float() < right.as_float(),
+            None => right
+                .as_str()
+                .is_some_and(|right| left.to_string().as_str() < right),
+        },
+    }
+}

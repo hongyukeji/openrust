@@ -133,6 +133,10 @@ impl MiddlewareRegistry {
             "auth" => Arc::new(crate::auth::middleware::Authenticate::new(
                 parameters.split(','),
             )),
+            "guest" => Arc::new(
+                crate::auth::middleware::RedirectIfAuthenticated::new(parameters.split(','), "/")
+                    .ok()?,
+            ),
             "auth.basic" => Arc::new(crate::auth::middleware::AuthenticateWithBasicAuth::parse(
                 parameters,
             )?),

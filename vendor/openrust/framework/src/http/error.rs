@@ -83,7 +83,7 @@ impl HttpError {
             #[cfg(feature = "sanctum")]
             Self::MissingAbility(_) | Self::MissingScope(_) => StatusCode::FORBIDDEN,
             Self::AuthorizationDeniedWithStatus { status, .. } => *status,
-            Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Validation(exception) => exception.statusCode(),
             Self::OriginMismatch => StatusCode::FORBIDDEN,
             Self::TokenMismatch => StatusCode::from_u16(419).expect("valid HTTP status"),
             Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
