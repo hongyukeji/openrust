@@ -138,3 +138,8 @@ vendor/openrust/framework/
 ## Pail CLI 打印器
 
 [专项验收](pail-printer.md)接通 Printer／CliPrinter、Output 详细级别与原始流式写入。432 组固定 PHP 对照、真实 HTTP→独立 Artisan、PTY 颜色／详细级别／静默、关闭管道退出 1、23 项根回归、严格 Clippy、三语正文和浏览器检查通过。Rust 保留实际来源和 u64 精度，相关适配已说明。实时命令、会话生命周期、认证自动解析与发布矩阵继续跟踪。
+
+
+## Pail 实时命令
+
+[专项验收](pail-command.md)接通实时命令、原生跟随、会话清理和 Provider 的所属应用 ConsoleKernel 注册。真实 HTTP／独立 Artisan、双应用隔离、超时／信号、异常与取消、根 PTY／键盘 Ctrl+C、无跟随子进程、23 项根回归、完整严格 Clippy 和三语文档检查通过。自动 dev 默认注册单独收尾，认证自动解析和 Windows 矩阵仍未闭合。

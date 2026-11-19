@@ -3607,3 +3607,10 @@ RGB 通道显式解析为 `u8`，Windows ARM64 原生 2 项回归通过。 [验�
 06-08 [Pail CLI 打印器](audits/06-08/pail-printer.md)完成 Printer／CliPrinter 与 Output 详细级别、原始写入接线。432 组固定 PHP 比较（1,296 项摘要）、夹具字节复现、错误输入与 Rust 命名／精度、双应用实际 HTTP→独立 Artisan、7 组真实 PTY 和关闭管道退出 1、23 项根回归、全目标严格 Clippy、三语正文及 12 项浏览器检查通过。13 个候选文件与验收副本 SHA 一致。直接终端渲染、记录真实元数据、保留 u64 精度等适配已同步文档。回收约 5.48 GB 远程产物、临时 Composer 镜像和站点产物，数据卷不变。磁盘可用 55.15 GB（51.36 GiB），周额度剩余 14%，第二窗口无读数；沿用用户忽略本轮额度停线的授权，磁盘规则生效。核心账本维持 66/66。下一批接实时 pail 命令、会话生命周期、timeout／信号及 dev 注册；认证自动解析、命令模式、Windows 和 Blade 算术缺口继续跟踪。
 
 本批提交号以本节及专项验收所属 Git 提交为准。仅提交核定源码、测试、三语文档与记录，不将参考 vendor、编译产物或既有 WIP 纳入 Git；不推送。
+
+
+## 2026-11-19 08:00 06-08 Pail 实时命令
+
+06-08 [Pail 实时命令](audits/06-08/pail-command.md)接通 PailCommand、ProcessFactory、Provider 命令注册、原生文件跟随与作用域清理。实际 HTTP→独立 Artisan、双应用／三会话、筛选、超时、信号、截断与轮换、分段 UTF-8、错误输入、关闭管道和程序化取消通过。Pail 包回归、432 组固定 PHP 打印语料、22 组 Provider 矩阵、23 项根回归、全目标严格 Clippy、格式及 12 项三语浏览器检查通过。根二进制 4 组 PTY／键盘 Ctrl+C、无额外子进程、HTTP /up、inspire、原始 ./artisan inspire、SIGINT 和端口释放通过；10 份源码 SHA 一致。已回收约 6.05 GB 本批远程源码／编译／依赖缓存及站点产物，Docker 数据卷清单一致，保留共享 Rust 镜像和文档依赖。提交前磁盘可用 55.16 GB（51.37 GiB），周额度剩余 14%，第二窗口无读数；沿用用户忽略本轮额度限制的授权，磁盘规则生效。未使用额度重置、启用 credits 或推送。核心账本维持 66/66。下一批按固定 Framework DevCommands::registerDefaults 接通可选 Pail 的 logs 默认进程及过滤／覆盖；认证自动解析、Windows 发布矩阵与 Blade 算术缺口继续跟踪。
+
+本批提交号以本节及专项验收所属 Git 提交为准。只提交核定源码、测试、三语正文与记录；保留既有 WIP，不推送。

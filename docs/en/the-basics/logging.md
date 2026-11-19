@@ -223,7 +223,7 @@ fn register_log_listener() -> Result<(), LogError> {
 
 ## Pail Session Capture
 
-Build with `cargo build --features pail` to discover the optional `openrust-pail` provider. It copies accepted messages from any log driver into active `storage/pail/*.pail` sessions. No session file means no capture file is written. The `pail` command and its filters are still pending.
+Build with `cargo build --features pail` to discover the optional `openrust-pail` provider. It copies accepted messages from any log driver into active `storage/pail/*.pail` sessions. No session file means no capture file is written. The live command and filters are described [below](#tailing-log-messages-using-pail).
 
 The package exposes `File`, `Files`, `Handler` and `PailServiceProvider`. `File::create()` starts a session without truncating an existing file; `destroy()` removes it. Captures use locked JSON lines across processes, preserve severity and structured exceptions, and expire a session after more than one hour without writes. A removed session is not recreated by logging. File errors propagate through the original logging result.
 
@@ -247,7 +247,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 }
 ```
 
-These are the accepted parsing and filtering APIs. The live `pail` command, terminal printer and dev registration remain pending. Authentication auto-resolution retains the limitation described above.
+These parsing and filtering APIs also drive the live [Pail command](#tailing-log-messages-using-pail). Authentication auto-resolution retains the limitation described above.
 
 ### Provider Availability
 
@@ -267,4 +267,20 @@ HTTP method/path and authentication, queue/job/command, and public context appea
 
 Rust JSON unsigned integers retain their original precision; values beyond PHP’s signed integer range can therefore display differently from PHP’s floating-point approximation. Rust renders the frame directly and uses `Output::writeRaw` for already-rendered text. Real Artisan output streams immediately; captured output stays buffered. `--ansi`, `--no-ansi`, `--quiet` and `--silent` apply, and write failures propagate. Formatting errors return before the frame is written. Output verbosity is scoped to the invocation and restored after nested calls. `PAIL_TESTS` controls capture testing; displayed dates, files and trace frames retain their recorded values rather than PHP's test fixture replacements.
 
-This completes the printer API. The realtime `artisan pail` command, session lifecycle and dev registration remain separate work.
+The live [Pail command](#tailing-log-messages-using-pail) uses this printer. Automatic dev-process registration remains separate work.
+
+## Tailing Log Messages Using Pail {#tailing-log-messages-using-pail}
+
+Build the optional package into your application, then run the real Artisan command:
+
+```sh
+cargo build --locked --features pail
+./target/debug/main artisan pail --timeout=1
+./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+```
+
+`pail` follows application log events regardless of the channel's storage backend. Each invocation creates its own file under the current application storage path's `pail/` directory. Concurrent invocations receive their own copies. `--filter`, `--message`, `--level`, `--auth` and `--user` use the filters described above; `--auth` takes precedence over its `--user` alias. The execution timeout defaults to 3600 seconds; zero disables it. Timeout prints “Maximum execution time exceeded.” and exits successfully. Ctrl+C or SIGTERM stops following and removes the owned session. Invalid records and output errors fail the command and still clean up. `--quiet` and `--silent` suppress output.
+
+Rust follows the file natively, including partial UTF-8 lines, truncation and replacement by name, without PHP, PCNTL or a `tail` subprocess. Initial existing content follows the last-ten-lines rule. An incomplete line is discarded at a detected truncation or replacement boundary to avoid combining different file generations. A completed JSON record is filtered and printed immediately. Windows uses the framework's native cancellation path; Windows Pail runtime acceptance remains in the release matrix.
+
+The provider registers commands through the current application's ConsoleKernel, under the same testing/Vapor gates as capture. There is no PHP global SAPI flag: HTTP-only boot does not execute the registrar, while standalone and programmatic Artisan share it. Cancelling a captured command removes its session and restores the caller's output metadata. This does not add a heartbeat: as upstream, a session older than one hour without writes may be removed by the next producer even with `--timeout=0`. The `.gitignore` remains after cleanup.

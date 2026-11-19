@@ -394,3 +394,6 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 
 
 06-08 [Pail CLI 打印器](06-08/pail-printer.md)通过 432 组固定 PHP 对照、真实 HTTP／独立 Artisan、PTY、管道失败、23 项根回归、严格 Clippy 与三语文档检查。打印器 API 已验收，实时命令、认证自动解析及发布矩阵继续跟踪；核心账本维持 66/66，不将该扩展范围计作 Pail 整体闭合。
+
+
+06-08 [Pail 实时命令](06-08/pail-command.md)通过真实 HTTP／独立 Artisan、文件跟随与并发隔离、超时／信号及取消清理、根二进制 PTY／键盘 Ctrl+C、23 项根回归、严格 Clippy 与三语文档验收。Pail 命令实现闭合，dev 默认注册、认证自动解析和 Windows 发布矩阵继续跟踪；核心账本保持既有 66/66。

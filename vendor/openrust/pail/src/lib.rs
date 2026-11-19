@@ -1,5 +1,6 @@
 //! Pail session capture for OpenRust application logs.
 
+pub mod console;
 pub mod contracts;
 pub mod printers;
 
@@ -7,12 +8,14 @@ mod file;
 mod files;
 mod handler;
 mod options;
+mod process_factory;
 pub mod value_objects;
 
 pub use file::File;
 pub use files::Files;
 pub use handler::Handler;
 pub use options::Options;
+pub use process_factory::{ProcessFactory, ProcessOutcome};
 
 use openrust::{
     config::Environment,
@@ -85,6 +88,7 @@ impl ServiceProvider for PailServiceProvider {
             ] {
                 events.listen(name, observer.clone(), Delivery::Sync)?;
             }
+            self.commands(app, console::commands::register);
             Ok(())
         })
     }

@@ -68,13 +68,13 @@ Use `1`–`9` to select a tab, or focus the sidebar with Tab and use the arrow k
 
 `--buffer-size` and `--stream-buffer-size` control retained lines per tab and in the stream. The defaults are 2,000 and 10,000 lines. The application can configure these through `DevCommands::bufferSize()` and `streamBufferSize()`, and select its default mode with `tabs()`, `stream()`, or `inline()`.
 
-Press `q` or Ctrl+C to exit. Unix termination signals also request shutdown and allow up to six seconds for child processes to exit. Artisan restores the terminal and prints the retained stream to the corresponding output streams. Pail log tailing is tracked separately.
+Press `q` or Ctrl+C to exit. Unix termination signals also request shutdown and allow up to six seconds for child processes to exit. Artisan restores the terminal and prints the retained stream to the corresponding output streams. The optional [Pail command](../the-basics/logging.md#tailing-log-messages-using-pail) can also run independently.
 
 Press Ctrl+C in the Windows console to request shutdown. Each development command runs in its own Windows job. Artisan sends Ctrl+Break to its console process group and releases any remaining descendants when the grace period expires. With `--no-restart`, a failed command also shuts down the other development commands and returns the failure code.
 
 ### Listing Development Processes
 
-Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. Pail log tailing requires a separate implementation.
+Use `dev:list` to inspect the application's development process registry. It lists the [HTTP development server](#development-http-server) and queue listener by default. When the application has a `package.json`, it also lists Vite using Bun, pnpm, Yarn, or npm according to the application's lockfile. The list never starts a process. Automatic Pail process registration remains separate work.
 
 ```sh
 ./artisan dev:list

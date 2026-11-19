@@ -223,7 +223,7 @@ fn register_log_listener() -> Result<(), LogError> {
 
 ## Pail 会话捕获
 
-使用 `cargo build --features pail` 启用可选的 `openrust-pail` 包，现有包发现会装配 Provider。它将任意日志驱动接受的消息复制到当前应用的 `storage/pail/*.pail` 活跃会话。没有会话文件时不写捕获文件。`pail` 命令及筛选接口尚待实现。
+使用 `cargo build --features pail` 启用可选的 `openrust-pail` 包，现有包发现会装配 Provider。它将任意日志驱动接受的消息复制到当前应用的 `storage/pail/*.pail` 活跃会话。没有会话文件时不写捕获文件。实际命令和筛选接口见[下文](#tailing-log-messages-using-pail)。
 
 包公开 `File`、`Files`、`Handler` 和 `PailServiceProvider`。`File::create()` 创建会话，保留已有文件内容；`destroy()` 删除会话。跨进程文件锁保护 JSON 行写入，保留级别和结构化异常。超过一小时未写入的会话会被清除。日志不会重建已删除的会话，文件错误沿原日志结果传播。
 
@@ -247,7 +247,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 }
 ```
 
-以上解析与筛选接口已验收。实时 `pail` 命令、终端打印和 dev 注册仍待接入，认证自动解析保留上文所述限制。
+以上解析与筛选接口也用于[实时 Pail 命令](#tailing-log-messages-using-pail)。认证自动解析保留上文所述限制。
 
 ### Provider 启用条件
 
@@ -267,4 +267,20 @@ Pail 通过共享路径服务解析 `Application::storagePath("pail")`。在首�
 
 Rust JSON 无符号整数保留原始精度；超过 PHP 有符号整数范围的值，其显示可能与 PHP 的浮点近似不同。Rust 直接生成消息框，通过 `Output::writeRaw` 写入已渲染文本。真实 Artisan 输出立即写出，捕获输出保留在缓冲区。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，写入错误沿调用链传播；格式错误在写入消息框前返回。输出详细级别随调用作用域保存和恢复。`PAIL_TESTS` 用于捕获测试，显示的日期、文件和堆栈保留实际记录值，不采用 PHP 测试夹具中的替换值。
 
-本节闭合打印器 API；实时 `artisan pail` 命令、会话生命周期和 dev 注册仍分别推进。
+[实时 Pail 命令](#tailing-log-messages-using-pail)使用此打印器，自动 dev 进程注册另行收尾。
+
+## 使用 Pail 跟踪日志 {#tailing-log-messages-using-pail}
+
+把可选包编入应用后运行实际 Artisan 命令：
+
+```sh
+cargo build --locked --features pail
+./target/debug/main artisan pail --timeout=1
+./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+```
+
+`pail` 跟随应用日志事件，不依赖日志渠道的存储后端。每次调用在当前应用存储路径的 `pail/` 目录创建独立会话，并发调用分别接收日志。`--filter`、`--message`、`--level`、`--auth` 和 `--user` 使用上文的筛选规则，`--auth` 优先于别名 `--user`。执行超时默认 3600 秒，零表示关闭超时；超时打印“Maximum execution time exceeded.”后成功退出。Ctrl+C 或 SIGTERM 停止跟随并删除本次会话。无效记录或输出错误令命令失败，同样清理会话；`--quiet` 和 `--silent` 抑制输出。
+
+Rust 原生跟随文件，支持分段 UTF-8 行、截断和按名称重新打开轮换文件，无需 PHP、PCNTL 或 `tail` 子进程。初次读取已有内容遵循末十行规则。在检测到截断或替换时丢弃未完成行，避免拼接不同文件代际；完整 JSON 记录立即筛选并打印。Windows 使用框架原生取消路径，Pail Windows 实机验收仍列入发布矩阵。
+
+Provider 通过所属应用的 ConsoleKernel 注册命令，沿用捕获的 testing／Vapor 门禁。Rust 没有 PHP 全局 SAPI 标志：仅启动 HTTP 不执行命令注册回调，独立和程序化 Artisan 使用同一回调。取消捕获调用会清理会话并恢复调用方输出状态。本实现不增加心跳：与上游一样，即使 `--timeout=0`，超过一小时没有写入的会话也可能被下一次日志生产清理。清理保留 `.gitignore`。自动 dev 进程注册另行收尾。

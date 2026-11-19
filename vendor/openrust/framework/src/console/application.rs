@@ -584,6 +584,12 @@ impl Application {
                     .copied()
                     .unwrap_or(false)
             });
+        let scope = ScopedOutput {
+            output,
+            verbosity,
+            suppressed,
+        };
+        let output = &mut *scope.output;
         let origin = crate::log::context::Origin::enabled(application.container()).then(|| {
             match crate::log::context::Origin::current() {
                 Some(origin @ crate::log::context::Origin::Http(_)) => origin,
@@ -592,7 +598,7 @@ impl Application {
                 },
             }
         });
-        let result = crate::log::context::Origin::scope(
+        crate::log::context::Origin::scope(
             application.container_handle(),
             origin,
             Box::pin(async {
@@ -650,10 +656,20 @@ impl Application {
                 result.and_then(|status| released.map(|_| status))
             }),
         )
-        .await;
-        output.verbosity = verbosity;
-        output.suppressed = suppressed;
-        result
+        .await
+    }
+}
+
+// Restores command-local metadata even when a long-running command is cancelled.
+struct ScopedOutput<'a> {
+    output: &'a mut Output,
+    verbosity: u8,
+    suppressed: bool,
+}
+impl Drop for ScopedOutput<'_> {
+    fn drop(&mut self) {
+        self.output.verbosity = self.verbosity;
+        self.output.suppressed = self.suppressed;
     }
 }
 

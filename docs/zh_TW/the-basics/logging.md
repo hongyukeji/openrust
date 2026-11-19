@@ -223,7 +223,7 @@ fn register_log_listener() -> Result<(), LogError> {
 
 ## Pail 工作階段擷取
 
-使用 `cargo build --features pail` 啟用選用的 `openrust-pail` 套件，現有套件探索會裝配 Provider。它將任意日誌驅動接受的訊息複製到目前應用的 `storage/pail/*.pail` 活躍工作階段。沒有工作階段檔案時不寫擷取檔案。`pail` 命令及篩選介面仍待實作。
+使用 `cargo build --features pail` 啟用選用的 `openrust-pail` 套件，現有套件探索會裝配 Provider。它將任意日誌驅動接受的訊息複製到目前應用的 `storage/pail/*.pail` 活躍工作階段。沒有工作階段檔案時不寫擷取檔案。實際命令和篩選介面見[下文](#tailing-log-messages-using-pail)。
 
 套件公開 `File`、`Files`、`Handler` 和 `PailServiceProvider`。`File::create()` 建立工作階段，保留既有檔案內容；`destroy()` 刪除工作階段。跨處理程序檔案鎖保護 JSON 行寫入，保留等級和結構化例外。超過一小時未寫入的工作階段會被清除。日誌不會重建已刪除的工作階段，檔案錯誤沿原日誌結果傳遞。
 
@@ -247,7 +247,7 @@ fn select(line: &str) -> Result<bool, serde_json::Error> {
 }
 ```
 
-以上解析與篩選介面已驗收。即時 `pail` 命令、終端列印與 dev 註冊仍待接入，驗證自動解析保留上文所述限制。
+以上解析與篩選介面也用於[即時 Pail 命令](#tailing-log-messages-using-pail)。驗證自動解析保留上文所述限制。
 
 ### Provider 啟用條件
 
@@ -267,4 +267,20 @@ Pail 透過共用路徑服務解析 `Application::storagePath("pail")`。在首�
 
 Rust JSON 無符號整數保留原始精度；超過 PHP 有號整數範圍的值，其顯示可能與 PHP 的浮點近似不同。Rust 直接產生終端訊息框，透過 `Output::writeRaw` 寫入已轉譯文字。真實 Artisan 輸出立即寫出，擷取輸出保留在緩衝區。`--ansi`、`--no-ansi`、`--quiet` 和 `--silent` 生效，寫入錯誤沿呼叫鏈傳遞；格式錯誤在寫入該訊息框前傳回。輸出詳細程度隨呼叫作用域儲存和還原。`PAIL_TESTS` 用於擷取測試，顯示的日期、檔案和堆疊保留實際紀錄值，不採用 PHP 測試夾具中的替換值。
 
-本節閉合列印器 API；即時 `artisan pail` 命令、工作階段生命週期和 dev 註冊仍分別推進。
+[即時 Pail 命令](#tailing-log-messages-using-pail)使用此列印器，自動 dev 程序註冊另行收尾。
+
+## 使用 Pail 追蹤日誌 {#tailing-log-messages-using-pail}
+
+將可選套件編入應用程式後執行實際 Artisan 命令：
+
+```sh
+cargo build --locked --features pail
+./target/debug/main artisan pail --timeout=1
+./target/debug/main artisan pail --timeout=0 --level=error --message=payment -vv
+```
+
+`pail` 跟隨應用程式日誌事件，不依賴日誌通道的儲存後端。每次呼叫在目前應用程式儲存路徑的 `pail/` 目錄建立獨立工作階段，並行呼叫分別接收日誌。`--filter`、`--message`、`--level`、`--auth` 和 `--user` 使用上文的篩選規則，`--auth` 優先於別名 `--user`。執行逾時預設 3600 秒，零表示停用逾時；逾時印出「Maximum execution time exceeded.」後成功退出。Ctrl+C 或 SIGTERM 停止跟隨並刪除本次工作階段。無效記錄或輸出錯誤令命令失敗，同樣清理工作階段；`--quiet` 和 `--silent` 抑制輸出。
+
+Rust 原生跟隨檔案，支援分段 UTF-8 行、截斷及依名稱重新開啟輪換檔案，無需 PHP、PCNTL 或 `tail` 子程序。初次讀取已有內容遵循末十行規則。偵測到截斷或替換時會捨棄未完成行，避免串接不同檔案世代；完整 JSON 記錄立即篩選並印出。Windows 使用框架原生取消路徑，Pail Windows 實機驗收仍列入發佈矩陣。
+
+Provider 透過所屬應用程式的 ConsoleKernel 註冊命令，沿用擷取的 testing／Vapor 門禁。Rust 沒有 PHP 全域 SAPI 旗標：僅啟動 HTTP 不執行命令註冊回呼，獨立與程式化 Artisan 使用同一回呼。取消擷取呼叫會清理工作階段並恢復呼叫端輸出狀態。本實作不增加心跳：與上游一樣，即使 `--timeout=0`，超過一小時沒有寫入的工作階段也可能被下一次日誌生產清理。清理保留 `.gitignore`。自動 dev 程序註冊另行收尾。

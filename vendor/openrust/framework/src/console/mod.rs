@@ -45,7 +45,8 @@ impl Input {
         &self.matches
     }
 
-    pub(crate) fn shutdown(&self) -> Option<&tokio_util::sync::CancellationToken> {
+    /// Cooperative shutdown requested by the application runner.
+    pub fn shutdown(&self) -> Option<&tokio_util::sync::CancellationToken> {
         self.shutdown.as_ref()
     }
 }
@@ -113,7 +114,8 @@ impl Output {
         self.decorated
     }
 
-    pub(crate) fn streams_to_terminal(&self) -> bool {
+    /// Whether raw output is streamed to the process rather than captured.
+    pub fn streams_to_terminal(&self) -> bool {
         self.terminal
     }
 

@@ -16,14 +16,14 @@ PHP 序列化异常转换为现有 Rust 结构化异常快照。Pail 的跨进�
 
 ## 状态
 
-[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。[认证入口复核](pail-auth-boundary.md)确认现有同步日志无法安全驱动独占借用请求的异步 Guard，该项保留未闭合。独立推进 Pail 命令依赖：[消息对象与筛选](pail-options.md)、统一路径和 [CLI 打印器](pail-printer.md)已验收，下一批接会话命令、超时／信号清理及 dev 注册。
+[日志同步监听](../01-04/log-listeners.md)已实现并通过实际 HTTP、独立 Artisan、22 项回归和全目标严格 Clippy。[Pail 会话捕获](pail-capture.md)已通过双应用 HTTP、独立 Artisan、并发命令／同步任务、MySQL Worker、隔离任务 deferred、文件生命周期和严格 Clippy 验收。同步日志只读取已解析认证身份，与 PHP 自动解析的差异仍待闭合。[认证入口复核](pail-auth-boundary.md)确认现有同步日志无法安全驱动独占借用请求的异步 Guard，该项保留未闭合。独立推进 Pail 命令依赖：[消息对象与筛选](pail-options.md)、统一路径和 [CLI 打印器](pail-printer.md)已验收，[实时命令](pail-command.md)、超时／信号和取消清理已验收，下一批接 dev 默认注册。
 
 ## Provider 环境门禁
 
-[环境门禁与延迟解析](pail-provider.md)已接通：Application 与其契约的 runningUnitTests、应用环境快照、PAIL_TESTS 例外、testing／Vapor 跳过条件，以及首次日志／队列事件解析 Handler。真实 HTTP／Artisan 矩阵、缓存、并发隔离、MySQL Worker、根自动发现、严格 Clippy 和三语正文通过。命令注册部分尚未实现；该批仍需核对统一进程下的 HTTP、独立 Artisan 与程序化调用边界，不能直接复制 PHP 的全局 SAPI 状态。
+[环境门禁与延迟解析](pail-provider.md)已接通：Application 与其契约的 runningUnitTests、应用环境快照、PAIL_TESTS 例外、testing／Vapor 跳过条件，以及首次日志／队列事件解析 Handler。真实 HTTP／Artisan 矩阵、缓存、并发隔离、MySQL Worker、根自动发现、严格 Clippy 和三语正文通过。[命令注册](pail-command.md)现已通过所属应用的 ConsoleKernel 回调接通，HTTP、独立 Artisan 与程序化调用边界已验收；不复制 PHP 的全局 SAPI 状态。
 
 ## 剩余契约
 
 - [认证自动解析](pail-auth-boundary.md)仍缺同步日志与异步请求之间的合法等待契约，不能以提前认证或响应后回填替代。
-- [统一存储路径与 Pail 目录](../07-01/storage-path.md)已通过真实 HTTP、Artisan 与 MySQL Worker 验收。Application storagePath／useStoragePath、storage_path helper 和所属容器的 Files 工厂已接通。[配置与文件消费者](../07-01/storage-consumers.md)已迁移并通过实际二进制验收，保留配置加载／缓存与服务解析时机；[CLI 打印器](pail-printer.md)也已验收，下一批推进实时命令。
-- [CliPrinter](pail-printer.md)已闭合；实时 pail 命令、超时／信号清理、dev 注册与 Windows 发布矩阵仍待依次完成。
+- [统一存储路径与 Pail 目录](../07-01/storage-path.md)已通过真实 HTTP、Artisan 与 MySQL Worker 验收。Application storagePath／useStoragePath、storage_path helper 和所属容器的 Files 工厂已接通。[配置与文件消费者](../07-01/storage-consumers.md)已迁移并通过实际二进制验收，保留配置加载／缓存与服务解析时机；[CLI 打印器](pail-printer.md)及[实时命令](pail-command.md)也已验收，下一批推进 dev 默认注册。
+- [CliPrinter](pail-printer.md)及[实时命令与清理](pail-command.md)已闭合；dev 默认注册、认证自动解析与 Windows 发布矩阵仍待完成。
