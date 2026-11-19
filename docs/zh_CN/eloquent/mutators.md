@@ -366,6 +366,25 @@ pub async fn change_password(record: &mut impl Model, password: &str) -> Databas
 
 已有哈希通过当前驱动的配置校验后原样保留。`null` 直接通过，无需调用哈希服务。同步赋值接受已校验的哈希和 `null`。将该字段声明为 `hidden` 可从模型 JSON 中省略它。
 
+`forceFill(attributes)?` 只跳过批量赋值保护，仍执行修改器和转换器。包含明文哈希字段时使用 `forceFillAsync(attributes).await?`。两者沿用所属应用的哈希配置；默认赋值路径失败时保留原属性并恢复保护状态，跳过范围只属于当前调用／任务。只传入确实需要绕过批量赋值保护的属性。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model},
+};
+
+pub async fn force_change_password(
+    record: &mut impl Model,
+    password: &str,
+) -> DatabaseResult<bool> {
+    record
+        .forceFillAsync(Attributes::from([("password".into(), password.into())]))
+        .await?;
+    record.save().await
+}
+```
+
 ### 链式字符串转换
 
 在模型的 `casts()` 中为 `label` 声明 `AsStringable::cast()`。通过 `getValueObject` 读取 `openrust::support::Stringable`。普通字符串用 `setAttributeValue` 赋值，类型化字符串用 `setValueObject` 赋值。

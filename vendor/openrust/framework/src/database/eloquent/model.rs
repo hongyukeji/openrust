@@ -518,9 +518,17 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
-    fn forceFill(&mut self, attributes: Attributes) -> &mut Self {
-        self.state_mut().apply_attributes(attributes);
-        self
+    /// Bypasses mass-assignment guards while retaining attribute mutators and casts.
+    fn forceFill(&mut self, attributes: Attributes) -> DatabaseResult<&mut Self> {
+        concerns::guards_attributes::unguarded_sync(|| self.fill(attributes))
+    }
+
+    /// Retains asynchronous setters, including password hashing, without bypassing casts.
+    fn forceFillAsync(
+        &mut self,
+        attributes: Attributes,
+    ) -> impl Future<Output = DatabaseResult<&mut Self>> + Send {
+        concerns::guards_attributes::unguarded(self.fillAsync(attributes))
     }
 
     fn getAttribute(&self, column: &str) -> Option<&Value> {

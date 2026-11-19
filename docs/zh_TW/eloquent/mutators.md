@@ -366,6 +366,25 @@ pub async fn change_password(record: &mut impl Model, password: &str) -> Databas
 
 既有雜湊通過目前驅動程式的設定驗證後原樣保留。`null` 直接通過，無需呼叫雜湊服務。同步賦值接受已驗證的雜湊和 `null`。將該欄位宣告為 `hidden` 可從模型 JSON 中省略它。
 
+`forceFill(attributes)?` 只跳過批次賦值保護，仍執行修改器和轉換器。包含明文雜湊欄位時使用 `forceFillAsync(attributes).await?`。兩者沿用所屬應用程式的雜湊設定；預設賦值路徑失敗時保留原屬性並恢復保護狀態，跳過範圍只屬於目前呼叫／任務。只傳入確實需要略過批次賦值保護的屬性。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model},
+};
+
+pub async fn force_change_password(
+    record: &mut impl Model,
+    password: &str,
+) -> DatabaseResult<bool> {
+    record
+        .forceFillAsync(Attributes::from([("password".into(), password.into())]))
+        .await?;
+    record.save().await
+}
+```
+
 ### 鏈式字串轉換
 
 在模型的 `casts()` 中為 `label` 宣告 `AsStringable::cast()`。透過 `getValueObject` 讀取 `openrust::support::Stringable`。一般字串用 `setAttributeValue` 賦值，具型別的字串用 `setValueObject` 賦值。

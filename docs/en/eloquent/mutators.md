@@ -366,6 +366,25 @@ pub async fn change_password(record: &mut impl Model, password: &str) -> Databas
 
 Existing hashes that pass the configured driver's validation are preserved. `null` passes through without calling the hash service. The synchronous setter accepts validated hashes and `null`. Declare the attribute as `hidden` to omit it from model JSON.
 
+`forceFill(attributes)?` bypasses mass-assignment guards while still applying mutators and casts. For plaintext hashed attributes use `forceFillAsync(attributes).await?`. Both retain the owning application's hash configuration; the default assignment path leaves attributes unchanged on failure and restores the guard state. The bypass is local to the current call/task. Pass only attributes you intend to assign without mass-assignment protection.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model},
+};
+
+pub async fn force_change_password(
+    record: &mut impl Model,
+    password: &str,
+) -> DatabaseResult<bool> {
+    record
+        .forceFillAsync(Attributes::from([("password".into(), password.into())]))
+        .await?;
+    record.save().await
+}
+```
+
 ### Stringable Casting
 
 Declare `AsStringable::cast()` for `label` in the model's `casts()`. A loaded value is available as `openrust::support::Stringable` through `getValueObject`. Assign a plain string with `setAttributeValue` or a typed string with `setValueObject`.

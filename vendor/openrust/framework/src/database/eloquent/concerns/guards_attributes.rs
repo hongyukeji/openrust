@@ -12,6 +12,10 @@ pub(in crate::database) async fn unguarded<F: Future>(work: F) -> F::Output {
     UNGUARDED.scope((), work).await
 }
 
+pub(in crate::database::eloquent) fn unguarded_sync<T>(work: impl FnOnce() -> T) -> T {
+    UNGUARDED.sync_scope((), work)
+}
+
 pub(in crate::database::eloquent) fn fill(
     incoming: Attributes,
     metadata: &ModelMetadata,

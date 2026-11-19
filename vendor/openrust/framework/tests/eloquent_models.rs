@@ -1742,10 +1742,12 @@ async fn verify(db: Connection, mysql: bool) {
         label.fill(attrs([("slug", "old".into())])),
         Err(DatabaseError::MassAssignment(key)) if key == "slug"
     ));
-    label.forceFill(attrs([
-        ("slug", "old".into()),
-        ("title", "Original".into()),
-    ]));
+    label
+        .forceFill(attrs([
+            ("slug", "old".into()),
+            ("title", "Original".into()),
+        ]))
+        .unwrap();
     assert!(label.save().await.unwrap());
     assert_eq!(label.getKey(), Some(&"old".into()));
     label.setAttribute("slug", "new");

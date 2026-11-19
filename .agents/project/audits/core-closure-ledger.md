@@ -451,3 +451,8 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 这次只关闭 V01，并纠正 V15 的已过 ACL 残留；没有把旧记录里的模拟环境算作真实供应商，也没有因历史 66/66 把 V02–18 勾为通过。API 扩展按计划分为 9 个 Passport 单元与 6 个相关 API 单元，Passport-01 已通过实际 MySQL／HTTP／Artisan／三语验收，其余 14 个单元待闭合；Sanctum-01 至 03 保持已验收范围。下一代码单元为 Passport-02；ViewData、Pail 和发布目标条件继续在本表独立跟踪。
 
 本次计划增量只核对固定源码、旧版和既有日志、页面空占位与链接，不声称已经完成全契约或全云厂商审计，也未重新扫描／暴露凭据。每批结束核对本地提交、实际验证及资源清理；目标缺失仍能推进无关单元，直到已授权范围完整收尾，再交用户验收。
+
+
+### 05-03 forceFill 转换职责与 Passport-02 前置
+
+2026-11-19 05-03 [forceFill 保留属性转换](05-03/force-fill.md)作为 Passport-02 必要前置完成。固定 Laravel forceFill 只绕过保护、仍执行 fill；主线原始属性直写已修正为 Result，同步转换失败传播，并提供任务隔离的 forceFillAsync 走既有应用哈希线程池。旧版 mass_assignment 的嵌套／错误／pending／取消规则已复用。30 个不同测试函数通过：最终 4 项专项（含真实 TCP→Kernel→MySQL 哈希落库及三语示例）、MySQL 8.4.13 三项模型／哈希／关系回归、根 23 项 Console／Feature／Artisan。关系完整执行 525.79 秒通过；最低 Rust 1.94 格式／features pail,passport 全目标严格 Clippy、三语站点及 12＋6 浏览器检查通过，./artisan inspire 在 1.94 与默认 1.99.1 均退出 0。根测试首轮读取 Nov18 既有配置缓存导致未注册模型 500；已保留缓存，以本批专属缓存路径复验通过，原 SHA／mtime 不变。1.99 Debug unwind 表链接警告如实记载，不改共享构建 flags。9 份源码／文档 SHA、56 份入口／配置／路由／Cargo／Passport 基线核对通过。核定 13 文件本地提交，不推送；协作者新增 install:full 的 plan／context 改动保留并排除。已直接回收本地逻辑 25.170 GB（df 增量 21.909 GB）、远程 24 KiB 包装目录与本批 MySQL 镜像，全部卷、共享缓存和原有 WIP 保留；本地可用约 82.45 GB。Passport-01 提交 9f086981252fde12c756afb54fd6e9c71cd9b7a8 已核实。Passport-02 仍待 Client／ClientRepository／passport:client，不将前置修复当作整单元完成；继续 UUID 查询门禁、临时明文／哈希、模型生命周期与 request-once／应用隔离。按最新授权取消人为额度停线，正式额度工具不可用，禁用 credits，Goal active。
