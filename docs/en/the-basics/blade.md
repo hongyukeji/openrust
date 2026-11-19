@@ -33,7 +33,7 @@ The first three echoes output `7`, `9` and `512`. Signed 64-bit integer overflow
 
 Fractional floating-point modulo operands truncate to integers, and a zero base with a negative exponent produces infinity. These operations emit deprecations rather than failing rendering, following Laravel's exception bootstrap. Configure `logging.deprecations.channel` to retain them; logging failures do not interrupt rendering. Testing skips these warnings unless `LOG_DEPRECATIONS_WHILE_TESTING` is truthy. Optional trace logging records a native Rust backtrace and error snapshot, and source locations identify the native evaluator rather than a PHP compiled template.
 
-Direct scalar echoes, arithmetic, truth tests and comparisons preserve `INF`, `NAN` and signed zero. View data remains JSON: non-finite values cannot be passed into arrays, includes, component data or custom JSON callbacks. Prepare such values in application Rust code if needed. Templates do not execute arbitrary PHP or call unregistered functions. The compiler invalidates older expression artifacts automatically.
+Direct scalar echoes, arithmetic, truth tests and comparisons preserve `INF`, `NAN` and signed zero. Native [view data](./views.md#native-view-values) also preserves these values through arrays, includes, components and custom directives. Templates do not execute arbitrary PHP or call unregistered functions. The compiler invalidates older expression artifacts automatically.
 
 ### HTML Entity Encoding {#html-entity-encoding}
 
@@ -56,6 +56,8 @@ Use `Js::from` or `@js` inside a script to serialize a view value as a JavaScrip
     const settings = {{ Js::from($settings) }};
 </script>
 ```
+
+`Js::from` and `@js` reject `INF`, `-INF` and `NAN`, including nested values. The render error follows the application exception policy; a failed render does not poison subsequent renders. JSON output omits an integral float’s `.0`, and preserves negative zero as `-0`.
 
 ## Blade Directives
 
@@ -207,7 +209,7 @@ Use `[value, key => value]` or `array(...)` to construct an array. Keys and valu
 <p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
 ```
 
-Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices remain JSON arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow fail rendering. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
+Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices use native view arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow fail rendering. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
 
 ### The Loop Variable {#the-loop-variable}
 

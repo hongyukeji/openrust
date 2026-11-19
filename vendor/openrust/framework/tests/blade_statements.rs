@@ -37,7 +37,7 @@ impl Root {
             )
             .unwrap();
         }
-        Self(root)
+        Self(root.canonicalize().unwrap())
     }
     fn factory(&self) -> Factory {
         let factory = Factory::new(
@@ -54,7 +54,12 @@ impl Drop for Root {
     }
 }
 fn data(case: &Value) -> ViewData {
-    case["data"].as_object().unwrap().clone()
+    case["data"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone().into()))
+        .collect()
 }
 #[test]
 fn pinned_laravel_statement_boundaries_escaping_and_whitespace_match() {
@@ -110,8 +115,8 @@ fn cached_statement_schema_invalidates_previous_compiler_artifacts() {
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 32);
-    contents["compiler_version"] = json!(31);
+    assert_eq!(contents["compiler_version"], 33);
+    contents["compiler_version"] = json!(32);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(
@@ -252,7 +257,7 @@ fn configure(factory: &Factory) {
         .directive("emit", |args| {
             Ok(DirectiveOutput::Text(
                 args.first()
-                    .and_then(Value::as_str)
+                    .and_then(openrust::view::ViewValue::as_str)
                     .unwrap_or_default()
                     .into(),
             ))
@@ -260,7 +265,10 @@ fn configure(factory: &Factory) {
         .unwrap();
     compiler
         .r#if("active", |args| {
-            Ok(args.first().and_then(Value::as_bool).unwrap_or(true))
+            Ok(args
+                .first()
+                .and_then(openrust::view::ViewValue::as_bool)
+                .unwrap_or(true))
         })
         .unwrap();
 }

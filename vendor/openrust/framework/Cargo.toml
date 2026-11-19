@@ -62,7 +62,7 @@ icu_locale_core = { version = "2.4", features = ["alloc"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "query", "form", "multipart", "stream"] }
 image = { version = "=0.25.10", default-features = false, features = ["avif", "bmp", "gif", "jpeg", "png", "webp"] }
 imgalifier-avif = "=0.1.0"
-indexmap = "=2.14.2"
+indexmap = { version = "=2.14.2", features = ["serde"] }
 iri-string = "=0.7.14"
 infer = { version = "0.19.0", default-features = false }
 jixel = { version = "=0.5.10", default-features = false }

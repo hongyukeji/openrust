@@ -1,0 +1,579 @@
+{
+    "php": "8.4.14",
+    "illuminate": {
+        "illuminate/bus": "v13.40.0",
+        "illuminate/collections": "v13.40.0",
+        "illuminate/conditionable": "v13.40.0",
+        "illuminate/container": "v13.40.0",
+        "illuminate/contracts": "v13.40.0",
+        "illuminate/events": "v13.40.0",
+        "illuminate/filesystem": "v13.40.0",
+        "illuminate/macroable": "v13.40.0",
+        "illuminate/pipeline": "v13.40.0",
+        "illuminate/reflection": "v13.40.0",
+        "illuminate/support": "v13.40.0",
+        "illuminate/view": "v13.40.0"
+    },
+    "views": {
+        "part": "{{ $value }}",
+        "components.num": "@props(['value' => 0]){{ $value }}",
+        "components.default": "@props(['value' => NAN]){{ $value }}",
+        "components.outer": "@props(['value'])<x-inner />",
+        "components.inner": "@aware(['value']){{ $value }}",
+        "layout": "{{ $number }}|@yield('body')"
+    },
+    "cases": [
+        {
+            "kind": "INF",
+            "template": "{{ $number }}",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ [$number][0] }}",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ $items[0] }}|{{ $nested[\"value\"] }}",
+            "output": "INF|INF"
+        },
+        {
+            "kind": "INF",
+            "template": "@include(\"part\",[\"value\"=>$number])",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "<x-num :value=\"$number\" />",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "<x-default />",
+            "output": "NAN"
+        },
+        {
+            "kind": "INF",
+            "template": "<x-outer :value=\"$number\" />",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "@each(\"part\",$items,\"value\")",
+            "output": "INF-0"
+        },
+        {
+            "kind": "INF",
+            "template": "@extends(\"layout\",[\"number\"=>$number])@section(\"body\"){{ $number }}@endsection",
+            "output": "INF|INF"
+        },
+        {
+            "kind": "INF",
+            "template": "@foreach($items as $item){{ $item }}:{{ $loop->index }};@endforeach",
+            "output": "INF:0;-0:1;"
+        },
+        {
+            "kind": "INF",
+            "template": "@nativeKind($number)|@nativeKind([$number])",
+            "output": "double|array"
+        },
+        {
+            "kind": "INF",
+            "template": "@if($number)yes @else no @endif|@isset($number)present @endisset|@empty($number)empty @endempty",
+            "output": "yes |present |"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ $number === INF }}|{{ $number === -INF }}|{{ $number === NAN }}|{{ $number == \"INF\" }}|{{ $number == true }}",
+            "output": "1|||1|1"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ [$number] === [$number] }}|{{ [$number] == [$number] }}",
+            "output": "1|1"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ $number + 1 }}|{{ $number * 0 }}",
+            "output": "INF|NAN"
+        },
+        {
+            "kind": "INF",
+            "template": "@js($number)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_15.blade.php)"
+        },
+        {
+            "kind": "INF",
+            "template": "@js([$number])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_16.blade.php)"
+        },
+        {
+            "kind": "INF",
+            "template": "@js($nested)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_17.blade.php)"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ $number ?? 7 }}|{{ $missing ?? $number }}|{{ $nested[\"absent\"] ?? $number }}",
+            "output": "INF|INF|INF"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ [$number] == [\"INF\"] }}|{{ [$number] == [\"-INF\"] }}|{{ [$number] == [\"NAN\"] }}",
+            "output": "1||"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ Js::from($items) }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_20.blade.php)"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ $number }}",
+            "output": "-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ [$number][0] }}",
+            "output": "-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ $items[0] }}|{{ $nested[\"value\"] }}",
+            "output": "-INF|-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "@include(\"part\",[\"value\"=>$number])",
+            "output": "-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "<x-num :value=\"$number\" />",
+            "output": "-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "<x-default />",
+            "output": "NAN"
+        },
+        {
+            "kind": "-INF",
+            "template": "<x-outer :value=\"$number\" />",
+            "output": "-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "@each(\"part\",$items,\"value\")",
+            "output": "-INF-0"
+        },
+        {
+            "kind": "-INF",
+            "template": "@extends(\"layout\",[\"number\"=>$number])@section(\"body\"){{ $number }}@endsection",
+            "output": "-INF|-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "@foreach($items as $item){{ $item }}:{{ $loop->index }};@endforeach",
+            "output": "-INF:0;-0:1;"
+        },
+        {
+            "kind": "-INF",
+            "template": "@nativeKind($number)|@nativeKind([$number])",
+            "output": "double|array"
+        },
+        {
+            "kind": "-INF",
+            "template": "@if($number)yes @else no @endif|@isset($number)present @endisset|@empty($number)empty @endempty",
+            "output": "yes |present |"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ $number === INF }}|{{ $number === -INF }}|{{ $number === NAN }}|{{ $number == \"INF\" }}|{{ $number == true }}",
+            "output": "|1|||1"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ [$number] === [$number] }}|{{ [$number] == [$number] }}",
+            "output": "1|1"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ $number + 1 }}|{{ $number * 0 }}",
+            "output": "-INF|NAN"
+        },
+        {
+            "kind": "-INF",
+            "template": "@js($number)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_36.blade.php)"
+        },
+        {
+            "kind": "-INF",
+            "template": "@js([$number])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_37.blade.php)"
+        },
+        {
+            "kind": "-INF",
+            "template": "@js($nested)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_38.blade.php)"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ $number ?? 7 }}|{{ $missing ?? $number }}|{{ $nested[\"absent\"] ?? $number }}",
+            "output": "-INF|-INF|-INF"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ [$number] == [\"INF\"] }}|{{ [$number] == [\"-INF\"] }}|{{ [$number] == [\"NAN\"] }}",
+            "output": "|1|"
+        },
+        {
+            "kind": "-INF",
+            "template": "{{ Js::from($items) }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_41.blade.php)"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ $number }}",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ [$number][0] }}",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ $items[0] }}|{{ $nested[\"value\"] }}",
+            "output": "NAN|NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "@include(\"part\",[\"value\"=>$number])",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "<x-num :value=\"$number\" />",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "<x-default />",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "<x-outer :value=\"$number\" />",
+            "output": "NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "@each(\"part\",$items,\"value\")",
+            "output": "NAN-0"
+        },
+        {
+            "kind": "NAN",
+            "template": "@extends(\"layout\",[\"number\"=>$number])@section(\"body\"){{ $number }}@endsection",
+            "output": "NAN|NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "@foreach($items as $item){{ $item }}:{{ $loop->index }};@endforeach",
+            "output": "NAN:0;-0:1;"
+        },
+        {
+            "kind": "NAN",
+            "template": "@nativeKind($number)|@nativeKind([$number])",
+            "output": "double|array"
+        },
+        {
+            "kind": "NAN",
+            "template": "@if($number)yes @else no @endif|@isset($number)present @endisset|@empty($number)empty @endempty",
+            "output": "yes |present |"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ $number === INF }}|{{ $number === -INF }}|{{ $number === NAN }}|{{ $number == \"INF\" }}|{{ $number == true }}",
+            "output": "||||1"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ [$number] === [$number] }}|{{ [$number] == [$number] }}",
+            "output": "|"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ $number + 1 }}|{{ $number * 0 }}",
+            "output": "NAN|NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "@js($number)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_57.blade.php)"
+        },
+        {
+            "kind": "NAN",
+            "template": "@js([$number])",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_58.blade.php)"
+        },
+        {
+            "kind": "NAN",
+            "template": "@js($nested)",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_59.blade.php)"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ $number ?? 7 }}|{{ $missing ?? $number }}|{{ $nested[\"absent\"] ?? $number }}",
+            "output": "NAN|NAN|NAN"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ [$number] == [\"INF\"] }}|{{ [$number] == [\"-INF\"] }}|{{ [$number] == [\"NAN\"] }}",
+            "output": "||"
+        },
+        {
+            "kind": "NAN",
+            "template": "{{ Js::from($items) }}",
+            "error": "Illuminate\\View\\ViewException",
+            "message": "Inf and NaN cannot be JSON encoded (View: <oracle>/views/case_62.blade.php)"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ $number }}",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ [$number][0] }}",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ $items[0] }}|{{ $nested[\"value\"] }}",
+            "output": "-0|-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@include(\"part\",[\"value\"=>$number])",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "<x-num :value=\"$number\" />",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "<x-default />",
+            "output": "NAN"
+        },
+        {
+            "kind": "-0",
+            "template": "<x-outer :value=\"$number\" />",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@each(\"part\",$items,\"value\")",
+            "output": "-0-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@extends(\"layout\",[\"number\"=>$number])@section(\"body\"){{ $number }}@endsection",
+            "output": "-0|-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@foreach($items as $item){{ $item }}:{{ $loop->index }};@endforeach",
+            "output": "-0:0;-0:1;"
+        },
+        {
+            "kind": "-0",
+            "template": "@nativeKind($number)|@nativeKind([$number])",
+            "output": "double|array"
+        },
+        {
+            "kind": "-0",
+            "template": "@if($number)yes @else no @endif|@isset($number)present @endisset|@empty($number)empty @endempty",
+            "output": "no |present |empty "
+        },
+        {
+            "kind": "-0",
+            "template": "{{ $number === INF }}|{{ $number === -INF }}|{{ $number === NAN }}|{{ $number == \"INF\" }}|{{ $number == true }}",
+            "output": "||||"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ [$number] === [$number] }}|{{ [$number] == [$number] }}",
+            "output": "1|1"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ $number + 1 }}|{{ $number * 0 }}",
+            "output": "1|-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@js($number)",
+            "output": "-0"
+        },
+        {
+            "kind": "-0",
+            "template": "@js([$number])",
+            "output": "JSON.parse('[-0]')"
+        },
+        {
+            "kind": "-0",
+            "template": "@js($nested)",
+            "output": "JSON.parse('{\\u0022value\\u0022:-0}')"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ $number ?? 7 }}|{{ $missing ?? $number }}|{{ $nested[\"absent\"] ?? $number }}",
+            "output": "-0|-0|-0"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ [$number] == [\"INF\"] }}|{{ [$number] == [\"-INF\"] }}|{{ [$number] == [\"NAN\"] }}",
+            "output": "||"
+        },
+        {
+            "kind": "-0",
+            "template": "{{ Js::from($items) }}",
+            "output": "JSON.parse('[-0,-0]')"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ $number }}",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ [$number][0] }}",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ $items[0] }}|{{ $nested[\"value\"] }}",
+            "output": "2|2"
+        },
+        {
+            "kind": "finite",
+            "template": "@include(\"part\",[\"value\"=>$number])",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "<x-num :value=\"$number\" />",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "<x-default />",
+            "output": "NAN"
+        },
+        {
+            "kind": "finite",
+            "template": "<x-outer :value=\"$number\" />",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "@each(\"part\",$items,\"value\")",
+            "output": "2-0"
+        },
+        {
+            "kind": "finite",
+            "template": "@extends(\"layout\",[\"number\"=>$number])@section(\"body\"){{ $number }}@endsection",
+            "output": "2|2"
+        },
+        {
+            "kind": "finite",
+            "template": "@foreach($items as $item){{ $item }}:{{ $loop->index }};@endforeach",
+            "output": "2:0;-0:1;"
+        },
+        {
+            "kind": "finite",
+            "template": "@nativeKind($number)|@nativeKind([$number])",
+            "output": "double|array"
+        },
+        {
+            "kind": "finite",
+            "template": "@if($number)yes @else no @endif|@isset($number)present @endisset|@empty($number)empty @endempty",
+            "output": "yes |present |"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ $number === INF }}|{{ $number === -INF }}|{{ $number === NAN }}|{{ $number == \"INF\" }}|{{ $number == true }}",
+            "output": "||||1"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ [$number] === [$number] }}|{{ [$number] == [$number] }}",
+            "output": "1|1"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ $number + 1 }}|{{ $number * 0 }}",
+            "output": "3|0"
+        },
+        {
+            "kind": "finite",
+            "template": "@js($number)",
+            "output": "2"
+        },
+        {
+            "kind": "finite",
+            "template": "@js([$number])",
+            "output": "JSON.parse('[2]')"
+        },
+        {
+            "kind": "finite",
+            "template": "@js($nested)",
+            "output": "JSON.parse('{\\u0022value\\u0022:2}')"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ $number ?? 7 }}|{{ $missing ?? $number }}|{{ $nested[\"absent\"] ?? $number }}",
+            "output": "2|2|2"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ [$number] == [\"INF\"] }}|{{ [$number] == [\"-INF\"] }}|{{ [$number] == [\"NAN\"] }}",
+            "output": "||"
+        },
+        {
+            "kind": "finite",
+            "template": "{{ Js::from($items) }}",
+            "output": "JSON.parse('[2,-0]')"
+        },
+        {
+            "kind": "INF",
+            "template": "{{ [INF][0] }}",
+            "output": "INF"
+        },
+        {
+            "kind": "INF",
+            "template": "@include('part',['value'=>NAN])",
+            "output": "NAN"
+        },
+        {
+            "kind": "INF",
+            "template": "<x-num :value=\"INF\" />",
+            "output": "INF"
+        }
+    ]
+}

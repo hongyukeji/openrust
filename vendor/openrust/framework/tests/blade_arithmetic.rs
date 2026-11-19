@@ -37,7 +37,7 @@ impl Root {
             )
             .unwrap();
         }
-        Self(root)
+        Self(root.canonicalize().unwrap())
     }
     fn factory(&self) -> Factory {
         Factory::new(
@@ -52,7 +52,12 @@ impl Drop for Root {
     }
 }
 fn data(case: &Value) -> ViewData {
-    case["data"].as_object().unwrap().clone()
+    case["data"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone().into()))
+        .collect()
 }
 #[test]
 fn pinned_laravel_php_arithmetic_and_contexts_match() {
@@ -108,8 +113,8 @@ fn cached_numeric_nodes_preserve_special_values_and_invalidate_old_compiler_sche
     let compiler = engine.getCompiler();
     let artifact = compiler.getCompiledPath(&path).unwrap();
     let mut contents: Value = serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
-    assert_eq!(contents["compiler_version"], 32);
-    contents["compiler_version"] = json!(31);
+    assert_eq!(contents["compiler_version"], 33);
+    contents["compiler_version"] = json!(32);
     fs::write(&artifact, contents.to_string()).unwrap();
     assert!(compiler.isExpired(&path).unwrap());
     assert_eq!(
@@ -315,16 +320,30 @@ async fn deprecations_continue_rendering_log_per_application_and_respect_testing
     }
 }
 #[test]
-fn nonfinite_json_boundaries_fail_explicitly_without_poisoning_rendering() {
+fn native_nonfinite_boundaries_match_php_and_json_errors_do_not_poison_rendering() {
     let root = Root::new();
     let factory = root.factory();
-    for (i, template) in [
-        "{{ [INF][0] }}",
-        "@include('part',['value'=>NAN])",
-        "<x-num :value=\"INF\" />",
+    for (i, (template, expected)) in [
+        ("{{ [INF][0] }}", "INF"),
+        ("@include('part',['value'=>NAN])", "NAN"),
+        ("<x-num :value=\"INF\" />", "INF"),
     ]
     .iter()
     .enumerate()
+    {
+        let name = format!("native_boundary_{i}");
+        fs::write(
+            root.0
+                .join("resources/views")
+                .join(format!("{name}.blade.html")),
+            template,
+        )
+        .unwrap();
+        assert_eq!(factory.render(&name, &ViewData::new()).unwrap(), *expected);
+    }
+    for (i, template) in ["@js(INF)", "@js([NAN])", "@js(['value'=>-INF])"]
+        .iter()
+        .enumerate()
     {
         let name = format!("json_boundary_{i}");
         fs::write(
@@ -339,7 +358,7 @@ fn nonfinite_json_boundaries_fail_explicitly_without_poisoning_rendering() {
             std::error::Error::source(&error)
                 .unwrap()
                 .to_string()
-                .contains("JSON view-data boundary")
+                .contains("Inf and NaN cannot be JSON encoded")
         );
     }
     assert_eq!(

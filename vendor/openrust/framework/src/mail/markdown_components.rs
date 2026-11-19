@@ -138,7 +138,7 @@ impl<'a> Render<'a> {
         let slot = self.markdown(source, false);
         data.insert("slot".into(), slot.as_str().into());
         data.insert("mail_content".into(), slot.into());
-        data.remove("mail_head");
+        data.shift_remove("mail_head");
         self.layout(data)
     }
 
@@ -201,7 +201,7 @@ impl<'a> Render<'a> {
                 data.insert("url".into(), safe_url(url.into()).to_string().into());
                 if component.name == "button" {
                     for (key, default) in [("color", "primary"), ("align", "center")] {
-                        data.entry(key).or_insert_with(|| default.into());
+                        data.entry(key.to_owned()).or_insert_with(|| default.into());
                     }
                 }
             }

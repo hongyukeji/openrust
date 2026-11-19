@@ -33,7 +33,7 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 
 浮點取模會將運算元截斷為整數；零底數的負冪產生無窮大。這兩類運算依 Laravel 例外引導機制發出棄用提示，繼續渲染。透過 `logging.deprecations.channel` 保留提示；日誌失敗不會中斷渲染。testing 環境預設略過，`LOG_DEPRECATIONS_WHILE_TESTING` 為真時啟用。可選 trace 記錄原生 Rust 呼叫堆疊與例外快照；來源位置指向原生求值器，不冒充 PHP 編譯模板。
 
-直接標量輸出、算術、真假判斷和比較保留 `INF`、`NAN` 及有符號零。視圖資料仍使用 JSON，非有限數不能傳入陣列、引入視圖、元件資料和自訂 JSON 回呼；這類資料需要時在應用 Rust 程式碼中準備。模板不執行任意 PHP 或呼叫未註冊函式。編譯器會自動使舊運算式快取失效。
+直接標量輸出、算術、真假判斷和比較保留 `INF`、`NAN` 及有符號零。[原生視圖資料](./views.md#native-view-values)在陣列、引入視圖、元件和自訂指令之間也保留這些值。模板不執行任意 PHP 或呼叫未註冊函式。編譯器會自動使舊運算式快取失效。
 
 ### HTML 實體編碼 {#html-entity-encoding}
 
@@ -56,6 +56,8 @@ fn configure_encoding(compiler: &BladeCompiler) {
     const settings = {{ Js::from($settings) }};
 </script>
 ```
+
+`Js::from` 和 `@js` 拒絕 `INF`、`-INF` 和 `NAN`，包括巢狀值。渲染錯誤遵循應用程式例外策略，失敗不會污染後續渲染。JSON 輸出省略整數值浮點數的 `.0`，負零保留為 `-0`。
 
 ## Blade 指令
 

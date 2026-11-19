@@ -11,6 +11,7 @@ pub(super) fn write_expression(output: &mut String, value: &ViewValue) -> ViewRe
         }
         ViewValue::Array(values) if !values.is_empty() => write_container(output, value)?,
         ViewValue::Object(values) if !values.is_empty() => write_container(output, value)?,
+        ViewValue::Number(number) => write_number(output, number)?,
         _ => write!(output, "{value}").unwrap(),
     }
     Ok(())
@@ -58,6 +59,7 @@ fn write_json(output: &mut String, value: &ViewValue, depth: usize) -> ViewResul
             write_escaped(output, value);
             output.push('"');
         }
+        ViewValue::Number(number) => write_number(output, number)?,
         _ => write!(output, "{value}").unwrap(),
     }
     Ok(())
@@ -79,4 +81,18 @@ fn write_escaped(output: &mut String, value: &str) {
             _ => output.push(character),
         }
     }
+}
+
+fn write_number(output: &mut String, number: &crate::view::ViewNumber) -> ViewResult<()> {
+    if !number.is_finite() {
+        return Err(render_error("Inf and NaN cannot be JSON encoded."));
+    }
+    let text = number.to_string();
+    // Js uses PHP's default JSON flags, without JSON_PRESERVE_ZERO_FRACTION.
+    output.push_str(if number.is_f64() {
+        text.strip_suffix(".0").unwrap_or(&text)
+    } else {
+        &text
+    });
+    Ok(())
 }

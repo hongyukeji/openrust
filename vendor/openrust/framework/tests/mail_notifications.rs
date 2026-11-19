@@ -65,7 +65,9 @@ impl Mailable for Receipt {
         Ok(Content {
             text: Some("plain receipt".into()),
             view: Some("receipt".into()),
-            with: [("name".into(), json!("<Sam>"))].into_iter().collect(),
+            with: [("name".into(), json!("<Sam>").into())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         })
     }
@@ -264,6 +266,7 @@ impl Mailable for MarkdownReceipt {
                 ("logo".into(), json!("cid:logo@images.example.test")),
             ]
             .into_iter()
+            .map(|(key, value)| (key, value.into()))
             .collect(),
             ..Default::default()
         })
@@ -702,7 +705,7 @@ impl Mailable for AssertionMail {
         let mut content = self.0.clone();
         content
             .with
-            .insert("locale".into(), json!(Lang::getLocale().unwrap()));
+            .insert("locale".into(), json!(Lang::getLocale().unwrap()).into());
         Ok(content)
     }
 
@@ -723,7 +726,9 @@ fn mail_assertions_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response,
         let mail = AssertionMail(Content {
             view: Some("assertion-html".into()),
             text_view: Some("assertion-text".into()),
-            with: [("name".into(), json!("A & <Sam>"))].into_iter().collect(),
+            with: [("name".into(), json!("A & <Sam>").into())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         });
         mail.assertFrom("sales@example.test", Some("Sales"))
@@ -1160,7 +1165,11 @@ fn notification_preview_from_http(
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     let kind = request.route("kind").map(str::to_owned);
     Box::pin(async move {
-        let data = || [("customer".into(), json!("Acme"))].into_iter().collect();
+        let data = || {
+            [("customer".into(), json!("Acme").into())]
+                .into_iter()
+                .collect()
+        };
         let message = MailMessage::new()
             .mailer("missing-mailer")
             .attach(Attachment::fromPath("missing-attachment"))
@@ -1172,7 +1181,9 @@ fn notification_preview_from_http(
                     .view("notice-html", data())
                     .text(
                         "notice-text",
-                        [("customer".into(), json!("Beta"))].into_iter().collect(),
+                        [("customer".into(), json!("Beta").into())]
+                            .into_iter()
+                            .collect(),
                     )
                     .template("missing");
                 mail.assertSeeInText("Text Beta").await;
@@ -2919,7 +2930,9 @@ async fn mailable_preview_renders_body_over_http_without_resolving_delivery() {
             markdown: Some("preview".into()),
             text_view: Some("unavailable-text-view".into()),
             theme: Some("preview".into()),
-            with: [("name".into(), json!("<Client>"))].into_iter().collect(),
+            with: [("name".into(), json!("<Client>").into())]
+                .into_iter()
+                .collect(),
             ..Default::default()
         })
     }

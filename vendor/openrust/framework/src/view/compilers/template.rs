@@ -1,7 +1,6 @@
 use std::{borrow::Cow, fmt::Write as _, sync::Arc};
 
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::{BladeExtensions, DirectiveOutput};
 use crate::support::{Str, escape_html};
@@ -1699,18 +1698,24 @@ fn render_nodes<'a>(
                     saw_item = true;
                     let iteration = index + 1;
                     let even = iteration.is_multiple_of(2);
-                    let metadata = Arc::new(json!({
-                        "iteration": iteration,
-                        "index": index,
-                        "remaining": count.map(|count| count.saturating_sub(iteration)),
-                        "count": count,
-                        "first": index == 0,
-                        "last": count.map(|count| iteration == count),
-                        "odd": !even,
-                        "even": even,
-                        "depth": depth,
-                        "parent": parent.as_deref(),
-                    }));
+                    let metadata = Arc::new(ViewValue::Object(ViewData::from_iter([
+                        ("iteration".into(), iteration.into()),
+                        ("index".into(), index.into()),
+                        (
+                            "remaining".into(),
+                            count.map(|count| count.saturating_sub(iteration)).into(),
+                        ),
+                        ("count".into(), count.into()),
+                        ("first".into(), (index == 0).into()),
+                        ("last".into(), count.map(|count| iteration == count).into()),
+                        ("odd".into(), (!even).into()),
+                        ("even".into(), even.into()),
+                        ("depth".into(), depth.into()),
+                        (
+                            "parent".into(),
+                            parent.as_deref().cloned().unwrap_or_default(),
+                        ),
+                    ])));
                     let mut iteration_bindings = bindings.to_vec();
                     if let Some(key) = key {
                         iteration_bindings.push((key, &key_value));

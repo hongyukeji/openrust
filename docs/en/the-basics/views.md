@@ -16,6 +16,23 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
+### Native View Values {#native-view-values}
+
+View data uses `ViewData`, an insertion-ordered map of `ViewValue` values. Numbers retain `INF`, `-INF`, `NAN` and negative zero while passing through arrays, includes, layouts, anonymous and class components, and registered directive callbacks. Use `.into()` to convert existing `serde_json::Value` inputs; values already replaced with null by JSON encoding cannot be recovered.
+
+```rust
+use openrust::view::{ViewData, ViewValue};
+
+let mut data = ViewData::new();
+data.insert("number".into(), f64::INFINITY.into());
+data.insert("items".into(), vec![f64::NAN, -0.0].into());
+data.insert("profile".into(), serde_json::json!({"name": "James"}).into());
+let value = ViewValue::Object(data);
+assert!(value.to_json().is_err());
+```
+
+`ViewValue::to_json()` and Serde serialization reject non-finite numbers recursively. Handle their `Result` at the JSON boundary. An ordinary Blade echo can render the same value without JSON encoding.
+
 ## Sharing Data With All Views
 
 Call `View::share` from your application's service provider to set a default for every view in that application. Data passed to a view takes precedence over shared defaults.

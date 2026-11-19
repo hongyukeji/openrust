@@ -23,6 +23,15 @@ try {
                     const body = await page.locator("main").innerText();
                     assert.ok(body.includes("render_card"));
                     assert.ok(body.includes("addNamespace"));
+                    assert.equal(await page.locator("#native-view-values").count(), 1);
+                    assert.ok(body.includes("ViewValue::Object(data)"));
+                    assert.ok(body.includes("value.to_json().is_err()"));
+                    assert.equal((await page.goto(url.replace("views.html", "blade.html"))).status(), 200);
+                    const blade = await page.locator("main").innerText();
+                    assert.ok(blade.includes("-INF") && blade.includes("NAN"));
+                    await page.locator('main a[href$="views.html#native-view-values"]').first().click();
+                    await page.waitForURL(url + "#native-view-values");
+                    await page.locator("#native-view-values").waitFor();
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

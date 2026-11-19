@@ -213,7 +213,7 @@ fn retry_datetime(value: &str, timezone: Tz, now: DateTime<Utc>) -> Option<DateT
 fn render(app: &Application, name: &str, retry: Option<&str>) -> Result<String, ConsoleError> {
     let factory = app.container().make::<Factory>().map_err(down_error)?;
     let mut data = ViewData::new();
-    data.insert("retryAfter".into(), json!(retry));
+    data.insert("retryAfter".into(), retry.into());
     if name == "errors::503" {
         if factory.exists("errors.503") {
             return factory.render("errors.503", &data).map_err(down_error);

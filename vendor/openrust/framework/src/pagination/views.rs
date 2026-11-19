@@ -138,9 +138,9 @@ pub(super) fn make(
     paginator: Value,
     elements: Option<Value>,
 ) -> ViewResult<View> {
-    data.insert("paginator".into(), paginator);
+    data.insert("paginator".into(), paginator.into());
     if let Some(elements) = elements {
-        data.insert("elements".into(), elements);
+        data.insert("elements".into(), elements.into());
     }
     ViewFacade::make(name.to_owned(), data)
 }

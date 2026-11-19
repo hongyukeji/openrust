@@ -45,7 +45,7 @@ pub(crate) fn float(value: &Value) -> f64 {
     }
 }
 
-fn integer_string(text: &str) -> i64 {
+pub(crate) fn integer_string(text: &str) -> i64 {
     let Some(prefix) = numeric_prefix(text) else {
         return 0;
     };

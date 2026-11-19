@@ -496,7 +496,10 @@ fn compare_evaluated(
     left: Evaluated<'_>,
     right: Evaluated<'_>,
 ) -> ViewResult<bool> {
-    let special = |v: &Evaluated<'_>| matches!(v,Evaluated::Number(n) if !n.double().is_finite());
+    let special = |v: &Evaluated<'_>| match v {
+        Evaluated::Number(n) => !n.double().is_finite(),
+        Evaluated::Json(v) => matches!(v.as_ref(), ViewValue::Number(n) if !n.is_finite()),
+    };
     let (equal, order, strict) = if special(&left) || special(&right) {
         let (number, other, reverse) = if special(&left) {
             (&left, &right, false)
@@ -574,7 +577,7 @@ fn compare(left: &ViewValue, right: &ViewValue) -> Option<Ordering> {
 }
 
 pub(super) fn loose_equal(left: &ViewValue, right: &ViewValue) -> bool {
-    use serde_json::Value::{Array, Bool, Null, Number, Object, String};
+    use ViewValue::{Array, Bool, Null, Number, Object, String};
     match (left, right) {
         (Bool(_), _) | (_, Bool(_)) => truthy(left) == truthy(right),
         (Null, String(text)) | (String(text), Null) => text.is_empty(),
@@ -590,7 +593,13 @@ pub(super) fn loose_equal(left: &ViewValue, right: &ViewValue) -> bool {
         }
         (Number(_), String(text)) | (String(text), Number(_)) => {
             let number = if left.is_number() { left } else { right };
-            if let (Some(number), Some(text)) = (number.as_i64(), integer_text(text)) {
+            if let Some(number) = number.as_f64().filter(|number| !number.is_finite()) {
+                !number.is_nan()
+                    && numeric_text(text).map_or_else(
+                        || crate::support::input_scalars::double_string(number) == *text,
+                        |other| number == other,
+                    )
+            } else if let (Some(number), Some(text)) = (number.as_i64(), integer_text(text)) {
                 number == text
             } else {
                 number

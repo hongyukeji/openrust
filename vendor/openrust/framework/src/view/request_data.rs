@@ -14,7 +14,7 @@ use crate::{
     support::facades::{Auth, Gate},
 };
 
-use super::{ViewData, ViewError, ViewResult, ViewValue, rendering::render_error};
+use super::{ViewError, ViewResult, ViewValue, rendering::render_error};
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) enum AuthorizationMode {
@@ -85,8 +85,8 @@ pub(super) struct ViewRequestData {
 #[derive(Default)]
 struct RequestSnapshot {
     csrf_token: Option<Arc<str>>,
-    session: BTreeMap<String, ViewValue>,
-    context: Option<ViewData>,
+    session: BTreeMap<String, serde_json::Value>,
+    context: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl RequestSnapshot {
@@ -117,12 +117,13 @@ impl ViewRequestData {
         crate::session::get_attribute(&self.snapshot.lock().unwrap().session, name)
             .filter(|value| !value.is_null())
             .cloned()
+            .map(Into::into)
     }
 
     pub fn context(&self, name: &str) -> Option<ViewValue> {
         match &self.snapshot.lock().unwrap().context {
-            Some(context) => context.get(name).cloned(),
-            None => Context::get(name).ok().flatten(),
+            Some(context) => context.get(name).cloned().map(Into::into),
+            None => Context::get(name).ok().flatten().map(Into::into),
         }
     }
 

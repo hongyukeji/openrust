@@ -1,4 +1,4 @@
-use serde_json::Value;
+use crate::view::ViewValue as Value;
 
 use crate::{
     mail::{
@@ -209,7 +209,9 @@ impl MailMessage {
         } else {
             "introLines"
         };
-        let lines = data.entry(key).or_insert_with(|| Value::Array(Vec::new()));
+        let lines = data
+            .entry(key.to_owned())
+            .or_insert_with(|| Value::Array(Vec::new()));
         if !lines.is_array() {
             *lines = Value::Array(Vec::new());
         }
@@ -309,7 +311,7 @@ fn default_view_data(data: &mut ViewData) -> MailResult<()> {
             source: Box::new(source),
         })
     };
-    let level = data.entry("level").or_insert_with(|| "info".into());
+    let level = data.entry("level".into()).or_insert_with(|| "info".into());
     let level = level.as_str().unwrap_or("info");
     let color = match level {
         "success" => "success",
@@ -339,7 +341,8 @@ fn default_view_data(data: &mut ViewData) -> MailResult<()> {
         );
     }
     for name in ["introLines", "outroLines"] {
-        data.entry(name).or_insert_with(|| Value::Array(Vec::new()));
+        data.entry(name.to_owned())
+            .or_insert_with(|| Value::Array(Vec::new()));
     }
     if let Some(action) = data.get("actionText").and_then(Value::as_str) {
         let subcopy = translate(SUBCOPY, &[("actionText".into(), action.into())].into())?;

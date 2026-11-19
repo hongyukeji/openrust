@@ -17,6 +17,7 @@ mod file_view_finder;
 pub mod middleware;
 mod rendering;
 mod request_data;
+mod value;
 mod view_finder;
 mod view_service_provider;
 
@@ -27,8 +28,8 @@ pub(crate) use rendering::{ComponentRenderer, EscapedEcho};
 pub use view_finder::ViewFinder;
 pub use view_service_provider::ViewServiceProvider;
 
-pub type ViewValue = serde_json::Value;
-pub type ViewData = serde_json::Map<String, ViewValue>;
+pub use value::{ViewIndex, ViewNumber, ViewValue};
+pub type ViewData = indexmap::IndexMap<String, ViewValue>;
 pub type ViewFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type ViewResult<T> = Result<T, ViewError>;
 

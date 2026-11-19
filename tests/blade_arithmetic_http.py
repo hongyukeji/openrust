@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   (base/'resources/views/welcome.blade.html').write_text(text)
  with socket.socket() as probe:probe.bind(('127.0.0.1',0));port=probe.getsockname()[1]
  env['APP_PORT']=str(port);template('{{ 1 + 2 * 3 }}|{{ (1+2)*3 }}|{{ 2**3**2 }}|{{ 1e309 }}|{{ -0.0 }}')
+ (base/'resources/views/native-part.blade.html').write_text('{{ $value }}')
+ (base/'resources/views/components').mkdir(exist_ok=True)
+ (base/'resources/views/components/native-num.blade.html').write_text("@props(['value']){{ $value }}")
  log=open(base/'server.log','wb'); child=subprocess.Popen([str(binary)],cwd=work,env=env,stdout=log,stderr=subprocess.STDOUT)
  def request(path='/',headers=None,method='GET'):
   req=urllib.request.Request(f'http://127.0.0.1:{port}{path}',headers=headers or {},method=method)
@@ -43,6 +46,9 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   assert 'Power of base 0 and negative exponent is deprecated' in content
   print('actual main: deprecations logged and rendering continued',flush=True)
   for source,expected in [
+   ('{{ [INF][0] }}|{{ [NAN][0] }}|{{ [-0.0][0] }}','INF|NAN|-0'),
+   ("@include('native-part',['value'=>INF])",'INF'),
+   ('<x-native-num :value="NAN" />','NAN'),
    ('<s>A</s>@if(true)\n<b>B</b>@endif\nC','<s>A</s><b>B</b>C'),
    ('中@if(true)<b>B</b>@endif','中<b>B</b>'),
    ('@i{{-- c --}}f(true)<b>A</b>@end{{-- c --}}if','<b>A</b>'),
@@ -59,14 +65,14 @@ with tempfile.TemporaryDirectory(prefix='blade-main-') as directory:
   ]:
    template(source);status,_,body=request();assert status==200 and body==expected,(source,status,body,expected)
   print('actual main: Blade boundaries, case, escapes, close-tag newlines and PHP leading trim passed',flush=True)
-  for invalid in ['a{{-- {{-- nested --}}@if(true)<b>A</b>@endif', '@if(true)word@endif', '<b>prefix</b>@if\n(true)<b>x</b>@endif', '{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','{{ [INF][0] }}']:
+  for invalid in ['a{{-- {{-- nested --}}@if(true)<b>A</b>@endif', '@if(true)word@endif', '<b>prefix</b>@if\n(true)<b>x</b>@endif', '{{ 1/0 }}','{{ 1+$missing }}','{{ "tail"+1 }}','@js([INF])', '{{ Js::from([NAN]) }}']:
    template(invalid)
    status,headers,body=request(headers={'Accept':'application/json'})
    assert status==500 and 'application/json' in headers['Content-Type']
    json.loads(body)
    status,headers,body=request()
    assert status==500 and 'text/html' in headers['Content-Type']
-  print('actual main: division, undefined value, invalid numeric input and JSON boundary use JSON/HTML 500',flush=True)
+  print('actual main: division, undefined value, invalid numeric input and non-finite JSON encoding use JSON/HTML 500',flush=True)
   template('{{ 1+2 }}')
   assert request()[2]=='3'
   assert artisan('view:cache')

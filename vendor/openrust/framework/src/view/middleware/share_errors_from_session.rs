@@ -24,7 +24,8 @@ impl Middleware for ShareErrorsFromSession {
                 .and_then(|session| session.get("errors"))
                 .filter(|errors| errors.is_object())
                 .cloned()
-                .unwrap_or_else(|| ViewValue::Object(serde_json::Map::new()));
+                .map(Into::into)
+                .unwrap_or_else(|| ViewValue::Object(Default::default()));
             Ok(ERRORS.scope(Some(errors), next.run(request)).await)
         })
     }

@@ -1117,8 +1117,8 @@ fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                     page.linksWith(
                         "pagination::custom",
                         ViewData::from_iter([
-                            ("title".into(), json!("<Custom>")),
-                            ("paginator".into(), Json::Null),
+                            ("title".into(), json!("<Custom>").into()),
+                            ("paginator".into(), Json::Null.into()),
                         ]),
                     )
                 }

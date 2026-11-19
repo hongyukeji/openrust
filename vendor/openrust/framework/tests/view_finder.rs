@@ -113,12 +113,12 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     .unwrap();
     let factory = Factory::new(FileViewFinder::new([directory]), cache);
     let data = ViewData::from_iter([
-        ("user".to_owned(), json!({"name": "<&'\""})),
-        ("trusted".to_owned(), json!("<em>safe</em>")),
-        ("yes".to_owned(), json!(true)),
-        ("none".to_owned(), json!(false)),
-        ("missing".to_owned(), json!([])),
-        ("items".to_owned(), json!(["one", "<two>"])),
+        ("user".to_owned(), json!({"name": "<&'\""}).into()),
+        ("trusted".to_owned(), json!("<em>safe</em>").into()),
+        ("yes".to_owned(), json!(true).into()),
+        ("none".to_owned(), json!(false).into()),
+        ("missing".to_owned(), json!([]).into()),
+        ("items".to_owned(), json!(["one", "<two>"]).into()),
     ]);
     let engine = factory.getEngineResolver().resolve("blade").unwrap();
     let openrust::view::engines::Engine::Blade(engine) = engine else {
@@ -393,8 +393,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                             && price.is_some_and(|price| price.0 == 42)
                             && arguments
                                 .last()
-                                .and_then(|argument| argument.downcast_ref::<serde_json::Value>())
-                                .and_then(serde_json::Value::as_str)
+                                .and_then(|argument| {
+                                    argument.downcast_ref::<openrust::view::ViewValue>()
+                                })
+                                .and_then(openrust::view::ViewValue::as_str)
                                 == Some("retail")
                     }
                     _ => false,
@@ -801,7 +803,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .unwrap();
         factory
             .registerViewService("blade.summary", |summary: &ViewSummary| {
-                Ok(serde_json::json!({"label": format!("<{}>", summary.0)}))
+                Ok(serde_json::json!({"label": format!("<{}>", summary.0)}).into())
             })
             .unwrap();
         let contract = kernel
@@ -867,7 +869,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             engine.getCompiler().stringableIterable(|items| {
                 Ok(items
                     .get(0)
-                    .and_then(serde_json::Value::as_str)
+                    .and_then(openrust::view::ViewValue::as_str)
                     .unwrap_or_default()
                     .to_owned())
             });

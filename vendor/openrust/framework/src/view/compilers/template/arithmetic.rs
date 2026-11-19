@@ -117,16 +117,10 @@ impl Number {
         }
     }
     pub(super) fn json(self) -> ViewResult<ViewValue> {
-        match self {
-            Self::Integer(n) => Ok(n.into()),
-            Self::Float(n) => serde_json::Number::from_f64(n)
-                .map(ViewValue::Number)
-                .ok_or_else(|| {
-                    render_error(
-                        "A non-finite Blade number cannot cross a JSON view-data boundary.",
-                    )
-                }),
-        }
+        Ok(match self {
+            Self::Integer(n) => n.into(),
+            Self::Float(n) => n.into(),
+        })
     }
     pub(super) fn negate(self) -> Self {
         match self {
@@ -155,7 +149,7 @@ impl Number {
     pub(super) fn modulo_value(value: &ViewValue) -> ViewResult<i64> {
         let number = Self::from_value(value)?;
         if let ViewValue::String(text) = value {
-            let integer = crate::support::input_scalars::integer(value);
+            let integer = crate::support::input_scalars::integer_string(text);
             if number.double().fract() != 0.0
                 || number.double() >= -(i64::MIN as f64)
                 || number.double() < i64::MIN as f64

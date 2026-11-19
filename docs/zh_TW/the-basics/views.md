@@ -16,6 +16,23 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
+### 原生視圖值 {#native-view-values}
+
+視圖資料使用 `ViewData`，它是依插入順序排列的 `ViewValue` 映射。數值經過陣列、引入視圖、版型、匿名和類別元件及已註冊指令回呼時，保留 `INF`、`-INF`、`NAN` 和負零。既有的 `serde_json::Value` 輸入用 `.into()` 轉換；先經 JSON 編碼變成 null 的數值無法恢復。
+
+```rust
+use openrust::view::{ViewData, ViewValue};
+
+let mut data = ViewData::new();
+data.insert("number".into(), f64::INFINITY.into());
+data.insert("items".into(), vec![f64::NAN, -0.0].into());
+data.insert("profile".into(), serde_json::json!({"name": "James"}).into());
+let value = ViewValue::Object(data);
+assert!(value.to_json().is_err());
+```
+
+`ViewValue::to_json()` 和 Serde 序列化會遞迴拒絕非有限數。在 JSON 邊界處理傳回的 `Result`；一般 Blade 回顯不經 JSON 編碼，可以渲染同一個值。
+
 ## 與所有視圖共用資料
 
 在應用程式的服務提供者中呼叫 `View::share`，為該應用程式的視圖設定預設資料。傳入視圖的資料優先於共用預設值。
