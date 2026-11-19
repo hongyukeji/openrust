@@ -18,6 +18,23 @@ Double braces escape HTML entities. The following examples emit trusted HTML, pr
 {{-- comment --}}
 ```
 
+### Arithmetic Expressions {#arithmetic-expressions}
+
+Use `+`, `-`, `*`, `/`, `%` and `**` in echoes, conditions, array entries, includes and component attributes. Multiplication precedes addition; powers associate to the right and precede unary minus.
+
+```html
+{{ 1 + 2 * 3 }}
+{{ (1 + 2) * 3 }}
+{{ 2 ** 3 ** 2 }}
+@if ($price * $quantity >= 100)Bulk order @endif
+```
+
+The first three echoes output `7`, `9` and `512`. Signed 64-bit integer overflow promotes to a double. Numeric strings, booleans and null follow PHP arithmetic conversion; non-numeric operands, division by zero and undefined variables fail rendering. `??`, `@isset` and `@empty` permit absent values; `&&`, `||` and `??` short-circuit. A failed render uses the application's exception response policy.
+
+Fractional floating-point modulo operands truncate to integers, and a zero base with a negative exponent produces infinity. These operations emit deprecations rather than failing rendering, following Laravel's exception bootstrap. Configure `logging.deprecations.channel` to retain them; logging failures do not interrupt rendering. Testing skips these warnings unless `LOG_DEPRECATIONS_WHILE_TESTING` is truthy. Optional trace logging records a native Rust backtrace and error snapshot, and source locations identify the native evaluator rather than a PHP compiled template.
+
+Direct scalar echoes, arithmetic, truth tests and comparisons preserve `INF`, `NAN` and signed zero. View data remains JSON: non-finite values cannot be passed into arrays, includes, component data or custom JSON callbacks. Prepare such values in application Rust code if needed. Templates do not execute arbitrary PHP or call unregistered functions. The compiler invalidates older expression artifacts automatically.
+
 ### HTML Entity Encoding {#html-entity-encoding}
 
 Escaped Blade echoes double-encode existing HTML entities by default. To preserve valid HTML 4.01 entities in an application, configure its Blade compiler during provider startup. Use `withDoubleEncoding()` to restore the default.
@@ -157,13 +174,13 @@ Use `@switch`, `@case`, `@default`, and `@endswitch` to branch on a view value. 
 
 ### Array Expressions {#array-expressions}
 
-Use `[value, key => value]` or `array(...)` to construct an array. Keys and values can use variables, nested arrays and supported operators. Use `$items[$key]` to read an element. Missing elements evaluate to null. Entries keep their insertion order, and a repeated key replaces its value in place. Implicit integer keys follow the largest existing integer key, starting at zero for a new array.
+Use `[value, key => value]` or `array(...)` to construct an array. Keys and values can use variables, nested arrays and supported operators. Use `$items[$key]` to read an element. Missing elements fail rendering unless accessed through `??`, `@isset` or `@empty`. Entries keep their insertion order, and a repeated key replaces its value in place. Implicit integer keys follow the largest existing integer key, starting at zero for a new array.
 
 ```html
 <p>{{ ['colors' => [$primary, 'blue']]['colors'][0] ?? 'blue' }}</p>
 ```
 
-Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices remain JSON arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow evaluate to null. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
+Canonical integer strings, booleans, null and in-range floating-point keys follow PHP key conversion. Lists with consecutive zero-based indices remain JSON arrays. Other arrays become ordered view objects with string keys. Unsupported key values and an implicit index overflow fail rendering. Prepare PHP-specific references, unpacking and overloaded object access in application Rust code.
 
 ### The Loop Variable {#the-loop-variable}
 

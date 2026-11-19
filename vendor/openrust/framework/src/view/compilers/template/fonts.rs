@@ -63,7 +63,7 @@ impl Aliases {
                 .map(|alias| evaluated_name(alias, data, bindings))
                 .collect::<ViewResult<Vec<_>>>()
                 .map(Some),
-            Self::Value(alias) => match value(alias, data, bindings).as_ref() {
+            Self::Value(alias) => match value(alias, data, bindings)?.as_ref() {
                 ViewValue::Null => Ok(None),
                 ViewValue::Array(aliases) => aliases
                     .iter()

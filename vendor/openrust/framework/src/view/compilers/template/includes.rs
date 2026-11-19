@@ -76,7 +76,7 @@ impl RenderEach {
                 None => self.render_rows(create().1, data, bindings, output, context),
             };
         }
-        let collection = value(&self.collection, data, bindings);
+        let collection = value(&self.collection, data, bindings)?;
         if !collection.is_array() && !collection.is_object() {
             return Err(render_error(
                 "Blade @each requires an array, object, or registered iterator.",
@@ -178,6 +178,26 @@ enum Arguments {
 }
 
 impl Include {
+    pub(super) fn evaluate_arguments(
+        &self,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+    ) -> ViewResult<()> {
+        value(&self.name, data, bindings)?;
+        match &self.data {
+            Some(Arguments::Map(arguments)) => {
+                for (_, argument) in arguments {
+                    value(argument, data, bindings)?;
+                }
+            }
+            Some(Arguments::Value(argument)) => {
+                value(argument, data, bindings)?;
+            }
+            None => {}
+        }
+        Ok(())
+    }
+
     pub(super) fn parse(source: &str) -> ViewResult<Self> {
         let (name, data) = parse_arguments(source)?;
         Ok(Self {
@@ -218,7 +238,7 @@ impl IncludeFirst {
         data: &ViewData,
         bindings: &[(&str, &ViewValue)],
     ) -> ViewResult<Vec<String>> {
-        let candidates = value(&self.candidates, data, bindings);
+        let candidates = value(&self.candidates, data, bindings)?;
         match candidates.as_ref() {
             ViewValue::Array(names) => names
                 .iter()
@@ -284,13 +304,13 @@ fn include_data(
         );
     }
     match arguments {
-        Some(Arguments::Map(arguments)) => local.extend(
-            arguments
-                .iter()
-                .map(|(key, argument)| (key.clone(), value(argument, data, bindings).into_owned())),
-        ),
+        Some(Arguments::Map(arguments)) => {
+            for (key, argument) in arguments {
+                local.insert(key.clone(), value(argument, data, bindings)?.into_owned());
+            }
+        }
         Some(Arguments::Value(arguments)) => {
-            let evaluated = value(arguments, data, bindings);
+            let evaluated = value(arguments, data, bindings)?;
             let explicit = evaluated
                 .as_object()
                 .ok_or_else(|| render_error("Blade view data requires an object."))?;

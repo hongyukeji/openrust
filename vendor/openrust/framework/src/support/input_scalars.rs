@@ -84,7 +84,7 @@ fn decimal_text(text: &str) -> Cow<'_, str> {
     }
 }
 
-pub(super) fn decimal_float(text: &str) -> Option<f64> {
+pub(crate) fn decimal_float(text: &str) -> Option<f64> {
     decimal_text(text).parse().ok()
 }
 
@@ -125,7 +125,7 @@ pub(crate) fn numeric_prefix(text: &str) -> Option<&str> {
     Some(&text[..cursor])
 }
 
-fn double_integer(number: f64) -> i64 {
+pub(crate) fn double_integer(number: f64) -> i64 {
     if !number.is_finite() {
         return 0;
     }
@@ -148,7 +148,7 @@ fn double_integer(number: f64) -> i64 {
 
 // 默认 precision=14；对应 zend_gcvt 的 dtoa(mode=2, ndigit=14) 后布局。
 // Rust 科学格式先给出同等有效数字，再按 PHP 的阈值与 E/+/.0 规则排版。
-pub(super) fn double_string(number: f64) -> String {
+pub(crate) fn double_string(number: f64) -> String {
     if number.is_nan() {
         return "NAN".to_owned();
     }

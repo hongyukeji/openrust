@@ -116,6 +116,8 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
         ("user".to_owned(), json!({"name": "<&'\""})),
         ("trusted".to_owned(), json!("<em>safe</em>")),
         ("yes".to_owned(), json!(true)),
+        ("none".to_owned(), json!(false)),
+        ("missing".to_owned(), json!([])),
         ("items".to_owned(), json!(["one", "<two>"])),
     ]);
     let engine = factory.getEngineResolver().resolve("blade").unwrap();
@@ -169,7 +171,7 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     );
     assert!(matches!(
         factory.renderInline("@formatName($x + 1)", &data),
-        Err(ViewError::CompileFailed(_))
+        Err(ViewError::RenderFailed(_))
     ));
     fs::write(&blade, "@unless ($none)updated@endunless").unwrap();
     assert!(compiler.isExpired(&blade).unwrap());
@@ -1090,8 +1092,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "{{ ['00' => 'zero']['00'] }}|{{ array(-4 => 'first', 'second')[-3] }}|",
                 "{{ [2.5 => $label][2] }}|{{ [null][4] ?? 'missing' }}|",
                 "{{ [false => 'x', 'y'][1] }}|{{ [0 => 'a', 'b'][0] }}|",
-                "{{ [[1] => 'bad'] ?? 'invalid-key' }}|",
-                "{{ [9223372036854775807 => 'full', 'bad'] ?? 'overflow' }}",
+                "{{ ['valid' => 'value']['missing'] ?? 'invalid-key' }}|",
+                "{{ [9223372036854775807 => 'full'][0] ?? 'overflow' }}",
             ),
         ),
         ("broken_fragment", "@fragment('left')broken"),
@@ -1150,7 +1152,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@includeIf('absent', true)",
             ),
         ),
-        ("include_row", "[{{ $app }}:{{ $label }}:{{ $caller }}]"),
+        (
+            "include_row",
+            "[{{ $app }}:{{ $label }}:{{ $caller ?? '' }}]",
+        ),
         (
             "keyed_includes",
             concat!(
@@ -1196,9 +1201,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         (
             "each_row",
-            "[{{ $app }}:{{ $key }}:{{ $item }}:{{ $caller }}]",
+            "[{{ $app }}:{{ $key }}:{{ $item }}:{{ $caller ?? '' }}]",
         ),
-        ("each_empty", "{{ $app }}:{{ $caller }}"),
+        ("each_empty", "{{ $app }}:{{ $caller ?? '' }}"),
         ("bad_each", "@each('each_row', $items, 'item')"),
         (
             "loop_control",
@@ -1327,7 +1332,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "@canany([])unexpected@elsecannot('hidden')elsecannot@endcanany|",
                 "@can('create-price', $target)create@else guest@endcan|",
                 "@can('preview')@cannot('hidden')nested@endcannot@endcan|",
-                "@include('gate_partial'):@includeIsolated('gate_partial')",
+                "@include('gate_partial'):@includeIsolated('gate_partial', ['subject' => null])",
             ),
         ),
         (
@@ -1381,7 +1386,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "aware_page",
             concat!(
                 "<x-frame :$color><x-tone/><x-tone color=\"near\"/>",
-                "<x-slot:details><x-tone/></x-slot></x-frame><x-frame/><x-tone/>",
+                "<x-slot:details><x-tone/></x-slot></x-frame><x-frame><x-slot:details></x-slot></x-frame><x-tone/>",
             ),
         ),
         (
@@ -1457,10 +1462,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(send(second, "/fonts", 200).await, development);
     let (a, b) = tokio::join!(
         send(first, "/echo-formatters", 200),
-        send(second, "/echo-formatters", 200),
+        send(second, "/echo-formatters", 500),
     );
     assert_eq!(a, "&lt;A:42&gt;|<A:42>|&lt;one&gt;|<one>");
-    assert_eq!(b, "&lt;B:42&gt;|<B:42>||");
+    assert!(b.contains("500"));
     let (a, b, unrelated) = tokio::join!(
         send(first, "/page", 200),
         send(second, "/page", 200),

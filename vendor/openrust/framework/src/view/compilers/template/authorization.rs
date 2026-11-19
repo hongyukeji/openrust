@@ -36,9 +36,9 @@ impl Values {
         match self {
             Self::List(expressions) => expressions
                 .iter()
-                .map(|expression| ability(value(expression, data, bindings).as_ref()))
+                .map(|expression| ability(value(expression, data, bindings)?.as_ref()))
                 .collect(),
-            Self::Single(expression) => match value(expression, data, bindings).as_ref() {
+            Self::Single(expression) => match value(expression, data, bindings)?.as_ref() {
                 ViewValue::Array(abilities) => abilities.iter().map(ability).collect(),
                 name => Ok(vec![ability(name)?]),
             },
@@ -50,7 +50,7 @@ impl Values {
         data: &ViewData,
         bindings: &[(&str, &ViewValue)],
         context: &RenderContext<'_>,
-    ) -> Vec<GateArgument> {
+    ) -> ViewResult<Vec<GateArgument>> {
         let typed = |expression: &Expression| {
             let Expression::Variable(path) = expression else {
                 return None;
@@ -69,21 +69,21 @@ impl Values {
         match self {
             Self::List(expressions) => expressions
                 .iter()
-                .map(|expression| {
-                    typed(expression)
-                        .unwrap_or_else(|| owned(value(expression, data, bindings).as_ref()))
+                .map(|expression| match typed(expression) {
+                    Some(v) => Ok(v),
+                    None => Ok(owned(value(expression, data, bindings)?.as_ref())),
                 })
                 .collect(),
             Self::Single(expression) => {
                 if let Some(argument) = typed(expression) {
-                    return vec![argument];
+                    return Ok(vec![argument]);
                 }
-                match value(expression, data, bindings).as_ref() {
+                Ok(match value(expression, data, bindings)?.as_ref() {
                     ViewValue::Null => Vec::new(),
                     ViewValue::Array(arguments) => arguments.iter().map(owned).collect(),
                     ViewValue::Object(arguments) => arguments.values().map(owned).collect(),
                     argument => vec![owned(argument)],
-                }
+                })
             }
         }
     }
@@ -126,9 +126,12 @@ impl AuthorizationBranch {
         context: &RenderContext<'_>,
     ) -> ViewResult<bool> {
         let abilities = self.abilities.abilities(data, bindings)?;
-        let arguments = self.arguments.as_ref().map_or_else(Vec::new, |arguments| {
-            arguments.arguments(data, bindings, context)
-        });
+        let arguments = self
+            .arguments
+            .as_ref()
+            .map(|arguments| arguments.arguments(data, bindings, context))
+            .transpose()?
+            .unwrap_or_default();
         context.request.authorized(self.mode, abilities, arguments)
     }
 }

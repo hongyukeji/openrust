@@ -11,6 +11,7 @@ use crate::view::{
     request_data::AuthorizationMode,
 };
 
+mod arithmetic;
 mod attributes;
 mod authorization;
 mod expressions;
@@ -27,7 +28,10 @@ use attributes::{
 };
 
 use authorization::AuthorizationBranch;
-use expressions::{Expression, expression_value, loose_equal, truthy, value};
+use expressions::{
+    Expression, boolean_value, condition_value, evaluate, expression_value, loose_equal, truthy,
+    value,
+};
 use includes::{Include, IncludeFirst, RenderEach, collection_entries, registered_iteration};
 use loops::{CountedLoop, Jump, JumpKind};
 
@@ -237,8 +241,8 @@ impl Template {
         let mut data = Cow::Borrowed(data);
         for declaration in &self.declarations {
             match declaration {
-                Declaration::Props(props) => data = Cow::Owned(apply_props(&data, props, context)),
-                Declaration::Aware(aware) => apply_aware(data.to_mut(), aware, context),
+                Declaration::Props(props) => data = Cow::Owned(apply_props(&data, props, context)?),
+                Declaration::Aware(aware) => apply_aware(data.to_mut(), aware, context)?,
                 Declaration::Inject(variable, service) => {
                     let service = evaluated_name(service, &data, &[])?;
                     let exposed = context.view_service(&service)?;
@@ -1409,7 +1413,12 @@ fn render_nodes<'a>(
                         continue;
                     }
                 }
-                let evaluated = value(expression, data, bindings);
+                let evaluated = evaluate(expression, data, bindings)?;
+                if let Some(text) = evaluated.numeric_text() {
+                    output.push_str(&text);
+                    continue;
+                }
+                let evaluated = evaluated.json()?;
                 let value = evaluated.as_ref();
                 let formatted;
                 let value = if matches!(value, ViewValue::Array(_) | ViewValue::Object(_))
@@ -1431,11 +1440,11 @@ fn render_nodes<'a>(
                 {
                     html::escape_preserving_entities(output, text);
                 } else {
-                    echo(output, value, *escape);
+                    echo(output, value, *escape)?;
                 }
             }
             Node::EscapedSectionValue(expression) => {
-                echo(output, value(expression, data, bindings).as_ref(), true);
+                echo(output, value(expression, data, bindings)?.as_ref(), true)?;
             }
             Node::Attributes(chain) => {
                 render_attributes(&chain.resolve(context, data, bindings)?, output)?;
@@ -1448,12 +1457,17 @@ fn render_nodes<'a>(
                 {
                     html::escape_preserving_entities(output, text);
                 } else {
-                    echo(output, &resolved, *escape);
+                    echo(output, &resolved, *escape)?;
                 }
             }
             Node::Conditional(expression, predicate, yes, no) => {
                 let evaluated = match expression {
-                    ConditionalValue::Expression(expression) => value(expression, data, bindings),
+                    ConditionalValue::Expression(expression) => condition_value(
+                        expression,
+                        data,
+                        bindings,
+                        matches!(predicate, Predicate::Isset | Predicate::Empty),
+                    )?,
                     ConditionalValue::Component(query) => {
                         Cow::Owned(query.resolve(context, data, bindings)?)
                     }
@@ -1467,8 +1481,9 @@ fn render_nodes<'a>(
                             default
                                 .as_ref()
                                 .map(|default| value(default, data, bindings))
+                                .transpose()?
                                 .as_deref(),
-                        );
+                        )?;
                         Cow::Owned(ViewValue::String(section))
                     }
                 };
@@ -1497,7 +1512,11 @@ fn render_nodes<'a>(
                 alternative,
             } => {
                 let stream = registered_iteration(expression, bindings, context);
-                let collection = value(expression, data, bindings);
+                let collection = if stream.is_some() {
+                    Cow::Borrowed(&ViewValue::Null)
+                } else {
+                    value(expression, data, bindings)?
+                };
                 let (count, entries): (_, Box<dyn Iterator<Item = _>>) = if let Some(stream) =
                     stream
                 {
@@ -1507,6 +1526,11 @@ fn render_nodes<'a>(
                         Box::new(entries.map(|(key, value)| (key, Cow::Owned(value)))),
                     )
                 } else {
+                    if !collection.is_array() && !collection.is_object() {
+                        return Err(render_error(
+                            "Blade foreach requires an array, object, or registered iterator.",
+                        ));
+                    }
                     let count = collection
                         .as_array()
                         .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
@@ -1564,12 +1588,12 @@ fn render_nodes<'a>(
                 }
             }
             Node::For(counted) => {
-                let mut counter = loop_integer(value(&counted.start, data, bindings).as_ref())?;
+                let mut counter = loop_integer(value(&counted.start, data, bindings)?.as_ref())?;
                 loop {
                     let current = ViewValue::from(counter);
                     let mut locals = bindings.to_vec();
                     locals.push((&counted.variable, &current));
-                    if !truthy(value(&counted.condition, data, &locals).as_ref()) {
+                    if !boolean_value(&counted.condition, data, &locals)? {
                         break;
                     }
                     context.tick_loop()?;
@@ -1581,7 +1605,7 @@ fn render_nodes<'a>(
                         }) => break,
                         _ => {}
                     }
-                    let step = loop_integer(value(&counted.step, data, &locals).as_ref())?;
+                    let step = loop_integer(value(&counted.step, data, &locals)?.as_ref())?;
                     counter = if counted.descending {
                         counter.checked_sub(step)
                     } else {
@@ -1591,7 +1615,7 @@ fn render_nodes<'a>(
                 }
             }
             Node::While(condition, body) => {
-                while truthy(value(condition, data, bindings).as_ref()) {
+                while boolean_value(condition, data, bindings)? {
                     context.tick_loop()?;
                     match render_nodes(body, data, bindings, output, context)? {
                         Some(jump) if jump.levels > 1 => return Ok(Some(jump.outer())),
@@ -1604,10 +1628,10 @@ fn render_nodes<'a>(
                 }
             }
             Node::Jump(kind, levels, condition) => {
-                if condition
-                    .as_ref()
-                    .is_none_or(|condition| truthy(value(condition, data, bindings).as_ref()))
-                {
+                if match condition {
+                    Some(condition) => boolean_value(condition, data, bindings)?,
+                    None => true,
+                } {
                     return Ok(Some(Jump {
                         kind: *kind,
                         levels: *levels,
@@ -1615,15 +1639,18 @@ fn render_nodes<'a>(
                 }
             }
             Node::Switch(subject, cases) => {
-                let subject = value(subject, data, bindings);
-                let selected = cases
-                    .iter()
-                    .position(|case| {
-                        case.value.as_ref().is_some_and(|case| {
-                            loose_equal(subject.as_ref(), value(case, data, bindings).as_ref())
-                        })
-                    })
-                    .or_else(|| cases.iter().position(|case| case.value.is_none()));
+                let subject = value(subject, data, bindings)?;
+                let mut selected = None;
+                for (index, case) in cases.iter().enumerate() {
+                    if let Some(case) = &case.value
+                        && loose_equal(subject.as_ref(), value(case, data, bindings)?.as_ref())
+                    {
+                        selected = Some(index);
+                        break;
+                    }
+                }
+                let selected =
+                    selected.or_else(|| cases.iter().position(|case| case.value.is_none()));
                 if let Some(selected) = selected {
                     for case in &cases[selected..] {
                         match render_nodes(&case.body, data, bindings, output, context)? {
@@ -1666,15 +1693,16 @@ fn render_nodes<'a>(
                     default
                         .as_ref()
                         .map(|default| value(default, data, bindings))
+                        .transpose()?
                         .as_deref(),
-                );
+                )?;
             }
             Node::Stack(expression, default) => {
                 let name = evaluated_name(expression, data, bindings)?;
                 if !context.stack(&name, output)
                     && let Some(default) = default
                 {
-                    echo(output, value(default, data, bindings).as_ref(), false);
+                    echo(output, value(default, data, bindings)?.as_ref(), false)?;
                 }
             }
             Node::StackCapture(expression, nodes, prepend) => {
@@ -1733,26 +1761,26 @@ fn render_nodes<'a>(
                 context.capture_fragment(name, html);
             }
             Node::BooleanAttribute(name, condition) => {
-                if truthy(value(condition, data, bindings).as_ref()) {
+                if boolean_value(condition, data, bindings)? {
                     output.push_str(name);
                 }
             }
             Node::BooleanText(condition) => {
-                output.push_str(if truthy(value(condition, data, bindings).as_ref()) {
+                output.push_str(if boolean_value(condition, data, bindings)? {
                     "true"
                 } else {
                     "false"
                 });
             }
             Node::JavaScript(expression) => {
-                javascript::write_expression(output, value(expression, data, bindings).as_ref())?;
+                javascript::write_expression(output, value(expression, data, bindings)?.as_ref())?;
             }
             Node::Fonts(aliases) => {
                 fonts::render(context, aliases.resolve(data, bindings)?, output)?;
             }
             Node::ConditionalAttribute(entries, style) => {
                 let name = if *style { "style" } else { "class" };
-                let text = css_list(value(entries, data, bindings).as_ref(), *style)?;
+                let text = css_list(value(entries, data, bindings)?.as_ref(), *style)?;
                 write!(output, "{name}=\"").unwrap();
                 escape_html(output, &text);
                 output.push('"');
@@ -1764,8 +1792,8 @@ fn render_nodes<'a>(
                     })?;
                 let arguments = arguments
                     .iter()
-                    .map(|argument| value(argument, data, bindings).into_owned())
-                    .collect::<Vec<_>>();
+                    .map(|argument| value(argument, data, bindings).map(Cow::into_owned))
+                    .collect::<ViewResult<Vec<_>>>()?;
                 match callback(&arguments)? {
                     DirectiveOutput::Text(text) => escape_html(output, &text),
                     DirectiveOutput::Html(html) => output.push_str(&html),
@@ -1781,8 +1809,8 @@ fn render_nodes<'a>(
                     let arguments = branch
                         .arguments
                         .iter()
-                        .map(|argument| value(argument, data, bindings).into_owned())
-                        .collect::<Vec<_>>();
+                        .map(|argument| value(argument, data, bindings).map(Cow::into_owned))
+                        .collect::<ViewResult<Vec<_>>>()?;
                     if callback(&arguments)? != branch.negated {
                         selected = &branch.body;
                         break;
@@ -1793,7 +1821,7 @@ fn render_nodes<'a>(
             Node::Environment(patterns, body, alternative) => {
                 let mut names = Vec::new();
                 for pattern in patterns {
-                    let pattern = value(pattern, data, bindings);
+                    let pattern = value(pattern, data, bindings)?;
                     if let Some(array) = pattern.as_array() {
                         for name in array {
                             names.push(name_value(name)?.to_owned());
@@ -1853,12 +1881,16 @@ fn render_nodes<'a>(
                 let name = include.name(data, bindings)?;
                 if !optional || context.exists(&name)? {
                     output.push_str(&context.include(&name, &include.data(data, bindings, true)?)?);
+                } else {
+                    include.evaluate_arguments(data, bindings)?;
                 }
             }
             Node::IncludeWhen(condition, include, when) => {
-                if truthy(value(condition, data, bindings).as_ref()) == *when {
+                if boolean_value(condition, data, bindings)? == *when {
                     let name = include.name(data, bindings)?;
                     output.push_str(&context.include(&name, &include.data(data, bindings, true)?)?);
+                } else {
+                    include.evaluate_arguments(data, bindings)?;
                 }
             }
             Node::IncludeFirst(include) => {
@@ -1883,7 +1915,7 @@ fn render_nodes<'a>(
                 let name = match name {
                     ComponentName::Static(name) => name.as_str(),
                     ComponentName::Dynamic(expression) => {
-                        dynamic = value(expression, data, bindings);
+                        dynamic = value(expression, data, bindings)?;
                         dynamic
                             .as_str()
                             .filter(|name| valid_component_name(name))
@@ -1919,7 +1951,8 @@ fn render_nodes<'a>(
                             },
                         );
                         for slot in slots {
-                            let name = slot_name(value(&slot.name, data, &slot_bindings).as_ref())?;
+                            let name =
+                                slot_name(value(&slot.name, data, &slot_bindings)?.as_ref())?;
                             let (values, forwarded) = resolve_tag_attributes(
                                 &slot.attributes,
                                 data,
@@ -1973,9 +2006,10 @@ fn resolve_tag_attributes(
     let mut parent = None;
     for attribute in attributes {
         let (name, value) = match attribute {
-            TagAttribute::Value(name, expression) => {
-                (name.clone(), value(expression, data, bindings).into_owned())
-            }
+            TagAttribute::Value(name, expression) => (
+                name.clone(),
+                value(expression, data, bindings)?.into_owned(),
+            ),
             TagAttribute::Forward(chain) => {
                 parent = Some(chain.resolve(context, data, bindings)?);
                 continue;
@@ -1984,7 +2018,7 @@ fn resolve_tag_attributes(
                 let name = if *style { "style" } else { "class" };
                 (
                     name.to_owned(),
-                    css_list(value(expression, data, bindings).as_ref(), *style)?.into(),
+                    css_list(value(expression, data, bindings)?.as_ref(), *style)?.into(),
                 )
             }
         };
@@ -2005,12 +2039,13 @@ fn yield_section(
     name: &str,
     output: &mut String,
     default: Option<&ViewValue>,
-) {
+) -> ViewResult<()> {
     if !context.yield_to(name, output)
         && let Some(default) = default
     {
-        echo(output, default, true);
+        echo(output, default, true)?;
     }
+    Ok(())
 }
 
 fn section_present(value: &ViewValue) -> bool {
@@ -2026,7 +2061,7 @@ fn evaluated_name<'a>(
     data: &'a ViewData,
     bindings: &[(&str, &'a ViewValue)],
 ) -> ViewResult<Cow<'a, str>> {
-    match value(expression, data, bindings) {
+    match value(expression, data, bindings)? {
         Cow::Borrowed(value) => name_value(value).map(Cow::Borrowed),
         Cow::Owned(value) => name_value(&value).map(|name| Cow::Owned(name.to_owned())),
     }
@@ -2039,14 +2074,26 @@ fn name_value(value: &ViewValue) -> ViewResult<&str> {
         .ok_or_else(|| render_error("Blade directive requires a non-empty name."))
 }
 
-fn echo(output: &mut String, value: &ViewValue, escape: bool) {
+fn echo(output: &mut String, value: &ViewValue, escape: bool) -> ViewResult<()> {
     match value {
         ViewValue::String(string) if escape => escape_html(output, string),
         ViewValue::String(string) => output.push_str(string),
         ViewValue::Bool(true) => output.push('1'),
-        ViewValue::Number(number) => write!(output, "{number}").unwrap(),
+        ViewValue::Number(number) => {
+            if number.is_f64() {
+                output.push_str(&crate::support::input_scalars::double_string(
+                    number.as_f64().expect("JSON float"),
+                ));
+            } else {
+                write!(output, "{number}").unwrap();
+            }
+        }
+        ViewValue::Array(_) | ViewValue::Object(_) => {
+            return Err(render_error("Array to string conversion in Blade echo."));
+        }
         _ => {}
     }
+    Ok(())
 }
 
 fn hidden_field(output: &mut String, name: &str, value: &str) {

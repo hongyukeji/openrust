@@ -400,3 +400,8 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 
 
 06-08 [Pail 默认开发进程](06-08/pail-dev.md)通过已加载 Provider 身份与生命周期、默认项优先级及隔离、MySQL 8.4.13 实际 HTTP／Artisan／TTY、两种构建的通用 PTY、50 项及默认构建单项、严格 Clippy 和三语文档检查。Pail 命令与默认 dev 进程已验收；认证自动解析、Windows 发布矩阵及已记录的 Blade 算术继续跟踪。核心账本保持既有 66/66，不外推为整个框架完成。
+
+
+## 2026-11-19 Blade 标量算术增补
+
+03-07／07-01 [Blade 标量算术](07-01/blade-arithmetic.md)通过 962 组固定 PHP 与真实 HTTP、33 项回归、根二进制／Artisan、严格 Clippy 和三语文档验收。补齐存储路径消费者验收发现的标量算术缺口。核心 66/66 保持原有边界，不代表任意 PHP 或所有 Blade 文本形式已兼容；JSON 非有限数参数边界及指令词边界／空白规则单列后续，Pail 认证与 Windows 发布矩阵仍未闭合。

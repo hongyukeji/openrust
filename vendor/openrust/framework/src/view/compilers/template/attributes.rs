@@ -351,12 +351,20 @@ pub(super) fn apply_props(
     data: &ViewData,
     props: &[(String, Option<Expression>)],
     context: &mut RenderContext<'_>,
-) -> ViewData {
+) -> ViewResult<ViewData> {
+    let defaults = props
+        .iter()
+        .map(|(_, d)| {
+            d.as_ref()
+                .map(|d| value(d, data, &[]).map(std::borrow::Cow::into_owned))
+                .transpose()
+        })
+        .collect::<ViewResult<Vec<_>>>()?;
     let mut data = data.clone();
     let attributes = context
         .component_attributes
         .get_or_insert_with(ViewData::new);
-    for (name, default) in props {
+    for ((name, _), default) in props.iter().zip(defaults) {
         let kebab = Str::kebab(name);
         let named = attributes.shift_remove(name);
         let alternate = attributes.shift_remove(&kebab);
@@ -365,13 +373,12 @@ pub(super) fn apply_props(
         }
         if data.get(name).is_none_or(ViewValue::is_null) {
             let selected = named
-                .filter(|value| !value.is_null())
-                .or_else(|| alternate.filter(|value| !value.is_null()))
-                .or_else(|| {
-                    default
-                        .as_ref()
-                        .map(|default| value(default, &data, &[]).into_owned())
-                });
+                .filter(|v| !v.is_null())
+                .or_else(|| alternate.filter(|v| !v.is_null()));
+            let selected = match selected {
+                Some(v) => Some(v),
+                None => default,
+            };
             if let Some(selected) = selected {
                 data.insert(name.clone(), selected);
             }
@@ -380,23 +387,32 @@ pub(super) fn apply_props(
     for name in attributes.keys() {
         data.shift_remove(name);
     }
-    data
+    Ok(data)
 }
 
-pub(super) fn apply_aware(data: &mut ViewData, props: &Props, context: &RenderContext<'_>) {
-    for (name, default) in props {
+pub(super) fn apply_aware(
+    data: &mut ViewData,
+    props: &Props,
+    context: &RenderContext<'_>,
+) -> ViewResult<()> {
+    let defaults = props
+        .iter()
+        .map(|(_, d)| {
+            d.as_ref()
+                .map(|d| value(d, data, &[]).map(std::borrow::Cow::into_owned))
+                .transpose()
+        })
+        .collect::<ViewResult<Vec<_>>>()?;
+    for ((name, _), default) in props.iter().zip(defaults) {
         let alternate = Str::kebab(name);
-        let value = context
-            .consumable_property(name, &alternate)
-            .cloned()
-            .or_else(|| {
-                default
-                    .as_ref()
-                    .map(|default| value(default, data, &[]).into_owned())
-            })
-            .unwrap_or(ViewValue::Null);
-        data.insert(name.clone(), value);
+        let selected = context.consumable_property(name, &alternate).cloned();
+        let selected = match selected {
+            Some(v) => v,
+            None => default.unwrap_or_default(),
+        };
+        data.insert(name.clone(), selected);
     }
+    Ok(())
 }
 
 impl AttributeChain {
@@ -436,22 +452,26 @@ impl ComponentQuery {
             }
             Self::Attribute(chain, access) => {
                 let attributes = chain.resolve(context, data, bindings)?;
-                let with_default = |entry: Option<&ViewValue>, default: &Option<Expression>| {
-                    entry
-                        .filter(|entry| !entry.is_null())
+                let with_default = |entry: Option<&ViewValue>,
+                                    default: &Option<Expression>|
+                 -> ViewResult<ViewValue> {
+                    let default = default
+                        .as_ref()
+                        .map(|d| value(d, data, bindings).map(std::borrow::Cow::into_owned))
+                        .transpose()?;
+                    Ok(entry
+                        .filter(|v| !v.is_null())
                         .cloned()
-                        .or_else(|| {
-                            default
-                                .as_ref()
-                                .map(|default| value(default, data, bindings).into_owned())
-                        })
-                        .unwrap_or_default()
+                        .or(default)
+                        .unwrap_or_default())
                 };
                 Ok(match access {
                     AttributeQuery::First(default) => {
-                        with_default(attributes.values().next(), default)
+                        with_default(attributes.values().next(), default)?
                     }
-                    AttributeQuery::Get(key, default) => with_default(attributes.get(key), default),
+                    AttributeQuery::Get(key, default) => {
+                        with_default(attributes.get(key), default)?
+                    }
                     AttributeQuery::Exists(keys, any) => {
                         let mut present = keys.iter().map(|key| attributes.contains_key(key));
                         if *any {
@@ -496,12 +516,12 @@ impl AttributeOperation {
                     if default.prepend {
                         append.push(default.name.as_str());
                     }
-                    (
+                    Ok((
                         default.name.clone(),
-                        value(&default.value, data, bindings).into_owned(),
-                    )
+                        value(&default.value, data, bindings)?.into_owned(),
+                    ))
                 })
-                .collect(),
+                .collect::<ViewResult<_>>()?,
             Self::NamedFilter(name) => {
                 let callback = context
                     .extensions
@@ -513,11 +533,11 @@ impl AttributeOperation {
             }
             Self::Class(entries) => ViewData::from_iter([(
                 "class".to_owned(),
-                css_list(value(entries, data, bindings).as_ref(), false)?.into(),
+                css_list(value(entries, data, bindings)?.as_ref(), false)?.into(),
             )]),
             Self::Style(entries) => ViewData::from_iter([(
                 "style".to_owned(),
-                css_list(value(entries, data, bindings).as_ref(), true)?.into(),
+                css_list(value(entries, data, bindings)?.as_ref(), true)?.into(),
             )]),
             Self::Filter {
                 names,

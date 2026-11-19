@@ -347,7 +347,11 @@ fn facades_keep_concurrent_applications_isolated() {
             check_facade_application(
                 || {
                     WEB.wait();
-                    Route::get("/first", || view("welcome"))
+                    Route::get("/first", || {
+                        view("welcome")
+                            .with("name", "first")
+                            .with("version", "test")
+                    })
                 },
                 || {
                     ArtisanFacade::command("probe", |output| output.comment("first"))?
@@ -363,7 +367,11 @@ fn facades_keep_concurrent_applications_isolated() {
             check_facade_application(
                 || {
                     WEB.wait();
-                    Route::get("/second", || view("welcome"))
+                    Route::get("/second", || {
+                        view("welcome")
+                            .with("name", "second")
+                            .with("version", "test")
+                    })
                 },
                 || {
                     ArtisanFacade::command("probe", |output| output.comment("second"))?
