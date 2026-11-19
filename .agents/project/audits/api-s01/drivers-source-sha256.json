@@ -1,0 +1,25 @@
+{
+  "baseline": "4e7042a241653f3027c09ef4aa90a1129c221912",
+  "sha256": {
+    "config/services.rs": "310a09e3eb33d881e03bb5f14315f68b97cc0db7b8f81d99a53ee72b887f24eb",
+    "docs/en/packages/socialite.md": "137a6567a5ea4b0e4eb945c282d3326db90cd7969ea576845b0190190428aa4c",
+    "docs/tests/check_socialite.mjs": "3bba730b5ef392334467452d6daba04cc9088281255a129efe22292289834863",
+    "docs/zh_CN/packages/socialite.md": "079b533fc41abbce06216b5078c7a66da715c36f611bb48c253eea3ed7e73442",
+    "docs/zh_TW/packages/socialite.md": "153850f793ca6b92dbde975c07ef2e1f7f7c5d4b8143b2d5ec82b18b6eb12e7d",
+    "vendor/openrust/socialite/src/manager.rs": "620331cd7c0ed64e105b119da94233070aee78d411a58342e6f74c6c8e9134ec",
+    "vendor/openrust/socialite/src/two/abstract_provider.rs": "91a8aece0154a9888865ff1135c1c04ea29a8e8c961e08c3cab8febc73dde7bb",
+    "vendor/openrust/socialite/src/two/bitbucket_provider.rs": "669bcd22e36d2fcfa5360649f42cb9147da2375cabcb3fed14193eacc94f01f6",
+    "vendor/openrust/socialite/src/two/endpoints.rs": "85beda165ac177fdb3dd8f0b43d6c6b547c489f9ca8de64f9bb8a16faab7c182",
+    "vendor/openrust/socialite/src/two/gitlab_provider.rs": "6c00fc060c6335600adc88e02c4b5a4d24274007dc97c5ff8eb493512c20a2fd",
+    "vendor/openrust/socialite/src/two/linkedin_open_id_provider.rs": "becf656ecb636f3d4269378d9b29c135956c66827b1eb38e8772faaf25c5ad13",
+    "vendor/openrust/socialite/src/two/linkedin_provider.rs": "2152c969868d51b12db56b50bea700ee15efe824a175dd1125cd91a3dd3a0d7f",
+    "vendor/openrust/socialite/src/two/mod.rs": "de3ab715626bc82db37c0b9a1938c99d74d1547f87e52994a4fce0a6a43bc7bd",
+    "vendor/openrust/socialite/src/two/slack_open_id_provider.rs": "e594ed9ef580a1cef595745a256467b68a4c60752a64ed7858f5be08cf3154b5",
+    "vendor/openrust/socialite/src/two/slack_provider.rs": "dc388739c6c5d3b395b832d300d1aed38896c98457b014deefd5ce5d79c6c2ab",
+    "vendor/openrust/socialite/tests/drivers.rs": "ec3d27acd84b158486ab82a0c0fee8a9f80c57d269ebdf1cf016e8b245a96891",
+    "vendor/openrust/socialite/tests/fixtures/driver-inputs.json": "9acd8bc2aee14923fd28542a2d7efbdf5937c8959c39dbd58dd66966ace3c02a",
+    "vendor/openrust/socialite/tests/fixtures/drivers.json": "4ce5e3da4bbf98a2c7e80a6755909aec4645a4b814d3f05713815c42ee2a0b39",
+    "vendor/openrust/socialite/tests/reference/drivers-source-sha256.json": "7ca595322de51c9cd80a314aa08534ff263883c38008d6d78e1fc95f5eaf2db9",
+    "vendor/openrust/socialite/tests/reference/drivers.php": "12bb7b38b4fdcbedea3c94cd198d9dbf1b0a639d7c118102b3227e067dc76161"
+  }
+}

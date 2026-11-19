@@ -9,7 +9,7 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     | 第三方服务凭据
     |--------------------------------------------------------------------------
     |
-    | 通过环境变量配置邮件供应商、Slack 通知与 GitHub 登录所需的凭据。
+    | 通过环境变量配置邮件供应商、Slack 通知与第三方登录所需的凭据。
     |
     */
     Ok(json!({
@@ -17,6 +17,32 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
             "client_id": get(env, "GITHUB_CLIENT_ID", Value::Null)?,
             "client_secret": get(env, "GITHUB_CLIENT_SECRET", Value::Null)?,
             "redirect": get(env, "GITHUB_REDIRECT_URI", Value::Null)?,
+        },
+        "gitlab": {
+            "client_id": get(env, "GITLAB_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "GITLAB_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "GITLAB_REDIRECT_URI", Value::Null)?,
+            "host": get(env, "GITLAB_HOST", "https://gitlab.com")?,
+        },
+        "bitbucket": {
+            "client_id": get(env, "BITBUCKET_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "BITBUCKET_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "BITBUCKET_REDIRECT_URI", Value::Null)?,
+        },
+        "linkedin": {
+            "client_id": get(env, "LINKEDIN_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "LINKEDIN_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "LINKEDIN_REDIRECT_URI", Value::Null)?,
+        },
+        "linkedin-openid": {
+            "client_id": get(env, "LINKEDIN_OPENID_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "LINKEDIN_OPENID_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "LINKEDIN_OPENID_REDIRECT_URI", Value::Null)?,
+        },
+        "slack-openid": {
+            "client_id": get(env, "SLACK_OPENID_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "SLACK_OPENID_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "SLACK_OPENID_REDIRECT_URI", Value::Null)?,
         },
         "postmark": {"token": get(env, "POSTMARK_TOKEN", Value::Null)?},
         "cloudflare": {
@@ -36,6 +62,9 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
             "region": get(env, "AWS_DEFAULT_REGION", "us-east-1")?,
         },
         "slack": {
+            "client_id": get(env, "SLACK_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "SLACK_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "SLACK_REDIRECT_URI", Value::Null)?,
             "notifications": {
                 "bot_user_oauth_token": get(env, "SLACK_BOT_USER_OAUTH_TOKEN", Value::Null)?,
                 "channel": get(env, "SLACK_BOT_USER_DEFAULT_CHANNEL", Value::Null)?,

@@ -1,0 +1,110 @@
+use super::{
+    ProviderDefinition, ProviderEndpoints, ProviderFuture, User,
+    abstract_provider::json,
+    endpoints::{mapped, value},
+};
+use crate::Result;
+use openrust::http::client::Factory;
+use serde_json::Value;
+#[derive(Clone)]
+pub struct BitbucketProvider {
+    endpoints: ProviderEndpoints,
+}
+impl Default for BitbucketProvider {
+    fn default() -> Self {
+        Self {
+            endpoints: ProviderEndpoints::new(
+                "https://bitbucket.org/site/oauth2/authorize",
+                "https://bitbucket.org/site/oauth2/access_token",
+                "https://api.bitbucket.org/2.0/user",
+            )
+            .email("https://api.bitbucket.org/2.0/user/emails"),
+        }
+    }
+}
+impl BitbucketProvider {
+    pub fn withEndpoints(endpoints: ProviderEndpoints) -> Self {
+        Self { endpoints }
+    }
+}
+impl ProviderDefinition for BitbucketProvider {
+    fn getAuthUrl(&self) -> &str {
+        &self.endpoints.authorize
+    }
+    fn getTokenUrl(&self) -> &str {
+        &self.endpoints.token
+    }
+    fn scopes(&self) -> &[&str] {
+        &["email"]
+    }
+    fn scopeSeparator(&self) -> &str {
+        " "
+    }
+    fn directTokenBasicAuth(&self) -> bool {
+        true
+    }
+    fn getUserByToken<'a>(
+        &'a self,
+        http: &'a Factory,
+        token: &'a str,
+        scopes: &'a [String],
+    ) -> ProviderFuture<'a, Value> {
+        Box::pin(async move {
+            let mut user = json(
+                http.pendingRequest()
+                    .withToken(token)
+                    .redactPayload()
+                    .withoutRedirecting()
+                    .get(&self.endpoints.user)
+                    .await?,
+            )?;
+            if !user.is_object() {
+                return Err(crate::Error::InvalidResponse);
+            }
+            if scopes.iter().any(|s| s == "email") {
+                let emails = async {
+                    let url = self
+                        .endpoints
+                        .email
+                        .as_deref()
+                        .ok_or(crate::Error::Configuration("Bitbucket email URL"))?;
+                    json(
+                        http.pendingRequest()
+                            .withToken(token)
+                            .redactPayload()
+                            .withoutRedirecting()
+                            .get(url)
+                            .await?,
+                    )
+                }
+                .await;
+                user["email"] = emails
+                    .ok()
+                    .and_then(|v| {
+                        v["values"].as_array().and_then(|a| {
+                            a.iter()
+                                .find(|e| {
+                                    e["type"] == "email"
+                                        && e["is_primary"] == true
+                                        && e["is_confirmed"] == true
+                                })
+                                .and_then(|e| e.get("email"))
+                                .cloned()
+                        })
+                    })
+                    .unwrap_or(Value::Null);
+            }
+            Ok(user)
+        })
+    }
+    fn mapUserToObject(&self, user: Value) -> Result<User> {
+        let fields = [
+            ("id", user["uuid"].clone()),
+            ("nickname", user["username"].clone()),
+            ("name", user["display_name"].clone()),
+            ("email", user["email"].clone()),
+            ("avatar", value(&user, &["links", "avatar", "href"])),
+        ];
+        Ok(mapped(user, fields))
+    }
+}

@@ -55,6 +55,22 @@ pub trait ProviderDefinition: Send + Sync {
     fn scopeSeparator(&self) -> &str {
         ","
     }
+    fn tokenBasicAuth(&self) -> bool {
+        false
+    }
+    fn directTokenBasicAuth(&self) -> bool {
+        self.tokenBasicAuth()
+    }
+    fn customizeCodeFields(
+        &self,
+        _fields: &mut Map<String, Value>,
+        _scopes: &[String],
+        _botUser: bool,
+    ) {
+    }
+    fn normalizeTokenResponse(&self, response: Value, _botUser: bool) -> Result<Value> {
+        Ok(response)
+    }
     fn getUserByToken<'a>(
         &'a self,
         http: &'a Factory,
@@ -72,6 +88,7 @@ pub struct AbstractProvider<'a> {
     scopes: Vec<String>,
     stateless: bool,
     usesPKCE: bool,
+    botUser: bool,
     user: Option<User>,
 }
 impl<'a> AbstractProvider<'a> {
@@ -95,6 +112,7 @@ impl<'a> AbstractProvider<'a> {
             scopes,
             stateless: false,
             usesPKCE: false,
+            botUser: false,
             user: None,
         };
         provider.scopes(provider.config.scopes.clone());
@@ -125,6 +143,10 @@ impl<'a> AbstractProvider<'a> {
     }
     pub fn isStateless(&self) -> bool {
         self.stateless
+    }
+    pub fn asBotUser(&mut self) -> &mut Self {
+        self.botUser = true;
+        self
     }
     pub fn enablePKCE(&mut self) -> &mut Self {
         self.usesPKCE = true;
@@ -174,6 +196,8 @@ impl<'a> AbstractProvider<'a> {
             fields.insert("code_challenge_method".into(), "S256".into());
         }
         fields.extend(self.parameters.clone());
+        self.definition
+            .customizeCodeFields(&mut fields, &self.scopes, self.botUser);
         let mut url = url::Url::parse(self.definition.getAuthUrl())
             .map_err(|_| Error::Configuration("authorization URL"))?;
         {
@@ -236,6 +260,17 @@ impl<'a> AbstractProvider<'a> {
         Ok(user)
     }
     pub async fn getAccessTokenResponse(&mut self, code: &str) -> Result<Value> {
+        self.exchange(code, false).await
+    }
+    pub async fn getAccessToken(&mut self, code: &str) -> Result<Zeroizing<String>> {
+        let response = self.exchange(code, true).await?;
+        response
+            .get("access_token")
+            .and_then(Value::as_str)
+            .map(|v| Zeroizing::new(v.into()))
+            .ok_or(Error::InvalidResponse)
+    }
+    async fn exchange(&mut self, code: &str, direct: bool) -> Result<Value> {
         let mut fields = Map::from_iter([
             ("grant_type".into(), "authorization_code".into()),
             ("client_id".into(), self.config.client_id.clone().into()),
@@ -256,25 +291,34 @@ impl<'a> AbstractProvider<'a> {
             );
         }
         fields.extend(self.parameters.clone());
-        self.post(&Value::Object(fields)).await
+        let basic = if direct {
+            self.definition.directTokenBasicAuth()
+        } else {
+            self.definition.tokenBasicAuth()
+        };
+        let response = self.post(&Value::Object(fields), basic).await?;
+        self.definition
+            .normalizeTokenResponse(response, self.botUser)
     }
     pub async fn refreshToken(&mut self, refreshToken: &str) -> Result<Token> {
         let fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id,"client_secret":self.config.client_secret.as_str()});
-        let response = self.post(&fields).await?;
+        let response = self.post(&fields, self.definition.tokenBasicAuth()).await?;
         self.credentials(&response)
     }
-    async fn post(&mut self, fields: &Value) -> Result<Value> {
-        json(
-            self.http
-                .pendingRequest()
-                .acceptJson()
-                .asForm()
-                .redactPayload()
-                .withoutRedirecting()
-                .post(self.definition.getTokenUrl(), fields)
-                .await?,
-        )
+    async fn post(&mut self, fields: &Value, basic: bool) -> Result<Value> {
+        let mut request = self
+            .http
+            .pendingRequest()
+            .acceptJson()
+            .asForm()
+            .redactPayload()
+            .withoutRedirecting();
+        if basic {
+            request = request.withBasicAuth(&self.config.client_id, &self.config.client_secret);
+        }
+        json(request.post(self.definition.getTokenUrl(), fields).await?)
     }
+
     fn credentials(&self, response: &Value) -> Result<Token> {
         Ok(Token {
             token: Zeroizing::new(

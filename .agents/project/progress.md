@@ -3751,3 +3751,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 2026-11-20 API-S01 [共享OAuth2与GitHub首批](audits/api-s01/github.md)实现验收完成：新增可选socialite包、应用内manager／facade／contracts、真实Session state／PKCE、token／profile／已验证邮箱／refresh、scope及参数、自定义driver与敏感HTTP观察记录隔离。固定Socialite5.33.0源码与PHP8.5.12对照，7项Socialite＋14项HTTP Client＋1项纯配置共22函数；Rust1.94 strict workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节及12＋6浏览器通过。隔离2383fdbd，Cargo.lock只合入本包，保留同期验证器／Fortify；专属产物清理见记录。API-S01仍未整体闭合，继续GitLab／Bitbucket等官方驱动及OAuth1／OIDC／本地身份映射；真实供应商仍缺测试应用凭据及回调账户。本地提交，不推送。
 
 - 2026-11-20 API-F01 密码重置HTTP：6新增真实TCP函数、19组固定原PHP对照，Fortify49／原生16函数、严格Clippy／格式和根HTTP／Pail／Artisan通过；输入SHA与专属产物清理见[审核](audits/api-f01/password-reset.md)。继续安装及三语验收；核范围本地提交，不推送。
+
+## API-S01 六个新增OAuth2驱动
+
+2026-11-20 API-S01 [六个新增OAuth2驱动](audits/api-s01/drivers.md)本机验收完成：GitLab／Bitbucket／LinkedIn与OpenId／Slack与OpenId、manager及六组环境配置；13项Socialite＋1项纯配置、固定PHP映射／字段重复及源码负样本、Rust1.94 strict Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器全过。OpenId驱动仅Bearer UserInfo，完整RP和MySQL归属仍待；Facebook／Google／X／OAuth1继续。专属产物已按归属清理，全部卷保留；本地提交，不推送。

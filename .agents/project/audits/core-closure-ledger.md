@@ -461,3 +461,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 首批补充
 
 [共享OAuth2与GitHub](api-s01/github.md)已本机验收；Socialite整体及其余官方驱动／OAuth1／OIDC／本地归属仍待，不提升V06或SSO状态。
+
+### API-S01 六驱动补充
+
+[GitLab／Bitbucket／LinkedIn／Slack六类型](api-s01/drivers.md)已本机验收，13＋1函数与固定PHP、根入口及三语浏览器通过；OpenId类型仅Bearer UserInfo。Facebook／Google／X／OAuth1／完整OIDC与本地归属仍待，不提升SSO状态。

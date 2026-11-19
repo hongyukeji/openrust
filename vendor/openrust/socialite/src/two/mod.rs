@@ -4,3 +4,18 @@ mod user;
 pub use abstract_provider::{AbstractProvider, ProviderConfig, ProviderDefinition, ProviderFuture};
 pub use github_provider::GithubProvider;
 pub use user::{Token, User};
+
+mod bitbucket_provider;
+mod endpoints;
+mod gitlab_provider;
+mod linkedin_provider;
+mod slack_provider;
+pub use bitbucket_provider::BitbucketProvider;
+pub use endpoints::ProviderEndpoints;
+pub use gitlab_provider::GitlabProvider;
+pub use linkedin_provider::LinkedInProvider;
+mod linkedin_open_id_provider;
+pub use linkedin_open_id_provider::LinkedInOpenIdProvider;
+pub use slack_provider::SlackProvider;
+mod slack_open_id_provider;
+pub use slack_open_id_provider::SlackOpenIdProvider;

@@ -1,0 +1,117 @@
+{
+  "gitlab": {
+    "id": "91",
+    "username": "alice",
+    "name": "Alice 字",
+    "email": "alice@test",
+    "avatar_url": "https://images.test/a"
+  },
+  "bitbucket": {
+    "uuid": "{u-42}",
+    "username": "alice",
+    "display_name": "Alice",
+    "email": "alice@test",
+    "links": {
+      "avatar": {
+        "href": "https://images.test/a"
+      }
+    }
+  },
+  "linkedin": {
+    "id": "li42",
+    "firstName": {
+      "preferredLocale": {
+        "language": "en",
+        "country": "US"
+      },
+      "localized": {
+        "en_US": "Alice"
+      }
+    },
+    "lastName": {
+      "localized": {
+        "en_US": "Smith"
+      }
+    },
+    "emailAddress": "alice@test",
+    "profilePicture": {
+      "displayImage~": {
+        "elements": [
+          {
+            "data": {
+              "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                "storageSize": {
+                  "width": "100"
+                }
+              }
+            },
+            "identifiers": [
+              {
+                "identifier": "not-integer"
+              }
+            ]
+          },
+          {
+            "data": {
+              "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                "displaySize": {
+                  "width": 100
+                }
+              }
+            },
+            "identifiers": [
+              {
+                "identifier": "https://images.test/100"
+              }
+            ]
+          },
+          {
+            "data": {
+              "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                "storageSize": {
+                  "width": 800
+                },
+                "displaySize": {
+                  "width": 100
+                }
+              }
+            },
+            "identifiers": [
+              {
+                "identifier": "https://images.test/800"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "linkedin-openid": {
+    "sub": "li42",
+    "name": "Alice Smith",
+    "given_name": "Alice",
+    "family_name": "Smith",
+    "email": "alice@test",
+    "email_verified": false,
+    "picture": "https://images.test/a"
+  },
+  "slack": {
+    "ok": true,
+    "user": {
+      "id": "U42",
+      "name": "Alice",
+      "email": "alice@test",
+      "image_512": "https://images.test/a"
+    },
+    "team": {
+      "id": "T1"
+    }
+  },
+  "slack-openid": {
+    "sub": "U42",
+    "name": "Alice",
+    "email": "alice@test",
+    "picture": "https://images.test/a",
+    "https://slack.com/team_id": "T1"
+  }
+}

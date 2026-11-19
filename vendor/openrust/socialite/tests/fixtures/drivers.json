@@ -1,0 +1,358 @@
+{
+    "gitlab": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "read_user",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "read_user",
+            "response_type": "code"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "host": "https://gitlab.test/prefix/oauth/authorize?client_id=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&scope=override&response_type=code&user_scope=custom&prompt=select+account",
+        "user": {
+            "id": "91",
+            "nickname": "alice",
+            "name": "Alice 字",
+            "email": "alice@test",
+            "avatar": "https://images.test/a",
+            "raw": {
+                "id": "91",
+                "username": "alice",
+                "name": "Alice 字",
+                "email": "alice@test",
+                "avatar_url": "https://images.test/a"
+            },
+            "attributes": {
+                "id": "91",
+                "nickname": "alice",
+                "name": "Alice 字",
+                "email": "alice@test",
+                "avatar": "https://images.test/a"
+            }
+        }
+    },
+    "bitbucket": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "email",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "email",
+            "response_type": "code"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "user": {
+            "id": "{u-42}",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/a",
+            "raw": {
+                "uuid": "{u-42}",
+                "username": "alice",
+                "display_name": "Alice",
+                "email": "alice@test",
+                "links": {
+                    "avatar": {
+                        "href": "https://images.test/a"
+                    }
+                }
+            },
+            "attributes": {
+                "id": "{u-42}",
+                "nickname": "alice",
+                "name": "Alice",
+                "email": "alice@test",
+                "avatar": "https://images.test/a"
+            }
+        }
+    },
+    "linkedin": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "r_liteprofile r_emailaddress",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "r_liteprofile r_emailaddress",
+            "response_type": "code"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "user": {
+            "id": "li42",
+            "nickname": null,
+            "name": "Alice Smith",
+            "email": "alice@test",
+            "avatar": "https://images.test/100",
+            "raw": {
+                "id": "li42",
+                "firstName": {
+                    "preferredLocale": {
+                        "language": "en",
+                        "country": "US"
+                    },
+                    "localized": {
+                        "en_US": "Alice"
+                    }
+                },
+                "lastName": {
+                    "localized": {
+                        "en_US": "Smith"
+                    }
+                },
+                "emailAddress": "alice@test",
+                "profilePicture": {
+                    "displayImage~": {
+                        "elements": [
+                            {
+                                "data": {
+                                    "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                                        "storageSize": {
+                                            "width": "100"
+                                        }
+                                    }
+                                },
+                                "identifiers": [
+                                    {
+                                        "identifier": "not-integer"
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                                        "displaySize": {
+                                            "width": 100
+                                        }
+                                    }
+                                },
+                                "identifiers": [
+                                    {
+                                        "identifier": "https://images.test/100"
+                                    }
+                                ]
+                            },
+                            {
+                                "data": {
+                                    "com.linkedin.digitalmedia.mediaartifact.StillImage": {
+                                        "storageSize": {
+                                            "width": 800
+                                        },
+                                        "displaySize": {
+                                            "width": 100
+                                        }
+                                    }
+                                },
+                                "identifiers": [
+                                    {
+                                        "identifier": "https://images.test/800"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            "attributes": {
+                "id": "li42",
+                "nickname": null,
+                "name": "Alice Smith",
+                "first_name": "Alice",
+                "last_name": "Smith",
+                "email": "alice@test",
+                "avatar": "https://images.test/100",
+                "avatar_original": "https://images.test/800"
+            }
+        }
+    },
+    "linkedin-openid": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "openid profile email",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "openid profile email",
+            "response_type": "code"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "user": {
+            "id": "li42",
+            "nickname": null,
+            "name": "Alice Smith",
+            "email": "alice@test",
+            "avatar": "https://images.test/a",
+            "raw": {
+                "sub": "li42",
+                "name": "Alice Smith",
+                "given_name": "Alice",
+                "family_name": "Smith",
+                "email": "alice@test",
+                "email_verified": false,
+                "picture": "https://images.test/a"
+            },
+            "attributes": {
+                "id": "li42",
+                "nickname": null,
+                "name": "Alice Smith",
+                "first_name": "Alice",
+                "last_name": "Smith",
+                "email": "alice@test",
+                "email_verified": false,
+                "avatar": "https://images.test/a",
+                "avatar_original": "https://images.test/a"
+            }
+        }
+    },
+    "slack": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "",
+            "response_type": "code",
+            "state": "fixed-state",
+            "user_scope": "identity.basic,identity.email,identity.team,identity.avatar"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "",
+            "response_type": "code",
+            "user_scope": "identity.basic,identity.email,identity.team,identity.avatar"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "",
+            "response_type": "code",
+            "user_scope": "identity.basic,identity.email,identity.team,identity.avatar,extra",
+            "prompt": "select account"
+        },
+        "bot": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "user": {
+            "id": "U42",
+            "nickname": null,
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/a",
+            "raw": {
+                "ok": true,
+                "user": {
+                    "id": "U42",
+                    "name": "Alice",
+                    "email": "alice@test",
+                    "image_512": "https://images.test/a"
+                },
+                "team": {
+                    "id": "T1"
+                }
+            },
+            "attributes": {
+                "id": "U42",
+                "name": "Alice",
+                "email": "alice@test",
+                "avatar": "https://images.test/a",
+                "organization_id": "T1"
+            }
+        }
+    },
+    "slack-openid": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "openid email profile",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "openid email profile",
+            "response_type": "code"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "override",
+            "response_type": "code",
+            "user_scope": "custom",
+            "prompt": "select account"
+        },
+        "user": {
+            "id": "U42",
+            "nickname": null,
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/a",
+            "raw": {
+                "sub": "U42",
+                "name": "Alice",
+                "email": "alice@test",
+                "picture": "https://images.test/a",
+                "https://slack.com/team_id": "T1"
+            },
+            "attributes": {
+                "id": "U42",
+                "nickname": null,
+                "name": "Alice",
+                "email": "alice@test",
+                "avatar": "https://images.test/a",
+                "organization_id": "T1"
+            }
+        }
+    }
+}

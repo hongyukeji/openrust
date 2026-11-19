@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 将第三方登录接入应用的 HTTP Client 与 Session。目前已验收固定 Socialite 5.33.0 对应的 GitHub 驱动和共享 OAuth2 流程。API-S01 整体仍在开发；其他供应商及 OAuth1／OIDC 专属路径待后续交付。
+Socialite 将第三方登录接入应用的 HTTP Client 与 Session。已验收范围现包括固定 Socialite 5.33.0 对应的 GitHub、GitLab、Bitbucket、LinkedIn（旧式／OpenID）及 Slack（identity／OpenID）。API-S01 整体仍在开发；Facebook、Google、X、OAuth1 以及完整 OIDC／本地身份整合待后续交付。
 
 ## 安装 {#installation}
 
@@ -13,6 +13,20 @@ cargo run --features socialite -- artisan serve
 ## 配置 {#configuration}
 
 通过 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET` 和 `GITHUB_REDIRECT_URI` 配置 `services.github.client_id`、`client_secret`、`redirect`。以 `/` 开头的回调拼接到合法绝对 HTTP(S) `app.url`，绝对回调保留原值。`services.github.scopes` 向驱动默认值追加 scope。缺失或非法配置明确失败。真实供应商验收需已注册的 GitHub OAuth 应用和对应回调。
+
+
+以下驱动同样配置 client id、client secret 和 redirect；环境变量前缀后接 `_CLIENT_ID`、`_CLIENT_SECRET`、`_REDIRECT_URI`：
+
+| 驱动／services 键 | 环境变量前缀 | 默认 scopes |
+| --- | --- | --- |
+| `gitlab` | `GITLAB` | `read_user` |
+| `bitbucket` | `BITBUCKET` | `email` |
+| `linkedin` | `LINKEDIN` | `r_liteprofile r_emailaddress` |
+| `linkedin-openid` | `LINKEDIN_OPENID` | `openid profile email` |
+| `slack` | `SLACK` | `identity.basic,identity.email,identity.team,identity.avatar` |
+| `slack-openid` | `SLACK_OPENID` | `openid email profile` |
+
+`services.gitlab.host`／`GITLAB_HOST` 默认 `https://gitlab.com`。`GitlabProvider::setHost` 保留自托管路径前缀并去掉末尾斜杠。固定上游资料路径为 `/api/v3/user`，本批保留此契约。Slack 登录配置与现有 `slack.notifications` 共处同一 services 对象；真实供应商仍需分别注册回调并获得权限。
 
 ## 认证 {#authentication}
 
@@ -56,9 +70,15 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 
 跳转或交换 code 前调用 `provider.with(serde_json::json!({"prompt":"select_account","login_hint":"alice@example.test"}).as_object().unwrap().clone())`。参数按固定上游顺序覆盖普通字段，支持字符串、布尔和数字标量。`redirectUrl` 修改当前 provider 的回调。
 
+
+Slack identity 默认使用 `user_scope`，同时将 `scope` 设为空。在跳转和回调的 provider 都执行 `provider.asBotUser()` 后，使用 `scope` 及 token 响应顶层凭据；普通用户凭据取自 `authed_user`。默认 user-scope 字段在 `with` 参数后应用，与上游一致。`BitbucketProvider` 另有显式 `provider.getAccessToken(code).await?` 路径，会追加 HTTP Basic 客户端认证；普通 `user()` 使用继承的 token 响应路径。
+
 ## 访问范围 {#access-scopes}
 
 GitHub 默认 `user:email`。`scopes(["read:user".into()])` 去重合并，`setScopes(vec!["read:user".into()])` 替换；`getScopes()` 读取列表。GitHub 使用逗号分隔。包含 `user:email` 时查询 `/user/emails` 并选择 primary 且 verified 的邮箱，失败或无匹配返回 `None`；移除该 scope 则保留 profile 的邮箱。
+
+
+GitLab、Bitbucket、LinkedIn 两个驱动用空格分隔 scopes；Slack identity 用逗号，Slack OpenID 用空格。Bitbucket 选择类型为 `email` 且 primary、confirmed 的邮箱，邮箱接口失败返回 `None`。旧式 LinkedIn 分别加载本地化资料和邮箱，含 `r_liteprofile` 时请求 `vanityName`，邮箱请求失败正常传播。
 
 ## 无状态认证 {#stateless-authentication}
 
@@ -68,8 +88,14 @@ GitHub 默认 `user:email`。`scopes(["read:user".into()])` 去重合并，`setS
 
 用户提供 `getId`、`getNickname`、`getName`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 数字／字符串类型。`userFromToken(token)` 使用已有 token 读取身份，`refreshToken(token)` 交换刷新令牌。凭据显式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字符串使用 `Zeroizing<String>`，不会自动序列化或由 Debug 输出。远程 access token 不是 Passport／Sanctum 凭据。
 
+
+旧式 LinkedIn 增加 `first_name`、`last_name`、`avatar_original`，按首选 locale 和上游严格的 100／800 像素选择图片。LinkedIn OpenID 增加 given／family name、`email_verified` 和原始图片；Slack 两种驱动暴露 `organization_id`。`linkedin-openid`、`slack-openid` 按固定包使用 access token 访问固定 UserInfo 接口，不验证 ID Token、不执行 Discovery，也不是完整 OIDC RP；这些属于 API-O01。
+
 ## 测试 {#testing}
 
 通过 `GithubProvider::withEndpoints` 配合应用内 `manager.extend("github", Arc::new(provider))` 指向受控 HTTP 供应商，替换授权／token／profile／email URL 并保留驱动行为。`ProviderDefinition` 支持编译型协议定制，`facades::Socialite::driver` / `contracts::Factory`、`Provider`、`User` 暴露公开契约。验收执行真实 HTTP、两个独立 Session 应用、PKCE、state 消费、scope／参数映射、已验证邮箱、刷新和失败路径，固定 PHP 源码 SHA 保护对照夹具。
 
 Socialite 使用共享客户端显式 `redactPayload()`：观察者与录制保留状态及路径，省略 query、authorization、请求体、响应体和响应头；实际网络与返回响应完整。供应商状态／非法响应错误不打印响应凭据。受控验收不冒称真实 GitHub 登录，后者仍需 OAuth 应用、凭据、回调域名和账户。
+
+
+`ProviderEndpoints::new(authorize, token, user).email(email)` 可传给新增驱动的 `withEndpoints` 构造器，显式替换端点。各驱动均用真实受控 HTTP 验收 token 表单、认证头、资料查询参数、可选邮箱、Slack user／bot 凭据、refresh 与失效／撤销凭据拒绝。六个驱动的映射、scope 及 Slack 专属字段与真实固定 PHP 方法对照。受控结果不冒称已登录真实 GitLab、Bitbucket、LinkedIn 或 Slack 账户。

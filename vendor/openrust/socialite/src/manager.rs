@@ -1,6 +1,10 @@
 use crate::{
     Error, Result,
-    two::{AbstractProvider, GithubProvider, ProviderConfig, ProviderDefinition},
+    two::{
+        AbstractProvider, BitbucketProvider, GithubProvider, GitlabProvider,
+        LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig, ProviderDefinition,
+        SlackOpenIdProvider, SlackProvider,
+    },
 };
 use openrust::{
     contracts::config::Repository,
@@ -31,6 +35,17 @@ impl SocialiteManager {
             .insert(name.into(), provider);
     }
     pub fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<AbstractProvider<'a>> {
+        let value = self
+            .config
+            .get(&format!("services.{name}"))
+            .unwrap_or(serde_json::Value::Null);
+        if name == "gitlab"
+            && value
+                .get("host")
+                .is_some_and(|host| !host.is_null() && !host.is_string())
+        {
+            return Err(Error::Configuration("host"));
+        }
         let provider = self
             .extensions
             .read()
@@ -41,13 +56,29 @@ impl SocialiteManager {
                 "github" => {
                     Some(Arc::new(GithubProvider::default()) as Arc<dyn ProviderDefinition>)
                 }
+                "gitlab" => {
+                    let mut provider = GitlabProvider::default();
+                    if let Some(host) = value.get("host").and_then(serde_json::Value::as_str) {
+                        provider.setHost(host);
+                    }
+                    Some(Arc::new(provider) as Arc<dyn ProviderDefinition>)
+                }
+                "bitbucket" => {
+                    Some(Arc::new(BitbucketProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "linkedin" => {
+                    Some(Arc::new(LinkedInProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "linkedin-openid" => {
+                    Some(Arc::new(LinkedInOpenIdProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "slack" => Some(Arc::new(SlackProvider::default()) as Arc<dyn ProviderDefinition>),
+                "slack-openid" => {
+                    Some(Arc::new(SlackOpenIdProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
                 _ => None,
             })
             .ok_or_else(|| Error::UnsupportedDriver(name.into()))?;
-        let value = self
-            .config
-            .get(&format!("services.{name}"))
-            .unwrap_or(serde_json::Value::Null);
         let mut config = ProviderConfig::from_config(&value)?;
         if config.redirect.starts_with('/') {
             let root = self
