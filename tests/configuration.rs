@@ -121,6 +121,16 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "app_"
         );
     }
+    for connection in ["mysql", "mariadb", "pgsql", "sqlsrv"] {
+        assert_eq!(
+            defaults["database"]["connections"][connection]["database"],
+            env!("CARGO_PKG_NAME").to_ascii_lowercase()
+        );
+        assert_eq!(
+            configured["database"]["connections"][connection]["database"],
+            "examplestore"
+        );
+    }
     assert_eq!(
         defaults["filesystems"]["disks"]["web"]["root"],
         json!(root.join("public"))
@@ -259,6 +269,55 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         logging_override["logging"]["channels"]["slack"]["username"],
         "Operations"
     );
+
+    let long_name = format!("{}tail", "LongApp".repeat(12));
+    for (app_name, expected) in [
+        ("  My Shop--V2!  ", "my_shop_v2".to_owned()),
+        ("123 Store", "app_123_store".to_owned()),
+        ("_My___App_", "my_app".to_owned()),
+        ("Café Store", "cafe_store".to_owned()),
+        ("中文", "app".to_owned()),
+        ("", "app".to_owned()),
+        ("!!!", "app".to_owned()),
+        (long_name.as_str(), long_name[..63].to_ascii_lowercase()),
+        (
+            format!("{} -- tail", "A".repeat(62)).as_str(),
+            "a".repeat(62),
+        ),
+    ] {
+        fs::write(root.join(".env"), format!("APP_NAME=\"{app_name}\"\n")).unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let values = config::load(&root, &environment).unwrap();
+        for connection in ["mysql", "mariadb", "pgsql", "sqlsrv"] {
+            let actual = values["database"]["connections"][connection]["database"]
+                .as_str()
+                .unwrap();
+            assert_eq!(actual, expected, "{app_name:?} / {connection}");
+            assert!(
+                actual.len() <= 63
+                    && actual.bytes().all(|byte| byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || byte == b'_')
+            );
+        }
+        assert_eq!(
+            values["database"]["connections"]["sqlite"]["database"],
+            json!(root.join("database/database.sqlite"))
+        );
+    }
+    fs::write(
+        root.join(".env"),
+        "APP_NAME=ExampleStore\nDB_DATABASE=Existing-App.DB\n",
+    )
+    .unwrap();
+    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+    let values = config::load(&root, &environment).unwrap();
+    for connection in ["sqlite", "mysql", "mariadb", "pgsql", "sqlsrv"] {
+        assert_eq!(
+            values["database"]["connections"][connection]["database"],
+            "Existing-App.DB"
+        );
+    }
 
     for value in ["", "   "] {
         fs::write(root.join(".env"), format!("APP_PUBLIC_PATH=\"{value}\"\n")).unwrap();

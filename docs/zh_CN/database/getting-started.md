@@ -2,6 +2,8 @@
 
 ## 配置
 
+未设置 `DB_DATABASE` 时，MySQL、MariaDB、PostgreSQL 和 SQL Server 从应用名称派生默认库名。配置中的 `database_name` 方法复用 ASCII 转写，将字母转为小写，并将连续空格或特殊字符合并为下划线。数字开头时添加 `app_`，空结果回退为 `app`。结果最多保留 63 个 ASCII 字节，并移除尾部下划线。例如，`ExampleStore` 转为 `examplestore`，`My Shop-V2` 转为 `my_shop_v2`。显式 `DB_DATABASE` 原样使用。SQLite 继续使用文件路径默认值。连接前创建对应数据库，已有数据库可用 `DB_DATABASE` 明确指定。
+
 应用从 `config/database.rs` 读取数据库配置，默认连接为 `sqlite`。请先创建 `database/database.sqlite`，也可设定 `DB_DATABASE=:memory:` 使用临时数据库。相对 SQLite 路径以应用根目录为基准。内存库使用单个物理连接，默认使用私有缓存，可在 URL 中显式启用共享缓存。
 
 MySQL 使用 `DB_CONNECTION=mysql`，并配置 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。应用配置通过 `DB_URL` 设置连接的 `url`，由其提供驱动和连接凭据。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 启用证书与主机名验证，也可在连接配置中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 校验证书链和服务器名称。`verify_ca` 校验证书链。

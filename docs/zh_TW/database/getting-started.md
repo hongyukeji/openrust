@@ -2,6 +2,8 @@
 
 ## 設定
 
+未設定 `DB_DATABASE` 時，MySQL、MariaDB、PostgreSQL 和 SQL Server 從應用程式名稱產生預設資料庫名稱。設定中的 `database_name` 方法沿用 ASCII 轉寫，將字母轉為小寫，並將連續空白或特殊字元合併為底線。數字開頭時加入 `app_`，空結果回退為 `app`。結果最多保留 63 個 ASCII 位元組，並移除尾部底線。例如，`ExampleStore` 轉為 `examplestore`，`My Shop-V2` 轉為 `my_shop_v2`。明確設定的 `DB_DATABASE` 原樣使用。SQLite 繼續使用檔案路徑預設值。連線前建立對應資料庫，既有資料庫可用 `DB_DATABASE` 明確指定。
+
 應用程式從 `config/database.rs` 讀取資料庫設定，預設連線為 `sqlite`。請先建立 `database/database.sqlite`，也可設定 `DB_DATABASE=:memory:` 使用臨時資料庫。SQLite 相對路徑以應用程式根目錄為基準。記憶體資料庫使用單一實體連線，預設使用私有快取，可在 URL 中明確啟用共用快取。
 
 MySQL 使用 `DB_CONNECTION=mysql`，並設定 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`。應用程式透過 `DB_URL` 設定連線的 `url`，由它提供驅動及連線憑證。MySQL 要求 TLS。可用 `MYSQL_ATTR_SSL_CA` 啟用憑證及主機名稱驗證，也可在連線設定中指定 `ssl_mode` 和 `ssl_ca`。 `verify_identity` 驗證憑證鏈及伺服器名稱。`verify_ca` 驗證憑證鏈。

@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use openrust::config::{ConfigError, Environment, Value};
+use openrust::support::Str;
 use serde_json::json;
 
 use super::env::{get, optional_integer, path, slug};
@@ -13,8 +14,9 @@ pub(super) fn load(
     let sqlite = base_path.join("database/database.sqlite");
     let url = get(env, "DB_URL", Value::Null)?;
     let mask_bindings = get(env, "DB_MASK_BINDINGS", false)?;
-    let mysql = mysql_connection(env, "mysql", &url, &mask_bindings)?;
-    let mariadb = mysql_connection(env, "mariadb", &url, &mask_bindings)?;
+    let database = get(env, "DB_DATABASE", database_name(app_name))?;
+    let mysql = mysql_connection(env, "mysql", &url, &mask_bindings, &database)?;
+    let mariadb = mysql_connection(env, "mariadb", &url, &mask_bindings, &database)?;
 
     /*
     |--------------------------------------------------------------------------
@@ -78,7 +80,7 @@ pub(super) fn load(
                 "url": url,
                 "host": get(env, "DB_HOST", "127.0.0.1")?,
                 "port": get(env, "DB_PORT", 5432)?,
-                "database": get(env, "DB_DATABASE", "openrust")?,
+                "database": database,
                 "username": get(env, "DB_USERNAME", "root")?,
                 "password": get(env, "DB_PASSWORD", "")?,
                 "charset": get(env, "DB_CHARSET", "utf8")?,
@@ -95,7 +97,7 @@ pub(super) fn load(
                 "url": url,
                 "host": get(env, "DB_HOST", "localhost")?,
                 "port": get(env, "DB_PORT", 1433)?,
-                "database": get(env, "DB_DATABASE", "openrust")?,
+                "database": database,
                 "username": get(env, "DB_USERNAME", "root")?,
                 "password": get(env, "DB_PASSWORD", "")?,
                 "ssl_ca": get(env, "DB_SSL_CA", "")?,
@@ -138,6 +140,29 @@ pub(super) fn load(
 }
 
 /*
+ * 为服务端数据库派生默认库名。显式 DB_DATABASE 不经过转换。
+ * 复用 Str 的 ASCII 转写，将分隔符折叠为下划线，保留小写字母和数字。
+ * 数字开头时加 app_，空结果使用 app，最多保留 63 字节以兼容 PostgreSQL 默认上限。
+ */
+fn database_name(app_name: &str) -> String {
+    let ascii = Str::ascii(app_name, "en");
+    let mut name = ascii
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|part| !part.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join("_");
+    if name.is_empty() {
+        return "app".into();
+    }
+    if name.starts_with(|character: char| character.is_ascii_digit()) {
+        name.insert_str(0, "app_");
+    }
+    name.truncate(63);
+    name.trim_end_matches('_').to_owned()
+}
+
+/*
  * 组装 MySQL 和 MariaDB 共用的连接配置。
  *
  * MYSQL_ATTR_SSL_CA 为非空路径时，将它作为 ssl_ca 传给驱动。
@@ -148,6 +173,7 @@ fn mysql_connection(
     driver: &str,
     url: &Value,
     mask_bindings: &Value,
+    database: &Value,
 ) -> Result<Value, ConfigError> {
     let ssl_ca = get(env, "MYSQL_ATTR_SSL_CA", Value::Null)?;
     let options = if ssl_ca.is_null() || ssl_ca.as_str() == Some("") {
@@ -160,7 +186,7 @@ fn mysql_connection(
         "url": url,
         "host": get(env, "DB_HOST", "127.0.0.1")?,
         "port": get(env, "DB_PORT", 3306)?,
-        "database": get(env, "DB_DATABASE", "openrust")?,
+        "database": database,
         "username": get(env, "DB_USERNAME", "root")?,
         "password": get(env, "DB_PASSWORD", "")?,
         "unix_socket": get(env, "DB_SOCKET", "")?,

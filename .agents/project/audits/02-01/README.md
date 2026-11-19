@@ -41,3 +41,11 @@ macOS arm64，Rust 1.94.0。隔离副本基于 `21a65e98`、已验收的 01-02y 
 - Rust 1.94.0 上 `database_sql`、`database_query` 和 `database_query_writes` 共 24 项通过，含实际 SQLite 和 MySQL 8.4.13、预处理读写、游标、存储过程、读写路由、事务、证书验证以及 DB 门面的回环 HTTP 和 Artisan 子进程。工作区严格 Clippy 通过。本批 Rust 文件格式检查通过。全量 `cargo fmt --all --check` 仍报告基线已有的 `sanctum_authentication.rs` 格式差异。
 - 原生二进制 `main artisan inspire` 通过。独立 Artisan 命令在真实 MySQL 和 SQLite 各执行三语命名绑定示例。三语 VitePress 构建、根路径及子路径下 12 项站点组合与 6 项小节检查通过。
 - 02-01 计划内的 SQLite／MySQL 基本 SQL、连接 URL、未知连接和驱动错误已有首次及续批验收证据，整单元闭合。连接与事务事件归 02-02，其他数据库驱动及生产部署矩阵继续跟踪。
+
+## 从应用名称派生默认数据库名称（2026-11-19）
+
+按用户要求，在应用 `config/database.rs` 提取独立的 `database_name` 方法。复用现有 `Str::ascii` 转写，保留小写 ASCII 字母与数字，将连续分隔符合并为下划线，数字开头加 `app_`，空结果回退为 `app`。最多保留 63 个 ASCII 字节，并移除截断后尾部的下划线。该上限参考 [PostgreSQL 默认标识符限制](https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS)，字符选择兼顾 [MySQL 8.4 标识符规则](https://dev.mysql.com/doc/refman/8.4/en/identifiers.html)。
+
+MySQL、MariaDB、PostgreSQL 和 SQL Server 共用一次解析的默认库名，显式 `DB_DATABASE` 按原值使用。SQLite 的默认数据库路径沿用原实现。旧版 `v0.x` 的 `src/config/database.rs` 以连接 URL 和连接池设置为主，本批复用当前配置入口，名称转换属于用户指定的应用默认策略。
+
+Rust 1.94.0 配置回归验证默认包名、应用名覆盖、空格及特殊字符、重音字母、中文、空值、数字开头、长度及尾部边界，还有包含大小写和符号的显式 `DB_DATABASE`。配置测试、应用二进制和配置测试的严格 Clippy、全仓格式及差异空白检查通过。本批仅修改配置派生规则，未执行真实数据库建库操作。三语数据库文档同步，站点构建及两种部署路径的 12 项浏览器检查通过。

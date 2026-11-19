@@ -2,6 +2,8 @@
 
 ## Configuration
 
+When `DB_DATABASE` is omitted, MySQL, MariaDB, PostgreSQL and SQL Server derive the database name from the application name. The configuration’s `database_name` helper reuses ASCII transliteration, lowercases letters and replaces runs of spaces or special characters with an underscore. Names starting with a digit receive `app_`; an empty result becomes `app`. The result is limited to 63 ASCII bytes and has no trailing underscore. For example, `ExampleStore` becomes `examplestore`, and `My Shop-V2` becomes `my_shop_v2`. Explicit `DB_DATABASE` values are used verbatim. SQLite keeps its file-path default. Provision the chosen database before connecting, or set `DB_DATABASE` to the name of an existing database.
+
 The application reads `config/database.rs`. The default connection is `sqlite`. Create `database/database.sqlite` before opening it, or set `DB_DATABASE=:memory:` for a temporary database. Relative SQLite paths resolve from the application root. An in-memory connection uses one physical connection and a private cache unless its URL explicitly requests a shared cache.
 
 For MySQL, set `DB_CONNECTION=mysql` and configure `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. A connection's `url`, populated by `DB_URL` in the application configuration, can supply the driver and credentials. MySQL requires TLS. Set `MYSQL_ATTR_SSL_CA` for certificate and host verification, or configure `ssl_mode` and `ssl_ca` on the connection. `verify_identity` checks the certificate chain and server name. `verify_ca` checks the certificate chain.
