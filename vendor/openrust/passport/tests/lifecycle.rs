@@ -188,7 +188,7 @@ async fn publication_is_explicit_preserves_overrides_and_only_implemented_comman
     let listing = app.artisan(["list"]).await;
     listing.assertSuccessful();
     assert!(listing.stdout.contains("passport:keys"));
-    assert!(!listing.stdout.contains("passport:client"));
+    assert!(listing.stdout.contains("passport:client"));
 }
 
 #[tokio::test]

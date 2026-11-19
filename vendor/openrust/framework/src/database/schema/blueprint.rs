@@ -536,7 +536,7 @@ impl Blueprint {
         let name = column.map_or_else(|| model.getForeignKey(), str::to_owned);
         let definition = match key_type {
             ModelKeyType::Integer => self.foreignId(&name),
-            ModelKeyType::Uuid => self.foreignUuid(&name),
+            ModelKeyType::Uuid | ModelKeyType::String => self.foreignUuid(&name),
             ModelKeyType::Ulid => self.foreignUlid(&name),
         };
         definition.for_model(model.getTable(), model.getKeyName())

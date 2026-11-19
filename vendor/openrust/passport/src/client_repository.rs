@@ -76,13 +76,18 @@ type CachedClient = Arc<OnceCell<Option<ClientRecord>>>;
 /// Concurrent lookups of the same identifier retain the same model object.
 pub struct ClientRepository {
     store: Arc<dyn ClientStore>,
+    tokens: Arc<crate::token_store::TokenModels>,
     cache: Mutex<HashMap<String, CachedClient>>,
 }
 #[allow(non_snake_case)]
 impl ClientRepository {
-    pub(crate) fn new(store: Arc<dyn ClientStore>) -> Self {
+    pub(crate) fn new(
+        store: Arc<dyn ClientStore>,
+        tokens: Arc<crate::token_store::TokenModels>,
+    ) -> Self {
         Self {
             store,
+            tokens,
             cache: Mutex::default(),
         }
     }
@@ -200,6 +205,13 @@ impl ClientRepository {
                 (redirects.0.into(), redirects.1),
             ]))
             .await
+    }
+    pub async fn delete(&self, client: &ClientRecord) -> DatabaseResult<()> {
+        self.tokens.revoke(client).await?;
+        client
+            .assign_and_save(Attributes::from([("revoked".into(), true.into())]))
+            .await?;
+        Ok(())
     }
     pub async fn regenerateSecret(&self, client: &ClientRecord) -> DatabaseResult<bool> {
         client

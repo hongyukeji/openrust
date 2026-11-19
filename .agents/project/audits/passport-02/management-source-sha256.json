@@ -1,0 +1,37 @@
+{
+  "baseline": "2079b5333b5eb07feae2f3f2dad7b3d9d33b981c",
+  "files": {
+    "Cargo.lock": "7067c373253134cf8e12d39b4ca7fb026217eb9200b199f579396646de797a9c",
+    "vendor/openrust/passport/Cargo.toml": "2f8f0899bbb3d2aed98304ce4765ec501f90f497594aaba75d058db06b2b3e95",
+    "vendor/openrust/passport/src/client.rs": "d3e3427cbc528b1930155011cece9c4a8ff040406114512977cb906d654409bf",
+    "vendor/openrust/passport/src/client_record.rs": "91b99a85e5513e3c65fe291cf15d9a5def49ab7e01eff26b7a63b387c45bf569",
+    "vendor/openrust/passport/src/client_repository.rs": "fe042a030f287505b480ea87544ab0592469a6fc4cfabcc46e40371e6000df1b",
+    "vendor/openrust/passport/src/console/commands/mod.rs": "6588ce0698cbd34b895d45c54cf9c9d8044c3579f993bb1e01fe422dc2731182",
+    "vendor/openrust/passport/src/lib.rs": "b08b4b5d399fbdfc3592660d190c117f168937d88ce08b283ea209de4ae14401",
+    "vendor/openrust/passport/src/passport.rs": "e30d4ee9afa113f9b88d840266b6c063596250090418ddb27a766833f5ba0800",
+    "vendor/openrust/passport/tests/lifecycle.rs": "1c56e79cc88b072108a7ccd5d6fd648b98f6ba702053c6ca812d8dc9431a2988",
+    "vendor/openrust/passport/src/auth_code.rs": "99be916e83d14596d2215f596faff3ff606b388135b8a924d11dcdb858abd547",
+    "vendor/openrust/passport/src/console/commands/client_command.rs": "321560c0385994e8bbce51ca781cd8576f2a2aad27ebfda05626165f675da2ae",
+    "vendor/openrust/passport/src/refresh_token.rs": "d3f07df24a74b9f41b95e05d4477041cdf82883080474ba17bb498249a0a7ca1",
+    "vendor/openrust/passport/src/token.rs": "4889830e5478f50158fc03f9f53ed64f3101bc68251ccd931ffb95ae0ffa753f",
+    "vendor/openrust/passport/src/token_store.rs": "c28e25f91c75da8b0b6c9e068b747b04232737c1c190519f72f44600e176ec42",
+    "vendor/openrust/passport/tests/client_management.rs": "020fed83d6c98db5538e6597222a549f37fe08844c9a02114938c8b44342c71f",
+    "vendor/openrust/framework/src/database/eloquent/model.rs": "1c80fae7275c7be91a1d524579c69803457684f08baf09c4d40effd7c8e96e92",
+    "vendor/openrust/framework/src/database/eloquent/persistence.rs": "73b879022abdb8e183037b141334b757d96b170e76de1e24e26bede83e44e0f5",
+    "vendor/openrust/framework/src/database/eloquent/relations/relation.rs": "c8008b3fba239c6527af45235b5974b459b7b5839c199764b7ef64be34b3acc9",
+    "vendor/openrust/framework/src/database/schema/blueprint.rs": "2321e85fcdab427ebb490c61bd5f518dc95398870e03122108717ed893676107",
+    "vendor/openrust/framework/src/support/facades.rs": "aba8753f531a2113e3267b36acf0ed51c8880e723f11c3e6a04cac3f441819bd",
+    "vendor/openrust/framework/src/support/facades/facade.rs": "462c04337352ba0ec4a6087f8e0bbed28300d8f48f8041f9e2f7d477d8f466ea",
+    "docs/en/packages/passport.md": "49b7326645915fceab0a3afc7e755c1e86a52ddf6ffeb1f95b7d3aea2eed2a5b",
+    "docs/zh_CN/packages/passport.md": "4f790463c7d94c25553d93b0e67d7586723e2ef1bb174ecb308d9fd64881000d",
+    "docs/zh_TW/packages/passport.md": "0b633c2f2dca43c2b0421291e5022134255a72f07e592289a499de9fcd07467f"
+  },
+  "upstream": {
+    "RefreshToken.php": "7b801dda69c08d507d4921f62ba4cdecf6f9f0baf20782d3afcfd94007c5abf0",
+    "Token.php": "4ffe452d44ec788ec066744ea48620d18c93c6a325a09d9c951a203c59daa552",
+    "TokenRepository.php": "ddf4b71a123bc30a035574ba005436e11c35f100d760caf72a879be3e8e611ae",
+    "Console_ClientCommand.php": "e6b3b7800b777ef2591ee215307d6750fd6b9b66c536be8b61b84b44332ba3a9",
+    "AuthCode.php": "6eae064f61bfedc1d8a3f82970724b070254319f9a5966442677826fbf921a71",
+    "ClientRepository.php": "4828ac6fd797bfcf9e168509fb999830d00565878309ded24ce5d6658550d64f"
+  }
+}

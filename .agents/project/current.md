@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 Passport-02 [客户端命令、关系与撤销](audits/passport-02/client-management.md)已验收：真实 Token／RefreshToken／AuthCode、编译模型关系、应用内 UUID 实例策略、自定义令牌注册及 refresh→token→client 撤销链、passport:client 六分支和交互。44 个 Rust 测试函数、MySQL 8.4.13、1001 令牌分批、实际 PTY／取消／数据库、根 HTTP／Artisan／关停、最低 Rust 1.94 全目标 features pail,passport 严格 Clippy、三语构建及 12＋6 浏览器检查通过。24 份输入 SHA 与隔离 2079b5333 副本一致，不叠加协作者 Blade／Pail／Log 工作。专属产物清理后 Available 63.947 GB（59.555 GiB），实际 df 增量 5.370 GB；保留源码覆盖包／日志、共享依赖和全部数据卷。核定本地提交，不推送。Scope JSON 字节规则、secret setter 失败顺序、浮点转换与其余 PHP oracle 仍待，Passport-02／V06 保持部分验收，不进入 Passport-03。
+
 - 2026-11-20 V03 [Blade 表达式契约](audits/03-07/expression-contracts.md)闭合：原生数组展开、include 接线、编译缓存 34，未注册 PHP 语句／导入显式拒绝；函数、引用、Traversable、对象重载和编译阶段给出明确 Rust 映射。96 组 PHP 8.4.14／Illuminate 13.40.0 连续两次一致，27 项定向测试、双应用 HTTP／恢复、根 HTTP／Artisan、Rust 1.94 严格全目标 Clippy、格式、三语构建和 12＋6 浏览器检查通过。14 份源码与独立验收快照 SHA 一致；只提交本批，不推送，保留同期 Passport／Eloquent 等在途改动。V04／05 Pail 与其余发布门禁仍待处理。
 
 - 2026-11-20 V02 [原生 ViewData 边界](audits/03-07/view-data.md)闭合：原生有序值保留 INF／NAN／负零，数组／子视图／组件／注册参数不经过 JSON；真实 JSON 编码递归失败，补嵌套非有限数比较和缓存版本 33。固定 PHP 8.4.14／Illuminate 13.40.0 的 108 例（96 成功／12 编码错误）两次一致；22 项视图／Blade、邮件视图 1 项、MySQL 8.4.13 分页 HTTP 1 项、根二进制 HTTP／Artisan／关停、Rust 1.94 全目标 features pail,passport 严格 Clippy、三语构建与 12＋6 浏览器检查通过。32 份核定源码／测试／正文 SHA 一致；专属构建产物已清理，日志与源码保留。只提交本批 V02，不推送；初始化独立提交及 Passport／Eloquent 在途工作保留，后续并行改动不计入本批快照验收。V03 表达式契约、V04／05 Pail 与其余发布缺口保持未闭合。

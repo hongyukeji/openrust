@@ -3556,6 +3556,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "clap",
+ "console",
  "openrust-framework",
  "rand 0.8.8",
  "reqwest",

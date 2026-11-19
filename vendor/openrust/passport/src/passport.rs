@@ -29,11 +29,14 @@ pub struct Passport {
     pub validateKeyPermissions: AtomicBool,
     /// Whether a parent scope grants a colon-delimited descendant scope.
     pub withInheritedScopes: AtomicBool,
+    pub deviceCodeGrantEnabled: AtomicBool,
+    pub clientUuids: AtomicBool,
     config: Arc<dyn Repository>,
     paths: Arc<Paths>,
     key_path: RwLock<Option<PathBuf>>,
     database: Arc<DatabaseManager>,
     client_model: RwLock<ClientModelRegistration>,
+    token_models: Arc<crate::token_store::TokenModels>,
 }
 #[allow(non_snake_case)]
 impl Passport {
@@ -43,8 +46,14 @@ impl Passport {
         database: Arc<DatabaseManager>,
     ) -> Self {
         Self {
+            token_models: Arc::new(crate::token_store::TokenModels::new(
+                database.clone(),
+                config.clone(),
+            )),
             validateKeyPermissions: AtomicBool::new(true),
             withInheritedScopes: AtomicBool::new(false),
+            deviceCodeGrantEnabled: AtomicBool::new(true),
+            clientUuids: AtomicBool::new(true),
             config,
             paths,
             database,
@@ -65,6 +74,18 @@ impl Passport {
             factory: client_store::<M>,
         };
     }
+    pub fn useTokenModel<M: crate::TokenModel>(&self) {
+        self.token_models.use_token::<M>();
+    }
+    pub fn useRefreshTokenModel<M: crate::RefreshTokenModel>(&self) {
+        self.token_models.use_refresh::<M>();
+    }
+    pub fn tokenModel(&self) -> &'static str {
+        self.token_models.token_name()
+    }
+    pub fn refreshTokenModel(&self) -> &'static str {
+        self.token_models.refresh_name()
+    }
     pub fn clientModel(&self) -> &'static str {
         self.client_model
             .read()
@@ -78,7 +99,10 @@ impl Passport {
             .read()
             .expect("Passport client model lock poisoned")
             .factory;
-        ClientRepository::new(factory(self.database.clone(), self.config.clone()))
+        ClientRepository::new(
+            factory(self.database.clone(), self.config.clone()),
+            self.token_models.clone(),
+        )
     }
     /// Sets a directory before lazy key services are first resolved.
     pub fn loadKeysFrom(&self, path: impl AsRef<Path>) {

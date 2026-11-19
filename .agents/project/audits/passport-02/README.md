@@ -101,3 +101,7 @@ docs/{en,zh_CN,zh_TW}/packages/passport.md
 ## 客户端 scope 与显式追加接续
 
 2026-11-19 [scope 与显式明文追加](scopes-and-appends.md)通过固定 PHP 312 例、29 个 Rust 测试函数、真实 HTTP／MySQL、Artisan Kernel 与三语验收。历史清单中的 scope 继承和 plain_secret 显式追加已处理，完整 Client／Passport-02 仍未闭合。
+
+## 客户端命令与撤销接续
+
+2026-11-20 [客户端命令、关系与撤销](client-management.md)通过 44 个测试函数、实际 MySQL／PTY／HTTP／Artisan 与三语验收。历史待办中的 UUID 开关、编译关系、令牌撤销及 passport:client 已处理；剩余固定 PHP oracle 继续单独核验。

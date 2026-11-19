@@ -264,30 +264,54 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
     }
 
     pub fn connection(&self, parent: &P) -> DatabaseResult<Connection> {
-        if let Some(name) = R::metadata().connection
-            && parent.getConnectionName() != Some(name)
+        let resolve = || {
+            let related = R::from_state(Default::default());
+            let name = related
+                .resolveConnectionName()?
+                .map(|name| name.into_owned());
+            if let Some(name) = name {
+                if let Some(connection) = parent.state().connection.as_ref() {
+                    if connection.getName() == name {
+                        return Ok(connection.clone());
+                    }
+                    if let Some(container) = Connection::model_container(Some(connection)) {
+                        use crate::contracts::container::Container as _;
+                        return container
+                            .get::<crate::database::DatabaseManager>("db")
+                            .map_err(DatabaseError::Unavailable)?
+                            .connection(Some(&name));
+                    }
+                }
+                return DB::connection(Some(&name));
+            }
+            parent.getConnection()
+        };
+        if let Some(owner) = parent
+            .state()
+            .connection
+            .as_ref()
+            .and_then(|connection| Connection::model_container(Some(connection)))
         {
-            return DB::connection(Some(name));
-        }
-        match &parent.state().connection {
-            Some(connection) => Ok(connection.clone()),
-            None => DB::connection(R::metadata().connection.or(P::metadata().connection)),
+            crate::support::facades::application_scope_sync(owner, resolve)
+        } else {
+            resolve()
         }
     }
 
     pub(super) fn shares_related_source(&self, parent: &P, related: &R) -> bool {
+        if related.getTable() != R::metadata().table {
+            return false;
+        }
+        if let (Some(_), Some(actual)) = (&parent.state().connection, &related.state().connection) {
+            return self
+                .connection(parent)
+                .is_ok_and(|expected| expected.same_query_source(actual));
+        }
+        // Unsaved, unbound models compare declared identities without resolving a database.
         let name = R::metadata()
             .connection
             .or_else(|| parent.getConnectionName());
-        related.getTable() == R::metadata().table
-            && related.getConnectionName() == name
-            && (name != parent.getConnectionName()
-                || parent
-                    .state()
-                    .connection
-                    .as_ref()
-                    .zip(related.state().connection.as_ref())
-                    .is_none_or(|(parent, related)| parent.same_query_source(related)))
+        related.getConnectionName() == name
     }
 
     pub(super) fn matches_identity(&self, parent: &P, related: &R) -> bool {

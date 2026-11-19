@@ -301,6 +301,26 @@ pub trait Facade {
         Ok(spy)
     }
 }
+pub(crate) fn application_scope_sync<R>(
+    container: Arc<Container>,
+    operation: impl FnOnce() -> R,
+) -> R {
+    if APPLICATION
+        .try_with(|current| {
+            current.as_ref().is_some_and(|context| {
+                !context.closed.load(Ordering::Acquire)
+                    && Arc::ptr_eq(&context.container, &container)
+            })
+        })
+        .unwrap_or(false)
+    {
+        operation()
+    } else {
+        let (context, _close) = open_context(container);
+        APPLICATION.sync_scope(Some(context), operation)
+    }
+}
+
 pub(crate) async fn application_scope<F: Future>(
     container: Arc<Container>,
     future: F,

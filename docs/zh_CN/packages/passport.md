@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理客户端 {#managing-clients}
 
-首批客户端仓储支持查询、创建、更新、秘密轮换和所有权筛选，操作真实 Eloquent 模型。`passport:client` 命令、客户端及令牌撤销、模型关系和完整 scope 配置仍待完成；本批不会启用 OAuth 端点或令牌认证。
+客户端仓储支持查询、创建、更新、秘密轮换、所有权筛选和撤销，操作真实 Eloquent 模型。`passport:client` 可创建六类客户端。OAuth 端点和令牌认证仍待完成。
 
 在请求或 Artisan 生命周期内解析 `ClientRepository`，容器为每个生命周期提供新仓储。同一参数的重复 `find` 共享实际模型，并缓存未命中；数据库错误传播，允许再次尝试。`findActive` 还检查当前模型的 `revoked` 属性。不要把此作用域服务保存在应用单例中。显式管理的操作可以通过 `Passport::clientRepository()` 创建独立拥有缓存的仓储。
 
@@ -110,4 +110,22 @@ pub async fn create_client(
 
 `make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plainSecret`，重新读库只包含哈希。`state` 添加应用属性；`intoFactory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
 
-Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。协议端点与其余 Client 关系仍待完成。
+Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。协议端点仍待完成。
+
+## 客户端命令与撤销
+
+执行迁移后，用 `./artisan passport:client` 创建客户端。`--personal`、`--password`、`--client`、`--implicit`、`--device` 选择授权类型；不传这些选项时创建授权码客户端。多个选项同时存在时按上述顺序优先。`--name`、`--provider`、`--redirect_uri` 提供交互值，多个重定向地址用逗号分隔。`--public` 为密码、设备和授权码客户端省略秘密。隐式客户端始终公开；个人和客户端凭据客户端始终保密。
+
+使用 `--no-interaction` 时，名称默认取 `app.name`，回调默认取应用 URL 加 `/auth/callback`，附加设备流程默认关闭。交互创建授权码客户端时，若 `deviceCodeGrantEnabled` 为 true（默认值），会询问是否启用设备流程。命令输出客户端 ID；保密客户端还输出临时秘密和保存提醒。个人客户端创建只输出成功消息。
+
+`clients.delete(&client).await?` 按每批 1000 个加载客户端的访问令牌，逐个先撤销刷新令牌、再撤销访问令牌，最后撤销客户端。保存经过 Eloquent 转换和事件；错误向上传递，之前的保存保留。事件取消保存返回 false，不中止撤销链，与 Passport 一致。授权码不变。`TokenModel::revoke`、`RefreshTokenModel::revoke` 也可单独撤销实例。
+
+## 模型与关系
+
+`Token`、`RefreshToken`、`AuthCode` 使用非自增字符串主键、布尔 `revoked`、日期时间 `expires_at` 转换，以及 Passport 连接回退。只有 `Token` 使用时间戳，其 scopes 为数组。`Token::can` 拒绝空 scope 列表，支持 PHP 非严格比较的 `*` 通配符，并读取当前应用的继承设置；`cant` 返回相反结果。
+
+`ClientModel` 提供 `tokens`、`authCodes`、`owner` 和已弃用的 `user::<U>()`；`Token` 提供 `client`、`refreshToken` 和已弃用的 `user::<U>("认证标识列")`；`RefreshToken` 提供 `accessToken`；`AuthCode` 提供 `client`。Token 的用户键须与编译 provider 模型的 `Authenticatable` 标识列一致，Client 的用户关系使用主键。多态所有者通过既有 `owner().target::<U>(别名, 主键)` Builder 绑定。
+
+Rust 在编译时绑定关系返回类型。默认辅助方法返回默认具体模型；自定义模型使用 `tokensFor::<T>`、`clientFor::<C>`、`refreshTokenFor::<R>`、`accessTokenFor::<T>`。`passport.useTokenModel::<T>()` 和 `useRefreshTokenModel::<R>()` 选择仓储撤销时使用的实际模型，保留其连接和事件；共享注册也作用于已解析的仓储。用户 provider 由调用方选择编译模型，替代 PHP 的运行时类名。
+
+`clientUuids` 默认 true。已有数字自增客户端表时，在构造模型前调用 `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)`。每个实例保留构造时选定的策略。开关不会修改已有表结构；发布的客户端迁移仍创建 UUID 主键。

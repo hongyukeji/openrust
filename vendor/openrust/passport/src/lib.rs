@@ -1,5 +1,6 @@
 //! Laravel Passport's application configuration, publishable schema and key command.
 #![forbid(unsafe_code)]
+mod auth_code;
 mod client;
 mod client_record;
 mod client_repository;
@@ -11,15 +12,21 @@ mod keys;
 pub mod migrations;
 mod passport;
 mod php_array;
+mod refresh_token;
 mod scope;
+mod token;
+mod token_store;
 
+pub use auth_code::AuthCode;
 pub use client::{Client, ClientModel};
 pub use client_record::ClientRecord;
 pub use client_repository::{ClientOwner, ClientRepository, ClientRepositoryError};
 pub use keys::{CryptKey, KeyError, PrivateKey, PublicKey};
 pub use passport::Passport;
 pub use php_array::PhpArray;
+pub use refresh_token::{RefreshToken, RefreshTokenModel};
 pub use scope::Scope;
+pub use token::{Token, TokenModel};
 
 use openrust::{
     config::Environment,

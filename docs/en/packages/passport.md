@@ -65,7 +65,7 @@ The default and standard-size key generation uses the existing native AWS-LC imp
 
 ## Managing clients {#managing-clients}
 
-The first client repository batch supports lookup, creation, update, secret rotation and owner filtering using real Eloquent models. The `passport:client` command, revoking clients and their tokens, model relationships and complete scope configuration are still pending; this does not enable OAuth endpoints or token authentication.
+The client repository supports lookup, creation, update, secret rotation, owner filtering and revocation using real Eloquent models. `passport:client` creates the six supported client grant types. OAuth endpoints and token authentication are still pending.
 
 Resolve `ClientRepository` inside the request or Artisan lifecycle. The container gives each lifecycle a new repository. Repeated `find` calls with the same argument share the actual model, including cached misses; database errors propagate and can be retried. `findActive` also checks the current model's `revoked` attribute. Do not retain this scoped service in an application singleton. For an explicitly managed operation, `Passport::clientRepository()` creates a separately owned cache.
 
@@ -110,4 +110,22 @@ Call `passport.useClientModel::<CustomClient>()` during application setup before
 
 Call `make().await?` for an unsaved model or `create().await?` to persist it. Assignment uses the model’s asynchronous mutators and casts: the new Client retains `plainSecret`, while a database reload contains only its hash. `state` adds application attributes; `intoFactory()` exposes the existing Eloquent builder for counts, relationships and callbacks.
 
-Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Protocol endpoints and the remaining Client relationships are still pending.
+Rust selects a factory model at compile time: use `ClientFactory::<CustomClient>::new()?` for a custom `ClientModel`. This does not dynamically read `useClientModel`. Construction resolves and captures the model’s effective connection, including `passport.connection`, and returns configuration errors. Construct a fresh factory after changing that configuration. Protocol endpoints are still pending.
+
+## Client commands and revocation
+
+After running the migrations, create clients with `./artisan passport:client`. Options `--personal`, `--password`, `--client`, `--implicit` and `--device` select the grant; without these flags the command creates an authorization code client. If several flags are present, that order determines precedence. `--name`, `--provider` and `--redirect_uri` supply prompt values; redirects are comma separated. `--public` omits the secret for password, device and authorization code clients. Implicit clients are always public; personal and client credentials clients are confidential.
+
+With `--no-interaction`, the name defaults to `app.name`, the callback to the application URL plus `/auth/callback`, and the additional device flow to false. Interactive authorization code creation asks about device flow when `deviceCodeGrantEnabled` is true (the default). The command prints the client ID and, for confidential clients, the temporary secret and a reminder to retain it. Personal client creation prints only its success message.
+
+`clients.delete(&client).await?` loads the client's access tokens in batches of 1000 and revokes each refresh token before its access token, then revokes the client. These are Eloquent saves with casts and events. Errors propagate and earlier saves remain; a save cancelled by an event returns false and does not stop the chain, matching Passport. Authorization codes are unchanged. `TokenModel::revoke` and `RefreshTokenModel::revoke` also expose individual revocation.
+
+## Models and relationships
+
+`Token`, `RefreshToken` and `AuthCode` use string keys without auto increment, boolean `revoked` and datetime `expires_at` casts, and the Passport connection fallback. Only `Token` uses timestamps; its scopes are an array. `Token::can` rejects empty scopes, recognizes the PHP loose `*` wildcard and uses the application inheritance setting; `cant` negates it.
+
+`ClientModel` exposes `tokens`, `authCodes`, `owner` and the deprecated `user::<U>()`; `Token` exposes `client`, `refreshToken` and the deprecated `user::<U>("authentication_key")`; `RefreshToken` exposes `accessToken`, and `AuthCode` exposes `client`. The token user key must match the compiled provider model's `Authenticatable` identifier; the client user relation uses its primary key. Register polymorphic owners through the existing `owner().target::<U>(alias, primary_key)` builder.
+
+Rust binds relation result types at compile time. Default helpers return the default concrete models; use `tokensFor::<T>`, `clientFor::<C>`, `refreshTokenFor::<R>` or `accessTokenFor::<T>` for custom models. `passport.useTokenModel::<T>()` and `useRefreshTokenModel::<R>()` select the actual models used by repository revocation, including their connections and events. These shared registrations also apply to already resolved repositories. The caller chooses the compiled user provider model instead of PHP's runtime class string.
+
+`clientUuids` defaults to true. Set `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)` before constructing clients when using an existing numeric auto increment client table. Each instance retains the strategy selected at construction. This does not change an existing schema; the published client migration creates UUID keys.

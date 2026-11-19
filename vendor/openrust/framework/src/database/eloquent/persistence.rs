@@ -162,7 +162,7 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
         return Ok(false);
     }
     let exists = model.state().exists;
-    if !exists && M::usesUniqueIds() {
+    if !exists && model.usesUniqueIdsForInstance() {
         model.setUniqueIds().await?;
     }
     if exists && model.getDirty()?.is_empty() {
@@ -237,7 +237,7 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
         scoped_model(model, query)?
             .update(attributes.clone())
             .await?;
-    } else if M::getIncrementing() {
+    } else if model.getIncrementingForInstance() {
         let id = query
             .insertGetIdFor(attributes.clone(), metadata.primary_key)
             .await?;

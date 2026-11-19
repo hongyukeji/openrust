@@ -3677,3 +3677,7 @@ Passport-02 [模型连接回退](audits/passport-02/connection-fallback.md)已�
 ## 2026-11-19 Passport-02 scope 与显式追加
 
 Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.md)已验收。hasScope 复用真实模型 cast／PHP 非严格比较桥，withInheritedScopes 按应用保存；plain_secret 显式追加走实例访问器并保留 hidden／visible 与水合 null。固定 Passport 13.10.0 的真实 trait 在 PHP 8.5.12 生成 312 例，源码 SHA 正负校验通过，Rust 双应用 TCP 逐项对照一致。9 原生、10 lifecycle、10 MySQL 夹具目标测试全过（29 个函数，其中 2 个 lookup 用例不执行 SQL），实际 Artisan Kernel、最低 Rust 1.94 格式／全工作区全目标 features pail,passport 严格 Clippy、三语构建和 18 浏览器检查通过。本批隔离 7720f142e 加 12 份输入，不叠加总控在途 ViewData／Cargo 与 init 等差异；未重编根 CLI 二进制。已清专属 source／target／browser 约 3.329 GB 和 PHP 镜像，保留证据、源码与全部数据卷。Passport-02／V06 仍部分验收，继续关系／工厂、UUID、生命周期撤销、命令和剩余 PHP oracle；不推进 Passport-03。
+
+## 2026-11-20 Passport-02 客户端命令、关系与撤销
+
+2026-11-20 Passport-02 [客户端命令、关系与撤销](audits/passport-02/client-management.md)已验收：真实 Token／RefreshToken／AuthCode、编译模型关系、应用内 UUID 实例策略、自定义令牌注册及 refresh→token→client 撤销链、passport:client 六分支和交互。44 个 Rust 测试函数、MySQL 8.4.13、1001 令牌分批、实际 PTY／取消／数据库、根 HTTP／Artisan／关停、最低 Rust 1.94 全目标 features pail,passport 严格 Clippy、三语构建及 12＋6 浏览器检查通过。24 份输入 SHA 与隔离 2079b5333 副本一致，不叠加协作者 Blade／Pail／Log 工作。专属产物清理后 Available 63.947 GB（59.555 GiB），实际 df 增量 5.370 GB；保留源码覆盖包／日志、共享依赖和全部数据卷。核定本地提交，不推送。Scope JSON 字节规则、secret setter 失败顺序、浮点转换与其余 PHP oracle 仍待，Passport-02／V06 保持部分验收，不进入 Passport-03。

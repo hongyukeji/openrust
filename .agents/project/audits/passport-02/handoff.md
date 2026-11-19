@@ -39,3 +39,7 @@ V06、Passport-02 整单元保持部分验收；Passport-03 仍须等待其前�
 ## 2026-11-20 接续
 
 原对话已提交连接回退 `7720f142e` 与 scope／明文追加 `6e1ea9f2d`。本对话接续的[编译绑定客户端工厂](client-factory.md)通过上述限定范围验收，详见记录中的语言适配和未验收声明。当前停点仍属 Passport-02：完整关系、UUID 配置、撤销链、客户端命令与其余 PHP 对照，未进入 Passport-03。源码与三语正文逐份核 SHA；保留共享协作者改动。
+
+## 2026-11-20 命令与撤销接续
+
+[客户端命令、关系与撤销](client-management.md)已通过限定范围验收，44 个测试函数与实际 PTY／HTTP／Artisan／三语检查见正文。UUID 实例策略、编译模型关系、自定义 Token／Refresh 注册、1000 分批撤销及 passport:client 已处理。Scope JSON、setter 失败顺序、浮点转换和其余 PHP oracle 仍待；Passport-02 保持部分验收。

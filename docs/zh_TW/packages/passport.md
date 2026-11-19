@@ -65,7 +65,7 @@ pub async fn configure_keys(app: &Application) -> Result<(), Box<dyn std::error:
 
 ## 管理用戶端 {#managing-clients}
 
-首批用戶端儲存庫支援查詢、建立、更新、秘密輪替和擁有權篩選，操作真實 Eloquent 模型。`passport:client` 命令、用戶端與權杖撤銷、模型關聯和完整 scope 設定仍待完成；本批不會啟用 OAuth 端點或權杖驗證。
+用戶端儲存庫支援查詢、建立、更新、秘密輪替、擁有權篩選和撤銷，操作真實 Eloquent 模型。`passport:client` 可建立六類用戶端。OAuth 端點和權杖驗證仍待完成。
 
 在請求或 Artisan 生命週期內解析 `ClientRepository`，容器為每個生命週期提供新儲存庫。同一參數的重複 `find` 共用實際模型，並快取未命中；資料庫錯誤向上傳遞，允許重試。`findActive` 還檢查目前模型的 `revoked` 屬性。不要把此作用域服務保存在應用單例中。顯式管理的操作可透過 `Passport::clientRepository()` 建立獨立擁有快取的儲存庫。
 
@@ -111,3 +111,21 @@ pub async fn create_client(
 `make().await?` 回傳未儲存模型，`create().await?` 持久化模型。賦值執行模型的非同步修改器和轉換：新 Client 保留 `plainSecret`，重新讀取資料庫只包含雜湊。`state` 新增應用程式屬性；`intoFactory()` 回傳現有 Eloquent 工廠 Builder，以使用數量、關係與回呼。
 
 Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。協定端點與其餘 Client 關係仍待完成。
+
+## 用戶端命令與撤銷
+
+執行遷移後，用 `./artisan passport:client` 建立用戶端。`--personal`、`--password`、`--client`、`--implicit`、`--device` 選擇授權類型；未傳這些選項時建立授權碼用戶端。多個選項同時存在時依上述順序優先。`--name`、`--provider`、`--redirect_uri` 提供互動值，多個重新導向位址以逗號分隔。`--public` 為密碼、裝置和授權碼用戶端省略秘密。隱含用戶端始終公開；個人和用戶端憑證用戶端始終保密。
+
+使用 `--no-interaction` 時，名稱預設取 `app.name`，回呼預設取應用 URL 加 `/auth/callback`，附加裝置流程預設關閉。互動建立授權碼用戶端時，若 `deviceCodeGrantEnabled` 為 true（預設值），會詢問是否啟用裝置流程。命令輸出用戶端 ID；保密用戶端還輸出暫存秘密和保存提醒。個人用戶端建立只輸出成功訊息。
+
+`clients.delete(&client).await?` 按每批 1000 個載入用戶端的存取權杖，逐一先撤銷重新整理權杖、再撤銷存取權杖，最後撤銷用戶端。儲存經過 Eloquent 轉換和事件；錯誤向上傳遞，先前儲存保留。事件取消儲存回傳 false，不中止撤銷鏈，與 Passport 一致。授權碼不變。`TokenModel::revoke`、`RefreshTokenModel::revoke` 也可個別撤銷實例。
+
+## 模型與關聯
+
+`Token`、`RefreshToken`、`AuthCode` 使用非自增字串主鍵、布林 `revoked`、日期時間 `expires_at` 轉換，以及 Passport 連線回退。只有 `Token` 使用時間戳記，其 scopes 為陣列。`Token::can` 拒絕空 scope 清單，支援 PHP 非嚴格比較的 `*` 萬用字元，並讀取目前應用的繼承設定；`cant` 回傳相反結果。
+
+`ClientModel` 提供 `tokens`、`authCodes`、`owner` 和已棄用的 `user::<U>()`；`Token` 提供 `client`、`refreshToken` 和已棄用的 `user::<U>("驗證識別欄")`；`RefreshToken` 提供 `accessToken`；`AuthCode` 提供 `client`。Token 的使用者鍵須與編譯 provider 模型的 `Authenticatable` 識別欄一致，Client 的使用者關聯使用主鍵。多型擁有者透過既有 `owner().target::<U>(別名, 主鍵)` Builder 綁定。
+
+Rust 在編譯時綁定關聯回傳類型。預設輔助方法回傳預設具體模型；自訂模型使用 `tokensFor::<T>`、`clientFor::<C>`、`refreshTokenFor::<R>`、`accessTokenFor::<T>`。`passport.useTokenModel::<T>()` 和 `useRefreshTokenModel::<R>()` 選擇儲存庫撤銷時使用的實際模型，保留其連線和事件；共用註冊也作用於已解析的儲存庫。使用者 provider 由呼叫端選擇編譯模型，替代 PHP 的執行期類別名稱。
+
+`clientUuids` 預設 true。已有數字自增用戶端表時，在建構模型前呼叫 `passport.clientUuids.store(false, std::sync::atomic::Ordering::Relaxed)`。每個實例保留建構時選定的策略。開關不會修改既有資料表結構；發布的用戶端遷移仍建立 UUID 主鍵。

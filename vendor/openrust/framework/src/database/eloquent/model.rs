@@ -23,6 +23,7 @@ use super::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModelKeyType {
     Integer,
+    String,
     Uuid,
     Ulid,
 }
@@ -389,6 +390,19 @@ pub trait Model: Sized + Send + Sync + 'static {
         })
     }
 
+    /// Instance hooks preserve options initialized when a model is constructed.
+    fn uniqueIdsForInstance(&self) -> &'static [&'static str] {
+        Self::uniqueIds()
+    }
+
+    fn getIncrementingForInstance(&self) -> bool {
+        Self::getIncrementing()
+    }
+
+    fn usesUniqueIdsForInstance(&self) -> bool {
+        Self::usesUniqueIds()
+    }
+
     fn usesUniqueIds() -> bool {
         !Self::uniqueIds().is_empty()
     }
@@ -408,7 +422,7 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn setUniqueIds(&mut self) -> impl Future<Output = DatabaseResult<()>> + Send {
         async {
-            for column in Self::uniqueIds() {
+            for column in self.uniqueIdsForInstance() {
                 if super::unique_ids::is_empty(self.getAttributeValue(column)?) {
                     let id = self.newUniqueId()?.map_or(Value::Null, Value::Text);
                     self.setAttributeValueAsync(column, id).await?;
@@ -443,7 +457,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                             && Some(column) != metadata.created_at
                             && Some(column) != metadata.updated_at
                             && column != "laravel_through_key"
-                            && !Self::uniqueIds().contains(&column)
+                            && !self.uniqueIdsForInstance().contains(&column)
                             && !metadata.refreshes.contains(&column)
                             && !except.contains(&column))
                 })
@@ -856,7 +870,7 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     /// The key type used by schema helpers. Override for manually assigned string keys.
     fn getKeyType(&self) -> ModelKeyType {
-        if Self::uniqueIds().contains(&self.getKeyName()) {
+        if self.uniqueIdsForInstance().contains(&self.getKeyName()) {
             match Self::metadata().unique_id {
                 Some(super::UniqueId::Uuid) => ModelKeyType::Uuid,
                 Some(super::UniqueId::Ulid) => ModelKeyType::Ulid,

@@ -39,20 +39,27 @@ pub trait ClientModel: Model {
             return Ok(true);
         }
         let scopes = array(self.getAttributeValue("scopes")?)?;
-        let passport = openrust::container::Container::getInstance()
-            .make::<Passport>()
-            .map_err(DatabaseError::Unavailable)?;
-        if !passport
-            .withInheritedScopes
-            .load(std::sync::atomic::Ordering::Relaxed)
-        {
-            return Ok(scopes.contains_loose(scope));
-        }
-        Ok(scope
-            .match_indices(':')
-            .map(|(index, _)| &scope[..index])
-            .chain(std::iter::once(scope))
-            .any(|candidate| scopes.contains_loose(candidate)))
+        scope_exists_in(scope, &scopes)
+    }
+    fn tokens(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::Token> {
+        self.tokensFor::<crate::Token>()
+    }
+    fn tokensFor<T: crate::TokenModel>(
+        &self,
+    ) -> openrust::database::eloquent::relations::HasMany<Self, T> {
+        openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
+    }
+    fn authCodes(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::AuthCode> {
+        openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
+    }
+    fn owner(&self) -> openrust::database::eloquent::relations::MorphTo<Self> {
+        openrust::database::eloquent::relations::MorphTo::new("owner_type", "owner_id")
+    }
+    fn user<U: Model>(&self) -> openrust::database::eloquent::relations::BelongsTo<Self, U> {
+        openrust::database::eloquent::relations::BelongsTo::new(
+            "user_id",
+            U::from_state(ModelState::default()).getKeyName(),
+        )
     }
     fn redirectUris(&self) -> DatabaseResult<PhpArray> {
         array(self.getAttributeValue("redirect_uris")?)
@@ -70,6 +77,7 @@ pub trait ClientModel: Model {
 #[allow(non_snake_case)]
 pub struct Client {
     attributes: ClientAttributes,
+    uses_unique_ids: bool,
     pub plainSecret: Option<Zeroizing<String>>,
 }
 impl std::fmt::Debug for Client {
@@ -122,6 +130,21 @@ impl Model for ClientAttributes {
 
 #[allow(non_snake_case)]
 impl Model for Client {
+    fn uniqueIds() -> &'static [&'static str] {
+        if client_uuids() { &["id"] } else { &[] }
+    }
+    fn uniqueIdsForInstance(&self) -> &'static [&'static str] {
+        if self.uses_unique_ids { &["id"] } else { &[] }
+    }
+    fn getIncrementing() -> bool {
+        !client_uuids()
+    }
+    fn usesUniqueIdsForInstance(&self) -> bool {
+        self.uses_unique_ids
+    }
+    fn getIncrementingForInstance(&self) -> bool {
+        !self.uses_unique_ids
+    }
     fn metadata() -> &'static ModelMetadata {
         ClientAttributes::metadata()
     }
@@ -131,6 +154,7 @@ impl Model for Client {
     fn from_state(state: ModelState) -> Self {
         Self {
             attributes: ClientAttributes(state),
+            uses_unique_ids: client_uuids(),
             plainSecret: None,
         }
     }
@@ -352,4 +376,32 @@ pub(crate) fn truthy(value: Option<&Value>) -> bool {
         Some(Value::Bool(true)) => true,
         _ => true,
     }
+}
+
+pub(crate) fn scope_exists_in(scope: &str, scopes: &PhpArray) -> DatabaseResult<bool> {
+    let passport = openrust::container::Container::getInstance()
+        .make::<Passport>()
+        .map_err(DatabaseError::Unavailable)?;
+    if !passport
+        .withInheritedScopes
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        return Ok(scopes.contains_loose(scope));
+    }
+    Ok(scope
+        .match_indices(':')
+        .map(|(index, _)| &scope[..index])
+        .chain(std::iter::once(scope))
+        .any(|candidate| scopes.contains_loose(candidate)))
+}
+
+fn client_uuids() -> bool {
+    openrust::container::Container::getInstance()
+        .make::<Passport>()
+        .map(|passport| {
+            passport
+                .clientUuids
+                .load(std::sync::atomic::Ordering::Relaxed)
+        })
+        .unwrap_or(true)
 }

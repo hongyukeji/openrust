@@ -27,6 +27,9 @@ impl ClientRecord {
             .downcast_ref::<Loaded<M>>()
             .map(|loaded| loaded.model.clone())
     }
+    pub(crate) async fn connection(&self) -> DatabaseResult<Connection> {
+        self.0.connection().await
+    }
     pub(crate) async fn columns(&self) -> DatabaseResult<Vec<String>> {
         self.0.columns().await
     }
@@ -62,6 +65,7 @@ impl ClientRecord {
     }
 }
 trait LoadedClient: Send + Sync {
+    fn connection(&self) -> DatabaseFuture<'_, DatabaseResult<Connection>>;
     fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>>;
     fn columns(&self) -> DatabaseFuture<'_, DatabaseResult<Vec<String>>>;
     fn assign_and_save(&self, attributes: Attributes) -> DatabaseFuture<'_, DatabaseResult<bool>>;
@@ -81,6 +85,9 @@ struct Loaded<M> {
     connection: Connection,
 }
 impl<M: ClientModel> LoadedClient for Loaded<M> {
+    fn connection(&self) -> DatabaseFuture<'_, DatabaseResult<Connection>> {
+        Box::pin(async move { self.model.lock().await.getConnection() })
+    }
     fn has_scope<'a>(&'a self, scope: &'a str) -> DatabaseFuture<'a, DatabaseResult<bool>> {
         Box::pin(async move { self.model.lock().await.hasScope(scope) })
     }
