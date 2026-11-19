@@ -55,6 +55,15 @@ pub trait ProviderDefinition: Send + Sync {
     fn scopeSeparator(&self) -> &str {
         ","
     }
+    fn usesPKCE(&self) -> bool {
+        false
+    }
+    fn usesRFC3986(&self) -> bool {
+        false
+    }
+    fn refreshTokenIncludesSecret(&self) -> bool {
+        true
+    }
     fn tokenBasicAuth(&self) -> bool {
         false
     }
@@ -66,6 +75,7 @@ pub trait ProviderDefinition: Send + Sync {
         _fields: &mut Map<String, Value>,
         _scopes: &[String],
         _botUser: bool,
+        _stateless: bool,
     ) {
     }
     fn normalizeTokenResponse(&self, response: Value, _botUser: bool) -> Result<Value> {
@@ -103,6 +113,7 @@ impl<'a> AbstractProvider<'a> {
             .iter()
             .map(|s| (*s).to_owned())
             .collect();
+        let usesPKCE = definition.usesPKCE();
         let mut provider = Self {
             request,
             config,
@@ -111,7 +122,7 @@ impl<'a> AbstractProvider<'a> {
             parameters: Map::new(),
             scopes,
             stateless: false,
-            usesPKCE: false,
+            usesPKCE,
             botUser: false,
             user: None,
         };
@@ -196,8 +207,12 @@ impl<'a> AbstractProvider<'a> {
             fields.insert("code_challenge_method".into(), "S256".into());
         }
         fields.extend(self.parameters.clone());
-        self.definition
-            .customizeCodeFields(&mut fields, &self.scopes, self.botUser);
+        self.definition.customizeCodeFields(
+            &mut fields,
+            &self.scopes,
+            self.botUser,
+            self.stateless,
+        );
         let mut url = url::Url::parse(self.definition.getAuthUrl())
             .map_err(|_| Error::Configuration("authorization URL"))?;
         {
@@ -205,6 +220,14 @@ impl<'a> AbstractProvider<'a> {
             for (key, value) in fields {
                 pairs.append_pair(&key, &scalar(&value)?);
             }
+        }
+        if self.definition.usesRFC3986() {
+            let query = url.query().map(|q| {
+                q.replace('+', "%20")
+                    .replace('*', "%2A")
+                    .replace("%7E", "~")
+            });
+            url.set_query(query.as_deref());
         }
         Ok(url.into())
     }
@@ -301,7 +324,10 @@ impl<'a> AbstractProvider<'a> {
             .normalizeTokenResponse(response, self.botUser)
     }
     pub async fn refreshToken(&mut self, refreshToken: &str) -> Result<Token> {
-        let fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id,"client_secret":self.config.client_secret.as_str()});
+        let mut fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id});
+        if self.definition.refreshTokenIncludesSecret() {
+            fields["client_secret"] = self.config.client_secret.as_str().into();
+        }
         let response = self.post(&fields, self.definition.tokenBasicAuth()).await?;
         self.credentials(&response)
     }

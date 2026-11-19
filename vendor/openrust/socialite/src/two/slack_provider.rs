@@ -46,6 +46,7 @@ impl ProviderDefinition for SlackProvider {
         fields: &mut Map<String, Value>,
         scopes: &[String],
         botUser: bool,
+        _stateless: bool,
     ) {
         if !botUser {
             fields.insert("scope".into(), "".into());

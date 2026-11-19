@@ -3,7 +3,7 @@ use crate::{
     two::{
         AbstractProvider, BitbucketProvider, GithubProvider, GitlabProvider,
         LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig, ProviderDefinition,
-        SlackOpenIdProvider, SlackProvider,
+        SlackOpenIdProvider, SlackProvider, TwitterProvider, XProvider,
     },
 };
 use openrust::{
@@ -35,10 +35,20 @@ impl SocialiteManager {
             .insert(name.into(), provider);
     }
     pub fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<AbstractProvider<'a>> {
-        let value = self
-            .config
-            .get(&format!("services.{name}"))
-            .unwrap_or(serde_json::Value::Null);
+        let value = match name {
+            "twitter-oauth-2" => self
+                .config
+                .get("services.twitter")
+                .filter(|v| !v.is_null())
+                .or_else(|| self.config.get("services.twitter-oauth-2")),
+            "x" => self
+                .config
+                .get("services.x")
+                .filter(|v| !v.is_null())
+                .or_else(|| self.config.get("services.x-oauth-2")),
+            _ => self.config.get(&format!("services.{name}")),
+        }
+        .unwrap_or(serde_json::Value::Null);
         if name == "gitlab"
             && value
                 .get("host")
@@ -53,6 +63,13 @@ impl SocialiteManager {
             .get(name)
             .cloned()
             .or_else(|| match name {
+                "twitter" if value.get("oauth").and_then(serde_json::Value::as_i64) == Some(2) => {
+                    Some(Arc::new(TwitterProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "twitter-oauth-2" => {
+                    Some(Arc::new(TwitterProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "x" => Some(Arc::new(XProvider::default()) as Arc<dyn ProviderDefinition>),
                 "github" => {
                     Some(Arc::new(GithubProvider::default()) as Arc<dyn ProviderDefinition>)
                 }

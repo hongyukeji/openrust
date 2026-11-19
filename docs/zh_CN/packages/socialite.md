@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 将第三方登录接入应用的 HTTP Client 与 Session。已验收范围现包括固定 Socialite 5.33.0 对应的 GitHub、GitLab、Bitbucket、LinkedIn（旧式／OpenID）及 Slack（identity／OpenID）。API-S01 整体仍在开发；Facebook、Google、X、OAuth1 以及完整 OIDC／本地身份整合待后续交付。
+Socialite 将第三方登录接入应用的 HTTP Client 与 Session。已验收范围现包括固定 Socialite 5.33.0 对应的 GitHub、GitLab、Bitbucket、LinkedIn（旧式／OpenID）、Slack（identity／OpenID）及 X／Twitter OAuth2。API-S01 整体仍在开发；Facebook、Google、OAuth1 以及完整 OIDC／本地身份整合待后续交付。
 
 ## 安装 {#installation}
 
@@ -27,6 +27,8 @@ cargo run --features socialite -- artisan serve
 | `slack-openid` | `SLACK_OPENID` | `openid email profile` |
 
 `services.gitlab.host`／`GITLAB_HOST` 默认 `https://gitlab.com`。`GitlabProvider::setHost` 保留自托管路径前缀并去掉末尾斜杠。固定上游资料路径为 `/api/v3/user`，本批保留此契约。Slack 登录配置与现有 `slack.notifications` 共处同一 services 对象；真实供应商仍需分别注册回调并获得权限。
+
+`x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用对应的 `TWITTER_` 变量，并设置 `TWITTER_OAUTH=2` 选择 OAuth2；默认值 1 保留上游 OAuth1 选择，该路径尚未交付，明确失败。显式 `twitter-oauth-2` 驱动先读取 `services.twitter`，仅在对象缺失或为 null 时回退 `services.twitter-oauth-2`。`x` 同样从 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的配置会失败，不静默改用另一组凭据。
 
 ## 认证 {#authentication}
 
@@ -84,6 +86,8 @@ GitLab、Bitbucket、LinkedIn 两个驱动用空格分隔 scopes；Slack identit
 
 调用 `user()` 前执行 `provider.stateless()`，适用于调用方明确在 Session 之外管理认证状态的场景。它关闭 state 校验，不会创建本地用户或 Session。启用 PKCE 后仍需 Session，与上游两个独立开关一致。
 
+X／Twitter OAuth2 在跳转和回调默认启用 PKCE，因此即使 `stateless()` 也需要 Session。默认 scope 为 `users.read users.email tweet.read`，授权查询使用 RFC3986 编码。stateless 模式在可选参数之后写入字面 `state=state`，回调仍关闭 state 检查。授权码交换同时使用 HTTP Basic 与表单 client secret；刷新使用 Basic，表单只有 `grant_type`、`refresh_token`、`client_id`，不含表单 client secret。用户映射读取 `data.confirmed_email`，不采用未验证邮箱字段。
+
 ## 读取用户详情 {#retrieving-user-details}
 
 用户提供 `getId`、`getNickname`、`getName`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 数字／字符串类型。`userFromToken(token)` 使用已有 token 读取身份，`refreshToken(token)` 交换刷新令牌。凭据显式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字符串使用 `Zeroizing<String>`，不会自动序列化或由 Debug 输出。远程 access token 不是 Passport／Sanctum 凭据。
@@ -99,3 +103,5 @@ Socialite 使用共享客户端显式 `redactPayload()`：观察者与录制保�
 
 
 `ProviderEndpoints::new(authorize, token, user).email(email)` 可传给新增驱动的 `withEndpoints` 构造器，显式替换端点。各驱动均用真实受控 HTTP 验收 token 表单、认证头、资料查询参数、可选邮箱、Slack user／bot 凭据、refresh 与失效／撤销凭据拒绝。六个驱动的映射、scope 及 Slack 专属字段与真实固定 PHP 方法对照。受控结果不冒称已登录真实 GitLab、Bitbucket、LinkedIn 或 Slack 账户。
+
+X／Twitter 测试使用真实 HTTP 与加密 Session Cookie，覆盖默认 PKCE、跨应用拒绝、state 重放、RFC3986 参数、Basic 交换／刷新、错误响应及远程撤销。映射、字段和 HTTP 选项以固定 PHP 方法提供对照。真实 X／Twitter 授权仍需供应商应用凭据、登记回调和账户。

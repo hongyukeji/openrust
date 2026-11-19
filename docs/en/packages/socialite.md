@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) and Slack (identity and OpenID) against fixed Socialite 5.33.0. API-S01 remains in development; Facebook, Google, X, OAuth1 and full OIDC/local identity integration are pending.
+Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) Slack (identity and OpenID), and X/Twitter OAuth2 against fixed Socialite 5.33.0. API-S01 remains in development; Facebook, Google, OAuth1 and full OIDC/local identity integration are pending.
 
 ## Installation {#installation}
 
@@ -27,6 +27,8 @@ The same client ID, client secret and redirect settings apply to these additiona
 | `slack-openid` | `SLACK_OPENID` | `openid email profile` |
 
 `services.gitlab.host` / `GITLAB_HOST` defaults to `https://gitlab.com`. `GitlabProvider::setHost` retains a self-hosted path prefix and removes trailing slashes. The fixed upstream driver uses `/api/v3/user`; this acceptance preserves that contract. Slack login credentials share the services object with the existing `slack.notifications` settings. Provider-specific callback registration and permissions are still required for real services.
+
+`x` uses `X_CLIENT_ID`, `X_CLIENT_SECRET` and `X_REDIRECT_URI`. `twitter` uses the equivalent `TWITTER_` variables; set `TWITTER_OAUTH=2` to select OAuth2. The default value 1 reserves the upstream OAuth1 selection, which is not delivered yet and fails explicitly. The explicit `twitter-oauth-2` driver reads `services.twitter`, falling back to `services.twitter-oauth-2` only when the first object is null/missing. `x` similarly falls back from `services.x` to `services.x-oauth-2`; a present incomplete object fails instead of silently using fallback credentials.
 
 ## Authentication {#authentication}
 
@@ -84,6 +86,8 @@ GitLab, Bitbucket and both LinkedIn/OpenID drivers use space-separated scopes; S
 
 Call `provider.stateless()` before `user()` when the caller explicitly manages authentication state outside Session. This disables the state check; it does not turn a token into a local user or create a Session. PKCE still needs Session when enabled, matching the separate upstream controls.
 
+X/Twitter OAuth2 enables PKCE by default on both redirect and callback, so it needs Session even with `stateless()`. Its default scopes are `users.read users.email tweet.read`; authorization queries use RFC3986 encoding. In stateless mode the authorization URL carries the literal `state=state`, after optional parameters, while callback state checking remains disabled. Code exchange uses HTTP Basic and the form client secret; refresh uses Basic and a form with `grant_type`, `refresh_token` and `client_id`, without a form client secret. Profiles map `data.confirmed_email`, not an unverified email field.
+
 ## Retrieving User Details {#retrieving-user-details}
 
 The user exposes `getId`, `getNickname`, `getName`, `getEmail`, `getAvatar`, `getRaw` and mapped `attributes` such as GitHub `nodeId`. The provider ID retains its JSON number/string type. `userFromToken(token)` retrieves a profile using an existing token. `refreshToken(token)` exchanges a refresh token. Credentials are explicit in `user.credentials`: `token`, `refreshToken`, `expiresIn` and `approvedScopes`; token strings use `Zeroizing<String>` and are not automatically serialized or printed by Debug. A remote access token is not a Passport or Sanctum credential.
@@ -99,3 +103,5 @@ Socialite requests use the shared client’s explicit `redactPayload()` mode: ob
 
 
 `ProviderEndpoints::new(authorize, token, user).email(email)` supplies explicit endpoint overrides to the new drivers’ `withEndpoints` constructors. Each driver runs against real controlled HTTP, including token form fields, authorization headers, profile query fields, optional email selection, Slack user/bot credentials, refresh and rejected/revoked credentials. Six driver mappings, scope fields and Slack special fields are compared with real pinned PHP methods. Real GitLab, Bitbucket, LinkedIn or Slack accounts have not been authorized by these controlled tests.
+
+X/Twitter tests exercise default PKCE over real HTTP and encrypted Session cookies, cross-application rejection, state replay, RFC3986 parameters, Basic exchange/refresh, malformed responses and remote revocation. Pinned PHP methods supply the mapping, fields and HTTP options oracle. Real X/Twitter application authorization still requires provider credentials, a registered callback and an account.

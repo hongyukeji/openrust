@@ -13,7 +13,7 @@ try {
     const page=await browser.newPage();
     await page.goto(`http://127.0.0.1:${server.address().port}${base}${lang}/packages/socialite.html`);
     const article=await page.locator('.vp-doc').innerText();
-    for(const term of ['GitHub','SocialiteManager','SocialiteServiceProvider','GITHUB_CLIENT_ID','GITHUB_REDIRECT_URI','client_secret','enablePKCE','stateless','getId','getRaw','refreshToken','userFromToken','user:email','setScopes','ProviderDefinition','redactPayload','Zeroizing','GitLab','Bitbucket','LinkedIn','Slack','linkedin-openid','slack-openid','getAccessToken','asBotUser','/api/v3/user','ProviderEndpoints']) assert(article.includes(term),`${lang}: missing ${term}`);
+    for(const term of ['GitHub','SocialiteManager','SocialiteServiceProvider','GITHUB_CLIENT_ID','GITHUB_REDIRECT_URI','client_secret','enablePKCE','stateless','getId','getRaw','refreshToken','userFromToken','user:email','setScopes','ProviderDefinition','redactPayload','Zeroizing','GitLab','Bitbucket','LinkedIn','Slack','linkedin-openid','slack-openid','getAccessToken','asBotUser','/api/v3/user','ProviderEndpoints','TWITTER_OAUTH','twitter-oauth-2','X_CLIENT_ID','RFC3986','state=state']) assert(article.includes(term),`${lang}: missing ${term}`);
     assert.equal(await page.locator('.vp-doc h2').count(),8);
     console.log(base,lang,'Socialite GitHub/shared OAuth2 documentation PASS');
     await page.close();

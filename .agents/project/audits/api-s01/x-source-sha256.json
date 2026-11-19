@@ -1,0 +1,21 @@
+{
+  "baseline": "04c7084d525d3e52205f489b82e18a23c62b00d4",
+  "sha256": {
+    "config/services.rs": "dfe6039e69c9e26f5eaa04d49f44836c59fc022c6b14d19a2f18421f62dde7d2",
+    "docs/en/packages/socialite.md": "206e7fb0a077be9cacafbd866296dcae9ad0822b3456fe411ffe5c38e768253d",
+    "docs/tests/check_socialite.mjs": "dad940f31e3d4572f23cb420440d2d4a7e64e1af2dd06f92862bffab43c7b7ef",
+    "docs/zh_CN/packages/socialite.md": "16b530387332a3976e95185be3276082b2528bccef11a7be4e01054ff38b653a",
+    "docs/zh_TW/packages/socialite.md": "38f547d2a77d1361995b0b6911c62a9e841848dabf43c5433152e3336d772aee",
+    "tests/configuration.rs": "0f7683e9f809754fe92ae321a26b0003aa96bfb325ffdc86123f917bef5ebb81",
+    "vendor/openrust/socialite/src/manager.rs": "f7b68dcabd33b059a1fc457ec6c5864fdf74b46ea5d40dc514bf50cf28750e86",
+    "vendor/openrust/socialite/src/two/abstract_provider.rs": "02128510ae68713b54cd8b42ea68ef0bcb8af6a313e4ca05367ff94098cfaa0f",
+    "vendor/openrust/socialite/src/two/mod.rs": "2cd4e00d67228cff82dd304442d22c0d04438c917f8dd4455d0f2199ba0bd405",
+    "vendor/openrust/socialite/src/two/slack_provider.rs": "52226f9349f75ed187200ec2a998e512ebb791405c9ac745fde58252335ee28d",
+    "vendor/openrust/socialite/src/two/twitter_provider.rs": "d689e684fa2bf3bef532302daecc1f22c94887023d72bad03c20d7b27c466f10",
+    "vendor/openrust/socialite/src/two/x_provider.rs": "2f413d58210d41b0ea75bfa5cf592bfae5eb40b2f5ba1a2cfd46096fe99c73c7",
+    "vendor/openrust/socialite/tests/fixtures/x.json": "b63b6109d39388b84f0edd120c32537cb1a7265cd7f156bd53e5ff56501f8117",
+    "vendor/openrust/socialite/tests/reference/x-source-sha256.json": "8f8fb163b4d4bd3cae7903d03d4ec4b654996ce13b28394667a534f3dcb55cca",
+    "vendor/openrust/socialite/tests/reference/x.php": "a65bb21bad3c241e7e1cc0fee61302bb8c67211248665ad4761ff2d76d61c432",
+    "vendor/openrust/socialite/tests/x.rs": "e226d68f42a10a442b278f393dd1821f2cde7f06eeca3c0222d6bf219c515bb9"
+  }
+}

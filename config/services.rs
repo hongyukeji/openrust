@@ -13,6 +13,17 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |
     */
     Ok(json!({
+        "twitter": {
+            "client_id": get(env, "TWITTER_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "TWITTER_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "TWITTER_REDIRECT_URI", Value::Null)?,
+            "oauth": get(env, "TWITTER_OAUTH", 1)?,
+        },
+        "x": {
+            "client_id": get(env, "X_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "X_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "X_REDIRECT_URI", Value::Null)?,
+        },
         "github": {
             "client_id": get(env, "GITHUB_CLIENT_ID", Value::Null)?,
             "client_secret": get(env, "GITHUB_CLIENT_SECRET", Value::Null)?,

@@ -89,6 +89,23 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(defaults["app"]["disabled_runners"], json!([]));
     assert_eq!(defaults["grpc"]["clients"], json!({}));
 
+    for oauth in [1, 2] {
+        fs::write(
+            root.join(".env"),
+            format!(
+                "TWITTER_OAUTH={oauth}\nTWITTER_CLIENT_ID=twitter-client\nX_CLIENT_ID=x-client\n"
+            ),
+        )
+        .unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let configured = config::load(&root, &environment).unwrap();
+        assert_eq!(configured["services"]["twitter"]["oauth"], oauth);
+        assert_eq!(
+            configured["services"]["twitter"]["client_id"],
+            "twitter-client"
+        );
+        assert_eq!(configured["services"]["x"]["client_id"], "x-client");
+    }
     for (contents, default_db, cache_db) in [
         ("", 0, 0),
         ("REDIS_DB=3\n", 3, 3),

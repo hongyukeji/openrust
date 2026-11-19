@@ -1,0 +1,188 @@
+{
+    "twitter": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "state": "fixed-state",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256",
+            "state": "state"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256",
+            "prompt": "select account + ~ *",
+            "state": "state"
+        },
+        "url": "https://twitter.com/i/oauth2/authorize?client_id=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&scope=users.read%20users.email%20tweet.read&response_type=code&code_challenge=VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc&code_challenge_method=S256&prompt=select%20account%20%2B%20~%20%2A&state=state",
+        "user": {
+            "id": "user-42",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/alice",
+            "raw": {
+                "id": "user-42",
+                "username": "alice",
+                "name": "Alice",
+                "confirmed_email": "alice@test",
+                "profile_image_url": "https://images.test/alice"
+            },
+            "attributes": {
+                "id": "user-42",
+                "email": "alice@test",
+                "nickname": "alice",
+                "name": "Alice",
+                "avatar": "https://images.test/alice"
+            }
+        },
+        "http": [
+            [
+                "https://api.twitter.com/2/oauth2/token",
+                {
+                    "headers": {
+                        "Accept": "application/json"
+                    },
+                    "auth": [
+                        "client",
+                        "secret"
+                    ],
+                    "form_params": {
+                        "grant_type": "authorization_code",
+                        "client_id": "client",
+                        "client_secret": "secret",
+                        "code": "fixed-code",
+                        "redirect_uri": "https://rp.test/callback",
+                        "code_verifier": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+                        "prompt": "select account + ~ *",
+                        "state": "override"
+                    }
+                }
+            ],
+            [
+                "https://api.twitter.com/2/oauth2/token",
+                {
+                    "headers": {
+                        "Accept": "application/json"
+                    },
+                    "auth": [
+                        "client",
+                        "secret"
+                    ],
+                    "form_params": {
+                        "grant_type": "refresh_token",
+                        "refresh_token": "refresh-input",
+                        "client_id": "client"
+                    }
+                }
+            ]
+        ]
+    },
+    "x": {
+        "default": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "state": "fixed-state",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256"
+        },
+        "stateless": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256",
+            "state": "state"
+        },
+        "parameters": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "users.read users.email tweet.read",
+            "response_type": "code",
+            "code_challenge": "VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc",
+            "code_challenge_method": "S256",
+            "prompt": "select account + ~ *",
+            "state": "state"
+        },
+        "url": "https://x.com/i/oauth2/authorize?client_id=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&scope=users.read%20users.email%20tweet.read&response_type=code&code_challenge=VY1V3oLNE8SjKUDt2NGmUPq9Qx7vv_CXRZ8VL7mqpWc&code_challenge_method=S256&prompt=select%20account%20%2B%20~%20%2A&state=state",
+        "user": {
+            "id": "user-42",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://images.test/alice",
+            "raw": {
+                "id": "user-42",
+                "username": "alice",
+                "name": "Alice",
+                "confirmed_email": "alice@test",
+                "profile_image_url": "https://images.test/alice"
+            },
+            "attributes": {
+                "id": "user-42",
+                "email": "alice@test",
+                "nickname": "alice",
+                "name": "Alice",
+                "avatar": "https://images.test/alice"
+            }
+        },
+        "http": [
+            [
+                "https://api.x.com/2/oauth2/token",
+                {
+                    "headers": {
+                        "Accept": "application/json"
+                    },
+                    "auth": [
+                        "client",
+                        "secret"
+                    ],
+                    "form_params": {
+                        "grant_type": "authorization_code",
+                        "client_id": "client",
+                        "client_secret": "secret",
+                        "code": "fixed-code",
+                        "redirect_uri": "https://rp.test/callback",
+                        "code_verifier": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+                        "prompt": "select account + ~ *",
+                        "state": "override"
+                    }
+                }
+            ],
+            [
+                "https://api.x.com/2/oauth2/token",
+                {
+                    "headers": {
+                        "Accept": "application/json"
+                    },
+                    "auth": [
+                        "client",
+                        "secret"
+                    ],
+                    "form_params": {
+                        "grant_type": "refresh_token",
+                        "refresh_token": "refresh-input",
+                        "client_id": "client"
+                    }
+                }
+            ]
+        ]
+    }
+}

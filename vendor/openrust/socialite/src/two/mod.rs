@@ -19,3 +19,8 @@ pub use linkedin_open_id_provider::LinkedInOpenIdProvider;
 pub use slack_provider::SlackProvider;
 mod slack_open_id_provider;
 pub use slack_open_id_provider::SlackOpenIdProvider;
+
+mod twitter_provider;
+mod x_provider;
+pub use twitter_provider::TwitterProvider;
+pub use x_provider::XProvider;

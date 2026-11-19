@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）及 Slack（identity／OpenID）。API-S01 整體仍在開發；Facebook、Google、X、OAuth1 以及完整 OIDC／本機身分整合待後續交付。
+Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）及 X／Twitter OAuth2。API-S01 整體仍在開發；Facebook、Google、OAuth1 以及完整 OIDC／本機身分整合待後續交付。
 
 ## 安裝 {#installation}
 
@@ -27,6 +27,8 @@ cargo run --features socialite -- artisan serve
 | `slack-openid` | `SLACK_OPENID` | `openid email profile` |
 
 `services.gitlab.host`／`GITLAB_HOST` 預設 `https://gitlab.com`。`GitlabProvider::setHost` 保留自託管路徑前綴並移除結尾斜線。固定上游資料路徑為 `/api/v3/user`，本批保留此契約。Slack 登入設定與既有 `slack.notifications` 共處同一 services 物件；真實供應商仍需分別註冊回呼並取得權限。
+
+`x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 保留上游 OAuth1 選擇，該路徑尚未交付，明確失敗。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
 
 ## 認證 {#authentication}
 
@@ -84,6 +86,8 @@ GitLab、Bitbucket、LinkedIn 兩個驅動以空格分隔 scopes；Slack identit
 
 呼叫 `user()` 前執行 `provider.stateless()`，適用於呼叫方明確在 Session 之外管理認證狀態的情境。它關閉 state 校驗，不會建立本機使用者或 Session。啟用 PKCE 後仍需 Session，與上游兩個獨立開關一致。
 
+X／Twitter OAuth2 在重新導向和回呼預設啟用 PKCE，因此即使 `stateless()` 也需要 Session。預設 scope 為 `users.read users.email tweet.read`，授權查詢使用 RFC3986 編碼。stateless 模式在可選參數之後寫入字面 `state=state`，回呼仍關閉 state 檢查。授權碼交換同時使用 HTTP Basic 與表單 client secret；更新使用 Basic，表單只有 `grant_type`、`refresh_token`、`client_id`，不含表單 client secret。使用者映射讀取 `data.confirmed_email`，不採用未驗證電子郵件欄位。
+
 ## 讀取使用者詳情 {#retrieving-user-details}
 
 使用者提供 `getId`、`getNickname`、`getName`、`getEmail`、`getAvatar`、`getRaw` 和 GitHub `nodeId` 等映射 `attributes`；ID 保留 JSON 數字／字串型別。`userFromToken(token)` 使用既有 token 讀取身分，`refreshToken(token)` 交換更新權杖。憑據顯式放在 `user.credentials` 的 `token`、`refreshToken`、`expiresIn`、`approvedScopes`；字串使用 `Zeroizing<String>`，不會自動序列化或由 Debug 輸出。遠端 access token 不是 Passport／Sanctum 憑據。
@@ -99,3 +103,5 @@ Socialite 使用共用客戶端顯式 `redactPayload()`：觀察者與錄製保�
 
 
 `ProviderEndpoints::new(authorize, token, user).email(email)` 可傳給新增驅動的 `withEndpoints` 建構器，顯式替換端點。各驅動均以真實受控 HTTP 驗收 token 表單、認證標頭、資料查詢參數、可選信箱、Slack user／bot 憑據、refresh 與失效／撤銷憑據拒絕。六個驅動的映射、scope 及 Slack 專屬欄位與真實固定 PHP 方法對照。受控結果不冒稱已登入真實 GitLab、Bitbucket、LinkedIn 或 Slack 帳戶。
+
+X／Twitter 測試使用真實 HTTP 與加密 Session Cookie，涵蓋預設 PKCE、跨應用拒絕、state 重放、RFC3986 參數、Basic 交換／更新、錯誤回應及遠端撤銷。映射、欄位和 HTTP 選項以固定 PHP 方法提供對照。真實 X／Twitter 授權仍需供應商應用憑證、登記回呼和帳戶。

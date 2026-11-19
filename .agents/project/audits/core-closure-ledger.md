@@ -465,3 +465,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 六驱动补充
 
 [GitLab／Bitbucket／LinkedIn／Slack六类型](api-s01/drivers.md)已本机验收，13＋1函数与固定PHP、根入口及三语浏览器通过；OpenId类型仅Bearer UserInfo。Facebook／Google／X／OAuth1／完整OIDC与本地归属仍待，不提升SSO状态。
+
+### API-S01 X／Twitter补充
+
+[X／Twitter OAuth2](api-s01/x.md)已本机验收，全包18＋1函数与固定PHP、根入口及三语浏览器通过。Facebook／Google／OAuth1／完整OIDC与本地归属仍待，不提升SSO状态。
