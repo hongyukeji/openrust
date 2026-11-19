@@ -1,0 +1,25 @@
+{
+  "version": "v3.1.5",
+  "source": {
+    "url": "https://github.com/paragonie/constant_time_encoding.git",
+    "type": "git",
+    "reference": "ceed38ba49d98b85808edfc4f04750ff61eb9739"
+  },
+  "archive_sha256": "66e10d6269a383b094d946d3bcd726a0c805852819564d96e02c4e396b4756a0",
+  "files": {
+    "LICENSE.txt": "d175ac2e6bc71c13117ea49cc2c3be95284690dc07cc7fc441c6538c280641fd",
+    "README.md": "9d7f1fa95fac10199b31ea21f78a90712185bdc09410e6253228bbffdb75f404",
+    "composer.json": "fdd3047e3c8fabd57bb599be2c4f9c60231036a48b930d2ef36b89ce7dbb0df8",
+    "src/Base32.php": "e7906738933f1722b7ddfc01009213b1914076fc7f3b231ae842f1480563ece9",
+    "src/Base32Hex.php": "32efc37e4fc295fa6fd3b09500c929ced048dd008889247cda3888f69af26d35",
+    "src/Base64.php": "76f98b1d2b54f7c0b4a93e52618ea272e80e720ca42a6ea93f793d6152b741ea",
+    "src/Base64DotSlash.php": "cf15dd168d943f67966de03252300f43abceed3633e79db5308d61feaa36a961",
+    "src/Base64DotSlashOrdered.php": "4dff84a34984e41c0a551e1527c9ad9d329434360c237c4076bb4aea67873261",
+    "src/Base64UrlSafe.php": "3b09f50e324d12a18e619136c430d2b718c5822c99c3985262ae6343455a7632",
+    "src/Binary.php": "5235bb3390354b6c9ed8446b98f6a8538adeb8d889c3656e11c1b6107701d52e",
+    "src/EncoderInterface.php": "b794cf66d70b24199e36d7d717583e306f3a963022396f220dbdeebacdf32a6c",
+    "src/Encoding.php": "062a91eba1850c6830bce2c371b4103a09341546d23e3a2baeb59db0132a5f64",
+    "src/Hex.php": "a71ba92f1e16cde5b3cf9593426fb7eb75416340ad7b81f83351ceeaddb1c211",
+    "src/RFC4648.php": "56dae1fc2a4694c630f0708c7b195d6406f1aaacc04f89c56959c45cb4ad8f48"
+  }
+}

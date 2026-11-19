@@ -3412,6 +3412,7 @@ dependencies = [
  "axum",
  "chrono",
  "clap",
+ "openrust-fortify",
  "openrust-framework",
  "openrust-package-discovery",
  "openrust-pail",
@@ -3422,6 +3423,21 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-health",
+]
+
+[[package]]
+name = "openrust-fortify"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "axum",
+ "md-5 0.11.0",
+ "openrust-framework",
+ "serde_json",
+ "subtle",
+ "thiserror",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]

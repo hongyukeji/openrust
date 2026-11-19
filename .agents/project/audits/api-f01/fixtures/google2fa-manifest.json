@@ -1,0 +1,32 @@
+{
+  "version": "9.0.0",
+  "source": {
+    "url": "https://github.com/antonioribeiro/google2fa.git",
+    "type": "git",
+    "reference": "e6bc62dd6ae83acc475f57912e27466019a1f2cf"
+  },
+  "archive_sha256": "af9badc135864dd4137b886798ceb436ca63b8a741629b8155493789a5119ebb",
+  "files": {
+    ".github/workflows/cross-platform.yml": "8130d5393a50065487fc019ce572ed49207d026438604104b89855fcd32f5e7a",
+    ".github/workflows/phpunit.yml": "d628ed66342a11d744a192d5e1ac54127f09970a918062911c43626d504bf701",
+    ".github/workflows/static-analysis.yml": "61887e7fd344fa7adf0876f74e43d68e38cfc0b781659e469dc5cffb5d4764ab",
+    "CHANGELOG.md": "308120c8426bed43c972f1fc33dcb0e7b4d3f69bee6c570cf3bf73b4a15e83c3",
+    "LICENSE.md": "1d5304c79db3db570892c66ea61e715b5c43f936c97eca34012b20b013c7538a",
+    "README.md": "21aee9f85e112ce46fe6061d0c01248ced8b1649327750c486fd9feecfbd9cc5",
+    "composer.json": "691ec7bb1cb77618a00242f7fa84f58dd12c91c096407a246ec41cdf7b528ebb",
+    "src/Exceptions/Contracts/Google2FA.php": "18e9a48acacb1d0037b6072b7805444ceed772e707e9f86e1e9317e33a92a2cb",
+    "src/Exceptions/Contracts/IncompatibleWithGoogleAuthenticator.php": "86d64fc0c19b2a637a80ee1c9d3dbbe029aa102790e3c34855d4742c9d0db8b1",
+    "src/Exceptions/Contracts/InvalidAlgorithm.php": "29ef1db500a85f2026d94348ac1d37bbba37236d529288727996786a271f4c25",
+    "src/Exceptions/Contracts/InvalidCharacters.php": "f4760f04c17dc9849027b44a1fee29e31532aa5c0b86ee2e8909ed64b89ce0bf",
+    "src/Exceptions/Contracts/SecretKeyTooShort.php": "b12bb53ee7df2cfbe7e47c3887689134fb02aeefccdc5bd0a01a44aa9877e427",
+    "src/Exceptions/Google2FAException.php": "8992331f6453d5f9f4aafccf02d28551405886a591302cd6d73f34d9ea21718c",
+    "src/Exceptions/IncompatibleWithGoogleAuthenticatorException.php": "116f1a48563c9cddc3674b6604c260e9361834db41821a3e184df0e0175a8175",
+    "src/Exceptions/InvalidAlgorithmException.php": "3c4dc067360178b081671a224ea08be817577517aaffb10e28beaaa4aedd0b16",
+    "src/Exceptions/InvalidCharactersException.php": "2dfdd7a428b3134ebcc247e86e6c3fd55416f831fad70171662064f3dba12256",
+    "src/Exceptions/SecretKeyTooShortException.php": "6e4eaec77490d4aab541420bf1599d958368ec68911d467b2e7287d0bd0bdbd5",
+    "src/Google2FA.php": "bc43c55a11753f353d239a1dc0181ab63856956b995615132c49fd0cb72686bf",
+    "src/Support/Base32.php": "56c194566ccf8a39301b31cc14f614e1fd9579911dfca386c569fdbdfe2285b4",
+    "src/Support/Constants.php": "e073f0911c55e0f70e2eeb8e9a8db8642ce34350e1e392c2f6912a27713f8bf5",
+    "src/Support/QRCode.php": "61a716bd12de0410dd0ddaf4ba67d7b6949f0b42414fc7364a13c23d3f954bfc"
+  }
+}

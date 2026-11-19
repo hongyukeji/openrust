@@ -1,0 +1,22 @@
+{
+  "removed": [
+    "/private/tmp/openrust-fortify-20261120/target"
+  ],
+  "available_before_kib": 55059380,
+  "available_after_kib": 59916184,
+  "freed_bytes": 4973367296,
+  "available_gb": 61.354172416,
+  "available_gib": 57.140525817871094,
+  "all_docker_volumes_preserved": true,
+  "volumes": [],
+  "mysql_label": "93f024f36ecda5b46375af16acc6c983",
+  "retained": [
+    "source",
+    "upstream",
+    "reference archives and SHA manifests",
+    "logs",
+    "shared caches",
+    "PHP image",
+    "all database volumes"
+  ]
+}

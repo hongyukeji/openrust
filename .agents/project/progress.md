@@ -3700,3 +3700,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 固定 PHP 420 次判断、405 次 HTTP 可表示 Rust 对照及源码 SHA 正负校验通过。23 项 Rust 测试、真实 MySQL 8.4.13、Chromium／官方 helper 2.0.0（204／422／普通提交／文件省略与上传）、Session／CSRF／闪存、并发双应用和根 HTTP／Pail／Artisan／关停均通过。补 View／APIResponse 回调断言后 8 项专项再过；Rust 1.94 严格全工作区全目标 features pail,passport Clippy、格式、三语构建与 24 项浏览器检查通过。27 份输入与独立 6bcace6ee 快照 SHA 对齐，保留同期 Passport-03 和历史 WIP，不把本批计为 V17 最终整合。
 
 直接清理专属 target／browser／docs dist，df 增加 5.607 GB，剩余 68.140 GB（63.461 GiB）；临时容器已回收，全部数据卷、共享镜像／依赖缓存、源码和证据保留。核定 33 文件本地提交，不推送。V09 仅关闭 Precognition 子项，继续 Fortify／Socialite／OIDC 和其余发布门禁。
+
+## 2026-11-20 Fortify Provider 与 Features 首批
+
+2026-11-20 API-F01 [Fortify 首批基础](audits/api-f01/README.md)已实现并定向验收：固定 Fortify 1.43.0，新增独立可选 crate、双因素 Provider 与 Features；746 组真实 PHP Provider＋85 组功能查询、QR／长度对照、重新下载／重复生成与源码负样本通过。9 个 Rust 定向函数、真实 TCP 204／422／500／缓存重放及双应用隔离、MySQL 8.4.13 环境根 HTTP→Pail／恢复／Artisan／关停、最低 Rust 1.94 全工作区全目标 features pail,passport,fortify 严格 Clippy／格式通过。14 份输入 SHA 与隔离 9bf0a11fb 副本一致，未包含 Passport-04 在途改动。专属 target 已直接清理，df 增加 4.973 GB，剩余 61.354 GB（57.141 GiB），保留源码／日志／缓存／镜像与全部数据卷。本批核范围本地提交，不推送。API-F01 尚缺认证路由、账户动作和完整流程；三语正文仍占位，继续开发，不将 Provider 夹具称为完整 Fortify 交付。

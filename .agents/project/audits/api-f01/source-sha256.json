@@ -1,0 +1,19 @@
+{
+  "baseline": "9bf0a11fbb320dc5c2a568cc453cfb35e368a05b",
+  "sha256": {
+    "Cargo.toml": "2afe2abda1e324bf7010cf4b36b2dc2c66adc9c3eca053702752beba5049a4c4",
+    "Cargo.lock": "f14278dff04435f61f1d8e7a6fd291511619885e0aadd6ebe00e7e072f1f3f8d",
+    "vendor/openrust/fortify/Cargo.toml": "8bb1f90b31f5c9800778d8745985386f568ba6e0fc7d18e4a6ab928b7d096d10",
+    "vendor/openrust/fortify/LICENSE.google2fa.md": "1d5304c79db3db570892c66ea61e715b5c43f936c97eca34012b20b013c7538a",
+    "vendor/openrust/fortify/LICENSE.md": "7b4f9149597fbae2ce689bc9317d1869e17f1b3fa5f01c289998c108f8c37cf7",
+    "vendor/openrust/fortify/src/contracts.rs": "33e666426a3dfa3a7a465cc5d55741c94856385f5a9ffe3203760a4d99799604",
+    "vendor/openrust/fortify/src/error.rs": "a6e206d4e1234c0faa1bec4bb28c148d0f5531c42fe8377d4053a53db1dace64",
+    "vendor/openrust/fortify/src/features.rs": "0c25c5e6d857cec6c2441dd7651c0d8342aa0bda46bb04037ae48a6290e804dc",
+    "vendor/openrust/fortify/src/lib.rs": "5fdfe4d2aa7124c523ab52eb98222639729cccd83c402d7afe7c079343ce344e",
+    "vendor/openrust/fortify/src/two_factor_authentication_provider.rs": "e6f5c93e70d88bfb5825bef40682aa337fb3e3c3702e6bb36964cf332a0580d3",
+    "vendor/openrust/fortify/tests/features.rs": "5e9fa843b4373699691729307174f73929b7efaec7d6aea2d75b69a1afaf314e",
+    "vendor/openrust/fortify/tests/fixtures/two_factor_oracle.json": "073ffb1ad92a48d77abe0f67bd9037cb44c1817ed3c7b228a87a5ea477489302",
+    "vendor/openrust/fortify/tests/two_factor_http.rs": "50d70b6e2a95d585f5ba55800c28a5b83c4ee4bd4ee3b3a1564d6e6effa4ffcc",
+    "vendor/openrust/fortify/tests/two_factor_provider.rs": "b96900886f320da314051ca3f8ab44ec9c3b6aa0d9c118dbabb6d13e981c7a33"
+  }
+}
