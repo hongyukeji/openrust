@@ -376,7 +376,7 @@ async fn manager_selects_all_six_default_drivers_and_self_hosted_gitlab_without_
     let manager = SocialiteManager::new(config.clone(), Arc::new(Factory::new().unwrap()));
     for name in NAMES {
         let mut req = request();
-        let mut p = manager.driver(name, &mut req).unwrap();
+        let mut p = manager.driver(name, &mut req).unwrap().oauth2().unwrap();
         p.stateless();
         let uri = p.authorizationUrl().unwrap();
         if *name == "gitlab" {

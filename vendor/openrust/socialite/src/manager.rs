@@ -1,5 +1,5 @@
 use crate::{
-    Error, Result,
+    Error, Provider, Result, one,
     two::{
         AbstractProvider, BitbucketProvider, FacebookProvider, GithubProvider, GitlabProvider,
         GoogleProvider, LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig,
@@ -18,6 +18,7 @@ use std::{
 pub struct SocialiteManager {
     config: Arc<dyn Repository>,
     http: Arc<Factory>,
+    oauth1: RwLock<BTreeMap<String, one::TwitterProvider>>,
     extensions: RwLock<BTreeMap<String, Arc<dyn ProviderDefinition>>>,
 }
 impl SocialiteManager {
@@ -25,6 +26,7 @@ impl SocialiteManager {
         Self {
             config,
             http,
+            oauth1: RwLock::default(),
             extensions: RwLock::default(),
         }
     }
@@ -34,7 +36,13 @@ impl SocialiteManager {
             .expect("Socialite providers")
             .insert(name.into(), provider);
     }
-    pub fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<AbstractProvider<'a>> {
+    pub fn extendOAuth1(&self, name: impl Into<String>, provider: one::TwitterProvider) {
+        self.oauth1
+            .write()
+            .expect("Socialite providers")
+            .insert(name.into(), provider);
+    }
+    pub fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
         let value = match name {
             "twitter-oauth-2" => self
                 .config
@@ -56,7 +64,7 @@ impl SocialiteManager {
         {
             return Err(Error::Configuration("host"));
         }
-        let provider = self
+        let definition = self
             .extensions
             .read()
             .expect("Socialite providers")
@@ -100,8 +108,17 @@ impl SocialiteManager {
                     Some(Arc::new(SlackOpenIdProvider::default()) as Arc<dyn ProviderDefinition>)
                 }
                 _ => None,
-            })
-            .ok_or_else(|| Error::UnsupportedDriver(name.into()))?;
+            });
+        if definition.is_none()
+            && name != "twitter"
+            && !self
+                .oauth1
+                .read()
+                .expect("Socialite providers")
+                .contains_key(name)
+        {
+            return Err(Error::UnsupportedDriver(name.into()));
+        }
         let mut config = ProviderConfig::from_config(&value)?;
         if config.redirect.starts_with('/') {
             let root = self
@@ -119,14 +136,36 @@ impl SocialiteManager {
                 config.redirect.trim_start_matches('/')
             );
         }
-        Ok(AbstractProvider::new(
+        if let Some(provider) = definition {
+            return Ok(Provider::Two(Box::new(AbstractProvider::new(
+                request,
+                config,
+                self.http.clone(),
+                provider,
+            ))));
+        }
+        let definition = self
+            .oauth1
+            .read()
+            .expect("Socialite providers")
+            .get(name)
+            .cloned()
+            .or_else(|| (name == "twitter").then(one::TwitterProvider::default))
+            .ok_or_else(|| Error::UnsupportedDriver(name.into()))?;
+        let scope = match value.get("scope") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::String(v)) => Some(v.clone()),
+            _ => return Err(Error::Configuration("scope")),
+        };
+        Ok(Provider::One(Box::new(one::AbstractProvider::new(
             request,
             config,
             self.http.clone(),
-            provider,
-        ))
+            definition,
+            scope,
+        ))))
     }
-    pub fn with<'a>(&self, name: &str, request: &'a mut Request) -> Result<AbstractProvider<'a>> {
+    pub fn with<'a>(&self, name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
         self.driver(name, request)
     }
 }

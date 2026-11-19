@@ -1,0 +1,16 @@
+{
+  "available_before_kib": 75272756,
+  "available_after_kib": 81404100,
+  "released_kib": 6131344,
+  "volumes_before": [],
+  "volumes_after": [],
+  "preserved": [
+    "accepted-overlay.tgz",
+    "fixed League / PSR sources and archives",
+    "logs",
+    "upstream sources and symlink",
+    "shared caches",
+    "PHP and MySQL images",
+    "all database volumes"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "baseline": "7502cc12d0d10a48acccf2157e3bd24234af488f",
+  "sha256": {
+    "config/services.rs": "80aa9ec090209ff7680c354e41a35c2c94611cd85f41376924a7c720184e3799",
+    "docs/en/packages/socialite.md": "7a936e87d3be1df124d7028d3b56c19f0db8ef87be73152213e4efd6b10948ca",
+    "docs/tests/check_socialite.mjs": "f645823b6ccf99b8135d3516b7c13bf38b4270bc778177feaaae37a36726aade",
+    "docs/zh_CN/packages/socialite.md": "d10b90bb3771dd24de3037e2c3cdc98eb1cd860294a11e9ab8f9cac9cc38f4f7",
+    "docs/zh_TW/packages/socialite.md": "c339e6670accd4268cb922f7039e0a083cb5259ff72dfaf8bd59d58292ab899d",
+    "tests/configuration.rs": "4c1490da6f2ddfe316a0e642f6f036432fd9cb3c922bf6d5fb3e1f42acc424d9",
+    "vendor/openrust/socialite/src/contracts.rs": "1f097903d421573f6748dccc6fd0907930394d6b6ea26094f03f4ec065e4036d",
+    "vendor/openrust/socialite/src/error.rs": "2148daf5cc7359be82ac28590afa823889740086d8014257449c1ea11c3a0f32",
+    "vendor/openrust/socialite/src/facades.rs": "5a819ed0ed1aa7b47aaec59d6a48024f183e99c987a742c0289672c873189830",
+    "vendor/openrust/socialite/src/lib.rs": "62000f196f6e6f37214fcdd51ab8c07e7f4538542879eddeeb5deffb31a65e2a",
+    "vendor/openrust/socialite/src/manager.rs": "d994119209da4705112258c77f73e157127f8001d6c1123e898c34387b8ebada",
+    "vendor/openrust/socialite/src/one/mod.rs": "931ae97418796af37868846c7a8c604102e231b9964b9ee7a1b0c80f4337fcb5",
+    "vendor/openrust/socialite/src/one/signature.rs": "2d0a61c87618ad50adc49605ff5939c015cf93302636b0c400330e61bfe43cc5",
+    "vendor/openrust/socialite/src/one/twitter_provider.rs": "0f6e20660c0c065d53c888196253c0b1cd4ecf709b2fb1e8ed6d89de1165604f",
+    "vendor/openrust/socialite/src/provider.rs": "ed55705e676dcebde345216b34e125cfb23ffc784dcabd903d964489adb32544",
+    "vendor/openrust/socialite/src/two/abstract_provider.rs": "d7f15c94157ddede65258c8f2669598d0520973f773bb59f976ff440021c1c78",
+    "vendor/openrust/socialite/src/two/user.rs": "01df34a0fbb442a072a0ea501ddcb9526302342d166a5daa6bd0c4ba05476ce0",
+    "vendor/openrust/socialite/tests/docs_example.rs": "0cc3cab6f4eeea7f8c6fd9bd9502a55f01691675ddee6f6454f8eda3078e4eba",
+    "vendor/openrust/socialite/tests/drivers.rs": "629cf45423647a4f3c3b075593b9aedb23dcebce46049009c888077488f59e97",
+    "vendor/openrust/socialite/tests/facebook.rs": "2880465732a9ca99ab696087cdd9bd30e002f497e8f3843f6a9f1125a73cb164",
+    "vendor/openrust/socialite/tests/fixtures/oauth1.json": "15b8dafef0c11819884b209b80fcee3f868a523924f1c4454231f5f95d00b411",
+    "vendor/openrust/socialite/tests/github.rs": "5f0a4c863356722bb141e6947dc264ef28e257be11c39486cf9e110a23e89d29",
+    "vendor/openrust/socialite/tests/google.rs": "743ae76f9240507afbe0d5d3b1e59dd8fab14b204c2061f84f27a9a038b2b392",
+    "vendor/openrust/socialite/tests/oauth1.rs": "ca98ccd3006253e2412727cf1a3578666f4cb7177fa2fd36dda761d07d45057c",
+    "vendor/openrust/socialite/tests/reference/oauth1-source-sha256.json": "0ec2260c582d1c58558c7e990c8bed81cb9f772591d13925ac8da9192225f093",
+    "vendor/openrust/socialite/tests/reference/oauth1.php": "38afb072febb6f7d1b5b589f46c14338767c126897837af5c19d9a7b08beb402",
+    "vendor/openrust/socialite/tests/x.rs": "c041c23c0a4844abc4a05779a9bf9391f6146819cd63168ff76a4de1ac177f96"
+  }
+}

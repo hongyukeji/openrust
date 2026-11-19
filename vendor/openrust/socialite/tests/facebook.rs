@@ -336,7 +336,11 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
     let manager = SocialiteManager::new(config.clone(), http.clone());
     let mut request = request();
     {
-        let mut p = manager.driver("facebook", &mut request).unwrap();
+        let mut p = manager
+            .driver("facebook", &mut request)
+            .unwrap()
+            .oauth2()
+            .unwrap();
         p.stateless();
         assert!(
             p.authorizationUrl()
@@ -345,7 +349,11 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
         );
     }
     manager.extend("facebook", Arc::new(definition(&base)));
-    let mut p = manager.driver("facebook", &mut request).unwrap();
+    let mut p = manager
+        .driver("facebook", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     p.userFromToken("access").await.unwrap();
     assert_eq!(
         r.calls.lock().unwrap().last().unwrap()["fields"]["access_token"],
@@ -357,7 +365,11 @@ async fn facebook_manager_and_sensitive_query_observations_preserve_wire_behavio
         assert!(response.unwrap().body().is_empty());
     }
     let other = SocialiteManager::new(config, Arc::new(Factory::new().unwrap()));
-    let mut p = other.driver("facebook", &mut request).unwrap();
+    let mut p = other
+        .driver("facebook", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     p.stateless();
     assert!(
         p.authorizationUrl()

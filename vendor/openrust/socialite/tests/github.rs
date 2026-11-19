@@ -113,7 +113,11 @@ async fn github_real_http_maps_verified_email_exchanges_refreshes_and_caches_onl
     .await;
     let (app, manager) = manager(&base).await;
     let mut req = request("?code=code-one");
-    let mut provider = manager.driver("github", &mut req).unwrap();
+    let mut provider = manager
+        .driver("github", &mut req)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     provider.stateless();
     assert_eq!(provider.getScopes(), ["user:email", "read"]);
     let url = url::Url::parse(&provider.authorizationUrl().unwrap()).unwrap();
@@ -148,7 +152,7 @@ async fn github_real_http_maps_verified_email_exchanges_refreshes_and_caches_onl
     }
     drop(provider);
     let mut next = request("?code=code-two");
-    let mut next = manager.with("github", &mut next).unwrap();
+    let mut next = manager.with("github", &mut next).unwrap().oauth2().unwrap();
     next.stateless();
     next.user().await.unwrap();
     assert_eq!(remote.requests.lock().unwrap().len(), 5);
@@ -170,7 +174,11 @@ async fn github_http_errors_bad_json_and_email_failures_preserve_protocol_bounda
     for mode in ["denied", "malformed", "missing"] {
         *remote.mode.lock().unwrap() = mode.into();
         let mut req = request("?code=code");
-        let mut provider = manager.driver("github", &mut req).unwrap();
+        let mut provider = manager
+            .driver("github", &mut req)
+            .unwrap()
+            .oauth2()
+            .unwrap();
         provider.stateless();
         let error = provider.user().await.err().unwrap();
         let text = error.to_string();
@@ -184,7 +192,11 @@ async fn github_http_errors_bad_json_and_email_failures_preserve_protocol_bounda
     }
     *remote.mode.lock().unwrap() = "email-error".into();
     let mut req = request("");
-    let mut provider = manager.driver("github", &mut req).unwrap();
+    let mut provider = manager
+        .driver("github", &mut req)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     assert!(matches!(provider.user().await, Err(Error::Session(_))));
     provider.stateless();
     assert!(matches!(provider.user().await, Err(Error::MissingCode)));
@@ -210,8 +222,10 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let mut provider =
-            openrust_socialite::facades::Socialite::driver("github", request).unwrap();
+        let mut provider = openrust_socialite::facades::Socialite::driver("github", request)
+            .unwrap()
+            .oauth2()
+            .unwrap();
         provider.enablePKCE();
         Ok(provider.redirect().unwrap().into())
     })
@@ -222,7 +236,7 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             .make::<SocialiteManager>()
             .unwrap();
         let pkce = request.session()?.get("code_verifier").is_some();
-        let mut provider = manager.driver("github", request).unwrap();
+        let mut provider = manager.driver("github", request).unwrap().oauth2().unwrap();
         if pkce {
             provider.enablePKCE();
         }
@@ -392,7 +406,11 @@ async fn provider_http_observations_redact_credentials_and_user_bodies_but_keep_
     let factory = app.container().make::<Factory>().unwrap();
     factory.fake(|_| None);
     let mut req = request("?code=private-code");
-    let mut provider = manager.driver("github", &mut req).unwrap();
+    let mut provider = manager
+        .driver("github", &mut req)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     provider.stateless();
     provider.user().await.unwrap();
     let requests = events.dispatched(r"OpenRust\Http\Client\Events\RequestSending");
@@ -554,7 +572,7 @@ async fn manager_configuration_and_custom_provider_registrations_are_application
         .unwrap();
     first.extend("custom", Arc::new(GithubProvider::default()));
     let mut req = request("");
-    let mut p = first.driver("custom", &mut req).unwrap();
+    let mut p = first.driver("custom", &mut req).unwrap().oauth2().unwrap();
     p.stateless();
     let uri = url::Url::parse(&p.authorizationUrl().unwrap()).unwrap();
     assert!(uri.as_str().starts_with("https://github.com/"));

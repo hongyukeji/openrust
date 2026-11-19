@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) Slack (identity and OpenID), X/Twitter OAuth2, Google and Facebook against fixed Socialite 5.33.0. API-S01 remains in development; OAuth1 and full OIDC/local identity integration are pending.
+Socialite connects third-party login to the application’s HTTP client and Session. The accepted scope now includes GitHub, GitLab, Bitbucket, LinkedIn (legacy and OpenID) Slack (identity and OpenID), X/Twitter OAuth2, Google and Facebook against fixed Socialite 5.33.0. API-S01 remains in development; Twitter OAuth1 is also available; full OIDC/local identity integration remains pending.
 
 ## Installation {#installation}
 
@@ -28,7 +28,7 @@ The same client ID, client secret and redirect settings apply to these additiona
 
 `services.gitlab.host` / `GITLAB_HOST` defaults to `https://gitlab.com`. `GitlabProvider::setHost` retains a self-hosted path prefix and removes trailing slashes. The fixed upstream driver uses `/api/v3/user`; this acceptance preserves that contract. Slack login credentials share the services object with the existing `slack.notifications` settings. Provider-specific callback registration and permissions are still required for real services.
 
-`x` uses `X_CLIENT_ID`, `X_CLIENT_SECRET` and `X_REDIRECT_URI`. `twitter` uses the equivalent `TWITTER_` variables; set `TWITTER_OAUTH=2` to select OAuth2. The default value 1 reserves the upstream OAuth1 selection, which is not delivered yet and fails explicitly. The explicit `twitter-oauth-2` driver reads `services.twitter`, falling back to `services.twitter-oauth-2` only when the first object is null/missing. `x` similarly falls back from `services.x` to `services.x-oauth-2`; a present incomplete object fails instead of silently using fallback credentials.
+`x` uses `X_CLIENT_ID`, `X_CLIENT_SECRET` and `X_REDIRECT_URI`. `twitter` uses the equivalent `TWITTER_` variables; set `TWITTER_OAUTH=2` to select OAuth2. The default value 1 selects Twitter OAuth1. Only the integer 2 selects OAuth2; string `"2"` retains the OAuth1 selection. The explicit `twitter-oauth-2` driver reads `services.twitter`, falling back to `services.twitter-oauth-2` only when the first object is null/missing. `x` similarly falls back from `services.x` to `services.x-oauth-2`; a present incomplete object fails instead of silently using fallback credentials.
 
 `google` reads `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI`, with default scopes `openid profile email`. Ordinary access tokens call Google UserInfo with `prettyPrint=false` and Bearer authentication. Refresh keeps the supplied refresh token only when the response omits that field; an explicit null or rotated value is retained.
 
@@ -51,7 +51,7 @@ pub fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .make::<SocialiteManager>().map_err(|_| HttpError::InvalidRequest)?;
         let response = manager.driver("github", request)
             .map_err(|_| HttpError::InvalidRequest)?
-            .redirect().map_err(|_| HttpError::InvalidRequest)?;
+            .redirect().await.map_err(|_| HttpError::InvalidRequest)?;
         Ok(response.into())
     })
 }
@@ -71,6 +71,10 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 ```
 
 `driver("github", request)` and `with("github", request)` borrow the current request. The provider keeps its cached user within that borrow; it is never cached globally by the manager. `redirect` returns a native redirect response. The Session stores a random 40-character state, which the callback consumes before exchanging the code. Missing, mismatched, array-valued, empty or replayed state fails. `enablePKCE()` is optional; enable it on both redirect and callback providers to store a 96-character verifier and send its S256 challenge and verifier.
+
+The manager and facade return `Provider`, whose common `redirect().await?` and `user().await?` work with either protocol. OAuth1 needs HTTP to obtain temporary credentials before redirecting. Select `manager.driver("github", request)?.oauth2()?` before using OAuth2 options such as `scopes`, `stateless` or `refreshToken`; select `.oauth1()?` for Twitter `scope` and `userFromTokenAndSecret`. A protocol mismatch returns an explicit error. The concrete OAuth2 provider retains its synchronous `redirect()`.
+
+Twitter OAuth1 uses `services.twitter.scope` / `TWITTER_SCOPE` (optional) or `.scope("write")`, independently of OAuth2 `scopes`. The request-token query sends `x_auth_access_type` for a nonempty scope other than `"0"`. Temporary credentials are stored at Session `oauth.temp`; the callback requires both `oauth_token` and `oauth_verifier`, checks the temporary identifier before HTTP, and reads rather than consumes the stored credentials. The remote server owns single-use temporary-token enforcement. OAuth1 requires Session for this redirect/callback flow and has no `stateless()` mode.
 
 ## Optional Parameters {#optional-parameters}
 
@@ -117,3 +121,5 @@ X/Twitter tests exercise default PKCE over real HTTP and encrypted Session cooki
 `GoogleProvider::withEndpoints(endpoints, jwks)` configures the controlled UserInfo and JWKS services. Real HTTP tests replay 25 signed JWT cases against the original PHP Socialite/Firebase JWT methods, including wrong signatures, issuer/audience, missing or malformed claims, future/expired dates, algorithm confusion, rotation and cross-client isolation. Test PEM keys belong only to these fixtures. Real Google account authorization still requires a test application and callback.
 
 `FacebookProvider::withEndpoints(endpoints, jwks)` overrides the three Graph/authorization endpoints and the JWKS service for controlled tests; paths containing `/v23.0/` follow `usingGraphVersion`. Twenty-one original PHP Limited Login cases cover nonce precedence, issuer/audience, signature/expiry, missing keys and rotation; actual Graph HTTP checks HMAC proof, fields, expiry conversion, request isolation and redacted observations. Real Facebook authorization still requires an application, credentials, registered callback and account.
+
+Twitter OAuth1 uses signed HMAC-SHA1 requests and explicit `user.credentials.tokenSecret` alongside the access token. `userFromTokenAndSecret(token, secret).await?` calls the profile endpoint directly. Callback mapping includes URL fields, location, description and `avatar_original`; direct-credential mapping retains only League extra fields, matching upstream. Successful profiles are cached per credential pair in one request; changing either credential fetches again. `one::TwitterProvider::withEndpoints` and `manager.extendOAuth1` support controlled endpoints. Fixed League 1.12.0 / Socialite PHP comparisons and real HTTP/Session tests cover signatures, empty verifier, scope, credential cache, cross-app rejection, remote replay refusal and redacted failure paths. Real Twitter authorization still needs an application, credentials, registered callback and account.

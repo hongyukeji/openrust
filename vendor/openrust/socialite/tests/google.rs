@@ -272,7 +272,11 @@ async fn google_manager_default_and_custom_definition_are_application_local() {
         .unwrap();
     let manager = SocialiteManager::new(config.clone(), Arc::new(Factory::new().unwrap()));
     let mut request = request();
-    let mut p = manager.driver("google", &mut request).unwrap();
+    let mut p = manager
+        .driver("google", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     p.stateless();
     let url = p.authorizationUrl().unwrap();
     assert!(url.starts_with("https://accounts.google.com/o/oauth2/auth?"));
@@ -289,14 +293,22 @@ async fn google_manager_default_and_custom_definition_are_application_local() {
             "https://custom.test/certs",
         )),
     );
-    let mut p = manager.driver("google", &mut request).unwrap();
+    let mut p = manager
+        .driver("google", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     p.stateless();
     assert!(
         p.authorizationUrl()
             .unwrap()
             .starts_with("https://custom.test/")
     );
-    let mut p = other.driver("google", &mut request).unwrap();
+    let mut p = other
+        .driver("google", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     p.stateless();
     assert!(
         p.authorizationUrl()

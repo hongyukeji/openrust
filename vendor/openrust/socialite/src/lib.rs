@@ -5,6 +5,8 @@ pub mod contracts;
 mod error;
 pub mod facades;
 mod manager;
+pub mod one;
+mod provider;
 pub mod two;
 pub use error::{Error, Result};
 pub use manager::SocialiteManager;
@@ -14,6 +16,7 @@ use openrust::{
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
 };
+pub use provider::Provider;
 use std::sync::Arc;
 pub struct SocialiteServiceProvider;
 impl ServiceProvider for SocialiteServiceProvider {

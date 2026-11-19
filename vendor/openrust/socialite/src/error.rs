@@ -4,6 +4,14 @@ pub enum Error {
     UnsupportedDriver(String),
     #[error("Missing or invalid Socialite provider configuration: {0}")]
     Configuration(&'static str),
+    #[error("The OAuth1 callback is missing a verifier.")]
+    MissingVerifier,
+    #[error("Missing temporary OAuth credentials.")]
+    MissingTemporaryCredentials,
+    #[error("The temporary OAuth identifier does not match.")]
+    InvalidTemporaryCredentials,
+    #[error("This operation requires {0}.")]
+    Protocol(&'static str),
     #[error("The OAuth state is invalid.")]
     InvalidState,
     #[error("The OAuth callback does not contain a code.")]

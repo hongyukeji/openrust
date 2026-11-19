@@ -371,6 +371,7 @@ impl<'a> AbstractProvider<'a> {
         let mut user = self.definition.mapUserToObject(raw)?;
         user.credentials = Some(Token {
             token: Zeroizing::new(token.into()),
+            tokenSecret: None,
             refreshToken: None,
             expiresIn: None,
             approvedScopes: vec![],
@@ -460,6 +461,7 @@ impl<'a> AbstractProvider<'a> {
                     .ok_or(Error::InvalidResponse)?
                     .into(),
             ),
+            tokenSecret: None,
             refreshToken: response
                 .get("refresh_token")
                 .and_then(Value::as_str)

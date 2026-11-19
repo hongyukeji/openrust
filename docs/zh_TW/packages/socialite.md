@@ -1,6 +1,6 @@
 # Socialite
 
-Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2、Google 及 Facebook。API-S01 整體仍在開發；OAuth1 以及完整 OIDC／本機身分整合待後續交付。
+Socialite 將第三方登入接入應用程式的 HTTP Client 與 Session。已驗收範圍現包括固定 Socialite 5.33.0 對應的 GitHub、GitLab、Bitbucket、LinkedIn（舊式／OpenID）、Slack（identity／OpenID）、X／Twitter OAuth2、Google 及 Facebook。API-S01 整體仍在開發；Twitter OAuth1 同樣可用，完整 OIDC／本機身分整合繼續開發。
 
 ## 安裝 {#installation}
 
@@ -28,7 +28,7 @@ cargo run --features socialite -- artisan serve
 
 `services.gitlab.host`／`GITLAB_HOST` 預設 `https://gitlab.com`。`GitlabProvider::setHost` 保留自託管路徑前綴並移除結尾斜線。固定上游資料路徑為 `/api/v3/user`，本批保留此契約。Slack 登入設定與既有 `slack.notifications` 共處同一 services 物件；真實供應商仍需分別註冊回呼並取得權限。
 
-`x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 保留上游 OAuth1 選擇，該路徑尚未交付，明確失敗。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
+`x` 使用 `X_CLIENT_ID`、`X_CLIENT_SECRET`、`X_REDIRECT_URI`。`twitter` 使用對應的 `TWITTER_` 變數，並設定 `TWITTER_OAUTH=2` 選擇 OAuth2；預設值 1 選擇 Twitter OAuth1；只有整數 2 選擇 OAuth2，字串 `"2"` 仍選擇 OAuth1。明確的 `twitter-oauth-2` 驅動先讀取 `services.twitter`，僅在物件缺失或為 null 時回退 `services.twitter-oauth-2`。`x` 同樣從 `services.x` 回退 `services.x-oauth-2`；已存在但不完整的設定會失敗，不靜默改用另一組憑證。
 
 `google` 讀取 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI`，預設 scope 為 `openid profile email`。一般 access token 以 Bearer 呼叫 Google UserInfo，傳送 `prettyPrint=false`。更新回應僅在缺少 refresh token 欄位時保留傳入值；明確的 null 或輪換值按回應保留。
 
@@ -51,7 +51,7 @@ pub fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .make::<SocialiteManager>().map_err(|_| HttpError::InvalidRequest)?;
         let response = manager.driver("github", request)
             .map_err(|_| HttpError::InvalidRequest)?
-            .redirect().map_err(|_| HttpError::InvalidRequest)?;
+            .redirect().await.map_err(|_| HttpError::InvalidRequest)?;
         Ok(response.into())
     })
 }
@@ -71,6 +71,10 @@ pub fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
 ```
 
 `driver("github", request)` 與 `with("github", request)` 借用目前請求，使用者快取僅存於該借用期，不在 manager 全域快取。`redirect` 傳回原生跳轉回應。Session 儲存隨機 40 字元 state，回呼先消費它再交換 code；缺少、不符、陣列、空值及重播均失敗。`enablePKCE()` 可選；在跳轉與回呼兩次 provider 上同時啟用，儲存 96 字元 verifier 並傳送 S256 challenge 與 verifier。
+
+manager 與 facade 回傳 `Provider`，共同入口為 `redirect().await?` 和 `user().await?`。OAuth1 跳轉前需透過 HTTP 取得臨時憑證，因此統一跳轉入口為非同步。使用 `scopes`、`stateless`、`refreshToken` 等 OAuth2 方法前，執行 `manager.driver("github", request)?.oauth2()?`；Twitter 的 `scope` 和 `userFromTokenAndSecret` 則使用 `.oauth1()?`。協定不符明確回傳錯誤。具體 OAuth2 provider 仍保留同步 `redirect()`。
+
+Twitter OAuth1 使用可選 `services.twitter.scope`／`TWITTER_SCOPE` 或 `.scope("write")`，與 OAuth2 的 `scopes` 分開。scope 非空且不等於 `"0"` 時，臨時憑證請求透過 query 傳送 `x_auth_access_type`。Session `oauth.temp` 儲存臨時憑證；回呼要求同時存在 `oauth_token` 和 `oauth_verifier`，HTTP 交換前嚴格核對臨時識別碼，讀取但不消費儲存的憑證。臨時 token 的單次使用由遠端伺服器執行。此跳轉／回呼流程要求 Session，OAuth1 不提供 `stateless()`。
 
 ## 可選參數 {#optional-parameters}
 
@@ -117,3 +121,5 @@ X／Twitter 測試使用真實 HTTP 與加密 Session Cookie，涵蓋預設 PKCE
 `GoogleProvider::withEndpoints(endpoints, jwks)` 用於受控 UserInfo 與 JWKS 服務。真實 HTTP 測試使用原 PHP Socialite／Firebase JWT 方法對照 25 組簽章 JWT，包括錯誤簽章、issuer／audience、缺失或錯誤宣告、未來／過期時間、演算法混淆、金鑰輪換和跨 client 隔離。PEM 測試金鑰僅屬於這些夾具。真實 Google 帳戶授權仍需測試應用及回呼。
 
 `FacebookProvider::withEndpoints(endpoints, jwks)` 為受控測試替換三個 Graph／授權端點與 JWKS；包含 `/v23.0/` 的路徑隨 `usingGraphVersion` 變化。21 組原 PHP Limited Login 對照涵蓋 nonce 優先級、issuer／audience、簽章／過期、缺失金鑰及輪換；實際 Graph HTTP 驗證 HMAC proof、欄位、過期轉換、請求隔離及去識別觀察。真實 Facebook 授權仍需應用、憑證、登記回呼及帳戶。
+
+Twitter OAuth1 傳送 HMAC-SHA1 簽章請求，存取憑證另含明確的 `user.credentials.tokenSecret`。`userFromTokenAndSecret(token, secret).await?` 直接呼叫 profile。回呼映射包含 URL 欄位、location、description 與 `avatar_original`；憑證直取僅保留 League extra 欄位，與上游一致。成功 profile 按憑證對快取於目前請求內，任一憑證變化就重新取得。`one::TwitterProvider::withEndpoints` 與 `manager.extendOAuth1` 提供受控端點。固定 League 1.12.0／Socialite PHP 對照及真實 HTTP／Session 測試涵蓋簽章、空 verifier、scope、憑證快取、跨應用拒絕、遠端重播拒絕和失敗去敏；真實 Twitter 授權仍需要應用程式、憑證、登記回呼及帳戶。

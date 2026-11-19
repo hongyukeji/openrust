@@ -4,6 +4,7 @@ use zeroize::Zeroizing;
 #[derive(Clone)]
 pub struct Token {
     pub token: Zeroizing<String>,
+    pub tokenSecret: Option<Zeroizing<String>>,
     pub refreshToken: Option<Zeroizing<String>>,
     pub expiresIn: Option<u64>,
     pub approvedScopes: Vec<String>,

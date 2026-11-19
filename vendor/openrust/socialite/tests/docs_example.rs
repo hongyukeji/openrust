@@ -13,6 +13,7 @@ pub fn redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             .driver("github", request)
             .map_err(|_| HttpError::InvalidRequest)?
             .redirect()
+            .await
             .map_err(|_| HttpError::InvalidRequest)?;
         Ok(response.into())
     })

@@ -3773,3 +3773,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 2026-11-20 API-S01 [Facebook Graph与Limited Login](audits/api-s01/facebook.md)本机验收完成：HMAC proof／版本与字段／expires语义、RS256／严格issuer及aud／期待nonce；21组原PHP JWT及全包29＋纯配置1函数、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。请求选项隔离，JWT失败不fallback；OAuth1／MySQL归属及完整RP继续。专属产物清理保留全部卷，本地提交不推送。
 
 - 2026-11-20 API-F01 [异步命名限流安装前置](audits/api-f01/async-limiter.md)：forAsync／asyncLimiter 与共享命名表、真实TCP／Redis双进程、验证器32／Fortify49、严格检查及根烟测通过，专属产物清理，继续安装。
+
+## API-S01 Twitter OAuth1
+
+2026-11-20 API-S01 [Twitter OAuth1与统一协议入口](audits/api-s01/oauth1.md)实现验收完成：异步临时凭据／真实Session／HMAC-SHA1、两条映射及凭据缓存、严格协议选择；14组固定PHP签名及10种回调对照，全包34＋纯配置1函数、Rust1.94严格Clippy／fmt、MySQL8.4.13下根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。源码SHA、依赖、接口适配与清理留证，全部卷保留，本地提交不推送；继续本地归属／HTTP登录整合，完整RP与SSO仍待。

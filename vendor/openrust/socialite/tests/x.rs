@@ -146,7 +146,7 @@ fn login(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let manager = openrust::container::Container::getInstance()
             .make::<SocialiteManager>()
             .unwrap();
-        let mut p = manager.driver(&name, request).unwrap();
+        let mut p = manager.driver(&name, request).unwrap().oauth2().unwrap();
         if stateless {
             p.stateless();
         }
@@ -172,7 +172,7 @@ fn callback(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         let manager = openrust::container::Container::getInstance()
             .make::<SocialiteManager>()
             .unwrap();
-        let mut p = manager.driver(&name, request).unwrap();
+        let mut p = manager.driver(&name, request).unwrap().oauth2().unwrap();
         if stateless {
             p.stateless();
         }
@@ -397,7 +397,11 @@ async fn manager_alias_fallback_requires_integer_oauth_two_and_isolates_registra
         v["oauth"] = oauth.clone();
         config.set("services.twitter", v).unwrap();
         assert_eq!(
-            manager.driver("twitter", &mut request).is_ok(),
+            manager
+                .driver("twitter", &mut request)
+                .unwrap()
+                .oauth2()
+                .is_ok(),
             oauth == json!(2)
         );
     }
@@ -407,7 +411,11 @@ async fn manager_alias_fallback_requires_integer_oauth_two_and_isolates_registra
     config
         .set("services.twitter.scopes", json!(["primary-scope"]))
         .unwrap();
-    let mut p = manager.driver("twitter-oauth-2", &mut request).unwrap();
+    let mut p = manager
+        .driver("twitter-oauth-2", &mut request)
+        .unwrap()
+        .oauth2()
+        .unwrap();
     assert!(p.getScopes().contains(&"primary-scope".to_owned()));
     assert!(p.authorizationUrl().is_err());
     drop(p);

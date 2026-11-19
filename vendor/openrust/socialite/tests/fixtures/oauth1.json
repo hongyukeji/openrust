@@ -1,0 +1,288 @@
+{
+    "signatures": [
+        {
+            "method": "POST",
+            "url": "https://api.twitter.com/oauth/request_token",
+            "parameters": {
+                "oauth_callback": "https://rp.test/callback?a=1&b=中文"
+            },
+            "secret": "",
+            "signature": "ptNtCfmQ+l+yJ1A4WibPTRpKAoo="
+        },
+        {
+            "method": "POST",
+            "url": "https://api.twitter.com/oauth/request_token",
+            "parameters": {
+                "oauth_callback": "https://rp.test/callback?a=1&b=中文"
+            },
+            "secret": "token + %25",
+            "signature": "0IErSjWvYAkl3xygbaioG47GOJM="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test:443/resource?include_email=true",
+            "parameters": {},
+            "secret": "",
+            "signature": "DCp2v/rR2nFnP0dp6qsGuMvWQJQ="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test:443/resource?include_email=true",
+            "parameters": {},
+            "secret": "token + %25",
+            "signature": "P9zLYO2AggH2Vpadyru5cVc5DlI="
+        },
+        {
+            "method": "GET",
+            "url": "http://EXAMPLE.test:8080/resource?x=a+b&x=last&user.name=alice",
+            "parameters": {},
+            "secret": "",
+            "signature": "Or2MXTGiwGQQzK8jbEw1BB1aeOE="
+        },
+        {
+            "method": "GET",
+            "url": "http://EXAMPLE.test:8080/resource?x=a+b&x=last&user.name=alice",
+            "parameters": {},
+            "secret": "token + %25",
+            "signature": "uh6CZPEWgou+Cxcbdl8MI/kyz1s="
+        },
+        {
+            "method": "POST",
+            "url": "https://example.test/resource?z=%252B&plus=%2B&tilde=~",
+            "parameters": {
+                "oauth_verifier": "a+b %25 / 中文"
+            },
+            "secret": "",
+            "signature": "gEKjxjZACqT/DVKyzGmU6DcOEug="
+        },
+        {
+            "method": "POST",
+            "url": "https://example.test/resource?z=%252B&plus=%2B&tilde=~",
+            "parameters": {
+                "oauth_verifier": "a+b %25 / 中文"
+            },
+            "secret": "token + %25",
+            "signature": "Jd558OoCy9PFR+oo5CncJTXWrg8="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test/resource?a[second]=2&a[first]=1&b[]=x&b[]=y",
+            "parameters": {},
+            "secret": "",
+            "signature": "CPhuz0Aa2qF8Kb2/TwaFhn0/13s="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test/resource?a[second]=2&a[first]=1&b[]=x&b[]=y",
+            "parameters": {},
+            "secret": "token + %25",
+            "signature": "4czQ1A+NTEMNDfY+8guy2f8JntM="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test/resource?q=from-url",
+            "parameters": {
+                "q": "override",
+                "%61": "encoded key"
+            },
+            "secret": "",
+            "signature": "0oy8iJGi6Gmy5djHFaCKV/Ww5/w="
+        },
+        {
+            "method": "GET",
+            "url": "https://example.test/resource?q=from-url",
+            "parameters": {
+                "q": "override",
+                "%61": "encoded key"
+            },
+            "secret": "token + %25",
+            "signature": "juu2bRDkvp9fz8wexW6VGyg7aP8="
+        },
+        {
+            "method": "POST",
+            "url": "https://example.test/resource?empty=&zero=0",
+            "parameters": {
+                "oauth_token": "a",
+                "oauth_verifier": ""
+            },
+            "secret": "",
+            "signature": "ujjvQSe6xmfJwzaI+tVuqq+yroo="
+        },
+        {
+            "method": "POST",
+            "url": "https://example.test/resource?empty=&zero=0",
+            "parameters": {
+                "oauth_token": "a",
+                "oauth_verifier": ""
+            },
+            "secret": "token + %25",
+            "signature": "qyrfl10jFzpKyO7LMy4uvf8GlJE="
+        }
+    ],
+    "raw": {
+        "id": 42,
+        "id_str": "42",
+        "screen_name": "alice",
+        "name": "Alice",
+        "email": "alice@test",
+        "location": "上海",
+        "description": "Hello",
+        "profile_image_url": "https://image.test/alice_normal.jpg",
+        "url": "https://alice.test",
+        "other_url": "https://else.test",
+        "verified": true
+    },
+    "redirect": "https://api.twitter.com/oauth/authenticate?oauth_token=temp",
+    "redirect_http": [
+        [
+            "https://api.twitter.com/oauth/request_token?x_auth_access_type=write+%2B+%E4%B8%AD%E6%96%87",
+            {
+                "headers": {
+                    "Authorization": "OAuth oauth_consumer_key=\"client\", oauth_nonce=\"fixed-nonce\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1700000000\", oauth_version=\"1.0\", oauth_callback=\"https%3A%2F%2Frp.test%2Fcallback\", oauth_signature=\"BSbLIJrASUxj3leysAZ5A6Bm%2FhI%3D\""
+                }
+            }
+        ]
+    ],
+    "callback": {
+        "id": "42",
+        "nickname": "alice",
+        "name": "Alice",
+        "email": "alice@test",
+        "avatar": "https://image.test/alice_normal.jpg",
+        "raw": {
+            "id_str": "42",
+            "verified": true,
+            "profile_image_url": "https://image.test/alice_normal.jpg",
+            "url": "https://alice.test",
+            "other_url": "https://else.test",
+            "location": "上海",
+            "description": "Hello"
+        },
+        "attributes": {
+            "id": "42",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://image.test/alice_normal.jpg",
+            "avatar_original": "https://image.test/alice.jpg"
+        }
+    },
+    "temporary_retained": true,
+    "direct": {
+        "id": "42",
+        "nickname": "alice",
+        "name": "Alice",
+        "email": "alice@test",
+        "avatar": "https://image.test/alice_normal.jpg",
+        "raw": {
+            "id_str": "42",
+            "verified": true
+        },
+        "attributes": {
+            "id": "42",
+            "nickname": "alice",
+            "name": "Alice",
+            "email": "alice@test",
+            "avatar": "https://image.test/alice_normal.jpg"
+        }
+    },
+    "cached_calls": 3,
+    "changed_secret_calls": 4,
+    "http": [
+        [
+            "https://api.twitter.com/oauth/request_token?x_auth_access_type=write+%2B+%E4%B8%AD%E6%96%87",
+            {
+                "headers": {
+                    "Authorization": "OAuth oauth_consumer_key=\"client\", oauth_nonce=\"fixed-nonce\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1700000000\", oauth_version=\"1.0\", oauth_callback=\"https%3A%2F%2Frp.test%2Fcallback\", oauth_signature=\"BSbLIJrASUxj3leysAZ5A6Bm%2FhI%3D\""
+                }
+            }
+        ],
+        [
+            "https://api.twitter.com/oauth/access_token",
+            {
+                "headers": {
+                    "Authorization": "OAuth oauth_consumer_key=\"client\", oauth_nonce=\"fixed-nonce\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1700000000\", oauth_version=\"1.0\", oauth_token=\"temp\", oauth_signature=\"LYDjXUqmbfH38U7Z1SK3pgVFbhk%3D\""
+                },
+                "form_params": {
+                    "oauth_verifier": "verified + 中文"
+                }
+            }
+        ],
+        [
+            "https://api.twitter.com/1.1/account/verify_credentials.json?include_email=true",
+            {
+                "headers": {
+                    "Authorization": "OAuth oauth_consumer_key=\"client\", oauth_nonce=\"fixed-nonce\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1700000000\", oauth_version=\"1.0\", oauth_token=\"access\", oauth_signature=\"bPmFWJnx4sJwbdMsMd5Gu9RnKvg%3D\""
+                }
+            }
+        ],
+        [
+            "https://api.twitter.com/1.1/account/verify_credentials.json?include_email=true",
+            {
+                "headers": {
+                    "Authorization": "OAuth oauth_consumer_key=\"client\", oauth_nonce=\"fixed-nonce\", oauth_signature_method=\"HMAC-SHA1\", oauth_timestamp=\"1700000000\", oauth_version=\"1.0\", oauth_token=\"access\", oauth_signature=\"HGEIRCQGCl1N5BRnTitoV%2F6MAxs%3D\""
+                }
+            }
+        ]
+    ],
+    "callbacks": {
+        "missing-verifier": {
+            "error": "Laravel\\Socialite\\One\\MissingVerifierException",
+            "calls": 1
+        },
+        "missing-temp": {
+            "error": "Laravel\\Socialite\\One\\MissingTemporaryCredentialsException",
+            "calls": 0
+        },
+        "wrong-token": {
+            "error": "InvalidArgumentException",
+            "calls": 1
+        },
+        "null-token": {
+            "error": "InvalidArgumentException",
+            "calls": 1
+        },
+        "empty-verifier": {
+            "error": null,
+            "calls": 3
+        },
+        "zero-token": {
+            "error": "InvalidArgumentException",
+            "calls": 1
+        },
+        "null-verifier": {
+            "error": null,
+            "calls": 3
+        },
+        "false-verifier": {
+            "error": null,
+            "calls": 3
+        },
+        "true-verifier": {
+            "error": null,
+            "calls": 3
+        },
+        "numeric-verifier": {
+            "error": null,
+            "calls": 3
+        }
+    },
+    "temporary": [
+        {
+            "body": "oauth_token=t&oauth_token_secret=s&oauth_callback_confirmed=true",
+            "accepted": true
+        },
+        {
+            "body": "oauth_token=t&oauth_token_secret=s&oauth_callback_confirmed=false",
+            "accepted": false
+        },
+        {
+            "body": "oauth_token=t&oauth_token_secret=s",
+            "accepted": false
+        },
+        {
+            "body": "error=denied",
+            "accepted": false
+        }
+    ]
+}

@@ -10,6 +10,8 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |--------------------------------------------------------------------------
     |
     | 通过环境变量配置邮件供应商、Slack 通知与第三方登录所需的凭据。
+    | TWITTER_OAUTH 默认 1 使用 OAuth1，整数 2 使用 OAuth2；
+    | TWITTER_SCOPE 为 OAuth1 可选访问级别，与 OAuth2 scopes 分开。
     |
     */
     Ok(json!({
@@ -28,6 +30,7 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
             "client_secret": get(env, "TWITTER_CLIENT_SECRET", Value::Null)?,
             "redirect": get(env, "TWITTER_REDIRECT_URI", Value::Null)?,
             "oauth": get(env, "TWITTER_OAUTH", 1)?,
+            "scope": get(env, "TWITTER_SCOPE", Value::Null)?,
         },
         "x": {
             "client_id": get(env, "X_CLIENT_ID", Value::Null)?,

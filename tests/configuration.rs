@@ -107,13 +107,14 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         fs::write(
             root.join(".env"),
             format!(
-                "TWITTER_OAUTH={oauth}\nTWITTER_CLIENT_ID=twitter-client\nX_CLIENT_ID=x-client\n"
+                "TWITTER_OAUTH={oauth}\nTWITTER_SCOPE=write\nTWITTER_CLIENT_ID=twitter-client\nX_CLIENT_ID=x-client\n"
             ),
         )
         .unwrap();
         let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
         let configured = config::load(&root, &environment).unwrap();
         assert_eq!(configured["services"]["twitter"]["oauth"], oauth);
+        assert_eq!(configured["services"]["twitter"]["scope"], "write");
         assert_eq!(
             configured["services"]["twitter"]["client_id"],
             "twitter-client"
