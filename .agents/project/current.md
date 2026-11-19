@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 `artisan init` 第三批见[记录](audits/00-03/init.md)：扩展选择／Reverb 自动广播依赖／完整范围未就绪项的写入前拒绝已实现。macOS 43 项初始化启动路径、10 项视图原生值回归、MySQL 8.4.13 分页 HTTP、选择性首装→补全→PTY→直接 cargo run／认证通过；Windows 44 项、包范围严格 Clippy 和 ConPTY 隐藏密码／连接失败取消通过。修复既有 ViewData 测试类型适配后，最低 Rust 1.94 整工作区全目标 features pail,passport 严格 Clippy、三语构建和12浏览器检查通过。完整 Passport／OAuth2、Fortify 等前置实现及共享安装器仍未就绪，不将选择性成功标成完整发布。已直接清理本机／Windows 专属产物，源码／证据和共享缓存保留；Windows 恢复挂起，最终宿主可用约 69.609 GB。2026-11-20 用户随后明确授权提交代码，按初始化范围核定本地提交，不推送；其他任务 WIP 排除。
+
 - 2026-11-19 Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.md)已验收。hasScope 复用真实模型 cast／PHP 非严格比较桥，withInheritedScopes 按应用保存；plain_secret 显式追加走实例访问器并保留 hidden／visible 与水合 null。固定 Passport 13.10.0 的真实 trait 在 PHP 8.5.12 生成 312 例，源码 SHA 正负校验通过，Rust 双应用 TCP 逐项对照一致。9 原生、10 lifecycle、10 MySQL 夹具目标测试全过（29 个函数，其中 2 个 lookup 用例不执行 SQL），实际 Artisan Kernel、最低 Rust 1.94 格式／全工作区全目标 features pail,passport 严格 Clippy、三语构建和 18 浏览器检查通过。本批隔离 7720f142e 加 12 份输入，不叠加总控在途 ViewData／Cargo 与 init 等差异；未重编根 CLI 二进制。已清专属 source／target／browser 约 3.329 GB 和 PHP 镜像，保留证据、源码与全部数据卷。Passport-02／V06 仍部分验收，继续关系／工厂、UUID、生命周期撤销、命令和剩余 PHP oracle；不推进 Passport-03。
 
 - 2026-11-19 `artisan init` 第二批见[验收与清理记录](audits/00-03/init.md)：macOS／原生 Ubuntu x86_64／Windows 11 ARM64 的本批初始化路径通过，Windows 真实重建迁移、重复安装和 API 认证已实测，并修复规范化存储路径导致的 HTTP 500。Passport 统一安装、Windows 真实终端向导及补充 Windows Clippy 仍未闭合；后者因磁盘临近 50 GB 阈值主动中止，不计通过。本批产物已直接清理，记录保留，Windows 恢复挂起；宿主收尾可用约 53.688 GB，下批构建前必须复查。此任务按单独授权不暂存、不提交、不推送，不能套用总控的一般本地提交授权。

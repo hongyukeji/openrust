@@ -1353,3 +1353,18 @@ async fn verify_request_flashing(driver: &'static str) {
             .unwrap();
     }
 }
+
+#[test]
+fn session_names_preserve_unicode_and_defer_cookie_validation() {
+    use openrust::session::{ArraySessionHandler, Store};
+    for name in ["初始化_会话", "", "name with spaces", "name/with/slash"] {
+        let mut store = Store::new(
+            name,
+            Box::new(ArraySessionHandler::new(Duration::from_secs(60))),
+        )
+        .unwrap();
+        assert_eq!(store.getName(), name);
+        store.setName("另一个会话").unwrap();
+        assert_eq!(store.getName(), "另一个会话");
+    }
+}

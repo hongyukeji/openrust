@@ -170,6 +170,19 @@ impl Command for InstallRoutesCommand {
 }
 
 fn migrate_after_rebuild(root: &Path, environment: Option<&str>) -> Result<(), ConsoleError> {
+    let executable = build_application(root)?;
+    let mut command = std::process::Command::new(executable);
+    command.current_dir(root).args(["artisan", "migrate"]);
+    if let Some(environment) = environment {
+        command.args(["--env", environment]);
+    }
+    command
+        .status()
+        .map_err(|error| ConsoleError::new(format!("Could not run pending migrations: {error}")))?;
+    Ok(())
+}
+
+pub(super) fn build_application(root: &Path) -> Result<std::path::PathBuf, ConsoleError> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = std::process::Command::new(cargo);
     command
@@ -183,14 +196,9 @@ fn migrate_after_rebuild(root: &Path, environment: Option<&str>) -> Result<(), C
         .stderr(std::process::Stdio::inherit());
     // Windows locks the installer executable until this command returns.
     #[cfg(windows)]
-    let target = tempfile::Builder::new()
-        .prefix("openrust-install-api-")
-        .tempdir()
-        .map_err(|error| {
-            ConsoleError::new(format!("Could not prepare the migration build: {error}"))
-        })?;
+    let target = root.join("target/artisan-rebuild");
     #[cfg(windows)]
-    command.arg("--target-dir").arg(target.path());
+    command.arg("--target-dir").arg(&target);
     let built = command.output().map_err(|error| {
         ConsoleError::new(format!(
             "Could not rebuild and run pending migrations: {error}"
@@ -236,15 +244,7 @@ fn migrate_after_rebuild(root: &Path, environment: Option<&str>) -> Result<(), C
             "Could not identify the application binary. Set package.default-run in Cargo.toml.",
         ));
     };
-    let mut command = std::process::Command::new(executable);
-    command.current_dir(root).args(["artisan", "migrate"]);
-    if let Some(environment) = environment {
-        command.args(["--env", environment]);
-    }
-    command
-        .status()
-        .map_err(|error| ConsoleError::new(format!("Could not run pending migrations: {error}")))?;
-    Ok(())
+    Ok(executable.clone())
 }
 
 fn confirm_migrations() -> Result<bool, ConsoleError> {
@@ -282,6 +282,15 @@ fn install(
     timestamp: Option<chrono::NaiveDateTime>,
 ) -> Result<InstallResult, ConsoleError> {
     let _manifest = lock_manifest(root)?;
+    install_unlocked(root, spec, force, timestamp)
+}
+
+fn install_unlocked(
+    root: &Path,
+    spec: &InstallSpec,
+    force: bool,
+    timestamp: Option<chrono::NaiveDateTime>,
+) -> Result<InstallResult, ConsoleError> {
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
     let routes = root.join("routes").join(format!("{}.rs", spec.module));
@@ -379,6 +388,48 @@ fn install(
         warnings,
         publication,
     })
+}
+
+// The caller holds the shared source lock across the whole initialization.
+pub(super) fn initialize_routes(
+    root: &Path,
+    force: bool,
+    timestamp: Option<chrono::NaiveDateTime>,
+    extensions: &[String],
+) -> Result<Vec<VendorTagPublished>, ConsoleError> {
+    let mut publications = Vec::new();
+    for spec in INSTALLERS {
+        let name = if spec.module == "channels" {
+            "broadcasting"
+        } else {
+            spec.module
+        };
+        if !extensions.iter().any(|selected| selected == name) {
+            continue;
+        }
+        let result = install_unlocked(
+            root,
+            spec,
+            force && spec.command == "install:api",
+            timestamp,
+        )?;
+        if let Some(event) = result.publication {
+            publications.push(event);
+        }
+        if !result.warnings.is_empty() {
+            return Err(ConsoleError::new(format!(
+                "{} requires manual integration; initialization is incomplete: {}",
+                spec.command,
+                result
+                    .warnings
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            )));
+        }
+    }
+    Ok(publications)
 }
 
 fn install_api_configuration(
@@ -520,12 +571,16 @@ fn registration_update(
 }
 
 fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
+    enable_feature(source, "sanctum")
+}
+
+fn enable_feature(source: &str, feature: &str) -> Result<Option<String>, ConsoleError> {
     use toml_edit::{Array, DocumentMut, Item};
 
     let invalid = || {
-        ConsoleError::new(
-            "Cargo.toml must declare the application feature `sanctum` and an array for `features.default`.",
-        )
+        ConsoleError::new(format!(
+            "Cargo.toml must declare the application feature `{feature}` and an array for `features.default`."
+        ))
     };
     let mut manifest = source
         .parse::<DocumentMut>()
@@ -534,7 +589,7 @@ fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
         .get_mut("features")
         .and_then(Item::as_table_like_mut)
         .ok_or_else(invalid)?;
-    if !features.contains_key("sanctum") {
+    if !features.contains_key(feature) {
         return Err(invalid());
     }
     let defaults = features
@@ -542,19 +597,25 @@ fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
         .or_insert(toml_edit::value(Array::new()))
         .as_array_mut()
         .ok_or_else(invalid)?;
-    if defaults
-        .iter()
-        .any(|feature| feature.as_str() == Some("sanctum"))
-    {
+    if defaults.iter().any(|item| item.as_str() == Some(feature)) {
         return Ok(None);
     }
-    defaults.push("sanctum");
+    defaults.push(feature);
     let updated = manifest.to_string();
     Ok(Some(if source.contains("\r\n") {
         updated.replace("\r\n", "\n").replace('\n', "\r\n")
     } else {
         updated
     }))
+}
+
+pub(super) fn install_reverb_feature(root: &Path) -> Result<(), ConsoleError> {
+    let path = root.join("Cargo.toml");
+    let source = read(&path)?;
+    if let Some(updated) = enable_feature(&source, "reverb")? {
+        replace(&path, &source, &updated)?;
+    }
+    Ok(())
 }
 
 fn create_source(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {

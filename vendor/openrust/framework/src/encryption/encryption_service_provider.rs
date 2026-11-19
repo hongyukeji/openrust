@@ -44,7 +44,7 @@ impl ServiceProvider for EncryptionServiceProvider {
     }
 }
 
-fn resolve(config: &dyn Repository) -> Result<Encrypter, EncryptException> {
+pub(crate) fn resolve(config: &dyn Repository) -> Result<Encrypter, EncryptException> {
     let key = config.get("app.key").unwrap_or_default();
     let key = Zeroizing::new(match key {
         serde_json::Value::Null => return Err(EncryptException::MissingKey),

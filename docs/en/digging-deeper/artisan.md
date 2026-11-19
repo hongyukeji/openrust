@@ -163,6 +163,25 @@ Run these commands from a source checkout to generate the route files and update
 
 Use `./artisan install:api` to create and register API routes. It preserves existing routes by default. See [Sanctum installation](../packages/sanctum.md#installation) for the feature flag and migration options. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
 
+## Application initialization {#complete-installation}
+
+Run `./artisan init` in a source checkout (`artisan.bat init` on Windows). The wizard reads existing values, asks for application, database, cache, session and queue settings, hides password input and checks connections before saving. Noninteractive use reads the project environment. Current initialization supports SQLite, MySQL/MariaDB and PostgreSQL, local/database/Redis services, and log/SMTP mail plus the built-in SMS providers. API uses Sanctum; channels and gRPC registration are installed. The Reverb package is installed; REVERB_ENABLED controls whether its server starts with the application. Missing Reverb credentials are generated without overwriting existing values. Passport installation is still pending its package installer.
+
+```sh
+./artisan init --dry-run
+./artisan init
+./artisan init --no-interaction
+./artisan init --extensions=api --no-interaction
+```
+
+Choose extensions with `--extensions=api,broadcasting,reverb,grpc` (the default set). The interactive wizard asks for the same comma-separated list. `api` installs Sanctum; `reverb` also selects broadcasting channels. Unselected extensions are left untouched. A later run can add missing extensions while retaining existing configuration and keys. If Reverb is configured, include it in the selection. `--extensions=all` checks the complete planned release scope and currently fails before writing: Passport, Fortify, Passkeys, Socialite, Precognition, OIDC RP and SSO still require their implementations and shared installers. The error lists the missing prerequisites; a supported profile completing does not mean the full release scope is ready.
+
+Missing `.env` is copied from the example; existing keys and credentials are retained. Missing application keys are generated using `key:generate`. The initializer shares the individual route installers, rebuilds once and runs migrations through the normal command. Production still requires confirmation or `--force`. Successful initialization tells you to run `cargo run`; it does not start a background server. `--without-migration` reports preparation only, with migrations still pending. `--force` permits existing API route scaffolding replacement and production migrations, never database resets or key rotation. `--dry-run` does not connect, write, build or migrate. Failures return nonzero and preserve completed changes for retry. Concurrent source installation fails immediately.
+
+SMTP selection checks connectivity, TLS and authentication using the existing SMTP transport without sending an email. The wizard collects built-in SMS provider credentials; sender identities and business templates remain provider-specific configuration, and no SMS is sent or delivery claimed. Reverb listener and publishing addresses are prompted when enabled; its default mode is embedded. Existing configuration remains the default during the wizard.
+
+Use `--env=acceptance` to initialize `.env.acceptance`; the same environment is forwarded to configuration clearing, key generation and migrations, leaving `.env` unchanged.
+
 ## Generating Commands {#generating-commands}
 
 Create a command from a source checkout. The generated type implements the Artisan command contract.

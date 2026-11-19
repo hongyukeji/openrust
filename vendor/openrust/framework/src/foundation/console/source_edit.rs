@@ -24,7 +24,12 @@ pub(super) fn lock_source(root: &Path) -> Result<File, ConsoleError> {
         .write(true)
         .open(&path)
         .map_err(|error| file_error(&path, error))?;
-    lock.lock().map_err(|error| file_error(&path, error))?;
+    lock.try_lock().map_err(|error| {
+        ConsoleError::new(format!(
+            "Cannot acquire installation lock {}: {error}. Another source operation may be running; retry after it finishes.",
+            path.display()
+        ))
+    })?;
     Ok(lock)
 }
 

@@ -170,13 +170,6 @@ impl Session for Store {
     }
 
     fn setName(&mut self, name: &str) -> SessionResult<()> {
-        if name.is_empty()
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        {
-            return Err(SessionError::Configuration);
-        }
         self.name = name.to_owned();
         Ok(())
     }

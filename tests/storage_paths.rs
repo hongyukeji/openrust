@@ -11,6 +11,21 @@ use serde_json::json;
 #[path = "../config/mod.rs"]
 mod config;
 
+#[cfg(windows)]
+#[test]
+fn canonical_windows_storage_paths_accept_portable_directory_suffixes() {
+    let app = TestApp::create(|builder| builder).unwrap();
+    let path = app.app().storagePath("framework/views");
+    std::fs::create_dir_all(&path).unwrap();
+    let probe = path.join("probe.txt");
+    std::fs::write(&probe, "canonical Windows path").unwrap();
+    assert_eq!(
+        std::fs::read_to_string(probe).unwrap(),
+        "canonical Windows path"
+    );
+    assert_eq!(path, app.app().base_path().join("storage/framework/views"));
+}
+
 fn assert_paths(values: &BTreeMap<String, Value>, storage: &Path) {
     assert_eq!(
         values["logging"]["channels"]["single"]["path"],
@@ -83,7 +98,7 @@ async fn standalone_configuration_uses_its_snapshot_and_preserves_specific_overr
     let custom = app.root().join("自定义");
     std::fs::write(
         app.root().join(".env"),
-        format!("APP_STORAGE_PATH={}\n", custom.display()),
+        format!("APP_STORAGE_PATH='{}'\n", custom.display()),
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(app.root(), None).unwrap();
@@ -96,7 +111,7 @@ async fn standalone_configuration_uses_its_snapshot_and_preserves_specific_overr
     std::fs::write(
         app.root().join(".env"),
         format!(
-            "APP_STORAGE_PATH={}\nFILESYSTEM_PUBLIC_ROOT=uploads\nVIEW_COMPILED_PATH=compiled\n",
+            "APP_STORAGE_PATH='{}'\nFILESYSTEM_PUBLIC_ROOT=uploads\nVIEW_COMPILED_PATH=compiled\n",
             custom.display()
         ),
     )

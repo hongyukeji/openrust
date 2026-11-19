@@ -77,6 +77,10 @@ pub(crate) fn join(base: &Path, path: &str) -> PathBuf {
     if path.is_empty() {
         return base.into();
     }
+    // Verbatim Windows paths do not accept forward slashes. Preserve the base
+    // and traversal segments while using native separators for the suffix.
+    #[cfg(windows)]
+    let path = path.replace('/', MAIN_SEPARATOR_STR);
     let mut result = base.as_os_str().to_owned();
     result.push(MAIN_SEPARATOR_STR);
     result.push(path.trim_start_matches(MAIN_SEPARATOR));

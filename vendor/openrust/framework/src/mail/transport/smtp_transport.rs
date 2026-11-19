@@ -31,6 +31,18 @@ pub(crate) struct Settings {
 }
 
 impl SmtpTransport {
+    /// Checks SMTP connectivity, TLS and authentication without sending a message.
+    pub(crate) async fn verify(configuration: serde_json::Value) -> MailResult<()> {
+        let settings: Settings = serde_json::from_value(configuration)
+            .map_err(|_| transport("Invalid SMTP settings."))?;
+        let transport = Self::new(settings)?;
+        match transport.0.test_connection().await {
+            Ok(true) => Ok(()),
+            _ => Err(crate::mail::transport(
+                "SMTP connectivity, TLS or authentication check failed.",
+            )),
+        }
+    }
     pub(crate) fn new(mut settings: Settings) -> MailResult<Self> {
         if let Some(url) = settings.url.as_deref().filter(|url| !url.is_empty()) {
             let url = url::Url::parse(url).map_err(|_| transport("Invalid SMTP URL."))?;

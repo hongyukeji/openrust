@@ -163,6 +163,25 @@ async fn queue_inspire() -> QueueResult<DispatchResult> {
 
 使用 `./artisan install:api` 创建并注册 API 路由。默认保留已有路由。功能开关和迁移选项见 [Sanctum 安装](../packages/sanctum.md#installation)。 广播接入后会注册 `/broadcasting/auth`，授权需要广播驱动和频道规则。gRPC 需要注册 Tonic 服务，并设置 `GRPC_HOST` 和 `GRPC_PORT` 才开启监听。
 
+## 应用初始化 {#complete-installation}
+
+在源码项目运行 `./artisan init`，Windows 使用 `artisan.bat init`。向导读取已有值，引导应用、数据库、缓存、Session 和队列设置，密码隐藏输入，连接检查通过后保存。无交互模式读取项目环境。当前初始化支持 SQLite、MySQL／MariaDB 和 PostgreSQL，以及本地／数据库／Redis 服务和日志／SMTP 邮件和内置短信供应商。API 使用 Sanctum，同时安装频道和 gRPC 注册。Reverb 包自动安装，是否随主应用启动由 REVERB_ENABLED 控制；仅生成缺失的 Reverb 凭据，保留已有值。Passport 安装仍待对应安装器接通。
+
+```sh
+./artisan init --dry-run
+./artisan init
+./artisan init --no-interaction
+./artisan init --extensions=api --no-interaction
+```
+
+使用 `--extensions=api,broadcasting,reverb,grpc` 选择扩展（也是默认集合），交互向导会询问同一逗号分隔清单。`api` 安装 Sanctum；`reverb` 自动选择广播频道。未选择的扩展保持原样；后续运行可补装缺失扩展，保留已有配置和密钥。已配置 Reverb 时须将它纳入选择。`--extensions=all` 检查完整发布计划，目前会在写文件前失败：Passport、Fortify、Passkeys、Socialite、Precognition、OIDC RP 和 SSO 仍需完成实现及共享安装器。错误会列出前置缺口；所选配置初始化完成不代表全部发布范围就绪。
+
+缺少 `.env` 时从示例创建，保留已有密钥和凭据；缺少应用密钥时调用 `key:generate`。复用单项路由安装器，统一重建后调用原迁移命令。生产环境仍需确认或 `--force`。初始化成功后执行 `cargo run`，命令不自动启动长期服务。`--without-migration` 只报告准备完成，迁移仍待执行。`--force` 允许覆盖已有 API 脚手架并执行生产迁移，不重置数据库或轮换密钥。`--dry-run` 不连接、不写文件、不构建、不迁移。失败返回非零并保留已完成内容供重试，并发源码安装立即报告冲突。
+
+选择 SMTP 后复用现有传输层检查连接、TLS 和认证，不发送测试邮件。向导收集内置短信供应商凭据；发送身份和业务模板仍按各供应商配置，不自动发短信，也不声称真实投递通过。启用 Reverb 时引导监听及发布地址，默认同进程运行；已有配置始终作为向导默认值。
+
+使用 `--env=acceptance` 初始化 `.env.acceptance`；清理配置、生成密钥和迁移步骤使用同一环境，不修改 `.env`。
+
 ## 生成命令 {#generating-commands}
 
 在源码检出目录生成命令。生成的类型实现 Artisan 命令契约。

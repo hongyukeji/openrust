@@ -7,7 +7,7 @@ mod payload;
 
 pub use encrypter::Encrypter;
 pub use encryption_service_provider::EncryptionServiceProvider;
-pub(crate) use encryption_service_provider::configured_cipher;
+pub(crate) use encryption_service_provider::{configured_cipher, resolve as resolve_encrypter};
 pub use facade::Crypt;
 
 /// Cipher profiles supported by the application encrypter.
