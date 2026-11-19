@@ -77,6 +77,7 @@ impl Command for PurgeCommand {
             passport
                 .token_models
                 .purge(
+                    &passport.grant_models,
                     revoked,
                     expired.then(|| cutoff.format("%Y-%m-%d %H:%M:%S%.6f").to_string()),
                     now.format("%Y-%m-%d %H:%M:%S%.6f").to_string(),

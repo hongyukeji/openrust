@@ -8,12 +8,12 @@ pub(super) fn code_view(request: &mut Request) -> HttpFuture<'_, Result<Response
         )
     })
 }
-struct DeviceClient {
-    id: String,
-    secret: Option<String>,
+pub(super) struct DeviceClient {
+    pub(super) id: String,
+    pub(super) secret: Option<String>,
 }
 impl Fixture {
-    async fn device_client(&self, confidential: bool) -> DeviceClient {
+    pub(super) async fn device_client(&self, confidential: bool) -> DeviceClient {
         self.kernel
             .get_application()
             .call(
@@ -44,7 +44,7 @@ impl Fixture {
             .await
             .unwrap()
     }
-    async fn device_code(&self, client: &DeviceClient, scope: &str) -> J {
+    pub(super) async fn device_code(&self, client: &DeviceClient, scope: &str) -> J {
         let response = self
             .wire(
                 reqwest::Method::POST,
@@ -59,7 +59,7 @@ impl Fixture {
         assert_eq!(status, 200, "{data}");
         data
     }
-    async fn device_poll(&self, client: &DeviceClient, code: &str) -> reqwest::Response {
+    pub(super) async fn device_poll(&self, client: &DeviceClient, code: &str) -> reqwest::Response {
         let mut data = json!({"grant_type":GRANT,"client_id":client.id,"device_code":code});
         if let Some(secret) = &client.secret {
             data["client_secret"] = json!(secret);
@@ -67,7 +67,7 @@ impl Fixture {
         self.wire(reqwest::Method::POST, "/oauth/token", "", Some(data))
             .await
     }
-    async fn device_view(&self, b: &Browser, code: &str) -> J {
+    pub(super) async fn device_view(&self, b: &Browser, code: &str) -> J {
         let response = self
             .wire(
                 reqwest::Method::GET,
@@ -81,7 +81,12 @@ impl Fixture {
         assert_eq!(status, 200, "{data}");
         data
     }
-    async fn device_decide(&self, b: &Browser, view: &J, approve: bool) -> reqwest::Response {
+    pub(super) async fn device_decide(
+        &self,
+        b: &Browser,
+        view: &J,
+        approve: bool,
+    ) -> reqwest::Response {
         self.wire(
             if approve {
                 reqwest::Method::POST

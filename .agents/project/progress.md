@@ -3737,3 +3737,8 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-F01 邮件验证恢复验收
 
 2026-11-20 用户确认恢复，API-F01 [邮件验证 HTTP](audits/api-f01/email-verification.md)补齐根入口验收并闭合本批：保留二进制在 MySQL 8.4.13 下真实 HTTP／Pail／恢复／超时清理／SIGINT／端口释放与独立 Artisan 通过，68 份 SHA 与原快照一致。此前整包 Fortify 43 个不同函数、原生 12 项回归和严格 Clippy／格式已通过；最终保留二进制也已闲置核归属清理，Available 57,084,492 KiB（58.455 GB／54.440 GiB）。本批核范围本地提交，不推送。继续密码重置、安装和三语整体验收；磁盘停线继续有效。
+
+
+## Passport-09 定制与共存整合
+
+2026-11-20 Passport-09 [定制与共存整合](audits/passport-09/README.md)实现及本机验收完成：五类实际Eloquent模型、授权码／设备注册、观察者／事务／清理、自定义路由与UserProvider、多应用隔离，以及生成应用Passport／Sanctum双Guard／独立撤销两前缀通过。Rust1.94、MySQL8.4.13，共131个不同函数及3项显式Chromium；严格三feature workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭与三语26章节、12＋6浏览器通过。17份输入与隔离221cc174e一致，保留同期Fortify／验证器等改动；固定源码SHA及成功生成应用包保留，专属产物归属清理。Passport-01–09本机计划范围闭合，Windows08重建与发布整合仍待，V06维持部分验收；继续API-S01及其后前置单元。本地提交，不推送。

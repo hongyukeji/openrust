@@ -50,6 +50,9 @@ pub trait ClientModel: Model {
         openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
     }
     fn authCodes(&self) -> openrust::database::eloquent::relations::HasMany<Self, crate::AuthCode> {
+        self.authCodesFor::<crate::AuthCode>()
+    }
+    fn authCodesFor<A: Model>(&self) -> openrust::database::eloquent::relations::HasMany<Self, A> {
         openrust::database::eloquent::relations::HasMany::new(self.getKeyName(), "client_id")
     }
     fn owner(&self) -> openrust::database::eloquent::relations::MorphTo<Self> {

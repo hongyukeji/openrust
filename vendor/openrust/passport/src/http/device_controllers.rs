@@ -102,12 +102,12 @@ impl DeviceAuthorizationController {
                 request.session_mut()?.flashErrors("default", &errors)?;
                 return redirect(request, "passport.device", None);
             };
-            use openrust::database::{Value as DbValue, eloquent::Model as _};
-            let id = match device.getKey() {
+            use openrust::database::Value as DbValue;
+            let id = match device.get_key() {
                 Some(DbValue::Text(id)) => id.clone(),
                 _ => return Err(HttpError::InvalidRequest),
             };
-            let client_id = match device.getAttribute("client_id") {
+            let client_id = match device.attribute("client_id") {
                 Some(DbValue::Text(id)) => id.clone(),
                 _ => return Err(HttpError::InvalidRequest),
             };
@@ -118,7 +118,7 @@ impl DeviceAuthorizationController {
                 .await
                 .map_err(internal)?
                 .ok_or(HttpError::NotFound)?;
-            let requested = match device.getAttributeValue("scopes").map_err(internal)? {
+            let requested = match device.value("scopes").map_err(internal)? {
                 Some(DbValue::Json(value)) => {
                     serde_json::from_value::<Vec<String>>(value).map_err(internal)?
                 }

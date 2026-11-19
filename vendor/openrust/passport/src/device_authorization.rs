@@ -1,6 +1,6 @@
 //! Fixed League device grant, retaining pending-poll writes and atomic issuance.
 use super::*;
-use crate::DeviceCode;
+use crate::grant_store::GrantRecord;
 pub(super) const GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
 
 #[derive(Serialize)]
@@ -73,10 +73,14 @@ impl AuthorizationServer {
         for attempt in 0..10 {
             let device_code = identifier()?;
             let user_code = user_code()?;
-            let mut model =
-                DeviceCode::newInstanceOn(&connection, Attributes::new()).map_err(internal)?;
+            let mut model = self
+                .passport
+                .grant_models
+                .device()
+                .new_record(&connection)
+                .map_err(internal)?;
             model
-                .forceFillAsync(Attributes::from([
+                .fill_async(Attributes::from([
                     ("id".into(), device_code.clone().into()),
                     ("user_code".into(), user_code.clone().into()),
                     (
@@ -127,15 +131,14 @@ impl AuthorizationServer {
     pub(crate) async fn deviceCodeByUserCode(
         &self,
         user_code: &str,
-    ) -> Result<Option<DeviceCode>, OAuthError> {
+    ) -> Result<Option<Box<dyn GrantRecord>>, OAuthError> {
         let connection = self.passport.token_models.parent().map_err(internal)?;
-        let mut query = DeviceCode::queryOn(&connection);
-        query
-            .r#where("user_code", "=", user_code.replace('-', ""))
-            .whereNull("user_id")
-            .r#where("revoked", "=", false)
-            .r#where("expires_at", ">", sql_date(now()?)?);
-        query.first().await.map_err(internal)
+        self.passport
+            .grant_models
+            .device()
+            .pending(&connection, user_code.replace('-', ""), sql_date(now()?)?)
+            .await
+            .map_err(internal)
     }
     pub async fn completeDeviceAuthorizationRequest(
         &self,
@@ -145,19 +148,19 @@ impl AuthorizationServer {
     ) -> Result<(), OAuthError> {
         let connection = self.passport.token_models.parent().map_err(internal)?;
         let mut transaction = connection.beginTransaction().await.map_err(internal)?;
-        let mut model = DeviceCode::queryOn(&connection)
-            .find(device_code)
+        let mut model = self
+            .passport
+            .grant_models
+            .device()
+            .find(&connection, device_code)
             .await
             .map_err(internal)?
             .ok_or_else(|| {
                 OAuthError::invalid_request("device_code", Some("Device code does not exist"))
             })?;
-        model
-            .refreshForUpdate(&mut transaction)
-            .await
-            .map_err(internal)?;
-        if model.getAttributeValue("revoked").map_err(internal)? != Some(Value::Bool(false))
-            || !matches!(model.getAttribute("user_id"), None | Some(Value::Null))
+        model.lock(&mut transaction).await.map_err(internal)?;
+        if model.value("revoked").map_err(internal)? != Some(Value::Bool(false))
+            || !matches!(model.attribute("user_id"), None | Some(Value::Null))
         {
             return Err(OAuthError::invalid_request(
                 "device_code",
@@ -171,7 +174,7 @@ impl AuthorizationServer {
             ));
         }
         model
-            .forceFillAsync(Attributes::from([
+            .fill_async(Attributes::from([
                 ("user_id".into(), user.into()),
                 (
                     "user_approved_at".into(),
@@ -184,7 +187,7 @@ impl AuthorizationServer {
             ]))
             .await
             .map_err(internal)?;
-        save(&mut model, &mut transaction).await?;
+        save(model.as_mut(), &mut transaction).await?;
         transaction.commit().await.map_err(internal)
     }
     pub(super) async fn exchange_device(
@@ -197,45 +200,45 @@ impl AuthorizationServer {
         let code = parameters
             .parameter("device_code", None)?
             .ok_or_else(|| OAuthError::invalid_request("device_code", None))?;
-        let mut model = DeviceCode::queryOn(&connection)
-            .find(code.as_str())
+        let mut model = self
+            .passport
+            .grant_models
+            .device()
+            .find(&connection, code.as_str())
             .await
             .map_err(internal)?
             .ok_or_else(|| OAuthError::invalid_grant(""))?;
-        model
-            .refreshForUpdate(&mut transaction)
-            .await
-            .map_err(internal)?;
-        if model.getAttributeValue("revoked").map_err(internal)? != Some(Value::Bool(false)) {
+        model.lock(&mut transaction).await.map_err(internal)?;
+        if model.value("revoked").map_err(internal)? != Some(Value::Bool(false)) {
             return Err(OAuthError::invalid_grant(""));
         }
         let now = now()?;
-        if timestamp(&model, "expires_at")?.is_none_or(|expiry| now > expiry) {
+        if timestamp(model.as_ref(), "expires_at")?.is_none_or(|expiry| now > expiry) {
             return Err(OAuthError::expired_token());
         }
-        if model.getAttributeValue("client_id").map_err(internal)? != client.getKey().await {
+        if model.value("client_id").map_err(internal)? != client.getKey().await {
             return Err(OAuthError::invalid_request(
                 "device_code",
                 Some("Device code was not issued to this client"),
             ));
         }
         let user = model
-            .getAttribute("user_id")
+            .attribute("user_id")
             .filter(|v| !matches!(v, Value::Null))
             .map(AuthIdentifier::try_from)
             .transpose()
             .map_err(internal)?;
         let Some(user) = user else {
-            let soon = timestamp(&model, "last_polled_at")?
+            let soon = timestamp(model.as_ref(), "last_polled_at")?
                 .is_some_and(|time| time.saturating_add(5) > now);
             model
-                .forceFillAsync(Attributes::from([(
+                .fill_async(Attributes::from([(
                     "last_polled_at".into(),
                     sql_date(now)?.into(),
                 )]))
                 .await
                 .map_err(internal)?;
-            save(&mut model, &mut transaction).await?;
+            save(model.as_mut(), &mut transaction).await?;
             transaction.commit().await.map_err(internal)?;
             return Err(if soon {
                 OAuthError::slow_down()
@@ -244,12 +247,12 @@ impl AuthorizationServer {
             });
         };
         if matches!(
-            model.getAttribute("user_approved_at"),
+            model.attribute("user_approved_at"),
             None | Some(Value::Null)
         ) {
             return Err(OAuthError::access_denied(None));
         }
-        let scopes = match model.getAttributeValue("scopes").map_err(internal)? {
+        let scopes = match model.value("scopes").map_err(internal)? {
             Some(Value::Json(value)) => serde_json::from_value(value).map_err(internal)?,
             _ => return Err(OAuthError::server_error("Invalid device scopes")),
         };
@@ -276,29 +279,25 @@ impl AuthorizationServer {
             )
             .await?;
         model
-            .forceFillAsync(Attributes::from([("revoked".into(), true.into())]))
+            .fill_async(Attributes::from([("revoked".into(), true.into())]))
             .await
             .map_err(internal)?;
-        save(&mut model, &mut transaction).await?;
+        save(model.as_mut(), &mut transaction).await?;
         transaction.commit().await.map_err(internal)?;
         Ok(response)
     }
 }
 async fn save(
-    model: &mut DeviceCode,
+    model: &mut dyn GrantRecord,
     transaction: &mut openrust::database::Transaction,
 ) -> Result<(), OAuthError> {
-    if !model
-        .saveInTransaction(transaction)
-        .await
-        .map_err(internal)?
-    {
+    if !model.save_in(transaction).await.map_err(internal)? {
         return Err(OAuthError::server_error("Device code save cancelled"));
     }
     Ok(())
 }
-fn timestamp(model: &DeviceCode, name: &str) -> Result<Option<i64>, OAuthError> {
-    match model.getAttributeValue(name).map_err(internal)? {
+fn timestamp(model: &dyn GrantRecord, name: &str) -> Result<Option<i64>, OAuthError> {
+    match model.value(name).map_err(internal)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Text(value)) => chrono::DateTime::parse_from_rfc3339(&value)
             .map(|d| Some(d.timestamp()))

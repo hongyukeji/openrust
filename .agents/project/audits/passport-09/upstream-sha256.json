@@ -1,0 +1,8 @@
+{
+  "Passport.php": "10e8efa4ba67b760ea949f17b9aad208e04c9894788430eeb7eae2728b7ac190",
+  "AuthCode.php": "6eae064f61bfedc1d8a3f82970724b070254319f9a5966442677826fbf921a71",
+  "DeviceCode.php": "de56dcc46b72fcf1b474abbb336e84be90a0024d51755fe3cb8b66867f162030",
+  "Client.php": "503aad2b892dfb60d897ef52ed52f73d97e303182888f92ebd2c893725e7721d",
+  "Token.php": "4ffe452d44ec788ec066744ea48620d18c93c6a325a09d9c951a203c59daa552",
+  "RefreshToken.php": "7b801dda69c08d507d4921f62ba4cdecf6f9f0baf20782d3afcfd94007c5abf0"
+}

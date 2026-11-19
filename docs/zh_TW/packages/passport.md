@@ -301,3 +301,47 @@ Password 與 Implicit 預設關閉，建立對應用戶端記錄不會啟用協�
 批准後 302 回到已校驗的回呼，fragment 包含 `access_token`、`token_type`、`expires_in` 與已提供的 `state`，不建立授權碼或重新整理權杖。未知 scope、需要登入／同意及拒絕也使用 fragment，錯誤用戶端或不可信回呼在本機失敗，保留既有回呼查詢。Implicit 與裝置授權的 scope 最終處理移除 `*`；Password、PAT 與用戶端憑證保留它，用戶端 scope 限制仍參與。
 
 `implicitGrantEnabled` 屬於應用程式實例，設為 false 也拒絕尚未完成的 Implicit 同意請求。原生實作提交前複查有效用戶端及註冊位址，模型／監聽器失敗回滾交易。同意 POST 不能修改已保存的用戶端、使用者、scope 或回應類型。權杖端點始終不接受 `grant_type=implicit`。
+
+## 覆寫預設模型 {#overriding-default-models}
+
+在接收請求前，透過應用程式的 `Passport` 實例呼叫 `useClientModel::<C>()`、`useTokenModel::<T>()`、`useRefreshTokenModel::<R>()`、`useAuthCodeModel::<A>()` 與 `useDeviceCodeModel::<D>()`。對應的 `clientModel`、`tokenModel`、`refreshTokenModel`、`authCodeModel`、`deviceCodeModel` 回傳所選編譯型別名稱，註冊屬於各應用程式。協定持久化、資源驗證、撤銷與 `passport:purge` 使用真實選定的 Eloquent 模型，不將記錄複製到預設資料表。
+
+用戶端、存取與重新整理模型分別在 `Model` 之外實作 `ClientModel`、`TokenModel`、`RefreshTokenModel`；授權碼與裝置碼模型實作 `Model`。中繼資料保留預設模型的 casts、主鍵行為、guarded／hidden 與時間戳，並提供自己的資料表結構。例如自訂用戶端仍應隱藏 `secret`，註冊模型不會修補其序列化策略。模型觀察者與取消儲存仍生效，授權及權杖消費失敗復原交易；缺少資料表或儲存故障正常報錯，修正裝配後可重試。
+
+自訂關聯目標使用 `client.authCodesFor::<A>()`、`client.tokensFor::<T>()`、`code.clientFor::<C>()`、`token.clientFor::<C>()`、`token.refreshTokenFor::<R>()`、`refresh.accessTokenFor::<T>()`。預設輔助方法保留具體預設回傳型別。PAT 結果使用 `getTokenFor::<T>()`，工廠透過 `ClientFactory::<C>::new()` 選擇型別。
+
+明確模型連線優先於 `passport.connection`，再退回協定的父連線。同一次簽發／消費交易的 OAuth 寫入必須共用真實連線；跨連線身分會報錯並復原，即使兩個別名指向同一資料庫。為 OAuth 資料表統一設定 `PASSPORT_CONNECTION`。使用者 provider 可獨立查詢另一使用者儲存。透過 `AuthManager::registerModel` 或自訂 `UserProvider` 註冊編譯使用者模型，設定 guard 的 provider，並保留模型主鍵與驗證識別的區別。Password 的 provider 鉤子見前文。
+
+## 覆寫路由 {#overriding-routes}
+
+透過 `passport.path` 設定多級 OAuth 前綴，透過 `passport.middleware` 加入共同中介軟體。需要取代套件路由時，在應用程式裝配階段、載入路由前呼叫 `passport.ignoreRoutes()`，然後註冊公開控制器。例如僅提供權杖端點：
+
+```rust
+use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+
+pub fn oauth_routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new().prefix("integrations"), |router| {
+        router.r#match(&[Method::POST], "/token",
+            openrust_passport::http::controllers::AccessTokenController::issueToken)?
+            .name("passport.token")
+            .withoutMiddleware("web")
+            .middleware_name("throttle");
+        Ok(())
+    })
+}
+```
+
+該無狀態權杖路由接受獨立 HTTP 用戶端，回傳標準 OAuth 回應及快取標頭。瀏覽器同意與裝置批准路由繼續保留 web Session、CSRF、驗證、阻塞中介軟體與套件命名路由。裝置授權另要求存在 `passport.device` 命名路由。關閉內建路由不會自動安裝這些瀏覽器端點，也不會修改資源 guard 的 provider。
+
+## 與 Sanctum 共存 {#sanctum-coexistence}
+
+同時啟用 `passport`、`sanctum` 預設 Cargo features。分別執行 API 安裝器且不傳 `--force` 會保留既有 API 路由，為第二種 guard 明確加入資源路由並執行其發布遷移。Passport guard（例如 `api`）設定使用者 provider，路由使用 `auth:api`；Sanctum 路由使用 `auth:sanctum`。預設使用者可實作兩套件的 `HasApiTokens`，用完整路徑區分同名方法：
+
+```rust
+let oauth = openrust_passport::HasApiTokens::createToken(&user, "OAuth", &[]).await?;
+let personal = openrust::sanctum::HasApiTokens::createToken(
+    &user, &sanctum, &database, "Sanctum", &["read"], None,
+).await?;
+```
+
+除普通使用者 provider 註冊外，另透過 `AuthManager::registerSanctumModel` 註冊 Sanctum 使用者。OAuth JWT 與 Sanctum 個人 Bearer 權杖使用獨立資料表及 guard，不能互換；撤銷一種憑證不影響另一套件的有效憑證。瀏覽器 Session 驗證單獨設定。測試章節的請求內 `actingAs`／`actingAsClient` 仍是指定請求／guard 的明確替身，不安裝用戶端、不產生持久資料庫權杖。

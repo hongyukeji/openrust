@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 Passport-09 [定制与共存整合](audits/passport-09/README.md)实现及本机验收完成：五类实际Eloquent模型、授权码／设备注册、观察者／事务／清理、自定义路由与UserProvider、多应用隔离，以及生成应用Passport／Sanctum双Guard／独立撤销两前缀通过。Rust1.94、MySQL8.4.13，共131个不同函数及3项显式Chromium；严格三feature workspace／all-targets Clippy／fmt、根HTTP／原始Artisan／关闭与三语26章节、12＋6浏览器通过。17份输入与隔离221cc174e一致，保留同期Fortify／验证器等改动；固定源码SHA及成功生成应用包保留，专属产物归属清理。Passport-01–09本机计划范围闭合，Windows08重建与发布整合仍待，V06维持部分验收；继续API-S01及其后前置单元。本地提交，不推送。
+
 - 2026-11-20 用户确认恢复，API-F01 [邮件验证 HTTP](audits/api-f01/email-verification.md)补齐根入口验收并闭合本批：保留二进制在 MySQL 8.4.13 下真实 HTTP／Pail／恢复／超时清理／SIGINT／端口释放与独立 Artisan 通过，68 份 SHA 与原快照一致。此前整包 Fortify 43 个不同函数、原生 12 项回归和严格 Clippy／格式已通过；最终保留二进制也已闲置核归属清理，Available 57,084,492 KiB（58.455 GB／54.440 GiB）。本批核范围本地提交，不推送。继续密码重置、安装和三语整体验收；磁盘停线继续有效。
 
 - 2026-11-20 API-F01 邮件验证在途／磁盘停线：[审核](audits/api-f01/email-verification.md)。正式提示／签名验证／通知路由及模型注册、可替换响应已实现，新增 4 个真实 TCP／MySQL 8.4.13 函数、19 组固定 PHP 控制器／响应和 4 组非空授权输入对照、整包 Fortify 43 个不同函数及原生 12 项回归通过；Rust 1.94 严格 Clippy／格式和根 main 构建通过。根 HTTP／Pail／Artisan 阶段前 df 48,683,792 KiB（49.851 GB／46.428 GiB）触发保留的 50 GB 停线，烟测未执行，本批未提交。专属 target 已闲置核归属清理，保留已构建 main、源码／日志／68 份 SHA 证据和全部数据卷；清理后 57,200,628 KiB（58.573 GB／54.551 GiB）。按停线等待用户明确恢复；随后用保留二进制跑 smoke，完成审核及本地提交，再接密码重置／安装／三语文档。最后完成提交为 5e7248f6c，未推送；同期 Passport 和其他 WIP 保留。

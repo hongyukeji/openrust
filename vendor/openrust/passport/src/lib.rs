@@ -51,6 +51,7 @@ mod refresh_token;
 mod scope;
 mod scope_json;
 pub use scope_json::ScopeJsonOptions;
+mod grant_store;
 mod token;
 mod token_store;
 

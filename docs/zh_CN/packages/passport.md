@@ -301,3 +301,47 @@ Password 和 Implicit 默认关闭，创建对应客户端记录不会启用协�
 批准后 302 回到已校验的回调，fragment 包含 `access_token`、`token_type`、`expires_in` 和已提供的 `state`，不创建授权码或刷新令牌。未知 scope、需要登录／同意及拒绝也使用 fragment，错误客户端或不可信回调在本地失败，保留既有回调查询。Implicit 和设备授权的 scope 最终处理移除 `*`；Password、PAT 和客户端凭据保留它，客户端 scope 限制仍参与。
 
 `implicitGrantEnabled` 属于应用实例，设为 false 也拒绝尚未完成的 Implicit 同意请求。原生实现提交前复查有效客户端及注册地址，模型／监听器失败回滚事务。同意 POST 不能修改已保存的客户端、用户、scope 或响应类型。令牌端点始终不接受 `grant_type=implicit`。
+
+## 覆写默认模型 {#overriding-default-models}
+
+在接收请求前，通过应用的 `Passport` 实例调用 `useClientModel::<C>()`、`useTokenModel::<T>()`、`useRefreshTokenModel::<R>()`、`useAuthCodeModel::<A>()` 和 `useDeviceCodeModel::<D>()`。对应的 `clientModel`、`tokenModel`、`refreshTokenModel`、`authCodeModel`、`deviceCodeModel` 返回所选编译类型名称，注册属于各应用。协议持久化、资源验证、撤销和 `passport:purge` 使用真实选定的 Eloquent 模型，不把记录复制到默认表。
+
+客户端、访问和刷新模型分别在 `Model` 之外实现 `ClientModel`、`TokenModel`、`RefreshTokenModel`；授权码和设备码模型实现 `Model`。元数据保留默认模型的 casts、主键行为、guarded／hidden 和时间戳，并提供自己的表结构。例如自定义客户端仍应隐藏 `secret`，注册模型不会修补其序列化策略。模型观察者和取消保存仍生效，授权及令牌消费失败回滚事务；缺表或存储故障正常报错，修正装配后可重试。
+
+自定义关系目标使用 `client.authCodesFor::<A>()`、`client.tokensFor::<T>()`、`code.clientFor::<C>()`、`token.clientFor::<C>()`、`token.refreshTokenFor::<R>()`、`refresh.accessTokenFor::<T>()`。默认辅助方法保留具体默认返回类型。PAT 结果使用 `getTokenFor::<T>()`，工厂通过 `ClientFactory::<C>::new()` 选择类型。
+
+显式模型连接优先于 `passport.connection`，再回退到协议的父连接。同一次签发／消费事务的 OAuth 写入必须共享真实连接；跨连接身份会报错并回滚，即使两个别名指向同一数据库。为 OAuth 表统一设置 `PASSPORT_CONNECTION`。用户 provider 可独立查询另一用户存储。通过 `AuthManager::registerModel` 或自定义 `UserProvider` 注册编译用户模型，配置 guard 的 provider，并保留模型主键与认证标识的区别。Password 的 provider 钩子见前文。
+
+## 覆写路由 {#overriding-routes}
+
+通过 `passport.path` 设置多级 OAuth 前缀，通过 `passport.middleware` 添加共同中间件。需要替换包路由时，在应用装配阶段、载入路由前调用 `passport.ignoreRoutes()`，然后注册公开控制器。例如仅提供令牌端点：
+
+```rust
+use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+
+pub fn oauth_routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new().prefix("integrations"), |router| {
+        router.r#match(&[Method::POST], "/token",
+            openrust_passport::http::controllers::AccessTokenController::issueToken)?
+            .name("passport.token")
+            .withoutMiddleware("web")
+            .middleware_name("throttle");
+        Ok(())
+    })
+}
+```
+
+该无状态令牌路由接受独立 HTTP 客户端，返回标准 OAuth 响应及缓存头。浏览器同意及设备批准路由继续保留 web Session、CSRF、认证、阻塞中间件与包的命名路由。设备授权还要求存在 `passport.device` 命名路由。关闭内置路由不会自动安装这些浏览器端点，也不会修改资源 guard 的 provider。
+
+## 与 Sanctum 共存 {#sanctum-coexistence}
+
+同时启用 `passport`、`sanctum` 默认 Cargo features。分别运行 API 安装器且不传 `--force` 会保留已有 API 路由，为第二种 guard 显式添加资源路由并执行其发布迁移。Passport guard（例如 `api`）配置用户 provider，路由使用 `auth:api`；Sanctum 路由使用 `auth:sanctum`。默认用户可实现两包的 `HasApiTokens`，用完整路径区分同名方法：
+
+```rust
+let oauth = openrust_passport::HasApiTokens::createToken(&user, "OAuth", &[]).await?;
+let personal = openrust::sanctum::HasApiTokens::createToken(
+    &user, &sanctum, &database, "Sanctum", &["read"], None,
+).await?;
+```
+
+除普通用户 provider 注册外，还通过 `AuthManager::registerSanctumModel` 注册 Sanctum 用户。OAuth JWT 与 Sanctum 个人 Bearer 令牌使用独立表和 guard，不能互换；撤销一种凭据不影响另一包的有效凭据。浏览器 Session 认证单独配置。测试章节的请求内 `actingAs`／`actingAsClient` 仍是指定请求／guard 的显式替身，不安装客户端、不生成持久数据库令牌。

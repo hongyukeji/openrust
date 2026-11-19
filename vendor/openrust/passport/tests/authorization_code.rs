@@ -135,11 +135,17 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Json>, ConfigErr
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     default_grants::routes()?;
     Route::get("/session", session)?;
-    Route::r#match(
-        &[Method::POST],
-        "/custom-token",
-        openrust_passport::http::controllers::AccessTokenController::issueToken,
-    )?;
+    Route::group(openrust::routing::RouteGroup::new(), |router| {
+        router
+            .r#match(
+                &[Method::POST],
+                "/custom-token",
+                openrust_passport::http::controllers::AccessTokenController::issueToken,
+            )?
+            .withoutMiddleware("web")
+            .middleware_name("throttle");
+        Ok(())
+    })?;
     Route::group(
         openrust::routing::RouteGroup::new().middleware_name("auth:api"),
         |router| {
@@ -2061,3 +2067,6 @@ mod default_grants;
 
 #[path = "optional_grants/mod.rs"]
 mod optional_grants;
+
+#[path = "customization/mod.rs"]
+mod customization;

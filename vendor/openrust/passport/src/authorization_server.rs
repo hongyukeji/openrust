@@ -1,7 +1,7 @@
 //! Authorization-code grant on the application's ordinary Eloquent connection.
 use crate::{
-    AuthCode, AuthorizationFailure, AuthorizationRedirect, ClientRecord, ClientRepository,
-    CodeChallenge, OAuthError, OAuthParameters, Passport, ValidatedRedirectUri,
+    AuthorizationFailure, AuthorizationRedirect, ClientRecord, ClientRepository, CodeChallenge,
+    OAuthError, OAuthParameters, Passport, ValidatedRedirectUri,
 };
 use base64::{
     Engine as _, alphabet,
@@ -12,10 +12,7 @@ use base64::{
 };
 use openrust::{
     auth::AuthIdentifier,
-    database::{
-        Value,
-        eloquent::{Attributes, Model},
-    },
+    database::{Value, eloquent::Attributes},
     encryption::Encrypter,
     hashing::{Hash, HashOptions},
     support::{Date, facades::Facade},
@@ -327,10 +324,14 @@ impl AuthorizationServer {
             code_challenge_method: request.challenge_method,
         };
         let encoded = self.encrypt(&payload)?;
-        let mut model =
-            AuthCode::newInstanceOn(&connection, Attributes::new()).map_err(internal)?;
+        let mut model = self
+            .passport
+            .grant_models
+            .auth()
+            .new_record(&connection)
+            .map_err(internal)?;
         model
-            .forceFill(Attributes::from([
+            .fill(Attributes::from([
                 ("id".into(), payload.auth_code_id.into()),
                 (
                     "client_id".into(),
@@ -350,11 +351,7 @@ impl AuthorizationServer {
                 ("expires_at".into(), sql_date(payload.expire_time)?.into()),
             ]))
             .map_err(internal)?;
-        if !model
-            .saveInTransaction(&mut transaction)
-            .await
-            .map_err(internal)?
-        {
+        if !model.save_in(&mut transaction).await.map_err(internal)? {
             return Err(OAuthError::server_error(
                 "Authorization code save cancelled",
             ));
@@ -491,24 +488,25 @@ impl AuthorizationServer {
             parameters.parameter("code_verifier", None)?.as_deref(),
         )
         .map_err(OAuthError::from)?;
-        let mut code = AuthCode::queryOn(&connection)
-            .find(payload.auth_code_id.clone())
+        let mut code = self
+            .passport
+            .grant_models
+            .auth()
+            .find(&connection, &payload.auth_code_id)
             .await
             .map_err(internal)?
             .ok_or_else(|| OAuthError::invalid_grant("Authorization code has been revoked"))?;
-        code.refreshForUpdate(&mut transaction)
-            .await
-            .map_err(internal)?;
-        if code.getAttributeValue("revoked").map_err(internal)? != Some(Value::Bool(false))
-            || code.getAttributeValue("client_id").map_err(internal)? != client.getKey().await
-            || code.getAttributeValue("scopes").map_err(internal)?
+        code.lock(&mut transaction).await.map_err(internal)?;
+        if code.value("revoked").map_err(internal)? != Some(Value::Bool(false))
+            || code.value("client_id").map_err(internal)? != client.getKey().await
+            || code.value("scopes").map_err(internal)?
                 != Some(
                     serde_json::to_string(&payload.scopes)
                         .map_err(internal)?
                         .into(),
                 )
             || code
-                .getAttributeValue("user_id")
+                .value("user_id")
                 .map_err(internal)?
                 .as_ref()
                 .and_then(|v| AuthIdentifier::try_from(v).ok())
@@ -535,13 +533,9 @@ impl AuthorizationServer {
                 },
             )
             .await?;
-        code.forceFill(Attributes::from([("revoked".into(), true.into())]))
+        code.fill(Attributes::from([("revoked".into(), true.into())]))
             .map_err(internal)?;
-        if !code
-            .saveInTransaction(&mut transaction)
-            .await
-            .map_err(internal)?
-        {
+        if !code.save_in(&mut transaction).await.map_err(internal)? {
             return Err(OAuthError::server_error(
                 "Authorization code consumption cancelled",
             ));

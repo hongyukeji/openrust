@@ -143,6 +143,33 @@ fn passport_install_probe(_: &mut openrust::http::Request) -> openrust::http::Ht
         openrust::http::Response::json(openrust::http::StatusCode::OK,token)
     })
 }
+#[cfg(feature = "sanctum")]
+fn sanctum_install_probe(_: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::database::eloquent::Model;
+        use openrust::contracts::container::Container as _;
+        let app = openrust::container::Container::getInstance();
+        let sanctum = app.make::<openrust::sanctum::Sanctum>().unwrap();
+        let database = app.make::<openrust::database::DatabaseManager>().unwrap();
+        let mut query = crate::app::models::User::query().unwrap();
+        query.r#where("email", "=", "installed@test");
+        let user = query.first().await.unwrap().unwrap();
+        let issued = openrust::sanctum::HasApiTokens::createToken(&user, &sanctum, &database, "Separate Sanctum token", &["read"], None).await.unwrap();
+        openrust::http::Response::json(openrust::http::StatusCode::OK,serde_json::json!({"plainTextToken":issued.plain_text_token.as_str()}))
+    })
+}
+#[cfg(feature = "sanctum")]
+fn sanctum_install_revoke(request:&mut openrust::http::Request)->openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>> {
+    Box::pin(async move {
+        let Some(openrust::sanctum::AccessToken::Personal(token)) = openrust::sanctum::AccessToken::currentAccessToken(request) else {panic!("Sanctum token expected")};
+        use openrust::contracts::container::Container as _;
+        let app = openrust::container::Container::getInstance();
+        let sanctum = app.make::<openrust::sanctum::Sanctum>().unwrap();
+        let database = app.make::<openrust::database::DatabaseManager>().unwrap();
+        assert!(sanctum.personalAccessTokens(&database, "").unwrap().revokeToken(&token.tokenable_type, token.tokenable_id.clone(), token.id.clone()).await.unwrap());
+        openrust::http::Response::json(openrust::http::StatusCode::OK,true)
+    })
+}
 #[cfg(feature = "passport")]
 fn passport_install_revoke(request:&mut openrust::http::Request)->openrust::http::HttpFuture<'_,Result<openrust::http::Response,openrust::http::HttpError>> {
     Box::pin(async move {
@@ -171,7 +198,7 @@ async fn mysql_passport_default_cli_installs_rebuilds_retries_and_authenticates_
         root,
         target,
         url: std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap(),
-        prefix: format!("p08_{}_", std::process::id()),
+        prefix: "p09_".to_owned(),
     };
     let initial = Path::new(env!("CARGO_BIN_EXE_main"));
     let help = fixture.run(initial, &["install:api", "--help"]);
@@ -392,12 +419,40 @@ finally:
             "Real terminal default yes, declined personal client and invalid answer retry PASS"
         );
     }
+    let sanctum_install = fixture.run(
+        initial,
+        &[
+            "install:api",
+            "--without-migration-prompt",
+            "--no-interaction",
+        ],
+    );
+    success(&sanctum_install);
+    assert!(
+        fs::read_to_string(&routes_path)
+            .unwrap()
+            .contains("auth:api")
+    );
+    let shared_migration = fixture.run(&binary, &["passport:install", "--no-interaction"]);
+    success(&shared_migration);
+    assert!(
+        fs::read_to_string(fixture.root.join("Cargo.toml"))
+            .unwrap()
+            .contains("\"sanctum\"")
+    );
+    println!("Sanctum install retained Passport routes and migrated the separate token store PASS");
     let source = fs::read_to_string(&routes_path).unwrap();
     let source=source.replacen("\n    Ok(())",r#"
     #[cfg(feature = "passport")]
     {
         openrust::support::facades::Route::get("/testing/pat",passport_install_probe)?;
         openrust::support::facades::Route::getWith("/testing/revoke",passport_install_revoke,|route|{route.middleware_name("auth:api");Ok(())})?;
+    }
+    #[cfg(feature = "sanctum")]
+    {
+        openrust::support::facades::Route::get("/testing/sanctum",sanctum_install_probe)?;
+        openrust::support::facades::Route::getWith("/sanctum-user",user,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
+        openrust::support::facades::Route::getWith("/testing/sanctum-revoke",sanctum_install_revoke,|route|{route.middleware_name("auth:sanctum");Ok(())})?;
     }
     Ok(())"#,1)+PROBE;
     fs::write(&routes_path, source).unwrap();
@@ -486,6 +541,59 @@ finally:
         let user: serde_json::Value = user.json().unwrap();
         assert_eq!(user["name"], "Installed");
         assert!(user.get("password").is_none());
+        let sanctum: serde_json::Value = client
+            .get(&format!("{api}/testing/sanctum"))
+            .await
+            .unwrap()
+            .json()
+            .unwrap();
+        let sanctum_bearer = sanctum["plainTextToken"].as_str().unwrap();
+        for (path, credential, expected) in [
+            ("user", sanctum_bearer, 401),
+            ("sanctum-user", bearer, 401),
+            ("sanctum-user", sanctum_bearer, 200),
+        ] {
+            let response = client
+                .pendingRequest()
+                .withToken(credential)
+                .get(&format!("{api}/{path}"))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), expected);
+            if expected == 200 {
+                let attributes: serde_json::Value = response.json().unwrap();
+                assert_eq!(attributes["name"], "Installed");
+                assert!(attributes.get("password").is_none());
+            }
+        }
+        let revoked = client
+            .pendingRequest()
+            .withToken(sanctum_bearer)
+            .get(&format!("{api}/testing/sanctum-revoke"))
+            .await
+            .unwrap();
+        assert_eq!(revoked.status(), 200);
+        assert_eq!(
+            client
+                .pendingRequest()
+                .withToken(sanctum_bearer)
+                .get(&format!("{api}/sanctum-user"))
+                .await
+                .unwrap()
+                .status(),
+            401
+        );
+        assert_eq!(
+            client
+                .pendingRequest()
+                .withToken(bearer)
+                .get(&format!("{api}/user"))
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+        println!("Coexisting Passport/Sanctum guards, users and independent revocation PASS");
         let issued = client
             .pendingRequest()
             .asForm()

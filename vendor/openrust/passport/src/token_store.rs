@@ -186,6 +186,7 @@ impl TokenModels {
     }
     pub(crate) async fn purge(
         &self,
+        grant_models: &crate::grant_store::GrantModels,
         revoked: bool,
         cutoff: Option<String>,
         now: String,
@@ -207,8 +208,9 @@ impl TokenModels {
                 },
             )
             .await?;
-        constrained::<crate::AuthCode>(&parent, revoked, cutoff.clone())
-            .delete()
+        grant_models
+            .auth()
+            .purge(&parent, revoked, cutoff.clone())
             .await?;
         refresh
             .purge(
@@ -220,8 +222,9 @@ impl TokenModels {
             )
             .await?;
         if device {
-            constrained::<crate::DeviceCode>(&parent, revoked, cutoff)
-                .delete()
+            grant_models
+                .device()
+                .purge(&parent, revoked, cutoff)
                 .await?;
         }
         Ok(())
@@ -244,7 +247,7 @@ impl TokenModels {
             .await
     }
 }
-fn connection<M: Model>(
+pub(crate) fn connection<M: Model>(
     parent: &Connection,
     database: &DatabaseManager,
     config: &dyn Repository,
@@ -673,7 +676,7 @@ impl<M: RefreshTokenModel> RevocableRefresh for LoadedRefresh<M> {
     }
 }
 
-fn constrained<M: Model>(
+pub(crate) fn constrained<M: Model>(
     connection: &Connection,
     revoked: bool,
     cutoff: Option<String>,

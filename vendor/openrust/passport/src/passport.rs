@@ -51,6 +51,7 @@ pub struct Passport {
     key_path: RwLock<Option<PathBuf>>,
     database: Arc<DatabaseManager>,
     client_model: RwLock<ClientModelRegistration>,
+    pub(crate) grant_models: crate::grant_store::GrantModels,
     pub(crate) token_models: Arc<crate::token_store::TokenModels>,
     scopes: RwLock<std::collections::BTreeMap<String, String>>,
     default_scopes: RwLock<String>,
@@ -67,6 +68,7 @@ impl Passport {
         database: Arc<DatabaseManager>,
     ) -> Self {
         Self {
+            grant_models: crate::grant_store::GrantModels::new(database.clone(), config.clone()),
             token_models: Arc::new(crate::token_store::TokenModels::new(
                 database.clone(),
                 config.clone(),
@@ -343,6 +345,18 @@ impl Passport {
             name: std::any::type_name::<M>(),
             factory: client_store::<M>,
         };
+    }
+    pub fn useAuthCodeModel<M: openrust::database::eloquent::Model>(&self) {
+        self.grant_models.use_auth::<M>();
+    }
+    pub fn useDeviceCodeModel<M: openrust::database::eloquent::Model>(&self) {
+        self.grant_models.use_device::<M>();
+    }
+    pub fn authCodeModel(&self) -> &'static str {
+        self.grant_models.auth_name()
+    }
+    pub fn deviceCodeModel(&self) -> &'static str {
+        self.grant_models.device_name()
     }
     pub fn useTokenModel<M: crate::TokenModel>(&self) {
         self.token_models.use_token::<M>();

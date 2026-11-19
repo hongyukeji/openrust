@@ -301,3 +301,47 @@ Enable only an explicitly required integration with `passport.enableImplicitGran
 Approval returns a 302 redirect to the validated callback with `access_token`, `token_type`, `expires_in` and supplied `state` in its fragment. No auth code or refresh token is created. Unknown-scope, login-required, consent-required and denial redirects also use the fragment; invalid clients or untrusted callbacks fail locally. Existing callback query parameters are preserved. Scope finalization removes `*` for Implicit and device authorization; Password, PAT and client credentials retain it. Client scope restrictions still apply.
 
 `implicitGrantEnabled` is application-local. Setting it false also rejects completion of a pending Implicit consent request. The native implementation rechecks the active client and registered redirect before committing a token, and its transaction rolls back on model/listener failure. A consent POST cannot change the stored client, user, scopes or response type. `grant_type=implicit` is never accepted by the token endpoint.
+
+## Overriding default models {#overriding-default-models}
+
+Configure the application’s `Passport` instance before serving requests with `useClientModel::<C>()`, `useTokenModel::<T>()`, `useRefreshTokenModel::<R>()`, `useAuthCodeModel::<A>()` and `useDeviceCodeModel::<D>()`. The corresponding `clientModel`, `tokenModel`, `refreshTokenModel`, `authCodeModel` and `deviceCodeModel` getters return the selected compiled type name. Registrations belong to each application. These methods select real Eloquent models for protocol persistence, resource validation, revocation and `passport:purge`; they do not copy records into the default tables.
+
+Client, access and refresh models implement `ClientModel`, `TokenModel` and `RefreshTokenModel` respectively in addition to `Model`. Auth code and device models implement `Model`. Retain the base model’s casts, primary-key behavior, guarded/hidden attributes and timestamps in your metadata, and supply your own schema. For example, a custom client still hides `secret`; registering a model does not repair its serialization policy. Model observers and save cancellation remain effective, including rollback during authorization and token consumption. Missing tables and storage failures are errors, and can be retried after correcting the setup.
+
+Use typed relationships for custom targets: `client.authCodesFor::<A>()`, `client.tokensFor::<T>()`, `code.clientFor::<C>()`, `token.clientFor::<C>()`, `token.refreshTokenFor::<R>()` and `refresh.accessTokenFor::<T>()`. The default relationship helpers keep their concrete default return types. PAT results use `getTokenFor::<T>()`; factories select a type with `ClientFactory::<C>::new()`.
+
+An explicit model connection takes precedence over `passport.connection`, then the protocol’s parent connection. OAuth writes in one issuance/consumption transaction must share that actual connection; crossing connection identities returns an error and rolls back, even when aliases point to the same database. Use `PASSPORT_CONNECTION` consistently for the OAuth tables. A user provider may independently query a different user store. Register compiled user models through `AuthManager::registerModel` or a custom `UserProvider`, configure the guard’s provider, and preserve the distinction between a model primary key and its authentication identifier. Password provider hooks are described above.
+
+## Overriding routes {#overriding-routes}
+
+Set `passport.path` for a nested OAuth prefix and `passport.middleware` for common middleware. To replace package routes, call `passport.ignoreRoutes()` in application setup before routes load, then register the public controllers yourself. For example, a token-only integration can register:
+
+```rust
+use openrust::{http::Method, routing::{RouteGroup, RoutingError}, support::facades::Route};
+
+pub fn oauth_routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new().prefix("integrations"), |router| {
+        router.r#match(&[Method::POST], "/token",
+            openrust_passport::http::controllers::AccessTokenController::issueToken)?
+            .name("passport.token")
+            .withoutMiddleware("web")
+            .middleware_name("throttle");
+        Ok(())
+    })
+}
+```
+
+This stateless token route accepts independent HTTP clients and returns the ordinary OAuth response and cache headers. Browser consent and device approval routes retain web Session, CSRF, authentication and blocking middleware, along with the package’s named routes. Device grant availability also requires the named `passport.device` route. Ignoring built-in routes does not implicitly install those browser routes or change the resource guard’s provider.
+
+## Using Passport with Sanctum {#sanctum-coexistence}
+
+Enable both `passport` and `sanctum` default Cargo features. Running the two API installers without `--force` preserves existing API routes; add the second guard’s resource routes explicitly and run its published migration. Configure a Passport guard such as `api` with its user provider and use `auth:api`; Sanctum routes use `auth:sanctum`. The default user may implement both packages’ `HasApiTokens`, using fully qualified calls to distinguish the methods:
+
+```rust
+let oauth = openrust_passport::HasApiTokens::createToken(&user, "OAuth", &[]).await?;
+let personal = openrust::sanctum::HasApiTokens::createToken(
+    &user, &sanctum, &database, "Sanctum", &["read"], None,
+).await?;
+```
+
+Register the user for Sanctum with `AuthManager::registerSanctumModel` as well as the normal user provider. OAuth JWTs and Sanctum personal Bearer tokens use separate stores and guards, and are not interchangeable. Revoking one credential leaves the other package’s credential valid. Configure browser Session authentication separately. The request-local `actingAs` and `actingAsClient` helpers in the Testing section remain explicit substitutes within the selected request/guard; they do not install clients or create durable database tokens.

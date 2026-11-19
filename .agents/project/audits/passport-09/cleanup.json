@@ -1,0 +1,14 @@
+{
+  "removed": [
+    "source",
+    "target",
+    "generated",
+    "generated-target"
+  ],
+  "logical_bytes": 10963207827,
+  "df_before_kib": 54699756,
+  "df_after_kib": 64935340,
+  "df_delta_bytes": 10481238016,
+  "volumes_before": [],
+  "volumes_after": []
+}

@@ -1,0 +1,22 @@
+{
+  "baseline": "221cc174eab56fa7e4680372e5fe15dc88b53ee8",
+  "sha256": {
+    "vendor/openrust/passport/src/grant_store.rs": "8e8001b428454b779b4fccdb5aefe987e27170e91208a3847b0583b65fa1b920",
+    "vendor/openrust/passport/src/lib.rs": "3e72c0e271275f07da66bd029343fd271d80069f10b6a7b184ab4f01827a52be",
+    "vendor/openrust/passport/src/passport.rs": "bc16670e1d935832540be1b2f42e5d05bafebf2e08e12a5ff04ac1396dc7285e",
+    "vendor/openrust/passport/src/token_store.rs": "f45a80981ab0f8b262bd81551a8ead78ce4caa10c2ab0f18f99aa02f75bd2cc3",
+    "vendor/openrust/passport/src/console/commands/purge_command.rs": "4404a80a2388c22297ef8ce685dab42cc64dbc6b0f07a8d6dbd6382a83f3232c",
+    "vendor/openrust/passport/src/authorization_server.rs": "f00bdde53a95d6c82182ce7c21a22fa0e4d460513fc704b17dd19e20a0c7273f",
+    "vendor/openrust/passport/src/device_authorization.rs": "add27bd3fd405e1206c6f0a11db1ec6699d6b1fbd2a43e5ab62c8b2963c379f6",
+    "vendor/openrust/passport/src/http/device_controllers.rs": "579e8cdd12143a85e484bdd9c97e102bd15c55aa1bce6148aa8397846c0ce928",
+    "vendor/openrust/passport/tests/authorization_code.rs": "dbdd22fcd300983249e0fe2ae72e8624e66eb04affeccd5bde3fd4bcdb7d7b08",
+    "vendor/openrust/passport/tests/customization/mod.rs": "f8efbbdb8695f23e04af89434a7c95b299ef40110eab27a4d07589c62f5e7eae",
+    "vendor/openrust/passport/tests/device_authorization/mod.rs": "17b974d19845dbda45cb3d0ddbea3dc950cb923c1f9dcaab884a46015ecb0175",
+    "tests/passport_install.rs": "0905201f48aa461a299b9d25e5db314394504c704aa984ef8c2aaab1c60e9b2a",
+    "vendor/openrust/passport/src/client.rs": "38672ef3718e09ecb747678eff899f3c299ae6cc7deaa749c6e393cdceacdcd8",
+    "docs/en/packages/passport.md": "5144c10342eece4ba7d14e9c0d5b0234cfec2d55bdecf9171a2abf3a9b39bd69",
+    "docs/zh_CN/packages/passport.md": "9456f2a7bd7b743daf4d8e5c26d181857a3855957a1697958e6264f18add53a4",
+    "docs/zh_TW/packages/passport.md": "98d7b311805aa39756c1fd5fc380958d2aa5870a72df1fd7e1307fccf229a20e",
+    "docs/tests/check_passport_authcode.mjs": "c8a32ab84f543e9c46f5fe7eda44839dab37674155b4dad698ad2df0dd83d8e9"
+  }
+}
