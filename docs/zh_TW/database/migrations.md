@@ -33,6 +33,8 @@ OpenRust 在建置時自動探索 `database/migrations/` 中的 Rust 遷移。�
 
 在 `up` 執行遷移，在 `down` 撤銷。透過傳入的 `MigrationContext` 執行 Schema 和 SQL 操作，預演時遷移器才能收集陳述式。實作 `getConnection` 可指定遷移連線，實作 `shouldRun` 可依條件跳過遷移。
 
+`getConnection` 接收所屬應用程式的設定儲存庫，回傳 `DatabaseResult<Option<String>>`。回傳的連線名稱擁有獨立所有權，可依執行設定查詢，不需要 PHP 全域狀態，也不會在應用程式間混用。回傳 `Ok(None)` 時使用命令選擇的連線。Passport 發布遷移透過此契約讀取 `passport.connection`。
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult,

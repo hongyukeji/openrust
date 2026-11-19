@@ -33,6 +33,8 @@ OpenRust 在构建时自动发现 `database/migrations/` 中的 Rust 迁移。�
 
 在 `up` 中执行迁移，在 `down` 中撤销。通过传入的 `MigrationContext` 执行 Schema 和 SQL 操作，预演时迁移器才能收集语句。实现 `getConnection` 可指定迁移连接，实现 `shouldRun` 可按条件跳过迁移。
 
+`getConnection` 接收所属应用的配置仓储，返回 `DatabaseResult<Option<String>>`。返回连接名拥有独立所有权，可按运行配置查询，无需 PHP 全局状态，也不会在应用间串用。返回 `Ok(None)` 时使用命令选择的连接。Passport 发布迁移用此契约读取 `passport.connection`。
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult,

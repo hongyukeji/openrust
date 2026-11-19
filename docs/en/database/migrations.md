@@ -33,6 +33,8 @@ The default file is `database/schema/<connection>-schema.sql`. Use `--database` 
 
 Implement `up` to apply a migration and `down` to reverse it. Use the supplied `MigrationContext` for schema changes and SQL so the migrator can collect the statements in pretend mode. Implement `getConnection` to select a different connection for the migration, or `shouldRun` to conditionally skip it.
 
+`getConnection` receives the owning configuration repository and returns `DatabaseResult<Option<String>>`. The returned name is owned, allowing runtime configuration lookup without PHP globals or cross-application state. Return `Ok(None)` to use the command-selected connection. Passport's publishable migrations use this contract for `passport.connection`.
+
 ```rust
 use openrust::database::{
     DatabaseFuture, DatabaseResult,

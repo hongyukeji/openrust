@@ -67,6 +67,10 @@ impl DatabaseManager {
         self
     }
 
+    pub(super) fn configuration(&self) -> &dyn Repository {
+        self.config.as_ref()
+    }
+
     pub(super) fn with_test_services(
         mut self,
         owners: Option<Arc<MySqlTestOwners>>,

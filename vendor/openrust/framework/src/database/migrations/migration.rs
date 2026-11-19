@@ -3,8 +3,12 @@ use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, V
 /// A compiled migration registered with the application.
 #[allow(non_snake_case, reason = "Matches Laravel's Migration API")]
 pub trait Migration: Send + Sync {
-    fn getConnection(&self) -> Option<&str> {
-        None
+    /// Resolves a potentially configuration-derived name from the owning application.
+    fn getConnection(
+        &self,
+        _config: &dyn crate::contracts::config::Repository,
+    ) -> DatabaseResult<Option<String>> {
+        Ok(None)
     }
 
     /// Allows the migrator to run the whole migration in a schema transaction.

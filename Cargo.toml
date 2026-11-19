@@ -10,7 +10,7 @@ readme = "README.md"
 publish = false
 
 [workspace]
-members = ["vendor/openrust/framework", "vendor/openrust/reverb", "vendor/openrust/package-discovery", "vendor/openrust/pail"]
+members = ["vendor/openrust/framework", "vendor/openrust/reverb", "vendor/openrust/package-discovery", "vendor/openrust/pail", "vendor/openrust/passport"]
 exclude = ["vendor/sqlx-mysql"]
 default-members = ["."]
 resolver = "3"
@@ -28,6 +28,7 @@ standalone = []
 sanctum = ["openrust/sanctum"]
 reverb = ["dep:openrust-reverb"]
 pail = ["dep:openrust-pail"]
+passport = ["dep:openrust-passport"]
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
@@ -35,6 +36,7 @@ clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "vendor/openrust/framework" }
 openrust-reverb = { path = "vendor/openrust/reverb", optional = true }
 openrust-pail = { path = "vendor/openrust/pail", optional = true }
+openrust-passport = { path = "vendor/openrust/passport", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }

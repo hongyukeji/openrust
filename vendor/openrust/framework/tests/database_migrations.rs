@@ -723,7 +723,13 @@ async fn mysql_artisan_dispatches_migration_and_schema_lifecycle_events() {
                     }
                     MigrationStarted::NAME => {
                         let e = event.downcast_ref::<MigrationStarted>().unwrap();
-                        assert!(e.migration.getConnection().is_none());
+                        let config = <openrust::support::facades::Config as openrust::support::facades::Facade>::getFacadeRoot().unwrap();
+                        assert!(
+                            e.migration
+                                .getConnection(config.as_ref())
+                                .unwrap()
+                                .is_none()
+                        );
                         format!("start:{:?}:{}", e.method, e.name)
                     }
                     MigrationEnded::NAME => {

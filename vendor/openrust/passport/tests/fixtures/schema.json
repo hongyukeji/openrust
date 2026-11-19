@@ -1,0 +1,41 @@
+{
+    "passport": "f5f5e9f64559dd52339daa0d6102cb1c30e4a0d7",
+    "php": "8.4.14",
+    "illuminate": {
+        "illuminate/bus": "v13.40.0",
+        "illuminate/collections": "v13.40.0",
+        "illuminate/conditionable": "v13.40.0",
+        "illuminate/container": "v13.40.0",
+        "illuminate/contracts": "v13.40.0",
+        "illuminate/database": "v13.40.0",
+        "illuminate/events": "v13.40.0",
+        "illuminate/macroable": "v13.40.0",
+        "illuminate/pipeline": "v13.40.0",
+        "illuminate/reflection": "v13.40.0",
+        "illuminate/support": "v13.40.0"
+    },
+    "migrations": {
+        "2016_06_01_000001_create_oauth_auth_codes_table": [
+            "create table `oauth_auth_codes` (`id` char(80) not null, `user_id` bigint unsigned not null, `client_id` char(36) not null, `scopes` text null, `revoked` tinyint(1) not null, `expires_at` datetime null, primary key (`id`)) default character set utf8mb4 collate 'utf8mb4_unicode_ci'",
+            "alter table `oauth_auth_codes` add index `oauth_auth_codes_user_id_index`(`user_id`)"
+        ],
+        "2016_06_01_000002_create_oauth_access_tokens_table": [
+            "create table `oauth_access_tokens` (`id` char(80) not null, `user_id` bigint unsigned null, `client_id` char(36) not null, `name` varchar(255) null, `scopes` text null, `revoked` tinyint(1) not null, `created_at` timestamp null, `updated_at` timestamp null, `expires_at` datetime null, primary key (`id`)) default character set utf8mb4 collate 'utf8mb4_unicode_ci'",
+            "alter table `oauth_access_tokens` add index `oauth_access_tokens_user_id_index`(`user_id`)"
+        ],
+        "2016_06_01_000003_create_oauth_refresh_tokens_table": [
+            "create table `oauth_refresh_tokens` (`id` char(80) not null, `access_token_id` char(80) not null, `revoked` tinyint(1) not null, `expires_at` datetime null, primary key (`id`)) default character set utf8mb4 collate 'utf8mb4_unicode_ci'",
+            "alter table `oauth_refresh_tokens` add index `oauth_refresh_tokens_access_token_id_index`(`access_token_id`)"
+        ],
+        "2016_06_01_000004_create_oauth_clients_table": [
+            "create table `oauth_clients` (`id` char(36) not null, `owner_type` varchar(255) null, `owner_id` bigint unsigned null, `name` varchar(255) not null, `secret` varchar(255) null, `provider` varchar(255) null, `redirect_uris` text not null, `grant_types` text not null, `revoked` tinyint(1) not null, `created_at` timestamp null, `updated_at` timestamp null, primary key (`id`)) default character set utf8mb4 collate 'utf8mb4_unicode_ci'",
+            "alter table `oauth_clients` add index `oauth_clients_owner_type_owner_id_index`(`owner_type`, `owner_id`)"
+        ],
+        "2024_06_01_000001_create_oauth_device_codes_table": [
+            "create table `oauth_device_codes` (`id` char(80) not null, `user_id` bigint unsigned null, `client_id` char(36) not null, `user_code` char(8) not null, `scopes` text not null, `revoked` tinyint(1) not null, `user_approved_at` datetime null, `last_polled_at` datetime null, `expires_at` datetime null, primary key (`id`)) default character set utf8mb4 collate 'utf8mb4_unicode_ci'",
+            "alter table `oauth_device_codes` add index `oauth_device_codes_user_id_index`(`user_id`)",
+            "alter table `oauth_device_codes` add index `oauth_device_codes_client_id_index`(`client_id`)",
+            "alter table `oauth_device_codes` add unique `oauth_device_codes_user_code_unique`(`user_code`)"
+        ]
+    }
+}

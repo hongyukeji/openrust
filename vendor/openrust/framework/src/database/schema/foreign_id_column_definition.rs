@@ -37,6 +37,12 @@ impl<'a> ForeignIdColumnDefinition<'a> {
         self
     }
 
+    /// Adds the ordinary column index without creating a foreign-key constraint.
+    pub fn index(mut self) -> Self {
+        self.column().index();
+        self
+    }
+
     pub fn default(mut self, value: impl Into<DefaultValue>) -> Self {
         self.column().default(value);
         self

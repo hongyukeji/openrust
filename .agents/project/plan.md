@@ -175,11 +175,11 @@ Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在�
 
 ### Passport／OAuth2
 
-以下单元全部是第一代计划范围，当前尚未实现／验收；每行分别闭合源码、真实入口、测试、三语正文与记录后才本地提交。建议独立包沿用 `vendor/openrust/passport/`，对外名称先按固定公开契约核定。
+以下单元全部是第一代计划范围。Passport-01 已按[单元记录](audits/passport-01/README.md)完成实现及验收，其余待依次闭合；每行分别闭合源码、真实入口、测试、三语正文与记录后才本地提交。独立包使用 `vendor/openrust/passport/`，公开接口按固定契约核定。
 
 | 单元 | 前置依赖 | 固定章节与正式交付边界 | 必要实际验收 |
 | --- | --- | --- | --- |
-| <a id="unit-passport-01"></a>Passport-01 装配、密钥与迁移 | 02-06、03-04、05-08、07-07 | installation／deploying-passport／configuration；Provider、配置、RSA 密钥加载／生成／覆写、五张 OAuth 表、连接和迁移注册；不提前开放占位端点 | MySQL 8.4 实际 migrate／rollback／重建及双应用连接隔离；真实 Artisan 密钥权限、已存在及失败路径，敏感值不进输出 |
+| <a id="unit-passport-01"></a>Passport-01 装配、密钥与迁移 | 02-06、03-04、05-08、07-07 | installation／deploying-passport／configuration；Provider、配置、RSA 密钥加载／生成／覆写、五张 OAuth 表、连接、迁移发布与应用编译注册（包不自动执行）；不提前开放占位端点 | MySQL 8.4 实际 migrate／rollback／重建及双应用连接隔离；真实 Artisan 密钥权限、已存在及失败路径，敏感值不进输出 |
 | <a id="unit-passport-02"></a>Passport-02 客户端与仓储 | Passport-01 | managing-clients；Client、ClientRepository、公开／机密客户端、UUID、重定向 URI、哈希秘密、CRUD／撤销、passport:client 选项 | 实际 Artisan 创建各客户端；HTTP 管理和真实 MySQL 保存／重读／撤销；错误 UUID、错误秘密、跨用户和双应用拒绝 |
 | <a id="unit-passport-03"></a>Passport-03 授权码与 PKCE | Passport-02、04-04、05-08；启用 Fortify 动作时接 API-F01 | authorization-code-grant／code-grant-pkce；授权／同意／拒绝、state、重定向校验、公开客户端 PKCE、一次性授权码；保持 Session／CSRF 与认证职责 | 两个真实 HTTP 客户端完成授权→换令牌；MySQL 并发兑换只成功一次；拒绝、篡改重定向、缺失／错误 verifier、重放、过期、失效客户端 |
 | <a id="unit-passport-04"></a>Passport-04 令牌生命周期与资源 Guard | Passport-03 | requesting-tokens／refreshing-tokens／revoking-tokens／purging-tokens／protecting-routes；访问／刷新令牌期限、轮换、撤销、清理、签名和 TokenGuard | 实际 HTTP token／受保护资源、MySQL 刷新竞争和旧凭据拒绝；撤销／过期、用户失效、连接故障、错误格式；Artisan purge 保留仍关联有效刷新令牌的记录 |
@@ -206,6 +206,6 @@ Passport 是 OAuth2 授权服务器，不自动提供 OIDC ID Token／Discovery�
 
 ### 推进顺序和发布约束
 
-当前 Blade 预处理已在 `976b0f908` 通过并本地提交。下一代码单元进入依赖已满足的 Passport-01，接 Passport-02；API-F01 可复用现有认证基础，先完成授权页面所需动作，再推进 Passport-03／04／05／06／07／08／09。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
+当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，下一代码单元 Passport-02；API-F01 可复用现有认证基础，先完成授权页面所需动作，再推进 Passport-03／04／05／06／07／08／09。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
 
 每批保持 MySQL 8.4 日常规则，新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。
