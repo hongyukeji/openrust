@@ -1,0 +1,65 @@
+[
+    {
+        "action": "register",
+        "input": {
+            "name": "Tester",
+            "email": "A@EXAMPLE.TEST",
+            "password": "good:secret",
+            "password_confirmation": "good:secret",
+            "remember": true
+        },
+        "status": 201,
+        "email": "a@example.test",
+        "password": "good:secret",
+        "tokens": 0,
+        "events": [
+            "Registered",
+            "Login"
+        ],
+        "regenerations": 1
+    },
+    {
+        "action": "profile",
+        "input": {
+            "name": "Changed",
+            "email": "CHANGED@EXAMPLE.TEST"
+        },
+        "status": 200,
+        "email": "changed@example.test",
+        "password": "good:secret",
+        "tokens": 0,
+        "events": [],
+        "regenerations": 1
+    },
+    {
+        "action": "password",
+        "input": {
+            "current_password": "good:secret",
+            "password": "updated:secret",
+            "password_confirmation": "updated:secret"
+        },
+        "status": 200,
+        "email": "changed@example.test",
+        "password": "updated:secret",
+        "tokens": 0,
+        "events": [
+            "PasswordUpdatedViaController"
+        ],
+        "regenerations": 1
+    },
+    {
+        "action": "password",
+        "fail": true,
+        "input": {
+            "current_password": "updated:secret",
+            "password": "next:secret",
+            "password_confirmation": "next:secret"
+        },
+        "status": 500,
+        "email": "changed@example.test",
+        "password": "next:secret",
+        "tokens": 1,
+        "events": [],
+        "regenerations": 1
+    }
+]

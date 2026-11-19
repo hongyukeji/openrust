@@ -28,6 +28,10 @@ responses!(
     LockoutResponse,
     LoginViewResponse,
     ConfirmPasswordViewResponse,
+    RegisterResponse,
+    RegisterViewResponse,
+    ProfileInformationUpdatedResponse,
+    PasswordUpdateResponse,
     TwoFactorLoginResponse,
     FailedTwoFactorLoginResponse,
     TwoFactorEnabledResponse,
@@ -43,4 +47,41 @@ pub trait RedirectsIfTwoFactorAuthenticatable: Send + Sync {
         &'a self,
         request: &'a mut openrust::http::Request,
     ) -> HttpFuture<'a, Result<Option<openrust::http::Response>, openrust::http::HttpError>>;
+}
+
+/// Owned action result that can also provide immutable authentication event snapshots.
+#[allow(
+    non_snake_case,
+    reason = "Matches the user naming used by Fortify actions"
+)]
+pub trait User: openrust::contracts::auth::Authenticatable {
+    fn cloneUser(&self) -> Box<dyn openrust::contracts::auth::Authenticatable>;
+}
+impl<T: openrust::contracts::auth::Authenticatable + Clone> User for T {
+    fn cloneUser(&self) -> Box<dyn openrust::contracts::auth::Authenticatable> {
+        Box::new(self.clone())
+    }
+}
+/// Application action responsible for validating input and persisting a new account.
+pub trait CreatesNewUsers: Send + Sync {
+    fn create<'a>(
+        &'a self,
+        input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
+}
+/// Application action responsible for validating and persisting profile changes.
+pub trait UpdatesUserProfileInformation: Send + Sync {
+    fn update<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
+}
+/// Application action responsible for validating and persisting a password change.
+pub trait UpdatesUserPasswords: Send + Sync {
+    fn update<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
 }

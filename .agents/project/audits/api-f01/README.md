@@ -51,3 +51,5 @@ CARGO_INCREMENTAL=0 cargo +1.94.0 test --locked -p openrust-fortify --tests
 ## 首批收尾
 
 14 份源码／测试／许可及 Cargo 输入与验收快照逐字节一致。已确认专属 target 无在用 Cargo／rustc／main 后直接清理，df 实际增加 4.973 GB，剩余 Available 61.354 GB（57.141 GiB）；全部 Docker 数据卷及共享 PHP 镜像／缓存保留，临时 MySQL 标签容器已回收。详见 [cleanup-foundation.json](cleanup-foundation.json)。源码、归档、SHA 与日志保留。
+
+- [注册与账户更新](accounts.md)：正式路由、可替换动作和响应、原生账户／命名密码仓库，四步固定 PHP 与 MySQL HTTP 验收。

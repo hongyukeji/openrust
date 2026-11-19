@@ -1,0 +1,19 @@
+{
+  "target": "/private/tmp/openrust-fortify-accounts-20261120/target",
+  "target_kib": 6269120,
+  "available_before_kib": 56305108,
+  "available_after_kib": 62291268,
+  "observed_released_bytes": 6129827840,
+  "remaining_gb": 63.786258432,
+  "remaining_gib": 59.405582427978516,
+  "volumes_before": [],
+  "volumes_after": [],
+  "active_target_processes": [],
+  "retained": [
+    "source",
+    "evidence",
+    "shared cache",
+    "images",
+    "all database volumes"
+  ]
+}

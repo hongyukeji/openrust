@@ -28,3 +28,7 @@ pub use two_factor_management::{
     ConfirmedTwoFactorAuthenticationController, RecoveryCodeController,
     TwoFactorAuthenticationController, TwoFactorQrCodeController, TwoFactorSecretKeyController,
 };
+mod registered_user_controller;
+pub use registered_user_controller::RegisteredUserController;
+mod user_updates;
+pub use user_updates::{PasswordController, ProfileInformationController};

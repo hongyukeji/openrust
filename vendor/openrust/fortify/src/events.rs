@@ -45,3 +45,13 @@ impl std::fmt::Debug for RecoveryCodeReplaced {
             .finish()
     }
 }
+
+/// Snapshot of the updated account after reset-token deletion has completed.
+pub struct PasswordUpdatedViaController {
+    pub user: std::sync::Arc<dyn Authenticatable>,
+}
+impl Event for PasswordUpdatedViaController {
+    fn name(&self) -> &str {
+        "OpenRust\\Fortify\\Events\\PasswordUpdatedViaController"
+    }
+}

@@ -114,6 +114,58 @@ pub(crate) fn register() -> Result<(), RoutingError> {
             .name("password.confirm.store");
         let features = crate::Features::new(fortify.config.clone());
         if features
+            .enabled(crate::Features::registration())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            if views {
+                router
+                    .r#match(
+                        &[Method::GET],
+                        &path("register", "/register"),
+                        ControllerDispatcher::new(RegisteredUserController::create),
+                    )?
+                    .middleware_name(guest.clone())
+                    .name("register");
+            }
+            router
+                .r#match(
+                    &[Method::POST],
+                    &path("register", "/register"),
+                    ControllerDispatcher::new(RegisteredUserController::store),
+                )?
+                .middleware_name(guest.clone())
+                .name("register.store");
+        }
+        if features
+            .enabled(crate::Features::updateProfileInformation())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            router
+                .r#match(
+                    &[Method::PUT],
+                    &path(
+                        "user-profile-information.update",
+                        "/user/profile-information",
+                    ),
+                    ControllerDispatcher::new(ProfileInformationController::update),
+                )?
+                .middleware_name(auth.clone())
+                .name("user-profile-information.update");
+        }
+        if features
+            .enabled(crate::Features::updatePasswords())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            router
+                .r#match(
+                    &[Method::PUT],
+                    &path("user-password.update", "/user/password"),
+                    ControllerDispatcher::new(PasswordController::update),
+                )?
+                .middleware_name(auth.clone())
+                .name("user-password.update");
+        }
+        if features
             .enabled(crate::Features::twoFactorAuthentication())
             .map_err(|_| RoutingError::InvalidAction)?
         {

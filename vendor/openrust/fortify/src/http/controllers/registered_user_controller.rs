@@ -1,0 +1,60 @@
+use crate::{
+    Fortify, contracts,
+    resolver::{Resolver, internal},
+};
+use openrust::{
+    auth::{Auth, events::Registered},
+    contracts::{auth::StatefulGuard as _, session::Session as _},
+    http::{HttpError, HttpFuture, Request, Response},
+    support::facades::Facade as _,
+};
+use std::sync::Arc;
+pub struct RegisteredUserController;
+impl RegisteredUserController {
+    pub fn create<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(super::respond::<dyn contracts::RegisterViewResponse>(
+            request,
+        ))
+    }
+    pub fn store<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            super::user_updates::canonicalize(request, &fortify).await?;
+            let input = request.all().await?;
+            let creator = fortify
+                .creator
+                .read()
+                .expect("Fortify actions lock")
+                .clone();
+            let creator = match creator {
+                Some(creator) => creator,
+                None => {
+                    Resolver::<dyn contracts::CreatesNewUsers>::getFacadeRoot().map_err(internal)?
+                }
+            };
+            let user = creator.create(&input).await?;
+            let snapshot: Arc<dyn openrust::contracts::auth::Authenticatable> =
+                user.cloneUser().into();
+            crate::actions::emit(Registered { user: snapshot }, &[]).await?;
+            let remember = request.boolean("remember", false, false).await?;
+            Auth::sessionGuard(request, fortify.guard().as_deref())?
+                .login(user, remember)
+                .await?;
+            if request.hasSession() {
+                request
+                    .session_mut()
+                    .map_err(internal)?
+                    .regenerate(false)
+                    .await
+                    .map_err(internal)?;
+            }
+            super::respond::<dyn contracts::RegisterResponse>(request).await
+        })
+    }
+}

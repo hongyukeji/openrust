@@ -125,6 +125,17 @@ impl ServiceProvider for FortifyServiceProvider {
             })?;
             container
                 .singleton::<RecoveryCodeController, _>(|_| Ok(Arc::new(RecoveryCodeController)))?;
+            container.singleton::<RegisteredUserController, _>(|_| {
+                Ok(Arc::new(RegisteredUserController))
+            })?;
+            container.singleton::<ProfileInformationController, _>(|_| {
+                Ok(Arc::new(ProfileInformationController))
+            })?;
+            container.singleton::<PasswordController, _>(|_| Ok(Arc::new(PasswordController)))?;
+            response!(RegisterResponse);
+            response!(RegisterViewResponse);
+            response!(ProfileInformationUpdatedResponse);
+            response!(PasswordUpdateResponse);
             response!(TwoFactorLoginResponse);
             response!(FailedTwoFactorLoginResponse);
             response!(TwoFactorEnabledResponse);
@@ -150,11 +161,8 @@ impl ServiceProvider for FortifyServiceProvider {
             }
             let features = Features::new(fortify.config.clone());
             for feature in [
-                Features::registration(),
                 Features::resetPasswords(),
                 Features::emailVerification(),
-                Features::updateProfileInformation(),
-                Features::updatePasswords(),
                 Features::passkeys(),
             ] {
                 if features.enabled(feature)? {

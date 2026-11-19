@@ -37,6 +37,11 @@ pub struct Fortify {
         >,
     >,
     two_factor_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
+    pub(crate) creator: RwLock<Option<Arc<dyn crate::contracts::CreatesNewUsers>>>,
+    pub(crate) profile_updater:
+        RwLock<Option<Arc<dyn crate::contracts::UpdatesUserProfileInformation>>>,
+    pub(crate) password_updater: RwLock<Option<Arc<dyn crate::contracts::UpdatesUserPasswords>>>,
+    register_view: RwLock<Option<Arc<crate::http::responses::SimpleViewResponse>>>,
     registers_routes: AtomicBool,
 }
 #[allow(
@@ -44,6 +49,8 @@ pub struct Fortify {
     reason = "Matches Fortify's application configuration API"
 )]
 impl Fortify {
+    pub const PROFILE_INFORMATION_UPDATED: &str = "profile-information-updated";
+    pub const PASSWORD_UPDATED: &str = "password-updated";
     pub const RECOVERY_CODES_GENERATED: &str = "recovery-codes-generated";
     pub const TWO_FACTOR_AUTHENTICATION_CONFIRMED: &str = "two-factor-authentication-confirmed";
     pub const TWO_FACTOR_AUTHENTICATION_DISABLED: &str = "two-factor-authentication-disabled";
@@ -61,6 +68,10 @@ impl Fortify {
             recovery_code_generator: RwLock::new(None),
             two_factor_models: RwLock::new(Default::default()),
             two_factor_view: RwLock::new(None),
+            creator: RwLock::new(None),
+            profile_updater: RwLock::new(None),
+            password_updater: RwLock::new(None),
+            register_view: RwLock::new(None),
             registers_routes: AtomicBool::new(true),
         }
     }
@@ -87,6 +98,30 @@ impl Fortify {
         &self,
     ) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
         self.two_factor_view
+            .read()
+            .expect("Fortify views lock")
+            .clone()
+    }
+    pub fn createUsersUsing(&self, creator: Arc<dyn crate::contracts::CreatesNewUsers>) {
+        *self.creator.write().expect("Fortify actions lock") = Some(creator);
+    }
+    pub fn updateUserProfileInformationUsing(
+        &self,
+        updater: Arc<dyn crate::contracts::UpdatesUserProfileInformation>,
+    ) {
+        *self.profile_updater.write().expect("Fortify actions lock") = Some(updater);
+    }
+    pub fn updateUserPasswordsUsing(
+        &self,
+        updater: Arc<dyn crate::contracts::UpdatesUserPasswords>,
+    ) {
+        *self.password_updater.write().expect("Fortify actions lock") = Some(updater);
+    }
+    pub fn registerView(&self, view: impl Into<crate::http::responses::SimpleViewResponse>) {
+        *self.register_view.write().expect("Fortify views lock") = Some(Arc::new(view.into()));
+    }
+    pub(crate) fn register_view(&self) -> Option<Arc<crate::http::responses::SimpleViewResponse>> {
+        self.register_view
             .read()
             .expect("Fortify views lock")
             .clone()

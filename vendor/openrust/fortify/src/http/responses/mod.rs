@@ -309,3 +309,49 @@ impl contracts::Response for TwoFactorChallengeViewResponse {
         })
     }
 }
+
+pub struct RegisterResponse;
+impl contracts::RegisterResponse for RegisterResponse {}
+impl contracts::Response for RegisterResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.wantsJson() {
+                return Response::json(StatusCode::CREATED, "");
+            }
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            Ok(Redirect::intended(
+                request,
+                &fortify.redirects("register", None),
+                Default::default(),
+            )?
+            .into())
+        })
+    }
+}
+management_response!(
+    ProfileInformationUpdatedResponse,
+    Fortify::PROFILE_INFORMATION_UPDATED
+);
+management_response!(PasswordUpdateResponse, Fortify::PASSWORD_UPDATED);
+pub(crate) struct RegisterViewResponse;
+impl contracts::RegisterViewResponse for RegisterViewResponse {}
+impl contracts::RegisterViewResponse for SimpleViewResponse {}
+impl contracts::Response for RegisterViewResponse {
+    fn toResponse<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let fortify = Resolver::<Fortify>::getFacadeRoot().map_err(internal)?;
+            let view = fortify.register_view().ok_or_else(|| {
+                internal(std::io::Error::other(
+                    "Fortify register view has not been configured",
+                ))
+            })?;
+            contracts::Response::toResponse(view.as_ref(), request).await
+        })
+    }
+}

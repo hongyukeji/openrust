@@ -3725,3 +3725,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 
 
 2026-11-20 Passport-08 [API安装与生成应用](audits/passport-08/README.md)实现及本机验收完成：install:api --passport／passport:install、真实重建、默认模型／Guard／路由、配置／密钥／五迁移、失败传播与重试已提供。Rust1.94、MySQL8.4.13，123个不同函数、干净生成应用默认／多级前缀PAT／机器边界／撤销及真实PTY通过；strict workspace／all-targets Clippy／fmt、根HTTP／原始Artisan、三语23章节与12＋6浏览器通过。9份输入与隔离141ed4aef一致，保留同期Fortify等改动；无新PHPoracle，Windows嵌套重建分支未实机验证。专属产物清理见记录，源码包／日志／共享缓存和全部卷保留。核范围本地提交，不推送；V06继续Passport-09。
+
+## API-F01 注册与账户更新
+
+2026-11-20 API-F01 [注册与账户更新](audits/api-f01/accounts.md)已实现并验收：正式注册／资料／密码路由、应用动作契约、原生 Eloquent／Session／remember、命名 broker 删除及成功事件顺序；新增 4 个真实 TCP／MySQL 8.4.13 函数，固定原 PHP 四步对照、重复一致及源码负样本拒绝。整包 Fortify 39 个不同函数、原生 12 项回归、Rust 1.94 严格 Clippy／格式与根 HTTP／Pail／Artisan 全过。61 份输入 SHA 与 190ae291 独立快照一致，同期 Passport 改动保留。专属 target 已清理，保留源码证据与全部数据卷；本地提交，不推送。动作对象优先于容器回退及 Registered Clone 快照的所有权适配已记录；应用默认动作／验证器规则不冒称已实现。继续密码重置、邮件验证、安装与三语整体验收。
