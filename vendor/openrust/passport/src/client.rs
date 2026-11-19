@@ -237,6 +237,10 @@ pub(crate) fn configured_connection(
 }
 #[allow(non_snake_case)]
 impl Client {
+    /// Builds the package factory using this application’s Passport connection.
+    pub fn factory() -> DatabaseResult<crate::database::factories::ClientFactory> {
+        crate::database::factories::ClientFactory::new()
+    }
     fn remember_secret(
         &mut self,
         plain: Option<Option<Zeroizing<String>>>,

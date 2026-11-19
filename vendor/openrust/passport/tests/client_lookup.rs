@@ -364,6 +364,8 @@ fn routes(_: &Application) -> Result<openrust::routing::Router, openrust::routin
     routes.get("/lookup/{id}", lookup)?;
     routes.get("/model-connections", model_connections)?;
     routes.get("/scope-oracle", scope_oracle)?;
+    routes.get("/factory-states", factory_states)?;
+    routes.get("/factory-create", factory_create)?;
     Ok(routes)
 }
 fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -1221,4 +1223,194 @@ async fn inherited_scope_php_oracle_runs_over_http_and_remains_application_local
     }
     assert!(!first_passport.withInheritedScopes.load(Ordering::Relaxed));
     assert!(second_passport.withInheritedScopes.load(Ordering::Relaxed));
+}
+
+fn factory_states(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust_passport::database::factories::ClientFactory;
+        let factory = Client::factory().unwrap();
+        assert_eq!(factory.getConnectionName(), Some("oauth"));
+        assert_eq!(factory.modelName(), std::any::type_name::<Client>());
+        let raw = factory.raw().await.unwrap();
+        assert_eq!(raw["owner_id"], Value::Null);
+        assert_eq!(raw["owner_type"], Value::Null);
+        assert_eq!(raw["revoked"], false.into());
+        let Value::Text(secret) = &raw["secret"] else {
+            panic!("secret")
+        };
+        assert_eq!(secret.len(), 40);
+        let Value::Text(name) = &raw["name"] else {
+            panic!("name")
+        };
+        assert!(!name.is_empty());
+        for (factory, grants, empty, public) in [
+            (
+                Client::factory().unwrap(),
+                json!(["authorization_code", "refresh_token"]),
+                false,
+                false,
+            ),
+            (
+                Client::factory().unwrap().asPublic(),
+                json!(["authorization_code", "refresh_token"]),
+                false,
+                true,
+            ),
+            (
+                Client::factory().unwrap().asPasswordClient(),
+                json!(["password", "refresh_token"]),
+                true,
+                false,
+            ),
+            (
+                Client::factory().unwrap().asPersonalAccessTokenClient(),
+                json!(["personal_access"]),
+                true,
+                false,
+            ),
+            (
+                Client::factory().unwrap().asImplicitClient(),
+                json!(["implicit"]),
+                false,
+                true,
+            ),
+            (
+                Client::factory().unwrap().asClientCredentials(),
+                json!(["client_credentials"]),
+                true,
+                false,
+            ),
+            (
+                Client::factory().unwrap().asDeviceCodeClient(),
+                json!([
+                    "urn:ietf:params:oauth:grant-type:device_code",
+                    "refresh_token"
+                ]),
+                true,
+                false,
+            ),
+        ] {
+            let model = factory.make().await.unwrap();
+            assert_eq!(model.grantTypes().unwrap().as_value(), &grants);
+            assert_eq!(model.redirectUris().unwrap().is_empty(), empty);
+            assert_eq!(model.confidential(), !public);
+            assert_eq!(model.plainSecret.is_none(), public);
+            assert!(!model.state().exists());
+            if !public {
+                let plain = model.plainSecret.as_ref().unwrap();
+                assert_eq!(plain.len(), 40);
+                assert_ne!(
+                    model.state().getAttribute("secret"),
+                    Some(&Value::Text(plain.to_string()))
+                );
+            }
+        }
+        let model = Client::factory()
+            .unwrap()
+            .asImplicitClient()
+            .asPasswordClient()
+            .state(|_| Attributes::from([("name".into(), "overridden".into())]))
+            .make()
+            .await
+            .unwrap();
+        assert_eq!(
+            model.getAttributeValue("name").unwrap(),
+            Some("overridden".into())
+        );
+        assert_eq!(
+            model.grantTypes().unwrap().as_value(),
+            &json!(["password", "refresh_token"])
+        );
+        assert!(!model.confidential());
+        let custom = ClientFactory::<CustomClient>::new().unwrap();
+        assert_eq!(custom.modelName(), std::any::type_name::<CustomClient>());
+        assert_eq!(custom.getConnectionName(), Some("main"));
+        openrust::support::facades::Config::set("passport.connection", json!([])).unwrap();
+        assert!(Client::factory().is_err());
+        Response::json(StatusCode::OK, json!({"passed":true}))
+    })
+}
+fn factory_create(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let model = Client::factory()
+            .unwrap()
+            .asClientCredentials()
+            .create()
+            .await
+            .unwrap();
+        let plain = model.plainSecret.as_ref().unwrap();
+        let stored = Client::query()
+            .unwrap()
+            .find(model.getKey().unwrap().clone())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(stored.plainSecret.is_none());
+        let Some(Value::Text(hash)) = stored.getAttributeValue("secret").unwrap() else {
+            panic!("hash")
+        };
+        let hasher = openrust::container::Container::getInstance()
+            .make::<dyn openrust::contracts::hashing::Hasher>()
+            .unwrap();
+        assert!(
+            hasher
+                .check(plain.as_bytes(), &hash, &Default::default())
+                .await
+                .unwrap()
+        );
+        assert_eq!(
+            stored.grantTypes().unwrap().as_value(),
+            &json!(["client_credentials"])
+        );
+        Response::json(StatusCode::OK, json!({"passed":true}))
+    })
+}
+#[tokio::test]
+async fn client_factory_states_keep_model_assignment_and_connection() {
+    let root = Root::new();
+    let app = root.application().await;
+    let (address, server) = serve(app).await;
+    let response = reqwest::get(format!("http://{address}/factory-states"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.json::<serde_json::Value>().await.unwrap(),
+        json!({"passed":true})
+    );
+    server.abort();
+}
+#[tokio::test]
+async fn mysql_client_factory_create_reloads_hash_without_plaintext() {
+    if !mysql_required() {
+        return;
+    }
+    let root = Root::new();
+    let app = root.application().await;
+    migrate(&app).await;
+    let manager = app.make::<DatabaseManager>().await.unwrap();
+    let (address, server) = serve(app).await;
+    let response = reqwest::get(format!("http://{address}/factory-create"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.json::<serde_json::Value>().await.unwrap(),
+        json!({"passed":true})
+    );
+    server.abort();
+    manager
+        .connection(Some("oauth"))
+        .unwrap()
+        .getSchemaBuilder()
+        .dropIfExists("oauth_clients")
+        .await
+        .unwrap();
+    manager
+        .connection(Some("main"))
+        .unwrap()
+        .getSchemaBuilder()
+        .dropIfExists("history")
+        .await
+        .unwrap();
 }

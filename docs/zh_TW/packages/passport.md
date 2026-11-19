@@ -103,3 +103,11 @@ pub async fn create_client(
 `ClientModel::hasScope` 與 `ClientRecord::hasScope` 在未設定 `scopes` 或其原始值為 null 時允許所有 scope；已設定時按陣列內容檢查，成員判斷沿用 PHP 非嚴格比較。預設不開啟父 scope 繼承。若在目前應用上呼叫 `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允許 `orders:read` 等後代。`*` 在這裡是一般 scope 名稱。開關儲存在各應用自己的實例中，呼叫須位於所屬應用的請求或 Artisan 生命週期。
 
 在應用裝配時、解析儲存庫前呼叫 `passport.useClientModel::<CustomClient>()`。編譯期類型實作 `ClientModel` 和 Eloquent `Model`，保留唯一識別校驗、全域作用域、事件與轉換。格式錯誤的 UUID／ULID 在解析連線前直接未命中。儲存庫查詢與未綁定實例的 `Client::query()`／`save()` 優先使用模型顯式連線，接著是 `passport.connection`，最後是資料庫預設連線。建立和讀出的模型保留實際連線；隨後更改設定也不會把該模型的儲存轉到其他連線。`Client::queryOn(&connection)` 顯式選擇連線。交易寫入檢查模型的有效連線，拒絕不同連線的交易。Rust 的 `resolveConnectionName()` 回傳可擁有的名稱，以讀取應用設定；`getConnection()` 回傳實際連線。完整 Client 模型介面、PHP JSON 編碼選項與浮點轉字串的精確規則仍待驗收。
+
+## 用戶端工廠
+
+`Client::factory()?` 建立 `database::factories::ClientFactory<Client>`。可呼叫 `asPublic`、`asPasswordClient`、`asPersonalAccessTokenClient`、`asImplicitClient`、`asClientCredentials` 或 `asDeviceCodeClient` 套用對應授權狀態。後續狀態覆寫先前屬性。預設產生機密授權碼用戶端，包含隨機 40 字元秘密和一個產生的重新導向 URI；擁有者為空，revoked 為 false。
+
+`make().await?` 回傳未儲存模型，`create().await?` 持久化模型。賦值執行模型的非同步修改器和轉換：新 Client 保留 `plainSecret`，重新讀取資料庫只包含雜湊。`state` 新增應用程式屬性；`intoFactory()` 回傳現有 Eloquent 工廠 Builder，以使用數量、關係與回呼。
+
+Rust 在編譯期選擇工廠模型：自訂 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不動態讀取 `useClientModel`。建構時解析並保存模型的有效連線，包括 `passport.connection`，設定錯誤透過 Result 回傳；修改設定後應新建工廠。協定端點與其餘 Client 關係仍待完成。

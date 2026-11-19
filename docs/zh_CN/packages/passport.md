@@ -103,3 +103,11 @@ pub async fn create_client(
 `ClientModel::hasScope` 和 `ClientRecord::hasScope` 在未设置 `scopes` 或其原始值为 null 时允许所有 scope；已设置时按数组内容检查，成员判断沿用 PHP 非严格比较。默认不开启父 scope 继承。若在当前应用上调用 `passport.withInheritedScopes.store(true, std::sync::atomic::Ordering::Relaxed)`，`orders` 也允许 `orders:read` 等后代。`*` 在这里是普通 scope 名称。开关保存在各应用自己的实例中，调用须位于所属应用的请求或 Artisan 生命周期。
 
 在应用装配时、解析仓储前调用 `passport.useClientModel::<CustomClient>()`。编译期类型实现 `ClientModel` 和 Eloquent `Model`，保留唯一标识校验、全局作用域、事件及转换。格式错误的 UUID／ULID 在解析连接前直接未命中。仓储查询和未绑定实例的 `Client::query()`／`save()` 优先使用模型显式连接，然后是 `passport.connection`，最后是数据库默认连接。创建和读出的模型保留实际连接；随后更改配置也不会把该模型的保存转到其他连接。`Client::queryOn(&connection)` 显式选择连接。事务写入检查模型的有效连接，拒绝不同连接的事务。Rust 的 `resolveConnectionName()` 返回可拥有的名称，以读取应用配置；`getConnection()` 返回实际连接。完整 Client 模型接口、PHP JSON 编码选项及浮点转字符串的精确规则仍待验收。
+
+## 客户端工厂
+
+`Client::factory()?` 创建 `database::factories::ClientFactory<Client>`。可调用 `asPublic`、`asPasswordClient`、`asPersonalAccessTokenClient`、`asImplicitClient`、`asClientCredentials` 或 `asDeviceCodeClient` 应用相应授权状态。后续状态覆盖先前属性。默认生成机密授权码客户端，包含随机 40 字符秘密和一个生成的重定向 URI；所有者为空，revoked 为 false。
+
+`make().await?` 返回未保存模型，`create().await?` 持久化模型。赋值执行模型的异步修改器和转换：新 Client 保留 `plainSecret`，重新读库只包含哈希。`state` 添加应用属性；`intoFactory()` 返回现有 Eloquent 工厂 Builder，以使用数量、关系与回调。
+
+Rust 在编译期选择工厂模型：自定义 `ClientModel` 使用 `ClientFactory::<CustomClient>::new()?`，不动态读取 `useClientModel`。构造时解析并保存模型的有效连接，包括 `passport.connection`，配置错误通过 Result 返回；修改配置后应新建工厂。协议端点与其余 Client 关系仍待完成。

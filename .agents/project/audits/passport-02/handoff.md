@@ -35,3 +35,7 @@
 5. 补固定 PHP oracle：数组／比较、setter 失败顺序、浮点转字符串、Scope JSON options／Unicode／斜杠字节规则，以及完整 HTTP 管理和跨用户拒绝路径。旧版复用源和固定 SHA 见 README。
 
 V06、Passport-02 整单元保持部分验收；Passport-03 仍须等待其前置。核心总控下一步只读复核 V02 ViewData／非有限数和 V03 Blade 边界，随后按依赖闭合；V04 Pail 身份时序与 V05 Windows 原生终端不能遗漏。
+
+## 2026-11-20 接续
+
+原对话已提交连接回退 `7720f142e` 与 scope／明文追加 `6e1ea9f2d`。本对话接续的[编译绑定客户端工厂](client-factory.md)通过上述限定范围验收，详见记录中的语言适配和未验收声明。当前停点仍属 Passport-02：完整关系、UUID 配置、撤销链、客户端命令与其余 PHP 对照，未进入 Passport-03。源码与三语正文逐份核 SHA；保留共享协作者改动。

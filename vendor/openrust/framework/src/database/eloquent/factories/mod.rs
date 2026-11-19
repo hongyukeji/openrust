@@ -1762,19 +1762,9 @@ impl<M: Model> Factory<M> {
         mut model: M,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
-        // Parent keys provide defaults. Factory states and explicit overrides can replace them.
-        let mut raw = model.state().attributes.clone();
-        for (name, value) in attributes {
-            casts::write_async::<M>(
-                &mut raw,
-                name,
-                value,
-                Some(connection),
-                &model.state().casts,
-            )
-            .await?;
-        }
-        model.state_mut().replace_attributes(raw);
+        // Keep model-specific assignment hooks, including temporary attributes.
+        model.state_mut().connection = Some(connection.clone());
+        model.forceFillAsync(attributes).await?;
         Ok(model)
     }
 

@@ -6,6 +6,7 @@ mod client_repository;
 #[path = "../config/passport.rs"]
 mod configuration;
 pub mod console;
+pub mod database;
 mod keys;
 pub mod migrations;
 mod passport;
