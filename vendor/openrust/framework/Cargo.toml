@@ -68,7 +68,7 @@ iri-string = "=0.7.14"
 infer = { version = "0.19.0", default-features = false }
 jixel = { version = "=0.5.10", default-features = false }
 jxl-oxide = { version = "=0.12.6", default-features = false, features = ["image"] }
-lettre = { version = "=0.11.23", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls"] }
+lettre = { version = "=0.11.24", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls"] }
 md-5 = { version = "=0.11.0", default-features = false }
 mime_guess = "2.0.5"
 multer = "3.1.0"

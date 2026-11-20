@@ -157,6 +157,8 @@ Queued mail stores the customizer name and JSON data. The worker application reg
 
 For SMTP, set `MAIL_MAILER=smtp` and configure `MAIL_HOST` and `MAIL_PORT`, or set `MAIL_URL`. The URL overrides the connection fields it supplies. `smtps` uses implicit TLS. `smtp` upgrades with STARTTLS when offered, and credentials require a successful TLS upgrade.
 
+SMTP preserves quoted local parts in envelope addresses. A display name containing CR or LF returns a composition error. Invalid or oversized server replies and extra plaintext after a STARTTLS reply fail delivery; protocol errors do not expose the server reply or credentials. Raw SMTP data escapes leading dots after CR, LF, and CRLF to prevent premature message termination.
+
 Select `sendmail` to run the program configured by `MAIL_SENDMAIL_PATH`. It supports SMTP over standard I/O with `-bs` and delivery through standard input with `-t`.
 
 Select `ses`, `ses-v2`, `postmark`, `resend`, `mailgun`, or `cloudflare` to deliver through a provider. Configure the corresponding service in `config/services.rs` and select its name with `MAIL_MAILER`.

@@ -1,0 +1,11 @@
+{
+  "baseline": "dee8ae7fb4984321ea7f22cc4dcb01dd59f979e7",
+  "inputs": {
+    "Cargo.lock": "a4caf23c119069854fc7de3a833da6dd00bf0aed3967d8263c04803d405fe41d",
+    "vendor/openrust/framework/Cargo.toml": "1af6a9b1409d19ec1991687c1b1178bbbb7bd032010465da8aa910553d3912a6",
+    "vendor/openrust/framework/tests/mail_notifications.rs": "1a1760fb5bf645094f2eae6cf1d477313c1d3e86df48616ca4f5852ebb60d61d",
+    "docs/en/digging-deeper/mail.md": "d02236265dc8683bd710921f52d16f445db64675bfd412a8c71a4d3284572d26",
+    "docs/zh_CN/digging-deeper/mail.md": "40b4a7632fd3fe599dd579c36a88e27814762aa717c895bbac429ef23bf96319",
+    "docs/zh_TW/digging-deeper/mail.md": "7635a79b87a14b467f6ca27f174da771e5ee5819a985e6f1442679c0629a3917"
+  }
+}

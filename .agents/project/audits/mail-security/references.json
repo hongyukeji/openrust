@@ -1,0 +1,13 @@
+{
+  "rustsec_commit": "074ea9a7ed619f511b5b7374c7a97e98d1e98be4",
+  "sha256": {
+    "crates/lettre/RUSTSEC-2026-0560.md": "90c7bb05b43544dd7b6e1a27af0060d21626b944a181fe214f53761709ba8b87",
+    "crates/lettre/RUSTSEC-2026-0561.md": "5b0df0d8ed682b853ce83b7a23227f1af1c1933ea1c5a89e67a06151741c38fc",
+    "crates/lettre/RUSTSEC-2026-0562.md": "9eb07c741fc4774ba44d45de524177bd96173015e796237e42cc46bd792b61af",
+    "crates/lettre/RUSTSEC-2026-0563.md": "86531e20404861c13c5532d17fbb588fa6147b96f9de33cae15b30e803db33c1",
+    "crates/lettre/RUSTSEC-2026-0564.md": "c9cd8d73057c6aca023f04a44e2a195042f5341b29c8819798c13f2ad841f62d",
+    "crates/lettre/RUSTSEC-2026-0565.md": "fe8d5a39f4c8e279fd93cbc0d15cdc2b6ea97a304d902d6458bdf2f77ac49d9c"
+  },
+  "lettre_checksum": "f294f3d7cdb313e578acef7d7727d4e8d897e0fcd0d6d58c19959cec95073f19",
+  "old_reference": "6d1a81924451e15f595f68c8dfb520ad6d6c44cf:vendor/openrust/framework/Cargo.toml"
+}

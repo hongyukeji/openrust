@@ -3825,3 +3825,7 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 按最新用户指令固定 Rust 1.94.0，接入现有 PostgreSQL 18.6／Redis 8.10.3，配置独立 openrust 开发账号和数据库、Redis缓存与队列；保留旧配置私密备份、旧数据与运行进程。新增隔离 PostgreSQL 验收入口及真实生命周期测试，更新日常规则和剩余任务账本。
 
 [验收记录](audits/development-postgres.md)：独立快照根构建／fmt、PG JSON两函数、配置1、Redis跨入口1、夹具生命周期及开发库13条迁移／HTTP／Session均通过。未运行完整认证PG／最终发布矩阵。本批target已回收，实际释放3,046,984 KiB，剩余91,289,040 KiB，全部数据卷保留；未知改动和协作者依赖／文档工作不纳入本批，本地提交不推送。
+
+## 2026-11-20 SMTP 安全依赖
+
+[验收](audits/mail-security/README.md)：lettre0.11.24、4安全＋4既有函数、旧版3负例、Rust1.94严格全feature Clippy／fmt及三语12浏览器通过；6条lettre公告消除。源码SHA、官方公告SHA与闲置target清理留证，保留全部数据卷，仅本地提交；其他依赖公告继续处理。

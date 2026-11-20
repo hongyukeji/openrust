@@ -5251,3 +5251,217 @@ async fn artisan_generates_the_notifications_table_migration() {
     let code = std::fs::read_to_string(files[0].path()).unwrap();
     assert!(code.contains("DatabaseNotification::schema") && code.contains("notifiable_id"));
 }
+
+// Exercise the public mail facade against actual SMTP bytes, including hostile replies.
+#[tokio::test]
+async fn smtp_security_keeps_quoted_recipients_and_ignores_blank_extensions() {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut stream = BufReader::new(stream);
+        stream.write_all(b"220 fixture ESMTP\r\n").await.unwrap();
+        let mut transcript = String::new();
+        let mut data = false;
+        loop {
+            let mut line = String::new();
+            if stream.read_line(&mut line).await.unwrap() == 0 {
+                break;
+            }
+            transcript.push_str(&line);
+            let reply: &[u8] = if data {
+                if line != ".\r\n" {
+                    continue;
+                }
+                data = false;
+                b"250 accepted\r\n"
+            } else if line.starts_with("EHLO") {
+                b"250-fixture\r\n250-   \r\n250 OK\r\n"
+            } else if line == "DATA\r\n" {
+                data = true;
+                b"354 send body\r\n"
+            } else {
+                b"250 OK\r\n"
+            };
+            stream.write_all(reply).await.unwrap();
+            if transcript.contains("\r\n.\r\n") {
+                break;
+            }
+        }
+        transcript
+    });
+    let root = fixture(None, None, Some(port));
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                Mail::to("\"d \"@example.test")
+                    .unwrap()
+                    .sendNow(&Receipt)
+                    .await
+                    .unwrap();
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let transcript = tokio::time::timeout(Duration::from_secs(5), server)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        transcript.contains("RCPT TO:<\"d \"@example.test>\r\n"),
+        "{transcript}"
+    );
+    assert!(!transcript.contains("RCPT TO:<d@example.test>"));
+    assert!(transcript.contains("Subject: OpenRust receipt"));
+}
+
+#[tokio::test]
+async fn smtp_security_rejects_oversized_replies_and_starttls_injection() {
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+    for starttls in [false, true] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut stream = BufReader::new(stream);
+            if starttls {
+                stream.write_all(b"220 fixture ESMTP\r\n").await.unwrap();
+                let mut line = String::new();
+                stream.read_line(&mut line).await.unwrap();
+                assert!(line.starts_with("EHLO"));
+                stream
+                    .write_all(b"250-fixture\r\n250 STARTTLS\r\n")
+                    .await
+                    .unwrap();
+                line.clear();
+                stream.read_line(&mut line).await.unwrap();
+                assert_eq!(line, "STARTTLS\r\n");
+                stream
+                    .write_all(b"220 begin TLS\r\n250 forged acceptance\r\n")
+                    .await
+                    .unwrap();
+            } else {
+                // More than lettre's 100,000 byte total response bound; no newline.
+                let mut reply = b"220 ".to_vec();
+                reply.extend(vec![b'x'; 100_001]);
+                stream.write_all(&reply).await.unwrap();
+            }
+            let mut remaining = Vec::new();
+            tokio::time::timeout(Duration::from_secs(1), stream.read_to_end(&mut remaining))
+                .await
+                .expect("client must close before its SMTP timeout")
+                .unwrap();
+            assert!(
+                remaining.is_empty(),
+                "no commands or TLS handshake after a rejected reply"
+            );
+        });
+        let root = fixture(None, None, Some(port));
+        let mut application = app(&root.0);
+        application.boot().await.unwrap();
+        application
+            .call(
+                Callback::new(&[], |_| async {
+                    let error = Mail::to("recipient@example.test")
+                        .unwrap()
+                        .sendNow(&Receipt)
+                        .await
+                        .err()
+                        .expect("hostile SMTP reply must fail")
+                        .to_string();
+                    assert!(
+                        error.contains("SMTP connection or protocol failed"),
+                        "{error}"
+                    );
+                    assert!(!error.contains("forged acceptance"));
+                    Ok(())
+                }),
+                Default::default(),
+            )
+            .await
+            .unwrap();
+        server.await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn smtp_security_dot_stuffs_raw_bare_line_endings() {
+    use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor, address::Envelope};
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let mut stream = BufReader::new(stream);
+        stream.write_all(b"220 fixture ESMTP\r\n").await.unwrap();
+        loop {
+            let mut line = String::new();
+            assert!(stream.read_line(&mut line).await.unwrap() > 0);
+            if line == "DATA\r\n" {
+                stream.write_all(b"354 send body\r\n").await.unwrap();
+                break;
+            }
+            stream.write_all(b"250 OK\r\n").await.unwrap();
+        }
+        let mut data = String::new();
+        loop {
+            let mut line = String::new();
+            assert!(stream.read_line(&mut line).await.unwrap() > 0);
+            if line == ".\r\n" {
+                break;
+            }
+            data.push_str(&line);
+        }
+        stream.write_all(b"250 accepted\r\n").await.unwrap();
+        data
+    });
+    let transport = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("127.0.0.1")
+        .port(port)
+        .timeout(Some(Duration::from_secs(2)))
+        .build();
+    let envelope = Envelope::new(
+        Some("from@example.test".parse().unwrap()),
+        vec!["to@example.test".parse().unwrap()],
+    )
+    .unwrap();
+    transport.send_raw(&envelope, b"Subject: raw\r\n\r\nline\n.\nMAIL FROM:<injected@example.test>\r.\rRCPT TO:<victim@example.test>\r\n").await.unwrap();
+    let data = server.await.unwrap();
+    assert!(data.contains("line\n..\nMAIL FROM:"), "{data:?}");
+    assert!(data.contains("\r..\rRCPT TO:"), "{data:?}");
+}
+
+#[tokio::test]
+async fn smtp_security_rejects_control_characters_in_display_names() {
+    let root = fixture(None, None, None);
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                for name in ["Reader\r\nBcc: victim@example.test", "Reader\r", "Reader\n"] {
+                    let address = Address {
+                        address: "reader@example.test".into(),
+                        name: Some(name.into()),
+                    };
+                    let error = Mail::to(address)
+                        .unwrap()
+                        .sendNow(&Receipt)
+                        .await
+                        .err()
+                        .expect("invalid display name must return an error")
+                        .to_string();
+                    assert!(error.contains("control characters"), "{error}");
+                }
+                assert!(Mail::mailer(None).unwrap().sent().unwrap().is_empty());
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+}

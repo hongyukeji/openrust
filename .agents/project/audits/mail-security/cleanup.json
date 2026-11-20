@@ -1,0 +1,12 @@
+{
+  "removed": "/private/tmp/openrust-mail-security-20261120/target",
+  "before_available_kib": 83821532,
+  "after_available_kib": 87149540,
+  "released_kib": 3328008,
+  "preserved": [
+    "source",
+    "logs",
+    "shared caches",
+    "all database volumes"
+  ]
+}
