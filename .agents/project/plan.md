@@ -136,6 +136,26 @@
 | <a id="unit-08-03"></a>08-03 gRPC 扩展            | [00-03](#unit-00-03)                                             | OpenRust 扩展，参考 [Goravel gRPC 配置](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/config/grpc.go)                                                                                                                                                                                                                                                                                                                                                                                                              | [digging-deeper/grpc.md](../../docs/en/digging-deeper/grpc.md)                                                                                                                                                                                                                                                                                             | 按需安装后用真实客户端调用服务，验证端口冲突、错误状态及关停。                       |
 | <a id="unit-08-04"></a>08-04 安装、部署和发布资料 | [00-03](#unit-00-03)                                             | [installation](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/installation.md)、[deployment](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)、[releases](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/releases.md)、[upgrade](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/upgrade.md)、[contributions](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/contributions.md) | [getting-started/installation.md](../../docs/en/getting-started/installation.md)、[getting-started/deployment.md](../../docs/en/getting-started/deployment.md)、[prologue/releases.md](../../docs/en/prologue/releases.md)、[prologue/upgrade.md](../../docs/en/prologue/upgrade.md)、[prologue/contributions.md](../../docs/en/prologue/contributions.md) | 从全新检出执行安装和发布示例；发布时用目标平台、数据库及驱动的验收记录填写支持矩阵。 |
 
+## 多平台二进制打包工作流（暂缓）
+
+2026-11-20 用户要求记录后续方案，**目前暂不需要实施**。本条仅保存计划，不创建或启用工作流，不触发构建，不自动创建标签、Release 或部署；恢复实施须等待用户明确指令。此项归 08-04 发布交付，复用已有 [standalone 部署契约](../../docs/en/getting-started/deployment.md)及[发布验收记录](audits/08-04/README.md)。
+
+### 需求、理解与建议的边界
+
+- **用户需求与当前决定：** 希望 GitHub 工作流能为常用操作系统生成可下载的 OpenRust 二进制发布包，方便实际使用和部署；用户认为这类交付比此前的文档自动检查更实用。文档检查工作流的移除按原请求单独处理，本计划不恢复它。当前只记录方案，暂不实施。
+- **需求理解：** 可交付的是包含框架及应用入口的完整运行包，用户解压并完成环境配置后，无需 Rust／Cargo 即可启动。可执行文件按构建时的应用源码与特性生成；修改 Rust 业务代码、路由或编译特性仍需重新构建，不能承诺一个预编译文件适配任意应用。运行时视图、静态文件及必要说明必须随包提供。
+- **优化建议与待核定事项：** 以下六平台矩阵、先手动构建再正式发布、原生 Runner、打包后验收及短期产物保留，是建议实施方案，不等于用户已逐项确认的固定契约。恢复时结合项目状态核定支持版本、编译特性集合、外部依赖、Runner 可用性及费用；代码签名／公证是否提供另行明确，未实现时不得标为已签名发布。默认不增加每次 push／PR 的自动多平台构建，避免无必要的运行及存储开销。
+
+### 建议实施与验收范围
+
+- **交付对象：** 将框架与根应用编译成可独立运行的发布包；Rust 配置、路由及迁移注册随应用编译，运行时模板和静态资源随包分发。明确编译特性与外部服务前置，不把包生成视为所有扩展已安装或已验收。
+- **目标矩阵：** Linux、Windows、macOS 各覆盖 x86_64 与 ARM64，共六个平台，优先使用目标系统与架构的原生 Runner。实施时重新核实 GitHub Runner 可用性、预览限制、Rust 工具链和系统依赖；明确 Linux glibc、最低操作系统及 Windows 运行库要求，不承诺所有系统版本通用。
+- **触发与构建：** 第一阶段只提供手动 workflow_dispatch，选择源码版本并固定提交、工具链与 Cargo.lock，沿用 `cargo +1.94.0 build --locked --release --features standalone --bin main` 的现有基线；工具链版本在实施时按项目最低支持版本核定。各平台独立报告结果。
+- **包内容：** 可执行文件（Windows 为 main.exe）、必要 resources/views 与 public 资源、所需空 storage 目录、.env.example、许可证、运行说明及包含版本／提交／平台／编译特性的 build-info.json。排除生产 .env、密钥、凭据、数据库、日志、缓存和无关源码。
+- **产物验收：** 在源码目录外从最终包目录运行 Artisan list／inspire、启动应用、请求首页和 /up、读取模板／静态资源、验证可写目录、关停及动态库依赖。测试环境隔离，不连接生产服务；数据库验收沿用项目 MySQL 8.4 规则。失败平台明确标红，不作为已验收发布包上传。
+- **命名与下载：** Linux／macOS 使用 tar.gz，Windows 使用 zip；命名为 openrust-<版本>-<系统>-<架构>，生成 SHA256SUMS。手动构建产物上传 Actions Artifacts，设置较短保留期并核定存储成本；缓存按平台和依赖隔离，不缓存敏感数据。
+- **后续正式发布：** 手动构建和六平台验收稳定后，再考虑经明确授权的版本标签与 GitHub Release 资产上传；与现有 v0.1.0 发布门禁一致，不因加入本计划获得推送、标签或发布授权。
+
 ## Sanctum 与 API 安装
 
 固定 [Sanctum v4.4.0](https://github.com/laravel/sanctum/releases/tag/v4.4.0) 的源码提交 [`a28ea5d4c2b123420562d6a3a233414f84b70774`](https://github.com/laravel/sanctum/tree/a28ea5d4c2b123420562d6a3a233414f84b70774)。其 Illuminate 约束包含 `^13.0`，覆盖当前 Laravel 13.40.0。旧版 `v0.x` 有令牌哈希查询、过期、撤销和最后使用时间测试。复用前逐项核对固定 Sanctum 的多态归属、令牌格式、撤销及时间字段。
