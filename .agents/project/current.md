@@ -9,7 +9,7 @@
 
 ## 最新交接
 
-- 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；旧表／数据未删除，升级先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。
+- 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；随后按用户要求完成本地开发库收尾：完整备份并在隔离 PG18 实际恢复验证后，删除五张空旧辅助表和七条对应迁移记录，余下六条迁移与源码一致；业务表及 Redis 数据保留。其他已有安装升级仍须先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。
 
 - 2026-11-20 [SQLite／RSA安全依赖](audits/dependency-security/README.md)完成：SQLite3.54.1与稳定RSA0.10.0、最小SQLx／WebAuthn适配，25原生＋PostgreSQL18三项＋MySQL授权专项两项、真实Chrome ES256／RS256、严格全feature Clippy／fmt／根入口／关闭／三语12浏览器通过。已知漏洞公告消除，4维护公告保留，无ignore；仅本地提交。
 

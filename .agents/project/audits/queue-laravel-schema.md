@@ -29,3 +29,11 @@
 - 最终整合以 `af4acff95cd1101fd2cd7ff2b03d10f3200d7c06` 的 git archive 加本批暂存改动建立 `integrated-source`，纳入已提交的 SMTP、SQLite／RSA 依赖修复及文档整理。Rust 1.94.0 fmt、五项实际 PostgreSQL／Redis 测试及全 workspace/all-targets/locked 严格 Clippy 再次全部通过（integrated-acceptance.log、integrated-clippy.log）。三语删除残留“投递记录”描述后，内容检查、站点构建和 12 组合浏览器复验通过（integrated-docs-content.log、integrated-docs-build.log、integrated-docs-browser.log）；专项 6 页检查沿用首轮结果。未覆盖完整发布矩阵。
 
 首轮已回收本批闲置 target（3,928,244 KiB）和文档构建产物（61,636 KiB），df 实际可用增加 3,743,920 KiB。最终整合复验后，再回收专属 target（3,923,032 KiB）及文档构建产物（61,580 KiB）；此次 df 实际可用增加 3,739,336 KiB，收尾剩余 75,414,228 KiB。临时 PostgreSQL／Redis 已移除，已有 MySQL／PostgreSQL／Redis 服务及全部数据卷保留；源码、日志和共享缓存保留。复现所需的源码与差异由 Git 保留，原始日志在上述本批临时目录。本批按范围本地提交，不推送。
+
+## 开发库旧表清理收尾
+
+2026-11-20 用户要求继续处理收尾。仅连接本地 `.env` 指定的 PostgreSQL `openrust` 开发库（18.6），核对五张旧辅助表、jobs、failed_jobs、job_batches 全部为零行；Redis 只读检查未发现旧 chain_delivery 转发载荷，未清理已有 Redis 数据。
+
+- 完整数据库私密备份：`/Users/Home/.local/state/openrust/backups/queue-laravel-20261120-234608/development-postgres.dump`；目录 0700、文件 0600，不进入 Git。使用项目 PostgreSQL 隔离夹具实际恢复成功，核对 13 条迁移和五张旧辅助表均存在且为空，随后回收临时容器。恢复须面向独立空库，说明在备份目录 README.txt。
+- 单事务对旧辅助表和标准队列表加锁，重新断言无待处理记录；删除 job_batches_jobs、job_batches_outbox、job_batches_additions、job_batches_continuations、job_chain_deliveries，使用普通 DROP TABLE，无 CASCADE。同步删除七条已移除迁移的记录，不改剩余批号。
+- 清理后公有 schema 为十张表，其中队列表仅 jobs、failed_jobs、job_batches；六条迁移记录逐项匹配当前 migration 文件。标准三表仍为空。其余业务表、原有进程、Redis／MySQL、全部数据卷保留。日志及脱敏结果在 `/private/tmp/openrust-queue-db-cleanup-20261120/`。本次仅数据库维护和记录，未启动 Cargo 或文档构建；此前源码集成验收结论不变。
