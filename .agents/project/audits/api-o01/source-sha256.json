@@ -1,0 +1,29 @@
+{
+  "baseline": "a5550c3a55a5f532d4e89e939eb079a9d4bc2d15",
+  "sha256": {
+    "config/oidc.rs": "baf326d031300f8dbe757113f930d76ea773b7017b0e5a42ffe002f68055203a",
+    "config/mod.rs": "4c31e809e48e3b20d699105e89dd3ad999e03f470c1c0d5b808ee45ed60e9c2f",
+    "tests/configuration.rs": "93fd3740d1bde3bba92ba362588453d1cbdcf7106adf90da6c52fe4e5e235381",
+    "docs/tests/check_oidc.mjs": "cffeae00e986bb9f006edc61c9ae233d64bcc95cdf1dc1de6f0a23df55ce4258",
+    "vendor/openrust/oidc/Cargo.toml": "9e6d6d6235348a53f132936c5938ca179cf1fe8f4e81c1a2d7fb7cb783321f76",
+    "vendor/openrust/oidc/src/config.rs": "8e006112707397a72d54093b938f4d3a7fd32b1efbac2ae42d32a9cbd8cf8abf",
+    "vendor/openrust/oidc/src/identity.rs": "6a7ef74631dfb58e0f8f63854b130241a946cbc42f801cba6b12807710c5f5cf",
+    "vendor/openrust/oidc/src/lib.rs": "99ac55a5049bb4c82644cd3a004720127a3f800e7851baafae29759703d5ae76",
+    "vendor/openrust/oidc/src/provider.rs": "83c828706d55a446ca15c6955a62f3e2a6e5a8c27dbc3b5403cd086ca8a6f6af",
+    "vendor/openrust/oidc/tests/fixtures/keys.json": "fe7a02e5379595362882e976fb0382164b2ca7d24428e8fb7a9ce54528e63d1d",
+    "vendor/openrust/oidc/tests/fixtures/private.der": "4dc58e0c707bb7d31aa9f842884966e735ae7633fb62b069d05e7d460658727b",
+    "vendor/openrust/oidc/tests/fixtures/second.der": "8675f49b03fe610a08022ad7c40d8a32de18ee82c611b89ffa3a19ba2f14288c",
+    "vendor/openrust/oidc/tests/flow.rs": "51bc69acac2fffa5eee74f5618d6c9722f066c29d25d349ad505f728e92b2658",
+    "vendor/openrust/oidc/tests/support/identity.rs": "1834f0c7681dcdbe960b7541d25916f9d145ed80a1911b99bbbe735f1c888214",
+    "vendor/openrust/oidc/tests/support/local_login.rs": "632bfecf53237ba544b0ce827ade3acb896db68d463608744215a92817787ec0",
+    "vendor/openrust/oidc/tests/support/user.rs": "90b0b509c278abd2a40de12b7249cd289bac50019aa13f0e9136028dbe344120",
+    "docs/en/packages/oidc.md": "abcb78280d0ee444b99164b5f19291e51abc8ece5164b8db0dfbec10b9c925f5",
+    "docs/zh_CN/packages/oidc.md": "afc94c5c438e3e4d1926682dd939ad236d77d92123189335304f5b484e306d4b",
+    "docs/zh_TW/packages/oidc.md": "ce9d86c7694ead35e3db358976245c859f0cf5de5c46b193302cdfc404d7cfed",
+    "Cargo.toml": "2e198f641af138c0814ae6a9ec5d088b47737ba9ea7e3fc67e9f3420728fd1e2",
+    "Cargo.lock": "5d93dff2e23c5f1738172ecff631023565a84f8b8bfce11c67e745384682e6ff",
+    "docs/en/README.md": "269180f47c3d94843c3661c344642d5d5beff0618131cc04fa4e5b7b59449ea7",
+    "docs/zh_CN/README.md": "a4b7ca8e61d5baa0464c67256fbd955fd748f61a4b4383607a020ec9f54d6a5c",
+    "docs/zh_TW/README.md": "7315c04bc029bb702d10cebfd6c3dc5f2988661270774e3ea29a6018ca2e8b8c"
+  }
+}

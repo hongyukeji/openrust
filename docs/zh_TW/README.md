@@ -139,5 +139,6 @@
 - [Sanctum API 身分驗證](packages/sanctum.md)
 - [Scout 全文搜尋](packages/scout.md)
 - [Socialite 第三方登入](packages/socialite.md)
+- [OpenID Connect（擴充）](packages/oidc.md)
 - [Telescope 應用程式除錯](packages/telescope.md)
 - [Valet macOS 本機開發環境](packages/valet.md)

@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-O01 [OIDC RP](audits/api-o01/README.md)完成本机验收：独立可选包／授权码＋S256／Discovery与JWKS／严格ID Token／UserInfo及归属动作；8算法、4原生＋2真实HTTP／MySQL＋根配置1函数，双副本共享Session与原子重放、同邮箱不合并、Session迁移、错误路径、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭及三语12＋6浏览器通过。源码与依赖SHA、专属清理留证，全部卷保留，本地提交不推送。继续API-O02双应用浏览器SSO与退出；真实供应商凭据前置保留。
+
 - 2026-11-20 API-S01 [本地归属与HTTP登录示例](audits/api-s01/local-login.md)完成验收：真实Eloquent／数据库Session／双schema，provider＋subject二进制归属、同邮箱不合并、并发／Session固定／CSRF与退出／故障隔离；全包35＋根配置1函数、Rust1.94严格Clippy／fmt、MySQL8.4.13下根HTTP／原始Artisan／关闭、三语12＋6浏览器通过。源码与清理留证，全部卷保留，本地提交不推送。API-S01本机计划范围闭合，真实供应商仍需测试应用凭据；继续独立API-O01／02，完整RP与SSO尚未交付。
 
 - 2026-11-20 API-F01 [安装与整簇验收](audits/api-f01/install.md)完成：fortify:install／默认动作／2FA迁移及回滚，验证器33／Fortify54，生成应用真实HTTP／MySQL8.4.13／三封SMTP／严格Clippy及关闭功能构建，根HTTP／Pail／Artisan和三语12＋6浏览器通过。33份输入SHA与专属产物清理留证，全部数据卷保留；本地提交不推送。API-F02 Passkeys继续，尚未支持；默认配置需移除该feature，最终主线整合仍待。

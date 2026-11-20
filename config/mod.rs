@@ -16,6 +16,7 @@ mod hashing;
 mod images;
 mod logging;
 mod mail;
+mod oidc;
 mod queue;
 mod reverb;
 mod services;
@@ -56,6 +57,7 @@ pub(crate) fn load(
             logging::load(base_path, env, app.name)?,
         ),
         ("mail".to_owned(), mail::load(base_path, env, &app.url)?),
+        ("oidc".to_owned(), oidc::load(env)?),
         ("queue".to_owned(), queue),
         ("reverb".to_owned(), reverb::load(env)?),
         ("services".to_owned(), services::load(env)?),

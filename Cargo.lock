@@ -3431,6 +3431,7 @@ dependencies = [
  "clap",
  "openrust-fortify",
  "openrust-framework",
+ "openrust-oidc",
  "openrust-package-discovery",
  "openrust-pail",
  "openrust-passport",
@@ -3557,6 +3558,25 @@ dependencies = [
  "web_atoms",
  "windows-sys 0.61.2",
  "xxhash-rust",
+ "zeroize",
+]
+
+[[package]]
+name = "openrust-oidc"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "axum",
+ "base64 0.22.1",
+ "http 1.5.0",
+ "jsonwebtoken",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "subtle",
+ "thiserror",
+ "tokio",
+ "url",
  "zeroize",
 ]
 

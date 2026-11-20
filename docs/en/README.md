@@ -139,5 +139,6 @@
 - [Sanctum](packages/sanctum.md)
 - [Scout](packages/scout.md)
 - [Socialite](packages/socialite.md)
+- [OpenID Connect (Extension)](packages/oidc.md)
 - [Telescope](packages/telescope.md)
 - [Valet](packages/valet.md)

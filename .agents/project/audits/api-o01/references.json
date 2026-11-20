@@ -1,0 +1,14 @@
+{
+  "core.html": {
+    "url": "https://openid.net/specs/openid-connect-core-1_0.html",
+    "sha256": "4d016752a645e8a3c259baa4173b5a90cb6c82898ce868fc8444adde262a5aed"
+  },
+  "discovery.html": {
+    "url": "https://openid.net/specs/openid-connect-discovery-1_0.html",
+    "sha256": "0401a07b35de50e914e195aa2c3c64cc4f6542464381c885d24a2623fbf75ec2"
+  },
+  "logout.html": {
+    "url": "https://openid.net/specs/openid-connect-rpinitiated-1_0.html",
+    "sha256": "246432dafaa5556d896fa9b9ae4284b213ff6921b33478ed3b46bd6bd4aab804"
+  }
+}

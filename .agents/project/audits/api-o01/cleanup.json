@@ -1,0 +1,15 @@
+{
+  "available_before_kib": 71899448,
+  "available_after_kib": 77875204,
+  "released_kib": 5975756,
+  "volumes_before": [],
+  "volumes_after": [],
+  "preserved": [
+    "accepted-overlay.tgz",
+    "official specification sources and hashes",
+    "old-oidc.rs",
+    "logs",
+    "shared caches and images",
+    "all database volumes"
+  ]
+}

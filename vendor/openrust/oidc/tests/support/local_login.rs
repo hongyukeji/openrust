@@ -1,0 +1,45 @@
+use openrust::{
+    auth::{Auth, AuthIdentifier},
+    contracts::{auth::StatefulGuard as _, session::Session as _},
+    database::DB,
+    http::{HttpError, Request},
+};
+use openrust_oidc::VerifiedIdentity;
+
+fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(error),
+    }
+}
+
+/// Application recipe: existing bindings only; issuer and subject come only from the verified identity.
+pub async fn login_bound_user(
+    request: &mut Request,
+    remote: &VerifiedIdentity,
+) -> Result<bool, HttpError> {
+    let Some(binding) = DB::table("oidc_identities")
+        .map_err(internal)?
+        .whereExactText("issuer", remote.issuer())
+        .whereExactText("subject", remote.subject())
+        .first()
+        .await
+        .map_err(internal)?
+    else {
+        return Ok(false);
+    };
+    let id = AuthIdentifier::try_from(binding.get("user_id").ok_or(HttpError::InvalidRequest)?)
+        .map_err(internal)?;
+    {
+        let mut guard = Auth::sessionGuard(request, Some("web")).map_err(internal)?;
+        if guard
+            .loginUsingId(&id, false)
+            .await
+            .map_err(internal)?
+            .is_none()
+        {
+            return Ok(false);
+        }
+    }
+    request.session_mut()?.regenerateToken()?;
+    Ok(true)
+}

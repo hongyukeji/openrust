@@ -485,3 +485,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-S01 本地归属与HTTP登录闭合
 
 [本地归属与HTTP登录示例](api-s01/local-login.md)完成本机验收：35＋1函数、真实MySQL8.4／Eloquent／Session、双schema／根入口与三语浏览器通过。API-S01受控供应商本机计划范围闭合；真实第三方授权保留对应外部前置。API-O01／02独立开发，完整OIDC RP与SSO仍未交付，V06／V09／V17整体状态不提升。
+
+### API-O01 OIDC RP 本机验收
+
+[OIDC RP](api-o01/README.md)完成本机受控供应商协议验收，4＋2＋1函数、8算法、真实MySQL双副本原子state、根入口及三语12＋6浏览器通过。API-O02浏览器SSO与退出继续，真实第三方凭据及最终并行整合保留前置；不提升V06／V09／V17整体发布状态。
