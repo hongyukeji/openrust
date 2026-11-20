@@ -55,14 +55,14 @@
 
 - **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
 - **方言修饰符。** 按固定 Laravel grammar 分别核对每个驱动的输出和忽略行为；某项仅由 MySQL 输出，不代表其他驱动应报错。共享迁移使用 `first`／`after` 时，非 MySQL 驱动忽略排序提示，保留其原生列顺序。回归同时覆盖跨驱动 SQL、实际迁移和数据保留。
-- **测试范围。** 日常执行与改动相关的定向测试。日常环境固定 Rust 1.94.0、PostgreSQL 18、Redis 8。受影响的数据库用例优先运行 PostgreSQL 18，筛选和连接验证见下文；MySQL 专项和其他数据库兼容范围留到对应专项／发布矩阵，不改写历史验收结果。
+- **测试范围。** 日常使用 Rust 1.94.0；数据库覆盖 PostgreSQL 18、MySQL 8（现有夹具为 8.4）、SQLite，缓存覆盖 Redis 8、database、file。执行与改动相关的定向测试：共享数据库行为在三库分别验收，共享缓存行为在三种缓存驱动分别验收；database 缓存涉及 SQL 的路径同时覆盖三库。驱动专属能力核对对应驱动和其他驱动的适用行为，不将单一驱动通过扩展为全部通过。筛选、隔离和版本核对见下文；缺少覆盖如实列为未验，不延后到发布才发现日常三库兼容问题。
 - **文档。** 纯指引改动检查引用、路径和锚点。文档站改动按[维护指南](guides/documentation.md)在本地构建三语站点，并运行[浏览器检查](../../docs/tests/check_browser.mjs)，覆盖 `/` 与 `/docs/`。
 - **记录。** 记录实际执行的命令、环境和结果，说明跳过项或外部服务限制。检查本批差异及空白错误，暂存、提交和推送遵循当次授权。
 - **验收收尾。** 每批验收保存记录后，确认产物归属本批、无人占用且可重建，再直接删除，跳过系统废纸篓或回收站。复查磁盘并记录实际释放和剩余空间，再开始下一批。保留源码、未提交改动、验收记录、数据库及数据卷、共享缓存和发布产物。清理容器时，`docker container rm` 和 `docker compose down` 均省略 `-v`／`--volumes`。操作前后核对数据卷，匿名数据库卷同样保留。
 
-### 日常 PostgreSQL 18 与 Redis 8 验收
+### 日常数据库与缓存验收
 
-2026-11-20 用户将日常开发环境切换为 Rust 1.94.0＋PostgreSQL 18＋Redis 8，覆盖此前日常仅运行 MySQL 8.4 的规则。仓库不通过工具链文件固定版本；保留 `Cargo.toml` 的 `rust-version` 声明最低版本，日常验收显式使用 `cargo +1.94.0`；应用以本地 `.env` 的 `DB_CONNECTION=pgsql` 连接开发库，缓存／队列可选择 Redis。框架默认 SQLite 契约和既有数据库支持范围不变。
+2026-11-21 用户将日常开发与验收调整为 PostgreSQL 18、MySQL 8、SQLite 三库，以及 Redis、database、file 三种缓存驱动，覆盖此前仅 PostgreSQL 或仅 MySQL 的日常验收规则。数据库其他版本、SQL Server 和商业嵌入端点仍按发布矩阵验证。仓库不通过工具链文件固定版本；保留 `Cargo.toml` 的 `rust-version` 声明最低版本，日常验收显式使用 `cargo +1.94.0`。通过验收环境分别选择数据库与缓存驱动；本地 `.env` 的默认连接不代表完整验收范围，也不要求切换或搬迁已有开发数据。
 
 临时数据库验收使用 `python3 -B tests/postgres_acceptance.py -- <验收命令>`，本地 Docker 须已有 `postgres:18`。入口核对镜像数据目录 `/var/lib/postgresql`（包含 18 的版本化 PGDATA），以 1 GiB tmpfs 承载数据，使用随机回环端口、临时凭据和批次标签。通过同一账号／数据库的 `SHOW server_version_num` 确认 18.x 后，向命令提供 `OPENRUST_TEST_POSTGRES_URL`、`OPENRUST_REQUIRE_POSTGRES=1` 和 `OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER`。不把开发库连接传给会建表／删表的测试。
 
@@ -77,9 +77,13 @@ python3 -B tests/postgres_acceptance.py -- sh -c '
 '
 ```
 
-Cargo 仍在独立源码快照与独占 target 中运行，不在活跃工作树构建；增量关闭，遵守当前交接中的 jobs、磁盘停线与清理规则。用 `-p`、`--test` 和 `--exact` 定位函数，并核对函数及辅助夹具实际只连接预期驱动；日常不运行会混用所有数据库的无筛选 workspace 测试。Redis 用例同样使用专属隔离实例，先核对 `INFO server` 为 8.x 与 `PING`；不在开发 Redis 执行清库或修改 ACL。
+MySQL 日常验收使用 `python3 -B tests/mysql_acceptance.py -- <验收命令>`，现有夹具核对 MySQL 8.4，属于 MySQL 8 验收范围。SQLite 使用独立临时数据库文件或适合测试生命周期的内存数据库，记录实际版本；不复用开发数据库文件。三库分别运行同一受影响行为的用例，连接变量按各测试实际读取的名称映射。
 
-入口完成、失败或收到可捕获取消信号后只回收当次标签容器，不删除数据卷。生命周期回归运行 `python3 -B tests/postgres_acceptance_lifecycle.py -v`。强制杀死或 Docker 不可用时按日志批次标签复核收尾。保留 `tests/mysql_acceptance.py` 及其生命周期测试供 MySQL 专项／发布兼容使用，不删除 MySQL 开发数据。
+Cargo 仍在独立源码快照与独占 target 中运行，不在活跃工作树构建；增量关闭，遵守当前交接中的 jobs、32 GB 磁盘停线与清理规则。用 `-p`、`--test` 和 `--exact` 定位函数，显式核对每项测试及辅助夹具连接的驱动，分批执行以控制资源；不依赖无筛选 workspace 测试偶然覆盖三库。
+
+缓存共享行为分别通过 Redis、database、file 实际驱动验证，按改动覆盖读写、过期、删除及锁等相关路径。Redis 使用专属隔离实例，先核对 `INFO server` 为 8.x 与 `PING`；不在开发 Redis 执行清库或修改 ACL。database 缓存使用对应三库的隔离数据库／表，file 缓存使用批次专属临时目录；不对开发缓存执行清空操作。仅影响某一驱动的变更可定向验收，但须说明范围，不能计为其他驱动已通过。
+
+入口完成、失败或收到可捕获取消信号后只回收当次标签容器，不删除数据卷。生命周期回归运行 `python3 -B tests/postgres_acceptance_lifecycle.py -v`。强制杀死或 Docker 不可用时按日志批次标签复核收尾。MySQL 夹具及其生命周期测试同样用于日常验收。不删除开发数据库、开发缓存或数据卷；仅清理本批独占的 SQLite 文件和 file 缓存临时目录。
 
 ## Git 提交标题
 
