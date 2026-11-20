@@ -116,7 +116,8 @@ def links(message):
 
 def run():
     source = Path(__file__).resolve().parents[1]
-    assert source.parent.name.startswith(("openrust-fortify-install-", "openrust-passkeys-")), "Use a dedicated archive snapshot"
+    assert source.parent.name.startswith(("openrust-fortify-install-", "openrust-passkeys-", "openrust-init-auth-")), "Use a dedicated archive snapshot"
+    init_auth = os.environ.get("OPENRUST_TEST_INIT_AUTH") == "1"
     passkeys = os.environ.get("OPENRUST_TEST_PASSKEYS") == "1"
     custom_passkey = os.environ.get("OPENRUST_TEST_PASSKEY_MODEL") == "1"
     assert not custom_passkey or passkeys
@@ -131,19 +132,22 @@ def run():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    origin = f"http://{'localhost' if passkeys else '127.0.0.1'}:{port}"
+    origin = f"http://{'localhost' if passkeys or init_auth else '127.0.0.1'}:{port}"
     env = dict(os.environ, APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
                APP_KEY="base64:" + base64.b64encode(b"a" * 32).decode(), APP_URL=origin,
                APP_DISABLED_RUNNERS="queue,schedule,reverb,grpc", APP_PORT=str(port), SERVER_PORT=str(port),
                SESSION_DRIVER="array", CACHE_STORE="array", DB_CONNECTION="mysql",
-               DB_URL=os.environ["OPENRUST_TEST_MYSQL_URL"], DB_PREFIX="fortify_generated_", BCRYPT_ROUNDS="4",
+               DB_URL=os.environ["OPENRUST_TEST_MYSQL_URL"], DB_PREFIX="ia_" if init_auth else "fortify_generated_", BCRYPT_ROUNDS="4",
                MAIL_MAILER="smtp", MAIL_HOST="127.0.0.1", MAIL_PORT=str(smtp.server_address[1]), MAIL_SCHEME="smtp",
                MAIL_FROM_ADDRESS="noreply@example.test", NO_COLOR="1")
     for key in ["APP_CONFIG_CACHE", "APP_PACKAGES_CACHE", "APP_ROUTES_CACHE", "APP_EVENTS_CACHE", "APP_VIEW_CACHE", "APP_STORAGE_PATH", "MAIL_URL", "MAIL_USERNAME", "MAIL_PASSWORD"]:
         env.pop(key, None)
 
     def cli(*args, success=True):
-        result = subprocess.run([str(binary), "artisan", *args], cwd=generated, env=env, capture_output=True, timeout=30)
+        result = subprocess.run([str(binary), "artisan", *args], cwd=generated, env=env, capture_output=True, timeout=900 if args[0] == "init" else 30)
+        if args[0] == "init":
+            with (source.parent / "init-auth-steps.log").open("ab") as log:
+                log.write(("RUN " + " ".join(args) + "\n").encode() + result.stdout + result.stderr)
         if success:
             assert result.returncode == 0, result.stderr.decode(errors="replace")
         else:
@@ -157,6 +161,67 @@ def run():
 
     server = None
     try:
+        if init_auth:
+            mysql = urllib.parse.urlsplit(os.environ["OPENRUST_TEST_MYSQL_URL"])
+            settings = {key: value for key, value in env.items() if key.startswith(("APP_", "DB_", "SESSION_", "CACHE_", "MAIL_", "BCRYPT_"))}
+            settings.update(DB_HOST=mysql.hostname, DB_PORT=str(mysql.port), DB_DATABASE=mysql.path.lstrip("/"),
+                            DB_USERNAME=urllib.parse.unquote(mysql.username), DB_PASSWORD=urllib.parse.unquote(mysql.password),
+                            QUEUE_CONNECTION="sync", SMS_DRIVER="log", REVERB_ENABLED="false")
+            settings.pop("APP_BASE_PATH", None)
+            settings.pop("APP_KEY", None)
+            # Generate APP_KEY through init, then read it from the application's own file.
+            env.pop("APP_KEY")
+            (generated / ".env").write_text("\n".join(key + "=" + json.dumps(value) for key, value in settings.items()) + "\n")
+            (generated / ".env").chmod(0o600)
+            result = cli("init", "--no-interaction")
+            (source.parent / "init-auth-first.log").write_text(result)
+            assert "Application initialized" in result and "Loading selected package installers" in result
+            assert "external configuration pending" in result
+            # Prove the generated application boots before adding any acceptance routes.
+            with (source.parent / "init-auth-pristine-http.log").open("w") as output:
+                pristine = subprocess.Popen([str(binary)], cwd=generated, env=env, stdout=output, stderr=subprocess.STDOUT)
+                try:
+                    deadline = time.monotonic() + 30
+                    while True:
+                        try:
+                            urllib.request.urlopen(origin + "/up", timeout=1).close(); break
+                        except urllib.error.URLError:
+                            assert pristine.poll() is None, (source.parent / "init-auth-pristine-http.log").read_text()
+                            assert time.monotonic() < deadline
+                            time.sleep(.1)
+                    assert urllib.request.urlopen(origin + "/", timeout=3).status == 200
+                    Client(origin).request("GET", "/api/user", expected=401)
+                finally:
+                    pristine.send_signal(signal.SIGINT); assert pristine.wait(timeout=10) == 0
+            identity = lambda: {str(path.relative_to(generated)): hashlib.sha256(path.read_bytes()).hexdigest()
+                                for path in list((generated / "database/migrations").glob("*.rs")) + list((generated / "storage").glob("oauth-*.key")) + [generated / ".env"]}
+            retained = identity()
+            assert len(list((generated / "database/migrations").glob("*create_oauth_*.rs"))) == 5
+            assert 'auth:sanctum' in (generated / "routes/api.rs").read_text()
+            assert '"driver": "passport"' in (generated / "config/auth.rs").read_text()
+            assert '"views":false' in (generated / "config/fortify.rs").read_text()
+            assert '"email-verification"' in (generated / "config/fortify.rs").read_text()
+            for command in [("init", "--no-interaction"), ("init", "--force", "--without-migration", "--no-interaction"),
+                            ("passport:install", "--without-migration-prompt", "--no-interaction"), ("fortify:install",)]:
+                result = cli(*command)
+                if "--without-migration" in command:
+                    assert "Initialization is not yet complete" in result
+                assert identity() == retained, command
+            # Existing guard conflicts must be preserved and reported rather than silently replaced.
+            auth = generated / "config/auth.rs"
+            original_auth = auth.read_text()
+            auth.write_text(original_auth.replace('"driver": "passport"', '"driver": "session"'))
+            cli("init", "--extensions=passport", "--no-interaction", success=False)
+            assert '"api": {"driver": "session"' in auth.read_text()
+            auth.write_text(original_auth)
+            key = generated / "storage/oauth-public.key"
+            saved_key = key.read_bytes(); saved_mode = key.stat().st_mode & 0o777; key.unlink()
+            cli("init", "--extensions=passport", "--force", "--no-interaction", success=False)
+            assert not key.exists()
+            key.write_bytes(saved_key)
+            key.chmod(saved_mode)
+            assert identity() == retained
+            print("init default all: bootstrap/final build/migrate; pristine HTTP; repeat/force/key/migration preservation; individual installers; guard conflict and incomplete pair PASS", flush=True)
         assert "Install all of the Fortify resources" in cli("fortify:install", "--help")
         cli("fortify:install", "--force", success=False)
         assert "Fortify scaffolding installed successfully." in cli("fortify:install")
@@ -170,8 +235,8 @@ def run():
         assert paths[0].read_bytes() == before
         config = generated / "config/fortify.rs"
         features = '"two-factor-authentication","email-verification","passkeys"]' if passkeys else '"two-factor-authentication","email-verification"]'
-        configured = config.read_text().replace('"views":true', '"views":false').replace('"two-factor-authentication","passkeys"]', features)
-        assert configured != config.read_text()
+        configured = config.read_text() if init_auth else config.read_text().replace('"views":true', '"views":false').replace('"two-factor-authentication","passkeys"]', features)
+        assert init_auth or configured != config.read_text()
         config.write_text(configured)
         routes = generated / "routes/web.rs"
         routes.write_text(routes.read_text().replace('    Route::get("/",', '    Route::get("/fortify-acceptance-state", fortify_acceptance_state)?;\n    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;\n    Route::get("/",') + STATE_ROUTE)
@@ -189,6 +254,16 @@ def run():
             migration = next(generated.glob("database/migrations/*create_passkeys_table.rs"))
             migration.write_text(migration.read_text().replace('.create("passkeys",', '.create("custom_passkeys",').replace('table.id();', 'table.idWith("pk");').replace('dropIfExists("passkeys")', 'dropIfExists("custom_passkeys")'))
             routes.write_text(routes.read_text().replace('        let mode=request.route("mode").unwrap_or_default();', '        let mode=request.route("mode").unwrap_or_default();\n        #[cfg(feature="fortify")]\n        if mode=="events" { return openrust::http::Response::json(openrust::http::StatusCode::OK,crate::app::models::custom_passkey::report()); }'))
+        if init_auth:
+            api = generated / "routes/api.rs"
+            api.write_text(api.read_text().replace("    Ok(())\n}", """
+    #[cfg(all(feature = "passport", feature = "sanctum"))]
+    openrust::support::facades::Route::get("/init-auth-tokens", init_auth_tokens)?;
+    #[cfg(feature = "passport")]
+    openrust::support::facades::Route::getWith("/init-passport-user", init_passport_user, |route| { route.middleware_name("auth:api"); Ok(()) })?;
+    Ok(())
+}""", 1) + (source / "tests/support/init_auth.rs").read_text())
+            cli("passport:client", "--personal", "--name=Init acceptance", "--provider=users", "--no-interaction")
         build("fmt", "--all")
         cli("fortify:install")  # Re-check registration after rustfmt.
         build("build", "--offline", "--locked", "--features", "fortify", "--bin", "main")
@@ -214,6 +289,21 @@ def run():
             after = client.state()
             assert after["user"] is not None and after["session"] != before["session"] and after["csrf"] != before["csrf"]
             assert after["email"] == "alice@example.test" and not after["verified"]
+            if init_auth:
+                tokens = client.request("GET", "/api/init-auth-tokens")
+                def bearer(path, token, expected):
+                    request = urllib.request.Request(origin + path, headers={"Accept":"application/json", "Authorization":"Bearer " + token})
+                    try:
+                        response = urllib.request.urlopen(request, timeout=5)
+                    except urllib.error.HTTPError as error:
+                        response = error
+                    assert response.code == expected, (path, response.code)
+                    response.close()
+                bearer("/api/user", tokens["sanctum"], 200)
+                bearer("/api/user", tokens["passport"], 401)
+                bearer("/api/init-passport-user", tokens["passport"], 200)
+                bearer("/api/init-passport-user", tokens["sanctum"], 401)
+                print("init-generated application: independent Sanctum / Passport bearer guards PASS", flush=True)
             assert len(smtp.messages) == 1
             verify = next(link for link in links(smtp.messages[-1]) if "/email/verify/" in link)
             client.request("GET", verify.removeprefix(origin), expected=204)
@@ -273,7 +363,7 @@ def run():
         cli("migrate:rollback", "--step=1", "--force", "--no-interaction")
         cli("migrate", "--force", "--no-interaction")
         build("clippy", "--offline", "--locked", "--bin", "main", "--features", "fortify", "--", "-D", "warnings")
-        build("build", "--offline", "--locked", "--bin", "main")  # Installed modules remain feature optional.
+        build("build", "--offline", "--locked", "--no-default-features", "--bin", "main")  # Installed modules remain feature optional.
         print("Fortify install/retry/customization/rebuild/migration; native HTTP/CSRF/session/SMTP/profile/password/2FA/recovery/reset/limits/shutdown; strict generated Clippy and feature-off build PASS", flush=True)
     finally:
         if server is not None:

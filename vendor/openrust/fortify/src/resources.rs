@@ -13,6 +13,10 @@ impl ServiceProvider for FortifyResourcesServiceProvider {
     }
 }
 pub(crate) fn register(app: &Application) -> ProviderResult {
+    use openrust::contracts::{container::Container as _, foundation::Application as _};
+    app.container()
+        .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
+        .register("fortify", crate::console::install_command::initialize);
     let provider = FortifyServiceProvider;
     provider.publishes(
         app,

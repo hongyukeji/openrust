@@ -1,11 +1,9 @@
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
-    contracts::foundation::Application as _,
     foundation::{
         Application,
-        console::source_edit::{insert_before, lock_manifest, read, replace},
+        console::source_edit::{insert_before, read, replace},
     },
-    support::facades::Artisan,
 };
 use std::path::{Path, PathBuf};
 
@@ -28,28 +26,9 @@ impl Command for InstallCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let root = app.base_path();
-            {
-                let _lock = lock_manifest(root)?;
-                plan(root)?;
-            }
-            let provider = std::any::type_name::<crate::FortifyServiceProvider>();
-            if Artisan::callSilently("vendor:publish", &["--provider".into(), provider.into()])
-                .await?
-                != 0
-            {
-                return Err(ConsoleError::new("Fortify resource publication failed."));
-            }
-            let _lock = lock_manifest(root)?;
-            let edits = plan(root)?;
-            for (path, previous, updated) in edits {
-                let updated = if previous.contains("\r\n") {
-                    updated.replace("\r\n", "\n").replace('\n', "\r\n")
-                } else {
-                    updated
-                };
-                replace(&path, &previous, &updated)?;
-            }
+            let installation =
+                openrust::foundation::console::installation::SourceInstallation::new(app)?;
+            install_resources(&installation, false, None, output).await?;
             output.info("Fortify scaffolding installed successfully.");
             output.info("Rebuild the application, then run pending migrations. Configure views or set fortify.views=false. The default User requires email-verification routes.");
             Ok(0)
@@ -182,4 +161,58 @@ fn plan(root: &Path) -> Result<Vec<Edit>, ConsoleError> {
         edits.push((path, previous, updated));
     }
     Ok(edits)
+}
+
+pub(crate) fn initialize<'a>(
+    installation: &'a openrust::foundation::console::installation::SourceInstallation<'a>,
+    options: openrust::foundation::console::installation::InstallationOptions<'a>,
+    output: &'a mut Output,
+) -> ConsoleFuture<'a, Result<(), ConsoleError>> {
+    Box::pin(install_resources(
+        installation,
+        options.force,
+        Some(options.extensions.iter().any(|name| name == "passkeys")),
+        output,
+    ))
+}
+async fn install_resources(
+    installation: &openrust::foundation::console::installation::SourceInstallation<'_>,
+    force: bool,
+    passkeys: Option<bool>,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let root = installation.root();
+    plan(root)?;
+    let configure_headless =
+        passkeys.is_some() && (force || !root.join("config/fortify.rs").exists());
+    for tag in ["fortify-config", "fortify-support", "fortify-migrations"] {
+        installation
+            .publish(tag, force && tag != "fortify-migrations", output)
+            .await?;
+    }
+    for (path, previous, updated) in plan(root)? {
+        let updated = if previous.contains("\r\n") {
+            updated.replace("\r\n", "\n").replace('\n', "\r\n")
+        } else {
+            updated
+        };
+        replace(&path, &previous, &updated)?;
+    }
+    if configure_headless {
+        let path = root.join("config/fortify.rs");
+        let previous = read(&path)?;
+        let updated = previous
+            .replace("\"views\":true", "\"views\":false")
+            .replace(
+                "\"features\":[\"registration\"",
+                "\"features\":[\"email-verification\",\"registration\"",
+            );
+        let updated = if passkeys == Some(false) {
+            updated.replace(",\"passkeys\"]", "]")
+        } else {
+            updated
+        };
+        replace(&path, &previous, &updated)?;
+    }
+    Ok(())
 }

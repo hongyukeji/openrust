@@ -31,7 +31,7 @@ fn project() -> TestProject {
     for (name, content) in [
         (
             "Cargo.toml",
-            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n",
+            "[package]\nname = \"fixture\"\nversion = \"0.0.0\"\n\n[features]\nsanctum=[]\nreverb=[]\npassport=[]\nfortify=[]\nsocialite=[]\noidc=[]\n",
         ),
         ("bootstrap/app.rs", "custom bootstrap\n"),
         (
@@ -254,23 +254,10 @@ fn init_selects_extensions_and_adds_reverb_channel_dependency() {
 }
 
 #[test]
-fn init_rejects_unready_or_unknown_extensions_before_mutating_files() {
+fn init_rejects_unknown_extensions_before_mutating_files() {
     let root = project();
     let original = fs::read(root.path().join(".env")).unwrap();
-    for choice in [
-        "all",
-        "passport",
-        "api,fortify",
-        "passkeys",
-        "socialite",
-        "precognition",
-        "oidc",
-        "sso",
-        "typo",
-        "api,",
-        "all,api",
-        "",
-    ] {
+    for choice in ["typo", "api,", "all,api", ""] {
         let result = run(
             root.path(),
             &[
@@ -282,9 +269,7 @@ fn init_rejects_unready_or_unknown_extensions_before_mutating_files() {
         assert!(!result.status.success(), "unexpected success for {choice}");
         let error = String::from_utf8_lossy(&result.stderr);
         assert!(
-            error.contains("not ready")
-                || error.contains("Unknown initialization extension")
-                || error.contains("on its own"),
+            error.contains("Unknown initialization extension") || error.contains("on its own"),
             "{error}"
         );
         assert_eq!(fs::read(root.path().join(".env")).unwrap(), original);
@@ -311,4 +296,113 @@ fn init_requires_reverb_selection_for_active_reverb_configuration() {
         );
         assert!(!root.path().join("tmp").exists());
     }
+}
+
+#[test]
+fn init_complete_profile_plan_and_authentication_dependencies_are_read_only() {
+    let root = project();
+    let original = fs::read(root.path().join(".env")).unwrap();
+    for (selection, expected) in [
+        (
+            "all",
+            "passport,fortify,passkeys,socialite,precognition,oidc,sso",
+        ),
+        ("passkeys", "passkeys,fortify"),
+        ("passport", "passport,api"),
+        ("sso", "sso,oidc,fortify"),
+    ] {
+        let result = run(
+            root.path(),
+            &[
+                "init",
+                "--dry-run",
+                "--force",
+                &format!("--extensions={selection}"),
+            ],
+        );
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let output = String::from_utf8_lossy(&result.stdout);
+        assert!(output.contains(expected), "{output}");
+        assert!(!output.contains("not ready"));
+        assert_eq!(fs::read(root.path().join(".env")).unwrap(), original);
+        assert!(!root.path().join("tmp").exists());
+    }
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname='missing-feature'\nversion='0.0.0'\n",
+    )
+    .unwrap();
+    let result = run(root.path(), &["init", "--dry-run", "--extensions=passport"]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("must declare"));
+    assert!(!root.path().join("tmp").exists());
+}
+
+#[test]
+fn init_preflights_passkey_origins_before_source_or_connection_changes() {
+    let root = project();
+    let original = fs::read_to_string(root.path().join(".env")).unwrap();
+    for origin in [
+        "http://127.0.0.1:8000",
+        "https://127.0.0.1",
+        "https://[::1]",
+        "http://example.test",
+        "https://example.test/frontend",
+        "https://user:secret@example.test",
+        "https://example.test#fragment",
+    ] {
+        let configured = format!(
+            "{original}APP_URL={}\n",
+            serde_json::to_string(origin).unwrap()
+        );
+        fs::write(root.path().join(".env"), &configured).unwrap();
+        let result = run(root.path(), &["init", "--no-interaction"]);
+        assert!(!result.status.success(), "{origin}");
+        let error = String::from_utf8_lossy(&result.stderr);
+        assert!(
+            error.contains("Passkeys requires an exact HTTPS APP_URL")
+                || (origin.ends_with("#fragment") && error.contains("filesystems.disks.web.url")),
+            "{origin}: {error}"
+        );
+        assert_eq!(
+            fs::read_to_string(root.path().join(".env")).unwrap(),
+            configured
+        );
+        assert!(!root.path().join("tmp").exists());
+        let fortify = run(root.path(), &["init", "--dry-run", "--extensions=fortify"]);
+        assert_eq!(fortify.status.success(), !origin.ends_with("#fragment"));
+    }
+    for origin in ["http://localhost:8000", "https://example.test"] {
+        fs::write(
+            root.path().join(".env"),
+            format!("{original}APP_URL={origin}\n"),
+        )
+        .unwrap();
+        assert!(run(root.path(), &["init", "--dry-run"]).status.success());
+    }
+}
+
+#[test]
+fn init_uses_the_first_repeated_environment_like_application_boot() {
+    let root = project();
+    for (name, database) in [("first", "mysql"), ("second", "pgsql")] {
+        fs::write(root.path().join(format!(".env.{name}")), format!("APP_ENV=local\nAPP_KEY=01234567890123456789012345678901\nDB_CONNECTION={database}\n")).unwrap();
+    }
+    let result = run(
+        root.path(),
+        &["init", "--dry-run", "--env=first", "--env=second"],
+    );
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let output = String::from_utf8_lossy(&result.stdout);
+    assert!(output.contains("database=mysql"), "{output}");
+    assert!(output.contains(".env.first:"));
+    assert!(!root.path().join("tmp").exists());
 }

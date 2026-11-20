@@ -605,3 +605,57 @@ fn migration_name(name: &str) -> Option<(NaiveDateTime, &str)> {
         suffix,
     ))
 }
+
+// SourceInstallation owns the mutex while a shared package service publishes resources.
+pub(super) async fn publish_installation(
+    app: &Application,
+    tag: &str,
+    force: bool,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let resources = app
+        .publishable()
+        .lock()
+        .expect("publish registry lock")
+        .clone();
+    let selected = paths_to_publish(&resources, None, Some(tag));
+    if selected.is_empty() {
+        return Err(ConsoleError::new(format!(
+            "Required installation resources [{tag}] are unavailable."
+        )));
+    }
+    let paths = selected
+        .iter()
+        .map(|(source, asset)| (source.clone(), app.base_path().join(&asset.path)))
+        .collect();
+    let mut timestamp = migration_publication_timestamp(app)?;
+    // Historical migrations are always preserved, including during init --force.
+    let publication = publish_locked(
+        app.base_path(),
+        selected.into_values().filter(|asset| {
+            !(tag == "fortify-support"
+                && asset.path == Path::new("app/actions/mod.rs")
+                && app.base_path().join(&asset.path).exists())
+        }),
+        false,
+        force,
+        &mut timestamp,
+    )
+    .map_err(console_error)?;
+    for notice in publication.notices {
+        if let PublishNotice::Missing(path) = notice {
+            return Err(ConsoleError::new(format!(
+                "Missing resource {}",
+                path.display()
+            )));
+        }
+    }
+    Event::dispatch(VendorTagPublished {
+        tag: Some(tag.to_owned()),
+        paths,
+    })
+    .await
+    .map_err(console_error)?;
+    output.info(&format!("Installed resources [{tag}]."));
+    Ok(())
+}

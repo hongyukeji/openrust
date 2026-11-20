@@ -1,0 +1,90 @@
+[
+  {
+    "path": "docs/en/digging-deeper/artisan.md",
+    "sha256": "98e69c181e1844da7a9e2536adf09a4bb4b9829f61d873bfa9134046dee6f6e0"
+  },
+  {
+    "path": "docs/tests/check_init.mjs",
+    "sha256": "a96cd913fe8e7e50dbfbe81c827bbd544db5242bb2550415106f500c3ff9df98"
+  },
+  {
+    "path": "docs/zh_CN/digging-deeper/artisan.md",
+    "sha256": "d721939bc3318e4b9af5e01460ec074f89508ecff0c0e14c358b23b3c14ac6b8"
+  },
+  {
+    "path": "docs/zh_TW/digging-deeper/artisan.md",
+    "sha256": "0c3f3d38a77e87d6075b6cd01d1ebb6e2b82a4396df32a5d43b5458549658c13"
+  },
+  {
+    "path": "tests/fortify_install.py",
+    "sha256": "7c6c0aab67438c392cab43f6e810c75c7fa725811276942393b1aaae2b253c15"
+  },
+  {
+    "path": "tests/init.rs",
+    "sha256": "3cf19f7c808a1735b9402e66a17e278b08848d2a1d701654a2ce38d73f444278"
+  },
+  {
+    "path": "tests/init_acceptance.py",
+    "sha256": "4331a6ba4519fce1fea8d7e14dd9a8fdf029cc34a40e3fb0c3a7fc2ee3cb4acb"
+  },
+  {
+    "path": "tests/init_auth_acceptance.py",
+    "sha256": "bb82cb88b6412ae0133870d42dc6192f6e409905e6c34456bd930afe4c5e1ff0"
+  },
+  {
+    "path": "tests/init_windows_terminal.ps1",
+    "sha256": "b96f9e89b4b5a0d8681a83bb213d14642d8706e283a9bfc6785abe118c17e163"
+  },
+  {
+    "path": "tests/support/init_auth.rs",
+    "sha256": "4524f9b7ed8a7961b5a4852627cc86e42c54066817f8741f22baf54e487b6da8"
+  },
+  {
+    "path": "vendor/openrust/fortify/src/console/install_command.rs",
+    "sha256": "91e5f5e4929140be5d2f1efad8422f7f0436ca4267cee32a4744eb0a84e0ffff"
+  },
+  {
+    "path": "vendor/openrust/fortify/src/console/mod.rs",
+    "sha256": "d1d5585aa3fb5c69415a27dbc89f61c17fc5b80d700ae20648f760c096320108"
+  },
+  {
+    "path": "vendor/openrust/fortify/src/resources.rs",
+    "sha256": "24322b1d086c0ac1657f7f13e2f516cb43074b26ad7ea238e4af8c34524de693"
+  },
+  {
+    "path": "vendor/openrust/framework/src/foundation/console/init_command.rs",
+    "sha256": "95c4e0d0e21d85be54279fc470232c5cd63c91c5873f09da58b4363787a8ce7b"
+  },
+  {
+    "path": "vendor/openrust/framework/src/foundation/console/install_routes_command.rs",
+    "sha256": "2fe9a48011027e2b31cbc657cd008110041e3533f0e471f6a7b9c5623c159f0c"
+  },
+  {
+    "path": "vendor/openrust/framework/src/foundation/console/installation.rs",
+    "sha256": "300d6e2388eeca46cb42a715b6a7224c0fcf8b160ba5870f6d26a2134e09de93"
+  },
+  {
+    "path": "vendor/openrust/framework/src/foundation/console/mod.rs",
+    "sha256": "4881a5df6e9e6aea2a70a11264c2e7c5e5df3c4e82435f7afa5a06c97b5962b1"
+  },
+  {
+    "path": "vendor/openrust/framework/src/foundation/console/vendor_publish_command.rs",
+    "sha256": "72d08ea78c1fcb13675553caff3b8e47f0c7fa972fd95d67733bec4b719d64da"
+  },
+  {
+    "path": "vendor/openrust/passport/src/console/commands/install_command.rs",
+    "sha256": "5dcbb5b5479151fac275bb499213ca2172ae80a3ae07cb1a7005c6f84d694903"
+  },
+  {
+    "path": "vendor/openrust/passport/src/console/commands/keys_command.rs",
+    "sha256": "8d1d8ca60a219fea6d060c253bbd8af8b9b730a5cc10b49c5e58d87f68e00ed5"
+  },
+  {
+    "path": "vendor/openrust/passport/src/console/commands/mod.rs",
+    "sha256": "74271308024a4febfd55b4240b20b13519f5d0900c3e73f731bb9412811cae16"
+  },
+  {
+    "path": "vendor/openrust/passport/src/lib.rs",
+    "sha256": "3669be4294de8bd44499ea530b96d60fb508d654865dd37679d27d8454916360"
+  }
+]

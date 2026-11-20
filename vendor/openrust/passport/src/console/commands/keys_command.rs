@@ -74,22 +74,10 @@ impl Command for KeysCommand {
                 .expect("default length")
                 .parse::<usize>()
                 .map_err(|_| error(KeyError::Generation))?;
-            tokio::task::spawn_blocking(move || {
-                for path in [&public, &private] {
-                    if let Ok(metadata) = fs::symlink_metadata(path)
-                        && !metadata.is_file()
-                    {
-                        return Err(KeyError::Write);
-                    }
-                }
-                let (public_key, private_key) = generate(length)?;
-                write_key(&public, public_key.as_bytes(), force, 0o660)?;
-                write_key(&private, private_key.as_bytes(), force, 0o600)?;
-                Ok::<_, KeyError>(())
-            })
-            .await
-            .map_err(|_| error(KeyError::Generation))?
-            .map_err(error)?;
+            tokio::task::spawn_blocking(move || generate_keys(&public, &private, length, force))
+                .await
+                .map_err(|_| error(KeyError::Generation))?
+                .map_err(error)?;
             output.info("Encryption keys generated successfully.");
             Ok(0)
         })
@@ -170,4 +158,23 @@ fn write_key(path: &Path, value: &[u8], force: bool, mode: u32) -> Result<(), Ke
     file.write_all(value)
         .and_then(|_| file.sync_all())
         .map_err(|_| KeyError::Write)
+}
+
+pub(super) fn generate_keys(
+    public: &Path,
+    private: &Path,
+    length: usize,
+    force: bool,
+) -> Result<(), KeyError> {
+    for path in [public, private] {
+        if let Ok(metadata) = fs::symlink_metadata(path)
+            && !metadata.is_file()
+        {
+            return Err(KeyError::Write);
+        }
+    }
+    let (public_key, private_key) = generate(length)?;
+    write_key(public, public_key.as_bytes(), force, 0o660)?;
+    write_key(private, private_key.as_bytes(), force, 0o600)?;
+    Ok::<_, KeyError>(())
 }

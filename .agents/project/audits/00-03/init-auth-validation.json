@@ -1,0 +1,143 @@
+{
+  "date": "2026-11-20",
+  "base_commit": "f82018bbd",
+  "source_archive_sha256": "704f2c97ef308ec8f2b4cc9c18970a08605a353d23a345904ceb9f80d6b2176f",
+  "inputs": "init-auth-inputs.json",
+  "logs": [
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/native-resume.log",
+      "sha256": "f6a83d4f54890ce2aa83130972b1408c86bb395365f183927ebb8b78b098c6dc"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/native-rest.log",
+      "sha256": "1e90a872116584e7ce717ab49ec960ed1320c49cac4b082bb01a59bfec03bd59"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/base-profile.log",
+      "sha256": "d8a301059fb5b67a049d398b66ab5176645ea1d0f4b97c2b3560edf75d09eabd"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/auth-final.log",
+      "sha256": "c09bb95984ddde48c41fa0602b861964d9079bde6873c7a78e4d95c7783e0215"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/docs-build-final.log",
+      "sha256": "5a76d51700c129972c2fa6c85af1692cfdb9f59a1b42567f9d88bb628c771a4e"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/docs-final-check_browser.mjs.log",
+      "sha256": "75fe657cecf6ff8bf943ca4ea0a45c32cd6895ce93c0d4590958ace42feb4aa6"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/docs-final-check_init.mjs.log",
+      "sha256": "81764c646093afc7d175c8a2c2a2d17434bf9e521e5038cd506ed01f10f5c9e0"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/windows-build.log",
+      "sha256": "6d17e9f1ddd77c8129f32ed087f42a57df4ac94a4df84cb6872b8adcecc58a88"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/windows-evidence/initialization-first-fixture-failure.log",
+      "sha256": "ab22d77c5566e8d7acac189924a2368c460ee0bbcf7a4c3f4c35771b5a68c327"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/windows-evidence/initialization.log",
+      "sha256": "d70c6035a0b7dcbef2b75a5455d9865d1686bb89262427cbb8359bddde54a868"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/windows-e2e-resume.log",
+      "sha256": "ed480b983e74434f8879d7c221996f74b77e000382443cf74763e7e079271160"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/windows-stop.log",
+      "sha256": "a255a41515497f900263bd3072060fcac2bad6af24c539a5e19684394ba8f44e"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/linux-evidence/acceptance.log",
+      "sha256": "7e7136708835e0122706dd46d1af61c533044ef416dfa346289f7f0e4525a05e"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/linux-evidence/acceptance-resume.log",
+      "sha256": "bad9d2ab19999bc42b35a6e35718dfad7a7f7052fcbff643268022aa145111b8"
+    },
+    {
+      "path": "/private/tmp/openrust-init-auth-20261120/linux-evidence/acceptance-resume2.log",
+      "sha256": "e98432be7d72e3b5ceb69330c86fe7ae1e09016b365c5c75df206bfa17d3cccc"
+    }
+  ],
+  "macos": {
+    "native_tests_passed": 28,
+    "workspace_all_targets_clippy_features": [
+      "pail",
+      "passport",
+      "fortify",
+      "socialite",
+      "oidc",
+      "reverb"
+    ],
+    "browser": "Google Chrome with pinned official Passkeys JS",
+    "docs_browser_cases": 18,
+    "cleanup": {
+      "removed": [
+        "/private/tmp/openrust-init-auth-20261120/target",
+        "/private/tmp/openrust-init-auth-20261120/source/docs/.vitepress/dist",
+        "/private/tmp/openrust-init-auth-20261120/client/node_modules",
+        "/private/tmp/openrust-init-auth-20261120/client/acceptance-dist"
+      ],
+      "available_before_kib": 64966940,
+      "available_after_kib": 73731748,
+      "released_kib": 8764808,
+      "volumes_preserved": [],
+      "shared_caches_preserved": true
+    }
+  },
+  "windows": {
+    "metadata": {
+      "inputCount": 18,
+      "rust": "rustc 1.94.0 (4a4ef493e 2026-03-02)\r\nbinary: rustc\r\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\r\ncommit-date: 2026-03-02\r\nhost: aarch64-pc-windows-msvc\r\nrelease: 1.94.0\r\nLLVM version: 21.1.8\r\n",
+      "inputHashesMatch": true,
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "freeBytes": 182480891904
+    },
+    "native_init_tests_passed": 14,
+    "conpty_passed": true,
+    "vm_before": "stopped",
+    "vm_after": "stopped",
+    "cleanup": {
+      "removed": [
+        "C:\\Windows\\Temp\\openrust-init-auth-20261120\\target",
+        "C:\\Windows\\Temp\\openrust-init-auth-20261120\\source\\target"
+      ],
+      "sourcePreserved": true,
+      "freeAfterBytes": 189444022272,
+      "freeBeforeBytes": 181468209152,
+      "sharedCargoCachePreserved": true,
+      "releasedBytes": 7975813120
+    }
+  },
+  "linux": {
+    "metadata": {
+      "inputCount": 18,
+      "inputHashesMatch": true,
+      "os": "Linux ip-172-31-0-78 6.14.0-1015-aws #15~24.04.1-Ubuntu SMP Tue Sep 23 22:44:48 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux\n",
+      "rust": "rustc 1.94.0 (4a4ef493e 2026-03-02)\nbinary: rustc\ncommit-hash: 4a4ef493e3a1488c6e321570238084b38948f6db\ncommit-date: 2026-03-02\nhost: x86_64-unknown-linux-gnu\nrelease: 1.94.0\nLLVM version: 21.1.8\n"
+    },
+    "generated_auth_http_clippy_feature_off_passed": true,
+    "browser_passkeys_run": false,
+    "cleanup": {
+      "removed": [
+        "/tmp/openrust-init-auth-linux-20261120/source/target",
+        "/tmp/openrust-init-auth-linux-20261120/registry",
+        "/tmp/openrust-init-auth-linux-20261120/git",
+        "/tmp/openrust-init-auth-linux-20261120/cargo-cache.tar.gz"
+      ],
+      "available_before_kib": 96347896,
+      "available_after_kib": 102601048,
+      "released_kib": 6253152,
+      "volumes_preserved": [],
+      "source_and_logs_preserved": true,
+      "shared_runtime_images_preserved": true,
+      "shared_build_cache_preserved": true
+    }
+  }
+}

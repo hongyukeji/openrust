@@ -48,9 +48,23 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         clap::Arg::new("extensions")
             .long("extensions")
             .value_name("LIST")
-            .help("Comma-separated extensions: api,broadcasting,reverb,grpc; all checks the complete release scope"),
+            .help("Comma-separated extensions: api,broadcasting,reverb,grpc,passport,fortify,passkeys,socialite,precognition,oidc,sso; all installs the complete profile"),
     );
-    artisan.add_command(Box::new(InitCommand(CommandDefinition::new(syntax))))
+    artisan.add_command(Box::new(InitCommand(CommandDefinition::new(syntax))))?;
+    artisan.add_command(Box::new(ResourcesCommand(CommandDefinition::new(
+        clap::Command::new("init:resources")
+            .hide(true)
+            .arg(
+                clap::Arg::new("extensions")
+                    .long("extensions")
+                    .required(true),
+            )
+            .arg(
+                clap::Arg::new("force")
+                    .long("force")
+                    .action(clap::ArgAction::SetTrue),
+            ),
+    ))))
 }
 struct InitCommand(CommandDefinition);
 impl Command for InitCommand {
@@ -86,7 +100,7 @@ impl Command for InitCommand {
                 .map_err(|_| ConsoleError::new("Invalid Cargo.toml."))?;
             let environment = matches
                 .get_many::<String>("env")
-                .and_then(|mut values| values.next_back())
+                .and_then(|mut values| values.next())
                 .cloned();
             if environment.as_ref().is_some_and(|name| {
                 name.is_empty()
@@ -115,14 +129,16 @@ impl Command for InitCommand {
             let mut values = parse_environment(&source)?;
             if interactive && matches.get_one::<String>("extensions").is_none() {
                 let mut choice = BTreeMap::new();
-                prompt(&mut choice, "EXTENSIONS", DEFAULT_EXTENSIONS, false)?;
+                prompt(&mut choice, "EXTENSIONS", "all", false)?;
                 extensions = Extensions::parse(choice.get("EXTENSIONS").map(String::as_str))?;
             }
             loop {
                 if interactive {
                     configure(&mut values, extensions.has("reverb"))?;
                 }
-                match validate_choices(&values) {
+                match validate_choices(&values)
+                    .and_then(|()| extensions.validate_application(&root, force, &values))
+                {
                     Ok(()) => break,
                     Err(error) if interactive => {
                         eprintln!("{error}");
@@ -157,7 +173,11 @@ impl Command for InitCommand {
             if extensions.has("reverb") {
                 output.info("Reverb: install package; listener follows REVERB_ENABLED.\n");
             }
-            output.comment("Release scope pending: Passport/OAuth2, Fortify, Passkeys, Socialite, Precognition, OIDC RP and SSO. Use --extensions=all to check readiness.\n");
+            extensions.report(output);
+            let manifest = read(&root.join("Cargo.toml"))?;
+            for feature in extensions.features() {
+                super::install_routes_command::enable_feature(&manifest, feature)?;
+            }
             let mut paths = vec![
                 env_path
                     .file_name()
@@ -181,9 +201,35 @@ impl Command for InitCommand {
             if extensions.has("grpc") {
                 paths.push("routes/grpc.rs");
             }
+            if extensions.has("passport") {
+                paths.extend([
+                    "config/passport.rs",
+                    "config/auth.rs",
+                    "storage/oauth-public.key",
+                    "storage/oauth-private.key",
+                ]);
+            }
+            if extensions.has("fortify") {
+                paths.extend([
+                    "config/fortify.rs",
+                    "bootstrap/providers.rs",
+                    "app/actions/fortify",
+                    "app/providers/fortify_service_provider.rs",
+                    "app/models/user.rs",
+                ]);
+            }
+            if extensions.has("passport") || extensions.has("fortify") {
+                output.info("Package migrations: publish missing migration identities; preserve every historical migration. Existing APP_KEY and Passport key pairs are always preserved.\n");
+            }
             for path in paths {
                 let action = if root.join(path).exists() {
-                    if path == "routes/api.rs" && force {
+                    if force
+                        && (path == "routes/api.rs"
+                            || path == "config/passport.rs"
+                            || path == "config/fortify.rs"
+                            || path.starts_with("app/actions/fortify")
+                            || path == "app/providers/fortify_service_provider.rs")
+                    {
                         "replace scaffolding"
                     } else {
                         "preserve existing values / integrate"
@@ -214,7 +260,7 @@ impl Command for InitCommand {
                     "Initialization cancelled; no changes were made.",
                 ));
             }
-            let _lock = lock_manifest(&root)?;
+            let mut source_lock = lock_manifest(&root)?;
             loop {
                 match verify_connections(&root, &values).await {
                     Ok(()) => break,
@@ -226,6 +272,7 @@ impl Command for InitCommand {
                         configure(&mut values, extensions.has("reverb"))?;
                         validate_choices(&values)?;
                         extensions.validate(&values)?;
+                        extensions.validate_application(&root, force, &values)?;
                     }
                     Err(error) => return Err(error),
                 }
@@ -233,14 +280,27 @@ impl Command for InitCommand {
             if extensions.has("reverb") {
                 prepare_reverb(&root, &mut values)?;
             }
+            if extensions.has("passkeys") && !values.contains_key("APP_URL") {
+                let origin = format!("http://localhost:{}", value(&values, "APP_PORT", "8000"));
+                values.insert("APP_URL".to_owned(), origin);
+            }
+            if key_missing(&values) {
+                values.insert("APP_KEY".to_owned(), String::new());
+            }
             let updated = update_environment(&source, &values)?;
             if env_path.exists() {
                 replace(&env_path, &source, &updated)?;
             } else {
                 create_environment(&env_path, &updated)?;
             }
-            if extensions.has("reverb") {
-                super::install_routes_command::install_reverb_feature(&root)?;
+            let manifest_path = root.join("Cargo.toml");
+            for feature in extensions.features() {
+                let previous = read(&manifest_path)?;
+                if let Some(updated) =
+                    super::install_routes_command::enable_feature(&previous, feature)?
+                {
+                    replace(&manifest_path, &previous, &updated)?;
+                }
             }
             let timestamp = super::vendor_publish_command::migration_publication_timestamp(app)?;
             for event in initialize_routes(&root, force, timestamp, &extensions.names)? {
@@ -248,13 +308,64 @@ impl Command for InitCommand {
                     .await
                     .map_err(|error| ConsoleError::new(error.to_string()))?;
             }
-            // Rebuild once after source registration so the child sees new features and routes.
+            // Clear cached configuration and generate a missing APP_KEY before package boot.
+            let current =
+                std::env::current_exe().map_err(|error| ConsoleError::new(error.to_string()))?;
+            run(
+                &current,
+                &root,
+                &["config:clear", "--no-interaction"],
+                environment.as_deref(),
+            )?;
+            if key_missing(&values) {
+                run(
+                    &current,
+                    &root,
+                    &["key:generate", "--no-interaction"],
+                    environment.as_deref(),
+                )?;
+            }
+            let registry = app
+                .make::<super::installation::ExtensionInstallers>()
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            let services = extensions.services();
+            if !services.is_empty() {
+                if services.iter().all(|name| registry.get(name).is_some()) {
+                    let installation =
+                        super::installation::SourceInstallation::from_lock(app, source_lock);
+                    install_resources(&installation, &extensions, force, output).await?;
+                    source_lock = installation.into_lock();
+                } else {
+                    output.info("Loading selected package installers in one bootstrap build.\n");
+                    let build_root = root.clone();
+                    let bootstrap =
+                        tokio::task::spawn_blocking(move || build_application(&build_root))
+                            .await
+                            .map_err(|error| ConsoleError::new(error.to_string()))??;
+                    // The new process acquires the same fail-fast lock; no nested installer locks.
+                    drop(source_lock);
+                    let selection = extensions.names.join(",");
+                    let mut args = vec![
+                        "init:resources",
+                        "--extensions",
+                        &selection,
+                        "--no-interaction",
+                    ];
+                    if force {
+                        args.push("--force");
+                    }
+                    run(&bootstrap, &root, &args, environment.as_deref())?;
+                    source_lock = lock_manifest(&root)?;
+                }
+            }
+            let _source_lock = source_lock;
+            // One final rebuild for all generated modules before the single migration pass.
             let build_root = root.clone();
             let executable = tokio::task::spawn_blocking(move || build_application(&build_root))
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))??;
             let command_root = root.clone();
-            let missing_key = key_missing(&values);
             tokio::task::spawn_blocking(move || {
                 // Cached configuration must not hide settings just confirmed by the developer.
                 run(
@@ -263,14 +374,6 @@ impl Command for InitCommand {
                     &["config:clear", "--no-interaction"],
                     environment.as_deref(),
                 )?;
-                if missing_key {
-                    run(
-                        &executable,
-                        &command_root,
-                        &["key:generate", "--no-interaction"],
-                        environment.as_deref(),
-                    )?;
-                }
                 if !without_migration {
                     let mut args = vec!["migrate"];
                     if migration_force {
@@ -301,33 +404,7 @@ impl Command for InitCommand {
 }
 
 const DEFAULT_EXTENSIONS: &str = "api,broadcasting,reverb,grpc";
-const PENDING_EXTENSIONS: &[(&str, &str)] = &[
-    (
-        "passport",
-        "Passport-08: OAuth2 grants, resource guard and shared API installer",
-    ),
-    (
-        "fortify",
-        "API-F01: authentication actions and shared installer",
-    ),
-    ("passkeys", "API-F02: Fortify and WebAuthn lifecycle"),
-    (
-        "socialite",
-        "API-S01: provider drivers and shared installer",
-    ),
-    (
-        "precognition",
-        "API-P01: request middleware and shared installer",
-    ),
-    (
-        "oidc",
-        "API-O01: discovery, ID Token verification and RP installer",
-    ),
-    (
-        "sso",
-        "API-O02: OIDC RP, Fortify and two-application integration",
-    ),
-];
+const AUTH_EXTENSIONS: &str = "passport,fortify,passkeys,socialite,precognition,oidc,sso";
 
 struct Extensions {
     names: Vec<String>,
@@ -335,7 +412,7 @@ struct Extensions {
 
 impl Extensions {
     fn parse(selection: Option<&str>) -> Result<Self, ConsoleError> {
-        let selection = selection.unwrap_or(DEFAULT_EXTENSIONS);
+        let selection = selection.unwrap_or("all");
         let mut names = Vec::new();
         for name in selection.split(',').map(str::trim) {
             if name == "all" {
@@ -343,23 +420,14 @@ impl Extensions {
                     return Err(ConsoleError::new("Use --extensions=all on its own."));
                 }
                 names.extend(DEFAULT_EXTENSIONS.split(',').map(str::to_owned));
-                names.extend(
-                    PENDING_EXTENSIONS
-                        .iter()
-                        .map(|(name, _)| (*name).to_owned()),
-                );
+                names.extend(AUTH_EXTENSIONS.split(',').map(str::to_owned));
                 break;
             }
             if !DEFAULT_EXTENSIONS.split(',').any(|known| known == name)
-                && !PENDING_EXTENSIONS.iter().any(|(known, _)| *known == name)
+                && !AUTH_EXTENSIONS.split(',').any(|known| known == name)
             {
                 return Err(ConsoleError::new(format!(
-                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS}. Release scope pending: {}. No changes were made.",
-                    PENDING_EXTENSIONS
-                        .iter()
-                        .map(|(name, _)| *name)
-                        .collect::<Vec<_>>()
-                        .join(",")
+                    "Unknown initialization extension `{name}`. Supported: {DEFAULT_EXTENSIONS},{AUTH_EXTENSIONS}. No changes were made."
                 )));
             }
             if !names.iter().any(|known| known == name) {
@@ -371,18 +439,86 @@ impl Extensions {
         {
             names.push("broadcasting".to_owned());
         }
-        let pending = PENDING_EXTENSIONS
-            .iter()
-            .filter(|(name, _)| names.iter().any(|selected| selected == name))
-            .map(|(name, reason)| format!("{name}: {reason}"))
-            .collect::<Vec<_>>();
-        if !pending.is_empty() {
-            return Err(ConsoleError::new(format!(
-                "Selected extensions are not ready:\n  {}\nInitialization is incomplete; no changes were made.",
-                pending.join("\n  ")
-            )));
+        for (extension, dependencies) in [
+            ("passport", &["api"][..]),
+            ("passkeys", &["fortify"][..]),
+            ("sso", &["oidc", "fortify"][..]),
+        ] {
+            if names.iter().any(|name| name == extension) {
+                for dependency in dependencies {
+                    if !names.iter().any(|name| name == dependency) {
+                        names.push((*dependency).to_owned());
+                    }
+                }
+            }
         }
         Ok(Self { names })
+    }
+
+    fn validate_application(
+        &self,
+        root: &Path,
+        force: bool,
+        env: &BTreeMap<String, String>,
+    ) -> Result<(), ConsoleError> {
+        if self.has("passkeys") && (force || !root.join("config/fortify.rs").exists()) {
+            let fallback = format!("http://localhost:{}", value(env, "APP_PORT", "8000"));
+            let origin = value(env, "APP_URL", &fallback);
+            let valid = url::Url::parse(origin).is_ok_and(|url| {
+                matches!(url.host(), Some(url::Host::Domain(host)) if !host.is_empty())
+                    && (url.scheme() == "https"
+                        || (url.scheme() == "http" && url.host_str() == Some("localhost")))
+                    && url.origin().ascii_serialization() == origin
+                    && url.username().is_empty()
+                    && url.password().is_none()
+                    && url.query().is_none()
+                    && url.fragment().is_none()
+            });
+            if !valid {
+                return Err(ConsoleError::new(
+                    "Passkeys requires an exact HTTPS APP_URL origin with a domain name (no path); HTTP localhost is allowed for development, for example APP_URL=http://localhost:8000. Correct APP_URL or omit passkeys from --extensions. No changes were made.",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn features(&self) -> Vec<&str> {
+        [
+            ("api", "sanctum"),
+            ("reverb", "reverb"),
+            ("passport", "passport"),
+            ("fortify", "fortify"),
+            ("socialite", "socialite"),
+            ("oidc", "oidc"),
+        ]
+        .into_iter()
+        .filter(|(extension, _)| self.has(extension))
+        .map(|(_, feature)| feature)
+        .collect()
+    }
+    fn services(&self) -> Vec<&str> {
+        ["passport", "fortify"]
+            .into_iter()
+            .filter(|name| self.has(name))
+            .collect()
+    }
+    fn report(&self, output: &mut Output) {
+        if self.has("passport") {
+            output.info("Passport: install keys, migrations, User token support and the independent api guard; /user remains auth:sanctum. Register OAuth clients for your consumers.\n");
+        }
+        if self.has("fortify") {
+            output.info("Fortify / Passkeys: install authentication actions, provider, configuration and migrations. New configuration uses views=false and email-verification; Passkeys is enabled when selected. Existing custom configuration is preserved. Configure the frontend password.reset route or ResetPassword::createUrlUsing. Verify mail delivery and HTTPS / exact WebAuthn origins before production use.\n");
+        }
+        if self.has("socialite") {
+            output.comment("Socialite: enable package; external configuration pending: provider credentials, callbacks and explicit local account binding.\n");
+        }
+        if self.has("precognition") {
+            output.info("Precognition middleware is available; apply precognitive to the routes you choose to validate.\n");
+        }
+        if self.has("oidc") || self.has("sso") {
+            output.comment("OIDC / SSO: enable package; external configuration pending: issuer, client credentials, registered callbacks, local account binding and application routes. This does not configure a production identity provider or global logout.\n");
+        }
     }
 
     fn has(&self, name: &str) -> bool {
@@ -420,7 +556,7 @@ fn update_environment(
     let old = parse_environment(source)?;
     let mut updated = source.to_owned();
     for (key, val) in values {
-        if old.get(key) == Some(val) {
+        if old.get(key) == Some(val) && !(key == "APP_KEY" && val.is_empty()) {
             continue;
         }
         if val.contains(['\n', '\r', '\0']) {
@@ -428,9 +564,13 @@ fn update_environment(
                 "{key} cannot contain line breaks or NUL."
             )));
         }
-        let encoded = serde_json::to_string(val)
-            .map_err(|e| ConsoleError::new(e.to_string()))?
-            .replace('$', "\\$");
+        let encoded = if key == "APP_KEY" && val.is_empty() {
+            String::new()
+        } else {
+            serde_json::to_string(val)
+                .map_err(|e| ConsoleError::new(e.to_string()))?
+                .replace('$', "\\$")
+        };
         let assignment = format!("{key}={encoded}");
         let mut found = false;
         updated = updated
@@ -929,6 +1069,63 @@ fn run(
             "{} failed ({status}); correct the issue and run artisan init again. Completed files were preserved.",
             args[0]
         )));
+    }
+    Ok(())
+}
+
+struct ResourcesCommand(CommandDefinition);
+impl Command for ResourcesCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let extensions = Extensions::parse(
+                input
+                    .matches()
+                    .get_one::<String>("extensions")
+                    .map(String::as_str),
+            )?;
+            let installation = super::installation::SourceInstallation::new(app)?;
+            install_resources(
+                &installation,
+                &extensions,
+                input.matches().get_flag("force"),
+                output,
+            )
+            .await?;
+            Ok(0)
+        })
+    }
+}
+async fn install_resources(
+    installation: &super::installation::SourceInstallation<'_>,
+    extensions: &Extensions,
+    force: bool,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let registry = installation
+        .application()
+        .make::<super::installation::ExtensionInstallers>()
+        .await
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    // Resolve every required service before publishing any package resources.
+    let services = extensions.services().into_iter().map(|name| registry.get(name).ok_or_else(|| ConsoleError::new(format!("The {name} installer is unavailable. Enable the corresponding application feature and package discovery, then retry init.")))).collect::<Result<Vec<_>, _>>()?;
+    for service in services {
+        service(
+            installation,
+            super::installation::InstallationOptions {
+                force,
+                extensions: &extensions.names,
+            },
+            output,
+        )
+        .await?;
     }
     Ok(())
 }

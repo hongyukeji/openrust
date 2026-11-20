@@ -160,7 +160,7 @@ impl Command for InstallRoutesCommand {
                 let environment = input
                     .matches()
                     .get_many::<String>("env")
-                    .and_then(|mut v| v.next_back())
+                    .and_then(|mut v| v.next())
                     .cloned();
                 tokio::task::spawn_blocking(move || {
                     install_passport_after_rebuild(
@@ -191,7 +191,7 @@ impl Command for InstallRoutesCommand {
                 let environment = input
                     .matches()
                     .get_many::<String>("env")
-                    .and_then(|mut values| values.next_back())
+                    .and_then(|mut values| values.next())
                     .cloned();
                 tokio::task::spawn_blocking(move || {
                     migrate_after_rebuild(&root, environment.as_deref())
@@ -649,7 +649,7 @@ fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
     enable_feature(source, "sanctum")
 }
 
-fn enable_feature(source: &str, feature: &str) -> Result<Option<String>, ConsoleError> {
+pub(super) fn enable_feature(source: &str, feature: &str) -> Result<Option<String>, ConsoleError> {
     use toml_edit::{Array, DocumentMut, Item};
 
     let invalid = || {
@@ -682,15 +682,6 @@ fn enable_feature(source: &str, feature: &str) -> Result<Option<String>, Console
     } else {
         updated
     }))
-}
-
-pub(super) fn install_reverb_feature(root: &Path) -> Result<(), ConsoleError> {
-    let path = root.join("Cargo.toml");
-    let source = read(&path)?;
-    if let Some(updated) = enable_feature(&source, "reverb")? {
-        replace(&path, &source, &updated)?;
-    }
-    Ok(())
 }
 
 fn create_source(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {
@@ -749,18 +740,29 @@ pub struct ApiInstallCommand;
 impl ApiInstallCommand {
     pub fn configurePassport(root: &Path) -> Result<(), ConsoleError> {
         let _lock = lock_manifest(root)?;
-        let path = root.join("config/mod.rs");
-        let source = read(&path)?;
-        let updated = insert_config_hook(&source, &path, "mod passport;", |line| {
-            line.trim() == "mod services;"
-        })?;
-        let updated = insert_config_hook(
-            &updated,
-            &path,
-            r#"("passport".to_owned(), passport::load(env)?),"#,
-            |line| line.trim_start().starts_with(r#"("services".to_owned(),"#),
-        )?;
-        replace(&path, &source, &updated)
+        configure_passport_unlocked(root)
+    }
+    pub fn configurePassportResources(
+        installation: &super::installation::SourceInstallation<'_>,
+    ) -> Result<(), ConsoleError> {
+        configure_passport_unlocked(installation.root())
+    }
+    pub fn configurePassportInstallation(
+        installation: &super::installation::SourceInstallation<'_>,
+    ) -> Result<(), ConsoleError> {
+        let root = installation.root();
+        let mut warnings = Vec::new();
+        wire_passport(root, &mut warnings)?;
+        if !warnings.is_empty() {
+            return Err(ConsoleError::new(
+                warnings
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; "),
+            ));
+        }
+        configure_passport_unlocked(root)
     }
     pub fn runPendingMigrations(
         root: &Path,
@@ -832,4 +834,19 @@ fn wire_passport(root: &Path, warnings: &mut Vec<ConsoleError>) -> Result<(), Co
         }
     }
     Ok(())
+}
+
+fn configure_passport_unlocked(root: &Path) -> Result<(), ConsoleError> {
+    let path = root.join("config/mod.rs");
+    let source = read(&path)?;
+    let updated = insert_config_hook(&source, &path, "mod passport;", |line| {
+        line.trim() == "mod services;"
+    })?;
+    let updated = insert_config_hook(
+        &updated,
+        &path,
+        r#"("passport".to_owned(), passport::load(env)?),"#,
+        |line| line.trim_start().starts_with(r#"("services".to_owned(),"#),
+    )?;
+    replace(&path, &source, &updated)
 }

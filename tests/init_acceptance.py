@@ -94,10 +94,10 @@ def main():
     runtime['RUSTUP_TOOLCHAIN'] = '1.94.0'
     binary = Path(runtime['CARGO_TARGET_DIR']) / 'debug/main'
     initial_binary = Path(os.environ['OPENRUST_INIT_BINARY'])
-    initial_extensions = [] if os.environ.get('OPENRUST_INIT_TEST_INTEGRATIONS') else ['--extensions=api']
+    initial_extensions = ['--extensions=api,broadcasting,reverb,grpc'] if os.environ.get('OPENRUST_INIT_TEST_INTEGRATIONS') else ['--extensions=api']
     with (stage / 'init.log').open('w') as log:
         subprocess.run([str(initial_binary), 'artisan', 'init', '--no-interaction', *initial_extensions], env=runtime, cwd=source, stdout=log, stderr=subprocess.STDOUT, check=True)
-    if initial_extensions:
+    if initial_extensions == ['--extensions=api']:
         assert not (source / 'routes/channels.rs').exists()
         assert not (source / 'routes/grpc.rs').exists()
     key_lines = [line for line in (source / '.env').read_text().splitlines() if line.startswith('APP_KEY=')]
@@ -116,7 +116,7 @@ def main():
     with (source / '.env').open('a') as changed:
         changed.write('\nAPI_PREFIX=api/admin\n')
     with (stage / 'repeat.log').open('w') as log:
-        subprocess.run([str(binary), 'artisan', 'init', '--force', '--no-interaction'], env=runtime, cwd=source, stdout=log, stderr=subprocess.STDOUT, check=True)
+        subprocess.run([str(binary), 'artisan', 'init', '--extensions=api,broadcasting,reverb,grpc', '--force', '--no-interaction'], env=runtime, cwd=source, stdout=log, stderr=subprocess.STDOUT, check=True)
     assert (source / 'routes/channels.rs').is_file()
     assert (source / 'routes/grpc.rs').is_file()
     assert key_lines == [line for line in (source / '.env').read_text().splitlines() if line.startswith('APP_KEY=')]
@@ -144,7 +144,7 @@ def main():
                 pending += chunk
                 pending = re.sub(rb'\x1b\[[0-?]*[ -/]*[@-~]',b'',pending).replace(b'\r',b'')
                 if pending.endswith(b': ') or pending.endswith(b'[Y/n] ') or pending.endswith(b'[y/N] '):
-                    answer = 'Init acceptance 中文\n'.encode() if b'APP_NAME [' in pending else b'\n'
+                    answer = b'api,broadcasting,reverb,grpc\n' if b'EXTENSIONS [' in pending else ('Init acceptance 中文\n'.encode() if b'APP_NAME [' in pending else b'\n')
                     os.write(master, answer)
                     pending = b''
                     answers += 1
@@ -165,7 +165,7 @@ def main():
     try:
         (source / '.env').write_text(saved_env + '\nDB_PREFIX=' + 'x' * 100 + '\n')
         with (stage / 'migration-failure.log').open('w') as log:
-            failure = subprocess.run([str(binary), 'artisan', 'init', '--no-interaction'], cwd=source, env=runtime, stdout=log, stderr=subprocess.STDOUT)
+            failure = subprocess.run([str(binary), 'artisan', 'init', '--extensions=api,broadcasting,reverb,grpc', '--no-interaction'], cwd=source, env=runtime, stdout=log, stderr=subprocess.STDOUT)
         assert failure.returncode != 0, 'migration failure must not be reported as successful initialization'
         assert (source / 'routes/api.rs').is_file()
         assert migrations == sorted((source / 'database/migrations').glob('*.rs'))
@@ -177,7 +177,7 @@ def main():
     (source / '.env.acceptance').write_text(selected)
     (source / '.env.acceptance').chmod(0o600)
     with (stage / 'selected-environment.log').open('w') as log:
-        subprocess.run([str(binary),'artisan','init','--env=acceptance','--force','--no-interaction'],cwd=source,env=runtime,stdout=log,stderr=subprocess.STDOUT,check=True)
+        subprocess.run([str(binary),'artisan','init','--extensions=api,broadcasting,reverb,grpc','--env=acceptance','--force','--no-interaction'],cwd=source,env=runtime,stdout=log,stderr=subprocess.STDOUT,check=True)
     assert (source / '.env').read_bytes()==default_environment
     selected_keys=[line for line in (source / '.env.acceptance').read_text().splitlines() if line.startswith('APP_KEY=')]
     assert len(selected_keys)==1 and selected_keys[0]!='APP_KEY='

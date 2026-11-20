@@ -15,6 +15,7 @@ mod event_list_command;
 mod event_make_command;
 mod init_command;
 mod install_routes_command;
+pub mod installation;
 mod job_make_command;
 mod key_generate_command;
 mod lang_publish_command;
@@ -70,6 +71,7 @@ use tokio::sync::OnceCell;
 struct ConsoleApplication(Weak<ApplicationState>);
 
 pub(super) fn bind_application(application: &Arc<ApplicationState>) {
+    installation::bind(application);
     application
         .container
         .instance(Arc::new(ConsoleApplication(Arc::downgrade(application))))

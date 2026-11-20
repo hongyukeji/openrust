@@ -138,7 +138,7 @@ MySQL 与 PostgreSQL 原生全文索引、模型排序和分页均通过真实�
 | [08-03 gRPC](08-03/README.md) | [已闭合](08-03/README.md#08-03-整单元验收)。监听、命名客户端、mTLS 凭据及双端拦截器通过真实 Tonic、HTTP 和 Artisan 验收 | — |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 应用内源路径、目标及迁移目录的符号链接边界已复验。包发现与清单缓存已随 07-07 验收。 |
-| [第一代 API 扩展](../plan.md#first-generation-api) | 15 个单元的本机受控范围已分批验收：Passport-01–09、API-F01／02、S01、P01、O01／02。真实外部供应商、Windows嵌套重建及最终发布矩阵仍待。 | 各单元证据沿本账本及所属审计；artisan init 统一安装接线继续，不能以各包验收代替完整初始化成功。 |
+| [第一代 API 扩展](../plan.md#first-generation-api) | 15 个单元的本机受控范围已分批验收：Passport-01–09、API-F01／02、S01、P01、O01／02；[统一初始化](00-03/init-auth.md)已通过 macOS ARM64／Windows ARM64／Linux x86_64 默认 all 的实际安装与重建。 | 完整生成应用的 MySQL 认证 HTTP／独立令牌守卫与 macOS Chrome Passkeys、Windows CMD／PowerShell／ConPTY已测；真实外部供应商、生产SSO、Windows Docker Desktop及其余发布矩阵继续按各自边界跟踪。 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Scout、Horizon、Dusk 等按各自范围独立核对。 | 未因本次 API 授权自动全部纳入第一代。 |
 | [08-04 发布](08-04/README.md) | [按模拟正式环境验收闭合](08-04/README.md#08-04-模拟正式环境验收与闭合)。干净检出安装、[原生 Ubuntu x86_64 发布复验](08-04/docker.md#原生-ubuntu-x86_64-发布复验)（`07307c6e1`）、Linux amd64 兼容环境镜像、Windows ARM64 独立部署、SQLite 3.51.3／MySQL 5.7.44 Oracle 通用归档和 Oracle Linux 7 ECDHE 派生镜像、8.0.46／8.4.13／MariaDB 10.3.39 和 11.8.9／PostgreSQL 10–18 实测版本／SQL Server 2017 和 2022 TDS，以及[本地 TLS 证书链与轮换、SQS 标准／FIFO SigV4 模拟补测](08-04/README.md#模拟验收补测)通过 | Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的发布实机验证，见[环境与权限复查](08-04/README.md#剩余实机环境复查) |
 

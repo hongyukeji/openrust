@@ -3801,3 +3801,11 @@ API-F02 [定制验收](audits/api-f02/customization.md)完成：实际模型选�
 ## 2026-11-20 双应用浏览器 SSO 与退出闭合
 
 API-O02 [验收](audits/api-o02/README.md)完成：恢复既有隔离源码并整合9ea308252基线，新增不透明已验证 LogoutHint、固定退出回调／一次性状态与本地退出示例；两个独立RP与受控OP的真实Chrome／MySQL8.4.13测试覆盖并发登录、重新认证、跨租户／绑定拒绝、CSRF、本地与OP退出、并发／过期／重放回调及bearer边界。OIDC7＋根配置1函数、严格全workspace/all-targets五feature Clippy／fmt、根HTTP／Pail／Artisan、关闭feature检查及三语12＋6浏览器通过。21源码SHA与固定规范留证；释放5,402,480 KiB，剩78.062 GB／72.700 GiB，全部卷保留。本地提交，不推送；继续artisan init完整认证扩展装配与最终发布余项。
+
+## 2026-11-20 完整认证扩展统一初始化与三平台验收
+
+[本批审计](audits/00-03/init-auth.md)及[输入 SHA](audits/00-03/init-auth-inputs.json)：默认 all、真实 Cargo 依赖、应用内共享资源安装服务和原源码锁；未编入包时集中 bootstrap／内部发布／统一最终构建，历史迁移和现有 APP_KEY／Passport RSA pair 保留，缺失键与 Origin／守卫冲突前置处理，重复 --env 与应用引导一致取首值。无默认可选 feature 的应用骨架继续保持轻量。三语正文明确外部凭据／路由／重置地址／SSO 生产前置。
+
+macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature 全 workspace/all-targets 严格 Clippy／fmt、根 HTTP／Pail／Artisan、关闭功能检查，真实 PTY／隐藏密码／Redis／SMTP／Reverb／选定环境／失败重试；默认 all 生成应用的安装／迁移／原始 HTTP／重复／force／单项互通、独立 Sanctum 与 Passport 守卫、完整 Fortify HTTP 和三封 SMTP、真实 Chrome／固定官方 JS 的 Passkeys 全生命周期、严格生成 Clippy 与关闭构建通过。Windows ARM64：实际默认 all 两阶段重建／迁移、CMD／PowerShell 重复和 force、密钥／迁移保留、HTTP、init14、真实 ConPTY 通过。Linux x86_64：默认 all 生成应用、完整认证 HTTP／MySQL8.4.13／迁移回滚／严格 Clippy／关闭构建通过；Linux／Windows 未跑浏览器 Passkeys。三语站点、根与子路径桌面／移动12及初始化内容6组合通过。所有失败与修正留证，本批统一安装任务闭合；真实供应商与生产／托管环境仍沿原发布矩阵跟踪。本地核范围提交，不推送，协作者 plan.md 与未知 WIP 保留。
+
+资源回收：macOS 8,764,808 KiB；Windows 来宾 7,975,813,120 字节并恢复 stopped；Linux 6,253,152 KiB。所有源码／日志／共享缓存／全部数据卷保留，最终宿主可用 79.862 GB／74.377 GiB。

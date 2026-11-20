@@ -142,6 +142,9 @@ impl ServiceProvider for PassportServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container()
+                .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
+                .register("passport", console::commands::install_command::initialize);
             // Laravel publishes these migrations; it does not silently run package schema.
             self.publishesMigrations(app, migrations::SOURCES, "passport-migrations")?;
             self.publishes(

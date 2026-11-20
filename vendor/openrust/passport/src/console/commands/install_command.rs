@@ -89,20 +89,12 @@ impl Command for InstallCommand {
                     }
                 }
             }
-            for tag in ["passport-config", "passport-migrations"] {
-                if Artisan::call("vendor:publish", &["--tag".into(), tag.into()], output).await?
-                    != 0
-                {
-                    return Err(ConsoleError::new("Passport resource publication failed."));
-                }
-            }
             let root = app.base_path().to_owned();
-            let configure_root = root.clone();
-            tokio::task::spawn_blocking(move || {
-                ApiInstallCommand::configurePassport(&configure_root)
-            })
-            .await
-            .map_err(error)??;
+            {
+                let installation =
+                    openrust::foundation::console::installation::SourceInstallation::new(app)?;
+                publish_resources(&installation, false, output).await?;
+            }
             let noninteractive = input.matches().get_flag("no-interaction");
             let interactive =
                 !noninteractive && output.streams_to_terminal() && io::stdin().is_terminal();
@@ -125,7 +117,7 @@ impl Command for InstallCommand {
             let environment = input
                 .matches()
                 .get_many::<String>("env")
-                .and_then(|mut values| values.next_back())
+                .and_then(|mut values| values.next())
                 .cloned();
             tokio::task::spawn_blocking(move || {
                 ApiInstallCommand::runPendingMigrations(
@@ -192,4 +184,61 @@ fn confirm(question: &str) -> Result<bool, ConsoleError> {
 }
 fn error(error: impl std::fmt::Display) -> ConsoleError {
     ConsoleError::new(error.to_string())
+}
+
+pub(crate) fn initialize<'a>(
+    installation: &'a openrust::foundation::console::installation::SourceInstallation<'a>,
+    options: openrust::foundation::console::installation::InstallationOptions<'a>,
+    output: &'a mut Output,
+) -> ConsoleFuture<'a, Result<(), ConsoleError>> {
+    Box::pin(async move {
+        let passport = installation
+            .application()
+            .make::<Passport>()
+            .await
+            .map_err(error)?;
+        let public = passport.keyPath("oauth-public.key");
+        let private = passport.keyPath("oauth-private.key");
+        match (
+            public.try_exists().map_err(error)?,
+            private.try_exists().map_err(error)?,
+        ) {
+            (true, true) => output.info("Existing Passport encryption keys were preserved."),
+            (false, false) => {
+                for path in [&public, &private] {
+                    let directory = path
+                        .parent()
+                        .ok_or_else(|| ConsoleError::new("Invalid Passport key path."))?;
+                    std::fs::create_dir_all(directory).map_err(error)?;
+                }
+                tokio::task::spawn_blocking(move || {
+                    super::keys_command::generate_keys(&public, &private, 4096, false)
+                })
+                .await
+                .map_err(error)?
+                .map_err(error)?;
+                output.info("Passport encryption keys generated.");
+            }
+            _ => {
+                return Err(ConsoleError::new(
+                    "Passport key pair is incomplete. Restore the missing key before retrying initialization.",
+                ));
+            }
+        }
+        publish_resources(installation, options.force, output).await?;
+        ApiInstallCommand::configurePassportInstallation(installation)
+    })
+}
+
+async fn publish_resources(
+    installation: &openrust::foundation::console::installation::SourceInstallation<'_>,
+    force: bool,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    for tag in ["passport-config", "passport-migrations"] {
+        installation
+            .publish(tag, force && tag != "passport-migrations", output)
+            .await?;
+    }
+    ApiInstallCommand::configurePassportResources(installation)
 }

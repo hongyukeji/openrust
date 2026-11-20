@@ -118,7 +118,7 @@ $previousBase = $env:APP_BASE_PATH
 New-Item -ItemType Directory -Path $EvidenceDirectory -Force | Out-Null
 try {
     New-Item -ItemType Directory -Path $root, (Join-Path $root 'bootstrap'), (Join-Path $root 'routes'), (Join-Path $root 'config') | Out-Null
-    [IO.File]::WriteAllText((Join-Path $root 'Cargo.toml'), "[package]`nname = `"fixture`"`nversion = `"0.0.0`"`n")
+    [IO.File]::WriteAllText((Join-Path $root 'Cargo.toml'), "[package]`nname = `"fixture`"`nversion = `"0.0.0`"`n`n[features]`nsanctum=[]`n")
     foreach ($name in @('bootstrap/app.rs', 'routes/mod.rs', 'config/mod.rs')) {
         [IO.File]::WriteAllText((Join-Path $root $name), "// terminal fixture`n")
     }

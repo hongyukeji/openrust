@@ -1,5 +1,5 @@
 mod client_command;
-mod install_command;
+pub(crate) mod install_command;
 pub use install_command::InstallCommand;
 pub(crate) mod purge_command;
 pub use purge_command::PurgeCommand;
