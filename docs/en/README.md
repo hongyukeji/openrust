@@ -140,5 +140,6 @@
 - [Scout](packages/scout.md)
 - [Socialite](packages/socialite.md)
 - [OpenID Connect (Extension)](packages/oidc.md)
+- [Database Settings (Extension)](packages/settings.md)
 - [Telescope](packages/telescope.md)
 - [Valet](packages/valet.md)

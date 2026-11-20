@@ -3967,6 +3967,7 @@ dependencies = [
  "openrust-pail",
  "openrust-passport",
  "openrust-reverb",
+ "openrust-settings",
  "openrust-socialite",
  "serde",
  "serde_json",
@@ -4201,6 +4202,20 @@ dependencies = [
  "tokio-tungstenite",
  "tokio-util",
  "url",
+]
+
+[[package]]
+name = "openrust-settings"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

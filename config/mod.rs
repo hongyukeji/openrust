@@ -21,6 +21,8 @@ mod queue;
 mod reverb;
 mod services;
 mod session;
+#[cfg(feature = "settings")]
+mod settings;
 mod sms;
 mod view;
 mod vonage;
@@ -39,6 +41,8 @@ pub(crate) fn load(
     let database = database::load(base_path, env, app.name)?;
     let queue = queue::load(env, &database["default"])?;
     Ok(BTreeMap::from([
+        #[cfg(feature = "settings")]
+        ("settings".to_owned(), settings::load()),
         ("auth".to_owned(), auth::load(env)?),
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),

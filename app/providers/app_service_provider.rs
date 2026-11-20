@@ -17,11 +17,24 @@ impl ServiceProvider for AppServiceProvider {
         Box::pin(async move {
             let auth = app.container().make::<AuthManager>()?;
             auth.registerModel::<crate::app::models::User>("app::models::User");
+            #[cfg(feature = "settings")]
+            openrust_settings::SettingsServiceProvider::registerSettings::<
+                crate::app::settings::SiteSettings,
+            >(app)
+            .await?;
             Ok(())
         })
     }
 
-    fn boot(&mut self, _app: &Application) -> HttpFuture<'_, ProviderResult> {
-        Box::pin(async { Ok(()) })
+    fn boot<'a>(&'a mut self, _app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            #[cfg(feature = "settings")]
+            self.loadMigrationsFrom(
+                _app,
+                openrust_settings::SettingsServiceProvider::migrations(),
+            )
+            .await?;
+            Ok(())
+        })
     }
 }

@@ -42,6 +42,7 @@ passport = ["dep:openrust-passport"]
 fortify = ["dep:openrust-fortify"]
 socialite = ["dep:openrust-socialite"]
 oidc = ["dep:openrust-oidc"]
+settings = ["dep:openrust-settings"]
 
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
@@ -53,6 +54,7 @@ openrust-passport = { path = "vendor/openrust/passport", optional = true }
 openrust-fortify = { path = "vendor/openrust/fortify", optional = true }
 openrust-socialite = { path = "vendor/openrust/socialite", optional = true }
 openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
+openrust-settings = { path = "vendor/openrust/settings", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }
