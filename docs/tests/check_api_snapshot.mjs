@@ -51,6 +51,7 @@ try {
                 for (const [file, methods] of [
                     ["openrust/support/struct.Date.html", ["timezone", "fromUtc", "asDateTime"]],
                     ["openrust_settings/struct.Settings.html", ["get", "save", "saveIn", "refresh"]],
+                    ["openrust_socialite/mini_app/struct.MiniApp.html", ["codeToSession"]],
                 ]) {
                     assert.equal((await page.goto(`${base}api/${file}`)).status(), 200);
                     for (const method of methods) {
