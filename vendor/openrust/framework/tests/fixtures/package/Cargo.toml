@@ -5,3 +5,9 @@ resolver = "3"
 [patch.crates-io]
 sqlx-mysql = { path = "../../../../../sqlx-mysql" }
 sqlx-sqlite = { path = "../../../../../sqlx-sqlite" }
+
+rav1e = { path = "../../../../../rav1e" }
+imgalifier-avif = { path = "../../../../../imgalifier-avif" }
+aws-smithy-http = { path = "../../../../../aws-smithy-http" }
+aws-smithy-runtime = { path = "../../../../../aws-smithy-runtime" }
+aws-smithy-types = { path = "../../../../../aws-smithy-types" }

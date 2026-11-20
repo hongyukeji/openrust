@@ -41,3 +41,25 @@
 证据在 `/private/tmp/openrust-core-review-20261121/`：`metadata.json`、`licenses.json`、`licenses.log`、`advisories-current.jsonl`。初次使用不受支持的 `--disable-fetch` 失败，未计成功；上述记录使用修正后的实际命令。该结论仅覆盖此固定源码与锁文件，不替代后续扩展提交后的整合审计。
 
 数据库翻译交付后的 `599bb7d30` 归档再次执行锁定全feature元数据与公告检查：683包的版本、来源与许可证声明集合与上述盘点完全相同，仍只有同样4条unmaintained错误，没有vulnerability诊断。日志 `metadata-delivery.json`、`advisories-delivery.jsonl`。本次仅文档与设计记录，不变更数据库或缓存实现；原三库／缓存各驱动验收不由本次单一PG复核替代。
+
+
+## paste 与 pin-utils 的上游替代回移
+
+2026-11-21，在 `58c622e6988a003572fedf91097b32674c85d186` 的独占快照中接入五个真实父包的最小上游补丁，保留原包版本、源码、许可证与来源校验值。根 workspace 排除这些第三方包，通过 crates.io patch 接线；独立 package 夹具同步相对路径。没有新增 ignore、修改公告策略或将原包改名避开检测。
+
+- rav1e 0.8.1 参考官方提交 [`c247d53ae43dd1312dbd90117c45e4c0ee6b06ce`](https://github.com/xiph/rav1e/commit/c247d53ae43dd1312dbd90117c45e4c0ee6b06ce) 替换 paste 为已有 pastey 0.1.1；imgalifier-avif 0.1.0 同步成熟的相同宏接口。没有更改编解码算法或公开接口。
+- aws-smithy-http 0.63.6、aws-smithy-runtime 1.11.3、aws-smithy-types 1.5.0 回移官方 [`66b12d3e2165f98ff62146b46fb248c5845e8ea4`](https://github.com/smithy-lang/smithy-rs/commit/66b12d3e2165f98ff62146b46fb248c5845e8ea4)：删除未使用的 pin-utils 依赖，以标准库 `std::pin::pin!` 保留已有 pin 和生命周期行为。没有改 SDK 请求、重试、凭据或传输协议。
+- 已发布可直接升级的父包尚不能同时移除这些依赖并维持 Rust 1.94.0，采用最小回移。各包 README.openrust.md 保留发布包 SHA、变更来源及删除条件：兼容最低 Rust 的正式上游发布包含替代后升级并移除本地 patch。未为升级 AWS 改动最低 Rust 版本。
+
+Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
+
+- 图片专项14函数全部通过，包含真实 AVIF／HEIC／JPEG XL 与动画、元数据、损坏输入和限制回归。独立五父包 probe 的 AVIF 往返及 ByteStream 多块／空流／错误传播两函数也通过。
+- 真实 RustFS 1.0.5（摘要 `sha256:b81d16a90ee25bd9511280127ca1471788c6e874cf0f0da759645f46b2dc1d74`）对象读写、失败上传清理、无客户端凭据的预签名 GET／PUT 两函数通过；精确选择真实服务分支，未把 ACL 条件跳过计为覆盖。此结果不代表真实 AWS／STS 验收。
+- `clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`、`fmt --all --check` 和独立 package-probe-app 的 `build --locked --offline` 通过。第三方原包仍有 rav1e 的两处 lifetime 和 imgalifier-avif 的五处 cfg 编译警告，未改写无关上游代码；工作区严格检查通过。夹具最初重复键已修正，修正后锁定构建通过，失败日志保留。
+- 完整依赖图681包：661 registry、19 local、1固定Git，全部声明许可证；paste 和 pin-utils 已移除。`cargo deny` 许可证／来源清单成功；公告检查退出1，只剩 chrono／chrono-tz 两条 unmaintained，无 vulnerability 诊断。时间依赖替换仍在独立专项实施，不将维护风险写成已消除。
+
+证据与源码保留 `/private/tmp/openrust-core-matrix-20261121/`；父包原始文件比对与 probe 在 `/private/tmp/openrust-paste-pin-20261121/`。本快照不包含同期 settings 和后续时间迁移，不冒称最终发布整合。依赖替换无产品调用变化，未重建文档站。只核范围提交到本地，不推送。
+
+已回收闲置独占 target 6,220,716 KiB、本批 RustFS 容器和镜像，数据卷清单一致，所有卷保留。清理期间可用空间净增 5,766,256 KiB（5.905 GB），清理后 51,639,824 KiB（52.879 GB／49.248 GiB）；并行构建可能影响实测净值。
+
+暂存差异检查仅提示 rav1e/PATENTS 第108行的上游文件末尾空行；为保持专利授权原文不改写，该提示保留，其余本批差异无空白错误。

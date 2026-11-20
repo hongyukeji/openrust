@@ -11,7 +11,7 @@ publish = false
 
 [workspace]
 members = ["vendor/openrust/*"]
-exclude = ["vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sqlx-sqlite"]
+exclude = ["vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sqlx-sqlite", "vendor/rav1e", "vendor/imgalifier-avif", "vendor/aws-smithy-http", "vendor/aws-smithy-runtime", "vendor/aws-smithy-types"]
 default-members = ["."]
 resolver = "3"
 
@@ -19,6 +19,11 @@ resolver = "3"
 linker_messages = "allow"
 
 [patch.crates-io]
+rav1e = { path = "vendor/rav1e" }
+imgalifier-avif = { path = "vendor/imgalifier-avif" }
+aws-smithy-http = { path = "vendor/aws-smithy-http" }
+aws-smithy-runtime = { path = "vendor/aws-smithy-runtime" }
+aws-smithy-types = { path = "vendor/aws-smithy-types" }
 sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
 crypto-glue = { path = "vendor/crypto-glue" }
 sqlx-mysql = { path = "vendor/sqlx-mysql" }

@@ -745,8 +745,6 @@ dependencies = [
 [[package]]
 name = "aws-smithy-http"
 version = "0.63.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba1ab2dc1c2c3749ead27180d333c42f11be8b0e934058fb4b2258ee8dbe5231"
 dependencies = [
  "aws-smithy-eventstream",
  "aws-smithy-runtime-api",
@@ -760,7 +758,6 @@ dependencies = [
  "http-body-util",
  "percent-encoding",
  "pin-project-lite",
- "pin-utils",
  "tracing",
 ]
 
@@ -821,8 +818,6 @@ dependencies = [
 [[package]]
 name = "aws-smithy-runtime"
 version = "1.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e6f5caf6fea86f8c2206541ab5857cfcda9013426cdbe8fa0098b9e2d32182"
 dependencies = [
  "aws-smithy-async",
  "aws-smithy-http",
@@ -839,7 +834,6 @@ dependencies = [
  "http-body 1.1.0",
  "http-body-util",
  "pin-project-lite",
- "pin-utils",
  "tokio",
  "tracing",
 ]
@@ -887,8 +881,6 @@ dependencies = [
 [[package]]
 name = "aws-smithy-types"
 version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32b42fcf341259d85ca10fac9a2f6448a8ec691c6955a18e45bc3b71a85fab85"
 dependencies = [
  "base64-simd",
  "bytes",
@@ -902,7 +894,6 @@ dependencies = [
  "itoa",
  "num-integer",
  "pin-project-lite",
- "pin-utils",
  "ryu",
  "serde",
  "time",
@@ -3036,15 +3027,13 @@ dependencies = [
 [[package]]
 name = "imgalifier-avif"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4259408ebc637870778a8beb4a3bdb64da7ef45e7a2c945e38f43139ae9e488"
 dependencies = [
  "atomig",
  "bitflags",
  "cfg-if",
  "imgalifier-heif",
  "parking_lot",
- "paste",
+ "pastey",
  "static_assertions",
  "strum",
  "to_method",
@@ -4441,12 +4430,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
-
-[[package]]
 name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4606,12 +4589,6 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
-
-[[package]]
-name = "pin-utils"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13bee6c73da26345c729282832b60b0363cf3dd9f4bfd81d8551b7a1c889a113"
 
 [[package]]
 name = "pkcs1"
@@ -5050,8 +5027,6 @@ dependencies = [
 [[package]]
 name = "rav1e"
 version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43b6dd56e85d9483277cde964fd1bdb0428de4fec5ebba7540995639a21cb32b"
 dependencies = [
  "aligned-vec",
  "arbitrary",
@@ -5072,7 +5047,7 @@ dependencies = [
  "noop_proc_macro",
  "num-derive",
  "num-traits",
- "paste",
+ "pastey",
  "profiling",
  "rand 0.9.5",
  "rand_chacha 0.9.0",
