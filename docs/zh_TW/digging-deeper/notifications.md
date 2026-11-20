@@ -254,7 +254,7 @@ Notifications::route("slack", NotificationRoute::Slack("C0123456789".into()))?
     .await?;
 ```
 
-Bot API 使用 `chat.postMessage`。本機協定驗收可將回送 HTTP URL 設為 `services.slack.notifications.endpoint`。在 Slack 內確認送達需要安裝應用程式、授予 Bot 權限並使用已授權的工作區。
+Bot API 使用 `chat.postMessage`。應用程式測試時，可將本機模擬服務的 HTTP URL 設為 `services.slack.notifications.endpoint`。在 Slack 內確認送達需要安裝應用程式、授予 Bot 權限並使用已授權的工作區。
 
 ### Block Kit 選擇器 {#slack-block-kit-selects}
 

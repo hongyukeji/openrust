@@ -150,7 +150,6 @@ $app = Join-Path $PWD 'release/main.exe'
 
 將應用程式綁定在私有位址，由反向代理或負載平衡器終止 TLS。將 `APP_URL` 設為公開 HTTPS 位址，並設定代理轉送公開主機名稱和通訊協定。從用戶端驗證憑證鏈和主機名稱，檢查 HTTPS 首頁及健康路由。
 
-隔離發佈探針已用測試 CA 驗證 TLS 1.2 和 1.3。正式端點和實際部署憑證仍待環境驗收。
 
 ## Docker 部署 {#docker-deployment}
 

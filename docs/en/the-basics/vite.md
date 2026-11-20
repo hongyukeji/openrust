@@ -8,8 +8,8 @@ This chapter retains the Laravel navigation path for comparison. Its presence do
 
 ## Available entry points {#available-entry-points}
 
-See [Blade Templates](blade.md) for the native interfaces and their tested scope. When integrating a separate library or service, implement the application adapter and validate its lifecycle, errors and credentials against that service's contract.
+See [Blade Templates](blade.md) for the native interfaces and usage. When integrating a separate library or service, implement the application adapter and validate its lifecycle, errors and credentials against that service's contract.
 
 ## Scope {#scope}
 
-There is no verified installation command for the missing integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it. Future ports require their own public API, configuration, tests and three-language documentation.
+OpenRust does not provide an installation command for this integration. Do not copy a Laravel Composer or Artisan command into OpenRust on the assumption that this navigation entry implements it.

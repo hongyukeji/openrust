@@ -1,0 +1,11 @@
+{
+  "removed": {
+    "/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-docs-developer-content-49uqmgrc": 65908,
+    "docs/.vitepress/dist": 61564
+  },
+  "removed_allocated_kib": 127472,
+  "available_before_kib": 81470096,
+  "available_after_kib": 81598580,
+  "observed_available_delta_kib": 128484,
+  "note": "Only this task’s idle documentation source snapshot and generated dist were removed. Shared node_modules, browser caches, source, logs and data volumes were preserved. Available-space delta can include concurrent workspace activity."
+}

@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-20",
+  "node": "v24.20.0",
+  "commands": [
+    {
+      "command": "node docs/tests/check_content.mjs",
+      "result": "PASS: 3 languages, 106 navigation chapters and 107 Markdown files per language"
+    },
+    {
+      "command": "temporary copy negative cases with check_content.mjs",
+      "result": "PASS: 6 internal-content examples rejected; migration batch wording allowed; temporary copy removed"
+    },
+    {
+      "command": "npm run build (isolated docs source snapshot)",
+      "result": "PASS; nonfatal bundle size warning above 500 kB"
+    },
+    {
+      "command": "node tests/check_browser.mjs (isolated snapshot)",
+      "result": "PASS: / and /docs/, 3 languages, desktop/mobile, 12 combinations"
+    },
+    {
+      "command": "node tests/check_scope.mjs (isolated snapshot)",
+      "result": "PASS: 636 navigation routes, 156 support-page visits"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    }
+  ],
+  "browser_environment": {
+    "DOCS_PLAYWRIGHT_MODULE": "/Users/Home/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright",
+    "DOCS_BROWSER_PATH": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  },
+  "scope": "Documentation, project guidance and documentation content guard only. No Rust or backend behavior validation performed. Concurrent queue changes belong to another collaborator.",
+  "snapshot_matched_active_markdown_after_tests": true
+}

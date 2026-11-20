@@ -48,7 +48,7 @@ Override `FormRequest::validationRules(&self, request: &Request)` to select rule
 
 ## JavaScript helper
 
-The official `laravel-precognition` core helper `2.0.0` has been tested in Chromium against actual OpenRust HTTP routes:
+Use the official `laravel-precognition` core helper `2.0.0` with the configured OpenRust routes:
 
 ```js
 import { client } from 'laravel-precognition';

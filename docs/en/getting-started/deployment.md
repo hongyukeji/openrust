@@ -150,7 +150,6 @@ For subsequent releases, preserve the application key, database, and writable st
 
 Bind the application to a private address and terminate TLS at your reverse proxy or load balancer. Set `APP_URL` to the public HTTPS origin and configure the proxy to pass the public host and scheme. Verify the certificate chain and hostname from a client and check both the welcome page and health route over HTTPS.
 
-The isolated release probe exercised TLS 1.2 and 1.3 with a test CA. The production endpoint and its deployed certificate remain deployment checks.
 
 ## Docker deployment {#docker-deployment}
 

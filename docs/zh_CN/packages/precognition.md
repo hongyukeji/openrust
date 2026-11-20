@@ -48,7 +48,7 @@ fn routes() -> Result<(), RoutingError> {
 
 ## JavaScript helper
 
-官方 `laravel-precognition` 核心 helper `2.0.0` 已通过 Chromium 与真实 OpenRust HTTP 路由验收：
+使用官方 `laravel-precognition` 核心 helper `2.0.0` 调用配置好的 OpenRust 路由：
 
 ```js
 import { client } from 'laravel-precognition';

@@ -22,7 +22,7 @@ MariaDB 方言支援 JSON 欄位更新與由 JSON 產生欄位。`uuid()` 在 10
 
 ### MySQL 5.7 TLS {#mysql-57-tls}
 
-MySQL 5.7.44 需要能透過 ECDHE 協商 TLS 1.2 的伺服器建置。Oracle 通用 Linux 封存檔使用 RSA 伺服器憑證及下列 `mysqld` 設定通過驗收。透過 `ssl-ca`、`ssl-cert` 和 `ssl-key` 設定 CA、伺服器憑證及私密金鑰。
+MySQL 5.7.44 需要能透過 ECDHE 協商 TLS 1.2 的伺服器建置。Oracle 通用 Linux 封存檔使用 RSA 伺服器憑證及下列 `mysqld` 設定。透過 `ssl-ca`、`ssl-cert` 和 `ssl-key` 設定 CA、伺服器憑證及私密金鑰。
 
 ```ini
 [mysqld]
