@@ -15,7 +15,6 @@ exclude = ["vendor/sqlx-mysql"]
 default-members = ["."]
 resolver = "3"
 
-# 保留默认开发调试构建，关闭当前应用包的链接器消息警告。
 [lints.rust]
 linker_messages = "allow"
 
