@@ -220,3 +220,14 @@
 - 固定 Laravel v13.40.0 的 `RedisTagSet::flushStaleEntries()` 只修剪指定标签的过期引用。对照该方法和 RedisStore 集成测试，复核旧版 `b62ae7c72` 的 `redis_tags.rs` 及 `tag_identity.rs`，沿用分批清理与标签代际隔离。OpenRust 用同槽集合登记索引。指定标签清理按原始字节识别所选标签的摘要，分批从集合移除格式异常的登记，保留其指向的 Redis 键。无法识别归属的登记仍由存储级命令清理。 [固定 Laravel RedisTagSet](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/RedisTagSet.php#L84) · [上游 RedisStore 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Cache/RedisStoreTest.php#L223)
 - 在隔离基线 `6e5e9cfd7` 用 Redis 8.10.3 复现异常登记残留。修复后 `sh tests/redis_cluster.sh` 五项及单机 `redis_tags_physically_flush_values_and_prune_stale_indexes` 回归通过。两个真实 HTTP 进程验证文本与非 UTF-8 异常登记的清理范围和重复执行。独立 Artisan `cache:prune-stale-tags redis` 清除其他标签及归属不明的残留登记，Redis 原生命令确认存活索引、缓存值和被异常登记引用的实际键均保留。槽迁移失败与重试、存储选择及 `./artisan inspire` 复验通过。
 - Rust 1.94.0 全仓格式、全工作区全目标严格 Clippy、三语站点构建及两种部署路径下 12 项通用与 6 项缓存文档浏览器检查通过。临时 Redis、本批 Cargo 目标及文档生成物已回收，数据卷清单一致。清理期间项目卷可用空间变化 +4.27 GB（+3.98 GiB），清理后可用 86.85 GB（80.88 GiB）。提交前周额度剩余 27%，第二窗口无读数。核心账本维持 66/66。日志保留于 `/private/tmp/openrust-03-09-malformed-registration.6gBQsijW`。
+
+
+## 日常缓存三驱动与三库矩阵
+
+2026-11-21，在 `6d9f6f463e1ec80753c4c255ea4d1e02143b35ba` 的独占归档中覆盖本批 `tests/cache.rs`，使用 Rust 1.94.0、jobs=2、关闭增量与 dev debug。复用现有 Laravel 缓存契约和 `exercise`，补充 PostgreSQL database 与 Redis 真实后端入口，为 MySQL、PostgreSQL、Redis 添加必需服务标记，避免验收缺服务时静默成功。未增加运行时依赖或新缓存抽象。
+
+- file、SQLite database、PostgreSQL 18.6 database、MySQL 8.4.13 database、Redis 8.10.3 各一项真实定向测试全部通过。共同覆盖跨应用读取、二进制、过期、并发 add／pull、计数器及锁竞争、owner 恢复／刷新／释放；数据库入口执行真实 Artisan 迁移与重置，文件入口复验独立 Artisan 清理及无关文件保留。
+- PostgreSQL、MySQL、Redis 各自设置 `OPENRUST_REQUIRE_CACHE_*` 且缺少 URL 时，精确测试均退出 101，按预期拒绝缺少后端。PostgreSQL 使用 `OPENRUST_TEST_CACHE_POSTGRES_URL`，MySQL 使用 `OPENRUST_TEST_CACHE_MYSQL_URL`，Redis 沿用 `OPENRUST_TEST_FAILOVER_REDIS_URL`；这些会清理缓存的测试须通过专属隔离服务运行并精确筛选。
+- `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings` 全部通过。仅新增验收入口，没有改变缓存产品接口，未重建文档站。本快照早于并行 Schema、SMS、settings 和依赖补丁，不将本结果算作这些改动的最终整合验收。
+
+源码和日志保留于 `/private/tmp/openrust-core-matrix-20261121/`。临时 PostgreSQL、MySQL、Redis 服务已清理，Redis 清理前后数据卷清单一致，全部持久卷保留。独占 target 暂留给同一核心整合批次的依赖回归复用；阶段检查 Available 50,986,508 KiB（52.210 GB／48.625 GiB），高于 32 GB 停线，最终整合后记录实际清理。正式额度读取接口因当前独立 CLI 缺少账户鉴权而不可读；按最新真人解除人为额度停线授权继续，不将历史额度读数当作实时值。

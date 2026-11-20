@@ -356,6 +356,7 @@ async fn database_cache_uses_real_sqlite_transactions() {
 #[tokio::test]
 async fn database_cache_uses_real_mysql_transactions() {
     let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_MYSQL").is_none());
         return;
     };
     let root = Sandbox::new(
@@ -363,6 +364,34 @@ async fn database_cache_uses_real_mysql_transactions() {
         &format!("CACHE_STORE=database\nDB_CONNECTION=mysql\nDB_URL={url}\n"),
     );
     verify_database(&root).await;
+}
+
+#[tokio::test]
+async fn database_cache_uses_real_postgres_transactions() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_POSTGRES").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "postgres",
+        &format!("CACHE_STORE=database\nDB_CONNECTION=pgsql\nDB_URL={url}\n"),
+    );
+    verify_database(&root).await;
+}
+
+#[tokio::test]
+async fn redis_cache_shares_values_and_owner_checked_locks() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_REDIS").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "redis",
+        &format!("CACHE_STORE=redis\nCACHE_PREFIX=acceptance-redis:\nREDIS_URL={url}\n"),
+    );
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    exercise(&first, &second, false).await;
 }
 
 #[tokio::test]
