@@ -46,48 +46,31 @@
 ## 验收清单
 
 - **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
-- **测试范围。** 日常执行与改动相关的定向测试。数据库用例只运行 MySQL 8.4，筛选和连接验证见下文。SQLite、其他数据库及最低支持版本统一在发布前按 Laravel 兼容基线验收。
+- **测试范围。** 日常执行与改动相关的定向测试。日常环境固定 Rust 1.94.0、PostgreSQL 18、Redis 8。受影响的数据库用例优先运行 PostgreSQL 18，筛选和连接验证见下文；MySQL 专项和其他数据库兼容范围留到对应专项／发布矩阵，不改写历史验收结果。
 - **文档。** 纯指引改动检查引用、路径和锚点。文档站改动按[文档 README](../../docs/README.md)在本地构建三语站点，并运行[浏览器检查](../../docs/tests/check_browser.mjs)，覆盖 `/` 与 `/docs/`。
 - **记录。** 记录实际执行的命令、环境和结果，说明跳过项或外部服务限制。检查本批差异及空白错误，暂存、提交和推送遵循当次授权。
 - **验收收尾。** 每批验收保存记录后，确认产物归属本批、无人占用且可重建，再直接删除，跳过系统废纸篓或回收站。复查磁盘并记录实际释放和剩余空间，再开始下一批。保留源码、未提交改动、验收记录、数据库及数据卷、共享缓存和发布产物。清理容器时，`docker container rm` 和 `docker compose down` 均省略 `-v`／`--volumes`。操作前后核对数据卷，匿名数据库卷同样保留。
 
-### 日常 MySQL 8.4 验收
+### 日常 PostgreSQL 18 与 Redis 8 验收
 
-总控临时启动 MySQL 8.4 时，统一用 `python3 -B tests/mysql_acceptance.py -- <验收命令>`。本地 Docker 须已有 `mysql:8.4` 镜像。入口核对镜像声明的数据目录，以 1 GiB 的 `tmpfs` 承载数据，使用随机回环端口、临时凭据和当次专属标签。实际查询版本成功后，向验收命令提供 `OPENRUST_TEST_MYSQL_URL`、`OPENRUST_REQUIRE_MYSQL=1` 和 `OPENRUST_ACCEPTANCE_MYSQL_CONTAINER`。同批涉及多个 schema 时在该隔离实例上创建。
+2026-11-20 用户将日常开发环境切换为 Rust 1.94.0＋PostgreSQL 18＋Redis 8，覆盖此前日常仅运行 MySQL 8.4 的规则。仓库工具链由根目录 `rust-toolchain.toml` 固定；应用以本地 `.env` 的 `DB_CONNECTION=pgsql` 连接开发库，缓存／队列可选择 Redis。框架默认 SQLite 契约和既有数据库支持范围不变。
 
-入口在命令完成、失败或收到可捕获的取消信号后回收该标签的容器。若脚本被强制杀死或 Docker 不可用，按启动日志中的批次标签复核容器归属后收尾。表目录和 schema 范围复验运行 `sh tests/table_catalog.sh`。独立源码快照的 Cargo 构建产物须按快照隔离，应用生成的模块路径引用当前快照。夹具生命周期回归运行 `python3 -B tests/mysql_acceptance_lifecycle.py -v`。
+临时数据库验收使用 `python3 -B tests/postgres_acceptance.py -- <验收命令>`，本地 Docker 须已有 `postgres:18`。入口核对镜像数据目录 `/var/lib/postgresql`（包含 18 的版本化 PGDATA），以 1 GiB tmpfs 承载数据，使用随机回环端口、临时凭据和批次标签。通过同一账号／数据库的 `SHOW server_version_num` 确认 18.x 后，向命令提供 `OPENRUST_TEST_POSTGRES_URL`、`OPENRUST_REQUIRE_POSTGRES=1` 和 `OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER`。不把开发库连接传给会建表／删表的测试。
 
-从仓库根目录执行。使用独立测试库，测试会建表、删表和写入数据。先用测试账号连接与测试 URL 相同的主机、端口及库名，执行 `SELECT VERSION()`，确认实际连接的是 MySQL 8.4.x，再运行测试。
-
-```sh
-mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u acceptance -p openrust_acceptance \
-  --batch --skip-column-names -e 'SELECT VERSION()'
-
-export OPENRUST_TEST_MYSQL_URL='mysql://acceptance:REPLACE_ME@127.0.0.1:3306/openrust_acceptance'
-export OPENRUST_REQUIRE_MYSQL=1
-cargo +1.94.0 test --locked -p openrust-framework --test database_query \
-  query_builder_runs_on_mysql_8_4 -- --exact
-```
-
-若使用 Docker 中的独立 MySQL 测试实例且宿主机没有 `mysql` 客户端，可用容器内的客户端验证版本。下面以 `openrust-mysql` 为容器名，先用 `docker port openrust-mysql 3306/tcp` 确认宿主机测试 URL 使用的是该容器的映射端口。
+现有定向测试读取各自的 URL／REQUIRE 变量，调用时显式映射并精确筛选；未适配 PostgreSQL 的 MySQL 专项不能只改变量后声称通过，也不能将缺变量导致的跳过计作成功。例如：
 
 ```sh
-docker exec -it openrust-mysql mysql --protocol=TCP -h 127.0.0.1 -P 3306 \
-  -u acceptance -p openrust_acceptance --batch --skip-column-names -e 'SELECT VERSION()'
+python3 -B tests/postgres_acceptance.py -- sh -c '
+  export OPENRUST_TEST_POSTGRES_JSON_URL="$OPENRUST_TEST_POSTGRES_URL"
+  export OPENRUST_REQUIRE_POSTGRES_JSON=1
+  cargo +1.94.0 test --locked -p openrust-framework --test database_query \
+    json_predicates_run_on_postgres_in_both_prepare_modes -- --exact
+'
 ```
 
-替换示例账号、密码和库名，URL 中的特殊字符按 URL 规则编码。不同测试读取各自的环境变量。按测试源码中的 `std::env::var` 和 `OPENRUST_REQUIRE_*` 设置。对于读取 URL 失败会跳过的测试，同时设置对应的 `OPENRUST_REQUIRE_*=1`。例如关系批量写入测试使用同一测试库时执行：
+Cargo 仍在独立源码快照与独占 target 中运行，不在活跃工作树构建；增量关闭，遵守当前交接中的 jobs、磁盘停线与清理规则。用 `-p`、`--test` 和 `--exact` 定位函数，并核对函数及辅助夹具实际只连接预期驱动；日常不运行会混用所有数据库的无筛选 workspace 测试。Redis 用例同样使用专属隔离实例，先核对 `INFO server` 为 8.x 与 `PING`；不在开发 Redis 执行清库或修改 ACL。
 
-```sh
-OPENRUST_TEST_RELATION_MYSQL_URL="$OPENRUST_TEST_MYSQL_URL" \
-OPENRUST_REQUIRE_RELATION_MYSQL=1 \
-cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships \
-  related_upsert_on_mysql -- --exact
-```
-
-可先执行 `cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships -- --list` 核对完整测试名。用 `-p`、`--test` 和 `--exact` 定位到指定测试，并确认输出实际执行且通过了预期用例。日常验收避开无筛选的 `cargo test --workspace --locked`，该命令会运行工作区的 SQLite 等数据库测试。
-
-`--exact` 只筛选测试函数。执行前核对函数及其辅助夹具实际使用的驱动。`relationship_keys_and_query_counts_on_mysql` 的连接隔离夹具也使用独立的 MySQL 连接。遇到其他在单个函数内混跑多数据库的用例，先拆出独立的 MySQL 用例，或让夹具随本用例选择驱动，再精确执行。仍混用多数据库的用例统一留到发布前验收。
+入口完成、失败或收到可捕获取消信号后只回收当次标签容器，不删除数据卷。生命周期回归运行 `python3 -B tests/postgres_acceptance_lifecycle.py -v`。强制杀死或 Docker 不可用时按日志批次标签复核收尾。保留 `tests/mysql_acceptance.py` 及其生命周期测试供 MySQL 专项／发布兼容使用，不删除 MySQL 开发数据。
 
 ## Git 提交标题
 

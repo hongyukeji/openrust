@@ -1,0 +1,33 @@
+{
+  "snapshot_base": "1c5f1b8b6",
+  "rust": "1.94.0",
+  "postgres_server_version_num": 180006,
+  "redis": "8.10.3",
+  "tests": {
+    "postgres_lifecycle": 1,
+    "postgres_json": 2,
+    "configuration": 1,
+    "redis_entrypoints": 1,
+    "development_migrations": 13,
+    "http": [
+      "/",
+      "/up"
+    ],
+    "session_rows_after_http": 1
+  },
+  "target_kib": 3294876,
+  "available_before_kib": 88242056,
+  "available_after_kib": 91289040,
+  "released_kib": 3046984,
+  "all_prior_volumes_retained": true,
+  "logs": {
+    "lifecycle.log": "561c75e905ab6822fba644413e03b19af71ae68de5ce58532771ada42ed40ee0",
+    "checks.log": "f1dedb4a888a580fb903b4e947b35acb26e48979e067a01d6fba80fd0f370a11",
+    "http-server.log": "e6a0576a0593877d671c9c187dd9cb6d40902933839157ea257a0556b8c89563",
+    "redis.log": "ad29f7ce062568f46ad1ce98f0aca3722be0eb925e483a9f45fd66a3a903cbb9",
+    "postgres-development-probe.log": "5990074615b62489ba4d48d3d991f04ea4d280e2f3a2105368f091ace4642151",
+    "runtime.log": "a746cf5ef0f98981a4721c46b7b0e6c50a1a5ea17c1a0f2421d769bd8457ad31",
+    "redis-fixture-initial.log": "c094ddd15e20018dcdc8c240bb07fadff64dcd51090195feeeb0ab554c5e2b18",
+    "build.log": "55684349545375cd51409eb003df30f61230eec90bbf67dbe646b74ccdf71086"
+  }
+}

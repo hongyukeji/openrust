@@ -18,7 +18,7 @@ AI 代理在新对话、任务交接或上下文压缩后接续开发时，先�
 | `.env.example` 面向中国开发者提供简体中文和 `Asia/Shanghai` 示例。Redis 缓存库在未显式配置 `REDIS_CACHE_DB` 时回退到 `REDIS_DB`，示例省略前者。 | 常见项目只改必要的环境变量。简体中文和时区是应用示例的选择，Redis 需要单独分库时仍可覆盖。 | 用户确认只改示例语言偏好和 Redis 回退。提交 `9daca1683`、`23df079bf`、`84f329241`、`a065d4e4e`、`b95e0a079`。[环境示例](../../.env.example) · [数据库配置](../../config/database.rs) |
 | `config/api.rs`、API 路由和受保护的 `/user` 由 `install:api` 按需生成，保留 `API_PREFIX`。Sanctum 按固定版本单独验收，`--passport` 随 Passport 就绪后接入。 | 保留 Laravel 的按需安装流程，同时允许部署环境直接配置 API 前缀。 | 用户确认 API 配置随安装命令生成，并保留环境变量覆盖。[Sanctum 与 API 安装](plan.md#sanctum-与-api-安装) · [扩展对账](audits/core-closure-ledger.md#扩展与发布) |
 | Fortify 的后续设计以 Laravel 官方认证机制为默认。API＋Bearer JWT 显式启用，TOTP 由用户自愿绑定。Passport／OIDC 作为独立扩展，目标是自建授权服务器和跨应用 SSO。 | 保留 Laravel 的默认体验，按需支持前后端分离和跨应用认证。 | 用户先后确认「Laravel 官方机制默认、API＋Bearer JWT 显式可选」、TOTP 可选和 OIDC SSO。当前主线的交付范围见[扩展对账](audits/core-closure-ledger.md#扩展与发布)，旧版实现见[复用参考](plan.md#旧版复用参考)。 |
-| 日常数据库验收与发布验收采用不同范围。数据库版本矩阵、SQL Server 原生 Linux x86_64 和商业嵌入端点归发布验收。 | 日常用独立 MySQL 8.4 做受影响路径的回归。采用已有验收证据可避免重复耗时，同时为正式发布保留兼容验证。 | 用户确认上述三项独立跟踪，已验收范围沿用记录。[验收清单](conventions.md#验收清单) · [发布验收](audits/database-dialects.md#发布验收) |
+| 日常数据库验收与发布验收采用不同范围。数据库版本矩阵、SQL Server 原生 Linux x86_64 和商业嵌入端点归发布验收。 | 2026-11-20 用户改为 Rust 1.94.0＋PostgreSQL 18＋Redis 8，日常使用独立 PostgreSQL 18 回归；MySQL 8.4 转为专项／发布兼容，历史证据保留。 | 用户确认上述三项独立跟踪，已验收范围沿用记录。[验收清单](conventions.md#验收清单) · [发布验收](audits/database-dialects.md#发布验收) |
 | `artisan init` 是唯一的完整初始化入口，取消 `install:full` 命令及别名，保留单项安装器；默认交互式选择配置，支持 `--force`、只读计划及无交互模式。 | 用一套引导完成配置、完整安装、构建与迁移，最终可启动；默认保留配置、凭据、密钥及迁移历史。 | 用户于 2026-11-19 在侧对话明确采用新入口并取消旧命令，覆盖此前同时保留两个入口的建议；详见[初始化计划](plan.md#artisan-init)。 |
 
 ## 待用户下令

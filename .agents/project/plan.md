@@ -152,7 +152,7 @@
 - **目标矩阵：** Linux、Windows、macOS 各覆盖 x86_64 与 ARM64，共六个平台，优先使用目标系统与架构的原生 Runner。实施时重新核实 GitHub Runner 可用性、预览限制、Rust 工具链和系统依赖；明确 Linux glibc、最低操作系统及 Windows 运行库要求，不承诺所有系统版本通用。
 - **触发与构建：** 第一阶段只提供手动 workflow_dispatch，选择源码版本并固定提交、工具链与 Cargo.lock，沿用 `cargo +1.94.0 build --locked --release --features standalone --bin main` 的现有基线；工具链版本在实施时按项目最低支持版本核定。各平台独立报告结果。
 - **包内容：** 可执行文件（Windows 为 main.exe）、必要 resources/views 与 public 资源、所需空 storage 目录、.env.example、许可证、运行说明及包含版本／提交／平台／编译特性的 build-info.json。排除生产 .env、密钥、凭据、数据库、日志、缓存和无关源码。
-- **产物验收：** 在源码目录外从最终包目录运行 Artisan list／inspire、启动应用、请求首页和 /up、读取模板／静态资源、验证可写目录、关停及动态库依赖。测试环境隔离，不连接生产服务；数据库验收沿用项目 MySQL 8.4 规则。失败平台明确标红，不作为已验收发布包上传。
+- **产物验收：** 在源码目录外从最终包目录运行 Artisan list／inspire、启动应用、请求首页和 /up、读取模板／静态资源、验证可写目录、关停及动态库依赖。测试环境隔离，不连接生产服务；数据库验收沿用项目日常 PostgreSQL 18 规则，其他驱动按发布矩阵验证。失败平台明确标红，不作为已验收发布包上传。
 - **命名与下载：** Linux／macOS 使用 tar.gz，Windows 使用 zip；命名为 openrust-<版本>-<系统>-<架构>，生成 SHA256SUMS。手动构建产物上传 Actions Artifacts，设置较短保留期并核定存储成本；缓存按平台和依赖隔离，不缓存敏感数据。
 - **后续正式发布：** 手动构建和六平台验收稳定后，再考虑经明确授权的版本标签与 GitHub Release 资产上传；与现有 v0.1.0 发布门禁一致，不因加入本计划获得推送、标签或发布授权。
 
@@ -288,4 +288,4 @@ Passport 是 OAuth2 授权服务器，不自动提供 OIDC ID Token／Discovery�
 
 当前 Blade 预处理已在 `976b0f908` 通过并本地提交；第一代范围计划已提交 `ef35334c8`。Passport-01 配置／密钥／五表发布已通过[实际验收](audits/passport-01/README.md)，Passport-02 客户端与仓储已完成[分批实际验收](audits/passport-02/contracts.md)。Passport-03 授权码／PKCE 已完成[实际验收](audits/passport-03/README.md)。Passport-04 令牌生命周期／资源 Guard 已完成[实际验收](audits/passport-04/README.md)。Passport-05 设备授权已完成[实际验收](audits/passport-05/README.md)。Passport-06 Scope 与其他默认路径已完成[实际验收](audits/passport-06/README.md)。Passport-07 显式可选授权与默认门禁已完成[实际验收](audits/passport-07/README.md)。Passport-08 API安装与生成应用已完成[本机实际验收](audits/passport-08/README.md)。Passport-09 定制与共存整合已完成[本机实际验收](audits/passport-09/README.md)。API-S01 Socialite已完成[共享OAuth2与GitHub首批](audits/api-s01/github.md)，已完成[六个新增OAuth2驱动](audits/api-s01/drivers.md)，已完成[X／Twitter OAuth2](audits/api-s01/x.md)，已完成[Google OAuth2与JWT](audits/api-s01/google.md)，已完成[Facebook Graph与Limited Login](audits/api-s01/facebook.md)，已完成[Twitter OAuth1与统一协议入口](audits/api-s01/oauth1.md)，已完成[本地归属与HTTP登录示例](audits/api-s01/local-login.md)，API-S01本机计划范围闭合；已完成[OIDC RP](audits/api-o01/README.md)本机验收；继续API-O02双应用SSO与退出；启用 Fortify 动作时先接 API-F01。API-P01、API-S01、API-F02、API-O01／02 按各自前置闭合后执行。ViewData 非有限数与 Pail 身份／Windows 的既有缺口仍须分别完成，不能因新增 API 范围丢失。
 
-每批保持 MySQL 8.4 日常规则，新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。
+每批保持 Rust 1.94.0＋PostgreSQL 18＋Redis 8 日常规则（2026-11-20 用户更新），新增或受影响路径做实际 HTTP／Artisan／浏览器验收，同步三语正文、单元记录和本地提交。既有通过路径无新影响不重复验收。外部目标缺失时先完成可独立执行的协议服务与自动化，明确缺失条件；v0.1.0 的缺口状态、实机证据和用户验收门禁统一保存在既有闭合账本。禁用 credits，保留磁盘停线和归属清理，禁止推送、提前改发布版本、打 tag、创建 Release 或部署生产；完成后交用户验收，收到明确发布授权才执行发布。

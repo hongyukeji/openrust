@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 用户将日常环境切换为 **Rust 1.94.0＋PostgreSQL 18＋Redis 8**，覆盖下方历史 MySQL 日常规则。[切换验收](audits/development-postgres.md)：工具链固定、本地独立开发库／角色及 `.env` 已配置，13条迁移、HTTP／Session、PostgreSQL JSON两函数、配置1、Redis跨入口1及隔离夹具生命周期通过。日常使用 `tests/postgres_acceptance.py`，MySQL专项／发布矩阵及旧数据保留；认证完整生成应用仍须补 PostgreSQL 整合。旧运行服务保留，重启后读取新配置。本批target已回收，全部卷保留，剩余91,289,040 KiB；核范围本地提交，不推送。
+
 - 2026-11-20 [三语生态导航](audits/docs-scope/README.md)完成验收：每语26个原空主题明确具体支持边界／原生入口，3个语言首页补齐；保持固定导航，空章节构建失败。每语106导航／107Markdown静态检查，636个真实浏览页面、156个状态页、通用12组合及空页负例均通过。仅文档／站点检查，未新增未授权生态包；源码SHA／归档与专属清理留证，本地提交不推送。V16的正式API文档与发布快照仍待。
 
 - 2026-11-20 [初始化完整认证扩展](audits/00-03/init-auth.md)实现与三平台受控验收完成：默认 all、应用内共享安装器、单源码锁、集中 bootstrap／资源发布／最终重建与单次迁移，接通 Passport／Fortify／Passkeys／Socialite／Precognition／OIDC／SSO 选择及依赖。macOS 原生28函数、六feature全workspace/all-targets严格Clippy／fmt、根HTTP／Pail／Artisan、真实PTY／Redis／SMTP／Reverb及生成应用完整认证／Chrome Passkeys全过；Windows ARM64实际两阶段重建、CMD／PowerShell repeat／force、密钥保留、HTTP、init14及ConPTY通过；Linux x86_64同一完整生成应用／MySQL8.4.13／认证HTTP／严格Clippy／关闭构建通过。三语12＋6浏览器与22输入SHA留证，独占产物回收、所有卷／共享缓存／源码／日志保留，Windows恢复原stopped；核范围本地提交，不推送。统一安装任务本批闭合，真实外部供应商凭据、生产SSO及其余发布环境仍按原矩阵跟踪。
