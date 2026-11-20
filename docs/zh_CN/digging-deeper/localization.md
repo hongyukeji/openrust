@@ -68,6 +68,65 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 }
 ```
 
+### 数据库翻译源（扩展） {#database-translation-loader}
+
+在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `DB::connection` 获取。当前支持 PostgreSQL 18 的数据库词条加载，其他数据库目标须分别验证行为。
+
+先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
+    connection.getSchemaBuilder().create("language_lines", |table| {
+        table.id();
+        table.string("group", None).index();
+        table.string("key", None);
+        table.json("text");
+        table.timestamps();
+    }).await
+}
+```
+
+表结构沿用 Spatie Laravel Translation Loader：每个组与键保存一行，`text` 是语言到字符串的 JSON 对象，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。语言键使用规范标识（`en_US`、`zh_CN`）。缺失或为 null 的语言保留文件值；翻译值必须为字符串，空字符串也是有效覆盖。组 `*` 保存字面键并保留点号，其他组展开 `nested.title`、`items.0` 等点分键。包命名空间与 Spatie 一样仅使用文件来源。重复键、父子键冲突、非法 JSON、键中空段及超过 128 层的键会使加载失败。
+
+在异步应用作用域中调用以下函数，例如迁移就绪后由 Provider 的 `boot` 加载：
+
+```rust
+use std::{path::PathBuf, sync::Arc};
+use openrust::{
+    database::Connection,
+    support::facades::Lang,
+    translation::{FileLoader, TranslationResource, TranslationResult},
+};
+use openrust_translation_database::DatabaseLoader;
+
+pub async fn load_database_translations(
+    connection: Connection,
+    language_directory: PathBuf,
+) -> TranslationResult<()> {
+    let source = DatabaseLoader::new(connection)
+        .withTable("language_lines")?
+        .withMaxRows(10_000)?
+        .withFallback(Arc::new(FileLoader::new(language_directory)));
+    Lang::loadFrom(
+        &source,
+        &[
+            TranslationResource { locale: "fr", group: "messages", namespace: None },
+            TranslationResource { locale: "en", group: "messages", namespace: None },
+        ],
+    ).await
+}
+```
+
+表名采用所选连接的表前缀，只接受不带 schema 的标识符。默认表名为 `language_lines`，每个组默认最多读取 10,000 行；超过配置上限会报错，不截断结果。
+
+`withFallback` 从文件来源加载相同语言、组和命名空间，再用数据库词条覆盖。组和列表索引递归合并，字面 JSON 值整体替换。数据库空字符串仍为有效覆盖；删除一行后，显式重新加载该资源即可恢复文件值。语言回退继续使用译器配置；需要数据库回退词条时，同时加载所选语言和回退语言资源。
+
+`Lang::loadFrom` 一次发布全部请求组。数据库、文件或解析错误会返回失败，并保留先前发布的目录；没有词条的资源提供空数据库覆盖。数据库按组读取，发布原子性不提供横跨所有读取的数据库事务快照。重新加载由应用显式触发。写入、迁移和刷新时机由应用管理，包不会自动选择来源或启动后台任务。
+
+与 Spatie 的 PHP 模型不同，本来源读取每行时不执行语言回退；OpenRust 译器在加载精确语言后按自身配置回退，也因此保留所选语言的文件词条。缺表会返回错误，避免显式重载失败时静默用文件替换已发布的数据库目录。
+
 ## 获取翻译字符串
 
 使用 `__` 读取文本。占位符支持 `:name`、`:Name` 和 `:NAME`。分组和列表使用 `Lang::array` 读取。缺失翻译返回键本身。JSON 字面键在所选语言内查找，分组键可以回退到配置的语言。

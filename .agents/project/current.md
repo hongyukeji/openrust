@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [数据库翻译扩展](audits/translation-database/README.md)完成：核对 Spatie 2.8.3、Barryvdh 与旧版后，采用 language_lines 的 group／key／text 多语言 JSON 结构，显式 Connection／Loader 装配并复用 Lang 原子发布；文件覆盖、包命名空间文件回退、来源故障和应用隔离已验。Rust1.94＋PostgreSQL180006的8项行为／HTTP＋4示例、严格全feature Clippy／fmt、三语构建／12＋6浏览器通过；本包骨架状态已闭合。未验证其他数据库；API指南与指纹导出交核心对话更新。认证PG完整联测仍有独立未闭合问题，不计入本批。自有产物已清理，源码／日志／数据卷保留；仅本地提交。
+
 - 2026-11-21 核心修复[非MySQL列排序提示](audits/02-05/README.md#非-mysql-列排序提示)：按固定Laravel grammar忽略first／after，保留MySQL输出；真实PG18认证列迁移及数据／列顺序／回滚、SQLite既有组列与三驱动SQL对比、严格workspace Clippy／fmt、三语构建／12浏览器均过。修复交Plan复跑完整认证；并行多语注释内容单独保留。
 
 - 2026-11-21 真人明确分工：本对话接手 Framework 核心框架；`OpenRust · ApiKey · Plan`（`01a1f4d0-365b-7d23-9f5b-1267b228d6d7`）负责扩展能力，当前独占 PostgreSQL 认证集成夹具。扩展发现共享核心缺陷时报告本对话处理，不在扩展迁移绕过框架问题。API 文档工作已交接核心侧，统一为源码指纹校验导出；其他对话进行中的数据库多语注释改动独立保留。

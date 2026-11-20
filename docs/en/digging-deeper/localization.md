@@ -68,6 +68,65 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 }
 ```
 
+### Database Translation Source (Extension) {#database-translation-loader}
+
+Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `DB::connection`. It reads translations from PostgreSQL 18. Other database targets require separate behavior validation.
+
+Create the table through an application migration before loading translations. This minimal schema is supported:
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
+    connection.getSchemaBuilder().create("language_lines", |table| {
+        table.id();
+        table.string("group", None).index();
+        table.string("key", None);
+        table.json("text");
+        table.timestamps();
+    }).await
+}
+```
+
+The schema follows Spatie’s Laravel Translation Loader: one row per group/key; `text` is a JSON object such as `{"en":"Hello :name","fr":"Bonjour :name"}`. Use canonical locale keys (`en_US`, `zh_CN`). A missing or null locale leaves the file value available. Translation values must be strings; empty strings are valid. Group `*` stores literal keys, including dots. Other groups expand dotted keys such as `nested.title` or `items.0`. Package namespaces use only the file source, matching Spatie. Duplicate or overlapping keys, invalid JSON, empty key segments, and keys deeper than 128 segments fail the load.
+
+Call this function inside an asynchronous application scope, such as a provider's `boot`, after migrations are available:
+
+```rust
+use std::{path::PathBuf, sync::Arc};
+use openrust::{
+    database::Connection,
+    support::facades::Lang,
+    translation::{FileLoader, TranslationResource, TranslationResult},
+};
+use openrust_translation_database::DatabaseLoader;
+
+pub async fn load_database_translations(
+    connection: Connection,
+    language_directory: PathBuf,
+) -> TranslationResult<()> {
+    let source = DatabaseLoader::new(connection)
+        .withTable("language_lines")?
+        .withMaxRows(10_000)?
+        .withFallback(Arc::new(FileLoader::new(language_directory)));
+    Lang::loadFrom(
+        &source,
+        &[
+            TranslationResource { locale: "fr", group: "messages", namespace: None },
+            TranslationResource { locale: "en", group: "messages", namespace: None },
+        ],
+    ).await
+}
+```
+
+The selected connection's table prefix applies. The table name is an unqualified identifier. The default table is `language_lines`, and the default maximum is 10,000 rows per group. Exceeding the configured limit fails the load without truncating the result.
+
+`withFallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The translator retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
+
+`Lang::loadFrom` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
+
+Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: OpenRust’s translator applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
+
 ## Retrieving Translation Strings
 
 Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Use `Lang::array` for a group or list. A missing key is returned as text. Literal JSON keys are looked up in the selected locale. Grouped keys can fall back to the configured language.

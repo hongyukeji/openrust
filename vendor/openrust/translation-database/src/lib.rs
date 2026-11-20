@@ -1,4 +1,4 @@
-//! Database-backed translation source extension.
+#![doc = include_str!("../README.md")]
 
 mod database_loader;
 

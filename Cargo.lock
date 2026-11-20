@@ -4235,6 +4235,13 @@ dependencies = [
 [[package]]
 name = "openrust-translation-database"
 version = "0.0.0"
+dependencies = [
+ "axum",
+ "openrust-framework",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
 
 [[package]]
 name = "openssl-probe"

@@ -68,6 +68,65 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 }
 ```
 
+### 資料庫翻譯來源（擴充） {#database-translation-loader}
+
+在應用程式 Cargo 相依套件中透過 `path = "vendor/openrust/translation-database"` 加入 `openrust-translation-database`。`DatabaseLoader` 接收明確的框架 `Connection`，可從目前應用程式的資料庫管理器或 `DB::connection` 取得。目前支援 PostgreSQL 18 的資料庫詞條載入，其他資料庫目標須分別驗證行為。
+
+先透過應用程式遷移建立資料表，再載入翻譯。可使用以下最小結構：
+
+```rust
+use openrust::database::{Connection, DatabaseResult};
+
+pub async fn create_translations(connection: &Connection) -> DatabaseResult<()> {
+    connection.getSchemaBuilder().create("language_lines", |table| {
+        table.id();
+        table.string("group", None).index();
+        table.string("key", None);
+        table.json("text");
+        table.timestamps();
+    }).await
+}
+```
+
+資料表結構沿用 Spatie Laravel Translation Loader：每個群組與鍵儲存一列，`text` 是語言到字串的 JSON 物件，例如 `{"en":"Hello :name","fr":"Bonjour :name"}`。語言鍵使用標準識別碼（`en_US`、`zh_CN`）。缺少或為 null 的語言保留檔案值；翻譯值必須為字串，空字串也是有效覆寫。群組 `*` 儲存字面鍵並保留句點，其他群組展開 `nested.title`、`items.0` 等點分鍵。套件命名空間與 Spatie 一樣僅使用檔案來源。重複鍵、父子鍵衝突、無效 JSON、鍵中空段及超過 128 層的鍵會使載入失敗。
+
+在非同步應用程式作用域中呼叫以下函式，例如遷移就緒後由 Provider 的 `boot` 載入：
+
+```rust
+use std::{path::PathBuf, sync::Arc};
+use openrust::{
+    database::Connection,
+    support::facades::Lang,
+    translation::{FileLoader, TranslationResource, TranslationResult},
+};
+use openrust_translation_database::DatabaseLoader;
+
+pub async fn load_database_translations(
+    connection: Connection,
+    language_directory: PathBuf,
+) -> TranslationResult<()> {
+    let source = DatabaseLoader::new(connection)
+        .withTable("language_lines")?
+        .withMaxRows(10_000)?
+        .withFallback(Arc::new(FileLoader::new(language_directory)));
+    Lang::loadFrom(
+        &source,
+        &[
+            TranslationResource { locale: "fr", group: "messages", namespace: None },
+            TranslationResource { locale: "en", group: "messages", namespace: None },
+        ],
+    ).await
+}
+```
+
+資料表名稱套用所選連線的資料表前綴，只接受不帶 schema 的識別碼。預設資料表名稱為 `language_lines`，每個群組預設最多讀取 10,000 列；超過設定上限會回報錯誤，不截斷結果。
+
+`withFallback` 從檔案來源載入相同語言、群組與命名空間，再用資料庫詞條覆寫。群組和清單索引遞迴合併，字面 JSON 值整體替換。資料庫空字串仍為有效覆寫；刪除一列後，明確重新載入該資源即可恢復檔案值。語言回退繼續使用翻譯器設定；需要資料庫回退詞條時，同時載入所選語言與回退語言資源。
+
+`Lang::loadFrom` 一次發佈全部請求群組。資料庫、檔案或解析錯誤會回傳失敗，並保留先前發佈的目錄；沒有詞條的資源提供空資料庫覆寫。資料庫按群組讀取，發佈原子性不提供橫跨所有讀取的資料庫交易快照。重新載入由應用程式明確觸發。寫入、遷移與刷新時機由應用程式管理，套件不會自動選擇來源或啟動背景工作。
+
+與 Spatie 的 PHP 模型不同，本來源讀取每列時不執行語言回退；OpenRust 翻譯器在載入精確語言後按自身設定回退，也因此保留所選語言的檔案詞條。缺表會回傳錯誤，避免明確重新載入失敗時靜默以檔案取代已發佈的資料庫目錄。
+
 ## 取得翻譯字串
 
 使用 `__` 讀取文字。預留位置支援 `:name`、`:Name` 和 `:NAME`。群組和清單使用 `Lang::array` 讀取。缺少翻譯時回傳鍵本身。JSON 字面鍵在所選語言內查找，群組鍵可使用設定的備援語言。
