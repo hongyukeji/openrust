@@ -1,4 +1,4 @@
-"""Exercise SMS delivery with independent Artisan dispatcher and Worker processes."""
+"""Exercise SMS delivery with independent Artisan processes, isolated PostgreSQL/MySQL/SQLite and Redis 8."""
 
 import base64
 import hashlib
@@ -40,7 +40,45 @@ def redis_payload(container, queue_name):
     return run(["docker", "exec", container, "redis-cli", "--raw", "LRANGE", keys[0], "0", "-1"])
 
 
-def mysql_rows(container, query):
+def database_container():
+    if os.environ.get("OPENRUST_TEST_SMS_SQLITE") == "1":
+        return os.environ["OPENRUST_SMS_SQLITE_PATH"]
+    name = "OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER" if os.environ.get("OPENRUST_TEST_POSTGRES_URL") else "OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"
+    return os.environ[name]
+
+
+def database_settings():
+    postgres = os.environ.get("OPENRUST_TEST_POSTGRES_URL")
+    mysql = os.environ.get("OPENRUST_TEST_MYSQL_URL")
+    sqlite = os.environ.get("OPENRUST_TEST_SMS_SQLITE") == "1"
+    if sum(map(bool, (postgres, mysql, sqlite))) != 1:
+        raise RuntimeError("Select exactly one isolated PostgreSQL/MySQL wrapper or temporary SQLite test")
+    if sqlite:
+        return "sqlite", None
+    if postgres:
+        assert os.environ.get("OPENRUST_REQUIRE_POSTGRES") == "1"
+        return "pgsql", postgres
+    assert os.environ.get("OPENRUST_REQUIRE_MYSQL") == "1"
+    return "mysql", mysql
+
+
+def database_rows(container, query):
+    if os.environ.get("OPENRUST_TEST_SMS_SQLITE") == "1":
+        import sqlite3
+        from contextlib import closing
+        with closing(sqlite3.connect(f"file:{container}?mode=ro", uri=True)) as connection:
+            rows = []
+            for statement in query.split(";"):
+                if statement.strip():
+                    rows.extend("\t".join("" if value is None else str(value) for value in row)
+                                for row in connection.execute(statement))
+            return "\n".join(rows)
+    if os.environ.get("OPENRUST_TEST_POSTGRES_URL"):
+        return run([
+            "docker", "exec", container, "sh", "-ec",
+            'PGPASSWORD="$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -F "\t" -c "$1"',
+            "openrust-sms-test", query,
+        ])
     return run([
         "docker", "exec", container, "sh", "-ec",
         'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot --default-character-set=utf8mb4 --batch --raw --skip-column-names "$MYSQL_DATABASE" -e "$1"',
@@ -50,8 +88,8 @@ def mysql_rows(container, query):
 
 def queued_payloads(backend, queue_name, encrypted=False):
     if backend == "database":
-        wire = mysql_rows(
-            os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"],
+        wire = database_rows(
+            database_container(),
             "SELECT payload FROM jobs ORDER BY id",
         )
     else:
@@ -119,7 +157,7 @@ def check_backend(binary, backend, env, requests):
         assert requests.get(timeout=5) == expected
     assert requests.empty()
     if backend == "database":
-        assert mysql_rows(os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"], "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM failed_jobs").split() == ["0", "0"]
+        assert database_rows(database_container(), "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM failed_jobs").split() == ["0", "0"]
     else:
         assert not run(["docker", "exec", os.environ["SMS_DEMO_REDIS_CONTAINER"], "redis-cli", "--raw", "--scan", "--pattern", f"*queues:{queue_name}*"]).strip()
     print(f"{backend}: all four independent Workers delivered to the dispatched profile with Worker credentials", flush=True)
@@ -352,7 +390,7 @@ def check_aliyun(binary, backend, env, receipts, endpoint):
     assert receipts.get(timeout=5) == template
     assert receipts.empty()
     if backend == "database":
-        assert mysql_rows(os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"],
+        assert database_rows(database_container(),
                           "SELECT COUNT(*) FROM jobs; SELECT COUNT(*) FROM failed_jobs").split() == ["0", "0"]
     else:
         assert not run(["docker", "exec", os.environ["SMS_DEMO_REDIS_CONTAINER"],
@@ -551,14 +589,14 @@ def check_hardened_worker(binary, backend, env, receipts, endpoint):
     accepted = [receipts.get(timeout=5)[1]["c"] for _ in range(4)]
     assert accepted == [*messages, messages[-1]], accepted
     assert receipts.empty()
-    failure = mysql_rows(os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"],
+    failure = database_rows(database_container(),
         f"SELECT payload FROM failed_jobs WHERE queue = '{queue}'")
     assert "encrypted_delivery" in failure and all(value not in failure for value in (number, *messages))
     print(f"{backend}: encrypted queue and failed payloads, redacted HTTP event, terminal unknown status, listener failure, and retryable HTTP 429 passed", flush=True)
 
 
 def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
-    db = os.environ["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"]
+    db = database_container()
     artisan = [binary, "artisan"]
     for checkpoint, expected_status in (("after-receipt", "accepted"), ("before-receipt", "submitting")):
         queue = f"sms-crash-{checkpoint}-{backend}"
@@ -576,7 +614,7 @@ def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
         wire, _ = queued_payloads(backend, queue)
         envelope = json.loads(wire.splitlines()[0])
         job_id = (json.loads(envelope["payload"]) if backend == "redis" else envelope)["uuid"]
-        assert not mysql_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'")
+        assert not database_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'")
         worker = artisan + ["queue:work", backend, "--once", "--timeout=0", "--tries=3"]
         crashing = options | {"SMS_TEST_CRASH_READY": str(marker)} if checkpoint == "after-receipt" else options
         with tempfile.TemporaryFile(mode="w+t") as output:
@@ -588,7 +626,7 @@ def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
                     while not marker.exists():
                         assert process.poll() is None and time.monotonic() < deadline
                         time.sleep(0.02)
-                saved = mysql_rows(db, f"SELECT status, submission FROM sms_deliveries WHERE id = '{job_id}'")
+                saved = database_rows(db, f"SELECT status, submission FROM sms_deliveries WHERE id = '{job_id}'")
                 assert saved.split("\t", 1)[0] == expected_status, saved
                 assert "shared-worker-secret" not in saved and content not in saved and "13800138000" not in saved
                 if checkpoint == "after-receipt":
@@ -603,18 +641,18 @@ def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
         time.sleep(3)
         run(worker, options)
         assert receipts.empty(), "The replacement worker submitted the SMS again"
-        failed = mysql_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip()
+        failed = database_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip()
         assert failed == ("1" if checkpoint == "before-receipt" else "0"), failed
         if checkpoint == "before-receipt":
-            failed_id = mysql_rows(db, f"SELECT uuid FROM failed_jobs WHERE queue = '{queue}'").strip()
+            failed_id = database_rows(db, f"SELECT uuid FROM failed_jobs WHERE queue = '{queue}'").strip()
             assert failed_id == job_id
             run(artisan + ["queue:retry", failed_id], options)
             run(worker, options)
             assert receipts.empty(), "Retrying an unresolved job submitted the SMS again"
-            assert mysql_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip() == "1"
-        assert mysql_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'").strip() == expected_status
+            assert database_rows(db, f"SELECT COUNT(*) FROM failed_jobs WHERE queue = '{queue}'").strip() == "1"
+        assert database_rows(db, f"SELECT status FROM sms_deliveries WHERE id = '{job_id}'").strip() == expected_status
         if backend == "database":
-            assert mysql_rows(db, f"SELECT COUNT(*) FROM jobs WHERE queue = '{queue}'").strip() == "0"
+            assert database_rows(db, f"SELECT COUNT(*) FROM jobs WHERE queue = '{queue}'").strip() == "0"
         else:
             assert not run(["docker", "exec", os.environ["SMS_DEMO_REDIS_CONTAINER"],
                             "redis-cli", "--raw", "--scan", "--pattern", f"*queues:{queue}*"]).strip()
@@ -622,9 +660,12 @@ def check_crash_recovery(binary, backend, env, receipts, provider, endpoint):
 
 
 def main():
+    driver, database_url = database_settings()
     binary = str(Path(sys.argv[1]).resolve())
     requests = Queue()
     with tempfile.TemporaryDirectory(prefix="openrust-sms-app-") as root:
+        if driver == "sqlite":
+            os.environ["OPENRUST_SMS_SQLITE_PATH"] = str(Path(root) / "database.sqlite")
         aliyun_receipts = Queue()
         with MAKE_SERVER(0, lambda *receipt: requests.put(receipt)) as server, provider_server(aliyun_receipts) as aliyun:
             thread = Thread(target=server.serve_forever)
@@ -636,15 +677,19 @@ def main():
             env = dict(os.environ) | {
                 "APP_BASE_PATH": root,
                 "APP_ENV": "local",
-                "CACHE_STORE": "array",
-                "DB_CONNECTION": "mysql",
-                "DB_URL": os.environ["OPENRUST_TEST_MYSQL_URL"],
+                "CACHE_STORE": os.environ.get("CACHE_STORE", "array"),
+                "DB_CONNECTION": driver,
+                "DB_URL": database_url or "",
+                "DB_DATABASE": os.environ.get("OPENRUST_SMS_SQLITE_PATH", "openrust_acceptance"),
                 "REDIS_HOST": "127.0.0.1",
                 "REDIS_PORT": os.environ["SMS_DEMO_REDIS_PORT"],
                 "REDIS_DB": "0",
                 "SMS_ALPHA_URL": f"{origin}/alpha",
                 "SMS_BETA_URL": f"{origin}/beta",
             }
+            print(f"SMS Worker database={driver} cache={env.get('CACHE_STORE')}", flush=True)
+            if driver == "sqlite":
+                env.pop("DB_URL", None)
             try:
                 check_backend(binary, "database", env, requests)
                 check_backend(binary, "redis", env, requests)
@@ -656,6 +701,11 @@ def main():
                 for backend in ("database", "redis"):
                     check_hardened_worker(binary, backend, env, aliyun_receipts, aliyun_endpoint)
                     check_crash_recovery(binary, backend, env, aliyun_receipts, aliyun, aliyun_endpoint)
+                if driver == "sqlite":
+                    header = Path(env["DB_DATABASE"]).read_bytes()[:100]
+                    version = int.from_bytes(header[96:100], "big")
+                    assert version >= 3_054_001, version
+                    print(f"SQLite last writer {version // 1_000_000}.{version // 1_000 % 1_000}.{version % 1_000}", flush=True)
             finally:
                 aliyun.shutdown()
                 aliyun_thread.join()

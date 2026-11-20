@@ -2,6 +2,19 @@
 
 统一短信是 OpenRust 借鉴 Laravel [文件存储](filesystem.md)机制提供的扩展。`Storage::disk` 按名称选择由已注册驱动支持的磁盘，`Sms::driver` 同样按名称选择由已注册供应商驱动支持的短信配置。多个配置可以复用同一驱动，并分别设置参数。
 
+## 驱动生命周期 {#sms-driver-lifecycle}
+
+`SmsManager` 沿用 Laravel 的具名驱动模式。同一应用首次解析配置时创建驱动，后续调用复用该驱动及对应模板设置；不同配置、不同应用各自独立。调用 `default_driver` 或默认发送方法时读取当前默认配置名。
+
+更新配置或注册替换工厂后，清除已解析驱动，再重新获取：
+
+```rust
+Sms::forgetDrivers()?;
+let sender = Sms::driver("aliyun")?;
+```
+
+`Sms::getDefaultDriver()` 返回当前默认配置名，不创建驱动。`forgetDrivers` 影响之后的解析，已持有的 `SmsSender` 保留原驱动和设置。驱动创建失败后可以重试。常驻 Worker 修改配置后，按需重新生成配置缓存并重启 Worker。
+
 ## 内置供应商
 
 在应用环境中通过 `SMS_DRIVER` 选择默认配置，并给应用和 Worker 配置该供应商的凭据。内置与自定义供应商都使用同一个 `Sms::driver` 入口。
@@ -196,7 +209,7 @@ Sms::send_text("+12025550123", "您的订单已发货。").await?;
 
 ## 通知和 Worker
 
-用 `ChannelManager::extend` 将 `SmsChannel::default()` 注册为 `sms`，也可以通过 `SmsChannel::using("aliyun")` 绑定具名配置。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供应商模板。想用配置中的业务模板名时，实现 `to_sms_message` 并返回 `SmsMessage::named_template`。接收号码使用 `sms` 路由键下的 `NotificationRoute::Sms`。
+`sms` 通知渠道已默认注册。需要固定具名配置时，可用 `ChannelManager::extend` 注册 `SmsChannel::using("aliyun")`。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供应商模板。想用配置中的业务模板名时，实现 `to_sms_message` 并返回 `SmsMessage::named_template`。接收号码使用 `sms` 路由键下的 `NotificationRoute::Sms`。
 
 队列保存选中的配置名和消息。Worker 使用相同的渠道和配置名，从自身配置解析模板并读取凭据。Redis 队列可用 `./artisan queue:work redis` 启动 Worker。配置改名前先消费旧任务，或保留原名称直到旧任务完成。修改配置后，如已启用配置缓存，需重新生成并重启常驻 Worker。
 

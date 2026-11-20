@@ -2,6 +2,19 @@
 
 統一簡訊是 OpenRust 借鑑 Laravel [檔案儲存](filesystem.md)機制提供的擴充。`Storage::disk` 依名稱選擇由已註冊驅動程式支援的磁碟，`Sms::driver` 同樣依名稱選擇由已註冊供應商驅動程式支援的簡訊設定。多個設定可共用同一個驅動程式，並各自指定參數。
 
+## 驅動程式生命週期 {#sms-driver-lifecycle}
+
+`SmsManager` 沿用 Laravel 的具名驅動程式模式。同一應用程式首次解析設定時建立驅動程式，後續呼叫重用該驅動程式及對應範本設定；不同設定、不同應用程式各自獨立。呼叫 `default_driver` 或預設傳送方法時讀取目前預設設定名稱。
+
+更新設定或註冊替換工廠後，清除已解析驅動程式，再重新取得：
+
+```rust
+Sms::forgetDrivers()?;
+let sender = Sms::driver("aliyun")?;
+```
+
+`Sms::getDefaultDriver()` 回傳目前預設設定名稱，不建立驅動程式。`forgetDrivers` 影響之後的解析，已持有的 `SmsSender` 保留原驅動程式和設定。驅動程式建立失敗後可以重試。常駐 Worker 修改設定後，視需要重新產生設定快取並重新啟動 Worker。
+
 ## 內建供應商
 
 在應用程式環境中透過 `SMS_DRIVER` 選擇預設設定，並為應用程式與 Worker 設定該供應商的憑證。內建和自訂供應商都使用同一個 `Sms::driver` 入口。
@@ -196,7 +209,7 @@ Sms::send_text("+12025550123", "您的訂單已出貨。").await?;
 
 ## 通知和 Worker
 
-以 `ChannelManager::extend` 將 `SmsChannel::default()` 註冊為 `sms`，也可以用 `SmsChannel::using("aliyun")` 綁定具名設定。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供應商範本。要使用設定中的業務範本名稱時，實作 `to_sms_message` 並回傳 `SmsMessage::named_template`。收件號碼使用 `sms` 路由鍵下的 `NotificationRoute::Sms`。
+`sms` 通知管道已預設註冊。需要固定具名設定時，可用 `ChannelManager::extend` 註冊 `SmsChannel::using("aliyun")`。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供應商範本。要使用設定中的業務範本名稱時，實作 `to_sms_message` 並回傳 `SmsMessage::named_template`。收件號碼使用 `sms` 路由鍵下的 `NotificationRoute::Sms`。
 
 佇列儲存選定的設定名稱和訊息。Worker 註冊相同的管道及設定名稱，從自身設定解析範本並讀取憑證。Redis 佇列可用 `./artisan queue:work redis` 啟動 Worker。重新命名前請先處理舊工作，或保留原名稱直到舊工作完成。變更設定後，若使用設定快取，請重新產生並重新啟動常駐 Worker。
 

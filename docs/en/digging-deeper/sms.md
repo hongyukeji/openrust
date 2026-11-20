@@ -2,6 +2,19 @@
 
 The unified SMS API is an OpenRust extension based on Laravel’s [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
 
+## Driver Lifecycle {#sms-driver-lifecycle}
+
+`SmsManager` follows Laravel's named driver pattern. The first resolution of a profile creates its driver; subsequent calls reuse the driver and the profile's template settings within the same application. Different profiles and applications have independent instances. The default profile name is read when `default_driver` or a default send method is called.
+
+Update configuration or register a replacement factory before clearing the resolved drivers:
+
+```rust
+Sms::forgetDrivers()?;
+let sender = Sms::driver("aliyun")?;
+```
+
+`Sms::getDefaultDriver()` returns the configured default profile name without creating a driver. `forgetDrivers` affects future resolutions; existing `SmsSender` handles keep their original driver and settings. Failed driver creation can be retried. In long-running workers, rebuild configuration caches when applicable and restart workers after configuration changes.
+
 ## Built-in providers
 
 Set `SMS_DRIVER` in the application's environment to select the default profile. Supply that profile's credentials to the application and its Workers. The built-ins use the same `Sms::driver` entry point as custom providers.
@@ -196,7 +209,7 @@ Sms::send_text("+12025550123", "Your order has shipped.").await?;
 
 ## Notifications and Workers
 
-Register `SmsChannel::default()` as `sms` with `ChannelManager::extend`, or pin a channel to a profile with `SmsChannel::using("aliyun")`. A notification can implement `to_sms` for text or `to_sms_template` for a provider template. Override `to_sms_message` and return `SmsMessage::named_template` to use a configured business template. Set the recipient through `NotificationRoute::Sms` under the `sms` route key.
+The `sms` notification channel is registered by default. Use `ChannelManager::extend` with `SmsChannel::using("aliyun")` when a channel should use a fixed profile. A notification can implement `to_sms` for text or `to_sms_template` for a provider template. Override `to_sms_message` and return `SmsMessage::named_template` to use a configured business template. Set the recipient through `NotificationRoute::Sms` under the `sms` route key.
 
 The queue stores the selected profile name and message. Register the same channel and profile in the Worker, which reads credentials and resolves the template from its own configuration. Run it with `./artisan queue:work redis` when using Redis. A rename requires draining jobs that reference the old name or keeping that name until they finish. Rebuild cached configuration and restart Workers after changing settings.
 

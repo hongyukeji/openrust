@@ -10,6 +10,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [短信模块重构](audits/06-06/sms-refactor.md)：对照固定 Laravel Manager、EasySms、Vonage／Twilio 与旧版，拆分消息／驱动管理／发送／回执，加入按配置名复用、显式 forgetDrivers 与默认 sms 渠道；保留现有厂商协议、市场模板、加密载荷及受理未知停止补发。Rust1.94 的6项协议／生命周期测试、严格全feature Clippy／fmt、三语构建／12＋6浏览器通过；PostgreSQL18／MySQL8.4／SQLite3.54.1 配合 database／Redis8／file 缓存的独立 Artisan 与两种队列验证通过，SIGKILL恢复和手动retry零重复提交。真实厂商投递与手机收信未验；源码／日志／全部卷保留，仅本地提交。
+
 - 2026-11-21 [数据库注释翻译与迁移组织](audits/schema-comments.md)完成：复用现有分组翻译，三语82键可扩展，Laravel三条初始迁移＋SMS日期命名；PG18.6／MySQL8.4.13／SQLite3.54.1实际12迁移17表／五语言／回退／回滚／错误前置和三库Artisan、PG批次回归通过，多语专项连续五轮、严格workspace/all-targets Clippy／fmt及三语12＋6浏览器通过。开发库完整备份并实际恢复验证后写10表55列中文注释、ledger6→4，业务数据及既有定义保留，最终四条Ran无pending。独占target／dist已回收，全部卷保留；仅核范围本地提交，不推送。动态设置仍为方案，其他发布矩阵不计入本批。
 
 - 2026-11-21 核心侧完成[成熟机制核对与14项定向复验](audits/08-04/README.md#核心机制复验与成熟方案核对)：对照固定 Laravel、Axum／matchit、Rust 标准库与 tempfile；保留路由注册顺序、驱动迁移事务和共享安装锁，无新增依赖。修正旧路由缓存待实现描述；依赖复核仍有4条维护公告。数据库翻译 `022784d08` 已交付，三语API指南与全feature 10库联合导出／源码指纹／根与子目录浏览器均已复验，最终发布快照整合及认证PG令牌问题仍待。

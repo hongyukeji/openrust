@@ -12,7 +12,8 @@ use super::{
     Notifiable, Notification, NotificationError, NotificationFake, NotificationFuture,
     NotificationQueueGuard, NotificationResult, NotificationSender,
     channels::{
-        BroadcastChannel, Channel, DatabaseChannel, MailChannel, SlackChannel, VonageSmsChannel,
+        BroadcastChannel, Channel, DatabaseChannel, MailChannel, SlackChannel, SmsChannel,
+        VonageSmsChannel,
     },
 };
 
@@ -48,6 +49,10 @@ impl Default for ChannelManager {
                         Arc::new(VonageSmsChannel) as Arc<dyn Channel>,
                     ),
                     ("slack".into(), Arc::new(SlackChannel) as Arc<dyn Channel>),
+                    (
+                        "sms".into(),
+                        Arc::new(SmsChannel::default()) as Arc<dyn Channel>,
+                    ),
                 ]
                 .into(),
             ),

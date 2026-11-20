@@ -14,7 +14,7 @@ use openrust::{
         channels::{Channel, SmsChannel},
         sms::{SmsDeliveryStatus, SmsMessage, SmsSubmissionStatus, SmsTemplate},
     },
-    support::facades::{Facade, Notification as Notify, Sms},
+    support::facades::{Notification as Notify, Sms},
 };
 use serde_json::{Value, json};
 
@@ -208,9 +208,6 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
     app.boot().await.unwrap();
     app.call(
         Callback::new(&[], |_| async {
-            Notify::getFacadeRoot()
-                .unwrap()
-                .extend("sms", Arc::new(SmsChannel::default()));
             let recipient =
                 Notify::route("sms", NotificationRoute::Sms("13800138000".into())).unwrap();
             Notify::sendNow(&[&recipient], &CodeNotice, None)
