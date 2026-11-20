@@ -198,3 +198,5 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 - 经 `tests/postgres_acceptance.py` 确认 PostgreSQL 180006，以 REQUIRE 防止缺服务跳过，根 `migrations::artisan_migrations_use_a_real_postgres_ledger` 通过；框架 `database_migrations::postgres_migration_transactions_roll_back_schema_and_data_before_updating_the_ledger` 通过，覆盖失败 up／down 的 Schema、数据和账本回滚。后者显式映射 `OPENRUST_TEST_MIGRATION_POSTGRES_URL` 与 `OPENRUST_REQUIRE_MIGRATION_POSTGRES=1`。
 
 合计 14 项测试函数通过；本批没有变更 Rust 实现，无新增依赖，不重复宣称其他驱动或全仓最终验收通过。公告与许可证盘点见[依赖复核](../dependency-security/README.md#核心整合依赖复核)。源码、日志与上游原文保留于 `/private/tmp/openrust-core-review-20261121/`。联网检索接口未返回正文，改为直接 HTTPS 读取官方仓库固定提交与官方文档；不把搜索摘要当作源码证据。发布最终快照仍须合并后重验。
+
+收尾已确认本批 Cargo 与浏览器进程结束，两个标签化 PostgreSQL 容器已由夹具回收。直接移除独占 target、隔离站点 dist／cache 与本批 node_modules，共4,698,019,149逻辑字节；文件系统实际可用空间从48,298,713,088增至52,840,218,624字节，净增4,541,505,536字节（并行构建可能影响全盘读数）。清理前后 Docker 数据卷清单一致；源码、日志、API交付导出、共享缓存与全部数据卷保留，详见同批 `cleanup.json`。本批仅本地提交。

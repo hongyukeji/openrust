@@ -39,3 +39,5 @@
 完整元数据共 683 包（668 registry、14 local、1 git），均声明许可证。许可证清单已导出，属于依赖盘点，不代表最终许可证批准。唯一 Git 依赖 oxideav-jpegxl 0.0.14 固定在 `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`；没有浮动 Git 分支。MPL-only 包为 crypto-glue、cssparser、cssparser-macros、dtoa-short、selectors、webauthn-attestation-ca、webauthn-rs-core、webauthn-rs-proto；既有第三方源码保留要求继续适用。本次不改变依赖或公开 Date API，四条维护问题和最终发布审计继续保留。
 
 证据在 `/private/tmp/openrust-core-review-20261121/`：`metadata.json`、`licenses.json`、`licenses.log`、`advisories-current.jsonl`。初次使用不受支持的 `--disable-fetch` 失败，未计成功；上述记录使用修正后的实际命令。该结论仅覆盖此固定源码与锁文件，不替代后续扩展提交后的整合审计。
+
+数据库翻译交付后的 `599bb7d30` 归档再次执行锁定全feature元数据与公告检查：683包的版本、来源与许可证声明集合与上述盘点完全相同，仍只有同样4条unmaintained错误，没有vulnerability诊断。日志 `metadata-delivery.json`、`advisories-delivery.jsonl`。本次仅文档与设计记录，不变更数据库或缓存实现；原三库／缓存各驱动验收不由本次单一PG复核替代。

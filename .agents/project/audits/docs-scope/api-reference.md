@@ -27,3 +27,5 @@ API 统一使用 `docs/scripts/build_api.py` 导出，再由 `DOCS_API_DIR` 接�
 2026-11-21，数据库翻译扩展 `022784d08` 交付后，将三语 API 指南的骨架说明替换为实际 DatabaseLoader 与 localization 使用入口。API 导出基线 `18a44b15771301eae70050bbf589861a7efdb98c`，三语站点叠加本次指南修改；未纳入并行数据库注释、迁移合并与短信重构。
 
 在 `/private/tmp/openrust-core-review-20261121/combined-source/` 以 Rust1.94、全 feature 与显式 host 重新导出10库，构建三语联合站点。`check_api_export.mjs` 的7种拒绝与匹配接受、`check_api_snapshot.mjs` 的根／子目录三语桌面／移动12组合及10库源码／搜索、`check_browser.mjs` 的12通用组合全部通过；每语106导航／108 Markdown内容检查通过。日志为同批 `api-export.log`、`api-manifest.log`、`api-browser.log`、`browser.log`。这次验证不代表实际生产托管或最终生成应用验收完成；V16最终发布快照、V17整合与V18批准继续保留。
+
+随后以本批提交 `599bb7d30bf7aa89ad54c1e598f5ae6ff757f224` 覆盖隔离归档中的全部受版本控制文件，再次生成 `api-export-delivery/`；该目录的 `build-info.json` 与提交完全一致。10库、公开与模块两处 DatabaseLoader 页面及 withTable／withMaxRows／withFallback 方法已核对；联合站点重建、7种拒绝／匹配接受和12组API浏览器检查再次通过。日志为 `api-export-delivery.log`、`site-delivery.log`、`api-manifest-delivery.log`、`api-browser-delivery.log`、`api-loader-delivery.log`，导出保留供复核。内部验收记录后续补充不改变此源码与锁文件指纹。
