@@ -1,0 +1,22 @@
+{
+  "upstream_commit": "2e7f893429d35acff45ac16d05ddcf883372a20e",
+  "license": "MIT",
+  "php_image": "php@sha256:50956f094e90a716d43bea28087d447555ad80510e386ab8c9c10d8c70d781a9",
+  "files": [
+    {
+      "upstream_path": "resources/aaguids.php",
+      "upstream_sha256": "d89b8a5d601180fb239231fbd810495c09ab88cccaa810e2d234442ddcd01e68",
+      "path": "vendor/openrust/passkeys/resources/aaguids.json",
+      "sha256": "d25c75ca9daff3d847e74a5c883429b49a8cc286743f9fce9683e8594e2ddd89"
+    },
+    {
+      "upstream_path": "resources/aaguid-icons.php",
+      "upstream_sha256": "9b7f1596ef74d8483baf75e105587590b188c1308f233198102e38cc348434f3",
+      "path": "vendor/openrust/passkeys/resources/aaguid-icons.json",
+      "sha256": "e018861e1e369ecc3ce176c6ec8431df7b271b972d91a57ca53078e3fcc4dab0"
+    }
+  ],
+  "oracle_cases": 71,
+  "oracle_sha256": "ef7a0114fdb72dc0c37d9073a13bba5b30a355558b1f200c56a344abb359f588",
+  "lock_change": "Adds direct serde_cbor_2 edge only; no added or removed package versions."
+}

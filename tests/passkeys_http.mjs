@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 const require=createRequire(import.meta.url);
 const { chromium }=require(process.env.OPENRUST_PLAYWRIGHT_MODULE || 'playwright');
 const origin=process.argv[2],bundle=await readFile(process.argv[3],'utf8');
+const customModel=process.env.OPENRUST_TEST_PASSKEY_MODEL==='1';
 const browser=await chromium.launch({executablePath:process.env.OPENRUST_BROWSER_PATH,headless:true});
 try {
  const context=await browser.newContext();
@@ -30,8 +31,10 @@ try {
  const withoutCsrf=await context.request.post(origin+'/user/passkeys',{data:{},headers:{Accept:'application/json'}});assert.equal(withoutCsrf.status(),419);
  await expect('POST','/user/passkeys',{},422);
  const registered=await page.evaluate(()=>window.Passkeys.register({name:'Chrome resident key'}));
- assert.equal(registered.status,'passkey-registered');assert.equal(registered.name,'Chrome resident key');
+ assert.equal(registered.status,'passkey-registered');assert.equal(registered.name,customModel?'CHROME RESIDENT KEY':'Chrome resident key');
  const list=await expect('GET','/passkeys-acceptance-list');assert.equal(list.length,1);assert.equal(String(list[0].id),registered.id);assert.ok(list[0].credential_id);
+ assert.ok(Object.hasOwn(list[0],'authenticator'));
+ if(customModel){assert.equal(String(list[0].pk),registered.id);assert.equal(list[0].custom_marker,'selected-model');assert.equal(Object.hasOwn(list[0],'credential'),false);}
  const rawId=list[0].credential_id;
  console.log('Installed default provider, migration, real account, CSRF, confirmation gate, pinned JS registration and native model listing PASS');
  const exclude=(await expect('GET','/user/passkeys/options')).options;assert.equal(exclude.excludeCredentials[0].id,rawId);
@@ -107,5 +110,10 @@ try {
  assert.equal((await expect('POST','/passkeys-acceptance-cascade',{})).remaining,0);
  console.log('Independent challenges with equal signed counters serialize under the MySQL row lock; user deletion cascades PASS');
 
+ if(customModel){
+  const events=await expect('GET','/passkeys-acceptance-policy/events');
+  assert.equal(events.registered_event,2);assert.ok(events.verified_event>=4,JSON.stringify(events));assert.equal(events.deleted_event,1);assert.equal(events.deleted,1);assert.ok(events.saved>=events.registered_event+events.verified_event);
+  console.log('Custom Eloquent table/primary key/mutator/hidden/appends, dynamic user relation, native observers and typed event context PASS');
+ }
  console.log('Fortify Passkeys installed application / MySQL / real Chrome / pinned official JS PASS');
 } finally {await browser.close();}

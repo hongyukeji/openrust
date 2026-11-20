@@ -118,6 +118,8 @@ def run():
     source = Path(__file__).resolve().parents[1]
     assert source.parent.name.startswith(("openrust-fortify-install-", "openrust-passkeys-")), "Use a dedicated archive snapshot"
     passkeys = os.environ.get("OPENRUST_TEST_PASSKEYS") == "1"
+    custom_passkey = os.environ.get("OPENRUST_TEST_PASSKEY_MODEL") == "1"
+    assert not custom_passkey or passkeys
     target = Path(os.environ["CARGO_TARGET_DIR"])
     binary = target / "debug/main"
     generated = source.parent / "generated"
@@ -177,6 +179,16 @@ def run():
         routes.write_text(routes.read_text().replace('    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;', '    Route::group(openrust::routing::RouteGroup::new(), |router| { router.get("/reset-password/{token}", fortify_acceptance_state)?.name("password.reset"); Ok(()) })?;'))
         if passkeys:
             routes.write_text(routes.read_text().replace('    Route::get("/fortify-acceptance-state",', '    #[cfg(feature="fortify")]\n    Route::group(openrust::routing::RouteGroup::new(), |router| { router.r#match(&[openrust::http::Method::POST], "/passkeys-acceptance-cascade", passkeys_acceptance_cascade)?; Ok(()) })?;\n    #[cfg(feature="fortify")]\n    Route::get("/passkeys-acceptance-list", passkeys_acceptance_list)?;\n    Route::get("/passkeys-acceptance-policy/{mode}", passkeys_acceptance_policy)?;\n    Route::get("/fortify-acceptance-state",') + PASSKEY_ROUTES)
+        if custom_passkey:
+            model = generated / "app/models/custom_passkey.rs"
+            shutil.copy2(source / "vendor/openrust/passkeys/tests/fixtures/custom_passkey.rs", model)
+            modules = generated / "app/models/mod.rs"
+            modules.write_text(modules.read_text() + '\n#[cfg(feature="fortify")]\npub(crate) mod custom_passkey;\n')
+            provider = generated / "app/providers/fortify_service_provider.rs"
+            provider.write_text(provider.read_text().replace('.useUserModel::<User>();', '.useUserModel::<User>();\n            app.make::<openrust_fortify::passkeys::Passkeys>().await?.usePasskeyModel::<crate::app::models::custom_passkey::CustomPasskey>();\n            crate::app::models::custom_passkey::observe::<User>(app).await?;'))
+            migration = next(generated.glob("database/migrations/*create_passkeys_table.rs"))
+            migration.write_text(migration.read_text().replace('.create("passkeys",', '.create("custom_passkeys",').replace('table.id();', 'table.idWith("pk");').replace('dropIfExists("passkeys")', 'dropIfExists("custom_passkeys")'))
+            routes.write_text(routes.read_text().replace('        let mode=request.route("mode").unwrap_or_default();', '        let mode=request.route("mode").unwrap_or_default();\n        #[cfg(feature="fortify")]\n        if mode=="events" { return openrust::http::Response::json(openrust::http::StatusCode::OK,crate::app::models::custom_passkey::report()); }'))
         build("fmt", "--all")
         cli("fortify:install")  # Re-check registration after rustfmt.
         build("build", "--offline", "--locked", "--features", "fortify", "--bin", "main")
@@ -275,12 +287,17 @@ PASSKEY_ROUTES = r'''
 #[cfg(feature="fortify")]
 fn passkeys_acceptance_list(request: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     Box::pin(async move {
-        use openrust::database::eloquent::Model;
         let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
-        let mut query=openrust_fortify::passkeys::Passkey::query().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-        query.r#where("user_id","=",openrust::database::Value::from(user.get_auth_identifier()));
-        let records=query.get().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-        let values=records.toArray().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        use openrust_fortify::passkeys::PasskeyAuthenticatable as _;
+        let user=(user.as_ref() as &dyn std::any::Any).downcast_ref::<crate::app::models::User>().unwrap();
+        let records=user.passkeys().getResults(user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        assert_eq!(user.hasPasskeysEnabled().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?,!records.is_empty());
+        let mut values=Vec::new();
+        for record in records {
+            let mut value=record.toArray().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+            value.insert("id".into(),match record.getKey().await.unwrap() { openrust::database::Value::Integer(value)=>serde_json::json!(value), openrust::database::Value::Unsigned(value)=>serde_json::json!(value), openrust::database::Value::Text(value)=>serde_json::json!(value), _=>panic!("unexpected primary key") });
+            values.push(value);
+        }
         openrust::http::Response::json(openrust::http::StatusCode::OK,values)
     })
 }
@@ -292,9 +309,8 @@ fn passkeys_acceptance_cascade(request: &mut openrust::http::Request) -> openrus
         let key=openrust::database::Value::from(user.get_auth_identifier());
         let mut user=crate::app::models::User::find(key.clone()).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.unwrap();
         user.delete().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-        let mut query=openrust_fortify::passkeys::Passkey::query().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
-        query.r#where("user_id","=",key);
-        let remaining=query.get().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.len();
+        use openrust_fortify::passkeys::PasskeyAuthenticatable as _;
+        let remaining=user.passkeys().getResults(&user).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.len();
         openrust::http::Response::json(openrust::http::StatusCode::OK,serde_json::json!({"remaining":remaining}))
     })
 }

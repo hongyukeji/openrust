@@ -3793,3 +3793,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## API-F02 Fortify Passkeys 生命周期
 
 2026-11-20 API-F02 [Passkeys 生命周期](audits/api-f02/README.md)完成本机计划接口验收：原生迁移／关系／七路由／Guard与确认、固定官方JS、真实Chrome CTAP2／MySQL8.4.13、跨账户与跨Session拒绝、原子挑战消费、独立挑战行锁计数器竞争、期限／删除／级联／限流；48组固定PHP Trait、验证器33／Fortify55／Passkeys5、Rust1.94严格workspace与all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan、最终生成应用关闭feature和三语12＋6浏览器全过。37输入SHA、97新锁定包无旧版本删除及专属清理留证，全部卷保留；本地提交不推送。AAGUID展示、自定义Passkey模型与独立发布尚未提供，继续补齐定制边界与最终主线整合。
+
+## 2026-11-20 Passkeys 定制边界闭合
+
+API-F02 [定制验收](audits/api-f02/customization.md)完成：实际模型选择、异步共享记录、动态用户关系、原生观察者与 typed 事件；固定 PHP 71 组 AAGUID 名称／图标、默认附加与按需图标、旧凭据兼容；独立原生资源发布标签。真实自定义表／pk 与默认模型两套生成应用均通过官方 JS／Chrome／MySQL 8.4.13、原认证全流程和三封 SMTP、迁移回滚、严格生成 Clippy 与关闭功能构建。原生 98 函数、严格全workspace/all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan、三语12＋6浏览器通过。37源码SHA及资源来源留证，清理释放10,274,804 KiB，剩79.008 GB／73.582 GiB，全部数据库卷保留；核范围本地提交，不推送。继续API-O02及计划余项。

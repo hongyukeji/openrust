@@ -12,6 +12,8 @@ pub enum PasskeyError {
     Verification,
     #[error("Passkey session expired. Please try again.")]
     Expired,
+    #[error("Unsupported icon theme [{0}]. Expected 'light' or 'dark'.")]
+    UnsupportedIconTheme(String),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
@@ -50,3 +52,17 @@ mod provider;
 pub use provider::PasskeysServiceProvider;
 
 mod routes;
+
+mod aaguids;
+pub use aaguids::Aaguids;
+
+mod resources;
+pub use resources::PasskeysResourcesServiceProvider;
+
+mod record;
+pub use record::PasskeyRecord;
+mod store;
+pub use passkey::PasskeyModel;
+
+mod relation;
+pub use relation::PasskeyRelation;

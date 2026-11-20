@@ -23,6 +23,10 @@ try {
  const create=options=>page.evaluate(async options=>(await navigator.credentials.create({publicKey:PublicKeyCredential.parseCreationOptionsFromJSON(options)})).toJSON(),options);
  const get=options=>page.evaluate(async options=>(await navigator.credentials.get({publicKey:PublicKeyCredential.parseRequestOptionsFromJSON(options)})).toJSON(),options);
  const first=await create(await good({op:'registration'}));const id=await good({op:'register',credential:first});
+ const stored=await good({op:'stored',id});
+ assert.match(stored.aaguid,/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+ const legacy=await good({op:'stored',id,legacy:true});assert.equal(legacy.aaguid,null);
+ console.log('Real registration AAGUID extraction and stored credentials without AAGUID remain usable PASS');
  assert.equal(id,first.rawId);await bad({op:'register',credential:first});
  console.log('Chrome resident registration, 64-byte user handle, none attestation and one-time native state PASS');
  const exclusion=await good({op:'registration',exclude:true});assert.equal(exclusion.excludeCredentials[0].id,id);

@@ -1,5 +1,5 @@
 use crate::{
-    Passkey, PasskeyError, PasskeyResult, WebAuthn,
+    Passkey, PasskeyError, PasskeyModel, PasskeyRecord, PasskeyResult, WebAuthn,
     contracts::{PasskeyUser, scalar},
 };
 use openrust::{
@@ -19,12 +19,13 @@ use std::{
 pub type AuthorizeLoginCallback = dyn for<'a> Fn(
         &'a mut Request,
         &'a dyn Authenticatable,
-        &'a Passkey,
+        &'a PasskeyRecord,
     ) -> HttpFuture<'a, Result<bool, HttpError>>
     + Send
     + Sync;
 pub struct Passkeys {
     pub(crate) config: Arc<dyn Repository>,
+    passkey_model: RwLock<Arc<dyn crate::store::PasskeyStore>>,
     user_model: RwLock<Option<Arc<dyn UserModel>>>,
     authorize: RwLock<Option<Arc<AuthorizeLoginCallback>>>,
     routes: AtomicBool,
@@ -34,6 +35,7 @@ impl Passkeys {
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self {
             config,
+            passkey_model: RwLock::new(Arc::new(crate::store::Store::<Passkey>::default())),
             user_model: RwLock::new(None),
             authorize: RwLock::new(None),
             routes: AtomicBool::new(true),
@@ -92,6 +94,22 @@ impl Passkeys {
             self.timeout()?,
         )
     }
+    pub fn usePasskeyModel<M: PasskeyModel>(&self) {
+        *self.passkey_model.write().expect("Passkeys model lock") =
+            Arc::new(crate::store::Store::<M>::default());
+    }
+    pub fn passkeyModel(&self) -> &'static str {
+        self.passkeyStore().name()
+    }
+    pub(crate) fn passkeyStore(&self) -> Arc<dyn crate::store::PasskeyStore> {
+        self.passkey_model
+            .read()
+            .expect("Passkeys model lock")
+            .clone()
+    }
+    pub fn userModel(&self) -> Result<&'static str, HttpError> {
+        Ok(self.model()?.name())
+    }
     pub fn useUserModel<T: PasskeyUser + Clone>(&self) {
         *self.user_model.write().expect("Passkeys model lock") =
             Some(Arc::new(Adapter::<T>(PhantomData)));
@@ -103,7 +121,7 @@ impl Passkeys {
         &self,
         request: &mut Request,
         user: &dyn Authenticatable,
-        passkey: &Passkey,
+        passkey: &PasskeyRecord,
     ) -> Result<bool, HttpError> {
         let callback = self
             .authorize
@@ -151,6 +169,7 @@ pub(crate) struct Account {
     pub display_name: String,
 }
 pub(crate) trait UserModel: Send + Sync {
+    fn name(&self) -> &'static str;
     fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>>;
     fn account(&self, user: &dyn Authenticatable, secret: &str) -> Result<Account, HttpError>;
     fn find(
@@ -160,6 +179,9 @@ pub(crate) trait UserModel: Send + Sync {
 }
 struct Adapter<T>(PhantomData<fn() -> T>);
 impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
+    fn name(&self) -> &'static str {
+        std::any::type_name::<T>()
+    }
     fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>> {
         (user as &dyn Any)
             .downcast_ref::<T>()

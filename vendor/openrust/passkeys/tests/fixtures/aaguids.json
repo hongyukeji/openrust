@@ -1,0 +1,573 @@
+{
+    "cases": [
+        {
+            "id": "7c30bcef-f035-4e21-9175-5c985b4b239c",
+            "label": "TeamPass",
+            "icons": [
+                "e8ae4c1666c83898221df608e013693d82042540d3cab945fd648c33c1061c72",
+                "e8ae4c1666c83898221df608e013693d82042540d3cab945fd648c33c1061c72"
+            ]
+        },
+        {
+            "id": "6d6f6e69-6361-4d33-a001-706173736b79",
+            "label": "Monica Pass",
+            "icons": [
+                "a168b0d1d95d15a969917d3f9e9ef6b0d9230b594b09acc3b60f5144ccb96a1e",
+                "a168b0d1d95d15a969917d3f9e9ef6b0d9230b594b09acc3b60f5144ccb96a1e"
+            ]
+        },
+        {
+            "id": "a11a5faa-9f32-4b8c-8c5d-2f7d13e8c942",
+            "label": "AliasVault",
+            "icons": [
+                "be278dd1ff55066093c38107b5680eaef3f2d65384e100e53d4601ffb4c5f117",
+                "be278dd1ff55066093c38107b5680eaef3f2d65384e100e53d4601ffb4c5f117"
+            ]
+        },
+        {
+            "id": "ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4",
+            "label": "Google Password Manager",
+            "icons": [
+                "0a6eff3c2fb838ee57c1e2d70246b111b12d3983b875177594d1e022aebb05ce",
+                "0a6eff3c2fb838ee57c1e2d70246b111b12d3983b875177594d1e022aebb05ce"
+            ]
+        },
+        {
+            "id": "adce0002-35bc-c60a-648b-0b25f1f05503",
+            "label": "Chrome on Mac",
+            "icons": [
+                "9c12ab239ac9f6f91ff197811d4fb1159f9a2f42c416daa81d73ef24a4ecdb8f",
+                "9c12ab239ac9f6f91ff197811d4fb1159f9a2f42c416daa81d73ef24a4ecdb8f"
+            ]
+        },
+        {
+            "id": "08987058-cadc-4b81-b6e1-30de50dcbe96",
+            "label": "Windows Hello",
+            "icons": [
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997",
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997"
+            ]
+        },
+        {
+            "id": "9ddd1817-af5a-4672-a2b9-3e3dd95000a9",
+            "label": "Windows Hello",
+            "icons": [
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997",
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997"
+            ]
+        },
+        {
+            "id": "6028b017-b1d4-4c02-b4b3-afcdafc96bb2",
+            "label": "Windows Hello",
+            "icons": [
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997",
+                "d883dff5a2c0390a3b6fd02ffd6b31bf5e18ec43d772b53a49d05547b7569997"
+            ]
+        },
+        {
+            "id": "dd4ec289-e01d-41c9-bb89-70fa845d4bf2",
+            "label": "iCloud Keychain (Managed)",
+            "icons": [
+                "65df38798d87c2931c5bcabcf73005a8b17daeb035091ebbfcf7d5c1661f17a9",
+                "2a34349fae55dd2583f056a757ce91b79247474a469fc68d2a24a93e72f57132"
+            ]
+        },
+        {
+            "id": "531126d6-e717-415c-9320-3d9aa6981239",
+            "label": "Dashlane",
+            "icons": [
+                "f9492938564ad63e0f0076b43d331722affacd0c3ad76e28f865d6274adc6c78",
+                "7436a7446dc951554c0f70b7133d9edd180fc45bfbc9ac5cb8134a19cacb0f19"
+            ]
+        },
+        {
+            "id": "bada5566-a7aa-401f-bd96-45619a55120d",
+            "label": "1Password",
+            "icons": [
+                "827d831d3581092a4c0c19bf3791bbdff3a1bfe0268a844f681fd33a46318f67",
+                "1f8b642adb6de4aca3f3a832c3d522c8f8ecef6b07ff47658ff0c4064f6c2a6c"
+            ]
+        },
+        {
+            "id": "b84e4048-15dc-4dd0-8640-f4f60813c8af",
+            "label": "NordPass",
+            "icons": [
+                "c2dc4c7e7434d578b112f053a03b71f5e575fce67815a3cd02e7282cb059656b",
+                "9902c6d9561af19bb9814f48e4a82f1a9ff343665c126b85afee2ca5ce975e3e"
+            ]
+        },
+        {
+            "id": "0ea242b4-43c4-4a1b-8b17-dd6d0b6baec6",
+            "label": "Keeper",
+            "icons": [
+                "c91f8ce59af7aa5d9608c9e6a66c9cfa60f44e764fa70dc387b29d5f3e204327",
+                "c91f8ce59af7aa5d9608c9e6a66c9cfa60f44e764fa70dc387b29d5f3e204327"
+            ]
+        },
+        {
+            "id": "891494da-2c90-4d31-a9cd-4eab0aed1309",
+            "label": "Sésame",
+            "icons": [
+                "105894e1dc37190e1ce340f811869609f02d91509a079c6bf5c323a6d14c97a4",
+                "105894e1dc37190e1ce340f811869609f02d91509a079c6bf5c323a6d14c97a4"
+            ]
+        },
+        {
+            "id": "f3809540-7f14-49c1-a8b3-8f813b225541",
+            "label": "Enpass",
+            "icons": [
+                "bfe27a2981b4cfdfb9760511d1c048159e9875d2c4cf7a5578a9a109c52c5af1",
+                "5afdbecf9b311b66d7ee6fc6c43769d54bf9bf0fe01df974db3cb13059024384"
+            ]
+        },
+        {
+            "id": "b5397666-4885-aa6b-cebf-e52262a439a2",
+            "label": "Chromium Browser",
+            "icons": [
+                null,
+                null
+            ]
+        },
+        {
+            "id": "771b48fd-d3d4-4f74-9232-fc157ab0507a",
+            "label": "Edge on Mac",
+            "icons": [
+                "e400d7675edd947799654e02125723b3dce0f8a5ee9f8cf19df13effa0c16bc5",
+                "e400d7675edd947799654e02125723b3dce0f8a5ee9f8cf19df13effa0c16bc5"
+            ]
+        },
+        {
+            "id": "39a5647e-1853-446c-a1f6-a79bae9f5bc7",
+            "label": "IDmelon",
+            "icons": [
+                "91725d87bbfe000813f80649484fadfad83b0fcf17538d2ade44a7337b9eb6eb",
+                "91725d87bbfe000813f80649484fadfad83b0fcf17538d2ade44a7337b9eb6eb"
+            ]
+        },
+        {
+            "id": "d548826e-79b4-db40-a3d8-11116f7e8349",
+            "label": "Bitwarden",
+            "icons": [
+                "9d2227a521bb6d179929a18881c215f6813947fbede0c9e48edb71f4d624e988",
+                "9d2227a521bb6d179929a18881c215f6813947fbede0c9e48edb71f4d624e988"
+            ]
+        },
+        {
+            "id": "fbfc3007-154e-4ecc-8c0b-6e020557d7bd",
+            "label": "Apple Passwords",
+            "icons": [
+                "284ee4232eece4ea2ef63e07f350f2dcee799c6748e5636c9be8e7060729f91c",
+                "284ee4232eece4ea2ef63e07f350f2dcee799c6748e5636c9be8e7060729f91c"
+            ]
+        },
+        {
+            "id": "53414d53-554e-4700-0000-000000000000",
+            "label": "Samsung Pass",
+            "icons": [
+                "5dda5687be9658f75add9ea0871d5a176bbdf79c9ebc2ba8e289d3fa74fec389",
+                "5dda5687be9658f75add9ea0871d5a176bbdf79c9ebc2ba8e289d3fa74fec389"
+            ]
+        },
+        {
+            "id": "66a0ccb3-bd6a-191f-ee06-e375c50b9846",
+            "label": "Thales Bio iOS SDK",
+            "icons": [
+                "f6c1b733906c9e5c5a1e25db62ffcd0307a5ea201d09d6609501f5278d68fca6",
+                "ef776af0376c33ec79669fd827bd5327c20b68e0089f49ea80ee09a5384544f8"
+            ]
+        },
+        {
+            "id": "8836336a-f590-0921-301d-46427531eee6",
+            "label": "Thales Bio Android SDK",
+            "icons": [
+                "f6c1b733906c9e5c5a1e25db62ffcd0307a5ea201d09d6609501f5278d68fca6",
+                "ef776af0376c33ec79669fd827bd5327c20b68e0089f49ea80ee09a5384544f8"
+            ]
+        },
+        {
+            "id": "cd69adb5-3c7a-deb9-3177-6800ea6cb72a",
+            "label": "Thales PIN Android SDK",
+            "icons": [
+                "f6c1b733906c9e5c5a1e25db62ffcd0307a5ea201d09d6609501f5278d68fca6",
+                "ef776af0376c33ec79669fd827bd5327c20b68e0089f49ea80ee09a5384544f8"
+            ]
+        },
+        {
+            "id": "17290f1e-c212-34d0-1423-365d729f09d9",
+            "label": "Thales PIN iOS SDK",
+            "icons": [
+                "f6c1b733906c9e5c5a1e25db62ffcd0307a5ea201d09d6609501f5278d68fca6",
+                "ef776af0376c33ec79669fd827bd5327c20b68e0089f49ea80ee09a5384544f8"
+            ]
+        },
+        {
+            "id": "50726f74-6f6e-5061-7373-50726f746f6e",
+            "label": "Proton Pass",
+            "icons": [
+                "0060fdd800cd2064ebb0d8aa6e868e4de4dad001d4e494e51a30c75870fef44c",
+                "0060fdd800cd2064ebb0d8aa6e868e4de4dad001d4e494e51a30c75870fef44c"
+            ]
+        },
+        {
+            "id": "fdb141b2-5d84-443e-8a35-4698c205a502",
+            "label": "KeePassXC",
+            "icons": [
+                "07287dac24dbdf61e372102e7cdee0da8bf1624158c86768828fa6b74e31b27f",
+                "6aac80feddb9ad58e9ac829726720a8fed5a567e970f73be3939ffb82ee40086"
+            ]
+        },
+        {
+            "id": "eaecdef2-1c31-5634-8639-f1cbd9c00a08",
+            "label": "KeePassDX",
+            "icons": [
+                "6e419f56be6cf3fac073a5e1f088c9cc76601a6ebccf7734098beb3098b36ead",
+                "ad31f6a29282e15858ccc1e87382c3bbed3babd50146302c2e2c8f435affcdac"
+            ]
+        },
+        {
+            "id": "9addb28c-b46f-4402-808f-019651441ff3",
+            "label": "KeePassPasskey",
+            "icons": [
+                "39ac262fc514cfaa72c4718a78ef6f366a559899bdc927111d209d12eb1e6656",
+                "a729c51b57abfa0c7aa96cc203a35fa99fb78180f45dbee7d84b5ad5d85f0b10"
+            ]
+        },
+        {
+            "id": "cc45f64e-52a2-451b-831a-4edd8022a202",
+            "label": "ToothPic Passkey Provider",
+            "icons": [
+                "80ecaf9a0059ded7ebdee60492cc8ba1356a2efed842cf870c899ea356305a60",
+                "9bfdf526107009f76174e29330e004f8459b8cb6fb1c57ec68ed303b6ee6d7e8"
+            ]
+        },
+        {
+            "id": "bfc748bb-3429-4faa-b9f9-7cfa9f3b76d0",
+            "label": "iPasswords",
+            "icons": [
+                "4fd5e47c66593d152c69be43ec15254545df10a8ab499de029bdc9a127d2d9c9",
+                "4fd5e47c66593d152c69be43ec15254545df10a8ab499de029bdc9a127d2d9c9"
+            ]
+        },
+        {
+            "id": "b35a26b2-8f6e-4697-ab1d-d44db4da28c6",
+            "label": "Zoho Vault",
+            "icons": [
+                "7f145d1b88a652b8227e229ba87377bb58196f7855bd9df5afade27a07287a6e",
+                "7f145d1b88a652b8227e229ba87377bb58196f7855bd9df5afade27a07287a6e"
+            ]
+        },
+        {
+            "id": "b78a0a55-6ef8-d246-a042-ba0f6d55050c",
+            "label": "LastPass",
+            "icons": [
+                "20719583381b7c1a32821aa06bc4af6825969a708cef308e689df250ab7fe098",
+                "c48057e147372e597c57cde0a10aa1cd7390059d325f832e2a9de081e40950d7"
+            ]
+        },
+        {
+            "id": "de503f9c-21a4-4f76-b4b7-558eb55c6f89",
+            "label": "Devolutions",
+            "icons": [
+                "72f1b79dcbbc93183589aa730659a595bb99f600ed77638187200dcc7044594b",
+                "72f1b79dcbbc93183589aa730659a595bb99f600ed77638187200dcc7044594b"
+            ]
+        },
+        {
+            "id": "22248c4c-7a12-46e2-9a41-44291b373a4d",
+            "label": "LogMeOnce",
+            "icons": [
+                "a8c36cd088622e862f73f654a0f282d6d08063fd8eca686528be72a8f1ff8417",
+                "55b43c7abab8dd248c2711dd44d9d1b0109a8f362dd102cc2dabb45f65a350c8"
+            ]
+        },
+        {
+            "id": "a10c6dd9-465e-4226-8198-c7c44b91c555",
+            "label": "Kaspersky Password Manager",
+            "icons": [
+                "3ddd8d69509dbcf1d32893c666a535ae3aa9204c5bad3f165efb82310ccbf444",
+                "3ddd8d69509dbcf1d32893c666a535ae3aa9204c5bad3f165efb82310ccbf444"
+            ]
+        },
+        {
+            "id": "d350af52-0351-4ba2-acd3-dfeeadc3f764",
+            "label": "pwSafe",
+            "icons": [
+                "66c35c27b730cbb9689fa7ad8903ce6dbeca6f9f7dfc1f09e6f1e6f19c13c04a",
+                "66c35c27b730cbb9689fa7ad8903ce6dbeca6f9f7dfc1f09e6f1e6f19c13c04a"
+            ]
+        },
+        {
+            "id": "d3452668-01fd-4c12-926c-83a4204853aa",
+            "label": "Microsoft Password Manager",
+            "icons": [
+                "2bb7489404d19ff7035588b4327136d979bd3dca37b28458281bd68ea69c16be",
+                "2bb7489404d19ff7035588b4327136d979bd3dca37b28458281bd68ea69c16be"
+            ]
+        },
+        {
+            "id": "6d212b28-a2c1-4638-b375-5932070f62e9",
+            "label": "initial",
+            "icons": [
+                "8783a325024ed588d22c484b0ba564ff538191242365064cc54679586555cc69",
+                "8783a325024ed588d22c484b0ba564ff538191242365064cc54679586555cc69"
+            ]
+        },
+        {
+            "id": "d49b2120-b865-4191-8cea-be84a52b0485",
+            "label": "Heimlane Vault",
+            "icons": [
+                "128549cb6079dbf2298b07de79bf8e854b71f6db6e2111be19d3855d5f38a83b",
+                "128549cb6079dbf2298b07de79bf8e854b71f6db6e2111be19d3855d5f38a83b"
+            ]
+        },
+        {
+            "id": "93fea28e-9b08-41d0-b663-20c36b008e70",
+            "label": "Share Credentials",
+            "icons": [
+                "3aad2d664eb1eb36504baf75623e69e7a6fd12752867c1fbd0353672cc32a173",
+                "ea2ada904e35ac10fa91da3d15d612ceffa8b44194fd2faf775fc6664540cb80"
+            ]
+        },
+        {
+            "id": "e8b7f4a2-c3d5-e6f7-890a-b1c2d3e4f567",
+            "label": "Sherlocked",
+            "icons": [
+                "50bde65f4bf268d4ec8cb4d0752c4c52a06b8c7b2830079724e4006bccc8bf0a",
+                "50bde65f4bf268d4ec8cb4d0752c4c52a06b8c7b2830079724e4006bccc8bf0a"
+            ]
+        },
+        {
+            "id": "d9be9d39-e6a6-4c28-a581-32b044d986e4",
+            "label": "Sticky Password Manager",
+            "icons": [
+                "7d6870090f308a08ee86fe5c2c534a99dfa95a4ad9c577bc9c641eae39af2191",
+                "7d6870090f308a08ee86fe5c2c534a99dfa95a4ad9c577bc9c641eae39af2191"
+            ]
+        },
+        {
+            "id": "70617373-7761-6c6c-6669-646f32303236",
+            "label": "Passwall",
+            "icons": [
+                null,
+                null
+            ]
+        },
+        {
+            "id": "c9cadfc9-89a9-489e-a25a-c7e86a4d5f15",
+            "label": "Burp Suite Navigation Recorder",
+            "icons": [
+                "6f1cf7bf5c64241098d3cd1c0931e18b717722cadb01360beecac8a2099bcedf",
+                "6f1cf7bf5c64241098d3cd1c0931e18b717722cadb01360beecac8a2099bcedf"
+            ]
+        },
+        {
+            "id": "fa37f553-f9b6-4adb-ac53-8bbb57ebdf0d",
+            "label": "Norton Password Manager",
+            "icons": [
+                "78e70f12a237b0ef53fce7a548e88b5e473c64ed69bf21f7d7f5ee7454c7caf4",
+                "78e70f12a237b0ef53fce7a548e88b5e473c64ed69bf21f7d7f5ee7454c7caf4"
+            ]
+        },
+        {
+            "id": "a4a2d88e-9796-4356-9164-e2a5a8bd019c",
+            "label": "Avast Password Manager",
+            "icons": [
+                "8908629854c0537b4a7dc6f1bd7e7d6e50408a46ef04756ced2689a2d5459bfb",
+                "8908629854c0537b4a7dc6f1bd7e7d6e50408a46ef04756ced2689a2d5459bfb"
+            ]
+        },
+        {
+            "id": "e7db2bd3-f2fe-4d71-ad78-7e7aa166cfd1",
+            "label": "Avira Password Manager",
+            "icons": [
+                "525b77d136b4b415418b5b9f079ea004462c0152a5db328e4af0072d0e3006ed",
+                "525b77d136b4b415418b5b9f079ea004462c0152a5db328e4af0072d0e3006ed"
+            ]
+        },
+        {
+            "id": "6bb49926-160a-4306-a100-4eb39ba6ac45",
+            "label": "AVG Password Manager",
+            "icons": [
+                "2943953dcc52279921f90d6300f7750fb46e118a8c8baa658f553d754ae61dae",
+                "2943953dcc52279921f90d6300f7750fb46e118a8c8baa658f553d754ae61dae"
+            ]
+        },
+        {
+            "id": "da583154-ce16-4cdf-9fe6-1dba788c0998",
+            "label": "Hey Be Safe",
+            "icons": [
+                "043525b59b21444ae99a7338eca987bbf28e77585e666ef8892a66e68c5bd619",
+                "043525b59b21444ae99a7338eca987bbf28e77585e666ef8892a66e68c5bd619"
+            ]
+        },
+        {
+            "id": "d2717a32-9851-48a8-9961-b264c97a411a",
+            "label": "Fenko Vault",
+            "icons": [
+                "d11882cbbb48365eee377fd3ea2331cbc936d88504bc9fbf556f1f514671299c",
+                "d11882cbbb48365eee377fd3ea2331cbc936d88504bc9fbf556f1f514671299c"
+            ]
+        },
+        {
+            "id": "65c97700-f5ef-4d5c-8a42-f30e45ac94b7",
+            "label": "Royal Vault",
+            "icons": [
+                "4a8f01eebb74043f9087e53b712ac726de6f0ec705d2d7870fd3398228b66e5f",
+                "7de751ad23e89ef9a454476c02291607b59ce3987c5dbc86c3778ca79aeb9394"
+            ]
+        },
+        {
+            "id": "5ca471bb-a56d-46ad-a496-67e70e9ed9fb",
+            "label": "Parcel",
+            "icons": [
+                "c90f4c9d607ba3b3c20b23e86ff484e09654e007858986d8d6a58ad57af339c8",
+                "c90f4c9d607ba3b3c20b23e86ff484e09654e007858986d8d6a58ad57af339c8"
+            ]
+        },
+        {
+            "id": "45e3057e-b2f9-48ed-912f-9b901e153b16",
+            "label": "Uniqkey",
+            "icons": [
+                "7b9d226399ae8743052638f7fcea527253791da0f185649917d19161e6883f5b",
+                "123f84b1758b0a703885902126a648ab921c86aad2a1b6db6b41bc103ba00705"
+            ]
+        },
+        {
+            "id": "87f5ec51-f721-4feb-9fe4-be18c4971894",
+            "label": "PassCard",
+            "icons": [
+                "29c62fd46f2e21cd43c9a3c75e35f2c3d8de9fcad96a5da0f3c378b77023ba37",
+                "29c62fd46f2e21cd43c9a3c75e35f2c3d8de9fcad96a5da0f3c378b77023ba37"
+            ]
+        },
+        {
+            "id": "477b05cd-7f78-4fe7-b629-27247f296138",
+            "label": "WALLIX Vault",
+            "icons": [
+                "4c7c645c6816701bcc5c2b139f1b0d1f2074780f2c6646b6898db173805e3010",
+                "4c7c645c6816701bcc5c2b139f1b0d1f2074780f2c6646b6898db173805e3010"
+            ]
+        },
+        {
+            "id": "53e7a7a5-e75f-4d3d-9483-12fc779cdf23",
+            "label": "Password Depot",
+            "icons": [
+                "a36ddfce69e879ab10fa214b04ed79a7c375c14c769acf7aae3d4d4fbbe5ca9e",
+                "bcff2cbc386e0369970e92f51893b8f8b81d4cfa6a1c745910c505209b41363f"
+            ]
+        },
+        {
+            "id": "cb6f6666-38ea-4873-9161-ff456a82d316",
+            "label": "iPass Secure Auth",
+            "icons": [
+                "b1d68c5e941566a2102124538af6e02684b1637668ddc2b80596e247c9505897",
+                "42b24cc9dbeac5d63fc3cec5e35889d788531f6aa3485e5435c444b25ef4cb45"
+            ]
+        },
+        {
+            "id": "9c1f2b6e-4d3a-4f7c-8b21-5e6a7d8c9f01",
+            "label": "Idira",
+            "icons": [
+                "9d351288bdd1995496f31353c7e6b84ac5ad312946167dfb55a36857eb4e2ea0",
+                "9b3670b38bad661e334d8c2175d5c7bdd1a4c4ea0622ff9d37f60384534d0ab9"
+            ]
+        },
+        {
+            "id": "9f8a3b2c-1d4e-4f6a-8b0c-2e1d3c4b5a69",
+            "label": "U2 Secured",
+            "icons": [
+                "6551a40e6bf0953848e47f3004bedb53faadcb112274cdb05ed5f42fabcd0e89",
+                "6551a40e6bf0953848e47f3004bedb53faadcb112274cdb05ed5f42fabcd0e89"
+            ]
+        },
+        {
+            "id": "69840def-9dcf-4632-bf87-6ac2e451b4f5",
+            "label": "Keyholm",
+            "icons": [
+                "036866ebb05e8aef0e5e22dcae3caa3862b972752ecc571581325c30eb43108f",
+                "036866ebb05e8aef0e5e22dcae3caa3862b972752ecc571581325c30eb43108f"
+            ]
+        },
+        {
+            "id": "35d5ea15-ab24-4416-bdd1-f204c9bce1b6",
+            "label": "CyberFOX Password Manager",
+            "icons": [
+                "0e59d8008a88906daee788fd737c15033c6635273166bc4e8d12688c8948cf96",
+                "0e59d8008a88906daee788fd737c15033c6635273166bc4e8d12688c8948cf96"
+            ]
+        },
+        {
+            "id": "f1d0badc-0def-4f1d-8bad-c0def1d0badc",
+            "label": "fidont",
+            "icons": [
+                "4eb9e3e46e4175efd5dea07780d344d4b92f4e3922b9ede4d9e3644326bc2de0",
+                "4eb9e3e46e4175efd5dea07780d344d4b92f4e3922b9ede4d9e3644326bc2de0"
+            ]
+        },
+        {
+            "id": "c4ed941c-86d3-4532-a6a9-bc42b80d5c38",
+            "label": "Authn8",
+            "icons": [
+                "6d78af39cf3ef8aa94798e3be228da3b8dfb5ce7636156259dd3f4401d1c6acf",
+                "6d78af39cf3ef8aa94798e3be228da3b8dfb5ce7636156259dd3f4401d1c6acf"
+            ]
+        },
+        {
+            "id": "441f5bad-a8ec-4572-8094-ee73a1c7cec7",
+            "label": "Fobb Security",
+            "icons": [
+                "1285e18d70b4a140c4527228c490d676a848e6000ffd3f62a38aa89195a02e2f",
+                "1285e18d70b4a140c4527228c490d676a848e6000ffd3f62a38aa89195a02e2f"
+            ]
+        },
+        {
+            "id": "16a5a15d-7244-4563-856d-a5167d8b9783",
+            "label": "Pleasant Password Server",
+            "icons": [
+                "01bc33ca3b4cdf8863d65e8b2ac0cfaa0a1d34c14560197687ec24217cb9aa62",
+                "ac78a3a6af9fbb6608f40aab5f5c466dfbb79a4f078113dcf00c96a58b9c1d90"
+            ]
+        },
+        {
+            "id": "7c596f1a-3e42-4b8d-9a0f-5d2ce1b84493",
+            "label": "Cyclop Passkey",
+            "icons": [
+                "c50c7f136efebf4e5d1dc56f1a5192493b6e77b76075169028577b7604ec5daa",
+                "c50c7f136efebf4e5d1dc56f1a5192493b6e77b76075169028577b7604ec5daa"
+            ]
+        },
+        {
+            "id": "00000000-0000-0000-0000-000000000000",
+            "label": null,
+            "icons": [
+                null,
+                null
+            ]
+        },
+        {
+            "id": "",
+            "label": null,
+            "icons": [
+                null,
+                null
+            ]
+        },
+        {
+            "id": "nonexistent",
+            "label": null,
+            "icons": [
+                null,
+                null
+            ]
+        },
+        {
+            "id": "7C30BCEF-F035-4E21-9175-5C985B4B239C",
+            "label": null,
+            "icons": [
+                null,
+                null
+            ]
+        }
+    ],
+    "invalid_theme": "Unsupported icon theme [invalid]. Expected 'light' or 'dark'."
+}

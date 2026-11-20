@@ -1,0 +1,22 @@
+{
+  "batch": "/private/tmp/openrust-passkeys-models-20261120",
+  "before_available_kib": 66881636,
+  "after_available_kib": 77156440,
+  "freed_kib": 10274804,
+  "after_gb": 79.008,
+  "after_gib": 73.582,
+  "removed": [
+    "/private/tmp/openrust-passkeys-models-20261120/target",
+    "/private/tmp/openrust-passkeys-models-20261120/client/node_modules",
+    "/private/tmp/openrust-passkeys-models-20261120/client/acceptance-dist",
+    "/private/tmp/openrust-passkeys-models-20261120/source/docs/.vitepress/dist"
+  ],
+  "preserved": [
+    "source snapshots",
+    "generated applications and failures",
+    "logs",
+    "shared caches",
+    "all database volumes"
+  ],
+  "docker_volumes_unchanged": true
+}

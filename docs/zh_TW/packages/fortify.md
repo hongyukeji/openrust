@@ -105,4 +105,17 @@ await Passkeys.verify({ routes: {
 
 註冊要求常駐憑證與使用者驗證，支援 ES256／RS256，證明類型為 none。伺服器端 Session 將挑戰綁定到操作與帳戶，並強制執行截止時間；原子快取宣告拒絕並行重用，MySQL 資料列鎖保護獨立挑戰間的計數器更新與回退檢查。多程序部署必須共用 Session 儲存與支援原子 `add` 的快取；array 驅動涵蓋單一程序。可探索憑證登入也會檢查已儲存的使用者控制代碼。伺服器端狀態遺失後須重新發起操作。
 
-已驗收範圍為上述 Fortify 生命週期。PHP 憑證 JSON 無法直接作為 Rust 憑證儲存格式。本實作尚未提供自訂 Passkey 模型選擇、AAGUID 名稱／圖示及獨立套件資源發佈。
+在應用 Provider 中呼叫 `Passkeys::usePasskeyModel::<CustomPasskey>()` 選擇實際 Eloquent 模型。為實作 `Model + Clone` 且具備憑證轉換及必要欄位的型別實作 `PasskeyModel`；查詢、插入、資料列鎖驗證及刪除均使用其資料表、主鍵、存取器和觀察者。`Passkeys::passkeyModel()` 與 `userModel()` 傳回所選型別名稱。Rust 使用 `PasskeyRelation` 提供 `getResults`、`exists` 與 `create`，傳回 `PasskeyRecord`。記錄的 `getKey`、`getAttributeValue` 和 `toArray` 為非同步方法；`record.model::<CustomPasskey>()` 傳回非同步互斥鎖中的實際共用模型。呼叫其他記錄方法前先釋放該鎖。事件的 `passkey::<CustomPasskey>(context)` 讀取型別化快照，事件的 `passkey` 記錄保留實際共用模型。
+
+預設模型附加 `authenticator`，依註冊 AAGUID 查詢名稱。`Aaguids::labelFor`、`iconFor(id, "light")`、`all` 與 `flush` 使用固定上游資源。需要圖示時，在模型 appends 中明確加入 `authenticator_icon_light` 與 `authenticator_icon_dark`。未知或缺少 AAGUID 傳回 null，舊儲存憑證缺少此欄位仍可使用。none 證明模式下，名稱和圖示僅展示所回報的 AAGUID，不認證製造商身分。
+
+獨立發佈資源時，在 Provider 清單中明確註冊 `openrust_passkeys` 的 `PasskeysResourcesServiceProvider` 並重新建置，然後執行：
+
+```sh
+cargo run -- artisan vendor:publish --tag=passkeys-config
+cargo run -- artisan vendor:publish --tag=passkeys-migrations
+```
+
+發佈會保留自訂檔案並避免重複遷移。將產生的 Rust 設定與遷移模組接入應用載入器及遷移清單，再重新建置並遷移。資源 Provider 只登記可發佈檔案；獨立認證還需設定 `PasskeysServiceProvider`、使用者模型、Guard 和中介軟體。Fortify 安裝繼續使用產生的 Fortify 設定。
+
+PHP 憑證 JSON 無法直接作為 Rust 憑證儲存格式。

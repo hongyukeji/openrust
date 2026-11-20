@@ -50,6 +50,23 @@ impl Driver {
                 self.credentials.insert(id.clone(), credential);
                 Ok(json!(id))
             }
+            "stored" => {
+                let credential = self
+                    .credentials
+                    .get_mut(value["id"].as_str().ok_or("id")?)
+                    .ok_or("missing credential")?;
+                let stored = serde_json::to_value(&*credential)?;
+                if value["legacy"] == true {
+                    let mut legacy = stored.clone();
+                    legacy
+                        .as_object_mut()
+                        .ok_or("stored object")?
+                        .remove("aaguid");
+                    *credential = serde_json::from_value(legacy)?;
+                    return Ok(serde_json::to_value(&*credential)?);
+                }
+                Ok(stored)
+            }
             "verification" => {
                 let allowed = if value["allow"] == true {
                     self.credentials.values().cloned().collect::<Vec<_>>()

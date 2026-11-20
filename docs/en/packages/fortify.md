@@ -105,4 +105,17 @@ Supply a `csrf-token` meta tag and the session cookie. Override the client route
 
 Registration requires a resident credential and user verification, with ES256/RS256 and none attestation. Server-side Session state binds the challenge to the operation and account, with an enforced deadline. Atomic cache claims reject concurrent reuse; credential updates use a MySQL row lock to reject counter rollback across independent challenges. Multiple application processes must share both Session storage and a cache supporting atomic `add`; the array drivers cover one process. Discoverable login also checks the stored user handle. Losing the server-side state requires restarting the ceremony.
 
-The verified scope is the Fortify lifecycle above. PHP credential JSON is not a portable Rust credential storage format. Custom Passkey model selection, AAGUID labels/icons and standalone package resource publishing are not provided by this lifecycle implementation.
+Select an actual Eloquent model with `Passkeys::usePasskeyModel::<CustomPasskey>()` in the application provider. Implement `PasskeyModel` on a `Model + Clone` type with the credential casts and columns; its table, primary key, accessors and observers apply to queries, inserts, row-locked verification and deletion. `Passkeys::passkeyModel()` and `userModel()` expose the selected type names. Rust uses `PasskeyRelation` for `getResults`, `exists` and `create`, returning `PasskeyRecord` values. Record methods such as `getKey`, `getAttributeValue` and `toArray` are asynchronous. `record.model::<CustomPasskey>()` returns the shared actual model behind an async mutex. Release that lock before calling another record method. Event `passkey::<CustomPasskey>(context)` reads a typed snapshot; the event's `passkey` record retains the actual shared model.
+
+The default model appends `authenticator`, resolved from the registration AAGUID. `Aaguids::labelFor`, `iconFor(id, "light")`, `all` and `flush` use the pinned upstream resources. Add `authenticator_icon_light` and `authenticator_icon_dark` to model appends only when needed. Unknown or absent AAGUIDs return null; credentials stored before this field existed remain usable. With none attestation, these names and icons describe the reported AAGUID and do not certify the manufacturer.
+
+For standalone resource publishing, explicitly register `PasskeysResourcesServiceProvider` from `openrust_passkeys` in your provider list and rebuild. Then run:
+
+```sh
+cargo run -- artisan vendor:publish --tag=passkeys-config
+cargo run -- artisan vendor:publish --tag=passkeys-migrations
+```
+
+Publishing preserves customized files and avoids duplicate migrations. Wire the generated Rust configuration and migration modules into the application's loader and migration list before rebuilding and migrating. The resource provider only registers publishable files; standalone authentication additionally requires the configured `PasskeysServiceProvider`, user model, guard and middleware. Fortify installations continue to use their generated Fortify configuration.
+
+PHP credential JSON is not a portable Rust credential storage format.

@@ -1,23 +1,17 @@
-use crate::{Passkey, PasskeyResult};
+use crate::{PasskeyRecord, PasskeyResult};
 use openrust::{
     contracts::auth::Authenticatable,
-    database::{
-        DatabaseResult, Value,
-        eloquent::{
-            Model,
-            relations::{HasMany, Relation},
-        },
-    },
+    database::{DatabaseResult, Value, eloquent::Model},
 };
 
 /// Explicit compiled counterpart of PasskeyUser plus PasskeyAuthenticatable defaults.
 #[allow(non_snake_case, reason = "Matches Passkeys model contract")]
 pub trait PasskeyUser: Authenticatable + Model {
-    fn passkeys(&self) -> HasMany<Self, Passkey> {
-        HasMany::new(self.getKeyName(), "user_id")
+    fn passkeys(&self) -> crate::PasskeyRelation<Self> {
+        crate::PasskeyRelation::new()
     }
     fn hasPasskeysEnabled(&self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        async move { Ok(!self.passkeys().getResults(self).await?.is_empty()) }
+        async move { self.passkeys().exists(self).await }
     }
     fn getPasskeyUserHandle(&self, secret: &str) -> PasskeyResult<String> {
         let key = self.getKey().ok_or(crate::PasskeyError::Format)?;
@@ -55,7 +49,7 @@ pub trait Response: Send + Sync {
     fn toResponse<'a>(
         &'a self,
         request: &'a mut openrust::http::Request,
-        passkey: Option<&'a Passkey>,
+        passkey: Option<&'a PasskeyRecord>,
     ) -> openrust::http::HttpFuture<'a, Result<openrust::http::Response, openrust::http::HttpError>>;
 }
 macro_rules! responses {($($name:ident),+)=>{$(pub trait $name:Response {})+};}

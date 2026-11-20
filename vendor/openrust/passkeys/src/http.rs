@@ -1,6 +1,6 @@
 use crate::{
-    AuthenticationOptions, Passkey, Passkeys, RegistrationOptions, actions::*, contracts, internal,
-    invalid,
+    AuthenticationOptions, PasskeyRecord, Passkeys, RegistrationOptions, actions::*, contracts,
+    internal, invalid,
 };
 use openrust::contracts::{
     cache::Repository as _, container::Container as _, validation::Validator as _,
@@ -12,7 +12,6 @@ use openrust::{
         session::Session as _,
         validation::Factory as _,
     },
-    database::eloquent::Model,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     support::{
         facades::{Facade, Redirect, Validator},
@@ -147,7 +146,7 @@ async fn user(
 }
 async fn respond<T: contracts::Response + ?Sized + 'static>(
     request: &mut Request,
-    passkey: Option<&Passkey>,
+    passkey: Option<&PasskeyRecord>,
 ) -> Result<Response, HttpError> {
     Resolver::<T>::getFacadeRoot()
         .map_err(internal)?
@@ -209,12 +208,17 @@ impl PasskeyRegistrationController {
                 .route("passkey")
                 .ok_or(HttpError::NotFound)?
                 .to_owned();
-            let mut passkey = Passkey::find(key)
+            let passkey = service
+                .passkeyStore()
+                .find(key.into())
                 .await
                 .map_err(internal)?
                 .ok_or(HttpError::NotFound)?;
             if passkey
-                .getAttribute("user_id")
+                .getAttributeValue("user_id")
+                .await
+                .map_err(internal)?
+                .as_ref()
                 .and_then(crate::contracts::scalar)
                 != crate::contracts::scalar(&service.account(user.as_ref())?.key)
             {
@@ -222,7 +226,7 @@ impl PasskeyRegistrationController {
                     "This action is unauthorized.".into(),
                 ));
             }
-            DeletePasskey.call(user.as_ref(), &mut passkey).await?;
+            DeletePasskey.call(user.as_ref(), &passkey).await?;
             respond::<dyn contracts::PasskeyDeletedResponse>(request, None).await
         })
     }
@@ -264,8 +268,9 @@ impl PasskeyLoginController {
                 .model()?
                 .find(
                     passkey
-                        .getAttribute("user_id")
-                        .cloned()
+                        .getAttributeValue("user_id")
+                        .await
+                        .map_err(internal)?
                         .ok_or(HttpError::NotFound)?,
                 )
                 .await?
@@ -336,7 +341,7 @@ pub struct PasskeyDeletedResponse;
 impl contracts::PasskeyDeletedResponse for PasskeyDeletedResponse {}
 macro_rules! redirect_response {
     ($name:ident,$fallback:expr)=>{impl contracts::Response for $name {
-        fn toResponse<'a>(&'a self,request:&'a mut Request,_:Option<&'a Passkey>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
+        fn toResponse<'a>(&'a self,request:&'a mut Request,_:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
             let service=Resolver::<Passkeys>::getFacadeRoot().map_err(internal)?;
             let response:Response=Redirect::intended(request,&service.string($fallback.0,$fallback.1),Default::default())?.into();
             if request.wantsJson() {let target=response.headers().get("location").and_then(|v|v.to_str().ok()).unwrap_or("/");return Response::json(StatusCode::OK,json!({"redirect":target}));}
@@ -351,8 +356,8 @@ redirect_response!(
 );
 macro_rules! status_response {
     ($name:ident,$status:expr)=>{impl contracts::Response for $name {
-        fn toResponse<'a>(&'a self,request:&'a mut Request,passkey:Option<&'a Passkey>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
-            if request.wantsJson() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.getKey().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.getAttribute("name").and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
+        fn toResponse<'a>(&'a self,request:&'a mut Request,passkey:Option<&'a PasskeyRecord>)->HttpFuture<'a,Result<Response,HttpError>> {Box::pin(async move {
+            if request.wantsJson() {let mut data=json!({"status":$status});if let Some(passkey)=passkey {data["id"]=passkey.getKey().await.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();data["name"]=passkey.getAttributeValue("name").await.map_err(internal)?.as_ref().and_then(crate::contracts::scalar).unwrap_or_default().into();}return Response::json(StatusCode::OK,data);}
             Ok(Redirect::back(request,None,Default::default())?.with(request,"status",$status.into())?.into())
         })}
     }};

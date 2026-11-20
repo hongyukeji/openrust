@@ -33,10 +33,17 @@ impl AuthenticationOptions {
 /// Public-key material stored on the server, never an authenticator private key.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StoredCredential {
+    #[serde(default)]
+    aaguid: Option<String>,
     credential: Credential,
     user_handle: String,
 }
 impl StoredCredential {
+    pub fn aaguid(&self) -> Option<&str> {
+        self.aaguid
+            .as_deref()
+            .filter(|id| *id != crate::Aaguids::unknown())
+    }
     pub fn credential_id(&self) -> String {
         URL_SAFE_NO_PAD.encode(&self.credential.cred_id)
     }
@@ -144,7 +151,9 @@ impl WebAuthn {
         {
             return Err(PasskeyError::Verification);
         }
+        let aaguid = registration_aaguid(reg.response.attestation_object.as_ref())?;
         Ok(StoredCredential {
+            aaguid: Some(aaguid),
             credential,
             user_handle: options.user_handle.clone(),
         })
@@ -236,4 +245,31 @@ pub(crate) fn validate_credential(value: &Value, registration: bool) -> PasskeyR
             serde_json::from_value(value.clone()).map_err(|_| PasskeyError::Format)?;
     }
     Ok(())
+}
+
+// The core has already validated this registration object. Retain its AAGUID
+// only for display; none attestation does not establish manufacturer identity.
+fn registration_aaguid(bytes: &[u8]) -> PasskeyResult<String> {
+    let object: serde_cbor_2::Value =
+        serde_cbor_2::from_slice(bytes).map_err(|_| PasskeyError::Format)?;
+    let serde_cbor_2::Value::Map(object) = object else {
+        return Err(PasskeyError::Format);
+    };
+    let Some(serde_cbor_2::Value::Bytes(data)) =
+        object.get(&serde_cbor_2::Value::Text("authData".into()))
+    else {
+        return Err(PasskeyError::Format);
+    };
+    if data.len() < 55 || data[32] & 0x40 == 0 {
+        return Err(PasskeyError::Format);
+    }
+    let mut id = String::with_capacity(36);
+    for (index, byte) in data[37..53].iter().enumerate() {
+        if matches!(index, 4 | 6 | 8 | 10) {
+            id.push('-');
+        }
+        use std::fmt::Write as _;
+        write!(id, "{byte:02x}").expect("write to String");
+    }
+    Ok(id)
 }

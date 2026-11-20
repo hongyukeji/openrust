@@ -1,0 +1,154 @@
+{
+  "base": "81cae68b4ec3ded27077989f72e521e8f5280151",
+  "source": "/private/tmp/openrust-passkeys-models-20261120/source",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "d12f4378f96f0fe79c867af9b514742cc889b9bc186fe4fd1c2efa0795dbcb94"
+    },
+    {
+      "path": "docs/en/packages/fortify.md",
+      "sha256": "b0284d4989613dc2be64550bd2b93ac5ca1c1a53f0b35018330051bd0736339a"
+    },
+    {
+      "path": "docs/tests/check_fortify.mjs",
+      "sha256": "21002bc666a39a51f9c007f034e0e933ed7b3f29b9370bb86281e7288366a4ab"
+    },
+    {
+      "path": "docs/zh_CN/packages/fortify.md",
+      "sha256": "9b080cc8984b2bdbbd1ed69035522a0957ff63daedce50fcee52fcb7cdb3b26a"
+    },
+    {
+      "path": "docs/zh_TW/packages/fortify.md",
+      "sha256": "3d6463b8aaeccdf6837aaf27ed342c45dae0669381422104c248130a2f169d9e"
+    },
+    {
+      "path": "tests/fortify_install.py",
+      "sha256": "e101b4cd8d392d44ab2ccf9232e7420323c5dbeccbd01eae917578dfc685c1f0"
+    },
+    {
+      "path": "tests/passkeys_core.mjs",
+      "sha256": "6da21ca7eefcf0af61c71c73882378a9cac981c1dcce1e72db1264f32cfa5ca9"
+    },
+    {
+      "path": "tests/passkeys_http.mjs",
+      "sha256": "9ab21d8476ca794ebf59ae78060c55c1177d2da857875840dc41624271e756fe"
+    },
+    {
+      "path": "vendor/openrust/passkeys/Cargo.toml",
+      "sha256": "97cd3c19a98ea0b907a93372c95b57c4c807f061a80be43f7fe718f06d09bc2d"
+    },
+    {
+      "path": "vendor/openrust/passkeys/LICENSE.md",
+      "sha256": "7b4f9149597fbae2ce689bc9317d1869e17f1b3fa5f01c289998c108f8c37cf7"
+    },
+    {
+      "path": "vendor/openrust/passkeys/config/passkeys.rs",
+      "sha256": "e0487d85564eab12c5577edec82e50665c33b00cdb044bf31fa736c6a1b9ecb5"
+    },
+    {
+      "path": "vendor/openrust/passkeys/database/migrations/2024_01_01_000000_create_passkeys_table.rs",
+      "sha256": "865195aaed620e29763e7ff6ba452ebc069bedda5a152c9aa89b0fd3f8ebf830"
+    },
+    {
+      "path": "vendor/openrust/passkeys/resources/aaguid-icons.json",
+      "sha256": "e018861e1e369ecc3ce176c6ec8431df7b271b972d91a57ca53078e3fcc4dab0"
+    },
+    {
+      "path": "vendor/openrust/passkeys/resources/aaguids.json",
+      "sha256": "d25c75ca9daff3d847e74a5c883429b49a8cc286743f9fce9683e8594e2ddd89"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/aaguids.rs",
+      "sha256": "ff22211028e56e651a3b62d61b8108adad48563e0294abcd53382a97209b2332"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/actions.rs",
+      "sha256": "07fbcaca74d659fdb33029e12b8138b9ed7deedbc763ec23fd22a2a98687df96"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/contracts.rs",
+      "sha256": "7b21ff593c14cb9a0e43c9f7158ae447c40f8c4e5817d64378e7da9db1e7c921"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/events.rs",
+      "sha256": "72657765744f2eb7ad02743fb97a72d992d79a6b9a548904afb648d74c5ee257"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/http.rs",
+      "sha256": "9bda7d5bb212d50b813b928d3589f038f73ef1e7e7a91dd2e52c73a5276a6263"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/lib.rs",
+      "sha256": "aaca7697158629f637fd50a67936885fb5dad73012c48e55b3898b7cc0e6b531"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/passkey.rs",
+      "sha256": "e3fb25c263f8f57565f5f3caa881c848f11e7dcb6cbac58eabe64f2fbe2b4c0d"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/passkeys.rs",
+      "sha256": "0655a19b8ef4881017128abdd30c33ec142494b9841aae5f4f982e3fdeb5693e"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/provider.rs",
+      "sha256": "33b34552b2868287ed8c723190fffc53d7fbf6ef202a9e2c8618bf80f7a18296"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/record.rs",
+      "sha256": "e2bcd5780959e516aa3e9f2857aea8a40af1225f9f0a1352f406075cae5fb3ae"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/relation.rs",
+      "sha256": "1a280015f78281e36a3ce775df15e7728ea3c1fadf69540c8fa15706bb63b62e"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/resources.rs",
+      "sha256": "87591748a2737828bcc0c410d41d5b27ecb78dcf5e5a1c087f80a2b33d41349e"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/routes.rs",
+      "sha256": "31b661ee1e631e9085bea22d4908762cb9de013b4a5c87c085eb9ee2aababbc7"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/store.rs",
+      "sha256": "9cb3477d0a70f549b0d1879782404f8f6663130194fb17e18b97b195dfaaeda4"
+    },
+    {
+      "path": "vendor/openrust/passkeys/src/webauthn.rs",
+      "sha256": "a620cfc6ffe0cc8f9b01b42e34f418a39abd2115b2d1130d3aacc7b4d9e9dbdf"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/aaguids.rs",
+      "sha256": "47d1e38b95968700543aa023256f3c1fca4905e268e39bf3a6e507e63cd891ac"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/ceremony_driver.rs",
+      "sha256": "6c67bffb141dcb0862b423110794dc424c6dd08c4e0d9663a80cd1f116d87b52"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/configuration.rs",
+      "sha256": "19480bc6e7a7f4548e8856fb122685bd06b7dd106a10364054d3f49cbddbc32a"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/contracts.rs",
+      "sha256": "21524f55c38700216ee57399d35294c055d437596b13bc7b24462efda7cdaa50"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/fixtures/aaguids.json",
+      "sha256": "ef7a0114fdb72dc0c37d9073a13bba5b30a355558b1f200c56a344abb359f588"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/fixtures/custom_passkey.rs",
+      "sha256": "5bbed2709408109423e612f623038c63016e21353dc4b1e1e022bc063048da85"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/fixtures/user-contract.json",
+      "sha256": "e18bc34ef7f6f915f0bcaeb5dd0328878a47afacda38323ea8d85310656d1d9b"
+    },
+    {
+      "path": "vendor/openrust/passkeys/tests/resources.rs",
+      "sha256": "c07017bcd11c9573978d95797b3931c3bd12e7f4668626ebd410d7e3b000b893"
+    }
+  ]
+}

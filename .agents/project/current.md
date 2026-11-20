@@ -9,7 +9,7 @@
 
 ## 最新交接
 
-- 2026-11-20 API-F02 [Passkeys 生命周期](audits/api-f02/README.md)完成本机计划接口验收：原生迁移／关系／七路由／Guard与确认、固定官方JS、真实Chrome CTAP2／MySQL8.4.13、跨账户与跨Session拒绝、原子挑战消费、独立挑战行锁计数器竞争、期限／删除／级联／限流；48组固定PHP Trait、验证器33／Fortify55／Passkeys5、Rust1.94严格workspace与all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan、最终生成应用关闭feature和三语12＋6浏览器全过。37输入SHA、97新锁定包无旧版本删除及专属清理留证，全部卷保留；本地提交不推送。AAGUID展示、自定义Passkey模型与独立发布尚未提供，继续补齐定制边界与最终主线整合。
+- 2026-11-20 API-F02 [定制边界](audits/api-f02/customization.md)完成本机验收：实际自定义 Eloquent 模型／关系／异步记录／类型化事件／观察者、固定 PHP 71 组 AAGUID 名称与图标、旧凭据缺字段、独立配置／迁移发布。自定义与默认生成应用均通过真实 Chrome／官方 JS／MySQL 8.4.13 全生命周期、迁移回滚、严格 Clippy 和 feature 关闭；验证器33／Fortify55／Passkeys10、严格全workspace/all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan及三语12＋6浏览器通过。37输入SHA与来源／清理留证，释放10,274,804 KiB、全部卷保留；本地核范围提交不推送。[原生命周期](audits/api-f02/README.md)为历史批次。继续 API-O02 双应用浏览器 SSO 与退出，随后依计划处理 Precognition、初始化扩展与最终发布整合；不将本机结果称为全项目完成。
 
 - 2026-11-20 API-O01 [OIDC RP](audits/api-o01/README.md)完成本机验收：独立可选包／授权码＋S256／Discovery与JWKS／严格ID Token／UserInfo及归属动作；8算法、4原生＋2真实HTTP／MySQL＋根配置1函数，双副本共享Session与原子重放、同邮箱不合并、Session迁移、错误路径、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭及三语12＋6浏览器通过。源码与依赖SHA、专属清理留证，全部卷保留，本地提交不推送。继续API-O02双应用浏览器SSO与退出；真实供应商凭据前置保留。
 
