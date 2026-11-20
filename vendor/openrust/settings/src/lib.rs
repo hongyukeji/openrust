@@ -18,3 +18,8 @@ pub use settings_repository::{
     SettingsRepository, SettingsSnapshot, SettingsUpdate, StoredProperty,
 };
 pub use settings_service_provider::SettingsServiceProvider;
+
+/// Providers discovered when the consuming application enables this package.
+pub fn openrust_providers() -> Vec<Box<dyn openrust::support::ServiceProvider>> {
+    vec![Box::new(SettingsServiceProvider)]
+}

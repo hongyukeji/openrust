@@ -17,7 +17,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-/// Explicit opt-in provider. Registration and boot never read the settings table.
+/// Package provider. Registration and boot never read the settings table.
 pub struct SettingsServiceProvider;
 #[derive(Default)]
 struct RegisteredGroups(Mutex<BTreeMap<String, TypeId>>);
@@ -66,6 +66,21 @@ impl ServiceProvider for SettingsServiceProvider {
                             .map_err(binding)?,
                     ) as Arc<dyn SettingsRepository>)
                 })?;
+            Ok(())
+        })
+    }
+
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let config = app.config()?;
+            let table = config.get("settings.repositories.database.table");
+            let connection = config.get("settings.repositories.database.connection");
+            // Custom schemas are owned by the consuming application's migrations.
+            if table.as_ref().and_then(|value| value.as_str()) == Some("settings")
+                && connection.as_ref().is_none_or(serde_json::Value::is_null)
+            {
+                self.loadMigrationsFrom(app, Self::migrations()).await?;
+            }
             Ok(())
         })
     }

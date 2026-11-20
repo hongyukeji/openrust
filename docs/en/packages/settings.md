@@ -4,13 +4,13 @@
 
 ## Enable and migrate
 
-The repository application opts in through the `settings` Cargo feature. It registers the settings provider, a `SiteSettings` example and the table migration:
+Enable the optional package with the `settings` Cargo feature. Package discovery registers its provider and default table migration; it does not register application-specific settings groups:
 
 ```sh
 cargo run --features settings -- artisan migrate
 ```
 
-For another application, add the `openrust-settings` dependency, register `SettingsServiceProvider` before your application provider, call `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?` during application registration, and register `SettingsServiceProvider::migrations()` through the provider's `loadMigrationsFrom` hook. Run migrations before reading settings. Registration does not query the settings table.
+For another application, add the `openrust-settings` dependency and use OpenRust package discovery. Declare your own settings type, then call `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?` in that application's provider after the package registers. The default application contains no pre-registered `SiteSettings` group. Run migrations before reading settings; provider registration and boot do not query the settings table.
 
 `settings.repository` defaults to `database`; `settings.repositories.database.connection` defaults to the application's default connection and `table` to `settings`. For a custom connection or table, register a corresponding `CreateSettingsTable` migration and run it on that connection instead of installing the default migration. This is a compiled migration in the existing ledger, not a second migration runner.
 

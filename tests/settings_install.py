@@ -13,7 +13,7 @@ import time
 import urllib.request
 
 
-def run(binary):
+def run(binary, enabled=True):
     with tempfile.TemporaryDirectory(prefix="openrust-settings-install-") as directory:
         root = Path(directory)
         database = root / "database.sqlite"
@@ -34,10 +34,18 @@ def run(binary):
             assert result.returncode == 0, f"Artisan {args[0]} failed: {result.stderr}"
             return result.stdout
 
+        artisan("package:discover")
+        packages = json.loads((root / "packages.json").read_text())
+        assert ("openrust-settings" in {package["name"] for package in packages}) == enabled
         artisan("list")
         with sqlite3.connect(database) as connection:
             assert connection.execute("select name from sqlite_master where name='settings'").fetchone() is None
         artisan("migrate", "--force")
+        if not enabled:
+            with sqlite3.connect(database) as connection:
+                assert connection.execute("select name from sqlite_master where name='settings'").fetchone() is None
+            print("settings disabled: package discovery and migrations leave settings absent PASS")
+            return
         with sqlite3.connect(database) as connection:
             columns = {row[1] for row in connection.execute("pragma table_info(settings)")}
             assert columns == {"id", "group", "name", "locked", "payload", "created_at", "updated_at"}
@@ -84,4 +92,6 @@ def run(binary):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--binary", type=Path, required=True)
-    run(parser.parse_args().binary.resolve())
+    parser.add_argument("--without-settings", action="store_true")
+    args = parser.parse_args()
+    run(args.binary.resolve(), enabled=not args.without_settings)

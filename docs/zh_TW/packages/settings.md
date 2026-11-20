@@ -4,13 +4,13 @@
 
 ## 啟用與遷移
 
-儲存庫應用透過 `settings` Cargo feature 明確啟用，登記設定 Provider、`SiteSettings` 範例及建表遷移：
+透過 `settings` Cargo feature 啟用選用套件。套件探索登記自身 Provider 與預設資料表遷移，不註冊應用業務設定群組：
 
 ```sh
 cargo run --features settings -- artisan migrate
 ```
 
-其他應用加入 `openrust-settings` 相依套件，在應用 Provider 之前註冊 `SettingsServiceProvider`，在應用註冊階段呼叫 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`，並在 Provider 中透過 `loadMigrationsFrom` 登記 `SettingsServiceProvider::migrations()`。首次讀取前執行遷移；註冊本身不查詢設定表。
+其他應用加入 `openrust-settings` 相依套件並使用 OpenRust 套件探索。宣告自己的設定型別，在套件註冊完成後，由該應用的 Provider 呼叫 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`。預設應用沒有預先註冊的 `SiteSettings` 業務群組。首次讀取前執行遷移；Provider 註冊與啟動不查詢設定表。
 
 `settings.repository` 預設為 `database`；`settings.repositories.database.connection` 預設使用應用資料庫連線，`table` 預設為 `settings`。自訂連線或資料表時，登記對應的 `CreateSettingsTable` 遷移並在該連線執行，取代預設遷移。遷移仍使用既有紀錄及執行器。
 

@@ -53,3 +53,23 @@ node docs/tests/check_settings.mjs
 本阶段专属根目录：`/var/folders/20/lxn_zjvn3614f836z2cm3vww0000gn/T/openrust-settings-s1-20261121-3_zfbh7h`。源码与验收日志保留；核心侧已改用时间库整合 target，明确通知不再复用本批旧基线 target。已通过 lsof 确认无打开句柄后直接删除本批 `target/` 和 `source/docs/.vitepress/dist/`；没有自有 npm 安装目录，`source/docs/node_modules` 是指向共享依赖的符号链接，未删除共享依赖。未修改 root/settings 的在途时间库接线，也未操作其他对话容器或数据卷。
 
 清理逻辑占用 6,594,520 KiB（6.753 GB）；项目 df Available 从 37,293,296 增至 43,627,204 KiB，实测增加 6.486 GB。清理后可用 44.674 GB（41.606 GiB），高于32 GB停线。详细读数另存专属根目录 `cleanup.json`；源码、日志、共享缓存及全部数据卷保留。
+
+
+## 默认应用 Provider 边界修正
+
+2026-11-21 用户指出默认 `app/providers/app_service_provider.rs` 提前接入扩展。定位到 `c44864afe` 把 Settings Provider、SiteSettings 演示业务组和包迁移写入根应用，后续支付 WIP 沿用了根 boot 登记包迁移的做法。`#[cfg(feature)]` 只隔离编译，没有改变职责归属。此前规范要求区分应用／框架／扩展，但缺少默认骨架的明确禁则；功能验收验证可运行，未验证示例是否污染默认应用，核心整合审查漏掉了该问题。
+
+先复核既有 `openrust-package-discovery` 的 metadata／`openrust_providers()` 机制、固定 Laravel ServiceProvider::loadMigrationsFrom 和官方应用 AppServiceProvider，再采取最小修正，不新建安装管理器或平行注册机制。固定源码：[Laravel ServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/ServiceProvider.php)；[官方应用骨架](https://github.com/laravel/laravel/blob/13.x/app/Providers/AppServiceProvider.php)于本日直接HTTPS读取，后者为分支参考，不冒充固定提交。联网检索未返回正文，官方原文保留在本批专属目录。旧版 `v0.x:app/providers/app.rs` 已复核；当前包发现和迁移登记可直接复用，未移植旧版业务接线。
+
+- 根 AppServiceProvider 只保留现有 User 模型登记，boot为空；bootstrap清单只列应用 Provider。移除根 app/settings 的演示类型与模块声明；网站／模块类型仍在包测试和使用文档中展示，用户应用按实际业务显式注册。
+- Settings通过Cargo metadata与`openrust_providers()`使用现有包发现；自身Provider在boot登记默认迁移，不查询数据库。自定义表或连接时跳过默认迁移，由消费应用登记对应迁移，避免误建默认表。
+- 支付WIP交原Plan对话按同一边界修正：包迁移归PayServiceProvider，文档不再要求编辑根AppServiceProvider；不代为提交其在途实现。其他Socialite／文档改动完整保留。
+- 项目规范新增[默认应用与扩展装配](../../conventions.md#默认应用与扩展装配)，并从项目指引直达。默认应用、包发现、显式安装生成和业务示例分别规定职责。`tests/application_skeleton.rs`随根Cargo测试运行，检查默认Provider目录和bootstrap清单的扩展引用／feature分支；手动重新注入Settings与Pay引用均被拒绝，不增加解析依赖。该约束只用于框架仓库默认骨架，不禁止用户应用实际定制。
+
+验收源码来自 `5de45c53b` Git归档，仅叠加本批修正，未复制并行支付／Socialite工作区改动；目录 `/private/tmp/openrust-provider-boundary-20261121/`。Settings三库原有13项行为／HTTP／Worker及独立进程回归通过；新增包Provider专项以SQLite验证真实包清单发现、无数据库启动、默认迁移幂等、自定义表及连接跳过。三语内容检查／站点构建及根／子目录桌面／移动12组浏览器通过。后续构建、严格检查与资源收尾结果附于下方；前轮b168的API产物仍只对应其固定源码，不能当作本次修改后的新API导出。
+
+实际验收：Rust1.94、jobs2、incremental0／debug0，Settings包 `--tests` 在SQLite／真实PG18／MySQL8.4各退出0（其中新增Provider专项固定SQLite，验证包发现、无数据库文件启动、默认迁移一次性及自定义表／连接跳过；不把该专项重复运行计作三驱动迁移测试）。既有三库读写／HTTP／Worker作用域与独立进程用例通过。根 `cargo test --test application_skeleton` 在默认关闭和 `--features settings` 各通过；`tests/settings_install.py` 实际运行两种二进制，关闭时包发现／迁移均无Settings，启用时自动发现包、迁移／重跑／保留值／回滚、配置缓存与真实HTTP通过。
+
+`cargo +1.94.0 clippy --workspace --all-targets --all-features --locked --offline -- -D warnings`、`fmt --all --check`、三语内容与构建、通用12组合和Settings12组合浏览器通过；`git diff --check`通过。证据包括 `results.json`、`provider-final.log`、`settings-{sqlite,postgres,mysql}.log`、`skeleton-feature-{off,on}.log`、`skeleton-reject-{settings,pay}.log`、`install-{off,on}.log`、`clippy.log`、`fmt.log`及`docs-*.log`。首轮新增测试的PathBuf与mut声明编译错误已修正，初轮日志不计成功结果。该验收为固定归档叠加本批修改，不将并行新支付／微信整理称作同一快照整合；支付自身迁移装配已由Plan在 `7edd0fbca` 独立修正并通过三库原生Artisan复验，见[支付验收](../pay/README.md#最终装配复验)。
+
+收尾确认专属target无人占用后，直接移除target／测试二进制及临时文档dist／cache；源码、日志、共享依赖、IDE target与旧正式API交付保留。`cleanup.json`记录表观5,492,260KiB，可用空间43,396,636→48,643,568KiB，实际净增5,246,932KiB（约5.373GB），剩余约49.811GB／46.390GiB；Docker卷前后均[]、删除0。没有修改开发数据库、推送或部署。

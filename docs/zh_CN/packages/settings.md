@@ -4,13 +4,13 @@
 
 ## 启用与迁移
 
-仓库应用通过 `settings` Cargo feature 显式启用，登记设置 Provider、`SiteSettings` 示例和建表迁移：
+通过 `settings` Cargo feature 启用可选包。包发现登记自身 Provider 和默认表迁移，不注册应用业务设置组：
 
 ```sh
 cargo run --features settings -- artisan migrate
 ```
 
-其他应用添加 `openrust-settings` 依赖，在应用 Provider 之前注册 `SettingsServiceProvider`，在应用注册阶段调用 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`，并在 Provider 中通过 `loadMigrationsFrom` 登记 `SettingsServiceProvider::migrations()`。首次读取前运行迁移；注册本身不查询设置表。
+其他应用添加 `openrust-settings` 依赖并使用 OpenRust 包发现。声明自己的设置类型，在包注册完成后，由该应用的 Provider 调用 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`。默认应用没有预注册的 `SiteSettings` 业务组。首次读取前运行迁移；Provider 注册和启动不查询设置表。
 
 `settings.repository` 默认为 `database`；`settings.repositories.database.connection` 默认使用应用数据库连接，`table` 默认为 `settings`。自定义连接或表时，登记相应的 `CreateSettingsTable` 迁移并在该连接运行，替代默认迁移。迁移仍使用已有台账和执行器。
 

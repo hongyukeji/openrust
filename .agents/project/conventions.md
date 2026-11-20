@@ -30,6 +30,13 @@
 - 应用代码放在根应用的对应目录，框架源码放在 `vendor/openrust/framework/`。
 - 测试代码单独存放。根应用测试放在根目录的 `tests/`，crate 测试放在所属 crate 的 `tests/`。
 
+## 默认应用与扩展装配
+
+- 默认 `app/providers/` 只登记应用自身必要的服务，不提前注册可选扩展、示例业务类型或包迁移；`#[cfg(feature = "…")]` 只控制编译，不能作为把示例写入默认骨架的理由。`bootstrap/providers.rs` 只列应用 Provider。
+- 扩展通过已有 `[package.metadata.openrust.discovery]` 与 `openrust_providers()` 参与包发现，自身 Provider 负责服务绑定、配置合并及适用的迁移登记。需要发布或安装的应用配置／路由／模型由显式安装器按已确认契约生成；不为新扩展继续增加根 AppServiceProvider 分支。
+- 业务示例、集成测试专用类型和装配放在文档或所属包的 tests／fixtures 中。用户应用实际采用某个业务组时，才在该应用的 Provider 中显式注册；框架仓库默认应用不承载所有扩展的演示接线。
+- 验收同时检查启用／关闭扩展、包发现、注册与启动不访问未迁移数据库、迁移登记及自定义配置边界。运行 `cargo +1.94.0 test --test application_skeleton`，阻止根应用 Provider 再出现扩展引用或 feature 分支；该测试约束仓库默认骨架，不限制用户应用的正常定制。
+
 ## 旧版实现复用
 
 1. **先定契约，再查旧版。** 实现前优先查阅同级 `openrust-v0.x` 工作树的 `v0.x` 分支。没有该工作树时，在当前仓库用 `git show v0.x:<仓库内路径>` 查阅。没有本地分支时，可用已有的 `git show origin/v0.x:<仓库内路径>`。两种方式均无需切换分支。记录对应源码、测试和修复的提交与路径，来源不可用时明确记录。

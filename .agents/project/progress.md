@@ -3846,3 +3846,8 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 - Plan同期新增支付任务由原对话独立开发，不纳入本批快照或依赖计数。既有成熟机制调研已写入架构与项目规范：先核对现有实现和固定Laravel契约，再检查官方生态方案、复用边界及必要的Rust适配。所有本批提交仅本地，版本／tag／推送／部署未执行。
 - 最终 b168 的 PostgreSQL18.6／MySQL8.4.13 完整初始化与认证各退出0，两次根feature-off、默认all／重复／force／密钥迁移保留、Guard正负隔离、Fortify真实HTTP／SMTP／CSRF／2FA／重置／限流／关停及生成strict／feature-off全部通过，无需补改源码；证据 `/private/tmp/openrust-init-auth-combined-20261121/`。受控SMTP、未执行的SQLite整套init-auth与真实供应商边界按审计分别记录。
 - 收尾已清理核心时间与认证专属闲置target／测试二进制，分次实际净增合计约20 GB；保留源码、正式API／站点、日志、共享缓存与IDE target。Docker卷前后均[]，删除0，开发mysql／postgres／redis保留。最终提交前Available46,508,636KiB（47.625 GB／44.354 GiB），明细见组合审计与临时证据cleanup记录。
+
+
+## 2026-11-21 默认应用与扩展 Provider 边界
+
+用户指出默认AppServiceProvider提前接入扩展。已定位Settings演示业务／迁移进入默认骨架及Pay沿用的来源；移除根Provider／bootstrap的扩展分支和根SiteSettings演示类型，Settings复用现有包发现并在自身Provider登记默认迁移，自定义表／连接交消费应用管理。项目指引／规范明确默认骨架、包Provider、显式安装器和业务示例的职责，新增随Cargo运行的骨架边界检查及Settings／Pay重新注入拒绝验证。三库Settings回归、关闭／启用设置的真实根包发现与迁移／HTTP、固定归档全feature严格Clippy／fmt及三语指南／浏览器通过，结果见[设置边界修正](audits/settings/README.md#默认应用-provider-边界修正)。并行支付／Socialite改动保留，Pay的对应修正交原Plan对话验收；未推送。

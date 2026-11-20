@@ -32,13 +32,18 @@ async fn example(connection: openrust::database::Connection, config: &Config) ->
 }
 ```
 
-Register `CreateSettingsTable` through the existing migration registry and run
-`artisan migrate` before the first database read. Enable `SettingsServiceProvider`
-explicitly and register each type through `registerSettings::<T>(app)` in a later
-application provider. The container resolves `Settings<T>` asynchronously once per
-existing scope; do not inject it into a permanent singleton. Register the migration
-using `SettingsServiceProvider::migrations()` and the existing `loadMigrationsFrom`.
-Registration needs neither a settings table nor an encryption key for nonsecret groups.
+OpenRust package discovery registers `SettingsServiceProvider` when the optional
+package is enabled. Its boot hook registers the default table migration through
+`loadMigrationsFrom`; run `artisan migrate` before reading settings. A custom table
+or connection skips this default migration: register the corresponding
+`CreateSettingsTable` yourself and run it on the intended connection.
+
+Declare business settings in the consuming application and call
+`registerSettings::<T>(app)` in its provider after package registration. The default
+application does not pre-register example groups. The container resolves `Settings<T>`
+asynchronously once per existing scope; do not inject it into a permanent singleton.
+Registration and boot need neither a settings table nor an encryption key for
+nonsecret groups.
 
 `fill` replaces declared top-level fields and validates the entire group. It rejects
 unknown fields, bad types and locked properties. Nested objects and arrays are replaced
