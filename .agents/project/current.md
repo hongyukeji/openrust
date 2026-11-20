@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 核心最终组合固定 `b168b31aa063a289a5a025ed5080a99f19bb6c7e`：原生 Jiff/time 与固定 IANA2025b vanguard 时区数据、设置 S1、统一短信、PG 绑定修复、数据库翻译及腾讯社交／小程序已合并。全workspace／all-targets／all-features严格Clippy／fmt、三驱动五缓存组合与缺服务负例、三语普通指南及11库API快照验收通过；2,013个输入逐个与Git归档一致。依赖公告0 errors／0 warnings、启用图无chrono，未启用的optional锁项不计运行时依赖。详见[组合验收](audits/08-04/README.md#2026-11-21-原生时间设置与扩展组合复验)、[文档快照](audits/docs-scope/api-reference.md#2026-11-21-设置原生时间与社交登录最终快照)与[来源盘点](audits/dependency-security/README.md#最终组合依赖与来源盘点)。历史条目中的PG令牌待定位和4条维护公告已由后续修复覆盖；最终PG18.6／MySQL8.4.13完整init-auth均退出0，含生成应用安装／重复／force／密钥迁移保留、Sanctum／Passport正负Guard、Fortify真实HTTP／SMTP／CSRF／2FA／重置／限流／关停及生成strict／feature-off；无补改；闲置专属产物累计实测回收约20 GB，源码／日志／API交付／开发容器／全部数据卷保留，提交前可用47.625 GB（44.354 GiB）。Plan对话独立新增支付扩展不在此快照，保留其全部工作区改动。外部目标、最终跨平台矩阵和发布批准仍按核心账本跟踪；无推送或部署。
+
 - 2026-11-21 [微信小程序登录](audits/api-s01/mini-app.md)实现验收：借鉴固定 EasyWeChat／Laravel 生态 MiniApp::codeToSession，复用 SocialiteManager／Facade 与 HTTP Client，独立 AppID／secret，无回调或新表，服务端会话密钥隔离。专项7函数、固定PHP实际源码对照、完整Socialite49函数（真实MySQL8.4.13）、根配置1函数、Rust1.94全workspace／all-targets／all-features严格Clippy／fmt及三语构建／12＋6浏览器通过；真实小程序凭据与真机联调未验。本地核范围提交不推送，独占产物按审计清理。
 
 - 2026-11-21 [数据库设置 S1](audits/settings/README.md)实现并验收：可选类型化设置包、原生迁移、网站／模块示例、加密、并发冲突及 HTTP／实际 Worker 作用域；Rust1.94 在 `95e904727` 基线上三库各13项行为／运行时＋独立进程＋2 doctest、全feature严格Clippy／fmt、根安装迁移／值保留／缓存／HTTP／回滚及三语12＋6＋12浏览器通过。用户已取消额度检查和人为额度停线。仅本地提交；框架设置扩展已交付，后台产品／具体服务适配属应用层按需工作；依核心最新安排已回收本批闲置target／dist，df可用增加6.486 GB，清理后44.674 GB（41.606 GiB）；源码／日志／共享缓存及全部数据卷保留。chrono→Jiff及统一API站点由核心侧复验。

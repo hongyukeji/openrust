@@ -98,3 +98,12 @@ Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
 最终固定数据下 `final-time-runtime.log` 的 lib 32、request_date_clock 2、schedule_clock 5、support_date 5、time_travel 3 全过；新增覆盖 Dublin／Casablanca／Prague／Windhoek 的负夏令时 PHP `I` 与 fold 偏好，以及维护 retry gap 拒绝／fold earlier／显式偏移。追加 Faker 标准 RFC 历史偏移秒舍入回归后，`final-lib-runtime.log` 的库单元 33 全过。RFC 输出交 Jiff 官方 `DateTimePrinter` 的分钟精度规则，避免 `%:z` 原生可选秒改变旧文本；ISO 8601 同样保持分钟偏移和紧凑分隔符。PostgreSQL typed TIMESTAMP 参数新旧解析对 `12000`、`+12000`、`-0001` 及小数结果一致，原 SQLx 文本解码限制与参数解析区别记录，证据 `openrust-vanguard-20261121/pg-bind-{new,old}.log`。
 
 最终整合检查：独占源码中 `cargo +1.94.0 clippy --workspace --all-targets --all-features --locked --offline -j1 -- -D warnings` 退出 0，包含最终 SMS／Socialite 与新增时间资源；日志 `final-clippy.log`。Fortify／Passkeys 的测试直接 include 根 User，故其 Jiff 只放 dev-dependencies，库生产代码使用既有 Date 入口，无额外生产时间依赖。三语 `node docs/tests/check_content.mjs`、最终 `cargo +1.94.0 fmt --all --check` 与 `git diff --check` 通过。严格检查日志中 patched 第三方 imgalifier-avif 的既有 `asm` cfg 警告受 Cargo dependency lint cap 管理，不影响工作区 `-D warnings` 结果；不为时间专项修改该外部源码。
+
+
+## 最终组合依赖与来源盘点
+
+2026-11-21，对 `b168b31aa063a289a5a025ed5080a99f19bb6c7e` 的独立 Git 归档再次执行 Rust 1.94 锁定全 feature 元数据、`cargo deny --locked --workspace --all-features list --format json --layout crate` 和 `cargo deny --format json --locked --workspace --all-features check advisories`，均退出 0。公告摘要为 0 errors／0 warnings，无新增 ignore。原始 metadata 含 679 包（658 registry、20 local、1 固定 Git），全部声明许可证；启用图许可证／来源清单为 640 包，均有许可证声明。此为盘点，不代替最终分发许可证批准。
+
+唯一 Git 依赖 oxideav-jpegxl 0.0.14 固定 `1c2f5a86a052752b0e8181f842a9d4e3460ec0e5`，无浮动引用；第三方补丁保留其原版本、来源与许可证，IANA 数据另保留官方来源、SHA、许可及可重复生成命令。`cargo tree --locked --offline --workspace --all-features --target all -i chrono` 无启用路径。锁文件保留 serde_with 的未启用 optional chrono 条目，不能把公告检查成功写成 lock 中完全无 chrono。同期新增支付扩展不属于此盘点。
+
+证据：`/private/tmp/openrust-final-integration-20261121/{metadata-final.json,licenses-final.json,licenses-final.log,advisories-final.jsonl,chrono-tree-final.log}`。后续依赖变化与实际发行目标仍需各自审计，当前未作发布批准。

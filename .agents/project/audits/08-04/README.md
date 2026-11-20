@@ -200,3 +200,23 @@ Windows Docker Desktop、生产 TLS 和托管 AWS SQS 标准／FIFO 的实机验
 合计 14 项测试函数通过；本批没有变更 Rust 实现，无新增依赖，不重复宣称其他驱动或全仓最终验收通过。公告与许可证盘点见[依赖复核](../dependency-security/README.md#核心整合依赖复核)。源码、日志与上游原文保留于 `/private/tmp/openrust-core-review-20261121/`。联网检索接口未返回正文，改为直接 HTTPS 读取官方仓库固定提交与官方文档；不把搜索摘要当作源码证据。发布最终快照仍须合并后重验。
 
 收尾已确认本批 Cargo 与浏览器进程结束，两个标签化 PostgreSQL 容器已由夹具回收。直接移除独占 target、隔离站点 dist／cache 与本批 node_modules，共4,698,019,149逻辑字节；文件系统实际可用空间从48,298,713,088增至52,840,218,624字节，净增4,541,505,536字节（并行构建可能影响全盘读数）。清理前后 Docker 数据卷清单一致；源码、日志、API交付导出、共享缓存与全部数据卷保留，详见同批 `cleanup.json`。本批仅本地提交。
+
+
+## 2026-11-21 原生时间、设置与扩展组合复验
+
+最终核心源码固定为 `b168b31aa063a289a5a025ed5080a99f19bb6c7e`，使用独立 Git 归档，包含数据库翻译／设置 S1、统一短信、腾讯社交登录与 MiniApp、PostgreSQL 绑定修复、Jiff/time 原生迁移。同期 Plan 对话新建的支付扩展另行开发，未复制其工作区改动，也未计入本批源码、API 和依赖盘点。设计复用与固定上游依据见[架构记录](../../architecture.md#成熟机制复用与适配边界)、[时间及依赖记录](../dependency-security/README.md)及各扩展审计。
+
+- Rust 1.94.0、增量关闭、独占 target、jobs=2：最终 `cargo +1.94.0 clippy --workspace --all-targets --all-features --locked --offline -- -D warnings` 和全仓格式检查通过。时间专项的固定 IANA2025b vanguard 数据、198,039 个偏移／DST 对照、三库时间边界、Settings 三库各13用例、真实 Pail HTTP／Artisan 与 MySQL Worker 结果见时间记录；未把忽略的两个邮件夹具或 SQL Server 类型测试计作真实目标覆盖。
+- 缓存在 `8131dd07f72f3531bdd7e6d066a0b53270a5ad98` 核心组合上实际运行 file、SQLite database、PostgreSQL18 database、MySQL8.4 database、Redis8，五项退出0；必需 PG／MySQL／Redis 缺失时分别按预期退出101。随后 MiniApp 只增加社交登录／配置和对应文档，不改缓存实现；不将此前缓存命令标成在 b168 上执行。
+- 最终 b168 元数据／许可证来源盘点及公告检查通过，无新增 ignore，0 errors／0 warnings；启用图无 chrono。optional lock metadata 仍可含未启用 chrono，详见[依赖盘点](../dependency-security/README.md#最终组合依赖与来源盘点)。
+- 三语普通指南与联合 API 构建、每语107导航／109 Markdown、7个CLI拒绝用例及9类失效导出拒绝、三语根／子目录桌面／移动浏览器、11库源码和搜索／方法锚点通过。API的2,013个输入与Git归档完全一致，正式站点和导出保留；见[文档快照](../docs-scope/api-reference.md#2026-11-21-设置原生时间与社交登录最终快照)。
+
+主证据目录 `/private/tmp/openrust-final-integration-20261121/`，包括 `source-final.txt`、`clippy-final.log`、`fmt-final.log`、`cache-results.json`、各驱动日志、最终 API 及普通指南日志。首轮录入提交号有误的 API 产物仅作预检且已删除，最终导出读取 Git 生成的提交号，并逐文件验证归档指纹。
+
+资源收尾已删除本批33个闲置测试可执行文件和时间专属target，实际可用空间分别净增3,701,518,336与6,389,047,296字节（合计约10.09 GB，读数可能受并行构建影响）；明细 `cleanup-test-binaries.json`、`cleanup-cargo-final.json`。保留源码、日志、正式 API／站点交付、共享缓存、IDE target 与全部数据库／数据卷。最终认证复验和资源核对另附于本节。
+
+本批不能替代真实 Windows Docker Desktop／虚拟化、生产 TLS 域名、AWS SQS／IAM、Pusher、云 S3／STS、真实邮件／短信收件人、QQ／微信账号及 SQL Server 服务；历史 Windows／Linux证据也不能自动扩展为此最终组合的全平台通过。没有版本升级、tag、推送、Release或生产部署。
+
+最终认证补验：在同一 `b168b31aa063a289a5a025ed5080a99f19bb6c7e` Git 归档，以 Rust1.94／jobs2／incremental0／debug0 顺序执行 `python3 -B tests/postgres_acceptance.py -- python3 -B tests/init_auth_acceptance.py` 和 `python3 -B tests/mysql_acceptance.py -- python3 -B tests/init_auth_acceptance.py`，两者均退出0，实际服务分别 PostgreSQL18.6、MySQL8.4.13。每库验证默认all集中重建／初始HTTP、重复／force／密钥及迁移保留、单项安装、冲突及不完整配置失败、Sanctum／Passport正负Bearer与Guard隔离，以及Fortify安装／重试／定制／迁移、真实HTTP／CSRF／Session／SMTP／资料／密码／2FA／恢复码／重置／限流／关停；生成应用严格Clippy及feature-off构建通过，两次根feature-off构建也退出0。源码无补改。证据 `/private/tmp/openrust-init-auth-combined-20261121/` 的 `source-revision.txt`、`{postgres,mysql}-result.json`、`feature-off-{postgres,mysql}.log`、`init-auth-{postgres,mysql}.log` 和两库辅助HTTP／步骤日志；生成应用与源码保留。该SMTP为受控夹具，不等同真实收件人投递；本批未执行SQLite完整init-auth，也未将先前三库时间／设置专项代作该项。
+
+最终收尾：认证专用闲置 target 已删除，可用空间36,635,472→46,403,828 KiB，实际净增9,768,356 KiB（约10.00 GB）；明细 `openrust-init-auth-combined-20261121/cleanup-final.json`。与主证据 `volumes-before.txt` 及认证清理记录核对，Docker卷前后均为空列表、删除0；当前开发mysql／postgres／redis容器仍在，专属验收容器均已回收。主对话提交前 `df -kP .` 为46,508,636 KiB可用（47.625 GB／44.354 GiB）。清理读数只记实测净增，不外推为所有并行任务产物总量。

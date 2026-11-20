@@ -29,3 +29,18 @@ API 统一使用 `docs/scripts/build_api.py` 导出，再由 `DOCS_API_DIR` 接�
 在 `/private/tmp/openrust-core-review-20261121/combined-source/` 以 Rust1.94、全 feature 与显式 host 重新导出10库，构建三语联合站点。`check_api_export.mjs` 的7种拒绝与匹配接受、`check_api_snapshot.mjs` 的根／子目录三语桌面／移动12组合及10库源码／搜索、`check_browser.mjs` 的12通用组合全部通过；每语106导航／108 Markdown内容检查通过。日志为同批 `api-export.log`、`api-manifest.log`、`api-browser.log`、`browser.log`。这次验证不代表实际生产托管或最终生成应用验收完成；V16最终发布快照、V17整合与V18批准继续保留。
 
 随后以本批提交 `599bb7d30bf7aa89ad54c1e598f5ae6ff757f224` 覆盖隔离归档中的全部受版本控制文件，再次生成 `api-export-delivery/`；该目录的 `build-info.json` 与提交完全一致。10库、公开与模块两处 DatabaseLoader 页面及 withTable／withMaxRows／withFallback 方法已核对；联合站点重建、7种拒绝／匹配接受和12组API浏览器检查再次通过。日志为 `api-export-delivery.log`、`site-delivery.log`、`api-manifest-delivery.log`、`api-browser-delivery.log`、`api-loader-delivery.log`，导出保留供复核。内部验收记录后续补充不改变此源码与锁文件指纹。
+
+
+## 2026-11-21 设置、原生时间与社交登录最终快照
+
+源码固定为 `b168b31aa063a289a5a025ed5080a99f19bb6c7e`，包含设置 S1、数据库翻译、统一短信、PostgreSQL 绑定修复、Jiff/time 迁移及微信小程序。同期另行开发的支付扩展 WIP 不在此快照；不以工作区最新状态代替本批 Git 归档。
+
+- `docs/scripts/build_api.py` 与站点校验同时将包根 README 和 stubs 纳入指纹，覆盖 `include_str!` 文档与发布模板；新增其他编译输入时同改导出、校验和负例。导出固定内部工具链 `RUSTUP_TOOLCHAIN=1.94.0`，规则写入维护指南与项目规范。
+- Rust 1.94、全 feature、显式 aarch64-apple-darwin 导出 11 库，包含 Settings。配置无效 CARGO_BUILD_TARGET 仍正确使用 host；旧页面清除已核对。最终 `build-info.json` 的 2,013 个输入逐个与上述 Git 归档对比完全一致，含固定 TZif、来源／许可证、嵌入 README 和模板。
+- 三语 Settings 入口与原生时间说明已更新。每语 107 导航／109 Markdown；普通指南构建、无导出 API 导航与通用浏览器通过，普通指南输入与最终快照一致（导出脚本的工具链设置变化不影响指南产物）。
+- 正式联合站点构建、匹配接受及 9 类过期／非法输入拒绝、7 个 CLI 拒绝用例通过；新增 README／模板变更拒绝，保留新增源码文件拒绝。
+- `/` 与 `/docs/` 下三语桌面／移动 12 组 API 导航、11 库源码页、Application 搜索和 Date／Settings／MiniApp 方法锚点通过。通用 12 组、Socialite 6 组及全部导航页面／156 个支持边界页面检查通过。
+
+证据与交付位于 `/private/tmp/openrust-final-integration-20261121/`：`source-final.txt`、`api-archive-verified.json`、`api-export-final.log`、`api-manifest-final.log`、`api-cli-final.log`、`site-final.log`、`api-browser-final.log`、`browser-final.log`、`socialite-browser-final.log`、`scope-final.log`；保留 `api-delivery/` 及 `source/docs/.vitepress/dist/`。首轮提交号参数录入有误的导出仅作预检，不计最终交付；该产物已删除，正式导出直接读取 Git 生成的提交号文件。
+
+当前快照通过本机文档验收，不表示生产托管地址、全部平台或用户发布批准已完成。无版本升级、tag、推送或部署。

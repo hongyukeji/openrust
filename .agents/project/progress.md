@@ -3837,3 +3837,12 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 ## 2026-11-20 队列存储对齐 Laravel 与工具链文件移除
 
 - 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；随后按用户要求完成本地开发库收尾：完整备份并在隔离 PG18 实际恢复验证后，删除五张空旧辅助表和七条对应迁移记录，余下六条迁移与源码一致；业务表及 Redis 数据保留。其他已有安装升级仍须先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。
+
+
+## 2026-11-21 原生时间与最终核心组合
+
+- `b8b7e6edc` 完成 Jiff/time 原生迁移，固定官方 IANA2025b vanguard 数据并保留来源、许可和可重复生成步骤；198,039个偏移／DST样本与旧语义一致。Date、Calendar、Faker、Pail、Settings、Passport及真实三库边界按[依赖与时间记录](audits/dependency-security/README.md)验收，不把SQL Server类型测试当作服务实测。
+- `8131dd07f` 将嵌入 README／stubs 纳入API输入指纹，固定内部Cargo工具链，更新设置／时间三语指南；`a4ca222fa` 补小程序方法页锚点。最终源码 `b168b31aa063a289a5a025ed5080a99f19bb6c7e` 包含 Architect 的微信小程序交付，全feature严格Clippy／fmt、11库API及三语普通／联合站点、来源盘点和公告检查通过；[组合验收](audits/08-04/README.md#2026-11-21-原生时间设置与扩展组合复验)注明每项实际源码和环境。
+- Plan同期新增支付任务由原对话独立开发，不纳入本批快照或依赖计数。既有成熟机制调研已写入架构与项目规范：先核对现有实现和固定Laravel契约，再检查官方生态方案、复用边界及必要的Rust适配。所有本批提交仅本地，版本／tag／推送／部署未执行。
+- 最终 b168 的 PostgreSQL18.6／MySQL8.4.13 完整初始化与认证各退出0，两次根feature-off、默认all／重复／force／密钥迁移保留、Guard正负隔离、Fortify真实HTTP／SMTP／CSRF／2FA／重置／限流／关停及生成strict／feature-off全部通过，无需补改源码；证据 `/private/tmp/openrust-init-auth-combined-20261121/`。受控SMTP、未执行的SQLite整套init-auth与真实供应商边界按审计分别记录。
+- 收尾已清理核心时间与认证专属闲置target／测试二进制，分次实际净增合计约20 GB；保留源码、正式API／站点、日志、共享缓存与IDE target。Docker卷前后均[]，删除0，开发mysql／postgres／redis保留。最终提交前Available46,508,636KiB（47.625 GB／44.354 GiB），明细见组合审计与临时证据cleanup记录。
