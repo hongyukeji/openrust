@@ -17,3 +17,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 涉及 HTTP、Artisan 或後端驅動的行為時，使用對應的實際入口驗收，並在提交說明中記錄環境與結果。文件變更見[文件網站指南](https://github.com/hongyukeji/openrust/tree/master/docs)。
+
+## API 參考 {#api-reference}
+
+從原始碼快照產生 Rustdoc 並接入文件站，請參閱 [API 參考](../reference/api.md)。

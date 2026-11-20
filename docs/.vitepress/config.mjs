@@ -2,11 +2,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitepress";
 import { landing, languages, siteMarker } from "./landing.mjs";
+import { loadApi, copyApi } from "./api.mjs";
+import { fileURLToPath } from "node:url";
+
+const apiExport = loadApi(process.env.DOCS_API_DIR, fileURLToPath(new URL("../../", import.meta.url)));
 
 const publication = {
     current: "master",
     versions: [{ name: "v0.x", file: "README.md" }],
-    rustdoc: null,
+    rustdoc: apiExport ? "/api/index.html" : null,
 };
 
 const labels = {
@@ -66,7 +70,12 @@ function localeConfig(language) {
         chapterTitles.set(target, title);
         items.push({ text: title, link: file === "index.md" ? `/${prefix}/` : `/${target.slice(0, -3)}` });
     }
-    if (publication.rustdoc) sidebar.push({ text: text.api, link: publication.rustdoc });
+    // Rustdoc owns these pages; use a full navigation rather than the guide's SPA router.
+    const apiSource = `${language}/reference/api.md`;
+    const apiTarget = `${prefix}/reference/api.md`;
+    if (apiSource !== apiTarget) rewrites[apiSource] = apiTarget;
+    sidebar.push({ text: { en: "API reference guide", zh_CN: "API 参考指南", zh_TW: "API 參考指南" }[language], link: `/${prefix}/reference/api` });
+    if (publication.rustdoc) sidebar.push({ text: "Rustdoc", link: publication.rustdoc, target: "_self" });
 
     return {
         label,
@@ -135,6 +144,7 @@ export default defineConfig(({ command }) => ({
         },
     },
     buildEnd({ outDir }) {
+        copyApi(apiExport, outDir);
         writeFileSync(path.join(outDir, "index.html"), landing(false));
         writeFileSync(path.join(outDir, "404.html"), landing(true));
         writeFileSync(path.join(outDir, "docs-site.json"), siteMarker);

@@ -56,3 +56,23 @@ node tests/check_scope.mjs
 `node docs/tests/check_content.mjs` 检查三语正文、导航、相对链接及内部任务编号、项目记录路径和交付过程用语。自动检查只覆盖可识别模式；评审仍需确认正文面向应用开发者，并把验收经过、实现追踪和待办迁到 `.agents/project/` 对应主题。
 
 内部材料只保留仍有效的信息并归入已有主题；一次性检查保存简短结论、实际验证结果和提交号即可。历史原文与差异通过 Git 追溯，不另建逐页文档备份。
+
+## 可追溯 API 快照
+
+API 参考统一通过可追溯导出接入站点。Python 3.11+、Rust 1.94.0、锁定依赖、全部 feature、构建主机目标与无依赖库文档构成导出契约。在独立干净快照根目录执行：
+
+```sh
+npm --prefix docs ci
+python3 -B docs/scripts/build_api.py --output /tmp/openrust-api --target-dir /tmp/openrust-api-target
+DOCS_API_DIR=/tmp/openrust-api npm --prefix docs run build
+DOCS_API_DIR=/tmp/openrust-api node docs/tests/check_api_export.mjs
+node docs/tests/check_api_snapshot.mjs
+node docs/tests/check_browser.mjs
+python3 -B docs/tests/check_api_cli.py -v
+```
+
+输出目录须尚不存在，target 须为本批独占目录；源码归档另传 `--revision` 完整提交号。每次先清除专属 target 中旧 Rustdoc 页面，防止已删除接口残留。`build-info.json` 保存提交、目标、包清单、锁文件和源码指纹，站点核对完整源码文件集合及 SHA-256，拒绝过期导出。
+
+`DOCS_API_DIR` 是站点接入 API 的唯一变量。联合产物位于 `docs/.vitepress/dist/`，其中 `api/` 包含 Rustdoc、源码页及本地搜索，侧栏使用完整页面导航。导出列出骨架包不表示其功能已经完成；发布前仍须核对源码提交、指南、接口参考和实际托管地址。
+
+普通 `npm --prefix docs run build` 只生成指南，不显示 Rustdoc 入口；用 `node docs/tests/check_api_snapshot.mjs --without-export` 检查普通构建。浏览器环境变量见上文。开发者操作见[API 参考](../../../docs/zh_CN/reference/api.md)。

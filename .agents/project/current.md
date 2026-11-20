@@ -9,6 +9,10 @@
 
 ## 最新交接
 
+- 2026-11-21 真人明确分工：本对话接手 Framework 核心框架；`OpenRust · ApiKey · Plan`（`01a1f4d0-365b-7d23-9f5b-1267b228d6d7`）负责扩展能力，当前独占 PostgreSQL 认证集成夹具。扩展发现共享核心缺陷时报告本对话处理，不在扩展迁移绕过框架问题。API 文档工作已交接核心侧，统一为源码指纹校验导出；其他对话进行中的数据库多语注释改动独立保留。
+
+- 2026-11-20 接手 `OpenRust · Framework` 后确认旧 V02 停点已由后续批次闭合，继续 V16 [API 参考联合构建](audits/docs-scope/api-reference.md)：Rust1.94 全 feature 的 10 个库 Rustdoc、三语联合站点、根／子目录三语桌面／移动 API 导航／搜索／类型页及通用浏览器检查通过。最终统一 `docs/scripts/build_api.py`＋`DOCS_API_DIR`，源码指纹拒绝与普通指南分支已验，最终发布快照、外部目标和用户发布批准仍待；不重做已完成的认证扩展，不将翻译骨架标为可用。本批核范围本地提交，不推送。
+
 - 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；随后按用户要求完成本地开发库收尾：完整备份并在隔离 PG18 实际恢复验证后，删除五张空旧辅助表和七条对应迁移记录，余下六条迁移与源码一致；业务表及 Redis 数据保留。其他已有安装升级仍须先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。
 
 - 2026-11-20 [SQLite／RSA安全依赖](audits/dependency-security/README.md)完成：SQLite3.54.1与稳定RSA0.10.0、最小SQLx／WebAuthn适配，25原生＋PostgreSQL18三项＋MySQL授权专项两项、真实Chrome ES256／RS256、严格全feature Clippy／fmt／根入口／关闭／三语12浏览器通过。已知漏洞公告消除，4维护公告保留，无ignore；仅本地提交。

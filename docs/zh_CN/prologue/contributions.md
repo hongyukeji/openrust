@@ -17,3 +17,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 涉及 HTTP、Artisan 或后端驱动的行为时，用对应的实际入口验收，并在提交说明中记录环境与结果。文档改动见[文档站指南](https://github.com/hongyukeji/openrust/tree/master/docs)。
+
+## API 参考 {#api-reference}
+
+从源码快照生成 Rustdoc 并接入文档站，见 [API 参考](../reference/api.md)。

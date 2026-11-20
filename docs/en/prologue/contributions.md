@@ -17,3 +17,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings
 ```
 
 Use actual HTTP, Artisan or backend requests for behavior specific to those entry points. State the environment and result in the contribution. For documentation changes, see the [documentation workspace](https://github.com/hongyukeji/openrust/tree/master/docs).
+
+## API reference {#api-reference}
+
+See the [API reference](../reference/api.md) to generate Rustdoc from a source snapshot and include it in the documentation site.

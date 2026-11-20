@@ -9,3 +9,4 @@ OpenRust provides a native Rust application runtime with Laravel-style APIs. Sta
 - [OIDC and SSO](packages/oidc.md)
 - [Deployment](getting-started/deployment.md)
 - [Version and verified environments](prologue/releases.md)
+- [API reference](reference/api.md)

@@ -9,3 +9,4 @@ OpenRust 提供原生 Rust 应用运行时与 Laravel 风格 API。先阅读安�
 - [OIDC 与 SSO](packages/oidc.md)
 - [部署](getting-started/deployment.md)
 - [版本与已验证环境](prologue/releases.md)
+- [API 参考](reference/api.md)
