@@ -29,7 +29,15 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         */
         "drivers": {
             "log": {"driver": "log"},
-            "vonage": {"driver": "vonage"},
+            "vonage": {
+                "driver": "vonage",
+                "api_key": get(env, "SMS_VONAGE_API_KEY", Value::Null)?,
+                "api_secret": get(env, "SMS_VONAGE_API_SECRET", Value::Null)?,
+                "from": get(env, "SMS_VONAGE_FROM", Value::Null)?,
+                "endpoint": get(env, "SMS_VONAGE_ENDPOINT", Value::Null)?,
+                "client_reference": get(env, "SMS_VONAGE_CLIENT_REFERENCE", Value::Null)?,
+                "status_callback": get(env, "SMS_VONAGE_STATUS_CALLBACK", Value::Null)?,
+            },
             "aliyun": {
                 "driver": "aliyun",
                 "market": get(env, "SMS_ALIYUN_MARKET", "auto")?,

@@ -57,7 +57,6 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "session",
             "sms",
             "view",
-            "vonage",
         ]
     );
     assert_eq!(defaults["sms"]["default"], "log");

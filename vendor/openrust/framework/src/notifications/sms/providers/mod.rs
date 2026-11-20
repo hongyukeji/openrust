@@ -3,6 +3,7 @@ mod log;
 mod smsbao;
 mod tencent;
 mod twilio;
+mod vonage;
 mod yunpian;
 
 use std::{fmt::Write as _, sync::Arc, time::Duration};
@@ -22,6 +23,9 @@ use super::{SmsDriver, SmsFailure, SmsFailureKind, SmsManager, SmsMessage};
 
 pub(super) fn register(manager: &SmsManager) {
     manager.extend("log", |_| Ok(Arc::new(log::LogDriver)));
+    manager.extend("vonage", |profile| {
+        Ok(Arc::new(vonage::Vonage::new(profile)?))
+    });
     register_routed(manager, "aliyun", |profile, market| match market {
         Market::Mainland => Ok(Box::new(aliyun::Aliyun::new(profile)?)),
         _ => Ok(Box::new(aliyun::AliyunInternational::new(profile)?)),

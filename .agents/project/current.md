@@ -11,6 +11,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [短信统一管理](audits/06-06/sms-refactor.md#统一短信入口与-vonage-驱动)：按用户无需兼容旧数据及Vonage统一管理授权，移除独立Vonage渠道／消息／路由／配置，统一sms渠道、单一to_sms及SMS_VONAGE_*具名配置；凭据／发件人快照、Unicode、跟踪和回执选项保留。缺失配置明确失败，删除隐式兜底。短信8项、配置1＋init14、三库双队列Worker及原SIGKILL保护、三语12＋6浏览器通过；真实厂商投递未验，既有数据卷保留，仅核范围本地提交。
+
 - 2026-11-21 核心补齐[缓存三驱动与三库入口](audits/03-09/README.md#日常缓存三驱动与三库矩阵)：file、Redis8，以及SQLite／PG18／MySQL8 database实际五项通过，缺少必需服务的三项负例按预期失败；Rust1.94全workspace/all-targets严格Clippy与fmt通过。复用原缓存契约与测试，无新增运行时依赖；最终并行整合另验，全部数据卷保留。
 
 - 2026-11-21 [短信模块重构](audits/06-06/sms-refactor.md)：对照固定 Laravel Manager、EasySms、Vonage／Twilio 与旧版，拆分消息／驱动管理／发送／回执，加入按配置名复用、显式 forgetDrivers 与默认 sms 渠道；保留现有厂商协议、市场模板、加密载荷及受理未知停止补发。Rust1.94 的6项协议／生命周期测试、严格全feature Clippy／fmt、三语构建／12＋6浏览器通过；PostgreSQL18／MySQL8.4／SQLite3.54.1 配合 database／Redis8／file 缓存的独立 Artisan 与两种队列验证通过，SIGKILL恢复和手动retry零重复提交。真实厂商投递与手机收信未验；源码／日志／全部卷保留，仅本地提交。

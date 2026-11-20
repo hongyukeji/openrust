@@ -3,12 +3,10 @@
 mod mail_message;
 mod slack_attachment;
 mod slack_message;
-mod vonage_message;
 
 pub use mail_message::MailMessage;
 pub use slack_attachment::{SlackAttachment, SlackAttachmentField};
 pub use slack_message::SlackMessage;
-pub use vonage_message::VonageMessage;
 
 use crate::mail::Mailable;
 use chrono::{DateTime, Utc};

@@ -33,7 +33,7 @@ impl SmsChannel {
         else {
             return Ok(None);
         };
-        let Some(message) = notification.to_sms_message(recipient, to)? else {
+        let Some(message) = notification.to_sms(recipient, to)? else {
             return Ok(None);
         };
         let profile = Sms::getFacadeRoot()

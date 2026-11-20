@@ -36,3 +36,31 @@ Rust 适配用每个配置名的独立初始化锁保证并发首次解析只创
 在上述集成基线重新通过6项协议／生命周期测试、根应用配置测试、Worker重新构建，以及三库各自两种队列的完整短信与SIGKILL恢复场景。日志为 `integration-{providers,configuration,worker-build,workers-postgres,workers-mysql,workers-sqlite}.log`。独占SQL／Redis临时容器均正常回收，既有数据卷保留。
 
 集成基线的严格全feature Clippy与fmt再次通过，日志 `integration-clippy.log`／`integration-fmt.log`。确认无进程使用后回收本批独占 target／站点dist，并仅解除指向共享node_modules的符号链接；源码、日志和共享依赖保留。清理前后 Available 为 48,852,072／52,648,208 KiB，净增 3,796,136 KiB；清理后约 53.91 GB（50.21 GiB）。资源读数受共享工作区并行活动影响，以 `cleanup.json` 为原始记录。
+
+
+## 统一短信入口与 Vonage 驱动
+
+2026-11-21，用户明确允许短信完整重构、无需兼容旧数据，并进一步要求 Vonage 合入短信模块统一管理。本节覆盖上文保留独立 Vonage 渠道和旧通知构造方法的历史设计；不提供旧类型、配置或渠道的兼容转发。
+
+重新联网核对固定 Laravel Manager、EasySms 的消息／Gateway 边界、Laravel Vonage 和 Twilio 通知渠道。参考版本沿用上文固定提交，官方源码与仓库元数据保存在 `/private/tmp/openrust-sms-clean-design-20261121/upstream/`；Laravel、EasySms、Vonage 核对为 MIT，Twilio 元数据没有许可证值，未引入或复制其实现。项目旧版 `v0.x` 的短信职责、脱敏与文本／模板设计继续作为核对依据。采用 Laravel 的具名管理器和一个渠道一个消息构造入口，保留现有 HTTP 客户端与队列，不增加重试策略框架或外部依赖。统一 `sms` 渠道是本项目对多供应商的扩展；不声称 Laravel 原生提供这个通用渠道。
+
+实际清理：
+
+- 删除 `VonageSmsChannel`、`VonageMessage`、`NotificationRoute::Vonage`、`to_vonage` 和 `config/vonage.rs`；取消 `vonage` 渠道默认注册。
+- Vonage 位于 `notifications/sms/providers/vonage.rs`，与其他供应商统一由 `SmsManager` 按配置名管理。`sms.drivers.<name>` 独立保存凭据、发件人、端点、跟踪标识与回执地址；使用 `SMS_VONAGE_API_KEY`／`SMS_VONAGE_API_SECRET`／`SMS_VONAGE_FROM` 及对应可选环境变量，无旧变量回退。Unicode 自动选择；多账号／发件人使用多个具名配置。
+- `Notification::to_sms(recipient, to)` 返回 `SmsMessage`，覆盖文本、厂商模板和业务模板。删除 `to_sms_template` 与 `to_sms_message` 的优先级链；类型化路由号码作为额外参数传入是 Rust 适配。更新 Prepared 通知转发、Worker 夹具和三语正文，通知章节引用短信正文。
+- 删除未配置时自动选择 log、虚构 log／vonage 配置的分支。应用配置文件显式提供默认 log；自定义加载器缺少必要配置明确返回错误。
+- 保留 `sms_deliveries` 与未知受理停止补发：其用途是正在发生的发送安全，已有受理前后 SIGKILL 证据支持，属于当前业务机制。旧独立 Vonage 测试有效场景迁入统一短信的 HTTP／Worker 测试；厂商协议、明确限流重试和脱敏继续验证。
+
+验收使用独立源码与独占 target，显式 Rust1.94.0、增量关闭、jobs=3、dev/test debug=0。初始基线 `95e904727`，集成基线 `c44864afe2a5de4c25a5b13c56a0ee6c03735c12`；不纳入其他对话尚未提交的日期迁移改动。
+
+- 短信8项通过：6项管理器生命周期（含缺失配置负例）、既有厂商HTTP协议、Vonage多账号凭据／发件人／回执选项／配置快照与重载；默认 `sms` 渠道存在，独立 `vonage` 渠道未注册。日志 `sms-tests-final.log`；首次新HTTP夹具错误使用未启用的 axum Json feature，已改为现有响应方式后复验。
+- 根配置1项、init14项通过，初始化凭据检查同步使用新变量。整个 `mail_notifications` 测试目标编译通过，确认删除专属类型后其他通知继续可构建。日志 `configuration-init.log`／`notification-build.log`。
+- PostgreSQL180006＋database缓存、MySQL8.4.13＋Redis8缓存、SQLite3.54.1＋file缓存下，实际独立 Artisan／database与Redis两队列全组通过。新增 Vonage Unicode、跟踪／回执字段、派发端凭据与端点不入队、Worker默认配置反向切换仍使用所选Vonage配置、Worker独立密钥、明确状态1限流只重试一次、重定向拒绝、永久拒绝、空结果／缺失ID／无效状态拒绝、混合受理结果及手动retry均不补发。保留其他厂商及受理结果保存前后SIGKILL回归，零重复厂商提交。日志 `workers-{postgres,mysql,sqlite}.log`。缓存仅计短信流程选用对应驱动通过，不扩称完整缓存专项矩阵。
+- 三语内容检查、站点构建、根／子目录12项通用与6项短信浏览器通过。日志 `docs-content-final.log`、`docs-build-final.log`、`docs-browser.log`、`docs-sms-browser.log`。
+
+供应商为本地实际 HTTP 协议服务；真实账号、运营商投递和手机收信仍未验。数据库、Redis实例均由隔离夹具回收，前后核对既有数据卷保留。原始源码、固定上游副本与日志保留，本轮只核范围本地提交，不推送。
+
+在集成基线重新通过短信8项、根配置1＋init14、Worker构建及三库完整双队列复验；全workspace/all-targets/all-features严格Clippy（`-D warnings`）和fmt通过，日志 `integration-{sms,configuration-init,worker-build,workers-postgres,workers-mysql,workers-sqlite,clippy,fmt}.log`。初轮Clippy发现新测试在改用已有HTTP响应方式后残留未使用Value导入，已删除并通过集成严格复验；初始失败日志仍保留。集成后的文档内容检查亦通过。
+
+确认本批构建／Worker均结束后，删除独占target、站点dist及cache，仅解除共享node_modules符号链接；源码、上游副本、日志与全部数据卷保留。清理前后Available为36,738,756／40,959,008 KiB，净增4,220,252 KiB；原始读数见本批cleanup.json，共享并行活动可能影响差值。

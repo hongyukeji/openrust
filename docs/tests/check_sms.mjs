@@ -20,9 +20,13 @@ try {
                 assert.equal(response.status(), 200);
                 await page.locator("#sms-driver-lifecycle").waitFor();
                 const body = await page.locator("main").innerText();
-                for (const api of ["SmsManager", "forgetDrivers", "getDefaultDriver", "SmsSender", "SmsChannel::using"]) {
+                for (const api of ["SmsManager", "forgetDrivers", "getDefaultDriver", "SmsSender", "SmsChannel::using", "to_sms", "api_key"]) {
                     assert(body.includes(api), `${language}: missing ${api}`);
                 }
+                assert(!body.includes("to_sms_template"));
+                assert(!body.includes("to_sms_message"));
+                assert(body.includes("SMS_VONAGE_API_KEY"));
+                assert(!body.includes("config/vonage.rs"));
                 assert.deepEqual(errors, []);
                 console.log(`${mount} ${language}: SMS driver lifecycle and channel documentation PASS`);
             }

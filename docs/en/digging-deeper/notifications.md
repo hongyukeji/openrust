@@ -159,50 +159,11 @@ Use `./artisan make:notification InvoicePaid --markdown=mail.invoice.paid` to ge
 
 ## SMS {#sms-notifications}
 
-Configure `VONAGE_KEY`, `VONAGE_SECRET`, and `VONAGE_SMS_FROM`. Add `vonage` to the notification’s channels and return a `VonageMessage` from `to_vonage`.
-
-```rust
-use openrust::notifications::{
-    Notifiable, Notification, NotificationResult,
-    messages::VonageMessage,
-};
-
-struct InvoicePaid;
-
-impl Notification for InvoicePaid {
-    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
-        Ok(vec!["vonage".into()])
-    }
-
-    fn to_vonage(&self, _: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
-        Ok(Some(VonageMessage::new()
-            .content("Payment received — thank you!")
-            .unicode()
-            .clientReference("invoice-42")))
-    }
-}
-```
-
-Use `from` to override the sender, `unicode` for Unicode text, `clientReference` for your own tracking ID, and `statusCallback` to pass a delivery receipt URL to Vonage. `usingClient("partner")` selects credentials configured under `vonage.clients.partner`. An optional `endpoint` overrides the provider URL and accepts HTTPS or loopback HTTP.
-
-For a model recipient, return `NotificationRoute::Vonage` from `route_notification_for`. For an on-demand recipient, pass the number when routing the notification.
-
-```rust
-use openrust::{
-    notifications::NotificationRoute,
-    support::facades::Notification as Notifications,
-};
-
-Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into()))?
-    .notify(&InvoicePaid)
-    .await?;
-```
-
-The queue stores the number, message, and optional client name. The Worker reads credentials from its application configuration and makes one HTTP attempt per job attempt. Vonage API acceptance is distinct from delivery to the handset.
+Use the `sms` channel, return `SmsMessage` from `to_sms`, and route the number with `NotificationRoute::Sms`. Select Vonage or another provider through a named profile in `config/sms.rs`. See [SMS](sms.md) for configuration, templates, custom providers, and Worker delivery.
 
 ### Custom SMS providers {#custom-sms-providers}
 
-For unified provider selection and custom drivers, see the [SMS extension](sms.md#custom-sms-providers).
+Register a provider through `SmsManager::extend`. See [registering providers](sms.md#custom-sms-providers).
 
 ## Slack notifications {#slack-notifications}
 

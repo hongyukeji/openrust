@@ -206,6 +206,9 @@ def provider_server(receipts):
 
         def do_POST(self):
             url = urlsplit(self.path)
+            if url.path == "/vonage":
+                self.vonage()
+                return
             if url.path.startswith("/v2/sms/"):
                 self.yunpian(url.path)
                 return
@@ -240,6 +243,42 @@ def provider_server(receipts):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(reply).encode())
+
+        def vonage(self):
+            assert self.headers["Content-Type"].startswith("application/x-www-form-urlencoded")
+            assert self.headers["Authorization"] == "Basic " + base64.b64encode(b"vonage-worker-key:vonage-worker-secret").decode()
+            raw = self.rfile.read(int(self.headers["Content-Length"])).decode()
+            fields = {k: v[0] for k, v in parse_qs(raw, strict_parsing=True).items()}
+            assert fields["from"] == "FixtureBrand" and fields["to"] == NUMBER[1:]
+            assert fields["client-ref"] == "fixture-reference"
+            assert fields["callback"] == "https://example.test/sms-status"
+            assert fields["type"] == ("unicode" if "中文" in fields["text"] else "text")
+            receipts.put(("vonage", fields))
+            text = fields["text"]
+            if text == "redirect":
+                self.send_response(307)
+                self.send_header("Location", "/should-not-follow")
+                self.end_headers()
+                return
+            if text.startswith("rate-limited-vonage-") and text not in getattr(self.server, "vonage_limits_seen", ()):
+                self.server.vonage_limits_seen = (text,)
+                messages = [{"status": "1", "error-text": "private throttled detail"}]
+            elif text == "reject":
+                messages = [{"status": "29", "error-text": "private rejected detail"}]
+            elif text == "malformed":
+                messages = []
+            elif text == "mixed":
+                messages = [{"status": "0", "message-id": "accepted-part"}, {"status": "1"}]
+            elif text == "missing-id":
+                messages = [{"status": "0"}]
+            elif text == "invalid-status":
+                messages = [{"status": "not-a-number"}]
+            else:
+                messages = [{"status": "0", "message-id": "vonage-fixture"}]
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"messages": messages}).encode())
 
         def yunpian(self, path):
             assert self.headers["Content-Type"].startswith("application/x-www-form-urlencoded")
@@ -396,6 +435,63 @@ def check_aliyun(binary, backend, env, receipts, endpoint):
         assert not run(["docker", "exec", os.environ["SMS_DEMO_REDIS_CONTAINER"],
                         "redis-cli", "--raw", "--scan", "--pattern", f"*queues:{queue_name}*"]).strip()
     print(f"{backend}: Aliyun mainland and international Worker delivery, market checks and credential isolation passed", flush=True)
+
+
+def check_vonage(binary, backend, env, receipts, endpoint):
+    queue = f"sms-vonage-{backend}"
+    limited = f"rate-limited-vonage-{backend}"
+    worker = env | {
+        "QUEUE_CONNECTION": backend, "DB_QUEUE": queue, "REDIS_QUEUE": queue,
+        "SMS_DRIVER": "vonage", "SMS_VONAGE_API_KEY": "vonage-worker-key",
+        "SMS_VONAGE_API_SECRET": "vonage-worker-secret", "SMS_VONAGE_FROM": "FixtureBrand",
+        "SMS_VONAGE_ENDPOINT": endpoint + "/vonage",
+        "SMS_VONAGE_CLIENT_REFERENCE": "fixture-reference",
+        "SMS_VONAGE_STATUS_CALLBACK": "https://example.test/sms-status",
+    }
+    dispatch = worker | {
+        "SMS_VONAGE_API_KEY": "dispatcher-key", "SMS_VONAGE_API_SECRET": "dispatcher-secret",
+        "SMS_VONAGE_ENDPOINT": "http://127.0.0.1:9/dispatch-only",
+        "SMS_VONAGE_FROM": "DispatcherBrand",
+    }
+    artisan = [binary, "artisan"]
+    def receipt(text):
+        return ("vonage", {"to": NUMBER[1:], "from": "FixtureBrand", "text": text,
+            "type": "unicode" if "中文" in text else "text",
+            "client-ref": "fixture-reference", "callback": "https://example.test/sms-status"})
+    for text in ("Price €5", "中文 + & 42"):
+        run(artisan + ["sms:demo", NUMBER, text, "--now"], worker)
+        assert receipts.get(timeout=5) == receipt(text)
+    for text, error in (("redirect", "HTTP"), ("reject", "rejected"), ("malformed", "no message results"),
+                        ("mixed", "rejected"), ("missing-id", "no message identifier"), ("invalid-status", "invalid message status")):
+        run(artisan + ["sms:demo", NUMBER, text, "--now"], worker, error)
+        assert receipts.get(timeout=5) == receipt(text)
+    run(artisan + ["sms:demo", "not-a-number", "plain", "--now"], worker, "international phone number")
+    run(artisan + ["sms:demo", NUMBER, '{}', "--template", "unused", "--now"], worker, "requires text content")
+    assert receipts.empty()
+    # The dispatcher's default selects the profile. The Worker uses its own credentials,
+    # even though its default profile is now different.
+    for text in ("queued 中文", limited, "mixed"):
+        run(artisan + ["sms:demo", NUMBER, text], dispatch)
+    wire, payloads = queued_payloads(backend, queue)
+    assert all(payload["profile"] == "vonage" for payload in payloads), payloads
+    assert all(secret not in wire for secret in ("dispatcher-secret", "vonage-worker-secret", "dispatch-only", "FixtureBrand", "sms-status")), wire
+    consume = artisan + ["queue:work", backend, "--once", "--tries=2"]
+    worker["SMS_DRIVER"] = "log"
+    # First accepts, second is explicitly throttled and released. Consume the
+    # remaining mixed result plus the allowed retry without assuming queue order.
+    for _ in range(4):
+        run(consume, worker)
+    received = [receipts.get(timeout=5) for _ in range(4)]
+    assert received.count(receipt("queued 中文")) == 1, received
+    assert received.count(receipt(limited)) == 2, received
+    assert received.count(receipt("mixed")) == 1, received
+    assert receipts.empty()
+    failed = database_rows(database_container(), f"SELECT uuid FROM failed_jobs WHERE queue = '{queue}'").splitlines()
+    assert len(failed) == 1, failed
+    run(artisan + ["queue:retry", failed[0]], worker)
+    run(consume, worker)
+    assert receipts.empty(), "Retrying mixed Vonage acceptance submitted another SMS"
+    print(f"{backend}: unified Vonage direct/Worker credentials, Unicode, profile options, protocol errors, explicit throttle retry, and terminal mixed acceptance passed", flush=True)
 
 
 def check_local_providers(binary, backend, env, receipts, endpoint):
@@ -701,6 +797,8 @@ def main():
                 for backend in ("database", "redis"):
                     check_hardened_worker(binary, backend, env, aliyun_receipts, aliyun_endpoint)
                     check_crash_recovery(binary, backend, env, aliyun_receipts, aliyun, aliyun_endpoint)
+                for backend in ("database", "redis"):
+                    check_vonage(binary, backend, env, aliyun_receipts, aliyun_endpoint)
                 if driver == "sqlite":
                     header = Path(env["DB_DATABASE"]).read_bytes()[:100]
                     version = int.from_bytes(header[96:100], "big")

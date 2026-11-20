@@ -2,6 +2,8 @@
 
 统一短信是 OpenRust 借鉴 Laravel [文件存储](filesystem.md)机制提供的扩展。`Storage::disk` 按名称选择由已注册驱动支持的磁盘，`Sms::driver` 同样按名称选择由已注册供应商驱动支持的短信配置。多个配置可以复用同一驱动，并分别设置参数。
 
+应用在 `config/sms.rs` 中提供默认的 `log` 配置。自定义配置加载器替换短信设置时，必须提供 `default` 及 `drivers` 下对应的具名配置；缺失设置会返回错误。
+
 ## 驱动生命周期 {#sms-driver-lifecycle}
 
 `SmsManager` 沿用 Laravel 的具名驱动模式。同一应用首次解析配置时创建驱动，后续调用复用该驱动及对应模板设置；不同配置、不同应用各自独立。调用 `default_driver` 或默认发送方法时读取当前默认配置名。
@@ -22,7 +24,7 @@ let sender = Sms::driver("aliyun")?;
 | 配置 | 支持的内容 | 环境变量 |
 | --- | --- | --- |
 | `log`（默认） | 纯文本和模板。应用日志记录号码尾号和消息类型。 | 无 |
-| `vonage` | 纯文本 | `VONAGE_KEY`、`VONAGE_SECRET`、`VONAGE_SMS_FROM` |
+| `vonage` | 纯文本 | `SMS_VONAGE_API_KEY`、`SMS_VONAGE_API_SECRET`、`SMS_VONAGE_FROM` |
 | `twilio` | 纯文本和厂商审核模板，模板使用具名变量 | `SMS_TWILIO_ACCOUNT_SID`、`SMS_TWILIO_API_KEY_SID`、`SMS_TWILIO_API_KEY_SECRET`，以及 `SMS_TWILIO_FROM` 或 `SMS_TWILIO_MESSAGING_SERVICE_SID` |
 | `aliyun` | 中国内地审核模板，以及通过 SendMessageToGlobe 发送国际纯文本 | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`. 内地模板用 `SMS_ALIYUN_SIGN_NAME`。国际文本可设 `SMS_ALIYUN_SENDER_ID` 和 `SMS_ALIYUN_MESSAGE_TYPE`（`OTP`、`NOTIFY`、`MKT`）。 |
 | `tencent` | 厂商审核模板，使用按顺序排列的变量 | `SMS_TENCENT_SECRET_ID`、`SMS_TENCENT_SECRET_KEY`、`SMS_TENCENT_SDK_APP_ID`、按需设置 `SMS_TENCENT_SIGN_NAME`，以及 `SMS_TENCENT_REGION`（默认 `ap-guangzhou`） |
@@ -194,13 +196,13 @@ sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
 
 ### Vonage 发送纯文本
 
-设置 `SMS_DRIVER=vonage`，填入原有的 Vonage 凭据和发送者标识。
+设置 `SMS_DRIVER=vonage` 并填写 Vonage 凭据及发送身份。每个具名配置在 `config/sms.rs` 中独立设置 `api_key`、`api_secret`、`from` 和可选的 `endpoint`。驱动自动选择 Unicode 编码。需要业务跟踪标识或送达回执地址时，在配置中设置 `client_reference` 和 `status_callback`。
 
 ```dotenv
 SMS_DRIVER=vonage
-VONAGE_KEY=your-key
-VONAGE_SECRET=your-secret
-VONAGE_SMS_FROM=YourBrand
+SMS_VONAGE_API_KEY=your-key
+SMS_VONAGE_API_SECRET=your-secret
+SMS_VONAGE_FROM=YourBrand
 ```
 
 ```rust
@@ -209,7 +211,24 @@ Sms::send_text("+12025550123", "您的订单已发货。").await?;
 
 ## 通知和 Worker
 
-`sms` 通知渠道已默认注册。需要固定具名配置时，可用 `ChannelManager::extend` 注册 `SmsChannel::using("aliyun")`。通知可用 `to_sms` 提供正文，或用 `to_sms_template` 提供供应商模板。想用配置中的业务模板名时，实现 `to_sms_message` 并返回 `SmsMessage::named_template`。接收号码使用 `sms` 路由键下的 `NotificationRoute::Sms`。
+`sms` 通知渠道已默认注册。需要固定具名配置时，可用 `ChannelManager::extend` 注册 `SmsChannel::using("aliyun")`。实现 `to_sms` 并返回 `SmsMessage`，统一提供纯文本、供应商审核模板或配置中的业务模板。渠道从 `sms` 路由键下的 `NotificationRoute::Sms` 获取号码，并传给该方法。
+
+```rust
+impl Notification for LoginCode {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["sms".into()])
+    }
+
+    fn to_sms(
+        &self,
+        _: &dyn Notifiable,
+        to: String,
+    ) -> NotificationResult<Option<SmsMessage>> {
+        SmsMessage::named_template(to, "login_code", [("code", self.code.as_str())])
+            .map(Some)
+    }
+}
+```
 
 队列保存选中的配置名和消息。Worker 使用相同的渠道和配置名，从自身配置解析模板并读取凭据。Redis 队列可用 `./artisan queue:work redis` 启动 Worker。配置改名前先消费旧任务，或保留原名称直到旧任务完成。修改配置后，如已启用配置缓存，需重新生成并重启常驻 Worker。
 
@@ -231,4 +250,4 @@ Worker 在调用厂商前按队列任务 UUID 登记，并在触发 `Notificatio
 
 ## 注册供应商 {#custom-sms-providers}
 
-在应用服务提供者的 `register` 中解析 `SmsManager`，调用 `extend` 注册工厂。工厂接收选中的配置，返回实现 `SmsDriver` 的驱动。多个具名配置可以复用同一驱动。内置的 `vonage` 通知渠道继续使用原有的 `VONAGE_*` 环境变量。
+在应用服务提供者的 `register` 中解析 `SmsManager`，调用 `extend` 注册工厂。工厂接收选中的配置，返回实现 `SmsDriver` 的驱动。多个具名配置可以复用同一驱动。

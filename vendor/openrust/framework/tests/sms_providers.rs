@@ -165,11 +165,12 @@ impl Notification for CodeNotice {
         Ok(vec!["sms".into()])
     }
 
-    fn to_sms_template(&self, _: &dyn Notifiable) -> NotificationResult<Option<SmsTemplate>> {
-        Ok(Some(SmsTemplate::named(
-            "SMS_1",
-            [("code".into(), "A + 中文".into())].into(),
-        )))
+    fn to_sms(&self, _: &dyn Notifiable, to: String) -> NotificationResult<Option<SmsMessage>> {
+        SmsMessage::template(
+            to,
+            SmsTemplate::named("SMS_1", [("code".into(), "A + 中文".into())].into()),
+        )
+        .map(Some)
     }
 }
 
@@ -186,9 +187,8 @@ async fn sms_builtin_drivers_use_the_provider_protocol_and_market() {
     let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let root = tempfile::tempdir().unwrap();
     let config = json!({"app":{"env":"testing"},
-        "vonage":{"api_key":"fixture-key","api_secret":"fixture-secret","sms_from":"Example","endpoint":format!("{endpoint}/vonage")},
         "sms":{"default":"china","drivers":{
-        "vonage":{"driver":"vonage"},
+        "vonage":{"driver":"vonage","api_key":"fixture-key","api_secret":"fixture-secret","from":"Example","endpoint":format!("{endpoint}/vonage")},
         "china":{"driver":"aliyun","market":"mainland","endpoint":endpoint,"access_key_id":"fixture-id",
             "access_key_secret":"aliyun-secret","sign_name":"示例 + 签名"},
         "hk":{"driver":"tencent","market":"international","endpoint":endpoint,"secret_id":"fixture-id",

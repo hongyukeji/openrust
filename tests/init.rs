@@ -180,7 +180,7 @@ fn sms_credentials_are_required_without_writing_configuration() {
         ("aliyun", "SMS_ALIYUN_ACCESS_KEY_ID"),
         ("tencent", "SMS_TENCENT_SECRET_ID"),
         ("twilio", "SMS_TWILIO_ACCOUNT_SID"),
-        ("vonage", "VONAGE_KEY"),
+        ("vonage", "SMS_VONAGE_API_KEY"),
         ("smsbao", "SMS_SMSBAO_USERNAME"),
         ("yunpian", "SMS_YUNPIAN_API_KEY"),
     ] {

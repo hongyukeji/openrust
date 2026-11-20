@@ -14,7 +14,7 @@ use super::{
     NotificationRoute, NotificationTarget, RecordedNotification, SendQueuedNotifications,
     channels::ChannelResponse,
     delivery,
-    messages::{BroadcastMessage, DatabaseMessage, MailDelivery, VonageMessage},
+    messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
     new_id,
     slack::SlackMessage,
 };
@@ -359,24 +359,12 @@ impl Notification for Prepared<'_> {
     fn to_mail(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
         self.inner.to_mail(recipient)
     }
-    fn to_sms(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<String>> {
-        self.inner.to_sms(recipient)
-    }
-    fn to_sms_template(
-        &self,
-        recipient: &dyn Notifiable,
-    ) -> NotificationResult<Option<super::sms::SmsTemplate>> {
-        self.inner.to_sms_template(recipient)
-    }
-    fn to_sms_message(
+    fn to_sms(
         &self,
         recipient: &dyn Notifiable,
         to: String,
     ) -> NotificationResult<Option<super::sms::SmsMessage>> {
-        self.inner.to_sms_message(recipient, to)
-    }
-    fn to_vonage(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
-        self.inner.to_vonage(recipient)
+        self.inner.to_sms(recipient, to)
     }
     fn to_slack(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<SlackMessage>> {
         self.inner.to_slack(recipient)

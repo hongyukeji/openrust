@@ -265,11 +265,7 @@ impl Notification for DemoNotification {
         Ok(vec![self.channel.clone()])
     }
 
-    fn to_sms_message(
-        &self,
-        _: &dyn Notifiable,
-        to: String,
-    ) -> NotificationResult<Option<SmsMessage>> {
+    fn to_sms(&self, _: &dyn Notifiable, to: String) -> NotificationResult<Option<SmsMessage>> {
         if let Some(template) = &self.template {
             if self.named_template {
                 let openrust::notifications::sms::SmsTemplateParameters::Named(parameters) =

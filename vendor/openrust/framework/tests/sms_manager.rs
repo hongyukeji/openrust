@@ -214,3 +214,19 @@ async fn managers_and_facade_cache_resets_are_application_local() {
         .unwrap();
     }
 }
+
+#[tokio::test]
+async fn missing_configuration_does_not_invent_a_default_or_builtin_profile() {
+    let (_root, _app, config, manager) = application().await;
+    config.set("sms", json!({})).unwrap();
+    assert!(manager.getDefaultDriver().is_err());
+    assert!(manager.default_driver().is_err());
+    assert!(manager.driver("log").is_err());
+    assert!(manager.driver("vonage").is_err());
+    config.set("sms.default", json!("log")).unwrap();
+    assert!(manager.default_driver().is_err());
+    config
+        .set("sms.drivers.log", json!({"driver":"log"}))
+        .unwrap();
+    assert!(manager.default_driver().is_ok());
+}

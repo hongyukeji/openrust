@@ -5,7 +5,7 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{contracts::config::Repository, notifications::channels::VonageDriver};
+use crate::contracts::config::Repository;
 
 use super::{NotificationResult, SmsDriver, SmsSender, delivery, providers};
 
@@ -27,7 +27,6 @@ impl SmsManager {
             drivers: RwLock::default(),
             factories: RwLock::default(),
         };
-        manager.extend("vonage", |config| Ok(Arc::new(VonageDriver::new(config)?)));
         providers::register(&manager);
         manager
     }
@@ -49,7 +48,6 @@ impl SmsManager {
             return Ok(name.to_owned());
         }
         match self.config.get("sms.default") {
-            None => Ok("log".into()),
             Some(Value::String(name)) if !name.trim().is_empty() => Ok(name),
             _ => Err(delivery("The default SMS profile is invalid.")),
         }
@@ -59,9 +57,6 @@ impl SmsManager {
         let profiles = self.config.get("sms.drivers");
         let profile = match profiles.as_ref().and_then(|profiles| profiles.get(name)) {
             Some(profile) => profile.clone(),
-            None if profiles.is_none() && matches!(name, "log" | "vonage") => {
-                serde_json::json!({"driver": name})
-            }
             None => return Err(delivery("The SMS profile is not configured.")),
         };
         let driver = profile["driver"]

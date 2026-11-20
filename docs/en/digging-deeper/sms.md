@@ -2,6 +2,8 @@
 
 The unified SMS API is an OpenRust extension based on Laravel’s [file storage](filesystem.md) design. Just as `Storage::disk` selects a named disk backed by a registered driver, `Sms::driver` selects a named SMS profile backed by a registered provider driver. Multiple profiles can use the same driver with different settings.
 
+The application supplies the default `log` profile in `config/sms.rs`. If a custom configuration loader replaces the SMS settings, it must provide both `default` and the selected entry under `drivers`; missing settings produce an error.
+
 ## Driver Lifecycle {#sms-driver-lifecycle}
 
 `SmsManager` follows Laravel's named driver pattern. The first resolution of a profile creates its driver; subsequent calls reuse the driver and the profile's template settings within the same application. Different profiles and applications have independent instances. The default profile name is read when `default_driver` or a default send method is called.
@@ -22,7 +24,7 @@ Set `SMS_DRIVER` in the application's environment to select the default profile.
 | Profile | Supported content | Environment variables |
 | --- | --- | --- |
 | `log` (default) | Text and templates. Writes an info entry with the last four digits of the number and the message type. | None |
-| `vonage` | Text | `VONAGE_KEY`, `VONAGE_SECRET`, `VONAGE_SMS_FROM` |
+| `vonage` | Text | `SMS_VONAGE_API_KEY`, `SMS_VONAGE_API_SECRET`, `SMS_VONAGE_FROM` |
 | `twilio` | Text and approved templates with named variables | `SMS_TWILIO_ACCOUNT_SID`, `SMS_TWILIO_API_KEY_SID`, `SMS_TWILIO_API_KEY_SECRET`, and `SMS_TWILIO_FROM` or `SMS_TWILIO_MESSAGING_SERVICE_SID` |
 | `aliyun` | Mainland China approved templates and international text via SendMessageToGlobe | `SMS_ALIYUN_ACCESS_KEY_ID`, `SMS_ALIYUN_ACCESS_KEY_SECRET`. Use `SMS_ALIYUN_SIGN_NAME` for mainland templates or optional `SMS_ALIYUN_SENDER_ID` and `SMS_ALIYUN_MESSAGE_TYPE` (`OTP`, `NOTIFY`, `MKT`) for international text. |
 | `tencent` | Approved templates with ordered variables | `SMS_TENCENT_SECRET_ID`, `SMS_TENCENT_SECRET_KEY`, `SMS_TENCENT_SDK_APP_ID`, `SMS_TENCENT_SIGN_NAME` if required, and `SMS_TENCENT_REGION` (default `ap-guangzhou`) |
@@ -194,13 +196,13 @@ sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
 
 ### Vonage text messages
 
-Set `SMS_DRIVER=vonage` and supply the existing Vonage credentials and sender identity.
+Set `SMS_DRIVER=vonage` and supply the Vonage credentials and sender identity. Each named profile stores its own `api_key`, `api_secret`, `from`, and optional `endpoint` in `config/sms.rs`. Unicode encoding is selected automatically. Set `client_reference` and `status_callback` on the profile when needed.
 
 ```dotenv
 SMS_DRIVER=vonage
-VONAGE_KEY=your-key
-VONAGE_SECRET=your-secret
-VONAGE_SMS_FROM=YourBrand
+SMS_VONAGE_API_KEY=your-key
+SMS_VONAGE_API_SECRET=your-secret
+SMS_VONAGE_FROM=YourBrand
 ```
 
 ```rust
@@ -209,7 +211,24 @@ Sms::send_text("+12025550123", "Your order has shipped.").await?;
 
 ## Notifications and Workers
 
-The `sms` notification channel is registered by default. Use `ChannelManager::extend` with `SmsChannel::using("aliyun")` when a channel should use a fixed profile. A notification can implement `to_sms` for text or `to_sms_template` for a provider template. Override `to_sms_message` and return `SmsMessage::named_template` to use a configured business template. Set the recipient through `NotificationRoute::Sms` under the `sms` route key.
+The `sms` notification channel is registered by default. Use `ChannelManager::extend` with `SmsChannel::using("aliyun")` when a channel should use a fixed profile. Implement `to_sms` and return a `SmsMessage` for text, an approved provider template, or a configured business template. The channel passes the number from `NotificationRoute::Sms` under the `sms` route key to this method.
+
+```rust
+impl Notification for LoginCode {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["sms".into()])
+    }
+
+    fn to_sms(
+        &self,
+        _: &dyn Notifiable,
+        to: String,
+    ) -> NotificationResult<Option<SmsMessage>> {
+        SmsMessage::named_template(to, "login_code", [("code", self.code.as_str())])
+            .map(Some)
+    }
+}
+```
 
 The queue stores the selected profile name and message. Register the same channel and profile in the Worker, which reads credentials and resolves the template from its own configuration. Run it with `./artisan queue:work redis` when using Redis. A rename requires draining jobs that reference the old name or keeping that name until they finish. Rebuild cached configuration and restart Workers after changing settings.
 
@@ -231,4 +250,4 @@ Keep the delivery rows while their jobs can still be redelivered or retried. Bef
 
 ## Registering providers {#custom-sms-providers}
 
-In a service provider’s `register` hook, resolve `SmsManager` and call `extend` to register a driver factory. The factory receives the selected profile and returns a type that implements `SmsDriver`. Multiple named profiles can use the same driver. The built-in `vonage` notification channel continues to use the original `VONAGE_*` variables.
+In a service provider’s `register` hook, resolve `SmsManager` and call `extend` to register a driver factory. The factory receives the selected profile and returns a type that implements `SmsDriver`. Multiple named profiles can use the same driver.

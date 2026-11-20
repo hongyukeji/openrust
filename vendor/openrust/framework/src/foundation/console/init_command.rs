@@ -827,7 +827,11 @@ fn sms_credential_keys(driver: &str) -> &'static [&'static str] {
             "SMS_TWILIO_API_KEY_SID",
             "SMS_TWILIO_API_KEY_SECRET",
         ],
-        "vonage" => &["VONAGE_KEY", "VONAGE_SECRET", "VONAGE_SMS_FROM"],
+        "vonage" => &[
+            "SMS_VONAGE_API_KEY",
+            "SMS_VONAGE_API_SECRET",
+            "SMS_VONAGE_FROM",
+        ],
         "smsbao" => &["SMS_SMSBAO_USERNAME", "SMS_SMSBAO_API_KEY"],
         "yunpian" => &["SMS_YUNPIAN_API_KEY"],
         _ => &[],

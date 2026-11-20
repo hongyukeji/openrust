@@ -25,7 +25,6 @@ mod session;
 mod settings;
 mod sms;
 mod view;
-mod vonage;
 
 /*
  * 按依赖顺序装配应用配置。
@@ -71,7 +70,6 @@ pub(crate) fn load(
         ),
         ("sms".to_owned(), sms::load(env)?),
         ("view".to_owned(), view::load(base_path, env)?),
-        ("vonage".to_owned(), vonage::load(env)?),
         ("app".to_owned(), app.config),
     ]))
 }

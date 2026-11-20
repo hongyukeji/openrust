@@ -159,50 +159,11 @@ let response = mail.toResponse().await?;
 
 ## 簡訊 {#sms-notifications}
 
-設定 `VONAGE_KEY`、`VONAGE_SECRET` 與 `VONAGE_SMS_FROM`。在通知管道清單加入 `vonage`，並在 `to_vonage` 中回傳 `VonageMessage`。
-
-```rust
-use openrust::notifications::{
-    Notifiable, Notification, NotificationResult,
-    messages::VonageMessage,
-};
-
-struct InvoicePaid;
-
-impl Notification for InvoicePaid {
-    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
-        Ok(vec!["vonage".into()])
-    }
-
-    fn to_vonage(&self, _: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
-        Ok(Some(VonageMessage::new()
-            .content("Payment received — thank you!")
-            .unicode()
-            .clientReference("invoice-42")))
-    }
-}
-```
-
-用 `from` 覆寫寄件人，`unicode` 傳送 Unicode 正文，`clientReference` 設定業務追蹤識別碼，`statusCallback` 將送達回執 URL 傳給 Vonage。`usingClient("partner")` 選取 `vonage.clients.partner` 中的憑證。選用的 `endpoint` 可覆寫供應商 URL，支援 HTTPS 或回送 HTTP。
-
-模型收件人透過 `route_notification_for` 回傳 `NotificationRoute::Vonage`。隨需通知可在指定管道時傳入號碼。
-
-```rust
-use openrust::{
-    notifications::NotificationRoute,
-    support::facades::Notification as Notifications,
-};
-
-Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into()))?
-    .notify(&InvoicePaid)
-    .await?;
-```
-
-佇列保存號碼、訊息和選用的用戶端名稱。Worker 從應用程式設定讀取憑證，每次任務嘗試只發出一次 HTTP 請求。Vonage API 接收成功與手機送達是兩個獨立狀態。
+使用 `sms` 管道，在 `to_sms` 中回傳 `SmsMessage`，並透過 `NotificationRoute::Sms` 指定號碼。在 `config/sms.rs` 中按具名設定選擇 Vonage 或其他供應商。設定、範本、自訂供應商和 Worker 投遞見[簡訊](sms.md)。
 
 ### 自訂簡訊供應商 {#custom-sms-providers}
 
-如需統一選擇供應商或註冊自訂驅動程式，請參閱[簡訊擴充](sms.md#custom-sms-providers)。
+透過 `SmsManager::extend` 註冊供應商，詳見[註冊供應商](sms.md#custom-sms-providers)。
 
 ## Slack 通知 {#slack-notifications}
 

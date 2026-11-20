@@ -159,50 +159,11 @@ let response = mail.toResponse().await?;
 
 ## 短信 {#sms-notifications}
 
-配置 `VONAGE_KEY`、`VONAGE_SECRET` 和 `VONAGE_SMS_FROM`。在通知渠道列表加入 `vonage`，并在 `to_vonage` 中返回 `VonageMessage`。
-
-```rust
-use openrust::notifications::{
-    Notifiable, Notification, NotificationResult,
-    messages::VonageMessage,
-};
-
-struct InvoicePaid;
-
-impl Notification for InvoicePaid {
-    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
-        Ok(vec!["vonage".into()])
-    }
-
-    fn to_vonage(&self, _: &dyn Notifiable) -> NotificationResult<Option<VonageMessage>> {
-        Ok(Some(VonageMessage::new()
-            .content("Payment received — thank you!")
-            .unicode()
-            .clientReference("invoice-42")))
-    }
-}
-```
-
-用 `from` 覆盖发件人，`unicode` 发送 Unicode 正文，`clientReference` 设置业务跟踪标识，`statusCallback` 将送达回执 URL 传给 Vonage。`usingClient("partner")` 选取 `vonage.clients.partner` 中配置的凭据。可选的 `endpoint` 覆盖供应商 URL，支持 HTTPS 或回环 HTTP。
-
-模型收件人通过 `route_notification_for` 返回 `NotificationRoute::Vonage`。按需通知可在指定渠道时传入号码。
-
-```rust
-use openrust::{
-    notifications::NotificationRoute,
-    support::facades::Notification as Notifications,
-};
-
-Notifications::route("vonage", NotificationRoute::Vonage("+447700900000".into()))?
-    .notify(&InvoicePaid)
-    .await?;
-```
-
-队列保存号码、消息和可选的客户端名称。Worker 从应用配置读取凭据，每次任务尝试只发起一次 HTTP 请求。Vonage API 接收成功和手机送达是两个独立状态。
+使用 `sms` 渠道，在 `to_sms` 中返回 `SmsMessage`，并通过 `NotificationRoute::Sms` 指定号码。在 `config/sms.rs` 中按具名配置选择 Vonage 或其他供应商。配置、模板、自定义供应商和 Worker 投递见[短信](sms.md)。
 
 ### 自定义短信供应商 {#custom-sms-providers}
 
-如需统一选择供应商或注册自定义驱动，请参阅[短信扩展](sms.md#custom-sms-providers)。
+通过 `SmsManager::extend` 注册供应商，详见[注册供应商](sms.md#custom-sms-providers)。
 
 ## Slack 通知 {#slack-notifications}
 
