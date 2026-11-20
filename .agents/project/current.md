@@ -9,7 +9,11 @@
 
 ## 最新交接
 
+- 2026-11-20 按用户要求核对并移除旧 `.agents/project/core/` 目录：21 份骨架设计草稿及 1 份启动清单已完整归档，逐字节和 SHA-256 校验通过。现行计划／验收／正文／源码对照及恢复入口见 [归档记录](audits/core-drafts-archive/README.md)。旧设计不再作为当前开发依据；数据库翻译扩展仍未实现，已保留在 [项目待办](todo.md)，不因归档或骨架编译通过而视为交付。
+
 - 2026-11-20 [SMTP 安全修复](audits/mail-security/README.md)完成：lettre 精确升级0.11.24，4安全＋4既有回归、旧版3负例、Rust1.94全workspace/all-targets/all-features严格Clippy／fmt、三语12浏览器通过。6条lettre公告消除，其余SQLite／RSA与维护公告继续；独占target释放3,328,008 KiB，全部数据卷保留，仅本地提交。
+
+- 2026-11-20 用户明确要求记录：`vendor/openrust/translation-database/` **仅为骨架，数据库翻译功能尚未实现、未完成行为验收**。提交 `c9791297c` 为使 `members = ["vendor/openrust/*"]` 正常识别所有扩展目录，临时补齐该包的 `Cargo.toml` 并纳入已有占位源码；`DatabaseLoader` 目前仅为空结构体。此前编译／格式／Clippy 通过只证明骨架可构建，不代表功能完成或可用。后续 Agent 不得据此标记数据库翻译扩展已交付，仍须按项目计划核对契约、实现数据库加载与装配，并补充行为测试和验收记录。
 
 - 2026-11-20 用户将日常环境切换为 **Rust 1.94.0＋PostgreSQL 18＋Redis 8**，覆盖下方历史 MySQL 日常规则。[切换验收](audits/development-postgres.md)：工具链固定、本地独立开发库／角色及 `.env` 已配置，13条迁移、HTTP／Session、PostgreSQL JSON两函数、配置1、Redis跨入口1及隔离夹具生命周期通过。日常使用 `tests/postgres_acceptance.py`，MySQL专项／发布矩阵及旧数据保留；认证完整生成应用仍须补 PostgreSQL 整合。旧运行服务保留，重启后读取新配置。本批target已回收，全部卷保留，剩余91,289,040 KiB；核范围本地提交，不推送。
 
