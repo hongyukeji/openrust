@@ -664,7 +664,7 @@ async fn remove_legacy_columns() -> DatabaseResult<()> {
 
 `dropMorphs` 先刪除複合索引，再刪除兩個欄位。建立時指定索引名稱的，刪除時傳入相同名稱。`dropConstrainedForeignId` 先刪除外鍵，再刪除欄位。`dropSoftDeletes(None)` 和 `dropSoftDeletesTz(None)` 刪除預設 `deleted_at`，傳入 `Some(name)` 可指定欄位名稱。
 
-在 `Schema::table` 中使用 `table.after("title", |table| { … })`，可依宣告順序把多個欄位放在 MySQL 現有欄位之後。SQLite 會回傳方言不支援錯誤。
+在 `Schema::table` 中使用 `table.after("title", |table| { … })`，可依宣告順序把多個欄位放在 MySQL 現有欄位之後。PostgreSQL、SQLite 和 SQL Server 忽略 `first()` 和 `after()` 排序提示，新增欄位保留資料庫預設的追加順序。
 
 #### 預設值運算式 {#default-expressions}
 

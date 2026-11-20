@@ -664,7 +664,7 @@ async fn remove_legacy_columns() -> DatabaseResult<()> {
 
 `dropMorphs` drops the composite index before removing both columns. Pass the customized name if the index was named explicitly. `dropConstrainedForeignId` drops the foreign key and then the column. `dropSoftDeletes(None)` and `dropSoftDeletesTz(None)` remove the default `deleted_at` column, while `Some(name)` selects a different column.
 
-To add several columns in order after an existing MySQL column, use `table.after("title", |table| { … })` inside `Schema::table`. SQLite reports the positioning modifier as unsupported.
+To add several columns in order after an existing MySQL column, use `table.after("title", |table| { … })` inside `Schema::table`. PostgreSQL, SQLite and SQL Server ignore `first()` and `after()` positioning hints; new columns retain the database’s normal append order.
 
 #### Default Expressions {#default-expressions}
 

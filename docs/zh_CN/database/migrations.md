@@ -664,7 +664,7 @@ async fn remove_legacy_columns() -> DatabaseResult<()> {
 
 `dropMorphs` 先删复合索引，再删两列。创建时指定索引名的，删除时传入同一名称。`dropConstrainedForeignId` 先删外键，再删列。`dropSoftDeletes(None)` 和 `dropSoftDeletesTz(None)` 删除默认 `deleted_at`，传 `Some(name)` 可指定列名。
 
-在 `Schema::table` 中用 `table.after("title", |table| { … })`，可把多列按声明顺序放到 MySQL 已有列之后。SQLite 会返回方言不支持错误。
+在 `Schema::table` 中用 `table.after("title", |table| { … })`，可把多列按声明顺序放到 MySQL 已有列之后。PostgreSQL、SQLite 和 SQL Server 忽略 `first()` 和 `after()` 排序提示，新增列保留数据库默认的追加顺序。
 
 #### 默认值表达式 {#default-expressions}
 

@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-21 核心修复[非MySQL列排序提示](audits/02-05/README.md#非-mysql-列排序提示)：按固定Laravel grammar忽略first／after，保留MySQL输出；真实PG18认证列迁移及数据／列顺序／回滚、SQLite既有组列与三驱动SQL对比、严格workspace Clippy／fmt、三语构建／12浏览器均过。修复交Plan复跑完整认证；并行多语注释内容单独保留。
+
 - 2026-11-21 真人明确分工：本对话接手 Framework 核心框架；`OpenRust · ApiKey · Plan`（`01a1f4d0-365b-7d23-9f5b-1267b228d6d7`）负责扩展能力，当前独占 PostgreSQL 认证集成夹具。扩展发现共享核心缺陷时报告本对话处理，不在扩展迁移绕过框架问题。API 文档工作已交接核心侧，统一为源码指纹校验导出；其他对话进行中的数据库多语注释改动独立保留。
 
 - 2026-11-20 接手 `OpenRust · Framework` 后确认旧 V02 停点已由后续批次闭合，继续 V16 [API 参考联合构建](audits/docs-scope/api-reference.md)：Rust1.94 全 feature 的 10 个库 Rustdoc、三语联合站点、根／子目录三语桌面／移动 API 导航／搜索／类型页及通用浏览器检查通过。最终统一 `docs/scripts/build_api.py`＋`DOCS_API_DIR`，源码指纹拒绝与普通指南分支已验，最终发布快照、外部目标和用户发布批准仍待；不重做已完成的认证扩展，不将翻译骨架标为可用。本批核范围本地提交，不推送。

@@ -239,7 +239,7 @@ impl Grammar {
         for command in blueprint.commands {
             match command {
                 Command::Column(column) if !column.change => {
-                    if column.position.is_some() {
+                    if self.mysql() && column.position.is_some() {
                         return Err(DatabaseError::InvalidSchema(
                             "column position during create",
                         ));
@@ -1122,7 +1122,6 @@ impl Grammar {
             && (column.invisible
                 || column.current_on_update
                 || column.on_update.is_some()
-                || column.position.is_some()
                 || column.instant
                 || column.lock.is_some())
         {
@@ -1286,12 +1285,14 @@ impl Grammar {
         {
             write!(sql, " comment {}", self.string(comment)?).expect("writing to a String");
         }
-        match &column.position {
-            Some(Position::First) => sql.push_str(" first"),
-            Some(Position::After(name)) => {
-                write!(sql, " after {}", self.identifier(name)?).expect("writing to a String");
+        if self.mysql() {
+            match &column.position {
+                Some(Position::First) => sql.push_str(" first"),
+                Some(Position::After(name)) => {
+                    write!(sql, " after {}", self.identifier(name)?).expect("writing to a String");
+                }
+                None => {}
             }
-            None => {}
         }
         Ok(sql)
     }
@@ -1369,7 +1370,6 @@ impl Grammar {
             || column.invisible
             || column.current_on_update
             || column.on_update.is_some()
-            || column.position.is_some()
             || column.instant
             || column.lock.is_some()
             || column.start.is_some()

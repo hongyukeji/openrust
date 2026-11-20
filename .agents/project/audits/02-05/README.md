@@ -536,3 +536,15 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 实际 PostgreSQL 全文搜索回归和不支持方言回归各一项通过。MySQL 8.4.13 的 36 项 Schema 回归以及 `sh tests/table_catalog.sh` 两项通过。表目录与限定 Schema 清库保留旁库数据。Rust 1.94.0 全仓格式和严格 Clippy 通过。三语站点及 `/` 和 `/docs/` 下 12 项通用与 6 项章节浏览器检查通过。日志保留于 `/private/tmp/openrust-schema-contract.aqmuihMe`。
 - 结合前次已提交的实测证据，逐项覆盖计划的建表、改表与回滚、表和列元数据、索引和外键及不支持操作。实际目录与限定名见[目录验收](#表目录范围与限定名)及[当前主线复验](#2026-11-17-0925-主线复验)；列和索引见[修改列与索引](#修改列与索引)、[PostgreSQL 列类型转换](#postgresql-列类型转换与修饰符)、[SQL Server 主键约束](#sql-server-主键约束与改列默认值)；外键检查和失败恢复见[外键检查会话](#外键检查会话)、[SQLite 内联约束](#sqlite-内联约束)和[PostgreSQL 外键变更](#postgresql-外键变更与验证时机)。SQL Server 的事务原始错误保留已由 [02-02](../02-02/README.md#sql-server-自动回滚保留原始错误)验收。
 - 按交付计划闭合 02-05 核心范围。SQLite 重建使用独占写会话和自有事务，MySQL 隐式提交的 DDL 由连接级 Builder 执行。SQL Server 原生 Linux x86_64 与完整数据库版本、平台矩阵留在[发布验收](../database-dialects.md#发布验收)。项目卷净增 8.17 GB（7.60 GiB），剩余 100.96 GB（94.03 GiB）。周额度剩余 39%，第二窗口无读数。
+
+## 非 MySQL 列排序提示
+
+2026-11-21，扩展侧 PostgreSQL18认证集成发现 Fortify 的 `after("password")` 被框架拒绝。以 `aeecaa346` 隔离源码修复；固定 Laravel `1449bf241017087fbd38c118ecaabef3f6797fdc` 的 MySqlGrammar::$modifiers 包含 After／First，Postgres／SQLite／SqlServer 列表均无这两项。旧版 `6d1a81924451e15f595f68c8dfb520ad6d6c44cf` 的 schema／grammar 没有可提取的相同位置修饰符实现。
+
+核心 grammar 在非 MySQL 的建表、加列和 PostgreSQL改列时忽略位置提示；MySQL仍输出first／after。更新原有SQLite组列用例及三语迁移指南的旧拒绝说明，增加独立 `schema_column_position.rs` 回归。未通过删除Fortify迁移的after绕过框架行为，也未纳入并行数据库多语注释开发。
+
+Rust1.94、macOS ARM64、jobs3、增量关闭：PG／SQLite／SQLServer带／不带修饰符SQL对比、MySQL位置SQL、真实PG180006认证风格建表／加列／组列／改列／回滚与数据保留、既有SQLite组列／索引／外键回归共4函数通过。workspace/all-targets严格Clippy、fmt检查通过；三语构建与根／子目录通用12浏览器组合通过。MySQL和SQLServer本批只验生成SQL，未声称真实服务端重验；扩展完整初始化由Plan在核心提交后复跑。
+
+证据位于 `/private/tmp/openrust-schema-position-20261121/`（`preview-isolated.log`、`mysql-preview.log`、`postgres.log`、`sqlite-groups.log`、`clippy.log`、`fmt.log`）；站点复验在 `/private/tmp/openrust-api-core-20261120/schema-guides-*.log`。最初测试漏借用dropColumn数组导致编译失败，已修正；误在活跃工作树发起的Cargo未计作验收，最终采用隔离快照结果。PG夹具回收仅本批容器，全部卷保留。仅本地提交，不推送。
+
+验收进程退出后回收本批独占target，逻辑大小2948189737字节，可用空间增加2950606848字节，剩余64204333056字节；源码、日志、共享缓存、数据库和数据卷保留。

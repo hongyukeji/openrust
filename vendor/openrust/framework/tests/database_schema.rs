@@ -3848,22 +3848,16 @@ async fn verify_column_groups(db: Connection, mysql: bool) {
         );
         assert_eq!(listing.last().map(String::as_str), Some("at_end"));
     } else {
-        assert!(matches!(
-            schema
-                .table("grouped_columns", |table| {
-                    table.after("title", |table| {
-                        table.string("first_extra", 40).nullable();
-                    });
-                })
-                .await,
-            Err(DatabaseError::UnsupportedSchema(_))
-        ));
-        assert!(
-            !schema
-                .hasColumn("grouped_columns", "first_extra")
-                .await
-                .unwrap()
-        );
+        schema
+            .table("grouped_columns", |table| {
+                table.after("title", |table| {
+                    table.string("first_extra", 40).nullable();
+                });
+            })
+            .await
+            .unwrap();
+        let listing = schema.getColumnListing("grouped_columns").await.unwrap();
+        assert_eq!(listing.last().map(String::as_str), Some("first_extra"));
     }
 
     schema
