@@ -10,7 +10,7 @@ readme = "README.md"
 publish = false
 
 [workspace]
-members = ["vendor/openrust/framework", "vendor/openrust/reverb", "vendor/openrust/package-discovery", "vendor/openrust/pail", "vendor/openrust/passport", "vendor/openrust/fortify", "vendor/openrust/socialite", "vendor/openrust/passkeys", "vendor/openrust/oidc"]
+members = ["vendor/openrust/*"]
 exclude = ["vendor/sqlx-mysql"]
 default-members = ["."]
 resolver = "3"
