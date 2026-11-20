@@ -2,7 +2,7 @@
 
 `DatabaseLoader` reads the `language_lines` table with Spatie's `group`, `key`, and multilingual `text` JSON structure. It implements the existing OpenRust `Loader`, overlays file translations, and publishes through the existing translator. Applications manage writes and explicitly choose when to reload. Package namespaces remain file based.
 
-See the [localization guide](../../../docs/en/digging-deeper/localization.md#database-translation-loader) for loading, limits, locale fallback, and error behavior. PostgreSQL 18 is the verified database target; other databases require separate behavior validation.
+See the [localization guide](../../../docs/en/digging-deeper/localization.md#database-translation-loader) for loading, limits, locale fallback, and error behavior. Database translation loading supports PostgreSQL 18, MySQL 8.4, and SQLite; other databases require separate behavior validation.
 
 Create the table in an application migration:
 

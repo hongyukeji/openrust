@@ -21,7 +21,7 @@ PHP 依赖不能直接链接 Rust；本包只增加对现有 framework、serde_j
 - 缺表、数据库／文件／解析故障均返回 Source，保留旧目录。与 Spatie 缺表自动回文件的行为不同，避免显式重载失败时丢失已发布数据库词条。
 - 每组默认 10,000 行，上限加一检测超额且不截断；重复／父子冲突与超过 128 层点分键报错，避免数据库行顺序决定结果。SQL 参数绑定；再次精确比较 group 防止排序规则混入资源。
 - 显式选择表和连接，支持连接自身前缀；包命名空间不查询数据库。发布原子性不承诺跨组 SQL 事务快照。
-- 数据库行为只验证 PostgreSQL 18；不把其他驱动可编译当作行为通过。不新增翻译管理后台、安装命令或隐式迁移。
+- 数据库行为最初只验证 PostgreSQL 18；后续 MySQL 8.4、SQLite 实测见下方补验。不新增翻译管理后台、安装命令或隐式迁移。
 
 ## 实际验证
 
@@ -35,3 +35,14 @@ PHP 依赖不能直接链接 Rust；本包只增加对现有 framework、serde_j
 完整日志保留同批目录中的 `final-postgres-complete.log`、`final-clippy-complete.log`、`final-fmt-complete.log`、`final-docs-content.log`、`final-docs-build-verified.log`、`final-docs-browser.log` 与 `final-docs-translation-browser.log`。API 页面和快照由核心框架对话更新。
 
 验收后清理自有闲置 target，保留源文件与日志；文档依赖为符号链接，只解除本批链接，未删除共享依赖。随后清理自有文档构建产物，第二遍 Available 从 56,660,884 KiB 到 56,786,064 KiB，实测差额 125,180 KiB；首遍 target 清理遇到符号链接保护后停止，未记录完整首遍前后差值。保留所有源码、失败夹具、固定上游源码、日志、数据库及数据卷。清单见同批 `cleanup-final.json`。
+
+
+## 2026-11-21 三库补验
+
+基于 `95e904727` archive，隔离源码 `/private/tmp/openrust-init-auth-20261121/source`，复用已无原构建进程的本批专属 target；Rust 1.94.0，2 jobs，增量关闭、dev debug=0。测试通过 `OPENRUST_TEST_TRANSLATION_DRIVER=pgsql|mysql|sqlite` 运行同一组行为，PostgreSQL／MySQL 强制要求隔离 wrapper 的 URL、REQUIRE 与容器标识，SQLite 创建独立临时文件，不访问应用数据库。
+
+- PostgreSQL 18.6（180006）、MySQL 8.4.13、SQLite 各 **8 项行为测试 + 4 个 rustdoc／README 示例**全部通过。每库均覆盖多语言及点分／字面键、空串／null／文件覆盖／列表与语言回退、错误目录与限制的原子发布、重复冲突、独立连接和应用、Provider 真实 HTTP、原生 JSON 与默认 `language_lines` 表结构。
+- 首轮 SQLite 夹具未显式创建文件而连接失败；按框架现有 `create_if_missing(false)` 契约创建专属临时文件后通过，没有放宽生产连接行为。
+- 生产翻译 Loader 无需新增抽象、仓储、缓存或驱动特例；复用现有 Connection／Query Builder／Schema 即可完成三库。Spatie 2.8.3 `TranslationLoaders/Db.php` 固定源码再次联网核对，沿用前述契约。
+
+证据在同批 `translation-postgres.log`、`translation-mysql.log`、`translation-sqlite.log`。文档中的支持范围同步更新为 PostgreSQL 18、MySQL 8.4 和 SQLite；其他数据库仍需独立行为验证。

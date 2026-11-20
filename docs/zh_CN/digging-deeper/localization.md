@@ -70,7 +70,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### 数据库翻译源（扩展） {#database-translation-loader}
 
-在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `DB::connection` 获取。当前支持 PostgreSQL 18 的数据库词条加载，其他数据库目标须分别验证行为。
+在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `DB::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
 
 先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
 

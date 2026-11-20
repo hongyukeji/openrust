@@ -70,7 +70,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### Database Translation Source (Extension) {#database-translation-loader}
 
-Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `DB::connection`. It reads translations from PostgreSQL 18. Other database targets require separate behavior validation.
+Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `DB::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
 
 Create the table through an application migration before loading translations. This minimal schema is supported:
 

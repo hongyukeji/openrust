@@ -15,11 +15,11 @@ use openrust::{
 use openrust_translation_database::DatabaseLoader;
 use serde_json::{Value as Json, json};
 
-fn connection(url: &str, name: &str) -> Connection {
+fn connection(url: &str, name: &str, driver: &str) -> Connection {
     let repository = Repository::new(BTreeMap::from([(
         "database".into(),
         json!({
-            "default":name, "connections":{name:{"driver":"pgsql","url":url,"max_connections":2}}
+            "default":name, "connections":{name:{"driver":driver,"url":url,"max_connections":2}}
         }),
     )]));
     DatabaseManager::new(Arc::new(repository), ".")
@@ -30,29 +30,48 @@ fn connection(url: &str, name: &str) -> Connection {
 struct Fixture {
     connection: Connection,
     table: String,
+    _directory: Option<tempfile::TempDir>,
 }
 impl Fixture {
     async fn new() -> Option<Self> {
-        let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
-            assert_ne!(
-                std::env::var("OPENRUST_REQUIRE_POSTGRES").as_deref(),
-                Ok("1")
-            );
-            eprintln!("SKIP: requires isolated PostgreSQL acceptance wrapper");
-            return None;
+        let driver =
+            std::env::var("OPENRUST_TEST_TRANSLATION_DRIVER").unwrap_or_else(|_| "pgsql".into());
+        let (url, directory) = if driver == "sqlite" {
+            let directory = tempfile::tempdir().unwrap();
+            let database = directory.path().join("translations.sqlite");
+            std::fs::File::create(&database).unwrap();
+            let url = format!("sqlite:{}", database.display());
+            (url, Some(directory))
+        } else {
+            let (url_key, required, container) = match driver.as_str() {
+                "pgsql" => (
+                    "OPENRUST_TEST_POSTGRES_URL",
+                    "OPENRUST_REQUIRE_POSTGRES",
+                    "OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER",
+                ),
+                "mysql" => (
+                    "OPENRUST_TEST_MYSQL_URL",
+                    "OPENRUST_REQUIRE_MYSQL",
+                    "OPENRUST_ACCEPTANCE_MYSQL_CONTAINER",
+                ),
+                _ => panic!("unsupported translation acceptance driver"),
+            };
+            let Ok(url) = std::env::var(url_key) else {
+                assert_ne!(std::env::var(required).as_deref(), Ok("1"));
+                eprintln!("SKIP: requires isolated {driver} acceptance wrapper");
+                return None;
+            };
+            assert_eq!(std::env::var(required).as_deref(), Ok("1"));
+            assert!(std::env::var_os(container).is_some());
+            (url, None)
         };
-        assert_eq!(
-            std::env::var("OPENRUST_REQUIRE_POSTGRES").as_deref(),
-            Ok("1")
-        );
-        assert!(std::env::var("OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER").is_ok());
         static NEXT: AtomicU64 = AtomicU64::new(0);
         let table = format!(
             "translation_loader_{}_{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         );
-        let connection = connection(&url, &table);
+        let connection = connection(&url, &table, &driver);
         connection
             .getSchemaBuilder()
             .create(&table, |table| {
@@ -62,7 +81,11 @@ impl Fixture {
             })
             .await
             .unwrap();
-        Some(Self { connection, table })
+        Some(Self {
+            connection,
+            table,
+            _directory: directory,
+        })
     }
     fn loader(&self) -> DatabaseLoader {
         DatabaseLoader::new(self.connection.clone())
@@ -119,7 +142,7 @@ fn get(translator: &Translator, key: &str, locale: Option<&str>) -> String {
 }
 
 #[tokio::test]
-async fn postgres_locale_maps_nested_and_literal_keys_are_isolated() {
+async fn database_locale_maps_nested_and_literal_keys_are_isolated() {
     let Some(f) = Fixture::new().await else {
         return;
     };
@@ -170,7 +193,7 @@ async fn postgres_locale_maps_nested_and_literal_keys_are_isolated() {
 }
 
 #[tokio::test]
-async fn postgres_file_overlay_preserves_nested_lists_empty_strings_and_locale_fallback() {
+async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_fallback() {
     let Some(f) = Fixture::new().await else {
         return;
     };
@@ -235,7 +258,7 @@ async fn postgres_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
 }
 
 #[tokio::test]
-async fn postgres_invalid_rows_and_limits_never_publish_partial_catalogs() {
+async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     let Some(f) = Fixture::new().await else {
         return;
     };
@@ -295,7 +318,7 @@ async fn postgres_invalid_rows_and_limits_never_publish_partial_catalogs() {
 }
 
 #[tokio::test]
-async fn postgres_duplicate_and_overlapping_keys_fail_in_either_insert_order() {
+async fn database_duplicate_and_overlapping_keys_fail_in_either_insert_order() {
     let Some(f) = Fixture::new().await else {
         return;
     };
@@ -337,7 +360,7 @@ async fn postgres_duplicate_and_overlapping_keys_fail_in_either_insert_order() {
 }
 
 #[tokio::test]
-async fn postgres_connections_tables_and_published_applications_do_not_share_catalogs() {
+async fn database_connections_tables_and_published_applications_do_not_share_catalogs() {
     let Some(first) = Fixture::new().await else {
         return;
     };
@@ -385,7 +408,11 @@ async fn postgres_connections_tables_and_published_applications_do_not_share_cat
 
 #[tokio::test]
 async fn invalid_configuration_and_resource_names_are_rejected_before_sql() {
-    let connection = connection("postgres://unused:unused@127.0.0.1:1/unused", "validation");
+    let connection = connection(
+        "postgres://unused:unused@127.0.0.1:1/unused",
+        "validation",
+        "pgsql",
+    );
     for name in [
         "",
         "translations; drop table users",
@@ -424,7 +451,7 @@ async fn invalid_configuration_and_resource_names_are_rejected_before_sql() {
 }
 
 #[tokio::test]
-async fn postgres_explicit_provider_publishes_the_app_catalog_to_real_http() {
+async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     use axum::{extract::State, handler::Handler as _};
     use openrust::{
         contracts::http::Kernel as _,
@@ -529,7 +556,7 @@ async fn postgres_explicit_provider_publishes_the_app_catalog_to_real_http() {
 }
 
 #[tokio::test]
-async fn postgres_spatie_schema_native_json_and_default_table_work() {
+async fn database_spatie_schema_native_json_and_default_table_work() {
     let Some(f) = Fixture::new().await else {
         return;
     };
