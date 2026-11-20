@@ -19,3 +19,9 @@
 ## 變更
 
 應用程式開發者可在儲存庫的[更新記錄](https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md)查看變更。遷移現有應用程式前請查閱[升級指南](upgrade.md)。
+
+## 相依安全
+
+鎖定建置使用 lettre 0.11.24、由 libsqlite3-sys 0.39.1 提供的 SQLite 3.54.1 與穩定版 RSA 0.10.0。SQLx SQLite 配接器保留現有 0.9.0 實作，改用修復後的 SQLite 相依；WebAuthn 密碼配接器更新 RSA feature 宣告與型別匯入。上游原始碼與授權條款保留在 `vendor/`。Passport 保留金鑰產生與 PEM 格式，包括明確產生 1024 位金鑰；線上簽章仍使用 AWS-LC。
+
+相依稽核仍報告 chrono、chrono-tz、paste 與 pin-utils 的維護狀態公告，與已修復的漏洞分別追蹤。應用程式發布仍須執行自己的相依稽核與目標環境驗證。

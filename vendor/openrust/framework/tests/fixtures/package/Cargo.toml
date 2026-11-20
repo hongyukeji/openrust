@@ -4,3 +4,4 @@ resolver = "3"
 
 [patch.crates-io]
 sqlx-mysql = { path = "../../../../../sqlx-mysql" }
+sqlx-sqlite = { path = "../../../../../sqlx-sqlite" }

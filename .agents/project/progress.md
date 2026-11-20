@@ -3829,3 +3829,7 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 ## 2026-11-20 SMTP 安全依赖
 
 [验收](audits/mail-security/README.md)：lettre0.11.24、4安全＋4既有函数、旧版3负例、Rust1.94严格全feature Clippy／fmt及三语12浏览器通过；6条lettre公告消除。源码SHA、官方公告SHA与闲置target清理留证，保留全部数据卷，仅本地提交；其他依赖公告继续处理。
+
+## 2026-11-20 SQLite 与 RSA 安全依赖
+
+[验收](audits/dependency-security/README.md)：RSA两路径统一0.10.0、SQLite3.54.1，25原生、PostgreSQL18三项、MySQL授权／验签两项、Chrome ES256／RS256、严格Clippy／fmt／根HTTP／Artisan／关闭与三语12浏览器全过。cargo-deny剩4维护公告，无vulnerability与ignore；保留外部发布目标和最终整合边界。闲置target已清，全部卷保留，本地提交不推送。

@@ -1,0 +1,13 @@
+{
+  "removed": "/private/tmp/openrust-dependency-security-20261120/target",
+  "before_available_kib": 75028632,
+  "after_available_kib": 82770444,
+  "released_kib": 7741812,
+  "preserved": [
+    "source",
+    "upstream archives",
+    "logs",
+    "shared caches",
+    "all database volumes"
+  ]
+}

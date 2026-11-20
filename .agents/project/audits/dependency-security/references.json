@@ -1,0 +1,24 @@
+{
+  "rustsec_commit": "68c1363dc5123f4dc451506f01ba2fb30ff887e3",
+  "sha256": {
+    "sqlx-sqlite-0.9.1.crate": "88b6b78a34ddcb1db4046d462db8f79cee811019d7297b99fca8fac5de26672e",
+    "crypto-glue-0.2.2.crate": "a2199036d1ea8b42f94ec872d69dc641ec8b603ef12f9da7874cf8bfef419cb7",
+    "sqlx-mysql-0.9.1.crate": "19eeb93b96eb10a3a59dfb436f3daf87d2fc41168ed9e9dc153ec8257dd6a761",
+    "rsa-0.10.0.crate": "23e77fd77e0dea28b3011fd62d15445b7de7959333b0276d930e03be0f755699",
+    "crates/rsa/RUSTSEC-2023-0071.md": "fc2d098f4d90b0bedc8df64639c20d7ec5a96cb668029f65748d3fd76bdb7271",
+    "crates/libsqlite3-sys/RUSTSEC-2026-0459.md": "147ecc23304a18fea1fd34767925e0483532094c2ee0f5884fba73730574f0b2",
+    "crates/chrono/RUSTSEC-2026-0543.md": "18424c6a155f754151a55ce9fb73376bf66f3709d81750d921f5293da91ccc59",
+    "crates/chrono-tz/RUSTSEC-2026-0555.md": "033eaefa7570c608fbf1cc34ad61e5705f0dea7b70acf883181c6f5acadf1568",
+    "crates/paste/RUSTSEC-2024-0436.md": "77802b32a0f9067db63c0e50fbd51ee5d36efe3bdbd53ba1b3a814826c80ab14",
+    "crates/pin-utils/RUSTSEC-2026-0441.md": "c949de2a4993b84267639311fc55d3dcfcd29bf50c39020980b6462caea8def0"
+  },
+  "upstream_differences": {
+    "vendor/crypto-glue": [
+      "Cargo.toml",
+      "src/lib.rs"
+    ],
+    "vendor/sqlx-sqlite": [
+      "Cargo.toml"
+    ]
+  }
+}

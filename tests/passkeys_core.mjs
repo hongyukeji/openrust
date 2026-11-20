@@ -20,7 +20,15 @@ try {
  const cdp=await page.context().newCDPSession(page);await cdp.send('WebAuthn.enable');
  let authenticator=(await cdp.send('WebAuthn.addVirtualAuthenticator',{options:{protocol:'ctap2',transport:'internal',hasResidentKey:true,hasUserVerification:true,isUserVerified:true,automaticPresenceSimulation:true}})).authenticatorId;
  await good({op:'init',origin});
- const create=options=>page.evaluate(async options=>(await navigator.credentials.create({publicKey:PublicKeyCredential.parseCreationOptionsFromJSON(options)})).toJSON(),options);
+ const algorithm=process.env.OPENRUST_TEST_PASSKEY_ALGORITHM;
+ const create=options=>{
+  if(algorithm!==undefined){
+   assert.ok(['-7','-257'].includes(algorithm),'supported test algorithm');
+   options.pubKeyCredParams=options.pubKeyCredParams.filter(value=>value.alg===Number(algorithm));
+   assert.equal(options.pubKeyCredParams.length,1,'requested algorithm must be offered by the native verifier');
+  }
+  return page.evaluate(async options=>(await navigator.credentials.create({publicKey:PublicKeyCredential.parseCreationOptionsFromJSON(options)})).toJSON(),options);
+ };
  const get=options=>page.evaluate(async options=>(await navigator.credentials.get({publicKey:PublicKeyCredential.parseRequestOptionsFromJSON(options)})).toJSON(),options);
  const first=await create(await good({op:'registration'}));const id=await good({op:'register',credential:first});
  const stored=await good({op:'stored',id});

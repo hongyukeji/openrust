@@ -785,8 +785,8 @@ impl AuthorizationServer {
         let key = openrust::container::Container::getInstance()
             .make::<crate::PrivateKey>()
             .map_err(internal)?;
-        let key = rsa::RsaPrivateKey::from_pkcs8_pem(key.getKeyContents())
-            .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_pem(key.getKeyContents()))
+        let key = rsa::PrivateKey::from_pkcs8_pem(key.getKeyContents())
+            .or_else(|_| rsa::PrivateKey::from_pkcs1_pem(key.getKeyContents()))
             .map_err(internal)?;
         let der = key.to_pkcs8_der().map_err(internal)?;
         let key = aws_lc_rs::signature::RsaKeyPair::from_pkcs8(der.as_bytes())

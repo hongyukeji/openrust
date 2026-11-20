@@ -6,7 +6,7 @@ use openrust::{
 };
 use openrust_passport::{Passport, PassportServiceProvider, PrivateKey, PublicKey};
 use rsa::{
-    RsaPrivateKey, RsaPublicKey,
+    PrivateKey as RsaPrivateKey, PublicKey as RsaPublicKey,
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     traits::PublicKeyParts,
 };
@@ -107,7 +107,7 @@ async fn command_keys_are_lazy_overwrite_is_explicit_and_native_pair_is_valid() 
     let (public, private) = contents(&root);
     let key = RsaPrivateKey::from_pkcs8_pem(&private).unwrap();
     let public_key = RsaPublicKey::from_public_key_pem(&public).unwrap();
-    assert_eq!(key.n().bits(), 4096);
+    assert_eq!(key.n().bit_width_vartime(), 4096);
     assert_eq!(key.n(), public_key.n());
     let app = console.get_application();
     let key = app.make::<PrivateKey>().await.unwrap();
@@ -128,7 +128,10 @@ async fn command_keys_are_lazy_overwrite_is_explicit_and_native_pair_is_valid() 
     let next = contents(&root);
     assert_ne!(next.0, public);
     assert_eq!(
-        RsaPrivateKey::from_pkcs8_pem(&next.1).unwrap().n().bits(),
+        RsaPrivateKey::from_pkcs8_pem(&next.1)
+            .unwrap()
+            .n()
+            .bit_width_vartime(),
         2048
     );
     #[cfg(unix)]
@@ -221,7 +224,10 @@ async fn configured_key_directories_and_inline_pem_are_application_local() {
     let private = fs::read_to_string(custom.join("oauth-private.key")).unwrap();
     let public = fs::read_to_string(custom.join("oauth-public.key")).unwrap();
     assert_eq!(
-        RsaPrivateKey::from_pkcs8_pem(&private).unwrap().n().bits(),
+        RsaPrivateKey::from_pkcs8_pem(&private)
+            .unwrap()
+            .n()
+            .bit_width_vartime(),
         1024
     );
     b.get_application()

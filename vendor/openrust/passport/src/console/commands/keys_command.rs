@@ -11,7 +11,7 @@ use openrust::{
     foundation::Application,
 };
 use rsa::{
-    RsaPrivateKey, RsaPublicKey,
+    PrivateKey as RsaPrivateKey, PublicKey as RsaPublicKey,
     pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding},
 };
 use std::{
@@ -118,8 +118,8 @@ fn generate(length: usize) -> Result<(Zeroizing<String>, Zeroizing<String>), Key
     }
     // Only key generation / PEM parsing uses RustCrypto. No RSA decrypt/sign primitive
     // from this library is exposed or used by the online OAuth server.
-    let key =
-        RsaPrivateKey::new(&mut rand::rngs::OsRng, length).map_err(|_| KeyError::Generation)?;
+    let key = RsaPrivateKey::new_unchecked(&mut rand10::rng(), length)
+        .map_err(|_| KeyError::Generation)?;
     let public = RsaPublicKey::from(&key)
         .to_public_key_pem(LineEnding::LF)
         .map_err(|_| KeyError::Generation)?;

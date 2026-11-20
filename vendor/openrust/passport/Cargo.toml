@@ -15,7 +15,8 @@ axum = { version = "0.8.9", default-features = false, features = ["http1", "toki
 
 openrust = { package = "openrust-framework", path = "../framework" }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
-rsa = "0.9.10"
+rsa = { version = "=0.10.0", features = ["hazmat"] }
+rand10 = { package = "rand", version = "0.10.1" }
 rand = "0.8"
 base64 = "0.22"
 clap = "4.6.1"

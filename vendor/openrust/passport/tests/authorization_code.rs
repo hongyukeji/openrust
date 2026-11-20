@@ -615,12 +615,24 @@ async fn mysql_real_session_consent_pkce_confidential_and_single_use_code() {
     assert_eq!(claims["scopes"], json!(["read"]));
     {
         use rsa::{pkcs8::DecodePublicKey as _, traits::PublicKeyParts as _};
-        let key = rsa::RsaPublicKey::from_public_key_pem(include_str!("fixtures/oauth-public.pem"))
-            .unwrap();
+        let key =
+            rsa::PublicKey::from_public_key_pem(include_str!("fixtures/oauth-public.pem")).unwrap();
         let signature = URL_SAFE_NO_PAD.decode(parts[2]).unwrap();
         aws_lc_rs::signature::RsaPublicKeyComponents {
-            n: key.n().to_bytes_be(),
-            e: key.e().to_bytes_be(),
+            n: key
+                .n()
+                .to_be_bytes()
+                .iter()
+                .skip_while(|byte| **byte == 0)
+                .copied()
+                .collect::<Vec<_>>(),
+            e: key
+                .e()
+                .to_be_bytes()
+                .iter()
+                .skip_while(|byte| **byte == 0)
+                .copied()
+                .collect::<Vec<_>>(),
         }
         .verify(
             &aws_lc_rs::signature::RSA_PKCS1_2048_8192_SHA256,
@@ -1249,8 +1261,8 @@ fn sign_claims(claims: &J) -> String {
         pkcs1::DecodeRsaPrivateKey as _,
         pkcs8::{DecodePrivateKey as _, EncodePrivateKey as _},
     };
-    let key = rsa::RsaPrivateKey::from_pkcs8_pem(include_str!("fixtures/oauth-private.pem"))
-        .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_pem(include_str!("fixtures/oauth-private.pem")))
+    let key = rsa::PrivateKey::from_pkcs8_pem(include_str!("fixtures/oauth-private.pem"))
+        .or_else(|_| rsa::PrivateKey::from_pkcs1_pem(include_str!("fixtures/oauth-private.pem")))
         .unwrap()
         .to_pkcs8_der()
         .unwrap();

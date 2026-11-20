@@ -11,7 +11,7 @@ publish = false
 
 [workspace]
 members = ["vendor/openrust/*"]
-exclude = ["vendor/sqlx-mysql"]
+exclude = ["vendor/sqlx-mysql", "vendor/crypto-glue", "vendor/sqlx-sqlite"]
 default-members = ["."]
 resolver = "3"
 
@@ -19,6 +19,8 @@ resolver = "3"
 linker_messages = "allow"
 
 [patch.crates-io]
+sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
+crypto-glue = { path = "vendor/crypto-glue" }
 sqlx-mysql = { path = "vendor/sqlx-mysql" }
 
 [[bin]]

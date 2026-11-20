@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 [SQLite／RSA安全依赖](audits/dependency-security/README.md)完成：SQLite3.54.1与稳定RSA0.10.0、最小SQLx／WebAuthn适配，25原生＋PostgreSQL18三项＋MySQL授权专项两项、真实Chrome ES256／RS256、严格全feature Clippy／fmt／根入口／关闭／三语12浏览器通过。已知漏洞公告消除，4维护公告保留，无ignore；仅本地提交。
+
 - 2026-11-20 按用户要求核对并移除旧 `.agents/project/core/` 目录：21 份骨架设计草稿及 1 份启动清单已完整归档，逐字节和 SHA-256 校验通过。现行计划／验收／正文／源码对照及恢复入口见 [归档记录](audits/core-drafts-archive/README.md)。旧设计不再作为当前开发依据；数据库翻译扩展仍未实现，已保留在 [项目待办](todo.md)，不因归档或骨架编译通过而视为交付。
 
 - 2026-11-20 [SMTP 安全修复](audits/mail-security/README.md)完成：lettre 精确升级0.11.24，4安全＋4既有回归、旧版3负例、Rust1.94全workspace/all-targets/all-features严格Clippy／fmt、三语12浏览器通过。6条lettre公告消除，其余SQLite／RSA与维护公告继续；独占target释放3,328,008 KiB，全部数据卷保留，仅本地提交。

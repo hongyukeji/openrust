@@ -19,3 +19,9 @@
 ## 变更
 
 应用开发者可在仓库的[更新日志](https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md)查看变更。迁移已有应用前请查阅[升级指南](upgrade.md)。
+
+## 依赖安全
+
+锁定构建使用 lettre 0.11.24、由 libsqlite3-sys 0.39.1 提供的 SQLite 3.54.1 和稳定版 RSA 0.10.0。SQLx SQLite 适配器保留现有 0.9.0 实现，改用修复后的 SQLite 依赖；WebAuthn 密码适配器更新 RSA feature 声明与类型导入。上游源码及许可证保留在 `vendor/`。Passport 保留密钥生成与 PEM 格式，包括显式生成 1024 位密钥；在线签名仍使用 AWS-LC。
+
+依赖审计仍报告 chrono、chrono-tz、paste 和 pin-utils 的维护状态公告，与已修复的漏洞分别跟踪。应用发布仍须执行自身依赖审计和目标环境验证。

@@ -19,3 +19,9 @@ Terminate production TLS at a reverse proxy or load balancer and verify the depl
 ## Changes
 
 The repository [changelog](https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md) records application-facing changes. See the [Upgrade Guide](upgrade.md) before moving an existing application to this source line.
+
+## Dependency security
+
+The locked build uses lettre 0.11.24, bundled SQLite 3.54.1 through libsqlite3-sys 0.39.1, and stable RSA 0.10.0. The SQLx SQLite adapter retains its accepted 0.9.0 implementation with a fixed SQLite dependency; the WebAuthn crypto adapter updates its RSA feature declaration and type imports. Their upstream source and licenses remain under `vendor/`. Passport keeps its published key generation and PEM formats, including explicit 1024-bit key generation; online signatures continue to use AWS-LC.
+
+A dependency audit still reports maintenance notices for chrono, chrono-tz, paste and pin-utils. These are tracked separately from the resolved vulnerabilities. An application release still needs its own dependency audit and target verification.

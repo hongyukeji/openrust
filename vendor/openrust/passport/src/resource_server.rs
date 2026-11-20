@@ -126,13 +126,25 @@ impl ResourceServer {
         {
             return Err(invalid());
         }
-        let key = rsa::RsaPublicKey::from_public_key_pem(self.key.getKeyContents())
-            .or_else(|_| rsa::RsaPublicKey::from_pkcs1_pem(self.key.getKeyContents()))
+        let key = rsa::PublicKey::from_public_key_pem(self.key.getKeyContents())
+            .or_else(|_| rsa::PublicKey::from_pkcs1_pem(self.key.getKeyContents()))
             .map_err(internal)?;
         let signed = token.rsplit_once('.').ok_or_else(invalid)?.0;
         aws_lc_rs::signature::RsaPublicKeyComponents {
-            n: key.n().to_bytes_be(),
-            e: key.e().to_bytes_be(),
+            n: key
+                .n()
+                .to_be_bytes()
+                .iter()
+                .skip_while(|byte| **byte == 0)
+                .copied()
+                .collect::<Vec<_>>(),
+            e: key
+                .e()
+                .to_be_bytes()
+                .iter()
+                .skip_while(|byte| **byte == 0)
+                .copied()
+                .collect::<Vec<_>>(),
         }
         .verify(
             &aws_lc_rs::signature::RSA_PKCS1_2048_8192_SHA256,

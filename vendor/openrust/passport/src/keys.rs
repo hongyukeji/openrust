@@ -1,4 +1,7 @@
-use rsa::{RsaPrivateKey, RsaPublicKey, pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
+use rsa::{
+    PrivateKey as RsaPrivateKey, PublicKey as RsaPublicKey, pkcs1::DecodeRsaPrivateKey,
+    pkcs8::DecodePrivateKey,
+};
 use std::{fmt, path::PathBuf};
 use zeroize::Zeroizing;
 
@@ -108,13 +111,13 @@ fn valid_public(content: &str) -> bool {
     } else {
         return false;
     };
-    let Ok(key) = rsa::pkcs1::RsaPublicKey::from_der(der) else {
+    let Ok(key) = rsa::pkcs1::RsaPublicKeyRef::from_der(der) else {
         return false;
     };
-    RsaPublicKey::new_with_max_size(
-        rsa::BigUint::from_bytes_be(key.modulus.as_bytes()),
-        rsa::BigUint::from_bytes_be(key.public_exponent.as_bytes()),
-        usize::MAX,
+    RsaPublicKey::new_with_size_limits(
+        rsa::BoxedUint::from_be_slice_vartime(key.modulus.as_bytes()),
+        rsa::BoxedUint::from_be_slice_vartime(key.public_exponent.as_bytes()),
+        1..=usize::MAX,
     )
     .is_ok()
 }
