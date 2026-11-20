@@ -12,7 +12,12 @@ impl ConfirmedPasswordStatusController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let now = now(None).map_err(internal)?.asDateTime().timestamp();
+            let now = now(None)
+                .map_err(internal)?
+                .asDateTime()
+                .timestamp()
+                .as_nanosecond()
+                .div_euclid(1_000_000_000) as i64;
             let last = request
                 .session()
                 .map_err(internal)?

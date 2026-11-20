@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::{TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use serde_json::Value;
 
 use crate::{
@@ -22,7 +22,7 @@ pub struct Guard {
     name: String,
     session_guards: Vec<String>,
     provider_model: Option<String>,
-    expiration: Option<TimeDelta>,
+    expiration: Option<SignedDuration>,
     track_last_used_at: bool,
 }
 
@@ -98,7 +98,7 @@ impl Guard {
         });
         if !sanctum.valid(
             &token,
-            valid_provider && !token.isExpired(Utc::now(), self.expiration),
+            valid_provider && !token.isExpired(Timestamp::now(), self.expiration),
         ) {
             return Ok(None);
         }
@@ -131,13 +131,15 @@ impl Guard {
     }
 }
 
-pub(super) fn expiration(config: &dyn Repository) -> AuthResult<Option<TimeDelta>> {
+pub(super) fn expiration(config: &dyn Repository) -> AuthResult<Option<SignedDuration>> {
     Ok(match config.get("sanctum.expiration") {
         None | Some(Value::Null) => None,
         Some(value) => match value.as_i64() {
             Some(0) => None,
             Some(minutes) if minutes > 0 => Some(
-                TimeDelta::try_minutes(minutes)
+                minutes
+                    .checked_mul(60)
+                    .map(SignedDuration::from_secs)
                     .ok_or(AuthError::Configuration("sanctum.expiration"))?,
             ),
             _ => return Err(AuthError::Configuration("sanctum.expiration")),

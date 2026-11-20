@@ -65,7 +65,7 @@ impl ConnectionFactory {
             sqlite,
             sticky: options.sticky,
             has_direct_connection: options.has_direct_connection,
-            model_timezone: chrono_tz::UTC,
+            model_timezone: jiff::tz::TimeZone::UTC,
             model_container: std::sync::Weak::new(),
             schema_defaults: Arc::default(),
             routing: Arc::default(),

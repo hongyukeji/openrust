@@ -1,10 +1,76 @@
 use super::date_interval;
-use chrono::{DateTime, Utc};
-use chrono_tz::UTC;
+use jiff::{Timestamp, tz::TimeZone};
+
+#[test]
+fn negative_dst_flags_and_fold_preferences_match_the_php_baseline() {
+    use super::{CalendarInstant, format::display_zoned, zone::ResolvedTimezone};
+    for (name, before, after, civil) in [
+        (
+            "Europe/Dublin",
+            "2024-10-27T00:30:00Z",
+            "2024-10-27T01:30:00Z",
+            "2024-10-27 01:30:00",
+        ),
+        (
+            "Africa/Casablanca",
+            "2019-05-05T01:30:00Z",
+            "2019-05-05T02:30:00Z",
+            "2019-05-05 02:30:00",
+        ),
+        (
+            "Europe/Prague",
+            "1946-12-01T01:30:00Z",
+            "1946-12-01T02:30:00Z",
+            "1946-12-01 02:30:00",
+        ),
+        (
+            "Africa/Windhoek",
+            "1995-04-01T23:30:00Z",
+            "1995-04-02T00:30:00Z",
+            "1995-04-02 01:30:00",
+        ),
+    ] {
+        let zone = ResolvedTimezone::parse(name).unwrap();
+        let native = crate::support::Date::timezone(name).unwrap();
+        let before = before.parse::<Timestamp>().unwrap();
+        let after = after.parse::<Timestamp>().unwrap();
+        assert!(!native.to_offset_info(before).dst().is_dst(), "{name}");
+        assert!(native.to_offset_info(after).dst().is_dst(), "{name}");
+        let before = CalendarInstant::from_timestamp(before).unwrap();
+        let after = CalendarInstant::from_timestamp(after).unwrap();
+        assert_eq!(
+            display_zoned(before, &zone, "Y-m-d H:i:s I").unwrap(),
+            format!("{civil} 0"),
+            "{name}"
+        );
+        assert_eq!(
+            display_zoned(after, &zone, "Y-m-d H:i:s I").unwrap(),
+            format!("{civil} 1"),
+            "{name}"
+        );
+        let wall = zone.civil(before).unwrap();
+        assert_eq!(
+            zone.resolve(wall, Some(false))
+                .unwrap()
+                .try_timestamp()
+                .unwrap(),
+            before.try_timestamp().unwrap(),
+            "{name}"
+        );
+        assert_eq!(
+            zone.resolve(wall, Some(true))
+                .unwrap()
+                .try_timestamp()
+                .unwrap(),
+            after.try_timestamp().unwrap(),
+            "{name}"
+        );
+    }
+}
 
 #[test]
 fn php_relative_intervals_preserve_the_start_calendar() {
-    let reference = DateTime::UNIX_EPOCH;
+    let reference = Timestamp::UNIX_EPOCH;
     for (date, interval, expected) in [
         (
             "2024-01-31 12:34:56 UTC",
@@ -57,10 +123,8 @@ fn php_relative_intervals_preserve_the_start_calendar() {
             "2024-10-27T01:30:00Z",
         ),
     ] {
-        let (_, end) = date_interval(date, interval, reference, UTC).unwrap();
-        let expected = DateTime::parse_from_rfc3339(expected)
-            .unwrap()
-            .with_timezone(&Utc);
+        let (_, end) = date_interval(date, interval, reference, TimeZone::UTC).unwrap();
+        let expected = expected.parse::<Timestamp>().unwrap();
         assert_eq!(end, expected, "{date} + {interval}");
     }
 
@@ -74,7 +138,7 @@ fn php_relative_intervals_preserve_the_start_calendar() {
         "1.5 days",
     ] {
         assert!(
-            date_interval("now", invalid, reference, UTC).is_err(),
+            date_interval("now", invalid, reference, TimeZone::UTC).is_err(),
             "{invalid:?}"
         );
     }
@@ -82,8 +146,10 @@ fn php_relative_intervals_preserve_the_start_calendar() {
 
 #[test]
 fn php_date_display_preserves_extended_years_and_historical_offsets() {
-    use super::format_php_date;
-    let timezone = chrono_tz::Europe::Paris;
+    use super::{
+        CalendarInstant, civil::days_from_civil, format::display_zoned, zone::ResolvedTimezone,
+    };
+    let timezone = ResolvedTimezone::parse("Europe/Paris").unwrap();
     for (year, offset, expected) in [
         (
             -1,
@@ -96,13 +162,10 @@ fn php_date_display_preserves_extended_years_and_historical_offsets() {
             "10000 00 +10000 +10000 9999 52 10000-01-01T00:00:00+01:00 Sat, 01 Jan 10000 00:00:00 +0100 +01:00 +0100 +01:00 3600 CET",
         ),
     ] {
-        let local = chrono::NaiveDate::from_ymd_opt(year, 1, 1)
-            .unwrap()
-            .and_hms_opt(0, 0, 0)
-            .unwrap();
-        let utc = local.and_utc() - chrono::TimeDelta::seconds(offset);
+        let seconds = days_from_civil(year, 1, 1) * 86_400 - i128::from(offset);
+        let instant = CalendarInstant::new(i64::try_from(seconds).unwrap(), 0).unwrap();
         assert_eq!(
-            format_php_date(utc, timezone, "Y y X x o W c r P O p Z T").unwrap(),
+            display_zoned(instant, &timezone, "Y y X x o W c r P O p Z T").unwrap(),
             expected,
         );
     }
@@ -112,7 +175,7 @@ fn php_date_display_preserves_extended_years_and_historical_offsets() {
 fn php_timestamp_expressions_follow_named_timezone_token_boundaries() {
     use super::parse_timestamp_expression;
 
-    let reference = DateTime::UNIX_EPOCH;
+    let reference = Timestamp::UNIX_EPOCH;
     for (suffix, expected) in [
         ("America/New_York", Some(1_704_130_496)),
         ("America/NEW_YORK", Some(1_704_130_496)),
@@ -129,7 +192,7 @@ fn php_timestamp_expressions_follow_named_timezone_token_boundaries() {
     ] {
         let expression = format!("2024-01-01 12:34:56 {suffix}");
         assert_eq!(
-            parse_timestamp_expression(&expression, reference, UTC).ok(),
+            parse_timestamp_expression(&expression, reference, TimeZone::UTC).ok(),
             expected,
             "{expression}"
         );

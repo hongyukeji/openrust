@@ -1,5 +1,5 @@
-use chrono::{DateTime, TimeZone, Utc};
 use indexmap::IndexMap;
+use jiff::Timestamp;
 use serde_json::{Map, Value, json};
 
 use super::slack_message::filled;
@@ -107,12 +107,15 @@ impl SlackAttachment {
         self.attribute("footer_icon", icon.into())
     }
 
-    pub fn timestamp(&mut self, timestamp: DateTime<impl TimeZone>) -> &mut Self {
-        self.attribute("ts", timestamp.timestamp())
+    pub fn timestamp(&mut self, timestamp: Timestamp) -> &mut Self {
+        self.attribute("ts", crate::support::timestamp_seconds(timestamp))
     }
 
     pub fn timestampAfter(&mut self, seconds: i64) -> &mut Self {
-        self.attribute("ts", Utc::now().timestamp().saturating_add(seconds))
+        self.attribute(
+            "ts",
+            crate::support::timestamp_seconds(Timestamp::now()).saturating_add(seconds),
+        )
     }
 
     pub fn callbackId(&mut self, id: impl Into<String>) -> &mut Self {

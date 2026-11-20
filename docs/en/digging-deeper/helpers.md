@@ -124,14 +124,16 @@ assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!
 
 Use `plus` or `minus` with a signed `DateInterval`. `MonthOverflow::Carry` carries extra days into the next month and `Clamp` stops at the last day. Helpers from `microseconds` to `years` construct intervals.
 
+`Date::timezone(name)` resolves IANA identifiers from the framework’s bundled 2025b database, independent of the operating system’s timezone data. `DateTimezone` is Jiff’s native `TimeZone`; passing a timezone obtained elsewhere uses that source. `Date::fromUtc` takes a `jiff::Timestamp`, `fromLocal` takes a `jiff::civil::DateTime`, and `asDateTime` borrows a `jiff::Zoned`. Dates and timezones can be cloned when reused. These native types support years −9999 through 9999; the PHP date-expression parser retains its wider supported year range.
+
 ```rust
 use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
 
-let zone = now(None)?.asDateTime().timezone();
-assert_eq!(now(Some(zone))?.asDateTime().timezone(), zone);
+let zone = now(None)?.asDateTime().time_zone().clone();
+assert_eq!(now(Some(zone.clone()))?.asDateTime().time_zone().clone(), zone);
 let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
 let end = start.plus(months(1), MonthOverflow::Clamp)?;
-let formatted = end.asDateTime().to_rfc3339();
+let formatted = end.asDateTime().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 

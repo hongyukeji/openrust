@@ -1,10 +1,8 @@
-use chrono::{DateTime, Offset};
-use chrono_tz::Tz;
+use jiff::{Zoned, tz::TimeZone};
 
-pub(super) fn for_event(expression: &str, next: DateTime<Tz>, display: Tz) -> Vec<String> {
-    let target = next.with_timezone(&display);
-    let offset =
-        (target.offset().fix().local_minus_utc() - next.offset().fix().local_minus_utc()) / 60;
+pub(super) fn for_event(expression: &str, next: Zoned, display: TimeZone) -> Vec<String> {
+    let target = next.with_time_zone(display);
+    let offset = (target.offset().seconds() - next.offset().seconds()) / 60;
     if offset != 0
         && let Ok(fields) = expression.split_whitespace().collect::<Vec<_>>().try_into()
         && let Some(converted) = convert(fields, offset)

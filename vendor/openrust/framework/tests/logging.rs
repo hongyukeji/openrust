@@ -957,8 +957,8 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
             )));
         }
     }
-    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
-    let daily = format!("http-{}.log", date.format("%Y-%m-%d"));
+    let date = jiff::Timestamp::now();
+    let daily = format!("http-{}.log", date.strftime("%Y-%m-%d"));
     assert_eq!(first.read(&daily).lines().count(), 3);
     assert_eq!(second.read(&daily).lines().count(), 1);
     assert_eq!(first.read("custom-http.log").lines().count(), 3);
@@ -1110,13 +1110,13 @@ async fn artisan_logs_to_file_and_stderr() {
             .read("storage/logs/app.log")
             .contains("private-artisan-token")
     );
-    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    let date = jiff::Timestamp::now();
     assert_eq!(
-        root.read(&format!("custom-console-{}.log", date.format("%Y-%m"))),
+        root.read(&format!("custom-console-{}.log", date.strftime("%Y-%m"))),
         "ARTISAN:formatted command:artisan/hook\n"
     );
     assert!(
-        root.read(&format!("console-{}.log", date.format("%Y-%m")))
+        root.read(&format!("console-{}.log", date.strftime("%Y-%m")))
             .contains(r#"monthly Artisan {} {"command":"log:probe"}"#)
     );
     assert!(stderr.contains("openrust.EMERGENCY: Unable to create configured logger"));
@@ -1207,13 +1207,13 @@ fn daily_and_monthly_channels_prune_their_own_periods() {
         .unwrap();
     assert!(!root.0.join("shared-2000-01.log").exists());
     assert!(root.0.join("shared-note.log").exists());
-    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    let date = jiff::Timestamp::now();
     assert!(
-        root.read(&format!("shared-{}.log", date.format("%Y-%m-%d")))
+        root.read(&format!("shared-{}.log", date.strftime("%Y-%m-%d")))
             .contains("today")
     );
     assert!(
-        root.read(&format!("shared-{}.log", date.format("%Y-%m")))
+        root.read(&format!("shared-{}.log", date.strftime("%Y-%m")))
             .contains("this month")
     );
 }

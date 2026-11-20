@@ -294,7 +294,7 @@ fn record(group: &str, name: &str, payload: Json, locked: bool) -> Record {
     values.insert("name".into(), Value::from(name));
     values.insert(
         "created_at".into(),
-        Value::from(chrono::Utc::now().naive_utc().to_string()),
+        Value::from(timestamp_text(jiff::Timestamp::now())),
     );
     values
 }
@@ -304,10 +304,29 @@ fn record_values(payload: Json, locked: bool) -> Record {
         ("locked".into(), Value::Bool(locked)),
         (
             "updated_at".into(),
-            Value::from(chrono::Utc::now().naive_utc().to_string()),
+            Value::from(timestamp_text(jiff::Timestamp::now())),
         ),
     ])
 }
+fn timestamp_text(value: jiff::Timestamp) -> String {
+    let nanoseconds = value.subsec_nanosecond().unsigned_abs();
+    // Stored timestamps retain whole milliseconds, microseconds or nanoseconds.
+    let format = if nanoseconds == 0 {
+        "%Y-%m-%d %H:%M:%S"
+    } else if nanoseconds.is_multiple_of(1_000_000) {
+        "%Y-%m-%d %H:%M:%S%.3f"
+    } else if nanoseconds.is_multiple_of(1_000) {
+        "%Y-%m-%d %H:%M:%S%.6f"
+    } else {
+        "%Y-%m-%d %H:%M:%S%.9f"
+    };
+    value.strftime(format).to_string()
+}
+
+#[cfg(test)]
+#[path = "../tests/unit/database_timestamps.rs"]
+mod timestamp_tests;
+
 pub(crate) fn identifier(value: &str) -> bool {
     let mut bytes = value.bytes();
     !value.is_empty()

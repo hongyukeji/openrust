@@ -143,7 +143,7 @@ fn migration_path(directory: &Path, name: &str) -> io::Result<PathBuf> {
     }
     Ok(directory.join(format!(
         "{}{suffix}",
-        chrono::Utc::now().format("%Y_%m_%d_%H%M%S")
+        jiff::Timestamp::now().strftime("%Y_%m_%d_%H%M%S")
     )))
 }
 

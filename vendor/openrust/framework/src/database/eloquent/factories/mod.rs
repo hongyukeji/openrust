@@ -618,13 +618,13 @@ impl<M: Model> Factory<M> {
             return Ok(self.set(column, value));
         }
 
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         self.states.push(Box::new(move |_, connection, _| {
-            let zone = connection.model_timezone;
-            let (_, yesterday) = calendar::date_interval("now", "-1 day", now, zone)
+            let zone = connection.model_timezone.clone();
+            let (_, yesterday) = calendar::date_interval("now", "-1 day", now, zone.clone())
                 .map_err(|_| DatabaseError::InvalidQuery("invalid factory deletion timestamp"))?;
             let value = casts::date::format_for_storage(
-                yesterday.with_timezone(&zone),
+                yesterday.to_zoned(zone),
                 M::metadata().date_format,
             )?;
             Ok(Attributes::from([(column.to_owned(), value)]))

@@ -6,7 +6,7 @@ use std::{
     sync::Mutex,
 };
 
-use chrono::{Datelike as _, NaiveDate};
+use jiff::civil::Date;
 
 use super::sink::FileOptions;
 
@@ -24,25 +24,25 @@ impl Period {
         }
     }
 
-    fn start(self, date: NaiveDate) -> NaiveDate {
+    fn start(self, date: Date) -> Date {
         match self {
             Self::Daily => date,
-            Self::Monthly => date.with_day(1).expect("every month starts on day one"),
+            Self::Monthly => date.first_of_month(),
         }
     }
 
     fn matches(self, text: &str) -> bool {
         let date = match self {
-            Self::Daily => NaiveDate::parse_from_str(text, self.format()),
-            Self::Monthly => NaiveDate::parse_from_str(&format!("{text}-01"), "%Y-%m-%d"),
+            Self::Daily => Date::strptime(self.format(), text),
+            Self::Monthly => Date::strptime("%Y-%m-%d", format!("{text}-01")),
         };
-        date.is_ok_and(|date| date.format(self.format()).to_string() == text)
+        date.is_ok_and(|date| date.strftime(self.format()).to_string() == text)
     }
 }
 
 #[derive(Default)]
 struct State {
-    active: Option<(NaiveDate, PathBuf)>,
+    active: Option<(Date, PathBuf)>,
     file: Option<File>,
 }
 
@@ -67,7 +67,7 @@ impl RotatingFile {
         })
     }
 
-    pub fn write(&self, date: NaiveDate, bytes: &[u8]) -> io::Result<()> {
+    pub fn write(&self, date: Date, bytes: &[u8]) -> io::Result<()> {
         let date = self.period.start(date);
         let mut guard = self
             .state
@@ -96,7 +96,7 @@ impl RotatingFile {
         Ok(())
     }
 
-    fn path(&self, date: NaiveDate) -> PathBuf {
+    fn path(&self, date: Date) -> PathBuf {
         let mut name = self
             .options
             .path
@@ -104,7 +104,7 @@ impl RotatingFile {
             .expect("validated file name")
             .to_os_string();
         name.push(
-            date.format(&format!("-{}", self.period.format()))
+            date.strftime(&format!("-{}", self.period.format()))
                 .to_string(),
         );
         name.push(self.extension());

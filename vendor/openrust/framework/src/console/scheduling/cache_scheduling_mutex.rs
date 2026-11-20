@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::SystemTime};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     cache::{CacheResult, Repository, Ttl, Value},
@@ -20,7 +20,10 @@ impl CacheSchedulingMutex {
 }
 
 fn key(event: &Event, time: SystemTime) -> String {
-    let slot = DateTime::<Utc>::from(time).timestamp().div_euclid(60);
+    let slot = Timestamp::try_from(time)
+        .expect("valid scheduling timestamp")
+        .as_nanosecond()
+        .div_euclid(60_000_000_000);
     format!("{}:slot:{slot}", event.mutex_key())
 }
 

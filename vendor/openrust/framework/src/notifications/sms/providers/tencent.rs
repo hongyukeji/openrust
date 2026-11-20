@@ -56,8 +56,8 @@ impl SmsDriver for Tencent {
             }
             let body = serde_json::to_string(&body).map_err(delivery)?;
             let now = now();
-            let timestamp = now.timestamp().to_string();
-            let date = now.format("%Y-%m-%d").to_string();
+            let timestamp = crate::support::timestamp_seconds(now).to_string();
+            let date = now.strftime("%Y-%m-%d").to_string();
             let host = &self.endpoint[Position::BeforeHost..Position::AfterPort];
             const CONTENT_TYPE: &str = "application/json; charset=utf-8";
             let signed = "content-type;host";

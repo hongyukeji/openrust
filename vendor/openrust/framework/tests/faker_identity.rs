@@ -78,13 +78,13 @@ fn regional_identity_samples_match_the_fakerphp_rules() {
 
 #[test]
 fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
-    use chrono::{Datelike as _, NaiveDate, Utc};
+    use jiff::civil::Date as CivilDate;
     use std::collections::HashSet;
 
     let th = fake(Some("th-TH")).unwrap();
     let at = fake(Some("de-AT")).unwrap();
     let is = fake(Some("is-IS")).unwrap();
-    let fixed = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let fixed = CivilDate::new(2000, 2, 29).unwrap();
     let ssn = Regex::new(r"^([0-9]{3})-([0-9]{2})-([0-9]{4})$").unwrap();
     let icelandic = Regex::new(r"^[0-9]{6}-[0-9]{4}$").unwrap();
     let sum = |digits: &str, weights: &[u16]| {
@@ -119,13 +119,17 @@ fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
             (11 - weights % 11) % 11,
             sample[9..10].parse::<u16>().unwrap()
         );
-        let current_year = Utc::now().year();
+        let current_year = i32::from(
+            jiff::Timestamp::now()
+                .to_zoned(jiff::tz::TimeZone::UTC)
+                .year(),
+        );
         let year_suffix = sample[4..6].parse::<i32>().unwrap();
         let century_digit = sample[10..].parse::<i32>().unwrap();
         let year = (current_year - 101..=current_year)
             .find(|&year| (year / 100) % 10 == century_digit && year % 100 == year_suffix)
             .unwrap();
-        assert!(NaiveDate::parse_from_str(&format!("{}{year}", &sample[..4]), "%d%m%Y").is_ok());
+        assert!(CivilDate::strptime("%d%m%Y", format!("{}{year}", &sample[..4])).is_ok());
     }
     let generated = at.ssn().unwrap();
     assert_eq!(generated.len(), 10);
@@ -134,9 +138,9 @@ fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
 
 #[test]
 fn european_identity_numbers_keep_dates_and_regional_checksums() {
-    use chrono::NaiveDate;
+    use jiff::civil::Date as CivilDate;
 
-    let date = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let date = CivilDate::new(2000, 2, 29).unwrap();
     for (locale, pattern) in [
         ("lt-LT", r"^[56]000229[0-9]{4}$"),
         ("lv-LV", r"^290200-2[0-9]{4}$"),
@@ -214,7 +218,7 @@ fn european_identity_numbers_keep_dates_and_regional_checksums() {
             .is_err()
     );
     let fi = fake(Some("fi-FI")).unwrap();
-    let outside = NaiveDate::from_ymd_opt(2100, 1, 1).unwrap();
+    let outside = CivilDate::new(2100, 1, 1).unwrap();
     assert!(
         fi.personalIdentityNumberWithBirthdate(Some(outside), None)
             .is_err()
@@ -240,7 +244,7 @@ fn european_identity_numbers_keep_dates_and_regional_checksums() {
 
 #[test]
 fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
-    use chrono::NaiveDate;
+    use jiff::civil::Date as CivilDate;
 
     let faker = fake(Some("pl-PL")).unwrap();
     let unique = faker.unique(true);
@@ -259,7 +263,7 @@ fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
         (2104, "42"),
         (2204, "62"),
     ] {
-        let date = NaiveDate::from_ymd_opt(year, 2, 29).unwrap();
+        let date = CivilDate::new(year, 2, 29).unwrap();
         for (sex, parity) in [(None, 1), (Some("F"), 0), (Some("M"), 1)] {
             let sample = unique.pesel(Some(date), sex).unwrap();
             assert_eq!(sample.len(), 11);
@@ -273,7 +277,7 @@ fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
         }
     }
     for year in [1799, 2300] {
-        let invalid = NaiveDate::from_ymd_opt(year, 1, 1).unwrap();
+        let invalid = CivilDate::new(year, 1, 1).unwrap();
         assert!(faker.pesel(Some(invalid), None).is_err());
     }
     assert_eq!(faker.pesel(None, None).unwrap().len(), 11);
@@ -423,14 +427,14 @@ fn dni_ruc_and_licence_categories_follow_their_regional_providers() {
 
 #[test]
 fn regional_id_numbers_match_their_pinned_providers() {
-    use chrono::NaiveDate;
+    use jiff::civil::Date as CivilDate;
 
     let nl = fake(Some("nl-NL")).unwrap();
     let za = fake(Some("en-ZA")).unwrap();
     let sa = fake(Some("ar-SA")).unwrap();
     let mn = fake(Some("mn-MN")).unwrap();
     let eg = fake(Some("ar-EG")).unwrap();
-    let date = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let date = CivilDate::new(2000, 2, 29).unwrap();
     let alphabet = "АЛХБМЦВНЧГОШДӨЩЕПЪЁРЫЖСЬЗТЭИУЮЙҮЯКФ";
     let governorates = [
         "02", "19", "28", "25", "29", "31", "18", "22", "03", "35", "01", "12", "11", "26", "04",
@@ -483,11 +487,9 @@ fn regional_id_numbers_match_their_pinned_providers() {
             b'3' => "20",
             other => panic!("{other}"),
         };
-        let birth =
-            NaiveDate::parse_from_str(&format!("{century}{}", &egyptian[1..7]), "%Y%m%d").unwrap();
+        let birth = CivilDate::strptime("%Y%m%d", format!("{century}{}", &egyptian[1..7])).unwrap();
         assert!(
-            (NaiveDate::from_ymd_opt(1950, 1, 10).unwrap()
-                ..=NaiveDate::from_ymd_opt(2005, 12, 25).unwrap())
+            (CivilDate::new(1950, 1, 10).unwrap()..=CivilDate::new(2005, 12, 25).unwrap())
                 .contains(&birth)
         );
         assert!(governorates.contains(&&egyptian[7..9]));
@@ -701,14 +703,18 @@ fn saudi_and_egyptian_company_numbers_match_pinned_formats() {
 
 #[test]
 fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
-    use chrono::{Datelike, NaiveDate, Utc};
+    use jiff::civil::Date as CivilDate;
     let kazakh = fake(Some("kk-KZ")).unwrap();
     let south_african = fake(Some("en-ZA")).unwrap();
-    let fixed = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let fixed = CivilDate::new(2000, 2, 29).unwrap();
     let bin = Regex::new(r"^0002[4-6][0-3][0-9]{6}$").unwrap();
     let company =
         Regex::new(r"^[0-9]{4}/[1-9][0-9]{5}/(0[126789]|1[0124567]|2[0-6]|3[01]|80)$").unwrap();
-    let year = Utc::now().year();
+    let year = i32::from(
+        jiff::Timestamp::now()
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .year(),
+    );
     let mut bins = std::collections::HashSet::new();
     let mut companies = std::collections::HashSet::new();
     let unique_kazakh = kazakh.unique(true);
@@ -726,7 +732,12 @@ fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
     }
     let sampled = kazakh.businessIdentificationNumber(None).unwrap();
     assert_eq!(&sampled[..2], format!("{:02}", year.rem_euclid(100)));
-    assert!((1..=Utc::now().month()).contains(&sampled[2..4].parse::<u32>().unwrap()));
+    assert!(
+        (1..=jiff::Timestamp::now()
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .month() as u32)
+            .contains(&sampled[2..4].parse::<u32>().unwrap())
+    );
     assert!(kazakh.companyNumber().is_err());
     assert!(south_african.businessIdentificationNumber(None).is_err());
 }
@@ -2704,7 +2715,7 @@ fn mongolian_person_keeps_initials_distinct_from_the_identity_alphabet() {
 
 #[test]
 fn singapore_person_keeps_base_names_and_identity_boundaries() {
-    use chrono::NaiveDate;
+    use jiff::civil::Date as CivilDate;
 
     let faker = fake(Some("en-SG")).unwrap();
     assert_eq!(faker.nameWithGender(Some("male")), "John Doe");
@@ -2721,7 +2732,7 @@ fn singapore_person_keeps_base_names_and_identity_boundaries() {
         (1999, 12, 31, true, b'F', None),
         (2000, 1, 1, true, b'G', None),
     ] {
-        let date = NaiveDate::from_ymd_opt(year, month, day);
+        let date = CivilDate::new(year, month, day).ok();
         for _ in 0..16 {
             let number = if foreigner {
                 unique.fin(date)
@@ -2889,13 +2900,13 @@ fn swiss_identity_numbers_use_dotted_ean_and_locale_aliases() {
 
 #[test]
 fn czech_birth_numbers_keep_era_offsets_and_optional_slashes() {
-    use chrono::Datelike;
-
     let faker = fake(Some("cs-CZ")).unwrap();
     let unique = faker.unique(true);
-    let now = chrono::Utc::now().date_naive();
+    let now = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .date();
     for (year, female, slash) in [(1953, false, 0), (1954, true, 100), (2004, true, 100)] {
-        let age = u32::try_from(now.year() - year).unwrap();
+        let age = u32::try_from(i32::from(now.year()) - year).unwrap();
         let mut unique_numbers = std::collections::HashSet::new();
         for _ in 0..32 {
             let gender = if female { "female" } else { "male" };
@@ -2906,8 +2917,8 @@ fn czech_birth_numbers_keep_era_offsets_and_optional_slashes() {
             assert_eq!(digits[..2].parse::<i32>().unwrap(), year % 100);
             let month = digits[2..4].parse::<u32>().unwrap() - if female { 50 } else { 0 };
             assert!(
-                month == now.month()
-                    || (year >= 2004 && month == now.month() + 20)
+                month == now.month() as u32
+                    || (year >= 2004 && month == now.month() as u32 + 20)
                     || (now.month() == 2 && now.day() == 29 && month == 3)
             );
             if year >= 1954 {
@@ -3000,7 +3011,7 @@ fn iranian_national_code_and_indonesian_nik_keep_their_pinned_parts() {
     let indonesia = fake(Some("id-ID")).unwrap();
     let iran_unique = iran.unique(true);
     let indonesia_unique = indonesia.unique(true);
-    let date = chrono::NaiveDate::from_ymd_opt(2000, 2, 29);
+    let date = jiff::civil::Date::new(2000, 2, 29).ok();
     let mut codes = std::collections::HashSet::new();
     let mut nik_values = std::collections::HashSet::new();
     for _ in 0..64 {
@@ -3057,7 +3068,7 @@ fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
         (2000, Some("male"), "5"),
         (2099, Some("female"), "6"),
     ] {
-        let date = chrono::NaiveDate::from_ymd_opt(year, 1, 1);
+        let date = jiff::civil::Date::new(year, 1, 1).ok();
         for _ in 0..16 {
             let number = unique.individualIdentificationNumber(date, gender).unwrap();
             assert_eq!(number.len(), 12);
@@ -3088,7 +3099,7 @@ fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
     );
     assert!(
         kazakh
-            .individualIdentificationNumber(chrono::NaiveDate::from_ymd_opt(2100, 1, 1), None)
+            .individualIdentificationNumber(jiff::civil::Date::new(2100, 1, 1).ok(), None)
             .is_err()
     );
     assert!(
@@ -3489,7 +3500,7 @@ fn internet_ascii_names_are_locale_specific_and_support_unique() {
 
 #[test]
 fn regional_date_names_and_czech_display_dates_follow_the_provider() {
-    let epoch = chrono::DateTime::UNIX_EPOCH;
+    let epoch = jiff::Timestamp::UNIX_EPOCH;
     for (locale, month, weekday, period) in [
         ("cs-CZ", "leden", "čtvrtek", "am"),
         ("tr-TR", "Ocak", "Perşembe", "öö"),
@@ -3517,7 +3528,9 @@ fn regional_date_names_and_czech_display_dates_follow_the_provider() {
     assert_eq!(unique.monthNameGenitive(Some(epoch)).unwrap(), "ledna");
     assert!(unique.monthNameGenitive(Some(epoch)).is_err());
 
-    czech.setDefaultTimezone(Some(chrono_tz::America::New_York));
+    czech.setDefaultTimezone(Some(
+        openrust::support::Date::timezone("America/New_York").unwrap(),
+    ));
     assert_eq!(czech.monthNameGenitive(Some(epoch)).unwrap(), "prosince");
     assert_eq!(czech.dayOfMonth(Some(epoch)), "31");
     czech.setDefaultTimezone(None);
@@ -3535,9 +3548,11 @@ fn regional_date_names_and_czech_display_dates_follow_the_provider() {
 #[test]
 fn php_date_formats_preserve_native_formats_and_share_unique_history() {
     let faker = fake(Some("zh-Hant")).unwrap();
-    let epoch = Some(chrono::DateTime::UNIX_EPOCH);
+    let epoch = Some(jiff::Timestamp::UNIX_EPOCH);
 
-    faker.setDefaultTimezone(Some(chrono_tz::America::New_York));
+    faker.setDefaultTimezone(Some(
+        openrust::support::Date::timezone("America/New_York").unwrap(),
+    ));
     assert_eq!(
         faker
             .dateWithPhpFormat(r"Y-m-d\TH:i:sP e T W o z B", epoch)
@@ -3561,7 +3576,9 @@ fn php_date_formats_preserve_native_formats_and_share_unique_history() {
     );
     assert!(unique.time(Some("%Y-%m-%d"), epoch).is_err());
 
-    faker.setDefaultTimezone(Some(chrono_tz::Asia::Kathmandu));
+    faker.setDefaultTimezone(Some(
+        openrust::support::Date::timezone("Asia/Kathmandu").unwrap(),
+    ));
     assert_eq!(
         faker.dateWithPhpFormat("e T P", epoch).unwrap(),
         "Asia/Kathmandu +0530 +05:30"
@@ -3570,35 +3587,54 @@ fn php_date_formats_preserve_native_formats_and_share_unique_history() {
 
 #[test]
 fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
-    use chrono::{DateTime, TimeDelta, Utc};
-    use chrono_tz::{
-        America::New_York,
-        Asia::{Shanghai, Taipei},
-        Etc, UTC,
-    };
+    use jiff::{SignedDuration, Timestamp};
+    let new_york = openrust::support::Date::timezone("America/New_York").unwrap();
+    let shanghai = openrust::support::Date::timezone("Asia/Shanghai").unwrap();
+    let taipei = openrust::support::Date::timezone("Asia/Taipei").unwrap();
+    let utc = jiff::tz::TimeZone::UTC;
+    let etc_utc = openrust::support::Date::timezone("Etc/UTC").unwrap();
 
     let faker = fake(Some("en-US")).unwrap();
-    let epoch = DateTime::UNIX_EPOCH;
-    faker.setDefaultTimezone(Some(Shanghai));
+    let epoch = Timestamp::UNIX_EPOCH;
+    faker.setDefaultTimezone(Some(shanghai.clone()));
 
     let date = faker.dateTimeBetweenInTimezone(epoch, epoch, None).unwrap();
-    assert_eq!((date.timestamp(), date.timezone()), (0, Shanghai));
+    assert_eq!(
+        (date.timestamp().as_second(), date.time_zone().clone()),
+        (0, shanghai.clone())
+    );
 
     let date = faker
-        .dateTimeBetweenExpressionsInTimezone("1970-01-01 00:00:00 UTC", "0", Some(New_York))
+        .dateTimeBetweenExpressionsInTimezone(
+            "1970-01-01 00:00:00 UTC",
+            "0",
+            Some(new_york.clone()),
+        )
         .unwrap();
-    assert_eq!(date.to_rfc3339(), "1969-12-31T19:00:00-05:00");
-    assert_eq!(faker.getDefaultTimezone(), Some(Shanghai));
+    assert_eq!(
+        date.strftime("%Y-%m-%dT%H:%M:%S%.f%:z").to_string(),
+        "1969-12-31T19:00:00-05:00"
+    );
+    assert_eq!(faker.getDefaultTimezone(), Some(shanghai.clone()));
     assert_eq!(
         faker
-            .dateTimeInIntervalInTimezone(Some(epoch), Some(TimeDelta::zero()), Some(UTC))
+            .dateTimeInIntervalInTimezone(
+                Some(epoch),
+                Some(SignedDuration::ZERO),
+                Some(utc.clone())
+            )
             .unwrap()
-            .timestamp(),
+            .timestamp()
+            .as_second(),
         0,
     );
     assert!(
         faker
-            .dateTimeBetweenInTimezone(epoch + TimeDelta::seconds(1), epoch, Some(UTC))
+            .dateTimeBetweenInTimezone(
+                epoch + SignedDuration::from_secs(1),
+                epoch,
+                Some(utc.clone())
+            )
             .is_err()
     );
     assert!(
@@ -3606,88 +3642,100 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
             .dateTimeInIntervalExpressionsInTimezone(
                 Some("bad date"),
                 Some("+0 seconds"),
-                Some(UTC)
+                Some(utc.clone())
             )
             .is_err()
     );
 
     let unique = faker.uniqueWithRetries(true, 2);
     assert_eq!(unique.dateTime(Some(epoch)).unwrap(), epoch);
-    assert!(unique.dateTimeInTimezone(Some(epoch), Some(UTC)).is_err());
+    assert!(
+        unique
+            .dateTimeInTimezone(Some(epoch), Some(utc.clone()))
+            .is_err()
+    );
     assert_eq!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(Etc::UTC))
+            .dateTimeInTimezone(Some(epoch), Some(etc_utc.clone()))
             .unwrap()
-            .timezone(),
-        Etc::UTC
+            .time_zone()
+            .clone(),
+        etc_utc
     );
     assert_eq!(
         unique
             .dateTimeInTimezone(Some(epoch), None)
             .unwrap()
-            .timezone(),
-        Shanghai
+            .time_zone()
+            .clone(),
+        shanghai
     );
     assert_eq!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(Taipei))
+            .dateTimeInTimezone(Some(epoch), Some(taipei.clone()))
             .unwrap()
-            .timezone(),
-        Taipei
+            .time_zone()
+            .clone(),
+        taipei
     );
     assert!(
         unique
-            .dateTimeInTimezone(Some(epoch), Some(Taipei))
+            .dateTimeInTimezone(Some(epoch), Some(taipei.clone()))
             .is_err()
     );
 
     assert_eq!(unique.dateTimeBetween(epoch, epoch).unwrap(), epoch);
     assert!(
         unique
-            .dateTimeBetweenInTimezone(epoch, epoch, Some(UTC))
+            .dateTimeBetweenInTimezone(epoch, epoch, Some(utc.clone()))
             .is_err()
     );
     assert_eq!(
         unique
-            .dateTimeBetweenExpressionsInTimezone("1970-01-01 00:00:00 UTC", "0", Some(Taipei))
+            .dateTimeBetweenExpressionsInTimezone(
+                "1970-01-01 00:00:00 UTC",
+                "0",
+                Some(taipei.clone())
+            )
             .unwrap()
-            .timezone(),
-        Taipei,
+            .time_zone()
+            .clone(),
+        taipei,
     );
     assert!(
         unique
-            .dateTimeBetweenInTimezone(epoch, epoch, Some(Taipei))
+            .dateTimeBetweenInTimezone(epoch, epoch, Some(taipei.clone()))
             .is_err()
     );
     unique
-        .dateTimeInIntervalInTimezone(Some(epoch), Some(TimeDelta::zero()), Some(UTC))
+        .dateTimeInIntervalInTimezone(Some(epoch), Some(SignedDuration::ZERO), Some(utc.clone()))
         .unwrap();
     assert!(
         unique
             .dateTimeInIntervalExpressionsInTimezone(
                 Some("1970-01-01 00:00:00 UTC"),
                 Some("+0 seconds"),
-                Some(UTC)
+                Some(utc.clone())
             )
             .is_err()
     );
-    let before_fallback = DateTime::from_timestamp(1_730_611_800, 0).unwrap();
-    let after_fallback = DateTime::from_timestamp(1_730_615_400, 0).unwrap();
+    let before_fallback = Timestamp::new(1_730_611_800, 0).unwrap();
+    let after_fallback = Timestamp::new(1_730_615_400, 0).unwrap();
     unique
-        .dateTimeBetweenInTimezone(before_fallback, before_fallback, Some(New_York))
+        .dateTimeBetweenInTimezone(before_fallback, before_fallback, Some(new_york.clone()))
         .unwrap();
     assert!(
         unique
-            .dateTimeBetweenInTimezone(after_fallback, after_fallback, Some(New_York))
+            .dateTimeBetweenInTimezone(after_fallback, after_fallback, Some(new_york.clone()))
             .is_err()
     );
-    let ad = DateTime::<Utc>::from_timestamp(-62_135_597_361, 0).unwrap();
+    let ad = Timestamp::new(-62_135_597_361, 0).unwrap();
     assert_eq!(
         unique
-            .dateTimeADInTimezone(Some(ad), Some(New_York))
+            .dateTimeADInTimezone(Some(ad), Some(new_york.clone()))
             .unwrap()
             .timestamp(),
-        ad.timestamp()
+        ad
     );
 }
 
@@ -4896,4 +4944,15 @@ fn polish_license_plate_filters_use_the_selected_region_and_fall_back() {
             .licensePlateWithOptions(true, None, None)
             .is_err()
     );
+}
+
+#[test]
+fn date_ranges_floor_fractional_seconds_before_the_unix_epoch() {
+    let faker = fake(Some("en-US")).unwrap();
+    let instant: jiff::Timestamp = "1969-12-31T23:59:59.500Z".parse().unwrap();
+    let expected: jiff::Timestamp = "1969-12-31T23:59:59Z".parse().unwrap();
+    assert_eq!(faker.dateTimeBetween(instant, instant).unwrap(), expected);
+    let unique = faker.uniqueWithRetries(true, 2);
+    assert_eq!(unique.dateTimeBetween(instant, instant).unwrap(), expected);
+    assert!(unique.dateTimeBetween(expected, expected).is_err());
 }

@@ -45,7 +45,7 @@ pub use date::{
     Date, DateError, DateInterval, DateTimezone, MonthOverflow, days, hours, microseconds,
     milliseconds, minutes, months, now, seconds, today, weeks, years,
 };
-pub(crate) use date::{TestClock, frozen_utc_now, utc_now_for};
+pub(crate) use date::{TestClock, frozen_utc_now, timestamp_seconds, utc_now_for};
 pub use deferred_provider::DeferredProvider;
 pub use enumerable::Enumerable;
 pub use fluent::{Fluent, FluentError};

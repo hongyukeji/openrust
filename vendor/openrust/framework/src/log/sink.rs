@@ -250,7 +250,10 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
-                file.write(record.at.date_naive(), output()?.as_bytes())?;
+                file.write(
+                    record.at.to_zoned(jiff::tz::TimeZone::UTC).date(),
+                    output()?.as_bytes(),
+                )?;
                 Ok(!bubble)
             }
             Self::Custom {

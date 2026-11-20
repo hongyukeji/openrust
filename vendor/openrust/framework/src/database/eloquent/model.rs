@@ -206,8 +206,8 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Formats a date for JSON output without changing its database representation.
-    fn serializeDate(&self, date: chrono::DateTime<chrono::Utc>) -> DatabaseResult<String> {
-        Ok(date.to_rfc3339_opts(chrono::SecondsFormat::Micros, true))
+    fn serializeDate(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
+        Ok(date.strftime("%Y-%m-%dT%H:%M:%S%.6fZ").to_string())
     }
 
     fn attributesToArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {

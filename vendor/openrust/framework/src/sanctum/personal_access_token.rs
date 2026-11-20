@@ -1,5 +1,5 @@
 use aws_lc_rs::{digest, rand};
-use chrono::{DateTime, NaiveDateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp, civil::DateTime as CivilDateTime};
 use zeroize::Zeroizing;
 
 use crate::{
@@ -19,10 +19,10 @@ pub struct PersonalAccessToken {
     pub tokenable_id: AuthIdentifier,
     pub name: String,
     pub abilities: Vec<String>,
-    pub created_at: Option<DateTime<Utc>>,
-    pub updated_at: Option<DateTime<Utc>>,
-    pub last_used_at: Option<DateTime<Utc>>,
-    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: Option<Timestamp>,
+    pub updated_at: Option<Timestamp>,
+    pub last_used_at: Option<Timestamp>,
+    pub expires_at: Option<Timestamp>,
     pub(super) serialized_model: super::token_model::SerializedModel,
 }
 
@@ -48,11 +48,11 @@ impl PersonalAccessToken {
         !self.can(ability)
     }
 
-    pub fn isExpired(&self, now: DateTime<Utc>, expiration: Option<TimeDelta>) -> bool {
+    pub fn isExpired(&self, now: Timestamp, expiration: Option<SignedDuration>) -> bool {
         self.expires_at.is_some_and(|expires_at| expires_at < now)
             || expiration.is_some_and(|lifetime| {
                 self.created_at
-                    .is_none_or(|created_at| now - created_at >= lifetime)
+                    .is_none_or(|created_at| now.duration_since(created_at) >= lifetime)
             })
     }
 }
@@ -127,7 +127,7 @@ impl PersonalAccessTokens {
         tokenable_id: impl Into<AuthIdentifier>,
         name: &str,
         abilities: &[&str],
-        expires_at: Option<DateTime<Utc>>,
+        expires_at: Option<Timestamp>,
     ) -> AuthResult<NewAccessToken> {
         self.create_with_secret(
             tokenable_type,
@@ -146,7 +146,7 @@ impl PersonalAccessTokens {
         tokenable_id: AuthIdentifier,
         name: &str,
         abilities: &[&str],
-        expires_at: Option<DateTime<Utc>>,
+        expires_at: Option<Timestamp>,
         secret: Zeroizing<String>,
     ) -> AuthResult<NewAccessToken> {
         let access_token = self
@@ -162,7 +162,7 @@ impl PersonalAccessTokens {
                 ),
                 (
                     "expires_at".into(),
-                    expires_at.map_or(Value::Null, |date| date.to_rfc3339().into()),
+                    expires_at.map_or(Value::Null, |date| timestamp_text(date).into()),
                 ),
             ]))
             .await
@@ -224,7 +224,7 @@ impl PersonalAccessTokens {
         mut model: Box<dyn ModelToken>,
     ) -> AuthResult<bool> {
         if !model
-            .record_use(seconds_precision(Utc::now()))
+            .record_use(seconds_precision(Timestamp::now()))
             .await
             .map_err(AuthError::backend)?
         {
@@ -259,11 +259,7 @@ impl PersonalAccessTokens {
             .map_err(AuthError::backend)
     }
 
-    pub(super) async fn prune(
-        &self,
-        column: &'static str,
-        cutoff: DateTime<Utc>,
-    ) -> AuthResult<()> {
+    pub(super) async fn prune(&self, column: &'static str, cutoff: Timestamp) -> AuthResult<()> {
         self.model
             .prune(column, cutoff)
             .await
@@ -314,20 +310,40 @@ pub(super) fn integer_key(value: &str, connection: &Connection) -> Option<Value>
     Some(Value::Unsigned(id))
 }
 
-fn seconds_precision(value: DateTime<Utc>) -> DateTime<Utc> {
-    use chrono::Timelike as _;
-    value
-        .with_nanosecond(0)
-        .expect("zero nanoseconds are valid")
+fn seconds_precision(value: Timestamp) -> Timestamp {
+    Timestamp::from_second(crate::support::timestamp_seconds(value)).expect("valid whole second")
 }
 
-pub(super) fn parse_timestamp(value: &str) -> DatabaseResult<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|time| time.to_utc())
-        .or_else(|_| NaiveDateTime::parse_from_str(value, TIMESTAMP).map(|time| time.and_utc()))
+pub(super) fn parse_timestamp(value: &str) -> DatabaseResult<Timestamp> {
+    value
+        .parse::<Timestamp>()
+        .or_else(|_| {
+            CivilDateTime::strptime(TIMESTAMP, value)
+                .and_then(|time| time.to_zoned(jiff::tz::TimeZone::UTC))
+                .map(|time| time.timestamp())
+        })
         .map_err(|_| invalid_row())
+}
+
+pub(super) fn timestamp_text(value: Timestamp) -> String {
+    let nanoseconds = value.subsec_nanosecond().unsigned_abs();
+    // Token attribute text retains whole milliseconds, microseconds or nanoseconds.
+    let format = if nanoseconds == 0 {
+        "%Y-%m-%dT%H:%M:%S%:z"
+    } else if nanoseconds.is_multiple_of(1_000_000) {
+        "%Y-%m-%dT%H:%M:%S%.3f%:z"
+    } else if nanoseconds.is_multiple_of(1_000) {
+        "%Y-%m-%dT%H:%M:%S%.6f%:z"
+    } else {
+        "%Y-%m-%dT%H:%M:%S%.9f%:z"
+    };
+    value.strftime(format).to_string()
 }
 
 pub(super) fn invalid_row() -> DatabaseError {
     DatabaseError::InvalidQuery("personal access token row")
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/sanctum_timestamps.rs"]
+mod tests;

@@ -238,16 +238,14 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "creditcardexpirationdate" => |faker, args| {
             let [valid] = arguments(args)?;
             let date = faker.creditCardExpirationDate(validity(valid)?)?;
-            Ok(date
-                .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
-                .into())
+            Ok(super::rfc3339_seconds(&date).into())
         },
         "creditcardexpirationdatestring" => |faker, args| {
             let [valid, format] = arguments(args)?;
             let date = faker.creditCardExpirationDate(validity(valid)?)?;
             calendar::format_php_date(
-                date.with_timezone(&chrono::Utc),
-                date.timezone(),
+                date.timestamp(),
+                date.time_zone().clone(),
                 text(format)?.unwrap_or("m/y"),
             )
             .map(Value::from)

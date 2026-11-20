@@ -42,7 +42,7 @@ pub struct Markdown {
     pub(super) app_name: String,
     pub(super) app_url: String,
     pub(super) locale: String,
-    pub(super) timezone: chrono_tz::Tz,
+    pub(super) timezone: jiff::tz::TimeZone,
 }
 
 impl Markdown {
@@ -97,8 +97,8 @@ impl Markdown {
                 .unwrap_or_else(|| "en".to_owned()),
             timezone: settings
                 .get("app.timezone")
-                .and_then(|zone| zone.as_str()?.parse().ok())
-                .unwrap_or(chrono_tz::UTC),
+                .and_then(|zone| crate::support::Date::timezone(zone.as_str()?).ok())
+                .unwrap_or(jiff::tz::TimeZone::UTC),
         })
     }
 

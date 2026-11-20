@@ -1,4 +1,4 @@
-//! 不受 chrono 年份范围限制的公历分量与归一化。
+//! 保留 PHP 扩展年份范围的公历分量与归一化。
 
 use super::Result;
 use super::{CalendarInstant, calendar_error, range_error};
@@ -70,13 +70,14 @@ impl Civil {
         i64::try_from((days_from_civil(self.year, self.month, self.day) + 4).rem_euclid(7))
             .map_err(|_| range_error())
     }
-    pub fn naive(self) -> Result<chrono::NaiveDateTime> {
-        chrono::DateTime::from_timestamp(
-            self.instant(0)?.epoch_seconds,
-            u32::try_from(self.microsecond).map_err(|_| range_error())? * 1000,
+    pub fn naive(self) -> Result<jiff::civil::DateTime> {
+        let instant = self.instant(0)?;
+        jiff::Timestamp::new(
+            instant.epoch_seconds,
+            i32::try_from(instant.microseconds * 1000).map_err(|_| range_error())?,
         )
-        .map(|date| date.naive_utc())
-        .ok_or_else(|| calendar_error("input_calendar_timezone_range_unsupported"))
+        .map(|date| date.to_zoned(jiff::tz::TimeZone::UTC).datetime())
+        .map_err(|_| calendar_error("input_calendar_timezone_range_unsupported"))
     }
 }
 

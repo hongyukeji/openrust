@@ -3,8 +3,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use chrono::{DateTime, SecondsFormat, Utc};
-use chrono_tz::Tz;
+use jiff::{Timestamp, tz::TimeZone};
 use regex::Regex;
 use serde_json::Value as Json;
 
@@ -559,9 +558,12 @@ fn legacy_date_formatter(name: &str) -> Option<Builtin> {
         },
         "getdefaulttimezone" => |faker, args| {
             let [] = arguments(args)?;
-            Ok(faker
-                .getDefaultTimezone()
-                .map_or(Value::Null, |zone| zone.name().into()))
+            Ok(faker.getDefaultTimezone().map_or(Value::Null, |zone| {
+                zone.iana_name()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| zone.to_offset(Timestamp::UNIX_EPOCH).to_string())
+                    .into()
+            }))
         },
         "setdefaulttimezone" => |faker, args| {
             let [zone] = arguments(args)?;
@@ -591,7 +593,7 @@ fn legacy_date_formatter(name: &str) -> Option<Builtin> {
 fn legacy_date_component(
     faker: &Faker,
     args: &[Value],
-    sample: fn(&Faker, Option<DateTime<Utc>>) -> String,
+    sample: fn(&Faker, Option<Timestamp>) -> String,
 ) -> DatabaseResult<Value> {
     let [until] = arguments(args)?;
     Ok(sample(faker, date_max(faker, until)?).into())
@@ -600,15 +602,12 @@ fn legacy_date_component(
 fn legacy_date_period(
     faker: &Faker,
     args: &[Value],
-    sample: impl FnOnce(&Faker, Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>>,
+    sample: impl FnOnce(&Faker, Option<Timestamp>) -> DatabaseResult<Timestamp>,
 ) -> DatabaseResult<Value> {
     let [until, zone] = arguments(args)?;
     let zone = date_zone(zone)?;
     let instant = sample(faker, date_max(faker, until)?)?;
-    Ok(faker
-        .zoned_date(instant, zone)
-        .to_rfc3339_opts(SecondsFormat::Secs, false)
-        .into())
+    Ok(rfc3339_seconds(&faker.zoned_date(instant, zone)).into())
 }
 
 fn arguments<const N: usize>(args: &[Value]) -> DatabaseResult<[Option<&Value>; N]> {
@@ -697,24 +696,23 @@ fn text(value: Option<&Value>) -> DatabaseResult<Option<&str>> {
     }
 }
 
-fn date_max(faker: &Faker, value: Option<&Value>) -> DatabaseResult<Option<DateTime<Utc>>> {
-    date_max_at(faker, value, Utc::now())
+fn date_max(faker: &Faker, value: Option<&Value>) -> DatabaseResult<Option<Timestamp>> {
+    date_max_at(faker, value, Timestamp::now())
 }
 
 fn date_max_at(
     faker: &Faker,
     value: Option<&Value>,
-    now: DateTime<Utc>,
-) -> DatabaseResult<Option<DateTime<Utc>>> {
+    now: Timestamp,
+) -> DatabaseResult<Option<Timestamp>> {
     let timestamp = match value {
         Some(Value::Text(expression)) => return faker.resolve_date_max(expression, now).map(Some),
         value => integer(value)?,
     };
     timestamp
         .map(|timestamp| {
-            DateTime::from_timestamp(timestamp, 0).ok_or(DatabaseError::InvalidQuery(
-                "Faker timestamp is out of range",
-            ))
+            Timestamp::new(timestamp, 0)
+                .map_err(|_| DatabaseError::InvalidQuery("Faker timestamp is out of range"))
         })
         .transpose()
 }
@@ -742,12 +740,12 @@ fn date_time(faker: &Faker, args: &[Value], ad: bool) -> DatabaseResult<Value> {
     } else {
         faker.dateTimeInTimezone(until, zone)
     };
-    Ok(date.to_rfc3339_opts(SecondsFormat::Secs, false).into())
+    Ok(rfc3339_seconds(&date).into())
 }
 
-fn date_zone(value: Option<&Value>) -> DatabaseResult<Option<Tz>> {
+fn date_zone(value: Option<&Value>) -> DatabaseResult<Option<TimeZone>> {
     text(value)?
-        .map(str::parse)
+        .map(crate::support::Date::timezone)
         .transpose()
         .map_err(|_| DatabaseError::InvalidQuery("invalid Faker time zone"))
 }
@@ -756,8 +754,8 @@ fn date_bound(
     faker: &Faker,
     value: Option<&Value>,
     default: &str,
-    now: DateTime<Utc>,
-) -> DatabaseResult<DateTime<Utc>> {
+    now: Timestamp,
+) -> DatabaseResult<Timestamp> {
     match value {
         None => faker.resolve_date_max(default, now),
         Some(value) => Ok(date_max_at(faker, Some(value), now)?.unwrap_or(now)),
@@ -767,14 +765,11 @@ fn date_bound(
 fn date_between(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
     let [from, until, zone] = arguments(args)?;
     let zone = date_zone(zone)?;
-    let now = Utc::now();
+    let now = Timestamp::now();
     let start = date_bound(faker, from, "-30 years", now)?;
     let end = date_bound(faker, until, "now", now)?;
     let date = faker.dateTimeBetween(start, end)?;
-    Ok(faker
-        .zoned_date(date, zone)
-        .to_rfc3339_opts(SecondsFormat::Secs, false)
-        .into())
+    Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
 fn date_interval(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
@@ -791,10 +786,7 @@ fn date_interval(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
         }
     };
     let date = faker.dateTimeInIntervalExpressions(from, text(interval)?)?;
-    Ok(faker
-        .zoned_date(date, zone)
-        .to_rfc3339_opts(SecondsFormat::Secs, false)
-        .into())
+    Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
 fn date_period(
@@ -805,27 +797,21 @@ fn date_period(
 ) -> DatabaseResult<Value> {
     let [until, zone] = arguments(args)?;
     let zone = date_zone(zone)?;
-    let now = Utc::now();
+    let now = Timestamp::now();
     let start = faker.resolve_date_max(start, now)?;
     let end = date_bound(faker, until, default_end, now)?;
     let date = faker.dateTimeBetween(start, end)?;
-    Ok(faker
-        .zoned_date(date, zone)
-        .to_rfc3339_opts(SecondsFormat::Secs, false)
-        .into())
+    Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
 fn date_calendar_period(faker: &Faker, args: &[Value], years: i32) -> DatabaseResult<Value> {
     let [until, zone] = arguments(args)?;
     let zone = date_zone(zone)?;
-    let now = Utc::now();
+    let now = Timestamp::now();
     let start = faker.calendar_period_start(now, years)?;
     let end = date_bound(faker, until, "now", now)?;
     let date = faker.dateTimeBetween(start, end)?;
-    Ok(faker
-        .zoned_date(date, zone)
-        .to_rfc3339_opts(SecondsFormat::Secs, false)
-        .into())
+    Ok(rfc3339_seconds(&faker.zoned_date(date, zone)).into())
 }
 
 fn default_elements() -> &'static [Json] {
@@ -889,3 +875,13 @@ fn shuffle_collection(faker: &Faker, input: Option<&Value>) -> DatabaseResult<Va
     let values = faker.shuffleArray(&values).into_iter().cloned().collect();
     Ok(Value::Json(Json::Array(values)))
 }
+
+pub(super) fn rfc3339_seconds(date: &jiff::Zoned) -> String {
+    jiff::fmt::temporal::DateTimePrinter::new()
+        .precision(Some(0))
+        .timestamp_with_offset_to_string(&date.timestamp(), date.offset())
+}
+
+#[cfg(test)]
+#[path = "../../../../tests/unit/faker_timestamps.rs"]
+mod time_tests;

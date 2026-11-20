@@ -640,7 +640,7 @@ impl LockProvider for DynamoDbStore {
 }
 
 fn now() -> i64 {
-    chrono::Utc::now().timestamp()
+    crate::support::timestamp_seconds(jiff::Timestamp::now())
 }
 
 fn expiration(now: i64, ttl: Option<NonZeroU64>) -> CacheResult<i64> {
@@ -649,10 +649,13 @@ fn expiration(now: i64, ttl: Option<NonZeroU64>) -> CacheResult<i64> {
             .checked_add(i64::try_from(ttl.get()).map_err(|_| CacheError::InvalidValue)?)
             .ok_or(CacheError::InvalidValue);
     }
-    chrono::DateTime::from_timestamp(now, 0)
-        .and_then(|time| time.checked_add_months(chrono::Months::new(60)))
-        .map(|time| time.timestamp())
-        .ok_or(CacheError::InvalidValue)
+    jiff::Timestamp::from_second(now)
+        .and_then(|time| {
+            time.to_zoned(jiff::tz::TimeZone::UTC)
+                .checked_add(jiff::Span::new().months(60))
+        })
+        .map(|time| crate::support::timestamp_seconds(time.timestamp()))
+        .map_err(|_| CacheError::InvalidValue)
 }
 
 fn number(value: impl ToString) -> AttributeValue {

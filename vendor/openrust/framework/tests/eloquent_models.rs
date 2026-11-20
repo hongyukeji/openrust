@@ -380,8 +380,8 @@ impl Model for CastRecord {
         CASTS
     }
 
-    fn serializeDate(&self, date: chrono::DateTime<chrono::Utc>) -> DatabaseResult<String> {
-        Ok(date.format("%Y-%m-%d").to_string())
+    fn serializeDate(&self, date: jiff::Timestamp) -> DatabaseResult<String> {
+        Ok(date.strftime("%Y-%m-%d").to_string())
     }
 
     fn attribute(name: &str) -> Option<Attribute> {

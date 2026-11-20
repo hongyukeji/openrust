@@ -9,7 +9,7 @@ pub use slack_attachment::{SlackAttachment, SlackAttachmentField};
 pub use slack_message::SlackMessage;
 
 use crate::mail::Mailable;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 /// The message or custom mailable produced for the mail channel.
 pub enum MailDelivery {
@@ -23,7 +23,7 @@ pub(crate) use mail_message::{EMAIL_VIEW, VIEWS};
 pub struct DatabaseMessage {
     pub data: serde_json::Value,
     pub kind: Option<String>,
-    pub read_at: Option<DateTime<Utc>>,
+    pub read_at: Option<Timestamp>,
 }
 
 impl DatabaseMessage {

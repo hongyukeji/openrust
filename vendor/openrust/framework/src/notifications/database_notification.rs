@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use jiff::{Timestamp, civil::DateTime as CivilDateTime};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
@@ -89,9 +89,11 @@ impl DatabaseRoute {
             let read_at = match row.get("read_at") {
                 None | Some(Value::Null) => None,
                 Some(Value::Text(value)) => Some(
-                    NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
+                    CivilDateTime::strptime("%Y-%m-%d %H:%M:%S%.f", value)
                         .map_err(delivery)?
-                        .and_utc(),
+                        .to_zoned(jiff::tz::TimeZone::UTC)
+                        .map_err(delivery)?
+                        .timestamp(),
                 ),
                 _ => return Err(delivery("Invalid database notification timestamp.")),
             };
@@ -114,7 +116,7 @@ pub struct DatabaseNotification {
     pub kind: String,
     pub route: DatabaseRoute,
     pub data: Json,
-    pub read_at: Option<DateTime<Utc>>,
+    pub read_at: Option<Timestamp>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseNotification API")]
@@ -150,7 +152,7 @@ impl DatabaseNotification {
         Ok(())
     }
 
-    async fn set_read_at(&mut self, time: Option<DateTime<Utc>>) -> NotificationResult<()> {
+    async fn set_read_at(&mut self, time: Option<Timestamp>) -> NotificationResult<()> {
         let query = self.route.query()?.r#where("id", "=", self.id.as_str());
         let affected = query
             .update(
@@ -192,13 +194,13 @@ impl DatabaseNotification {
     }
 }
 
-fn now() -> DateTime<Utc> {
-    let time = DateTime::<Utc>::from(std::time::SystemTime::now());
-    DateTime::from_timestamp(time.timestamp(), 0).expect("current timestamp")
+fn now() -> Timestamp {
+    Timestamp::from_second(crate::support::timestamp_seconds(Timestamp::now()))
+        .expect("current timestamp")
 }
 
-fn timestamp(time: Option<DateTime<Utc>>) -> Value {
+fn timestamp(time: Option<Timestamp>) -> Value {
     time.map_or(Value::Null, |time| {
-        time.format("%Y-%m-%d %H:%M:%S").to_string().into()
+        time.strftime("%Y-%m-%d %H:%M:%S").to_string().into()
     })
 }

@@ -1,15 +1,17 @@
-use chrono::{
-    DateTime, Datelike, LocalResult, Months, NaiveDateTime, Offset, TimeDelta, TimeZone, Utc,
+use jiff::{
+    SignedDuration, Span, Timestamp, Zoned,
+    civil::DateTime,
+    tz::{AmbiguousOffset, Offset},
 };
-use chrono_tz::{GapInfo, Tz, TzOffset};
 
 use super::facades::Config;
 
 mod clock;
+mod timezone;
 pub(crate) use clock::{TestClock, frozen_utc_now, utc_now_for};
 
 /// An IANA timezone used by OpenRust date helpers.
-pub use chrono_tz::Tz as DateTimezone;
+pub use jiff::tz::TimeZone as DateTimezone;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DateError {
@@ -47,64 +49,73 @@ pub enum MonthOverflow {
 }
 
 /// An immutable timestamp with its IANA timezone attached.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Date(DateTime<Tz>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Date(Zoned);
 
 #[allow(non_snake_case, reason = "Matches Laravel's date helpers")]
 impl Date {
-    pub fn fromUtc(value: DateTime<Utc>, timezone: Tz) -> Self {
-        Self(value.with_timezone(&timezone))
+    /// Resolve an IANA name using the framework's bundled IANA 2025b database.
+    pub fn timezone(name: &str) -> Result<DateTimezone, DateError> {
+        let (name, data) = timezone::get(name).ok_or(DateError::InvalidTimezone)?;
+        DateTimezone::tzif(name, data).map_err(|_| DateError::InvalidTimezone)
     }
 
-    pub fn fromLocal(value: NaiveDateTime, timezone: Tz) -> Result<Self, DateError> {
-        resolve(value, timezone, None).map(Self)
+    pub fn fromUtc(value: Timestamp, timezone: DateTimezone) -> Self {
+        Self(value.to_zoned(timezone))
     }
 
-    pub fn now(timezone: Option<Tz>) -> Result<Self, DateError> {
+    pub fn fromLocal(value: DateTime, timezone: DateTimezone) -> Result<Self, DateError> {
+        resolve(value, &timezone, None).map(Self)
+    }
+
+    pub fn now(timezone: Option<DateTimezone>) -> Result<Self, DateError> {
         now(timezone)
     }
 
-    pub fn today(timezone: Option<Tz>) -> Result<Self, DateError> {
+    pub fn today(timezone: Option<DateTimezone>) -> Result<Self, DateError> {
         today(timezone)
     }
 
-    pub fn asDateTime(&self) -> &DateTime<Tz> {
+    pub fn asDateTime(&self) -> &Zoned {
         &self.0
     }
 
-    pub fn startOfDay(self) -> Result<Self, DateError> {
-        let midnight = checked_local(&self.0)?
-            .date()
-            .and_hms_opt(0, 0, 0)
-            .ok_or(DateError::OutOfRange)?;
-        Self::fromLocal(midnight, self.0.timezone())
+    pub fn startOfDay(&self) -> Result<Self, DateError> {
+        Self::fromLocal(self.0.datetime().start_of_day(), self.0.time_zone().clone())
     }
 
-    pub fn plus(self, interval: DateInterval, overflow: MonthOverflow) -> Result<Self, DateError> {
+    pub fn plus(&self, interval: DateInterval, overflow: MonthOverflow) -> Result<Self, DateError> {
         let years = interval
             .years
             .checked_mul(12)
             .ok_or(DateError::OutOfRange)?;
-        let mut date = self.0;
+        let mut date = self.0.clone();
         for count in [years, interval.months] {
             if count != 0 {
-                let local = shift_months(checked_local(&date)?, count, overflow)?;
-                date = resolve(local, date.timezone(), Some(*date.offset()))?;
+                let local = shift_months(date.datetime(), count, overflow)?;
+                date = resolve(local, date.time_zone(), Some(date.offset()))?;
             }
         }
         if interval.days != 0 {
-            let days = TimeDelta::try_days(interval.days).ok_or(DateError::OutOfRange)?;
-            let local = checked_local(&date)?
-                .checked_add_signed(days)
-                .ok_or(DateError::OutOfRange)?;
-            date = resolve(local, date.timezone(), Some(*date.offset()))?;
+            let days = Span::new()
+                .try_days(interval.days)
+                .map_err(|_| DateError::OutOfRange)?;
+            let local = date
+                .datetime()
+                .checked_add(days)
+                .map_err(|_| DateError::OutOfRange)?;
+            date = resolve(local, date.time_zone(), Some(date.offset()))?;
         }
-        date.checked_add_signed(TimeDelta::microseconds(interval.microseconds))
+        date.checked_add(SignedDuration::from_micros(interval.microseconds))
             .map(Self)
-            .ok_or(DateError::OutOfRange)
+            .map_err(|_| DateError::OutOfRange)
     }
 
-    pub fn minus(self, interval: DateInterval, overflow: MonthOverflow) -> Result<Self, DateError> {
+    pub fn minus(
+        &self,
+        interval: DateInterval,
+        overflow: MonthOverflow,
+    ) -> Result<Self, DateError> {
         self.plus(
             DateInterval {
                 years: interval.years.checked_neg().ok_or(DateError::OutOfRange)?,
@@ -120,74 +131,51 @@ impl Date {
     }
 }
 
-pub fn now(timezone: Option<Tz>) -> Result<Date, DateError> {
+pub fn now(timezone: Option<DateTimezone>) -> Result<Date, DateError> {
     let timezone = match timezone {
         Some(timezone) => timezone,
         None => match Config::get("app.timezone").map_err(|_| DateError::Configuration)? {
-            Some(value) => value
-                .as_str()
-                .ok_or(DateError::InvalidTimezone)?
-                .parse()
+            Some(value) => Date::timezone(value.as_str().ok_or(DateError::InvalidTimezone)?)
                 .map_err(|_| DateError::InvalidTimezone)?,
-            None => chrono_tz::UTC,
+            None => DateTimezone::UTC,
         },
     };
     Ok(Date::fromUtc(clock::utc_now(), timezone))
 }
 
-pub fn today(timezone: Option<Tz>) -> Result<Date, DateError> {
+pub fn today(timezone: Option<DateTimezone>) -> Result<Date, DateError> {
     now(timezone)?.startOfDay()
 }
 
-fn checked_local(date: &DateTime<Tz>) -> Result<NaiveDateTime, DateError> {
-    date.naive_utc()
-        .checked_add_signed(TimeDelta::seconds(i64::from(
-            date.offset().fix().local_minus_utc(),
-        )))
-        .ok_or(DateError::OutOfRange)
-}
-
 fn resolve(
-    local: NaiveDateTime,
-    timezone: Tz,
-    preferred: Option<TzOffset>,
-) -> Result<DateTime<Tz>, DateError> {
-    match timezone.from_local_datetime(&local) {
-        LocalResult::Single(date) => Ok(date),
-        LocalResult::Ambiguous(earlier, later) => Ok(if Some(*later.offset()) == preferred {
-            later
-        } else {
-            earlier
-        }),
-        LocalResult::None => {
-            let gap = GapInfo::new(&local, &timezone).ok_or(DateError::OutOfRange)?;
-            let (start, _) = gap.begin.ok_or(DateError::OutOfRange)?;
-            gap.end
-                .and_then(|end| end.checked_add_signed(local.signed_duration_since(start)))
-                .ok_or(DateError::OutOfRange)
-        }
-    }
+    local: DateTime,
+    timezone: &DateTimezone,
+    preferred: Option<Offset>,
+) -> Result<Zoned, DateError> {
+    let ambiguous = timezone.to_ambiguous_zoned(local);
+    let resolved = match ambiguous.offset() {
+        AmbiguousOffset::Fold { after, .. } if Some(after) == preferred => ambiguous.later(),
+        _ => ambiguous.compatible(),
+    };
+    resolved.map_err(|_| DateError::OutOfRange)
 }
 
 fn shift_months(
-    local: NaiveDateTime,
+    local: DateTime,
     amount: i64,
     overflow: MonthOverflow,
-) -> Result<NaiveDateTime, DateError> {
-    let months = u32::try_from(amount.unsigned_abs())
-        .map(Months::new)
+) -> Result<DateTime, DateError> {
+    let months = Span::new()
+        .try_months(amount)
         .map_err(|_| DateError::OutOfRange)?;
-    let shifted = if amount < 0 {
-        local.checked_sub_months(months)
-    } else {
-        local.checked_add_months(months)
-    }
-    .ok_or(DateError::OutOfRange)?;
+    let shifted = local
+        .checked_add(months)
+        .map_err(|_| DateError::OutOfRange)?;
     if overflow == MonthOverflow::Carry {
         let excess = i64::from(local.day() - shifted.day());
         shifted
-            .checked_add_signed(TimeDelta::days(excess))
-            .ok_or(DateError::OutOfRange)
+            .checked_add(Span::new().days(excess))
+            .map_err(|_| DateError::OutOfRange)
     } else {
         Ok(shifted)
     }
@@ -262,4 +250,9 @@ fn checked_integer(value: f64) -> Result<i64, DateError> {
     } else {
         Err(DateError::OutOfRange)
     }
+}
+
+/// Unix whole seconds, rounded down for instants before the epoch as PHP expects.
+pub(crate) fn timestamp_seconds(timestamp: Timestamp) -> i64 {
+    timestamp.as_nanosecond().div_euclid(1_000_000_000) as i64
 }

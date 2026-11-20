@@ -227,7 +227,6 @@ fn quote_etag(value: &str) -> Option<HeaderValue> {
 }
 
 fn last_modified(input: &str) -> Result<HeaderValue, HttpError> {
-    use chrono::Datelike as _;
     let configured = Config::get("app.timezone").map_err(internal)?;
     let timezone = configured
         .as_ref()
@@ -242,17 +241,19 @@ fn last_modified(input: &str) -> Result<HeaderValue, HttpError> {
         input.into(),
         None,
         timezone,
-        calendar::DateReference::Wall(chrono::Utc::now()),
+        calendar::DateReference::Wall(jiff::Timestamp::now()),
     )
     .map_err(|error| {
         internal(std::io::Error::other(format!(
             "invalid cache last_modified: {error:?}"
         )))
     })?;
-    let date = chrono::DateTime::from_timestamp(date.timestamp(), 0)
+    let date = jiff::Timestamp::from_second(date.timestamp())
+        .ok()
+        .map(|date| date.to_zoned(jiff::tz::TimeZone::UTC))
         .filter(|date| (1..=9999).contains(&date.year()))
         .ok_or_else(|| internal(std::io::Error::other("cache last_modified is out of range")))?;
-    HeaderValue::from_str(&date.format("%a, %d %b %Y %H:%M:%S GMT").to_string()).map_err(internal)
+    HeaderValue::from_str(&date.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string()).map_err(internal)
 }
 
 fn is_not_modified(request: &HeaderMap, response: &HeaderMap) -> bool {
@@ -273,12 +274,14 @@ fn is_not_modified(request: &HeaderMap, response: &HeaderMap) -> bool {
     let timestamp = |headers: &HeaderMap, header: HeaderName| {
         let date = headers.get(header)?.to_str().ok()?;
         httpdate::parse_http_date(date)
-            .map(|time| chrono::DateTime::<chrono::Utc>::from(time).timestamp())
             .ok()
+            .and_then(|time| jiff::Timestamp::try_from(time).ok())
+            .map(crate::support::timestamp_seconds)
             .or_else(|| {
-                chrono::DateTime::parse_from_rfc2822(date)
+                jiff::fmt::rfc2822::DateTimeParser::new()
+                    .parse_timestamp(date)
                     .ok()
-                    .map(|time| time.timestamp())
+                    .map(crate::support::timestamp_seconds)
             })
     };
     timestamp(request, IF_MODIFIED_SINCE)

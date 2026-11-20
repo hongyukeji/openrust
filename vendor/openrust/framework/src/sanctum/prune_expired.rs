@@ -1,4 +1,4 @@
-use chrono::{TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 use crate::{
     console::{
@@ -42,18 +42,22 @@ impl Command for PruneExpired {
                 .matches()
                 .get_one::<i64>("hours")
                 .expect("default hours");
-            let now = Utc::now();
-            let retention = TimeDelta::try_hours(hours)
+            let now = Timestamp::now();
+            let retention = hours
+                .checked_mul(3600)
+                .map(SignedDuration::from_secs)
                 .ok_or_else(|| ConsoleError::new("The retention interval is too large."))?;
             let cutoff = now
-                .checked_sub_signed(retention)
+                .checked_sub(retention)
+                .ok()
                 .ok_or_else(|| ConsoleError::new("The retention interval is too large."))?;
             let config = app.config().map_err(error)?;
             let expiration = super::guard::expiration(config.as_ref()).map_err(error)?;
             let created_cutoff = expiration
                 .map(|age| {
                     cutoff
-                        .checked_sub_signed(age)
+                        .checked_sub(age)
+                        .ok()
                         .ok_or_else(|| ConsoleError::new("The expiration interval is too large."))
                 })
                 .transpose()?;

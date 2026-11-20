@@ -1,9 +1,7 @@
-use openrust::support::{DateInterval, DateTimezone};
+use openrust::support::{Date, DateInterval};
 use openrust_passport::GrantLifetime;
 fn stamp(date: &str) -> i64 {
-    chrono::DateTime::parse_from_rfc3339(date)
-        .unwrap()
-        .timestamp()
+    date.parse::<jiff::Timestamp>().unwrap().as_second()
 }
 #[test]
 fn calendar_years_carry_leap_days_and_keep_the_selected_timezone() {
@@ -19,7 +17,7 @@ fn calendar_years_carry_leap_days_and_keep_the_selected_timezone() {
     let start = stamp("2024-03-09T12:00:00-05:00");
     assert_eq!(
         GrantLifetime::CalendarYears(1)
-            .expires_at_in(start, "America/New_York".parse::<DateTimezone>().unwrap())
+            .expires_at_in(start, Date::timezone("America/New_York").unwrap())
             .unwrap(),
         stamp("2025-03-09T12:00:00-04:00")
     );

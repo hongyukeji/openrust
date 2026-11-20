@@ -63,3 +63,38 @@ Rust 1.94.0、jobs=2、dev debug=0、关闭增量，最终验收结果：
 已回收闲置独占 target 6,220,716 KiB、本批 RustFS 容器和镜像，数据卷清单一致，所有卷保留。清理期间可用空间净增 5,766,256 KiB（5.905 GB），清理后 51,639,824 KiB（52.879 GB／49.248 GiB）；并行构建可能影响实测净值。
 
 暂存差异检查仅提示 rav1e/PATENTS 第108行的上游文件末尾空行；为保持专利授权原文不改写，该提示保留，其余本批差异无空白错误。
+
+## 原生时间依赖替换
+
+2026-11-21，时间专项采用 Jiff 0.2.46 原生 `Timestamp`、`Zoned`、`TimeZone`、civil 日期与 `SignedDuration`，删除 chrono／chrono-tz 调用和直接依赖。调度沿用 croner 4.0.3 的官方 `jiff` feature，使调度与框架共享同一原生类型版本。Jiff 1.x 已发布，但本次不为追随新主版本引入第二套调度时间类型。数据库边界使用 SQLx／Tiberius 官方 `time` feature；time 的 `large-dates` 保留 PostgreSQL 的扩展日期范围。没有自制 chrono 兼容层、改名隐藏公告或新增 ignore。
+
+固定参考及采用理由：
+
+- [Jiff 官方项目](https://github.com/BurntSushi/jiff)、[0.2.46 TimeZone::tzif](https://docs.rs/jiff/0.2.46/jiff/tz/struct.TimeZone.html#method.tzif)：使用成熟解析与歧义时间处理，避免自行实现时区算法。框架配置统一通过 `Date::timezone(name)`，将官方 IANA 2025b vanguard 数据交给 Jiff 原生 `TimeZone::tzif`，保留原 chrono-tz 0.10.4 与 PHP Calendar 的负夏令时标记。官方 jiff-tzdb 0.1.4 虽同版 2025b，但其 rearguard 数据刻意改变 Dublin 等地区 DST 标记，不适合直接替换；采用固定 SHA 的 IANA data/code 和上游 zic 生成 598 名／341 去重 TZif，203282 字节，无 build.rs。保留默认 backward 别名、不额外启用 backzone，避免改变原历史别名行为。来源、命令、许可及复现见 [固定时区数据](../../../../vendor/openrust/framework/resources/calendar/SOURCES.md)。`DateTimezone` 仍是原生 `TimeZone` 别名，未增加时区抽象或算法。升级 IANA 数据须同步 Calendar POSIX tail／首记录与 Faker 国家地区列表，整体重跑历史偏移、DST 和 PHP 格式向量。
+- [croner 4.0.3](https://docs.rs/croner/4.0.3/croner/)：直接采用上游已提供的 Jiff 入口，不维护 Cron 时间转换兼容层。
+- [SQLx time 支持](https://docs.rs/sqlx/0.9.0/sqlx/types/index.html)、[Tiberius time 支持](https://docs.rs/tiberius/0.13.0/tiberius/)：Rust 原生边界转换只发生于驱动，保留 SQL 字段和值的原有契约。SQLx PostgreSQL 无符号五位年份的文本解码限制并未由此次更换解决；扩展年份专项使用驱动二进制路径，不冒称文本路径支持。
+- 固定 Laravel 13.40.0 `1449bf241017087fbd38c118ecaabef3f6797fdc`、Carbon 3.8.4、PHP 8.5 timelib 与既有 Calendar 来源继续作为行为基准。旧版可复用的扩展 civil／POSIX tail／首历史记录保留，历史查询后端改为 Jiff；Calendar 不因 Jiff 原生类型的 ±9999 年范围而缩窄已有 PHP 表达式范围。
+
+公开调用调整已同步三语正文：`Date::fromUtc(Timestamp, TimeZone)`、`fromLocal(civil::DateTime, TimeZone)`、`asDateTime() -> &Zoned`；Date 与 TimeZone 使用 Clone，日期运算通过借用保留不可变复用。月末 Carry／Clamp、DST gap 向前与 fold 优先保留原偏移、应用／任务测试时钟隔离、微秒与 SQL 时间文本格式继续由原有及新增回归约束。负 epoch 小数使用欧几里得除法保持旧 Unix 秒向下取整语义，不能直接以 Jiff 截零的 `as_second` 代替。
+
+阶段验证：框架库及全部 test target 在 Rust 1.94.0、jobs=2、关闭增量、dev debug=0 的独占源码中通过 `cargo check -p openrust-framework --tests`。独立 Date probe 4 函数与数据库 time/Tiberius probe 2 函数通过；Factories／调度 helper probe 4 函数通过。完整运行测试、三库及最终公告结果见本节后续记录，编译检查不计作行为验收。主要证据 `/private/tmp/openrust-jiff-full-20261121/`；轻量 probe `/private/tmp/openrust-chrono-20261121/`、`/private/tmp/openrust-database-time-20261121/`。
+
+
+运行验证（Rust 1.94.0、独占源码与 target、增量关闭、debug=0）：
+
+- Date／Calendar 库单元最终 33（包括维护 retry、固定时区及历史 RFC 文本）、request_date_clock 2、schedule_clock 5、support_date 5、time_travel 3 通过；三语 39 个受影响 Rust 代码块去重提取为 13 模块实际编译运行。固定数据入口已用替换 `TZDIR` 的独立进程验证，不依赖系统当前数据。
+- Faker identity 116、user-agent 2、Eloquent 3、logging 14、mail 32 通过。mail 另有 2 个显式忽略的子进程／独立 SMTP 夹具，不计作覆盖。SQLite 和 TDS 原生类型边界通过；真实 PostgreSQL 18.6 与 MySQL 8.4.13 分别验证日期／时间小数精度及两种 prepare 模式，PostgreSQL 二进制路径包含 12000 年。
+- Passport lifetime 2 通过；Pail options 7（新增 Zulu、原偏移、负 epoch）、files 4、432 条固定 PHP printer 向量及真实 HTTP 到独立 Artisan 的日志捕获通过。初次验收发现 `%:z` 不接受 `Z`，改用 Jiff 官方原生解析；显示继续保留日志原始偏移。
+- Settings 时间文本精度单元通过，0／毫秒／微秒／纳秒及负 epoch 保留原 AutoSi 的 0／3／6／9 位分组。SQLite、真实 PostgreSQL 18.6、MySQL 8.4.13 分别运行同一组保存 9 与 HTTP／Worker 运行时 4 用例，全部通过；PostgreSQL／MySQL 的独占验收容器均正常回收，未删除数据卷。
+
+完整日志在 `/private/tmp/openrust-jiff-full-20261121/` 的 `time-runtime.log`、`framework-time-regressions.log`、`postgres-time.log`、`mysql-time.log`、`extensions-runtime.log`、`settings-postgres.log` 与 `settings-mysql.log`；不把缺少服务环境的早期返回计为真实数据库覆盖。
+
+补充运行验证：`pail-mysql.log` 使用真实 MySQL 8.4.13 执行 Pail 隔离 Worker、失败回调、后续消费和自定义应用 storage 路径，均通过，容器已回收。`seeding-runtime.log` 的 SQLite 实际 Artisan Seeder 及 `faker_named_dates_preserve_provider_locales_and_instance_zones`、`faker_qualified_date_ranges_match_extension_boundaries`、`faker_datetime_version_and_file_extensions_use_seeded_and_real_outputs` 四项均通过。更正根 Seeder 夹具的 Zulu 解析为原生 `Timestamp::parse`，避免 `%:z` 的 Zulu 限制。旧 Date probe 独占 target 约 49 MiB 已确认无占用并删除，保留其源码与日志；完整验收 target 暂交主代理复用最终 API 与缓存验收。
+
+固定时区数据最终采用官方 IANA 2025b `zic -b slim` 的 vanguard 输出，默认 backward 别名、不启用可选 backzone，以保留原 chrono-tz 0.10.4 的历史别名行为。598 个原有名称共享 341 个 TZif、203,282 字节；归档 SHA、许可证与可重建命令见 `vendor/openrust/framework/resources/calendar/SOURCES.md`。两次生成的映射与数据 SHA 完全一致。直接程序将旧 chrono-tz 2025b 与 Jiff 原生数据在可表示下界至 2100 年的每次历史 transition 前一秒／当秒／后一秒对比，597 个旧名称共 198,039 个 offset／DST 样本零差异；额外的 PHP `Factory` 名称和其他共 598 个名称均通过 Jiff 原生解析。全量旧库对比使用既有旧工具链 rlib 独立输出，新 Jiff 入口使用 Rust 1.94.0，不能将旧参考程序编译计作当前工具链验收。
+
+依赖最终复核：`cargo tree --workspace --all-features --target all -i chrono --locked --offline` 无活动路径，`cargo deny --all-features check advisories` 退出 0、`advisories ok`，没有增加 ignore。Cargo.lock 仍可能包含 serde_with 未启用的 optional chrono 锁项；实际全 feature／全 target 依赖图无 chrono，不能声称 lock 文本中已完全删除该名称。
+
+最终固定数据下 `final-time-runtime.log` 的 lib 32、request_date_clock 2、schedule_clock 5、support_date 5、time_travel 3 全过；新增覆盖 Dublin／Casablanca／Prague／Windhoek 的负夏令时 PHP `I` 与 fold 偏好，以及维护 retry gap 拒绝／fold earlier／显式偏移。追加 Faker 标准 RFC 历史偏移秒舍入回归后，`final-lib-runtime.log` 的库单元 33 全过。RFC 输出交 Jiff 官方 `DateTimePrinter` 的分钟精度规则，避免 `%:z` 原生可选秒改变旧文本；ISO 8601 同样保持分钟偏移和紧凑分隔符。PostgreSQL typed TIMESTAMP 参数新旧解析对 `12000`、`+12000`、`-0001` 及小数结果一致，原 SQLx 文本解码限制与参数解析区别记录，证据 `openrust-vanguard-20261121/pg-bind-{new,old}.log`。
+
+最终整合检查：独占源码中 `cargo +1.94.0 clippy --workspace --all-targets --all-features --locked --offline -j1 -- -D warnings` 退出 0，包含最终 SMS／Socialite 与新增时间资源；日志 `final-clippy.log`。Fortify／Passkeys 的测试直接 include 根 User，故其 Jiff 只放 dev-dependencies，库生产代码使用既有 Date 入口，无额外生产时间依赖。三语 `node docs/tests/check_content.mjs`、最终 `cargo +1.94.0 fmt --all --check` 与 `git diff --check` 通过。严格检查日志中 patched 第三方 imgalifier-avif 的既有 `asm` cfg 警告受 Cargo dependency lint cap 管理，不影响工作区 `-D warnings` 结果；不为时间专项修改该外部源码。

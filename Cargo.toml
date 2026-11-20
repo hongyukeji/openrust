@@ -45,7 +45,7 @@ oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
 
 [dependencies]
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+jiff = { version = "=0.2.46", features = ["serde"] }
 clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "vendor/openrust/framework" }
 openrust-reverb = { path = "vendor/openrust/reverb", optional = true }

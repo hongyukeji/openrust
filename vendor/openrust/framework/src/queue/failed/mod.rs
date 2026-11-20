@@ -31,11 +31,11 @@ impl FailedJob {
             queue: job.get_queue().into(),
             payload: job.payload().clone(),
             exception: error.to_string(),
-            failed_at: timestamp(chrono::Utc::now()),
+            failed_at: timestamp(jiff::Timestamp::now()),
         }
     }
 }
 
-fn timestamp(time: chrono::DateTime<chrono::Utc>) -> String {
-    time.format("%Y-%m-%d %H:%M:%S").to_string()
+fn timestamp(time: jiff::Timestamp) -> String {
+    time.strftime("%Y-%m-%d %H:%M:%S").to_string()
 }

@@ -1196,7 +1196,7 @@ mod acceptance {
         seed_failures(db, "prune-before", 1, "1999-12-31 23:59:59").await;
         seed_failures(db, "prune-equal", 1, "2000-01-01 00:00:00").await;
         seed_failures(db, "prune-after", 1, "2000-01-01 00:00:01").await;
-        let cutoff = chrono::DateTime::from_timestamp(946_684_800, 0).unwrap();
+        let cutoff = jiff::Timestamp::new(946_684_800, 0).unwrap();
         assert_eq!(prune.prune(cutoff).await.unwrap(), 1);
         assert_eq!(count("prune-before-0").await, 0);
         assert_eq!(count("prune-equal-0").await, 1);
@@ -1224,10 +1224,10 @@ mod acceptance {
                     .unwrap()
             }
         };
-        let now: chrono::DateTime<chrono::Utc> = std::time::SystemTime::now().into();
+        let now = jiff::Timestamp::now();
         let timestamp = |age| {
-            (now - chrono::TimeDelta::hours(age))
-                .format("%Y-%m-%d %H:%M:%S")
+            (now - jiff::SignedDuration::from_hours(age))
+                .strftime("%Y-%m-%d %H:%M:%S")
                 .to_string()
         };
         seed_failures(db, "prune-old", 1001, &timestamp(25)).await;
@@ -1784,7 +1784,9 @@ mod acceptance {
                     queue: name.into(),
                     payload,
                     exception: "original failure".into(),
-                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    failed_at: jiff::Timestamp::now()
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                 })
                 .await
                 .unwrap();
@@ -1861,7 +1863,9 @@ mod acceptance {
                     queue: "retry-race".into(),
                     payload,
                     exception: "original failure".into(),
-                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    failed_at: jiff::Timestamp::now()
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                 })
                 .await
                 .unwrap();
@@ -1906,7 +1910,9 @@ mod acceptance {
                     queue: kind.into(),
                     payload,
                     exception: "original failure".into(),
-                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    failed_at: jiff::Timestamp::now()
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                        .to_string(),
                 })
                 .await
                 .unwrap();

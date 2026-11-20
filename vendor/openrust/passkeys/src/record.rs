@@ -136,7 +136,7 @@ impl<M: PasskeyModel> LoadedPasskey for Loaded<M> {
             let now = now(None)
                 .map_err(internal)?
                 .asDateTime()
-                .format("%Y-%m-%d %H:%M:%S")
+                .strftime("%Y-%m-%d %H:%M:%S")
                 .to_string();
             model
                 .forceFill(

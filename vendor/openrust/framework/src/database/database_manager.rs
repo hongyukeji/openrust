@@ -258,9 +258,8 @@ impl DatabaseManager {
             .clone_from(&self.test_query_counts);
         connection.schema_defaults.clone_from(&self.schema_defaults);
         connection.model_timezone = match self.config.get("app.timezone") {
-            None => chrono_tz::UTC,
-            Some(Value::String(zone)) => zone
-                .parse()
+            None => jiff::tz::TimeZone::UTC,
+            Some(Value::String(zone)) => crate::support::Date::timezone(&zone)
                 .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
             _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
         };

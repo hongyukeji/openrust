@@ -37,7 +37,12 @@ struct Envelope<T> {
     nonce: String,
 }
 fn timestamp() -> Result<i64, HttpError> {
-    Ok(now(None).map_err(internal)?.asDateTime().timestamp_millis())
+    Ok(now(None)
+        .map_err(internal)?
+        .asDateTime()
+        .timestamp()
+        .as_nanosecond()
+        .div_euclid(1_000_000) as i64)
 }
 fn save<T: Serialize>(
     request: &mut Request,

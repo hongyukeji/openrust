@@ -1,10 +1,9 @@
 use std::{
     borrow::Cow,
     sync::{Arc, Weak},
-    time::SystemTime,
 };
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde_json::Value;
 
 use crate::{
@@ -342,7 +341,7 @@ impl crate::contracts::log::Logger for Logger {
 
 /// A channel record. Context fields borrow until a processor changes them.
 pub struct LogRecord<'a> {
-    pub at: DateTime<Utc>,
+    pub at: Timestamp,
     pub level: Level,
     pub context: Cow<'a, LogContext>,
     pub extra: Cow<'a, LogContext>,
@@ -378,7 +377,7 @@ impl<'a> LogRecord<'a> {
         replace: bool,
     ) -> Self {
         Self {
-            at: DateTime::from(SystemTime::now()),
+            at: Timestamp::now(),
             level,
             context: Cow::Borrowed(context),
             extra: Cow::Borrowed(extra),
@@ -398,7 +397,7 @@ impl<'a> LogRecord<'a> {
     }
 
     pub fn format_line(&self, message: &str) -> String {
-        let mut line = format!("[{}] ", self.at.format("%Y-%m-%d %H:%M:%S"));
+        let mut line = format!("[{}] ", self.at.strftime("%Y-%m-%d %H:%M:%S"));
         self.append_payload(&mut line, message);
         line.push('\n');
         line

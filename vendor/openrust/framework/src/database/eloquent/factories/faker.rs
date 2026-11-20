@@ -10,6 +10,7 @@ use super::{
     faker_rng::FakerRandom,
     regex_pattern::RegexPattern,
 };
+use crate::support::timestamp_seconds;
 use std::{
     collections::HashMap,
     fmt::Write as _,
@@ -32,11 +33,11 @@ use crate::{
 };
 use ::fake::{Fake, faker, locales};
 use aws_lc_rs::digest;
-use chrono::{
-    DateTime, Datelike, Days, LocalResult, Months, NaiveDate, NaiveDateTime, Offset, TimeDelta,
-    TimeZone, Timelike, Utc,
+use jiff::{
+    SignedDuration, Span, Timestamp, Zoned,
+    civil::{Date as CivilDate, DateTime as CivilDateTime},
+    tz::{AmbiguousOffset, Offset, TimeZone},
 };
-use chrono_tz::{GapInfo, Tz, UTC};
 use md5::{Digest as _, Md5};
 
 #[path = "faker_color.rs"]
@@ -221,8 +222,8 @@ malaysian_person_formatters! {
 pub struct Faker {
     locale: String,
     has_local_address_provider: bool,
-    application_timezone: Tz,
-    default_timezone: RwLock<Option<Tz>>,
+    application_timezone: TimeZone,
+    default_timezone: RwLock<Option<TimeZone>>,
     pub(super) random: FakerRandom,
     pub(super) extensions: RwLock<Extensions>,
     pub(super) formatters: RwLock<Formatters>,
@@ -252,40 +253,34 @@ fn faker_timestamp(error: calendar::CalendarError) -> DatabaseResult<i64> {
     }
 }
 
-fn months_ago(date: NaiveDateTime, months: u32) -> DatabaseResult<NaiveDateTime> {
+fn months_ago(date: CivilDateTime, months: u32) -> DatabaseResult<CivilDateTime> {
     // PHP normalizes an overflowing day into the following month.
-    date.with_day(1)
-        .and_then(|first| first.checked_sub_months(Months::new(months)))
-        .and_then(|first| first.checked_add_days(Days::new(u64::from(date.day0()))))
-        .ok_or(DATE_RANGE_ERROR)
+    date.with()
+        .day(1)
+        .build()
+        .and_then(|first| first.checked_sub(Span::new().months(i64::from(months))))
+        .and_then(|first| first.checked_add(Span::new().days(i64::from(date.day() - 1))))
+        .map_err(|_| DATE_RANGE_ERROR)
 }
 
-fn resolve_local(zone: Tz, local: NaiveDateTime) -> DatabaseResult<DateTime<Utc>> {
-    match zone.from_local_datetime(&local) {
-        LocalResult::Single(date) => Ok(date.to_utc()),
-        LocalResult::Ambiguous(first, second) => {
+fn resolve_local(zone: TimeZone, local: CivilDateTime) -> DatabaseResult<Timestamp> {
+    let offset = match zone.to_ambiguous_timestamp(local).offset() {
+        AmbiguousOffset::Unambiguous { offset } => offset,
+        AmbiguousOffset::Fold { before, after } => {
             // As in timelib, look up the offset by treating the civil time as UTC.
-            let guess = zone.offset_from_utc_datetime(&local).fix();
-            Ok(if first.offset().fix() == guess {
-                first
+            let guess = Offset::UTC
+                .to_timestamp(local)
+                .map_err(|_| DATE_RANGE_ERROR)?;
+            if zone.to_offset(guess) == before {
+                before
             } else {
-                second
+                after
             }
-            .to_utc())
         }
-        LocalResult::None => {
-            // Apply the pre-transition offset to move forward by the length of the gap.
-            let (_, offset) = GapInfo::new(&local, &zone)
-                .and_then(|gap| gap.begin)
-                .ok_or(DATE_RANGE_ERROR)?;
-            local
-                .checked_sub_signed(TimeDelta::seconds(i64::from(
-                    offset.fix().local_minus_utc(),
-                )))
-                .map(|date| date.and_utc())
-                .ok_or(DATE_RANGE_ERROR)
-        }
-    }
+        // Apply the pre-transition offset to move forward by the length of the gap.
+        AmbiguousOffset::Gap { before, .. } => before,
+    };
+    offset.to_timestamp(local).map_err(|_| DATE_RANGE_ERROR)
 }
 
 macro_rules! generate {
@@ -378,8 +373,8 @@ macro_rules! zoned_date_formatters {
                 pub fn $zoned(
                     &self,
                     $($argument: $kind,)*
-                    timezone: Option<Tz>,
-                ) -> DatabaseResult<DateTime<Tz>> {
+                    timezone: Option<TimeZone>,
+                ) -> DatabaseResult<Zoned> {
                     self.$base($($argument),*)
                         .map(|instant| self.zoned_date(instant, timezone))
                 }
@@ -393,9 +388,9 @@ macro_rules! zoned_date_formatters {
                 pub fn $zoned(
                     &self,
                     $($argument: $kind,)*
-                    timezone: Option<Tz>,
-                ) -> DatabaseResult<DateTime<Tz>> {
-                    self.generate_zoned($history, || self.0.$zoned($($argument,)* timezone))
+                    timezone: Option<TimeZone>,
+                ) -> DatabaseResult<Zoned> {
+                    self.generate_zoned($history, || self.0.$zoned($($argument,)* timezone.clone()))
                 }
             )+
         }
@@ -403,14 +398,14 @@ macro_rules! zoned_date_formatters {
 }
 
 zoned_date_formatters! {
-    dateTimeBetweenInTimezone => dateTimeBetween(start: DateTime<Utc>, end: DateTime<Utc>) as "dateTimeBetween",
+    dateTimeBetweenInTimezone => dateTimeBetween(start: Timestamp, end: Timestamp) as "dateTimeBetween",
     dateTimeBetweenExpressionsInTimezone => dateTimeBetweenExpressions(start: &str, end: &str) as "dateTimeBetween",
-    dateTimeInIntervalInTimezone => dateTimeInInterval(date: Option<DateTime<Utc>>, interval: Option<TimeDelta>) as "dateTimeInInterval",
+    dateTimeInIntervalInTimezone => dateTimeInInterval(date: Option<Timestamp>, interval: Option<SignedDuration>) as "dateTimeInInterval",
     dateTimeInIntervalExpressionsInTimezone => dateTimeInIntervalExpressions(date: Option<&str>, interval: Option<&str>) as "dateTimeInInterval",
-    dateTimeThisCenturyInTimezone => dateTimeThisCentury(max: Option<DateTime<Utc>>) as "dateTimeThisCentury",
-    dateTimeThisDecadeInTimezone => dateTimeThisDecade(max: Option<DateTime<Utc>>) as "dateTimeThisDecade",
-    dateTimeThisYearInTimezone => dateTimeThisYear(max: Option<DateTime<Utc>>) as "dateTimeThisYear",
-    dateTimeThisMonthInTimezone => dateTimeThisMonth(max: Option<DateTime<Utc>>) as "dateTimeThisMonth",
+    dateTimeThisCenturyInTimezone => dateTimeThisCentury(max: Option<Timestamp>) as "dateTimeThisCentury",
+    dateTimeThisDecadeInTimezone => dateTimeThisDecade(max: Option<Timestamp>) as "dateTimeThisDecade",
+    dateTimeThisYearInTimezone => dateTimeThisYear(max: Option<Timestamp>) as "dateTimeThisYear",
+    dateTimeThisMonthInTimezone => dateTimeThisMonth(max: Option<Timestamp>) as "dateTimeThisMonth",
 }
 
 macro_rules! sample_formatters {
@@ -488,10 +483,10 @@ impl Faker {
     pub fn new(locale: &str) -> DatabaseResult<Self> {
         let locale = canonical_locale(locale)
             .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
-        Ok(Self::with_canonical_locale(locale, UTC))
+        Ok(Self::with_canonical_locale(locale, TimeZone::UTC))
     }
 
-    fn with_canonical_locale(locale: String, application_timezone: Tz) -> Self {
+    fn with_canonical_locale(locale: String, application_timezone: TimeZone) -> Self {
         let has_local_address_provider = faker_address::ADDRESS_LOCALES
             .binary_search(&locale.as_str())
             .is_ok();
@@ -539,9 +534,8 @@ impl Faker {
             return Ok(faker);
         }
         let application_timezone = match config.get("app.timezone") {
-            None => UTC,
-            Some(serde_json::Value::String(zone)) => zone
-                .parse()
+            None => TimeZone::UTC,
+            Some(serde_json::Value::String(zone)) => crate::support::Date::timezone(&zone)
                 .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
             _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
         };
@@ -549,7 +543,7 @@ impl Faker {
             .singletonIfNamed(&key, move |_| {
                 Ok(Arc::new(Self::with_canonical_locale(
                     locale.clone(),
-                    application_timezone,
+                    application_timezone.clone(),
                 )))
             })
             .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
@@ -559,12 +553,12 @@ impl Faker {
     }
 
     /// Overrides the time zone for this generator. Pass None to restore the application default.
-    pub fn setDefaultTimezone(&self, timezone: Option<Tz>) {
+    pub fn setDefaultTimezone(&self, timezone: Option<TimeZone>) {
         *self.default_timezone.write().unwrap() = timezone;
     }
 
-    pub fn getDefaultTimezone(&self) -> Option<Tz> {
-        *self.default_timezone.read().unwrap()
+    pub fn getDefaultTimezone(&self) -> Option<TimeZone> {
+        self.default_timezone.read().unwrap().clone()
     }
 
     pub fn locale(&self) -> &str {
@@ -4118,13 +4112,13 @@ impl Faker {
         }
     }
 
-    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<DateTime<Tz>> {
+    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<Zoned> {
         let start = if valid { "now" } else { "-36 months" };
         let zone = self
             .getDefaultTimezone()
-            .unwrap_or(self.application_timezone);
+            .unwrap_or_else(|| self.application_timezone.clone());
         self.dateTimeBetweenExpressions(start, "+36 months")
-            .map(|date| date.with_timezone(&zone))
+            .map(|date| date.to_zoned(zone.clone()))
     }
 
     pub fn creditCardExpirationDateString(
@@ -4137,7 +4131,7 @@ impl Faker {
         write!(
             output,
             "{}",
-            date.format(expirationDateFormat.unwrap_or("%m/%y"))
+            date.strftime(expirationDateFormat.unwrap_or("%m/%y"))
         )
         .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
         Ok(output)
@@ -4893,71 +4887,58 @@ impl Faker {
     }
 
     /// Samples an inclusive interval at Unix-second precision.
-    pub fn dateTimeBetween(
-        &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> DatabaseResult<DateTime<Utc>> {
-        let (start, end) = (start.timestamp(), end.timestamp());
+    pub fn dateTimeBetween(&self, start: Timestamp, end: Timestamp) -> DatabaseResult<Timestamp> {
+        let (start, end) = (timestamp_seconds(start), timestamp_seconds(end));
         if start > end {
             return Err(DatabaseError::InvalidQuery(
                 "Faker start date exceeds end date",
             ));
         }
-        DateTime::from_timestamp(self.numberBetween(start, end), 0).ok_or(
-            DatabaseError::InvalidQuery("Faker timestamp is out of range"),
-        )
+        Timestamp::new(self.numberBetween(start, end), 0)
+            .map_err(|_| DatabaseError::InvalidQuery("Faker timestamp is out of range"))
     }
 
     /// Resolves PHP-style date expressions in the application time zone and samples their range.
-    pub fn dateTimeBetweenExpressions(
-        &self,
-        start: &str,
-        end: &str,
-    ) -> DatabaseResult<DateTime<Utc>> {
-        let now = Utc::now();
+    pub fn dateTimeBetweenExpressions(&self, start: &str, end: &str) -> DatabaseResult<Timestamp> {
+        let now = Timestamp::now();
         let start = self
             .timestamp_expression(start, now)
             .or_else(faker_timestamp)?;
         let end = self
             .resolve_timestamp_max(end, now)
             .or_else(faker_timestamp)?;
-        let start = DateTime::from_timestamp(start, 0).ok_or(DATE_RANGE_ERROR)?;
-        let end = DateTime::from_timestamp(end, 0).ok_or(DATE_RANGE_ERROR)?;
+        let start = Timestamp::new(start, 0).map_err(|_| DATE_RANGE_ERROR)?;
+        let end = Timestamp::new(end, 0).map_err(|_| DATE_RANGE_ERROR)?;
         self.dateTimeBetween(start, end)
     }
 
     /// Resolves a PHP-style maximum for any formatter that takes a UTC date bound.
-    pub fn resolveDateMax(&self, max: &str) -> DatabaseResult<DateTime<Utc>> {
-        self.resolve_date_max(max, Utc::now())
+    pub fn resolveDateMax(&self, max: &str) -> DatabaseResult<Timestamp> {
+        self.resolve_date_max(max, Timestamp::now())
     }
 
     fn timestamp_expression(
         &self,
         expression: &str,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<i64, calendar::CalendarError> {
-        calendar::parse_timestamp_expression(expression, now, self.application_timezone)
+        calendar::parse_timestamp_expression(expression, now, self.application_timezone.clone())
     }
 
-    pub(super) fn resolve_date_max(
-        &self,
-        max: &str,
-        now: DateTime<Utc>,
-    ) -> DatabaseResult<DateTime<Utc>> {
+    pub(super) fn resolve_date_max(&self, max: &str, now: Timestamp) -> DatabaseResult<Timestamp> {
         let timestamp = self
             .resolve_timestamp_max(max, now)
             .map_err(calendar_query_error)?;
-        DateTime::from_timestamp(timestamp, 0).ok_or(DATE_RANGE_ERROR)
+        Timestamp::new(timestamp, 0).map_err(|_| DATE_RANGE_ERROR)
     }
 
     fn resolve_timestamp_max(
         &self,
         max: &str,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<i64, calendar::CalendarError> {
         if max.is_empty() {
-            return Ok(now.timestamp());
+            return Ok(timestamp_seconds(now));
         }
         let numeric = max.trim_matches(calendar::php_whitespace);
         if calendar::is_numeric(numeric) {
@@ -4976,31 +4957,31 @@ impl Faker {
     /// Samples between the supplied UTC instant and that instant plus a signed interval.
     pub fn dateTimeInInterval(
         &self,
-        date: Option<DateTime<Utc>>,
-        interval: Option<TimeDelta>,
-    ) -> DatabaseResult<DateTime<Utc>> {
-        let zone = self.application_timezone;
+        date: Option<Timestamp>,
+        interval: Option<SignedDuration>,
+    ) -> DatabaseResult<Timestamp> {
+        let zone = self.application_timezone.clone();
         let uses_local_calendar = date.is_none();
         let date = match date {
             Some(date) => date,
             None => {
-                let now = Utc::now().with_timezone(&zone).naive_local();
-                resolve_local(zone, months_ago(now, 30 * 12)?)?
+                let now = Timestamp::now().to_zoned(zone.clone()).datetime();
+                resolve_local(zone.clone(), months_ago(now, 30 * 12)?)?
             }
         };
         let other = match interval {
-            Some(interval) => date.checked_add_signed(interval).ok_or(DATE_RANGE_ERROR)?,
+            Some(interval) => date.checked_add(interval).map_err(|_| DATE_RANGE_ERROR)?,
             None if uses_local_calendar => {
                 let local = date
-                    .with_timezone(&zone)
-                    .naive_local()
-                    .checked_add_days(Days::new(5))
-                    .ok_or(DATE_RANGE_ERROR)?;
+                    .to_zoned(zone.clone())
+                    .datetime()
+                    .checked_add(Span::new().days(5))
+                    .map_err(|_| DATE_RANGE_ERROR)?;
                 resolve_local(zone, local)?
             }
             None => date
-                .checked_add_days(Days::new(5))
-                .ok_or(DATE_RANGE_ERROR)?,
+                .checked_add(SignedDuration::from_secs(5 * 86400))
+                .map_err(|_| DATE_RANGE_ERROR)?,
         };
         self.dateTimeBetween(date.min(other), date.max(other))
     }
@@ -5010,7 +4991,7 @@ impl Faker {
         &self,
         date: Option<&str>,
         interval: Option<&str>,
-    ) -> DatabaseResult<DateTime<Utc>> {
+    ) -> DatabaseResult<Timestamp> {
         let (start, end) = calendar::date_interval(
             match date {
                 Some("") => "now",
@@ -5018,8 +4999,8 @@ impl Faker {
                 None => "-30 years",
             },
             interval.unwrap_or("+5 days"),
-            Utc::now(),
-            self.application_timezone,
+            Timestamp::now(),
+            self.application_timezone.clone(),
         )
         .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date or interval expression"))?;
         self.dateTimeBetween(start.min(end), start.max(end))
@@ -5027,89 +5008,84 @@ impl Faker {
 
     pub(super) fn calendar_period_start(
         &self,
-        now: DateTime<Utc>,
+        now: Timestamp,
         years: i32,
-    ) -> DatabaseResult<DateTime<Utc>> {
-        let year = now.with_timezone(&self.application_timezone).year();
+    ) -> DatabaseResult<Timestamp> {
+        let year = i32::from(now.to_zoned(self.application_timezone.clone()).year());
         let first_year = year.div_euclid(years) * years;
         self.resolve_date_max(&format!("first day of january {first_year}"), now)
     }
 
-    pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisCentury(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.date_time_since_months_ago(100 * 12, max)
     }
 
-    pub fn dateTimeThisDecade(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisDecade(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.date_time_since_months_ago(10 * 12, max)
     }
 
-    pub fn dateTimeThisYear(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
-        let now = Utc::now();
-        let zone = self.application_timezone;
-        let year = now.with_timezone(&zone).year();
-        let start = NaiveDate::from_ymd_opt(year, 1, 1)
-            .and_then(|date| date.and_hms_opt(0, 0, 0))
-            .ok_or(DATE_RANGE_ERROR)?;
+    pub fn dateTimeThisYear(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
+        let now = Timestamp::now();
+        let zone = self.application_timezone.clone();
+        let year = now.to_zoned(zone.clone()).year();
+        let start = CivilDate::new(year, 1, 1)
+            .map(|date| date.at(0, 0, 0, 0))
+            .map_err(|_| DATE_RANGE_ERROR)?;
         let start = resolve_local(zone, start)?;
         self.dateTimeBetween(start, max.unwrap_or(now))
     }
 
-    pub fn dateTimeThisMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisMonth(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.date_time_since_months_ago(1, max)
     }
 
     fn date_time_since_months_ago(
         &self,
         months: u32,
-        max: Option<DateTime<Utc>>,
-    ) -> DatabaseResult<DateTime<Utc>> {
-        let now = Utc::now();
-        let zone = self.application_timezone;
-        let start = months_ago(now.with_timezone(&zone).naive_local(), months)?;
+        max: Option<Timestamp>,
+    ) -> DatabaseResult<Timestamp> {
+        let now = Timestamp::now();
+        let zone = self.application_timezone.clone();
+        let start = months_ago(now.to_zoned(zone.clone()).datetime(), months)?;
         self.dateTimeBetween(resolve_local(zone, start)?, max.unwrap_or(now))
     }
 
     /// Samples whole seconds between the Unix epoch and the supplied upper endpoint.
-    pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> i64 {
-        let end = max.map_or_else(|| Utc::now().timestamp(), |date| date.timestamp());
+    pub fn unixTime(&self, max: Option<Timestamp>) -> i64 {
+        let end = max.map_or_else(|| timestamp_seconds(Timestamp::now()), timestamp_seconds);
         self.numberBetween(0, end)
     }
 
-    /// Samples Unix seconds with a string endpoint, including dates outside Chrono's range.
+    /// Samples Unix seconds with a string endpoint, including dates outside the native date range.
     pub fn unixTimeExpression(&self, max: &str) -> DatabaseResult<i64> {
         let end = self
-            .resolve_timestamp_max(max, Utc::now())
+            .resolve_timestamp_max(max, Timestamp::now())
             .or_else(faker_timestamp)?;
         Ok(self.numberBetween(0, end))
     }
 
     /// Returns a sampled instant in UTC.
-    pub fn dateTime(&self, max: Option<DateTime<Utc>>) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.unixTime(max), 0)
-            .expect("sample lies between valid timestamps")
+    pub fn dateTime(&self, max: Option<Timestamp>) -> Timestamp {
+        Timestamp::new(self.unixTime(max), 0).expect("sample lies between valid timestamps")
     }
 
     /// Returns a sampled date in the explicit time zone or the generator's default.
-    pub fn dateTimeInTimezone(
-        &self,
-        max: Option<DateTime<Utc>>,
-        timezone: Option<Tz>,
-    ) -> DateTime<Tz> {
+    pub fn dateTimeInTimezone(&self, max: Option<Timestamp>, timezone: Option<TimeZone>) -> Zoned {
         self.zoned_date(self.dateTime(max), timezone)
     }
 
-    pub(super) fn zoned_date(&self, instant: DateTime<Utc>, timezone: Option<Tz>) -> DateTime<Tz> {
+    pub(super) fn zoned_date(&self, instant: Timestamp, timezone: Option<TimeZone>) -> Zoned {
         let timezone = timezone
             .or_else(|| self.getDefaultTimezone())
-            .unwrap_or(self.application_timezone);
-        instant.with_timezone(&timezone)
+            .unwrap_or_else(|| self.application_timezone.clone());
+        instant.to_zoned(timezone)
     }
 
-    pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn date(&self, format: Option<&str>, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.format_date(format.unwrap_or("%Y-%m-%d"), max)
     }
 
-    pub fn time(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn time(&self, format: Option<&str>, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.format_date(format.unwrap_or("%H:%M:%S"), max)
     }
 
@@ -5117,11 +5093,11 @@ impl Faker {
     pub fn dateWithPhpFormat(
         &self,
         format: &str,
-        max: Option<DateTime<Utc>>,
+        max: Option<Timestamp>,
     ) -> DatabaseResult<String> {
         let timezone = self
             .getDefaultTimezone()
-            .unwrap_or(self.application_timezone);
+            .unwrap_or_else(|| self.application_timezone.clone());
         calendar::format_php_date(self.dateTime(max), timezone, format)
             .map_err(|_| DatabaseError::InvalidQuery("Faker PHP date format could not be rendered"))
     }
@@ -5130,35 +5106,35 @@ impl Faker {
     pub fn timeWithPhpFormat(
         &self,
         format: &str,
-        max: Option<DateTime<Utc>>,
+        max: Option<Timestamp>,
     ) -> DatabaseResult<String> {
         self.dateWithPhpFormat(format, max)
     }
 
-    pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None)
-            .format("%Y-%m-%dT%H:%M:%S%z")
-            .to_string()
+    pub fn iso8601(&self, max: Option<Timestamp>) -> String {
+        let mut text = super::faker_provider::rfc3339_seconds(&self.dateTimeInTimezone(max, None));
+        text.remove(text.len() - 3);
+        text
     }
 
     /// Samples from the upstream 64-bit AD lower bound to the supplied endpoint.
-    pub fn dateTimeAD(&self, max: Option<DateTime<Utc>>) -> DateTime<Utc> {
+    pub fn dateTimeAD(&self, max: Option<Timestamp>) -> Timestamp {
         const FIRST_AD_TIMESTAMP: i64 = -62_135_597_361;
-        let end = max.unwrap_or_else(Utc::now).timestamp();
-        DateTime::from_timestamp(self.numberBetween(FIRST_AD_TIMESTAMP, end), 0)
+        let end = timestamp_seconds(max.unwrap_or_else(Timestamp::now));
+        Timestamp::new(self.numberBetween(FIRST_AD_TIMESTAMP, end), 0)
             .expect("sample lies between valid timestamps")
     }
 
     /// Samples an AD date and returns it in the chosen output time zone.
     pub fn dateTimeADInTimezone(
         &self,
-        max: Option<DateTime<Utc>>,
-        timezone: Option<Tz>,
-    ) -> DateTime<Tz> {
+        max: Option<Timestamp>,
+        timezone: Option<TimeZone>,
+    ) -> Zoned {
         self.zoned_date(self.dateTimeAD(max), timezone)
     }
 
-    pub fn amPm(&self, max: Option<DateTime<Utc>>) -> String {
+    pub fn amPm(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
         let morning = date.hour() < 12;
         match (self.locale(), morning) {
@@ -5166,22 +5142,22 @@ impl Faker {
             ("tr_TR", false) => "ös".into(),
             ("zh_CN" | "zh_TW", true) => "上午".into(),
             ("zh_CN" | "zh_TW", false) => "下午".into(),
-            _ => date.format("%P").to_string(),
+            _ => date.strftime("%P").to_string(),
         }
     }
 
-    pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> String {
+    pub fn dayOfMonth(&self, max: Option<Timestamp>) -> String {
         let pattern = if self.locale() == "cs_CZ" {
             "%-d"
         } else {
             "%d"
         };
         self.dateTimeInTimezone(max, None)
-            .format(pattern)
+            .strftime(pattern)
             .to_string()
     }
 
-    pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> String {
+    pub fn dayOfWeek(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
         let names: &[&str] = match self.locale() {
             "cs_CZ" => &[
@@ -5220,16 +5196,18 @@ impl Faker {
                 "პარასკევი",
                 "შაბათი",
             ],
-            _ => return date.format("%A").to_string(),
+            _ => return date.strftime("%A").to_string(),
         };
-        names[date.weekday().num_days_from_sunday() as usize].to_owned()
+        names[date.weekday().to_sunday_zero_offset() as usize].to_owned()
     }
 
-    pub fn month(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None).format("%m").to_string()
+    pub fn month(&self, max: Option<Timestamp>) -> String {
+        self.dateTimeInTimezone(max, None)
+            .strftime("%m")
+            .to_string()
     }
 
-    pub fn monthName(&self, max: Option<DateTime<Utc>>) -> String {
+    pub fn monthName(&self, max: Option<Timestamp>) -> String {
         let date = self.dateTimeInTimezone(max, None);
         let names: &[&str] = match self.locale() {
             "cs_CZ" => &[
@@ -5278,13 +5256,13 @@ impl Faker {
                 "ნოემბერი",
                 "დეკემბერი",
             ],
-            _ => return date.format("%B").to_string(),
+            _ => return date.strftime("%B").to_string(),
         };
-        names[date.month0() as usize].to_owned()
+        names[(date.month() - 1) as usize].to_owned()
     }
 
     /// Samples the Czech genitive form of a month name.
-    pub fn monthNameGenitive(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<&'static str> {
+    pub fn monthNameGenitive(&self, max: Option<Timestamp>) -> DatabaseResult<&'static str> {
         if self.locale() != "cs_CZ" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker genitive month locale",
@@ -5304,7 +5282,7 @@ impl Faker {
             "listopadu",
             "prosince",
         ];
-        Ok(NAMES[self.dateTimeInTimezone(max, None).month0() as usize])
+        Ok(NAMES[(self.dateTimeInTimezone(max, None).month() - 1) as usize])
     }
 
     /// Samples the Czech display date, drawing each of its three fields separately.
@@ -5319,8 +5297,11 @@ impl Faker {
         Ok(format!("{day}. {month} {}", self.year(None)))
     }
 
-    pub fn year(&self, max: Option<DateTime<Utc>>) -> String {
-        let year = self.dateTimeInTimezone(max, None).format("%Y").to_string();
+    pub fn year(&self, max: Option<Timestamp>) -> String {
+        let year = self
+            .dateTimeInTimezone(max, None)
+            .strftime("%Y")
+            .to_string();
         match year.strip_prefix('+') {
             Some(unsigned) => unsigned.to_owned(),
             None => year,
@@ -5342,7 +5323,7 @@ impl Faker {
         let (all, by_country) = ZONES.get_or_init(|| {
             let mut all = vec!["UTC"];
             let mut by_country: HashMap<&str, Vec<&str>> = HashMap::new();
-            // Public-domain IANA tzdb 2025b zone.tab, matching chrono-tz 0.10.4.
+            // Public-domain IANA tzdb 2025b zone.tab used by the Faker country list.
             for line in include_str!("zone.tab")
                 .lines()
                 .filter(|line| !line.starts_with('#'))
@@ -5366,13 +5347,13 @@ impl Faker {
             .copied()
     }
 
-    fn format_date(&self, format: &str, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    fn format_date(&self, format: &str, max: Option<Timestamp>) -> DatabaseResult<String> {
         use std::fmt::Write as _;
         let mut output = String::new();
         write!(
             output,
             "{}",
-            self.dateTimeInTimezone(max, None).format(format)
+            self.dateTimeInTimezone(max, None).strftime(format)
         )
         .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
         Ok(output)
@@ -6209,7 +6190,7 @@ impl UniqueFaker<'_> {
         })
     }
 
-    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<DateTime<Tz>> {
+    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<Zoned> {
         self.try_generate("creditCardExpirationDate", || {
             self.0.creditCardExpirationDate(valid)
         })
@@ -6463,19 +6444,11 @@ impl UniqueFaker<'_> {
         })
     }
 
-    pub fn dateTimeBetween(
-        &self,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeBetween(&self, start: Timestamp, end: Timestamp) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeBetween", || self.0.dateTimeBetween(start, end))
     }
 
-    pub fn dateTimeBetweenExpressions(
-        &self,
-        start: &str,
-        end: &str,
-    ) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeBetweenExpressions(&self, start: &str, end: &str) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeBetween", || {
             self.0.dateTimeBetweenExpressions(start, end)
         })
@@ -6483,9 +6456,9 @@ impl UniqueFaker<'_> {
 
     pub fn dateTimeInInterval(
         &self,
-        date: Option<DateTime<Utc>>,
-        interval: Option<TimeDelta>,
-    ) -> DatabaseResult<DateTime<Utc>> {
+        date: Option<Timestamp>,
+        interval: Option<SignedDuration>,
+    ) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeInInterval", || {
             self.0.dateTimeInInterval(date, interval)
         })
@@ -6495,56 +6468,56 @@ impl UniqueFaker<'_> {
         &self,
         date: Option<&str>,
         interval: Option<&str>,
-    ) -> DatabaseResult<DateTime<Utc>> {
+    ) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeInInterval", || {
             self.0.dateTimeInIntervalExpressions(date, interval)
         })
     }
 
-    pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisCentury(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeThisCentury", || self.0.dateTimeThisCentury(max))
     }
 
-    pub fn dateTimeThisDecade(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisDecade(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeThisDecade", || self.0.dateTimeThisDecade(max))
     }
 
-    pub fn dateTimeThisYear(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisYear(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeThisYear", || self.0.dateTimeThisYear(max))
     }
 
-    pub fn dateTimeThisMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeThisMonth(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.try_generate("dateTimeThisMonth", || self.0.dateTimeThisMonth(max))
     }
 
-    pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<i64> {
+    pub fn unixTime(&self, max: Option<Timestamp>) -> DatabaseResult<i64> {
         self.generate("unixTime", || self.0.unixTime(max))
     }
 
     pub fn unixTimeExpression(&self, max: &str) -> DatabaseResult<i64> {
         let end = self
             .0
-            .resolve_timestamp_max(max, Utc::now())
+            .resolve_timestamp_max(max, Timestamp::now())
             .or_else(faker_timestamp)?;
         self.generate("unixTime", || self.0.numberBetween(0, end))
     }
 
-    pub fn dateTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTime(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.generate("dateTime", || self.0.dateTime(max))
     }
 
-    pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn date(&self, format: Option<&str>, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.try_generate("date", || self.0.date(format, max))
     }
 
-    pub fn time(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn time(&self, format: Option<&str>, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.try_generate("time", || self.0.time(format, max))
     }
 
     pub fn dateWithPhpFormat(
         &self,
         format: &str,
-        max: Option<DateTime<Utc>>,
+        max: Option<Timestamp>,
     ) -> DatabaseResult<String> {
         self.try_generate("date", || self.0.dateWithPhpFormat(format, max))
     }
@@ -6552,50 +6525,50 @@ impl UniqueFaker<'_> {
     pub fn timeWithPhpFormat(
         &self,
         format: &str,
-        max: Option<DateTime<Utc>>,
+        max: Option<Timestamp>,
     ) -> DatabaseResult<String> {
         self.try_generate("time", || self.0.timeWithPhpFormat(format, max))
     }
 
-    pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn iso8601(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("iso8601", || self.0.iso8601(max))
     }
 
-    pub fn dateTimeAD(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+    pub fn dateTimeAD(&self, max: Option<Timestamp>) -> DatabaseResult<Timestamp> {
         self.generate("dateTimeAD", || self.0.dateTimeAD(max))
     }
 
     pub fn dateTimeADInTimezone(
         &self,
-        max: Option<DateTime<Utc>>,
-        timezone: Option<Tz>,
-    ) -> DatabaseResult<DateTime<Tz>> {
+        max: Option<Timestamp>,
+        timezone: Option<TimeZone>,
+    ) -> DatabaseResult<Zoned> {
         self.generate_zoned("dateTimeAD", || {
-            Ok(self.0.dateTimeADInTimezone(max, timezone))
+            Ok(self.0.dateTimeADInTimezone(max, timezone.clone()))
         })
     }
 
-    pub fn amPm(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn amPm(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("amPm", || self.0.amPm(max))
     }
 
-    pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn dayOfMonth(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("dayOfMonth", || self.0.dayOfMonth(max))
     }
 
-    pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn dayOfWeek(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("dayOfWeek", || self.0.dayOfWeek(max))
     }
 
-    pub fn month(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn month(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("month", || self.0.month(max))
     }
 
-    pub fn monthName(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn monthName(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("monthName", || self.0.monthName(max))
     }
 
-    pub fn monthNameGenitive(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<&'static str> {
+    pub fn monthNameGenitive(&self, max: Option<Timestamp>) -> DatabaseResult<&'static str> {
         self.try_generate("monthNameGenitive", || self.0.monthNameGenitive(max))
     }
 
@@ -6603,7 +6576,7 @@ impl UniqueFaker<'_> {
         self.try_generate("formattedDate", || self.0.formattedDate())
     }
 
-    pub fn year(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+    pub fn year(&self, max: Option<Timestamp>) -> DatabaseResult<String> {
         self.generate("year", || self.0.year(max))
     }
 
@@ -6621,28 +6594,33 @@ impl UniqueFaker<'_> {
 
     pub fn dateTimeInTimezone(
         &self,
-        max: Option<DateTime<Utc>>,
-        timezone: Option<Tz>,
-    ) -> DatabaseResult<DateTime<Tz>> {
-        self.generate_zoned("dateTime", || Ok(self.0.dateTimeInTimezone(max, timezone)))
+        max: Option<Timestamp>,
+        timezone: Option<TimeZone>,
+    ) -> DatabaseResult<Zoned> {
+        self.generate_zoned("dateTime", || {
+            Ok(self.0.dateTimeInTimezone(max, timezone.clone()))
+        })
     }
 
     fn generate_zoned(
         &self,
         formatter: &'static str,
-        value: impl FnMut() -> DatabaseResult<DateTime<Tz>>,
-    ) -> DatabaseResult<DateTime<Tz>> {
+        value: impl FnMut() -> DatabaseResult<Zoned>,
+    ) -> DatabaseResult<Zoned> {
         self.generate_keyed(formatter, value, |date| {
-            Ok(if date.timezone() == UTC {
-                date.with_timezone(&Utc).to_string()
+            Ok(if date.time_zone().iana_name() == Some("UTC") {
+                date.timestamp().to_string()
             } else {
                 // PHP serializes named DateTime results as a wall clock and a zone name.
                 let local_seconds =
-                    date.timestamp() + i64::from(date.offset().fix().local_minus_utc());
+                    timestamp_seconds(date.timestamp()) + i64::from(date.offset().seconds());
                 format!(
                     "{local_seconds}:{} [{}]",
-                    date.timestamp_subsec_nanos(),
-                    date.timezone().name()
+                    date.timestamp().as_nanosecond().rem_euclid(1_000_000_000),
+                    date.time_zone()
+                        .iana_name()
+                        .map(str::to_owned)
+                        .unwrap_or_else(|| date.offset().to_string())
                 )
             })
         })

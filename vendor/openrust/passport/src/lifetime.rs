@@ -15,7 +15,7 @@ impl GrantLifetime {
     }
     /// Calendar years retain the supplied IANA timezone and carry leap days.
     pub fn expires_at_in(self, now: i64, timezone: DateTimezone) -> Result<i64, OAuthError> {
-        let start = chrono::DateTime::from_timestamp(now, 0).ok_or_else(invalid)?;
+        let start = jiff::Timestamp::from_second(now).map_err(|_| invalid())?;
         let interval = match self {
             Self::Interval(interval) => interval,
             Self::Seconds(seconds) => DateInterval {
@@ -32,12 +32,17 @@ impl GrantLifetime {
         };
         Date::fromUtc(start, timezone)
             .plus(interval, MonthOverflow::Carry)
-            .map(|d| d.asDateTime().timestamp())
+            .map(|d| {
+                d.asDateTime()
+                    .timestamp()
+                    .as_nanosecond()
+                    .div_euclid(1_000_000_000) as i64
+            })
             .map_err(|_| invalid())
     }
     pub(crate) fn for_application(self, now: i64) -> Result<i64, OAuthError> {
         let current = Date::now(None).map_err(|_| invalid())?;
-        self.expires_at_in(now, current.asDateTime().timezone())
+        self.expires_at_in(now, current.asDateTime().time_zone().clone())
     }
 }
 fn invalid() -> OAuthError {

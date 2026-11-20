@@ -20,7 +20,7 @@ fn rotates_on_period_boundary_and_keeps_only_matching_files() {
         )
         .unwrap()
     };
-    let date = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+    let date = |y, m, d| Date::new(y, m, d).unwrap();
     let daily = make("access.log", Period::Daily, 2);
     fs::write(root.join("access-2025-12-31.log"), "old").unwrap();
     fs::write(root.join("access-2026-02-30.log"), "invalid").unwrap();

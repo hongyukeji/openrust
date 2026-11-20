@@ -1,8 +1,7 @@
 use std::{fmt::Write as _, io::Write as _};
 
-use chrono::{DateTime, SecondsFormat};
-use chrono_tz::Tz;
 use clap::ArgMatches;
+use jiff::{Timestamp, Zoned, tz::TimeZone};
 use serde_json::{Value, json};
 
 use crate::{
@@ -19,11 +18,11 @@ pub(super) struct WorkerOutput<'a> {
     json: bool,
     suppressed: bool,
     once: bool,
-    timezone: Tz,
+    timezone: TimeZone,
 }
 
 impl<'a> WorkerOutput<'a> {
-    pub(super) fn new(output: &'a mut Output, args: &ArgMatches, timezone: Tz) -> Self {
+    pub(super) fn new(output: &'a mut Output, args: &ArgMatches, timezone: TimeZone) -> Self {
         Self {
             output,
             json: args.get_flag("json"),
@@ -37,11 +36,11 @@ impl<'a> WorkerOutput<'a> {
         if self.suppressed || (self.once && matches!(event, WorkerStatus::Stopped(_))) {
             return;
         }
-        let now = chrono::Utc::now().with_timezone(&self.timezone);
+        let now = Timestamp::now().to_zoned(self.timezone.clone());
         let line = if self.json {
             record(event, now).to_string()
         } else {
-            format!("  {} {}", now.format("%Y-%m-%d %H:%M:%S"), summary(event))
+            format!("  {} {}", now.strftime("%Y-%m-%d %H:%M:%S"), summary(event))
         };
         if self.output.streams_to_terminal() {
             // A closed output pipe must not interrupt an already reserved job.
@@ -53,8 +52,8 @@ impl<'a> WorkerOutput<'a> {
     }
 }
 
-fn record(event: WorkerStatus<'_>, now: DateTime<Tz>) -> Value {
-    let timestamp = now.to_rfc3339_opts(SecondsFormat::Micros, false);
+fn record(event: WorkerStatus<'_>, now: Zoned) -> Value {
+    let timestamp = now.strftime("%Y-%m-%dT%H:%M:%S%.6f%:z").to_string();
     match event {
         WorkerStatus::Paused(event) => {
             queue_status(&event.connection, &event.queue, "paused", timestamp)

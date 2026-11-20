@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use axum::{extract::State, handler::Handler as _};
-use chrono::{TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use openrust::{
     auth::{AuthIdentifier, AuthManager},
     contracts::{
@@ -619,7 +619,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             owner(1),
             "expired",
             &["*"],
-            Some(Utc::now() - TimeDelta::seconds(10)),
+            Some(Timestamp::now() - SignedDuration::from_secs(10)),
         )
         .await
         .unwrap();
@@ -1262,7 +1262,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                 owner(1),
                 "hidden",
                 &["*"],
-                Some(Utc::now() - TimeDelta::minutes(2)),
+                Some(Timestamp::now() - SignedDuration::from_secs(120)),
             )
             .await
             .unwrap();

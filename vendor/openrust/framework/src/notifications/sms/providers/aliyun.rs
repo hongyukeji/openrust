@@ -180,7 +180,7 @@ impl Client {
             .map(|(name, value)| format!("{name}={}", utf8_percent_encode(value, ESCAPE)))
             .collect::<Vec<_>>()
             .join("&");
-        let date = now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        let date = now().strftime("%Y-%m-%dT%H:%M:%SZ").to_string();
         let nonce = uuid::Uuid::now_v7().to_string();
         let hash = sha256(b"");
         let headers = [

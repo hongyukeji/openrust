@@ -1,7 +1,6 @@
 use std::fmt::Write as _;
 use std::{cell::RefCell, collections::HashMap};
 
-use chrono::Datelike;
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Parser, Tag, TagEnd, html};
 
 use crate::{
@@ -218,7 +217,7 @@ impl<'a> Render<'a> {
     fn message_slots(&self, data: &mut ViewData, slots: &ViewData) -> MailResult<()> {
         let app_name = self.markdown.app_name.as_str();
         let app_url = safe_url(self.markdown.app_url.as_str().into()).to_string();
-        let year = Date::now(Some(self.markdown.timezone))
+        let year = Date::now(Some(self.markdown.timezone.clone()))
             .map_err(|error| composition(error.to_string()))?
             .asDateTime()
             .year();

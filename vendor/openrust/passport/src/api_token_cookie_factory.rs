@@ -183,7 +183,12 @@ fn passport() -> Result<std::sync::Arc<Passport>, OAuthError> {
         .map_err(internal)
 }
 fn now() -> Result<i64, OAuthError> {
-    Ok(Date::now(None).map_err(internal)?.asDateTime().timestamp())
+    Ok(Date::now(None)
+        .map_err(internal)?
+        .asDateTime()
+        .timestamp()
+        .as_nanosecond()
+        .div_euclid(1_000_000_000) as i64)
 }
 fn invalid() -> OAuthError {
     OAuthError::access_denied(Some("Invalid API token cookie"))

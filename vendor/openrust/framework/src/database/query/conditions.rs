@@ -203,8 +203,8 @@ macro_rules! date_methods {
 macro_rules! predicate_methods {
     () => {
         date_methods! {
-            (whereDate, orWhereDate, Date, chrono::NaiveDate, |value| format!("{value}")),
-            (whereTime, orWhereTime, Time, chrono::NaiveTime, |value: chrono::NaiveTime| value.format("%H:%M:%S").to_string()),
+            (whereDate, orWhereDate, Date, jiff::civil::Date, |value| format!("{value}")),
+            (whereTime, orWhereTime, Time, jiff::civil::Time, |value: jiff::civil::Time| value.strftime("%H:%M:%S").to_string()),
             (whereDay, orWhereDay, Day, u32, |value| format!("{value:02}")),
             (whereMonth, orWhereMonth, Month, u32, |value| format!("{value:02}")),
             (whereYear, orWhereYear, Year, i32, |value| format!("{value:04}")),

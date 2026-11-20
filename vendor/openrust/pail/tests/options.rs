@@ -305,3 +305,23 @@ fn trilingual_documentation_example_selects_error_messages() {
         assert_eq!(select(&line).unwrap(), expected);
     }
 }
+
+#[test]
+fn captured_dates_accept_zulu_and_preserve_numeric_offsets() {
+    for (datetime, expected) in [
+        ("2026-11-19T03:04:05Z", "2026-11-19 03:04:05"),
+        ("2026-11-19T03:04:05.123400+05:30", "2026-11-19 03:04:05"),
+        ("1969-12-31T23:59:59.999999-07:00", "1969-12-31 23:59:59"),
+    ] {
+        let event = MessageLogged::fromJson(
+            &json!({
+                "message": "record", "datetime": datetime,
+                "level_name": "INFO", "context": {}
+            })
+            .to_string(),
+        )
+        .unwrap();
+        assert_eq!(event.date().unwrap(), expected);
+        assert_eq!(event.time().unwrap(), &expected[11..]);
+    }
+}

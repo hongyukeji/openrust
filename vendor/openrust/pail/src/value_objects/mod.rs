@@ -1,6 +1,6 @@
 use std::{borrow::Cow, fmt};
 
-use chrono::{DateTime, ParseError};
+use jiff::{Error as ParseError, Zoned, fmt::temporal::DateTimeParser, tz::Offset};
 use openrust::log::LogContext;
 use serde::Deserialize;
 use serde_json::Value;
@@ -32,14 +32,19 @@ impl MessageLogged {
         &self.message
     }
     pub fn date(&self) -> Result<String, ParseError> {
-        Ok(DateTime::parse_from_rfc3339(&self.datetime)?
-            .format("%Y-%m-%d %H:%M:%S")
+        Ok(self
+            .parsed_datetime()?
+            .strftime("%Y-%m-%d %H:%M:%S")
             .to_string())
     }
     pub fn time(&self) -> Result<String, ParseError> {
-        Ok(DateTime::parse_from_rfc3339(&self.datetime)?
-            .format("%H:%M:%S")
-            .to_string())
+        Ok(self.parsed_datetime()?.strftime("%H:%M:%S").to_string())
+    }
+    fn parsed_datetime(&self) -> Result<Zoned, ParseError> {
+        let timestamp = self.datetime.parse::<jiff::Timestamp>()?;
+        let pieces = DateTimeParser::new().parse_pieces(&self.datetime)?;
+        let offset = pieces.to_numeric_offset().unwrap_or(Offset::UTC);
+        Ok(timestamp.to_zoned(offset.to_time_zone()))
     }
     pub fn classOrType(&self) -> Cow<'_, str> {
         self.exception("class")

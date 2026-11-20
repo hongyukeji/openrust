@@ -32,7 +32,7 @@ fn confirm(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 fn age_confirmation(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let now = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).timestamp();
+        let now = jiff::Timestamp::now().as_second();
         let age = request
             .query(Some("age"))?
             .unwrap()

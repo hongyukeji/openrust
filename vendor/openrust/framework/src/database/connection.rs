@@ -76,7 +76,7 @@ pub struct Connection {
     pub(super) sqlite: bool,
     pub(super) sticky: bool,
     pub(super) has_direct_connection: bool,
-    pub(super) model_timezone: chrono_tz::Tz,
+    pub(super) model_timezone: jiff::tz::TimeZone,
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) schema_defaults: Arc<std::sync::RwLock<super::schema::SchemaDefaults>>,
     pub(super) routing: Arc<ReadRouting>,
@@ -331,7 +331,14 @@ fn bind_postgres<'a, 'b: 'a>(
             // SQLx Json uses the JSONB binary format; text columns need plain JSON bytes.
             query = query.bind(value.to_string());
         } else if let (Value::Text(value), Some("TIMESTAMP")) = (value, kind) {
-            let timestamp = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
+            let format = if value.contains('.') {
+                time::macros::format_description!(
+                    "[year]-[month]-[day] [hour]:[minute]:[second].[subsecond]"
+                )
+            } else {
+                time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]")
+            };
+            let timestamp = time::PrimitiveDateTime::parse(value, format)
                 .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL timestamp parameter"))?;
             query = query.bind(timestamp);
         } else {
@@ -1330,8 +1337,8 @@ impl Connection {
     }
 
     #[cfg(feature = "sanctum")]
-    pub(crate) fn model_timezone(&self) -> chrono_tz::Tz {
-        self.model_timezone
+    pub(crate) fn model_timezone(&self) -> jiff::tz::TimeZone {
+        self.model_timezone.clone()
     }
 
     pub fn getName(&self) -> &str {

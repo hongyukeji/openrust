@@ -631,8 +631,10 @@ impl OutputMode<'_> {
             if let Event::Output { text, .. } = &mut event {
                 *text = console::strip_ansi_codes(text).into_owned();
             }
-            let time = chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
-                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+            let time = jiff::Timestamp::try_from(SystemTime::now())
+                .expect("current time is representable")
+                .strftime("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string();
             let frame = Frame {
                 v: 1,
                 time,
@@ -659,8 +661,9 @@ impl OutputMode<'_> {
         let time = match time {
             Some(saved) => saved,
             None if self.timestamps => {
-                generated = chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
-                    .format("%H:%M:%S ")
+                generated = jiff::Timestamp::try_from(SystemTime::now())
+                    .expect("current time is representable")
+                    .strftime("%H:%M:%S ")
                     .to_string();
                 &generated
             }

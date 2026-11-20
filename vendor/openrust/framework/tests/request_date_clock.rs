@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use openrust::{
     foundation::configuration::Routing,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
@@ -46,12 +46,7 @@ fn fixture() -> TestResult<TestApp> {
 }
 
 fn date(text: &str) -> Date {
-    Date::fromUtc(
-        DateTime::parse_from_rfc3339(text)
-            .unwrap()
-            .with_timezone(&Utc),
-        DateTimezone::UTC,
-    )
+    Date::fromUtc(text.parse::<Timestamp>().unwrap(), DateTimezone::UTC)
 }
 
 fn uri(input: &str, format: Option<&str>, timezone: Option<&str>) -> String {

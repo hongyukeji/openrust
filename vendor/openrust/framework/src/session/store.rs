@@ -25,7 +25,7 @@ pub(super) fn valid_id(id: &str) -> bool {
 }
 
 pub(crate) fn unix_seconds() -> i64 {
-    chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now()).timestamp()
+    crate::support::timestamp_seconds(jiff::Timestamp::now())
 }
 
 /// The state of one HTTP session, with a request-owned storage handler.

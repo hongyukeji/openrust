@@ -69,18 +69,18 @@ impl Command for PurgeCommand {
             let current = Date::now(None).map_err(error)?;
             let now = current.asDateTime();
             let cutoff = now
-                .checked_sub_signed(chrono::TimeDelta::microseconds(
+                .checked_sub(jiff::SignedDuration::from_micros(
                     (hours * 3600. * 1_000_000.) as i64,
                 ))
-                .ok_or_else(|| ConsoleError::new("Invalid purge cutoff"))?;
+                .map_err(|_| ConsoleError::new("Invalid purge cutoff"))?;
             let passport = app.make::<Passport>().await.map_err(error)?;
             passport
                 .token_models
                 .purge(
                     &passport.grant_models,
                     revoked,
-                    expired.then(|| cutoff.format("%Y-%m-%d %H:%M:%S%.6f").to_string()),
-                    now.format("%Y-%m-%d %H:%M:%S%.6f").to_string(),
+                    expired.then(|| cutoff.strftime("%Y-%m-%d %H:%M:%S%.6f").to_string()),
+                    now.strftime("%Y-%m-%d %H:%M:%S%.6f").to_string(),
                     passport
                         .deviceCodeGrantEnabled
                         .load(std::sync::atomic::Ordering::Relaxed),
@@ -94,7 +94,7 @@ impl Command for PurgeCommand {
             if expired {
                 items.push(format!(
                     "items expired for more than {}",
-                    human_interval(cutoff, *now)?
+                    human_interval(cutoff, now.clone())?
                 ));
             }
             output.info(&format!("Purged {}.", items.join(" and ")));
@@ -105,11 +105,7 @@ impl Command for PurgeCommand {
 fn error(error: impl std::fmt::Display) -> ConsoleError {
     ConsoleError::new(error.to_string())
 }
-fn human_interval(
-    start: chrono::DateTime<openrust::support::DateTimezone>,
-    end: chrono::DateTime<openrust::support::DateTimezone>,
-) -> Result<String, ConsoleError> {
-    use chrono::Datelike as _;
+fn human_interval(start: jiff::Zoned, end: jiff::Zoned) -> Result<String, ConsoleError> {
     let (start, end) = if start <= end {
         (start, end)
     } else {
@@ -117,7 +113,7 @@ fn human_interval(
     };
     let mut months = i64::from(end.year() - start.year()) * 12 + i64::from(end.month())
         - i64::from(start.month());
-    let candidate = Date::fromUtc(start.with_timezone(&chrono::Utc), start.timezone())
+    let candidate = Date::fromUtc(start.timestamp(), start.time_zone().clone())
         .plus(
             openrust::support::DateInterval {
                 months,
@@ -126,7 +122,7 @@ fn human_interval(
             openrust::support::MonthOverflow::Clamp,
         )
         .map_err(error)?;
-    if candidate.asDateTime() > &end {
+    if candidate.asDateTime() > end {
         months -= 1;
     }
     let plural = |n, unit: &str| format!("{n} {unit}{}", if n == 1 { "" } else { "s" });
@@ -136,7 +132,7 @@ fn human_interval(
     if months >= 1 {
         return Ok(plural(months, "month"));
     }
-    let seconds = (end - start).num_seconds().unsigned_abs();
+    let seconds = end.duration_since(&start).as_secs().unsigned_abs();
     for (unit, size) in [
         ("week", 604800),
         ("day", 86400),

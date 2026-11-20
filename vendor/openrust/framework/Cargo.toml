@@ -30,7 +30,7 @@ base64 = "0.22.1"
 bcrypt = "0.19.3"
 cap-std = "4.0.3"
 crc32fast = "1.5.5"
-chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
+jiff = { version = "=0.2.46", features = ["serde"] }
 css-inline = { version = "=0.20.0", default-features = false }
 clap = "4.6.1"
 console = "0.16.6"
@@ -89,21 +89,21 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 shlex = "2.0.1"
-sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "postgres", "sqlite-bundled", "tls-rustls-ring", "chrono", "json"] }
+sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "postgres", "sqlite-bundled", "tls-rustls-ring", "time", "json"] }
 sqlx-core = { version = "=0.9.0", default-features = false }
 subtle = "2.6.1"
 tempfile = "3.27.0"
 url = "2.5.8"
 tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tiberius = { version = "=0.13.0", default-features = false, features = ["tds73", "chrono", "rustls"] }
+tiberius = { version = "=0.13.0", default-features = false, features = ["tds73", "time", "rustls"] }
 tokio-util = { version = "0.7.20", features = ["compat", "io", "rt"] }
 
 tonic = { version = "~0.14.6", default-features = false, features = ["channel", "codegen", "router", "server", "tls-ring"] }
 
 bigdecimal = "=0.4.11"
-chrono-tz = "=0.10.4"
-croner = "=4.0.3"
+time = { version = "0.3", features = ["formatting", "parsing", "large-dates", "macros"] }
+croner = { version = "=4.0.3", default-features = false, features = ["jiff"] }
 ulid = { version = "=1.2.1", default-features = false, features = ["std"] }
 uuid = { version = "=1.29.2", default-features = false, features = ["std", "v7"] }
 web_atoms = "=0.2.6"

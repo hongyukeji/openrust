@@ -1025,7 +1025,7 @@ impl Notice for SlackNotice {
                         .footer("Billing service")
                         .footerIcon("https://example.test/footer.png")
                         .action("Review", "https://example.test/invoices/42", None)
-                        .timestamp(chrono::DateTime::from_timestamp(1_710_000_000, 0).unwrap())
+                        .timestamp(jiff::Timestamp::new(1_710_000_000, 0).unwrap())
                         .callbackId("invoice_status");
                 })
                 .attachment(|attachment| {
@@ -3055,7 +3055,7 @@ async fn artisan_mail_fixture() {
         let mut fixture = openrust::testing::TestApp::create(|_| app_builder(&root)).unwrap();
         fixture.travelTo(Date::fromUtc(
             "2030-01-01T01:00:00Z".parse().unwrap(),
-            chrono_tz::UTC,
+            jiff::tz::TimeZone::UTC,
         ));
         let result = fixture.artisan(args).await;
         result.assertSuccessful();

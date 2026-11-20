@@ -220,7 +220,7 @@ fn routes() -> Result<(), ConsoleError> {
             schedule
                 .command("listed:production", [])
                 .dailyAt("08:30")?
-                .timezone(chrono_tz::UTC)
+                .timezone(jiff::tz::TimeZone::UTC)
                 .environments(&["production"]);
             return Ok(());
         }
@@ -235,7 +235,7 @@ fn routes() -> Result<(), ConsoleError> {
                     })
                 })
                 .cron("0 3 31 * MON")?
-                .timezone(chrono_tz::America::New_York);
+                .timezone(openrust::support::Date::timezone("America/New_York").unwrap());
             schedule
                 .call(|_, output| {
                     Box::pin(async move {
@@ -335,7 +335,7 @@ fn routes() -> Result<(), ConsoleError> {
             assert!(schedule.group(|_| Ok(())).is_err());
             assert!(schedule.cron("bad").is_err());
             schedule
-                .timezone(chrono_tz::Asia::Tokyo)
+                .timezone(openrust::support::Date::timezone("Asia/Tokyo").unwrap())
                 .dailyAt("17:00")?
                 .group(|schedule| {
                     schedule.command("inspire", []);
@@ -344,7 +344,7 @@ fn routes() -> Result<(), ConsoleError> {
 
             schedule
                 .dailyAt("17:00")?
-                .timezone(chrono_tz::Asia::Tokyo)
+                .timezone(openrust::support::Date::timezone("Asia/Tokyo").unwrap())
                 .environments(&["testing"])
                 .evenInMaintenanceMode()
                 .evenWhenPaused()
@@ -352,7 +352,7 @@ fn routes() -> Result<(), ConsoleError> {
                 .group(|schedule| {
                     group_task(schedule, "inherited");
                     schedule
-                        .timezone(chrono_tz::UTC)
+                        .timezone(jiff::tz::TimeZone::UTC)
                         .withAttributes([("team".into(), json!("inner"))])
                         .group(|schedule| {
                             group_task(schedule, "nested-not-due");
@@ -368,7 +368,7 @@ fn routes() -> Result<(), ConsoleError> {
                     assert_eq!(sibling.attributes()["team"], "outer");
                     assert!(
                         schedule
-                            .timezone(chrono_tz::UTC)
+                            .timezone(jiff::tz::TimeZone::UTC)
                             .group(|_| Err(ConsoleError::new("group callback failed")))
                             .is_err()
                     );

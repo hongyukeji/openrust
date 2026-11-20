@@ -1,6 +1,6 @@
 use crate::database::eloquent::factories::faker_rng::FakerRandom;
 
-use chrono::{Datelike as _, NaiveDate};
+use jiff::civil::Date as CivilDate;
 
 use super::{
     DatabaseError, DatabaseResult, Faker, UniqueFaker, ean_with_checksum, faker_address,
@@ -91,7 +91,7 @@ impl Faker {
     }
 
     /// Samples the Austrian SSN using the supplied civil birth date, if any.
-    pub fn ssnWithBirthdate(&self, birthdate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn ssnWithBirthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
         if self.locale() != "de_AT" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker SSN birthdate locale",
@@ -104,14 +104,14 @@ impl Faker {
         Ok(austrian_ssn(&self.random, birthdate))
     }
 
-    fn identity_birthdate(&self) -> DatabaseResult<NaiveDate> {
+    fn identity_birthdate(&self) -> DatabaseResult<CivilDate> {
         let timezone = self
             .getDefaultTimezone()
-            .unwrap_or(self.application_timezone);
+            .unwrap_or_else(|| self.application_timezone.clone());
         Ok(self
             .dateTimeThisCentury(None)?
-            .with_timezone(&timezone)
-            .date_naive())
+            .to_zoned(timezone.clone())
+            .date())
     }
 
     /// Samples the British Person provider's National Insurance number format.
@@ -144,7 +144,7 @@ impl Faker {
         }
         Ok(format!(
             "{}-{}",
-            self.identity_birthdate()?.format("%d%m%y"),
+            self.identity_birthdate()?.strftime("%d%m%y"),
             self.numerify(Some("%###"))
         ))
     }
@@ -167,30 +167,36 @@ impl Faker {
                 "invalid Faker birth number age range",
             ));
         }
-        let now = chrono::Utc::now();
+        let now = jiff::Timestamp::now();
         let age_bound = |age: u32| -> DatabaseResult<_> {
-            let local = now.with_timezone(&self.application_timezone).naive_local();
-            let year = local
-                .year()
+            let local = now.to_zoned(self.application_timezone.clone()).datetime();
+            let year = i32::from(local.year())
                 .checked_sub(i32::try_from(age).map_err(|_| super::DATE_RANGE_ERROR)?)
                 .ok_or(super::DATE_RANGE_ERROR)?;
+            let year = i16::try_from(year).map_err(|_| super::DATE_RANGE_ERROR)?;
             // PHP normalizes February 29 to March 1 in a non-leap year.
-            let date = NaiveDate::from_ymd_opt(year, local.month(), local.day())
-                .or_else(|| {
-                    (local.month() == 2 && local.day() == 29)
-                        .then(|| NaiveDate::from_ymd_opt(year, 3, 1))
-                        .flatten()
+            let date = CivilDate::new(year, local.month(), local.day())
+                .or_else(|error| {
+                    if local.month() == 2 && local.day() == 29 {
+                        CivilDate::new(year, 3, 1)
+                    } else {
+                        Err(error)
+                    }
                 })
-                .ok_or(super::DATE_RANGE_ERROR)?;
-            super::resolve_local(self.application_timezone, date.and_time(local.time()))
+                .map_err(|_| super::DATE_RANGE_ERROR)?;
+            super::resolve_local(
+                self.application_timezone.clone(),
+                date.to_datetime(local.time()),
+            )
         };
         let date = self
             .dateTimeBetween(age_bound(maxAge)?, age_bound(minAge)?)?
-            .with_timezone(&self.application_timezone);
+            .to_zoned(self.application_timezone.clone());
         let female = gender.map_or_else(|| self.random.bool(), |value| value == "female");
         let year = date.year();
         let capacity_offset = year >= 2004 && self.boolean(Some(10));
-        let month = date.month() + 50 * u32::from(female) + 20 * u32::from(capacity_offset);
+        let month =
+            i32::from(date.month()) + 50 * i32::from(female) + 20 * i32::from(capacity_offset);
         let serial = self.numberBetween(0, 999);
         let mut number = format!(
             "{:02}{month:02}{:02}{serial:03}",
@@ -243,7 +249,7 @@ impl Faker {
     /// Samples a Kazakh individual identification number.
     pub fn individualIdentificationNumber(
         &self,
-        birthDate: Option<NaiveDate>,
+        birthDate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         if self.locale() != "kk_KZ" {
@@ -258,12 +264,11 @@ impl Faker {
             Some(date) => date,
             None => self
                 .dateTimeBetweenExpressions("-30 years", "now")?
-                .with_timezone(
-                    &self
-                        .getDefaultTimezone()
-                        .unwrap_or(self.application_timezone),
+                .to_zoned(
+                    self.getDefaultTimezone()
+                        .unwrap_or_else(|| self.application_timezone.clone()),
                 )
-                .date_naive(),
+                .date(),
         };
         let century = match date.year() {
             1800..=1899 => 1,
@@ -276,7 +281,7 @@ impl Faker {
             }
         };
         let marker = century + u8::from(female);
-        let birth = date.format("%y%m%d");
+        let birth = date.strftime("%y%m%d");
         loop {
             let serial = self.numberBetween(1000, 2000);
             let prefix = format!("{birth}{marker}{serial}");
@@ -341,7 +346,7 @@ impl Faker {
     pub fn nik(
         &self,
         gender: Option<&str>,
-        birthDate: Option<NaiveDate>,
+        birthDate: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         if self.locale() != "id_ID" {
             return Err(DatabaseError::InvalidQuery(
@@ -352,12 +357,11 @@ impl Faker {
             Some(date) => date,
             None => self
                 .dateTimeBetweenExpressions("-30 years", "now")?
-                .with_timezone(
-                    &self
-                        .getDefaultTimezone()
-                        .unwrap_or(self.application_timezone),
+                .to_zoned(
+                    self.getDefaultTimezone()
+                        .unwrap_or_else(|| self.application_timezone.clone()),
                 )
-                .date_naive(),
+                .date(),
         };
         let female = match gender {
             None | Some("" | "0") => self.random.bool(),
@@ -366,7 +370,7 @@ impl Faker {
         let places = super::south_southeast_asian::ID_BIRTH_PLACE_CODES;
         let place = places[self.random.usize(..places.len())];
         let district = self.numberBetween(0, 99);
-        let day = date.day() + 40 * u32::from(female);
+        let day = i32::from(date.day()) + 40 * i32::from(female);
         let month = date.month();
         let year = date.year().rem_euclid(100);
         let serial = self.numberBetween(0, 9999);
@@ -452,8 +456,8 @@ impl Faker {
 
         let date = self.identity_birthdate()?;
         let birth = u64::from(date.year().rem_euclid(100) as u32) * 10_000
-            + u64::from(date.month()) * 100
-            + u64::from(date.day());
+            + date.month() as u64 * 100
+            + date.day() as u64;
         let body = birth * 1_000 + serial;
         let century = if date.year() >= 2000 {
             2_000_000_000
@@ -465,18 +469,18 @@ impl Faker {
     }
 
     /// Samples a Singapore citizen's NRIC.
-    pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn nric(&self, birthDate: Option<CivilDate>) -> DatabaseResult<String> {
         self.singaporeId(birthDate, false)
     }
 
     /// Samples a Singapore foreign identification number.
-    pub fn fin(&self, issueDate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn fin(&self, issueDate: Option<CivilDate>) -> DatabaseResult<String> {
         self.singaporeId(issueDate, true)
     }
 
     pub fn singaporeId(
         &self,
-        issueDate: Option<NaiveDate>,
+        issueDate: Option<CivilDate>,
         foreigner: bool,
     ) -> DatabaseResult<String> {
         if self.locale() != "en_SG" {
@@ -502,7 +506,7 @@ impl Faker {
             let year_digits = if year < 1968 {
                 self.random.u8(0..=1).to_string()
             } else {
-                date.format("%y").to_string()
+                date.strftime("%y").to_string()
             };
             format!("{year_digits:0>2}{}", self.numerify(Some("#####")))
         };
@@ -534,7 +538,7 @@ impl Faker {
     /// Samples a South African ID with optional birth date, citizenship and gender.
     pub fn idNumberWithBirthdate(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         citizen: Option<bool>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
@@ -563,7 +567,7 @@ impl Faker {
         let race = self.random.u8(8..=9);
         let mut number = format!(
             "{}{sex}{sequence}{citizenship}{race}",
-            birthdate.format("%y%m%d")
+            birthdate.strftime("%y%m%d")
         );
         number.push(luhn_check_digit(&number));
         Ok(number)
@@ -585,7 +589,7 @@ impl Faker {
         }
         let date = self
             .dateTimeBetweenExpressions("1950-01-10", "2005-12-25")?
-            .with_timezone(&self.application_timezone);
+            .to_zoned(self.application_timezone.clone());
         let century = if date.year() >= 2000 { 3 } else { 2 };
         let sequence = self.random.u16(1..=500);
         let sequence = match gender {
@@ -596,7 +600,7 @@ impl Faker {
         let check = self.random.u8(1..=9);
         Ok(format!(
             "{century}{}{governorate}{sequence:04}{check}",
-            date.format("%y%m%d"),
+            date.strftime("%y%m%d"),
             governorate = self.governorateId()?
         ))
     }
@@ -748,7 +752,7 @@ impl Faker {
     /// Samples a Kazakh business ID using the supplied civil registration date.
     pub fn businessIdentificationNumber(
         &self,
-        registration_date: Option<NaiveDate>,
+        registration_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         if self.locale() != "kk_KZ" {
             return Err(DatabaseError::InvalidQuery("unsupported Faker BIN locale"));
@@ -758,10 +762,8 @@ impl Faker {
             None => {
                 let zone = self
                     .getDefaultTimezone()
-                    .unwrap_or(self.application_timezone);
-                self.dateTimeThisYear(None)?
-                    .with_timezone(&zone)
-                    .date_naive()
+                    .unwrap_or_else(|| self.application_timezone.clone());
+                self.dateTimeThisYear(None)?.to_zoned(zone.clone()).date()
             }
         };
         let legal_type = self.random.u8(4..=6);
@@ -769,7 +771,7 @@ impl Faker {
         let digits = self.numerify(Some("######"));
         Ok(format!(
             "{}{legal_type}{additional_type}{digits}",
-            date.format("%y%m")
+            date.strftime("%y%m")
         ))
     }
 
@@ -786,11 +788,11 @@ impl Faker {
         ];
         let zone = self
             .getDefaultTimezone()
-            .unwrap_or(self.application_timezone);
+            .unwrap_or_else(|| self.application_timezone.clone());
         let date = self
             .dateTimeBetweenExpressions("-50 years", "now")?
-            .with_timezone(&zone);
-        let year = date.format("%Y");
+            .to_zoned(zone.clone());
+        let year = date.strftime("%Y");
         let number = self.randomNumber(Some(6), true)?;
         let entity = ENTITIES[self.random.usize(..ENTITIES.len())];
         Ok(format!("{year}/{number}/{entity}"))
@@ -1110,7 +1112,7 @@ impl Faker {
     }
 
     /// Samples a Polish PESEL, using a generated birth date when omitted.
-    pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
+    pub fn pesel(&self, birthdate: Option<CivilDate>, sex: Option<&str>) -> DatabaseResult<String> {
         if self.locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker PESEL locale",
@@ -1127,7 +1129,7 @@ impl Faker {
             ));
         }
 
-        let month = birthdate.month() + ((year as u32 / 100 - 14) % 5) * 20;
+        let month = u32::from(birthdate.month() as u8) + ((year as u32 / 100 - 14) % 5) * 20;
         let day = birthdate.day();
         let serial = self.random.u16(0..=4999) * 2 + u16::from(sex != Some("F"));
         let prefix = format!("{:02}{month:02}{day:02}{serial:04}", year % 100);
@@ -1210,7 +1212,7 @@ impl Faker {
     /// Samples a European personal identity number using a civil birth date.
     pub fn personalIdentityNumberWithBirthdate(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         let locale = self.locale();
@@ -1235,7 +1237,7 @@ impl Faker {
     /// Supplies the optional Lithuanian serial while preserving leading zeroes.
     pub fn personalIdentityNumberWithSerial(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         gender: Option<&str>,
         serial: Option<&str>,
     ) -> DatabaseResult<String> {
@@ -1276,7 +1278,7 @@ impl UniqueFaker<'_> {
         self.try_generate("ssn", || self.0.ssn())
     }
 
-    pub fn ssnWithBirthdate(&self, birthdate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn ssnWithBirthdate(&self, birthdate: Option<CivilDate>) -> DatabaseResult<String> {
         self.try_generate("ssn", || self.0.ssnWithBirthdate(birthdate))
     }
 
@@ -1318,7 +1320,7 @@ impl UniqueFaker<'_> {
 
     pub fn individualIdentificationNumber(
         &self,
-        birthDate: Option<NaiveDate>,
+        birthDate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("individualIdentificationNumber", || {
@@ -1337,7 +1339,7 @@ impl UniqueFaker<'_> {
     pub fn nik(
         &self,
         gender: Option<&str>,
-        birthDate: Option<NaiveDate>,
+        birthDate: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         self.try_generate("nik", || self.0.nik(gender, birthDate))
     }
@@ -1354,17 +1356,17 @@ impl UniqueFaker<'_> {
         self.try_generate("rrn", || self.0.rrn(gender))
     }
 
-    pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn nric(&self, birthDate: Option<CivilDate>) -> DatabaseResult<String> {
         self.try_generate("nric", || self.0.nric(birthDate))
     }
 
-    pub fn fin(&self, issueDate: Option<NaiveDate>) -> DatabaseResult<String> {
+    pub fn fin(&self, issueDate: Option<CivilDate>) -> DatabaseResult<String> {
         self.try_generate("fin", || self.0.fin(issueDate))
     }
 
     pub fn singaporeId(
         &self,
-        issueDate: Option<NaiveDate>,
+        issueDate: Option<CivilDate>,
         foreigner: bool,
     ) -> DatabaseResult<String> {
         self.try_generate("singaporeId", || self.0.singaporeId(issueDate, foreigner))
@@ -1376,7 +1378,7 @@ impl UniqueFaker<'_> {
 
     pub fn idNumberWithBirthdate(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         citizen: Option<bool>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
@@ -1425,7 +1427,7 @@ impl UniqueFaker<'_> {
 
     pub fn businessIdentificationNumber(
         &self,
-        registration_date: Option<NaiveDate>,
+        registration_date: Option<CivilDate>,
     ) -> DatabaseResult<String> {
         self.try_generate("businessIdentificationNumber", || {
             self.0.businessIdentificationNumber(registration_date)
@@ -1530,7 +1532,7 @@ impl UniqueFaker<'_> {
         self.try_generate("cnpj", || self.0.cnpj(formatted))
     }
 
-    pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
+    pub fn pesel(&self, birthdate: Option<CivilDate>, sex: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("pesel", || self.0.pesel(birthdate, sex))
     }
 
@@ -1556,7 +1558,7 @@ impl UniqueFaker<'_> {
     }
     pub fn personalIdentityNumberWithBirthdate(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         gender: Option<&str>,
     ) -> DatabaseResult<String> {
         self.try_generate("personalIdentityNumber", || {
@@ -1567,7 +1569,7 @@ impl UniqueFaker<'_> {
 
     pub fn personalIdentityNumberWithSerial(
         &self,
-        birthdate: Option<NaiveDate>,
+        birthdate: Option<CivilDate>,
         gender: Option<&str>,
         serial: Option<&str>,
     ) -> DatabaseResult<String> {
@@ -1589,8 +1591,8 @@ fn us_ssn(random: &FakerRandom) -> String {
     format!("{area:03}-{group:02}-{serial:04}")
 }
 
-fn austrian_ssn(random: &FakerRandom, birthdate: NaiveDate) -> String {
-    let date = birthdate.format("%d%m%y").to_string();
+fn austrian_ssn(random: &FakerRandom, birthdate: CivilDate) -> String {
+    let date = birthdate.strftime("%d%m%y").to_string();
     let date_sum = weighted_digits(&date, &[5, 8, 4, 2, 1, 6]);
     loop {
         let serial = random.u16(100..=999).to_string();
@@ -1601,10 +1603,10 @@ fn austrian_ssn(random: &FakerRandom, birthdate: NaiveDate) -> String {
     }
 }
 
-fn icelandic_ssn(random: &FakerRandom, birthdate: NaiveDate) -> String {
-    let formatted_year = birthdate.format("%Y").to_string();
+fn icelandic_ssn(random: &FakerRandom, birthdate: CivilDate) -> String {
+    let formatted_year = birthdate.strftime("%Y").to_string();
     let century_digit = formatted_year.as_bytes()[1] as char;
-    let date = birthdate.format("%d%m%y").to_string();
+    let date = birthdate.strftime("%d%m%y").to_string();
     let date_sum = weighted_digits(&date, &[3, 2, 7, 6, 5, 4]);
     loop {
         let serial = random.u8(0..=99);
@@ -1631,12 +1633,13 @@ fn weighted_digits(value: &str, weights: &[u16]) -> u16 {
 
 fn lithuanian_identity(
     random: &FakerRandom,
-    birthdate: NaiveDate,
+    birthdate: CivilDate,
     gender: Option<&str>,
     serial: Option<&str>,
 ) -> DatabaseResult<String> {
-    let first =
-        birthdate.year().div_euclid(100) * 2 - 34 - i32::from(gender.unwrap_or("male") == "male");
+    let first = i32::from(birthdate.year()).div_euclid(100) * 2
+        - 34
+        - i32::from(gender.unwrap_or("male") == "male");
     if !(1..=9).contains(&first) {
         return Err(DatabaseError::InvalidQuery(
             "Faker Lithuanian personal identity century is out of range",
@@ -1654,7 +1657,7 @@ fn lithuanian_identity(
         }
         _ => format!("{:03}", random.u16(0..=999)),
     };
-    let prefix = format!("{first}{}{serial}", birthdate.format("%y%m%d"));
+    let prefix = format!("{first}{}{serial}", birthdate.strftime("%y%m%d"));
     let mut check = weighted_digits(&prefix, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 1]) % 11;
     if check == 10 {
         check = (weighted_digits(&prefix, &[3, 4, 5, 6, 7, 8, 9, 1, 2, 3]) % 11) % 10;
@@ -1662,13 +1665,13 @@ fn lithuanian_identity(
     Ok(format!("{prefix}{check}"))
 }
 
-fn latvian_identity(random: &FakerRandom, birthdate: NaiveDate) -> String {
+fn latvian_identity(random: &FakerRandom, birthdate: CivilDate) -> String {
     let century = match birthdate.year() {
         2000..=2099 => 2,
         1900..=1999 => 1,
         _ => 0,
     };
-    let date = birthdate.format("%d%m%y").to_string();
+    let date = birthdate.strftime("%d%m%y").to_string();
     let serial = format!("{century}{:03}", random.u16(0..=999));
     let total =
         weighted_digits(&date, &[1, 6, 3, 7, 9, 10]) + weighted_digits(&serial, &[5, 8, 4, 2]);
@@ -1678,7 +1681,7 @@ fn latvian_identity(random: &FakerRandom, birthdate: NaiveDate) -> String {
 
 fn finnish_identity(
     random: &FakerRandom,
-    birthdate: NaiveDate,
+    birthdate: CivilDate,
     gender: Option<&str>,
 ) -> DatabaseResult<String> {
     let century = match birthdate.year() {
@@ -1691,7 +1694,7 @@ fn finnish_identity(
             ));
         }
     };
-    let date = birthdate.format("%d%m%y").to_string();
+    let date = birthdate.strftime("%d%m%y").to_string();
     let base = random.u16(0..=89) * 10;
     let tail = if base == 0 {
         loop {
@@ -1710,8 +1713,8 @@ fn finnish_identity(
     Ok(format!("{date}{century}{serial:03}{check}"))
 }
 
-fn norwegian_identity(random: &FakerRandom, birthdate: NaiveDate, gender: Option<&str>) -> String {
-    let date = birthdate.format("%d%m%y");
+fn norwegian_identity(random: &FakerRandom, birthdate: CivilDate, gender: Option<&str>) -> String {
+    let date = birthdate.strftime("%d%m%y");
     let serial = random.u8(0..=99);
     let gender = gender_digit(random, gender);
     // The pinned provider uses two random digits here.
@@ -1719,14 +1722,14 @@ fn norwegian_identity(random: &FakerRandom, birthdate: NaiveDate, gender: Option
     format!("{date}{serial:02}{gender}{trailing:02}")
 }
 
-fn swedish_identity(random: &FakerRandom, birthdate: NaiveDate, gender: Option<&str>) -> String {
+fn swedish_identity(random: &FakerRandom, birthdate: CivilDate, gender: Option<&str>) -> String {
     let serial = loop {
         let candidate = random.u16(0..=99) * 10 + gender_digit(random, gender);
         if candidate != 0 {
             break candidate;
         }
     };
-    let date = birthdate.format("%y%m%d");
+    let date = birthdate.strftime("%y%m%d");
     let check = luhn_check_digit(&format!("{date}{serial:03}"));
     format!("{date}-{serial:03}{check}")
 }

@@ -5,7 +5,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use chrono::{SecondsFormat, Utc};
+use jiff::Timestamp;
 use openrust::log::{Level, LogContext};
 use serde_json::json;
 
@@ -93,7 +93,7 @@ impl File {
             Level::Emergency => (600, "EMERGENCY"),
         };
         let record = json!({"message":message,"context":context,"level":number,"level_name":name,
-            "channel":"pail","datetime":Utc::now().to_rfc3339_opts(SecondsFormat::Micros, false),"extra":{}});
+            "channel":"pail","datetime":Timestamp::now().strftime("%Y-%m-%dT%H:%M:%S%.6f%:z").to_string(),"extra":{}});
         let mut line = serde_json::to_vec(&record)?;
         line.push(b'\n');
         if let Err(error) = file.write_all(&line) {

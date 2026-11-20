@@ -6,9 +6,9 @@ use std::{
     sync::atomic::Ordering,
 };
 
-use chrono::{NaiveDateTime, TimeDelta, Utc};
 use clap::{Arg, ArgAction, Command as Syntax};
 use console::{Key, Term, truncate_str};
+use jiff::{SignedDuration, Timestamp, civil::DateTime, tz::TimeZone};
 
 use crate::{
     console::{
@@ -184,7 +184,7 @@ impl Command for VendorPublishCommand {
 
 pub(super) fn migration_publication_timestamp(
     app: &Application,
-) -> Result<Option<NaiveDateTime>, ConsoleError> {
+) -> Result<Option<DateTime>, ConsoleError> {
     Ok(app
         .config()
         .map_err(console_error)?
@@ -197,7 +197,7 @@ pub(super) fn migration_publication_timestamp(
                     .keep_published_migration_dates
                     .load(Ordering::Relaxed)
         })
-        .map(|_| Utc::now().naive_utc()))
+        .map(|_| Timestamp::now().to_zoned(TimeZone::UTC).datetime()))
 }
 
 fn paths_to_publish(
@@ -368,7 +368,7 @@ fn publish(
     resources: impl IntoIterator<Item = PublishableResource>,
     existing: bool,
     force: bool,
-    timestamp: &mut Option<NaiveDateTime>,
+    timestamp: &mut Option<DateTime>,
 ) -> io::Result<Publication> {
     let _source_lock = if root.join("Cargo.toml").try_exists()? {
         Some(super::source_edit::lock_manifest(root).map_err(io::Error::other)?)
@@ -381,7 +381,7 @@ fn publish(
 pub(super) fn publish_package_if_migration_missing(
     root: &Path,
     resources: impl IntoIterator<Item = PublishableResource>,
-    mut timestamp: Option<NaiveDateTime>,
+    mut timestamp: Option<DateTime>,
 ) -> io::Result<Option<VendorTagPublished>> {
     let resources: Vec<_> = resources.into_iter().collect();
     for asset in &resources {
@@ -402,7 +402,7 @@ fn publish_locked(
     resources: impl IntoIterator<Item = PublishableResource>,
     existing: bool,
     force: bool,
-    timestamp: &mut Option<NaiveDateTime>,
+    timestamp: &mut Option<DateTime>,
 ) -> io::Result<Publication> {
     let mut publication = Publication::default();
     for resource in resources {
@@ -537,7 +537,7 @@ fn invalid_path(path: &Path) -> io::Error {
 fn migration_destination(
     root: &Path,
     original: PathBuf,
-    timestamp: &mut Option<NaiveDateTime>,
+    timestamp: &mut Option<DateTime>,
 ) -> io::Result<PathBuf> {
     let Some((_, suffix)) = original
         .file_name()
@@ -553,8 +553,11 @@ fn migration_destination(
     let Some(timestamp) = timestamp else {
         return Ok(original);
     };
-    *timestamp += TimeDelta::seconds(1);
-    let path = parent.join(format!("{}_{suffix}", timestamp.format("%Y_%m_%d_%H%M%S")));
+    *timestamp += SignedDuration::from_secs(1);
+    let path = parent.join(format!(
+        "{}_{suffix}",
+        timestamp.strftime("%Y_%m_%d_%H%M%S")
+    ));
     Ok(path)
 }
 
@@ -597,13 +600,10 @@ fn published_migration(root: &Path, original: &Path) -> io::Result<Option<PathBu
     Ok(existing.pop_first())
 }
 
-fn migration_name(name: &str) -> Option<(NaiveDateTime, &str)> {
+fn migration_name(name: &str) -> Option<(DateTime, &str)> {
     let prefix = name.get(..17)?;
     let suffix = name.get(17..)?.strip_prefix('_')?;
-    Some((
-        NaiveDateTime::parse_from_str(prefix, "%Y_%m_%d_%H%M%S").ok()?,
-        suffix,
-    ))
+    Some((DateTime::strptime("%Y_%m_%d_%H%M%S", prefix).ok()?, suffix))
 }
 
 // SourceInstallation owns the mutex while a shared package service publishes resources.

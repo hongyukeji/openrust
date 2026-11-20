@@ -13,10 +13,9 @@ mod tail_rules;
 mod timestamp;
 mod zone;
 
-use chrono::{DateTime, Utc};
-use chrono_tz::Tz;
 pub(crate) use format::display as format_php_date;
 pub use interval::{InputInterval, IntervalError};
+use jiff::{Timestamp, tz::TimeZone};
 use serde_json::Value;
 use zone::ResolvedTimezone;
 
@@ -47,9 +46,20 @@ impl CalendarInstant {
         })
     }
 
-    fn try_chrono(self) -> Result<DateTime<Utc>> {
-        DateTime::from_timestamp(self.epoch_seconds, self.microseconds * 1000)
-            .ok_or_else(range_error)
+    fn from_timestamp(value: Timestamp) -> Result<Self> {
+        let nanos = value.as_nanosecond();
+        Self::new(
+            i64::try_from(nanos.div_euclid(1_000_000_000)).map_err(|_| range_error())?,
+            u32::try_from(nanos.rem_euclid(1_000_000_000) / 1000).map_err(|_| range_error())?,
+        )
+    }
+
+    fn try_timestamp(self) -> Result<Timestamp> {
+        Timestamp::new(
+            self.epoch_seconds,
+            i32::try_from(self.microseconds * 1000).map_err(|_| range_error())?,
+        )
+        .map_err(|_| range_error())
     }
 }
 
@@ -84,8 +94,8 @@ impl InputDate {
 }
 
 pub(crate) enum DateReference {
-    Wall(DateTime<Utc>),
-    Frozen(DateTime<Utc>),
+    Wall(Timestamp),
+    Frozen(Timestamp),
 }
 
 pub(crate) fn parse_input_date(
@@ -106,7 +116,7 @@ pub(crate) fn parse_input_date(
         DateReference::Wall(reference) => (reference, false),
         DateReference::Frozen(reference) => (reference, true),
     };
-    let now = CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
+    let now = CalendarInstant::from_timestamp(reference)?;
     let zone = ResolvedTimezone::parse(timezone)?;
     if let Some(pattern) = pattern {
         if value.is_array() || value.is_object() {
@@ -157,16 +167,16 @@ pub(crate) fn parse_input_date(
 
 pub(crate) fn parse_timestamp_expression(
     expression: &str,
-    reference: DateTime<Utc>,
-    timezone: Tz,
+    reference: Timestamp,
+    timezone: TimeZone,
 ) -> Result<i64> {
     Ok(parse_expression(expression, reference, timezone)?.epoch_seconds)
 }
 
 fn parse_expression(
     expression: &str,
-    reference: DateTime<Utc>,
-    timezone: Tz,
+    reference: Timestamp,
+    timezone: TimeZone,
 ) -> Result<CalendarInstant> {
     if expression.len() > MAX_CALENDAR_BYTES {
         return Err(limit_error());
@@ -174,10 +184,18 @@ fn parse_expression(
     if expression.trim_matches(php_whitespace).is_empty() {
         return Err(calendar_error("input_date_invalid"));
     }
-    let reference =
-        CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
-    let zone = ResolvedTimezone::parse(timezone.name())?;
+    let reference = CalendarInstant::from_timestamp(reference)?;
+    let zone = resolved_timezone(&timezone)?;
     parse::parse_text(expression, reference, &zone)
+}
+
+fn resolved_timezone(timezone: &TimeZone) -> Result<ResolvedTimezone> {
+    match timezone.iana_name() {
+        Some(name) => ResolvedTimezone::parse(name),
+        None => ResolvedTimezone::parse(&zone::offset_name(
+            timezone.to_offset(Timestamp::UNIX_EPOCH).seconds(),
+        )),
+    }
 }
 
 pub(crate) fn php_whitespace(character: char) -> bool {
@@ -187,20 +205,19 @@ pub(crate) fn php_whitespace(character: char) -> bool {
 pub(crate) fn date_interval(
     date: &str,
     interval: &str,
-    reference: DateTime<Utc>,
-    timezone: Tz,
-) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+    reference: Timestamp,
+    timezone: TimeZone,
+) -> Result<(Timestamp, Timestamp)> {
     if date.len().saturating_add(interval.len()) > MAX_CALENDAR_BYTES {
         return Err(limit_error());
     }
     if interval.trim_ascii().is_empty() {
         return Err(calendar_error("input_date_invalid"));
     }
-    let reference =
-        CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
-    let zone = ResolvedTimezone::parse(timezone.name())?;
+    let reference = CalendarInstant::from_timestamp(reference)?;
+    let zone = resolved_timezone(&timezone)?;
     let (start, end) = parse::add_interval(date, interval, reference, &zone)?;
-    Ok((start.try_chrono()?, end.try_chrono()?))
+    Ok((start.try_timestamp()?, end.try_timestamp()?))
 }
 
 pub(crate) fn is_numeric(expression: &str) -> bool {

@@ -100,7 +100,7 @@ impl Options {
             "level": level,
             "level_name": record.level.label(),
             "channel": record.channel,
-            "datetime": record.at.to_rfc3339_opts(chrono::SecondsFormat::Micros, false),
+            "datetime": record.at.strftime("%Y-%m-%dT%H:%M:%S%.6f%:z").to_string(),
         });
         let mut context = self.fields(&record.context, 2);
         if let Some(exception) = &record.exception {

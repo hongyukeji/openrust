@@ -148,19 +148,19 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 `randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Non-finite bounds return an error. Like PHP 8.5, the formatter keeps the sampled value when positive precision exceeds 308 or rescaling would overflow. Precision below −308 yields zero. `unique` treats positive and negative zero as the same result.
 
-Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
+Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Jiff format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
-To reuse a PHP DateTime format from Laravel, call `dateWithPhpFormat(format, max)` or `timeWithPhpFormat(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Chrono tokens. Each PHP variant shares `unique` history with its corresponding Chrono method.
+To reuse a PHP DateTime format from Laravel, call `dateWithPhpFormat(format, max)` or `timeWithPhpFormat(format, max)`. Both render in the effective time zone. For example, `Y-m-d` uses PHP tokens and `%Y-%m-%d` uses Jiff tokens. Each PHP variant shares `unique` history with its corresponding Jiff method.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn php_date_sample() -> DatabaseResult<String> {
-    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(chrono::DateTime::UNIX_EPOCH))
+    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
 }
 ```
 
-Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `TimeDelta` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
+Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Jiff `SignedDuration`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `SignedDuration` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
 
 Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The numeric month is zero-padded. The numeric day is also zero-padded except in `cs-CZ`. Czech, Turkish, Simplified Chinese, Traditional Chinese, and Georgian use local weekday and month names. Turkish and both Chinese locales also localize `amPm`. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
@@ -174,7 +174,7 @@ fn regional_date_sample() -> DatabaseResult<String> {
 }
 ```
 
-Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
+Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and uses IANA 2025b. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
 
 Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect. Use `format("setDefaultTimezone", &[zone])` with IANA text or null to clear it. `format("getDefaultTimezone", &[])` returns the override as text or null. Both operate on the current generator. Named date-time results use RFC 3339.
 
@@ -198,11 +198,11 @@ Use the `InTimezone` variants of `dateTimeAD`, `dateTimeBetween`, `dateTimeInInt
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn zoned_date_sample() -> DatabaseResult<String> {
-    let epoch = chrono::DateTime::UNIX_EPOCH;
-    let tokyo = "Asia/Tokyo".parse().expect("known IANA time zone");
+    let epoch = jiff::Timestamp::UNIX_EPOCH;
+    let tokyo = openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone");
     Ok(fake(None)?
         .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
-        .to_rfc3339())
+        .strftime("%Y-%m-%dT%H:%M:%S%:z").to_string())
 }
 ```
 
@@ -215,7 +215,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn date_expression_sample() -> DatabaseResult<i64> {
     let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
-    Ok(date.timestamp())
+    Ok(date.as_second())
 }
 ```
 
@@ -223,10 +223,10 @@ Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative int
 
 Use `resolveDateMax(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.
 
-Use `unixTimeExpression(max)` to sample Unix seconds directly from a string bound, including timestamps and expanded years outside Chrono’s date range. It shares `unique` history with `unixTime`. A malformed bound uses Unix second zero. Use `resolveDateMax` to validate an input before sampling. Parser limits and out-of-range values still return errors. Finite numeric strings beyond the signed 64-bit range saturate, and numeric strings that overflow to infinity resolve to zero, following PHP’s integer cast. Date-returning methods still require a bound representable by Chrono.
+Use `unixTimeExpression(max)` to sample Unix seconds directly from a string bound, including timestamps and expanded years outside Jiff’s date range. It shares `unique` history with `unixTime`. A malformed bound uses Unix second zero. Use `resolveDateMax` to validate an input before sampling. Parser limits and out-of-range values still return errors. Finite numeric strings beyond the signed 64-bit range saturate, and numeric strings that overflow to infinity resolve to zero, following PHP’s integer cast. Date-returning methods still require a bound representable by Jiff.
 
 ```rust
-use chrono::{DateTime, TimeDelta};
+use jiff::{Timestamp, SignedDuration};
 use openrust::database::{
     DatabaseResult, Value,
     eloquent::{Attributes, Model, factories::Factory},
@@ -234,10 +234,10 @@ use openrust::database::{
 
 pub fn activity_factory<M: Model>() -> Factory<M> {
     Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
-        let start = DateTime::UNIX_EPOCH;
-        let end = DateTime::from_timestamp(86_400, 0).unwrap();
+        let start = Timestamp::UNIX_EPOCH;
+        let end = Timestamp::from_second(86_400).unwrap();
         let happened_at = faker.dateTimeBetween(start, end)?;
-        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
+        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
         let sampled_this_year = faker.dateTimeThisYear(None)?;
         let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
@@ -250,14 +250,14 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
             ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
-            ("happened_at".into(), happened_at.to_rfc3339().into()),
-            ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
-            ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
-            ("historical".into(), historical.to_rfc3339().into()),
-            ("archived_at".into(), archived_at.to_rfc3339().into()),
+            ("happened_at".into(), happened_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("reviewed_at".into(), reviewed_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("sampled_this_year".into(), sampled_this_year.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("historical".into(), historical.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("archived_at".into(), archived_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
             ("published_at".into(), published_at.into()),
             ("epoch_seconds".into(), epoch_seconds.into()),
-            ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
+            ("weekday".into(), faker.dateTimeInTimezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
             ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
@@ -688,11 +688,11 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 
 Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed upstream Faker ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
 
-The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same upstream Faker format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `chrono::NaiveDate`, or `None` to sample a date. Both SSN methods share the `unique` history.
+The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same upstream Faker format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `jiff::civil::Date`, or `None` to sample a date. Both SSN methods share the `unique` history.
 
 `personalIdentityNumber(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personalIdentityNumberWithBirthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personalIdentityNumberWithSerial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
 
-For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::NaiveDate` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in upstream Faker. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
+For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `jiff::civil::Date` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in upstream Faker. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
 
 For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass `None` for the default punctuation or `Some(false)` for digits only. RG follows the pinned São Paulo provider, with a numeric check digit. CNPJ uses branch `0001`. All three methods support `unique`.
 
@@ -748,7 +748,7 @@ With `bn-BD`, `company()` combines a catalog name and type, also available from 
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn identity_samples() -> DatabaseResult<[String; 73]> {
-    let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let birthdate = jiff::civil::Date::new(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     let russian = fake(Some("ru-RU"))?;
@@ -1027,7 +1027,7 @@ fn vat_samples() -> DatabaseResult<(String, String)> {
 
 ### Credit Card Samples {#credit-card-samples}
 
-The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Chrono directives and defaults to `%m/%y`. All five formatters support `unique`.
+The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Jiff directives and defaults to `%m/%y`. All five formatters support `unique`.
 
 `creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
 
@@ -1643,11 +1643,10 @@ The `en-SG` provider inherits the base names `John Doe` and `Jane Doe`. Use `nri
 For `format("singaporeId", args)`, pass a civil date as `YYYY-MM-DD` or null, followed by the optional `foreigner` boolean.
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn singapore_identity_sample() -> DatabaseResult<String> {
-    fake(Some("en-SG"))?.unique(false).nric(NaiveDate::from_ymd_opt(2000, 1, 1))
+    fake(Some("en-SG"))?.unique(false).nric(jiff::civil::Date::new(2000, 1, 1).ok())
 }
 ```
 
@@ -1725,14 +1724,13 @@ fn french_nir_sample() -> DatabaseResult<String> {
 
 ### Iranian National Codes and Indonesian NIK Samples {#iranian-national-codes-and-indonesian-nik-samples}
 
-Use `nationalCode()` with `fa-IR` to generate a ten-digit sample with a nonzero area code and a modulo-11 check digit. Use `nik(gender, birthDate)` with `id-ID` to generate a 16-digit sample. It starts with a code from the pinned birthplace catalog and includes the birth date. For female samples the day is increased by 40. Pass `None` for the date to sample from the past 30 years, or pass a `NaiveDate` to choose a civil date. Both formatters support `unique()`.
+Use `nationalCode()` with `fa-IR` to generate a ten-digit sample with a nonzero area code and a modulo-11 check digit. Use `nik(gender, birthDate)` with `id-ID` to generate a 16-digit sample. It starts with a code from the pinned birthplace catalog and includes the birth date. For female samples the day is increased by 40. Pass `None` for the date to sample from the past 30 years, or pass a `jiff::civil::Date` to choose a civil date. Both formatters support `unique()`.
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn indonesian_nik_sample() -> DatabaseResult<String> {
-    fake(Some("id-ID"))?.unique(false).nik(Some("female"), NaiveDate::from_ymd_opt(2000, 2, 29))
+    fake(Some("id-ID"))?.unique(false).nik(Some("female"), jiff::civil::Date::new(2000, 2, 29).ok())
 }
 ```
 
@@ -1741,12 +1739,11 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 Use `individualIdentificationNumber(birthDate, gender)` with `kk-KZ`. Birth dates are optional civil dates in 1800–2099. The default is a date from the past 30 years and male gender. `Faker::checkSum(prefix)` takes eleven ASCII digits and returns the control value. When both checksum passes yield 10, the generator retries with another serial. Use `nationalId(separator)` with `es-VE` to select the separator after the `V` or `E` prefix. Both generators support `unique()`.
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn kazakh_iin_sample() -> DatabaseResult<String> {
     fake(Some("kk-KZ"))?.unique(false)
-        .individualIdentificationNumber(NaiveDate::from_ymd_opt(2000, 2, 29), Some("female"))
+        .individualIdentificationNumber(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
 }
 ```
 

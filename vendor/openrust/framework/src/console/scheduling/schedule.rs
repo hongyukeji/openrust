@@ -1,15 +1,10 @@
-use std::{
-    cell::RefCell,
-    ffi::OsString,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{cell::RefCell, ffi::OsString, sync::Arc, time::SystemTime};
 
 use crate::{
     console::{ConsoleError, ConsoleFuture, Output},
     foundation::Application,
     queue::{DispatchOptions, Payload},
-    support::{DateError, frozen_utc_now},
+    support::frozen_utc_now,
 };
 
 use super::{
@@ -134,14 +129,7 @@ impl Schedule {
         let Some(frozen) = frozen_utc_now() else {
             return Ok(SystemTime::now());
         };
-        let elapsed = frozen.signed_duration_since(chrono::DateTime::<chrono::Utc>::UNIX_EPOCH);
-        let offset = elapsed.abs().to_std().map_err(super::error)?;
-        let time = if elapsed < chrono::TimeDelta::zero() {
-            UNIX_EPOCH.checked_sub(offset)
-        } else {
-            UNIX_EPOCH.checked_add(offset)
-        };
-        time.ok_or_else(|| super::error(DateError::OutOfRange))
+        Ok(frozen.into())
     }
 
     /// Applies the pending scheduling attributes to tasks registered in this group.
@@ -291,9 +279,9 @@ impl Schedule {
         self.everySeconds(30).expect("valid repeat frequency")
     }
 
-    pub fn timezone(&mut self, zone: chrono_tz::Tz) -> &mut Self {
+    pub fn timezone(&mut self, zone: jiff::tz::TimeZone) -> &mut Self {
         self.with_pending(move |event| {
-            event.timezone(zone);
+            event.timezone(zone.clone());
         })
     }
 

@@ -13,11 +13,14 @@ pub(crate) struct UserFactory;
 impl UserFactory {
     pub(crate) fn factory() -> Factory<User> {
         Factory::tryWithFaker(|faker| {
-            let now = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+            let now = jiff::Timestamp::now();
             Ok(Attributes::from([
                 ("name".into(), faker.name().into()),
                 ("email".into(), faker.unique(false).safeEmail()?.into()),
-                ("email_verified_at".into(), now.to_rfc3339().into()),
+                (
+                    "email_verified_at".into(),
+                    now.strftime("%Y-%m-%dT%H:%M:%S%.f%:z").to_string().into(),
+                ),
                 ("password".into(), "password".into()),
                 (
                     "remember_token".into(),

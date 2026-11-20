@@ -2,7 +2,7 @@ use std::{fmt::Write as _, sync::Arc, time::Duration};
 
 use aws_lc_rs::{hmac, rand};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     auth::{AuthError, AuthResult},
@@ -14,8 +14,8 @@ use crate::{
 pub(super) struct TokenPolicy {
     key: hmac::Key,
     hasher: Arc<dyn Hasher>,
-    expires: chrono::TimeDelta,
-    throttle: chrono::TimeDelta,
+    expires: jiff::SignedDuration,
+    throttle: jiff::SignedDuration,
 }
 
 impl TokenPolicy {
@@ -35,9 +35,9 @@ impl TokenPolicy {
             return Err(AuthError::Configuration("app.key"));
         }
         let duration = |value| {
-            chrono::TimeDelta::from_std(value)
+            jiff::SignedDuration::try_from(value)
                 .ok()
-                .filter(|value| value.num_seconds() <= i64::from(u32::MAX))
+                .filter(|value| value.as_secs() <= i64::from(u32::MAX))
                 .ok_or(AuthError::Configuration("auth.passwords"))
         };
         if expires.as_secs() == 0 {
@@ -78,18 +78,18 @@ impl TokenPolicy {
     }
 
     pub(super) fn lifetime(&self) -> i64 {
-        self.expires.num_seconds()
+        self.expires.as_secs()
     }
 
-    pub(super) fn expiry_cutoff(&self, now: DateTime<Utc>) -> DateTime<Utc> {
+    pub(super) fn expiry_cutoff(&self, now: Timestamp) -> Timestamp {
         now - self.expires
     }
 
-    pub(super) fn throttle_cutoff(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    pub(super) fn throttle_cutoff(&self, now: Timestamp) -> Option<Timestamp> {
         (!self.throttle.is_zero()).then(|| now - self.throttle)
     }
 }
 
-pub(super) fn now() -> DateTime<Utc> {
-    DateTime::from(std::time::SystemTime::now())
+pub(super) fn now() -> Timestamp {
+    Timestamp::now()
 }

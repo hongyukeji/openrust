@@ -358,26 +358,39 @@ fn decode(row: tiberius::Row) -> DatabaseResult<Row> {
                 | ColumnData::SmallDateTime(_)
                 | ColumnData::DateTime2(_) => {
                     return text(
-                        chrono::NaiveDateTime::from_sql(&value)
-                            .map(|value| value.map(|value| value.to_string())),
+                        time::PrimitiveDateTime::from_sql(&value)
+                            .map(|value| value.map(super::value::timestamp_text)),
                     );
                 }
                 ColumnData::DateTimeOffset(_) => {
-                    return text(
-                        chrono::DateTime::<chrono::FixedOffset>::from_sql(&value)
-                            .map(|value| value.map(|value| value.to_string())),
-                    );
+                    return text(time::OffsetDateTime::from_sql(&value).map(|value| {
+                        value.map(|value| {
+                            let seconds = value.offset().whole_seconds();
+                            let sign = if seconds < 0 { '-' } else { '+' };
+                            let seconds = seconds.unsigned_abs();
+                            format!(
+                                "{} {}{:02}:{:02}",
+                                super::value::timestamp_text(time::PrimitiveDateTime::new(
+                                    value.date(),
+                                    value.time()
+                                )),
+                                sign,
+                                seconds / 3600,
+                                seconds / 60 % 60,
+                            )
+                        })
+                    }));
                 }
                 ColumnData::Date(_) => {
                     return text(
-                        chrono::NaiveDate::from_sql(&value)
+                        time::Date::from_sql(&value)
                             .map(|value| value.map(|value| value.to_string())),
                     );
                 }
                 ColumnData::Time(_) => {
                     return text(
-                        chrono::NaiveTime::from_sql(&value)
-                            .map(|value| value.map(|value| value.to_string())),
+                        time::Time::from_sql(&value)
+                            .map(|value| value.map(super::value::time_text)),
                     );
                 }
             })

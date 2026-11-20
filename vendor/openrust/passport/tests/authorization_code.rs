@@ -1988,14 +1988,10 @@ async fn mysql_selected_tables_support_refresh_resource_and_purge_in_application
     let token = data["access_token"].as_str().unwrap();
     assert_eq!(f.resource_token("/resource", token).await.status(), 200);
     let claims = jwt_claims(token);
-    let expected = chrono::DateTime::from_timestamp(claims["exp"].as_i64().unwrap(), 0)
+    let expected = jiff::Timestamp::from_second(claims["exp"].as_i64().unwrap())
         .unwrap()
-        .with_timezone(
-            &"Asia/Shanghai"
-                .parse::<openrust::support::DateTimezone>()
-                .unwrap(),
-        )
-        .format("%Y-%m-%d %H:%M:%S")
+        .to_zoned(openrust::support::Date::timezone("Asia/Shanghai").unwrap())
+        .strftime("%Y-%m-%d %H:%M:%S")
         .to_string();
     let row =
         f.db.table("custom_access")

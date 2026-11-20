@@ -464,8 +464,8 @@ async fn verify_queries(db: Connection) {
         Some(&19.into())
     );
 
-    let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 9).unwrap();
-    let time = chrono::NaiveTime::from_hms_opt(12, 34, 56).unwrap();
+    let date = jiff::civil::Date::new(2026, 3, 9).unwrap();
+    let time = jiff::civil::Time::new(12, 34, 56, 0).unwrap();
     assert_eq!(
         table()
             .whereDate("created_at", "=", date)

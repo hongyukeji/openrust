@@ -28,7 +28,7 @@ use super::faker_person::PersonNames;
 
 use crate::database::{DatabaseError, DatabaseResult};
 
-use chrono::{Datelike, Days, NaiveDate};
+use jiff::{Span, civil::Date as CivilDate};
 
 pub(super) const RO_RO: PersonNames = PersonNames {
     male: &[
@@ -13113,7 +13113,7 @@ pub(super) fn cnp(
     };
     let serial = random.u16(0..=99);
     let serial_end = random.u8(1..=9);
-    let date = date.format("%y%m%d");
+    let date = date.strftime("%y%m%d");
     let number = format!("{prefix}{date}{county}{serial:02}{serial_end}");
     let remainder = number
         .bytes()
@@ -13125,7 +13125,7 @@ pub(super) fn cnp(
     Ok(format!("{number}{check}"))
 }
 
-fn cnp_birth_date(random: &FakerRandom, input: Option<&str>) -> DatabaseResult<NaiveDate> {
+fn cnp_birth_date(random: &FakerRandom, input: Option<&str>) -> DatabaseResult<CivilDate> {
     const INVALID: DatabaseError = DatabaseError::InvalidQuery("invalid Faker CNP birth date");
 
     let parse = |value: &str, width| {
@@ -13150,13 +13150,24 @@ fn cnp_birth_date(random: &FakerRandom, input: Option<&str>) -> DatabaseResult<N
     if !(1800..=2099).contains(&year) {
         return Err(INVALID);
     }
+    let year = year as i16;
+    let make_date = |month: u32, day: u32| {
+        CivilDate::new(
+            year,
+            i8::try_from(month).map_err(|_| INVALID)?,
+            i8::try_from(day).map_err(|_| INVALID)?,
+        )
+        .map_err(|_| INVALID)
+    };
     if let (Some(month), Some(day)) = (month, day) {
-        return NaiveDate::from_ymd_opt(year, month, day).ok_or(INVALID);
+        return make_date(month, day);
     }
-    let start = NaiveDate::from_ymd_opt(year, 1, 1).ok_or(INVALID)?;
-    let end = NaiveDate::from_ymd_opt(year + 1, 1, 1).ok_or(INVALID)?;
-    let offset = random.u64(0..(end - start).num_days() as u64);
-    let sample = start.checked_add_days(Days::new(offset)).ok_or(INVALID)?;
+    let start = CivilDate::new(year, 1, 1).map_err(|_| INVALID)?;
+    let days = if start.in_leap_year() { 366 } else { 365 };
+    let offset = random.u64(0..days);
+    let sample = start
+        .checked_add(Span::new().days(offset as i64))
+        .map_err(|_| INVALID)?;
     // FakerPHP takes the day from a random date in the year, including when the month is fixed.
-    NaiveDate::from_ymd_opt(year, month.unwrap_or(sample.month()), sample.day()).ok_or(INVALID)
+    make_date(month.unwrap_or(sample.month() as u32), sample.day() as u32)
 }

@@ -2162,7 +2162,7 @@ async fn verify_redis_batch(
 }
 
 async fn verify_pruning(base: &Path, db: &Connection) {
-    let timestamp = chrono::Utc::now().timestamp();
+    let timestamp = jiff::Timestamp::now().as_second();
     let at = |hours: i64| Value::from(timestamp - hours * 3600);
     let batch = |id: String, created, finished, cancelled| -> Record {
         [

@@ -1,6 +1,6 @@
 use std::{future::Future, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     auth::{AuthError, AuthIdentifier, AuthManager, AuthResult},
@@ -66,7 +66,7 @@ pub trait HasApiTokens: Model + Authenticatable {
         database: &'a DatabaseManager,
         name: &'a str,
         abilities: &'a [&'a str],
-        expires_at: Option<DateTime<Utc>>,
+        expires_at: Option<Timestamp>,
     ) -> impl Future<Output = AuthResult<NewAccessToken>> + Send + 'a {
         async move {
             let relation = self.tokens(sanctum, database)?;
@@ -149,7 +149,7 @@ impl TokenRelation {
         &self,
         name: &str,
         abilities: &[&str],
-        expires_at: Option<DateTime<Utc>>,
+        expires_at: Option<Timestamp>,
     ) -> AuthResult<NewAccessToken> {
         self.store
             .createToken(

@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use chrono::{Timelike as _, Utc};
+use jiff::Timestamp;
 
 use crate::support::{Date, DateError, DateInterval, MonthOverflow, facades::application_scope};
 
@@ -12,20 +12,20 @@ type TimeResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 impl TestApp {
     /// Freezes the fixture's clock at the given instant.
     pub fn travelTo(&self, time: Date) {
-        self.clock.set(Some(time.asDateTime().with_timezone(&Utc)));
+        self.clock.set(Some(time.asDateTime().timestamp()));
     }
 
     /// Freezes the fixture's clock at its current time and returns that time.
     pub async fn freezeTime(&mut self) -> TimeResult<Date> {
         let time = self.current_time().await?;
-        self.travelTo(time);
+        self.travelTo(time.clone());
         Ok(time)
     }
 
     /// Freezes the fixture's clock at the beginning of its current second.
     pub async fn freezeSecond(&mut self) -> TimeResult<Date> {
         let time = self.current_second().await?;
-        self.travelTo(time);
+        self.travelTo(time.clone());
         Ok(time)
     }
 
@@ -49,7 +49,7 @@ impl TestApp {
         let clock = self.clock.clone();
         let container = self.app().container_handle();
         clock
-            .scope(time.asDateTime().with_timezone(&Utc), async {
+            .scope(time.asDateTime().timestamp(), async {
                 self.boot().await?;
                 application_scope(container, callback(self, time)).await
             })
@@ -82,11 +82,10 @@ impl TestApp {
     async fn current_second(&mut self) -> TimeResult<Date> {
         let now = self.current_time().await?;
         let instant = now.asDateTime();
-        let whole_second = instant
-            .with_timezone(&Utc)
-            .with_nanosecond(0)
-            .ok_or(DateError::OutOfRange)?;
-        Ok(Date::fromUtc(whole_second, instant.timezone()))
+        let whole_second =
+            Timestamp::from_second(crate::support::timestamp_seconds(instant.timestamp()))
+                .map_err(|_| DateError::OutOfRange)?;
+        Ok(Date::fromUtc(whole_second, instant.time_zone().clone()))
     }
 }
 
@@ -133,7 +132,7 @@ impl Wormhole<'_> {
             .current_time()
             .await?
             .plus(interval, MonthOverflow::Carry)?;
-        self.app.travelTo(time);
+        self.app.travelTo(time.clone());
         Ok(time)
     }
 }

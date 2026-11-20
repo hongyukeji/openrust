@@ -203,7 +203,9 @@ fn age(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 source: Box::new(error),
             })?
             .asDateTime()
-            .timestamp();
+            .timestamp()
+            .as_nanosecond()
+            .div_euclid(1_000_000_000) as i64;
         request
             .session_mut()?
             .put("auth.password_confirmed_at", json!(now - 950))?;

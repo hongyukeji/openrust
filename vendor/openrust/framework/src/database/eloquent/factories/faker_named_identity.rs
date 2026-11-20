@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use chrono::NaiveDate;
+use jiff::civil::Date as CivilDate;
 
 use super::{Builtin, Faker, arguments, flag, integer, text};
 use crate::database::eloquent::factories::ImageOptions;
@@ -261,10 +261,10 @@ fn required_text(args: &[Value]) -> DatabaseResult<&str> {
     text(value)?.ok_or(DatabaseError::InvalidQuery("Faker formatter requires text"))
 }
 
-fn date(value: Option<&Value>) -> DatabaseResult<Option<NaiveDate>> {
+fn date(value: Option<&Value>) -> DatabaseResult<Option<CivilDate>> {
     text(value)?
         .map(|value| {
-            NaiveDate::parse_from_str(value, "%Y-%m-%d")
+            CivilDate::strptime("%Y-%m-%d", value)
                 .map_err(|_| DatabaseError::InvalidQuery("invalid Faker civil date"))
         })
         .transpose()

@@ -68,7 +68,7 @@ impl<'a> SmsDelivery<'a> {
 
     /// The primary key and conditional update let exactly one worker enter a given attempt.
     pub(super) async fn claim(&self, previous: Option<Status>) -> NotificationResult<bool> {
-        let now = chrono::Utc::now().timestamp();
+        let now = crate::support::timestamp_seconds(jiff::Timestamp::now());
         if previous == Some(Status::Retryable) {
             let changed = self
                 .row()
@@ -149,7 +149,10 @@ impl<'a> SmsDelivery<'a> {
                 [
                     ("status".into(), status.as_str().into()),
                     ("submission".into(), submission),
-                    ("updated_at".into(), chrono::Utc::now().timestamp().into()),
+                    (
+                        "updated_at".into(),
+                        crate::support::timestamp_seconds(jiff::Timestamp::now()).into(),
+                    ),
                 ]
                 .into_iter()
                 .collect(),

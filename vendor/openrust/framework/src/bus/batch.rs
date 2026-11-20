@@ -1,6 +1,6 @@
 use super::BatchJob;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 use serde_json::{Map, Value};
 
@@ -19,9 +19,9 @@ pub struct Batch {
     pub failed_jobs: u32,
     pub failed_job_ids: Vec<String>,
     pub options: Map<String, Value>,
-    pub cancelled_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub finished_at: Option<DateTime<Utc>>,
+    pub cancelled_at: Option<Timestamp>,
+    pub created_at: Timestamp,
+    pub finished_at: Option<Timestamp>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel batch methods")]

@@ -68,7 +68,7 @@ impl Faker {
     pub fn firefox(&self) -> DatabaseResult<String> {
         let date = self
             .dateTimeBetweenExpressions("2010-01-01", "now")?
-            .with_timezone(&self.application_timezone);
+            .to_zoned(self.application_timezone.clone());
         let platform = match self.random.u16(0..3) {
             0 => format!(
                 "{}; {}; rv:1.9.{}.20",
@@ -81,7 +81,7 @@ impl Faker {
         };
         Ok(format!(
             "Mozilla/5.0 ({platform}) Gecko/{} Firefox/{}.0",
-            date.format("%Y%m%d"),
+            date.strftime("%Y%m%d"),
             self.random.u16(35..=37)
         ))
     }

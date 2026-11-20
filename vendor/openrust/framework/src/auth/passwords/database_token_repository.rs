@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use jiff::{Timestamp, civil::DateTime as CivilDateTime};
 
 use crate::{
     auth::{AuthError, AuthFuture, AuthResult},
@@ -46,7 +46,7 @@ impl DatabaseTokenRepository {
             .r#where("email", "=", email)
     }
 
-    async fn record(&self, email: &str) -> AuthResult<Option<(String, DateTime<Utc>)>> {
+    async fn record(&self, email: &str) -> AuthResult<Option<(String, Timestamp)>> {
         let Some(row) = self
             .query(email)
             .first()
@@ -60,9 +60,15 @@ impl DatabaseTokenRepository {
         else {
             return Ok(None);
         };
-        let created = NaiveDateTime::parse_from_str(created, "%Y-%m-%d %H:%M:%S%.f")
-            .map_err(AuthError::backend)?;
-        Ok(Some((hash.clone(), created.and_utc())))
+        let created =
+            CivilDateTime::strptime("%Y-%m-%d %H:%M:%S%.f", created).map_err(AuthError::backend)?;
+        Ok(Some((
+            hash.clone(),
+            created
+                .to_zoned(jiff::tz::TimeZone::UTC)
+                .map_err(AuthError::backend)?
+                .timestamp(),
+        )))
     }
 }
 
@@ -241,6 +247,6 @@ impl TokenRepository for DatabaseTokenRepository {
     }
 }
 
-fn timestamp(value: DateTime<Utc>) -> Value {
-    value.format("%Y-%m-%d %H:%M:%S").to_string().into()
+fn timestamp(value: Timestamp) -> Value {
+    value.strftime("%Y-%m-%d %H:%M:%S").to_string().into()
 }

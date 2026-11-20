@@ -5,15 +5,13 @@ use super::Result;
 use super::civil::Civil;
 use super::posix::{self, Tail, TailRecord};
 use super::{CalendarInstant, calendar_error};
-use chrono::{LocalResult, Offset, TimeZone};
-use chrono_tz::OffsetComponents;
-use std::str::FromStr;
+use jiff::tz::{AmbiguousOffset, TimeZone};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ZoneKind {
     Fixed(i32),
     Named {
-        zone: Option<chrono_tz::Tz>,
+        zone: Option<TimeZone>,
         record: &'static TailRecord,
         tail: Tail,
     },
@@ -64,7 +62,7 @@ impl ResolvedTimezone {
             return Ok(Self {
                 name: record.name.into(),
                 kind: ZoneKind::Named {
-                    zone: chrono_tz::Tz::from_str(record.name).ok(),
+                    zone: crate::support::Date::timezone(record.name).ok(),
                     record,
                     tail,
                 },
@@ -95,17 +93,15 @@ impl ResolvedTimezone {
                 {
                     return Ok(record.first_offset);
                 }
-                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
-                let utc = instant.try_chrono()?;
-                Ok(zone
-                    .offset_from_utc_datetime(&utc.naive_utc())
-                    .fix()
-                    .local_minus_utc())
+                let zone = zone
+                    .as_ref()
+                    .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let utc = instant.try_timestamp()?;
+                Ok(zone.to_offset(utc).seconds())
             }
         }
     }
     pub(super) fn abbreviation(&self, instant: CalendarInstant) -> Result<String> {
-        use chrono_tz::OffsetName;
         match &self.kind {
             ZoneKind::Fixed(offset) => {
                 if self.name.starts_with(['+', '-']) {
@@ -130,13 +126,11 @@ impl ResolvedTimezone {
                 {
                     return Ok(record.first_abbreviation.into());
                 }
-                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
-                let utc = instant.try_chrono()?;
-                let offset = zone.offset_from_utc_datetime(&utc.naive_utc());
-                Ok(offset.abbreviation().map_or_else(
-                    || display_offset(offset.fix().local_minus_utc()).replace(':', ""),
-                    str::to_owned,
-                ))
+                let zone = zone
+                    .as_ref()
+                    .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let utc = instant.try_timestamp()?;
+                Ok(zone.to_offset_info(utc).abbreviation().to_owned())
             }
         }
     }
@@ -153,13 +147,11 @@ impl ResolvedTimezone {
                 {
                     return Ok(record.first_is_dst);
                 }
-                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
-                let utc = instant.try_chrono()?;
-                Ok(zone
-                    .offset_from_utc_datetime(&utc.naive_utc())
-                    .dst_offset()
-                    .num_seconds()
-                    != 0)
+                let zone = zone
+                    .as_ref()
+                    .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let utc = instant.try_timestamp()?;
+                Ok(zone.to_offset_info(utc).dst().is_dst())
             }
         }
     }
@@ -186,35 +178,36 @@ impl ResolvedTimezone {
                 if let Some(instant) = tail.resolve(civil, record.from_epoch, prefer_dst)? {
                     return Ok(instant);
                 }
-                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let zone = zone
+                    .as_ref()
+                    .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
                 let naive = civil.naive()?;
-                match zone.from_local_datetime(&naive) {
-                    LocalResult::Single(value) => {
-                        CalendarInstant::new(value.timestamp(), value.timestamp_subsec_micros())
-                    }
-                    LocalResult::Ambiguous(first, second) => {
+                let ambiguous = zone.to_ambiguous_timestamp(naive);
+                let instant = match ambiguous.offset() {
+                    AmbiguousOffset::Unambiguous { offset } => offset.to_timestamp(naive),
+                    AmbiguousOffset::Fold { before, after } => {
                         // timelib 暂按 UTC 查询本地分量的偏移；东西半球回拨选择因此不同。
                         let guess = self.offset_seconds(civil.instant(0)?)?;
-                        let first_is_dst = first.offset().dst_offset().num_seconds() != 0;
-                        let second_is_dst = second.offset().dst_offset().num_seconds() != 0;
+                        let first = before
+                            .to_timestamp(naive)
+                            .map_err(|_| calendar_error("input_timezone_invalid"))?;
+                        let second = after
+                            .to_timestamp(naive)
+                            .map_err(|_| calendar_error("input_timezone_invalid"))?;
+                        let first_is_dst = zone.to_offset_info(first).dst().is_dst();
+                        let second_is_dst = zone.to_offset_info(second).dst().is_dst();
                         let use_first = match prefer_dst {
                             Some(preferred) if first_is_dst != second_is_dst => {
                                 first_is_dst == preferred
                             }
-                            _ => first.offset().fix().local_minus_utc() == guess,
+                            _ => before.seconds() == guess,
                         };
-                        let value = if use_first { first } else { second };
-                        CalendarInstant::new(value.timestamp(), value.timestamp_subsec_micros())
+                        Ok(if use_first { first } else { second })
                     }
-                    LocalResult::None => {
-                        let before = chrono_tz::GapInfo::new(&naive, &zone)
-                            .and_then(|gap| {
-                                gap.begin.map(|(_, offset)| offset.fix().local_minus_utc())
-                            })
-                            .ok_or_else(|| calendar_error("input_timezone_invalid"))?;
-                        civil.instant(before)
-                    }
+                    AmbiguousOffset::Gap { before, .. } => before.to_timestamp(naive),
                 }
+                .map_err(|_| calendar_error("input_timezone_invalid"))?;
+                CalendarInstant::from_timestamp(instant)
             }
         }
     }

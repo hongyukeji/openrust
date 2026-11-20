@@ -327,7 +327,7 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     let name = migration.file_name().unwrap().to_str().unwrap();
     assert!(name.ends_with("_add_fixture.rs"));
     assert_ne!(&name[..17], "2000_01_01_000000");
-    chrono::NaiveDateTime::parse_from_str(&name[..17], "%Y_%m_%d_%H%M%S")?;
+    jiff::civil::DateTime::strptime("%Y_%m_%d_%H%M%S", &name[..17])?;
     assert_eq!(fs::read(&migration)?, b"migration");
 
     fs::write(&migration, "local edit")?;

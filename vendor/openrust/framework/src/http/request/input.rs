@@ -350,7 +350,7 @@ impl Request {
             }
         };
         let reference = frozen_utc_now().map_or_else(
-            || calendar::DateReference::Wall(chrono::Utc::now()),
+            || calendar::DateReference::Wall(jiff::Timestamp::now()),
             calendar::DateReference::Frozen,
         );
         calendar::parse_input_date(value, format, timezone, reference)

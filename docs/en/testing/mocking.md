@@ -79,7 +79,7 @@ async fn travels_five_minutes() -> Result<(), Box<dyn std::error::Error + Send +
     let mut app = TestApp::create(|builder| builder)?;
     app.freezeSecondFor(async |app, start| {
         let later = app.travel(5).minutes().await?;
-        assert_eq!(later.asDateTime().timestamp(), start.asDateTime().timestamp() + 300);
+        assert_eq!(later.asDateTime().timestamp().as_second(), start.asDateTime().timestamp().as_second() + 300);
         assert_eq!(Date::now(None)?, later);
         Ok(())
     }).await?;

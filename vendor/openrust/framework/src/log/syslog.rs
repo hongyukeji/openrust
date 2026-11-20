@@ -78,7 +78,10 @@ pub(super) fn writer(
     Ok(Arc::new(move |record, formatted| {
         let severity = priority(record.level);
         let message = formatted.trim_end_matches(['\n', '\r']);
-        let time = record.at.with_timezone(&chrono::Local).format("%b %e %T");
+        let time = record
+            .at
+            .to_zoned(jiff::tz::TimeZone::system())
+            .strftime("%b %e %T");
         let packet = format!("<{}>{time} {tag}: {message}", facility + severity);
         socket
             .send_to(packet.as_bytes(), &path)

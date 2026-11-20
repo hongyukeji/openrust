@@ -69,8 +69,8 @@ fn verify_tencent(headers: &HeaderMap, body: &str) -> Value {
     assert_eq!(headers["x-tc-version"], "2021-01-11");
     assert_eq!(headers["x-tc-region"], "ap-guangzhou");
     let timestamp = headers["x-tc-timestamp"].to_str().unwrap();
-    let time = chrono::DateTime::from_timestamp(timestamp.parse().unwrap(), 0).unwrap();
-    let date = time.format("%Y-%m-%d").to_string();
+    let time = jiff::Timestamp::new(timestamp.parse().unwrap(), 0).unwrap();
+    let date = time.strftime("%Y-%m-%d").to_string();
     let scope = format!("{date}/sms/tc3_request");
     let host = headers["host"].to_str().unwrap();
     let content_type = headers["content-type"].to_str().unwrap();

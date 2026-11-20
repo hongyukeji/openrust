@@ -12,7 +12,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         schedule
             .command("inspire", [])
             .dailyAt("08:30")?
-            .timezone(chrono_tz::Asia::Shanghai)
+            .timezone(openrust::support::Date::timezone("Asia/Shanghai").expect("known IANA time zone"))
             .withoutOverlapping();
 
         Ok(())
@@ -52,7 +52,7 @@ Apply shared scheduling attributes to multiple tasks with `group` inside `Schedu
 
 ```rust
 schedule
-    .timezone(chrono_tz::Asia::Tokyo)
+    .timezone(openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone"))
     .dailyAt("17:00")?
     .group(|schedule| {
         schedule.command("inspire", []);

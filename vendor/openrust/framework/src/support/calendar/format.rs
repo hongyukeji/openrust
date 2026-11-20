@@ -4,8 +4,7 @@
 use super::civil::{Civil, days_from_civil, days_in_month, iso_week};
 use super::zone::{ResolvedTimezone, display_offset};
 use super::{CalendarInstant, InputDate, Result, calendar_error, limit_error, range_error};
-use chrono::{DateTime, Utc};
-use chrono_tz::Tz;
+use jiff::{Timestamp, tz::TimeZone};
 
 pub(super) const YEAR: u16 = 1;
 pub(super) const MONTH: u16 = 2;
@@ -403,9 +402,9 @@ pub(super) fn weekday_number(text: &str) -> Option<i64> {
     clippy::too_many_lines,
     reason = "Keeps the PHP date tokens in a single table"
 )]
-pub(crate) fn display(datetime: DateTime<Utc>, timezone: Tz, pattern: &str) -> Result<String> {
-    let instant = CalendarInstant::new(datetime.timestamp(), datetime.timestamp_subsec_micros())?;
-    let zone = ResolvedTimezone::parse(timezone.name())?;
+pub(crate) fn display(datetime: Timestamp, timezone: TimeZone, pattern: &str) -> Result<String> {
+    let instant = CalendarInstant::from_timestamp(datetime)?;
+    let zone = super::resolved_timezone(&timezone)?;
     display_zoned(instant, &zone, pattern)
 }
 

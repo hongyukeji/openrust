@@ -19,7 +19,7 @@ tokio-util = "0.7"
 console = "0.16.6"
 regex = "1.12"
 openrust = { package = "openrust-framework", path = "../framework" }
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+jiff = { version = "=0.2.46", features = ["serde"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 

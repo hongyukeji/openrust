@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 
 use crate::{
     container::{Container, ServiceKey},
@@ -8,7 +8,7 @@ use crate::{
     support::facades::current_container,
 };
 
-type FrozenTime = Mutex<Option<DateTime<Utc>>>;
+type FrozenTime = Mutex<Option<Timestamp>>;
 
 #[derive(Default)]
 pub(crate) struct TestClock {
@@ -36,7 +36,7 @@ impl TestClock {
             .unwrap_or_default()
     }
 
-    fn now(&self) -> Option<DateTime<Utc>> {
+    fn now(&self) -> Option<Timestamp> {
         let scope = self.scoped();
         *scope
             .as_deref()
@@ -45,7 +45,7 @@ impl TestClock {
             .unwrap_or_else(PoisonError::into_inner)
     }
 
-    pub(crate) fn set(&self, time: Option<DateTime<Utc>>) {
+    pub(crate) fn set(&self, time: Option<Timestamp>) {
         let scope = self.scoped();
         *scope
             .as_deref()
@@ -54,11 +54,7 @@ impl TestClock {
             .unwrap_or_else(PoisonError::into_inner) = time;
     }
 
-    pub(crate) async fn scope<F: Future>(
-        self: Arc<Self>,
-        time: DateTime<Utc>,
-        future: F,
-    ) -> F::Output {
+    pub(crate) async fn scope<F: Future>(self: Arc<Self>, time: Timestamp, future: F) -> F::Output {
         let mut scopes = CLOCK_SCOPES.try_with(Vec::clone).unwrap_or_default();
         scopes.push(ClockScope {
             clock: self,
@@ -68,19 +64,19 @@ impl TestClock {
     }
 }
 
-pub(super) fn utc_now() -> DateTime<Utc> {
+pub(super) fn utc_now() -> Timestamp {
     utc_now_for(current_container().as_deref())
 }
 
-pub(crate) fn utc_now_for(container: Option<&Container>) -> DateTime<Utc> {
-    frozen_now_for(container).unwrap_or_else(Utc::now)
+pub(crate) fn utc_now_for(container: Option<&Container>) -> Timestamp {
+    frozen_now_for(container).unwrap_or_else(Timestamp::now)
 }
 
-pub(crate) fn frozen_utc_now() -> Option<DateTime<Utc>> {
+pub(crate) fn frozen_utc_now() -> Option<Timestamp> {
     frozen_now_for(current_container().as_deref())
 }
 
-fn frozen_now_for(container: Option<&Container>) -> Option<DateTime<Utc>> {
+fn frozen_now_for(container: Option<&Container>) -> Option<Timestamp> {
     container
         .and_then(|container| {
             container

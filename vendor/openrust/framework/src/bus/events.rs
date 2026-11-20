@@ -1,6 +1,6 @@
 //! Events emitted when a job batch changes state.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::{contracts::events::Event, support::facades::Event as Events};
@@ -17,9 +17,9 @@ struct BatchSnapshot {
     failed_jobs: u32,
     failed_job_ids: Vec<String>,
     options: serde_json::Map<String, serde_json::Value>,
-    cancelled_at: Option<DateTime<Utc>>,
-    created_at: DateTime<Utc>,
-    finished_at: Option<DateTime<Utc>>,
+    cancelled_at: Option<Timestamp>,
+    created_at: Timestamp,
+    finished_at: Option<Timestamp>,
 }
 
 macro_rules! batch_event {

@@ -1,8 +1,11 @@
 use std::fmt::{Display, Write as _};
 
-use chrono::{DateTime, NaiveDateTime, NaiveTime, TimeDelta, TimeZone as _, Utc};
-use chrono_tz::Tz;
 use clap::{Arg, ArgAction};
+use jiff::{
+    SignedDuration, Span, Timestamp,
+    civil::{DateTime, Time},
+    tz::TimeZone,
+};
 use serde_json::{Value, json};
 
 use crate::{
@@ -57,8 +60,8 @@ impl Command for DownCommand {
             let timezone = timezone
                 .as_ref()
                 .and_then(Value::as_str)
-                .and_then(|timezone| timezone.parse::<Tz>().ok())
-                .unwrap_or(chrono_tz::UTC);
+                .and_then(|timezone| crate::support::Date::timezone(timezone).ok())
+                .unwrap_or(TimeZone::UTC);
             let retry = value("retry").and_then(|value| retry_value(value, timezone));
             let refresh = matches.get_one::<u64>("refresh");
             let status = *matches.get_one::<u16>("status").expect("default status");
@@ -139,38 +142,42 @@ fn local_path(value: &str) -> Result<String, ConsoleError> {
     Ok(path)
 }
 
-fn retry_value(value: &str, timezone: Tz) -> Option<Value> {
+fn retry_value(value: &str, timezone: TimeZone) -> Option<Value> {
     let value = value.trim();
     if let Ok(seconds) = value.parse::<u64>()
         && seconds > 0
     {
         return Some(seconds.into());
     }
-    let date = retry_datetime(value, timezone, std::time::SystemTime::now().into())?;
-    Some(date.format("%a, %d %b %Y %H:%M:%S GMT").to_string().into())
+    let date = retry_datetime(value, timezone, Timestamp::now())?;
+    Some(
+        date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+            .to_string()
+            .into(),
+    )
 }
 
-fn retry_datetime(value: &str, timezone: Tz, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    if let Ok(date) =
-        DateTime::parse_from_rfc3339(value).or_else(|_| DateTime::parse_from_rfc2822(value))
+fn retry_datetime(value: &str, timezone: TimeZone, now: Timestamp) -> Option<Timestamp> {
+    if let Ok(date) = value
+        .parse::<Timestamp>()
+        .or_else(|_| jiff::fmt::rfc2822::DateTimeParser::new().parse_timestamp(value))
     {
-        return Some(date.to_utc());
+        return Some(date);
     }
     if let Some(timestamp) = value.strip_prefix('@') {
-        return DateTime::from_timestamp(timestamp.parse().ok()?, 0);
+        return Timestamp::from_second(timestamp.parse().ok()?).ok();
     }
-    if let Ok(date) = NaiveDateTime::parse_from_str(value, "%a, %d %b %Y %H:%M:%S GMT") {
-        return Some(date.and_utc());
+    if let Ok(date) = DateTime::strptime("%a, %d %b %Y %H:%M:%S GMT", value) {
+        return date
+            .to_zoned(TimeZone::UTC)
+            .ok()
+            .map(|date| date.timestamp());
     }
     for format in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M"] {
-        if let Ok(date) = NaiveDateTime::parse_from_str(value, format) {
-            return timezone
-                .from_local_datetime(&date)
-                .earliest()
-                .map(|date| date.to_utc());
+        if let Ok(date) = DateTime::strptime(format, value) {
+            return retry_local_datetime(date, &timezone);
         }
     }
-
     let (relative, time) = value.split_once(char::is_whitespace).unwrap_or((value, ""));
     let time = time.trim();
     let day_offset = match relative {
@@ -182,32 +189,40 @@ fn retry_datetime(value: &str, timezone: Tz, now: DateTime<Utc>) -> Option<DateT
                 return None;
             }
             let count: i64 = relative.parse().ok()?;
-            let duration = match time.trim_end_matches('s') {
-                "second" => TimeDelta::try_seconds(count),
-                "minute" => TimeDelta::try_minutes(count),
-                "hour" => TimeDelta::try_hours(count),
-                "day" => TimeDelta::try_days(count),
-                "week" => TimeDelta::try_weeks(count),
-                _ => None,
-            }?;
-            return now.checked_add_signed(duration);
+            let factor = match time.trim_end_matches('s') {
+                "second" => 1,
+                "minute" => 60,
+                "hour" => 3600,
+                "day" => 86400,
+                "week" => 604800,
+                _ => return None,
+            };
+            return now
+                .checked_add(SignedDuration::from_secs(count.checked_mul(factor)?))
+                .ok();
         }
     };
     let day = now
-        .with_timezone(&timezone)
-        .date_naive()
-        .checked_add_signed(TimeDelta::days(day_offset))?;
+        .to_zoned(timezone.clone())
+        .date()
+        .checked_add(Span::new().days(day_offset))
+        .ok()?;
     let time = if time.is_empty() {
-        NaiveTime::MIN
+        Time::MIN
     } else {
-        NaiveTime::parse_from_str(time, "%H:%M")
-            .or_else(|_| NaiveTime::parse_from_str(time, "%H:%M:%S"))
+        Time::strptime("%H:%M", time)
+            .or_else(|_| Time::strptime("%H:%M:%S", time))
             .ok()?
     };
-    timezone
-        .from_local_datetime(&day.and_time(time))
-        .earliest()
-        .map(|date| date.to_utc())
+    retry_local_datetime(day.to_datetime(time), &timezone)
+}
+
+fn retry_local_datetime(local: DateTime, timezone: &TimeZone) -> Option<Timestamp> {
+    let ambiguous = timezone.to_ambiguous_zoned(local);
+    if matches!(ambiguous.offset(), jiff::tz::AmbiguousOffset::Gap { .. }) {
+        return None;
+    }
+    ambiguous.earlier().ok().map(|date| date.timestamp())
 }
 
 fn render(app: &Application, name: &str, retry: Option<&str>) -> Result<String, ConsoleError> {
@@ -271,3 +286,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         clap::Command::new("up").about("Bring the application out of maintenance mode"),
     ))))
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/maintenance_retry.rs"]
+mod time_tests;

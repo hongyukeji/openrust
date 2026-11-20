@@ -168,9 +168,9 @@ impl Command for WorkCommand {
                         .get("app.timezone")
                         .and_then(|value| value.as_str().map(str::to_owned))
                 })
-                .map(|zone| zone.parse().map_err(error))
+                .map(|zone| crate::support::Date::timezone(&zone).map_err(error))
                 .transpose()?
-                .unwrap_or(chrono_tz::UTC);
+                .unwrap_or(jiff::tz::TimeZone::UTC);
             let mut status = WorkerOutput::new(output, args, timezone);
             let shutdown = CancellationToken::new();
             let result = if let Some(shutdown) = input.shutdown() {

@@ -133,7 +133,7 @@ impl ConfirmTwoFactorAuthentication {
         let date = now(None)
             .map_err(internal)?
             .asDateTime()
-            .format(user.getDateFormat())
+            .strftime(user.getDateFormat())
             .to_string();
         user.forceFill([("two_factor_confirmed_at".into(), date.into())].into())
             .map_err(internal)?

@@ -148,19 +148,19 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
 
 `randomFloat(decimals, min, max)` 先在區間取樣，再依指定小數位捨入，中點遠離零。傳入 `None` 可隨機選擇零至九位精度或產生上界。上下界可逆序，捨入結果可能超出原區間。非有限邊界回傳錯誤。與 PHP 8.5 相同，正精度超過 308 或捨入後的數值溢位時保留取樣值。精度小於 −308 時回傳零。`unique` 將正零與負零視為同一個值。
 
-用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Chrono 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
+用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Jiff 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
 
-從 Laravel 重用 PHP DateTime 格式時，呼叫 `dateWithPhpFormat(format, max)` 或 `timeWithPhpFormat(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Chrono 格式符號。兩個 PHP 入口分別與對應的 Chrono 方法共用 `unique` 歷史。
+從 Laravel 重用 PHP DateTime 格式時，呼叫 `dateWithPhpFormat(format, max)` 或 `timeWithPhpFormat(format, max)`。兩者皆以實際使用的時區轉為文字。`Y-m-d` 使用 PHP 格式符號，`%Y-%m-%d` 使用 Jiff 格式符號。兩個 PHP 入口分別與對應的 Jiff 方法共用 `unique` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn php_date_sample() -> DatabaseResult<String> {
-    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(chrono::DateTime::UNIX_EPOCH))
+    fake(None)?.dateWithPhpFormat(r"Y-m-d\TH:i:sP", Some(jiff::Timestamp::UNIX_EPOCH))
 }
 ```
 
-用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Chrono `TimeDelta` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `dateTimeInInterval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `TimeDelta` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依上游 Faker 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
+用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Jiff `SignedDuration` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `dateTimeInInterval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `SignedDuration` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依上游 Faker 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
 
 用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。數字月份補零，數字日期除 `cs-CZ` 外也補零。捷克語、土耳其語、簡體中文、繁體中文和喬治亞語使用對應的星期和月份名稱。土耳其語和兩種中文還會在地化 `amPm`。`dateTimeAD(max)` 從上游 Faker 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
 
@@ -174,7 +174,7 @@ fn regional_date_sample() -> DatabaseResult<String> {
 }
 ```
 
-用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `chrono-tz` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
+用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `IANA 2025b` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
 
 日期字串優先使用 `setDefaultTimezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`getDefaultTimezone()` 可查看覆寫值。`dateTimeInTimezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。 以 `format("setDefaultTimezone", &[zone])` 接收 IANA 時區文字，傳入 null 清除覆寫。`format("getDefaultTimezone", &[])` 回傳時區文字或 null。兩者只操作目前產生器。具名日期時間結果使用 RFC 3339。
 
@@ -198,11 +198,11 @@ fn named_date_samples() -> DatabaseResult<[Value; 3]> {
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn zoned_date_sample() -> DatabaseResult<String> {
-    let epoch = chrono::DateTime::UNIX_EPOCH;
-    let tokyo = "Asia/Tokyo".parse().expect("known IANA time zone");
+    let epoch = jiff::Timestamp::UNIX_EPOCH;
+    let tokyo = openrust::support::Date::timezone("Asia/Tokyo").expect("known IANA time zone");
     Ok(fake(None)?
         .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
-        .to_rfc3339())
+        .strftime("%Y-%m-%dT%H:%M:%S%:z").to_string())
 }
 ```
 
@@ -215,7 +215,7 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn date_expression_sample() -> DatabaseResult<i64> {
     let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
-    Ok(date.timestamp())
+    Ok(date.as_second())
 }
 ```
 
@@ -223,10 +223,10 @@ fn date_expression_sample() -> DatabaseResult<i64> {
 
 用 `resolveDateMax(expression)` 解析 PHP 風格的日期上界，再以 `Some(max)` 傳給任何接受 `max` 的日期產生方法。解析一次即可在多個呼叫中共用同一上界。小數和科學記號的數字字串向零截斷為 Unix 秒。空字串使用目前時間。日期文字預設依應用程式時區解讀，文字中的明確時區優先。無效或超出範圍的值回傳錯誤。
 
-用 `unixTimeExpression(max)` 從字串上界直接取樣 Unix 秒，支援 Chrono 日期範圍之外的時間戳和延伸年份。它與 `unixTime` 共用 `unique` 歷史。語法無效的上界使用 Unix 零秒。需要在取樣前驗證輸入時，用 `resolveDateMax`。超過解析限制或數值範圍時仍回傳錯誤。有限數字字串超出有號 64 位元範圍時飽和至端點，溢位為無限大時依 PHP 整數轉換規則取零。回傳日期的介面仍要求上界可由 Chrono 表示。
+用 `unixTimeExpression(max)` 從字串上界直接取樣 Unix 秒，支援 Jiff 日期範圍之外的時間戳和延伸年份。它與 `unixTime` 共用 `unique` 歷史。語法無效的上界使用 Unix 零秒。需要在取樣前驗證輸入時，用 `resolveDateMax`。超過解析限制或數值範圍時仍回傳錯誤。有限數字字串超出有號 64 位元範圍時飽和至端點，溢位為無限大時依 PHP 整數轉換規則取零。回傳日期的介面仍要求上界可由 Jiff 表示。
 
 ```rust
-use chrono::{DateTime, TimeDelta};
+use jiff::{Timestamp, SignedDuration};
 use openrust::database::{
     DatabaseResult, Value,
     eloquent::{Attributes, Model, factories::Factory},
@@ -234,10 +234,10 @@ use openrust::database::{
 
 pub fn activity_factory<M: Model>() -> Factory<M> {
     Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
-        let start = DateTime::UNIX_EPOCH;
-        let end = DateTime::from_timestamp(86_400, 0).unwrap();
+        let start = Timestamp::UNIX_EPOCH;
+        let end = Timestamp::from_second(86_400).unwrap();
         let happened_at = faker.dateTimeBetween(start, end)?;
-        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
+        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(SignedDuration::from_hours(120)))?;
         let sampled_this_year = faker.dateTimeThisYear(None)?;
         let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
@@ -250,14 +250,14 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
             ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
-            ("happened_at".into(), happened_at.to_rfc3339().into()),
-            ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
-            ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
-            ("historical".into(), historical.to_rfc3339().into()),
-            ("archived_at".into(), archived_at.to_rfc3339().into()),
+            ("happened_at".into(), happened_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("reviewed_at".into(), reviewed_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("sampled_this_year".into(), sampled_this_year.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("historical".into(), historical.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
+            ("archived_at".into(), archived_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string().into()),
             ("published_at".into(), published_at.into()),
             ("epoch_seconds".into(), epoch_seconds.into()),
-            ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
+            ("weekday".into(), faker.dateTimeInTimezone(Some(Timestamp::UNIX_EPOCH), None).strftime("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
             ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
@@ -688,11 +688,11 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 
 使用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 產生測試資料。美國與英國編號沿用固定 上游 Faker 的範圍和前綴規則。臺灣編號會計算檢查碼，性別可傳入 `Some("male")`、`Some("female")` 或 `None` 隨機產生。三個方法都支援 `unique`，遇到未支援的語言會回傳錯誤。
 
-`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 上游 Faker 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssnWithBirthdate(Some(date))` 傳入 `chrono::NaiveDate`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
+`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 上游 Faker 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssnWithBirthdate(Some(date))` 傳入 `jiff::civil::Date`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
 
 `personalIdentityNumber(gender)` 也支援 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五種可透過 `personalIdentityNumberWithBirthdate(birthdate, gender)` 指定出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序號前綴。波蘭採用身分證格式。固定版挪威 provider 的末兩位隨機產生。
 
-使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `chrono::NaiveDate`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
+使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `jiff::civil::Date`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
 
 使用 `pt-BR` 時，可使用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。傳入 `None` 使用預設標點，傳入 `Some(false)` 只傳回數字。RG 沿用固定的聖保羅 provider，檢查碼為數字。CNPJ 使用分支號 `0001`。三個方法都支援 `unique`。
 
@@ -748,7 +748,7 @@ fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn identity_samples() -> DatabaseResult<[String; 73]> {
-    let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let birthdate = jiff::civil::Date::new(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     let russian = fake(Some("ru-RU"))?;
@@ -1027,7 +1027,7 @@ fn vat_samples() -> DatabaseResult<(String, String)> {
 
 ### 信用卡範例 {#credit-card-samples}
 
-信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Chrono 格式指令，預設 `%m/%y`。五個方法都支援 `unique`。
+信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Jiff 格式指令，預設 `%m/%y`。五個方法都支援 `unique`。
 
 `creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
 
@@ -1643,11 +1643,10 @@ fn mongolian_initial() -> DatabaseResult<char> {
 透過 `format("singaporeId", args)` 呼叫時，日期以 `YYYY-MM-DD` 或 null 表示，第二個參數是可選的 `foreigner` 布林值。
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn singapore_identity_sample() -> DatabaseResult<String> {
-    fake(Some("en-SG"))?.unique(false).nric(NaiveDate::from_ymd_opt(2000, 1, 1))
+    fake(Some("en-SG"))?.unique(false).nric(jiff::civil::Date::new(2000, 1, 1).ok())
 }
 ```
 
@@ -1725,14 +1724,13 @@ fn french_nir_sample() -> DatabaseResult<String> {
 
 ### 伊朗國民號碼和印尼 NIK 樣本 {#iranian-national-codes-and-indonesian-nik-samples}
 
-在 `fa-IR` 用 `nationalCode()` 產生十位數樣本，包含非零地區代碼和模 11 校驗位。在 `id-ID` 用 `nik(gender, birthDate)` 產生 16 位數樣本，開頭取自固定出生地代碼詞表，號碼內包含出生日期。女性樣本的出生日期日數加 40。日期傳入 `None` 時從過去 30 年抽樣，也可傳入 `NaiveDate` 指定公曆日期。兩個介面皆支援 `unique()`。
+在 `fa-IR` 用 `nationalCode()` 產生十位數樣本，包含非零地區代碼和模 11 校驗位。在 `id-ID` 用 `nik(gender, birthDate)` 產生 16 位數樣本，開頭取自固定出生地代碼詞表，號碼內包含出生日期。女性樣本的出生日期日數加 40。日期傳入 `None` 時從過去 30 年抽樣，也可傳入 `jiff::civil::Date` 指定公曆日期。兩個介面皆支援 `unique()`。
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn indonesian_nik_sample() -> DatabaseResult<String> {
-    fake(Some("id-ID"))?.unique(false).nik(Some("female"), NaiveDate::from_ymd_opt(2000, 2, 29))
+    fake(Some("id-ID"))?.unique(false).nik(Some("female"), jiff::civil::Date::new(2000, 2, 29).ok())
 }
 ```
 
@@ -1741,12 +1739,11 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 在 `kk-KZ` 中使用 `individualIdentificationNumber(birthDate, gender)`。生日接受 1800–2099 年的選填公曆日期，預設從過去 30 年抽樣，性別預設為男性。`Faker::checkSum(prefix)` 接收 11 位 ASCII 數字並回傳校驗值，兩輪均得到 10 時，產生器會重新抽取序號。在 `es-VE` 中用 `nationalId(separator)` 設定 `V` 或 `E` 後的分隔符號。兩個產生器皆支援 `unique()`。
 
 ```rust
-use chrono::NaiveDate;
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn kazakh_iin_sample() -> DatabaseResult<String> {
     fake(Some("kk-KZ"))?.unique(false)
-        .individualIdentificationNumber(NaiveDate::from_ymd_opt(2000, 2, 29), Some("female"))
+        .individualIdentificationNumber(jiff::civil::Date::new(2000, 2, 29).ok(), Some("female"))
 }
 ```
 

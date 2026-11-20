@@ -328,7 +328,7 @@ fn install(
     root: &Path,
     spec: &InstallSpec,
     force: bool,
-    timestamp: Option<chrono::NaiveDateTime>,
+    timestamp: Option<jiff::civil::DateTime>,
     passport: bool,
 ) -> Result<InstallResult, ConsoleError> {
     let _manifest = lock_manifest(root)?;
@@ -339,7 +339,7 @@ fn install_unlocked(
     root: &Path,
     spec: &InstallSpec,
     force: bool,
-    timestamp: Option<chrono::NaiveDateTime>,
+    timestamp: Option<jiff::civil::DateTime>,
     passport: bool,
 ) -> Result<InstallResult, ConsoleError> {
     let routes_module = root.join("routes/mod.rs");
@@ -468,7 +468,7 @@ fn install_unlocked(
 pub(super) fn initialize_routes(
     root: &Path,
     force: bool,
-    timestamp: Option<chrono::NaiveDateTime>,
+    timestamp: Option<jiff::civil::DateTime>,
     extensions: &[String],
 ) -> Result<Vec<VendorTagPublished>, ConsoleError> {
     let mut publications = Vec::new();

@@ -996,47 +996,58 @@ impl Seeder for PolymorphicFactories {
                 invalid,
                 Err(DatabaseError::InvalidConfiguration(_))
             ));
-            let epoch = chrono::DateTime::UNIX_EPOCH;
-            let taipei = "Asia/Taipei".parse().unwrap();
-            let new_york = "America/New_York".parse().unwrap();
-            let utc = "UTC".parse().unwrap();
+            let epoch = jiff::Timestamp::UNIX_EPOCH;
+            let taipei = openrust::support::Date::timezone("Asia/Taipei").unwrap();
+            let new_york = openrust::support::Date::timezone("America/New_York").unwrap();
+            let utc = openrust::support::Date::timezone("UTC").unwrap();
             let faker = fake(None)?;
             let other = fake(Some("fr-fr"))?;
             assert_eq!(faker.getDefaultTimezone(), None);
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T08:00:00+0800");
             assert_eq!(
-                other.dateTimeInTimezone(Some(epoch), None).timezone(),
+                other
+                    .dateTimeInTimezone(Some(epoch), None)
+                    .time_zone()
+                    .clone(),
                 taipei
             );
-            other.setDefaultTimezone(Some(new_york));
-            assert_eq!(other.getDefaultTimezone(), Some(new_york));
+            other.setDefaultTimezone(Some(new_york.clone()));
+            assert_eq!(other.getDefaultTimezone(), Some(new_york.clone()));
             assert_eq!(other.date(None, Some(epoch))?, "1969-12-31");
             assert_eq!(other.year(Some(epoch)), "1969");
             assert_eq!(other.dayOfWeek(Some(epoch)), "Wednesday");
             assert_eq!(
                 other
                     .unique(false)
-                    .dateTimeInTimezone(Some(epoch), Some(utc))?
-                    .timezone(),
+                    .dateTimeInTimezone(Some(epoch), Some(utc.clone()))?
+                    .time_zone()
+                    .clone(),
                 utc
             );
             assert_eq!(
-                faker.dateTimeInTimezone(Some(epoch), None).timezone(),
+                faker
+                    .dateTimeInTimezone(Some(epoch), None)
+                    .time_zone()
+                    .clone(),
                 taipei
             );
             other.setDefaultTimezone(None);
             assert_eq!(
-                other.dateTimeInTimezone(Some(epoch), None).timezone(),
+                other
+                    .dateTimeInTimezone(Some(epoch), None)
+                    .time_zone()
+                    .clone(),
                 taipei
             );
             assert_eq!(
                 openrust::database::eloquent::factories::Faker::new("en")?
                     .dateTimeInTimezone(Some(epoch), None)
-                    .timezone(),
+                    .time_zone()
+                    .clone(),
                 utc
             );
-            faker.setDefaultTimezone(Some(utc));
-            assert_eq!(fake(Some("zh_TW"))?.getDefaultTimezone(), Some(utc));
+            faker.setDefaultTimezone(Some(utc.clone()));
+            assert_eq!(fake(Some("zh_TW"))?.getDefaultTimezone(), Some(utc.clone()));
             for value in [
                 faker.firstName(),
                 faker.lastName(),
@@ -1051,8 +1062,8 @@ impl Seeder for PolymorphicFactories {
             }
             assert!(faker.freeEmail().contains('@'));
 
-            let start = chrono::DateTime::from_timestamp(-1, 0).unwrap();
-            let end = chrono::DateTime::from_timestamp(1, 0).unwrap();
+            let start = jiff::Timestamp::new(-1, 0).unwrap();
+            let end = jiff::Timestamp::new(1, 0).unwrap();
             let max = Some(faker.resolveDateMax("0")?);
             assert_eq!(faker.unixTime(max), 0);
             assert_eq!(faker.dateTime(max), epoch);
@@ -1064,21 +1075,21 @@ impl Seeder for PolymorphicFactories {
             );
             assert!(faker.unique(false).iso8601(Some(epoch)).is_err());
             faker.unique(true);
-            assert_eq!(faker.resolveDateMax(" -1.9 ")?.timestamp(), -1);
-            assert_eq!(faker.resolveDateMax("1e1")?.timestamp(), 10);
+            assert_eq!(faker.resolveDateMax(" -1.9 ")?.as_second(), -1);
+            assert_eq!(faker.resolveDateMax("1e1")?.as_second(), 10);
             assert_eq!(
-                faker.resolveDateMax("2024-01-02 12:00")?.timestamp(),
+                faker.resolveDateMax("2024-01-02 12:00")?.as_second(),
                 1_704_168_000
             );
             assert_eq!(
-                faker.resolveDateMax("2024-01-02 12:00 UTC")?.timestamp(),
+                faker.resolveDateMax("2024-01-02 12:00 UTC")?.as_second(),
                 1_704_196_800
             );
-            let before = chrono::Utc::now();
+            let before = jiff::Timestamp::now();
             let resolved = faker.resolveDateMax("")?;
             assert!(
-                (before.timestamp()..=chrono::Utc::now().timestamp())
-                    .contains(&resolved.timestamp())
+                (before.as_second()..=jiff::Timestamp::now().as_second())
+                    .contains(&resolved.as_second())
             );
             assert!(matches!(
                 faker.resolveDateMax("bad date"),
@@ -1102,7 +1113,7 @@ impl Seeder for PolymorphicFactories {
             ));
             assert_eq!(faker.unixTime(Some(epoch)), 0);
             assert!((-1..=0).contains(&faker.unixTime(Some(start))));
-            assert!((0..=chrono::Utc::now().timestamp()).contains(&faker.unixTime(None)));
+            assert!((0..=jiff::Timestamp::now().as_second()).contains(&faker.unixTime(None)));
             assert_eq!(faker.dateTime(Some(epoch)), epoch);
             let mut china = [
                 faker.unique(false).timezone(Some("CN"))?,
@@ -1125,7 +1136,7 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(faker.time(None, Some(epoch))?, "00:00:00");
             assert_eq!(faker.date(Some("%d/%m/%Y"), Some(epoch))?, "01/01/1970");
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T00:00:00+0000");
-            let first_ad = chrono::DateTime::from_timestamp(-62_135_597_361, 0).unwrap();
+            let first_ad = jiff::Timestamp::new(-62_135_597_361, 0).unwrap();
             assert_eq!(faker.dateTimeAD(Some(first_ad)), first_ad);
             assert_eq!(faker.amPm(Some(epoch)), "上午");
             assert_eq!(faker.dayOfMonth(Some(epoch)), "01");
@@ -1198,8 +1209,8 @@ impl Seeder for PolymorphicFactories {
                 ("2024-01-15 12:00 next Monday", "2024-01-21T16:00:00Z"),
                 ("@-1", "1969-12-31T23:59:59Z"),
             ] {
-                let expected = chrono::DateTime::parse_from_rfc3339(expected).unwrap();
-                let upper = expected.timestamp().to_string();
+                let expected = expected.parse::<jiff::Timestamp>().unwrap();
+                let upper = expected.as_second().to_string();
                 assert_eq!(
                     faker.dateTimeBetweenExpressions(expression, &upper)?,
                     expected
@@ -1240,12 +1251,11 @@ impl Seeder for PolymorphicFactories {
                 Some("2024-03-09 12:00 America/New_York"),
                 Some("+1 day"),
             )?;
-            let spring_start =
-                chrono::DateTime::parse_from_rfc3339("2024-03-09T17:00:00Z").unwrap();
-            let spring_end = chrono::DateTime::parse_from_rfc3339("2024-03-10T16:00:00Z").unwrap();
+            let spring_start = "2024-03-09T17:00:00Z".parse::<jiff::Timestamp>().unwrap();
+            let spring_end = "2024-03-10T16:00:00Z".parse::<jiff::Timestamp>().unwrap();
             assert!(
-                (spring_start.timestamp()..=spring_end.timestamp())
-                    .contains(&expression_interval.timestamp())
+                (spring_start.as_second()..=spring_end.as_second())
+                    .contains(&expression_interval.as_second())
             );
             assert_eq!(
                 faker
@@ -1256,7 +1266,7 @@ impl Seeder for PolymorphicFactories {
             assert!(matches!(
                 faker
                     .unique(false)
-                    .dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero())),
+                    .dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             faker.unique(true);
@@ -1266,27 +1276,24 @@ impl Seeder for PolymorphicFactories {
                     "invalid Faker date or interval expression"
                 ))
             ));
-            let second = chrono::TimeDelta::seconds(1);
+            let second = jiff::SignedDuration::from_secs(1);
             for interval in [second, -second] {
                 let other = epoch + interval;
                 let sampled = faker.dateTimeInInterval(Some(epoch), Some(interval))?;
                 assert!((epoch.min(other)..=epoch.max(other)).contains(&sampled));
             }
             assert!(matches!(
-                faker.dateTimeInInterval(
-                    Some(chrono::DateTime::<chrono::Utc>::MAX_UTC),
-                    Some(second)
-                ),
+                faker.dateTimeInInterval(Some(jiff::Timestamp::MAX), Some(second)),
                 Err(DatabaseError::InvalidQuery(
                     "Faker timestamp is out of range"
                 ))
             ));
             assert_eq!(
-                unique.dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero()))?,
+                unique.dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO))?,
                 epoch
             );
             assert!(matches!(
-                unique.dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero())),
+                unique.dateTimeInInterval(Some(epoch), Some(jiff::SignedDuration::ZERO)),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
             for date in [
@@ -1296,21 +1303,22 @@ impl Seeder for PolymorphicFactories {
                 unique.dateTimeThisMonth(None)?,
                 faker.dateTimeInInterval(None, None)?,
             ] {
-                assert!(date <= chrono::Utc::now());
-                assert_eq!(date.timestamp_subsec_nanos(), 0);
+                assert!(date <= jiff::Timestamp::now());
+                assert_eq!(date.subsec_nanosecond(), 0);
             }
-            let year_start = chrono::NaiveDate::from_yo_opt(
-                chrono::Datelike::year(&chrono::Utc::now().with_timezone(&taipei)),
+            let year_start = jiff::civil::Date::new(
+                jiff::Timestamp::now().to_zoned(taipei.clone()).year(),
+                1,
                 1,
             )
             .unwrap()
-            .and_hms_opt(0, 0, 0)
+            .at(0, 0, 0, 0)
+            .to_zoned(taipei.clone())
             .unwrap()
-            .and_utc()
-                - chrono::TimeDelta::hours(8);
+            .timestamp();
             assert_eq!(faker.dateTimeThisYear(Some(year_start))?, year_start);
             for date in [
-                faker.dateTimeThisCentury(Some(chrono::DateTime::<chrono::Utc>::MIN_UTC)),
+                faker.dateTimeThisCentury(Some(jiff::Timestamp::MIN)),
                 faker.dateTimeThisDecade(Some(epoch)),
                 faker.dateTimeThisYear(Some(epoch)),
                 faker.dateTimeThisMonth(Some(epoch)),
@@ -1456,7 +1464,10 @@ impl Seeder for PolymorphicFactories {
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");
                 assert_eq!(
-                    faker.dateTimeInTimezone(Some(epoch), None).timezone(),
+                    faker
+                        .dateTimeInTimezone(Some(epoch), None)
+                        .time_zone()
+                        .clone(),
                     taipei
                 );
                 let name = faker.unique(false).firstName()?;
@@ -1472,7 +1483,11 @@ impl Seeder for PolymorphicFactories {
                     ),
                     (
                         "generated_at".into(),
-                        faker.dateTimeBetween(start, start)?.to_rfc3339().into(),
+                        faker
+                            .dateTimeBetween(start, start)?
+                            .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
+                            .to_string()
+                            .into(),
                     ),
                 ]))
             })
@@ -2849,7 +2864,7 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
         })
         .await?;
     let definition = || Attributes::from([("name".into(), "sample".into())]);
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     let batch = Factory::<TrashedProbe>::new(definition)
         .count(2)
         .trashed(None)?;
@@ -2861,8 +2876,8 @@ async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
         let Some(Value::Text(value)) = model.getAttributeValue("removed_at")? else {
             panic!("expected date text");
         };
-        let raw = chrono::DateTime::parse_from_rfc3339(&value).unwrap();
-        assert!((86_399..=86_401).contains(&now.signed_duration_since(raw).num_seconds()));
+        let raw = value.parse::<jiff::Timestamp>().unwrap();
+        assert!((86_399..=86_401).contains(&now.duration_since(raw).as_secs()));
         if let Some(previous) = &previous {
             assert_eq!(&value, previous);
         }
@@ -4815,15 +4830,29 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
     assert!(faker.creditCardNumber(Some("Elo"), false, None).is_err());
     assert!(brazil.creditCardNumber(Some("JCB"), false, None).is_err());
     assert!(faker.creditCardNumber(Some("bogus"), false, None).is_err());
-    let start = chrono::Utc::now().timestamp();
-    let upper = faker.resolveDateMax("+36 months")?.timestamp() + 1;
-    let lower = faker.resolveDateMax("-36 months")?.timestamp() - 1;
+    let start = jiff::Timestamp::now().as_second();
+    let upper = faker.resolveDateMax("+36 months")?.as_second() + 1;
+    let lower = faker.resolveDateMax("-36 months")?.as_second() - 1;
     for _ in 0..16 {
-        assert!((start..=upper).contains(&faker.creditCardExpirationDate(true)?.timestamp()));
-        assert!((lower..=upper).contains(&faker.creditCardExpirationDate(false)?.timestamp()));
+        assert!(
+            (start..=upper).contains(
+                &faker
+                    .creditCardExpirationDate(true)?
+                    .timestamp()
+                    .as_second()
+            )
+        );
+        assert!(
+            (lower..=upper).contains(
+                &faker
+                    .creditCardExpirationDate(false)?
+                    .timestamp()
+                    .as_second()
+            )
+        );
     }
     let default_date = faker.creditCardExpirationDateString(true, None)?;
-    assert!(chrono::NaiveDate::parse_from_str(&format!("01/{default_date}"), "%d/%m/%y").is_ok());
+    assert!(jiff::civil::Date::strptime("%d/%m/%y", format!("01/{default_date}")).is_ok());
     assert!(
         faker
             .creditCardExpirationDateString(true, Some("%Q"))
@@ -4843,7 +4872,13 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
         serde_json::to_value(&details).unwrap()["expirationDate"],
         details.expiration_date
     );
-    assert!(unique.creditCardExpirationDate(true)?.timestamp() >= start);
+    assert!(
+        unique
+            .creditCardExpirationDate(true)?
+            .timestamp()
+            .as_second()
+            >= start
+    );
     assert_eq!(
         unique
             .creditCardExpirationDateString(true, Some("%Y-%m"))?
@@ -5633,7 +5668,8 @@ fn faker_seed_restarts_formats_without_touching_other_generators() -> DatabaseRe
                 faker.randomHtml(Some(2), Some(3))?,
                 faker
                     .dateTimeBetweenExpressions("2020-01-01", "2020-02-01")?
-                    .to_rfc3339(),
+                    .strftime("%Y-%m-%dT%H:%M:%S%.f%:z")
+                    .to_string(),
             ]);
         }
         Ok(values)
@@ -5937,8 +5973,8 @@ fn faker_named_dates_preserve_provider_locales_and_instance_zones() -> DatabaseR
         "1970-01-01T00:00:00+00:00".into()
     );
 
-    let now = chrono::Utc::now();
-    let old = (now - chrono::TimeDelta::days(20)).timestamp();
+    let now = jiff::Timestamp::now();
+    let old = (now - jiff::SignedDuration::from_hours(480)).as_second();
     assert!(other.format("dateTimeThisMonth", &[old.into()]).is_ok());
     Ok(())
 }
@@ -6648,7 +6684,7 @@ fn faker_named_collection_formatters_keep_keys_types_and_bounds() -> DatabaseRes
 
 #[test]
 fn faker_qualified_date_ranges_match_extension_boundaries() -> DatabaseResult<()> {
-    use chrono::{DateTime, Datelike as _, Utc};
+    use jiff::{Timestamp, tz::TimeZone};
 
     let faker = Faker::new("en-US")?;
     let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;
@@ -6678,37 +6714,53 @@ fn faker_qualified_date_ranges_match_extension_boundaries() -> DatabaseResult<()
     else {
         panic!("expected a date string");
     };
-    assert!((-86_400..=0).contains(&DateTime::parse_from_rfc3339(&sample).unwrap().timestamp()));
+    assert!((-86_400..=0).contains(&sample.parse::<Timestamp>().unwrap().as_second()));
 
     let Value::Text(week) = date.format("dateTimeThisWeek", &["monday this week".into()])? else {
         panic!("expected a date string");
     };
     assert_eq!(
-        DateTime::parse_from_rfc3339(&week).unwrap().weekday(),
-        chrono::Weekday::Mon
+        week.parse::<Timestamp>()
+            .unwrap()
+            .to_zoned(TimeZone::UTC)
+            .weekday(),
+        jiff::civil::Weekday::Monday
     );
     let Value::Text(month) =
         date.format("dateTimeThisMonth", &["first day of this month".into()])?
     else {
         panic!("expected a date string");
     };
-    assert_eq!(DateTime::parse_from_rfc3339(&month).unwrap().day(), 1);
+    assert_eq!(
+        month
+            .parse::<Timestamp>()
+            .unwrap()
+            .to_zoned(TimeZone::UTC)
+            .day(),
+        1
+    );
     let Value::Text(year) = date.format("dateTimeThisYear", &["first day of january".into()])?
     else {
         panic!("expected a date string");
     };
-    assert_eq!(DateTime::parse_from_rfc3339(&year).unwrap().ordinal(), 1);
+    assert_eq!(
+        year.parse::<Timestamp>()
+            .unwrap()
+            .to_zoned(TimeZone::UTC)
+            .day_of_year(),
+        1
+    );
 
-    let year = Utc::now().year();
+    let year = Timestamp::now().to_zoned(TimeZone::UTC).year();
     for (formatter, width) in [("dateTimeThisDecade", 10), ("dateTimeThisCentury", 100)] {
         let first_year = year.div_euclid(width) * width;
         let latest = format!("{first_year}-01-02T00:00:00+00:00");
         let Value::Text(sample) = date.format(formatter, &[latest.clone().into()])? else {
             panic!("expected a date string");
         };
-        let sample = DateTime::parse_from_rfc3339(&sample).unwrap();
-        assert_eq!(sample.year(), first_year);
-        assert!(sample <= DateTime::parse_from_rfc3339(&latest).unwrap());
+        let sample = sample.parse::<Timestamp>().unwrap();
+        assert_eq!(sample.to_zoned(TimeZone::UTC).year(), first_year);
+        assert!(sample <= latest.parse::<Timestamp>().unwrap());
     }
     Ok(())
 }

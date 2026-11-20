@@ -2433,10 +2433,24 @@ async fn verify_worker_cadence(
     assert_eq!(rows[4]["reason"], "empty_for");
     assert_eq!(rows[4]["jobs_processed"], 2);
     let timestamp = |row: &Json| {
-        chrono::DateTime::parse_from_rfc3339(row["timestamp"].as_str().unwrap()).unwrap()
+        row["timestamp"]
+            .as_str()
+            .unwrap()
+            .parse::<jiff::Timestamp>()
+            .unwrap()
     };
-    assert!((timestamp(&rows[2]) - timestamp(&rows[1])).num_milliseconds() >= 950);
-    assert!((timestamp(&rows[4]) - timestamp(&rows[3])).num_milliseconds() >= 1950);
+    assert!(
+        timestamp(&rows[2])
+            .duration_since(timestamp(&rows[1]))
+            .as_millis()
+            >= 950
+    );
+    assert!(
+        timestamp(&rows[4])
+            .duration_since(timestamp(&rows[3]))
+            .as_millis()
+            >= 1950
+    );
     assert_eq!(
         db.scalar(
             "select value from receipts where name = 'stop:QueueEmptyFor'",

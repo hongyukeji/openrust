@@ -1,7 +1,7 @@
 use std::{fmt::Write as _, sync::Arc, time::Duration};
 
 use aws_lc_rs::digest;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -28,7 +28,7 @@ pub struct CacheTokenRepository {
 #[derive(Deserialize, Serialize)]
 struct Record {
     hash: String,
-    created: DateTime<Utc>,
+    created: Timestamp,
 }
 
 impl CacheTokenRepository {
@@ -65,7 +65,7 @@ impl CacheTokenRepository {
     }
 
     async fn put(&self, key: &str, record: Record) -> AuthResult<()> {
-        let expiry = record.created + chrono::TimeDelta::seconds(self.policy.lifetime());
+        let expiry = record.created + jiff::SignedDuration::from_secs(self.policy.lifetime());
         let value = serde_json::to_value(record).map_err(AuthError::backend)?;
         let stored = self
             .store

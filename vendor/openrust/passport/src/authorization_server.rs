@@ -815,14 +815,19 @@ fn redirect_error(error: crate::RedirectUriError) -> OAuthError {
     }
 }
 fn now() -> Result<i64, OAuthError> {
-    Ok(Date::now(None).map_err(internal)?.asDateTime().timestamp())
+    Ok(Date::now(None)
+        .map_err(internal)?
+        .asDateTime()
+        .timestamp()
+        .as_nanosecond()
+        .div_euclid(1_000_000_000) as i64)
 }
 fn sql_date(value: i64) -> Result<String, OAuthError> {
     let current = Date::now(None).map_err(internal)?;
-    Ok(chrono::DateTime::from_timestamp(value, 0)
-        .ok_or_else(|| OAuthError::server_error("Invalid OAuth expiry"))?
-        .with_timezone(&current.asDateTime().timezone())
-        .format("%Y-%m-%d %H:%M:%S")
+    Ok(jiff::Timestamp::from_second(value)
+        .map_err(|_| OAuthError::server_error("Invalid OAuth expiry"))?
+        .to_zoned(current.asDateTime().time_zone().clone())
+        .strftime("%Y-%m-%d %H:%M:%S")
         .to_string())
 }
 

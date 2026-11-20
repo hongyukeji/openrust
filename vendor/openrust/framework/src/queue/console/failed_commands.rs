@@ -92,8 +92,9 @@ impl Command for FailedCommand {
                 }
                 Action::Prune => {
                     let hours = *args.get_one::<u32>("hours").expect("Clap default hours");
-                    let before = chrono::Utc::now()
-                        .checked_sub_signed(chrono::TimeDelta::hours(i64::from(hours)))
+                    let before = jiff::Timestamp::now()
+                        .checked_sub(jiff::SignedDuration::from_hours(i64::from(hours)))
+                        .ok()
                         .ok_or_else(|| {
                             ConsoleError::new("The failed job retention period is out of range.")
                         })?;

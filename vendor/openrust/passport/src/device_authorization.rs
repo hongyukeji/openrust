@@ -299,8 +299,9 @@ async fn save(
 fn timestamp(model: &dyn GrantRecord, name: &str) -> Result<Option<i64>, OAuthError> {
     match model.value(name).map_err(internal)? {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Text(value)) => chrono::DateTime::parse_from_rfc3339(&value)
-            .map(|d| Some(d.timestamp()))
+        Some(Value::Text(value)) => value
+            .parse::<jiff::Timestamp>()
+            .map(|d| Some(d.as_second()))
             .map_err(internal),
         _ => Err(OAuthError::server_error("Invalid device timestamp")),
     }

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Timelike, Utc};
+use jiff::Timestamp;
 use serde_json::{Map, Value as Json};
 
 use crate::{
@@ -274,7 +274,7 @@ impl DatabaseBatchRepository {
 
     pub(crate) async fn cancel_once(&self, id: &str) -> QueueResult<(Option<Batch>, bool)> {
         let (table, id) = (self.table.clone(), id.to_owned());
-        let now = now().timestamp();
+        let now = crate::support::timestamp_seconds(now());
         self.connection
             .transaction(
                 move |transaction| {
@@ -320,29 +320,35 @@ impl DatabaseBatchRepository {
             .map_err(backend)
     }
 
-    pub async fn prune(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+    pub async fn prune(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query
-                .whereNotNull("finished_at")
-                .r#where("finished_at", "<", before.timestamp())
+            query.whereNotNull("finished_at").r#where(
+                "finished_at",
+                "<",
+                crate::support::timestamp_seconds(before),
+            )
         })
         .await
     }
 
-    pub async fn pruneUnfinished(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+    pub async fn pruneUnfinished(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query
-                .whereNull("finished_at")
-                .r#where("created_at", "<", before.timestamp())
+            query.whereNull("finished_at").r#where(
+                "created_at",
+                "<",
+                crate::support::timestamp_seconds(before),
+            )
         })
         .await
     }
 
-    pub async fn pruneCancelled(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+    pub async fn pruneCancelled(&self, before: Timestamp) -> QueueResult<u64> {
         self.prune_matching(|query| {
-            query
-                .whereNotNull("cancelled_at")
-                .r#where("created_at", "<", before.timestamp())
+            query.whereNotNull("cancelled_at").r#where(
+                "created_at",
+                "<",
+                crate::support::timestamp_seconds(before),
+            )
         })
         .await
     }
@@ -438,7 +444,10 @@ fn insert_values(batch: &Batch) -> DatabaseResult<Record> {
             "options".into(),
             Json::Object(batch.options.clone()).to_string().into(),
         ),
-        ("created_at".into(), batch.created_at.timestamp().into()),
+        (
+            "created_at".into(),
+            crate::support::timestamp_seconds(batch.created_at).into(),
+        ),
     ]);
     Ok(values)
 }
@@ -452,8 +461,11 @@ fn increment(value: u32, amount: u32) -> DatabaseResult<u32> {
 
 fn state(batch: &Batch) -> DatabaseResult<Record> {
     let failed_ids = serde_json::to_string(&batch.failed_job_ids).map_err(|_| invalid())?;
-    let time =
-        |value: Option<DateTime<Utc>>| value.map_or(Value::Null, |date| date.timestamp().into());
+    let time = |value: Option<Timestamp>| {
+        value.map_or(Value::Null, |date| {
+            crate::support::timestamp_seconds(date).into()
+        })
+    };
     Ok([
         ("total_jobs".into(), i64::from(batch.total_jobs).into()),
         ("pending_jobs".into(), i64::from(batch.pending_jobs).into()),
@@ -480,7 +492,8 @@ fn decode(row: Row) -> DatabaseResult<Batch> {
         _ => Err(invalid()),
     };
     let time = |key| match row.get(key) {
-        Some(Value::Integer(value)) => DateTime::from_timestamp(*value, 0)
+        Some(Value::Integer(value)) => Timestamp::from_second(*value)
+            .ok()
             .map(Some)
             .ok_or(invalid()),
         Some(Value::Null) => Ok(None),
@@ -505,8 +518,9 @@ fn decode(row: Row) -> DatabaseResult<Batch> {
     })
 }
 
-fn now() -> DateTime<Utc> {
-    Utc::now().with_nanosecond(0).expect("valid whole second")
+fn now() -> Timestamp {
+    Timestamp::from_second(crate::support::timestamp_seconds(Timestamp::now()))
+        .expect("valid whole second")
 }
 
 const fn invalid() -> DatabaseError {

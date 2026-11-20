@@ -88,7 +88,9 @@ impl ResourceServer {
         let now = Date::now(None)
             .map_err(internal)?
             .asDateTime()
-            .timestamp_micros() as f64
+            .timestamp()
+            .as_nanosecond()
+            .div_euclid(1000) as f64
             / 1_000_000.;
         let claims = self.verify(token, now)?;
         if self

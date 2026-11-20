@@ -19,7 +19,7 @@ impl DatabaseUuidFailedJobProvider {
 }
 
 impl PrunableFailedJobProvider for DatabaseUuidFailedJobProvider {
-    fn prune(&self, before: chrono::DateTime<chrono::Utc>) -> QueueFuture<'_, QueueResult<u64>> {
+    fn prune(&self, before: jiff::Timestamp) -> QueueFuture<'_, QueueResult<u64>> {
         Box::pin(async move {
             let mut total = 0;
             loop {
@@ -198,11 +198,12 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
         Box::pin(async move {
             let mut query = self.connection.table(&self.table);
             if let Some(age) = older_than {
-                let cutoff = chrono::Utc::now()
-                    .checked_sub_signed(
-                        chrono::Duration::from_std(age)
+                let cutoff = jiff::Timestamp::now()
+                    .checked_sub(
+                        jiff::SignedDuration::try_from(age)
                             .map_err(|_| QueueError::InvalidConfiguration)?,
                     )
+                    .ok()
                     .ok_or(QueueError::InvalidConfiguration)?;
                 query = query.r#where("failed_at", "<=", super::timestamp(cutoff));
             }

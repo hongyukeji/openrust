@@ -8,9 +8,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, Datelike, TimeDelta, Timelike, Utc};
-use chrono_tz::Tz;
 use clap::{Arg, ArgAction};
+use jiff::{SignedDuration, Timestamp, Zoned, tz::TimeZone};
 use tokio::time::{Instant, sleep_until};
 use tokio_util::sync::CancellationToken;
 
@@ -269,7 +268,7 @@ impl ScheduleRunCommand {
         }
 
         let display_zone = match input.matches().get_one::<String>("timezone") {
-            Some(name) => name.parse::<Tz>().map_err(error)?,
+            Some(name) => crate::support::Date::timezone(name).map_err(error)?,
             None => parse_timezone(
                 app.configuration_repository()
                     .map_err(error)?
@@ -277,31 +276,33 @@ impl ScheduleRunCommand {
             )?,
         };
         let default_zone = timezone(app)?;
-        let now = DateTime::<Utc>::from(self.schedule.current_time()?);
+        let now = Timestamp::try_from(self.schedule.current_time()?).map_err(error)?;
         let mut rows = Vec::new();
         for event in events {
-            let local = now.with_timezone(&event.zone.unwrap_or(default_zone));
+            let local = now.to_zoned(event.zone.clone().unwrap_or_else(|| default_zone.clone()));
             let cron_next = event
                 .expression
                 .find_next_occurrence(&local, false)
                 .map_err(error)?;
             let next = if let Some(interval) = event.interval
-                && event.due(now, default_zone)?
+                && event.due(now, default_zone.clone())?
             {
                 // Repeats advance to the next interval boundary after the current second.
                 let seconds = interval.as_secs();
-                let offset = seconds - u64::from(local.second()) % seconds;
+                let offset = seconds - local.second() as u64 % seconds;
                 local
-                    .with_nanosecond(0)
-                    .and_then(|time| time.checked_add_signed(TimeDelta::seconds(offset as i64)))
-                    .ok_or_else(|| error(crate::support::DateError::OutOfRange))?
+                    .with()
+                    .subsec_nanosecond(0)
+                    .build()
+                    .and_then(|time| time.checked_add(SignedDuration::from_secs(offset as i64)))
+                    .map_err(error)?
             } else {
-                cron_next
+                cron_next.clone()
             };
-            rows.push((next.with_timezone(&display_zone), cron_next, event));
+            rows.push((next.with_time_zone(display_zone.clone()), cron_next, event));
         }
         if input.matches().get_flag("next") {
-            rows.sort_by_key(|(next, _, _)| *next);
+            rows.sort_by_key(|(next, _, _)| next.timestamp());
         }
         let verbose = input.matches().get_count("verbose") > 0;
         let executable = if verbose
@@ -314,13 +315,13 @@ impl ScheduleRunCommand {
             None
         };
         let mutex = CacheEventMutex::new(self.store()?);
-        let displayed_now = now.with_timezone(&display_zone);
+        let displayed_now = now.to_zoned(display_zone.clone());
         let mut listed = Vec::with_capacity(rows.len());
         for (next, cron_next, event) in rows {
             let expressions = cron_expression_timezone_converter::for_event(
                 &event.cron_text,
                 cron_next,
-                display_zone,
+                display_zone.clone(),
             );
             let (command, arguments_start) = match &event.action {
                 Action::Command(args) => {
@@ -348,9 +349,9 @@ impl ScheduleRunCommand {
                 expressions,
                 command,
                 arguments_start,
-                next_due_date: next.format("%Y-%m-%d %H:%M:%S %:z").to_string(),
-                next_due_date_human: relative_due(displayed_now, next),
-                timezone: display_zone.name(),
+                next_due_date: next.strftime("%Y-%m-%d %H:%M:%S %:z").to_string(),
+                next_due_date_human: relative_due(&displayed_now, &next),
+                timezone: display_zone.iana_name().unwrap_or("UTC"),
                 has_mutex: mutex.exists(event).await.map_err(error)?,
             });
         }
@@ -515,7 +516,11 @@ impl ScheduleRunCommand {
             if !event.runsInMaintenanceMode() && app.isDownForMaintenance().await.map_err(error)? {
                 continue;
             }
-            if event.due(time.into(), default_zone)? && event.runs_in_environment(&environment) {
+            if event.due(
+                Timestamp::try_from(time).map_err(error)?,
+                default_zone.clone(),
+            )? && event.runs_in_environment(&environment)
+            {
                 due.push(Due {
                     index,
                     event,
@@ -1020,7 +1025,7 @@ fn exit_outcome(code: i32, message: impl std::fmt::Display) -> TaskOutcome {
     }
 }
 
-fn timezone(app: &Application) -> Result<Tz, ConsoleError> {
+fn timezone(app: &Application) -> Result<TimeZone, ConsoleError> {
     let config = app.configuration_repository().map_err(error)?;
     let zone = config
         .get("app.schedule_timezone")
@@ -1029,19 +1034,16 @@ fn timezone(app: &Application) -> Result<Tz, ConsoleError> {
     parse_timezone(zone)
 }
 
-fn relative_due(now: DateTime<Tz>, next: DateTime<Tz>) -> String {
-    let month_number = |date: DateTime<Tz>| i64::from(date.year()) * 12 + i64::from(date.month0());
+fn relative_due(now: &Zoned, next: &Zoned) -> String {
+    let month_number = |date: &Zoned| i64::from(date.year()) * 12 + i64::from(date.month() - 1);
     let mut months = month_number(next) - month_number(now);
     if months > 0 && (next.day(), next.time()) < (now.day(), now.time()) {
         months -= 1;
     }
 
-    let days = next
-        .date_naive()
-        .signed_duration_since(now.date_naive())
-        .num_days()
+    let days = next.date().duration_since(now.date()).as_secs() / 86_400
         - i64::from(next.time() < now.time());
-    let seconds = next.signed_duration_since(now).num_seconds();
+    let seconds = next.timestamp().duration_since(now.timestamp()).as_secs();
     let (count, unit) = if months >= 12 {
         (months / 12, "year")
     } else if months > 0 {
@@ -1061,14 +1063,14 @@ fn relative_due(now: DateTime<Tz>, next: DateTime<Tz>) -> String {
     format!("{count} {unit}{plural} from now")
 }
 
-fn parse_timezone(zone: Option<serde_json::Value>) -> Result<Tz, ConsoleError> {
+fn parse_timezone(zone: Option<serde_json::Value>) -> Result<TimeZone, ConsoleError> {
     match zone.as_ref().filter(|value| !value.is_null()) {
-        None => Ok(chrono_tz::UTC),
-        Some(zone) => zone
-            .as_str()
-            .ok_or_else(|| error("The schedule timezone must be a string."))?
-            .parse()
-            .map_err(error),
+        None => Ok(TimeZone::UTC),
+        Some(zone) => crate::support::Date::timezone(
+            zone.as_str()
+                .ok_or_else(|| error("The schedule timezone must be a string."))?,
+        )
+        .map_err(error),
     }
 }
 
@@ -1082,12 +1084,17 @@ async fn dispatch_skipped(event: &Arc<Event>) -> Result<(), ConsoleError> {
 }
 
 fn remaining_in_minute(now: SystemTime) -> Duration {
-    let utc = DateTime::<Utc>::from(now);
-    Duration::from_secs(u64::from(60 - utc.second()))
-        - Duration::from_nanos(u64::from(utc.nanosecond()))
+    let utc = Timestamp::try_from(now)
+        .expect("valid scheduling timestamp")
+        .to_zoned(TimeZone::UTC);
+    Duration::from_secs((60 - utc.second()) as u64)
+        - Duration::from_nanos(utc.subsec_nanosecond() as u64)
 }
 
 fn interrupt_key(now: SystemTime) -> String {
-    let slot = DateTime::<Utc>::from(now).timestamp().div_euclid(60);
+    let slot = Timestamp::try_from(now)
+        .expect("valid scheduling timestamp")
+        .as_nanosecond()
+        .div_euclid(60_000_000_000);
     format!("schedule:interrupt:{slot}")
 }

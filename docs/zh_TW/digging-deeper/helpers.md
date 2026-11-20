@@ -124,14 +124,16 @@ assert_eq!(Arr::flatten(&json!([1,[2,[3]]]), Some(1))?, [json!(1),json!(2),json!
 
 `plus` 和 `minus` 接收有號的 `DateInterval`。`MonthOverflow::Carry` 將多出的天數進位到下個月，`Clamp` 則取月底。使用 `microseconds` 至 `years` 建立區間。
 
+`Date::timezone(name)` 使用框架內建的 IANA 2025b 資料解析時區識別碼，不受作業系統時區資料影響。`DateTimezone` 是 Jiff 原生 `TimeZone`；明確傳入其他來源的時區時使用該來源。`Date::fromUtc` 接收 `jiff::Timestamp`，`fromLocal` 接收 `jiff::civil::DateTime`，`asDateTime` 借用 `jiff::Zoned`。重複使用日期或時區時可以複製。原生型別支援 −9999 至 9999 年；PHP 日期運算式解析器繼續支援其更寬的年份範圍。
+
 ```rust
 use openrust::support::{Date, DateTimezone, MonthOverflow, months, now};
 
-let zone = now(None)?.asDateTime().timezone();
-assert_eq!(now(Some(zone))?.asDateTime().timezone(), zone);
+let zone = now(None)?.asDateTime().time_zone().clone();
+assert_eq!(now(Some(zone.clone()))?.asDateTime().time_zone().clone(), zone);
 let start = Date::fromLocal("2024-01-31T09:00:00".parse()?, DateTimezone::UTC)?;
 let end = start.plus(months(1), MonthOverflow::Clamp)?;
-let formatted = end.asDateTime().to_rfc3339();
+let formatted = end.asDateTime().strftime("%Y-%m-%dT%H:%M:%S%:z").to_string();
 assert_eq!(formatted, "2024-02-29T09:00:00+00:00");
 ```
 

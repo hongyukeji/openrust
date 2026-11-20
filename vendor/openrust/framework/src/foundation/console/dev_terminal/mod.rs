@@ -183,8 +183,9 @@ impl View {
             self.scroll = self.scroll.saturating_add(1);
         }
         let time = if self.timestamps {
-            chrono::DateTime::<chrono::Utc>::from(SystemTime::now())
-                .format("%H:%M:%S ")
+            jiff::Timestamp::try_from(SystemTime::now())
+                .expect("current time is representable")
+                .strftime("%H:%M:%S ")
                 .to_string()
         } else {
             String::new()

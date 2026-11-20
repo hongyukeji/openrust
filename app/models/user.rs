@@ -120,8 +120,8 @@ impl MustVerifyEmail for User {
 
 impl User {
     async fn set_verification(&mut self, verified: bool) -> AuthResult<bool> {
-        let now = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
-            .format("%Y-%m-%d %H:%M:%S")
+        let now = jiff::Timestamp::now()
+            .strftime("%Y-%m-%d %H:%M:%S")
             .to_string();
         let value = if verified {
             Value::Text(now.clone())

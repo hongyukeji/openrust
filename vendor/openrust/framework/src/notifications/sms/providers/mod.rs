@@ -288,6 +288,6 @@ fn sign(key: &[u8], value: &str) -> hmac::Tag {
     hmac::sign(&hmac::Key::new(hmac::HMAC_SHA256, key), value.as_bytes())
 }
 
-fn now() -> chrono::DateTime<chrono::Utc> {
-    std::time::SystemTime::now().into()
+fn now() -> jiff::Timestamp {
+    jiff::Timestamp::now()
 }

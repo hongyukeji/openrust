@@ -1,11 +1,10 @@
 use std::{ffi::OsString, fmt::Write, path::PathBuf, sync::Arc, time::Duration};
 
-use chrono::{DateTime, Timelike, Utc};
-use chrono_tz::Tz;
 use croner::{
     Cron,
     parser::{CronParser, Seconds, Year},
 };
+use jiff::{Timestamp, tz::TimeZone};
 use serde_json::{Map, Value};
 
 use crate::{
@@ -59,7 +58,7 @@ pub struct Event {
     pub(super) action: Action,
     pub(super) expression: Cron,
     pub(super) cron_text: String,
-    pub(super) zone: Option<Tz>,
+    pub(super) zone: Option<TimeZone>,
     pub(super) interval: Option<Duration>,
     pub(super) overlap: Option<Duration>,
     pub(super) one_server: bool,
@@ -489,7 +488,7 @@ impl Event {
         self.everySeconds(seconds).expect("valid repeat frequency")
     }
 
-    pub fn timezone(&mut self, zone: Tz) -> &mut Self {
+    pub fn timezone(&mut self, zone: TimeZone) -> &mut Self {
         self.zone = Some(zone);
         self
     }
@@ -571,10 +570,15 @@ impl Event {
         self
     }
 
-    pub(super) fn due(&self, now: DateTime<Utc>, zone: Tz) -> Result<bool, ConsoleError> {
-        let minute = now.with_second(0).expect("valid second");
+    pub(super) fn due(&self, now: Timestamp, zone: TimeZone) -> Result<bool, ConsoleError> {
+        let minute = now
+            .to_zoned(TimeZone::UTC)
+            .with()
+            .second(0)
+            .build()
+            .map_err(super::error)?;
         self.expression
-            .is_time_matching(&minute.with_timezone(&self.zone.unwrap_or(zone)))
+            .is_time_matching(&minute.with_time_zone(self.zone.clone().unwrap_or(zone)))
             .map_err(super::error)
     }
 
@@ -659,7 +663,7 @@ pub(super) fn parse_cron(expression: &str) -> Result<Cron, ConsoleError> {
 }
 
 pub(super) fn daily_expression(time: &str) -> Result<String, ConsoleError> {
-    let time = chrono::NaiveTime::parse_from_str(time, "%H:%M").map_err(super::error)?;
+    let time = jiff::civil::Time::strptime("%H:%M", time).map_err(super::error)?;
     Ok(format!("{} {} * * *", time.minute(), time.hour()))
 }
 

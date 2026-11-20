@@ -3,7 +3,7 @@ use std::{
     time::{Duration, UNIX_EPOCH},
 };
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use openrust::{
     console::{Application as Artisan, ConsoleError},
     foundation::configuration::ApplicationBuilder,
@@ -15,8 +15,8 @@ use serde_json::{Value, json};
 type TestResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 fn date(value: &str) -> Date {
-    let time = DateTime::parse_from_rfc3339(value).unwrap();
-    Date::fromUtc(time.with_timezone(&Utc), DateTimezone::UTC)
+    let time = value.parse::<Timestamp>().unwrap();
+    Date::fromUtc(time, DateTimezone::UTC)
 }
 
 fn configure(builder: ApplicationBuilder) -> ApplicationBuilder {
@@ -143,6 +143,11 @@ async fn sub_minute_tasks_keep_the_elapsed_time_deadline() -> TestResult {
     let mut app = TestApp::create(|builder| configure(builder).withCommands(repeating))?;
     for (at, task, next) in [
         (
+            "1969-12-31T23:59:59.900Z",
+            "Clock repeat",
+            "1970-01-01 09:00:00 +09:00",
+        ),
+        (
             "2024-01-01T00:30:14.125Z",
             "Clock repeat",
             "2024-01-01 09:30:15 +09:00",
@@ -218,7 +223,7 @@ fn list_json(_: &mut Artisan) -> Result<(), ConsoleError> {
             let event = schedule
                 .command(format!("fixture:{index}"), [])
                 .cron(cron)?
-                .timezone(timezone.parse().unwrap())
+                .timezone(Date::timezone(timezone).unwrap())
                 .environments(&["production"]);
             if index == 0 {
                 event.onOneServer();
@@ -240,7 +245,7 @@ fn relative_list(_: &mut Artisan) -> Result<(), ConsoleError> {
             schedule
                 .command(name, [])
                 .cron(cron)?
-                .timezone(chrono_tz::UTC);
+                .timezone(jiff::tz::TimeZone::UTC);
         }
         Ok(())
     })

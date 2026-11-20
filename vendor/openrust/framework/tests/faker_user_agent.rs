@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use chrono::{NaiveDate, Utc};
+use jiff::civil::Date as CivilDate;
 use openrust::database::eloquent::factories::fake;
 use regex::Regex;
 
@@ -43,13 +43,14 @@ fn faker_user_agents_match_pinned_browser_and_platform_formats() {
         r"^Mozilla/5\.0 \(compatible; MSIE (?:[5-9]|1[01])\.0; {WINDOWS}; Trident/[3-5]\.[01]\)$"
     ))
     .unwrap();
-    let start = NaiveDate::from_ymd_opt(2010, 1, 1).unwrap();
-    let today = Utc::now().date_naive();
+    let start = CivilDate::new(2010, 1, 1).unwrap();
+    let today = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .date();
     let number = |value: &str| value.parse::<u16>().unwrap();
     for _ in 0..128 {
         let sample = faker.firefox().unwrap();
-        let date =
-            NaiveDate::parse_from_str(&firefox.captures(&sample).unwrap()[1], "%Y%m%d").unwrap();
+        let date = CivilDate::strptime("%Y%m%d", &firefox.captures(&sample).unwrap()[1]).unwrap();
         assert!((start..=today).contains(&date));
 
         let sample = faker.chrome();

@@ -1,5 +1,5 @@
-use chrono::{DateTime, TimeDelta, Utc};
 use clap::{Arg, Command as Syntax, value_parser};
+use jiff::{SignedDuration, Timestamp};
 
 use crate::{
     console::{
@@ -27,7 +27,7 @@ impl Command for PruneBatchesCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let now = Utc::now();
+            let now = Timestamp::now();
             let args = input.matches();
             let hours = cutoff(now, *args.get_one::<u32>("hours").expect("default hours"))?;
             let unfinished = args
@@ -59,8 +59,9 @@ impl Command for PruneBatchesCommand {
     }
 }
 
-fn cutoff(now: DateTime<Utc>, hours: u32) -> Result<DateTime<Utc>, ConsoleError> {
-    now.checked_sub_signed(TimeDelta::hours(i64::from(hours)))
+fn cutoff(now: Timestamp, hours: u32) -> Result<Timestamp, ConsoleError> {
+    now.checked_sub(SignedDuration::from_hours(i64::from(hours)))
+        .ok()
         .ok_or_else(|| ConsoleError::new("The batch retention period is out of range."))
 }
 

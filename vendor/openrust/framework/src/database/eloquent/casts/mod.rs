@@ -130,20 +130,19 @@ pub(super) fn serialize_attribute<M: Model>(
             cast.resolve()?.serialize(name, value, &state.attributes)
         }
         (Some(AttributeCast::Date | AttributeCast::DateTime), Value::Text(text)) => {
-            let date = chrono::DateTime::parse_from_rfc3339(&text)
+            let date = text
+                .parse::<jiff::Timestamp>()
                 .map_err(|_| DatabaseError::InvalidQuery("serialized model date"))?;
-            model.serializeDate(date.to_utc()).map(Value::Text)
+            model.serializeDate(date).map(Value::Text)
         }
         (
             Some(AttributeCast::DateWithFormat(format) | AttributeCast::DateTimeWithFormat(format)),
             Value::Text(text),
         ) => {
-            let date = chrono::DateTime::parse_from_rfc3339(&text)
+            let date = text
+                .parse::<jiff::Timestamp>()
                 .map_err(|_| DatabaseError::InvalidQuery("serialized model date"))?;
-            date::format_for_storage(
-                date.with_timezone(&timezone(state.connection.as_ref())),
-                format,
-            )
+            date::format_for_storage(date.to_zoned(timezone(state.connection.as_ref())), format)
         }
         (_, value) => Ok(value),
     }
@@ -398,7 +397,7 @@ pub(super) fn equivalent<M: Model>(
         ) => date::equivalent(current, original, timezone(connection), format),
         Some(cast @ AttributeCast::Timestamp) => {
             let timezone = timezone(connection);
-            Ok(date::read(cast, current, timezone, format)?
+            Ok(date::read(cast, current, timezone.clone(), format)?
                 == date::read(cast, original, timezone, format)?)
         }
         Some(AttributeCast::Enum(_)) | None => Ok(primitive::numeric_equivalent(current, original)),
@@ -517,6 +516,8 @@ pub(super) fn check_encrypted_collection<M: Model>(
     }
 }
 
-fn timezone(connection: Option<&Connection>) -> chrono_tz::Tz {
-    connection.map_or(chrono_tz::UTC, |connection| connection.model_timezone)
+fn timezone(connection: Option<&Connection>) -> jiff::tz::TimeZone {
+    connection.map_or(jiff::tz::TimeZone::UTC, |connection| {
+        connection.model_timezone.clone()
+    })
 }

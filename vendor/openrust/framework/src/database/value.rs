@@ -132,17 +132,21 @@ fn postgres_value(row: &PgRow, index: usize, kind: &str) -> DatabaseResult<Value
             .try_get::<sqlx::types::Json<serde_json::Value>, _>(index)
             .map(|value| Value::Json(value.0)),
         "TIMESTAMP" => row
-            .try_get::<chrono::NaiveDateTime, _>(index)
-            .map(|value| Value::Text(value.to_string())),
-        "TIMESTAMPTZ" => row
-            .try_get::<chrono::DateTime<chrono::Utc>, _>(index)
-            .map(|value| Value::Text(value.to_rfc3339())),
+            .try_get::<time::PrimitiveDateTime, _>(index)
+            .map(|value| Value::Text(timestamp_text(value))),
+        "TIMESTAMPTZ" => row.try_get::<time::OffsetDateTime, _>(index).map(|value| {
+            Value::Text(format!(
+                "{}T{}+00:00",
+                value.date(),
+                time_text(value.time())
+            ))
+        }),
         "DATE" => row
-            .try_get::<chrono::NaiveDate, _>(index)
+            .try_get::<time::Date, _>(index)
             .map(|value| Value::Text(value.to_string())),
         "TIME" => row
-            .try_get::<chrono::NaiveTime, _>(index)
-            .map(|value| Value::Text(value.to_string())),
+            .try_get::<time::Time, _>(index)
+            .map(|value| Value::Text(time_text(value))),
         _ if row
             .try_get_raw(index)
             .is_ok_and(|raw| raw.format() == PgValueFormat::Text) =>
@@ -214,15 +218,41 @@ fn mysql_value(row: &MySqlRow, index: usize, kind: &str) -> DatabaseResult<Value
             .try_get_unchecked::<sqlx::types::Json<serde_json::Value>, _>(index)
             .map(|value| Value::Json(value.0)),
         "DATE" => row
-            .try_get_unchecked::<chrono::NaiveDate, _>(index)
+            .try_get_unchecked::<time::Date, _>(index)
             .map(|value| Value::Text(value.to_string())),
         "DATETIME" | "TIMESTAMP" => row
-            .try_get_unchecked::<chrono::NaiveDateTime, _>(index)
-            .map(|value| Value::Text(value.to_string())),
+            .try_get_unchecked::<time::PrimitiveDateTime, _>(index)
+            .map(|value| Value::Text(timestamp_text(value))),
         "TIME" => row
             .try_get_unchecked::<sqlx::mysql::types::MySqlTime, _>(index)
             .map(|value| Value::Text(value.to_string())),
         _ => return Err(DatabaseError::UnsupportedColumnType(kind.to_owned())),
     };
     value.map_err(DatabaseError::driver("decode"))
+}
+
+// Keep SQL result text stable across native driver representations.
+pub(super) fn timestamp_text(value: time::PrimitiveDateTime) -> String {
+    format!("{} {}", value.date(), time_text(value.time()))
+}
+
+pub(super) fn time_text(value: time::Time) -> String {
+    let mut text = format!(
+        "{:02}:{:02}:{:02}",
+        value.hour(),
+        value.minute(),
+        value.second()
+    );
+    let nanos = value.nanosecond();
+    if nanos != 0 {
+        use std::fmt::Write as _;
+        if nanos.is_multiple_of(1_000_000) {
+            write!(text, ".{:03}", nanos / 1_000_000).expect("write to string");
+        } else if nanos.is_multiple_of(1_000) {
+            write!(text, ".{:06}", nanos / 1_000).expect("write to string");
+        } else {
+            write!(text, ".{nanos:09}").expect("write to string");
+        }
+    }
+    text
 }

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use subtle::ConstantTimeEq as _;
 
 use crate::auth::AuthIdentifier;
@@ -128,15 +128,15 @@ pub(super) trait ModelStore: Send + Sync {
     fn prune(
         &self,
         column: &'static str,
-        cutoff: DateTime<Utc>,
+        cutoff: Timestamp,
     ) -> DatabaseFuture<'_, DatabaseResult<()>>;
 }
 
 pub(super) trait ModelToken: Send + Sync {
-    fn record_use(&mut self, now: DateTime<Utc>) -> DatabaseFuture<'_, DatabaseResult<bool>>;
+    fn record_use(&mut self, now: Timestamp) -> DatabaseFuture<'_, DatabaseResult<bool>>;
     fn serialized_model(&self) -> SerializedModel;
-    fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>>;
-    fn updated_at(&self) -> DatabaseResult<Option<DateTime<Utc>>>;
+    fn last_used_at(&self) -> DatabaseResult<Option<Timestamp>>;
+    fn updated_at(&self) -> DatabaseResult<Option<Timestamp>>;
 }
 
 pub(super) struct EloquentTokenStore<M> {
@@ -300,7 +300,7 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
     fn prune(
         &self,
         column: &'static str,
-        cutoff: DateTime<Utc>,
+        cutoff: Timestamp,
     ) -> DatabaseFuture<'_, DatabaseResult<()>> {
         Box::pin(async move {
             let mut query = self.query();
@@ -308,8 +308,8 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 column,
                 "<",
                 cutoff
-                    .with_timezone(&self.connection.model_timezone())
-                    .format(super::personal_access_token::TIMESTAMP)
+                    .to_zoned(self.connection.model_timezone())
+                    .strftime(super::personal_access_token::TIMESTAMP)
                     .to_string(),
             );
             query.delete().await?;
@@ -324,7 +324,7 @@ struct LoadedModel<M> {
 }
 
 impl<M: Model> ModelToken for LoadedModel<M> {
-    fn record_use(&mut self, now: DateTime<Utc>) -> DatabaseFuture<'_, DatabaseResult<bool>> {
+    fn record_use(&mut self, now: Timestamp) -> DatabaseFuture<'_, DatabaseResult<bool>> {
         Box::pin(async move {
             let modified = self.connection.hasModifiedRecords();
             let result = async {
@@ -334,7 +334,10 @@ impl<M: Model> ModelToken for LoadedModel<M> {
                     return Ok(false);
                 }
                 self.model
-                    .setAttributeValueAsync("last_used_at", now.to_rfc3339())
+                    .setAttributeValueAsync(
+                        "last_used_at",
+                        super::personal_access_token::timestamp_text(now),
+                    )
                     .await?;
                 if self.model.saveInTransaction(&mut transaction).await? {
                     transaction.commit().await?;
@@ -354,11 +357,11 @@ impl<M: Model> ModelToken for LoadedModel<M> {
         serialized_model(&self.model)
     }
 
-    fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>> {
+    fn last_used_at(&self) -> DatabaseResult<Option<Timestamp>> {
         date(&self.model, "last_used_at")
     }
 
-    fn updated_at(&self) -> DatabaseResult<Option<DateTime<Utc>>> {
+    fn updated_at(&self) -> DatabaseResult<Option<Timestamp>> {
         date(&self.model, "updated_at")
     }
 }
@@ -429,11 +432,12 @@ fn text<M: Model>(model: &M, column: &str) -> DatabaseResult<String> {
     }
 }
 
-fn date<M: Model>(model: &M, column: &str) -> DatabaseResult<Option<DateTime<Utc>>> {
+fn date<M: Model>(model: &M, column: &str) -> DatabaseResult<Option<Timestamp>> {
     match model.getAttributeValue(column)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Text(value)) => parse_timestamp(&value).map(Some),
-        Some(Value::Integer(value)) => DateTime::from_timestamp(value, 0)
+        Some(Value::Integer(value)) => Timestamp::from_second(value)
+            .ok()
             .map(Some)
             .ok_or_else(invalid_row),
         _ => Err(invalid_row()),

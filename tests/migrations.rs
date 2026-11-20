@@ -222,7 +222,7 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path:
     assert!(run(&["migrate", "--path", path]).contains("DONE"));
     verify_token_storage(db).await;
     db.table("personal_access_tokens").delete().await.unwrap();
-    let now = chrono::Utc::now();
+    let now = jiff::Timestamp::now();
     for (name, age, expired) in [
         ("explicit", 60, Some(30)),
         ("young-expiry", 60, Some(2)),
@@ -230,8 +230,8 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path:
         ("active", 1, None),
     ] {
         let timestamp = |minutes| {
-            (now - chrono::TimeDelta::minutes(minutes))
-                .format("%Y-%m-%d %H:%M:%S")
+            (now - jiff::SignedDuration::from_mins(minutes))
+                .strftime("%Y-%m-%d %H:%M:%S")
                 .to_string()
         };
         db.insert(
@@ -268,7 +268,7 @@ async fn verify_token_storage(db: &Connection) {
     use openrust::{database::Value, sanctum::PersonalAccessTokens};
 
     let store = PersonalAccessTokens::new(db.clone(), "fixture_");
-    let expiry = chrono::DateTime::from_timestamp(1_900_000_000, 0).unwrap();
+    let expiry = jiff::Timestamp::new(1_900_000_000, 0).unwrap();
     let issued = store
         .createToken("users", 42, "browser", &["read"], Some(expiry))
         .await
@@ -315,12 +315,12 @@ async fn verify_token_storage(db: &Connection) {
         );
         assert_eq!(token.expires_at, Some(expiry));
         assert!(token.can("read") && token.cant("write"));
-        assert!(!token.isExpired(expiry - chrono::TimeDelta::seconds(1), None));
+        assert!(!token.isExpired(expiry - jiff::SignedDuration::from_secs(1), None));
         assert!(!token.isExpired(expiry, None));
-        assert!(token.isExpired(expiry + chrono::TimeDelta::seconds(1), None));
+        assert!(token.isExpired(expiry + jiff::SignedDuration::from_secs(1), None));
         assert!(token.isExpired(
-            token.created_at.unwrap() + chrono::TimeDelta::minutes(1),
-            Some(chrono::TimeDelta::minutes(1))
+            token.created_at.unwrap() + jiff::SignedDuration::from_mins(1),
+            Some(jiff::SignedDuration::from_mins(1))
         ));
     }
     for invalid in [
