@@ -1,0 +1,44 @@
+{
+    "union": {
+        "calls": [
+            {
+                "method": "GET",
+                "url": "/sns/jscode2session",
+                "options": {
+                    "query": {
+                        "appid": "mini-app",
+                        "secret": "private-secret",
+                        "js_code": "code+&中",
+                        "grant_type": "authorization_code"
+                    }
+                }
+            }
+        ],
+        "session": {
+            "openid": "id-one",
+            "session_key": "private-session",
+            "unionid": "union-one"
+        }
+    },
+    "openid": {
+        "calls": [
+            {
+                "method": "GET",
+                "url": "/sns/jscode2session",
+                "options": {
+                    "query": {
+                        "appid": "mini-app",
+                        "secret": "private-secret",
+                        "js_code": "code+&中",
+                        "grant_type": "authorization_code"
+                    }
+                }
+            }
+        ],
+        "session": {
+            "openid": "id-one",
+            "session_key": "private-session"
+        }
+    },
+    "rejected": true
+}

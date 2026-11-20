@@ -51,6 +51,25 @@ cargo run --features socialite -- artisan serve
 
 本地账户使用可信的应用／供应商 namespace 加 OpenID 绑定，不单凭昵称或 UnionID 自动合并账户；具体注册和绑定流程由应用决定。网站微信与公众号的 OpenID 不能默认视为相同。`refreshToken` 按各自的刷新端点执行，供应商拒绝、过期、吊销或缺失身份字段会返回错误。协议支持不等于已配置真实供应商账号：部署前需使用各自应用凭据和获准回调完成授权联调。
 
+### 微信小程序 {#wechat-mini-program}
+
+小程序登录采用 EasyWeChat 风格的 `miniApp().codeToSession(code)`。配置 `WEIXIN_MINI_APP_APPID` 与 `WEIXIN_MINI_APP_SECRET`，对应 `services.weixin_mini_app.app_id`／`secret`；填写小程序自己的 AppID／AppSecret，无需 redirect。该入口随 `socialite` feature 提供，也可从 `Socialite::miniApp()` 获取。
+
+小程序调用 `wx.login()`，把取得的 `code` 通过 HTTPS POST 发给应用自己的登录接口；服务端调用以下方法换取可信身份，再按下方本地账户示例绑定用户，并签发应用自己的 Sanctum／Passport 令牌或登录态。客户端传入的 OpenID、UnionID、昵称及头像不能作为登录凭证。
+
+```rust
+use openrust_socialite::{Result, SocialiteManager, two::User};
+
+pub async fn mini_login(manager: &SocialiteManager, code: &str) -> Result<User> {
+    let session = manager.miniApp()?.codeToSession(code).await?;
+    Ok(session.user())
+}
+```
+
+`Session.openid` 为用户标识，`unionid` 仅在微信返回时存在；`session_key` 为 `Zeroizing<String>`，只供服务端使用。Session 不实现序列化或 Debug，`session.user()` 生成的 Socialite User 只包含 OpenID／可选 UnionID，raw 和 attributes 均不含会话密钥，credentials 为空。服务端不得把会话密钥返回给小程序，也不能把它当作应用访问令牌。
+
+每次调用独立交换 code，不缓存身份、不自动重试；code 的有效期和单次使用由微信校验，失效后重新调用 `wx.login()`。无网页跳转、OAuth state、access token 或 refresh token；昵称、头像和手机号授权需另外处理。OpenID 按小程序 AppID 区分，不自动与公众号／网站账号合并。微信错误码、缺失身份／密钥、非法 JSON 和非成功 HTTP 响应均返回错误；默认超时 5 秒。应用负责注册并保护登录接口、限制请求频率，正式使用前须用真实小程序凭据完成真机联调。
+
 ## 认证 {#authentication}
 
 在应用 web 组注册跳转和回调 GET 路由。下方回调返回远程身份；映射应用用户及登录本地 Guard 由应用完成。远程账户按供应商和供应商 ID 识别。

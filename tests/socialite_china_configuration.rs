@@ -24,9 +24,14 @@ fn tencent_login_configuration_uses_separate_application_credentials() {
     for prefix in ["WEIXIN", "WEIXINWEB", "QQ"] {
         contents.push_str(&format!("{prefix}_CLIENT_ID={prefix}-client\n{prefix}_CLIENT_SECRET={prefix}-secret\n{prefix}_REDIRECT_URI=/{prefix}/callback\n"));
     }
+    contents.push_str("WEIXIN_MINI_APP_APPID=mini-app\nWEIXIN_MINI_APP_SECRET=mini-secret\n");
     fs::write(root.0.join(".env"), contents).unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root.0, None).unwrap();
     let configured = config::load(&root.0, &environment).unwrap();
+    assert_eq!(
+        configured["services"]["weixin_mini_app"],
+        json!({"app_id":"mini-app","secret":"mini-secret"})
+    );
     for (driver, prefix) in [
         ("weixin", "WEIXIN"),
         ("weixinweb", "WEIXINWEB"),

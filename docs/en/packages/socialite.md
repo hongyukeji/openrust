@@ -51,6 +51,25 @@ WeChat code exchange retains OpenID in the current request. Before direct `userF
 
 Bind local accounts using a trusted application/provider namespace and OpenID. Nicknames or UnionID alone do not authorize automatic account merging. Website and official-account OpenIDs must not be assumed identical. Applications own registration and binding flows. `refreshToken` uses each provider's refresh endpoint; rejected, expired, revoked, or incomplete identity responses return errors. Production setup requires real application credentials, an approved callback, and an authorization test with the provider.
 
+### WeChat Mini Programs {#wechat-mini-program}
+
+Mini Program login uses the EasyWeChat-style `miniApp().codeToSession(code)` entry point. Set `WEIXIN_MINI_APP_APPID` and `WEIXIN_MINI_APP_SECRET`, mapped to `services.weixin_mini_app.app_id` / `secret`, using the Mini Program's own AppID and AppSecret. No redirect is required. This entry is available with the `socialite` feature and through `Socialite::miniApp()`.
+
+Call `wx.login()` in the Mini Program and send its `code` over HTTPS POST to your application's login endpoint. Exchange it on the server using the method below, bind the verified identity to a local account as described below, and issue your application's own Sanctum/Passport token or login session. Client-supplied OpenID, UnionID, nickname and avatar are not login credentials.
+
+```rust
+use openrust_socialite::{Result, SocialiteManager, two::User};
+
+pub async fn mini_login(manager: &SocialiteManager, code: &str) -> Result<User> {
+    let session = manager.miniApp()?.codeToSession(code).await?;
+    Ok(session.user())
+}
+```
+
+`Session.openid` identifies the user; `unionid` is optional and depends on WeChat returning it. The `session_key` is a server-only `Zeroizing<String>`. Session implements neither serialization nor Debug. `session.user()` creates a Socialite User containing only OpenID and optional UnionID; neither raw nor attributes contain the session key, and credentials is empty. Never return the session key to the Mini Program or use it as an application access token.
+
+Each call exchanges its code independently, without caching identities or automatic retries. WeChat enforces code expiry and single use; obtain a fresh code with `wx.login()` after failure. There is no browser redirect, OAuth state, access token or refresh token. Nickname, avatar and phone authorization require separate handling. OpenIDs belong to the Mini Program AppID and are not automatically merged with official-account or website identities. Provider error codes, missing identity/key fields, invalid JSON and unsuccessful HTTP responses return errors; the default timeout is five seconds. Register and protect your application login endpoint, apply rate limits, and verify the integration on a real device with your own Mini Program credentials before deployment.
+
 ## Authentication {#authentication}
 
 Register GET routes for the redirect and callback in your application’s web group. The callback returns the remote identity below; mapping it to an application user and logging that user into a local guard belong to the application. Identify a remote account by provider and provider ID.

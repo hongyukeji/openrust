@@ -31,6 +31,16 @@ impl SocialiteManager {
             extensions: RwLock::default(),
         }
     }
+    /// Mini Program code exchange follows EasyWeChat, independently of browser OAuth.
+    pub fn miniApp(&self) -> Result<crate::mini_app::MiniApp> {
+        crate::mini_app::MiniApp::new(
+            &self
+                .config
+                .get("services.weixin_mini_app")
+                .unwrap_or(serde_json::Value::Null),
+            self.http.clone(),
+        )
+    }
     pub fn extend(&self, name: impl Into<String>, provider: Arc<dyn ProviderDefinition>) {
         self.extensions
             .write()

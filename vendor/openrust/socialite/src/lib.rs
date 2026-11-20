@@ -5,6 +5,7 @@ pub mod contracts;
 mod error;
 pub mod facades;
 mod manager;
+pub mod mini_app;
 pub mod one;
 mod provider;
 pub mod two;

@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [微信小程序登录](audits/api-s01/mini-app.md)实现验收：借鉴固定 EasyWeChat／Laravel 生态 MiniApp::codeToSession，复用 SocialiteManager／Facade 与 HTTP Client，独立 AppID／secret，无回调或新表，服务端会话密钥隔离。专项7函数、固定PHP实际源码对照、完整Socialite49函数（真实MySQL8.4.13）、根配置1函数、Rust1.94全workspace／all-targets／all-features严格Clippy／fmt及三语构建／12＋6浏览器通过；真实小程序凭据与真机联调未验。本地核范围提交不推送，独占产物按审计清理。
+
 - 2026-11-21 [数据库设置 S1](audits/settings/README.md)实现并验收：可选类型化设置包、原生迁移、网站／模块示例、加密、并发冲突及 HTTP／实际 Worker 作用域；Rust1.94 在 `95e904727` 基线上三库各13项行为／运行时＋独立进程＋2 doctest、全feature严格Clippy／fmt、根安装迁移／值保留／缓存／HTTP／回滚及三语12＋6＋12浏览器通过。用户已取消额度检查和人为额度停线。仅本地提交；框架设置扩展已交付，后台产品／具体服务适配属应用层按需工作；依核心最新安排已回收本批闲置target／dist，df可用增加6.486 GB，清理后44.674 GB（41.606 GiB）；源码／日志／共享缓存及全部数据卷保留。chrono→Jiff及统一API站点由核心侧复验。
 
 ## 当前资源与执行规则
