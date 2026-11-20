@@ -4,7 +4,7 @@
 
 ## 本地预览
 
-需要 Node.js 24。首次使用或 `package-lock.json` 更新后，在 仓库的 `docs/` 下运行一次 `npm ci` 安装依赖。
+需要 Node.js 24。首次使用或 `package-lock.json` 更新后，在仓库的 `docs/` 下运行一次 `npm ci` 安装依赖。
 
 ```sh
 cd docs
@@ -54,3 +54,5 @@ node tests/check_scope.mjs
 ## 内容边界检查
 
 `node docs/tests/check_content.mjs` 检查三语正文、导航、相对链接及内部任务编号、项目记录路径和交付过程用语。自动检查只覆盖可识别模式；评审仍需确认正文面向应用开发者，并把验收经过、实现追踪和待办迁到 `.agents/project/` 对应主题。
+
+内部材料只保留仍有效的信息并归入已有主题；一次性检查保存简短结论、实际验证结果和提交号即可。历史原文与差异通过 Git 追溯，不另建逐页文档备份。
