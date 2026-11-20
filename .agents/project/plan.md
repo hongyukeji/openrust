@@ -173,7 +173,7 @@
 <a id="artisan-init"></a>
 <a id="install-full"></a>
 
-2026-11-19 用户最新确认：统一使用 `artisan init`，取消之前的 `install:full` 命令，也不保留为别名或第二个公开入口。完整安装能力并入初始化流程，各模块单项安装命令继续保留。此决定覆盖此前命令命名及同时保留两个入口的建议。旧 `install-full` 锚点仅供既有文档链接继续定位，不表示保留命令。本项尚未完整实现及验收；状态和证据并入[版本验收清单](audits/core-closure-ledger.md#v010-acceptance)。
+2026-11-19 用户最新确认：统一使用 `artisan init`，取消之前的 `install:full` 命令，也不保留为别名或第二个公开入口。完整安装能力并入初始化流程，各模块单项安装命令继续保留。此决定覆盖此前命令命名及同时保留两个入口的建议。旧 `install-full` 锚点仅供既有文档链接继续定位，不表示保留命令。2026-11-20 统一初始化的实现与本批三平台受控验收已完成，见[完整认证扩展验收](audits/00-03/init-auth.md)。外部供应商与最终发布环境仍按[版本验收清单](audits/core-closure-ledger.md#v010-acceptance)跟踪，不将本批完成等同于全项目可发布。
 
 ### 命令与安装范围
 
@@ -209,7 +209,7 @@
 - 必需步骤失败返回非零退出码，停止依赖它的步骤，保留已完成内容并说明重试方法。统一安装命令可以有自己的汇总失败退出码，但不能改变单项命令原有行为。
 - 迁移失败不自动删脚手架、不擅自回滚旧批次。密钥和凭据不得输出到安装日志。
 
-此前旧命令的实现与验证保留在[历史在途记录](audits/00-03/install-full.md)，仅证明其当时范围。当前入口、测试和三语文档已迁到 init，MySQL／Redis／终端／HTTP、Reverb 随主应用启动、SMTP 连通预检、短信凭据引导及指定环境文件的证据见[初始化验收](audits/00-03/init.md)。2026-11-20 已接通 api／broadcasting／reverb／grpc 扩展选择与依赖补全，`--extensions=all` 会列出尚未就绪的第一代发布项并在写入前拒绝；Windows 44 项回归、ConPTY 隐藏密码／失败取消及补充 Clippy 通过，详情沿用同一验收记录。Passport 等认证扩展的实现及共享安装器、真实邮件／短信供应商投递仍未闭合，不能据此将整个完整功能集标记完成。
+此前旧命令的实现与验证保留在[历史在途记录](audits/00-03/install-full.md)，仅证明其当时范围。当前入口、测试和三语文档已迁到 init，MySQL／Redis／终端／HTTP、Reverb 随主应用启动、SMTP 连通预检、短信凭据引导及指定环境文件的证据见[初始化验收](audits/00-03/init.md)。此前 api／broadcasting／reverb／grpc 阶段的 all 拒绝行为和 Windows 44 项回归保留为历史证据。2026-11-20 [完整认证扩展验收](audits/00-03/init-auth.md)已接通 Passport／Fortify／Passkeys／Socialite／Precognition／OIDC／SSO 及应用内共享安装器，默认推荐 all；macOS ARM64、Windows ARM64、Linux x86_64 的实际生成应用安装、重建与迁移已通过。真实邮件／短信供应商投递、外部身份提供方与生产 SSO，以及其余发布环境仍未闭合；Windows／Linux 浏览器 Passkeys 未测。
 
 ### 补充安装契约
 

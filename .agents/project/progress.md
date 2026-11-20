@@ -3809,3 +3809,9 @@ API-O02 [验收](audits/api-o02/README.md)完成：恢复既有隔离源码并�
 macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature 全 workspace/all-targets 严格 Clippy／fmt、根 HTTP／Pail／Artisan、关闭功能检查，真实 PTY／隐藏密码／Redis／SMTP／Reverb／选定环境／失败重试；默认 all 生成应用的安装／迁移／原始 HTTP／重复／force／单项互通、独立 Sanctum 与 Passport 守卫、完整 Fortify HTTP 和三封 SMTP、真实 Chrome／固定官方 JS 的 Passkeys 全生命周期、严格生成 Clippy 与关闭构建通过。Windows ARM64：实际默认 all 两阶段重建／迁移、CMD／PowerShell 重复和 force、密钥／迁移保留、HTTP、init14、真实 ConPTY 通过。Linux x86_64：默认 all 生成应用、完整认证 HTTP／MySQL8.4.13／迁移回滚／严格 Clippy／关闭构建通过；Linux／Windows 未跑浏览器 Passkeys。三语站点、根与子路径桌面／移动12及初始化内容6组合通过。所有失败与修正留证，本批统一安装任务闭合；真实供应商与生产／托管环境仍沿原发布矩阵跟踪。本地核范围提交，不推送，协作者 plan.md 与未知 WIP 保留。
 
 资源回收：macOS 8,764,808 KiB；Windows 来宾 7,975,813,120 字节并恢复 stopped；Linux 6,253,152 KiB。所有源码／日志／共享缓存／全部数据卷保留，最终宿主可用 79.862 GB／74.377 GiB。
+
+## 2026-11-20 完成状态复核
+
+核对 `d7957d4a5`、当前交接及[统一初始化审计](audits/00-03/init-auth.md)，修正交付计划中两处仍将认证扩展及默认 all 标为未实现的陈旧状态。本批仅内部指引收尾，检查相对链接、验收锚点及差异空白；未重跑代码验收。后续 `2e1615bb8`、`fb9710c4e` 不属于该初始化快照的完整回归范围。真实供应商、生产 SSO 与最终干净快照／平台／数据库发布矩阵仍待验，自动打包计划维持暂不实施。
+
+复核宿主 Available 48,215,544 KiB，低于 48,828,125 KiB 构建停线，未启动新构建；未知未跟踪内容保持原样。本批核范围本地提交，不推送。
