@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [微信登录统一分组](audits/api-s01/wechat.md)：三入口配置归入 services.wechat.web／official_account／mini_app，类型归入 openrust_socialite::wechat；保留 weixinweb／weixin 与 miniApp 调用，QQ独立，环境前缀统一 WECHAT_，旧配置不再兜底。隔离基线5de45c53b叠加本批改动，Rust1.94专项15／完整Socialite50（真实MySQL8.4.13）／根配置2函数、Artisan、严格全feature Clippy／fmt、三语构建／12＋6普通浏览器及10页Rustdoc方法／源码链接通过；未做完整API导出，真实供应商／真机仍未验。本批target／dist已清，净可用增加5,425,116 KiB，源码／日志／数据卷保留；仅核范围本地提交，不推送。
+
 - 2026-11-21 核心最终组合固定 `b168b31aa063a289a5a025ed5080a99f19bb6c7e`：原生 Jiff/time 与固定 IANA2025b vanguard 时区数据、设置 S1、统一短信、PG 绑定修复、数据库翻译及腾讯社交／小程序已合并。全workspace／all-targets／all-features严格Clippy／fmt、三驱动五缓存组合与缺服务负例、三语普通指南及11库API快照验收通过；2,013个输入逐个与Git归档一致。依赖公告0 errors／0 warnings、启用图无chrono，未启用的optional锁项不计运行时依赖。详见[组合验收](audits/08-04/README.md#2026-11-21-原生时间设置与扩展组合复验)、[文档快照](audits/docs-scope/api-reference.md#2026-11-21-设置原生时间与社交登录最终快照)与[来源盘点](audits/dependency-security/README.md#最终组合依赖与来源盘点)。历史条目中的PG令牌待定位和4条维护公告已由后续修复覆盖；最终PG18.6／MySQL8.4.13完整init-auth均退出0，含生成应用安装／重复／force／密钥迁移保留、Sanctum／Passport正负Guard、Fortify真实HTTP／SMTP／CSRF／2FA／重置／限流／关停及生成strict／feature-off；无补改；闲置专属产物累计实测回收约20 GB，源码／日志／API交付／开发容器／全部数据卷保留，提交前可用47.625 GB（44.354 GiB）。Plan对话独立新增支付扩展不在此快照，保留其全部工作区改动。外部目标、最终跨平台矩阵和发布批准仍按核心账本跟踪；无推送或部署。
 
 - 2026-11-21 [微信小程序登录](audits/api-s01/mini-app.md)实现验收：借鉴固定 EasyWeChat／Laravel 生态 MiniApp::codeToSession，复用 SocialiteManager／Facade 与 HTTP Client，独立 AppID／secret，无回调或新表，服务端会话密钥隔离。专项7函数、固定PHP实际源码对照、完整Socialite49函数（真实MySQL8.4.13）、根配置1函数、Rust1.94全workspace／all-targets／all-features严格Clippy／fmt及三语构建／12＋6浏览器通过；真实小程序凭据与真机联调未验。本地核范围提交不推送，独占产物按审计清理。

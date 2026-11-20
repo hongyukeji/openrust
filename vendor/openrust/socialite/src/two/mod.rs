@@ -8,7 +8,7 @@ pub use github_provider::GithubProvider;
 pub use user::{Token, User};
 
 mod bitbucket_provider;
-mod endpoints;
+pub(crate) mod endpoints;
 mod gitlab_provider;
 mod linkedin_provider;
 mod slack_provider;
@@ -35,8 +35,4 @@ mod facebook_provider;
 pub use facebook_provider::FacebookProvider;
 
 mod qq_provider;
-mod weixin_provider;
-mod weixin_web_provider;
 pub use qq_provider::QqProvider;
-pub use weixin_provider::WeixinProvider;
-pub use weixin_web_provider::WeixinWebProvider;

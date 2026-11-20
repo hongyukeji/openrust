@@ -37,7 +37,7 @@ pub(super) fn value(raw: &serde_json::Value, path: &[&str]) -> serde_json::Value
         .cloned()
         .unwrap_or(serde_json::Value::Null)
 }
-pub(super) fn mapped(
+pub(crate) fn mapped(
     raw: serde_json::Value,
     fields: impl IntoIterator<Item = (&'static str, serde_json::Value)>,
 ) -> super::User {
@@ -47,7 +47,7 @@ pub(super) fn mapped(
     )
 }
 
-pub(super) fn checked(response: openrust::http::client::Response) -> Result<Value> {
+pub(crate) fn checked(response: openrust::http::client::Response) -> Result<Value> {
     let value = json(response)?;
     if !value.is_object()
         || value.get("error").is_some_and(|v| !v.is_null())
@@ -58,7 +58,7 @@ pub(super) fn checked(response: openrust::http::client::Response) -> Result<Valu
     }
     Ok(value)
 }
-pub(super) fn identifier<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+pub(crate) fn identifier<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value
         .get(key)
         .and_then(Value::as_str)

@@ -35,15 +35,16 @@ The same client ID, client secret and redirect settings apply to these additiona
 
 ### WeChat and QQ {#wechat-and-qq}
 
-The built-in extension drivers use SocialiteProviders names and the existing `services` configuration:
+WeChat login is grouped by application type under `services.wechat`; QQ uses `services.qq`. Browser driver names follow SocialiteProviders, while configuration and source modules share the WeChat group:
 
-| Driver | Login entry | Environment prefix |
-| --- | --- | --- |
-| `weixinweb` | WeChat Open Platform website QR login | `WEIXINWEB` |
-| `weixin` | WeChat official-account web authorization | `WEIXIN` |
-| `qq` | QQ Connect website login | `QQ` |
+| Driver / entry | Configuration path | Login purpose | Environment prefix |
+| --- | --- | --- | --- |
+| `weixinweb` | `services.wechat.web` | WeChat website QR login | `WECHAT_WEB` |
+| `weixin` | `services.wechat.official_account` | WeChat official-account web authorization | `WECHAT_OFFICIAL_ACCOUNT` |
+| `miniApp()` | `services.wechat.mini_app` | WeChat Mini Program login | `WECHAT_MINI_APP` |
+| `qq` | `services.qq` | QQ Connect website login | `QQ` |
 
-Append `_CLIENT_ID`, `_CLIENT_SECRET`, and `_REDIRECT_URI` to each prefix. Use the AppID and AppSecret of the corresponding WeChat application, or the QQ Connect application credentials. Register each WeChat application and its permitted callback or web authorization domain separately; the two entries use separate credentials.
+For browser WeChat and QQ, append `_CLIENT_ID`, `_CLIENT_SECRET`, and `_REDIRECT_URI` to each prefix, mapped to `client_id`, `client_secret`, and `redirect`. Use each WeChat application's own AppID and AppSecret and register its corresponding callback domain. Mini Programs use the AppID/secret settings below and require no redirect. Keep credentials separate for all three WeChat application types.
 
 Reuse the redirect and callback examples below, replacing `github` with the driver name. Website QR login uses `snsapi_login`; official-account authorization defaults to `snsapi_userinfo`. For silent authorization, call `provider.setScopes(vec!["snsapi_base".into()])` on `weixin`; this returns OpenID without fetching a nickname or avatar. Keep the default Session state validation for browser login and avoid `stateless()`.
 
@@ -51,9 +52,11 @@ WeChat code exchange retains OpenID in the current request. Before direct `userF
 
 Bind local accounts using a trusted application/provider namespace and OpenID. Nicknames or UnionID alone do not authorize automatic account merging. Website and official-account OpenIDs must not be assumed identical. Applications own registration and binding flows. `refreshToken` uses each provider's refresh endpoint; rejected, expired, revoked, or incomplete identity responses return errors. Production setup requires real application credentials, an approved callback, and an authorization test with the provider.
 
+When upgrading existing configuration, move `services.weixinweb`, `services.weixin`, and `services.weixin_mini_app` to `services.wechat.web`, `services.wechat.official_account`, and `services.wechat.mini_app`, respectively. Rename environment prefixes from `WEIXINWEB_`, `WEIXIN_`, and `WEIXIN_MINI_APP_` to `WECHAT_WEB_`, `WECHAT_OFFICIAL_ACCOUNT_`, and `WECHAT_MINI_APP_`. Old configuration locations are no longer read. Import custom provider types from `openrust_socialite::wechat::{WeixinProvider, WeixinWebProvider, MiniApp, Session}`.
+
 ### WeChat Mini Programs {#wechat-mini-program}
 
-Mini Program login uses the EasyWeChat-style `miniApp().codeToSession(code)` entry point. Set `WEIXIN_MINI_APP_APPID` and `WEIXIN_MINI_APP_SECRET`, mapped to `services.weixin_mini_app.app_id` / `secret`, using the Mini Program's own AppID and AppSecret. No redirect is required. This entry is available with the `socialite` feature and through `Socialite::miniApp()`.
+Mini Program login uses the EasyWeChat-style `miniApp().codeToSession(code)` entry point. Set `WECHAT_MINI_APP_APPID` and `WECHAT_MINI_APP_SECRET`, mapped to `services.wechat.mini_app.app_id` / `secret`, using the Mini Program's own AppID and AppSecret. No redirect is required. This entry is available with the `socialite` feature and through `Socialite::miniApp()`.
 
 Call `wx.login()` in the Mini Program and send its `code` over HTTPS POST to your application's login endpoint. Exchange it on the server using the method below, bind the verified identity to a local account as described below, and issue your application's own Sanctum/Passport token or login session. Client-supplied OpenID, UnionID, nickname and avatar are not login credentials.
 

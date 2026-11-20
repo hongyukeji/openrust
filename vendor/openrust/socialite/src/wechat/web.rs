@@ -1,8 +1,8 @@
-use super::{
-    ProviderConfig, ProviderDefinition, ProviderEndpoints, ProviderFuture, ProviderOptions, User,
-    WeixinProvider,
-};
+use super::WeixinProvider;
 use crate::Result;
+use crate::two::{
+    ProviderConfig, ProviderDefinition, ProviderEndpoints, ProviderFuture, ProviderOptions, User,
+};
 use openrust::http::client::Factory;
 use serde_json::{Map, Value};
 

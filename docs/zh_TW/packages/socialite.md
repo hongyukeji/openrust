@@ -35,15 +35,16 @@ cargo run --features socialite -- artisan serve
 
 ### 微信與 QQ {#wechat-and-qq}
 
-內建擴充驅動沿用 SocialiteProviders 名稱，設定仍放在 `services`：
+微信登入統一放在 `services.wechat`，依應用類型劃分；QQ 單獨放在 `services.qq`。網頁驅動名稱沿用 SocialiteProviders，設定與原始碼統一歸入微信分組：
 
-| 驅動 | 登入入口 | 環境變數前綴 |
-| --- | --- | --- |
-| `weixinweb` | 微信開放平台網站應用掃碼登入 | `WEIXINWEB` |
-| `weixin` | 微信公眾號內網頁授權 | `WEIXIN` |
-| `qq` | QQ 互聯網站登入 | `QQ` |
+| 驅動／入口 | 設定路徑 | 登入用途 | 環境變數前綴 |
+| --- | --- | --- | --- |
+| `weixinweb` | `services.wechat.web` | 微信網站掃碼 | `WECHAT_WEB` |
+| `weixin` | `services.wechat.official_account` | 微信公眾號網頁授權 | `WECHAT_OFFICIAL_ACCOUNT` |
+| `miniApp()` | `services.wechat.mini_app` | 微信小程式登入 | `WECHAT_MINI_APP` |
+| `qq` | `services.qq` | QQ 互聯網站登入 | `QQ` |
 
-每組前綴後設定 `_CLIENT_ID`、`_CLIENT_SECRET`、`_REDIRECT_URI`。微信分別填寫對應應用的 AppID 與 AppSecret，QQ 填寫 QQ 互聯應用憑證。兩種微信入口分別註冊應用、設定對應的授權回呼網域或網頁授權網域，不能混用憑證。
+網頁微信與 QQ 的前綴後設定 `_CLIENT_ID`、`_CLIENT_SECRET`、`_REDIRECT_URI`，對應 `client_id`、`client_secret`、`redirect`。微信填寫各自應用的 AppID／AppSecret，分別登記對應回呼網域。小程式使用下方的 AppID／secret 設定，無需回呼位址；三種微信入口使用各自獨立的應用憑證。
 
 沿用下方跳轉／回呼範例，將 `github` 換成對應驅動。網站掃碼使用 `snsapi_login`，公眾號預設使用 `snsapi_userinfo`；靜默授權可用 `provider.setScopes(vec!["snsapi_base".into()])`，傳回 OpenID，不讀取暱稱與頭像。網頁登入保留預設 Session state 檢查，不要呼叫 `stateless()`。
 
@@ -51,9 +52,11 @@ cargo run --features socialite -- artisan serve
 
 本地帳戶以可信的應用／供應商 namespace 加 OpenID 綁定，不單憑暱稱或 UnionID 自動合併帳戶；註冊與綁定流程由應用決定。網站微信與公眾號的 OpenID 不能預設相同。`refreshToken` 按各自的重新整理端點執行，供應商拒絕、過期、撤銷或缺少身分欄位會傳回錯誤。正式使用仍須設定真實應用憑證、獲准回呼，並向供應商完成授權聯調。
 
+升級既有設定時，將 `services.weixinweb`、`services.weixin`、`services.weixin_mini_app` 分別移至 `services.wechat.web`、`services.wechat.official_account`、`services.wechat.mini_app`。環境變數前綴對應從 `WEIXINWEB_`、`WEIXIN_`、`WEIXIN_MINI_APP_` 改為 `WECHAT_WEB_`、`WECHAT_OFFICIAL_ACCOUNT_`、`WECHAT_MINI_APP_`；舊位置不再讀取。自訂驅動型別從 `openrust_socialite::wechat::{WeixinProvider, WeixinWebProvider, MiniApp, Session}` 匯入。
+
 ### 微信小程式 {#wechat-mini-program}
 
-小程式登入採用 EasyWeChat 風格的 `miniApp().codeToSession(code)`。設定 `WEIXIN_MINI_APP_APPID` 與 `WEIXIN_MINI_APP_SECRET`，對應 `services.weixin_mini_app.app_id`／`secret`；填寫小程式自己的 AppID／AppSecret，無需 redirect。此入口隨 `socialite` feature 提供，也可從 `Socialite::miniApp()` 取得。
+小程式登入採用 EasyWeChat 風格的 `miniApp().codeToSession(code)`。設定 `WECHAT_MINI_APP_APPID` 與 `WECHAT_MINI_APP_SECRET`，對應 `services.wechat.mini_app.app_id`／`secret`；填寫小程式自己的 AppID／AppSecret，無需 redirect。此入口隨 `socialite` feature 提供，也可從 `Socialite::miniApp()` 取得。
 
 小程式呼叫 `wx.login()`，將取得的 `code` 透過 HTTPS POST 傳給應用自己的登入介面；伺服器呼叫以下方法換取可信身分，再依下方本機帳戶範例綁定使用者，並簽發應用自己的 Sanctum／Passport 權杖或登入狀態。客戶端傳入的 OpenID、UnionID、暱稱及頭像不能作為登入憑證。
 

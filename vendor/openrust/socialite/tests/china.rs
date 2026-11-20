@@ -13,7 +13,8 @@ use openrust::{
 };
 use openrust_socialite::{
     Error, SocialiteManager, SocialiteServiceProvider,
-    two::{ProviderDefinition, ProviderEndpoints, QqProvider, WeixinProvider, WeixinWebProvider},
+    two::{ProviderDefinition, ProviderEndpoints, QqProvider},
+    wechat::{WeixinProvider, WeixinWebProvider},
 };
 use serde_json::{Value, json};
 use std::{
@@ -62,7 +63,8 @@ fn definition(name: &str, base: Option<&str>) -> Arc<dyn ProviderDefinition> {
     }
 }
 fn services() -> Value {
-    Value::Object(NAMES.iter().map(|name|((*name).into(),json!({"client_id":"client","client_secret":"private-secret","redirect":"https://rp.test/callback"}))).collect())
+    let credentials = json!({"client_id":"client","client_secret":"private-secret","redirect":"https://rp.test/callback"});
+    json!({"wechat":{"web":credentials,"official_account":credentials},"qq":credentials})
 }
 fn manager(base: Option<&str>, factory: Arc<Factory>) -> SocialiteManager {
     let manager = SocialiteManager::new(
@@ -592,4 +594,74 @@ async fn three_driver_mappings_and_auth_fields_match_fixed_php_reference() {
         assert_eq!(actual, expected[name]["user"], "{name}");
     }
     task.abort();
+}
+
+#[tokio::test]
+async fn grouped_wechat_configuration_selects_the_correct_application_without_flat_fallback() {
+    let http = Arc::new(Factory::new().unwrap());
+    http.fake(|r| {
+        let query = r
+            .url()
+            .query_pairs()
+            .into_owned()
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(query["appid"], "mini-client");
+        assert_eq!(query["secret"], "mini-secret");
+        Some(Ok(openrust::http::client::Response::new(
+            http::StatusCode::OK,
+            http::HeaderMap::new(),
+            json!({"openid":"mini-id","session_key":"mini-session"}).to_string(),
+        )))
+    });
+    let web = json!({"client_id":"web-client","client_secret":"web-secret","redirect":"/web/callback","scopes":["web-extra"]});
+    let official = json!({"client_id":"official-client","client_secret":"official-secret","redirect":"/official/callback","scopes":["official-extra"]});
+    let old = json!({"client_id":"wrong-client","client_secret":"wrong-secret","redirect":"https://wrong.test"});
+    let mini = json!({"app_id":"mini-client","secret":"mini-secret"});
+    let configured = json!({"wechat":{"web":web,"official_account":official,"mini_app":mini},"weixin":old,"weixinweb":old,"weixin_mini_app":{"app_id":"wrong-mini","secret":"wrong-mini-secret"},"qq":old});
+    let build = |services| {
+        SocialiteManager::new(
+            Arc::new(Repository::new(BTreeMap::from([
+                ("services".into(), services),
+                ("app".into(), json!({"url":"https://rp.test"})),
+            ]))),
+            http.clone(),
+        )
+    };
+    let manager = build(configured);
+    for (driver, id, callback, scope) in [
+        ("weixinweb", "web-client", "web", "web-extra"),
+        ("weixin", "official-client", "official", "official-extra"),
+    ] {
+        let mut req = request("code");
+        let mut provider = manager.driver(driver, &mut req).unwrap().oauth2().unwrap();
+        provider.stateless();
+        let url = url::Url::parse(&provider.authorizationUrl().unwrap()).unwrap();
+        let fields = url.query_pairs().into_owned().collect::<BTreeMap<_, _>>();
+        assert_eq!(fields["appid"], id);
+        assert_eq!(
+            fields["redirect_uri"],
+            format!("https://rp.test/{callback}/callback")
+        );
+        assert!(fields["scope"].contains(scope));
+    }
+    assert_eq!(
+        manager
+            .miniApp()
+            .unwrap()
+            .codeToSession("mini-code")
+            .await
+            .unwrap()
+            .openid,
+        "mini-id"
+    );
+    // Flat credentials cannot silently select a different WeChat application.
+    let manager = build(json!({"weixin":old,"weixinweb":old,"weixin_mini_app":mini}));
+    for driver in ["weixin", "weixinweb"] {
+        let mut req = request("code");
+        assert!(matches!(
+            manager.driver(driver, &mut req),
+            Err(Error::Configuration(_))
+        ));
+    }
+    assert!(matches!(manager.miniApp(), Err(Error::Configuration(_))));
 }

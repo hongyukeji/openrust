@@ -10,25 +10,29 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |--------------------------------------------------------------------------
     |
     | 通过环境变量配置邮件供应商、Slack 通知与第三方登录所需的凭据。
-    | WEIXIN_MINI_APP_APPID 与 WEIXIN_MINI_APP_SECRET 配置小程序登录，无需回调地址。
+    | 微信登录集中在 wechat：WECHAT_WEB_* 为网站扫码，
+    | WECHAT_OFFICIAL_ACCOUNT_* 为公众号网页授权；各自独立配置凭据及回调。
+    | WECHAT_MINI_APP_APPID 与 WECHAT_MINI_APP_SECRET 为小程序凭据，无需回调地址。
     | TWITTER_OAUTH 默认 1 使用 OAuth1，整数 2 使用 OAuth2；
     | TWITTER_SCOPE 为 OAuth1 可选访问级别，与 OAuth2 scopes 分开。
     |
     */
     Ok(json!({
-        "weixin_mini_app": {
-            "app_id": get(env, "WEIXIN_MINI_APP_APPID", Value::Null)?,
-            "secret": get(env, "WEIXIN_MINI_APP_SECRET", Value::Null)?,
-        },
-        "weixin": {
-            "client_id": get(env, "WEIXIN_CLIENT_ID", Value::Null)?,
-            "client_secret": get(env, "WEIXIN_CLIENT_SECRET", Value::Null)?,
-            "redirect": get(env, "WEIXIN_REDIRECT_URI", Value::Null)?,
-        },
-        "weixinweb": {
-            "client_id": get(env, "WEIXINWEB_CLIENT_ID", Value::Null)?,
-            "client_secret": get(env, "WEIXINWEB_CLIENT_SECRET", Value::Null)?,
-            "redirect": get(env, "WEIXINWEB_REDIRECT_URI", Value::Null)?,
+        "wechat": {
+            "web": {
+                "client_id": get(env, "WECHAT_WEB_CLIENT_ID", Value::Null)?,
+                "client_secret": get(env, "WECHAT_WEB_CLIENT_SECRET", Value::Null)?,
+                "redirect": get(env, "WECHAT_WEB_REDIRECT_URI", Value::Null)?,
+            },
+            "official_account": {
+                "client_id": get(env, "WECHAT_OFFICIAL_ACCOUNT_CLIENT_ID", Value::Null)?,
+                "client_secret": get(env, "WECHAT_OFFICIAL_ACCOUNT_CLIENT_SECRET", Value::Null)?,
+                "redirect": get(env, "WECHAT_OFFICIAL_ACCOUNT_REDIRECT_URI", Value::Null)?,
+            },
+            "mini_app": {
+                "app_id": get(env, "WECHAT_MINI_APP_APPID", Value::Null)?,
+                "secret": get(env, "WECHAT_MINI_APP_SECRET", Value::Null)?,
+            },
         },
         "qq": {
             "client_id": get(env, "QQ_CLIENT_ID", Value::Null)?,

@@ -3,7 +3,7 @@ use openrust::{
     config::Repository,
     http::client::{Factory, Response},
 };
-use openrust_socialite::{Error, SocialiteManager, mini_app::MiniApp};
+use openrust_socialite::{Error, SocialiteManager, wechat::MiniApp};
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -52,7 +52,7 @@ async fn default_endpoint_and_fields_follow_easywechat_without_redirect_or_sessi
     let manager = SocialiteManager::new(
         Arc::new(Repository::new(BTreeMap::from([(
             "services".into(),
-            json!({"weixin_mini_app":config()}),
+            json!({"wechat":{"mini_app":config()}}),
         )]))),
         http.clone(),
     );
@@ -305,7 +305,7 @@ async fn registered_manager_and_facade_work_in_json_api_without_web_session() {
         .withConfig(|_, _| {
             Ok(BTreeMap::from([(
                 "services".into(),
-                json!({"weixin_mini_app":config()}),
+                json!({"wechat":{"mini_app":config()}}),
             )]))
         })
         .withProviders(vec![Box::new(openrust_socialite::SocialiteServiceProvider)])

@@ -1,4 +1,4 @@
-use super::{
+use crate::two::{
     ProviderConfig, ProviderDefinition, ProviderEndpoints, ProviderFuture, ProviderOptions, User,
     endpoints::{checked, identifier, mapped},
 };

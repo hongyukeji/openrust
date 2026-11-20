@@ -4,8 +4,9 @@ use crate::{
         AbstractProvider, BitbucketProvider, FacebookProvider, GithubProvider, GitlabProvider,
         GoogleProvider, LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig,
         ProviderDefinition, QqProvider, SlackOpenIdProvider, SlackProvider, TwitterProvider,
-        WeixinProvider, WeixinWebProvider, XProvider,
+        XProvider,
     },
+    wechat::{WeixinProvider, WeixinWebProvider},
 };
 use openrust::{
     contracts::config::Repository,
@@ -32,11 +33,11 @@ impl SocialiteManager {
         }
     }
     /// Mini Program code exchange follows EasyWeChat, independently of browser OAuth.
-    pub fn miniApp(&self) -> Result<crate::mini_app::MiniApp> {
-        crate::mini_app::MiniApp::new(
+    pub fn miniApp(&self) -> Result<crate::wechat::MiniApp> {
+        crate::wechat::MiniApp::new(
             &self
                 .config
-                .get("services.weixin_mini_app")
+                .get("services.wechat.mini_app")
                 .unwrap_or(serde_json::Value::Null),
             self.http.clone(),
         )
@@ -55,6 +56,8 @@ impl SocialiteManager {
     }
     pub fn driver<'a>(&self, name: &str, request: &'a mut Request) -> Result<Provider<'a>> {
         let value = match name {
+            "weixin" => self.config.get("services.wechat.official_account"),
+            "weixinweb" => self.config.get("services.wechat.web"),
             "twitter-oauth-2" => self
                 .config
                 .get("services.twitter")

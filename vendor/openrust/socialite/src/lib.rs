@@ -5,10 +5,10 @@ pub mod contracts;
 mod error;
 pub mod facades;
 mod manager;
-pub mod mini_app;
 pub mod one;
 mod provider;
 pub mod two;
+pub mod wechat;
 pub use error::{Error, Result};
 pub use manager::SocialiteManager;
 use openrust::{
