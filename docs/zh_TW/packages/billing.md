@@ -1,17 +1,110 @@
 # Cashier（Stripe）
 
-## 支援狀態 {#support-status}
+## 安裝與設定 {#configuration}
 
-**目前原始碼未提供。** 尚未提供 Cashier 計費模型、Stripe 訂閱生命週期、Webhook 簽章處理或付款 UI 整合。
+`openrust-cashier` 提供 Stripe 與 [Paddle Billing](cashier-paddle.md) 的客戶、Checkout、訂閱、帳單與 Webhook。微信支付和支付寶使用[支付擴充套件](pay.md)。兩個套件可以同時啟用；國內人民幣金額型別不套用於 Stripe 多幣別計費。
 
-本章保留 Laravel 導航路徑供對照；存在導航入口不代表已經安裝相應套件，也不承諾對應 PHP API 相容。
+根應用啟用 `cashier` Cargo feature。獨立應用加入 `openrust-cashier` 相依套件並使用 OpenRust 套件探索。`CashierServiceProvider` 自動綁定 `CashierManager` 並登記遷移，啟動時不連線至計費服務、不查詢帳單表。執行原生 `artisan migrate` 建立 `cashier_customers`、`cashier_subscriptions`、`cashier_invoices`、`cashier_events`、`cashier_operations`。
 
-## 可用入口 {#available-entry-points}
+需要自訂編譯設定時，執行 `artisan vendor:publish --tag=cashier-config` 發布 `config/cashier.rs`。重複發布保留應用修改，只有 `--force` 才覆寫。在應用 `config/mod.rs` 宣告 `mod cashier;`，並在設定群組中加入 `("cashier".into(), cashier::load(env)?)`，然後重新編譯應用。未發布設定也可使用套件內環境預設值。
 
-原生介面及用法見 [HTTP Client](../digging-deeper/http-client.md)。整合其他函式庫或服務時，應用程式需實作配接層，並按該服務的契約驗證生命週期、錯誤與憑證處理。
+```dotenv
+CASHIER_DRIVER=stripe
+CASHIER_LIVE=false
+STRIPE_SECRET=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
 
-## 範圍 {#scope}
+Stripe API 固定為 `2026-11-18.endive`；Webhook 使用相同版本。正式環境使用 `CASHIER_LIVE=true` 並替換 API 和 Webhook 金鑰。私密金鑰只保存在伺服器。前端 Stripe.js 使用公開的 publishable key，不能使用 `STRIPE_SECRET`。
 
-OpenRust 不提供此整合的安裝命令。不要因存在此導航入口就將 Laravel Composer 或 Artisan 命令照搬至 OpenRust。
+套件從環境載入 `cashier.default` 和 `cashier.drivers.stripe`／`paddle`。應用設定載入器可回傳 `cashier` 群組覆寫預設值；應用設定優先，`drivers` 整組替換。具名帳戶需明確填寫 `driver`、`secret`、`webhook_secret`、`live`。`webhook_secrets` 陣列支援金鑰輪替。每個名稱代表穩定的商戶帳戶與模式；不要把已使用的名稱重新分配給其他商戶或從測試切換到正式模式，改用獨立資料庫或新帳戶名稱。
 
-微信支付與支付寶的一次性收款見[支付擴充](pay.md)。
+`Cashier::driver("stripe")`、`Cashier::defaultDriver()` 在應用作用域解析帳戶。`CashierManager::getDefaultDriver()` 回傳設定名稱；`forgetDrivers()` 後新解析實例載入新設定，已持有實例保留原憑證快照。啟用設定快取時保留快取快照；變更環境後需按[設定文件](../getting-started/configuration.md)重建快取。
+
+## 客戶與 Checkout {#customers-and-checkout}
+
+`Billable` 綁定已經應用驗證的身分，不透過通知參數、電子郵件或 Checkout 查詢字串推斷使用者。帳戶名稱與本地身分共同隔離客戶對應，同一遠端客戶只能關聯一次。
+
+```rust
+use openrust_cashier::{Billable, BillingStore, Price, facades::Cashier};
+use serde_json::json;
+
+let client = Cashier::driver("stripe")?;
+let store = BillingStore::new(connection.clone());
+let user = Billable::new(client.clone(), store.clone(), "users:42")?;
+user.createOrGetCustomer(json!({"email":"buyer@example.com"}), "customer:42").await?;
+let session = user.newSubscription("default", vec![Price::new("price_monthly", 1)?])?
+    .trialDays(14)?
+    .withCoupon("coupon_welcome")?
+    .checkout(json!({
+        "success_url":"https://shop.example/success?session_id={CHECKOUT_SESSION_ID}",
+        "cancel_url":"https://shop.example/account"
+    }), "subscription:42:first").await?;
+```
+
+導向 Stripe 回傳的 `url`。成功跳轉只表示瀏覽器返回，應以經過驗簽並持久處理的 Webhook 同步付款與訂閱狀態。`checkout(prices, options, key)` 建立一次性 Checkout；訂閱使用 `newSubscription(...).checkout(...)`。價格必須來自伺服器認可的 Stripe 目錄，不接受客戶端任意提交價格、金額或客戶 ID。
+
+`createOrGetCustomer` 回傳已關聯客戶或建立客戶；並行呼叫必須重用同一穩定操作鍵。`attachCustomer(id)` 只用於應用已驗證歸屬的既有客戶或結果未知後的人工核對，不能直接傳入任意請求參數。`updateCustomer` 更新資料；`billingPortal(return_url, key)` 建立 Stripe 客戶入口網站工作階段。
+
+## 訂閱生命週期 {#subscriptions}
+
+`newSubscription(name, prices)` 支援多個價格、`Price::new(id, quantity)`、`Price::metered(id)`、`trialDays`、`trialUntil`、`skipTrial`、`quantity`、`anchorBillingCycleOn`、`withMetadata`、`withCoupon` 與 `withOptions`。直接 `create(payment_method, key)` 使用 Stripe `default_incomplete`，提供的付款方式必須已屬於該客戶。
+
+```rust
+use openrust_cashier::Proration;
+
+let subscription = user.subscription("default").await?.ok_or("missing subscription")?;
+let subscription = subscription.updateQuantity(3, None, Proration::Invoice, "seats:42:v2").await?;
+let subscription = subscription.cancel("cancel:42:v1").await?;
+if subscription.onGracePeriod() {
+    subscription.resume("resume:42:v1").await?;
+}
+```
+
+`swap(prices, proration, key)` 替換完整價格集合，移除舊項目並保留相符項目 ID。`Proration::Prorate` 按比例計入下次帳單，`Invoice` 立即結算，`None` 不按比例結算。多價格訂閱使用 `updateQuantity` 時明確指定價格。`cancel` 在計費週期結束時取消，`cancelNow` 立即取消；`resume` 恢復寬限期內或 Stripe 暫停的訂閱。`extendTrial` 延長試用；`pauseCollection`／`resumeCollection` 控制 Stripe 收款暫停，與訂閱狀態暫停不同。
+
+`subscription(name)` 回傳該名稱目前的訂閱；若只剩已終止訂閱，回傳最新紀錄。多個仍存在的同名訂閱會明確失敗，此時使用 `subscriptionById(id)`。`syncSubscription(id)` 在核對客戶歸屬後讀取遠端狀態；`refresh()` 重新整理現有實例。`subscribed`、`valid`、`active`、`onTrial`、`canceled`、`onGracePeriod`、`paused`、`pastDue`、`incomplete` 可用於應用權限判斷；欠費或未完成付款預設不授予有效訂閱權限。
+
+`asProviderSubscription(parameters)` 取得核對歸屬後的原生物件。例如傳入 `{"expand":["latest_invoice.confirmation_secret"]}` 取得直接建立訂閱所需的付款確認資訊；將適用的 client secret 交給該客戶的 Stripe.js 完成驗證。不要記錄或跨使用者回傳 client secret。
+
+## 付款、帳單與稅費 {#payments-and-invoices}
+
+`createSetupIntent`、`paymentMethods`、`addPaymentMethod`、`defaultPaymentMethod`、`updateDefaultPaymentMethod`、`deletePaymentMethod` 管理 Stripe 付款方式。使用 Stripe.js Payment Element 收集卡片資訊；伺服器只接收 Stripe 識別碼，不接收卡號或 CVC。
+
+`pay(amount, currency, options, key)` 建立 PaymentIntent；`charge` 用既有付款方式發起離線確認；`confirmPayment` 確認已有 Intent。金額是幣別最小單位的正整數，例如 USD 的美分或 JPY 的日圓，不使用浮點數。回傳 `requires_action`、`requires_payment_method` 或 `processing` 不代表付款成功，應按狀態完成 Stripe.js 驗證並等待 Webhook。`refund(payment_intent_id, options, key)` 支援部分金額；受理不代表資金已退回。
+
+`invoices(parameters)` 保留供應商分頁回應，支援 `limit`／`starting_after`；`findInvoice`、`invoiceDocument` 回傳屬於該客戶的帳單與供應商 PDF／託管連結。`invoiceItem`、`createInvoice`、`finalizeInvoice`、`payInvoice`、`voidInvoice` 支援手動帳單流程，`previewInvoice` 與訂閱的 `preview` 用於變更預覽。`localInvoices` 回傳 Webhook 同步的精簡投影。
+
+`taxIds`、`createTaxId`、`deleteTaxId` 管理稅號；`balance` 回傳整數最小單位的未格式化餘額，`balanceTransactions` 查詢流水，`applyBalance` 加入貸記或借記。`reportUsage(event_name, value, identifier, timestamp, key)` 使用 Stripe Billing Meter Events，事件識別碼需穩定且唯一。稅率、自動稅、折扣、計費錨點可透過 `withOptions`、`update`、Checkout／帳單 options 傳入。options 只接受應用建立的伺服器參數，不能直接轉交整份 HTTP 請求。
+
+## Webhook 與交易 {#webhooks}
+
+每個具名帳戶建立固定 HTTPS Webhook 端點。Stripe 訂閱 `customer.subscription.*`、`invoice.*`，並按業務加入 PaymentIntent、退款等事件。路由排除只適用於瀏覽器表單的 CSRF 驗證，改依簽章驗證。必須傳入未經 JSON 重新編碼的原始位元組：
+
+```rust
+let event = client.verifyWebhook(&headers, &raw_body)?;
+store.process(&client, &event, |tx, event| Box::pin(async move {
+    // 使用 tx 更新業務權限、訂單或交易寄件匣。
+    // currentSubscription()／currentInvoice() 是本次核對的目前投影。
+    // data() 是原始事件，可能延遲送達；權限變更應依目前投影。
+    let _ = (tx, event);
+    Ok(())
+})).await?;
+let response = event.success(); // 僅在交易提交或重複確認後回傳 HTTP 200。
+```
+
+`handleWebhook` 是不加入應用 SQL 的同步入口。`process` 將事件去重、訂閱／帳單投影、業務 SQL 與完成標記放進同一交易；錯誤或取消時回復，供應商重送可恢復。同一事件 ID 換內容會回傳 `EventConflict`。客戶鎖內讀取目前供應商物件，避免延遲通知以舊狀態覆寫新狀態；這需要可用的供應商 API，失敗時應回傳失敗讓通知重送。
+
+未關聯的訂閱／帳單客戶會被拒絕。先建立可信客戶對應，再開放 Checkout；從 Dashboard 建立的訂閱也需使用已關聯客戶，名稱可放在 `metadata.cashier_type`，預設為 `default`。其他已驗簽事件可由處理器使用，套件不擅自將其視為付款或履約完成。只進行交易內 SQL；出貨、郵件等外部操作透過應用交易寄件匣完成。不要在處理器中反向發起計費變更或再次處理同一事件。
+
+Stripe `customer.deleted` 會向供應商核實，在同一交易停用客戶對應並取消本地訂閱投影；處理器可透過 `customerDeleted()` 撤銷業務權限。刪除後重新關聯需明確驗證新客戶並呼叫 `attachCustomer`；舊客戶通知仍會拒絕。
+
+Stripe HMAC 時間窗口為 300 秒，拒絕未來超窗、重複簽章標頭、跨模式與 Connect 帳戶事件；可設定多個可信金鑰輪替。本套件支援 Stripe 直接帳戶；Connect 平台分帳與代商戶授權需要專用整合。
+
+## 重試與原生 API {#errors-and-api}
+
+所有變更使用穩定業務操作鍵；Stripe 將帳戶與操作鍵的穩定雜湊作為 `Idempotency-Key`。套件不自動重試；網路失敗、逾時、重新導向、5xx、429 或無法解析的成功回應會回傳 `OutcomeUnknown`，先核對原操作，或以完全相同的請求與 Stripe 原鍵安全重試。其他明確 HTTP 拒絕回傳 `Rejected(status)`，錯誤不包含金鑰或供應商原始回應。
+
+HTTP 請求停用重新導向，逾時 15 秒，回應上限 1 MiB；觀察紀錄移除本文、授權標頭與原始業務操作鍵。`Client::api(method, path, parameters, key)` 提供通用伺服器 REST 入口：Stripe 使用 `/v1/...` 與巢狀表單編碼，GET 參數編入查詢，保留供應商分頁結構。此進階入口不執行本地客戶歸屬檢查或自動同步，應用必須自行驗證；使用者操作優先使用綁定身分的 `Billable`。
+
+本套件不提供 Laravel PHP Trait、Blade 元件或逐方法 PHP 相容層。前端使用供應商託管頁面／官方 JS SDK，PDF 使用供應商帳單連結。正式接入需要有效商戶、產品權限、價格目錄與可存取的通知地址。

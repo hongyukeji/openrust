@@ -1,0 +1,12 @@
+{
+  "commits": {
+    "stripe/stripe-php": "23bedef75852e0adefc3f64713c7886cfb9f5e05",
+    "PaddleHQ/paddle-php-sdk": "10359e49f4582bbfbcbe1bd3308a39593202d394"
+  },
+  "files": {
+    "stripe-stripe-php/lib/Util/Util.php": "f4242b282823f13129d5ddd47e33d55425832907d36eddf996e2d32e57b534f0",
+    "stripe-stripe-php/lib/WebhookSignature.php": "1adeb443d2267ee77336c02c44781f0282b3722bbfde76275d384b6a50562e9a",
+    "PaddleHQ-paddle-php-sdk/src/Notifications/Secret.php": "4db12e348f183e7316370861977cfff4e6ce195506855a38ec86669d356f5601",
+    "PaddleHQ-paddle-php-sdk/src/Notifications/PaddleSignature.php": "99db3d8f6f1639d831a67c6b7381c1c9f062d607925254f0f66935fb51749e2f"
+  }
+}

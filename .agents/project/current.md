@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [Stripe／Paddle订阅计费](audits/pay/cashier.md)完成：独立openrust-cashier，补齐客户、Checkout／门户、订阅生命周期、SCA原生状态、支付方式、计量、账单／预览／PDF、退款及事务Webhook；配置与发布模板归所属包，缓存跳过环境读取，默认骨架不预装。固定Laravel Cashier／官方SDK对照，12常规函数＋独立官方签名、SQLite／PG18／MySQL8并发乱序回滚与客户删除／Paddle单次发送、三库原生Artisan发布迁移缓存、feature开关、严格全feature Clippy／fmt及三语24＋12＋6浏览器通过；最终与285fcacd0组合验收。真实商户、客户端SDK／SCA及资金未验，API全站导出由核心统一处理。专属target／dist已清，保留源码／日志／全部卷，仅本地核范围提交不推送。本条替代国内支付首期中的“订阅／Stripe／Paddle后置”。
+
 - 2026-11-21 [扩展配置归属修复](audits/00-01/README.md#扩展配置归属修复与验收2026-11-21)：Settings／Pay／OIDC／Reverb 默认配置迁回所属包，OIDC默认提供方为空，显式发布／安装保留应用定制；核心及认证包遵守配置缓存快照。默认／开启feature根回归、原生安装／缓存／HTTP、三库Settings及Pay定向验收、全feature严格Clippy／fmt与三语构建／浏览器通过。生成应用补验Fortify／Passkeys／Passport缓存不再读取环境密钥；完整认证及真实供应商未复验，并行Cashier不在本批快照内；仅核范围本地提交。
 
 - 2026-11-21 [默认Provider边界修正](audits/settings/README.md#默认应用-provider-边界修正)：移除默认AppServiceProvider／bootstrap中的扩展装配及根SiteSettings演示类型；Settings复用已有包发现，在自身Provider登记默认迁移，自定义表／连接跳过。项目指引／规范补充默认骨架边界，新增随Cargo执行的结构回归与Settings／Pay注入拒绝。三库Settings回归、feature关闭／启用的根包发现／迁移与真实HTTP、固定归档全feature严格Clippy／fmt及三语12＋12浏览器通过；支付对应迁移装配由Plan独立在7edd0fbca修正并验收。历史API交付仍对应原固定提交，源码指纹变化后不能复用为新源码导出。已清理本批闲置产物，保留并行改动／日志／全部卷；仅本地提交。

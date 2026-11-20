@@ -23,7 +23,7 @@ try{
       assert(await article.locator('a[href*=".html"]').count()>0,`${url}: no native reference`);count++;
      }
     }
-    assert.equal(count,26,`${language}: unexpected support status coverage`);assert.deepEqual(errors,[]);
+    assert.equal(count,24,`${language}: unexpected support status coverage`);assert.deepEqual(errors,[]);
     console.log(`${base} ${language}: every navigation route rendered; ${count} explicit support pages PASS`);await page.close();
    }
   }finally{await new Promise((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}

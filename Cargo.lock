@@ -3948,6 +3948,7 @@ dependencies = [
  "axum",
  "clap",
  "jiff 0.2.46",
+ "openrust-cashier",
  "openrust-fortify",
  "openrust-framework",
  "openrust-oidc",
@@ -3963,6 +3964,23 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-health",
+]
+
+[[package]]
+name = "openrust-cashier"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "axum",
+ "http 1.5.0",
+ "jiff 0.2.46",
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "zeroize",
 ]
 
 [[package]]

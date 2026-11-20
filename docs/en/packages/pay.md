@@ -2,6 +2,8 @@
 
 `openrust-pay` provides one-time payments for direct WeChat Pay API v3 merchants using public-key mode and Alipay merchants using RSA2 public-key mode. It uses the application HTTP client, container and database transactions. Subscription billing, Stripe, Paddle, service-provider merchants, profit sharing, automatic debit, certificate mode and certificate download are outside this package's supported scope.
 
+Stripe subscriptions and Paddle Billing use [Cashier](billing.md) and [Cashier (Paddle)](cashier-paddle.md).
+
 ## Enable and configure {#configuration}
 
 Enable the root application's `pay` Cargo feature. Package discovery registers `PayServiceProvider`, whose boot hook registers the callback inbox migration without querying the database. Run migrations before using `DatabaseNotifications`:

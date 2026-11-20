@@ -44,6 +44,7 @@ socialite = ["dep:openrust-socialite"]
 oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
 pay = ["dep:openrust-pay"]
+cashier = ["dep:openrust-cashier"]
 
 [dependencies]
 jiff = { version = "=0.2.46", features = ["serde"] }
@@ -57,6 +58,7 @@ openrust-socialite = { path = "vendor/openrust/socialite", optional = true }
 openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
 openrust-settings = { path = "vendor/openrust/settings", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
+openrust-cashier = { path = "vendor/openrust/cashier", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.54.1", features = ["macros", "rt"] }

@@ -2,6 +2,8 @@
 
 `openrust-pay` 支持微信支付 API v3 普通直连商户的公钥模式，以及支付宝 RSA2 普通公钥模式的一次性支付。复用应用 HTTP 客户端、容器与数据库事务。订阅计费、Stripe、Paddle、服务商、分账、自动扣款、证书模式及证书自动下载不属于本包支持范围。
 
+Stripe 订阅与 Paddle Billing 使用 [Cashier](billing.md) 和 [Cashier（Paddle）](cashier-paddle.md)。
+
 ## 启用与配置 {#configuration}
 
 根应用启用 `pay` Cargo feature 后，包发现登记 `PayServiceProvider`，其 boot 钩子登记回调收件箱迁移，登记过程不查询数据库。使用 `DatabaseNotifications` 前先迁移：
