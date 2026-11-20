@@ -21,20 +21,15 @@ impl DatabaseUuidFailedJobProvider {
 impl PrunableFailedJobProvider for DatabaseUuidFailedJobProvider {
     fn prune(&self, before: chrono::DateTime<chrono::Utc>) -> QueueFuture<'_, QueueResult<u64>> {
         Box::pin(async move {
-            let table = self.connection.queue_table(&self.table).map_err(backend)?;
-            let sql = if self.connection.is_sqlite() {
-                format!(
-                    "delete from {table} where id in (select id from {table} where failed_at < ? order by id limit 1000)"
-                )
-            } else {
-                format!("delete from {table} where failed_at < ? order by id limit 1000")
-            };
-            let bindings = [super::timestamp(before).into()];
             let mut total = 0;
             loop {
                 let deleted = self
                     .connection
-                    .affectingStatement(&sql, &bindings)
+                    .table(&self.table)
+                    .r#where("failed_at", "<", super::timestamp(before))
+                    .orderBy("id", "asc")
+                    .limit(1000)
+                    .delete()
                     .await
                     .map_err(backend)?;
                 if deleted == 0 {

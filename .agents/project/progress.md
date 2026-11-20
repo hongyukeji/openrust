@@ -3822,7 +3822,7 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 
 ## 2026-11-20 日常环境切换 PostgreSQL 18 与 Redis 8
 
-按最新用户指令固定 Rust 1.94.0，接入现有 PostgreSQL 18.6／Redis 8.10.3，配置独立 openrust 开发账号和数据库、Redis缓存与队列；保留旧配置私密备份、旧数据与运行进程。新增隔离 PostgreSQL 验收入口及真实生命周期测试，更新日常规则和剩余任务账本。
+该批曾通过工具链文件固定 Rust 1.94.0；用户随后要求移除该文件，现改为显式 `cargo +1.94.0` 验收，保留 Cargo 最低版本声明。接入现有 PostgreSQL 18.6／Redis 8.10.3，配置独立 openrust 开发账号和数据库、Redis缓存与队列；保留旧配置私密备份、旧数据与运行进程。新增隔离 PostgreSQL 验收入口及真实生命周期测试，更新日常规则和剩余任务账本。
 
 [验收记录](audits/development-postgres.md)：独立快照根构建／fmt、PG JSON两函数、配置1、Redis跨入口1、夹具生命周期及开发库13条迁移／HTTP／Session均通过。未运行完整认证PG／最终发布矩阵。本批target已回收，实际释放3,046,984 KiB，剩余91,289,040 KiB，全部数据卷保留；未知改动和协作者依赖／文档工作不纳入本批，本地提交不推送。
 
@@ -3833,3 +3833,7 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 ## 2026-11-20 SQLite 与 RSA 安全依赖
 
 [验收](audits/dependency-security/README.md)：RSA两路径统一0.10.0、SQLite3.54.1，25原生、PostgreSQL18三项、MySQL授权／验签两项、Chrome ES256／RS256、严格Clippy／fmt／根HTTP／Artisan／关闭与三语12浏览器全过。cargo-deny剩4维护公告，无vulnerability与ignore；保留外部发布目标和最终整合边界。闲置target已清，全部卷保留，本地提交不推送。
+
+## 2026-11-20 队列存储对齐 Laravel 与工具链文件移除
+
+- 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；旧表／数据未删除，升级先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。

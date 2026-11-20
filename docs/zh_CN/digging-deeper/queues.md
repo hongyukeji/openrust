@@ -156,7 +156,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 在服务提供者中用 `Queue::extend("custom", connector)?` 注册连接工厂，再把 `config/queue.rs` 中命名连接的 `driver` 设为 `custom`。工厂接收应用容器、连接名和完整连接配置，并返回 `Arc<dyn openrust::contracts::queue::Queue>`。返回的连接名和默认队列需与配置一致。
 
-连接按应用缓存。首次并发解析可能构建多个候选连接，因此工厂需要能安全重试。队列契约支持派发和预约。原子批次发布使用内置数据库和 Redis 连接。
+连接按应用缓存。首次并发解析可能构建多个候选连接，因此工厂需要能安全重试。自定义队列驱动支持派发和预约。批次使用内置数据库、Redis、Beanstalkd 或 SQS 驱动。
 
 ## 其他队列连接 {#additional-queue-connections}
 
@@ -174,7 +174,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
 
-任务链从数据库或 Redis 队列切换到 Beanstalkd 或 SQS 时，来源 Worker 按后继任务的配置延迟转发。目标发布失败时，来源 Worker 释放转发任务以供重试。标准 SQS 与 Beanstalkd 在发布成功、来源确认中断时仍可能重复发布后继任务。
+跨队列连接时，来源 Worker 按后继任务的连接、队列和延迟配置直接派发，再确认当前任务。目标派发和来源确认可以独立失败，任务处理器应保持幂等。
 
 ### Amazon SQS {#amazon-sqs}
 
@@ -571,15 +571,9 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-同连接内换队列时，Worker 原子交接。跨持久连接时，源 Worker 会在自己的队列中保存转发任务。保持源队列有 Worker 运行，目标恢复后可重试投递。在每个数据库目标执行 `./artisan migrate`，创建 `job_chain_deliveries`。
+Worker 使用载荷中保存的连接、队列和延迟派发后继任务。同连接内，数据库和 Redis 驱动支持原子交接；跨连接时派发和确认分开执行，进程崩溃可能导致再次投递。
 
-指定为 `sync` 的后继会在源 Worker 处理转发任务时于该进程内执行。同步队列忽略任务延迟。处理器失败时，任务链停止并调用失败回调。源 Worker 在确认前崩溃时，同步处理器可能重跑。
-
-源队列确认转发后，Redis 凭据在 24 小时后过期。SQL 凭据可用下列命令在目标队列连接清理，只删除确认时间早于 `--hours` 的记录。待确认记录和升级前缺少确认时间的记录继续保留，用于重放去重。
-
-```sh
-./artisan queue:prune-chain-deliveries database --hours=24
-```
+指定为 `sync` 的后继任务在前一任务完成时，由来源 Worker 进程直接执行。Sync 忽略延迟。处理器失败会停止任务链并调用失败回调。
 
 ### 向当前任务链添加任务 {#adding-jobs-to-the-chain}
 
@@ -618,7 +612,9 @@ async fn dispatch_chain_if(
 
 ## 任务批次 {#job-batching}
 
-运行 `./artisan migrate` 创建批次账本和投递记录。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。
+队列存储沿用 Laravel 的结构：`jobs` 保存数据库待处理任务，`failed_jobs` 保存失败任务，`job_batches` 保存批次计数和回调选项，不需要配套恢复表。已有部署升级前，应先用原版本 Worker 处理完待发布记录和转发任务。本次变更保留旧表及数据，确认不再使用并备份后再清理。
+
+运行 `./artisan migrate` 创建 `job_batches` 批次表。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。
 
 ```rust
 use openrust::{
@@ -675,7 +671,7 @@ fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueRes
 
 批次进入最终回调阶段后，外层任务链继续。批次允许失败时，仍可进入该阶段并继续。取消批次会停止外层链。任务失败导致批次取消时，外层链的 `catch` 回调会收到失败的批次任务和错误。
 
-执行 `./artisan migrate` 创建续链表。发布失败时，续链任务保留在 SQL 中，执行 `./artisan queue:publish-batches` 可恢复发布。
+续链信息与批次回调一起序列化到 `job_batches.options`，在最终回调阶段直接派发。回调失败写入应用日志，不另外存入待发布队列。
 
 ### 向批次追加任务 {#adding-jobs-to-batches}
 
@@ -696,29 +692,25 @@ async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
 }
 ```
 
-Redis 每次追加都有独立的 SQL 发布记录。初始发布确认后才会发布追加任务。恢复命令也会重试待发布的追加记录。自定义批次表时，还须建立同名加 `_additions` 后缀的配套表。
+追加任务沿用初次派发的流程。派发失败会回滚批次计数，但外部队列可能已经接收部分任务，处理器需能处理部分发布和重复投递。
 
 ### 向 Redis 发布批次 {#redis-batches}
 
-OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布失败时，`dispatch()` 仍返回已受理的批次。定期运行 `queue:publish-batches` 重试待发布记录。Redis 一起写入任务与发布标记，SQL 确认发布后，OpenRust 尝试给标记设置 24 小时有效期。Redis 的持久化和淘汰配置需保留队列数据与发布标记。自定义批次表时，还须建立同名加 `_jobs`、`_outbox`、`_additions`、`_continuations` 后缀的配套表。
-
-```sh
-./artisan queue:publish-batches --limit=1
-```
+通过 `.onConnection("redis")` 使用 Redis 批次。批次状态和回调选项保存在 `job_batches`，任务直接推入 Redis。派发失败向调用方返回错误并回滚 SQL 批次事务。Redis 写入和 SQL 提交相互独立：Worker 可能在 SQL 提交前取到任务，部分发布或后续提交失败也可能留下没有批次记录的任务，业务处理器需考虑这些边界。
 
 ### 向独立数据库发布批次 {#cross-database-batches}
 
-用 `queue.batching.database` 选择批次账本连接，再用 `onConnection` 选择使用独立连接的数据库队列。对两个数据库执行迁移，队列目标需要 `jobs` 和 `job_chain_deliveries`。账本保存待发布的初始任务、追加任务及续接任务。目标数据库在同一事务写入回执和任务。账本确认失败时，`queue:publish-batches` 复用回执，避免重复入队。用 `queue:work <connection>` 消费目标队列。
+用 `queue.batching.database` 选择批次状态连接，再用 `onConnection` 选择数据库队列。目标只需要 `jobs` 表，Worker 使用共享的 `job_batches` 仓库。同一 SQL 连接时，批次变更和任务入队共享事务；独立连接分别提交，可能部分发布。用 `queue:work <connection>` 消费目标队列。
 
 ### 向 Beanstalkd 或 SQS 发布批次 {#external-batches}
 
-通过 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 选择驱动。发布端和 Worker 使用同一 SQL 批次仓库。仓库先提交批次和待发布记录，再发送任务。SQS 使用 `SendMessageBatch`，每次最多 10 条消息，消息体总计最多 1 MiB。初次发布、追加和续接使用同一个恢复命令。
+通过 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 选择驱动。发布端和 Worker 使用同一 SQL 批次仓库配置，在批次事务内发送任务。SQS 使用 `SendMessageBatch`，每次最多 10 条消息，消息体总计最多 1 MiB。
 
-SQS 返回部分失败时，OpenRust 停止发送后续分块，将失败和未发送的条目留给 `queue:publish-batches` 重试，并移除同一响应中已确认成功的条目。Beanstalkd 从最后一次已确认发送之后恢复。进程崩溃、服务端响应不明或 SQL 提交失败可能导致重复发布，任务处理器需保持幂等。标准 SQS 和 Beanstalkd 的发送确认与 SQL 更新无法原子提交。
+SQS 部分失败时停止后续分块并返回错误；Beanstalkd 直接返回发送错误。SQL 事务回滚，外部服务已经接收的任务仍然存在。不再维护发布 outbox 或恢复命令。
 
-FIFO 批次和跨连接任务链转发的默认去重 ID 由序列化任务生成，重试时保持一致。显式去重设置仍然生效。Amazon SQS 仅在五分钟去重窗口内抑制重复投递。
+FIFO 批次默认根据序列化任务生成去重 ID，显式去重设置仍然生效。SQS 去重受服务时间窗口限制，不能使 SQL 与外部队列原子提交。
 
-标准 SQS 和 Beanstalkd 采用至少一次投递。恢复可能发布同一任务 UUID 的多个副本，独立 Worker 可在结算前同时进入处理器。业务副作用应使用应用幂等键。该次投递已有结算结果时，Worker 按记录结果确认其余副本。SQL 批次计数和终态回调每次投递只结算一次，任务失败回调由记录终态失败的 Worker 执行。结算后进程退出可能中断回调。
+队列投递和批次回调可能在崩溃后再次执行。批次计数通过 `job_batches` 行锁更新，不维护逐次投递的完成账本。业务副作用应使用应用幂等键。
 
 ### 批次回调 {#batch-callbacks}
 
@@ -795,7 +787,7 @@ fn register_batch_events() -> EventResult<()> {
 }
 ```
 
-事件在状态提交后派发。`BatchStarted` 在首个任务达到终态时触发，`BatchFinished` 在待处理任务归零时触发。同一次投递重放不会重复触发事件，不同 Worker 的监听器可能并发执行。
+事件在状态提交后派发。`BatchStarted` 在首个任务达到终态时触发，`BatchFinished` 在待处理任务归零时触发。不同 Worker 的监听器可能并发执行，重新投递可能重复触发回调和业务副作用。
 
 ### 重试批次失败任务 {#batch-failures}
 

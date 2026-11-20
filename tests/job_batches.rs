@@ -244,62 +244,6 @@ impl JobHandler for Probe {
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
                 .unwrap();
-            if data.contains("-parallel") {
-                db.statement(
-                    "insert into parallel_attempts (name, uuid, pid) values (?, ?, ?)",
-                    &[
-                        data.into(),
-                        payload.uuid().into(),
-                        i64::from(std::process::id()).into(),
-                    ],
-                )
-                .await
-                .unwrap();
-                timeout(Duration::from_secs(10), async {
-                    while db
-                        .table("parallel_attempts")
-                        .r#where("name", "=", data)
-                        .count("*")
-                        .await
-                        .unwrap()
-                        < 2
-                    {
-                        tokio::time::sleep(Duration::from_millis(20)).await;
-                    }
-                })
-                .await
-                .expect("both workers must enter the handler before settlement");
-                if data.ends_with("-mixed") {
-                    let first = db
-                        .table("parallel_attempts")
-                        .r#where("name", "=", data)
-                        .orderBy("id", "asc")
-                        .first()
-                        .await
-                        .unwrap()
-                        .unwrap();
-                    if first.get("pid") != Some(&Value::Integer(i64::from(std::process::id()))) {
-                        timeout(Duration::from_secs(10), async {
-                            while db
-                                .table("job_batches_jobs")
-                                .r#where("batch_id", "=", payload.batchId().unwrap())
-                                .count("*")
-                                .await
-                                .unwrap()
-                                == 0
-                            {
-                                tokio::time::sleep(Duration::from_millis(20)).await;
-                            }
-                        })
-                        .await
-                        .expect("the successful worker must settle first");
-                        return Err(QueueError::InvalidPayload);
-                    }
-                }
-                if data.ends_with("-fatal") {
-                    return Err(QueueError::InvalidPayload);
-                }
-            }
             if data.ends_with(".edit-batched") {
                 let added = Payload::new("reports.generate", format!("{data}-added"))?;
                 context.prependToChain(added)?;
@@ -325,28 +269,6 @@ impl JobHandler for Probe {
                     == 0
             {
                 return Err(QueueError::InvalidPayload);
-            }
-            Ok(())
-        })
-    }
-    fn failed<'a>(
-        &'a self,
-        _: &'a mut JobContext<'_>,
-        payload: &'a Payload,
-        _: &'a QueueError,
-    ) -> QueueFuture<'a, QueueResult<()>> {
-        Box::pin(async move {
-            if let Some(data) = payload.data().as_str().filter(|data| {
-                data.ends_with("-parallel-fatal") || data.ends_with("-parallel-mixed")
-            }) {
-                DB::connection(None)
-                    .unwrap()
-                    .statement(
-                        "insert into receipts (name) values (?)",
-                        &[format!("{data}.failed").into()],
-                    )
-                    .await
-                    .unwrap();
             }
             Ok(())
         })
@@ -499,27 +421,13 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "database-cross" => Bus::batch(jobs(&["cross-first", "cross-second"])?)
                 .onConnection("destination")
                 .onQueue("database-cross"),
-            "beanstalkd" | "sqs" | "sqs-fifo" => Bus::batch(jobs(&[
+            "beanstalkd" | "sqs" => Bus::batch(jobs(&[
                 &format!("{kind}-external-first"),
                 &format!("{kind}-external-second"),
                 &format!("{kind}-external-third"),
             ])?)
             .onConnection(kind)
             .then("reports.then"),
-            "sqs-parallel"
-            | "beanstalkd-parallel"
-            | "sqs-parallel-fatal"
-            | "beanstalkd-parallel-fatal"
-            | "sqs-parallel-mixed"
-            | "beanstalkd-parallel-mixed" => {
-                let (connection, _) = kind.split_once('-').unwrap();
-                Bus::batch(jobs(&[kind])?)
-                    .onConnection(connection)
-                    .allowFailures()
-                    .then("reports.then")
-                    .catch("reports.catch")
-                    .finally("reports.finally")
-            }
             "sqs-chunks" => {
                 let mut jobs = (0..10)
                     .map(|index| {
@@ -941,7 +849,9 @@ async fn exercise(mysql: Option<&str>) {
             "batching": {"database":"batch","table":"job_batches"}
         }
     });
-    let destination_url = std::env::var("OPENRUST_TEST_BATCH_DESTINATION_MYSQL_URL").ok();
+    let destination_url = std::env::var("OPENRUST_TEST_BATCH_DESTINATION_POSTGRES_URL")
+        .or_else(|_| std::env::var("OPENRUST_TEST_BATCH_DESTINATION_MYSQL_URL"))
+        .ok();
     if let Some(url) = destination_url.as_ref().filter(|_| mysql.is_some()) {
         settings["database"]["connections"]["destination"] = json!({"url":url});
         settings["queue"]["connections"]["destination"] =
@@ -964,14 +874,6 @@ async fn exercise(mysql: Option<&str>) {
             "key": "local", "secret": "local", "region": "us-east-1", "block_for": 0,
         });
     }
-    let fifo = std::env::var("OPENRUST_TEST_SQS_FIFO_URL")
-        .ok()
-        .filter(|_| mysql.is_some());
-    if let Some(url) = &fifo {
-        let mut settings_fifo = settings["queue"]["connections"]["sqs"].clone();
-        settings_fifo["queue"] = json!(url);
-        settings["queue"]["connections"]["sqs-fifo"] = settings_fifo;
-    }
     std::fs::write(root.0.join("settings.json"), settings.to_string()).unwrap();
     let mut app = application(&root.0);
     app.boot().await.unwrap();
@@ -983,14 +885,6 @@ async fn exercise(mysql: Option<&str>) {
         .unwrap();
     let mut schema = db.getSchemaBuilder();
     for table in [
-        "parallel_attempts",
-        "pending_ack_block",
-        "chain_ack_guard",
-        "job_chain_deliveries",
-        "job_batches_continuations",
-        "job_batches_additions",
-        "job_batches_outbox",
-        "job_batches_jobs",
         "job_batches",
         "failed_jobs",
         "jobs",
@@ -1006,6 +900,23 @@ async fn exercise(mysql: Option<&str>) {
         schema.dropIfExists(table).await.unwrap();
     }
     artisan(&root.0, &["migrate", "--force"]).await;
+    for table in [
+        "job_batches_jobs",
+        "job_batches_outbox",
+        "job_batches_additions",
+        "job_batches_continuations",
+        "job_chain_deliveries",
+    ] {
+        assert!(
+            !schema.hasTable(table).await.unwrap(),
+            "unexpected auxiliary table {table}"
+        );
+    }
+    assert_eq!(migrations::entries().len(), 6);
+    for command in ["queue:publish-batches", "queue:prune-chain-deliveries"] {
+        artisan_status(&root.0, &[command], 1).await;
+    }
+
     let destination = if mysql.is_some() && destination_url.is_some() {
         artisan(&root.0, &["migrate", "--force", "--database=destination"]).await;
         Some(
@@ -1027,15 +938,6 @@ async fn exercise(mysql: Option<&str>) {
             table.string("batch_id", 36);
             table.string("phase", 32);
             table.string("failure", 255).nullable();
-        })
-        .await
-        .unwrap();
-    schema
-        .create("parallel_attempts", |table| {
-            table.id();
-            table.string("name", 255);
-            table.string("uuid", 36);
-            table.integer("pid");
         })
         .await
         .unwrap();
@@ -1071,20 +973,14 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 0);
     let missing = request(address, "missing-model", 200).await.unwrap();
     let missing_id = missing["id"].as_str().unwrap();
-    let replay = db
-        .scalar("select payload from jobs where queue = 'chain'", &[])
-        .await
-        .unwrap();
     let once = ["queue:work", "database", "--queue=chain", "--once"];
     artisan(&root.0, &once).await;
     let completed = batches.find(missing_id).await.unwrap().unwrap();
     assert_eq!(completed.pending_jobs, 1);
     assert_eq!(completed.failed_jobs, 0);
-    db.statement("insert into jobs (queue,payload,attempts,reserved_at,available_at,created_at) values ('chain',?,0,null,0,0)", &[replay]).await.unwrap();
-    artisan(&root.0, &once).await;
     assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
-    for table in ["batch_callbacks", "job_batches_jobs", "job_batches"] {
+    for table in ["batch_callbacks", "job_batches"] {
         let column = if table == "job_batches" {
             "id"
         } else {
@@ -1100,10 +996,6 @@ async fn exercise(mysql: Option<&str>) {
     let id = success["id"].as_str().unwrap();
     assert_eq!(success["pendingJobs"], 2);
     assert_eq!(callback_trace(&db, id).await, [("before".into(), None)]);
-    let replay = db
-        .scalar("select payload from jobs order by id limit 1", &[])
-        .await
-        .unwrap();
     let once = [
         "queue:work",
         "database",
@@ -1124,12 +1016,6 @@ async fn exercise(mysql: Option<&str>) {
     )
     .await;
     assert_eq!(batches.find(id).await.unwrap().unwrap().progress(), 100);
-    db.statement("insert into jobs (queue,payload,attempts,reserved_at,available_at,created_at) values ('batch',?,0,null,0,0)", &[replay]).await.unwrap();
-    artisan(
-        &root.0,
-        &["queue:work", "database", "--queue=batch", "--once"],
-    )
-    .await;
     assert_eq!(
         db.table("receipts")
             .r#where("name", "=", "summary")
@@ -1283,7 +1169,11 @@ async fn exercise(mysql: Option<&str>) {
                 1
             );
             let allow_retry = if mysql.is_some() {
-                "alter table jobs drop check reject_retry"
+                if mysql.is_some_and(|url| url.starts_with("postgres")) {
+                    "alter table jobs drop constraint reject_retry"
+                } else {
+                    "alter table jobs drop check reject_retry"
+                }
             } else {
                 "drop trigger reject_retry"
             };
@@ -1349,7 +1239,6 @@ async fn exercise(mysql: Option<&str>) {
     request(address, "rollback", 500).await;
     assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 3);
-    assert_eq!(db.table("job_batches_jobs").count("*").await.unwrap(), 7);
     verify_pruning(&root.0, &db).await;
     let explicit = request(address, "cancel-explicit", 200).await.unwrap();
     let id = explicit["id"].as_str().unwrap();
@@ -1380,19 +1269,25 @@ async fn exercise(mysql: Option<&str>) {
         verify_chain_redis_handoff(&redis, &queue, address).await;
         verify_chain_edits(&root.0, &db, address, "redis").await;
         verify_conditional_chain(&root.0, &db, &queue, address, "redis").await;
-        verify_cross_connection_routing(&root.0, &db, &queue, address, &redis, mysql.is_some())
-            .await;
+        verify_cross_connection_routing(&root.0, &db, &queue, address).await;
         verify_same_connection_routing(&root.0, &db, &queue, address, "redis").await;
         verify_sync_successors(&root.0, &db, address, "redis").await;
         let delayed = redis.key("queues:alternate:delayed");
         redis.command("DEL", &[delayed.as_bytes()]).await.unwrap();
-        verify_batched_chain_edit(&root.0, &db, address, "redis", None).await;
+        verify_batched_chain_edit(&root.0, &db, address, "redis").await;
         verify_batched_chains(&root.0, &db, &queue, address, "redis").await;
         verify_chained_batches(&root.0, &db, &queue, address, "redis", "cross").await;
-        verify_chained_batch_recovery(&root.0, &db, address, Some(&redis), mysql.is_some()).await;
     }
     verify_chain(&root.0, &db, &queue, address, "database").await;
-    verify_chain_database_handoff(&root.0, &db, &queue, address, mysql.is_some()).await;
+    verify_chain_database_handoff(
+        &root.0,
+        &db,
+        &queue,
+        address,
+        mysql.is_some(),
+        mysql.is_some_and(|url| url.starts_with("postgres")),
+    )
+    .await;
     assert_eq!(
         request(address, "chain/sync/ok", 200).await.unwrap()["queued"],
         false
@@ -1404,13 +1299,13 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(chain_receipt(&db, "sync.last").await, 1);
     verify_database_append(&root.0, &db, address).await;
     verify_batched_chains(&root.0, &db, &queue, address, "database").await;
-    verify_batched_chain_recovery(&root.0, &db, address, mysql.is_some()).await;
+
     request(address, "chained-batch/sync/ok", 500).await;
     assert_eq!(chain_receipt(&db, "sync.ok-first").await, 0);
     verify_chained_batches(&root.0, &db, &queue, address, "database", "ok").await;
-    verify_chained_batch_recovery(&root.0, &db, address, None, mysql.is_some()).await;
+
     verify_chain_edits(&root.0, &db, address, "database").await;
-    verify_batched_chain_edit(&root.0, &db, address, "database", Some(mysql.is_some())).await;
+    verify_batched_chain_edit(&root.0, &db, address, "database").await;
     request(address, "chain/sync/edit-last", 200).await;
     assert_eq!(chain_receipt(&db, "sync.edit-last-before").await, 1);
     assert_eq!(chain_receipt(&db, "sync.edit-last-after").await, 1);
@@ -1424,22 +1319,13 @@ async fn exercise(mysql: Option<&str>) {
     request(address, "conditional/database/invalid/on", 500).await;
     verify_same_connection_routing(&root.0, &db, &queue, address, "database").await;
     verify_sync_successors(&root.0, &db, address, "database").await;
-    verify_chain_receipt_pruning(&root.0, &db).await;
+
     if let Some(destination) = destination {
         verify_database_cross_batch(&root.0, &db, &destination, address).await;
     }
     if beanstalk_port.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "beanstalkd").await;
         verify_chained_batches(&root.0, &db, &queue, address, "beanstalkd", "ok").await;
-        verify_external_batch_ack_replay(
-            &root.0,
-            &db,
-            &queue,
-            address,
-            "beanstalkd",
-            mysql.is_some(),
-        )
-        .await;
     }
     if sqs_url.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "sqs").await;
@@ -1456,20 +1342,18 @@ async fn exercise(mysql: Option<&str>) {
         );
         artisan(&root.0, &["queue:work", "sqs", "--stop-when-empty"]).await;
         assert_eq!(batches.find(id).await.unwrap().unwrap().progress(), 100);
-        verify_external_batch_ack_replay(&root.0, &db, &queue, address, "sqs", true).await;
     }
-    for driver in ["beanstalkd", "sqs"]
-        .into_iter()
-        .filter(|driver| match *driver {
-            "beanstalkd" => beanstalk_port.is_some(),
-            _ => sqs_url.is_some(),
-        })
-    {
-        verify_parallel_duplicates(&root.0, &db, &queue, address, driver, mysql.is_some()).await;
-    }
-    if fifo.is_some() {
-        verify_fifo_batch_replay(&root.0, &db, &queue, address).await;
-    }
+
+    db.table("failed_jobs")
+        .update(
+            [("failed_at".into(), "2000-01-01 00:00:00".into())]
+                .into_iter()
+                .collect(),
+        )
+        .await
+        .unwrap();
+    artisan(&root.0, &["queue:prune-failed", "--hours=24"]).await;
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
     server.abort();
 }
 
@@ -1481,35 +1365,19 @@ async fn verify_external_batch(
     driver: &str,
 ) {
     let queue = manager.connection(Some(driver)).unwrap();
+    if driver == "sqs" && std::env::var_os("OPENRUST_TEST_SQS_BATCH_REJECT_SECOND").is_some() {
+        let before = db.table("job_batches").count("*").await.unwrap();
+        request(address, driver, 500).await;
+        assert_eq!(db.table("job_batches").count("*").await.unwrap(), before);
+        assert_eq!(queue.size(None).await.unwrap(), 2);
+        artisan(base, &["queue:work", driver, "--stop-when-empty"]).await;
+        return;
+    }
     let batch = request(address, driver, 200).await.unwrap();
     let id = batch["id"].as_str().unwrap();
-    let initial = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
     assert_eq!(batch["pendingJobs"], 3);
-    let partial =
-        driver == "sqs" && std::env::var_os("OPENRUST_TEST_SQS_BATCH_REJECT_SECOND").is_some();
-    if partial {
-        // The SQS fixture accepts the first and third entries and rejects the second in HTTP 200.
-        let pending = initial().first().await.unwrap().unwrap();
-        let Some(Value::Text(payloads)) = pending.get("payloads") else {
-            panic!("expected queued payloads");
-        };
-        let pending: Vec<Payload> = serde_json::from_str(payloads).unwrap();
-        assert_eq!(
-            pending.iter().map(Payload::data).collect::<Vec<_>>(),
-            [&json!("sqs-external-second")]
-        );
-        assert_eq!(queue.size(None).await.unwrap(), 2);
-    } else {
-        assert_eq!(initial().count("*").await.unwrap(), 0);
-    }
-
     let extra = format!("{driver}-external-extra");
     request(address, &format!("append/{id}/{extra}"), 200).await;
-    if partial {
-        let publish = ["queue:publish-batches"];
-        tokio::join!(artisan(base, &publish), artisan(base, &publish));
-    }
-    assert_eq!(initial().count("*").await.unwrap(), 0);
     assert_eq!(queue.size(None).await.unwrap(), 4);
     artisan(base, &["queue:work", driver, "--stop-when-empty"]).await;
     assert_eq!(queue.size(None).await.unwrap(), 0);
@@ -1527,187 +1395,6 @@ async fn verify_external_batch(
         .unwrap();
     assert!(batch.finished());
     assert_eq!(batch.progress(), 100);
-    assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
-}
-
-async fn verify_external_batch_ack_replay(
-    base: &Path,
-    db: &Connection,
-    manager: &QueueManager,
-    address: std::net::SocketAddr,
-    driver: &str,
-    mysql: bool,
-) {
-    let reject = if mysql {
-        "create trigger reject_external_ack before delete on job_batches_outbox for each row signal sqlstate '45000' set message_text = 'injected publication acknowledgement failure'"
-    } else {
-        "create trigger reject_external_ack before delete on job_batches_outbox begin select raise(abort, 'injected publication acknowledgement failure'); end"
-    };
-    db.unprepared(reject).await.unwrap();
-
-    let batch = request(address, driver, 200).await.unwrap();
-    let id = batch["id"].as_str().unwrap();
-    let pending = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
-    let queue = manager.connection(Some(driver)).unwrap();
-    assert_eq!(pending().count("*").await.unwrap(), 1);
-    assert_eq!(queue.size(None).await.unwrap(), 3);
-
-    db.unprepared("drop trigger reject_external_ack")
-        .await
-        .unwrap();
-    let publish = ["queue:publish-batches"];
-    tokio::join!(artisan(base, &publish), artisan(base, &publish));
-    assert_eq!(pending().count("*").await.unwrap(), 0);
-    assert_eq!(queue.size(None).await.unwrap(), 6);
-
-    artisan(base, &["queue:work", driver, "--stop-when-empty"]).await;
-    assert_eq!(queue.size(None).await.unwrap(), 0);
-    for step in ["first", "second", "third"] {
-        // The preceding batch and this batch each execute one copy of the named job.
-        assert_eq!(
-            chain_receipt(db, &format!("{driver}-external-{step}")).await,
-            2
-        );
-    }
-    let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
-        .unwrap()
-        .find(id)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(batch.total_jobs, 3);
-    assert_eq!(batch.pending_jobs, 0);
-    assert_eq!(batch.failed_jobs, 0);
-    assert!(batch.finished());
-    assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
-}
-
-async fn verify_parallel_duplicates(
-    base: &Path,
-    db: &Connection,
-    manager: &QueueManager,
-    address: std::net::SocketAddr,
-    driver: &str,
-    mysql: bool,
-) {
-    let queue = manager.connection(Some(driver)).unwrap();
-    let reject = if mysql {
-        "create trigger reject_parallel_ack before delete on job_batches_outbox for each row signal sqlstate '45000' set message_text = 'injected publication acknowledgement failure'"
-    } else {
-        "create trigger reject_parallel_ack before delete on job_batches_outbox begin select raise(abort, 'injected publication acknowledgement failure'); end"
-    };
-    for (suffix, fatal) in [("", false), ("-fatal", true), ("-mixed", false)] {
-        let kind = format!("{driver}-parallel{suffix}");
-        let failed_before = db.table("failed_jobs").count("*").await.unwrap();
-        db.unprepared(reject).await.unwrap();
-        let batch = request(address, &kind, 200).await.unwrap();
-        let id = batch["id"].as_str().unwrap();
-        let pending = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
-        assert_eq!(pending().count("*").await.unwrap(), 1);
-        assert_eq!(queue.size(None).await.unwrap(), 1);
-        db.unprepared("drop trigger reject_parallel_ack")
-            .await
-            .unwrap();
-        let publish = ["queue:publish-batches"];
-        tokio::join!(artisan(base, &publish), artisan(base, &publish));
-        assert_eq!(pending().count("*").await.unwrap(), 0);
-        assert_eq!(queue.size(None).await.unwrap(), 2);
-
-        let work = ["queue:work", driver, "--once", "--tries=1"];
-        tokio::join!(artisan(base, &work), artisan(base, &work));
-        assert_eq!(queue.size(None).await.unwrap(), 0);
-        assert_eq!(chain_receipt(db, &kind).await, 2);
-        let attempts = db
-            .table("parallel_attempts")
-            .r#where("name", "=", kind.as_str())
-            .get()
-            .await
-            .unwrap();
-        assert_eq!(attempts.len(), 2);
-        assert_eq!(attempts[0].get("uuid"), attempts[1].get("uuid"));
-        assert_ne!(attempts[0].get("pid"), attempts[1].get("pid"));
-        let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
-            .unwrap()
-            .find(id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(batch.total_jobs, 1);
-        assert_eq!(batch.pending_jobs, u32::from(fatal));
-        assert_eq!(batch.failed_jobs, u32::from(fatal));
-        let transitions = db
-            .table("job_batches_jobs")
-            .r#where("batch_id", "=", id)
-            .count("*")
-            .await
-            .unwrap();
-        assert_eq!(transitions, 1);
-        assert_eq!(
-            db.table("failed_jobs").count("*").await.unwrap(),
-            failed_before + u64::from(fatal)
-        );
-        assert_eq!(
-            chain_receipt(db, &format!("{kind}.failed")).await,
-            u64::from(fatal)
-        );
-        let phases: Vec<_> = callback_trace(db, id)
-            .await
-            .into_iter()
-            .map(|(phase, _)| phase)
-            .collect();
-        assert_eq!(phases, [if fatal { "catch" } else { "then" }, "finally"]);
-        if !fatal {
-            assert!(batch.finished());
-        }
-    }
-}
-
-async fn verify_fifo_batch_replay(
-    base: &Path,
-    db: &Connection,
-    manager: &QueueManager,
-    address: std::net::SocketAddr,
-) {
-    db.statement(
-        "create table reject_fifo_ack (batch_id varchar(255) primary key, foreign key (batch_id) references job_batches_outbox(batch_id))",
-        &[],
-    )
-    .await
-    .unwrap();
-    // The proxy accepts the batch at the broker, then returns an error once.
-    // The outbox retains the accepted jobs, allowing SQL acknowledgement to be faulted too.
-    let batch = request(address, "sqs-fifo", 200).await.unwrap();
-    let id = batch["id"].as_str().unwrap();
-    let outbox = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
-    db.table("reject_fifo_ack")
-        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
-        .await
-        .unwrap();
-    assert_eq!(outbox().count("*").await.unwrap(), 1);
-    let queue = manager.connection(Some("sqs-fifo")).unwrap();
-    assert_eq!(queue.size(None).await.unwrap(), 3);
-
-    artisan_status(base, &["queue:publish-batches"], 1).await;
-    assert_eq!(outbox().count("*").await.unwrap(), 1);
-    assert_eq!(queue.size(None).await.unwrap(), 3);
-
-    db.statement("drop table reject_fifo_ack", &[])
-        .await
-        .unwrap();
-    let publish = ["queue:publish-batches"];
-    tokio::join!(artisan(base, &publish), artisan(base, &publish));
-    assert_eq!(outbox().count("*").await.unwrap(), 0);
-    assert_eq!(queue.size(None).await.unwrap(), 3);
-
-    let work = ["queue:work", "sqs-fifo", "--once"];
-    for (index, step) in ["first", "second", "third"].into_iter().enumerate() {
-        artisan(base, &work).await;
-        assert_eq!(
-            chain_receipt(db, &format!("sqs-fifo-external-{step}")).await,
-            1
-        );
-        assert_eq!(queue.size(None).await.unwrap(), 2 - index as u64);
-    }
     assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
 }
 
@@ -1777,6 +1464,7 @@ async fn verify_chain_database_handoff(
     manager: &QueueManager,
     address: std::net::SocketAddr,
     mysql: bool,
+    postgres: bool,
 ) {
     request(address, "chain/database/handoff", 200).await;
     // Fail only insertion of the successor. The head is already reserved when this fires.
@@ -1793,7 +1481,7 @@ async fn verify_chain_database_handoff(
         "--once",
         "--tries=2",
     ];
-    artisan_status(base, &work, 1).await;
+    artisan(base, &work).await;
     assert_eq!(
         db.table("jobs")
             .r#where("queue", "=", "chain")
@@ -1804,7 +1492,11 @@ async fn verify_chain_database_handoff(
     );
     assert_eq!(chain_receipt(db, "database.handoff").await, 0);
     let allow = if mysql {
-        "alter table jobs drop check reject_handoff"
+        if postgres {
+            "alter table jobs drop constraint reject_handoff"
+        } else {
+            "alter table jobs drop check reject_handoff"
+        }
     } else {
         "drop trigger reject_handoff"
     };
@@ -1955,47 +1647,6 @@ async fn verify_batched_chains(
     );
 }
 
-async fn verify_batched_chain_recovery(
-    base: &Path,
-    db: &Connection,
-    address: std::net::SocketAddr,
-    mysql: bool,
-) {
-    let batch = request(address, "batched-chains/database/recover", 200)
-        .await
-        .unwrap();
-    let id = batch["id"].as_str().unwrap();
-    let repository =
-        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
-    let reject = if mysql {
-        r#"alter table jobs add constraint reject_batched_tail check (payload not like '%"data":"database.recover-tail"%' or payload like '%"data":"database.recover-head"%')"#
-    } else {
-        r#"create trigger reject_batched_tail before insert on jobs when new.payload like '%"data":"database.recover-tail"%' begin select raise(abort, 'chain handoff rejected'); end"#
-    };
-    db.unprepared(reject).await.unwrap();
-    let once = ["queue:work", "database", "--queue=batched-chains", "--once"];
-    artisan_status(base, &once, 1).await;
-    assert_eq!(repository.find(id).await.unwrap().unwrap().pending_jobs, 1);
-    let allow = if mysql {
-        "alter table jobs drop check reject_batched_tail"
-    } else {
-        "drop trigger reject_batched_tail"
-    };
-    db.unprepared(allow).await.unwrap();
-    db.statement(
-        "update jobs set reserved_at = 0 where queue = ?",
-        &["batched-chains".into()],
-    )
-    .await
-    .unwrap();
-    artisan(base, &once).await;
-    assert_eq!(chain_receipt(db, "database.recover-head").await, 1);
-    assert_eq!(chain_receipt(db, "database.recover-tail").await, 0);
-    artisan(base, &once).await;
-    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
-    assert_eq!(chain_receipt(db, "database.recover-tail").await, 1);
-}
-
 async fn chained_batch_id(db: &Connection, name: &str) -> String {
     let batch = db
         .table("job_batches")
@@ -2035,17 +1686,7 @@ async fn verify_chained_batches(
                 .unwrap(),
             0
         );
-        if connection == "database" && kind == "ok" {
-            // Replay the same orchestration step after its batch is already persisted.
-            db.statement(
-                "insert into jobs (queue, payload, attempts, available_at, created_at) select queue, payload, 0, available_at, created_at from jobs where queue = ?",
-                &["chain".into()],
-            ).await.unwrap();
-        }
         artisan(base, &outer_once).await;
-        if connection == "database" && kind == "ok" {
-            artisan(base, &outer_once).await;
-        }
         let id = chained_batch_id(db, &name).await;
         assert_eq!(outer.size(Some("chain")).await.unwrap(), 0);
         assert_eq!(repository.find(&id).await.unwrap().unwrap().pending_jobs, 2);
@@ -2104,76 +1745,6 @@ async fn verify_chained_batches(
     artisan(base, &outer_once).await;
     assert_eq!(
         chain_receipt(db, &format!("{connection}.pair-last")).await,
-        1
-    );
-}
-
-async fn verify_chained_batch_recovery(
-    base: &Path,
-    db: &Connection,
-    address: std::net::SocketAddr,
-    redis: Option<&RedisConnection>,
-    mysql: bool,
-) {
-    let connection = if redis.is_some() { "redis" } else { "database" };
-    let name = format!("chained-{connection}-recover");
-    request(address, &format!("chained-batch/{connection}/recover"), 200).await;
-    let outer_once = ["queue:work", connection, "--queue=chain", "--once"];
-    artisan(base, &outer_once).await;
-    artisan(base, &outer_once).await;
-    let id = chained_batch_id(db, &name).await;
-    let ready = redis.map(|redis| redis.key("queues:chain"));
-    if let Some((redis, ready)) = redis.zip(ready.as_deref()) {
-        redis
-            .command("SET", &[ready.as_bytes(), b"wrong type"])
-            .await
-            .unwrap();
-    } else {
-        let reject = if mysql {
-            r#"alter table jobs add constraint reject_continuation check (payload not like '%"data":"database.recover-last"%')"#
-        } else {
-            r#"create trigger reject_continuation before insert on jobs when new.payload like '%"data":"database.recover-last"%' begin select raise(abort, 'continuation rejected'); end"#
-        };
-        db.unprepared(reject).await.unwrap();
-    }
-    let inner = [
-        "queue:work",
-        connection,
-        "--queue=inner-batch",
-        "--stop-when-empty",
-    ];
-    artisan(base, &inner).await;
-    assert_eq!(
-        db.table("job_batches_continuations")
-            .r#where("batch_id", "=", id.as_str())
-            .r#where("ready", "=", true)
-            .count("*")
-            .await
-            .unwrap(),
-        1
-    );
-    if let Some((redis, ready)) = redis.zip(ready.as_deref()) {
-        redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
-    } else {
-        let allow = if mysql {
-            "alter table jobs drop check reject_continuation"
-        } else {
-            "drop trigger reject_continuation"
-        };
-        db.unprepared(allow).await.unwrap();
-    }
-    let publish = ["queue:publish-batches"];
-    let (first, second) = tokio::join!(artisan(base, &publish), artisan(base, &publish));
-    assert_eq!(
-        [first, second]
-            .iter()
-            .filter(|line| line.contains("1 chained batch continuations published."))
-            .count(),
-        1
-    );
-    artisan(base, &outer_once).await;
-    assert_eq!(
-        chain_receipt(db, &format!("{connection}.recover-last")).await,
         1
     );
 }
@@ -2247,8 +1818,6 @@ async fn verify_cross_connection_routing(
     db: &Connection,
     manager: &QueueManager,
     address: std::net::SocketAddr,
-    redis: &RedisConnection,
-    mysql: bool,
 ) {
     for (source, target) in [("database", "redis"), ("redis", "database")] {
         let original = manager.connection(Some(source)).unwrap();
@@ -2257,138 +1826,18 @@ async fn verify_cross_connection_routing(
         let alternate = ["queue:work", target, "--queue=alternate", "--once"];
         request(address, &format!("routed/{source}/{target}/cross"), 200).await;
         artisan(base, &first).await;
-        assert_eq!(original.size(Some("chain")).await.unwrap(), 1);
-        let mut receipt_key = None;
-        if target == "redis" {
-            let ready = redis.key("queues:alternate");
-            redis
-                .command("SET", &[ready.as_bytes(), b"wrong type"])
-                .await
-                .unwrap();
-            artisan_status(base, &first, 1).await;
-            assert_eq!(original.size(Some("chain")).await.unwrap(), 1);
-            redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
-            db.statement(
-                "update jobs set available_at = 0 where queue = ?",
-                &["chain".into()],
-            )
-            .await
-            .unwrap();
-            let row = db
-                .table("jobs")
-                .r#where("queue", "=", "chain")
-                .first()
-                .await
-                .unwrap()
-                .unwrap();
-            let Some(Value::Text(raw)) = row.get("payload") else {
-                panic!("missing relay payload")
-            };
-            let relay: Json = serde_json::from_str(raw).unwrap();
-            let key = redis.key(&format!(
-                "queue-chain-delivery:{}",
-                relay["uuid"].as_str().unwrap()
-            ));
-            let allow = if mysql {
-                db.unprepared("create table chain_ack_guard (job_id bigint unsigned not null, foreign key (job_id) references jobs(id))").await.unwrap();
-                db.statement(
-                    "insert into chain_ack_guard (job_id) values (?)",
-                    &[row.get("id").unwrap().clone()],
-                )
-                .await
-                .unwrap();
-                "drop table chain_ack_guard"
-            } else {
-                db.unprepared("create trigger reject_chain_ack before delete on jobs begin select raise(abort, 'ack rejected'); end").await.unwrap();
-                "drop trigger reject_chain_ack"
-            };
-            artisan_status(base, &first, 1).await;
-            assert_eq!(destination.size(Some("alternate")).await.unwrap(), 1);
-            assert_eq!(
-                redis.command("TTL", &[key.as_bytes()]).await.unwrap(),
-                openrust::redis::Value::Int(-1)
-            );
-            db.unprepared(allow).await.unwrap();
-            db.statement(
-                "update jobs set reserved_at = 0 where queue = ?",
-                &["chain".into()],
-            )
-            .await
-            .unwrap();
-            receipt_key = Some(key);
-            // A redelivery of the same forwarding envelope must not re-enqueue the job.
-            db.statement(
-                "insert into jobs (queue, payload, attempts, available_at, created_at) select queue, payload, 0, available_at, created_at from jobs where queue = ?",
-                &["chain".into()],
-            ).await.unwrap();
-        } else {
-            let ready = redis.key("queues:chain");
-            redis.command("EVAL", &[
-                b"local raw=redis.call('LINDEX', KEYS[1], 0); return redis.call('RPUSH', KEYS[1], raw)",
-                b"1",
-                ready.as_bytes(),
-            ]).await.unwrap();
-            let reject = if mysql {
-                r#"alter table jobs add constraint reject_forwarded_job check (payload not like '%"data":"database.alternate.cross-middle"%')"#
-            } else {
-                r#"create trigger reject_forwarded_job before insert on jobs when new.payload like '%"data":"database.alternate.cross-middle"%' begin select raise(abort, 'forwarding rejected'); end"#
-            };
-            db.unprepared(reject).await.unwrap();
-            let receipts = db.table("job_chain_deliveries").count("*").await.unwrap();
-            artisan_status(base, &first, 1).await;
-            assert_eq!(
-                db.table("job_chain_deliveries").count("*").await.unwrap(),
-                receipts
-            );
-            let allow = if mysql {
-                "alter table jobs drop check reject_forwarded_job"
-            } else {
-                "drop trigger reject_forwarded_job"
-            };
-            db.unprepared(allow).await.unwrap();
-            let delayed = redis.key("queues:chain:delayed");
-            redis.command("EVAL", &[
-                b"local rows=redis.call('ZRANGE', KEYS[1], 0, -1); for _, raw in ipairs(rows) do redis.call('ZADD', KEYS[1], 0, raw) end; return #rows",
-                b"1",
-                delayed.as_bytes(),
-            ]).await.unwrap();
-        }
-        artisan(base, &first).await;
-        artisan(base, &first).await;
         assert_eq!(original.size(Some("chain")).await.unwrap(), 0);
         assert_eq!(destination.size(Some("alternate")).await.unwrap(), 1);
-        if let Some(key) = receipt_key {
-            let ttl = redis.command("TTL", &[key.as_bytes()]).await.unwrap();
-            assert!(
-                matches!(ttl, openrust::redis::Value::Int(86300..=86400)),
-                "{ttl:?}"
-            );
-            redis.command("DEL", &[key.as_bytes()]).await.unwrap();
-        }
-        artisan(base, &alternate).await;
         artisan(base, &alternate).await;
         artisan(base, &first).await;
-        assert_eq!(
-            chain_receipt(db, &format!("{source}.chain.cross-first")).await,
-            1
-        );
-        assert_eq!(
-            chain_receipt(db, &format!("{target}.alternate.cross-middle")).await,
-            1
-        );
-        assert_eq!(
-            chain_receipt(db, &format!("{source}.chain.cross-last")).await,
-            1
-        );
+        for name in [
+            format!("{source}.chain.cross-first"),
+            format!("{target}.alternate.cross-middle"),
+            format!("{source}.chain.cross-last"),
+        ] {
+            assert_eq!(chain_receipt(db, &name).await, 1);
+        }
     }
-    assert_eq!(
-        db.table("job_chain_deliveries")
-            .whereNotNull("acknowledged_at")
-            .count("*")
-            .await
-            .unwrap(),
-        2
-    );
 }
 
 async fn verify_sync_successors(
@@ -2407,8 +1856,6 @@ async fn verify_sync_successors(
         request(address, &format!("routed/{source}/sync/{kind}"), 200).await;
         artisan(base, &once).await;
         assert_eq!(chain_receipt(db, &first_receipt).await, 1);
-        assert_eq!(chain_receipt(db, &sync_receipt).await, previous_sync);
-        artisan(base, &once).await;
         assert_eq!(chain_receipt(db, &sync_receipt).await, previous_sync + 1);
         assert_eq!(chain_receipt(db, &last_receipt).await, 0);
         artisan(base, &once).await;
@@ -2421,64 +1868,6 @@ async fn verify_sync_successors(
             previous_catch + u64::from(kind == "sync-fail")
         );
     }
-}
-
-async fn verify_chain_receipt_pruning(base: &Path, db: &Connection) {
-    let table = "job_chain_deliveries";
-    let now = chrono::Utc::now().timestamp();
-    for (id, time) in [
-        ("stale", Some(now - 48 * 3600)),
-        ("recent", Some(now)),
-        ("pending", None),
-    ] {
-        db.table(table)
-            .insert(&[[
-                ("id".into(), id.into()),
-                (
-                    "acknowledged_at".into(),
-                    time.map_or(Value::Null, Value::from),
-                ),
-            ]
-            .into_iter()
-            .collect()])
-            .await
-            .unwrap();
-    }
-    let pruned = artisan(
-        base,
-        &["queue:prune-chain-deliveries", "database", "--hours=24"],
-    )
-    .await;
-    assert!(
-        pruned.contains("1 chain delivery receipts deleted."),
-        "{pruned}"
-    );
-    assert_eq!(
-        db.table(table)
-            .r#where("id", "=", "stale")
-            .count("*")
-            .await
-            .unwrap(),
-        0
-    );
-    assert_eq!(
-        db.table(table)
-            .r#where("id", "=", "pending")
-            .whereNull("acknowledged_at")
-            .count("*")
-            .await
-            .unwrap(),
-        1
-    );
-    assert_eq!(
-        db.table(table)
-            .r#where("id", "=", "recent")
-            .count("*")
-            .await
-            .unwrap(),
-        1
-    );
-    artisan_status(base, &["queue:prune-chain-deliveries", "sync"], 1).await;
 }
 
 async fn verify_conditional_chain(
@@ -2608,7 +1997,6 @@ async fn verify_batched_chain_edit(
     db: &Connection,
     address: std::net::SocketAddr,
     connection: &str,
-    database: Option<bool>,
 ) {
     let batch = request(address, &format!("batched-chains/{connection}/edit"), 200)
         .await
@@ -2617,29 +2005,6 @@ async fn verify_batched_chain_edit(
     let repository =
         openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
     let once = ["queue:work", connection, "--queue=batched-chains", "--once"];
-    if let Some(mysql) = database {
-        let reject = if mysql {
-            r#"alter table jobs add constraint reject_edited_chain check (payload not like '%"data":"database.edit-batched-added"%')"#
-        } else {
-            r#"create trigger reject_edited_chain before insert on jobs when new.payload like '%"data":"database.edit-batched-added"%' begin select raise(abort, 'handoff rejected'); end"#
-        };
-        db.unprepared(reject).await.unwrap();
-        artisan_status(base, &once, 1).await;
-        let snapshot = repository.find(id).await.unwrap().unwrap();
-        assert_eq!((snapshot.total_jobs, snapshot.pending_jobs), (3, 2));
-        let allow = if mysql {
-            "alter table jobs drop check reject_edited_chain"
-        } else {
-            "drop trigger reject_edited_chain"
-        };
-        db.unprepared(allow).await.unwrap();
-        db.statement(
-            "update jobs set reserved_at = 0 where queue = ?",
-            &["batched-chains".into()],
-        )
-        .await
-        .unwrap();
-    }
     artisan(base, &once).await;
     let snapshot = repository.find(id).await.unwrap().unwrap();
     assert_eq!((snapshot.total_jobs, snapshot.pending_jobs), (3, 2));
@@ -2727,60 +2092,10 @@ async fn verify_database_cross_batch(
     destination: &Connection,
     address: std::net::SocketAddr,
 ) {
-    destination
-        .statement("rename table jobs to jobs_unavailable", &[])
-        .await
-        .unwrap();
     let batch = request(address, "database-cross", 200).await.unwrap();
     let id = batch["id"].as_str().unwrap();
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
-    assert_eq!(
-        destination
-            .table("job_chain_deliveries")
-            .count("*")
-            .await
-            .unwrap(),
-        0
-    );
-    request(address, &format!("append/{id}/cross-addition"), 200).await;
-    assert_eq!(
-        db.table("job_batches_additions").count("*").await.unwrap(),
-        1
-    );
-    destination
-        .statement("rename table jobs_unavailable to jobs", &[])
-        .await
-        .unwrap();
-
-    db.statement("create table pending_ack_block (batch_id varchar(255) primary key, foreign key (batch_id) references job_batches_outbox(batch_id))", &[]).await.unwrap();
-    db.table("pending_ack_block")
-        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
-        .await
-        .unwrap();
-    artisan_status(base, &["queue:publish-batches"], 1).await;
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
     assert_eq!(destination.table("jobs").count("*").await.unwrap(), 2);
-    db.statement("drop table pending_ack_block", &[])
-        .await
-        .unwrap();
-    let args = ["queue:publish-batches"];
-    let _ = tokio::join!(artisan(base, &args), artisan(base, &args));
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
-    assert_eq!(
-        db.table("job_batches_additions").count("*").await.unwrap(),
-        0
-    );
-    assert_eq!(destination.table("jobs").count("*").await.unwrap(), 3);
-    assert_eq!(
-        destination
-            .table("job_chain_deliveries")
-            .whereNotNull("acknowledged_at")
-            .count("*")
-            .await
-            .unwrap(),
-        2
-    );
-
+    request(address, &format!("append/{id}/cross-extra"), 200).await;
     artisan(
         base,
         &[
@@ -2791,13 +2106,14 @@ async fn verify_database_cross_batch(
         ],
     )
     .await;
-    assert_eq!(destination.table("jobs").count("*").await.unwrap(), 0);
-    for name in ["cross-first", "cross-second", "cross-addition"] {
-        assert_eq!(chain_receipt(db, name).await, 1);
-    }
-    let repository =
-        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
-    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
+    let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
+        .unwrap()
+        .find(id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(batch.total_jobs, 3);
+    assert_eq!(batch.progress(), 100);
 }
 
 async fn verify_redis_batch(
@@ -2811,53 +2127,13 @@ async fn verify_redis_batch(
         .set("queues:redis-batch", b"reject publication")
         .await
         .unwrap();
-    let accepted = request(address, "redis-batch", 200).await.unwrap();
-    let id = accepted["id"].as_str().unwrap();
-    assert_eq!(accepted["pendingJobs"], 2);
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
-    assert!(event_trace(db, id).await.is_empty());
-    artisan_status(base, &["queue:publish-batches", "--limit=1"], 1).await;
-    assert_eq!(
-        redis.get("queues:redis-batch").await.unwrap().unwrap(),
-        b"reject publication"
-    );
+    let before = db.table("job_batches").count("*").await.unwrap();
+    request(address, "redis-batch", 500).await;
+    assert_eq!(db.table("job_batches").count("*").await.unwrap(), before);
     redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
-
-    // Redis accepts both jobs, but a failed SQL acknowledgement leaves the intent for replay.
-    let mut schema = db.getSchemaBuilder();
-    schema
-        .create("pending_ack_block", |table| {
-            table.string("batch_id", 255).primary();
-            table
-                .foreign(&["batch_id"], None)
-                .references("batch_id")
-                .on("job_batches_outbox");
-        })
-        .await
-        .unwrap();
-    db.table("pending_ack_block")
-        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
-        .await
-        .unwrap();
-    artisan_status(base, &["queue:publish-batches"], 1).await;
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
-    let marker = format!("queue-batches:{id}");
-    assert_eq!(redis.get(&marker).await.unwrap(), Some(b"1".to_vec()));
-    schema.dropIfExists("pending_ack_block").await.unwrap();
-    let args = ["queue:publish-batches", "--limit=1"];
-    let (left, right) = tokio::join!(artisan(base, &args), artisan(base, &args));
-    assert_eq!(
-        [left, right]
-            .iter()
-            .filter(|output| output.contains("1 batches published."))
-            .count(),
-        1
-    );
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
-    assert_eq!(
-        redis.command("LLEN", &[ready.as_bytes()]).await.unwrap(),
-        openrust::redis::Value::Int(2)
-    );
+    let batch = request(address, "redis-batch", 200).await.unwrap();
+    let id = batch["id"].as_str().unwrap();
+    request(address, &format!("append/{id}/redis-extra"), 200).await;
     artisan(
         base,
         &[
@@ -2868,107 +2144,21 @@ async fn verify_redis_batch(
         ],
     )
     .await;
-    for name in ["redis-first", "redis-second"] {
-        assert_eq!(
-            db.table("receipts")
-                .r#where("name", "=", name)
-                .count("*")
-                .await
-                .unwrap(),
-            1
-        );
-    }
     let repository =
         openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
-    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
-    assert_eq!(
-        event_trace(db, id).await,
-        [
-            ("BatchDispatched".into(), None),
-            ("BatchStarted".into(), None),
-            ("BatchFinished".into(), None),
-        ]
-    );
-    let marker = redis.key(&marker);
-    redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
-
-    let normal = request(address, "redis-batch", 200).await.unwrap();
-    let normal_id = normal["id"].as_str().unwrap();
-    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
-    artisan(
-        base,
-        &[
-            "queue:work",
-            "redis",
-            "--queue=redis-batch",
-            "--stop-when-empty",
-        ],
-    )
-    .await;
-    assert_eq!(
-        repository
-            .find(normal_id)
-            .await
-            .unwrap()
-            .unwrap()
-            .progress(),
-        100
-    );
+    let complete = repository.find(id).await.unwrap().unwrap();
+    assert_eq!((complete.total_jobs, complete.pending_jobs), (3, 0));
+    for name in ["redis-first", "redis-second", "redis-extra"] {
+        assert_eq!(chain_receipt(db, name).await, 1);
+    }
+    // A rejected addition rolls back the counters without an extra recovery table.
     redis
         .set("queues:redis-batch", b"reject additions")
         .await
         .unwrap();
-    for name in ["redis-extra-one", "redis-extra-two"] {
-        request(address, &format!("append/{normal_id}/{name}"), 200)
-            .await
-            .unwrap();
-    }
-    assert_eq!(
-        db.table("job_batches_additions").count("*").await.unwrap(),
-        2
-    );
-    let additions = db.table("job_batches_additions").get().await.unwrap();
+    request(address, &format!("append/{id}/rejected-extra"), 500).await;
+    assert_eq!(repository.find(id).await.unwrap().unwrap(), complete);
     redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
-    let recovered = artisan(base, &["queue:publish-batches"]).await;
-    assert!(recovered.contains("2 batches published."), "{recovered}");
-    assert_eq!(
-        db.table("job_batches_additions").count("*").await.unwrap(),
-        0
-    );
-    assert_eq!(
-        redis.command("LLEN", &[ready.as_bytes()]).await.unwrap(),
-        openrust::redis::Value::Int(2)
-    );
-    artisan(
-        base,
-        &[
-            "queue:work",
-            "redis",
-            "--queue=redis-batch",
-            "--stop-when-empty",
-        ],
-    )
-    .await;
-    let complete = repository.find(normal_id).await.unwrap().unwrap();
-    assert_eq!(complete.total_jobs, 4);
-    assert_eq!(complete.progress(), 100);
-    assert_eq!(
-        event_trace(db, normal_id)
-            .await
-            .iter()
-            .filter(|(name, _)| name == "BatchDispatched")
-            .count(),
-        1
-    );
-    for row in additions {
-        let Some(Value::Text(id)) = row.get("id") else {
-            panic!("missing addition id")
-        };
-        let marker = redis.key(&format!("queue-batches:{id}"));
-        redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
-    }
-    let marker = redis.key(&format!("queue-batches:{normal_id}"));
-    redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
 }
 
 async fn verify_pruning(base: &Path, db: &Connection) {
@@ -3004,19 +2194,6 @@ async fn verify_pruning(base: &Path, db: &Connection) {
     ] {
         db.table("job_batches")
             .insert(&[batch(id.into(), created, finished, cancelled)])
-            .await
-            .unwrap();
-    }
-    for id in ["old-0000", "old-1000", "old-cancelled", "recent-completed"] {
-        db.table("job_batches_jobs")
-            .insert(&[[
-                ("batch_id".into(), id.into()),
-                ("job_id".into(), "job".into()),
-                ("delivery_id".into(), "".into()),
-                ("succeeded".into(), true.into()),
-            ]
-            .into_iter()
-            .collect()])
             .await
             .unwrap();
     }
@@ -3062,7 +2239,6 @@ async fn verify_pruning(base: &Path, db: &Connection) {
     ] {
         assert!(repository.find(id).await.unwrap().is_some(), "{id}");
     }
-    assert_eq!(db.table("job_batches_jobs").count("*").await.unwrap(), 8);
     let repeat = artisan(base, &args).await;
     for label in [
         "entries deleted.",
@@ -3086,6 +2262,15 @@ async fn dispatches_and_tracks_batches_on_sqlite() {
 async fn dispatches_and_tracks_batches_on_mysql() {
     let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    Box::pin(exercise(Some(&url))).await;
+}
+
+#[tokio::test]
+async fn dispatches_and_tracks_batches_on_postgres() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
         return;
     };
     Box::pin(exercise(Some(&url))).await;

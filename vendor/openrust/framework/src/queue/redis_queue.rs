@@ -29,22 +29,6 @@ end
 return 1
 ";
 
-const PUBLISH_BATCH: &str = r"
-if redis.call('EXISTS', KEYS[3]) == 1 then return 0 end
-for i = 1, 2 do
-    local kind = redis.call('TYPE', KEYS[i]).ok
-    if kind ~= 'none' and kind ~= 'list' then
-        return redis.error_reply('Invalid batch queue key type')
-    end
-end
-for _, job in ipairs(ARGV) do
-    redis.call('RPUSH', KEYS[1], job)
-    redis.call('RPUSH', KEYS[2], 1)
-end
-redis.call('SET', KEYS[3], 1)
-return 1
-";
-
 const RESERVE: &str = r"
 local function move_due(source)
     local jobs = redis.call('ZRANGEBYSCORE', source, '-inf', now, 'LIMIT', 0, 1000)
@@ -107,8 +91,6 @@ local expires = redis.call('ZSCORE', KEYS[1], ARGV[1])
 if not expires or tonumber(expires) <= now then return 0 end
 ";
 const ADVANCE_CHAIN_END: &str = "return redis.call('ZREM', KEYS[1], ARGV[1])";
-const FORWARD_CHAIN_START: &str = "if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end\n";
-const FORWARD_CHAIN_END: &str = "redis.call('SET', KEYS[1], 1); return 1";
 
 const SIZE: &str = r"
 return redis.call('LLEN', KEYS[1]) + redis.call('ZCARD', KEYS[2]) + redis.call('ZCARD', KEYS[3])
@@ -198,91 +180,6 @@ impl RedisQueue {
             .await
             .map_err(backend)?;
         Ok(Some(job.id))
-    }
-
-    fn publication_key(&self, id: &str) -> String {
-        self.connection.key(&format!("queue-batches:{id}"))
-    }
-
-    pub(super) async fn publish_batch(
-        &self,
-        id: &str,
-        queue: &str,
-        payloads: &[Payload],
-    ) -> QueueResult<()> {
-        let [ready, _, _] = self.keys(self.queue_name(Some(queue))?);
-        let notify = format!("{ready}:notify");
-        let marker = self.publication_key(id);
-        let mut command = script(PUBLISH_BATCH, &[&ready, &notify, &marker]);
-        for payload in payloads {
-            let job = RedisJob {
-                id: payload.uuid().into(),
-                payload: payload.encode()?,
-                attempts: 0,
-                created_at: Some(created_at()),
-            };
-            command.arg(serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?);
-        }
-        self.connection
-            .query::<u32>(&command)
-            .await
-            .map_err(backend)?;
-        Ok(())
-    }
-
-    pub(super) async fn forward_chain(
-        &self,
-        delivery: &str,
-        payload: &Payload,
-        queue: Option<&str>,
-        delay: Option<Delay>,
-    ) -> QueueResult<()> {
-        let [ready, delayed, _] = self.keys(self.queue_name(queue)?);
-        let notify = format!("{ready}:notify");
-        let marker = self.chain_delivery_key(delivery);
-        let command = chain_enqueue_command(
-            FORWARD_CHAIN_START,
-            FORWARD_CHAIN_END,
-            [&marker, &ready, &delayed, &notify],
-            delivery,
-            payload,
-            delay,
-        )?;
-        self.connection
-            .query::<u32>(&command)
-            .await
-            .map_err(backend)?;
-        Ok(())
-    }
-
-    fn chain_delivery_key(&self, delivery: &str) -> String {
-        self.connection
-            .key(&format!("queue-chain-delivery:{delivery}"))
-    }
-
-    pub(super) async fn acknowledge_chain_delivery(&self, delivery: &str) -> QueueResult<()> {
-        self.connection
-            .query::<bool>(
-                ::redis::cmd("EXPIRE")
-                    .arg(self.chain_delivery_key(delivery))
-                    .arg(86400)
-                    .arg("NX"),
-            )
-            .await
-            .map_err(backend)?;
-        Ok(())
-    }
-
-    pub(super) async fn expire_publication(&self, id: &str) {
-        // Keep the marker until after SQL acknowledges delivery.
-        let _ = self
-            .connection
-            .query::<bool>(
-                ::redis::cmd("EXPIRE")
-                    .arg(self.publication_key(id))
-                    .arg(86400),
-            )
-            .await;
     }
 
     async fn reserve(&self, queue: &str) -> QueueResult<Option<Box<dyn Job>>> {

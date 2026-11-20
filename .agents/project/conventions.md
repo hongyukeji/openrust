@@ -55,7 +55,7 @@
 
 ### 日常 PostgreSQL 18 与 Redis 8 验收
 
-2026-11-20 用户将日常开发环境切换为 Rust 1.94.0＋PostgreSQL 18＋Redis 8，覆盖此前日常仅运行 MySQL 8.4 的规则。仓库工具链由根目录 `rust-toolchain.toml` 固定；应用以本地 `.env` 的 `DB_CONNECTION=pgsql` 连接开发库，缓存／队列可选择 Redis。框架默认 SQLite 契约和既有数据库支持范围不变。
+2026-11-20 用户将日常开发环境切换为 Rust 1.94.0＋PostgreSQL 18＋Redis 8，覆盖此前日常仅运行 MySQL 8.4 的规则。仓库不通过工具链文件固定版本；保留 `Cargo.toml` 的 `rust-version` 声明最低版本，日常验收显式使用 `cargo +1.94.0`；应用以本地 `.env` 的 `DB_CONNECTION=pgsql` 连接开发库，缓存／队列可选择 Redis。框架默认 SQLite 契约和既有数据库支持范围不变。
 
 临时数据库验收使用 `python3 -B tests/postgres_acceptance.py -- <验收命令>`，本地 Docker 须已有 `postgres:18`。入口核对镜像数据目录 `/var/lib/postgresql`（包含 18 的版本化 PGDATA），以 1 GiB tmpfs 承载数据，使用随机回环端口、临时凭据和批次标签。通过同一账号／数据库的 `SHOW server_version_num` 确认 18.x 后，向命令提供 `OPENRUST_TEST_POSTGRES_URL`、`OPENRUST_REQUIRE_POSTGRES=1` 和 `OPENRUST_ACCEPTANCE_POSTGRES_CONTAINER`。不把开发库连接传给会建表／删表的测试。
 

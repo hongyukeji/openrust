@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 [队列存储对齐 Laravel](audits/queue-laravel-schema.md)：彻底移除五张辅助表、七条迁移、投递恢复／回执代码及两个专有恢复命令，保留 jobs／failed_jobs／job_batches；续链进 options，后继直接派发。Rust1.94＋PG18.6／Redis8.10.3 五项顶层验收、严格全 workspace Clippy／fmt、三语构建和 12＋6 浏览器检查通过。根工具链文件已删除，Cargo rust-version 保留；旧表／数据未删除，升级先排空旧发布／转发记录。最终集成 af4acff95 基线复验通过，专属产物再次清理后剩余 75,414,228 KiB，全部卷保留。本地提交不推送。
+
 - 2026-11-20 [SQLite／RSA安全依赖](audits/dependency-security/README.md)完成：SQLite3.54.1与稳定RSA0.10.0、最小SQLx／WebAuthn适配，25原生＋PostgreSQL18三项＋MySQL授权专项两项、真实Chrome ES256／RS256、严格全feature Clippy／fmt／根入口／关闭／三语12浏览器通过。已知漏洞公告消除，4维护公告保留，无ignore；仅本地提交。
 
 - 2026-11-20 按用户要求核对并移除旧 `.agents/project/core/` 目录：21 份骨架设计草稿及 1 份启动清单已完整归档，逐字节和 SHA-256 校验通过。现行计划／验收／正文／源码对照及恢复入口见 [归档记录](audits/core-drafts-archive/README.md)。旧设计不再作为当前开发依据；数据库翻译扩展仍未实现，已保留在 [项目待办](todo.md)，不因归档或骨架编译通过而视为交付。
@@ -17,7 +19,7 @@
 
 - 2026-11-20 用户明确要求记录：`vendor/openrust/translation-database/` **仅为骨架，数据库翻译功能尚未实现、未完成行为验收**。提交 `c9791297c` 为使 `members = ["vendor/openrust/*"]` 正常识别所有扩展目录，临时补齐该包的 `Cargo.toml` 并纳入已有占位源码；`DatabaseLoader` 目前仅为空结构体。此前编译／格式／Clippy 通过只证明骨架可构建，不代表功能完成或可用。后续 Agent 不得据此标记数据库翻译扩展已交付，仍须按项目计划核对契约、实现数据库加载与装配，并补充行为测试和验收记录。
 
-- 2026-11-20 用户将日常环境切换为 **Rust 1.94.0＋PostgreSQL 18＋Redis 8**，覆盖下方历史 MySQL 日常规则。[切换验收](audits/development-postgres.md)：工具链固定、本地独立开发库／角色及 `.env` 已配置，13条迁移、HTTP／Session、PostgreSQL JSON两函数、配置1、Redis跨入口1及隔离夹具生命周期通过。日常使用 `tests/postgres_acceptance.py`，MySQL专项／发布矩阵及旧数据保留；认证完整生成应用仍须补 PostgreSQL 整合。旧运行服务保留，重启后读取新配置。本批target已回收，全部卷保留，剩余91,289,040 KiB；核范围本地提交，不推送。
+- 2026-11-20 用户将日常环境切换为 **Rust 1.94.0＋PostgreSQL 18＋Redis 8**，覆盖下方历史 MySQL 日常规则。[切换验收](audits/development-postgres.md)：显式 Rust 1.94 验收、本地独立开发库／角色及 `.env` 已配置，13条迁移、HTTP／Session、PostgreSQL JSON两函数、配置1、Redis跨入口1及隔离夹具生命周期通过。日常使用 `tests/postgres_acceptance.py`，MySQL专项／发布矩阵及旧数据保留；认证完整生成应用仍须补 PostgreSQL 整合。旧运行服务保留，重启后读取新配置。本批target已回收，全部卷保留，剩余91,289,040 KiB；核范围本地提交，不推送。
 
 - 2026-11-20 [三语生态导航](audits/docs-scope/README.md)完成验收：每语26个原空主题明确具体支持边界／原生入口，3个语言首页补齐；保持固定导航，空章节构建失败。每语106导航／107Markdown静态检查，636个真实浏览页面、156个状态页、通用12组合及空页负例均通过。仅文档／站点检查，未新增未授权生态包；源码SHA／归档与专属清理留证，本地提交不推送。V16的正式API文档与发布快照仍待。
 

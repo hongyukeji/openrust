@@ -40,7 +40,16 @@ impl Root {
             .env("APP_BASE_PATH", &self.0)
             .env("APP_ENV", environment);
         if let Some(url) = mysql {
-            command.env("DB_CONNECTION", "mysql").env("DB_URL", url);
+            command
+                .env(
+                    "DB_CONNECTION",
+                    if url.starts_with("postgres") {
+                        "pgsql"
+                    } else {
+                        "mysql"
+                    },
+                )
+                .env("DB_URL", url);
         } else {
             command
                 .env("DB_CONNECTION", "sqlite")
@@ -399,7 +408,11 @@ async fn verify(mysql: Option<&str>) {
     assert!(String::from_utf8_lossy(&pending.stdout).contains("Pending"));
 
     let path = "database/migrations/0001_01_01_000000_create_users_table.rs";
-    let database = if mysql.is_some() { "mysql" } else { "sqlite" };
+    let database = match mysql {
+        Some(url) if url.starts_with("postgres") => "pgsql",
+        Some(_) => "mysql",
+        None => "sqlite",
+    };
     assert!(
         success(root.run(
             "production",
@@ -464,7 +477,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(success(run(&["migrate:status", "--pending=17"])).contains("No pending migrations"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        13 + u64::from(sanctum_migration().is_some())
+        6 + u64::from(sanctum_migration().is_some())
     );
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
@@ -483,135 +496,22 @@ async fn verify(mysql: Option<&str>) {
         #[cfg(not(feature = "sanctum"))]
         assert!(success(run(&["migrate:rollback", "--path", path, "--step=1"])).contains("DONE"));
     }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(
-        !schema
-            .hasColumn("job_chain_deliveries", "acknowledged_at")
-            .await
-            .unwrap()
-    );
-    assert!(schema.hasTable("job_chain_deliveries").await.unwrap());
-    db.table("job_chain_deliveries")
-        .insert(&[[("id".into(), "legacy-chain".into())].into_iter().collect()])
-        .await
-        .unwrap();
-    let receipt_upgrade = success(run(&["migrate"]));
-    assert!(receipt_upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
-    assert!(receipt_upgrade.contains("create_sms_deliveries_table"));
-    rollback_sms();
-    assert_eq!(
-        db.table("job_chain_deliveries")
-            .r#where("id", "=", "legacy-chain")
-            .whereNull("acknowledged_at")
-            .count("*")
-            .await
-            .unwrap(),
-        1
-    );
-    if sanctum_migration().is_some() {
-        assert!(
-            success(run(&["migrate:rollback", "--step=1"]))
-                .contains("create_personal_access_tokens_table")
-        );
-    }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("job_chain_deliveries").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(
-        !schema
-            .hasColumn("job_batches_jobs", "chain_successor")
-            .await
-            .unwrap()
-    );
-    assert!(schema.hasTable("job_batches_continuations").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("job_batches_continuations").await.unwrap());
-    assert!(schema.hasTable("job_batches_additions").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("job_batches_additions").await.unwrap());
-    assert!(schema.hasTable("job_batches_outbox").await.unwrap());
-    let batches = DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
-    let pending = batches
-        .store("legacy pending", Default::default())
-        .await
-        .unwrap();
-    db.table("job_batches_outbox")
-        .insert(&[[
-            ("batch_id".into(), pending.id.as_str().into()),
-            ("connection".into(), "redis".into()),
-            ("queue".into(), "default".into()),
-            ("payloads".into(), "[]".into()),
-        ]
-        .into_iter()
-        .collect()])
-        .await
-        .unwrap();
-    let upgraded = success(run(&["migrate"]));
-    assert!(upgraded.contains("create_job_batches_additions_table"));
-    assert!(upgraded.contains("create_job_batches_continuations_table"));
-    assert!(upgraded.contains("add_chain_successor_to_job_batches_jobs"));
-    assert!(upgraded.contains("create_job_chain_deliveries_table"));
-    assert!(upgraded.contains("add_acknowledged_at_to_job_chain_deliveries"));
-    assert!(upgraded.contains("create_sms_deliveries_table"));
-    rollback_sms();
-    assert_eq!(
-        db.table("job_batches_outbox")
-            .r#where("batch_id", "=", pending.id.as_str())
-            .count("*")
-            .await
-            .unwrap(),
-        1
-    );
-    if sanctum_migration().is_some() {
-        assert!(
-            success(run(&["migrate:rollback", "--step=1"]))
-                .contains("create_personal_access_tokens_table")
-        );
-    }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(batches.delete(&pending.id).await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("job_batches_outbox").await.unwrap());
-    assert!(schema.hasTable("job_batches_jobs").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(!schema.hasTable("job_batches_jobs").await.unwrap());
-    assert!(schema.hasTable("job_batches").await.unwrap());
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_job_batches_table"));
     assert!(!schema.hasTable("job_batches").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     let upgrade = success(run(&["migrate"]));
     assert!(upgrade.contains("create_job_batches_table"));
-    assert!(upgrade.contains("create_job_batches_jobs_table"));
-    assert!(upgrade.contains("create_job_batches_outbox_table"));
-    assert!(upgrade.contains("create_job_batches_additions_table"));
-    assert!(upgrade.contains("create_job_batches_continuations_table"));
-    assert!(upgrade.contains("add_chain_successor_to_job_batches_jobs"));
-    assert!(upgrade.contains("create_job_chain_deliveries_table"));
-    assert!(upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
     assert!(upgrade.contains("create_sms_deliveries_table"));
-    rollback_sms();
     assert!(!upgrade.contains("create_failed_jobs_table"));
-    assert!(schema.hasTable("job_batches").await.unwrap());
+    rollback_sms();
     if sanctum_migration().is_some() {
         assert!(
             success(run(&["migrate:rollback", "--step=1"]))
                 .contains("create_personal_access_tokens_table")
         );
     }
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
-    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_job_batches_table"));
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("create_failed_jobs_table"));
     assert!(!schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -807,7 +707,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("job_batches").await.unwrap());
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        13 + u64::from(sanctum_migration().is_some())
+        6 + u64::from(sanctum_migration().is_some())
     );
     success(run(&["db:wipe", "--drop-views"]));
     assert!(
@@ -1488,4 +1388,13 @@ fn artisan_generates_cache_tables_and_rejects_duplicate_migrations() {
     assert_eq!(duplicate.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&duplicate.stderr).contains("Migration already exists."));
     assert_eq!(fs::read_to_string(path).unwrap(), "bundled migration");
+}
+
+#[tokio::test]
+async fn artisan_migrations_use_a_real_postgres_ledger() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    verify(Some(&url)).await;
 }

@@ -156,7 +156,7 @@ A stored connection exposes `pop`, `delete` and `release` through the queue and 
 
 In a service provider, register a connector with `Queue::extend("custom", connector)?`, then set a named connection's `driver` to `custom` in `config/queue.rs`. The connector receives the application container, the connection name and the full connection configuration. Return an `Arc<dyn openrust::contracts::queue::Queue>` whose connection name and default queue match the configuration.
 
-Connections are cached per application. Concurrent first lookups may build several candidates, so make the connector safe to retry. The queue contract supports dispatch and reservation. Atomic batch publication uses the built-in database and Redis connections.
+Connections are cached per application. Concurrent first resolution may construct more than one candidate, so factories must tolerate retries. Custom queue drivers support dispatch and reservation. Batches use the built-in database, Redis, Beanstalkd, or SQS drivers.
 
 ## Additional queue connections {#additional-queue-connections}
 
@@ -174,7 +174,7 @@ Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANST
 
 Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
 
-When a chain crosses from a database or Redis queue into Beanstalkd or SQS, the source worker forwards the successor with its configured delay. If the destination rejects publication, the source worker releases the forwarding job for retry. Standard SQS and Beanstalkd can still duplicate a successor if publication succeeds and the source acknowledgement is interrupted.
+Across queue connections, the source worker dispatches the successor directly using its connection, queue, and delay settings, then acknowledges the current job. Publication and source acknowledgment can fail independently. Keep job handlers idempotent.
 
 ### Amazon SQS {#amazon-sqs}
 
@@ -571,15 +571,9 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-Workers move a successor to another queue on the same connection atomically. Between durable connections, the source worker records a forwarding job in its own queue. Keep a worker running on that queue so it can retry publication after an outage. Run `./artisan migrate` on each database destination to create `job_chain_deliveries`.
+The worker dispatches the next job using the connection, queue, and delay stored in its payload. Database and Redis drivers can atomically advance a chain on the same connection. Across connections, dispatch and acknowledgment are separate operations, so a crash can cause another delivery.
 
-A successor assigned to `sync` runs in the source worker process when it handles the forwarding job. Sync ignores the job’s delay. If the handler fails, the chain stops and invokes its failure callbacks. A process crash before acknowledgment can replay the synchronous handler.
-
-After the source acknowledges forwarding, Redis expires its receipt after 24 hours. For SQL, run the command below against the destination queue connection. It removes confirmed receipts older than `--hours`. Pending receipts and pre-upgrade receipts without confirmation stay available for replay protection.
-
-```sh
-./artisan queue:prune-chain-deliveries database --hours=24
-```
+A successor assigned to `sync` runs in the source worker process as the preceding job finishes. Sync ignores the job’s delay. A handler failure stops the chain and invokes its failure callbacks.
 
 ### Adding jobs to the chain {#adding-jobs-to-the-chain}
 
@@ -618,7 +612,9 @@ The methods return `None` when the chain is skipped and `Some(DispatchResult)` w
 
 ## Job batching {#job-batching}
 
-Run `./artisan migrate` to create the batch ledger and delivery history. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.
+Queue storage follows the Laravel layout: `jobs` holds pending database jobs, `failed_jobs` holds failures, and `job_batches` holds batch counters and callback options. No companion recovery tables are required. Existing installations should drain pending publications and forwarding jobs with the previous worker before upgrading. This change leaves old tables and data intact; remove them only after confirming they are unused and backed up.
+
+Run `./artisan migrate` to create the `job_batches` table. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.
 
 ```rust
 use openrust::{
@@ -675,7 +671,7 @@ fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueRes
 
 The outer chain resumes after the batch reaches its final callback phase. If the batch allows failures, it can still reach that phase and continue. If the batch is cancelled, the chain stops. When a failure cancels the batch, the outer chain’s `catch` callbacks receive the failed batch job and its error.
 
-Run `./artisan migrate` to create the continuation table. A failed publication leaves the continuation pending in SQL. Run `./artisan queue:publish-batches` to recover it.
+The continuation is serialized in `job_batches.options`, alongside the batch callbacks. The final callback phase dispatches it directly. Callback failures are reported to the application log; they are not stored in a separate publication queue.
 
 ### Adding jobs to batches {#adding-jobs-to-batches}
 
@@ -696,29 +692,25 @@ async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
 }
 ```
 
-For Redis, each addition has a separate SQL publication record. The initial publication is acknowledged before additions can be published. The recovery command also retries pending additions. If you customize the batch table, include the companion table with the `_additions` suffix.
+Additions use the same dispatch path as the initial jobs. A dispatch error rolls back the batch counters. An external broker may already have accepted some jobs before an error, so handlers must tolerate partial publication and redelivery.
 
 ### Publishing batches to Redis {#redis-batches}
 
-OpenRust commits the batch and the Redis publication intent in SQL before contacting Redis. If publication fails, `dispatch()` still returns the accepted batch. Run `queue:publish-batches` periodically to retry pending intents. Redis writes the jobs and a publication marker together. The marker stays in Redis until SQL acknowledges the publication, then OpenRust attempts to set a 24-hour expiry. Configure Redis persistence and eviction for queue data and markers. If you customize the batch table, create its companion tables with the `_jobs`, `_outbox`, `_additions`, and `_continuations` suffixes.
-
-```sh
-./artisan queue:publish-batches --limit=1
-```
+Use `.onConnection("redis")` for Redis batches. Batch state and callback options remain in `job_batches`; jobs are pushed directly to Redis. A dispatch error is returned to the caller and rolls back the SQL batch transaction. Redis writes and SQL commits are independent. A worker can receive a job before SQL commits, and a partial publication or later commit failure may leave jobs without a batch record. Design handlers for these boundaries.
 
 ### Publishing batches to a separate database {#cross-database-batches}
 
-Set `queue.batching.database` to the ledger connection and choose a database queue with its own connection through `onConnection`. Migrate both databases. The queue destination needs `jobs` and `job_chain_deliveries`. The ledger stores pending initial jobs, additions and continuations. The destination commits its receipt and jobs in one transaction. If the ledger acknowledgement fails, `queue:publish-batches` reuses the receipt and avoids duplicate inserts. Use `queue:work <connection>` on the destination.
+Set `queue.batching.database` to the batch state connection and choose a database queue through `onConnection`. The destination needs the `jobs` table; workers use the shared `job_batches` repository. If these use the same SQL connection, batch changes and queued jobs share a transaction. Separate connections commit independently and can publish partially. Consume the destination with `queue:work <connection>`.
 
 ### Publishing batches to Beanstalkd or SQS {#external-batches}
 
-Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Use the same SQL batch repository configuration in the publisher and workers. The repository commits the batch and its pending publication before sending jobs. SQS uses `SendMessageBatch`, with up to 10 messages and 1 MiB of message bodies per request. Initial publication, additions and continuations use the same recovery command.
+Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Configure the same SQL batch repository in publishers and workers. Jobs are sent while the batch transaction is open. SQS uses `SendMessageBatch`, with up to 10 messages and 1 MiB of message bodies per request.
 
-If SQS reports a partial failure, OpenRust stops sending further chunks and keeps failed and unsent entries for `queue:publish-batches`. Successful entries in the same response are removed from the pending publication. For Beanstalkd, recovery resumes after the last confirmed send. A crash, ambiguous broker response or SQL commit failure can replay a send. Keep handlers idempotent. Standard SQS and Beanstalkd cannot atomically acknowledge a send together with the SQL publication update.
+An SQS partial failure stops further chunks and returns an error. Beanstalkd returns a send error directly. The SQL transaction rolls back, while jobs already accepted by the broker remain there. There is no publication outbox or recovery command.
 
-For FIFO batches and cross-connection chain delivery, OpenRust derives the default deduplication ID from the serialized job so a replay uses the same ID. Explicit deduplication settings still apply. Amazon SQS suppresses replay only within its five-minute deduplication window.
+For FIFO batches, the default deduplication ID is derived from the serialized job. Explicit deduplication settings still apply. SQS deduplication is limited to its service window and does not provide SQL transaction atomicity.
 
-Standard SQS and Beanstalkd deliver at least once. Recovery can enqueue multiple copies of the same job UUID, and separate workers can enter the handler before either settles. Use an application idempotency key for side effects. Once a result is recorded for that delivery, workers acknowledge other copies using the recorded outcome. The SQL batch counts and terminal callbacks are updated once per delivery. A failure callback also runs only on the worker that records the terminal failure. A process crash can interrupt callbacks after settlement.
+Queue delivery and batch callbacks may run again after a crash. Batch counters are updated under a row lock in `job_batches`; no per-delivery completion ledger is maintained. Use application idempotency keys for business side effects.
 
 ### Batch callbacks {#batch-callbacks}
 
@@ -795,7 +787,7 @@ fn register_batch_events() -> EventResult<()> {
 }
 ```
 
-Events follow the committed state change. `BatchStarted` follows the first terminal job outcome, and `BatchFinished` fires when no jobs remain pending. Replaying the same delivery leaves these events unchanged. Different workers can run listeners concurrently.
+Events are dispatched after state commits. `BatchStarted` runs when the first job reaches a terminal state, and `BatchFinished` when pending jobs reach zero. Different workers may run listeners concurrently. Redelivery can repeat callbacks and effects.
 
 ### Retrying failed batch jobs {#batch-failures}
 

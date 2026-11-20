@@ -156,7 +156,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 在服務提供者中以 `Queue::extend("custom", connector)?` 註冊連線工廠，再將 `config/queue.rs` 中具名連線的 `driver` 設為 `custom`。工廠接收應用程式容器、連線名稱和完整連線設定，並傳回 `Arc<dyn openrust::contracts::queue::Queue>`。傳回的連線名稱和預設佇列需與設定一致。
 
-連線依應用程式快取。首次並行解析可能建立多個候選連線，因此工廠須能安全重試。佇列契約支援派送和預約。原子批次發布使用內建資料庫和 Redis 連線。
+連線依應用程式快取。首次並行解析可能建立多個候選連線，因此工廠須能安全重試。自訂佇列驅動程式支援派送和預約。批次使用內建資料庫、Redis、Beanstalkd 或 SQS 驅動程式。
 
 ## 其他佇列連線 {#additional-queue-connections}
 
@@ -174,7 +174,7 @@ pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
 
 確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
 
-工作鏈從資料庫或 Redis 佇列切換到 Beanstalkd 或 SQS 時，來源 Worker 依後繼工作的設定延遲轉送。目的端發佈失敗時，來源 Worker 釋放轉送工作供重試。標準 SQS 與 Beanstalkd 在發佈成功、來源確認中斷時仍可能重複發佈後繼工作。
+跨佇列連線時，來源 Worker 按後繼工作的連線、佇列和延遲設定直接派送，再確認目前工作。目的端派送和來源確認可以獨立失敗，工作處理常式應保持冪等。
 
 ### Amazon SQS {#amazon-sqs}
 
@@ -571,15 +571,9 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-同一連線內切換佇列時，Worker 原子交接。跨持久連線時，來源 Worker 會在自己的佇列中儲存轉送工作。保持來源佇列有 Worker 執行，目標恢復後可重試派送。在每個資料庫目標執行 `./artisan migrate`，建立 `job_chain_deliveries`。
+Worker 使用承載資料儲存的連線、佇列和延遲派送後繼工作。同連線內，資料庫和 Redis 驅動程式支援原子交接；跨連線時派送和確認分開執行，程序當機可能導致再次投遞。
 
-指定為 `sync` 的後續工作會在來源 Worker 處理轉送工作時於該程序內執行。同步佇列忽略工作延遲。處理器失敗時，工作鏈停止並呼叫失敗回呼。來源 Worker 在確認前當機時，同步處理器可能重新執行。
-
-來源佇列確認轉送後，Redis 憑據於 24 小時後到期。SQL 憑據可用下列命令在目標佇列連線清理，只刪除確認時間早於 `--hours` 的紀錄。待確認紀錄和升級前缺少確認時間的紀錄繼續保留，用於重放去重。
-
-```sh
-./artisan queue:prune-chain-deliveries database --hours=24
-```
+指定為 `sync` 的後繼工作在前一工作完成時，由來源 Worker 程序直接執行。Sync 忽略延遲。處理常式失敗會停止工作鏈並呼叫失敗回呼。
 
 ### 向目前工作鏈加入工作 {#adding-jobs-to-the-chain}
 
@@ -618,7 +612,9 @@ async fn dispatch_chain_if(
 
 ## 工作批次 {#job-batching}
 
-執行 `./artisan migrate` 建立批次帳本和投遞紀錄。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。
+佇列儲存沿用 Laravel 的結構：`jobs` 儲存資料庫待處理工作，`failed_jobs` 儲存失敗工作，`job_batches` 儲存批次計數和回呼選項，不需要配套復原資料表。既有部署升級前，應先以原版本 Worker 處理完待發佈記錄和轉送工作。本次變更保留舊資料表及資料，確認不再使用並備份後再清理。
+
+執行 `./artisan migrate` 建立 `job_batches` 批次資料表。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。
 
 ```rust
 use openrust::{
@@ -675,7 +671,7 @@ fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueRes
 
 批次進入最終回呼階段後，外層工作鏈繼續。批次允許失敗時，仍可進入該階段並繼續。取消批次會停止外層工作鏈。工作失敗導致批次取消時，外層工作鏈的 `catch` 回呼會收到失敗的批次工作和錯誤。
 
-執行 `./artisan migrate` 建立續鏈資料表。發佈失敗時，續鏈工作保留在 SQL 中，執行 `./artisan queue:publish-batches` 可恢復發佈。
+續鏈資訊與批次回呼一起序列化到 `job_batches.options`，在最終回呼階段直接派送。回呼失敗寫入應用程式日誌，不另外存入待發佈佇列。
 
 ### 向批次新增工作 {#adding-jobs-to-batches}
 
@@ -696,29 +692,25 @@ async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
 }
 ```
 
-Redis 每次新增工作都有獨立的 SQL 發佈紀錄。初始發佈確認後才會發佈新增工作。復原指令也會重試待發佈的新增紀錄。自訂批次資料表時，還須建立同名加 `_additions` 後綴的配套資料表。
+新增工作沿用初次派送的流程。派送失敗會復原批次計數，但外部佇列可能已接收部分工作，處理常式須能處理部分發佈和重複投遞。
 
 ### 發佈批次至 Redis {#redis-batches}
 
-OpenRust 先在 SQL 提交批次和待發佈紀錄，再聯絡 Redis。發佈失敗時，`dispatch()` 仍回傳已受理的批次。定期執行 `queue:publish-batches` 重試待發佈紀錄。Redis 一併寫入工作與發佈標記，SQL 確認發佈後，OpenRust 嘗試為標記設定 24 小時有效期。Redis 的持久化和淘汰設定須保留佇列資料與發佈標記。自訂批次資料表時，還須建立同名加 `_jobs`、`_outbox`、`_additions`、`_continuations` 後綴的配套資料表。
-
-```sh
-./artisan queue:publish-batches --limit=1
-```
+透過 `.onConnection("redis")` 使用 Redis 批次。批次狀態和回呼選項儲存在 `job_batches`，工作直接推入 Redis。派送失敗向呼叫端傳回錯誤並復原 SQL 批次交易。Redis 寫入和 SQL 提交相互獨立：Worker 可能在 SQL 提交前取得工作，部分發佈或後續提交失敗也可能留下沒有批次記錄的工作，業務處理常式須考慮這些邊界。
 
 ### 向獨立資料庫發佈批次 {#cross-database-batches}
 
-以 `queue.batching.database` 選擇批次帳本連線，再以 `onConnection` 選擇使用獨立連線的資料庫佇列。對兩個資料庫執行遷移，佇列目標需要 `jobs` 和 `job_chain_deliveries`。帳本儲存待發佈的初始工作、新增工作與接續工作。目標資料庫在同一交易寫入收據與工作。帳本確認失敗時，`queue:publish-batches` 重用收據，避免重複入列。以 `queue:work <connection>` 消費目標佇列。
+以 `queue.batching.database` 選擇批次狀態連線，再以 `onConnection` 選擇資料庫佇列。目的端只需要 `jobs` 資料表，Worker 使用共用的 `job_batches` 儲存庫。同一 SQL 連線時，批次變更和工作入列共用交易；獨立連線分別提交，可能部分發佈。以 `queue:work <connection>` 消費目的端佇列。
 
 ### 向 Beanstalkd 或 SQS 發佈批次 {#external-batches}
 
-透過 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 選擇驅動程式。發佈端與 Worker 使用同一 SQL 批次儲存庫。儲存庫先提交批次和待發佈記錄，再傳送工作。SQS 使用 `SendMessageBatch`，每次最多 10 則訊息，訊息本文總計最多 1 MiB。初次發佈、追加和續接使用同一個復原指令。
+透過 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 選擇驅動程式。發佈端和 Worker 使用相同的 SQL 批次儲存庫設定，在批次交易內傳送工作。SQS 使用 `SendMessageBatch`，每次最多 10 則訊息，訊息本文總計最多 1 MiB。
 
-SQS 回傳部分失敗時，OpenRust 停止傳送後續分塊，將失敗和未傳送的項目留給 `queue:publish-batches` 重試，並移除同一回應中已確認成功的項目。Beanstalkd 從最後一次已確認傳送之後復原。程序當機、服務端回應不明或 SQL 提交失敗可能造成重複發佈，工作處理常式須維持冪等。標準 SQS 和 Beanstalkd 的傳送確認與 SQL 更新無法原子提交。
+SQS 部分失敗時停止後續分塊並傳回錯誤；Beanstalkd 直接傳回傳送錯誤。SQL 交易復原，外部服務已接收的工作仍然存在。不再維護發佈 outbox 或復原指令。
 
-FIFO 批次與跨連線工作鏈轉送的預設去重 ID 由序列化工作產生，重試時保持一致。明確設定的去重規則仍然生效。Amazon SQS 僅在五分鐘去重視窗內抑制重複投遞。
+FIFO 批次預設依序列化工作產生去重 ID，明確去重設定仍然生效。SQS 去重受服務時間視窗限制，無法使 SQL 與外部佇列原子提交。
 
-標準 SQS 和 Beanstalkd 採用至少一次投遞。復原可能發佈同一工作 UUID 的多個副本，獨立 Worker 可在結算前同時進入處理常式。業務副作用應使用應用程式冪等鍵。該次投遞已有結算結果時，Worker 依記錄結果確認其餘副本。SQL 批次計數和終態回呼每次投遞只結算一次，工作失敗回呼由記錄終態失敗的 Worker 執行。結算後程序退出可能中斷回呼。
+佇列投遞和批次回呼可能在當機後再次執行。批次計數透過 `job_batches` 資料列鎖更新，不維護逐次投遞的完成帳本。業務副作用應使用應用程式冪等鍵。
 
 ### 批次回呼 {#batch-callbacks}
 
@@ -795,7 +787,7 @@ fn register_batch_events() -> EventResult<()> {
 }
 ```
 
-事件在狀態提交後派送。`BatchStarted` 在首個工作達到終態時觸發，`BatchFinished` 在待處理工作歸零時觸發。同一次投遞重播不會重複觸發事件，不同 Worker 的監聽器可能同時執行。
+事件在狀態提交後派送。`BatchStarted` 在首個工作達到終態時觸發，`BatchFinished` 在待處理工作歸零時觸發。不同 Worker 的監聽器可能並行執行，重新投遞可能重複觸發回呼和業務副作用。
 
 ### 重試批次失敗工作 {#batch-failures}
 

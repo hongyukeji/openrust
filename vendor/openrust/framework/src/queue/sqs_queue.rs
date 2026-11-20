@@ -212,35 +212,13 @@ impl SqsQueue {
         .await
     }
 
-    pub(super) async fn send_durable(
-        &self,
-        payload: &Payload,
-        queue: Option<&str>,
-        delay: Option<Delay>,
-    ) -> QueueResult<Option<String>> {
-        let url = self.url(queue)?;
-        send(
-            self.client().await,
-            &url,
-            payload,
-            delay,
-            true,
-            self.overflow.as_ref(),
-        )
-        .await
-    }
-
-    pub(super) async fn send_batch(
-        &self,
-        queue: &str,
-        payloads: &[Payload],
-        confirmed: &mut [bool],
-    ) -> QueueResult<()> {
+    pub(super) async fn send_batch(&self, queue: &str, payloads: &[Payload]) -> QueueResult<()> {
         let url = self.url(Some(queue))?;
         let client = self.client().await;
         let mut entries = Vec::with_capacity(10);
         let mut bytes = 0;
         let mut start = 0;
+        let mut confirmed = vec![false; payloads.len()];
         for (index, payload) in payloads.iter().enumerate() {
             let entry = prepare_message(&url, payload, None, true, self.overflow.as_ref()).await?;
             let size = entry.message_body().len();

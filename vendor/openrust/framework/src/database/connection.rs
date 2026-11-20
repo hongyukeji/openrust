@@ -207,8 +207,8 @@ impl<D: Database> Lease<D> {
 impl<D: Database> Drop for Lease<D> {
     fn drop(&mut self) {
         let depth = D::TransactionManager::get_transaction_depth(&self.connection);
-        if self.retire || (D::NAME == "MySQL" && (self.dirty || depth > 0)) {
-            // An abandoned command may leave an incomplete MySQL protocol exchange.
+        if self.retire || (matches!(D::NAME, "MySQL" | "PostgreSQL") && (self.dirty || depth > 0)) {
+            // Discard unfinished protocol exchanges and active transactions before pooling.
             self.connection.close_on_drop();
         } else if D::NAME == "SQLite" {
             // The worker runs queued rollbacks before the pool's health check.
@@ -319,6 +319,10 @@ fn bind_postgres<'a, 'b: 'a>(
                 Some("INT4") => query.bind(integer_binding::<i32>(value)?),
                 _ => query.bind(value),
             };
+        } else if let (Value::Text(value), Some("TIMESTAMP")) = (value, kind) {
+            let timestamp = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
+                .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL timestamp parameter"))?;
+            query = query.bind(timestamp);
         } else {
             query = bind!(query, [value], sqlite_unsigned);
         }

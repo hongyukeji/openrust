@@ -1,6 +1,4 @@
-use std::time::{Duration, SystemTime};
-
-use super::{Delay, DispatchOptions, Payload, QueueError, QueueResult};
+use super::{Delay, DispatchOptions, Payload};
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub(super) struct ChainRoute {
@@ -13,14 +11,6 @@ pub(super) struct JobDispatch {
     connection: Option<String>,
     queue: Option<String>,
     pub(super) delay: Option<Delay>,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub(super) struct ChainDelivery {
-    pub(super) connection: String,
-    pub(super) queue: Option<String>,
-    pub(super) delay: Option<Delay>,
-    pub(super) job: Payload,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel Queueable")]
@@ -74,32 +64,4 @@ impl Payload {
             ..Default::default()
         })
     }
-
-    pub(super) fn chain_delivery(
-        self,
-        options: DispatchOptions,
-        connection: String,
-    ) -> QueueResult<Self> {
-        let mut relay = Self::new("bus.chain-delivery", ())?;
-        let delay = match options.delay {
-            Some(Delay::For(duration)) if duration.is_zero() => None,
-            Some(Delay::For(duration)) => Some(Delay::Until(
-                SystemTime::now()
-                    .checked_add(duration)
-                    .ok_or(QueueError::InvalidPayload)?,
-            )),
-            delay => delay,
-        };
-        relay.chain_delivery = Some(Box::new(ChainDelivery {
-            connection,
-            queue: options.queue,
-            delay,
-            job: self,
-        }));
-        Ok(relay)
-    }
-}
-
-pub(super) fn no_delay(delay: Option<Delay>) -> bool {
-    matches!(delay, None | Some(Delay::For(Duration::ZERO)))
 }

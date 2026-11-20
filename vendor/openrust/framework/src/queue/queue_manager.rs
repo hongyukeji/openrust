@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::{
     bus::{
         Batch, BatchCallback, BatchContinuation, BatchJob, BatchPhase, ChainCallback,
-        DatabaseBatchRepository, PublicationKey, new_batch,
+        DatabaseBatchRepository, new_batch,
     },
     cache::{CacheManager, Ttl},
     container::Container,
@@ -755,154 +755,6 @@ impl QueueManager {
         Ok(())
     }
 
-    pub(super) fn chain_successor(
-        &self,
-        source: &str,
-        source_queue: &str,
-        next: Payload,
-    ) -> QueueResult<(Payload, Option<String>, Option<super::Delay>)> {
-        if next.chain_route.is_none() && next.dispatch_options.is_none() {
-            return Ok((next, None, None));
-        }
-        let options = next.chain_options(source, source_queue);
-        let target = self.resolve(options.connection.as_deref())?;
-        let target_name = target.queue.get_connection_name();
-        let queue = target.queue_name(options.queue.as_deref())?;
-        if target_name == source {
-            let queue = (queue != source_queue).then(|| queue.to_owned());
-            return Ok((next, queue, options.delay));
-        }
-        Ok((
-            next.chain_delivery(options, target_name.to_owned())?,
-            None,
-            None,
-        ))
-    }
-
-    pub(super) async fn forward_chain(&self, relay: &Payload) -> QueueResult<Option<QueueError>> {
-        let delivery = relay
-            .chain_delivery
-            .as_deref()
-            .ok_or(QueueError::InvalidPayload)?;
-        let target = self.resolve(Some(&delivery.connection))?;
-        match &target.batch_backend {
-            BatchBackend::Redis(redis) => {
-                redis
-                    .forward_chain(
-                        relay.uuid(),
-                        &delivery.job,
-                        delivery.queue.as_deref(),
-                        delivery.delay,
-                    )
-                    .await?;
-                Ok(None)
-            }
-            BatchBackend::Database(connection) => {
-                let mut transaction = connection.beginTransaction().await.map_err(backend)?;
-                let marker = [("id".into(), relay.uuid().into())].into_iter().collect();
-                match transaction
-                    .table("job_chain_deliveries")
-                    .insert(&[marker])
-                    .await
-                {
-                    Ok(_) => {}
-                    Err(error) if is_duplicate(&error) => {
-                        transaction.rollBack(None).await.map_err(backend)?;
-                        return Ok(None);
-                    }
-                    Err(error) => return Err(backend(error)),
-                }
-                target
-                    .queue
-                    .push_in_transaction(
-                        &delivery.job,
-                        delivery.queue.as_deref(),
-                        delivery.delay,
-                        &mut transaction,
-                    )
-                    .await?;
-                transaction.commit().await.map_err(backend)?;
-                Ok(None)
-            }
-            BatchBackend::Sqs(_) | BatchBackend::Beanstalkd | BatchBackend::Unsupported => {
-                use crate::log::context::Context;
-                let repository = Context::repository().map_err(backend)?;
-                Context::hooks()
-                    .map_err(backend)?
-                    .hydrate(&delivery.job.context, &repository);
-                let queue = delivery.queue.as_deref();
-                let result = match (&target.batch_backend, delivery.delay) {
-                    (BatchBackend::Sqs(sqs), delay) => {
-                        sqs.send_durable(&delivery.job, queue, delay).await
-                    }
-                    (_, Some(delay)) => target.queue.later(delay, &delivery.job, queue).await,
-                    (_, None) => target.queue.push(&delivery.job, queue).await,
-                };
-                if target.synchronous {
-                    Ok(result.err())
-                } else {
-                    result.map(|_| None)
-                }
-            }
-        }
-    }
-
-    pub(super) async fn acknowledge_chain_delivery(&self, relay: &Payload) -> QueueResult<()> {
-        let delivery = relay
-            .chain_delivery
-            .as_deref()
-            .ok_or(QueueError::InvalidPayload)?;
-        let target = self.resolve(Some(&delivery.connection))?;
-        match &target.batch_backend {
-            BatchBackend::Redis(redis) => redis.acknowledge_chain_delivery(relay.uuid()).await,
-            BatchBackend::Database(connection) => {
-                connection
-                    .table("job_chain_deliveries")
-                    .r#where("id", "=", relay.uuid())
-                    .whereNull("acknowledged_at")
-                    .update(
-                        [(
-                            "acknowledged_at".into(),
-                            chrono::Utc::now().timestamp().into(),
-                        )]
-                        .into_iter()
-                        .collect(),
-                    )
-                    .await
-                    .map_err(backend)?;
-                Ok(())
-            }
-            BatchBackend::Sqs(_) | BatchBackend::Beanstalkd | BatchBackend::Unsupported => Ok(()),
-        }
-    }
-
-    pub(super) async fn prune_chain_deliveries(
-        &self,
-        queue_connection: Option<&str>,
-        cutoff: i64,
-    ) -> QueueResult<u64> {
-        let configured = self.resolve(queue_connection)?;
-        let BatchBackend::Database(connection) = &configured.batch_backend else {
-            return Err(QueueError::InvalidConfiguration);
-        };
-        let mut total = 0;
-        loop {
-            let deleted = connection
-                .table("job_chain_deliveries")
-                .r#where("acknowledged_at", "<", cutoff)
-                .orderBy("acknowledged_at", "asc")
-                .orderBy("id", "asc")
-                .limit(1000)
-                .delete()
-                .await
-                .map_err(backend)?;
-            total += deleted;
-            if deleted == 0 {
-                return Ok(total);
-            }
-        }
-    }
-
     pub(crate) fn validate_chained_batches<'a>(
         &self,
         jobs: impl IntoIterator<Item = &'a Payload>,
@@ -946,29 +798,8 @@ impl QueueManager {
             .as_deref()
             .ok_or(QueueError::InvalidPayload)?;
         let options = spec.options(connection, queue);
-        let next = match payload.next_chain_job() {
-            Some(next) => {
-                let (next, target_queue, delay) = self.chain_successor(connection, queue, next)?;
-                // The batch publication writes to the wrapper's queue. Preserve a different
-                // queue or delay with the same durable forwarding step used across connections.
-                let next = if target_queue.is_some() || !super::chain_routing::no_delay(delay) {
-                    next.chain_delivery(
-                        DispatchOptions {
-                            queue: target_queue.or_else(|| Some(queue.to_owned())),
-                            delay,
-                            ..Default::default()
-                        },
-                        connection.to_owned(),
-                    )?
-                } else {
-                    next
-                };
-                Some(next)
-            }
-            None => None,
-        };
+        let next = payload.next_chain_job();
         let continuation = BatchContinuation {
-            id: payload.uuid().to_owned(),
             connection: connection.to_owned(),
             queue: queue.to_owned(),
             next,
@@ -1005,12 +836,6 @@ impl QueueManager {
         let repository = self.batch_repository()?;
         let configured = self.resolve_batch_destination(&options)?;
         let mut batch = new_batch(name, options, 0)?;
-        if let Some(continuation) = continuation {
-            if let Some(existing) = repository.find(&continuation.id).await? {
-                return Ok(existing);
-            }
-            batch.id.clone_from(&continuation.id);
-        }
         for phase in BatchPhase::ALL {
             for callback in phase.names(&batch) {
                 self.batch_callback(callback)?;
@@ -1021,41 +846,23 @@ impl QueueManager {
         batch.total_jobs = count;
         batch.pending_jobs = count;
 
-        let publication = PublicationKey::Initial(batch.id.clone());
-        let mut transaction = repository.begin().await?;
-        if let Err(error) = repository
-            .store_in_transaction(&mut transaction, &batch)
-            .await
-        {
-            if continuation.is_some() && is_duplicate_batch(&error) {
-                transaction.rollBack(None).await.map_err(backend)?;
-                return repository.find(&batch.id).await?.ok_or(error);
-            }
-            return Err(error);
-        }
         if let Some(continuation) = continuation {
-            repository
-                .store_continuation(&mut transaction, continuation)
-                .await?;
+            batch.options.insert(
+                BatchContinuation::OPTION.into(),
+                serde_json::to_value(continuation).map_err(|_| QueueError::InvalidPayload)?,
+            );
         }
-        self.enqueue_batch_jobs(
-            &repository,
-            &mut transaction,
-            &configured,
-            &batch,
-            &publication,
-            jobs,
-        )
-        .await?;
+        let mut transaction = repository.begin().await?;
+        repository
+            .store_in_transaction(&mut transaction, &batch)
+            .await?;
+        self.enqueue_batch_jobs(&repository, &mut transaction, &configured, &batch, jobs)
+            .await?;
         transaction.commit().await.map_err(backend)?;
-        if configured.needs_batch_publication(&repository) {
-            self.publish_after_commit(&repository, &publication).await;
-        } else {
-            crate::bus::events::emit(crate::bus::events::BatchDispatched {
-                batch: batch.clone(),
-            })
-            .await;
-        }
+        crate::bus::events::emit(crate::bus::events::BatchDispatched {
+            batch: batch.clone(),
+        })
+        .await;
         Ok(batch)
     }
 
@@ -1065,7 +872,6 @@ impl QueueManager {
         mut jobs: Vec<BatchJob>,
     ) -> QueueResult<Option<Batch>> {
         let count = prepare_batch_jobs(&mut jobs, true)?;
-        let publication = PublicationKey::Addition(new_id()?);
         let repository = self.batch_repository()?;
         let mut transaction = repository.begin().await?;
         let Some(batch) = repository
@@ -1080,19 +886,9 @@ impl QueueManager {
             return Ok(Some(batch));
         }
         let configured = self.resolve_batch_destination(&batch.options)?;
-        self.enqueue_batch_jobs(
-            &repository,
-            &mut transaction,
-            &configured,
-            &batch,
-            &publication,
-            jobs,
-        )
-        .await?;
+        self.enqueue_batch_jobs(&repository, &mut transaction, &configured, &batch, jobs)
+            .await?;
         transaction.commit().await.map_err(backend)?;
-        if configured.needs_batch_publication(&repository) {
-            self.publish_after_commit(&repository, &publication).await;
-        }
         Ok(Some(batch))
     }
 
@@ -1122,7 +918,6 @@ impl QueueManager {
         transaction: &mut Transaction,
         configured: &ConfiguredQueue,
         batch: &Batch,
-        publication: &PublicationKey,
         jobs: Vec<BatchJob>,
     ) -> QueueResult<()> {
         let mut heads = Vec::with_capacity(jobs.len());
@@ -1135,181 +930,44 @@ impl QueueManager {
             .options
             .get("queue")
             .and_then(serde_json::Value::as_str);
-        if configured.needs_batch_publication(repository) {
-            repository
-                .stage_publication(
-                    transaction,
-                    publication,
-                    &batch.id,
-                    configured.queue.get_connection_name(),
-                    configured.queue_name(queue)?,
-                    &heads,
-                )
-                .await?;
-        } else {
-            for job in &heads {
+        if let BatchBackend::Sqs(sqs) = &configured.batch_backend {
+            return sqs.send_batch(configured.queue_name(queue)?, &heads).await;
+        }
+        for job in &heads {
+            if let BatchBackend::Database(connection) = &configured.batch_backend
+                && repository.uses_connection(connection)
+            {
                 configured
                     .queue
                     .push_in_transaction(job, queue, None, transaction)
                     .await?;
+            } else {
+                configured.queue.push(job, queue).await?;
             }
         }
         Ok(())
     }
 
-    pub(super) async fn publish_after_commit(
-        &self,
-        repository: &DatabaseBatchRepository,
-        publication: &PublicationKey,
-    ) {
-        if let Err(error) = self.publish_batch(repository, publication).await {
-            let context = serde_json::Map::from_iter([
-                ("publication_id".into(), publication.id().into()),
-                ("error".into(), error.to_string().into()),
-            ]);
-            let _ = crate::log::Log::error("Batch publication is pending", &context);
-        }
-    }
-
-    pub(crate) async fn publish_batch(
-        &self,
-        repository: &DatabaseBatchRepository,
-        key: &PublicationKey,
-    ) -> QueueResult<bool> {
-        let mut transaction = repository.begin().await?;
-        let Some(publication) = repository.claim_publication(&mut transaction, key).await? else {
-            transaction.rollBack(None).await.map_err(backend)?;
-            return Ok(false);
-        };
-        if !matches!(key, PublicationKey::Initial(_))
-            && repository
-                .initial_publication_pending(&mut transaction, &publication.batch_id)
-                .await?
-        {
-            transaction.rollBack(None).await.map_err(backend)?;
-            return Ok(false);
-        }
-        let configured = self.resolve(Some(&publication.connection))?;
-        let batch = repository
-            .find_in_transaction(&mut transaction, &publication.batch_id)
-            .await?
-            .ok_or(QueueError::InvalidPayload)?;
-        if matches!(key, PublicationKey::Continuation(_)) && batch.cancelled() {
-            repository
-                .acknowledge_publication(&mut transaction, key)
-                .await?;
-            transaction.commit().await.map_err(backend)?;
-            return Ok(false);
-        }
-        match &configured.batch_backend {
-            BatchBackend::Redis(redis) => {
-                let publication_id = match key {
-                    PublicationKey::Continuation(id) => format!("continuation:{id}"),
-                    _ => key.id().to_owned(),
-                };
-                redis
-                    .publish_batch(&publication_id, &publication.queue, &publication.payloads)
-                    .await?;
-                repository
-                    .acknowledge_publication(&mut transaction, key)
-                    .await?;
-                transaction.commit().await.map_err(backend)?;
-                if matches!(key, PublicationKey::Initial(_)) {
-                    crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
-                }
-                redis.expire_publication(&publication_id).await;
+    pub(super) async fn dispatch_batch_continuation(&self, continuation: BatchContinuation) {
+        if let Some(next) = continuation.next {
+            let options = next.chain_options(&continuation.connection, &continuation.queue);
+            let result = async {
+                use crate::log::context::Context;
+                let context = Context::repository().map_err(backend)?;
+                Context::hooks()
+                    .map_err(backend)?
+                    .hydrate(&next.context, &context);
+                self.dispatch(next, options, None).await
             }
-            BatchBackend::Database(connection) => {
-                if repository.uses_connection(connection) {
-                    enqueue_batch_publication(&configured, &publication, &mut transaction).await?;
-                } else {
-                    let mut destination = connection.beginTransaction().await.map_err(backend)?;
-                    let receipt = key.database_receipt();
-                    let marker = [("id".into(), receipt.as_str().into())]
-                        .into_iter()
-                        .collect();
-                    match destination
-                        .table("job_chain_deliveries")
-                        .insert(&[marker])
-                        .await
-                    {
-                        Ok(_) => {
-                            enqueue_batch_publication(&configured, &publication, &mut destination)
-                                .await?;
-                            destination.commit().await.map_err(backend)?;
-                        }
-                        Err(error) if is_duplicate(&error) => {
-                            destination.rollBack(None).await.map_err(backend)?;
-                        }
-                        Err(error) => return Err(backend(error)),
-                    }
-                }
-                repository
-                    .acknowledge_publication(&mut transaction, key)
-                    .await?;
-                transaction.commit().await.map_err(backend)?;
-                if !repository.uses_connection(connection) {
-                    let _ = connection
-                        .table("job_chain_deliveries")
-                        .r#where("id", "=", key.database_receipt())
-                        .update(
-                            [(
-                                "acknowledged_at".into(),
-                                chrono::Utc::now().timestamp().into(),
-                            )]
-                            .into_iter()
-                            .collect(),
-                        )
-                        .await;
-                }
-                if matches!(key, PublicationKey::Initial(_)) {
-                    crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
-                }
+            .await;
+            if let Err(error) = result {
+                let context = serde_json::Map::from_iter([
+                    ("connection".into(), continuation.connection.into()),
+                    ("error".into(), error.to_string().into()),
+                ]);
+                let _ = crate::log::Log::error("Batch continuation failed", &context);
             }
-            BatchBackend::Beanstalkd | BatchBackend::Sqs(_) => {
-                let mut payloads = publication.payloads;
-                let mut confirmed = vec![false; payloads.len()];
-                let result = if let BatchBackend::Sqs(sqs) = &configured.batch_backend {
-                    sqs.send_batch(&publication.queue, &payloads, &mut confirmed)
-                        .await
-                } else {
-                    let mut result = Ok(());
-                    for (payload, confirmed) in payloads.iter().zip(&mut confirmed) {
-                        result = configured
-                            .queue
-                            .push(payload, Some(&publication.queue))
-                            .await
-                            .map(|_| ());
-                        if result.is_err() {
-                            break;
-                        }
-                        *confirmed = true;
-                    }
-                    result
-                };
-                if let Err(error) = result {
-                    let count = payloads.len();
-                    let mut confirmed = confirmed.into_iter();
-                    payloads.retain(|_| !confirmed.next().expect("one result per payload"));
-                    if payloads.len() != count {
-                        repository
-                            .retain_publication_payloads(&mut transaction, key, &payloads)
-                            .await?;
-                    }
-                    transaction.commit().await.map_err(backend)?;
-                    return Err(error);
-                }
-                repository
-                    .acknowledge_publication(&mut transaction, key)
-                    .await?;
-                transaction.commit().await.map_err(backend)?;
-                if matches!(key, PublicationKey::Initial(_)) {
-                    crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
-                }
-            }
-            _ => return Err(QueueError::InvalidBatchConnection),
         }
-        Ok(true)
     }
 
     fn resolve(&self, name: Option<&str>) -> QueueResult<Arc<ConfiguredQueue>> {
@@ -1550,47 +1208,12 @@ impl Factory for QueueManager {
 }
 
 impl ConfiguredQueue {
-    fn needs_batch_publication(&self, repository: &DatabaseBatchRepository) -> bool {
-        match &self.batch_backend {
-            BatchBackend::Database(connection) => !repository.uses_connection(connection),
-            BatchBackend::Redis(_) | BatchBackend::Beanstalkd | BatchBackend::Sqs(_) => true,
-            BatchBackend::Unsupported => false,
-        }
-    }
-
     fn queue_name<'a>(&'a self, selected: Option<&'a str>) -> QueueResult<&'a str> {
         match &self.batch_backend {
             BatchBackend::Redis(redis) => redis.queue_name(selected),
             _ => queue_name(selected, &self.default_queue),
         }
     }
-}
-
-async fn enqueue_batch_publication(
-    configured: &ConfiguredQueue,
-    publication: &crate::bus::BatchPublication,
-    transaction: &mut Transaction,
-) -> QueueResult<()> {
-    for payload in &publication.payloads {
-        configured
-            .queue
-            .push_in_transaction(payload, Some(&publication.queue), None, transaction)
-            .await?;
-    }
-    Ok(())
-}
-
-fn is_duplicate(error: &DatabaseError) -> bool {
-    matches!(error, DatabaseError::Driver { source: sqlx::Error::Database(error), .. } if error.is_unique_violation())
-}
-
-fn is_duplicate_batch(error: &QueueError) -> bool {
-    let QueueError::Backend { source } = error else {
-        return false;
-    };
-    source
-        .downcast_ref::<DatabaseError>()
-        .is_some_and(is_duplicate)
 }
 
 fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {

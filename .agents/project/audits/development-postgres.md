@@ -4,7 +4,7 @@
 
 ## 配置与实现
 
-- 根 `rust-toolchain.toml` 固定 1.94.0、minimal、rustfmt／clippy；Cargo 的既有最低版本和框架默认 SQLite 保持原契约。
+- `dee8ae7fb` 当时新增根工具链文件；用户随后要求删除，现已移除。`Cargo.toml` 的 `rust-version` 保留，日常验收显式使用 `cargo +1.94.0`，不固定用户默认工具链；框架默认 SQLite 保持原契约。
 - 本机已有 postgres:18 和 redis:8 服务，实测 PostgreSQL 18.6（server_version_num=180006）、Redis 8.10.3。新建独立 openrust 登录角色与同名开发库，随机密码仅写本地忽略的 `.env`；开发连接 127.0.0.1:5432，Redis 127.0.0.1:6379，缓存／队列选 Redis，Session 保留数据库。原根应用配置实际为 SQLite，未将其误记为 MySQL 数据迁移。
 - 旧 `.env` 私密备份于本批目录，目录权限 0700、环境文件权限 0600。原 SQLite／MySQL 数据和既有运行服务保留；已启动的旧服务需重启才能载入新配置，不擅自终止现有用户进程。本批 HTTP 使用独立端口和专属进程。
 - 新增 `tests/postgres_acceptance.py`，沿用已有 MySQL 入口的批次标签、临时凭据、随机回环端口、取消与进程组清理机制；核对 PostgreSQL 18 镜像声明的 /var/lib/postgresql，用 1 GiB tmpfs 覆盖包含版本化 PGDATA 的目录。以 TCP 实查版本后注入 PostgreSQL 专属变量。保留 MySQL 入口供兼容专项。

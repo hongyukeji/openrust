@@ -215,8 +215,6 @@ pub struct Payload {
     dispatch_options: Option<Box<chain_routing::JobDispatch>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chain_route: Option<Box<chain_routing::ChainRoute>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    chain_delivery: Option<Box<chain_routing::ChainDelivery>>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -249,7 +247,6 @@ impl Payload {
             chained_batch: None,
             dispatch_options: None,
             chain_route: None,
-            chain_delivery: None,
         })
     }
 
@@ -328,10 +325,7 @@ impl Payload {
     }
 
     pub(crate) fn is_unattached(&self) -> bool {
-        self.chain.is_none()
-            && self.batch_id.is_none()
-            && self.chain_delivery.is_none()
-            && self.chain_route.is_none()
+        self.chain.is_none() && self.batch_id.is_none() && self.chain_route.is_none()
     }
 
     pub(crate) fn with_chain(

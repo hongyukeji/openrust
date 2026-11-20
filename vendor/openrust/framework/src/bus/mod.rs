@@ -11,9 +11,7 @@ pub use batch::Batch;
 pub use callback::BatchCallback;
 pub(crate) use callback::{BatchPhase, BatchTransition};
 pub use database_batch_repository::DatabaseBatchRepository;
-pub(crate) use database_batch_repository::{
-    BatchPublication, PublicationKey, RecordedBatchJob, new_batch,
-};
+pub(crate) use database_batch_repository::new_batch;
 
 mod pending_batch;
 mod pending_chain;

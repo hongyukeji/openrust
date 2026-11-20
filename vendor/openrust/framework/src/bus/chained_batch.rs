@@ -27,11 +27,15 @@ impl ChainedBatch {
     }
 }
 
-/// Data kept separately from the public batch options until the batch settles.
+/// Serialized continuation stored with the batch callbacks in its options.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) struct BatchContinuation {
-    pub(crate) id: String,
     pub(crate) connection: String,
     pub(crate) queue: String,
     pub(crate) next: Option<Payload>,
     pub(crate) catches: Vec<String>,
+}
+
+impl BatchContinuation {
+    pub(crate) const OPTION: &str = "__openrust_chain";
 }

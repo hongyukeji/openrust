@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     bus::{
-        BatchPhase, DatabaseBatchRepository, PublicationKey, RecordedBatchJob,
+        BatchPhase, DatabaseBatchRepository,
         events::{BatchCanceled, BatchFinished, BatchStarted, emit},
     },
     cache::{
@@ -577,28 +577,13 @@ impl Worker {
         attempt: &mut AttemptStatus,
         signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
-        // Keep chain and batch state out of the ordinary job's Debug stack frame.
-        if job.payload().chain_delivery.is_some() {
-            return Box::pin(self.forward_chain(job)).await;
-        }
         let batch = BatchCompletion::resolve(&self.app, job)?;
-        if let Some(batch) = &batch
-            && let Some(recorded) = batch.recorded().await?
-        {
-            return Box::pin(self.complete_recorded(job, recorded)).await;
-        }
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id
         {
             if let Some(batch) = &batch {
-                Box::pin(batch.record(
-                    &self.app,
-                    job.payload(),
-                    Some(&failed.exception),
-                    None,
-                    false,
-                ))
-                .await?;
+                Box::pin(batch.record(&self.app, job.payload(), Some(&failed.exception), None))
+                    .await?;
             }
             job.delete().await?;
             self.release_unique_lock(job.payload()).await;
@@ -838,6 +823,15 @@ impl Worker {
 
         let missing_model = matches!(&result, Err(QueueError::MissingModel(_)));
         let discard = missing_model && job.payload().delete_when_missing_models;
+        let result = if result.is_ok() && !discard && context.release_after.is_none() {
+            self.complete(
+                job,
+                context.chain_update.as_ref().map(|edit| edit.next.clone()),
+            )
+            .await
+        } else {
+            result
+        };
         if let Err(error) = result
             && !discard
         {
@@ -970,18 +964,13 @@ impl Worker {
             true
         } else {
             let edit = context.chain_update.take();
-            if let Some(batch) = batch
-                && !batch
-                    .record(&self.app, job.payload(), None, edit.as_ref(), discard)
-                    .await?
-                && let Some(recorded) = batch.recorded().await?
-            {
-                return Box::pin(self.complete_recorded(job, recorded)).await;
-            }
             if discard {
                 job.delete().await?;
-            } else {
-                self.complete(job, edit.map(|edit| edit.next)).await?;
+            }
+            if let Some(batch) = batch {
+                batch
+                    .record(&self.app, job.payload(), None, edit.as_ref())
+                    .await?;
             }
             self.release_unique_lock(job.payload()).await;
             false
@@ -1031,63 +1020,6 @@ impl Worker {
         }
     }
 
-    async fn forward_chain(&self, job: &mut dyn Job) -> QueueResult<WorkResult> {
-        let manager = self
-            .app
-            .make::<QueueManager>()
-            .map_err(QueueError::Unavailable)?;
-        let forwarded =
-            isolated_scope(self.app.clone(), manager.forward_chain(job.payload())).await;
-        let sync_failure = match forwarded {
-            Ok(failure) => failure,
-            Err(error) => {
-                job.release(Duration::from_secs(1)).await?;
-                return Err(error);
-            }
-        };
-        job.delete().await?;
-        let relay = job.payload();
-        let result = isolated_scope(self.app.clone(), async {
-            if let Err(error) = manager.acknowledge_chain_delivery(relay).await {
-                let context = serde_json::Map::from_iter([
-                    ("delivery_id".into(), relay.uuid().into()),
-                    ("error".into(), error.to_string().into()),
-                ]);
-                let _ =
-                    crate::log::Log::error("Could not confirm chain delivery receipt", &context);
-            }
-            if let Some(error) = sync_failure {
-                let context = serde_json::Map::from_iter([
-                    ("delivery_id".into(), relay.uuid().into()),
-                    ("error".into(), error.to_string().into()),
-                ]);
-                let _ = crate::log::Log::error("Synchronous chain job failed", &context);
-                WorkResult::Failed
-            } else {
-                WorkResult::Processed
-            }
-        })
-        .await;
-        Ok(result)
-    }
-
-    async fn complete_recorded(
-        &self,
-        job: &mut dyn Job,
-        recorded: RecordedBatchJob,
-    ) -> QueueResult<WorkResult> {
-        if recorded.succeeded {
-            if recorded.discarded {
-                job.delete().await?;
-            } else {
-                self.complete(job, recorded.successor).await?;
-            }
-            return Ok(WorkResult::Processed);
-        }
-        job.delete().await?;
-        Ok(WorkResult::Failed)
-    }
-
     async fn complete(&self, job: &mut dyn Job, edited_next: Option<Payload>) -> QueueResult<()> {
         if job.payload().chained_batch.is_none()
             && let Some(next) = edited_next.or_else(|| job.payload().next_chain_job())
@@ -1099,9 +1031,26 @@ impl Worker {
                 .app
                 .make::<QueueManager>()
                 .map_err(QueueError::Unavailable)?;
-            let (next, queue, delay) =
-                manager.chain_successor(job.get_connection_name(), job.get_queue(), next)?;
-            return job.advance_chain_to(&next, queue.as_deref(), delay).await;
+            let options = next.chain_options(job.get_connection_name(), job.get_queue());
+            let target = options
+                .connection
+                .as_deref()
+                .unwrap_or(job.get_connection_name());
+            if target == job.get_connection_name() {
+                return job
+                    .advance_chain_to(&next, options.queue.as_deref(), options.delay)
+                    .await;
+            }
+            isolated_scope(self.app.clone(), async {
+                use crate::log::context::Context;
+                let context = Context::repository().map_err(super::backend)?;
+                Context::hooks()
+                    .map_err(super::backend)?
+                    .hydrate(&next.context, &context);
+                manager.dispatch(next, options, None).await
+            })
+            .await?;
+            return job.delete().await;
         }
         job.delete().await
     }
@@ -1115,21 +1064,8 @@ impl Worker {
     ) -> QueueResult<WorkResult> {
         let failed = FailedJob::new(job, error);
         self.failed.log(&failed).await?;
-        if let Some(batch) = batch
-            && !Box::pin(batch.record(
-                &self.app,
-                job.payload(),
-                Some(&failed.exception),
-                None,
-                false,
-            ))
-            .await?
-            && let Some(recorded) = batch.recorded().await?
-        {
-            if recorded.succeeded {
-                self.failed.forget_retry(&failed).await?;
-            }
-            return Box::pin(self.complete_recorded(job, recorded)).await;
+        if let Some(batch) = batch {
+            Box::pin(batch.record(&self.app, job.payload(), Some(&failed.exception), None)).await?;
         }
         job.fail(Some(error)).await?;
         let payload = job.payload();
@@ -1227,7 +1163,6 @@ struct BatchCompletion {
     queue: Arc<QueueManager>,
     id: String,
     job: String,
-    delivery: String,
 }
 
 impl BatchCompletion {
@@ -1243,14 +1178,7 @@ impl BatchCompletion {
             queue,
             id: id.to_owned(),
             job: job.uuid().to_owned(),
-            delivery: job.payload().delivery_id.clone().unwrap_or_default(),
         }))
-    }
-
-    async fn recorded(&self) -> QueueResult<Option<RecordedBatchJob>> {
-        self.repository
-            .recorded(&self.id, &self.job, &self.delivery)
-            .await
     }
 
     async fn record(
@@ -1259,21 +1187,13 @@ impl BatchCompletion {
         job: &super::Payload,
         failure: Option<&str>,
         edit: Option<&ChainUpdate>,
-        discard: bool,
-    ) -> QueueResult<bool> {
+    ) -> QueueResult<()> {
         let Some(transition) = self
             .repository
-            .record(
-                &self.id,
-                &self.job,
-                &self.delivery,
-                failure.is_none(),
-                edit,
-                discard,
-            )
+            .record(&self.id, &self.job, failure.is_none(), edit)
             .await?
         else {
-            return Ok(false);
+            return Ok(());
         };
         isolated_scope(app.clone(), async {
             if let Some(batch) = transition.started {
@@ -1306,17 +1226,12 @@ impl BatchCompletion {
                         .await;
                 }
             }
-            if transition.continuation_ready {
-                self.queue
-                    .publish_after_commit(
-                        &self.repository,
-                        &PublicationKey::Continuation(transition.batch.id),
-                    )
-                    .await;
+            if let Some(continuation) = transition.continuation {
+                self.queue.dispatch_batch_continuation(continuation).await;
             }
         })
         .await;
-        Ok(true)
+        Ok(())
     }
 }
 

@@ -1825,3 +1825,95 @@ async fn sqlite_reports_unsupported_rowset_traversal() {
         Err(DatabaseError::UnsupportedOperation("selectResultSets"))
     ));
 }
+
+#[tokio::test]
+async fn timestamp_bindings_run_on_postgres_in_both_prepare_modes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    for emulate in [false, true] {
+        let db = connection(json!({"url":url,"emulate_prepares":emulate}));
+        let mut schema = db.getSchemaBuilder();
+        schema
+            .dropIfExists("queue_timestamp_bindings")
+            .await
+            .unwrap();
+        schema
+            .create("queue_timestamp_bindings", |table| {
+                table.string("id", 36).primary();
+                table.timestamp("failed_at", None);
+            })
+            .await
+            .unwrap();
+        let stamp = "2026-11-20 12:34:56";
+        db.table("queue_timestamp_bindings")
+            .insert(&[[
+                ("id".into(), "job".into()),
+                ("failed_at".into(), stamp.into()),
+            ]
+            .into_iter()
+            .collect()])
+            .await
+            .unwrap();
+        let query = || {
+            db.table("queue_timestamp_bindings")
+                .r#where("failed_at", "=", stamp)
+        };
+        assert_eq!(query().count("*").await.unwrap(), 1);
+        assert_eq!(
+            query().first().await.unwrap().unwrap().get("failed_at"),
+            Some(&Value::from(stamp))
+        );
+        assert_eq!(query().delete().await.unwrap(), 1);
+        schema.drop("queue_timestamp_bindings").await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn postgres_abandoned_transaction_does_not_poison_the_pool() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url,"max_connections":1}));
+    db.statement(
+        "create table queue_transaction_probe (id integer primary key)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction
+        .statement("insert into queue_transaction_probe values (1)", &[])
+        .await
+        .unwrap();
+    assert!(
+        transaction
+            .statement("insert into queue_transaction_probe values (1)", &[])
+            .await
+            .is_err()
+    );
+    drop(transaction);
+    assert_eq!(
+        db.table("queue_transaction_probe")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    db.statement("insert into queue_transaction_probe values (2)", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("queue_transaction_probe")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    db.getSchemaBuilder()
+        .drop("queue_transaction_probe")
+        .await
+        .unwrap();
+}
