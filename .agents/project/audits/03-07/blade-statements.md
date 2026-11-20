@@ -76,7 +76,7 @@ docs/{en,zh_CN,zh_TW}/the-basics/blade.md
 └── progress.md
 ```
 
-共 17 个候选文件，仅在验收及核定范围通过后提交本地，不推送。原有 preexisting-wip.patch、core/、translation-database/ 保留。
+共 17 个候选文件，仅在验收及核定范围通过后提交本地，不推送。当时保留了历史工作区补丁、核心草稿和数据库翻译扩展资料。历史补丁现已完成[清理复核](../worktree-inventory.md#历史补丁清理)，其他资料的后续处置见[盘点更新](../worktree-inventory.md)。
 
 ## 授权与后续边界
 

@@ -22,7 +22,7 @@ PHP 的独立 HTTP 和 Artisan 入口在 Rust 中共享 main 二进制；源码�
 
 ## 文件范围与复现
 
-本批 8 文件 tree（`changed-tree.txt`）包含 2 个回归入口与三语的 artisan/deployment 共 6 页。加上前序必要运行配套，共 415 个候选文件（`commit-tree.txt`）。清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）和[排除补丁](scope-exclusions.patch)保留可复现边界，工作区其他 WIP 未被移除。候选的 Artisan 页面排除了可选路由安装器段落，当前工作区保留该段。
+本批 8 文件 tree（`changed-tree.txt`）包含 2 个回归入口与三语的 artisan/deployment 共 6 页。加上前序必要运行配套，共 415 个候选文件（`commit-tree.txt`）。清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）及下文固定提交保留可复现边界，当时工作区其他 WIP 未被移除。候选的 Artisan 页面排除了可选路由安装器段落，当时工作区保留该段。临时排除补丁已清理，见[清理复核](../worktree-inventory.md#历史补丁清理)。
 
 ```sh
 git worktree add --detach /tmp/openrust-00-03-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc

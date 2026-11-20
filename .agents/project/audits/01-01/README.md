@@ -51,7 +51,7 @@ macOS ARM64、Rust 1.94.0。工作区 52 项常规测试和 3 项子进程检查
 
 在新候选上重新运行前序真实请求脚本，58 次 HTTP 与 6 次命令结果（`http-results.json`）及 40 次进程结果（`command-results.json`）通过。三语站点构建及根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。验收结果只关闭本批正文段落。
 
-增量 26 文件 tree（`changed-tree.txt`）；累计 428 个候选路径（`commit-tree.txt`），另有 1 个前序必要删除路径（`deleted-files.txt`）。SHA-256（`candidate-sha256.json`）和[排除补丁](scope-exclusions.patch)保留工作区其他模块 WIP。独立重新构造，428 个选定文件校验一致。项目规范、计划、进度及本目录的审计记录作为项目管理文件单独审阅，不计入运行配套数。
+增量 26 文件 tree（`changed-tree.txt`）；累计 428 个候选路径（`commit-tree.txt`），另有 1 个前序必要删除路径（`deleted-files.txt`）。SHA-256（`candidate-sha256.json`）用于校验候选；当时保留了工作区其他模块 WIP。临时排除补丁已清理，见[清理复核](../worktree-inventory.md#历史补丁清理)。独立重新构造，428 个选定文件校验一致。项目规范、计划、进度及本目录的审计记录作为项目管理文件单独审阅，不计入运行配套数。
 
 ```sh
 git worktree add --detach /tmp/openrust-01-01-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc

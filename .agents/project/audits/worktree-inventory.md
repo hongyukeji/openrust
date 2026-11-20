@@ -4,6 +4,15 @@
 
 用户要求检查并归档过时草稿。下文历史清单中的 `.agents/project/core/` 共 22 份文件已完整压缩归档并移除原目录，现行入口对照、校验清单及恢复说明见 [归档记录](core-drafts-archive/README.md)。数据库翻译扩展的骨架清单已在 `c9791297c` 入库，但功能仍未实现，继续保留为 [待办](../todo.md)。下文路径和数量为原批次盘点事实，不代表当前工作区状态。
 
+## 历史补丁清理
+
+2026-11-20 按用户授权复核并清理审计目录中现存的 12 份补丁：4 份已跟踪的候选排除补丁和 8 份未跟踪的工作区备份。下文“保留”及数量均为历史事实，不再要求继续保存这些临时文件。
+
+- 4 份候选排除补丁来自提交 `b62ce706c`，可从 Git 历史恢复。候选复现脚本从固定提交恢复源码，不读取这些补丁；对应 README 已更新引用。
+- 8 份工作区备份来自 01-02f/g/h/i/j/l/m/n，各含 34 个文件差异。逐份读取索引中基准 blob，在临时目录应用并核对改动；仅凭当前文件与旧快照哈希不同不判定为独有内容。文档核对包含 `zh-Hans` → `zh_CN`、`zh-Hant` → `zh_TW` 的路径迁移。
+- 环境模板、依赖、模块导出及三语正文的新增内容已在当前源码或 Git 历史中核对；路由安装器和 gRPC 启动测试分别见 `a6f560e82`、`34a7a497b`。旧 gRPC 字段和 HTTP/gRPC 联合关停接线已由 Runner 生命周期取代（`7f3fdd1be`）；Facade 已移至所属模块并重导出，集合导出和视图类型已扩展，旧 `Forbidden` 由现行授权错误及 403 状态处理替代。这些旧快照无需作为未完成代码继续保留。
+- 清理仅删除补丁并调整内部记录和留存规范，保留当前工作区其他未提交改动；不恢复旧代码、不改写既往验收结果。相对链接、补丁引用和差异空白检查通过；未运行 Rust、数据库及文档站构建，因本次不改运行代码和站点内容。
+
 ## 原批次盘点
 
 本次在任务中断批次 `d4923a5d` 后重新读取主工作区未跟踪清单。共 149 个文件，按内容及归属核对。现行交付计划和三语文档对照可从干净提交树独立检查。本批提交这两份文档，余下 147 个路径保留在原工作区。
@@ -50,18 +59,6 @@
 
 - `.agents/project/README.md` · 空占位
 - `.agents/project/architecture.md` · 已按现行启动架构入库
-- `.agents/project/audits/01-02f/excluded-workspace-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02f/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02g/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02h/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02i/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02j/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02k/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02l/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02m/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02n/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02o/preexisting-wip.patch` · 历史工作区补丁
-- `.agents/project/audits/01-02p/preexisting-wip.patch` · 历史工作区补丁
 - `.agents/project/context.md` · 空占位
 - `.agents/project/core/artisan.md` · 骨架阶段设计记录，现状和链接待重核
 - `.agents/project/core/auth.md` · 骨架阶段设计记录，现状和链接待重核

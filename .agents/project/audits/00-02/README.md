@@ -27,7 +27,7 @@
 
 ## 文件范围
 
-本批增量为 13 个代码、测试和文档文件（`changed-tree.txt`）。必须带上未提交的启动配套时，共 407 个候选路径（`commit-tree.txt`）。文件清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）与[工作区排除补丁](scope-exclusions.patch)可重新构造核对，保留其他模块 WIP。
+本批增量为 13 个代码、测试和文档文件（`changed-tree.txt`）。必须带上未提交的启动配套时，共 407 个候选路径（`commit-tree.txt`）。文件清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）及下文固定提交用于重新构造核对；当时保留了其他模块 WIP。临时排除补丁已清理，见[清理复核](../worktree-inventory.md#历史补丁清理)。
 
 ```sh
 git worktree add --detach /tmp/openrust-00-02-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
