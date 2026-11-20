@@ -493,3 +493,7 @@ T-04 的 [通用 Facade 调用记录](T-04/README.md#通用-facade-调用记录)
 ### API-O02 双应用 SSO 与退出本机验收
 
 [API-O02](api-o02/README.md)已完成7＋1函数、双RP／真实Chrome／独立MySQL schema、一次OP登录复用／强制重新认证、绑定／租户隔离、本地与RP发起退出、同Session barrier并发state及token边界。五feature全workspace/all-targets严格Clippy／fmt、根入口、关闭检查及三语12＋6浏览器通过。API-F01／02及Precognition的既有记录与本次主线编译整合保留；继续init共享安装器和发布矩阵，V06／V08／V16／V17整体状态不因本条自动提升。
+
+### V16 生态空页与支持边界
+
+[三语生态导航](docs-scope/README.md)已逐页消除26个主题／语言首页空白，明确部分原生支持与未提供范围；636导航页面／156状态页和12通用浏览器组合、静态／实际构建空页负例通过。此为正文边界验收，不新增包实现；正式API文档与最终发布快照仍待，V16／V17整体不提升。

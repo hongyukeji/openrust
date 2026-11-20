@@ -1,0 +1,132 @@
+[
+  {
+    "path": "ai/ai-sdk.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/http-client.md"
+  },
+  {
+    "path": "ai/boost.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/structure.md"
+  },
+  {
+    "path": "ai/mcp.md",
+    "status": "not-shipped",
+    "native_reference": "the-basics/routing.md"
+  },
+  {
+    "path": "database/mongodb.md",
+    "status": "not-shipped",
+    "native_reference": "database/getting-started.md"
+  },
+  {
+    "path": "getting-started/ai.md",
+    "status": "partial",
+    "native_reference": "prologue/contributions.md"
+  },
+  {
+    "path": "getting-started/frontend.md",
+    "status": "partial",
+    "native_reference": "the-basics/views.md"
+  },
+  {
+    "path": "getting-started/starter-kits.md",
+    "status": "not-shipped",
+    "native_reference": "packages/fortify.md"
+  },
+  {
+    "path": "packages/billing.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/http-client.md"
+  },
+  {
+    "path": "packages/cashier-paddle.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/http-client.md"
+  },
+  {
+    "path": "packages/dusk.md",
+    "status": "partial",
+    "native_reference": "testing/http-tests.md"
+  },
+  {
+    "path": "packages/envoy.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/processes.md"
+  },
+  {
+    "path": "packages/folio.md",
+    "status": "not-shipped",
+    "native_reference": "the-basics/routing.md"
+  },
+  {
+    "path": "packages/head.md",
+    "status": "not-shipped",
+    "native_reference": "the-basics/blade.md"
+  },
+  {
+    "path": "packages/homestead.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/installation.md"
+  },
+  {
+    "path": "packages/horizon.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/queues.md"
+  },
+  {
+    "path": "packages/mix.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/frontend.md"
+  },
+  {
+    "path": "packages/octane.md",
+    "status": "not-shipped",
+    "native_reference": "architecture-concepts/lifecycle.md"
+  },
+  {
+    "path": "packages/pennant.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/configuration.md"
+  },
+  {
+    "path": "packages/pint.md",
+    "status": "not-shipped",
+    "native_reference": "prologue/contributions.md"
+  },
+  {
+    "path": "packages/prompts.md",
+    "status": "partial",
+    "native_reference": "digging-deeper/artisan.md"
+  },
+  {
+    "path": "packages/pulse.md",
+    "status": "not-shipped",
+    "native_reference": "the-basics/logging.md"
+  },
+  {
+    "path": "packages/sail.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/deployment.md"
+  },
+  {
+    "path": "packages/scout.md",
+    "status": "not-shipped",
+    "native_reference": "digging-deeper/search.md"
+  },
+  {
+    "path": "packages/telescope.md",
+    "status": "not-shipped",
+    "native_reference": "the-basics/logging.md"
+  },
+  {
+    "path": "packages/valet.md",
+    "status": "not-shipped",
+    "native_reference": "getting-started/installation.md"
+  },
+  {
+    "path": "the-basics/vite.md",
+    "status": "partial",
+    "native_reference": "the-basics/blade.md"
+  }
+]

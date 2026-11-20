@@ -127,10 +127,10 @@ export default defineConfig(({ command }) => ({
     },
     markdown: {
         config(md) {
-            // Render and index a navigation title while chapter Markdown is empty.
-            md.core.ruler.before("normalize", "empty_chapter_title", (state) => {
+            // Empty navigation chapters must declare their support status explicitly.
+            md.core.ruler.before("normalize", "require_chapter_content", (state) => {
                 const title = chapterTitles.get(state.env.relativePath);
-                if (title && !state.src.trim()) state.src = "# " + title + "\n";
+                if (title && !state.src.trim()) throw new Error(`Empty documentation chapter: ${state.env.relativePath}`);
             });
         },
     },

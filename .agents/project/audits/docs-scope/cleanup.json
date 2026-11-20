@@ -1,0 +1,14 @@
+{
+  "before_available_kib": 89235784,
+  "after_available_kib": 89343600,
+  "released_kib": 107816,
+  "volumes_before": [],
+  "volumes_after": [],
+  "preserved": [
+    "accepted-overlay.tgz",
+    "source hashes and scope catalog",
+    "logs",
+    "shared node modules and browser cache",
+    "all database volumes"
+  ]
+}

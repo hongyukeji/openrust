@@ -36,3 +36,19 @@ npm run preview
 ## 版本入口
 
 版本和 Rustdoc 入口在 `.vitepress/config.mjs` 的 `publication` 中配置。
+
+## 文档内容检查
+
+导航章节必须包含正文。生态能力尚未提供时，正文说明实际支持边界和已有原生入口；不使用空白页或只有标题的页面代替功能说明。三个语言版本保持相同路径和导航顺序。
+
+在仓库根目录运行静态检查，再构建站点并验收真实页面：
+
+```sh
+node docs/tests/check_content.mjs
+cd docs
+npm run build
+node tests/check_browser.mjs
+node tests/check_scope.mjs
+```
+
+浏览器脚本使用 Playwright；已有安装位于其他路径时，通过 `DOCS_PLAYWRIGHT_MODULE` 指定模块，通过 `DOCS_BROWSER_PATH` 指定浏览器可执行文件。`check_scope.mjs` 在 `/` 和 `/docs/` 逐页检查三语导航，并核对未完整移植章节的支持状态与原生引用。空导航章节在 VitePress 构建时直接报错。
