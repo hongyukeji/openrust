@@ -1,6 +1,6 @@
 # 数据库翻译扩展验收
 
-2026-11-21。隔离基线 `db854be5b`；本批只实现 `openrust-translation-database`、本包测试与三语 localization 正文。不修改共享框架／API 站点／公共导航；认证 PostgreSQL 完整联测仍是独立未完成事项，不纳入此处通过结论。
+2026-11-21。隔离基线 `db854be5b`；本批只实现 `openrust-translation-database`、本包测试与三语 localization 正文。不修改共享框架／API 站点／公共导航；认证 PostgreSQL 完整联测独立记录于 [init-auth 补验](../00-03/init-auth.md#2026-11-21-postgresql-18-完整认证补验)，不纳入此处通过结论。
 
 ## 上游调研与复用
 

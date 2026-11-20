@@ -201,11 +201,7 @@ fn postgres_literal(sql: &mut String, value: &Value) -> DatabaseResult<()> {
             }
             sql.push_str("'::bytea)");
         }
-        Value::Json(value) => {
-            sql.push('(');
-            string_literal(sql, &value.to_string())?;
-            sql.push_str("::jsonb)");
-        }
+        Value::Json(value) => string_literal(sql, &value.to_string())?,
     }
     Ok(())
 }

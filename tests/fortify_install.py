@@ -1,6 +1,6 @@
-"""Real fortify:install -> rebuild -> MySQL / HTTP / loopback SMTP acceptance.
+"""Real fortify:install -> rebuild -> isolated SQL / HTTP / loopback SMTP acceptance.
 
-Run only against an isolated archive snapshot via tests/mysql_acceptance.py.
+Run only against an isolated archive snapshot via tests/postgres_acceptance.py or tests/mysql_acceptance.py.
 """
 import base64
 import email
@@ -117,6 +117,13 @@ def links(message):
 def run():
     source = Path(__file__).resolve().parents[1]
     assert source.parent.name.startswith(("openrust-fortify-install-", "openrust-passkeys-", "openrust-init-auth-")), "Use a dedicated archive snapshot"
+    postgres_url = os.environ.get("OPENRUST_TEST_POSTGRES_URL")
+    mysql_url = os.environ.get("OPENRUST_TEST_MYSQL_URL")
+    assert bool(postgres_url) != bool(mysql_url), "Provide exactly one isolated PostgreSQL or MySQL URL"
+    database_url = postgres_url or mysql_url
+    driver = "pgsql" if postgres_url else "mysql"
+    parsed_database = urllib.parse.urlsplit(database_url)
+    assert parsed_database.scheme in (("postgres", "postgresql") if postgres_url else ("mysql",)), "Database URL driver mismatch"
     init_auth = os.environ.get("OPENRUST_TEST_INIT_AUTH") == "1"
     passkeys = os.environ.get("OPENRUST_TEST_PASSKEYS") == "1"
     custom_passkey = os.environ.get("OPENRUST_TEST_PASSKEY_MODEL") == "1"
@@ -133,11 +140,11 @@ def run():
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
     origin = f"http://{'localhost' if passkeys or init_auth else '127.0.0.1'}:{port}"
-    env = dict(os.environ, APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
+    env = dict(os.environ, RUSTUP_TOOLCHAIN="1.94.0", APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
                APP_KEY="base64:" + base64.b64encode(b"a" * 32).decode(), APP_URL=origin,
                APP_DISABLED_RUNNERS="queue,schedule,reverb,grpc", APP_PORT=str(port), SERVER_PORT=str(port),
-               SESSION_DRIVER="array", CACHE_STORE="array", DB_CONNECTION="mysql",
-               DB_URL=os.environ["OPENRUST_TEST_MYSQL_URL"], DB_PREFIX="ia_" if init_auth else "fortify_generated_", BCRYPT_ROUNDS="4",
+               SESSION_DRIVER="array", CACHE_STORE="array", DB_CONNECTION=driver,
+               DB_URL=database_url, DB_PREFIX="ia_" if init_auth else "fortify_generated_", BCRYPT_ROUNDS="4",
                MAIL_MAILER="smtp", MAIL_HOST="127.0.0.1", MAIL_PORT=str(smtp.server_address[1]), MAIL_SCHEME="smtp",
                MAIL_FROM_ADDRESS="noreply@example.test", NO_COLOR="1")
     for key in ["APP_CONFIG_CACHE", "APP_PACKAGES_CACHE", "APP_ROUTES_CACHE", "APP_EVENTS_CACHE", "APP_VIEW_CACHE", "APP_STORAGE_PATH", "MAIL_URL", "MAIL_USERNAME", "MAIL_PASSWORD"]:
@@ -156,16 +163,15 @@ def run():
 
     def build(*args):
         available = int(subprocess.check_output(["df", "-kP", str(source)], text=True).splitlines()[-1].split()[3])
-        assert available > 48828125, f"Disk stop: {available} KiB"
+        assert available > 31_250_000, f"Disk stop: {available} KiB"
         subprocess.run(["cargo", "+1.94.0", *args], cwd=generated, env=env, check=True)
 
     server = None
     try:
         if init_auth:
-            mysql = urllib.parse.urlsplit(os.environ["OPENRUST_TEST_MYSQL_URL"])
             settings = {key: value for key, value in env.items() if key.startswith(("APP_", "DB_", "SESSION_", "CACHE_", "MAIL_", "BCRYPT_"))}
-            settings.update(DB_HOST=mysql.hostname, DB_PORT=str(mysql.port), DB_DATABASE=mysql.path.lstrip("/"),
-                            DB_USERNAME=urllib.parse.unquote(mysql.username), DB_PASSWORD=urllib.parse.unquote(mysql.password),
+            settings.update(DB_HOST=parsed_database.hostname, DB_PORT=str(parsed_database.port), DB_DATABASE=parsed_database.path.lstrip("/"),
+                            DB_USERNAME=urllib.parse.unquote(parsed_database.username), DB_PASSWORD=urllib.parse.unquote(parsed_database.password),
                             QUEUE_CONNECTION="sync", SMS_DRIVER="log", REVERB_ENABLED="false")
             settings.pop("APP_BASE_PATH", None)
             settings.pop("APP_KEY", None)
@@ -364,7 +370,7 @@ def run():
         cli("migrate", "--force", "--no-interaction")
         build("clippy", "--offline", "--locked", "--bin", "main", "--features", "fortify", "--", "-D", "warnings")
         build("build", "--offline", "--locked", "--no-default-features", "--bin", "main")  # Installed modules remain feature optional.
-        print("Fortify install/retry/customization/rebuild/migration; native HTTP/CSRF/session/SMTP/profile/password/2FA/recovery/reset/limits/shutdown; strict generated Clippy and feature-off build PASS", flush=True)
+        print(f"{driver}: Fortify install/retry/customization/rebuild/migration; native HTTP/CSRF/session/SMTP/profile/password/2FA/recovery/reset/limits/shutdown; strict generated Clippy and feature-off build PASS", flush=True)
     finally:
         if server is not None:
             server.kill()

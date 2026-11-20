@@ -69,3 +69,32 @@ Ubuntu x86_64 独立 `/tmp/openrust-init-auth-linux-20261120`，Rust 1.94.0 book
 [验收元数据与日志 SHA](init-auth-validation.json)保存全部正式结果、已知夹具失败、工具链、平台输入核对及清理数据。原始日志与失败源码保留在 `/private/tmp/openrust-init-auth-20261120`；Linux 原始源码／日志继续保留在该宿主专属批次目录。Windows 已回收本批 target 与 source/target，来宾实际释放 7,975,813,120 字节，保留源码、日志与共享工具链缓存，恢复原 stopped 状态。Linux 回收本批 target／专属依赖缓存副本及临时组件镜像，释放 6,253,152 KiB，剩余 102,601,048 KiB；保留所有源码、失败夹具、日志、共享构建缓存与基础镜像。两边所有数据卷核对保留，未删除数据库卷。
 
 最后宿主 Available 77,990,272 KiB（79.862 GB／74.377 GiB），高于 48,828,125 KiB 停线；额外传输缓存副本已回收。无本批活跃编译或测试进程，不推送；只核范围本地提交，协作者 plan.md 及未知 WIP 均保留。
+
+
+## 2026-11-21 PostgreSQL 18 完整认证补验
+
+在 `95e904727` archive 叠加本节修复，隔离源码 `/private/tmp/openrust-init-auth-20261121/source`，复用已停止的 20261120 PostgreSQL 批次专属 target。生产修复仅涉及共享 PostgreSQL 参数绑定，未改 Passport 的模型表结构、JSON cast、subject 契约或守卫绕过逻辑；活跃工作树的日期迁移由其他批次独立处理，本节快照仍用已提交的 chrono 基线。
+
+### 方案依据与根因
+
+联网核对固定 [Laravel HasAttributes／JSON cast](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasAttributes.php)、[Connection::bindValues](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php)、[Passport 13.10.0 Client](https://github.com/laravel/passport/blob/v13.10.0/src/Client.php) 与 [SQLx 0.9.0 PostgreSQL JSON 编码](https://github.com/launchbadge/sqlx/blob/v0.9.0/sqlx-postgres/src/types/json.rs)。Laravel 将 JSON 属性序列化为字符串后绑定；SQLx 原生 JSON 类型则使用 JSONB 二进制版本字节，并仅对原生 JSON／JSONB 参数调整编码。旧 `v0.x` Eloquent 基于 SeaORM，没有当前共享 bind_postgres 可直接移植的实现；沿用现有 statement 参数类型信息做最小适配，不新增依赖、仓储或 Passport 专属转换层。
+
+- 首个故障为真实 HTTP 创建 PAT 失败。诊断取得 `Passport client attribute`，客户端 TEXT `grant_types` 实际读出 `\u0001["personal_access"]`：SQLx Json 的 JSONB 版本字节被当作普通文本入库。绑定目标为 TEXT／VARCHAR 等文本类型时改用序列化 JSON 字符串，原生 JSON／JSONB 继续使用 SQLx Json 编码。
+- 同组回归发现模拟预处理把所有 JSON 强制追加 `::jsonb`，使文本 JSON 谓词报 `text = jsonb`。改为经过既有安全转义的 JSON 字符串字面量，由列和运算符推断类型；原生 JSON predicates／updates 的两模式回归通过。
+- JSON 修复后真实 PAT 已生成，Passport guard 仍 401。隔离 PostgreSQL 日志证明 JWT 字符串 subject 查询 BIGINT 用户 id 时，SQLx 将字符串字节按整数二进制读取，报 `insufficient data left in message`。按 statement 的 INT2／INT4／INT8 解析字符串，并复用现有范围检查和相应整数编码；非法数字、越界仍失败。真实 guard 恢复 200，Sanctum／Passport 互相拒绝对方令牌。
+
+### 实际验证与夹具修正
+
+Rust 1.94.0，2 jobs，增量关闭、dev debug=0；数据库由正式 wrapper 创建 PostgreSQL 18.6（180006）tmpfs 隔离实例，不接开发数据库，保留全部数据卷。
+
+- 新 JSON 两模式回归覆盖 TEXT／VARCHAR／JSON／JSONB 的数组、对象、JSON null、空数组／对象／字符串、引号／反斜杠／中文、插入／更新／原生读取、文本 JSON 谓词及 SQL NULL 区别；既有 PostgreSQL JSON predicates／updates 两模式与 SQLite JSON 行为通过。MySQL／SQL Server 的同名过滤函数在此命令没有对应 URL，仅跳过，不计驱动通过。
+- 新整数字符串两模式回归覆盖 INT2／INT4／INT8 正负边界、带空白正号、插入与查询、越界和非法字符串拒绝，失败后连接仍可查询。
+- 从 feature-off 主程序运行完整默认 all：bootstrap／final build／全部迁移；原始 `/up` 与 `/` 200、`/api/user` 401；普通／force／without-migration／单项重跑保留 APP_KEY、Passport RSA pair 与历史迁移；守卫冲突、缺半套密钥拒绝，全部通过。
+- 同一生成应用真实 HTTP 通过 Sanctum 200／Passport 401、Passport 200／Sanctum 401 四断言；Fortify 注册、CSRF、Session 轮换、三封 SMTP、邮件验证、资料／密码、2FA、恢复码、密码重置、限流及正常关停通过。迁移回滚／重建、生成应用严格 Clippy、功能关闭构建通过；新增 PostgreSQL Query Builder 测试定向严格 Clippy 与全仓 fmt 检查通过。未将此结果扩大为 PostgreSQL 浏览器 Passkeys 验收。
+- 共享 Fortify／init 夹具接受且只接受一个隔离 PostgreSQL 或 MySQL URL，核对 driver；子进程显式固定 `RUSTUP_TOOLCHAIN=1.94.0`，修正外层 `cargo +1.94.0` 无法约束 init 内部 cargo 的问题。首轮发现内层误用机器 stable 1.99.1，主动终止并保留 `generated-toolchain-mismatch`／`init-auth-toolchain-mismatch.log`；正式完整结果来自固定 1.94 的重跑。磁盘停线同步现行 32 GB（31,250,000 KiB）约定。
+
+同一共享夹具再用隔离 MySQL 8.4.13 完整运行，默认 all、四项令牌守卫隔离、全部 Fortify HTTP／SMTP、严格生成应用 Clippy 和功能关闭构建均通过，日志 `init-auth-mysql.log`。这次复验核对新增驱动选择逻辑保留 MySQL 原行为。
+
+正式日志位于同批 `json-postgres.log`、`json-existing.log`、`integers-postgres.log`、`json-integer-clippy.log`、`init-auth-postgres.log` 与 `postgres-final-*`；通过的生成应用保留在 `generated-postgres-pass`。原始 JSON 与 subject 故障证据见 `diagnose4.log`、`json-diagnostic.log`、`pat-diagnose.log`、`pat-diagnose-postgres.log` 和 `init-auth-string-id-failure.log`；诊断插桩仅位于隔离副本，已恢复源码，不纳入提交。
+
+为避免误工具链产物挤占磁盘，通过独立小编译确认 1.94 的 rustc fingerprint 为 `10088478398040096810`，只删除本批 target 内属于 1.99 fingerprint `13976775244188850736` 的 2,331 个匹配构建路径，保留有效 1.94 产物及所有源码、日志、共享缓存、数据库卷。实测 Available 从 39,600,576 到 41,428,160 KiB，释放 1,827,584 KiB，清单 `cleanup-toolchain.json`。有效 target 保留供后续已提交日期／Settings 整合后再验。

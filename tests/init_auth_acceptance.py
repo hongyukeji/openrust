@@ -1,6 +1,6 @@
 """Full init acceptance from an isolated archive, through the shared Fortify HTTP fixture.
 
-Run with mysql_acceptance.py; start with a feature-free main binary in the exclusive target.
+Run with postgres_acceptance.py or mysql_acceptance.py; start with a feature-free main binary in the exclusive target.
 """
 import os
 from fortify_install import run

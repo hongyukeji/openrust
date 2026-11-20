@@ -1827,6 +1827,185 @@ async fn sqlite_reports_unsupported_rowset_traversal() {
 }
 
 #[tokio::test]
+async fn integer_strings_bind_to_postgres_integer_columns_in_both_prepare_modes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    for emulate in [false, true] {
+        let db = connection(json!({"url":url,"emulate_prepares":emulate}));
+        db.statement(
+            "create table postgres_integer_strings (small smallint, regular integer, big bigint)",
+            &[],
+        )
+        .await
+        .unwrap();
+        for (small, regular, big) in [
+            ("-32768", "-2147483648", "-9223372036854775808"),
+            ("32767", "2147483647", "9223372036854775807"),
+            (" +1 ", " +1 ", " +1 "),
+        ] {
+            db.table("postgres_integer_strings")
+                .insert(&[[
+                    ("small".into(), small.into()),
+                    ("regular".into(), regular.into()),
+                    ("big".into(), big.into()),
+                ]
+                .into()])
+                .await
+                .unwrap();
+            let row = db
+                .table("postgres_integer_strings")
+                .r#where("small", "=", small)
+                .r#where("regular", "=", regular)
+                .r#where("big", "=", big)
+                .first()
+                .await
+                .unwrap()
+                .unwrap();
+            for (column, value) in [("small", small), ("regular", regular), ("big", big)] {
+                assert_eq!(
+                    row.get(column),
+                    Some(&Value::Integer(value.trim().parse().unwrap()))
+                );
+            }
+        }
+        for (column, value) in [
+            ("small", "32768"),
+            ("small", "-32769"),
+            ("regular", "2147483648"),
+            ("regular", "-2147483649"),
+            ("big", "9223372036854775808"),
+            ("big", "not-an-integer"),
+        ] {
+            assert!(
+                db.table("postgres_integer_strings")
+                    .r#where(column, "=", value)
+                    .first()
+                    .await
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            db.table("postgres_integer_strings")
+                .count("*")
+                .await
+                .unwrap(),
+            3
+        );
+        db.statement("drop table postgres_integer_strings", &[])
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn json_values_bind_to_postgres_native_and_text_columns_in_both_prepare_modes() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    for emulate in [false, true] {
+        let db = connection(json!({"url":url,"emulate_prepares":emulate}));
+        db.statement(
+            "create table postgres_json_bindings (id integer primary key, text_value text, varchar_value varchar(255), json_value json, jsonb_value jsonb)",
+            &[],
+        )
+        .await
+        .unwrap();
+        let first = json!(["personal_access", {"quoted": "a'\\b", "name": "你好"}]);
+        let second = json!({"scopes": ["read", "write"], "enabled": true});
+        for (id, document) in [
+            (1, &first),
+            (2, &Json::Null),
+            (3, &json!([])),
+            (4, &json!({})),
+            (5, &json!("")),
+        ] {
+            let mut record = openrust::database::query::Record::from([("id".into(), id.into())]);
+            for column in ["text_value", "varchar_value", "json_value", "jsonb_value"] {
+                record.insert(column.into(), Value::Json(document.clone()));
+            }
+            db.table("postgres_json_bindings")
+                .insert(&[record])
+                .await
+                .unwrap();
+            let row = db
+                .table("postgres_json_bindings")
+                .r#where("id", "=", id)
+                .first()
+                .await
+                .unwrap()
+                .unwrap();
+            for column in ["text_value", "varchar_value"] {
+                let Some(Value::Text(text)) = row.get(column) else {
+                    panic!("text JSON column");
+                };
+                assert_eq!(serde_json::from_str::<Json>(text).unwrap(), *document);
+            }
+            for column in ["json_value", "jsonb_value"] {
+                assert_eq!(row.get(column), Some(&Value::Json(document.clone())));
+            }
+        }
+        let mut update = openrust::database::query::Record::new();
+        for column in ["text_value", "varchar_value", "json_value", "jsonb_value"] {
+            update.insert(column.into(), Value::Json(second.clone()));
+        }
+        assert_eq!(
+            db.table("postgres_json_bindings")
+                .r#where("id", "=", 1)
+                .update(update)
+                .await
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.table("postgres_json_bindings")
+                .r#where("text_value", "=", Value::Json(second.clone()))
+                .count("*")
+                .await
+                .unwrap(),
+            1
+        );
+        let row = db
+            .table("postgres_json_bindings")
+            .r#where("id", "=", 1)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            row.get("text_value"),
+            Some(&Value::Text(second.to_string()))
+        );
+        assert_eq!(row.get("jsonb_value"), Some(&Value::Json(second)));
+        db.table("postgres_json_bindings")
+            .r#where("id", "=", 1)
+            .update(
+                ["text_value", "varchar_value", "json_value", "jsonb_value"]
+                    .into_iter()
+                    .map(|column| (column.into(), Value::Null))
+                    .collect(),
+            )
+            .await
+            .unwrap();
+        let row = db
+            .table("postgres_json_bindings")
+            .r#where("id", "=", 1)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        for column in ["text_value", "varchar_value", "json_value", "jsonb_value"] {
+            assert_eq!(row.get(column), Some(&Value::Null));
+        }
+        db.statement("drop table postgres_json_bindings", &[])
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
 async fn timestamp_bindings_run_on_postgres_in_both_prepare_modes() {
     let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());

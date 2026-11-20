@@ -307,6 +307,12 @@ fn bind_postgres<'a, 'b: 'a>(
         let kind = types.get(position).map(sqlx::TypeInfo::name);
         let integer = match value {
             Value::Integer(value) => Some(*value),
+            Value::Text(value) if matches!(kind, Some("INT2" | "INT4" | "INT8")) => Some(
+                value
+                    .trim()
+                    .parse::<i64>()
+                    .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL integer parameter"))?,
+            ),
             Value::Unsigned(value) => Some(
                 i64::try_from(*value)
                     .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL integer parameter"))?,
@@ -319,6 +325,11 @@ fn bind_postgres<'a, 'b: 'a>(
                 Some("INT4") => query.bind(integer_binding::<i32>(value)?),
                 _ => query.bind(value),
             };
+        } else if let (Value::Json(value), Some("TEXT" | "VARCHAR" | "BPCHAR" | "NAME")) =
+            (value, kind)
+        {
+            // SQLx Json uses the JSONB binary format; text columns need plain JSON bytes.
+            query = query.bind(value.to_string());
         } else if let (Value::Text(value), Some("TIMESTAMP")) = (value, kind) {
             let timestamp = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M:%S%.f")
                 .map_err(|_| DatabaseError::InvalidQuery("PostgreSQL timestamp parameter"))?;
