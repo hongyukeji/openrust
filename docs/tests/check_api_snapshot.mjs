@@ -52,6 +52,9 @@ try {
                     ["openrust/support/struct.Date.html", ["timezone", "fromUtc", "asDateTime"]],
                     ["openrust_settings/struct.Settings.html", ["get", "save", "saveIn", "refresh"]],
                     ["openrust_socialite/wechat/struct.MiniApp.html", ["codeToSession"]],
+                    ["openrust_cashier/struct.CashierManager.html", ["driver", "forgetDrivers"]],
+                    ["openrust_cashier/struct.Billable.html", ["checkout", "newSubscription", "billingPortal", "invoiceDocument"]],
+                    ["openrust_pay/struct.PayManager.html", ["driver"]],
                 ]) {
                     assert.equal((await page.goto(`${base}api/${file}`)).status(), 200);
                     for (const method of methods) {

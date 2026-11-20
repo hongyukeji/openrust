@@ -44,3 +44,17 @@ API 统一使用 `docs/scripts/build_api.py` 导出，再由 `DOCS_API_DIR` 接�
 证据与交付位于 `/private/tmp/openrust-final-integration-20261121/`：`source-final.txt`、`api-archive-verified.json`、`api-export-final.log`、`api-manifest-final.log`、`api-cli-final.log`、`site-final.log`、`api-browser-final.log`、`browser-final.log`、`socialite-browser-final.log`、`scope-final.log`；保留 `api-delivery/` 及 `source/docs/.vitepress/dist/`。首轮提交号参数录入有误的导出仅作预检，不计最终交付；该产物已删除，正式导出直接读取 Git 生成的提交号文件。
 
 当前快照通过本机文档验收，不表示生产托管地址、全部平台或用户发布批准已完成。无版本升级、tag、推送或部署。
+
+
+## 2026-11-21 扩展配置与 Cashier 合并后的 API 快照
+
+源码固定 `0582cc8bd39bf3a88b77a3857a7b4d1f24054fc4`，包含核心配置归属修复 `285fcacd0`、Pay 与 Cashier。使用 Git archive 独立源码及本批专属target；只将两份待提交的API验收脚本复制到快照，库源码及开发者指南不叠加工作区改动。保留未跟踪memory目录。
+
+- Rust1.94.0、jobs=2、增量关闭、dev debug=0，使用既有 `build_api.py` 按显式host及全部feature导出13库；启用broken／private intra-doc链接错误检查并成功完成。API导出清单的2,039份输入逐个与固定Git归档核对一致，包含Settings／Pay／OIDC／Reverb／Cashier的包config。现有导出器和站点已覆盖config目录，本批没有增加另一套指纹机制。
+- `check_api_export.mjs`新增上述五份配置模板的变更拒绝；14类非法／过期输入拒绝及匹配接受通过。7项CLI拒绝回归通过。维护指南明确包配置也是编译输入。
+- 三语内容检查每语108导航／110 Markdown、完整联合站点构建通过。`check_api_snapshot.mjs`在 `/` 与 `/docs/` 的三语桌面／移动12组导航、两挂载全部13库源码链接、Application搜索与现有Date／Settings／MiniApp方法检查通过；新增CashierManager、Billable的checkout／newSubscription／billingPortal／invoiceDocument及PayManager方法锚点均通过。
+- 联合站点的Cashier两页×三语×两挂载×桌面移动24组、普通12组及全部导航6组浏览器检查通过，支持说明页为每语24页。浏览器首轮默认可执行文件不存在，改为显式指定已有Chromium1243后全部退出0；初轮日志保留，不计为通过。文档构建有既有chunk体积提示，未当作无警告构建。
+
+交付与证据目录为 `/private/tmp/openrust-api-cashier-20261121/`：`api-delivery/`为独立Rustdoc导出，`source/docs/.vitepress/dist/`为三语联合站点；`archive-verified.json`、`api-export.log`、`api-manifest.log`、`api-cli.log`、`site-build.log`及`check_*.log`记录本次结果。旧快照仅适用其自身源码版本，不再用旧11库快照代表当前计费扩展。
+
+本批只扩展API验收脚本、维护说明及内部交接，没有修改Rust运行逻辑；沿用Cashier主题记录的三库及严格Clippy结果，没有重跑整个运行时行为矩阵。真实商户／客户端SDK／SCA／资金交易、其他平台及实际生产托管未验，无推送、tag或部署。确认target无打开文件且所有验收进程退出后，删除本批闲置target并仅unlink共享node_modules，保留源码／日志／最终API与联合站点；可用空间47,406,544→48,297,792 KiB，净增891,248 KiB。Docker卷清单前后相同（为空），未操作数据库。

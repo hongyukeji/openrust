@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [Cashier组合API快照](audits/docs-scope/api-reference.md#2026-11-21-扩展配置与-cashier-合并后的-api-快照)：固定0582cc8bd，Rust1.94全feature导出13库，2,039份编译输入与Git归档一致；五包config过期拒绝、14类指纹负例／7项CLI、三语联合构建、API导航／源码／方法／搜索及计费24＋普通12＋全部导航6组浏览器通过。最终API与联合站点保留于/private/tmp/openrust-api-cashier-20261121，闲置target已清；真实商户／资金／跨平台／生产托管未验，仅核范围本地提交。
+
 - 2026-11-21 [Stripe／Paddle订阅计费](audits/pay/cashier.md)完成：独立openrust-cashier，补齐客户、Checkout／门户、订阅生命周期、SCA原生状态、支付方式、计量、账单／预览／PDF、退款及事务Webhook；配置与发布模板归所属包，缓存跳过环境读取，默认骨架不预装。固定Laravel Cashier／官方SDK对照，12常规函数＋独立官方签名、SQLite／PG18／MySQL8并发乱序回滚与客户删除／Paddle单次发送、三库原生Artisan发布迁移缓存、feature开关、严格全feature Clippy／fmt及三语24＋12＋6浏览器通过；最终与285fcacd0组合验收。真实商户、客户端SDK／SCA及资金未验，API全站导出由核心统一处理。专属target／dist已清，保留源码／日志／全部卷，仅本地核范围提交不推送。本条替代国内支付首期中的“订阅／Stripe／Paddle后置”。
 
 - 2026-11-21 [扩展配置归属修复](audits/00-01/README.md#扩展配置归属修复与验收2026-11-21)：Settings／Pay／OIDC／Reverb 默认配置迁回所属包，OIDC默认提供方为空，显式发布／安装保留应用定制；核心及认证包遵守配置缓存快照。默认／开启feature根回归、原生安装／缓存／HTTP、三库Settings及Pay定向验收、全feature严格Clippy／fmt与三语构建／浏览器通过。生成应用补验Fortify／Passkeys／Passport缓存不再读取环境密钥；完整认证及真实供应商未复验，并行Cashier不在本批快照内；仅核范围本地提交。

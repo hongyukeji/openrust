@@ -37,7 +37,11 @@ try {
         copyFileSync(path.join(root, file), target);
     }
     assert.equal(loadApi(temporary, snapshot).manifest.revision, original.revision);
-    for (const file of ["vendor/openrust/settings/README.md", "vendor/openrust/fortify/stubs/create_new_user.rs"]) {
+    for (const file of [
+        "vendor/openrust/settings/README.md",
+        "vendor/openrust/fortify/stubs/create_new_user.rs",
+        ...["settings", "pay", "oidc", "reverb", "cashier"].map(name => `vendor/openrust/${name}/config/${name}.rs`),
+    ]) {
         assert(original.source_sha256[file], `${file}: embedded source missing from fingerprints`);
         const target = path.join(snapshot, file);
         const content = readFileSync(target);
