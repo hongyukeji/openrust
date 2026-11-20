@@ -1,0 +1,92 @@
+{
+  "base": "9ea308252365f39fd9f6038b820f8a956f52d517",
+  "source": "/private/tmp/openrust-oidc-sso-final-20261120/source",
+  "recovered_source": "/private/tmp/openrust-oidc-sso-20261120/source",
+  "recovered_base": "ad58593d250b6e987224fefdc9ea68930d27fe13",
+  "files": [
+    {
+      "path": "config/oidc.rs",
+      "sha256": "a1af410929d92fdccad606e930043804599b630ed1f7c8ebf692b02541c60393"
+    },
+    {
+      "path": "docs/en/packages/oidc.md",
+      "sha256": "68be6c1855fdc78c2df78730fe81f519b3b25877cdc6c540b339d2dd743fa763"
+    },
+    {
+      "path": "docs/tests/check_oidc.mjs",
+      "sha256": "140d2094c9b6dc650e6127525aa1dd7990c077dca117b26575ef52ca67789f6a"
+    },
+    {
+      "path": "docs/zh_CN/packages/oidc.md",
+      "sha256": "a71eda6596987b7e6ffff9913f3247f57fa448b6e44eb81d1734c2ed15df4fca"
+    },
+    {
+      "path": "docs/zh_TW/packages/oidc.md",
+      "sha256": "4eb42b741102fa617fbeef058c50710bdea3e1c95379082a6d086f116690b2fb"
+    },
+    {
+      "path": "tests/configuration.rs",
+      "sha256": "2d3b3a2c00f11fe0f0fc9811af86ead7cb14422a02b824fc38374ce319e721cc"
+    },
+    {
+      "path": "vendor/openrust/oidc/Cargo.toml",
+      "sha256": "9e6d6d6235348a53f132936c5938ca179cf1fe8f4e81c1a2d7fb7cb783321f76"
+    },
+    {
+      "path": "vendor/openrust/oidc/src/config.rs",
+      "sha256": "ab7b63d4cb34992c061df96d9efd102bde915565da5ff3cf2edde7ce8d2d1abb"
+    },
+    {
+      "path": "vendor/openrust/oidc/src/identity.rs",
+      "sha256": "f8cacaaf797d2e07542cf6bdebab16253de5a304527db17bed27b3e5c0ac4ad0"
+    },
+    {
+      "path": "vendor/openrust/oidc/src/lib.rs",
+      "sha256": "5f47ef205823e5c44befb047427fd32bded37580dc580e082c9aafdaa9323a35"
+    },
+    {
+      "path": "vendor/openrust/oidc/src/provider.rs",
+      "sha256": "83b1dfd30e8d1cf0f717b70099287993125691ba73ea1f905cbb85b82abb7861"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/browser/sso.mjs",
+      "sha256": "f17afdd72d462624fa512d93822c2e4a1d9daf4042d89d30a9d1c5ff22f6a55f"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/fixtures/keys.json",
+      "sha256": "fe7a02e5379595362882e976fb0382164b2ca7d24428e8fb7a9ce54528e63d1d"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/fixtures/private.der",
+      "sha256": "4dc58e0c707bb7d31aa9f842884966e735ae7633fb62b069d05e7d460658727b"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/fixtures/second.der",
+      "sha256": "8675f49b03fe610a08022ad7c40d8a32de18ee82c611b89ffa3a19ba2f14288c"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/flow.rs",
+      "sha256": "51bc69acac2fffa5eee74f5618d6c9722f066c29d25d349ad505f728e92b2658"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/sso.rs",
+      "sha256": "9f25781e278ab03461c8dc1f5a46df58d70bf1c15c38ccb11e9748e8323925e3"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/support/identity.rs",
+      "sha256": "3da3e47cedbd392fcc7f1394e4a11594a2cf53aa060a24d12236f0b4e7e00349"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/support/local_login.rs",
+      "sha256": "632bfecf53237ba544b0ce827ade3acb896db68d463608744215a92817787ec0"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/support/local_logout.rs",
+      "sha256": "74d9fb6ec53e13ef8c54e247a7f12708ec43c2061e15128e87484efca5583f5f"
+    },
+    {
+      "path": "vendor/openrust/oidc/tests/support/user.rs",
+      "sha256": "90b0b509c278abd2a40de12b7249cd289bac50019aa13f0e9136028dbe344120"
+    }
+  ]
+}

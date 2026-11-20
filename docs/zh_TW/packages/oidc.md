@@ -115,6 +115,63 @@ RP 要求 HTTPS、精確 issuer、用戶端 audience、非空且不超過 255 �
 
 Discovery 端點預設限於 issuer 同源。確需跨源時在 `allowed_origins` 明確列出所需 HTTPS origin，最多額外 16 項。拒絕帶使用者憑證／fragment 的 URL，以及預含保留查詢參數的授權端點。不跟隨 HTTP 重新導向，回應上限 1 MiB。`allow_loopback_http: true` 僅為本機測試放行字面 IPv4／IPv6 回環 HTTP，不放行主機名稱 HTTP。預設授權 TTL 600 秒（1–3600）、單次請求逾時 10 秒（1–60）、ID Token 最大年齡 600 秒（0–86400）、時鐘寬限 0 秒（0–60）、啟用 UserInfo。多程序／副本必須選擇共用原子資料庫或 Redis 快取；array 僅保護單一程序。失敗回呼也會消費嘗試，重試須重新登入。本機 Session 登出不會撤銷 OP token 或結束 OP Session。
 
+## 瀏覽器 SSO 與登出 {#sso-logout}
+
+API-O02 驗證兩個獨立 RP 應用連接同一受控 OP：用戶端 ID、應用金鑰、資料庫和本地使用者各自隔離。首次在 OP 登入後，第二個 RP 可藉助既有 OP 瀏覽器 Session 授權；每個 RP 仍擁有獨立本地 Session，並分別解析 `(issuer, subject)`。`prompt("login")` 請求 OP 重新認證，`maxAge` 另外檢查傳回的 `auth_time`。
+
+RP 發起登出遵循 OpenID Connect RP-Initiated Logout 1.0（2022-09-12）。將 `OIDC_POST_LOGOUT_REDIRECT_URI`（`post_logout_redirect`）設為 OP 已登記的固定回呼。在 `user()` 及本地帳戶綁定成功後，呼叫 `Oidc::provider("work", request)?.rememberLogout(&authentication)?`，明確將已驗證的 ID Token 儲存到伺服器端 Session。`LogoutHint` 是不透明型別，修改公開 token 欄位無法替換擷取的已驗證提示。Session 儲存和送出的登出 URL 均視為敏感資料。
+
+將以下動作放入應用，並註冊為原生 web 群組中受 CSRF 保護的 POST 路由。傳入 `false` 僅本地登出，`true` 嘗試 OP 登出：
+
+```rust
+use openrust::{
+    auth::Auth,
+    http::{HttpError, Request, Response, StatusCode},
+};
+use openrust_oidc::facades::Oidc;
+use serde_json::json;
+
+fn internal(error: impl std::error::Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(error),
+    }
+}
+
+/// Register on a POST route in the native web group with CSRF protection.
+pub async fn logout(request: &mut Request, federated: bool) -> Result<Response, HttpError> {
+    let hint = Oidc::provider("work", request)
+        .map_err(internal)?
+        .takeLogoutHint()
+        .ok();
+    Auth::sessionGuard(request, Some("web"))
+        .map_err(internal)?
+        .logoutAndInvalidate()
+        .await
+        .map_err(internal)?;
+    if federated
+        && let Some(hint) = hint
+        && let Ok(url) = Oidc::provider("work", request)
+            .map_err(internal)?
+            .logoutUrl(&hint)
+            .await
+    {
+        return Ok(
+            openrust::support::facades::Redirect::away(&url, Default::default())
+                .map_err(internal)?
+                .into(),
+        );
+    }
+    Response::json(StatusCode::OK, json!({"local":true,"federated":false}))
+}
+```
+
+`takeLogoutHint()` 先消耗提示，原生 `logoutAndInvalidate()` 再清空本地 Session 並更新 CSRF。`logoutUrl(&hint)` 探索並校驗獲准的 `end_session_endpoint`，附加 ID Token 提示、用戶端 ID、固定傳回位址和一次性 state，將狀態儲存到新的匿名 Session。此動作在 OP 不支援、Discovery 無法使用或中繼資料無效時仍完成本地登出。不得從請求參數讀取提示或傳回目標。
+
+固定傳回處理器呼叫 `Oidc::provider("work", request)?.completeLogout().await?`，再傳回本地已登出頁面。完成時校驗 Session 綁定、設定、目標、期限與共用原子重放宣告；失敗同樣消耗本次嘗試，且不會登入任何使用者。此結果確認傳回狀態，不證明全部遠端憑證均已撤銷。
+
+OP 瀏覽器 Session 結束後，另一個 RP 的既有本地 Session 仍有效。既有 access／refresh token 遵循 OP 獨立的撤銷策略。本實作不提供 front-channel／back-channel 登出通知及全域單點登出。瀏覽器驗收涵蓋並行授權、強制重新認證、issuer／綁定拒絕、CSRF、本地／OP 登出、並行／過期／重放傳回狀態、OP 不支援及 bearer token 邊界。夾具為受控測試 OP，不是正式身份提供方。
+
+
 ## 測試與部署 {#testing}
 
-受控供應商測試使用真實 TCP HTTP、RSA 簽章、同 kid 輪換、Session 中介層和 MySQL 8.4。兩個 RP 副本在載入相同回呼 Session 後，透過共用資料庫快取原子認領 state，只有一個請求呼叫 token 端點。另涵蓋 PKCE／用戶端認證、宣告／Discovery／UserInfo 失敗、到期或替換嘗試、跨應用 Cookie、本機綁定和同信箱不合併。真實第三方授權需要供應商 issuer、已登記測試應用、用戶端憑證、獲准回呼與測試帳戶。瀏覽器 SSO 和聯邦登出由 API-O02 獨立交付。
+受控供應商測試使用真實 TCP HTTP、RSA 簽章、同 kid 輪換、Session 中介層和 MySQL 8.4。兩個 RP 副本在載入相同回呼 Session 後，透過共用資料庫快取原子認領 state，只有一個請求呼叫 token 端點。另涵蓋 PKCE／用戶端認證、宣告／Discovery／UserInfo 失敗、到期或替換嘗試、跨應用 Cookie、本機綁定和同信箱不合併。真實第三方授權需要供應商 issuer、已登記測試應用、用戶端憑證、獲准回呼與測試帳戶。API-O02 瀏覽器結果與登出邊界見上文。

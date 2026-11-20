@@ -9,6 +9,8 @@
 
 ## 最新交接
 
+- 2026-11-20 API-O02 [双应用 SSO 与退出](audits/api-o02/README.md)完成本机受控 OP 验收：两个真实 RP／独立数据库／Chrome 登录复用、强制重新认证、跨租户与绑定拒绝、CSRF、本地／RP 发起退出、同 Session barrier 并发一次性回调、过期与配置／目标变化；明确其他 RP Session 与 token 撤销边界。OIDC7＋根配置1函数、Rust1.94全workspace/all-targets五feature严格Clippy／fmt、根HTTP／Pail／Artisan、feature关闭及三语12＋6浏览器全过。21输入SHA／固定规范／来源及清理留证，释放5,402,480 KiB，全部卷保留；核范围本地提交，不推送。API-P01 Precognition 已有正式验收，接下来继续原初始化任务的第一代认证扩展清单与共享安装器接线、生成应用真实联测，再处理发布矩阵余项。
+
 - 2026-11-20 API-F02 [定制边界](audits/api-f02/customization.md)完成本机验收：实际自定义 Eloquent 模型／关系／异步记录／类型化事件／观察者、固定 PHP 71 组 AAGUID 名称与图标、旧凭据缺字段、独立配置／迁移发布。自定义与默认生成应用均通过真实 Chrome／官方 JS／MySQL 8.4.13 全生命周期、迁移回滚、严格 Clippy 和 feature 关闭；验证器33／Fortify55／Passkeys10、严格全workspace/all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan及三语12＋6浏览器通过。37输入SHA与来源／清理留证，释放10,274,804 KiB、全部卷保留；本地核范围提交不推送。[原生命周期](audits/api-f02/README.md)为历史批次。继续 API-O02 双应用浏览器 SSO 与退出，随后依计划处理 Precognition、初始化扩展与最终发布整合；不将本机结果称为全项目完成。
 
 - 2026-11-20 API-O01 [OIDC RP](audits/api-o01/README.md)完成本机验收：独立可选包／授权码＋S256／Discovery与JWKS／严格ID Token／UserInfo及归属动作；8算法、4原生＋2真实HTTP／MySQL＋根配置1函数，双副本共享Session与原子重放、同邮箱不合并、Session迁移、错误路径、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭及三语12＋6浏览器通过。源码与依赖SHA、专属清理留证，全部卷保留，本地提交不推送。继续API-O02双应用浏览器SSO与退出；真实供应商凭据前置保留。

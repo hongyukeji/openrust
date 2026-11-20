@@ -51,9 +51,16 @@ pub struct Tokens {
     pub refresh_token: Option<Zeroizing<String>>,
     pub expires_in: Option<u64>,
 }
+/// Opaque logout hint captured from a successfully verified authentication.
+/// It deliberately has no Debug, Serialize or Deserialize implementation.
+pub struct LogoutHint {
+    pub(crate) config: String,
+    pub(crate) token: Zeroizing<String>,
+}
 pub struct Authentication {
     pub identity: VerifiedIdentity,
     pub tokens: Tokens,
+    pub(crate) logout_hint: LogoutHint,
 }
 #[derive(Deserialize)]
 #[serde(untagged)]

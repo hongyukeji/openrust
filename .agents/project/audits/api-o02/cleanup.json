@@ -1,0 +1,19 @@
+{
+  "batch": "/private/tmp/openrust-oidc-sso-final-20261120",
+  "before_available_kib": 70829496,
+  "after_available_kib": 76231976,
+  "freed_kib": 5402480,
+  "after_gb": 78.062,
+  "after_gib": 72.7,
+  "removed": [
+    "/private/tmp/openrust-oidc-sso-final-20261120/target",
+    "/private/tmp/openrust-oidc-sso-final-20261120/source/docs/.vitepress/dist"
+  ],
+  "preserved": [
+    "source snapshots and old recovery batch",
+    "logs",
+    "shared caches",
+    "all database volumes"
+  ],
+  "docker_volumes_unchanged": true
+}

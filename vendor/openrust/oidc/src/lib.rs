@@ -5,7 +5,7 @@ mod config;
 mod identity;
 mod provider;
 pub use config::ProviderConfig;
-pub use identity::{Authentication, Tokens, VerifiedIdentity};
+pub use identity::{Authentication, LogoutHint, Tokens, VerifiedIdentity};
 use openrust::{
     cache::CacheManager,
     contracts::{config::Repository, container::Container as _, foundation::Application as _},
@@ -33,6 +33,10 @@ pub enum Error {
     InvalidToken,
     #[error("The OIDC UserInfo subject does not match the verified identity.")]
     InvalidUserInfo,
+    #[error("The OIDC provider does not support RP initiated logout.")]
+    UnsupportedLogout,
+    #[error("The OIDC logout context is unavailable or invalid.")]
+    InvalidLogout,
     #[error("The OIDC provider returned HTTP {0}.")]
     ProviderStatus(u16),
     #[error("The OIDC HTTP request failed.")]

@@ -94,7 +94,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         defaults["oidc"]["providers"]["work"]["allow_loopback_http"],
         false
     );
-    fs::write(root.join(".env"),"OIDC_ISSUER=https://op.test\nOIDC_CLIENT_ID=rp\nOIDC_CLIENT_SECRET=secret\nOIDC_REDIRECT_URI=https://rp.test/callback\nOIDC_REPLAY_STORE=database\n").unwrap();
+    fs::write(root.join(".env"),"OIDC_ISSUER=https://op.test\nOIDC_CLIENT_ID=rp\nOIDC_CLIENT_SECRET=secret\nOIDC_REDIRECT_URI=https://rp.test/callback\nOIDC_POST_LOGOUT_REDIRECT_URI=https://rp.test/signed-out\nOIDC_REPLAY_STORE=database\n").unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
     let configured = config::load(&root, &environment).unwrap();
     let oidc = &configured["oidc"]["providers"]["work"];
@@ -102,6 +102,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(oidc["client_id"], "rp");
     assert_eq!(oidc["client_secret"], "secret");
     assert_eq!(oidc["redirect"], "https://rp.test/callback");
+    assert_eq!(oidc["post_logout_redirect"], "https://rp.test/signed-out");
     assert_eq!(oidc["replay_store"], "database");
 
     fs::write(root.join(".env"),"GOOGLE_CLIENT_ID=google-client\nGOOGLE_CLIENT_SECRET=google-secret\nGOOGLE_REDIRECT_URI=/google/callback\n").unwrap();

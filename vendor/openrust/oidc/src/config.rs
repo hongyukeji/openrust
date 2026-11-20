@@ -16,6 +16,7 @@ pub struct ProviderConfig {
     pub(crate) client_id: String,
     pub(crate) client_secret: Option<Zeroizing<String>>,
     pub(crate) redirect: String,
+    pub(crate) post_logout_redirect: Option<String>,
     pub(crate) scopes: Vec<String>,
     pub(crate) algorithms: Vec<Algorithm>,
     pub(crate) client_auth: ClientAuth,
@@ -60,6 +61,17 @@ impl ProviderConfig {
             return Err(Error::Configuration("issuer"));
         }
         endpoint(&redirect, allow_loopback_http)?;
+        let post_logout_redirect = match v.get("post_logout_redirect") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(s)) => {
+                let url = endpoint(s, allow_loopback_http)?;
+                if url.query_pairs().any(|(key, _)| key == "state") {
+                    return Err(Error::Configuration("post_logout_redirect"));
+                }
+                Some(s.clone())
+            }
+            _ => return Err(Error::Configuration("post_logout_redirect")),
+        };
         let mut allowed_origins = vec![url.origin().ascii_serialization()];
         match v.get("allowed_origins") {
             None => {}
@@ -146,6 +158,7 @@ impl ProviderConfig {
             issuer,
             allowed_origins,
             redirect,
+            post_logout_redirect,
             client_id,
             client_secret,
             client_auth,

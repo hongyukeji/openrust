@@ -1,0 +1,12 @@
+{
+  "rp_initiated_logout": {
+    "url": "https://openid.net/specs/openid-connect-rpinitiated-1_0.html",
+    "date": "2022-09-12",
+    "sha256": "246432dafaa5556d896fa9b9ae4284b213ff6921b33478ed3b46bd6bd4aab804",
+    "retained": "/private/tmp/openrust-oidc-sso-final-20261120/rpinitiated-logout.html"
+  },
+  "core_discovery": "Core 1.0 errata set 2 and Discovery 1.0: same fixed references as ../api-o01/references.json",
+  "old_branch": "v0.x 6d1a81924451e15f595f68c8dfb520ad6d6c44cf",
+  "old_source": "vendor/openrust/framework/src/auth/oidc.rs",
+  "old_source_sha256": "ce44a026f60fd008965d28c6f0de8abdb4082bfa2f583e32a26c0a8a4a342200"
+}

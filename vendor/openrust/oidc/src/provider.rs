@@ -1,5 +1,5 @@
 use crate::{
-    Authentication, Error, ProviderConfig, Result, Tokens,
+    Authentication, Error, LogoutHint, ProviderConfig, Result, Tokens,
     config::{ClientAuth, algorithm, endpoint},
     identity::{self, Expected},
 };
@@ -378,7 +378,138 @@ impl<'a> Provider<'a> {
             }
             identity.userinfo = Some(info);
         }
-        Ok(Authentication { identity, tokens })
+        let logout_hint = LogoutHint {
+            config: self.config.fingerprint(),
+            token: tokens.id_token.clone(),
+        };
+        Ok(Authentication {
+            identity,
+            tokens,
+            logout_hint,
+        })
+    }
+    /// Explicitly retain only the verified ID Token for a later RP initiated logout.
+    pub fn rememberLogout(&mut self, authentication: &Authentication) -> Result<()> {
+        let hint = &authentication.logout_hint;
+        if hint.config != self.config.fingerprint() {
+            return Err(Error::InvalidLogout);
+        }
+        let key = format!("oidc.logout_hint.{}", self.name);
+        self.request.session_mut()?.put(
+            &key,
+            json!({"config":hint.config,"token":hint.token.as_str()}),
+        )?;
+        Ok(())
+    }
+    /// Consume the application Session's hint before invalidating the local Session.
+    pub fn takeLogoutHint(&mut self) -> Result<LogoutHint> {
+        let key = format!("oidc.logout_hint.{}", self.name);
+        let stored = self
+            .request
+            .session_mut()?
+            .pull(&key)
+            .ok_or(Error::InvalidLogout)?;
+        if stored.get("config").and_then(Value::as_str) != Some(self.config.fingerprint().as_str())
+        {
+            return Err(Error::InvalidLogout);
+        }
+        let token = stored
+            .get("token")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .ok_or(Error::InvalidLogout)?;
+        Ok(LogoutHint {
+            config: self.config.fingerprint(),
+            token: Zeroizing::new(token.to_owned()),
+        })
+    }
+    /// Call after native local logout; state belongs to the new anonymous Session.
+    pub async fn logoutUrl(&mut self, hint: &LogoutHint) -> Result<String> {
+        if hint.config != self.config.fingerprint() {
+            return Err(Error::InvalidLogout);
+        }
+        let redirect = self
+            .config
+            .post_logout_redirect
+            .clone()
+            .ok_or(Error::Configuration("post_logout_redirect"))?;
+        let metadata = self.metadata().await?;
+        let target = metadata
+            .end_session_endpoint
+            .ok_or(Error::UnsupportedLogout)?;
+        let mut url = endpoint(&target, self.config.allow_loopback_http)?;
+        if url.query_pairs().any(|(k, _)| {
+            matches!(
+                k.as_ref(),
+                "id_token_hint"
+                    | "client_id"
+                    | "post_logout_redirect_uri"
+                    | "state"
+                    | "logout_hint"
+                    | "ui_locales"
+            )
+        }) {
+            return Err(Error::InvalidDiscovery);
+        }
+        let state = random(32)?;
+        url.query_pairs_mut()
+            .append_pair("id_token_hint", &hint.token)
+            .append_pair("client_id", &self.config.client_id)
+            .append_pair("post_logout_redirect_uri", &redirect)
+            .append_pair("state", &state);
+        let key = format!("oidc.logout.{}", self.name);
+        self.request.session_mut()?.put(&key,json!({"state":state,"issued_at":now()?,"config":self.config.fingerprint(),"redirect":redirect}))?;
+        Ok(url.into())
+    }
+    /// Verify and consume the OP return state; it never logs a local user in.
+    pub async fn completeLogout(&mut self) -> Result<()> {
+        let key = format!("oidc.logout.{}", self.name);
+        let attempt = self
+            .request
+            .session_mut()?
+            .pull(&key)
+            .ok_or(Error::InvalidLogout)?;
+        let expected = attempt
+            .get("state")
+            .and_then(Value::as_str)
+            .filter(|v| !v.is_empty())
+            .ok_or(Error::InvalidLogout)?;
+        let incoming = self
+            .request
+            .input(Some("state"))
+            .await?
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .ok_or(Error::InvalidLogout)?;
+        let fingerprint = self.config.fingerprint();
+        let issued = attempt
+            .get("issued_at")
+            .and_then(Value::as_u64)
+            .ok_or(Error::InvalidLogout)?;
+        let now = now()?;
+        if !bool::from(expected.as_bytes().ct_eq(incoming.as_bytes()))
+            || issued > now
+            || now >= issued.saturating_add(self.config.attempt_ttl)
+            || attempt.get("config").and_then(Value::as_str) != Some(fingerprint.as_str())
+            || attempt.get("redirect").and_then(Value::as_str)
+                != self.config.post_logout_redirect.as_deref()
+        {
+            return Err(Error::InvalidLogout);
+        }
+        if !self
+            .replay
+            .add(
+                &format!("oidc:logout-used:{fingerprint}:{}", hash(expected)),
+                &CacheValue::Json(json!(true)),
+                Some(Ttl::Seconds(self.config.attempt_ttl as i64)),
+            )
+            .await?
+        {
+            return Err(Error::InvalidLogout);
+        }
+        if self.request.input(Some("error")).await?.is_some() {
+            return Err(Error::AuthorizationDenied);
+        }
+        Ok(())
     }
 }
 fn form_encode(v: &str) -> String {

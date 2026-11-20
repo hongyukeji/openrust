@@ -3797,3 +3797,7 @@ Passport-02 [scope 与显式明文追加](audits/passport-02/scopes-and-appends.
 ## 2026-11-20 Passkeys 定制边界闭合
 
 API-F02 [定制验收](audits/api-f02/customization.md)完成：实际模型选择、异步共享记录、动态用户关系、原生观察者与 typed 事件；固定 PHP 71 组 AAGUID 名称／图标、默认附加与按需图标、旧凭据兼容；独立原生资源发布标签。真实自定义表／pk 与默认模型两套生成应用均通过官方 JS／Chrome／MySQL 8.4.13、原认证全流程和三封 SMTP、迁移回滚、严格生成 Clippy 与关闭功能构建。原生 98 函数、严格全workspace/all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan、三语12＋6浏览器通过。37源码SHA及资源来源留证，清理释放10,274,804 KiB，剩79.008 GB／73.582 GiB，全部数据库卷保留；核范围本地提交，不推送。继续API-O02及计划余项。
+
+## 2026-11-20 双应用浏览器 SSO 与退出闭合
+
+API-O02 [验收](audits/api-o02/README.md)完成：恢复既有隔离源码并整合9ea308252基线，新增不透明已验证 LogoutHint、固定退出回调／一次性状态与本地退出示例；两个独立RP与受控OP的真实Chrome／MySQL8.4.13测试覆盖并发登录、重新认证、跨租户／绑定拒绝、CSRF、本地与OP退出、并发／过期／重放回调及bearer边界。OIDC7＋根配置1函数、严格全workspace/all-targets五feature Clippy／fmt、根HTTP／Pail／Artisan、关闭feature检查及三语12＋6浏览器通过。21源码SHA与固定规范留证；释放5,402,480 KiB，剩78.062 GB／72.700 GiB，全部卷保留。本地提交，不推送；继续artisan init完整认证扩展装配与最终发布余项。

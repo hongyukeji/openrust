@@ -166,6 +166,17 @@ fn configuration_rejects_unsafe_urls_algorithms_and_types() {
         ("issuer", json!("https://op.test?q=x")),
         ("issuer", json!("https://u:p@op.test")),
         ("redirect", json!("https://rp.test/#fragment")),
+        ("post_logout_redirect", json!("http://rp.test/exit")),
+        ("post_logout_redirect", json!("https://u:p@rp.test/exit")),
+        (
+            "post_logout_redirect",
+            json!("https://rp.test/exit#fragment"),
+        ),
+        (
+            "post_logout_redirect",
+            json!("https://rp.test/exit?state=preexisting"),
+        ),
+        ("post_logout_redirect", json!(false)),
         ("algorithms", json!(["HS256"])),
         ("algorithms", json!([])),
         ("client_auth", json!(false)),
