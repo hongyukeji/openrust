@@ -24,4 +24,4 @@
 
 鎖定建置使用 lettre 0.11.24、由 libsqlite3-sys 0.39.1 提供的 SQLite 3.54.1 與穩定版 RSA 0.10.0。SQLx SQLite 配接器保留現有 0.9.0 實作，改用修復後的 SQLite 相依；WebAuthn 密碼配接器更新 RSA feature 宣告與型別匯入。上游原始碼與授權條款保留在 `vendor/`。Passport 保留金鑰產生與 PEM 格式，包括明確產生 1024 位金鑰；線上簽章仍使用 AWS-LC。
 
-相依稽核仍報告 chrono、chrono-tz、paste 與 pin-utils 的維護狀態公告，與已修復的漏洞分別追蹤。應用程式發布仍須執行自己的相依稽核與目標環境驗證。
+日期輔助方法使用 Jiff 0.2.46 原生型別與內建 IANA 2025b 時區資料，SQL 驅動程式使用官方 `time` 整合。建構與日曆運算見[輔助方法](../digging-deeper/helpers.md)。本機圖片及 AWS 傳輸相依採用上游對 paste 與 pin-utils 的替代實作，並保留原始碼與授權條款。應用程式發布前須稽核實際相依並驗證目標環境。

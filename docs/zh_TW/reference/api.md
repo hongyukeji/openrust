@@ -4,6 +4,8 @@
 
 `openrust-translation-database` 提供 `DatabaseLoader`，可明確將資料庫翻譯載入既有翻譯器。裝配、檔案回退及資料庫支援範圍見[資料庫翻譯](../digging-deeper/localization.md#database-translation-loader)。
 
+`openrust-settings` 提供 `Settings<T>`、`SettingsGroup` 與 `SettingsServiceProvider`，用於型別化資料庫設定。註冊、遷移、加密及交易與作用域行為見[資料庫設定](../packages/settings.md)。
+
 ## 建置原始碼快照
 
 使用 Python 3.11 或更新版本、Rust 1.94.0 與已提交的乾淨原始碼快照。在儲存庫根目錄選擇新的輸出目錄與專用 Cargo 產物目錄：

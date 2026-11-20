@@ -28,8 +28,10 @@ export function loadApi(directory, root) {
         const directory = path.resolve(root, relative);
         if (directory !== path.resolve(root) && !directory.startsWith(path.resolve(root) + path.sep)) fail("source root escapes repository");
         inputs.add(path.relative(root, path.join(directory, "Cargo.toml")));
-        if (existsSync(path.join(directory, "build.rs"))) inputs.add(path.relative(root, path.join(directory, "build.rs")));
-        for (const folder of ["src", "resources", "config", "database"]) walk(path.join(directory, folder));
+        for (const name of ["build.rs", "README.md"]) {
+            if (existsSync(path.join(directory, name))) inputs.add(path.relative(root, path.join(directory, name)));
+        }
+        for (const folder of ["src", "resources", "config", "database", "stubs"]) walk(path.join(directory, folder));
     }
     if (JSON.stringify([...inputs].sort()) !== JSON.stringify(Object.keys(manifest.source_sha256).sort())) fail("source file set differs");
     for (const [file, expected] of Object.entries(manifest.source_sha256)) {

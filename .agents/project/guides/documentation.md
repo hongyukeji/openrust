@@ -73,6 +73,8 @@ python3 -B docs/tests/check_api_cli.py -v
 
 输出目录须尚不存在，target 须为本批独占目录；源码归档另传 `--revision` 完整提交号。每次先清除专属 target 中旧 Rustdoc 页面，防止已删除接口残留。`build-info.json` 保存提交、目标、包清单、锁文件和源码指纹，站点核对完整源码文件集合及 SHA-256，拒绝过期导出。
 
+源码指纹同时覆盖包根 `README.md` 及 `stubs/`：扩展通过 `include_str!` 嵌入 README 作为 Rustdoc，通过模板发布应用源码；这些输入变化后也须重新导出，不能只核对 `src/`。新增其他目录的编译输入时，同步更新导出脚本、站点校验及过期输入负例。
+
 `DOCS_API_DIR` 是站点接入 API 的唯一变量。联合产物位于 `docs/.vitepress/dist/`，其中 `api/` 包含 Rustdoc、源码页及本地搜索，侧栏使用完整页面导航。导出列出骨架包不表示其功能已经完成；发布前仍须核对源码提交、指南、接口参考和实际托管地址。
 
 普通 `npm --prefix docs run build` 只生成指南，不显示 Rustdoc 入口；用 `node docs/tests/check_api_snapshot.mjs --without-export` 检查普通构建。浏览器环境变量见上文。开发者操作见[API 参考](../../../docs/zh_CN/reference/api.md)。

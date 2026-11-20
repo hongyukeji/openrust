@@ -24,4 +24,4 @@
 
 锁定构建使用 lettre 0.11.24、由 libsqlite3-sys 0.39.1 提供的 SQLite 3.54.1 和稳定版 RSA 0.10.0。SQLx SQLite 适配器保留现有 0.9.0 实现，改用修复后的 SQLite 依赖；WebAuthn 密码适配器更新 RSA feature 声明与类型导入。上游源码及许可证保留在 `vendor/`。Passport 保留密钥生成与 PEM 格式，包括显式生成 1024 位密钥；在线签名仍使用 AWS-LC。
 
-依赖审计仍报告 chrono、chrono-tz、paste 和 pin-utils 的维护状态公告，与已修复的漏洞分别跟踪。应用发布仍须执行自身依赖审计和目标环境验证。
+日期辅助方法使用 Jiff 0.2.46 原生类型和内置 IANA 2025b 时区数据，SQL 驱动使用官方 `time` 集成。构造与日历运算见[辅助方法](../digging-deeper/helpers.md)。本地图片及 AWS 传输依赖采用上游对 paste 和 pin-utils 的替代实现，并保留源码与许可证。应用发布前须审计实际依赖并验证目标环境。

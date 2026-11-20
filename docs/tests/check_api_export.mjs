@@ -37,6 +37,15 @@ try {
         copyFileSync(path.join(root, file), target);
     }
     assert.equal(loadApi(temporary, snapshot).manifest.revision, original.revision);
+    for (const file of ["vendor/openrust/settings/README.md", "vendor/openrust/fortify/stubs/create_new_user.rs"]) {
+        assert(original.source_sha256[file], `${file}: embedded source missing from fingerprints`);
+        const target = path.join(snapshot, file);
+        const content = readFileSync(target);
+        writeFileSync(target, Buffer.concat([content, Buffer.from("\nchanged embedded input\n")]));
+        assert.throws(() => loadApi(temporary, snapshot), /source differs/);
+        writeFileSync(target, content);
+        console.log(`${file}: stale embedded input rejected PASS`);
+    }
     writeFileSync(path.join(snapshot, "vendor/openrust/framework/src/new_api_input.rs"), "// stale export must not accept a new source file\n");
     assert.throws(() => loadApi(temporary, snapshot), /source file set differs/);
     console.log("New source file: rejected PASS");

@@ -48,6 +48,15 @@ try {
                     await page.waitForURL(url => url.pathname.startsWith(`${mount}api/src/`));
                     assert(await page.locator("pre").count() > 0);
                 }
+                for (const [file, methods] of [
+                    ["openrust/support/struct.Date.html", ["timezone", "fromUtc", "asDateTime"]],
+                    ["openrust_settings/struct.Settings.html", ["get", "save", "saveIn", "refresh"]],
+                ]) {
+                    assert.equal((await page.goto(`${base}api/${file}`)).status(), 200);
+                    for (const method of methods) {
+                        assert.equal(await page.locator(`[id="method.${method}"]`).count(), 1, `${file}: missing ${method}`);
+                    }
+                }
                 await page.goto(`${base}api/openrust/index.html?search=Application`);
                 await page.waitForFunction(() => document.querySelector("#search")?.textContent.includes("Application"));
                 const result = page.locator('#search a[href*="struct.Application"]').first();

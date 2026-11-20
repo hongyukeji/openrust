@@ -42,7 +42,7 @@ def main():
     env = dict(os.environ)
     if not re.fullmatch(r"[0-9a-f]{40}", revision):
         parser.error("revision must be a full Git commit SHA")
-    env.update(CARGO_TARGET_DIR=str(target), CARGO_INCREMENTAL="0")
+    env.update(CARGO_TARGET_DIR=str(target), CARGO_INCREMENTAL="0", RUSTUP_TOOLCHAIN="1.94.0")
     compiler = subprocess.check_output(["rustc", "+1.94.0", "-vV"], text=True)
     host = next(line.removeprefix("host: ") for line in compiler.splitlines() if line.startswith("host: "))
     env["CARGO_BUILD_TARGET"] = host
@@ -68,9 +68,10 @@ def main():
             directory = root / dependency["path"]
             source_roots.add(str(directory.relative_to(root)))
             inputs.add(directory / "Cargo.toml")
-            if (directory / "build.rs").is_file():
-                inputs.add(directory / "build.rs")
-            for folder in ["src", "resources", "config", "database"]:
+            for name in ["build.rs", "README.md"]:
+                if (directory / name).is_file():
+                    inputs.add(directory / name)
+            for folder in ["src", "resources", "config", "database", "stubs"]:
                 inputs.update(file for file in (directory / folder).rglob("*") if file.is_file())
     for package in metadata["packages"]:
         if package["id"] not in members:
@@ -78,9 +79,10 @@ def main():
         directory = Path(package["manifest_path"]).parent
         source_roots.add(str(directory.relative_to(root)))
         inputs.add(directory / "Cargo.toml")
-        if (directory / "build.rs").is_file():
-            inputs.add(directory / "build.rs")
-        for folder in ["src", "resources", "config", "database"]:
+        for name in ["build.rs", "README.md"]:
+            if (directory / name).is_file():
+                inputs.add(directory / name)
+        for folder in ["src", "resources", "config", "database", "stubs"]:
             inputs.update(file for file in (directory / folder).rglob("*") if file.is_file())
     fingerprints = {str(file.relative_to(root)): hashlib.sha256(file.read_bytes()).hexdigest() for file in sorted(inputs)}
     if not crates:

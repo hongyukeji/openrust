@@ -4,6 +4,8 @@ The guides explain application behavior. Rustdoc lists the public Rust modules, 
 
 `openrust-translation-database` provides `DatabaseLoader` for explicitly loading database translations into the existing translator. See [database translations](../digging-deeper/localization.md#database-translation-loader) for setup, file fallback, and supported database targets.
 
+`openrust-settings` provides `Settings<T>`, `SettingsGroup`, and `SettingsServiceProvider` for typed database settings. See [database settings](../packages/settings.md) for registration, migrations, encryption, and transaction and scope behavior.
+
 ## Build a source snapshot
 
 Use Python 3.11 or newer, Rust 1.94.0, and a clean committed source snapshot. From the repository root, choose a new output directory and a dedicated Cargo artifact directory:
