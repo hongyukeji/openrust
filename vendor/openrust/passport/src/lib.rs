@@ -83,8 +83,10 @@ pub struct PassportServiceProvider;
 impl ServiceProvider for PassportServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let env = app.make::<Environment>().await?;
-            self.mergeConfigFrom(app, configuration::load(&env)?, "passport")?;
+            if !app.configurationIsCached() {
+                let env = app.make::<Environment>().await?;
+                self.mergeConfigFrom(app, configuration::load(&env)?, "passport")?;
+            }
             app.container().singleton::<Passport, _>(|container| {
                 Ok(Arc::new(Passport::new(
                     container.get("config")?,

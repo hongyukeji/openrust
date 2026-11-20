@@ -8,6 +8,8 @@
 cargo build --features reverb
 ```
 
+套件本身提供預設伺服器設定，啟用 feature 不會產生 `config/reverb.rs`。需要應用覆寫時執行 `./artisan vendor:publish --tag=reverb-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod reverb;` 與 `("reverb".to_owned(), reverb::load(env)?),`，然後重新建置。明確執行 `init --extensions=reverb` 會發布並登記此設定；重複初始化保留既有自訂，除非傳入 `--force`。
+
 使用 `REVERB_APP_ID`、`REVERB_APP_KEY` 和 `REVERB_APP_SECRET` 設定監聽端與發佈端共用的憑證。用戶端使用公開金鑰及 WebSocket 位址，秘密金鑰保留在伺服器端。
 
 ## 執行服務

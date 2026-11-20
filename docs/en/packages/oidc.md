@@ -8,9 +8,11 @@ The optional `openrust-oidc` package implements an OpenID Connect relying party 
 cargo +1.94.0 build --locked --features oidc --bin main
 ```
 
+Enabling the package starts with an empty `oidc.providers` map. To select the `work` example explicitly, run `./artisan vendor:publish --tag=oidc-config`, add `mod oidc;` and `("oidc".to_owned(), oidc::load(env)?),` to the declarations and configuration map in `config/mod.rs`, then rebuild. Alternatively, explicit `init --extensions=oidc` publishes and registers this template. Publishing preserves existing files unless `--force` is supplied.
+
 ## Provider configuration {#configuration}
 
-`config/oidc.rs` contains `oidc.providers.work`. Set `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI`; `OIDC_REPLAY_STORE` selects the replay cache. Omitting a secret uses public-client authentication; otherwise the default is `client_secret_basic`. Set `client_auth` explicitly to `client_secret_post` or `none` when required. Registered callback URLs must match exactly. Configuration example:
+The published `config/oidc.rs` template contains `oidc.providers.work`. Set `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_REDIRECT_URI`; `OIDC_REPLAY_STORE` selects the replay cache. Omitting a secret uses public-client authentication; otherwise the default is `client_secret_basic`. Set `client_auth` explicitly to `client_secret_post` or `none` when required. Registered callback URLs must match exactly. Configuration example:
 
 ```json
 {

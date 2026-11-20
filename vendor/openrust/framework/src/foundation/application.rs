@@ -223,6 +223,15 @@ impl Application {
         Ok(self)
     }
 
+    /// Whether bootstrap loaded an existing configuration snapshot.
+    #[allow(non_snake_case, reason = "Matches Laravel's configuration cache API")]
+    pub fn configurationIsCached(&self) -> bool {
+        self.shared
+            .container
+            .get::<bool>("config_loaded_from_cache")
+            .is_ok_and(|cached| *cached)
+    }
+
     /// Returns the detected name with `None`, or matches any supplied pattern.
     pub fn environment(
         &self,

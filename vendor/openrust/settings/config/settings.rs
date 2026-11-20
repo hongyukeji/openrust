@@ -1,6 +1,7 @@
-use serde_json::{Value, json};
+use openrust::config::{ConfigError, Environment, Value};
+use serde_json::json;
 
-pub(super) fn load() -> Value {
+pub(super) fn load(_env: &Environment) -> Result<Value, ConfigError> {
     /*
     |--------------------------------------------------------------------------
     | 数据库动态设置仓储
@@ -10,5 +11,7 @@ pub(super) fn load() -> Value {
     | 表名或连接变更时须同步登记对应迁移；动态设置值不写入配置缓存。
     |
     */
-    json!({"repository":"database","repositories":{"database":{"connection":null,"table":"settings"}}})
+    Ok(
+        json!({"repository":"database","repositories":{"database":{"connection":null,"table":"settings"}}}),
+    )
 }

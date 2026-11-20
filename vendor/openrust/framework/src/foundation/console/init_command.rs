@@ -201,6 +201,16 @@ impl Command for InitCommand {
             if extensions.has("grpc") {
                 paths.push("routes/grpc.rs");
             }
+            for name in ["reverb", "oidc"] {
+                if extensions.has(name) {
+                    paths.push(if name == "reverb" {
+                        "config/reverb.rs"
+                    } else {
+                        "config/oidc.rs"
+                    });
+                    paths.push("config/mod.rs");
+                }
+            }
             if extensions.has("passport") {
                 paths.extend([
                     "config/passport.rs",
@@ -227,6 +237,8 @@ impl Command for InitCommand {
                         && (path == "routes/api.rs"
                             || path == "config/passport.rs"
                             || path == "config/fortify.rs"
+                            || path == "config/reverb.rs"
+                            || path == "config/oidc.rs"
                             || path.starts_with("app/actions/fortify")
                             || path == "app/providers/fortify_service_provider.rs")
                     {
@@ -278,7 +290,7 @@ impl Command for InitCommand {
                 }
             }
             if extensions.has("reverb") {
-                prepare_reverb(&root, &mut values)?;
+                prepare_reverb(&mut values)?;
             }
             if extensions.has("passkeys") && !values.contains_key("APP_URL") {
                 let origin = format!("http://localhost:{}", value(&values, "APP_PORT", "8000"));
@@ -498,7 +510,7 @@ impl Extensions {
         .collect()
     }
     fn services(&self) -> Vec<&str> {
-        ["passport", "fortify"]
+        ["passport", "fortify", "oidc", "reverb"]
             .into_iter()
             .filter(|name| self.has(name))
             .collect()
@@ -845,12 +857,7 @@ fn reverb_enabled(env: &BTreeMap<String, String>) -> bool {
         "true" | "(true)" | "1"
     )
 }
-fn prepare_reverb(root: &Path, env: &mut BTreeMap<String, String>) -> Result<(), ConsoleError> {
-    if !root.join("config/reverb.rs").is_file() {
-        return Err(ConsoleError::new(
-            "The application's config/reverb.rs is missing; Reverb configuration publication must be completed before initialization.",
-        ));
-    }
+fn prepare_reverb(env: &mut BTreeMap<String, String>) -> Result<(), ConsoleError> {
     if reverb_enabled(env) {
         for (key, default) in [
             ("REVERB_MODE", "embedded"),

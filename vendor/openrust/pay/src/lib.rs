@@ -5,6 +5,8 @@
     reason = "Preserves Laravel Manager and payment API names"
 )]
 mod alipay;
+#[path = "../config/pay.rs"]
+mod configuration;
 #[path = "../database/migrations/2026_11_21_000001_create_payment_notifications_table.rs"]
 mod create_payment_notifications_table;
 mod crypto;
@@ -33,6 +35,10 @@ pub struct PayServiceProvider;
 impl ServiceProvider for PayServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if !app.configurationIsCached() {
+                let env = app.make::<openrust::config::Environment>().await?;
+                self.mergeConfigFrom(app, configuration::load(&env)?, "pay")?;
+            }
             app.container().singleton::<PayManager, _>(|container| {
                 Ok(Arc::new(PayManager::new(
                     container.get("config")?,
@@ -44,6 +50,11 @@ impl ServiceProvider for PayServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.publishes(
+                app,
+                &[("config/pay.rs", include_bytes!("../config/pay.rs"))],
+                "pay-config",
+            )?;
             self.loadMigrationsFrom(app, Self::migrations()).await?;
             Ok(())
         })

@@ -31,11 +31,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         format!("{} Log", env!("CARGO_PKG_NAME"))
     );
     assert_eq!(
-        defaults
-            .keys()
-            .map(String::as_str)
-            .filter(|key| !matches!(*key, "api" | "sanctum" | "settings" | "pay"))
-            .collect::<Vec<_>>(),
+        defaults.keys().map(String::as_str).collect::<Vec<_>>(),
         [
             "app",
             "auth",
@@ -50,9 +46,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "images",
             "logging",
             "mail",
-            "oidc",
             "queue",
-            "reverb",
             "services",
             "session",
             "sms",
@@ -85,24 +79,14 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         defaults["view"]["paths"],
         json!([root.join("resources/views")])
     );
-    assert_eq!(defaults["reverb"]["enabled"], false);
     assert_eq!(defaults["app"]["disabled_runners"], json!([]));
     assert_eq!(defaults["grpc"]["clients"], json!({}));
-    assert_eq!(defaults["oidc"]["providers"]["work"]["issuer"], Value::Null);
-    assert_eq!(
-        defaults["oidc"]["providers"]["work"]["allow_loopback_http"],
-        false
-    );
-    fs::write(root.join(".env"),"OIDC_ISSUER=https://op.test\nOIDC_CLIENT_ID=rp\nOIDC_CLIENT_SECRET=secret\nOIDC_REDIRECT_URI=https://rp.test/callback\nOIDC_POST_LOGOUT_REDIRECT_URI=https://rp.test/signed-out\nOIDC_REPLAY_STORE=database\n").unwrap();
-    let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
-    let configured = config::load(&root, &environment).unwrap();
-    let oidc = &configured["oidc"]["providers"]["work"];
-    assert_eq!(oidc["issuer"], "https://op.test");
-    assert_eq!(oidc["client_id"], "rp");
-    assert_eq!(oidc["client_secret"], "secret");
-    assert_eq!(oidc["redirect"], "https://rp.test/callback");
-    assert_eq!(oidc["post_logout_redirect"], "https://rp.test/signed-out");
-    assert_eq!(oidc["replay_store"], "database");
+    for extension in ["settings", "pay", "cashier", "oidc", "reverb"] {
+        assert!(
+            !defaults.contains_key(extension),
+            "default application preloads {extension}"
+        );
+    }
 
     fs::write(root.join(".env"),"GOOGLE_CLIENT_ID=google-client\nGOOGLE_CLIENT_SECRET=google-secret\nGOOGLE_REDIRECT_URI=/google/callback\n").unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
@@ -342,10 +326,6 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(
         configured["broadcasting"]["connections"]["reverb"]["options"]["useTLS"],
         false
-    );
-    assert_eq!(
-        configured["broadcasting"]["connections"]["reverb"]["options"],
-        configured["reverb"]["apps"]["apps"][0]["options"]
     );
 
     fs::write(root.join(".env"),

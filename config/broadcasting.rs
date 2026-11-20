@@ -1,7 +1,7 @@
 use openrust::config::{ConfigError, Environment, Value};
 use serde_json::json;
 
-use super::{env::get, reverb};
+use super::env::get;
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     let cluster = env.get_utf8("PUSHER_APP_CLUSTER")?.unwrap_or("mt1");
@@ -36,7 +36,7 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
                 "key": get(env, "REVERB_APP_KEY", Value::Null)?,
                 "secret": get(env, "REVERB_APP_SECRET", Value::Null)?,
                 "app_id": get(env, "REVERB_APP_ID", Value::Null)?,
-                "options": reverb::publish_options(env)?,
+                "options": publish_options(env)?,
                 "client_options": {},
             },
             "pusher": {
@@ -72,5 +72,16 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
             "log": {"driver": "log"},
             "null": {"driver": "null"},
         },
+    }))
+}
+
+fn publish_options(env: &Environment) -> Result<Value, ConfigError> {
+    let scheme = get(env, "REVERB_SCHEME", "https")?;
+    Ok(json!({
+        "host": get(env, "REVERB_HOST", Value::Null)?,
+        "port": get(env, "REVERB_PORT", 443)?,
+        "path": get(env, "REVERB_SERVER_PATH", "")?,
+        "scheme": scheme,
+        "useTLS": scheme == "https",
     }))
 }

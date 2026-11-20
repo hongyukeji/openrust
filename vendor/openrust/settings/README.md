@@ -98,3 +98,8 @@ impl SettingsGroup for DeliverySettings {
     }
 }
 ```
+
+Package configuration defaults and the publishable `settings-config` template live in
+the package. The default application does not ship `config/settings.rs`; publish
+only when application overrides are needed, register its `load(env)` in the
+application configuration map, and rebuild. Cached configuration remains authoritative.

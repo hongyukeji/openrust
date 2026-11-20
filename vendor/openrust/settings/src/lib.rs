@@ -1,6 +1,9 @@
 #![doc = include_str!("../README.md")]
 #![allow(non_snake_case, reason = "Preserves Laravel Settings public names")]
 
+#[path = "../config/settings.rs"]
+mod configuration;
+
 #[path = "../database/migrations/2026_11_21_000000_create_settings_table.rs"]
 mod create_settings_table;
 mod database_settings_repository;

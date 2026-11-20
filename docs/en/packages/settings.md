@@ -10,6 +10,8 @@ Enable the optional package with the `settings` Cargo feature. Package discovery
 cargo run --features settings -- artisan migrate
 ```
 
+The package supplies its own defaults; the default application contains no `config/settings.rs`. To customize them, run `./artisan vendor:publish --tag=settings-config`, add `mod settings;` and `("settings".to_owned(), settings::load(env)?),` to the module declarations and configuration map in `config/mod.rs`, then rebuild. Preserve your custom table migration when changing the table or connection.
+
 For another application, add the `openrust-settings` dependency and use OpenRust package discovery. Declare your own settings type, then call `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?` in that application's provider after the package registers. The default application contains no pre-registered `SiteSettings` group. Run migrations before reading settings; provider registration and boot do not query the settings table.
 
 `settings.repository` defaults to `database`; `settings.repositories.database.connection` defaults to the application's default connection and `table` to `settings`. For a custom connection or table, register a corresponding `CreateSettingsTable` migration and run it on that connection instead of installing the default migration. This is a compiled migration in the existing ledger, not a second migration runner.

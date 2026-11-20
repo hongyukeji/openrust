@@ -11,7 +11,9 @@ use openrust::{
         BroadcastChannel, BroadcastException, BroadcastFuture, BroadcastManager, BroadcastPayload,
         BroadcastResult, ChannelAuthorization,
     },
-    contracts::{broadcasting::Broadcaster, foundation::Application as _},
+    contracts::{
+        broadcasting::Broadcaster, container::Container as _, foundation::Application as _,
+    },
     foundation::{Application, Runner},
     http::{Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider, facades::Broadcast},
@@ -25,8 +27,26 @@ use crate::protocols::pusher::signatures;
 pub struct ReverbServiceProvider;
 
 impl ServiceProvider for ReverbServiceProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            if !app.configurationIsCached() {
+                let env = app.make::<openrust::config::Environment>().await?;
+                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "reverb")?;
+            }
+            Ok(())
+        })
+    }
+
     fn boot<'a>(&'a mut self, app: &'a Application) -> BroadcastFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.publishes(
+                app,
+                &[("config/reverb.rs", include_bytes!("../config/reverb.rs"))],
+                "reverb-config",
+            )?;
+            app.container()
+                .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
+                .register("reverb", install_configuration);
             let broadcasts = app.make::<BroadcastManager>().await?;
             for driver in ["reverb", "pusher"] {
                 broadcasts.extend(driver, |configuration| {
@@ -270,4 +290,17 @@ fn configuration_error() -> BroadcastException {
 
 fn backend(error: impl std::error::Error + Send + Sync + 'static) -> BroadcastException {
     BroadcastException::Backend(Box::new(error))
+}
+
+fn install_configuration<'a>(
+    installation: &'a openrust::foundation::console::installation::SourceInstallation<'a>,
+    options: openrust::foundation::console::installation::InstallationOptions<'a>,
+    output: &'a mut openrust::console::Output,
+) -> openrust::console::ConsoleFuture<'a, Result<(), openrust::console::ConsoleError>> {
+    Box::pin(async move {
+        installation
+            .publish("reverb-config", options.force, output)
+            .await?;
+        installation.registerConfiguration("reverb")
+    })
 }

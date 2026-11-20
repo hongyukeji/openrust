@@ -1,6 +1,8 @@
 //! OpenRust's Reverb server and Pusher-compatible protocol.
 
 mod broadcaster;
+#[path = "../config/reverb.rs"]
+mod configuration;
 mod servers;
 
 pub use broadcaster::{ReverbBroadcaster, ReverbServiceProvider};

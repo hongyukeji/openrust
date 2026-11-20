@@ -97,6 +97,9 @@ pub struct OidcServiceProvider;
 impl ServiceProvider for OidcServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if !app.configurationIsCached() {
+                self.mergeConfigFrom(app, serde_json::json!({"providers":{}}), "oidc")?;
+            }
             app.container().singleton::<OidcManager, _>(|c| {
                 Ok(Arc::new(OidcManager::new(
                     c.get("config")?,
@@ -104,6 +107,19 @@ impl ServiceProvider for OidcServiceProvider {
                     c.make::<CacheManager>()?,
                 )))
             })?;
+            Ok(())
+        })
+    }
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            self.publishes(
+                app,
+                &[("config/oidc.rs", include_bytes!("../config/oidc.rs"))],
+                "oidc-config",
+            )?;
+            app.container()
+                .make::<openrust::foundation::console::installation::ExtensionInstallers>()?
+                .register("oidc", install_configuration);
             Ok(())
         })
     }
@@ -131,3 +147,17 @@ pub mod facades {
 #[cfg(test)]
 #[path = "../tests/support/identity.rs"]
 mod identity_tests;
+
+fn install_configuration<'a>(
+    installation: &'a openrust::foundation::console::installation::SourceInstallation<'a>,
+    options: openrust::foundation::console::installation::InstallationOptions<'a>,
+    output: &'a mut openrust::console::Output,
+) -> openrust::console::ConsoleFuture<'a, std::result::Result<(), openrust::console::ConsoleError>>
+{
+    Box::pin(async move {
+        installation
+            .publish("oidc-config", options.force, output)
+            .await?;
+        installation.registerConfiguration("oidc")
+    })
+}

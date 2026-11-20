@@ -10,6 +10,8 @@
 cargo run --features settings -- artisan migrate
 ```
 
+套件本身提供預設設定，預設應用不包含 `config/settings.rs`。需要自訂時執行 `./artisan vendor:publish --tag=settings-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod settings;` 與 `("settings".to_owned(), settings::load(env)?),`，然後重新建置。修改資料表或連線時保留自己的對應遷移。
+
 其他應用加入 `openrust-settings` 相依套件並使用 OpenRust 套件探索。宣告自己的設定型別，在套件註冊完成後，由該應用的 Provider 呼叫 `SettingsServiceProvider::registerSettings::<YourSettings>(app).await?`。預設應用沒有預先註冊的 `SiteSettings` 業務群組。首次讀取前執行遷移；Provider 註冊與啟動不查詢設定表。
 
 `settings.repository` 預設為 `database`；`settings.repositories.database.connection` 預設使用應用資料庫連線，`table` 預設為 `settings`。自訂連線或資料表時，登記對應的 `CreateSettingsTable` 遷移並在該連線執行，取代預設遷移。遷移仍使用既有紀錄及執行器。

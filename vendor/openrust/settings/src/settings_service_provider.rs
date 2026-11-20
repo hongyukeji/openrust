@@ -31,7 +31,10 @@ fn binding(error: impl std::error::Error + Send + Sync + 'static) -> BindingReso
 impl ServiceProvider for SettingsServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.mergeConfigFrom(app, serde_json::json!({"repository":"database","repositories":{"database":{"connection":null,"table":"settings"}}}), "settings")?;
+            if !app.configurationIsCached() {
+                let env = app.make::<openrust::config::Environment>().await?;
+                self.mergeConfigFrom(app, crate::configuration::load(&env)?, "settings")?;
+            }
             app.container()
                 .singleton::<RegisteredGroups, _>(|_| Ok(Arc::new(RegisteredGroups::default())))?;
             app.container()
@@ -72,6 +75,14 @@ impl ServiceProvider for SettingsServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.publishes(
+                app,
+                &[(
+                    "config/settings.rs",
+                    include_bytes!("../config/settings.rs"),
+                )],
+                "settings-config",
+            )?;
             let config = app.config()?;
             let table = config.get("settings.repositories.database.table");
             let connection = config.get("settings.repositories.database.connection");

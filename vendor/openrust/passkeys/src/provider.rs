@@ -12,22 +12,24 @@ pub struct PasskeysServiceProvider;
 impl ServiceProvider for PasskeysServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let config = app
-                .container()
-                .get::<dyn openrust::contracts::config::Repository>("config")?;
-            let url = config
-                .get("app.url")
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or_default();
-            let host = url::Url::parse(&url)
-                .ok()
-                .and_then(|u| u.host_str().map(str::to_owned));
-            let environment = app.make::<openrust::config::Environment>().await?;
-            let secret = environment
-                .get_utf8("PASSKEYS_USER_HANDLE_SECRET")?
-                .map(serde_json::Value::from)
-                .or_else(|| config.get("app.key"));
-            self.mergeConfigFrom(app,json!({"relying_party_id":host,"allowed_origins":[url],"user_handle_secret":secret,"timeout":60000,"guard":"web","middleware":["web"],"management_middleware":["password.confirm"],"throttle":"throttle:6,1","redirect":"/"}),"passkeys")?;
+            if !app.configurationIsCached() {
+                let config = app
+                    .container()
+                    .get::<dyn openrust::contracts::config::Repository>("config")?;
+                let url = config
+                    .get("app.url")
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default();
+                let host = url::Url::parse(&url)
+                    .ok()
+                    .and_then(|u| u.host_str().map(str::to_owned));
+                let environment = app.make::<openrust::config::Environment>().await?;
+                let secret = environment
+                    .get_utf8("PASSKEYS_USER_HANDLE_SECRET")?
+                    .map(serde_json::Value::from)
+                    .or_else(|| config.get("app.key"));
+                self.mergeConfigFrom(app,json!({"relying_party_id":host,"allowed_origins":[url],"user_handle_secret":secret,"timeout":60000,"guard":"web","middleware":["web"],"management_middleware":["password.confirm"],"throttle":"throttle:6,1","redirect":"/"}),"passkeys")?;
+            }
             http::register(app)
         })
     }

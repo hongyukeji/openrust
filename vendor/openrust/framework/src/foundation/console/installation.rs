@@ -66,6 +66,61 @@ impl<'a> SourceInstallation<'a> {
     pub fn root(&self) -> &Path {
         self.app.base_path()
     }
+    /// Wire an explicitly published `config/{name}.rs` with a `load(env)` entry.
+    /// Uses the installation's existing source lock and preserves existing hooks.
+    #[allow(
+        non_snake_case,
+        reason = "Matches the compiled configuration registration API"
+    )]
+    pub fn registerConfiguration(&self, name: &str) -> Result<(), ConsoleError> {
+        if name.is_empty()
+            || !name.bytes().enumerate().all(|(index, byte)| {
+                byte == b'_' || byte.is_ascii_alphabetic() || (index > 0 && byte.is_ascii_digit())
+            })
+        {
+            return Err(ConsoleError::new(
+                "Configuration module must be a Rust identifier.",
+            ));
+        }
+        let path = self.root().join("config/mod.rs");
+        if !self.root().join(format!("config/{name}.rs")).is_file() {
+            return Err(ConsoleError::new(format!(
+                "Publish config/{name}.rs before registering its loader."
+            )));
+        }
+        let source = super::source_edit::read(&path)?;
+        let mut updated = source.clone();
+        if !source.lines().any(|line| {
+            [
+                format!("mod {name};"),
+                format!("pub mod {name};"),
+                format!("pub(crate) mod {name};"),
+            ]
+            .iter()
+            .any(|declaration| line.trim() == declaration)
+        }) {
+            updated = super::source_edit::insert_before(
+                &updated,
+                &path,
+                &format!("mod {name};"),
+                |line| line.trim() == "mod services;",
+            )?;
+        }
+        let compact: String = source
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        if !compact.contains(&format!("(\"{name}\".")) {
+            updated = super::source_edit::insert_before(
+                &updated,
+                &path,
+                &format!("(\"{name}\".to_owned(), {name}::load(env)?),"),
+                |line| line.trim_start().starts_with("(\"services\".to_owned(),"),
+            )?;
+        }
+        super::source_edit::replace(&path, &source, &updated)
+    }
+
     pub async fn publish(
         &self,
         tag: &str,

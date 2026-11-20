@@ -10,6 +10,8 @@ Enable the root application's `pay` Cargo feature. Package discovery registers `
 cargo run --features pay -- artisan migrate
 ```
 
+The package supplies its own defaults; the default application contains no `config/pay.rs`. To customize them, run `./artisan vendor:publish --tag=pay-config`, add `mod pay;` and `("pay".to_owned(), pay::load(env)?),` to the module declarations and configuration map in `config/mod.rs`, then rebuild. Publication preserves existing files unless `--force` is supplied. Configuration cache snapshots retain the selected merchant values.
+
 Configure `pay.default` with `PAY_DRIVER` (`wechat` by default). Named merchant profiles live under `pay.drivers.<name>` with `driver` set to `wechat` or `alipay`. Add separate names for different merchants or application IDs. No network call or key read occurs until a gateway is resolved.
 
 | Driver | Environment variables |

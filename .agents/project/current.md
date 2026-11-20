@@ -1,5 +1,7 @@
 # 当前交接
 
+- 2026-11-21 [扩展配置归属修复](audits/00-01/README.md#扩展配置归属修复与验收2026-11-21)：Settings／Pay／OIDC／Reverb 默认配置迁回所属包，OIDC默认提供方为空，显式发布／安装保留应用定制；核心及认证包遵守配置缓存快照。默认／开启feature根回归、原生安装／缓存／HTTP、三库Settings及Pay定向验收、全feature严格Clippy／fmt与三语构建／浏览器通过。生成应用补验Fortify／Passkeys／Passport缓存不再读取环境密钥；完整认证及真实供应商未复验，并行Cashier不在本批快照内；仅核范围本地提交。
+
 - 2026-11-21 [默认Provider边界修正](audits/settings/README.md#默认应用-provider-边界修正)：移除默认AppServiceProvider／bootstrap中的扩展装配及根SiteSettings演示类型；Settings复用已有包发现，在自身Provider登记默认迁移，自定义表／连接跳过。项目指引／规范补充默认骨架边界，新增随Cargo执行的结构回归与Settings／Pay注入拒绝。三库Settings回归、feature关闭／启用的根包发现／迁移与真实HTTP、固定归档全feature严格Clippy／fmt及三语12＋12浏览器通过；支付对应迁移装配由Plan独立在7edd0fbca修正并验收。历史API交付仍对应原固定提交，源码指纹变化后不能复用为新源码导出。已清理本批闲置产物，保留并行改动／日志／全部卷；仅本地提交。
 
 - 2026-11-21 [微信登录统一分组](audits/api-s01/wechat.md)：三入口配置归入 services.wechat.web／official_account／mini_app，类型归入 openrust_socialite::wechat；保留 weixinweb／weixin 与 miniApp 调用，QQ独立，环境前缀统一 WECHAT_，旧配置不再兜底。隔离基线5de45c53b叠加本批改动，Rust1.94专项15／完整Socialite50（真实MySQL8.4.13）／根配置2函数、Artisan、严格全feature Clippy／fmt、三语构建／12＋6普通浏览器及10页Rustdoc方法／源码链接通过；未做完整API导出，真实供应商／真机仍未验。本批target／dist已清，净可用增加5,425,116 KiB，源码／日志／数据卷保留；仅核范围本地提交，不推送。

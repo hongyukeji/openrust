@@ -8,6 +8,8 @@
 cargo build --features reverb
 ```
 
+包自身提供默认服务端配置，启用 feature 不会生成 `config/reverb.rs`。需要应用覆盖时运行 `./artisan vendor:publish --tag=reverb-config`，在 `config/mod.rs` 的模块声明和配置映射中分别加入 `mod reverb;` 与 `("reverb".to_owned(), reverb::load(env)?),`，然后重新构建。显式执行 `init --extensions=reverb` 会发布并登记此配置；重复初始化保留已有定制，除非传入 `--force`。
+
 使用 `REVERB_APP_ID`、`REVERB_APP_KEY` 和 `REVERB_APP_SECRET` 设置监听端与发布端共用的凭据。客户端使用公开密钥和 WebSocket 地址，密钥保留在服务端。
 
 ## 运行服务

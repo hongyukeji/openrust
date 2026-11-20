@@ -16,15 +16,9 @@ mod hashing;
 mod images;
 mod logging;
 mod mail;
-mod oidc;
-#[cfg(feature = "pay")]
-mod pay;
 mod queue;
-mod reverb;
 mod services;
 mod session;
-#[cfg(feature = "settings")]
-mod settings;
 mod sms;
 mod view;
 
@@ -42,10 +36,6 @@ pub(crate) fn load(
     let database = database::load(base_path, env, app.name)?;
     let queue = queue::load(env, &database["default"])?;
     Ok(BTreeMap::from([
-        #[cfg(feature = "settings")]
-        ("settings".to_owned(), settings::load()),
-        #[cfg(feature = "pay")]
-        ("pay".to_owned(), pay::load(env)?),
         ("auth".to_owned(), auth::load(env)?),
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),
@@ -64,9 +54,7 @@ pub(crate) fn load(
             logging::load(base_path, env, app.name)?,
         ),
         ("mail".to_owned(), mail::load(base_path, env, &app.url)?),
-        ("oidc".to_owned(), oidc::load(env)?),
         ("queue".to_owned(), queue),
-        ("reverb".to_owned(), reverb::load(env)?),
         ("services".to_owned(), services::load(env)?),
         (
             "session".to_owned(),

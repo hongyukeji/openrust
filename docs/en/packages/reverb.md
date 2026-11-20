@@ -8,6 +8,8 @@ Build the application with the `reverb` Cargo feature. The feature registers the
 cargo build --features reverb
 ```
 
+The package supplies its own default server configuration; enabling the feature does not create `config/reverb.rs`. For application overrides, run `./artisan vendor:publish --tag=reverb-config`, add `mod reverb;` and `("reverb".to_owned(), reverb::load(env)?),` to the declarations and configuration map in `config/mod.rs`, then rebuild. Explicit `init --extensions=reverb` publishes and registers this configuration. Repeated initialization preserves existing configuration unless `--force` is supplied.
+
 Set `REVERB_APP_ID`, `REVERB_APP_KEY`, and `REVERB_APP_SECRET` to the credentials shared by the listener and publisher. Give clients the public key and WebSocket address. Keep the secret on the server.
 
 ## Running the server

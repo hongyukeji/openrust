@@ -279,6 +279,9 @@ fn merge_config(
     key: &str,
     recursive: bool,
 ) -> ProviderResult {
+    if app.configurationIsCached() {
+        return Ok(());
+    }
     let repository = app.configuration_repository()?;
     if !matches!(&defaults, Value::Object(_) | Value::Array(_)) {
         return Err(Box::new(invalid_package_config(key)));

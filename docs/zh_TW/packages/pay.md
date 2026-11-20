@@ -10,6 +10,8 @@
 cargo run --features pay -- artisan migrate
 ```
 
+套件本身提供預設設定，預設應用不包含 `config/pay.rs`。需要自訂時執行 `./artisan vendor:publish --tag=pay-config`，在 `config/mod.rs` 的模組宣告與設定映射中分別加入 `mod pay;` 與 `("pay".to_owned(), pay::load(env)?),`，然後重新建置。發布預設保留既有檔案，傳入 `--force` 才覆寫；設定快取快照保留所選商戶設定。
+
 `PAY_DRIVER` 設定 `pay.default`，預設 `wechat`。商戶設定放在 `pay.drivers.<name>`，`driver` 為 `wechat` 或 `alipay`。不同商戶或應用 ID 使用不同設定名稱。解析閘道前不存取網路或讀取金鑰檔案。
 
 | 驅動 | 環境變數 |

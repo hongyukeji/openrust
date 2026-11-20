@@ -1,5 +1,5 @@
 #[cfg(feature = "pay")]
-#[path = "../config/mod.rs"]
+#[path = "../vendor/openrust/pay/config/pay.rs"]
 mod config;
 #[cfg(feature = "pay")]
 #[test]
@@ -32,8 +32,7 @@ fn payment_configuration_maps_merchant_credentials_without_reading_key_files() {
     std::fs::write(path.join(".env"), dotenv).unwrap();
     let env =
         openrust::foundation::bootstrap::LoadEnvironmentVariables::bootstrap(&path, None).unwrap();
-    let config = config::load(&path, &env).unwrap();
-    let pay = &config["pay"];
+    let pay = config::load(&env).unwrap();
     assert_eq!(pay["default"], "alipay");
     assert_eq!(pay["drivers"]["wechat"]["mch_id"], "merchant");
     assert_eq!(pay["drivers"]["wechat"]["app_id"], "wx-app");

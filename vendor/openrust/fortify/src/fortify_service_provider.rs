@@ -27,12 +27,14 @@ impl ServiceProvider for FortifyServiceProvider {
             let config = app
                 .container()
                 .get::<dyn openrust::contracts::config::Repository>("config")?;
-            let environment = app.make::<Environment>().await?;
-            self.mergeConfigFrom(
-                app,
-                configuration::load(config.as_ref(), &environment)?,
-                "fortify",
-            )?;
+            if !app.configurationIsCached() {
+                let environment = app.make::<Environment>().await?;
+                self.mergeConfigFrom(
+                    app,
+                    configuration::load(config.as_ref(), &environment)?,
+                    "fortify",
+                )?;
+            }
             openrust_passkeys::PasskeysServiceProvider
                 .register(app)
                 .await?;

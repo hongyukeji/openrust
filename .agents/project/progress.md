@@ -3851,3 +3851,7 @@ macOS ARM64：init14＋Passport10＋Fortify provider3＋配置1，六 feature �
 ## 2026-11-21 默认应用与扩展 Provider 边界
 
 用户指出默认AppServiceProvider提前接入扩展。已定位Settings演示业务／迁移进入默认骨架及Pay沿用的来源；移除根Provider／bootstrap的扩展分支和根SiteSettings演示类型，Settings复用现有包发现并在自身Provider登记默认迁移，自定义表／连接交消费应用管理。项目指引／规范明确默认骨架、包Provider、显式安装器和业务示例的职责，新增随Cargo运行的骨架边界检查及Settings／Pay重新注入拒绝验证。三库Settings回归、关闭／启用设置的真实根包发现与迁移／HTTP、固定归档全feature严格Clippy／fmt及三语指南／浏览器通过，结果见[设置边界修正](audits/settings/README.md#默认应用-provider-边界修正)。并行支付／Socialite改动保留，Pay的对应修正交原Plan对话验收；未推送。
+
+## 2026-11-21 扩展配置归属与缓存边界
+
+完成[默认骨架扩展边界复查及修复](audits/00-01/README.md#扩展配置归属修复与验收2026-11-21)：四包默认配置迁回包目录，显式安装保留应用定制，OIDC业务提供方不再预置；包配置合并及认证环境读取遵守缓存快照。隔离基线81dd7a148的根回归、四模板实际重建、原生完整资源组合安装、三库Settings／Pay定向验收、生成认证应用缓存、全feature严格Clippy／fmt与三语构建／浏览器通过。自有闲置产物净回收10,531,600 KiB，源码／日志／数据库／全部卷保留；并行Cashier未纳入本批，仅核范围本地提交，不推送。

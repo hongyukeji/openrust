@@ -8,9 +8,11 @@
 cargo +1.94.0 build --locked --features oidc --bin main
 ```
 
+启用包时 `oidc.providers` 默认为空。需要显式选用 `work` 示例时，运行 `./artisan vendor:publish --tag=oidc-config`，在 `config/mod.rs` 的模块声明和配置映射中分别加入 `mod oidc;` 与 `("oidc".to_owned(), oidc::load(env)?),`，然后重新构建；也可显式执行 `init --extensions=oidc` 发布并登记该模板。发布默认保留已有文件，传入 `--force` 才覆盖。
+
 ## 供应商配置 {#configuration}
 
-`config/oidc.rs` 提供 `oidc.providers.work`。设置 `OIDC_ISSUER`、`OIDC_CLIENT_ID`、`OIDC_CLIENT_SECRET` 与 `OIDC_REDIRECT_URI`；`OIDC_REPLAY_STORE` 选择重放缓存。不设置 secret 时使用公共客户端认证，否则默认 `client_secret_basic`。需要时显式将 `client_auth` 设为 `client_secret_post` 或 `none`。登记回调 URL 必须精确一致。配置示例：
+发布后的 `config/oidc.rs` 模板提供 `oidc.providers.work`。设置 `OIDC_ISSUER`、`OIDC_CLIENT_ID`、`OIDC_CLIENT_SECRET` 与 `OIDC_REDIRECT_URI`；`OIDC_REPLAY_STORE` 选择重放缓存。不设置 secret 时使用公共客户端认证，否则默认 `client_secret_basic`。需要时显式将 `client_auth` 设为 `client_secret_post` 或 `none`。登记回调 URL 必须精确一致。配置示例：
 
 ```json
 {

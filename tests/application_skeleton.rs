@@ -31,3 +31,34 @@ fn default_application_providers_do_not_preinstall_extensions() {
     assert!(!bootstrap.contains("openrust_"));
     assert!(!bootstrap.contains("cfg(feature"));
 }
+
+#[test]
+fn default_application_does_not_ship_optional_package_configuration() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source = fs::read_to_string(root.join("config/mod.rs")).unwrap();
+    let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
+    let features = manifest
+        .split("[features]")
+        .nth(1)
+        .unwrap()
+        .split("[dependencies]")
+        .next()
+        .unwrap();
+    for line in features
+        .lines()
+        .filter(|line| line.contains("dep:openrust-"))
+    {
+        let name = line.split('=').next().unwrap().trim();
+        assert!(
+            !root.join(format!("config/{name}.rs")).exists(),
+            "optional {name} configuration belongs to its package until explicitly published"
+        );
+        assert!(
+            !source.contains(&format!("mod {name};")),
+            "default loader preinstalls {name}"
+        );
+    }
+    for directory in ["app", "routes"] {
+        check_providers(&root.join(directory));
+    }
+}
