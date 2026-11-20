@@ -37,7 +37,7 @@ fn fortify_acceptance_state(request: &mut openrust::http::Request) -> openrust::
         let session = request.session()?;
         openrust::http::Response::json(openrust::http::StatusCode::OK, serde_json::json!({
             "user":user.map(|u|u.get_auth_identifier()),"email":email,"verified":verified,
-            "csrf":session.token(),"session":session.getId()
+            "csrf":session.token(),"session":session.getId(),"confirmed":session.get("auth.password_confirmed_at")
         }))
     })
 }
@@ -116,7 +116,8 @@ def links(message):
 
 def run():
     source = Path(__file__).resolve().parents[1]
-    assert source.parent.name.startswith("openrust-fortify-install-"), "Use a dedicated archive snapshot"
+    assert source.parent.name.startswith(("openrust-fortify-install-", "openrust-passkeys-")), "Use a dedicated archive snapshot"
+    passkeys = os.environ.get("OPENRUST_TEST_PASSKEYS") == "1"
     target = Path(os.environ["CARGO_TARGET_DIR"])
     binary = target / "debug/main"
     generated = source.parent / "generated"
@@ -128,7 +129,7 @@ def run():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    origin = f"http://127.0.0.1:{port}"
+    origin = f"http://{'localhost' if passkeys else '127.0.0.1'}:{port}"
     env = dict(os.environ, APP_BASE_PATH=str(generated), APP_ENV="testing", APP_DEBUG="false",
                APP_KEY="base64:" + base64.b64encode(b"a" * 32).decode(), APP_URL=origin,
                APP_DISABLED_RUNNERS="queue,schedule,reverb,grpc", APP_PORT=str(port), SERVER_PORT=str(port),
@@ -166,13 +167,16 @@ def run():
         assert "application customization preserved" in customized.read_text()
         assert paths[0].read_bytes() == before
         config = generated / "config/fortify.rs"
-        configured = config.read_text().replace('"views":true', '"views":false').replace('"two-factor-authentication","passkeys"]', '"two-factor-authentication","email-verification"]')
+        features = '"two-factor-authentication","email-verification","passkeys"]' if passkeys else '"two-factor-authentication","email-verification"]'
+        configured = config.read_text().replace('"views":true', '"views":false').replace('"two-factor-authentication","passkeys"]', features)
         assert configured != config.read_text()
         config.write_text(configured)
         routes = generated / "routes/web.rs"
         routes.write_text(routes.read_text().replace('    Route::get("/",', '    Route::get("/fortify-acceptance-state", fortify_acceptance_state)?;\n    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;\n    Route::get("/",') + STATE_ROUTE)
         # Name the frontend reset route through the existing route builder API.
         routes.write_text(routes.read_text().replace('    Route::get("/reset-password/{token}", fortify_acceptance_state).map(|_| ())?;\n    Route::name("password.reset")?;', '    Route::group(openrust::routing::RouteGroup::new(), |router| { router.get("/reset-password/{token}", fortify_acceptance_state)?.name("password.reset"); Ok(()) })?;'))
+        if passkeys:
+            routes.write_text(routes.read_text().replace('    Route::get("/fortify-acceptance-state",', '    #[cfg(feature="fortify")]\n    Route::group(openrust::routing::RouteGroup::new(), |router| { router.r#match(&[openrust::http::Method::POST], "/passkeys-acceptance-cascade", passkeys_acceptance_cascade)?; Ok(()) })?;\n    #[cfg(feature="fortify")]\n    Route::get("/passkeys-acceptance-list", passkeys_acceptance_list)?;\n    Route::get("/passkeys-acceptance-policy/{mode}", passkeys_acceptance_policy)?;\n    Route::get("/fortify-acceptance-state",') + PASSKEY_ROUTES)
         build("fmt", "--all")
         cli("fortify:install")  # Re-check registration after rustfmt.
         build("build", "--offline", "--locked", "--features", "fortify", "--bin", "main")
@@ -249,6 +253,8 @@ def run():
                 other.request("POST", "/login", {"email": "blocked@example.test", "password": "wrong"}, expected=422)
             other.request("POST", "/login", {"email": "blocked@example.test", "password": "wrong"}, expected=429)
             other.request("POST", "/login", {"email": "independent@example.test", "password": "wrong"}, expected=422)
+            if passkeys:
+                subprocess.run([os.environ.get("OPENRUST_NODE_PATH", "node"), str(source / "tests/passkeys_http.mjs"), origin, os.environ["OPENRUST_PASSKEYS_CLIENT_BUNDLE"]], cwd=generated, env=env, check=True, timeout=120)
             server.send_signal(signal.SIGINT)
             assert server.wait(timeout=10) == 0
             server = None
@@ -264,6 +270,44 @@ def run():
         smtp.shutdown()
         smtp.server_close()
 
+
+PASSKEY_ROUTES = r'''
+#[cfg(feature="fortify")]
+fn passkeys_acceptance_list(request: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::database::eloquent::Model;
+        let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
+        let mut query=openrust_fortify::passkeys::Passkey::query().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        query.r#where("user_id","=",openrust::database::Value::from(user.get_auth_identifier()));
+        let records=query.get().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        let values=records.toArray().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        openrust::http::Response::json(openrust::http::StatusCode::OK,values)
+    })
+}
+#[cfg(feature="fortify")]
+fn passkeys_acceptance_cascade(request: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::database::eloquent::Model;
+        let user=openrust::auth::Auth::user(request).await?.ok_or(openrust::http::HttpError::Unauthenticated)?;
+        let key=openrust::database::Value::from(user.get_auth_identifier());
+        let mut user=crate::app::models::User::find(key.clone()).await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.unwrap();
+        user.delete().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        let mut query=openrust_fortify::passkeys::Passkey::query().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        query.r#where("user_id","=",key);
+        let remaining=query.get().await.map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?.len();
+        openrust::http::Response::json(openrust::http::StatusCode::OK,serde_json::json!({"remaining":remaining}))
+    })
+}
+fn passkeys_acceptance_policy(request: &mut openrust::http::Request) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::support::facades::Facade as _;
+        let mode=request.route("mode").unwrap_or_default();
+        let config=openrust::support::facades::Config::getFacadeRoot().map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        config.set("passkeys.timeout",if mode=="expire" {1.into()} else {60000.into()}).map_err(|e|openrust::http::HttpError::Internal{source:Box::new(e)})?;
+        openrust::http::Response::json(openrust::http::StatusCode::OK,true)
+    })
+}
+'''
 
 if __name__ == "__main__":
     run()

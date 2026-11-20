@@ -60,6 +60,9 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
     provider.publishesMigrations(
         app,
         &[(
+            "database/migrations/2024_01_01_000000_create_passkeys_table.rs",
+            include_bytes!("../../passkeys/database/migrations/2024_01_01_000000_create_passkeys_table.rs"),
+        ), (
             "database/migrations/2014_10_12_200000_add_two_factor_columns_to_users_table.rs",
             include_bytes!(
                 "../database/migrations/2014_10_12_200000_add_two_factor_columns_to_users_table.rs"

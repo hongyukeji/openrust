@@ -106,7 +106,7 @@ async fn installer_publishes_registers_and_preserves_application_edits_on_retry(
     let migration_count = std::fs::read_dir(root.0.join("database/migrations"))
         .unwrap()
         .count();
-    assert_eq!(migration_count, 1);
+    assert_eq!(migration_count, 2);
     let path = root.0.join("app/actions/fortify/create_new_user.rs");
     let customized = format!(
         "{}\n// application customization\n",
@@ -127,7 +127,7 @@ async fn installer_publishes_registers_and_preserves_application_edits_on_retry(
         std::fs::read_dir(root.0.join("database/migrations"))
             .unwrap()
             .count(),
-        1
+        2
     );
     assert!(!root.0.join("target").exists());
 }

@@ -1,0 +1,542 @@
+[
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "app-key"
+        },
+        "handle": "0b2c2394640a6fb8add231839fc15267d01fe3aa2493e64727da01e3783575be",
+        "display": "1",
+        "username": "1"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "app-key",
+            "email": "a@example.test"
+        },
+        "handle": "0b2c2394640a6fb8add231839fc15267d01fe3aa2493e64727da01e3783575be",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "app-key",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "0b2c2394640a6fb8add231839fc15267d01fe3aa2493e64727da01e3783575be",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "app-key",
+            "name": "",
+            "email": ""
+        },
+        "handle": "0b2c2394640a6fb8add231839fc15267d01fe3aa2493e64727da01e3783575be",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "base64:YWJjZA=="
+        },
+        "handle": "3c973bb67ee252cc66df397a1c06f1c965501911906531dd973dce032fdf7048",
+        "display": "1",
+        "username": "1"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "base64:YWJjZA==",
+            "email": "a@example.test"
+        },
+        "handle": "3c973bb67ee252cc66df397a1c06f1c965501911906531dd973dce032fdf7048",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "base64:YWJjZA==",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "3c973bb67ee252cc66df397a1c06f1c965501911906531dd973dce032fdf7048",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "base64:YWJjZA==",
+            "name": "",
+            "email": ""
+        },
+        "handle": "3c973bb67ee252cc66df397a1c06f1c965501911906531dd973dce032fdf7048",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "密钥"
+        },
+        "handle": "20c9bb35310f4dc00439692d90222143eba046f58d0ec108dc42414f230a5d69",
+        "display": "1",
+        "username": "1"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "密钥",
+            "email": "a@example.test"
+        },
+        "handle": "20c9bb35310f4dc00439692d90222143eba046f58d0ec108dc42414f230a5d69",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "密钥",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "20c9bb35310f4dc00439692d90222143eba046f58d0ec108dc42414f230a5d69",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 1,
+            "secret": "密钥",
+            "name": "",
+            "email": ""
+        },
+        "handle": "20c9bb35310f4dc00439692d90222143eba046f58d0ec108dc42414f230a5d69",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "app-key"
+        },
+        "handle": "aa391fe16f80a456b7206c19beddb6e8524c1b6ad631c36a100886d74f093eb9",
+        "display": "42",
+        "username": "42"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "app-key",
+            "email": "a@example.test"
+        },
+        "handle": "aa391fe16f80a456b7206c19beddb6e8524c1b6ad631c36a100886d74f093eb9",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "app-key",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "aa391fe16f80a456b7206c19beddb6e8524c1b6ad631c36a100886d74f093eb9",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "app-key",
+            "name": "",
+            "email": ""
+        },
+        "handle": "aa391fe16f80a456b7206c19beddb6e8524c1b6ad631c36a100886d74f093eb9",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "base64:YWJjZA=="
+        },
+        "handle": "4dee71d2e2059c7c9b6f0c1bc065d379be3fc1ab8a80217ce662b162fddb570f",
+        "display": "42",
+        "username": "42"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "base64:YWJjZA==",
+            "email": "a@example.test"
+        },
+        "handle": "4dee71d2e2059c7c9b6f0c1bc065d379be3fc1ab8a80217ce662b162fddb570f",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "base64:YWJjZA==",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "4dee71d2e2059c7c9b6f0c1bc065d379be3fc1ab8a80217ce662b162fddb570f",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "base64:YWJjZA==",
+            "name": "",
+            "email": ""
+        },
+        "handle": "4dee71d2e2059c7c9b6f0c1bc065d379be3fc1ab8a80217ce662b162fddb570f",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "密钥"
+        },
+        "handle": "80a8468fcb4e2d6558bdffb357829b85c6ea730a41a78c6515b1d0ddbb57cb63",
+        "display": "42",
+        "username": "42"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "密钥",
+            "email": "a@example.test"
+        },
+        "handle": "80a8468fcb4e2d6558bdffb357829b85c6ea730a41a78c6515b1d0ddbb57cb63",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "密钥",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "80a8468fcb4e2d6558bdffb357829b85c6ea730a41a78c6515b1d0ddbb57cb63",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": 42,
+            "secret": "密钥",
+            "name": "",
+            "email": ""
+        },
+        "handle": "80a8468fcb4e2d6558bdffb357829b85c6ea730a41a78c6515b1d0ddbb57cb63",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "app-key"
+        },
+        "handle": "32eab68ae222f8ff79571cd27f6f5a241b0910c66e81ff059106581f6977e8b3",
+        "display": "01",
+        "username": "01"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "app-key",
+            "email": "a@example.test"
+        },
+        "handle": "32eab68ae222f8ff79571cd27f6f5a241b0910c66e81ff059106581f6977e8b3",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "app-key",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "32eab68ae222f8ff79571cd27f6f5a241b0910c66e81ff059106581f6977e8b3",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "app-key",
+            "name": "",
+            "email": ""
+        },
+        "handle": "32eab68ae222f8ff79571cd27f6f5a241b0910c66e81ff059106581f6977e8b3",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "base64:YWJjZA=="
+        },
+        "handle": "cb72c37429857220233e6c2ec8e6abb5d558b233fec18ad7225041cd07ff8761",
+        "display": "01",
+        "username": "01"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "base64:YWJjZA==",
+            "email": "a@example.test"
+        },
+        "handle": "cb72c37429857220233e6c2ec8e6abb5d558b233fec18ad7225041cd07ff8761",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "base64:YWJjZA==",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "cb72c37429857220233e6c2ec8e6abb5d558b233fec18ad7225041cd07ff8761",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "base64:YWJjZA==",
+            "name": "",
+            "email": ""
+        },
+        "handle": "cb72c37429857220233e6c2ec8e6abb5d558b233fec18ad7225041cd07ff8761",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "密钥"
+        },
+        "handle": "8527550d0a1b05c8978e7e5adb84b6d1aa81ce0778a72b2c6d35949ad6e0d348",
+        "display": "01",
+        "username": "01"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "密钥",
+            "email": "a@example.test"
+        },
+        "handle": "8527550d0a1b05c8978e7e5adb84b6d1aa81ce0778a72b2c6d35949ad6e0d348",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "密钥",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "8527550d0a1b05c8978e7e5adb84b6d1aa81ce0778a72b2c6d35949ad6e0d348",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "01",
+            "secret": "密钥",
+            "name": "",
+            "email": ""
+        },
+        "handle": "8527550d0a1b05c8978e7e5adb84b6d1aa81ce0778a72b2c6d35949ad6e0d348",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "app-key"
+        },
+        "handle": "7a19a2aaf4c08b01b944d076f810d18747600106c5d3cdca1036b6c15362ec78",
+        "display": "用户-id",
+        "username": "用户-id"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "app-key",
+            "email": "a@example.test"
+        },
+        "handle": "7a19a2aaf4c08b01b944d076f810d18747600106c5d3cdca1036b6c15362ec78",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "app-key",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "7a19a2aaf4c08b01b944d076f810d18747600106c5d3cdca1036b6c15362ec78",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "app-key",
+            "name": "",
+            "email": ""
+        },
+        "handle": "7a19a2aaf4c08b01b944d076f810d18747600106c5d3cdca1036b6c15362ec78",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "base64:YWJjZA=="
+        },
+        "handle": "f976760d99576730dfd9cb76a95cbdc4daa60e926c7613db5185ace744eaf78e",
+        "display": "用户-id",
+        "username": "用户-id"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "base64:YWJjZA==",
+            "email": "a@example.test"
+        },
+        "handle": "f976760d99576730dfd9cb76a95cbdc4daa60e926c7613db5185ace744eaf78e",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "base64:YWJjZA==",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "f976760d99576730dfd9cb76a95cbdc4daa60e926c7613db5185ace744eaf78e",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "base64:YWJjZA==",
+            "name": "",
+            "email": ""
+        },
+        "handle": "f976760d99576730dfd9cb76a95cbdc4daa60e926c7613db5185ace744eaf78e",
+        "display": "",
+        "username": ""
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "密钥"
+        },
+        "handle": "a1a2ca109316d17df11e8fc9c0763b530b1091fb479b22b7412f483ca7859b0a",
+        "display": "用户-id",
+        "username": "用户-id"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "密钥",
+            "email": "a@example.test"
+        },
+        "handle": "a1a2ca109316d17df11e8fc9c0763b530b1091fb479b22b7412f483ca7859b0a",
+        "display": "a@example.test",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "密钥",
+            "name": "名字",
+            "email": "a@example.test"
+        },
+        "handle": "a1a2ca109316d17df11e8fc9c0763b530b1091fb479b22b7412f483ca7859b0a",
+        "display": "名字",
+        "username": "a@example.test"
+    },
+    {
+        "input": {
+            "table": "users",
+            "id": "用户-id",
+            "secret": "密钥",
+            "name": "",
+            "email": ""
+        },
+        "handle": "a1a2ca109316d17df11e8fc9c0763b530b1091fb479b22b7412f483ca7859b0a",
+        "display": "",
+        "username": ""
+    }
+]

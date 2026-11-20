@@ -51,7 +51,7 @@ impl Command for InstallCommand {
                 replace(&path, &previous, &updated)?;
             }
             output.info("Fortify scaffolding installed successfully.");
-            output.info("Rebuild the application, then run pending migrations. Configure views or set fortify.views=false. Passkeys and their migration await API-F02; remove passkeys from features to use API-F01. The default User requires email-verification routes.");
+            output.info("Rebuild the application, then run pending migrations. Configure views or set fortify.views=false. The default User requires email-verification routes.");
             Ok(0)
         })
     }
@@ -163,6 +163,9 @@ fn plan(root: &Path) -> Result<Vec<Edit>, ConsoleError> {
     }
     if !previous.contains("impl openrust_fortify::TwoFactorAuthenticatable for User") {
         updated.push_str("\n#[cfg(feature = \"fortify\")]\nimpl openrust_fortify::TwoFactorAuthenticatable for User {}\n");
+    }
+    if !previous.contains("impl openrust_fortify::passkeys::PasskeyAuthenticatable for User") {
+        updated.push_str("\n#[cfg(feature = \"fortify\")]\nimpl openrust_fortify::passkeys::PasskeyAuthenticatable for User {}\n");
     }
     if !previous.contains("\"two_factor_secret\"")
         || !previous.contains("\"two_factor_recovery_codes\"")

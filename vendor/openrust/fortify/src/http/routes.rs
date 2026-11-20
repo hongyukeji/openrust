@@ -244,6 +244,104 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                 .name("user-password.update");
         }
         if features
+            .enabled(crate::Features::passkeys())
+            .map_err(|_| RoutingError::InvalidAction)?
+        {
+            use openrust_passkeys::http::{
+                PasskeyConfirmationController, PasskeyLoginController,
+                PasskeyRegistrationController,
+            };
+            let confirm = fortify
+                .config
+                .get("fortify-options.passkeys.confirmPassword")
+                .unwrap_or(true.into());
+            let confirm = confirm.as_bool().unwrap_or(true);
+            macro_rules! passkey_route {
+                ($method:expr,$name:expr,$path:expr,$action:expr,$guest:expr,$manage:expr,$throttle:expr) => {{
+                    let route = router.r#match(
+                        &[$method],
+                        &path($name, $path),
+                        ControllerDispatcher::new($action),
+                    )?;
+                    route
+                        .middleware_name(if $guest { guest.clone() } else { auth.clone() })
+                        .name($name);
+                    if $manage && confirm {
+                        route.middleware_name("password.confirm");
+                    }
+                    if $throttle && fortify.truthy("fortify.limiters.passkeys") {
+                        route.middleware_name(format!(
+                            "throttle:{}",
+                            fortify.string("fortify.limiters.passkeys", "")
+                        ));
+                    }
+                }};
+            }
+            passkey_route!(
+                Method::GET,
+                "passkey.login-options",
+                "/passkeys/login/options",
+                PasskeyLoginController::index,
+                true,
+                false,
+                true
+            );
+            passkey_route!(
+                Method::POST,
+                "passkey.login",
+                "/passkeys/login",
+                PasskeyLoginController::store,
+                true,
+                false,
+                true
+            );
+            passkey_route!(
+                Method::GET,
+                "passkey.confirm-options",
+                "/passkeys/confirm/options",
+                PasskeyConfirmationController::index,
+                false,
+                false,
+                true
+            );
+            passkey_route!(
+                Method::POST,
+                "passkey.confirm",
+                "/passkeys/confirm",
+                PasskeyConfirmationController::store,
+                false,
+                false,
+                true
+            );
+            passkey_route!(
+                Method::GET,
+                "passkey.registration-options",
+                "/user/passkeys/options",
+                PasskeyRegistrationController::index,
+                false,
+                true,
+                true
+            );
+            passkey_route!(
+                Method::POST,
+                "passkey.store",
+                "/user/passkeys",
+                PasskeyRegistrationController::store,
+                false,
+                true,
+                true
+            );
+            passkey_route!(
+                Method::DELETE,
+                "passkey.destroy",
+                "/user/passkeys/{passkey}",
+                PasskeyRegistrationController::destroy,
+                false,
+                true,
+                false
+            );
+        }
+        if features
             .enabled(crate::Features::twoFactorAuthentication())
             .map_err(|_| RoutingError::InvalidAction)?
         {

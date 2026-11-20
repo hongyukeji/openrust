@@ -36,7 +36,7 @@ pub(super) fn load(env: &Environment, app: &Value) -> Result<Value, ConfigError>
         |
         | 沿用 Fortify 1.43.0 安装模板，email-verification 默认未启用。
         | 根 User 实现了邮件验证能力，使用它时须启用邮件验证路由。
-        | Passkeys 尚待 API-F02 验收；使用 API-F01 时须移除 passkeys。
+        | Passkeys 使用 WebAuthn；正式环境须配置 HTTPS 与精确允许的 Origin。
         |
         */
         "features":["registration","reset-passwords","update-profile-information","update-passwords","two-factor-authentication","passkeys"]

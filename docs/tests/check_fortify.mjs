@@ -15,7 +15,7 @@ try {
     page.on('pageerror',error=>errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}${base}${lang}/packages/fortify.html`);
     const article=await page.locator('.vp-doc').innerText();
-    for(const term of ['Fortify 1.43.0','API-F01','API-F02','fortify:install','FortifyResourcesServiceProvider','fortify-options.two-factor-authentication','RateLimiter::forAsync','updateFromRequest','current_password:web','Password::default()','password.reset','/two-factor-challenge','/reset-password','/email/verify/{id}/{hash}','confirmed-password-status']) assert(article.includes(term),`${lang}: missing ${term}`);
+    for(const term of ['Fortify 1.43.0','API-F01','API-F02','fortify:install','FortifyResourcesServiceProvider','fortify-options.two-factor-authentication','RateLimiter::forAsync','updateFromRequest','current_password:web','Password::default()','password.reset','/two-factor-challenge','/reset-password','/email/verify/{id}/{hash}','confirmed-password-status','@laravel/passkeys','0.4.1','PasskeyAuthenticatable','Passkeys::useUserModel','/user/passkeys/options','/passkeys/login/options','/passkeys/confirm','PASSKEYS_USER_HANDLE_SECRET','Passkeys::authorizeLoginUsing','AAGUID']) assert(article.includes(term),`${lang}: missing ${term}`);
     assert.equal(await page.locator('.vp-doc h2').count(),11);
     for(const href of await page.locator('.vp-doc a[href]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')))) {
       if(href.startsWith('#') || /^(https?:|mailto:)/.test(href)) continue;

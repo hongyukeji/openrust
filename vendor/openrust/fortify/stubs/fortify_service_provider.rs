@@ -19,6 +19,9 @@ impl ServiceProvider for FortifyServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let fortify = app.make::<Fortify>().await?;
+            app.make::<openrust_fortify::passkeys::Passkeys>()
+                .await?
+                .useUserModel::<User>();
             fortify.registerTwoFactorAuthenticatable::<User>();
             fortify.registerEmailVerification::<User>();
             fortify.registerPasswordReset::<User>();

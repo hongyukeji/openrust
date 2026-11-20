@@ -2,7 +2,7 @@
 
 ## 简介
 
-Fortify 提供认证路由和应用扩展契约，不包含用户界面。本页介绍按 Fortify 1.43.0 验收的 API-F01 实现。Passkeys 及其迁移仍待 API-F02；启动运行时 Provider 前，须从发布配置的功能列表中移除 `passkeys`。
+Fortify 提供认证路由和应用扩展契约，不包含用户界面。本页介绍按 Fortify 1.43.0 验收的 API-F01 认证与 API-F02 Passkeys 生命周期。
 
 ## Fortify 与 Sanctum
 
@@ -17,9 +17,9 @@ cargo +1.94.0 build --locked --features fortify --bin main
 ./target/debug/main artisan fortify:install
 ```
 
-命令发布 `config/fortify.rs`、`app/actions/fortify/`、应用 Provider 和双因素字段迁移，注册 Rust 模块、配置和 Provider，并为默认 User 接入所需能力。已有发布文件会保留；无法识别的源码布局会明确要求手工注册。安装不会执行迁移。
+命令发布 `config/fortify.rs`、`app/actions/fortify/`、应用 Provider、双因素字段与 Passkeys 迁移，注册 Rust 模块、配置和 Provider，并为默认 User 接入所需能力。已有发布文件会保留；无法识别的源码布局会明确要求手工注册。安装不会执行迁移。
 
-修改发布配置：移除 `passkeys`；默认 User 须启用 `email-verification`；配置视图回调或将 `views` 设为 `false`。随后重新编译并迁移：
+修改发布配置：默认 User 须启用 `email-verification`；配置视图回调或将 `views` 设为 `false`。随后重新编译并迁移：
 
 ```sh
 cargo +1.94.0 build --locked --features fortify --bin main
@@ -73,3 +73,36 @@ JSON 重置结果包含翻译后的消息，失败使用验证错误；Web 结�
 `POST /user/confirm-password` 验证 `password` 并记录确认时间。在有效期内，`GET /user/confirmed-password-status` 返回 `{"confirmed":true}`。配置要求时，凭据管理使用 `password.confirm`。应用可通过现有容器替换 `LoginResponse`、`RegisterResponse`、`PasswordUpdateResponse` 和双因素响应等契约；每个应用独立持有自己的替换实现。
 
 ## Passkeys
+
+API-F02 生命周期按 Laravel Passkeys 服务端 0.3.0 实现，并对接已验收的 `@laravel/passkeys` 0.4.1 客户端。`fortify:install` 发布 `passkeys` 表迁移，为默认 User 添加 `PasskeyAuthenticatable`，并在生成 Provider 中注册 `Passkeys::useUserModel::<User>()`。保留 `fortify.features` 中的 `passkeys`，重新构建并执行迁移。自定义 User 实现 `openrust_fortify::passkeys::PasskeyAuthenticatable`，并在应用 Provider 中显式注册。
+
+配置 `fortify.passkeys.relying_party_id`、`allowed_origins`、`user_handle_secret` 与 `timeout`。默认从 `APP_URL` 推导 RP ID 和精确 Origin，密钥读取 `PASSKEYS_USER_HANDLE_SECRET` 并回退到 `APP_KEY`，超时为 60000 毫秒。生产环境使用 HTTPS；开发支持 HTTP localhost。Origin 包含端口，不包含尾部斜杠或路径。轮换应用密钥时保持用户句柄密钥稳定：句柄为模型表名和主键派生的 64 字节十六进制 HMAC-SHA256；更换密钥会改变新注册的句柄。
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| GET | `/user/passkeys/options` | 当前登录用户的注册选项 |
+| POST | `/user/passkeys` | 验证并保存 `name` 和 `credential` |
+| DELETE | `/user/passkeys/{passkey}` | 删除自己的凭据 |
+| GET | `/passkeys/login/options` | 可发现凭据登录选项 |
+| POST | `/passkeys/login` | 验证 `credential`、可选 `remember` 并登录 |
+| GET | `/passkeys/confirm/options` | 限定当前账户的确认选项 |
+| POST | `/passkeys/confirm` | 验证并记录密码确认时间 |
+
+路由沿用 Fortify 的前缀、域名、中间件和 Guard。注册与删除默认要求近期密码确认；`fortify-options.passkeys.confirmPassword=false` 可关闭此管理门禁。生成的 `passkeys` 命名限流对选项按 Session、对提交按凭据 ID 每分钟允许十次。包没有提供 GET 列表路由：在应用已认证的控制器中使用原生关系 `user.passkeys().getResults(&user).await?`，只返回界面所需字段。
+
+固定官方客户端执行真实 WebAuthn 操作：
+
+```js
+import { Passkeys } from '@laravel/passkeys';
+await Passkeys.register({ name: 'My device' });
+await Passkeys.verify({ remember: true });
+await Passkeys.verify({ routes: {
+  options: '/passkeys/confirm/options', submit: '/passkeys/confirm'
+} });
+```
+
+页面须提供 `csrf-token` meta 标签并携带 Session Cookie；配置前缀时覆盖客户端路径。注册 JSON 包含 `status`、`id`、`name`，验证 JSON 包含 `redirect`。Web 请求重定向并闪存注册／删除状态。通过原生容器替换 `passkeys::contracts` 中的四种响应契约。`Passkeys::authorizeLoginUsing` 提供应用内异步授权回调，在密码学验证后执行。原生 `PasskeyRegistered`、`PasskeyVerified`、`PasskeyDeleted` 事件携带用户和已持久化模型的上下文。
+
+注册要求常驻凭据与用户验证，支持 ES256／RS256，证明类型为 none。服务端 Session 将挑战绑定到操作和账户，并强制执行截止时间；原子缓存声明拒绝并发重用，MySQL 行锁保护独立挑战之间的计数器更新与回退检查。多进程部署必须共享 Session 存储以及支持原子 `add` 的缓存；array 驱动覆盖单进程。可发现凭据登录还会检查已存储的用户句柄。服务端状态丢失后须重新发起操作。
+
+已验收范围为上述 Fortify 生命周期。PHP 凭据 JSON 不能直接作为 Rust 凭据存储格式。本实现尚未提供自定义 Passkey 模型选择、AAGUID 名称／图标及独立包资源发布。

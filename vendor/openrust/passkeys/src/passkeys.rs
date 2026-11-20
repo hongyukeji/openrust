@@ -1,0 +1,198 @@
+use crate::{
+    Passkey, PasskeyError, PasskeyResult, WebAuthn,
+    contracts::{PasskeyUser, scalar},
+};
+use openrust::{
+    contracts::{auth::Authenticatable, config::Repository},
+    database::Value,
+    http::{HttpError, HttpFuture, Request},
+};
+use std::{
+    any::Any,
+    marker::PhantomData,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+
+pub type AuthorizeLoginCallback = dyn for<'a> Fn(
+        &'a mut Request,
+        &'a dyn Authenticatable,
+        &'a Passkey,
+    ) -> HttpFuture<'a, Result<bool, HttpError>>
+    + Send
+    + Sync;
+pub struct Passkeys {
+    pub(crate) config: Arc<dyn Repository>,
+    user_model: RwLock<Option<Arc<dyn UserModel>>>,
+    authorize: RwLock<Option<Arc<AuthorizeLoginCallback>>>,
+    routes: AtomicBool,
+}
+#[allow(non_snake_case, reason = "Matches Passkeys configuration API")]
+impl Passkeys {
+    pub fn new(config: Arc<dyn Repository>) -> Self {
+        Self {
+            config,
+            user_model: RwLock::new(None),
+            authorize: RwLock::new(None),
+            routes: AtomicBool::new(true),
+        }
+    }
+    pub fn ignoreRoutes(&self) {
+        self.routes.store(false, Ordering::Relaxed);
+    }
+    pub fn shouldRegisterRoutes(&self) -> bool {
+        self.routes.load(Ordering::Relaxed)
+    }
+    pub fn relyingPartyId(&self) -> PasskeyResult<String> {
+        self.config
+            .get("passkeys.relying_party_id")
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .ok_or(PasskeyError::Configuration("missing RP ID"))
+    }
+    pub fn relyingPartyName(&self) -> PasskeyResult<String> {
+        self.relyingPartyId()
+    }
+    pub fn allowedOrigins(&self) -> PasskeyResult<Vec<String>> {
+        let values = self
+            .config
+            .get("passkeys.allowed_origins")
+            .ok_or(PasskeyError::Configuration("missing origins"))?;
+        let values = values
+            .as_array()
+            .ok_or(PasskeyError::Configuration("origins must be an array"))?;
+        let origins: Vec<_> = values
+            .iter()
+            .filter_map(|v| v.as_str().filter(|s| !s.is_empty()).map(str::to_owned))
+            .collect();
+        if origins.is_empty() {
+            return Err(PasskeyError::Configuration(
+                "at least one allowed origin is required",
+            ));
+        }
+        Ok(origins)
+    }
+    pub fn timeout(&self) -> PasskeyResult<u64> {
+        let timeout = self
+            .config
+            .get("passkeys.timeout")
+            .unwrap_or(60000.into())
+            .as_u64()
+            .filter(|v| *v > 0 && *v <= u64::from(u32::MAX))
+            .ok_or(PasskeyError::Configuration(
+                "timeout must be a positive integer",
+            ))?;
+        Ok(timeout)
+    }
+    pub fn webauthn(&self) -> PasskeyResult<WebAuthn> {
+        WebAuthn::new(
+            &self.relyingPartyId()?,
+            &self.allowedOrigins()?,
+            self.timeout()?,
+        )
+    }
+    pub fn useUserModel<T: PasskeyUser + Clone>(&self) {
+        *self.user_model.write().expect("Passkeys model lock") =
+            Some(Arc::new(Adapter::<T>(PhantomData)));
+    }
+    pub fn authorizeLoginUsing(&self, callback: Option<Arc<AuthorizeLoginCallback>>) {
+        *self.authorize.write().expect("Passkeys callback lock") = callback;
+    }
+    pub async fn allowsLogin(
+        &self,
+        request: &mut Request,
+        user: &dyn Authenticatable,
+        passkey: &Passkey,
+    ) -> Result<bool, HttpError> {
+        let callback = self
+            .authorize
+            .read()
+            .expect("Passkeys callback lock")
+            .clone();
+        match callback {
+            Some(callback) => callback(request, user, passkey).await,
+            None => Ok(true),
+        }
+    }
+    pub(crate) fn account(&self, user: &dyn Authenticatable) -> Result<Account, HttpError> {
+        let model = self.model()?;
+        let secret = self
+            .config
+            .get("passkeys.user_handle_secret")
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .ok_or_else(|| {
+                crate::internal(PasskeyError::Configuration("missing user handle secret"))
+            })?;
+        model.account(user, &secret)
+    }
+    pub(crate) fn model(&self) -> Result<Arc<dyn UserModel>, HttpError> {
+        self.user_model
+            .read()
+            .expect("Passkeys model lock")
+            .clone()
+            .ok_or_else(|| {
+                crate::internal(PasskeyError::Configuration(
+                    "User model must implement the PasskeyUser contract and be registered",
+                ))
+            })
+    }
+    pub(crate) fn string(&self, key: &str, default: &str) -> String {
+        self.config
+            .get(key)
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| default.into())
+    }
+}
+pub(crate) struct Account {
+    pub key: Value,
+    pub handle: String,
+    pub username: String,
+    pub display_name: String,
+}
+pub(crate) trait UserModel: Send + Sync {
+    fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>>;
+    fn account(&self, user: &dyn Authenticatable, secret: &str) -> Result<Account, HttpError>;
+    fn find(
+        &self,
+        key: Value,
+    ) -> HttpFuture<'_, Result<Option<Box<dyn Authenticatable>>, HttpError>>;
+}
+struct Adapter<T>(PhantomData<fn() -> T>);
+impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
+    fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>> {
+        (user as &dyn Any)
+            .downcast_ref::<T>()
+            .cloned()
+            .map(|u| Box::new(u) as Box<dyn Authenticatable>)
+    }
+    fn account(&self, user: &dyn Authenticatable, secret: &str) -> Result<Account, HttpError> {
+        let user = (user as &dyn Any).downcast_ref::<T>().ok_or_else(|| {
+            crate::internal(PasskeyError::Configuration(
+                "User model must implement the registered PasskeyUser contract",
+            ))
+        })?;
+        let key = user
+            .getKey()
+            .filter(|key| scalar(key).is_some())
+            .cloned()
+            .ok_or_else(|| crate::internal(PasskeyError::Format))?;
+        Ok(Account {
+            key,
+            handle: user.getPasskeyUserHandle(secret).map_err(crate::internal)?,
+            username: user.getPasskeyUsername().map_err(crate::internal)?,
+            display_name: user.getPasskeyDisplayName().map_err(crate::internal)?,
+        })
+    }
+    fn find(
+        &self,
+        key: Value,
+    ) -> HttpFuture<'_, Result<Option<Box<dyn Authenticatable>>, HttpError>> {
+        Box::pin(async move {
+            Ok(T::find(key)
+                .await
+                .map_err(crate::internal)?
+                .map(|u| Box::new(u) as Box<dyn Authenticatable>))
+        })
+    }
+}

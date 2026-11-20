@@ -9,11 +9,13 @@
 
 ## 最新交接
 
+- 2026-11-20 API-F02 [Passkeys 生命周期](audits/api-f02/README.md)完成本机计划接口验收：原生迁移／关系／七路由／Guard与确认、固定官方JS、真实Chrome CTAP2／MySQL8.4.13、跨账户与跨Session拒绝、原子挑战消费、独立挑战行锁计数器竞争、期限／删除／级联／限流；48组固定PHP Trait、验证器33／Fortify55／Passkeys5、Rust1.94严格workspace与all-targets三feature Clippy／fmt、根HTTP／Pail／Artisan、最终生成应用关闭feature和三语12＋6浏览器全过。37输入SHA、97新锁定包无旧版本删除及专属清理留证，全部卷保留；本地提交不推送。AAGUID展示、自定义Passkey模型与独立发布尚未提供，继续补齐定制边界与最终主线整合。
+
 - 2026-11-20 API-O01 [OIDC RP](audits/api-o01/README.md)完成本机验收：独立可选包／授权码＋S256／Discovery与JWKS／严格ID Token／UserInfo及归属动作；8算法、4原生＋2真实HTTP／MySQL＋根配置1函数，双副本共享Session与原子重放、同邮箱不合并、Session迁移、错误路径、Rust1.94严格Clippy／fmt、根HTTP／原始Artisan／关闭及三语12＋6浏览器通过。源码与依赖SHA、专属清理留证，全部卷保留，本地提交不推送。继续API-O02双应用浏览器SSO与退出；真实供应商凭据前置保留。
 
 - 2026-11-20 API-S01 [本地归属与HTTP登录示例](audits/api-s01/local-login.md)完成验收：真实Eloquent／数据库Session／双schema，provider＋subject二进制归属、同邮箱不合并、并发／Session固定／CSRF与退出／故障隔离；全包35＋根配置1函数、Rust1.94严格Clippy／fmt、MySQL8.4.13下根HTTP／原始Artisan／关闭、三语12＋6浏览器通过。源码与清理留证，全部卷保留，本地提交不推送。API-S01本机计划范围闭合，真实供应商仍需测试应用凭据；继续独立API-O01／02，完整RP与SSO尚未交付。
 
-- 2026-11-20 API-F01 [安装与整簇验收](audits/api-f01/install.md)完成：fortify:install／默认动作／2FA迁移及回滚，验证器33／Fortify54，生成应用真实HTTP／MySQL8.4.13／三封SMTP／严格Clippy及关闭功能构建，根HTTP／Pail／Artisan和三语12＋6浏览器通过。33份输入SHA与专属产物清理留证，全部数据卷保留；本地提交不推送。API-F02 Passkeys继续，尚未支持；默认配置需移除该feature，最终主线整合仍待。
+- 2026-11-20 API-F01 [安装与整簇验收](audits/api-f01/install.md)完成：fortify:install／默认动作／2FA迁移及回滚，验证器33／Fortify54，生成应用真实HTTP／MySQL8.4.13／三封SMTP／严格Clippy及关闭功能构建，根HTTP／Pail／Artisan和三语12＋6浏览器通过。33份输入SHA与专属产物清理留证，全部数据卷保留；本地提交不推送。当时 API-F02 尚未支持；现已完成的 Passkeys 生命周期见上方最新 API-F02 记录，最终发布整合仍待。
 
 - 2026-11-20 API-S01 [Twitter OAuth1与统一协议入口](audits/api-s01/oauth1.md)实现验收完成：异步临时凭据／真实Session／HMAC-SHA1、两条映射及凭据缓存、严格协议选择；14组固定PHP签名及10种回调对照，全包34＋纯配置1函数、Rust1.94严格Clippy／fmt、MySQL8.4.13下根HTTP／原始Artisan／关闭、三语8章节与12＋6浏览器通过。源码SHA、依赖、接口适配与清理留证，全部卷保留，本地提交不推送；继续本地归属／HTTP登录整合，完整RP与SSO仍待。
 

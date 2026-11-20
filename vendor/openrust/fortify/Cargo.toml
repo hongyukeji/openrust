@@ -11,6 +11,7 @@ version = 1
 providers = true
 
 [dependencies]
+openrust-passkeys = { path = "../passkeys" }
 clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "../framework" }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }

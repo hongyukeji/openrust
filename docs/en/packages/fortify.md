@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Fortify supplies authentication routes and application extension contracts without shipping a user interface. This page covers the verified API-F01 implementation against Fortify 1.43.0. Passkeys and their migration remain pending API-F02; remove `passkeys` from the published feature list before booting the runtime provider.
+Fortify supplies authentication routes and application extension contracts without shipping a user interface. This page covers the verified API-F01 authentication and API-F02 Passkeys lifecycle against Fortify 1.43.0.
 
 ## Fortify and Sanctum
 
@@ -17,9 +17,9 @@ cargo +1.94.0 build --locked --features fortify --bin main
 ./target/debug/main artisan fortify:install
 ```
 
-The command publishes `config/fortify.rs`, `app/actions/fortify/`, the application provider and the two-factor columns migration. It registers their Rust modules, configuration and providers, and adds the default User capability. Existing published files are preserved. Unsupported source layouts fail with a manual registration diagnostic. Installation does not run migrations.
+The command publishes `config/fortify.rs`, `app/actions/fortify/`, the application provider and the two-factor columns and Passkeys migrations. It registers their Rust modules, configuration and providers, and adds the default User capability. Existing published files are preserved. Unsupported source layouts fail with a manual registration diagnostic. Installation does not run migrations.
 
-Edit the published configuration: remove `passkeys`; enable `email-verification` for the default User; provide view callbacks or set `views` to `false`. Then rebuild and migrate:
+Edit the published configuration: enable `email-verification` for the default User; provide view callbacks or set `views` to `false`. Then rebuild and migrate:
 
 ```sh
 cargo +1.94.0 build --locked --features fortify --bin main
@@ -73,3 +73,36 @@ Enable `email-verification` for users implementing `MustVerifyEmail`. Registrati
 `POST /user/confirm-password` verifies `password` and records the confirmation time. `GET /user/confirmed-password-status` returns `{"confirmed":true}` while it remains recent. Credential management uses `password.confirm` when configured. Applications may replace response contracts such as `LoginResponse`, `RegisterResponse`, `PasswordUpdateResponse` and two-factor responses through the existing container; each application owns its replacements.
 
 ## Passkeys
+
+The API-F02 lifecycle uses Laravel Passkeys server 0.3.0 and the tested `@laravel/passkeys` 0.4.1 client. `fortify:install` publishes the `passkeys` table migration, adds `PasskeyAuthenticatable` to the default User, and registers `Passkeys::useUserModel::<User>()` in the generated provider. Keep `passkeys` in `fortify.features`, rebuild and migrate. Custom User models implement `openrust_fortify::passkeys::PasskeyAuthenticatable` and require explicit registration in their application provider.
+
+Set `fortify.passkeys.relying_party_id`, `allowed_origins`, `user_handle_secret` and `timeout`. Defaults derive the RP ID and exact origin from `APP_URL`, use `PASSKEYS_USER_HANDLE_SECRET` with `APP_KEY` fallback, and set a 60000 ms timeout. Production origins require HTTPS; HTTP localhost is supported for development. Origins include their port and exclude trailing slashes and paths. Keep the user handle secret stable when rotating the application key: handles are 64-byte hexadecimal HMAC-SHA256 values derived from the model table and key. Changing that secret changes handles for new registrations.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/user/passkeys/options` | Registration options for the signed-in user |
+| POST | `/user/passkeys` | Validate and store `name` and `credential` |
+| DELETE | `/user/passkeys/{passkey}` | Delete an owned credential |
+| GET | `/passkeys/login/options` | Discoverable login options |
+| POST | `/passkeys/login` | Verify `credential`, optional `remember`, and sign in |
+| GET | `/passkeys/confirm/options` | Options restricted to the current account |
+| POST | `/passkeys/confirm` | Verify and record password confirmation |
+
+Routes inherit Fortify's configured prefix, domain, middleware and guard. Registration and deletion require recent password confirmation by default; `fortify-options.passkeys.confirmPassword=false` disables that management gate. The generated `passkeys` named limiter allows ten requests per minute per session for options and per credential ID for submissions. The package adds no GET listing route: use the native `user.passkeys().getResults(&user).await?` relationship in your authenticated application controller, returning only fields your interface needs.
+
+The fixed official client performs real WebAuthn operations:
+
+```js
+import { Passkeys } from '@laravel/passkeys';
+await Passkeys.register({ name: 'My device' });
+await Passkeys.verify({ remember: true });
+await Passkeys.verify({ routes: {
+  options: '/passkeys/confirm/options', submit: '/passkeys/confirm'
+} });
+```
+
+Supply a `csrf-token` meta tag and the session cookie. Override the client routes when using a prefix. Registration JSON contains `status`, `id` and `name`; verification JSON contains `redirect`. Web requests redirect and flash registration/deletion status. The four response contracts in `passkeys::contracts` may be replaced through the native container. `Passkeys::authorizeLoginUsing` supplies an application-local async authorization hook after cryptographic verification. Native `PasskeyRegistered`, `PasskeyVerified` and `PasskeyDeleted` events carry the user and persisted model context.
+
+Registration requires a resident credential and user verification, with ES256/RS256 and none attestation. Server-side Session state binds the challenge to the operation and account, with an enforced deadline. Atomic cache claims reject concurrent reuse; credential updates use a MySQL row lock to reject counter rollback across independent challenges. Multiple application processes must share both Session storage and a cache supporting atomic `add`; the array drivers cover one process. Discoverable login also checks the stored user handle. Losing the server-side state requires restarting the ceremony.
+
+The verified scope is the Fortify lifecycle above. PHP credential JSON is not a portable Rust credential storage format. Custom Passkey model selection, AAGUID labels/icons and standalone package resource publishing are not provided by this lifecycle implementation.

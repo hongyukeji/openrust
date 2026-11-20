@@ -33,6 +33,57 @@ impl ServiceProvider for FortifyServiceProvider {
                 configuration::load(config.as_ref(), &environment)?,
                 "fortify",
             )?;
+            openrust_passkeys::PasskeysServiceProvider
+                .register(app)
+                .await?;
+            let fallback_url = config.get("app.url").unwrap_or(serde_json::Value::Null);
+            let host = config
+                .get("passkeys.relying_party_id")
+                .unwrap_or(serde_json::Value::Null);
+            for (key, value) in [
+                (
+                    "relying_party_id",
+                    config
+                        .get("fortify.passkeys.relying_party_id")
+                        .unwrap_or(host),
+                ),
+                (
+                    "allowed_origins",
+                    config
+                        .get("fortify.passkeys.allowed_origins")
+                        .or_else(|| config.get("passkeys.allowed_origins"))
+                        .unwrap_or_else(|| serde_json::json!([fallback_url])),
+                ),
+                (
+                    "user_handle_secret",
+                    config
+                        .get("fortify.passkeys.user_handle_secret")
+                        .or_else(|| config.get("passkeys.user_handle_secret"))
+                        .or_else(|| config.get("app.key"))
+                        .unwrap_or(serde_json::Value::Null),
+                ),
+                (
+                    "timeout",
+                    config
+                        .get("fortify.passkeys.timeout")
+                        .or_else(|| config.get("passkeys.timeout"))
+                        .unwrap_or(60000.into()),
+                ),
+                ("guard", config.get("fortify.guard").unwrap_or("web".into())),
+            ] {
+                config.set(&format!("passkeys.{key}"), value)?;
+            }
+            config.set(
+                "passkeys.redirect",
+                config
+                    .get("fortify.redirects.login")
+                    .filter(|v| !v.is_null())
+                    .or_else(|| config.get("fortify.home"))
+                    .unwrap_or("/home".into()),
+            )?;
+            app.make::<openrust_passkeys::Passkeys>()
+                .await?
+                .ignoreRoutes();
             let container = app.container();
             container.singleton::<Fortify, _>(|container| {
                 Ok(Arc::new(Fortify::new(container.get("config")?)))
@@ -193,11 +244,9 @@ impl ServiceProvider for FortifyServiceProvider {
             }
             let features = Features::new(fortify.config.clone());
             if features.enabled(Features::passkeys())? {
-                return Err(std::io::Error::other(format!(
-                    "Fortify feature {} HTTP integration is not implemented",
-                    Features::passkeys()
-                ))
-                .into());
+                app.make::<openrust_passkeys::Passkeys>()
+                    .await?
+                    .webauthn()?;
             }
             self.loadRoutesFrom(app, crate::http::routes::register)?;
             Ok(())

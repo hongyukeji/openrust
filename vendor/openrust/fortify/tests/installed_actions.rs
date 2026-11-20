@@ -27,6 +27,7 @@ impl Clone for app::models::User {
     }
 }
 impl openrust_fortify::TwoFactorAuthenticatable for app::models::User {}
+impl openrust_fortify::passkeys::PasskeyAuthenticatable for app::models::User {}
 
 #[test]
 fn installed_provider_and_actions_are_native_contracts() {

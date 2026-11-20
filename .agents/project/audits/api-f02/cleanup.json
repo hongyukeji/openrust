@@ -1,0 +1,26 @@
+{
+  "before_available_kib": 68073796,
+  "after_available_kib": 78020644,
+  "released_available_kib": 9946848,
+  "removed": [
+    {
+      "path": "/private/tmp/openrust-passkeys-20261120/target",
+      "allocated_kib": 9891536
+    },
+    {
+      "path": "/private/tmp/openrust-passkeys-20261120/client/node_modules",
+      "allocated_kib": 234600
+    },
+    {
+      "path": "/private/tmp/openrust-passkeys-20261120/client/acceptance-dist",
+      "allocated_kib": 28
+    },
+    {
+      "path": "/private/tmp/openrust-passkeys-20261120/source/docs/.vitepress/dist",
+      "allocated_kib": 61348
+    }
+  ],
+  "docker_volumes_before": [],
+  "docker_volumes_after": [],
+  "preserved": "source, generated applications, logs, manifests, shared caches, every database volume"
+}
