@@ -11,6 +11,8 @@
 
 ## 最新交接
 
+- 2026-11-21 [微信双入口与QQ互联](audits/api-s01/tencent.md)完成：采用固定SocialiteProviders的weixin／weixinweb／qq名称、独立应用凭据，复用Socialite与Session；请求内OpenID／UnionID隔离、GET交换／刷新／静默授权／错误与身份拒绝／脱敏已验。Rust1.94的完整Socialite42函数（含真实MySQL本地账户）＋根配置2函数、固定PHP对照／负样本、全workspace/all-targets/all-features严格Clippy／fmt及三语12＋6浏览器通过，集成bb9357b7a。真实微信／QQ应用凭据、扫码与供应商账号授权未验；不自动注册或合并本地账户。独占target／dist已清，全部卷保留；仅本地提交，不推送。
+
 - 2026-11-21 [短信统一管理](audits/06-06/sms-refactor.md#统一短信入口与-vonage-驱动)：按用户无需兼容旧数据及Vonage统一管理授权，移除独立Vonage渠道／消息／路由／配置，统一sms渠道、单一to_sms及SMS_VONAGE_*具名配置；凭据／发件人快照、Unicode、跟踪和回执选项保留。缺失配置明确失败，删除隐式兜底。短信8项、配置1＋init14、三库双队列Worker及原SIGKILL保护、三语12＋6浏览器通过；真实厂商投递未验，既有数据卷保留，仅核范围本地提交。
 
 - 2026-11-21 核心补齐[缓存三驱动与三库入口](audits/03-09/README.md#日常缓存三驱动与三库矩阵)：file、Redis8，以及SQLite／PG18／MySQL8 database实际五项通过，缺少必需服务的三项负例按预期失败；Rust1.94全workspace/all-targets严格Clippy与fmt通过。复用原缓存契约与测试，无新增运行时依赖；最终并行整合另验，全部数据卷保留。

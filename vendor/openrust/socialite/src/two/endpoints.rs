@@ -1,3 +1,7 @@
+use super::abstract_provider::json;
+use crate::{Error, Result};
+use serde_json::Value;
+
 /// Explicit endpoint overrides for self-hosted or controlled protocol services.
 #[derive(Clone)]
 pub struct ProviderEndpoints {
@@ -41,4 +45,23 @@ pub(super) fn mapped(
         raw,
         fields.into_iter().map(|(k, v)| (k.into(), v)).collect(),
     )
+}
+
+pub(super) fn checked(response: openrust::http::client::Response) -> Result<Value> {
+    let value = json(response)?;
+    if !value.is_object()
+        || value.get("error").is_some_and(|v| !v.is_null())
+        || value.get("errcode").is_some_and(|v| v.as_i64() != Some(0))
+        || value.get("ret").is_some_and(|v| v.as_i64() != Some(0))
+    {
+        return Err(Error::InvalidResponse);
+    }
+    Ok(value)
+}
+pub(super) fn identifier<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|v| !v.is_empty())
+        .ok_or(Error::InvalidResponse)
 }

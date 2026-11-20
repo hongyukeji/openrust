@@ -33,6 +33,24 @@ cargo run --features socialite -- artisan serve
 
 `facebook` 使用 `FACEBOOK_CLIENT_ID`、`FACEBOOK_CLIENT_SECRET`、`FACEBOOK_REDIRECT_URI`，默认 scope 为 `email`，固定 Graph 版本为 `v23.0`。`provider.usingGraphVersion("v99.0")` 修改当前请求的授权／token／profile 路径。`fields(vec!["id".into(), "name".into()])` 替换 Graph 字段；`asPopup()`、`reRequest()` 覆写相应可选授权参数。Graph 请求发送 `access_token`、fields，并在 client secret 非空且不等于 `"0"` 时发送 HMAC-SHA256 `appsecret_proof`。授权码交换不指定 Accept，返回保留 `expires`，仅在 `expires_in` 缺失或为 null 时补入，不覆盖已有值。
 
+### 微信与 QQ {#wechat-and-qq}
+
+内置扩展驱动沿用 SocialiteProviders 的名称，配置仍放在 `services`：
+
+| 驱动 | 登录入口 | 环境变量前缀 |
+| --- | --- | --- |
+| `weixinweb` | 微信开放平台网站应用扫码登录 | `WEIXINWEB` |
+| `weixin` | 微信公众号内网页授权 | `WEIXIN` |
+| `qq` | QQ 互联网站登录 | `QQ` |
+
+每组前缀后配置 `_CLIENT_ID`、`_CLIENT_SECRET`、`_REDIRECT_URI`。微信分别填写对应应用的 AppID 和 AppSecret，QQ 填写 QQ 互联应用凭据。两种微信入口分别注册应用、设置相应的授权回调域名或网页授权域名，不能混用凭据。
+
+沿用下方跳转／回调示例，把 `github` 换为对应驱动即可。网站扫码使用 `snsapi_login`，公众号默认使用 `snsapi_userinfo`；公众号静默授权可用 `provider.setScopes(vec!["snsapi_base".into()])`，返回 OpenID，不读取昵称和头像。默认保留 Session state 校验，Web 登录不要调用 `stateless()`。
+
+微信授权码交换会保存当前请求的 OpenID。直接使用 `userFromToken` 时，先调用 `provider.setOpenId(openid)`；授权令牌和 OpenID 必须属于同一应用及用户。QQ 会先查询 OpenID，再读取用户资料；需要 UnionID 时调用 `provider.withUnionId(true)`，该信息还取决于供应商授予的权限。微信与 QQ 的 UnionID 可从 `user.attributes.get("unionid")` 读取，昵称与头像使用标准 User 方法；这些驱动不返回邮箱。
+
+本地账户使用可信的应用／供应商 namespace 加 OpenID 绑定，不单凭昵称或 UnionID 自动合并账户；具体注册和绑定流程由应用决定。网站微信与公众号的 OpenID 不能默认视为相同。`refreshToken` 按各自的刷新端点执行，供应商拒绝、过期、吊销或缺失身份字段会返回错误。协议支持不等于已配置真实供应商账号：部署前需使用各自应用凭据和获准回调完成授权联调。
+
 ## 认证 {#authentication}
 
 在应用 web 组注册跳转和回调 GET 路由。下方回调返回远程身份；映射应用用户及登录本地 Guard 由应用完成。远程账户按供应商和供应商 ID 识别。

@@ -33,6 +33,24 @@ The same client ID, client secret and redirect settings apply to these additiona
 
 `facebook` uses `FACEBOOK_CLIENT_ID`, `FACEBOOK_CLIENT_SECRET` and `FACEBOOK_REDIRECT_URI`, with the default `email` scope and pinned Graph version `v23.0`. `provider.usingGraphVersion("v99.0")` changes this request’s authorization/token/profile paths. `fields(vec!["id".into(), "name".into()])` replaces the Graph fields; `asPopup()` and `reRequest()` override the corresponding optional authorization parameters. Graph requests send `access_token`, fields and an HMAC-SHA256 `appsecret_proof` when the client secret is nonempty and not `"0"`. Code exchange leaves Accept unspecified, and preserves `expires` while filling a missing/null `expires_in` without overwriting an existing value.
 
+### WeChat and QQ {#wechat-and-qq}
+
+The built-in extension drivers use SocialiteProviders names and the existing `services` configuration:
+
+| Driver | Login entry | Environment prefix |
+| --- | --- | --- |
+| `weixinweb` | WeChat Open Platform website QR login | `WEIXINWEB` |
+| `weixin` | WeChat official-account web authorization | `WEIXIN` |
+| `qq` | QQ Connect website login | `QQ` |
+
+Append `_CLIENT_ID`, `_CLIENT_SECRET`, and `_REDIRECT_URI` to each prefix. Use the AppID and AppSecret of the corresponding WeChat application, or the QQ Connect application credentials. Register each WeChat application and its permitted callback or web authorization domain separately; the two entries use separate credentials.
+
+Reuse the redirect and callback examples below, replacing `github` with the driver name. Website QR login uses `snsapi_login`; official-account authorization defaults to `snsapi_userinfo`. For silent authorization, call `provider.setScopes(vec!["snsapi_base".into()])` on `weixin`; this returns OpenID without fetching a nickname or avatar. Keep the default Session state validation for browser login and avoid `stateless()`.
+
+WeChat code exchange retains OpenID in the current request. Before direct `userFromToken` calls, use `provider.setOpenId(openid)` with the OpenID belonging to that token and application. QQ resolves OpenID before fetching the profile; request UnionID with `provider.withUnionId(true)`, subject to provider permissions. Read UnionID from `user.attributes.get("unionid")` and use standard User methods for nickname and avatar. These drivers do not return email.
+
+Bind local accounts using a trusted application/provider namespace and OpenID. Nicknames or UnionID alone do not authorize automatic account merging. Website and official-account OpenIDs must not be assumed identical. Applications own registration and binding flows. `refreshToken` uses each provider's refresh endpoint; rejected, expired, revoked, or incomplete identity responses return errors. Production setup requires real application credentials, an approved callback, and an authorization test with the provider.
+
 ## Authentication {#authentication}
 
 Register GET routes for the redirect and callback in your application’s web group. The callback returns the remote identity below; mapping it to an application user and logging that user into a local guard belong to the application. Identify a remote account by provider and provider ID.

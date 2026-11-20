@@ -1,0 +1,195 @@
+{
+    "weixin": {
+        "fields": {
+            "appid": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "response_type": "code",
+            "scope": "snsapi_userinfo",
+            "state": "fixed-state"
+        },
+        "auth": "https://open.weixin.qq.com/connect/oauth2/authorize?appid=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&response_type=code&scope=snsapi_userinfo&state=fixed-state#wechat_redirect",
+        "token_fields": {
+            "appid": "client",
+            "code": "fixed-code",
+            "grant_type": "authorization_code",
+            "secret": "private-secret"
+        },
+        "user": {
+            "id": "id-fixed",
+            "nickname": "读者",
+            "name": null,
+            "email": null,
+            "avatar": "https://images.test/weixin",
+            "raw": {
+                "openid": "id-fixed",
+                "unionid": "union-id",
+                "nickname": "读者",
+                "headimgurl": "https://images.test/weixin"
+            },
+            "attributes": {
+                "id": "id-fixed",
+                "unionid": "union-id",
+                "nickname": "读者",
+                "avatar": "https://images.test/weixin",
+                "name": null,
+                "email": null
+            }
+        },
+        "calls": [
+            [
+                "https://api.weixin.qq.com/sns/oauth2/access_token",
+                {
+                    "query": {
+                        "appid": "client",
+                        "code": "fixed-code",
+                        "grant_type": "authorization_code",
+                        "secret": "private-secret"
+                    }
+                }
+            ],
+            [
+                "https://api.weixin.qq.com/sns/userinfo",
+                {
+                    "query": {
+                        "access_token": "private-token",
+                        "openid": "id-fixed",
+                        "lang": "zh_CN"
+                    }
+                }
+            ]
+        ]
+    },
+    "weixinweb": {
+        "fields": {
+            "appid": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "response_type": "code",
+            "scope": "snsapi_login",
+            "state": "fixed-state"
+        },
+        "auth": "https://open.weixin.qq.com/connect/qrconnect?appid=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&response_type=code&scope=snsapi_login&state=fixed-state#wechat_redirect",
+        "token_fields": {
+            "appid": "client",
+            "code": "fixed-code",
+            "grant_type": "authorization_code",
+            "secret": "private-secret"
+        },
+        "user": {
+            "id": "id-fixed",
+            "nickname": "读者",
+            "name": null,
+            "email": null,
+            "avatar": "https://images.test/weixin",
+            "raw": {
+                "openid": "id-fixed",
+                "unionid": "union-id",
+                "nickname": "读者",
+                "headimgurl": "https://images.test/weixin"
+            },
+            "attributes": {
+                "id": "id-fixed",
+                "unionid": "union-id",
+                "nickname": "读者",
+                "avatar": "https://images.test/weixin",
+                "name": null,
+                "email": null
+            }
+        },
+        "calls": [
+            [
+                "https://api.weixin.qq.com/sns/oauth2/access_token",
+                {
+                    "query": {
+                        "appid": "client",
+                        "code": "fixed-code",
+                        "grant_type": "authorization_code",
+                        "secret": "private-secret"
+                    }
+                }
+            ],
+            [
+                "https://api.weixin.qq.com/sns/userinfo",
+                {
+                    "query": {
+                        "access_token": "private-token",
+                        "openid": "id-fixed",
+                        "lang": "zh_CN"
+                    }
+                }
+            ]
+        ]
+    },
+    "qq": {
+        "fields": {
+            "client_id": "client",
+            "redirect_uri": "https://rp.test/callback",
+            "scope": "get_user_info",
+            "response_type": "code",
+            "state": "fixed-state"
+        },
+        "auth": "https://graph.qq.com/oauth2.0/authorize?client_id=client&redirect_uri=https%3A%2F%2Frp.test%2Fcallback&scope=get_user_info&response_type=code&state=fixed-state",
+        "token_fields": {
+            "grant_type": "authorization_code",
+            "client_id": "client",
+            "client_secret": "private-secret",
+            "code": "fixed-code",
+            "redirect_uri": "https://rp.test/callback",
+            "fmt": "json"
+        },
+        "user": {
+            "id": "id-fixed",
+            "nickname": "读者",
+            "name": null,
+            "email": null,
+            "avatar": "https://images.test/qq",
+            "raw": {
+                "ret": 0,
+                "nickname": "读者",
+                "figureurl_qq_2": "https://images.test/qq"
+            },
+            "attributes": {
+                "id": "id-fixed",
+                "unionid": "union-id",
+                "nickname": "读者",
+                "name": null,
+                "email": null,
+                "avatar": "https://images.test/qq"
+            }
+        },
+        "calls": [
+            [
+                "https://graph.qq.com/oauth2.0/token",
+                {
+                    "query": {
+                        "grant_type": "authorization_code",
+                        "client_id": "client",
+                        "client_secret": "private-secret",
+                        "code": "fixed-code",
+                        "redirect_uri": "https://rp.test/callback",
+                        "fmt": "json"
+                    }
+                }
+            ],
+            [
+                "https://graph.qq.com/oauth2.0/me",
+                {
+                    "query": {
+                        "fmt": "json",
+                        "access_token": "private-token",
+                        "unionid": 1
+                    }
+                }
+            ],
+            [
+                "https://graph.qq.com/user/get_user_info",
+                {
+                    "query": {
+                        "access_token": "private-token",
+                        "openid": "id-fixed",
+                        "oauth_consumer_key": "client"
+                    }
+                }
+            ]
+        ]
+    }
+}

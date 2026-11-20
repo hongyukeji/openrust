@@ -15,6 +15,21 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     |
     */
     Ok(json!({
+        "weixin": {
+            "client_id": get(env, "WEIXIN_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "WEIXIN_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "WEIXIN_REDIRECT_URI", Value::Null)?,
+        },
+        "weixinweb": {
+            "client_id": get(env, "WEIXINWEB_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "WEIXINWEB_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "WEIXINWEB_REDIRECT_URI", Value::Null)?,
+        },
+        "qq": {
+            "client_id": get(env, "QQ_CLIENT_ID", Value::Null)?,
+            "client_secret": get(env, "QQ_CLIENT_SECRET", Value::Null)?,
+            "redirect": get(env, "QQ_REDIRECT_URI", Value::Null)?,
+        },
         "facebook": {
             "client_id": get(env, "FACEBOOK_CLIENT_ID", Value::Null)?,
             "client_secret": get(env, "FACEBOOK_CLIENT_SECRET", Value::Null)?,

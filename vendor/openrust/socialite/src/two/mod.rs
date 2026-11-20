@@ -33,3 +33,10 @@ pub use google_provider::GoogleProvider;
 
 mod facebook_provider;
 pub use facebook_provider::FacebookProvider;
+
+mod qq_provider;
+mod weixin_provider;
+mod weixin_web_provider;
+pub use qq_provider::QqProvider;
+pub use weixin_provider::WeixinProvider;
+pub use weixin_web_provider::WeixinWebProvider;

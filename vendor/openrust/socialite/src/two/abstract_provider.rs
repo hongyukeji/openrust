@@ -53,6 +53,8 @@ pub struct ProviderOptions {
     pub popup: bool,
     pub reRequest: bool,
     pub expectedNonce: Option<String>,
+    pub openId: Option<String>,
+    pub withUnionId: bool,
 }
 /// Driver protocol customization, shared across request-owned provider instances.
 pub trait ProviderDefinition: Send + Sync {
@@ -89,6 +91,31 @@ pub trait ProviderDefinition: Send + Sync {
     }
     fn normalizeTokenResponse(&self, response: Value, _botUser: bool) -> Result<Value> {
         Ok(response)
+    }
+    /// Override non-standard token transports while retaining the shared state validation.
+    fn getAccessTokenResponse<'a>(
+        &'a self,
+        _http: &'a Factory,
+        _config: &'a ProviderConfig,
+        _fields: &'a Value,
+    ) -> Option<ProviderFuture<'a, Value>> {
+        None
+    }
+    fn refreshTokenResponse<'a>(
+        &'a self,
+        _http: &'a Factory,
+        _config: &'a ProviderConfig,
+        _refreshToken: &'a str,
+    ) -> Option<ProviderFuture<'a, Value>> {
+        None
+    }
+    /// Stores protocol context in the request-owned options, never in the shared driver.
+    fn configureTokenResponse(
+        &self,
+        _response: &Value,
+        _options: &mut ProviderOptions,
+    ) -> Result<()> {
+        Ok(())
     }
     fn getUserByToken<'a>(
         &'a self,
@@ -232,6 +259,14 @@ impl<'a> AbstractProvider<'a> {
     }
     pub fn withNonce(&mut self, nonce: impl Into<String>) -> &mut Self {
         self.options.expectedNonce = Some(nonce.into());
+        self
+    }
+    pub fn setOpenId(&mut self, openId: impl Into<String>) -> &mut Self {
+        self.options.openId = Some(openId.into());
+        self
+    }
+    pub fn withUnionId(&mut self, value: bool) -> &mut Self {
+        self.options.withUnionId = value;
         self
     }
     pub fn lastToken(&self) -> Option<&str> {
@@ -415,18 +450,45 @@ impl<'a> AbstractProvider<'a> {
         } else {
             self.definition.tokenBasicAuth()
         };
-        let response = self.post(&Value::Object(fields), basic, true).await?;
+        let fields = Value::Object(fields);
+        let custom = match self
+            .definition
+            .getAccessTokenResponse(&self.http, &self.config, &fields)
+        {
+            Some(response) => Some(response.await?),
+            None => None,
+        };
+        let response = match custom {
+            Some(response) => response,
+            None => self.post(&fields, basic, true).await?,
+        };
+        let response = self
+            .definition
+            .normalizeTokenResponse(response, self.botUser)?;
         self.definition
-            .normalizeTokenResponse(response, self.botUser)
+            .configureTokenResponse(&response, &mut self.options)?;
+        Ok(response)
     }
     pub async fn refreshToken(&mut self, refreshToken: &str) -> Result<Token> {
         let mut fields = serde_json::json!({"grant_type":"refresh_token","refresh_token":refreshToken,"client_id":self.config.client_id});
         if self.definition.refreshTokenIncludesSecret() {
             fields["client_secret"] = self.config.client_secret.as_str().into();
         }
-        let response = self
-            .post(&fields, self.definition.tokenBasicAuth(), false)
-            .await?;
+        let custom =
+            match self
+                .definition
+                .refreshTokenResponse(&self.http, &self.config, refreshToken)
+            {
+                Some(response) => Some(response.await?),
+                None => None,
+            };
+        let response = match custom {
+            Some(response) => response,
+            None => {
+                self.post(&fields, self.definition.tokenBasicAuth(), false)
+                    .await?
+            }
+        };
         let response = self
             .definition
             .normalizeRefreshTokenResponse(response, refreshToken)?;

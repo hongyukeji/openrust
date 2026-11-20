@@ -1,0 +1,12 @@
+{
+  "laravel/src/Contracts/User.php": "30a6c0719c2a2623d6b8b1c74b77c9f8080a09fac2409961d8927ffa3e268768",
+  "laravel/src/AbstractUser.php": "36c66afff21126d6b29a92919c942ba901ea5ebafcbf862ab888be973297eee2",
+  "laravel/src/Two/User.php": "f3d05bf8ceb09e19c3757f3f167df78490503853c11ac02283f3013c409aec93",
+  "laravel/src/Contracts/Provider.php": "2f212d98dd12cc6cf624786fdd7474bac278de3e89e5a518f1fcb6b1f62cbe44",
+  "laravel/src/Two/ProviderInterface.php": "5b9b990585248b34f545456cd2f9e3218d274b7052c5493dc436d17635e8e267",
+  "laravel/src/Two/AbstractProvider.php": "a3f186fd96d1a92bdeb0da17379c547808b534bd4f9eda16adda064401d755d5",
+  "laravel/src/Two/Token.php": "4ae3e408183daeb323d66a64f6abbd4a8551b0a9f0c44798297fd32c018e6431",
+  "WeChat/Provider.php": "6021a77f43e94f37ee69218e0a8b80f8f7b0894c4e84a6572b365143ed35d926",
+  "WeChat-Web/Provider.php": "7fc1cbd1fd623c662a3d57b4d65aca2374ec846e0eb41bb340a4efc408b3a5b3",
+  "QQ/Provider.php": "ac481a8b8d89d40596ecae36a1d742f375c90582eea54b22be2080a0ebb8953c"
+}

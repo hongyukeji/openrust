@@ -3,7 +3,8 @@ use crate::{
     two::{
         AbstractProvider, BitbucketProvider, FacebookProvider, GithubProvider, GitlabProvider,
         GoogleProvider, LinkedInOpenIdProvider, LinkedInProvider, ProviderConfig,
-        ProviderDefinition, SlackOpenIdProvider, SlackProvider, TwitterProvider, XProvider,
+        ProviderDefinition, QqProvider, SlackOpenIdProvider, SlackProvider, TwitterProvider,
+        WeixinProvider, WeixinWebProvider, XProvider,
     },
 };
 use openrust::{
@@ -84,6 +85,13 @@ impl SocialiteManager {
                 "google" => {
                     Some(Arc::new(GoogleProvider::default()) as Arc<dyn ProviderDefinition>)
                 }
+                "weixin" => {
+                    Some(Arc::new(WeixinProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "weixinweb" => {
+                    Some(Arc::new(WeixinWebProvider::default()) as Arc<dyn ProviderDefinition>)
+                }
+                "qq" => Some(Arc::new(QqProvider::default()) as Arc<dyn ProviderDefinition>),
                 "github" => {
                     Some(Arc::new(GithubProvider::default()) as Arc<dyn ProviderDefinition>)
                 }
